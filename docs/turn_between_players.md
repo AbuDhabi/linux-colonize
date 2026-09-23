@@ -62,7 +62,7 @@ Order EN→FR→SP→DU; skip `human_nation` and withdrawn (`player.control==2`)
 | Step | Linux | DOS |
 |------|-------|-----|
 | Set active + MP refresh | `turn_set_active_nation` / `turn_refresh_moves_for_nation` | spent clear is mid-pass in `130d`; MP refresh at act entry |
-| Treasure tick | `units_tick_treasure_outside_colony` | `FUN_3844_0004` |
+| Lone-Convert tick | `units_tick_convert_outside_colony` | `FUN_3844_0004` — ages unit +0x16 for a solitary @JOB 27 Convert on an open tile; >8 removes it (AI owner: silently) |
 | Planner | `ai_euro_nation_turn` → `ai_euro_dispatcher_turn` | `FUN_521d_6d8e` after `3844_00f2` |
 
 ### `TURN_PROC_INDIAN` (indicator on; one nation 4..11 per frame)
@@ -92,7 +92,7 @@ when the king runs (bugs.md #394/404/407).
 | Year-end chrome | `turn_run_year_end_chrome` | `FUN_3844_0442` section B (thin) |
 | Europe market | `europe_tick_market_prices` + one `@PRICEUP`/`@PRICEDOWN` OK dialog per cargo that crossed | `FUN_38fd_0058` (sibling of nation EOT `38fd_5e52`), phase 4 |
 | Human fog + MP refresh | `turn_reveal_fog_for_nation` + `turn_refresh_moves_for_nation` | Human refresh at act entry |
-| Human ticks | `units_tick_treasure_outside_colony`, `units_tick_ship_build_ready` (`@CARGOREADY0`), `units_tick_drydock_repair`, `turn_route_damaged_ships`, King's Galleon offer | Human treasure inside that nation’s `00f2`; `FUN_465b_0000` → `FUN_5fef_1908` for the Galleon |
+| Human ticks | `units_tick_convert_outside_colony` (`@DEADCONVERTS`), `units_tick_ship_build_ready` (`@CARGOREADY0`), `units_tick_drydock_repair`, `turn_route_damaged_ships`, King's Galleon offer | Human Convert expiry inside that nation’s `00f2`; `FUN_465b_0000` → `FUN_5fef_1908` for the Galleon |
 | Select next unit | `turn_select_next_unit_awaiting_orders` (plain `turn_select_next_unit` + the Fortified/Sentry skip) | Return to Move Pieces / focus |
 | Autosave flags | decade Spring → slot 8 else 9 | `FUN_130d_0172` |
 
@@ -165,7 +165,7 @@ Major thunks (catalog):
 | SETUP production | `364b_0688` in `00f2` | `turn_run_colony_production` | **Partial** — birth/starve **Done**; AI dump-sell **Done** thin; education F–G+no-students **Done** thin; K craft+raw+`5384` gates **Done** thin; map [`colony_eot_production.md`](../original_sources_annotated/turn/colony_eot_production.md) |
 | SETUP fort fire | `364b_03f6` | `turn_run_coastal_fort_fire` | **Done** |
 | SETUP nation ticks | Europe/census crumbs | `turn_run_nation_ticks` | **Partial** — human+AI bells/crosses accrue; [`europe_nation_eot.md`](../original_sources_annotated/turn/europe_nation_eot.md), [`census_tally.md`](../original_sources_annotated/turn/census_tally.md), [`nation_ticks_bells_ff.md`](../original_sources_annotated/turn/nation_ticks_bells_ff.md) |
-| EURO treasure | `3844_0004` | `units_tick_treasure_outside_colony` | **Partial** |
+| EURO lone Convert | `3844_0004` | `units_tick_convert_outside_colony` | **Done** — type 0 + @JOB 27, in bounds, no settlement on tile, stack < 2; +0x16 > 8 despawns, human owner gets `@DEADCONVERTS` (0xee2 mode 4). No DOS site expires a Treasure train (bugs.md #725) |
 | EURO ship-build ready | `00f2` unit walk | `units_tick_ship_build_ready` | **Partial** — progress/clear construction bit7 + threshold=`defense`/`0x5235` **Done** thin; dialog chrome PARKED |
 | EURO Drydock repair | colony EOT | `units_tick_drydock_repair` | **Done** — clears combat-damage bit7 on finished ships at own Drydock; `@REFIT` chrome Done thin; after ship-build tick |
 | EURO fog reveal | `281f_07a0` in `00f2` | `turn_reveal_fog_for_nation` | **Done** — every Euro nation's unit walk (human at KING, AI at its EURO step), full `13f1_0158` side effects via `units_reveal_sight`; colony radius-2 invention removed (DOS reveals ±5 only at founding) |

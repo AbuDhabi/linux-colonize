@@ -5406,6 +5406,25 @@ void game_select_unit(ColonizeGameState* game, int unit_id) {
    * — same identity mismatch reported for the Naval report's passenger
    * label, fixed there the same way. */
   snprintf(game->status, sizeof(game->status), "Selected %s", units_display_name(&game->units, u));
+  /*
+   * DOS-LITERAL FUN_2b5a_001e raw 42006-42009 (overlay twin
+   * FUN_OVL02_L0000__000070, overlays.c 55586-55590) — bugs.md #730. Tail of
+   * the piece-selected hint chain: with DS:0x5380 bit 0x80 clear and the
+   * piece being @UNIT type 0 with @JOB 0x1b (Indian Convert), raise
+   * FUN_1000_8842(0x912, 4) = @TUTORIAL19 and latch the bit. Once per game;
+   * it does not block anything. The latch is COL1 head tut1 bit7 (nr19), so
+   * it round-trips through the save.
+   */
+  if (game->col1_ok && !game->col1.head.tut1.nr19 &&
+      units_type_kind(units_type(&game->units, u->type_index)) == UNITS_KIND_COLONIST &&
+      u->profession == UNITS_JOB_CONVERT) {
+    game->col1.head.tut1.nr19 = 1;
+    PopupMsgTokens ttok;
+    memset(&ttok, 0, sizeof(ttok));
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(&game->messages, "TUTORIAL19", &ttok, "", body, sizeof(body));
+    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+  }
 }
 
 static bool game_friendly_colony_at(const ColonizeGameState* game, int x, int y) {
@@ -5512,7 +5531,16 @@ COLONIZE_INTERNAL GameMoveStep game_move_passenger_unload(
     }
     const int ship_id = selected->aboard_ship_id;
     if (!units_unload_passenger_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, ship_id, sid, dest_x, dest_y)) {
-      set_status(game, "Cannot disembark here", NULL);
+      /*
+       * bugs.md #721: DOS FUN_4720_015c reason 9 (viceroy_unpacked_2.c raw
+       * 74720-74728) is a BLOCKING dialog, not a status line — the
+       * FUN_4720_049e jump table at 4720:060a maps it to `push 0x1429` =
+       * @LANDFIRST ("Land units cannot enter an enemy occupied square from on
+       * board a ship."). The probe inside units_unload_passenger_w already
+       * raises COLONIZE_ENTER_LANDFIRST; route it through the shared reporter
+       * the way every other refused step does.
+       */
+      game_report_enter_reason(game, sid, units_last_enter_reason());
       return GAME_MOVE_RETURN_FALSE;
     }
     game->units.selected_id = sid;
@@ -5532,6 +5560,18 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
     const bool dest_water = map_tile_is_water(&game->world_map, dest_x, dest_y);
     const bool dest_land = map_tile_is_land(&game->world_map, dest_x, dest_y);
     /*
+     * DOS 4720 reason 4 (bugs.md #717): a ship pushed off the east/west rim
+     * runs reason 5's own UI body (jump table 4720:060a entries 3 and 4 are
+     * the same 0x3FEA6), so it is the SAME @SAILHOME / @EUROPENOTLEAVE
+     * question. Only the tail differs (0x3FEEA `cmp [0x9e4e],4` → abort at
+     * 0xfff2): "No" must not commit the step. game_commit_sea_lane_step
+     * re-probes and the off-map destination refuses it, which is exactly
+     * that abort — so the shared handler below needs no reason split.
+     */
+    const bool edge_sail =
+      !dest_water && !dest_land &&
+      units_enter_probe_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, selected->type_index, dest_x, dest_y, sid) == COLONIZE_ENTER_EDGE_SAIL;
+    /*
      * DOS 4720 reason 5 (FUN_4720_049e case 4, asm 0x3FEA6): an eastward
      * step deeper into the sea lane without a sail order is NOT a hard deny
      * — it asks @SAILHOME ("Shall we sail for Europe?"). Yes → sail; No →
@@ -5539,8 +5579,9 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
      * fully traversable, bugs.md). During the WoI, @EUROPENOTLEAVE info
      * fires instead and the step still commits (DS:0x5382 bit0 gate).
      */
-    if (dest_water &&
-        units_enter_probe_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, selected->type_index, dest_x, dest_y, sid) == COLONIZE_ENTER_BLOCKED_HS_SAIL) {
+    if (edge_sail ||
+        (dest_water &&
+        units_enter_probe_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, selected->type_index, dest_x, dest_y, sid) == COLONIZE_ENTER_BLOCKED_HS_SAIL)) {
       if (game->col1_ok && game->col1.head.game_options.woi) {
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(
@@ -5672,11 +5713,20 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
             set_status(game, "Move blocked", NULL);
             return GAME_MOVE_RETURN_FALSE;
           }
-          /* Ship spends the coastal order; passenger charged in unload. */
-          if (selected->moves > 0) {
-            selected->moves -= UNITS_MP_PER_TILE;
-            if (selected->moves < 0) {
-              selected->moves = 0;
+          /*
+           * bugs.md #716: landfall costs the SHIP nothing. DOS's reason 2/3
+           * body (FUN_4720_049e, viceroy_ndisasm.asm 0x3FE30-0x3FE6A) takes
+           * the CHOICE, and on "Make Landfall" (ax == 2) only pushes the
+           * picked passenger index [0x9e50] into FUN_281f_086c to make it the
+           * active unit, then walks the ship's cargo chain clearing order
+           * bytes — the ship neither moves nor has its spent byte touched.
+           * The passenger's own landfall step spends its whole allotment,
+           * exactly as game_apply_popup_voyage's twin does.
+           */
+          {
+            ColonizeUnit* pax = units_get(&game->units, pax_ready);
+            if (pax) {
+              pax->moves = 0;
             }
           }
           game->units.selected_id = pax_ready;
@@ -5951,14 +6001,17 @@ COLONIZE_INTERNAL GameMoveStep game_move_native_prompts(
         (int)ti
       );
       if (ai_contact_meet_pending_for_unit(&game->ai_popups, sid)) {
-        if (!combatish) {
-          /* Peaceful Meet from adjacent — spend a step, stay put. */
-          const int cost = units_move_cost(&game->units, sid, &game->world_map, dest_x, dest_y);
-          selected->moves -= cost > 0 ? cost : 1;
-          if (selected->moves < 0) {
-            selected->moves = 0;
-          }
-        }
+        /*
+         * bugs.md #722: no step charge here. FUN_465b_0000 dispatches the
+         * village tile at raw 75484-75492 — FUN_281f_06f0(dest) >= 0 →
+         * FUN_2a1f_016c → FUN_4d56_4528, `goto LAB_465b_0bd1` — which is
+         * BEFORE LAB_465b_05ca, the only place local_40 is ever added to
+         * +0x3149. The single MP consequence is 4528's own tail
+         * (OVL13:0x4c0a), which forfeits the WHOLE allotment and which
+         * ai_contact.c already reproduces for every unit kind. The port's
+         * extra pre-charge double-billed the non-combat mover.
+         */
+        (void)combatish;
         set_status(game, "Village…", NULL);
         game_after_unit_action(game);
         return GAME_MOVE_RETURN_TRUE;
@@ -6713,43 +6766,54 @@ static void game_auto_assign_new_colonist(ColonizeGameState* game, int colony_id
 }
 
 /*
- * ORDERS Join Colony: admit selected land unit on an owned colony tile into
- * the population; otherwise open the colony screen at the cursor (legacy).
+ * ORDERS Join Colony — DOS-LITERAL FUN_2b5a Build/Join handler join branch,
+ * asm 0x227b2-0x227d9 (bugs.md #688 / #689 / #690):
+ *   - @NOCOLONIESEITHER (asm 0x2256d) gates the SHARED handler, so it blocks
+ *     Join exactly as it blocks Build;
+ *   - `cmp [colony*0xca + 0x5d60],[0x5394]` — a colony owned by anyone else
+ *     is a silent no-op, NOT "open the colony screen";
+ *   - FUN_291f_01ec (the admit) returning nonzero is a silent bail too; the
+ *     32-colonist cap lives inside it (overlays.c:10252-10255) and raises no
+ *     popup. @FULL has no DS tag in docs/popup_tag_ids.md and no push of one
+ *     anywhere near this handler — it belongs to the Europe immigration
+ *     path, not to Join;
+ *   - on success DOS calls FUN_281f_0e1c(1) (next unit) and does NOT open
+ *     the colony screen.
  */
 static void game_join_colony_order(ColonizeGameState* game) {
   if (!game || !game->units_ok || !game->colonies_ok) {
     set_status(game, "Cannot join colony", NULL);
     return;
   }
+  if (game_woi_blocks_colony_orders(game)) {
+    return;
+  }
   const int sid = game->units.selected_id;
   const ColonizeUnit* u = units_get_const(&game->units, sid);
-  if (u && u->active && units_is_on_map(u) && !units_is_sea(&game->units, sid)) {
-    const int cid = colonies_id_at(&game->colonies, u->x, u->y);
-    const ColonizeColony* col = colonies_get(&game->colonies, cid);
-    if (col && col->nation_id == game->human_nation) {
-      if (col->colonist_count >= COLONIZE_COLONY_POP_MAX) {
-        set_status(game, "Colony full", NULL);
-        colonies_emit_full_chrome(col, &game->ai_popups, &game->messages);
-        return;
-      }
-      const int ci = colonies_admit_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL)}, cid, sid);
-      if (ci >= 0) {
-        game_auto_assign_new_colonist(game, cid, ci);
-        game->units.selected_id = -1;
-        snprintf(
-          game->status,
-          sizeof(game->status),
-          "Joined %s",
-          col->name[0] ? col->name : "colony"
-        );
-        game_wait_next_unit(game);
-        return;
-      }
-      set_status(game, "Cannot join colony", NULL);
-      return;
-    }
+  if (!u || !u->active || !units_is_on_map(u) || units_is_sea(&game->units, sid)) {
+    return;
   }
-  game_enter_colony_at_cursor(game);
+  const int cid = colonies_id_at(&game->colonies, u->x, u->y);
+  const ColonizeColony* col = colonies_get(&game->colonies, cid);
+  if (!col || col->nation_id != game->human_nation) {
+    return; /* asm 0x227be: wrong owner (or no colony) = silent return */
+  }
+  if (col->colonist_count >= COLONIZE_COLONY_POP_MAX) {
+    return; /* overlays.c:10252-10255 bails without a word */
+  }
+  const int ci = colonies_admit_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL)}, cid, sid);
+  if (ci < 0) {
+    return;
+  }
+  game_auto_assign_new_colonist(game, cid, ci);
+  game->units.selected_id = -1;
+  snprintf(
+    game->status,
+    sizeof(game->status),
+    "Joined %s",
+    col->name[0] ? col->name : "colony"
+  );
+  game_wait_next_unit(game); /* FUN_281f_0e1c(1) */
 }
 
 /* One selection: colony colonist index, or admit selected outside unit first. */
@@ -7990,8 +8054,85 @@ static void game_colony_unload_all_cargo(ColonizeGameState* game, int unit_id) {
  * Returns true when the order took; the caller decides whether to advance to
  * the next unit awaiting orders.
  */
+/*
+ * bugs.md #691. FUN_2b5a_1112's head (viceroy_unpacked.c raw 42389-42411):
+ * before writing order 5 a LAND unit (`type < 0x0d || type > 0x12`) walks the
+ * 8 neighbour tiles in DS:0xb4/0xbe order and stops at the first one that is
+ * on the map (FUN_281f_0302), not water (FUN_281f_0768), carries a European
+ * colony whose owner (FUN_281f_0696) is some other nation, AND whose relation
+ * byte has the treaty bit (FUN_281f_0a38 & 0x40). That nation goes into
+ * @HAVETREATY (DS:0x932, FUN_281f_0652(...,1)); an answer other than 2 returns
+ * WITHOUT fortifying, while 2 sets the war bit and clears 0x40 through
+ * FUN_281f_0a10 and then falls into the normal tail.
+ *
+ * Returns true when a confirm is now on the queue and the caller must stop.
+ */
+static bool game_fortify_treaty_confirm(ColonizeGameState* game, int uid) {
+  if (!game || !game->units_ok || !game->col1_ok || uid < 0) {
+    return false;
+  }
+  if (units_is_sea(&game->units, uid)) {
+    return false; /* DOS's `0x0d..0x12` ship gate guards this scan only */
+  }
+  const ColonizeUnit* u = units_get_const(&game->units, uid);
+  if (!u || !u->active || u->nation_id < 0 || u->nation_id > 3) {
+    return false;
+  }
+  if (ai_popup_pending(
+        &game->ai_popups, AI_POPUP_TAG_FORTIFY_TREATY, -1, AI_POPUP_KEY_NATION_A, uid, 0
+      )) {
+    return true;
+  }
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  int partner = -1;
+  for (int d = 0; d < 8; ++d) {
+    const int nx = u->x + dx[d];
+    const int ny = u->y + dy[d];
+    if (!map_in_bounds(&game->world_map, nx, ny) ||
+        map_tile_is_water(&game->world_map, nx, ny)) {
+      continue;
+    }
+    const ColonizeColony* c = colonies_get(&game->colonies, colonies_id_at(&game->colonies, nx, ny));
+    if (!c || !c->active || c->nation_id < 0 || c->nation_id > 3 ||
+        c->nation_id == u->nation_id) {
+      continue;
+    }
+    if ((ai_diplo_read(&game->col1, u->nation_id, c->nation_id) & AI_DIPLO_PEACE) != 0) {
+      partner = c->nation_id;
+      break;
+    }
+  }
+  if (partner < 0) {
+    return false;
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = reports_nation_adjective_display_name(partner);
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(&game->messages, "HAVETREATY", &tok, "", body, sizeof(body));
+  char label_buf[2][POPUP_MSG_CHOICE_LEN];
+  const char* labels[2];
+  (void)popup_msg_section_labels(
+    &game->messages, "HAVETREATY", &tok, "", "", label_buf, labels
+  );
+  static const int ids[2] = {0, 1};
+  if (!ai_popup_enqueue_choice_ctx(
+        &game->ai_popups, AI_POPUP_TAG_FORTIFY_TREATY, uid, partner, 0, NULL, body, labels,
+        ids, 2
+      )) {
+    return false; /* queue full: DOS has no such state, fall through and dig in */
+  }
+  (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_FORTIFY_TREATY);
+  return true;
+}
+
 static bool game_order_fortify(ColonizeGameState* game, int uid) {
   const bool ship = uid >= 0 && game->units_ok && units_is_sea(&game->units, uid);
+  if (game_fortify_treaty_confirm(game, uid)) {
+    set_status(game, "", NULL);
+    return false;
+  }
   if (uid < 0 || !units_order_fortify(&game->units, uid)) {
     set_status(game, ship ? "Cannot anchor" : "Cannot fortify", NULL);
     return false;
@@ -10760,6 +10901,24 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
     return GAME_UPDATE_RETURN_TRUE;
   }
 
+  /*
+   * bugs.md #682: the second half of FUN_479b_076e's tail (raw 77045-77048).
+   * The found flow arms woodcut 2 and then hands the colony id here; DOS's
+   * FUN_281f_0524(2) is blocking, so FUN_281f_0608 runs only once the
+   * woodcut has been dismissed. Nothing else may own the display either —
+   * the same rule game_service_woodcut itself applies one line up.
+   */
+  if (game->found_open_colony_id >= 0) {
+    const int found_cid = game->found_open_colony_id;
+    if (!woodcut_has_pending() && !game->woodcut.open && !game_screen_owns_display(game) &&
+        !new_game_active(&game->new_game) && !game_modal_open(game) &&
+        !ai_popup_busy(&game->ai_popups)) {
+      game->found_open_colony_id = -1;
+      game_enter_colony(game, found_cid);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+  }
+
   /* Same status-line hold once the turn processor is idle (a line queued by
    * the last colony still has to be seen). */
   if (game_service_bar_message(game, input)) {
@@ -13133,6 +13292,10 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
    * always has: an F with nothing selected is not a refusal to report. */
   if (input->last_key == COLONIZE_KEY_F && game->world_map_ok && game->units_ok) {
     const int uid = game->units.selected_id;
+    /* bugs.md #691: the key twin runs the same @HAVETREATY scan as the rows. */
+    if (game_fortify_treaty_confirm(game, uid)) {
+      return GAME_UPDATE_RETURN_TRUE;
+    }
     if (uid >= 0 && units_order_fortify(&game->units, uid)) {
       set_status(
         game, units_is_sea(&game->units, uid) ? "Anchoring in harbor" : "Fortifying", NULL

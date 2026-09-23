@@ -36,7 +36,13 @@ typedef enum ColonizeEnterReason {
   COLONIZE_ENTER_BOARD = 13, /* land → ocean tile with own ship that has room */
   COLONIZE_ENTER_VILLAGE_SHIP = 14, /* ship → native village (not landfall); 4528 abort */
   COLONIZE_ENTER_LAKE_BLOCKED = 15, /* ship → inland lake square; GAME.TXT @SHIPLAKE */
-  COLONIZE_ENTER_LANDFIRST = 16 /* ship → enemy-occupied land, must unload first; @LANDFIRST */
+  COLONIZE_ENTER_LANDFIRST = 16, /* ship → enemy-occupied land, must unload first; @LANDFIRST */
+  /*
+   * 4720 reason 4 (bugs.md #717): a SHIP pushed off the east/west rim. Shares
+   * reason 5's UI body (@SAILHOME / @EUROPENOTLEAVE) but its tail aborts the
+   * step instead of committing it — "No" leaves the ship where it stands.
+   */
+  COLONIZE_ENTER_EDGE_SAIL = 17
 } ColonizeEnterReason;
 
 ColonizeEnterReason units_enter_probe_w(

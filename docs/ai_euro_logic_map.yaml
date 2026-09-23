@@ -502,11 +502,7 @@ graphs:
         fn: ai_euro.c:ai_euro_06ae_first_colony_from_landfall
         dos: FUN_521d_06ae site pick (20e6 unload placement 89587 / landing ~85045)
         status: structural
-      - id: sec_h
-        kind: loop
-        label: "H: idle land founders (Pioneer/Colonist, not mid-improve, not Soldier) → per-unit nearest FOUND primary"
-        fn: ai_goals.c:ai_goals_best_found_tile_near
-        status: linux
+        note: "Section H used to follow this node: `ai_euro_colony_goals_bind_founders`, an uncited loop that stamped an AI_MOVE goto at ai_goals_best_found_tile_near on every idle on-map Pioneer/Colonist. Deleted 2026-09-23, bugs.md #707 — DOS binds a unit to a goal only in FUN_521d_0a60's consumption tail (+0x314c = 0x0b, +0x314d/e), and FOUND eligibility there needs unit+0x3148 bit 2, granted (raw 87511-87514 via 8aac/0d38 case 3) only from a Pioneer or a military unit in the unit's own stack, so a lone Colonist never takes a FOUND goal. The DOS type-0 arms are the FUN_521d_20e6 labor arm, the explore ring and the become-a-Pioneer fall-through (raw 89350-89357), all in the move_scoring_gate graph."
       - id: end
         kind: end
         label: return
@@ -530,8 +526,7 @@ graphs:
       - [sec_f, producers]
       - [producers, sec_g]
       - [sec_g, ship_found]
-      - [ship_found, sec_h]
-      - [sec_h, end]
+      - [ship_found, end]
 
   # ---------------------------------------------------------------------
   - id: goal_orders
@@ -1123,8 +1118,9 @@ graphs:
         note: "Ported 2026-09-18e (bugs.md #522). Replaces three uncited early returns that used to stand here — 'passive colony Artillery', 'military name on own colony' and 'colony wants construction labor' — siblings of the at-war bail deleted 2026-09-18b; they parked every armed unit standing on one of its own colonies, so the whole land-arms branch (and with it the LAB_4d2e attack term) was unreachable for exactly the units that fight. DOS: order 'A' stays (LAB_5899); fewer than two armed units in the tile chain (attack > 1, type not in [0xd,0x12], not 4, not 8) garrisons — colony.labor_shortage--, order_code 0x47, stay; two or more sets local_8e = 1 and falls straight into LAB_4d2e, skipping LAB_277a and every arm hanging off it. local_2e == 0 ('distance to the nearest own colony is zero') is how DOS spells 'standing on an own colony'; colony +0x8e is labor_shortage; types 4 (Dragoons) and 8 (Cavalry) never garrison and are not counted. 2026-09-22 (bugs.md #554): every LAB_5899 stay of this arm now exits through the shared tail LAB_521d_589e (raw 90378-90386, ai_euro_20e6_stay_tail_589e): +0x314f = 8 and +0x314c forced into the fortify family (5, or 6 when +0x3148 & 2), so a garrison unit that still carries a stale course is no longer dispatched by the goal drain, which keys on +0x314c alone. DOS leaves +0x314d/e untouched on this arm."
       - id: no_colony
         kind: decision
-        label: Nation has no colony and unit is a Pioneer/Colonist?
+        label: Nation has no colony and unit is a Pioneer/Colonist? — local 06ae-shaped pick used as this act's walk target only
         dos: FUN_521d_06ae settle-where-landed
+        note: "bugs.md #708, 2026-09-23: the `ai_goals_upsert_primary(nation, lx, ly, AI_GOAL_FOUND, 7)` this arm used to write is deleted. FUN_521d_20e6 contains no goal-table writer anywhere in its body — the tables are written only by FUN_521d_0a60 and the 0906 producers — and the priority 7 was a bare constant with no DOS origin. The 06ae-shaped local pick is kept as the walk target for this act (part of the #530 fitted opening scaffolding, untouched here)."
       - id: gate_4d2e
         kind: decision
         label: "Pre-LAB_4d2e gate — courseless unit, or a foreigner on one of the eight neighbours?"
@@ -1174,6 +1170,7 @@ graphs:
         fn: ai_euro.c:ai_euro_20e6_ring_hop
         dos: LAB_2912→2a59 ring scan; raw 2416-2458 ring hop (+0x3155/+0x3156)
         status: dos
+        note: "bugs.md #683, ported 2026-09-23: the ring scan's own commit tail is now live. Raw 89272-89275 — `if (0 < local_c) { if (local_6a != 0) { if (best != own tile) goto LAB_521d_27f5; *(param_1 * 0x1c + 0x314c) = 7; goto LAB_521d_5a78; } }` — writes act_state 7 (UNITS_ORDER_BUILD_COLONY) when the best-scoring site is the tile the unit already stands on. It is the only AI writer of act_state 7 in the image, and it is what makes the two readers of that byte live: this scan's own raw-89182 reject (a candidate ring holding another unit already committed to 7 is skipped) and the human @TOONEARBUILD scan at raw 45670. 20e6 then returns 0 (raw 90445) and FUN_521d_5b66 dispatches its switch case 7 = FUN_1000_93ea = FUN_479b_076e (found colony) in the same call — ported as the act_state-7 consumer at the move-scoring-gate exit in ai_euro_unit_act, which calls ai_euro_found_with_unit. Port-only guard: a tile that refuses the colony resets the unit to act_state 5 rather than leaving it wedged behind 20e6's entry bail (raw 88404-88406)."
       - id: wander
         kind: step
         label: 8-direction wander scorer (stay = 8)

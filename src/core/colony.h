@@ -450,6 +450,12 @@ bool colonies_can_found(
   int y
 );
 
+/* Next default colony name for a nation without consuming it (bugs.md #682). */
+const char* colonies_peek_next_name(const ColonizeColonyPool* pool, int nation_id);
+
+/* Active colonies owned by a nation — DOS byte `nation + 0x9298` (bugs.md #681). */
+int colonies_nation_settlement_count(const ColonizeColonyPool* pool, int nation_id);
+
 /*
  * Found a colony. founder_type_index < 0 skips population (tests).
  * founder_profession is NAMES.TXT @JOB skill (UNITS_JOB_NONE if unskilled).

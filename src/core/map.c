@@ -2010,9 +2010,11 @@ int map_move_cost_at(const ColonizeWorldMap* map, int x, int y) {
    * terrain cost (smell_audit_2026-09-09 #97).
    */
   int spent = map_dos_terr_cost_byte(map_dos_terr_class_at(map, x, y));
-  if (spent > 100) {
-    spent = 1; /* table 255 sentinel */
-  }
+  /* bugs.md #718: no ">100 → 1" sentinel exists in DOS. FUN_465b_0000
+   * (raw 75450-75467) writes local_40 four times — terr_cost*3, the
+   * both-FA road pair, the both-river cardinal pair and the settlement
+   * cap 3 — and never tests the table byte for a sentinel. The clamp was
+   * this port's invention and is dead for every real class 0..28 anyway. */
   if (spent < 1) {
     spent = 1;
   }
@@ -2051,9 +2053,7 @@ int map_move_spent_thirds(
       spent > 3) {
     spent = 3;
   }
-  if (spent > 100) {
-    spent = 1;
-  }
+  /* bugs.md #718: DOS has no >100 sentinel clamp (raw 75450-75467). */
   return spent < 1 ? 1 : spent;
 }
 
@@ -2089,9 +2089,7 @@ int map_move_cost_step(
       spent > 1) {
     spent = 1;
   }
-  if (spent > 100) {
-    spent = 1;
-  }
+  /* bugs.md #718: DOS has no >100 sentinel clamp (raw 75450-75467). */
   if (spent < 1) {
     spent = 1;
   }

@@ -316,9 +316,35 @@ UnitChromeCorner unit_chrome_corner_for_type(int dos_unit_type_id, bool damaged)
   return UNIT_CHROME_CORNER_BOTTOM_RIGHT;
 }
 
+/* bugs.md #705 — see unit_chrome.h for the raw 2148-2172 transcription. */
+int unit_chrome_repair_badge_index(
+  int dos_unit_type_id, bool damaged, int repair_threshold, int repair_counter, bool halve
+) {
+  if (!damaged || dos_unit_type_id == 0x0b) {
+    return -1;
+  }
+  int n = repair_threshold - repair_counter;
+  if (halve) {
+    n = (n + 1) >> 1;
+  }
+  if (n < 0) {
+    n = 0; /* DOS would print a control glyph; the countdown never goes < 0 */
+  }
+  if (n > 10) {
+    n = 10; /* 10 == the '+' slot */
+  }
+  return UNIT_CHROME_ORDERS_REPAIR_BASE + n;
+}
+
 char unit_chrome_order_letter(int orders_index, int nation_id) {
   if (!g_orders_loaded) {
     unit_chrome_init_defaults();
+  }
+  /* bugs.md #705: the digit arm is DOS's last write to the badge char, so it
+   * overrides the @ORDERS letter (and the natives clamp below) outright. */
+  if (orders_index >= UNIT_CHROME_ORDERS_REPAIR_BASE) {
+    const int n = orders_index - UNIT_CHROME_ORDERS_REPAIR_BASE;
+    return n < 10 ? (char)('0' + n) : '+';
   }
   if (nation_id > 3) {
     orders_index = 0;

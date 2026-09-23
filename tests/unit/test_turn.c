@@ -1186,6 +1186,25 @@ static int refresh_does_not_tick_pioneer_work(void) {
   turn_refresh_moves_for_nation_w(&w, 1, NULL, NULL);
 
   int rc = 0;
+  /*
+   * bugs.md #713: the moves-spent byte is cleared by a single DOS day-top
+   * pass over EVERY unit of EVERY nation (FUN_4d56_1b3a raw 6355-6357), not
+   * by the per-nation refresh. The refresh must leave it alone; the day-top
+   * helper must clear both nations at once.
+   */
+  hu->mp_spent_turn = 1;
+  au->mp_spent_turn = 1;
+  turn_refresh_moves_for_nation_w(&w, 0, NULL, NULL);
+  if (hu->mp_spent_turn != 1 || au->mp_spent_turn != 1) {
+    fprintf(stderr, "#713: the per-nation refresh must not clear the spent byte\n");
+    rc = 1;
+  }
+  turn_clear_mp_spent_all_nations(&pool);
+  if (hu->mp_spent_turn != 0 || au->mp_spent_turn != 0 ||
+      hu->aboard_moves != -1 || au->aboard_moves != -1) {
+    fprintf(stderr, "#713: the day-top pass must clear every nation's spent byte\n");
+    rc = 1;
+  }
   if (hu->col1_counter16 != 0 || hu->orders != UNITS_ORDER_CLEAR_PLOW) {
     fprintf(
       stderr, "#626: refresh ticked the human pioneer (counter=%u orders=%d)\n",

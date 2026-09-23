@@ -140,14 +140,20 @@ static bool run(void) {
   printf("  colony founded on turn %u\n", game_turn_number(g_game));
   render("map with colony");
 
-  /* Colony screen: Enter with cursor on the colony tile (founder stands there). */
-  if (!game_in_colony_screen(g_game)) {
+  /*
+   * Colony screen. bugs.md #682: DOS FUN_479b_076e raw 77043-77048 runs the
+   * blocking "Building a Colony" woodcut and only THEN FUN_281f_0608, so the
+   * screen comes up by itself once the woodcut is dismissed — the founder's
+   * own Enter is never needed. A few frames cover the dismiss plus the
+   * deferred open in game_update_services.
+   */
+  for (int i = 0; i < 8 && !game_in_colony_screen(g_game); ++i) {
     if (!frame(COLONIZE_KEY_ENTER)) return fail("enter colony");
   }
   if (!game_in_colony_screen(g_game)) {
     int cx = 0, cy = 0;
     if (!game_colony_pos(g_game, 0, &cx, &cy)) return fail("colony pos");
-    return fail("colony screen did not open on Enter");
+    return fail("colony screen did not open after the found woodcut");
   }
   render("colony screen");
   if (!frame(COLONIZE_KEY_ESCAPE)) return fail("leave colony");
@@ -156,7 +162,8 @@ static bool run(void) {
   }
   if (game_in_colony_screen(g_game)) return fail("colony screen did not close on Esc");
 
-  /* Europe screen. */
+  /* Europe screen. bugs.md #682: the founding woodcut now plays before the
+   * colony screen, so nothing is parked over the map here and one E lands. */
   if (!frame(COLONIZE_KEY_E)) return fail("E key");
   if (!game_in_europe_screen(g_game)) return fail("Europe screen did not open");
   render("Europe screen");

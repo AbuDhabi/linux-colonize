@@ -687,9 +687,17 @@ static const char* map_panel_nationality(int nation_id) {
   return map_panel_tribe_short(nation_id);
 }
 
+/*
+ * bugs.md #702: FUN_49dd_0424 prints the @UNIT name of the unit's live TYPE
+ * byte (`0x5230 + type*0xe`, raw 78859-78861 / 79215-79219). DOS rewrites
+ * that byte when a colonist is armed or mounted, so the sidebar says
+ * "Dragoons", not the stored base row. The port keeps arming in separate
+ * muskets/horses fields, and units_display_name is the accessor that folds
+ * them back into the DOS display type.
+ */
 static const char* map_panel_unit_type_name(const ColonizeUnitPool* units, const ColonizeUnit* u) {
-  const ColonizeUnitType* t = (units && u) ? units_type(units, u->type_index) : NULL;
-  return (t && t->name[0]) ? t->name : "Unit";
+  const char* n = (units && u) ? units_display_name(units, u) : NULL;
+  return (n && n[0]) ? n : "Unit";
 }
 
 /* NAMES.TXT @CARGO name, for the Pioneers tool line (DS:0x97dc). */
@@ -1348,6 +1356,17 @@ void map_panel_render_w(
   if (selected && !selected->active) {
     selected = NULL;
   }
+  /*
+   * bugs.md #704: raw 78751-78755. DOS arms the selected-unit block with
+   * `local_4 = (*(int*)0x5390 == 0)` and then clears it again when
+   * `(unit.nation & 0xf) != *(byte*)0x5396 && *(int*)0x53a2 == 0` — another
+   * nation's unit falls through to the plain tile-info block unless the
+   * Complete Map cheat is on. fog_nation IS DS:0x5396 here, and
+   * game_fog_nation() hands out -1 for Complete Map (= 0x53a2 set).
+   */
+  if (selected && fog_nation >= 0 && fog_nation <= 3 && selected->nation_id != fog_nation) {
+    selected = NULL;
+  }
   const int info_x = selected ? selected->x : cursor_x;
   const int info_y = selected ? selected->y : cursor_y;
   const bool tile_seen = map ? map_tile_seen_by(map, info_x, info_y, fog_nation) : true;
@@ -1384,7 +1403,12 @@ void map_panel_render_w(
     int side_y = icon_y + 2;
     char line[72];
     char mp_text[16];
-    units_format_mp(selected->moves, mp_text, sizeof(mp_text));
+    /* bugs.md #703: raw 78817-78824 prints FUN_281f_090c(unit) (the @UNIT
+     * moves allotment in thirds) minus the unit's spent byte +0x3149,
+     * clamped at 0 — not the raw field. `->moves` holds REMAINING for Euros
+     * but SPENT for natives in this port, so the raw read was inverted for
+     * every Brave. units_remaining_mp is that DOS subtraction. */
+    units_format_mp(units_remaining_mp(units, selected->id), mp_text, sizeof(mp_text));
     snprintf(line, sizeof(line), "%s %s", panel ? panel->label_moves : "", mp_text);
     map_panel_draw_line(font, framebuffer, indent_x, &side_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
     snprintf(

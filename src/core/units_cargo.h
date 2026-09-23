@@ -39,18 +39,18 @@ int units_spawn_treasure_train(
 );
 
 /*
- * FUN_3844_0004 EOT treasure tick: Treasure on map not on own Euro colony
- * increments col1_counter16 (COL1 unit+0x16); after >8 turns despawn. On own
- * colony tile resets counter to 0. Returns number of Treasures removed.
- * Optional status receives a short line when any despawn. Cite:
- * FUNCTION_CATALOG FUN_3844_0004; Colonization.pdf Treasure Trains.
+ * FUN_3844_0004 (raw 58268) EOT tick — bugs.md #725. A lone Indian Convert
+ * (@UNIT type 0 + @JOB 27) standing in the open, with no settlement on its
+ * tile and nothing else in its stack, ages unit +0x16 (col1_counter16) and is
+ * removed once that byte exceeds 8. Returns the number removed; the caller
+ * raises @DEADCONVERTS (tag 0xee2, mode 4) once per removal when the owner is
+ * human-controlled. Nothing here touches Treasure trains — no DOS site expires
+ * one.
  */
-int units_tick_treasure_outside_colony(
+int units_tick_convert_outside_colony(
   ColonizeUnitPool* pool,
-  const ColonizeColonyPool* colonies,
-  int nation_id,
-  char* status,
-  size_t status_size
+  const ColonizeWorldMap* map,
+  int nation_id
 );
 
 /*

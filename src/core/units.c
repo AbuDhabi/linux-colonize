@@ -721,12 +721,29 @@ int units_spawn_treasure_train(
   return id;
 }
 
-int units_tick_treasure_outside_colony(
+/* DOS-LITERAL FUN_3844_0004 raw 58268 (bugs.md #725)
+ *
+ * The per-nation EOT tick this slot always held is NOT a Treasure-train
+ * expiry — no DOS site ages or despawns a type-0x0a Treasure outside a colony
+ * (byte tally over every `+0x3146 == '\n'` site and every `+0x315a` writer in
+ * viceroy_unpacked.c / viceroy_overlays.c found none). 3844_0004 walks the
+ * unit slot and gates on:
+ *   FUN_281f_0302(x,y)              tile in bounds
+ *   +0x3146 == 0                    @UNIT type 0 (Colonists)
+ *   +0x315b == 0x1b                 @JOB 27 (Indian Convert)
+ *   FUN_281f_06be(x,y) < 0          no settlement on the tile (layer2 & 2,
+ *                                   colony OR village, any owner)
+ *   FUN_281f_08bc(unit,2) < 2       FUN_1427_0d38 case 2 stack size < 2,
+ *                                   i.e. the Convert stands alone
+ * then `+0x315a += 1` and, once that byte exceeds 8, removes the unit
+ * (FUN_281f_0808). For a human-controlled owner it also repaints the tile and
+ * raises FUN_281f_0652(0xee2, 4) = @DEADCONVERTS; for an AI owner the unit
+ * just vanishes. There is no reset arm: the counter only ever climbs.
+ */
+int units_tick_convert_outside_colony(
   ColonizeUnitPool* pool,
-  const ColonizeColonyPool* colonies,
-  int nation_id,
-  char* status,
-  size_t status_size
+  const ColonizeWorldMap* map,
+  int nation_id
 ) {
   if (!pool || nation_id < 0 || nation_id > 3) {
     return 0;
@@ -737,40 +754,37 @@ int units_tick_treasure_outside_colony(
     if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
       continue;
     }
-    const ColonizeUnitType* ty = units_type(pool, u->type_index);
-    if (!units_type_is_treasure(ty)) {
+    if (units_type_kind(units_type(pool, u->type_index)) != UNITS_KIND_COLONIST) {
       continue;
     }
-    int on_own_colony = 0;
-    if (colonies) {
-      const int cid = colonies_id_at(colonies, u->x, u->y);
-      if (cid >= 0) {
-        const ColonizeColony* c = colonies_get(colonies, cid);
-        if (c && c->active && c->nation_id == nation_id) {
-          on_own_colony = 1;
-        }
+    if (u->profession != UNITS_JOB_CONVERT) {
+      continue;
+    }
+    /* FUN_281f_0302 */
+    if (!map || !map_in_bounds(map, u->x, u->y)) {
+      continue;
+    }
+    /* FUN_281f_06be < 0 — layer2 bit 1 carries colonies and villages alike. */
+    if (map_tile_has_city(map, u->x, u->y)) {
+      continue;
+    }
+    /* FUN_1427_0d38 case 2: total stack size at the tile. */
+    int stack = 0;
+    for (int j = 0; j < COLONIZE_UNITS_MAX; ++j) {
+      const ColonizeUnit* o = &pool->units[j];
+      if (o->active && o->aboard_ship_id < 0 && o->x == u->x && o->y == u->y) {
+        stack++;
       }
     }
-    if (on_own_colony) {
-      u->col1_counter16 = 0;
+    if (stack >= 2) {
       continue;
     }
-    /* FUN_3844_0004: unit+0x16++; remove when > 8. */
-    if (u->col1_counter16 < 255) {
-      u->col1_counter16++;
-    }
+    u->col1_counter16 = (u->col1_counter16 + 1) & 0xff;
     if (u->col1_counter16 <= 8) {
       continue;
     }
     (void)units_despawn(pool, u->id);
     removed++;
-  }
-  if (removed > 0 && status && status_size > 0) {
-    snprintf(
-      status,
-      status_size,
-      "A Treasure Train was lost after too long outside a colony."
-    );
   }
   return removed;
 }
@@ -2174,6 +2188,7 @@ const char* units_enter_reason_status(ColonizeEnterReason reason) {
   case COLONIZE_ENTER_BLOCKED_DOMAIN:
     return "Wrong terrain";
   case COLONIZE_ENTER_BLOCKED_EDGE:
+  case COLONIZE_ENTER_EDGE_SAIL: /* bugs.md #717 */
     return "Map edge";
   case COLONIZE_ENTER_BLOCKED_HS_SAIL:
     return "Need sail order for high seas";
@@ -2305,20 +2320,19 @@ int units_best_defender_at(
   sctx.units = pool;
 
   /*
-   * bugs.md: the picker looked "random" for two reasons. (1) A colony-armed
-   * soldier is stored as a Colonists-TYPE unit with muskets — the type-attack
-   * combat-role gate skipped it, so a stack of armed colonists fell through
-   * to the fallback. (2) That fallback was units_foreign_unit_at = first unit in
-   * POOL ORDER, which happily handed an unarmed colonist to the attacker.
-   * Now: two tiers. Armed (combat-role type OR carrying muskets/horses) are
-   * ranked by full engagement strength and always outrank everyone; unarmed
-   * units are ranked in a second tier and defend only when no armed unit is
-   * left on the tile.
+   * bugs.md #677 (Colonist audit): DOS FUN_5fef_0000 (OVL17 asm 0x0091-0x0166)
+   * has ONE ranking, not an armed/unarmed two-tier:
+   *   score = ((015e(cand, attacker) & 0xff) << 8) - 004a(cand, 0) + 0xff
+   * The attack-byte skip (asm 0x0091-0x00b5) runs only when local_6 != 0 =
+   * FUN_281f_0696 Euro-settlement owner >= 0 (a colony on the tile). On open
+   * ground an attack-0 unit is a full-rank candidate, so a Fortified Colonist
+   * outranks an unfortified Scout. Ties update on `>=` (JNC at 0x0152): the
+   * last candidate in bucket order wins.
    */
   int best_id = -1;
-  int best_score = -1;
-  int best_soft_id = -1;
-  int best_soft_score = -1;
+  unsigned best_score = 0;
+  const int on_colony_tile = g_units_combat_colonies &&
+                             colonies_id_at(g_units_combat_colonies, x, y) >= 0;
   /*
    * DOS FUN_5fef_0000 domain gate, verbatim (viceroy_unpacked.c 99137-99147
    * + 99186-99195):
@@ -2380,14 +2394,17 @@ int units_best_defender_at(
       continue;
     }
     /*
-     * "Armed" = the DOS combat-role question in this port's body/kit model:
-     * `units_is_combat_role` (type attack byte > 0 OR carried muskets/horses).
-     * This used to be open-coded as `combat_unit_is_combat_role(...) ||
-     * muskets || horses`, a third spelling of the same predicate (smell audit
-     * 2026-09-09 #12); the two are identical, so fold to the named one.
+     * Colony-tile attack-0 skip (asm 0x009a-0x00b5): DOS reads the @UNIT
+     * attack byte; the port's body/kit model spells that as
+     * units_is_combat_role (type attack > 0 OR carried muskets/horses).
      */
-    const int armed = units_is_combat_role(pool, u) ? 1 : 0;
-    int score = combat_engagement_strength(&sctx, u->id, attacker_id, NULL);
+    if (on_colony_tile && !units_is_combat_role(pool, u)) {
+      continue;
+    }
+    const int base = combat_unit_base_x8(&sctx, u->id, 0, NULL);
+    const int eng = combat_engagement_strength(&sctx, u->id, attacker_id, NULL);
+    /* asm 0x00dd-0x00e5: MOV AH,AL ; SUB AL,AL ; SUB AX,SI ; ADD AX,0xff */
+    int score = (int)(((unsigned)eng & 0xffu) << 8) - base + 0xff;
     const ColonizeUnitType* t = units_type(pool, u->type_index);
     /*
      * DOS FUN_5fef_0000 artillery arm (OVL17 asm 0x0f5..0x11c). The gate is
@@ -2416,32 +2433,16 @@ int units_best_defender_at(
         score >>= 3;
       }
     }
-    if (armed) {
-      if (score > best_score) {
-        best_score = score;
-        best_id = u->id;
-      }
-    } else if (score > best_soft_score) {
-      best_soft_score = score;
-      best_soft_id = u->id;
+    /* asm 0x014c-0x0155: unsigned 16-bit CMP, update on >= (last tie wins). */
+    const unsigned uscore = (unsigned)score & 0xffffu;
+    if (uscore >= best_score) {
+      best_score = uscore;
+      best_id = u->id;
     }
   }
-  if (best_id >= 0) {
-    return best_id;
-  }
-  /*
-   * DOS FUN_5fef_0000 never returns an attack==0 unit. The soft tier stands
-   * in for the raw unit-at-tile fallback on OPEN ground (a lone colonist can
-   * be attacked and captured there). On a colony tile it must stay off: the
-   * town fights through its militia / Paul Revere auto-arm
-   * (units_revere_defend_colony_tile), never through a bystanding civilian —
-   * that path also seizes the bystanders once the colony's defense is beaten.
-   */
-  if (g_units_combat_colonies &&
-      colonies_id_at(g_units_combat_colonies, x, y) >= 0) {
-    return -1;
-  }
-  return best_soft_id;
+  /* -1 on a colony tile = no armed defender: the town fights through its
+   * militia / Paul Revere auto-arm (units_revere_defend_colony_tile). */
+  return best_id;
 }
 
 int units_spawn_village_temp_defender(
@@ -3449,7 +3450,7 @@ static int units_apply_land_loss_outcome(
     units_tile_is_ocean_or_hs(col1, win->x, win->y) ||
     units_tile_is_ocean_or_hs(col1, lose->x, lose->y);
   const int loser_is_hull = lt && units_type_is_ship(lt);
-  if (loser_euro && lt && lt->name[0] && win_can_capture && !loser_is_hull && !on_water) {
+  if (lt && lt->name[0] /* bugs.md #678: 0352 raw 99343-99392 tests loser TYPE only, never its nation */ && win_can_capture && !loser_is_hull && !on_water) {
     const int is_treasure = units_type_is_treasure(lt);
     const int is_wagon = units_type_is_wagon(lt);
     /*
@@ -7493,6 +7494,10 @@ ColonizeEnterReason units_enter_probe_w(
   if (!pool || type_index < 0 || type_index >= pool->type_count || !map) {
     return g_units_last_enter_reason;
   }
+  /* DOS `0x0d <= type <= 0x12` (the @UNIT ship band) — needed by the rim
+   * test below, before the rest of the type reads (bugs.md #717). */
+  const bool sea_probe =
+    pool->types[type_index].domain == COLONIZE_UNIT_DOMAIN_SEA;
   /*
    * bugs.md #429: DOS's in-bounds predicate is FUN_137f_000a
    * (viceroy_unpacked.c:6519-6531) — `x < 1 || y < 1 || map_w-1 <= x ||
@@ -7512,6 +7517,31 @@ ColonizeEnterReason units_enter_probe_w(
   const bool rim_meaningful = map->width >= 3 && map->height >= 3;
   if (x < 0 || y < 0 || x >= map->width || y >= map->height ||
       (rim_meaningful && !map_coords_inset(map, x, y))) {
+    /*
+     * DOS-LITERAL FUN_4720_015c head (raw 75960-75977, bugs.md #717). The two
+     * axes are NOT the same refusal:
+     *   if (y < 1) return 0;                       // silent, no reason word
+     *   if (map_h - 1 <= y) return 0;              // silent
+     *   if (map_w - 1 <= x || x < 1) {             // the EAST/WEST rim
+     *       if (type < 0x0d || 0x12 < type) return 0;   // land unit: silent
+     *       *(int *)0x9e4e = 4; return 0;               // ship: reason 4
+     *   }
+     * Reason 4's UI arm is the jump table at 4720:060a
+     * (viceroy_ndisasm.asm 0x3FF4A, index = reason-1 after the `dec ax` at
+     * 0x3FF38): entries 3 AND 4 both point at 0x0566 = 0x3FEA6, the very body
+     * reason 5 uses — @EUROPENOTLEAVE when DS:0x5382 bit0 is set, otherwise
+     * the @SAILHOME (DS:0x140c) Yes/No. Yes sails for Europe. The two reasons
+     * part only in the tail at 0x3FEEA: `cmp word [0x9e4e],4` jumps to the
+     * abort at 0xfff2 for reason 4, where reason 5 falls into the commit at
+     * 0xff5c. So a ship pushed off the east/west rim is offered the voyage
+     * home and a "No" simply leaves it where it stands.
+     */
+    const bool y_out = y < 0 || y >= map->height ||
+                       (rim_meaningful && (y < 1 || y >= map->height - 1));
+    if (!y_out && sea_probe) {
+      g_units_last_enter_reason = COLONIZE_ENTER_EDGE_SAIL;
+      return g_units_last_enter_reason;
+    }
     g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED_EDGE;
     return g_units_last_enter_reason;
   }
@@ -7786,6 +7816,30 @@ ColonizeEnterReason units_enter_probe_w(
   if (units_village_squat_illegal(pool, type, mover, map, x, y, mover_nation, colonies)) {
     g_units_last_enter_reason = COLONIZE_ENTER_VILLAGE_ILLEGAL;
     return g_units_last_enter_reason;
+  }
+  /*
+   * DOS-LITERAL FUN_465b_0000 raw 75510-75516 (bugs.md #720). The
+   * destination's owner (`local_4`) is read from the SETTLEMENT first —
+   * FUN_281f_06be, raw 75467 — and only overwritten by an occupying unit's
+   * nation when one stands there (FUN_281f_07e0), so an UNDEFENDED foreign
+   * colony still sets bVar4. The Euro trade hand-off FUN_2a1f_015e ->
+   * FUN_5f7a_0662 (raw 75499) declines for a unit whose @UNIT cargo column
+   * DS:0x5237 is 0, and the step then reaches
+   *   if (0x5236[type] == 0) {            // @UNIT attack column
+   *       if (land type && nation < 4 && control == 0) FUN_281f_03fe(0x13a0);
+   *       goto LAB_465b_0bd1;             // no entry, no capture, no MP
+   *   }
+   * (ASM viceroy_overlays.asm:112490-112492). So a plain colonist bumping an
+   * empty foreign colony bounces on @CANNOTATTACK; it never walks in and
+   * flips the owner. Wagons/ships take the trade arm above this one.
+   */
+  if (colonies && mover && mover_nation >= 0 && !units_is_combat_role(pool, mover)) {
+    const int fcid = colonies_id_at(colonies, x, y);
+    const ColonizeColony* fcol = colonies_get(colonies, fcid);
+    if (fcol && fcol->active && fcol->nation_id >= 0 && fcol->nation_id != mover_nation) {
+      g_units_last_enter_reason = COLONIZE_ENTER_BOUNCE_FOREIGN;
+      return g_units_last_enter_reason;
+    }
   }
   g_units_last_enter_reason = COLONIZE_ENTER_OK;
   return g_units_last_enter_reason;
@@ -8244,6 +8298,37 @@ bool units_try_move_w(
       g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED_DOMAIN;
       return false;
     }
+    /*
+     * DOS-LITERAL FUN_465b_0000 (bugs.md #714): DOS has no boarding branch.
+     * Walking onto an ocean tile that carries an own ship is the ordinary
+     * step, so it runs LAB_465b_05ca's cost/allow gate exactly like a land
+     * step (raw 75638-75651):
+     *   cVar7 = spent; spent += local_40;   // local_40 = terr*3, ocean = 3
+     *   ... shore-cross exhaust (also inside `if (!bVar4)`) ...
+     *   if (local_40 <= iVar13 || cVar7 == '\0' || (04ca(0x83a6), bVar4)) commit;
+     *   else roll = range(1, local_40) and commit only if roll <= iVar13.
+     * The port used to require nothing but `remaining > 0`, so a unit with a
+     * sliver of MP always got aboard for free. The charge is applied ahead of
+     * the gate in DOS, so a refused board still burns the step — and the
+     * whole allotment when the step crossed the waterline.
+     */
+    {
+      const int board_cost = units_move_cost(pool, unit_id, map, dest_x, dest_y);
+      const int board_left = units_remaining_mp(pool, unit_id);
+      const bool board_full = board_left >= units_max_mp(pool, unit_id);
+      bool board_allow = board_cost <= board_left || board_full;
+      if (!board_allow && rng) {
+        board_allow = dos_rng_range(rng, 1, board_cost > 0 ? board_cost : 1) <= board_left;
+      }
+      if (!board_allow) {
+        units_mp_charge(pool, unit, board_cost);
+        if (units_move_crosses_shore(map, colonies, unit->x, unit->y, dest_x, dest_y)) {
+          units_mp_exhaust(pool, unit);
+        }
+        g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
+        return false;
+      }
+    }
     if (unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
         unit->orders == UNITS_ORDER_FORTIFIED) {
       unit->orders = UNITS_ORDER_NONE;
@@ -8298,6 +8383,7 @@ bool units_try_move_w(
 
   if (reason == COLONIZE_ENTER_BOUNCE_FOREIGN || reason == COLONIZE_ENTER_BOUNCE_PEACE ||
       reason == COLONIZE_ENTER_BLOCKED_DOMAIN || reason == COLONIZE_ENTER_BLOCKED_EDGE ||
+      reason == COLONIZE_ENTER_EDGE_SAIL || /* bugs.md #717: reason 4 aborts */
       reason == COLONIZE_ENTER_BLOCKED_HS_SAIL || reason == COLONIZE_ENTER_VILLAGE_ILLEGAL ||
       reason == COLONIZE_ENTER_LANDFALL || reason == COLONIZE_ENTER_VILLAGE_SHIP ||
       reason == COLONIZE_ENTER_NO_MP || reason == COLONIZE_ENTER_BLOCKED ||
@@ -8908,9 +8994,13 @@ bool units_order_fortify(ColonizeUnitPool* pool, int unit_id) {
   if (!u || !u->active) {
     return false;
   }
-  if (u->orders == UNITS_ORDER_FORTIFIED) {
-    return true;
-  }
+  /*
+   * bugs.md #695: no "already fortified" early-out. FUN_2b5a_1112's tail
+   * (viceroy_unpacked.c raw 42418-42421) runs unconditionally — it writes
+   * order 5, zeroes +0x315a and calls FUN_281f_0934 (full MP exhaust) even
+   * when the unit was already Fortified. Re-issuing Fortify on a dug-in unit
+   * therefore costs it the turn in DOS; the port used to make it a no-op.
+   */
   const bool ok = units_set_orders(pool, unit_id, UNITS_ORDER_FORTIFY);
   if (ok) {
     units_play_event_sound(UNITS_SFX_ORDER_FORTIFY);
@@ -9403,6 +9493,25 @@ static int units_flood_owner_term(
   return 0;
 }
 
+/*
+ * The single retained destination cost grid of FUN_6662_00f2 (DS:-0x5d90)
+ * and its goal key (DS:0x2d1a / DS:0x2d1c). See units_flood_next_step.
+ * bugs.md #706.
+ */
+static int s_flood_cost[UNITS_FLOOD_W][UNITS_FLOOD_W];
+static int s_flood_gx = -1;
+static int s_flood_gy = -1;
+static const ColonizeWorldMap* s_flood_map = NULL;
+
+/* Not a DOS act: DOS never reloads a different world into the same DS. A
+ * New Game / Load can reuse a goal coordinate on a different map, so drop
+ * the grid with the rest of the goto statics. */
+static void units_flood_cache_invalidate(void) {
+  s_flood_gx = -1;
+  s_flood_gy = -1;
+  s_flood_map = NULL;
+}
+
 static bool units_flood_next_step(
   const ColonizeUnitPool* pool,
   int unit_id,
@@ -9448,7 +9557,55 @@ static bool units_flood_next_step(
   const bool unit_sea = units_unit_is_sea(pool, u);
   const int origin_x = gx - UNITS_FLOOD_W / 2;
   const int origin_y = gy - UNITS_FLOOD_W / 2;
-  int cost[UNITS_FLOOD_W][UNITS_FLOOD_W];
+
+  const int dx0 = gx - origin_x;
+  const int dy0 = gy - origin_y;
+  if (dx0 < 0 || dy0 < 0 || dx0 >= UNITS_FLOOD_W || dy0 >= UNITS_FLOOD_W) {
+    return false;
+  }
+  if (gx < 0 || gy < 0 || gx >= (int)map->width || gy >= (int)map->height) {
+    return false;
+  }
+
+  /*
+   * DOS-LITERAL FUN_6662_00f2 raw 103880-103886 (bugs.md #706). The cost
+   * grid is a DESTINATION flood (seeded at the goal, expanded outwards), and
+   * DOS keeps exactly one of them in the fixed DS:-0x5d90 block. It is
+   * rebuilt only when
+   *     DS:0x2d1a != goal_x || DS:0x2d1c != goal_y ||
+   *     grid[unit tile] == 0
+   * i.e. when the goal moved, or when the retained grid never reached the
+   * unit asking now. Nothing else is part of the key — not the mover's type,
+   * domain or nation, even though the expansion reads all three (DS:0x1dd2 /
+   * DS:0x1dd6) and stops at the asking unit's own cost. That is why the
+   * "did it reach me" half of the test exists, and it is what makes the
+   * reuse safe enough for DOS: a grid built for another unit either already
+   * covers this one's tile or is thrown away. Ported literally, key and all.
+   */
+  /* bugs.md #700 removed the pathfinder's last MP pre-filters; the helper
+   * stays for the move-commit paths that legitimately ask. */
+  (void)units_can_afford_move_cost;
+
+  int (*cost)[UNITS_FLOOD_W] = s_flood_cost;
+
+  const int ulx = u->x - origin_x;
+  const int uly = u->y - origin_y;
+  const bool unit_in_window =
+    ulx >= 0 && uly >= 0 && ulx < UNITS_FLOOD_W && uly < UNITS_FLOOD_W;
+  /* s_flood_map is not part of the DOS key (DOS has exactly one world in
+   * DS for the whole process); it only stops a grid leaking across a
+   * New Game / Load / unit-test map swap that happens to reuse a goal. */
+  const bool reuse_grid = unit_in_window && s_flood_map == map && s_flood_gx == gx &&
+                          s_flood_gy == gy &&
+                          cost[uly][ulx] < UNITS_FLOOD_INF;
+
+  int unit_cost = UNITS_FLOOD_INF;
+  if (reuse_grid) {
+    unit_cost = cost[uly][ulx];
+  } else {
+  s_flood_map = map;
+  s_flood_gx = gx;
+  s_flood_gy = gy;
   for (int y = 0; y < UNITS_FLOOD_W; ++y) {
     for (int x = 0; x < UNITS_FLOOD_W; ++x) {
       cost[y][x] = UNITS_FLOOD_INF;
@@ -9460,20 +9617,11 @@ static bool units_flood_next_step(
   int qh = 0;
   int qt = 0;
 
-  const int dx0 = gx - origin_x;
-  const int dy0 = gy - origin_y;
-  if (dx0 < 0 || dy0 < 0 || dx0 >= UNITS_FLOOD_W || dy0 >= UNITS_FLOOD_W) {
-    return false;
-  }
-  if (gx < 0 || gy < 0 || gx >= (int)map->width || gy >= (int)map->height) {
-    return false;
-  }
   cost[dy0][dx0] = 1;
   qx[qt] = gx;
   qy[qt] = gy;
   qt = (qt + 1) % UNITS_FLOOD_QMAX;
 
-  int unit_cost = UNITS_FLOOD_INF;
   int expansions = 0;
   while (qh != qt && expansions < 225) {
     const int cx = qx[qh];
@@ -9535,6 +9683,8 @@ static bool units_flood_next_step(
     }
   }
 
+  } /* !reuse_grid */
+
   if (unit_cost >= UNITS_FLOOD_INF) {
     return false;
   }
@@ -9580,10 +9730,14 @@ static bool units_flood_next_step(
       if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, u->type_index, nx, ny, unit_id)) {
         continue;
       }
-      const int step_cost = units_move_cost(pool, unit_id, map, nx, ny);
-      if (!units_can_afford_move_cost(pool, unit_id, step_cost)) {
-        continue;
-      }
+      /*
+       * bugs.md #700: no MP pre-filter here. FUN_OVL20_L0000__0015bc's
+       * neighbour pick (viceroy_overlays.c:86760-86840) never reads the
+       * mover's remaining MP — the partial-MP overspend is decided later by
+       * FUN_465b_0000 (viceroy_unpacked.c raw 75643), exactly as for an
+       * arrow-key step. Dropping unaffordable candidates here made a
+       * part-spent unit path differently from a fresh one.
+       */
       const int score = c + units_flood_edge(map, flood_low_move, u->x, u->y, nx, ny);
       if (score > best_score) {
         continue;
@@ -9707,11 +9861,9 @@ static bool units_bfs_next_step(
     if (prev == start) {
       *out_x = cur % w;
       *out_y = cur / w;
-      if (units_can_afford_move_cost(
-            pool, unit_id, units_move_cost(pool, unit_id, map, *out_x, *out_y)
-          )) {
-        ok = true;
-      }
+      /* bugs.md #700: no MP pre-filter (the DOS pathfinder never reads MP;
+       * FUN_465b_0000 raw 75643 owns the overspend). */
+      ok = true;
     }
   }
 
@@ -9780,6 +9932,7 @@ void units_note_goto_step(int unit_id, int dx, int dy) {
  */
 void units_reset_state(void) {
   memset(s_units_goto_last_dir, 0, sizeof(s_units_goto_last_dir));
+  units_flood_cache_invalidate();
 }
 
 /*
@@ -9838,8 +9991,14 @@ static bool units_greedy_next_step(
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
   ColonizeDosRng* rng,
+  /* gx/gy = DS:0xa14e/0xa14c, the tile the last flood aimed at (goal on the
+   * near tier, coarse waypoint on the far one) — every distance term uses
+   * it. goal_x/goal_y = the unit's real +0x314d/e goal, which only the
+   * 06d2/0696 own-colony escape reads (raw 104690). bugs.md #698. */
   int gx,
   int gy,
+  int goal_x,
+  int goal_y,
   int* out_x,
   int* out_y
 ) {
@@ -9861,16 +10020,15 @@ static bool units_greedy_next_step(
     }
     const int nx = u->x + try_dx[i];
     const int ny = u->y + try_dy[i];
-    if (!units_greedy_owner_ok(u, map, colonies, nx, ny, gx, gy)) {
+    if (!units_greedy_owner_ok(u, map, colonies, nx, ny, goal_x, goal_y)) {
       continue;
     }
     if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, u->type_index, nx, ny, unit_id)) {
       continue;
     }
+    /* bugs.md #700: no MP pre-filter — FUN_6662_0f74's candidate loop
+     * (viceroy_unpacked.c:104652-104720) never reads the mover's MP. */
     const int step_cost = units_move_cost(pool, unit_id, map, nx, ny);
-    if (!units_can_afford_move_cost(pool, unit_id, step_cost)) {
-      continue;
-    }
     const int score = units_octile(nx, ny, gx, gy) * 10 + step_cost;
     if (score < best_score) {
       best_score = score;
@@ -9932,18 +10090,45 @@ static bool units_greedy_next_step(
         }
         /* 0f74's own 06d2/0696 gate, :104678-104690 — see
          * units_greedy_owner_ok. This is the loop DOS spells it in. */
-        if (!units_greedy_owner_ok(u, map, colonies, nx, ny, gx, gy)) {
+        if (!units_greedy_owner_ok(u, map, colonies, nx, ny, goal_x, goal_y)) {
           continue;
         }
         if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, u->type_index, nx, ny, unit_id)) {
           continue;
         }
-        const int step_cost = units_move_cost(pool, unit_id, map, nx, ny);
-        if (!units_can_afford_move_cost(pool, unit_id, step_cost)) {
-          continue;
+        /* bugs.md #700: no MP pre-filter (see the head of this loop's tier). */
+        /*
+         * DOS-LITERAL FUN_6662_0f74 raw 104676-104690 (bugs.md #699).
+         * ndisasm re-read of 6662:13d1-1420 (viceroy_unpacked_2.asm), because
+         * the Ghidra parenthesisation of this test is misleading:
+         *   13d1: (cur & 0x0a) && (FUN_281f_0754(cand) & 0x0a) -> 1
+         *   13f0: (cur & 0x40) && (FUN_281f_072c(cand) & 0x40)
+         *         && cur_x == cand_x                            -> 1
+         *   1410: cur_y == cand_y                               -> 1
+         *   else: FUN_281f_090c(unit) < 2 ? 3 : terr_cost*3
+         * The 1410 arm is a bare `CMP local_40,local_e / JZ LAB_6662_13e9`
+         * with no river operand in scope, i.e. DOS gives EVERY due-East /
+         * due-West step the discounted penalty 1 whether or not a river or
+         * road is involved. Almost certainly a MicroProse slip (the river
+         * arm wanted `cur_x == cand_x || cur_y == cand_y`), but it is what
+         * VICEROY.EXE executes, so it is what the port executes. Note the
+         * flood tier (FUN_OVL20_L0000__0015bc, units_flood_edge) spells the
+         * sane both-axes river rule — the asymmetry is DOS-real.
+         */
+        const bool road_cur =
+          map_tile_has_road(map, u->x, u->y) || map_tile_has_city(map, u->x, u->y);
+        const bool road_cand = map_tile_has_road(map, nx, ny) || map_tile_has_city(map, nx, ny);
+        int penalty;
+        if (road_cur && road_cand) {
+          penalty = 1;
+        } else if (map_tile_has_river(map, u->x, u->y) && map_tile_has_river(map, nx, ny) &&
+                   u->x == nx) {
+          penalty = 1;
+        } else if (u->y == ny) {
+          penalty = 1;
+        } else {
+          penalty = max_mp < 2 ? 3 : map_dos_terr_cost_byte(map_dos_terr_class_at(map, nx, ny)) * 3;
         }
-        const int penalty =
-          max_mp < 2 ? 3 : map_dos_terr_cost_byte(map_dos_terr_class_at(map, nx, ny)) * 3;
         const int score = penalty + cheb_cand * 4 + manh_cand * 5;
         if (score < best_score) {
           best_score = score;
@@ -9989,11 +10174,8 @@ static bool units_greedy_next_step(
       if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, u->type_index, nx, ny, unit_id)) {
         continue;
       }
-      if (!units_can_afford_move_cost(
-            pool, unit_id, units_move_cost(pool, unit_id, map, nx, ny)
-          )) {
-        continue;
-      }
+      /* bugs.md #700: the reroll (raw 104724-104731) tests 06d2 / 0768 /
+       * 06b4 / 0302 only — never the mover's MP. */
       wig_x = nx;
       wig_y = ny;
     }
@@ -10412,14 +10594,20 @@ bool units_next_goto_step_w(
    * Go To (e.g. onto a lost-city rumour) fail where the arrow key
    * succeeded (bugs.md). */
   if (units_chebyshev(u->x, u->y, gx, gy) < 2) {
-    const int nx = u->x + units_sign_i(gx - u->x);
-    const int ny = u->y + units_sign_i(gy - u->y);
-    if (units_can_enter_w(w, u->type_index, nx, ny, unit_id)) {
-      *out_x = nx;
-      *out_y = ny;
-      return true;
-    }
-    return units_greedy_next_step(pool, unit_id, map, colonies, rng, gx, gy, out_x, out_y);
+    /*
+     * DOS-LITERAL FUN_6662_0f74 raw 104556-104565 (bugs.md #701): when both
+     * |dx| and |dy| are below 2 the pathfinder returns
+     * thunk_FUN_2a1f_059c -> FUN_6662_0086 (raw 103795-103840) and nothing
+     * else. 0086 is a pure sign -> dir8 table lookup: it tests no
+     * enterability, consults no terrain and has no fallback tier. The
+     * caller (FUN_479b_0972) hands the direction straight to
+     * FUN_465b_0000, which is where a refusal is decided. The old
+     * units_can_enter/greedy fallback made an adjacent Go To sidestep to a
+     * different tile where DOS simply fails the move and keeps the order.
+     */
+    *out_x = u->x + units_sign_i(gx - u->x);
+    *out_y = u->y + units_sign_i(gy - u->y);
+    return true;
   }
 
   /*
@@ -10449,6 +10637,17 @@ bool units_next_goto_step_w(
     near_missed = true;
   }
 
+  /*
+   * DS:0xa14e / DS:0xa14c — the tile the tiers last aimed the flood at. The
+   * scored 8-neighbour fallback takes its deltas from THIS pair, not from
+   * the goal (FUN_6662_0f74 raw 104623-104627: `uVar10 = *(int *)0xa14c -
+   * uVar7; uVar11 = *(int *)0xa14e - uVar6;`), so on a long trip the greedy
+   * tier steers to the coarse waypoint. bugs.md #698. The near tier writes
+   * the goal into the pair (raw 104581-104582), which is the default here.
+   */
+  int scored_x = gx;
+  int scored_y = gy;
+
   {
     const int sea = units_is_sea(pool, unit_id) ? 1 : 0;
     int wx = 0;
@@ -10469,11 +10668,17 @@ bool units_next_goto_step_w(
     if (have_wp || !near_missed) {
       const int tx = have_wp ? wx : gx;
       const int ty = have_wp ? wy : gy;
+      scored_x = tx;
+      scored_y = ty;
       bool hit = units_flood_next_step(pool, unit_id, map, colonies, tx, ty, out_x, out_y);
       if (!hit && ucx >= 0) {
         int fx = ucx * 4 + 1;
         int fy = ucy * 4 + 1;
         (void)units_coarse_probe(map, ucx, ucy, sea, &fx, &fy);
+        /* raw 104596-104598 overwrites DS:0xa14c/0xa14e with the probed
+         * cell centre before the retry flood. bugs.md #698. */
+        scored_x = fx;
+        scored_y = fy;
         if (fx != u->x || fy != u->y) {
           hit = units_flood_next_step(pool, unit_id, map, colonies, fx, fy, out_x, out_y);
         }
@@ -10493,7 +10698,9 @@ bool units_next_goto_step_w(
   if (u->nation_id > 3) {
     return false;
   }
-  return units_greedy_next_step(pool, unit_id, map, colonies, rng, gx, gy, out_x, out_y);
+  return units_greedy_next_step(
+    pool, unit_id, map, colonies, rng, scored_x, scored_y, gx, gy, out_x, out_y
+  );
 }
 
 
@@ -10538,6 +10745,24 @@ bool units_advance_goto_one_step_w(
   int nx = -1;
   int ny = -1;
   if (!units_next_goto_step_w(w, unit_id, &nx, &ny)) {
+    /*
+     * DOS-LITERAL FUN_479b_0972 raw 77066-77072 + FUN_6662_0f74 raw
+     * 104703/104738 (bugs.md #696). A pathfinder miss is terminal in DOS,
+     * not a silent no-op: 0f74 itself calls FUN_281f_0934 (spend the whole
+     * allotment) on both its failure exits — the "no candidate scored"
+     * one (`if (local_1c != 8) goto LAB_6662_1599; FUN_281f_0934(...)`) and
+     * the reversal-reroll one — and the caller then clears +0x314c because
+     * the returned direction is < 0 or == 8. Only order 0x02 (TRADE_ROUTE)
+     * survives, and then only on the ==8 flavour. Without this the order
+     * stayed on the unit forever and the pacer re-polled it every frame.
+     */
+    ColonizeUnit* miss = units_get(pool, unit_id);
+    if (miss) {
+      units_mp_exhaust(pool, miss);
+      if (miss->orders != UNITS_ORDER_TRADE_ROUTE) {
+        units_clear_orders(pool, unit_id);
+      }
+    }
     return false;
   }
   /*
@@ -10609,8 +10834,23 @@ bool units_advance_goto_one_step_w(
      * s_units_goto_last_dir, not ColonizeUnit.last_dir (see that array's
      * own header comment for why). */
     units_note_goto_step(unit_id, nx - ox, ny - oy);
-    if (u->x == gx && u->y == gy && u->orders != UNITS_ORDER_TRADE_ROUTE) {
-      units_clear_orders(pool, unit_id);
+    /*
+     * DOS-LITERAL FUN_479b_0972 raw 77136-77142 (bugs.md #697), the arrival
+     * tail after a committed step:
+     *   if (+0x314c == '\v')  FUN_281f_0934(unit);   // AI_SAIL: MP exhaust
+     *   if (+0x314c == '\x02' || +0x314c == '\f') keep the order;
+     *   else +0x314c = 0;
+     * i.e. AI_MOVE (12) survives arrival exactly like TRADE_ROUTE (2) — its
+     * holder is re-aimed by the 20e6/0a60 goal machinery, not by this walk —
+     * and an arriving AI ship ends its turn on the spot.
+     */
+    if (u->x == gx && u->y == gy) {
+      if (u->orders == UNITS_ORDER_AI_SAIL) {
+        units_mp_exhaust(pool, u);
+      }
+      if (u->orders != UNITS_ORDER_TRADE_ROUTE && u->orders != UNITS_ORDER_AI_MOVE) {
+        units_clear_orders(pool, unit_id);
+      }
     }
   }
   return true;
@@ -11827,14 +12067,17 @@ int units_first_landfall_cargo(const ColonizeUnitPool* pool, int ship_id) {
   if (!ship || ship->cargo_count <= 0) {
     return -1;
   }
-  /* Prefer a passenger with live MP (the port's own tie-break), then any
-   * parked-but-unspent one. Both tiers honour the DOS spent test. */
-  for (int i = 0; i < ship->cargo_count; ++i) {
-    const ColonizeUnit* pax = units_get_const(pool, ship->cargo_ids[i]);
-    if (pax && pax->moves > 0 && units_cargo_can_landfall(pool, pax->id)) {
-      return pax->id;
-    }
-  }
+  /*
+   * bugs.md #719: ONE pass, first match. DOS raw 76012-76020 is a single
+   * chain walk that stops at the first unit with @UNIT size < 99 and
+   * `+0x3149 < FUN_281f_090c(unit)`:
+   *   while (local_12 < 0 && -1 < iVar11) {
+   *     if (0x5238[type] < 99 && unit[+0x3149] < max_mp(unit)) local_12 = iVar11;
+   *     iVar11 = next_in_chain;
+   *   }
+   * The port's extra "prefer one with live MP" first tier was its own
+   * tie-break and could pick a later passenger than DOS does.
+   */
   for (int i = 0; i < ship->cargo_count; ++i) {
     const ColonizeUnit* pax = units_get_const(pool, ship->cargo_ids[i]);
     if (pax && units_cargo_can_landfall(pool, pax->id)) {

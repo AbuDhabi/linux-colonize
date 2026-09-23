@@ -88,6 +88,34 @@ void turn_format_date(uint16_t year, uint16_t autumn, char* out, size_t out_size
   snprintf(out, out_size, "%s %u", reports_season_name(autumn != 0), (unsigned)year);
 }
 
+/*
+ * DOS-LITERAL FUN_4d56_1b3a day top (viceroy_unpacked.c raw 6355-6357,
+ * bugs.md #713):
+ *
+ *   for (local_14 = 0; local_14 < *(int *)0x539c; local_14 = local_14 + 1) {
+ *     *(undefined1 *)(local_14 * 0x1c + 0x3149) = 0;
+ *   }
+ *
+ * One pass over the WHOLE unit array, every nation at once, before nation 0
+ * moves — not once per nation as its slice comes up. The port's per-nation
+ * refresh cleared +0x3149 only for the nation whose slice was starting, so a
+ * unit's last-turn spend still gated (e.g.) the landfall test for every
+ * nation that had not been reached yet this year.
+ */
+void turn_clear_mp_spent_all_nations(ColonizeUnitPool* pool) {
+  if (!pool) {
+    return;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &pool->units[i];
+    if (!u->active) {
+      continue;
+    }
+    u->mp_spent_turn = 0;
+    u->aboard_moves = -1;
+  }
+}
+
 void turn_refresh_moves_for_nation_w(
   const ColonizeWorld* w,
   int nation_id,
@@ -130,10 +158,10 @@ void turn_refresh_moves_for_nation_w(
     if (!u->active || u->nation_id != nation_id) {
       continue;
     }
-    /* DOS clears every unit's spent byte at the day top (viceroy 6355-6357):
-     * last turn's spend never gates this turn's landfall (bugs.md #423). */
-    u->mp_spent_turn = 0;
-    u->aboard_moves = -1;
+    /* The spent byte is NOT cleared here: DOS does it once for every unit of
+     * every nation at the day top (raw 6355-6357), which is
+     * turn_clear_mp_spent_all_nations called from TURN_PROC_SETUP
+     * (bugs.md #713, #423). */
     /* Fortify completes overnight → Fortified; stay asleep until woken. */
     if (u->orders == UNITS_ORDER_FORTIFY) {
       u->orders = UNITS_ORDER_FORTIFIED;
@@ -2512,7 +2540,9 @@ static void turn_notify_dock_immigrant(
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.country = ctx->europe->nation_name[0] ? ctx->europe->nation_name : "Europe";
-  tok.string0 = "Europe";
+  /* 5e52 raw 68592: %STRING0 = @HOMEPORT name (DS table -0x7c74), not a
+   * literal (bugs.md #673). */
+  tok.string0 = ctx->europe->port_city[0] ? ctx->europe->port_city : "";
   tok.string1 = immigrant_name && immigrant_name[0] ? immigrant_name : "";
   char body[AI_POPUP_BODY_LEN];
   const char* fb = "";
@@ -3767,6 +3797,10 @@ COLONIZE_INTERNAL void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurn
           );
         }
       }
+      /* DOS-LITERAL FUN_4d56_1b3a raw 6355-6357 (bugs.md #713): the spent
+       * byte of every unit of every nation is zeroed once here, right after
+       * the calendar advance and before nation 0 moves. */
+      turn_clear_mp_spent_all_nations(ctx->units);
       proc->result.advanced = true;
       if (ctx->col1_ok && ctx->col1) {
         ctx->col1->head.turn =
@@ -3848,13 +3882,9 @@ COLONIZE_INTERNAL void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnC
       if (ctx->units) {
         turn_refresh_moves_for_nation_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, n, ctx->ai_popups, ctx->messages);
         if (n >= 0 && n < 4) {
-          (void)units_tick_treasure_outside_colony(
-            ctx->units,
-            ctx->colonies,
-            n,
-            ctx->status,
-            ctx->status_size
-          );
+          /* FUN_3844_0004 (bugs.md #725): AI owner — the lone Convert just
+           * vanishes, no @DEADCONVERTS popup. */
+          (void)units_tick_convert_outside_colony(ctx->units, ctx->map, n);
           /* No want_europe_open sink: turn_euro_ai_should_run rejects
            * n == ctx->human_nation, so this slice never runs for the human and
            * the "auto-open Europe" request can never be for them. */
@@ -4054,13 +4084,24 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
       turn_reveal_fog_for_nation(ctx, ctx->human_nation);
       turn_refresh_moves_for_nation_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, ctx->human_nation, ctx->ai_popups, ctx->messages);
       if (ctx->human_nation >= 0 && ctx->human_nation < 4) {
-        (void)units_tick_treasure_outside_colony(
-          ctx->units,
-          ctx->colonies,
-          ctx->human_nation,
-          ctx->status,
-          ctx->status_size
-        );
+        /* FUN_3844_0004 (bugs.md #725): human owner — FUN_281f_0652(0xee2, 4)
+         * = @DEADCONVERTS, once per Convert lost. */
+        {
+          const int converts_lost =
+            units_tick_convert_outside_colony(ctx->units, ctx->map, ctx->human_nation);
+          for (int k = 0; k < converts_lost && ctx->ai_popups; ++k) {
+            PopupMsgTokens tok;
+            memset(&tok, 0, sizeof(tok));
+            char body[AI_POPUP_BODY_LEN];
+            const char* fb = "";
+            if (ctx->messages) {
+              popup_msg_fill(ctx->messages, "DEADCONVERTS", &tok, fb, body, sizeof(body));
+            } else {
+              snprintf(body, sizeof(body), "%s", fb);
+            }
+            ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+          }
+        }
         int want_eu = 0;
         const int ships_ready = units_tick_ship_build_ready(
           ctx->units,

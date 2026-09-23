@@ -11,6 +11,7 @@
 #include "core/reports.h"
 #include "core/reports_names.h"
 #include "core/ss.h"
+#include "core/unit_chrome.h"
 #include "core/units.h"
 #include "core/village_trade_intel.h"
 #include "core/world.h"
@@ -922,6 +923,56 @@ static int case_treasure_word_and_zero_tools(void) {
   return rc;
 }
 
+/*
+ * bugs.md #705 — FUN_112b_01ba raw 2148-2172. A damaged unit whose type is
+ * not 0x0b shows `@UNIT[type].0x5235 - unit[+0x315a]` as the badge instead of
+ * the @ORDERS letter, halved (rounding up) when FUN_137f_000a says the unit
+ * stands on an interior map tile, and '+' from 10 up.
+ */
+static int case_repair_badge_digit(void) {
+  struct {
+    int type;
+    bool damaged;
+    int threshold;
+    int counter;
+    bool halve;
+    int want_index; /* -1 = no digit arm */
+    char want_char;
+  } cases[] = {
+    {0x0e, false, 8, 0, false, -1, 0},  /* undamaged: plain @ORDERS letter */
+    {0x0b, true, 8, 0, false, -1, 0},   /* Artillery keeps its own y+2 box */
+    {0x0e, true, 8, 0, false, UNIT_CHROME_ORDERS_REPAIR_BASE + 8, '8'},
+    {0x0e, true, 8, 3, false, UNIT_CHROME_ORDERS_REPAIR_BASE + 5, '5'},
+    {0x0e, true, 8, 3, true, UNIT_CHROME_ORDERS_REPAIR_BASE + 3, '3'}, /* (5+1)>>1 */
+    {0x0e, true, 8, 8, false, UNIT_CHROME_ORDERS_REPAIR_BASE + 0, '0'},
+    {0x11, true, 12, 0, false, UNIT_CHROME_ORDERS_REPAIR_BASE + 10, '+'},
+  };
+  int rc = 0;
+  for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+    const int got = unit_chrome_repair_badge_index(
+      cases[i].type, cases[i].damaged, cases[i].threshold, cases[i].counter, cases[i].halve
+    );
+    if (got != cases[i].want_index) {
+      fprintf(stderr, "repair badge %zu: index %d, want %d\n", i, got, cases[i].want_index);
+      rc = 1;
+      continue;
+    }
+    if (got >= 0) {
+      const char ch = unit_chrome_order_letter(got, 0);
+      if (ch != cases[i].want_char) {
+        fprintf(stderr, "repair badge %zu: char '%c', want '%c'\n", i, ch, cases[i].want_char);
+        rc = 1;
+      }
+      /* The digit overrides even the natives clamp (DOS writes it last). */
+      if (unit_chrome_order_letter(got, 7) != cases[i].want_char) {
+        fprintf(stderr, "repair badge %zu: native clamp ate the digit\n", i);
+        rc = 1;
+      }
+    }
+  }
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"panel_geometry_constants", case_panel_geometry_constants},
   {"panel_load_and_labels", case_panel_load_and_labels},
@@ -935,6 +986,7 @@ static const TestCase k_cases[] = {
   {"village_trade_intel", case_village_trade_intel},
   {"stack_detail_expert_prefix", case_stack_detail_expert_prefix},
   {"treasure_word_and_zero_tools", case_treasure_word_and_zero_tools},
+  {"repair_badge_digit", case_repair_badge_digit},
 };
 
 TEST_MAIN(k_cases)

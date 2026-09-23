@@ -6005,7 +6005,34 @@ static void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* foun
     const int cost = colonies_indian_land_purchase_gold(
       ctx->col1, ctx->map, founder->x, founder->y, nation_id
     );
-    if (cost > 0 && *gold < (uint32_t)cost) {
+    /*
+     * DOS-LITERAL FUN_479b_00ca affordability gate (bugs.md #709), read
+     * byte-exact off viceroy_unpacked.asm 121034-121094:
+     *   if (nation < 4 && DS:[nation*0x34 + 0x543f] == 0) return 0;  // human
+     *   cost = FUN_281f_0d78(...);          // = the 4cc6_07c2 price
+     *   gold = FUN_281f_0a92(nation);       // 32-bit DX:AX
+     *   SUB CX,AX / SBB BX,DX  ;  SAR (cost),1        →
+     *   if ((long)gold - cost < cost / 2) return 0;   // JL/JC LAB_479b_0150
+     *   FUN_281f_0af6(nation, cost);        // pay
+     *   INC byte [ [0x8d4e] + 5 ];          // tribe lands_bought
+     *   FUN_281f_068c(x, y, 0x10, 1);       // stamp the tile bought
+     * i.e. the AI does not spend down to zero: it buys only when at least half
+     * the price is still left afterwards. The gate is AI-only — for a human
+     * (control byte 0x543f == 0) 00ca returns 0 without touching gold, which is
+     * why the human branch below keeps its own plain `gold < cost` message.
+     * Lead still open: 00ca's caller is the thunk 2a1f:01dd and is unresolved,
+     * so whether a failed gate aborts the founding or founds the colony unpaid
+     * is unknown; the port keeps its existing "found anyway" outcome.
+     */
+    int short_gold;
+    if (cost <= 0) {
+      short_gold = 0;
+    } else if (nation_id == ctx->human_nation) {
+      short_gold = *gold < (uint32_t)cost;
+    } else {
+      short_gold = ((long)*gold - (long)cost) < (long)(cost / 2);
+    }
+    if (short_gold) {
       /*
        * FUN_4cc6_07c2 short-gold gate — no despawn. Thin human status only.
        * Cite: colonies_indian_land_purchase_gold; Colonization.pdf Minuit /
@@ -11135,49 +11162,22 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_ship_found(
   }
 }
 
-COLONIZE_INTERNAL void ai_euro_colony_goals_bind_founders(
-  ColonizeTurnContext* ctx, int nation_id
-) {
-  /* H: light bind — idle land founders → primary FOUND (do not steal Soldiers). */
-  {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* u = &ctx->units->units[i];
-      if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
-        continue;
-      }
-      if (!units_is_on_map(u) || ai_euro_is_ship_type(ctx->units, u->id)) {
-        continue;
-      }
-      if (units_orders_follow_goto(u->orders)) {
-        continue; /* idle only */
-      }
-      /*
-       * Don't yank a Pioneer off an in-progress tile improve job for a
-       * FOUND bind — same class of gap as the food-emergency scan above,
-       * exposed once the real DS:0x2f78 threshold (2026-08-20 live
-       * capture) made these jobs usually take more than one turn.
-       */
-      if (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD) {
-        continue;
-      }
-      const ColonizeUnitKind kind = ai_euro_unit_kind(ctx->units, u);
-      if (kind == UNITS_KIND_SOLDIER) {
-        continue;
-      }
-      if (!ai_euro_name_is_pioneer(kind) && kind != UNITS_KIND_COLONIST) {
-        continue;
-      }
-      /* Per-unit pick: a single table-wide FOUND bound every founder in the
-       * nation to the same tile, however far away each one stood. */
-      int fx = 0;
-      int fy = 0;
-      if (!ai_goals_best_found_tile_near(ctx->map, nation_id, u->x, u->y, &fx, &fy)) {
-        continue;
-      }
-      ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, fx, fy);
-    }
-  }
-}
+/*
+ * bugs.md #707 — RETIRED 2026-09-23. The "H: light bind" arm that stood here
+ * scanned every idle on-map land unit of kind Pioneer or Colonist and stamped
+ * an AI_MOVE goto at ai_goals_best_found_tile_near. It had no FUN/raw cite and
+ * no DOS counterpart:
+ *   - DOS binds a unit to a goal only through FUN_521d_0a60's tail
+ *     (+0x314c = 0x0b, +0x314d/e = the goal tile), never from a colony-goals
+ *     pass and never as a bare goto.
+ *   - FOUND eligibility there requires unit+0x3148 bit 2, which raw
+ *     87511-87514 (via 8aac/0d38 case 3, `cmp type,2`) grants only when the
+ *     unit's own stack holds a Pioneer or a military unit — so a lone
+ *     Colonist can never take a FOUND goal in DOS at all.
+ * DOS's type-0 arms are the FUN_521d_20e6 labor arm, the explore ring and the
+ * become-a-Pioneer fall-through (raw 89350-89357), all of which are ported.
+ * The arm, its declaration and its call site are gone.
+ */
 
 /* --- 0a60 colony goals ------------------------------------------------- */
 
@@ -11245,7 +11245,6 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
 
   if (!dos_ship) {
     ai_euro_colony_goals_ship_found(ctx, nation_id, inv, urgency);
-    ai_euro_colony_goals_bind_founders(ctx, nation_id);
   }
 }
 
@@ -13354,8 +13353,20 @@ static int ai_euro_land_explore_scan_target(
    * manufacture goals DOS does not have and, via 0342's promote, feed the
    * primary table on the next nation turn.
    */
+  /*
+   * DOS-LITERAL FUN_521d_20e6 raw 89272-89275 (bugs.md #683): the best site is
+   * the tile the unit already stands on, so 20e6 commits it instead of walking
+   *     *(param_1 * 0x1c + 0x314c) = 7;  goto LAB_521d_5a78;
+   * i.e. act_state 7 = UNITS_ORDER_BUILD_COLONY, the same byte the human Build
+   * handler writes at raw 45657 right before FUN_291f_01fa. This is the ONLY
+   * writer of act_state 7 in the AI, and it is what makes the two ring scans
+   * that read it live: this function's own raw-89182 "another founder already
+   * committed inside the ring" reject, and the human @TOONEARBUILD scan at raw
+   * 45670. Returning 2 here rather than writing through the const unit keeps
+   * the write at the caller, which owns `u`.
+   */
   if (bx == u->x && by == u->y) {
-    return 0; /* DOS: act_state=7 (found here) — left to the founding arms */
+    return 2;
   }
   *out_x = bx;
   *out_y = by;
@@ -14778,7 +14789,14 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
             ctx->map, ctx->colonies, ctx->col1_ok ? ctx->col1 : NULL, ctx->units,
             nation_id, u->x, u->y, &lx, &ly
           )) {
-        ai_goals_upsert_primary(nation_id, lx, ly, AI_GOAL_FOUND, 7);
+        /*
+         * bugs.md #708: the `ai_goals_upsert_primary(..., AI_GOAL_FOUND, 7)`
+         * that stood here is gone (2026-09-23). FUN_521d_20e6 contains no goal
+         * table writer at all — the goal tables are written only by
+         * FUN_521d_0a60 and the 0906 producers — and the priority 7 was a bare
+         * constant with no DOS origin. The local 06ae-shaped pick below is kept
+         * as this act's walk target only (#530 opening scaffolding, untouched).
+         */
         fx = lx;
         fy = ly;
         landed_settle = 1;
@@ -15006,8 +15024,21 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
     if (!force_wander && ai_euro_20e6_surplus_recall_arm(ctx, u, &s)) {
       return 0;
     }
-    if (!force_wander && s.explorer && hop_scan &&
-        ai_euro_land_explore_scan_target(ctx, u, nation_id, s.explorer, &fx, &fy)) {
+    const int scan_r = (!force_wander && s.explorer && hop_scan)
+                         ? ai_euro_land_explore_scan_target(ctx, u, nation_id, s.explorer, &fx, &fy)
+                         : 0;
+    if (scan_r == 2) {
+      /*
+       * DOS-LITERAL FUN_521d_20e6 raw 89274 (bugs.md #683): standing on the
+       * best site → `+0x314c = 7; goto LAB_521d_5a78`. 20e6 returns 0 here
+       * (raw 90445), so FUN_521d_5b66 falls straight through to its own switch
+       * and dispatches case 7 (build colony) in the same call — that is the
+       * consumer wired at the end of the move-scoring gate in ai_euro_unit_act.
+       */
+      u->orders = UNITS_ORDER_BUILD_COLONY;
+      return 0;
+    }
+    if (scan_r) {
       gx = fx;
       gy = fy;
       is_roam = 1; /* unit+0x314c==5 idle-roam (explore ring) */
@@ -21556,6 +21587,30 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       if (u->orders == AI_EURO_ACT_ADJACENT || u->orders == UNITS_ORDER_NONE) {
         u->col1_ai_plan = 0x30;             /* +0x314b = '0' */
         u->orders = UNITS_ORDER_FORTIFY;    /* +0x314c = 5 */
+      }
+      /*
+       * FUN_521d_5b66 switch case 7 (bugs.md #683). 5b66 calls 20e6 at raw
+       * 90551, 20e6 returns 0 (raw 90445) and 5b66 then dispatches on the
+       * act_state byte 20e6 just wrote: `uVar14 = act_state - 7; if (5 <
+       * uVar14) ... switch (act_state) { case 7: ... }`. act_state 7 is
+       * UNITS_ORDER_BUILD_COLONY — the byte the human Build handler also
+       * writes immediately before FUN_291f_01fa (raw 45657-45658) — so case 7
+       * founds the colony the 20e6 site scan just committed to.
+       */
+      if (u->orders == UNITS_ORDER_BUILD_COLONY) {
+        ai_euro_found_with_unit(ctx, u, nation_id);
+        /*
+         * Port guard, no DOS counterpart: if the tile refused the colony the
+         * founder survives, and leaving act_state 7 on it would wedge it
+         * forever (20e6's entry bail, raw 88404-88406, drops every act_state
+         * outside {0,5,6,>=10} straight to LAB_5a78). Fall back to the
+         * courseless state 5 the LAB_5a78 tail hands out.
+         */
+        u = units_get(ctx->units, u->id);
+        if (u && u->active && u->orders == UNITS_ORDER_BUILD_COLONY) {
+          u->orders = UNITS_ORDER_FORTIFY; /* +0x314c = 5 */
+        }
+        return;
       }
       if (gate_r) {
         return;

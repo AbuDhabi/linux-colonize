@@ -878,7 +878,7 @@ typedef struct AiContactUnitClass {
   int is_scout;
   int is_missionary;
   int attack;
-  int can_live_among; /* FUN_1000_8d68 ≥ 0 && attack < 2 && !scout && profession != Convert */
+  int can_live_among; /* FUN_1000_8d68 >= 0 && attack < 2 && !scout (bugs.md #726) */
 } AiContactUnitClass;
 
 static void ai_contact_classify_unit(
@@ -904,7 +904,6 @@ static void ai_contact_classify_unit(
    */
   out->is_missionary = units_type_is_missionary(t) ? 1 : 0;
   out->attack = t ? t->attack : 0;
-  const int is_convert = u->profession == COLONIZE_PROF_CONVERT;
   const int colonist_class =
     !out->is_ship && !out->is_wagon && !out->is_scout && !out->is_missionary &&
     !units_type_is_treasure(t) && !units_type_is_artillery(t);
@@ -914,8 +913,15 @@ static void ai_contact_classify_unit(
    * Pioneers, Missionaries, Dragoons, Scouts, Cont. Cavalry, Cont. Army. With
    * the attack < 2 / not-Scout / not-Missionary gates that is exactly the
    * colonist-class name test above (Regulars/Cavalry fall to attack ≥ 2).
+   *
+   * bugs.md #726: the DOS row-5 gate (asm OVL13:0x49e0-0x4a3f) ends with a
+   * fourth test, `FUN_1000_8d68(unit) != 0x1b`, which the port used to spell
+   * as "profession != Convert". 8d68 reads the TYPE-default table DS:0x30e,
+   * never the unit's +0x315b profession byte, and that table holds no 0x1b —
+   * so the DOS test can never fire and a Convert DOES get Live Among Natives
+   * (thunk_FUN_1000_a618 then answers @TEACHCONVERT). Gate removed.
    */
-  out->can_live_among = colonist_class && out->attack < 2 && !is_convert;
+  out->can_live_among = colonist_class && out->attack < 2;
 }
 
 /* Meet payload: bit0 is_missionary, bit1 is_capital, bits 2.. = unit id + 1. */
@@ -8954,6 +8960,32 @@ static void ai_contact_live_among_natives(
   ColonizeDosRng local;
   ColonizeDosRng* rng = ai_contact_action_rng(ctx, nation_id, &local);
   const int human = ai_contact_euro_is_human(ctx, e);
+  /*
+   * DOS-LITERAL thunk_FUN_1000_a618 head (overlays.c 77693-77718, asm
+   * OVL13:0x3650-0x36ab) — bugs.md #729. For a human-controlled actor
+   * (param_3 < 4 && DS:0x543f+param_3*0x34 == 0) the village visit opens its
+   * own tune on a 1-in-4 roll: FUN_1000_86c4(0,3) == 0 plays FUN_1000_8688(5)
+   * (Natives), plus 7 when DS:0x8d52 == 0 (Inca) and 6 when it == 1 (Aztec) —
+   * the same tribe SLOT / tune triple as the first-meet cue above.
+   *
+   * The roll is drawn off a private stream, not ctx->rng: in DOS the very next
+   * thing 0x36c8 does is FUN_1000_8f80 (reseed from the village record), so
+   * the draw cannot shift any later draw. Spending a shared-stream draw here
+   * would.
+   */
+  if (human) {
+    ColonizeDosRng bgm_rng;
+    ai_contact_local_rng(ctx, nation_id, &bgm_rng);
+    if (dos_rng_range(&bgm_rng, 0, 3) == 0) {
+      const int tribe_slot = nation_id - 4;
+      sound_set_bgm(5);
+      if (tribe_slot == 0) {
+        sound_set_bgm(7);
+      } else if (tribe_slot == 1) {
+        sound_set_bgm(6);
+      }
+    }
+  }
   const int skill = ai_contact_a618_skill(ctx, nation_id, t);
   const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
   const int band = ai_relation_quartile(alarm);

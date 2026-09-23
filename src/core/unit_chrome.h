@@ -97,7 +97,34 @@ int unit_chrome_crown_nation(void);
  */
 UnitChromeCorner unit_chrome_corner_for_type(int dos_unit_type_id, bool damaged);
 
-/* @ORDERS index → single letter (natives always '-'). */
+/*
+ * bugs.md #705. FUN_112b_01ba's LAST badge arm (viceroy_unpacked_2.c raw
+ * 2148-2172) replaces the @ORDERS letter outright for a DAMAGED unit
+ * (+0x3148 bit7) whose type is not 0x0b (Artillery keeps its own y+2 box
+ * instead, raw 2109-2111):
+ *
+ *   iVar5 = @UNIT[type].0x5235 - unit[+0x315a];          // repair countdown
+ *   if (FUN_137f_000a(unit.x, unit.y)) iVar5 = (iVar5 + 1) >> 1;
+ *   badge = iVar5 < 10 ? '0' + iVar5 : '+';
+ *
+ * DS:0x5235 is the @UNIT combat/DEFENSE column the repair tick already uses
+ * as its threshold (units.c), +0x315a is col1_counter16 (turns repaired so
+ * far), and FUN_137f_000a(x,y) (raw 5215-5226) is the plain "interior map
+ * tile" test `x >= 1 && y >= 1 && x < width-1 && y < height-1` — false for
+ * a hull parked on DOS's off-map Europe diagonal, which is why only a ship
+ * still on the map shows the halved figure.
+ *
+ * Returns an orders_index that unit_chrome_order_letter renders as that
+ * digit, or -1 when the arm does not apply and the caller should pass the
+ * unit's real orders byte.
+ */
+#define UNIT_CHROME_ORDERS_REPAIR_BASE 0x100
+int unit_chrome_repair_badge_index(
+  int dos_unit_type_id, bool damaged, int repair_threshold, int repair_counter, bool halve
+);
+
+/* @ORDERS index → single letter (natives always '-'), or the #705 repair
+ * digit when orders_index came from unit_chrome_repair_badge_index. */
 char unit_chrome_order_letter(int orders_index, int nation_id);
 
 /* Letter ink: black, or names_color-8 / 8 for Sentry & Fortified. */

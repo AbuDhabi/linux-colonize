@@ -280,7 +280,8 @@ int main(void) {
     }
   }
 
-  /* Dock Indentured → Free Colonists (starters may predate elect). */
+  /* bugs.md #728: FUN_4345_0342 case 0x14 rewrites only the three recruit
+   * slots — colonists already on the docks stay Indentured / Criminal. */
   {
     EuropeScreen eu_dock;
     memset(&eu_dock, 0, sizeof(eu_dock));
@@ -308,9 +309,8 @@ int main(void) {
     if (!founding_fathers_nation_has(&bcol1, 0, FF_WILLIAM_BREWSTER)) {
       return fail("Brewster dock-filter elect");
     }
-    if (eu_dock.dock[0].profession != COLONIZE_PROF_FREE_COLONIST ||
-        strcmp(eu_dock.dock[0].name, reports_job_display_name(COLONIZE_PROF_FREE_COLONIST)) != 0) {
-      return fail("Brewster must convert Indentured dock to Free Colonists");
+    if (eu_dock.dock[0].profession != COLONIZE_PROF_INDENTURED) {
+      return fail("Brewster must leave already-docked Indentured Servants alone");
     }
   }
   ctx.europe = NULL;
@@ -1638,7 +1638,9 @@ int main(void) {
     }
   }
 
-  /* Arctic / mountain founding rejection. */
+  /* Mountain founding rejection. bugs.md #685: Arctic is NOT rejected — the
+   * DOS Build handler's only terrain test is `FUN_281f_078c(x,y) == 0x1b`
+   * (asm 0x22620-0x22632, @TOOMOUNTAIN); the old pedia-24 arm was invented. */
   {
     char err[64];
     ColonizeWorldMap map;
@@ -1655,9 +1657,9 @@ int main(void) {
     ColonizeColonyPool pool;
     colonies_init(&pool);
     colonies_set_occupancy_map(NULL);
-    if (colonies_can_found(&pool, &map, 3, 3)) {
+    if (!colonies_can_found(&pool, &map, 3, 3)) {
       map_free(&map);
-      return fail("can_found allowed arctic");
+      return fail("can_found rejected arctic");
     }
     if (colonies_can_found(&pool, &map, 4, 4)) {
       map_free(&map);
@@ -1878,6 +1880,9 @@ int main(void) {
     mcol1.tribe = &tribe;
     mcol1.head.tribe_count = 1;
     memset(&mcol1.indian[0], 0, sizeof(mcol1.indian[0]));
+    /* bugs.md #710: FUN_4cc6_07c2 raw 81213 subtracts max(-(census-10)>>1, 0);
+     * census 10 → no discount, so the baseline below stays 162. */
+    mcol1.stuff.census_pop_proxy[0] = 10;
 
     ColonizeWorldMap mmap;
     memset(&mmap, 0, sizeof(mmap));

@@ -114,7 +114,7 @@ void ai_euro_colony_goals_producers(
 void ai_euro_colony_goals_ship_found(
   ColonizeTurnContext* ctx, int nation_id, AiEuroInventory* inv, int urgency
 );
-void ai_euro_colony_goals_bind_founders(ColonizeTurnContext* ctx, int nation_id);
+/* ai_euro_colony_goals_bind_founders retired 2026-09-23 — bugs.md #707. */
 
 int ai_euro_5952_indoor_pass_enabled(void);
 

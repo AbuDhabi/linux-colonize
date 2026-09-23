@@ -99,6 +99,15 @@ void units_render_on_map(
     /* Chrome's 4th badge arm is Artillery + the damaged bit (+0x3148 bit7),
      * not "aboard a ship" — unit_chrome_corner_for_type. */
     const bool damaged = (top->col1_flags15 & 0x80u) != 0;
+    /* bugs.md #705: a damaged non-Artillery hull shows its repair countdown
+     * as a digit instead of the @ORDERS letter (FUN_112b_01ba raw 2148-2172). */
+    const ColonizeUnitType* top_type = units_type(pool, top->type_index);
+    const int repair_badge = unit_chrome_repair_badge_index(
+      dtype, damaged, top_type ? top_type->defense : 0, (int)top->col1_counter16,
+      fog_map && top->x >= 1 && top->y >= 1 && top->x < (int)fog_map->width - 1 &&
+        top->y < (int)fog_map->height - 1
+    );
+    const int badge_orders = repair_badge >= 0 ? repair_badge : top->orders;
 
     unit_chrome_blit_unit_for_palette(
       framebuffer,
@@ -109,7 +118,7 @@ void units_render_on_map(
       py,
       dtype,
       top->nation_id,
-      top->orders,
+      badge_orders,
       stacked,
       damaged,
       active_palette
