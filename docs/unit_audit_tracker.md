@@ -32,6 +32,7 @@ professions from `@JOB` (profession byte = row). Identify by row, never by name.
 | 2026-09-23 | Treasure Train (props, creation LCR/conquest/cheat, boarding/movement/combat, King's Galleon offer + Europe cash-in, AI arms, colony admit, save byte, UI) | #736-751 | 15 fixed (#736-750), #751 = 5 static-unresolved leads; audit corrected: 465b 0x10 bit = Privateer sighting, not treasure |
 | 2026-09-23 | Wagon Train (@UNIT 12: props/catalog columns, construction + @NOMOREWAGONS cap, movement/colony enter, combat/capture, cargo model + colony strip load/unload, village trade 2820 + @INDIANWAGONS, foreign-colony trade, AI 20e6 wagon errand/load/457e, 021a/brave scoring, save round-trip) | #782-821 | 31 fixed, 2 refuted (#789 #812), #803 re-scoped OPEN, #818-821 follow-up leads |
 | 2026-09-23 | Expert Teacher (@JOB 18, cut pre-release: Europe pool remap 38fd_46d4, school gate 364b_0688 level 4, 5952 indoor pass skip, village teach table 0..15, labor report/pedia hidden, sprite 99 + label 15eb_0002 kept as save tolerance) | none | no defect; type is unreachable in port and DOS, only occupation slot 18 (teaching) is live; rule in conventions.md `expert-teacher-cut-type` |
+| 2026-09-23 | Man-O-War (@UNIT 18: props/catalog/holds/sight/build+buy exclusion, REF 0982 spawn+pool+landing tile+sail-home 20e6+5d04 seize, intervention 10f0 free arm + JPJ fallback, merc delivery 2022/2244/10f0 paid arm, combat 1b0e Bombard bit / 0352 outcomes + repair / 312e ship-slow + evade, Europe gate, reports/save) | #865-878 | 12 fixed (#865 H: DOS 0x5382 bit 0x02 = intervention announced, port set it at declare; #866 H: 0982 MoW self-goto freeze; #867 H: crown last MoW unsinkable, raw 99527-99570 gate block ported), #877 lead (4393 haul gate, ties #818), #878 L bundle partly done (e)(j)+leads open; Bombard +50% verified attacker-only global flag, no nearby-MoW effect on colony attacks |
 | 2026-09-23 | Fur Trapper / Expert Fur Trapper (@JOB 4: 17fa/18ec fur pipeline incl. Game/Beaver/river/road pre-add + Hudson position, 1f72 commons, OTJ/school/village teaching, Europe unreachability 46d4 remap + price -1, fitted forms equip/combat/promotion/join/labels/save, AI 28c8 seating/0x864/5952/20e6, village gift/bid, craft consumption of furs) | #851-862, #819 | 12 fixed (#851 factory-tier input = colony-total floor 2:3, #855 pedia Beaver +3, #819 live gift price byte, #861 invented Silver-first export list deleted), leads #863 (beg-conceded falls through to gift, bVar7) #864 (export ship-load arm has no DOS body) |
 
 Open carry-over: #530 (AI first-colony opening scaffolding) came out of the Vet
@@ -39,11 +40,7 @@ Soldier audit and is still OPEN.
 
 ## Remaining: unit types (`@UNIT`)
 
-Partly covered by earlier audits is noted; still needs its own pass.
-
-| Row | Type | Notes |
-|-----|------|-------|
-| 18 | Man-O-War | not in ship audit scope |
+None left: every `@UNIT` row has had its own pass (Man-O-War closed the set 2026-09-23).
 
 ## Remaining: expert professions (`@JOB`)
 

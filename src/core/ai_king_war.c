@@ -230,6 +230,9 @@ static int ai_king_crown_ships_in_europe_lane(const ColonizeTurnContext* ctx, in
  *   //   tile (class 0x1a, owner nibble < 0 or own nation), bump
  *   //   DS:0x9456+nation, act_state +0x314c = 3 (or 0xb), latch the tile in
  *   //   +0x314d/e and stamp orders +0x314b = 0x45 — i.e. sail home.
+ *   // (The port models the goal with its own pursue order UNITS_ORDER_AI_SAIL
+ *   //  = 0x0b, the `+0x314c = 3 (or 0xb)` act-state above; the raw DOS
+ *   //  +0x314b order byte 0x45 has no port enum — bugs.md #878d.)
  *
  * Nothing credits a pool: `expeditionary_force[]` is untouched on the way
  * out. The fleet cadence comes from FUN_43f7_0982's own opening gate
@@ -289,7 +292,9 @@ int ai_king_mow_sail_home_20e6(ColonizeTurnContext* ctx, ColonizeUnit* u, int cr
   if (!units_spiral_place_hs_near(ctx->units, ctx->map, u->x, u->y, crown, &hx, &hy)) {
     return 0;
   }
-  u->orders = UNITS_ORDER_AI_SAIL; /* +0x314b = 0x45 */
+  /* Port pursue-goal order (0x0b), DOS act_state `+0x314c = 3/0xb`; the DOS
+   * `+0x314b = 0x45` order byte itself is not modelled (bugs.md #878d). */
+  u->orders = UNITS_ORDER_AI_SAIL;
   u->goto_x = hx;
   u->goto_y = hy;
   if (u->moves > 0) {
@@ -319,13 +324,13 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
     return;
   }
   /*
-   * bugs.md: DS:0x5382 bit1 means "REF currently on the map", not "war
-   * declared" — the port set it at the declaration and never cleared it,
-   * which permanently blocked the bell-pool spend (foreign intervention /
-   * next-wave trigger). Clear it once no crown unit remains in the New
-   * World, so wiping a wave re-arms the pool.
+   * bugs.md #865: this is the PORT-ONLY "crown force on the map" latch
+   * (AI_KING_REF_PRESENT_BYTE, pad bit) — DS:0x5382 bit 0x02 is DOS's
+   * intervention-announce latch and is never cleared. Clear the port latch
+   * once no crown unit remains in the New World, so wiping a wave re-arms
+   * the next-wave trigger.
    */
-  if (ctx->col1->head.game_options.ref_present && ctx->units) {
+  if (ai_king_latch_get(ctx->col1, AI_KING_REF_PRESENT_BYTE) && ctx->units) {
     const int crown_now = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation);
     bool crown_on_map = false;
     /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
@@ -361,12 +366,23 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
     (ctx->col1->nation[human].nation_flags & 0x08u) == 0;
   if (!mobilization_due) {
     /*
-     * Rebel arm first: 10f0 while human ports still exist (crown move/capture
-     * below may seize the landing pick). In addition to 06a6 in ref_wave.
+     * DOS-LITERAL FUN_43f7_2022 raw 75007: ONE if/else over a single read of
+     * the pair —
+     *   if ((0x5382 & 2) == 0 || *0x53e6 == 0)  <merc offer, own returns>
+     *   else                                    10f0(0)   (the free drain)
+     * The two never run on the same turn. The port ran the drain first, so a
+     * drain that took backup_force[2] 1 -> 0 let the merc offer fire in the
+     * same beat: two landings and four extra RNG draws (bugs.md #874).
      */
-    ai_king_10f0_land(ctx, ctx->human_nation, 0, NULL); /* FUN_43f7_10f0, free drain */
-    /* Real 2022: recurring per-turn rebel merc gift (hire CHOICE / auto). */
-    ai_king_merc_offer(ctx);
+    const int intervened =
+      ai_king_latch_get(ctx->col1, AI_KING_INTERVENE_ANNOUNCED_BYTE) != 0;
+    const int mow_pool = (int)ctx->col1->head.backup_force[2];
+    if (intervened && mow_pool != 0) {
+      ai_king_10f0_land(ctx, ctx->human_nation, 0, NULL); /* FUN_43f7_10f0 free drain */
+    } else {
+      /* Recurring per-turn rebel merc offer (hire CHOICE / auto). */
+      ai_king_merc_offer(ctx);
+    }
   }
 
   /*
@@ -952,7 +968,6 @@ static AiKingWoiEndStatus ai_king_woi_end_win(struct ai_king_woi_end_ctx* w) {
       (crown_land < giveup_bar || force_end) && (pool_score < 4 || force_end)) {
     ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_WON);
     ai_king_latch_set(ctx->col1, AI_KING_REF_PRESENT_BYTE, 0);
-    ctx->col1->head.game_options.ref_present = 0;
     /* DOS win sequence: 0x5382|=8 (war concluded), reveal map, scoring
      * latch — mirrors turn.c C1's LAB_0b4a effects so the win is complete
      * whichever check fires first. */
@@ -1049,7 +1064,6 @@ static void ai_king_woi_end_warn(struct ai_king_woi_end_ctx* w) {
   if (year >= AI_KING_YEAR_CAP) {
     ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_LOST);
     ai_king_latch_set(ctx->col1, AI_KING_REF_PRESENT_BYTE, 0);
-    ctx->col1->head.game_options.ref_present = 0;
     const char* estate = ai_king_richest_colony_name(ctx, human);
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));

@@ -69,7 +69,10 @@ typedef struct ColonizeCol1Tut1 {
 typedef struct ColonizeCol1GameOptions {
   /* DS:0x5382 low byte — WoI/REF latches (was unused01). */
   uint16_t woi : 1; /* 0x01 — declare independence */
-  uint16_t ref_present : 1; /* 0x02 — REF arrived */
+  uint16_t ref_present : 1; /* 0x02 — foreign intervention ANNOUNCED
+                               (FUN_43f7_1528 raw 74493, the EXE's only
+                               writer; never cleared). The port label
+                               `ref_present` is historical — bugs.md #865. */
   uint16_t woi_crosses_event : 1; /* 0x04 — confirmed 2026-08-18 live DOSBox-X
                                       capture: fires on the "foreign
                                       intervention force, pending enough

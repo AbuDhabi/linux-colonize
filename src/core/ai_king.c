@@ -29,7 +29,8 @@
  *   ai_king_latch_set(AI_KING_WOI_BYTE) writes that same field. The old
  *   market_demand_pool_raw[] mirror is gone (market_demand_pool_raw[0..5] alias market_demand_pool on DOS
  *   saves, so it was never a safe home).
- * REF-present: head.game_options.ref_present (0x5382 bit1).
+ * REF-present: port-only pad latch AI_KING_REF_PRESENT_BYTE. (0x5382 bit
+ * 0x02 is DOS's intervention-announce latch, bugs.md #865.)
  * Tax audience (ported 2026-08-19, real formula — see ai_king_audience_roll /
  *   ai_king_audience_apply_delta / ai_king_tax_event): FUN_38fd_5be8 rolls a
  *   signed delta off a turn-interval-gated favor-score ladder (cut, +1, +2,
@@ -587,8 +588,10 @@ void ai_king_set_ref_present(ColonizeCol1Save* col1, int on) {
   if (!col1) {
     return;
   }
+  /* bugs.md #865: port-only "crown force in the New World" latch (pad bit).
+   * It must NOT touch DS:0x5382 bit 0x02, which is the DOS intervention
+   * ANNOUNCE latch (FUN_43f7_1528 raw 74493) — see ai_king.h. */
   ai_king_latch_set(col1, AI_KING_REF_PRESENT_BYTE, on ? 1 : 0);
-  col1->head.game_options.ref_present = on ? 1 : 0;
 }
 
 void ai_king_set_boycott(ColonizeCol1Save* col1, int on) {

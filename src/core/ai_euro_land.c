@@ -2960,7 +2960,10 @@ int ai_euro_20e6_457e_type_gate(
   const ColonizeCol1Stuff* stuff =
     (ctx && ctx->col1_ok && ctx->col1) ? &ctx->col1->stuff : NULL;
   if (dos_type == UNITS_KIND_MAN_O_WAR) { /* Man-O-War (decomp 88576-88579) */
-    if (u && (u->id & 1) != 0) {
+    /* DOS-LITERAL raw 88577: `(param_1 & 1) != 0` — param_1 is the unit's
+     * ARRAY INDEX into the 300-slot pool, not its id (ids start at 1 and are
+     * not slots; docs/conventions.md). bugs.md #878(a). */
+    if (u && ctx && ctx->units && (((int)(u - ctx->units->units)) & 1) != 0) {
       return 1;
     }
     return stuff && n >= 0 && n < 4 && stuff->unit_type_counts[n][0x12] == 1;

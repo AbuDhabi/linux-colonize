@@ -331,7 +331,10 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
     if (edge_sail ||
         (dest_water &&
         units_enter_probe_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, selected->type_index, dest_x, dest_y, sid) == COLONIZE_ENTER_BLOCKED_HS_SAIL)) {
-      if (game->col1_ok && game->col1.head.game_options.woi) {
+      /* bugs.md #870 / FUN_479b raw 76477-76484: a crown Man-O-War on the
+       * crown's own turn is exempt from the WoI gate and sails as usual. */
+      if (game->col1_ok && game->col1.head.game_options.woi &&
+          !game_ship_woi_europe_exempt(game, selected)) {
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(
           &game->messages, "EUROPENOTLEAVE", NULL,

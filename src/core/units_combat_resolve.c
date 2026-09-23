@@ -887,6 +887,10 @@ bool units_fort_vs_ship(
     /* Same DOS 0352 roll as the naval path — fort strength stands in for the
      * winner's @UNIT guns column. See units_ship_damage_vs_sink. */
     int damaged = units_ship_damage_vs_sink(rng, attack_str, lhull);
+    /* bugs.md #867: DOS reaches 0352 through the 1b0e temp attacker, so the
+     * raw 99527-99570 gate applies here too. `wt` NULL = the winner is not a
+     * unit type (only the Frigate-vs-Frigate clause reads it). */
+    damaged = units_naval_damage_gate(pool, col1, def, NULL, fort_nation, damaged);
     const ColonizeColony* home = NULL;
     if (damaged) {
       home = units_nearest_own_drydock_colony(
@@ -964,17 +968,12 @@ bool units_fort_vs_ship(
  * Man-O-War (docs/units.md). Port keeps Euro ships' countdown in
  * moves, so `spent += n` is `moves -= n` floored at 0.
  */
+/* bugs.md #868/#869: 312e has exactly ONE port spelling —
+ * units_naval_evade_power (units_combat.c). The copy that used to live here
+ * subtracted 4 per PASSENGER (`cargo_count`) where DOS raw 98448 reads
+ * +0x3150, the goods-hold count. */
 static int units_ship_slow_power(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
-  int power = units_max_mp(pool, u->id) + 3;
-  /* bugs.md #581: @UNIT row class (kind_plus1), not the display spelling. */
-  const ColonizeUnitKind k = units_type_kind(units_type(pool, u->type_index));
-  if (k == UNITS_KIND_PRIVATEER) {
-    power *= 2;
-  } else if (k == UNITS_KIND_GALLEON) {
-    power += 3;
-  }
-  power -= 4 * u->cargo_count;
-  return power < 1 ? 1 : power;
+  return units_naval_evade_power(pool, u->id);
 }
 
 static int units_ship_slow_drain_for(ColonizeUnitKind k) {
@@ -1066,10 +1065,17 @@ void units_ship_slow_scan_w(
         map_tile_is_water(map, nx, ny) &&
         units_ship_slow_gate(col1, u->nation_id, topu->nation_id, mover_kind)) {
       const int other_nation = topu->nation_id;
+      /*
+       * DOS-LITERAL FUN_5bfb_3180 raw 98530-98588: the inner walk is the
+       * TILE CHAIN (`local_44 = FUN_281f_02e4(...)`) filtered only on type
+       * 0x0d..0x12. `local_46` (the top unit's nation) is read for the gate
+       * and the popup, never as a per-link filter — bugs.md #878(i). The
+       * port used to skip stackmates of a different nation than the tile's
+       * top unit.
+       */
       for (int i = 0; i < COLONIZE_UNITS_MAX && u->moves > 0; ++i) {
         const ColonizeUnit* f = &pool->units[i];
-        if (!f->active || f->x != nx || f->y != ny || f->nation_id != other_nation ||
-            !units_is_sea(pool, f->id)) {
+        if (!f->active || f->x != nx || f->y != ny || !units_is_sea(pool, f->id)) {
           continue;
         }
         const char* fname = units_display_name(pool, f);

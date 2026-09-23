@@ -1438,6 +1438,142 @@ int units_apply_land_loss_outcome(
 
 /* Defined below with the rest of the naval tail; the 0ec0 sweep needs it for
  * FUN_5fef_0352's hull arm (raw 99518-99649). */
+/*
+ * DOS-LITERAL FUN_5fef_0352 raw 99527-99570 (second, overlay-duplicated copy
+ * at raw 113600-113620) — the full damage-vs-sink gate that sits ON TOP of
+ * the guns/hull roll units_ship_damage_vs_sink makes. bugs.md #867: the port
+ * had none of it.
+ *
+ *   uVar15 = loser nation, local_32 = winner nation, local_4 = winner type.
+ *   uVar16 = loser type. `bVar11` = "damaged" (false = sunk).
+ *
+ *   if (loser_type*0xe + 0x5236 == 0) {                  // unarmed hull
+ *     bVar10 = DS[uVar15*0x13 - 0x6da3];                 // Frigate count
+ *     bVar6  = DS:0x5325;                                // = @UNIT[0x11].0x5237
+ *     bVar7  = DS[uVar15 + 0x9414];                      // ship_cargo_totals
+ *     bVar8  = loser_type*0xe + 0x5237;                  // loser cargo column
+ *     bVar9  = DS[uVar15*0x13 - 0x6da4];                 // Privateer count
+ *     bVar11 = (DS[n+0x9418] - DS[n+0x9424] < 9) && bVar11;
+ *     if (loser_type == 0x0d && DS:0x538e > 0x4f) bVar11 = false;   // Caravel
+ *     iVar18 = FUN_281f_035c(DS[n+0x9410] >> 2, 3, 6);   // clamp(…,3,6)
+ *     if (bVar7 - bVar8 - bVar10*bVar6 - bVar9 < iVar18) bVar11 = true;
+ *   } else if ((DS:0x5382 & 1) == 0) {                   // armed hull, no WoI
+ *     bVar10 = DS[uVar15*0x13 + loser_type - 0x6db4];    // own count of this type
+ *     if (DS[n+0x9298] < bVar10 || 8 < DS[n+0x9424]) bVar11 = false;
+ *     if (loser_type == 0x11 && local_4 == 0x11 &&
+ *         DS[local_32*0x13 - 0x6da3] < bVar10) bVar11 = false;
+ *     if (bVar10 < 2 && DS[n+0x9298] != 0) bVar11 = true;
+ *   }
+ *   if ((DS:0x5382 & 1) && uVar15 == DS:0x53d2 &&
+ *       loser_type == 0x12 && DS[uVar15*0x13 - 0x6da2] < 2) bVar11 = true;
+ *
+ * i.e. AI fleet-pool keep/lose biases for an unarmed hull, a Frigate-vs-
+ * Frigate "the bigger navy keeps its hull" clause for an armed one, and — the
+ * clause #867 was filed for — the King's LAST Man-O-War is unsinkable during
+ * the War of Independence. DS:0x5325 folds to @UNIT[Frigate].cargo (the table
+ * base 0x5230 + 0x11*0xe + 7).
+ *
+ * `wt` NULL = the winner is not a unit (coastal fort): only the
+ * Frigate-vs-Frigate clause reads the winner's type, and a fort is never a
+ * Frigate, so it simply does not fire. DOS's `param_2 < 0` force-damage arm
+ * belongs to the 0f14 raid, which never reaches this helper.
+ *
+ * Census note: DOS also decrements DS:0x9414/0x924c/0x9424 on the sink path
+ * (raw 99570-99579); the port rebuilds the whole census from the live pool
+ * (col1_stuff_census.c), so that write-back is not transcribed.
+ */
+/* DS:0x53d2 = head.crown_nation_id, the slot the succession merger vacated
+ * (same rule as ai_king_crown_nation_col1; spelled locally so the slim
+ * units test targets need not link ai_king.c). */
+static int units_combat_crown_nation(const ColonizeCol1Save* col1) {
+  if (!col1) {
+    return -1;
+  }
+  const int human = (int)col1->head.human_player;
+  const int c = (int)col1->head.crown_nation_id;
+  if (c >= 0 && c < 4 && c != human) {
+    return c;
+  }
+  return (human == 0) ? 1 : 0;
+}
+
+int units_naval_damage_gate(
+  const ColonizeUnitPool* pool,
+  const ColonizeCol1Save* col1,
+  const ColonizeUnit* lose,
+  const ColonizeUnitType* wt,
+  int winner_nation,
+  int damaged
+) {
+  if (!pool || !col1 || !lose) {
+    return damaged;
+  }
+  const int n = lose->nation_id;
+  if (n < 0 || n > 3) {
+    return damaged;
+  }
+  const ColonizeCol1Stuff* st = &col1->stuff;
+  const ColonizeUnitType* lt = units_type(pool, lose->type_index);
+  if (!lt) {
+    return damaged;
+  }
+  const int lrow = lose->type_index;
+  const int row_frigate = units_kind_type_index(pool, UNITS_KIND_FRIGATE);
+  const int row_privateer = units_kind_type_index(pool, UNITS_KIND_PRIVATEER);
+  const int row_mow = units_kind_type_index(pool, UNITS_KIND_MAN_O_WAR);
+  const int woi = col1->head.game_options.woi != 0;
+
+#define UNITS_TYPE_CNT(nat, row) \
+  (((nat) >= 0 && (nat) < 4 && (row) >= 0 && (row) < 19) \
+     ? (int)st->unit_type_counts[(nat)][(row)] : 0)
+
+  if (lt->attack == 0) {
+    /* Unarmed hull: the AI fleet-pool keep/lose bias. */
+    const ColonizeUnitType* ft = row_frigate >= 0 ? units_type(pool, row_frigate) : NULL;
+    const int frigate_cargo = ft ? ft->cargo : 0;
+    damaged = ((int)st->ship_counts[n] - (int)st->armed_ship_counts[n] < 9) && damaged;
+    if (units_type_kind(lt) == UNITS_KIND_CARAVEL && (int)col1->head.turn > 0x4f) {
+      damaged = 0;
+    }
+    int floor_v = (int)st->census_pop_proxy[n] >> 2;
+    if (floor_v < 3) {
+      floor_v = 3;
+    }
+    if (floor_v > 6) {
+      floor_v = 6;
+    }
+    const int spare = (int)st->ship_cargo_totals[n] - lt->cargo -
+                      UNITS_TYPE_CNT(n, row_frigate) * frigate_cargo -
+                      UNITS_TYPE_CNT(n, row_privateer);
+    if (spare < floor_v) {
+      damaged = 1;
+    }
+  } else if (!woi) {
+    /* Armed hull outside the WoI. */
+    const int own = UNITS_TYPE_CNT(n, lrow);
+    if ((int)st->colony_counts[n] < own || (int)st->armed_ship_counts[n] > 8) {
+      damaged = 0;
+    }
+    if (row_frigate >= 0 && lrow == row_frigate && wt &&
+        units_type_kind(wt) == UNITS_KIND_FRIGATE &&
+        UNITS_TYPE_CNT(winner_nation, row_frigate) < own) {
+      damaged = 0;
+    }
+    if (own < 2 && st->colony_counts[n] != 0) {
+      damaged = 1;
+    }
+  }
+
+  /* raw 99562-99565 / 113608: the King's last Man-O-War cannot be sunk. */
+  if (woi && row_mow >= 0 && lrow == row_mow &&
+      n == units_combat_crown_nation(col1) &&
+      UNITS_TYPE_CNT(n, row_mow) < 2) {
+    damaged = 1;
+  }
+#undef UNITS_TYPE_CNT
+  return damaged;
+}
+
 int units_apply_naval_loss_outcome(
   ColonizeUnitPool* pool,
   int loser_id,
@@ -1662,7 +1798,13 @@ void units_ship_enter_repair(
   lose->orders = UNITS_ORDER_NONE; /* DOS zeroes +0x314c */
   lose->repair_pending = 2; /* 2 = damaged this turn; see the repair tick */
   {
-    const int thresh = lt && lt->defense > 0 ? lt->defense : 4;
+    /* DOS-LITERAL FUN_5fef_0352 raw 99622-99631: BOTH sides of the repair
+     * bill read the @UNIT 0x5235 (defense) column raw — `local_6 =
+     * winner_type*0xe+0x5235` (doubled for a non-ship winner) versus
+     * `bVar10 = loser_type*0xe+0x5235`, with no fallback. bugs.md #878(h):
+     * the `: 4` default was invented and unreachable — every @UNIT hull row
+     * 0x0d..0x12 carries a non-zero defense. */
+    const int thresh = lt ? lt->defense : 0;
     int worked = (wstr < thresh) ? thresh - wstr : 0;
     if (units_type_is_frigate(lt) && worked < 4) {
       worked = 4;
@@ -1857,12 +1999,16 @@ int units_apply_naval_loss_outcome(
    * Damage vs sink (DOS 0352 5fef:09xx): roll range(1, winner.guns +
    * loser.hull) <= loser.hull → survives damaged; a gunless victor (@UNIT
    * guns column 0) can never sink, only drive off damaged. This replaces
-   * the earlier "close fight" heuristic. (DOS layers AI fleet-pool biases
-   * and a crown-galleon exemption on top; those pools aren't ported.)
+   * the earlier "close fight" heuristic. DOS then layers the raw 99527-99570
+   * fleet-pool / crown-Man-O-War gate on the result — units_naval_damage_gate
+   * (bugs.md #867).
    */
   const int wguns = wt ? wt->guns : 0;
   const int lhull = lt ? lt->hull : 0;
   int damaged = units_ship_damage_vs_sink(rng, wguns, lhull);
+  /* bugs.md #867: DOS raw 99527-99570 layers the fleet-pool / crown-MoW gate
+   * on top of that roll. */
+  damaged = units_naval_damage_gate(pool, col1, lose, wt, win->nation_id, damaged);
   /*
    * bugs.md #254: WoI human with no drydock port has no friendly Europe either
    * — the ship goes down instead of limping anywhere (DOS 85139).
@@ -1993,8 +2139,22 @@ int units_raid_damage_ship(ColonizeUnitPool* pool, int ship_id, const ColonizeCo
 }
 
 /*
- * FUN_5bfb_312e naval evasion power: movement + 3; Privateer ×2; Galleon +3;
- * −4 per occupied hold; min 1.
+ * DOS-LITERAL FUN_5bfb_312e raw 98433-98453 — the ONE naval evasion/slip
+ * power. bugs.md #869: the port had two copies that disagreed; this is the
+ * single helper both the naval-evade pre-roll and the ship-slow scan use.
+ *
+ *   local_4 = FUN_281f_090c(unit) & 0xff;        // MAX MP, in thirds
+ *   local_4 += 3;
+ *   if (type == 0x10) local_4 *= 2;              // Privateer
+ *   if (type == 0x0f) local_4 += 3;              // Galleon
+ *   local_4 -= 4 * unit[+0x3150];                // GOODS holds in use
+ *   if (local_4 < 1) local_4 = 1;
+ *
+ * Two fidelity points the old copies each got half right:
+ *  - 090c is the type's max MP in THIRDS (Man-O-War 18), not the tile count
+ *    (`movement`, 6) — bugs.md #869.
+ *  - +0x3150 is the GOODS hold count only, never passengers (`cargo_count`)
+ *    — bugs.md #868; see units_unit_hold_amount's header.
  */
 int units_naval_evade_power(const ColonizeUnitPool* pool, int unit_id) {
   const ColonizeUnit* u = units_get_const(pool, unit_id);
@@ -2002,11 +2162,13 @@ int units_naval_evade_power(const ColonizeUnitPool* pool, int unit_id) {
   if (!u || !t) {
     return 1;
   }
-  int p = t->movement + 3;
-  if (units_type_is_privateer(t)) {
+  int p = units_max_mp(pool, unit_id) + 3;
+  /* bugs.md #581: @UNIT row class (kind_plus1), not the display spelling. */
+  const ColonizeUnitKind k = units_type_kind(t);
+  if (k == UNITS_KIND_PRIVATEER) {
     p *= 2;
   }
-  if (units_type_is_galleon(t)) {
+  if (k == UNITS_KIND_GALLEON) {
     p += 3;
   }
   p -= 4 * units_holds_used(pool, unit_id);
