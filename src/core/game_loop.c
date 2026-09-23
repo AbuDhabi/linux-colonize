@@ -1038,12 +1038,21 @@ static void game_open_cheat_kill_indians(ColonizeGameState* game) {
 }
 
 /*
- * CHEAT Create Unit. The list TEXT is DEBUG.TXT @CREATE / @CSHIP / @FOREIGN2
- * (cheat_list_catalog_rows); these tables hold only the @UNIT ROW each entry
- * spawns — the port spells no unit names itself. -1 = resolved by a follow-up
- * stage (Treasure amount, Ship picker, Foreign picker). When DEBUG.TXT is
- * missing a row falls back to the spawned kind's NAMES.TXT @UNIT name
- * (bugs.md #543), else "".
+ * CHEAT Create Unit. The list TEXT is DEBUG.TXT @CREATE / @CREATE2 / @CSHIP /
+ * @FOREIGN (cheat_list_catalog_rows); these tables hold only the @UNIT ROW
+ * each entry spawns — the port spells no unit names itself. -1 = resolved by
+ * a follow-up stage (Treasure amount, Ship picker, Foreign nation picker).
+ * When DEBUG.TXT is missing a row falls back to the spawned kind's NAMES.TXT
+ * @UNIT name (bugs.md #543), else "".
+ *
+ * DOS dispatcher (ndisasm 0x23996-0x23b8c, jump table cs:0x2cba): the menu tag
+ * is @CREATE2 once the WoI is declared (`DS:0x5382 & 1`), else @CREATE. Rows
+ * 10-13 (ids 9-12) are the four Indian brave types before the declaration and
+ * Cont. Army (9) / Cont. Cav. (7) owned by the human (DS:0x5398) then
+ * Regulars (6) / Cavalry (8) owned by the crown slot (DS:0x53d2) after it.
+ * @CREATE row 14 "Foreign Unit" only picks the OWNER nation (@FOREIGN, DS
+ * `[bp-0x16]`) and loops back to the main list; @CREATE2 has no such row
+ * (its @FOREIGN2 arm is unreachable). bugs.md #666.
  */
 static const int k_cheat_create_main_kinds[14] = {
   UNITS_KIND_COLONIST, UNITS_KIND_PIONEER, UNITS_KIND_SOLDIER, UNITS_KIND_MISSIONARY,
@@ -1051,19 +1060,23 @@ static const int k_cheat_create_main_kinds[14] = {
   UNITS_KIND_BRAVE, UNITS_KIND_ARMED_BRAVE, UNITS_KIND_MTD_BRAVE, UNITS_KIND_MTD_WARRIOR,
   -1 /* Foreign */
 };
-static int game_cheat_create_kind(int id) {
-  if (id < 0 || id >= (int)(sizeof(k_cheat_create_main_kinds) / sizeof(k_cheat_create_main_kinds[0]))) {
-    return -1;
+static const int k_cheat_create_woi_kinds[13] = {
+  UNITS_KIND_COLONIST, UNITS_KIND_PIONEER, UNITS_KIND_SOLDIER, UNITS_KIND_MISSIONARY,
+  UNITS_KIND_SCOUT, UNITS_KIND_ARTILLERY, UNITS_KIND_WAGON, -1 /* Treasure */, -1 /* Ship */,
+  UNITS_KIND_CONT_ARMY, UNITS_KIND_CONT_CAV, UNITS_KIND_REGULAR, UNITS_KIND_CAVALRY
+};
+static bool game_cheat_create_woi(const ColonizeGameState* game) {
+  return game->col1_ok && ai_king_independence_declared(&game->col1) != 0;
+}
+static int game_cheat_create_kind(const ColonizeGameState* game, int id) {
+  if (game_cheat_create_woi(game)) {
+    return (id >= 0 && id < 13) ? k_cheat_create_woi_kinds[id] : -1;
   }
-  return k_cheat_create_main_kinds[id];
+  return (id >= 0 && id < 14) ? k_cheat_create_main_kinds[id] : -1;
 }
 static const ColonizeUnitKind k_cheat_create_ship_kinds[6] = {
   UNITS_KIND_CARAVEL, UNITS_KIND_MERCHANTMAN, UNITS_KIND_GALLEON,
   UNITS_KIND_PRIVATEER, UNITS_KIND_FRIGATE, UNITS_KIND_MAN_O_WAR
-};
-/* @FOREIGN2 rows: 0 = Rebel (Continental Army), 1 = Loyal (Regulars). */
-static const ColonizeUnitKind k_cheat_create_foreign_kinds[2] = {
-  UNITS_KIND_CONT_ARMY, UNITS_KIND_REGULAR
 };
 /* NAMES.TXT @UNIT name of `kind` (live catalog), "" when unknown. */
 static const char* game_cheat_unit_label(const ColonizeGameState* game, int kind) {
@@ -1072,38 +1085,49 @@ static const char* game_cheat_unit_label(const ColonizeGameState* game, int kind
   return t ? t->name : "";
 }
 
-static void game_open_cheat_create_unit(ColonizeGameState* game) {
+/* keep_nation: re-entry after the @FOREIGN owner pick (DOS loops back to the
+ * list with `[bp-0x16]` kept); a fresh entry owns units to the human. */
+static void game_open_cheat_create_unit_ex(ColonizeGameState* game, bool keep_nation) {
   if (!game) {
     return;
   }
+  const bool woi = game_cheat_create_woi(game);
+  const int rows = woi ? 13 : 14;
+  const char* tag = woi ? "CREATE2" : "CREATE";
   static int ids[14];
   for (int i = 0; i < 14; ++i) {
     ids[i] = i;
   }
   game->cheat_create_stage = 0;
-  /* DEBUG.TXT @CREATE row 0 (prompt) + rows 1-14 (option labels); @UNIT
-   * names are the per-row fallback. */
+  if (!keep_nation) {
+    game->cheat_create_pending_nation = -1;
+  }
+  /* DEBUG.TXT @CREATE/@CREATE2 row 0 (prompt) + rows 1-14/1-13 (option
+   * labels); @UNIT names are the per-row fallback. */
   char prompt_buf[1][CHEAT_LIST_LABEL_LEN];
   const char* k_prompt_fallback[1] = {""};
   cheat_list_catalog_rows(
-    game->debug_txt_ok ? &game->debug_txt : NULL, "CREATE", 0, k_prompt_fallback, prompt_buf, 1
+    game->debug_txt_ok ? &game->debug_txt : NULL, tag, 0, k_prompt_fallback, prompt_buf, 1
   );
   const char* main_fallback[14];
-  for (int i = 0; i < 14; ++i) {
-    main_fallback[i] = game_cheat_unit_label(game, k_cheat_create_main_kinds[i]);
+  for (int i = 0; i < rows; ++i) {
+    main_fallback[i] = game_cheat_unit_label(game, game_cheat_create_kind(game, i));
   }
   char label_buf[14][CHEAT_LIST_LABEL_LEN];
   cheat_list_catalog_rows(
-    game->debug_txt_ok ? &game->debug_txt : NULL, "CREATE", 1, main_fallback,
-    label_buf, 14
+    game->debug_txt_ok ? &game->debug_txt : NULL, tag, 1, main_fallback,
+    label_buf, rows
   );
   const char* labels[14];
-  for (int i = 0; i < 14; ++i) {
+  for (int i = 0; i < rows; ++i) {
     labels[i] = label_buf[i];
   }
-  if (!cheat_list_open_create_unit(&game->cheat_list, prompt_buf[0], labels, ids, 14)) {
+  if (!cheat_list_open_create_unit(&game->cheat_list, prompt_buf[0], labels, ids, rows)) {
     set_status(game, "Create Unit unavailable", NULL);
   }
+}
+static void game_open_cheat_create_unit(ColonizeGameState* game) {
+  game_open_cheat_create_unit_ex(game, false);
 }
 
 static void game_open_cheat_set_human(ColonizeGameState* game) {
@@ -1161,67 +1185,31 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
       set_status(game, "Cannot create unit here", NULL);
       return;
     }
-    units_set_nation(units_get(&game->units, uid), game->human_nation);
+    units_set_nation(
+      units_get(&game->units, uid),
+      game->cheat_create_pending_nation >= 0 ? game->cheat_create_pending_nation : game->human_nation
+    );
     set_status(game, "Created", units_type(&game->units, type_idx)->name);
     return;
   }
   if (game->cheat_create_stage == 2) {
-    /* @FOREIGN result: id = nation 0..3. Ask Rebel/Loyal next. */
-    game->cheat_create_pending_nation = id;
-    game->cheat_create_stage = 3;
-    static int ids2[2] = {0, 1};
-    /* DEBUG.TXT @FOREIGN2 row 0 (prompt) + rows 1-2 (option labels); @UNIT
-     * names of the spawned kinds are the per-row fallback. */
-    char foreign2_prompt_buf[1][CHEAT_LIST_LABEL_LEN];
-    const char* k_foreign2_prompt_fallback[1] = {""};
-    cheat_list_catalog_rows(
-      game->debug_txt_ok ? &game->debug_txt : NULL, "FOREIGN2", 0, k_foreign2_prompt_fallback,
-      foreign2_prompt_buf, 1
-    );
-    const char* foreign_fallback[2] = {
-      game_cheat_unit_label(game, k_cheat_create_foreign_kinds[0]),
-      game_cheat_unit_label(game, k_cheat_create_foreign_kinds[1])
-    };
-    char foreign2_label_buf[2][CHEAT_LIST_LABEL_LEN];
-    cheat_list_catalog_rows(
-      game->debug_txt_ok ? &game->debug_txt : NULL, "FOREIGN2", 1, foreign_fallback,
-      foreign2_label_buf, 2
-    );
-    const char* foreign2_labels[2] = {foreign2_label_buf[0], foreign2_label_buf[1]};
-    if (!cheat_list_open_create_unit(
-          &game->cheat_list, foreign2_prompt_buf[0], foreign2_labels, ids2, 2
-        )) {
-      game->cheat_create_stage = 0;
-      set_status(game, "Create Unit unavailable", NULL);
-    }
-    return;
-  }
-  if (game->cheat_create_stage == 3) {
-    /* @FOREIGN2 result: 0 = Rebel (Cont. Army), 1 = Loyal (Regulars). */
+    /* @FOREIGN result: id = owner nation 0..3; DOS stores it in `[bp-0x16]`
+     * and jumps back to the main list (ndisasm 0x23b3e-0x23b68). */
     game->cheat_create_stage = 0;
-    const int nation = game->cheat_create_pending_nation;
-    game->cheat_create_pending_nation = -1;
-    if (nation < 0 || nation > 3) {
-      return;
+    if (id >= 0 && id <= 3) {
+      game->cheat_create_pending_nation = id;
     }
-    const ColonizeUnitKind foreign_kind = k_cheat_create_foreign_kinds[id == 0 ? 0 : 1];
-    const int type_idx = units_kind_type_index(&game->units, foreign_kind);
-    const int uid = type_idx >= 0
-      ? units_spawn_allow_stack(&game->units, type_idx, x, y)
-      : -1;
-    if (uid < 0) {
-      set_status(game, "Cannot create unit here", NULL);
-      return;
-    }
-    units_set_nation(units_get(&game->units, uid), nation);
-    set_status(game, "Created", units_type(&game->units, type_idx)->name);
+    game_open_cheat_create_unit_ex(game, true);
     return;
   }
 
-  /* Stage 0: main @CREATE list. */
-  if (id < 0 || id >= 14) {
+  /* Stage 0: main @CREATE / @CREATE2 list. */
+  const bool woi = game_cheat_create_woi(game);
+  if (id < 0 || id >= (woi ? 13 : 14)) {
     return;
   }
+  const int owner = game->cheat_create_pending_nation >= 0
+    ? game->cheat_create_pending_nation : game->human_nation;
   if (id == 8) {
     /* Ship: follow up with @CSHIP. */
     game->cheat_create_stage = 1;
@@ -1253,8 +1241,8 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
     }
     return;
   }
-  if (id == 13) {
-    /* Foreign Unit: follow up with @FOREIGN. */
+  if (id == 13 && !woi) {
+    /* Foreign Unit: follow up with @FOREIGN (owner nation pick). */
     game->cheat_create_stage = 2;
     static int ids4[4] = {0, 1, 2, 3};
     /* @NATIONALITY rows, live NAMES.TXT first (audit GL-31). */
@@ -1281,7 +1269,7 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
   if (id == 7) {
     /* Treasure: no @HOWMUCH gold prompt in @CREATE — debug default amount. */
     const int uid =
-      units_spawn_treasure_train(&game->units, x, y, game->human_nation, 1000);
+      units_spawn_treasure_train(&game->units, x, y, owner, 1000);
     if (uid < 0) {
       set_status(game, "Cannot create unit here", NULL);
       return;
@@ -1289,13 +1277,24 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
     set_status(game, "Created", "treasure 1000");
     return;
   }
-  const int kind = game_cheat_create_kind(id);
+  const int kind = game_cheat_create_kind(game, id);
   if (kind < 0) {
     return;
   }
-  /* Indian unit types spawn for the first native tribe (id 4); @CREATE has
-   * no tribe picker in DEBUG.TXT. Cite: docs/save_format_map.md nation ids. */
-  const int nation = id >= 9 ? 4 : game->human_nation;
+  /* Rows 9-12: pre-WoI Indian types spawn for the first native tribe (id 4;
+   * DOS 0x181f:0xd84 picks the nearest tribe — lead, not ported). Post-WoI
+   * @CREATE2 rows 9-10 are the human's Continentals, 11-12 the crown's
+   * Regulars/Cavalry (DS:0x53d2). */
+  int nation = owner;
+  if (id >= 9) {
+    if (!woi) {
+      nation = 4;
+    } else if (id >= 11) {
+      nation = ai_king_crown_nation_col1(&game->col1, game->human_nation);
+    } else {
+      nation = game->human_nation;
+    }
+  }
   const int type_idx = units_kind_type_index(&game->units, (ColonizeUnitKind)kind);
   const int uid =
     type_idx >= 0 ? units_spawn_allow_stack(&game->units, type_idx, x, y) : -1;
