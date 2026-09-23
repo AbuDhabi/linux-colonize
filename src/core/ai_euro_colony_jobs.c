@@ -235,8 +235,11 @@ static int ai_euro_28c8_score_full(
   const bool has_docks = colony_yield_colony_has_docks(ctx->colonies, col);
   const int sol_b_field =
     profession >= 0 ? colony_prod_sol_bonus_field(col1, col) : 0;
-  const bool has_hudson = profession >= 0 && col1 &&
-                          founding_fathers_nation_has(col1, col->nation_id, FF_HENRY_HUDSON);
+  /* Same for Hudson (raw 11970-11973): `local_14 == 4 && FF_has(nation, 8)`
+   * keys off the JOB, never off a known worker profession — bugs.md #857,
+   * the #609 defect class. */
+  const bool has_hudson =
+    col1 && founding_fathers_nation_has(col1, col->nation_id, FF_HENRY_HUDSON);
 
   /* local_22 (raw 12987) = DS:0x329[FUN_15eb_0470()] — the colony's own ring
    * size, 8 unless it owns the cut Town Hall rows (bugs.md #593). */

@@ -149,10 +149,11 @@ void game_select_unit(ColonizeGameState* game, int unit_id) {
   game_set_view_center(game, u->x, u->y);
   /* FUN_2b5a_0e52: selecting a piece re-reveals around it (281f_07a0). */
   game_reveal_sight_for_unit(game, u);
-  /* units_display_name folds profession into the label (e.g. a toolless
-   * Pioneer-professioned Colonist reads "Hardy Pioneer", not "Colonists")
-   * — same identity mismatch reported for the Naval report's passenger
-   * label, fixed there the same way. */
+  /* units_display_name names the unit purely from its @UNIT row / equipment
+   * (bugs.md #591) — it does NOT fold profession into the label, so a
+   * toolless Pioneer-professioned Colonist still reads "Colonists" here.
+   * The Naval report's passenger column deliberately reads the profession
+   * instead (bugs.md #605), which is a separate, port-side extension. */
   snprintf(game->status, sizeof(game->status), "Selected %s", units_display_name(&game->units, u));
   /*
    * DOS-LITERAL FUN_2b5a_001e raw 42006-42009 (overlay twin

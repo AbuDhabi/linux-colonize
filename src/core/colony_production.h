@@ -75,15 +75,17 @@ int colony_prod_manufacturing_output_row(
 );
 
 /*
- * Raw-good input for one worker's manufacturing output. Factory tier
- * discounts 6-in for 9-out (colony_production.c's own
- * colony_prod_tier_input_for_output); house/shop
- * are 1:1. `sol_bonus` folds into the *output* used to derive this the same
- * way colony_prod_manufacturing_output does — player-confirmed 2026-08-15
- * (Viceroy): factory tier, +2 sentiment, output 12 → input 8, matching
- * `(12*6+8)/9`, not the un-modified-base-output reading this function used
- * to force (`(9*6+8)/9=6`, wrong). Pass 0 for callers that intentionally
- * show the un-modified base rate (settlement badges).
+ * Raw-good input for ONE worker's manufacturing output. Factory tier takes
+ * `(out * 2) / 3` (DOS FUN_15eb_0bd4 raw 10168-10172); house/shop are 1:1.
+ * `sol_bonus` folds into the *output* used to derive this the same way
+ * colony_prod_manufacturing_output does — player-confirmed 2026-08-15
+ * (Viceroy): factory tier, +2 sentiment, output 12 → input 8. Pass 0 for
+ * callers that intentionally show the un-modified base rate (settlement
+ * badges; base out 9 → 6).
+ *
+ * The production tick must NOT sum this across workers: DOS divides the
+ * colony total once. Use colony_prod_chain_input_for_total_output above
+ * (bugs.md #851). This entry point is for single-worker display/AI scoring.
  */
 int colony_prod_manufacturing_input(
   const char* building_name,
@@ -91,6 +93,18 @@ int colony_prod_manufacturing_input(
   int craft_profession,
   int sol_bonus
 );
+/*
+ * Colony-total raw-good requirement for one chain's SUMMED finished-good
+ * output. This is DOS's shape: FUN_15eb_0bd4 raw 10168-10172 takes the
+ * colony's gross output word for the finished good and floor-divides it ONCE
+ * ((gross << 1) / 3) when the chain holds more than two buildings (factory
+ * tier); every lower tier requires the gross 1:1. Summing the per-worker
+ * requirement instead over-charges on odd totals (bugs.md #851).
+ * `building_row` is any staffed building of the chain — a colony holds at most
+ * one, so it names the tier.
+ */
+int colony_prod_chain_input_for_total_output(int building_row, int total_output);
+
 /* Row-identified core; see colony_prod_manufacturing_output_row. */
 int colony_prod_manufacturing_input_row(
   int building_row,

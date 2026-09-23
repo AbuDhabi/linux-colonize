@@ -174,10 +174,6 @@ static void ai_contact_2820_sort(const int16_t* key, int* order) {
   }
 }
 
-/* -0x7b44 + nation*0x10 + good wraps to the fixed DS:0x84BC row (captured 2026-08-22). */
-static const uint8_t k_2820_throttle[16] = {0x00, 0x05, 0x02, 0x03, 0x04, 0x01, 0x04, 0x13,
-                                            0x02, 0x0a, 0x0a, 0x0e, 0x09, 0x02, 0x01, 0x02};
-
 /*
  * DOS-LITERAL: `*(byte *)(cargo + nation * 0x10 - 0x7b44)` = DS:0x84BC[nation*0x10 + cargo]
  * (FUN_5bfb_022e raw 96967/96843, FUN_4d56_2820 asm 4d56:31d8 / 4d56:3214).
@@ -186,8 +182,6 @@ static const uint8_t k_2820_throttle[16] = {0x00, 0x05, 0x02, 0x03, 0x04, 0x01, 
  * `nation[n].trade.euro_price[cargo] - 1` clamped at 0 (viceroy_unpacked.c
  * 6316-6320 / 51962-51966 / 58996-59000 — the same writers
  * colonies_ftrade_price_byte cites), so it tracks the LIVE Europe market.
- * k_2820_throttle above is only a start-of-game capture of one row and is kept
- * for the @INDIANGIVESTUFF gift-quantity arm, which this pass did not touch.
  */
 static int ai_contact_2820_price_byte(const ColonizeCol1Save* col1, int nation, int cargo) {
   if (!col1 || nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT || cargo < 0 ||
@@ -484,7 +478,14 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
       if (cargo < 0) {
         continue;
       }
-      int qty = 100 / ((int)k_2820_throttle[cargo] + 1);
+      /*
+       * DOS-LITERAL FUN_5bfb_022e raw 87930:
+       *   100 / (*(byte *)(cargo + colony[0x1a] * 0x10 - 0x7b44) + 1)
+       * The nation index is the VISITED colony's owner byte (colony+0x1a == e),
+       * and -0x7b44 is the live DS:0x84BC row = euro_price[cargo] - 1 (bugs.md
+       * #797/#819) — not a start-of-game capture.
+       */
+      int qty = 100 / (ai_contact_2820_price_byte(ctx->col1, e, cargo) + 1);
       const int alt = (int)key[cargo] + 5;
       if (alt < qty) {
         qty = alt;
@@ -639,7 +640,7 @@ void ai_contact_reset(void) {
 
 /*
  * DOS's demand price row: `-0x7b44 + nation*0x10 + good` = the LIVE per-nation
- * DS:0x84BC sell-price row (bugs.md #797). Was the frozen k_2820_throttle
+ * DS:0x84BC sell-price row (bugs.md #797). Was a frozen capture table
  * capture, which pinned @INDIANWAGONS alarm and the @INDIANCITY cargo scan to
  * start-of-game prices for the whole campaign.
  */

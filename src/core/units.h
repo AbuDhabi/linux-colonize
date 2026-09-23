@@ -473,14 +473,6 @@ int units_job_icon_sprite(int profession);
 int units_type_default_job(int type_index);
 bool units_type_has_profession_slot(int type_index);
 /*
- * Expert-skill label for a unit row: the plural NAMES @JOB field, or NULL for
- * the five non-expert professions (NONE/19/25/26/27) and for @UNIT types with
- * no profession slot. Shared by unit_stack.c and map_panel.c (UN-22).
- */
-const char* units_profession_label(
-  const ColonizeMsgCatalog* names, int type_index, int profession
-);
-/*
  * DOS-LITERAL FUN_49dd_0386: the map-panel profession LINE (singular @JOB
  * column 0, with the @MISC "Veteran"/"Expert" overrides). `allow_unskilled`
  * is the DOS param_3: 1 at the selected-unit call site (raw 78892), 0 at the

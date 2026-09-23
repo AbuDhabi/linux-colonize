@@ -97,16 +97,16 @@ static void colony_craft_pair_totals(
   const ColonizeCraftRecipe* rec,
   int sol_bonus,
   int* out_total_out,
-  int* out_total_in
+  int* out_building_row
 ) {
   int total_out = 0;
-  int total_in = 0;
+  int building_row = -1;
   if (!pool || !colony || !rec) {
     if (out_total_out) {
       *out_total_out = 0;
     }
-    if (out_total_in) {
-      *out_total_in = 0;
+    if (out_building_row) {
+      *out_building_row = -1;
     }
     return;
   }
@@ -125,18 +125,18 @@ static void colony_craft_pair_totals(
      * for field yields in turn.c, not just SoL bonuses increasing it. */
     total_out +=
       colony_prod_manufacturing_output_row(row, c->profession, rec->craft_profession, sol_bonus);
-    /* sol_bonus folds into input the same way it folds into output —
-     * player-confirmed 2026-08-15 (Viceroy): factory tier discount tracks
-     * the *actual* SoL-adjusted output, not the flat base rate. See
-     * colony_prod_manufacturing_input's header comment. */
-    total_in +=
-      colony_prod_manufacturing_input_row(row, c->profession, rec->craft_profession, sol_bonus);
+    /* The raw-good requirement is NOT summed per worker: DOS FUN_15eb_0bd4
+     * raw 10168-10172 floor-divides the colony's summed gross for the
+     * finished good ONCE. Only the tier is per-building, and a colony holds
+     * at most one building per chain, so remember the row and let the caller
+     * derive the requirement from the total (bugs.md #851). */
+    building_row = row;
   }
   if (out_total_out) {
     *out_total_out = total_out;
   }
-  if (out_total_in) {
-    *out_total_in = total_in;
+  if (out_building_row) {
+    *out_building_row = building_row;
   }
 }
 
@@ -176,18 +176,24 @@ static bool colony_craft_pairs_next(
       continue;
     }
     int total_out = 0;
-    int total_in = 0;
+    int building_row = -1;
     for (size_t r2 = 0; r2 < n; ++r2) {
       const ColonizeCraftRecipe* rec2 = &k_recipes[r2];
       if (rec2->in_cargo != rec->in_cargo || rec2->out_cargo != rec->out_cargo) {
         continue;
       }
       int pair_out = 0;
-      int pair_in = 0;
-      colony_craft_pair_totals(pool, colony, rec2, sol_bonus, &pair_out, &pair_in);
+      int pair_row = -1;
+      colony_craft_pair_totals(pool, colony, rec2, sol_bonus, &pair_out, &pair_row);
       total_out += pair_out;
-      total_in += pair_in;
+      if (pair_row >= 0) {
+        building_row = pair_row;
+      }
     }
+    /* One floor divide over the colony total, exactly where DOS does it
+     * (FUN_15eb_0bd4 raw 10168-10172): factory tier `(total << 1) / 3`,
+     * lower tiers 1:1. bugs.md #851. */
+    const int total_in = colony_prod_chain_input_for_total_output(building_row, total_out);
     it->done_pair[rec->in_cargo][rec->out_cargo] = true;
     *out_rec = rec;
     *out_total_out = total_out;

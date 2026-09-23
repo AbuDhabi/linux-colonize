@@ -1059,7 +1059,7 @@ static bool units_display_keeps_own_type(const ColonizeUnitType* t) {
  * combat chrome (raw 100625-100628) all read that one table. There is no
  * equipment- or profession-derived name channel: the rank words ("Veteran",
  * "Seasoned") are the SEPARATE second line, FUN_49dd_0386 (raw 78606-78650),
- * which the port keeps in units_profession_line / units_profession_label.
+ * which the port keeps in units_profession_line.
  * So a bare Expert Fisherman is "Colonists" (@UNIT row 0) and an armed one is
  * "Soldiers" (@UNIT row 1) — the type decides, nothing else.
  */
@@ -1209,53 +1209,6 @@ const char* units_profession_line(
     return NULL;
   }
   return units_job_field(names, prof, 0);
-}
-
-/*
- * The @JOB COLUMN 1 name ("Expert Farmers") for a unit's profession, used
- * for the stack row / Europe dock caption. DOS cite (bugs.md #577, the
- * column choice used to carry none): FUN_38fd_3694,
- * viceroy_overlays.c:61190 reads `-0x715c + profession*8` for exactly this
- * caption, and -0x715c is the column-1 pointer table (column 0, "Farmer",
- * is -0x715e and is what the map panel's FUN_49dd_0386 uses instead). A
- * unit whose profession is one of the unskilled set (0x1c/0x13/0x19/0x1a/
- * 0x1b) gets no label at all — DOS's own `!= 0x1c` guard, widened to the
- * unskilled set the same way units_profession_line is.
- */
-const char* units_profession_label(
-  const ColonizeMsgCatalog* names, int type_index, int profession
-) {
-  if (!units_type_has_profession_slot(type_index)) {
-    return NULL;
-  }
-  if (profession < 0 || profession == UNITS_JOB_NONE ||
-      profession == UNITS_JOB_COLONIST || profession == UNITS_JOB_SERVANT ||
-      profession == UNITS_JOB_CRIMINAL || profession == UNITS_JOB_CONVERT) {
-    return NULL;
-  }
-  const ColonizeMsgSection* sec = names ? assets_msg_find(names, "JOB") : NULL;
-  if (!sec || profession >= sec->line_count) {
-    return NULL;
-  }
-  const char* p = strchr(sec->lines[profession], ',');
-  if (!p) {
-    return NULL;
-  }
-  ++p;
-  while (*p == ' ' || *p == '\t') {
-    ++p;
-  }
-  static char buf[40];
-  size_t n = 0;
-  while (p[n] && p[n] != ',' && n + 1 < sizeof(buf)) {
-    buf[n] = p[n];
-    ++n;
-  }
-  while (n > 0 && (buf[n - 1] == ' ' || buf[n - 1] == '\t')) {
-    --n;
-  }
-  buf[n] = '\0';
-  return buf[0] ? buf : NULL;
 }
 
 int units_type_default_job(int type_index) {

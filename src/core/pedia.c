@@ -829,7 +829,10 @@ static int pedia_resource_effect(int resource, int job) {
   if (resource == 1 && job == COLONIZE_PROF_FARMER) v += 2;
   if (resource == 2 && job == COLONIZE_PROF_FARMER) v += 2;
   if (resource == 9 && job == COLONIZE_PROF_FUR_TRAPPER) v += 2;
-  if (resource == 8 && job == COLONIZE_PROF_FUR_TRAPPER) v += 2;
+  /* Beaver + Fur Trapper is +3, not +2 — FUN_15eb_17fa raw 11736-11738
+   * (`(param_1 == 8) && (param_2 == 4)` -> local_4 + 3), same as
+   * colony_yield.c's copy. bugs.md #855. */
+  if (resource == 8 && job == COLONIZE_PROF_FUR_TRAPPER) v += 3;
   if (resource == 3 && job == COLONIZE_PROF_COTTON_PLANTER) v = PEDIA_RES_DOUBLE;
   if (resource == 4 && job == COLONIZE_PROF_TOBACCO_PLANTER) v = PEDIA_RES_DOUBLE;
   if (resource == 5 && job == COLONIZE_PROF_SUGAR_PLANTER) v = PEDIA_RES_DOUBLE;
