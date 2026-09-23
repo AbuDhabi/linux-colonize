@@ -390,6 +390,13 @@ Combat loss remaps **unit type** (not merely profession). Cite:
 - Both ships → `units_plunder_ship_holds` (`FUN_5fef_016c`) runs BEFORE the
   damage/sink split; the loser's holds are then zeroed either way (goods not
   lifted vanish, passengers are lost — `units_ship_lose_holds`).
+- **The roll is then overridden by `units_naval_damage_gate`** (DOS
+  `FUN_5fef_0352` raw 99527-99570, bugs.md #867): an unarmed hull goes through
+  the AI fleet-pool keep/lose bias (`stuff.ship_cargo_totals` less the frigate
+  and privateer pools, versus `clamp(census_pop_proxy>>2, 3, 6)`; a Caravel
+  past turn 0x4f always sinks); an armed hull outside the WoI has the colony /
+  armed-ship / Frigate-vs-Frigate clauses; and during the WoI the crown's LAST
+  Man-O-War can never be sunk. Both port call sites apply it.
 - **Damage vs sink is a roll on @UNIT guns/hull** (DS `0x523b`/`0x523c`):
   `roll(1, winner.guns + loser.hull) <= loser.hull` → survives damaged
   (bit7, `@SHIPDAMAGE`, teleport to the nearest own Drydock/Shipyard colony);

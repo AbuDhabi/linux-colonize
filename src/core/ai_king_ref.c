@@ -201,19 +201,25 @@ static bool ai_king_10f0_pick_spawn(const ColonizeTurnContext* ctx, int human, i
   int best = 0;
   int bx = -1;
   int by = -1;
-  for (int pass = 0; pass < 2 && bx < 0; ++pass) {
-    for (int d = 0; d < 8; ++d) {
-      const int tx = cx + k_raster8_dx[d];
-      const int ty = cy + k_raster8_dy[d];
-      if (pass == 0 && ctx->map && map_continent_id_at(ctx->map, tx, ty) != 1) {
-        continue; /* 281f_06b4 == 1: open-ocean region first */
-      }
-      const int sc = ai_king_10f0_score_tile(ctx, human, cx, cy, tx, ty);
-      if (sc > best) {
-        best = sc;
-        bx = tx;
-        by = ty;
-      }
+  /*
+   * DOS-LITERAL FUN_43f7_10f0 raw 74341-74347: ONE pass over the 8
+   * neighbours, `0768(tile) != 0` (water) AND `06b4(tile) == 1` — the raw
+   * layer3 low nibble, the open-sea region id. The port's two-pass relaxation
+   * was dead in pass 0 (map_continent_id_at returns -1 on water) and accepted
+   * any non-lake water in pass 1, including a Sea Lane tile with nibble != 1
+   * that DOS rejects (bugs.md #873c).
+   */
+  for (int d = 0; d < 8; ++d) {
+    const int tx = cx + k_raster8_dx[d];
+    const int ty = cy + k_raster8_dy[d];
+    if (ctx->map && (int)(map_get_layer3(ctx->map, tx, ty) & 0x0fu) != 1) {
+      continue;
+    }
+    const int sc = ai_king_10f0_score_tile(ctx, human, cx, cy, tx, ty);
+    if (sc > best) {
+      best = sc;
+      bx = tx;
+      by = ty;
     }
   }
   if (bx < 0) {
@@ -727,7 +733,10 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
         }
       }
     }
-    map_reveal_radius(ctx->map, cx[slot], cy[slot], crown, 2);
+    /* DOS-LITERAL FUN_43f7_0982 raw 74217-74219:
+     * `FUN_281f_09ba(colony.x - 2, colony.y - 2, 5, 5, 1)` — the 5x5 box is
+     * centred on the TARGET COLONY, not on each landing tile (bugs.md #878b). */
+    map_reveal_radius(ctx->map, c->x, c->y, crown, 2);
     force[k]--;
     need--;
     slot = (slot + 1) % usable;
@@ -760,7 +769,10 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
     if (!c->active || c->nation_id != human) {
       continue;
     }
-    if (!map_tile_is_coastal(ctx->map, c->x, c->y)) {
+    /* DOS-LITERAL FUN_43f7_0982 raw 74001-74003: `(colony[+0x1c] & 0x40)` —
+     * the save-carried coastal bit stamped at founding, not the live
+     * 8-neighbour probe (bugs.md #878c). */
+    if ((c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) == 0) {
       continue;
     }
     const int inv = 100 - ai_king_colony_sol_at(ctx, human, c->x, c->y);
@@ -788,10 +800,21 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
       if (map_tile_is_water(ctx->map, nx, ny)) {
         continue;
       }
+      /*
+       * DOS-LITERAL FUN_43f7_0982 raw 74033-74041: `local_4c = 07e0(tile)`
+       * (FIRST unit of the stack), then the nation nibble of THAT unit alone
+       * is compared with the crown (`0x53d2`); if it matches, 02e4 walks the
+       * whole chain and every unit with a non-zero attack byte decrements the
+       * need. The port used to re-test each unit's nation (bugs.md #878c).
+       */
+      const int top = units_id_at(ctx->units, nx, ny);
+      const ColonizeUnit* tu = top >= 0 ? units_get_const(ctx->units, top) : NULL;
+      if (!tu || tu->nation_id != crown) {
+        continue;
+      }
       for (int k = 0; k < COLONIZE_UNITS_MAX && g > 0; ++k) {
         const ColonizeUnit* u = &ctx->units->units[k];
-        if (!u->active || u->nation_id != crown || u->x != nx || u->y != ny ||
-            !units_is_on_map(u)) {
+        if (!u->active || u->x != nx || u->y != ny || !units_is_on_map(u)) {
           continue;
         }
         const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
@@ -871,9 +894,26 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
         free_land++;
       }
       if (free_land > 0) {
-        const int foe = units_foreign_unit_at(ctx->units, wx, wy, -1, crown);
-        if (foe >= 0) {
-          free_land = 1; /* a human ship stack there: lowest priority */
+        /*
+         * DOS-LITERAL FUN_43f7_0982 raw 74118-74127: `local_4c = 07e0(tile)`;
+         * only when the FIRST stack unit's nation nibble differs from the
+         * crown does 02e4 walk the chain, and only a type 0x12 (Man-O-War)
+         * forces `local_16 = 1`. Any other foreign hull (a Caravel picket)
+         * leaves the score alone (bugs.md #872).
+         */
+        const int occ = units_id_at(ctx->units, wx, wy);
+        const ColonizeUnit* ou = occ >= 0 ? units_get_const(ctx->units, occ) : NULL;
+        if (ou && ou->nation_id != crown) {
+          for (int k = 0; k < COLONIZE_UNITS_MAX; ++k) {
+            const ColonizeUnit* u = &ctx->units->units[k];
+            if (!u->active || u->x != wx || u->y != wy || !units_is_on_map(u)) {
+              continue;
+            }
+            if (ai_king_is_mow(ctx->units, u)) {
+              free_land = 1; /* lowest priority */
+              break;
+            }
+          }
         }
       }
       if (free_land > best) {
@@ -893,9 +933,14 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
       ColonizeUnit* ship = units_get(ctx->units, sid);
       if (ship) {
         units_set_nation(ship, crown);
-        ship->orders = UNITS_ORDER_AI_SAIL;
-        ship->goto_x = lx;
-        ship->goto_y = ly;
+        /*
+         * DOS-LITERAL FUN_43f7_0982 raw 74169-74180: the hull comes from
+         * `095c(0x12, crown, x, y)` and nothing is stamped on it — the
+         * creator default (+0x314b = 0x58, no orders) stands, exactly as
+         * for the land units below. The port's `AI_SAIL` + self-goto made
+         * ai_euro_act read it as a committed self-move and zero its MP, so
+         * the hull froze on the landing tile forever (bugs.md #866).
+         */
         ship->col1_counter16 = 0;
         /* bugs.md: the invasion fleet is in plain sight of the colony —
          * stamp watcher vis bits like a real move (the land units get
@@ -1227,7 +1272,7 @@ static void ai_king_1528_announce(ColonizeTurnContext* ctx, int human) {
   /* bugs.md #252: the declaration names the PARENT countries (1528 passes
    * both nations through FUN_291f_0ac8's country-name form). */
   const char* ally_name =
-    (ally1 >= 0 && ally1 < 4) ? reports_nation_adjective_display_name(ally1) : "Foreign";
+    (ally1 >= 0 && ally1 < 4) ? reports_nation_adjective_display_name(ally1) : ""; /* #878f: no typed text */
   const char* ally_country =
     (ally1 >= 0 && ally1 < 4) ? reports_nation_country_name(ally1) : "A foreign power";
   const char* crown_country = reports_nation_country_name(human);
@@ -1281,7 +1326,7 @@ static void ai_king_10f0_announce(
    * The arrival line uses the nationality adjective ("French Intervention
    * Force"). */
   const char* ally_name =
-    (ally1 >= 0 && ally1 < 4) ? reports_nation_adjective_display_name(ally1) : "Foreign";
+    (ally1 >= 0 && ally1 < 4) ? reports_nation_adjective_display_name(ally1) : ""; /* #878f: no typed text */
   const char* colony = "the colonies";
   if (ctx->colonies) {
     const int cid = colonies_id_at(ctx->colonies, hx, hy);
@@ -1314,8 +1359,12 @@ static void ai_king_10f0_announce(
     mtok.string1 = ally_name;
     char mbody[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "MERCS", &mtok, "", mbody, sizeof(mbody));
+    /* bugs.md #875: the ARRIVAL tag, not the OFFER's own KING_MERC tag —
+     * ai_king_merc_offer_pending() reads an unread KING_MERC popup as "an
+     * offer is still pending" and returns before the 1-in-3 dos_rng_range
+     * draw, desyncing the RNG. The free arm below already uses ARRIVAL. */
     (void)ai_popup_enqueue_ok_ctx(
-      ctx->ai_popups, AI_POPUP_TAG_KING_MERC, human,
+      ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human,
       ai_king_crown_nation_col1(ctx->col1, human), landings, NULL, mbody
     );
     units_pump_combat_popups();
@@ -1350,12 +1399,17 @@ static void ai_king_10f0_disembark(
   ColonizeTurnContext* ctx, int human, int paid, uint16_t* backup,
   const int pool_k[3], const int want[4], int hx, int hy, int sx, int sy
 ) {
-  for (int pi = 0; pi < 3; ++pi) {
+  /* DOS-LITERAL raw 74433-74435: `local_1a = 0; break;` — a refused 095c
+   * clears the OUTER loop's condition, so no later pool is tried either
+   * (bugs.md #873d). */
+  int alive = 1;
+  for (int pi = 0; pi < 3 && alive; ++pi) {
     const int k = pool_k[pi];
     const int n = want[k];
     for (int s = 0; s < n; ++s) {
       const int uid = ai_king_10f0_spawn_unit(ctx, human, k, sx, sy);
       if (uid < 0) {
+        alive = 0;
         break;
       }
       if (!paid && backup[k] > 0) {
@@ -1432,26 +1486,16 @@ void ai_king_10f0_land(
   int hy = 0;
   int sx = 0;
   int sy = 0;
+  /*
+   * DOS-LITERAL FUN_43f7_10f0 raw 74310/74334/74377: no candidates
+   * (`local_24 == 0`), a roulette that fell through (`local_56 < 0`) or no
+   * scored water tile (`local_54 == 0`) each fall straight out of the body —
+   * nothing lands, no pool is decremented, and a paid hire's gold stays
+   * spent. The port's weakest-port fallback and "any other colony with
+   * water" rescan were invented (bugs.md #873a/b).
+   */
   if (ai_king_10f0_pick_colony(ctx, human, &hx, &hy) < 0) {
-    if (ai_king_weakest_port(ctx, human, &hx, &hy) < 0) {
-      return;
-    }
-  }
-  /* Rolled a colony with no ocean-reachable water beside it (a lake port):
-   * fall back to any human colony that has one instead of skipping the
-   * whole landing. */
-  if (!ai_king_10f0_pick_spawn(ctx, human, hx, hy, &sx, &sy) && ctx->colonies) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (!c->active || c->nation_id != human) {
-        continue;
-      }
-      if (ai_king_10f0_pick_spawn(ctx, human, c->x, c->y, &sx, &sy)) {
-        hx = c->x;
-        hy = c->y;
-        break;
-      }
-    }
+    return;
   }
   /*
    * DOS names a different power in each mode's arrival line: the free
@@ -1476,12 +1520,15 @@ void ai_king_10f0_land(
   if (!ai_king_10f0_pick_spawn(ctx, human, hx, hy, &sx, &sy)) {
     return; /* DOS: no scored tile → nothing lands this turn */
   }
+  /* DOS-LITERAL raw 74378-74380: `if (param_1 == 0) *0x53e6 -= 1` runs
+   * BEFORE `095c`, whatever the spawn answers (bugs.md #873e). The free-drain
+   * gate above already guarantees backup[2] != 0 here. */
+  if (!paid) {
+    backup[2]--;
+  }
   const int mow = ai_king_10f0_spawn_unit(ctx, human, 2, sx, sy);
   if (mow < 0) {
     return;
-  }
-  if (!paid && backup[2] > 0) {
-    backup[2]--; /* DOS: `if (param_1 == 0) *0x53e6 -= 1` (74379) */
   }
   if (ctx->map) {
     map_reveal_tile(ctx->map, sx, sy, human);

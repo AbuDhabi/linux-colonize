@@ -11,6 +11,7 @@
 
 #include <stdbool.h>
 
+#include "core/internal.h"
 #include "core/map.h"
 #include "core/units.h"
 #include "core/world.h"
@@ -19,6 +20,8 @@
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/europe.h"
+#include "core/units_cargo.h"
+#include "core/units_move.h"
 
 /* DOS event ids (segment 5fef / 2b5a, `mov ax,N; callf FUN_281f_04c0`): the
  * GSOUND handler for each plays a COLDIG.BIN sample plus a short MIDI sting. */
@@ -112,6 +115,8 @@ void units_play_event_sound(int id);
 int units_promote_on_win( ColonizeUnitPool* pool, ColonizeUnit* winner, const ColonizeCol1Save* col1, int winner_str, int loser_str, ColonizeDosRng* rng );
 void units_set_bgm_pool(int pool);
 int units_ship_damage_vs_sink( ColonizeDosRng* rng, int winner_guns, int loser_hull );
+/* FUN_5fef_0352 raw 99527-99570 damage-vs-sink gate (bugs.md #867). */
+int units_naval_damage_gate( const ColonizeUnitPool* pool, const ColonizeCol1Save* col1, const ColonizeUnit* lose, const ColonizeUnitType* wt, int winner_nation, int damaged );
 void units_ship_enter_repair( ColonizeUnitPool* pool, ColonizeUnit* lose, int wstr, const ColonizeColony* home, const ColonizeCol1Save* col1, int human, int winner_nation );
 void units_ship_lose_holds(ColonizeUnitPool* pool, int ship_id);
 void units_sweep_naval_stack_after_loss( ColonizeUnitPool* pool, int x, int y, int loser_nation, int winner_id, int primary_loser_id, const ColonizeCol1Save* col1, ColonizeDosRng* rng );

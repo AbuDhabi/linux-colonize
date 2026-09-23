@@ -13,6 +13,7 @@
 #include "core/ai.h"
 #include "core/ai_diplo.h"
 #include "core/ai_euro.h"
+#include "core/ai_euro_internal.h"
 #include "core/ai_king.h"
 #include "core/col1_stuff_census.h"
 #include "core/colony_craft.h"
@@ -468,6 +469,9 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
        * bells". Latch = 0x5382 bit 0x04 (game_options.woi_crosses_event,
        * confirmed live 2026-08-18 as exactly this dialog's one-shot).
        */
+      /* DOS-LITERAL raw 73347: `(0x5382 & 6) == 0` — bit 0x02 is the
+       * intervention-ANNOUNCE latch (game_options.ref_present, bugs.md
+       * #865), bit 0x04 the hint one-shot. */
       if (!ctx->col1->head.game_options.ref_present &&
           !ctx->col1->head.game_options.woi_crosses_event &&
           founding_fathers_bells_since_last_elect(ctx->human_nation) > 0u &&
@@ -773,24 +777,35 @@ void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
     }
     if (nation == crown) {
       /*
-       * A damaged Tory Man-O-War still limps home to the King, but it leaves
-       * the way an emptied one does — through ai_king_ref_wave's own "4d56
-       * ship act" at the next wave tick — instead of being deleted here on
-       * the spot.
+       * DOS-LITERAL FUN_5fef_0352 raw 99641-99644 (bugs.md #871): a damaged
+       * hull whose owner has no repair port is relocated OFF-MAP for EVERY
+       * nation — the colony scan misses (local_20 == 0x3e7) and the
+       * FUN_281f_0812 / FUN_281f_0844 unlink/place pair is handed
+       * `nation - 0x14` in both coordinates, DOS's Europe dock pseudo-tile.
+       * Only the no-port *sink* escape at raw 99604-99607 is human-only.
        *
-       * bugs.md: deleting it here made the player's coastal guns HELP the
-       * invasion. DOS FUN_43f7_0982 opens with "MoW pool empty and the crown
-       * owns no Man-O-War -> put one back, land nothing this turn", so the
-       * fleet cadence is driven by when the last hull leaves the map. An
-       * emptied hull needs one wave tick to raise col1_counter16 before the
-       * ship act takes it home, so the normal cycle is land / hold / refill /
-       * land. Deleting a damaged hull mid-turn skipped that tick, and the
-       * refill (and the next landing) arrived a full turn EARLIER than if the
-       * player had never fired: 7 human colonies fell in 14 turns under
-       * continuous bombardment versus 15 turns untouched. Leaving it to the
-       * ship act restores parity — the hull is gone either way, just never
-       * sooner for having been shot at.
+       * The port's equivalent off-map slot is the Europe park
+       * (ai_euro_in_europe / ai_euro_ship_enter_europe's (200,100)). The hull
+       * stays a LIVE unit with bit7 and its repair timer intact, exactly as
+       * in DOS, so it keeps counting:
+       *   - in the census (raw 78159-78165 walks the whole unit array and
+       *     tallies by nation and type, with no position test), and
+       *   - in ai_king_0982_crown_mow_alive, the FUN_43f7_0982 regen gate.
+       * That is what keeps the player's coastal guns from ACCELERATING the
+       * invasion: a shot-up hull is off the map but still "a Man-O-War the
+       * crown owns", so 0982 does not refill early. (The old comment here
+       * cited the retired "4d56 ship act", port_plan P5.1 2026-09-07, and
+       * left the wreck standing visibly on the invasion tile.)
        */
+      if (!ai_euro_in_europe(u->x, u->y)) {
+        const int ox = u->x;
+        const int oy = u->y;
+        u->x = 200;
+        u->y = 100;
+        units_occupancy_notify_moved(ctx->units, ox, oy, u->x, u->y);
+        ai_euro_sync_aboard_cargo_xy(ctx->units, u);
+        u->moves = 0;
+      }
       continue;
     }
     if (nation == ctx->human_nation && !woi && ctx->europe && u->cargo_count == 0) {

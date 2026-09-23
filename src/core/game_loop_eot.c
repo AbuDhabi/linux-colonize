@@ -269,6 +269,31 @@ static void game_europe_restore_pax_treasure_gold(
 }
 
 /*
+ * DOS-LITERAL FUN_479b high-seas arm raw 76477-76484 (duplicate raw
+ * 77095-77098) — the WoI Europe gate is NOT total:
+ *
+ *   ((*(byte *)0x5382 & 1) == 0 ||
+ *    (*(int *)0x5394 == *(int *)0x53d2 && unit[+0x3146] == '\x12'))
+ *
+ * i.e. the declaration shuts Europe to everyone EXCEPT a Man-O-War moving on
+ * the crown slot's own turn (DS:0x53d2 = head.crown_nation_id). bugs.md #870:
+ * the port blocked every hull. Identify the hull by @UNIT ROW
+ * (units_kind_type_index), never by name.
+ */
+bool game_ship_woi_europe_exempt(const ColonizeGameState* game, const ColonizeUnit* ship) {
+  if (!game || !ship || !game->col1_ok) {
+    return false;
+  }
+  const ColonizeCol1Save* col1 = &game->col1;
+  const int crown = ai_king_crown_nation_col1(col1, (int)col1->head.human_player);
+  if (ship->nation_id != crown || (int)col1->head.nation_turn != crown) {
+    return false;
+  }
+  const int row = units_kind_type_index(&game->units, UNITS_KIND_MAN_O_WAR);
+  return row >= 0 && ship->type_index == row;
+}
+
+/*
  * Sail a ship on a sea-lane (high seas) tile back to Europe with everything
  * aboard — the shared tail for the H command and for a Go To order whose
  * destination is a sea-lane tile (bugs.md: "a go-to order should be possible
@@ -300,7 +325,7 @@ bool game_ship_sail_to_europe(ColonizeGameState* game, int sid) {
    * lands in a harbor that game_finish_end_turn refuses to open under the
    * same flag, and is lost for the rest of the game.
    */
-  if (game_europe_blocked_by_woi(game)) {
+  if (game_europe_blocked_by_woi(game) && !game_ship_woi_europe_exempt(game, ship)) {
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(
       &game->messages, "EUROPENOTLEAVE", NULL,

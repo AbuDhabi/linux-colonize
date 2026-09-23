@@ -217,9 +217,11 @@ void ai_king_merc_offer(ColonizeTurnContext* ctx) {
   }
   int hx = 0;
   int hy = 0;
-  if (ai_king_weakest_port(ctx, human, &hx, &hy) < 0) {
-    return;
-  }
+  /* bugs.md #878g: FUN_43f7_2022's merc body has NO colony pick — the
+   * landing colony is chosen by 10f0's own roulette on accept. Keep the
+   * weakest-port probe only to fill the port-side hx/hy payload; a failure
+   * must not abort the offer after the draws have already been burnt. */
+  (void)ai_king_weakest_port(ctx, human, &hx, &hy);
   if (ai_king_human_popups(ctx)) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));

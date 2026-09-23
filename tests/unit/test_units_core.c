@@ -3297,6 +3297,12 @@ static int case_coastal_fort_naval_fire(void) {
     for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
       fcol1.head.founding_father[i] = -1;
     }
+    /* bugs.md #867 / FUN_5fef_0352 raw 99531-99548: an UNARMED loser now goes
+     * through the AI fleet-pool bias, which forces "damaged" when the owner's
+     * spare cargo capacity (stuff.ship_cargo_totals) is below clamp(pop>>2,3,6).
+     * A blank fixture census reads 0 and would always save the hull, so give
+     * nation 1 a fleet with room to spare and keep this case a SINK. */
+    fcol1.stuff.ship_cargo_totals[1] = 60;
     ai_diplo_declare_war(&fcol1, 0, 1);
     if (!ai_diplo_at_war(&fcol1, 0, 1)) {
       fprintf(stderr, "fort-fire smoke: declare_war 0 vs 1 failed\n");
@@ -6371,6 +6377,12 @@ static int case_combat_privateer_seizure(void) {
       memset(&c1, 0, sizeof(c1));
       c1.player[0].control = 0;
       c1.player[1].control = 1;
+    /* bugs.md #867 / FUN_5fef_0352 raw 99531-99548: an UNARMED loser now goes
+     * through the AI fleet-pool bias, which forces "damaged" when the owner's
+     * spare cargo capacity (stuff.ship_cargo_totals) is below clamp(pop>>2,3,6).
+     * A blank fixture census reads 0 and would always save the hull, so give
+     * nation 1 a fleet with room to spare and keep this case a SINK. */
+      c1.stuff.ship_cargo_totals[1] = 60;
       if (!units_resolve_naval_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, aid, did)) {
         fprintf(stderr, "seizure naval should win\n");
         return 1;
@@ -6391,6 +6403,74 @@ static int case_combat_privateer_seizure(void) {
         units_despawn(&pool, did);
       }
       fprintf(stderr, "unit_units: privateer SEIZURE popup ok\n");
+  combat_phase2_close();
+  return 0;
+}
+
+/*
+ * bugs.md #867 — FUN_5fef_0352 raw 99562-99565: during the WoI the crown's
+ * LAST Man-O-War cannot be sunk, only damaged. The same fight with a second
+ * crown hull on the books sinks her.
+ */
+static int case_combat_crown_last_mow_unsinkable(void) {
+  AiPopupState pops;
+  if (combat_phase2_open(&pops) != 0) {
+    return 1;
+  }
+  const int priv = units_find_type(&pool, "Privateer");
+  const int mow_ti = units_kind_type_index(&pool, UNITS_KIND_MAN_O_WAR);
+  if (priv < 0 || mow_ti < 0) {
+    fprintf(stderr, "crown-MoW types missing\n");
+    return 1;
+  }
+  pool.types[priv].attack = 99;
+  pool.types[priv].guns = 99;
+  pool.types[mow_ti].defense = 1;
+  pool.types[mow_ti].hull = 0; /* no-rng path: hull < guns → SUNK */
+  for (int pass = 0; pass < 2; ++pass) {
+    ai_popup_clear(&pops);
+    const int aid = units_spawn_allow_stack(&pool, priv, 4, 4);
+    const int did = units_spawn_allow_stack(&pool, mow_ti, 5, 4);
+    ColonizeUnit* a = units_get(&pool, aid);
+    ColonizeUnit* d = units_get(&pool, did);
+    if (!a || !d) {
+      fprintf(stderr, "crown-MoW spawn failed\n");
+      return 1;
+    }
+    a->nation_id = 0;
+    d->nation_id = 1;
+    ColonizeCol1Save c1;
+    memset(&c1, 0, sizeof(c1));
+    c1.head.human_player = 0;
+    c1.head.crown_nation_id = 1;
+    c1.head.game_options.woi = 1;
+    c1.player[0].control = 0;
+    c1.player[1].control = 2;
+    /* 1 own Man-O-War = the last one (pass 0); 2 = expendable (pass 1). */
+    c1.stuff.unit_type_counts[1][mow_ti] = (uint8_t)(pass == 0 ? 1 : 2);
+    (void)units_resolve_naval_combat_ff_w(
+      &(ColonizeWorld){.units = &pool, .col1 = &c1, .col1_ok = true, .rng = NULL}, aid, did
+    );
+    const ColonizeUnit* after = units_get(&pool, did);
+    const int alive = after && after->active;
+    if (pass == 0 && !alive) {
+      fprintf(stderr, "crown last Man-O-War must survive damaged, was sunk\n");
+      return 1;
+    }
+    if (pass == 1 && alive) {
+      fprintf(stderr, "crown Man-O-War #2 should sink, survived\n");
+      return 1;
+    }
+    if (pass == 0 && (after->col1_flags15 & 0x80u) == 0) {
+      fprintf(stderr, "crown last Man-O-War survived without the damage bit\n");
+      return 1;
+    }
+    (void)units_despawn(&pool, aid);
+    if (units_get(&pool, did) && units_get(&pool, did)->active) {
+      units_despawn(&pool, did);
+    }
+  }
+  fprintf(stderr, "unit_units: crown last Man-O-War unsinkable ok\n");
   combat_phase2_close();
   return 0;
 }
@@ -7108,6 +7188,7 @@ static const TestCase k_cases[] = {
   {"combat_capture_water_destroy", case_combat_capture_water_destroy},
   {"combat_colony_capture_notify", case_combat_colony_capture_notify},
   {"combat_privateer_seizure", case_combat_privateer_seizure},
+  {"combat_crown_last_mow_unsinkable", case_combat_crown_last_mow_unsinkable},
   {"combat_fort_fire_repair", case_combat_fort_fire_repair},
   {"colony_tile_visibility", case_colony_tile_visibility},
   {"selected_passenger_blink", case_selected_passenger_blink},

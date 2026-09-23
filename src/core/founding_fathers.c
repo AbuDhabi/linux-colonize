@@ -1117,10 +1117,11 @@ static bool effect_jones_frigate(
   if (!units || !map) {
     return false;
   }
-  int ship_ty = units_kind_type_index(units, UNITS_KIND_FRIGATE);
-  if (ship_ty < 0) {
-    ship_ty = units_kind_type_index(units, UNITS_KIND_MAN_O_WAR);
-  }
+  /* DOS-LITERAL FUN_4345_0342 case 0xe (raw 73044ff): `095c(0x11, ...)` —
+   * type 0x11 (Frigate) and nothing else. The Man-O-War fallback that used to
+   * sit here was invented (bugs.md #876); with no Frigate row there is no
+   * effect. */
+  const int ship_ty = units_kind_type_index(units, UNITS_KIND_FRIGATE);
   if (ship_ty < 0) {
     return false;
   }

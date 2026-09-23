@@ -251,6 +251,11 @@ static int sp_00(void) {
   c->y = 5;
   c->population = 4;
   c->colonist_count = 4;
+  /* DOS colony +0x1c bit 0x40: the save-carried coastal bit the REF/landing
+   * gathers read (FUN_43f7_0982 raw 74001-74003, FUN_43f7_10f0 raw 74316).
+   * colonies_found() stamps it from the site; a hand-built fixture must set
+   * it or no invasion wave can ever pick this port (bugs.md #878c). */
+  c->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
   snprintf(c->name, sizeof(c->name), "Jamestown");
   colonies.colony_count = 1;
 
@@ -960,6 +965,25 @@ static int sp_13(void) {
   }
   if (count_active(&units) <= units_before) {
     return fail("wave should increase unit count");
+  }
+  /*
+   * bugs.md #866 / DOS-LITERAL FUN_43f7_0982 raw 74169-74180: the crown
+   * Man-O-War comes out of `095c(0x12, crown, x, y)` with NOTHING stamped on
+   * it (creator default +0x314b = 0x58). The port used to set AI_SAIL + a
+   * goto onto its own tile, which ai_euro_act read as a committed self-move
+   * and froze the hull on the landing tile forever.
+   */
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &units.units[i];
+    if (!u->active || u->nation_id != 1 || !units_is_sea(&units, u->id)) {
+      continue;
+    }
+    if (u->orders != UNITS_ORDER_NONE || u->goto_x != UNITS_GOTO_NONE ||
+        u->goto_y != UNITS_GOTO_NONE) {
+      fprintf(stderr, "unit_ai_king: 0982 MoW orders=%d goto=%d,%d\n",
+              (int)u->orders, (int)u->goto_x, (int)u->goto_y);
+      return fail("0982 Man-O-War must spawn order-free (no AI_SAIL self-goto)");
+    }
   }
   if (count_nation(&units, 0) != 0) {
     return fail("REF/irregular must not spawn as human nation");
@@ -2496,7 +2520,10 @@ static int sp_30(void) {
     {
       int found_hire_ok = 0;
       for (int i = 0; i < pop.queue_count; ++i) {
-        if (pop.queue[i].tag == AI_POPUP_TAG_KING_MERC &&
+        /* bugs.md #875: the paid @MERCS ARRIVAL uses the ARRIVAL tag, like
+         * the free arm — KING_MERC is the offer's own tag and an unread one
+         * reads back as "an offer is still pending". */
+        if (pop.queue[i].tag == AI_POPUP_TAG_KING_ARRIVAL &&
             pop.queue[i].kind == AI_POPUP_KIND_OK &&
             (strstr(pop.queue[i].body, "mercenaries arrive") != NULL ||
              strstr(pop.queue[i].body, "Mercenaries arrive") != NULL)) {
@@ -2620,6 +2647,15 @@ static int sp_31(void) {
       col1.colony[0].flags.coastal = 1;
       col1.colony[0].population = 1;
       snprintf(col1.colony[0].name, sizeof(col1.colony[0].name), "Plymouth");
+      /*
+       * bugs.md #873a/b: 10f0 has NO fallback — a rolled colony with no
+       * ocean-region-1 neighbour simply lands nothing (DOS raw 74377). The
+       * fixture used to lean on the port's invented "any other colony with
+       * water" rescan to reach Jamestown's ocean at (4,5); give BOTH Col1
+       * ports their own water so whichever the roulette picks can land.
+       */
+      map.terrain[3 * 16 + 2] = 25;  /* west of Plymouth (3,3) */
+      map.terrain[5 * 16 + 12] = 25; /* east of Roanoke (11,5) */
       col1.colony[1].flags.coastal = 1;
       col1.colony[1].population = 9;
       snprintf(col1.colony[1].name, sizeof(col1.colony[1].name), "Roanoke");

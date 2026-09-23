@@ -17,6 +17,9 @@
  * human nation's DOS-dead unknown23_pad[] for the port-only latches —
  * see ai_king_latch_get in ai_king.c). */
 #define AI_KING_WOI_BYTE 0
+/* Port-only: "a crown unit/colony is currently in the New World". DOS has NO
+ * such flag — DS:0x5382 bit 0x02 is the intervention ANNOUNCE latch (see
+ * AI_KING_INTERVENE_ANNOUNCED_BYTE). Stored in the port pad. */
 #define AI_KING_REF_PRESENT_BYTE 1
 #define AI_KING_BOYCOTT_BYTE 2
 /* id 3 (and pad[1] bit 0x02) is free: AI_KING_MERC_HIRED_BYTE had no get/set
@@ -42,9 +45,13 @@
  * set to 1 on declare, consumed (cleared, no landing) by the first wave
  * tick. */
 #define AI_KING_REF_WAVE_WAIT_BYTE 11
-/* bugs.md #252: @INTERVENTION "declares war" announcement fires once (DOS
- * FUN_43f7_1528 latches 0x5382 bit2 after showing it; the port's ref_present
- * bit gets cleared when no crown unit remains, so it keeps its own bit). */
+/* bugs.md #252 / #865: @INTERVENTION "declares war" announcement fires once.
+ * DOS-LITERAL FUN_43f7_1528 raw 74493 `*(byte*)0x5382 |= 2` — this is the ONLY
+ * writer of 0x5382 bit 0x02 in the whole EXE and it is never cleared, so the
+ * latch IS the save bit: head.game_options.ref_present (historical port label).
+ * Every DOS reader of bit 0x02 means "intervention announced": combat raw
+ * 100504 (colony Bombard +50%), score raw 71327/71638/... (`bit2 && bells>99`),
+ * 0a22 raw 73347/73365, 2022 raw 75007, congress header raw 69686. */
 #define AI_KING_INTERVENE_ANNOUNCED_BYTE 12
 
 
@@ -53,10 +60,10 @@
  * which is really DOS market_demand_pool[16] (the Europe market pool words,
  * rewritten every EOT by europe_tick_market_prices) — on any real DOS save
  * byte 4 held live market data, so the endgame latch read as "already
- * ended" and every WoI end-check bailed. WoI / REF-present use their real
- * 0x5382 bits; the port-only latches pack into the human nation's
+ * ended" and every WoI end-check bailed. WoI (0x5382 bit 0x01) and the
+ * intervention-announce latch (bit 0x02) use their real 0x5382 bits; the port-only latches pack into the human nation's
  * unknown23_pad[3] (nation+0x1b..+0x1d), confirmed never touched by DOS.
- * Only pad[0] (endgame 0x03, ref-wave-wait 0x04, intervene-announced 0x08) and
+ * Only pad[0] (endgame 0x03, ref-wave-wait 0x04, port REF-present 0x08) and
  * pad[1] (the bit latches below) are in use; pad[2] is reserved — never read
  * or written — so a new latch byte can claim it without a save-format change.
  */
@@ -88,7 +95,8 @@ static inline int ai_king_latch_get(const ColonizeCol1Save* col1, int which) {
   if (which == AI_KING_WOI_BYTE) {
     return col1->head.game_options.woi ? 1 : 0;
   }
-  if (which == AI_KING_REF_PRESENT_BYTE) {
+  if (which == AI_KING_INTERVENE_ANNOUNCED_BYTE) {
+    /* DOS-LITERAL: DS:0x5382 bit 0x02 (FUN_43f7_1528 raw 74493). */
     return col1->head.game_options.ref_present ? 1 : 0;
   }
   const uint8_t* pad = ai_king_latch_pad((ColonizeCol1Save*)col1);
@@ -98,7 +106,7 @@ static inline int ai_king_latch_get(const ColonizeCol1Save* col1, int which) {
   if (which == AI_KING_REF_WAVE_WAIT_BYTE) {
     return (pad[0] & 0x04) ? 1 : 0;
   }
-  if (which == AI_KING_INTERVENE_ANNOUNCED_BYTE) {
+  if (which == AI_KING_REF_PRESENT_BYTE) {
     return (pad[0] & 0x08) ? 1 : 0;
   }
   const int bit = ai_king_latch_bit(which);
@@ -113,7 +121,9 @@ static inline void ai_king_latch_set(ColonizeCol1Save* col1, int which, int valu
     col1->head.game_options.woi = value ? 1 : 0;
     return;
   }
-  if (which == AI_KING_REF_PRESENT_BYTE) {
+  if (which == AI_KING_INTERVENE_ANNOUNCED_BYTE) {
+    /* DOS-LITERAL: DS:0x5382 bit 0x02 (FUN_43f7_1528 raw 74493); DOS never
+     * clears it, but tests / new-game reset need the zero path. */
     col1->head.game_options.ref_present = value ? 1 : 0;
     return;
   }
@@ -122,7 +132,7 @@ static inline void ai_king_latch_set(ColonizeCol1Save* col1, int which, int valu
     pad[0] = (uint8_t)(value ? (pad[0] | 0x04) : (pad[0] & ~0x04));
     return;
   }
-  if (which == AI_KING_INTERVENE_ANNOUNCED_BYTE) {
+  if (which == AI_KING_REF_PRESENT_BYTE) {
     pad[0] = (uint8_t)(value ? (pad[0] | 0x08) : (pad[0] & ~0x08));
     return;
   }
