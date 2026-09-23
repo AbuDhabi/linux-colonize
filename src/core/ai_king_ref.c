@@ -306,14 +306,18 @@ COLONIZE_INTERNAL void ai_king_0982_purge_tile(ColonizeTurnContext* ctx, int cro
     }
     if (u->nation_id == ctx->human_nation && ai_king_human_popups(ctx)) {
       const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
+      const bool water = map_tile_is_water(ctx->map, x, y);
       const bool sea = units_is_sea(ctx->units, u->id);
-      if (!map_tile_is_water(ctx->map, x, y) || sea) {
+      /* DOS-LITERAL FUN_43f7_0512 raw 73746-73755: tile-land -> @SEIZURELAND
+       * always; tile-water -> @SEIZURESEA only for a hull (type 0xd..0x12),
+       * else no popup at all. Keyed on the TILE, not the unit's domain. */
+      if (!water || sea) {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
         tok.string0 = t ? t->name : "unit";
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(
-          ctx->messages, sea ? "SEIZURESEA" : "SEIZURELAND", &tok,
+          ctx->messages, water ? "SEIZURESEA" : "SEIZURELAND", &tok,
           "", body, sizeof(body)
         );
         (void)ai_popup_enqueue_ok_ctx(

@@ -4,6 +4,12 @@
  * Split out of ai_euro.c (2026-09-23) verbatim; shared symbols are declared
  * in ai_euro_internal.h. See ai_euro.c for the dispatcher entry point.
  *
+ * Citation units (bugs.md #816): `raw NNNNN` = a line in
+ * original_sources_decompiled/viceroy_unpacked.c (docs/conventions.md).
+ * The FUN_521d_20e6 cites in this file are `md:NNNN` = a line in
+ * original_sources_annotated/ai/move_scoring_20e6_full.md, a different
+ * numbering — never mix the two.
+ *
  * Sections:
  *   20e6 hold-cargo delivery matrix (tallies / colony pick / sell tail)
  *   20e6 load pick, wagon village errand, board-mark cleanup, transport assemble
@@ -59,16 +65,16 @@
 static int ai_euro_20e6_unit_col5(const ColonizeUnitPool* pool, int dos_type);
 
 /*
- * FUN_521d_20e6 hold-cargo colony-delivery matrix (raw 2047-2139;
+ * FUN_521d_20e6 hold-cargo colony-delivery matrix (md:2047-2139;
  * viceroy_overlays.asm 137180-137466, labels 004026/004038/0040a1/0041e5).
  *
  * DOS unit byte +0x314a latches the colony a hauler last LOADED at (written in
- * the load matrix, raw 2147) and the delivery loop skips it. Modelled by the
+ * the load matrix, md:2147) and the delivery loop skips it. Modelled by the
  * real persistent `col1_origin` byte (ai_euro_20e6_origin_get/_set).
  */
 
 /*
- * FUN_521d_20e6 raw 1691 gate + raw 2996-3017 dump sweep: a SHIP standing at
+ * FUN_521d_20e6 md:1691 gate + md:2996-3017 dump sweep: a SHIP standing at
  * an own colony empties every hold into that colony before anything else the
  * function does. See ai_euro_20e6_ship_berth_arrival for the full decode.
  * Kill switch / bisect: AI_20E6_SHIP_DUMP=0 restores the 06e empty-hull gate
@@ -83,7 +89,7 @@ static int ai_euro_20e6_ship_dump_enabled(void) {
 }
 
 /*
- * acStack_c8 per-cargo tallies (raw 1702-1712). DOS walks the ship's occupied
+ * acStack_c8 per-cargo tallies (md:1702-1712). DOS walks the ship's occupied
  * holds, keeps only cargo types 0x0d..0x0f (Trade Goods / Tools / Muskets) and
  * 0x08 (Horses) — the goods a colony consumes — sums their amounts per type,
  * and records the highest such type in iStack_44 (−1 = none, which switches
@@ -117,7 +123,7 @@ static int ai_euro_20e6_delivery_tallies(
       continue;
     }
     if (ct <= 0x0c && ct != COLONIZE_CARGO_HORSES) {
-      continue; /* raw 1706: 0xc < type || type == 8 */
+      continue; /* md:1706: 0xc < type || type == 8 */
     }
     if (ct > max_type) {
       max_type = ct;
@@ -132,7 +138,7 @@ static int ai_euro_20e6_delivery_tallies(
 
 
 /*
- * The matrix proper (raw 2047-2139). Candidate = own colony, coastal
+ * The matrix proper (md:2047-2139). Candidate = own colony, coastal
  * (+0x1c bit 0x40), not the ship's own nearest colony when it is standing on
  * it (uStack_62 / iStack_2e), not the colony the ship last loaded at
  * (+0x314a), and — when Horses are the only delivery cargo (iStack_44 == 8) —
@@ -158,7 +164,7 @@ static int ai_euro_20e6_delivery_tallies(
  *   (col5 − 10) * 8; else bit 0x01 (NEARBY_ARMED_SHIP) → (col5 − 10) * 2.
  * Then score /= ((FUN_1000_856a dist >> 2) + 1) and later-ties-win against a
  * best seeded to −1, so a colony must score ≥ −1 to be picked at all
- * (raw 2128; asm CMP/JL at 0041e5+0x1a).
+ * (md:2128; asm CMP/JL at 0041e5+0x1a).
  *
  * Substitutions: the coastal bit is OR'd with a live map_tile_is_coastal probe
  * as belt-and-braces. Since 2026-09-10 the bit itself is DOS-shaped — stamped
@@ -195,19 +201,19 @@ static int ai_euro_20e6_delivery_colony_pick(
       continue;
     }
     if (c->id == home_colony && home_dist == 0) {
-      continue; /* raw 2053 */
+      continue; /* md:2053 */
     }
     if ((c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) == 0 &&
         !map_tile_is_coastal(ctx->map, c->x, c->y)) {
-      continue; /* raw 2054: +0x1c bit 0x40 */
+      continue; /* md:2054: +0x1c bit 0x40 */
     }
     if (c->id == loaded_at) {
-      continue; /* raw 2055: unit +0x314a */
+      continue; /* md:2055: unit +0x314a */
     }
     const int cap = colonies_warehouse_capacity(ctx->colonies, c, COLONIZE_CARGO_TOOLS);
     if (max_type == COLONIZE_CARGO_HORSES &&
         tally[COLONIZE_CARGO_HORSES] + (int)c->stock[COLONIZE_CARGO_HORSES] > cap) {
-      continue; /* raw 2056-2058 */
+      continue; /* md:2056-2058 */
     }
     const int cid = map_continent_id_at(ctx->map, c->x, c->y);
     int score = 0;
@@ -219,26 +225,26 @@ static int ai_euro_20e6_delivery_colony_pick(
       const int stock = (int)c->stock[g];
       if ((c->cargo_produced_mask & (uint16_t)(1u << g)) != 0 && stock > 99) {
         ok = 0;
-        break; /* raw 2067-2070 */
+        break; /* md:2067-2070 */
       }
       if (cap <= tally[g] + stock) {
         /* DS:0x84bc (= −0x7b44) byte table, indexed nation*0x10 + cargo. */
         const int price = (ctx->col1_ok && ctx->col1)
                             ? (int)ctx->col1->nation[nation].trade.euro_price[g]
                             : 0;
-        score += (cap - stock - tally[g]) * price * 4; /* raw 2072-2077 */
+        score += (cap - stock - tally[g]) * price * 4; /* md:2072-2077 */
       }
       if ((int)c->specialty_cargo == g) {
-        score += ((int)(int8_t)c->cargo_idle_turns + 8) * 4; /* raw 2080-2081 */
+        score += ((int)(int8_t)c->cargo_idle_turns + 8) * 4; /* md:2080-2081 */
       }
-      score += (cap - stock) - 1; /* raw 2083-2084 */
+      score += (cap - stock) - 1; /* md:2083-2084 */
     }
     if (!ok) {
       continue;
     }
     if (max_type == COLONIZE_CARGO_MUSKETS) {
       if (cid >= 0 && ai_euro_20e6_own_colonies_on(ctx, ctx->human_nation, cid) != 0) {
-        score += 0x10; /* raw 2089-2090 */
+        score += 0x10; /* md:2089-2090 */
       }
       for (int r = 0; r < 20; ++r) {
         const int tx = c->x + (int)ai_euro_k_20e6_ring20_dx[r];
@@ -248,27 +254,27 @@ static int ai_euro_20e6_delivery_colony_pick(
         }
         const int pres = ai_euro_20e6_tribe_or_presence(ctx, tx, ty);
         if (pres < 4) {
-          score += 0x18; /* raw 2100-2101 */
+          score += 0x18; /* md:2100-2101 */
           continue;
         }
         int alarm = 0;
         if (ctx->col1_ok && ctx->col1 && (pres - 4) < (int)COLONIZE_COL1_INDIAN_COUNT) {
           alarm = (int)ctx->col1->indian[pres - 4].alarm_by_player[nation];
         }
-        score += ai_relation_quartile(alarm) * 0x10; /* raw 2103-2106 */
+        score += ai_relation_quartile(alarm) * 0x10; /* md:2103-2106 */
       }
     }
     if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_FRIGATE) != 0) {
       if (ship_type < 0x10) {
-        score += (ai_euro_20e6_unit_col5(ctx->units, ship_type) - 10) * 8; /* raw 2119-2121 */
+        score += (ai_euro_20e6_unit_col5(ctx->units, ship_type) - 10) * 8; /* md:2119-2121 */
       }
     } else if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP) != 0) {
       if (ship_type < 0x10) {
-        score += (ai_euro_20e6_unit_col5(ctx->units, ship_type) - 10) * 2; /* raw 2113-2115 */
+        score += (ai_euro_20e6_unit_col5(ctx->units, ship_type) - 10) * 2; /* md:2113-2115 */
       }
     }
     const int dist = map_dos_dist(ship->x - c->x, ship->y - c->y);
-    score = score / ((dist >> 2) + 1); /* raw 2126-2127 */
+    score = score / ((dist >> 2) + 1); /* md:2126-2127 */
     if (score >= best) {               /* DOS later-ties-win, best seeded −1 */
       best = score;
       pick = i;
@@ -296,7 +302,7 @@ static int ai_euro_20e6_delivery_colony_pick(
 }
 
 /*
- * FUN_521d_20e6 delivery SELL TAIL (raw 2140-2163 = doc 2147-2170, the
+ * FUN_521d_20e6 delivery SELL TAIL (md:2140-2163 = doc 2147-2170, the
  * `while (*(char *)(param_2 * 0x1c + 0x3150) != '\0')` loop right after the
  * matrix's `if (-1 < uStack_24)` commit). When the matrix picked no colony
  * DOS dumps the whole hold for gold rather than leaving the hull loaded:
@@ -385,7 +391,7 @@ static int ai_euro_20e6_delivery_sell_tail(
 }
 
 /*
- * FUN_521d_20e6 LOAD-at-colony matrix (raw 3059-3134 of the recovered C:
+ * FUN_521d_20e6 LOAD-at-colony matrix (md:3059-3134 of the recovered C:
  * `while ((iStack_d2 != 0 && (bVar17)))` … `LAB_OVL14_L0000__003356`).
  * Picks ONE cargo per free hold; the caller re-runs it until the hull is full
  * or the matrix declines.
@@ -398,7 +404,7 @@ static int ai_euro_20e6_delivery_sell_tail(
  * matrix skips) and `+0x3158 = 1` for wagons (the village-errand byte 47b9
  * reads).
  *
- * The stock term (raw 3068-3077), then the per-cargo gates:
+ * The stock term (md:3068-3077), then the per-cargo gates:
  *   term = stock[g]
  *   if (term < cap || g == 0) { if (g == 8) term = max(term - cap + 0x17, 0); }
  *   else                      { term <<= 1; }
@@ -446,19 +452,19 @@ int ai_euro_20e6_load_pick(
       term = term << 1;
     }
     if (g == COLONIZE_CARGO_LUMBER) {
-      continue; /* raw 3081: `if (uStack_b6 != 5)` guards the whole body */
+      continue; /* md:3081: `if (uStack_b6 != 5)` guards the whole body */
     }
     if (g == COLONIZE_CARGO_TOOLS || g == COLONIZE_CARGO_MUSKETS) {
       if (!is_ship || (c->cargo_produced_mask & (uint16_t)(1u << g)) == 0) {
-        continue; /* raw 3082-3085 */
+        continue; /* md:3082-3085 */
       }
-      term += -100; /* raw 3086 */
+      term += -100; /* md:3086 */
     }
     if (is_ship && (g == COLONIZE_CARGO_TRADE_GOODS || g == COLONIZE_CARGO_FOOD)) {
-      continue; /* raw 3087 */
+      continue; /* md:3087 */
     }
     if (term == 0) {
-      continue; /* raw 3087 tail */
+      continue; /* md:3087 tail */
     }
     const int price = (ctx->col1_ok && ctx->col1)
                         ? (int)ctx->col1->nation[nation].trade.euro_price[g]
@@ -467,21 +473,21 @@ int ai_euro_20e6_load_pick(
     if (!is_ship) {
       int p = price;
       while (p > 1 && ctx->rng && dos_rng_range(ctx->rng, 0, 3) == 0) {
-        p -= 1; /* raw 3091-3093 throttle walk-down */
+        p -= 1; /* md:3091-3093 throttle walk-down */
       }
-      const int thr = (g == COLONIZE_CARGO_TRADE_GOODS) ? 8 : 4; /* raw 3094-3099 */
+      const int thr = (g == COLONIZE_CARGO_TRADE_GOODS) ? 8 : 4; /* md:3094-3099 */
       if (p < thr) {
-        score = term * (thr - p) + (1 - p) * 5; /* raw 3101-3102 */
+        score = term * (thr - p) + (1 - p) * 5; /* md:3101-3102 */
       } else {
-        score = -1; /* raw 3104 */
+        score = -1; /* md:3104 */
       }
       if (term < 0x32) {
-        score = -1; /* raw 3107 */
+        score = -1; /* md:3107 */
       }
     } else {
-      score = price * term; /* raw 3111 */
+      score = price * term; /* md:3111 */
     }
-    if (best < score) { /* raw 3113: strict, first-wins ties */
+    if (best < score) { /* md:3113: strict, first-wins ties */
       best = score;
       pick = g;
     }
@@ -490,7 +496,7 @@ int ai_euro_20e6_load_pick(
 }
 
 /*
- * FUN_521d_20e6 wagon village-errand arm (raw 2284-2307) + the 4528 AI-arm
+ * FUN_521d_20e6 wagon village-errand arm (md:2284-2307) + the 4528 AI-arm
  * case-1 consumer. A wagon whose errand latch (+0x3158) is set:
  *   - scan every settlement, keep the nearest on the wagon's own landmass
  *     (FUN_1000_8912 == iStack_38); a capital (record +3 & 4) halves its
@@ -523,9 +529,6 @@ int ai_euro_20e6_wagon_village_errand(
   int best_d = 9999; /* DOS iStack_e2 seed */
   for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
     const ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
-    if (t->population == 0) {
-      continue; /* razed record — DOS removes these from the 0x539a count */
-    }
     if (map_continent_id_at(ctx->map, t->x, t->y) != cid) {
       continue;
     }
@@ -554,9 +557,15 @@ int ai_euro_20e6_wagon_village_errand(
   const ColonizeCol1Tribe* t = &ctx->col1->tribe[best_i];
   const int adj = abs((int)t->x - wagon->x) <= 1 && abs((int)t->y - wagon->y) <= 1;
   if (adj) {
-    ai_euro_s_20e6_wagon_errand[wagon->id] = 0; /* 2820 entry clears +0x3158 */
     const int ind = (int)t->nation_id;
     if (ind >= 4 && ind <= 11) {
+      /* bugs.md #813: DOS clears +0x3158 inside FUN_4d56_2820 itself (raw
+       * 82121-82123: `if (type < 0xd || 0x12 < type) +0x3158 = 0;`), i.e. at
+       * trade entry and only when a trade is actually entered — not on bare
+       * adjacency. `ai_contact_ai_wagon_village_trade` lives in
+       * ai_contact_trade.c, so the clear sits at the call site instead, but
+       * under the same gate. */
+      ai_euro_s_20e6_wagon_errand[wagon->id] = 0;
       (void)ai_contact_ai_wagon_village_trade(ctx, ind, nation_id, wagon->id);
     }
     wagon->moves = 0; /* 4528 return-code 1 MP forfeit */
@@ -608,7 +617,7 @@ int ai_euro_20e6_wagon_village_errand(
  *                                     (:135706 / :135710 / :135721)
  *   …0x30a7                  :135722  arrival block = the gate's FALL-THROUGH
  *                                     (stale-mark clear at 0x30b6 :135728,
- *                                     then dump, cower, the raw 3024-3051
+ *                                     then dump, cower, the md:3024-3051
  *                                     board-MARK scan, load matrix)
  *   …0x32f5                  :135980  after the scan: `[0x1734+n*2] = 0`,
  *                                     `JMP 0x354e`
@@ -870,7 +879,7 @@ static int ai_euro_20e6_transport_assemble(
 }
 
 /*
- * FUN_521d_20e6 raw 3120-3133: fill the ship's free holds from colony `c`,
+ * FUN_521d_20e6 md:3120-3133: fill the ship's free holds from colony `c`,
  * one 20e6 load pick per hold (a hold is burnt whether or not goods moved).
  * Returns 1 when anything was loaded. Shared by the berth-arrival and the
  * hauler-pickup arms, which had the loop twice.
@@ -887,11 +896,11 @@ static int ai_euro_20e6_load_holds(
   while (free_holds > 0) {
     const int g = ai_euro_20e6_load_pick(ctx, c, nation_id, 1);
     if (g < 0) {
-      break; /* raw 3122-3123: iStack_d2 = 0 */
+      break; /* md:3122-3123: iStack_d2 = 0 */
     }
     int qty = (int)c->stock[g];
     if (qty > 100) {
-      qty = 100; /* raw 3126-3129 */
+      qty = 100; /* md:3126-3129 */
     }
     const int moved =
       (qty > 0) ? colonies_transfer_to_unit(ctx->colonies, c->id, ctx->units, ship->id, g, qty)
@@ -905,16 +914,16 @@ static int ai_euro_20e6_load_holds(
         nation_id, c->id, g, qty, moved, free_holds
       );
     }
-    free_holds -= 1; /* raw 3133: DOS burns the hold either way */
+    free_holds -= 1; /* md:3133: DOS burns the hold either way */
   }
   return loaded;
 }
 
 /*
- * FUN_521d_20e6 own-colony ARRIVAL block for ships (raw 2996-3138), the ship
+ * FUN_521d_20e6 own-colony ARRIVAL block for ships (md:2996-3138), the ship
  * twin of the wagon sequence shipped 2026-09-06f.
  *
- * Structure, from the raw. The gate at raw 1691 (doc 1698-1700) is the fork
+ * Structure, from the raw. The gate at md:1691 (doc 1698-1700) is the fork
  * that decides whether 20e6 enters its normal band (LAB_003558: the delivery
  * tallies + delivery matrix + 4393 work-queue peel + the 8-dir wander) or the
  * arrival block first:
@@ -925,7 +934,7 @@ static int ai_euro_20e6_load_holds(
  *        || ( (type < 0xd || 0x12 < type)             // land hauler …
  *             && unit+0x314a != uStack_62 ) )         // … not bound here
  *     goto LAB_003558;                                // normal band
- *   … arrival block (raw 2996-3138) …
+ *   … arrival block (md:2996-3138) …
  *   goto LAB_003558;                                  // then the normal band
  *
  * So for a SHIP (type 0x0d..0x12) the third clause can never hold: a ship
@@ -936,27 +945,27 @@ static int ai_euro_20e6_load_holds(
  * cargo; "delivery matrix first" only ever described a ship away from berth.
  *
  * The block itself:
- *   raw 2991-2997  clear act_state 1 on the berth tile's units (LIVE since
+ *   md:2991-2997  clear act_state 1 on the berth tile's units (LIVE since
  *                  2026-09-07e — the +0x314c channel is the
  *                  the real +0x314c byte)
- *   raw 2999-3001  bind colony uStack_62 / nation uStack_e6
- *   raw 3002-3007  while (holds_occupied) { g = pull hold 0 (8cdc compacts
+ *   md:2999-3001  bind colony uStack_62 / nation uStack_e6
+ *   md:3002-3007  while (holds_occupied) { g = pull hold 0 (8cdc compacts
  *                  and stashes qty in 0x8dc4); colony stock[g] += qty; }
  *                  — UNCONDITIONAL: every hold, every cargo type, no ship /
  *                  cargo exception, and no "colony is short of it" test.
- *   raw 3008-3011  ships only: unit+0x314a = 0xff (drop the last-loaded-at
+ *   md:3008-3011  ships only: unit+0x314a = 0xff (drop the last-loaded-at
  *                  latch the delivery matrix reads) and colony+0x8f = 0
  *                  (cargo_idle_turns).
- *   raw 3012-3016  iStack_d2 = capacity − holds_occupied (0 after the dump,
+ *   md:3012-3016  iStack_d2 = capacity − holds_occupied (0 after the dump,
  *                  so = capacity); wagons clamp to 1.
- *   raw 3052-3131  the LOAD matrix (ai_euro_20e6_load_pick, ported 06e), one
+ *   md:3052-3131  the LOAD matrix (ai_euro_20e6_load_pick, ported 06e), one
  *                  cargo per free hold, qty = min(stock, 100).
- *   raw 3127-3131  a load latches unit+0x314a = colony for ships.
+ *   md:3127-3131  a load latches unit+0x314a = colony for ships.
  *
  * Both formerly-unmodelled arms of this block are live:
- *   - raw 3018-3023 "cower in port" (2026-09-07): +0x315a is the COL1
+ *   - md:3018-3023 "cower in port" (2026-09-07): +0x315a is the COL1
  *     `col1_counter16` byte, save-round-tripped since 2026-09-07c.
- *   - raw 3024-3051: the passenger-board MARK scan. It only stamps
+ *   - md:3024-3051: the passenger-board MARK scan. It only stamps
  *     act_state = 1 and debits the hold budget; the physical boarding is
  *     FUN_1427_10be at LAB_3558, ported as
  *     ai_euro_20e6_transport_assemble and called from the tail of this
@@ -975,7 +984,7 @@ static int ai_euro_20e6_ship_berth_arrival(
       ship->id >= COLONIZE_UNITS_MAX) {
     return -1;
   }
-  /* raw 1691 first clause: capacity_table[type] == 0 → no arrival block. */
+  /* md:1691 first clause: capacity_table[type] == 0 → no arrival block. */
   const int holds = units_goods_hold_count(ctx->units, ship->id);
   if (holds <= 0) {
     return -1;
@@ -1014,7 +1023,7 @@ static int ai_euro_20e6_ship_berth_arrival(
    */
   ai_euro_20e6_clear_stale_board_marks(ctx, nation_id, ship);
 
-  /* raw 3002-3007: dump every hold into the colony, unconditionally. */
+  /* md:3002-3007: dump every hold into the colony, unconditionally. */
   int dumped = 0;
   for (;;) {
     int hold = -1;
@@ -1043,7 +1052,7 @@ static int ai_euro_20e6_ship_berth_arrival(
     }
   }
 
-  /* raw 3008-3011: ships drop the +0x314a bind and zero colony +0x8f. */
+  /* md:3008-3011: ships drop the +0x314a bind and zero colony +0x8f. */
   ai_euro_20e6_origin_set(ship, -1);
   c->cargo_idle_turns = 0;
 
@@ -1076,7 +1085,7 @@ static int ai_euro_20e6_ship_berth_arrival(
     }
   }
 
-  /* raw 3012-3016 + 3052-3131: free = capacity − holds_occupied, then the
+  /* md:3012-3016 + 3052-3131: free = capacity − holds_occupied, then the
    * DOS LOAD matrix one cargo per free hold. Passengers already aboard are
    * charged here (ai_euro_20e6_ship_hold_budget) because the port's cargo_ids
    * substitution stops the scan below from re-reserving them the way DOS's
@@ -1140,7 +1149,7 @@ static int ai_euro_20e6_ship_berth_arrival(
         mark = 1;
       }
       if (mark) {
-        /* raw 3046-3050: act_state = 1, iStack_d2 -= 0x5238[type]. */
+        /* md:3046-3050: act_state = 1, iStack_d2 -= 0x5238[type]. */
         lu->orders = UNITS_ORDER_SENTRY; /* +0x314c = 1 */
         free_holds -= space;
         if (trace) {
@@ -1157,8 +1166,8 @@ static int ai_euro_20e6_ship_berth_arrival(
   if (ai_euro_20e6_load_holds(ctx, c, nation_id, ship, free_holds, trace)) {
     loaded = 1;
   }
-  /* raw 3127-3131: the ship arm latches the source colony in +0x314a, which
-   * the delivery matrix below then skips (raw 2055). */
+  /* md:3127-3131: the ship arm latches the source colony in +0x314a, which
+   * the delivery matrix below then skips (md:2055). */
   if (loaded) {
     ai_euro_20e6_origin_set(ship, c->id);
   }
@@ -1181,7 +1190,7 @@ static int ai_euro_20e6_ship_berth_arrival(
 /*
  * FUN_521d_20e6 ship band entry: own-colony arrival (dump + load matrix),
  * the hold-cargo delivery matrix and its sell tail, then the 4393 work-queue
- * peel. Hull test is DOS's own (raw 1691: nonzero hold capacity), not a name
+ * peel. Hull test is DOS's own (md:1691: nonzero hold capacity), not a name
  * list. Peace only — the war arms own idle ships at war.
  * Returns 1 if a course was set or the beat was claimed at a berth.
  */
@@ -1197,7 +1206,7 @@ int ai_euro_try_ship_trade_haul(
     return 0;
   }
   /*
-   * DOS raw 1691 gate, first clause: `capacity_table[type*0xe + 0x5237] == 0`.
+   * DOS md:1691 gate, first clause: `capacity_table[type*0xe + 0x5237] == 0`.
    * That is the ONLY hull test FUN_521d_20e6 applies before the arrival block
    * and the delivery band — any unit type 0x0d..0x12 (Caravel..Man-O-War) with
    * a nonzero hold capacity runs both. The port used to gate this whole
@@ -1214,7 +1223,7 @@ int ai_euro_try_ship_trade_haul(
     return 0;
   }
   /*
-   * DOS own-colony ARRIVAL block (raw 1691 gate + raw 2996-3138) runs BEFORE
+   * DOS own-colony ARRIVAL block (md:1691 gate + md:2996-3138) runs BEFORE
    * everything below — see ai_euro_20e6_ship_berth_arrival for the fork decode.
    * It sits above the has_tools/has_cap early-out on purpose: DOS's gate asks
    * only "has holds && at own colony", so a hull with no haul cargo and no
@@ -1226,18 +1235,18 @@ int ai_euro_try_ship_trade_haul(
                            ? ai_euro_20e6_ship_berth_arrival(ctx, nation_id, ship, &cowered)
                            : -1;
   if (cowered) {
-    return 1; /* raw 3023 → LAB_5899: parked in port this beat */
+    return 1; /* md:3023 → LAB_5899: parked in port this beat */
   }
-  const int has_tools = ai_euro_wagon_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_TOOLS);
+  const int has_tools = ai_euro_unit_hold_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_TOOLS);
   const int has_lumber =
-    ai_euro_wagon_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_LUMBER);
-  const int has_ore = ai_euro_wagon_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_ORE);
+    ai_euro_unit_hold_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_LUMBER);
+  const int has_ore = ai_euro_unit_hold_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_ORE);
   const int has_muskets =
-    ai_euro_wagon_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_MUSKETS);
+    ai_euro_unit_hold_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_MUSKETS);
   const int has_horses =
-    ai_euro_wagon_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_HORSES);
-  const int has_food = ai_euro_wagon_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_FOOD);
-  const int has_cap = ai_euro_wagon_has_hold_capacity(ctx->units, ship);
+    ai_euro_unit_hold_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_HORSES);
+  const int has_food = ai_euro_unit_hold_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_FOOD);
+  const int has_cap = ai_euro_unit_hold_has_capacity(ctx->units, ship);
   if (!has_tools && !has_lumber && !has_ore && !has_muskets && !has_horses && !has_food &&
       !has_cap) {
     return 0;
@@ -1247,7 +1256,7 @@ int ai_euro_try_ship_trade_haul(
    * (The port-only "adjacent short coastal colony + haul cargo -> unload" arm
    * that stood here was deleted 2026-09-18. DOS has no per-cargo "colony is
    * short of this" unload in FUN_521d_20e6 — the arrival block dumps the whole
-   * hull unconditionally (raw 3002-3007) and the delivery matrix (raw
+   * hull unconditionally (md:3002-3007) and the delivery matrix (raw
    * 2047-2139) picks the destination. The arm was already unreachable with
    * AI_20E6_SHIP_DUMP on, because the berth arrival above fires for exactly
    * the hull/colony pairs it tested. `ai_euro_colony_haul_cargo_short` went
@@ -1256,7 +1265,7 @@ int ai_euro_try_ship_trade_haul(
 
   /*
    * On an own coastal colony with a free hold → the DOS load matrix
-   * (ai_euro_20e6_load_pick, raw 3059-3134): one cargo per free hold, DOS
+   * (ai_euro_20e6_load_pick, md:3059-3134): one cargo per free hold, DOS
    * weights, until the hull is full or the matrix declines. Replaces the
    * port's own TOOLS/LUMBER/ORE/MUSKETS/HORSES/FOOD ladder (and its
    * food_short-first reorder), which had no DOS reading.
@@ -1283,7 +1292,7 @@ int ai_euro_try_ship_trade_haul(
         continue;
       }
       int loaded = 0;
-      /* iStack_d2 = hold capacity − holds_occupied (raw 3020-3023), less the
+      /* iStack_d2 = hold capacity − holds_occupied (md:3020-3023), less the
        * hull the port's persistent passengers hold (see
        * ai_euro_20e6_ship_hold_budget). */
       int free_holds = ai_euro_20e6_ship_hold_budget(ctx->units, ship);
@@ -1306,10 +1315,10 @@ int ai_euro_try_ship_trade_haul(
   int cx = 0;
   int cy = 0;
   /*
-   * FUN_521d_20e6 raw 2044-2139. Delivery cargo aboard (Horses / Trade Goods /
+   * FUN_521d_20e6 md:2044-2139. Delivery cargo aboard (Horses / Trade Goods /
    * Tools / Muskets) → the DOS matrix owns the destination outright: 20e6 is
    * the per-unit mover; a matrix that rejects every colony runs the sell
-   * tail (raw 2140-2163) and then falls through to the 4393 peel with the
+   * tail (md:2140-2163) and then falls through to the 4393 peel with the
    * emptied hull, exactly as DOS does. Without such cargo DOS never enters
    * this block at
    * all (`-1 < iStack_44`), so the 4393 work-queue peel and the short-colony
@@ -1415,7 +1424,7 @@ int ai_euro_try_ship_trade_haul(
 /*
  * Peace Europe export sail — the port's stand-in for LAB_003fa6
  * (`FUN_1000_94da` = FUN_291f_02ea -> FUN_48d3_015e), the expanding-ring High
- * Seas hunt FUN_521d_20e6 jumps to at raw 2166-2168 when the band leaves the
+ * Seas hunt FUN_521d_20e6 jumps to at md:2166-2168 when the band leaves the
  * hull laden. The Europe end is DOS-real and already ported: FUN_521d_5d04's
  * dock loop (viceroy_overlays.c:83168-83192, `ai_euro_5d04_cb_sell_hold0` /
  * `_cb_reward_case`) empties the holds of EVERY Europe ship of type
@@ -1510,7 +1519,7 @@ int ai_euro_try_ship_europe_export(
   }
 
   /* Prefer SILVER then other export-eligible cargos (FUN_364b_0636). */
-  const int has_cap = ai_euro_wagon_has_hold_capacity(ctx->units, ship) &&
+  const int has_cap = ai_euro_unit_hold_has_capacity(ctx->units, ship) &&
                       ai_euro_is_cargo_ship_name(ai_euro_unit_kind(ctx->units, ship));
   if (has_cap && !ai_euro_ship_holds_export_goods(ctx->units, ship)) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
@@ -1597,7 +1606,7 @@ int ai_euro_try_ship_europe_export(
  * manual-cited duplicate of the Europe export arm above, differing only in
  * which hulls it accepted; with that arm's gate widened to DOS's raw-1691 hull
  * test (any type 0x0d..0x12 with holds) the Privateer loot case is the same
- * code path DOS uses, raw 2166-2168 -> FUN_48d3_015e -> the FUN_521d_5d04 dock
+ * code path DOS uses, md:2166-2168 -> FUN_48d3_015e -> the FUN_521d_5d04 dock
  * sell loop.)
  */
 
@@ -2006,7 +2015,7 @@ void ai_euro_20e6_ship_cargo_counts(
   }
   const int woi = (ctx->col1_ok && ctx->col1) ? (int)ctx->col1->head.game_options.woi : 0;
   if (woi) {
-    *mil += artillery; /* raw 1736-1738: wartime mode-0xc add */
+    *mil += artillery; /* md:1736-1738: wartime mode-0xc add */
   }
 }
 
@@ -2161,10 +2170,10 @@ int ai_euro_20e6_unload_mask(ColonizeTurnContext* ctx, ColonizeUnit* ship, int n
    * asm 0x3609: `CALLF FUN_1000_8b10` (FUN_1427_10be) sits immediately before
    * the 0d38 stack-count batch below, and LAB_3558 is reached on EVERY ship
    * act — the arrival block's fall-through and the three direct `JMP 0x3558`
-   * exits of the raw 1691 gate alike. This is that call for the acts that
+   * exits of the md:1691 gate alike. This is that call for the acts that
    * skip the arrival block; the berth path runs its own at the arrival tail
    * (see ai_euro_20e6_transport_assemble). DOS reaches 0x3609 at a colony
-   * berth only via the arrival block's raw 2991-2997 stale-mark clear, so a
+   * berth only via the arrival block's md:2991-2997 stale-mark clear, so a
    * mark not set by THIS act's berth scan (e.g. the housekeeping aboard-stamp
    * on a passenger unloaded earlier this turn) never boards; a member the
    * budget could not fit is re-marked by the next berth act's scan, not by a
@@ -2479,7 +2488,7 @@ static int ai_euro_20e6_unit_col5(const ColonizeUnitPool* pool, int dos_type) {
 }
 
 /*
- * LAB_3558 colony-sail matrix (raw 1933-2031) — full structural port
+ * LAB_3558 colony-sail matrix (md:1933-2031) — full structural port
  * 2026-09-06, replacing the thin Series-O score for this call path.
  * Loop: own colonies not on the ship's tile; carrying Pioneers (iStack_b4)
  * additionally requires nonzero G-stance on the colony's continent (raw
@@ -2502,7 +2511,7 @@ static int ai_euro_20e6_unit_col5(const ColonizeUnitPool* pool, int dos_type) {
  *   − ((dist >> 1) + 1); later ties win (DOS <=).
  * Non-coastal colonies are skipped (the raw 8804(...,0xfffe) reachability
  * probe for the +0x1c bit-0x40-clear case — a ship can't reach them).
- * Commit threshold (raw 2031): peace best > −999, war-cargo best > 0.
+ * Commit threshold (md:2031): peace best > −999, war-cargo best > 0.
  * +0x1b bit 0x08 (SHORT_DEFENDERS) is written by ai_euro_colony_threat_seed_5952;
  * bit 0x04 (MILITARY_SURPLUS) is the opposite side of that pair.
  */
@@ -2537,14 +2546,14 @@ int ai_euro_20e6_colony_sail_pick(
     }
     const int cid = map_continent_id_at(ctx->map, c->x, c->y);
     if (pioneers_b4 != 0 && (cid < 0 || ai_euro_continent_stance_at(nation, cid) == 0)) {
-      continue; /* raw 1946: Pioneer cargo only sails at nonzero stance */
+      continue; /* md:1946: Pioneer cargo only sails at nonzero stance */
     }
     if (!map_tile_is_coastal(ctx->map, c->x, c->y)) {
       continue; /* 8804(...,0xfffe) reachability substitution */
     }
     int wanted = ai_euro_colony_wanted_size(ctx->colonies, c); /* FUN_1000_8e6c */
     if (wanted > 0xc) {
-      wanted = 0x10; /* raw 1949-1951 clamp */
+      wanted = 0x10; /* md:1949-1951 clamp */
     }
     int score;
     if (mil == 0) {
@@ -2560,7 +2569,7 @@ int ai_euro_20e6_colony_sail_pick(
       score += (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) ? 0x19 : -0x19;
     } else {
       if (cid < 0 || ai_euro_continent_stance_at(nation, cid) == 0) {
-        continue; /* raw 1970: war cargo needs nonzero stance */
+        continue; /* md:1970: war cargo needs nonzero stance */
       }
       score = 0;
       /*
@@ -2608,7 +2617,7 @@ int ai_euro_20e6_colony_sail_pick(
     }
   }
   if (!have || best <= (mil == 0 ? -999 : 0)) {
-    return 0; /* raw 2031 commit threshold */
+    return 0; /* md:2031 commit threshold */
   }
   *out_x = bx;
   *out_y = by;
@@ -2928,7 +2937,7 @@ static int ai_euro_unload_settle_mask_and_sail(
       return 1;               /* DOS re-runs the sail gate next call */
     }
     /*
-     * LAB_3558 colony-sail gate (raw 1933-1936): not tasked ('t'/'i' —
+     * LAB_3558 colony-sail gate (md:1933-1936): not tasked ('t'/'i' —
      * AI ships never are in this port), and plain civilians aboard, or
      * (cargo not all Pioneers, or urgency 0x1734 > 0x18) with an empty
      * mask → sail to the best-scoring own colony (goto 27f5).

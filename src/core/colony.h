@@ -707,6 +707,35 @@ void colonies_emit_warehouse_full_chrome(
 );
 
 /*
+ * bugs.md #784: the DOS @WAREHOUSEFULL gate — `cap < stock + amount &&
+ * cargo != Food`, asked BEFORE the goods move (thunk_FUN_1000_9784).
+ */
+bool colonies_warehouse_unload_needs_confirm(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  int cargo_type,
+  int amount
+);
+
+/*
+ * Enqueue that gate as the 2-way AI_POPUP_TAG_COLONY_WAREHOUSE confirm
+ * (1 = "Never mind.", 2 = "Unload ... anyway."). Returns true when the
+ * request went on the queue and the caller must NOT unload yet.
+ */
+bool colonies_emit_warehouse_full_confirm(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  int cargo_type,
+  const char* cargo_name,
+  int amount,
+  int unit_id,
+  int hold_index,
+  int payload,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+);
+
+/*
  * Human Join Colony chrome: GAME.TXT @FULL when colony is at population cap.
  * No-op if ai_popups NULL.
  */

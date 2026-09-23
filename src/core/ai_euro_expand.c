@@ -4,6 +4,12 @@
  * Split out of ai_euro.c (2026-09-23) verbatim; shared symbols are declared
  * in ai_euro_internal.h. See ai_euro.c for the dispatcher entry point.
  *
+ * Citation units (bugs.md #816): `raw NNNNN` = a line in
+ * original_sources_decompiled/viceroy_unpacked.c (docs/conventions.md).
+ * The FUN_521d_20e6 cites in this file are `md:NNNN` = a line in
+ * original_sources_annotated/ai/move_scoring_20e6_full.md, a different
+ * numbering — never mix the two.
+ *
  * Sections:
  *   Food-labor predicates, ai_euro_set_goto and goto/hold helpers
  *   FUN_521d_4393 work-queue haul pick + claim latches
@@ -151,8 +157,8 @@ int ai_euro_tiles_near(int ax, int ay, int bx, int by) {
  * europe_cash_treasure itself is kept — it is the human FUN_48d3_06ba path.
  */
 
-/* True when wagon still has free goods-hold capacity (cargo field). */
-int ai_euro_wagon_has_hold_capacity(const ColonizeUnitPool* units, const ColonizeUnit* w) {
+/* True when the unit (wagon or ship) still has free goods-hold capacity. */
+int ai_euro_unit_hold_has_capacity(const ColonizeUnitPool* units, const ColonizeUnit* w) {
   if (!units || !w) {
     return 0;
   }
@@ -172,8 +178,8 @@ int ai_euro_wagon_has_hold_capacity(const ColonizeUnitPool* units, const Coloniz
   return 0;
 }
 
-/* Wagon carries cargo_type in any hold. */
-int ai_euro_wagon_has_cargo_type(
+/* True when the unit (wagon or ship) carries cargo_type in any hold. */
+int ai_euro_unit_hold_has_cargo_type(
   const ColonizeUnitPool* units,
   const ColonizeUnit* w,
   int cargo_type
@@ -196,15 +202,15 @@ int ai_euro_wagon_has_cargo_type(
  * last caller, the port-only short-colony ship unload arm in
  * `ai_euro_try_ship_trade_haul`. The surplus (mult 2) arm had already lost its
  * caller on the wagon side. FUN_521d_20e6 has no such test: the arrival block
- * dumps every hold unconditionally (raw 3002-3007) and the delivery matrix
- * (raw 2047-2139) scores destinations off the colony's own
+ * dumps every hold unconditionally (md:3002-3007) and the delivery matrix
+ * (md:2047-2139) scores destinations off the colony's own
  * cargo_produced_mask / warehouse capacity instead.)
  */
 
 /*
  * (`ai_euro_haul_load_amount` — the Linux 20/10/pop*2 load chunk — was deleted
  * on 2026-09-06g together with the wagon load ladder it fed. DOS's own load
- * quantity is `min(stock[g], 100)` inside the 20e6 LOAD matrix, raw 3126-3129,
+ * quantity is `min(stock[g], 100)` inside the 20e6 LOAD matrix, md:3126-3129,
  * live in `ai_euro_20e6_load_pick`'s call sites.)
  */
 
@@ -233,7 +239,7 @@ int ai_euro_hauler_free_holds(const ColonizeUnitPool* units, const ColonizeUnit*
 
 /*
  * Hull budget for one berth act — DOS `iStack_d2 = 0x5237[type] − +0x3150`
- * (raw 3012-3016), corrected for this port's passenger substitution.
+ * (md:3012-3016), corrected for this port's passenger substitution.
  *
  * DOS's `+0x3150` counts GOODS holds only: it is the length of the packed
  * hold arrays (`+0x3151` type nibbles, `+0x3154` amounts), bumped by
@@ -245,9 +251,9 @@ int ai_euro_hauler_free_holds(const ColonizeUnitPool* units, const ColonizeUnit*
  *
  * Passengers nonetheless cost hull in DOS, because DOS re-derives the whole
  * transport chain on every berth act: the arrival block's stale-mark clear
- * (raw 2991-2997) strips `act_state == 1` from everything standing on the
+ * (md:2991-2997) strips `act_state == 1` from everything standing on the
  * berth tile — the previous act's passengers included, since `FUN_1427_040c`
- * flushed the (−2,−2) chain back onto that tile — and the raw 3024-3051 scan
+ * flushed the (−2,−2) chain back onto that tile — and the md:3024-3051 scan
  * then RE-marks them and RE-debits `iStack_d2` by their `0x5238` size. The
  * goods matrix therefore only ever sees `capacity − goods − passengers`, and
  * `0a60`'s own "hull full" test is literally `0x5237[type] == +0x3150` after
@@ -317,11 +323,11 @@ int ai_euro_20e6_ship_hold_budget(
  * DOS unit byte +0x314a = `ColonizeCol1Unit.origin` (record +0x06) — the
  * colony this hauler is bound to. One real, save-round-tripped byte
  * (2026-09-07; previously split across two session-local latches): the 20e6
- * LOAD matrix's ship arm writes it (raw 3134-3138), the ship arrival dump
- * clears it to 0xff (raw 3008), the 457e wagon walk binds it, the colony
+ * LOAD matrix's ship arm writes it (md:3134-3138), the ship arrival dump
+ * clears it to 0xff (md:3008), the 457e wagon walk binds it, the colony
  * tick (FUN_5952_035e) binds unbound land units standing in a colony, and
- * the delivery matrix (raw 2055), the 4393 pick (:89887) and the arrival
- * gate (raw 1691) read it. 0xff (any value >= 0x80 — DOS reads it as a
+ * the delivery matrix (md:2055), the 4393 pick (:89887) and the arrival
+ * gate (md:1691) read it. 0xff (any value >= 0x80 — DOS reads it as a
  * signed char) = unbound; spawn inits it so, col1_bridge round-trips it.
  */
 int ai_euro_20e6_origin_get(const ColonizeUnit* u) {
@@ -406,13 +412,13 @@ int ai_euro_4393_work_queue_haul_pick(
       continue;
     }
     const int d = abs(c->x - from_x) + abs(c->y - from_y);
-    /* −0x5f24 score, DOS distance normalization (raw 2214 / 2134:
+    /* −0x5f24 score, DOS distance normalization (md:2214 / 2134:
      * score / ((dist >> 2) + 1) — replaced the thin `score − d*4`). */
     int score = (int)w->score / ((d >> 2) + 1);
     /* Series R specialty tie-break (Linux-only heuristic, not DOS). */
     if (hauler && c->specialty_cargo != 0xff &&
         (int)c->specialty_cargo < COLONIZE_CARGO_COUNT &&
-        ai_euro_wagon_has_cargo_type(ctx->units, hauler, (int)c->specialty_cargo)) {
+        ai_euro_unit_hold_has_cargo_type(ctx->units, hauler, (int)c->specialty_cargo)) {
       score += 32;
     }
     /* DOS raw ~2216: a non-civilian hull may only take slots the colony
@@ -454,7 +460,7 @@ int ai_euro_4393_work_queue_haul_pick(
 /*
  * DOS unit byte +0x3158 (col1 record +0x14 — a cargo_hold slot DOS reuses as
  * land-unit AI scratch): the wagon village-errand latch. Set by the 20e6
- * load matrix's wagon arm (raw 3134-3138, iStack_34 == 0), cleared by
+ * load matrix's wagon arm (md:3134-3138, iStack_34 == 0), cleared by
  * FUN_4d56_2820 at trade entry for land types (viceroy_unpacked.c:82122).
  *
  * 2026-09-06: no longer session-local. The unit array base is DS:0x3144 with
@@ -526,13 +532,13 @@ int ai_euro_20e6_wagon_origin_walk(
 /*
  * Wagon Train beat, DOS shape (FUN_521d_20e6 land arm):
  *
- *   at an own colony  -> dump every hold into it (raw 3007-3012 — this IS
+ *   at an own colony  -> dump every hold into it (md:3007-3012 — this IS
  *                        DOS wagon delivery), then the LOAD matrix wagon arm
  *                        (`ai_euro_20e6_load_pick` is_ship=0, at most ONE
  *                        hold: `if (type==0xc && d2>1) d2 = 1`, raw ~3025),
  *                        which on a load latches the village errand
- *                        (+0x3158 = 1, raw 3136);
- *   on errand         -> the errand walker owns the wagon (raw 2284-2307);
+ *                        (+0x3158 = 1, md:3136);
+ *   on errand         -> the errand walker owns the wagon (md:2284-2307);
  *   otherwise         -> the work-queue tip (LAB_521d_4393), which now aims
  *                        the wagon at a colony that HAS goods — the queue is
  *                        a PICKUP queue.
@@ -568,11 +574,11 @@ int ai_euro_try_wagon_haul(
    * unconditional (the old has-cargo/has-capacity early-out was a
    * 4393-substitute artifact retired with it, 2026-09-07). */
   /*
-   * DOS own-colony arrival block (FUN_521d_20e6 raw 2996-3138): dump every
-   * hold into the colony (raw 3007-3012 — this IS DOS wagon delivery), then
+   * DOS own-colony arrival block (FUN_521d_20e6 md:2996-3138): dump every
+   * hold into the colony (md:3007-3012 — this IS DOS wagon delivery), then
    * the LOAD matrix wagon arm, capped at ONE hold (`if (type == 0xc && d2 >
    * 1) d2 = 1`, raw ~3025). A matrix load latches the village errand
-   * (+0x3158 = 1, raw 3136) and the errand walker below owns the wagon from
+   * (+0x3158 = 1, md:3136) and the errand walker below owns the wagon from
    * there.
    */
   if (wagon->id >= 0 && wagon->id < COLONIZE_UNITS_MAX) {
@@ -604,17 +610,33 @@ int ai_euro_try_wagon_haul(
             break;
           }
         }
+        /*
+         * bugs.md #812 REFUTED 2026-09-23: DOS's load loop is
+         * `while (local_d2 != 0 && bVar20)` (raw 90295), and bVar20 for a
+         * Wagon Train is always TRUE, so the single unguarded call below is
+         * literal. Evidence: bVar20 is seeded `type != 0x12` (raw 88556) and
+         * only re-derived at LAB_521d_4d2e (raw 88619-88628) — never at raw
+         * 90090-90100, which holds no bVar20 write at all. LAB_521d_4d2e
+         * sits inside the `local_34 == 0` band whose entry test (raw
+         * 88585-88590) jumps to LAB_521d_277a when the @UNIT attack column
+         * `DS:0x5236[type*0xe] < 2`; Wagon Train's attack is 0, so a wagon
+         * can never reach the re-derivation. The 0x11/0x10 refinements (raw
+         * 88557-88573) are Frigate/Privateer only. `local_d2` is already
+         * capped to 1 for type 0xc (md:3024-3025), so one call = one pass.
+         * Lead (NOT fixed here): bVar20 does gate the SHIP load loop —
+         * Man-O-War 0x12 never loads, Frigate/Privateer are conditional.
+         */
         const int g = ai_euro_20e6_load_pick(ctx, c, nation_id, 0);
         if (g >= 0) {
           int qty = (int)c->stock[g];
           if (qty > 100) {
-            qty = 100; /* raw 3126-3129 */
+            qty = 100; /* md:3126-3129 */
           }
           if (qty > 0 &&
               colonies_transfer_to_unit(ctx->colonies, cid, ctx->units, wagon->id, g, qty) >
                 0) {
             ai_euro_s_20e6_wagon_errand[wagon->id] = 1;
-            /* DOS's land arm writes only +0x3158 here (raw 3136) — the
+            /* DOS's land arm writes only +0x3158 here (md:3136) — the
              * wagon's +0x314a stays bound to this, its home colony. */
             if (getenv("AI_20E6_LOAD_TRACE")) {
               fprintf(
@@ -627,7 +649,7 @@ int ai_euro_try_wagon_haul(
       }
     }
     /*
-     * Village-errand walker (raw 2284-2307 + 4528 AI arm case 1): an errand
+     * Village-errand walker (md:2284-2307 + 4528 AI arm case 1): an errand
      * wagon ignores the haul chain — goto the nearest same-landmass village
      * (capital distance halved, min 1), trade via the 2820 shell on arrival,
      * destroy when no village shares the landmass (LAB_47b9).
@@ -638,7 +660,7 @@ int ai_euro_try_wagon_haul(
     }
   }
   /*
-   * LAB_521d_457e origin walk (raw 2256-2289) — the DOS home of an off-errand
+   * LAB_521d_457e origin walk (md:2256-2289) — the DOS home of an off-errand
    * wagon. Replaces the retired "wagons peel the ships-only 4393 queue"
    * substitute (divergence closed 2026-09-07): bind to the nearest own colony
    * when unbound, park at the bound colony (orders 0x55), walk home

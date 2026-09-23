@@ -1345,11 +1345,11 @@ int units_apply_land_loss_outcome(
       }
       return 1;
     } else if (is_wagon) {
+      /* DOS-LITERAL FUN_5fef_0352 raw 99398-99408: the wagon capture arm
+       * pushes only @WAGONCAPTURE (0x1b1f). @CARGOCAPTURE (0x1b69) is raised
+       * solely by the ship-vs-ship hold-transfer loop (raw 99490-99514), not
+       * here; cargo stays on the captured wagon untouched. bugs.md #790. */
       const int from_nat = lose->nation_id;
-      int cargo_amt = 0;
-      for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
-        cargo_amt += units_unit_hold_amount(lose, i);
-      }
       units_capture_to_winner(pool, lose, win);
       if (human) {
         PopupMsgTokens tok;
@@ -1364,21 +1364,6 @@ int units_apply_land_loss_outcome(
           0,
           &tok,
           "");
-        if (cargo_amt > 0) {
-          tok.number0 = cargo_amt;
-          tok.has_number0 = true;
-          tok.string1 = "goods";
-          tok.string2 = units_combat_nation_label(col1, win->nation_id);
-          tok.string3 = wt && wt->name[0] ? wt->name : "forces";
-          units_combat_enqueue_tok(
-            AI_POPUP_TAG_COMBAT_CAPTURE,
-            "CARGOCAPTURE",
-            win->nation_id,
-            from_nat,
-            cargo_amt,
-            &tok,
-            "");
-        }
       }
       return 1;
     } else if (is_colonist) {

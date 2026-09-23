@@ -657,8 +657,8 @@ static void ai_euro_5d04_cb_set_unit_profession(int idx, int value) {
     u->profession = value;
   }
 }
-static int ai_euro_5d04_cb_wagon_query(int head) {
-  (void)head; /* register-arg stack query: Artillery on the dock */
+static int ai_euro_5d04_cb_artillery_on_dock(int head) {
+  (void)head; /* register-arg stack query: counts Artillery (dispatch byte 0x0b) on the Europe dock */
   int n = 0;
   for (int i = ai_euro_5d04_cb_list_iter_first(0); i >= 0; i = ai_euro_5d04_cb_list_iter_next(i)) {
     if (ai_euro_5d04_cb_unit_dispatch_byte(i) == 0xb) {
@@ -1662,13 +1662,13 @@ static void ai_euro_5d04_hire_ladder_tail(
   /* Raw 92569-92578: no Artillery on the Europe dock + colonies needing
    * muskets → buy one (purchase table entry 0, 500 gold), re-query. */
   int local_16 = ai_euro_5d04_cb_list_iter_first(0x0c);
-  int local_34 = ai_euro_5d04_cb_wagon_query(local_16);
+  int local_34 = ai_euro_5d04_cb_artillery_on_dock(local_16);
   if (local_34 == 0 && !woi && hs->colonies_need_muskets > 0 &&
       dos_rng_range(ctx->rng, 0, 3) == 0 && !f->cargo_short &&
       stuff->ship_cargo_totals[nation_id] > 4) {
     (void)ai_euro_5d04_propose_ship_buy(ctx, nation_id, 0);
     local_16 = ai_euro_5d04_cb_list_iter_first(0x0c);
-    local_34 = ai_euro_5d04_cb_wagon_query(local_16);
+    local_34 = ai_euro_5d04_cb_artillery_on_dock(local_16);
   }
 
   /* raw 86076-86084: local_8 = per-nation hire-mask; bVar8 = any unit in

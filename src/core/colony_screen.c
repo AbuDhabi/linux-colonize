@@ -612,11 +612,19 @@ void colony_screen_open_dock_orders(
    * the 190 used to be a literal here. 0 = no directive → measured rows. */
   view->dock_orders_width = popup_msg_take_pending_width();
 
-  const bool sea = units_is_sea(units, unit_id);
-  const ColonizeMsgSection* opts =
-    messages ? assets_msg_find(messages, sea ? "SHIPOPTIONS" : "UNITOPTIONS") : NULL;
+  /*
+   * bugs.md #782. The colony screen's own docked-unit popup is
+   * thunk_FUN_1000_99b8 (viceroy_overlays.c 62944-63080), which loads
+   * DS:0xcf8 = @SHIPOPTIONS (6 rows, incl. "Unload all cargo")
+   * UNCONDITIONALLY for every strip entry — hull type never enters into it,
+   * so a docked Wagon Train gets the same six rows a Caravel does. DS:0xd11
+   * = @UNITOPTIONS belongs to FUN_2f2b_5746, the MAP unit-orders popup, not
+   * to this screen; picking the section by units_is_sea here was invented
+   * and hid "Unload all cargo" from wagons.
+   */
+  const ColonizeMsgSection* opts = messages ? assets_msg_find(messages, "SHIPOPTIONS") : NULL;
 
-  /* GAME.TXT @SHIPOPTIONS / @UNITOPTIONS verbatim, if the catalog is missing. */
+  /* No MicroProse text in the binary: a missing @SHIPOPTIONS = empty rows. */
   static const char* const k_fallback_ship[] = {
     "",
     "",
@@ -625,12 +633,9 @@ void colony_screen_open_dock_orders(
     "",
     ""
   };
-  static const char* const k_fallback_land[] = {
-    "", "", "", "", ""
-  };
-  const char* const* fallback = sea ? k_fallback_ship : k_fallback_land;
-  const int fallback_count = sea ? 6 : 5;
-  const int cancel_index = sea ? 5 : 4;
+  const char* const* fallback = k_fallback_ship;
+  const int fallback_count = 6;
+  const int cancel_index = 5;
 
   bool has_goods = false;
   const int holds = units_goods_hold_count(units, unit_id);
@@ -665,10 +670,16 @@ void colony_screen_open_dock_orders(
         enabled = (u->orders != UNITS_ORDER_SENTRY);
         break;
       case 3:
+        /* bugs.md #783 / 99b8 case 4: enabled iff
+         * `orders != 5 && orders != 6 && *(char*)(idx*0x1c+0x3146) != '\f'`
+         * — a Wagon Train (@UNIT row 0x0c) never gets the Fortify /
+         * "Anchor in harbor" row. */
         action = COLONY_DOCK_ORDER_FORTIFY;
-        enabled = (u->orders != UNITS_ORDER_FORTIFY && u->orders != UNITS_ORDER_FORTIFIED);
+        enabled =
+          (u->orders != UNITS_ORDER_FORTIFY && u->orders != UNITS_ORDER_FORTIFIED &&
+           u->type_index != UNITS_KIND_WAGON);
         break;
-      case 4: /* sea only (cancel_index==5): "Unload all cargo" */
+      case 4: /* "Unload all cargo" (99b8 case 5: holds_occupied != 0) */
         action = COLONY_DOCK_ORDER_UNLOAD_ALL;
         enabled = has_goods;
         break;

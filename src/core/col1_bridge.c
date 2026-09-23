@@ -1576,7 +1576,10 @@ bool col1_bridge_apply_w(
        * Commodity holds: ships/wagons only. Land pioneers store tools in
        * cargo_hold[5] (DOS unit+0x15) — not a goods slot.
        */
-      if (units_is_sea(units, id) || units_is_transport(units, id)) {
+      /* bugs.md #787: @UNIT cargo column, not units_is_transport (which also
+       * demands the unit be on the map) — an off-map wagon still has holds. */
+      const ColonizeUnitType* hold_type = units_type(units, u->type_index);
+      if (units_is_sea(units, id) || (hold_type && hold_type->cargo > 0)) {
         const uint8_t items[6] = {
           src->cargo_item_0,
           src->cargo_item_1,
@@ -1597,9 +1600,17 @@ bool col1_bridge_apply_w(
          * Tools) that don't exist in the golden capture; both have
          * holds_occupied == 0 in the raw save.
          */
-        const int holds = src->holds_occupied < COLONIZE_UNIT_CARGO_MAX
+        /* bugs.md #787: also clamp to the slots this @UNIT row actually owns
+         * (cargo column), so a corrupt record claiming holds_occupied > 2 on
+         * a Wagon Train cannot write slots the wagon does not have — they are
+         * invisible to units_goods_hold_count but capture would re-emit them. */
+        int holds = src->holds_occupied < COLONIZE_UNIT_CARGO_MAX
           ? src->holds_occupied
           : COLONIZE_UNIT_CARGO_MAX;
+        const int owned = units_goods_hold_count(units, id);
+        if (holds > owned) {
+          holds = owned;
+        }
         for (int h = 0; h < holds; ++h) {
           const int amt = src->cargo_hold[h];
           if (amt > 0 && amt < 255) {
@@ -2805,7 +2816,13 @@ bool col1_bridge_capture_w(
        * A stashed hold[5] > 100 is the repurposed DOS byte, never tools —
        * leave the restored raw value alone. Transports (wagons) never carry
        * tools; their raw hold[5] also stays. */
-      if (!units_is_sea(units, src->id) && !units_is_transport(units, src->id)) {
+      /* bugs.md #787: the cargo-carrier test here must be the @UNIT cargo
+       * column, not units_is_transport — that predicate also demands the unit
+       * be on the map, so an off-map (aboard / in-Europe) Wagon Train fell
+       * into the pioneer-tools arm and could zero its raw hold[5]. */
+      const ColonizeUnitType* cap_type = units_type(units, src->type_index);
+      const bool carries_goods = cap_type && cap_type->cargo > 0;
+      if (!units_is_sea(units, src->id) && !carries_goods) {
         const uint8_t raw5 = src->col1_hold_raw_valid ? src->col1_hold_raw[9] : 0u;
         if (raw5 <= 100u) {
           if (src->tools > 0) {

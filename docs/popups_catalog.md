@@ -220,7 +220,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@MADATSHIPS` | Done | Ship→met village (rel≥75 / friction≥64): same |
 | `@MADATWAGONS` | Missing | extort/ship anger dialogs missing |
 | `@GRUDGEWAGONS` | Missing | extort/ship anger dialogs missing |
-| `@CONFISCATE` | Missing | extort/ship anger dialogs missing |
+| `@CONFISCATE` | Dead tag | GAME.TXT-only: the string does not exist in VICEROY.EXE's DS (verified by `strings` over `COLONIZE/VICEROY.EXE`), so DOS never raises it. Nothing to port. |
 | `@CHIEFHOWDY` | Missing | chief portrait dialogs missing |
 | `@CHIEFGUIDES` | Missing | chief portrait dialogs missing |
 | `@CHIEFAREA` | Missing | chief portrait dialogs missing |
@@ -481,7 +481,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@SOMEBOYCOTT` | Done | boycotted market-cell click → `europe_buyback_boycott` (FUN_38fd_2dfe) |
 | `@KEEPSTOCKADE` | Done | stockade min-pop OK message |
 | `@MORETHANTHREE` | Done | building-slot-full OK (§4; not stockade min-pop — that's `@KEEPSTOCKADE`) |
-| `@LOOTWAGONS` | Missing | combat/loot modals missing (effects may apply silently) |
+| `@LOOTWAGONS` | Dead tag | GAME.TXT-only: absent from VICEROY.EXE's DS (only `LOOT`/`LOOT2`/`LOOTCASH`/`LOOTCAPTURE`/`LOOTFOREIGN` exist, and no bare `WAGONS` to assemble one from). DOS reports `@INDIANWIN0` for a native-killed Wagon Train (`units_combat.c`); nothing to port. |
 | `@TUTORIAL1` | Missing | tutorial hints missing |
 | `@TUTORIAL2` | Missing | tutorial hints missing |
 | `@TUTORIAL3` | Missing | tutorial hints missing |

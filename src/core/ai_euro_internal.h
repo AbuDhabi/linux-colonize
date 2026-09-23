@@ -314,8 +314,8 @@ int ai_euro_unit_is_food_labor(const ColonizeUnitPool* units, const ColonizeUnit
 void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy);
 int ai_euro_is_ship_type(const ColonizeUnitPool* units, int unit_id);
 int ai_euro_tiles_near(int ax, int ay, int bx, int by);
-int ai_euro_wagon_has_hold_capacity(const ColonizeUnitPool* units, const ColonizeUnit* w);
-int ai_euro_wagon_has_cargo_type(
+int ai_euro_unit_hold_has_capacity(const ColonizeUnitPool* units, const ColonizeUnit* w);
+int ai_euro_unit_hold_has_cargo_type(
   const ColonizeUnitPool* units,
   const ColonizeUnit* w,
   int cargo_type

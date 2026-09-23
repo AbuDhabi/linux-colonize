@@ -736,16 +736,35 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_angry(struct ai_021a_ctx* c) {
           if (!su->active || su->aboard_ship_id >= 0 || su->x != nx || su->y != ny) {
             continue;
           }
+          /*
+           * DOS-LITERAL 4d56:0x1036-0x105c — the ANGRY band's own stack
+           * scorer is a flat `cmp ax,0xc / ja / jmp [cs:bx+0x1044]` jump
+           * table over @UNIT types 0..0x0c (bugs.md #811, ndisasm of RTLink
+           * overlay segment 13 at origin 0):
+           *   0x1044 words: 1024 1030 101e 101e 102a 101e 105e 105e 105e
+           *                 105e 1018 1018 1018
+           *   0x1018 `add word [bp-0x24],byte +0x10`  types 0x0a/0x0b/0x0c
+           *   0x101e `add ... +0x08`                  types 2/3/5
+           *   0x1024 `add ... +0x04`                  type 0
+           *   0x102a `dec word [bp-0x24]`             type 4
+           *   0x1030 `sub ... byte +0x02`             type 1
+           *   0x105e  (fall through, no delta)        types 6..9
+           * Treasure, Artillery and Wagon Train share ONE table slot here:
+           * the equality is DOS, not a port flattening. The per-type loot
+           * arms with the RNG(50,100) / RNG(0,7) draws live in the OTHER
+           * band (0x5aa, asm 0xa40-0xab0) and are ported at the `case 0xa/
+           * 0xb/0xc` switch earlier in this file — do not copy them here.
+           */
           switch (su->type_index) {
-            case UNITS_KIND_COLONIST: score += 4; break;
-            case UNITS_KIND_SOLDIER: score -= 2; break;
+            case UNITS_KIND_COLONIST: score += 4; break;   /* 0x1024 */
+            case UNITS_KIND_SOLDIER: score -= 2; break;    /* 0x1030 */
             case UNITS_KIND_PIONEER:
             case UNITS_KIND_MISSIONARY:
-            case UNITS_KIND_SCOUT: score += 8; break;
-            case UNITS_KIND_DRAGOON: score -= 1; break;
+            case UNITS_KIND_SCOUT: score += 8; break;      /* 0x101e */
+            case UNITS_KIND_DRAGOON: score -= 1; break;    /* 0x102a */
             case UNITS_KIND_TREASURE:
             case UNITS_KIND_ARTILLERY:
-            case UNITS_KIND_WAGON: score += 0x10; break;
+            case UNITS_KIND_WAGON: score += 0x10; break;   /* 0x1018 */
             default: break;
           }
         }

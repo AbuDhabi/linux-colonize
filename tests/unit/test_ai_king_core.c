@@ -3031,6 +3031,80 @@ static int case_dump_goods_pick_api(void) {
   return 0;
 }
 
+/*
+ * bugs.md #793 — DOS-LITERAL FUN_43f7_0512 raw 73746-73755: the seize
+ * notice is keyed on the TILE, not the unit's domain: land tile -> always
+ * @SEIZURELAND; water tile -> @SEIZURESEA only for a hull (type 0xd..0x12),
+ * else no popup at all. A hull docked in a colony (a land tile) must print
+ * @SEIZURELAND, not @SEIZURESEA.
+ */
+static int case_purge_tile_seize_notice_793(void) {
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Caravel");
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units_set_occupancy_map(NULL);
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    return fail("purge_tile_793: map_alloc failed");
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.terrain[i] = 1; /* plains: land */
+  }
+
+  const ColonizeMsgCatalog* game_txt = test_game_txt();
+  if (!game_txt) {
+    map_free(&map);
+    return fail("purge_tile_793: COLONIZE/GAME.TXT missing");
+  }
+
+  AiPopupState pop;
+  memset(&pop, 0, sizeof(pop));
+
+  ColonizeTurnContext tc;
+  memset(&tc, 0, sizeof(tc));
+  tc.units = &units;
+  tc.map = &map;
+  tc.human_nation = 0;
+  tc.ai_popups = &pop;
+  tc.messages = game_txt;
+
+  /* Hull docked in a colony: the tile (5,5) is land, so @SEIZURELAND. */
+  const int hull_id = units_spawn_allow_stack(&units, 0, 5, 5);
+  ColonizeUnit* hull = units_get(&units, hull_id);
+  if (!hull) {
+    map_free(&map);
+    return fail("purge_tile_793: hull spawn failed");
+  }
+  hull->nation_id = 0; /* human, != crown (4) */
+
+  ai_king_0982_purge_tile(&tc, 4 /* crown */, 5, 5);
+
+  if (pop.queue_count != 1) {
+    map_free(&map);
+    fprintf(stderr, "purge_tile_793: queue_count=%d (want 1)\n", pop.queue_count);
+    return fail("purge_tile_793: expected exactly one popup");
+  }
+  char land_body[AI_POPUP_BODY_LEN];
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = "Caravel";
+  popup_msg_fill(game_txt, "SEIZURELAND", &tok, "", land_body, sizeof(land_body));
+  if (strcmp(pop.queue[0].body, land_body) != 0) {
+    fprintf(stderr, "purge_tile_793: body=\"%s\" want @SEIZURELAND=\"%s\"\n", pop.queue[0].body,
+            land_body);
+    map_free(&map);
+    return fail("purge_tile_793: hull on land tile must print @SEIZURELAND");
+  }
+
+  map_free(&map);
+  return 0;
+}
+
 typedef int (*SpineFn)(void);
 
 static const SpineFn k_spine[] = {
@@ -3094,6 +3168,7 @@ static int case_narrative_teardown(void) { return fx_run(35); }
 
 static const TestCase k_cases[] = {
   {"dump_goods_pick_api", case_dump_goods_pick_api},
+  {"purge_tile_seize_notice_793", case_purge_tile_seize_notice_793},
   {"sol_no_bells_fallback", case_sol_no_bells_fallback},
   {"audience_interval_and_tax_gates", case_audience_interval_and_tax_gates},
   {"audience_cut_branch_1d42", case_audience_cut_branch_1d42},

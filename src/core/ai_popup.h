@@ -180,6 +180,15 @@ typedef enum AiPopupTag {
                                  * bit set, 0x40 cleared via FUN_281f_0a10, then the
                                  * unit fortifies), anything else = no fortify at all.
                                  * nation_a = unit id, nation_b = treaty partner. */
+  ,
+  AI_POPUP_TAG_COLONY_WAREHOUSE = 70 /* bugs.md #784. @WAREHOUSEFULL (DS:0xcd6) as DOS
+                                 * raises it — a 2-way CONFIRM asked BEFORE the goods
+                                 * move (thunk_FUN_1000_9784, viceroy_overlays.c
+                                 * 59355-59367): 1 = "Never mind." (abort), 2 = "Unload
+                                 * the %STRING1 anyway." Any answer but 2 leaves the
+                                 * hold alone. nation_a = unit id, nation_b = hold
+                                 * index, payload = amount | (1 << 20) when the ask
+                                 * came from "Unload all cargo" and the loop resumes. */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {

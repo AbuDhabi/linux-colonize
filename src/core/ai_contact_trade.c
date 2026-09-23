@@ -32,6 +32,7 @@
 #include "core/map.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "core/strutil.h"
 #include "core/units.h"
 #include "core/village_trade_intel.h"
@@ -176,6 +177,26 @@ static void ai_contact_2820_sort(const int16_t* key, int* order) {
 /* -0x7b44 + nation*0x10 + good wraps to the fixed DS:0x84BC row (captured 2026-08-22). */
 static const uint8_t k_2820_throttle[16] = {0x00, 0x05, 0x02, 0x03, 0x04, 0x01, 0x04, 0x13,
                                             0x02, 0x0a, 0x0a, 0x0e, 0x09, 0x02, 0x01, 0x02};
+
+/*
+ * DOS-LITERAL: `*(byte *)(cargo + nation * 0x10 - 0x7b44)` = DS:0x84BC[nation*0x10 + cargo]
+ * (FUN_5bfb_022e raw 96967/96843, FUN_4d56_2820 asm 4d56:31d8 / 4d56:3214).
+ *
+ * That byte is NOT a frozen table: every writer stores
+ * `nation[n].trade.euro_price[cargo] - 1` clamped at 0 (viceroy_unpacked.c
+ * 6316-6320 / 51962-51966 / 58996-59000 — the same writers
+ * colonies_ftrade_price_byte cites), so it tracks the LIVE Europe market.
+ * k_2820_throttle above is only a start-of-game capture of one row and is kept
+ * for the @INDIANGIVESTUFF gift-quantity arm, which this pass did not touch.
+ */
+static int ai_contact_2820_price_byte(const ColonizeCol1Save* col1, int nation, int cargo) {
+  if (!col1 || nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT || cargo < 0 ||
+      cargo >= (int)COLONIZE_COL1_CARGO_TYPES) {
+    return 0;
+  }
+  const int p = (int)col1->nation[nation].trade.euro_price[cargo] - 1;
+  return p > 0 ? p : 0;
+}
 
 /*
  * FUN_5bfb_022e generous-visit ("bVar6") arm — @INDIANGIVEFOOD / @INDIANGIVESTUFF
@@ -620,15 +641,13 @@ void ai_contact_reset(void) {
 
 
 /*
- * DOS's demand price row. `-0x7b44 + nation*0x10 + good` wraps to the fixed
- * DS:0x84BC table; the port carries the captured row as k_2820_throttle and
- * uses it nation-invariantly, exactly as ai_contact_try_village_gifts does.
+ * DOS's demand price row: `-0x7b44 + nation*0x10 + good` = the LIVE per-nation
+ * DS:0x84BC sell-price row (bugs.md #797). Was the frozen k_2820_throttle
+ * capture, which pinned @INDIANWAGONS alarm and the @INDIANCITY cargo scan to
+ * start-of-game prices for the whole campaign.
  */
-static int ai_contact_reparations_price(int cargo) {
-  if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
-    return 0;
-  }
-  return (int)k_2820_throttle[cargo];
+static int ai_contact_reparations_price(const ColonizeCol1Save* col1, int e, int cargo) {
+  return ai_contact_2820_price_byte(col1, e, cargo);
 }
 
 /*
@@ -717,12 +736,8 @@ void ai_contact_apply_reparations(
       const int w = col1_tribe_attitude(t, e);
       col1_tribe_attitude_set(t, e, w + 0x80);
     }
-    if (ctx->status && ctx->status_size) {
-      snprintf(
-        ctx->status, ctx->status_size, "We refuse the %s their reparations.",
-        ai_contact_tribe_name(nation_id)
-      );
-    }
+    /* bugs.md #802: DOS writes no status line here (no such text in any
+     * COLONIZE .TXT section); the invented English narration is gone. */
     return;
   }
 
@@ -744,7 +759,7 @@ void ai_contact_apply_reparations(
       delta -= 5;
     }
   } else {
-    delta = (ai_contact_reparations_price(s->cargo) * s->qty * 4) / -100;
+    delta = (ai_contact_reparations_price(ctx->col1, e, s->cargo) * s->qty * 4) / -100;
   }
   if (delta != 0) {
     ai_contact_alarm_delta_00f2(ctx, nation_id, e, delta);
@@ -783,12 +798,8 @@ void ai_contact_apply_reparations(
         ind->horse_herds = (uint8_t)(ind->horse_herds + 1);
       }
     }
-    if (ctx->status && ctx->status_size) {
-      snprintf(
-        ctx->status, ctx->status_size, "We hand the %s %d %s in reparations.",
-        ai_contact_tribe_name(nation_id), s->qty, ai_contact_cargo_name(s->cargo)
-      );
-    }
+    /* bugs.md #802: DOS writes no status line here (no such text in any
+     * COLONIZE .TXT section); the invented English narration is gone. */
     return;
   }
 
@@ -800,12 +811,8 @@ void ai_contact_apply_reparations(
     wag->hold_goods_amount[s->hold] = 0;
     wag->hold_goods_type[s->hold] = 0;
   }
-  if (ctx->status && ctx->status_size) {
-    snprintf(
-      ctx->status, ctx->status_size, "We hand the %s the %d %s in our wagons.",
-      ai_contact_tribe_name(nation_id), s->qty, ai_contact_cargo_name(s->cargo)
-    );
-  }
+  /* bugs.md #802: DOS writes no status line here (no such text in any
+   * COLONIZE .TXT section); the invented English narration is gone. */
 }
 
 /* A unit of `nation_id` that walked up to (x,y) this turn, or NULL. */
@@ -904,12 +911,8 @@ static void ai_contact_reparations_present(
   /* raw 96882 / 96959: `FUN_291f_019c(0x281f, 0x1866|0x1871, *(0x8d52))` —
    * @INDIANCITY / @INDIANWAGONS are chief audiences, portrait and all. */
   ai_contact_chief_flair(ctx, e, nation_id);
-  if (ctx->status && ctx->status_size) {
-    snprintf(
-      ctx->status, ctx->status_size, "The %s demand reparations.",
-      ai_contact_tribe_name(nation_id)
-    );
-  }
+  /* bugs.md #802: DOS writes no status line here (no such text in any
+   * COLONIZE .TXT section); the invented English narration is gone. */
 }
 
 void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id) {
@@ -980,7 +983,7 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
         if (stock <= 0) {
           continue;
         }
-        int want = ai_contact_reparations_price(g);
+        int want = ai_contact_reparations_price(ctx->col1, e, g);
         if (g == COLONIZE_CARGO_HORSES) {
           /* DOS reads +8 (horse_herds) as a SIGNED char here, as the
            * §6c breeding tick in ai_contact_indian_nation_tick does. */
@@ -1056,10 +1059,14 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
       if (!units_type_is_wagon(ty)) {
         continue;
       }
-      /* DOS reads hold 0 only (FUN_281f_0be6/0c68 with slot 0). */
-      if (u->hold_goods_amount[0] <= 0) {
-        continue;
-      }
+      /*
+       * DOS reads hold 0 only (FUN_281f_0be6/0c68 with slot 0) and does NOT
+       * require it to be non-empty: `local_42` is just the encounter tile's
+       * unit when its type byte is 0x0c (raw 96690/96696), so a 0-qty demand
+       * is legal (bugs.md #807). The port's slot walk stays, but it is
+       * narrowed to the Brave's own encounter partner by the visitor test
+       * below, which is DOS's `FUN_281f_07e0()` in all reachable states.
+       */
       if (!ai_contact_reparations_visitor(ctx, nation_id, u->x, u->y)) {
         continue;
       }
@@ -1171,11 +1178,13 @@ static int ai_contact_2820_sell_price(
   if (cargo == COLONIZE_CARGO_TRADE_GOODS) {
     base -= dos_rng_range(rng, 0, 7);
   }
+  /* DOS-LITERAL: `*(char *)(*0x8d4e + 7)` / `+ 8` — SIGNED byte reads
+   * (bugs.md #806); a herd/armoury count past 0x7f makes the term negative. */
   if (cargo == COLONIZE_CARGO_MUSKETS) {
-    base -= (int)ind->muskets - 12;
+    base -= (int)(int8_t)ind->muskets - 12;
   }
   if (cargo == COLONIZE_CARGO_HORSES) {
-    base -= (int)ind->horse_herds - 10;
+    base -= (int)(int8_t)ind->horse_herds - 10;
   }
   if (cargo == COLONIZE_CARGO_TOOLS) {
     base += 1;
@@ -1248,6 +1257,18 @@ static void ai_contact_2820_sell_settle(
     ai_contact_alarm_delta_00f2(ctx, nation_id, e, -2 * s->c4);
     ai_contact_2820_friction_sub(t, e, qty, qty);
   }
+  /*
+   * bugs.md #803 — NOT ported, deliberately. DOS tests `param_2 == 0xf ||
+   * param_2 == 8` here (2820 doc 551 / 617), and `param_2` is the acting
+   * UNIT RECORD INDEX (`param_2 * 0x1c + 0x3146` is its type byte), not the
+   * cargo: a genuine DOS typo that blanks last_bought/last_sold for whichever
+   * unit happens to occupy save slot 8 or 15. The port has no stable
+   * counterpart — `unit->id` is a monotonic allocator id and is mapped to a
+   * col1 slot only when a save is written (col1_bridge.c runtime_to_col1) —
+   * so transcribing it verbatim would key on an unrelated number. The
+   * cargo-based reading below is what the DOS author meant; a faithful port
+   * needs a stable unit-slot index first.
+   */
   if (t) {
     t->last_bought = (cargo == COLONIZE_CARGO_MUSKETS || cargo == COLONIZE_CARGO_HORSES)
                        ? 0xffu
@@ -1281,6 +1302,18 @@ static void ai_contact_2820_gift_settle(
   const int qty = ai_contact_2820_remove_slot(unit, s->slot);
   s->qty = qty;
   if (t) {
+  /*
+   * bugs.md #803 — NOT ported, deliberately. DOS tests `param_2 == 0xf ||
+   * param_2 == 8` here (2820 doc 551 / 617), and `param_2` is the acting
+   * UNIT RECORD INDEX (`param_2 * 0x1c + 0x3146` is its type byte), not the
+   * cargo: a genuine DOS typo that blanks last_bought/last_sold for whichever
+   * unit happens to occupy save slot 8 or 15. The port has no stable
+   * counterpart — `unit->id` is a monotonic allocator id and is mapped to a
+   * col1 slot only when a save is written (col1_bridge.c runtime_to_col1) —
+   * so transcribing it verbatim would key on an unrelated number. The
+   * cargo-based reading below is what the DOS author meant; a faithful port
+   * needs a stable unit-slot index first.
+   */
     t->sticky_trade_good = 0xff;
     t->last_bought = (cargo == COLONIZE_CARGO_MUSKETS || cargo == COLONIZE_CARGO_HORSES)
                        ? 0xffu
@@ -1317,17 +1350,63 @@ static void ai_contact_2820_wanted(const AiContact2820* s, const ColonizeCol1Tri
   out[2] = order[13];
 }
 
-/* LAB_002e92 candidates: top of `cand` skipping muskets/food/tools/trade goods. */
-static int ai_contact_2e92_candidates(const AiContact2820* s, int goods[3]) {
+/*
+ * LAB_002e92 candidates: walk `cand` (the bid-sorted cargo order) from the top,
+ * skipping muskets/food/tools/trade goods. DOS-LITERAL asm 4d56:3144-319b —
+ * `aiStack_d6[n + 1] = 0xf - i` stores the SORTED SLOT, not the cargo id, and
+ * every later price term reads `bid[slot]`, not `bid[cargo]` (bugs.md #795).
+ * That is a DOS indexing quirk (`DS:0x9e78` is a per-cargo table); it is
+ * reproduced, not repaired. `slots` may be NULL.
+ */
+static int ai_contact_2e92_candidates(const AiContact2820* s, int goods[3], int slots[3]) {
   int n = 0;
   for (int k = 15; k >= 0 && n < 3; --k) {
     const int c = s->cand[k];
     if (c == 15 || c == 0 || c == 14 || c == 13) {
       continue;
     }
+    if (slots) {
+      slots[n] = k;
+    }
     goods[n++] = c;
   }
   return n;
+}
+
+/*
+ * DOS-LITERAL asm 4d56:31b8-3204 — the AI's buy pick. It does NOT scan the
+ * filtered candidate list: it reads three raw bytes of the bid-sorted array at
+ * `BP-0x86 - i`, i.e. sorted slots 16, 15 and 14, scores each with the live
+ * DS:0x84bc row and keeps the first strict maximum (seed 0xd8f1 = -9999
+ * signed, so slot 16 always wins the first comparison). Slot 16 is ONE PAST
+ * the 16-byte array; in DOS it aliases the low byte of `iStack_88`, the haggle
+ * round counter, which LAB_002bbc zeroes before every loop the AI can reach —
+ * so it is `(int8_t)s->round` here, and `cand[]` itself is never indexed out
+ * of bounds. The chosen index then selects from the FILTERED list
+ * (`aiStack_d6[iStack_5e]`), which is the quirk this reproduces (bugs.md #796).
+ * Returns 0..2.
+ */
+static int ai_contact_2e92_ai_pick(
+  const ColonizeTurnContext* ctx, const AiContact2820* s, int e, int n
+) {
+  int pick = 1; /* BP-0x5c */
+  int best = -9999; /* BP+0xff36 seeded 0xd8f1, compared as a signed word */
+  for (int i = 0; i < 3; ++i) {
+    const int slot = 16 - i;
+    const int c = (slot >= 16) ? (int)(int8_t)(s->round & 0xff) : s->cand[slot];
+    const int w = ai_contact_2820_price_byte(ctx->col1, e, c);
+    if (w > best) {
+      best = w;
+      pick = i + 1;
+    }
+  }
+  pick -= 1;
+  /* n is 3 in every reachable state (the skip list drops at most 4 of 16
+   * cargos); DOS would read uninitialised stack if it were not. */
+  if (pick >= n) {
+    pick = n > 0 ? n - 1 : 0;
+  }
+  return pick;
 }
 
 /* LAB_002e92 price (uStack_62). qty = DS:0x8dc4 (ships: >> 2). */
@@ -1341,7 +1420,8 @@ static int ai_contact_2e92_price(
     price = ((int)ind->tech - 8) * -0x32;
   }
   if (cargo > 6) {
-    price += (int)k_2820_throttle[cargo & 15] * (diff * 2 + 15);
+    /* LIVE DS:0x84bc[e*0x10 + cargo] (bugs.md #797), not the frozen capture. */
+    price += ai_contact_2820_price_byte(ctx->col1, e, cargo & 15) * (diff * 2 + 15);
   }
   price += dos_rng_range(rng, 0, price);
   price += bid * -4;
@@ -1357,7 +1437,7 @@ static int ai_contact_2e92_price(
 /* LAB_002e92 accept (iStack_5e == 1): returns 1 on purchase, 0 when unaffordable. */
 static int ai_contact_2e92_settle(
   ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, ColonizeCol1Tribe* t, int nation_id, int e,
-  ColonizeUnit* unit, int cargo, int price, int qty
+  ColonizeUnit* unit, int cargo, int price, int qty, ColonizeDosRng* rng
 ) {
   /* audit G3: single treasury — the buy gate and the debit both go through
    * the accessor, so a purse topped up in Europe can actually be spent here. */
@@ -1370,6 +1450,13 @@ static int ai_contact_2e92_settle(
   }
   ind->tons[cargo & 15] = (int16_t)(ind->tons[cargo & 15] - qty);
   ai_contact_2e92_give_goods(ctx, unit, cargo, qty);
+  /* DOS-LITERAL (2820 doc 408-409): the draw happens and its result
+   * (`iStack_c4`) is never read again — only the un-rolled `price/25 + 1`
+   * reaches FUN_1000_8f5c. Keeping the draw keeps the LCG stream in step
+   * (bugs.md #804). */
+  if (rng) {
+    (void)dos_rng_range(rng, 0, price / 0x19 + 1);
+  }
   ai_contact_alarm_delta_00f2(ctx, nation_id, e, price / 0x19 + 1);
   return 1;
 }
@@ -1382,12 +1469,34 @@ static int ai_contact_2820_buy_qty(const ColonizeTurnContext* ctx, const Coloniz
   return qty;
 }
 
+/*
+ * @BUY0 {%STRING1}, the container noun in "We shall fill up your {%STRING1}".
+ * DOS-LITERAL FUN_4d56_2820 (2820 doc 347-352): `type < 0xd || 0x12 < type`
+ * (i.e. not a ship) picks DS:0x2e0c, else DS:0x2e0e. Label ordinals by the
+ * @MISC rule (base DS:0x2dba + 2*row): 0x2e0c = row 41, 0x2e0e = row 42 =
+ * LABELS.TXT lines 56/57 = "wagons" / "holds". Never typed here (bugs.md
+ * #802); a catalog miss is the empty string.
+ */
 static const char* ai_contact_2820_vehicle_name(const ColonizeTurnContext* ctx, const ColonizeUnit* unit) {
-  /* DS:0x2e0c / 0x2e0e: runtime name pointers (land / ship). */
-  if (unit && ctx && ctx->units && units_is_sea(ctx->units, unit->id)) {
-    return "ship";
+  const int row = (unit && ctx && ctx->units && units_is_sea(ctx->units, unit->id)) ? 42 : 41;
+  const char* s = reports_labels_field("MISC", row);
+  return s ? s : "";
+}
+
+/*
+ * DOS-LITERAL `FUN_1000_8c28(dialog, param_4, param_5) & 0x40` — the MET bit
+ * of the raw peer byte (docs/ai_euro.md / euro_unit_act.md; col1_save_layout.h
+ * records `relation_by_indian[t]` AS that accessor's result). 2820 gates three
+ * of its dialogs on it (2820 doc 419-425 / 437-441 / 607-610); every 2820
+ * caller is a village entry, so it is set in every reachable state, but the
+ * gate is transcribed rather than assumed (bugs.md #805).
+ */
+static int ai_contact_2820_met_bit(const ColonizeTurnContext* ctx, int e, int nation_id) {
+  if (!ctx || !ctx->col1 || e < 0 || e >= (int)COLONIZE_COL1_NATION_COUNT || nation_id < 4 ||
+      nation_id > 11) {
+    return 0;
   }
-  return "wagon train";
+  return (ctx->col1->nation[e].relation_by_indian[nation_id - 4] & 0x40) != 0;
 }
 
 /*
@@ -1517,7 +1626,7 @@ static int ai_contact_enqueue_buywhich(
     return 0;
   }
   int goods[3];
-  const int n = ai_contact_2e92_candidates(s, goods);
+  const int n = ai_contact_2e92_candidates(s, goods, NULL);
   if (n <= 0) {
     return 0;
   }
@@ -1595,15 +1704,30 @@ static void ai_contact_2820_buy_phase(
     ai_contact_intel_note_buys(ctx, e, nation_id, unit, wanted);
   }
   if (human && t && t->sticky_trade_good == 0xfe) {
+    /* DOS asm 4d56:2f7e-2f8b — `tribe[+7] == 0xfe` (this tribe already walked
+     * out of a haggle) pushes @BADHAGGLE3 (DS:0x158d) and ends the visit. An
+     * AI Euro falls straight through to 311e with no dialog (bugs.md #801). */
     s->active = 0;
-    return; /* `tribe+7 == -2`: the buy loop is skipped silently */
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "BADHAGGLE3", NULL, "", body, sizeof(body));
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
+    return;
   }
   if (s->cargo < 0) {
+    /* DOS FUN_4d56_311e asm 139666-139675 — nothing was sold this visit, so
+     * nothing can be bought; a human is told so with @DEFICIT (DS:0x1598),
+     * an AI Euro exits silently (bugs.md #801). */
     s->active = 0;
-    return; /* empty-handed: @BRING only, no purchase */
+    if (human) {
+      char body[AI_POPUP_BODY_LEN];
+      popup_msg_fill(ctx->messages, "DEFICIT", NULL, "", body, sizeof(body));
+      ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
+    }
+    return;
   }
   int goods[3];
-  const int n = ai_contact_2e92_candidates(s, goods);
+  int slots[3];
+  const int n = ai_contact_2e92_candidates(s, goods, slots);
   if (n <= 0) {
     s->active = 0;
     return;
@@ -1615,29 +1739,29 @@ static void ai_contact_2820_buy_phase(
     }
     return;
   }
-  /* AI pick: max throttle byte among the three (first wins ties, DOS `<`). */
-  int best = 0;
-  int best_w = -1;
-  for (int k = 0; k < n; ++k) {
-    const int w = (int)k_2820_throttle[goods[k] & 15];
-    if (w > best_w) {
-      best_w = w;
-      best = k;
-    }
-  }
+  const int best = ai_contact_2e92_ai_pick(ctx, s, e, n);
+  s->buy_cargo = goods[best];
+  s->buy_slot = slots[best];
+  /* `uStack_62 += bid[iStack_86] * -4` — bid indexed by the SORTED SLOT. */
   const int price = ai_contact_2e92_price(
-    ctx, ind, nation_id, e, goods[best], (int)s->bid[goods[best]], s->buy_qty, &s->rng
+    ctx, ind, nation_id, e, goods[best], (int)s->bid[slots[best]], s->buy_qty, &s->rng
   );
-  if (!ai_contact_2e92_settle(ctx, ind, t, nation_id, e, unit, goods[best], price, s->buy_qty)) {
+  if (!ai_contact_2e92_settle(
+        ctx, ind, t, nation_id, e, unit, goods[best], price, s->buy_qty, &s->rng
+      )) {
     ai_contact_alarm_delta_00f2(ctx, nation_id, e, 1); /* @NOTENOUGH arm */
   }
   s->active = 0;
 }
 
 /*
- * AI-controlled empty-handed unit buys the tribe's own goods. DOS only reaches
- * LAB_002e92 after a completed sale; this entry (kept for unit tests / the
- * AI meet pulse) runs the same pick + price with qty 100 (ships 25).
+ * TEST-ONLY (bugs.md #798). An AI-controlled empty-handed unit buying the
+ * tribe's own goods has NO DOS equivalent: LAB_002e92 is guarded by
+ * `if (-1 < iStack_c8)` (2820 doc 284), so a purchase is impossible without a
+ * preceding sale in the same visit. The production call site in
+ * ai_contact_auto_trade is gone; this entry stays only so the unit tests can
+ * drive the LAB_002e92 pick + price + settle arithmetic directly, with qty 100
+ * (ships 25).
  */
 int ai_contact_auto_buy_2e92(
   ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit
@@ -1655,23 +1779,17 @@ int ai_contact_auto_buy_2e92(
   }
   ai_contact_local_rng(ctx, nation_id, &s.rng);
   int goods[3];
-  const int n = ai_contact_2e92_candidates(&s, goods);
+  int slots[3];
+  const int n = ai_contact_2e92_candidates(&s, goods, slots);
   if (n <= 0) {
     return 0;
   }
-  int best = 0;
-  int best_w = -1;
-  for (int k = 0; k < n; ++k) {
-    const int w = (int)k_2820_throttle[goods[k] & 15];
-    if (w > best_w) {
-      best_w = w;
-      best = k;
-    }
-  }
+  const int best = ai_contact_2e92_ai_pick(ctx, &s, e, n);
   ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id, unit);
   const int qty = ai_contact_2820_buy_qty(ctx, unit, 0);
-  const int price = ai_contact_2e92_price(ctx, ind, nation_id, e, goods[best], (int)s.bid[goods[best]], qty, &s.rng);
-  return ai_contact_2e92_settle(ctx, ind, t, nation_id, e, unit, goods[best], price, qty);
+  const int price =
+    ai_contact_2e92_price(ctx, ind, nation_id, e, goods[best], (int)s.bid[slots[best]], qty, &s.rng);
+  return ai_contact_2e92_settle(ctx, ind, t, nation_id, e, unit, goods[best], price, qty, &s.rng);
 }
 
 void ai_contact_apply_buywhich(
@@ -1699,7 +1817,24 @@ void ai_contact_apply_buywhich(
   }
   s->buy_cargo = cargo;
   s->round = 0;
-  const int price = ai_contact_2e92_price(ctx, ind, nation_id, e, cargo, (int)s->bid[cargo], s->buy_qty, &s->rng);
+  /* `iStack_86 = aiStack_d6[iStack_5e]` — every bid read downstream of the
+   * @BUYWHICH pick is bid[SORTED SLOT], not bid[cargo] (bugs.md #795).
+   * The CHOICE id only carries the cargo, so recover the slot from the same
+   * candidate walk that built the menu. */
+  {
+    int goods[3];
+    int slots[3];
+    const int n = ai_contact_2e92_candidates(s, goods, slots);
+    s->buy_slot = cargo;
+    for (int k = 0; k < n; ++k) {
+      if (goods[k] == cargo) {
+        s->buy_slot = slots[k];
+        break;
+      }
+    }
+  }
+  const int price =
+    ai_contact_2e92_price(ctx, ind, nation_id, e, cargo, (int)s->bid[s->buy_slot], s->buy_qty, &s->rng);
   s->price = price;
   ai_contact_enqueue_buy0(ctx, nation_id, e, unit, cargo, price, s->buy_qty, 0);
 }
@@ -1736,23 +1871,37 @@ void ai_contact_apply_buy0(
     ai_contact_local_rng(ctx, nation_id, &local);
   }
   if (choice == 2) {
-    const int bid = have_state ? (int)s->bid[cargo] : 0;
+    /* bid[SORTED SLOT] — `iStack_82 = RNG(0, bid[iStack_86]/25 + 8)`. */
+    const int bid = have_state ? (int)s->bid[s->buy_slot & 15] : 0;
     int alarm_delta = 0;
     const int again = ai_contact_2e92_haggle((int)ctx->col1->head.difficulty, bid, rng, &price, &alarm_delta);
     if (alarm_delta) {
       ai_contact_alarm_delta_00f2(ctx, nation_id, e, alarm_delta);
     }
+    const int met = ai_contact_2820_met_bit(ctx, e, nation_id);
     if (!again) {
-      if (t) {
-        t->sticky_trade_good = 0xfe; /* tribe+7 = 0xfe: refused outright */
-      }
+      /* 2820 doc 419-425: the alarm +2 is UNGATED, but `tribe+7 = 0xfe` and
+       * @BADHAGGLE2 both sit inside `if (8c28(...) & 0x40)` (bugs.md #805) —
+       * the sticky refusal is not persistent state written outside its guard. */
       s->active = 0;
-      PopupMsgTokens tok;
-      memset(&tok, 0, sizeof(tok));
-      tok.string0 = ai_contact_cargo_name(cargo);
-      char body[AI_POPUP_BODY_LEN];
-      popup_msg_fill(ctx->messages, "BADHAGGLE2", &tok, "", body, sizeof(body));
-      ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
+      if (met) {
+        if (t) {
+          t->sticky_trade_good = 0xfe; /* tribe+7 = 0xfe: refused outright */
+        }
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = ai_contact_cargo_name(cargo);
+        char body[AI_POPUP_BODY_LEN];
+        popup_msg_fill(ctx->messages, "BADHAGGLE2", &tok, "", body, sizeof(body));
+        ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
+      }
+      return;
+    }
+    /* 2820 doc 437-441: the walked-down price and its alarm roll stand, but
+     * the re-ask (`iStack_88 = 1; iStack_6c = 1`) is inside the same guard —
+     * without it the offer simply lapses. */
+    if (!met) {
+      s->active = 0;
       return;
     }
     s->price = price;
@@ -1762,7 +1911,7 @@ void ai_contact_apply_buy0(
     }
     return;
   }
-  if (!ai_contact_2e92_settle(ctx, ind, t, nation_id, e, unit, cargo, price, qty)) {
+  if (!ai_contact_2e92_settle(ctx, ind, t, nation_id, e, unit, cargo, price, qty, rng)) {
     /* @NOTENOUGH 0x15ae; FUN_1000_8f5c(…, 1, 0). */
     ai_contact_alarm_delta_00f2(ctx, nation_id, e, 1);
     PopupMsgTokens tok;
@@ -1936,11 +2085,23 @@ static int ai_contact_2820_begin_slot(
         ids[n] = h + 1;
         n++;
       }
-      labels[n] = "Cancel";
+      /* DOS `FUN_1000_8212(0x191f, *DS:0x2dfa, 99)` (2820 doc 242) — the
+       * cancel row is LABELS @MISC[32] ((0x2dfa - 0x2dba) / 2 = 32) = the same
+       * "Nothing" row game_loop_orders.c already resolves for the
+       * foreign-colony @TRADEWHICH menu. Never typed here (bugs.md #800). */
+      {
+        const char* nothing_live = reports_labels_field("MISC", 32);
+        snprintf(text[n], sizeof(text[n]), "%s", nothing_live ? nothing_live : "");
+      }
+      labels[n] = text[n];
       ids[n] = 99;
       n++;
+      /* DOS asm 138911-138912 `LEA AX,[0x1556]` -> FUN_291f_0182: the SECOND
+       * @TRADEWHICH tag (VICEROY.EXE 121248+0x1556 = "TRADEWHICH\0"), the same
+       * GAME.TXT section the foreign-colony hold menu uses. It takes no
+       * tokens. Was hardcoded English (bugs.md #800). */
       char body[AI_POPUP_BODY_LEN];
-      snprintf(body, sizeof(body), "Which cargo will you offer the %s?", ai_contact_tribe_name(nation_id));
+      popup_msg_fill(ctx->messages, "TRADEWHICH", NULL, "", body, sizeof(body));
       if (ai_popup_enqueue_choice_ctx(
             ctx->ai_popups, AI_POPUP_TAG_CONTACT_TRADE_PICK, e, nation_id, unit->id, NULL, body,
             labels, ids, n
@@ -2064,10 +2225,10 @@ int ai_contact_auto_trade(
     }
   }
   if (slot < 0) {
-    if (units_holds_used(ctx->units, unit->id) > 0) {
-      return 0;
-    }
-    return ai_contact_auto_buy_2e92(ctx, ind, nation_id, e, unit);
+    /* bugs.md #798: DOS gates LAB_002e92 on `if (-1 < iStack_c8)` (2820 doc
+     * 284) — an empty-handed unit cannot buy, it only ever gets @BRING. The
+     * old `ai_contact_auto_buy_2e92` fallback here was invented. */
+    return 0;
   }
   return ai_contact_2820_begin_slot(ctx, ind, nation_id, e, unit, slot);
 }
@@ -2111,6 +2272,11 @@ void ai_contact_apply_trade_offer(
     }
     ai_contact_alarm_delta_00f2(ctx, nation_id, e, (s->tier2 >> 1) + 1);
     s->active = 0;
+    /* 2820 doc 607-610: tribe+7 and the alarm bump are ungated; only the
+     * @BADHAGGLE0 dialog sits behind `8c28(...) & 0x40` (bugs.md #805). */
+    if (!ai_contact_2820_met_bit(ctx, e, nation_id)) {
+      return;
+    }
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string1 = ai_contact_cargo_name(s->cargo);

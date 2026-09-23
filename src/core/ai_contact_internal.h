@@ -156,6 +156,10 @@ typedef struct AiContact2820 {
   int round; /* iStack_88 */
   int sold_ok; /* iStack_c6 */
   int buy_cargo; /* LAB_002e92 pick */
+  int buy_slot; /* aiStack_d6[iStack_5e]: the BID-SORTED SLOT of buy_cargo.
+                 * DOS indexes `bid[]` (DS:0x9e78, a per-cargo table) with this
+                 * slot in both the price and the haggle-ceiling terms — a DOS
+                 * quirk, reproduced deliberately (bugs.md #795). */
   int buy_qty;
   ColonizeDosRng rng;
 } AiContact2820;

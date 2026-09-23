@@ -570,13 +570,49 @@ combat_entry_resolved:
   }
 
   /*
-   * Transports (wagons, cargo ships) on a Euro settlement forfeit remaining
-   * MP for the turn — DOS 465b:08f8 exhaust MP. bugs.md #7: was gated on
-   * wagon type only, so ships could still move again after entering a colony.
+   * DOS-LITERAL FUN_465b_0bd1 raw 75721: `FUN_281f_088a(unit) != 0 ||
+   * type == 0x0c` gates the whole colony-enter arm (MP exhaust, the
+   * col1_counter16 reset and the destination-stack sentry wake below).
+   * FUN_281f_088a (== FUN_1427_1284, raw 8684-8702) walks the mover's tile
+   * stack — evaluated before FUN_281f_0934 relinks it into the destination
+   * stack, i.e. it still reads the ORIGIN tile's stack at this point even
+   * though x/y already hold the destination — and returns true if ANY unit
+   * there (including the mover itself) is a hull (type 0xd..0x12). bugs.md
+   * #791: was gated on `units_is_transport(mover)` (self-only, cargo-gated),
+   * so a plain land unit leaving a tile that also held a ship kept its MP
+   * when it walked into a colony, and a wagon/ship with an empty hold was
+   * wrongly exempted.
    */
+  bool hull_in_origin_stack = units_is_sea(pool, unit_id);
+  if (!hull_in_origin_stack) {
+    int slot = 0;
+    for (ColonizeUnit* other = units_next_on_tile(pool, ox, oy, &slot); other != NULL;
+         other = units_next_on_tile(pool, ox, oy, &slot)) {
+      if (units_is_sea(pool, other->id)) {
+        hull_in_origin_stack = true;
+        break;
+      }
+    }
+  }
+  const ColonizeUnitType* mover_type = units_type(pool, unit->type_index);
+  const bool mover_is_wagon = mover_type && units_type_is_wagon(mover_type);
+  const bool colony_enter_gate = hull_in_origin_stack || mover_is_wagon;
+
   if (colonies && colonies_id_at(colonies, dest_x, dest_y) >= 0) {
-    if (units_is_transport(pool, unit_id)) {
+    if (colony_enter_gate) {
       units_mp_exhaust(pool, unit);
+      /* DOS raw 75731-75740: bugs.md #792 — col1_counter16 = 0 on arrival,
+       * then wake (clear Sentry orders on) every unit on the destination
+       * stack; docking a wagon/ship wakes the colony's sentried units. */
+      unit->col1_counter16 = 0;
+      int dslot = 0;
+      for (ColonizeUnit* stacked = units_next_on_tile(pool, dest_x, dest_y, &dslot);
+           stacked != NULL;
+           stacked = units_next_on_tile(pool, dest_x, dest_y, &dslot)) {
+        if (stacked->orders == UNITS_ORDER_SENTRY) {
+          stacked->orders = UNITS_ORDER_NONE;
+        }
+      }
     }
     /*
      * bugs.md: docking puts everyone ashore. A unit inside a colony is in the

@@ -53,7 +53,12 @@ bool units_is_transport(const ColonizeUnitPool* pool, int unit_id) {
   if (!type) {
     return false;
   }
-  return units_type_is_wagon(type) && type->cargo > 0;
+  /* bugs.md #788: DOS has no "is a Wagon Train" test here — every cargo site
+   * reads the @UNIT cargo column generically (`*(byte*)(type*0xe + 0x5237)`,
+   * e.g. FUN_479b_11a4's head and FUN_15eb_30b8's append gate). On the
+   * shipped NAMES.TXT only row 12 has cargo > 0 among the land rows, so this
+   * is behaviour-identical there and correct on an edited catalog. */
+  return type->cargo > 0;
 }
 
 int units_goods_hold_count(const ColonizeUnitPool* pool, int unit_id) {
@@ -120,16 +125,28 @@ int goods_pack_into_holds(
     amount -= add;
     loaded += add;
   }
-  for (int i = 0; i < n_holds && amount > 0 && max_new_slots > 0; ++i) {
-    if (hold_amounts[i] > 0 && hold_amounts[i] < 255) {
-      continue;
+  /*
+   * bugs.md #786 / FUN_15eb_30b8 tail (viceroy_unpacked.c 13324-13333):
+   *   if (param_3 != 0) {
+   *     local_4 = holds_occupied;
+   *     if (local_4 < @UNIT cargo) { set type; set amount = param_3; ++occ; }
+   *   }
+   * ONE new hold, carrying the WHOLE remainder — no 100 clamp and no second
+   * slot. The old loop spread a >100 load over every free slot in 100-unit
+   * chunks, which only the AI / trade-route feeds can reach (UI paths cap at
+   * 100 before calling in).
+   */
+  if (amount > 0 && max_new_slots > 0) {
+    for (int i = 0; i < n_holds; ++i) {
+      if (hold_amounts[i] > 0 && hold_amounts[i] < 255) {
+        continue;
+      }
+      hold_types[i] = cargo_type;
+      hold_amounts[i] = amount;
+      loaded += amount;
+      amount = 0;
+      break;
     }
-    const int add = amount < 100 ? amount : 100;
-    hold_types[i] = cargo_type;
-    hold_amounts[i] = add;
-    amount -= add;
-    loaded += add;
-    max_new_slots--;
   }
   return loaded;
 }

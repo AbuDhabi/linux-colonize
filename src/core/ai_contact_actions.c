@@ -1643,22 +1643,18 @@ int ai_contact_enter_hostile_village(
   memset(&tok, 0, sizeof(tok));
   tok.string0 = ai_contact_tribe_name(nation_id);
   char body[AI_POPUP_BODY_LEN];
-  char fb[AI_POPUP_BODY_LEN];
   if (r <= alarm) {
-    snprintf(fb, sizeof(fb), "The %s seize your goods and kill your traders!", tok.string0);
-    popup_msg_fill(ctx->messages, "KILLWAGONS", &tok, fb, body, sizeof(body));
+    popup_msg_fill(ctx->messages, "KILLWAGONS", &tok, "", body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
     units_despawn(ctx->units, u->id);
     return 0;
   }
   if (r <= alarm * 2) {
-    snprintf(fb, sizeof(fb), "The %s refuse to deal with you.", tok.string0);
-    popup_msg_fill(ctx->messages, "MADATWAGONS", &tok, fb, body, sizeof(body));
+    popup_msg_fill(ctx->messages, "MADATWAGONS", &tok, "", body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
     return 0;
   }
-  snprintf(fb, sizeof(fb), "The %s grudgingly agree to trade.", tok.string0);
-  popup_msg_fill(ctx->messages, "GRUDGEWAGONS", &tok, fb, body, sizeof(body));
+  popup_msg_fill(ctx->messages, "GRUDGEWAGONS", &tok, "", body, sizeof(body));
   ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "", body);
   return 1;
 }
@@ -1920,21 +1916,10 @@ static void ai_contact_apply_popup_result_menu(
   switch (popup->result_choice_id) {
   case AI_CONTACT_CHOICE_LEAVE:
     /*
-     * Thin dismiss OK (FUN_5bfb_022e Leave). No trade/gift/teach side effects.
-     * Deep 2820 leave/dialog matrix PARKED. Cite: indian_contact.md Meet CHOICE.
+     * DOS OVL13 0x4bd2 (`DEC AX; CMP AX,8; JA default`): choice 10 falls to
+     * the switch default, which shows nothing — only the MP forfeit above
+     * runs. bugs.md #799.
      */
-    {
-      char leave_fb[AI_POPUP_BODY_LEN];
-      snprintf(
-        leave_fb,
-        sizeof(leave_fb),
-        "Farewell to the %s.",
-        ai_contact_tribe_name(nation_id)
-      );
-      ai_contact_human_chrome(
-        ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Contact", leave_fb
-      );
-    }
     break;
   case AI_CONTACT_CHOICE_ENTER_HOSTILE:
     /* thunk_FUN_1000_a5e8: survive the roll → the Trade arm (a63c) runs. */

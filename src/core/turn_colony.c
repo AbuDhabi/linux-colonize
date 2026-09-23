@@ -64,6 +64,13 @@ static void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
           hammers_need > 0 && col->hammers >= hammers_need) {
         col->colony_flags =
           (uint8_t)(col->colony_flags | COLONIZE_COLONY_FLAG_BUILD_COMPLETE);
+        /* bugs.md #789 (REFUTED): FUN_364b_0114 does call the popup thunk
+         * unconditionally, but the thunk lands in FUN_364b_0000, whose whole
+         * body sits behind `if (*(char*)0xa897 != '\0')` (raw 56839).
+         * DS:0xa897 is set by the colony-select routine (raw 9325-9331) only
+         * when the colony's owner byte (+0x1a) equals the human player
+         * (DS:0x5396), is <= 3, and is not AI-run (DS:0x543f table) — i.e.
+         * exactly this human_nation gate. AI colonies never show it. */
         if (col->nation_id == ctx->human_nation && ctx->ai_popups) {
           char body[AI_POPUP_BODY_LEN];
           PopupMsgTokens tok;
