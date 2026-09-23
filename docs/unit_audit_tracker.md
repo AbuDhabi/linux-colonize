@@ -26,6 +26,7 @@ professions from `@JOB` (profession byte = row). Identify by row, never by name.
 | 2026-09-22 | REF Regulars / Cavalry (props, peels, outcomes, 0982 spawn/landing, crown-turn arms, display, save) | #660-665 | 5 fixed, #665 record-only; landing-MP claim refuted (+0x3149 = spent byte) |
 | 2026-09-23 | Continental Army (props, combat, promote/demote/muster, equip, colony, UI, save, AI/crown arms, cheat) | #666-670 | 4 fixed, #669 record-only; combat/outcome/muster paths verified literal, no defect |
 | 2026-09-23 | Colonists (@UNIT 0: Free Colonist / Servant / Criminal / Convert / specialists off-colony: movement, orders, Build/Join, goto, Europe immigration + docks, combat defender/capture, Live Among Natives, AI arms, sidebar) | #671-735 | 52 fixed, 6 refuted (#679 #723 #727 #731 #733 + Arctic premise), 7 OPEN leads (#680, #711/#712 tie #530, #715 cross-file, #732, #734, #735); #679 #733 refuted by user |
+| 2026-09-23 | Artillery / Damaged Artillery (props, purchase + @REALLYBUY, construction + AI tools gift, REF pool/wave/merc/intervention, combat peels + 0352 outcomes, fort fire, movement/transport/orders, AI 20e6/06ae/5c3c arms, reports/pedia/save) | #752-769 | see rows; #769 = static-unresolved leads |
 | 2026-09-23 | Treasure Train (props, creation LCR/conquest/cheat, boarding/movement/combat, King's Galleon offer + Europe cash-in, AI arms, colony admit, save byte, UI) | #736-751 | 15 fixed (#736-750), #751 = 5 static-unresolved leads; audit corrected: 465b 0x10 bit = Privateer sighting, not treasure |
 
 Open carry-over: #530 (AI first-colony opening scaffolding) came out of the Vet
@@ -37,7 +38,6 @@ Partly covered by earlier audits is noted; still needs its own pass.
 
 | Row | Type | Notes |
 |-----|------|-------|
-| 11 | Artillery / Damaged Artillery | |
 | 12 | Wagon Train | wagon errand + 359c touched |
 | 18 | Man-O-War | not in ship audit scope |
 | 19 | Braves | D3 brave work touched AI side |

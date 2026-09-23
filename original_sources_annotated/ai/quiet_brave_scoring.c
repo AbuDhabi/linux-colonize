@@ -501,7 +501,7 @@ int quiet_score_colony_pull(int score, int colony_count) {
    *   base *= 3;                                     // "capital pull" proper
    * if (indian_settlement_owner(cand_x, cand_y) >= 0)// FUN_281f_06f0, known
    *   base <<= 1;                                    // pull toward a native village too
-   * // type==0xb (Missionary) zero-out: unreachable for a Brave (type 19),
+   * // type==0xb (Artillery) zero-out: unreachable for a Brave (type 19),
    * // out of this file's scope — real for other unit kinds sharing 20e6.
    * if (mover_nation == crown_nation_id &&           // DS:0x53d2, already named
    *     no_settlement_bonus_applied && home_dist == 0) // DS:0x8db8, already named
@@ -513,7 +513,8 @@ int quiet_score_colony_pull(int score, int colony_count) {
    *   `FUN_281f_06f0`) are both already-known, already-ported accessors
    *   (`ai/accessors.c`, `move_spent.c`) — no new RE, straightforward to
    *   call from `ai.c` if this is ever wired.
-   * - The Missionary-only zero-out (`unit+0x3146 == 0xb`) can never fire
+   * - The Artillery-only zero-out (`unit+0x3146 == 0xb`; 0x0b is Artillery,
+   *   not Missionary — bugs.md #768) can never fire
    *   for a Brave (`type == 19`) — confirmed dead branch for this file's
    *   documented scope, not something to model here.
    * - `home_dist` is `DS:0x8db8`, already identified project-wide

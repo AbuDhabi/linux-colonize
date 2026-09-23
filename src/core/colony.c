@@ -3060,7 +3060,8 @@ bool colonies_try_complete_building(ColonizeColonyPool* pool, int colony_id) {
 int colonies_try_complete_unit_construction(
   ColonizeColonyPool* pool,
   int colony_id,
-  ColonizeUnitPool* units
+  ColonizeUnitPool* units,
+  const ColonizeCol1Save* col1
 ) {
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
   if (!col || !units || col->building_in_production < 0) {
@@ -3076,7 +3077,19 @@ int colonies_try_complete_unit_construction(
     return -1;
   }
   if (tools_cost > 0 && col->stock[COLONIZE_CARGO_TOOLS] < tools_cost) {
-    return -1;
+    /*
+     * DOS-LITERAL FUN_364b_0688 raw 57748-57769: a non-human colony (Euro
+     * AI or Crown) is simply handed the tools it needs and the project
+     * proceeds; only a human colony is refused (@NEEDTOOLS elsewhere).
+     * bugs.md #755.
+     */
+    const bool human = col1 && col->nation_id >= 0 &&
+                        col->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
+                        col1->player[col->nation_id].control == 0;
+    if (human || !col1) {
+      return -1;
+    }
+    col->stock[COLONIZE_CARGO_TOOLS] = tools_cost;
   }
   const int type_index = units_find_type(units, name);
   if (type_index < 0) {

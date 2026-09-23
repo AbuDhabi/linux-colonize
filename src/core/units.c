@@ -3421,8 +3421,31 @@ static int units_apply_land_loss_outcome(
     }
   }
 
-  /* Artillery: first loss → damaged bit7; already damaged → destroyed. */
-  if (lt && combat_type_is_artillery(lt)) {
+  /*
+   * DOS-LITERAL FUN_5fef_0352 raw 99352-99362: `local_2a` = FUN_281f_0768 of
+   * the WINNER's tile OR'd with the LOSER's tile (ocean / high seas).
+   * Hoisted above the artillery arm 2026-09-23 (bugs.md #756) — it gates both
+   * that arm and the capture arm below.
+   */
+  const int on_water =
+    units_tile_is_ocean_or_hs(col1, win->x, win->y) ||
+    units_tile_is_ocean_or_hs(col1, lose->x, lose->y);
+  const int loser_is_hull = lt && units_type_is_ship(lt);
+  /* DOS tests param_2 (the WINNER) here: types 0xd..0x12 are hulls. */
+  const int winner_is_hull = wt && units_type_is_ship(wt);
+
+  /*
+   * Artillery: first loss → damaged bit7; already damaged → destroyed.
+   *
+   * DOS-LITERAL FUN_5fef_0352 raw 99435-99436: the demote ladder AND this
+   * artillery block sit inside
+   *   `if (((winner type < 0xd) || (0x12 < winner type)) && (local_2a == 0))`.
+   * When the gate fails (a hull won, or either combatant stands on ocean /
+   * high seas) the gun falls straight through to the plain despawn tail at
+   * raw 99711 — destroyed outright, no damage stage, no @ARTILLERY popup.
+   * (bugs.md #756)
+   */
+  if (lt && combat_type_is_artillery(lt) && !winner_is_hull && !on_water) {
     /* bugs.md: these are GAME.TXT @ARTILLERY / @ARTILLERY2, not the ship's
      * @SHIPDAMAGE — the old reuse produced the "Artillery ... Ship returns
      * to for repairs" mashup. */
@@ -3431,8 +3454,10 @@ static int units_apply_land_loss_outcome(
     tok.string0 = units_combat_nation_label(col1, lose->nation_id);
     tok.string1 = lt->name;
     if ((lose->col1_flags15 & 0x80u) == 0) {
+      /* DOS-LITERAL FUN_5fef_0352 raw 99475-99482: the 0x1b54 arm writes
+       * ONLY bit7 and returns — no spent-byte / orders write. The invented
+       * `lose->moves = 0` was removed 2026-09-23 (bugs.md #757). */
       lose->col1_flags15 |= 0x80u;
-      lose->moves = 0;
       if (human) {
         units_combat_enqueue_tok(
           AI_POPUP_TAG_COMBAT_SHIP,
@@ -3473,10 +3498,6 @@ static int units_apply_land_loss_outcome(
    * tile OR'd with the LOSER's tile) is set. A disqualified capture falls
    * through to the demote ladder / destroy below.
    */
-  const int on_water =
-    units_tile_is_ocean_or_hs(col1, win->x, win->y) ||
-    units_tile_is_ocean_or_hs(col1, lose->x, lose->y);
-  const int loser_is_hull = lt && units_type_is_ship(lt);
   if (lt && lt->name[0] /* bugs.md #678: 0352 raw 99343-99392 tests loser TYPE only, never its nation */ && win_can_capture && !loser_is_hull && !on_water) {
     const int is_treasure = units_type_is_treasure(lt);
     const int is_wagon = units_type_is_wagon(lt);
@@ -3604,9 +3625,9 @@ static int units_apply_land_loss_outcome(
    * unconditionally. bugs.md #647.
    */
   {
-    const int win_is_hull = wt && units_type_is_ship(wt);
-    /* `on_water` is the same local_2a hoisted above for the capture gate. */
-    if (!win_is_hull && !on_water &&
+    /* `winner_is_hull` / `on_water` are the raw 99435-99436 gate hoisted above
+     * (shared with the artillery arm, bugs.md #756). */
+    if (!winner_is_hull && !on_water &&
         units_demote_combat_type(pool, lose, col1, human)) {
       return 1;
     }
@@ -5704,7 +5725,11 @@ void units_reset_hooks(void) {
 /* DOS event ids (segment 5fef / 2b5a, `mov ax,N; callf FUN_281f_04c0`): the
  * GSOUND handler for each plays a COLDIG.BIN sample plus a short MIDI sting. */
 enum {
-  UNITS_SFX_ATTACK_FIRE = 0x40, /* 0x41 for artillery-class attackers */
+  /* DOS-LITERAL FUN_5fef_1b0e (asm 5fef:2271, bugs.md #765): the generic fire
+   * is 0x40; the typed variant is `0x3b + attacker @UNIT row` and is used ONLY
+   * for a Euro attacker on a native defender (Regulars 0x41, Artillery 0x46).
+   * It is not an "artillery-class" rule. */
+  UNITS_SFX_ATTACK_FIRE = 0x40,
   UNITS_SFX_COMBAT_WON = 0x4a,  /* 0x4b when natives are involved */
   UNITS_SFX_ORDER_FORTIFY = 0x58,
   UNITS_SFX_SHIP_SUNK = 0x57, /* FUN_5fef_0352 (COLDIG 16 sinking) */
@@ -5927,7 +5952,16 @@ bool units_resolve_land_combat_ff_w(
      * generic fire for those. Other pairings use the plain 0x40. */
     int fire_id = UNITS_SFX_ATTACK_FIRE;
     if (def->nation_id >= 4 && atk->nation_id >= 0 && atk->nation_id <= 3) {
-      const int typed = 0x3b + atk->type_index;
+      /* bugs.md #765: the DOS operand is the @UNIT ROW, not a pool slot.
+       * units_type_dos_code resolves the row from the catalog and returns -1
+       * for a hand-built / synthetic type table, where the typed variant is
+       * simply skipped. */
+      int dos_row = units_type_dos_code(at);
+      if (dos_row < 0 && pool->type_count >= 19 && atk->type_index >= 0 &&
+          atk->type_index < pool->type_count) {
+        dos_row = atk->type_index; /* NAMES-loaded pool: index == @UNIT row */
+      }
+      const int typed = dos_row >= 0 ? 0x3b + dos_row : -1;
       if (typed >= 0x40 && typed <= 0x5c) {
         fire_id = typed;
       }
@@ -6447,26 +6481,38 @@ int units_coastal_fort_attack_strength(
   if (!colonies || !colony || !colony->active || !units) {
     return 0;
   }
-  int tier = 0;
-  const int fortress = colonies_building_row(colonies, COLONY_BUILDING_FORTRESS);
-  if (fortress >= 0 && fortress < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[fortress]) {
-    tier = 2;
-  } else {
-    const int fort = colonies_building_row(colonies, COLONY_BUILDING_FORT);
-    if (fort >= 0 && fort < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[fort]) {
-      tier = 1;
-    }
-  }
+  /*
+   * DOS-LITERAL FUN_364b_03f6 raw 57040-57058 (bugs.md #764): the tier is a
+   * SUM of two independent stockade-level probes, not an either/or —
+   *   local_c  = (FUN_281f_09fc(1) != 0);            // Fort level
+   *   if (FUN_281f_09fc(2) != 0) local_c++;          // Fortress level
+   * A Fortress colony answers YES to both probes (FUN_157e_0008 raw 8895-8908
+   * sums all three level probes), so local_c reaches 2 there and 1 for a plain
+   * Fort. The port stores the two buildings as separate flags and an upgraded
+   * colony may carry only the Fortress flag, so the Fort probe is spelled as
+   * "has at least Fort level".
+   */
+  const int fortress_row = colonies_building_row(colonies, COLONY_BUILDING_FORTRESS);
+  const int fort_row = colonies_building_row(colonies, COLONY_BUILDING_FORT);
+  const int has_fortress =
+    fortress_row >= 0 && fortress_row < COLONIZE_BUILDING_TYPES_MAX &&
+    colony->has_building[fortress_row];
+  const int has_fort =
+    (fort_row >= 0 && fort_row < COLONIZE_BUILDING_TYPES_MAX &&
+     colony->has_building[fort_row]) ||
+    has_fortress;
+  const int tier = (has_fort ? 1 : 0) + (has_fortress ? 1 : 0);
   if (tier <= 0) {
     return 0;
   }
   int arty = 0;
   int slot_a = 0;
+  /* DOS-LITERAL raw 57053-57057: the chain walk counts EVERY unit on the tile
+   * with type byte 0x0b; there is no nation test and no damaged-bit test. The
+   * port-side `u->nation_id != colony->nation_id` filter was removed
+   * 2026-09-23 (bugs.md #764). */
   for (const ColonizeUnit* u = units_next_on_tile_const(units, colony->x, colony->y, &slot_a);
        u != NULL; u = units_next_on_tile_const(units, colony->x, colony->y, &slot_a)) {
-    if (u->nation_id != colony->nation_id) {
-      continue;
-    }
     const ColonizeUnitType* t = units_type(units, u->type_index);
     if (!t) {
       continue;
@@ -6475,7 +6521,8 @@ int units_coastal_fort_attack_strength(
       arty++;
     }
   }
-  /* FUN_364b_03f6: local_12 starts at 1, +1 per artillery → (1+arty)*tier*4. */
+  /* DOS-LITERAL raw 57058: `local_12 * local_c * 4`, local_12 starting at 1
+   * → 4 * tier * (1 + arty). */
   return 4 * tier * (1 + arty);
 }
 

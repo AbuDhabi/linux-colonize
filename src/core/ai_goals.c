@@ -605,7 +605,7 @@ int ai_goals_pick_founding_tile_ex_w(
   int x,
   int y,
   int score_extras,
-  int wagon_filter,
+  int artillery_filter,
   int* out_x,
   int* out_y
 ) {
@@ -684,8 +684,9 @@ int ai_goals_pick_founding_tile_ex_w(
      * DOS 06ae occupant gate (FUN_281f_06d2 tribe-or-presence, then
      * FUN_281f_08bc(unit) == 1 singleton check): a neighbour holding a
      * foreign presence is skipped; an own unit there only passes when it is
-     * a lone unit whose wagon-ness differs from the unit being placed
-     * (type 0x0b == wagon XOR wagon_filter). Stay (dir 8) is never gated.
+     * a lone unit whose artillery-ness differs from the unit being placed
+     * (raw 87277-87278: `(*(char *)(iVar9 * 0x1c + 0x3146) == '\v') != param_5`;
+     * '\v' = 0x0b = Artillery). Stay (dir 8) is never gated.
      * Seed-100 TURN2→3: the Dutch Soldier lands at (48,14) because the
      * Pioneer already dropped on (49,14) blocks that tile.
      */
@@ -704,8 +705,8 @@ int ai_goals_pick_founding_tile_ex_w(
           }
         }
         const ColonizeUnitType* ot = units_type(units, ou->type_index);
-        const int ou_is_wagon = units_type_is_wagon(ot) ? 1 : 0;
-        if (on_tile != 1 || (ou_is_wagon != 0) == (wagon_filter != 0)) {
+        const int ou_is_artillery = units_type_is_artillery(ot) ? 1 : 0;
+        if (on_tile != 1 || (ou_is_artillery != 0) == (artillery_filter != 0)) {
           continue;
         }
       }

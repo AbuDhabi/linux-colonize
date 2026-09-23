@@ -636,7 +636,12 @@ static void turn_emit_built_chrome(
  *           tag = @NEEDTOOLS (DS:0xea1), plus "0" (DS:0xeab) -> @NEEDTOOLS0
  *           when the colony holds no tools at all
  *         }
- *       else colony+0xb6 = local_e;   (AI is handed the tools — not ported)
+ *       else colony+0xb6 = local_e;   (AI is handed the tools — ported in
+ *                                       colonies_try_complete_unit_construction,
+ *                                       the ONLY site this arm applies to:
+ *                                       that resolver's project is always a
+ *                                       unit-type project, never a real
+ *                                       building. bugs.md #755.)
  *     }
  *
  * No latch: DOS re-runs this every EOT, so the notice repeats each turn the
@@ -2348,7 +2353,9 @@ static void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
       }
       continue;
     }
-    const int uid = colonies_try_complete_unit_construction(ctx->colonies, col->id, ctx->units);
+    const int uid = colonies_try_complete_unit_construction(
+      ctx->colonies, col->id, ctx->units, ctx->col1_ok ? ctx->col1 : NULL
+    );
     if (uid < 0) {
       continue;
     }

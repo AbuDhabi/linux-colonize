@@ -354,6 +354,17 @@ typedef struct EuropeScreen {
   EuropeMenu menu;
   int menu_selection; /* 0 = None / cancel for list menus */
   int menu_dock_index;
+  /*
+   * @REALLYBUY confirm state (FUN_38fd_4b50 raw 64874-64887): a PURCHASE
+   * row pick opens this Yes/No popup instead of buying outright. UI row 0
+   * shows "No" (reuses the generic sel==0 cancel path), row 1 shows "Yes".
+   * purchase_confirm_index/cost freeze the item and price the popup was
+   * opened for so the answer never re-reads a table that may have moved.
+   * bugs.md #753.
+   */
+  bool purchase_confirming;
+  int purchase_confirm_index;
+  int purchase_confirm_cost;
   /* Debug log only: set by the confirm paths so europe_menu_close can tell a
    * cancel (Esc / click-away) from the close that follows a pick. */
   bool menu_answered;
@@ -562,6 +573,23 @@ bool europe_train(EuropeScreen* eu, int train_index);
 bool europe_train_ex(EuropeScreen* eu, int train_index, struct ColonizeDosRng* rng);
 bool europe_purchase(EuropeScreen* eu, int purchase_index);
 bool europe_purchase_ex(EuropeScreen* eu, int purchase_index, struct ColonizeDosRng* rng);
+/* Purchase row enabled? DOS greys the row when the purse is short
+ * (FUN_38fd_4b50 raw 64858-64862) — bugs.md #754. */
+bool europe_purchase_affordable(const EuropeScreen* eu, int purchase_index);
+/*
+ * Open the @REALLYBUY confirm popup for an affordable row (FUN_38fd_4b50
+ * raw 64874-64883): computes the price — bumping the artillery escalation
+ * counter right here, unconditionally of the eventual Yes/No, exactly as
+ * DOS does before it ever shows the popup — and freezes it in
+ * purchase_confirm_cost. Returns false (no-op) for an out-of-range or
+ * unaffordable index. bugs.md #753.
+ */
+bool europe_purchase_open_confirm(EuropeScreen* eu, int purchase_index);
+/* Commit a previously-confirmed purchase at the frozen price (the Yes arm
+ * of @REALLYBUY, raw 64876-64887). bugs.md #753. */
+bool europe_purchase_commit(
+  EuropeScreen* eu, int purchase_index, int cost, struct ColonizeDosRng* rng
+);
 
 /*
  * DOS FUN_38fd_3694 (raw 61190-61195), the Europe dock caption on the

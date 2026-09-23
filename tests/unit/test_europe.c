@@ -765,6 +765,79 @@ static int case_europe_workflow(void) {
     return 1;
   }
 
+  /* bugs.md #753: PURCHASE picks Artillery (index 0) through the
+   * @REALLYBUY confirm instead of buying on the spot. "No" (row 0, reuses
+   * the generic cancel path) must leave gold/dock/artillery_bought
+   * untouched but the escalation counter must still bump on open
+   * (FUN_38fd_4b50 raw 64868-64870 runs before the Yes/No answer). */
+  {
+    const int gold_before = eu.gold;
+    const int dock_before = eu.dock_count;
+    const int bought_before = eu.artillery_bought;
+    europe_menu_open(&eu, EUROPE_MENU_PURCHASE);
+    eu.menu_selection = 1; /* Artillery row */
+    if (!europe_purchase_open_confirm(&eu, 0) || !eu.purchase_confirming) {
+      fprintf(stderr, "purchase confirm did not open\n");
+      europe_free(&eu);
+      return 1;
+    }
+    if (eu.artillery_bought != bought_before + 1) {
+      fprintf(stderr, "artillery escalation did not bump on confirm-open\n");
+      europe_free(&eu);
+      return 1;
+    }
+    eu.menu = EUROPE_MENU_PURCHASE;
+    eu.menu_selection = 0; /* "No" */
+    if (!europe_menu_confirm_ex(&eu, NULL) || eu.gold != gold_before ||
+        eu.dock_count != dock_before || eu.menu != EUROPE_MENU_NONE) {
+      fprintf(stderr, "purchase 'No' answer bought a unit or left the menu open\n");
+      europe_free(&eu);
+      return 1;
+    }
+
+    /* Now answer "Yes": debits and spawns at the frozen (already-escalated)
+     * price. */
+    europe_menu_open(&eu, EUROPE_MENU_PURCHASE);
+    eu.menu_selection = 1;
+    europe_purchase_open_confirm(&eu, 0);
+    const int confirm_cost = eu.purchase_confirm_cost;
+    eu.menu = EUROPE_MENU_PURCHASE;
+    eu.menu_selection = 1; /* "Yes" */
+    if (!europe_menu_confirm_ex(&eu, NULL) || eu.gold != gold_before - confirm_cost ||
+        eu.dock_count != dock_before + 1 ||
+        strcmp(eu.dock[eu.dock_count - 1].name, "Artillery") != 0 ||
+        eu.menu != EUROPE_MENU_NONE) {
+      fprintf(stderr, "purchase 'Yes' answer did not debit/spawn correctly\n");
+      europe_free(&eu);
+      return 1;
+    }
+  }
+
+  /* bugs.md #754: an unaffordable Purchase row is greyed and inert — Enter
+   * does nothing, no status text, dialog stays open. */
+  {
+    EuropeScreen poor;
+    if (!test_europe_load(&poor, "COLONIZE", err, sizeof(err))) {
+      fprintf(stderr, "europe_load (poor) failed: %s\n", err);
+      return 1;
+    }
+    europe_menu_open(&poor, EUROPE_MENU_PURCHASE);
+    if (europe_purchase_affordable(&poor, 5) || poor.gold >= poor.purchase[5].gold) {
+      fprintf(stderr, "unaffordable purchase row test setup is wrong\n");
+      europe_free(&poor);
+      return 1;
+    }
+    poor.menu_selection = 6; /* most expensive row */
+    if (europe_purchase_open_confirm(&poor, 5) || poor.purchase_confirming ||
+        poor.menu != EUROPE_MENU_PURCHASE) {
+      fprintf(stderr, "unaffordable purchase row was not inert\n");
+      europe_free(&poor);
+      return 1;
+    }
+    europe_free(&poor);
+  }
+  printf("europe @REALLYBUY purchase confirm ok\n");
+
   /* Train: cheapest @JOB hire (Expert Ore Miners 600). */
   /*
    * DOS FUN_38fd_41ce sorts the collected @JOB costs (FUN_291f_0ed0 ->

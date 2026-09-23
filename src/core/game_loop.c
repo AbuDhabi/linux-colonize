@@ -3323,6 +3323,13 @@ static bool game_europe_menu_confirm(ColonizeGameState* game) {
       !europe_train_affordable(eu, eu->menu_selection - 1)) {
     return false;
   }
+  /* FUN_38fd_4b50 raw 64858-64862: an unaffordable Purchase row is greyed
+   * and inert the same way — no "need gold" answer exists in DOS.
+   * bugs.md #754. */
+  if (eu->menu == EUROPE_MENU_PURCHASE && !eu->purchase_confirming && eu->menu_selection > 0 &&
+      !europe_purchase_affordable(eu, eu->menu_selection - 1)) {
+    return false;
+  }
   /* The RECRUIT row's pool refill is a `46d4` roll DOS takes off the shared
    * game stream — hand the real rng down (smell audit 2026-09-10 G5). */
   return europe_menu_confirm_ex(eu, &game->move_rng);
@@ -3387,6 +3394,19 @@ static const char* europe_menu_section(int menu) {
  */
 static void europe_menu_title_prose(const ColonizeGameState* game, char* buf, size_t n) {
   const EuropeScreen* eu = &game->europe;
+  /* @REALLYBUY confirm (bugs.md #753): "Purchase %STRING0 for %NUMBER0$?" */
+  if (eu->menu == EUROPE_MENU_PURCHASE && eu->purchase_confirming) {
+    const int pi = eu->purchase_confirm_index;
+    const char* name = (pi >= 0 && pi < eu->purchase_count) ? eu->purchase[pi].name : "";
+    PopupMsgTokens tok = {0};
+    tok.string0 = name;
+    tok.number0 = eu->purchase_confirm_cost;
+    tok.has_number0 = true;
+    popup_msg_fill(
+      &game->messages, "REALLYBUY", &tok, "Purchase %STRING0 for %NUMBER0$?", buf, n
+    );
+    return;
+  }
   const char* section = europe_menu_section(eu->menu);
   const char* fallback = "";
   switch (eu->menu) {
@@ -3584,7 +3604,9 @@ static bool europe_menu_layout(
       out->rows = 1 + eu->train_count;
       break;
     case EUROPE_MENU_PURCHASE:
-      out->rows = 1 + eu->purchase_count;
+      /* @REALLYBUY confirm swaps the list for its own 2-row Yes/No
+       * (bugs.md #753). */
+      out->rows = eu->purchase_confirming ? 2 : 1 + eu->purchase_count;
       break;
     case EUROPE_MENU_DOCK:
       /* @ARMOPTIONS rows this immigrant actually gets, no "None" header —
@@ -3794,6 +3816,15 @@ static void europe_render_menu_popup(
       /* DOS greys a row the treasury cannot cover, and omits the ones it
        * disabled outright (europe_build_dock_menu already dropped those). */
       color = eu->dock_menu_greyed[i] ? 8 : 15;
+    } else if (eu->menu == EUROPE_MENU_PURCHASE && eu->purchase_confirming) {
+      /* @REALLYBUY Yes/No (bugs.md #753). Row 0 is "No" so it reuses the
+       * generic sel==0 cancel path; row 1 is "Yes". */
+      char choice_buf[2][POPUP_MSG_CHOICE_LEN];
+      const char* choice_labels[2];
+      popup_msg_section_labels(
+        &game->messages, "REALLYBUY", NULL, "Yes", "No", choice_buf, choice_labels
+      );
+      snprintf(label, sizeof(label), "%s", choice_labels[i == 0 ? 1 : 0]);
     } else if (i == 0) {
       snprintf(label, sizeof(label), "%s",
                eu->menu == EUROPE_MENU_RECRUIT ? "(None)" : "None");
@@ -12295,7 +12326,7 @@ static GameUpdateStep game_europe_screen_menu_keys(
         max_sel = eu->train_count;
         break;
       case EUROPE_MENU_PURCHASE:
-        max_sel = eu->purchase_count;
+        max_sel = eu->purchase_confirming ? 1 : eu->purchase_count;
         break;
       case EUROPE_MENU_DOCK:
         max_sel = eu->dock_menu_count > 0 ? eu->dock_menu_count - 1 : 0;
