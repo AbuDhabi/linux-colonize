@@ -736,6 +736,18 @@ int units_tick_convert_outside_colony(
   int removed = 0;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* u = &pool->units[i];
+    /*
+     * bugs.md #887: the aboard-ship skip has no literal DOS counterpart and is
+     * KEPT as the port's equivalent of the stack test. DOS has no cargo field —
+     * a passenger is an ordinary unit linked into the same tile chain as its
+     * ship (see col1_bridge_sanitize_units_for_dos, which has to rebuild
+     * boarding on import) — and FUN_1427_0d38 case 2 is a bare `INC DI` over
+     * that whole chain (1427:0db9, reached through the jump table at
+     * 1427:0d78 entry 2; FUN_1427_0002/004a walk the +0x315c/+0x315e links).
+     * So the carrying ship IS counted and a Convert aboard a ship always
+     * measures stack >= 2, i.e. never ages. The port's stack loop below counts
+     * only non-cargo units, so the skip here is what reproduces that.
+     */
     if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
       continue;
     }

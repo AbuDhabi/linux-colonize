@@ -762,11 +762,14 @@ static int europe_arm_sell_gain(const EuropeScreen* eu, int cargo, int qty) {
 }
 
 /*
- * Per-row enable, transcribed from the switch at 38fd:388e..3a04. `price` is
- * DOS's [bp-0x6a]: non-zero only on the three buy rows, and the tail greys
- * the row when the treasury cannot cover it. A boycotted cargo disables its
- * rows outright (the FUN_38fd_68c7 test each arm row runs), and an Indian
- * Convert (@JOB 0x1b) can be neither armed, equipped nor blessed.
+ * Per-row enable, transcribed from the arm-enable dispatch at 38fd:3e0c..3f59
+ * (`dec ax; cmp ax,0xb; jmp [cs:bx+0x3a1a]` at 38fd:3f5d). `price` is DOS's
+ * [bp-0x6a]: non-zero only on the three buy rows, and the tail greys the
+ * row when the treasury cannot cover it. A boycotted cargo disables its rows
+ * outright (the FUN_38fd_68c7 test each arm row runs), and an Indian Convert
+ * (@JOB 0x1b) can be neither armed, equipped nor blessed: the four disables
+ * are ndisasm raw 0x33E2F (buy muskets), 0x33E8C (buy tools), 0x33EF7
+ * (buy horses), 0x33F32 (bless).
  */
 static bool europe_arm_row_enabled(
   const EuropeScreen* eu,
@@ -825,8 +828,8 @@ static bool europe_arm_row_enabled(
     case EUROPE_ARM_ROW_UNBLESS:
       /*
        * DOS 38fd:39ec..3a09: enabled when the @UNIT type is Missionaries
-       * (0x3146 == 3) AND the profession is NOT @JOB 0x18 (38fd:39fa
-       * `cmp byte [bx+0x315b],0x18; jnz enable`) — i.e. only a *blessed*
+       * (0x3146 == 3) AND the profession is NOT @JOB 0x18 (raw 0x33F4A =
+       * 38fd:3f4a `cmp byte [bx+0x315b],0x18; jnz enable`) — i.e. only a *blessed*
        * ordinary colonist can cancel Missionary status; a born Jesuit
        * Missionary specialist cannot. Was inverted.
        */

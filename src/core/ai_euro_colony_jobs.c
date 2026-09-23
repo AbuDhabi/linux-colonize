@@ -1440,10 +1440,10 @@ static void ai_euro_5952_carpenter_arm(
  *     The `< 5` half was unported.
  * STILL NOT PORTED here, deliberately (all DOS-side detail with no Linux
  * counterpart yet): the loop-entry guards `local_7e`/`local_80`/`local_1e`
- * (pop vs ring size, horses stock, gross production vs demand) and
- * `local_84`'s SECOND use at raw 94609-94611, where it also flips the
- * per-slot eligibility test between FUN_281f_0c9a (expert) and profession
- * 0x1b (Indian Convert).
+ * (pop vs ring size, horses stock, gross production vs demand).
+ * (`local_84`'s second use at raw 94609-94611, which flips the per-slot
+ * eligibility test between FUN_281f_0c9a (expert) and profession 0x1b
+ * (Indian Convert), IS ported — see :2626-2637 below, bugs.md #568.)
  */
 int ai_euro_20e6_nearest_village(
   const ColonizeTurnContext* ctx, int x, int y, int* out_dist

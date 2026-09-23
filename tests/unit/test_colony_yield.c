@@ -310,9 +310,25 @@ static int case_fisherman_major_river(void) {
     return 1;
   }
   const int fish = colony_yield_for_tile(&map, fx, fy, COLONIZE_JOB_FISHERMAN);
-  map_free(&map);
   if (fish != 6) {
     fprintf(stderr, "fisherman+major river want 6 got %d\n", fish);
+    map_free(&map);
+    return 1;
+  }
+  /* bugs.md #883: Fisherman falls in the `7 < job` arm of the Convert +1
+   * whitelist (FUN_15eb_18ec raw 11973-11979) — Convert gets +1 over free. */
+  const int free_fish = colony_yield_for_worker(
+    &map, fx, fy, COLONIZE_JOB_FISHERMAN, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
+    false
+  );
+  const int convert_fish = colony_yield_for_worker(
+    &map, fx, fy, COLONIZE_JOB_FISHERMAN, COLONIZE_PROF_CONVERT, /*has_docks=*/true, 0, 0, false
+  );
+  map_free(&map);
+  if (convert_fish != free_fish + 1) {
+    fprintf(
+      stderr, "Convert fisherman want free+1 (free=%d) got %d\n", free_fish, convert_fish
+    );
     return 1;
   }
   return 0;
@@ -358,9 +374,22 @@ static int case_expert_ore_miner_hills_road_sol(void) {
     &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_JOB_ORE_MINER, /*has_docks=*/true, 1, 0,
     false
   );
-  map_free(&map);
   if (expert_ore != 12) {
     fprintf(stderr, "expert ore miner+road+sol want 12 got %d\n", expert_ore);
+    map_free(&map);
+    return 1;
+  }
+  /* bugs.md #883: Ore Miner is excluded from the Convert +1 whitelist
+   * (FUN_15eb_18ec raw 11973-11979) — Convert gets no bonus over free. */
+  const int convert_ore = colony_yield_for_worker(
+    &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_PROF_CONVERT, /*has_docks=*/true, 1, 0,
+    false
+  );
+  map_free(&map);
+  if (convert_ore != free_ore) {
+    fprintf(
+      stderr, "Convert ore miner+road+sol want no +1 (== free %d) got %d\n", free_ore, convert_ore
+    );
     return 1;
   }
   return 0;
@@ -744,6 +773,20 @@ static int case_silver_miner_collapse(void) {
     fprintf(
       stderr, "roaded bare mountain silver want free=1 expert=1 got %d/%d\n",
       road_free, road_expert
+    );
+    map_free(&map);
+    return 1;
+  }
+  /* bugs.md #883: Silver Miner is excluded from the Convert +1 whitelist
+   * (FUN_15eb_18ec raw 11973-11979) — Convert gets no bonus over free. */
+  const int road_convert = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_CONVERT, true, 0, 0,
+    false
+  );
+  if (road_convert != road_free) {
+    fprintf(
+      stderr, "roaded bare mountain silver convert want no +1 (== free %d) got %d\n",
+      road_free, road_convert
     );
     map_free(&map);
     return 1;

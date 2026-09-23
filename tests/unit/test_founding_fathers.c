@@ -2064,6 +2064,31 @@ int main(void) {
     lu_named->nation_id = 0;
     lu_named->profession = COLONIZE_PROF_CONVERT;
 
+    /*
+     * bugs.md #880: a Convert waiting on the Europe dock must assimilate too.
+     * DOS FUN_4345_0342 case 0x18 (raw 73123-73151) walks every unit record,
+     * Europe-located ones included. Dock entry + its (236,236) mirror unit
+     * both carry the dock's @JOB, so both must land on the port's dock
+     * "Free Colonist" convention, @JOB 19.
+     */
+    EuropeScreen lc_eu;
+    memset(&lc_eu, 0, sizeof(lc_eu));
+    lc_eu.dock_count = 2;
+    lc_eu.dock[0].present = true;
+    lc_eu.dock[0].profession = COLONIZE_PROF_CONVERT;
+    snprintf(lc_eu.dock[0].name, sizeof(lc_eu.dock[0].name), "Indian Converts");
+    lc_eu.dock[1].present = true;
+    lc_eu.dock[1].profession = COLONIZE_PROF_FARMER;
+    snprintf(lc_eu.dock[1].name, sizeof(lc_eu.dock[1].name), "Expert Farmers");
+
+    const int dock_mirror = units_spawn_allow_stack(&lunits, 0, 236, 236);
+    if (dock_mirror < 0) {
+      return fail("Las Casas dock mirror spawn");
+    }
+    ColonizeUnit* dock_u = units_get(&lunits, dock_mirror);
+    dock_u->nation_id = 0;
+    dock_u->profession = COLONIZE_PROF_CONVERT;
+
     ColonizeTurnContext lctx;
     memset(&lctx, 0, sizeof(lctx));
     lctx.human_nation = 0;
@@ -2071,6 +2096,7 @@ int main(void) {
     lctx.col1_ok = true;
     lctx.colonies = &lcolonies;
     lctx.units = &lunits;
+    lctx.europe = &lc_eu;
     lctx.status = status;
     lctx.status_size = sizeof(status);
 
@@ -2096,6 +2122,17 @@ int main(void) {
     }
     if (lu->profession != COLONIZE_PROF_FREE_COLONIST) {
       return fail("Las Casas must assimilate map Convert profession");
+    }
+    if (lc_eu.dock[0].profession != 19) {
+      return fail("Las Casas must assimilate a Convert on the Europe dock");
+    }
+    if (lc_eu.dock[1].profession != COLONIZE_PROF_FARMER) {
+      return fail("Las Casas must not touch non-Convert dock immigrants");
+    }
+    /* Dock entry and its mirror unit are matched by profession
+     * (europe_remove_dock_mirror_unit), so they must move together. */
+    if (dock_u->profession != 19) {
+      return fail("Las Casas must retarget the dock Convert's mirror unit");
     }
     /* DOS has no "Convert" @UNIT row (a Convert is a base Colonist with
      * profession 0x1b), and the port no longer recognises unit types by their

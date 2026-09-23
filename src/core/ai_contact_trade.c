@@ -408,7 +408,17 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
           const int cid = units_spawn_allow_stack(ctx->units, convert_type, c->x, c->y);
           ColonizeUnit* convert = cid >= 0 ? units_get(ctx->units, cid) : NULL;
           if (convert) {
-            convert->nation_id = (uint8_t)c->nation_id;
+            /*
+             * DOS FUN_281f_095c(0, colony_owner, x, y) stamps the owner nibble
+             * through the shared spawn helper (FUN_1427_02ca restamps tile
+             * occupancy) — the port's equivalent is units_set_nation, which
+             * also sets col1_vis_mask = 1<<nation. A raw nation_id assignment
+             * left the mask at 0 (units_spawn zeroes it) so the owner could
+             * not see its own convert through the fog and the mask
+             * round-tripped wrong through the save (bugs.md #879). Sibling
+             * spawn site: units_spawn_subjugated_convert, units_combat.c.
+             */
+            units_set_nation(convert, c->nation_id);
             convert->profession = COLONIZE_PROF_CONVERT;
           }
         }

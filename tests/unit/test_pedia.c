@@ -184,6 +184,45 @@ static int case_job_page(void) {
   return 0;
 }
 
+/*
+ * Skill-page portrait = DOS FUN_6cb2_1820 raw 110943-110945 (asm
+ * CODE_144:6cb2:1928-193a): sprite = 0x52 + job, with a single escape
+ * 0x1b -> 0x43, minus 1 for the port's 0-based blit indices. Both Pedia
+ * paths (the PediaPage preview field and the article renderer) must agree.
+ */
+static int case_job_icon_formula(void) {
+  if (fixture_ensure() != 0) {
+    return 1;
+  }
+  const struct { int job; int sprite; } want[] = {
+    {0, 81},   /* Expert Farmer */
+    {18, 99},  /* cut Expert Teacher, still linear */
+    {19, 100}, /* Free Colonist */
+    {20, 101}, /* Hardy Pioneer - equipped pose, NOT the map/colony 58 */
+    {24, 105}, /* Jesuit Missionary - equipped pose, NOT 61 */
+    {26, 107}, /* Petty Criminal */
+    {27, 66},  /* Indian Convert - the one DOS escape */
+  };
+  for (size_t i = 0; i < sizeof(want) / sizeof(want[0]); ++i) {
+    PediaPage page;
+    if (!pedia_page(&s_catalog, &s_names, PEDIA_CAT_JOB, want[i].job, &page)) {
+      fprintf(stderr, "JOB%d page failed\n", want[i].job);
+      return 1;
+    }
+    if (page.preview_kind != PEDIA_PREVIEW_ICON || page.icon_sprite != want[i].sprite) {
+      fprintf(
+        stderr,
+        "JOB%d icon expected %d got %d\n",
+        want[i].job,
+        want[i].sprite,
+        page.icon_sprite
+      );
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static int case_father_page(void) {
   if (fixture_ensure() != 0) {
     return 1;
@@ -375,6 +414,7 @@ static const TestCase k_cases[] = {
     {"case_terrain_pages", case_terrain_pages},
     {"case_cargo_page", case_cargo_page},
     {"case_job_page", case_job_page},
+    {"case_job_icon_formula", case_job_icon_formula},
     {"case_father_page", case_father_page},
     {"case_misc_page", case_misc_page},
     {"case_caret_flags", case_caret_flags},

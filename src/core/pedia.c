@@ -112,37 +112,36 @@ static const int k_unit_icons[PEDIA_UNIT_COUNT] = {
   109, 110, 111, 112
 };
 
-/* Skill pages: prefer matching cargo / unit icons when useful. */
-static const int k_job_icons[PEDIA_JOB_COUNT] = {
-  22,  /* Farmer → Food */
-  23,  /* Sugar */
-  24,  /* Tobacco */
-  25,  /* Cotton */
-  26,  /* Fur trapper */
-  27,  /* Lumberjack */
-  28,  /* Ore miner */
-  29,  /* Silver */
-  22,  /* Fisherman → Food */
-  31,  /* Distiller → Rum */
-  32,  /* Tobacconist → Cigars */
-  33,  /* Weaver → Cloth */
-  34,  /* Fur trader → Coats */
-  101, /* Carpenter → Pioneer tools vibe */
-  36,  /* Blacksmith → Tools */
-  37,  /* Gunsmith → Muskets */
-  100, /* Preacher */
-  100, /* Statesman */
-  100, /* Teacher */
-  100, /* Free colonist */
-  101, /* Pioneer */
-  102, /* Soldier */
-  103, /* Scout */
-  104, /* Dragoon */
-  105, /* Missionary */
-  100, /* Indentured */
-  100, /* Criminal */
-  109  /* Convert → Brave-ish */
-};
+/*
+ * Skill-page portrait: DOS-LITERAL FUN_6cb2_1820 raw 110943-110945
+ * (asm CODE_144:6cb2:1928-193a, viceroy_unpacked.asm):
+ *
+ *   MOV AX,[BP+job] ; ADD AX,0x52
+ *   CMP [BP+job],0x1b ; JNZ .. ; MOV local_62,0x43
+ *   ... LEA BX,[0x2da8] ; CALLF FUN_281f_0254   ; AX = sprite id
+ *
+ * Ghidra drops the sprite argument of that FUN_281f_0254 blit (it rides in
+ * AX, not on the stack); the PUSH/register sequence above is the real arg.
+ * So the Pedia uses a flat `0x52 + job` formula, with exactly one escape for
+ * the Indian Convert (0x1b -> 0x43). DOS blit ids are 1-based, hence -1 here
+ * (same convention as k_units_job_icon in units_cargo.c): 81 + job, 66 for
+ * the Convert.
+ *
+ * This deliberately does NOT go through units_job_icon_sprite(): that table
+ * ports FUN_112b_0002, whose jump table gives Pioneer/Soldier/Scout/
+ * Missionary (jobs 20-24) their *working* poses 58..61 for the map and the
+ * colony screen. FUN_6cb2_1820 has no jump table — the Pedia article shows
+ * the equipped portraits 101..105 there. The two tables really do differ.
+ */
+static int pedia_job_icon_sprite(int job) {
+  if (job < 0 || job >= PEDIA_JOB_COUNT) {
+    return -1;
+  }
+  if (job == UNITS_JOB_CONVERT) {
+    return 0x43 - 1; /* 66 */
+  }
+  return 0x52 + job - 1; /* 81 + job */
+}
 
 /*
  * LABELS.TXT and MENU.TXT, bound once by the screen owner (game_loop) the way
@@ -444,7 +443,7 @@ static void pedia_set_preview(PediaPage* out, PediaCategory cat, int index, cons
       break;
     case PEDIA_CAT_JOB:
       out->preview_kind = PEDIA_PREVIEW_ICON;
-      out->icon_sprite = (index >= 0 && index < PEDIA_JOB_COUNT) ? k_job_icons[index] : -1;
+      out->icon_sprite = pedia_job_icon_sprite(index);
       break;
     case PEDIA_CAT_BUILDING:
       out->preview_kind = PEDIA_PREVIEW_BUILDING;
@@ -1685,11 +1684,7 @@ static int pedia_article_job(
   }
   const int icon_y = top + dy1;
 
-  int job_sprite = 81 + job;
-  if (job == UNITS_JOB_CONVERT) {
-    job_sprite = 66; /* Indian Convert */
-  }
-  pedia_blit(a->icons, job_sprite, fb, 10, icon_y);
+  pedia_blit(a->icons, pedia_job_icon_sprite(job), fb, 10, icon_y);
   char expert[64];
   pedia_job_expert_name(a->names, job, expert, sizeof(expert));
   font_draw_text(a->font, fb, 24, icon_y + 6, expert, PEDIA_COL_LINK_HOVER);

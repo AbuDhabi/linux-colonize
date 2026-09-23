@@ -4857,6 +4857,11 @@ static int sp_38(void) {
       col1.head.turn = 0; /* once-per-8-turns gift cooldown never blocks */
       st_pop[0] = '\0';
       int converts = 0;
+      /* bugs.md #879: the spawn must go through units_set_nation, which is
+       * the only thing that stamps col1_vis_mask = 1<<nation (units_spawn
+       * zeroes it). A raw `convert->nation_id = ...` left the owner unable to
+       * see its own convert through the fog. */
+      int cv_vis_mask = -1;
       for (int pulse = 0; pulse < 64 && converts == 0; ++pulse) {
         ai_popup_clear(&pop);
         /* Small consecutive seeds all give tiny first LCG outputs (mood roll
@@ -4875,6 +4880,9 @@ static int sp_38(void) {
           if (u->active && u->nation_id == c->nation_id &&
               u->profession == COLONIZE_PROF_CONVERT && u->x == c->x && u->y == c->y) {
             converts++;
+            if (cv_vis_mask < 0) {
+              cv_vis_mask = (int)u->col1_vis_mask;
+            }
           }
         }
       }
@@ -4882,6 +4890,10 @@ static int sp_38(void) {
       col1.head.turn = cv_saved_turn;
       if (converts == 0) {
         return fail("mission settlement visit should spawn an Indian Convert in the colony");
+      }
+      if (cv_vis_mask != (1 << (c->nation_id & 3))) {
+        fprintf(stderr, "unit_ai_contact: convert vis mask %d\n", cv_vis_mask);
+        return fail("@INDIANSCONVERT spawn must set col1_vis_mask via units_set_nation");
       }
       if (pop.queue_count < 1 ||
           pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK ||

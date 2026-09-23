@@ -984,11 +984,63 @@ static void effect_brewster_filter_pool(EuropeScreen* europe) {
 static int effect_las_casas_assimilate(
   ColonizeColonyPool* colonies,
   ColonizeUnitPool* units,
+  EuropeScreen* europe,
   int nation_id
 ) {
   int touched = 0;
   if (nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
     return 0;
+  }
+
+  /*
+   * bugs.md #880 — Europe dock half.
+   *
+   * DOS FUN_4345_0342 case 0x18 (raw 73123-73151) walks EVERY unit record in
+   * *(int*)0x539c; a colonist waiting in Europe is an ordinary unit record
+   * there, so a Convert on the docks is assimilated like any other. The port
+   * splits that state: the dock immigrant lives in EuropeDockImmigrant
+   * (europe.h) with a mirror unit parked at (236,236)
+   * (europe_spawn_dock_mirror_unit), and the mirror carries the dock's @JOB,
+   * not the DOS 0x1c "no profession" byte. So the map-unit half below cannot
+   * express the dock case and the dock is swept here, FIRST, so it owns its
+   * own mirror before the map half sees it.
+   *
+   * Value written: the port's dock convention for a plain Free Colonist is
+   * NAMES.TXT @JOB row 19 with the matching label (europe_dock.c:247-248,
+   * europe_pool.c:326-329), NOT the 0x1c/28 that colony colonists and map
+   * units use — europe_remove_dock_mirror_unit matches dock entry against
+   * mirror by that same profession value, so both are rewritten together.
+   *
+   * Human gate: there is no per-nation EuropeScreen in the port
+   * (docs/architecture.md), so like the Brewster pool mirror above this half
+   * runs only for the nation that owns the screen; the caller passes NULL for
+   * an AI elector.
+   */
+  if (europe) {
+    const int dock_free_colonist = 19; /* EUROPE_POOL_JOB_FREE_COLONIST */
+    for (int i = 0; i < europe->dock_count && i < EUROPE_DOCK_MAX; ++i) {
+      EuropeDockImmigrant* d = &europe->dock[i];
+      if (!d->present || d->profession != COLONIZE_PROF_CONVERT) {
+        continue;
+      }
+      if (units) {
+        /* Retarget this immigrant's mirror unit before the map half runs. */
+        for (int u = 0; u < COLONIZE_UNITS_MAX; ++u) {
+          ColonizeUnit* mu = &units->units[u];
+          if (!mu->active || mu->nation_id != nation_id || mu->x != 236 || mu->y != 236) {
+            continue;
+          }
+          if (mu->profession != COLONIZE_PROF_CONVERT) {
+            continue;
+          }
+          mu->profession = dock_free_colonist;
+          break;
+        }
+      }
+      d->profession = dock_free_colonist;
+      snprintf(d->name, sizeof(d->name), "%s", reports_job_display_name(dock_free_colonist));
+      touched++;
+    }
   }
 
   if (colonies) {
@@ -1362,7 +1414,9 @@ static void apply_effect(
        * assimilate as free colonists. Elect: profession Convert→Free
        * Colonist on owned colony colonists + map units. Ownership tick
        * in founding_fathers_tick re-runs for late converts. No gold/crosses. */
-      (void)effect_las_casas_assimilate(colonies, units, nation_id);
+      (void)effect_las_casas_assimilate(
+        colonies, units, nation_id == human_nation ? europe : NULL, nation_id
+      );
       break;
     default:
       break;
