@@ -9,6 +9,7 @@
 #include "core/colony.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
+#include "core/europe_internal.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
 #include "core/unit_chrome.h"
@@ -866,6 +867,85 @@ static int case_europe_workflow(void) {
     fprintf(stderr, "expected train options from @JOB\n");
     europe_free(&eu);
     return 1;
+  }
+  /* Costs/rows are catalog @JOB rows, never English names (docs/conventions.md
+   * "No MicroProse text"): Lumberjack=row 5/700$, Ore Miner=row 6/600$,
+   * Silver Miner=row 7/900$. */
+  {
+    bool saw_lumberjack = false, saw_ore = false, saw_silver = false;
+    for (int i = 0; i < eu.train_count; ++i) {
+      if (eu.train[i].job_index == COLONIZE_JOB_LUMBERJACK) {
+        saw_lumberjack = true;
+        if (eu.train[i].cost != 700) {
+          fprintf(stderr, "lumberjack train cost expected 700 got %d\n", eu.train[i].cost);
+          europe_free(&eu);
+          return 1;
+        }
+      } else if (eu.train[i].job_index == COLONIZE_JOB_ORE_MINER) {
+        saw_ore = true;
+        if (eu.train[i].cost != 600) {
+          fprintf(stderr, "ore miner train cost expected 600 got %d\n", eu.train[i].cost);
+          europe_free(&eu);
+          return 1;
+        }
+      } else if (eu.train[i].job_index == COLONIZE_JOB_SILVER_MINER) {
+        saw_silver = true;
+        if (eu.train[i].cost != 900) {
+          fprintf(stderr, "silver miner train cost expected 900 got %d\n", eu.train[i].cost);
+          europe_free(&eu);
+          return 1;
+        }
+      }
+    }
+    if (!saw_lumberjack || !saw_ore || !saw_silver) {
+      fprintf(
+        stderr, "train list missing expected @JOB rows (lumberjack=%d ore=%d silver=%d)\n",
+        saw_lumberjack, saw_ore, saw_silver
+      );
+      europe_free(&eu);
+      return 1;
+    }
+  }
+  /* bugs.md #893: FUN_38fd_41ce raw 64395-64401 greys an unaffordable Train
+   * row (FUN_291f_01b6); confirm must be inert (no unit, no gold change, no
+   * status text), same shape as #588 recruit / #754 purchase. */
+  {
+    int expensive = -1;
+    for (int i = 0; i < eu.train_count; ++i) {
+      if (expensive < 0 || eu.train[i].cost > eu.train[expensive].cost) {
+        expensive = i;
+      }
+    }
+    if (expensive < 0) {
+      fprintf(stderr, "train inert test setup: no rows\n");
+      europe_free(&eu);
+      return 1;
+    }
+    const int gold_save = eu.gold;
+    eu.gold = eu.train[expensive].cost - 1;
+    if (europe_train_affordable(&eu, expensive)) {
+      fprintf(stderr, "train inert test setup: row should be unaffordable\n");
+      europe_free(&eu);
+      return 1;
+    }
+    europe_menu_open(&eu, EUROPE_MENU_TRAIN);
+    eu.status[0] = '\0';
+    const int dock_pre_inert = eu.dock_count;
+    const int gold_pre_inert = eu.gold;
+    eu.menu_selection = expensive + 1;
+    if (europe_menu_confirm(&eu) || eu.dock_count != dock_pre_inert ||
+        eu.gold != gold_pre_inert || eu.status[0] != '\0' || eu.menu != EUROPE_MENU_TRAIN) {
+      fprintf(
+        stderr,
+        "unaffordable train row must be inert (dock %d->%d gold %d->%d status=\"%s\")\n",
+        dock_pre_inert, eu.dock_count, gold_pre_inert, eu.gold, eu.status
+      );
+      europe_free(&eu);
+      return 1;
+    }
+    europe_menu_close(&eu);
+    eu.gold = gold_save;
+    eu.status[0] = '\0';
   }
   int train_i = 0;
   for (int i = 0; i < eu.train_count; ++i) {
@@ -2330,6 +2410,68 @@ static int case_europe_workflow(void) {
       return 1;
     }
     fprintf(stderr, "pool refill rolls on the shared DOS stream ok\n");
+  }
+
+  /*
+   * bugs.md #895e: FUN_38fd_46d4 raw 64595-64609 folds the expert draw's
+   * unreachable classes onto neighbours — Tobacco Planter(2)->Lumberjack(5),
+   * Fur Trapper(4)->Ore Miner(6) (europe_pool_remap, europe_pool.c ~183-192).
+   * europe_pool_expert_roll's LFSR stand-in is the same LCG as
+   * europe_rng_next (europe.c); reimplemented here to search a seed that
+   * lands the raw draw on 2 and on 4, then confirm europe_roll_pool_profession
+   * returns the remapped profession, not the folded-away raw value.
+   */
+  {
+    unsigned seed2 = 0, seed4 = 0;
+    for (unsigned s = 1; s < 2000000u; ++s) {
+      unsigned t = s;
+      t = t * 1103515245u + 12345u;
+      const int v = (int)((t >> 16) & 0x1fu);
+      if (v == 2 && seed2 == 0) {
+        seed2 = s;
+      } else if (v == 4 && seed4 == 0) {
+        seed4 = s;
+      }
+      if (seed2 != 0 && seed4 != 0) {
+        break;
+      }
+    }
+    if (seed2 == 0 || seed4 == 0) {
+      fprintf(stderr, "pool remap test setup: no seed found for raw 2/4\n");
+      europe_free(&eu);
+      return 1;
+    }
+    EuropePoolView view;
+    memset(&view, 0, sizeof(view));
+    view.difficulty = 4;
+    view.brewster = false;
+    EuropePoolRng st;
+    st.dos = NULL;
+
+    unsigned local2 = seed2;
+    st.local = &local2;
+    const int job2 = europe_roll_pool_profession(&view, 0, true, &st);
+    if (job2 != COLONIZE_JOB_LUMBERJACK) {
+      fprintf(
+        stderr, "pool remap: raw 2 expected Lumberjack (%d) got %d\n",
+        COLONIZE_JOB_LUMBERJACK, job2
+      );
+      europe_free(&eu);
+      return 1;
+    }
+
+    unsigned local4 = seed4;
+    st.local = &local4;
+    const int job4 = europe_roll_pool_profession(&view, 0, true, &st);
+    if (job4 != COLONIZE_JOB_ORE_MINER) {
+      fprintf(
+        stderr, "pool remap: raw 4 expected Ore Miner (%d) got %d\n",
+        COLONIZE_JOB_ORE_MINER, job4
+      );
+      europe_free(&eu);
+      return 1;
+    }
+    fprintf(stderr, "pool remap fold 2->5, 4->6 ok\n");
   }
 
   /*

@@ -19,7 +19,7 @@ Tags: **arm** = code an act stage calls, decision is manual-cited ·
 |---|---|---|
 | `ai_euro_colony_wants_construction_labor` | 1650 | helper |
 | `ai_euro_colony_near_warehouse_cap` | 1683 | helper |
-| `ai_euro_colony_wants_lumberjack_labor` | 1867 | helper |
+| ~~`ai_euro_colony_wants_lumberjack_labor`~~ | — | **DELETED 2026-09-23 (bugs.md #890)** — invented Expert-Lumberjack LABOR bind, no DOS body; the real forced-lumberjack arm is FUN_5952_035e raw 94659-94679 in `ai_euro_colony_jobs.c` |
 | `ai_euro_is_military_name` | 1919 | note |
 | `ai_euro_unit_is_food_labor` | 4487 | helper |
 | `ai_euro_colony_inventory` | 5728 | helper |

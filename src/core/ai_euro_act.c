@@ -1195,7 +1195,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
    * Wagon Train haul (act-level): idle Wagon with hold capacity or TOOLS /
    * LUMBER / ORE / MUSKETS / HORSES / FOOD → AI_MOVE toward matching short
    * colony (unload via existing delivery). Cite: euro_unit_act §2d;
-   * Colonization.pdf Wagon Train; 5cf6 food/lumber/ore_short.
+   * Colonization.pdf Wagon Train; 5cf6 food_short.
    */
   int wagon_hauled = 0;
   if (!treasure_routed && ai_euro_type_is_wagon_name(ukind) &&
@@ -1392,9 +1392,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_a
    * Colonist with food_short > 0 → MD≤8 toward hungry colony (same join as
    * Expert Farmer path, without requiring Farmer profession). Cite: manual
    * 2 food/colonist; 5cf6 food_short; euro_unit_act §2e. No invented rates.
-   * Expert Lumberjack deepen: incomplete Warehouse/Lumber Mill (building type
-   * exists) → LABOR join (lumber for hammers). Forest field-assign is handled
-   * by the colony tick's placement pass; this is the no-forest fallback.
    * Tools-short deepen
    * (peace Pioneer): tools_short > 0 extends MD≤8 toward tools-short colony
    * so idle Pioneer walks in for case-7 tools delivery. Cite: 5cf6 shortage
@@ -1410,17 +1407,14 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_a
      * same profession value on the analogous production-side check. */
     const int is_carpenter =
       ukind == UNITS_KIND_COLONIST && u->profession == 0x0d;
-    /* Expert Lumberjack — lumber for incomplete Warehouse/Lumber Mill. */
-    const int is_lumberjack =
-      ukind == UNITS_KIND_COLONIST && u->profession == COLONIZE_JOB_LUMBERJACK;
     const int is_free_colonist =
       ukind == UNITS_KIND_COLONIST &&
       (u->profession == 19 ||
-       (!is_pioneer && !is_farmer && !is_carpenter && !is_lumberjack));
+       (!is_pioneer && !is_farmer && !is_carpenter));
     const int is_colonist_cap =
       ukind != UNITS_KIND_SOLDIER && ukind != UNITS_KIND_DRAGOON &&
       ukind != UNITS_KIND_SCOUT && !ai_euro_type_is_wagon_name(ukind) &&
-      (is_pioneer || is_farmer || is_carpenter || is_lumberjack ||
+      (is_pioneer || is_farmer || is_carpenter ||
        ukind == UNITS_KIND_COLONIST);
     if (!land_war_hunted && !peace_border_hunted && !scout_explored && !treasure_routed &&
         !wagon_hauled  &&
@@ -1449,13 +1443,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_a
        * Skills Chart Master Carpenter; euro_unit_act §2e Stockade pattern.
        */
       const int carpenter_bind = is_carpenter && !is_pioneer;
-      /*
-       * Expert Lumberjack LABOR: incomplete Warehouse/Lumber Mill when that
-       * building type exists (no-forest fallback). Cite: building_production
-       * Lumberjack→Lumber; Colonization.pdf Skills Chart. Field-assign is
-       * by the colony tick's own placement pass.
-       */
-      const int lumberjack_bind = is_lumberjack && !is_pioneer;
       /* (The MD≤3 "threatened Stockade" widening stood here; deleted with the
        * goal-side override above — 2026-09-18.) */
       const int max_dist =
@@ -1479,7 +1466,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_a
         }
         const int construction =
           ai_euro_colony_wants_construction_labor(ctx->colonies, c);
-        const int lumber_need = ai_euro_colony_wants_lumberjack_labor(ctx->colonies, c);
         /*
          * On-tile Pioneer/Hardy: leave for tools-delivery stand-in unless
          * Stockade/Warehouse/Lumber Mill is in production (stay/LABOR for
@@ -1511,10 +1497,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_a
         /* Master Carpenter: construction LABOR only (hammers) — Stockade pattern. */
         if (carpenter_bind) {
           need = construction;
-        }
-        /* Expert Lumberjack: Warehouse/Lumber Mill lumber LABOR only. */
-        if (lumberjack_bind) {
-          need = lumber_need;
         }
         if (!need) {
           continue;

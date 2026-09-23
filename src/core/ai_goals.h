@@ -79,10 +79,8 @@ typedef struct AiNationGoals {
 /* Per-nation shortage / demand scratch filled by dispatcher inventory. */
 typedef struct AiEuroInventory {
   int tools_short;
-  int lumber_short;
   int muskets_short;
   int food_short;
-  int ore_short; /* 5cf6-shaped Ore tally for Expert Ore Miner dock hire */
   /* horses_short / found_flags / profession_demand[] were write-only after the
    * Linux-shaped 5d04 hire matrix was retired 2026-09-07e; their real DOS
    * replacements are ai_euro_5d04_cb_colonies_wanting_colonists (DS:0xa0b8)

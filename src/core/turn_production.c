@@ -580,37 +580,18 @@ void turn_produce_one_colony(
         colony->colony_flags,
         has_hudson
       );
-      if (yld <= 0) {
-        continue;
-      }
-      int add = yld;
       const int cargo = colony_yield_job_cargo(c->field_job);
-      if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
-        continue;
-      }
-      colony->stock[cargo] = clamp_int(colony->stock[cargo] + add, 0, 65535);
-      if (delta) {
-        delta->goods[cargo] += add;
-      }
-      field_prod[cargo] += add;
-      if (cargo == COLONIZE_CARGO_FOOD) {
-        field_food += add;
-      } else if (cargo == COLONIZE_CARGO_LUMBER) {
-        field_lumber += add;
-      } else if (cargo == COLONIZE_CARGO_ORE) {
-        field_ore += add;
-      }
       /*
-       * Col1 +0x97 depletion units — FUN_15eb_18ec ~11913-11923 (DS 0xa896):
-       *   Minerals deposit (res 6)  + Ore Miner    → +1
-       *   Minerals deposit (res 6)  + Silver Miner → +2
-       *   Silver deposit   (res 12) + Silver Miner → +1
-       * Nothing else counts (an ordinary hills/mountain tile, or res 13 ore
-       * under an Ore Miner, never depletes — player-confirmed 2026-08-16:
-       * plain ore/silver tiles ended a real DOS turn at counter 0). The roll
-       * and wrap live in the epilogue below (DOS ~57932), not here.
+       * Col1 +0x97 depletion units — FUN_15eb_18ec raw 11913-11923 (DS
+       * 0xa896): Minerals(6)+Ore Miner -> +1, Minerals(6)+Silver Miner -> +2,
+       * Silver Deposit(12)+Silver Miner -> +1. DOS tallies this from
+       * (resource, job) alone as it walks the 5x5 field loop, BEFORE the
+       * silver collapse / improvement stack / negative-SoL tail that can
+       * drive `yld` to <= 0 for this same plot — a worked deposit still
+       * depletes even on a yield-0 turn (bugs.md #894). Hoisted above the
+       * `yld <= 0` gate below; nothing else in this block may move.
        */
-      {
+      if (cargo >= 0 && cargo < COLONIZE_CARGO_COUNT) {
         const int res = map_resource_type_for_yield(map, colony->x + dx, colony->y + dy);
         int units = 0;
         if (res == 6 && cargo == COLONIZE_CARGO_ORE) {
@@ -625,6 +606,25 @@ void turn_produce_one_colony(
           depl_ty[depl_n] = colony->y + dy;
           depl_n++;
         }
+      }
+      if (yld <= 0) {
+        continue;
+      }
+      int add = yld;
+      if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
+        continue;
+      }
+      colony->stock[cargo] = clamp_int(colony->stock[cargo] + add, 0, 65535);
+      if (delta) {
+        delta->goods[cargo] += add;
+      }
+      field_prod[cargo] += add;
+      if (cargo == COLONIZE_CARGO_FOOD) {
+        field_food += add;
+      } else if (cargo == COLONIZE_CARGO_LUMBER) {
+        field_lumber += add;
+      } else if (cargo == COLONIZE_CARGO_ORE) {
+        field_ore += add;
       }
     }
   }

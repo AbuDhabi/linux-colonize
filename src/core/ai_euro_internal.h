@@ -250,10 +250,6 @@ int ai_euro_colony_wants_construction_labor(
   const ColonizeColony* c
 );
 void ai_euro_prefer_peace_construction(ColonizeTurnContext* ctx, int nation_id);
-int ai_euro_colony_wants_lumberjack_labor(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* c
-);
 int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id);
 int ai_euro_is_military_name(ColonizeUnitKind k);
 int ai_euro_is_land_war_hunter(ColonizeUnitKind kind);

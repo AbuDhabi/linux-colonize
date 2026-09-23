@@ -1432,6 +1432,9 @@ bool europe_menu_confirm_ex(EuropeScreen* eu, ColonizeDosRng* rng) {
     return ok;
   }
   if (m == EUROPE_MENU_TRAIN) {
+    if (!europe_train_affordable(eu, sel - 1)) {
+      return false; /* greyed row: inert, dialog stays up (bugs.md #893) */
+    }
     const bool ok = europe_train_ex(eu, sel - 1, rng);
     europe_menu_close(eu);
     return ok;

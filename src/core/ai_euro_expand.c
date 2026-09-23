@@ -944,26 +944,11 @@ void ai_euro_colony_inventory(ColonizeTurnContext* ctx, int nation_id) {
     if (c->stock[COLONIZE_CARGO_TOOLS] < 20) {
       inv->tools_short += 20 - c->stock[COLONIZE_CARGO_TOOLS];
     }
-    /*
-     * Lumber shortage tally (5cf6-shaped): mirror tools_short<20 for lumber when
-     * colony wants lumberjack LABOR (Warehouse/Lumber Mill) or any construction
-     * is in progress. Cite: docs/building_production.md Lumberjack→Lumber;
-     * ai_euro_colony_wants_lumberjack_labor; euro_unit_act §2e.
-     */
-    if ((ai_euro_colony_wants_lumberjack_labor(ctx->colonies, c) ||
-         c->building_in_production >= 0) &&
-        c->stock[COLONIZE_CARGO_LUMBER] < 20) {
-      inv->lumber_short += 20 - c->stock[COLONIZE_CARGO_LUMBER];
-    }
     if (c->stock[COLONIZE_CARGO_MUSKETS] < 10) {
       inv->muskets_short += 10 - c->stock[COLONIZE_CARGO_MUSKETS];
     }
     if (c->stock[COLONIZE_CARGO_FOOD] < c->population * 2) {
       inv->food_short += (c->population * 2) - c->stock[COLONIZE_CARGO_FOOD];
-    }
-    /* Ore shortage (5cf6-shaped): feed Blacksmith / Expert Ore Miner dock hire. */
-    if (c->stock[COLONIZE_CARGO_ORE] < 20) {
-      inv->ore_short += 20 - c->stock[COLONIZE_CARGO_ORE];
     }
     /* FUN_5952_035e thin: INC cargo_idle_turns (+0x8f) + improve_timer (+0x8c)
      * cap 0x7f. */

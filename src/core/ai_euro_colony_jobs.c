@@ -376,18 +376,26 @@ static int ai_euro_28c8_score_full(
               const int p = (int)col1->nation[col->nation_id].trade.euro_price[cargo] - 1;
               w4 = p < 0 ? 0 : p;
             }
+            /* DOS-LITERAL FUN_15eb_28c8 raw ~13073-13085: the body is a comma
+             * expression — `(local_4 = local_4 + 2, byte[DS:0x5398+0x917c] <=
+             * byte[nation+0x917c])`. The flat +2 fires unconditionally once
+             * !human && cargo==ORE && pop>7 && turn>0x4f; only the two
+             * FUN_15eb_039e chain terms sit behind the wealth-rank compare
+             * (bugs.md #889). */
             if (!env.human && cargo == COLONIZE_CARGO_ORE && col->population > 7 &&
-                env.turn > 0x4f && ctx->euro_power_rank_ok &&
-                ctx->euro_power_rank[ctx->human_nation] <= ctx->euro_power_rank[col->nation_id]) {
+                env.turn > 0x4f) {
               w4 += 2;
-              /* FUN_15eb_039e(0x28) / (3): owned tiers of the Blacksmith and
-               * Armory chains — not an RNG draw. */
-              w4 += ai_euro_28c8_chain_owned_upto(
-                ctx->colonies, col, COLONIES_CHAIN_BLACKSMITH, 2
-              );
-              w4 += ai_euro_28c8_chain_owned_upto(
-                      ctx->colonies, col, COLONIES_CHAIN_ARMORY, 1
-                    ) * 2;
+              if (ctx->euro_power_rank_ok &&
+                  ctx->euro_power_rank[ctx->human_nation] <= ctx->euro_power_rank[col->nation_id]) {
+                /* FUN_15eb_039e(0x28) / (3): owned tiers of the Blacksmith and
+                 * Armory chains — not an RNG draw. */
+                w4 += ai_euro_28c8_chain_owned_upto(
+                  ctx->colonies, col, COLONIES_CHAIN_BLACKSMITH, 2
+                );
+                w4 += ai_euro_28c8_chain_owned_upto(
+                        ctx->colonies, col, COLONIES_CHAIN_ARMORY, 1
+                      ) * 2;
+              }
             }
           }
           int m = w4 + 1; /* local_38 */

@@ -1176,7 +1176,8 @@ static int unit_wagon_haul_muskets_short(void) {
 
 /*
  * Idle Wagon with LUMBER cargo → AI_MOVE toward lumber-short colony (tools OK).
- * Cite: euro_unit_act §2d wagon haul lumber; 5cf6 lumber_short; COLONIZE_CARGO_LUMBER.
+ * Cite: euro_unit_act §2d wagon haul lumber; COLONIZE_CARGO_LUMBER (the
+ * inv->lumber_short tally this once cited was deleted, bugs.md #891).
  */
 static int unit_wagon_haul_lumber_short(void) {
   const int nation = 1;
@@ -1271,7 +1272,8 @@ static int unit_wagon_haul_lumber_short(void) {
 
 /*
  * Idle Wagon with ORE cargo → AI_MOVE toward ore-short colony (tools OK).
- * Cite: euro_unit_act §2d wagon haul ore; 5cf6 ore_short; COLONIZE_CARGO_ORE.
+ * Cite: euro_unit_act §2d wagon haul ore; COLONIZE_CARGO_ORE (the
+ * inv->ore_short tally this once cited was deleted, bugs.md #891).
  */
 static int unit_wagon_haul_ore_short(void) {
   const int nation = 1;
