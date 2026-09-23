@@ -91,7 +91,7 @@ void colony_craft_preview(
 
 /*
  * Per-raw-cargo craft demand this tick: demand[in_cargo] is true iff some
- * staffed worker's tier-scaled recipe input (colony_prod_manufacturing_input,
+ * staffed worker's tier-scaled recipe input (colony_prod_chain_input_for_total_output,
  * same sol_bonus fold as colony_craft_one_colony) is > 0 for a recipe whose
  * in_cargo is that good — i.e. someone is actually working a building that
  * wants to consume it, not just "the building exists" (DOS FUN_364b_0688

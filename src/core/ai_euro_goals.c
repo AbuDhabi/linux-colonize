@@ -1734,7 +1734,13 @@ static void ai_euro_5952_equip_arm(
    * iStack_18 still holding the LAST loop iteration's profession, not the
    * picked colonist's — the scorer's loop variable leaks out of the loop.
    */
-  const int last_prof = (int)c->colonists[equip_pop - 1].profession;
+  /* The leaked variable holds the LAST slot the scorer actually iterated, and
+   * ai_euro_5952_equip_pick stops at COLONIZE_COLONY_POP_MAX — bugs.md #862. */
+  int last_slot = equip_pop;
+  if (last_slot > COLONIZE_COLONY_POP_MAX) {
+    last_slot = COLONIZE_COLONY_POP_MAX;
+  }
+  const int last_prof = last_slot > 0 ? (int)c->colonists[last_slot - 1].profession : 0;
   if (ai_euro_5952_job_is_expert(last_prof) && target != last_prof) {
     /* FUN_1000_8e9e(colony, pick, 0x1c) = FUN_281f_0cae, clear specialty. */
     c->colonists[pick].profession = COLONIZE_PROF_FREE_COLONIST;

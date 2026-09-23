@@ -310,11 +310,18 @@ static int colony_yield_pipeline(
 
   /*
    * Fur Trapper pre-multiplier road/river add — FUN_15eb_18ec's own job==4
-   * block right after the base lookup (viceroy_unpacked.c ~11840-11850,
-   * gated on base != 0): +1 for a road (runtime mask 0x0a), +1 for a river
-   * with +1 more on a major river (terrain bits 0x40/0x80), all added
-   * *before* the SoL fold and expert doubling. Combined with the
-   * unit-sized add in the shared improvement
+   * block right after the base lookup (raw 11845-11848, gated on base != 0):
+   * `uVar2 = FUN_137f_0142(x,y); if ((uVar2 & 10) != 0) local_26 += 1;` —
+   * road bit 0x02 OR settlement bit 0x08, not road alone. Then +1 for a
+   * river with +1 more on a major river (terrain bits 0x40/0x80), all added
+   * *before* the SoL fold and expert doubling. The port deliberately narrows
+   * the `& 0x0a` test to the road bit only (`map_tile_has_road`) — the same
+   * decision the shared improvement stack below already makes for the same
+   * reason (smell audit #26: widening to road-or-settlement breaks
+   * golden_colony_prod01 via St. Louis +1 food) — and it is unreachable here
+   * in practice because `colonies_plot_blocked_mask` (colony_plots.c
+   * 203-208) refuses any plot carrying a village or a foreign colony centre.
+   * Combined with the unit-sized add in the shared improvement
    * stack below this reproduces the old "furs road/river bucket = 2,
    * major river 4, expert-doubled" totals exactly (2026-08-15 Hudson
    * capture: (3 + road 1 + sol 2)×2 + road u2 = 14, ×Hudson = 28).

@@ -37,16 +37,42 @@ static ColonyProdTier colony_prod_building_tier_row(int building_row) {
   }
 }
 
-/* Cargo input consumed to produce `output` units at tier (factory: 6 in per
- * 9 out). Audit CO-31: file-local. */
+/*
+ * Cargo input consumed to produce `output` units at tier. DOS FUN_15eb_0bd4
+ * raw 10168-10172 is one floor divide on the factory tier and 1:1 below it:
+ *
+ *     local_6 = iVar3;                        // gross finished-good output
+ *     if (2 < FUN_15eb_039e(chain)) {         // 3 buildings in the chain = factory
+ *       local_6 = (iVar3 << 1) / 3;
+ *     }
+ *
+ * i.e. 2-in-per-3-out truncating, NOT the old `(output * 6 + 8) / 9`
+ * round-half-up (bugs.md #851). Both satisfy the 2026-08-15 player anchor
+ * (Textile Mill, out 12 -> 8 cotton) and the Iron Works base anchor
+ * (out 9 -> 6); they differ on odd totals, where DOS truncates.
+ *
+ * DOS divides the colony *total* gross once; the craft pass therefore calls
+ * colony_prod_chain_input_for_total_output below. This per-worker entry point
+ * stays for display/AI callers that only hold one worker. Audit CO-31:
+ * file-local.
+ */
 static int colony_prod_tier_input_for_output(ColonyProdTier tier, int output) {
   if (output <= 0) {
     return 0;
   }
   if (tier == COLONY_PROD_TIER_FACTORY) {
-    return (output * 6 + 8) / 9;
+    return (output * 2) / 3;
   }
   return output;
+}
+
+int colony_prod_chain_input_for_total_output(int building_row, int total_output) {
+  if (total_output <= 0) {
+    return 0;
+  }
+  return colony_prod_tier_input_for_output(
+    colony_prod_building_tier_row(building_row), total_output
+  );
 }
 
 static int colony_prod_scale_by_class(int profession, int free_tier_output) {
@@ -182,8 +208,8 @@ int colony_prod_manufacturing_input_row(
    * Player-confirmed 2026-08-15 (Viceroy): Textile Mill (factory tier), free
    * colonist, +2 sentiment bonus — output 12 cloth/turn, colony-wide cotton
    * accounting showed exactly 8 consumed that turn. `colony_prod_tier_
-   * input_for_output(FACTORY, 12) = (12*6+8)/9 = 8` — exact match. The
-   * un-modified base output (9, sol_bonus=0) would give `(9*6+8)/9 = 6`,
+   * input_for_output(FACTORY, 12) = (12*2)/3 = 8` — exact match. The
+   * un-modified base output (9, sol_bonus=0) would give `(9*2)/3 = 6`,
    * not 8 — wrong. So the 6-for-9 factory discount is real (this also
    * settles the long-open "does DOS really discount factory input, or
    * consume 1:1" question — it discounts), but it applies to the *actual*
@@ -191,6 +217,10 @@ int colony_prod_manufacturing_input_row(
    * via `sol_bonus=0`. Fixed: takes sol_bonus and threads it through to
    * colony_prod_manufacturing_output the same way the output side already
    * does. See docs/building_production.md factory-input fix-log row.
+   *
+   * Per-WORKER entry point only: the tick derives its requirement from the
+   * colony total via colony_prod_chain_input_for_total_output (bugs.md
+   * #851), because DOS does the divide once.
    */
   const int out =
     colony_prod_manufacturing_output_row(building_row, profession, craft_profession, sol_bonus);

@@ -97,11 +97,13 @@ static int check_commons_flags(
   check_commons_flags((map), (x), (y), -1, (cargo), (amt), (flags), (label))
 
 /*
- * Town-commons food is a flat +2 regardless of terrain (plus
- * plow/river/resource on top) — golden_colony_prod01 (a real single DOS
- * turn across 14 Dutch colonies) rules out a per-terrain "cleared-parent
- * Farmer + 2" formula: it over-produced food by 1-4 in nearly every
- * colony. See colony_yield_town_commons_food_base's comment.
+ * Town-commons food is the DOS 4-way pedia-class split (FUN_15eb_1f72 raw
+ * 12506-12518: class 24 -> 0; 1/9/17 -> 1; 8..23 and 27/28 -> 2; everything
+ * else -> 3), plus difficulty/plow/river/resource on top — see
+ * colony_yield_town_commons_food_base. It is NOT a flat +2, and it is not
+ * the "cleared-parent Farmer + 2" formula golden_colony_prod01 ruled out
+ * (that one over-produced food by 1-4 in nearly every colony). The
+ * per-case comments below name the class each fixture lands in.
  */
 
 /* Scrub forest (pedia 9) — food class 1 (Desert/Scrub special case, see
@@ -923,6 +925,186 @@ static int case_docks_row6_bit(void) {
   return 0;
 }
 
+/*
+ * Beaver (resource 8) + Fur Trapper = +3, not +2 — FUN_15eb_17fa raw
+ * 11736-11738 (`(param_1 == 8) && (param_2 == 4)` -> local_4 + 3). The +3
+ * was a 2026-09-03 correction from a wrongly-read +2 and nothing pinned it
+ * (only Game +2 was covered), so it could silently regress; the
+ * Colonopedia's own copy had in fact drifted back to +2 (bugs.md #855).
+ * Mixed forest (class 10) is the Beaver-bearing forest row: fur base 3.
+ *   free colonist: 3 + 3 = 6
+ *   expert:        (3 + 3) << 1 = 12   (resource add is inside the doubling)
+ */
+static int case_fur_trapper_beaver(void) {
+  ColonizeWorldMap map;
+  if (map_new(&map) != 0) {
+    return 1;
+  }
+  int bx = -1;
+  int by = -1;
+  if (!find_resource_tile(&map, 10, 8, &bx, &by)) {
+    fprintf(stderr, "no mixed-forest+Beaver procedural tile found on 32x32\n");
+    map_free(&map);
+    return 1;
+  }
+  const int free_fur = colony_yield_for_worker(
+    &map, bx, by, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
+    false
+  );
+  const int expert_fur = colony_yield_for_worker(
+    &map, bx, by, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 0, 0,
+    false
+  );
+  map_free(&map);
+  if (free_fur != 6 || expert_fur != 12) {
+    fprintf(stderr, "mixed+Beaver fur free=%d expert=%d expected 6/12\n", free_fur, expert_fur);
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * Furs are the one job that counts a river TWICE: the job-4-only
+ * pre-multiplier block (FUN_15eb_18ec raw 11849-11851: +1 minor, +2 major,
+ * written as `local_26 + 2` — not 1+1) and then the generic improvement
+ * stack's own river `+u`. Mixed forest (base 3), resource-free:
+ *   minor river, free colonist: 3 +1 pre +1 stack                     = 5
+ *   major river, free colonist: 3 +2 pre +1 stack +1 (major, add==u)  = 7
+ *   major river + road, free:   3 +1 pre road +2 pre river
+ *                               +1 stack road +1 stack river (add!=u)  = 8
+ *     — the road is what disqualifies the stack's major-river extra (the
+ *       only place that `add == u` guard is observable for furs), and it
+ *       is ALSO counted twice, pre-multiplier and stack, like the river.
+ *   major river, expert:        (3 +2) << 1 = 10, +2 river +2 major    = 14
+ */
+static int case_fur_trapper_river_double_count(void) {
+  ColonizeWorldMap map;
+  if (map_new(&map) != 0) {
+    return 1;
+  }
+  int mx = -1;
+  int my = -1;
+  for (int y = 0; y < (int)map.height && mx < 0; ++y) {
+    for (int x = 0; x < (int)map.width && mx < 0; ++x) {
+      map.terrain[y * map.width + x] = 10; /* Mixed forest, no river */
+      if (map_resource_type_for_yield(&map, x, y) < 0) {
+        mx = x;
+        my = y;
+      }
+    }
+  }
+  if (mx < 0) {
+    fprintf(stderr, "no resource-free Mixed forest tile found on 32x32\n");
+    map_free(&map);
+    return 1;
+  }
+  const size_t ti = (size_t)my * (size_t)map.width + (size_t)mx;
+  int rc = 0;
+  map.terrain[ti] = (uint8_t)(10u | 0x40u); /* minor river */
+  const int minor = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
+    false
+  );
+  map.terrain[ti] = (uint8_t)(10u | 0x40u | 0x80u); /* major river */
+  const int major = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
+    false
+  );
+  const int major_expert = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 0, 0,
+    false
+  );
+  map_tile_set_road(&map, mx, my, true);
+  const int major_road = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
+    false
+  );
+  map_free(&map);
+  if (minor != 5 || major != 7 || major_expert != 14 || major_road != 8) {
+    fprintf(
+      stderr,
+      "fur river: minor=%d major=%d major_expert=%d major_road=%d expected 5/7/14/8\n",
+      minor,
+      major,
+      major_expert,
+      major_road
+    );
+    rc = 1;
+  }
+  return rc;
+}
+
+/*
+ * Rain forest (pedia 15) is the one forest whose commons secondary is NOT
+ * furs: FUN_15eb_1f72 raw 12553-12570 elects the strictly-greatest job over
+ * 1..7 skipping 5, and Rain's Fur 1 only TIES Sugar 1, so the earlier job
+ * (1, Sugar Planter) keeps it. That is the whole of docs/terrain_yields.md's
+ * "Fur Trapper unless Rain" rule, and nothing pinned the tie direction.
+ * Food = 2 (class 8..23), difficulty 2 so no handout.
+ */
+static int case_commons_rain_fur_sugar_tie(void) {
+  ColonizeWorldMap map;
+  if (map_new(&map) != 0) {
+    return 1;
+  }
+  int rx = -1;
+  int ry = -1;
+  for (int y = 0; y < (int)map.height && rx < 0; ++y) {
+    for (int x = 0; x < (int)map.width && rx < 0; ++x) {
+      map.terrain[y * map.width + x] = 15; /* Rain forest, no river */
+      if (map_resource_type_for_yield(&map, x, y) < 0) {
+        rx = x;
+        ry = y;
+      }
+    }
+  }
+  if (rx < 0) {
+    fprintf(stderr, "no resource-free Rain forest tile found on 32x32\n");
+    map_free(&map);
+    return 1;
+  }
+  const int rc =
+    check_commons(&map, rx, ry, 2, COLONIZE_CARGO_SUGAR, 1, "rain forest commons (Fur/Sugar tie)");
+  map_free(&map);
+  return rc;
+}
+
+/*
+ * The base-0 gate on furs: FUN_15eb_18ec's `local_26 != 0` (raw 11813)
+ * encloses the fur pre-multiplier block, the positive-SoL fold AND the
+ * expert doubling, so an Expert Fur Trapper on any terrain whose fur column
+ * is 0 produces nothing at all — no expert flat bonus, no road/river, no
+ * Hudson. Checked on Prairie (unforested, fur 0) with a road, a major river
+ * and Hudson all on at once.
+ *
+ * The row's "expert on a base-0 Game tile" variant is unreachable by
+ * construction, and that is worth recording rather than asserting: Game
+ * (resource 9) is only produced for terrain classes 8/11/16/19 (map.c's
+ * mapedit_resource_type_by_terrain), all four of which are forest rows with
+ * a fur base of 2 or 3, so no resource-bearing tile can pair Game with a
+ * zero fur base. The resource add sitting outside the base-0 gate therefore
+ * only shows up for Farmer (Game +2 on cleared land), which
+ * case_expert_farmer_game_resource already covers.
+ */
+static int case_expert_fur_trapper_base_zero(void) {
+  ColonizeWorldMap map;
+  if (map_new(&map) != 0) {
+    return 1;
+  }
+  map.terrain[7] = (uint8_t)(3u | 0x40u | 0x80u); /* Prairie + major river */
+  map_tile_set_road(&map, 7, 0, true);
+  const int expert_fur = colony_yield_for_worker(
+    &map, 7, 0, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 2, 0,
+    /*has_hudson=*/true
+  );
+  map_free(&map);
+  if (expert_fur != 0) {
+    fprintf(stderr, "expert fur trapper on prairie (fur base 0) want 0 got %d\n", expert_fur);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"commons_scrub", case_commons_scrub},
   {"commons_hills_base", case_commons_hills_base},
@@ -934,6 +1116,10 @@ static const TestCase k_cases[] = {
   {"fisherman_major_river", case_fisherman_major_river},
   {"expert_ore_miner_hills_road_sol", case_expert_ore_miner_hills_road_sol},
   {"expert_fur_trapper_hudson", case_expert_fur_trapper_hudson},
+  {"fur_trapper_beaver", case_fur_trapper_beaver},
+  {"fur_trapper_river_double_count", case_fur_trapper_river_double_count},
+  {"commons_rain_fur_sugar_tie", case_commons_rain_fur_sugar_tie},
+  {"expert_fur_trapper_base_zero", case_expert_fur_trapper_base_zero},
   {"expert_farmer_game_resource", case_expert_farmer_game_resource},
   {"hills_farmer", case_hills_farmer},
   {"tundra_farmer_sol_readd", case_tundra_farmer_sol_readd},

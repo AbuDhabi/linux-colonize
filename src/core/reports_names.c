@@ -312,8 +312,10 @@ const char* reports_job_display_name(int job) {
  * @JOB column 0 — the singular job word ("Distiller"), as opposed to
  * reports_job_display_name's column 1 recruit/specialty plural ("Master
  * Distiller"). colony.c's profession label and the colony-yield field job
- * names are this column; the map panel's unit profession line and the
- * Europe recruit pool are column 1.
+ * names are this column; the map panel's unit profession line
+ * (`units_profession_line`, FUN_49dd_0386 raw 78620) and the Europe recruit
+ * pool (`europe_dock_caption`, FUN_38fd_3694 raw 61193) are ALSO column 0
+ * (bugs.md #507/#624 moved them off column 1).
  */
 const char* reports_job_short_name(int job) {
   static char live[32][24];

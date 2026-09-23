@@ -117,7 +117,7 @@ static int reports_naval_goods_icon(int cargo_type, int amount) {
  * (bugs.md #605).
  *
  * The rule it follows is DOS's own identity rule, the one the map panel's
- * `FUN_49dd_0386` and `units_profession_label` use: a unit is named by its
+ * `FUN_49dd_0386` (`units_profession_line`) uses: a unit is named by its
  * PROFESSION when that profession is a skilled one, and by its @UNIT row
  * otherwise. The old five-entry whitelist (professions 20-24, the equipment
  * kits) was a curve fit to naval.png's single example and left every other

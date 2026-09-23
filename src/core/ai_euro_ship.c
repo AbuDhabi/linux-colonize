@@ -1518,7 +1518,16 @@ int ai_euro_try_ship_europe_export(
     return 0;
   }
 
-  /* Prefer SILVER then other export-eligible cargos (FUN_364b_0636). */
+  /*
+   * Export-eligible cargos in plain INDEX order (FUN_364b_0636 denies
+   * {0,5,8,0xe,0xf}), every one over the threshold, no preference and no
+   * stop after the first: the >99 / leave-50 rule this arm borrows comes from
+   * FUN_364b_0688's Custom-House loop (viceroy_unpacked.c raw 57238
+   * `for (local_b6 = 0; (int)local_b6 < 0x10; ...)`, dump raw 57270-57276),
+   * which walks 0..0xf in index order and drains EVERY enabled good over 99
+   * down to 50 without breaking. bugs.md #861 — the hand-written Silver-first
+   * list and the single-cargo `break` were invented; DOS has neither.
+   */
   const int has_cap = ai_euro_unit_hold_has_capacity(ctx->units, ship) &&
                       ai_euro_is_cargo_ship_name(ai_euro_unit_kind(ctx->units, ship));
   if (has_cap && !ai_euro_ship_holds_export_goods(ctx->units, ship)) {
@@ -1530,25 +1539,11 @@ int ai_euro_try_ship_europe_export(
       if (!ai_euro_tiles_near(ship->x, ship->y, c->x, c->y)) {
         continue;
       }
-      static const int k_prefer[] = {
-        COLONIZE_CARGO_SILVER,
-        COLONIZE_CARGO_SUGAR,
-        COLONIZE_CARGO_TOBACCO,
-        COLONIZE_CARGO_COTTON,
-        COLONIZE_CARGO_FURS,
-        COLONIZE_CARGO_ORE,
-        COLONIZE_CARGO_RUM,
-        COLONIZE_CARGO_CIGARS,
-        COLONIZE_CARGO_CLOTH,
-        COLONIZE_CARGO_COATS,
-        COLONIZE_CARGO_TRADE_GOODS
-      };
-      for (size_t pi = 0; pi < sizeof(k_prefer) / sizeof(k_prefer[0]); ++pi) {
-        const int ct = k_prefer[pi];
+      for (int ct = 0; ct < COLONIZE_CARGO_COUNT; ++ct) {
         if (!europe_cargo_export_eligible(ct)) {
           continue;
         }
-        /* FUN_364b_0688: stock>99 → sell/leave 50; load the excess. */
+        /* FUN_364b_0688 raw 57270-57276: stock > 99 → take it down to 50. */
         if (c->stock[ct] <= 99) {
           continue;
         }
@@ -1556,9 +1551,7 @@ int ai_euro_try_ship_europe_export(
         if (amt <= 0) {
           continue;
         }
-        if (colonies_transfer_to_unit(ctx->colonies, c->id, ctx->units, ship->id, ct, amt) > 0) {
-          break;
-        }
+        colonies_transfer_to_unit(ctx->colonies, c->id, ctx->units, ship->id, ct, amt);
       }
       break;
     }

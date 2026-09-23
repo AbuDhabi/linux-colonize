@@ -5967,6 +5967,78 @@ static int sp_47(void) {
     if (gp.queue_count < 1) {
       return fail("gift visit should raise a popup for the human");
     }
+
+    /*
+     * bugs.md #819: the @INDIANGIVESTUFF quantity is
+     * `100 / (DS:0x84BC[nation*0x10 + cargo] + 1)` (FUN_5bfb_022e raw 87930),
+     * and that byte is the LIVE `euro_price[cargo] - 1` of the VISITED
+     * colony's owner (colony+0x1a), not a start-of-game capture. Same seed,
+     * same picked cargo, two Europe markets → two tonnages.
+     */
+    {
+      /* Snapshot every cell this sub-case perturbs — the rest of this fixture
+       * (the #417 control below) reuses the same colony, market row and
+       * latches. */
+      uint8_t saved_price[COLONIZE_CARGO_COUNT];
+      int16_t saved_stock[COLONIZE_CARGO_COUNT];
+      for (int cg = 0; cg < COLONIZE_CARGO_COUNT; ++cg) {
+        saved_price[cg] = col1.nation[0].trade.euro_price[cg];
+        saved_stock[cg] = colonies.colonies[0].stock[cg];
+      }
+      const uint16_t saved_819_turn = col1.head.turn;
+      const uint8_t saved_819_state = col1.indian[0].contact_state[0];
+      int qty_by_price[2] = {0, 0};
+      static const int k_819_price[2] = {1, 0x65};
+      for (int pass = 0; pass < 2; ++pass) {
+        ai_contact_reset();
+        col1.head.turn = (uint16_t)(20 + pass);
+        col1.indian[0].contact_state[0] = 0;
+        col1.indian[0].alarm_by_player[0] = 10;
+        col1.tribe[0].alarm[0].friction = 0;
+        col1.tribe[0].alarm[0].attacks = 0;
+        for (int cg = 0; cg < COLONIZE_CARGO_COUNT; ++cg) {
+          colonies.colonies[0].stock[cg] = 0;
+          col1.nation[0].trade.euro_price[cg] = (uint8_t)k_819_price[pass];
+        }
+        colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 100; /* > 25 → GIVESTUFF */
+        ai_native_note_brave_turn_origin(
+          gift_brave, colonies.colonies[0].x + 3, colonies.colonies[0].y + 3);
+        dos_rng_seed(&gift_rng, 7u);
+        ctx.rng = &gift_rng;
+        ai_popup_clear(&gp);
+        const int fired = ai_contact_try_village_gifts(&ctx, 4);
+        ctx.rng = saved_rng;
+        if (!fired) {
+          return fail("#819 fixture: the gift visit must fire on both passes");
+        }
+        for (int cg = 0; cg < COLONIZE_CARGO_COUNT; ++cg) {
+          if (cg != COLONIZE_CARGO_FOOD && colonies.colonies[0].stock[cg] > 0) {
+            qty_by_price[pass] = colonies.colonies[0].stock[cg];
+            break;
+          }
+        }
+      }
+      fprintf(
+        stderr, "unit_ai_contact: #819 gift qty price1=%d price0x65=%d\n",
+        qty_by_price[0], qty_by_price[1]
+      );
+      /* price byte 0x64 → 100/101 = 0, lifted to the DOS floor of 5; price
+       * byte 0 → 100, so the live row must produce the larger gift. */
+      if (qty_by_price[1] != 5) {
+        return fail("#819: a 0x65 Europe price must clamp the gift to the DOS floor of 5");
+      }
+      if (qty_by_price[0] <= qty_by_price[1]) {
+        return fail("#819: gift tonnage must track the LIVE DS:0x84BC price byte");
+      }
+      for (int cg = 0; cg < COLONIZE_CARGO_COUNT; ++cg) {
+        col1.nation[0].trade.euro_price[cg] = saved_price[cg];
+        colonies.colonies[0].stock[cg] = saved_stock[cg];
+      }
+      col1.head.turn = saved_819_turn;
+      col1.indian[0].contact_state[0] = saved_819_state;
+      col1.tribe[0].alarm[0].friction = 0;
+      col1.tribe[0].alarm[0].attacks = 0;
+    }
     /*
      * 2026-09-10: the 8-turn visit cooldown was removed — DOS FUN_5bfb_022e
      * and its move-tail caller carry no turn counter (see the visit pacing

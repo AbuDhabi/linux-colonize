@@ -2,6 +2,8 @@
  * the original inline main() body: calendar, production, EOT phases, save/census beats. */
 #include "test_turn_common.h"
 
+#include "core/colony_craft.h"
+
 static int expect_date(uint16_t year, uint16_t autumn, const char* want) {
   char got[32];
   turn_format_date(year, autumn, got, sizeof(got));
@@ -856,7 +858,8 @@ static int case_production_rules_manufacturing(void) {
      * consumed). Reusing Iron Works here (same tier/tag math, recipe-
      * independent) — free colonist, sol_bonus=2: v=3+2=5, +tag=8,
      * factory x1.5 floor=12 (matches the 12 cloth exactly). Input:
-     * (12*6+8)/9=8, matching the observed 8 cotton exactly — settles the
+     * (12*2)/3=8 (FUN_15eb_0bd4 raw 10168-10172), matching the observed
+     * 8 cotton exactly — settles the
      * long-open "does factory input discount 6-for-9, and does it track
      * the SoL-adjusted output or the flat base rate" question both ways:
      * yes to the discount, and it tracks the *actual* output (the old
@@ -876,8 +879,9 @@ static int case_production_rules_manufacturing(void) {
       assets_msg_free(&names);
       return 1;
     }
-    /* Base rate (sol_bonus=0) input stays 6 — the old, still-correct half
-     * of the ratio; only the sol-fold was missing before. */
+    /* Base rate (sol_bonus=0) input stays 6 — (9*2)/3, unchanged by the
+     * bugs.md #851 rounding fix; both anchors are even multiples of 3, which
+     * is why the old (out*6+8)/9 round-up survived them. */
     const int factory_in_base =
       colony_prod_manufacturing_input(iname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 0);
     if (factory_in_base != 6) {
@@ -5565,6 +5569,89 @@ static int case_phase_k_build_advisory(void) {
   return 0;
 }
 
+/*
+ * bugs.md #851 — the factory-tier raw-material requirement is ONE floor
+ * divide over the colony's summed gross for the finished good, not a sum of
+ * per-worker round-ups. DOS FUN_15eb_0bd4 raw 10168-10172:
+ *
+ *     iVar3  = gross[out_cargo];                 // colony total
+ *     if (2 < FUN_15eb_039e(chain)) {            // 3 buildings = factory
+ *       local_6 = (iVar3 << 1) / 3;              // truncating, once
+ *     }
+ *     FUN_15eb_0b96(in_cargo, local_6);          // that is the demand word
+ *
+ * Two Fur Factory scenarios that separate the shapes (factory output math:
+ * out = tag + sol, + tag again, + (out >> 1); tag = 3 free / 2 servant /
+ * 1 criminal):
+ *   (1) one free colonist at sol_bonus 1 -> out 10; DOS wants (10*2)/3 = 6
+ *       furs, the old per-worker `(10*6+8)/9` wanted 7.
+ *   (2) two criminals at sol_bonus 1 -> out 4 each, total 8; DOS wants
+ *       (8*2)/3 = 5, the old per-worker round-up wanted 3+3 = 6.
+ */
+static int case_factory_input_colony_total(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Fur Factory");
+  pool.building_types[0].hammers = 0;
+  pool.building_type_count = 1;
+
+  /* Scenario 1: one free colonist, sol_bonus 1. */
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->id = 0;
+  c->active = true;
+  c->population = 1;
+  c->colonist_count = 1;
+  c->building_in_production = -1;
+  c->colonists[0].active = true;
+  c->colonists[0].field_job = -1;
+  c->colonists[0].building_type = 0;
+  c->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+  c->stock[COLONIZE_CARGO_FURS] = 100;
+  pool.colony_count = 1;
+
+  ColonizeColonyProdDelta delta;
+  memset(&delta, 0, sizeof(delta));
+  colony_craft_one_colony(&pool, c, &delta, 1);
+  if (delta.goods[COLONIZE_CARGO_COATS] != 10 || delta.goods[COLONIZE_CARGO_FURS] != -6) {
+    fprintf(
+      stderr,
+      "factory one worker: coats=%d furs=%d expected +10/-6\n",
+      delta.goods[COLONIZE_CARGO_COATS],
+      delta.goods[COLONIZE_CARGO_FURS]
+    );
+    return 1;
+  }
+
+  /* Scenario 2: two criminals, sol_bonus 1 — 4 + 4 = 8 coats, 5 furs. */
+  memset(c, 0, sizeof(*c));
+  c->id = 0;
+  c->active = true;
+  c->population = 2;
+  c->colonist_count = 2;
+  c->building_in_production = -1;
+  for (int i = 0; i < 2; ++i) {
+    c->colonists[i].active = true;
+    c->colonists[i].field_job = -1;
+    c->colonists[i].building_type = 0;
+    c->colonists[i].profession = COLONIZE_PROF_CRIMINAL;
+  }
+  c->stock[COLONIZE_CARGO_FURS] = 100;
+  memset(&delta, 0, sizeof(delta));
+  colony_craft_one_colony(&pool, c, &delta, 1);
+  if (delta.goods[COLONIZE_CARGO_COATS] != 8 || delta.goods[COLONIZE_CARGO_FURS] != -5) {
+    fprintf(
+      stderr,
+      "factory two workers: coats=%d furs=%d expected +8/-5\n",
+      delta.goods[COLONIZE_CARGO_COATS],
+      delta.goods[COLONIZE_CARGO_FURS]
+    );
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"calendar", case_calendar},
   {"free_production", case_free_production},
@@ -5575,6 +5662,7 @@ static const TestCase k_cases[] = {
   {"processor_indicator_steps", case_processor_indicator_steps},
   {"carpenter_stockade", case_carpenter_stockade},
   {"craft_chain", case_craft_chain},
+  {"factory_input_colony_total", case_factory_input_colony_total},
   {"production_rules_field", case_production_rules_field},
   {"production_rules_manufacturing", case_production_rules_manufacturing},
   {"field_lumberjack", case_field_lumberjack},
