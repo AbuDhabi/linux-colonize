@@ -4129,10 +4129,11 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
         if (ships_ready > 0 && ctx->ai_popups && ctx->status && ctx->status[0]) {
           popup_chrome_ok(ctx->ai_popups, ctx->messages, "CARGOREADY0", NULL, ctx->status);
         }
-        if (ctx->col1_ok && ctx->col1) {
-          /* FUN_465b_0000 → FUN_5fef_1908 King's Galleon offer (human only). */
-          (void)units_king_galleon_offer_coastal_treasures_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL), .europe=(EuropeScreen*)(ctx->europe)}, ctx->human_nation, ctx->ai_popups, ctx->messages);
-        }
+        /* No King's-Galleon offer here: FUN_465b_0000 raw 75800-75815 is the
+         * only DOS trigger and it fires on the move onto the colony tile
+         * (game_loop.c move tail). The end-of-turn sweep that used to live
+         * here re-offered parked Treasures every turn and auto-cashed them
+         * post-WoI, neither of which DOS does. */
       }
       /* Go-To resumes at 10 steps/sec in game_update so the player can watch.
        * The skip-aware form: a bare turn_select_next_unit hands control back

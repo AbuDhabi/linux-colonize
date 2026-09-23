@@ -6289,6 +6289,81 @@ static int unit_peace_fortify_skips_attack_one_type(void) {
   return 0;
 }
 
+
+/*
+ * bugs.md #747 — DOS-LITERAL FUN_465b_0000 raw 75527-75545, the
+ * Privateer-sighting relation bit. Mover type 0x10 is @UNIT row 16 =
+ * Privateer (the old port read it as "Treasure", 0x0a, and scanned the 8
+ * neighbours after a Treasure's act instead). The bit is
+ * `nation[occupant_owner].euro_relation[mover_owner] |= 0x80`.
+ */
+static int unit_privateer_sighting_bit(void) {
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Privateer");
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].movement = 8;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].movement = 4;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Treasure");
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[2].movement = 1;
+
+  const int priv = units_spawn(&units, 0, 5, 5);
+  const int car = units_spawn(&units, 1, 6, 5);
+  const int trea = units_spawn(&units, 2, 7, 5);
+  ColonizeUnit* pu = units_get(&units, priv);
+  ColonizeUnit* cu = units_get(&units, car);
+  ColonizeUnit* tu = units_get(&units, trea);
+  if (!pu || !cu || !tu) {
+    return fail("privateer-sighting spawn");
+  }
+  pu->nation_id = 1;
+  cu->nation_id = 2;
+  tu->nation_id = 1;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  col1.head.difficulty = 0; /* rng(0,100) < 1 — the follow-up almost never */
+
+  /* Privateer of nation 1 enters nation 2's Caravel tile. */
+  ai_euro_465b_privateer_sighting(&col1, &units, NULL, priv, car);
+  if (!(ai_diplo_read(&col1, 2, 1) & AI_DIPLO_PRIVATEER_SIGHTED)) {
+    return fail("expected nation[2].relation[1] |= 0x80 for a Privateer mover");
+  }
+  /* The old (wrong) direction must stay clear. */
+  if (ai_diplo_read(&col1, 1, 2) & AI_DIPLO_PRIVATEER_SIGHTED) {
+    return fail("sighting bit written on the wrong side");
+  }
+
+  /* A Treasure mover must NOT set it (the refuted reading). */
+  ai_diplo_write(&col1, 2, 1, 0);
+  ai_euro_465b_privateer_sighting(&col1, &units, NULL, trea, car);
+  if (ai_diplo_read(&col1, 2, 1) & AI_DIPLO_PRIVATEER_SIGHTED) {
+    return fail("Treasure mover must not set the Privateer sighting bit");
+  }
+
+  /* Occupant that is itself a Privateer: DOS's `occupant type != 0x10` skip. */
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  cu->nation_id = 2;
+  const int priv2 = units_spawn(&units, 0, 8, 5);
+  ColonizeUnit* p2 = units_get(&units, priv2);
+  if (!p2) {
+    return fail("privateer-sighting spawn 2");
+  }
+  p2->nation_id = 2;
+  ai_euro_465b_privateer_sighting(&col1, &units, NULL, priv, priv2);
+  if (ai_diplo_read(&col1, 2, 1) & AI_DIPLO_PRIVATEER_SIGHTED) {
+    return fail("Privateer-on-Privateer must not set the sighting bit");
+  }
+
+  fprintf(stderr, "unit_ai_euro_war: 465b privateer sighting bit ok\n");
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"unit_mid_hire_mil", unit_mid_hire_mil},
   {"unit_unload_stance0_no_sticky", unit_unload_stance0_no_sticky},
@@ -6318,6 +6393,7 @@ static const TestCase k_cases[] = {
   {"unit_g_stance_own4_prio8", unit_g_stance_own4_prio8},
   {"unit_naval_war_hunt", unit_naval_war_hunt},
   {"unit_naval_flee_fort_fire", unit_naval_flee_fort_fire},
+  {"unit_privateer_sighting_bit", unit_privateer_sighting_bit},
   {"unit_privateer_war_hunt", unit_privateer_war_hunt},
   {"unit_privateer_station_keep_hunt", unit_privateer_station_keep_hunt},
   {"unit_naval_multistep_sail", unit_naval_multistep_sail},

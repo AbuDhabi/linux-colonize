@@ -1038,6 +1038,29 @@ static int case_colonies_core(void) {
       "no fortification yet"
     );
 
+    /* #744: Treasure has no default-profession slot (DS:0x30e) and cannot Join;
+     * a plain Colonist still can. */
+    {
+      const int treasure_ti = units_find_type(&units, "Treasure");
+      CHECK(treasure_ti >= 0, "Treasure type");
+      const ColonizeColony* before_t = colonies_get(&pool, cid);
+      const int pop_t0 = before_t ? before_t->colonist_count : 0;
+      const int uidt = units_spawn_allow_stack(&units, treasure_ti, land2_x, land2_y);
+      CHECK(uidt >= 0, "spawn outside Treasure");
+      ColonizeUnit* out = units_get(&units, uidt);
+      if (out && before_t) {
+        out->nation_id = before_t->nation_id;
+      }
+      const int adt = colonies_admit_unit_w(&w_admit, cid, uidt);
+      CHECK(adt < 0, "Treasure refused Join (no profession slot)");
+      CHECK(colonies_get(&pool, cid)->colonist_count == pop_t0, "pop unchanged after refused Treasure Join");
+      const ColonizeUnit* still = units_get_const(&units, uidt);
+      CHECK(still && still->active, "Treasure unit still on map after refused Join");
+
+      /* (Colonist admission is covered above; not repeated here so the
+       * population stays below the Stockade threshold checked later.) */
+    }
+
     /* Pioneer eject spends tools from warehouse. */
     {
       ColonizeColony* col = colonies_get_mut(&pool, cid);

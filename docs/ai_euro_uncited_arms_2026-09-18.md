@@ -27,18 +27,29 @@ Tags: **arm** = code an act stage calls, decision is manual-cited ·
 | `ai_euro_act_land_goal_consume` | 19318, 19322, 19329, 19376, 19382, 19390, 19437 | arm (7 hits — Skills-Chart profession→LABOR ladder) |
 | `ai_euro_act_land_goal_dispatch` | 19622, 19683 | note |
 
-## Treasure
+## Treasure — **RESOLVED 2026-09-23 (bugs.md #745/#746): deleted, not parked**
 
-| Function | Lines | Tag |
-|---|---|---|
-| `ai_euro_europe_sail_target` | 2161 | helper |
-| `ai_euro_treasure_coast_target` | 2214 | helper |
-| `ai_euro_try_treasure_board_sail` | 4588 | arm |
-| `ai_euro_cash_one_treasure` | 4652 | helper |
-| `ai_euro_try_cash_treasure_europe` | 4702 | arm |
-| `ai_euro_try_expected_treasure_harbor` | 4758 | arm |
-| `ai_euro_unload_settle` (Treasure stays aboard) | 17002 | arm |
-| `ai_euro_act_land_treasure` | 18994 | arm |
+Every row below was a Linux invention. `FUN_521d_20e6`'s treasure band (raw
+89997-90040) is the only AI treasure code in DOS: cash at ANY own colony
+untaxed → destroy; else walk to the NEAREST own colony on the same landmass
+(no coastline term); else walk to the nearest own unit on the landmass; else
+destroy when the adjacent-claim probe names the human. `FUN_4720_049e` (the AI
+ship cargo pick, raw 76067-76513) has no `+0x3146 == '\n'` term, so an AI
+treasure is never loaded onto a hull, and the King-galleon/Cortes transport
+offer (`FUN_465b_0000` raw 75800) is human-control gated (bugs.md #478).
+
+| Function | Resolution |
+|---|---|
+| `ai_euro_europe_sail_target` | KEPT — its other caller is the FUN_4393 Europe export / Privateer-loot sail; treasure caller deleted |
+| `ai_euro_treasure_coast_target` | DELETED |
+| `ai_euro_try_treasure_board_sail` | DELETED |
+| `ai_euro_find_boardable_ship` | DELETED |
+| `ai_euro_cash_one_treasure` | DELETED |
+| `ai_euro_treasure_gold_from_unit` | DELETED |
+| `ai_euro_try_cash_treasure_europe` | DELETED (all 4 call sites) |
+| `ai_euro_try_expected_treasure_harbor` | DELETED |
+| `ai_euro_unload_settle` / passenger picker (Treasure stays aboard) | DELETED |
+| `ai_euro_act_land_treasure` | REWRITTEN as the literal band (arm 1 + `ai_euro_20e6_47b9_dead_end` arms 2/3) |
 
 ## Missionary
 
@@ -280,9 +291,9 @@ enemy at war does attack" demonstration.
 
 Highest-value next targets: `ai_euro_act_land_goal_consume` (7 hits, the
 Skills-Chart profession→LABOR ladder), `ai_euro_act_land_hunt_scout` (6 hits),
-`ai_euro_act_land_fortify` (3 arms), and the treasure cluster
-(`ai_euro_try_treasure_board_sail` / `ai_euro_try_cash_treasure_europe` /
-`ai_euro_try_expected_treasure_harbor`).
+`ai_euro_act_land_fortify` (3 arms). ~~and the treasure cluster~~
+**Treasure cluster resolved 2026-09-23 (bugs.md #745/#746) — deleted
+outright; see the Treasure section above.**
 
 ~~Separately: why the gate's land-arms branch is never entered in any golden
 (460 calls → 284 FOUND courses, 176 early returns, 0 land arms).~~

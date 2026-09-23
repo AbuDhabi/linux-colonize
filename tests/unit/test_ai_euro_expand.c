@@ -2951,8 +2951,14 @@ static int unit_lumberjack_warehouse_labor(void) {
 
 
 /*
- * Treasure train: idle Treasure inland → AI_MOVE toward own coastal colony.
- * Cite: Colonization.pdf Treasure Trains — park in coastal colony.
+ * RETARGETED 2026-09-23 (bugs.md #745). Was "idle Treasure → AI_MOVE toward
+ * own COASTAL colony (Colonization.pdf)". DOS-LITERAL FUN_521d_20e6 raw
+ * 90016-90017: a Treasure not standing in an own colony walks to
+ * `local_62` — the prologue's NEAREST own colony by FUN_281f_037a distance,
+ * with no coastline term — provided it is on the same landmass
+ * (local_2c == local_38). This fixture puts a nearer INLAND colony (8,8)
+ * behind the coastal one (4,4); DOS aims at (8,8), the deleted
+ * ai_euro_treasure_coast_target aimed at (4,4).
  */
 static int unit_treasure_coast(void) {
   const int nation = 1;
@@ -2989,8 +2995,17 @@ static int unit_treasure_coast(void) {
   fx_colonies_init(&colonies);
   ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 2);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_LUMBER] = 25;
+  /* Nearer, NON-coastal own colony — the one DOS picks. */
+  ColonizeColony* inland = fx_colony_add(&colonies, nation, 8, 8, 2);
+  inland->stock[COLONIZE_CARGO_FOOD] = 40;
+  inland->stock[COLONIZE_CARGO_LUMBER] = 25;
+  if (map_tile_is_coastal(&map, 8, 8)) {
+    fx_map_free(&map);
+    return fail("inland colony (8,8) must not be coastal");
+  }
 
-  /* Inland Treasure — not on coast. */
+  /* Inland Treasure — not on coast, not in a colony. */
   const int tid = units_spawn(&units, 0, 10, 10);
   ColonizeUnit* treasure = units_get(&units, tid);
   if (!treasure) {
@@ -3036,8 +3051,8 @@ static int unit_treasure_coast(void) {
     fx_map_free(&map);
     return fail("treasure should remain active");
   }
-  if (treasure->orders != UNITS_ORDER_AI_MOVE || treasure->goto_x != 4 ||
-      treasure->goto_y != 4) {
+  if (treasure->orders != UNITS_ORDER_AI_MOVE || treasure->goto_x != 8 ||
+      treasure->goto_y != 8) {
     fprintf(
       stderr,
       "unit_ai_euro_expand: treasure orders=%d goto=(%d,%d) pos=(%d,%d)\n",
@@ -3048,13 +3063,13 @@ static int unit_treasure_coast(void) {
       treasure->y
     );
     fx_map_free(&map);
-    return fail("expected Treasure AI_MOVE toward coastal colony (4,4)");
+    return fail("expected Treasure AI_MOVE toward NEAREST own colony (8,8)");
   }
 
   fx_map_free(&map);
   fprintf(
     stderr,
-    "unit_ai_euro_expand: treasure coast ok (goto=(%d,%d))\n",
+    "unit_ai_euro_expand: treasure nearest-colony walk ok (goto=(%d,%d))\n",
     treasure->goto_x,
     treasure->goto_y
   );
@@ -3116,6 +3131,9 @@ static int unit_ai_treasure_colony_cash(void) {
   treasure->nation_id = nation;
   treasure->moves = 1; /* idle with moves left: eligible to act this turn */
   treasure->orders = 0;
+  /* Both representations of the DOS value: the +0x315b byte (gold/100) and
+   * the port's LE16 mirror — units_treasure_value_gold reads either. */
+  treasure->profession = (uint8_t)(treasure_value / 100);
   treasure->hold_goods_amount[0] = treasure_value & 0xff;
   treasure->hold_goods_amount[1] = (treasure_value >> 8) & 0xff;
 
@@ -3599,11 +3617,11 @@ static int unit_tools_short_pioneer_labor(void) {
 /*
  * RETARGETED 2026-09-06 (was "board + AI_SAIL Europe"): FUN_521d_20e6's
  * treasure act band cashes an AI Treasure standing in ANY own colony before
- * every other treasure arm (move_scoring_20e6_full.md raw ~2315), and
- * ai_euro_try_treasure_board_sail only ever fires on that same "standing on
- * an own coastal colony" state — so the board+sail arm is DOS-unreachable for
- * an AI Treasure. Same fixture, DOS expectations: treasury += value, unit
- * destroyed, Galleon left empty and un-tasked.
+ * every other treasure arm (move_scoring_20e6_full.md raw ~2315). The
+ * board+sail arm this fixture was written for was deleted outright on
+ * 2026-09-23 (bugs.md #746) — DOS has no AI treasure-to-ship site at all.
+ * DOS expectations: treasury += value, unit destroyed, Galleon left empty
+ * and un-tasked.
  */
 static int unit_treasure_board_sail(void) {
   const int nation = 1;
@@ -3742,133 +3760,14 @@ static int unit_treasure_board_sail(void) {
 }
 
 /*
- * Ship at Europe with Treasure aboard + COL1 LE16 gold in hold_goods_amount →
- * europe_cash_treasure credits nation gold (tax cut); Treasure despawned.
- * Cite: Colonization.pdf Treasure Trains; GAME.TXT @LOOTCASH; europe.h.
+ * DELETED 2026-09-23 (bugs.md #746): unit_treasure_europe_cash asserted the
+ * invented AI "Treasure aboard a ship at Europe → europe_cash_treasure with
+ * the Crown cut" arm. No DOS site boards an AI treasure (FUN_4720_049e, the
+ * AI ship cargo pick at raw 76067-76513, has no +0x3146 == 0x0a term) and
+ * FUN_521d_20e6's treasure band never leaves the map, so the behaviour it
+ * pinned does not exist. The AI cash-in is unit_ai_treasure_colony_cash
+ * above; europe_cash_treasure itself is exercised by the human Europe tests.
  */
-static int unit_treasure_europe_cash(void) {
-  const int nation = 1;
-  const int treasure_value = 800; /* LE16 in hold_goods_amount[0..1] */
-  const int tax = 25;
-  const int expect_credit = (treasure_value * (100 - tax)) / 100;
-
-  ColonizeWorldMap map;
-  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
-    return fail("treasure-cash alloc map");
-  }
-
-  ColonizeUnitPool units;
-  fx_units_init(&units);
-  units.type_count = 2;
-  snprintf(units.types[0].name, sizeof(units.types[0].name), "Treasure");
-  units.types[0].movement = 1;
-  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-  snprintf(units.types[1].name, sizeof(units.types[1].name), "Galleon");
-  units.types[1].movement = 4;
-  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
-  units.types[1].cargo = 6;
-
-  ColonizeColonyPool colonies;
-  fx_colonies_init(&colonies);
-
-  const int sid = units_spawn(&units, 1, 200, 200);
-  ColonizeUnit* ship = units_get(&units, sid);
-  if (!ship) {
-    fx_map_free(&map);
-    return fail("treasure-cash spawn ship");
-  }
-  ship->nation_id = nation;
-  ship->moves = 0;
-  ship->orders = 0;
-
-  const int tid = units_spawn_allow_stack(&units, 0, 200, 200);
-  ColonizeUnit* treasure = units_get(&units, tid);
-  if (!treasure) {
-    fx_map_free(&map);
-    return fail("treasure-cash spawn treasure");
-  }
-  treasure->nation_id = nation;
-  treasure->moves = 0;
-  treasure->orders = 0;
-  /* COL1 cargo_hold[0..1] LE16 gold → hold_goods_amount lo/hi bytes. */
-  treasure->hold_goods_amount[0] = treasure_value & 0xff;
-  treasure->hold_goods_amount[1] = (treasure_value >> 8) & 0xff;
-  if (!units_board_stacked(&units, tid, sid)) {
-    fx_map_free(&map);
-    return fail("treasure-cash board setup");
-  }
-
-  EuropeScreen europe;
-  memset(&europe, 0, sizeof(europe));
-  europe.gold = 200;
-  europe.tax_percent = tax;
-
-  ColonizeCol1Save col1;
-  col1_save_init(&col1);
-  memset(col1.nation, 0, sizeof(col1.nation));
-  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
-  for (int i = 0; i < 4; ++i) {
-    col1.player[i].control = 0;
-    col1.player[i].diplomacy = 0;
-  }
-  col1.nation[nation].gold = 200;
-  col1.nation[nation].tax_rate = (uint8_t)tax;
-  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
-   * ladder / recruit / Artillery buys naturally inert (blank census). */
-  col1.stuff.ship_counts[nation] = 1;
-  const uint32_t gold_before = col1.nation[nation].gold;
-
-  ai_goals_reset();
-
-  uint32_t turn = 40;
-  ColonizeTurnContext ctx;
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.turn_number = &turn;
-  ctx.units = &units;
-  ctx.colonies = &colonies;
-  ctx.map = &map;
-  ctx.col1 = &col1;
-  ctx.col1_ok = true;
-  ctx.europe = &europe;
-  ctx.rng_seed = 42;
-
-  ai_euro_dispatcher_turn(&ctx, nation);
-
-  treasure = units_get(&units, tid);
-  const int treasure_gone = (!treasure || !treasure->active);
-  const uint32_t gold_after = col1.nation[nation].gold;
-  const unsigned delta =
-    gold_after >= gold_before ? (unsigned)(gold_after - gold_before) : 0u;
-  /* Planning 5d04 treasury bump is small (~30); cash credit is expect_credit. */
-  const int cash_ok =
-    treasure_gone && delta >= (unsigned)expect_credit &&
-    (delta - (unsigned)expect_credit) <= 80u;
-  if (!cash_ok) {
-    fprintf(
-      stderr,
-      "unit_ai_euro_expand: treasure_gone=%d gold %u→%u delta=%u want +%d (tax %d%%)\n",
-      treasure_gone,
-      (unsigned)gold_before,
-      (unsigned)gold_after,
-      delta,
-      expect_credit,
-      tax
-    );
-    fx_map_free(&map);
-    return fail("expected Treasure Europe cash-in + despawn");
-  }
-
-  fx_map_free(&map);
-  fprintf(
-    stderr,
-    "unit_ai_euro_expand: treasure Europe cash ok (gold %u→%u delta=%u credit=%d)\n",
-    (unsigned)gold_before,
-    (unsigned)gold_after,
-    delta,
-    expect_credit
-  );
-  return 0;
-}
 
 /*
  * Idle Wagon with hold capacity → AI_MOVE toward tools-short colony.
@@ -7132,7 +7031,6 @@ static const TestCase k_cases[] = {
     {"unit_specialty_flag_a_haul_match", unit_specialty_flag_a_haul_match},
     {"unit_treasure_coast", unit_treasure_coast},
     {"unit_treasure_board_sail", unit_treasure_board_sail},
-    {"unit_treasure_europe_cash", unit_treasure_europe_cash},
     {"unit_ai_treasure_colony_cash", unit_ai_treasure_colony_cash},
     {"unit_wagon_haul_tools_short", unit_wagon_haul_tools_short},
     {"unit_wagon_haul_muskets_short", unit_wagon_haul_muskets_short},

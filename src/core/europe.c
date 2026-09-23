@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/ai_popup.h"
 #include "core/assets.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
@@ -25,6 +26,22 @@
  * units_set_combat_music_hooks). */
 static void (*g_europe_sound_play)(int id) = NULL;
 static void (*g_europe_set_bgm)(int pool) = NULL;
+
+/*
+ * Live save + popup queue for the Europe-only channels that hold neither.
+ * europe_cash_treasure is DOS FUN_48d3_06ba's arrival beat (raw 78005-78021):
+ * it books the Crown's fee on nation+0x22 and the write-only +0x26 counter and
+ * raises @LOOTCASH as a modal, none of which it can do from `eu` alone. Same
+ * register-once idiom as europe_set_live_screen / colonies_set_col1_context;
+ * NULL degrades to purse-only (tests, AI borrow paths).
+ */
+static struct ColonizeCol1Save* g_europe_live_save = NULL;
+static AiPopupState* g_europe_popups = NULL;
+
+static int europe_purse_nation(const EuropeScreen* eu);
+static void europe_purse_move(
+  EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, long delta
+);
 #include "platform/platform.h"
 
 static void europe_refresh_recruit_passage(EuropeScreen* eu);
@@ -366,7 +383,8 @@ static void europe_disembark_passengers_to_dock(
     }
     /* Passengers keep sentry ("board next") — same convention as aboard ship. */
     if (!europe_dock_push_front(eu, name, prof, true)) {
-      snprintf(eu->status, sizeof(eu->status), "%s", "Docks are full — some passengers remain aboard.");
+      /* bugs.md #750: no catalog tag for the docks-full case — show nothing. */
+      eu->status[0] = '\0';
       /* Leave remaining passengers (0..i) on the ship. */
       ship->cargo_count = i + 1;
       return;
@@ -2655,7 +2673,9 @@ void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units) {
       }
     }
     europe_refresh_harbor_selection(eu);
-    snprintf(eu->status, sizeof(eu->status), "%s has docked in %s.", ship.name, eu->port_city);
+    /* bugs.md #750: DOS composes the arrival line through the DS:0x2d54 status
+     * API and GAME.TXT has no docked-ship tag, so there is nothing to show. */
+    eu->status[0] = '\0';
   }
 }
 
@@ -2691,7 +2711,28 @@ int europe_cash_treasure(EuropeScreen* eu, int treasure_value) {
     tax = 50;
   }
   const int credited = (treasure_value * (100 - tax)) / 100;
-  eu->gold += credited;
+  const int crown_fee = treasure_value - credited;
+  /*
+   * FUN_48d3_06ba raw 78005-78018, all three against the current player's
+   * record (DS:0x5394): gold (+0x2a) += net, +0x26 += the SAME net (the
+   * write-only cumulative counter, int32 LE), royal_money (+0x22) += fee.
+   * bugs.md #740 / #741.
+   */
+  const int purse_nation = europe_purse_nation(eu);
+  struct ColonizeCol1Save* col1 = g_europe_live_save;
+  europe_purse_move(eu, col1, purse_nation, credited);
+  if (col1 && purse_nation >= 0 && purse_nation < (int)COLONIZE_COL1_NATION_COUNT) {
+    ColonizeCol1Nation* nat = &col1->nation[purse_nation];
+    nat->royal_money += (int32_t)crown_fee;
+    uint32_t cum = (uint32_t)nat->unknown24_pad[0] | ((uint32_t)nat->unknown24_pad[1] << 8) |
+                   ((uint32_t)nat->unknown24_pad[2] << 16) |
+                   ((uint32_t)nat->unknown24_pad[3] << 24);
+    cum += (uint32_t)credited;
+    nat->unknown24_pad[0] = (uint8_t)(cum & 0xffu);
+    nat->unknown24_pad[1] = (uint8_t)((cum >> 8) & 0xffu);
+    nat->unknown24_pad[2] = (uint8_t)((cum >> 16) & 0xffu);
+    nat->unknown24_pad[3] = (uint8_t)((cum >> 24) & 0xffu);
+  }
   /* GAME.TXT @LOOTCASH, composed live via eu->messages (europe_set_messages). */
   const char* nation = eu->nation_name[0] ? eu->nation_name : "";
   const char* port = eu->port_city[0] ? eu->port_city : "";
@@ -2708,6 +2749,16 @@ int europe_cash_treasure(EuropeScreen* eu, int treasure_value) {
     tok.number2 = credited;
     popup_msg_fill(eu->messages, "LOOTCASH", &tok, "", eu->status, sizeof(eu->status));
     popup_msg_strip_markup(eu->status);
+    /*
+     * FUN_48d3_06ba raw 78020: FUN_281f_0652(0x148e, 2) — @LOOTCASH is a
+     * MODAL here, not just a status line (the status line is the port's own
+     * chrome and stays). bugs.md #742.
+     */
+    if (g_europe_popups) {
+      char body[AI_POPUP_BODY_LEN];
+      popup_msg_fill(eu->messages, "LOOTCASH", &tok, "", body, sizeof(body));
+      ai_popup_enqueue_ok(g_europe_popups, AI_POPUP_TAG_INFO, NULL, body);
+    }
   }
   diag_info(
     "EUROPE treasure cashed %d$: crown %d%% share, credited %d$ (gold=%d)",
@@ -3538,6 +3589,14 @@ static EuropeScreen* g_europe_live_screen = NULL;
 
 void europe_set_live_screen(EuropeScreen* eu) {
   g_europe_live_screen = eu;
+}
+
+void europe_set_live_save(struct ColonizeCol1Save* col1) {
+  g_europe_live_save = col1;
+}
+
+void europe_set_popup_queue(AiPopupState* popups) {
+  g_europe_popups = popups;
 }
 
 uint32_t europe_nation_gold(

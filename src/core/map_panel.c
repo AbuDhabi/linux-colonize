@@ -754,7 +754,9 @@ static bool map_panel_type_detail_mode(
      * the same string the sidebar header gold line uses (raw 78727); catalog
      * miss = "" (bugs.md #642). */
     const char* gold = reports_ctitle_word(1);
-    snprintf(out, out_size, stack ? "%s %d" : "(%s %d)", gold, u->profession * 100);
+    snprintf(
+      out, out_size, stack ? "%s %d" : "(%s %d)", gold, units_treasure_value_gold(u)
+    );
     return true;
   }
   return false;

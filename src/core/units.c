@@ -694,10 +694,13 @@ int units_spawn_treasure_train(
   int gold
 ) {
   /*
-   * Cite: Colonization.pdf Treasure Trains; NAMES "Treasure"; COL1 cargo_hold
-   * [0..1] LE16 gold mirrored in hold_goods_amount (game_loop /
-   * ai_euro_treasure_gold_from_unit). Gold amount is caller-supplied — do not
-   * invent a conquest rate here (FUN_5fef_31ea / Cortes gate decide that).
+   * DOS-LITERAL: every DOS spawn site stores a Treasure's value in unit
+   * +0x315b (COL1 record +0x17, the `profession` byte) as gold/100 —
+   * FUN_65dd_0004 raw 103543 and 103686, FUN_5fef_31ea raw 101489, all
+   * `*(undefined1 *)(param_1 * 0x1c + 0x315b) = (undefined1)local_34;`.
+   * DS:0x30e[10] = -1, so a Treasure has no real profession slot and the byte
+   * is free. Gold amount is caller-supplied — do not invent a conquest rate
+   * here (FUN_5fef_31ea / Cortes gate decide that).
    */
   if (!pool || gold < 0) {
     return -1;
@@ -715,9 +718,13 @@ int units_spawn_treasure_train(
     return -1;
   }
   units_set_nation(u, nation_id);
-  const unsigned g = (unsigned)gold;
-  u->hold_goods_amount[0] = (int)(g & 0xffu);
-  u->hold_goods_amount[1] = (int)((g >> 8) & 0xffu);
+  /* DOS stores a byte of hundreds; every DOS amount is a multiple of 100 and
+   * well under 25500 (max is Cibola 7000). */
+  int hundreds = gold / 100;
+  if (hundreds > 255) {
+    hundreds = 255;
+  }
+  u->profession = hundreds;
   return id;
 }
 
@@ -969,35 +976,16 @@ int units_treasure_value_gold(const ColonizeUnit* treasure) {
     return 0;
   }
   /*
-   * Representation A (port-spawned): units_spawn_treasure_train stores the
-   * full gold as an LE16 mirror in hold_goods_amount[0..1] — finer than the
-   * DOS byte, so it wins whenever it is set.
+   * DOS-LITERAL FUN_48d3_06ba raw 77986 / FUN_521d_20e6 raw ~78913:
+   *   `iVar7 = (uint)*(byte *)(iVar6 + 0x315b) * 100;`
+   * The value lives in unit +0x315b (COL1 record +0x17 = `profession`) as
+   * gold/100, written by every spawn site; there is no second representation
+   * in DOS and the port no longer keeps one (the old LE16 mirror in
+   * hold_goods_amount was dropped — it never survived a save round trip and
+   * made a 2800-gold save Treasure indistinguishable from an unset one).
    */
-  const unsigned lo = (unsigned)(treasure->hold_goods_amount[0] & 0xff);
-  const unsigned hi = (unsigned)(treasure->hold_goods_amount[1] & 0xff);
-  const int mirror = (int)(lo | (hi << 8));
-  if (mirror > 0) {
-    return mirror;
-  }
-  /*
-   * Representation B (bridged from a COL1 save): DOS keeps a Treasure's value
-   * in unit +0x315b — COL1 unit record +0x17, the `profession` byte — as
-   * gold/100. Both DOS readers agree: FUN_48d3_06ba (Europe landfall cash-in,
-   * viceroy_unpacked.c:77985 `iVar7 = (uint)*(byte *)(iVar6 + 0x315b) * 100`)
-   * and FUN_521d_20e6's treasure act band (move_scoring_20e6_full.md raw
-   * ~2317 `uVar13 = (uint)*(byte *)(param_2 * 0x1c + 0x315b) * 100`).
-   * col1_bridge only fills hold_goods_amount for sea/wagon hulls, so a
-   * save-loaded Treasure carries nothing but this byte and every reader that
-   * looked only at the mirror valued it at 0.
-   *
-   * Blind spot (documented, not invented around): a save Treasure worth
-   * exactly 2800 has profession == UNITS_JOB_NONE and is indistinguishable
-   * from a port-spawned unit that never wrote the byte, so it reads 0.
-   */
-  if (treasure->profession > 0 && treasure->profession != UNITS_JOB_NONE) {
-    return treasure->profession * 100;
-  }
-  return 0;
+  const unsigned b = (unsigned)treasure->profession & 0xffu;
+  return (int)b * 100;
 }
 
 static int units_king_galleon_treasure_value(const ColonizeUnit* treasure) {
@@ -1046,12 +1034,27 @@ static void units_king_galleon_credit(
    * `europe->gold = nat->gold` handed the human's purse an AI's treasury. */
   europe_nation_gold_add(europe, col1, nation_id, (long)(net > 0 ? net : 0));
   nat->royal_money += share; /* DOS nation+0x22 += Crown share */
+  /* DOS-LITERAL FUN_5fef_1908 raw 100239: the write-only per-nation
+   * accumulator at nation +0x26 (`unknown24_pad`, int32 LE) takes the same
+   * NET the purse got — not the gross and not the fee. Same bump as
+   * FUN_48d3_06ba raw 78012 and the Custom House mirror (europe.c:4198). */
+  {
+    const int credited = net > 0 ? net : 0;
+    uint32_t cum = (uint32_t)nat->unknown24_pad[0] | ((uint32_t)nat->unknown24_pad[1] << 8) |
+                   ((uint32_t)nat->unknown24_pad[2] << 16) |
+                   ((uint32_t)nat->unknown24_pad[3] << 24);
+    cum += (uint32_t)credited;
+    nat->unknown24_pad[0] = (uint8_t)(cum & 0xffu);
+    nat->unknown24_pad[1] = (uint8_t)((cum >> 8) & 0xffu);
+    nat->unknown24_pad[2] = (uint8_t)((cum >> 16) & 0xffu);
+    nat->unknown24_pad[3] = (uint8_t)((cum >> 24) & 0xffu);
+  }
   units_play_event_sound(0x5a); /* FUN_5fef_1908: cheering + fireworks (COLDIG 15) */
   if (popups) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = units_combat_nation_label(col1, nation_id);
-    tok.string1 = europe && europe->port_city[0] ? europe->port_city : "Europe";
+    tok.string1 = europe && europe->port_city[0] ? europe->port_city : "";
     tok.number0 = value;
     tok.has_number0 = true;
     tok.number1 = pct;
@@ -1060,7 +1063,12 @@ static void units_king_galleon_credit(
     tok.has_number2 = true;
     char body[AI_POPUP_BODY_LEN];
     if (game_txt) {
-      popup_msg_fill(game_txt, pct > 0 ? "LOOTCASH" : "CASHTREASURE", &tok, "", body, sizeof(body));
+      /* DOS-LITERAL FUN_5fef_1908: the tag is picked by the WoI bit
+       * (DS:0x5382 & 1), not by the share — pre-WoI 0x1bfd = @LOOTCASH
+       * (raw 100225), post-WoI 0x1be0 = @CASHTREASURE (raw 100243). Cortes
+       * with tax 0 computes share 0 and still gets @LOOTCASH. */
+      const bool woi = col1->head.game_options.woi != 0;
+      popup_msg_fill(game_txt, woi ? "CASHTREASURE" : "LOOTCASH", &tok, "", body, sizeof(body));
     } else {
       body[0] = '\0';
     }
@@ -1144,78 +1152,95 @@ int units_ai_treasure_cash_in_colony(
   return value;
 }
 
-int units_king_galleon_offer_coastal_treasures_w(
+int units_king_galleon_offer_for_unit_w(
   const ColonizeWorld* w,
   int nation_id,
+  int treasure_id,
   AiPopupState* popups,
   const ColonizeMsgCatalog* game_txt
 ) {
   ColonizeUnitPool* pool = w->units;
   const ColonizeColonyPool* colonies = w->colonies;
-  const ColonizeWorldMap* map = w->map;
   EuropeScreen* europe = w->europe;
   ColonizeCol1Save* col1 = w->col1;
 
-  if (!pool || !colonies || !map || !col1 || nation_id < 0 || nation_id > 3) {
+  /*
+   * DOS-LITERAL FUN_465b_0000 raw 75800-75815 — the ONLY King's-Galleon
+   * trigger in the image, at the tail of a completed move, for the unit that
+   * just moved:
+   *
+   *   if (unit[+0x3146] == '\n' && nation < 4 && DS[nation*0x34+0x543f] == 0) {
+   *     if (-1 < FUN_281f_0696(dx,dy)) {                 // Euro colony on dest
+   *       if (DS[nation*0x13 - 0x6da5] != 0 && (*0x5382 & 1) == 0)  // owns a Galleon, pre-WoI
+   *         if (FUN_281f_07b4(nation,10) == 0) goto skip;           // ... unless Cortes
+   *       cid = FUN_281f_07be(dx,dy);
+   *       if (DS[cid*0xca + 0x5d62] & 0x40) FUN_2a1f_0186(unit, nation);  // COASTAL bit
+   *     }
+   *   }
+   *
+   * FUN_2a1f_0186 -> FUN_5fef_1908 (the offer/cash body). There is no
+   * end-of-turn sweep in DOS: a parked or refused Treasure is never asked
+   * again unless it moves onto a coastal colony tile again.
+   * Returns 1 when an offer was enqueued or a WoI cash happened, else 0.
+   */
+  if (!pool || !colonies || !col1 || nation_id < 0 || nation_id > 3) {
+    return 0;
+  }
+  const ColonizeUnit* treasure = units_get_const(pool, treasure_id);
+  if (!treasure || !treasure->active || treasure->nation_id != nation_id ||
+      treasure->aboard_ship_id >= 0) {
+    return 0;
+  }
+  if (!units_type_is_treasure(units_type(pool, treasure->type_index))) {
     return 0;
   }
   const bool woi = col1->head.game_options.woi != 0;
   const bool cortes = founding_fathers_nation_has(col1, nation_id, FF_HERNAN_CORTES);
   /* FUN_465b_0000: per-nation unit-type count table (-0x6db4, stride 0x13), type 0xf = Galleon. */
   bool has_galleon = false;
-  int ids[COLONIZE_UNITS_MAX];
-  int n = 0;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = &pool->units[i];
     if (!u->active || u->nation_id != nation_id) {
       continue;
     }
     const ColonizeUnitType* ty = units_type(pool, u->type_index);
-    if (!ty || !ty->name[0]) {
-      continue;
-    }
-    if (units_type_is_galleon(ty)) {
+    if (ty && ty->name[0] && units_type_is_galleon(ty)) {
       has_galleon = true;
-    } else if (u->aboard_ship_id < 0 && units_type_is_treasure(ty)) {
-      ids[n++] = u->id;
+      break;
     }
   }
   if (!woi && !cortes && has_galleon) {
     return 0;
   }
-  int handled = 0;
-  for (int i = 0; i < n; ++i) {
-    const ColonizeUnit* treasure = units_get_const(pool, ids[i]);
-    if (!treasure || !treasure->active) {
-      continue;
-    }
+  {
     const int cid = colonies_id_at(colonies, treasure->x, treasure->y);
     const ColonizeColony* c = cid >= 0 ? colonies_get(colonies, cid) : NULL;
-    if (!c || !c->active || c->nation_id != nation_id || !map_tile_is_coastal(map, c->x, c->y)) {
-      continue;
+    if (!c || !c->active || c->nation_id != nation_id) {
+      return 0;
+    }
+    /* DOS colony record +0x1c & 0x40 = the COASTAL bit written once at
+     * founding by FUN_364b_1ba8 raw 58105-58110 — a lake-only site never
+     * gets it, so the map adjacency probe is the wrong test. */
+    if ((c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) == 0) {
+      return 0;
     }
     if (units_king_galleon_treasure_value(treasure) <= 0) {
-      continue;
+      return 0;
     }
     if (woi) {
       /* FUN_5fef_1908 else-branch: no King, full value, @CASHTREASURE. */
-      units_king_galleon_credit(pool, europe, col1, nation_id, ids[i], 0, popups, game_txt);
-      handled++;
-      continue;
+      units_king_galleon_credit(pool, europe, col1, nation_id, treasure_id, 0, popups, game_txt);
+      return 1;
     }
     if (!popups) {
-      continue;
+      return 0;
     }
     /* Don't stack a second offer for the same Treasure while one is queued. */
-    bool queued = false;
     for (int q = 0; q < popups->queue_count; ++q) {
-      if (popups->queue[q].tag == AI_POPUP_TAG_KING_GALLEON && popups->queue[q].payload == ids[i]) {
-        queued = true;
-        break;
+      if (popups->queue[q].tag == AI_POPUP_TAG_KING_GALLEON &&
+          popups->queue[q].payload == treasure_id) {
+        return 0;
       }
-    }
-    if (queued) {
-      continue;
     }
     const int d = (int)col1->head.difficulty;
     PopupMsgTokens tok;
@@ -1223,7 +1248,7 @@ int units_king_galleon_offer_coastal_treasures_w(
     tok.string0 = reports_difficulty_title(d >= 0 && d < 5 ? d : 0);
     tok.string1 = col1->player[nation_id].name[0] ? col1->player[nation_id].name
                                                   : units_combat_nation_label(col1, nation_id);
-    tok.string2 = europe && europe->port_city[0] ? europe->port_city : "Europe";
+    tok.string2 = europe && europe->port_city[0] ? europe->port_city : "";
     tok.number0 = (int)col1->nation[nation_id].tax_rate;
     tok.has_number0 = true;
     char body[AI_POPUP_BODY_LEN];
@@ -1233,6 +1258,9 @@ int units_king_galleon_offer_coastal_treasures_w(
     } else {
       body[0] = '\0';
     }
+    /* DOS-LITERAL FUN_5fef_1908 raw 100189: FUN_281f_048e(0x3e) — the royal
+     * sting plays before the CHOICE is raised. */
+    units_play_event_sound(0x3e);
     /* GAME.TXT @KINGGALLEON2/@KINGGALLEON3 choice lines (same pair in both
      * sections); the catalog spells the second "sooner {kiss} your" —
      * braces kept (renderer/plain-sink convention), same as the ai_king.c /
@@ -1257,11 +1285,10 @@ int units_king_galleon_offer_coastal_treasures_w(
     const char* choices[2] = {c0, c1};
     const int cids[2] = {1, 0};
     (void)ai_popup_enqueue_choice_ctx(
-      popups, AI_POPUP_TAG_KING_GALLEON, nation_id, -1, ids[i], NULL, body, choices, cids, 2
+      popups, AI_POPUP_TAG_KING_GALLEON, nation_id, -1, treasure_id, NULL, body, choices, cids, 2
     );
-    handled++;
+    return 1;
   }
-  return handled;
 }
 
 
@@ -5611,6 +5638,9 @@ bool units_resolve_lcr_rumour_w(
       PopupMsgTokens stok;
       memset(&stok, 0, sizeof(stok));
       if (col1 && nation >= 0 && nation < 4) {
+        /* DOS FUN_281f_0d6c(tribe, nation, 100): +100 there is an ALARM rise;
+         * the port's relation accessor is sign-inverted (worse = negative),
+         * same convention as the FUN_5fef_31ea conquest delta. */
         ai_diplo_indian_relation_delta(col1, screwed_tribe, nation, -100);
       }
       stok.string0 = units_combat_nation_label(col1, screwed_tribe);
@@ -7062,8 +7092,10 @@ static bool units_at_war_for_move_target(int a, int b, const ColonizeUnit* targe
    * bugs.md: an INDIAN mover walking into a Euro must not open combat on a
    * wander — that made Indians attack units with zero alarm. A native
    * attack now needs real hostility: the Indian×Euro war flag, or alarm at
-   * the "already hostile" cut (0x4b) — except a Treasure Train, which they
-   * find hard to resist and always take. A Euro attacking a native stays
+   * the "already hostile" cut (0x4b). No Treasure exception: DOS has no
+   * `type == 0x0a` term in the move/attack chain; the treasure pull is the
+   * FUN_4d56_021a scorer's +0x10 tile weight (ai.c:3520). A Euro attacking a
+   * native stays
    * always fightable (the @WHACKINDIANS confirm gates the human side).
    */
   if (a >= 4 && a <= 11 && b >= 0 && b <= 3) {
@@ -7707,13 +7739,15 @@ ColonizeEnterReason units_enter_probe_w(
       g_units_last_enter_reason = COLONIZE_ENTER_BOUNCE_FOREIGN;
       return g_units_last_enter_reason;
     }
-    /* Treasure Train: natives always take it (bugs.md — "hard to resist"). */
-    const ColonizeUnitType* ft = fu ? units_type(pool, fu->type_index) : NULL;
-    const bool treasure_bait = mover_nation >= 4 && ft && ft->name[0] &&
-      units_type_is_treasure(ft);
+    /* No Treasure exception here: there is no `type == 0x0a` term anywhere in
+     * the DOS move/attack chain (FUN_465b_0000 raw 75417-75843) beyond the
+     * King's-Galleon arm. DOS's "braves find treasures hard to resist" is a
+     * WEIGHT, not a war bypass: the FUN_4d56_021a direction scorer adds +0x10
+     * for a Treasure/Artillery/Wagon on the candidate tile, already ported at
+     * ai.c:3520. */
     const bool grudge = mover_nation >= 4 && foe_nation >= 0 && foe_nation <= 3 &&
       units_native_village_grudge(mover, foe_nation);
-    if (!treasure_bait && !grudge && !units_at_war_for_move(mover_nation, foe_nation)) {
+    if (!grudge && !units_at_war_for_move(mover_nation, foe_nation)) {
       g_units_last_enter_reason = COLONIZE_ENTER_BOUNCE_PEACE;
       return g_units_last_enter_reason;
     }
@@ -8436,6 +8470,12 @@ bool units_try_move_w(
       combat_attack_entry = true;
       goto combat_entry_resolved;
     }
+    /* FUN_465b_0000 raw 75527-75545: Privateer-sighting relation bit,
+     * written before the attack resolves (same 465b entry head as the
+     * Indian alarm slam below). */
+    ai_euro_465b_privateer_sighting(
+      (ColonizeCol1Save*)g_units_ff_col1, pool, rng, unit_id, foe
+    );
     /*
      * FUN_465b_0000 (viceroy_unpacked.c:75600-75626): a Euro unit moving onto
      * a tile held by an Indian occupant slams tribe alarm by (difficulty+5),

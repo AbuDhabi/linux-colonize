@@ -179,12 +179,6 @@ graphs:
         fn: ai_diplo.c:ai_diplo_euro_balance
         status: linux
         note: Linux-shaped pass with DOS pieces inside (10ec, 13b0); skipped for the crown because its peace arm would end the WoI.
-      - id: treasure
-        kind: step
-        label: Treasure → gold (harbor-due ships, Europe/HS cash, Cortes coastal galleon)
-        fn: ai_euro.c:ai_euro_try_expected_treasure_harbor
-        status: thin
-        note: ai_euro_try_cash_treasure_europe per unit; units_cortes_cash_coastal_treasures.
       - id: unit_loop
         kind: loop
         label: "do { wave 0: Treasure/Artillery/Wagon; wave 1: all; ids high→low; first unit with MP drained, rescan } while wave 1 progressed && guard<64"
@@ -248,9 +242,8 @@ graphs:
       - [goals, goal_orders]
       - [goal_orders, is_crown]
       - [is_crown, balance, "no"]
-      - [is_crown, treasure, "yes"]
-      - [balance, treasure]
-      - [treasure, unit_loop]
+      - [is_crown, unit_loop, "yes"]
+      - [balance, unit_loop]
       - [unit_loop, skip]
       - [skip, unit_loop, "yes: next unit"]
       - [skip, no_mp, "no"]
@@ -610,7 +603,7 @@ graphs:
         label: moves <= 0?
       - id: notify
         kind: step
-        label: Territorial notify + treasure tension bump
+        label: Territorial notify (the treasure "tension bump" that shared this step was refuted 2026-09-23, bugs.md #747 — it is FUN_465b_0000's Privateer-sighting bit, now ai_euro_465b_privateer_sighting, fired from the move handler)
         fn: ai_euro.c:ai_euro_try_violate_notify
         dos: FUN_4720_049e
         status: thin
@@ -688,13 +681,8 @@ graphs:
   # ---------------------------------------------------------------------
   - id: ship_band
     title: Ship band — unit_act is_ship branch (5b66 case 0x0b sail + 20e6 ship band)
-    entry: cash_europe
+    entry: in_europe
     nodes:
-      - id: cash_europe
-        kind: step
-        label: Cash Treasure passengers at Europe/HS; dump-sell TRADE_GOODS at Europe
-        fn: ai_euro.c:ai_euro_try_cash_treasure_europe
-        status: thin
       - id: in_europe
         kind: decision
         label: Ship in Europe?
@@ -711,9 +699,6 @@ graphs:
         fn: ai_euro.c:ai_euro_coastal_staging_from_landfall
         status: golden
         note: TURN2–5 goldens (ship XY = staging tip; FR lands near 52,43).
-      - id: treasure_aboard
-        kind: decision
-        label: Treasure aboard? (keep Europe sail, no hunt/haul yank)
       - id: at_war
         kind: decision
         label: At war with a Euro peer?
@@ -746,11 +731,6 @@ graphs:
         fn: ai_euro.c:ai_euro_ocean_score_step
         dos: LAB_521d_3558 ocean branch
         status: structural
-      - id: post
-        kind: step
-        label: After sail — cash Treasure passengers at HS/Europe
-        fn: ai_euro.c:ai_euro_try_cash_treasure_europe
-        status: structural
       - id: unload
         kind: sub
         label: Settle unload (passengers → landfall / FOUND)
@@ -771,13 +751,10 @@ graphs:
         kind: end
         label: return
     edges:
-      - [cash_europe, in_europe]
       - [in_europe, exit_europe, "yes"]
       - [in_europe, retarget, "no"]
-      - [exit_europe, treasure_aboard]
-      - [retarget, treasure_aboard]
-      - [treasure_aboard, reassert, "yes"]
-      - [treasure_aboard, at_war, "no"]
+      - [exit_europe, at_war]
+      - [retarget, at_war]
       - [at_war, peace_haul, "no, and no useful goto"]
       - [at_war, war_naval, "yes"]
       - [peace_haul, haul, "no coast cruise"]
@@ -785,9 +762,8 @@ graphs:
       - [peace_haul, war_naval, "cruise set"]
       - [war_naval, reassert]
       - [reassert, sail]
-      - [sail, post]
-      - [post, unload, "not the Europe-exit act"]
-      - [post, tips, "Europe-exit act"]
+      - [sail, unload, "not the Europe-exit act"]
+      - [sail, tips, "Europe-exit act"]
       - [unload, tips]
       - [tips, ambush]
       - [ambush, end]
@@ -985,11 +961,11 @@ graphs:
         status: linux
       - id: treasure
         kind: step
-        label: Treasure — cash at own colony (20e6), Europe cash, Cortes galleon, board ship, coast target, 47b9 dead-end destroy
+        label: Treasure — cash at any own colony (20e6 arm 1), else walk to nearest own colony (arm 2) / own unit (arm 3), else 47b9 destroy
         fn: ai_euro.c:ai_euro_20e6_treasure_cash_in
-        dos: 20e6 treasure band (iStack_2e==0 cash-in first); LAB_457e/47b9
+        dos: 20e6 treasure band raw 89997-90040 (iStack_2e==0 cash-in first, then LAB_4701 / LAB_27f5 / LAB_47b9)
         status: dos
-        note: DOS AI treasure always insta-cashes at any own colony; ship/Cortes chain effectively unreachable.
+        note: "Whole band literal 2026-09-23 (bugs.md #745/#746). Cash-in is untaxed, any own colony, coastal or not; arm 2 walks to the NEAREST own colony on the same landmass with no coastline term; arm 3 walks to the nearest own unit on the landmass, else destroys when the adjacent-claim probe names the human. The Europe-cash / board-ship / coast-target / Cortes-galleon cluster was deleted: no DOS site boards an AI treasure (FUN_4720_049e has no 0x0a term) and the King-galleon offer is human-control gated (FUN_465b_0000 raw 75800)."
       - id: wagon
         kind: step
         label: Wagon — haul (load matrix, 457e origin walk, village errand, 47b9)
@@ -1079,7 +1055,7 @@ graphs:
       - [war_hunt, end, "hunt bound"]
       - [war_hunt, peace_border, "not at war / not hunter"]
       - [peace_border, treasure]
-      - [treasure, end, "cashed / destroyed / boarded"]
+      - [treasure, end, "cashed / destroyed"]
       - [treasure, wagon, "not treasure"]
       - [wagon, pioneer]
       - [pioneer, fortify]

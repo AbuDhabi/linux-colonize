@@ -4,6 +4,8 @@
 
 #include "../common/test_catalogs.h"
 #include "core/assets.h"
+#include "core/ai_popup.h"
+#include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
@@ -1037,6 +1039,54 @@ static int case_europe_workflow(void) {
       europe_free(&eu);
       return 1;
     }
+  }
+
+  /*
+   * bugs.md #740/#741/#742: FUN_48d3_06ba raw 78005-78021 books the net on the
+   * player's gold (+0x2a) AND on the write-only +0x26 counter, the Crown's fee
+   * on royal_money (+0x22), and raises @LOOTCASH as a modal.
+   */
+  {
+    ColonizeCol1Save* col1 = (ColonizeCol1Save*)calloc(1, sizeof(ColonizeCol1Save));
+    AiPopupState popups;
+    ai_popup_init(&popups);
+    if (!col1) {
+      europe_free(&eu);
+      return 1;
+    }
+    eu.bound_nation = 0;
+    eu.tax_percent = 50;
+    eu.gold = 100;
+    col1->nation[0].gold = 100;
+    col1->nation[0].royal_money = 7;
+    europe_set_live_save(col1);
+    europe_set_popup_queue(&popups);
+    const int credited = europe_cash_treasure(&eu, 1000);
+    const uint32_t cum = (uint32_t)col1->nation[0].unknown24_pad[0] |
+                         ((uint32_t)col1->nation[0].unknown24_pad[1] << 8) |
+                         ((uint32_t)col1->nation[0].unknown24_pad[2] << 16) |
+                         ((uint32_t)col1->nation[0].unknown24_pad[3] << 24);
+    const int fail = credited != 500 || eu.gold != 600 || col1->nation[0].gold != 600u ||
+                     col1->nation[0].royal_money != 7 + 500 || cum != 500u ||
+                     popups.queue_count < 1;
+    europe_set_live_save(NULL);
+    europe_set_popup_queue(NULL);
+    if (fail) {
+      fprintf(
+        stderr,
+        "cash_treasure ledger: credited=%d gold=%d rec=%u royal=%d cum=%u popups=%d\n",
+        credited,
+        eu.gold,
+        col1->nation[0].gold,
+        col1->nation[0].royal_money,
+        cum,
+        popups.queue_count
+      );
+      free(col1);
+      europe_free(&eu);
+      return 1;
+    }
+    free(col1);
   }
 
   /* Disembark Treasure passenger: cash-in + do not land as dock immigrant. */

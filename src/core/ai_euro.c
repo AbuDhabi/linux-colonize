@@ -114,7 +114,6 @@ static void ai_euro_20e6_ship_cargo_counts(
   int* pioneers, int* mil, int* scouts, int* milvet, int* civ
 );
 static int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id);
-static void ai_euro_treasure_tension_bump(ColonizeTurnContext* ctx, ColonizeUnit* u);
 static void ai_euro_try_violate_notify(ColonizeTurnContext* ctx, ColonizeUnit* u);
 
 /*
@@ -2121,79 +2120,13 @@ static int ai_euro_is_treasure_name(ColonizeUnitKind kind) {
   return kind == UNITS_KIND_TREASURE;
 }
 
-/*
- * Treasure Train tension bump (thin — 2026-08-15 find, bit semantics
- * confirmed same day via a `153e` cross-check, see `ai_diplo.h`).
- *
- * Writer citation corrected 2026-09-09 (smell #99): the DOS site is
- * `FUN_465b_0000` (viceroy_unpacked.c:75527-75545), not `FUN_4720_049e`.
- * `uVar11` there is the acting unit's owner nibble (`+0x3147 & 0xf`) and
- * `local_4` the nation on the target tile, so the byte written is
- * `nation[target].euro_relation[actor]` — the index order this port uses.
- * Both follow-up bits are DOS-LITERALS: `2` when the target's
- * `land_combat_strength` (`-0x6be4`) is lower, `8` otherwise. Bit 8 is
- * NOT a Linux invention (see ai_diplo.h) — it is the same
- * amicable-negotiation latch the 153e tail sets, one latch, one consumer.
- *
- * DOS: when a Treasure Train's own move ends adjacent to a foreign unit,
- * sets `nation[foreign].euro_relation[mover] |= 0x80` (the *other*
- * nation's opinion of the treasure-carrying nation — "hauling a fortune
- * near a rival makes them suspicious/covetous", not "you saw their
- * treasure"), then an RNG roll scaled by difficulty compares
- * `land_combat_strength[]` between the two nations: weaker rival →
- * `AI_DIPLO_PEACE` (confirmed real DOS bit 2, not a Linux stand-in —
- * "a weaker power responds to a wealthy/strong rival by seeking peace",
- * mirrors this port's own "unmet defaults to PEACE|MET" convention),
- * stronger rival → `AI_DIPLO_AMICABLE` (DOS's real bit 8; meaning resolved
- * 2026-08-27 as the amicable-negotiation latch). `-0x6be4` (the DOS table the
- * RNG branch reads) resolved to `land_combat_strength[4]`, already live
- * in `col1_stuff_census.c` — no invented data.
- *
- * Own addition, not DOS-derived: skip if the pair is already at war —
- * DOS ORs this bit in unconditionally, but doing that over an active WAR
- * bit would leave an internally inconsistent relation byte in this port
- * (WAR still wins functionally via `ai_diplo_at_war`, but the byte itself
- * would look self-contradictory); safer to just not fire there.
- */
-static void ai_euro_treasure_tension_bump(ColonizeTurnContext* ctx, ColonizeUnit* u) {
-  if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || !u || !u->active ||
-      u->nation_id < 0 || u->nation_id >= 4 ||
-      !ai_euro_is_treasure_name(ai_euro_unit_kind(ctx->units, u))) {
-    return;
-  }
-  for (int d = 0; d < 8; ++d) {
-    const int nx = u->x + MAP_DIR8_DX[d];
-    const int ny = u->y + MAP_DIR8_DY[d];
-    const int foe = units_id_at(ctx->units, nx, ny);
-    if (foe < 0 || units_is_sea(ctx->units, foe)) {
-      continue;
-    }
-    const ColonizeUnit* f = units_get_const(ctx->units, foe);
-    if (!f || f->nation_id == u->nation_id || f->nation_id < 0 || f->nation_id >= 4) {
-      continue;
-    }
-    if (ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
-      continue;
-    }
-    const uint8_t before = ai_diplo_read(ctx->col1, f->nation_id, u->nation_id);
-    ai_diplo_write(ctx->col1, f->nation_id, u->nation_id, (uint8_t)(before | AI_DIPLO_TREASURE_ALERT));
-    if (ctx->rng && dos_rng_range(ctx->rng, 0, 99) < (int)ctx->col1->head.difficulty + 1) {
-      const int their_strength = ctx->col1->stuff.land_combat_strength[f->nation_id];
-      const int our_strength = ctx->col1->stuff.land_combat_strength[u->nation_id];
-      const uint8_t follow =
-        (their_strength < our_strength) ? AI_DIPLO_PEACE : AI_DIPLO_AMICABLE;
-      const uint8_t cur = ai_diplo_read(ctx->col1, f->nation_id, u->nation_id);
-      ai_diplo_write(ctx->col1, f->nation_id, u->nation_id, (uint8_t)(cur | follow));
-    }
-    return; /* DOS fires once per act, first foreign neighbor found */
-  }
-}
 
 /*
- * Europe-sail target for a ship carrying Treasure (Colonization.pdf Treasure
- * Trains — Galleon / coastal colony → Europe). Prefer eastern high seas
- * (units_find_eastern_high_seas_tile — Atlantic→Europe exit). Else nearest
- * water tile with higher x (eastward Europe stand-in). No invented gold.
+ * Europe-bound lane entry for a ship: prefer the eastern High Seas rim
+ * (units_find_eastern_high_seas_tile — the 48d3_015e Atlantic exit), else the
+ * nearest water tile further east as a stand-in on a map with no HS column.
+ * Consumer: ai_euro_ship_sail_to_europe (the FUN_4393 export / Privateer-loot
+ * sail). The treasure caller it also had was deleted 2026-09-23 — see below.
  */
 static int ai_euro_europe_sail_target(
   ColonizeTurnContext* ctx,
@@ -2243,77 +2176,14 @@ static int ai_euro_europe_sail_target(
 }
 
 /*
- * Treasure train coast target (Colonization.pdf Treasure Trains): move to a
- * coastal own colony so a Galleon / king transport can sail it to Europe.
- * Prefer nearest own coastal colony; if none, nearest coastal land tile
- * (Europe sail path stand-in — AI_MOVE to coast). Cite: manual p.76 —
- * park treasure in coastal colony; Galleon six-hold / king galleon for a price.
- * No invented gold/ransom rates.
+ * Deleted 2026-09-23 (bugs.md #745): ai_euro_treasure_coast_target — a Linux
+ * invention cited only to "Colonization.pdf Treasure Trains", with a
+ * coastal-colony preference, a Manhattan distance, no landmass test and a
+ * bare-coast-tile fallback DOS never produces. FUN_521d_20e6's treasure band
+ * (raw 89997-90040) picks the nearest own colony by FUN_281f_037a with no
+ * coastline term; the real band lives in ai_euro_20e6_treasure_cash_in +
+ * ai_euro_20e6_47b9_dead_end.
  */
-static int ai_euro_treasure_coast_target(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  int from_x,
-  int from_y,
-  int* out_x,
-  int* out_y
-) {
-  if (!ctx || !ctx->map || !out_x || !out_y || nation_id < 0 || nation_id >= 4) {
-    return 0;
-  }
-  int best = -1;
-  int bx = 0;
-  int by = 0;
-  if (ctx->colonies) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (!c->active || c->nation_id != nation_id) {
-        continue;
-      }
-      if (!map_tile_is_coastal(ctx->map, c->x, c->y)) {
-        continue;
-      }
-      const int d = abs(c->x - from_x) + abs(c->y - from_y);
-      if (best < 0 || d < best) {
-        best = d;
-        bx = c->x;
-        by = c->y;
-      }
-    }
-  }
-  if (best >= 0) {
-    *out_x = bx;
-    *out_y = by;
-    return 1;
-  }
-  /* No coastal colony — AI_MOVE toward nearest coastal land (sail staging). */
-  best = -1;
-  for (int y = 0; y < ctx->map->height; ++y) {
-    for (int x = 0; x < ctx->map->width; ++x) {
-      if (!map_tile_is_coastal(ctx->map, x, y)) {
-        continue;
-      }
-      if (ctx->colonies && colonies_id_at(ctx->colonies, x, y) >= 0) {
-        continue; /* foreign/other colony tile — skip */
-      }
-      const int d = abs(x - from_x) + abs(y - from_y);
-      if (d < 1) {
-        continue;
-      }
-      if (best < 0 || d < best) {
-        best = d;
-        bx = x;
-        by = y;
-      }
-    }
-  }
-  if (best < 0) {
-    return 0;
-  }
-  *out_x = bx;
-  *out_y = by;
-  return 1;
-}
 
 /* Missionary / Jesuit Missionary, identified by @UNIT type row. */
 static int ai_euro_is_missionary_name(ColonizeUnitKind kind) {
@@ -5231,248 +5101,25 @@ static int ai_euro_tiles_near(int ax, int ay, int bx, int by) {
 }
 
 /*
- * Own ship near (x,y) with passenger cargo space (Treasure board).
- * Cite: manual Galleon six-hold / coastal colony embark. Returns ship id or -1.
+ * Deleted 2026-09-23 (bugs.md #746): ai_euro_find_boardable_ship,
+ * ai_euro_try_treasure_board_sail, ai_euro_treasure_gold_from_unit,
+ * ai_euro_cash_one_treasure, ai_euro_try_cash_treasure_europe and
+ * ai_euro_try_expected_treasure_harbor — the whole invented AI
+ * "board a treasure / sail it to Europe / cash it with the Crown's cut"
+ * transport economy. Every one carried a Colonization.pdf / europe.h
+ * citation only.
+ *
+ * DOS has no such site: FUN_521d_20e6's treasure band (raw 89997-90040) is
+ * cash-in-any-own-colony / walk to the nearest own colony / rendezvous /
+ * destroy, and FUN_4720_049e (the AI ship cargo pick, raw 76067-76513) has no
+ * `+0x3146 == '\n'` term at all, so an AI treasure is never loaded onto a
+ * hull. The King-galleon/Cortes transport offer (FUN_465b_0000 raw 75800) is
+ * human-control-gated (bugs.md #478). The invented chain also ran *ahead* of
+ * the DOS walk-home arm and paid the AI the Europe `min(tax,50)` cut instead
+ * of the band's untaxed face value.
+ *
+ * europe_cash_treasure itself is kept — it is the human FUN_48d3_06ba path.
  */
-static int ai_euro_find_boardable_ship(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  int x,
-  int y
-) {
-  if (!ctx || !ctx->units || nation_id < 0 || nation_id >= 4) {
-    return -1;
-  }
-  int best = -1;
-  int best_d = -1;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    ColonizeUnit* s = &ctx->units->units[i];
-    if (!s->active || s->nation_id != nation_id) {
-      continue;
-    }
-    if (!ai_euro_is_ship_type(ctx->units, s->id) || ai_euro_in_europe(s->x, s->y)) {
-      continue;
-    }
-    const int cap = units_ship_capacity(ctx->units, s->id);
-    if (cap <= 0 || s->cargo_count >= cap) {
-      continue;
-    }
-    if (!ai_euro_tiles_near(x, y, s->x, s->y)) {
-      continue;
-    }
-    const int d = abs(s->x - x) + abs(s->y - y);
-    if (best_d < 0 || d < best_d) {
-      best_d = d;
-      best = s->id;
-    }
-  }
-  return best;
-}
-
-/*
- * Treasure at coastal own colony → board ship with space + AI_SAIL Europe.
- * Cite: Colonization.pdf Treasure Trains (park coastal / Galleon / king galleon).
- * Europe cash-in: ai_euro_try_cash_treasure_europe when ship reaches Europe / HS.
- */
-static int ai_euro_try_treasure_board_sail(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  ColonizeUnit* treasure
-) {
-  if (!ctx || !ctx->units || !ctx->map || !ctx->colonies || !treasure || !treasure->active) {
-    return 0;
-  }
-  const int cid = colonies_id_at(ctx->colonies, treasure->x, treasure->y);
-  if (cid < 0) {
-    return 0;
-  }
-  const ColonizeColony* c = colonies_get(ctx->colonies, cid);
-  if (!c || !c->active || c->nation_id != nation_id) {
-    return 0;
-  }
-  if (!map_tile_is_coastal(ctx->map, c->x, c->y)) {
-    return 0;
-  }
-  const int sid = ai_euro_find_boardable_ship(ctx, nation_id, treasure->x, treasure->y);
-  if (sid < 0) {
-    return 0;
-  }
-  ColonizeUnit* ship = units_get(ctx->units, sid);
-  if (!ship) {
-    return 0;
-  }
-  int boarded = 0;
-  if (ship->x == treasure->x && ship->y == treasure->y) {
-    boarded = units_board_stacked(ctx->units, treasure->id, sid) ? 1 : 0;
-  } else {
-    boarded = units_board(ctx->units, treasure->id, sid) ? 1 : 0;
-  }
-  if (!boarded) {
-    return 0;
-  }
-  int ex = 0;
-  int ey = 0;
-  if (ai_euro_europe_sail_target(ctx, ship->x, ship->y, &ex, &ey)) {
-    ai_euro_set_goto(ship, UNITS_ORDER_AI_SAIL, ex, ey);
-  } else {
-    const int east = ship->x + 8 < ctx->map->width ? ship->x + 8 : ctx->map->width - 1;
-    ai_euro_set_goto(ship, UNITS_ORDER_AI_SAIL, east, ship->y);
-  }
-  return 1;
-}
-
-/* COL1 Treasure gold — see units_treasure_value_gold for both representations. */
-static int ai_euro_treasure_gold_from_unit(const ColonizeUnit* treasure) {
-  /*
-   * Delegates to the shared reader: the LE16 mirror alone valued every
-   * save-loaded Treasure at 0, because col1_bridge fills hold_goods_amount
-   * only for sea/wagon hulls and a bridged Treasure carries its gold in the
-   * DOS +0x315b byte (`profession`, gold/100) instead. See
-   * units_treasure_value_gold.
-   */
-  return units_treasure_value_gold(treasure);
-}
-
-/*
- * Cash one Treasure unit via europe_cash_treasure; despawn (not a dock immigrant).
- * Cite: Colonization.pdf Treasure Trains; GAME.TXT @LOOTCASH / @CASHTREASURE;
- * europe_cash_treasure_passengers. Returns credited gold (0 if value unset/PARK).
- */
-static int ai_euro_cash_one_treasure(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  ColonizeUnit* treasure
-) {
-  if (!ctx || !ctx->europe || !ctx->col1_ok || !ctx->col1 || !ctx->units || !treasure ||
-      !treasure->active) {
-    return 0;
-  }
-  if (nation_id < 0 || nation_id >= 4 || treasure->nation_id != nation_id) {
-    return 0;
-  }
-  ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
-  /* Borrow the shared EuropeScreen for this nation; ALWAYS restore the
-   * human's values after — leaving an AI's treasury behind zeroed the
-   * human's displayed (and spendable) gold (bugs.md "starting gold is
-   * zero"). */
-  const int saved_gold = ctx->europe->gold;
-  const int saved_tax = ctx->europe->tax_percent;
-  ctx->europe->gold = (int)nat->gold;
-  ctx->europe->tax_percent = (int)nat->tax_rate;
-
-  const int value = ai_euro_treasure_gold_from_unit(treasure);
-  int credited = 0;
-  if (value > 0) {
-    credited = europe_cash_treasure(ctx->europe, value);
-    nat->gold = (uint32_t)(ctx->europe->gold < 0 ? 0 : ctx->europe->gold);
-  } else {
-    /*
-     * PARK value source: intended COL1 Treasure cargo_hold[0..1] LE16 gold
-     * (ColonizeUnit has no treasure_gold; hold_goods_amount[0..1] mirror those
-     * bytes when bridge-loaded; game_loop→europe_enqueue_expected does not fill
-     * cargo_treasure_gold yet). Do not invent a default rate/value.
-     */
-  }
-  if (nation_id != ctx->human_nation) {
-    ctx->europe->gold = saved_gold;
-    ctx->europe->tax_percent = saved_tax;
-  }
-  /* Consume Treasure after cash attempt — same as Expected→Harbor disembark. */
-  (void)units_despawn(ctx->units, treasure->id);
-  return credited;
-}
-
-/*
- * Treasure (aboard ship or land) at Europe (x/y≥200) or ship on high seas →
- * europe_cash_treasure + despawn. AI stand-in for Expected→Harbor cash-in when
- * ctx->europe is present (R1 API). Cite: Colonization.pdf Treasure Trains.
- * Returns 1 if any Treasure was consumed.
- */
-static int ai_euro_try_cash_treasure_europe(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  ColonizeUnit* u
-) {
-  if (!ctx || !ctx->units || !ctx->europe || !ctx->col1_ok || !ctx->col1 || !u || !u->active) {
-    return 0;
-  }
-  if (nation_id < 0 || nation_id >= 4 || u->nation_id != nation_id) {
-    return 0;
-  }
-
-  const int at_europe = ai_euro_in_europe(u->x, u->y);
-  const int on_hs = ctx->map && map_tile_is_high_seas(ctx->map, u->x, u->y);
-  if (!at_europe && !on_hs) {
-    return 0;
-  }
-
-  int did = 0;
-
-  /* Land Treasure already at Europe coords. */
-  if (!ai_euro_is_ship_type(ctx->units, u->id)) {
-    if (at_europe && ai_euro_is_treasure_name(ai_euro_unit_kind(ctx->units, u))) {
-      (void)ai_euro_cash_one_treasure(ctx, nation_id, u);
-      return 1;
-    }
-    return 0;
-  }
-
-  /* Ship: cash Treasure passengers at Europe / HS (Europe exit stand-in). */
-  int ids[COLONIZE_UNIT_CARGO_MAX];
-  const int n =
-    u->cargo_count < COLONIZE_UNIT_CARGO_MAX ? u->cargo_count : COLONIZE_UNIT_CARGO_MAX;
-  for (int i = 0; i < n; ++i) {
-    ids[i] = u->cargo_ids[i];
-  }
-  for (int i = 0; i < n; ++i) {
-    ColonizeUnit* pax = units_get(ctx->units, ids[i]);
-    if (!pax || !pax->active) {
-      continue;
-    }
-    if (!ai_euro_is_treasure_name(ai_euro_unit_kind(ctx->units, pax))) {
-      continue;
-    }
-    (void)ai_euro_cash_one_treasure(ctx, nation_id, pax);
-    did = 1;
-  }
-  return did;
-}
-
-/*
- * Expected→Harbor path AI can trigger: due Expected ships (turns_left==0) with
- * cargo_treasure_gold set → europe_tick_voyages → europe_cash_treasure.
- * Cite: europe.h Treasure cash-in; Colonization.pdf Treasure Trains.
- */
-static void ai_euro_try_expected_treasure_harbor(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->europe || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
-    return;
-  }
-  if (ctx->europe->expected_ships <= 0) {
-    return;
-  }
-  int due = 0;
-  for (int e = 0; e < ctx->europe->expected_ships; ++e) {
-    if (ctx->europe->expected[e].turns_left == 0) {
-      due = 1;
-      break;
-    }
-  }
-  if (!due) {
-    return;
-  }
-  ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
-  /* Borrow/restore — see ai_euro_cash_one_treasure (bugs.md zeroed gold). */
-  const int saved_gold = ctx->europe->gold;
-  const int saved_tax = ctx->europe->tax_percent;
-  ctx->europe->gold = (int)nat->gold;
-  ctx->europe->tax_percent = (int)nat->tax_rate;
-  europe_tick_voyages(ctx->europe, ctx->units);
-  nat->gold = (uint32_t)(ctx->europe->gold < 0 ? 0 : ctx->europe->gold);
-  if (nation_id != ctx->human_nation) {
-    ctx->europe->gold = saved_gold;
-    ctx->europe->tax_percent = saved_tax;
-  }
-}
 
 /* True when wagon still has free goods-hold capacity (cargo field). */
 static int ai_euro_wagon_has_hold_capacity(const ColonizeUnitPool* units, const ColonizeUnit* w) {
@@ -14287,7 +13934,8 @@ static int ai_euro_20e6_treasure_cash_in(
  * rest of the treasure chain so DOS precedence holds; this function is only
  * reached once that arm has declined.
  *
- * Returns 1 when the unit was destroyed (caller must stop touching it).
+ * Returns 0 when the band declined, 1 when it bound a course (LAB_4701 /
+ * LAB_27f5) and 2 when the unit was destroyed (caller must stop touching it).
  */
 static int ai_euro_20e6_47b9_dead_end(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
   if (!ctx || !ctx->units || !ctx->map || !ctx->colonies || !u || !u->active) {
@@ -14331,15 +13979,40 @@ static int ai_euro_20e6_47b9_dead_end(ColonizeTurnContext* ctx, ColonizeUnit* u,
   if (in_own_colony) {
     return 0; /* cash-in arm — ai_euro_20e6_treasure_cash_in already had it */
   }
-  if (s.home_cid == s.cid) {
-    return 0; /* LAB_4701 bind + goto colony */
+  /*
+   * arm 2 (raw 90016-90017): `uVar14 = local_62; if (local_2c == local_38)
+   * goto LAB_4701` — FUN_281f_09e6(nearest own colony) selects it, LAB_4567
+   * loads its coords and LAB_27f5 walks there. local_62 is the prologue's
+   * nearest own colony by FUN_281f_037a distance with NO coastline term, and
+   * the guard is a continent-id compare. DOS does not write the unit's
+   * +0x314a origin byte on this arm (only the wagon 457e arm does).
+   */
+  if (s.home_cid == s.cid && s.home_colony >= 0) {
+    const ColonizeColony* home = colonies_get(ctx->colonies, s.home_colony);
+    if (home && home->active && home->nation_id == nation_id) {
+      if (units_orders_follow_goto(u->orders) && u->goto_x == home->x &&
+          u->goto_y == home->y) {
+        return 1; /* already walking there */
+      }
+      ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, home->x, home->y);
+      return 1;
+    }
   }
+  /*
+   * arm 3 (raw 90018-90030): nearest own unit (FUN_281f_08a8) whose tile's
+   * continent id equals the treasure's → LAB_27f5 walk to it.
+   */
   {
     const int mate = ai_euro_20e6_nearest_own_unit(ctx, nation_id, u->id, u->x, u->y);
     if (mate >= 0) {
       const ColonizeUnit* mu = units_get_const(ctx->units, mate);
       if (mu && map_continent_id_at(ctx->map, mu->x, mu->y) == s.cid) {
-        return 0; /* LAB_27f5 walk to the rendezvous */
+        if (units_orders_follow_goto(u->orders) && u->goto_x == mu->x &&
+            u->goto_y == mu->y) {
+          return 1;
+        }
+        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, mu->x, mu->y);
+        return 1;
       }
     }
   }
@@ -14351,7 +14024,7 @@ static int ai_euro_20e6_47b9_dead_end(ColonizeTurnContext* ctx, ColonizeUnit* u,
                 u->id, nation_id, u->x, u->y);
       }
       (void)units_despawn(ctx->units, u->id);
-      return 1;
+      return 2;
     }
   }
   return 0;
@@ -14480,7 +14153,7 @@ static int ai_euro_20e6_wagon_origin_walk(
  * WIRED LIVE (2026-09-06d), in DOS order: the ship act calls this only after
  * the 4393 work-queue haul (ai_euro_try_ship_trade_haul) declines, which is
  * where LAB_457e sits in the raw flow, and behind the same
- * `!at_war && !treasure_aboard && !ship_has_useful_goto` chain guard as its
+ * `!at_war && !ship_has_useful_goto` chain guard as its
  * neighbours. The golden-pinned SW coastal cruise
  * (ai_euro_try_post_found_coast_cruise) still runs first, so it keeps
  * ownership of the TURN4→7 beachhead transports; the cadence never fires on
@@ -17993,9 +17666,6 @@ static void ai_euro_unload_settle_first_landfall(
       continue;
     }
     const ColonizeUnitKind kind = ai_euro_unit_kind(ctx->units, p);
-    if (ai_euro_is_treasure_name(kind)) {
-      continue;
-    }
     if (ai_euro_name_is_pioneer(kind) && !pioneer) {
       pioneer = p;
     } else if (ai_euro_name_is_soldier(kind) && !soldier) {
@@ -18374,11 +18044,8 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
       continue;
     }
     const ColonizeUnitKind kind = ai_euro_unit_kind(ctx->units, p);
-    /* Treasure stays aboard for Europe sail — do not landfall as settler.
-     * Cite: Colonization.pdf Treasure Trains → Europe gold (cash on Europe/HS). */
-    if (ai_euro_is_treasure_name(kind)) {
-      continue;
-    }
+    /* (The "Treasure stays aboard for the Europe sail" skip was deleted
+     * 2026-09-23, bugs.md #746 — DOS's AI has no treasure sail.) */
     int sc = 2;
     if (ai_euro_name_is_pioneer(kind)) {
       sc = 5;
@@ -19365,12 +19032,8 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_europe_exit(struct ai_euro_ac
   ColonizeUnit* u = a->u;
   const int nation_id = a->nation_id;
 
-  /* Treasure cash-in before Europe→HS teleport (passengers would leave map). */
-  (void)ai_euro_try_cash_treasure_europe(ctx, nation_id, u);
-  u = units_get(ctx->units, u->id);
-  if (!u || !u->active) {
-    return AI_EURO_ACT_RETURN;
-  }
+  /* (The Europe/HS treasure cash-in that stood here was deleted 2026-09-23,
+   * bugs.md #746 — DOS's AI never puts a treasure on a ship.) */
   /*
    * No Europe-dock dump-sell in the per-unit act. The "sell every hold at the
    * Europe dock" arm (ai_euro_try_transport_europe_sell) carried no DOS
@@ -19736,23 +19399,15 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_war_trade(struct ai_euro_act_
    */
   const int at_war =
     ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id);
-  /* Treasure aboard → keep Europe sail; do not war-hunt yank. Cite: Treasure
-   * Trains → Europe (cash on Europe/HS via ai_euro_try_cash_treasure_europe). */
-  int treasure_aboard = 0;
-  for (int c = 0; c < u->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
-    const ColonizeUnit* pax = units_get_const(ctx->units, u->cargo_ids[c]);
-    if (pax && ai_euro_is_treasure_name(ai_euro_unit_kind(ctx->units, pax))) {
-      treasure_aboard = 1;
-      break;
-    }
-  }
+  /* (The "treasure aboard → keep the Europe sail" suppression that stood here
+   * went with the invented transport cluster on 2026-09-23, bugs.md #746.) */
   /*
    * Peace cargo haul: idle Caravel/Merchantman with hold space/TOOLS →
    * AI_SAIL toward tools/food-short coastal colony water. Cite: euro_unit_act
-   * §2d2; TOOLS only (no invented FOOD cargo). Skip when war / treasure /
+   * §2d2; TOOLS only (no invented FOOD cargo). Skip when war /
    * useful sail already set.
    */
-  if (!at_war && !treasure_aboard && !ai_euro_has_useful_goto(u, ctx->map)) {
+  if (!at_war && !ai_euro_has_useful_goto(u, ctx->map)) {
     if (!ai_euro_try_post_found_coast_cruise(ctx, nation_id, u)) {
       {
         if (!ai_euro_try_ship_trade_haul(ctx, nation_id, u)) {
@@ -19774,7 +19429,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_war_trade(struct ai_euro_act_
    * ai_euro_unload_settle.) */
   /* Leave enemy Fort/Fortress battery tiles before hunt/attack. Not war-gated:
    * the battery fires on any hull without a PEACE treaty (bugs.md #465). */
-  if (!ai_euro_in_europe(u->x, u->y) && !treasure_aboard &&
+  if (!ai_euro_in_europe(u->x, u->y) &&
       ai_euro_naval_try_flee_fort_fire(ctx, u)) {
     u = units_get(ctx->units, u->id);
     if (!u || !u->active) {
@@ -19841,7 +19496,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_war_trade(struct ai_euro_act_
 
   a->at_war = at_war;
   a->exited_europe = exited_europe;
-  a->treasure_aboard = treasure_aboard;
   a->u = u;
   return AI_EURO_ACT_CONTINUE;
 }
@@ -19855,14 +19509,13 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_sail(struct ai_euro_act_ctx* 
   ColonizeUnit* u = a->u;
   const int nation_id = a->nation_id;
   int exited_europe = a->exited_europe;
-  int treasure_aboard = a->treasure_aboard;
 
   /*
    * Raw 90210-90219 → LAB_4d2e: every ship band above fell through. An idle
    * hull takes the 8-direction wander pick (far roam latch, explore terms,
    * LAB_52aa attack odds); a busy one only fights an adjacent foe.
    */
-  if (u->active && !exited_europe && !ai_euro_in_europe(u->x, u->y) && !treasure_aboard &&
+  if (u->active && !exited_europe && !ai_euro_in_europe(u->x, u->y) &&
       u->moves > 0) {
     const int busy = ai_euro_has_useful_goto(u, ctx->map);
     if (!busy || ai_euro_20e6_adjacent_foreign_09dc(ctx, u->x, u->y, nation_id)) {
@@ -19997,7 +19650,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_sail(struct ai_euro_act_ctx* 
   }
 
   a->exited_europe = exited_europe;
-  a->treasure_aboard = treasure_aboard;
   a->u = u;
   return AI_EURO_ACT_CONTINUE;
 }
@@ -20021,14 +19673,8 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_arrival(struct ai_euro_act_ct
    * 90210-90219 (ai_euro_act_ship_sail, LAB_52aa odds term), and disembark
    * through the LAB_3558 mask block in ai_euro_unload_settle below.)
    */
-  /* HS / Europe arrival after sail steps — cash Treasure passengers. */
-  if (u->active) {
-    (void)ai_euro_try_cash_treasure_europe(ctx, nation_id, u);
-    u = units_get(ctx->units, u->id);
-    if (!u || !u->active) {
-      return AI_EURO_ACT_RETURN;
-    }
-  }
+  /* (The HS/Europe arrival treasure cash that stood here was deleted
+   * 2026-09-23, bugs.md #746.) */
   /*
    * Settle unload after sail — not on the Europe-exit act. TURN1→2 goldens
    * keep all passengers aboard after 48d3 + west-explore (Dutch approach is
@@ -20316,47 +19962,28 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_treasure(struct ai_euro_act_c
   int treasure_routed = a->treasure_routed;
 
   /*
-   * Treasure train (act-level): idle Treasure → AI_MOVE toward nearest own
-   * coastal colony (or coastal land if none). At coastal own colony: Cortes →
-   * free king-galleon cash (@KINGGALLEON3 tax); else board + AI_SAIL Europe.
-   * Cite: Colonization.pdf Treasure Trains; fandom Hernan Cortes.
-   * Europe cash: ai_euro_try_cash_treasure_europe (LE16 hold / europe_cash_treasure).
-   * Preserve goto vs FOUND/LABOR yank. No invented ransom/gold.
+   * DOS-LITERAL FUN_521d_20e6 raw 89997-90040 — the whole (and only) AI
+   * treasure band, in DOS order:
+   *   arm 1  iStack_2e == 0 (standing on ANY own colony): cash
+   *          `+0x315b * 100` into the nation purse untaxed, @LOOTFOREIGN
+   *          popup while (DS:0x5382 & 1) == 0, then LAB_47b9 destroy.
+   *   arm 2  else nearest own colony on this landmass
+   *          (iStack_2c == iStack_38) → FUN_281f_09e6 bind + LAB_4701/4567
+   *          walk to it.
+   *   arm 3  else nearest own unit on this landmass (FUN_281f_08a8) →
+   *          LAB_27f5 walk to it; else, when the adjacent-claim probe names
+   *          the human (DS:0x5398), LAB_47b9 destroy.
+   * Arms 2/3 live in ai_euro_20e6_47b9_dead_end below.
+   *
+   * The coast-target / board-and-sail / Europe-cash chain that stood between
+   * arm 1 and the rest was deleted 2026-09-23 (bugs.md #745/#746): no DOS
+   * site boards an AI treasure, prefers a coastal colony, or gives the AI
+   * Cortes' free King galleon (FUN_465b_0000 raw 75800 is human-control
+   * gated, bugs.md #478).
    */
   if (is_treasure) {
-    /*
-     * DOS precedence: FUN_521d_20e6's treasure band checks the in-colony
-     * cash-in (iStack_2e == 0) before every other treasure arm, so it runs
-     * ahead of the board / coast chain below — neither of which has a
-     * counterpart in the raw band. An AI Treasure that reaches any own colony
-     * is cashed at face value and destroyed on the spot.
-     *
-     * No Cortes/King-galleon fallback here: FUN_465b_0000 (raw 75798,
-     * `unit+0x3146=='\n' Treasure && nation<4 && nation*0x34-0x543f==0`
-     * human-control gate) shows the whole King-galleon/Cortes transport
-     * offer (FUN_2a1f_0186 -> FUN_5fef_1908) is human-only in DOS; AI
-     * treasure cash-in is exclusively the unconditional, untaxed 20e6 band
-     * above. Calling the Cortes stand-in for AI (removed 2026-09-17) shorted
-     * AI treasuries by the tax rate on coastal colonies for no DOS reason.
-     */
     if (ai_euro_20e6_treasure_cash_in(ctx, u, nation_id)) {
       return AI_EURO_ACT_RETURN;
-    }
-    if (ai_euro_try_cash_treasure_europe(ctx, nation_id, u)) {
-      return AI_EURO_ACT_RETURN;
-    }
-    if (ai_euro_try_treasure_board_sail(ctx, nation_id, u)) {
-      treasure_routed = 1;
-      return AI_EURO_ACT_RETURN; /* boarded — ship owns Europe sail course */
-    }
-    int tx = 0;
-    int ty = 0;
-    if (ai_euro_treasure_coast_target(ctx, nation_id, u->x, u->y, &tx, &ty)) {
-      if (u->x != tx || u->y != ty) {
-        /* Always re-aim coast (override FOUND/explore from scoring gate). */
-        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
-      }
-      treasure_routed = 1;
     }
   }
   /*
@@ -20365,8 +19992,14 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_treasure(struct ai_euro_act_c
    * DOS destroys it. Wagons and Treasure defer the 20e6 gate (see the
    * defer_gate list), so this band runs act-level here instead.
    */
-  if (is_treasure && !treasure_routed && ai_euro_20e6_47b9_dead_end(ctx, u, nation_id)) {
-    return AI_EURO_ACT_RETURN;
+  if (is_treasure && !treasure_routed) {
+    const int r = ai_euro_20e6_47b9_dead_end(ctx, u, nation_id);
+    if (r == 2) {
+      return AI_EURO_ACT_RETURN; /* destroyed */
+    }
+    if (r == 1) {
+      treasure_routed = 1; /* LAB_4701 / LAB_27f5 course bound */
+    }
   }
 
   a->treasure_routed = treasure_routed;
@@ -21434,12 +21067,13 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   }
 
   /*
-   * FUN_4720_049e notify/tension checks (thin, approximate — see the two
-   * functions' own headers). Fire once near the top of the act, matching
-   * DOS's own move-driver-completion timing as closely as this port's
-   * architecture allows.
+   * FUN_4720_049e notify check (thin, approximate — see the function's own
+   * header). Fires once near the top of the act, matching DOS's own
+   * move-driver-completion timing as closely as this port's architecture
+   * allows. (The Privateer-sighting relation bit that also stood here moved
+   * to its real DOS home on 2026-09-23 — FUN_465b_0000's move-into-foreign
+   * arm, ai_euro_465b_privateer_sighting, called from units_try_move_w.)
    */
-  ai_euro_treasure_tension_bump(ctx, u);
   if (!is_ship_early) {
     ai_euro_try_violate_notify(ctx, u);
   }
@@ -21760,21 +21394,10 @@ static void ai_euro_dispatcher_turn_plan(ColonizeTurnContext* ctx, int nation_id
     ai_diplo_euro_balance(ctx, nation_id);
   }
 
-  /* Treasure → Europe gold: Expected→Harbor due ships + live Europe/HS units
-   * (moves may be 0 on Europe dock ships). No Cortes/King-galleon call here
-   * — that machinery is human-only in DOS (FUN_465b_0000 raw 75798 gates the
-   * whole colony-arrival King-galleon/Cortes offer on the mover's nation
-   * control byte == 0); AI treasure cash-in is the unconditional 20e6
-   * in-colony band (ai_euro_act_land_treasure) plus this Europe/high-seas
-   * landfall sweep. Cite: Treasure Trains. */
-  ai_euro_try_expected_treasure_harbor(ctx, nation_id);
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
-      continue;
-    }
-    (void)ai_euro_try_cash_treasure_europe(ctx, nation_id, u);
-  }
+  /* (The nation-turn "Expected→Harbor treasure cash" sweep that stood here was
+   * deleted 2026-09-23, bugs.md #746: DOS's AI treasure cash-in is the
+   * unconditional, untaxed in-colony 20e6 band alone — nothing ever puts an AI
+   * treasure on a ship, so nothing ever reaches Europe to be taxed.) */
 }
 
 /* Step 7 of ai_euro_dispatcher_turn: the FUN_521d_6d8e wave/drain unit-act

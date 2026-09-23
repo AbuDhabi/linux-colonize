@@ -30,7 +30,6 @@ struct ai_euro_act_ctx {
   /* ship band */
   int exited_europe;
   int at_war;
-  int treasure_aboard;
   /* land band */
   const char* uname;
   ColonizeUnitKind ukind; /* unit's @UNIT type-row kind (never string-derived) */

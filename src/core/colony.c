@@ -1988,6 +1988,12 @@ int colonies_admit_unit_w(
   if (units_is_sea(units, unit_id) || units_is_transport(units, unit_id)) {
     return -1;
   }
+  /* DOS-LITERAL FUN_2b5a_0b34 raw 42189: Join gated on DS:0x30e default-profession
+   * table (FUN_281f_0b78 >= 0); Treasure/Artillery/Wagon/Regulars/Cavalry have no
+   * slot and cannot Join. */
+  if (!units_type_has_profession_slot(unit->type_index)) {
+    return -1;
+  }
   if (col->colonist_count >= COLONIZE_COLONY_POP_MAX) {
     return -1;
   }

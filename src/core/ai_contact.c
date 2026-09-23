@@ -7667,16 +7667,13 @@ COLONIZE_INTERNAL void ai_contact_raid_stage_combat(struct ai_contact_raid_ctx* 
     /*
      * bugs.md: Indians should be more chill — the ambush arm only fires
      * in the provocation band (alarm ≥ 55, the same cut the war-declare
-     * escalation uses) or at open war, not at the ≥40 raid-gate band. A
-     * Treasure Train is the exception: hard to resist at any alarm.
+     * escalation uses) or at open war, not at the ≥40 raid-gate band.
+     * No DOS site exists for a Treasure-Train bypass of this gate, so it
+     * applies uniformly regardless of defender type (#748).
      */
-    {
-      const ColonizeUnitType* ft2 = units_type(ctx->units, f->type_index);
-      const int is_treasure2 = units_type_is_treasure(ft2) ? 1 : 0;
-      if (!is_treasure2 && max_alarm < 55 &&
-          !ai_diplo_indian_at_war(ctx->col1, target_euro, nation_id - 4)) {
-        continue;
-      }
+    if (max_alarm < 55 &&
+        !ai_diplo_indian_at_war(ctx->col1, target_euro, nation_id - 4)) {
+      continue;
     }
     /* Snapshot before combat despawn (the loser is gone by the chrome call). */
     const int foe_x = f->x;
