@@ -2622,7 +2622,88 @@ static int case_europe_dragoon_roll_and_caption(void) {
   return 0;
 }
 
+/* bugs.md #669: a Continental disembarked in Europe keeps its @UNIT row on
+ * the dock (DOS keeps +0x3146); it is not folded to Soldiers. */
+static int case_europe_dock_continental_row(void) {
+  EuropeScreen eu;
+  char err[256];
+  if (!test_europe_load(&eu, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "cont dock: europe_load failed: %s\n", err);
+    return 1;
+  }
+  ColonizeMsgCatalog names;
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  memset(&names, 0, sizeof(names));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+      !units_load_types(&units, &names)) {
+    fprintf(stderr, "cont dock: load NAMES/units failed\n");
+    assets_msg_free(&names);
+    europe_free(&eu);
+    return 1;
+  }
+  const int army_ti = units_kind_type_index(&units, UNITS_KIND_CONT_ARMY);
+  const int cav_ti = units_kind_type_index(&units, UNITS_KIND_CONT_CAV);
+  const int sol_ti = units_kind_type_index(&units, UNITS_KIND_SOLDIER);
+  int rc = 1;
+  if (army_ti < 0 || cav_ti < 0 || sol_ti < 0) {
+    fprintf(stderr, "cont dock: kinds missing %d %d %d\n", army_ti, cav_ti, sol_ti);
+    goto done;
+  }
+  eu.dock_count = 0;
+  memset(eu.dock, 0, sizeof(eu.dock));
+  eu.harbor_ships = 1;
+  EuropeHarborShip* ship = &eu.harbor[0];
+  memset(ship, 0, sizeof(*ship));
+  ship->cargo_count = 3;
+  ship->cargo_types[0] = army_ti;
+  ship->cargo_types[1] = cav_ti;
+  ship->cargo_types[2] = sol_ti;
+  for (int i = 0; i < 3; ++i) {
+    ship->cargo_professions[i] = UNITS_JOB_SOLDIER;
+  }
+  europe_disembark_passengers_to_dock(&eu, ship, &units);
+  if (eu.dock_count != 3 || ship->cargo_count != 0) {
+    fprintf(stderr, "cont dock: dock %d cargo %d\n", eu.dock_count, ship->cargo_count);
+    goto done;
+  }
+  /* push_front: on-board order preserved → dock[0]=army, [1]=cav, [2]=soldier */
+  if (eu.dock[0].dos_type != (int)UNITS_KIND_CONT_ARMY ||
+      eu.dock[1].dos_type != (int)UNITS_KIND_CONT_CAV ||
+      eu.dock[2].dos_type != EUROPE_DOCK_TYPE_SOLDIERS) {
+    fprintf(stderr, "cont dock: dos_type %d %d %d\n", eu.dock[0].dos_type, eu.dock[1].dos_type,
+            eu.dock[2].dos_type);
+    goto done;
+  }
+  if (europe_dock_unit_type_index(&units, eu.dock[0].dos_type) != army_ti ||
+      europe_dock_unit_type_index(&units, eu.dock[1].dos_type) != cav_ti) {
+    fprintf(stderr, "cont dock: type index lookup failed\n");
+    goto done;
+  }
+  ColonizeUnit probe;
+  memset(&probe, 0, sizeof(probe));
+  europe_apply_dock_unit_kit(&probe, (int)UNITS_KIND_CONT_CAV);
+  if (probe.muskets != 50 || probe.horses != 50) {
+    fprintf(stderr, "cont dock: cav kit %d/%d\n", probe.muskets, probe.horses);
+    goto done;
+  }
+  europe_apply_dock_unit_kit(&probe, (int)UNITS_KIND_CONT_ARMY);
+  if (probe.muskets != 50 || probe.horses != 0) {
+    fprintf(stderr, "cont dock: army kit %d/%d\n", probe.muskets, probe.horses);
+    goto done;
+  }
+  fprintf(stderr, "Europe dock Continental rows ok\n");
+  rc = 0;
+done:
+  assets_msg_free(&names);
+  europe_free(&eu);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"case_europe_dock_continental_row", case_europe_dock_continental_row},
     {"case_europe_workflow", case_europe_workflow},
     {"case_europe_dragoon_roll_and_caption", case_europe_dragoon_roll_and_caption},
 };

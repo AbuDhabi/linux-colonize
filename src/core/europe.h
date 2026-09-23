@@ -483,6 +483,8 @@ int europe_purchase_price(ColonizeUnitKind kind);
 
 /* europe_dock_type_for -- see docs/europe.md#europe_dock_type_for */
 int europe_dock_type_for(const char* name, int profession);
+/* bugs.md #669: 0..5 or a Continental kind (7 / 9). */
+bool europe_dock_dos_type_is_valid(int dos_type);
 
 /* europe_dock_icon_sprite -- see docs/europe.md#europe_dock_icon_sprite */
 int europe_dock_icon_sprite(const ColonizeUnitPool* units, const EuropeDockImmigrant* d);

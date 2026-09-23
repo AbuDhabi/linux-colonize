@@ -300,6 +300,9 @@ DOS @UNIT type for a dock entry. A name that is itself one of the six
 (an arriving passenger keeps the type it sailed with) wins; otherwise the
 profession decides, the way FUN_38fd_0718 decides it for a fresh
 immigrant. Anything else — Artillery, a purchased hull — is Colonists.
+A Continental Army / Cavalry (kinds 9 / 7) disembarked in Europe keeps its
+own @UNIT row as `dos_type` (bugs.md #669; `europe_dock_dos_type_is_valid`),
+the way DOS keeps +0x3146; the kit helpers know both rows.
 
 ## europe_dock_icon_sprite
 

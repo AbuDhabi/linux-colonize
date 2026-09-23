@@ -500,11 +500,28 @@ static int europe_dock_type_tools(int dos_type) {
 }
 
 static int europe_dock_type_muskets(int dos_type) {
-  return (dos_type == EUROPE_DOCK_TYPE_SOLDIERS || dos_type == EUROPE_DOCK_TYPE_DRAGOONS) ? 50 : 0;
+  return (dos_type == EUROPE_DOCK_TYPE_SOLDIERS || dos_type == EUROPE_DOCK_TYPE_DRAGOONS ||
+          dos_type == (int)UNITS_KIND_CONT_ARMY || dos_type == (int)UNITS_KIND_CONT_CAV)
+           ? 50
+           : 0;
 }
 
 static int europe_dock_type_horses(int dos_type) {
-  return (dos_type == EUROPE_DOCK_TYPE_DRAGOONS || dos_type == EUROPE_DOCK_TYPE_SCOUTS) ? 50 : 0;
+  return (dos_type == EUROPE_DOCK_TYPE_DRAGOONS || dos_type == EUROPE_DOCK_TYPE_SCOUTS ||
+          dos_type == (int)UNITS_KIND_CONT_CAV)
+           ? 50
+           : 0;
+}
+
+/*
+ * bugs.md #669: a dock entry's dos_type is a DOS @UNIT type (== ColonizeUnitKind).
+ * The six @ARMOPTIONS rows deal in 0..5; a Continental (7 / 9) disembarked in
+ * Europe keeps its own row the way DOS keeps +0x3146 (dock caption
+ * FUN_38fd_3694 raw 61183-61197 reads `0x5230 + type*0xe`).
+ */
+bool europe_dock_dos_type_is_valid(int dos_type) {
+  return (dos_type >= 0 && dos_type < EUROPE_DOCK_TYPE_COUNT) ||
+         dos_type == (int)UNITS_KIND_CONT_CAV || dos_type == (int)UNITS_KIND_CONT_ARMY;
 }
 
 /*
@@ -534,7 +551,7 @@ int europe_dock_unit_type_index_ex(
    * pass true/false without changing behaviour) since the row lookup always
    * succeeds and never needs a fallback. */
   (void)with_singular_fallback;
-  if (!units || dos_type < 0 || dos_type >= EUROPE_DOCK_TYPE_COUNT) {
+  if (!units || !europe_dock_dos_type_is_valid(dos_type)) {
     return -1;
   }
   return units_kind_type_index(units, (ColonizeUnitKind)dos_type);
