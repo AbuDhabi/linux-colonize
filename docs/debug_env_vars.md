@@ -22,7 +22,6 @@ comparing golden output.
 | `AI_NO_BRAVE_PEELS` | `src/core/ai.c` (`ai_brave_peels_disabled`) | **behaviour** | Skips seed-100 dir peels entirely, to audit how many "quiet" misses remain without them | off (peels run) |
 | `AI_021A_WATCH` | `src/core/ai_native_021a.c` (`ai_native_pick_dir_021a`) | trace | `"x:y"` — prints that tile's layer2/layer3 at every Brave act | unset |
 | `AI_021A_TRACE` | `src/core/ai_native_021a.c` (`ai_021a_trace_enabled`) | trace | One line per Brave act: pick, flags, final direction | off |
-| `AI_BRAVE_PICK` | `src/core/ai_brave.c` (`ai_brave_pick_20e6_fallback`) | **behaviour** | `=20e6` falls back to the retired 20e6-shaped quiet scorer instead of the current `021a` picker | current picker |
 | `UNITS_FAR_BFS` | `src/core/units.c:9804` | **behaviour** | `=1` reverts to the pre-2026-08-27 whole-map BFS tier for far pathing (diagnostic fallback) | off (tiered BFS) |
 | `AI_SET_GOTO_TRACE` | `src/core/ai_euro.c:3768` | trace | Logs `goto` order assignment | off |
 | `AI_20E6_LOAD_TRACE` | `src/core/ai_euro.c:4665`, `13757` | trace | Logs cargo/unit load decisions | off |

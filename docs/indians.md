@@ -88,20 +88,35 @@ the truth is the 15-entry JMPF stub table at `4d56:4c22..4c6c`,
   The `465b` step itself is not a plain move when the destination is foreign
   (`local_4` = stack-head nation, else settlement owner, != Brave): DOS
   exhausts (< 3 MP left) or attacks via `1b0e`, and never lands the Brave on
-  the tile. `ai_native_brave_step` keeps that end state (in place, exhausted;
-  the attack itself stays parked with the alarmed dispatch). Before
+  the tile. `ai_native_brave_step` keeps that end state (in place, exhausted)
+  and, since 2026-09-23 (bugs.md #822), resolves the attack on the ≥ 3-thirds
+  limb through `units_resolve_land_combat` — the same `1b0e` resolver every
+  other attacker uses, defender picked by `FUN_5fef_0000`
+  (`units_best_defender_at`), with the colony-raid handoff `units.c` takes
+  from `ai_contact_raid.c` on the loser limb. Two deliberate limits: the
+  defender must be a European (the port models no tribe-vs-tribe combat), and
+  an undefended colony tile keeps the exhaust-only end state. Before
   2026-09-21 the port walked the Brave INTO Euro colonies (bugs.md #553).
 - The residue behind the old "partial (T2 quiet)" label is the **callee**:
   `FUN_4d56_021a` (`4d56:021a..14fd`, 4836 bytes, one function) — the Indian
   unit decision routine Ghidra emitted as raw `??` bytes, reached from `14fe`
   via stub `4c3b`. **Correction 2026-09-15:** it does NOT call the `521d` scorer — `291f:012c`
   (`021a:1182`) is `FUN_7a65_0008`, the "Show Indian moves" score plotter; 021a
-  carries its own dir loop, now ported as `ai_native_pick_dir_021a` (ai.c). Newly
-  decoded there and **unported**: homeless-unit despawn (`021a:0337`, bad
-  `+0x314a` → `FUN_281f_0808` + return −1); unconditional `facing` write
-  including the stay value 8 (`021a:11b9` → `+0x314f`); the `orders` cower
-  latch 5→6 on stay, 0 on move (`021a:11cd`/`126e`); and the **in-field
-  arm/mount upgrade** (`021a:11cd..126c`) — a Brave that stays on its own
+  carries its own dir loop, now ported as `ai_native_pick_dir_021a`
+  (`ai_native_021a.c`). Decoded there and, since 2026-09-23, **all four
+  ported and audited term-by-term** (bugs.md #850): homeless-unit despawn
+  (`021a:0337`, bad `+0x314a` → `FUN_281f_0808` + return −1) —
+  `ai_brave.c:455`, with one recorded deviation, DOS returns −1 into a
+  use-after-free in `14fe` and the port STOPs the Brave instead; the
+  unconditional `facing` write including the stay value 8 (`021a:11b9` →
+  `+0x314f`) — `ai_brave.c:508` (the full byte is split across `last_dir` +
+  `col1_facing_pad` in the save, which is why the pad is written too, bugs.md
+  #846 REFUTED); the `orders` cower latch 5→6 on stay, 0 on move
+  (`021a:11cd`/`126e`) — `ai_brave.c:517`, latched only over
+  `NONE/FORTIFY/FORTIFIED` because the port's §9 raid escort can leave a
+  Brave holding the Linux-only `FOLLOW` order (`ai_contact_raid.c:1809`,
+  bugs.md #826); and the **in-field arm/mount upgrade**
+  (`021a:11ef..126c`) — `ai_brave.c:531`. The upgrade: a Brave that stays on its own
   tribe's tile gets type `0x13`/`0x15` → +1 when `indian+7` muskets > 0 (musket
   spent on `rng_range(0, difficulty) == 0`) and += 2 when `indian+0x0a`
   horse_breeding ≥ `0x19` and max MP ≤ 3 (`-= 0x19`). This is separate from the
@@ -112,7 +127,9 @@ the truth is the 15-entry JMPF stub table at `4d56:4c22..4c6c`,
   `tests/golden/test_ai_turns.c:195` compares Brave `moves`/`col1_counter16`: DOS
   increments the act counter `+0x315a` (= `col1_counter16`) once per **attempt**
   before calling `14fe` (`4d56:1af3`), caps at `0x14` then exhausts and zeroes
-  it; the Linux pulse bumps `col1_counter16` only after a committed step. Gate is
+  it; the Linux pulse does the same — it bumps `col1_counter16` **before** the
+  `021a` pick, with the same `> 0x14` → exhaust + zero cap
+  (`ai_brave.c:438-452`), corrected 2026-09-23 (bugs.md #850). Gate is
   `FUN_281f_097a` → `FUN_1427_13b0` (AX-register arg): index in range, `+0x3144`
   ≥ 0, nation nibble == `DS:0x5394`, `(+0x3148 & 0x80) == 0 || type == 0x0b`,
   and `+0x3149` spent < max MP.
@@ -683,7 +700,7 @@ alarm word** toward the visited nation. `contact_state` (`ColonizeCol1Indian
 +0x2e`, persisted) is a sticky per-(tribe nation, Euro) latch and the two
 halves read it: **2 permanently disables the demand/beg arm**, **1 permanently
 disables the gift arm** (`local_10`). `ai_contact_try_village_gifts` (returns 1
-when it gifted, so `ai.c`'s §9 skips the beg arm) /
+when it gifted, so the step site skips the beg arm) /
 `ai_contact_try_village_beg_food`. The generous half was missing entirely until
 2026-09-04 — the only peaceful visitor the player ever saw was a beggar.
 Whether a village begs or gifts is a **per-village** 2154 terrain/population
@@ -691,18 +708,22 @@ question (DOS binds the visiting Brave's own home settlement, `unit+0x314a`),
 not a tribe personality: an Aztec village on food-poor terrain begs, one with a
 surplus brings food.
 
-**Trigger — the port's one divergence.** DOS runs `022e` from `FUN_465b`'s move
-tail (`FUN_281f_0984` → `FUN_5bfb_3180`), once per Brave *step*, for the
-neighbour tile the encounter scan found; a Brave parked beside a colony raises
-nothing. The Linux pulse commits steps inline and runs the contact arms once
-per nation afterwards, so both halves reconstruct it from
-`ai_native_brave_turn_origin` ("walked up this turn, was not already
-adjacent") plus an 8-turn per-nation throttle, and the gift half additionally
-declines when there is no popup queue. That last gate is not cosmetic: the
-port's Brave paths are not DOS-faithful (`golden_ai_turns` is DISABLED for
-exactly that), and in `COLONY00→01` the port walks an Iroquois Brave beside New
-Amsterdam while DOS's Braves end that turn two and three tiles away — letting a
-mis-walked Brave move colony stores corrupts the DOS production goldens.
+**Trigger (rewritten 2026-09-23, bugs.md #824/#850).** DOS runs `022e` from
+`FUN_465b`'s move tail (`FUN_281f_0984` → `FUN_5bfb_3180`), once per Brave
+*step*, for the neighbour tile the encounter scan found; a Brave parked beside
+a colony raises nothing. The port now does the same: `ai_native_brave_step`'s
+commit tail calls `ai_native_step_first_contact` (`ai_brave.c`), which runs the
+mood roll (`ai_contact_visit_step_roll`, raw 96745-96760) **and** then the
+matching half — `ai_contact_try_village_gifts`, else
+`ai_contact_try_village_beg_food` — for the Brave that just stepped, at most
+one resolved encounter per nation per pass (DOS's `aiStack_20[nation]`).
+Retired with that move: the 8-turn per-nation throttle (already gone
+2026-09-10, it was an invention) and the gift half's "no popup queue →
+decline" bail. `ai_contact_brave_walked_up_to` survives inside the two arms,
+no longer as a reconstruction of the trigger but as the selector that picks
+the Brave that is mid-step out of the nation's units (a loitering Brave still
+raises nothing); the post-pulse village-trade/reparations arm still uses it as
+the reconstruction it always was.
 
 There is **no passive teach arm** in `022e` — retired 2026-09-04. The port's
 old per-turn adjacency pulse invented "The %s teach outdoor skills." (no such
@@ -747,7 +768,15 @@ Mode-1 target set = the other Euros minus `head.crown_nation_id`; once
 
 ### Raids and combat fallout
 
-High alarm → `@RAID*` kinds (stores / burn / scalp / gold / …); colony
+`FUN_5fef_0f14` rolls the kind, DOS-literal since 2026-09-23 (bugs.md
+#827-#833): walls roll → `rand(1,4)` = **four** kinds only (1 goods
+`@RAIDSTORES`, 2 building `@RAIDBURN`, 3 ship `@RAIDSHIP`, 4 gold
+`@RAIDGOLD`) → a **fortification**-gated demote chain (`FUN_281f_09fc(n)` is
+the colony's building-bit test: Fort, Stockade, Fortress) plus an early-turn
+grace on Discoverer/Explorer. There is no scalp kind (`@RAIDSCALP` is dead
+GAME.TXT text) and no "wreak" kind — `@RAIDWREAK` (0x1b8a) is the third-party
+"Spies report" bulletin the human gets when the raided colony is somebody
+else's. Alarm never gates the kind; it gates the pulse's targeting. Colony
 encroachment and ambush chrome thin-Done. Capital destroy →
 `ai_diplo_indian_capital_surrender` (reset hostility once; no new capital).
 Loot detail: [indian_raid_outcomes.md](../original_sources_annotated/ai/indian_raid_outcomes.md),

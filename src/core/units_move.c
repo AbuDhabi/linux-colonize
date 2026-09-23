@@ -512,7 +512,13 @@ combat_entry_resolved:
   } else if (cost <= remaining || full_mp) {
     allow = true;
   } else if (rng) {
-    /* DOS FUN_465b: range(1, cost); succeed if roll <= remaining. */
+    /* DOS FUN_465b raw 75649: `FUN_281f_04ca(DS:0x83a6)` reseeds the LCG
+     * from the timer word before the `else` roll at raw 75825-75827
+     * (`FUN_281f_04d4(1, cost) <= remaining`). Same chokepoint the Brave
+     * path uses (ai_brave.c, ai_turn_seed). bugs.md #842. */
+    if (w->rng_reseed_set) {
+      dos_rng_seed(rng, w->rng_reseed);
+    }
     const int roll = dos_rng_range(rng, 1, cost > 0 ? cost : 1);
     allow = roll <= remaining;
   } else {

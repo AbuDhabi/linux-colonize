@@ -53,8 +53,11 @@ static int test_ai_contact_raid_alarm_delta(void) {
   if (ai_contact_raid_alarm_delta(AI_RAID_STORES) != -4) {
     return fail("raid_alarm_delta STORES");
   }
-  if (ai_contact_raid_alarm_delta(AI_RAID_SCALP) != -16) {
-    return fail("raid_alarm_delta SCALP");
+  if (ai_contact_raid_alarm_delta(AI_RAID_SHIP) != -16) {
+    return fail("raid_alarm_delta SHIP");
+  }
+  if (ai_contact_raid_alarm_delta(AI_RAID_BURN) != -12) {
+    return fail("raid_alarm_delta BURN");
   }
   if (ai_contact_raid_alarm_delta(AI_RAID_GOLD) != -8) {
     return fail("raid_alarm_delta GOLD");
@@ -520,11 +523,114 @@ static int test_ai_euro_5952_equip_pioneer(void) {
   return 0;
 }
 
+
+/*
+ * bugs.md #822: FUN_465b_0000 routes a Brave step onto a foreign stack-head
+ * tile with >= 3 thirds left into FUN_5fef_1b0e (raw 75467-75479,
+ * 75631-75634, 75692) — the attack resolves and the Brave exhausts in place.
+ * The port only exhausted, so a Brave beside a lone Euro unit stood forever.
+ * Surround a full-MP Brave with foreign Soldiers: whichever direction 021a
+ * picks, a committed step is an attack, so somebody must die.
+ */
+static int test_ai_brave_field_attack(void) {
+  int rc = 0;
+  int saw_move = 0;
+  for (int k = 0; k < 24 && rc == 0 && !saw_move; ++k) {
+    ColonizeWorldMap map;
+    if (!fx_map_alloc(&map, 12, 12, /*terrain_fill=*/0, /*with_seen=*/true)) {
+      return fail("brave-attack map alloc");
+    }
+    for (size_t i = 0; i < map.tile_count; ++i) {
+      map.layer3[i] = 0xf0; /* unowned, continent 0 */
+    }
+    ColonizeUnitPool units;
+    fx_units_init(&units);
+    units.type_count = UNITS_KIND_MTD_BRAVE + 2;
+    for (int t = 0; t < units.type_count; ++t) {
+      units.types[t].movement = 1;
+      units.types[t].attack = 2;
+      units.types[t].defense = 2;
+      units.types[t].domain = COLONIZE_UNIT_DOMAIN_LAND;
+      snprintf(units.types[t].name, sizeof(units.types[t].name), "t%d", t);
+    }
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    ColonizeCol1Tribe tribe;
+    memset(&tribe, 0, sizeof(tribe));
+    tribe.x = 5;
+    tribe.y = 5;
+    tribe.nation_id = 4;
+    tribe.population = 3;
+    col1.tribe = &tribe;
+    col1.head.tribe_count = 1;
+    col1.indian[0].euro_diplo[1] = 1; /* met — no first-contact ceremony */
+
+    ColonizeUnit* b = &units.units[0];
+    b->id = 1;
+    b->active = true;
+    b->nation_id = 4;
+    b->type_index = UNITS_KIND_BRAVE;
+    b->x = 5;
+    b->y = 5;
+    b->aboard_ship_id = -1;
+    b->home_tribe_id = 0;
+    b->moves = 0; /* Braves store thirds SPENT (conventions.md) */
+    b->last_dir = 8;
+    units.unit_count = 1;
+    for (int d = 0; d < 8; ++d) {
+      ColonizeUnit* f = &units.units[1 + d];
+      f->id = 2 + d;
+      f->active = true;
+      f->nation_id = 1;
+      f->type_index = 1;
+      f->x = 5 + MAP_DIR8_DX[d];
+      f->y = 5 + MAP_DIR8_DY[d];
+      f->aboard_ship_id = -1;
+      f->home_tribe_id = -1;
+      f->moves = 1;
+      units.unit_count++;
+    }
+    int before = 0;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      before += units.units[i].active ? 1 : 0;
+    }
+
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, (uint32_t)(k * 12345 + 7)); /* spread — tiny-seed trap */
+    int steps = 0;
+    (void)ai_native_brave_step(
+      &units, &map, &col1, &rng, /*nation_id=*/4, /*seed100_init_burns=*/false, b,
+      /*hx=*/5, /*hy=*/5, /*tech=*/0, /*max_mp=*/3, /*brave_index=*/0, &steps
+    );
+    int after = 0;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      after += units.units[i].active ? 1 : 0;
+    }
+    if (steps > 0) {
+      saw_move = 1;
+      if (after != before - 1) {
+        fprintf(stderr, "  seed %d: %d -> %d active units\n", k, before, after);
+        rc = fail("a committed Brave step onto a foreign tile must resolve combat");
+      } else if (b->active && (b->x != 5 || b->y != 5)) {
+        rc = fail("a surviving Brave attacker must stay on its own tile");
+      } else if (b->active && b->moves != 3) {
+        rc = fail("an attacking Brave must exhaust its full allotment (0934)");
+      }
+    }
+    fx_map_free(&map);
+  }
+  if (rc == 0 && !saw_move) {
+    return fail("no seed made the Brave commit a step — test proved nothing");
+  }
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"test_turn_year_end_rival_rebels", test_turn_year_end_rival_rebels},
     {"test_ai_contact_raid_alarm_delta", test_ai_contact_raid_alarm_delta},
     {"test_ai_021a_dir_tile", test_ai_021a_dir_tile},
     {"test_ai_465b_dest_owner", test_ai_465b_dest_owner},
+    {"test_ai_brave_field_attack", test_ai_brave_field_attack},
     {"test_game_render_select_palette", test_game_render_select_palette},
     {"test_ai_euro_5952_absorb_colonist", test_ai_euro_5952_absorb_colonist},
     {"test_ai_euro_5952_absorb_soldier", test_ai_euro_5952_absorb_soldier},

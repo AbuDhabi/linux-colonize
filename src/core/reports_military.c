@@ -881,8 +881,6 @@ void reports_render_foreign(
 #define REPORTS_INDIAN_HORSES_X 208
 #define REPORTS_INDIAN_LEVEL_RIGHT 310
 #define REPORTS_INDIAN_TEXT_COLOR 0 /* black — golden-sampled (0,0,0) exactly */
-#define REPORTS_INDIAN_UNIT_ARMED_BRAVE 20 /* Viceroy type id, indians.md @UNIT table */
-#define REPORTS_INDIAN_UNIT_MTD_WARRIOR 22
 #define REPORTS_INDIAN_MUSKET_UNIT_SCALE 50
 
 /* unit_chrome.c's k_tribe_colors, duplicated (see that file's own comment
@@ -961,8 +959,8 @@ static int reports_indian_build_rows(
         if (!u->active || u->nation_id != nation_id) {
           continue;
         }
-        if (u->type_index == REPORTS_INDIAN_UNIT_ARMED_BRAVE ||
-            u->type_index == REPORTS_INDIAN_UNIT_MTD_WARRIOR) {
+        const ColonizeUnitKind kind = units_type_kind(units_type(units, u->type_index));
+        if (kind == UNITS_KIND_ARMED_BRAVE || kind == UNITS_KIND_MTD_WARRIOR) {
           armed_units++;
         }
       }

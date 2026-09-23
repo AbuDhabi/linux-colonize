@@ -40,6 +40,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*
+ * FUN_5fef_0f14 picks the kind AND resolves that kind's target/amount in one
+ * head (raw 99777-99893) — a cargo it cannot find and a gold roll the victim
+ * cannot pay both collapse the raid to kind 0 — so the picker stashes what it
+ * rolled here for the loot arms below, exactly as DOS keeps `local_20` /
+ * `local_12` alive across its own arms.
+ */
+static int ai_contact_s_raid_cargo = -1;  /* DOS local_20 */
+static long ai_contact_s_raid_gold = 0;   /* DOS local_12/local_10 */
+
 /* ===================== Colony stores/loot scoring, raid-kind selection & raid execution helpers (ai_contact_indian_meet_trade .. ai_contact_raid_chrome_row) ===================== */
 
 
@@ -179,86 +189,6 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
    */
 }
 
-/*
- * Rough goods-value for AI STORES plunder pick (FUN_5fef_016c stand-in).
- * Horses stay on secondary military loot — not primary STORES. Cite:
- * peel layer_b_combat_raid FUN_5fef_016c; indian_raid_outcomes.md @RAIDSTORES.
- */
-static int ai_contact_stores_cargo_value(int cargo) {
-  switch (cargo) {
-  case COLONIZE_CARGO_SILVER:
-    return 8;
-  case COLONIZE_CARGO_MUSKETS:
-    return 7;
-  case COLONIZE_CARGO_TRADE_GOODS:
-    return 6;
-  case COLONIZE_CARGO_TOOLS:
-    return 5;
-  case COLONIZE_CARGO_RUM:
-  case COLONIZE_CARGO_CIGARS:
-  case COLONIZE_CARGO_CLOTH:
-  case COLONIZE_CARGO_COATS:
-    return 4;
-  case COLONIZE_CARGO_SUGAR:
-  case COLONIZE_CARGO_TOBACCO:
-  case COLONIZE_CARGO_COTTON:
-  case COLONIZE_CARGO_FURS:
-    return 3;
-  case COLONIZE_CARGO_ORE:
-    return 2;
-  case COLONIZE_CARGO_FOOD:
-  case COLONIZE_CARGO_LUMBER:
-    return 1;
-  default:
-    return 0; /* horses / unknown — not primary STORES */
-  }
-}
-
-/* True if colony warehouse has any cargo the STORES arm can actually drain. */
-/* `skip_cargo` = -1 for "any raidable cargo"; the burn-preference test passes
- * COLONIZE_CARGO_LUMBER to ask the same question ignoring lumber (audit AC-32). */
-static int ai_contact_colony_has_stores(const ColonizeColony* c, int skip_cargo) {
-  if (!c) {
-    return 0;
-  }
-  for (int cargo = 0; cargo < COLONIZE_CARGO_COUNT; ++cargo) {
-    if (cargo == skip_cargo) {
-      continue;
-    }
-    if (ai_contact_stores_cargo_value(cargo) > 0 && c->stock[cargo] > 0) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
-/* Pick highest-value stock>0 cargo (ties → higher stock, then lower index). */
-static int ai_contact_pick_stores_cargo(const ColonizeColony* c) {
-  if (!c) {
-    return -1;
-  }
-  int best = -1;
-  int best_val = -1;
-  int best_stock = -1;
-  for (int cargo = 0; cargo < COLONIZE_CARGO_COUNT; ++cargo) {
-    const int stock = c->stock[cargo];
-    if (stock <= 0) {
-      continue;
-    }
-    const int val = ai_contact_stores_cargo_value(cargo);
-    if (val <= 0) {
-      continue;
-    }
-    if (val > best_val || (val == best_val && stock > best_stock) ||
-        (val == best_val && stock == best_stock && (best < 0 || cargo < best))) {
-      best = cargo;
-      best_val = val;
-      best_stock = stock;
-    }
-  }
-  return best;
-}
-
 /* True if warehouse holds military loot secondary can drain (muskets/horses). */
 static int ai_contact_colony_has_military_loot(const ColonizeColony* c) {
   if (!c) {
@@ -285,15 +215,6 @@ static int ai_contact_colony_gold_wealth(const ColonizeColony* c) {
     return 0;
   }
   return c->stock[COLONIZE_CARGO_SILVER];
-}
-
-/* True if WREAK can mutate food/tools/building-in-production. */
-static int ai_contact_colony_has_wreak_target(const ColonizeColony* c) {
-  if (!c) {
-    return 0;
-  }
-  return c->stock[COLONIZE_CARGO_FOOD] > 0 || c->stock[COLONIZE_CARGO_TOOLS] > 0 ||
-         c->building_in_production >= 0;
 }
 
 /*
@@ -354,217 +275,216 @@ COLONIZE_INTERNAL int ai_contact_raid_port_ship(ColonizeTurnContext* ctx, const 
   return -1;
 }
 
-static AiRaidKind ai_contact_pick_raid_kind(
+/*
+ * FUN_281f_09fc(n) — far thunk → FUN_15eb_038e, "test the building bit of the
+ * active colony" (FUNCTION_CATALOG.md row 281f_09fc; tools/address_mapping.csv
+ * 281f:09fc → FUN_1000_8bec). Its argument is a BUILDING ROW, not a cargo —
+ * 0f14's kind-2 arm passes rows up to 0x29 to the same call. Rows 0/1/2 are
+ * Stockade / Fort / Fortress, so 0f14's demote chain is fortification-gated.
+ * (bugs.md #827 lead L3, settled 2026-09-23.)
+ */
+static int ai_contact_raid_09fc(
+  const ColonizeTurnContext* ctx, const ColonizeColony* c, ColonizeBuildingRow row
+) {
+  if (!ctx || !ctx->colonies || !c) {
+    return 0;
+  }
+  const int b = colonies_building_row(ctx->colonies, row);
+  if (b < 0 || b >= COLONIZE_BUILDING_TYPES_MAX) {
+    return 0;
+  }
+  return c->has_building[b] ? 1 : 0;
+}
+
+/*
+ * DOS-LITERAL FUN_5fef_0f14 raw 99819-99833 — the kind-1 (goods) cargo pick.
+ * A retry loop, NOT a value sort: roll a cargo 0..0xf, retry while the colony
+ * holds less than 10 of it, give up after 100 tries (→ kind 0). Two literal
+ * oddities are kept: on the FIRST try a horseless tribe steals horses instead
+ * of a >0x34 pile on a coin flip, and a muskets roll burns a dummy rand(0,200)
+ * that nothing reads (it only shifts the LCG for every later draw this turn).
+ * Returns the cargo index, or -1 for "give up" (bugs.md #832).
+ */
+static int ai_contact_raid_roll_stores_cargo(
+  ColonizeTurnContext* ctx, const ColonizeColony* c, int indian_nation, ColonizeDosRng* rng
+) {
+  const ColonizeCol1Indian* ind =
+    (ctx && ctx->col1_ok && ctx->col1 && indian_nation >= 4 && indian_nation <= 11)
+      ? &ctx->col1->indian[indian_nation - 4]
+      : NULL;
+  int i = 0;
+  int cargo = 0;
+  do {
+    i = i + 1;
+    cargo = dos_rng_range(rng, 0, 0xf);
+    if (ind && ind->horse_herds == 0 && i == 1 && c->stock[cargo] > 0x34 &&
+        dos_rng_range(rng, 0, 1) == 0) {
+      cargo = COLONIZE_CARGO_HORSES;
+    }
+    if (cargo == COLONIZE_CARGO_MUSKETS) {
+      (void)dos_rng_range(rng, 0, 200); /* raw 99829 — result unused in DOS */
+    }
+  } while (i < 100 && c->stock[cargo] < 10);
+  if (99 < i) {
+    return -1; /* raw 99833 `goto LAB_5fef_123a` */
+  }
+  return cargo;
+}
+
+/*
+ * DOS-LITERAL FUN_5fef_0f14 head, raw 99777-99893: the walls check, the
+ * `rand(1,4)` kind roll, the five-line demote chain, and each kind's own
+ * target validation (which can still collapse the raid to kind 0).
+ *
+ * Kind space is DOS's `local_6`: 0 nothing, 1 goods, 2 building, 3 ship,
+ * 4 gold — AiRaidKind carries exactly those values. There is no fifth kind:
+ * DOS never kills a colonist here and never wrecks food/tools/construction
+ * as a kind of its own (bugs.md #828 / #829).
+ *
+ * `forced` = 0f14's param_4 (FUN_5fef_1b0e's repelled-at-a-colony handoff):
+ * it bypasses only the walls VERDICT — DOS still draws the walls roll
+ * (raw 99775/99786), so the LCG stays in step.
+ *
+ * This replaces a Linux stand-in that picked by alarm band (>=85/70/60/55/50)
+ * with a rand(0,99) and then demoted on YEAR thresholds 1500/1520 that exist
+ * nowhere in the decomp (bugs.md #827). The alarm scalar has no role at this
+ * head in DOS at all; the raid pulse's own targeting is where friction bites.
+ */
+COLONIZE_INTERNAL AiRaidKind ai_contact_pick_raid_kind(
   ColonizeTurnContext* ctx,
   ColonizeColony* c,
+  int indian_nation,
   int target_euro,
-  int max_alarm,
   ColonizeDosRng* rng,
   int forced
 ) {
-  /*
-   * Banded picker mirroring @RAID* message outcomes (not DOS bit-identity).
-   * Gate kinds on colony stock / gold actually present so empty warehouses
-   * do not fake STORES/WREAK/muskets loot (5fef_0f14-shaped). No Indian-nation
-   * treasury fiction — GOLD drains Euro gold only when present.
-   *
-   * `forced` = DOS `FUN_5fef_0f14` param_4 (the 1b0e repelled-at-a-colony
-   * handoff): it bypasses the walls check below. DOS has no alarm band at
-   * this head at all — that gate is a Linux-only stand-in for the raid
-   * pulse's own targeting, so `forced` bypasses it too.
-   */
-  if (max_alarm < 45 && !forced) {
+  ai_contact_s_raid_cargo = -1;
+  ai_contact_s_raid_gold = 0;
+  if (!ctx || !c || !rng) {
     return AI_RAID_NOTHING;
   }
+  const int difficulty =
+    (ctx->col1_ok && ctx->col1) ? (int)ctx->col1->head.difficulty : 0;
+  /* raw 99776/99793: `uVar5 < 4 && control[uVar5] == 0` = victim is the human. */
+  const int victim_human = ai_contact_euro_is_human(ctx, target_euro) ? 1 : 0;
+
   /*
-   * FUN_5fef_0f14 head — the colony's walls decide first (static port
-   * 2026-08-28): walls = FUN_281f_0ab0(0) = owned buildings along the
-   * Stockade → Fort → Fortress chain (0..3); r = rand(0,12) - 1, plus
-   * difficulty-2 when the victim is human; r < walls*3 + 1 → kind 0
-   * (@RAIDNOTHING "raiding party wiped out"). Bare colony: 1/13; Stockade
+   * Walls head (raw 99777-99783): walls = FUN_281f_0ab0(0) = owned buildings
+   * along the Stockade → Fort → Fortress chain (0..3); r = rand(0,12) - 1,
+   * plus difficulty-2 when the victim is human; r < walls*3 + 1 → kind 0
+   * (@RAIDNOTHING "raiding party wiped out"). Bare colony 1/13; Stockade
    * 4/13; Fort 7/13; Fortress 10/13 before the difficulty shift.
    */
-  if (c && ctx && ctx->colonies && rng && !forced) {
+  {
     int walls = 0;
     const int* k_chain = colonies_building_chain_rows(COLONIES_CHAIN_FORTIFICATION);
     for (int i = 0; i < 3 && k_chain && k_chain[i] >= 0; ++i) {
-      const int b = colonies_building_row(ctx->colonies, (ColonizeBuildingRow)k_chain[i]);
-      if (b >= 0 && b < COLONIZE_BUILDING_TYPES_MAX && c->has_building[b]) {
+      if (ai_contact_raid_09fc(ctx, c, (ColonizeBuildingRow)k_chain[i])) {
         walls++;
       }
     }
     int r = dos_rng_range(rng, 0, 12) - 1;
-    if (ai_contact_euro_is_human(ctx, target_euro) && ctx->col1) {
-      r += (int)ctx->col1->head.difficulty - 2;
+    if (victim_human) {
+      r += difficulty - 2;
     }
-    if (r < walls * 3 + 1) {
+    if (r < walls * 3 + 1 && !forced) {
       return AI_RAID_NOTHING;
     }
   }
+
+  AiRaidKind kind = (AiRaidKind)dos_rng_range(rng, 1, 4); /* raw 99790 */
+
   /*
-   * Same head, early-game grace: on Discoverer/Explorer, before turn
-   * (2-difficulty)*40, DOS demotes the building (2) and unit (3) kinds to
-   * nothing. Applied below to BURN / WREAK / SHIP / SCALP-by-roll.
+   * raw 99791-99795: on Discoverer/Explorer, before turn (difficulty-2)*-0x28
+   * (turn 40 / 80), the building and ship kinds collapse to nothing. DS:0x538e
+   * is the turn counter; the 1b0e handoff builds a context without one, so the
+   * grace is skipped there (as it was before this port).
    */
-  int early_grace = 0;
-  if (ctx && ctx->col1 && ctx->turn_number && ctx->col1->head.difficulty < 2u) {
-    const int limit = (2 - (int)ctx->col1->head.difficulty) * 40;
-    early_grace = (int)*ctx->turn_number < limit;
-  }
-  const int roll = rng ? dos_rng_range(rng, 0, 99) : (max_alarm % 100);
-  if (max_alarm >= 85 && roll < 15 && ai_contact_colony_has_wreak_target(c)) {
-    return early_grace ? AI_RAID_NOTHING : AI_RAID_WREAK;
-  }
-  if (max_alarm >= 70 && roll < 25 && c && c->population > 1) {
-    return AI_RAID_SCALP;
-  }
-  /* BURN: construction, lumber, or destroyable built building. */
-  if (max_alarm >= 60 && roll < 20 &&
-      ai_contact_colony_has_burn_target(ctx ? ctx->colonies : NULL, c)) {
-    return early_grace ? AI_RAID_NOTHING : AI_RAID_BURN;
-  }
-  if (max_alarm >= 55 && roll < 15 && ctx && ctx->col1_ok && ctx->col1 &&
-      target_euro >= 0 && target_euro < 4 &&
-      /* Same store the drain below debits (audit G3) — a stale record here
-       * would pick AI_RAID_GOLD for a victim whose live purse is empty. */
-      europe_nation_gold(ctx->europe, ctx->col1, target_euro) > 0) {
-    return AI_RAID_GOLD;
-  }
-  if (max_alarm >= 50 && roll < 12 && c && ctx && ctx->map) {
-    /* Harbor: prefer if water adjacent. */
-    for (int d = 0; d < 8; ++d) {
-      if (map_tile_is_water(ctx->map, c->x + MAP_DIR8_DX[d], c->y + MAP_DIR8_DY[d])) {
-        if (roll < 10) {
-          return early_grace ? AI_RAID_NOTHING : AI_RAID_SHIP;
-        }
-        break;
-      }
+  if (ctx->turn_number) {
+    const int t = (difficulty - 2) * -0x28;
+    const int turn = (int)*ctx->turn_number;
+    if (turn <= t && turn != t && difficulty < 2 &&
+        (kind == AI_RAID_BURN || kind == AI_RAID_SHIP)) {
+      kind = AI_RAID_NOTHING;
     }
   }
-  /*
-   * STORES when lootable cargo present. Prefer BURN over lumber-as-STORES in
-   * the BURN band when the burn gate (construction / lumber) is the only
-   * wooden-building stock target — richer warehouses still take STORES.
-   */
-  if (ai_contact_colony_has_stores(c, -1)) {
-    const int prefer_burn =
-      max_alarm >= 60 &&
-      ai_contact_colony_has_burn_target(ctx ? ctx->colonies : NULL, c) &&
-      !ai_contact_colony_has_stores(c, COLONIZE_CARGO_LUMBER);
-    if (!prefer_burn) {
-      return AI_RAID_STORES;
+  /* raw 99796-99807 */
+  if (kind == AI_RAID_BURN) {
+    const int b = victim_human ? difficulty : 1;
+    if (b + 2 < dos_rng_range(rng, 0, 8)) {
+      kind = AI_RAID_STORES;
+    }
+    if (ai_contact_raid_09fc(ctx, c, COLONY_BUILDING_FORT)) {
+      kind = AI_RAID_STORES;
     }
   }
-  if (c && c->population > 1 && max_alarm >= 70) {
-    return AI_RAID_SCALP;
+  /* raw 99808-99810 */
+  if (kind == AI_RAID_GOLD && ai_contact_raid_09fc(ctx, c, COLONY_BUILDING_STOCKADE)) {
+    kind = AI_RAID_STORES;
   }
-  if (ai_contact_colony_has_burn_target(ctx ? ctx->colonies : NULL, c) &&
-      max_alarm >= 60) {
-    return AI_RAID_BURN;
+  /* raw 99811-99813 */
+  if (kind == AI_RAID_SHIP && ai_contact_raid_09fc(ctx, c, COLONY_BUILDING_FORTRESS)) {
+    kind = AI_RAID_NOTHING;
   }
-  return AI_RAID_NOTHING;
-}
-
-/* Apply 5fef_0f14-shaped difficulty/year/building demote after primary pick. */
-COLONIZE_INTERNAL AiRaidKind ai_contact_raid_kind_demote(
-  ColonizeTurnContext* ctx,
-  ColonizeColony* c,
-  AiRaidKind kind
-) {
-  if (kind == AI_RAID_NOTHING || kind == AI_RAID_STORES) {
-    return kind;
-  }
-  /*
-   * FUN_5fef_0f14 kind 3 (raw 99991-99992): no ship in the colony's port
-   * (`FUN_281f_088a` fails) → `goto LAB_5fef_123a`, i.e. `local_6 = 0` — the
-   * raid collapses to NOTHING outright, NOT to the goods kind, so no loot and
-   * no alarm vent. Without this the port could pay 0f14's −16 vent for a
-   * harbor raid that damaged nothing.
-   */
-  if (kind == AI_RAID_SHIP && ai_contact_raid_port_ship(ctx, c) < 0) {
-    return AI_RAID_NOTHING;
-  }
-  int difficulty = 0;
-  int year = 1492;
-  if (ctx && ctx->col1_ok && ctx->col1) {
-    difficulty = (int)ctx->col1->head.difficulty;
-    year = (int)ctx->col1->head.year;
-  }
-  /*
-   * Demote harsh kinds on easy / early game, or when burn/scalp target missing:
-   * BURN/SCALP/GOLD/SHIP/WREAK → STORES if stock, else NOTHING.
-   * Cite: indian_raid_loot.md kind demote gates.
-   */
-  int demote = 0;
-  if (difficulty <= 0 &&
-      (kind == AI_RAID_SCALP || kind == AI_RAID_WREAK || kind == AI_RAID_GOLD)) {
-    demote = 1;
-  }
-  if (year < 1520 && kind == AI_RAID_WREAK) {
-    demote = 1;
-  }
-  if (kind == AI_RAID_BURN &&
-      !ai_contact_colony_has_burn_target(ctx ? ctx->colonies : NULL, c)) {
-    demote = 1;
-  }
-  if (kind == AI_RAID_SCALP && (!c || c->population <= 1)) {
-    demote = 1;
-  }
-  if (!demote) {
-    return kind;
-  }
-  if (ai_contact_colony_has_stores(c, -1)) {
-    return AI_RAID_STORES;
-  }
-  return AI_RAID_NOTHING;
-}
-
-/*
- * Secondary multi-loot after a successful primary @RAID* (kind != NOTHING).
- *  - Military side-steal: only if warehouse/unit actually holds muskets/horses
- *    (−5 muskets stock, else −1 horse stock, else same from target-nation unit
- *    gear on the colony tile). Empty warehouses do not fake muskets loot.
- *  - High friction (≥80): also drain tools (−1) when stock present.
- * Full 5fef_0f14 / 4528 dialog PARKED.
- */
-COLONIZE_INTERNAL void ai_contact_raid_secondary_loot(
-  ColonizeTurnContext* ctx,
-  ColonizeColony* c,
-  int target_euro,
-  int max_alarm
-) {
-  if (!c) {
-    return;
+  /* raw 99814-99818 (the rand is drawn only when the Stockade test passes) */
+  if (kind == AI_RAID_STORES && ai_contact_raid_09fc(ctx, c, COLONY_BUILDING_STOCKADE) &&
+      difficulty < dos_rng_range(rng, 0, 8)) {
+    kind = AI_RAID_NOTHING;
   }
 
-  if (c->stock[COLONIZE_CARGO_MUSKETS] >= 5) {
-    c->stock[COLONIZE_CARGO_MUSKETS] -= 5;
-  } else if (c->stock[COLONIZE_CARGO_HORSES] >= 1) {
-    c->stock[COLONIZE_CARGO_HORSES] -= 1;
-  } else if (ctx && ctx->units && target_euro >= 0 && target_euro < 4) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* u = &ctx->units->units[i];
-      if (!u->active || u->nation_id != target_euro) {
-        continue;
+  if (kind == AI_RAID_STORES) {
+    ai_contact_s_raid_cargo =
+      ai_contact_raid_roll_stores_cargo(ctx, c, indian_nation, rng);
+    if (ai_contact_s_raid_cargo < 0) {
+      kind = AI_RAID_NOTHING;
+    }
+  } else if (kind == AI_RAID_BURN) {
+    /*
+     * raw 99834-99873 rolls a building row 0..0x29 with a skip list and walks
+     * the parent chain down. Which colony counters its 0x8542+0x95 / +0x96
+     * decrements are remains unresolved (audit lead L2), so the port keeps its
+     * burn-target stand-in here and only reproduces DOS's collapse-to-nothing
+     * when the colony has nothing this arm could touch.
+     */
+    if (!ai_contact_colony_has_burn_target(ctx->colonies, c)) {
+      kind = AI_RAID_NOTHING;
+    }
+  } else if (kind == AI_RAID_SHIP) {
+    /* raw 99876-99877: FUN_281f_088a (stack_has_ship) fails → kind 0. */
+    if (ai_contact_raid_port_ship(ctx, c) < 0) {
+      kind = AI_RAID_NOTHING;
+    }
+  } else if (kind == AI_RAID_GOLD) {
+    /*
+     * DOS-LITERAL raw 99876-99893 — the plunder amount is rolled HERE, and a
+     * roll the victim cannot pay (or below the 0x32 floor) collapses the raid
+     * to kind 0 with no vent:
+     *   cap = (gold * colony_population) / (census_pop_proxy[euro] + 1) + 10,
+     *         saturated at 0x7fff                (FUN_1d1d_0f60 / _0ec6)
+     *   amt = rand(0x32, cap)
+     *   if (gold < amt || amt < 0x32) -> kind 0
+     * DS:0x9410 = stuff.census_pop_proxy (resolved in col1_save_layout.h),
+     * colony +0x1f = population.
+     */
+    long amt = 0;
+    long gold = 0;
+    if (ctx->col1_ok && ctx->col1 && target_euro >= 0 && target_euro < 4) {
+      gold = (long)europe_nation_gold(ctx->europe, ctx->col1, target_euro);
+      const int div = (int)ctx->col1->stuff.census_pop_proxy[target_euro] + 1;
+      long cap = gold * (long)c->population;
+      cap = cap / (div > 0 ? div : 1) + 10;
+      if (cap > 0x7fff) {
+        cap = 0x7fff;
       }
-      if (u->x != c->x || u->y != c->y) {
-        continue;
-      }
-      if (u->muskets >= 5) {
-        u->muskets -= 5;
-        break;
-      }
-      if (u->horses >= 1) {
-        u->horses -= 1;
-        break;
-      }
+      amt = dos_rng_range(rng, 0x32, (int)cap);
+    }
+    if (gold < amt || amt < 0x32) {
+      kind = AI_RAID_NOTHING;
+    } else {
+      ai_contact_s_raid_gold = amt;
     }
   }
-  /* else: empty warehouse + no unit gear → no fake military loot */
-
-  if (max_alarm >= 80 && c->stock[COLONIZE_CARGO_TOOLS] > 0) {
-    c->stock[COLONIZE_CARGO_TOOLS]--;
-  }
+  return kind;
 }
 
 /*
@@ -744,12 +664,63 @@ static int ai_contact_escort_pick_lead(
   return lead;
 }
 
+/*
+ * DOS-LITERAL FUN_5fef_0f14 raw 99895-99899 — the third-party bulletin:
+ *
+ *   uVar6 = FUN_281f_09a4(uVar5); FUN_281f_0438(3, uVar6);   // %STRING3 = victim nation
+ *   if (((3 < uVar5) || (control[uVar5] != 0)) && local_6 != 0)
+ *     FUN_281f_0652(0x1b8a, 3);                              // @RAIDWREAK
+ *
+ * i.e. @RAIDWREAK "Spies report: {%STRING0} raiding party wreaks havoc in the
+ * {%STRING3} colony of {%STRING1}." fires once per SUCCESSFUL raid (any kind
+ * 1..4) whose victim colony is NOT human-controlled — it is the human's news
+ * bulletin about someone else's misfortune, and it loots nothing. The port
+ * used to model 0x1b8a as a loot kind that drained food/tools and cancelled
+ * construction (bugs.md #829).
+ */
+static void ai_contact_raid_wreak_bulletin(
+  ColonizeTurnContext* ctx, const ColonizeColony* c, int indian_nation,
+  int target_euro, AiRaidKind kind
+) {
+  if (!ctx || !c || kind == AI_RAID_NOTHING) {
+    return;
+  }
+  if (target_euro >= 0 && target_euro <= 3 && ai_contact_euro_is_human(ctx, target_euro)) {
+    return; /* the human's own colony takes the per-kind @RAID* tag instead */
+  }
+  int human = -1;
+  for (int e = 0; e < 4; ++e) {
+    if (ai_contact_euro_is_human(ctx, e)) {
+      human = e;
+      break;
+    }
+  }
+  if (human < 0) {
+    return;
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = ai_contact_tribe_name(indian_nation);
+  tok.string1 = c->name[0] ? c->name : "";
+  tok.string3 =
+    (ctx->col1_ok && ctx->col1 && target_euro >= 0 && target_euro <= 3)
+      ? ctx->col1->player[target_euro].country_name
+      : "";
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, "RAIDWREAK", &tok, "", body, sizeof(body));
+  if (body[0]) {
+    ai_contact_human_chrome(
+      ctx, human, AI_POPUP_TAG_CONTACT_RAID, indian_nation, "Raid", body
+    );
+  }
+}
+
 void ai_contact_apply_raid_loot(
   ColonizeTurnContext* ctx,
   ColonizeColony* c,
+  int indian_nation,
   int target_euro,
-  AiRaidKind kind,
-  int max_alarm
+  AiRaidKind kind
 ) {
   if (!c) {
     return;
@@ -765,23 +736,43 @@ void ai_contact_apply_raid_loot(
     break;
   case AI_RAID_STORES: {
     /*
-     * FUN_5fef_0f14 kind1 + 016c pick: goods-value cargo, remove
-     * clamp(1..10) of up to half stock (decomp ~99913–99925).
+     * DOS-LITERAL FUN_5fef_0f14 raw 99913-99947. The cargo is the one the
+     * picker's retry loop rolled (DOS `local_20`); the amount is a ROLL over
+     * the upper half of the pile, not the flat min(half,10) the port used to
+     * take — a 200-stock warehouse loses 10..100 (bugs.md #830):
+     *   h = stock >> 1; lo = min(h, 10); amt = rand(lo, h);
+     *   amt = min(amt, stock); if (amt < 1) amt = 1;
+     * and the stolen horses/muskets then feed the RAIDING TRIBE's record
+     * (raw 99939-99947, bugs.md #831) — the same fields 0352's gear return
+     * writes.
      */
-    const int cargo = ai_contact_pick_stores_cargo(c);
-    if (cargo >= 0 && c->stock[cargo] > 0) {
-      int half = c->stock[cargo] >> 1;
-      if (half > 10) {
-        half = 10;
+    const int cargo = ai_contact_s_raid_cargo;
+    if (cargo >= 0 && cargo < COLONIZE_CARGO_COUNT && c->stock[cargo] > 0) {
+      const int h = c->stock[cargo] >> 1;
+      const int lo = (h > 10) ? 10 : h;
+      int amt = dos_rng_range(ctx ? ctx->rng : NULL, lo, h);
+      if (amt > c->stock[cargo]) {
+        amt = c->stock[cargo];
       }
-      if (half < 1) {
-        half = 1;
+      if (amt < 1) {
+        amt = 1;
       }
-      if (half > c->stock[cargo]) {
-        half = c->stock[cargo];
-      }
-      c->stock[cargo] -= half;
+      c->stock[cargo] -= amt;
       snprintf(ai_contact_s_last_stores_cargo, sizeof(ai_contact_s_last_stores_cargo), "%s", ai_contact_cargo_name(cargo));
+      ColonizeCol1Indian* ind =
+        (ctx && ctx->col1_ok && ctx->col1 && indian_nation >= 4 && indian_nation <= 11)
+          ? &ctx->col1->indian[indian_nation - 4]
+          : NULL;
+      if (ind && cargo == COLONIZE_CARGO_HORSES) {
+        ind->horse_herds = (uint8_t)(ind->horse_herds + 1);
+        ind->horse_breeding = (uint16_t)(ind->horse_breeding + 0x19);
+      }
+      if (ind && cargo == COLONIZE_CARGO_MUSKETS) {
+        ind->muskets = (uint8_t)(ind->muskets + 1);
+        if (amt > 0x31) {
+          ind->muskets = (uint8_t)(ind->muskets + 1);
+        }
+      }
     }
     break;
   }
@@ -819,35 +810,19 @@ void ai_contact_apply_raid_loot(
       }
     }
     break;
-  case AI_RAID_SCALP:
-    if (c->population > 1) {
-      c->population--;
-      if (c->colonist_count > 1) {
-        c->colonist_count--;
-      }
-    }
-    break;
   case AI_RAID_GOLD:
-    if (ctx && ctx->col1_ok && ctx->col1 && target_euro >= 0 && target_euro < 4) {
+    if (ctx && ctx->col1_ok && ctx->col1 && target_euro >= 0 && target_euro < 4 &&
+        ai_contact_s_raid_gold > 0) {
       /*
-       * FUN_5fef_0f14 kind4: roll gold drain vs treasury (thin: 32..min(cap,treasury)).
-       * Cite: indian_raid_loot.md; decomp ~99876–99893 / 100017–100030.
+       * DOS-LITERAL FUN_5fef_0f14 raw 100020-100024: the amount was rolled and
+       * affordability-checked in the head (see the picker); this arm only
+       * subtracts it from the victim's 32-bit purse and stashes it at
+       * DS:0x9cb0 for the @RAIDGOLD %NUMBER0 slot.
        */
-      const uint32_t victim_gold = europe_nation_gold(ctx->europe, ctx->col1, target_euro);
-      if (victim_gold > 0) {
-        unsigned drain = 32u + (unsigned)(c->population > 0 ? c->population * 8 : 8);
-        if (drain < 50u) {
-          drain = 50u;
-        }
-        if (drain > 500u) {
-          drain = 500u;
-        }
-        if (drain > victim_gold) {
-          drain = victim_gold;
-        }
-        europe_nation_gold_add(ctx->europe, ctx->col1, target_euro, -(long)drain);
-        ai_contact_s_last_gold_drained = (int)drain;
-      }
+      europe_nation_gold_add(
+        ctx->europe, ctx->col1, target_euro, -(long)ai_contact_s_raid_gold
+      );
+      ai_contact_s_last_gold_drained = (int)ai_contact_s_raid_gold;
     }
     break;
   case AI_RAID_SHIP: {
@@ -875,24 +850,17 @@ void ai_contact_apply_raid_loot(
     }
     break;
   }
-  case AI_RAID_WREAK:
-    if (c->stock[COLONIZE_CARGO_FOOD] > 0) {
-      c->stock[COLONIZE_CARGO_FOOD]--;
-    }
-    if (c->stock[COLONIZE_CARGO_TOOLS] > 0) {
-      c->stock[COLONIZE_CARGO_TOOLS]--;
-    }
-    if (c->building_in_production >= 0) {
-      c->building_in_production = -1;
-    }
-    break;
   default:
     break;
   }
 
-  if (kind != AI_RAID_NOTHING) {
-    ai_contact_raid_secondary_loot(ctx, c, target_euro, max_alarm);
-  }
+  /*
+   * (Retired 2026-09-23, bugs.md #833.) `ai_contact_raid_secondary_loot` ran
+   * after every non-NOTHING kind and drained −5 muskets / −1 horse from the
+   * warehouse or from a unit's gear on the tile, plus −1 tools at alarm >= 80.
+   * FUN_5fef_0f14 mutates exactly ONE thing per raid — one cargo, one
+   * building, one ship or the treasury — and never touches a unit's gear.
+   */
 }
 
 /*
@@ -935,30 +903,17 @@ void ai_contact_apply_raid_loot(
  * discharge only happens while the tribe is NOT already at war. No relief
  * once war is declared.
  *
- * DOS kind space vs. the port's AiRaidKind:
- *   1 goods     -> AI_RAID_STORES (warehouse cargo drain)
- *   2 building  -> AI_RAID_BURN and AI_RAID_WREAK (a building razed /
- *                  construction wrecked — 0f14's kind 2 picks a building
- *                  index 0..0x29 and destroys it)
- *   3 unit      -> AI_RAID_SHIP and AI_RAID_SCALP. 0f14's kind-3 walk only
- *                  accepts unit types 0xd..0x12, which are the SHIPS
- *                  (docs/indians.md:449, same band 4cc6_03f8's threat ring
- *                  skips) — so SHIP is the literal match. The port's
- *                  colonist-kill band has no DOS kind of its own and is the
- *                  same "a unit at the colony dies" outcome, so it takes the
- *                  same row. (Until this pass the port had these swapped:
- *                  SCALP got the 16 and SHIP was lumped with gold's 8.)
- *   4 gold      -> AI_RAID_GOLD (treasury drain)
+ * AiRaidKind now carries DOS's own `local_6` values, so this is a straight
+ * 1:1 table (the port's invented SCALP/WREAK kinds, which used to share the
+ * −16 and −12 rows, were deleted 2026-09-23: bugs.md #828/#829).
  */
 COLONIZE_INTERNAL int ai_contact_raid_alarm_delta(AiRaidKind kind) {
   switch (kind) {
     case AI_RAID_STORES:
       return -4;
     case AI_RAID_BURN:
-    case AI_RAID_WREAK:
       return -12;
     case AI_RAID_SHIP:
-    case AI_RAID_SCALP:
       return -16;
     case AI_RAID_GOLD:
       return -8;
@@ -1047,10 +1002,10 @@ int ai_contact_colony_raid_repelled_w(
     }
   }
 
-  const AiRaidKind kind = ai_contact_raid_kind_demote(
-    &ctx, c, ai_contact_pick_raid_kind(&ctx, c, euro_nation, max_alarm, rng, forced)
-  );
-  ai_contact_apply_raid_loot(&ctx, c, euro_nation, kind, max_alarm);
+  const AiRaidKind kind =
+    ai_contact_pick_raid_kind(&ctx, c, indian_nation, euro_nation, rng, forced);
+  ai_contact_apply_raid_loot(&ctx, c, indian_nation, euro_nation, kind);
+  ai_contact_raid_wreak_bulletin(&ctx, c, indian_nation, euro_nation, kind);
 
   /*
    * FUN_5fef_0f14's alarm tail (raw 100033), wired 2026-09-08 — negative
@@ -1113,28 +1068,23 @@ static int ai_contact_brave_home_grudge(
 
 
 /*
- * `section` is the GAME.TXT body (the only MicroProse wording involved — it is
- * read from the catalog, never typed here). The thin_* lines are the PORT's
- * own short notices for the cases DOS's dialog cannot cover (no colony name
- * to substitute, or a burn with no named building); they are deliberately
- * not phrased like the catalog text.
+ * `section` is the GAME.TXT body — the ONLY wording involved. The thin_* slots
+ * used to carry typed English notices for the cases DOS's dialog cannot cover
+ * (no colony name to substitute, a burn with no named building); bugs.md #836
+ * retired them under CLAUDE.md's "miss = empty string, never a typed fallback"
+ * rule, so an unnamed colony now simply draws no raid line.
  */
 static const AiRaidChrome k_raid_chrome[] = {
   /* @RAIDNOTHING; sound 0x5b = raid repelled (gunfight). */
-  {AI_RAID_NOTHING, "RAIDNOTHING", "", NULL, "%s raid repelled.", 0x5b, 2, AI_RAID_TOK_NONE, 0},
+  {AI_RAID_NOTHING, "RAIDNOTHING", "", NULL, NULL, 0x5b, 2, AI_RAID_TOK_NONE, 0},
   /* @RAIDSHIP */
-  {AI_RAID_SHIP, "RAIDSHIP", "", NULL, "The %s raid your harbor.", -1, -1, AI_RAID_TOK_SHIP, 0},
-  /* @RAIDSCALP; sound 0x4e = colonists killed (screaming). */
-  {AI_RAID_SCALP, "RAIDSCALP", "", NULL, "The %s massacre colonists at your colony!", 0x4e, -1,
-   AI_RAID_TOK_NONE, 0},
+  {AI_RAID_SHIP, "RAIDSHIP", "", NULL, NULL, -1, -1, AI_RAID_TOK_SHIP, 0},
   /* @RAIDGOLD; 0x4d = loot gold. */
-  {AI_RAID_GOLD, "RAIDGOLD", "", NULL, "The %s raid your treasury!", 0x4d, -1, AI_RAID_TOK_GOLD, 0},
+  {AI_RAID_GOLD, "RAIDGOLD", "", NULL, NULL, 0x4d, -1, AI_RAID_TOK_GOLD, 0},
   /* @RAIDSTORES; 0x4f = loot goods. */
-  {AI_RAID_STORES, "RAIDSTORES", "", NULL, "The %s loot your stores.", 0x4f, -1,
-   AI_RAID_TOK_STORES, 0},
-  /* @RAIDWREAK needs a foreign-colony nation token the human path lacks: thin. */
-  {AI_RAID_WREAK, NULL, NULL, "%s raiders strike %s.", "%s raiders strike.", -1, -1,
-   AI_RAID_TOK_NONE, 0}
+  {AI_RAID_STORES, "RAIDSTORES", "", NULL, NULL, 0x4f, -1,
+   AI_RAID_TOK_STORES, 0}
+  /* @RAIDBURN thin/named rows live below (they depend on the burned building). */
 };
 
 /* @RAIDBURN, with the destroyed building named. */
@@ -1143,13 +1093,11 @@ static const AiRaidChrome k_raid_chrome_burn_named = {
 };
 /* Burn with no named building: port notice. */
 static const AiRaidChrome k_raid_chrome_burn_thin = {
-  AI_RAID_BURN, NULL, NULL, "%s raiders set fires in %s.", "%s raiders set fires.", -1, -1,
-  AI_RAID_TOK_NONE, 0
+  AI_RAID_BURN, NULL, NULL, NULL, NULL, -1, -1, AI_RAID_TOK_NONE, 0
 };
 /* Generic successful raid chrome when no kind-specific line applies. */
 static const AiRaidChrome k_raid_chrome_generic = {
-  AI_RAID_NOTHING, NULL, NULL, "The %s raid %s.", "The %s raid your colony.",
-  -1, -1, AI_RAID_TOK_NONE, 0
+  AI_RAID_NOTHING, NULL, NULL, NULL, NULL, -1, -1, AI_RAID_TOK_NONE, 0
 };
 
 COLONIZE_INTERNAL const AiRaidChrome* ai_contact_raid_chrome_row(AiRaidKind kind, int have_burn_building) {
@@ -1292,7 +1240,8 @@ COLONIZE_INTERNAL void ai_contact_raid_stage_combat(struct ai_contact_raid_ctx* 
         foe_unit_name,
         sizeof(foe_unit_name),
         "%s",
-        ft && ft->name[0] ? ft->name : "units"
+        /* #836: no typed fallback — a NAMES miss renders empty (CLAUDE.md). */
+        ft && ft->name[0] ? ft->name : ""
       );
     }
     const char* foe_nation_label = "your";
@@ -1493,10 +1442,12 @@ COLONIZE_INTERNAL void ai_contact_raid_human_chrome(
       );
     } else if (row->thin_colony && c->name[0]) {
       snprintf(raid_line, sizeof(raid_line), row->thin_colony, tribe, c->name);
-    } else {
+    } else if (row->thin_bare) {
       snprintf(raid_line, sizeof(raid_line), row->thin_bare, tribe);
+    } else {
+      raid_line[0] = '\0'; /* #836: no typed fallback */
     }
-    raid_body = raid_line;
+    raid_body = raid_line[0] ? raid_line : NULL;
     /*
      * bugs.md: the @INDIANWAR / @INDIANSURPRISE lines used to sit as
      * two arms INSIDE this chain, so any raid by a tribe that was not
@@ -1523,10 +1474,14 @@ COLONIZE_INTERNAL void ai_contact_raid_human_chrome(
          * (2026-09-16). The sentence stays as port chrome, no longer
          * claiming to be a GAME.TXT body.
          */
-        snprintf(
-          pre_buf, sizeof(pre_buf), "The %s declare war! Prepare for WAR!", tribe
-        );
-        pre = pre_buf;
+        /*
+         * (Retired 2026-09-23, bugs.md #836.) "The %s declare war! Prepare
+         * for WAR!" was typed English with no catalog row behind it —
+         * @INDIANWAR is dead GAME.TXT text (no DS tag string in VICEROY.EXE),
+         * so there is nothing to read and the line renders empty.
+         */
+        pre_buf[0] = '\0';
+        pre = NULL;
       } else if (!eff_at_war) {
         /*
          * @INDIANSURPRISE (0x14dc) — real GAME.TXT body, filled with
@@ -1584,10 +1539,10 @@ COLONIZE_INTERNAL void ai_contact_raid_resolve_on_tile(
   const int target_euro = a->target_euro;
   const int max_alarm = a->max_alarm;
 
-  const AiRaidKind kind = ai_contact_raid_kind_demote(
-    ctx, c, ai_contact_pick_raid_kind(ctx, c, target_euro, max_alarm, rng, 0)
-  );
-  ai_contact_apply_raid_loot(ctx, c, target_euro, kind, max_alarm);
+  const AiRaidKind kind =
+    ai_contact_pick_raid_kind(ctx, c, nation_id, target_euro, rng, 0);
+  ai_contact_apply_raid_loot(ctx, c, nation_id, target_euro, kind);
+  ai_contact_raid_wreak_bulletin(ctx, c, nation_id, target_euro, kind);
   /* 0f14's alarm tail + DS:0x54f6 word-zero run at the resolver's
    * very END in DOS (raw 100033-100034) — after all the popup/side-art
    * chrome — so they sit below the status block here, not at this

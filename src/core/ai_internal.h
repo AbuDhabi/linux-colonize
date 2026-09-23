@@ -60,8 +60,7 @@ int ai_465b_dest_owner(
  * ai.c was 5081 lines; it is now split along its banners into
  * ai.c (startup RNG / fog / diagnostics / new-game world setup / game init /
  * Euro dispatch), ai_indian.c (152e village worth, growth tick, tile helpers,
- * native pull scoring), ai_native_score.c (the quiet FUN_4d56_4753 ASM
- * direction scorer), ai_native_021a.c (the FUN_4d56_021a structural scorer)
+ * native pull scoring), ai_native_021a.c (the FUN_4d56_021a structural scorer)
  * and ai_brave.c (pick-dir dispatch, first contact, brave step, nation pulse).
  * The declarations below are the symbols used across those files (plus the
  * module's file-scope result type, which used to sit in the single .c);
@@ -167,6 +166,30 @@ int ai_native_foreign_euro_pull_open(
   int dest_x, int dest_y, int owner
 );
 
+typedef enum {
+  AI_NATIVE_STEP_MORE = 0, /* the Brave may act again (loop continues) */
+  AI_NATIVE_STEP_STOP = 1  /* the Brave is done this turn (was a bare `break;`) */
+} AiNativeStepStatus;
+
+#ifdef COLONIZE_TESTING
+/* One FUN_1427_13b0 Brave act (ai_brave.c) — test seam, see conventions.md. */
+AiNativeStepStatus ai_native_brave_step(
+  ColonizeUnitPool* units,
+  ColonizeWorldMap* map,
+  ColonizeCol1Save* col1,
+  AiRng* rng,
+  int nation_id,
+  bool seed100_init_burns,
+  ColonizeUnit* u,
+  int hx,
+  int hy,
+  int tech,
+  int max_mp,
+  int brave_index,
+  int* steps
+);
+#endif
+
 void ai_native_nation_pulse(
   ColonizeUnitPool* units,
   ColonizeWorldMap* map,
@@ -185,16 +208,6 @@ int ai_native_pick_dir_021a(
   const ColonizeUnit* u,
   int nation_id,
   Ai021aResult* out
-);
-
-int ai_native_pick_dir_asm(
-  AiRng* rng,
-  const ColonizeWorldMap* map,
-  const ColonizeUnitPool* units,
-  int x,
-  int y,
-  int nation_id,
-  int last_dir
 );
 
 int ai_owner_nibble(const ColonizeWorldMap* map, int x, int y);

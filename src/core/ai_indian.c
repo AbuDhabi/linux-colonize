@@ -128,11 +128,11 @@ static int ai_indian_152e_worth_cap(
  *
  * Linux uses `units_spawn_allow_stack` for the placement half (native units
  * routinely stack on their own village tile) and mirrors the DOS pool cap.
- * The branch is still **unreachable today** — its only gate is
- * `t->state.needs_colonist`, whose DOS producer (village CREATE,
- * `FUN_4d56_0038`) is unported, so the bit is always 0. Ported anyway so the
- * arm is correct the day that producer lands (same "wired but not fed"
- * convention as `ai_euro_5d04_compute_flags`).
+ * The branch's gate is `t->state.needs_colonist`. Its DOS producer is unit
+ * DESTROY, `FUN_1427_0824` raw 7796-7799, NOT village CREATE
+ * (`FUN_4d56_0038` raw 81282 explicitly writes `+3 = 0`); the port sets it in
+ * `units_despawn` (units_map.c), so a tribe that loses a Brave re-issues one
+ * armed out of its own stock (bugs.md #837).
  */
 static int ai_indian_152e_spawn_brave(
   ColonizeTurnContext* ctx,
@@ -574,29 +574,21 @@ static void ai_indian_152e_village_growth(
   ColonizeCol1Indian* ind = &col1->indian[nation_id - 4];
 
   /*
-   * Capital-only growth gate, regression fix 2026-08-19 (golden_ai_turns
-   * TURN1->2 tribe[8] pop/acc mismatch). The 2026-08-18 structural rewrite
-   * dropped the prior "FUN_4d56_152e grows capitals only (state.capital)"
-   * check when it replaced the flat `population < 15` cap with the
-   * worth-cap callee — both now unconditionally reachable for satellite
-   * villages too, making them accumulate growth every turn.
-   * Real DOS TURN1.SAV/TURN2.SAV (seed-100) show satellite tribes (non-
-   * capital) with growth_accum frozen at 0 across the turn while capital
-   * tribes accrue normally. Now that `ai_indian_152e_worth_cap` is ported
-   * for real (see its own 2026-08-24 header, `FUN_4d56_0000`'s
-   * `2*tech+3` / `3*tech+4` formula), this gate is still kept — it isn't
-   * redundant: `ai_indian_152e_worth_cap`'s non-capital arm (`2*tech+3`)
-   * is never exercised at this call site regardless, since the block
-   * below only runs for capitals; removing this gate would just start
-   * calling the capital-arm formula for satellites too, which is wrong.
-   * Keep the known-good capital-only restriction.
-   * Scoped to this block only — the friction-roll / mission-relation tail
-   * below still runs per-settlement (every tribe, satellites included);
-   * an earlier version of this fix gated the whole function on capital and
-   * silently dropped satellites' RNG draws there too, desyncing the LCG
-   * stream and breaking TURN6->7 relation_by_indian (94 vs golden 96).
+   * DOS-LITERAL FUN_4d56_152e raw 81404-81440: the `local_16` block runs for
+   * EVERY settlement — there is no capital gate in DOS (bugs.md #838). The
+   * port carried one from a 2026-08-19 regression fix (golden_ai_turns
+   * TURN1->2 tribe[8] pop/acc); it is redundant now that
+   * `ai_indian_152e_worth_cap` is ported for real, because a satellite's
+   * `population` already equals its non-capital cap (`2*tech+3`), so
+   * `local_16 = 2` never arms for it and its growth_accum stays frozen at 0
+   * exactly as the real DOS TURN1/TURN2 seed-100 saves show. What the gate
+   * DID wrongly suppress is the `local_16 = 1` arm: a satellite that lost
+   * its Brave (needs_colonist, set from the unit-destroy path per
+   * FUN_1427_0824 raw 7796-7799) must re-issue one.
+   * Scoped as before: the friction-roll / mission-relation tail below runs
+   * per-settlement regardless, so satellites' RNG draws are untouched.
    */
-  if (t->state.capital) {
+  {
     int local_16 = 0;
     if ((int)t->population < ai_indian_152e_worth_cap(ctx, t)) {
       local_16 = 2;

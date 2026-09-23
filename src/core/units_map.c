@@ -146,6 +146,25 @@ bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
       }
     }
   }
+  /*
+   * DOS-LITERAL FUN_1427_0824 raw 7796-7799 (bugs.md #837): unit DESTROY is
+   * the producer of the settlement "needs first colonist" bit —
+   *   if ((3 < (unit+0x3147 & 0xf)) && (-1 < (char)unit+0x314a))
+   *     *(byte*)(unit+0x314a * 0x12 + 0x54ef) |= 1;
+   * i.e. any Indian-owned unit with a valid home village flags that village,
+   * and FUN_4d56_152e raw 81410-81437 consumes it as `local_16 = 1` and
+   * issues one replacement Brave armed out of tribe stock. DOS sets it with
+   * no check on the village's own nation, and the village-destroy path
+   * (FUN_4d56_00e0 raw 81313, FUN_281f_0808) routes through 0824 too — the
+   * bit then lands on a record the very next compaction overwrites, so it is
+   * harmless there. units_despawn is the single chokepoint every port
+   * despawn goes through, matching 0824.
+   */
+  if (g_units_fallout_col1 && g_units_fallout_col1->tribe && unit->nation_id >= 4 &&
+      unit->home_tribe_id >= 0 &&
+      unit->home_tribe_id < (int)g_units_fallout_col1->head.tribe_count) {
+    g_units_fallout_col1->tribe[unit->home_tribe_id].state.needs_colonist = 1;
+  }
   units_clear_slot(unit);
   if (pool->unit_count > 0) {
     pool->unit_count--;

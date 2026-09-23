@@ -1647,6 +1647,13 @@ void ai_contact_apply_beg_food(
 /*
  * "A Brave walked up to this colony this turn."
  *
+ * bugs.md #824 (2026-09-23): the gift and beg halves now run from the
+ * Brave's own step (ai_native_step_first_contact), so for them this is no
+ * longer a reconstruction of the trigger — it is the selector that picks the
+ * Brave that is mid-step. The village-trade/reparations arm in
+ * ai_contact_trade.c is still a post-pulse per-nation walk and still uses it
+ * as the reconstruction it always was.
+ *
  * DOS never polls standing adjacency: FUN_5bfb_022e is reached from
  * FUN_465b's move tail (FUN_281f_0984 → FUN_5bfb_3180) for the tile a unit
  * just stepped beside, so a Brave that has been parked next to a colony for
@@ -1767,7 +1774,9 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
         if (abs(bu->x - c->x) > 1 || abs(bu->y - c->y) > 1) {
           continue;
         }
-        /* Same DOS move-tail trigger as the gift half — see the helper. */
+        /* Same DOS move-tail selector as the gift half — see the helper.
+         * bugs.md #824: this arm now runs from the Brave's own step, so the
+         * test picks the stepping Brave rather than reconstructing one. */
         if (!ai_contact_brave_walked_up_to(bu, c->x, c->y)) {
           continue;
         }

@@ -111,7 +111,6 @@ add_library(colonize_sim STATIC
   src/core/woodcut.c
   src/core/ai.c
   src/core/ai_indian.c
-  src/core/ai_native_score.c
   src/core/ai_native_021a.c
   src/core/ai_brave.c
   src/core/ai_goals.c

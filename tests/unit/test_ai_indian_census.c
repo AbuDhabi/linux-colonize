@@ -25,6 +25,7 @@
 
 #include "core/ai.h"
 #include "core/ai_contact.h"
+#include "core/ai_internal.h"
 #include "core/assets.h"
 #include "core/col1_bridge.h"
 #include "core/col1_save.h"
@@ -399,6 +400,144 @@ static int test_crown_nation_bells_negation(void) {
   return 0;
 }
 
+/*
+ * bugs.md #837 / #838 — the Brave replacement cycle.
+ *
+ * DOS `FUN_1427_0824` raw 7796-7799 is the producer of the settlement "needs
+ * first colonist" bit: destroying an Indian-owned unit with a valid home
+ * village sets `settlement[+0x314a] +3 |= 1`. `FUN_4d56_152e` raw 81410-81437
+ * consumes it as `local_16 = 1` and issues ONE replacement Brave, armed out
+ * of the tribe's own stock (`+1` armed if a musket, `+2` mounted if
+ * horse_breeding > 0x31). raw 81404 shows the block is NOT capital-gated, so
+ * a satellite village replaces its Brave too.
+ */
+static int test_brave_replacement_cycle(void) {
+  char err[256];
+  ColonizeCol1Save save;
+  col1_save_init(&save);
+  if (!col1_save_read_file("test-saves-ai/TURN7.SAV", &save, err, sizeof(err))) {
+    fprintf(stderr, "read TURN7.SAV: %s\n", err);
+    return 1;
+  }
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    return fail("NAMES.TXT load failed");
+  }
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  if (!units_load_types(&units, &names)) {
+    return fail("units_load_types");
+  }
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  if (!colonies_load_buildings(&colonies, &names)) {
+    return fail("colonies_load_buildings");
+  }
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.cargo_count = 16;
+  ColonizeCol1BridgeResult br;
+  if (!col1_bridge_apply_w(&(ColonizeWorld){.units=&units, .colonies=&colonies, .map=&map, .col1=&save, .col1_ok=true, .europe=&europe}, &br, err, sizeof(err))) {
+    fprintf(stderr, "bridge apply: %s\n", err);
+    return 1;
+  }
+  units_set_native_fallout_context(&save, &map, 0);
+
+  /* Pick any live Brave with a home village. */
+  int victim = -1;
+  int home = -1;
+  int nation = -1;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &units.units[i];
+    if (u->active && u->nation_id >= 4 && u->home_tribe_id >= 0 &&
+        u->home_tribe_id < (int)save.head.tribe_count) {
+      victim = u->id;
+      home = u->home_tribe_id;
+      nation = u->nation_id;
+      break;
+    }
+  }
+  if (victim < 0) {
+    return fail("#837 fixture: TURN7.SAV has no homed native unit");
+  }
+  save.tribe[home].state.needs_colonist = 0;
+  if (!units_despawn(&units, victim)) {
+    return fail("#837: units_despawn failed");
+  }
+  if (!save.tribe[home].state.needs_colonist) {
+    return fail("#837: unit destroy must set the home village's needs_colonist bit");
+  }
+
+  /*
+   * Now run the 152e growth tick for that nation. Arm the tribe stock so the
+   * replacement must walk out as a Mtd. Warrior (0x16 = Brave + 1 musket + 2
+   * mounted), and park growth_accum one short of the 0x13 threshold so the
+   * spend happens on this very call.
+   */
+  ColonizeCol1Indian* ind = &save.indian[nation - 4];
+  ind->muskets = 4;
+  ind->horse_breeding = 0x40;
+  save.tribe[home].growth_accum =
+    (uint8_t)(0x14 > save.tribe[home].population ? 0x14 - save.tribe[home].population : 0);
+  const int before = units.unit_count;
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 100u * 12345u);
+  uint32_t turn_number = br.turn_number;
+  uint16_t year = br.year;
+  uint16_t autumn = br.autumn;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn_number;
+  ctx.game_year = &year;
+  ctx.game_autumn = &autumn;
+  ctx.human_nation = br.human_nation;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.europe = &europe;
+  ctx.map = &map;
+  ctx.col1 = &save;
+  ctx.col1_ok = true;
+  ctx.rng = &rng;
+  ai_grow_villages(&ctx, nation);
+
+  if (save.tribe[home].state.needs_colonist) {
+    return fail("#837: 152e must clear needs_colonist once the replacement spawned");
+  }
+  if (units.unit_count != before + 1) {
+    fprintf(stderr, "unit_count %d -> %d\n", before, units.unit_count);
+    return fail("#837: exactly one replacement Brave should have spawned");
+  }
+  int found = -1;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &units.units[i];
+    if (u->active && u->home_tribe_id == home && u->nation_id == nation) {
+      found = i;
+    }
+  }
+  if (found < 0) {
+    return fail("#837: replacement Brave is not homed to the village that lost one");
+  }
+  if (units_type_kind(units_type(&units, units.units[found].type_index)) !=
+      UNITS_KIND_MTD_WARRIOR) {
+    return fail("#837: replacement should be armed+mounted from tribe stock (0x16)");
+  }
+  if (ind->horse_breeding != 0x40 - 0x32) {
+    return fail("#837: 152e must spend 0x32 horse_breeding on the mount step");
+  }
+
+  units_set_native_fallout_context(NULL, NULL, 0);
+  map_free(&map);
+  assets_msg_free(&names);
+  col1_save_free(&save);
+  return 0;
+}
+
 int main(void) {
   char err[256];
   ColonizeCol1Save save;
@@ -583,9 +722,13 @@ int main(void) {
     return 1;
   }
 
+  if (test_brave_replacement_cycle() != 0) {
+    return 1;
+  }
+
   printf(
     "unit_ai_indian_census: ok (1816 §6 census/decay/horses + 1b3a phases 1/3 + "
-    "4962_0018 euro census + crown bells negation)\n"
+    "4962_0018 euro census + crown bells negation + #837/#838 brave replacement)\n"
   );
   return 0;
 }

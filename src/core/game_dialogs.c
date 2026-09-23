@@ -2748,7 +2748,7 @@ static bool game_apply_popup_village_attack(ColonizeGameState* game) {
       units_set_combat_colonies(&game->colonies);
       units_set_native_fallout_context(game->col1_ok ? &game->col1 : NULL, &game->world_map, -1);
       game->units.selected_id = unit_id;
-      if (units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .rng=(ColonizeDosRng*)(&game->move_rng)}, unit_id, dest_x, dest_y)) {
+      if (units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .rng=(ColonizeDosRng*)(&game->move_rng), .rng_reseed=game->ai_rng_seed, .rng_reseed_set=true}, unit_id, dest_x, dest_y)) {
         snprintf(game->status, sizeof(game->status), "Village attacked (%d,%d)", dest_x, dest_y);
         game_after_unit_action(game);
       } else if (units_last_combat_outcome() < 0) {

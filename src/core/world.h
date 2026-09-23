@@ -44,6 +44,11 @@ typedef struct ColonizeWorld {
   bool col1_ok; /* mirrors ColonizeTurnContext.col1_ok (col1 loaded/usable) */
   ColonizeDosRng* rng;
   EuropeScreen* europe;
+  /* FUN_281f_04ca timer word for the 465b overspend reseed (raw 75649):
+   * game_loop passes ColonizeGameState.ai_rng_seed; unset = no reseed
+   * (tests / headless callers keep the plain stream). bugs.md #842. */
+  uint32_t rng_reseed;
+  bool rng_reseed_set;
 } ColonizeWorld;
 
 /*

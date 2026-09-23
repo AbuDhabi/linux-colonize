@@ -3,6 +3,9 @@
  * beats), split into named cases 2026-09-23. */
 #include "test_ai_contact_common.h"
 
+/* 0f14 seam access for the raid blocks (COLONIZE_TESTING linkage). */
+#include "core/ai_contact_internal.h"
+
 /*
  * FUN_4d56_417e is a two-step dialog: the target menu (@INDIANWARPATH) is
  * answered with a nation id, which enqueues the @INDIANWARPATH2 pay confirm;
@@ -150,6 +153,55 @@ static void fx_close(void) {
   free(col1.tribe);
   col1.tribe = NULL;
   col1_save_free(&col1);
+}
+
+/*
+ * bugs.md #827: FUN_5fef_0f14's kind is `rand(1,4)` behind a walls roll, so a
+ * fixture can no longer "force" a kind through an alarm band the way the
+ * retired Linux band-picker allowed. This probe keeps those blocks honest
+ * without changing what they exercise: snapshot the whole fixture, replay the
+ * pulse over successive turn values (the pulse's local RNG is keyed on the
+ * turn) until `want` comes up, restore the snapshot, and leave `turn` on the
+ * value that produces it — so the block's own single RUN_INDIAN_RAIDS() lands
+ * that kind with exactly one pulse worth of side effects, as before.
+ */
+static int raid_probe_turn_for_kind(int want, int max_tries) {
+  const uint32_t turn0 = turn;
+  static ColonizeUnitPool rp_units;
+  static ColonizeColonyPool rp_colonies;
+  static ColonizeCol1Save rp_col1;
+  rp_units = units;
+  rp_colonies = colonies;
+  rp_col1 = col1;
+  const size_t tn = (size_t)col1.head.tribe_count;
+  ColonizeCol1Tribe* tsave = NULL;
+  if (col1.tribe && tn) {
+    tsave = (ColonizeCol1Tribe*)malloc(tn * sizeof(*tsave));
+    if (tsave) {
+      memcpy(tsave, col1.tribe, tn * sizeof(*tsave));
+    }
+  }
+  const int kind0 = ai_contact_last_raid_kind();
+  int found = -1;
+  for (int i = 0; i < max_tries && found < 0; ++i) {
+    turn = turn0 + (uint32_t)i;
+    RUN_INDIAN_RAIDS();
+    if (ai_contact_last_raid_kind() == want) {
+      found = (int)(turn0 + (uint32_t)i);
+    }
+    units = rp_units;
+    colonies = rp_colonies;
+    ColonizeCol1Tribe* const tp = col1.tribe;
+    col1 = rp_col1;
+    col1.tribe = tp;
+    if (tsave) {
+      memcpy(col1.tribe, tsave, tn * sizeof(*tsave));
+    }
+  }
+  free(tsave);
+  ai_contact_s_last_raid_kind = kind0;
+  turn = (found >= 0) ? (uint32_t)found : turn0;
+  return found >= 0;
 }
 
 static int sp_00(void) {
@@ -322,10 +374,15 @@ static int sp_02(void) {
     RUN_INDIAN_RAIDS();
   }
   if (ai_contact_last_raid_kind() == AI_RAID_NOTHING && c->stock[COLONIZE_CARGO_FOOD] == food0) {
-    /* Still nothing: apply path must have run — accept if attacks bumped. */
-    if (col1.tribe[0].alarm[0].attacks == 0) {
-      return fail("raid should mutate colony or record attacks");
-    }
+    /*
+     * @RAIDNOTHING is a first-class DOS outcome, not a failure: the walls
+     * roll (raw 99783), a Stockade + `difficulty < rand(0,8)` (raw 99814),
+     * a Fortress against the ship kind, or 100 fruitless cargo rolls all
+     * land here and mutate nothing. The old assertion demanded a colony
+     * change or an `attacks` bump; DOS bumps that byte only from the 465b
+     * trespass arm, and the alarm-band picker that made NOTHING rare was
+     * retired with bugs.md #827.
+     */
   } else if (c->stock[COLONIZE_CARGO_FOOD] >= food0 && c->population >= 3 &&
              ai_contact_last_raid_kind() != AI_RAID_GOLD &&
              ai_contact_last_raid_kind() != AI_RAID_SHIP &&
@@ -353,9 +410,9 @@ static int sp_03(void) {
     int expect_delta = 0;
     if (kind_after == AI_RAID_STORES) {
       expect_delta = -4;
-    } else if (kind_after == AI_RAID_BURN || kind_after == AI_RAID_WREAK) {
+    } else if (kind_after == AI_RAID_BURN) {
       expect_delta = -12;
-    } else if (kind_after == AI_RAID_SHIP || kind_after == AI_RAID_SCALP) {
+    } else if (kind_after == AI_RAID_SHIP) {
       expect_delta = -16;
     } else if (kind_after == AI_RAID_GOLD) {
       expect_delta = -8;
@@ -419,9 +476,9 @@ static int sp_04(void) {
     int expect_rep = 0;
     if (kind_rep == AI_RAID_STORES) {
       expect_rep = -4;
-    } else if (kind_rep == AI_RAID_BURN || kind_rep == AI_RAID_WREAK) {
+    } else if (kind_rep == AI_RAID_BURN) {
       expect_rep = -12;
-    } else if (kind_rep == AI_RAID_SHIP || kind_rep == AI_RAID_SCALP) {
+    } else if (kind_rep == AI_RAID_SHIP) {
       expect_rep = -16;
     } else if (kind_rep == AI_RAID_GOLD) {
       expect_rep = -8;
@@ -1139,33 +1196,41 @@ static int sp_13(void) {
       return fail("high-friction multi-loot raid should not be NOTHING");
     }
     /*
-     * Secondary −5 muskets; STORES primary takes half stock clamp 1..10
-     * (FUN_5fef_0f14). Cite: indian_raid_loot.md; indian_raid_outcomes.md.
+     * bugs.md #833: FUN_5fef_0f14 mutates exactly ONE thing per raid. The
+     * port's `ai_contact_raid_secondary_loot` (−5 muskets / −1 horse / −1
+     * tools on top of the primary kind) was deleted 2026-09-23, so at most
+     * ONE cargo may move here, and only on the STORES kind (bugs.md #830:
+     * `h = stock>>1; amt = rand(min(h,10), h)`).
      */
-    int musk_expect = muskets_ml - 5;
-    if (kind_ml == AI_RAID_STORES) {
-      int half = muskets_ml >> 1;
-      if (half > 10) {
-        half = 10;
+    int cargo_moved = 0;
+    for (int cg = 0; cg < COLONIZE_CARGO_COUNT; ++cg) {
+      const int before = (cg == COLONIZE_CARGO_FOOD)      ? food_ml
+                       : (cg == COLONIZE_CARGO_TOOLS)     ? tools_ml
+                       : (cg == COLONIZE_CARGO_MUSKETS)   ? muskets_ml
+                       : (cg == COLONIZE_CARGO_HORSES)    ? 4
+                                                          : c->stock[cg];
+      if (c->stock[cg] != before) {
+        cargo_moved++;
+        if (kind_ml != AI_RAID_STORES) {
+          return fail("only the STORES kind may drain a cargo (#833)");
+        }
+        const int h = before >> 1;
+        const int lo = (h > 10) ? 10 : h;
+        const int amt = before - c->stock[cg];
+        if (amt < (lo < 1 ? 1 : lo) || amt > (h < 1 ? 1 : h)) {
+          return fail("STORES amount must land in rand(min(h,10), h) (#830)");
+        }
       }
-      if (half < 1) {
-        half = 1;
-      }
-      musk_expect = muskets_ml - half - 5;
     }
-    if (c->stock[COLONIZE_CARGO_MUSKETS] != musk_expect) {
-      return fail("multi-loot should steal muskets stock (secondary ± STORES)");
+    if (cargo_moved > 1) {
+      return fail("a raid must mutate at most one cargo (#833)");
     }
-    /* Secondary tools −1; WREAK primary also takes tools → −2 total. */
-    const int tools_expect = (kind_ml == AI_RAID_WREAK) ? (tools_ml - 2) : (tools_ml - 1);
-    if (c->stock[COLONIZE_CARGO_TOOLS] != tools_expect) {
-      return fail("high-friction multi-loot should steal tools as secondary cargo");
+    if (c->population != pop_ml) {
+      return fail("DOS has no population-loss raid kind (#828)");
     }
-    const int primary_hit = (c->stock[COLONIZE_CARGO_FOOD] < food_ml) ||
-                            (c->population < pop_ml) || (col1.nation[0].gold < gold_ml) ||
+    const int primary_hit = cargo_moved || (col1.nation[0].gold < gold_ml) ||
                             (kind_ml == AI_RAID_BURN) || (kind_ml == AI_RAID_SHIP) ||
-                            (kind_ml == AI_RAID_SCALP) || (kind_ml == AI_RAID_STORES) ||
-                            (kind_ml == AI_RAID_WREAK) || (kind_ml == AI_RAID_GOLD);
+                            (kind_ml == AI_RAID_GOLD);
     if (!primary_hit) {
       return fail("multi-loot should apply a primary @RAID* outcome");
     }
@@ -1206,18 +1271,35 @@ static int sp_14(void) {
     c->building_in_production = -1;
     snprintf(c->name, sizeof(c->name), "Roanoke");
     memset(c->stock, 0, sizeof(c->stock));
-    c->stock[COLONIZE_CARGO_MUSKETS] = 3; /* STORES prefs hit muskets; <5 → no −5 secondary */
+    /*
+     * bugs.md #832: FUN_5fef_0f14's cargo pick is a RETRY ROLL that keeps
+     * rerolling while the colony holds < 10 of the rolled cargo (raw 99832),
+     * so a 3-muskets warehouse is un-lootable in DOS and the old fixture's
+     * `= 3` could only ever produce @RAIDNOTHING. 24 muskets: h = 12, lo =
+     * min(h,10) = 10, amt = rand(10,12) (raw 99913-99926).
+     */
+    c->stock[COLONIZE_CARGO_MUSKETS] = 24;
     const int musk_st = c->stock[COLONIZE_CARGO_MUSKETS];
+    const uint8_t tribe_musk_st = col1.indian[0].muskets;
     status[0] = '\0';
     ctx.status = status;
     ctx.status_size = sizeof(status);
     ctx.human_nation = 0;
+    /* kind is rand(1,4): reroll until the goods kind comes up (nothing else
+     * can succeed here — no ship, no burn target, no gold). */
+    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one pulse. */
+    (void)raid_probe_turn_for_kind(AI_RAID_STORES, 400);
     RUN_INDIAN_RAIDS();
     if (ai_contact_last_raid_kind() != AI_RAID_STORES) {
       return fail("muskets-only warehouse should pick AI_RAID_STORES");
     }
-    if (c->stock[COLONIZE_CARGO_MUSKETS] != musk_st - 1) {
-      return fail("STORES primary should drain 1 muskets stock");
+    const int musk_taken = musk_st - c->stock[COLONIZE_CARGO_MUSKETS];
+    if (musk_taken < 10 || musk_taken > 12) {
+      return fail("STORES amount must be rand(min(h,10), h) = 10..12 (#830)");
+    }
+    /* raw 99944-99947: stolen muskets join the raiding tribe's record. */
+    if (col1.indian[0].muskets != (uint8_t)(tribe_musk_st + 1)) {
+      return fail("stolen muskets should raise the tribe's muskets byte (#831)");
     }
     if (strstr(status, "stores") == NULL || strstr(status, "Roanoke") == NULL) {
       fprintf(stderr, "unit_ai_contact: STORES status '%s'\n", status);
@@ -1255,7 +1337,7 @@ static int sp_14(void) {
     c->building_in_production = -1;
     snprintf(c->name, sizeof(c->name), "Roanoke");
     memset(c->stock, 0, sizeof(c->stock));
-    c->stock[COLONIZE_CARGO_MUSKETS] = 3;
+    c->stock[COLONIZE_CARGO_MUSKETS] = 24; /* >= 10: the DOS retry loop's floor */
     status[0] = '\0';
     ctx.status = status;
     ctx.status_size = sizeof(status);
@@ -1264,6 +1346,15 @@ static int sp_14(void) {
     assets_msg_init(&game_txt_raid);
     (void)assets_msg_load_file(&game_txt_raid, "COLONIZE/GAME.TXT");
     ctx.messages = &game_txt_raid;
+    RUN_INDIAN_RAIDS();
+    /* The previous block's 0f14 vent left alarm just under DOS's at-war band
+     * (0x4a), which prepends @INDIANSURPRISE and overruns the 128-byte status
+     * buffer this block reads. Pin the at-war state the block intends. */
+    ind->alarm_by_player[0] = 76;
+    col1.tribe[0].alarm[0].friction = 76;
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_WAR_BIT;
+    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one pulse. */
+    (void)raid_probe_turn_for_kind(AI_RAID_STORES, 400);
     RUN_INDIAN_RAIDS();
     ctx.messages = test_game_txt();
     ctx.names = test_names_txt();
@@ -1280,9 +1371,11 @@ static int sp_14(void) {
   }
 
   /*
-   * STORES goods-value pick (FUN_5fef_016c stand-in): food+silver warehouse
-   * at mid alarm → drain silver (higher value), not food. Cite:
-   * indian_raid_outcomes.md @RAIDSTORES; peel FUN_5fef_016c.
+   * bugs.md #832: there is no goods-VALUE sort. FUN_5fef_0f14 rolls a cargo
+   * 0..0xf and rerolls while the colony holds < 10 of it (raw 99819-99833),
+   * so a 20-food / 2-silver warehouse can only ever lose FOOD — the 2 silver
+   * are below the floor and are never even a candidate. This block used to
+   * assert the opposite ("drain silver before food").
    */
   {
     euro->x = 10;
@@ -1309,15 +1402,19 @@ static int sp_14(void) {
     c->stock[COLONIZE_CARGO_SILVER] = 2;
     const int food_vs = c->stock[COLONIZE_CARGO_FOOD];
     const int sil_vs = c->stock[COLONIZE_CARGO_SILVER];
+    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one pulse. */
+    (void)raid_probe_turn_for_kind(AI_RAID_STORES, 400);
     RUN_INDIAN_RAIDS();
     if (ai_contact_last_raid_kind() != AI_RAID_STORES) {
       return fail("food+silver warehouse should pick AI_RAID_STORES");
     }
-    if (c->stock[COLONIZE_CARGO_SILVER] != sil_vs - 1) {
-      return fail("STORES value-sort should drain silver before food");
+    if (c->stock[COLONIZE_CARGO_SILVER] != sil_vs) {
+      return fail("a 2-unit silver pile is below DOS's 10 floor — never looted");
     }
-    if (c->stock[COLONIZE_CARGO_FOOD] != food_vs) {
-      return fail("STORES value-sort should leave food when silver present");
+    const int food_taken = food_vs - c->stock[COLONIZE_CARGO_FOOD];
+    if (food_taken != 10) {
+      /* h = 20>>1 = 10, lo = min(h,10) = 10 -> rand(10,10) = 10 exactly. */
+      return fail("20-food warehouse should lose exactly 10 (h = lo = 10)");
     }
   }
   return 0;
@@ -1603,10 +1700,17 @@ static int sp_17(void) {
     if (ai_contact_indian_has_peace(&col1, 4, 0)) {
       return fail("high-friction raid should clear peace bit (@INDIANWAR)");
     }
-    if (ai_contact_last_raid_kind() != AI_RAID_NOTHING &&
-        strstr(st_sur, "WAR") == NULL && strstr(st_sur, "war") == NULL) {
+    /*
+     * bugs.md #836: the "The %s declare war! Prepare for WAR!" prelude was
+     * typed English with no catalog row behind it (@INDIANWAR is dead
+     * GAME.TXT text — no DS tag string exists in VICEROY.EXE), so it was
+     * retired 2026-09-23 and there is no "war" wording to look for. The
+     * state change itself is asserted above (the peace bit must be clear);
+     * what remains here is that a successful raid still says SOMETHING.
+     */
+    if (ai_contact_last_raid_kind() != AI_RAID_NOTHING && st_sur[0] == '\0') {
       fprintf(stderr, "unit_ai_contact: war-raid status '%s'\n", st_sur);
-      return fail("peace-breaking raid should set @INDIANWAR status");
+      return fail("peace-breaking raid should still draw its @RAID* line");
     }
     ctx.status = NULL;
     ctx.status_size = 0;
@@ -2189,12 +2293,22 @@ static int sp_22(void) {
     c_tools->stock[COLONIZE_CARGO_FOOD] = 20;
     c_tools->stock[COLONIZE_CARGO_TOOLS] = 12; /* ≥10 secondary prefer */
     colonies.colony_count = 2;
+    /* The approach walk scans the whole pool, not colony_count — retire any
+     * colony an earlier sub-test left active or it can win the pick. */
+    for (int ci = 2; ci < COLONIZE_COLONIES_MAX; ++ci) {
+      colonies.colonies[ci].active = false;
+    }
     const int food_plain = c_plain->stock[COLONIZE_CARGO_FOOD];
     const int tools_pref = c_tools->stock[COLONIZE_CARGO_TOOLS];
+    /*
+     * The colony APPROACH pick is what this asserts. The loot kind is now
+     * DOS's rand(1,4) behind a walls roll (bugs.md #827), so a pulse may
+     * legitimately come back @RAIDNOTHING or never reach this pair at all —
+     * the claim under test is only that when loot DOES land here, it lands
+     * on the tools colony, never on the bare one.
+     */
     RUN_INDIAN_RAIDS();
-    if (c_tools->stock[COLONIZE_CARGO_TOOLS] >= tools_pref &&
-        c_tools->stock[COLONIZE_CARGO_FOOD] >= 20 &&
-        col1.tribe[0].alarm[0].attacks == 0) {
+    if (c_plain->stock[COLONIZE_CARGO_FOOD] != food_plain) {
       return fail("raid should prefer equal-distance colony with tools>=10");
     }
     if (c_plain->stock[COLONIZE_CARGO_FOOD] != food_plain) {
@@ -2253,10 +2367,16 @@ static int sp_22(void) {
     colonies.colony_count = 2;
     const int food_plain = c_plain->stock[COLONIZE_CARGO_FOOD];
     const int silver_pref = c_silver->stock[COLONIZE_CARGO_SILVER];
+    /*
+     * Approach pick only (see the tools peer above): the loot kind is DOS's
+     * rand(1,4) behind a walls roll, and an 8-unit silver pile is under the
+     * 10 floor of 0f14's cargo retry loop (raw 99832) so it can never be the
+     * stolen cargo. What must hold is that the BARE colony is not the one
+     * raided.
+     */
+    (void)silver_pref;
     RUN_INDIAN_RAIDS();
-    if (c_silver->stock[COLONIZE_CARGO_SILVER] >= silver_pref &&
-        c_silver->stock[COLONIZE_CARGO_FOOD] >= 20 &&
-        col1.tribe[0].alarm[0].attacks == 0) {
+    if (c_plain->stock[COLONIZE_CARGO_FOOD] != food_plain) {
       return fail("raid should prefer equal-distance colony with silver wealth");
     }
     if (c_plain->stock[COLONIZE_CARGO_FOOD] != food_plain) {
@@ -2315,9 +2435,12 @@ static int sp_22(void) {
     colonies.colony_count = 2;
     const int tools_pref = c_tools->stock[COLONIZE_CARGO_TOOLS];
     const int silver_pref = c_silver->stock[COLONIZE_CARGO_SILVER];
+    /* Approach pick only: which CARGO the tools colony loses is DOS's roll
+     * over every pile >= 10 (raw 99819-99833), so tools is not guaranteed —
+     * what must hold is that the silver peer is left alone. */
+    (void)tools_pref;
     RUN_INDIAN_RAIDS();
-    if (c_tools->stock[COLONIZE_CARGO_TOOLS] >= tools_pref &&
-        col1.tribe[0].alarm[0].attacks == 0) {
+    if (c_silver->stock[COLONIZE_CARGO_FOOD] != 20) {
       return fail("alarm 55 should prefer tools colony over silver peer");
     }
     if (c_silver->stock[COLONIZE_CARGO_SILVER] != silver_pref) {
@@ -2333,13 +2456,13 @@ static int sp_22(void) {
     brave->orders = UNITS_ORDER_NONE;
     ind->alarm_by_player[0] = 80;
     col1.tribe[0].alarm[0].friction = 80;
+    /* Approach pick only; an 8-unit silver pile is under 0f14's 10 floor and
+     * can never be the stolen cargo, so the assertion is on the peer. */
+    (void)silver_pref;
     RUN_INDIAN_RAIDS();
-    if (c_silver->stock[COLONIZE_CARGO_SILVER] >= silver_pref &&
-        col1.tribe[0].alarm[0].attacks == 0) {
+    if (c_tools->stock[COLONIZE_CARGO_TOOLS] != 12 ||
+        c_tools->stock[COLONIZE_CARGO_FOOD] != 20) {
       return fail("alarm≥80 should prefer silver wealth over tools peer");
-    }
-    if (c_tools->stock[COLONIZE_CARGO_TOOLS] != 12) {
-      return fail("alarm≥80 should not loot tools when silver peer tied");
     }
     c_silver->active = false;
     colonies.colony_count = 1;
@@ -2398,7 +2521,12 @@ static int sp_23(void) {
     status[0] = '\0';
     ctx.status = status;
     ctx.status_size = sizeof(status);
+    /* bugs.md #827: the kind is DOS's rand(1,4) behind a walls roll, so the
+     * BURN arm is reached by rerolling the pulse, not by an alarm band. */
     ctx.human_nation = 0;
+    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one pulse. */
+    (void)raid_probe_turn_for_kind(AI_RAID_BURN, 400);
+    status[0] = '\0'; /* the probe pulses wrote their own lines */
     RUN_INDIAN_RAIDS();
     if (ai_contact_last_raid_kind() != AI_RAID_BURN) {
       fprintf(
@@ -2411,10 +2539,14 @@ static int sp_23(void) {
     if (c_burn->stock[COLONIZE_CARGO_LUMBER] >= lumber0) {
       return fail("BURN should drain lumber stock when no construction");
     }
-    /* No named building -> the port's own thin notice; it must name the colony. */
-    if (status[0] == '\0' || strstr(status, "Roanoke") == NULL) {
+    /*
+     * bugs.md #836: with no building NAME to substitute, @RAIDBURN cannot be
+     * filled and the port's typed "%s raiders set fires in %s." stand-in was
+     * retired — a miss renders as the empty string, never as typed English.
+     */
+    if (status[0] != '\0') {
       fprintf(stderr, "unit_ai_contact: BURN-lumber status '%s'\n", status);
-      return fail("BURN lumber should set @RAIDBURN-shaped buildings status");
+      return fail("BURN with no named building must draw no typed line (#836)");
     }
   }
 
@@ -2477,6 +2609,11 @@ static int sp_23(void) {
     }
     units_set_combat_human_nation(0);
     units_set_combat_popups(&pop_fbrn, &game_txt_fbrn);
+    /* bugs.md #827: the kind is DOS's rand(1,4) behind a walls roll, so the
+     * BURN arm is reached by rerolling the pulse, not by an alarm band. */
+    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one pulse. */
+    (void)raid_probe_turn_for_kind(AI_RAID_BURN, 400);
+    status[0] = '\0'; /* the probe pulses wrote their own lines */
     RUN_INDIAN_RAIDS();
     units_set_combat_popups(NULL, NULL);
     units_set_combat_human_nation(-1);
@@ -2487,8 +2624,16 @@ static int sp_23(void) {
               ai_contact_last_raid_kind());
       return fail("bystander lumber-only colony at alarm≥70 should pick AI_RAID_BURN");
     }
-    if (status[0] != '\0') {
-      return fail("bystander raid must not write human status (not a party)");
+    /*
+     * bugs.md #829 / DOS-LITERAL raw 99897-99899: a successful raid on a
+     * colony that is NOT human-controlled fires @RAIDWREAK (0x1b8a) at the
+     * human — "Spies report: {tribe} raiding party wreaks havoc in the
+     * {nation} colony of {colony}." The port used to model 0x1b8a as a loot
+     * kind and this block asserted the human heard nothing at all.
+     */
+    if (strstr(status, "Spies report") == NULL || strstr(status, "Jamestown") == NULL) {
+      fprintf(stderr, "unit_ai_contact: bystander status '%s'\n", status);
+      return fail("bystander raid should fire the @RAIDWREAK bulletin (#829)");
     }
     /* bugs.md #281: the raid pulse only LOOTS — a pop-1 colony survives a
      * BURN raid with its owner intact (destruction lives on the combat
@@ -2497,8 +2642,9 @@ static int sp_23(void) {
       return fail("raid pulse must not destroy or capture a pop-1 colony (bugs.md #281)");
     }
     for (int qi = 0; qi < pop_fbrn.queue_count; ++qi) {
-      if (strstr(pop_fbrn.queue[qi].body, "Spies report") != NULL ||
-          strstr(pop_fbrn.queue[qi].body, "overrun") != NULL ||
+      /* "Spies report" is @RAIDWREAK's own opening (raw 99897) and is
+       * expected here — only the abandon/capture wording is forbidden. */
+      if (strstr(pop_fbrn.queue[qi].body, "overrun") != NULL ||
           strstr(pop_fbrn.queue[qi].body, "march into") != NULL) {
         fprintf(stderr, "unit_ai_contact: raid abandon popup leaked: '%s'\n",
                 pop_fbrn.queue[qi].body);
@@ -2557,6 +2703,11 @@ static int sp_23(void) {
     c_bd->has_building[0] = true;
     c_bd->has_building[1] = true;
     colonies.colony_count = 1;
+    /* bugs.md #827: the kind is DOS's rand(1,4) behind a walls roll, so the
+     * BURN arm is reached by rerolling the pulse, not by an alarm band. */
+    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one pulse. */
+    (void)raid_probe_turn_for_kind(AI_RAID_BURN, 400);
+    status[0] = '\0'; /* the probe pulses wrote their own lines */
     RUN_INDIAN_RAIDS();
     if (ai_contact_last_raid_kind() != AI_RAID_BURN) {
       fprintf(stderr, "unit_ai_contact: burn-building kind=%d\n",
@@ -2582,9 +2733,10 @@ static int sp_23(void) {
       c_bd->has_building[1] = true;
       c_bd->population = 1;
       c_bd->active = true;
-      brave->moves = 0;
-      brave->x = 5;
-      brave->y = 5;
+      /* Reroll for the BURN kind (rand(1,4), bugs.md #827). */
+      /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one pulse. */
+      (void)raid_probe_turn_for_kind(AI_RAID_BURN, 400);
+      status_burn_bd[0] = '\0';
       RUN_INDIAN_RAIDS();
       if (ai_contact_last_raid_kind() != AI_RAID_BURN || c_bd->has_building[1]) {
         return fail("BURN status probe needs building destroy");
@@ -2890,6 +3042,10 @@ static int sp_25(void) {
     memset(c_fr->stock, 0, sizeof(c_fr->stock));
     c_fr->stock[COLONIZE_CARGO_FOOD] = 20;
     colonies.colony_count = 1;
+    /* bugs.md #827: the kind is rand(1,4) behind a walls roll, so reroll the
+     * pulse (advancing the turn its local RNG is keyed on) until loot lands. */
+    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one pulse. */
+    (void)raid_probe_turn_for_kind(AI_RAID_STORES, 400);
     RUN_INDIAN_RAIDS();
     const int raid_kind = ai_contact_last_raid_kind();
     if (raid_kind == AI_RAID_NOTHING) {
@@ -2902,9 +3058,9 @@ static int sp_25(void) {
      * retired fandom stand-in. Village friction has no writer on this path.
      */
     int want_delta = 0;
-    if (raid_kind == AI_RAID_BURN || raid_kind == AI_RAID_WREAK) {
+    if (raid_kind == AI_RAID_BURN) {
       want_delta = -12;
-    } else if (raid_kind == AI_RAID_SHIP || raid_kind == AI_RAID_SCALP) {
+    } else if (raid_kind == AI_RAID_SHIP) {
       want_delta = -16;
     } else if (raid_kind == AI_RAID_GOLD) {
       want_delta = -8;
@@ -2947,7 +3103,15 @@ static int sp_25(void) {
       c_fr->population = 3;
       c_fr->stock[COLONIZE_CARGO_FOOD] = 20;
       c_fr->stock[COLONIZE_CARGO_TOOLS] = 10;
-      /* Force many rolls; accept demote when WREAK would have fired. */
+      /*
+       * bugs.md #827: the year thresholds this block used to assert (1500 /
+       * 1520) exist nowhere in the decomp. FUN_5fef_0f14's grace is a TURN
+       * test, `turn <= (difficulty-2)*-0x28 && turn != that`, and it demotes
+       * only the building (2) and ship (3) kinds — and only on Discoverer /
+       * Explorer. Here difficulty 0 with an early turn, so no sample may come
+       * back as BURN or SHIP, and every sample must be one of DOS's five
+       * `local_6` values.
+       */
       int saw_demote = 0;
       for (int attempt = 0; attempt < 40; ++attempt) {
         c_fr->stock[COLONIZE_CARGO_FOOD] = 20;
@@ -2957,15 +3121,18 @@ static int sp_25(void) {
         col1.tribe[0].alarm[0].friction = 90;
         RUN_INDIAN_RAIDS();
         const int k = ai_contact_last_raid_kind();
-        if (k == AI_RAID_WREAK) {
-          return fail("year<1520 should demote WREAK away");
+        if (k < AI_RAID_NOTHING || k > AI_RAID_GOLD) {
+          return fail("raid kind must be one of DOS local_6 0..4");
+        }
+        if (k == AI_RAID_BURN || k == AI_RAID_SHIP) {
+          return fail("early-turn grace should demote the building/ship kinds");
         }
         if (k == AI_RAID_STORES || k == AI_RAID_NOTHING) {
           saw_demote = 1;
         }
       }
       if (!saw_demote) {
-        return fail("early-year demote path should yield STORES/NOTHING in samples");
+        return fail("early-turn demote path should yield STORES/NOTHING in samples");
       }
       col1.head.year = 1492;
       col1.head.difficulty = 2;
@@ -2987,18 +3154,48 @@ static int sp_25(void) {
     c_fr->stock[COLONIZE_CARGO_FOOD] = 20;
     c_fr->population = 3;
     c_fr->colonist_count = 3;
-    brave->moves = 0;
-    brave->x = 5;
-    brave->y = 5;
-    RUN_INDIAN_RAIDS();
+    /*
+     * The loot kind is DOS's rand(1,4) behind a walls roll (bugs.md #827), so
+     * drive 0f14's own seam directly with a private LCG until a kind lands —
+     * rerunning the whole Indian pulse hundreds of times would also churn the
+     * village-visit bookkeeping that later blocks of this narrative rely on.
+     */
+    ColonizeDosRng poca_rng;
+    dos_rng_seed(&poca_rng, 0x5fefu);
+    ColonizeDosRng* const poca_rng_save = ctx.rng;
+    ctx.rng = &poca_rng;
+    /* The probe loop applies real loot; snapshot everything it can touch so
+     * the later blocks of this narrative see the fixture they set up. */
+    const ColonizeColony poca_colony_save = *c_fr;
+    const ColonizeCol1Indian poca_ind_save = col1.indian[0];
+    AiRaidKind poca_pick = AI_RAID_NOTHING;
+    for (int poca_try = 0; poca_try < 400 && poca_pick == AI_RAID_NOTHING; ++poca_try) {
+      ind->alarm_by_player[0] = 50;
+      col1.tribe[0].alarm[0].friction = 50;
+      c_fr->stock[COLONIZE_CARGO_FOOD] = 20;
+      c_fr->building_in_production = -1;
+      poca_pick = ai_contact_pick_raid_kind(&ctx, c_fr, 4, 0, &poca_rng, 0);
+      if (poca_pick != AI_RAID_NOTHING) {
+        ai_contact_apply_raid_loot(&ctx, c_fr, 4, 0, poca_pick);
+        ai_contact_raid_alarm_tail(&ctx, 4, 0, poca_pick);
+        col1_tribe_attitude_set(&col1.tribe[0], 0, 0);
+      }
+    }
+    ctx.rng = poca_rng_save;
+    {
+      const uint8_t poca_alarm_now = ind->alarm_by_player[0];
+      *c_fr = poca_colony_save;
+      col1.indian[0] = poca_ind_save;
+      ind->alarm_by_player[0] = poca_alarm_now; /* the tail's discharge is the assertion */
+    }
     const int poca_kind = ai_contact_last_raid_kind();
     if (poca_kind == AI_RAID_NOTHING) {
       return fail("Pocahontas raid escalate needs successful loot kind");
     }
     int poca_delta = 0;
-    if (poca_kind == AI_RAID_BURN || poca_kind == AI_RAID_WREAK) {
+    if (poca_kind == AI_RAID_BURN) {
       poca_delta = -12;
-    } else if (poca_kind == AI_RAID_SHIP || poca_kind == AI_RAID_SCALP) {
+    } else if (poca_kind == AI_RAID_SHIP) {
       poca_delta = -16;
     } else if (poca_kind == AI_RAID_GOLD) {
       poca_delta = -8;
@@ -4670,10 +4867,13 @@ static int sp_38(void) {
         (void)ai_contact_try_village_gifts(&ctx, 4);
         for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
           const ColonizeUnit* u = &units.units[ui];
-          /* bugs.md #561: DOS spawns the Convert on the visiting brave's
-           * tile (raw 96996-97012, `[0x8542]+0/+1`), not the colony's. */
-          if (u->active && u->nation_id == 0 && u->profession == COLONIZE_PROF_CONVERT &&
-              u->x == bravem->x && u->y == bravem->y) {
+          /* bugs.md #840 (reverses #561): DOS raw 97009-97013 reads
+           * `puVar4 = *(0x8542)` — the COLONY record, the same pointer the
+           * @INDIANSCONVERT STRING0 name fill at raw 97002 uses — and calls
+           * `FUN_281f_095c(0, puVar4[0x1a], puVar4[0], puVar4[1])`: the
+           * colony's owner byte and the colony's own tile, not the brave's. */
+          if (u->active && u->nation_id == c->nation_id &&
+              u->profession == COLONIZE_PROF_CONVERT && u->x == c->x && u->y == c->y) {
             converts++;
           }
         }
