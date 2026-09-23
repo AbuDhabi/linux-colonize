@@ -43,10 +43,6 @@ Partly covered by earlier audits is noted; still needs its own pass.
 | Row | Type | Notes |
 |-----|------|-------|
 | 18 | Man-O-War | not in ship audit scope |
-| 19 | Braves | D3 brave work touched AI side |
-| 20 | Armed Braves | |
-| 21 | Mounted Braves | |
-| 22 | Mounted Warriors | |
 
 ## Remaining: expert professions (`@JOB`)
 
