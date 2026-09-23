@@ -648,7 +648,8 @@ static const char* map_panel_order_label(const ColonizeMsgCatalog* names, int or
 /* @UNIT type indices the panel special-cases (DOS compares 0x3146 literally). */
 #define MAP_PANEL_UNIT_PIONEERS 2
 #define MAP_PANEL_UNIT_TREASURE 10
-#define MAP_PANEL_UNIT_WAGON 12
+/* bugs.md #788: no MAP_PANEL_UNIT_WAGON — FUN_49dd_0424 has no type==0x0c arm;
+ * the cargo strip is driven by the generic @UNIT cargo column (DS:0x5237). */
 
 
 static int map_panel_draw_line(

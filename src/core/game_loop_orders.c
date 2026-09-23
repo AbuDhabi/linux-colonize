@@ -612,7 +612,8 @@ bool game_foreign_trade_open(
     if ((r->tag == AI_POPUP_TAG_FOREIGN_TRADE_WHICH ||
          r->tag == AI_POPUP_TAG_FOREIGN_TRADE_OFFER) &&
         r->nation_a == unit_id) {
-      set_status(game, "Trading…", NULL);
+      /* bugs.md #802: no GAME.TXT row and no DOS status-line write here —
+       * the "Trading" chrome was invented; the popup itself is the feedback. */
       return true;
     }
   }
@@ -702,7 +703,6 @@ bool game_foreign_trade_open(
       break;
     }
   }
-  set_status(game, "Trading…", NULL);
   game_after_unit_action(game);
   return true;
 }

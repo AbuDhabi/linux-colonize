@@ -210,7 +210,11 @@ bool game_try_enter_europe(ColonizeGameState* game) {
   return true;
 }
 
-/* @WAREHOUSEFULL when ship→colony unload hits capacity. */
+/*
+ * @WAREHOUSEFULL as an OK-only INFO box. bugs.md #784: no unload path uses
+ * this any more — DOS asks the 2-way confirm BEFORE the transfer
+ * (game_colony_unload_ask). Kept for the chrome's token layout and its test.
+ */
 void game_emit_warehouse_full(
   ColonizeGameState* game,
   int colony_id,
@@ -1940,34 +1944,84 @@ void game_colony_load_hold(ColonizeGameState* game, int unit_id, int cargo, int 
  * game_colony_unload_all_cargo is NOT this function in a loop: it reports one
  * aggregate total over every hold, not a line per hold.
  */
+/*
+ * bugs.md #784: the goods actually move. Never called before the
+ * @WAREHOUSEFULL gate below (or its answer) has cleared the way — DOS asks
+ * first and leaves the hold alone on anything but answer 2, it never unloads
+ * and then reports.
+ */
+int game_colony_unload_hold_commit(
+  ColonizeGameState* game,
+  int unit_id,
+  int hold,
+  int amount,
+  const char* empty_msg
+) {
+  bool full = false;
+  const int moved = colonies_transfer_from_unit_amount(
+    &game->colonies, game->colony_view_id, &game->units, unit_id, hold, amount, &full
+  );
+  if (moved > 0) {
+    snprintf(game->status, sizeof(game->status), "Unloaded %d", moved);
+  } else if (empty_msg) {
+    set_status(game, empty_msg, NULL);
+  }
+  return moved;
+}
+
+/*
+ * bugs.md #784. thunk_FUN_1000_9784 (viceroy_overlays.c 59355-59367) asks
+ * @WAREHOUSEFULL as a 2-way CONFIRM *before* touching the hold and returns 1
+ * (nothing moved) on any answer but 2. Returns true when the confirm is now
+ * on the queue and the caller must stop; the answer is applied in
+ * game_apply_popup_colony.
+ */
+bool game_colony_unload_ask(
+  ColonizeGameState* game,
+  int unit_id,
+  int hold,
+  int amount,
+  int extra_payload
+) {
+  const ColonizeUnit* tu = units_get_const(&game->units, unit_id);
+  if (!tu || hold < 0 || hold >= COLONIZE_UNIT_CARGO_MAX) {
+    return false;
+  }
+  const int held = tu->hold_goods_amount[hold];
+  const int ctype = tu->hold_goods_type[hold];
+  if (held <= 0 || held >= 255) {
+    return false;
+  }
+  int amt = (amount > 0 && amount < held) ? amount : held;
+  const ColonizeColony* col = colonies_get(&game->colonies, game->colony_view_id);
+  if (!col ||
+      !colonies_warehouse_unload_needs_confirm(&game->colonies, col, ctype, amt)) {
+    return false;
+  }
+  const char* cargo_name = "";
+  if (ctype >= 0 && ctype < COLONIZE_CARGO_COUNT && game->europe.cargo[ctype].name[0]) {
+    cargo_name = game->europe.cargo[ctype].name;
+  }
+  if (!colonies_emit_warehouse_full_confirm(
+        &game->colonies, col, ctype, cargo_name, amt, unit_id, hold,
+        (amt & 0xfffff) | extra_payload, &game->ai_popups, &game->messages
+      )) {
+    return false;
+  }
+  game_colony_present_now(game, AI_POPUP_TAG_COLONY_WAREHOUSE);
+  return true;
+}
+
 void game_colony_unload_hold(
   ColonizeGameState* game,
   int unit_id,
   int hold,
   const char* empty_msg
 ) {
-  bool full = false;
-  int peek_type = -1;
-  int peek_amt = 0;
-  const ColonizeUnit* tu = units_get_const(&game->units, unit_id);
-  if (tu && hold >= 0 && hold < COLONIZE_UNIT_CARGO_MAX) {
-    peek_type = tu->hold_goods_type[hold];
-    peek_amt = tu->hold_goods_amount[hold];
+  if (game_colony_unload_ask(game, unit_id, hold, 0, 0)) {
+    return;
   }
-  const int moved = colonies_transfer_from_unit(
-    &game->colonies, game->colony_view_id, &game->units, unit_id, hold, &full
-  );
-  if (moved > 0 && full) {
-    snprintf(game->status, sizeof(game->status), "Unloaded %d (Warehouse full)", moved);
-    game_emit_warehouse_full(game, game->colony_view_id, peek_type, moved, moved);
-  } else if (moved > 0) {
-    snprintf(game->status, sizeof(game->status), "Unloaded %d", moved);
-  } else if (full) {
-    set_status(game, "Warehouse full", NULL);
-    game_emit_warehouse_full(game, game->colony_view_id, peek_type, peek_amt, 0);
-  } else {
-    set_status(game, empty_msg, NULL);
-  }
+  (void)game_colony_unload_hold_commit(game, unit_id, hold, 0, empty_msg);
 }
 
 /* ===================== Howmuch popup apply (game_apply_howmuch_result) ===================== */
@@ -2013,35 +2067,16 @@ static void game_apply_howmuch_result(ColonizeGameState* game) {
     if (!game->in_colony || csv->transport_unit_id < 0) {
       return;
     }
-    bool full = false;
+    /* bugs.md #784: DOS's amount prompt (thunk_FUN_1000_9784 param_3 arm)
+     * runs BEFORE the @WAREHOUSEFULL gate, and the gate still blocks the
+     * transfer on any answer but 2. */
     const int hold = game->howmuch.result_payload;
-    int peek_type = -1;
-    {
-      const ColonizeUnit* tu = units_get_const(&game->units, csv->transport_unit_id);
-      if (tu && hold >= 0 && hold < COLONIZE_UNIT_CARGO_MAX) {
-        peek_type = tu->hold_goods_type[hold];
-      }
+    if (game_colony_unload_ask(game, csv->transport_unit_id, hold, amt, 0)) {
+      return;
     }
-    const int moved = colonies_transfer_from_unit_amount(
-      &game->colonies,
-      game->colony_view_id,
-      &game->units,
-      csv->transport_unit_id,
-      hold,
-      amt,
-      &full
+    (void)game_colony_unload_hold_commit(
+      game, csv->transport_unit_id, hold, amt, "Cannot unload"
     );
-    if (moved > 0 && full) {
-      snprintf(game->status, sizeof(game->status), "Unloaded %d (Warehouse full)", moved);
-      game_emit_warehouse_full(game, game->colony_view_id, peek_type, moved, moved);
-    } else if (moved > 0) {
-      snprintf(game->status, sizeof(game->status), "Unloaded %d", moved);
-    } else if (full) {
-      set_status(game, "Warehouse full", NULL);
-      game_emit_warehouse_full(game, game->colony_view_id, peek_type, amt, 0);
-    } else {
-      set_status(game, "Cannot unload", NULL);
-    }
     colony_screen_set_status(csv, game->status);
   } else if (kind == HOWMUCH_KIND_BUY) {
     EuropeScreen* eu = &game->europe;
@@ -2118,6 +2153,27 @@ static bool game_apply_popup_map_and_colony(ColonizeGameState* game) {
     if (go && game->in_colony) {
       colony_screen_close_eject(&game->colony_screen);
       game_colony_finish_eject(game, who, role);
+    }
+  return true;
+  }
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_COLONY_WAREHOUSE) {
+    /* bugs.md #784: thunk_FUN_1000_9784 `if (iVar3 != 2) return 1;` — only
+     * row 2 ("Unload the %STRING1 anyway.") lets the goods ashore; row 1
+     * ("Never mind."), Esc and right-click leave the hold untouched. */
+    const bool go = !game->ai_popups.result_cancelled && game->ai_popups.result_choice_id == 2;
+    const int unit_id = game->ai_popups.result_nation_a;
+    const int hold = game->ai_popups.result_nation_b;
+    const int payload = game->ai_popups.result_payload;
+    ai_popup_consume_result(&game->ai_popups);
+    const int amount = payload & 0xfffff;
+    const bool unload_all = (payload & (1 << 20)) != 0;
+    if (go && game->in_colony) {
+      (void)game_colony_unload_hold_commit(game, unit_id, hold, amount, NULL);
+      colony_screen_set_status(&game->colony_screen, game->status);
+      if (unload_all) {
+        /* 99b8 case 5 loops until a hold refuses or the unit runs dry. */
+        game_colony_unload_all_cargo(game, unit_id);
+      }
     }
   return true;
   }
@@ -2479,7 +2535,9 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
       );
     }
     game->foreign_trade_unit = -1;
-    set_status(game, "Trade concluded", NULL);
+    /* bugs.md #802: FUN_5f7a_020e arms no status-line channel when the deal
+     * closes (the DS:0x2d54 slot is untouched) and GAME.TXT has no row for
+     * one — "Trade concluded" was invented English in the binary. */
     return true;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_SCOUT_COLONY) {

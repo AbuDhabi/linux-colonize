@@ -2828,14 +2828,16 @@ int ai_euro_20e6_wagon_origin_walk(
   }
   const ColonizeColony* home = colonies_get(ctx->colonies, ori);
   if (!home || !home->active || home->nation_id != nation_id) {
-    /* Bound colony gone (razed / captured): DOS would keep a dangling index;
-     * unbind so the colony tick or this arm can rebind next beat. */
-    ai_euro_20e6_origin_set(u, -1);
-    return 0;
+    /* bugs.md #814: DOS keeps the dangling +0x314a and walks to the stale
+     * colony record (raw 89960-89964: `uVar14 = +0x314a` → LAB_521d_4701 →
+     * LAB_521d_4567) — it never unbinds. The port cannot dereference a dead
+     * slot, so it claims the beat and leaves the binding alone; the colony
+     * tick rebinds. Do NOT reintroduce an `origin_set(u, -1)` here. */
+    return 1;
   }
-  if (u->x == home->x && u->y == home->y) {
-    return 1; /* standing on it already — arrival owns the next beat */
-  }
+  /* bugs.md #814: no `x == home->x && y == home->y` arm in DOS — the
+   * in-colony case is the `iStack_2e == 0` / park-0x55 arm above
+   * (raw 89945-89953). */
   if (units_orders_follow_goto(u->orders) && u->goto_x == home->x && u->goto_y == home->y) {
     return 1;
   }

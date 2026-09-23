@@ -791,6 +791,138 @@ static int unit_mp_entry_gating_713_724(void) {
   }
   return rc;
 }
+/*
+ * bugs.md #791/#792 — DOS-LITERAL FUN_465b_0bd1 raw 75721: the colony-enter
+ * arm (MP exhaust, col1_counter16 reset, destination-stack sentry wake) is
+ * gated on "hull present in the mover's origin tile stack OR mover is a
+ * wagon (type 0x0c)", not on units_is_transport(mover). A plain land unit
+ * leaving a tile that also holds a ship must be exhausted on entry; a plain
+ * land unit leaving a tile with no ship must NOT be exhausted. Docking also
+ * wakes Sentry units already in the colony and resets col1_counter16.
+ */
+static int unit_colony_enter_hull_stack_gate_791_792(void) {
+  int rc = 0;
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 3;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Colonists");
+  pool.types[0].movement = 2;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(pool.types[1].name, sizeof(pool.types[1].name), "Soldiers");
+  pool.types[1].movement = 1;
+  pool.types[1].attack = 2;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(pool.types[2].name, sizeof(pool.types[2].name), "Caravel");
+  pool.types[2].movement = 4;
+  pool.types[2].domain = COLONIZE_UNIT_DOMAIN_SEA;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "colony_enter_gate: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.terrain[i] = 1; /* plains */
+  }
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  units_set_occupancy_map(&map);
+  colonies_set_occupancy_map(&map);
+  ColonizeColony* col = &colonies.colonies[0];
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0; /* own colony: no foreign bump */
+  col->x = 4;
+  col->y = 3;
+  colonies.colony_count = 1;
+
+  /* #791: colonist leaves a tile that ALSO holds a ship -> MP exhausted on
+   * arrival even though the colonist itself is not a transport. */
+  const int hull_id = units_spawn_allow_stack(&pool, 2, 3, 3);
+  const int mover_id = units_spawn_allow_stack(&pool, 0, 3, 3);
+  ColonizeUnit* hull = units_get(&pool, hull_id);
+  ColonizeUnit* mover = units_get(&pool, mover_id);
+  if (!hull || !mover) {
+    map_free(&map);
+    fprintf(stderr, "colony_enter_gate: spawn failed\n");
+    return 1;
+  }
+  hull->nation_id = 0;
+  mover->nation_id = 0;
+  mover->moves = 6;
+  mover->col1_counter16 = 7;
+  if (!units_try_move_w(
+        &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map}, mover_id, 4, 3
+      )) {
+    fprintf(stderr, "colony_enter_gate: colonist-with-hull move refused\n");
+    rc = 1;
+  }
+  mover = units_get(&pool, mover_id);
+  if (rc == 0 && mover->moves != 0) {
+    fprintf(stderr, "colony_enter_gate #791: hull-in-origin-stack should exhaust MP, moves=%d\n",
+            mover->moves);
+    rc = 1;
+  }
+  if (rc == 0 && mover->col1_counter16 != 0) {
+    fprintf(stderr, "colony_enter_gate #792: col1_counter16 not reset on colony arrival\n");
+    rc = 1;
+  }
+
+  /* Control: a plain colonist leaving a tile with NO hull is not exhausted. */
+  const int mover2_id = units_spawn_allow_stack(&pool, 0, 3, 5);
+  ColonizeUnit* mover2 = units_get(&pool, mover2_id);
+  if (mover2) {
+    mover2->nation_id = 0;
+    mover2->moves = 6;
+    if (!units_try_move_w(
+          &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map}, mover2_id, 4, 5
+        )) {
+      fprintf(stderr, "colony_enter_gate: plain colonist move refused\n");
+      rc = 1;
+    }
+    mover2 = units_get(&pool, mover2_id);
+    if (rc == 0 && mover2->moves == 0) {
+      fprintf(stderr, "colony_enter_gate #791: no-hull colonist must NOT be exhausted\n");
+      rc = 1;
+    }
+  }
+
+  /* #792: docking wakes a Sentry unit already sitting in the colony. */
+  const int sentry_id = units_spawn_allow_stack(&pool, 1, 4, 3);
+  ColonizeUnit* sentry = units_get(&pool, sentry_id);
+  if (sentry) {
+    sentry->nation_id = 0;
+    sentry->orders = UNITS_ORDER_SENTRY;
+  }
+  const int mover3_id = units_spawn_allow_stack(&pool, 2, 3, 3);
+  ColonizeUnit* mover3 = units_get(&pool, mover3_id);
+  if (mover3) {
+    mover3->nation_id = 0;
+    mover3->moves = 12;
+    if (!units_try_move_w(
+          &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map}, mover3_id, 4, 3
+        )) {
+      fprintf(stderr, "colony_enter_gate: hull docking refused\n");
+      rc = 1;
+    }
+    sentry = units_get(&pool, sentry_id);
+    if (rc == 0 && sentry && sentry->orders != UNITS_ORDER_NONE) {
+      fprintf(stderr, "colony_enter_gate #792: sentry unit not woken by docking\n");
+      rc = 1;
+    }
+  }
+
+  map_free(&map);
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: colony-enter hull/wagon gate (#791/#792) ok\n");
+  }
+  return rc;
+}
+
 int main(void) {
   diag_init(0, NULL);
   if (unit_mp_entry_gating_713_724() != 0) {
@@ -812,6 +944,10 @@ int main(void) {
     return 1;
   }
   if (unit_fog_vis_mask_and_snapshot() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_colony_enter_hull_stack_gate_791_792() != 0) {
     diag_shutdown();
     return 1;
   }

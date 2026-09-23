@@ -142,6 +142,88 @@ void colonies_emit_warehouse_full_chrome(
   ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
 }
 
+/*
+ * bugs.md #784 — the DOS @WAREHOUSEFULL gate, asked BEFORE the goods move.
+ *
+ * thunk_FUN_1000_9784 (viceroy_overlays.c 59355-59367), the colony screen's
+ * one unload path:
+ *     if ((cap < colony_stock[goods] + amount) && (goods != 0) &&
+ *         (*(int *)0x890 != 0)) {
+ *       ... @WAREHOUSEFULL (DS:0xcd6, 2 rows) ...
+ *       if (answer != 2) return 1;          // hold untouched
+ *     }
+ * Food (goods 0) never asks, and DS:0x890 is the "there is a human at the
+ * keyboard" latch — the port's equivalent is simply having an ai_popups queue.
+ */
+bool colonies_warehouse_unload_needs_confirm(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  int cargo_type,
+  int amount
+) {
+  if (!colony || amount <= 0) {
+    return false;
+  }
+  if (cargo_type < 0 || cargo_type >= COLONIZE_CARGO_COUNT) {
+    return false;
+  }
+  if (cargo_type == COLONIZE_CARGO_FOOD) {
+    return false;
+  }
+  const int cap = colonies_warehouse_capacity(pool, colony, cargo_type);
+  return cap < colony->stock[cargo_type] + amount;
+}
+
+bool colonies_emit_warehouse_full_confirm(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  int cargo_type,
+  const char* cargo_name,
+  int amount,
+  int unit_id,
+  int hold_index,
+  int payload,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+) {
+  if (!ai_popups || !colony || !colony->active) {
+    return false;
+  }
+  if (cargo_type < 0 || cargo_type >= COLONIZE_CARGO_COUNT) {
+    return false;
+  }
+  const int cap = colonies_warehouse_capacity(pool, colony, cargo_type);
+  const char* cname = colony->name[0] ? colony->name : "";
+  const char* gname = (cargo_name && cargo_name[0]) ? cargo_name : "";
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = cname;
+  tok.string1 = gname;
+  /* DOS pushes the PRE-deposit stock, the capacity and the amount, in that
+   * order (FUN_281f_09ae slots 0/1/2 at overlays 59362-59364). */
+  tok.number0 = colony->stock[cargo_type];
+  tok.has_number0 = true;
+  tok.number1 = cap;
+  tok.has_number1 = true;
+  tok.number2 = amount;
+  tok.has_number2 = true;
+  char body[AI_POPUP_BODY_LEN];
+  /* No MicroProse text in the binary: a missing @WAREHOUSEFULL = empty box. */
+  popup_msg_fill(messages, "WAREHOUSEFULL", &tok, "", body, sizeof(body));
+  char choices[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+  const ColonizeMsgSection* sec = messages ? assets_msg_find(messages, "WAREHOUSEFULL") : NULL;
+  const int nch = popup_msg_choices(sec, choices, AI_POPUP_CHOICE_MAX);
+  char filled[2][AI_POPUP_CHOICE_LEN];
+  popup_msg_apply_tokens(filled[0], sizeof(filled[0]), nch >= 1 ? choices[0] : "", &tok);
+  popup_msg_apply_tokens(filled[1], sizeof(filled[1]), nch >= 2 ? choices[1] : "", &tok);
+  const char* labels[2] = {filled[0], filled[1]};
+  const int ids[2] = {1, 2}; /* 1 = "Never mind.", 2 = "Unload ... anyway." */
+  return ai_popup_enqueue_choice_ctx(
+    ai_popups, AI_POPUP_TAG_COLONY_WAREHOUSE, unit_id, hold_index, payload, NULL, body, labels,
+    ids, 2
+  );
+}
+
 void colonies_emit_full_chrome(
   const ColonizeColony* colony,
   AiPopupState* ai_popups,
@@ -498,7 +580,7 @@ static int colonies_ftrade_bind(
   }
   const int actor = u->nation_id;
   /* raw 98915-98921: nibble > 3 (natives) leaves without a word. */
-  if (actor < 0 || actor > 3 || actor == col->nation_id) {
+  if (actor < 0 || actor > 3) {
     return 0;
   }
   *out_col = col;
@@ -526,8 +608,17 @@ ColonizeForeignTradeGate colonies_foreign_trade_gate(
   if (col1->player[actor].control != 0) {
     return COLONIZE_FTRADE_NONE;
   }
-  /* raw 98924-98927: FUN_281f_0a38(actor, owner) & 0x40 = peace treaty. */
-  if ((ai_diplo_read(col1, actor, col->nation_id) & AI_DIPLO_PEACE) == 0) {
+  /*
+   * raw 98924-98927: FUN_281f_0a38(actor, owner) & 0x40 = peace treaty.
+   * bugs.md #808: FUN_5f7a_020e has no "not my own colony" test — DOS gets
+   * that for free here, because euro_relation[n][n] is a byte nothing ever
+   * writes, so a same-nation actor reads 0 and takes the no-treaty arm
+   * (FUN_281f_03fe; return). ai_diplo_read has a Linux-only self virtual
+   * that answers PEACE, so the self pair is spelled out instead of being
+   * smuggled into colonies_ftrade_bind as an invented gate.
+   */
+  if (actor == col->nation_id ||
+      (ai_diplo_read(col1, actor, col->nation_id) & AI_DIPLO_PEACE) == 0) {
     return COLONIZE_FTRADE_ATWAR;
   }
   /* raw 98928-98934: FUN_281f_07b4(actor, 4) = Jan de Witt. */
@@ -677,7 +768,8 @@ int colonies_foreign_trade_apply(
    * stock of the cargo it hands over in the barter arm — transcribed, not fixed.
    */
   col->stock[deal->sold_cargo] += deal->sold_qty;
-  col->cargo_idle_turns = 0;
+  /* bugs.md #808: raw 99031-99033 writes colony+0x9a+sold*2 and nothing else
+   * — the `cargo_idle_turns = 0` that used to stand here was invented. */
   return 1;
 }
 

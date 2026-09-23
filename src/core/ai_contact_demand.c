@@ -725,59 +725,6 @@ static ColonizeColony* ai_contact_nearest_tools_colony(
   return ci >= 0 ? &ctx->colonies->colonies[ci] : NULL;
 }
 
-/*
- * Nearest Euro Wagon Train with TOOLS hold ≥20 (GAME.TXT @INDIANWAGONS
- * reparations stand-in). Reach matches auto-trade wagon band (French 5 / else 4).
- */
-static ColonizeUnit* ai_contact_nearest_tools_wagon(
-  ColonizeTurnContext* ctx,
-  int e,
-  int near_x,
-  int near_y,
-  int* out_hold
-) {
-  if (out_hold) {
-    *out_hold = -1;
-  }
-  if (!ctx || !ctx->units || e < 0 || e > 3) {
-    return NULL;
-  }
-  const int max_dist = (e == 1) ? 5 : 4;
-  int best_id = -1;
-  int best_hold = -1;
-  int best_d = 99;
-  for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
-    ColonizeUnit* u = &ctx->units->units[ui];
-    if (!u->active || u->nation_id != e) {
-      continue;
-    }
-    const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
-    if (!units_type_is_wagon(ty) || ty->cargo <= 0) {
-      continue;
-    }
-    const int dist = map_chebyshev(u->x, u->y, near_x, near_y);
-    if (dist > max_dist || dist >= best_d) {
-      continue;
-    }
-    for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
-      if (u->hold_goods_type[h] == COLONIZE_CARGO_TOOLS &&
-          u->hold_goods_amount[h] >= 20) {
-        best_d = dist;
-        best_id = u->id;
-        best_hold = h;
-        break;
-      }
-    }
-  }
-  if (best_id < 0) {
-    return NULL;
-  }
-  if (out_hold) {
-    *out_hold = best_hold;
-  }
-  return units_get(ctx->units, best_id);
-}
-
 static int ai_contact_demand_can_pay_tools(
   ColonizeTurnContext* ctx,
   int e,
@@ -786,9 +733,6 @@ static int ai_contact_demand_can_pay_tools(
   int near_y
 ) {
   if (ai_contact_nearest_tools_colony(ctx, e, near_x, near_y)) {
-    return 1;
-  }
-  if (ai_contact_nearest_tools_wagon(ctx, e, near_x, near_y, NULL)) {
     return 1;
   }
   return other && other->tools >= 20;
@@ -844,17 +788,8 @@ int ai_contact_apply_demand_tools(
     return 0;
   }
   ColonizeColony* c = ai_contact_nearest_tools_colony(ctx, e, near_x, near_y);
-  int wag_hold = -1;
-  ColonizeUnit* wag =
-    c ? NULL : ai_contact_nearest_tools_wagon(ctx, e, near_x, near_y, &wag_hold);
   if (c) {
     c->stock[COLONIZE_CARGO_TOOLS] -= 10;
-  } else if (wag && wag_hold >= 0) {
-    wag->hold_goods_amount[wag_hold] -= 10;
-    if (wag->hold_goods_amount[wag_hold] <= 0) {
-      wag->hold_goods_amount[wag_hold] = 0;
-      wag->hold_goods_type[wag_hold] = 0;
-    }
   } else if (other && other->tools >= 20) {
     other->tools -= 10;
   } else {
@@ -862,18 +797,9 @@ int ai_contact_apply_demand_tools(
     return 0;
   }
   ai_contact_friction_decay(ind, ctx->col1, nation_id, e, 3);
-  {
-    char trib_fb[AI_POPUP_BODY_LEN];
-    snprintf(
-      trib_fb,
-      sizeof(trib_fb),
-      "Tribute paid; tensions ease with the %s.",
-      ai_contact_tribe_name(nation_id)
-    );
-    ai_contact_human_chrome(
-      ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "", trib_fb
-    );
-  }
+  ai_contact_human_chrome(
+    ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "", ""
+  );
   return 1;
 }
 
@@ -896,18 +822,9 @@ int ai_contact_apply_demand_gold(
   }
   europe_nation_gold_add(ctx->europe, ctx->col1, e, -15L); /* audit G3 */
   ai_contact_friction_decay(ind, ctx->col1, nation_id, e, 3);
-  {
-    char trib_fb[AI_POPUP_BODY_LEN];
-    snprintf(
-      trib_fb,
-      sizeof(trib_fb),
-      "Tribute paid; tensions ease with the %s.",
-      ai_contact_tribe_name(nation_id)
-    );
-    ai_contact_human_chrome(
-      ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "", trib_fb
-    );
-  }
+  ai_contact_human_chrome(
+    ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "", ""
+  );
   return 1;
 }
 

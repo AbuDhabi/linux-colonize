@@ -1428,40 +1428,54 @@ bool game_colony_apply_outside_role(
   return true;
 }
 
-/* GAME.TXT @SHIPOPTIONS "Unload all cargo": drain every goods hold into the
- * viewed colony's warehouse (same path as the single-hold drag/drop). */
-static void game_colony_unload_all_cargo(ColonizeGameState* game, int unit_id) {
+/*
+ * DOS-LITERAL thunk_FUN_1000_99b8 case 5 (viceroy_overlays.asm OVL03 0x543c):
+ *
+ *   while (holds_occupied != 0) {
+ *     goods = FUN_15eb_2ff2(unit, 0);           // the FIRST hold's goods type
+ *     if (thunk_FUN_1000_9784(unit, goods) != 0) break;   // refused
+ *   }
+ *
+ * bugs.md #785: the old body walked holds 0..n-1 unconditionally and could
+ * not stop, so a declined @WAREHOUSEFULL on one hold still emptied the rest.
+ * DOS always takes the first occupied hold (it compacts as it unloads) and
+ * ends the whole loop the moment one unload returns non-zero — which is what
+ * "Never mind." returns. Each step goes through the same single-hold path, so
+ * the gate is asked per hold; the answer resumes this loop.
+ */
+void game_colony_unload_all_cargo(ColonizeGameState* game, int unit_id) {
   if (!game || !game->units_ok || game->colony_view_id < 0) {
     return;
   }
   const int holds = units_goods_hold_count(&game->units, unit_id);
   int total = 0;
-  bool any_full = false;
-  int last_full_type = -1;
-  for (int i = 0; i < holds; ++i) {
-    int peek_type = -1;
+  for (int guard = 0; guard < holds; ++guard) {
     const ColonizeUnit* tu = units_get_const(&game->units, unit_id);
-    if (tu && i < COLONIZE_UNIT_CARGO_MAX) {
-      peek_type = tu->hold_goods_type[i];
+    if (!tu) {
+      break;
     }
-    bool full = false;
-    const int moved = colonies_transfer_from_unit(
-      &game->colonies, game->colony_view_id, &game->units, unit_id, i, &full
-    );
+    int hold = -1;
+    for (int i = 0; i < holds && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+      if (tu->hold_goods_amount[i] > 0 && tu->hold_goods_amount[i] < 255) {
+        hold = i;
+        break;
+      }
+    }
+    if (hold < 0) {
+      break; /* holds_occupied == 0 */
+    }
+    /* Bit 20 = "this ask came from Unload all cargo": answer 2 resumes here. */
+    if (game_colony_unload_ask(game, unit_id, hold, 0, 1 << 20)) {
+      return;
+    }
+    const int moved = game_colony_unload_hold_commit(game, unit_id, hold, 0, NULL);
+    if (moved <= 0) {
+      break; /* non-zero return: stop the whole loop */
+    }
     total += moved;
-    if (full) {
-      any_full = true;
-      last_full_type = peek_type;
-    }
   }
-  if (total > 0 && any_full) {
-    snprintf(game->status, sizeof(game->status), "Unloaded %d (Warehouse full)", total);
-    game_emit_warehouse_full(game, game->colony_view_id, last_full_type, total, total);
-  } else if (total > 0) {
+  if (total > 0) {
     snprintf(game->status, sizeof(game->status), "Unloaded %d", total);
-  } else if (any_full) {
-    set_status(game, "Warehouse full", NULL);
-    game_emit_warehouse_full(game, game->colony_view_id, last_full_type, 0, 0);
   } else {
     set_status(game, "No cargo to unload", NULL);
   }

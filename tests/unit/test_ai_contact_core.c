@@ -1723,49 +1723,6 @@ static int sp_18(void) {
   }
 
   /*
-   * Demand tools from Wagon Train hold (@INDIANWAGONS thin): colony tools short,
-   * wagon TOOLS ≥20 within reach → −10 hold. Cite: GAME.TXT @INDIANWAGONS.
-   */
-  {
-    if (units.type_count < 4) {
-      units.type_count = 4;
-    }
-    snprintf(units.types[3].name, sizeof(units.types[3].name), "Wagon Train");
-    units.types[3].domain = COLONIZE_UNIT_DOMAIN_LAND;
-    units.types[3].movement = 3;
-    units.types[3].cargo = 4;
-    const int wag_id = units_spawn_allow_stack(&units, 3, 6, 6);
-    ColonizeUnit* wag = units_get(&units, wag_id);
-    if (!wag) {
-      return fail("demand-wagon spawn");
-    }
-    wag->nation_id = 0;
-    wag->hold_goods_type[0] = COLONIZE_CARGO_TOOLS;
-    wag->hold_goods_amount[0] = 25;
-    euro->x = 6;
-    euro->y = 5;
-    euro->tools = 5;
-    brave->x = 5;
-    brave->y = 5;
-    brave->nation_id = 4;
-    col1.tribe[0].alarm[0].friction = 45;
-    ind->euro_diplo[0] = 1;
-    ind->alarm_by_player[0] = 20;
-    col1.nation[0].gold = 5;
-    c->stock[COLONIZE_CARGO_TOOLS] = 5; /* warehouse short */
-    ctx.human_nation = 1;
-    status[0] = '\0';
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (wag->hold_goods_amount[0] != 15) {
-      return fail("demand should take 10 tools from wagon hold when colony short");
-    }
-    if (c->stock[COLONIZE_CARGO_TOOLS] != 5) {
-      return fail("demand wagon path should not touch colony tools");
-    }
-    units_despawn(&units, wag_id);
-  }
-
-  /*
    * Demand gold path (AI Euro silent): mid friction, tools short, gold ≥50
    * → −15 gold, friction −3.
    */
@@ -3580,7 +3537,10 @@ static int sp_30(void) {
       units_despawn(&units, wag_id);
     }
 
-    /* Leave dismisses with thin Farewell OK; no trade side effects. */
+    /*
+     * Leave (choice 10, DOS OVL13 0x4bd2 falls to switch default) shows no
+     * popup at all — only the MP forfeit runs. bugs.md #799.
+     */
     ai_popup_clear(&pop);
     pop.has_result = true;
     pop.result_cancelled = false;
@@ -3589,15 +3549,10 @@ static int sp_30(void) {
     pop.result_nation_a = 0;
     pop.result_nation_b = 4;
     st_pop[0] = '\0';
+    const int leave_queue_before = pop.queue_count;
     ai_contact_apply_popup_result(&ctx, &pop);
-    if (pop.queue_count < 1 ||
-        pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK ||
-        pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_MEET) {
-      return fail("Leave CHOICE should enqueue Farewell OK");
-    }
-    if (strstr(st_pop, "Farewell") == NULL) {
-      fprintf(stderr, "unit_ai_contact: leave status '%s'\n", st_pop);
-      return fail("Leave CHOICE should set Farewell status");
+    if (pop.queue_count != leave_queue_before) {
+      return fail("Leave CHOICE should enqueue no popup");
     }
 
     /*
@@ -4481,8 +4436,8 @@ static int sp_36(void) {
       if (col1.tribe[0].alarm[0].friction != (uint8_t)(fr_d - 3)) {
         return fail("Demand gold CHOICE should decay friction by 3");
       }
-      if (strstr(st_pop, "Tribute") == NULL) {
-        return fail("Demand gold CHOICE should set Tribute status");
+      if (pop.queue_count < 1 || pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK) {
+        return fail("Demand gold CHOICE should enqueue an OK chrome popup");
       }
       /* Tools path from amount CHOICE. */
       ai_popup_clear(&pop);
@@ -5378,6 +5333,14 @@ static int sp_45(void) {
      */
     colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 10;
     colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS] = 40;
+    /*
+     * Fixture trap (bugs.md #797): the DS:0x84BC weight is the LIVE
+     * `nation[e].trade.euro_price[cargo] - 1`, not a frozen table, and a
+     * zeroed col1 fixture makes every weight 0 — which in DOS means the cargo
+     * scan finds nothing and no demand fires at all. Seed Tools at the DOS
+     * new-game price so the weight is 1, as this block's comment assumes.
+     */
+    col1.nation[0].trade.euro_price[COLONIZE_CARGO_TOOLS] = 2;
     col1.tribe[0].nation_id = 4;
     col1.tribe[0].state.capital = 0;
     col1.tribe[0].alarm[0].friction = 20;

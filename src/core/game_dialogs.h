@@ -533,6 +533,25 @@ void game_colony_unload_hold(
   int hold,
   const char* empty_msg
 );
+/* bugs.md #784: the DOS @WAREHOUSEFULL gate (thunk_FUN_1000_9784) and the
+ * transfer it guards, split so "Unload all cargo" can drive them per hold.
+ * amount <= 0 or >= the hold means the whole hold. */
+bool game_colony_unload_ask(
+  ColonizeGameState* game,
+  int unit_id,
+  int hold,
+  int amount,
+  int extra_payload
+);
+int game_colony_unload_hold_commit(
+  ColonizeGameState* game,
+  int unit_id,
+  int hold,
+  int amount,
+  const char* empty_msg
+);
+/* DOS thunk_FUN_1000_99b8 case 5 (bugs.md #785). */
+void game_colony_unload_all_cargo(ColonizeGameState* game, int unit_id);
 bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid, bool land_resolved);
 /* @NOCOLONIESEITHER at the top of the shared Build/Join handler (bugs.md
  * #688). True = the gate fired and the order is dropped. */

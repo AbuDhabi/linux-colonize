@@ -9,6 +9,7 @@
 #include "core/popup_msg.h"
 #include "core/ss.h"
 #include "core/units.h"
+#include "core/units_cargo.h"
 #include "core/world.h"
 #include "platform/diagnostics.h"
 
@@ -164,24 +165,44 @@ static int unit_dock_orders_menu(void) {
     }
   }
 
-  /* Land wagon uses @UNITOPTIONS: never offers Unload all cargo. */
+  /*
+   * bugs.md #782/#783. DOS thunk_FUN_1000_99b8 loads @SHIPOPTIONS for EVERY
+   * colony strip entry, so a Wagon Train sees the same six rows — and case 4
+   * drops Fortify for type 0x0c. Fresh, empty, not selected:
+   * [Activate, Sentry, Cancel] — no Fortify (wagon), no Unload (no cargo).
+   */
   if (rc == 0) {
     colony_screen_open_dock_orders(&view, &units, &game_txt, wagon_id);
-    if (view.dock_orders_count != 4 ||
+    if (view.dock_orders_count != 3 ||
         view.dock_orders_actions[0] != COLONY_DOCK_ORDER_ACTIVATE ||
         view.dock_orders_actions[1] != COLONY_DOCK_ORDER_SENTRY ||
-        view.dock_orders_actions[2] != COLONY_DOCK_ORDER_FORTIFY ||
-        view.dock_orders_actions[3] != COLONY_DOCK_ORDER_CANCEL) {
+        view.dock_orders_actions[2] != COLONY_DOCK_ORDER_CANCEL) {
       fprintf(
-        stderr, "dock_orders: fresh wagon expected 4 rows got %d\n", view.dock_orders_count
+        stderr, "dock_orders: fresh wagon expected 3 rows got %d\n", view.dock_orders_count
       );
       rc = 1;
     }
     for (int i = 0; rc == 0 && i < view.dock_orders_count; ++i) {
-      if (view.dock_orders_actions[i] == COLONY_DOCK_ORDER_UNLOAD_ALL) {
-        fprintf(stderr, "dock_orders: land unit must never offer Unload all cargo\n");
+      if (view.dock_orders_actions[i] == COLONY_DOCK_ORDER_FORTIFY) {
+        fprintf(stderr, "dock_orders: a Wagon Train must never be offered Fortify\n");
         rc = 1;
       }
+    }
+  }
+
+  /* bugs.md #782: a LOADED wagon does get "Unload all cargo". */
+  if (rc == 0) {
+    units_load_goods(&units, wagon_id, COLONIZE_CARGO_TOBACCO, 40);
+    colony_screen_open_dock_orders(&view, &units, &game_txt, wagon_id);
+    bool saw_unload = false;
+    for (int i = 0; i < view.dock_orders_count; ++i) {
+      if (view.dock_orders_actions[i] == COLONY_DOCK_ORDER_UNLOAD_ALL) {
+        saw_unload = true;
+      }
+    }
+    if (!saw_unload) {
+      fprintf(stderr, "dock_orders: loaded wagon must offer Unload all cargo\n");
+      rc = 1;
     }
   }
 
@@ -2370,12 +2391,61 @@ static int unit_tile_jobs_menu_lists_all_field_jobs(void) {
   return rc;
 }
 
+/*
+ * bugs.md #784: the @WAREHOUSEFULL predicate DOS asks BEFORE the transfer
+ * (thunk_FUN_1000_9784): `cap < stock + amount && cargo != Food`.
+ * bugs.md #786: FUN_15eb_30b8 appends exactly ONE new hold holding the whole
+ * remainder — no 100 clamp, no second slot.
+ */
+static int unit_warehouse_confirm_and_hold_append(void) {
+  int rc = 0;
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &colonies.colonies[0];
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->warehouse_level = 0; /* cap 100 */
+  colonies.colony_count = 1;
+
+  col->stock[COLONIZE_CARGO_LUMBER] = 90;
+  if (colonies_warehouse_unload_needs_confirm(&colonies, col, COLONIZE_CARGO_LUMBER, 10)) {
+    fprintf(stderr, "whconfirm: 90+10 == cap must NOT ask\n");
+    rc = 1;
+  }
+  if (!colonies_warehouse_unload_needs_confirm(&colonies, col, COLONIZE_CARGO_LUMBER, 11)) {
+    fprintf(stderr, "whconfirm: 90+11 > cap must ask\n");
+    rc = 1;
+  }
+  col->stock[COLONIZE_CARGO_FOOD] = 200;
+  if (colonies_warehouse_unload_needs_confirm(&colonies, col, COLONIZE_CARGO_FOOD, 100)) {
+    fprintf(stderr, "whconfirm: Food is exempt (local_18 != 0)\n");
+    rc = 1;
+  }
+
+  int types[6] = {0, 0, 0, 0, 0, 0};
+  int amounts[6] = {0, 0, 0, 0, 0, 0};
+  const int loaded =
+    goods_pack_into_holds(types, amounts, 6, COLONIZE_CARGO_ORE, 250, 6);
+  if (loaded != 250 || amounts[0] != 250 || amounts[1] != 0) {
+    fprintf(
+      stderr,
+      "packholds: want one hold of 250 got loaded=%d h0=%d h1=%d\n",
+      loaded, amounts[0], amounts[1]
+    );
+    rc = 1;
+  }
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"unit_buyme1_tokens", unit_buyme1_tokens},
     {"unit_building_click_reaches_owned", unit_building_click_reaches_owned},
     {"unit_dock_orders_menu", unit_dock_orders_menu},
     {"unit_tile_jobs_menu_lists_all_field_jobs", unit_tile_jobs_menu_lists_all_field_jobs},
     {"unit_multi_units_pane_roster", unit_multi_units_pane_roster},
+    {"unit_warehouse_confirm_and_hold_append", unit_warehouse_confirm_and_hold_append},
     {"case_colony_screen_render_workflow", case_colony_screen_render_workflow},
 };
 
