@@ -651,7 +651,7 @@ void ai_king_sync_boycott_refuse(ColonizeCol1Save* col1, int human) {
  * SUB AH,AH; ADD [BX+0xe],AX`) — ported 2026-09-06d. `nation+0xe` decoded:
  * the nation record is `n*0x13c + DS:-0x77f8` (nation_flags +0, tax_rate +1,
  * recruit[3] +2, tax_hike_count +5, recruit_count +6, founding_fathers[4] +7,
- * unknown21_pad +0xb, liberty_bells_total +0xc) so +0xe is
+ * unknown21_pad +0xb, liberty_bells_pool +0xc) so +0xe is
  * `liberty_bells_last_turn` — and the DOS write set proves the name: zeroed
  * at each nation's own turn start (FUN_3844_00f2, :58382), zeroed by new-game
  * init (FUN_38fd_6024, :68684), and ADDed alongside +0xc by the bell-spend
@@ -663,10 +663,8 @@ void ai_king_sync_boycott_refuse(ColonizeCol1Save* col1, int human) {
  * type==0 units). Phase order matches DOS: turn_run_nation_ticks (bells,
  * TURN_PROC_SETUP) runs before ai_king_nation_turn (TURN_PROC_KING), so the
  * bump lands last, exactly as 2424's EOT position does in DOS.
- * Caveat kept: founding_fathers_stash_pools_into_col1 overwrites this word
- * with the FF pool while writing our own .SAV, so the bumped value survives
- * to disk only for saves this engine did not stash — a separate, pre-existing
- * divergence (col1_save.h FF_POOL_STASH_MARKER), not this one.
+ * (The save-time "pool stash" that used to overwrite this word was deleted
+ * by bugs.md #933; the bumped value now always reaches disk.)
  *
  * (The pre-2026-09-06 stand-in grew pools by tax band on every audience
  * event and set ref_present from a peacetime pool — both invented; removed.)
@@ -696,6 +694,15 @@ void ai_king_1d42_royal_purse(ColonizeTurnContext* ctx) {
     growth <<= 1;
   }
   nat->royal_money += growth;
+  /*
+   * bugs.md #932 (verified, no change needed): the `< 0x708` early exit is
+   * DOS's own `if (+0x24 > 0 || (+0x24 >= 0 && +0x22 > 0x707))` gate
+   * (FUN_43f7_1d42, viceroy_unpacked.c:74875-74876 / _2.c:73600). Everything
+   * below — the force pick, the @KINGBUY announce, the `-0x708` and the
+   * `ADD [BX+0xe],AX` bells bump at asm 43f7:1e58 — sits INSIDE that gate
+   * (raw 74886-74891), so a purse under the threshold correctly skips the
+   * bump. The bump is not reached on any other path.
+   */
   if (nat->royal_money < 0x708) {
     return;
   }
@@ -758,7 +765,7 @@ int ai_king_sol_percent(const ColonizeTurnContext* ctx, int nation_id) {
    * divide the second by the first. No colonies (or a zero pop sum) returns
    * the untouched accumulator, i.e. 0.
    *
-   * NO `liberty_bells_total / 4` STAND-IN (bugs.md #424, "rival monarchs
+   * NO `liberty_bells_pool / 4` STAND-IN (bugs.md #424, "rival monarchs
    * considering granting independence ... in 1530"). That number is not a
    * percentage at all — it is the nation's lifetime bell total, which real
    * DOS saves carry in the MILLIONS (original_saves/valid-lategame-saves/

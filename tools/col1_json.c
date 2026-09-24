@@ -886,7 +886,7 @@ static void write_nation(FILE* f, const ColonizeCol1Nation* nt) {
   wi(f, &n, "recruit_count", nt->recruit_count);
   W_U8ARR(f, &n, "founding_fathers", nt->founding_fathers, 4);
   wi(f, &n, "unknown21_pad", nt->unknown21_pad);
-  wi(f, &n, "liberty_bells_total", nt->liberty_bells_total);
+  wi(f, &n, "liberty_bells_pool", nt->liberty_bells_pool);
   wi(f, &n, "liberty_bells_last_turn", nt->liberty_bells_last_turn);
   wi(f, &n, "king_audience_tax_delta", nt->king_audience_tax_delta);
   wi(f, &n, "next_founding_father", nt->next_founding_father);
@@ -937,7 +937,11 @@ static void read_nation(const JsonValue* o, ColonizeCol1Nation* nt) {
   if (json_get_u64(o, "recruit_count", &u)) nt->recruit_count = (uint8_t)u;
   read_arr_u8(o, "founding_fathers", nt->founding_fathers, 4);
   if (json_get_u64(o, "unknown21_pad", &u)) nt->unknown21_pad = (uint8_t)u;
-  if (json_get_u64(o, "liberty_bells_total", &u)) nt->liberty_bells_total = (uint16_t)u;
+  /* bugs.md #933: field renamed liberty_bells_total -> liberty_bells_pool
+     (DOS nation+0xc is the live FF bell pool, FUN_4345_0a22 raw 73341/73370).
+     Old key kept as a read fallback for JSON written before the rename. */
+  if (json_get_u64(o, "liberty_bells_pool", &u)) nt->liberty_bells_pool = (uint16_t)u;
+  else if (json_get_u64(o, "liberty_bells_total", &u)) nt->liberty_bells_pool = (uint16_t)u;
   if (json_get_u64(o, "liberty_bells_last_turn", &u)) nt->liberty_bells_last_turn = (uint16_t)u;
   if (json_get_i64(o, "king_audience_tax_delta", &i)) nt->king_audience_tax_delta = (int16_t)i;
   if (json_get_i64(o, "next_founding_father", &i)) nt->next_founding_father = (int16_t)i;

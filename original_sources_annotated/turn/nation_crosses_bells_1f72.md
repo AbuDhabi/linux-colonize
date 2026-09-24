@@ -29,12 +29,19 @@ below as ported guidance.
 2. **Lines 11299-11305: the `FUN_15eb_1d4c` per-worker loop** (see the other
    doc) — fills a 20-slot totals array (`DS:-0x7238`, indexed by
    `param_2` from each `1d4c` call, i.e. profession 9-17) with each craft/
-   Carpenter/Preacher/Statesman worker's output. **Where this combines with
-   the crosses/bells computed below is not found in this function** — no use
-   of the `-0x7238` array appears after line 11305 in this body. Either the
-   combine happens in the (unread) rest of the caller, or in `FUN_15eb_09c0`
-   (`1f72`'s sibling call from `394c`), or the totals array is read by
-   something else entirely later in the EOT sequence. Open question.
+   Carpenter/Preacher/Statesman worker's output.
+
+   **Open question CLOSED (2026-09-24, bugs.md #937).** `DS:-0x7238` is just
+   the signed spelling of `DS:0x8dc8` (`-0x7238 & 0xffff == 0x8dc8`) — the
+   same 20-slot totals array, zeroed slot-by-slot immediately before the
+   loops (`viceroy_unpacked.c:12580-12584`, `for (i=0;i<0x14;i++)
+   *(int*)(i*2 - 0x7238) = 0;`) and then written through both the absolute
+   (`0x8dc8`, `0x8dea`, `0x8dec`) and the indexed (`slot*2 - 0x7238`)
+   spellings in the same body. Slot `0x12` is `0x8dc8 + 0x24 == 0x8dec` —
+   the **bells** word; slot `0x11` is `0x8dea` (crosses). So the combine
+   does **not** happen elsewhere: it happens inside `1f72` itself, right
+   after the `1d4c` per-worker loop, because the crosses/bells sequence
+   below is `+=` onto the very slots that loop just filled.
 3. **Lines 11306-11314: crosses — fully traced, confirmed, and now used to
    fix the port** (`colony_prod_church_passive_crosses` — see
    `building_production.md`'s 2026-08-15 fix row):
@@ -50,9 +57,15 @@ below as ported guidance.
    sourced, not decomp-derived — likely mixing up the *per-worker* Preacher
    rates (3 Church / 6 Cathedral, which **are** correctly 2× apart, and stay
    as-is) with the colony-wide passive.
-4. **Lines 11315-11344: bells — read, NOT fully resolved, NOT ported.**
+4. **Bells — full literal sequence** (`viceroy_unpacked.c:12603-12648`;
+   `viceroy_unpacked_2.c` raw 11299-11343 in the older numbering). Every
+   term below is a `+=` onto `*(int*)0x8dec`, i.e. slot `0x12` of the totals
+   array the `1d4c` worker loop has just summed into — the workers' bells
+   are already in the word when line 1 runs:
    ```
-   bells = 1                                          ; base — presumably Town Hall passive
+   ; (the 1d4c worker loop above has already added every Statesman's output
+   ;  into slot 0x12 == 0x8dec)
+   bells += 1                                          ; base — presumably Town Hall passive
    if FUN_15eb_3960(nation, 0xf /* = 15 = FF_THOMAS_JEFFERSON, exact index match */):
      bells += bells >> 1                              ; ×1.5 — matches Jefferson's +50%
    if FUN_15eb_3960(nation, 0x11 /* = 17 = FF_THOMAS_PAINE, exact index match */):
@@ -67,6 +80,10 @@ below as ported guidance.
    if FUN_15eb_038e(0x14 /* Newspaper, row 20 */): bells <<= 1        ; ×2, matches +100%
    else if FUN_15eb_038e(0x13 /* Printing Press, row 19 */): bells += bells >> 1  ; ×1.5, matches +50%
    ```
+   Line-by-line: workers sum (the `1d4c` loop); `+= 1` unconditional;
+   Jefferson `+= v>>1`; Paine `+= (tax * v & 0xffff) / 100`; the `0x12`
+   flag term `+= (pop + 3) / 5`; `byte 0xa892` zeroed on the line before
+   and then added; Newspaper `<<= 1` else Printing Press `+= v>>1`.
    The **Jefferson/Paine/Printing-Press/Newspaper pieces line up exactly**
    with what the port already implements (`colony_prod_colony_bells_ff`) —
    good independent confirmation those are right. But two things are

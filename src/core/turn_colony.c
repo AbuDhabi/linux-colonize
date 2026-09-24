@@ -201,15 +201,27 @@ void turn_colony_free_production(
 }
 
 /* ===================== Nation tick: bells/crosses tally, immigrants, ship repair/routing (turn_count_bells_and_crosses_for_nation .. turn_euro_nation_is_ref) ===================== */
-static int turn_count_bells_and_crosses_for_nation(
+/*
+ * out_colony_bells / out_colony_count (both optional) hand back each active
+ * colony's bells in DOS colony order: FUN_364b_0688 (raw 57231) calls
+ * FUN_4345_0a22 once per COLONY, so the nation tick has to accrue and test
+ * per colony, not once on the sum (bugs.md #934).
+ */
+static int turn_count_bells_and_crosses_for_nation_ex(
   const ColonizeColonyPool* pool,
   int nation_id,
   const ColonizeCol1Save* col1,
   int* out_bells,
-  int* out_crosses
+  int* out_crosses,
+  int* out_colony_bells,
+  int* out_colony_count
 ) {
   int bells = 0;
   int crosses = 0;
+  int ncol = 0;
+  if (out_colony_count) {
+    *out_colony_count = 0;
+  }
   if (!pool) {
     if (out_bells) {
       *out_bells = 0;
@@ -249,6 +261,10 @@ static int turn_count_bells_and_crosses_for_nation(
     }
     bells += b;
     crosses += x;
+    if (out_colony_bells && ncol < COLONIZE_COLONIES_MAX) {
+      out_colony_bells[ncol] = b;
+    }
+    ++ncol;
   }
   if (out_bells) {
     *out_bells = bells;
@@ -256,7 +272,22 @@ static int turn_count_bells_and_crosses_for_nation(
   if (out_crosses) {
     *out_crosses = crosses;
   }
+  if (out_colony_count) {
+    *out_colony_count = ncol;
+  }
   return bells + crosses;
+}
+
+static int turn_count_bells_and_crosses_for_nation(
+  const ColonizeColonyPool* pool,
+  int nation_id,
+  const ColonizeCol1Save* col1,
+  int* out_bells,
+  int* out_crosses
+) {
+  return turn_count_bells_and_crosses_for_nation_ex(
+    pool, nation_id, col1, out_bells, out_crosses, NULL, NULL
+  );
 }
 
 static void turn_notify_dock_immigrant(
@@ -325,11 +356,11 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
      */
     ctx->europe->liberty_bells_last_turn = (uint16_t)(bells > 65535 ? 65535 : bells);
     {
-      unsigned total = (unsigned)ctx->europe->liberty_bells_total + (unsigned)bells;
+      unsigned total = (unsigned)ctx->europe->liberty_bells_pool + (unsigned)bells;
       if (total > 65535u) {
         total = 65535u;
       }
-      ctx->europe->liberty_bells_total = (uint16_t)total;
+      ctx->europe->liberty_bells_pool = (uint16_t)total;
     }
     /* bugs.md: no immigration during the War of Independence — Europe is
      * closed to the rebels (user-observed DOS; the dock is unreachable
@@ -420,20 +451,38 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       }
       int nb = 0;
       int nc = 0;
-      turn_count_bells_and_crosses_for_nation(
-        ctx->colonies, n, ctx->col1, &nb, &nc
+      static int s_colony_bells[COLONIZE_COLONIES_MAX];
+      int ncol = 0;
+      turn_count_bells_and_crosses_for_nation_ex(
+        ctx->colonies, n, ctx->col1, &nb, &nc, s_colony_bells, &ncol
       );
       ColonizeCol1Nation* nat = &ctx->col1->nation[n];
+      /*
+       * DOS-LITERAL FUN_4345_0a22 raw 73341-73342: `+0xc += bells;
+       * +0xe += bells;` — +0xc is the live FF bell pool (zeroed on elect,
+       * raw 73370) and +0xe is this turn's production (zeroed before the
+       * colony loop, FUN_3844_00f2 raw 58382). bugs.md #933.
+       *
+       * bugs.md #934: 0a22 runs once per COLONY (FUN_364b_0688 raw 57231),
+       * so the elect test is re-run after each colony's bells land — a big
+       * empire can cross the threshold twice in one turn. The human's test
+       * stays in TURN_PROC_FINISH (bugs.md #434), so only the AI nations
+       * elect here.
+       */
       nat->liberty_bells_last_turn = (uint16_t)(nb > 65535 ? 65535 : nb);
-      {
-        unsigned total = (unsigned)nat->liberty_bells_total + (unsigned)nb;
-        if (total > 65535u) {
-          total = 65535u;
+      const bool ai_elects_here = (n != ctx->human_nation) && (control == 1);
+      for (int ci = 0; ci < ncol && ci < COLONIZE_COLONIES_MAX; ++ci) {
+        if (s_colony_bells[ci] <= 0) {
+          continue;
         }
-        nat->liberty_bells_total = (uint16_t)total;
-      }
-      if (nb > 0) {
-        founding_fathers_accrue_bells(n, (unsigned)nb);
+        unsigned pool = (unsigned)nat->liberty_bells_pool + (unsigned)s_colony_bells[ci];
+        if (pool > 65535u) {
+          pool = 65535u;
+        }
+        nat->liberty_bells_pool = (uint16_t)pool;
+        if (ai_elects_here) {
+          (void)founding_fathers_try_elect(ctx, n);
+        }
       }
       /*
        * AI Euro: the full DOS FUN_38fd_5e52 tick (584a needed + the +2/-2
@@ -465,7 +514,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       if (n == ctx->human_nation && ctx->europe) {
         nat->current_crosses = ctx->europe->current_crosses;
         nat->needed_crosses = ctx->europe->needed_crosses;
-        nat->liberty_bells_total = ctx->europe->liberty_bells_total;
+        nat->liberty_bells_pool = ctx->europe->liberty_bells_pool;
         nat->liberty_bells_last_turn = ctx->europe->liberty_bells_last_turn;
       }
     }
@@ -486,7 +535,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
        * #865), bit 0x04 the hint one-shot. */
       if (!ctx->col1->head.game_options.ref_present &&
           !ctx->col1->head.game_options.woi_crosses_event &&
-          founding_fathers_bells_since_last_elect(ctx->human_nation) > 0u &&
+          founding_fathers_bells_pool(ctx->col1, ctx->human_nation) > 0u &&
           ctx->ai_popups) {
         const int ally = (int)ctx->col1->head.rival_nation_slot_1;
         const char* ally_name = "";
@@ -514,14 +563,14 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
         if (ctx->col1->player[n].control == 2) {
           continue;
         }
-        const unsigned pool = founding_fathers_bells_since_last_elect(n);
+        const unsigned pool = founding_fathers_bells_pool(ctx->col1, n);
         const unsigned needed = founding_fathers_bells_needed(ctx->col1, n);
         founding_fathers_woi_intervention_chrome(ctx, n, pool, needed);
         if (pool < needed) {
           continue;
         }
         if (ai_king_spend_woi_bell_pool(ctx, n)) {
-          founding_fathers_consume_woi_bell_pool(n);
+          founding_fathers_consume_woi_bell_pool(ctx, n);
           if (ctx->status && ctx->status_size > 0 && n == ctx->human_nation) {
             /* bugs.md #538: the bell spend only ANNOUNCES (DOS 0a22 ->
              * FUN_43f7_1528); the force itself lands from 2022's free drain

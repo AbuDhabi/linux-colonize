@@ -121,7 +121,7 @@ static int test_missing_foe_keeps_terrain(void) {
  * #10: the WoI Tory/Rebel peel (FUN_5fef_1b0e ~100494-100527) runs inside
  * `if (-1 < iVar18)` — the colony INDEX on the defended tile — and reads SoL
  * from the record it then binds. With no col1 record the port must apply no
- * support peel at all; the old `liberty_bells_total / 4` fallback invented
+ * support peel at all; the old `liberty_bells_pool / 4` fallback invented
  * one, and a crown attacker collected a full +100% Tory bonus off it.
  */
 static int test_woi_sol_needs_a_colony_record(void) {
@@ -168,7 +168,7 @@ static int test_woi_sol_needs_a_colony_record(void) {
   col1.head.crown_nation_id = 1;
   col1.player[0].control = 0; /* human rebel */
   col1.player[1].control = 1; /* crown is AI */
-  col1.nation[0].liberty_bells_total = 200; /* the old fallback's input */
+  col1.nation[0].liberty_bells_pool = 200; /* the old fallback's input */
 
   ColonizeCombatStrengthCtx ctx;
   memset(&ctx, 0, sizeof(ctx));

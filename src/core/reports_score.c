@@ -363,8 +363,8 @@ void reports_compute_score_w(
     if (out->independence_achieved && out->declare_year < 1780) {
       out->early_revolution_pts = (1780 - out->declare_year) * 2;
     }
-    if (col1->head.game_options.ref_present && nat->liberty_bells_total >= 100) {
-      out->bells_pts = (int)nat->liberty_bells_total / 100;
+    if (col1->head.game_options.ref_present && nat->liberty_bells_pool >= 100) {
+      out->bells_pts = (int)nat->liberty_bells_pool / 100;
       if (out->bells_pts > 100) {
         out->bells_pts = 100;
       }
@@ -674,7 +674,7 @@ void reports_render_score(
     );
     colors[n_lines++] = REPORTS_SCORE_GREEN_COLOR;
   }
-  if (col1->head.game_options.ref_present && col1->nation[human].liberty_bells_total >= 100) {
+  if (col1->head.game_options.ref_present && col1->nation[human].liberty_bells_pool >= 100) {
     /* DOS label is a runtime pointer (DS:0x97e4) outside the @MISC table;
      * text unresolved statically. */
     snprintf(lines[n_lines], sizeof(lines[0]), "Liberty Bells:  +%d", sc.bells_pts);

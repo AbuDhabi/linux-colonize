@@ -1106,7 +1106,22 @@ int colonies_found(
     c->unit_type_index = founder_type_index;
     c->profession =
       (founder_profession >= 0) ? founder_profession : UNITS_JOB_NONE;
-    c->building_type = colonies_building_row(pool, COLONY_BUILDING_TOWN_HALL);
+    /*
+     * DOS FUN_364b_1ba8 raw 58076-58086: the founding body clears the plot
+     * map (`FUN_1d1d_0dae(colony+0x70, 0xffff, 0x14)` raw 58075 — no tile
+     * assigned) and then seats the founder through
+     *   FUN_281f_0c36 -> FUN_15eb_1068(slot, 0)
+     * i.e. occupation byte 0 = field job 0 (food), never the Town Hall.
+     * (The no-unit arm additionally sets pop = 1 and
+     *  FUN_281f_0cae -> FUN_15eb_0e8c(slot, 0x1c) = Free Colonist.)
+     * bugs.md #929: the port used to seat the founder in the Town Hall, so
+     * every new colony produced bells instead of food.
+     * DOS picks no plot here; the plot comes from the shared 28c8 auto-assign
+     * the colony screen / AI tick runs next, which the port already has as
+     * colonies_seat_new_colonist — invoked below, with DOS's occupation 0 as
+     * the fallback when no map is bound (headless import / unit fixtures).
+     */
+    c->building_type = -1;
     c->field_job = -1;
     slot->population = slot->colonist_count;
   } else {
@@ -1172,6 +1187,23 @@ int colonies_found(
   }
 
   pool->colony_count++;
+
+  /* Founder plot: DOS's 28c8 picker (see the occupation-0 note above). */
+  if (slot->colonist_count > 0) {
+    ColonizeColonist* fc = &slot->colonists[0];
+    if (fc->active && fc->building_type < 0 && fc->field_job < 0) {
+      colonies_seat_new_colonist(pool, slot->id, 0);
+      if (colonies_colonist_tile(slot, 0) < 0) {
+        /* The picker found no plot (no map bound, or every plot rejected) and
+         * fell back to an indoor seat — but that fallback belongs to the 5952
+         * colony tick, not to founding. DOS's founding body leaves exactly
+         * FUN_15eb_1068(slot, 0): occupation 0 = food, no tile. */
+        fc->building_type = -1;
+        fc->field_job = 0;
+      }
+    }
+  }
+
   diag_info(
     "Founded colony '%s' at (%d,%d) pop=%d tools=%d muskets=%d horses=%d",
     slot->name,

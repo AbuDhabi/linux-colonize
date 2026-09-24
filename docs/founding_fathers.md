@@ -31,6 +31,28 @@ threshold `FUN_4345_0982`, apply dispatch `FUN_4345_0342`) are **Done** —
 see `founding_fathers.c` header comment and `founding_fathers_tick`. Not
 re-tabulated per-row here; only per-effect wiring is.
 
+**The bell pool (bugs.md #933, 2026-09-24).** COL1 nation `+0xc`
+(`liberty_bells_pool`, formerly misnamed `liberty_bells_total`) **is** the
+pool. `FUN_4345_0a22` adds a colony's bells to it (raw 73341) and sets it to
+zero on a successful elect (raw 73370) — the surplus over the threshold is
+discarded, never carried over; `FUN_43f7_1a26` zeroes it at the declaration
+of independence (raw 74738). `+0xe` (`liberty_bells_last_turn`) is this
+turn's bells only: zeroed before the per-colony loop (`FUN_3844_00f2` raw
+58382) and never read back by DOS. The old Linux side table
+`s_ff_bells_since_elect`, its save-time stash into `+0xe` behind an
+`unknown21_pad` marker, and the spent-sum reconstruction on load are all
+deleted — a DOS save's `+0xc` loads as the pool directly, and the score's
+REF-present `bells/100` line reads the same word DOS scores.
+
+**More than one Father per turn (bugs.md #934).** DOS calls `FUN_4345_0a22`
+once per **colony** (sole call site `FUN_364b_0688`, raw 57231), so the
+threshold can be crossed part-way through a nation's colony list: the pool is
+zeroed there and the remaining colonies start it again. `turn_run_nation_ticks`
+accrues per colony and re-runs the AI elect test after each one; the human's
+test stays in `TURN_PROC_FINISH` (bugs.md #434) and loops while the pool still
+clears the next threshold, with any second Congress debate arriving as a queued
+popup on the same turn.
+
 Legend: **Done** = ownership gate + effect wired at the real consumption
 site. **Done (elect-only)** = one-shot mutation at election, correctly has
 no ongoing gate (nothing else needs one). **Thin** = gate exists, effect

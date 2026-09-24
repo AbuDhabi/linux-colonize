@@ -26,29 +26,16 @@
 
 /* King tax-refuse stand-in byte (ai_king market_demand_pool_raw[2]). */
 
-/* DOS nation+0xc — bells since last FF elect; not stored in ColonizeCol1Nation. */
-static uint16_t s_ff_bells_since_elect[COLONIZE_COL1_NATION_COUNT];
-static bool s_ff_pools_initialized;
-
 /*
- * Sentinel written to nation.unknown21_pad (dead DOS byte, col1_save.h) when
- * our own writer stashes the pool into liberty_bells_last_turn. Lets
- * after_load tell that apart from a genuine/untouched DOS last_turn value.
+ * bugs.md #933 — COL1 nation +0xc IS the live FF bell pool.
+ * DOS-LITERAL FUN_4345_0a22 (raw 73341-73342): `*(iVar1+0xc) += param_2;
+ * *(iVar1+0xe) += param_2;` then, on a successful elect, raw 73370:
+ * `*(+0xc) = 0`. FUN_43f7_1a26 (raw 74738) zeroes +0xc at the declaration of
+ * independence. +0xe is "bells this turn": FUN_3844_00f2 (raw 58382) zeroes it
+ * before the per-colony loop, and nothing ever reads it back.
+ * There is therefore no side table, no save-time stash and no reconstruction
+ * heuristic: the pool is the save field.
  */
-#define FF_POOL_STASH_MARKER ((uint8_t)0xc1)
-
-static unsigned ff_bells_threshold_at_elect_count(
-  const ColonizeCol1Save* col1,
-  int nation,
-  unsigned elected_count
-) {
-  if (!col1 || nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
-    return 40u;
-  }
-  ColonizeCol1Save snap = *col1;
-  snap.nation[nation].founding_father_count = (uint16_t)elected_count;
-  return founding_fathers_bells_needed(&snap, nation);
-}
 
 /*
  * bugs.md: the Congress debate is persistent in DOS — escaping the popup
@@ -62,165 +49,32 @@ static int s_ff_debate_slate_n;
 static int s_ff_debate_slate_nation = -1;
 
 void founding_fathers_reset(void) {
-  memset(s_ff_bells_since_elect, 0, sizeof(s_ff_bells_since_elect));
-  s_ff_pools_initialized = false;
   s_ff_debate_slate_n = 0;
   s_ff_debate_slate_nation = -1;
 }
 
-void founding_fathers_stash_pools_into_col1(
-  ColonizeCol1Save* col1,
-  uint16_t restore_last_turn[COLONIZE_COL1_NATION_COUNT],
-  uint8_t restore_pad21[COLONIZE_COL1_NATION_COUNT]
-) {
-  if (!col1) {
-    return;
-  }
-  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
-    if (restore_last_turn) {
-      restore_last_turn[n] = col1->nation[n].liberty_bells_last_turn;
-    }
-    if (restore_pad21) {
-      restore_pad21[n] = col1->nation[n].unknown21_pad;
-    }
-    if (!s_ff_pools_initialized) {
-      continue;
-    }
-    col1->nation[n].liberty_bells_last_turn = s_ff_bells_since_elect[n];
-    col1->nation[n].unknown21_pad = FF_POOL_STASH_MARKER;
-  }
-}
-
-void founding_fathers_restore_col1_last_turn(
-  ColonizeCol1Save* col1,
-  const uint16_t restore_last_turn[COLONIZE_COL1_NATION_COUNT],
-  const uint8_t restore_pad21[COLONIZE_COL1_NATION_COUNT]
-) {
-  if (!col1) {
-    return;
-  }
-  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
-    if (restore_last_turn) {
-      col1->nation[n].liberty_bells_last_turn = restore_last_turn[n];
-    }
-    if (restore_pad21) {
-      col1->nation[n].unknown21_pad = restore_pad21[n];
-    }
-  }
-}
-
-bool founding_fathers_col1_last_turn_is_stash(const ColonizeCol1Save* col1, int nation_id) {
+unsigned founding_fathers_bells_pool(const ColonizeCol1Save* col1, int nation_id) {
   if (!col1 || nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
-    return false;
+    return 0u;
   }
-  return col1->nation[nation_id].unknown21_pad == FF_POOL_STASH_MARKER;
-}
-
-void founding_fathers_sync_from_col1(const ColonizeCol1Save* col1) {
-  if (!col1) {
-    founding_fathers_reset();
-    return;
-  }
-  s_ff_pools_initialized = true;
-  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
-    const ColonizeCol1Nation* nat = &col1->nation[n];
-    const unsigned total = (unsigned)nat->liberty_bells_total;
-    const unsigned count = (unsigned)nat->founding_father_count;
-    const unsigned need = founding_fathers_bells_needed(col1, n);
-
-    if (count == 0u) {
-      s_ff_bells_since_elect[n] = (uint16_t)total;
-      continue;
-    }
-
-    if (total <= need) {
-      /* Authentic DOS: +0xc is the live pool, not lifetime cumulative — check
-       * this first. A save with several FFs already elected has a "spent"
-       * sum (below) that grows past any plausible live pool almost
-       * immediately (thresholds compound with each election), so testing
-       * total<=spent before this would zero out a perfectly good live pool
-       * on nearly every multi-FF save. Only fall through to the cumulative
-       * interpretation once total can't possibly be a live pool on its own. */
-      s_ff_bells_since_elect[n] = (uint16_t)total;
-    } else {
-      unsigned spent = 0u;
-      for (unsigned c = 0u; c < count; ++c) {
-        spent += ff_bells_threshold_at_elect_count(col1, n, c);
-      }
-      /* Linux cumulative minus thresholds consumed at past elects. */
-      s_ff_bells_since_elect[n] = (total <= spent) ? 0 : (uint16_t)(total - spent);
-    }
-  }
-}
-
-void founding_fathers_sync_from_col1_after_load(const ColonizeCol1Save* col1) {
-  founding_fathers_sync_from_col1(col1);
-  if (!col1) {
-    return;
-  }
-  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
-    const ColonizeCol1Nation* nat = &col1->nation[n];
-    const unsigned count = (unsigned)nat->founding_father_count;
-    if (count == 0u) {
-      continue;
-    }
-    if (nat->unknown21_pad != FF_POOL_STASH_MARKER) {
-      /* Not one of our own stashed saves (fresh DOS import, or a save this
-       * engine never wrote) — liberty_bells_last_turn is genuine EOT bell
-       * production here, not our pool. Keep the total-derived estimate. */
-      continue;
-    }
-    const unsigned need = founding_fathers_bells_needed(col1, n);
-    const unsigned last = (unsigned)nat->liberty_bells_last_turn;
-    /* Adopt a stashed 0 too (smell #84): right after an election the pool is
-     * legitimately zero; the old `last > 0` guard rejected it and kept the
-     * total-minus-thresholds estimate, refunding a large phantom pool on
-     * reload (enough to fund an instant second election). */
-    if (last <= need) {
-      s_ff_bells_since_elect[n] = (uint16_t)last;
-    }
-  }
+  return (unsigned)col1->nation[nation_id].liberty_bells_pool;
 }
 
 /*
- * Test helper: treat liberty_bells_total as the since-last-elect pool (legacy
- * unit-test convention). Live play uses turn accrual + sync_from_col1_after_load.
+ * DOS-LITERAL FUN_4345_0a22 raw 73370 / FUN_43f7_1a26 raw 74738: the pool
+ * word is set to zero outright (any surplus over the threshold is discarded).
+ * The human's Europe mirror holds the same word, so both are cleared.
  */
-void founding_fathers_test_force_pool_from_total(const ColonizeCol1Save* col1) {
-  if (!col1) {
+void founding_fathers_reset_bells_pool(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->col1 || nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
     return;
   }
-  s_ff_pools_initialized = true;
-  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
-    s_ff_bells_since_elect[n] = col1->nation[n].liberty_bells_total;
+  ctx->col1->nation[nation_id].liberty_bells_pool = 0;
+  if (ctx->europe && nation_id == ctx->human_nation) {
+    ctx->europe->liberty_bells_pool = 0;
   }
 }
 
-unsigned founding_fathers_bells_since_last_elect(int nation_id) {
-  if (nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
-    return 0u;
-  }
-  return (unsigned)s_ff_bells_since_elect[nation_id];
-}
-
-void founding_fathers_accrue_bells(int nation_id, unsigned delta) {
-  if (nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT || delta == 0u) {
-    return;
-  }
-  s_ff_pools_initialized = true;
-  unsigned total = (unsigned)s_ff_bells_since_elect[nation_id] + delta;
-  if (total > 65535u) {
-    total = 65535u;
-  }
-  s_ff_bells_since_elect[nation_id] = (uint16_t)total;
-}
-
-static void founding_fathers_reset_bells_pool(int nation_id) {
-  if (nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
-    return;
-  }
-  s_ff_bells_since_elect[nation_id] = 0;
-}
 
 #define FF_BOLIVAR_SOL_BONUS 20
 #define FF_LA_SALLE_STOCKADE_POP 3
@@ -623,8 +477,8 @@ static int ff_pick_strongest_category(const ColonizeCol1Save* col1, int nation) 
   return best_type;
 }
 
-void founding_fathers_consume_woi_bell_pool(int nation_id) {
-  founding_fathers_reset_bells_pool(nation_id);
+void founding_fathers_consume_woi_bell_pool(ColonizeTurnContext* ctx, int nation_id) {
+  founding_fathers_reset_bells_pool(ctx, nation_id);
 }
 
 /*
@@ -1459,7 +1313,7 @@ static bool elect_commit(
     "FF nation %d elected #%d %s (count=%u)",
     nation_id, idx, reports_ff_display_name(idx), (unsigned)nat->founding_father_count
   );
-  founding_fathers_reset_bells_pool(nation_id);
+  founding_fathers_reset_bells_pool(ctx, nation_id);
 
   if (ctx->ai_popups && nation_id == ctx->human_nation) {
     char body[AI_POPUP_BODY_LEN];
@@ -1498,7 +1352,7 @@ static bool elect_commit(
 }
 
 /* Returns true if a founding father was elected. */
-static bool try_elect_nation(ColonizeTurnContext* ctx, int nation_id) {
+bool founding_fathers_try_elect(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1 || nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
     return false;
   }
@@ -1511,16 +1365,10 @@ static bool try_elect_nation(ColonizeTurnContext* ctx, int nation_id) {
    * candidate (debate if next < 0), then elect only when bells >= threshold
    * and next >= 0. Wiki: choice after first bells, then accumulate to join.
    */
-  const unsigned pool = founding_fathers_bells_since_last_elect(nation_id);
-  /* liberty_bells_last_turn is only genuine EOT bell production while the
-   * save is NOT carrying our own pool stash in it (smell audit #85/#94):
-   * founding_fathers_stash_pools_into_col1 overwrites the field with the FF
-   * pool and marks it via unknown21_pad. Reading the stash back here would
-   * let a save-time artefact stand in for "this nation has produced bells". */
-  const unsigned last_turn_bells =
-    founding_fathers_col1_last_turn_is_stash(col1, nation_id)
-      ? 0u
-      : (unsigned)nat->liberty_bells_last_turn;
+  const unsigned pool = founding_fathers_bells_pool(col1, nation_id);
+  /* +0xe = bells produced this turn (FUN_3844_00f2 raw 58382 zeroes it before
+   * the colony loop), so it is genuine EOT production, never a stash. */
+  const unsigned last_turn_bells = (unsigned)nat->liberty_bells_last_turn;
   if (pool == 0u && last_turn_bells == 0u) {
     return false;
   }
@@ -1586,7 +1434,7 @@ void founding_fathers_apply_popup_result(ColonizeTurnContext* ctx, AiPopupState*
   s_ff_debate_slate_n = 0;
   s_ff_debate_slate_nation = -1;
   const unsigned needed = founding_fathers_bells_needed(ctx->col1, nation);
-  const unsigned pool = founding_fathers_bells_since_last_elect(nation);
+  const unsigned pool = founding_fathers_bells_pool(ctx->col1, nation);
   if (pool >= needed) {
     (void)elect_commit(ctx, nation, idx);
   } else if (ctx->status && ctx->status_size > 0 && nation == ctx->human_nation) {
@@ -1618,7 +1466,7 @@ void founding_fathers_tick(ColonizeTurnContext* ctx) {
    * founding_fathers_tick_human_elect), not the moment End Turn is pressed.
    */
 
-  /* Each AI Euro nation (control==1), one elect each max. */
+  /* Each AI Euro nation (control==1); final elect pass for the turn. */
   for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
     if (n == ctx->human_nation) {
       continue;
@@ -1626,7 +1474,12 @@ void founding_fathers_tick(ColonizeTurnContext* ctx) {
     if (col1->player[n].control != 1) {
       continue;
     }
-    try_elect_nation(ctx, n);
+    /* bugs.md #934: keep electing while the pool still clears the new,
+     * higher threshold (DOS 0a22 runs per colony, FUN_364b_0688 raw 57231). */
+    int guard = (int)COLONIZE_COL1_FF_COUNT;
+    while (guard-- > 0 && founding_fathers_try_elect(ctx, n)) {
+      /* loop */
+    }
   }
 
   /*
@@ -1660,5 +1513,15 @@ void founding_fathers_tick_human_elect(ColonizeTurnContext* ctx) {
   if (ctx->human_nation < 0 || ctx->human_nation >= (int)COLONIZE_COL1_NATION_COUNT) {
     return;
   }
-  try_elect_nation(ctx, ctx->human_nation);
+  /*
+   * bugs.md #934: DOS calls FUN_4345_0a22 once per COLONY (sole call site
+   * FUN_364b_0688, raw 57231), so the threshold can be crossed more than once
+   * in a turn. The per-colony accrual + elect test lives in turn_colony.c;
+   * this is the human's final pass, and it keeps electing while the pool is
+   * still above the (now higher) threshold and a candidate is locked in.
+   */
+  int guard = (int)COLONIZE_COL1_FF_COUNT;
+  while (guard-- > 0 && founding_fathers_try_elect(ctx, ctx->human_nation)) {
+    /* loop */
+  }
 }

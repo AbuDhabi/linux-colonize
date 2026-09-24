@@ -193,7 +193,7 @@ void reports_render_congress_page1(
   }
 
   {
-    const unsigned pool = founding_fathers_bells_since_last_elect(human);
+    const unsigned pool = founding_fathers_bells_pool(col1, human);
     const unsigned need = founding_fathers_bells_needed(col1, human);
     if (need > 0 && pool > 0) {
       /*

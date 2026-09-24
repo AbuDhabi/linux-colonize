@@ -2,6 +2,7 @@
  * the original inline main() body: calendar, production, EOT phases, save/census beats. */
 #include "test_turn_common.h"
 
+#include "core/founding_fathers.h"
 #include "core/colony_craft.h"
 
 static int expect_date(uint16_t year, uint16_t autumn, const char* want) {
@@ -1885,6 +1886,14 @@ static int case_ai_field_sol_zeroed(void) {
     );
     return 1;
   }
+  /* bugs.md #939: FUN_15eb_18ec raw 11874-11882 zeroes only the Tory count
+   * for an AI colony; the +0x1c latch adds still apply. */
+  col.colony_flags = COLONIZE_COLONY_FLAG_SOL_50 | COLONIZE_COLONY_FLAG_SOL_100;
+  const int field_latched = colony_prod_sol_bonus_field(&col1, &col);
+  if (field_latched != 2) {
+    fprintf(stderr, "AI field SoL latch want 2 got %d\n", field_latched);
+    return 1;
+  }
   fprintf(stderr, "AI field SoL zero-out ok\n");
   return 0;
 }
@@ -3547,24 +3556,111 @@ static int case_nation_bells_tick(void) {
   ctx.col1_ok = true;
 
   turn_run_nation_ticks(&ctx, NULL);
-  if (col1.nation[1].liberty_bells_last_turn == 0 || col1.nation[1].liberty_bells_total == 0) {
+  if (col1.nation[1].liberty_bells_last_turn == 0 || col1.nation[1].liberty_bells_pool == 0) {
     fprintf(
       stderr,
       "AI bells last=%u total=%u (want >0)\n",
       (unsigned)col1.nation[1].liberty_bells_last_turn,
-      (unsigned)col1.nation[1].liberty_bells_total
+      (unsigned)col1.nation[1].liberty_bells_pool
     );
     return 1;
   }
-  if (col1.nation[0].liberty_bells_total != 0) {
+  if (col1.nation[0].liberty_bells_pool != 0) {
     fprintf(stderr, "human with no colonies should stay 0 bells\n");
     return 1;
   }
-  if (col1.nation[2].liberty_bells_total != 0) {
+  if (col1.nation[2].liberty_bells_pool != 0) {
     fprintf(stderr, "withdrawn nation must not accrue bells\n");
     return 1;
   }
   fprintf(stderr, "AI nation bells accrue ok\n");
+  return 0;
+}
+
+/*
+ * bugs.md #934: DOS calls FUN_4345_0a22 once per COLONY (sole call site
+ * FUN_364b_0688, raw 57231), adding that colony's bells to nation+0xc and
+ * running the elect test right there. So an elect can fire part-way through a
+ * nation's colony list, zero the pool (raw 73370), and the colonies after it
+ * start the pool again from zero — the port used to sum the whole nation and
+ * test once, which left the post-elect pool at 0 and could never elect twice.
+ */
+static int case_nation_bells_per_colony_elect(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Town Hall");
+  pool.building_type_count = 1;
+
+  for (int i = 0; i < 2; ++i) {
+    ColonizeColony* c = &pool.colonies[i];
+    memset(c, 0, sizeof(*c));
+    c->active = true;
+    c->id = i + 1;
+    c->nation_id = 1;
+    c->building_in_production = -1;
+    c->has_building[0] = true;
+    c->colonists[0].active = true;
+    c->colonists[0].building_type = 0;
+    c->colonists[0].profession = COLONIZE_PROF_STATESMAN;
+    c->colonist_count = 1;
+    c->population = 1;
+  }
+  pool.colony_count = 2;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[0].control = 0;
+  col1.player[1].control = 1;
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    col1.head.founding_father[i] = -1;
+  }
+  col1.nation[1].next_founding_father = 0; /* candidate already locked in */
+
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.human_nation = 0;
+  ctx.colonies = &pool;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+
+  const unsigned need = founding_fathers_bells_needed(&col1, 1);
+  if (need < 2u) {
+    fprintf(stderr, "threshold too small for per-colony test (%u)\n", need);
+    return 1;
+  }
+  /* One bell short: the FIRST colony's bells cross the threshold. */
+  col1.nation[1].liberty_bells_pool = (uint16_t)(need - 1u);
+
+  turn_run_nation_ticks(&ctx, NULL);
+
+  if (col1.nation[1].founding_father_count != 1) {
+    fprintf(
+      stderr,
+      "per-colony elect: want 1 FF got %u\n",
+      (unsigned)col1.nation[1].founding_father_count
+    );
+    return 1;
+  }
+  /* The pool was zeroed mid-list, so what is left is exactly the SECOND
+     colony's bells — non-zero, and below the (now higher) threshold. */
+  if (col1.nation[1].liberty_bells_pool == 0) {
+    fprintf(stderr, "per-colony elect: colonies after the elect must refill the pool\n");
+    return 1;
+  }
+  if (col1.nation[1].liberty_bells_pool >= founding_fathers_bells_needed(&col1, 1)) {
+    fprintf(stderr, "per-colony elect: leftover pool should be below the new threshold\n");
+    return 1;
+  }
+  /* +0xe stays this turn's TOTAL bells, unaffected by the elect. */
+  if (col1.nation[1].liberty_bells_last_turn <= col1.nation[1].liberty_bells_pool) {
+    fprintf(stderr, "per-colony elect: +0xe must hold both colonies' bells\n");
+    return 1;
+  }
+  fprintf(stderr, "per-colony bells accrue + mid-list elect ok\n");
   return 0;
 }
 
@@ -3629,11 +3725,11 @@ static int case_tory_penalty_bells(void) {
    * pop 15, for 8 total: it reads the same colonist_count the Tory term
    * does, and only looked like 0 while this fixture left colonist_count
    * at 1 and put the 15 in `population` alone. */
-  if (col1.nation[1].liberty_bells_total != 8) {
+  if (col1.nation[1].liberty_bells_pool != 8) {
     fprintf(
       stderr,
       "Tory-penalty bells want 8 got %u\n",
-      (unsigned)col1.nation[1].liberty_bells_total
+      (unsigned)col1.nation[1].liberty_bells_pool
     );
     return 1;
   }
@@ -4749,7 +4845,7 @@ static int case_year_end_c2_peace(void) {
   c2b.colony[0].rebel_divisor = 100;
   /*
    * The crown's SoL comes from its own rebel pair, never from a
-   * `liberty_bells_total / 4` stand-in — that stand-in is deleted
+   * `liberty_bells_pool / 4` stand-in — that stand-in is deleted
    * (bugs.md #424: nation bell totals run into the millions in real DOS
    * saves, so every hit of it read as 100%). C1's crown-colony gate counts
    * the RUNTIME pool (below, which stays crownless so the gate is open and
@@ -6215,6 +6311,7 @@ static const TestCase k_cases[] = {
   {"food2_latch_autumn", case_food2_latch_autumn},
   {"phase_o_ai_dump_sell", case_phase_o_ai_dump_sell},
   {"nation_bells_tick", case_nation_bells_tick},
+  {"nation_bells_per_colony_elect", case_nation_bells_per_colony_elect},
   {"tory_penalty_bells", case_tory_penalty_bells},
   {"euro_power_rank", case_euro_power_rank},
   {"schoolhouse_education", case_schoolhouse_education},

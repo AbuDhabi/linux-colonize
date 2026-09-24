@@ -249,7 +249,7 @@ bool reports_indian_tribe_listed(const ColonizeCol1Save* col1, int tribe, int hu
  *                   ACHIEVED bit (0x5382|0x08) and declare_year < 1780;
  *                   declare_year is the DS:0x53a7/0x53a8 byte pair FUN_43f7_1a26
  *                   latches at declaration (year/100, year%100)
- *   bells           min(100, liberty_bells_total / 100) — gated on REF present
+ *   bells           min(100, liberty_bells_pool / 100) — gated on REF present
  *                   (0x5382|0x02) and bells >= 100 (bells_total is zeroed at
  *                   declaration, so this is "bells since declaring")
  *   recognition     100 >> prior_nations, only once achieved; prior_nations =

@@ -238,7 +238,7 @@ typedef struct EuropeScreen {
   uint16_t current_crosses;
   uint16_t needed_crosses;
   bool crosses_immigrant_seen; /* true after at least one dock immigrant */
-  uint16_t liberty_bells_total;
+  uint16_t liberty_bells_pool;
   uint16_t liberty_bells_last_turn;
   EuropeCargoQuote cargo[EUROPE_CARGO_MAX];
   int cargo_count;

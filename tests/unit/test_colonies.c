@@ -1046,7 +1046,11 @@ static int case_colonies_core(void) {
   CHECK(col->population == 1 && col->colonist_count == 1, "founder becomes colonist");
   CHECK(col->colonists[0].unit_type_index == pioneer_type, "colonist type preserved");
   CHECK(col->colonists[0].profession == UNITS_JOB_PIONEER, "founder profession preserved");
-  CHECK(col->colonists[0].building_type == town_hall, "founder works in Town Hall");
+  /* bugs.md #929: DOS FUN_364b_1ba8 raw 58076-58086 seats the founder via
+   * FUN_15eb_1068(slot, 0) = occupation 0 (a FIELD job, food), never the
+   * Town Hall; the plot comes from the shared 28c8 picker. */
+  CHECK(col->colonists[0].building_type < 0, "founder is not a building worker");
+  CHECK(col->colonists[0].field_job >= 0, "founder takes a field job (occupation 0)");
   CHECK(col->stock[COLONIZE_CARGO_TOOLS] == 100, "founder tools enter stockpile");
   /* Stockade needs 3 colonists (@BUILDING min_colony); a size-1 coastal
    * town starts on Docks (bugs.md; seed-100 goldens), a landlocked one on
@@ -1827,7 +1831,7 @@ static int case_colonies_core(void) {
       CHECK(colony_prod_sol_bonus(&col1, c) == 1, "SoL bonus +1 at 50%");
       col1c.rebel_dividend = 0;
       col1c.rebel_divisor = 0;
-      col1.nation[c->nation_id].liberty_bells_total = 400;
+      col1.nation[c->nation_id].liberty_bells_pool = 400;
       CHECK(colony_prod_sol_percent(&col1, c) == 0, "no rebel pair reads 0, not nation bells");
       col1c.rebel_dividend = 50;
       col1c.rebel_divisor = 100;
@@ -1904,7 +1908,7 @@ static int case_colonies_core(void) {
         col1.player[c->nation_id].control = 0; /* human */
         col1c.rebel_dividend = 0;
         col1c.rebel_divisor = 100; /* sol% = 0 */
-        col1.nation[c->nation_id].liberty_bells_total = 0;
+        col1.nation[c->nation_id].liberty_bells_pool = 0;
         /* tories=(12*100+50)/100=12; floor(12/10)=1 → mod=-1 */
         CHECK(colony_prod_sol_bonus(&col1, c) == -1, "Tory floor −1 pop12 sol0 Discoverer");
 

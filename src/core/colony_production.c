@@ -335,13 +335,11 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
       colony->nation_id < (int)COLONIZE_COL1_NATION_COUNT) {
     /* control 0 = human; AI / withdrawn use fixed thresh 10. */
     if (col1->player[colony->nation_id].control == 0) {
-      int diff = (int)col1->head.difficulty;
-      if (diff < 0) {
-        diff = 0;
-      }
-      if (diff > 4) {
-        diff = 4;
-      }
+      /* DOS-LITERAL FUN_15eb_18ec raw 11868-11872: `local_10 =
+       * -(byte[0x53a6] - 10)`, no clamp on the difficulty byte and no floor
+       * on the threshold (bugs.md #936: the port's 0..4 / >=2 clamps were
+       * invented and are gone; a valid difficulty byte is 0..4 anyway). */
+      const int diff = (int)col1->head.difficulty;
       /*
        * `local_10 = -(*(byte*)0x53a6 - 10)` in the real asm (FUN_15eb_18ec
        * ~11871, field-yield's own SoL/Tory term) is `10 - difficulty`, not
@@ -358,9 +356,6 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
        */
       thresh = 10 - diff;
     }
-  }
-  if (thresh < 2) {
-    thresh = 2;
   }
   /*
    * bugs.md ("SoL >50% yet still over the Tory limit"): there is no separate
@@ -391,8 +386,8 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
 
 int colony_prod_sol_bonus_field(const ColonizeCol1Save* col1, const ColonizeColony* colony) {
   /*
-   * FUN_15eb_18ec (~11869-11878, field yields) zeroes the whole SoL/Tory
-   * term outright for AI-controlled colonies, gated by the same
+   * FUN_15eb_18ec (~11869-11878, field yields) zeroes the Tory count
+   * (latch bonuses still apply) for AI-controlled colonies, gated by the same
    * nation-status table `FUN_15eb_1d4c` (manufacturing/bells/crosses/
    * hammers) only uses to pick a threshold (10 vs 10-difficulty), never to
    * zero the term. That's a real difference between field and building
@@ -413,7 +408,19 @@ int colony_prod_sol_bonus_field(const ColonizeCol1Save* col1, const ColonizeColo
   if (col1 && colony->nation_id >= 0 &&
       colony->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
       col1->player[colony->nation_id].control != 0) {
-    return 0;
+    /* DOS-LITERAL FUN_15eb_18ec raw 11874-11882: `if (nation > 3 ||
+     * table[nation*0x34+0x543f] != 0) local_e = 0;` zeroes only the TORY
+     * count; the two latch adds (+0x1c bit 0x04 -> +1, bit 0x02 -> +1)
+     * follow unconditionally, so an AI colony still gets the SoL 50% /
+     * 100% field bonus (bugs.md #939: the port returned 0 here). */
+    int mod = 0;
+    if ((colony->colony_flags & COLONIZE_COLONY_FLAG_SOL_50) != 0) {
+      mod += 1;
+    }
+    if ((colony->colony_flags & COLONIZE_COLONY_FLAG_SOL_100) != 0) {
+      mod += 1;
+    }
+    return mod;
   }
   return colony_prod_sol_bonus(col1, colony);
 }
@@ -586,6 +593,13 @@ void colony_prod_tick_rebel_accumulators(
 
   cc->rebel_dividend -= (cc->rebel_dividend >> 6);
   cc->rebel_divisor -= (cc->rebel_divisor >> 6);
+  /* DOS-LITERAL FUN_364b_0688 Phase C raw 57371-57376: `if (divisor <= 0)
+   * divisor = 1;` sits between the >>6 decay and the `+= pop*2` add
+   * (bugs.md #935). Keeps a decayed pop-0 record at divisor 1 instead of 0,
+   * so colony_prod_sol_percent still has a pair to divide. */
+  if (cc->rebel_divisor == 0u) {
+    cc->rebel_divisor = 1u;
+  }
   cc->rebel_divisor += (uint32_t)(pop * 2);
 
   if (bells >= 0) {
@@ -774,39 +788,29 @@ int colony_prod_colony_bells_ff(
   if (!pool || !colony || !colony->active) {
     return 0;
   }
+  /* DOS-LITERAL FUN_15eb_1f72 raw 12603-12648 (bells word DS:0x8dec =
+   * totals[0x12], base -0x7238 + 0x12*2). Order, verbatim:
+   *   per-worker loop (FUN_15eb_1d4c) accumulates into totals[0x12]
+   *   totals[0x12] += 1                       <- bare, NO 038e(9) Town Hall
+   *                                              test (contrast the crosses
+   *                                              word 0x8dea just above,
+   *                                              which does call 038e(0x25)
+   *                                              /038e(0x26))
+   *   3960(nation,0x0f) Jefferson  -> += v >> 1
+   *   3960(nation,0x11) Paine      -> += (tax * v) / 100
+   *   3960(nation,0x12) AI subsidy -> += (pop + 3) / 5   [gated on
+   *                                     nation >= 4 || byte[nation*0x34+
+   *                                     0x543f] != 0 = the AI/non-human
+   *                                     table gate; see below]
+   *   totals[0x12] += byte[0xa892]            <- byte[0xa892] is cleared to 0
+   *                                              two statements earlier, so
+   *                                              this is a no-op (not ported)
+   *   038e(0x14) Newspaper -> v <<= 1  else  038e(0x13) Press -> += v >> 1
+   * bugs.md #926/#927: the port used to gate the passive +1 AND the AI
+   * subsidy on has_town_hall, and applied the subsidy before Jefferson/Paine
+   * (so an AI nation owning them multiplied it). Both fixed 2026-09-24.
+   */
   int bells = 0;
-  const bool has_town_hall = colonies_has_building_row(pool, colony, COLONY_BUILDING_TOWN_HALL);
-  if (has_town_hall) {
-    bells += 1;
-    /* AI bells subsidy, player-confirmed 2026-08-15 (Viceroy difficulty): a
-     * free-colonist Statesman produces 5 colony bells for an AI nation vs 3
-     * for a human, same colony shape, no visible FF/press bonus — exactly
-     * the delta this term predicts for a mid-size colony. FUN_15eb_1f72
-     * (nation crosses/bells composer) has `bells += (pop+3)/5` gated on
-     * flag 0x12 (numerically = 18 = FF_SIMON_BOLIVAR) AND the same
-     * AI/non-human table gate used by colony_prod_sol_bonus_field — the
-     * index match with Bolivar was flagged as probably coincidental (his
-     * real effect is SoL +20%, not bells) since the arithmetic here doesn't
-     * fit a Founding Father at all; this is almost certainly reusing the
-     * shared per-nation flag-test primitive for an unrelated AI-difficulty
-     * bit, not actually reading Bolivar ownership. The player observation
-     * confirms *some* AI-only bells advantage exists (ruling out "dead
-     * code"/decompiler noise), and the arithmetic itself was already
-     * asm-certain (only whether it was real and worth porting was in
-     * doubt) — so ported as read, gated on nation_is_ai (caller-computed:
-     * `col1->player[nation_id].control != 0`, same primitive as
-     * colony_prod_sol_bonus_field). Not re-derived from the single
-     * observation (that would be numerically underdetermined from one data
-     * point); taken directly from the decompiled bytes. See
-     * nation_crosses_bells_1f72.md item 4. */
-    if (nation_is_ai) {
-      int pop = colony->colonist_count > 0 ? colony->colonist_count : colony->population;
-      if (pop < 0) {
-        pop = 0;
-      }
-      bells += (pop + 3) / 5;
-    }
-  }
   int bell_workers = 0;
   for (int p = 0; p < colony->colonist_count; ++p) {
     const ColonizeColonist* c = &colony->colonists[p];
@@ -833,21 +837,19 @@ int colony_prod_colony_bells_ff(
    * nobody works" fallback was invented; the crosses sibling above
    * deleted exactly the same thing. */
   (void)bell_workers;
+
+  /* raw 12619: bare `+= 1`, no building test. */
+  bells += 1;
+
   /*
-   * Jefferson → Paine → Press/Newspaper, applied once to the *combined*
-   * passive+worker total, in that order — matches
-   * nation_crosses_bells_1f72.md's literal FUN_15eb_1f72 order
-   * (`bells=1; Jefferson; Paine; AI-subsidy; +=byte[0xa892]; Newspaper/
-   * Press`), generalized from "just the passive" (as read, combine point
-   * with per-worker totals unresolved there) to "passive+workers combined"
-   * (empirically confirmed 2026-08-25: exact match against 7 player-
+   * Jefferson (raw 12621-12624) → Paine (raw 12625-12633) → AI subsidy
+   * (raw 12634-12641) → Press/Newspaper (raw 12643-12650), applied once
+   * to the *combined* passive+worker total, in that order.
+   * Empirically confirmed 2026-08-25: exact match against 7 player-
    * reported colonies — dutch-reports.SAV, Jefferson+Paine(35% tax) both
-   * owned, mixed Newspaper/Press/none — after moving Jefferson from a
-   * per-worker fold to here and moving Paine before Press/Newspaper
-   * instead of after; previously under-counted every colony by 1-2).
-   * `byte[0xa892]` itself is still not identified/ported — none of the 7
-   * data points needed it once the order above was corrected, but a
-   * colony configuration this fit didn't cover could still expose it.
+   * owned, mixed Newspaper/Press/none.
+   * `v + (v >> 1)` == `v * 150 / 100` and `v + (tax*v)/100` ==
+   * `v * (100+tax) / 100` for the non-negative v this composer produces.
    */
   if (statesmen_bonus_pct > 0) {
     bells = bells * (100 + statesmen_bonus_pct) / 100;
@@ -855,11 +857,28 @@ int colony_prod_colony_bells_ff(
   if (all_bells_bonus_pct > 0) {
     bells = bells * (100 + all_bells_bonus_pct) / 100;
   }
-  /* FUN_15eb_1f72 (nation_crosses_bells_1f72.md ~67-68): Newspaper xor
-   * Printing Press, not both — a Newspaper colony always has_building[]
-   * "Printing Press" too (col1_apply_colony_buildings: Newspaper implies
-   * owning Press), so this must be an if/else, never additive, or a
-   * Newspaper colony's bells get double-bonused (150% instead of 100%). */
+  /* AI bells subsidy, player-confirmed 2026-08-15 (Viceroy difficulty): a
+   * free-colonist Statesman produces 5 colony bells for an AI nation vs 3
+   * for a human, same colony shape, no visible FF/press bonus. FUN_15eb_1f72
+   * raw 12634-12641 has `bells += (pop+3)/5` gated on flag 0x12
+   * (numerically = 18 = FF_SIMON_BOLIVAR) AND the same AI/non-human table
+   * gate used by colony_prod_sol_bonus_field. Whether the 0x12 test really
+   * reads Bolivar ownership is lead #938b — do not "fix" it here. Gated on
+   * nation_is_ai (caller-computed: `col1->player[nation_id].control != 0`,
+   * same primitive as colony_prod_sol_bonus_field). See
+   * nation_crosses_bells_1f72.md item 4. */
+  if (nation_is_ai) {
+    int pop = colony->colonist_count > 0 ? colony->colonist_count : colony->population;
+    if (pop < 0) {
+      pop = 0;
+    }
+    bells += (pop + 3) / 5;
+  }
+  /* FUN_15eb_1f72 raw 12643-12650: Newspaper xor Printing Press, not both — a
+   * Newspaper colony always has_building[] "Printing Press" too
+   * (col1_apply_colony_buildings: Newspaper implies owning Press), so this
+   * must be an if/else, never additive, or a Newspaper colony's bells get
+   * double-bonused (150% instead of 100%). */
   int bonus_pct = 0;
   if (colonies_has_building_row(pool, colony, COLONY_BUILDING_NEWSPAPER)) {
     bonus_pct = 100;
