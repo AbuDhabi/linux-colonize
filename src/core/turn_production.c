@@ -280,8 +280,18 @@ void turn_compose_colony_bells_crosses(
     const bool nation_is_ai = col1 && nation_id >= 0 &&
                               nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
                               col1->player[nation_id].control != 0;
+    /* DOS-LITERAL FUN_15eb_1f72 raw 11327 (viceroy_unpacked.c:12624-12626):
+     * the AI bells subsidy is gated on BOTH the AI/non-human control byte
+     * (nation >= 4 || byte[nation*0x34+0x543f] != 0, i.e. nation_is_ai) AND
+     * `FUN_15eb_3960(nation, 0x12)` — FF slot 0x12 = 18 = FF_SIMON_BOLIVAR
+     * held by that nation. The port previously keyed the subsidy arg (used
+     * ONLY for that (+ (pop+3)/5) add, colony_production.c:870) on
+     * nation_is_ai alone, over-granting the subsidy to AI nations that
+     * haven't recruited Bolivar yet. bugs.md #938b. */
+    const bool nation_is_ai_bolivar_subsidy =
+      nation_is_ai && founding_fathers_nation_has(col1, nation_id, FF_SIMON_BOLIVAR);
     bells = colony_prod_colony_bells_ff(
-      pool, colony, statesmen_pct, paine_tax_pct, nation_is_ai, sol_bonus
+      pool, colony, statesmen_pct, paine_tax_pct, nation_is_ai_bolivar_subsidy, sol_bonus
     );
     crosses = colony_prod_colony_crosses_ff(pool, colony, nation_has_penn, sol_bonus);
   }

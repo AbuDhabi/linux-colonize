@@ -138,6 +138,14 @@ typedef struct AiContactMeetEcon2154 {
 typedef struct AiContactVisitMood {
   int valid;
   int bvar6;
+  /*
+   * FUN_5bfb_022e `bVar7` (viceroy_unpacked_2.c raw 87687): set ONLY by the
+   * food-BEG-taken arm (`local_c == 2`), which also forces bVar6 true, so the
+   * conceded beg falls through into the gift half of the SAME visit. The gift
+   * fork at LAB_5bfb_096c (raw 87903) reads it as a veto on gifting food back
+   * (bugs.md #863).
+   */
+  int bvar7;
   int turn;
   int brave_id;
 } AiContactVisitMood;
@@ -276,5 +284,6 @@ void ai_contact_set_status(ColonizeTurnContext* ctx, const char* msg);
 void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id);
 void ai_contact_visit_mood_clear(int nation_id, int e);
 void ai_contact_visit_mood_publish( const ColonizeTurnContext* ctx, int nation_id, int e, int brave_id, int bvar6 );
+void ai_contact_visit_mood_beg_conceded(const ColonizeTurnContext* ctx, int nation_id, int e);
 
 #endif /* COLONIZE_CORE_AI_CONTACT_INTERNAL_H */

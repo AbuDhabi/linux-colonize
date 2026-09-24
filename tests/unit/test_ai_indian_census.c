@@ -34,6 +34,7 @@
 #include "core/colony_production.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
+#include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/turn.h"
 #include "core/units.h"
@@ -365,6 +366,10 @@ static int test_crown_nation_bells_negation(void) {
     col1.colony[k].population = 12;
     col1.colony[k].rebel_dividend = 100;
     col1.colony[k].rebel_divisor = 1000;
+    /* bugs.md #938b: the AI (pop+3)/5 subsidy also needs Bolivar (FF 0x12),
+     * FUN_15eb_1f72 raw 12634-12641 — grant it so bells stay 4. */
+    col1.nation[1 + k].founding_fathers[FF_SIMON_BOLIVAR / 8] |=
+      (uint8_t)(1u << (FF_SIMON_BOLIVAR % 8));
   }
   if (colonies.colony_count < 2) {
     colonies.colony_count = 2;

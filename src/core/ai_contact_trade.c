@@ -236,9 +236,16 @@ static int ai_contact_2820_price_byte(const ColonizeCol1Save* col1, int nation, 
  * pacing note at the top of this file.
  *
  * Returns 1 when a gift was actually handed over. The caller uses that to
- * skip the demand/beg arm: in DOS the two are the mutually exclusive halves
- * of one visit (`bVar6` true → LAB_5bfb_096c gifts; false → LAB_5bfb_0def
- * demands), never both in the same encounter.
+ * skip the demand/beg arm: `bVar6` true → LAB_5bfb_096c gifts, false →
+ * LAB_5bfb_0def demands.
+ *
+ * NOT exclusive in one direction, though (bugs.md #863): the @INDIANBEGFOOD
+ * block at raw 87650-87698 runs BEFORE that fork, and a beg the colony
+ * CONCEDED (`local_c == 2`) sets `bVar6 = true` as well as `bVar7`, so it
+ * falls through into this gift half in the same visit. The port re-enters
+ * here from ai_contact_apply_beg_food's accept arm, which publishes bVar7
+ * through ai_contact_s_visit_mood; bVar7 then vetoes the @INDIANGIVEFOOD
+ * branch so the village cannot hand back the food it just took.
  */
 int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->colonies || !ctx->col1->tribe || !ctx->rng ||
@@ -250,6 +257,9 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
   for (int e = 0; e < 4; ++e) {
+    /* DOS `bVar7` (raw 87470 init / 87687 set): this visit's food-beg was
+     * conceded, which vetoes gifting food back at LAB_5bfb_096c. bugs.md #863. */
+    int bvar7 = 0;
     /* One encounter, one mood verdict — drop last turn's. */
     {
       const AiContactVisitMood* pm = &ai_contact_s_visit_mood[nation_id - 4][e];
@@ -322,7 +332,11 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
        * the 465b tail, ai_contact_visit_step_roll): reuse that verdict. */
       const AiContactVisitMood* m = &ai_contact_s_visit_mood[nation_id - 4][e];
       const int turn = ctx->turn_number ? (int)*ctx->turn_number : -1;
-      if (m->valid && m->turn == turn && m->brave_id == brave->id) {
+      /* bugs.md #863: a conceded beg re-enters this arm after the fact
+       * (ai_contact_apply_beg_food), where the record carries bVar7 and may
+       * predate this Brave selection -- accept it on bvar7 alone. */
+      if (m->valid && m->turn == turn && (m->brave_id == brave->id || m->bvar7)) {
+        bvar7 = m->bvar7;
         if (!m->bvar6) {
           continue;
         }
@@ -439,7 +453,15 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
     ai_contact_bind_names(ctx);
     const int human = ai_contact_euro_is_human(ctx, e);
 
-    if ((int)econ.bid[0] > (int)econ.ask[0] && c->stock[COLONIZE_CARGO_FOOD] <= 0x19) {
+    /*
+     * DOS-LITERAL FUN_5bfb_022e raw 87903 (LAB_5bfb_096c):
+     *   if ((bid[0] <= ask[0]) || bVar7 || (0x19 < colony_food)) -> @INDIANGIVESTUFF
+     * i.e. @INDIANGIVEFOOD only when the village has a food surplus, the
+     * colony is under 26 food, AND this visit did not already TAKE food off
+     * the colony in the beg arm (bVar7 -- bugs.md #863).
+     */
+    if (!bvar7 && (int)econ.bid[0] > (int)econ.ask[0] &&
+        c->stock[COLONIZE_CARGO_FOOD] <= 0x19) {
       /* @INDIANGIVEFOOD: village food surplus, colony starving → top to 75. */
       const int qty = 0x4b - c->stock[COLONIZE_CARGO_FOOD];
       c->stock[COLONIZE_CARGO_FOOD] += qty;
@@ -1281,21 +1303,16 @@ static void ai_contact_2820_sell_settle(
     ai_contact_2820_friction_sub(t, e, qty, qty);
   }
   /*
-   * bugs.md #803 — NOT ported, deliberately. DOS tests `param_2 == 0xf ||
-   * param_2 == 8` here (2820 doc 551 / 617), and `param_2` is the acting
-   * UNIT RECORD INDEX (`param_2 * 0x1c + 0x3146` is its type byte), not the
-   * cargo: a genuine DOS typo that blanks last_bought/last_sold for whichever
-   * unit happens to occupy save slot 8 or 15. The port has no stable
-   * counterpart — `unit->id` is a monotonic allocator id and is mapped to a
-   * col1 slot only when a save is written (col1_bridge.c runtime_to_col1) —
-   * so transcribing it verbatim would key on an unrelated number. The
-   * cargo-based reading below is what the DOS author meant; a faithful port
-   * needs a stable unit-slot index first.
+   * bugs.md #803 — DOS-LITERAL FUN_4d56_2820 raw 82286+ (2820 doc line 551).
+   * DOS tests `param_2 == 0xf || param_2 == 8`, where `param_2` is the
+   * acting unit's ARRAY INDEX into the 300-slot unit pool (`param_2 * 0x1c +
+   * 0x3146` is its type byte — same record-stride evidence as bugs.md
+   * #878(a) in ai_euro_land.c), not the cargo id. Ported using the same
+   * pool-slot-index proxy as #878(a): `unit - ctx->units->units`.
    */
   if (t) {
-    t->last_bought = (cargo == COLONIZE_CARGO_MUSKETS || cargo == COLONIZE_CARGO_HORSES)
-                       ? 0xffu
-                       : (uint8_t)cargo;
+    const int slot = (ctx && ctx->units && unit) ? (int)(unit - ctx->units->units) : -1;
+    t->last_bought = (slot == 0xf || slot == 8) ? 0xffu : (uint8_t)cargo;
   }
   if (cargo == COLONIZE_CARGO_MUSKETS) {
     if (qty > 0x18) {
@@ -1326,21 +1343,14 @@ static void ai_contact_2820_gift_settle(
   s->qty = qty;
   if (t) {
   /*
-   * bugs.md #803 — NOT ported, deliberately. DOS tests `param_2 == 0xf ||
-   * param_2 == 8` here (2820 doc 551 / 617), and `param_2` is the acting
-   * UNIT RECORD INDEX (`param_2 * 0x1c + 0x3146` is its type byte), not the
-   * cargo: a genuine DOS typo that blanks last_bought/last_sold for whichever
-   * unit happens to occupy save slot 8 or 15. The port has no stable
-   * counterpart — `unit->id` is a monotonic allocator id and is mapped to a
-   * col1 slot only when a save is written (col1_bridge.c runtime_to_col1) —
-   * so transcribing it verbatim would key on an unrelated number. The
-   * cargo-based reading below is what the DOS author meant; a faithful port
-   * needs a stable unit-slot index first.
+   * bugs.md #803 — DOS-LITERAL FUN_4d56_2820 raw 82286+ (2820 doc line 617).
+   * Same `param_2 == 0xf || param_2 == 8` unit-pool-slot test as the sell
+   * arm above (2820 doc line 551); see that comment for the #878(a)
+   * evidence for the slot-index proxy.
    */
     t->sticky_trade_good = 0xff;
-    t->last_bought = (cargo == COLONIZE_CARGO_MUSKETS || cargo == COLONIZE_CARGO_HORSES)
-                       ? 0xffu
-                       : (uint8_t)cargo;
+    const int slot = (ctx && ctx->units && unit) ? (int)(unit - ctx->units->units) : -1;
+    t->last_bought = (slot == 0xf || slot == 8) ? 0xffu : (uint8_t)cargo;
   }
   if (s->c4 >= 0) {
     s->c4++;

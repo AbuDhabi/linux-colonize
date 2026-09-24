@@ -459,7 +459,15 @@ int colonies_admit_unit_w(
   if (col->colonist_count >= COLONIZE_COLONY_POP_MAX) {
     return -1;
   }
-  const int profession = unit->profession;
+  /*
+   * DOS-LITERAL FUN_15eb_0e8c raw 11083-11090: colony join writes the
+   * colonist's occupation byte through this helper, which folds
+   * UNITS_JOB_DRAGOON (0x17) to UNITS_JOB_SOLDIER (0x15) before storing.
+   * The join call site is FUN_281f_0cae -> FUN_15eb_0e8c (raw 11308).
+   * bugs.md #658.
+   */
+  const int profession =
+    (unit->profession == UNITS_JOB_DRAGOON) ? UNITS_JOB_SOLDIER : unit->profession;
   int work_type = units_kind_type_index(units, UNITS_KIND_COLONIST);
   if (work_type < 0) {
     work_type = unit->type_index;

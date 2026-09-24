@@ -612,20 +612,24 @@ void ai_king_tax_hike_apply(
   int picked = ctx->rng
     ? ai_king_pick_dump_goods_cargo(nat->boycott_bitmap, candidate_mask, ctx->rng, bids)
     : -1;
-  if (picked < 0 && ctx->rng && ai_king_human_popups(ctx) && candidate_mask != 0) {
-    /*
-     * Every stocked cargo is already boycotted: drop only the boycott
-     * exclusion, never the "a colony actually holds some" one — re-threatening
-     * a good already under boycott is harmless, naming one nobody stores is
-     * not (bugs.md: you cannot dump 0 tons in protest).
-     */
-    picked = ai_king_pick_dump_goods_cargo(0, candidate_mask, ctx->rng, bids);
-  }
+  /*
+   * DOS-LITERAL FUN_38fd_3dc8 raw 64176-64200: there is NO retry. Boycotted
+   * cargos never enter aiStack_cc[] at all (the colony scan, raw 64160-64175,
+   * only fills cc[c] under `(local_a6 & 1<<c) == 0`), so the roulette walk
+   * `if (aiStack_cc[local_ac] != 0)` can only ever land on a non-boycotted
+   * stocked cargo, and raw 64196's guard
+   *   `if ((local_4 < 0) || ((int)param_2 < 0) ||
+   *        ((local_a6 & 1 << local_4) != 0))`
+   * ABORTS the whole party — the hike simply stands, no second draw with the
+   * boycott mask cleared. The port used to re-roll with boycott = 0, which
+   * both invented a party DOS never holds and burnt an extra RNG draw
+   * (bugs.md #907).
+   */
 
   if (picked < 0) {
-    /* Only reachable with no RNG (tests) or popups disabled for this
-     * nation — DOS's own choice UI has nothing to drive here either, so
-     * there is nothing to defer: the hike stands. */
+    /* No eligible (stocked, un-boycotted, coastal) cargo, no RNG (tests), or
+     * popups disabled for this nation — DOS's own choice UI has nothing to
+     * drive here either, so there is nothing to defer: the hike stands. */
     ai_king_tax_commit(ctx, human, delta);
     if (ctx->status && ctx->status_size) {
       snprintf(ctx->status, ctx->status_size,

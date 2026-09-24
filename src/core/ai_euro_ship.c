@@ -645,8 +645,11 @@ int ai_euro_20e6_wagon_village_errand(
  * The two force-board arms are ported 2026-09-07f — see the board-predicate
  * comment in the loop below.
  *
- * The recursive `FUN_1427_101c` pre-pass (raw 8628-8645) is CLOSED as
- * unreachable from here, 2026-09-08:
+ * The recursive `FUN_1427_101c` pre-pass — called from `FUN_1427_10be`
+ * (viceroy_unpacked.c raw 8628-8645, re-anchored 2026-09-24; the earlier
+ * cite pointed at FUN_1427_101c itself, but that recursive call site is
+ * in its caller FUN_1427_10be) — is CLOSED as unreachable from here,
+ * 2026-09-08:
  *
  *   - The ONLY writer of `+0x314c = 2` in the whole decomp is
  *     `FUN_2b5a_1e66` (:42863), the human "assign trade route" order:
@@ -788,7 +791,9 @@ static int ai_euro_20e6_transport_assemble(
       continue;
     }
     /*
-     * The board predicate — raw 8658-8672, asm 1427:11d4-1231. Three arms,
+     * The board predicate — `FUN_1427_10be`, viceroy_unpacked.c raw
+     * 8658-8672 (re-anchored 2026-09-24; verified against the .c, not just
+     * the asm), asm 1427:11d4-1231. Three arms,
      * and the decompile's `local_4`/`bVar4` shuffle hides that the two
      * force-board arms are mutually exclusive on the SIGN OF x, not chained:
      *
@@ -1519,43 +1524,11 @@ int ai_euro_try_ship_europe_export(
   }
 
   /*
-   * Export-eligible cargos in plain INDEX order (FUN_364b_0636 denies
-   * {0,5,8,0xe,0xf}), every one over the threshold, no preference and no
-   * stop after the first: the >99 / leave-50 rule this arm borrows comes from
-   * FUN_364b_0688's Custom-House loop (viceroy_unpacked.c raw 57238
-   * `for (local_b6 = 0; (int)local_b6 < 0x10; ...)`, dump raw 57270-57276),
-   * which walks 0..0xf in index order and drains EVERY enabled good over 99
-   * down to 50 without breaking. bugs.md #861 — the hand-written Silver-first
-   * list and the single-cargo `break` were invented; DOS has neither.
+   * Colony->ship load sweep retired 2026-09-24 (bugs.md #864): DOS's only AI
+   * ship goods load is FUN_521d_20e6's LOAD matrix (raw 90295-90370,
+   * `ai_euro_20e6_load_pick`); FUN_364b_0688 (raw 57238-57300) is the Custom
+   * House in-place sale and never loads a hull.
    */
-  const int has_cap = ai_euro_unit_hold_has_capacity(ctx->units, ship) &&
-                      ai_euro_is_cargo_ship_name(ai_euro_unit_kind(ctx->units, ship));
-  if (has_cap && !ai_euro_ship_holds_export_goods(ctx->units, ship)) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (!c->active || c->nation_id != nation_id) {
-        continue;
-      }
-      if (!ai_euro_tiles_near(ship->x, ship->y, c->x, c->y)) {
-        continue;
-      }
-      for (int ct = 0; ct < COLONIZE_CARGO_COUNT; ++ct) {
-        if (!europe_cargo_export_eligible(ct)) {
-          continue;
-        }
-        /* FUN_364b_0688 raw 57270-57276: stock > 99 → take it down to 50. */
-        if (c->stock[ct] <= 99) {
-          continue;
-        }
-        const int amt = c->stock[ct] - 50;
-        if (amt <= 0) {
-          continue;
-        }
-        colonies_transfer_to_unit(ctx->colonies, c->id, ctx->units, ship->id, ct, amt);
-      }
-      break;
-    }
-  }
 
   if (!ai_euro_ship_holds_export_goods(ctx->units, ship)) {
     return 0;
@@ -2502,8 +2475,12 @@ static int ai_euro_20e6_unit_col5(const ColonizeUnitPool* pool, int dos_type) {
  *   (NEARBY_FRIGATE) ∧ ship != Frigate → −0x32; else bit 0x01
  *   (NEARBY_ARMED_SHIP) ∧ ship type < 0x11 → +(col5 − 10)*2;
  *   − ((dist >> 1) + 1); later ties win (DOS <=).
- * Non-coastal colonies are skipped (the raw 8804(...,0xfffe) reachability
- * probe for the +0x1c bit-0x40-clear case — a ship can't reach them).
+ * Non-coastal colonies are skipped (the `FUN_1000_8804(...,0xfffe)`
+ * reachability probe for the +0x1c bit-0x40-clear case — a ship can't
+ * reach them; re-anchored 2026-09-24 to move_scoring_20e6_full.md:2013 —
+ * FUN_1000_8804 is an out-of-segment callee with no body in
+ * viceroy_unpacked.c/_2.c, so "raw 8804" is the call-site's decompiled
+ * function offset, not a viceroy_unpacked.c line number).
  * Commit threshold (md:2031): peace best > −999, war-cargo best > 0.
  * +0x1b bit 0x08 (SHORT_DEFENDERS) is written by ai_euro_colony_threat_seed_5952;
  * bit 0x04 (MILITARY_SURPLUS) is the opposite side of that pair.

@@ -1,6 +1,7 @@
 /* Slice of the former tests/unit/test_ai_euro_expand.c (split by feature 2026-09-23):
  * wagon and ship haul errands, food delivery, cargo/specialty haul preference. */
 #include "test_ai_euro_expand_common.h"
+#include "core/ai_euro_internal.h"
 
 /*
  * LABOR bind: idle Free Colonist adjacent to own colony with food_short
@@ -1951,6 +1952,101 @@ static int unit_ship_food_delivery(void) {
   return 0;
 }
 
+/*
+ * bugs.md #877 — LAB_521d_4393 entry gate (raw 89877-89878):
+ * `0xc < type && type < 0x13 && (bVar20 || bVar7)`. bVar20 is seeded
+ * `type != 0x12` (raw 88556), so a Man-O-War only reaches the colony haul
+ * queue through bVar7's re-allow arm (raw 88574-88579: odd pool index, or
+ * unit_type_counts[nation][0x12] == 1). With an EVEN pool index and two
+ * Man-O-Wars on the census both are false and the hull gets no haul; a
+ * Merchantman (0x0e) on the same slot does.
+ */
+static int unit_4393_haul_pick_manowar_gate(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
+    return fail("877 alloc map");
+  }
+  for (int y = 0; y < 16; ++y) {
+    map.terrain[y * 16 + 3] = 25;
+  }
+
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Man-O-War");
+  units.types[0].movement = 5;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].cargo = 6;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Merchantman");
+  units.types[1].movement = 5;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 4;
+
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 3);
+  c->stock[COLONIZE_CARGO_RUM] = 80;
+
+  const int mow_id = units_spawn(&units, 0, 3, 10);
+  const int mm_id = units_spawn(&units, 1, 3, 11);
+  ColonizeUnit* mow = units_get(&units, mow_id);
+  ColonizeUnit* mm = units_get(&units, mm_id);
+  if (!mow || !mm) {
+    fx_map_free(&map);
+    return fail("877 spawn");
+  }
+  mow->nation_id = nation;
+  mm->nation_id = nation;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  col1.head.game_options.woi = 0; /* outside the War of Independence */
+  /* Two Man-O-Wars: bVar7's `unit_type_counts[n][0x12] == 1` arm is false. */
+  col1.stuff.unit_type_counts[nation][0x12] = 2;
+
+  uint32_t turn = 40;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  /* military = 1 so the inner accept gate (raw 89898) is never the reason. */
+  ai_goals_reset();
+  ai_goals_clear_work_queue();
+  ai_goals_upsert_work(0, 400, 4, 1);
+
+  int x = 0;
+  int y = 0;
+  const int mow_even = ((int)(mow - units.units) & 1) == 0;
+  if (!mow_even) {
+    fx_map_free(&map);
+    return fail("877 fixture: Man-O-War must sit on an EVEN pool slot");
+  }
+  if (ai_euro_4393_work_queue_haul_pick(&ctx, nation, 3, 10, mow, &x, &y)) {
+    fx_map_free(&map);
+    return fail("Man-O-War (0x12) outside WoI with bVar7 false must get no colony haul");
+  }
+
+  ai_goals_clear_work_queue();
+  ai_goals_upsert_work(0, 400, 4, 1);
+  if (!ai_euro_4393_work_queue_haul_pick(&ctx, nation, 3, 10, mm, &x, &y) || x != 4 || y != 4) {
+    fx_map_free(&map);
+    return fail("Merchantman (0x0e) should take the registered colony haul");
+  }
+
+  fx_map_free(&map);
+  fprintf(stderr, "unit_ai_euro_expand: 4393 Man-O-War entry gate ok\n");
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"unit_specialty_flag_a_haul_match", unit_specialty_flag_a_haul_match},
     {"unit_wagon_haul_tools_short", unit_wagon_haul_tools_short},
@@ -1968,5 +2064,6 @@ static const TestCase k_cases[] = {
     {"unit_cargo_produced_mask_haul_prefer", unit_cargo_produced_mask_haul_prefer},
     {"unit_specialty_cargo_haul_prefer", unit_specialty_cargo_haul_prefer},
     {"unit_cargo_idle_turns_haul_prefer", unit_cargo_idle_turns_haul_prefer},
+    {"unit_4393_haul_pick_manowar_gate", unit_4393_haul_pick_manowar_gate},
 };
 TEST_MAIN(k_cases)

@@ -1282,6 +1282,51 @@ static int case_colonies_core(void) {
         "hardy+tools map icon #101"
       );
     }
+    /*
+     * bugs.md #658: colony join folds Dragoon (0x17) to Soldier (0x15)
+     * through FUN_15eb_0e8c (raw 11083-11090), same as the founding path.
+     * A Scout (0x16) must pass through unchanged.
+     */
+    {
+      ColonizeColony* col = colonies_get_mut(&pool, cid);
+      CHECK(col != NULL, "colony mut for dragoon-fold join");
+      const int uidd = units_spawn_allow_stack(&units, free_col, land2_x, land2_y);
+      CHECK(uidd >= 0, "spawn dragoon for join fold");
+      ColonizeUnit* oud = units_get(&units, uidd);
+      if (oud && col) {
+        oud->nation_id = col->nation_id;
+        oud->profession = UNITS_JOB_DRAGOON;
+      }
+      const int add = colonies_admit_unit_w(&w_admit, cid, uidd);
+      CHECK(add >= 0, "admit dragoon");
+      CHECK(
+        colonies_get(&pool, cid)->colonists[add].profession == UNITS_JOB_SOLDIER,
+        "#658 join folds Dragoon 0x17 to Soldier 0x15"
+      );
+
+      const int uids = units_spawn_allow_stack(&units, free_col, land2_x, land2_y);
+      CHECK(uids >= 0, "spawn scout for join no-fold");
+      ColonizeUnit* ous = units_get(&units, uids);
+      if (ous && col) {
+        ous->nation_id = col->nation_id;
+        ous->profession = UNITS_JOB_SCOUT;
+      }
+      const int ads = colonies_admit_unit_w(&w_admit, cid, uids);
+      CHECK(ads >= 0, "admit scout");
+      CHECK(
+        colonies_get(&pool, cid)->colonists[ads].profession == UNITS_JOB_SCOUT,
+        "#658 join leaves Scout 0x16 unchanged"
+      );
+      /* Restore population so later pop-threshold checks are unaffected. */
+      CHECK(
+        colonies_eject_colonist(&pool, cid, ads, &units, COLONIZE_EJECT_COLONIST) >= 0,
+        "#658 eject scout back out"
+      );
+      CHECK(
+        colonies_eject_colonist(&pool, cid, add, &units, COLONIZE_EJECT_COLONIST) >= 0,
+        "#658 eject dragoon back out"
+      );
+    }
     /* Church bless: Leave as Missionary when Church present; absent without. */
     {
       ColonizeColony* col = colonies_get_mut(&pool, cid);
@@ -2722,6 +2767,83 @@ static int unit_school_faculty_and_occupation_cap(void) {
 }
 
 /*
+ * bugs.md #930 — the port-only Town Hall salvage in colonies_auto_assign_idle
+ * must still honor @MORETHANTHREE: with 3 statesmen already seated, a 4th
+ * unresolvable colonist is left unplaced rather than overflowing the
+ * building past thunk_FUN_1000_9808's cap.
+ */
+static int unit_auto_assign_idle_town_hall_cap(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "autoidle: load NAMES.TXT failed\n");
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  if (!colonies_load_buildings(&pool, &names)) {
+    fprintf(stderr, "autoidle: load @BUILDING failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  assets_msg_free(&names);
+  int failures = 0;
+  const int failures_before = failures;
+
+  const int town_hall = colonies_find_building(&pool, "Town Hall");
+  CHECK(town_hall >= 0, "Town Hall row exists");
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  snprintf(col->name, sizeof(col->name), "Jamestown");
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
+    col->tiles[i] = -1;
+  }
+  col->has_building[town_hall] = true;
+  for (int i = 0; i < 4; ++i) {
+    col->colonists[i].active = true;
+    col->colonists[i].profession = COLONIZE_PROF_FREE_COLONIST;
+    col->colonists[i].field_job = -1;
+    col->colonists[i].building_type = -1;
+  }
+  col->colonist_count = 4;
+  col->population = 4;
+  pool.colony_count = 1;
+
+  /* Three statesmen already seated (the cap's limit). */
+  for (int i = 0; i < 3; ++i) {
+    CHECK(
+      colonies_assign_workplace(&pool, 1, i, town_hall),
+      "three statesmen fit the Town Hall"
+    );
+  }
+
+  /* The 4th colonist is genuinely unresolvable (no field/building job): the
+   * salvage sweep must not force a 4th Town Hall seat. */
+  colonies_auto_assign_idle(&pool, 1);
+  CHECK(
+    col->colonists[3].building_type != town_hall,
+    "#930: @MORETHANTHREE refuses a 4th Town Hall salvage seat"
+  );
+  CHECK(
+    colonies_occupation_worker_count(
+      &pool, col, colonies_building_occupation(&pool, town_hall), -1
+    ) <= 3,
+    "#930: Town Hall never exceeds the 3-worker cap"
+  );
+
+  if (failures == failures_before) {
+    printf("unit_colonies: auto-assign-idle Town Hall cap ok\n");
+    return 0;
+  }
+  return 1;
+}
+
+/*
  * bugs.md #579 — FUN_15eb_23f2's blocked mask: a plot already worked by
  * ANOTHER colony carries bit 0x40 and cannot be seated.
  */
@@ -3058,6 +3180,7 @@ static const TestCase k_cases[] = {
     {"unit_ship_construction", unit_ship_construction},
     {"unit_wagon_cap_and_armory_gate", unit_wagon_cap_and_armory_gate},
     {"unit_school_faculty_and_occupation_cap", unit_school_faculty_and_occupation_cap},
+    {"unit_auto_assign_idle_town_hall_cap", unit_auto_assign_idle_town_hall_cap},
     {"unit_plot_blocked_mask", unit_plot_blocked_mask},
     {"unit_work_plot_ring_593", unit_work_plot_ring_593},
     {"unit_settlement_count_and_name_peek", unit_settlement_count_and_name_peek},

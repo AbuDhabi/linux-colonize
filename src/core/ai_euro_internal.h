@@ -457,6 +457,10 @@ int ai_euro_20e6_adjacent_foreign_09dc(
 int ai_euro_20e6_457e_type_gate(
   const ColonizeTurnContext* ctx, const ColonizeUnit* u, int dos_type
 );
+/* bVar20 seed (raw 88556-88573 + WoI clear 88625-88628); see ai_euro_land.c. */
+int ai_euro_20e6_bvar20_seed(
+  const ColonizeTurnContext* ctx, const ColonizeUnit* u, int dos_type
+);
 int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 void ai_euro_20e6_stay_tail_589e(ColonizeUnit* u);
 int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);

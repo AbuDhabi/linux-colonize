@@ -1438,8 +1438,41 @@ void ai_contact_visit_mood_publish(
   AiContactVisitMood* m = &ai_contact_s_visit_mood[nation_id - 4][e];
   m->valid = 1;
   m->bvar6 = bvar6;
+  m->bvar7 = 0; /* raw 87470: `bVar7 = false;` at 022e entry, once per visit */
   m->turn = (ctx && ctx->turn_number) ? (int)*ctx->turn_number : -1;
   m->brave_id = brave_id;
+}
+
+/*
+ * The conceded-beg fall-through, DOS-LITERAL FUN_5bfb_022e raw 87687-87698:
+ *
+ *   bVar7 = true;
+ *   if (!bVar6) { if (rand(0, difficulty) != 0) goto LAB_5bfb_1005; }
+ *   bVar6 = true;
+ *   contact_state[e] = 2;
+ *
+ * i.e. a beg the colony conceded continues into the gift half of the SAME
+ * visit (`if (!bVar6)` at raw 87716 is then false, so LAB_5bfb_0def is
+ * skipped and control reaches LAB_5bfb_096c), carrying bVar7 with it.
+ * This publishes that pair for ai_contact_try_village_gifts to read.
+ * bugs.md #863.
+ */
+void ai_contact_visit_mood_beg_conceded(const ColonizeTurnContext* ctx, int nation_id, int e) {
+  if (nation_id < 4 || nation_id > 11 || e < 0 || e > 3) {
+    return;
+  }
+  AiContactVisitMood* m = &ai_contact_s_visit_mood[nation_id - 4][e];
+  const int turn = (ctx && ctx->turn_number) ? (int)*ctx->turn_number : -1;
+  if (!m->valid || m->turn != turn) {
+    /* The human's Give/Refuse can resolve after the visiting Brave's own
+     * roll has aged out (popup round-trip); re-stamp the record for this
+     * turn and let the gift arm re-select the Brave. */
+    m->valid = 1;
+    m->brave_id = ai_contact_s_visit_brave_id[nation_id - 4];
+    m->turn = turn;
+  }
+  m->bvar6 = 1;
+  m->bvar7 = 1;
 }
 
 void ai_contact_visit_mood_clear(int nation_id, int e) {
@@ -1555,7 +1588,6 @@ void ai_contact_apply_beg_food(
   int home_tribe,
   int accept
 ) {
-  (void)ind;
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->colonies || e < 0 || e > 3) {
     return;
   }
@@ -1615,6 +1647,31 @@ void ai_contact_apply_beg_food(
         ctx->status, ctx->status_size, "We share %d food with the %s.", gift,
         ai_contact_tribe_name(nation_id)
       );
+    }
+    /*
+     * DOS-LITERAL FUN_5bfb_022e raw 87687-87698 (bugs.md #863): the conceded
+     * beg does NOT end the visit. It sets bVar7, and when the encounter was
+     * not already generous it rolls `rand(0, difficulty)` and abandons the
+     * visit on a non-zero draw; otherwise it forces bVar6 true and stamps
+     * contact_state 2, so `if (!bVar6)` at raw 87716 skips LAB_5bfb_0def and
+     * control lands in the gift half (LAB_5bfb_096c) of the SAME visit --
+     * with bVar7 vetoing a food gift back. The port splits 022e's two halves
+     * across two functions, so the fall-through is an explicit re-entry here.
+     */
+    {
+      const AiContactVisitMood* pm =
+        (nation_id >= 4 && nation_id <= 11) ? &ai_contact_s_visit_mood[nation_id - 4][e] : NULL;
+      const int turn = ctx->turn_number ? (int)*ctx->turn_number : -1;
+      const int was_generous = pm && pm->valid && pm->turn == turn && pm->bvar6;
+      if (!was_generous && ctx->rng &&
+          dos_rng_range(ctx->rng, 0, (int)ctx->col1->head.difficulty) != 0) {
+        return; /* raw 87692: goto LAB_5bfb_1005 -- visit over */
+      }
+      if (ind) {
+        ind->contact_state[e] = 2; /* raw 87698 */
+      }
+      ai_contact_visit_mood_beg_conceded(ctx, nation_id, e);
+      ai_contact_try_village_gifts(ctx, nation_id);
     }
   } else {
     /*

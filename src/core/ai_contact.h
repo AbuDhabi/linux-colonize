@@ -183,8 +183,10 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id);
  * FUN_5bfb_022e generous half of the same already-met visit
  * (@INDIANGIVEFOOD / @INDIANGIVESTUFF) — the most common peaceful Indian
  * visitor in DOS. Returns 1 when a gift was handed over, in which case the
- * caller must NOT also run the demand/beg arm: DOS's `bVar6` picks exactly
- * one of the two halves per encounter.
+ * caller must NOT also run the demand/beg arm: DOS's `bVar6` picks the gift
+ * half over LAB_5bfb_0def. The reverse is not exclusive — a CONCEDED
+ * @INDIANBEGFOOD falls through into this gift half in the same visit and
+ * re-enters it itself (bugs.md #863); see the definition's header comment.
  */
 int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id);
 

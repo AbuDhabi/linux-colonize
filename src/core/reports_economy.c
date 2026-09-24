@@ -695,8 +695,10 @@ void reports_render_colony_sol(
   }
 
   const int town_hall_idx = colonies ? colonies_building_row(colonies, COLONY_BUILDING_TOWN_HALL) : -1;
+  /* DOS-LITERAL FUN_15eb_1f72 raw 12634-12641: AI subsidy also needs Bolivar. #938b. */
   const bool nation_is_ai =
-    human >= 0 && human < (int)COLONIZE_COL1_NATION_COUNT && col1->player[human].control != 0;
+    human >= 0 && human < (int)COLONIZE_COL1_NATION_COUNT && col1->player[human].control != 0 &&
+    founding_fathers_nation_has(col1, human, FF_SIMON_BOLIVAR);
   const int statesmen_pct =
     founding_fathers_nation_has(col1, human, FF_THOMAS_JEFFERSON) ? 50 : 0;
   const int paine_tax_pct =
