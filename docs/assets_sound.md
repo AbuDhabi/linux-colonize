@@ -11,6 +11,7 @@ Reference: [assets.md](assets.md) for graphics and map formats.
 - [DOS BGM scheduler](#dos-bgm-scheduler-fun_129f_00f6--0318--02cc)
 - [GSOUND driver facts](#gsound-driver-facts-from-gsoundasmasm--raw-ndisasm-of-the-mz-image)
 - [Sound-ID ranges beyond the 12 BGM tracks](#sound-id-ranges-beyond-the-12-bgm-tracks-re-notes)
+- [Trigger parity audit](#trigger-parity-audit-2026-09-24)
 - [Discovery Order](#discovery-order)
 
 ---
@@ -119,17 +120,14 @@ overlay-affected `VICEROY.EXE` decompile):
 | Range | Table (image offset) | Confirmed behavior |
 |-------|----------------------|---------------------|
 | `< 0x10` (only 9 entries, ids 0–8) | `0x2A5C` | **Channel reset/silence**, not player-audible content — e.g. id 4's handler resets MIDI channels 6–7 (`CC121`/`CC123` all-notes-off + reset-controllers), id 1's handler mutes two specific voice slots. `sound_play` already treats id 0/1 as "stop" (`src/core/sound.c`). |
-| `0x20..0x3f` BGM | `0x2A6E` | The 12 Pick-Music tracks + named submenus (Independence/Military/Indian) **and** situational ids outside those submenus (`0x24`, `0x25`, `0x3e`) pushed directly by DOS gameplay code via `FUN_281f_048e`→`FUN_129f_02cc`. Confirmed real trigger: combat (`FUN_5fef`, land+naval) pushes `0x32` ("Military" sublist track 1) when an engagement begins — ported as `units_combat_music_sting()` (`units.c`), gated through `units_set_combat_music_hooks` (kept as a function-pointer hook so `units.c` stays linkable without `sound.c` in standalone `unit_*` test binaries). Other confirmed-real-but-unmapped-to-a-precise-trigger call sites: segments `65dd` (LCR), `75c2` (save/load), `48d3` (Europe exit), `364b` (colony), `38fd`/`3844` (trade) — left unwired pending closer per-site tracing. |
+| `0x20..0x3f` songs | `0x2A6E` | Pick Music tracks, situational gameplay tunes, and the `0x34`/`0x3d` opening/closing cues. The mapped combat, LCR, save/load, Europe, colony, and retire cues are wired below; `0x32` is Indian Victory despite the old "Military" nickname. |
 | `0x40..0x5c` "event music" | `0x2AC4` | **Triggers found 2026-08-27** — pushed with the id in **AX** (`mov ax,N; callf FUN_281f_04c0`), which Ghidra drops from the decompile, so the earlier "no confirmed trigger" verdict was a decompiler artifact. Each handler queues a `COLDIG.BIN` sample and starts a short MIDI sting on channels 7/8. Decode + playback + mixing are done; per-id push sites and their port wiring status are in the "COLDIG.BIN" table below. |
-| `≥0x8020` (7 entries, ids `0x8020..0x8026`) | `0x2AB6` | Short pre-scripted multi-voice MIDI chord stings (writes directly into the same voice-struct engine used for BGM playback — not digital audio). No confirmed DOS caller found (the one literal `0x8025` reference elsewhere in `VICEROY.EXE` turned out to be an unrelated dialog-box parameter, not a sound id). Left unwired. |
+| `0x8020..0x8026` (7 entries) | `0x2AB6` | Short multi-voice MIDI chord stings. Confirmed callers: `0x8020` war declaration and `0x8024` assign colonist, both wired. The apparent literal `0x8025` elsewhere is an unrelated dialog parameter. |
 
-The `sound_effects` option flag (`ColonizeSoundOptions.sound_effects`, DS offset `0xa2` in
-the driver) is real and consulted by DOS at several BGM-change call sites
-(`FUN_129f_0300`/`0318`/`034c`) — but it gates **whether a BGM track change applies
-immediately or gets deferred to the next idle-pump poll**, not a separate audio category.
-`sound_play`'s existing BGM gating (`background_music`/`event_music` bits) already covers
-the player-visible effect; the immediate-vs-deferred nuance is DOS-internal scheduling with
-no equivalent complexity in the port's single-threaded playback and was not replicated.
+The three option flags are Background Music (`DS:0xa2`, scheduler), Event Music (`DS:0xa0`,
+`0x20..0x3f` song dispatch), and Sound Effects (`DS:0xa4`, `0x40..0x5c` event dispatch and
+PCM). The signed `< 0x10` test in `FUN_12d8_000e` also forwards `0x8020`/`0x8024`
+regardless of those options. `sound_id_gate_allows` and `unit_sound_gate` cover this gate.
 
 **`COLDIG.BIN` digital SFX — wired 2026-08-27.** Earlier notes ("no reachable trigger,
 settled negative") were wrong: the game pushes event ids `0x40..0x5c` with the id in **AX**
@@ -148,7 +146,7 @@ glancing; 18 shot; 20 animal shot; 21 pump-action; 22 gunfight; 23–34 shots (2
 
 | Event id | COLDIG | Sound | DOS push site | Port |
 |---|---|---|---|---|
-| `0x40`/`0x41` | 31 / 32 | shot | `5fef_1b0e` attack fire (0x41 artillery class), **only when `param_4` (visible) is set** — `465b_0000` passes 1 for the viewport nation or a human side, the AI scorer `521d:52aa` passes 0 | `units.c` engagement (0x40), gated by `units_combat_is_visible` (2026-08-28 — AI-vs-AI combat was audible, cannon fire landed over unrelated popups) |
+| `0x40`/`0x41` | 31 / 32 | shot | `5fef_1b0e` attack fire (`0x41` is the Regulars typed variant), **only when `param_4` (visible) is set** — `465b_0000` passes 1 for the viewport nation or a human side, the AI scorer `521d:52aa` passes 0 | `units_combat_resolve.c` engagement, gated by `units_combat_is_visible` |
 | `0x42`/`0x48` | 30 / 29 | shots | `5fef_1b0e` 5fef:2271: human attacker vs Indian (nation ≥ 4) pushes `0x3b + attacker unit type` — Cont. Cav. (7) / Treasure (0xd) | `units.c` engagement (2026-08-29): typed id when defender is Indian |
 | `0x43`/`0x49` | 27 / 34 | shots | same rule: Cavalry (8) / Wagon Train (0xc)… — the "unit-class variants" are the attacker's type index | same |
 | `0x44`/`0x45` | 18 / 17 | shot / glancing shot | `5fef_1b0e` 5fef:28b0 tail, gated on `local_6` (set at 5fef:2546: attacker nation ≥ 4, a colony at the defender tile — `281f_07be(x,y)` ≥ 0 — and colony pop > 1 or `local_70 == 0`) + attacker won + visible → `0x44` if the *attacker* is a ship type (`local_86` = `Stack[4]` type in 0xd..0x12, unreachable for Indians) else `0x45`; `0x44` is also Cont. Army (9) via the typed rule | **2026-08-29**: `units_try_move` combat branch — Indian attacker beats a colony defender (colony at dest, pop > 1) → `0x45` after the 0x4a win beat; the ship-attacker `0x44` arm is dead |
@@ -161,21 +159,23 @@ glancing; 18 shot; 20 animal shot; 21 pump-action; 22 gunfight; 23–34 shots (2
 | `0x52` | 12 | wagon wheels | `465b_0000` wagon-train move (human) | `game_loop.c` human move success, type "Wagon Train" (2026-08-29) |
 | `0x53` | 19 | burning | `5fef_0f14`/`1b0e` tail: colony burned | colony burned notify |
 | `0x54` | 13 | hammering + cheering | found colony `479b_076e`; colony screen `2f2b_6cd4` **only when `DS:0x34a >= 0`** (the building that just finished, revealed by clear-bit/redraw/set-bit/redraw); nation EOT `3844` | found colony; colony open **gated** on `ColonizeColony.pending_build_reveal` (2026-08-28 — was every open) |
-| `0x55` | 20 | animal shot | `0x3b + type` would need type 0x1a (past the land-unit range) — unreachable through the typed rule; no other push site located | — |
+| `0x55` | 20 | animal shot | The typed combat rule cannot reach it, but `OVL13:003dc9` pushes it on the human @CHIEFKILL branch (scout killed by a chief without Coronado) | `ai_contact_actions.c` before @CHIEFKILL |
 | `0x56` | 9 | cheering | `38fd_3dc8` tax raise / tea party | `ai_king.c` @TEAPARTY + raise-taxes popup (2026-08-29) |
 | `0x57` | 16 | sinking | `5fef_0352` ship sunk | `units.c` @SHIPSUNK via the combat sound hook (2026-08-29) |
 | `0x58` | 21 | pump-action | fortify / sentry (`2b5a_1112`, `2f2b_5746`) | fortify, sentry |
 | `0x5a` | 15 | cheering + fireworks | `5fef_1908` King's Galleon (via `FUN_281f_04b6`) | galleon credit |
 | `0x5b` | 22+31 | gunfight | `5fef_0f14` raid repelled | @RAIDNOTHING (2026-08-29) |
 | `0x5c` | 8 | burning | typed rule: type 0x21 (past the unit table — unreachable) | — |
-| `0x8020` / `0x8024` | — (chord stings) | | war declaration `5bfb_153e`, assign colonist `2f2b_2f3e` | **wired 2026-08-29**: `FUN_1000_19bc` has a fourth handler table at `0x2AB6` indexed `id − 0x8020` (bound `DS:0xFE`); `gsound_vm.c` now dispatches it, gated by Event Music. `ai_diplo_declare_war_ctx` (human involved, via `ai_diplo_set_sound_hook`) and the three colony-screen assign sites |
+| `0x8020` / `0x8024` | — (chord stings) | | war declaration `5bfb_153e`, assign colonist `2f2b_2f3e` | `ai_diplo_declare_war_ctx` and the three colony-screen assign sites; `gsound_vm.c` dispatches them, and the signed DOS gate forwards them with every option off |
 
 **BGM cues pushed by gameplay code (2026-08-29 asm sweep of every `281f_04c0`/`04b6`
 call):** `75c2_235c` new-game init → `0x39` Hornpipe once (ported: game_loop new-game start);
 `38fd_3dc8` King's audience → `0x3e` (ported: `ai_king.c` audience CHOICE); `43f7_10f0`
-intervention → `0x3f` after `@INTERVENE` (ported); `41f2_0b70` Retire → `0x24`/`0x25`/`0x21`
-by the coin-animation tier (≥23 / >6 / else) — not ported (tier derivation still PARK, see
-difficulty.md); `364b_0000` is **not** a colony-screen open — it is the colony-screen popup helper
+intervention → `0x3f` after `@INTERVENE` (ported); `41f2_0b70` Retire exploits →
+`0x24`/`0x25`/`0x21` by coin tier (≥23 / 7–22 / 0–6), ported through
+`sound_retire_tune_id(sc.exploits_tier)` at the exploits reveal. Raw
+`OVL06:3e11-3e2d` compares the tier with 23 and 6, then calls `FUN_1000_86b0`;
+`364b_0000` is **not** a colony-screen open — it is the colony-screen popup helper
 (tags NOMOREWAREHOUSE/NOMOREWAGONS/BUILT/DEPLETION/REBEL*/TORY*/SONSDOWN via
 `thunk_FUN_291f_09dc`, 9 sites all inside `364b`) whose 7th arg (`Stack[0x10]`) is an
 optional event id — **every caller passes 0** (the NOMOREWAREHOUSE site pushes `AX`,
@@ -194,17 +194,39 @@ with gold → pool 2 (`65dd:04ca`); case 5 vanish → pool 1 (`65dd:0778`); buri
 BURIAL3 treasure with no tribe claim → `0x24` (`65dd:0654`), a claim → `0x32` ahead of @SCREWED
 (`65dd:06e6`) — all human-only (`local_a`); `4d56_2820` village visit (human, 1-in-3 roll) → pool 5, Inca 7, Aztec 6
 (ported in `ai_contact_speak_with_chief`); `5bfb_022e` first meet → same pools from turn 20 (`04ac` = `129f_0318` restart-if-changed, `0498` = the option-gated wrapper; ported in `ai_contact_enqueue_welcome`);
-`43f7_1d42` after `@KINGBUY` → pool 3 (KINGBUY itself unported); `43f7_10f0` → pool 3 then `0x3f`
+`43f7_1d42` has a pool-3 call only in its unreachable wartime arm: the function
+returns at entry when wartime, while the peacetime `@KINGBUY` arm returns before
+that call; `43f7_10f0` → pool 3 then `0x3f`
 (ported); `3844_00f2` nation EOT → `0x3e` ahead of **`@KINGFRIGATE`** (`LEA BX,[0xef5]`; Crown offers a Frigate to a
 harassed, frigate-less nation every 8th peacetime turn — ported 2026-08-29 as `ai_king_frigate_offer`, tune
 included);
 `5fef_0f14` raid → pool 2 when the raid is wiped out (`local_6 == 0`, 5fef:1299) / `0x32` for any
-other outcome (5fef:13b2) — both already in `ai_contact.c`'s raid tail; `41f2_0b70` Retire → `0x24/0x25/0x21` by coin
-tier (PARK). The port's `sound_set_bgm(1/2)` covers the map/colony switches; the naval `1`/`4`
+other outcome (5fef:13b2) — both already in `ai_contact.c`'s raid tail. The port's `sound_set_bgm(1/2)` covers the map/colony switches; the naval `1`/`4`
 beat is wired too (`units_set_bgm_hook`: human loser → pool 1, human winner → pool 4); a wiped-out raid on a human colony → pool 2 (`ai_contact.c` @RAIDNOTHING).
 
-Event ids bypass the BGM scheduler (`sound_play` dispatches them directly), gated by the
-Event Music option in the driver and by Sound Effects for the PCM part.
+Event ids bypass the BGM scheduler (`sound_play` dispatches them directly); the
+Sound Effects option gates both the event dispatch and its PCM part.
+
+### Trigger parity audit (2026-09-24)
+
+Count **player contexts**, rather than C call statements: one DOS attack site computes
+several IDs from the attacker type, while one port hook services several DOS callers.
+The table above is the per-ID event ledger; the BGM paragraph is the situational cue
+ledger. The remaining source-level comparison is summarized here.
+
+| Player context | DOS trigger | Port trigger | Result |
+|---|---|---|---|
+| Combat and raids | `5fef_1b0e`, `5fef_0352`, `5fef_0f14` | `units_combat_resolve.c`, `units_move.c`, `units_combat.c`, `ai_contact_raid.c` | Mapped, with visible-combat gating and native outcome variants |
+| Movement, settlement, trade | `465b_0000`, `479b_076e`, `2f2b_6cd4`, `48d3_06ba` | `game_loop_orders.c`, `game_dialogs.c`, `game_loop_colony.c`, `europe_harbor.c` | Mapped |
+| King, diplomacy, discovery | `38fd_3dc8`, `43f7_10f0`, `5bfb_153e`, `65dd_0004` | `ai_king_*.c`, `ai_diplo.c`, `units_combat.c` | Mapped; `43f7_1d42` pool-3 arm is unreachable |
+| Woodcut milestones | `12fd_006c` tune switch | `woodcut.c:woodcut_play_tune` | Mapped for reachable IDs 1–13; ID 0 belongs to demo autoplay |
+| Opening and closing executables | `OPENING.EXE` `0x34`; `CLOSING.EXE` `0x3d`, `0x59`, `0x5a` | `opening.c`, `closing.c` | Mapped, including repeating frame cues |
+| Retirement exploits | `41f2_0b70`, `OVL06:3e11-3e2d` | `game_retire_after_score`, Hall of Fame exit | Corrected: tier 0–6 → `0x21`, 7–22 → `0x25`, 23 → `0x24`; title tune starts on return to menu (or immediately if there is no exploits screen) |
+
+This is a static trigger audit, not a claim of a byte-for-byte call count or a live
+DOS listening test. `SOUND_TITLE_ID=0x33` remains an inherited, unverified title
+screen mapping. A future raw caller sweep should compare resolved overlay sites and
+register-passed IDs against this ledger before asserting exhaustive cardinality.
 
 ## Discovery Order
 

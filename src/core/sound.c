@@ -761,6 +761,11 @@ bool sound_id_gate_allows(int id, ColonizeSoundOptions opts) {
   return false;
 }
 
+int sound_retire_tune_id(int exploits_tier) {
+  /* FUN_41f2_0b70, OVL06:3e11-3e2d (AX → FUN_1000_86b0). */
+  return exploits_tier >= 23 ? 0x24 : (exploits_tier > 6 ? 0x25 : 0x21);
+}
+
 static void sound_dispatch_gated_unlocked(int id) {
   if (!g_sound.vm || id < 0) {
     return;

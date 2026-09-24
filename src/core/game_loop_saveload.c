@@ -561,8 +561,8 @@ static void game_build_exploits(ColonizeGameState* game, const ColonizeScoreBrea
  * the Hall of Fame; both end at the title menu. */
 void game_retire_after_score(ColonizeGameState* game) {
   sound_stop_bgm();
-  sound_play(SOUND_TITLE_ID);
   if (!game->col1_ok) {
+    sound_play(SOUND_TITLE_ID);
     game->in_menu = true;
     set_status(game, "Retired to main menu", NULL);
     return;
@@ -589,10 +589,13 @@ void game_retire_after_score(ColonizeGameState* game) {
   game_hof_save(game);
 
   if (sc.exploits_tier >= 0 && !sc.scoring_complete) {
+    /* DOS FUN_41f2_0b70 plays the tier-selected tune at the coin reveal. */
+    sound_play(sound_retire_tune_id(sc.exploits_tier));
     game_build_exploits(game, &sc);
     game->in_exploits = true;
     set_status(game, "Retired — Exploits", "Any key continues");
   } else {
+    sound_play(SOUND_TITLE_ID);
     game->in_hall_of_fame = true;
     set_status(game, "Hall of Fame", "Enter/Esc returns to menu");
   }

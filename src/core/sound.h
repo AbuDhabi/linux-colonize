@@ -34,6 +34,9 @@
  */
 #define SOUND_MILITARY_BGM_ID 0x32
 
+/* FUN_41f2_0b70 / OVL06:3e11: tune played for the retirement coin tier. */
+int sound_retire_tune_id(int exploits_tier);
+
 /* True when ambient autoplay is allowed (not the Pick Music preview path). */
 bool sound_playback_enabled(void);
 /* True when the audio device/backend was opened (previews can be heard). */
