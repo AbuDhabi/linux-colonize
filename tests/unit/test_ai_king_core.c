@@ -297,7 +297,7 @@ static int sp_01(void) {
    * 1530"). FUN_43f7_0004 (viceroy_unpacked_2.c:72202-72239) is a pop-weighted
    * average of FUN_15eb_0274 over the nation's colony records, and
    * FUN_15eb_0274 (:8167-8190) returns 0 when the rebel divisor is 0. Neither
-   * has a `liberty_bells_total / 4` fallback, and that stand-in was
+   * has a `liberty_bells_pool / 4` fallback, and that stand-in was
    * catastrophic: nation bell totals run into the MILLIONS in real DOS saves
    * (original_saves/valid-lategame-saves/COLONY00.SAV nation 3 =
    * 34,605,631), so every hit clamped to 100% rebel sentiment. FUN_43f7_2424
@@ -309,8 +309,8 @@ static int sp_01(void) {
     const uint32_t saved_dvd = col1.colony[0].rebel_dividend;
     const uint32_t saved_div = col1.colony[0].rebel_divisor;
     const uint16_t saved_count = col1.head.colony_count;
-    const uint16_t saved_bells = col1.nation[0].liberty_bells_total;
-    col1.nation[0].liberty_bells_total = 40000u; /* large lifetime-bells word */
+    const uint16_t saved_bells = col1.nation[0].liberty_bells_pool;
+    col1.nation[0].liberty_bells_pool = 40000u; /* large lifetime-bells word */
     /* A record with no accumulation yet: DOS reads 0%, not bells/4. */
     col1.colony[0].rebel_dividend = 0;
     col1.colony[0].rebel_divisor = 0;
@@ -330,7 +330,7 @@ static int sp_01(void) {
     col1.head.colony_count = saved_count;
     col1.colony[0].rebel_dividend = saved_dvd;
     col1.colony[0].rebel_divisor = saved_div;
-    col1.nation[0].liberty_bells_total = saved_bells;
+    col1.nation[0].liberty_bells_pool = saved_bells;
     if (ai_king_sol_percent(&ctx, 0) != 60) {
       return fail("SoL fixture restore");
     }
@@ -545,7 +545,7 @@ static int sp_06(void) {
     col1.nation[0].gold = 0;
     col1.colony[0].rebel_dividend = 0;
     col1.colony[0].rebel_divisor = 100;
-    col1.nation[0].liberty_bells_total = 0;
+    col1.nation[0].liberty_bells_pool = 0;
     col1.nation[0].boycott_bitmap = 0;
     memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
     /* Real 1d42: purse-threshold buy (not audience-driven) — seed it. */
@@ -604,7 +604,7 @@ static int sp_07(void) {
     col1.nation[0].gold = 0;
     col1.colony[0].rebel_dividend = 45;
     col1.colony[0].rebel_divisor = 100;
-    col1.nation[0].liberty_bells_total = 0;
+    col1.nation[0].liberty_bells_pool = 0;
     col1.nation[0].boycott_bitmap = 0;
     europe.cargo_count = COLONIZE_CARGO_COUNT;
     for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
@@ -724,7 +724,7 @@ static int sp_08(void) {
     col1.nation[0].gold = 0;
     col1.colony[0].rebel_dividend = 0;
     col1.colony[0].rebel_divisor = 100;
-    col1.nation[0].liberty_bells_total = 0;
+    col1.nation[0].liberty_bells_pool = 0;
     col1.nation[0].boycott_bitmap = 0;
     ColonizeDosRng stand_rng;
     dos_rng_seed(&stand_rng, 1u);
@@ -758,7 +758,7 @@ static int sp_09(void) {
   col1.colony[0].rebel_divisor = 100;
   col1.nation[0].boycott_bitmap = 0;
   ai_king_latch_set(&col1, 2, 0);
-  col1.nation[0].liberty_bells_total = 0;
+  col1.nation[0].liberty_bells_pool = 0;
   col1.head.king_audience_streak = 0;
   memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
 
@@ -770,7 +770,7 @@ static int sp_09(void) {
   autumn = 1;
   col1.colony[0].rebel_dividend = 45;
   col1.colony[0].rebel_divisor = 100;
-  col1.nation[0].liberty_bells_total = 50;
+  col1.nation[0].liberty_bells_pool = 50;
   status[0] = '\0';
   {
     const int sol45 = ai_king_sol_percent(&ctx, 0);
@@ -823,7 +823,7 @@ static int sp_10(void) {
     autumn = 1;
     col1.colony[0].rebel_dividend = 45;
     col1.colony[0].rebel_divisor = 100;
-    col1.nation[0].liberty_bells_total = 50;
+    col1.nation[0].liberty_bells_pool = 50;
     /* 2424 decile gate reads census_pop_proxy[human] > 3 (DS:-0x6bf0 =
      * 0x9410), not founding_father_count (pre-2026-09-06 misread). */
     col1.stuff.census_pop_proxy[0] = 4;
@@ -858,7 +858,7 @@ static int sp_11(void) {
     autumn = 1;
     col1.colony[0].rebel_dividend = 49;
     col1.colony[0].rebel_divisor = 100;
-    col1.nation[0].liberty_bells_total = 200;
+    col1.nation[0].liberty_bells_pool = 200;
     status[0] = '\0';
     {
       const int sol49 = ai_king_sol_percent(&ctx, 0);
@@ -885,7 +885,7 @@ static int sp_12(void) {
   autumn = 1;
   col1.colony[0].rebel_dividend = 60;
   col1.colony[0].rebel_divisor = 100;
-  col1.nation[0].liberty_bells_total = 200;
+  col1.nation[0].liberty_bells_pool = 200;
   col1.nation[0].gold = 0; /* 2244 cannot-afford once; hire cleared later */
   europe.gold = 0;
   memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
@@ -2129,7 +2129,7 @@ static int sp_26(void) {
     col1.nation[0].tax_rate = 10;
     europe.tax_percent = 10;
     col1.nation[0].boycott_bitmap = 0;
-    col1.nation[0].liberty_bells_total = 0;
+    col1.nation[0].liberty_bells_pool = 0;
     col1.nation[0].gold = 0;
     col1.colony[0].rebel_dividend = 100;
     col1.colony[0].rebel_divisor = 100;
@@ -2229,7 +2229,7 @@ static int sp_27(void) {
     col1.nation[0].tax_rate = 10;
     europe.tax_percent = 10;
     col1.nation[0].boycott_bitmap = 0;
-    col1.nation[0].liberty_bells_total = 0;
+    col1.nation[0].liberty_bells_pool = 0;
     col1.colony[0].rebel_dividend = 100;
     col1.colony[0].rebel_divisor = 100;
     status[0] = '\0';
@@ -2312,7 +2312,7 @@ static int sp_28(void) {
     ai_king_latch_set(&col1, 5, 0);
     col1.colony[0].rebel_dividend = 60;
     col1.colony[0].rebel_divisor = 100;
-    col1.nation[0].liberty_bells_total = 200;
+    col1.nation[0].liberty_bells_pool = 200;
     snprintf(col1.player[0].country_name, sizeof(col1.player[0].country_name), "England");
     snprintf(europe.nation_name, sizeof(europe.nation_name), "England");
     year = 1600;
@@ -2804,7 +2804,7 @@ static int sp_32(void) {
       col1.colony[0].population = 4;
       col1.colony[0].rebel_dividend = 45;
       col1.colony[0].rebel_divisor = 100;
-      col1.nation[0].liberty_bells_total = 50;
+      col1.nation[0].liberty_bells_pool = 50;
       year = 1590;
       autumn = 1;
       status[0] = '\0';
@@ -2957,19 +2957,19 @@ static int sp_34(void) {
     col1.head.backup_force[2] = 0;
     col1.head.backup_force[3] = 0;
     colonies.colonies[0].nation_id = 0;
-    founding_fathers_accrue_bells(0, 2u * 0x5dcu + 2000u);
+    col1.nation[0].liberty_bells_pool = (uint16_t)(2u * 0x5dcu + 2000u);
 
     const int intervene_before = count_nation(&units, 0);
-    const unsigned pool_before = founding_fathers_bells_since_last_elect(0);
+    const unsigned pool_before = founding_fathers_bells_pool(&col1, 0);
     if (pool_before < founding_fathers_bells_needed(&col1, 0)) {
       return fail("WoI bell spend setup pool below threshold");
     }
     if (!ai_king_spend_woi_bell_pool(&ctx, 0)) {
       return fail("ai_king_spend_woi_bell_pool should succeed when REF absent");
     }
-    founding_fathers_consume_woi_bell_pool(0);
-    if (founding_fathers_bells_since_last_elect(0) != 0u) {
-      return fail("consume_woi_bell_pool must zero side-table pool");
+    founding_fathers_consume_woi_bell_pool(&ctx, 0);
+    if (founding_fathers_bells_pool(&col1, 0) != 0u) {
+      return fail("consume_woi_bell_pool must zero nation+0xc");
     }
     /* bugs.md #538: DOS 0a22 calls FUN_43f7_1528 (announce + 0x5382 bit2),
      * never 10f0 — the spend spawns nothing. */

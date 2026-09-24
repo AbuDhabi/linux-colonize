@@ -826,7 +826,7 @@ void europe_reset_campaign_nation(EuropeScreen* eu, int nation) {
   /* Match new-game Col1 human needed seed (COLONY00); first EOT overwrites via 584a. */
   eu->needed_crosses = 9;
   eu->crosses_immigrant_seen = false;
-  eu->liberty_bells_total = 0;
+  eu->liberty_bells_pool = 0;
   eu->liberty_bells_last_turn = 0;
   eu->harbor_ships = 0;
   eu->expected_ships = 0;

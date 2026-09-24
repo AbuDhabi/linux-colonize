@@ -954,8 +954,22 @@ void ai_euro_5952_ledgers(
     pool, col, col1 && founding_fathers_nation_has(col1, col->nation_id, FF_WILLIAM_PENN),
     sol_bonus
   );
+  /* bugs.md #928: the DOS ledgers are refreshed by FUN_281f_0c04 ->
+   * FUN_15eb_1f72, and 1f72 reads the owning nation's Jefferson (3960 flag
+   * 0x0f, raw 12621) and Paine (flag 0x11 + the nation tax byte, raw
+   * 12625-12633) itself — so the probe sees the real FF state, not a
+   * FF-free estimate. The port used to pass 0/0 here and under-valued Town
+   * Hall seats for an AI that owns them. Args built exactly as the EOT
+   * composer does (turn_production.c ~270-277). */
+  const int probe_statesmen_pct =
+    (col1 && founding_fathers_nation_has(col1, col->nation_id, FF_THOMAS_JEFFERSON)) ? 50 : 0;
+  const int probe_paine_tax_pct =
+    (col1 && founding_fathers_nation_has(col1, col->nation_id, FF_THOMAS_PAINE) &&
+     col->nation_id >= 0 && col->nation_id < (int)COLONIZE_COL1_NATION_COUNT)
+      ? (int)col1->nation[col->nation_id].tax_rate
+      : 0;
   gross[AI_EURO_5952_BELLS] = colony_prod_colony_bells_ff(
-    pool, col, 0, 0,
+    pool, col, probe_statesmen_pct, probe_paine_tax_pct,
     col1 ? (col1->player[col->nation_id].control != 0) : true, sol_bonus
   );
   demand[COLONIZE_CARGO_FOOD] = col->population * 2;

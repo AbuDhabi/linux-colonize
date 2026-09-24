@@ -616,7 +616,7 @@ static int combat_bombard_row_icon(const ColonizeCombatStrengthCtx* ctx, int x, 
  *
  * So a zero divisor yields 0, not a fallback, and "no colony record" cannot
  * happen at all — 07be already proved one exists. The old
- * `liberty_bells_total / 4` arm here was invented (that divisor appears
+ * `liberty_bells_pool / 4` arm here was invented (that divisor appears
  * nowhere in the SoL machinery); -1 now means "port-side desync between the
  * colony pool and the col1 record array" and the caller skips the peel
  * instead of inventing a support number.

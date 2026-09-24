@@ -24,9 +24,7 @@ static int fail(const char* msg) {
 }
 
 static void ff_tick(ColonizeTurnContext* ctx) {
-  if (ctx && ctx->col1) {
-    founding_fathers_test_force_pool_from_total(ctx->col1);
-  }
+  /* bugs.md #933: nation+0xc (liberty_bells_pool) IS the pool — no seeding. */
   founding_fathers_tick(ctx);
   /* bugs.md #434: human election moved to TURN_PROC_FINISH's own call. */
   founding_fathers_tick_human_elect(ctx);
@@ -119,7 +117,7 @@ int main(void) {
 
   ColonizeCol1Nation* nat = &col1.nation[0];
   memset(nat, 0, sizeof(*nat));
-  nat->liberty_bells_total = 40;
+  nat->liberty_bells_pool = 40;
   nat->next_founding_father = 0; /* Adam Smith */
   nat->founding_father_count = 0;
   nat->gold = 100;
@@ -137,14 +135,14 @@ int main(void) {
   ctx.status_size = sizeof(status);
 
   /* Below threshold: no elect. */
-  nat->liberty_bells_total = 39;
+  nat->liberty_bells_pool = 39;
   ff_tick(&ctx);
   if (nat->founding_father_count != 0 || col1.head.founding_father[0] != -1) {
     return fail("no elect below threshold");
   }
 
   /* At threshold: elect Adam Smith — ownership only (factory gate elsewhere). */
-  nat->liberty_bells_total = 40;
+  nat->liberty_bells_pool = 40;
   const uint32_t gold_smith = nat->gold;
   ff_tick(&ctx);
   if (col1.head.founding_father[0] != 0) {
@@ -168,15 +166,17 @@ int main(void) {
   if (strstr(status, "Founding Father elected") == NULL) {
     return fail("status line missing");
   }
-  if (nat->liberty_bells_total != 40) {
-    return fail("bells were spent (expected gate-only)");
+  /* DOS-LITERAL FUN_4345_0a22 raw 73370: the pool word is zeroed on elect
+     (surplus over the threshold is discarded), bugs.md #933. */
+  if (nat->liberty_bells_pool != 0) {
+    return fail("FF elect must zero the bell pool (nation+0xc)");
   }
-  if (founding_fathers_bells_since_last_elect(0) != 0u) {
-    return fail("FF elect should reset since-last-elect pool");
+  if (founding_fathers_bells_pool(&col1, 0) != 0u) {
+    return fail("FF elect should reset the bell pool");
   }
 
   /* Jakob Fugger: clear ALL boycotts; no gold bump. */
-  nat->liberty_bells_total = 161;
+  nat->liberty_bells_pool = 161;
   nat->next_founding_father = FF_JAKOB_FUGGER;
   nat->boycott_bitmap = (uint16_t)((1u << 1) | (1u << 4) | (1u << 2));
   ai_king_latch_set(&col1, 2, 1);
@@ -204,7 +204,7 @@ int main(void) {
   }
 
   /* Brewster: pool filter flag; no crosses / free-colonist spawn fiction. */
-  nat->liberty_bells_total = 241;
+  nat->liberty_bells_pool = 241;
   nat->next_founding_father = 20;
   EuropeScreen eu_brew;
   memset(&eu_brew, 0, sizeof(eu_brew));
@@ -250,7 +250,7 @@ int main(void) {
     memset(ai_nat, 0, sizeof(*ai_nat));
     ff_test_calendar(&acol1);
     acol1.player[1].control = 1; /* AI-controlled */
-    ai_nat->liberty_bells_total = 48;
+    ai_nat->liberty_bells_pool = 48;
     ai_nat->next_founding_father = FF_WILLIAM_BREWSTER;
     ai_nat->recruit[0] = 0x19; /* Indentured Servant */
     ai_nat->recruit[1] = 0x1a; /* Petty Criminal */
@@ -297,7 +297,7 @@ int main(void) {
     ColonizeCol1Nation* bnat = &bcol1.nation[0];
     memset(bnat, 0, sizeof(*bnat));
     ff_test_calendar(&bcol1);
-    bnat->liberty_bells_total = 40;
+    bnat->liberty_bells_pool = 40;
     bnat->next_founding_father = FF_WILLIAM_BREWSTER;
     ColonizeTurnContext bctx;
     memset(&bctx, 0, sizeof(bctx));
@@ -316,15 +316,15 @@ int main(void) {
   ctx.europe = NULL;
 
   /* Jefferson: elect only — production +50% on statesmen is turn/prod path. */
-  nat->liberty_bells_total = 321;
+  nat->liberty_bells_pool = 321;
   nat->next_founding_father = 15;
-  const uint16_t bells_before = nat->liberty_bells_total;
   ff_tick(&ctx);
   if (col1.head.founding_father[15] != 0 || nat->founding_father_count != 4) {
     return fail("Jefferson not elected via next");
   }
-  if (nat->liberty_bells_total != bells_before) {
-    return fail("Jefferson must not invent bells");
+  /* raw 73370: the pool is zeroed, never spent-by-subtraction. */
+  if (nat->liberty_bells_pool != 0) {
+    return fail("Jefferson elect must zero the bell pool");
   }
   if (!founding_fathers_nation_has(&col1, 0, FF_THOMAS_JEFFERSON)) {
     return fail("Jefferson nation_has false");
@@ -332,7 +332,7 @@ int main(void) {
 
   /* de Witt: elect only — no tax fiction. */
   nat->tax_rate = 12;
-  nat->liberty_bells_total = 401;
+  nat->liberty_bells_pool = 401;
   nat->next_founding_father = 4;
   ff_tick(&ctx);
   if (col1.head.founding_father[4] != 0 || nat->founding_father_count != 5) {
@@ -344,7 +344,7 @@ int main(void) {
 
   /* Washington: ownership flag only — no mass promote / REF−1. */
   col1.head.expeditionary_force[0] = 5;
-  nat->liberty_bells_total = 481;
+  nat->liberty_bells_pool = 481;
   nat->next_founding_father = 11;
   ff_tick(&ctx);
   if (col1.head.founding_father[11] != 0 || nat->founding_father_count != 6) {
@@ -355,7 +355,7 @@ int main(void) {
   }
 
   /* Stuyvesant: elect only (Custom House gate elsewhere) — no gold. */
-  nat->liberty_bells_total = 561;
+  nat->liberty_bells_pool = 561;
   nat->next_founding_father = 3;
   {
     const uint32_t g0 = nat->gold;
@@ -369,7 +369,7 @@ int main(void) {
   }
 
   /* Drake: ownership flag only — no sea-moves / gold fiction. */
-  nat->liberty_bells_total = 641;
+  nat->liberty_bells_pool = 641;
   nat->next_founding_father = 13;
   {
     const uint32_t g0 = nat->gold;
@@ -383,7 +383,7 @@ int main(void) {
   }
 
   /* Revere: ownership flag only on elect — no tools / gold fiction. */
-  nat->liberty_bells_total = 721;
+  nat->liberty_bells_pool = 721;
   nat->next_founding_father = 12;
   {
     const uint32_t g0 = nat->gold;
@@ -402,17 +402,16 @@ int main(void) {
    * -> rebel_sentiment_report (DS:0x53d0) += 20, clamp 100. col1.player[0]
    * is set human-controlled (control==0) above, so this must fire.
    */
-  nat->liberty_bells_total = 801;
+  nat->liberty_bells_pool = 801;
   nat->next_founding_father = 18;
   {
-    const uint16_t b0 = nat->liberty_bells_total;
     col1.head.rebel_sentiment_report = 90;
     ff_tick(&ctx);
     if (col1.head.founding_father[18] != 0 || nat->founding_father_count != 10) {
       return fail("Bolivar not elected via next");
     }
-    if (nat->liberty_bells_total != b0) {
-      return fail("Bolivar must not invent bells");
+    if (nat->liberty_bells_pool != 0) {
+      return fail("Bolivar elect must zero the bell pool");
     }
     if (col1.head.rebel_sentiment_report != 100) {
       return fail("Bolivar elect must bump+clamp rebel_sentiment_report to 100");
@@ -421,7 +420,7 @@ int main(void) {
 
   /* Pocahontas: reset native tension to content; no crosses fiction.
    * Half-rate alarm growth wired in ai_contact (unit_ai_contact). */
-  nat->liberty_bells_total = 881;
+  nat->liberty_bells_pool = 881;
   nat->next_founding_father = 16;
   {
     ColonizeCol1Tribe tribes[2];
@@ -463,7 +462,7 @@ int main(void) {
   }
 
   /* Coronado without map: elect only — no gold fallback. */
-  nat->liberty_bells_total = 961;
+  nat->liberty_bells_pool = 961;
   nat->next_founding_father = 6;
   {
     const uint32_t g0 = nat->gold;
@@ -477,7 +476,7 @@ int main(void) {
   }
 
   /* Jones without units/map: elect only — no gold fallback. */
-  nat->liberty_bells_total = 1041;
+  nat->liberty_bells_pool = 1041;
   nat->next_founding_father = 14;
   {
     const uint32_t g0 = nat->gold;
@@ -491,7 +490,7 @@ int main(void) {
   }
 
   /* Brebeuf: ownership gate — no elect crosses fiction. */
-  nat->liberty_bells_total = 1121;
+  nat->liberty_bells_pool = 1121;
   nat->next_founding_father = 22;
   {
     const uint16_t c0 = nat->current_crosses;
@@ -520,7 +519,7 @@ int main(void) {
     memset(dnat, 0, sizeof(*dnat));
     dnat->founding_father_count = 0;
     dnat->gold = 100;
-    dnat->liberty_bells_total = 40;
+    dnat->liberty_bells_pool = 40;
     dnat->next_founding_father = 6; /* Coronado */
 
     char err[64];
@@ -671,7 +670,7 @@ int main(void) {
      * permanent +1 while owned. The old elect-time bump here was a fandom
      * invention; removed along with its port counterpart.
      */
-    dnat->liberty_bells_total = 161;
+    dnat->liberty_bells_pool = 161;
     dnat->next_founding_father = 5;
     const int car_moves = caravel->moves;
     const uint32_t gold_pre_mag = dnat->gold;
@@ -704,7 +703,7 @@ int main(void) {
     }
 
     /* Hudson: ownership only (fur +100% in turn harvest) — no stock dump. */
-    dnat->liberty_bells_total = 241;
+    dnat->liberty_bells_pool = 241;
     dnat->next_founding_father = 8;
     const int tools_h = col->stock[COLONIZE_CARGO_TOOLS];
     const int furs_h = col->stock[COLONIZE_CARGO_FURS];
@@ -734,7 +733,7 @@ int main(void) {
       return fail("deep de Soto far land spawn");
     }
     units_get(&units, far_id)->nation_id = 0;
-    dnat->liberty_bells_total = 321;
+    dnat->liberty_bells_pool = 321;
     dnat->next_founding_father = 7;
     const uint16_t crosses_pre = dnat->current_crosses;
     ff_tick(&deep_ctx);
@@ -763,7 +762,7 @@ int main(void) {
     }
 
     /* Jones: free Frigate. */
-    dnat->liberty_bells_total = 401;
+    dnat->liberty_bells_pool = 401;
     dnat->next_founding_father = 14;
     const int units_before = units.unit_count;
     const int harbor_before = europe.harbor_ships;
@@ -790,7 +789,7 @@ int main(void) {
 
     /* Washington: no mass promote. */
     deep_col1.head.expeditionary_force[0] = 3;
-    dnat->liberty_bells_total = 481;
+    dnat->liberty_bells_pool = 481;
     dnat->next_founding_father = 11;
     ff_tick(&deep_ctx);
     if (deep_col1.head.founding_father[11] != 0 || dnat->founding_father_count != 6) {
@@ -810,7 +809,7 @@ int main(void) {
     }
 
     /* Revere: no tools dump. */
-    dnat->liberty_bells_total = 561;
+    dnat->liberty_bells_pool = 561;
     dnat->next_founding_father = 12;
     const int tools_pre_rev = col->stock[COLONIZE_CARGO_TOOLS];
     ff_tick(&deep_ctx);
@@ -826,7 +825,7 @@ int main(void) {
     }
 
     /* Drake: no sea-moves bump. */
-    dnat->liberty_bells_total = 641;
+    dnat->liberty_bells_pool = 641;
     dnat->next_founding_father = 13;
     const int car_moves_pre_drake = caravel->moves;
     ff_tick(&deep_ctx);
@@ -842,7 +841,7 @@ int main(void) {
     }
 
     /* Smith: no gold/tools fiction. */
-    dnat->liberty_bells_total = 721;
+    dnat->liberty_bells_pool = 721;
     dnat->next_founding_father = 0;
     {
       const uint32_t g0 = dnat->gold;
@@ -861,7 +860,7 @@ int main(void) {
     }
 
     /* La Salle: Stockade on pop>=3 colony. */
-    dnat->liberty_bells_total = 801;
+    dnat->liberty_bells_pool = 801;
     dnat->next_founding_father = 9;
     ff_tick(&deep_ctx);
     if (deep_col1.head.founding_father[9] != 0 || dnat->founding_father_count != 10) {
@@ -876,10 +875,9 @@ int main(void) {
     }
 
     /* Bolivar: display-time SoL +20 (40→60); storage unchanged; no bells fiction. */
-    dnat->liberty_bells_total = 881;
+    dnat->liberty_bells_pool = 881;
     dnat->next_founding_father = 18;
     {
-      const uint16_t b0 = dnat->liberty_bells_total;
       const uint32_t div0 = deep_col1.colony[0].rebel_dividend;
       ff_tick(&deep_ctx);
       if (deep_col1.head.founding_father[18] != 0 || dnat->founding_father_count != 11) {
@@ -887,10 +885,10 @@ int main(void) {
         map_free(&map);
         return fail("deep Bolivar not elected");
       }
-      if (dnat->liberty_bells_total != b0) {
+      if (dnat->liberty_bells_pool != 0) {
         free(deep_col1.colony);
         map_free(&map);
-        return fail("deep Bolivar must not invent bells");
+        return fail("deep Bolivar elect must zero the bell pool");
       }
       if (deep_col1.colony[0].rebel_dividend != div0) {
         free(deep_col1.colony);
@@ -927,7 +925,7 @@ int main(void) {
       colonies.colony_count = 2;
 
       /* No FF due this tick — isolate from debate/elect. */
-      dnat->liberty_bells_total = 0;
+      dnat->liberty_bells_pool = 0;
       dnat->liberty_bells_last_turn = 0;
       ff_tick(&deep_ctx);
       if (future->has_building[0]) {
@@ -1013,19 +1011,19 @@ int main(void) {
     memset(ai, 0, sizeof(*ai));
     memset(withdrawn, 0, sizeof(*withdrawn));
 
-    human->liberty_bells_total = 0;
+    human->liberty_bells_pool = 0;
     human->next_founding_father = 0;
 
     ff_test_calendar(&ai_col1);
     ai_col1.player[1].control = 1;
     ai_col1.player[2].control = 2;
     ai_col1.player[3].control = 1;
-    ai->liberty_bells_total = 48;
+    ai->liberty_bells_pool = 48;
     ai->next_founding_father = 2; /* Peter Minuit — elect only, no gold invent */
     ai->founding_father_count = 0;
     ai->gold = 10;
 
-    withdrawn->liberty_bells_total = 48;
+    withdrawn->liberty_bells_pool = 48;
     withdrawn->next_founding_father = 3;
 
     ColonizeTurnContext ai_ctx;
@@ -1052,7 +1050,7 @@ int main(void) {
       return fail("withdrawn nation elected FF");
     }
 
-    ai->liberty_bells_total = 193;
+    ai->liberty_bells_pool = 193;
     ai->next_founding_father = 1;
     ai->boycott_bitmap = (uint16_t)((1u << 1) | (1u << 4) | (1u << 7));
     ai_king_latch_set(&ai_col1, 2, 1);
@@ -1099,7 +1097,7 @@ int main(void) {
     wctx.col1_ok = true;
 
     /* Nation 1 claims Peter Minuit (#2) first: AI 1st elect = 48 bells. */
-    first->liberty_bells_total = 48;
+    first->liberty_bells_pool = 48;
     first->next_founding_father = 2;
     ff_tick(&wctx);
     if (wcol1.head.founding_father[2] != 1 || first->founding_father_count != 1) {
@@ -1107,7 +1105,7 @@ int main(void) {
     }
 
     /* Nation 3 elects the same Father afterwards. */
-    second->liberty_bells_total = 48;
+    second->liberty_bells_pool = 48;
     second->next_founding_father = 2;
     ff_tick(&wctx);
     if (second->founding_father_count != 1 ||
@@ -1743,6 +1741,37 @@ int main(void) {
     if (bells_ai != 8) {
       return fail("AI bells subsidy");
     }
+    /*
+     * bugs.md #926 (order): FUN_15eb_1f72 raw 12621-12641 adds the AI subsidy
+     * AFTER Jefferson and Paine, so it is never multiplied by them.
+     * worker 6 + passive 1 = 7; Jefferson 7*150/100 = 10; subsidy (2+3)/5 = 1
+     * -> 11. The old port order ((6+1+1) * 150/100 = 12) is the bug.
+     */
+    const int bells_ai_jeff = colony_prod_colony_bells_ff(&pool, col, 50, 0, true, 0);
+    if (bells_ai_jeff != 11) {
+      return fail("AI subsidy must be added after Jefferson (#926)");
+    }
+    /*
+     * bugs.md #927: raw 12619's `+= 1` is bare — no Town Hall building test.
+     * An unbuilt/burnt Town Hall still earns the passive bell (and an AI
+     * nation still gets its subsidy).
+     */
+    {
+      const bool saved_hall = col->has_building[0];
+      const int saved_bt = col->colonists[0].building_type;
+      col->has_building[0] = false;
+      col->colonists[0].building_type = -1; /* no bell worker at all */
+      const int passive_human = colony_prod_colony_bells_ff(&pool, col, 0, 0, false, 0);
+      if (passive_human != 1) {
+        return fail("no-Town-Hall passive bell must still be 1 (#927)");
+      }
+      const int passive_ai = colony_prod_colony_bells_ff(&pool, col, 0, 0, true, 0);
+      if (passive_ai != 2) {
+        return fail("no-Town-Hall AI passive bell + subsidy (#927)");
+      }
+      col->has_building[0] = saved_hall;
+      col->colonists[0].building_type = saved_bt;
+    }
 
     /* Base crosses: 1 colony + Church passive 1 (DOS FUN_15eb_1f72: Church and
      * Cathedral are worth the same +1, not manual-sourced +2/+3 — see
@@ -1789,7 +1818,7 @@ int main(void) {
     memset(pnat, 0, sizeof(*pnat));
     pnat->tax_rate = 20;
     pnat->founding_father_count = 0;
-    pnat->liberty_bells_total = 40;
+    pnat->liberty_bells_pool = 40;
     pnat->next_founding_father = FF_THOMAS_JEFFERSON;
     pcol1.head.founding_father[FF_THOMAS_JEFFERSON] = -1;
 
@@ -1827,23 +1856,23 @@ int main(void) {
     if (!founding_fathers_nation_has(&pcol1, 0, FF_THOMAS_JEFFERSON)) {
       return fail("prod-path Jefferson elect");
     }
-    pnat->liberty_bells_total = 161;
+    pnat->liberty_bells_pool = 161;
     pnat->next_founding_father = FF_THOMAS_PAINE;
     ff_tick(&pctx);
     if (!founding_fathers_nation_has(&pcol1, 0, FF_THOMAS_PAINE)) {
       return fail("prod-path Paine elect");
     }
-    pnat->liberty_bells_total = 241;
+    pnat->liberty_bells_pool = 241;
     pnat->next_founding_father = FF_WILLIAM_PENN;
     ff_tick(&pctx);
     if (!founding_fathers_nation_has(&pcol1, 0, FF_WILLIAM_PENN)) {
       return fail("prod-path Penn elect");
     }
 
-    peu.liberty_bells_total = 0;
+    peu.liberty_bells_pool = 0;
     peu.liberty_bells_last_turn = 0;
     peu.current_crosses = 0;
-    pnat->liberty_bells_total = 0;
+    pnat->liberty_bells_pool = 0;
     pnat->current_crosses = 0;
     turn_run_nation_ticks(&pctx, NULL);
     /* Jefferson+Paine: 12 bells; Penn: 11 church crosses + the 584a idle +2
@@ -1867,7 +1896,7 @@ int main(void) {
     ColonizeCol1Nation* mnat = &mcol1.nation[0];
     memset(mnat, 0, sizeof(*mnat));
     mnat->gold = 500;
-    mnat->liberty_bells_total = 40;
+    mnat->liberty_bells_pool = 40;
     mnat->next_founding_father = FF_PETER_MINUIT;
     mnat->founding_father_count = 0;
 
@@ -1998,7 +2027,7 @@ int main(void) {
     lnat->founding_father_count = 0;
     lnat->gold = 100;
     lnat->current_crosses = 7;
-    lnat->liberty_bells_total = 40;
+    lnat->liberty_bells_pool = 40;
     lnat->next_founding_father = FF_BARTOLOME_DE_LAS_CASAS;
 
     ColonizeColonyPool lcolonies;
@@ -2153,7 +2182,7 @@ int main(void) {
     ColonizeUnit* late_u = units_get(&lunits, late);
     late_u->nation_id = 0;
     late_u->profession = COLONIZE_PROF_CONVERT;
-    lnat->liberty_bells_total = 0; /* below next elect threshold */
+    lnat->liberty_bells_pool = 0; /* below next elect threshold */
     ff_tick(&lctx);
     if (late_u->profession != COLONIZE_PROF_CONVERT) {
       return fail("Las Casas must not re-assimilate a late Convert");
@@ -2388,7 +2417,7 @@ int main(void) {
     ff_test_calendar(&dcol1);
     ColonizeCol1Nation* dnat = &dcol1.nation[0];
     memset(dnat, 0, sizeof(*dnat));
-    dnat->liberty_bells_total = 10; /* bells exist, below elect threshold */
+    dnat->liberty_bells_pool = 10; /* bells exist, below elect threshold */
     dnat->next_founding_father = -1;
     dnat->founding_father_count = 0;
 
@@ -2447,7 +2476,7 @@ int main(void) {
     }
     ai_popup_init(&pop);
     dctx.ai_popups = &pop;
-    dnat->liberty_bells_total = 40;
+    dnat->liberty_bells_pool = 40;
     ff_tick(&dctx);
     if (dnat->founding_father_count != 1 ||
         !founding_fathers_nation_has(&dcol1, 0, chosen)) {
@@ -2473,7 +2502,7 @@ int main(void) {
     ff_test_calendar(&xcol1);
     ColonizeCol1Nation* xnat = &xcol1.nation[0];
     memset(xnat, 0, sizeof(*xnat));
-    xnat->liberty_bells_total = 10;
+    xnat->liberty_bells_pool = 10;
     xnat->next_founding_father = -1;
     xnat->founding_father_count = 0;
     /* Nation 2 has elected every Father; nation 0's own bitfield is empty. */
@@ -2518,7 +2547,7 @@ int main(void) {
     ff_test_calendar(&dcol1);
     ColonizeCol1Nation* dnat = &dcol1.nation[0];
     memset(dnat, 0, sizeof(*dnat));
-    dnat->liberty_bells_total = 10;
+    dnat->liberty_bells_pool = 10;
     dnat->next_founding_father = -1;
 
     AiPopupState pop;
@@ -2583,73 +2612,14 @@ int main(void) {
   }
 
   {
-    /* Stash/restore round-trip for side-table pool (liberty_bells_last_turn). */
-    ColonizeCol1Save rt;
-    col1_save_init(&rt);
-    rt.player[0].control = 0;
-    rt.head.difficulty = 0;
-    rt.nation[0].liberty_bells_total = 55;
-    rt.nation[0].founding_father_count = 1;
-    rt.nation[0].liberty_bells_last_turn = 99;
-    founding_fathers_reset();
-    rt.nation[0].liberty_bells_total = 13;
-    founding_fathers_test_force_pool_from_total(&rt);
-    rt.nation[0].liberty_bells_total = 55;
-    if (founding_fathers_bells_since_last_elect(0) != 13u) {
-      return fail("pool setup before stash");
-    }
-    uint16_t saved_last[COLONIZE_COL1_NATION_COUNT];
-    uint8_t saved_pad21[COLONIZE_COL1_NATION_COUNT];
-    founding_fathers_stash_pools_into_col1(&rt, saved_last, saved_pad21);
-    if (rt.nation[0].liberty_bells_last_turn != 13) {
-      founding_fathers_restore_col1_last_turn(&rt, saved_last, saved_pad21);
-      return fail("stash must write pool into liberty_bells_last_turn");
-    }
-    if (rt.nation[0].unknown21_pad != 0xc1) {
-      founding_fathers_restore_col1_last_turn(&rt, saved_last, saved_pad21);
-      return fail("stash must mark unknown21_pad as ours");
-    }
-    founding_fathers_reset();
-    founding_fathers_sync_from_col1_after_load(&rt);
-    if (founding_fathers_bells_since_last_elect(0) != 13u) {
-      founding_fathers_restore_col1_last_turn(&rt, saved_last, saved_pad21);
-      return fail("after_load must restore bells-since-last-elect pool");
-    }
-    founding_fathers_restore_col1_last_turn(&rt, saved_last, saved_pad21);
-    if (rt.nation[0].liberty_bells_last_turn != 99) {
-      return fail("restore must put back live last_turn accrual");
-    }
-    if (rt.nation[0].unknown21_pad != 0) {
-      return fail("restore must put back original unknown21_pad");
-    }
-    if (rt.nation[0].liberty_bells_total != 55) {
-      return fail("stash/load must preserve cumulative liberty_bells_total");
-    }
-  }
-
-  {
-    /* A pristine save this engine never stashed (fresh DOS import, or a mid-
-     * game DOS save with FFs already elected) must NOT have its genuine
-     * liberty_bells_last_turn (real EOT bell production) mistaken for our
-     * stashed pool, even when it happens to fit under the next threshold. */
-    ColonizeCol1Save dos;
-    col1_save_init(&dos);
-    dos.player[0].control = 0;
-    dos.head.difficulty = 0;
-    dos.nation[0].founding_father_count = 1;
-    dos.nation[0].liberty_bells_total = 55;
-    dos.nation[0].liberty_bells_last_turn = 9; /* genuine last-turn production */
-    dos.nation[0].unknown21_pad = 0; /* never touched by our writer */
-    founding_fathers_reset();
-    founding_fathers_sync_from_col1_after_load(&dos);
-    const unsigned pool = founding_fathers_bells_since_last_elect(0);
-    if (pool == 9u) {
-      return fail("after_load must not trust last_turn without our stash marker");
-    }
-  }
-
-  {
-    /* Full Col1 blob round-trip: write stashes pool into liberty_bells_last_turn. */
+    /*
+     * bugs.md #933: nation+0xc IS the FF bell pool.
+     *  - a DOS save's +0xc loads as the pool verbatim (no reconstruction),
+     *  - +0xe stays this turn's production and survives a round trip,
+     *  - the pool is zeroed on elect (FUN_4345_0a22 raw 73370),
+     *  - and zeroed at the declaration of independence (FUN_43f7_1a26 raw
+     *    74738).
+     */
     char err[256];
     ColonizeCol1Save blob_save;
     if (!ff_build_minimal_col1_blob(&blob_save, err, sizeof(err))) {
@@ -2658,13 +2628,12 @@ int main(void) {
     }
     seed_unclaimed(&blob_save);
     blob_save.nation[0].founding_father_count = 1;
-    blob_save.nation[0].liberty_bells_total = 840; /* 800 pool + 40 first elect */
-    blob_save.nation[0].liberty_bells_last_turn = 12; /* live EOT accrual */
+    blob_save.nation[0].liberty_bells_pool = 800;      /* +0xc: the live pool */
+    blob_save.nation[0].liberty_bells_last_turn = 12;  /* +0xe: this turn */
     founding_fathers_reset();
-    founding_fathers_sync_from_col1(&blob_save);
-    if (founding_fathers_bells_since_last_elect(0) != 800u) {
+    if (founding_fathers_bells_pool(&blob_save, 0) != 800u) {
       col1_save_free(&blob_save);
-      return fail("blob setup pool must be 800");
+      return fail("+0xc must read back as the pool with no reconstruction");
     }
     uint8_t* enc = NULL;
     size_t enc_n = 0;
@@ -2673,7 +2642,6 @@ int main(void) {
       fprintf(stderr, "blob write: %s\n", err);
       return fail("col1_save_write_memory");
     }
-    founding_fathers_reset();
     ColonizeCol1Save loaded;
     col1_save_init(&loaded);
     if (!col1_save_read_memory(enc, enc_n, &loaded, err, sizeof(err))) {
@@ -2683,59 +2651,80 @@ int main(void) {
       fprintf(stderr, "blob read: %s\n", err);
       return fail("col1_save_read_memory");
     }
-    if (loaded.nation[0].liberty_bells_last_turn != 800) {
-      free(enc);
-      col1_save_free(&blob_save);
-      col1_save_free(&loaded);
-      return fail("blob must stash pool 800 into liberty_bells_last_turn");
-    }
-    if (loaded.nation[0].liberty_bells_total != 840) {
-      free(enc);
-      col1_save_free(&blob_save);
-      col1_save_free(&loaded);
-      return fail("blob must preserve cumulative liberty_bells_total");
-    }
-    founding_fathers_sync_from_col1_after_load(&loaded);
-    if (founding_fathers_bells_since_last_elect(0) != 800u) {
-      free(enc);
-      col1_save_free(&blob_save);
-      col1_save_free(&loaded);
-      return fail("blob after_load must restore pool 800");
-    }
-    founding_fathers_reset();
-    ColonizeWorldMap bridge_map;
-    memset(&bridge_map, 0, sizeof(bridge_map));
-    ColonizeColonyPool bridge_colonies;
-    colonies_init(&bridge_colonies);
-    colonies_set_occupancy_map(NULL);
-    ColonizeUnitPool bridge_units;
-    memset(&bridge_units, 0, sizeof(bridge_units));
-    units_reset(&bridge_units);
-    units_set_occupancy_map(NULL);
-    EuropeScreen bridge_europe;
-    memset(&bridge_europe, 0, sizeof(bridge_europe));
-    ColonizeCol1BridgeResult bridge_br;
-    if (!col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&bridge_units), .colonies=(ColonizeColonyPool*)(&bridge_colonies), .map=(ColonizeWorldMap*)(&bridge_map), .col1=(ColonizeCol1Save*)(&loaded), .col1_ok=true, .europe=(EuropeScreen*)(&bridge_europe)}, &bridge_br, err, sizeof(err))) {
-      free(enc);
-      col1_save_free(&blob_save);
-      col1_save_free(&loaded);
-      map_free(&bridge_map);
-      fprintf(stderr, "bridge apply: %s\n", err);
-      return fail("col1_bridge_apply on bell-pool save");
-    }
-    if (founding_fathers_bells_since_last_elect(0) != 800u) {
-      free(enc);
-      col1_save_free(&blob_save);
-      col1_save_free(&loaded);
-      map_free(&bridge_map);
-      return fail("bridge apply must restore pool 800");
-    }
-    map_free(&bridge_map);
     free(enc);
+    if (loaded.nation[0].liberty_bells_pool != 800) {
+      col1_save_free(&blob_save);
+      col1_save_free(&loaded);
+      return fail("round trip must keep +0xc as the pool (800)");
+    }
+    if (loaded.nation[0].liberty_bells_last_turn != 12) {
+      col1_save_free(&blob_save);
+      col1_save_free(&loaded);
+      return fail("round trip must keep +0xe as this turn's bells (12)");
+    }
+    if (loaded.nation[0].unknown21_pad != 0) {
+      col1_save_free(&blob_save);
+      col1_save_free(&loaded);
+      return fail("no stash marker may be written into unknown21_pad");
+    }
+    if (founding_fathers_bells_pool(&loaded, 0) != 800u) {
+      col1_save_free(&blob_save);
+      col1_save_free(&loaded);
+      return fail("loaded +0xc must be the pool directly");
+    }
     col1_save_free(&blob_save);
     col1_save_free(&loaded);
-    fprintf(stderr, "unit_founding_fathers: bell pool Col1 blob + bridge load ok\n");
+    fprintf(stderr, "unit_founding_fathers: +0xc pool save round trip ok\n");
   }
+
+  {
+    /* Pool zeroed on elect, and zeroed at declare. */
+    founding_fathers_reset();
+    ColonizeCol1Save zc;
+    col1_save_init(&zc);
+    seed_unclaimed(&zc);
+    ff_test_calendar(&zc);
+    zc.player[0].control = 0;
+    ColonizeCol1Nation* znat = &zc.nation[0];
+    memset(znat, 0, sizeof(*znat));
+    znat->liberty_bells_pool = 900; /* far above the first threshold */
+    znat->next_founding_father = FF_ADAM_SMITH;
+    znat->founding_father_count = 0;
+
+    AiPopupState zpop;
+    ai_popup_init(&zpop);
+    EuropeScreen zeu;
+    memset(&zeu, 0, sizeof(zeu));
+    zeu.liberty_bells_pool = 900;
+    ColonizeTurnContext zctx;
+    memset(&zctx, 0, sizeof(zctx));
+    zctx.human_nation = 0;
+    zctx.col1 = &zc;
+    zctx.col1_ok = true;
+    zctx.ai_popups = &zpop;
+    zctx.europe = &zeu;
+
+    founding_fathers_tick_human_elect(&zctx);
+    if (znat->founding_father_count == 0) {
+      return fail("funded pool must elect");
+    }
+    if (znat->liberty_bells_pool != 0) {
+      return fail("elect must zero nation+0xc");
+    }
+    if (zeu.liberty_bells_pool != 0) {
+      return fail("elect must zero the human Europe mirror too");
+    }
+
+    /* Declare: FUN_43f7_1a26 raw 74738 zeroes +0xc. */
+    znat->liberty_bells_pool = 321;
+    zeu.liberty_bells_pool = 321;
+    founding_fathers_reset_bells_pool(&zctx, 0);
+    if (znat->liberty_bells_pool != 0 || zeu.liberty_bells_pool != 0) {
+      return fail("declare-time zero must clear pool and mirror");
+    }
+    fprintf(stderr, "unit_founding_fathers: pool zero on elect/declare ok\n");
+  }
+
 
   /* Century-weighted debate pick: same RNG seed → same category candidates. */
   {
@@ -2751,7 +2740,7 @@ int main(void) {
       ff_test_calendar(&rng_col1);
       ColonizeCol1Nation* rnat = &rng_col1.nation[0];
       memset(rnat, 0, sizeof(*rnat));
-      rnat->liberty_bells_total = 10;
+      rnat->liberty_bells_pool = 10;
       rnat->next_founding_father = -1;
 
       AiPopupState rpop;
@@ -2802,9 +2791,9 @@ int main(void) {
     seed_unclaimed(&diff_b);
     ff_test_calendar(&diff_a);
     ff_test_calendar(&diff_b);
-    diff_a.nation[0].liberty_bells_total = 10;
+    diff_a.nation[0].liberty_bells_pool = 10;
     diff_a.nation[0].next_founding_father = -1;
-    diff_b.nation[0].liberty_bells_total = 10;
+    diff_b.nation[0].liberty_bells_pool = 10;
     diff_b.nation[0].next_founding_father = -1;
 
     int ids7[AI_POPUP_CHOICE_MAX];
@@ -2868,10 +2857,9 @@ int main(void) {
     wcol1.head.difficulty = 2;
     ColonizeCol1Nation* wnat = &wcol1.nation[0];
     memset(wnat, 0, sizeof(*wnat));
-    wnat->liberty_bells_total = 5000;
+    wnat->liberty_bells_pool = 5000;
     wnat->next_founding_father = FF_ADAM_SMITH;
     wnat->founding_father_count = 0;
-    founding_fathers_test_force_pool_from_total(&wcol1);
 
     AiPopupState wpop;
     ai_popup_init(&wpop);

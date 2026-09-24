@@ -318,6 +318,20 @@ or when tile already has MAP_LAYER2_PURCHASED / Col1 mask 0x10 (WELCOME gift
 or prior buy). DOS also spends this from pioneer plow/road + colony tile-buy;
 those callers remain PORT outside this module.
 
+## colonies_found — the founder's seat
+
+DOS FUN_364b_1ba8 raw 58075-58086: the founding body clears the plot map
+(`FUN_1d1d_0dae(colony+0x70, 0xffff, 0x14)` — no tile owned by anyone) and
+seats the founder through `FUN_281f_0c36 -> FUN_15eb_1068(slot, 0)`, i.e.
+**occupation byte 0 = field job 0 (food)**, never the Town Hall; the
+unit-less arm also sets pop 1 and `FUN_281f_0cae -> FUN_15eb_0e8c(slot,
+0x1c)` (Free Colonist). DOS picks no plot here — the plot comes from the
+shared 28c8 auto-assign the colony screen / AI colony tick runs next. The
+port therefore runs `colonies_seat_new_colonist` (its 28c8 picker) on the
+founder and falls back to field job 0 when no map is bound. bugs.md #929;
+the old "founder in the Town Hall" seat made every new colony produce bells
+instead of food.
+
 ## colonies_found_with_indian_land_w
 
 Found with FUN_4cc6_07c2 Indian land charge when tile is homeland.

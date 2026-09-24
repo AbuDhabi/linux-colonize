@@ -12,46 +12,24 @@
  * Flow (DOS FUN_4345_0a22 / 06d2 / 0342):
  *   1. After liberty bells exist, if next_founding_father < 0 → Congress
  *      debate (one unclaimed Father per category) or AI auto-pick into next.
- *   2. Accumulate bells until liberty_bells_total >= 40 * (count + 1).
+ *   2. Accumulate bells until liberty_bells_pool >= 40 * (count + 1).
  *   3. Elect the locked-in next_founding_father; then next = -1 (re-debate).
  * During WoI (0x5382&1): no Congress debate; bell pool spends on foreign
  * intervention / REF arrival (FUN_4345_0a22 wartime branch) instead of elect.
  *
- * 2026-08-19 investigation (real DOS mechanism confirmed, NOT safe to
- * naively port — read before touching this): `FUN_4345_0a22`
- * (viceroy_unpacked.c:73333-73373) accrues each turn's bell delta into
- * TWO separate nation-struct fields (`*(int*)0x84fc` base, `+0xc` and
- * `+0xe`), then on the same call, if the `+0xc` pool has reached the
- * `0982` threshold, resets ONLY `+0xc` to 0 (line 73370) — `+0xe` is
- * never reset anywhere. Linux's single `liberty_bells_total` field is
- * fed by the same per-turn delta (`turn.c` ~1818/1754) and reads like a
- * merge of both DOS fields into one — it is ALSO the field
- * `ai_king.c`/`combat_strength.c`/`colony_production.c` read directly
- * (no reset) for SoL-fallback, boycott-refusal (`AI_KING_BOYCOTT_BELLS_MIN`),
- * boycott-refusal (`AI_KING_BOYCOTT_BELLS_MIN`) gates — those all
- * plainly need the never-reset `+0xe` semantics. So resetting
- * `liberty_bells_total` to 0 on election (the literal DOS `+0xc` behavior)
- * would be a real, wide regression to those gates, not a fidelity fix.
- * Correct port needs a SEPARATE new field (DOS `+0xc`, "bells since last
- * FF") — fed by the same accrual sites, read only by
- * `founding_fathers_bells_needed`'s threshold check, reset to 0 in
- * `elect_commit` — leaving `liberty_bells_total` (DOS `+0xe`) untouched.
- * **Tried and reverted this pass**: adding the field directly to
- * `ColonizeCol1Nation` (`col1_save.h`) broke `unit_col1_save`'s
- * `col1_save_check_layout` (`COLONIZE_COL1_NATION_SIZE` — that struct is
- * a byte-exact mirror of the real DOS on-disk record, confirmed by its
- * own already-documented confirmed-dead pad bytes; growing it shifts
- * every later field's offset and cascaded into 8 more test/golden
- * failures, all reverted together). Any new field for this needs to live
- * OUTSIDE that struct — a small nation-indexed side table in
- * `founding_fathers.c`, same pattern as `ai_goals.h`'s
- * `AiNationPlanScratch`/`ai_goals_plan_scratch`, not a `col1_save.h` edit.
- * Implemented via nation-indexed side table in `founding_fathers.c`
- * (`founding_fathers_accrue_bells` / `founding_fathers_bells_since_last_elect`).
- * Sync from Col1 on load (`founding_fathers_sync_from_col1`); reset on new game.
+ * 2026-08-19..2026-09-24: the pool used to live in a nation-indexed side
+ * table in founding_fathers.c, stashed into +0xe at save time behind an
+ * unknown21_pad marker and reconstructed from a spent-sum heuristic on load.
+ * bugs.md #933 deleted all of that: +0xc (`liberty_bells_pool`) is the pool,
+ * added to each turn, zeroed on elect and at the declaration of independence,
+ * and +0xe (`liberty_bells_last_turn`) is this turn's bells only. Consumers
+ * that want "bells" for SoL fallback / boycott-refusal / score read the pool
+ * directly, exactly as DOS does.
  *
- * founding_fathers_tick: at most one elect per nation per call —
- * human first, then each AI Euro nation (player.control==1).
+ * founding_fathers_tick: final elect pass of the turn for each AI Euro
+ * nation (player.control==1); the human's runs in
+ * founding_fathers_tick_human_elect. Both loop while the pool still clears
+ * the next threshold (bugs.md #934).
  *
  * Effects follow Colonization.pdf + docs/fandom_col1994.md (+ NAMES/decomp).
  * "Rough" means incomplete UI/wiring — not invented gold/crosses stand-ins.
@@ -92,8 +70,24 @@
  */
 unsigned founding_fathers_bells_needed(const ColonizeCol1Save* col1, int nation);
 
-/* DOS nation+0xc — bells accrued since last FF elect (reset on elect_commit). */
-unsigned founding_fathers_bells_since_last_elect(int nation_id);
+/*
+ * DOS nation+0xc IS the FF bell pool: `liberty_bells_pool` in the save record.
+ * FUN_4345_0a22 raw 73341 adds this turn's bells, raw 73370 zeroes it on a
+ * successful elect; FUN_43f7_1a26 raw 74738 zeroes it at the declaration of
+ * independence. (bugs.md #933 — the old side table / save-time stash into
+ * +0xe / spent-sum reconstruction are gone.)
+ */
+unsigned founding_fathers_bells_pool(const ColonizeCol1Save* col1, int nation_id);
+
+/* Zero the pool (col1 record + the human's Europe mirror). */
+void founding_fathers_reset_bells_pool(ColonizeTurnContext* ctx, int nation_id);
+
+/*
+ * One elect attempt for a nation; true when a Founding Father was elected.
+ * bugs.md #934: DOS runs FUN_4345_0a22 once per colony (sole call site
+ * FUN_364b_0688 raw 57231), so callers loop while this keeps returning true.
+ */
+bool founding_fathers_try_elect(ColonizeTurnContext* ctx, int nation_id);
 
 /*
  * FUN_4345_0a22 phase 3 (thin): status while WoI bell pool grows toward
@@ -107,61 +101,15 @@ void founding_fathers_woi_intervention_chrome(
 );
 
 /*
- * After ai_king_spend_woi_bell_pool succeeds: zero the side-table pool.
+ * After ai_king_spend_woi_bell_pool succeeds: zero the bell pool.
  * DOS keeps no intervention counter — FUN_41f2_0092's total is exactly
  * early-revolution + congress + villages + treasury + rebel + bells/100 +
  * citizens (viceroy_unpacked.c:71068-71413), so nothing is scored here.
  */
-void founding_fathers_consume_woi_bell_pool(int nation_id);
+void founding_fathers_consume_woi_bell_pool(ColonizeTurnContext* ctx, int nation_id);
 
-/* Add turn bell production to the per-nation since-last-elect pool (FUN_4345_0a22 +0xc). */
-void founding_fathers_accrue_bells(int nation_id, unsigned delta);
-
-/* Zero side pools (new game). */
+/* Reset per-session FF scratch (the persistent Congress slate) — new game. */
 void founding_fathers_reset(void);
-
-/*
- * Init side pools from Col1 on load (`founding_fathers_sync_from_col1`); reset on new game.
- * Before Col1 write, stash live pools into liberty_bells_last_turn when the
- * side table is active (sync/accrual this session). Codec-only round-trips
- * skip stash so DOS fixture bytes stay identical. Also marks
- * nation.unknown21_pad (see col1_save.h) so a later load can tell the stash
- * apart from a genuine DOS liberty_bells_last_turn value.
- */
-void founding_fathers_sync_from_col1(const ColonizeCol1Save* col1);
-
-/*
- * After Col1 read: apply the stashed pool from liberty_bells_last_turn, but
- * only for nations whose unknown21_pad carries FF_POOL_STASH_MARKER — i.e.
- * this file was previously written by our own stash. An original/untouched
- * DOS save (or one this engine never wrote) keeps the total-derived estimate
- * from founding_fathers_sync_from_col1 instead, since its
- * liberty_bells_last_turn is genuine EOT production, not our pool.
- */
-void founding_fathers_sync_from_col1_after_load(const ColonizeCol1Save* col1);
-
-/* Unit tests: liberty_bells_total doubles as pool input (not cumulative). */
-void founding_fathers_test_force_pool_from_total(const ColonizeCol1Save* col1);
-
-void founding_fathers_stash_pools_into_col1(
-  ColonizeCol1Save* col1,
-  uint16_t restore_last_turn[COLONIZE_COL1_NATION_COUNT],
-  uint8_t restore_pad21[COLONIZE_COL1_NATION_COUNT]
-);
-
-void founding_fathers_restore_col1_last_turn(
-  ColonizeCol1Save* col1,
-  const uint16_t restore_last_turn[COLONIZE_COL1_NATION_COUNT],
-  const uint8_t restore_pad21[COLONIZE_COL1_NATION_COUNT]
-);
-
-/*
- * True when this save's liberty_bells_last_turn was overwritten by our own
- * pool stash (unknown21_pad carries FF_POOL_STASH_MARKER) — i.e. the field
- * holds the FF pool, NOT genuine EOT bell production. Consumers wanting real
- * "bells last turn" must not read it in that case.
- */
-bool founding_fathers_col1_last_turn_is_stash(const ColonizeCol1Save* col1, int nation_id);
 
 /*
  * True if nation owns FF index. Per-nation bitmask ONLY (DOS FUN_15eb_3960);

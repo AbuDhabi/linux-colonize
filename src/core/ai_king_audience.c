@@ -735,7 +735,7 @@ void ai_king_tax_hike_apply(
   const int sol = ai_king_sol_percent(ctx, human);
   const int auto_teaparty =
       (proposed >= AI_KING_BOYCOTT_TAX_MIN) &&
-      (sol >= AI_KING_BOYCOTT_SOL_MIN || nat->liberty_bells_total >= AI_KING_BOYCOTT_BELLS_MIN);
+      (sol >= AI_KING_BOYCOTT_SOL_MIN || nat->liberty_bells_pool >= AI_KING_BOYCOTT_BELLS_MIN);
   if (auto_teaparty) {
     ai_king_tax_teaparty(ctx, human, picked);
     return;
@@ -920,11 +920,15 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
   /* FUN_43f7_1a26 right after the pool seed: latch the declaration year into
    * DS:0x53a7/0x53a8 (year/100, year%100 — the king-audience RNG bytes,
    * dead once the King is gone; FUN_41f2_0092's early-revolution bonus reads
-   * them back) and zero the human's liberty_bells_total so bells accrue
+   * them back) and zero the human's liberty_bells_pool so bells accrue
    * "since declaring" (score's REF-present bells line). */
   ctx->col1->head.king_audience_streak = (uint8_t)(ctx->col1->head.year / 100);
   ctx->col1->head.king_audience_last_pick = (uint8_t)(ctx->col1->head.year % 100);
-  ctx->col1->nation[human].liberty_bells_total = 0;
+  /* DOS-LITERAL FUN_43f7_1a26 raw 74738: `*(*(int*)0x84fc + 0xc) = 0`.
+   * bugs.md #933: +0xc IS the live FF/intervention bell pool, so this also
+   * clears the human's Europe mirror — the WoI intervention threshold must
+   * be met with bells produced after the declaration, not before it. */
+  founding_fathers_reset_bells_pool(ctx, human);
   ai_king_set_ref_present(ctx->col1, 1);
   /*
    * bugs.md: nothing ever set the WAR bit between the rebel and the
@@ -979,7 +983,7 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    * election in progress is cancelled and bells start accruing toward the
    * foreign intervention instead.
    */
-  founding_fathers_consume_woi_bell_pool(human);
+  founding_fathers_consume_woi_bell_pool(ctx, human);
   ctx->col1->nation[human].next_founding_father = -1;
   for (int n = 0; n < 4; ++n) {
     if (n == human) {

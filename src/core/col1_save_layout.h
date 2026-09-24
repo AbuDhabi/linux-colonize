@@ -530,14 +530,16 @@ typedef struct ColonizeCol1Nation {
      DOS game it is stack/heap garbage; no traced code ever reads or writes
      it. See docs/archive/mysteries_catalog.md.
 
-     Linux repurpose (2026-08-22): doubles as the FF-pool-stash marker
-     (`FF_POOL_STASH_MARKER` in founding_fathers.c). Set only when this
-     engine's own writer stashes `liberty_bells_since_elect` into
-     liberty_bells_last_turn (see founding_fathers_stash_pools_into_col1).
-     A save whose byte here isn't the marker is either untouched-by-us DOS
-     garbage or a fresh game, and liberty_bells_last_turn is trusted as
-     genuine EOT production instead — see founding_fathers_sync_from_col1_after_load. */
-  uint16_t liberty_bells_total;
+     The 2026-08-22 "FF pool stash marker" repurpose was deleted by bugs.md
+     #933: the FF pool is +0xc itself, so nothing needs a side channel and
+     this byte is left alone again. */
+  /* +0xc — the live Founding-Father bell POOL. DOS-LITERAL FUN_4345_0a22:
+     raw 73341 `+0xc += bells`, raw 73370 `+0xc = 0` on a successful elect;
+     FUN_43f7_1a26 raw 74738 zeroes it at the declaration of independence.
+     It is NOT a lifetime total (bugs.md #933). */
+  uint16_t liberty_bells_pool;
+  /* +0xe — bells produced THIS turn. Zeroed before the per-colony loop
+     (FUN_3844_00f2 raw 58382); write-only in DOS (no reader). */
   uint16_t liberty_bells_last_turn;
   int16_t king_audience_tax_delta; /* +0x10; was unknown22. Resolved 2026-08-19: the
      signed tax-rate delta the King's audience event (FUN_38fd_5be8) rolls this

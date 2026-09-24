@@ -1187,7 +1187,7 @@ static int case_peacetime_scored_retiring_1800(void) {
     end.head.year = 1800;
     end.player[0].control = 0;
     snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
-    end.nation[0].liberty_bells_total = 0; /* no declare */
+    end.nation[0].liberty_bells_pool = 0; /* no declare */
     end.head.colony_count = 0;
 
     ColonizeColonyPool cp;
@@ -1314,7 +1314,7 @@ static int case_peacetime_soonretiring0_1790(void) {
     end.head.difficulty = 0;
     end.player[0].control = 0;
     snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
-    end.nation[0].liberty_bells_total = 0;
+    end.nation[0].liberty_bells_pool = 0;
     end.head.colony_count = 0;
 
     ColonizeColonyPool cp;

@@ -32,8 +32,8 @@
  *                   (ignored otherwise); default 0
  *
  * Also prints the founding-fathers bells pool/need to stderr (useful when
- * working on the Congress bells bar) after seeding the pool the same way
- * the live game does on save load (founding_fathers_sync_from_col1_after_load).
+ * working on the Congress bells bar). The pool is the save's own nation+0xc
+ * word (bugs.md #933) — nothing needs seeding.
  */
 
 #include <stdio.h>
@@ -78,13 +78,10 @@ int main(int argc, char** argv) {
   }
   const int human = rs.human;
 
-  /* Same sync col1_bridge_apply() already did on load — repeated here only so
-   * the bells line below reads the pool the live game would have. */
-  founding_fathers_sync_from_col1_after_load(&rs.save);
   fprintf(
     stderr,
     "bells pool=%u need=%u (human=%d)\n",
-    founding_fathers_bells_since_last_elect(human),
+    founding_fathers_bells_pool(&rs.save, human),
     founding_fathers_bells_needed(&rs.save, human),
     human
   );

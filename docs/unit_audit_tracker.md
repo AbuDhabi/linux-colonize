@@ -39,6 +39,7 @@ professions from `@JOB` (profession byte = row). Identify by row, never by name.
 | 2026-09-24 | Master Carpenter / unskilled Carpenter (@JOB 13, plain and tools/muskets/horses/blessing fitted forms: occupation vs skill, worker class/SoL and Lumber Mill, field lumber ledger and Phase K, hammer bank/project/BUY/tools/completion, AI seating, training/equipment/save) | #916-922, #896 | 7 fixed; #896 refuted by static DOS demand/input trace; real DOS prod02 Carpenter colony and focused/golden tests checked |
 | 2026-09-24 | Firebrand Preacher / unskilled preacher (@JOB 16: 1d4c Preacher body, class tiers, Cathedral x2, Penn, SoL fold, occupation cap, passive 1f72 crosses, 5e52/584a immigration tick order, recruit price, Train/school/OTJ/village teaching, fitted forms + blessing, name/sprite/score/save, AI 5952 seating + Church/Cathedral cascade, native raid burn 0f14) | #923-925 | 2 fixed (#923 human crosses added before 5e52 tick; #924 raid burn arm invented), #925 lead bundle open |
 | 2026-09-23 | Distiller / Tobacconist / Weaver / Fur Trader (@JOB 9-12, skilled + unskilled classes + all fitted forms: 1d4c tier/class/expert/SoL, 15c6/039e tiers, 0bd4/0b52/0b0c input + partial-input back-conversion, 364b_0688 Phase B AI gate, Custom House, admission gates, OTJ exclusion, school tier 2 / College, Europe train + 46d4 pool (9-12 drawable), village teach tech trims, FoY, LOBOTOMIZE, equip/combat/promotion/capture/labels/sprites/pedia/score/labor report, save round-trip, 5952 indoor pass + 0x864 row-index bug + margin want weight, 0280 chain wants, 28c8 consumer term, Custom House autosell, village bids, tea party) | #897-906 | 10 fixed (#897 H factory partial-input = DOS unmet*3/2 back-conversion; #898 H AI colonies exempt from craft input shortfall, 0x543f gate; #900 M colony jobs menu now lists indoor rows 9..0x12 via DS:0x2f4 gate; #903/#904 M tea-party tonnage weights + COASTAL gate), leads #907 (tea-party boycotted-winner bail), #908 (348c leave-as rows / (n) estimate / paging), #909 (static-unresolved bundle) |
+| 2026-09-24 | Elder Statesman / unskilled statesman (@JOB 17: 1d4c Statesman body `(class+sol)*2`, 1f72 passive +1 / Jefferson / Paine / AI subsidy / Press / Newspaper order, rebel accumulator + SoL%, nation +0xc FF pool / +0xe, per-colony elect, declare zero, score, fitted forms + equip/capture/promotion, school tier 3 / Train 1900 / 46d4 pool, founder seating, occupation cap, AI 5952 want weight + build cascade, raid burn, King reads, save round-trip) | #926-#939 | 10 fixed (#933 H: nation +0xc is the FF pool, side table + stash deleted; #929 M: founder now occupation 0 not Town Hall; #939 M: AI field colonies keep SoL latch bonus), #932 matched, #930 #931 #938 leads open |
 
 Open carry-over: #530 (AI first-colony opening scaffolding) came out of the Vet
 Soldier audit and is still OPEN.
@@ -50,11 +51,4 @@ None left: every `@UNIT` row has had its own pass (Man-O-War closed the set 2026
 
 ## Remaining: expert professions (`@JOB`)
 
-| Row | Profession |
-|-----|-----------|
-| 14 | Master Blacksmith |
-| 15 | Master Gunsmith |
-| 17 | Elder Statesman |
-
-Suggested grouping for future passes: field producers (1-7) together, craft
-workers (9-15) together, then Statesman.
+None left: every `@JOB` row has had its own pass (Elder Statesman closed the set 2026-09-24).

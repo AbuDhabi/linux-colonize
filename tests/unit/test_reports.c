@@ -559,7 +559,7 @@ static int case_synthetic_independence_score(void) {
   c.head.king_audience_last_pick = 76;
   c.head.rebel_sentiment_report = 60;
   c.nation[0].gold = 2500;
-  c.nation[0].liberty_bells_total = 250;
+  c.nation[0].liberty_bells_pool = 250;
   c.nation[0].villages_burned = 2;
   c.nation[1].nation_flags = 0x04;
   ColonizeScoreBreakdown sc;

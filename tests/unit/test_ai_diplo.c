@@ -2723,7 +2723,7 @@ static int case_marathon3_franklin_peace_gate(void) {
       fr3.player[i].control = 0;
     }
     fr3.player[0].control = 0; /* human */
-    fr3.nation[0].liberty_bells_total = 40;
+    fr3.nation[0].liberty_bells_pool = 40;
     fr3.nation[0].founding_father_count = 0;
     fr3.nation[0].next_founding_father = FF_BENJAMIN_FRANKLIN;
     fr3.nation[0].gold = 200;
@@ -2734,10 +2734,8 @@ static int case_marathon3_franklin_peace_gate(void) {
     if (!ai_diplo_at_war(&fr3, 0, 1)) {
       return fail("M3R1 Franklin elect setup: need WAR before tick");
     }
-    /* founding_fathers_tick reads the bells-since-elect side pool, not
-     * liberty_bells_total directly — seed it from this save first. */
+    /* bugs.md #933: the pool IS nation+0xc (liberty_bells_pool); nothing to seed. */
     founding_fathers_reset();
-    founding_fathers_sync_from_col1(&fr3);
     uint32_t turn_e = 1;
     char status_e[128];
     status_e[0] = '\0';
