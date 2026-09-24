@@ -261,8 +261,34 @@ static void colony_screen_draw_jobs_popup(
     &inner_x, &inner_y, &inner_w, &inner_h
   );
 
+  /* FUN_2f2b_348c raw 50694-50708 builds the dialog header out of the
+   * colonist's own SPECIALTY name (FUN_281f_0c54, with 0x1c remapped to 0x13)
+   * and appends the current occupation when it differs and is not 0x13 — no
+   * typed English ("Field job" was port-invented, and the list is not
+   * field-only since bugs.md #900). Catalog miss = empty header. */
   if (font && inner_w > 0) {
-    font_draw_text(font, framebuffer, inner_x + pad, inner_y + pad, "Field job", 15);
+    int spec = COLONIZE_PROF_FREE_COLONIST;
+    int occ = -1;
+    if (colony && view->selected_colonist >= 0 &&
+        view->selected_colonist < colony->colonist_count) {
+      const ColonizeColonist* sc = &colony->colonists[view->selected_colonist];
+      spec = sc->profession;
+      occ = (sc->field_job >= 0)
+              ? sc->field_job
+              : ((sc->building_type >= 0) ? colonies_building_occupation(pool, sc->building_type)
+                                          : -1);
+    }
+    if (spec == COLONIZE_PROF_FREE_COLONIST) {
+      spec = UNITS_JOB_COLONIST;
+    }
+    char header[64];
+    const char* spec_name = colonies_profession_name(spec);
+    if (occ >= 0 && occ != spec && occ != UNITS_JOB_COLONIST) {
+      snprintf(header, sizeof(header), "%s (%s)", spec_name, colonies_profession_name(occ));
+    } else {
+      snprintf(header, sizeof(header), "%s", spec_name);
+    }
+    font_draw_text(font, framebuffer, inner_x + pad, inner_y + pad, header, 15);
   }
   const int list_y0 = inner_y + pad + line_h;
   view->jobs_rect.list_y0 = list_y0;
@@ -284,6 +310,12 @@ static void colony_screen_draw_jobs_popup(
 
   for (int i = 0; i < rows; ++i) {
     const int row_y = list_y0 + i * line_h;
+    if (row_y + line_h > inner_y + inner_h) {
+      /* DOS splits an over-long list across two pages (raw 50678-50682:
+       * local_62 = 2, local_d4 = 0x10 plus a 0x62 "More" button). The port has
+       * no page button here yet, so simply stop at the frame edge. */
+      break;
+    }
     const bool selected = (i == view->jobs_selection);
     if (selected) {
       fb_fill_rect(framebuffer, inner_x + 1, row_y - 1, inner_w - 2, line_h, 138);
@@ -295,6 +327,18 @@ static void colony_screen_draw_jobs_popup(
         /* LABELS.TXT @MISC row 44 — DOS's own jobs-menu entry for the action. */
         font_draw_text(
           font, framebuffer, inner_x + pad, row_y + 1, reports_misc_display_word(44, ""), 15
+        );
+      }
+      continue;
+    }
+    if (job >= COLONIZE_FIELD_JOB_COUNT) {
+      /* Indoor row (bugs.md #900). DOS appends a production estimate for
+       * @JOB 9..0x11 (raw 50765-50781, `local_132 < 0x13 && != 0x12`) out of
+       * the aiStack_12c table the head of FUN_2f2b_348c fills; the port does
+       * not model that estimate yet, so the row carries the @JOB name only. */
+      if (font) {
+        font_draw_text(
+          font, framebuffer, inner_x + pad, row_y + 1, colonies_profession_name(job), 15
         );
       }
       continue;

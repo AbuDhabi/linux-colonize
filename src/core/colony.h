@@ -403,6 +403,17 @@ const ColonizeBuildingType* colonies_building_type(const ColonizeColonyPool* poo
 /* Active colonists currently working building_type in this colony. */
 int colonies_building_worker_count(const ColonizeColony* colony, int building_type);
 
+/* DS:0x2f4 @JOB -> required @BUILDING row (-1 = none / not an indoor job). */
+int colonies_job_required_building_row(int job);
+/* FUN_15eb_3454's `job < 0x13` arm: is this jobs-menu row listed at all? */
+bool colonies_job_row_offered(
+  const ColonizeColonyPool* pool, const ColonizeColony* col, int job, int profession
+);
+/* Highest owned tier of the chain an indoor @JOB works in (pool slot, -1 none). */
+int colonies_job_workplace_building(
+  const ColonizeColonyPool* pool, const ColonizeColony* col, int job
+);
+
 /* Assign colonist to a built workplace (@BUILDING index). Clears any field tile.
  * Schoolhouse/College/University refuse Free/Indentured/Criminal/Convert (@NOTEACHER).
  * Refuses past COLONIZE_BUILDING_MAX_WORKERS (@MORETHANTHREE) unless the

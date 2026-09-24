@@ -5540,6 +5540,38 @@ static int case_phase_k_build_advisory(void) {
   }
   fprintf(stderr, "Phase K ORE chrome ok\n");
 
+  /*
+   * bugs.md #899: partial input is NOT "ran out". DOS Phase K probes the
+   * FINISHED good's net (`FUN_281f_0b50(out_cargo) == 0`, raw 57696-57728)
+   * against the Phase A demand words, so a Blacksmith who converted the
+   * last ore into tools this tick produced > 0 and DOS stays silent — the
+   * port used to test the post-craft (already drained) `stock[ore] == 0`
+   * and nagged every turn.
+   */
+  col->stock[COLONIZE_CARGO_ORE] = 1;
+  col->stock[COLONIZE_CARGO_TOOLS] = 0;
+  col->stock[COLONIZE_CARGO_MUSKETS] = 5;
+  col->stock[COLONIZE_CARGO_LUMBER] = 5;
+  col->stock[COLONIZE_CARGO_FOOD] = 40;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (col->stock[COLONIZE_CARGO_TOOLS] <= 0) {
+    fprintf(stderr, "K ORE partial: expected tools produced, got %d\n",
+            col->stock[COLONIZE_CARGO_TOOLS]);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(eu.status, "ore") != NULL) {
+    fprintf(stderr, "K ORE partial-input want silence got '%s'\n", eu.status);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  fprintf(stderr, "Phase K ORE partial-input silence ok\n");
+  col->stock[COLONIZE_CARGO_ORE] = 0;
+  col->stock[COLONIZE_CARGO_TOOLS] = 0;
+
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Armory");
   col->colonists[0].profession = COLONIZE_PROF_GUNSMITH;
   col->stock[COLONIZE_CARGO_ORE] = 5;

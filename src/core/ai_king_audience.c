@@ -297,39 +297,47 @@ static void ai_king_audience_apply_delta(ColonizeCol1Nation* nat, int delta, int
 }
 
 /*
- * Build the Europe bid-eligible cargo mask for the village-goods pick
- * (FUN_38fd_3dc8's local_7a price weighting stand-in — see
- * ai_king_pick_dump_goods_cargo). *out_bids, when set, points at a
- * COLONIZE_CARGO_COUNT-sized caller-owned buffer that stays valid only as
- * long as bid_buf does.
+ * FUN_38fd_3dc8 tea-party candidate scan (raw 64146-64200).
+ *
+ * DOS-LITERAL FUN_38fd_3dc8 raw 64132-64175: aiStack_cc[c] = the largest stock
+ * of cargo c across the human's COASTAL colonies, aiStack_a4[c] = that colony;
+ * local_7a[c] = the roulette weight. *out_weights, when set, points at a
+ * COLONIZE_CARGO_COUNT-sized caller-owned buffer valid only as long as
+ * weight_buf is.
  */
 static uint16_t ai_king_teaparty_candidate_mask(
   const ColonizeTurnContext* ctx,
   int human,
-  int bid_buf[COLONIZE_CARGO_COUNT],
-  const int** out_bids
+  int weight_buf[COLONIZE_CARGO_COUNT],
+  const int** out_weights
 ) {
   uint16_t candidate_mask = 0;
-  *out_bids = NULL;
+  *out_weights = NULL;
   if (!ctx) {
     return 0;
   }
   /*
-   * bugs.md: a cargo only enters the roulette if one of this nation's colonies
-   * actually holds some of it — you cannot dump 0 tons of anything in protest.
-   * That is DOS's own rule: FUN_38fd_3dc8 fills aiStack_cc[c] with the largest
-   * stock of c across the human's colonies and skips every cargo whose entry
-   * stayed 0 (`... && aiStack_cc[local_ac] != 0`), both when summing the
-   * roulette weights and when walking them. The port had keyed the mask off
-   * Europe's bid instead, which let it name a good no colony was storing.
+   * DOS-LITERAL FUN_38fd_3dc8 raw 64160-64175:
+   *   `if (*(char*)(ce*0xca + 0x5d60) == *(char*)0x9e12 &&
+   *       (*(byte*)(ce*0xca + 0x5d62) & 0x40) != 0)`
+   * — only the human's COASTAL colonies (+0x1c bit 0x40, the save-carried bit
+   * stamped at founding, same decode as ai_king_ref.c's 0982/1528 scans)
+   * contribute to aiStack_cc[] / aiStack_a4[]. A cargo only enters the
+   * roulette if one of those colonies actually holds some of it
+   * (`aiStack_cc[local_ac] != 0` gates both the weight sum and the walk):
+   * you cannot dump 0 tons in protest, and you cannot dump it inland
+   * (bugs.md #904).
    */
   for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-    bid_buf[c] = 0;
+    weight_buf[c] = 0;
   }
   if (ctx->colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* col = &ctx->colonies->colonies[i];
       if (!col->active || col->nation_id != human) {
+        continue;
+      }
+      if ((col->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) == 0) {
         continue;
       }
       for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
@@ -339,16 +347,39 @@ static uint16_t ai_king_teaparty_candidate_mask(
       }
     }
   }
-  /* Weights stay the Europe price (DOS's local_7a price roll stand-in). */
-  if (ctx->europe) {
-    const EuropeScreen* eu = ctx->europe;
+  /*
+   * DOS-LITERAL FUN_38fd_3dc8 raw 64146-64159: the roulette weight is the
+   * nation's cumulative traded tonnage, not any Europe price —
+   *   `local_7a[c] = FUN_1d1d_0ec6(FUN_1d1d_0ddc(tons_lo, tons_hi), 100)`
+   * i.e. the LOW WORD of labs(*(int32*)(DS:0x84fc + 0xbc + c*4)) * 100.
+   * DS:0x84fc is the acting (human) nation record and +0xbc ==
+   * offsetof(ColonizeCol1Nation, trade.tons) == 188 (offset-checked), so this
+   * is nation.trade.tons[c]. The store truncates to a 16-bit word, and the
+   * four de-weight shifts that follow (raw 64156-64159) are arithmetic on
+   * that signed word:
+   *   local_7a[0] >>= 1   (bp-0x7a + 0  -> cargo 0,  Food)
+   *   local_6a   >>= 2    (bp-0x6a      -> cargo 8,  Horses)
+   *   local_5e   >>= 1    (bp-0x5e      -> cargo 14, Tools)
+   *   local_5c   >>= 2    (bp-0x5c      -> cargo 15, Muskets)
+   * (stack word index = (0x7a - off)/2; the four names are the same stack
+   * array Ghidra declared as `uint local_7a[8]`.) Every other cargo, craft
+   * goods 9..12 included, keeps the full weight. The port had weighted by the
+   * live Europe bid instead (bugs.md #903).
+   */
+  if (ctx->col1_ok && ctx->col1 && human >= 0 && human < 4) {
+    const int32_t* tons = ctx->col1->nation[human].trade.tons;
     for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-      bid_buf[c] = (c < eu->cargo_count) ? eu->cargo[c].bid : 0;
-      if (bid_buf[c] < 1) {
-        bid_buf[c] = 1; /* stocked but unsellable: eligible, just least likely */
+      int32_t t = tons[c];
+      if (t < 0) {
+        t = -t;
       }
+      weight_buf[c] = (int)(int16_t)(uint16_t)((uint32_t)t * 100u);
     }
-    *out_bids = bid_buf;
+    weight_buf[0] = (int)(int16_t)(weight_buf[0] >> 1);
+    weight_buf[8] = (int)(int16_t)(weight_buf[8] >> 2);
+    weight_buf[14] = (int)(int16_t)(weight_buf[14] >> 1);
+    weight_buf[15] = (int)(int16_t)(weight_buf[15] >> 2);
+    *out_weights = weight_buf;
   }
   return candidate_mask;
 }
@@ -575,9 +606,9 @@ void ai_king_tax_hike_apply(
   /* applied > 0: a real hike is on the table. */
   const int proposed = (int)nat->tax_rate + applied;
 
-  int bid_buf[COLONIZE_CARGO_COUNT];
+  int weight_buf[COLONIZE_CARGO_COUNT];
   const int* bids = NULL;
-  const uint16_t candidate_mask = ai_king_teaparty_candidate_mask(ctx, human, bid_buf, &bids);
+  const uint16_t candidate_mask = ai_king_teaparty_candidate_mask(ctx, human, weight_buf, &bids);
   int picked = ctx->rng
     ? ai_king_pick_dump_goods_cargo(nat->boycott_bitmap, candidate_mask, ctx->rng, bids)
     : -1;

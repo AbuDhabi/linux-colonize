@@ -265,24 +265,24 @@ static inline int ai_king_crown_nation_col1(const ColonizeCol1Save* col1, int hu
  * FUN_38fd_3dc8 dump-goods cargo pick (thin API for AI / tax refuse callers).
  *
  * Among @CARGO indices 0..15 whose bit is set in candidate_mask and clear in
- * boycott_bitmap, pick one via dos_rng. When @cargo_bid is NULL, pick
- * uniformly among that set (europe unavailable / prior behavior). When
- * non-NULL, eligible further requires cargo_bid[c] > 0 (live Europe bid;
- * zero-price goods are not dumped), then roulette by bid[c] (Europe local_7a
- * stand-in). Returns cargo index, or -1 if none / null rng.
+ * boycott_bitmap, pick one via dos_rng. When @cargo_weight is NULL, pick
+ * uniformly among that set (no Col1 nation record available). When non-NULL,
+ * it is DOS's local_7a[] roulette weight table (raw 64146-64159:
+ * low word of labs(nation.trade.tons[c]) * 100, with Food >>1, Horses >>2,
+ * Tools >>1, Muskets >>2) — every eligible entry counts into the total, the
+ * roll is dos_rng_range(1, total) and the first entry whose running remainder
+ * reaches <= 0 wins, so a weight <= 0 can never be picked. Returns the cargo
+ * index, or -1 if none / null rng / total < 1.
  *
- * Cite: viceroy_unpacked.c FUN_38fd_3dc8 — builds eligible list from cargos
- * not already in nation boycott_bitmap (local_a6), then RNG-picks weighted by
- * Europe prices (local_7a). docs/fandom_col1994.md Boycott: throw "named
- * goods" (RNG unnamed list — not a fixed Tobacco second cargo). Does not
- * mutate boycott_bitmap; caller ORs (1u << idx) when applying. King refuse
- * path still freezes Sugar only.
+ * Cite: viceroy_unpacked.c FUN_38fd_3dc8 raw 64176-64200. Does not mutate
+ * boycott_bitmap; caller ORs (1u << idx) when applying. King refuse path
+ * still freezes Sugar only.
  */
 int ai_king_pick_dump_goods_cargo(
   uint16_t boycott_bitmap,
   uint16_t candidate_mask,
   ColonizeDosRng* rng,
-  const int* cargo_bid /* COLONIZE_CARGO_COUNT, or NULL → uniform */
+  const int* cargo_weight /* COLONIZE_CARGO_COUNT local_7a[], or NULL → uniform */
 );
 
 #endif

@@ -4,6 +4,7 @@
 #include "core/assets.h"
 #include "core/colony.h"
 #include "core/colony_screen.h"
+#include "core/colony_production.h"
 #include "core/ff.h"
 #include "core/map.h"
 #include "core/popup_msg.h"
@@ -2368,7 +2369,7 @@ static int unit_tile_jobs_menu_lists_all_field_jobs(void) {
       continue;
     }
     view.jobs_open = false;
-    colony_screen_open_jobs(&view, NULL, &col, tile);
+    colony_screen_open_jobs(&view, NULL, NULL, &col, tile);
     if (!view.jobs_open || view.job_count != COLONIZE_FIELD_JOB_COUNT) {
       fprintf(
         stderr,
@@ -2388,6 +2389,131 @@ static int unit_tile_jobs_menu_lists_all_field_jobs(void) {
       }
     }
   }
+  return rc;
+}
+
+/*
+ * bugs.md #900: FUN_2f2b_348c's row loop (raw 50753-50817) runs @JOB 0..0x18,
+ * dropping a row only when FUN_281f_0bb4 -> FUN_15eb_3454 answers 0. For
+ * job < 0x13 that is the DS:0x2f4 required-@BUILDING test, so the nine field
+ * jobs always list and an indoor job lists once its base building stands.
+ */
+static int unit_tile_jobs_menu_lists_indoor_jobs(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "jobs_indoor: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  memset(&pool, 0, sizeof(pool));
+  colonies_init(&pool);
+  colonies_load_buildings(&pool, &names);
+
+  /* The row gate reads only the pool's @BUILDING table and the colony's own
+   * has_building[] / colonist, so a stack colony is enough. */
+  ColonizeColony colony;
+  memset(&colony, 0, sizeof(colony));
+  ColonizeColony* col = &colony;
+  col->x = 31;
+  col->y = 14;
+  col->colonist_count = 1;
+  col->colonists[0].active = true;
+  col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+  col->colonists[0].field_job = -1;
+  col->colonists[0].building_type = -1;
+
+  int rc = 0;
+  ColonyScreenView view;
+  memset(&view, 0, sizeof(view));
+  view.selected_colonist = 0;
+
+  const int tile = 0;
+
+  /* No buildings at all -> the nine field jobs only. */
+  colony_screen_open_jobs(&view, &pool, NULL, col, tile);
+  if (view.job_count != COLONIZE_FIELD_JOB_COUNT) {
+    fprintf(stderr, "jobs_indoor: bare colony rows=%d want %d\n",
+            view.job_count, COLONIZE_FIELD_JOB_COUNT);
+    rc = 1;
+  }
+
+  /* Rum Distiller's House (@BUILDING 27) -> @JOB 9 joins the list. */
+  const int rum = colonies_building_row(&pool, COLONY_BUILDING_RUM_DISTILLERS_HOUSE);
+  if (rum < 0) {
+    fprintf(stderr, "jobs_indoor: no Rum Distiller's House row\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  col->has_building[rum] = true;
+  colony_screen_open_jobs(&view, &pool, NULL, col, tile);
+  bool saw_distiller = false;
+  for (int i = 0; i < view.job_count; ++i) {
+    if (view.job_ids[i] == COLONIZE_PROF_DISTILLER) {
+      saw_distiller = true;
+    }
+    if (view.job_ids[i] == COLONIZE_PROF_WEAVER) {
+      fprintf(stderr, "jobs_indoor: Weaver listed without a Weaver's House\n");
+      rc = 1;
+    }
+    if (view.job_ids[i] == COLONIES_JOB_TEACHER) {
+      fprintf(stderr, "jobs_indoor: Teacher listed without a Schoolhouse\n");
+      rc = 1;
+    }
+  }
+  if (!saw_distiller) {
+    fprintf(stderr, "jobs_indoor: Distiller missing with the Distiller's House built\n");
+    rc = 1;
+  }
+
+  /* @JOB 0x12 (Teacher): Schoolhouse alone is not enough for a level-2
+   * specialty (FUN_15eb_3454 raw 13540-13553 -> @NEEDCOLLEGE); a Free
+   * Colonist cannot teach at all. */
+  const int school = colonies_building_row(&pool, COLONY_BUILDING_SCHOOLHOUSE);
+  const int college = colonies_building_row(&pool, COLONY_BUILDING_COLLEGE);
+  col->has_building[school] = true;
+  colony_screen_open_jobs(&view, &pool, NULL, col, tile);
+  for (int i = 0; i < view.job_count; ++i) {
+    if (view.job_ids[i] == COLONIES_JOB_TEACHER) {
+      fprintf(stderr, "jobs_indoor: Teacher listed for a Free Colonist\n");
+      rc = 1;
+    }
+  }
+  col->colonists[0].profession = COLONIZE_PROF_DISTILLER; /* @JOB level 2 */
+  colony_screen_open_jobs(&view, &pool, NULL, col, tile);
+  for (int i = 0; i < view.job_count; ++i) {
+    if (view.job_ids[i] == COLONIES_JOB_TEACHER) {
+      fprintf(stderr, "jobs_indoor: Teacher listed with a Schoolhouse only\n");
+      rc = 1;
+    }
+  }
+  col->has_building[college] = true;
+  colony_screen_open_jobs(&view, &pool, NULL, col, tile);
+  bool saw_teacher = false;
+  for (int i = 0; i < view.job_count; ++i) {
+    if (view.job_ids[i] == COLONIES_JOB_TEACHER) {
+      saw_teacher = true;
+    }
+  }
+  if (!saw_teacher) {
+    fprintf(stderr, "jobs_indoor: Teacher missing with a College built\n");
+    rc = 1;
+  }
+
+  /* The workplace an indoor pick lands in is the highest owned tier. */
+  const int distillery = colonies_building_row(&pool, COLONY_BUILDING_RUM_DISTILLERY);
+  if (colonies_job_workplace_building(&pool, col, COLONIZE_PROF_DISTILLER) != rum) {
+    fprintf(stderr, "jobs_indoor: workplace != Rum Distiller's House\n");
+    rc = 1;
+  }
+  col->has_building[distillery] = true;
+  if (colonies_job_workplace_building(&pool, col, COLONIZE_PROF_DISTILLER) != distillery) {
+    fprintf(stderr, "jobs_indoor: workplace did not follow the chain to the Distillery\n");
+    rc = 1;
+  }
+
+  colony_screen_free(&view);
+  assets_msg_free(&names);
   return rc;
 }
 
@@ -2444,6 +2570,7 @@ static const TestCase k_cases[] = {
     {"unit_building_click_reaches_owned", unit_building_click_reaches_owned},
     {"unit_dock_orders_menu", unit_dock_orders_menu},
     {"unit_tile_jobs_menu_lists_all_field_jobs", unit_tile_jobs_menu_lists_all_field_jobs},
+    {"unit_tile_jobs_menu_lists_indoor_jobs", unit_tile_jobs_menu_lists_indoor_jobs},
     {"unit_multi_units_pane_roster", unit_multi_units_pane_roster},
     {"unit_warehouse_confirm_and_hold_append", unit_warehouse_confirm_and_hold_append},
     {"case_colony_screen_render_workflow", case_colony_screen_render_workflow},

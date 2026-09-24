@@ -514,6 +514,7 @@ void colony_screen_open_eject(
 
 void colony_screen_open_jobs(
   ColonyScreenView* view,
+  const ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
   const ColonizeColony* colony,
   int tile_index
@@ -561,15 +562,31 @@ void colony_screen_open_jobs(
   (void)map;
   (void)dx;
   (void)dy;
+  const int sel_prof =
+    (colony && view->selected_colonist >= 0 && view->selected_colonist < colony->colonist_count)
+      ? colony->colonists[view->selected_colonist].profession
+      : COLONIZE_PROF_FREE_COLONIST;
+  /* bugs.md #900: the row loop is FUN_2f2b_348c raw 50753-50817's, over @JOB
+   * 0..0x18 — not the nine field jobs. Jobs 0..8 have no required building and
+   * are always listed; 9..0x12 (the indoor jobs, incl. @JOB 18 Teacher) appear
+   * once their DS:0x2f4 building stands. DOS DROPS an unowned row (FUN_15eb_3454
+   * returns 0), it does not grey it. Rows 0x13..0x18 are the leave-as list and
+   * are served by the port's eject popup. */
   for (int job = 0; job < COLONIZE_FIELD_JOB_COUNT && view->job_count < COLONY_JOB_LIST_MAX; ++job) {
     view->job_ids[view->job_count++] = job;
+  }
+  for (int job = COLONIZE_FIELD_JOB_COUNT;
+       job <= COLONIES_JOB_TEACHER && view->job_count < COLONY_JOB_LIST_MAX; ++job) {
+    if (colonies_job_row_offered(pool, colony, job, sel_prof)) {
+      view->job_ids[view->job_count++] = job;
+    }
   }
   /* FUN_2f2b_348c: a colonist with a specialty (FUN_15eb_0002 — profession
    * outside 0x13/0x19/0x1a/0x1b/0x1c) gets one extra row, "Clear Specialty"
    * (menu id 0x61); picking it asks @LOBOTOMIZE before wiping to 0x1c. */
   if (view->selected_colonist >= 0 && view->selected_colonist < colony->colonist_count &&
       view->job_count < COLONY_JOB_LIST_MAX) {
-    const int prof = colony->colonists[view->selected_colonist].profession;
+    const int prof = sel_prof;
     if (prof != UNITS_JOB_COLONIST && prof != COLONIZE_PROF_INDENTURED &&
         prof != COLONIZE_PROF_CRIMINAL &&
         prof != COLONIZE_PROF_CONVERT && prof != COLONIZE_PROF_FREE_COLONIST) {

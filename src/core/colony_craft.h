@@ -55,6 +55,28 @@ void colony_craft_one_colony(
 );
 
 /*
+ * Same pass with the two DOS controller-dependent knobs exposed
+ * (FUN_364b_0688 Phase B raw 57241-57243):
+ *
+ *   ai_controlled  the colony's owner is not the human seat, so Phase B
+ *                  composes `gross - demand` WITHOUT the `- unmet[input]`
+ *                  term — an AI factory yields full capacity and its input
+ *                  stock merely clamps at 0 (bugs.md #898). The control test
+ *                  is the usual `nation >= 4 || DS:0x543f[nation] != 0`.
+ *   gross_out      optional; each out_cargo's actual production this tick,
+ *                  which is what Phase K's "Need sugar." family of crumbs
+ *                  probes (`FUN_281f_0b50(out_cargo) == 0`, bugs.md #899).
+ */
+void colony_craft_one_colony_ex(
+  ColonizeColonyPool* pool,
+  ColonizeColony* colony,
+  ColonizeColonyProdDelta* delta,
+  int sol_bonus,
+  bool ai_controlled,
+  int gross_out[COLONIZE_CARGO_COUNT]
+);
+
+/*
  * Non-mutating craft pass on scratch stock; fills shortfall[] and optional
  * delta. `gross_out` (optional, NULL to skip) receives each recipe's actual
  * (stock-clamped) production this tick keyed by out_cargo — the colony
@@ -86,7 +108,8 @@ void colony_craft_preview(
   ColonizeColonyProdDelta* delta,
   int sol_bonus,
   int gross_out[COLONIZE_CARGO_COUNT],
-  int capacity_out[COLONIZE_CARGO_COUNT]
+  int capacity_out[COLONIZE_CARGO_COUNT],
+  bool ai_controlled
 );
 
 /*

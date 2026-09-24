@@ -94,14 +94,20 @@ int ai_king_pick_dump_goods_cargo(
   uint16_t boycott_bitmap,
   uint16_t candidate_mask,
   ColonizeDosRng* rng,
-  const int* cargo_bid
+  const int* cargo_weight
 ) {
   /*
-   * Eligible = candidate_mask & ~boycott_bitmap (FUN_38fd_3dc8 skips bits
-   * already set in nation boycott_bitmap / local_a6). When cargo_bid non-NULL,
-   * also require bid[c] > 0 (live Europe local_7a — do not dump zero-price
-   * goods), then roulette by bid. When cargo_bid NULL → uniform among mask.
-   * Cite: FUN_38fd_3dc8 / king_ref dump-goods.
+   * DOS-LITERAL FUN_38fd_3dc8 raw 64176-64200. Eligible = candidate_mask &
+   * ~boycott_bitmap (DOS skips bits already set in the nation's
+   * boycott_bitmap / local_a6 when summing local_80). The weights are the
+   * caller's local_7a[] (tonnage-derived, see
+   * ai_king_teaparty_candidate_mask); DOS sums every eligible entry — a zero
+   * or (after the 16-bit truncation) negative weight still counts into the
+   * total — rolls `FUN_281f_04d4(1, total)` and walks the entries in cargo
+   * order subtracting each weight, taking the first whose running remainder
+   * has dropped to <= 0. A weight <= 0 can therefore never win, since the
+   * roll starts at 1. When cargo_weight is NULL → uniform among the mask
+   * (no Col1 nation record: tests / synthetic fixtures).
    */
   if (!rng) {
     return -1;
@@ -116,15 +122,12 @@ int ai_king_pick_dump_goods_cargo(
     if ((eligible & (uint16_t)(1u << c)) == 0) {
       continue;
     }
-    if (cargo_bid && cargo_bid[c] <= 0) {
-      continue;
-    }
     idxs[n++] = c;
   }
   if (n <= 0) {
     return -1;
   }
-  if (!cargo_bid) {
+  if (!cargo_weight) {
     const int pick = dos_rng_range(rng, 0, n - 1);
     if (pick < 0 || pick >= n) {
       return -1;
@@ -132,25 +135,21 @@ int ai_king_pick_dump_goods_cargo(
     return idxs[pick];
   }
   int total = 0;
-  int weights[COLONIZE_CARGO_COUNT];
   for (int i = 0; i < n; ++i) {
-    const int c = idxs[i];
-    const int w = cargo_bid[c];
-    weights[i] = w;
-    total += w;
+    total += cargo_weight[idxs[i]];
   }
-  if (total <= 0) {
-    return -1;
+  if (total < 1) {
+    return -1; /* DOS: local_4 stays -1 and the party never happens */
   }
   const int roll = dos_rng_range(rng, 1, total);
-  int cum = 0;
+  int rem = roll;
   for (int i = 0; i < n; ++i) {
-    cum += weights[i];
-    if (roll <= cum) {
+    rem -= cargo_weight[idxs[i]];
+    if (rem <= 0) {
       return idxs[i];
     }
   }
-  return idxs[n - 1];
+  return -1;
 }
 
 /*
@@ -227,9 +226,9 @@ void ai_king_emit_ok(
 }
 
 /*
- * FUN_38fd_3dc8 aiStack_a4[]: for each cargo, the human colony holding the most
- * of it (DOS also requires the colony flag 0x40). Used both to name the party
- * and to seize the stock.
+ * FUN_38fd_3dc8 aiStack_a4[]: for each cargo, the human COASTAL colony holding
+ * the most of it (raw 64160-64175, colony +0x1c bit 0x40). Used both to name
+ * the party and to seize the stock.
  */
 ColonizeColony* ai_king_teaparty_colony(
   const ColonizeTurnContext* ctx,
@@ -247,6 +246,12 @@ ColonizeColony* ai_king_teaparty_colony(
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     ColonizeColony* c = &ctx->colonies->colonies[i];
     if (!c->active || c->nation_id != human) {
+      continue;
+    }
+    /* DOS-LITERAL FUN_38fd_3dc8 raw 64160-64175: `(colony[+0x1c] & 0x40)` —
+     * only COASTAL colonies fill aiStack_a4[], so an inland colony can never
+     * be the named party (bugs.md #904). Same decode as ai_king_ref.c. */
+    if ((c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) == 0) {
       continue;
     }
     if (c->stock[cargo] > best_stock) {

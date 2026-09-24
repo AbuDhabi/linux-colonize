@@ -1114,7 +1114,14 @@ bool col1_bridge_apply_w(
       int chain = -1;
       if (occ == 13) {
         chain = COLONIES_CHAIN_CARPENTER;
-      } else if (occ == 9 || occ == 27 || occ == 28 || occ == 29) {
+      } else if (occ == 9) {
+        /*
+         * bugs.md #901: DOS FUN_15eb_1068 raw 11244 writes a @JOB id 0..18
+         * only; occupation bytes 27/28/29 are @BUILDING rows from a
+         * pre-fix exporter that wrote port building indexes for the rum
+         * chain alone, never produced by DOS. The Town-Hall salvage below
+         * already catches any unresolved byte, so no alias is needed here.
+         */
         chain = COLONIES_CHAIN_RUM;
       } else if (occ == 10) {
         chain = COLONIES_CHAIN_TOBACCONIST;
@@ -3126,7 +3133,12 @@ bool col1_bridge_capture_w(
                 const int gold = ship->cargo_treasure_gold[c];
                 px->profession = (uint8_t)(gold > 0 ? (gold / 100 > 255 ? 255 : gold / 100) : 0);
               } else {
-                px->profession = (uint8_t)(prof < 0 ? 0 : prof);
+                /* bugs.md #902: DOS +0x315b holds 0x1c (UNITS_JOB_NONE) for
+                 * a body with no skill, not @JOB 0 (Expert Farmer).
+                 * cargo_professions[] defaults to -1 whenever a ship is
+                 * pushed without a profession array; siblings at :2722 and
+                 * :3040 already use UNITS_JOB_NONE. */
+                px->profession = (uint8_t)(prof < 0 ? UNITS_JOB_NONE : prof);
               }
             }
             px->transport_chain.prev_unit_idx = (int16_t)last;

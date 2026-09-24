@@ -665,7 +665,23 @@ void turn_produce_one_colony(
    * below.
    */
   const int sol_b_phase_a = colony_prod_sol_bonus(col1, colony);
-  colony_craft_one_colony(pool, colony, delta, sol_b_phase_a);
+  /*
+   * DOS-LITERAL FUN_364b_0688 Phase B raw 57241-57243: the per-cargo net is
+   * `FUN_281f_0b50(cargo)` (gross - demand - unmet[input]) only for the
+   * human seat; `(3 < uVar7) || byte[uVar7*0x34+0x543f] != 0` — the same
+   * control gate the AI food subsidy below reads, polarity 0 = human —
+   * swaps in `gross - demand`, dropping the unmet term, so an AI craft
+   * building never loses output to a short warehouse (bugs.md #898).
+   */
+  const bool colony_ai_controlled =
+    col1 != NULL && colony->nation_id >= 0 &&
+    (colony->nation_id >= (int)COLONIZE_COL1_NATION_COUNT ||
+     col1->player[colony->nation_id].control != 0);
+  /* Phase K (#899) probes the finished good's net, not the raw good's stock. */
+  int craft_gross[COLONIZE_CARGO_COUNT];
+  colony_craft_one_colony_ex(
+    pool, colony, delta, sol_b_phase_a, colony_ai_controlled, craft_gross
+  );
   /* Composed here (Phase A), banked at Phase L — DOS `0b50(0x10)`. Every
    * tick: the old "Autumn freeze" gate (bugs.md #466) rested on a real-DOS
    * Spring→Autumn pair in which no colony staffed a carpenter at all. */
@@ -1428,12 +1444,18 @@ void turn_produce_one_colony(
      * exist" — a staffed-vs-unstaffed distinction the port used to miss
      * (a colony with e.g. an unstaffed starter Blacksmith's House and 0
      * ore would nag "Need ore." every turn even though nobody was trying
-     * to make tools). The DOS probe's "net output of the finished good ==
-     * 0" half always reduces to "stock[in_cargo] == 0" for this game's
-     * recipe ratios (output tier is always >= input tier, so any nonzero
-     * input yields >=1 output) — proven, not assumed — so that half of
-     * the port's existing check was already right; only the gate needed
-     * fixing. 2026-08-24 fix: replaced building-name-substring gates with
+     * to make tools).
+     *
+     * 2026-09-23 fix (bugs.md #899): the other half of the probe is
+     * `FUN_281f_0b50(out_cargo) == 0`, i.e. the FINISHED good's net, read
+     * against the Phase A demand words. The port tested `stock[in] == 0`
+     * instead, on a stock colony_craft_one_colony had already drained at
+     * the Phase A position (:668) — so every colony that burned its whole
+     * stored raw good nagged each turn while still shipping rum/cigars/
+     * cloth/coats. The old note that "net == 0 reduces to stock[in] == 0"
+     * assumed the pre-#897 proportional rescale; with DOS's factory-tier
+     * back-conversion a partial input still yields a positive net and DOS
+     * stays silent. Probe this tick's actual craft output instead. 2026-08-24 fix: replaced building-name-substring gates with
      * colony_craft_demand_mask (same recipe pass colony_craft_one_colony
      * already ran this tick, sol_bonus-consistent). Food keeps its existing
      * gate (not a craft recipe).
@@ -1480,8 +1502,7 @@ void turn_produce_one_colony(
         field_lumber <= 0) {
       snprintf(europe->status, sizeof(europe->status), "Need lumber.");
       k_sec = "LUMBER";
-    } else if (colony->stock[COLONIZE_CARGO_ORE] == 0 && craft_demand[COLONIZE_CARGO_ORE] &&
-               field_prod[COLONIZE_CARGO_ORE] <= 0) {
+    } else if (craft_gross[COLONIZE_CARGO_TOOLS] == 0 && craft_demand[COLONIZE_CARGO_ORE]) {
       snprintf(europe->status, sizeof(europe->status), "Need ore.");
       k_sec = "ORE";
     } else if (
@@ -1489,26 +1510,22 @@ void turn_produce_one_colony(
     ) {
       snprintf(europe->status, sizeof(europe->status), "Need food.");
     } else if (
-      colony->stock[COLONIZE_CARGO_SUGAR] == 0 && craft_demand[COLONIZE_CARGO_SUGAR] &&
-      field_prod[COLONIZE_CARGO_SUGAR] <= 0
+      craft_gross[COLONIZE_CARGO_RUM] == 0 && craft_demand[COLONIZE_CARGO_SUGAR]
     ) {
       snprintf(europe->status, sizeof(europe->status), "Need sugar.");
       k_sec = "CANESUGAR";
     } else if (
-      colony->stock[COLONIZE_CARGO_TOBACCO] == 0 && craft_demand[COLONIZE_CARGO_TOBACCO] &&
-      field_prod[COLONIZE_CARGO_TOBACCO] <= 0
+      craft_gross[COLONIZE_CARGO_CIGARS] == 0 && craft_demand[COLONIZE_CARGO_TOBACCO]
     ) {
       snprintf(europe->status, sizeof(europe->status), "Need tobacco.");
       k_sec = "TOBACCO";
     } else if (
-      colony->stock[COLONIZE_CARGO_COTTON] == 0 && craft_demand[COLONIZE_CARGO_COTTON] &&
-      field_prod[COLONIZE_CARGO_COTTON] <= 0
+      craft_gross[COLONIZE_CARGO_CLOTH] == 0 && craft_demand[COLONIZE_CARGO_COTTON]
     ) {
       snprintf(europe->status, sizeof(europe->status), "Need cotton.");
       k_sec = "COTTON";
     } else if (
-      colony->stock[COLONIZE_CARGO_FURS] == 0 && craft_demand[COLONIZE_CARGO_FURS] &&
-      field_prod[COLONIZE_CARGO_FURS] <= 0
+      craft_gross[COLONIZE_CARGO_COATS] == 0 && craft_demand[COLONIZE_CARGO_FURS]
     ) {
       snprintf(europe->status, sizeof(europe->status), "Need furs.");
       k_sec = "FURS";
