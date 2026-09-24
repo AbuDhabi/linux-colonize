@@ -150,6 +150,7 @@ glancing; 18 shot; 20 animal shot; 21 pump-action; 22 gunfight; 23–34 shots (2
 | `0x42`/`0x48` | 30 / 29 | shots | `5fef_1b0e`: `0x42` is generic attack for a ship or Artillery; `0x48` is a native village's partial-loss cue | Both ported |
 | `0x43`/`0x49` | 27 / 34 | shots | `5fef_1b0e` 5fef:2577-259f attacker-loss cue: `0x43` for ship/attacking Artillery, `0x49` when the defender tile has a native settlement, else `0x40` | Loss selector ported in `units_combat_resolve.c` |
 | `0x44`/`0x45` | 18 / 17 | shot / glancing shot | `5fef_1b0e` 5fef:28b0 tail, gated on `local_6` (set at 5fef:2546: attacker nation ≥ 4, a colony at the defender tile — `281f_07be(x,y)` ≥ 0 — and colony pop > 1 or `local_70 == 0`) + attacker won + visible → `0x44` if the *attacker* is a ship type (`local_86` = `Stack[4]` type in 0xd..0x12, unreachable for Indians) else `0x45` | `units_try_move`: native attacker beating a populated colony defender emits `0x45` after the win cue; the ship-attacker `0x44` arm is dead |
+| `0x46`/`0x47` | 16 / 16 | sinking | `5fef_1b0e` 5fef:2292 computes `0x3b + attacker @UNIT row`; rows 11/12 yield these IDs | Same computed dispatch in `units_combat_resolve.c` |
 | `0x4a`/`0x4b` | 28 / 33 | shots | `5fef_1b0e` win; `0x4b` in the native attacker/European colony arm | `units_move.c` win selection (same visibility gate) |
 | `0x4c` | 14 | shooting + galloping | `5fef_1b0e` 5fef:234e-236a selects it as the generic attack cue for attacker @UNIT rows 4, 5, 7, or 8 | Ported in `units_combat_resolve.c` |
 | `0x4d` | 10 | cheering + fireworks | `5fef_0352` 5fef:07db-0803: junction reached from 061c (winner is a ship), 0631, 0722 and the `@ARTILLERY2` popup; when *both* combatants are ship types (0xd..0x12) and the fight is visible → `0x4d`, **before** the damage-flag (5fef:0d0x `0x3148\|0x80`) / sink (`0x57`) / seizure split — a naval-win beat, not a capture; also raid loot | raid loot gold (`ai_contact.c` @RAIDGOLD); **2026-08-29**: `units_apply_naval_loss_outcome` entry (visible) → `0x4d`, ahead of damaged/sunk |
@@ -163,21 +164,22 @@ glancing; 18 shot; 20 animal shot; 21 pump-action; 22 gunfight; 23–34 shots (2
 | `0x56` | 9 | cheering | `38fd_3dc8` tax raise / tea party | `ai_king.c` @TEAPARTY + raise-taxes popup (2026-08-29) |
 | `0x57` | 16 | sinking | `5fef_0352` ship sunk | `units.c` @SHIPSUNK via the combat sound hook (2026-08-29) |
 | `0x58` | 21 | pump-action | fortify / sentry (`2b5a_1112`, `2f2b_5746`); Europe dock buy muskets (`38fd`) | fortify, sentry, buy muskets |
+| `0x59` | — | fireworks cue | `CLOSING.EXE` cinematic frame cue | `closing.c` frame cue |
 | `0x5a` | 15 | cheering + fireworks | `5fef_1908` King's Galleon (via `FUN_281f_04b6`) | galleon credit |
 | `0x5b` | 22+31 | gunfight | `5fef_0f14` raid repelled | @RAIDNOTHING (2026-08-29) |
 | `0x5c` | 8 | burning | Europe dock buy horses (`38fd`, OVL05 near 3bbe) | `europe_dock.c` buy horses |
 | `0x8020` / `0x8024` | — (chord stings) | | war declaration `5bfb_153e`, assign colonist `2f2b_2f3e` | `ai_diplo_declare_war_ctx` and the three colony-screen assign sites; `gsound_vm.c` dispatches them, and the signed DOS gate forwards them with every option off |
 
-**Event ID use:** `GSOUND.COL` defines handlers for all 29 IDs `0x40..0x5c`.
-The static gameplay sweep identifies ordinary triggers for 26. IDs `0x44`,
-`0x46`, and `0x47` have no normal-game trigger in either DOS or the port:
-`0x44` is the ship arm of a native-attacker colony tail that cannot hold a
-ship, while the typed `0x3b + attacker @UNIT row` rule would require a native
-attacker to have a Continental Army (row 9), Artillery (row 11), or Wagon
-Train (row 12) for `0x44`, `0x46`, or `0x47` respectively. Normal native
-combat units use rows 19–22. The resident `MOV AX,0x44/0x46/0x47` table at
-`0000:af6a` is a character-code mapper, not a sound dispatch. All 29
-handlers remain available to the driver; defined does not imply used.
+**Playback call coverage:** DOS code contains a dispatch path for every one of
+the 29 event IDs `0x40..0x5c`; the port likewise has a dispatch expression for
+each. `0x44` appears as a literal `MOV AX,0x44` followed by the playback call
+at `5fef:28c0-28cd`. `0x46` and `0x47` have no literal push in that combat
+body because `5fef:2292-229b` computes `0x3b + attacker @UNIT row` before the
+playback call: rows 11 and 12 produce them. The same expression can also
+produce `0x44` from row 9. Whether a normal game reaches those particular
+unit/branch combinations is a separate question from whether code can launch
+the IDs. The resident `MOV AX,0x44/0x46/0x47` table at `0000:af6a` is a
+character-code mapper and is not the evidence for playback.
 
 **PCM sample use:** `COLDIG.BIN` has 35 indexed samples. Sweeping every
 `GSOUND.COL` system, song, event, and chord handler through the port VM for
