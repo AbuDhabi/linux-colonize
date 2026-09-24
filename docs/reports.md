@@ -592,6 +592,9 @@ independently golden-confirmed.
   Hall of Fame (record inserted first) → title menu. Sheet palette is
   remapped onto WOODPAN2's like ICONS.SS; the sheet-header y DOS uses for
   the picture is unread (placed under the header lines instead).
+  At the exploits reveal, `OVL06:3e11-3e2d` plays `0x21` for tier 0–6,
+  `0x25` for tier 7–22, or `0x24` for tier 23; `game_retire_after_score`
+  uses the same `exploits_tier` through `sound_retire_tune_id`.
 - Port status: Done (golden `score.png`) — `reports_render_score`/
   `reports_score_collect_citizen_jobs`/`reports_score_draw_citizen_icons`
   (`reports.c:3335`/`3071`/`3294`). Golden's citizen breakdown (142

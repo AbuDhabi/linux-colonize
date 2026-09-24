@@ -3209,6 +3209,10 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         game_enqueue_war_scored_choice(game);
       } else {
         game->in_menu = true;
+        if (sound_active_song_id() != SOUND_TITLE_ID) {
+          sound_stop_bgm();
+          sound_play(SOUND_TITLE_ID);
+        }
         set_status(game, "Colonization Linux Port", NULL);
       }
     }

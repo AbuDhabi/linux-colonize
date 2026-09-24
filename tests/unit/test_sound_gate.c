@@ -97,6 +97,16 @@ static int case_chord_stings(void) {
   return g_fail;
 }
 
+static int case_retire_tune(void) {
+  g_fail = 0;
+  check(sound_retire_tune_id(0) == 0x21, "low coin tier plays Smoky Tune");
+  check(sound_retire_tune_id(6) == 0x21, "tier 6 stays on the low tune");
+  check(sound_retire_tune_id(7) == 0x25, "tier 7 plays Jine the Cavalry");
+  check(sound_retire_tune_id(22) == 0x25, "tier 22 stays on the middle tune");
+  check(sound_retire_tune_id(23) == 0x24, "tier 23 plays Fiddler's Dance");
+  return g_fail;
+}
+
 /* An id in [0x10,0x1f] carries neither bit: the OR chain drops it. The two
  * class checks are an OR chain (12d8:002f-0045), not two vetoes: an id with
  * both bits plays when either option is on. */
@@ -117,6 +127,7 @@ static const TestCase k_cases[] = {
     {"case_event_class", case_event_class},
     {"case_bgm_does_not_gate", case_bgm_does_not_gate},
     {"case_chord_stings", case_chord_stings},
+    {"case_retire_tune", case_retire_tune},
     {"case_class_or_chain", case_class_or_chain},
 };
 
