@@ -361,23 +361,25 @@ bool units_try_move_w(
           }
         }
       }
-      if (unit->nation_id >= 4 && colonies) {
+      if (phantom_defender && colonies) {
         const int cid = colonies_id_at(colonies, dest_x, dest_y);
         const ColonizeColony* cc = cid >= 0 ? colonies_get(colonies, cid) : NULL;
-        if (cc && cc->population > 1) {
+        if (cc && cc->nation_id >= 0 && cc->nation_id < 4) {
           win_sound = 0x4b;
         }
       }
       units_play_event_sound(win_sound);
-      /* FUN_5fef_1b0e 5fef:2546 + 28b0: an Indian attacker (nation ≥ 4)
-       * beating a colony's defender (colony at the defender tile, pop > 1)
-       * sets local_6 and the tail then pushes 0x45 (COLDIG 17 glancing
-       * shot); the 0x44 arm needs a ship attacker, unreachable here. */
+      /* FUN_5fef_1b0e 5fef:2546 + 28b0: an Indian attacker (nation >= 4)
+       * beating a colony's defender sets local_6 when population > 1 OR the
+       * defender was not the temporary militia (`!bVar28`), then pushes
+       * 0x45. Keep DOS's 0x44 ship-attacker selector even though normal
+       * native unit data cannot reach it. The earlier 0x4b is separate: it is the temporary
+       * defender / European colony capture cue (`bVar12`). */
       if (unit->nation_id >= 4 && colonies) {
         const int cid = colonies_id_at(colonies, dest_x, dest_y);
         const ColonizeColony* cc = cid >= 0 ? colonies_get(colonies, cid) : NULL;
-        if (cc && cc->population > 1) {
-          units_play_event_sound(0x45);
+        if (cc && (cc->population > 1 || !phantom_defender)) {
+          units_play_event_sound(units_is_sea(pool, unit_id) ? 0x44 : 0x45);
         }
       }
     }

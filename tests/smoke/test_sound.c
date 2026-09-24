@@ -24,8 +24,8 @@ int main(void) {
     sound_shutdown();
     return 1;
   }
-  if (!sound_gsound_has_song(SOUND_TITLE_ID)) {
-    fprintf(stderr, "missing title song 0x33\n");
+  if (!sound_gsound_has_song(0x33)) {
+    fprintf(stderr, "missing song 0x33\n");
     sound_shutdown();
     return 1;
   }
@@ -196,16 +196,16 @@ int main(void) {
     }
   }
 
-  /* Title intro must decode to a substantial event list. */
-  int title_events = 0;
-  uint32_t title_dur = 0;
-  if (!sound_gsound_song_stats(SOUND_TITLE_ID, &title_events, &title_dur, NULL, NULL, NULL, NULL) ||
-      title_events < 50 || title_dur < 500) {
+  /* Song 0x33 (used by DOS woodcut/Lost City Rumour paths) must decode. */
+  int song33_events = 0;
+  uint32_t song33_dur = 0;
+  if (!sound_gsound_song_stats(0x33, &song33_events, &song33_dur, NULL, NULL, NULL, NULL) ||
+      song33_events < 50 || song33_dur < 500) {
     fprintf(
       stderr,
-      "title 0x33 weak decode events=%d dur=%u\n",
-      title_events,
-      title_dur
+      "song 0x33 weak decode events=%d dur=%u\n",
+      song33_events,
+      song33_dur
     );
     sound_shutdown();
     return 1;
@@ -218,7 +218,7 @@ int main(void) {
     return 1;
   }
 
-  const int n = sound_render_offline_mono(SOUND_TITLE_ID, buf, FRAMES, 44100);
+  const int n = sound_render_offline_mono(0x33, buf, FRAMES, 44100);
   if (n < FRAMES / 2) {
     fprintf(stderr, "offline render too short (%d)\n", n);
     free(buf);
@@ -255,7 +255,7 @@ int main(void) {
   opts.background_music = false;
   opts.event_music = false;
   sound_set_options(opts);
-  sound_play(SOUND_TITLE_ID); /* song class (0x20..0x3f): gated off by event_music */
+  sound_play(0x33); /* song class (0x20..0x3f): gated off by event_music */
   sound_set_bgm(1);
   sound_play_preview(SOUND_BGM_ID_BASE + 1);
   sound_service();

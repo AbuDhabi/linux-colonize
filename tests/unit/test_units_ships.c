@@ -1,5 +1,12 @@
 #include "test_units_common.h"
 
+static int g_refit_sound_id;
+static int g_refit_sound_calls;
+
+static void capture_refit_sound(int id) {
+  g_refit_sound_id = id;
+  g_refit_sound_calls++;
+}
 
 static int unit_refit_drydock(void) {
   ColonizeMsgCatalog names;
@@ -61,13 +68,26 @@ static int unit_refit_drydock(void) {
   ai_popup_init(&pops);
   char st[96];
   st[0] = '\0';
+  g_refit_sound_id = -1;
+  g_refit_sound_calls = 0;
+  units_set_combat_music_hooks(capture_refit_sound, NULL);
   const int repaired = units_tick_drydock_repair(
     &pool, &colonies, 0, 0, st, sizeof(st), &pops, &game_txt
   );
+  units_set_combat_music_hooks(NULL, NULL);
   ship = units_get(&pool, sid);
   if (repaired != 1 || !ship || (ship->col1_flags15 & 0x80u) != 0) {
     fprintf(stderr, "refit: repair failed repaired=%d bit7=%02x\n", repaired,
             ship ? (unsigned)ship->col1_flags15 : 0xffu);
+    assets_msg_free(&game_txt);
+    assets_msg_free(&names);
+    return 1;
+  }
+  if (g_refit_sound_calls != 1 || g_refit_sound_id != 0x54) {
+    fprintf(
+      stderr, "refit: sound calls=%d id=0x%x (want one 0x54)\n",
+      g_refit_sound_calls, g_refit_sound_id
+    );
     assets_msg_free(&game_txt);
     assets_msg_free(&names);
     return 1;
