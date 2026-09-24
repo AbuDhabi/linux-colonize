@@ -54,6 +54,9 @@ static const ColonizeCraftRecipe k_recipes[] = {
   {COLONIES_CHAIN_WEAVER, COLONIZE_CARGO_COTTON, COLONIZE_CARGO_CLOTH, COLONIZE_PROF_WEAVER},
   {COLONIES_CHAIN_FUR, COLONIZE_CARGO_FURS, COLONIZE_CARGO_COATS, COLONIZE_PROF_FUR_TRADER},
   {COLONIES_CHAIN_RUM, COLONIZE_CARGO_SUGAR, COLONIZE_CARGO_RUM, COLONIZE_PROF_DISTILLER},
+  /* The muskets pair is the `0b96` ledger row, never `0bd4` — 1:1 tools at
+   * Armory/Magazine/Arsenal alike, and no unmet rescale. See
+   * colony_prod_chain_input_is_flat. bugs.md #910. */
   {COLONIES_CHAIN_ARMORY, COLONIZE_CARGO_TOOLS, COLONIZE_CARGO_MUSKETS, COLONIZE_PROF_GUNSMITH},
 };
 
@@ -192,7 +195,12 @@ static bool colony_craft_pairs_next(
     }
     /* One floor divide over the colony total, exactly where DOS does it
      * (FUN_15eb_0bd4 raw 10168-10172): factory tier `(total << 1) / 3`,
-     * lower tiers 1:1. bugs.md #851. */
+     * lower tiers 1:1. bugs.md #851.
+     *
+     * Flat-input chains (tools -> muskets) never reach 0bd4 at all —
+     * FUN_15eb_1f72 raw 12689 hands the muskets gross straight to
+     * FUN_15eb_0b96 as the tools demand — so the helper keeps them 1:1 even
+     * at the Arsenal's factory tier. bugs.md #910. */
     const int total_in = colony_prod_chain_input_for_total_output(building_row, total_out);
     it->done_pair[rec->in_cargo][rec->out_cargo] = true;
     *out_rec = rec;
@@ -250,7 +258,10 @@ static void colony_craft_run(
   int total_out = 0;
   int total_in = 0;
   while (colony_craft_pairs_next(&it, pool, colony, sol_bonus, &rec, &total_out, &total_in)) {
-    if (total_out <= 0 || total_in <= 0) {
+    /* Only the output half gates the row: at the factory tier a gross of 1
+     * demands `(1*2)/3 == 0`, and DOS's 0bd4 then records no unmet, so Phase B
+     * nets `G - 0 = 1` and the unit is produced free. bugs.md #913. */
+    if (total_out <= 0) {
       continue;
     }
     if (capacity_out) {
@@ -277,6 +288,10 @@ static void colony_craft_run(
      *       U' = (U == D) ? G : (U * 3) / 2;
      *   out = G - U'
      *
+     * Flat-input chains (tools -> muskets) skip 0bd4 entirely and so get
+     * neither the discount nor this rescale: D == G and out = G - U, a 1:1
+     * cut. bugs.md #910.
+     *
      * The port's stock already carries this tick's field yield (added in
      * turn_production.c Phase A before the craft pass), so `avail` is DOS's
      * `stock + gross_in`. bugs.md #897 — the old proportional rescale
@@ -297,7 +312,7 @@ static void colony_craft_run(
       if (unmet < 0) {
         unmet = 0;
       }
-      if (unmet != 0 && total_in != total_out) {
+      if (unmet != 0 && total_in != total_out && !colony_prod_chain_input_is_flat(rec->chain)) {
         unmet = (unmet == total_in) ? total_out : (unmet * 3) / 2;
       }
       actual_out = total_out - unmet;

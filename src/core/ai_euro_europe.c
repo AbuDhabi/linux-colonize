@@ -1224,14 +1224,14 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
               if (try_train) {
                 /* LAB_521d_6454: tools-side training. */
                 uint32_t local_1a = (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_MUSKETS) * 50);
-                if (hs->crosses_bank_whole != 0) {
+                if (hs->musket_bank_lots != 0) {
                   local_1a = 0;
                 }
                 if (nat->gold >= local_1a && !f->cargo_short) {
-                  if (hs->crosses_bank_whole == 0) {
+                  if (hs->musket_bank_lots == 0) {
                     ai_euro_5d04_cb_set_pool_counter(0xf, 0x32);
                   } else {
-                    hs->crosses_bank_whole--;
+                    hs->musket_bank_lots--;
                   }
                   nat->gold -= local_1a;
                   ai_euro_5d04_cb_set_unit_dispatch_byte(idx, 1);
@@ -1257,18 +1257,18 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
                     ai_euro_5d04_cb_set_unit_profession(idx, 0x15); /* Veteran Soldier */
                   }
                   uint32_t local_1a2 = (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_HORSES) * 50);
-                  if ((uint32_t)hs->crosses_bank_raw > 0x31) {
+                  if ((uint32_t)hs->musket_bank_raw > 0x31) {
                     local_1a2 = 0;
                   }
                   if (nat->gold >= local_1a2) {
                     nat->gold -= local_1a2;
                     ai_euro_5d04_cb_set_unit_dispatch_byte(idx, 4);
-                    if (hs->crosses_bank_raw < 0x32) {
+                    if (hs->musket_bank_raw < 0x32) {
                       /* raw 92729-92733: DOS only calls FUN_291f_0c14(8,0x32)
                        * here — the old `= 0x32` write-back was invented. */
                       ai_euro_5d04_cb_set_pool_counter(8, 0x32);
                     } else {
-                      hs->crosses_bank_raw -= 0x32;
+                      hs->musket_bank_raw -= 0x32;
                     }
                   }
                   handled = 1;
@@ -1376,13 +1376,13 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
     local_24 = ai_euro_5d04_cb_colony_demand_query(local_16, 0xe);
     int local_42 = local_24 - local_22;
     if (turn > 0x50) {
-      while ((uint32_t)(hs->delay_48 + 1) < (uint32_t)hs->crosses_bank_raw / 50) {
-        hs->crosses_bank_raw -= 50;
+      while ((uint32_t)(hs->delay_48 + 1) < (uint32_t)hs->musket_bank_raw / 50) {
+        hs->musket_bank_raw -= 50;
         hs->delay_48++;
       }
-      while ((uint32_t)hs->crosses_bank_raw / 50 + 1 < (uint32_t)hs->delay_48) {
+      while ((uint32_t)hs->musket_bank_raw / 50 + 1 < (uint32_t)hs->delay_48) {
         hs->delay_48--;
-        hs->crosses_bank_raw += 50;
+        hs->musket_bank_raw += 50;
       }
     }
     if (local_34 == 0 && local_24 > 5) {
@@ -1410,7 +1410,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
       const long extra =
         ((long)base2 * (long)nat->current_crosses) / (-1L - (long)nat->needed_crosses);
       uint32_t local_38b = (uint32_t)(base2 + extra);
-      if (hs->crosses_bank_whole == 0) {
+      if (hs->musket_bank_lots == 0) {
         local_38b += (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_MUSKETS) * 50);
       }
       if (turn > 99) {
@@ -1425,11 +1425,11 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
         const int cdisp = ai_euro_5d04_cb_unit_dispatch_byte(cand);
         int extra_cost = 0;
         if (cdisp == 1 || cdisp == 4) {
-          if (hs->crosses_bank_whole == 0) {
+          if (hs->musket_bank_lots == 0) {
             extra_cost = ai_euro_5d04_cb_price(COLONIZE_CARGO_MUSKETS) * -50;
             ai_euro_5d04_cb_market_volume(COLONIZE_CARGO_MUSKETS, 50, 0); /* FUN_291f_0a2e */
           } else {
-            hs->crosses_bank_whole++;
+            hs->musket_bank_lots++;
           }
         } else if (cdisp == 2) {
           extra_cost = ai_euro_5d04_cb_price(COLONIZE_CARGO_TOOLS) * -100;
@@ -1453,10 +1453,10 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
           }
         }
         nat->gold -= local_38b;
-        if (hs->crosses_bank_whole == 0) {
+        if (hs->musket_bank_lots == 0) {
           ai_euro_5d04_cb_set_pool_counter(0xf, 0x32);
         } else {
-          hs->crosses_bank_whole--;
+          hs->musket_bank_lots--;
         }
         if (f->has_college && ai_euro_5d04_cb_unit_profession(cand) != 0x15) {
           const int roll4 = dos_rng_range(
@@ -1471,17 +1471,17 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
         if (turn > 99) {
           local_1a3 += (uint32_t)((int)(difficulty * (int)local_1a3 * 10) / -100);
         }
-        if ((uint32_t)hs->crosses_bank_raw > 0x31) {
+        if ((uint32_t)hs->musket_bank_raw > 0x31) {
           local_1a3 = 0;
         }
         if (nat->gold >= local_1a3) {
           nat->gold -= local_1a3;
         }
         ai_euro_5d04_cb_set_unit_dispatch_byte(cand, 4);
-        if (hs->crosses_bank_raw < 0x32) {
+        if (hs->musket_bank_raw < 0x32) {
           ai_euro_5d04_cb_set_pool_counter(8, 0x32);
         } else {
-          hs->crosses_bank_raw -= 0x32;
+          hs->musket_bank_raw -= 0x32;
         }
         (void)ai_euro_5d04_refill_pool_slot(slot); /* FUN_38fd_46d4 */
         bVar9 = 1;
@@ -1572,11 +1572,11 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
           if (kind == COLONIZE_CARGO_MUSKETS) {
             const int v = ai_euro_5d04_cb_reward_value(idx2);
             last_lots = (v + 0x31) / 0x32;
-            hs->crosses_bank_whole = (int8_t)(hs->crosses_bank_whole + last_lots);
+            hs->musket_bank_lots = (int8_t)(hs->musket_bank_lots + last_lots);
             ai_euro_5d04_cb_reward_ack(idx2);
           } else if (kind == COLONIZE_CARGO_HORSES) {
             ai_euro_5d04_cb_reward_ack(idx2);
-            hs->crosses_bank_raw += last_lots; /* DOS reuses the stale 0x8dc4 lots value */
+            hs->musket_bank_raw += last_lots; /* DOS reuses the stale 0x8dc4 lots value */
           } else if (!ai_euro_5d04_cb_sell_hold0(idx2)) {
             break; /* boycotted hold stays aboard */
           }

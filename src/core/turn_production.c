@@ -677,11 +677,54 @@ void turn_produce_one_colony(
     col1 != NULL && colony->nation_id >= 0 &&
     (colony->nation_id >= (int)COLONIZE_COL1_NATION_COUNT ||
      col1->player[colony->nation_id].control != 0);
-  /* Phase K (#899) probes the finished good's net, not the raw good's stock. */
+  /*
+   * Phase K (bugs.md #899/#911) probes two DOS scratch words per craft pair,
+   * not the raw good's stock (FUN_364b_0688 raw 57696-57728):
+   *
+   *   unmet[input]        DS:0x8e5a + 2*cargo — "the staffed worker wanted
+   *                       input the warehouse did not have"
+   *                       (FUN_15eb_0bd4 `U = D - (stock + gross_in)`). In
+   *                       colony_craft.c's pass that is exactly
+   *                       `actual_out < total_out` for the recipe, so read
+   *                       it off a non-mutating preview over the SAME
+   *                       pre-craft stock: capacity_out[o] is total_out and
+   *                       gross_out[o] is actual_out. (The preview's
+   *                       shortfall[] array cannot be used: it sums the
+   *                       output- and input-side shortfalls of DIFFERENT
+   *                       recipes into one slot for tools.) ai_controlled
+   *                       is deliberately false here — DOS's ledger writes
+   *                       the unmet word for every colony; only Phase B's
+   *                       net drops the term (bugs.md #898).
+   *   FUN_281f_0b50(out)  this tick's NET stock change for the finished
+   *                       good (gross - demand - unmet[input]) — taken here
+   *                       as the stock delta across the craft pass itself,
+   *                       which is exactly that for every craft cargo and,
+   *                       unlike craft_gross, nets the gunsmith's tools
+   *                       consumption out of tools (the @ORE arm compares
+   *                       net muskets against net tools).
+   */
+  int craft_unmet_cap[COLONIZE_CARGO_COUNT];
+  int craft_unmet_gross[COLONIZE_CARGO_COUNT];
+  {
+    ColonizeColony craft_scratch = *colony;
+    colony_craft_preview(
+      pool, &craft_scratch, NULL, NULL, sol_b_phase_a, craft_unmet_gross,
+      craft_unmet_cap, false
+    );
+  }
+  int craft_stock_pre[COLONIZE_CARGO_COUNT];
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    craft_stock_pre[c] = colony->stock[c];
+  }
   int craft_gross[COLONIZE_CARGO_COUNT];
   colony_craft_one_colony_ex(
     pool, colony, delta, sol_b_phase_a, colony_ai_controlled, craft_gross
   );
+  int craft_net[COLONIZE_CARGO_COUNT];
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    craft_net[c] = colony->stock[c] - craft_stock_pre[c];
+  }
+  (void)craft_gross;
   /* Composed here (Phase A), banked at Phase L — DOS `0b50(0x10)`. Every
    * tick: the old "Autumn freeze" gate (bugs.md #466) rested on a real-DOS
    * Spring→Autumn pair in which no colony staffed a carpenter at all. */
@@ -1455,10 +1498,11 @@ void turn_produce_one_colony(
      * cloth/coats. The old note that "net == 0 reduces to stock[in] == 0"
      * assumed the pre-#897 proportional rescale; with DOS's factory-tier
      * back-conversion a partial input still yields a positive net and DOS
-     * stays silent. Probe this tick's actual craft output instead. 2026-08-24 fix: replaced building-name-substring gates with
-     * colony_craft_demand_mask (same recipe pass colony_craft_one_colony
-     * already ran this tick, sol_bonus-consistent). Food keeps its existing
-     * gate (not a craft recipe).
+     * stays silent. (Superseded in detail by bugs.md #911 below: the probe is
+     * the NET word, and `unmet[input] != 0` — not the demand mask — is the
+     * other half.) 2026-08-24 fix: replaced building-name-substring gates
+     * with the craft pass's own words (same recipe pass
+     * colony_craft_one_colony already ran this tick, sol_bonus-consistent).
      *
      * 2026-09-10 fix (smell audit B1): "sol_bonus-consistent" was only true
      * until the Phase A composition boundary above (:865) hoisted the craft
@@ -1489,65 +1533,89 @@ void turn_produce_one_colony(
      * accurate "someone is actually staffed to consume lumber" gate, same
      * as the other five goods above.
      */
-    bool craft_demand[COLONIZE_CARGO_COUNT];
-    colony_craft_demand_mask(pool, colony, sol_b_phase_a, craft_demand);
     int lumber_demand = 0;
     (void)colony_prod_colony_hammers(pool, colony, 0, &lumber_demand);
 
-    const char* k_sec = NULL;
-    /* bugs.md: @LUMBER only when lumber INPUT production is zero and the
-     * carpenters still tried to work — producing some lumber (merely not
-     * enough for full demand) is not "run out". */
-    if (colony->stock[COLONIZE_CARGO_LUMBER] == 0 && lumber_demand > 0 &&
-        field_lumber <= 0) {
-      snprintf(europe->status, sizeof(europe->status), "Need lumber.");
-      k_sec = "LUMBER";
-    } else if (craft_gross[COLONIZE_CARGO_TOOLS] == 0 && craft_demand[COLONIZE_CARGO_ORE]) {
-      snprintf(europe->status, sizeof(europe->status), "Need ore.");
-      k_sec = "ORE";
-    } else if (
-      colony->stock[COLONIZE_CARGO_FOOD] == 0 && colony->colonist_count > 0
-    ) {
-      snprintf(europe->status, sizeof(europe->status), "Need food.");
-    } else if (
-      craft_gross[COLONIZE_CARGO_RUM] == 0 && craft_demand[COLONIZE_CARGO_SUGAR]
-    ) {
-      snprintf(europe->status, sizeof(europe->status), "Need sugar.");
-      k_sec = "CANESUGAR";
-    } else if (
-      craft_gross[COLONIZE_CARGO_CIGARS] == 0 && craft_demand[COLONIZE_CARGO_TOBACCO]
-    ) {
-      snprintf(europe->status, sizeof(europe->status), "Need tobacco.");
-      k_sec = "TOBACCO";
-    } else if (
-      craft_gross[COLONIZE_CARGO_CLOTH] == 0 && craft_demand[COLONIZE_CARGO_COTTON]
-    ) {
-      snprintf(europe->status, sizeof(europe->status), "Need cotton.");
-      k_sec = "COTTON";
-    } else if (
-      craft_gross[COLONIZE_CARGO_COATS] == 0 && craft_demand[COLONIZE_CARGO_FURS]
-    ) {
-      snprintf(europe->status, sizeof(europe->status), "Need furs.");
-      k_sec = "FURS";
-    } else if (
-      colony->stock[COLONIZE_CARGO_MUSKETS] == 0 && colony->stock[COLONIZE_CARGO_TOOLS] == 0 &&
-      craft_demand[COLONIZE_CARGO_TOOLS]
-    ) {
-      /* 0x8e66 paired tools+muskets empty. */
-      snprintf(europe->status, sizeof(europe->status), "Need tools for muskets.");
-      k_sec = "TOOLS";
-    } else if (
-      colony->stock[COLONIZE_CARGO_MUSKETS] == 0 && craft_demand[COLONIZE_CARGO_TOOLS]
-    ) {
-      snprintf(europe->status, sizeof(europe->status), "Need muskets.");
-    }
-    if (k_sec && ai_popups) {
+    /*
+     * DOS-LITERAL FUN_364b_0688 raw 57696-57728 (bugs.md #911). Seven
+     * INDEPENDENT `if`s, in GAME.TXT tag order, all inside one
+     * `(DS:0x5384 & 0x20) == 0` chrome gate (the outer report filter above):
+     *
+     *   57697  unmet[lumber]  (0x8e64) && 0b50(0x10 hammers) == 0  -> 0xe66 @LUMBER
+     *   57701  unmet[cotton]  (0x8e60) && 0b50(0x0b cloth)   == 0  -> 0xe6d @COTTON
+     *   57705  unmet[tobacco] (0x8e5e) && 0b50(0x0a cigars)  == 0  -> 0xe74 @TOBACCO
+     *   57709  unmet[sugar]   (0x8e5c) && 0b50(0x09 rum)     == 0  -> 0xe7c @CANESUGAR
+     *   57713  unmet[furs]    (0x8e62) && 0b50(0x0c coats)   == 0  -> 0xe86 @FURS
+     *   57717  unmet[ore]     (0x8e66) && 0b50(0x0f muskets) == 0b50(0x0e tools)
+     *                                                            -> 0xe8b @ORE
+     *   57725  unmet[tools]   (0x8e76) && 0b50(0x0f muskets) == 0  -> 0xe8f @TOOLS
+     *
+     * (unmet base DS:0x8e5a, stride 2, so 0x8e64 = [5] lumber ... 0x8e76 =
+     * [14] tools; tag addresses verified against VICEROY.EXE DS, see
+     * docs/popup_tag_ids.md's generation note, EXE offset 121248 + addr.)
+     *
+     * The port used to run these as ONE else-if chain in a different order,
+     * so a colony could only ever emit one crumb per turn and @ORE outranked
+     * every organic. DOS emits all that match; each is its own popup, and the
+     * status line simply ends up carrying the last one (see below).
+     *
+     * Deleted with this fix: an invented "Need muskets." arm (no DS tag, no
+     * GAME.TXT section) and a "Need food." arm spliced into the middle — DOS
+     * has no food crumb here at all; its food chrome is the
+     * VANISH/STARVE1/STARVE2 (0xe47/0xe4e/0xe56) and @FOODLOW (0xe5e) block
+     * further up this function, which is ported and stays where DOS has it.
+     *
+     * #899 reconciliation: that fix read the second half of the probe as
+     * `gross(out) == 0`. The DOS word is 0b50 = gross - demand - unmet[input],
+     * i.e. the NET stock change, which only equals gross for goods nothing
+     * else consumes. It differs for TOOLS, whose net is docked by the
+     * gunsmith's consumption — exactly the cargo the @ORE and @TOOLS arms
+     * read. craft_net[] (Phase B) is that net; craft_gross[] is not used here
+     * any more.
+     */
+    struct KCrumb {
+      const char* sec;
+      bool fire;
+    };
+    /* Port note: DOS's 0b50(0x10) hammers word is NOT lumber-clamped, but the
+     * port clamps hammers to lumber on hand at Phase L (bugs.md #163), so the
+     * equivalent "no hammers banked this tick" figure is the clamped one. */
+    const int lumber_stock = colony->stock[COLONIZE_CARGO_LUMBER];
+    const int hammers_net =
+      (hammers_phase_a < lumber_stock) ? hammers_phase_a : lumber_stock;
+    /* unmet[input] != 0 for the recipe that makes `o` (see Phase B). */
+#define K_UNMET(o) (craft_unmet_cap[(o)] > 0 && craft_unmet_gross[(o)] < craft_unmet_cap[(o)])
+    const struct KCrumb k_crumbs[] = {
+      {"LUMBER", lumber_demand - lumber_stock > 0 && hammers_net == 0},
+      {"COTTON", K_UNMET(COLONIZE_CARGO_CLOTH) && craft_net[COLONIZE_CARGO_CLOTH] == 0},
+      {"TOBACCO", K_UNMET(COLONIZE_CARGO_CIGARS) && craft_net[COLONIZE_CARGO_CIGARS] == 0},
+      {"CANESUGAR", K_UNMET(COLONIZE_CARGO_RUM) && craft_net[COLONIZE_CARGO_RUM] == 0},
+      {"FURS", K_UNMET(COLONIZE_CARGO_COATS) && craft_net[COLONIZE_CARGO_COATS] == 0},
+      /* DOS-LITERAL raw 57717-57724: the ore arm compares net muskets against
+       * net TOOLS, not against 0 — a copy-paste slip in the original (every
+       * other arm tests `== 0`). Kept on purpose; do not "fix". */
+      {"ORE",
+       K_UNMET(COLONIZE_CARGO_TOOLS) &&
+         craft_net[COLONIZE_CARGO_MUSKETS] == craft_net[COLONIZE_CARGO_TOOLS]},
+      {"TOOLS", K_UNMET(COLONIZE_CARGO_MUSKETS) && craft_net[COLONIZE_CARGO_MUSKETS] == 0},
+    };
+#undef K_UNMET
+    for (size_t ki = 0; ki < sizeof(k_crumbs) / sizeof(k_crumbs[0]); ++ki) {
+      if (!k_crumbs[ki].fire) {
+        continue;
+      }
+      /* bugs.md #912: no typed English fallback — the wording lives only in
+       * GAME.TXT, miss = empty string, and the status line carries whatever
+       * the catalog produced (DOS likewise shows the resolved message). */
       char body[AI_POPUP_BODY_LEN];
       PopupMsgTokens tok;
       memset(&tok, 0, sizeof(tok));
-      tok.string0 = colony->name[0] ? colony->name : "colony";
-      popup_msg_fill(messages, k_sec, &tok, europe->status, body, sizeof(body));
-      ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+      tok.string0 = colony->name[0] ? colony->name : "";
+      popup_msg_fill(messages, k_crumbs[ki].sec, &tok, "", body, sizeof(body));
+      str_copy_trunc(europe->status, sizeof(europe->status), body);
+      if (ai_popups) {
+        ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+      }
     }
   }
 

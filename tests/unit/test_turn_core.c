@@ -5411,6 +5411,13 @@ static int case_phase_k_build_advisory(void) {
    * colonist must actually be assigned to the Weaver's House for the
    * @COTTON crumb to fire (an unstaffed building has zero demand in DOS,
    * and used to incorrectly nag "Need cotton." regardless of staffing). */
+  /* bugs.md #912: the K crumb wording comes only from GAME.TXT now (no typed
+   * English fallback), so every K assertion needs the catalog loaded. */
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+  AiPopupState pops;
+  ai_popup_init(&pops);
   ColonizeCol1Save cloth_col;
   memset(&cloth_col, 0, sizeof(cloth_col));
   cloth_col.head.colony_report_options.report_food_shortages = 1;
@@ -5428,7 +5435,7 @@ static int case_phase_k_build_advisory(void) {
   col->colonists[0].profession = COLONIZE_PROF_WEAVER;
   eu.status[0] = '\0';
   memset(&prod, 0, sizeof(prod));
-  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&cloth_col), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&cloth_col), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
   if (strstr(eu.status, "cotton") == NULL) {
     fprintf(stderr, "build advisory K cotton want status got '%s'\n", eu.status);
     return 1;
@@ -5436,11 +5443,6 @@ static int case_phase_k_build_advisory(void) {
   fprintf(stderr, "build advisory K cotton ok\n");
 
   /* Phase K @LUMBER / @ORE / @TOOLS chrome. */
-  ColonizeMsgCatalog game_txt;
-  assets_msg_init(&game_txt);
-  (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
-  AiPopupState pops;
-  ai_popup_init(&pops);
   ColonizeCol1Save food_gate;
   memset(&food_gate, 0, sizeof(food_gate));
   food_gate.head.colony_report_options.report_food_shortages = 1;
@@ -5663,8 +5665,120 @@ static int case_phase_k_build_advisory(void) {
     assets_msg_free(&game_txt);
     return 1;
   }
-  assets_msg_free(&game_txt);
   fprintf(stderr, "Phase K TOBACCO chrome ok\n");
+
+  /*
+   * bugs.md #911: DOS FUN_364b_0688 raw 57696-57728 runs SEVEN INDEPENDENT
+   * `if`s, not one else-if chain — two starved craft chains in one colony
+   * emit TWO popups in the same turn (@COTTON before @TOBACCO, GAME.TXT tag
+   * order), and the status line simply ends up carrying the last one.
+   */
+  pool.building_type_count = 3;
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Weaver's House");
+  snprintf(
+    pool.building_types[2].name, sizeof(pool.building_types[2].name), "Tobacconist's House"
+  );
+  pool.building_types[2].hammers = 0;
+  pool.building_types[2].tools_cost = 0;
+  col->has_building[0] = true;
+  col->has_building[2] = true;
+  col->building_in_production = -1;
+  col->colonists[0].active = true;
+  col->colonists[0].building_type = 0;
+  col->colonists[0].profession = COLONIZE_PROF_WEAVER;
+  col->colonists[1].active = true;
+  col->colonists[1].building_type = 2;
+  col->colonists[1].profession = COLONIZE_PROF_TOBACCONIST;
+  col->colonist_count = 2;
+  col->population = 2;
+  col->stock[COLONIZE_CARGO_COTTON] = 0;
+  col->stock[COLONIZE_CARGO_TOBACCO] = 0;
+  col->stock[COLONIZE_CARGO_SUGAR] = 5;
+  col->stock[COLONIZE_CARGO_FURS] = 5;
+  col->stock[COLONIZE_CARGO_LUMBER] = 5;
+  col->stock[COLONIZE_CARGO_ORE] = 5;
+  col->stock[COLONIZE_CARGO_TOOLS] = 5;
+  col->stock[COLONIZE_CARGO_MUSKETS] = 5;
+  col->stock[COLONIZE_CARGO_FOOD] = 60;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (pops.queue_count < 2 || strstr(pops.queue[0].body, "cotton") == NULL ||
+      strstr(pops.queue[1].body, "tobacco") == NULL) {
+    fprintf(
+      stderr,
+      "K two-crumb want cotton+tobacco q=%d b0='%s' b1='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : "",
+      pops.queue_count > 1 ? pops.queue[1].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(eu.status, "tobacco") == NULL) {
+    fprintf(stderr, "K two-crumb status want last (tobacco) got '%s'\n", eu.status);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  fprintf(stderr, "Phase K two-crumbs-one-turn ok\n");
+
+  /*
+   * bugs.md #911 DOS-LITERAL copy-paste quirk (raw 57717-57724): the @ORE arm
+   * tests `0b50(muskets) == 0b50(tools)`, not `== 0`. With a staffed gunsmith
+   * turning stored tools into muskets the two nets differ (muskets up, tools
+   * down), so DOS stays SILENT about the empty ore even though unmet[ore] != 0
+   * — a plain `net(tools) == 0` reading would have nagged.
+   */
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Blacksmith's House");
+  snprintf(pool.building_types[2].name, sizeof(pool.building_types[2].name), "Armory");
+  col->colonists[0].profession = COLONIZE_PROF_BLACKSMITH;
+  col->colonists[1].profession = COLONIZE_PROF_GUNSMITH;
+  col->stock[COLONIZE_CARGO_COTTON] = 5;
+  col->stock[COLONIZE_CARGO_TOBACCO] = 5;
+  col->stock[COLONIZE_CARGO_ORE] = 0;
+  col->stock[COLONIZE_CARGO_TOOLS] = 20;
+  col->stock[COLONIZE_CARGO_MUSKETS] = 0;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (col->stock[COLONIZE_CARGO_MUSKETS] <= 0) {
+    fprintf(stderr, "K ORE quirk: expected muskets made, got %d\n",
+            col->stock[COLONIZE_CARGO_MUSKETS]);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(eu.status, "ore") != NULL) {
+    fprintf(stderr, "K ORE quirk want silence (nets differ) got '%s'\n", eu.status);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  fprintf(stderr, "Phase K ORE copy-paste quirk ok\n");
+
+  /*
+   * bugs.md #911: the @TOOLS arm is `unmet[tools] != 0 && 0b50(muskets) == 0`
+   * — muskets already IN STOCK are irrelevant (the port used to require
+   * `stock[muskets] == 0 && stock[tools] == 0`). Gunsmith staffed, no tools
+   * to work with, a full musket warehouse: DOS still nags @TOOLS.
+   */
+  col->colonists[0].building_type = -1;
+  col->colonists[0].profession = UNITS_JOB_COLONIST;
+  col->stock[COLONIZE_CARGO_ORE] = 5;
+  col->stock[COLONIZE_CARGO_TOOLS] = 0;
+  col->stock[COLONIZE_CARGO_MUSKETS] = 50;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (strstr(eu.status, "tools") == NULL) {
+    fprintf(stderr, "K TOOLS muskets-in-stock want tools got '%s'\n", eu.status);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  fprintf(stderr, "Phase K TOOLS muskets-in-stock ok\n");
+
+  assets_msg_free(&game_txt);
   return 0;
 }
 
@@ -5751,6 +5865,109 @@ static int case_factory_input_colony_total(void) {
   return 0;
 }
 
+/*
+ * bugs.md #910 / #913: the muskets pair is DOS's FUN_15eb_0b96 ledger row
+ * (FUN_15eb_1f72 raw 12689), so it never gets the factory `(G<<1)/3` input
+ * discount nor the `(U*3)/2` unmet rescale that live inside FUN_15eb_0bd4 —
+ * an Arsenal is 1:1 tools->muskets and its shortfall cuts 1:1. The third
+ * scenario covers #913: a factory gross of 1 demands `(1*2)/3 == 0` and is
+ * produced free.
+ */
+static int case_armory_flat_input(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Arsenal");
+  pool.building_types[0].hammers = 0;
+  snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "Iron Works");
+  pool.building_types[1].hammers = 0;
+  pool.building_type_count = 2;
+
+  /* Scenario 1: one Master Gunsmith at an Arsenal (18 muskets), ample tools
+   * — input is 1:1, not the factory (18*2)/3 = 12. */
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->id = 0;
+  c->active = true;
+  c->population = 1;
+  c->colonist_count = 1;
+  c->building_in_production = -1;
+  for (int i = 0; i < 1; ++i) {
+    c->colonists[i].active = true;
+    c->colonists[i].field_job = -1;
+    c->colonists[i].building_type = 0;
+    c->colonists[i].profession = COLONIZE_PROF_GUNSMITH;
+  }
+  c->stock[COLONIZE_CARGO_TOOLS] = 100;
+  pool.colony_count = 1;
+
+  ColonizeColonyProdDelta delta;
+  memset(&delta, 0, sizeof(delta));
+  colony_craft_one_colony(&pool, c, &delta, 0);
+  const int muskets = delta.goods[COLONIZE_CARGO_MUSKETS];
+  if (muskets != 18 || delta.goods[COLONIZE_CARGO_TOOLS] != -18) {
+    fprintf(
+      stderr,
+      "arsenal full stock: muskets=%d tools=%d expected +18/-18 (1:1, not the 2:3 discount)\n",
+      muskets,
+      delta.goods[COLONIZE_CARGO_TOOLS]
+    );
+    return 1;
+  }
+
+  /* Scenario 2: partial input. One free colonist = gross 9 muskets, stock 5
+   * tools: DOS cuts muskets 1:1 by the unmet 4 -> 5 muskets. The 0bd4
+   * rescale would have given 9 - (4*3)/2 = 3. */
+  memset(c, 0, sizeof(*c));
+  c->id = 0;
+  c->active = true;
+  c->population = 1;
+  c->colonist_count = 1;
+  c->building_in_production = -1;
+  c->colonists[0].active = true;
+  c->colonists[0].field_job = -1;
+  c->colonists[0].building_type = 0;
+  c->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+  c->stock[COLONIZE_CARGO_TOOLS] = 5;
+  memset(&delta, 0, sizeof(delta));
+  colony_craft_one_colony(&pool, c, &delta, 0);
+  if (delta.goods[COLONIZE_CARGO_MUSKETS] != 5 || delta.goods[COLONIZE_CARGO_TOOLS] != -5) {
+    fprintf(
+      stderr,
+      "arsenal shortfall: muskets=%d tools=%d expected +5/-5 (1:1 cut, not the 3/2 rescale)\n",
+      delta.goods[COLONIZE_CARGO_MUSKETS],
+      delta.goods[COLONIZE_CARGO_TOOLS]
+    );
+    return 1;
+  }
+
+  /* Scenario 3 (#913): Iron Works gross 1 -> demand (1*2)/3 == 0, produced
+   * free with an empty ore warehouse. */
+  memset(c, 0, sizeof(*c));
+  c->id = 0;
+  c->active = true;
+  c->population = 1;
+  c->colonist_count = 1;
+  c->building_in_production = -1;
+  c->colonists[0].active = true;
+  c->colonists[0].field_job = -1;
+  c->colonists[0].building_type = 1;
+  c->colonists[0].profession = COLONIZE_PROF_CRIMINAL;
+  c->stock[COLONIZE_CARGO_ORE] = 0;
+  memset(&delta, 0, sizeof(delta));
+  colony_craft_one_colony(&pool, c, &delta, -1);
+  if (delta.goods[COLONIZE_CARGO_TOOLS] != 1 || delta.goods[COLONIZE_CARGO_ORE] != 0) {
+    fprintf(
+      stderr,
+      "iron works gross 1: tools=%d ore=%d expected +1/0 (free, demand 0)\n",
+      delta.goods[COLONIZE_CARGO_TOOLS],
+      delta.goods[COLONIZE_CARGO_ORE]
+    );
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"calendar", case_calendar},
   {"free_production", case_free_production},
@@ -5762,6 +5979,7 @@ static const TestCase k_cases[] = {
   {"carpenter_stockade", case_carpenter_stockade},
   {"craft_chain", case_craft_chain},
   {"factory_input_colony_total", case_factory_input_colony_total},
+  {"armory_flat_input", case_armory_flat_input},
   {"production_rules_field", case_production_rules_field},
   {"production_rules_manufacturing", case_production_rules_manufacturing},
   {"field_lumberjack", case_field_lumberjack},

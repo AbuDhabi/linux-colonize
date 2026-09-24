@@ -97,8 +97,10 @@ COLONIZE_INTERNAL void ai_euro_20e6_stay_tail_589e(ColonizeUnit* u);
 
 /*
  * Opaque per-nation scratch for the raw body's `nation+0x48/0x49/0x4a`
- * (a crosses/hammers-pool carry mechanic — genuine arithmetic, see the
- * normalization loop below) and the two Europe-dock "training slot"
+ * (+0x49/+0x4a = the nation's banked MUSKET lots / raw muskets, identified
+ * 2026-09-24 from FUN_5952_035e raw 94362-94367 crediting a lot out of an
+ * AI colony's musket surplus; genuine arithmetic, see the normalization
+ * loop below) and the two Europe-dock "training slot"
  * counters at `DS:0xa0da`/`0xa0db`. NOT reused from the real
  * `ColonizeCol1Nation` struct, for two separate reasons (both re-checked
  * 2026-09-09, after smell audit #52 moved the Indian-hostility sticky
@@ -108,14 +110,22 @@ COLONIZE_INTERNAL void ai_euro_20e6_stay_tail_589e(ColonizeUnit* u);
  *     read but must never write — so it cannot host scratch either;
  *   - `+0x49` is the one remaining Linux stand-in collision here
  *     (`privateer_spawn_mask`), and `+0x4a` (`unknown26_pad`) is DOS's raw
- *     banked carry total.
+ *     banked musket total.
  * Same reasoning as the `0x53de` correction: don't reuse a live field on an
  * unconfirmed reading.
  */
 typedef struct Ai5d04HireScratch {
   int8_t delay_48;              /* DS nation+0x48 */
-  int8_t crosses_bank_whole;    /* DS nation+0x49 */
-  int32_t crosses_bank_raw;     /* DS nation+0x4a */
+  /* DS nation+0x49: the musket-LOT bank, one lot = 50 muskets. Credited by
+   * FUN_5952_035e raw 94362-94367 (an AI colony with >199 muskets and no
+   * garrison shortfall banks a lot); spent by FUN_521d_5d04's Europe-dock
+   * hire arm to arm a recruit for free instead of buying 50 muskets. */
+  int8_t musket_bank_lots;
+  /* DS nation+0x4a: the same bank's RAW musket total, kept in step with
+   * +0x49 by the +-0x32 normalize loop at FUN_521d_5d04 raw 84272-84278
+   * (lots ~= raw/50). FUN_521d_5d04 raw 84334-84343 spends it 50 at a time
+   * on the hire arm's horse charge. */
+  int32_t musket_bank_raw;
   int8_t colonies_need_muskets;  /* DS 0xa0db (per nation-turn) */
   int8_t colonies_need_tools;    /* DS 0xa0da (per nation-turn, minus own Pioneers) */
 } Ai5d04HireScratch;
