@@ -898,6 +898,12 @@ static int ai_euro_20e6_load_holds(
   int trace
 ) {
   int loaded = 0;
+  /* DOS-LITERAL FUN_521d_20e6 raw 90295: `while (local_d2 != 0 && bVar20)` —
+   * bVar20 is the prologue seed (raw 88556-88573): a Man-O-War never loads
+   * goods, a Frigate / Privateer only under the seed's narrowings. bugs.md #818. */
+  if (!ai_euro_20e6_bvar20_seed(ctx, ship, ai_euro_20e6_dos_type(ctx->units, ship))) {
+    return 0;
+  }
   while (free_holds > 0) {
     const int g = ai_euro_20e6_load_pick(ctx, c, nation_id, 1);
     if (g < 0) {

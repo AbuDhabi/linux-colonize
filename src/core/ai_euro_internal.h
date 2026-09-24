@@ -457,7 +457,7 @@ int ai_euro_20e6_adjacent_foreign_09dc(
 int ai_euro_20e6_457e_type_gate(
   const ColonizeTurnContext* ctx, const ColonizeUnit* u, int dos_type
 );
-/* bVar20 seed (raw 88556-88573 + WoI clear 88625-88628); see ai_euro_land.c. */
+/* bVar20 seed (raw 88556-88573); see ai_euro_land.c. */
 int ai_euro_20e6_bvar20_seed(
   const ColonizeTurnContext* ctx, const ColonizeUnit* u, int dos_type
 );
