@@ -79,6 +79,103 @@ static int unit_hammers_purchased_buy(void) {
   return 0;
 }
 
+static int unit_rush_buy_uses_nation_tools_price(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Test Building");
+  pool.building_types[0].hammers = 100;
+  pool.building_types[0].tools_cost = 4;
+  pool.building_type_count = 1;
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->id = 0;
+  c->active = true;
+  c->nation_id = 1;
+  c->building_in_production = 0;
+  c->hammers = 20;
+  c->stock[COLONIZE_CARGO_TOOLS] = 1;
+  pool.colony_count = 1;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.nation[1].trade.euro_price[COLONIZE_CARGO_TOOLS] = 17;
+  const int expected_cost = (100 - 20) * 13 + (4 - 1) * (17 + 4);
+  if (colonies_construction_gold_cost_ex(&pool, c, &col1) != expected_cost) {
+    fprintf(stderr, "rush-buy tools quote ignored nation price: expected %d got %d\n",
+            expected_cost, colonies_construction_gold_cost_ex(&pool, c, &col1));
+    return 1;
+  }
+  int gold = 1200;
+  if (!colonies_buy_construction_ex(&pool, 0, &col1, &gold) ||
+      gold != 1200 - expected_cost || c->stock[COLONIZE_CARGO_TOOLS] != 4 || c->hammers != 100) {
+    fprintf(stderr, "rush-buy failed to charge market-price tools cost: gold=%d tools=%d hammers=%d\n",
+            gold, c->stock[COLONIZE_CARGO_TOOLS], c->hammers);
+    return 1;
+  }
+  return 0;
+}
+
+static int unit_hammers_purchased_wraps(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Stockade");
+  pool.building_types[0].hammers = 64;
+  pool.building_types[0].tools_cost = 0;
+  pool.building_type_count = 1;
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->id = 0;
+  c->active = true;
+  c->building_in_production = 0;
+  c->hammers = 14;
+  c->hammers_purchased = 65530;
+  pool.colony_count = 1;
+  int gold = (64 - 14) * 13;
+  if (!colonies_buy_construction(&pool, 0, 0, &gold) || c->hammers_purchased != 44) {
+    fprintf(stderr, "hammers_purchased must wrap at 16 bits: got %u\n",
+            (unsigned)c->hammers_purchased);
+    return 1;
+  }
+  return 0;
+}
+
+static int unit_carpenter_fallback_ignores_shop_ownership_and_cap(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Town Hall");
+  pool.building_types[0].row_plus1 = COLONY_BUILDING_TOWN_HALL + 1;
+  snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "Carpenter's Shop");
+  pool.building_types[1].row_plus1 = COLONY_BUILDING_CARPENTERS_SHOP + 1;
+  pool.building_type_count = 2;
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->id = 0;
+  c->active = true;
+  c->has_building[0] = true;
+  c->has_building[1] = false;
+  c->colonist_count = 5;
+  pool.colony_count = 1;
+  for (int i = 0; i < 5; ++i) {
+    c->colonists[i].active = true;
+    c->colonists[i].field_job = -1;
+    c->colonists[i].building_type = i < 4 ? 1 : -1;
+  }
+
+  /* Four existing Carpenters fill the not-owned shop slot; a new joiner
+   * still gets DOS occupation 13 instead of the owned Town Hall. */
+  colonies_seat_new_colonist(&pool, 0, 4);
+  if (c->colonists[4].building_type != 1 || c->colonists[4].field_job != -1 ||
+      colonies_building_occupation(&pool, c->colonists[4].building_type) != 13) {
+    fprintf(stderr, "carpenter fallback assigned type=%d job=%d\n",
+            c->colonists[4].building_type, c->colonists[4].field_job);
+    return 1;
+  }
+  return 0;
+}
+
 /* Col1 +0x95/+0x96: warehouse_level drives 100*(1+level); capitol INC on complete. */
 /*
  * Smell audit #70: Col1 colony +0x1c bit 0x80. FUN_364b_0114 ORs it in when a
@@ -2947,6 +3044,9 @@ static const TestCase k_cases[] = {
     {"unit_needschool_chrome", unit_needschool_chrome},
     {"unit_capture_col1_effects", unit_capture_col1_effects},
     {"unit_hammers_purchased_buy", unit_hammers_purchased_buy},
+    {"unit_rush_buy_uses_nation_tools_price", unit_rush_buy_uses_nation_tools_price},
+    {"unit_hammers_purchased_wraps", unit_hammers_purchased_wraps},
+    {"unit_carpenter_fallback_ignores_shop_ownership_and_cap", unit_carpenter_fallback_ignores_shop_ownership_and_cap},
     {"unit_warehouse_capitol_levels", unit_warehouse_capitol_levels},
     {"unit_build_complete_latch", unit_build_complete_latch},
     {"unit_craft_preview_clamps", unit_craft_preview_clamps},

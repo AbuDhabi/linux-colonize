@@ -1374,10 +1374,13 @@ void turn_produce_one_colony(
    * proves nothing; the dutch2 Autumn→Spring pair banks normally, and
    * FUN_364b_0688 Phase L (raw 57730-57733) reads no season term.
    */
+  int lumber_before_hammers;
   {
     /* Composed in Phase A (see the composition-boundary comment above);
      * DOS Phase L only reads the scratch word back with `0b50(0x10)`. */
-    int hammers_add = hammers_phase_a;
+    const int hammers_add = hammers_phase_a;
+    lumber_before_hammers = colony->stock[COLONIZE_CARGO_LUMBER];
+    int hammers = 0;
     if (hammers_add > 0) {
       /*
        * Hammers cost lumber 1:1, capped by lumber actually on hand (this
@@ -1388,11 +1391,11 @@ void turn_produce_one_colony(
        * through *for free* (no lumber debit at all) whenever the clipped
        * amount hit 0 instead of stopping production — that's what's fixed
        * here, not same-turn timing. (The colony-prod-tests Autumn-turn
-       * counter-example that once looked like a same-turn-lumber rule is
-       * fully explained by the Spring-only gate above — no separate timing
-       * restriction needed.)
-       */
-      int hammers = hammers_add;
+       * counter-example that once looked like a same-turn-lumber rule had
+       * no Carpenter staffed; FUN_15eb_0b52 raw 10122-10138 confirms this
+       * turn's gross lumber counts toward the input ledger.)
+      */
+      hammers = hammers_add;
       if (hammers > colony->stock[COLONIZE_CARGO_LUMBER]) {
         hammers = colony->stock[COLONIZE_CARGO_LUMBER];
       }
@@ -1402,41 +1405,20 @@ void turn_produce_one_colony(
           delta->goods[COLONIZE_CARGO_LUMBER] -= hammers;
         }
       }
-      colony->hammers += hammers;
+      /* DOS adds the Phase A net word into the signed 16-bit +0x92 hammer
+       * bank and clamps a negative wrapped result to zero (FUN_364b_0688 raw
+       * 57730-57738). Keep the word arithmetic explicit; signed overflow in
+       * C would be undefined. */
+      const uint16_t hammer_sum_word =
+        (uint16_t)((uint16_t)colony->hammers + (uint16_t)hammers);
+      colony->hammers = (hammer_sum_word & 0x8000u) ? 0 : (int)hammer_sum_word;
       if (delta) {
         delta->hammers_added = hammers;
       }
-
       if (colony->building_in_production >= 0) {
         const int bip = colony->building_in_production;
-        const char* bname = NULL;
-        if (bip >= 0 && bip < pool->building_type_count) {
-          bname = pool->building_types[bip].name;
-        }
-        /*
-         * bugs.md (printing_press.SAV/carpentry.SAV): the selection stays on
-         * a completed project (DOS never clears it), so hammers piled up
-         * forever with no word to the player — GAME.TXT @ALREADYHAVE is the
-         * DOS notification for exactly this ("{colony} is set to produce a
-         * {X}, but it has already built one!").
-         */
-        if (bip < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[bip] &&
-            colony->nation_id == human_nation && europe && ai_popups) {
-          char body[AI_POPUP_BODY_LEN];
-          PopupMsgTokens tok;
-          memset(&tok, 0, sizeof(tok));
-          tok.string0 = colony->name[0] ? colony->name : "colony";
-          tok.string1 = (bname && bname[0]) ? bname : "building";
-          char afb[120];
-          snprintf(
-            afb, sizeof(afb), "%s already built.",
-            (bname && bname[0]) ? bname : "Building"
-          );
-          /* Popup only — the status line stays free for the Phase K
-           * production crumbs ("Need lumber." etc.). */
-          popup_msg_fill(messages, "ALREADYHAVE", &tok, afb, body, sizeof(body));
-          ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
-        }
+        const ColonizeBuildingType* bt = colonies_building_type(pool, bip);
+        const char* bname = bt ? bt->name : NULL;
         if (colonies_try_complete_building(pool, colony->id)) {
           if (delta) {
             delta->building_completed = true;
@@ -1467,6 +1449,44 @@ void turn_produce_one_colony(
         sizeof(europe->status),
         "No hammers for construction."
       );
+    }
+
+    if (hammers_add <= 0) {
+      /* DOS still adds zero and clamps a negative signed-word bank. */
+      const uint16_t hammer_sum_word = (uint16_t)colony->hammers;
+      colony->hammers = (hammer_sum_word & 0x8000u) ? 0 : (int)hammer_sum_word;
+      if (delta) {
+        delta->hammers_added = 0;
+      }
+    }
+  }
+
+  /* DOS Phase L resolves the threshold after adding this tick's hammers,
+   * before checking whether the selected building is already owned
+   * (FUN_364b_0688 raw 57737-57785). This arm runs even when the Phase A
+   * output is zero and leaves the selected project in place. */
+  if (colony->building_in_production >= 0) {
+    const int bip = colony->building_in_production;
+    const ColonizeBuildingType* bt = colonies_building_type(pool, bip);
+    if (bt && !colonies_unit_build_info(bip, NULL, NULL, NULL) &&
+        bip < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[bip] &&
+        bt->hammers > 0 && colony->hammers >= bt->hammers) {
+      colony->colony_flags |= COLONIZE_COLONY_FLAG_BUILD_COMPLETE;
+      if (colony->nation_id == human_nation && europe && ai_popups) {
+        char body[AI_POPUP_BODY_LEN];
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = colony->name[0] ? colony->name : "colony";
+        tok.string1 = bt->name[0] ? bt->name : "building";
+        char afb[120];
+        snprintf(
+          afb, sizeof(afb), "%s already built.",
+          bt->name[0] ? bt->name : "Building"
+        );
+        /* Popup only — DOS does not replace the Phase K status line here. */
+        popup_msg_fill(messages, "ALREADYHAVE", &tok, afb, body, sizeof(body));
+        ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+      }
     }
   }
 
@@ -1516,25 +1536,14 @@ void turn_produce_one_colony(
      * graduation and starvation turns. Reuse the Phase A snapshot instead:
      * one number, two consumers (colony_production.c:419-433).
      *
-     * 2026-08-24 fix (lumber): same false-positive existed for lumber —
-     * an unstaffed Carpenter's Shop/Lumber Mill with 0 lumber nagged "Need
-     * lumber." every turn even though nobody was banking hammers. Lumber
-     * isn't in colony_craft.c's recipe table (hammers are a separate
-     * pipeline, colony_prod_colony_hammers), so it can't use
-     * colony_craft_demand_mask directly, but the same "real staffed demand,
-     * not building-exists" principle applies: colony_prod_colony_hammers's
-     * out_lumber_use is this tick's actual tier-scaled lumber requirement
-     * from staffed Carpenter/Lumber Mill workers (sol_bonus-independent —
-     * lumber consumption doesn't scale with SoL, see that function). This
-     * (The DOS demand word this mirrors, DS:0x8de8, has no located write
-     * site in either decompile export; see colony_eot_production.md
-     * Deep K) and left as a separate, still-open question. This fix only
-     * replaces the always-wrong "building exists" gate with a strictly more
-     * accurate "someone is actually staffed to consume lumber" gate, same
-     * as the other five goods above.
+     * 2026-09-24 fix (#918): Phase L has already debited lumber here, so the
+     * K probe derives unmet lumber from the Phase A hammer demand and the
+     * pre-debit stock snapshot. DOS's FUN_281f_0b0c subtracts unmet[lumber]
+     * from the Phase A hammer word; using post-debit stock treated partial or
+     * exact supply as missing, while the former sol-free out_lumber_use probe
+     * could demand lumber after Tory adjustment had reduced actual output to
+     * zero.
      */
-    int lumber_demand = 0;
-    (void)colony_prod_colony_hammers(pool, colony, 0, &lumber_demand);
 
     /*
      * DOS-LITERAL FUN_364b_0688 raw 57696-57728 (bugs.md #911). Seven
@@ -1577,16 +1586,19 @@ void turn_produce_one_colony(
       const char* sec;
       bool fire;
     };
-    /* Port note: DOS's 0b50(0x10) hammers word is NOT lumber-clamped, but the
-     * port clamps hammers to lumber on hand at Phase L (bugs.md #163), so the
-     * equivalent "no hammers banked this tick" figure is the clamped one. */
-    const int lumber_stock = colony->stock[COLONIZE_CARGO_LUMBER];
+    /* FUN_281f_0b0c subtracts unmet[lumber] from Phase A hammers before K
+     * tests the net. Compute that shortage from the lumber available before
+     * Phase L debits it (FUN_364b_0688 raw 57697, 57730-57733). */
+    const int lumber_stock = lumber_before_hammers;
+    const int lumber_unmet = hammers_phase_a > lumber_stock
+                               ? hammers_phase_a - lumber_stock
+                               : 0;
     const int hammers_net =
       (hammers_phase_a < lumber_stock) ? hammers_phase_a : lumber_stock;
     /* unmet[input] != 0 for the recipe that makes `o` (see Phase B). */
 #define K_UNMET(o) (craft_unmet_cap[(o)] > 0 && craft_unmet_gross[(o)] < craft_unmet_cap[(o)])
     const struct KCrumb k_crumbs[] = {
-      {"LUMBER", lumber_demand - lumber_stock > 0 && hammers_net == 0},
+      {"LUMBER", lumber_unmet > 0 && hammers_net == 0},
       {"COTTON", K_UNMET(COLONIZE_CARGO_CLOTH) && craft_net[COLONIZE_CARGO_CLOTH] == 0},
       {"TOBACCO", K_UNMET(COLONIZE_CARGO_CIGARS) && craft_net[COLONIZE_CARGO_CIGARS] == 0},
       {"CANESUGAR", K_UNMET(COLONIZE_CARGO_RUM) && craft_net[COLONIZE_CARGO_RUM] == 0},

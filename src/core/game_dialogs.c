@@ -1134,14 +1134,16 @@ static void game_do_buy_construction(ColonizeGameState* game, int colony_id) {
    * construction processing (turn_run_colony_building_completion /
    * turn_run_colony_unit_construction), same as a colony that reached the
    * threshold through ordinary Carpenter production. */
-  const int gold_cost = colonies_construction_gold_cost(&game->colonies, colony, game->europe.difficulty);
+  const int gold_cost = colonies_construction_gold_cost_ex(
+    &game->colonies, colony, game->col1_ok ? &game->col1 : NULL
+  );
   if (game->europe.gold < gold_cost) {
     set_status(game, "Need gold", NULL);
     colony_screen_set_status(csv, game->status);
     return;
   }
-  if (colonies_buy_construction(
-        &game->colonies, colony_id, game->europe.difficulty, &game->europe.gold
+  if (colonies_buy_construction_ex(
+        &game->colonies, colony_id, game->col1_ok ? &game->col1 : NULL, &game->europe.gold
       )) {
     snprintf(game->status, sizeof(game->status), "Bought materials for %s (-%d$)", name, gold_cost);
     colony_screen_close_construction(csv);
@@ -1267,7 +1269,9 @@ void game_request_buy_construction_confirm(ColonizeGameState* game) {
    * just "Complete it" / "Never mind" (@BUYME1) if affordable, or the
    * informational @BUYME0 sibling if not. Buy itself only tops the
    * resources up — it does not complete the project (player-corrected). */
-  const int gold_cost = colonies_construction_gold_cost(&game->colonies, colony, game->europe.difficulty);
+  const int gold_cost = colonies_construction_gold_cost_ex(
+    &game->colonies, colony, game->col1_ok ? &game->col1 : NULL
+  );
   if (game->europe.gold < gold_cost) {
     set_status(game, "Need gold", NULL);
     colony_screen_set_status(csv, game->status);

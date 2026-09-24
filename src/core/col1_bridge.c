@@ -8,6 +8,7 @@
 #include "core/col1_post_map.h"
 #include "core/col1_save.h"
 #include "core/col1_stuff_census.h"
+#include "core/colony_production.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/reports.h"
@@ -1142,7 +1143,16 @@ bool col1_bridge_apply_w(
       }
 
       if (chain >= 0) {
-        const int bi = col1_best_owned_chain_building(colonies, dst, chain);
+        int bi = col1_best_owned_chain_building(colonies, dst, chain);
+        /* FUN_15eb_1068 raw 11259-11262 can assign Carpenter occupation
+         * without a Carpenter building bit (bugs.md #922). Keep @JOB 13
+         * through a load even in that damaged/imported colony shape. */
+        if (bi < 0 && occ == COLONIZE_PROF_CARPENTER) {
+          bi = colonies_building_row(colonies, COLONY_BUILDING_CARPENTERS_SHOP);
+          if (bi < 0) {
+            bi = colonies_building_row(colonies, COLONY_BUILDING_LUMBER_MILL);
+          }
+        }
         if (bi >= 0) {
           dst->colonists[p].building_type = bi;
         }

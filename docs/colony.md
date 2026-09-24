@@ -498,15 +498,14 @@ window, refreshed every EOT. False when `col1` is NULL.
 Gold to rush-buy the current project's remaining hammers+tools, or 0 if
 none/nothing missing. DOS formula (FUN_2f2b_5e44, clean decompile —
 original_sources_decompiled/viceroy_unpacked.c:52683):
-  hammers_deficit × 13, plus tools_deficit × (per-nation table byte + 4)
+  hammers_deficit × 13, plus tools_deficit × (nation's current Europe tools
+  price + 4)
   when tools are short, the whole sum DOUBLED outright if the colony
   hasn't banked any hammers at all yet (colony->hammers == 0) — DOS
-  charges a steep premium for rushing an unstarted project. The ×13 and
-  doubling are read directly off the disassembly; the per-nation tools
-  table byte itself wasn't pinned to a named field with confidence and is
-  approximated here as `difficulty + 4` (this port's existing 0-8
-  difficulty byte, same shape/magnitude as the confirmed term) — flagged
-  as an approximation, not a verified value.
+  charges a steep premium for rushing an unstarted project. The DOS price
+  byte is at nation record +0x5a (`DS:0x8862 + nation*0x13c`): trade begins
+  at +0x4c and cargo 14 is Tools. This resolves the former `difficulty + 4`
+  approximation (carpenter audit #917).
 
 ## colonies_try_complete_unit_construction
 

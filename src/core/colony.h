@@ -677,7 +677,13 @@ int colonies_list_buildable(
   const ColoniesBuildableOpts* opts
 );
 
-/* FUN_2f2b_5e44 rush-buy gold formula (see docs/colony.md#colonies_construction_gold_cost) */
+/* DOS market-price formula; `col1` supplies the colony owner's tools quote. */
+int colonies_construction_gold_cost_ex(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const ColonizeCol1Save* col1
+);
+/* Compatibility shim; uses the live Col1 context or difficulty in headless callers. */
 int colonies_construction_gold_cost(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
@@ -688,6 +694,10 @@ int colonies_construction_gold_cost(
  * Returns true when a building was completed.
  */
 bool colonies_try_complete_building(ColonizeColonyPool* pool, int colony_id);
+/* EOT completion; non-human colonies receive missing tools per FUN_364b_0688. */
+bool colonies_try_complete_building_ex(
+  ColonizeColonyPool* pool, int colony_id, const ColonizeCol1Save* col1
+);
 /* unit-type completion / tools-short handling (see docs/colony.md#colonies_try_complete_unit_construction) */
 int colonies_try_complete_unit_construction(
   ColonizeColonyPool* pool,
@@ -697,6 +707,9 @@ int colonies_try_complete_unit_construction(
 );
 /* rush-buy semantics vs completion timing (see docs/colony.md#colonies_buy_construction) */
 bool colonies_buy_construction(ColonizeColonyPool* pool, int colony_id, int difficulty, int* gold);
+bool colonies_buy_construction_ex(
+  ColonizeColonyPool* pool, int colony_id, const ColonizeCol1Save* col1, int* gold
+);
 
 /* capacity formula and cargo_type parameter history (see docs/colony.md#colonies_warehouse_capacity) */
 int colonies_warehouse_capacity(

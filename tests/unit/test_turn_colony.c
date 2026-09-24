@@ -300,6 +300,59 @@ static int unit_eot_fog_reveal(void) {
   return 0;
 }
 
+/* DOS Phase L supplies construction tools to non-human colonies, while a
+ * human colony stays blocked and waits for the player to buy or make tools. */
+static int unit_building_completion_supplies_tools_only_to_ai(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Test Building");
+  pool.building_types[0].hammers = 10;
+  pool.building_types[0].tools_cost = 3;
+  pool.building_type_count = 1;
+  pool.colony_count = 2;
+  for (int i = 0; i < 2; ++i) {
+    ColonizeColony* col = &pool.colonies[i];
+    memset(col, 0, sizeof(*col));
+    col->active = true;
+    col->id = i + 1;
+    col->nation_id = i == 0 ? 1 : 0;
+    col->building_in_production = 0;
+    col->hammers = 10;
+    col->population = 0;
+  }
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[0].control = 0;
+  col1.player[1].control = 1;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.human_nation = 0;
+  ctx.colonies = &pool;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ColonizeTurnResult result;
+  memset(&result, 0, sizeof(result));
+
+  colonies_set_col1_context(&col1);
+  turn_run_colony_eot(&ctx, &result);
+  colonies_set_col1_context(NULL);
+
+  const ColonizeColony* ai = colonies_get(&pool, 1);
+  const ColonizeColony* human = colonies_get(&pool, 2);
+  if (!ai || !ai->has_building[0] || ai->stock[COLONIZE_CARGO_TOOLS] != 0 || ai->hammers != 0) {
+    fprintf(stderr, "AI building completion did not supply/consume missing tools\n");
+    return 1;
+  }
+  if (!human || human->has_building[0] || human->stock[COLONIZE_CARGO_TOOLS] != 0 ||
+      human->hammers != 10) {
+    fprintf(stderr, "human building completion must stay blocked without tools\n");
+    return 1;
+  }
+  return 0;
+}
+
 /* Phase K @NEEDTOOLS0 when construction blocked on tools=0. */
 static int unit_needtools0(void) {
   ColonizeColonyPool pool;
@@ -630,6 +683,7 @@ static int refresh_does_not_tick_pioneer_work(void) {
 static const TestCase k_cases[] = {
     {"unit_century_cargoready", unit_century_cargoready},
     {"unit_hammers_lumber_two_turns", unit_hammers_lumber_two_turns},
+    {"unit_building_completion_supplies_tools_only_to_ai", unit_building_completion_supplies_tools_only_to_ai},
     {"unit_eot_fog_reveal", unit_eot_fog_reveal},
     {"unit_needtools0", unit_needtools0},
     {"unit_needtools", unit_needtools},

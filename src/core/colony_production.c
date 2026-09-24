@@ -886,9 +886,9 @@ int colony_prod_colony_hammers(
   }
   const bool colony_has_lumber_mill =
     colonies_has_building_row(pool, colony, COLONY_BUILDING_LUMBER_MILL);
-  /* sol_bonus=0 base-rate tally — a staffed-carpenter DEMAND probe for
-   * turn.c's "Need lumber." crumb, not the tick's lumber debit. The live
-   * debit is 1:1 with the sol-adjusted hammer count returned below (turn.c;
+  /* sol_bonus=0 base-rate tally — a staffed-carpenter demand probe for
+   * AI 5952 job scoring, not the tick's lumber debit. The live debit is
+   * 1:1 with the sol-adjusted hammer count returned below (turn_production.c;
    * bugs.md #163, hammers_lumber.SAV: 28 hammers ate 28 lumber). See the
    * out_lumber_use note in colony_production.h before changing either. */
   int lumber_total = 0;
