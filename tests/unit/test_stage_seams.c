@@ -65,6 +65,31 @@ static int test_ai_contact_raid_alarm_delta(void) {
   return 0;
 }
 
+/* FUN_5fef_0f14's five human-victim raid outcome cue arms. */
+static int test_ai_contact_raid_sound_rows(void) {
+  const AiRaidChrome* row = ai_contact_raid_chrome_row(AI_RAID_NOTHING, 0);
+  if (!row || row->sound != 0x5b || row->sound2 != -1) {
+    return fail("raid sound NOTHING must be 0x5b");
+  }
+  row = ai_contact_raid_chrome_row(AI_RAID_STORES, 0);
+  if (!row || row->sound != 0x4f || row->sound2 != -1) {
+    return fail("raid sound STORES must be 0x4f");
+  }
+  row = ai_contact_raid_chrome_row(AI_RAID_BURN, 1);
+  if (!row || row->sound != 0x53 || row->sound2 != -1) {
+    return fail("raid sound BURN must be 0x53");
+  }
+  row = ai_contact_raid_chrome_row(AI_RAID_SHIP, 0);
+  if (!row || row->sound != 0x4b || row->sound2 != 0x4d) {
+    return fail("raid sound SHIP must be 0x4b then 0x4d");
+  }
+  row = ai_contact_raid_chrome_row(AI_RAID_GOLD, 0);
+  if (!row || row->sound != 0x4e || row->sound2 != -1) {
+    return fail("raid sound GOLD must be 0x4e");
+  }
+  return 0;
+}
+
 /* ai_021a_dir_tile on a hand-built tile ring: plain terrain, no owner, no
  * village — dest tile should score as unowned/self and never SKIP. */
 static int test_ai_021a_dir_tile(void) {
@@ -644,6 +669,7 @@ static int test_ai_brave_field_attack(void) {
 static const TestCase k_cases[] = {
     {"test_turn_year_end_rival_rebels", test_turn_year_end_rival_rebels},
     {"test_ai_contact_raid_alarm_delta", test_ai_contact_raid_alarm_delta},
+    {"test_ai_contact_raid_sound_rows", test_ai_contact_raid_sound_rows},
     {"test_ai_021a_dir_tile", test_ai_021a_dir_tile},
     {"test_ai_465b_dest_owner", test_ai_465b_dest_owner},
     {"test_ai_brave_field_attack", test_ai_brave_field_attack},

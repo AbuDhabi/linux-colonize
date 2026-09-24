@@ -201,7 +201,8 @@ static void game_finish_intro(ColonizeGameState* game) {
   }
   opening_close(&game->opening);
   game->opening_just_opened = false;
-  sound_play(SOUND_TITLE_ID);
+  /* OPENING.EXE exits here in DOS, which also ends its 0x34 music. */
+  sound_stop_bgm();
 }
 
 bool game_try_start_intro(ColonizeGameState* game) {
@@ -2864,7 +2865,6 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
     }
     game->in_menu = true;
     sound_stop_bgm();
-    sound_play(SOUND_TITLE_ID);
     diag_info("Returned to main menu.");
     return GAME_UPDATE_RETURN_TRUE;
   }
@@ -3209,10 +3209,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         game_enqueue_war_scored_choice(game);
       } else {
         game->in_menu = true;
-        if (sound_active_song_id() != SOUND_TITLE_ID) {
-          sound_stop_bgm();
-          sound_play(SOUND_TITLE_ID);
-        }
+        sound_stop_bgm();
         set_status(game, "Colonization Linux Port", NULL);
       }
     }

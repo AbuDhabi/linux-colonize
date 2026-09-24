@@ -1151,28 +1151,28 @@ static int ai_contact_brave_home_grudge(
  */
 static const AiRaidChrome k_raid_chrome[] = {
   /* @RAIDNOTHING; sound 0x5b = raid repelled (gunfight). */
-  {AI_RAID_NOTHING, "RAIDNOTHING", "", NULL, NULL, 0x5b, AI_RAID_TOK_NONE, 0},
-  /* @RAIDSHIP */
-  {AI_RAID_SHIP, "RAIDSHIP", "", NULL, NULL, -1, AI_RAID_TOK_SHIP, 0},
-  /* @RAIDGOLD; 0x4d = loot gold. */
-  {AI_RAID_GOLD, "RAIDGOLD", "", NULL, NULL, 0x4d, AI_RAID_TOK_GOLD, 0},
+  {AI_RAID_NOTHING, "RAIDNOTHING", "", NULL, NULL, 0x5b, -1, AI_RAID_TOK_NONE, 0},
+  /* @RAIDSHIP; DOS plays both 0x4b and 0x4d, in that order. */
+  {AI_RAID_SHIP, "RAIDSHIP", "", NULL, NULL, 0x4b, 0x4d, AI_RAID_TOK_SHIP, 0},
+  /* @RAIDGOLD; 0x4e = treasury gold stolen. */
+  {AI_RAID_GOLD, "RAIDGOLD", "", NULL, NULL, 0x4e, -1, AI_RAID_TOK_GOLD, 0},
   /* @RAIDSTORES; 0x4f = loot goods. */
-  {AI_RAID_STORES, "RAIDSTORES", "", NULL, NULL, 0x4f,
+  {AI_RAID_STORES, "RAIDSTORES", "", NULL, NULL, 0x4f, -1,
    AI_RAID_TOK_STORES, 0}
   /* @RAIDBURN thin/named rows live below (they depend on the burned building). */
 };
 
 /* @RAIDBURN, with the destroyed building named. */
 static const AiRaidChrome k_raid_chrome_burn_named = {
-  AI_RAID_BURN, "RAIDBURN", "", NULL, NULL, -1, AI_RAID_TOK_BURN, 1
+  AI_RAID_BURN, "RAIDBURN", "", NULL, NULL, 0x53, -1, AI_RAID_TOK_BURN, 1
 };
 /* Burn with no named building: port notice. */
 static const AiRaidChrome k_raid_chrome_burn_thin = {
-  AI_RAID_BURN, NULL, NULL, NULL, NULL, -1, AI_RAID_TOK_NONE, 0
+  AI_RAID_BURN, NULL, NULL, NULL, NULL, 0x53, -1, AI_RAID_TOK_NONE, 0
 };
 /* Generic successful raid chrome when no kind-specific line applies. */
 static const AiRaidChrome k_raid_chrome_generic = {
-  AI_RAID_NOTHING, NULL, NULL, NULL, NULL, -1, AI_RAID_TOK_NONE, 0
+  AI_RAID_NOTHING, NULL, NULL, NULL, NULL, -1, -1, AI_RAID_TOK_NONE, 0
 };
 
 COLONIZE_INTERNAL const AiRaidChrome* ai_contact_raid_chrome_row(AiRaidKind kind, int have_burn_building) {
@@ -1509,10 +1509,19 @@ COLONIZE_INTERNAL void ai_contact_raid_human_chrome(
       default:
         break;
     }
+    /*
+     * DOS FUN_5fef_0f14 keys these cues only to the resolved raid kind and a
+     * human victim (raw asm 154640, 154763, 154801-154803, 154847, 154869).
+     * Popup text availability is unrelated; in particular the ship arm is
+     * deliberately a two-cue sequence, 0x4b then 0x4d.
+     */
+    if (row->sound >= 0) {
+      sound_play(row->sound);
+    }
+    if (row->sound2 >= 0) {
+      sound_play(row->sound2);
+    }
     if (row->section && (c->name[0] || row->popup_without_colony)) {
-      if (row->sound >= 0) {
-        sound_play(row->sound);
-      }
       popup_msg_fill(
         ctx->messages, row->section, &raid_tok, row->popup_fallback,
         raid_line, sizeof(raid_line)

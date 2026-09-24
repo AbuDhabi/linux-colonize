@@ -205,18 +205,14 @@ int main(int argc, char** argv) {
   sound_set_midi_backend(settings_get()->midi_backend);
   sound_init(cli.data_dir, platform_audio_enabled(platform));
   sound_set_options(settings_sound_options(settings_get()));
-  if (game_try_start_intro(game)) {
-    /* Intro plays OPENING_BGM_ID (0x34); title music starts when it finishes. */
-  } else if (sound_playback_enabled()) {
-    sound_play(SOUND_TITLE_ID);
-  } else {
+  if (!game_try_start_intro(game) && !sound_playback_enabled()) {
     diag_info(
       "Music autoplay disabled; use GAME → Pick Music to preview songs%s.",
       platform_audio_enabled(platform) ? "" : " (audio device off)"
     );
   }
-  /* Resume after the launch cue is queued so the first audible song is 0x34
-   * (or title 0x33), not a random pool pick from the idle pump. */
+  /* Resume after the opening cue is queued.  DOS does not dispatch a title
+   * song when OPENING.EXE returns or when the intro is skipped. */
   if (platform_audio_enabled(platform)) {
     platform_audio_resume(platform);
   }

@@ -23,7 +23,6 @@
 
 #define SOUND_BGM_ID_BASE 0x20
 #define SOUND_EVENT_ID_BASE 0x40
-#define SOUND_TITLE_ID 0x33
 /*
  * Combat cue: DOS engagement code (segment 5fef) pushes literal id 0x32 into
  * the BGM-change path (FUN_281f_048e -> FUN_129f_02cc) when a land/naval

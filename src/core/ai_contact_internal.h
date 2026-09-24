@@ -204,10 +204,17 @@ typedef struct AiRaidChrome {
   const char* popup_fallback;
   const char* thin_colony;   /* NULL = always use thin_bare */
   const char* thin_bare;
-  int sound;                 /* -1 = silent */
+  int sound;                 /* first DOS cue, -1 = silent */
+  int sound2;                /* optional second DOS cue, -1 = none */
   AiRaidTokKind tok;
   int popup_without_colony;
 } AiRaidChrome;
+
+#ifdef COLONIZE_TESTING
+COLONIZE_INTERNAL const AiRaidChrome* ai_contact_raid_chrome_row(
+  AiRaidKind kind, int have_burn_building
+);
+#endif
 
 typedef enum {
   AI_CONTACT_POPUP_CONTINUE = 0, /* not this arm — run the next stage */

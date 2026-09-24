@@ -562,7 +562,6 @@ static void game_build_exploits(ColonizeGameState* game, const ColonizeScoreBrea
 void game_retire_after_score(ColonizeGameState* game) {
   sound_stop_bgm();
   if (!game->col1_ok) {
-    sound_play(SOUND_TITLE_ID);
     game->in_menu = true;
     set_status(game, "Retired to main menu", NULL);
     return;
@@ -595,7 +594,6 @@ void game_retire_after_score(ColonizeGameState* game) {
     game->in_exploits = true;
     set_status(game, "Retired — Exploits", "Any key continues");
   } else {
-    sound_play(SOUND_TITLE_ID);
     game->in_hall_of_fame = true;
     set_status(game, "Hall of Fame", "Enter/Esc returns to menu");
   }

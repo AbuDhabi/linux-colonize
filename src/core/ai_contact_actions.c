@@ -1455,11 +1455,19 @@ static void ai_contact_denounce_heresy(
   char fb[AI_POPUP_BODY_LEN];
   const int roll = dos_rng_range(rng, 1, mine + pro_me > 0 ? mine + pro_me : 1);
   if (pro_me < roll) {
+    /* a594 / @HERESY1: human missionary is burned (asm 126622-126626). */
+    if (ai_contact_euro_is_human(ctx, e)) {
+      sound_play(0x53);
+    }
     fb[0] = '\0';
     popup_msg_fill(ctx->messages, "HERESY1", &tok, fb, body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", body);
     d_them = -d_them;
   } else {
+    /* a594 / @HERESY0: human mission takes over (asm 126605-126609). */
+    if (ai_contact_euro_is_human(ctx, e)) {
+      sound_play(0x8024);
+    }
     fb[0] = '\0';
     popup_msg_fill(ctx->messages, "HERESY0", &tok, fb, body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", body);
@@ -1548,6 +1556,10 @@ static void ai_contact_establish_mission(
   snprintf(fb, sizeof(fb), "%s %s mission founded in %s, %d.", tok.string0, tok.string1, tok.string2, tok.number0);
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, section, &tok, fb, body, sizeof(body));
+  /* a5dc mission founded, gated on a human actor (asm 126365-126375). */
+  if (ai_contact_euro_is_human(ctx, e)) {
+    sound_play(0x8024);
+  }
   ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", body);
   t->mission = (uint8_t)e;
   if (u->profession == UNITS_JOB_MISSIONARY || founding_fathers_nation_has(col1, e, FF_JEAN_DE_BREBEUF)) {
