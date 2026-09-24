@@ -639,7 +639,6 @@ void units_combat_notify_colony_burned(
   if (!colony_name || !colony_name[0]) {
     return;
   }
-  units_play_event_sound(0x53); /* FUN_5fef_0f14 raid tail: burning (COLDIG 19) */
   const int human =
     (victim_nation >= 0 && victim_nation <= 3 && col1 &&
      col1->player[victim_nation].control == 0) ||
@@ -647,6 +646,8 @@ void units_combat_notify_colony_burned(
   if (!human) {
     return;
   }
+  /* FUN_5fef_1b0e 5fef:3040-3063 gates the burn cue on the human victim. */
+  units_play_event_sound(0x53);
   /*
    * DOS FUN_5fef_1b0e splits the colony-destroyed chrome by attacker class:
    * the both-Euro arm (`uVar16 < 4 && uVar15 < 4`) uses @BURNED / @BURNED2 /

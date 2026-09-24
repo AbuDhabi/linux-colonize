@@ -341,15 +341,34 @@ bool units_try_move_w(
       combat_set_auto_defender(true);
     }
     if (reason == COLONIZE_ENTER_COMBAT_NAVAL) {
-      won = units_resolve_naval_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .col1=(ColonizeCol1Save*)(g_units_ff_col1), .col1_ok=((g_units_ff_col1) != NULL), .rng=(ColonizeDosRng*)(rng)}, unit_id, foe);
+      won = units_resolve_naval_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(g_units_ff_col1), .col1_ok=((g_units_ff_col1) != NULL), .rng=(ColonizeDosRng*)(rng)}, unit_id, foe);
     } else {
-      won = units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .col1=(ColonizeCol1Save*)(g_units_ff_col1), .col1_ok=((g_units_ff_col1) != NULL), .rng=(ColonizeDosRng*)(rng)}, unit_id, foe);
+      won = units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(g_units_ff_col1), .col1_ok=((g_units_ff_col1) != NULL), .rng=(ColonizeDosRng*)(rng)}, unit_id, foe);
     }
     if (phantom_defender) {
       combat_set_auto_defender(false);
     }
     if (won && units_combat_is_visible(pool, unit_id, foe)) {
-      units_play_event_sound(village_temp >= 0 ? 0x4b : UNITS_SFX_COMBAT_WON);
+      int win_sound = UNITS_SFX_COMBAT_WON;
+      if (village_temp >= 0 && g_units_ff_col1 && g_units_ff_col1->tribe) {
+        /* FUN_5fef_1b0e 5fef:26f6-271a: a village with population > 1
+         * loses one person and emits 0x48; the final loss emits 0x4a. */
+        for (uint16_t ti = 0; ti < g_units_ff_col1->head.tribe_count; ++ti) {
+          const ColonizeCol1Tribe* tribe = &g_units_ff_col1->tribe[ti];
+          if ((int)tribe->x == dest_x && (int)tribe->y == dest_y && tribe->population > 1) {
+            win_sound = 0x48;
+            break;
+          }
+        }
+      }
+      if (unit->nation_id >= 4 && colonies) {
+        const int cid = colonies_id_at(colonies, dest_x, dest_y);
+        const ColonizeColony* cc = cid >= 0 ? colonies_get(colonies, cid) : NULL;
+        if (cc && cc->population > 1) {
+          win_sound = 0x4b;
+        }
+      }
+      units_play_event_sound(win_sound);
       /* FUN_5fef_1b0e 5fef:2546 + 28b0: an Indian attacker (nation ≥ 4)
        * beating a colony's defender (colony at the defender tile, pop > 1)
        * sets local_6 and the tail then pushes 0x45 (COLDIG 17 glancing

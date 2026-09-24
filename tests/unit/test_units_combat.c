@@ -192,9 +192,13 @@ static int unit_music_sting_active_id_mock(void) {
 }
 
 static int g_event_sfx_calls = 0;
+static int g_event_sfx_ids[8];
 
 static void unit_event_sfx_play_mock(int id) {
   if (id >= SOUND_EVENT_ID_BASE) {
+    if (g_event_sfx_calls < (int)(sizeof(g_event_sfx_ids) / sizeof(g_event_sfx_ids[0]))) {
+      g_event_sfx_ids[g_event_sfx_calls] = id;
+    }
     g_event_sfx_calls++;
   }
 }
@@ -277,6 +281,93 @@ static int unit_combat_sfx_visibility(void) {
     units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, aid, did);
     if (g_event_sfx_calls == 0) {
       fprintf(stderr, "combat_sfx: human defence must stay audible\n");
+      rc = 1;
+    }
+  }
+
+  /* 5fef:2271 and 232e-23a7: a native attacks a human defender with a
+   * typed cue, followed by the generic cue. Row 21 is Mounted Brave. */
+  if (rc == 0) {
+    pool.types[0].kind_plus1 = 22;
+    g_event_sfx_calls = 0;
+    const int aid = units_spawn_allow_stack(&pool, 0, 4, 3);
+    const int did = units_spawn_allow_stack(&pool, 1, 5, 3);
+    units_get(&pool, aid)->nation_id = 4;
+    units_get(&pool, did)->nation_id = 0;
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 10);
+    units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=&pool, .col1=&col1, .col1_ok=true, .rng=&rng}, aid, did);
+    if (g_event_sfx_calls != 2 || g_event_sfx_ids[0] != 0x50 || g_event_sfx_ids[1] != 0x41) {
+      fprintf(stderr, "combat_sfx: native typed/generic sequence got %d calls (%d,%d)\n",
+              g_event_sfx_calls, g_event_sfx_ids[0], g_event_sfx_ids[1]);
+      rc = 1;
+    }
+  }
+  /* Once woodcut 13 has fired, DOS suppresses the generic cue when Combat
+   * Analysis is off; the typed cue still plays. */
+  if (rc == 0) {
+    g_event_sfx_calls = 0;
+    const int aid = units_spawn_allow_stack(&pool, 0, 4, 2);
+    const int did = units_spawn_allow_stack(&pool, 1, 5, 2);
+    units_get(&pool, aid)->nation_id = 4;
+    units_get(&pool, did)->nation_id = 0;
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 12);
+    units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=&pool, .col1=&col1, .col1_ok=true, .rng=&rng}, aid, did);
+    if (g_event_sfx_calls != 1 || g_event_sfx_ids[0] != 0x50) {
+      fprintf(stderr, "combat_sfx: repeat native attack got %d calls (first %d)\n",
+              g_event_sfx_calls, g_event_sfx_ids[0]);
+      rc = 1;
+    }
+  }
+  /* 5fef:234e-236a: cavalry row 7 selects 0x4c without a typed cue. */
+  if (rc == 0) {
+    pool.types[0].kind_plus1 = 8;
+    g_event_sfx_calls = 0;
+    const int aid = units_spawn_allow_stack(&pool, 0, 4, 4);
+    const int did = units_spawn_allow_stack(&pool, 1, 5, 4);
+    units_get(&pool, aid)->nation_id = 0;
+    units_get(&pool, did)->nation_id = 1;
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 11);
+    units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=&pool, .col1=&col1, .col1_ok=true, .rng=&rng}, aid, did);
+    if (g_event_sfx_calls != 1 || g_event_sfx_ids[0] != 0x4c) {
+      fprintf(stderr, "combat_sfx: cavalry attack got %d calls (first %d)\n",
+              g_event_sfx_calls, g_event_sfx_ids[0]);
+      rc = 1;
+    }
+  }
+  /* 5fef:2577-259f: a losing land attacker emits a second cue. */
+  if (rc == 0) {
+    g_event_sfx_calls = 0;
+    const int aid = units_spawn_allow_stack(&pool, 1, 4, 5);
+    const int did = units_spawn_allow_stack(&pool, 0, 5, 5);
+    units_get(&pool, aid)->nation_id = 0;
+    units_get(&pool, did)->nation_id = 1;
+    (void)units_resolve_land_combat_ff_w(
+      &(ColonizeWorld){.units=&pool, .col1=&col1, .col1_ok=true, .rng=NULL}, aid, did
+    );
+    if (g_event_sfx_calls != 2 || g_event_sfx_ids[0] != 0x41 || g_event_sfx_ids[1] != 0x40) {
+      fprintf(stderr, "combat_sfx: land loss got %d calls (%d,%d)\n",
+              g_event_sfx_calls, g_event_sfx_ids[0], g_event_sfx_ids[1]);
+      rc = 1;
+    }
+  }
+  /* 5fef:3040-3063: an AI colony burning cannot emit the human burn cue. */
+  if (rc == 0) {
+    g_event_sfx_calls = 0;
+    units_combat_notify_colony_burned(&col1, "AI colony", 1, "Natives");
+    if (g_event_sfx_calls != 0) {
+      fprintf(stderr, "combat_sfx: AI colony burn emitted %d cues\n", g_event_sfx_calls);
+      rc = 1;
+    }
+  }
+  if (rc == 0) {
+    g_event_sfx_calls = 0;
+    units_combat_notify_colony_burned(&col1, "Human colony", 0, "Natives");
+    if (g_event_sfx_calls != 1 || g_event_sfx_ids[0] != 0x53) {
+      fprintf(stderr, "combat_sfx: human colony burn got %d cues (first %d)\n",
+              g_event_sfx_calls, g_event_sfx_ids[0]);
       rc = 1;
     }
   }
