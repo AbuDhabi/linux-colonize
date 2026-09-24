@@ -120,8 +120,12 @@ defaults to **+2** (treasure can force −2 — PARKED).
 
 **Port:** score → `needed_crosses`; idle **+2/tick** → `current_crosses` until
 first dock immigrant (TURN5–7 stay 0 without churches); church crosses add to
-`current` before the tick; spawn when `current > needed`. Separate
-`immigration_pressure` fields are mirrors only.
+`current` **after** the tick — `FUN_3844_00f2` runs `0a90` (= `5e52`) at raw
+**58375**, before the per-colony `0950` at raw **58386** where
+`nation+0x2e += *0x8dea`, so the threshold test only ever sees last turn's
+crosses plus the `584a` delta (bugs.md #923: the human arm used to add first
+and could hand out an immigrant a turn early); spawn when `current > needed`.
+Separate `immigration_pressure` fields are mirrors only.
 
 **AI nations (2026-09-17).** `00f2` calls `0a90` = `5e52` for every nation with
 `control != 2` (**6392-6394**), and every gate inside `5e52` that mentions

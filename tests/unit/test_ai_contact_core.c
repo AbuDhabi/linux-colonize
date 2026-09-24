@@ -2516,8 +2516,24 @@ static int sp_23(void) {
     snprintf(c_burn->name, sizeof(c_burn->name), "Roanoke");
     memset(c_burn->stock, 0, sizeof(c_burn->stock));
     c_burn->stock[COLONIZE_CARGO_LUMBER] = 6;
+    /*
+     * bugs.md #924: the burn arm has no DOS lumber/construction step — it
+     * rolls an owned @BUILDING row and walks the chain DOWN to the lowest
+     * owned tier (FUN_5fef_0f14 raw 99832-99863). Church (0x25) / Cathedral
+     * (0x26) are legal targets, the Town Hall chain (root 9) never is.
+     */
+    colonies.building_type_count = 3;
+    snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name),
+             "Town Hall");
+    snprintf(colonies.building_types[1].name, sizeof(colonies.building_types[1].name),
+             "Church");
+    snprintf(colonies.building_types[2].name, sizeof(colonies.building_types[2].name),
+             "Cathedral");
+    memset(c_burn->has_building, 0, sizeof(c_burn->has_building));
+    c_burn->has_building[0] = true;
+    c_burn->has_building[1] = true;
+    c_burn->has_building[2] = true;
     colonies.colony_count = 1;
-    const int lumber0 = c_burn->stock[COLONIZE_CARGO_LUMBER];
     status[0] = '\0';
     ctx.status = status;
     ctx.status_size = sizeof(status);
@@ -2536,17 +2552,22 @@ static int sp_23(void) {
       );
       return fail("lumber-only colony at alarm≥60 should pick AI_RAID_BURN");
     }
-    if (c_burn->stock[COLONIZE_CARGO_LUMBER] >= lumber0) {
-      return fail("BURN should drain lumber stock when no construction");
+    if (c_burn->stock[COLONIZE_CARGO_LUMBER] != 6) {
+      return fail("BURN must not touch the lumber pile (bugs.md #924)");
     }
-    /*
-     * bugs.md #836: with no building NAME to substitute, @RAIDBURN cannot be
-     * filled and the port's typed "%s raiders set fires in %s." stand-in was
-     * retired — a miss renders as the empty string, never as typed English.
-     */
-    if (status[0] != '\0') {
-      fprintf(stderr, "unit_ai_contact: BURN-lumber status '%s'\n", status);
-      return fail("BURN with no named building must draw no typed line (#836)");
+    if (!c_burn->has_building[0]) {
+      return fail("BURN must never burn the Town Hall chain (0a88 root 9)");
+    }
+    /* raw 99856-99863: descend to the lowest owned tier — the Church. */
+    if (c_burn->has_building[1]) {
+      return fail("BURN should clear the Church, the chain's lowest owned tier");
+    }
+    if (!c_burn->has_building[2]) {
+      return fail("BURN destroys one tier only — the Cathedral bit survives");
+    }
+    if (strstr(status, "Church") == NULL) {
+      fprintf(stderr, "unit_ai_contact: BURN-church status '%s'\n", status);
+      return fail("@RAIDBURN should name the burned building");
     }
   }
 
@@ -2593,7 +2614,15 @@ static int sp_23(void) {
     c_fbrn->building_in_production = -1;
     snprintf(c_fbrn->name, sizeof(c_fbrn->name), "Jamestown");
     memset(c_fbrn->stock, 0, sizeof(c_fbrn->stock));
-    c_fbrn->stock[COLONIZE_CARGO_LUMBER] = 6; /* forces BURN kind */
+    c_fbrn->stock[COLONIZE_CARGO_LUMBER] = 6;
+    /* bugs.md #924: BURN needs an owned, non-rejected @BUILDING row to roll. */
+    colonies.building_type_count = 2;
+    snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name),
+             "Town Hall");
+    snprintf(colonies.building_types[1].name, sizeof(colonies.building_types[1].name),
+             "Warehouse");
+    c_fbrn->has_building[0] = true;
+    c_fbrn->has_building[1] = true;
     colonies.colony_count = 1;
     status[0] = '\0';
     ctx.status = status;

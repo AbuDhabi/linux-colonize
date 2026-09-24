@@ -166,7 +166,7 @@ graphs:
         label: Build-queue policy (cancel stale, peace construction ladder, craft upgrades)
         fn: ai_euro.c:ai_euro_prefer_peace_construction
         status: linux
-        note: ai_euro_cancel_stale_zero_hammer_builds, prefer_peace_construction (Stockade→Fort→Fortress→Warehouse→Docks, Drydock→Shipyard, Custom House, Church), prefer_all_buildings, prefer_craft_upgrades, clear_pre_stockade_build_queue.
+        note: ai_euro_cancel_stale_zero_hammer_builds, prefer_peace_construction (Stockade→Fort→Fortress→Warehouse→Docks, Drydock→Shipyard, Custom House — NOT the Church, which is built by the 5952 build cascade, ai_euro_colony_jobs.c:ai_euro_5952_build_cascade @BUILDING 0x25), prefer_all_buildings, prefer_craft_upgrades, clear_pre_stockade_build_queue.
       - id: goals
         kind: sub
         label: Goal writer — colony/unit goals (0a60 A–H)

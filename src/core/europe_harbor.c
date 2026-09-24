@@ -1113,6 +1113,15 @@ int europe_tick_immigration_pressure_w(
     eu->bound_human = nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
                       col1->player[nation_id].control == 0;
   }
+  /* DOS-LITERAL FUN_38fd_5e52 raw 68556: the tick clears nation flag bit
+   * 0x20 on entry (`*(byte *)*0x84fc &= 0xdf`). The AI twin
+   * europe_nation_immigration_tick_w already did this; the human path did
+   * not (bugs.md #923). */
+  if (w->col1 && nation_id < (int)COLONIZE_COL1_NATION_COUNT) {
+    w->col1->nation[nation_id].nation_flags =
+      (uint8_t)(w->col1->nation[nation_id].nation_flags & 0xdfu);
+  }
+
   const int score = europe_compute_immigration_score_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .colonies=(ColonizeColonyPool*)(colonies), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, nation_id);
   int need = score;
   if (need < 0) {
