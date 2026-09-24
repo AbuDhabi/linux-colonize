@@ -84,11 +84,18 @@ and accumulate the returned amount into `totals[out_tag]`. This is exactly
 the shape of "per-worker manufacturing output, bucketed by cargo/output
 type" — consistent with `building_production.md`'s framing.
 
+**Confirmed 2026-09-24 against `FUN_15eb_1d4c`'s prologue** (`decomp_fn.py
+FUN_15eb_1d4c`): `puVar7 = FUN_15eb_0e18()` then `puVar8 = FUN_15eb_0e52()`,
+same call order as `call1`/`call2` above — the swap is a label fix only, the
+call sites and downstream logic are unchanged.
+
 ## Confirmed formula (byte-exact against the asm, no longer provisional)
 
 ```
-call1 = FUN_15eb_0e18(param_1)   ; = colonist profession (catalog: "Colonist profession: slot+0x20…")
-call2 = FUN_15eb_0e52(param_1)   ; = colonist workplace/job (catalog: "slot+0x40…")
+call1 = FUN_15eb_0e18(param_1)   ; = colonist workplace/occupation (catalog: "slot+0x20…"; label
+                                  ;   swapped 2026-09-24, see #909(a) — was mislabeled "profession")
+call2 = FUN_15eb_0e52(param_1)   ; = colonist profession (catalog: "slot+0x40…", falls back to unit
+                                  ;   record +0x15 / 0x315b; label swapped 2026-09-24, see #909(a))
 call3 = FUN_15eb_0274()          ; = colony SoL% (catalog: "Colony SoL % from bells/pop (0..100; +20 FF bonus)")
 
 CX = 100 - call3                  ; = Tory% (100 - SoL%)
@@ -116,8 +123,9 @@ arithmetic shape itself (confirmed byte-exact) is not in dispute any more.
 
 ## The switch: selector is the worker's `@JOB` profession (9-17)
 
-`call1` (`FUN_15eb_0e18`'s return, i.e. the worker's profession code) is
-reloaded right before the dispatch and used as the switch selector:
+`call1` (`FUN_15eb_0e18`'s return, i.e. the worker's workplace/occupation code
+— see the 2026-09-24 label fix above) is reloaded right before the dispatch
+and used as the switch selector:
 
 ```
 AX = call1_result           ; profession code
@@ -219,10 +227,10 @@ fall-through.
 ### `local_12` — the class-scale tag, fully traced and confirmed
 
 Set right before the switch by a 3-way branch on `call2` (`FUN_15eb_0e52`,
-catalog: "colonist workplace/job", but the actual values compared are
+catalog: "colonist profession", but the actual values compared are
 `0x19`/`0x1a`/`0x1b` = **25/26/27 — exactly `COLONIZE_PROF_INDENTURED` /
 `_CRIMINAL` / `_CONVERT`**, i.e. this reads the colonist's *class*, not their
-workplace; the catalog one-liner is imprecise here):
+generic profession; the catalog one-liner is imprecise here):
 
 ```
 class == 0x19 (Indentured)          -> local_12 = 2

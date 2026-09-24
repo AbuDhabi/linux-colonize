@@ -3720,20 +3720,90 @@ static int case_tory_penalty_bells(void) {
    * tag(3)+sol_b(-1)=2, doubled (skilled Statesman) = 4. Town Hall
    * passive +1 = 5 — not 7 (bug would leave it there un-penalized), and
    * not 6 either (that was this fix's own first pass, which only moved
-   * the sign-drop bug and still added sol_b post-doubling). Plus the
-   * AI-only pop term in colony_prod_colony_bells_ff, (pop+3)/5 = 3 at
-   * pop 15, for 8 total: it reads the same colonist_count the Tory term
-   * does, and only looked like 0 while this fixture left colonist_count
-   * at 1 and put the 15 in `population` alone. */
-  if (col1.nation[1].liberty_bells_pool != 8) {
+   * the sign-drop bug and still added sol_b post-doubling). No AI subsidy
+   * term here: bugs.md #938b — FUN_15eb_1f72 raw 11327 gates the AI (pop+3)/5
+   * add on FF slot 0x12 (FF_SIMON_BOLIVAR) as well as the AI-control byte,
+   * and this fixture's nation 1 holds no founding fathers at all. See
+   * case_ai_bells_subsidy_needs_bolivar below for the granted-Bolivar case. */
+  if (col1.nation[1].liberty_bells_pool != 5) {
     fprintf(
       stderr,
-      "Tory-penalty bells want 8 got %u\n",
+      "Tory-penalty bells want 5 got %u\n",
       (unsigned)col1.nation[1].liberty_bells_pool
     );
     return 1;
   }
   fprintf(stderr, "Tory penalty reduces bells ok\n");
+  return 0;
+}
+
+/*
+ * bugs.md #938b: FUN_15eb_1f72 raw 11327 AI bells subsidy `bells +=
+ * (pop+3)/5` is gated on `FF 0x12 held && (nation>=4 || 0x543f!=0)` — BOTH
+ * FF_SIMON_BOLIVAR ownership and the AI-control byte, not the AI-control
+ * byte alone. Same fixture as case_tory_penalty_bells (nation 1, pop 15,
+ * one Statesman, Tory mod -1: base composes to 5 as proven there) but with
+ * Bolivar granted to nation 1 — the subsidy (pop+3)/5 = 3 must now show up,
+ * for 8 total. Mutation check: reverting the turn_production.c fix (i.e.
+ * gating solely on nation_is_ai) makes case_tory_penalty_bells's "want 5"
+ * fail instead, since the ungated subsidy would still fire there without
+ * Bolivar — so that case alone already catches a revert; this case instead
+ * catches an over-correction that drops the subsidy even when Bolivar IS
+ * held.
+ */
+static int case_ai_bells_subsidy_needs_bolivar(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Town Hall");
+  pool.building_type_count = 1;
+
+  ColonizeColony* ai = &pool.colonies[0];
+  memset(ai, 0, sizeof(*ai));
+  ai->active = true;
+  ai->id = 1;
+  ai->nation_id = 1;
+  ai->building_in_production = -1;
+  ai->has_building[0] = true;
+  ai->colonists[0].active = true;
+  ai->colonists[0].building_type = 0;
+  ai->colonists[0].profession = COLONIZE_PROF_STATESMAN;
+  ai->colonist_count = 15;
+  ai->population = 15;
+  pool.colony_count = 1;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[0].control = 0;
+  col1.player[1].control = 1;
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    col1.head.founding_father[i] = -1;
+  }
+  /* Grant FF_SIMON_BOLIVAR (18) to nation 1 via the per-nation bitmask
+   * founding_fathers_nation_has actually reads. */
+  col1.nation[1].founding_fathers[FF_SIMON_BOLIVAR / 8] =
+    (uint8_t)(1u << (FF_SIMON_BOLIVAR % 8));
+
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.human_nation = 0;
+  ctx.colonies = &pool;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+
+  turn_run_nation_ticks(&ctx, NULL);
+  if (col1.nation[1].liberty_bells_pool != 8) {
+    fprintf(
+      stderr,
+      "AI subsidy with Bolivar want 8 got %u\n",
+      (unsigned)col1.nation[1].liberty_bells_pool
+    );
+    return 1;
+  }
+  fprintf(stderr, "AI bells subsidy gated on Bolivar ok\n");
   return 0;
 }
 
@@ -6313,6 +6383,7 @@ static const TestCase k_cases[] = {
   {"nation_bells_tick", case_nation_bells_tick},
   {"nation_bells_per_colony_elect", case_nation_bells_per_colony_elect},
   {"tory_penalty_bells", case_tory_penalty_bells},
+  {"ai_bells_subsidy_needs_bolivar", case_ai_bells_subsidy_needs_bolivar},
   {"euro_power_rank", case_euro_power_rank},
   {"schoolhouse_education", case_schoolhouse_education},
   {"phase_h_skill_discovery", case_phase_h_skill_discovery},

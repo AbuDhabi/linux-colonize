@@ -2990,6 +2990,32 @@ int ai_euro_20e6_457e_type_gate(
   return 1;
 }
 
+/*
+ * bVar20 seed (DOS-LITERAL FUN_521d_20e6 raw 88556-88573 + the WoI clear at
+ * raw 88625-88628). bVar7 (ai_euro_20e6_457e_type_gate) is bVar20 *plus* the
+ * Man-O-War re-allow arm at raw 88574-88579, so bVar20 is that same body with
+ * Man-O-War forced false:
+ *   raw 88556: bVar20 = type != 0x12;
+ *   raw 88557-88566 / 88567-88573: the Frigate / Privateer narrowings, shared
+ *     verbatim with bVar7;
+ *   raw 88625-88628: any ship type (0x0d..0x12) has bVar20 cleared once
+ *     DS:0x5382 bit0 (War of Independence) is latched.
+ * NOT modelled here: the LAB_521d_4d2e re-derivation of bVar20 from the
+ * local_34 path (raw 88619-88624) — bugs.md #818.
+ */
+int ai_euro_20e6_bvar20_seed(
+  const ColonizeTurnContext* ctx, const ColonizeUnit* u, int dos_type
+) {
+  if (dos_type >= 0x0d && dos_type <= 0x12 && ctx && ctx->col1_ok && ctx->col1 &&
+      ctx->col1->head.game_options.woi != 0) {
+    return 0; /* raw 88625-88628 */
+  }
+  if (dos_type == UNITS_KIND_MAN_O_WAR) {
+    return 0; /* raw 88556 base term, before the bVar7 re-allow */
+  }
+  return ai_euro_20e6_457e_type_gate(ctx, u, dos_type);
+}
+
 int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
   if (!ctx || !ctx->units || !ctx->map || !u || !u->active) {
     return 0;

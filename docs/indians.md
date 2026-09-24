@@ -686,7 +686,7 @@ the old "8b24 is a harmless stat-cache refresh" reading:
 
 ### Indian-initiated visit (`FUN_5bfb_022e`, the Brave's own move)
 
-One encounter picks **exactly one** of two halves via `bVar6` (mood roll
+One encounter picks a half via `bVar6` (mood roll
 `rng(1,0x148) ≥ max(0, alarm−0x19)*4 + village alarm word`, plus
 `alarm ≤ 0x4a` overall and `alarm ≤ 0x31` for the generous half):
 
@@ -694,6 +694,18 @@ One encounter picks **exactly one** of two halves via `bVar6` (mood roll
 |------|------|
 | Generous (`LAB_5bfb_096c`) | `@INDIANGIVEFOOD` (village food surplus `bid[0] > ask[0]` **and** colony food ≤ 25 → top up to 75) / `@INDIANGIVESTUFF` (gift the good the village values most that still fits) — and, on a mission-owned village, `@INDIANSCONVERT` first on a `tech+2` (×2 Jesuit) vs `rng(0,0xf)` roll |
 | Demanding (`LAB_5bfb_0def`) | `@INDIANBEGFOOD` (`ask[0] > bid[0]` **and** colony food > 74) / tribute from an adjacent unit |
+
+The two halves are **not** symmetrically exclusive (bugs.md #863). The
+`@INDIANBEGFOOD` block at raw 87650-87698 sits *before* the `bVar6` fork and
+runs on its own conditions; when the colony **concedes** the beg (`local_c ==
+2`) DOS sets `bVar7 = true`, rolls `rand(0, difficulty)` (non-zero ends the
+visit) and otherwise forces `bVar6 = true` — so the conceded beg falls through
+into the generous half of the **same** visit. `bVar7` then adds a third term to
+the `LAB_5bfb_096c` fork (`bid[0] <= ask[0] || bVar7 || 25 < colony food` →
+`@INDIANGIVESTUFF`), which stops the village handing back the food it just
+took. In the port `ai_contact_apply_beg_food`'s accept arm publishes that
+`bVar6`/`bVar7` pair through `ai_contact_s_visit_mood` and re-enters
+`ai_contact_try_village_gifts` itself.
 
 The gift half stamps `contact_state[euro] = 2` and **zeroes that village's
 alarm word** toward the visited nation. `contact_state` (`ColonizeCol1Indian

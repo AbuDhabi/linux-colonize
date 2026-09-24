@@ -1164,12 +1164,29 @@ bool col1_bridge_apply_w(
        * not leave the colonist silently idle; put them to work in the Town
        * Hall rather than let the colony starve unnoticed. occ 19 (plain
        * colonist) stays idle on purpose.
+       *
+       * bugs.md #930: a KNOWN occupation (chain >= 0, e.g. a real @JOB
+       * 9..18 whose building is simply missing) is a genuine work-slot
+       * request, so it goes through colonies_assign_workplace and still
+       * honors @MORETHANTHREE (overlays.c:60486-60496, thunk_FUN_1000_9808)
+       * — a damaged save that would overflow the cap leaves the colonist
+       * unplaced rather than seating a 4th statesman.
+       *
+       * An UNRESOLVED occupation byte (chain == -1, e.g. the pre-fix
+       * exporter's port building-row garbage, bugs.md #901) never named a
+       * real occupation at all, so it keeps the original uncapped,
+       * park-anywhere-harmless tolerance — routing garbage through the
+       * cap would let it starve out real, resolvable Town Hall workers.
        */
       if (dst->colonists[p].building_type < 0 && dst->colonists[p].field_job < 0 &&
           occ != (int)UNITS_JOB_COLONIST) {
         const int th = colonies_building_row(colonies, COLONY_BUILDING_TOWN_HALL);
         if (th >= 0 && th < COLONIZE_BUILDING_TYPES_MAX && dst->has_building[th]) {
-          dst->colonists[p].building_type = th;
+          if (chain >= 0) {
+            colonies_assign_workplace(colonies, colonies->colony_count, p, th);
+          } else {
+            dst->colonists[p].building_type = th;
+          }
         }
       }
     }

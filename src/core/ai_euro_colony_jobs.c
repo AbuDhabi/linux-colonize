@@ -970,7 +970,11 @@ void ai_euro_5952_ledgers(
       : 0;
   gross[AI_EURO_5952_BELLS] = colony_prod_colony_bells_ff(
     pool, col, probe_statesmen_pct, probe_paine_tax_pct,
-    col1 ? (col1->player[col->nation_id].control != 0) : true, sol_bonus
+    /* FUN_15eb_1f72 raw 12634-12641: subsidy needs Bolivar too (#938b). */
+    col1 ? (col1->player[col->nation_id].control != 0 &&
+            founding_fathers_nation_has(col1, col->nation_id, FF_SIMON_BOLIVAR))
+         : true,
+    sol_bonus
   );
   demand[COLONIZE_CARGO_FOOD] = col->population * 2;
 }
@@ -1064,7 +1068,8 @@ static void ai_euro_5952_indoor_pass(
       (col->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) != 0;
     want.press_chain_count =
       ai_euro_5952_chain_owned(pool, col, COLONIES_CHAIN_PRESS, NULL, NULL);
-    /* iStack_7c, raw 294-296: tories = round(pop*(100-SoL%)/100), 0 under WoI. */
+    /* local_7c, FUN_5952_035e raw 93994-93996: tories = (pop*(100-SoL%)+50)/100,
+     * zeroed when DS:0x5382 bit0 (WoI declared) is set. */
     {
       const int sol = colony_prod_sol_percent(col1, col);
       want.tories = want.independence ? 0 : (col->population * (100 - sol) + 50) / 100;

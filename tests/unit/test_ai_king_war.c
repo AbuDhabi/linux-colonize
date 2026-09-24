@@ -308,9 +308,122 @@ static int case_43f7_0082_spawn_types(void) {
   return 0;
 }
 
+/*
+ * bugs.md #878e: DS:0x9456[nation]'s "one crown hull away at a time" gate
+ * (FUN_521d_20e6 disjunct `DS:0x9456[nation] != 0`, viceroy_unpacked.c
+ * raw 89717-89720) is bumped the instant a hull is ordered home, not only
+ * once it lands on the high-seas tile — so a SECOND crown Man-O-War must be
+ * blocked from taking the sail-home arm while a first one is still mid
+ * transit (orders == UNITS_ORDER_AI_SAIL, not yet on a High Seas tile).
+ * Before the fix, ai_king_crown_ships_in_europe_lane only looked at the
+ * live tile, which was free again by the time a second hull acted (the
+ * first hull's own call had already moved it off the high-seas tile it
+ * hadn't reached, or despawned it if it had) — so the gate never fired.
+ */
+static int case_878e_sail_home_one_at_a_time(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    return fail("878e: NAMES.TXT load failed");
+  }
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  if (!units_load_types(&units, &names)) {
+    assets_msg_free(&names);
+    return fail("878e: units_load_types failed");
+  }
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  const int W = 40, H = 4;
+  if (!map_alloc(&map, W, H, err, sizeof(err))) {
+    assets_msg_free(&names);
+    return fail("878e: map_alloc failed");
+  }
+  /* Rows 1 and 2 are open ocean corridors; the far east edge column is High
+   * Seas (terrain 0x1a = 26), everything else plain ocean (25), far enough
+   * that a 4-tile move budget can't reach it in one act. */
+  for (int i = 0; i < W * H; ++i) {
+    map.terrain[i] = 25;
+  }
+  map.terrain[1 * W + (W - 1)] = 26;
+  map.terrain[2 * W + (W - 1)] = 26;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[0].control = 0;
+  col1.player[1].control = 1;
+  memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+  memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
+  col1.head.expeditionary_force[0] = 3; /* land pools stocked */
+  col1.head.expeditionary_force[2] = 0; /* MoW pool spent -> take the sail-home arm */
+
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.units = &units;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+
+  const int crown = 1;
+  const int mow_a_id = units_spawn_allow_stack(&units, units_find_type(&units, "Man-O-War"), 2, 1);
+  const int mow_b_id = units_spawn_allow_stack(&units, units_find_type(&units, "Man-O-War"), 2, 2);
+  ColonizeUnit* mow_a = units_get(&units, mow_a_id);
+  ColonizeUnit* mow_b = units_get(&units, mow_b_id);
+  if (!mow_a || !mow_b) {
+    map_free(&map);
+    assets_msg_free(&names);
+    return fail("878e: MoW spawn failed");
+  }
+  ColonizeUnit* mows[2] = {mow_a, mow_b};
+  for (int i = 0; i < 2; ++i) {
+    ColonizeUnit* mow = mows[i];
+    mow->nation_id = crown;
+    mow->cargo_count = 0;
+    mow->moves = 4 * UNITS_MP_PER_TILE;
+    mow->orders = UNITS_ORDER_NONE;
+    mow->goto_x = -1;
+    mow->goto_y = -1;
+  }
+
+  if (!ai_king_mow_sail_home_20e6(&ctx, mow_a, crown)) {
+    map_free(&map);
+    assets_msg_free(&names);
+    return fail("878e: first empty crown MoW should take the sail-home arm");
+  }
+  mow_a = units_get(&units, mow_a_id);
+  if (!mow_a || !mow_a->active || mow_a->orders != UNITS_ORDER_AI_SAIL ||
+      map_tile_is_high_seas(&map, mow_a->x, mow_a->y)) {
+    map_free(&map);
+    assets_msg_free(&names);
+    return fail(
+      "878e: first hull should still be mid-transit (AI_SAIL, off the high-seas tile) after one act"
+    );
+  }
+
+  /* Second hull, alone on its own tile, must be BLOCKED while the first is
+   * still away -- the DOS "one hull in the Europe lane at a time" gate. */
+  mow_b->moves = 4 * UNITS_MP_PER_TILE;
+  const int second_result = ai_king_mow_sail_home_20e6(&ctx, mow_b, crown);
+  mow_b = units_get(&units, mow_b_id);
+  if (second_result != 0 || !mow_b || !mow_b->active || mow_b->orders == UNITS_ORDER_AI_SAIL) {
+    map_free(&map);
+    assets_msg_free(&names);
+    return fail("878e: second crown MoW must not sail home while the first is still in the Europe lane");
+  }
+
+  map_free(&map);
+  assets_msg_free(&names);
+  fprintf(stderr, "unit_ai_king: 878e sail-home one-at-a-time ok\n");
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"test_king_new_war_event", test_king_new_war_event},
     {"test_king_noncombat_never_attacks", test_king_noncombat_never_attacks},
     {"case_43f7_0082_spawn_types", case_43f7_0082_spawn_types},
+    {"case_878e_sail_home_one_at_a_time", case_878e_sail_home_one_at_a_time},
 };
 TEST_MAIN(k_cases)

@@ -115,19 +115,9 @@ void colonies_emit_warehouse_full_chrome(
   if (stock < 0) {
     stock = 0;
   }
-  const char* cname = colony->name[0] ? colony->name : "colony";
-  const char* gname = (cargo_name && cargo_name[0]) ? cargo_name : "cargo";
+  const char* cname = colony->name[0] ? colony->name : "";
+  const char* gname = (cargo_name && cargo_name[0]) ? cargo_name : "";
   char body[AI_POPUP_BODY_LEN];
-  char fallback[160];
-  snprintf(
-    fallback,
-    sizeof(fallback),
-    "Warehouse full at %s (%d/%d %s).",
-    cname,
-    stock,
-    cap,
-    gname
-  );
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = cname;
@@ -138,7 +128,9 @@ void colonies_emit_warehouse_full_chrome(
   tok.has_number1 = true;
   tok.number2 = deposited > 0 ? deposited : 0;
   tok.has_number2 = true;
-  popup_msg_fill(messages, "WAREHOUSEFULL", &tok, fallback, body, sizeof(body));
+  /* No DOS text in the binary: on catalog miss, popup_msg_fill yields "" —
+   * never a typed English fallback (bugs.md #820). */
+  popup_msg_fill(messages, "WAREHOUSEFULL", &tok, "", body, sizeof(body));
   ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
 }
 

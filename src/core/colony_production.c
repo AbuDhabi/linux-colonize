@@ -517,8 +517,11 @@ void colony_prod_tick_rebel_accumulators(
      founding_fathers_nation_has(col1, nation_id, FF_THOMAS_PAINE))
       ? (int)col1->nation[nation_id].tax_rate
       : 0;
+  /* DOS-LITERAL FUN_15eb_1f72 raw 12634-12641: the AI bells subsidy needs
+   * both the AI-control gate and FF 0x12 (Bolivar) held. bugs.md #938b. */
   const bool nation_is_ai = nation_id >= 0 && nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
-                             col1->player[nation_id].control != 0;
+                             col1->player[nation_id].control != 0 &&
+                             founding_fathers_nation_has(col1, nation_id, FF_SIMON_BOLIVAR);
   /*
    * Real SoL bonus, NOT 0. DOS FUN_364b_0688 computes this colony's bells
    * exactly once (`local_ba = FUN_281f_0b50(0x12, 0)` — the net bells entry of

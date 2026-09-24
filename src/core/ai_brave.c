@@ -310,8 +310,10 @@ static int ai_native_step_first_contact(
      * bugs.md #824: DOS resolves the WHOLE encounter here, in the 465b move
      * tail (0984 -> 3180 -> 022e), not in a later per-nation sweep. The mood
      * roll above is 022e's head (raw 96745-96760); these two arms are its
-     * two mutually exclusive halves — LAB_5bfb_096c gifts when bVar6, else
-     * LAB_5bfb_0def begs/demands. They used to run post-pulse from ai.c §9
+     * two halves — LAB_5bfb_096c gifts when bVar6, else LAB_5bfb_0def
+     * begs/demands. Not exclusive in the beg direction: a CONCEDED beg sets
+     * bVar6 and falls through into the gift half of the same visit, which
+     * ai_contact_apply_beg_food re-enters itself (bugs.md #863). They used to run post-pulse from ai.c §9
      * off the published verdict, behind a reconstructed "did a Brave walk up
      * this turn" gate and a "no popup queue -> decline" bail; both are gone
      * with the call site that needed them. `aiStack_20[nation]` keeps it to

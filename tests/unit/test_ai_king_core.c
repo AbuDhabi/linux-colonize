@@ -2298,6 +2298,54 @@ static int sp_27(void) {
       assets_msg_free(&game_txt);
       return fail("Refuse apply should enqueue @TEAPARTY KING_TAX OK");
     }
+
+    /*
+     * bugs.md #907 — boycotted-winner path. DOS-LITERAL FUN_38fd_3dc8 raw
+     * 64160-64175 only fills aiStack_cc[c] for cargos NOT in the nation's
+     * boycott mask (local_a6), so when every stocked cargo is already
+     * boycotted the roulette walk finds nothing, local_4 stays -1 and raw
+     * 64196 ABORTS the whole party: no CHOICE, no second draw with the mask
+     * cleared, the hike simply stands. Fixture: Cotton is the only stocked
+     * cargo and it is already boycotted (from the Refuse block above).
+     */
+    for (int ci = 0; ci < COLONIZE_CARGO_COUNT; ++ci) {
+      colonies.colonies[0].stock[ci] = 0;
+    }
+    colonies.colonies[0].stock[COLONIZE_CARGO_COTTON] = 60;
+    col1.nation[0].boycott_bitmap = (uint16_t)(1u << COLONIZE_CARGO_COTTON);
+    col1.nation[0].tax_rate = 10;
+    europe.tax_percent = 10;
+    col1.nation[0].liberty_bells_pool = 0;
+    col1.colony[0].rebel_dividend = 100;
+    col1.colony[0].rebel_divisor = 100;
+    status[0] = '\0';
+    ai_popup_clear(&pop);
+    ColonizeDosRng boycotted_rng;
+    dos_rng_seed(&boycotted_rng, 1u);
+    ctx.rng = &boycotted_rng;
+    ai_king_nation_turn(&ctx);
+    ctx.rng = NULL;
+    for (int i = 0; i < pop.queue_count; ++i) {
+      if (pop.queue[i].tag == AI_POPUP_TAG_KING_AUDIENCE &&
+          pop.queue[i].kind == AI_POPUP_KIND_CHOICE) {
+        assets_msg_free(&game_txt);
+        return fail("#907: an all-boycotted store must not offer a tea-party CHOICE");
+      }
+    }
+    if (col1.nation[0].boycott_bitmap != (uint16_t)(1u << COLONIZE_CARGO_COTTON)) {
+      fprintf(stderr, "unit_ai_king: #907 boycott_bitmap=0x%x\n",
+              (unsigned)col1.nation[0].boycott_bitmap);
+      assets_msg_free(&game_txt);
+      return fail("#907: the aborted party must not boycott a second cargo");
+    }
+    if (col1.nation[0].tax_rate == 10) {
+      assets_msg_free(&game_txt);
+      return fail("#907: with the party aborted the hike should stand");
+    }
+    if (colonies.colonies[0].stock[COLONIZE_CARGO_COTTON] != 60) {
+      assets_msg_free(&game_txt);
+      return fail("#907: the aborted party must not dump any stock");
+    }
   return 0;
 }
 

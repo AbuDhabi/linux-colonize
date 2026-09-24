@@ -385,7 +385,22 @@ int ai_euro_4393_work_queue_haul_pick(
     return 0;
   }
   const int hauler_type = hauler ? ai_euro_20e6_dos_type(ctx->units, hauler) : -1;
-  const int civilian_hull = (hauler_type != 0x12); /* bVar17 base term */
+  /*
+   * DOS-LITERAL FUN_521d_20e6 raw 89877-89878 — the LAB_521d_4393 entry gate:
+   * `0xc < type && type < 0x13 && (bVar20 || bVar7)` (the `local_a8 == 0 &&
+   * local_6 == 0` half of the same `if` is the caller's passenger/order state,
+   * still unmodelled here — bugs.md #818). bVar20 is now the real seed
+   * (ai_euro_20e6_bvar20_seed) instead of the bare `type != 0x12` stand-in, so
+   * a Man-O-War or a WoI-era warship no longer scores a colony haul unless
+   * bVar7's re-allow arm fires. bugs.md #877.
+   */
+  const int civilian_hull = ai_euro_20e6_bvar20_seed(ctx, hauler, hauler_type); /* bVar20 */
+  if (hauler_type < 0x0d || hauler_type > 0x12) {
+    return 0;
+  }
+  if (!civilian_hull && !ai_euro_20e6_457e_type_gate(ctx, hauler, hauler_type)) {
+    return 0; /* bVar7 */
+  }
   int best_score = -1; /* DOS iStack_e2 = -1; `>=` so later ties win */
   int best_slot = -1;
   int best_colony = -1;
@@ -421,8 +436,10 @@ int ai_euro_4393_work_queue_haul_pick(
         ai_euro_unit_hold_has_cargo_type(ctx->units, hauler, (int)c->specialty_cargo)) {
       score += 32;
     }
-    /* DOS raw ~2216: a non-civilian hull may only take slots the colony
-     * flagged military (rec[+5]). */
+    /* DOS-LITERAL raw 89898: the inner accept needs
+     * `bVar20 || *(char *)(local_50 * 6 + -0x5f1f) != 0` — a hull bVar20
+     * rejects may only take slots the colony flagged military (work record
+     * +5 = AiWorkSlot.military). bugs.md #877. */
     if (score >= best_score && (civilian_hull || w->military != 0)) {
       best_score = score;
       best_slot = i;

@@ -172,10 +172,26 @@ int ai_king_new_war_event(ColonizeTurnContext* ctx) {
  * docs/save_format_map.md row `x`/`y`. DS:0x945a is the land-unit twin
  * (236+n, already used by the 5d04 hire tail).
  *
- * The port has no Europe dock for the crown slot, so a crown hull that
- * reaches the high seas leaves the map outright (below) and this count is
- * the number of crown ships still standing ON a high-seas tile, i.e. the
- * ones mid-crossing.
+ * The port has no Europe dock for the crown slot: a crown hull that reaches
+ * the high seas leaves the map outright (units_despawn, below and in
+ * ai_king_mow_sail_home_20e6) instead of parking at an off-map sentinel
+ * column, so neither DOS x-sentinel state (240+n docked, 244+n sailing) is
+ * literally representable. bugs.md #878e: counting only hulls already
+ * standing ON a high-seas tile was over-restrictive — the same function that
+ * despawns an arrived hull also runs this gate first, so a hull essentially
+ * never survives a turn boundary sitting on a high-seas tile, and the count
+ * came back 0 on almost every call, defeating the DOS "only one hull away at
+ * a time" gate the 20e6 disjunct (`DS:0x9456[nation] != 0`) encodes.
+ *
+ * DOS bumps DS:0x9456[nation] the instant the sail-home decision is made
+ * (raw 89717-89720: the ring-hunt for a High Seas tile, then `+0x314b =
+ * 0x45` / act_state `+0x314c = 3 (or 0xb)` — i.e. before the hull has
+ * actually reached that tile), and the census that recomputes it from the
+ * x-sentinel columns only ever finds hulls that already crossed off-map. The
+ * port's counterpart of "sail-home decided, not yet resolved" is
+ * `u->orders == UNITS_ORDER_AI_SAIL` (ai_king_mow_sail_home_20e6 stamps it
+ * at the same decision point, raw-comment above), so a crown sea unit counts
+ * here for the whole multi-turn transit, not only its last tile.
  */
 static int ai_king_crown_ships_in_europe_lane(const ColonizeTurnContext* ctx, int crown) {
   if (!ctx || !ctx->units || !ctx->map) {
@@ -198,7 +214,7 @@ static int ai_king_crown_ships_in_europe_lane(const ColonizeTurnContext* ctx, in
     if (!units_is_sea(ctx->units, u->id)) {
       continue;
     }
-    if (map_tile_is_high_seas(ctx->map, u->x, u->y)) {
+    if (u->orders == UNITS_ORDER_AI_SAIL || map_tile_is_high_seas(ctx->map, u->x, u->y)) {
       n++;
     }
   }

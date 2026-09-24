@@ -165,8 +165,21 @@ below as ported guidance.
   contributions — that part is already correctly wired
   (`colony_prod_bells_worker`, `colony_prod_colony_bells_ff`) and unrelated
   to this passive-only question.
-- `byte 0xa892`'s meaning — still unknown (flag `0x12`/AI bells subsidy
-  itself is now resolved and ported, see item 4 above).
+- `byte 0xa892` — closed 2026-09-24 (bugs.md #938a/#925b), provably +0. All
+  known writers across the five decompiled exports and their raw `.asm`
+  (`viceroy_unpacked[.c/.asm]`, `viceroy_unpacked_2[.c/.asm]`,
+  `viceroy_overlays[.c/.asm]`) are `mov byte [0xa892],0x0` at the three sites
+  found by grep (`viceroy_unpacked.c:4294/5369/12619` and mirrors) — every
+  one zeroes the byte, then the very next few statements read it back
+  (`viceroy_unpacked.c:4313/5388/12638`, `+= (uint)byte[0xa892]`) with no
+  intervening writer, including no call into `FUN_15eb_3960` (checked: that
+  function only reads a per-nation FF bitmask, `viceroy_unpacked.c
+  raw 13832-13844`, and never touches `0xa892`). No `mov [0xa892], reg`
+  (a store of a computed value) exists anywhere in any `.asm` export — only
+  the `mov byte [0xa892],0x0` immediate stores and `mov al,[0xa892]` reads.
+  So the term is a dead zero at every one of the 6 read sites listed in the
+  bug row (raw 12634-12641's `1f72` composer plus the four callers at raw
+  48038/48064/50303/65529/65679); not ported, and no further chase needed.
 - `FUN_15eb_09c0` (`1f72`'s sibling in the `394c` compose call) — read;
   ruled out as the combine point. It's an unrelated per-nation colony-count
   tally (`byte 0x8d72`/`0x8d74`/`0x8d76`, capped at 50), nothing to do with
