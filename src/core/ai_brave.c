@@ -95,46 +95,10 @@ static int ai_dos_move_spent(
  * deleted 2026-09-14 with the rest of the empirical picker. */
 
 /*
- * Init-only LCG burns after the first Brave step of the Inca pulse
- * (`ai_init_new_game` / post-`6a09`). Calibrated to SEED100.SAV; every
- * other tribe needs exactly 0 (Sioux, also 6 villages, misses with any
- * k in 1..10), so this is not a per-village draw.
- *
- * 2026-09-16 static audit (no DOS source found, and none can exist on the
- * visible path): every FUN_281f_04d4/04ca/0d90/0e68 call site in all 31
- * overlays plus every direct FUN_19ef_0032/002c caller in resident code was
- * enumerated and attributed. Between 1816's entry reseed (BIOS tick read
- * FUN_1c0c_0012, which VR_SEED.EXE patches to `mov ax,100`) and the first
- * 021a pick the only RNG consumers are the ones already modelled: 152e's
- * met-Euro loop (needs FUN_15b3_0004 bit 0x20, all zero at start), the
- * 465b overspend gate (needs spent != 0), 3180/022e (need a foreign
- * neighbour) and the UI pump's music picker (FUN_129f_00f6, which reseeds
- * from the tick on BOTH sides of its draws, so it nets a reset, never a
- * burn). SEED100_REGEN1/2 are byte-identical here, so it is not wall-clock.
- * The golden is a weak constraint: with k=0 only Brave 1 at (9,28) misses,
- * a 1-point near-tie (bases 209/208/208 decided by RNG(1,5)), and k in
- * {6,14,25,32} before Brave 1 all pass, as does "reseed + 3 draws before
- * every Brave". Treat 6 as a fit for that single near-tie, same class as
- * the k_mid_peels residue; AI_INIT_SCHED (below) is the sweep tool.
- */
-static void ai_native_post_first_brave_burns(AiRng* rng, int nation_id) {
-  int burns = 0;
-  if (nation_id == 4) {
-    burns = 6;
-  }
-  for (int b = 0; b < burns; ++b) {
-    (void)ai_rng_next_counted(rng);
-  }
-  if (ai_lcg_audit_enabled() && burns > 0) {
-    fprintf(stderr, "AI_LCG_AUDIT post_first_brave n=%d burns=%d\n", nation_id, burns);
-  }
-}
-
-/*
  * Init-pulse burn-schedule sweep tool. AI_INIT_SCHED="n:idx:count[:R];..."
  * burns `count` draws before Brave `idx` of nation `n` picks (idx = -1:
  * before that nation's pulse); a trailing `R` reseeds to the pulse seed
- * first. Setting it disables the default Inca burns above.
+ * first. This is diagnostic only; the default pulse does not add draws.
  */
 static bool ai_init_sched_apply(AiRng* rng, int nation_id, int brave_index) {
   const char* p = getenv("AI_INIT_SCHED");
@@ -354,16 +318,16 @@ int ai_native_brave_turn_origin(int unit_id, int* out_x, int* out_y) {
 /*
  * FUN_465b_0000 local_4 (raw 75467-75475): the destination's settlement owner
  * (FUN_281f_06be), overridden by the nation of the unit heading the tile's
- * stack (FUN_281f_07e0 -> FUN_1427_005c). -1 = nobody. The port has no stack
- * order, so the first on-map unit in slot order stands in for the head.
+ * stack (FUN_281f_07e0 -> FUN_1427_005c). -1 = nobody.
  */
 COLONIZE_INTERNAL int ai_465b_dest_owner(
   const ColonizeWorldMap* map, const ColonizeUnitPool* units, int x, int y
 ) {
   int owner = ai_021a_settle_owner(map, x, y);
-  const int head = ai_unit_index_on_tile(units, x, y);
-  if (head >= 0) {
-    owner = units->units[head].nation_id;
+  const int head_id = units_tile_head_id_at(units, x, y);
+  const ColonizeUnit* head = units_get_const(units, head_id);
+  if (head) {
+    owner = head->nation_id;
   }
   return owner;
 }
@@ -642,6 +606,7 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
     const int step_oy = u->y;
     u->x = nx;
     u->y = ny;
+    units_tile_stack_arrive(units, u->id);
     units_occupancy_notify_moved(units, step_ox, step_oy, nx, ny);
     /* 465b commit tail clears+recomputes unit+0x3147's observed nibble
      * (FUN_281f_08da / 084e / 07fe) on every step — braves included. */
@@ -694,9 +659,6 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
     );
   }
   (*steps)++;
-  if (seed100_init_burns && brave_index == 0 && *steps == 1 && !getenv("AI_INIT_SCHED")) {
-    ai_native_post_first_brave_burns(rng, nation_id);
-  }
   /*
    * The DOS 0x14 act cap now trips on `col1_counter16` at the attempt top
    * (4d56:1af7). `cost <= 0` stays as a Linux-only belt (DOS has no such
@@ -922,15 +884,14 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
    * FUN_4d56_1816 phase order (annotated indian_nation_turn / indian_contact.md):
    *   1 reseed → 2–4 prelude/clamp → 5 growth → 6 relation → 7–8 quiet pulse →
    *   9 meet/trade + raids (other paths; not inside 14fe).
-   * Pulse LCG burns (Inca=14 / Aztec=4) stay inside ai_native_nation_pulse after
-   * reseed — prelude uses isolated contact RNG only.
+   * The prelude uses isolated contact RNG; the pulse uses the shared stream.
    */
   ai_nation_reseed(ctx);
 
   /* §2 WoI tribe defection (isolated RNG, no pulse LCG burn). */
   ai_contact_indian_woi_defect(ctx, nation_id);
 
-  /* §2–4 alarm prelude (flags/mission); LCG stream-cost burns remain in pulse. */
+  /* §2–4 alarm prelude (flags/mission). */
   ai_contact_indian_prelude(ctx, nation_id);
 
   /* §5 tribe growth. */

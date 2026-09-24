@@ -88,7 +88,9 @@ the truth is the 15-entry JMPF stub table at `4d56:4c22..4c6c`,
   The `465b` step itself is not a plain move when the destination is foreign
   (`local_4` = stack-head nation, else settlement owner, != Brave): DOS
   exhausts (< 3 MP left) or attacks via `1b0e`, and never lands the Brave on
-  the tile. `ai_native_brave_step` keeps that end state (in place, exhausted)
+  the tile. `units_tile_head_id_at` selects the latest tile arrival, including
+  Col1-imported chains, as `FUN_281f_07e0` does (#848).
+  `ai_native_brave_step` keeps that end state (in place, exhausted)
   and, since 2026-09-23 (bugs.md #822), resolves the attack on the ≥ 3-thirds
   limb through `units_resolve_land_combat` — the same `1b0e` resolver every
   other attacker uses, defender picked by `FUN_5fef_0000`
@@ -101,9 +103,15 @@ the truth is the 15-entry JMPF stub table at `4d56:4c22..4c6c`,
   `FUN_4d56_021a` (`4d56:021a..14fd`, 4836 bytes, one function) — the Indian
   unit decision routine Ghidra emitted as raw `??` bytes, reached from `14fe`
   via stub `4c3b`. **Correction 2026-09-15:** it does NOT call the `521d` scorer — `291f:012c`
-  (`021a:1182`) is `FUN_7a65_0008`, the "Show Indian moves" score plotter; 021a
+  (`021a:1182`) is `FUN_7a65_0008`, the DEBUG.TXT "Indian AI movement" score
+  plotter (DS:0x894 bit 1), separate from GAME.TXT "Show Indian Moves";
+  021a
   carries its own dir loop, now ported as `ai_native_pick_dir_021a`
-  (`ai_native_021a.c`). Decoded there and, since 2026-09-23, **all four
+  (`ai_native_021a.c`). The score plotter is now called after the final
+  `RNG(1,5)` and zero clamp for each accepted direction; the UI draws the
+  numeric scores on tiles in the current viewport when the debug flag is active
+  (#848).
+  Decoded there and, since 2026-09-23, **all four
   ported and audited term-by-term** (bugs.md #850): homeless-unit despawn
   (`021a:0337`, bad `+0x314a` → `FUN_281f_0808` + return −1) —
   `ai_brave.c:455`, with one recorded deviation, DOS returns −1 into a
@@ -186,6 +194,13 @@ playable nations — cosmetic / scenario pool, not additional `indian[8]` slots.
 |------|--------|
 | AMERICA | [`TRIBE.TXT`](../COLONIZE/TRIBE.TXT) `@INCA`…`@TUPI` coordinates |
 | NEW WORLD | Procedural `FUN_6a09_0006` → `ai_place_tribes_procedural` (capitals then satellites) |
+
+`FUN_1427_02ca` (raw 7497-7506) marks a newly spawned Brave's tile occupied,
+but leaves its owner nibble at `0xf` if `FUN_137f_0598` identifies a rumour
+there. The first seed-100 Inca Brave spawns on such a tile at (10,25); `021a`
+then skips its stay direction. The port restores that nibble after its generic
+spawn occupancy update, and no longer adds six fitted Inca RNG draws after
+the first step (#849). The seed-100 golden now tests with occupancy bound.
 
 **NEW WORLD-only Silver bid bonus (wired 2026-08-24).** After every capital
 and satellite tribe is placed, `FUN_6a09_0006`'s own tail re-walks each tribe

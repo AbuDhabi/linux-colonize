@@ -403,6 +403,62 @@ static void game_blit_unit_in_viewport(
   }
 }
 
+/* DOS FUN_7a65_0008 at 4d56:1182 writes the accepted 021a scores directly
+ * on the current map. Present the complete nine-direction overlay once per
+ * Brave pick; the next normal map frame or movement redraw clears it. */
+static void game_native_score_plot(
+  void* user, const ColonizeUnit* brave, const AiNativeScoreTile* tiles, int count
+) {
+  ColonizeGameState* game = (ColonizeGameState*)user;
+  if (!game || !brave || !tiles || count <= 0 || !game->platform || !game->world_map_ok ||
+      !(game->debug_flags_mask & (1u << 1))) {
+    return;
+  }
+  const ColonizeFont* font = game_chrome_font(game);
+  if (!font) {
+    return;
+  }
+  uint8_t pixels[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  ColonizePalette pal;
+  game_render(game, &fb, &pal);
+  static uint8_t score_view[MAP_VIEW_W * MAP_VIEW_H];
+  ColonizeFramebuffer8 view = {.width = MAP_VIEW_W, .height = MAP_VIEW_H, .pixels = score_view};
+  for (int row = 0; row < MAP_VIEW_H; ++row) {
+    memcpy(
+      &score_view[(size_t)row * MAP_VIEW_W],
+      &fb.pixels[(size_t)(MAP_MENU_BAR_H + row) * (size_t)fb.width], MAP_VIEW_W
+    );
+  }
+  int cols = 0, rows = 0, vx = 0, vy = 0;
+  game_map_zoom_view_size(game->map_zoom, &cols, &rows);
+  map_panel_clamp_view_origin(
+    (int)game->world_map.width, (int)game->world_map.height, game->map_view_x,
+    game->map_view_y, cols, rows, &vx, &vy
+  );
+  const int tile_px = game_map_zoom_tile_px(game->map_zoom);
+  for (int i = 0; i < count; ++i) {
+    const int tx = tiles[i].x - vx;
+    const int ty = tiles[i].y - vy;
+    if (tx < 0 || ty < 0 || tx >= cols || ty >= rows) {
+      continue;
+    }
+    char label[16];
+    snprintf(label, sizeof(label), "%d", tiles[i].score);
+    font_draw_text(
+      font, &view, tx * tile_px + (7 >> game->map_zoom),
+      ty * tile_px + (6 >> game->map_zoom), label, 15
+    );
+  }
+  for (int row = 0; row < MAP_VIEW_H; ++row) {
+    memcpy(
+      &fb.pixels[(size_t)(MAP_MENU_BAR_H + row) * (size_t)fb.width],
+      &score_view[(size_t)row * MAP_VIEW_W], MAP_VIEW_W
+    );
+  }
+  (void)platform_present(game->platform, &fb, &pal);
+}
+
 COLONIZE_INTERNAL void game_move_watch_w(
   const ColonizeWorld* w,
   void* user,
@@ -867,6 +923,7 @@ void game_bind_combat_analysis(ColonizeGameState* game) {
     return;
   }
   combat_analysis_set_presenter(game_combat_analysis_present, game);
+  ai_set_native_score_plot(game_native_score_plot, game);
   units_set_combat_human_nation(game->human_nation);
   units_set_combat_music_hooks(sound_play, sound_active_song_id);
   units_set_bgm_hook(sound_set_bgm);

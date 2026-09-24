@@ -1075,6 +1075,9 @@ static void units_capture_relocate_to_winner(
   const int oy = lose->y;
   lose->x = win->x;
   lose->y = win->y;
+  if (lose->aboard_ship_id < 0 && units_is_on_map(lose)) {
+    units_tile_stack_arrive(pool, lose->id);
+  }
   /* Now stands with the captor: share the captor tile's sight stamp. */
   lose->col1_vis_mask = win->col1_vis_mask;
   units_occupancy_refresh_tile(pool, ox, oy, -1);
@@ -1833,6 +1836,9 @@ void units_ship_enter_repair(
     const int old_y = lose->y;
     lose->x = home->x;
     lose->y = home->y;
+    if (lose->aboard_ship_id < 0 && units_is_on_map(lose)) {
+      units_tile_stack_arrive(pool, lose->id);
+    }
     units_occupancy_refresh_tile(pool, old_x, old_y, -1);
     units_occupancy_refresh_tile(pool, home->x, home->y, -1);
   }

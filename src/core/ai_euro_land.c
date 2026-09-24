@@ -549,6 +549,9 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
         cy = ny;
         walker->x = nx;
         walker->y = ny;
+        if (walker->aboard_ship_id < 0 && units_is_on_map(walker)) {
+          units_tile_stack_arrive(ctx->units, walker->id);
+        }
         units_occupancy_notify_moved(ctx->units, px, py, nx, ny);
         units_note_goto_step(wid, nx - px, ny - py);
         if (cx == ox && cy == oy) {

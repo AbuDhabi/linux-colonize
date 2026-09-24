@@ -836,6 +836,9 @@ static void ai_spawn_brave_near(
   if (!ok) {
     return;
   }
+  /* Capture the FUN_137f_0598 result before the port's generic spawn and
+   * nation setter can restamp layer3 while the live occupancy map is bound. */
+  const bool rumour = map_dos_0598_rumour_tile(map, ox, oy);
   const int id = units_spawn_allow_stack(units, brave, ox, oy);
   if (id >= 0) {
     ColonizeUnit* u = units_get(units, id);
@@ -845,11 +848,11 @@ static void ai_spawn_brave_near(
       u->goto_y = 0xFF;
       u->home_tribe_id = tribe_index;
     }
-    /* FUN_1427_02ca marks bit0. Its native rumour-tile exception to the
-     * owner stamp is still open as bugs.md #849: applying it here alone
-     * shifts two seed-100 first-pulse Braves from the DOS save. */
+    /* FUN_1427_02ca raw 7497-7506: native spawns on a rumour tile mark
+     * layer2 bit0 but leave the owner nibble unset. Restore that nibble even
+     * when units_spawn_allow_stack stamped a temporary owner via occupancy. */
     ai_layer2_or(map, ox, oy, 1);
-    map_set_owner_nibble(map, ox, oy, nation_id);
+    map_set_owner_nibble(map, ox, oy, rumour ? 0x0f : nation_id);
   }
 }
 

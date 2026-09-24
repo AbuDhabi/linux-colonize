@@ -281,6 +281,7 @@ void units_reset(ColonizeUnitPool* pool) {
   pool->selected_id = -1;
   pool->board_first_slot = -1;
   pool->next_id = 1;
+  pool->next_tile_stack_order = 1;
 }
 
 int units_kind_type_index(const ColonizeUnitPool* pool, ColonizeUnitKind kind) {
@@ -570,6 +571,7 @@ void units_slot_reset_defaults(
   slot->type_index = type_index;
   slot->x = x;
   slot->y = y;
+  slot->tile_stack_order = 0;
   slot->moves = units_type_max_mp(type);
   slot->active = true;
   slot->nation_id = 0;
@@ -629,6 +631,7 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   units_slot_reset_defaults(pool, slot, type, type_index, x, y);
   slot->aboard_ship_id = -1;
   pool->unit_count++;
+  units_tile_stack_arrive(pool, slot->id);
   if (units_is_on_map(slot)) {
     units_occupancy_refresh_tile(pool, slot->x, slot->y, -1);
   }

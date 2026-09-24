@@ -275,18 +275,9 @@ void game_open_cheat_debug_flags(ColonizeGameState* game) {
   if (!game) {
     return;
   }
-  /* Bits 1 (Indian AI movement) / 3 (Foreign AI planning modes) are backed by
-   * real Col1 game-options bits; the rest are Linux-only, not round-tripped. */
-  uint16_t mask = game->debug_flags_mask;
-  if (game->col1_ok) {
-    mask = (uint16_t)(mask & (uint16_t) ~((1u << 1) | (1u << 3)));
-    if (game->col1.head.game_options.show_indian_moves) {
-      mask |= (uint16_t)(1u << 1);
-    }
-    if (game->col1.head.game_options.show_foreign_moves) {
-      mask |= (uint16_t)(1u << 3);
-    }
-  }
+  /* DS:0x894 DEBUG.TXT flags are separate from GAME.TXT @GAMEOPTIONS:
+   * "Indian AI movement" plots scores; "Show Indian Moves" animates units. */
+  const uint16_t mask = game->debug_flags_mask;
   if (!cheat_list_open_debug_flags(
         &game->cheat_list, game->debug_txt_ok ? &game->debug_txt : NULL, mask
       )) {
@@ -464,10 +455,6 @@ static void game_apply_debug_flags(ColonizeGameState* game, uint16_t mask) {
     return;
   }
   game->debug_flags_mask = mask;
-  if (game->col1_ok) {
-    game->col1.head.game_options.show_indian_moves = (mask & (1u << 1)) ? 1 : 0;
-    game->col1.head.game_options.show_foreign_moves = (mask & (1u << 3)) ? 1 : 0;
-  }
   set_status(game, "Debug options set", NULL);
 }
 

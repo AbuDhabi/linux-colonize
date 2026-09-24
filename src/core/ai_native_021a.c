@@ -39,7 +39,8 @@
  * nine-way direction loop (dirs 0..7 plus index 8 = stay, DS:0xb4/0xbe both
  * hold a 9th (0,0) entry). The far call at 021a:1182 that the docs read as
  * "reaches the 521d scorer through thunk 291f:012c" is FUN_7a65_0008 — the
- * on-map debug number plotter behind the "Show Indian moves" option, called
+ * on-map debug number plotter behind DEBUG.TXT "Indian AI movement" (DS:0x894
+ * bit 1), called
  * with (x, y, score, colour 0xf). It never scores anything.
  *
  * Shape (asm offsets are 4d56:xxxx):
@@ -90,6 +91,14 @@
  * col1_hold_raw[6..7].
  * ===========================================================================
  */
+
+static AiNativeScorePlotFn s_native_score_plot;
+static void* s_native_score_plot_user;
+
+void ai_set_native_score_plot(AiNativeScorePlotFn fn, void* user) {
+  s_native_score_plot = fn;
+  s_native_score_plot_user = user;
+}
 
 /* ===================== 021a direction-scorer structural port (tile/occupant/terrain/angry/score) (ai_021a_settle_owner .. ai_021a_trace_enabled) ===================== */
 int ai_021a_settle_owner(const ColonizeWorldMap* map, int x, int y) {
@@ -301,11 +310,13 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_tile(struct ai_021a_ctx* c) {
       int val = 100;
       int e = ai_021a_settle_owner(map, ax, ay);
       if (e < 0) {
-        const int ui = ai_unit_index_on_tile(units, ax, ay);
-        if (ui < 0) {
+        /* 021a:07dc calls FUN_281f_07e0: read the terminal tile-chain
+         * unit, whose nation/type decide whether an adjacent wagon counts. */
+        const int uid = units_tile_head_id_at(units, ax, ay);
+        const ColonizeUnit* au = uid >= 0 ? units_get_const(units, uid) : NULL;
+        if (!au) {
           continue;
         }
-        const ColonizeUnit* au = &units->units[ui];
         if (au->nation_id == nation_id) {
           continue;
         }
@@ -843,6 +854,13 @@ COLONIZE_INTERNAL void ai_021a_score_dir(struct ai_021a_ctx* c) {
   if (score < 0) {
     score = 0;
   }
+  /* 021a:1172..1182: FUN_7a65_0008 plots every accepted, clamped score. */
+  if (c->score_tile_count < 9) {
+    AiNativeScoreTile* tile = &c->score_tiles[c->score_tile_count++];
+    tile->x = nx;
+    tile->y = ny;
+    tile->score = score;
+  }
   if (dump) {
     fprintf(
       stderr,
@@ -1072,6 +1090,9 @@ int ai_native_pick_dir_021a(
   for (int d = 0; d < 9; ++d) {
     c.d = d;
     ai_021a_score_dir(&c);
+  }
+  if (s_native_score_plot && c.score_tile_count > 0) {
+    s_native_score_plot(s_native_score_plot_user, u, c.score_tiles, c.score_tile_count);
   }
   best = c.best;
   best_dir = c.best_dir;

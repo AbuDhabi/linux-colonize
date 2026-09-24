@@ -526,6 +526,7 @@ bool units_unload_passenger_w(
   pax->aboard_ship_id = -1;
   pax->x = dest_x;
   pax->y = dest_y;
+  units_tile_stack_arrive(pool, pax_id);
   units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
   pax->orders = UNITS_ORDER_NONE;
   /*
@@ -751,6 +752,7 @@ int units_disembark_all(ColonizeUnitPool* pool, int ship_id, int x, int y) {
       pax->aboard_ship_id = -1;
       pax->x = x;
       pax->y = y;
+      units_tile_stack_arrive(pool, pax_id);
       pax->orders = UNITS_ORDER_NONE;
       /*
        * Restore the allotment, don't just clear the order. Boarding parks a

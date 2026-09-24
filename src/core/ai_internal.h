@@ -7,6 +7,7 @@
  * follows.
  */
 
+#include "core/ai.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/dos_rng.h"
@@ -35,6 +36,8 @@ struct ai_021a_ctx {
   int tech, facing;
   /* carried across directions */
   int grudge, best, best_dir, best_flags;
+  AiNativeScoreTile score_tiles[9];
+  int score_tile_count;
   /* per-direction */
   int d, nx, ny, score, flags, terr, owner, presence, settle, dfa, driver, dres;
   int hostile, att, occ, visit_nation, visit_val, vdist, attack_intent, alarm, upg;
