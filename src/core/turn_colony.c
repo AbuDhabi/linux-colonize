@@ -318,8 +318,9 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       ctx->europe->needed_crosses = TURN_DEFAULT_NEEDED_CROSSES;
     }
     /*
-     * Church / colony crosses accrue into current_crosses, then 584a sets
-     * needed and adds idle +2 until the first dock immigrant.
+     * 584a sets needed and adds the idle +2 until the first dock immigrant;
+     * this turn's church / colony crosses accrue into current_crosses only
+     * AFTER that tick (FUN_3844_00f2 raw 58375 vs 58386 — see below).
      * Cite: Phase M + 5e52; TURN1–7 goldens.
      */
     ctx->europe->liberty_bells_last_turn = (uint16_t)(bells > 65535 ? 65535 : bells);
@@ -329,21 +330,6 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
         total = 65535u;
       }
       ctx->europe->liberty_bells_total = (uint16_t)total;
-    }
-    {
-      unsigned cur = (unsigned)ctx->europe->current_crosses + (unsigned)crosses;
-      if (cur > 65535u) {
-        cur = 65535u;
-      }
-      ctx->europe->current_crosses = (uint16_t)cur;
-    }
-    /* Keep the col1 nation copy live — the Religious report (F1) reads
-     * nation[human].current/needed_crosses, which only the save/load
-     * bridge used to refresh, so a live campaign showed no crosses at all
-     * (bugs.md). */
-    if (ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 && ctx->human_nation < 4) {
-      ctx->col1->nation[ctx->human_nation].current_crosses = ctx->europe->current_crosses;
-      ctx->col1->nation[ctx->human_nation].needed_crosses = ctx->europe->needed_crosses;
     }
     /* bugs.md: no immigration during the War of Independence — Europe is
      * closed to the rebels (user-observed DOS; the dock is unreachable
@@ -382,6 +368,30 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
           ctx->rng
         );
       }
+    }
+    /*
+     * bugs.md #923 / DOS FUN_3844_00f2: the immigration tick FUN_291f_0a90
+     * (= FUN_38fd_5e52) runs at raw 58375, BEFORE the per-colony tick
+     * FUN_291f_0950 (raw 58386) where nation+0x2e += *0x8dea adds this turn's
+     * church crosses. So the threshold test above saw last turn's crosses
+     * plus only the 584a +2; this turn's colony output lands here, after it.
+     * (The AI arm further down has always been in this order.)
+     */
+    {
+      unsigned cur = (unsigned)ctx->europe->current_crosses + (unsigned)crosses;
+      if (cur > 65535u) {
+        cur = 65535u;
+      }
+      ctx->europe->current_crosses = (uint16_t)cur;
+    }
+    /* Keep the col1 nation copy live — the Religious report (F1) reads
+     * nation[human].current/needed_crosses, which only the save/load
+     * bridge used to refresh, so a live campaign showed no crosses at all
+     * (bugs.md). Must stay after the tick so the report sees the post-tick
+     * value. */
+    if (ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 && ctx->human_nation < 4) {
+      ctx->col1->nation[ctx->human_nation].current_crosses = ctx->europe->current_crosses;
+      ctx->col1->nation[ctx->human_nation].needed_crosses = ctx->europe->needed_crosses;
     }
     europe_tick_voyages(ctx->europe, ctx->units);
     /*

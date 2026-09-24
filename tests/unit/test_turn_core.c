@@ -4070,6 +4070,107 @@ static int case_ai_euro_crosses(void) {
   return 0;
 }
 
+/* bugs.md #923: DOS FUN_3844_00f2 runs the 5e52 immigration tick (raw 58375)
+ * BEFORE the per-colony crosses add (raw 58386), so this turn's church output
+ * must not be visible to the threshold compare. */
+static int case_human_crosses_order(void) {
+  fx_begin();
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
+  units.type_count = 1;
+
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->nation_id = 0;
+  col->colonist_count = 4;
+  col->population = 4;
+  pool.colony_count = 1;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[0].control = 0;
+  col1.player[1].control = 1;
+  col1.player[2].control = 1;
+  col1.player[3].control = 1;
+  col1.head.turn = 0;
+  /* Phase-A snapshot: this colony produced 3 crosses this turn. */
+  col->prod_compose_stamp = (uint32_t)col1.head.turn + 1u;
+  col->prod_crosses_phase_a = 3;
+  col->prod_bells_phase_a = 0;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.human_nation = 0;
+  ctx.units = &units;
+  ctx.colonies = &pool;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.europe = &eu;
+
+  ColonizeTurnResult out;
+  memset(&out, 0, sizeof(out));
+
+  /* Probe turn: learn the 584a score for this world. */
+  turn_run_nation_ticks(&ctx, &out);
+  const uint16_t need = eu.needed_crosses;
+  if (need < 4) {
+    fprintf(stderr, "crosses order: unexpected 584a score %u\n", (unsigned)need);
+    return 1;
+  }
+
+  /* Arm: two short of the threshold. The 584a +2 alone must NOT cross it. */
+  eu.current_crosses = (uint16_t)(need - 2u);
+  eu.dock_count = 0;
+  eu.crosses_immigrant_seen = false;
+  memset(&out, 0, sizeof(out));
+  turn_run_nation_ticks(&ctx, &out);
+  if (eu.needed_crosses != need) {
+    fprintf(
+      stderr, "crosses order: score moved %u -> %u\n",
+      (unsigned)need, (unsigned)eu.needed_crosses
+    );
+    return 1;
+  }
+  if (eu.dock_count != 0) {
+    fprintf(stderr, "crosses order: immigrant arrived a turn early (dock=%d)\n", eu.dock_count);
+    return 1;
+  }
+  /* need-2 +2 (584a) +3 (colony, added AFTER the tick). */
+  if (eu.current_crosses != (uint16_t)(need + 3u)) {
+    fprintf(
+      stderr, "crosses order: want %u got %u\n",
+      (unsigned)(need + 3u), (unsigned)eu.current_crosses
+    );
+    return 1;
+  }
+  if (col1.nation[0].current_crosses != eu.current_crosses) {
+    fprintf(stderr, "crosses order: col1 nation copy not synced post-tick\n");
+    return 1;
+  }
+
+  /* Next turn the same crosses ARE visible to the compare -> immigrant. */
+  memset(&out, 0, sizeof(out));
+  turn_run_nation_ticks(&ctx, &out);
+  if (eu.dock_count < 1) {
+    fprintf(stderr, "crosses order: no immigrant on the following turn\n");
+    return 1;
+  }
+  fprintf(stderr, "human crosses order ok (need=%u)\n", (unsigned)need);
+  return 0;
+}
+
 /* 5e52 phase 4 immigration pressure thin. */
 static int case_immigration_pressure(void) {
   fx_begin();
@@ -6122,6 +6223,7 @@ static const TestCase k_cases[] = {
   {"otj_upper_bound_no_promote", case_otj_upper_bound_no_promote},
   {"ai_euro_crosses", case_ai_euro_crosses},
   {"immigration_pressure", case_immigration_pressure},
+  {"human_crosses_order", case_human_crosses_order},
   {"no_free_ship_spawn", case_no_free_ship_spawn},
   {"horse_breed_units", case_horse_breed_units},
   {"horse_breed_colony", case_horse_breed_colony},

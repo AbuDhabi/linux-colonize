@@ -48,6 +48,7 @@
  * `local_12` alive across its own arms.
  */
 static int ai_contact_s_raid_cargo = -1;  /* DOS local_20 */
+static int ai_contact_s_raid_burn_row = -1;  /* DOS local_a (@BUILDING row 0..0x29) */
 static long ai_contact_s_raid_gold = 0;   /* DOS local_12/local_10 */
 
 /* ===================== Colony stores/loot scoring, raid-kind selection & raid execution helpers (ai_contact_indian_meet_trade .. ai_contact_raid_chrome_row) ===================== */
@@ -222,30 +223,34 @@ static int ai_contact_colony_gold_wealth(const ColonizeColony* c) {
  * non-Town-Hall built building (colonies_destroy_building). Cite: @RAIDBURN;
  * indian_raid_outcomes.md.
  */
-static int ai_contact_colony_has_burn_target(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* c
-) {
-  if (!c) {
-    return 0;
+/*
+ * FUN_281f_0a88 → FUN_15eb_14aa (raw 11444-11455): walk a @BUILDING row's
+ * parent column up to its chain root. The port models the parent column as
+ * the chain tables in colony_build.c, so the root is tier 0 of the row's
+ * chain (a row in no chain is its own root).
+ */
+static int ai_contact_raid_0a88(int row) {
+  const int chain = colonies_building_row_chain(row);
+  const int* rows = (chain >= 0) ? colonies_building_chain_rows(chain) : NULL;
+  return (rows && rows[0] >= 0) ? rows[0] : row;
+}
+
+/*
+ * The predecessor byte `DS:(row*0xc - 0x707a)` that FUN_5fef_0f14's kind-2
+ * tail walks (raw 99859): the tier below `row` in its chain, or -1.
+ */
+static int ai_contact_raid_pred_row(int row) {
+  const int chain = colonies_building_row_chain(row);
+  const int* rows = (chain >= 0) ? colonies_building_chain_rows(chain) : NULL;
+  if (!rows) {
+    return -1;
   }
-  if (c->building_in_production >= 0 || c->stock[COLONIZE_CARGO_LUMBER] > 0) {
-    return 1;
-  }
-  if (!pool) {
-    return 0;
-  }
-  for (int bi = 0; bi < pool->building_type_count; ++bi) {
-    if (!c->has_building[bi]) {
-      continue;
+  for (int t = 1; t < 4 && rows[t] >= 0; ++t) {
+    if (rows[t] == row) {
+      return rows[t - 1];
     }
-    const ColonizeBuildingType* bt = colonies_building_type(pool, bi);
-    if (!bt || colonies_building_name_row(bt->name) == COLONY_BUILDING_TOWN_HALL) {
-      continue;
-    }
-    return 1;
   }
-  return 0;
+  return -1;
 }
 
 /* Non-lumber lootable warehouse cargo (STORES still preferred over BURN). */
@@ -359,6 +364,7 @@ COLONIZE_INTERNAL AiRaidKind ai_contact_pick_raid_kind(
   int forced
 ) {
   ai_contact_s_raid_cargo = -1;
+  ai_contact_s_raid_burn_row = -1;
   ai_contact_s_raid_gold = 0;
   if (!ctx || !c || !rng) {
     return AI_RAID_NOTHING;
@@ -440,14 +446,58 @@ COLONIZE_INTERNAL AiRaidKind ai_contact_pick_raid_kind(
     }
   } else if (kind == AI_RAID_BURN) {
     /*
-     * raw 99834-99873 rolls a building row 0..0x29 with a skip list and walks
-     * the parent chain down. Which colony counters its 0x8542+0x95 / +0x96
-     * decrements are remains unresolved (audit lead L2), so the port keeps its
-     * burn-target stand-in here and only reproduces DOS's collapse-to-nothing
-     * when the colony has nothing this arm could touch.
+     * DOS-LITERAL FUN_5fef_0f14 kind 2, raw 99832-99863 — the burn target is
+     * rolled HERE (it costs RNG draws), not in the apply arm:
+     *   proj_is_building = FUN_281f_0cc2(colony+0x94, 0) == 1   (raw 99834)
+     *   do { tries++;
+     *        row = rand(0, 0x29);
+     *        ok = FUN_281f_0a88(row) != 9 && row != 0x23;   (no Town Hall chain,
+     *                                                        no Carpenter's Shop)
+     *        if (proj_is_building && 0a88(row) == 0a88(project)) ok = false;
+     *        if (row in {0x27,0x15,0x18,0x1b,0,1,2,0x20}) ok = false;
+     *   } while (tries < 100 && (!FUN_281f_09fc(row) || !ok));
+     *   if (tries > 99 || !ok) -> kind 0
+     * then walk the predecessor column down to the lowest tier the colony
+     * still owns (raw 99856-99863). Church 0x25 / Cathedral 0x26 are legal
+     * targets and a Cathedral walks down to the Church it sits on, which is
+     * what the port's "first built non-Town-Hall building" stand-in got wrong
+     * (bugs.md #924).
      */
-    if (!ai_contact_colony_has_burn_target(ctx->colonies, c)) {
+    const int proj = c->building_in_production;
+    const int proj_is_building = (proj >= 0 && proj < 0x2a) ? 1 : 0;
+    int tries = 0;
+    int row = -1;
+    bool ok = false;
+    do {
+      tries++;
+      row = dos_rng_range(rng, 0, 0x29);
+      ok = (ai_contact_raid_0a88(row) != COLONY_BUILDING_TOWN_HALL &&
+            row != COLONY_BUILDING_CARPENTERS_SHOP);
+      if (proj_is_building && ai_contact_raid_0a88(row) == ai_contact_raid_0a88(proj)) {
+        ok = false;
+      }
+      if (row == COLONY_BUILDING_BLACKSMITHS_HOUSE || row == COLONY_BUILDING_WEAVERS_HOUSE ||
+          row == COLONY_BUILDING_TOBACCONISTS_HOUSE ||
+          row == COLONY_BUILDING_RUM_DISTILLERS_HOUSE || row == COLONY_BUILDING_STOCKADE ||
+          row == COLONY_BUILDING_FORT || row == COLONY_BUILDING_FORTRESS ||
+          row == COLONY_BUILDING_FUR_TRADERS_HOUSE) {
+        ok = false;
+      }
+    } while (tries < 100 &&
+             (!ai_contact_raid_09fc(ctx, c, (ColonizeBuildingRow)row) || !ok));
+    if (tries > 99 || !ok) {
       kind = AI_RAID_NOTHING;
+    } else {
+      /* raw 99856-99863: down to the lowest owned tier of this chain. */
+      for (;;) {
+        const int pred = ai_contact_raid_pred_row(row);
+        if (pred >= 0 && ai_contact_raid_09fc(ctx, c, (ColonizeBuildingRow)pred)) {
+          row = pred;
+          continue;
+        }
+        break;
+      }
+      ai_contact_s_raid_burn_row = row;
     }
   } else if (kind == AI_RAID_SHIP) {
     /* raw 99876-99877: FUN_281f_088a (stack_has_ship) fails → kind 0. */
@@ -776,40 +826,65 @@ void ai_contact_apply_raid_loot(
     }
     break;
   }
-  case AI_RAID_BURN:
-    /* @RAIDBURN / 5fef_0f14: clear construction first. */
-    if (c->building_in_production >= 0) {
-      c->building_in_production = -1;
-    } else if (c->stock[COLONIZE_CARGO_LUMBER] > 0) {
-      c->stock[COLONIZE_CARGO_LUMBER] -= (c->stock[COLONIZE_CARGO_LUMBER] > 2) ? 2 : 1;
-    } else if (ctx && ctx->colonies) {
-      /*
-       * Empty warehouse: damage a non-Town-Hall built building via
-       * colonies_destroy_building (clears workplace colonists). Prefer
-       * Stockade/Warehouse/Dock-like first built index > Town Hall.
-       * Cite: @RAIDBURN building loot; colonies_destroy_building.
-       */
-      int burn_bt = -1;
-      for (int bi = 0; bi < ctx->colonies->building_type_count; ++bi) {
-        if (!c->has_building[bi]) {
-          continue;
-        }
-        const ColonizeBuildingType* bt = colonies_building_type(ctx->colonies, bi);
-        if (!bt || colonies_building_name_row(bt->name) == COLONY_BUILDING_TOWN_HALL) {
-          continue;
-        }
-        burn_bt = bi;
-        break;
+  case AI_RAID_BURN: {
+    /*
+     * DOS-LITERAL FUN_5fef_0f14 kind 2 tail, raw 99951-99985. The target row
+     * was rolled by the picker (`local_a`); this arm only applies it. DOS has
+     * NO "clear the current project" and NO "eat lumber" step here (that is
+     * the kind-1 goods arm, raw 99908-99947) — both were invented and are
+     * deleted (bugs.md #924).
+     *   row 0x0f (Warehouse): colony+0x95 (warehouse_level) DEC; the building
+     *     bit only clears when the counter reaches 0, otherwise the popup
+     *     names the Warehouse Expansion (DS:0x9042).
+     *   row 0x1e (Capitol): colony+0x96 (capitol_level) DEC, bit cleared when
+     *     it reaches 0; the popup always names the Capitol Expansion
+     *     (DS:0x90f6) — literal DOS oddity.
+     *   everything else: FUN_281f_0bbe(row, 0) clears the bit, and the
+     *     workplace colonists are evicted (colonies_destroy_building already
+     *     does the FUN_281f_0c36(..., 0xd) reassignment).
+     */
+    const int row = ai_contact_s_raid_burn_row;
+    if (!ctx || !ctx->colonies || row < 0) {
+      break;
+    }
+    int destroy_row = -1;
+    int name_row = row;
+    if (row == COLONY_BUILDING_WAREHOUSE) {
+      if (c->warehouse_level > 0) {
+        c->warehouse_level = (uint8_t)(c->warehouse_level - 1);
       }
-      if (burn_bt >= 0) {
-        const ColonizeBuildingType* bbt = colonies_building_type(ctx->colonies, burn_bt);
-        if (colonies_destroy_building(ctx->colonies, c->id, burn_bt) && bbt &&
-            bbt->name[0]) {
-          snprintf(ai_contact_s_last_burn_building, sizeof(ai_contact_s_last_burn_building), "%s", bbt->name);
-        }
+      if (c->warehouse_level == 0) {
+        destroy_row = COLONY_BUILDING_WAREHOUSE;
+      } else {
+        name_row = COLONY_BUILDING_WAREHOUSE_EXPANSION;
+      }
+    } else if (row == COLONY_BUILDING_CAPITOL) {
+      if (c->capitol_level > 0) {
+        c->capitol_level = (uint8_t)(c->capitol_level - 1);
+      }
+      if (c->capitol_level == 0) {
+        destroy_row = COLONY_BUILDING_CAPITOL;
+      }
+      name_row = COLONY_BUILDING_CAPITOL_EXPANSION;
+    } else {
+      destroy_row = row;
+    }
+    if (destroy_row >= 0) {
+      const int bt_index = colonies_building_row(ctx->colonies, (ColonizeBuildingRow)destroy_row);
+      if (bt_index >= 0) {
+        (void)colonies_destroy_building(ctx->colonies, c->id, bt_index);
+      }
+    }
+    {
+      const char* nm = colonies_building_row_name(name_row);
+      if (nm && nm[0]) {
+        snprintf(
+          ai_contact_s_last_burn_building, sizeof(ai_contact_s_last_burn_building), "%s", nm
+        );
       }
     }
     break;
+  }
   case AI_RAID_GOLD:
     if (ctx && ctx->col1_ok && ctx->col1 && target_euro >= 0 && target_euro < 4 &&
         ai_contact_s_raid_gold > 0) {
