@@ -845,13 +845,11 @@ static void ai_spawn_brave_near(
       u->goto_y = 0xFF;
       u->home_tribe_id = tribe_index;
     }
-    /* DOS FUN_1427_02ca raw 7493-7505: the first unit on a valid tile
-     * marks layer2 bit0, but a native on a FUN_137f_0598 rumour tile returns
-     * before FUN_137f_0228 stamps the owner nibble. */
+    /* FUN_1427_02ca marks bit0. Its native rumour-tile exception to the
+     * owner stamp is still open as bugs.md #849: applying it here alone
+     * shifts two seed-100 first-pulse Braves from the DOS save. */
     ai_layer2_or(map, ox, oy, 1);
-    if (!map_dos_0598_rumour_tile(map, ox, oy)) {
-      map_set_owner_nibble(map, ox, oy, nation_id);
-    }
+    map_set_owner_nibble(map, ox, oy, nation_id);
   }
 }
 
