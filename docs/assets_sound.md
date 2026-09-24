@@ -146,27 +146,45 @@ glancing; 18 shot; 20 animal shot; 21 pump-action; 22 gunfight; 23–34 shots (2
 
 | Event id | COLDIG | Sound | DOS push site | Port |
 |---|---|---|---|---|
-| `0x40`/`0x41` | 31 / 32 | shot | `5fef_1b0e` attack fire (`0x41` is the Regulars typed variant), **only when `param_4` (visible) is set** — `465b_0000` passes 1 for the viewport nation or a human side, the AI scorer `521d:52aa` passes 0 | `units_combat_resolve.c` engagement, gated by `units_combat_is_visible` |
-| `0x42`/`0x48` | 30 / 29 | shots | `5fef_1b0e` 5fef:2271: human attacker vs Indian (nation ≥ 4) pushes `0x3b + attacker unit type` — Cont. Cav. (7) / Treasure (0xd) | `units.c` engagement (2026-08-29): typed id when defender is Indian |
-| `0x43`/`0x49` | 27 / 34 | shots | same rule: Cavalry (8) / Wagon Train (0xc)… — the "unit-class variants" are the attacker's type index | same |
-| `0x44`/`0x45` | 18 / 17 | shot / glancing shot | `5fef_1b0e` 5fef:28b0 tail, gated on `local_6` (set at 5fef:2546: attacker nation ≥ 4, a colony at the defender tile — `281f_07be(x,y)` ≥ 0 — and colony pop > 1 or `local_70 == 0`) + attacker won + visible → `0x44` if the *attacker* is a ship type (`local_86` = `Stack[4]` type in 0xd..0x12, unreachable for Indians) else `0x45`; `0x44` is also Cont. Army (9) via the typed rule | **2026-08-29**: `units_try_move` combat branch — Indian attacker beats a colony defender (colony at dest, pop > 1) → `0x45` after the 0x4a win beat; the ship-attacker `0x44` arm is dead |
-| `0x4a`/`0x4b` | 28 / 33 | shots | `5fef_1b0e` win; 0x4b when natives involved | `units.c` win (same visibility gate) |
-| `0x4c` | 14 | shooting + galloping | `0x3b + type` would need attacker type 0x11 (Frigate) — ships cannot attack land units, so this id is unreachable through the typed rule; no other push site located | — |
+| `0x40`/`0x41` | 31 / 32 | shot | `5fef_1b0e` 5fef:232e-23a7 selects generic attack `0x40` or `0x41` by both units' attack stat; `0x40` also occurs in its loss cue. All are gated by `param_4` (visible). | Generic attack and loss selection ported |
+| `0x42`/`0x48` | 30 / 29 | shots | `5fef_1b0e`: `0x42` is generic attack for a ship or Artillery; `0x48` is a native village's partial-loss cue | Both ported |
+| `0x43`/`0x49` | 27 / 34 | shots | `5fef_1b0e` 5fef:2577-259f attacker-loss cue: `0x43` for ship/attacking Artillery, `0x49` when the defender tile has a native settlement, else `0x40` | Loss selector ported in `units_combat_resolve.c` |
+| `0x44`/`0x45` | 18 / 17 | shot / glancing shot | `5fef_1b0e` 5fef:28b0 tail, gated on `local_6` (set at 5fef:2546: attacker nation ≥ 4, a colony at the defender tile — `281f_07be(x,y)` ≥ 0 — and colony pop > 1 or `local_70 == 0`) + attacker won + visible → `0x44` if the *attacker* is a ship type (`local_86` = `Stack[4]` type in 0xd..0x12, unreachable for Indians) else `0x45` | `units_try_move`: native attacker beating a populated colony defender emits `0x45` after the win cue; the ship-attacker `0x44` arm is dead |
+| `0x4a`/`0x4b` | 28 / 33 | shots | `5fef_1b0e` win; `0x4b` in the native attacker/European colony arm | `units_move.c` win selection (same visibility gate) |
+| `0x4c` | 14 | shooting + galloping | `5fef_1b0e` 5fef:234e-236a selects it as the generic attack cue for attacker @UNIT rows 4, 5, 7, or 8 | Ported in `units_combat_resolve.c` |
 | `0x4d` | 10 | cheering + fireworks | `5fef_0352` 5fef:07db-0803: junction reached from 061c (winner is a ship), 0631, 0722 and the `@ARTILLERY2` popup; when *both* combatants are ship types (0xd..0x12) and the fight is visible → `0x4d`, **before** the damage-flag (5fef:0d0x `0x3148\|0x80`) / sink (`0x57`) / seizure split — a naval-win beat, not a capture; also raid loot | raid loot gold (`ai_contact.c` @RAIDGOLD); **2026-08-29**: `units_apply_naval_loss_outcome` entry (visible) → `0x4d`, ahead of damaged/sunk |
 | `0x4e` | 6 | screaming | `5fef_0f14` raid: colonists killed | @RAIDSCALP (2026-08-29) |
 | `0x4f` | 11+32 | screaming + shooting | `5fef_0f14` raid loot goods | @RAIDSTORES (2026-08-29) |
-| `0x50`/`0x51` | 7+8 / 5+14 | screaming, burning / screaming, galloping | typed rule: Mounted Braves (0x15) / Mounted Warriors (0x16) — but the rule is gated on a *human* attacker, so these fire only for captured/converted native types | typed rule |
+| `0x50`/`0x51` | 7+8 / 5+14 | screaming, burning / screaming, galloping | `5fef_1b0e` 5fef:2271: native attacker @UNIT row 21/22 attacks a human European defender; typed cue precedes the generic attack cue | Ported in `units_combat_resolve.c` |
 | `0x52` | 12 | wagon wheels | `465b_0000` wagon-train move (human) | `game_loop.c` human move success, type "Wagon Train" (2026-08-29) |
-| `0x53` | 19 | burning | `5fef_0f14`/`1b0e` tail: colony burned | colony burned notify |
+| `0x53` | 19 | burning | `5fef_0f14`/`1b0e` tail: colony burned; `5fef:3063` gates it on the human victim | Colony burned notify, gated on human victim |
 | `0x54` | 13 | hammering + cheering | found colony `479b_076e`; colony screen `2f2b_6cd4` **only when `DS:0x34a >= 0`** (the building that just finished, revealed by clear-bit/redraw/set-bit/redraw); nation EOT `3844` | found colony; colony open **gated** on `ColonizeColony.pending_build_reveal` (2026-08-28 — was every open) |
 | `0x55` | 20 | animal shot | The typed combat rule cannot reach it, but `OVL13:003dc9` pushes it on the human @CHIEFKILL branch (scout killed by a chief without Coronado) | `ai_contact_actions.c` before @CHIEFKILL |
 | `0x56` | 9 | cheering | `38fd_3dc8` tax raise / tea party | `ai_king.c` @TEAPARTY + raise-taxes popup (2026-08-29) |
 | `0x57` | 16 | sinking | `5fef_0352` ship sunk | `units.c` @SHIPSUNK via the combat sound hook (2026-08-29) |
-| `0x58` | 21 | pump-action | fortify / sentry (`2b5a_1112`, `2f2b_5746`) | fortify, sentry |
+| `0x58` | 21 | pump-action | fortify / sentry (`2b5a_1112`, `2f2b_5746`); Europe dock buy muskets (`38fd`) | fortify, sentry, buy muskets |
 | `0x5a` | 15 | cheering + fireworks | `5fef_1908` King's Galleon (via `FUN_281f_04b6`) | galleon credit |
 | `0x5b` | 22+31 | gunfight | `5fef_0f14` raid repelled | @RAIDNOTHING (2026-08-29) |
-| `0x5c` | 8 | burning | typed rule: type 0x21 (past the unit table — unreachable) | — |
+| `0x5c` | 8 | burning | Europe dock buy horses (`38fd`, OVL05 near 3bbe) | `europe_dock.c` buy horses |
 | `0x8020` / `0x8024` | — (chord stings) | | war declaration `5bfb_153e`, assign colonist `2f2b_2f3e` | `ai_diplo_declare_war_ctx` and the three colony-screen assign sites; `gsound_vm.c` dispatches them, and the signed DOS gate forwards them with every option off |
+
+**Event ID use:** `GSOUND.COL` defines handlers for all 29 IDs `0x40..0x5c`.
+The static gameplay sweep identifies ordinary triggers for 26. IDs `0x44`,
+`0x46`, and `0x47` have no normal-game trigger in either DOS or the port:
+`0x44` is the ship arm of a native-attacker colony tail that cannot hold a
+ship, while the typed `0x3b + attacker @UNIT row` rule would require a native
+attacker to have a Continental Army (row 9), Artillery (row 11), or Wagon
+Train (row 12) for `0x44`, `0x46`, or `0x47` respectively. Normal native
+combat units use rows 19–22. The resident `MOV AX,0x44/0x46/0x47` table at
+`0000:af6a` is a character-code mapper, not a sound dispatch. All 29
+handlers remain available to the driver; defined does not imply used.
+
+**PCM sample use:** `COLDIG.BIN` has 35 indexed samples. Sweeping every
+`GSOUND.COL` system, song, event, and chord handler through the port VM for
+10,000 ticks each queued 26 indices: `5..22` and `27..34`. Indices `0..4`
+and `23..26` were never queued in that sweep. This is a driver-level result,
+not a claim that all 26 are reachable in an ordinary game; for example,
+event `0x44` has a handler and sample but no normal gameplay trigger.
 
 **BGM cues pushed by gameplay code (2026-08-29 asm sweep of every `281f_04c0`/`04b6`
 call):** `75c2_235c` new-game init → `0x39` Hornpipe once (ported: game_loop new-game start);
@@ -216,17 +234,25 @@ ledger. The remaining source-level comparison is summarized here.
 
 | Player context | DOS trigger | Port trigger | Result |
 |---|---|---|---|
-| Combat and raids | `5fef_1b0e`, `5fef_0352`, `5fef_0f14` | `units_combat_resolve.c`, `units_move.c`, `units_combat.c`, `ai_contact_raid.c` | Mapped, with visible-combat gating and native outcome variants |
+| Combat and raids | `5fef_1b0e`, `5fef_0352`, `5fef_0f14` | `units_combat_resolve.c`, `units_move.c`, `units_combat.c`, `ai_contact_raid.c` | Attack cue order/selection, loss cue selection, village partial-loss, burn victim gate, and Indian Raid woodcut trigger/suppression corrected |
 | Movement, settlement, trade | `465b_0000`, `479b_076e`, `2f2b_6cd4`, `48d3_06ba` | `game_loop_orders.c`, `game_dialogs.c`, `game_loop_colony.c`, `europe_harbor.c` | Mapped |
 | King, diplomacy, discovery | `38fd_3dc8`, `43f7_10f0`, `5bfb_153e`, `65dd_0004` | `ai_king_*.c`, `ai_diplo.c`, `units_combat.c` | Mapped; `43f7_1d42` pool-3 arm is unreachable |
 | Woodcut milestones | `12fd_006c` tune switch | `woodcut.c:woodcut_play_tune` | Mapped for reachable IDs 1–13; ID 0 belongs to demo autoplay |
 | Opening and closing executables | `OPENING.EXE` `0x34`; `CLOSING.EXE` `0x3d`, `0x59`, `0x5a` | `opening.c`, `closing.c` | Mapped, including repeating frame cues |
 | Retirement exploits | `41f2_0b70`, `OVL06:3e11-3e2d` | `game_retire_after_score`, Hall of Fame exit | Corrected: tier 0–6 → `0x21`, 7–22 → `0x25`, 23 → `0x24`; title tune starts on return to menu (or immediately if there is no exploits screen) |
 
-This is a static trigger audit, not a claim of a byte-for-byte call count or a live
-DOS listening test. `SOUND_TITLE_ID=0x33` remains an inherited, unverified title
-screen mapping. A future raw caller sweep should compare resolved overlay sites and
-register-passed IDs against this ledger before asserting exhaustive cardinality.
+The answer to per-effect trigger parity is **no**. A visible native attack on a human
+defender calls the typed cue at `5fef:2271` and a generic cue at `5fef:23a7`
+(unless the Indian Raid woodcut state suppresses the second). The port previously sent
+one cue with the wrong attacker/defender condition; it now sends the usual pair.
+The DOS loss selector at `5fef:259f` (`0x43`/`0x49`/`0x40`) and partial
+village-loss `0x48` are now matched to the corresponding outcomes. The port also
+arms woodcut 13 on a native attack against a human defender. DOS tests the
+once-only Indian Raid woodcut bit before firing it; on later attacks with
+Combat Analysis off, it suppresses the generic cue. The port now matches this
+condition. Exact counts for every effect have not been established by a live DOS
+trace; the static ledger is a context comparison rather than an execution count.
+`SOUND_TITLE_ID=0x33` remains an inherited, unverified title-screen mapping.
 
 ## Discovery Order
 

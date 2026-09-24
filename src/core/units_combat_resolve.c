@@ -194,14 +194,17 @@ bool units_resolve_land_combat_ff_w(
   const bool combat_audible = units_combat_is_visible(pool, attacker_id, defender_id);
   if (combat_audible) {
     units_combat_music_sting();
-    /* FUN_5fef_1b0e 5fef:2271: a human attacker on an Indian (nation ≥ 4)
-     * pushes `0x3b + attacker unit type` — Regulars 0x41, Cont. Cav. 0x42,
-     * Cavalry 0x43, Cont. Army 0x44, Artillery 0x46, Braves 0x4e… — so the
-     * "unit-class variants" are just the type index. Ids below 0x40 would
-     * land in the BGM range; DOS lets them through, the port keeps the
-     * generic fire for those. Other pairings use the plain 0x40. */
-    int fire_id = UNITS_SFX_ATTACK_FIRE;
-    if (def->nation_id >= 4 && atk->nation_id >= 0 && atk->nation_id <= 3) {
+    bool suppress_generic = false;
+    /* FUN_5fef_1b0e 5fef:2271 and 232e-23a7: these are two separate calls.
+     * The typed cue precedes the generic attack cue on a visible native attack
+     * against a human European defender. DOS even forwards typed ids below the event range to the music
+     * dispatcher. */
+    if (atk->nation_id >= 4 && def->nation_id >= 0 && def->nation_id <= 3 &&
+        (!col1 || col1->player[def->nation_id].control == 0)) {
+      /* 5fef:229e tests the once-only bit before 0524 sets it. The Combat
+       * Analysis animation path at 5fef:22e3 resets local_4 to zero. */
+      suppress_generic = col1 && col1->head.event.indian_raid &&
+        !col1->head.game_options.combat_analysis;
       /* bugs.md #765: the DOS operand is the @UNIT ROW, not a pool slot.
        * units_type_dos_code resolves the row from the catalog and returns -1
        * for a hand-built / synthetic type table, where the typed variant is
@@ -211,12 +214,27 @@ bool units_resolve_land_combat_ff_w(
           atk->type_index < pool->type_count) {
         dos_row = atk->type_index; /* NAMES-loaded pool: index == @UNIT row */
       }
-      const int typed = dos_row >= 0 ? 0x3b + dos_row : -1;
-      if (typed >= 0x40 && typed <= 0x5c) {
-        fire_id = typed;
+      if (dos_row >= 0) {
+        units_play_event_sound(0x3b + dos_row);
+      }
+      /* FUN_5fef_1b0e 5fef:229a-22b1 arms Indian Raid woodcut 13 once. */
+      if (col1) {
+        (void)woodcut_fire((ColonizeCol1Save*)col1, WOODCUT_INDIAN_RAID);
       }
     }
-    units_play_event_sound(fire_id);
+    const int atk_row = units_type_dos_code(at);
+    const int def_row = units_type_dos_code(dt);
+    int fire_id = UNITS_SFX_ATTACK_FIRE;
+    if (atk_row == 11 || def_row == 11) {
+      fire_id = 0x42;
+    } else if (atk_row == 4 || atk_row == 5 || atk_row == 7 || atk_row == 8) {
+      fire_id = 0x4c;
+    } else if (at->attack > 1 || dt->attack > 1) {
+      fire_id = 0x41;
+    }
+    if (!suppress_generic) {
+      units_play_event_sound(fire_id);
+    }
   }
 
   /*
@@ -379,6 +397,14 @@ bool units_resolve_land_combat_ff_w(
     units_dissolve_notify(1);
     units_combat_pump_popups();
     return true;
+  }
+  /* FUN_5fef_1b0e 5fef:2577-259f: attacker-loss cue precedes outcome.
+   * 06be probes the defender tile for a native settlement. */
+  if (combat_audible) {
+    const ColonizeWorldMap* map = w->map ? w->map : g_units_fallout_map;
+    const bool village = map && map_tile_has_city(map, def->x, def->y) &&
+      map_tile_tribe_or_presence(map, def->x, def->y) >= 4;
+    units_play_event_sound(units_type_dos_code(at) == 11 ? 0x43 : village ? 0x49 : 0x40);
   }
   {
     const int atk_nation = atk->nation_id;
@@ -557,7 +583,8 @@ bool units_resolve_naval_combat_ff_w(
   const bool combat_audible = units_combat_is_visible(pool, attacker_id, defender_id);
   if (combat_audible) {
     units_combat_music_sting();
-    units_play_event_sound(UNITS_SFX_ATTACK_FIRE);
+    /* FUN_5fef_1b0e 5fef:2332-234c: every ship attack selects 0x42. */
+    units_play_event_sound(0x42);
   }
 
   /* FUN_157e_004a + 1b0e difficulty peels for both sides. */
@@ -698,6 +725,10 @@ bool units_resolve_naval_combat_ff_w(
     units_dissolve_notify(1);
     units_combat_pump_popups();
     return true;
+  }
+  /* FUN_5fef_1b0e 5fef:2577-258b: a losing ship emits 0x43. */
+  if (combat_audible) {
+    units_play_event_sound(0x43);
   }
   units_combat_outcome_popups(
     pool, def, atk, 0, atk->nation_id, def->nation_id, 1, 0, col1

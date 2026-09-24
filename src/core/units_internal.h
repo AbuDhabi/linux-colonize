@@ -26,10 +26,9 @@
 /* DOS event ids (segment 5fef / 2b5a, `mov ax,N; callf FUN_281f_04c0`): the
  * GSOUND handler for each plays a COLDIG.BIN sample plus a short MIDI sting. */
 enum {
-  /* DOS-LITERAL FUN_5fef_1b0e (asm 5fef:2271, bugs.md #765): the generic fire
-   * is 0x40; the typed variant is `0x3b + attacker @UNIT row` and is used ONLY
-   * for a Euro attacker on a native defender (Regulars 0x41, Artillery 0x46).
-   * It is not an "artillery-class" rule. */
+  /* FUN_5fef_1b0e (asm 5fef:2271, 232e-23a7): the typed cue is
+   * `0x3b + attacker @UNIT row` for a native attacker on a human Euro defender;
+   * a separate generic cue follows, selected by both unit types. */
   UNITS_SFX_ATTACK_FIRE = 0x40,
   UNITS_SFX_COMBAT_WON = 0x4a,  /* 0x4b when natives are involved */
   UNITS_SFX_ORDER_FORTIFY = 0x58,
