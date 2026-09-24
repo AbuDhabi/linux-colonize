@@ -412,6 +412,37 @@ input(worker, building) = output × (factory ? 6/9 : 1)   ; input folds sol_bonu
                                                           ; player-confirmed)
 ```
 
+### Partial input (2026-09-23, bugs.md #897 / #898)
+
+Output when the warehouse cannot cover the full demand is **not** a
+proportional rescale. `FUN_15eb_0bd4` (raw 10159-10183) computes the unmet
+word and back-converts it, and Phase B (`FUN_364b_0688`, raw 57238-57253)
+applies the net:
+
+```
+D = colony gross demand   ; (G << 1) / 3 at factory tier, else G
+U = D - (stock + this tick's input production)   ; when positive, else 0
+if (U != 0 && G != D)                  ; factory tier only
+    U' = (U == D) ? G : (U * 3) / 2
+out = G - U'                           ; clamped at 0
+stock[in] -= D                         ; clamped at 0
+```
+
+So a factory with G = 9 (D = 6) and stock S yields
+S=0→0, 1→2, 2→3, 3→5, 4→6, 5→8, ≥6→9. House/shop tiers are 1:1 (D = G), the
+back-conversion never fires and `out = min(stock, G)`.
+
+**Controller gate**: for a colony whose owner is not the human seat
+(`3 < nation || DS:0x543f[nation] != 0`, raw 57241-57243) Phase B composes
+`gross - demand` and drops the `- unmet[input]` term entirely — an AI factory
+always yields full capacity and its input stock merely clamps at 0. Same gate
+as the AI food subsidy.
+
+The Phase K "Need sugar/ore/..." crumbs probe the **finished** good's net
+(`FUN_281f_0b50(out_cargo) == 0`, raw 57696-57728), not the raw good's stock,
+so a colony that converted its last stored input still produces and DOS stays
+silent (bugs.md #899).
+
 Note `sol_bonus` folds in *before* tier/skill scaling — it is not a flat post-hoc add on either output or input. **Corrected 2026-08-27** (was stale): settlement/area-view badges do *not* pass `sol_bonus=0` any more — both the minimap field-tile badges and the per-building settlement badges were found to golden-mismatch by excluding SoL and were fixed to fold it in the same way the Production tab does (`colony_screen.md` "Area-view... field-tile badges" / "Settlement... badges: same SoL gap"). `sol_bonus=0` remains correct only for callers that genuinely want the un-modified base rate (e.g. a rate lookup independent of the current colony's SoL state), not as a blanket "badges" rule.
 
 ---

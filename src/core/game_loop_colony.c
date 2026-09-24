@@ -577,6 +577,55 @@ static void game_colony_assign_building_sound(
   }
 }
 
+/*
+ * Shared refusal chrome for a colonies_assign_workplace() that said no —
+ * a click on the building itself and an indoor row of the jobs menu
+ * (bugs.md #900) must answer with the same popup, in the same DOS validator
+ * order (thunk_FUN_1000_9808).
+ */
+static void game_colony_workplace_refusal(
+  ColonizeGameState* game, int ci, int building_index
+) {
+    const ColonizeColony* col = colonies_get(&game->colonies, game->colony_view_id);
+    const ColonizeColonist* c =
+      (col && ci >= 0 && ci < col->colonist_count) ? &col->colonists[ci] : NULL;
+    /* Mirror of colonies_assign_workplace's DOS validator order
+     * (thunk_FUN_1000_9808): occupation caps first, then the school ones,
+     * all keyed on the school tier the colony OWNS. bugs.md #580/#589/#590. */
+    const int occupation = colonies_building_occupation(&game->colonies, building_index);
+    const int school_tier = colonies_school_owned_tier(&game->colonies, col);
+    const bool teaching = (occupation == COLONIES_JOB_TEACHER);
+    if (c && teaching && school_tier > 0 &&
+        colonies_occupation_worker_count(
+          &game->colonies, col, COLONIES_JOB_TEACHER, -1
+        ) >= school_tier) {
+      set_status(game, "School is full", NULL);
+      colonies_emit_school_faculty_chrome(school_tier, &game->ai_popups, &game->messages);
+    } else if (c && teaching && !colonies_profession_may_teach(c->profession)) {
+      set_status(game, "Need a skilled teacher", NULL);
+      colonies_emit_noteacher_chrome(&game->ai_popups, &game->messages);
+    } else if (
+      c && teaching &&
+      colonies_school_tier_shortfall(c->profession, school_tier) != 0
+    ) {
+      const int need = colonies_school_tier_shortfall(c->profession, school_tier);
+      set_status(
+        game, need >= 3 ? "Need a university" : "Need a college", NULL
+      );
+      colonies_emit_need_school_chrome(
+        c->profession, school_tier, &game->ai_popups, &game->messages
+      );
+    } else if (c && occupation > 9 &&
+               colonies_occupation_worker_count(
+                 &game->colonies, col, occupation, ci
+               ) > 2) {
+      set_status(game, "Building is full", NULL);
+      colonies_emit_more_than_three_chrome(col, &game->ai_popups, &game->messages);
+    } else {
+      set_status(game, "Cannot assign here", NULL);
+    }
+}
+
 void game_colony_assign_building_drop(ColonizeGameState* game, int building_index) {
   ColonyScreenView* csv = &game->colony_screen;
   if (building_index < 0) {
@@ -600,44 +649,7 @@ void game_colony_assign_building_drop(ColonizeGameState* game, int building_inde
         game->status, sizeof(game->status), "Assigned to %s", bt ? bt->name : "building"
       );
     } else {
-      const ColonizeColony* col = colonies_get(&game->colonies, game->colony_view_id);
-      const ColonizeColonist* c =
-        (col && ci >= 0 && ci < col->colonist_count) ? &col->colonists[ci] : NULL;
-      /* Mirror of colonies_assign_workplace's DOS validator order
-       * (thunk_FUN_1000_9808): occupation caps first, then the school ones,
-       * all keyed on the school tier the colony OWNS. bugs.md #580/#589/#590. */
-      const int occupation = colonies_building_occupation(&game->colonies, building_index);
-      const int school_tier = colonies_school_owned_tier(&game->colonies, col);
-      const bool teaching = (occupation == COLONIES_JOB_TEACHER);
-      if (c && teaching && school_tier > 0 &&
-          colonies_occupation_worker_count(
-            &game->colonies, col, COLONIES_JOB_TEACHER, -1
-          ) >= school_tier) {
-        set_status(game, "School is full", NULL);
-        colonies_emit_school_faculty_chrome(school_tier, &game->ai_popups, &game->messages);
-      } else if (c && teaching && !colonies_profession_may_teach(c->profession)) {
-        set_status(game, "Need a skilled teacher", NULL);
-        colonies_emit_noteacher_chrome(&game->ai_popups, &game->messages);
-      } else if (
-        c && teaching &&
-        colonies_school_tier_shortfall(c->profession, school_tier) != 0
-      ) {
-        const int need = colonies_school_tier_shortfall(c->profession, school_tier);
-        set_status(
-          game, need >= 3 ? "Need a university" : "Need a college", NULL
-        );
-        colonies_emit_need_school_chrome(
-          c->profession, school_tier, &game->ai_popups, &game->messages
-        );
-      } else if (c && occupation > 9 &&
-                 colonies_occupation_worker_count(
-                   &game->colonies, col, occupation, ci
-                 ) > 2) {
-        set_status(game, "Building is full", NULL);
-        colonies_emit_more_than_three_chrome(col, &game->ai_popups, &game->messages);
-      } else {
-        set_status(game, "Cannot assign here", NULL);
-      }
+      game_colony_workplace_refusal(game, ci, building_index);
     }
   }
   colony_screen_set_status(csv, game->status);
@@ -734,7 +746,7 @@ void game_colony_area_tile_drop(
   const int who = (int)colony->tiles[tile_index];
   if (who >= 0 && who < colony->colonist_count) {
     if (who == csv->selected_colonist) {
-      colony_screen_open_jobs(csv, cmap, colony, tile_index);
+      colony_screen_open_jobs(csv, &game->colonies, cmap, colony, tile_index);
     } else {
       game_colony_select_colonist(game, who);
     }
@@ -754,6 +766,26 @@ void game_colony_area_tile_drop(
     cmap && map_tile_is_water((ColonizeWorldMap*)cmap, colony->x + dx, colony->y + dy);
   if (job < 1 || job > 7) {
     job = water ? COLONIZE_JOB_FISHERMAN : COLONIZE_JOB_FARMER;
+  }
+  if (job >= COLONIZE_FIELD_JOB_COUNT && job <= COLONIES_JOB_TEACHER) {
+    /* bugs.md #900: an indoor row from the jobs menu is a workplace pick, not
+     * a field pick. Route it through colonies_assign_workplace so the DOS
+     * seating validator (thunk_FUN_1000_9808: faculty cap, @NEEDCOLLEGE /
+     * @NEEDUNIVERSITY, @MORETHANTHREE) runs exactly as it does for a click on
+     * the building itself. */
+    const int building =
+      colonies_job_workplace_building(&game->colonies, colony, job);
+    if (ci < 0) {
+      set_status(game, "Select a colonist first", NULL);
+    } else if (colonies_assign_workplace(&game->colonies, game->colony_view_id, ci, building)) {
+      game_colony_assign_job_sound(job);
+      snprintf(game->status, sizeof(game->status), "Working as %s", colonies_profession_name(job));
+    } else {
+      game_colony_workplace_refusal(game, ci, building);
+    }
+    colony_screen_close_jobs(csv);
+    colony_screen_set_status(csv, game->status);
+    return;
   }
   if (job == COLONIZE_JOB_FISHERMAN && !colony_yield_colony_has_docks(&game->colonies, colony)) {
     char body[AI_POPUP_BODY_LEN];

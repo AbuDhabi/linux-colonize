@@ -149,6 +149,108 @@ static void colony_log_colonist(
   snprintf(out, out_size, "#%d job=%d", colonist_index, col->colonists[colonist_index].profession);
 }
 
+/*
+ * DS:0x2f4 (FUN_15eb_0aec raw 10087-10093) — @JOB -> required @BUILDING row,
+ * read straight out of VICEROY.EXE (file offset 121248 + 0x2f4), 19 bytes:
+ *   -1 x9 (the field jobs 0..8 need no building), then
+ *   9 Distiller 27, 10 Tobacconist 24, 11 Weaver 21, 12 Fur Trader 32,
+ *  13 Carpenter 35, 14 Blacksmith 39, 15 Gunsmith 3, 16 Preacher 37,
+ *  17 Statesman 9, 18 Teacher 12.
+ * DOS returns -1 for any job >= 0x13 (those are the leave-as rows, gated by
+ * colonies_eject_row_offered instead).
+ */
+int colonies_job_required_building_row(int job) {
+  static const int16_t k_job_building[COLONIES_JOB_TEACHER + 1] = {
+    -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    COLONY_BUILDING_RUM_DISTILLERS_HOUSE,
+    COLONY_BUILDING_TOBACCONISTS_HOUSE,
+    COLONY_BUILDING_WEAVERS_HOUSE,
+    COLONY_BUILDING_FUR_TRADERS_HOUSE,
+    COLONY_BUILDING_CARPENTERS_SHOP,
+    COLONY_BUILDING_BLACKSMITHS_HOUSE,
+    COLONY_BUILDING_ARMORY,
+    COLONY_BUILDING_CHURCH,
+    COLONY_BUILDING_TOWN_HALL,
+    COLONY_BUILDING_SCHOOLHOUSE
+  };
+  if (job < 0 || job > COLONIES_JOB_TEACHER) {
+    return -1;
+  }
+  return (int)k_job_building[job];
+}
+
+/*
+ * DOS-LITERAL FUN_15eb_3454 raw 13534-13554 — the `param_1 < 0x13` arm of the
+ * jobs-menu row gate (FUN_281f_0bb4), whose answer FUN_2f2b_348c's row loop
+ * (raw 50753 `if (local_e != 0)`) reads as "list this row at all".
+ *   raw 13536-13539: `iVar2 = FUN_15eb_0aec(job); if (-1 < iVar2 &&
+ *     FUN_15eb_038e(iVar2) == 0) local_4 = 0` — the required @BUILDING ROW
+ *     itself must be owned, not merely some tier of its chain. So the nine
+ *     field jobs are always listed and an indoor job appears only once its
+ *     base building stands.
+ *   raw 13540-13553 (job 0x12, Teacher): the colonist's own specialty level
+ *     (@JOB column 2, 0x1c remapped to 0x19) decides — level 4 drops the row,
+ *     level 3 needs @BUILDING 0xe (University), level 2 needs 0xd (College).
+ *     The same OWNED-tier reading as colonies_school_owned_tier (#580/#589);
+ *     colonies_school_tier_shortfall is that test, already shared with the
+ *     seating validator.
+ * Note DOS returns 0 (drop) here, never -1 (grey): greying is the leave-as
+ * short-stock answer only.
+ */
+bool colonies_job_row_offered(
+  const ColonizeColonyPool* pool, const ColonizeColony* col, int job, int profession
+) {
+  if (!pool || !col || job < 0 || job > COLONIES_JOB_TEACHER) {
+    return false;
+  }
+  const int row = colonies_job_required_building_row(job);
+  if (row >= 0 && !colonies_has_building_row(pool, col, (ColonizeBuildingRow)row)) {
+    return false;
+  }
+  if (job == COLONIES_JOB_TEACHER) {
+    if (!colonies_profession_may_teach(profession)) {
+      return false;
+    }
+    if (colonies_school_tier_shortfall(profession, colonies_school_owned_tier(pool, col)) != 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/*
+ * The workplace an indoor jobs-menu pick lands in. DOS stores the OCCUPATION
+ * (thunk_FUN_291f_054c -> FUN_281f_0cb8) and derives the building from the
+ * chain; the port stores the building slot, so resolve the highest tier of
+ * that chain the colony owns (FUN_281f_0ab0 -> FUN_15eb_039e's "count owned
+ * along the parent chain" answer). -1 when nothing is owned.
+ */
+int colonies_job_workplace_building(
+  const ColonizeColonyPool* pool, const ColonizeColony* col, int job
+) {
+  const int row = colonies_job_required_building_row(job);
+  if (!pool || !col || row < 0) {
+    return -1;
+  }
+  const int chain = colonies_building_row_chain(row);
+  const int* rows = colonies_building_chain_rows(chain);
+  int best = -1;
+  if (!rows) {
+    return colonies_has_building_row(pool, col, (ColonizeBuildingRow)row)
+             ? colonies_building_row(pool, (ColonizeBuildingRow)row)
+             : -1;
+  }
+  for (int i = 0; rows[i] >= 0; ++i) {
+    if (colonies_has_building_row(pool, col, (ColonizeBuildingRow)rows[i])) {
+      const int slot = colonies_building_row(pool, (ColonizeBuildingRow)rows[i]);
+      if (slot >= 0) {
+        best = slot;
+      }
+    }
+  }
+  return best;
+}
+
 bool colonies_assign_workplace(
   ColonizeColonyPool* pool,
   int colony_id,

@@ -1133,11 +1133,21 @@ static void ai_euro_5952_indoor_pass(
     (void)ai_euro_5952_chain_owned(
       pool, col, ai_euro_5952_job_chain(commit_job), NULL, &workplace
     );
+    /*
+     * DOS-LITERAL FUN_5952_035e LAB_5952_2174 raw 94853-94854 (f5952 decomp
+     * 1070-1072): `local_e4[local_ee] = local_e4[local_ee] + 1;` runs right
+     * after the elect/commit call, on both the elected-job and the
+     * Carpenter/Preacher fallback paths, with no test of whether the
+     * commit actually placed the colonist. bugs.md #906: gating the
+     * increment on colonies_assign_workplace()'s return let a failed
+     * commit (full or missing workplace) leave the counter behind, so a
+     * fourth colonist could be elected to the same job later in this pass.
+     */
+    if (commit_job >= 0 && commit_job <= COLONIZE_PROF_TEACHER) {
+      ++placed_count[commit_job];
+    }
     if (workplace >= 0 && colonies_assign_workplace(pool, col->id, s, workplace)) {
       placed[s] = true;
-      if (commit_job >= 0 && commit_job <= COLONIZE_PROF_TEACHER) {
-        ++placed_count[commit_job];
-      }
     }
   }
 }

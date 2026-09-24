@@ -91,7 +91,11 @@
 #define COLONY_BUILDABLE_MAX 32
 #define COLONY_BUILDING_SLOT_W 48
 #define COLONY_BUILDING_SLOT_H 32
-#define COLONY_JOB_LIST_MAX (COLONIZE_FIELD_JOB_COUNT + 1)
+/* FUN_2f2b_348c's row loop runs @JOB 0..0x18; the port's jobs menu carries
+ * rows 0..0x12 (the nine field jobs plus the ten indoor jobs, bugs.md #900)
+ * plus the "Clear Specialty" row. Rows 0x13..0x18 are the leave-as list and
+ * live in the eject popup. */
+#define COLONY_JOB_LIST_MAX (COLONIES_JOB_TEACHER + 2)
 /* Sentinel row id in job_ids[]: FUN_2f2b_348c's "Clear Specialty" row
  * (menu id 0x61) — offered when the selected colonist is a specialist. */
 #define COLONY_JOB_CLEAR_SPECIALTY (-2)
@@ -398,6 +402,7 @@ void colony_screen_construction_next_page(ColonyScreenView* view);
 
 void colony_screen_open_jobs(
   ColonyScreenView* view,
+  const ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
   const ColonizeColony* colony,
   int tile_index

@@ -207,13 +207,15 @@ static bool colony_craft_pairs_next(
  * The one craft pass (audit CO-9). colony_craft_one_colony is exactly this
  * with the three optional outputs off; colony_craft_preview is this with all
  * of them on and `delta` zeroed first. Nothing else differed between the two
- * bodies — same clamp, same `total_out * actual_in / total_in`, same stock
- * mutation, same delta accumulation — so the live tick and the preview
- * cannot drift apart any more.
+ * bodies — same clamp, same partial-input arithmetic, same stock mutation,
+ * same delta accumulation — so the live tick and the preview cannot drift
+ * apart any more.
  *
  * `reset_delta` is the one behavioural axis: the preview owns its delta and
  * memsets it, while the live tick accumulates into a delta that already
  * holds this colony's field production.
+ *
+ * `ai_controlled`: the colony's owner is NOT the human seat (bugs.md #898).
  */
 static void colony_craft_run(
   const ColonizeColonyPool* pool,
@@ -223,7 +225,8 @@ static void colony_craft_run(
   int sol_bonus,
   int gross_out[COLONIZE_CARGO_COUNT],
   int capacity_out[COLONIZE_CARGO_COUNT],
-  bool reset_delta
+  bool reset_delta,
+  bool ai_controlled
 ) {
   if (!pool || !colony || !colony->active) {
     return;
@@ -256,25 +259,58 @@ static void colony_craft_run(
       capacity_out[rec->out_cargo] += total_out;
     }
 
-    int actual_in = colony->stock[rec->in_cargo];
+    const int avail = colony->stock[rec->in_cargo] > 0 ? colony->stock[rec->in_cargo] : 0;
+    int actual_in = avail;
     if (actual_in > total_in) {
       actual_in = total_in;
     }
-    if (actual_in <= 0) {
-      if (shortfall) {
-        shortfall[rec->out_cargo] += total_out;
-        /* Symmetric input-side shortfall: the raw good's own row shows the
-         * same "wanted but didn't have" indicator, not just the output. */
-        shortfall[rec->in_cargo] += total_in;
-      }
-      continue;
-    }
 
-    const int actual_out = total_out * actual_in / total_in;
+    /*
+     * DOS-LITERAL FUN_15eb_0bd4 raw 10159-10183 (with FUN_15eb_0b96 raw
+     * 10143-10156 and FUN_15eb_0b52 raw 10122-10139), applied by
+     * FUN_364b_0688 Phase B raw 57238-57253.
+     *
+     *   D  = demand  = (G << 1) / 3 at the factory tier, else G
+     *        (colony_prod_chain_input_for_total_output == total_in)
+     *   U  = D - (stock + this tick's input production), when positive
+     *   if (U != 0 && G != D)            // factory tier only
+     *       U' = (U == D) ? G : (U * 3) / 2;
+     *   out = G - U'
+     *
+     * The port's stock already carries this tick's field yield (added in
+     * turn_production.c Phase A before the craft pass), so `avail` is DOS's
+     * `stock + gross_in`. bugs.md #897 — the old proportional rescale
+     * `total_out * actual_in / total_in` diverged by 1 at G=9, S=1/3/5.
+     *
+     * bugs.md #898: for a colony whose owner is not the human seat, Phase B
+     * composes the net as `gross - demand` and deliberately DROPS the
+     * `- unmet[input]` term FUN_15eb_0b0c adds for the human (raw 57241-57243,
+     * the same `(3 < uVar7) || byte[uVar7*0x34+0x543f] != 0` control gate the
+     * port already honours for the AI food subsidy), so an AI factory yields
+     * full capacity and its input stock merely clamps at 0 (raw 57249-57253).
+     */
+    int actual_out;
+    if (ai_controlled) {
+      actual_out = total_out;
+    } else {
+      int unmet = total_in - avail;
+      if (unmet < 0) {
+        unmet = 0;
+      }
+      if (unmet != 0 && total_in != total_out) {
+        unmet = (unmet == total_in) ? total_out : (unmet * 3) / 2;
+      }
+      actual_out = total_out - unmet;
+      if (actual_out < 0) {
+        actual_out = 0;
+      }
+    }
     if (shortfall && actual_out < total_out) {
       shortfall[rec->out_cargo] += total_out - actual_out;
     }
     if (shortfall && actual_in < total_in) {
+      /* Symmetric input-side shortfall: the raw good's own row shows the
+       * same "wanted but didn't have" indicator, not just the output. */
       shortfall[rec->in_cargo] += total_in - actual_in;
     }
     colony->stock[rec->in_cargo] -= actual_in;
@@ -298,7 +334,18 @@ void colony_craft_one_colony(
   ColonizeColonyProdDelta* delta,
   int sol_bonus
 ) {
-  colony_craft_run(pool, colony, NULL, delta, sol_bonus, NULL, NULL, false);
+  colony_craft_run(pool, colony, NULL, delta, sol_bonus, NULL, NULL, false, false);
+}
+
+void colony_craft_one_colony_ex(
+  ColonizeColonyPool* pool,
+  ColonizeColony* colony,
+  ColonizeColonyProdDelta* delta,
+  int sol_bonus,
+  bool ai_controlled,
+  int gross_out[COLONIZE_CARGO_COUNT]
+) {
+  colony_craft_run(pool, colony, NULL, delta, sol_bonus, gross_out, NULL, false, ai_controlled);
 }
 
 /* See header: demand[in_cargo] = someone staffed produced a positive
@@ -340,7 +387,10 @@ void colony_craft_preview(
   ColonizeColonyProdDelta* delta,
   int sol_bonus,
   int gross_out[COLONIZE_CARGO_COUNT],
-  int capacity_out[COLONIZE_CARGO_COUNT]
+  int capacity_out[COLONIZE_CARGO_COUNT],
+  bool ai_controlled
 ) {
-  colony_craft_run(pool, scratch, shortfall, delta, sol_bonus, gross_out, capacity_out, true);
+  colony_craft_run(
+    pool, scratch, shortfall, delta, sol_bonus, gross_out, capacity_out, true, ai_controlled
+  );
 }

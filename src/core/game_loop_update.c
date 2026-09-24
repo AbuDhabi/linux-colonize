@@ -1483,7 +1483,7 @@ static GameUpdateStep game_colony_screen_key_enter(
       if (tile < 0) {
         tile = 0;
       }
-      colony_screen_open_jobs(csv, cmap, colony, tile);
+      colony_screen_open_jobs(csv, &game->colonies, cmap, colony, tile);
       return GAME_UPDATE_RETURN_TRUE;
     }
     game->in_colony = false;
@@ -1768,31 +1768,32 @@ static GameUpdateStep game_colony_screen_cargo_keys(
       turn_colony_free_production(&game->colonies, colony, cmap, &prod, &delta);
       colony_screen_set_delta(csv, &delta);
       {
-        static const struct {
-          int cargo;
-          const char* tag;
-        } k_craft[] = {
-          {COLONIZE_CARGO_RUM, "Rum"},
-          {COLONIZE_CARGO_CIGARS, "Cigar"},
-          {COLONIZE_CARGO_CLOTH, "Clth"},
-          {COLONIZE_CARGO_COATS, "Coat"},
-          {COLONIZE_CARGO_TOOLS, "Tool"},
-          {COLONIZE_CARGO_MUSKETS, "Gun"},
+        /* bugs.md #905: the tags used to be English cargo names compiled in.
+         * Wording comes only from the catalog — @CARGO via
+         * reports_cargo_display_name, empty string on a miss. */
+        static const int k_craft[] = {
+          COLONIZE_CARGO_RUM,
+          COLONIZE_CARGO_CIGARS,
+          COLONIZE_CARGO_CLOTH,
+          COLONIZE_CARGO_COATS,
+          COLONIZE_CARGO_TOOLS,
+          COLONIZE_CARGO_MUSKETS,
         };
         char craft[48];
         craft[0] = '\0';
         size_t cn = 0;
         for (size_t ci = 0; ci < sizeof(k_craft) / sizeof(k_craft[0]); ++ci) {
-          const int g = delta.goods[k_craft[ci].cargo];
+          const int g = delta.goods[k_craft[ci]];
           if (g <= 0) {
             continue;
           }
+          const char* tag = reports_cargo_display_name(k_craft[ci]);
           const int wrote = snprintf(
             craft + cn,
             sizeof(craft) - cn,
             "%s%s%+d",
             cn > 0 ? " " : "",
-            k_craft[ci].tag,
+            tag ? tag : "",
             g
           );
           if (wrote > 0) {

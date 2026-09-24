@@ -172,7 +172,7 @@ static int unit_craft_preview_clamps(void) {
   int shortfall[COLONIZE_CARGO_COUNT];
   ColonizeColonyProdDelta delta;
   memset(&delta, 0, sizeof(delta));
-  colony_craft_preview(&pool, &scratch, shortfall, &delta, 0, NULL, NULL);
+  colony_craft_preview(&pool, &scratch, shortfall, &delta, 0, NULL, NULL, false);
   if (scratch.stock[COLONIZE_CARGO_RUM] > 65535) {
     fprintf(
       stderr, "craft preview stock unclamped: rum=%d\n", scratch.stock[COLONIZE_CARGO_RUM]
@@ -1498,6 +1498,73 @@ static int case_colonies_core(void) {
       CHECK(tools2 > tools0, "SoL +2 craft yields more tools than baseline");
       c->has_building[shop] = false;
       c->colonists[0].building_type = -1;
+    }
+  }
+
+  /*
+   * bugs.md #897 / #898: factory-tier partial input.
+   *
+   * DOS-LITERAL FUN_15eb_0bd4 raw 10159-10183 + FUN_364b_0688 Phase B raw
+   * 57238-57253: D = (G<<1)/3, U = D - avail, U' = (U == D) ? G : (U*3)/2,
+   * out = G - U'. One free colonist in a factory-tier building is G = 9
+   * (3 base, +3 tier 2, +(6>>1) tier 3), so D = 6 and the port's old
+   * proportional `G * avail / D` diverged at avail = 1/3/5.
+   */
+  {
+    ColonizeColony* c = colonies_get_mut(&pool, cid);
+    const int works = colonies_find_building(&pool, "Iron Works");
+    const int house = colonies_find_building(&pool, "Blacksmith's House");
+    CHECK(c != NULL && works >= 0 && house >= 0, "Iron Works / Blacksmith's House rows");
+    if (c && works >= 0 && house >= 0) {
+      const int saved_count = c->colonist_count;
+      c->colonist_count = 1;
+      c->colonists[0].active = true;
+      c->colonists[0].building_type = works;
+      c->colonists[0].profession = 19; /* free colonist */
+      c->has_building[works] = true;
+
+      static const int k_stock[] = {0, 1, 2, 3, 4, 5, 6, 9};
+      static const int k_out[] = {0, 2, 3, 5, 6, 8, 9, 9};
+      static const int k_used[] = {0, 1, 2, 3, 4, 5, 6, 6};
+      for (size_t i = 0; i < sizeof(k_stock) / sizeof(k_stock[0]); ++i) {
+        c->stock[COLONIZE_CARGO_ORE] = k_stock[i];
+        c->stock[COLONIZE_CARGO_TOOLS] = 0;
+        colony_craft_one_colony(&pool, c, NULL, 0);
+        CHECK(c->stock[COLONIZE_CARGO_TOOLS] == k_out[i], "G=9 factory tools out");
+        CHECK(
+          c->stock[COLONIZE_CARGO_ORE] == k_stock[i] - k_used[i], "G=9 factory ore consumed"
+        );
+      }
+
+      /* #898: an AI-controlled colony keeps full capacity, input clamps at 0. */
+      for (size_t i = 0; i < sizeof(k_stock) / sizeof(k_stock[0]); ++i) {
+        c->stock[COLONIZE_CARGO_ORE] = k_stock[i];
+        c->stock[COLONIZE_CARGO_TOOLS] = 0;
+        colony_craft_one_colony_ex(&pool, c, NULL, 0, true, NULL);
+        CHECK(c->stock[COLONIZE_CARGO_TOOLS] == 9, "AI factory ignores input shortfall");
+        CHECK(
+          c->stock[COLONIZE_CARGO_ORE] == k_stock[i] - k_used[i], "AI factory ore consumed"
+        );
+      }
+
+      /* House tier is 1:1 (no back-conversion): out == min(stock, 3). */
+      c->has_building[works] = false;
+      c->has_building[house] = true;
+      c->colonists[0].building_type = house;
+      static const int k_house_stock[] = {0, 1, 2, 3, 5};
+      static const int k_house_out[] = {0, 1, 2, 3, 3};
+      for (size_t i = 0; i < sizeof(k_house_stock) / sizeof(k_house_stock[0]); ++i) {
+        c->stock[COLONIZE_CARGO_ORE] = k_house_stock[i];
+        c->stock[COLONIZE_CARGO_TOOLS] = 0;
+        colony_craft_one_colony(&pool, c, NULL, 0);
+        CHECK(c->stock[COLONIZE_CARGO_TOOLS] == k_house_out[i], "G=3 house tools out 1:1");
+      }
+
+      c->has_building[house] = false;
+      c->colonists[0].building_type = -1;
+      c->colonist_count = saved_count;
+      c->stock[COLONIZE_CARGO_ORE] = 0;
+      c->stock[COLONIZE_CARGO_TOOLS] = 0;
     }
   }
 

@@ -2920,6 +2920,116 @@ int main(void) {
   }
 
   /*
+   * bugs.md #902: a Europe passenger with no assigned profession (the
+   * default cargo_professions[] value, -1 — e.g. a founding-father grant
+   * pushed without a profession array) must export as UNITS_JOB_NONE
+   * (0x1c), the DOS "no skill" sentinel, not @JOB 0 (Expert Farmer).
+   */
+  {
+    ColonizeMsgCatalog names;
+    assets_msg_init(&names);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+      fprintf(stderr, "passenger no-profession: NAMES.TXT load failed\n");
+      return 1;
+    }
+    ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
+    units_reset(&units);
+    units_set_occupancy_map(NULL);
+    if (!units_load_types(&units, &names)) {
+      fprintf(stderr, "passenger no-profession: unit types failed\n");
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int colonist_ti = units_kind_type_index(&units, UNITS_KIND_COLONIST);
+    if (colonist_ti < 0) {
+      fprintf(stderr, "passenger no-profession: no colonist type\n");
+      units_set_occupancy_map(NULL);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
+    char err[256];
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    if (!map_alloc(&map, COLONIZE_COL1_MAP_W_STD, COLONIZE_COL1_MAP_H_STD, err, sizeof(err))) {
+      fprintf(stderr, "passenger no-profession: map_alloc: %s\n", err);
+      units_set_occupancy_map(NULL);
+      assets_msg_free(&names);
+      return 1;
+    }
+    for (size_t i = 0; i < map.tile_count; ++i) {
+      map.terrain[i] = 1; /* land */
+    }
+    EuropeScreen europe;
+    memset(&europe, 0, sizeof(europe));
+    europe.cargo_count = 16;
+    europe.harbor_ships = 1;
+    EuropeHarborShip* hs = &europe.harbor[0];
+    memset(hs, 0, sizeof(*hs));
+    hs->type_index = units_find_type(&units, "Caravel");
+    hs->cargo_count = 1;
+    hs->cargo_types[0] = colonist_ti;
+    hs->cargo_professions[0] = -1; /* unset -- default from europe.c */
+    hs->cargo_treasure_gold[0] = 0;
+    ColonizeCol1Save save;
+    if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
+      fprintf(stderr, "passenger no-profession: template: %s\n", err);
+      units_set_occupancy_map(NULL);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (!col1_bridge_capture_w(
+          &(ColonizeWorld){
+            .units = (ColonizeUnitPool*)(&units),
+            .colonies = (ColonizeColonyPool*)(&colonies),
+            .map = (ColonizeWorldMap*)(&map),
+            .col1 = (ColonizeCol1Save*)(&save),
+            .col1_ok = true,
+            .europe = (EuropeScreen*)(&europe),
+          },
+          1492, 0, 1, 0, 20, 20, 20, 20, -1, true, err, sizeof(err)
+        )) {
+      fprintf(stderr, "passenger no-profession: capture: %s\n", err);
+      units_set_occupancy_map(NULL);
+      assets_msg_free(&names);
+      return 1;
+    }
+    int rc = 0;
+    int seen = 0;
+    for (uint16_t i = 0; i < save.head.unit_count; ++i) {
+      const ColonizeCol1Unit* u = &save.unit[i];
+      if (u->type == (uint8_t)colonist_ti && u->x == 236) {
+        seen++;
+        if (u->profession != UNITS_JOB_NONE) {
+          fprintf(
+            stderr,
+            "passenger no-profession: profession=%u want %u (UNITS_JOB_NONE)\n",
+            (unsigned)u->profession,
+            (unsigned)UNITS_JOB_NONE
+          );
+          rc = 1;
+        }
+      }
+    }
+    if (seen < 1) {
+      fprintf(stderr, "passenger no-profession: passenger not found in export\n");
+      rc = 1;
+    }
+    units_set_occupancy_map(NULL);
+    map_free(&map);
+    col1_save_free(&save);
+    assets_msg_free(&names);
+    if (rc != 0) {
+      return 1;
+    }
+    fprintf(stderr, "col1 passenger no-profession -> UNITS_JOB_NONE ok\n");
+  }
+
+  /*
    * Legacy-port harbor fallback (col1_bridge_apply_w): before the DOS-lane
    * fix, a docked (harbor) human ship was written at 228+n with voyage
    * counter 0 and goto (0,0) — the old, DOS-wrong assignment (228+n is

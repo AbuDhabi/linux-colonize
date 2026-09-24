@@ -587,8 +587,12 @@ static int sp_07(void) {
      * AI_KING_BOYCOTT_TAX_MIN with SoL/bells over threshold reverts
      * itself and boycotts the single roulette-picked cargo, same turn,
      * no ai_popups needed. rebel=101, tax=20, SoL=45 (below declare gate),
-     * turn=44, seed=1 -> hike delta +4 (tax 20->24), then one bid-weighted
-     * dump-goods roll over the same rng stream picks Tobacco (heavy weight).
+     * turn=44, seed=1 -> hike delta +4 (tax 20->24), then one
+     * tonnage-weighted dump-goods roll over the same rng stream (bugs.md
+     * #903: DOS-LITERAL FUN_38fd_3dc8 raw 64146-64159 weights by
+     * labs(nation.trade.tons[c])*100, NOT by the Europe bid). The fixture
+     * deliberately puts the fat Europe bid on Tobacco and the only traded
+     * tonnage on Sugar: the pick must follow the tonnage.
      */
     turn = 44;
     col1.head.game_options.woi = 0;
@@ -615,6 +619,10 @@ static int sp_07(void) {
     memset(c->stock, 0, sizeof(c->stock));
     c->stock[COLONIZE_CARGO_TOBACCO] = 120;
     c->stock[COLONIZE_CARGO_SUGAR] = 30;
+    /* local_7a[]: only Sugar has traded tonnage, so only Sugar can win the
+     * roulette (weight 0 entries can never be picked — the roll starts at 1). */
+    memset(col1.nation[0].trade.tons, 0, sizeof(col1.nation[0].trade.tons));
+    col1.nation[0].trade.tons[COLONIZE_CARGO_SUGAR] = 7;
     ColonizeDosRng tea_rng;
     dos_rng_seed(&tea_rng, 1u);
     ctx.rng = &tea_rng;
@@ -626,8 +634,10 @@ static int sp_07(void) {
               col1.nation[0].tax_rate);
       return fail("no-popups auto path should revert the hike (tea party)");
     }
-    if ((col1.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_TOBACCO)) == 0) {
-      return fail("no-popups auto path should boycott the picked cargo (Tobacco)");
+    if ((col1.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_SUGAR)) == 0) {
+      fprintf(stderr, "unit_ai_king: auto-teaparty boycott=0x%x (want Sugar bit)\n",
+              (unsigned)col1.nation[0].boycott_bitmap);
+      return fail("tea-party roulette must weight by trade.tons, not the Europe bid");
     }
     /* Exactly one cargo bit — the single roulette pick, not a fixed
      * Sugar-first two-cargo boycott (that shape is retired). */
@@ -666,6 +676,35 @@ static int sp_07(void) {
     if (col1.nation[0].tax_rate == 20) {
       return fail("with nothing to dump the hike should stand, not revert");
     }
+
+    /*
+     * bugs.md #904 — DOS-LITERAL FUN_38fd_3dc8 raw 64160-64175: only COASTAL
+     * colonies (+0x1c bit 0x40) fill aiStack_cc[]/aiStack_a4[]. A full
+     * warehouse inland is not dumpable, so the hike stands and nothing is
+     * boycotted.
+     */
+    turn = 44;
+    col1.nation[0].tax_rate = 20;
+    europe.tax_percent = 20;
+    col1.nation[0].boycott_bitmap = 0;
+    memset(c->stock, 0, sizeof(c->stock));
+    c->stock[COLONIZE_CARGO_SUGAR] = 30;
+    c->colony_flags &= (uint8_t)~COLONIZE_COLONY_FLAG_COASTAL;
+    dos_rng_seed(&tea_rng, 1u);
+    ctx.rng = &tea_rng;
+    status[0] = '\0';
+    ai_king_nation_turn(&ctx);
+    ctx.rng = NULL;
+    c->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
+    if (col1.nation[0].boycott_bitmap != 0) {
+      fprintf(stderr, "unit_ai_king: inland boycott_bitmap=0x%x\n",
+              (unsigned)col1.nation[0].boycott_bitmap);
+      return fail("an inland colony's goods must not be tea-partied (#904)");
+    }
+    if (col1.nation[0].tax_rate == 20) {
+      return fail("with only inland stock the hike should stand, not revert");
+    }
+    memset(c->stock, 0, sizeof(c->stock));
   }
   return 0;
 }
@@ -2103,6 +2142,11 @@ static int sp_26(void) {
     for (int ci = 0; ci < COLONIZE_CARGO_COUNT; ++ci) {
       colonies.colonies[0].stock[ci] = 50;
     }
+    /* local_7a[] = labs(trade.tons[c])*100 (FUN_38fd_3dc8 raw 64146-64159):
+     * park all the tonnage on Cotton so the roulette pick is deterministic
+     * regardless of the rng stream — a weight of 0 can never be drawn. */
+    memset(col1.nation[0].trade.tons, 0, sizeof(col1.nation[0].trade.tons));
+    col1.nation[0].trade.tons[COLONIZE_CARGO_COTTON] = 9;
     expected_cargo = COLONIZE_CARGO_COTTON;
     expected_delta = 4;
     /* ai_king_teaparty_payload's own formula (applied*100+cargo) — not
