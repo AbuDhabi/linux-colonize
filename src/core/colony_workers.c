@@ -520,33 +520,32 @@ int colonies_admit_unit_w(
 /*
  * DOS `FUN_15eb_1068(slot, 0xd)` — the auto-assign fallback both
  * FUN_15eb_2ea0 (raw 13189-13192) and FUN_15eb_28c8 (raw 13152) use when no
- * work plot scores: @JOB row 13, Carpenter. DOS sets the job unconditionally;
- * the port needs a workplace to put the colonist in, so it seats him in the
- * Carpenter chain when the colony owns one and only then falls back to any
- * other non-school building (bugs.md #6/#256/#408 keep their intent: no idle
- * colonist, and never a silent re-seat at a school).
+ * work plot scores: @JOB row 13, Carpenter. FUN_15eb_1068 raw 11259-11262
+ * writes that occupation directly, without an ownership or worker-cap gate.
+ * A catalog Carpenter slot represents the DOS job even when its building bit
+ * was lost; production keys on the assigned job and the mill bit separately.
  */
 void colonies_assign_carpenter_fallback(ColonizeColonyPool* pool, int colony_id, int colonist_index) {
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
-  if (!pool || !col) {
+  if (!pool || !col || colonist_index < 0 || colonist_index >= col->colonist_count ||
+      !col->colonists[colonist_index].active) {
     return;
   }
-  const char* const* chain = colonies_building_chain(COLONIES_CHAIN_CARPENTER);
-  for (int i = 0; chain && chain[i]; ++i) {
-    const int bi = colonies_find_building(pool, chain[i]);
-    if (bi >= 0 && bi < COLONIZE_BUILDING_TYPES_MAX && col->has_building[bi] &&
-        colonies_assign_workplace(pool, colony_id, colonist_index, bi)) {
-      return;
-    }
+  const int shop = colonies_building_row(pool, COLONY_BUILDING_CARPENTERS_SHOP);
+  const int mill = colonies_building_row(pool, COLONY_BUILDING_LUMBER_MILL);
+  const int bi = (mill >= 0 && col->has_building[mill]) ? mill : shop >= 0 ? shop : mill;
+  if (bi < 0) {
+    return; /* incomplete synthetic catalog: no slot can represent @JOB 13 */
   }
-  for (int bi = 0; bi < pool->building_type_count; ++bi) {
-    if (!col->has_building[bi] || colonies_school_building_tier(pool, bi) > 0) {
-      continue;
-    }
-    if (colonies_assign_workplace(pool, colony_id, colonist_index, bi)) {
-      return;
-    }
+  ColonizeColonist* c = &col->colonists[colonist_index];
+  const int current_job =
+    (c->building_type >= 0) ? colonies_building_occupation(pool, c->building_type) : c->field_job;
+  colonies_clear_colonist_tile(col, colonist_index);
+  if (current_job != COLONIZE_PROF_CARPENTER) {
+    c->turns_in_job = 0;
   }
+  c->field_job = -1;
+  c->building_type = bi;
 }
 
 /*

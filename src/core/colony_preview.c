@@ -178,11 +178,8 @@ void colony_preview_compute_w(
      * selected, or the player never sees lumber about to be consumed.
      * sol_b folds into each Carpenter worker individually, inside
      * colony_prod_colony_hammers (matches FUN_15eb_1d4c's Carpenter body).
-     * Capped by lumber on hand *before* this turn's production (mirrors
-     * turn.c's real Carpenter hammers block, 2026-08-16 real-DOS fix): a
-     * carpenter can't spend lumber this same turn's Lumberjack hasn't
-     * delivered yet, and 0 lumber on hand means 0 hammers, not a free
-     * hammers_add. */
+     * Capped by stored lumber plus this turn's field harvest, as in the
+     * tick and FUN_15eb_0b52's gross-lumber shortfall calculation. */
     int hammers_add = colony_prod_colony_hammers(pool, colony, sol_b, NULL);
     if (hammers_add > 0) {
       out->hammers_capacity = hammers_add;

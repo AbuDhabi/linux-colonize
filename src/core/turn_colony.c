@@ -145,7 +145,9 @@ static void turn_run_colony_building_completion(ColonizeTurnContext* ctx) {
     if (!bt || bt->hammers <= 0 || col->hammers < bt->hammers) {
       continue;
     }
-    if (!colonies_try_complete_building(ctx->colonies, col->id)) {
+    if (!colonies_try_complete_building_ex(
+          ctx->colonies, col->id, ctx->col1_ok ? ctx->col1 : NULL
+        )) {
       continue;
     }
     if (ctx->europe && col->nation_id == ctx->human_nation) {

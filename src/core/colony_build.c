@@ -404,10 +404,11 @@ static bool colonies_construction_cost(
   return true;
 }
 
-int colonies_construction_gold_cost(
+static int colonies_construction_gold_cost_impl(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
-  int difficulty
+  const ColonizeCol1Save* col1,
+  int fallback_tools_price
 ) {
   int hammers_need = 0;
   int tools_cost = 0;
@@ -422,11 +423,15 @@ int colonies_construction_gold_cost(
   if (tools_deficit < 0) {
     tools_deficit = 0;
   }
-  /* See the doc comment in colony.h for the FUN_2f2b_5e44 citation and what
-   * is/isn't independently verified here. */
+  /* DOS-LITERAL FUN_2f2b_5e44 raw 52709-52722: tools use the owning
+   * nation's current trade.euro_price[TOOLS] byte, plus four. */
   int cost = hammers_deficit * 13;
   if (tools_deficit > 0) {
-    cost += tools_deficit * (difficulty + 4);
+    const int nation = colony->nation_id;
+    const int tools_price = col1 && nation >= 0 && nation < (int)COLONIZE_COL1_NATION_COUNT
+                              ? (int)col1->nation[nation].trade.euro_price[COLONIZE_CARGO_TOOLS]
+                              : fallback_tools_price;
+    cost += tools_deficit * (tools_price + 4);
   }
   if (colony->hammers == 0) {
     cost *= 2;
@@ -434,7 +439,27 @@ int colonies_construction_gold_cost(
   return cost;
 }
 
-bool colonies_try_complete_building(ColonizeColonyPool* pool, int colony_id) {
+int colonies_construction_gold_cost_ex(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const ColonizeCol1Save* col1
+) {
+  return colonies_construction_gold_cost_impl(pool, colony, col1, 0);
+}
+
+int colonies_construction_gold_cost(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  int difficulty
+) {
+  /* Preserve the pre-Col1 estimate for legacy/headless callers. The live UI
+   * passes its save to _ex and never uses this difficulty approximation. */
+  return colonies_construction_gold_cost_impl(pool, colony, g_colonies_col1, difficulty);
+}
+
+bool colonies_try_complete_building_ex(
+  ColonizeColonyPool* pool, int colony_id, const ColonizeCol1Save* col1
+) {
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
   if (!col || !pool || col->building_in_production < 0) {
     return false;
@@ -453,7 +478,16 @@ bool colonies_try_complete_building(ColonizeColonyPool* pool, int colony_id) {
     return false;
   }
   if (bt->tools_cost > 0 && col->stock[COLONIZE_CARGO_TOOLS] < bt->tools_cost) {
-    return false;
+    /* DOS-LITERAL FUN_364b_0688 Phase L raw 57748-57774: human colonies
+     * stop for @NEEDTOOLS; AI and Crown colonies are given the missing tools
+     * by setting stock to the requirement, then continue through completion. */
+    const bool human = col1 && col->nation_id >= 0 &&
+                       col->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
+                       col1->player[col->nation_id].control == 0;
+    if (human || !col1) {
+      return false;
+    }
+    col->stock[COLONIZE_CARGO_TOOLS] = bt->tools_cost;
   }
   col->pending_build_reveal = bid + 1; /* DS:0x34a — colony-screen reveal + 0x54 */
   if (bt->tools_cost > 0) {
@@ -522,6 +556,10 @@ bool colonies_try_complete_building(ColonizeColonyPool* pool, int colony_id) {
   col->build_ai_flags =
     (uint8_t)(col->build_ai_flags & (uint8_t)~COLONIZE_BUILD_AI_WANTS_CONSTRUCTION);
   return true;
+}
+
+bool colonies_try_complete_building(ColonizeColonyPool* pool, int colony_id) {
+  return colonies_try_complete_building_ex(pool, colony_id, g_colonies_col1);
 }
 
 int colonies_try_complete_unit_construction(
@@ -598,7 +636,13 @@ int colonies_try_complete_unit_construction(
   return uid;
 }
 
-bool colonies_buy_construction(ColonizeColonyPool* pool, int colony_id, int difficulty, int* gold) {
+static bool colonies_buy_construction_impl(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  const ColonizeCol1Save* col1,
+  int fallback_tools_price,
+  int* gold
+) {
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
   if (!col || !pool || !gold || col->building_in_production < 0) {
     return false;
@@ -616,7 +660,9 @@ bool colonies_buy_construction(ColonizeColonyPool* pool, int colony_id, int diff
   if (tools_deficit < 0) {
     tools_deficit = 0;
   }
-  const int gold_cost = colonies_construction_gold_cost(pool, col, difficulty);
+  const int gold_cost = colonies_construction_gold_cost_impl(
+    pool, col, col1, fallback_tools_price
+  );
   if (*gold < gold_cost) {
     return false;
   }
@@ -625,8 +671,10 @@ bool colonies_buy_construction(ColonizeColonyPool* pool, int colony_id, int diff
    * only used to be numerically equal back when gold_cost was 1:1 with
    * hammers; not any more) into +0x98. */
   if (hammers_deficit > 0) {
-    const unsigned sum = (unsigned)col->hammers_purchased + (unsigned)hammers_deficit;
-    col->hammers_purchased = sum > 0xffffu ? 0xffffu : (uint16_t)sum;
+    /* Col1 +0x98 is a DOS word; FUN_2f2b_5e44 adds the deficit with 16-bit
+     * wrap, not saturation. */
+    col->hammers_purchased =
+      (uint16_t)((unsigned)col->hammers_purchased + (unsigned)hammers_deficit);
   }
   /* Tops hammers/tools only — does NOT complete the project (matches
    * FUN_2f2b_5e44, which never touches has_building[]/spawns a unit
@@ -641,6 +689,19 @@ bool colonies_buy_construction(ColonizeColonyPool* pool, int colony_id, int diff
     col->name[0] ? col->name : "colony", gold_cost, hammers_deficit, tools_deficit, *gold
   );
   return true;
+}
+
+bool colonies_buy_construction_ex(
+  ColonizeColonyPool* pool, int colony_id, const ColonizeCol1Save* col1, int* gold
+) {
+  return colonies_buy_construction_impl(pool, colony_id, col1, 0, gold);
+}
+
+bool colonies_buy_construction(
+  ColonizeColonyPool* pool, int colony_id, int difficulty, int* gold
+) {
+  /* Legacy/headless call shape only. Game UI uses the explicit Col1 _ex API. */
+  return colonies_buy_construction_impl(pool, colony_id, g_colonies_col1, difficulty, gold);
 }
 
 /* ===================== Building catalog, chains & buildability rules (colonies_has_building_named .. colonies_list_buildable) ===================== */

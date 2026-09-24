@@ -1359,6 +1359,23 @@ static int case_hammers_bank_no_project(void) {
     );
     return 1;
   }
+
+  /* DOS stores the bank as a signed word: 32767 + 3 wraps negative, then
+   * Phase L clamps it to zero (FUN_364b_0688 raw 57730-57738). */
+  col->hammers = 32767;
+  col->stock[COLONIZE_CARGO_LUMBER] = 10;
+  memset(&prod, 0, sizeof(prod));
+  memset(&delta, 0, sizeof(delta));
+  turn_colony_free_production(&pool, col, NULL, &prod, &delta);
+  if (col->hammers != 0 || delta.hammers_added != 3) {
+    fprintf(
+      stderr,
+      "signed hammer bank overflow want bank=0 delta=3 got %d/%d\n",
+      col->hammers,
+      delta.hammers_added
+    );
+    return 1;
+  }
   return 0;
 }
 
@@ -1366,9 +1383,9 @@ static int case_hammers_bank_no_project(void) {
  * Tory penalty must reduce banked hammers too, not get silently dropped
  * (same `sol_b > 0` guard bug as bells above, now fixed). Lumber stock
  * must cover the sol-adjusted output — hammers cost lumber 1:1, capped by
- * what was on hand at the start of the turn (2026-08-16 real-DOS fix: a
- * carpenter with 0 lumber on hand now correctly bags 0 hammers, not the
- * sol-adjusted value for free — see turn.c's Carpenter hammers block).
+ * stock plus this turn's field harvest (2026-08-16 real-DOS fix: a
+ * carpenter with no available lumber bags 0 hammers, not the
+ * sol-adjusted value for free — see turn_production.c's Carpenter block).
  */
 static int case_tory_penalty_hammers(void) {
   fx_begin();
@@ -5450,7 +5467,8 @@ static int case_phase_k_build_advisory(void) {
   snprintf(col->name, sizeof(col->name), "Boston");
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
   col->has_building[0] = true;
-  /* Invent +1 lumber then carpenter hammers burn it so stock ends at 0. */
+  /* With no available lumber, all Phase A hammer demand is unmet and the net
+   * hammer word is zero, so DOS shows @LUMBER. */
   col->building_in_production = 0;
   col->hammers = 0;
   col->stock[COLONIZE_CARGO_LUMBER] = 0;
@@ -5464,24 +5482,63 @@ static int case_phase_k_build_advisory(void) {
   ai_popup_clear(&pops);
   memset(&prod, 0, sizeof(prod));
   turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-  if (strstr(eu.status, "lumber") == NULL) {
-    fprintf(stderr, "K LUMBER status want lumber got '%s'\n", eu.status);
+  if (strstr(eu.status, "lumber") == NULL || col->hammers != 0) {
+    fprintf(stderr, "K LUMBER no-stock want advisory/no bank got '%s' hammers=%d\n",
+            eu.status, col->hammers);
     assets_msg_free(&game_txt);
     return 1;
   }
   if (pops.queue_count < 1 ||
       (strstr(pops.queue[0].body, "lumber") == NULL &&
        strstr(pops.queue[0].body, "Boston") == NULL)) {
-    fprintf(
-      stderr,
-      "K LUMBER popup weak q=%d body='%s'\n",
-      pops.queue_count,
-      pops.queue_count > 0 ? pops.queue[0].body : ""
-    );
+    fprintf(stderr, "K LUMBER popup weak q=%d body='%s'\n", pops.queue_count,
+            pops.queue_count > 0 ? pops.queue[0].body : "");
     assets_msg_free(&game_txt);
     return 1;
   }
-  fprintf(stderr, "Phase K LUMBER chrome ok\n");
+  fprintf(stderr, "Phase K LUMBER no-stock advisory ok\n");
+
+  /* Partial and exact lumber are both spent at Phase L, leaving post-debit
+   * stock 0. The Phase K probe must still see the positive Phase A word. */
+  for (int lumber = 1; lumber <= 6; lumber += 5) {
+    col->hammers = 0;
+    col->stock[COLONIZE_CARGO_LUMBER] = lumber;
+    eu.status[0] = '\0';
+    ai_popup_clear(&pops);
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+    if (col->stock[COLONIZE_CARGO_LUMBER] != 0 || col->hammers != lumber ||
+        strstr(eu.status, "lumber") != NULL) {
+      fprintf(stderr,
+              "K LUMBER stock=%d want hammers=%d/no advisory got lumber=%d hammers=%d '%s'\n",
+              lumber, lumber, col->stock[COLONIZE_CARGO_LUMBER], col->hammers,
+              eu.status);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+  }
+  fprintf(stderr, "Phase K LUMBER partial/exact supply silence ok\n");
+
+  /* Tory penalty can zero a free colonist's Carpenter output while the
+   * sol-free worker probe remains positive. DOS's Phase A-adjusted demand is
+   * zero, so this must not create a lumber advisory. */
+  col->hammers = 0;
+  col->stock[COLONIZE_CARGO_LUMBER] = 0;
+  col->stock[COLONIZE_CARGO_FOOD] = 200;
+  col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+  col->colonist_count = COLONIZE_COLONY_POP_MAX;
+  col->population = COLONIZE_COLONY_POP_MAX;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (col->hammers != 0 || strstr(eu.status, "lumber") != NULL) {
+    fprintf(stderr, "K LUMBER Tory-zero want no advisory/no bank got %d '%s'\n",
+            col->hammers, eu.status);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  fprintf(stderr, "Phase K LUMBER Tory-zero silence ok\n");
 
   /* Phase K LUMBER negative: unstaffed Carpenter's Shop + 0 lumber must NOT
    * nag "Need lumber." — 2026-08-24 fix applies the same real-staffed-
@@ -5490,6 +5547,8 @@ static int case_phase_k_build_advisory(void) {
    * so it can't reuse colony_craft_demand_mask directly, but the principle
    * (an unstaffed building has zero demand in DOS) is the same. */
   col->building_in_production = -1;
+  col->colonist_count = 1;
+  col->population = 1;
   col->colonists[0].building_type = -1;
   col->colonists[0].profession = UNITS_JOB_COLONIST;
   col->stock[COLONIZE_CARGO_LUMBER] = 0;
@@ -5777,6 +5836,50 @@ static int case_phase_k_build_advisory(void) {
     return 1;
   }
   fprintf(stderr, "Phase K TOOLS muskets-in-stock ok\n");
+
+  /* DOS's already-owned arm is threshold-gated but runs with zero current
+   * hammer output: below threshold it is silent; at threshold it sets bit
+   * 0x80 and emits @ALREADYHAVE. */
+  col->building_in_production = 1;
+  col->has_building[1] = true;
+  col->stock[COLONIZE_CARGO_TOOLS] = 10;
+  col->stock[COLONIZE_CARGO_LUMBER] = 10;
+  col->stock[COLONIZE_CARGO_FOOD] = 100;
+  col->colonists[0].building_type = -1;
+  col->colonists[0].profession = UNITS_JOB_COLONIST;
+  col->colonist_count = 1;
+  col->population = 1;
+  col->colony_flags =
+    (uint8_t)(col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_BUILD_COMPLETE);
+  col->hammers = 9;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if ((col->colony_flags & COLONIZE_COLONY_FLAG_BUILD_COMPLETE) != 0 ||
+      pops.queue_count != 0) {
+    fprintf(stderr, "ALREADYHAVE below threshold should be silent: flags=%02x q=%d\n",
+            col->colony_flags, pops.queue_count);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+
+  col->hammers = 10;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if ((col->colony_flags & COLONIZE_COLONY_FLAG_BUILD_COMPLETE) == 0 ||
+      pops.queue_count != 1 ||
+      (strstr(pops.queue[0].body, "Printing Press") == NULL &&
+       strstr(pops.queue[0].body, "already built") == NULL)) {
+    fprintf(stderr, "ALREADYHAVE threshold wants flag+popup flags=%02x q=%d body='%s'\n",
+            col->colony_flags, pops.queue_count,
+            pops.queue_count > 0 ? pops.queue[0].body : "");
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  fprintf(stderr, "Phase L ALREADYHAVE threshold/no-output ok\n");
 
   assets_msg_free(&game_txt);
   return 0;

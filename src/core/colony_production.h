@@ -283,17 +283,17 @@ int colony_prod_colony_crosses_ff(
 
 /*
  * Sum carpenter hammer output this turn (return value), plus a sol-free
- * staffed-demand probe (*out_lumber_use).
+ * staffed-demand probe (*out_lumber_use) used by AI job scoring.
  * Only assigned workers at Carpenter's Shop / Lumber Mill produce hammers.
  * sol_bonus folds into each hammer worker individually
  * (colony_prod_hammers_worker) and only affects the returned hammer count.
  *
  * *out_lumber_use is NOT the lumber debit. It is the un-modified base-rate
- * requirement, and its only live consumer is turn.c Phase K's "Need lumber."
- * crumb, which just needs "is a carpenter actually staffed here" (it calls
- * with sol_bonus=0 anyway). The REAL tick debits lumber 1:1 against the
- * sol-ADJUSTED hammer count (turn.c, `hammers` clipped to stock then
- * subtracted) — user-verified on hammers_lumber.SAV (bugs.md #163: two Master
+ * requirement for the AI 5952 lumber shortage probe. Phase K uses the
+ * Phase A net hammer word and unmet lumber instead. The REAL tick debits
+ * lumber 1:1 against the sol-ADJUSTED hammer count (turn_production.c clips
+ * `hammers` to stock, then subtracts it) — user-verified on
+ * hammers_lumber.SAV (bugs.md #163: two Master
  * Carpenters bank +28 hammers and consume 28 lumber, not the sol-free base).
  * Do not "fix" the debit to follow this probe.
  */
