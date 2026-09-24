@@ -66,9 +66,27 @@ static int colony_prod_tier_input_for_output(ColonyProdTier tier, int output) {
   return output;
 }
 
+bool colony_prod_chain_input_is_flat(int chain) {
+  /*
+   * DOS-LITERAL FUN_15eb_1f72 raw 12683-12689. The per-colony ledger tail
+   * emits five tier-aware rows through FUN_15eb_0bd4 (ore->tools,
+   * tobacco->cigars, cotton->cloth, furs->coats, sugar->rum) and closes with
+   * `FUN_15eb_0b96(0xe, gross[muskets] @DS:0x8de6)` — the tools demand for
+   * the muskets pair goes straight in as the raw gross. There is no
+   * `0bd4(0xe, 0xf)` call anywhere, and the factory discount `(G<<1)/3` (raw
+   * 10171) plus the unmet rescale `(U*3)/2` (raw 10175-10180) live only
+   * inside 0bd4. So the Armory chain is 1:1 at every tier, Arsenal included.
+   * bugs.md #910.
+   */
+  return chain == COLONIES_CHAIN_ARMORY;
+}
+
 int colony_prod_chain_input_for_total_output(int building_row, int total_output) {
   if (total_output <= 0) {
     return 0;
+  }
+  if (colony_prod_chain_input_is_flat(colonies_building_row_chain(building_row))) {
+    return total_output;
   }
   return colony_prod_tier_input_for_output(
     colony_prod_building_tier_row(building_row), total_output
@@ -226,6 +244,9 @@ int colony_prod_manufacturing_input_row(
     colony_prod_manufacturing_output_row(building_row, profession, craft_profession, sol_bonus);
   if (out <= 0) {
     return 0;
+  }
+  if (colony_prod_chain_input_is_flat(colonies_building_row_chain(building_row))) {
+    return out; /* bugs.md #910 — the muskets pair never sees the tier. */
   }
   const ColonyProdTier tier = colony_prod_building_tier_row(building_row);
   return colony_prod_tier_input_for_output(tier, out);

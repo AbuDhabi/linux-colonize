@@ -52,6 +52,10 @@ int europe_goods_slots_used(const EuropeHarborShip* ship);
 int europe_ship_cargo_cap(const EuropeHarborShip* ship, const ColonizeUnitPool* units);
 int europe_ship_free_slots(const EuropeHarborShip* ship, const ColonizeUnitPool* units);
 bool europe_dock_name_is_artillery(const char* name);
+
+/* Recruit pool slot `pool_index` onto the dock (europe_dock.c); `rng` may be
+ * NULL. Shared by europe_menu_confirm_ex (europe_market.c). */
+bool europe_recruit_from_pool_ex(EuropeScreen* eu, int pool_index, struct ColonizeDosRng* rng);
 int europe_dock_type_row_of_name(const char* name);
 void europe_disembark_passengers_to_dock(
   EuropeScreen* eu,

@@ -870,6 +870,11 @@ colonize_add_test(NAME unit_ai_euro_5952_build
   LIBS colonize_core
 )
 
+colonize_add_test(NAME unit_ai_euro_goals_bank
+  SOURCES tests/unit/test_ai_euro_goals_bank.c
+  LIBS colonize_core
+)
+
 colonize_add_test(NAME unit_ai_euro_5952_equip
   SOURCES tests/unit/test_ai_euro_5952_equip.c
   LIBS colonize_core

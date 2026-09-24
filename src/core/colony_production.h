@@ -105,6 +105,14 @@ int colony_prod_manufacturing_input(
  */
 int colony_prod_chain_input_for_total_output(int building_row, int total_output);
 
+/*
+ * True for the one craft chain DOS emits through FUN_15eb_0b96 instead of
+ * FUN_15eb_0bd4 (tools -> muskets, FUN_15eb_1f72 raw 12689): its raw-good
+ * demand is the gross output 1:1 at EVERY tier, and its shortfall is never
+ * put through the `(U*3)/2` rescale. bugs.md #910.
+ */
+bool colony_prod_chain_input_is_flat(int chain);
+
 /* Row-identified core; see colony_prod_manufacturing_output_row. */
 int colony_prod_manufacturing_input_row(
   int building_row,

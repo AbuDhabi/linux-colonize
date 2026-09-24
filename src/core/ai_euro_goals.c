@@ -1898,6 +1898,21 @@ static void ai_euro_5952_build_pref_0306(
       gross[COLONIZE_CARGO_MUSKETS] != 0
     );
   }
+
+  /* DOS-LITERAL FUN_5952_035e raw 94362-94367 — the musket-surplus bank.
+   * Sits after the five FUN_5952_0306 arms and before the +0xb6 horse arm:
+   *   if (local_76 == 0 && 199 < +0xb8 && nation[+0x49] < 0x14) {
+   *     nation[+0x49]++; +0xb8 -= 0x32;
+   *   }
+   * `local_76` is this frame's running garrison/labor shortfall total
+   * (`labor_running`), `+0xb8` the colony's Muskets stock, `+0x49` the
+   * nation's musket-LOT bank that FUN_521d_5d04's hire arm spends to arm a
+   * recruit for free (ai_euro_internal.h Ai5d04HireScratch). */
+  if (labor_running == 0 && c->stock[COLONIZE_CARGO_MUSKETS] > 199 && nation_id >= 0 &&
+      nation_id < 4 && ai_euro_s_5d04_hire_scratch[nation_id].musket_bank_lots < 0x14) {
+    ai_euro_s_5d04_hire_scratch[nation_id].musket_bank_lots++;
+    c->stock[COLONIZE_CARGO_MUSKETS] -= 0x32;
+  }
 }
 
 static void ai_euro_colony_threat_seed_5952(
