@@ -850,7 +850,7 @@ graphs:
         fn: ai_euro_expand.c:ai_euro_4393_work_queue_haul_pick
         dos: LAB_004393; ai_goals_work_consume
         status: dos
-        note: bugs.md #877 — entry gate raw 89877-89878 (`0xc < type < 0x13 && (bVar20 || bVar7)`) and inner accept raw 89898 (`bVar20 || work[+5]`) are both live; bVar20 = ai_euro_land.c:ai_euro_20e6_bvar20_seed (raw 88556-88573 + WoI clear 88625-88628), bVar7 = ai_euro_20e6_457e_type_gate. Still open for #818: the `local_a8 == 0 && local_6 == 0` half of the entry `if`, and the LAB_521d_4d2e re-derivation of bVar20.
+        note: bugs.md #877 — entry gate raw 89877-89878 (`0xc < type < 0x13 && (bVar20 || bVar7)`) and inner accept raw 89898 (`bVar20 || work[+5]`) are both live; bVar20 = ai_euro_land.c:ai_euro_20e6_bvar20_seed (raw 88556-88573; the WoI clear 88625-88628 is LAB_4d2e-only and never reaches 4393 or the raw 90295 load loop — #818, 2026-09-24). Still open: the `local_a8 == 0 && local_6 == 0` half of the entry `if`.
       - id: cadence
         kind: step
         label: Empty untasked ship — High Seas cadence

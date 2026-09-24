@@ -391,8 +391,8 @@ int ai_euro_4393_work_queue_haul_pick(
    * local_6 == 0` half of the same `if` is the caller's passenger/order state,
    * still unmodelled here — bugs.md #818). bVar20 is now the real seed
    * (ai_euro_20e6_bvar20_seed) instead of the bare `type != 0x12` stand-in, so
-   * a Man-O-War or a WoI-era warship no longer scores a colony haul unless
-   * bVar7's re-allow arm fires. bugs.md #877.
+   * a Man-O-War no longer scores a colony haul unless bVar7's re-allow arm
+   * fires. bugs.md #877, #818.
    */
   const int civilian_hull = ai_euro_20e6_bvar20_seed(ctx, hauler, hauler_type); /* bVar20 */
   if (hauler_type < 0x0d || hauler_type > 0x12) {

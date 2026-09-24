@@ -1030,6 +1030,110 @@ static int unit_merchantman_europe_export_load_silver(void) {
   return 0;
 }
 
+static int unit_manowar_no_goods_load_818(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
+    return fail("mow-noload alloc map");
+  }
+  map.terrain[4 * 16 + 3] = 25;
+  if (!map_tile_is_coastal(&map, 4, 4)) {
+    fx_map_free(&map);
+    return fail("mow-noload colony should be coastal");
+  }
+  for (int y = 0; y < 16; ++y) {
+    map.terrain[y * 16 + 14] = 25;
+    map.terrain[y * 16 + 15] = 25;
+  }
+
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Man-O-War");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].cargo = 6;
+  units.types[0].attack = 24;
+
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 3);
+  c->stock[COLONIZE_CARGO_TOOLS] = 25;
+  c->stock[COLONIZE_CARGO_LUMBER] = 25;
+  c->stock[COLONIZE_CARGO_ORE] = 25;
+  c->stock[COLONIZE_CARGO_MUSKETS] = 15;
+  c->stock[COLONIZE_CARGO_HORSES] = 15;
+  c->stock[COLONIZE_CARGO_FOOD] = 8;
+  c->stock[COLONIZE_CARGO_SILVER] = 150;
+
+  const int sid = units_spawn(&units, 0, 3, 4);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    fx_map_free(&map);
+    return fail("mow-noload spawn");
+  }
+  ship->nation_id = nation;
+  ship->moves = 4 * UNITS_MP_PER_TILE;
+  ship->orders = 0;
+
+  ai_goals_reset();
+  ai_goals_upsert_primary(nation, 14, 14, AI_GOAL_FOUND, 5);
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
+  /* DOS @CARGO start bids: the 20e6 load matrix scores price x stock. */
+  seed_dos_start_prices(&col1, nation);
+
+  uint32_t turn = 32;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  ship = units_get(&units, sid);
+  if (!ship || !ship->active) {
+    fx_map_free(&map);
+    return fail("mow-noload should remain active");
+  }
+  /*
+   * bugs.md #818: the DOS goods-load loop is `while (local_d2 != 0 && bVar20)`
+   * (raw 90295) and bVar20 is seeded `type != 0x12` (raw 88556): a Man-O-War
+   * berthed at its own colony never loads goods, whatever the silver stock.
+   */
+  if (c->stock[COLONIZE_CARGO_SILVER] != 150 || ship->hold_goods_amount[0] != 0 ||
+      ship->hold_goods_amount[1] != 0) {
+    fprintf(
+      stderr, "unit_ai_euro_expand: 818 silver=%d hold0=%d/%d hold1=%d/%d\n",
+      c->stock[COLONIZE_CARGO_SILVER], ship->hold_goods_type[0], ship->hold_goods_amount[0],
+      ship->hold_goods_type[1], ship->hold_goods_amount[1]
+    );
+    fx_map_free(&map);
+    return fail("818: Man-O-War must not load colony goods (bVar20 seed)");
+  }
+
+  fx_map_free(&map);
+  fprintf(stderr, "unit_ai_euro_expand: 818 Man-O-War no goods load ok\n");
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"unit_treasure_coast", unit_treasure_coast},
     {"unit_treasure_board_sail", unit_treasure_board_sail},
@@ -1039,5 +1143,6 @@ static const TestCase k_cases[] = {
     {"unit_ship_europe_export_load_silver", unit_ship_europe_export_load_silver},
     {"unit_galleon_europe_export_load_silver", unit_galleon_europe_export_load_silver},
     {"unit_merchantman_europe_export_load_silver", unit_merchantman_europe_export_load_silver},
+    {"unit_manowar_no_goods_load_818", unit_manowar_no_goods_load_818},
 };
 TEST_MAIN(k_cases)
