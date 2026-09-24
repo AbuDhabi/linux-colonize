@@ -168,13 +168,13 @@ not a fifth tech.
 
 | Nation id | Plural / short | Specialty good | Tech | UI color |
 |----------:|----------------|----------------|-----:|---------:|
-| 4 | Incas / Inca | Jewelled Relics | 3 | 97 |
+| 4 | Incas / Inca | Jewelled Relics | 3 | 15 |
 | 5 | Aztecs / Aztec | Gold Bars | 2 | 149 |
 | 6 | Arawaks / Arawak | Bone Jewelry | 1 | 54 |
-| 7 | Iroquois / Iroquois | Wood Carvings | 1 | 87 |
+| 7 | Iroquois / Iroquois | Wood Carvings | 1 | 11 |
 | 8 | Cherokee / Cherokee | Turquoise | 1 | 67 |
 | 9 | Apache / Apache | Beads | 0 | 111 |
-| 10 | Sioux / Sioux | Beads | 0 | 118 |
+| 10 | Sioux / Sioux | Beads | 0 | 117 |
 | 11 | Tupi / Tupi | Gems | 0 | 71 |
 
 `NAMES.TXT` also lists extra tribe name pairs (Maya, Huron, …) after the eight

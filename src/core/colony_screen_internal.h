@@ -315,5 +315,5 @@ void colony_screen_render_minimap(
   int colony_y,
   ColonizeFramebuffer8* framebuffer
 );
-bool colony_screen_unit_is_artillery(const ColonizeUnitPool* units, const ColonizeUnit* u);
+bool colony_screen_unit_on_fence(const ColonizeUnitPool* units, const ColonizeUnit* u);
 #endif /* COLONIZE_CORE_COLONY_SCREEN_INTERNAL_H */

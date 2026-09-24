@@ -4,6 +4,7 @@
 #include "core/assets.h"
 #include "core/colony.h"
 #include "core/colony_screen.h"
+#include "core/colony_screen_internal.h"
 #include "core/colony_production.h"
 #include "core/ff.h"
 #include "core/map.h"
@@ -2565,6 +2566,30 @@ static int unit_warehouse_confirm_and_hold_append(void) {
   return rc;
 }
 
+/* FUN_2f2b_11b2 calls the DS:0x30e profession-slot predicate for the
+ * fortification strip. The Units Present roster keeps these on-tile units. */
+static int unit_fence_strip_profession_gate(void) {
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  ColonizeUnit u;
+  memset(&u, 0, sizeof(u));
+  const struct { int type; int shown; } cases[] = {
+    {0, 1},  /* Colonists */
+    {9, 1},  /* Continental Army */
+    {10, 0}, /* Treasure */
+    {11, 0}, /* Artillery */
+    {12, 0}, /* Wagon Train */
+  };
+  for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+    u.type_index = cases[i].type;
+    if ((int)colony_screen_unit_on_fence(&units, &u) != cases[i].shown) {
+      fprintf(stderr, "fence strip: type %d shown mismatch\n", u.type_index);
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"unit_buyme1_tokens", unit_buyme1_tokens},
     {"unit_building_click_reaches_owned", unit_building_click_reaches_owned},
@@ -2572,6 +2597,7 @@ static const TestCase k_cases[] = {
     {"unit_tile_jobs_menu_lists_all_field_jobs", unit_tile_jobs_menu_lists_all_field_jobs},
     {"unit_tile_jobs_menu_lists_indoor_jobs", unit_tile_jobs_menu_lists_indoor_jobs},
     {"unit_multi_units_pane_roster", unit_multi_units_pane_roster},
+    {"unit_fence_strip_profession_gate", unit_fence_strip_profession_gate},
     {"unit_warehouse_confirm_and_hold_append", unit_warehouse_confirm_and_hold_append},
     {"case_colony_screen_render_workflow", case_colony_screen_render_workflow},
 };
