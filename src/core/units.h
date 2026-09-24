@@ -113,6 +113,9 @@ typedef struct ColonizeUnit {
   int type_index;
   int x;
   int y;
+  /* Runtime DOS tile-chain arrival order. FUN_1427_02ca appends a new tile
+   * arrival; FUN_281f_07e0 reads the chain tail (latest arrival). */
+  uint64_t tile_stack_order;
   /* MP gauge in thirds (UNITS_MP_PER_TILE per plains tile). Euro units: thirds
    * REMAINING. Native units (nation_id >= 4): DOS SPENT byte, counting up to
    * max — go through units_mp_charge / units_move.h helpers, never compare
@@ -180,6 +183,7 @@ typedef struct ColonizeUnitPool {
    * (-1 = none; DOS reorders its unit chain). Was board_first_id. */
   int board_first_slot;
   int next_id;
+  uint64_t next_tile_stack_order;
 } ColonizeUnitPool;
 
 bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names);
@@ -214,6 +218,10 @@ const char* units_equip_role_type_name(
 int units_spawn(ColonizeUnitPool* pool, int type_index, int x, int y);
 /* Spawn even if the tile already has a unit (COL1 stacks / passengers). */
 int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y);
+/* Mark an on-map arrival at the tail of the DOS tile chain. */
+void units_tile_stack_arrive(ColonizeUnitPool* pool, int unit_id);
+/* DOS FUN_281f_07e0: return the latest-arrival unit at (x,y), if any. */
+int units_tile_head_id_at(const ColonizeUnitPool* pool, int x, int y);
 /* Set nation_id and OR owner euro visibility bit (FUN_1427_0992). */
 void units_set_nation(ColonizeUnit* unit, int nation_id);
 

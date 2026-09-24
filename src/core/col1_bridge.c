@@ -487,6 +487,73 @@ static int col1_unit_type_to_runtime(const ColonizeUnitPool* units, uint8_t col1
   return 0;
 }
 
+static bool col1_unit_is_map_tile_record(const ColonizeCol1Save* save, int unit_idx) {
+  if (!save || !save->unit || unit_idx < 0 || unit_idx >= (int)save->head.unit_count) {
+    return false;
+  }
+  const ColonizeCol1Unit* u = &save->unit[unit_idx];
+  return u->x < 200 && u->y < 200 && u->x < save->head.map_size_x &&
+         u->y < save->head.map_size_y;
+}
+
+/*
+ * Col1's normal-tile transport_chain is the DOS tile chain. Preserve its
+ * oldest-to-newest order as runtime arrival order so FUN_281f_07e0 resolves
+ * the same tail after import. The Europe sentinel lanes and their ship/pax
+ * chains do not participate in map tile-head lookup.
+ */
+static bool col1_restore_tile_stack_order(
+  const ColonizeCol1Save* save,
+  ColonizeUnitPool* units,
+  const int* id_by_index
+) {
+  const int count = (int)save->head.unit_count;
+  bool* visited = count > 0 ? calloc((size_t)count, sizeof(bool)) : NULL;
+  if (count > 0 && !visited) {
+    return false;
+  }
+  for (int i = 0; i < count; ++i) {
+    if (!col1_unit_is_map_tile_record(save, i) || visited[i]) {
+      continue;
+    }
+    const int prev = save->unit[i].transport_chain.prev_unit_idx;
+    if (col1_unit_is_map_tile_record(save, prev) && save->unit[prev].x == save->unit[i].x &&
+        save->unit[prev].y == save->unit[i].y) {
+      continue;
+    }
+    int current = i;
+    for (int steps = 0; steps < count; ++steps) {
+      if (!col1_unit_is_map_tile_record(save, current) || visited[current] ||
+          save->unit[current].x != save->unit[i].x ||
+          save->unit[current].y != save->unit[i].y) {
+        break;
+      }
+      visited[current] = true;
+      if (id_by_index && id_by_index[current] >= 0) {
+        units_tile_stack_arrive(units, id_by_index[current]);
+      }
+      const int next = save->unit[current].transport_chain.next_unit_idx;
+      if (!col1_unit_is_map_tile_record(save, next) || save->unit[next].x != save->unit[i].x ||
+          save->unit[next].y != save->unit[i].y) {
+        break;
+      }
+      current = next;
+    }
+  }
+  /* Malformed or old partial chains still get deterministic pool order. */
+  for (int i = 0; i < count; ++i) {
+    if (!col1_unit_is_map_tile_record(save, i) || visited[i]) {
+      continue;
+    }
+    visited[i] = true;
+    if (id_by_index && id_by_index[i] >= 0) {
+      units_tile_stack_arrive(units, id_by_index[i]);
+    }
+  }
+  free(visited);
+  return true;
+}
+
 static int col1_find_ship_root(const ColonizeCol1Unit* units, int count, int start) {
   int i = start;
   /* Walk prev: DOS Europe fleets often chain ship→pax→pax (ship at head). */
@@ -1676,6 +1743,12 @@ bool col1_bridge_apply_w(
     local.imported_units++;
   }
 
+  if (!col1_restore_tile_stack_order(save, units, id_by_index)) {
+    free(id_by_index);
+    free(consumed);
+    COL1_FAIL(err, err_size, "oom tile stack order");
+  }
+
   /* Board passengers via transport chain.
    *
    * col1_find_ship_root walks transport_chain prev/next looking for any sea
@@ -2052,6 +2125,7 @@ static void col1_bridge_sanitize_units_for_dos(
       );
       land->x = dest_x;
       land->y = dest_y;
+      units_tile_stack_arrive(units, land->id);
     }
   }
 }
@@ -2575,14 +2649,21 @@ bool col1_bridge_capture_w(
     const int europe_dockers = europe ? EUROPE_DOCK_MAX : 0;
     const int capacity = live + europe_ships * (1 + EUROPE_SHIP_CARGO_MAX) + europe_dockers;
     ColonizeCol1Unit* neu = NULL;
+    uint64_t* stack_order_by_col1 = NULL;
     if (capacity > 0) {
       neu = calloc((size_t)capacity, sizeof(ColonizeCol1Unit));
       if (!neu) {
         COL1_FAIL(err, err_size, "oom units export");
       }
+      stack_order_by_col1 = calloc((size_t)capacity, sizeof(uint64_t));
+      if (!stack_order_by_col1) {
+        free(neu);
+        COL1_FAIL(err, err_size, "oom unit stack order export");
+      }
     }
     int* runtime_to_col1 = calloc((size_t)(units->next_id + 1), sizeof(int));
     if (!runtime_to_col1) {
+      free(stack_order_by_col1);
       free(neu);
       COL1_FAIL(err, err_size, "oom unit remap");
     }
@@ -2885,6 +2966,7 @@ bool col1_bridge_capture_w(
       dst->transport_chain.next_unit_idx = -1;
       dst->transport_chain.prev_unit_idx = -1;
       runtime_to_col1[src->id] = written;
+      stack_order_by_col1[written] = src->tile_stack_order;
       if (src->id == active_unit_id) {
         active_col1 = written;
       }
@@ -2928,18 +3010,11 @@ bool col1_bridge_capture_w(
     }
 
     /*
-     * bugs.md interop: DOS tile stacks ARE this chain. FUN_1427_02ca (place
-     * unit) appends every unit to its tile's doubly-linked list
-     * (+0x315c next / +0x315e prev) and the whole engine walks it — the
-     * "there are multiple units here" tab, the stack popup, colony troop
-     * lists, ship-passenger pooling. Port-created units carried -1/-1, so
-     * in DOS every one of them looked like a loose single (moveable via the
-     * control queue, invisible as a stack). Rebuild the full per-tile chain
-     * for every on-map unit: land units first in array order, ships last —
-     * which also reproduces the pax0→…→ship shape the passenger wiring
-     * above produced (a land unit on a sea tile is DOS's "aboard", pooled
-     * per tile first-come, exactly the ship-switch quirk). Europe-sentinel
-     * records (x ≥ 200) keep their dedicated lane chains.
+     * bugs.md interop: DOS tile stacks ARE this chain. FUN_1427_02ca appends
+     * arrivals to +0x315c/+0x315e; FUN_1427_0002 follows +0x315c to the tail,
+     * which FUN_281f_07e0 returns as the tile head. Keep runtime arrival
+     * order when exporting so save/load preserves the head in mixed stacks.
+     * Europe-sentinel records (x >= 200) keep their dedicated lane chains.
      */
     {
       bool* chained = calloc((size_t)(written > 0 ? written : 1), sizeof(bool));
@@ -2950,21 +3025,22 @@ bool col1_bridge_capture_w(
           }
           int group[COLONIZE_UNITS_MAX];
           int gn = 0;
-          /* Land units first, ships after (both in array order). */
-          for (int pass = 0; pass < 2; ++pass) {
-            for (int j = i; j < written; ++j) {
-              if (chained[j] || neu[j].x != neu[i].x || neu[j].y != neu[i].y) {
-                continue;
-              }
-              const bool is_ship =
-                neu[j].type >= 0x0d && neu[j].type <= 0x12; /* Caravel..Man-O-War */
-              if ((pass == 0) == is_ship) {
-                continue;
-              }
-              if (gn < COLONIZE_UNITS_MAX) {
-                group[gn++] = j;
-              }
+          for (int j = i; j < written; ++j) {
+            if (chained[j] || neu[j].x != neu[i].x || neu[j].y != neu[i].y) {
+              continue;
             }
+            if (gn >= COLONIZE_UNITS_MAX) {
+              break;
+            }
+            /* Stable insertion sort; zero-order hand-built records retain
+             * their record order, while live arrivals follow the DOS tail. */
+            int at = gn;
+            while (at > 0 && stack_order_by_col1[group[at - 1]] > stack_order_by_col1[j]) {
+              group[at] = group[at - 1];
+              --at;
+            }
+            group[at] = j;
+            ++gn;
           }
           for (int g = 0; g < gn; ++g) {
             chained[group[g]] = true;
@@ -3264,6 +3340,7 @@ bool col1_bridge_capture_w(
     save->head.active_unit = has_active_unit ? (uint16_t)active_col1 : 0xffffu;
     save->head.map_mode = view_pieces_mode ? 1u : 0u;
     save->head.no_unit_selected = has_active_unit ? 0u : 1u;
+    free(stack_order_by_col1);
     free(runtime_to_col1);
   }
 

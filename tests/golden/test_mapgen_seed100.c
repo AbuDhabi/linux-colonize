@@ -253,7 +253,12 @@ int main(void) {
   ai.rng_seed = SEED100_SEED;
   ai.rng = &campaign_rng;
 
-  if (!ai_init_new_game(&ai, err, sizeof(err))) {
+  /* The game binds occupancy before AI setup; exercise the same path so the
+   * temporary generic spawn owner cannot erase DOS's rumour-tile exception. */
+  units_set_occupancy_map(&map);
+  const bool ai_ok = ai_init_new_game(&ai, err, sizeof(err));
+  units_set_occupancy_map(NULL);
+  if (!ai_ok) {
     fprintf(stderr, "ai_init_new_game failed: %s\n", err);
     assets_msg_free(&names);
     map_free(&map);
@@ -261,6 +266,15 @@ int main(void) {
     col1_save_free(&golden);
     col1_save_free(&col1);
     return 1;
+  }
+  /* DOS FUN_1427_02ca leaves the first Inca Brave's rumour spawn tile
+   * unowned. The live occupancy binding must not erase that exception. */
+  if ((map_get_layer3(&map, 10, 25) & 0xf0u) != 0xf0u) {
+    fprintf(
+      stderr, "rumour spawn owner mismatch at (10,25): got=%02x want=f?\n",
+      map_get_layer3(&map, 10, 25)
+    );
+    goto fail;
   }
 
   /* Tribes */

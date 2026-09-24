@@ -390,7 +390,8 @@ Ordered pipeline recovered for the Linux port:
    Full-dispatch planner partial; land `20e6` structurally ported 2026-08-27
    (`port_plan.md` T1.18); deep −0x6790 remains — see [port_plan.md](port_plan.md).
 6. **Indians** — village growth (`FUN_4d56_152e`-style), mid-turn Brave pulse + residual
-   overlays (t1 empty; ~50 on t2–t6); named init burns `ai_native_post_first_brave_burns`.
+   overlays (t1 empty; ~50 on t2–t6); the fitted init burns were removed after
+   restoring `FUN_1427_02ca`'s native rumour-tile owner exception (#849).
    (`FUN_4d56_1816` / quiet `20e6`); meet/trade/raids via `ai_contact_*` (structural;
    human `4528` `@ACTIONS` **Done** P8.8; deep `2820` haggle PARKED).
 7. **King** — partial structural (`ai_king_nation_turn`: tax / declare / REF / war; R6;
@@ -501,4 +502,3 @@ Forest canopy via `map_phys0_forest_sprite_at`; hills/mountains/rivers/resources
 - Resource seed from live game RNG (static map view uses MAPEDIT default seed 100)
 
 Prior VICEROY RAM-buffer / quadrant coast heuristics are **superseded** by MAPEDIT (see [viceroy_tables.md](viceroy_tables.md)).
-

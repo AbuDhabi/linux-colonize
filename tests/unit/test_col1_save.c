@@ -723,6 +723,150 @@ static bool test_port_ext(char* err, size_t err_size) {
   return ok;
 }
 
+static bool test_imported_tile_chain_order(char* err, size_t err_size) {
+  ColonizeCol1Save save;
+  col1_save_init(&save);
+  save.head.map_size_x = 8;
+  save.head.map_size_y = 8;
+  save.head.unit_count = 2;
+  save.head.difficulty = 2;
+  save.head.human_player = 0;
+  save.player[0].control = 0;
+  col1_save_stamp_head(&save.head);
+  if (!col1_save_alloc_sections(&save, err, err_size)) {
+    return false;
+  }
+  memset(save.map.tile, 0, save.map.tile_count);
+  save.unit[0].x = 3;
+  save.unit[0].y = 3;
+  save.unit[0].type = 0;
+  save.unit[0].nation_id = 1; /* low-slot mover */
+  save.unit[0].profession = UNITS_JOB_NONE;
+  save.unit[0].transport_chain.prev_unit_idx = -1;
+  save.unit[0].transport_chain.next_unit_idx = -1;
+  save.unit[1].x = 4;
+  save.unit[1].y = 3;
+  save.unit[1].type = 1;
+  save.unit[1].nation_id = 1; /* destination occupant, newer pool slot */
+  save.unit[1].profession = UNITS_JOB_NONE;
+  save.unit[1].transport_chain.prev_unit_idx = -1;
+  save.unit[1].transport_chain.next_unit_idx = -1;
+
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units.type_count = 23;
+  for (int t = 0; t < units.type_count; ++t) {
+    units.types[t].movement = 1;
+    units.types[t].domain = (t >= 13 && t <= 18) ? COLONIZE_UNIT_DOMAIN_SEA
+                                                 : COLONIZE_UNIT_DOMAIN_LAND;
+    units.types[t].cargo = (t >= 13 && t <= 18) ? 6 : 0;
+  }
+  units_set_occupancy_map(NULL);
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.cargo_count = 16;
+  ColonizeCol1BridgeResult result;
+  if (!col1_bridge_apply_w(
+        &(ColonizeWorld){.units=&units, .colonies=&colonies, .map=&map, .col1=&save,
+                         .col1_ok=true, .europe=&europe},
+        &result, err, err_size
+      )) {
+    col1_save_free(&save);
+    map_free(&map);
+    return false;
+  }
+  const int mover_id = units.units[0].id;
+  const int target_id = units.units[1].id;
+  if (units_tile_head_id_at(&units, 4, 3) != target_id) {
+    snprintf(err, err_size, "imported destination should begin with its sole occupant");
+    col1_save_free(&save);
+    map_free(&map);
+    return false;
+  }
+  if (!units_try_move_w(
+        &(ColonizeWorld){.units=&units, .map=&map}, mover_id, 4, 3
+      )) {
+    snprintf(err, err_size, "low-slot unit failed to join destination stack");
+    col1_save_free(&save);
+    map_free(&map);
+    return false;
+  }
+  ColonizeUnit* mover = units_get(&units, mover_id);
+  ColonizeUnit* target = units_get(&units, target_id);
+  if (mover) {
+    units_set_nation(mover, 2);
+  }
+  mover = units_get(&units, mover_id);
+  if (units_tile_head_id_at(&units, 4, 3) != mover_id || !mover || !target ||
+      mover->nation_id != 2 || target->nation_id != 1 ||
+      mover->tile_stack_order <= target->tile_stack_order) {
+    snprintf(err, err_size, "later mixed-nation arrival should head despite lower pool slot");
+    col1_save_free(&save);
+    map_free(&map);
+    return false;
+  }
+  if (!col1_bridge_capture_w(
+        &(ColonizeWorld){.units=&units, .colonies=&colonies, .map=&map, .col1=&save,
+                         .col1_ok=true, .europe=&europe},
+        1492, 0, 1, 0, 3, 3, 3, 3, -1, false, err, err_size
+      )) {
+    col1_save_free(&save);
+    map_free(&map);
+    return false;
+  }
+  if (save.head.unit_count != 2 || save.unit[0].x != 4 || save.unit[1].x != 4 ||
+      save.unit[1].transport_chain.next_unit_idx != 0 ||
+      save.unit[0].transport_chain.prev_unit_idx != 1) {
+    snprintf(err, err_size, "capture should put the lower-slot later arrival at chain tail");
+    col1_save_free(&save);
+    map_free(&map);
+    return false;
+  }
+
+  ColonizeUnitPool reloaded;
+  memset(&reloaded, 0, sizeof(reloaded));
+  units_reset(&reloaded);
+  reloaded.type_count = units.type_count;
+  memcpy(reloaded.types, units.types, sizeof(reloaded.types));
+  ColonizeWorldMap map2;
+  memset(&map2, 0, sizeof(map2));
+  ColonizeColonyPool colonies2;
+  colonies_init(&colonies2);
+  EuropeScreen europe2;
+  memset(&europe2, 0, sizeof(europe2));
+  europe2.cargo_count = 16;
+  if (!col1_bridge_apply_w(
+        &(ColonizeWorld){.units=&reloaded, .colonies=&colonies2, .map=&map2, .col1=&save,
+                         .col1_ok=true, .europe=&europe2},
+        &result, err, err_size
+      )) {
+    col1_save_free(&save);
+    map_free(&map);
+    map_free(&map2);
+    return false;
+  }
+  const int reloaded_head = units_tile_head_id_at(&reloaded, 4, 3);
+  const ColonizeUnit* roundtrip_head = units_get_const(&reloaded, reloaded_head);
+  if (!roundtrip_head || roundtrip_head->nation_id != 2) {
+    snprintf(err, err_size, "save/load should preserve the moved unit as mixed-stack head");
+    col1_save_free(&save);
+    map_free(&map);
+    map_free(&map2);
+    return false;
+  }
+  units_set_occupancy_map(NULL);
+  col1_save_free(&save);
+  map_free(&map);
+  map_free(&map2);
+  return true;
+}
+
 int main(void) {
   diag_init(0, NULL);
 
@@ -736,6 +880,11 @@ int main(void) {
   if (!test_port_ext(err, sizeof(err))) {
     return 1;
   }
+  if (!test_imported_tile_chain_order(err, sizeof(err))) {
+    fprintf(stderr, "tile-chain order: %s\n", err);
+    return 1;
+  }
+  fprintf(stderr, "Col1 tile-chain arrival order import/export ok\n");
 
   ColonizeCol1Save save;
   if (!build_synthetic(&save, err, sizeof(err))) {

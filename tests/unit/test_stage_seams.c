@@ -147,6 +147,22 @@ static int test_ai_465b_dest_owner(void) {
   if (rc == 0 && ai_465b_dest_owner(&map, &units, 3, 3) != 2) {
     rc = fail("unit-held open tile must read the unit's nation");
   }
+  ColonizeUnit* later = &units.units[1];
+  later->active = true;
+  later->id = 1;
+  later->x = 3;
+  later->y = 3;
+  later->aboard_ship_id = -1;
+  later->nation_id = 3;
+  units_tile_stack_arrive(&units, g->id);
+  units_tile_stack_arrive(&units, later->id);
+  if (rc == 0 && ai_465b_dest_owner(&map, &units, 3, 3) != 3) {
+    rc = fail("mixed stack must use latest arrival's nation");
+  }
+  units_tile_stack_arrive(&units, g->id);
+  if (rc == 0 && ai_465b_dest_owner(&map, &units, 3, 3) != 2) {
+    rc = fail("lower-slot returning unit must become stack head");
+  }
   fx_map_free(&map);
   return rc;
 }

@@ -2117,6 +2117,7 @@ void game_destroy(ColonizeGameState* game) {
   units_set_combat_watch(NULL, NULL);
   units_set_combat_dissolve(NULL, NULL);
   units_set_combat_popup_pump(NULL, NULL);
+  ai_set_native_score_plot(NULL, NULL);
   combat_analysis_set_presenter(NULL, NULL);
   combat_analysis_close(&game->combat_analysis);
   declaration_close(&game->declaration);

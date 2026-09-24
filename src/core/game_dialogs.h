@@ -349,8 +349,8 @@ struct ColonizeGameState {
   bool debug_logs; /* DEBUG menu toggle: diag_info to colonize-linux.log; default off */
   bool debug_show_strategy; /* CHEAT Show Strategy: per-nation top AI goal overlay */
   bool debug_show_colony_sites; /* CHEAT Show Colony Sites: ai_goals_best_found_tile overlay */
-  uint16_t debug_flags_mask; /* CHEAT Debug Info Flags (@OPTIONS, 7 bits); bits 1/3 shadow
-                               * col1.game_options.show_indian_moves/show_foreign_moves */
+  uint16_t debug_flags_mask; /* CHEAT Debug Info Flags (DEBUG.TXT @OPTIONS, DS:0x894);
+                               * separate from Col1 GAME.TXT movement options. */
   int cheat_create_stage; /* CHEAT Create Unit: 0=main @CREATE/@CREATE2, 1=@CSHIP, 2=@FOREIGN (owner pick) */
   int cheat_create_pending_nation; /* Foreign Unit stage: nation picked at @FOREIGN */
   int cheat_unlock_step;   /* 0=expect W, 1=I, 2=N for Alt-WIN */

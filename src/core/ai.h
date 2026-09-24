@@ -57,6 +57,17 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id);
 /* One native nation (4..11): village growth + DOS Brave pulse + contact/raids. */
 void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id);
 
+/* FUN_7a65_0008 at 4d56:1182 plots each accepted 021a direction score. */
+typedef struct AiNativeScoreTile {
+  int x;
+  int y;
+  int score;
+} AiNativeScoreTile;
+typedef void (*AiNativeScorePlotFn)(
+  void* user, const ColonizeUnit* brave, const AiNativeScoreTile* tiles, int count
+);
+void ai_set_native_score_plot(AiNativeScorePlotFn fn, void* user);
+
 /*
  * FUN_4d56_1b3a phases 1 and 3 — the Indian mid-pass that brackets the eight
  * ai_indian_nation_turn calls (phase 2). Call `clear_tables` once before the

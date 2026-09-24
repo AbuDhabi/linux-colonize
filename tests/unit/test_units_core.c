@@ -307,6 +307,68 @@ static int fx_stage2(void) {
   return 0;
 }
 
+static int case_tile_stack_head_tracks_movement(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
+  int sx = -1;
+  int sy = -1;
+  for (int y = 1; y + 1 < map.height && sx < 0; ++y) {
+    for (int x = 1; x + 1 < map.width; ++x) {
+      if (!map_tile_is_land(&map, x, y) || !map_tile_is_land(&map, x + 1, y) ||
+          units_id_at(&pool, x, y) >= 0 || units_id_at(&pool, x + 1, y) >= 0) {
+        continue;
+      }
+      sx = x;
+      sy = y;
+      break;
+    }
+  }
+  if (sx < 0) {
+    fprintf(stderr, "tile-head: no adjacent empty land pair\n");
+    fx_close();
+    return 1;
+  }
+  const int older_id = units_spawn(&pool, colonist, sx, sy);
+  const int later_id = units_spawn(&pool, colonist, sx + 1, sy);
+  ColonizeUnit* older = units_get(&pool, older_id);
+  ColonizeUnit* later = units_get(&pool, later_id);
+  if (older_id < 0 || later_id < 0 || !older || !later) {
+    fprintf(stderr, "tile-head: destination unit spawn failed\n");
+    fx_close();
+    return 1;
+  }
+  if (units_tile_head_id_at(&pool, sx + 1, sy) != later_id) {
+    fprintf(stderr, "tile-head: newest spawn should head destination stack\n");
+    fx_close();
+    return 1;
+  }
+  const int old_slot = (int)(older - pool.units);
+  const int later_slot = (int)(later - pool.units);
+  if (old_slot >= later_slot) {
+    fprintf(stderr, "tile-head: test requires the moving unit's lower pool slot\n");
+    fx_close();
+    return 1;
+  }
+  older->nation_id = later->nation_id = 0;
+  older->moves = units_max_mp(&pool, older_id);
+  if (!units_try_move_w(
+        &(ColonizeWorld){.units=&pool, .map=&map}, older_id, sx + 1, sy
+      )) {
+    fprintf(stderr, "tile-head: older lower-slot unit failed to move onto stack\n");
+    fx_close();
+    return 1;
+  }
+  if (units_tile_head_id_at(&pool, sx + 1, sy) != older_id) {
+    fprintf(stderr, "tile-head: moved unit must become the latest-arrival head\n");
+    fx_close();
+    return 1;
+  }
+  fx_close();
+  fprintf(stderr, "unit_units: tile-stack head follows arrival order\n");
+  return 0;
+}
+
 static int case_starter_fleet(void) {
   if (fx_open() != 0) {
     return 1;
@@ -7139,6 +7201,7 @@ static int case_fountain_of_youth(void) {
 
 static const TestCase k_cases[] = {
   {"starter_fleet", case_starter_fleet},
+  {"tile_stack_head_arrival", case_tile_stack_head_tracks_movement},
   {"starter_discoverer_england", case_starter_discoverer_england},
   {"starter_discoverer_french", case_starter_discoverer_french},
   {"starter_discoverer_ai_english", case_starter_discoverer_ai_english},

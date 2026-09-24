@@ -402,6 +402,38 @@ int units_id_at(const ColonizeUnitPool* pool, int x, int y) {
   return u ? u->id : -1;
 }
 
+void units_tile_stack_arrive(ColonizeUnitPool* pool, int unit_id) {
+  ColonizeUnit* unit = units_get(pool, unit_id);
+  if (!pool || !unit) {
+    return;
+  }
+  /* Zero is the empty/reset sentinel. A 64-bit order keeps long-lived games
+   * from confusing later arrivals with the first tile occupant. */
+  if (pool->next_tile_stack_order == 0) {
+    pool->next_tile_stack_order = 1;
+  }
+  unit->tile_stack_order = pool->next_tile_stack_order++;
+}
+
+int units_tile_head_id_at(const ColonizeUnitPool* pool, int x, int y) {
+  if (!pool) {
+    return -1;
+  }
+  int head_id = -1;
+  uint64_t head_order = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (!units_is_on_map(u) || u->x != x || u->y != y) {
+      continue;
+    }
+    if (head_id < 0 || u->tile_stack_order > head_order) {
+      head_id = u->id;
+      head_order = u->tile_stack_order;
+    }
+  }
+  return head_id;
+}
+
 ColonizeUnit* units_get(ColonizeUnitPool* pool, int unit_id) {
   if (!pool || unit_id < 0) {
     return NULL;

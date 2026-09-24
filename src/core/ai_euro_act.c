@@ -346,6 +346,9 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_europe_exit(struct ai_euro_ac
         const int tel_oy = u->y;
         u->x = hx;
         u->y = hy;
+        if (u->aboard_ship_id < 0 && units_is_on_map(u)) {
+          units_tile_stack_arrive(ctx->units, u->id);
+        }
         units_occupancy_notify_moved(ctx->units, tel_ox, tel_oy, hx, hy);
       }
       ai_euro_sync_aboard_cargo_xy(ctx->units, u);
@@ -958,6 +961,9 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_arrival(struct ai_euro_act_ct
               const int tel_oy = u->y;
               u->x = wx;
               u->y = wy;
+              if (u->aboard_ship_id < 0 && units_is_on_map(u)) {
+                units_tile_stack_arrive(ctx->units, u->id);
+              }
               units_occupancy_notify_moved(ctx->units, tel_ox, tel_oy, wx, wy);
             }
             ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, wx, wy);

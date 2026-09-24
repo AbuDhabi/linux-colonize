@@ -833,6 +833,7 @@ void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
       const int oy = u->y;
       u->x = best->x;
       u->y = best->y;
+      units_tile_stack_arrive(ctx->units, u->id);
       units_occupancy_notify_moved(ctx->units, ox, oy, best->x, best->y);
       continue;
     }

@@ -557,6 +557,7 @@ combat_entry_resolved:
   const int oy = unit->y;
   unit->x = dest_x;
   unit->y = dest_y;
+  units_tile_stack_arrive(pool, unit_id);
   /* Keep passengers' coordinates mirrored to the ship for debugging / unload. */
   for (int i = 0; i < unit->cargo_count; ++i) {
     ColonizeUnit* pax = units_get(pool, unit->cargo_ids[i]);

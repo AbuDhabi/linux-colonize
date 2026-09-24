@@ -720,6 +720,9 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
         const int sy0 = lu->y;
         lu->x = cx[slot];
         lu->y = cy[slot];
+        if (lu->aboard_ship_id < 0 && units_is_on_map(lu)) {
+          units_tile_stack_arrive(ctx->units, lu->id);
+        }
         units_occupancy_notify_moved(ctx->units, sx0, sy0, lu->x, lu->y);
       }
     }
@@ -1429,6 +1432,9 @@ static void ai_king_10f0_disembark(
           const int oy = lu->y;
           lu->x = hx;
           lu->y = hy;
+          if (lu->aboard_ship_id < 0 && units_is_on_map(lu)) {
+            units_tile_stack_arrive(ctx->units, lu->id);
+          }
           units_occupancy_notify_moved(ctx->units, ox, oy, lu->x, lu->y);
         }
       }
