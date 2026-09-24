@@ -132,9 +132,10 @@ literal); layout shared between draw and hit-test via
 
 ### Fence strip / minimap / misc
 
-- Fortification strip is colonist figures only — Artillery excluded
-  (`colony_screen_unit_is_artillery()`) at fence draw + hit-test; the
-  Units tab and People-band outside row correctly keep it.
+- Fortification strip admits only on-tile units with a profession slot
+  (`DS:0x30e[type] >= 0`, FUN_2f2b_11b2 raw 47899-47906). Treasure and
+  Artillery are excluded from fence draw and hit-test; the Units tab and
+  People-band outside row still keep them.
 - Building badge name match: `strstr("Carpenter")` missed "Lumber Mill" —
   upgrades rename buildings; match both.
 - Minimap has a 1px black border exactly on the 73×73 grid box.

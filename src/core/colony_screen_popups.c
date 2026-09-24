@@ -900,7 +900,7 @@ ColonyScreenHitResult colony_screen_hit_test(
     int n = 0;
     for (int i = 0; i < view->outside_unit_count && n < COLONY_OUTSIDE_MAX; ++i) {
       const ColonizeUnit* u = units_get_const(units, view->outside_unit_ids[i]);
-      if (!u || colony_screen_unit_is_artillery(units, u)) {
+      if (!colony_screen_unit_on_fence(units, u)) {
         continue;
       }
       const int sprite = colony_screen_outside_display_sprite(units, u);
@@ -1238,4 +1238,3 @@ void colony_screen_render_w(
     }
   }
 }
-

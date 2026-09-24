@@ -1129,7 +1129,7 @@ static int ai_contact_brave_home_grudge(
 
 /*
  * Per-kind raid chrome for a HUMAN victim (audit AC-27): nine arms that each
- * spelled out the same shape — optional bgm, optional token field, then
+ * spelled out the same shape — optional token field, then
  * either the GAME.TXT tag (when the colony has a name) or a thin line.
  * DOS always fires the per-kind tag for a human victim (0x1b94 @RAIDSTORES /
  * 0x1b9f @RAIDBURN / 0x1ba8 @RAIDSHIP / 0x1bb1 @RAIDGOLD / 0x1bba
@@ -1151,28 +1151,28 @@ static int ai_contact_brave_home_grudge(
  */
 static const AiRaidChrome k_raid_chrome[] = {
   /* @RAIDNOTHING; sound 0x5b = raid repelled (gunfight). */
-  {AI_RAID_NOTHING, "RAIDNOTHING", "", NULL, NULL, 0x5b, 2, AI_RAID_TOK_NONE, 0},
+  {AI_RAID_NOTHING, "RAIDNOTHING", "", NULL, NULL, 0x5b, AI_RAID_TOK_NONE, 0},
   /* @RAIDSHIP */
-  {AI_RAID_SHIP, "RAIDSHIP", "", NULL, NULL, -1, -1, AI_RAID_TOK_SHIP, 0},
+  {AI_RAID_SHIP, "RAIDSHIP", "", NULL, NULL, -1, AI_RAID_TOK_SHIP, 0},
   /* @RAIDGOLD; 0x4d = loot gold. */
-  {AI_RAID_GOLD, "RAIDGOLD", "", NULL, NULL, 0x4d, -1, AI_RAID_TOK_GOLD, 0},
+  {AI_RAID_GOLD, "RAIDGOLD", "", NULL, NULL, 0x4d, AI_RAID_TOK_GOLD, 0},
   /* @RAIDSTORES; 0x4f = loot goods. */
-  {AI_RAID_STORES, "RAIDSTORES", "", NULL, NULL, 0x4f, -1,
+  {AI_RAID_STORES, "RAIDSTORES", "", NULL, NULL, 0x4f,
    AI_RAID_TOK_STORES, 0}
   /* @RAIDBURN thin/named rows live below (they depend on the burned building). */
 };
 
 /* @RAIDBURN, with the destroyed building named. */
 static const AiRaidChrome k_raid_chrome_burn_named = {
-  AI_RAID_BURN, "RAIDBURN", "", NULL, NULL, -1, -1, AI_RAID_TOK_BURN, 1
+  AI_RAID_BURN, "RAIDBURN", "", NULL, NULL, -1, AI_RAID_TOK_BURN, 1
 };
 /* Burn with no named building: port notice. */
 static const AiRaidChrome k_raid_chrome_burn_thin = {
-  AI_RAID_BURN, NULL, NULL, NULL, NULL, -1, -1, AI_RAID_TOK_NONE, 0
+  AI_RAID_BURN, NULL, NULL, NULL, NULL, -1, AI_RAID_TOK_NONE, 0
 };
 /* Generic successful raid chrome when no kind-specific line applies. */
 static const AiRaidChrome k_raid_chrome_generic = {
-  AI_RAID_NOTHING, NULL, NULL, NULL, NULL, -1, -1, AI_RAID_TOK_NONE, 0
+  AI_RAID_NOTHING, NULL, NULL, NULL, NULL, -1, AI_RAID_TOK_NONE, 0
 };
 
 COLONIZE_INTERNAL const AiRaidChrome* ai_contact_raid_chrome_row(AiRaidKind kind, int have_burn_building) {
@@ -1483,11 +1483,13 @@ COLONIZE_INTERNAL void ai_contact_raid_human_chrome(
     raid_tok.string1 = c->name[0] ? c->name : NULL;
     const AiRaidChrome* row =
       ai_contact_raid_chrome_row(kind, ai_contact_s_last_burn_building[0] != '\0');
-    if (row->bgm >= 0) {
-      /* FUN_5fef_0f14 5fef:1299: a wiped-out raid on a human colony
-       * hands the tune pool back to 2; any other outcome pushes the
-       * 0x32 combat sting (5fef:13b2). */
-      sound_set_bgm(row->bgm);
+    /* DOS-LITERAL FUN_5fef_0f14 raw 99901-99908: for a human victim,
+     * kind 0 restores the colony tune pool through FUN_281f_0498(2);
+     * every loot kind queues track 0x32 through FUN_281f_048e. */
+    if (kind == AI_RAID_NOTHING) {
+      sound_set_bgm(2);
+    } else {
+      sound_play(0x32);
     }
     switch (row->tok) {
       case AI_RAID_TOK_SHIP:

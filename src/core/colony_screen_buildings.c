@@ -491,17 +491,14 @@ int colony_screen_outside_display_sprite(
   return sprite;
 }
 
-/* True for Artillery (and other non-colonist land ordnance) — player-caught:
- * the fortification (Stockade/Fort/Fortress) strip drawn on the fence
- * corner is a row of walking colonist figures in DOS, never an artillery
- * piece; Artillery still belongs on-tile (outside_unit_ids) for the Units-
- * Present / Military tab (colony_screen_multi_units_layout, which wants it
- * deliberately), just not on this one strip. */
-bool colony_screen_unit_is_artillery(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+/* DOS-LITERAL FUN_2f2b_11b2 raw 47899-47906: FUN_281f_0b28 ->
+ * FUN_15eb_08e6 admits only DS:0x30e[type] >= 0 to the fence strip.
+ * Treasure and Artillery remain in the on-tile Units Present roster. */
+bool colony_screen_unit_on_fence(const ColonizeUnitPool* units, const ColonizeUnit* u) {
   if (!units || !u) {
     return false;
   }
-  return units_type_is_artillery(units_type(units, u->type_index));
+  return units_type_has_profession_slot(u->type_index);
 }
 
 int colony_screen_multi_units_layout(
@@ -904,7 +901,7 @@ void colony_screen_blit_buildings(
     int selected = -1;
     for (int i = 0; i < view->outside_unit_count && n < COLONY_OUTSIDE_MAX; ++i) {
       const ColonizeUnit* u = units_get_const(units, view->outside_unit_ids[i]);
-      if (!u || colony_screen_unit_is_artillery(units, u)) {
+      if (!colony_screen_unit_on_fence(units, u)) {
         continue;
       }
       const int sprite = colony_screen_outside_display_sprite(units, u);
@@ -1126,4 +1123,3 @@ void colony_screen_draw_transports(
     colony_screen_blit_icon(view, COLONY_ICON_EMPTY_HOLD, framebuffer, x, y);
   }
 }
-

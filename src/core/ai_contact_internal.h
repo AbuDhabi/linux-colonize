@@ -205,7 +205,6 @@ typedef struct AiRaidChrome {
   const char* thin_colony;   /* NULL = always use thin_bare */
   const char* thin_bare;
   int sound;                 /* -1 = silent */
-  int bgm;                   /* -1 = leave the tune pool alone */
   AiRaidTokKind tok;
   int popup_without_colony;
 } AiRaidChrome;

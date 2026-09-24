@@ -15,7 +15,8 @@
  */
 static const uint8_t k_european_names[4] = {12, 9, 14, 13};
 static const uint8_t k_european_fill[4] = {112, 9, 14, 13};
-static const uint8_t k_tribe_colors[8] = {97, 149, 54, 87, 67, 111, 118, 71};
+/* VICEROY.EXE initialized DS:0x848[4..11], read by FUN_112b_01ba. */
+static const uint8_t k_tribe_colors[8] = {15, 149, 54, 11, 67, 111, 117, 71};
 
 /*
  * k_european_fill/k_european_names above are tuned against ICONS.SS's own
