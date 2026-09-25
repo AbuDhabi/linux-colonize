@@ -58,8 +58,9 @@ Independence `0x29..0x2d` (Love Forever … Independence Way), Military `0x2e..0
 (Reveille, Successful Campaign, Morelli's Lesson, To Arms), Indian `0x32,0x33,0x35,0x36`
 (Indian Victory, Natives, Tenochtitlan, Pizarro at Cuzco). `0x28`, `0x34`, `0x37`, `0x3c..0x3f`
 are not in Pick Music (`0x28` is drawn by the Europe pool; `0x3c` picks random patches in its
-handler). The combat cue `0x32` is therefore **Indian Victory**. The title-screen id `0x33`
-(= Natives) is inherited from older notes and unverified.
+handler). The combat cue `0x32` is therefore **Indian Victory**. ID `0x33` (= Natives)
+is dispatched for the Meeting Natives woodcut and Burial Mounds. VICEROY has no
+title-menu dispatch for it; the port's former title uses were removed.
 
 ### DOS BGM scheduler (`FUN_129f_00f6` / `0318` / `02cc`)
 
@@ -122,7 +123,7 @@ overlay-affected `VICEROY.EXE` decompile):
 | `< 0x10` (only 9 entries, ids 0–8) | `0x2A5C` | **Channel reset/silence**, not player-audible content — e.g. id 4's handler resets MIDI channels 6–7 (`CC121`/`CC123` all-notes-off + reset-controllers), id 1's handler mutes two specific voice slots. `sound_play` already treats id 0/1 as "stop" (`src/core/sound.c`). |
 | `0x20..0x3f` songs | `0x2A6E` | Pick Music tracks, situational gameplay tunes, and the `0x34`/`0x3d` opening/closing cues. The mapped combat, LCR, save/load, Europe, colony, and retire cues are wired below; `0x32` is Indian Victory despite the old "Military" nickname. |
 | `0x40..0x5c` "event music" | `0x2AC4` | **Triggers found 2026-08-27** — pushed with the id in **AX** (`mov ax,N; callf FUN_281f_04c0`), which Ghidra drops from the decompile, so the earlier "no confirmed trigger" verdict was a decompiler artifact. Each handler queues a `COLDIG.BIN` sample and starts a short MIDI sting on channels 7/8. Decode + playback + mixing are done; per-id push sites and their port wiring status are in the "COLDIG.BIN" table below. |
-| `0x8020..0x8026` (7 entries) | `0x2AB6` | Short multi-voice MIDI chord stings. Confirmed callers: `0x8020` war declaration and `0x8024` assign colonist, both wired. The apparent literal `0x8025` elsewhere is an unrelated dialog parameter. |
+| `0x8020..0x8026` (7 entries) | `0x2AB6` | Short multi-voice MIDI chord stings. Confirmed callers: `0x8020` war declaration; `0x8024` colony assignment, Europe blessing, mission establishment, and heresy victory. All are wired. The apparent literal `0x8025` elsewhere is an unrelated dialog parameter. |
 
 The three option flags are Background Music (`DS:0xa2`, scheduler), Event Music (`DS:0xa0`,
 `0x20..0x3f` song dispatch), and Sound Effects (`DS:0xa4`, `0x40..0x5c` event dispatch and
@@ -149,26 +150,26 @@ glancing; 18 shot; 20 animal shot; 21 pump-action; 22 gunfight; 23–34 shots (2
 | `0x40`/`0x41` | 31 / 32 | shot | `5fef_1b0e` 5fef:232e-23a7 selects generic attack `0x40` or `0x41` by both units' attack stat; `0x40` also occurs in its loss cue. All are gated by `param_4` (visible). | Generic attack and loss selection ported |
 | `0x42`/`0x48` | 30 / 29 | shots | `5fef_1b0e`: `0x42` is generic attack for a ship or Artillery; `0x48` is a native village's partial-loss cue | Both ported |
 | `0x43`/`0x49` | 27 / 34 | shots | `5fef_1b0e` 5fef:2577-259f attacker-loss cue: `0x43` for ship/attacking Artillery, `0x49` when the defender tile has a native settlement, else `0x40` | Loss selector ported in `units_combat_resolve.c` |
-| `0x44`/`0x45` | 18 / 17 | shot / glancing shot | `5fef_1b0e` 5fef:28b0 tail, gated on `local_6` (set at 5fef:2546: attacker nation ≥ 4, a colony at the defender tile — `281f_07be(x,y)` ≥ 0 — and colony pop > 1 or `local_70 == 0`) + attacker won + visible → `0x44` if the *attacker* is a ship type (`local_86` = `Stack[4]` type in 0xd..0x12, unreachable for Indians) else `0x45` | `units_try_move`: native attacker beating a populated colony defender emits `0x45` after the win cue; the ship-attacker `0x44` arm is dead |
+| `0x44`/`0x45` | 18 / 17 | shot / glancing shot | `5fef_1b0e` 5fef:28b0 native-colony tail selects `0x44` for a ship attacker, otherwise `0x45`; normal native data cannot reach its ship arm. The earlier typed-cue expression can also compute `0x44`. | Both DOS launch expressions for `0x44` are retained, including the normally unreachable tail selector; `0x45` has the same colony/population gate |
 | `0x46`/`0x47` | 16 / 16 | sinking | `5fef_1b0e` 5fef:2292 computes `0x3b + attacker @UNIT row`; rows 11/12 yield these IDs | Same computed dispatch in `units_combat_resolve.c` |
-| `0x4a`/`0x4b` | 28 / 33 | shots | `5fef_1b0e` win; `0x4b` in the native attacker/European colony arm | `units_move.c` win selection (same visibility gate) |
+| `0x4a`/`0x4b` | 28 / 33 | shots | `5fef_1b0e` win; `0x4b` for a temporary defender at a European colony | `units_move.c` win selection with the same visibility and temporary-defender context |
 | `0x4c` | 14 | shooting + galloping | `5fef_1b0e` 5fef:234e-236a selects it as the generic attack cue for attacker @UNIT rows 4, 5, 7, or 8 | Ported in `units_combat_resolve.c` |
-| `0x4d` | 10 | cheering + fireworks | `5fef_0352` 5fef:07db-0803: junction reached from 061c (winner is a ship), 0631, 0722 and the `@ARTILLERY2` popup; when *both* combatants are ship types (0xd..0x12) and the fight is visible → `0x4d`, **before** the damage-flag (5fef:0d0x `0x3148\|0x80`) / sink (`0x57`) / seizure split — a naval-win beat, not a capture; also raid loot | raid loot gold (`ai_contact.c` @RAIDGOLD); **2026-08-29**: `units_apply_naval_loss_outcome` entry (visible) → `0x4d`, ahead of damaged/sunk |
-| `0x4e` | 6 | screaming | `5fef_0f14` raid: colonists killed | @RAIDSCALP (2026-08-29) |
+| `0x4d` | 10 | cheering + fireworks | `5fef_0352` visible naval-win beat; `5fef_0f14` second cue after `0x4b` when a raided ship is lost | Both contexts and the raid cue order are ported |
+| `0x4e` | 6 | screaming | `5fef_0f14` raid gold stolen | @RAIDGOLD |
 | `0x4f` | 11+32 | screaming + shooting | `5fef_0f14` raid loot goods | @RAIDSTORES (2026-08-29) |
 | `0x50`/`0x51` | 7+8 / 5+14 | screaming, burning / screaming, galloping | `5fef_1b0e` 5fef:2271: native attacker @UNIT row 21/22 attacks a human European defender; typed cue precedes the generic attack cue | Ported in `units_combat_resolve.c` |
 | `0x52` | 12 | wagon wheels | `465b_0000` wagon-train move (human) | `game_loop.c` human move success, type "Wagon Train" (2026-08-29) |
-| `0x53` | 19 | burning | `5fef_0f14`/`1b0e` tail: colony burned; `5fef:3063` gates it on the human victim | Colony burned notify, gated on human victim |
-| `0x54` | 13 | hammering + cheering | found colony `479b_076e`; colony screen `2f2b_6cd4` **only when `DS:0x34a >= 0`** (the building that just finished, revealed by clear-bit/redraw/set-bit/redraw); nation EOT `3844` | found colony; colony open **gated** on `ColonizeColony.pending_build_reveal` (2026-08-28 — was every open) |
+| `0x53` | 19 | burning | `4d56_a594` failed heresy; `5fef_0f14` raid burns a building; `5fef_1b0e` burns a colony | All three human-facing contexts ported |
+| `0x54` | 13 | hammering + cheering | found colony `479b_076e`; completed building reveal `2f2b_6cd4`; completed human ship repair `3844_00f2` before `@REFIT` | All three contexts ported; building cue uses `pending_build_reveal` |
 | `0x55` | 20 | animal shot | The typed combat rule cannot reach it, but `OVL13:003dc9` pushes it on the human @CHIEFKILL branch (scout killed by a chief without Coronado) | `ai_contact_actions.c` before @CHIEFKILL |
-| `0x56` | 9 | cheering | `38fd_3dc8` tax raise / tea party | `ai_king.c` @TEAPARTY + raise-taxes popup (2026-08-29) |
+| `0x56` | 9 | cheering | `38fd_3dc8` completed tea party only | `ai_king.c` @TEAPARTY; no-cargo tax raise corrected to DOS `0x3e` |
 | `0x57` | 16 | sinking | `5fef_0352` ship sunk | `units.c` @SHIPSUNK via the combat sound hook (2026-08-29) |
 | `0x58` | 21 | pump-action | fortify / sentry (`2b5a_1112`, `2f2b_5746`); Europe dock buy muskets (`38fd`) | fortify, sentry, buy muskets |
 | `0x59` | — | fireworks cue | `CLOSING.EXE` cinematic frame cue | `closing.c` frame cue |
-| `0x5a` | 15 | cheering + fireworks | `5fef_1908` King's Galleon (via `FUN_281f_04b6`) | galleon credit |
+| `0x5a` | 15 | cheering + fireworks | `CLOSING.EXE` hat-animation frame cue | `closing.c`; former King's Galleon use removed (`5fef_1908` switches to pool 2) |
 | `0x5b` | 22+31 | gunfight | `5fef_0f14` raid repelled | @RAIDNOTHING (2026-08-29) |
 | `0x5c` | 8 | burning | Europe dock buy horses (`38fd`, OVL05 near 3bbe) | `europe_dock.c` buy horses |
-| `0x8020` / `0x8024` | — (chord stings) | | war declaration `5bfb_153e`, assign colonist `2f2b_2f3e` | `ai_diplo_declare_war_ctx` and the three colony-screen assign sites; `gsound_vm.c` dispatches them, and the signed DOS gate forwards them with every option off |
+| `0x8020` / `0x8024` | — (chord stings) | | war declaration; `0x8024` colony job assignment, Europe missionary blessing, mission establishment, and successful heresy | All five contexts ported; the signed DOS gate forwards them with every option off |
 
 **Playback call coverage:** DOS code contains a dispatch path for every one of
 the 29 event IDs `0x40..0x5c`; the port likewise has a dispatch expression for
@@ -229,32 +230,83 @@ Sound Effects option gates both the event dispatch and its PCM part.
 
 ### Trigger parity audit (2026-09-24)
 
-Count **player contexts**, rather than C call statements: one DOS attack site computes
-several IDs from the attacker type, while one port hook services several DOS callers.
-The table above is the per-ID event ledger; the BGM paragraph is the situational cue
-ledger. The remaining source-level comparison is summarized here.
+The audit counts **static launch expressions in player contexts**. Mutually exclusive
+arms of one selector count once for every ID that expression can launch. A shared port
+helper counts once for every corresponding caller context. Runtime totals are naturally
+unbounded because combat, orders, and cinematic loops can repeat.
 
-| Player context | DOS trigger | Port trigger | Result |
-|---|---|---|---|
-| Combat and raids | `5fef_1b0e`, `5fef_0352`, `5fef_0f14` | `units_combat_resolve.c`, `units_move.c`, `units_combat.c`, `ai_contact_raid.c` | Attack cue order/selection, loss cue selection, village partial-loss, burn victim gate, and Indian Raid woodcut trigger/suppression corrected |
-| Movement, settlement, trade | `465b_0000`, `479b_076e`, `2f2b_6cd4`, `48d3_06ba` | `game_loop_orders.c`, `game_dialogs.c`, `game_loop_colony.c`, `europe_harbor.c` | Mapped |
-| King, diplomacy, discovery | `38fd_3dc8`, `43f7_10f0`, `5bfb_153e`, `65dd_0004` | `ai_king_*.c`, `ai_diplo.c`, `units_combat.c` | Mapped; `43f7_1d42` pool-3 arm is unreachable |
-| Woodcut milestones | `12fd_006c` tune switch | `woodcut.c:woodcut_play_tune` | Mapped for reachable IDs 1–13; ID 0 belongs to demo autoplay |
-| Opening and closing executables | `OPENING.EXE` `0x34`; `CLOSING.EXE` `0x3d`, `0x59`, `0x5a` | `opening.c`, `closing.c` | Mapped, including repeating frame cues |
-| Retirement exploits | `41f2_0b70`, `OVL06:3e11-3e2d` | `game_retire_after_score`, Hall of Fame exit | Corrected: tier 0–6 → `0x21`, 7–22 → `0x25`, 23 → `0x24`; title tune starts on return to menu (or immediately if there is no exploits screen) |
+The VICEROY overlay contains 116 calls to the six sound scheduler wrappers: 40 direct
+numeric dispatches (`86b0`), 13 queued songs (`867e`), 18 pool assignments (`8688`),
+37 pool-change/restart calls (`869c`), 7 option-aware pool changes (`86a6`), and one
+pending-pool call (`8692`). Of the 40 direct dispatches, 31 are live event/chord sites,
+8 are live song sites, and one is the optional `364b_0000` popup argument for which all
+callers pass zero. The separate resident woodcut sequencer and OPENING/CLOSING executables
+are also included in the contextual ledger above. Port screen-entry/exit hooks consolidate
+the DOS pool calls that are duplicated across UI branches; each original player context
+still reaches the same pool or explicit song.
 
-The answer to per-effect trigger parity is **no**. A visible native attack on a human
-defender calls the typed cue at `5fef:2271` and a generic cue at `5fef:23a7`
-(unless the Indian Raid woodcut state suppresses the second). The port previously sent
-one cue with the wrong attacker/defender condition; it now sends the usual pair.
-The DOS loss selector at `5fef:259f` (`0x43`/`0x49`/`0x40`) and partial
-village-loss `0x48` are now matched to the corresponding outcomes. The port also
-arms woodcut 13 on a native attack against a human defender. DOS tests the
-once-only Indian Raid woodcut bit before firing it; on later attacks with
-Combat Analysis off, it suppresses the generic cue. The port now matches this
-condition. Exact counts for every effect have not been established by a live DOS
-trace; the static ledger is a context comparison rather than an execution count.
-`SOUND_TITLE_ID=0x33` remains an inherited, unverified title-screen mapping.
+| DOS overlay | All six wrapper calls | Context represented in the port |
+|---|---:|---|
+| OVL02 `2b5a` | 3 | fortify, Pick Music selection/restore |
+| OVL03 `2f2b` | 3 | colony assignment, sentry, completed building |
+| OVL04 `364b`/`3844` | 11 | colony/map transitions, end-turn repair and Crown offer |
+| OVL05 `38fd` | 9 | Europe equipment, blessing, tax audience/tea party |
+| OVL06 `41f2` | 1 | retirement tier tune |
+| OVL07 `43f7` | 12 | Crown/REF screen transitions and intervention |
+| OVL08 `465b` | 3 | move completion and map pool restoration |
+| OVL09 `479b`/`48d3` | 2 | colony founded and treasure cash-in |
+| OVL13 `4d56` | 12 | native contact, chief, mission, and heresy |
+| OVL16 `5bfb` | 11 | first contact and diplomacy transitions |
+| OVL17 `5fef` | 34 | land/naval combat, raids, colony burn, Galleon pool |
+| OVL19 `65dd` | 8 | Lost City Rumour outcomes |
+| OVL27 `75c2` | 7 | load/new-game and top-level screen pools |
+
+The following is the exact non-music launch count after normalizing those shared selectors:
+
+| ID | DOS | Port | Contexts |
+|---|---:|---:|---|
+| `0x40` | 2 | 2 | generic attack selector; ordinary attacker loss |
+| `0x41` | 1 | 1 | generic attack selector |
+| `0x42` | 1 | 1 | artillery/ship generic attack selector |
+| `0x43` | 1 | 1 | artillery/ship attacker loss |
+| `0x44` | 2 | 2 | computed native typed cue; normally unreachable native-ship colony tail |
+| `0x45` | 1 | 1 | native attacker wins at qualifying colony |
+| `0x46` | 1 | 1 | computed typed cue, @UNIT row 11 |
+| `0x47` | 1 | 1 | computed typed cue, @UNIT row 12 |
+| `0x48` | 1 | 1 | native village partial population loss |
+| `0x49` | 1 | 1 | attacker loses at a native village |
+| `0x4a` | 3 | 3 | ordinary win; alternate win branch; final village loss |
+| `0x4b` | 2 | 2 | temporary defender/European colony win; raided ship first cue |
+| `0x4c` | 1 | 1 | mounted-unit generic attack selector |
+| `0x4d` | 2 | 2 | visible naval win; raided ship second cue |
+| `0x4e` | 1 | 1 | raid steals gold |
+| `0x4f` | 1 | 1 | raid steals stores |
+| `0x50` | 1 | 1 | computed native typed cue, @UNIT row 21 |
+| `0x51` | 1 | 1 | computed native typed cue, @UNIT row 22 |
+| `0x52` | 1 | 1 | human Wagon Train move |
+| `0x53` | 3 | 3 | failed heresy; raid burns building; colony burned |
+| `0x54` | 3 | 3 | building complete; ship repair complete; colony founded |
+| `0x55` | 1 | 1 | chief kills scout |
+| `0x56` | 1 | 1 | completed tea party |
+| `0x57` | 1 | 1 | visible ship sunk outcome |
+| `0x58` | 3 | 3 | fortify; sentry; buy muskets |
+| `0x59` | 1 | 1 | closing fireworks frame selector |
+| `0x5a` | 1 | 1 | closing hat frame selector |
+| `0x5b` | 1 | 1 | raid repelled/nothing stolen |
+| `0x5c` | 1 | 1 | buy horses |
+| `0x8020` | 1 | 1 | war declaration involving the human |
+| `0x8024` | 4 | 4 | colony assignment; blessing; mission founded; heresy won |
+
+Thus every DOS event ID `0x40..0x5c` has launch code in both programs, including
+the normally unreachable `0x44` branch, and the static context count for every effect
+matches. This is source-level proof of attempted playback, independent of whether a
+normal campaign can reach a branch or whether the user's sound options allow output.
+
+Corrections made by this audit include the native typed/generic two-cue sequence,
+loss and village selectors, colony capture gate, all five raid outcome mappings,
+mission/heresy cues, drydock `@REFIT`, tea-party-only `0x56`, and removal of menu/title
+`0x33` plus the invented King's Galleon `0x5a`. The Galleon path now performs its actual
+DOS sound operation, pool 2 after the treasure popup.
 
 ## Discovery Order
 

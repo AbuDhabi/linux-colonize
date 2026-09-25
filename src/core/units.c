@@ -1043,7 +1043,6 @@ static void units_king_galleon_credit(
     nat->unknown24_pad[2] = (uint8_t)((cum >> 16) & 0xffu);
     nat->unknown24_pad[3] = (uint8_t)((cum >> 24) & 0xffu);
   }
-  units_play_event_sound(0x5a); /* FUN_5fef_1908: cheering + fireworks (COLDIG 15) */
   if (popups) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
@@ -1068,6 +1067,10 @@ static void units_king_galleon_credit(
     }
     ai_popup_enqueue_ok(popups, AI_POPUP_TAG_INFO, NULL, body);
   }
+  /* FUN_5fef_1908 5fef:1c37: after the treasure popup DOS calls
+   * FUN_281f_04b6(2).  local_5a above is the Crown percentage cap; it is
+   * unrelated to event id 0x5a. */
+  units_set_bgm_pool(2);
   (void)units_despawn(pool, treasure_id);
 }
 
