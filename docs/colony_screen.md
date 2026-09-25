@@ -242,11 +242,15 @@ Per size class (NAMES.TXT `@BUILDING` column 4, 0..4), byte arrays of 5:
 |-------|---|---|---|---|---|------|
 | `DS:0x230` | 23 | 44 | 53 | 73 | 75 | box width |
 | `DS:0x236` | 27 | 22 | 37 | 18 | 48 | box height |
-| `DS:0x23c`/`0x242` | 3,12 | 20,8 | 25,22 | 5,5 | 0,0 | overlay dx,dy |
+| `DS:0x23c`/`0x242` | 3,12 | 20,8 | 25,22 | 5,5 | 0,0 | DOS overlay dx,dy |
 | `DS:0x248` | 17 | 21 | 25 | 65 | 0 | |
 | `DS:0x24e`/`0x254` | −5,−3 | 0,1 | 0,1 | 0,1 | 0,1 | worker-strip dx,dy |
 | `DS:0x25a` | 20 | 22 | 30 | 20 | 20 | strip width |
 | `DS:0x260` | 45 | 44 | 43 | 0 | 46 | empty-slot placeholder sprite |
+
+The port's fence-unit rectangle keeps DOS's class-3 horizontal anchor (+5)
+but uses y+3 for the top-left screen rect: raw y+5 would put the bottom row of
+the 18px strip on the settlement's bottom separator.
 
 Class 3 (73×18) / class 4 (75×48) match `COLONY_FENCE_W/H` /
 `COLONY_COAST_W/H` exactly — that pins the row order. The building sprite

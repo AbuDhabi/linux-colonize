@@ -956,13 +956,36 @@ static int case_colony_screen_render_workflow(void) {
     }
     /* Single icon should sit near the horizontal center of the outside-unit
      * strip. bugs.md #536: the strip is anchored at the fortification slot's
-     * origin + the DOS size-class offset DS:0x23c/0x242[class 3] = (+5,+5),
-     * not at the slot corner itself. */
-    const int strip_x = fence_x + 5;
-    const int strip_y = fence_y + 5;
-    const int mid_x = strip_x + 73 / 2;
+     * origin + the DOS size-class x offset and the port's visible y correction
+     * (DS:0x23c/0x242[class 3] = (+5,+5), with the 18px rect lifted 2px so it
+     * stays above the separator), not at the slot corner itself. */
+    int layout_x[32];
+    int layout_y[32];
+    colony_screen_assign_slot_positions_ex(
+      &pool, col, layout_x, layout_y, NULL, colony_screen_layout_seed(&view)
+    );
+    int strip_x = 0;
+    int strip_y = 0;
+    int strip_w = 0;
+    int strip_h = 0;
+    colony_screen_fence_rect(
+      &view, &pool, col, layout_x, layout_y, &strip_x, &strip_y, &strip_w, &strip_h
+    );
+    if (strip_x != fence_x + 5 || strip_y != fence_y + 3 || strip_w != COLONY_FENCE_W ||
+        strip_h != COLONY_FENCE_H || strip_y + strip_h > COLONY_BOTTOM_SEPARATOR_Y) {
+      fprintf(stderr, "fence unit strip extends below the settlement view\n");
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    const int mid_x = strip_x + strip_w / 2;
     bool outside_centered = false;
-    for (int y = strip_y; y < strip_y + 18 && !outside_centered; ++y) {
+    for (int y = strip_y; y < strip_y + strip_h && !outside_centered; ++y) {
       for (int x = mid_x - 8; x <= mid_x + 8; ++x) {
         if (x >= 0 && x < 320 && pixels[y * 320 + x] != 0) {
           outside_centered = true;
@@ -1020,7 +1043,7 @@ static int case_colony_screen_render_workflow(void) {
     }
     /* Left gutter of fence should not hold the sole unit (old left-align). */
     bool left_gutter = false;
-    for (int y = strip_y; y < strip_y + 18 && !left_gutter; ++y) {
+    for (int y = strip_y; y < strip_y + strip_h && !left_gutter; ++y) {
       for (int x = strip_x; x < strip_x + 4; ++x) {
         if (pixels[y * 320 + x] != 0) {
           left_gutter = true;
