@@ -1518,7 +1518,7 @@ static void game_open_goto_port_picker(ColonizeGameState* game, int uid) {
     if (!map_tile_is_coastal(&game->world_map, c->x, c->y)) {
       continue;
     }
-    str_copy_trunc(bufs[count], sizeof(bufs[count]), c->name[0] ? c->name : "Colony");
+    str_copy_trunc(bufs[count], sizeof(bufs[count]), c->name[0] ? c->name : "");
     labels[count] = bufs[count];
     ids[count] = c->id;
     count++;

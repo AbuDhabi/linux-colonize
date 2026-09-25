@@ -118,7 +118,7 @@ static void europe_push_sale_status(EuropeScreen* eu, int cargo_type, int amount
   const int gross = europe_sell_price(eu, cargo_type) * amount;
   const int tax_paid = gross - net;
   const char* cname =
-    eu->cargo[cargo_type].name[0] ? eu->cargo[cargo_type].name : "cargo";
+    eu->cargo[cargo_type].name[0] ? eu->cargo[cargo_type].name : "";
   snprintf(
     eu->bar_event[eu->bar_event_count],
     EUROPE_BAR_EVENT_LEN,
@@ -182,7 +182,7 @@ static int europe_sell_commit(
   const int held = *hold_amount;
   if (europe_cargo_boycotted_ex(eu, col1, seller_nation, ctype)) {
     const char* bname =
-      (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "That cargo";
+      (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "";
     snprintf(
       eu->status, sizeof(eu->status), "%s is boycotted — cannot trade in Europe.", bname
     );
@@ -201,7 +201,7 @@ static int europe_sell_commit(
     ctype, amt, 0, 1
   );
   const char* cname =
-    (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "cargo";
+    (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "";
   snprintf(eu->status, sizeof(eu->status), "Sold %d %s for %d$.", amt, cname, gained);
   return gained;
 }
@@ -233,10 +233,10 @@ int europe_sell_hold(
     return 0;
   }
   const char* cname =
-    (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "cargo";
+    (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "";
   diag_info(
     "EUROPE sold %d %s from %s: bid=%d tax=%d%% proceeds=%d gold=%d",
-    amt, cname, ship->name[0] ? ship->name : "ship",
+    amt, cname, ship->name[0] ? ship->name : "",
     europe_sell_price(eu, ctype), eu->tax_percent, gained, eu->gold
   );
   return gained;
@@ -271,10 +271,10 @@ int europe_sell_hold_partial(
     return 0;
   }
   const char* cname =
-    (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "cargo";
+    (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "";
   diag_info(
     "EUROPE sold %d/%d %s from %s: bid=%d tax=%d%% proceeds=%d gold=%d",
-    amt, held, cname, ship->name[0] ? ship->name : "ship",
+    amt, held, cname, ship->name[0] ? ship->name : "",
     europe_sell_price(eu, ctype), eu->tax_percent, gained, eu->gold
   );
   return gained;
@@ -480,9 +480,9 @@ int europe_custom_house_autosell_ex_w(
     }
     diag_info(
       "EUROPE customs %s sold %d %s: bid=%d tax=%d%% paid=%d proceeds=%d (nation=%d%s)",
-      colony->name[0] ? colony->name : "colony",
+      colony->name[0] ? colony->name : "",
       amount,
-      (c < eu->cargo_count && eu->cargo[c].name[0]) ? eu->cargo[c].name : "cargo",
+      (c < eu->cargo_count && eu->cargo[c].name[0]) ? eu->cargo[c].name : "",
       price,
       tax,
       tax_paid,
@@ -496,7 +496,7 @@ int europe_custom_house_autosell_ex_w(
   if (total > 0) {
     diag_info(
       "EUROPE customs %s total %d$ (nation=%d, gold=%d)",
-      colony->name[0] ? colony->name : "colony", total, nation, eu->gold
+      colony->name[0] ? colony->name : "", total, nation, eu->gold
     );
   }
   if (total > 0 && nation == human_nation) {
@@ -657,7 +657,7 @@ int europe_ai_colony_dump_sell_w(
   if (total > 0) {
     diag_info(
       "EUROPE dump-sell %s total %d$ (nation=%d, untaxed)",
-      colony->name[0] ? colony->name : "colony", total, nation
+      colony->name[0] ? colony->name : "", total, nation
     );
     snprintf(eu->status, sizeof(eu->status), "AI warehouse dump-sold for %d$.", total);
   }
@@ -703,7 +703,7 @@ int europe_sell_unit_hold_w(
     return 0;
   }
   const char* cname =
-    (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "cargo";
+    (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "";
   diag_info(
     "EUROPE sold %d %s from unit %d: bid=%d tax=%d%% proceeds=%d gold=%d",
     amt, cname, unit_id, europe_sell_price(eu, ctype), eu->tax_percent, gained, eu->gold
@@ -812,7 +812,7 @@ int europe_buy_cargo_w(
     return 0;
   }
   if (europe_cargo_boycotted_ex(eu, col1, buyer_nation, cargo_type)) {
-    const char* cname = eu->cargo[cargo_type].name[0] ? eu->cargo[cargo_type].name : "That cargo";
+    const char* cname = eu->cargo[cargo_type].name[0] ? eu->cargo[cargo_type].name : "";
     snprintf(
       eu->status, sizeof(eu->status), "%s is boycotted — cannot trade in Europe.", cname
     );
@@ -886,7 +886,7 @@ int europe_buy_cargo_w(
   );
   diag_info(
     "EUROPE bought %d %s onto %s: ask=%d cost=%d gold=%d",
-    bought, eu->cargo[cargo_type].name, ship->name[0] ? ship->name : "ship",
+    bought, eu->cargo[cargo_type].name, ship->name[0] ? ship->name : "",
     ask, bought * ask, eu->gold
   );
   return bought;

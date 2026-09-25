@@ -566,7 +566,7 @@ void units_combat_notify_colony_captured(
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = units_combat_nation_label(col1, capturer_nation);
-  tok.string2 = colony->name[0] ? colony->name : "colony";
+  tok.string2 = colony->name[0] ? colony->name : "";
   /* Raw 101015-101029 (FUN_5fef_1b0e capture tail): DOS picks the tag by
    * whether EITHER side is human-controlled (control byte 0), then the WoI
    * bit — @CAPTURED (with plunder) at peace, @CAPTURED3 at war (plunder is
@@ -990,7 +990,7 @@ static int units_demote_combat_type(
         !units_type_is_royal(lt0) && !units_type_is_brave_named(lt0)) {
       const char* was = units_display_name(pool, loser);
       char old_name[48];
-      snprintf(old_name, sizeof(old_name), "%s", was ? was : "Soldier");
+      snprintf(old_name, sizeof(old_name), "%s", was ? was : "");
       if (loser->horses > 0) {
         loser->horses = 0;
       } else {
@@ -1021,7 +1021,7 @@ static int units_demote_combat_type(
     return 0;
   }
   const ColonizeUnitType* old_ty = units_type(pool, loser->type_index);
-  const char* old_name = old_ty && old_ty->name[0] ? old_ty->name : "unit";
+  const char* old_name = old_ty && old_ty->name[0] ? old_ty->name : "";
   loser->type_index = tgt;
   const ColonizeUnitType* nt = units_type(pool, tgt);
   units_sync_equip_after_type_change(loser, nt);
@@ -1040,7 +1040,7 @@ static int units_demote_combat_type(
      * stripped to a colonist body reads "Veteran Soldiers", not "Colonists". */
     const char* new_disp = units_display_name(pool, loser);
     tok.string2 = new_disp && new_disp[0] ? new_disp
-                  : (nt && nt->name[0] ? nt->name : "colonist");
+                  : (nt && nt->name[0] ? nt->name : "");
     units_combat_enqueue_tok(
       AI_POPUP_TAG_COMBAT_DEMOTE,
       "DEMOTE",
@@ -1729,9 +1729,9 @@ const char* units_home_port_name(const ColonizeCol1Save* col1, int nation_id) {
     n = col1 ? (int)col1->head.human_player : g_units_combat_human_nation;
   }
   if (n < 0 || n > 3) {
-    return "Europe";
+    return "";
   }
-  return g_units_homeport[n][0] ? g_units_homeport[n] : "Europe";
+  return g_units_homeport[n][0] ? g_units_homeport[n] : "";
 }
 
 /*
@@ -1777,7 +1777,7 @@ static void units_ship_damaged_to_europe(ColonizeUnitPool* pool, ColonizeUnit* l
   const bool east =
     g_units_fallout_map ? (lose->x >= (int)g_units_fallout_map->width / 2) : true;
   if (europe_enqueue_expected(
-        eu, lose->type_index, lt && lt->name[0] ? lt->name : "Ship", NULL, NULL, 0,
+        eu, lose->type_index, lt && lt->name[0] ? lt->name : "", NULL, NULL, 0,
         lose->hold_goods_type, lose->hold_goods_amount, lose->x, lose->y, east, turns
       )) {
     /* The Europe wait IS the repair (same rule turn_route_damaged_ships
@@ -1847,7 +1847,7 @@ void units_ship_enter_repair(
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = units_combat_nation_label(col1, lose->nation_id);
-    tok.string1 = lt ? lt->name : "Ship";
+    tok.string1 = lt ? lt->name : "";
     tok.string2 =
       (home && home->name[0]) ? home->name : units_home_port_name(col1, lose->nation_id);
     char fb[AI_POPUP_BODY_LEN];
@@ -2043,9 +2043,9 @@ int units_apply_naval_loss_outcome(
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = units_combat_nation_label(col1, lose->nation_id);
-    tok.string1 = lt ? lt->name : "Ship";
+    tok.string1 = lt ? lt->name : "";
     tok.string2 = units_combat_nation_label(col1, win->nation_id);
-    tok.string3 = wt ? wt->name : "Ship";
+    tok.string3 = wt ? wt->name : "";
     char fb[AI_POPUP_BODY_LEN];
     snprintf(
       fb, sizeof(fb), "%s %s sunk by %s %s!", tok.string0, tok.string1, tok.string2, tok.string3
@@ -2124,7 +2124,7 @@ int units_raid_damage_ship(ColonizeUnitPool* pool, int ship_id, const ColonizeCo
       char body[AI_POPUP_BODY_LEN];
       snprintf(
         body, sizeof(body), "%s %s sunk!", units_combat_nation_label(col1, lose->nation_id),
-        lt ? lt->name : "Ship"
+        lt ? lt->name : ""
       );
       (void)ai_popup_enqueue_ok_ctx(
         g_units_combat_popups, AI_POPUP_TAG_COMBAT_SHIP, -1, lose->nation_id, 0, NULL, body

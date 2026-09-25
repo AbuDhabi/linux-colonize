@@ -666,7 +666,7 @@ int europe_buyback_boycott(
   nation->royal_money += cost;
   nation->boycott_bitmap &= (uint16_t)~(1u << cargo_type);
   eu->boycott_bitmap = nation->boycott_bitmap;
-  const char* cname = eu->cargo[cargo_type].name[0] ? eu->cargo[cargo_type].name : "That cargo";
+  const char* cname = eu->cargo[cargo_type].name[0] ? eu->cargo[cargo_type].name : "";
   snprintf(
     eu->status, sizeof(eu->status), "Paid %d$ in back taxes -- boycott on %s lifted.", cost, cname
   );

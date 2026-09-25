@@ -77,7 +77,7 @@ static void turn_emit_inefficient_gov_chrome(
     thresh = 1;
   }
 
-  const char* cname = colony->name[0] ? colony->name : "colony";
+  const char* cname = colony->name[0] ? colony->name : "";
   const char* section = NULL;
   char status_buf[sizeof(europe->status)];
   status_buf[0] = '\0';
@@ -151,7 +151,7 @@ static void turn_emit_sol_phase_d_chrome(
   const char* fallback = NULL;
   char status_buf[sizeof(europe->status)];
   status_buf[0] = '\0';
-  const char* cname = colony->name[0] ? colony->name : "colony";
+  const char* cname = colony->name[0] ? colony->name : "";
   const int had50 = (flags_before & COLONIZE_COLONY_FLAG_SOL_50) != 0;
   const int had100 = (flags_before & COLONIZE_COLONY_FLAG_SOL_100) != 0;
 
@@ -229,7 +229,7 @@ static void turn_emit_sol_phase_d_chrome(
   } else if (europe->nation_name[0]) {
     tok.string1 = europe->nation_name;
   } else {
-    tok.string1 = "Europe";
+    tok.string1 = "";
   }
   tok.number0 = sol_after;
   tok.has_number0 = true;
@@ -323,8 +323,8 @@ void turn_emit_built_chrome(
   char body[AI_POPUP_BODY_LEN];
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
-  tok.string0 = colony->name[0] ? colony->name : "colony";
-  tok.string1 = (built_name && built_name[0]) ? built_name : "building";
+  tok.string0 = colony->name[0] ? colony->name : "";
+  tok.string1 = (built_name && built_name[0]) ? built_name : "";
   popup_msg_fill(messages, "BUILT", &tok, fallback, body, sizeof(body));
   ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
 }
@@ -416,8 +416,8 @@ static void turn_emit_needtools_notice(
   char body[AI_POPUP_BODY_LEN];
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
-  tok.string0 = colony->name[0] ? colony->name : "colony";
-  tok.string1 = (pname && pname[0]) ? pname : "building";
+  tok.string0 = colony->name[0] ? colony->name : "";
+  tok.string1 = (pname && pname[0]) ? pname : "";
   tok.number0 = tools_cost;
   tok.has_number0 = true;
   const char* section = "NEEDTOOLS0";
@@ -972,7 +972,7 @@ void turn_produce_one_colony(
     for (int t = 0; t < n_teach; ++t) {
       const bool tell =
         europe && colony->nation_id == human_nation && turn_report_ok_trained(col1);
-      const char* cname = colony->name[0] ? colony->name : "colony";
+      const char* cname = colony->name[0] ? colony->name : "";
       char body[AI_POPUP_BODY_LEN];
       char fallback[224];
       PopupMsgTokens tok;
@@ -1216,7 +1216,7 @@ void turn_produce_one_colony(
           char body[AI_POPUP_BODY_LEN];
           PopupMsgTokens tok;
           memset(&tok, 0, sizeof(tok));
-          tok.string0 = colony->name[0] ? colony->name : "colony";
+          tok.string0 = colony->name[0] ? colony->name : "";
           popup_msg_fill(
             messages, "NEWCOLONIST", &tok, europe->status, body, sizeof(body)
           );
@@ -1253,7 +1253,7 @@ void turn_produce_one_colony(
         vanish_name,
         sizeof(vanish_name),
         "%s",
-        colony->name[0] ? colony->name : "colony"
+        colony->name[0] ? colony->name : ""
       );
       const int kill_i = colony->colonist_count - 1;
       for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES_MAX; ++ti) {
@@ -1301,7 +1301,7 @@ void turn_produce_one_colony(
           char body[AI_POPUP_BODY_LEN];
           PopupMsgTokens tok;
           memset(&tok, 0, sizeof(tok));
-          tok.string0 = colony->name[0] ? colony->name : "colony";
+          tok.string0 = colony->name[0] ? colony->name : "";
           popup_msg_fill(messages, sec, &tok, europe->status, body, sizeof(body));
           ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
         }
@@ -1344,7 +1344,7 @@ void turn_produce_one_colony(
           char body[AI_POPUP_BODY_LEN];
           PopupMsgTokens tok;
           memset(&tok, 0, sizeof(tok));
-          tok.string0 = colony->name[0] ? colony->name : "colony";
+          tok.string0 = colony->name[0] ? colony->name : "";
           popup_msg_fill(messages, sec, &tok, europe->status, body, sizeof(body));
           ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
         }
@@ -1360,7 +1360,7 @@ void turn_produce_one_colony(
           char body[AI_POPUP_BODY_LEN];
           PopupMsgTokens tok;
           memset(&tok, 0, sizeof(tok));
-          tok.string0 = colony->name[0] ? colony->name : "colony";
+          tok.string0 = colony->name[0] ? colony->name : "";
           tok.number0 = stock;
           tok.has_number0 = true;
           popup_msg_fill(messages, "FOODLOW", &tok, europe->status, body, sizeof(body));
@@ -1486,12 +1486,12 @@ void turn_produce_one_colony(
         char body[AI_POPUP_BODY_LEN];
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
-        tok.string0 = colony->name[0] ? colony->name : "colony";
-        tok.string1 = bt->name[0] ? bt->name : "building";
+        tok.string0 = colony->name[0] ? colony->name : "";
+        tok.string1 = bt->name[0] ? bt->name : "";
         char afb[120];
         snprintf(
           afb, sizeof(afb), "%s already built.",
-          bt->name[0] ? bt->name : "Building"
+          bt->name[0] ? bt->name : ""
         );
         /* Popup only — DOS does not replace the Phase K status line here. */
         popup_msg_fill(messages, "ALREADYHAVE", &tok, afb, body, sizeof(body));
@@ -1682,11 +1682,11 @@ void turn_produce_one_colony(
           line,
           sizeof(line),
           "%s %s %d %s %s %d.",
-          colony->name[0] ? colony->name : "Colony",
+          colony->name[0] ? colony->name : "",
           turn_label("MISC", 47, ""),
           sale->amount,
           cargo_name,
-          turn_label("MISC", 48, "for"),
+          turn_label("MISC", 48, ""),
           sale->gross
         );
         if (n > 0 && n < (int)sizeof(line) && sale->tax_percent > 0) {
@@ -1813,8 +1813,8 @@ void turn_produce_one_colony(
         char body[AI_POPUP_BODY_LEN];
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
-        tok.string0 = where ? where : "colony";
-        tok.string1 = cargo_name && cargo_name[0] ? cargo_name : "goods";
+        tok.string0 = where ? where : "";
+        tok.string1 = cargo_name && cargo_name[0] ? cargo_name : "";
         tok.number0 = spoiled;
         tok.has_number0 = true;
         popup_msg_fill(
@@ -1856,8 +1856,8 @@ void turn_produce_one_colony(
           europe->status,
           sizeof(europe->status),
           "New cargo of %s ready at %s.",
-          cargo_name ? cargo_name : "goods",
-          colony->name[0] ? colony->name : "colony"
+          cargo_name ? cargo_name : "",
+          colony->name[0] ? colony->name : ""
         );
         if (!ai_popups) {
           continue;
@@ -1869,8 +1869,8 @@ void turn_produce_one_colony(
         char body[AI_POPUP_BODY_LEN];
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
-        tok.string0 = colony->name[0] ? colony->name : "colony";
-        tok.string1 = cargo_name ? cargo_name : "cargo";
+        tok.string0 = colony->name[0] ? colony->name : "";
+        tok.string1 = cargo_name ? cargo_name : "";
         tok.number0 = cap > 0 ? cap : after;
         tok.has_number0 = true;
         popup_msg_fill(messages, sec, &tok, europe->status, body, sizeof(body));
@@ -1883,9 +1883,9 @@ void turn_produce_one_colony(
           memset(&ttok, 0, sizeof(ttok));
           ttok.number0 = after;
           ttok.has_number0 = true;
-          ttok.string0 = cargo_name ? cargo_name : "cargo";
-          ttok.string1 = colony->name[0] ? colony->name : "colony";
-          ttok.string2 = europe->nation_name[0] ? europe->nation_name : "Europe";
+          ttok.string0 = cargo_name ? cargo_name : "";
+          ttok.string1 = colony->name[0] ? colony->name : "";
+          ttok.string2 = europe->nation_name[0] ? europe->nation_name : "";
           popup_chrome_ok(ai_popups, messages, "TUTORIAL6", &ttok, europe->status);
         }
       }
@@ -1929,7 +1929,7 @@ void turn_produce_one_colony(
       }
     }
     if (mine_depleted && europe && colony->nation_id == human_nation) {
-      const char* cname = colony->name[0] ? colony->name : "colony";
+      const char* cname = colony->name[0] ? colony->name : "";
       snprintf(europe->status, sizeof(europe->status), "Mine depleted near %s.", cname);
       if (ai_popups) {
         char body[AI_POPUP_BODY_LEN];
@@ -2118,5 +2118,3 @@ void turn_run_colony_production_w(
     }
   }
 }
-
-

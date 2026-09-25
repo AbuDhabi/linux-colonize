@@ -887,12 +887,9 @@ static int pedia_names_int(
  * reports_job_display_name is column 1, "Master Distiller").
  *
  * Audit SC-12 proposed routing both through reports_cargo_display_name /
- * reports_job_short_name. Not done: those read reports.c's OWN NAMES.TXT
- * catalog, which only reports_load() fills — and reports_load bails out before
- * that block when no report background loads (reports.c "no report backgrounds
- * loaded"), while the Pedia is handed game_loop's separate catalog and works
- * without reports at all. The shared part, the row/field walker, is now
- * assets_msg_row_field (SC-11).
+ * reports_job_short_name. The Pedia keeps using the catalog it is explicitly
+ * handed rather than the reports module's process-wide copy; the shared part,
+ * the row/field walker, is assets_msg_row_field (SC-11).
  */
 static void pedia_cargo_display_name(
   const ColonizeMsgCatalog* names, int cargo, char* out, size_t out_size

@@ -477,7 +477,7 @@ bool units_pioneer_work_tick_w(
         char body[AI_POPUP_BODY_LEN];
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
-        tok.string0 = near->name[0] ? near->name : "colony";
+        tok.string0 = near->name[0] ? near->name : "";
         tok.number0 = lumber_add;
         tok.has_number0 = true;
         popup_msg_fill(

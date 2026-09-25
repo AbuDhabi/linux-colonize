@@ -823,7 +823,7 @@ const char* units_enter_reason_status(ColonizeEnterReason reason) {
     return "Landfall";
   case COLONIZE_ENTER_COMBAT_LAND:
   case COLONIZE_ENTER_COMBAT_NAVAL:
-    return "Combat";
+    return "Battle started";
   case COLONIZE_ENTER_BOUNCE_FOREIGN:
     return "Cannot attack (non-combat unit)";
   case COLONIZE_ENTER_BOUNCE_PEACE:
@@ -840,7 +840,7 @@ const char* units_enter_reason_status(ColonizeEnterReason reason) {
   case COLONIZE_ENTER_BOARD:
     return "Boarded ship";
   case COLONIZE_ENTER_VILLAGE_SHIP:
-    return "Village";
+    return "Native settlement entered";
   case COLONIZE_ENTER_LAKE_BLOCKED:
     return "Ship cannot enter lake";
   case COLONIZE_ENTER_LANDFIRST:

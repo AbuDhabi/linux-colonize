@@ -158,8 +158,8 @@ void game_enter_colony(ColonizeGameState* game, int cid) {
   if (col && col->colonist_count > 0) {
     game->colony_screen.selected_colonist = 0;
   }
-  snprintf(game->status, sizeof(game->status), "Entered %s", col ? col->name : "colony");
-  colony_screen_set_status(&game->colony_screen, col ? col->name : "Colony");
+  snprintf(game->status, sizeof(game->status), "Entered %s", col ? col->name : "");
+  colony_screen_set_status(&game->colony_screen, col ? col->name : "");
   game_track_screen(game);
   if (diag_info_enabled() && col) {
     const char* project = "-";
@@ -169,7 +169,7 @@ void game_enter_colony(ColonizeGameState* game, int cid) {
     }
     diag_info(
       "COLONY opened %s (id=%d at (%d,%d) nation=%d pop=%d SoL=%d%% food=%d hammers=%d project=%s)",
-      col->name[0] ? col->name : "colony",
+      col->name[0] ? col->name : "",
       col->id,
       col->x,
       col->y,
@@ -246,7 +246,7 @@ void game_join_colony_order(ColonizeGameState* game) {
     game->status,
     sizeof(game->status),
     "Joined %s",
-    col->name[0] ? col->name : "colony"
+    col->name[0] ? col->name : ""
   );
   game_wait_next_unit(game); /* FUN_281f_0e1c(1) */
 }
@@ -646,7 +646,7 @@ void game_colony_assign_building_drop(ColonizeGameState* game, int building_inde
       game_colony_assign_building_sound(&game->colonies, building_index);
       const ColonizeBuildingType* bt = colonies_building_type(&game->colonies, building_index);
       snprintf(
-        game->status, sizeof(game->status), "Assigned to %s", bt ? bt->name : "building"
+        game->status, sizeof(game->status), "Assigned to %s", bt ? bt->name : ""
       );
     } else {
       game_colony_workplace_refusal(game, ci, building_index);
@@ -882,7 +882,11 @@ void game_colony_commit_job(ColonizeGameState* game, ColonizeColony* colony, int
         "",
         body, sizeof(body)
       );
-      const char* labels[2] = {"Yes", "No"};
+      char choice_buf[2][POPUP_MSG_CHOICE_LEN];
+      const char* labels[2];
+      popup_msg_section_labels(
+        &game->messages, "LOBOTOMIZE", &tok, "", "", choice_buf, labels
+      );
       const int ids[2] = {1, 2};
       if (ai_popup_enqueue_choice_ctx(
             &game->ai_popups, AI_POPUP_TAG_COLONY_CLEARSPEC, ci, 0, 0, NULL, body, labels, ids, 2
@@ -1024,9 +1028,10 @@ bool game_colony_drag_drop(
           memset(&tok, 0, sizeof(tok));
           tok.string0 = (game->europe_ok && ctype >= 0 && ctype < game->europe.cargo_count)
                           ? game->europe.cargo[ctype].name
-                          : "cargo";
-          tok.string1 = "ship";
-          tok.string2 = "ship";
+                          : "";
+          const ColonizeUnit* du = units_get_const(&game->units, dst);
+          tok.string1 = units_display_name(&game->units, su);
+          tok.string2 = du ? units_display_name(&game->units, du) : "";
           tok.number0 = max_amt;
           tok.has_number0 = true;
           popup_msg_fill(
@@ -1093,9 +1098,9 @@ bool game_colony_drag_drop(
           memset(&tok, 0, sizeof(tok));
           tok.string0 = (game->europe_ok && ctype >= 0 && ctype < game->europe.cargo_count)
                           ? game->europe.cargo[ctype].name
-                          : "cargo";
-          tok.string1 = "ship";
-          tok.string2 = colony->name[0] ? colony->name : "the colony";
+                          : "";
+          tok.string1 = units_display_name(&game->units, tu);
+          tok.string2 = colony->name[0] ? colony->name : "";
           tok.number0 = max_amt;
           tok.has_number0 = true;
           popup_msg_fill(
@@ -1259,8 +1264,8 @@ bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my, bool shift) 
           char prompt[AI_POPUP_BODY_LEN];
           PopupMsgTokens tok;
           memset(&tok, 0, sizeof(tok));
-          tok.string0 = (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "cargo";
-          tok.string2 = "the merchants";
+          tok.string0 = (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "";
+          tok.string2 = "dockside buyers";
           tok.number0 = max_amt;
           tok.has_number0 = true;
           tok.number1 = europe_sell_price(eu, ctype);

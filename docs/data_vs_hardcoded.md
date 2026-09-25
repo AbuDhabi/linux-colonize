@@ -240,10 +240,11 @@ literal as a fallback" idiom — a fallback copy is still a copy.
   @MISC 202, and the Indian Adviser's settlement noun = NAMES @LEVELS col 1
   (count 1) / col 2 (plural) by tribe tech (FUN_3f41_010a) — "3 Camps", not a
   fixed "Villages".
-- **Checking**: two scratch detectors were used — exact/field match of code
-  literals against catalog lines, and a 4-word-shingle match that also catches
-  printf-style paraphrases. Both should stay at (near) zero; `strings` on the
-  built binary should show no DOS sentences.
+- **Checking**: `lint_no_catalog_text` runs `strings` on the built game and
+  rejects catalog phrases that have previously regressed into compiled
+  fallbacks. For a broad audit, also compare exact/field literals and 4-word
+  shingles against the catalogs; the built binary should contain no DOS
+  sentences.
 
 Traps met while getting here (do not repeat): blanking literals by pattern
 half-empties key tables and turns `strstr` needles into `""` (always true);

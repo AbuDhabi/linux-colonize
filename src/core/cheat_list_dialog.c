@@ -208,7 +208,7 @@ static bool cheat_list_open_simple_list(
   dlg->width = width;
   dlg->multi_select = false;
   str_copy_trunc(
-    dlg->prompt, sizeof(dlg->prompt), prompt && prompt[0] ? prompt : "Select"
+    dlg->prompt, sizeof(dlg->prompt), prompt && prompt[0] ? prompt : "Choose entry"
   );
   for (int i = 0; i < count; ++i) {
     str_copy_trunc(
@@ -322,12 +322,12 @@ bool cheat_list_open_set_human(CheatListDialog* dlg, const ColonizeMsgCatalog* d
   const ColonizeMsgSection* section = debug_txt ? assets_msg_find(debug_txt, "SETHUMAN") : NULL;
   if (!section) {
     str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), k_fallback_prompt);
-    /* @NATIONALITY rows 0-3 plus this dialog's own fifth "None" row. */
+    /* @NATIONALITY rows 0-3 plus LABELS.TXT @MISC row 3 for no human. */
     for (int i = 0; i < 5; ++i) {
       str_copy_trunc(
         dlg->options[i],
         sizeof(dlg->options[i]),
-        i < 4 ? reports_nation_adjective_display_name(i) : "None"
+        i < 4 ? reports_nation_adjective_display_name(i) : reports_misc_display_word(3, "")
       );
       dlg->option_ids[i] = k_fallback_ids[i];
     }

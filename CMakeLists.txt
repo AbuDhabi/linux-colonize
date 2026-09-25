@@ -357,6 +357,18 @@ endif()
 
 enable_testing()
 
+if(TARGET colonize_linux)
+  add_test(
+    NAME lint_no_catalog_text
+    COMMAND ${CMAKE_COMMAND}
+            -DBINARY=$<TARGET_FILE:colonize_linux>
+            -P ${CMAKE_SOURCE_DIR}/tests/no_catalog_text.cmake
+  )
+  set_tests_properties(lint_no_catalog_text PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  )
+endif()
+
 # ---------------------------------------------------------------------------
 # colonize_add_test(NAME <name> SOURCES <src...>
 #                    [LIBS <lib...>] [INCLUDE_DIRS <dir...>]
@@ -472,7 +484,9 @@ colonize_add_test(NAME smoke_ai_popup
 )
 
 colonize_add_test(NAME smoke_popup_dialogs
-  SOURCES tests/smoke/test_popup_dialogs.c
+  SOURCES
+    tests/smoke/test_popup_dialogs.c
+    tests/common/platform_cursor_stubs.c
   LIBS colonize_core
 )
 

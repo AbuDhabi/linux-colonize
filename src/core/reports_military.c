@@ -197,7 +197,7 @@ static int reports_naval_build_rows(
       r->ship_nation = u->nation_id;
       r->ship_orders = u->orders;
       const ColonizeUnitType* st = units_type(units, u->type_index);
-      r->ship_name = (st && st->name[0]) ? st->name : "Ship";
+      r->ship_name = (st && st->name[0]) ? st->name : "";
       for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX && r->goods_count < COLONIZE_UNIT_CARGO_MAX; ++h) {
         const int amt = u->hold_goods_amount[h];
         const int gtype = u->hold_goods_type[h];
@@ -265,7 +265,7 @@ static int reports_naval_build_rows(
         r->ship_type = s->type_index;
         r->ship_nation = human;
         r->ship_orders = 1;
-        r->ship_name = (st && st->name[0]) ? st->name : (s->name[0] ? s->name : "Ship");
+        r->ship_name = (st && st->name[0]) ? st->name : (s->name[0] ? s->name : "");
         for (int h = 0; h < EUROPE_SHIP_CARGO_MAX && r->goods_count < COLONIZE_UNIT_CARGO_MAX; ++h) {
           const int amt = s->hold_goods_amount[h];
           const int gtype = s->hold_goods_type[h];
@@ -709,7 +709,7 @@ void reports_render_foreign(
     if (r->free_nation) {
       /* @MISC 191 "Free", spliced between the name and the adjective. */
       const char* live = reports_labels_field("MISC", 191);
-      snprintf(line, sizeof(line), " %s", live ? live : "Free");
+      snprintf(line, sizeof(line), " %s", live ? live : "");
       reports_draw_line(
         font, fb, REPORTS_FOREIGN_COL1_X + leader_w, header_y, line, REPORTS_FOREIGN_LEADER_COLOR
       );

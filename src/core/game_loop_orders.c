@@ -687,7 +687,7 @@ bool game_foreign_trade_open(
       {
         const char* nothing_live = reports_labels_field("MISC", 32);
         snprintf(
-          labels_buf[rows], sizeof(labels_buf[rows]), "%s", nothing_live ? nothing_live : "Nothing"
+          labels_buf[rows], sizeof(labels_buf[rows]), "%s", nothing_live ? nothing_live : ""
         );
       }
       labels[rows] = labels_buf[rows];
@@ -816,7 +816,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_native_prompts(
         }
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
-        tok.string0 = col->name[0] ? col->name : "the colony";
+        tok.string0 = col->name[0] ? col->name : "";
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(
           &game->messages, "SCOUTCOLONY", &tok,

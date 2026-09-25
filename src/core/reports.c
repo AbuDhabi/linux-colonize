@@ -89,6 +89,10 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
   }
   reports_free(view);
   reports_init(view);
+  /* Shared display names must not depend on report artwork loading. Other
+   * screens and simulation code use these accessors even when every report
+   * PIK is unavailable. */
+  reports_names_load_catalogs(data_dir);
 
   int ok_count = 0;
   for (int i = 0; i < COLONIZE_REPORT_COUNT; ++i) {
@@ -122,10 +126,6 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
     snprintf(err, err_size, "no report backgrounds loaded");
     return false;
   }
-
-  reports_names_load_catalogs(data_dir);
-
-
   /* Report titles use FONTTINY, not the FONTSMAL body/menu font (golden:
    * religious.png / labor.png — bolder, wider-spaced glyphs). */
   char font_path[512];
@@ -824,4 +824,3 @@ void reports_render_w(
     reports_render_ok_button(font, framebuffer);
   }
 }
-

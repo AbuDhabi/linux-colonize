@@ -1392,7 +1392,7 @@ bool col1_bridge_apply_w(
         /* Legacy-port harbor ship (see comment above): import into the
          * harbor list, passengers/cargo and all, not Bound. */
         if (europe_harbor_push_ex(
-              europe, ti, ut ? ut->name : "Ship", pax_types, pax_profs, pax_n,
+              europe, ti, ut ? ut->name : "", pax_types, pax_profs, pax_n,
               hold_types, hold_amts
             ) &&
             europe->harbor_ships > 0) {
@@ -1403,7 +1403,7 @@ bool col1_bridge_apply_w(
           slot = &europe->bound[europe->bound_ships++];
         }
       } else if (europe_enqueue_expected(
-                   europe, ti, ut ? ut->name : "Ship", pax_types, pax_profs, pax_n,
+                   europe, ti, ut ? ut->name : "", pax_types, pax_profs, pax_n,
                    hold_types, hold_amts, exit_x, exit_y, exit_east, turns
                  )) {
         slot = &europe->expected[europe->expected_ships - 1];
@@ -1419,7 +1419,7 @@ bool col1_bridge_apply_w(
       if (bound && !legacy_harbor) {
         memset(slot, 0, sizeof(*slot));
         slot->type_index = ti;
-        snprintf(slot->name, sizeof(slot->name), "%s", ut ? ut->name : "Ship");
+        snprintf(slot->name, sizeof(slot->name), "%s", ut ? ut->name : "");
         for (int c = 0; c < pax_n; ++c) {
           slot->cargo_types[c] = pax_types[c];
           slot->cargo_professions[c] = pax_profs[c];
@@ -1482,7 +1482,7 @@ bool col1_bridge_apply_w(
             }
           }
           if (europe_harbor_push(
-                europe, ti, ut ? ut->name : "Ship", NULL, 0, hold_types, hold_amts
+                europe, ti, ut ? ut->name : "", NULL, 0, hold_types, hold_amts
               ) &&
               europe->harbor_ships > 0) {
             /* A docked route ship keeps its cursor too — the Europe stop is

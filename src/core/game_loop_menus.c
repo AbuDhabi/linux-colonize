@@ -491,8 +491,7 @@ void game_cheat_toggle_colony_sites(ColonizeGameState* game) {
   set_status(game, "", game->debug_show_colony_sites ? "on" : "off");
 }
 
-/* DEBUG.TXT @TEST rows 0/1 ("^Number of Units = %NUMBER0" / "^Number of
- * Colonies = %NUMBER1"), composed live from the catalog. */
+/* DEBUG.TXT @TEST's two non-directive rows, composed live from the catalog. */
 void game_cheat_test_routine(ColonizeGameState* game) {
   if (!game) {
     return;
@@ -513,18 +512,22 @@ void game_cheat_test_routine(ColonizeGameState* game) {
       }
     }
   }
+  char rows[2][POPUP_MSG_CHOICE_LEN];
+  const ColonizeMsgSection* section =
+    game->debug_txt_ok ? assets_msg_find(&game->debug_txt, "TEST") : NULL;
+  const int row_count = popup_msg_rows(section, rows, 2);
   PopupMsgTokens tok = {0};
   tok.has_number0 = true;
   tok.number0 = units_n;
   const char* rest0;
-  popup_msg_caret_flags(assets_msg_line_or(game->debug_txt_ok ? &game->debug_txt : NULL, "TEST", 0, ""), &rest0);
+  popup_msg_caret_flags(row_count > 0 ? rows[0] : "", &rest0);
   char row0[64] = {0};
   popup_msg_apply_tokens(row0, sizeof(row0), rest0, &tok);
   PopupMsgTokens tok1 = {0};
   tok1.has_number1 = true;
   tok1.number1 = colonies_n;
   const char* rest1;
-  popup_msg_caret_flags(assets_msg_line_or(game->debug_txt_ok ? &game->debug_txt : NULL, "TEST", 1, ""), &rest1);
+  popup_msg_caret_flags(row_count > 1 ? rows[1] : "", &rest1);
   char row1[64] = {0};
   popup_msg_apply_tokens(row1, sizeof(row1), rest1, &tok1);
   char line[80];
@@ -600,7 +603,7 @@ const char* game_trade_europe_label(const ColonizeGameState* game) {
   if (game && game->europe_ok && game->europe.port_city[0]) {
     return game->europe.port_city;
   }
-  return "Europe";
+  return "";
 }
 
 void game_trade_open_editor(ColonizeGameState* game, int route) {
@@ -652,7 +655,7 @@ void game_trade_open_dest_picker(ColonizeGameState* game, int stop_i) {
         !map_tile_is_coastal(&game->world_map, c->x, c->y)) {
       continue;
     }
-    str_copy_trunc(bufs[count], sizeof(bufs[count]), c->name[0] ? c->name : "Colony");
+    str_copy_trunc(bufs[count], sizeof(bufs[count]), c->name[0] ? c->name : "");
     labels[count] = bufs[count];
     ids[count] = c->id;
     count++;
@@ -822,8 +825,8 @@ void game_trade_default_name(
   size_t out_size
 ) {
   const ColonizeColony* c = colonies_get(&game->colonies, dest1);
-  const char* cname = (c && c->name[0]) ? c->name : "Trade";
-  const char* word = "Run";
+  const char* cname = (c && c->name[0]) ? c->name : "";
+  const char* word = "";
   char word_buf[COLONIZE_MSG_LINE_LEN];
   const ColonizeMsgSection* sec = assets_msg_find(&game->messages, "TRADENAMES");
   if (sec && sec->line_count > 1) {
@@ -1118,7 +1121,8 @@ void game_open_save_load(ColonizeGameState* game, SaveLoadMode mode) {
  * dialog engine (FUN_281f_0998), not the status bar. GAME.TXT @SAVEGOOD /
  * @SAVEERROR / @LOADGOOD / @LOADNOT / @LOADOLD / @LOADSIZE / @LOADERROR all
  * take %STRING0 = the "COLONY##.SAV" slot filename; @SAVEGOOD additionally
- * takes %STRING1 = "Game". col1_save_validate_head's fixed error text
+ * takes an executable-side noun in %STRING1. The port deliberately uses its
+ * own wording there. col1_save_validate_head's fixed error text
  * ("is not a valid save file" / "is an obsolete save file" / "does not
  * match the current map size", mirroring FUN_75c2_0840) tells LOADNOT /
  * LOADOLD / LOADSIZE apart; any other read failure (missing file, I/O
@@ -1170,7 +1174,7 @@ void game_apply_save_load_result(ColonizeGameState* game) {
       game->game_year
     );
     diag_info("Save succeeded for COLONY%02d (turn %u)", slot, game->turn_number);
-    game_show_save_load_popup(game, "SAVEGOOD", filename, "Game");
+    game_show_save_load_popup(game, "SAVEGOOD", filename, "Campaign");
     return;
   }
 

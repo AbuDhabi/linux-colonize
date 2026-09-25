@@ -510,7 +510,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
         if (promoted > 0 && ctx->status && ctx->status_size) {
           PopupMsgTokens status_tok;
           memset(&status_tok, 0, sizeof(status_tok));
-          status_tok.string0 = c->name[0] ? c->name : "our colony";
+          status_tok.string0 = c->name[0] ? c->name : "";
           if (promoted == 1) {
             status_tok.string1 = promoted_from;
             popup_msg_fill(ctx->messages, "MOBILIZE", &status_tok, "",
@@ -529,7 +529,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
         if (promoted > 0 && ai_king_human_popups(ctx)) {
           PopupMsgTokens tok;
           memset(&tok, 0, sizeof(tok));
-          tok.string0 = c->name[0] ? c->name : "our colony";
+          tok.string0 = c->name[0] ? c->name : "";
           char body[AI_POPUP_BODY_LEN];
           if (promoted == 1) {
             /* DOS 1eca %STRING1 = the promoted unit's pre-promote type name
@@ -911,7 +911,7 @@ static AiKingWoiEndStatus ai_king_woi_end_lose(struct ai_king_woi_end_ctx* w) {
   const int exile_nation = ai_king_intervention_nation_slot(ctx, human, 0);
   const char* exile = (exile_nation >= 0 && exile_nation < 4)
                         ? reports_nation_country_name(exile_nation)
-                        : "Europe";
+                        : "";
   if (colonies <= 0) {
     ai_king_emit_loss(ctx, "LOSING2", "", human, crown, country, leader, exile);
     return AI_KING_WOI_END_DONE;

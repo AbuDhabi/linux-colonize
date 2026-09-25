@@ -104,8 +104,7 @@ const char* reports_background_name(ColonizeReportId id);
  * Founding Father / job-expert / cargo / tribe / nation-adjective / tribe-
  * tech-level display name by index. Live from NAMES.TXT (@FATHERS / @JOB /
  * @CARGO / @TRIBES / @NATIONALITY / @LEVELS) after a successful
- * reports_load; falls back to a hand-typed static table otherwise (no
- * assets loaded, e.g. tests).
+ * reports_load; returns the empty string when the catalog/row is unavailable.
  */
 void reports_names_load_catalogs(const char* data_dir);
 const char* reports_ff_display_name(int idx);
@@ -133,7 +132,7 @@ const char* reports_tribe_level_display_name(uint8_t tech);
  *   dock type    @UNIT 0..5       Colonists / Soldiers / Pioneers /
  *                                 Missionaries / Dragoons / Scouts
  *
- * Out-of-range returns "" (difficulty: "?", tribe: "Tribe"), never NULL.
+ * Out-of-range returns "", never NULL.
  */
 const char* reports_nation_country_name(int nation);
 const char* reports_home_port_name(int nation);

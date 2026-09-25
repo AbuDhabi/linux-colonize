@@ -918,7 +918,7 @@ bool units_despawn_ship_with_cargo(
   }
   if (out_name && out_name_size > 0) {
     const ColonizeUnitType* type = units_type(pool, ship->type_index);
-    snprintf(out_name, out_name_size, "%s", type ? type->name : "Ship");
+    snprintf(out_name, out_name_size, "%s", type ? type->name : "");
   }
   if (out_cargo_types && out_cargo_count && cargo_max > 0) {
     *out_cargo_count = units_export_cargo_types(pool, ship_id, out_cargo_types, cargo_max);
@@ -1081,7 +1081,7 @@ const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit*
     }
   }
   const ColonizeUnitType* ut = pool ? units_type(pool, ti) : NULL;
-  return (ut && ut->name[0]) ? ut->name : "Unit";
+  return (ut && ut->name[0]) ? ut->name : "";
 }
 
 /*

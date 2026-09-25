@@ -224,7 +224,7 @@ void colonies_emit_full_chrome(
   if (!ai_popups || !colony || !colony->active) {
     return;
   }
-  const char* cname = colony->name[0] ? colony->name : "colony";
+  const char* cname = colony->name[0] ? colony->name : "";
   char body[AI_POPUP_BODY_LEN];
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
@@ -242,9 +242,9 @@ void colonies_emit_already_have_chrome(
   if (!ai_popups || !colony || !colony->active) {
     return;
   }
-  const char* cname = colony->name[0] ? colony->name : "colony";
+  const char* cname = colony->name[0] ? colony->name : "";
   const char* bname =
-    (building_name && building_name[0]) ? building_name : "building";
+    (building_name && building_name[0]) ? building_name : "";
   const bool warehouse_exp = (colonies_building_name_row(bname) == COLONY_BUILDING_WAREHOUSE_EXPANSION);
   const char* section = warehouse_exp ? "NOMOREWAREHOUSE" : "ALREADYHAVE";
   char body[AI_POPUP_BODY_LEN];
@@ -999,4 +999,3 @@ int colonies_best_load_cargo(const ColonizeColony* colony) {
   }
   return best;
 }
-

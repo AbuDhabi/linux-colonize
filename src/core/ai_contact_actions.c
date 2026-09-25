@@ -1176,7 +1176,7 @@ static void ai_contact_demand_tribute(
         tok.number0 = qty;
         tok.has_number0 = true;
         tok.string2 = ai_contact_cargo_name(good);
-        tok.string3 = c ? c->name : "your colony";
+        tok.string3 = c ? c->name : "";
         fb[0] = '\0';
         popup_msg_fill(ctx->messages, "EXTORTSTUFF", &tok, fb, body, sizeof(body));
         ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Tribute", body);

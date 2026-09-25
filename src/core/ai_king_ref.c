@@ -320,7 +320,7 @@ COLONIZE_INTERNAL void ai_king_0982_purge_tile(ColonizeTurnContext* ctx, int cro
       if (!water || sea) {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
-        tok.string0 = t ? t->name : "unit";
+        tok.string0 = t ? t->name : "";
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(
           ctx->messages, water ? "SEIZURESEA" : "SEIZURELAND", &tok,
@@ -564,7 +564,7 @@ static void ai_king_ref_tory_uprising(ColonizeTurnContext* ctx, int crown, int h
   if (ai_king_human_popups(ctx)) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
-    tok.string0 = c->name[0] ? c->name : "our colony";
+    tok.string0 = c->name[0] ? c->name : "";
     char body[AI_POPUP_BODY_LEN];
     char fallback[AI_POPUP_BODY_LEN];
     snprintf(fallback, sizeof(fallback),
@@ -956,7 +956,7 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
         /* @INVASION (thin 1528 announce; VGA chrome PARKED). */
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
-        tok.string0 = c->name[0] ? c->name : "your colony";
+        tok.string0 = c->name[0] ? c->name : "";
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(ctx->messages, "INVASION", &tok, "", body, sizeof(body));
         if (ctx->status && ctx->status_size) {

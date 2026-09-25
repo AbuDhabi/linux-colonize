@@ -1,11 +1,13 @@
 #include "core/ai_popup.h"
 #include "core/assets.h"
+#include "core/game_loop_internal.h"
 #include "core/howmuch_dialog.h"
 #include "core/name_entry_dialog.h"
 #include "core/options_dialog.h"
 #include "core/popup_msg.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "../common/test_runner.h"
@@ -217,6 +219,104 @@ static int case_recruitchoose_width(void) {
   return 0;
 }
 
+static int case_game_confirmation_catalog_choices(void) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game) {
+    return fail("allocate game state");
+  }
+  assets_msg_init(&game->messages);
+  ai_popup_init(&game->ai_popups);
+  if (!assets_msg_load_file(&game->messages, "COLONIZE/GAME.TXT")) {
+    free(game);
+    return fail("load GAME.TXT for confirmations");
+  }
+
+  const ColonizeMsgSection* sail = assets_msg_find(&game->messages, "SAILAWAY");
+  char expected[2][POPUP_MSG_CHOICE_LEN];
+  if (popup_msg_choices(sail, expected, 2) != 2) {
+    assets_msg_free(&game->messages);
+    free(game);
+    return fail("SAILAWAY choices missing from catalog");
+  }
+  game_enqueue_yes_no(
+    game, GAME_MAP_CONFIRM_EUROPE_SAIL, 0, "SAILAWAY", "", NULL
+  );
+  if (game->ai_popups.queue_count != 1 ||
+      strcmp(game->ai_popups.queue[0].choices[0], expected[0]) != 0 ||
+      strcmp(game->ai_popups.queue[0].choices[1], expected[1]) != 0) {
+    assets_msg_free(&game->messages);
+    free(game);
+    return fail("confirmation must preserve section-specific choice rows");
+  }
+
+  ai_popup_clear(&game->ai_popups);
+  game_enqueue_yes_no(
+    game, GAME_MAP_CONFIRM_OVERBOARD, 0, "OVERBOARD", "", NULL
+  );
+  if (game->ai_popups.queue_count != 1 ||
+      game->ai_popups.queue[0].choices[0][0] == '\0' ||
+      game->ai_popups.queue[0].choices[1][0] == '\0') {
+    assets_msg_free(&game->messages);
+    free(game);
+    return fail("choice-less OVERBOARD needs port-authored action labels");
+  }
+
+  assets_msg_free(&game->messages);
+  free(game);
+  return 0;
+}
+
+static int case_debug_test_ignores_directives(void) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game) {
+    return fail("allocate debug game state");
+  }
+  assets_msg_init(&game->debug_txt);
+  if (!assets_msg_load_file(&game->debug_txt, "COLONIZE/DEBUG.TXT")) {
+    free(game);
+    return fail("load DEBUG.TXT");
+  }
+  game->debug_txt_ok = true;
+  game->units_ok = true;
+  game->colonies_ok = true;
+  game->units.units[0].active = true;
+  game->units.units[3].active = true;
+  game->colonies.colonies[0].active = true;
+
+  game_cheat_test_routine(game);
+
+  const ColonizeMsgSection* test = assets_msg_find(&game->debug_txt, "TEST");
+  char rows[2][POPUP_MSG_CHOICE_LEN];
+  if (popup_msg_rows(test, rows, 2) != 2) {
+    assets_msg_free(&game->debug_txt);
+    free(game);
+    return fail("DEBUG @TEST content rows missing");
+  }
+  PopupMsgTokens tok0 = {.number0 = 2, .has_number0 = true};
+  PopupMsgTokens tok1 = {.number1 = 1, .has_number1 = true};
+  const char* text0;
+  const char* text1;
+  popup_msg_caret_flags(rows[0], &text0);
+  popup_msg_caret_flags(rows[1], &text1);
+  char row0[64];
+  char row1[64];
+  char expected[160];
+  popup_msg_apply_tokens(row0, sizeof(row0), text0, &tok0);
+  popup_msg_apply_tokens(row1, sizeof(row1), text1, &tok1);
+  snprintf(expected, sizeof(expected), "%s; %s", row0, row1);
+  if (strcmp(game->status, expected) != 0 || strchr(game->status, '@') != NULL) {
+    fprintf(stderr, "smoke_popup_dialogs: DEBUG @TEST got '%s' want '%s'\n",
+            game->status, expected);
+    assets_msg_free(&game->debug_txt);
+    free(game);
+    return fail("DEBUG @TEST directive shifted its text rows");
+  }
+
+  assets_msg_free(&game->debug_txt);
+  free(game);
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"token_apply", case_token_apply},
     {"howmuch", case_howmuch},
@@ -224,6 +324,8 @@ static const TestCase k_cases[] = {
     {"name_entry", case_name_entry},
     {"game_txt_wired_sections", case_game_txt_wired_sections},
     {"recruitchoose_width", case_recruitchoose_width},
+    {"game_confirmation_catalog_choices", case_game_confirmation_catalog_choices},
+    {"debug_test_ignores_directives", case_debug_test_ignores_directives},
 };
 
 TEST_MAIN(k_cases)

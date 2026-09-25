@@ -233,7 +233,7 @@ void ai_king_merc_offer(ColonizeTurnContext* ctx) {
      */
     const int seller = ai_king_intervention_nation_slot(ctx, human, 1);
     const char* seller_name =
-      (seller >= 0 && seller < 4) ? reports_nation_country_name(seller) : "Europe";
+      (seller >= 0 && seller < 4) ? reports_nation_country_name(seller) : "";
     tok.string0 = seller_name;
     /*
      * %STRING1 is a COMPOSED LIST, not one word. DOS builds it in a local

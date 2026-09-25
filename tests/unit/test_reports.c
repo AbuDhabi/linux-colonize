@@ -1,5 +1,8 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "core/col1_save.h"
 #include "core/reports.h"
@@ -145,9 +148,9 @@ static int case_report_titles(void) {
       return 1;
     }
   }
-  /* Out-of-range id still falls back safely. */
-  if (strcmp(reports_title((ColonizeReportId)999), "REPORT") != 0) {
-    fprintf(stderr, "reports_title out-of-range should return \"REPORT\"\n");
+  /* Out-of-range is an empty catalog miss, never compiled wording. */
+  if (reports_title((ColonizeReportId)999)[0] != '\0') {
+    fprintf(stderr, "reports_title out-of-range should return empty text\n");
     return 1;
   }
   return 0;
@@ -915,8 +918,7 @@ static int case_foreign_affairs_golden(void) {
   return 0;
 }
 
-/* After free (no assets loaded), names must still resolve — the
- * hand-typed static table fallback, not a stale/dangling live pointer.
+/* After free, names must be empty rather than stale/dangling.
  *
  * reports_ff_display_name() & co. read module-level globals in
  * reports_names.c (g_reports_names/g_reports_labels), not per-view state,
@@ -964,6 +966,66 @@ static int case_post_free_fallback(void) {
   return rc;
 }
 
+static int copy_test_file(const char* src, const char* dst) {
+  FILE* in = fopen(src, "rb");
+  FILE* out = in ? fopen(dst, "wb") : NULL;
+  if (!in || !out) {
+    if (in) fclose(in);
+    if (out) fclose(out);
+    return 1;
+  }
+  char buf[4096];
+  size_t n;
+  int rc = 0;
+  while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
+    if (fwrite(buf, 1, n, out) != n) {
+      rc = 1;
+      break;
+    }
+  }
+  if (ferror(in)) rc = 1;
+  fclose(in);
+  if (fclose(out) != 0) rc = 1;
+  return rc;
+}
+
+static int case_names_survive_missing_report_art(void) {
+  char dir[128];
+  char names_path[160];
+  char labels_path[160];
+  snprintf(dir, sizeof(dir), "/tmp/colonize-report-text-%ld", (long)getpid());
+  snprintf(names_path, sizeof(names_path), "%s/NAMES.TXT", dir);
+  snprintf(labels_path, sizeof(labels_path), "%s/LABELS.TXT", dir);
+  if (mkdir(dir, 0700) != 0 ||
+      copy_test_file("COLONIZE/NAMES.TXT", names_path) != 0 ||
+      copy_test_file("COLONIZE/LABELS.TXT", labels_path) != 0) {
+    unlink(names_path);
+    unlink(labels_path);
+    rmdir(dir);
+    return 1;
+  }
+
+  ColonizeReportsView view;
+  memset(&view, 0, sizeof(view));
+  char err[256];
+  const bool art_loaded = reports_load(&view, dir, err, sizeof(err));
+  const int rc = art_loaded || reports_ff_display_name(0)[0] == '\0';
+  if (rc) {
+    fprintf(stderr, "text-only reports load: art=%d name='%s' err='%s'\n",
+            art_loaded ? 1 : 0, reports_ff_display_name(0), err);
+  }
+  reports_free(&view);
+  unlink(names_path);
+  unlink(labels_path);
+  rmdir(dir);
+
+  /* Restore the process-wide catalogs for arbitrary test ordering. */
+  if (load_g_view() != 0) {
+    return 1;
+  }
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"cargo_names_no_alias", case_cargo_names_no_alias},
   {"report_backgrounds", case_report_backgrounds},
@@ -984,6 +1046,7 @@ static const TestCase k_cases[] = {
   {"congress_ff_bitmask", case_congress_ff_bitmask},
   {"indian_tribe_listed_gate", case_indian_tribe_listed_gate},
   {"foreign_affairs_golden", case_foreign_affairs_golden},
+  {"names_survive_missing_report_art", case_names_survive_missing_report_art},
   {"post_free_fallback", case_post_free_fallback},
 };
 
