@@ -2087,9 +2087,9 @@ static void ai_talk_peace_offer(ColonizeTurnContext* ctx) {
     k->stage = AI_TALK_ST_PEACEMENU;
     return;
   }
-  static const char* const yn[2] = {"Yes", "No"};
+  static const char* const no_fallback[2] = {"", ""};
   k->stage = AI_TALK_ST_WORTHY;
-  ai_talk_choice(ctx, "WORTHY", &tok, "", yn, 2, AI_TALK_ST_WORTHY);
+  ai_talk_choice(ctx, "WORTHY", &tok, "", no_fallback, 2, AI_TALK_ST_WORTHY);
 }
 
 /* ai_talk_advance is a state machine over Ai153eTalk stages; each stage below

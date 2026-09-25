@@ -279,7 +279,7 @@ static void map_panel_terrain_name(
   } else if (pedia_index == 28) {
     line = map_panel_section_line(names, "OTHER", 4);
   }
-  assets_msg_csv_field(line ? line : "Unknown", 0, out, out_size);
+  assets_msg_csv_field(line ? line : "", 0, out, out_size);
   if (pedia_index >= 8 && pedia_index <= 15 && out[0]) {
     /* FUN_281f_01e6 appends the shared @OTHER_NAMES row 0 suffix after the
      * @FORESTED stem. NAMES stores "Tropical" + "Forest" separately; the
@@ -312,7 +312,7 @@ static void map_panel_terrain_name_at(
 ) {
   if (map && map_tile_is_lake(map, x, y)) {
     const char* lake = map_panel_section_line(labels, "MISC", 40);
-    snprintf(out, out_size, "%s", (lake && lake[0]) ? lake : "Lake");
+    snprintf(out, out_size, "%s", lake ? lake : "");
     return;
   }
   map_panel_terrain_name(names, pedia_index, out, out_size);
@@ -322,7 +322,7 @@ static void map_panel_resource_name(
   const ColonizeMsgCatalog* names, int resource_type, char* out, size_t out_size
 ) {
   const char* line = map_panel_section_line(names, "RESOURCE", resource_type);
-  assets_msg_csv_field(line ? line : "Resource", 0, out, out_size);
+  assets_msg_csv_field(line ? line : "", 0, out, out_size);
 }
 
 /* @TRIBES field 1, the singular tribe word ("Inca") the sidebar names one
@@ -331,7 +331,7 @@ static void map_panel_resource_name(
 static const char* map_panel_tribe_short(int nation_id) {
   const int idx = nation_id - 4;
   if (idx < 0 || idx >= 8) {
-    return "Native";
+    return "";
   }
   return reports_tribe_singular_name(idx);
 }
@@ -352,7 +352,11 @@ static const char* map_panel_euro_country(
   if (nation_id >= 0 && nation_id < 4) {
     return reports_nation_country_name(nation_id);
   }
-  return "European";
+  return "";
+}
+
+static void map_panel_parenthesized(char* out, size_t out_size, const char* word) {
+  snprintf(out, out_size, word && word[0] ? "(%s)" : "%s", word ? word : "");
 }
 
 
@@ -710,7 +714,7 @@ static const char* map_panel_nationality(int nation_id) {
  */
 static const char* map_panel_unit_type_name(const ColonizeUnitPool* units, const ColonizeUnit* u) {
   const char* n = (units && u) ? units_display_name(units, u) : NULL;
-  return (n && n[0]) ? n : "Unit";
+  return (n && n[0]) ? n : "";
 }
 
 /* NAMES.TXT @CARGO name, for the Pioneers tool line (DS:0x97dc). */
@@ -1504,7 +1508,10 @@ void map_panel_render_w(
       info_y < map->height) {
     char line[72];
     if (!tile_seen) {
-      map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(Unexplored)", MAP_PANEL_COL_TEXT);
+      map_panel_parenthesized(
+        line, sizeof(line), map_panel_section_line(names, "OTHER_NAMES", 4)
+      );
+      map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
     } else {
       {
         char tname[40];
@@ -1512,32 +1519,47 @@ void map_panel_render_w(
           names, labels, map, info_x, info_y,
           map_pedia_terrain_index_at(map, info_x, info_y), tname, sizeof(tname)
         );
-        snprintf(line, sizeof(line), "(%s)", tname);
+        map_panel_parenthesized(line, sizeof(line), tname);
         map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
       }
 
       if (map_panel_tile_flag(map, col1, info_x, info_y, map_tile_is_plowed, 0x40u)) {
-        map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(Plowed)", MAP_PANEL_COL_TEXT);
+        map_panel_parenthesized(
+          line, sizeof(line), map_panel_section_line(labels, "MISC", 83)
+        );
+        map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
       }
       if (map_panel_tile_flag(map, col1, info_x, info_y, map_tile_has_road, 0x08u)) {
-        map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(Road)", MAP_PANEL_COL_TEXT);
+        map_panel_parenthesized(
+          line, sizeof(line), map_panel_section_line(labels, "MISC", 31)
+        );
+        map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
       }
       if (map_tile_has_major_river(map, info_x, info_y)) {
-        map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(Major River)", MAP_PANEL_COL_TEXT);
+        map_panel_parenthesized(
+          line, sizeof(line), map_panel_section_line(names, "OTHER_NAMES", 2)
+        );
+        map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
       } else if (map_tile_has_river(map, info_x, info_y)) {
-        map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(River)", MAP_PANEL_COL_TEXT);
+        map_panel_parenthesized(
+          line, sizeof(line), map_panel_section_line(names, "OTHER_NAMES", 1)
+        );
+        map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
       }
       {
         const int rtype = map_resource_type_at(map, info_x, info_y);
         if (rtype >= 0) {
           char rname[40];
           map_panel_resource_name(names, rtype, rname, sizeof(rname));
-          snprintf(line, sizeof(line), "(%s)", rname);
+          map_panel_parenthesized(line, sizeof(line), rname);
           map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
         }
       }
       if (map_tile_has_rumour(map, info_x, info_y)) {
-        map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(Lost City Rumor)", MAP_PANEL_COL_TEXT);
+        map_panel_parenthesized(
+          line, sizeof(line), map_panel_section_line(labels, "MISC", 15)
+        );
+        map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
       }
     }
   }
@@ -1594,7 +1616,7 @@ void map_panel_render_w(
           framebuffer,
           label_x,
           text_y + 2,
-          col->name[0] ? col->name : "Colony",
+          col->name[0] ? col->name : "",
           MAP_PANEL_COL_TEXT
         );
         text_y += MAP_PANEL_ROW_H;

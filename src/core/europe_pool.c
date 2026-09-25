@@ -401,10 +401,10 @@ void europe_pool_ensure_filled(EuropeScreen* eu) {
 
 const char* europe_pool_label(const EuropeScreen* eu, int slot) {
   if (!eu || slot < 0 || slot >= EUROPE_POOL_SIZE) {
-    return "Colonist";
+    return "";
   }
   const EuropePoolSlot* p = &eu->pool[slot];
-  return (p->filled && p->name[0]) ? p->name : "Colonist";
+  return (p->filled && p->name[0]) ? p->name : "";
 }
 
 /*

@@ -285,8 +285,10 @@ void game_colony_open_load_prompt(
   memset(&tok, 0, sizeof(tok));
   tok.string0 = (game->europe_ok && cargo < game->europe.cargo_count)
                   ? game->europe.cargo[cargo].name
-                  : "cargo";
-  tok.string1 = "ship";
+                  : "";
+  const ColonizeUnit* transport =
+    units_get_const(&game->units, game->colony_screen.transport_unit_id);
+  tok.string1 = transport ? units_display_name(&game->units, transport) : "";
   tok.number0 = max_amt;
   tok.has_number0 = true;
   popup_msg_fill(
@@ -318,8 +320,8 @@ void game_europe_open_buy_prompt_for(ColonizeGameState* game, int hidx, int carg
   char prompt[AI_POPUP_BODY_LEN];
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
-  tok.string0 = (cargo >= 0 && cargo < eu->cargo_count) ? eu->cargo[cargo].name : "cargo";
-  tok.string1 = "ship";
+  tok.string0 = (cargo >= 0 && cargo < eu->cargo_count) ? eu->cargo[cargo].name : "";
+  tok.string1 = (hidx >= 0 && hidx < eu->harbor_ships) ? eu->harbor[hidx].name : "";
   tok.number0 = max_amt;
   tok.has_number0 = true;
   tok.number1 = europe_buy_price(eu, cargo);

@@ -313,7 +313,7 @@ void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int cargo)
   char cargo_nm[32];
   str_copy_trunc(cargo_nm, sizeof(cargo_nm), reports_cargo_display_name(cargo));
   const char* colony_nm =
-    (best && best->name[0]) ? best->name : "the colonies";
+    (best && best->name[0]) ? best->name : "a colonial warehouse";
   char party[96];
   ai_king_teaparty_party_name(party, sizeof(party), best, cargo);
 
@@ -321,7 +321,9 @@ void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int cargo)
   memset(&tok, 0, sizeof(tok));
   tok.string0 = cargo_nm;
   tok.string1 = colony_nm;
-  tok.string2 = "Europe";
+  /* DOS supplies this market noun from executable code. Use port-authored
+   * wording instead of compiling a duplicate of the catalog's place name. */
+  tok.string2 = "the home market";
   tok.string3 = party;
   tok.number0 = tons;
   tok.has_number0 = true;

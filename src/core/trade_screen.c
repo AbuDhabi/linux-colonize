@@ -44,7 +44,7 @@ void trade_screen_init(TradeScreen* ts, const ColonizeMsgCatalog* labels) {
   trade_label(ts->lab_title, sizeof(ts->lab_title), labels, "ROUTE", 0, "");
   trade_label(ts->lab_name, sizeof(ts->lab_name), labels, "ROUTE", 1, "");
   trade_label(ts->lab_type, sizeof(ts->lab_type), labels, "ROUTE", 2, "");
-  trade_label(ts->lab_sea, sizeof(ts->lab_sea), labels, "ROUTE", 3, "Sea");
+  trade_label(ts->lab_sea, sizeof(ts->lab_sea), labels, "ROUTE", 3, "");
   trade_label(ts->lab_land, sizeof(ts->lab_land), labels, "ROUTE", 4, "");
   trade_label(ts->lab_dest, sizeof(ts->lab_dest), labels, "ROUTE", 5, "");
   trade_label(ts->lab_unload, sizeof(ts->lab_unload), labels, "ROUTE", 6, "");
@@ -52,7 +52,7 @@ void trade_screen_init(TradeScreen* ts, const ColonizeMsgCatalog* labels) {
   trade_label(
     ts->lab_delete, sizeof(ts->lab_delete), labels, "ROUTE", 8, ""
   );
-  trade_label(ts->lab_ok, sizeof(ts->lab_ok), labels, "MISC", 46, "OK");
+  trade_label(ts->lab_ok, sizeof(ts->lab_ok), labels, "MISC", 46, "");
 }
 
 void trade_screen_open(TradeScreen* ts, int route) {

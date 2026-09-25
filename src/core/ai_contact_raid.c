@@ -1228,7 +1228,9 @@ COLONIZE_INTERNAL void ai_contact_raid_ambush_chrome(
       }
     } else {
       /* LABELS defeat/defeats — unit subjects type_index ≥7 use "defeats". */
-      tok.string4 = (foe_type >= 0 && foe_type < 7) ? "defeat" : "defeats";
+      tok.string4 = reports_misc_display_word(
+        (foe_type >= 0 && foe_type < 7) ? 73 : 74, ""
+      );
       snprintf(
         fb,
         sizeof(fb),
@@ -1493,10 +1495,10 @@ COLONIZE_INTERNAL void ai_contact_raid_human_chrome(
     }
     switch (row->tok) {
       case AI_RAID_TOK_SHIP:
-        raid_tok.string2 = ai_contact_s_last_ship_type[0] ? ai_contact_s_last_ship_type : "A ship";
+        raid_tok.string2 = ai_contact_s_last_ship_type[0] ? ai_contact_s_last_ship_type : "";
         break;
       case AI_RAID_TOK_STORES:
-        raid_tok.string2 = ai_contact_s_last_stores_cargo[0] ? ai_contact_s_last_stores_cargo : "goods";
+        raid_tok.string2 = ai_contact_s_last_stores_cargo[0] ? ai_contact_s_last_stores_cargo : "";
         break;
       case AI_RAID_TOK_BURN:
         raid_tok.string2 = ai_contact_s_last_burn_building;

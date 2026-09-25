@@ -76,7 +76,7 @@ static void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
           char body[AI_POPUP_BODY_LEN];
           PopupMsgTokens tok;
           memset(&tok, 0, sizeof(tok));
-          tok.string0 = col->name[0] ? col->name : "colony";
+          tok.string0 = col->name[0] ? col->name : "";
           tok.number0 =
             colonies_nation_colony_count_census(ctx->col1_ok ? ctx->col1 : NULL, col->nation_id);
           tok.has_number0 = true;
@@ -304,14 +304,14 @@ static void turn_notify_dock_immigrant(
   }
   diag_info(
     "EUROPE immigrant on the docks: %s (crosses)",
-    immigrant_name && immigrant_name[0] ? immigrant_name : "Colonist"
+    immigrant_name && immigrant_name[0] ? immigrant_name : ""
   );
   if (ctx->status && ctx->status_size > 0) {
     snprintf(
       ctx->status,
       ctx->status_size,
       "Immigrant arrives in Europe: %s",
-      immigrant_name && immigrant_name[0] ? immigrant_name : "Colonist"
+      immigrant_name && immigrant_name[0] ? immigrant_name : ""
     );
   }
   if (!ctx->ai_popups) {
@@ -319,7 +319,7 @@ static void turn_notify_dock_immigrant(
   }
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
-  tok.country = ctx->europe->nation_name[0] ? ctx->europe->nation_name : "Europe";
+  tok.country = ctx->europe->nation_name[0] ? ctx->europe->nation_name : "";
   /* 5e52 raw 68592: %STRING0 = @HOMEPORT name (DS table -0x7c74), not a
    * literal (bugs.md #673). */
   tok.string0 = ctx->europe->port_city[0] ? ctx->europe->port_city : "";
@@ -890,13 +890,13 @@ void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
        * back on the side it left from. */
       const bool east = ctx->map ? (u->x >= (int)ctx->map->width / 2) : true;
       if (europe_enqueue_expected(
-            ctx->europe, u->type_index, ty ? ty->name : "Ship", NULL, NULL, 0,
+            ctx->europe, u->type_index, ty ? ty->name : "", NULL, NULL, 0,
             u->hold_goods_type, u->hold_goods_amount, u->x, u->y, east, turns
           )) {
         if (ctx->status && ctx->status_size > 0) {
           snprintf(
             ctx->status, ctx->status_size, "%s sails to Europe for repairs.",
-            ty && ty->name[0] ? ty->name : "Damaged ship"
+            ty && ty->name[0] ? ty->name : ""
           );
         }
         u->col1_flags15 = (uint8_t)(u->col1_flags15 & 0x7fu); /* repaired abroad */

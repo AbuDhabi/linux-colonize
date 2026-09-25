@@ -76,7 +76,7 @@ bool europe_harbor_push_ex(
   EuropeHarborShip* slot = &eu->harbor[eu->harbor_ships++];
   europe_clear_ship(slot);
   slot->type_index = type_index;
-  snprintf(slot->name, sizeof(slot->name), "%s", name ? name : "Ship");
+  snprintf(slot->name, sizeof(slot->name), "%s", name ? name : "");
   if (cargo_types && cargo_count > 0) {
     const int n = cargo_count > EUROPE_SHIP_CARGO_MAX ? EUROPE_SHIP_CARGO_MAX : cargo_count;
     for (int i = 0; i < n; ++i) {
@@ -125,7 +125,7 @@ bool europe_enqueue_expected(
   EuropeHarborShip* slot = &eu->expected[eu->expected_ships++];
   europe_clear_ship(slot);
   slot->type_index = type_index;
-  snprintf(slot->name, sizeof(slot->name), "%s", name ? name : "Ship");
+  snprintf(slot->name, sizeof(slot->name), "%s", name ? name : "");
   if (cargo_types && cargo_count > 0) {
     const int n = cargo_count > EUROPE_SHIP_CARGO_MAX ? EUROPE_SHIP_CARGO_MAX : cargo_count;
     for (int i = 0; i < n; ++i) {

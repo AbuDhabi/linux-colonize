@@ -134,7 +134,7 @@ static void unit_stack_row_label(
   if (nation_adj && nation_adj[0] && name) {
     snprintf(base, sizeof(base), "%s %s", nation_adj, name);
   } else {
-    snprintf(base, sizeof(base), "%s", name ? name : "Unit");
+    snprintf(base, sizeof(base), "%s", name ? name : "");
   }
   char with_word[72];
   if (word) {

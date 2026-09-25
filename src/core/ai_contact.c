@@ -637,7 +637,7 @@ void ai_contact_apply_welcome_reject(
   popup_msg_fill(
     ctx->messages, "INDIANSHUN", &shun_tok, shun_fb, shun_body, sizeof(shun_body)
   );
-  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "War", shun_body);
+  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, NULL, shun_body);
 }
 
 static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nation_id) {
@@ -678,7 +678,7 @@ static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nati
   PopupMsgTokens welcome_tok;
   memset(&welcome_tok, 0, sizeof(welcome_tok));
   welcome_tok.string0 = tribe;
-  welcome_tok.string1 = shown == 1 ? "village" : "villages";
+  welcome_tok.string1 = shown == 1 ? "settlement" : "settlements";
   welcome_tok.number0 = shown;
   welcome_tok.has_number0 = true;
   char fb[AI_POPUP_BODY_LEN];

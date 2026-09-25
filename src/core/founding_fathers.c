@@ -1326,7 +1326,7 @@ static bool elect_commit(
     char ff_name[48];
     snprintf(ff_name, sizeof(ff_name), "%s", reports_ff_display_name(idx));
     tok.string0 = ff_name;
-    tok.string1 = "The";
+    tok.string1 = reports_misc_display_word(36, "");
     popup_msg_fill(
       ctx->messages,
       "FREEDOM",

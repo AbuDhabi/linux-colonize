@@ -136,7 +136,7 @@ void colony_screen_draw_top_bar(
    * the season has a trailing hooked descender (comma)). Built locally
    * rather than via turn_format_date() (shared by other screens that want
    * plain "Season Year" with no punctuation). */
-  const char* name = (colony && colony->name[0]) ? colony->name : "Colony";
+  const char* name = (colony && colony->name[0]) ? colony->name : "";
   char date[32];
   turn_format_date(game_year, game_autumn, date, sizeof(date));
   char season[16] = "";
@@ -866,4 +866,3 @@ void colony_screen_render_minimap(
     framebuffer, origin_x, origin_y, COLONY_MINIMAP_GRID * tile, COLONY_MINIMAP_GRID * tile, 0
   );
 }
-

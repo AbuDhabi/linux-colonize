@@ -168,7 +168,7 @@ const char* reports_ctitle_word(int index) {
 
 const char* reports_title(ColonizeReportId id) {
   if (id < 0 || id >= COLONIZE_REPORT_COUNT) {
-    return "REPORT";
+    return "";
   }
   const char* live = reports_labels_field("MISC", k_report_title_labels_index[id]);
   return live ? live : "";
@@ -228,7 +228,7 @@ const char* reports_names_field(const char* section, int row, int col) {
 
 const char* reports_job_name(int job) {
   if (job < 0 || job >= k_job_count) {
-    return "Colonist";
+    return "";
   }
   /* @JOB: name(0), expert_name(1), school_tier(2), europe_hire_cost(3). */
   const char* live = reports_names_field("JOB", job, 1);
@@ -245,7 +245,7 @@ const char* reports_job_name(int job) {
 const char* reports_cargo_name(int cargo) {
   static char buf[COLONIZE_COL1_CARGO_TYPES][32];
   if (cargo < 0 || cargo >= (int)COLONIZE_COL1_CARGO_TYPES) {
-    return "cargo";
+    return "";
   }
   const char* live = reports_names_field("CARGO", cargo, 0);
   snprintf(buf[cargo], sizeof(buf[cargo]), "%s", live ? live : "");
@@ -254,7 +254,7 @@ const char* reports_cargo_name(int cargo) {
 
 const char* reports_ff_name(int idx) {
   if (idx < 0 || idx >= (int)COLONIZE_COL1_FF_COUNT) {
-    return "(none)";
+    return "";
   }
   const char* live = reports_names_field("FATHERS", idx, 0);
   return live ? live : "";
@@ -270,7 +270,7 @@ const char* reports_ff_name(int idx) {
 const char* reports_tribe_name(int t) {
   static char live[COLONIZE_COL1_INDIAN_COUNT][40];
   if (t < 0 || t >= (int)COLONIZE_COL1_INDIAN_COUNT) {
-    return "Tribe";
+    return "";
   }
   const char* field = reports_names_field("TRIBES", t, 0);
   if (field) {
@@ -374,7 +374,7 @@ const char* reports_home_port_name(int nation) {
 const char* reports_difficulty_title(int level) {
   static char live[5][24];
   if (level < 0 || level > 4) {
-    return "?";
+    return "";
   }
   return reports_names_or(
     live[level], sizeof(live[level]), "DIFFICULTY", level, 0, "");
@@ -396,7 +396,7 @@ const char* reports_difficulty_title(int level) {
 const char* reports_tribe_singular_name(int t) {
   static char live[COLONIZE_COL1_INDIAN_COUNT][24];
   if (t < 0 || t >= (int)COLONIZE_COL1_INDIAN_COUNT) {
-    return "Tribe";
+    return "";
   }
   return reports_names_or(live[t], sizeof(live[t]), "TRIBES", t, 1, "");
 }

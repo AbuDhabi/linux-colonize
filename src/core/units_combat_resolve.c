@@ -633,9 +633,9 @@ bool units_resolve_naval_combat_ff_w(
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
         tok.string0 = units_combat_nation_label(col1, def->nation_id);
-        tok.string1 = dt->name[0] ? dt->name : "Ship";
+        tok.string1 = dt->name[0] ? dt->name : "";
         tok.string2 = units_combat_nation_label(col1, atk->nation_id);
-        tok.string3 = at->name[0] ? at->name : "Ship";
+        tok.string3 = at->name[0] ? at->name : "";
         char fb[AI_POPUP_BODY_LEN];
         snprintf(
           fb, sizeof(fb), "%s %s evades %s %s.",
@@ -683,7 +683,7 @@ bool units_resolve_naval_combat_ff_w(
       if (human && def_transport && !def_alive) {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
-        tok.string0 = dt && dt->name[0] ? dt->name : "Ship";
+        tok.string0 = dt && dt->name[0] ? dt->name : "";
         if (is_priv) {
           /*
            * Privateer prize — not Crown. GAME.TXT @SEIZURE* is Royal Navy /
@@ -950,8 +950,8 @@ bool units_fort_vs_ship(
       memset(&tok, 0, sizeof(tok));
       tok.string0 = units_combat_nation_label(col1, def->nation_id);
       tok.string1 = dt->name;
-      tok.string2 = "coastal";
-      tok.string3 = "fortifications";
+      tok.string2 = "shore";
+      tok.string3 = "batteries";
       char fb[AI_POPUP_BODY_LEN];
       snprintf(fb, sizeof(fb), "%s %s sunk by coastal fortifications!", tok.string0, tok.string1);
       units_combat_enqueue_tok(

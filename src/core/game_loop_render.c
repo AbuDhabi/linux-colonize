@@ -554,7 +554,7 @@ static void europe_menu_title_prose(const ColonizeGameState* game, char* buf, si
     tok.number0 = eu->purchase_confirm_cost;
     tok.has_number0 = true;
     popup_msg_fill(
-      &game->messages, "REALLYBUY", &tok, "Purchase %STRING0 for %NUMBER0$?", buf, n
+      &game->messages, "REALLYBUY", &tok, "", buf, n
     );
     return;
   }
@@ -973,12 +973,18 @@ static void europe_render_menu_popup(
       char choice_buf[2][POPUP_MSG_CHOICE_LEN];
       const char* choice_labels[2];
       popup_msg_section_labels(
-        &game->messages, "REALLYBUY", NULL, "Yes", "No", choice_buf, choice_labels
+        &game->messages, "REALLYBUY", NULL, "", "", choice_buf, choice_labels
       );
       snprintf(label, sizeof(label), "%s", choice_labels[i]);
     } else if (i == 0) {
-      snprintf(label, sizeof(label), "%s",
-               eu->menu == EUROPE_MENU_RECRUIT ? "(None)" : "None");
+      const char* none = assets_msg_line_or(
+        game->labels_ok ? &game->labels : NULL, "MISC", 3, ""
+      );
+      if (eu->menu == EUROPE_MENU_RECRUIT) {
+        snprintf(label, sizeof(label), "(%s)", none);
+      } else {
+        snprintf(label, sizeof(label), "%s", none);
+      }
     } else if (eu->menu == EUROPE_MENU_RECRUIT) {
       /* Same choice source as the Brewster / Fountain of Youth pick popups
        * (DOS 4884 draws one list for all three). */
@@ -1188,7 +1194,7 @@ static void render_europe_chrome(
     sizeof(line),
     "%s\n%s",
     reports_misc_display_word(10, ""),
-    eu->colony_region[0] ? eu->colony_region : "New World"
+    eu->colony_region[0] ? eu->colony_region : ""
   );
   europe_render_transit_box(
     game,

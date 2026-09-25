@@ -410,7 +410,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
           units_combat_watch_notify(ctx->units, brave->id, c->x, c->y);
           PopupMsgTokens tok;
           memset(&tok, 0, sizeof(tok));
-          tok.string0 = c->name[0] ? c->name : "our colony";
+          tok.string0 = c->name[0] ? c->name : "";
           char body[AI_POPUP_BODY_LEN];
           popup_msg_fill(ctx->messages, "INDIANSCONVERT", &tok, "", body, sizeof(body));
           ai_contact_human_chrome(

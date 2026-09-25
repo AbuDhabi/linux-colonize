@@ -865,7 +865,7 @@ int units_tick_ship_build_ready(
     u->col1_flags15 = (uint8_t)(u->col1_flags15 & 0x7fu);
     completed++;
     if (nation_id == human_nation && status && status_size > 0) {
-      const char* name = (ty && ty->name[0]) ? ty->name : "Ship";
+      const char* name = (ty && ty->name[0]) ? ty->name : "";
       snprintf(status, status_size, "%s construction complete.", name);
     }
     if (!on_colony && want_europe_open) {
@@ -923,8 +923,8 @@ int units_tick_drydock_repair(
     if (nation_id == human_nation) {
       /* FUN_3844_00f2 / @REFIT: repaired human ship, asm 89523-89534. */
       units_play_event_sound(0x54);
-      const char* ship_name = (ty && ty->name[0]) ? ty->name : "Ship";
-      const char* col_name = (col && col->name[0]) ? col->name : "port";
+      const char* ship_name = (ty && ty->name[0]) ? ty->name : "";
+      const char* col_name = (col && col->name[0]) ? col->name : "";
       if (status && status_size > 0) {
         snprintf(status, status_size, "%s repaired.", ship_name);
       }
@@ -938,7 +938,7 @@ int units_tick_drydock_repair(
           messages,
           "REFIT",
           &tok,
-          status && status[0] ? status : "Ship repaired.",
+          status && status[0] ? status : "",
           body,
           sizeof(body)
         );
@@ -1376,8 +1376,10 @@ void units_brewster_enqueue_pick(
   }
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
-  tok.country = europe->nation_name[0] ? europe->nation_name : "Europe";
-  tok.string0 = "Europe";
+  tok.country = europe->nation_name[0] ? europe->nation_name : "";
+  /* DOS supplies an executable-side destination noun here. Keep the port's
+   * own wording distinct from the editable catalog text. */
+  tok.string0 = "the embarkation pool";
   char body[AI_POPUP_BODY_LEN];
   if (game_txt) {
     popup_msg_fill(game_txt, "RECRUITCHOOSE", &tok, "", body, sizeof(body));

@@ -173,7 +173,9 @@ void reports_render_congress_page1(
       line_sz,
       "%s:  (%s)",
       reports_misc_word(112, "", w1, sizeof(w1)),
-      nat->next_founding_father >= 0 ? reports_ff_name(nat->next_founding_father) : "none"
+      nat->next_founding_father >= 0
+        ? reports_ff_name(nat->next_founding_father)
+        : reports_misc_display_word(3, "")
     );
   } else if (!ref_arrived) {
     /* bugs.md #229/257: after declaring, FF elections are over — the bell bar

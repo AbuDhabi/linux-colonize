@@ -1058,7 +1058,7 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
         if (ai_king_human_popups(ctx)) {
           PopupMsgTokens tok;
           memset(&tok, 0, sizeof(tok));
-          tok.string0 = ship->name[0] ? ship->name : "Ship";
+          tok.string0 = ship->name[0] ? ship->name : "";
           char body[AI_POPUP_BODY_LEN];
           popup_msg_fill(ctx->messages, "SEIZURE", &tok, "", body, sizeof(body));
           (void)ai_popup_enqueue_ok_ctx(

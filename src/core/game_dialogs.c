@@ -229,7 +229,7 @@ void game_emit_warehouse_full(
   if (!col) {
     return;
   }
-  const char* cargo_name = "cargo";
+  const char* cargo_name = "";
   if (cargo_type >= 0 && cargo_type < COLONIZE_CARGO_COUNT &&
       game->europe.cargo[cargo_type].name[0]) {
     cargo_name = game->europe.cargo[cargo_type].name;
@@ -439,7 +439,7 @@ static bool game_found_finalize(ColonizeGameState* game, int uid, const char* ch
     game->status,
     sizeof(game->status),
     "Founded %s (pop %d)",
-    col ? col->name : "colony",
+    col ? col->name : "",
     col ? col->population : 0
   );
   sound_play(0x54); /* DOS FUN_479b_076e: found-colony hammering (COLDIG sample 13) */
@@ -806,7 +806,21 @@ void game_enqueue_yes_no(
   }
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(&game->messages, section, tok, fallback_body, body, sizeof(body));
-  const char* labels[] = {"Yes", "No"};
+  char choice_buf[2][POPUP_MSG_CHOICE_LEN];
+  const char* labels[2];
+  /* @OVERBOARD has body text but no catalog choices. Its two labels are a
+   * port UI affordance; every other confirmation must use its own rows and
+   * stay empty on a catalog miss. */
+  const bool overboard = section && strcmp(section, "OVERBOARD") == 0;
+  popup_msg_section_labels(
+    &game->messages,
+    section,
+    tok,
+    overboard ? "Throw it overboard" : "",
+    overboard ? "Keep it aboard" : "",
+    choice_buf,
+    labels
+  );
   const int ids[] = {1, 0};
   game->map_confirm = confirm;
   game->map_confirm_payload = payload;
@@ -1064,7 +1078,7 @@ void game_request_disband_confirm(ColonizeGameState* game) {
   }
   const ColonizeUnit* u = units_get_const(&game->units, uid);
   const ColonizeUnitType* ut = u ? units_type(&game->units, u->type_index) : NULL;
-  const char* uname = (ut && ut->name[0]) ? ut->name : "unit";
+  const char* uname = (ut && ut->name[0]) ? ut->name : "";
 
   /* @DISBANDSHIP is an error OK (no Yes/No) when a ship still carries units. */
   if (units_is_sea(&game->units, uid)) {
@@ -1127,7 +1141,7 @@ static void game_do_buy_construction(ColonizeGameState* game, int colony_id) {
   if (!bt) {
     colonies_unit_build_info(colony->building_in_production, &uname, NULL, NULL);
   }
-  const char* name = bt ? bt->name : (uname ? uname : "building");
+  const char* name = bt ? bt->name : (uname ? uname : "");
   /* Player-corrected: Buy is NOT instant — it only tops hammers/tools up to
    * the completion threshold (colonies_buy_construction, DOS's
    * FUN_2f2b_5e44 formula). Actual completion happens next turn's
@@ -1197,10 +1211,10 @@ void game_europe_ask_boycott_buyback(ColonizeGameState* game, int cargo_type) {
     return;
   }
   const char* cname =
-    eu->cargo[cargo_type].name[0] ? eu->cargo[cargo_type].name : "That cargo";
+    eu->cargo[cargo_type].name[0] ? eu->cargo[cargo_type].name : "";
   const char* country = game->col1.player[human].country_name[0]
                           ? game->col1.player[human].country_name
-                          : "Europe";
+                          : "";
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = cname;
@@ -1245,7 +1259,7 @@ void game_request_buy_construction_confirm(ColonizeGameState* game) {
   if (!bt) {
     colonies_unit_build_info(colony->building_in_production, &uname, NULL, NULL);
   }
-  const char* bname = (bt && bt->name[0]) ? bt->name : (uname ? uname : "building");
+  const char* bname = (bt && bt->name[0]) ? bt->name : (uname ? uname : "");
   /* bugs.md: a project the colony already owns can't be bought or completed —
    * say so (@ALREADYHAVE) instead of quoting a meaningless price and letting
    * "Complete it" do nothing. */
@@ -1253,7 +1267,7 @@ void game_request_buy_construction_confirm(ColonizeGameState* game) {
       colony->has_building[colony->building_in_production]) {
     PopupMsgTokens atok;
     memset(&atok, 0, sizeof(atok));
-    atok.string0 = colony->name[0] ? colony->name : "colony";
+    atok.string0 = colony->name[0] ? colony->name : "";
     atok.string1 = bname;
     char abody[AI_POPUP_BODY_LEN];
     char afb[160];
@@ -1354,7 +1368,7 @@ void game_open_find_colony_picker(ColonizeGameState* game) {
     str_copy_trunc(
       name_bufs[count],
       sizeof(name_bufs[count]),
-      c->name[0] ? c->name : "Colony"
+      c->name[0] ? c->name : ""
     );
     labels[count] = name_bufs[count];
     ids[count] = c->id;
@@ -1418,7 +1432,7 @@ void game_open_trade_route_picker(ColonizeGameState* game, int mode) {
     /* DOS rows are "N. NAME" (FUN_647e_0796's number + FUN_1d1d_11b4). */
     snprintf(
       name_bufs[count], sizeof(name_bufs[count]), "%d. %s", i + 1,
-      r->name[0] ? r->name : "Route"
+      r->name[0] ? r->name : ""
     );
     labels[count] = name_bufs[count];
     ids[count] = i;

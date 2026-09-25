@@ -581,6 +581,7 @@ static void colony_screen_draw_dock_orders_popup(
 static void colony_screen_draw_message_popup(
   ColonyScreenView* view,
   const ColonizeFont* font,
+  const ColonizeMsgCatalog* labels,
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!view || view->message_kind == COLONY_MSG_NONE || !framebuffer || !framebuffer->pixels) {
@@ -615,10 +616,10 @@ static void colony_screen_draw_message_popup(
     }
     const char* label =
       (view->message_kind == COLONY_MSG_OK)
-        ? "OK"
+        ? assets_msg_line_or(labels, "MISC", 46, "")
         : (i == 0
-             ? (view->message_choice0[0] ? view->message_choice0 : "Yes")
-             : (view->message_choice1[0] ? view->message_choice1 : "No"));
+             ? view->message_choice0
+             : view->message_choice1);
     if (font) {
       font_draw_text(font, framebuffer, inner_x + pad, row_y + 1, label, 15);
     }
@@ -1226,7 +1227,7 @@ void colony_screen_render_w(
     colony_screen_draw_dock_orders_popup(view, font, framebuffer);
   }
   if (view && view->message_kind != COLONY_MSG_NONE) {
-    colony_screen_draw_message_popup(view, font, framebuffer);
+    colony_screen_draw_message_popup(view, font, labels, framebuffer);
   }
 
   if (view && font) {
