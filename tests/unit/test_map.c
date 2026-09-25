@@ -899,6 +899,61 @@ static int case_plow_layer_order(void) {
   return 0;
 }
 
+/* campaign4/COLONY07.SAV Havana (42,30): the Rain Forest centre's
+ * coordinate hash carries Minerals, hidden normally by the settlement.
+ * VIEW Hidden Terrain phase 1 peels the settlement and must expose that
+ * resource; phase 2 then peels resources themselves. */
+static int case_hidden_terrain_settlement_resource(void) {
+  ColonizeWorldMap map;
+  char err[256];
+  memset(&map, 0, sizeof(map));
+  if (!map_alloc(&map, 58, 72, err, sizeof(err))) {
+    fprintf(stderr, "hidden terrain resource: map_alloc failed: %s\n", err);
+    return 1;
+  }
+
+  const int x = 42;
+  const int y = 30;
+  const size_t ti = (size_t)y * map.width + x;
+  map.prime_resource_seed = 17580;
+  map.terrain[ti] = 15; /* Rain Forest. */
+  map.layer2[ti] = MAP_OCCUPANCY_HAS_CITY;
+  map.layer3[ti] = 0x22; /* Spanish owner, continent 2. */
+
+  if (map_resource_type_for_yield(&map, x, y) != 6 || map_resource_type_at(&map, x, y) >= 0) {
+    fprintf(stderr, "hidden terrain resource: Havana fixture is not hidden Minerals\n");
+    map_free(&map);
+    return 1;
+  }
+
+  const int resource_sprite = 89 + 6;
+  for (int phase = 0; phase <= 2; ++phase) {
+    ColonizeMapLayerCmd cmds[MAP_LAYER_CMDS_MAX];
+    const int n = map_tile_layer_cmds(&map, x, y, phase, cmds, MAP_LAYER_CMDS_MAX);
+    int resource_count = 0;
+    for (int i = 0; i < n; ++i) {
+      if (cmds[i].sheet == MAP_LAYER_SHEET_PHYS0 && cmds[i].sprite == resource_sprite) {
+        ++resource_count;
+      }
+    }
+    const int expected = phase == 1 ? 1 : 0;
+    if (resource_count != expected) {
+      fprintf(
+        stderr,
+        "hidden terrain resource: phase %d got %d Minerals sprites, expected %d\n",
+        phase,
+        resource_count,
+        expected
+      );
+      map_free(&map);
+      return 1;
+    }
+  }
+
+  map_free(&map);
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"map_load_and_ocean", case_map_load_and_ocean},
   {"amer2_fixtures", case_amer2_fixtures},
@@ -914,6 +969,7 @@ static const TestCase k_cases[] = {
   {"fog_edges", case_fog_edges},
   {"lumber_reward_column", case_lumber_reward_column},
   {"plow_layer_order", case_plow_layer_order},
+  {"hidden_terrain_settlement_resource", case_hidden_terrain_settlement_resource},
 };
 
 TEST_MAIN(k_cases)
