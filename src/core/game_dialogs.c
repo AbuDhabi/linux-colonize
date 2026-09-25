@@ -630,7 +630,7 @@ static void game_found_confirm_chain(ColonizeGameState* game, int uid, int stage
   const int cx = u->x;
   const int cy = u->y;
   if (stage <= GAME_FOUND_STAGE_NOPORT &&
-      !map_tile_is_coastal(&game->world_map, cx, cy)) {
+      !map_tile_is_open_sea_adjacent(&game->world_map, cx, cy)) {
     game_found_stage_confirm(game, uid, GAME_FOUND_STAGE_NOPORT, "NOPORT");
     return;
   }
@@ -1962,9 +1962,15 @@ int game_colony_unload_hold_commit(
   const char* empty_msg
 ) {
   bool full = false;
-  const int moved = colonies_transfer_from_unit_amount(
-    &game->colonies, game->colony_view_id, &game->units, unit_id, hold, amount, &full
-  );
+  /* amount 0 is the ordinary click/key/"Unload all" path: empty the whole
+   * hold. Only @HOWMUCH2 supplies a positive partial amount (bugs.md #948). */
+  const int moved = amount > 0
+    ? colonies_transfer_from_unit_amount(
+        &game->colonies, game->colony_view_id, &game->units, unit_id, hold, amount, &full
+      )
+    : colonies_transfer_from_unit(
+        &game->colonies, game->colony_view_id, &game->units, unit_id, hold, &full
+      );
   if (moved > 0) {
     snprintf(game->status, sizeof(game->status), "Unloaded %d", moved);
   } else if (empty_msg) {

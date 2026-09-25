@@ -6,10 +6,12 @@
 #include "core/colony_screen.h"
 #include "core/colony_screen_internal.h"
 #include "core/colony_production.h"
+#include "core/cheat_list_dialog.h"
 #include "core/ff.h"
 #include "core/map.h"
 #include "core/popup_msg.h"
 #include "core/ss.h"
+#include "core/trade_screen.h"
 #include "core/units.h"
 #include "core/units_cargo.h"
 #include "core/world.h"
@@ -100,15 +102,17 @@ static int unit_dock_orders_menu(void) {
   }
   const int caravel_type = units_find_type(&units, "Caravel");
   const int wagon_type = units_find_type(&units, "Wagon Train");
-  if (caravel_type < 0 || wagon_type < 0) {
-    fprintf(stderr, "dock_orders: Caravel/Wagon Train type missing\n");
+  const int artillery_type = units_find_type(&units, "Artillery");
+  if (caravel_type < 0 || wagon_type < 0 || artillery_type < 0) {
+    fprintf(stderr, "dock_orders: Caravel/Wagon Train/Artillery type missing\n");
     assets_msg_free(&names);
     assets_msg_free(&game_txt);
     return 1;
   }
   const int ship_id = units_spawn(&units, caravel_type, 5, 5);
   const int wagon_id = units_spawn_allow_stack(&units, wagon_type, 5, 5);
-  if (ship_id < 0 || wagon_id < 0) {
+  const int artillery_id = units_spawn_allow_stack(&units, artillery_type, 5, 5);
+  if (ship_id < 0 || wagon_id < 0 || artillery_id < 0) {
     fprintf(stderr, "dock_orders: spawn failed\n");
     assets_msg_free(&names);
     assets_msg_free(&game_txt);
@@ -168,9 +172,9 @@ static int unit_dock_orders_menu(void) {
   }
 
   /*
-   * bugs.md #782/#783. DOS thunk_FUN_1000_99b8 loads @SHIPOPTIONS for EVERY
-   * colony strip entry, so a Wagon Train sees the same six rows — and case 4
-   * drops Fortify for type 0x0c. Fresh, empty, not selected:
+   * bugs.md #782/#783. A Wagon Train is a cargo transport and sees the same
+   * six @SHIPOPTIONS rows as a ship; case 4 drops Fortify for type 0x0c.
+   * Fresh, empty, not selected:
    * [Activate, Sentry, Cancel] — no Fortify (wagon), no Unload (no cargo).
    */
   if (rc == 0) {
@@ -208,10 +212,68 @@ static int unit_dock_orders_menu(void) {
     }
   }
 
+  /* bugs.md #941: land units use @UNITOPTIONS, so Artillery says Fortify
+   * instead of inheriting the ship-only "Anchor in harbor" label. */
+  if (rc == 0) {
+    colony_screen_open_dock_orders(&view, &units, &game_txt, artillery_id);
+    bool saw_fortify = false;
+    for (int i = 0; i < view.dock_orders_count; ++i) {
+      if (view.dock_orders_actions[i] == COLONY_DOCK_ORDER_FORTIFY) {
+        saw_fortify = strstr(view.dock_orders_labels[i], "Fortify") != NULL;
+        if (strstr(view.dock_orders_labels[i], "Anchor") != NULL) {
+          fprintf(stderr, "dock_orders: Artillery must not say Anchor in harbor\n");
+          rc = 1;
+        }
+      }
+    }
+    if (rc == 0 && !saw_fortify) {
+      fprintf(stderr, "dock_orders: Artillery missing Fortify label\n");
+      rc = 1;
+    }
+  }
+
   assets_msg_free(&names);
   assets_msg_free(&game_txt);
   if (rc == 0) {
     fprintf(stderr, "unit_colony_screen: dock orders menu ok\n");
+  }
+  return rc;
+}
+
+static int unit_trade_route_labels(void) {
+  ColonizeMsgCatalog labels;
+  assets_msg_init(&labels);
+  if (!assets_msg_load_file(&labels, "COLONIZE/LABELS.TXT")) {
+    fprintf(stderr, "trade_labels: LABELS.TXT load failed\n");
+    return 1;
+  }
+
+  TradeScreen ts;
+  trade_screen_init(&ts, &labels);
+  int rc = 0;
+  if (!ts.lab_dest[0] || !ts.lab_unload[0] || !ts.lab_load[0]) {
+    fprintf(
+      stderr, "trade_labels: missing headers dest='%s' unload='%s' load='%s'\n",
+      ts.lab_dest, ts.lab_unload, ts.lab_load
+    );
+    rc = 1;
+  }
+
+  if (rc == 0) {
+    CheatListDialog dlg;
+    static const char* cargo[] = {"Food", "Sugar"};
+    static const int ids[] = {0, 1};
+    if (!cheat_list_open_trade_cargo_one(
+          &dlg, "Select a cargo to be loaded or unloaded", cargo, ids, 2
+        ) || dlg.width < 190) {
+      fprintf(stderr, "trade_labels: cargo picker width=%d\n", dlg.width);
+      rc = 1;
+    }
+  }
+
+  assets_msg_free(&labels);
+  if (rc == 0) {
+    fprintf(stderr, "unit_colony_screen: trade labels + cargo picker width ok\n");
   }
   return rc;
 }
@@ -2594,6 +2656,7 @@ static const TestCase k_cases[] = {
     {"unit_buyme1_tokens", unit_buyme1_tokens},
     {"unit_building_click_reaches_owned", unit_building_click_reaches_owned},
     {"unit_dock_orders_menu", unit_dock_orders_menu},
+    {"unit_trade_route_labels", unit_trade_route_labels},
     {"unit_tile_jobs_menu_lists_all_field_jobs", unit_tile_jobs_menu_lists_all_field_jobs},
     {"unit_tile_jobs_menu_lists_indoor_jobs", unit_tile_jobs_menu_lists_indoor_jobs},
     {"unit_multi_units_pane_roster", unit_multi_units_pane_roster},

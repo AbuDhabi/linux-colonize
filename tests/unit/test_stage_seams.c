@@ -217,6 +217,36 @@ static int test_game_render_select_palette(void) {
   return 0;
 }
 
+/* bugs.md #948: amount 0 is the normal whole-hold unload request. */
+static int test_game_colony_unload_whole_hold(void) {
+  ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  colonies_init(&game.colonies);
+  game.colony_view_id = 0;
+  ColonizeColony* colony = &game.colonies.colonies[0];
+  colony->id = 0;
+  colony->active = true;
+  colony->nation_id = 0;
+  game.colonies.colony_count = 1;
+
+  fx_units_init(&game.units);
+  game.units.type_count = 1;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  game.units.types[0].movement = 4;
+  game.units.types[0].cargo = 2;
+  snprintf(game.units.types[0].name, sizeof(game.units.types[0].name), "Test Ship");
+  const int uid = units_spawn(&game.units, 0, 5, 5);
+  if (uid < 0 || units_load_goods(&game.units, uid, COLONIZE_CARGO_SUGAR, 60) != 60) {
+    return fail("whole-hold unload fixture");
+  }
+
+  const int moved = game_colony_unload_hold_commit(&game, uid, 0, 0, NULL);
+  if (moved != 60 || colony->stock[COLONIZE_CARGO_SUGAR] != 60) {
+    return fail("zero amount must unload the whole hold");
+  }
+  return 0;
+}
+
 
 /*
  * ai_euro_5952_absorb_equip — FUN_5952_035e's absorption arm, Colonist case
@@ -674,6 +704,7 @@ static const TestCase k_cases[] = {
     {"test_ai_465b_dest_owner", test_ai_465b_dest_owner},
     {"test_ai_brave_field_attack", test_ai_brave_field_attack},
     {"test_game_render_select_palette", test_game_render_select_palette},
+    {"test_game_colony_unload_whole_hold", test_game_colony_unload_whole_hold},
     {"test_ai_euro_5952_absorb_colonist", test_ai_euro_5952_absorb_colonist},
     {"test_ai_euro_5952_absorb_soldier", test_ai_euro_5952_absorb_soldier},
     {"test_ai_euro_5952_equip_scout", test_ai_euro_5952_equip_scout},

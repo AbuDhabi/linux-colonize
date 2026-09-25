@@ -536,10 +536,10 @@ DOS module = segment `647e` (mislabelled "colony" in the catalog — records are
 | `@TRADENONE` / `@TRADENONE2` | Begin/Edit with no (matching) routes | Done | ai_popup OK; %STRING0 = @ROUTE Sea/Land |
 | `@TRADESELECT` route picker | Begin (sea/land filtered) / Edit | Done | `cheat_list` TRADE_SELECT, "N. NAME" rows |
 | `@SAILPORT` / `@TRAVELPLACE` | Begin: multi-stop route starting-stop picker | Done | `game_trade_open_stop_picker` (`game_loop.c`), title by `r->sea` (DOS `FUN_647e_090a`), "N. stop" rows, preselect = unit's current stop or 0 |
-| `@CARGOLOAD` / `@CARGOUNLOAD` | Editor cargo append | Done | `cheat_list` TRADE_CARGO_ONE, %STRING0 = stop |
+| `@CARGOLOAD` / `@CARGOUNLOAD` | Editor cargo append | Done | `cheat_list` TRADE_CARGO_ONE, %STRING0 = stop; 190px frame fits the prompt |
 | `@TRADEDELETE` / `@SUREDELETE` | Delete confirm | Done | Route picker + Yes/No; DOS unit fixup + array compaction |
 | `@ROUTELOOP` | Route with one distinct port | Done | ai_popup OK at stop service; unit parked |
-| VGA TRADE chrome | EDIT TRADE ROUTE screen | Done | [`trade_screen.c`](../src/core/trade_screen.c) — `647e_09da` layout (LABELS @ROUTE headers, 4 stop rows y 61+20i, unload x 125 / load x 208, ICONS.SS #22+ icons), `1064`/`10d2` click zones (rename band, dest/cargo columns, exit ≥ y 169), "(Delete Destination)" row |
+| VGA TRADE chrome | EDIT TRADE ROUTE screen | Done | [`trade_screen.c`](../src/core/trade_screen.c) — `647e_09da` layout (LABELS `@ROUTE` title and table headers, 4 stop rows y 61+20i, unload x 125 / load x 208, ICONS.SS #22+ icons), `1064`/`10d2` click zones (rename band, dest/cargo columns, exit ≥ y 169), "(Delete Destination)" row |
 
 ---
 

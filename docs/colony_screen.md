@@ -136,6 +136,12 @@ literal); layout shared between draw and hit-test via
   (`DS:0x30e[type] >= 0`, FUN_2f2b_11b2 raw 47899-47906). Treasure and
   Artillery are excluded from fence draw and hit-test; the Units tab and
   People-band outside row still keep them.
+- Assigning a fence colonist directly to an empty area tile derives the
+  default from that destination: Fisherman on water, Farmer on land. The
+  temporary job chosen while admitting the outside unit is not retained.
+- The docked-unit orders popup uses `@SHIPOPTIONS` for ships and Wagon Trains,
+  and `@UNITOPTIONS` for ordinary land units. Artillery therefore receives
+  the land `Fortify` label rather than `Anchor in harbor`.
 - Building badge name match: `strstr("Carpenter")` missed "Lumber Mill" —
   upgrades rename buildings; match both.
 - Minimap has a 1px black border exactly on the 73×73 grid box.
