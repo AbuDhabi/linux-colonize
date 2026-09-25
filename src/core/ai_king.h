@@ -265,14 +265,14 @@ static inline int ai_king_crown_nation_col1(const ColonizeCol1Save* col1, int hu
  * FUN_38fd_3dc8 dump-goods cargo pick (thin API for AI / tax refuse callers).
  *
  * Among @CARGO indices 0..15 whose bit is set in candidate_mask and clear in
- * boycott_bitmap, pick one via dos_rng. When @cargo_weight is NULL, pick
+ * boycott_bitmap, pick one using the DOS walk. When @cargo_weight is NULL, pick
  * uniformly among that set (no Col1 nation record available). When non-NULL,
- * it is DOS's local_7a[] roulette weight table (raw 64146-64159:
+ * it is DOS's local_7a[] weight table (raw 64146-64159:
  * low word of labs(nation.trade.tons[c]) * 100, with Food >>1, Horses >>2,
- * Tools >>1, Muskets >>2) — every eligible entry counts into the total, the
- * roll is dos_rng_range(1, total) and the first entry whose running remainder
- * reaches <= 0 wins, so a weight <= 0 can never be picked. Returns the cargo
- * index, or -1 if none / null rng / total < 1.
+ * Tools >>1, Muskets >>2). DOS burns dos_rng_range(1, LOWORD(total)) but does
+ * not use its result; it subtracts each eligible weight from the signed
+ * 32-bit total and picks the first remainder <= 0 (asm 38fd:3f63-3fbc).
+ * Returns the cargo index, or -1 if none / null rng.
  *
  * Cite: viceroy_unpacked.c FUN_38fd_3dc8 raw 64176-64200. Does not mutate
  * boycott_bitmap; caller ORs (1u << idx) when applying. King refuse path

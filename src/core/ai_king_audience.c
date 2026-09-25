@@ -301,7 +301,7 @@ static void ai_king_audience_apply_delta(ColonizeCol1Nation* nat, int delta, int
  *
  * DOS-LITERAL FUN_38fd_3dc8 raw 64132-64175: aiStack_cc[c] = the largest stock
  * of cargo c across the human's COASTAL colonies, aiStack_a4[c] = that colony;
- * local_7a[c] = the roulette weight. *out_weights, when set, points at a
+ * local_7a[c] = the signed walk weight. *out_weights, when set, points at a
  * COLONIZE_CARGO_COUNT-sized caller-owned buffer valid only as long as
  * weight_buf is.
  */
@@ -323,7 +323,7 @@ static uint16_t ai_king_teaparty_candidate_mask(
    * — only the human's COASTAL colonies (+0x1c bit 0x40, the save-carried bit
    * stamped at founding, same decode as ai_king_ref.c's 0982/1528 scans)
    * contribute to aiStack_cc[] / aiStack_a4[]. A cargo only enters the
-   * roulette if one of those colonies actually holds some of it
+   * selection walk if one of those colonies actually holds some of it
    * (`aiStack_cc[local_ac] != 0` gates both the weight sum and the walk):
    * you cannot dump 0 tons in protest, and you cannot dump it inland
    * (bugs.md #904).
@@ -348,7 +348,7 @@ static uint16_t ai_king_teaparty_candidate_mask(
     }
   }
   /*
-   * DOS-LITERAL FUN_38fd_3dc8 raw 64146-64159: the roulette weight is the
+   * DOS-LITERAL FUN_38fd_3dc8 raw 64146-64159: the walk weight is the
    * nation's cumulative traded tonnage, not any Europe price —
    *   `local_7a[c] = FUN_1d1d_0ec6(FUN_1d1d_0ddc(tons_lo, tons_hi), 100)`
    * i.e. the LOW WORD of labs(*(int32*)(DS:0x84fc + 0xbc + c*4)) * 100.
@@ -387,7 +387,7 @@ static uint16_t ai_king_teaparty_candidate_mask(
 /*
  * Tea-party choice apply: a human answered the KING_AUDIENCE CHOICE with
  * "hold a tea party" after a real tax raise. FUN_38fd_3dc8: revert the
- * just-applied hike, boycott the roulette-picked cargo, confiscate its
+ * just-applied hike, boycott the tonnage-walk-picked cargo, confiscate its
  * stock (ai_king_enqueue_teaparty_ok dumps up to 100 tons from the
  * richest human colony — thin stand-in for the colony-array seize into
  * DOS's own royal-stock pile, real field unresolved, see file header).
@@ -607,15 +607,16 @@ void ai_king_tax_hike_apply(
   const int proposed = (int)nat->tax_rate + applied;
 
   int weight_buf[COLONIZE_CARGO_COUNT];
-  const int* bids = NULL;
-  const uint16_t candidate_mask = ai_king_teaparty_candidate_mask(ctx, human, weight_buf, &bids);
+  const int* weights = NULL;
+  const uint16_t candidate_mask =
+    ai_king_teaparty_candidate_mask(ctx, human, weight_buf, &weights);
   int picked = ctx->rng
-    ? ai_king_pick_dump_goods_cargo(nat->boycott_bitmap, candidate_mask, ctx->rng, bids)
+    ? ai_king_pick_dump_goods_cargo(nat->boycott_bitmap, candidate_mask, ctx->rng, weights)
     : -1;
   /*
    * DOS-LITERAL FUN_38fd_3dc8 raw 64176-64200: there is NO retry. Boycotted
    * cargos never enter aiStack_cc[] at all (the colony scan, raw 64160-64175,
-   * only fills cc[c] under `(local_a6 & 1<<c) == 0`), so the roulette walk
+   * only fills cc[c] under `(local_a6 & 1<<c) == 0`), so the selection walk
    * `if (aiStack_cc[local_ac] != 0)` can only ever land on a non-boycotted
    * stocked cargo, and raw 64196's guard
    *   `if ((local_4 < 0) || ((int)param_2 < 0) ||

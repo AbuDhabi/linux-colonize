@@ -585,10 +585,10 @@ static int sp_07(void) {
      * documented AI/auto answer — this port's own invented stand-in,
      * see ai_king_tax_event's header): a real hike that crosses
      * AI_KING_BOYCOTT_TAX_MIN with SoL/bells over threshold reverts
-     * itself and boycotts the single roulette-picked cargo, same turn,
+     * itself and boycotts the single tonnage-walk cargo, same turn,
      * no ai_popups needed. rebel=101, tax=20, SoL=45 (below declare gate),
-     * turn=44, seed=1 -> hike delta +4 (tax 20->24), then one
-     * tonnage-weighted dump-goods roll over the same rng stream (bugs.md
+     * turn=44, seed=1 -> hike delta +4 (tax 20->24), then the
+     * tonnage-weighted dump-goods walk (bugs.md
      * #903: DOS-LITERAL FUN_38fd_3dc8 raw 64146-64159 weights by
      * labs(nation.trade.tons[c])*100, NOT by the Europe bid). The fixture
      * deliberately puts the fat Europe bid on Tobacco and the only traded
@@ -613,14 +613,14 @@ static int sp_07(void) {
     europe.cargo[COLONIZE_CARGO_TOBACCO].bid = 500;
     ctx.europe = &europe;
     /*
-     * bugs.md: the roulette only sees cargos a colony actually holds — you
+     * bugs.md: the selection walk only sees cargos a colony actually holds — you
      * cannot dump 0 tons in protest — so stock the two the pick may name.
      */
     memset(c->stock, 0, sizeof(c->stock));
     c->stock[COLONIZE_CARGO_TOBACCO] = 120;
     c->stock[COLONIZE_CARGO_SUGAR] = 30;
-    /* local_7a[]: only Sugar has traded tonnage, so only Sugar can win the
-     * roulette (weight 0 entries can never be picked — the roll starts at 1). */
+    /* local_7a[]: Sugar is the first stocked cargo that drains the signed
+     * total to zero, so the DOS walk selects it. */
     memset(col1.nation[0].trade.tons, 0, sizeof(col1.nation[0].trade.tons));
     col1.nation[0].trade.tons[COLONIZE_CARGO_SUGAR] = 7;
     ColonizeDosRng tea_rng;
@@ -637,9 +637,9 @@ static int sp_07(void) {
     if ((col1.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_SUGAR)) == 0) {
       fprintf(stderr, "unit_ai_king: auto-teaparty boycott=0x%x (want Sugar bit)\n",
               (unsigned)col1.nation[0].boycott_bitmap);
-      return fail("tea-party roulette must weight by trade.tons, not the Europe bid");
+      return fail("tea-party walk must weight by trade.tons, not the Europe bid");
     }
-    /* Exactly one cargo bit — the single roulette pick, not a fixed
+    /* Exactly one cargo bit — the single DOS-walk pick, not a fixed
      * Sugar-first two-cargo boycott (that shape is retired). */
     int bits = 0;
     for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
@@ -2137,14 +2137,13 @@ static int sp_26(void) {
     autumn = 0;
     status[0] = '\0';
     ai_popup_clear(&pop);
-    /* Every cargo stocked: the roulette then sees the same candidate set the
-     * flat bids describe (bugs.md — only stocked goods are eligible). */
+    /* Every cargo stocked: the walk sees the same candidate set the tonnage
+     * table describes (bugs.md — only stocked goods are eligible). */
     for (int ci = 0; ci < COLONIZE_CARGO_COUNT; ++ci) {
       colonies.colonies[0].stock[ci] = 50;
     }
     /* local_7a[] = labs(trade.tons[c])*100 (FUN_38fd_3dc8 raw 64146-64159):
-     * park all the tonnage on Cotton so the roulette pick is deterministic
-     * regardless of the rng stream — a weight of 0 can never be drawn. */
+     * park all the tonnage on Cotton so it drains the signed total to zero. */
     memset(col1.nation[0].trade.tons, 0, sizeof(col1.nation[0].trade.tons));
     col1.nation[0].trade.tons[COLONIZE_CARGO_COTTON] = 9;
     expected_cargo = COLONIZE_CARGO_COTTON;
@@ -2174,6 +2173,12 @@ static int sp_26(void) {
     if (choice_qi < 0) {
       assets_msg_free(&game_txt);
       return fail("ai_popups should enqueue KING_AUDIENCE choice after the hike");
+    }
+    if (pop.queue[choice_qi].choice_count != 2 ||
+        pop.queue[choice_qi].choices[0][0] == '\0' ||
+        pop.queue[choice_qi].choices[1][0] == '\0') {
+      assets_msg_free(&game_txt);
+      return fail("tax audience must offer both kiss-ring and cargo-party options");
     }
     /*
      * FUN_38fd_5be8 names the section per rung: score 1053 is the 3..4 band,
@@ -2303,7 +2308,7 @@ static int sp_27(void) {
      * bugs.md #907 — boycotted-winner path. DOS-LITERAL FUN_38fd_3dc8 raw
      * 64160-64175 only fills aiStack_cc[c] for cargos NOT in the nation's
      * boycott mask (local_a6), so when every stocked cargo is already
-     * boycotted the roulette walk finds nothing, local_4 stays -1 and raw
+     * boycotted the selection walk finds nothing, local_4 stays -1 and raw
      * 64196 ABORTS the whole party: no CHOICE, no second draw with the mask
      * cleared, the hike simply stands. Fixture: Cotton is the only stocked
      * cargo and it is already boycotted (from the Refuse block above).
@@ -3064,10 +3069,9 @@ static int sp_35(void) {
 static int case_dump_goods_pick_api(void) {
   /*
    * Dump-goods pick API (FUN_38fd_3dc8 thin): among candidate bits clear in
-   * boycott_bitmap, dos_rng picks one — not a fixed Tobacco second refuse.
+   * boycott_bitmap, DOS burns an RNG draw and walks the signed tonnage total.
    * Cite: docs/fandom_col1994.md Boycott “named goods”; viceroy FUN_38fd_3dc8.
-   * (Direct-function-call scenarios, unaffected by the turn/interval
-   * redesign above — unchanged from before this pass.)
+   * Direct-function-call scenarios, unaffected by the turn/interval flow.
    */
   {
     ColonizeDosRng dump_rng;
@@ -3101,58 +3105,63 @@ static int case_dump_goods_pick_api(void) {
     if (only != COLONIZE_CARGO_FURS) {
       return fail("dump-goods pick single-candidate must return Furs");
     }
-    /* Weighted pick: high Europe bid cargo preferred over many turns. */
+    /* campaign4/COLONY08.SAV: several traded-tonnage weights wrap negative,
+     * but DOS still walks the stocked coastal cargos and offers the audience
+     * choice. The old port rejected the negative total and showed an OK-only
+     * tax hike even though valid party goods existed. */
+    {
+      ColonizeDosRng campaign4_rng;
+      dos_rng_seed(&campaign4_rng, 1u);
+      const uint16_t campaign4_stock = 0xc3f7u;
+      const int campaign4_weights[COLONIZE_CARGO_COUNT] = {
+        0, -13436, 3300, 0, 17000, 0, -21872, 1200,
+        3800, 12300, 0, 600, 8300, 5000, -7768, -7634
+      };
+      const int campaign4_pick = ai_king_pick_dump_goods_cargo(
+        0, campaign4_stock, &campaign4_rng, campaign4_weights
+      );
+      if (campaign4_pick != COLONIZE_CARGO_FOOD) {
+        fprintf(stderr, "unit_ai_king: campaign4 tea-party pick=%d (want Food)\n",
+                campaign4_pick);
+        return fail("campaign4 stocked goods must keep the tax-audience choices");
+      }
+    }
+    /* DOS burns a random draw but walks the original signed total: with two
+     * positive entries, the latter drains the sum to zero and is selected. */
     {
       ColonizeDosRng w_rng;
       dos_rng_seed(&w_rng, 777u);
-      int bids[COLONIZE_CARGO_COUNT];
+      const uint32_t state_before = w_rng.state;
+      int weights[COLONIZE_CARGO_COUNT];
       for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-        bids[c] = 1;
+        weights[c] = 0;
       }
-      bids[COLONIZE_CARGO_TOBACCO] = 500;
-      int tobacco_hits = 0;
-      const int trials = 40;
-      for (int t = 0; t < trials; ++t) {
-        const int p =
-          ai_king_pick_dump_goods_cargo(sugar_only, all16, &w_rng, bids);
-        if (p == COLONIZE_CARGO_TOBACCO) {
-          tobacco_hits++;
-        }
-      }
-      if (tobacco_hits < trials / 2) {
-        fprintf(stderr,
-                "unit_ai_king: weighted dump-goods Tobacco hits=%d/%d\n",
-                tobacco_hits, trials);
-        return fail("weighted dump-goods pick should favor high-bid Tobacco");
+      weights[COLONIZE_CARGO_SUGAR] = 7;
+      weights[COLONIZE_CARGO_TOBACCO] = 9;
+      const uint16_t sugar_tobacco =
+        (uint16_t)((1u << COLONIZE_CARGO_SUGAR) | (1u << COLONIZE_CARGO_TOBACCO));
+      const int p = ai_king_pick_dump_goods_cargo(0, sugar_tobacco, &w_rng, weights);
+      if (p != COLONIZE_CARGO_TOBACCO || w_rng.state == state_before) {
+        fprintf(stderr, "unit_ai_king: DOS total-walk pick=%d rng_advanced=%d\n",
+                p, w_rng.state != state_before);
+        return fail("dump-goods must burn RNG then walk the original total");
       }
     }
     /*
-     * Eligibility: when cargo_bid non-NULL, bid<=0 cargos are ineligible
-     * (FUN_38fd_3dc8 / Europe local_7a — refuse must not dump zero-price).
+     * Zero tonnage does not erase a stocked candidate. DOS starts with a
+     * zero total, subtracts the first candidate's zero weight, and selects it.
      */
     {
       ColonizeDosRng z_rng;
       dos_rng_seed(&z_rng, 1234u);
-      int bids[COLONIZE_CARGO_COUNT];
+      int weights[COLONIZE_CARGO_COUNT];
       for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-        bids[c] = 0;
+        weights[c] = 0;
       }
-      bids[COLONIZE_CARGO_FURS] = 10;
-      bids[COLONIZE_CARGO_COTTON] = 0;
-      for (int t = 0; t < 20; ++t) {
-        const int p =
-          ai_king_pick_dump_goods_cargo(sugar_only, all16, &z_rng, bids);
-        if (p != COLONIZE_CARGO_FURS) {
-          fprintf(stderr, "unit_ai_king: bid>0 eligibility pick=%d (want Furs)\n",
-                  p);
-          return fail("dump-goods with bids must only pick bid>0 cargos");
-        }
-      }
-      for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-        bids[c] = 0;
-      }
-      if (ai_king_pick_dump_goods_cargo(sugar_only, all16, &z_rng, bids) != -1) {
-        return fail("dump-goods with all bids==0 must return -1");
+      const int p = ai_king_pick_dump_goods_cargo(sugar_only, all16, &z_rng, weights);
+      if (p != COLONIZE_CARGO_FOOD) {
+        fprintf(stderr, "unit_ai_king: zero-total pick=%d (want Food)\n", p);
+        return fail("zero tonnage must not suppress stocked tea-party goods");
       }
     }
   }

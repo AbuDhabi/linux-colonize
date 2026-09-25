@@ -37,7 +37,7 @@
  *   +3-4, +5-8) and FUN_38fd_3dc8 applies it UNCONDITIONALLY, clamped to
  *   0..75%. Only a genuine positive applied delta can trigger the
  *   village-goods popup (Accept "kiss the ring" keeps it / Refuse "tea
- *   party" REVERTS the just-applied hike + boycotts one roulette-picked
+ *   party" REVERTS the just-applied hike + boycotts one tonnage-walk-picked
  *   cargo) — there is no DOS gate on whether the hike itself happens.
  *   head.market_demand_pool_raw[2] is now presentation-only (boycott-active flag +
  *   Fugger sync), no longer gates the audience interval.
@@ -101,13 +101,14 @@ int ai_king_pick_dump_goods_cargo(
    * ~boycott_bitmap (DOS skips bits already set in the nation's
    * boycott_bitmap / local_a6 when summing local_80). The weights are the
    * caller's local_7a[] (tonnage-derived, see
-   * ai_king_teaparty_candidate_mask); DOS sums every eligible entry — a zero
-   * or (after the 16-bit truncation) negative weight still counts into the
-   * total — rolls `FUN_281f_04d4(1, total)` and walks the entries in cargo
-   * order subtracting each weight, taking the first whose running remainder
-   * has dropped to <= 0. A weight <= 0 can therefore never win, since the
-   * roll starts at 1. When cargo_weight is NULL → uniform among the mask
-   * (no Col1 nation record: tests / synthetic fixtures).
+   * ai_king_teaparty_candidate_mask). DOS sums the sign-extended 16-bit
+   * weights into a 32-bit total, calls FUN_281f_04d4(1, LOWORD(total)), but
+   * never reads that call's result: asm 38fd:3f63-3fbc subtracts each
+   * eligible weight from the original total and picks the first remainder
+   * <= 0. This odd deterministic walk is observable when the truncated
+   * weights sum to zero or negative (as in campaign4/COLONY08.SAV), so do
+   * not turn the unused draw into a roulette. When cargo_weight is NULL,
+   * pick uniformly (no Col1 nation record: tests / synthetic fixtures).
    */
   if (!rng) {
     return -1;
@@ -134,18 +135,16 @@ int ai_king_pick_dump_goods_cargo(
     }
     return idxs[pick];
   }
-  int total = 0;
+  int32_t remaining = 0;
   for (int i = 0; i < n; ++i) {
-    total += cargo_weight[idxs[i]];
+    remaining += cargo_weight[idxs[i]];
   }
-  if (total < 1) {
-    return -1; /* DOS: local_4 stays -1 and the party never happens */
-  }
-  const int roll = dos_rng_range(rng, 1, total);
-  int rem = roll;
+  /* DOS stores but never reads this result; preserve the RNG-stream burn.
+   * The call receives only local_80, the low word of the 32-bit total. */
+  (void)dos_rng_range(rng, 1, (int)(uint16_t)remaining);
   for (int i = 0; i < n; ++i) {
-    rem -= cargo_weight[idxs[i]];
-    if (rem <= 0) {
+    remaining -= cargo_weight[idxs[i]];
+    if (remaining <= 0) {
       return idxs[i];
     }
   }
@@ -891,7 +890,7 @@ void ai_king_set_independence(ColonizeCol1Save* col1, int on) {
 /*
  * Pack/unpack the KING_AUDIENCE popup payload: the tax delta that was
  * actually applied (1..8, always positive — only raises ever reach the
- * tea-party choice) and the roulette-picked cargo (0..15) that a tea party
+ * tea-party choice) and the tonnage-walk-picked cargo (0..15) that a tea party
  * would boycott/confiscate. Small ints, trivially reversible.
  */
 int ai_king_teaparty_payload(int applied, int cargo) {

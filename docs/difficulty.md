@@ -199,8 +199,8 @@ Ladder → signed delta:
 Apply is unconditional and clamped to **0..75%** (`ai_king_audience_apply_delta`;
 excess is trimmed back out of the applied delta). Only a genuine positive
 applied delta reaches the village-goods dialog, whose choice is keep-the-raise
-vs. tea party (which *reverts* the raise and boycotts one roulette-picked
-cargo) — it never gates whether the raise happens.
+vs. tea party (which *reverts* the raise and boycotts one cargo selected by
+DOS's signed traded-tonnage walk) — it never gates whether the raise happens.
 
 ---
 
