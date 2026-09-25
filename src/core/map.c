@@ -2200,6 +2200,22 @@ int map_tile_layer_cmds(
       out[n - 1].offset = 1;
     }
   }
+  /* Hidden Terrain phase 1 peels settlements but leaves resources visible.
+   * The normal overlay query suppresses a resource while layer2 marks the
+   * tile occupied, so ask the yield-side DOS hash for the newly exposed
+   * resource. Phase 2 deliberately peels resources as well. */
+  if (terrain_peel_phase == 1 && map_tile_has_city(map, x, y)) {
+    const int resource = map_resource_type_for_yield(map, x, y);
+    if (resource >= 0) {
+      const int before = n;
+      map_layer_push(
+        out, max, &n, MAP_LAYER_SHEET_PHYS0, 0, PHYS0_RESOURCE_BASE + resource, 0, 0
+      );
+      if (n > before) {
+        out[n - 1].offset = 1;
+      }
+    }
+  }
   /* Hidden Terrain phase 2+: roads aren't in the exempt set. */
   const int road_n = (terrain_peel_phase >= 2) ? 0 : map_phys0_road_layer_count(map, x, y);
   for (int ri = 0; ri < road_n; ++ri) {
