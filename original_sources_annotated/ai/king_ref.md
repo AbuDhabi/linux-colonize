@@ -312,9 +312,11 @@ from `viceroy_unpacked.c:68420` (`5be8`) and `:64132` (`3dc8`):
   (excess trimmed back out of the "applied" amount used below). No
   Accept/Refuse gate on whether this happens at all.
 - **Village-goods choice**: only reachable when the *applied* delta is
-  positive (a real raise) and a Europe-bid-eligible, non-boycotted cargo
-  candidate exists (`ai_king_pick_dump_goods_cargo` roulette by stock×bid,
-  picked *before* the popup, exactly one cargo — no fixed Sugar-first, no
+  positive (a real raise) and a stocked coastal, non-boycotted cargo
+  candidate exists. `ai_king_pick_dump_goods_cargo` uses the signed
+  traded-tonnage weights from `local_7a[]`; DOS burns an RNG draw but asm
+  `38fd:3f63-3fbc` walks the original total, not the draw (picked *before*
+  the popup, exactly one cargo — no fixed Sugar-first, no
   separate "name a good" menu). Human + `ai_popups`: single `KING_AUDIENCE`
   CHOICE — Accept ("kiss the ring") keeps the raise; Refuse ("tea party",
   `ai_king_tax_teaparty`) **reverts** the applied delta and boycotts the one
@@ -1001,7 +1003,7 @@ the euro-driven REF is stronger, no re-baseline was needed.
 - `160a` letter cinematic — **Done** 2026-08-30 (`src/core/declaration.c`; DECOIND.PIK, not DECLARAT.PIK)
 - **Superseded 2026-08-19** (the `483`/`485`/`501` bullets above describe the
   *pre*-formula audience shell, now stale for the delta/apply mechanics
-  specifically — the modal wiring, `@TEAPARTY`, dump-goods roulette, and
+  specifically — the modal wiring, `@TEAPARTY`, dump-goods tonnage walk, and
   Fugger sync they describe are still accurate): `38fd_5be8`'s delta ladder
   and `38fd_3dc8`'s clamp-apply are now the real formula, not a structural
   stand-in — see "Tax audience (`38fd_5be8` + `38fd_3dc8`) — real formula
