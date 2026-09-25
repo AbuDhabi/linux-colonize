@@ -2,10 +2,17 @@
 
 static int g_refit_sound_id;
 static int g_refit_sound_calls;
+static int g_galleon_bgm_pool;
+static int g_galleon_bgm_calls;
 
 static void capture_refit_sound(int id) {
   g_refit_sound_id = id;
   g_refit_sound_calls++;
+}
+
+static void capture_galleon_bgm(int pool) {
+  g_galleon_bgm_pool = pool;
+  g_galleon_bgm_calls++;
 }
 
 static int unit_refit_drydock(void) {
@@ -786,10 +793,21 @@ static int unit_king_galleon_offer(void) {
   }
   /* Accept: 60% share → 600 to royal_money, 400 to gold, Treasure gone. */
   pops.result_choice_id = 1;
+  g_galleon_bgm_pool = -1;
+  g_galleon_bgm_calls = 0;
+  units_set_bgm_hook(capture_galleon_bgm);
   (void)units_king_galleon_apply_popup_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .europe=(EuropeScreen*)(NULL)}, &pops, NULL);
+  units_set_bgm_hook(NULL);
   if (c1.nation[0].gold != 500 || c1.nation[0].royal_money != 600) {
     fprintf(stderr, "galleon: Accept want gold 500 royal 600 got %u/%d\n", c1.nation[0].gold,
             c1.nation[0].royal_money);
+    goto fail;
+  }
+  if (g_galleon_bgm_calls != 1 || g_galleon_bgm_pool != 2) {
+    fprintf(
+      stderr, "galleon: BGM calls=%d pool=%d (want one pool 2 switch)\n",
+      g_galleon_bgm_calls, g_galleon_bgm_pool
+    );
     goto fail;
   }
   {
