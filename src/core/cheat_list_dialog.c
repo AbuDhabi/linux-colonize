@@ -292,7 +292,7 @@ bool cheat_list_open_trade_cargo_one(
   int count
 ) {
   return cheat_list_open_simple_list(
-    dlg, CHEAT_LIST_KIND_TRADE_CARGO_ONE, prompt, labels, cargo_ids, count, 120
+    dlg, CHEAT_LIST_KIND_TRADE_CARGO_ONE, prompt, labels, cargo_ids, count, 190
   );
 }
 

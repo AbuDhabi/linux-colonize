@@ -280,6 +280,18 @@ static void map_panel_terrain_name(
     line = map_panel_section_line(names, "OTHER", 4);
   }
   assets_msg_csv_field(line ? line : "Unknown", 0, out, out_size);
+  if (pedia_index >= 8 && pedia_index <= 15 && out[0]) {
+    /* FUN_281f_01e6 appends the shared @OTHER_NAMES row 0 suffix after the
+     * @FORESTED stem. NAMES stores "Tropical" + "Forest" separately; the
+     * sidebar used to stop after the first half (bugs.md #943). */
+    const char* forest_line = map_panel_section_line(names, "OTHER_NAMES", 0);
+    char forest[24];
+    assets_msg_csv_field(forest_line ? forest_line : "", 0, forest, sizeof(forest));
+    if (forest[0]) {
+      const size_t used = strlen(out);
+      snprintf(out + used, out_size > used ? out_size - used : 0, " %s", forest);
+    }
+  }
 }
 
 /*
@@ -1767,4 +1779,3 @@ void map_panel_render_w(
     font_draw_text(font, framebuffer, text_x, eot_y, eot, flash_color);
   }
 }
-

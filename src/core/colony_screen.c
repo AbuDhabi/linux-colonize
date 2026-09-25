@@ -629,20 +629,16 @@ void colony_screen_open_dock_orders(
    * the 190 used to be a literal here. 0 = no directive → measured rows. */
   view->dock_orders_width = popup_msg_take_pending_width();
 
-  /*
-   * bugs.md #782. The colony screen's own docked-unit popup is
-   * thunk_FUN_1000_99b8 (viceroy_overlays.c 62944-63080), which loads
-   * DS:0xcf8 = @SHIPOPTIONS (6 rows, incl. "Unload all cargo")
-   * UNCONDITIONALLY for every strip entry — hull type never enters into it,
-   * so a docked Wagon Train gets the same six rows a Caravel does. DS:0xd11
-   * = @UNITOPTIONS belongs to FUN_2f2b_5746, the MAP unit-orders popup, not
-   * to this screen; picking the section by units_is_sea here was invented
-   * and hid "Unload all cargo" from wagons.
-   */
-  const ColonizeMsgSection* opts = messages ? assets_msg_find(messages, "SHIPOPTIONS") : NULL;
+  /* Ships and cargo transports use @SHIPOPTIONS (including Wagon Trains,
+   * bugs.md #782); ordinary land units use @UNITOPTIONS. Feeding Artillery
+   * through the ship section exposed its Fortify row as "Anchor in harbor"
+   * (bugs.md #941). */
+  const bool transport = units_is_transport(units, unit_id);
+  const char* options_section = transport ? "SHIPOPTIONS" : "UNITOPTIONS";
+  const ColonizeMsgSection* opts = messages ? assets_msg_find(messages, options_section) : NULL;
 
-  /* No MicroProse text in the binary: a missing @SHIPOPTIONS = empty rows. */
-  static const char* const k_fallback_ship[] = {
+  /* No MicroProse text in the binary: a missing options section = empty rows. */
+  static const char* const k_fallback_options[] = {
     "",
     "",
     "",
@@ -650,7 +646,7 @@ void colony_screen_open_dock_orders(
     "",
     ""
   };
-  const char* const* fallback = k_fallback_ship;
+  const char* const* fallback = k_fallback_options;
   const int fallback_count = 6;
   const int cancel_index = 5;
 
@@ -913,4 +909,3 @@ void colony_screen_free(ColonyScreenView* view) {
   }
   memset(view, 0, sizeof(*view));
 }
-

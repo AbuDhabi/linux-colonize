@@ -752,6 +752,7 @@ void game_colony_area_tile_drop(
     }
     return;
   }
+  const bool from_fence = csv->selected_outside_unit >= 0;
   const int ci = game_colony_selected_colonist(game);
   if (ci < 0 || ci >= colony->colonist_count) {
     set_status(game, "Select a colonist first", NULL);
@@ -764,7 +765,11 @@ void game_colony_area_tile_drop(
   colonies_field_tile_delta(tile_index, &dx, &dy);
   const bool water =
     cmap && map_tile_is_water((ColonizeWorldMap*)cmap, colony->x + dx, colony->y + dy);
-  if (job < 1 || job > 7) {
+  /* bugs.md #944: admitting a fence unit temporarily runs 28c8 and gives it
+   * some other plot's job. That transient choice must not be preserved when
+   * the same drag explicitly targets this tile. DOS sees the outside unit's
+   * non-field occupation here, so it derives Farmer/Fisherman from the tile. */
+  if (from_fence || job < 1 || job > 7) {
     job = water ? COLONIZE_JOB_FISHERMAN : COLONIZE_JOB_FARMER;
   }
   if (job >= COLONIZE_FIELD_JOB_COUNT && job <= COLONIES_JOB_TEACHER) {

@@ -997,6 +997,14 @@ COLONIZE_INTERNAL GameMoveStep game_move_colony_prompts(
       const int cid = colonies_id_at(&game->colonies, dest_x, dest_y);
       const ColonizeColony* col = colonies_get(&game->colonies, cid);
       attacking = col && col->active && col->nation_id != selected->nation_id;
+      /* bugs.md #940: an empty village grows its temporary Brave only inside
+       * units_try_move_w, after this pre-move @HALF gate. Treat the village
+       * record itself as the defender so a 1/3 or 2/3 strength attack still
+       * asks for confirmation. */
+      if (!attacking && game->col1.tribe &&
+          col1_save_village_at(&game->col1, dest_x, dest_y) != NULL) {
+        attacking = true;
+      }
     }
     if (attacking &&
         !(game->tired_ok_unit == sid &&

@@ -472,7 +472,9 @@ moves_spent` **before** charging the attack's 3 thirds. When `rem < 3`:
 - a human-controlled European attacker is asked `@HALF` (id `0x1c06`) —
   "Charge!" proceeds, "Then let them rest." aborts (the 3 thirds are already
   charged, so declining ends the unit's turn). AI and native attackers are
-  never asked.
+  never asked. An empty native village counts as an attack target here even
+  though its temporary Brave is created later by the combat resolver; this
+  keeps the prompt for 1/3 and 2/3 MP village attacks (bugs.md #940).
 - the fatigue bits are set — 2 thirds → `0x8d01` bit0, 1 third → `a156` bit3
   (`COMBAT_FLAG_FATIGUE_33` / `_66`, two Combat Analysis rows).
 - the attacker's strength is scaled `atk = atk * rem / 3`, immediately after

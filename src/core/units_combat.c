@@ -2949,10 +2949,24 @@ bool units_try_native_settlement_fallout_w(
         btok.string1 = units_combat_nation_label(col1, attacker_nation_id);
         char bfb[224];
         bfb[0] = '\0';
+        const int queue_before = g_units_combat_popups ? g_units_combat_popups->queue_count : 0;
         units_combat_enqueue_tok(
           AI_POPUP_TAG_COMBAT_COLONY, "INDIANBOW", attacker_nation_id,
           tribe_nation, 0, &btok, bfb
         );
+        /* bugs.md #942: @INDIANBOW is still a tribe-addressed dialog. DOS
+         * keeps the chief portrait latch set for it just like the contact
+         * dialogs; the surrender mechanics had queued the prose without the
+         * matching IND{tribe}A{tier}.SS flair. */
+        if (g_units_combat_popups && g_units_combat_popups->queue_count > queue_before) {
+          const int alarm = ai_diplo_indian_alarm(
+            col1, tribe_nation, attacker_nation_id
+          );
+          ai_popup_set_last_portrait(
+            g_units_combat_popups, tribe_nation - 4,
+            ai_popup_portrait_tier_from_alarm(alarm)
+          );
+        }
       }
       if (col1->tribe) {
         for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
