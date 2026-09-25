@@ -385,7 +385,7 @@ static int colony_screen_category_sprite(
  * boxes (file offset 121248+addr, per docs/conventions.md's DS->EXE rule);
  * dumped from VICEROY.EXE: {3,20,25,5,0} / {12,8,22,5,0}. The fortification
  * slot is always size class 3 (colony_screen_building_slots[COLONY_CAT_FORTIFICATION]),
- * so the real anchor offset is (+5,+5) from the slot's top-left corner —
+ * so the raw DOS anchor offset is (+5,+5) from the slot's top-left corner —
  * fixed regardless of which tier (fence/stockade/fort/fortress) occupies
  * it, because the class (hence the offset) never changes across tiers.
  * The port previously anchored at (+0,+0) *and* resized the whole strip
@@ -396,7 +396,10 @@ static int colony_screen_category_sprite(
  */
 enum {
   COLONY_FENCE_UNIT_OFFSET_X = 5, /* DS:0x23c[class 3] */
-  COLONY_FENCE_UNIT_OFFSET_Y = 5  /* DS:0x242[class 3] */
+  /* The port represents the strip as a top-left 18px screen rect. Applying
+   * DOS's raw +5 y anchor would place its final row on the bottom separator,
+   * so keep the visible strip two pixels higher. */
+  COLONY_FENCE_UNIT_OFFSET_Y = 3
 };
 
 /*
