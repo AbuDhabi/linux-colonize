@@ -17,9 +17,12 @@
 #define TRADE_NAME_Y1 45     /* rename band bottom (0x1d + 2 lines) */
 #define TRADE_EXIT_Y 169     /* 0xa9 — clicks below leave the editor */
 #define TRADE_COL_DEST_X1 114   /* 0x72 */
-#define TRADE_COL_UNLOAD_X1 197 /* 0xc5 */
-#define TRADE_UNLOAD_X 125   /* 0x7d — unload strip / header x */
-#define TRADE_LOAD_X 208     /* 0xd0 — load strip / header x */
+/* Column order is deliberately swapped vs DOS (which put Unload first):
+ * load-then-unload reads more naturally for the player. Pixel geometry is
+ * unchanged, only which cargo list occupies which column. */
+#define TRADE_COL_MID_X1 197 /* 0xc5 — rule between the two cargo columns */
+#define TRADE_LOAD_X 125     /* 0x7d — left cargo strip / header x */
+#define TRADE_UNLOAD_X 208   /* 0xd0 — right cargo strip / header x */
 #define TRADE_ICON_GAP 2
 
 /* LABELS.TXT line, else the literal fallback (audit SC-14 — the same
@@ -105,8 +108,8 @@ static int trade_icon_width(const ColonizeSpriteSheet* icons, int cargo) {
  * or -1 for "past the end" (append).
  *
  * Smell audit #92 (REFUTED, 2026-09-09): the strip x is inset from the column
- * boundary — the unload column is mx 115..197 (FUN_647e_1064: `0x72 < mx`,
- * `0xc5 < mx`) while its icons start at 125, and the load column is mx >= 198
+ * boundary — the left column is mx 115..197 (FUN_647e_1064: `0x72 < mx`,
+ * `0xc5 < mx`) while its icons start at 125, and the right column is mx >= 198
  * with icons from 208 — so a click in that 10px gap left of the first icon
  * reports slot 0. That is DOS's own behaviour, not a port defect:
  * FUN_647e_0f2c (viceroy_unpacked.c 102995-103003) seeds the running edge
@@ -190,7 +193,7 @@ bool trade_screen_handle_input(
     if (row >= (int)r->dest_count) {
       return true; /* cargo columns need an existing stop */
     }
-    const bool is_load = mx > TRADE_COL_UNLOAD_X1;
+    const bool is_load = mx <= TRADE_COL_MID_X1;
     const ColonizeCol1TradeStop* st = &r->stop[row];
     const int slot = trade_cargo_hit_slot(st, is_load, icons, mx);
     const int count = is_load ? (int)st->load_count : (int)st->unload_count;
@@ -279,8 +282,8 @@ void trade_screen_render(
 
   /* Column headers (DOS x: width("0.  ")+10 / 0x7d / 0xd0). */
   popup_draw_text_shadowed(font, framebuffer, 14, 50, ts->lab_dest, 15);
-  popup_draw_text_shadowed(font, framebuffer, TRADE_UNLOAD_X, 50, ts->lab_unload, 15);
   popup_draw_text_shadowed(font, framebuffer, TRADE_LOAD_X, 50, ts->lab_load, 15);
+  popup_draw_text_shadowed(font, framebuffer, TRADE_UNLOAD_X, 50, ts->lab_unload, 15);
 
   /* Grid: 5 horizontal separators + 2 column rules (FUN_647e_09da). */
   const uint8_t rule = cols.dark;
@@ -292,7 +295,7 @@ void trade_screen_render(
     TRADE_ROW_Y0 - 2 + TRADE_ROW_COUNT * TRADE_ROW_H, rule
   );
   fb_vline(
-    framebuffer, TRADE_COL_UNLOAD_X1 + 5, TRADE_ROW_Y0 - 2,
+    framebuffer, TRADE_COL_MID_X1 + 5, TRADE_ROW_Y0 - 2,
     TRADE_ROW_Y0 - 2 + TRADE_ROW_COUNT * TRADE_ROW_H, rule
   );
 
