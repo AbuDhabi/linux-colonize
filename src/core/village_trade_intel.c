@@ -18,6 +18,7 @@ typedef struct VillageTradeIntelEntry {
   int y;
   VillageTradeIntelKnown buys[VILLAGE_TRADE_INTEL_NATIONS];
   VillageTradeIntelKnown sells[VILLAGE_TRADE_INTEL_NATIONS];
+  signed char skill[VILLAGE_TRADE_INTEL_NATIONS]; /* -1 = unknown */
 } VillageTradeIntelEntry;
 
 static VillageTradeIntelEntry s_intel[VILLAGE_TRADE_INTEL_CAP];
@@ -45,6 +46,7 @@ static VillageTradeIntelEntry* village_trade_intel_find(int x, int y, bool creat
   free_slot->used = true;
   free_slot->x = x;
   free_slot->y = y;
+  memset(free_slot->skill, -1, sizeof(free_slot->skill));
   return free_slot;
 }
 
@@ -78,6 +80,34 @@ void village_trade_intel_note_sells(int euro_nation, int x, int y, const int* go
   if (e) {
     village_trade_intel_store(&e->sells[euro_nation], goods, n);
   }
+}
+
+void village_trade_intel_note_skill(int euro_nation, int x, int y, int skill) {
+  if (euro_nation < 0 || euro_nation >= VILLAGE_TRADE_INTEL_NATIONS || x < 0 || y < 0 ||
+      skill < 0 || skill > 127) {
+    return;
+  }
+  VillageTradeIntelEntry* e = village_trade_intel_find(x, y, true);
+  if (e) {
+    e->skill[euro_nation] = (signed char)skill;
+  }
+}
+
+bool village_trade_intel_get_skill(int euro_nation, int x, int y, int* out_skill) {
+  if (out_skill) {
+    *out_skill = -1;
+  }
+  if (euro_nation < 0 || euro_nation >= VILLAGE_TRADE_INTEL_NATIONS) {
+    return false;
+  }
+  const VillageTradeIntelEntry* e = village_trade_intel_find(x, y, false);
+  if (!e || e->skill[euro_nation] < 0) {
+    return false;
+  }
+  if (out_skill) {
+    *out_skill = e->skill[euro_nation];
+  }
+  return true;
 }
 
 bool village_trade_intel_get(
@@ -130,15 +160,19 @@ void village_trade_intel_forget_tile(int x, int y) {
  * Save serialization ('VTIN' chunk of the port extension block)
  * ---------------------------------------------------------------------
  * Payload, little-endian:
- *   uint16 version (1)
+ *   uint16 version (2)
  *   uint16 entry_count
  *   entry_count x { int16 x, int16 y,
  *                   4 x { uint8 buys_n, int8 buys[3] },
- *                   4 x { uint8 sells_n, int8 sells[3] } }
+ *                   4 x { uint8 sells_n, int8 sells[3] },
+ *                   4 x int8 skill (-1 = unknown) }
+ * Version 1 ends after sells and remains readable so existing port saves
+ * keep their trade rows.
  */
-#define VILLAGE_TRADE_INTEL_BLOB_VERSION 1u
+#define VILLAGE_TRADE_INTEL_BLOB_VERSION 2u
 #define VILLAGE_TRADE_INTEL_BLOB_HEADER 4u
-#define VILLAGE_TRADE_INTEL_BLOB_ENTRY 36u
+#define VILLAGE_TRADE_INTEL_BLOB_ENTRY_V1 36u
+#define VILLAGE_TRADE_INTEL_BLOB_ENTRY 40u
 
 static void intel_put16(uint8_t* p, int v) {
   p[0] = (uint8_t)((unsigned)v & 0xffu);
@@ -202,6 +236,9 @@ uint8_t* village_trade_intel_serialize(size_t* out_size) {
     for (int n = 0; n < VILLAGE_TRADE_INTEL_NATIONS; ++n) {
       p = intel_put_known(p, &e->sells[n]);
     }
+    for (int n = 0; n < VILLAGE_TRADE_INTEL_NATIONS; ++n) {
+      *p++ = (uint8_t)e->skill[n];
+    }
   }
   if (out_size) {
     *out_size = size;
@@ -214,12 +251,15 @@ void village_trade_intel_deserialize(const uint8_t* data, size_t size) {
   if (!data || size < VILLAGE_TRADE_INTEL_BLOB_HEADER) {
     return;
   }
-  if ((unsigned)intel_get16(data) != VILLAGE_TRADE_INTEL_BLOB_VERSION) {
+  const unsigned version = (unsigned)intel_get16(data);
+  if (version != 1u && version != VILLAGE_TRADE_INTEL_BLOB_VERSION) {
     return; /* a newer port's spelling: ignore rather than misread it */
   }
   const int count = intel_get16(data + 2);
+  const size_t entry_size = version == 1u ? VILLAGE_TRADE_INTEL_BLOB_ENTRY_V1
+                                          : VILLAGE_TRADE_INTEL_BLOB_ENTRY;
   if (count <= 0 ||
-      size < VILLAGE_TRADE_INTEL_BLOB_HEADER + (size_t)count * VILLAGE_TRADE_INTEL_BLOB_ENTRY) {
+      size < VILLAGE_TRADE_INTEL_BLOB_HEADER + (size_t)count * entry_size) {
     return;
   }
   const uint8_t* p = data + VILLAGE_TRADE_INTEL_BLOB_HEADER;
@@ -235,6 +275,14 @@ void village_trade_intel_deserialize(const uint8_t* data, size_t size) {
     for (int n = 0; n < VILLAGE_TRADE_INTEL_NATIONS; ++n) {
       VillageTradeIntelKnown scratch;
       p = intel_get_known(p, e ? &e->sells[n] : &scratch);
+    }
+    if (version >= 2u) {
+      for (int n = 0; n < VILLAGE_TRADE_INTEL_NATIONS; ++n) {
+        const signed char skill = (signed char)*p++;
+        if (e) {
+          e->skill[n] = skill >= 0 ? skill : -1;
+        }
+      }
     }
   }
 }

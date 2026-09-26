@@ -690,6 +690,7 @@ static int case_village_trade_intel(void) {
   int got_s[3];
   int nb = -1;
   int ns = -1;
+  int got_skill = -1;
   const int want[3] = {12, 11, 16}; /* 16 is not a cargo id: dropped */
   const int sell[3] = {1, 2, 3};
   village_trade_intel_note_buys(0, 10, 10, want, 3);
@@ -703,8 +704,14 @@ static int case_village_trade_intel(void) {
   if (village_trade_intel_get(0, 11, 10, got_b, &nb, got_s, &ns)) {
     return fail("village intel leaked to another tile");
   }
+  village_trade_intel_note_skill(0, 10, 10, UNITS_JOB_SCOUT);
+  if (!village_trade_intel_get_skill(0, 10, 10, &got_skill) || got_skill != UNITS_JOB_SCOUT ||
+      village_trade_intel_get_skill(1, 10, 10, &got_skill)) {
+    return fail("village intel: skill not recorded per European nation");
+  }
   village_trade_intel_forget_tile(10, 10);
-  if (village_trade_intel_get(0, 10, 10, got_b, &nb, got_s, &ns)) {
+  if (village_trade_intel_get(0, 10, 10, got_b, &nb, got_s, &ns) ||
+      village_trade_intel_get_skill(0, 10, 10, &got_skill)) {
     return fail("village intel survived forget_tile");
   }
 
@@ -751,14 +758,17 @@ static int case_village_trade_intel(void) {
     return fail("oom");
   }
   ColonizeFramebuffer8 ifb = {.width = 320, .height = 200, .pixels = pixels};
-  uint8_t* shot[3] = {NULL, NULL, NULL};
-  for (int pass = 0; pass < 3; ++pass) {
+  uint8_t* shot[4] = {NULL, NULL, NULL, NULL};
+  for (int pass = 0; pass < 4; ++pass) {
     village_trade_intel_reset();
     if (pass >= 1) {
       village_trade_intel_note_buys(0, 10, 10, want, 2);
     }
     if (pass >= 2) {
       village_trade_intel_note_sells(0, 10, 10, sell, 3);
+    }
+    if (pass >= 3) {
+      village_trade_intel_note_skill(0, 10, 10, UNITS_JOB_SCOUT);
     }
     memset(pixels, 0, 320 * 200);
     ColonizeWorld w_intel = world_make(NULL, NULL, &imap, &icol1, true, NULL, NULL);
@@ -776,28 +786,28 @@ static int case_village_trade_intel(void) {
   ss_free(&iicons);
   map_free(&imap);
   free(pixels);
-  if (!shot[0] || !shot[1] || !shot[2]) {
-    for (int k = 0; k < 3; ++k) {
+  if (!shot[0] || !shot[1] || !shot[2] || !shot[3]) {
+    for (int k = 0; k < 4; ++k) {
       free(shot[k]);
     }
     return fail("village intel: out of memory");
   }
   /* First differing row between two renders, −1 when identical. */
-  int first_diff[2] = {-1, -1};
-  for (int k = 0; k < 2; ++k) {
+  int first_diff[3] = {-1, -1, -1};
+  for (int k = 0; k < 3; ++k) {
     for (int y = 0; y < 200 && first_diff[k] < 0; ++y) {
       if (memcmp(shot[k] + y * 320, shot[k + 1] + y * 320, 320) != 0) {
         first_diff[k] = y;
       }
     }
   }
-  for (int k = 0; k < 3; ++k) {
+  for (int k = 0; k < 4; ++k) {
     free(shot[k]);
   }
-  /* Buys row appears below the village line; Sells row one row further down. */
-  if (first_diff[0] < 0 || first_diff[1] < 0 || first_diff[1] <= first_diff[0]) {
-    fprintf(stderr, "village intel rows missing/misordered (buys y=%d, sells y=%d)\n",
-            first_diff[0], first_diff[1]);
+  /* Buys, Sells, then Skill each appear on a successively lower row. */
+  if (first_diff[0] < 0 || first_diff[1] <= first_diff[0] || first_diff[2] <= first_diff[1]) {
+    fprintf(stderr, "village intel rows missing/misordered (buys=%d sells=%d skill=%d)\n",
+            first_diff[0], first_diff[1], first_diff[2]);
     return 1;
   }
   return 0;

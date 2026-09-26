@@ -323,7 +323,7 @@ bool col1_save_write_memory(
 #define COLONIZE_COL1_EXT_HEADER_SIZE 16u
 #define COLONIZE_COL1_EXT_VERSION 1u
 
-/* 'VTIN': village Buys/Sells sidebar knowledge (village_trade_intel.h). */
+/* 'VTIN': village trade/skill sidebar knowledge (village_trade_intel.h). */
 #define COLONIZE_COL1_EXT_TAG_VILLAGE_TRADE_INTEL 0x4e495456u
 
 /* True when `data` is a well-formed ext block (magic, version, chunk walk). */

@@ -41,7 +41,7 @@ void save_load_close(SaveLoadDialog* dlg) {
  * builder trims the leader name until it measures under 0x65 px.
  *
  * Port addition: a trailing " *" marks a slot that carries the port
- * extension block (village Buys/Sells intel today) -- state DOS cannot read
+ * extension block (village trade/skill intel today) -- state DOS cannot read
  * and will drop if it re-saves that slot.
  */
 static void save_load_format_label(

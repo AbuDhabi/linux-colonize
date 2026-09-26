@@ -738,6 +738,7 @@ static void ai_contact_learnstay_apply(
   }
   u->profession = skill;
   t->state.learned = 1;
+  village_trade_intel_note_skill(e, t->x, t->y, skill);
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = ai_contact_tribe_name(nation_id);
@@ -849,6 +850,7 @@ void ai_contact_live_among_natives(
         section = "LEARNSLOW";
         fb = "";
       } else if (human && ctx->ai_popups) {
+        village_trade_intel_note_skill(e, t->x, t->y, skill);
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(ctx->messages, "LEARNSTAY", &tok, "", body, sizeof(body));
         /* @LEARNSTAY row 2 ("Not right now, thanks.") carries no token, so
@@ -988,6 +990,7 @@ static void ai_contact_speak_with_chief(
           fb[0] = '\0';
           popup_msg_fill(ctx->messages, "CHIEFHOWDY", &ht, fb, body, sizeof(body));
           ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
+          village_trade_intel_note_skill(e, t->x, t->y, skill);
           if (want[0] >= 0) {
             village_trade_intel_note_buys(e, t->x, t->y, want, 3);
           }
