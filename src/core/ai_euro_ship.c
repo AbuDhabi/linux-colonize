@@ -62,7 +62,7 @@
  * per act, from the 20e6 unload/settle flow, and now so does this port.
  */
 
-static int ai_euro_20e6_unit_col5(const ColonizeUnitPool* pool, int dos_type);
+int ai_euro_20e6_unit_col5(const ColonizeUnitPool* pool, int dos_type);
 
 /*
  * FUN_521d_20e6 hold-cargo colony-delivery matrix (md:2047-2139;
@@ -2453,7 +2453,7 @@ int ai_euro_20e6_unload_by_mask(
  * Read from the loaded @UNIT catalog rather than a hardcoded table: the
  * kind id IS the @UNIT row (see ai_euro_5d04_dos_type_of).
  */
-static int ai_euro_20e6_unit_col5(const ColonizeUnitPool* pool, int dos_type) {
+int ai_euro_20e6_unit_col5(const ColonizeUnitPool* pool, int dos_type) {
   const int ti = pool ? units_kind_type_index(pool, (ColonizeUnitKind)dos_type) : -1;
   const ColonizeUnitType* t = ti >= 0 ? units_type(pool, ti) : NULL;
   return t ? t->defense : 0;

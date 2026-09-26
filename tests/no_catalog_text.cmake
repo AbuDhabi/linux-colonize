@@ -22,6 +22,18 @@ set(forbidden_catalog_text
   "(Major River)"
   "(River)"
   "(Lost City Rumor)"
+  # Typed-fallback removals that had no guard until the 2026-09-26 test-gap
+  # audit. Each needle was checked absent from the current binary before it
+  # was added here; all are long enough for `strings -n 5`.
+  "wagon train"                                  # bugs.md #802
+  "Tribute paid; tensions ease with the %s."     # bugs.md #802
+  "(Cost: %d)"                                   # bugs.md #602
+  "The %s raid %s."                              # bugs.md #836
+  "The %s raid your colony."                     # bugs.md #836
+  "%s raiders set fires in %s."                  # bugs.md #836
+  "%s raiders set fires."                        # bugs.md #836
+  "The %s declare war! Prepare for WAR!"         # bugs.md #836
+  "Cigar"                                        # bugs.md #905
 )
 
 foreach(needle IN LISTS forbidden_catalog_text)

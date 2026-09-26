@@ -843,6 +843,16 @@ foreach(_test_ai_contact_slice core meet colony)
   )
 endforeach()
 
+# Regression guards for FIXED bugs.md rows that had no test (gap audit
+# 2026-09-26): tests/unit/test_regress_*.c. One slice per subject area so
+# agents/authors do not collide; cases are named case_<bugid>_<what>.
+foreach(_test_regress_slice units ai_tables production trade_raid save)
+  colonize_add_test(NAME unit_regress_${_test_regress_slice}
+    SOURCES tests/unit/test_regress_${_test_regress_slice}.c
+    LIBS colonize_core
+  )
+endforeach()
+
 colonize_add_test(NAME unit_ai_indian_census
   SOURCES tests/unit/test_ai_indian_census.c
   LIBS colonize_core

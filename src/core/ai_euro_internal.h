@@ -395,6 +395,8 @@ extern uint8_t ai_euro_s_20e6_explore_fatigue[COLONIZE_UNITS_MAX];
 extern int8_t ai_euro_s_20e6_hop_steps[COLONIZE_UNITS_MAX];
 extern int16_t ai_euro_s_20e6_hop_slot[COLONIZE_UNITS_MAX];
 int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUnit* u);
+/* @UNIT DEFENSE column (bugs.md #651) — exposed for test_regress_ai_tables.c. */
+int ai_euro_20e6_unit_col5(const ColonizeUnitPool* pool, int dos_type);
 int ai_euro_20e6_type_combat(int dos_type);
 int ai_euro_20e6_type_flags(int dos_type);
 int ai_euro_20e6_nearest_colony(

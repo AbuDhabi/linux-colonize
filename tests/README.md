@@ -54,6 +54,27 @@ fails many cases.
 | `test_ai_euro_war.c` (5381, 42) | `unit_ai_euro_war_core` (merc hire, 5952 labor, peace/goal tails, g-stance), `_naval` (hunts, privateers, ambush), `_land` (adjacent combat + defender ladder), `_garrison` (fortify/quota), `_transport` (unload, war transport) |
 | `test_ai_king.c` (4735, 14) | `unit_ai_king_core` (old narrative kept as an ordered cumulative spine; 35 prefix cases + 1 independent `dump_goods_pick_api`), `_war` (war event, non-combat gate, 43f7 spawn types), `_revolution` (end ladder: @LOSING/@WARN/@WINNING/@RETIRING2/@SCORED) |
 
+### Regression guards for FIXED bugs.md rows
+
+`tests/unit/test_regress_*.c` (`unit_regress_units`, `_ai_tables`,
+`_production`, `_trade_raid`, `_save`) came out of the 2026-09-26 test-gap
+audit: 455 FIXED rows in
+[`docs/archive/bugs_fixed_pending.md`](../docs/archive/bugs_fixed_pending.md)
+were awaiting user verification while only two test cases anywhere named a bug
+id, so nothing traced a row to a guard. Cases are named
+`case_<bugid>_<what>` and each carries the `FUN_ssss_oooo` / raw offset in a
+comment. Add new guards to the slice that matches the subject area (one slice
+per area, so concurrent authors do not collide), and mutation-check every new
+case: revert the fix in `src/`, confirm the case fails, undo the revert.
+
+Typed-English-fallback regressions (the no-DOS-text rule) are guarded
+separately by `lint_no_catalog_text`
+([`tests/no_catalog_text.cmake`](no_catalog_text.cmake)), a `strings` scan of
+the built binary. Its needle list is per-phrase, so a removed fallback stays
+unguarded until its wording is added there. Needles shorter than 5 characters
+cannot be caught at all (`strings -n 5`), and generic words (`ship`, `units`,
+`Foreign`) false-positive against legitimate strings.
+
 ## Golden
 
 Examples: `golden_mapgen_seed100`, `golden_colony_prod01`/`02`.
