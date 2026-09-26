@@ -849,6 +849,54 @@ static int case_silver_miner_collapse(void) {
     return 1;
   }
 
+  /* Depleted deposit — the same Silver Deposit tile with the Col1 suppress
+   * bit set (MAP_LAYER2_SUPPRESS, mask 0x04). FUN_137f_04b0 raw 6939-6941
+   * reports resource *0* ("Depleted Mine") for a mined-out silver deposit,
+   * not -1, so FUN_15eb_18ec's job == 7 collapse (raw 11925-11940) is
+   * skipped on both counts (res >= 0 and the bit set) and the improvement
+   * stack still runs. FUN_15eb_17fa(0, 7) is 0, so the tile pays its bare
+   * base: free 1, expert 1 << 1 = 2. A spent mine therefore out-earns
+   * virgin rock (0/1 above) — DOS behaviour, not a port artefact. */
+  map.layer2[sy * map.width + sx] |= MAP_LAYER2_SUPPRESS;
+  if (map_resource_type_for_yield(&map, sx, sy) != 0) {
+    fprintf(
+      stderr, "depleted silver deposit want resource 0 got %d\n",
+      map_resource_type_for_yield(&map, sx, sy)
+    );
+    map_free(&map);
+    return 1;
+  }
+  const int spent_free = colony_yield_for_worker(
+    &map, sx, sy, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
+    false
+  );
+  const int spent_expert = colony_yield_for_worker(
+    &map, sx, sy, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0, 0,
+    false
+  );
+  /* Road re-enters the stack (raw 11954, `3 < local_14`, unit u = 1 free /
+   * 2 for the matching expert): 2 and 4. */
+  map.improve[sy * map.width + sx] |= MAP_IMPROVE_ROAD;
+  const int spent_road_free = colony_yield_for_worker(
+    &map, sx, sy, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
+    false
+  );
+  const int spent_road_expert = colony_yield_for_worker(
+    &map, sx, sy, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0, 0,
+    false
+  );
+  map.improve[sy * map.width + sx] = 0;
+  map.layer2[sy * map.width + sx] = 0;
+  if (spent_free != 1 || spent_expert != 2 || spent_road_free != 2 || spent_road_expert != 4) {
+    fprintf(
+      stderr,
+      "depleted silver deposit want free=1 expert=2 road free=2 expert=4 got %d/%d/%d/%d\n",
+      spent_free, spent_expert, spent_road_free, spent_road_expert
+    );
+    map_free(&map);
+    return 1;
+  }
+
   /* Other mined goods are untouched: the DOS branch tests job == 7 only,
    * so an Ore Miner on the same bare rock keeps base 4 (+expert, +road). */
   map.terrain[my * map.width + mx] = 0xa0u;
