@@ -13,6 +13,7 @@
 #include "core/ai_euro_internal.h"
 #include "core/ai_internal.h"
 #include "core/col1_save.h"
+#include "core/game_dialogs.h"
 #include "core/game_loop_internal.h"
 #include "core/turn_internal.h"
 
@@ -378,6 +379,78 @@ static int test_trade_route_wagon_services_arrival_stop(void) {
     } else if (wagon->col1_counter16 != 0 ||
                wagon->goto_x != other->x || wagon->goto_y != other->y) {
       rc = fail("trade-route arrival did not advance to the next stop");
+    }
+  }
+
+  colonies_set_occupancy_map(NULL);
+  units_set_occupancy_map(NULL);
+  fx_map_free(&game.world_map);
+  return rc;
+}
+
+/* DOS FUN_2b5a_1e66 raw 42862-42864 assigns order 2 and immediately calls
+ * FUN_479b_0bd0(unit, 1). Starting a full-MP wagon at the other stop must
+ * therefore retain control long enough to begin moving, even when another
+ * idle unit is waiting in the activation queue. */
+static int test_trade_route_begin_moves_wagon_to_selected_stop(void) {
+  ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/2, /*with_seen=*/true)) {
+    return fail("trade-route begin map alloc");
+  }
+  game.world_map_ok = true;
+  game.human_nation = 0;
+  game.col1_ok = true;
+
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 1;
+  game.units.types[0].kind_plus1 = UNITS_KIND_WAGON + 1;
+  game.units.types[0].movement = 2;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  game.units.types[0].cargo = 2;
+
+  fx_colonies_init(&game.colonies);
+  game.colonies_ok = true;
+  ColonizeColony* colony1 = fx_colony_add(&game.colonies, 0, 3, 3, 1);
+  ColonizeColony* colony2 = fx_colony_add(&game.colonies, 0, 4, 3, 1);
+  units_set_occupancy_map(&game.world_map);
+  colonies_set_occupancy_map(&game.world_map);
+
+  ColonizeCol1TradeRoute* route = &game.col1.trade_route[0];
+  route->dest_count = 2;
+  route->stop[0].colony_index = (uint16_t)colony1->id;
+  route->stop[1].colony_index = (uint16_t)colony2->id;
+
+  const int wagon_id = units_spawn(&game.units, 0, colony1->x, colony1->y);
+  const int other_id = units_spawn(&game.units, 0, 6, 6);
+  ColonizeUnit* wagon = units_get(&game.units, wagon_id);
+  ColonizeUnit* other = units_get(&game.units, other_id);
+  int rc = 0;
+  if (!wagon || !other) {
+    rc = fail("trade-route begin wagon spawn");
+  } else {
+    wagon->nation_id = 0;
+    wagon->moves = 6;
+    other->nation_id = 0;
+    other->moves = 6;
+    game.units.selected_id = wagon_id;
+    game.map_cursor_x = wagon->x;
+    game.map_cursor_y = wagon->y;
+
+    game_trade_begin_at_stop(&game, 0, 1);
+    if (wagon->orders != UNITS_ORDER_TRADE_ROUTE || wagon->moves != 6 ||
+        wagon->goto_x != colony2->x || wagon->goto_y != colony2->y) {
+      rc = fail("trade-route begin did not preserve MP and aim Colony 2");
+    } else if (game.units.selected_id != wagon_id) {
+      rc = fail("trade-route begin handed control away before movement");
+    } else {
+      ColonizeInputState input;
+      memset(&input, 0, sizeof(input));
+      (void)game_update_unit_pacer(&game, &input, 100);
+      if (wagon->x != colony2->x || wagon->y != colony2->y || wagon->moves >= 6) {
+        rc = fail("trade-route wagon did not move toward Colony 2");
+      }
     }
   }
 
@@ -847,6 +920,7 @@ static const TestCase k_cases[] = {
     {"test_game_colony_unload_whole_hold", test_game_colony_unload_whole_hold},
     {"test_colony_zoom_hold_survives_pedia_detour", test_colony_zoom_hold_survives_pedia_detour},
     {"test_trade_route_wagon_services_arrival_stop", test_trade_route_wagon_services_arrival_stop},
+    {"test_trade_route_begin_moves_wagon_to_selected_stop", test_trade_route_begin_moves_wagon_to_selected_stop},
     {"test_ai_euro_5952_absorb_colonist", test_ai_euro_5952_absorb_colonist},
     {"test_ai_euro_5952_absorb_soldier", test_ai_euro_5952_absorb_soldier},
     {"test_ai_euro_5952_equip_scout", test_ai_euro_5952_equip_scout},

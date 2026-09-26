@@ -154,7 +154,7 @@ bool units_set_orders(ColonizeUnitPool* pool, int unit_id, int orders);
 bool units_order_fortify(ColonizeUnitPool* pool, int unit_id);
 /* Sentry on map (or already-aboard). Spends MP. */
 bool units_order_sentry(ColonizeUnitPool* pool, int unit_id);
-/* Begin Trade Route (@ORDERS index 2). Clears goto; spends remaining MP. */
+/* Begin Trade Route (@ORDERS index 2). Clears goto; preserves remaining MP. */
 bool units_order_trade_route(ColonizeUnitPool* pool, int unit_id);
 /* Despawn unit (map disband). False if missing. */
 bool units_disband(ColonizeUnitPool* pool, int unit_id);
