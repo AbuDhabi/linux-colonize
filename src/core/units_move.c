@@ -933,9 +933,9 @@ bool units_order_trade_route(ColonizeUnitPool* pool, int unit_id) {
   u->goto_y = UNITS_GOTO_NONE;
   u->follow_unit_id = -1;
   u->orders = UNITS_ORDER_TRADE_ROUTE;
-  /* Same park-as-spent rule units_set_orders uses (:7782): spent-aware, since
-   * moves is REMAINING for Euros and SPENT for natives (audit A9). */
-  units_mp_exhaust(pool, u);
+  /* DOS FUN_2b5a_1e66 raw 42862-42864 writes order 2, then immediately calls
+   * FUN_479b_0bd0(unit, 1) to aim and move toward the selected stop. It does
+   * not exhaust the unit's remaining MP when assigning the route. */
   return true;
 }
 /* ===================== Pillage/disband/wake, goto/follow flood-fill & greedy pathfinding (units_dump_cargo_overboard .. units_greedy_next_step) ===================== */

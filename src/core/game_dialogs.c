@@ -996,7 +996,8 @@ void game_trade_begin_at_stop(ColonizeGameState* game, int route, int stop_i) {
   }
   u->follow_unit_id = route;
   u->col1_counter16 = 0;
-  if (game_trade_route_aim_stop(game, u, stop_i)) {
+  const bool aimed = game_trade_route_aim_stop(game, u, stop_i) != 0;
+  if (aimed) {
     snprintf(
       game->status,
       sizeof(game->status),
@@ -1008,7 +1009,13 @@ void game_trade_begin_at_stop(ColonizeGameState* game, int route, int stop_i) {
   } else {
     set_status(game, "Trade route begun (could not aim first stop)", NULL);
   }
-  game_wait_next_unit(game);
+  /* DOS FUN_2b5a_1e66 raw 42862-42864 immediately calls
+   * FUN_479b_0bd0(unit, 1) after assigning order 2. Keep a ready, aimed unit
+   * selected so game_update_unit_pacer performs that movement; handing the
+   * queue off here would leave the new route idle behind another unit. */
+  if (!aimed || u->moves <= 0) {
+    game_wait_next_unit(game);
+  }
 }
 
 /* Defined with the colony-screen block below; the @ABANDON popup result

@@ -1940,9 +1940,10 @@ static int case_dump_anchor_route_pillage(void) {
       assets_msg_free(&names);
       return 1;
     }
+    sh->moves = 5;
     if (!units_order_trade_route(&pool, ship) || sh->orders != UNITS_ORDER_TRADE_ROUTE ||
-        sh->moves != 0) {
-      fprintf(stderr, "trade route order failed\n");
+        sh->moves != 5) {
+      fprintf(stderr, "trade route order must preserve remaining MP\n");
       ss_free(&icons);
       map_free(&map);
       assets_msg_free(&names);
