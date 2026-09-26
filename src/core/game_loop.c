@@ -771,7 +771,6 @@ void game_combat_watch(
 void game_combat_dissolve(void* user, int phase) {
   ColonizeGameState* game = (ColonizeGameState*)user;
   static uint8_t s_before[320 * 200];
-  static uint8_t s_work[320 * 200];
   static bool s_before_ok = false;
   if (!game || !game->platform) {
     return;
@@ -800,12 +799,31 @@ void game_combat_dissolve(void* user, int phase) {
     return;
   }
   s_before_ok = false;
-  game_render(game, &fb, &pal);
-  if (memcmp(s_before, pixels, sizeof(pixels)) == 0) {
-    game->combat_dissolve_freeze = false;
+  game_fizzle_present(game, s_before);
+  game->combat_dissolve_freeze = false;
+}
+
+/*
+ * The fizzle itself, shared by every DOS site that presents a changed frame
+ * through FUN_281f_03ea (combat outcome FUN_5fef_1b0e tail, the colony-screen
+ * "new building appears" reveal FUN_2f2b_6cd4, the Continental Congress
+ * "new father appears" reveal FUN_4345_024a): render the CURRENT state, then
+ * copy it over `before` in 16-bit LFSR pixel order. Identical frames skip the
+ * animation, so an off-screen change stays instant.
+ */
+void game_fizzle_present(ColonizeGameState* game, const uint8_t* before) {
+  static uint8_t s_work[320 * 200];
+  if (!game || !game->platform || !before) {
     return;
   }
-  memcpy(s_work, s_before, sizeof(s_work));
+  uint8_t pixels[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  ColonizePalette pal;
+  game_render(game, &fb, &pal);
+  if (memcmp(before, pixels, sizeof(pixels)) == 0) {
+    return;
+  }
+  memcpy(s_work, before, sizeof(s_work));
   ColonizeFramebuffer8 wfb = {.width = 320, .height = 200, .pixels = s_work};
   /* DOS duration 8 spreads the 64000 copies over roughly half a second;
    * 16 presented batches × 28ms reads the same at 60Hz. */
@@ -838,7 +856,53 @@ void game_combat_dissolve(void* user, int phase) {
   /* Final frame exact (the batch split leaves a 64000%16 remainder). */
   game_render(game, &fb, &pal);
   platform_present(game->platform, &fb, &pal);
-  game->combat_dissolve_freeze = false;
+}
+
+/*
+ * Snapshot the current screen for a later game_fizzle_present. Callers that
+ * reveal something (a finished building, a new Founding Father) render the
+ * state WITHOUT it, present that frame as DOS does, then flip the state on and
+ * fizzle into it.
+ */
+bool game_fizzle_snapshot_present(ColonizeGameState* game, uint8_t* out_before) {
+  if (!game || !game->platform || !out_before) {
+    return false;
+  }
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = out_before};
+  ColonizePalette pal;
+  game_render(game, &fb, &pal);
+  return platform_present(game->platform, &fb, &pal);
+}
+
+/*
+ * DOS-LITERAL FUN_4345_024a raw 72982 reveal block: the Continental Congress
+ * hall screen clears the just-elected father's nation bit
+ * (FUN_4345_0000(nation, idx, 0)), draws the hall without him
+ * (FUN_4345_01a6) and presents it, then sets the bit again, redraws and
+ * presents that redraw through the LFSR fizzle FUN_281f_03ea(8) — the new
+ * father un-dissolves into the hall. Only the gated `-1 < param_2` arm does
+ * this, so opening Congress from the reports menu shows no animation.
+ */
+void game_congress_reveal_new_father(ColonizeGameState* game, int ff_index) {
+  if (!game || !game->col1_ok || ff_index < 0 || ff_index >= (int)COLONIZE_COL1_FF_COUNT) {
+    return;
+  }
+  const int nation = game->human_nation;
+  if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return;
+  }
+  uint8_t* bits = &game->col1.nation[nation].founding_fathers[ff_index / 8];
+  const uint8_t mask = (uint8_t)(1u << (ff_index % 8));
+  if ((*bits & mask) == 0) {
+    return;
+  }
+  static uint8_t before[320 * 200];
+  *bits = (uint8_t)(*bits & (uint8_t)~mask);
+  const bool have_before = game_fizzle_snapshot_present(game, before);
+  *bits = (uint8_t)(*bits | mask);
+  if (have_before) {
+    game_fizzle_present(game, before);
+  }
 }
 
 /*

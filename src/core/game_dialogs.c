@@ -1,4 +1,5 @@
 #include "core/game_dialogs.h"
+#include "core/game_loop_internal.h"
 
 /*
  * Sections:
@@ -2885,6 +2886,7 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
       game_open_report(game, COLONIZE_REPORT_CONGRESS);
       game->congress_page2 = true;
       game->ff_pedia_after_report = ff_index;
+      game_congress_reveal_new_father(game, ff_index);
     }
   }
   ai_popup_consume_result(&game->ai_popups);

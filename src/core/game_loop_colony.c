@@ -126,6 +126,25 @@ ColoniesBuildableOpts game_colony_buildable_opts(const ColonizeGameState* game) 
   return opts;
 }
 
+/* FUN_2f2b_6cd4 reveal block (see the call site in game_enter_colony). */
+static void game_colony_reveal_new_building(ColonizeGameState* game, int cid, int bid) {
+  if (!game || bid < 0 || bid >= COLONIZE_BUILDING_TYPES_MAX) {
+    return;
+  }
+  ColonizeColony* col = colonies_get_mut(&game->colonies, cid);
+  if (!col || !col->has_building[bid]) {
+    return;
+  }
+  static uint8_t before[320 * 200];
+  col->has_building[bid] = false;
+  const bool have_before = game_fizzle_snapshot_present(game, before);
+  col->has_building[bid] = true;
+  sound_play(0x54);
+  if (have_before) {
+    game_fizzle_present(game, before);
+  }
+}
+
 void game_enter_colony(ColonizeGameState* game, int cid) {
   if (cid < 0) {
     set_status(game, "No colony at cursor", NULL);
@@ -145,11 +164,12 @@ void game_enter_colony(ColonizeGameState* game, int cid) {
    * (bugs.md: "celebratory SFX should not be played every time the colony
    * UI is opened"). Founding keeps its own 0x54 (FUN_479b_076e).
    */
+  int reveal_bid = -1;
   {
     ColonizeColony* reveal = colonies_get_mut(&game->colonies, cid);
     if (reveal && reveal->pending_build_reveal > 0) {
+      reveal_bid = reveal->pending_build_reveal - 1;
       reveal->pending_build_reveal = 0;
-      sound_play(0x54);
     }
   }
   sound_set_bgm(2);
@@ -161,6 +181,15 @@ void game_enter_colony(ColonizeGameState* game, int cid) {
   snprintf(game->status, sizeof(game->status), "Entered %s", col ? col->name : "");
   colony_screen_set_status(&game->colony_screen, col ? col->name : "");
   game_track_screen(game);
+  /*
+   * DOS-LITERAL FUN_2f2b_6cd4 raw 55975 reveal block: with DS:0x34a >= 0 the
+   * bring-up clears that building's bit (FUN_281f_0bbe(.., 0) = colony record
+   * +0x84), draws and presents the screen without it, sets the bit again,
+   * redraws, fires event 0x54 (FUN_281f_04c0) and presents the redraw through
+   * the LFSR fizzle FUN_281f_03ea(8) — so the finished building un-dissolves
+   * into place the first time the colony is opened.
+   */
+  game_colony_reveal_new_building(game, cid, reveal_bid);
   if (diag_info_enabled() && col) {
     const char* project = "-";
     if (col->building_in_production >= 0 &&
