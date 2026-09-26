@@ -800,6 +800,9 @@ void game_colony_area_tile_drop(
       body, sizeof(body)
     );
     ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+    /* Player-raised from inside the colony screen: present on the spot, or the
+     * colony_zoom_popup_hold keeps it queued until the screen closes (#916). */
+    game_colony_present_now(game, AI_POPUP_TAG_INFO);
     set_status(game, "No docks", NULL);
     colony_screen_set_status(csv, game->status);
     return;
