@@ -1958,7 +1958,7 @@ bool col1_bridge_apply_w(
   /* Align live layer2 occupancy with imported pools (tribes from save). */
   col1_bridge_sync_map_occupancy(NULL, map, units, colonies, save);
 
-  /* Village Buys/Sells sidebar rows: restored from the port extension block,
+  /* Village trade/skill sidebar rows: restored from the port extension block,
    * or cleared when the save has none (a DOS original, or one DOS re-saved). */
   {
     const uint8_t* intel = NULL;
@@ -3361,7 +3361,7 @@ bool col1_bridge_capture_w(
   col1_bridge_sync_new_world_discovery(save, map, human_nation);
 
   /*
-   * Port-only sidebar knowledge (village Buys/Sells rows) into the extension
+   * Port-only sidebar knowledge (village trade/skill rows) into the extension
    * block past the last DOS section. DOS never sees it; re-saving in DOS
    * simply drops it, which is why the Load dialog flags such slots with "*".
    */

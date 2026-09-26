@@ -6701,6 +6701,12 @@ static int sp_53(void) {
       if (strstr(st_menu, "target practice") != NULL) {
         return fail("chief: @CHIEFKILL impossible at alarm 10 for a non-Arawak tribe");
       }
+      {
+        int disclosed_skill = -1;
+        if (!village_trade_intel_get_skill(0, 5, 5, &disclosed_skill)) {
+          return fail("chief: @CHIEFHOWDY should record the village skill");
+        }
+      }
       /* Guides / area / gift all latch scouted; bored (alarm >= roll) does not. */
       if (col1.tribe[0].state.scouted) {
         if (scout->profession != UNITS_JOB_SCOUT && col1.nation[0].gold == gold_before &&
@@ -6880,6 +6886,14 @@ static int sp_55(void) {
       if (strstr(st_menu, "master") == NULL) {
         fprintf(stderr, "unit_ai_contact: learnstay body '%s'\n", st_menu);
         return fail("live among: @LEARNSTAY body should name the master skill");
+      }
+      {
+        int disclosed_skill = -1;
+        const int offered_skill = pop_menu.queue[0].payload >> 16;
+        if (!village_trade_intel_get_skill(0, 5, 5, &disclosed_skill) ||
+            disclosed_skill != offered_skill) {
+          return fail("live among: @LEARNSTAY should record the offered village skill");
+        }
       }
       /* No → @LEARNLATER, still untaught. */
       AiPopupState ans;

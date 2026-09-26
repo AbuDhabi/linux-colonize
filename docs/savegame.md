@@ -102,7 +102,7 @@ Chunks:
 
 | Tag | Owner | Contents |
 |-----|-------|----------|
-| `VTIN` | `village_trade_intel.c` | Village sidebar `Buys:` / `Sells:` knowledge per settlement tile × European nation (`uint16` version, `uint16` entry count, 36 B per entry) |
+| `VTIN` | `village_trade_intel.c` | Village sidebar `Buys:` / `Sells:` / `Skill:` knowledge per settlement tile × European nation (`uint16` version 2, `uint16` entry count, 40 B per entry; version 1's 36 B trade-only entries remain readable) |
 
 Wiring: `col1_bridge_capture` serializes the live side tables into chunks,
 `col1_bridge_apply` restores them (and clears the table when the save has no

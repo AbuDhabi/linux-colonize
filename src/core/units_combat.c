@@ -2541,7 +2541,7 @@ static int col1_destroy_tribe_at(
     return -1;
   }
 
-  village_trade_intel_forget_tile(x, y); /* sidebar Buys/Sells rows go with it */
+  village_trade_intel_forget_tile(x, y); /* sidebar trade/skill rows go with it */
   /* FUN_4d56_00e0 entry (raw 81307-81308): FUN_281f_068c(x, y, 2, 0) →
    * FUN_137f_015e AND-clears settlement bit 0x02 of the mask plane (DS:0x160)
    * and nothing else: a real road (0x08) stays, but the village's implied

@@ -582,6 +582,7 @@ static bool test_port_ext(char* err, size_t err_size) {
   village_trade_intel_reset();
   village_trade_intel_note_buys(1, 30, 40, buys, 3);
   village_trade_intel_note_sells(1, 30, 40, sells, 3);
+  village_trade_intel_note_skill(1, 30, 40, UNITS_JOB_SCOUT);
   size_t intel_size = 0;
   uint8_t* intel = village_trade_intel_serialize(&intel_size);
   if (!intel || intel_size == 0) {
@@ -589,6 +590,38 @@ static bool test_port_ext(char* err, size_t err_size) {
     free(plain);
     col1_save_free(&save);
     return false;
+  }
+  /* Version-1 trade-only payloads from existing port saves remain readable. */
+  {
+    const size_t legacy_size = intel_size - 4u;
+    uint8_t* legacy = malloc(legacy_size);
+    if (!legacy) {
+      free(intel);
+      free(plain);
+      col1_save_free(&save);
+      return false;
+    }
+    memcpy(legacy, intel, legacy_size);
+    legacy[0] = 1;
+    legacy[1] = 0;
+    village_trade_intel_deserialize(legacy, legacy_size);
+    int legacy_buys[3] = {0};
+    int legacy_sells[3] = {0};
+    int legacy_nb = 0;
+    int legacy_ns = 0;
+    int legacy_skill = -1;
+    if (!village_trade_intel_get(
+          1, 30, 40, legacy_buys, &legacy_nb, legacy_sells, &legacy_ns
+        ) || legacy_nb != 3 || legacy_ns != 3 ||
+        village_trade_intel_get_skill(1, 30, 40, &legacy_skill)) {
+      fprintf(stderr, "port_ext: legacy VTIN v1 did not retain trade-only intel\n");
+      free(legacy);
+      free(intel);
+      free(plain);
+      col1_save_free(&save);
+      return false;
+    }
+    free(legacy);
   }
   static const uint8_t k_other_payload[5] = {0xde, 0xad, 0xbe, 0xef, 0x01};
   if (!col1_save_ext_put(&save, COLONIZE_COL1_EXT_TAG_VILLAGE_TRADE_INTEL, intel, intel_size) ||
@@ -666,9 +699,11 @@ static bool test_port_ext(char* err, size_t err_size) {
       int got_sells[VILLAGE_TRADE_INTEL_GOODS] = {0};
       int nb = 0;
       int ns = 0;
+      int skill = -1;
       if (!village_trade_intel_get(1, 30, 40, got_buys, &nb, got_sells, &ns) || nb != 3 || ns != 3 ||
           got_buys[0] != 2 || got_buys[1] != 5 || got_buys[2] != 9 || got_sells[0] != 1 ||
-          got_sells[1] != 4 || got_sells[2] != 0) {
+          got_sells[1] != 4 || got_sells[2] != 0 ||
+          !village_trade_intel_get_skill(1, 30, 40, &skill) || skill != UNITS_JOB_SCOUT) {
         fprintf(stderr, "port_ext: village intel did not survive (nb=%d ns=%d)\n", nb, ns);
         ok = false;
       }

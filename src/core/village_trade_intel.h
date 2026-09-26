@@ -7,8 +7,8 @@
 
 /*
  * Linux-only convenience: what a native settlement has TOLD a European
- * player it buys and sells, so the map sidebar can list it under the
- * settlement (View Pieces, "Buys:" / "Sells:" icon rows).
+ * player it buys and sells, plus the skill it teaches, so the map sidebar
+ * can list that knowledge under the settlement (View Pieces).
  *
  * DOS has no such memory, so it cannot live in a DOS section: the table is
  * serialized into the port extension block appended after the last DOS
@@ -22,8 +22,10 @@
  * tribe[] indices do shift when one is destroyed).
  *
  * Fed by the three "what we need" dialogs (@BRING, @BADCARGO, @CHIEFHOWDY —
- * each names the three most-wanted goods) and by @BUYWHICH (the goods the
- * settlement offers). Goods are cargo ids 0..15.
+ * each names the three most-wanted goods), by @BUYWHICH (the goods the
+ * settlement offers), and by dialogs that name the village skill
+ * (@CHIEFHOWDY, @LEARNSTAY, @LEARNDONE). Goods are cargo ids 0..15; skills
+ * are @JOB row ids.
  */
 
 #define VILLAGE_TRADE_INTEL_GOODS 3
@@ -35,6 +37,12 @@ void village_trade_intel_note_buys(int euro_nation, int x, int y, const int* goo
 
 /* Record the goods a settlement said it has for sale. */
 void village_trade_intel_note_sells(int euro_nation, int x, int y, const int* goods, int n);
+
+/* Record the @JOB row the settlement said it teaches. */
+void village_trade_intel_note_skill(int euro_nation, int x, int y, int skill);
+
+/* Fetch the disclosed skill. Returns false while it is unknown. */
+bool village_trade_intel_get_skill(int euro_nation, int x, int y, int* out_skill);
 
 /*
  * Fetch what `euro_nation` has been told about the settlement at (x, y).

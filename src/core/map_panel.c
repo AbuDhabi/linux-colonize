@@ -953,10 +953,10 @@ static int map_panel_draw_cargo_icons(
 }
 
 /*
- * Linux-only "Buys:" / "Sells:" rows under a native settlement — what the
- * settlement has told the player in trade / chief dialogs this session
- * (village_trade_intel.h). Each row is skipped until that half is known.
- * Icons share one column so the two rows line up.
+ * Linux-only "Buys:" / "Sells:" / "Skill:" rows under a native settlement
+ * — what the settlement has told the player in trade / chief / teaching
+ * dialogs (village_trade_intel.h). Each row is skipped until known. Trade
+ * icons share one column so those two rows line up; skill always follows.
  */
 #define MAP_PANEL_INTEL_ROW_H 13
 
@@ -976,8 +976,14 @@ static void map_panel_draw_village_trade_intel(
   int sells[VILLAGE_TRADE_INTEL_GOODS];
   int buys_n = 0;
   int sells_n = 0;
-  if (!icons || !io_y ||
-      !village_trade_intel_get(euro_nation, village_x, village_y, buys, &buys_n, sells, &sells_n)) {
+  int skill = -1;
+  const bool has_trade = village_trade_intel_get(
+    euro_nation, village_x, village_y, buys, &buys_n, sells, &sells_n
+  );
+  const bool has_skill = village_trade_intel_get_skill(
+    euro_nation, village_x, village_y, &skill
+  );
+  if (!icons || !io_y || (!has_trade && !has_skill)) {
     return;
   }
   static const char* const k_labels[2] = {"Buys: ", "Sells: "};
@@ -1010,6 +1016,12 @@ static void map_panel_draw_village_trade_intel(
       ss_blit_sprite(icons, sprite, fb, gx, *io_y);
       gx += w + 1;
     }
+    *io_y += MAP_PANEL_INTEL_ROW_H;
+  }
+  if (has_skill && *io_y + MAP_PANEL_INTEL_ROW_H <= y_limit) {
+    char line[48];
+    snprintf(line, sizeof(line), "Skill: %s", reports_job_short_name(skill));
+    font_draw_text(font, fb, x, *io_y + 2, line, MAP_PANEL_COL_TEXT);
     *io_y += MAP_PANEL_INTEL_ROW_H;
   }
 }
