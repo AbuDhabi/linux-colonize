@@ -327,7 +327,8 @@ struct ColonizeGameState {
   /* Colony screen opened via "Zoom to colony.": while it is up, the queued
    * AI popups for OTHER colonies / global events hold (DOS FUN_364b_0688 is
    * per-colony blocking — the next colony's chrome runs only after this
-   * colony's screen closes). Auto-clears when in_colony drops. */
+   * colony's screen closes). A pedia article that returns to this colony is
+   * part of the same visit; otherwise the hold clears when in_colony drops. */
   bool colony_zoom_popup_hold;
   int colony_view_id;
   ColonizePikImage menu_bg;
