@@ -503,8 +503,14 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
    * advance while the player is occupied with it. Fall through so that
    * screen gets its input; the EOT branch resumes when it closes. Queued
    * popups still present on top of it ("popup batch notwithstanding"). */
-  /* Zoom hold ends the moment the zoomed colony screen closes. */
-  if (game->colony_zoom_popup_hold && !game->in_colony) {
+  /* Zoom hold ends when the player really leaves the zoomed colony. A
+   * terrain-pedia article opened from its minimap temporarily clears
+   * in_colony, but carries the colony id needed to restore that same screen;
+   * keep the queued EOT batch held across that nested detour (bugs.md #950). */
+  const bool pedia_returns_to_colony =
+    game->in_pedia && game->pedia_return_colony_id >= 0 &&
+    colonies_get(&game->colonies, game->pedia_return_colony_id) != NULL;
+  if (game->colony_zoom_popup_hold && !game->in_colony && !pedia_returns_to_colony) {
     game->colony_zoom_popup_hold = false;
   }
   const bool screen_over_map =

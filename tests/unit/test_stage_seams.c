@@ -247,6 +247,64 @@ static int test_game_colony_unload_whole_hold(void) {
   return 0;
 }
 
+/* bugs.md #950: a terrain-pedia detour from a zoomed colony is still part of
+ * that colony visit. Queued EOT chrome must remain held until the player
+ * leaves the restored colony screen, not merely until in_colony temporarily
+ * drops while the article owns the display. */
+static int test_colony_zoom_hold_survives_pedia_detour(void) {
+  ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  game.found_open_colony_id = -1;
+  game.ff_pedia_after_report = -1;
+  fx_colonies_init(&game.colonies);
+  if (!fx_colony_add(&game.colonies, 0, 4, 4, 1)) {
+    return fail("zoom-hold colony fixture");
+  }
+  ai_popup_init(&game.ai_popups);
+  if (!ai_popup_enqueue_ok(&game.ai_popups, AI_POPUP_TAG_INFO, NULL, "queued")) {
+    return fail("zoom-hold popup fixture");
+  }
+
+  game.colony_zoom_popup_hold = true;
+  game.in_pedia = true;
+  game.pedia_view = PEDIA_VIEW_ARTICLE;
+  game.pedia_return_to_list = false;
+  game.pedia_return_colony_id = 0;
+
+  ColonizeInputState input;
+  memset(&input, 0, sizeof(input));
+  input.last_key = COLONIZE_KEY_NONE;
+  (void)game_update_services(&game, &input, 16);
+  if (!game.colony_zoom_popup_hold || game.ai_popups.open) {
+    units_reset_hooks();
+    return fail("pedia detour released zoom hold");
+  }
+
+  input.last_key = COLONIZE_KEY_ESCAPE;
+  if (game_update_pedia_screen(&game, &input) != GAME_UPDATE_RETURN_TRUE ||
+      game.in_pedia || !game.in_colony || game.colony_view_id != 0) {
+    units_reset_hooks();
+    return fail("pedia detour did not restore colony");
+  }
+
+  memset(&input, 0, sizeof(input));
+  input.last_key = COLONIZE_KEY_NONE;
+  (void)game_update_services(&game, &input, 16);
+  if (!game.colony_zoom_popup_hold || game.ai_popups.open) {
+    units_reset_hooks();
+    return fail("restored colony did not retain zoom hold");
+  }
+
+  game.in_colony = false;
+  (void)game_update_services(&game, &input, 16);
+  if (game.colony_zoom_popup_hold || !game.ai_popups.open) {
+    units_reset_hooks();
+    return fail("leaving colony did not release queued popup");
+  }
+  units_reset_hooks();
+  return 0;
+}
+
 /* campaign4 FoodToIsabella: DOS stores the trade-route cursor in +0x315b,
  * but the runtime keeps its unpacked stop index in col1_counter16 (+0x315a).
  * A wagon's ordinary colony-arrival reset must not erase that runtime cursor
@@ -787,6 +845,7 @@ static const TestCase k_cases[] = {
     {"test_ai_brave_field_attack", test_ai_brave_field_attack},
     {"test_game_render_select_palette", test_game_render_select_palette},
     {"test_game_colony_unload_whole_hold", test_game_colony_unload_whole_hold},
+    {"test_colony_zoom_hold_survives_pedia_detour", test_colony_zoom_hold_survives_pedia_detour},
     {"test_trade_route_wagon_services_arrival_stop", test_trade_route_wagon_services_arrival_stop},
     {"test_ai_euro_5952_absorb_colonist", test_ai_euro_5952_absorb_colonist},
     {"test_ai_euro_5952_absorb_soldier", test_ai_euro_5952_absorb_soldier},
