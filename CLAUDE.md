@@ -40,7 +40,9 @@ cross-build artefacts; never build or test there. Tests expect repo root as cwd.
 
 Docs are authoritative over auto-memory notes. Historical audit dumps live in
 docs/archive/ (indexed by docs/archive/README.md) and docs/smell_audit_*.md; they are
-not specs.
+not specs. Never read an archive file to browse or "get context" — open one only
+with a lookup key (bug `#` id, FUN_ name, audit item), grep it, read the hit's
+lines only (docs/conventions.md "Don't read archives willy-nilly").
 
 ## Conventions (short form; full text in docs/conventions.md)
 

@@ -337,6 +337,16 @@ cmake --build build/debug --target golden_ai_joint         # when AI or turn ord
 - **Update the owning status doc when a slice lands** — result + trap + citation
   in a few lines. Leave chronology to git history; keep retracted-lead traps,
   they stop repeated dead ends. (memory `docs-compression-2026-09-05`)
+- **Don't read archives willy-nilly.** Everything under `docs/archive/`
+  (`bugs_closed.md`, `bugs_fixed_pending.md`, the audit dumps, the W-tier and
+  deferred-AI history) is history, not a spec, and each file is big enough to
+  cost a large slice of context. Open one only with a lookup key in hand — a
+  bug `#` id, a `FUN_ssss_oooo`, an audit item number, a symbol — and read only
+  the grep hit's neighbourhood (`grep -n '| NNN |' <file>` then
+  `sed -n 'A,Bp'`). Never open one to browse for work, to "get context", or to
+  check whether something was done already; `bugs.md`, `port_plan.md` and the
+  owning feature doc answer that. A grep miss means the answer is elsewhere.
+  Same rule for `docs/smell_audit_*.md`. Living docs win any conflict.
 - **Doc-length policy**: past roughly 800 lines a doc gets split or its closed
   history archived under `docs/archive/` with a status header. Audit dumps
   (`smell_audit_*`, `duplication_audit_*`) live in `docs/` while open and move
