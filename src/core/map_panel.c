@@ -417,6 +417,63 @@ static uint8_t map_panel_nation_shade(
   return bright >= 0 ? (uint8_t)bright : raw;
 }
 
+/*
+ * Tribe tint dots on the low-tech village sprites — DOS FUN_112b_0790
+ * (CODE_5:112b:0815..0999). ICONS.SS #10 (nomadic camp, tech 0) and #11
+ * (aboriginal village, tech 1) are shared by several tribes, so DOS paints a
+ * few pixels of the tribe's own @TRIBES colour (DS:0x84c, indexed by
+ * tribe = nation_id - 4) onto the sprite. Tech >= 2 (#12/#13) gets nothing.
+ *
+ * Marks are FUN_1b9e_000a rect fills (x in AX, y in DX, width in BX, colour
+ * and height on the stack — height is 1 for every one of these), offsets
+ * relative to the tile's screen origin (local_66 = x, local_64 = y):
+ *
+ *   scale 100   tech 0: (+3,+4,w1) (+12,+4,w1) (+9,+6,w1)
+ *               tech 1: (+4,+9,w2) (+9,+11,w3)
+ *   scale 50    tech 0: (+2,+2,w1) (+6,+2,w1)  (+5,+3,w1)
+ *               tech 1: (+2,+4,w1) (+5,+5,w1)
+ *
+ * The viewport draws at scale 100; the 50 rows are kept for the half-scale
+ * caller DOS shares this body with.
+ */
+typedef struct {
+  int8_t dx;
+  int8_t dy;
+  int8_t w;
+} MapPanelTribeDot;
+
+static const MapPanelTribeDot k_tribe_dots_100_tech0[3] = {
+  {3, 4, 1}, {12, 4, 1}, {9, 6, 1}
+};
+static const MapPanelTribeDot k_tribe_dots_100_tech1[2] = {{4, 9, 2}, {9, 11, 3}};
+
+static void map_panel_draw_tribe_tint(
+  ColonizeFramebuffer8* framebuffer,
+  const ColonizeCol1Tribe* t,
+  int tech,
+  int tile_px,
+  int tile_py
+) {
+  if (!framebuffer || !framebuffer->pixels) {
+    return;
+  }
+  const MapPanelTribeDot* dots = NULL;
+  int count = 0;
+  if (tech == 0) {
+    dots = k_tribe_dots_100_tech0;
+    count = 3;
+  } else if (tech == 1) {
+    dots = k_tribe_dots_100_tech1;
+    count = 2;
+  } else {
+    return;
+  }
+  const uint8_t color = unit_chrome_names_color((int)t->nation_id);
+  for (int i = 0; i < count; ++i) {
+    fb_fill_rect(framebuffer, tile_px + dots[i].dx, tile_py + dots[i].dy, dots[i].w, 1, color);
+  }
+}
+
 static void map_panel_draw_tribe_chrome(
   const ColonizeCol1Save* col1,
   const ColonizeWorldMap* map,
@@ -582,6 +639,9 @@ void map_panel_render_tribes_on_map_w(
     const int px = tile_px + (tile_w - sp->width) / 2;
     const int py = tile_py + (tile_h - sp->height) / 2;
     ss_blit_sprite(icons, sprite, framebuffer, px, py);
+    /* DOS 112b:0815: tribe tint dots over the shared low-tech sprites,
+     * drawn before the capital starburst. */
+    map_panel_draw_tribe_tint(framebuffer, t, tech, tile_px, tile_py);
     /* DOS FUN_112b_0790 (asm 112b:09a1): tribe state bit 0x04 (capital)
      * draws sprite 0x12 1-based = ICONS.SS #17 — the starburst — centred
      * over the village icon, before the alarm/mission chrome. */
