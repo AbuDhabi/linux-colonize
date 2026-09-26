@@ -226,6 +226,7 @@ typedef enum {
 #define AI_CONTACT_INCITE_PAY 1
 
 /* Shared file-scope state (was `static s_*` in the single file). */
+extern int ai_contact_s_raid_cargo; /* DOS local_20; STORES arm's picked cargo */
 extern int ai_contact_s_last_raid_kind;
 extern char ai_contact_s_last_burn_building[48];
 extern char ai_contact_s_last_stores_cargo[48];
@@ -246,6 +247,9 @@ const char* ai_contact_euro_name(int euro_nation);
 const char* ai_contact_learner_skill_name( const ColonizeUnitPool* units, const ColonizeUnit* u );
 const char* ai_contact_level_noun(const ColonizeTurnContext* ctx, int tech);
 int ai_contact_2820_begin( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit );
+int ai_contact_2820_met_bit(const ColonizeTurnContext* ctx, int e, int nation_id);
+int ai_contact_2e92_candidates(const AiContact2820* s, int goods[3], int slots[3]);
+int ai_contact_2820_sell_price( const ColonizeCol1Indian* ind, int cargo, int ask, int qty, int difficulty, int alarm, AiContact2820* s );
 int ai_contact_a618_skill(ColonizeTurnContext* ctx, int nation_id, const ColonizeCol1Tribe* t);
 int ai_contact_apply_demand_gold( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e );
 int ai_contact_apply_demand_tools( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* other, int near_x, int near_y );

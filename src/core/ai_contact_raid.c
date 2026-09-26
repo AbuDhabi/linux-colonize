@@ -47,7 +47,7 @@
  * rolled here for the loot arms below, exactly as DOS keeps `local_20` /
  * `local_12` alive across its own arms.
  */
-static int ai_contact_s_raid_cargo = -1;  /* DOS local_20 */
+int ai_contact_s_raid_cargo = -1;  /* DOS local_20 */
 static int ai_contact_s_raid_burn_row = -1;  /* DOS local_a (@BUILDING row 0..0x29) */
 static long ai_contact_s_raid_gold = 0;   /* DOS local_12/local_10 */
 

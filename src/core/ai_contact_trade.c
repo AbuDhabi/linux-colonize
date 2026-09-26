@@ -1213,7 +1213,7 @@ static int ai_contact_2820_prepare(
  *   iVar8 = ask - tier2 + 4; value_idx = min(3, iVar8/10); c4 = RNG(0,1) + (iVar8>>2)
  *   fair = (ask+1)*4 + price
  */
-static int ai_contact_2820_sell_price(
+int ai_contact_2820_sell_price(
   const ColonizeCol1Indian* ind, int cargo, int ask, int qty, int difficulty, int alarm,
   AiContact2820* s
 ) {
@@ -1391,7 +1391,7 @@ static void ai_contact_2820_wanted(const AiContact2820* s, const ColonizeCol1Tri
  * That is a DOS indexing quirk (`DS:0x9e78` is a per-cargo table); it is
  * reproduced, not repaired. `slots` may be NULL.
  */
-static int ai_contact_2e92_candidates(const AiContact2820* s, int goods[3], int slots[3]) {
+int ai_contact_2e92_candidates(const AiContact2820* s, int goods[3], int slots[3]) {
   int n = 0;
   for (int k = 15; k >= 0 && n < 3; --k) {
     const int c = s->cand[k];
@@ -1524,7 +1524,7 @@ static const char* ai_contact_2820_vehicle_name(const ColonizeTurnContext* ctx, 
  * caller is a village entry, so it is set in every reachable state, but the
  * gate is transcribed rather than assumed (bugs.md #805).
  */
-static int ai_contact_2820_met_bit(const ColonizeTurnContext* ctx, int e, int nation_id) {
+int ai_contact_2820_met_bit(const ColonizeTurnContext* ctx, int e, int nation_id) {
   if (!ctx || !ctx->col1 || e < 0 || e >= (int)COLONIZE_COL1_NATION_COUNT || nation_id < 4 ||
       nation_id > 11) {
     return 0;

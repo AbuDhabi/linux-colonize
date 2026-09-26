@@ -153,6 +153,9 @@ typedef struct AiKingAudienceFlavor {
 void ai_king_10f0_land(
   ColonizeTurnContext* ctx, int target, int paid, const int merc_counts[4]
 );
+/* Man-O-War holds column REF per-wave landing cap (bugs.md #661) — exposed
+ * for test_regress_ai_tables.c. */
+int ai_king_0982_max_landing(const ColonizeTurnContext* ctx);
 void ai_king_1d42_royal_purse(ColonizeTurnContext* ctx);
 void ai_king_apply_dump_goods_choice(ColonizeTurnContext* ctx, int human, int cargo);
 int ai_king_colony_sol_at(const ColonizeTurnContext* ctx, int nation_id, int x, int y);

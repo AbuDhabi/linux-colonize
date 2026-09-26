@@ -396,7 +396,7 @@ COLONIZE_INTERNAL int ai_king_0982_spawn_pool_unit(ColonizeTurnContext* ctx, int
  * 18*0xe + 5), i.e. 6 with stock NAMES.TXT: one MoW load per wave. Both
  * 0982 clamps (raw 74077-74081 pass>=1, raw 74091-74094 after the pick)
  * read it. User-observed: REF waves are never larger than 6 (bugs.md #661). */
-static int ai_king_0982_max_landing(const ColonizeTurnContext* ctx) {
+int ai_king_0982_max_landing(const ColonizeTurnContext* ctx) {
   const int ti = units_kind_type_index(ctx->units, UNITS_KIND_MAN_O_WAR);
   if (ti < 0 || ti >= ctx->units->type_count) {
     return 6;
