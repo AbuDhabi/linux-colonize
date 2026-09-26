@@ -192,6 +192,13 @@ independently golden-confirmed.
 - Scroll/paging: 2 pages; any dismiss on page 1 advances to page 2 instead
   of leaving the report; page 2 closes on any click.
 - Click targets: none inside a page; page-advance only.
+- New-father reveal: when page 2 opens straight off an election (FUN_4345_024a
+  with `param_2` = the elected index), DOS clears that father's nation bit,
+  presents the hall without him, sets the bit back and presents the redraw
+  through the LFSR fizzle FUN_281f_03ea(8), so the new portrait un-dissolves
+  into place. Port: `game_congress_reveal_new_father` (game_loop.c), called from
+  the FF-announce OK in game_dialogs.c. Opening Congress from the reports menu
+  passes no index and animates nothing.
 - Header line (three-way, `06d0` @ 69679-69695; smell audit #87): with
   DS:0x5382 bit 0 clear it is "Next Continental Congress Session:" plus
   " (name)" when `head+0x12 >= 0`; with bit 0 set and bit 1 (REF arrived)

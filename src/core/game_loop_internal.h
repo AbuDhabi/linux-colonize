@@ -317,6 +317,11 @@ void game_combat_watch(
   void* user, const ColonizeUnitPool* pool, int attacker_id, int def_x, int def_y
 );
 void game_combat_dissolve(void* user, int phase);
+/* DOS FUN_281f_03ea fizzle present, shared by combat outcomes and the two
+ * "un-dissolve" reveals (colony building, Continental Congress father). */
+bool game_fizzle_snapshot_present(ColonizeGameState* game, uint8_t* out_before);
+void game_fizzle_present(ColonizeGameState* game, const uint8_t* before);
+void game_congress_reveal_new_father(ColonizeGameState* game, int ff_index);
 void game_combat_popup_pump(void* user);
 
 void game_hof_load(ColonizeGameState* game);
