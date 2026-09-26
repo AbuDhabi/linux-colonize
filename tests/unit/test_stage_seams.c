@@ -247,6 +247,88 @@ static int test_game_colony_unload_whole_hold(void) {
   return 0;
 }
 
+/* campaign4 FoodToIsabella: DOS stores the trade-route cursor in +0x315b,
+ * but the runtime keeps its unpacked stop index in col1_counter16 (+0x315a).
+ * A wagon's ordinary colony-arrival reset must not erase that runtime cursor
+ * before game_trade_route_retarget services the stop. */
+static int test_trade_route_wagon_services_arrival_stop(void) {
+  ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/2, /*with_seen=*/true)) {
+    return fail("trade-route map alloc");
+  }
+  game.world_map_ok = true;
+  game.human_nation = 0;
+  game.col1_ok = true;
+
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 1;
+  game.units.types[0].kind_plus1 = UNITS_KIND_WAGON + 1;
+  game.units.types[0].movement = 2;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  game.units.types[0].cargo = 2;
+
+  fx_colonies_init(&game.colonies);
+  game.colonies_ok = true;
+  ColonizeColony* load = fx_colony_add(&game.colonies, 0, 5, 4, 1);
+  ColonizeColony* other = fx_colony_add(&game.colonies, 0, 6, 4, 1);
+  load->stock[COLONIZE_CARGO_SUGAR] = 60;
+  units_set_occupancy_map(&game.world_map);
+  colonies_set_occupancy_map(&game.world_map);
+
+  ColonizeCol1TradeRoute* route = &game.col1.trade_route[0];
+  route->dest_count = 2;
+  route->stop[0].colony_index = (uint16_t)other->id;
+  route->stop[1].colony_index = (uint16_t)load->id;
+  route->stop[1].load_count = 1;
+  col1_trade_nibble_set(
+    route->stop[1].load_cargo_nibbles, 0, COLONIZE_CARGO_SUGAR
+  );
+
+  const int uid = units_spawn(&game.units, 0, 4, 4);
+  ColonizeUnit* wagon = units_get(&game.units, uid);
+  if (!wagon) {
+    colonies_set_occupancy_map(NULL);
+    units_set_occupancy_map(NULL);
+    fx_map_free(&game.world_map);
+    return fail("trade-route wagon spawn");
+  }
+  wagon->nation_id = 0;
+  wagon->orders = UNITS_ORDER_TRADE_ROUTE;
+  wagon->follow_unit_id = 0;
+  wagon->col1_counter16 = 1;
+  wagon->goto_x = load->x;
+  wagon->goto_y = load->y;
+
+  const ColonizeWorld w = fx_world(
+    &game.units, &game.colonies, &game.world_map, &game.col1, NULL, NULL
+  );
+  int rc = 0;
+  if (!units_try_move_w(&w, uid, load->x, load->y)) {
+    rc = fail("trade-route wagon could not enter load colony");
+  } else {
+    game_trade_route_retarget(&game, wagon);
+    int sugar = 0;
+    for (int h = 0; h < units_goods_hold_count(&game.units, uid); ++h) {
+      if (wagon->hold_goods_type[h] == COLONIZE_CARGO_SUGAR) {
+        sugar += wagon->hold_goods_amount[h];
+      }
+    }
+    if (sugar != 60 || load->stock[COLONIZE_CARGO_SUGAR] != 0) {
+      rc = fail("trade-route arrival serviced the wrong stop");
+    } else if (wagon->col1_counter16 != 0 ||
+               wagon->goto_x != other->x || wagon->goto_y != other->y) {
+      rc = fail("trade-route arrival did not advance to the next stop");
+    }
+  }
+
+  colonies_set_occupancy_map(NULL);
+  units_set_occupancy_map(NULL);
+  fx_map_free(&game.world_map);
+  return rc;
+}
+
 
 /*
  * ai_euro_5952_absorb_equip — FUN_5952_035e's absorption arm, Colonist case
@@ -705,6 +787,7 @@ static const TestCase k_cases[] = {
     {"test_ai_brave_field_attack", test_ai_brave_field_attack},
     {"test_game_render_select_palette", test_game_render_select_palette},
     {"test_game_colony_unload_whole_hold", test_game_colony_unload_whole_hold},
+    {"test_trade_route_wagon_services_arrival_stop", test_trade_route_wagon_services_arrival_stop},
     {"test_ai_euro_5952_absorb_colonist", test_ai_euro_5952_absorb_colonist},
     {"test_ai_euro_5952_absorb_soldier", test_ai_euro_5952_absorb_soldier},
     {"test_ai_euro_5952_equip_scout", test_ai_euro_5952_equip_scout},
