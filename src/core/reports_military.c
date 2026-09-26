@@ -332,26 +332,30 @@ void reports_render_naval(
    * also turned out to be upper-case-only at this size); same pitfall as
    * Congress page 1's body (docs/report_screens.md). */
   font = (view && view->title_font_ok) ? &view->title_font : font;
-  /* Column headers live from LABELS.TXT @MISC (2026-08-27 fix): Ship #61,
-   * Cargo #62, Location #63, Destination #64 — a clean consecutive block. */
-  const char* ship_w = reports_labels_field("MISC", 61);
-  const char* cargo_w = reports_labels_field("MISC", 62);
-  const char* location_w = reports_labels_field("MISC", 63);
-  const char* dest_w = reports_labels_field("MISC", 64);
+  /* Column headers live from LABELS.TXT @MISC: Ship #61, Cargo #62,
+   * Location #63, Destination #64 — a clean consecutive block. Copied into
+   * per-column buffers via reports_misc_word: reports_labels_field returns
+   * one static buffer, so holding four of its pointers made every header
+   * draw the word fetched last. */
+  char ship_w[64], cargo_w[64], location_w[64], dest_w[64];
+  reports_misc_word(61, "", ship_w, sizeof(ship_w));
+  reports_misc_word(62, "", cargo_w, sizeof(cargo_w));
+  reports_misc_word(63, "", location_w, sizeof(location_w));
+  reports_misc_word(64, "", dest_w, sizeof(dest_w));
   reports_naval_draw_centered(
-    font, fb, 0, REPORTS_NAVAL_DIV1_X, REPORTS_NAVAL_HEADER_Y, ship_w ? ship_w : "",
+    font, fb, 0, REPORTS_NAVAL_DIV1_X, REPORTS_NAVAL_HEADER_Y, ship_w,
     REPORTS_NAVAL_HEADER_COLOR
   );
   reports_naval_draw_centered(
     font, fb, REPORTS_NAVAL_DIV1_X, REPORTS_NAVAL_DIV2_X, REPORTS_NAVAL_HEADER_Y,
-    cargo_w ? cargo_w : "", REPORTS_NAVAL_HEADER_COLOR
+    cargo_w, REPORTS_NAVAL_HEADER_COLOR
   );
   reports_naval_draw_centered(
     font, fb, REPORTS_NAVAL_DIV2_X, REPORTS_NAVAL_DIV3_X, REPORTS_NAVAL_HEADER_Y,
-    location_w ? location_w : "", REPORTS_NAVAL_HEADER_COLOR
+    location_w, REPORTS_NAVAL_HEADER_COLOR
   );
   reports_naval_draw_centered(
-    font, fb, REPORTS_NAVAL_DIV3_X, fb->width, REPORTS_NAVAL_HEADER_Y, dest_w ? dest_w : "",
+    font, fb, REPORTS_NAVAL_DIV3_X, fb->width, REPORTS_NAVAL_HEADER_Y, dest_w,
     REPORTS_NAVAL_HEADER_COLOR
   );
 

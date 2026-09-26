@@ -75,28 +75,31 @@ void reports_render_economic_trade(
     reports_draw_line(font, fb, (fb->width - w) / 2, y - 1, kSubtitle, REPORTS_ECON_LABEL_COLOR);
   }
 
-  /* Column headers live from LABELS.TXT @MISC (2026-08-27 fix, same
-   * reports_labels_field helper as the report titles / Hall of Fame
-   * header): Tons #58, Gold #59, Bid Price #203, Ask Price #204. */
+  /* Column headers live from LABELS.TXT @MISC: Tons #58, Gold #59,
+   * Bid Price #203, Ask Price #204. Copied into per-column buffers via
+   * reports_misc_word: reports_labels_field returns one static buffer, so
+   * holding four of its pointers at once made every header draw the word
+   * fetched last (all four read "Ask Price"). */
   {
-    const char* tons_w = reports_labels_field("MISC", 58);
-    const char* gold_w = reports_labels_field("MISC", 59);
-    const char* bid_w = reports_labels_field("MISC", 203);
-    const char* ask_w = reports_labels_field("MISC", 204);
+    char tons_w[64], gold_w[64], bid_w[64], ask_w[64];
+    reports_misc_word(58, "", tons_w, sizeof(tons_w));
+    reports_misc_word(59, "", gold_w, sizeof(gold_w));
+    reports_misc_word(203, "", bid_w, sizeof(bid_w));
+    reports_misc_word(204, "", ask_w, sizeof(ask_w));
     reports_draw_right(
-      font, fb, REPORTS_ECON1_TONS_RIGHT, REPORTS_ECON1_HEADER_Y, tons_w ? tons_w : "",
+      font, fb, REPORTS_ECON1_TONS_RIGHT, REPORTS_ECON1_HEADER_Y, tons_w,
       REPORTS_ECON_LABEL_COLOR
     );
     reports_draw_right(
-      font, fb, REPORTS_ECON1_GOLD_RIGHT, REPORTS_ECON1_HEADER_Y, gold_w ? gold_w : "",
+      font, fb, REPORTS_ECON1_GOLD_RIGHT, REPORTS_ECON1_HEADER_Y, gold_w,
       REPORTS_ECON_LABEL_COLOR
     );
     reports_draw_right(
-      font, fb, REPORTS_ECON1_BID_RIGHT, REPORTS_ECON1_HEADER_Y, bid_w ? bid_w : "",
+      font, fb, REPORTS_ECON1_BID_RIGHT, REPORTS_ECON1_HEADER_Y, bid_w,
       REPORTS_ECON_LABEL_COLOR
     );
     reports_draw_right(
-      font, fb, REPORTS_ECON1_ASK_RIGHT, REPORTS_ECON1_HEADER_Y, ask_w ? ask_w : "",
+      font, fb, REPORTS_ECON1_ASK_RIGHT, REPORTS_ECON1_HEADER_Y, ask_w,
       REPORTS_ECON_LABEL_COLOR
     );
   }
