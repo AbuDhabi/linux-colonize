@@ -452,8 +452,24 @@ ColonizeEnterReason units_enter_probe_w(
     const ColonizeColony* oc = colonies_get(colonies, colonies_id_at(colonies, x, y));
     own_colony_dock = oc && oc->active && oc->nation_id == mover_nation;
   }
+  /*
+   * A ship stepping onto a native village tile is dispatched to
+   * FUN_4d56_4528 at 465b raw 75484-75492 — BEFORE 465b ever looks at who
+   * stands on the tile — so the Brave that normally sits inside a dwelling
+   * must not turn the step into a silent domain refusal (bugs.md: galleon
+   * cannot trade with an occupied village).
+   */
+  bool village_ship = false;
+  if (sea && land && map->layer2) {
+    const size_t vidx2 = (size_t)y * (size_t)map->width + (size_t)x;
+    if (vidx2 < (size_t)map->width * (size_t)map->height &&
+        (map->layer2[vidx2] & MAP_OCCUPANCY_HAS_CITY) != 0 &&
+        (!colonies || colonies_id_at(colonies, x, y) < 0)) {
+      village_ship = true;
+    }
+  }
   int foe = -1;
-  if (!own_colony_dock) {
+  if (!own_colony_dock && !village_ship) {
     int foe_mismatch = -1;
     int slot_d = 0;
     for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &slot_d); u != NULL;
