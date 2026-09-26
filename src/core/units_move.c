@@ -629,10 +629,16 @@ combat_entry_resolved:
   if (colonies && colonies_id_at(colonies, dest_x, dest_y) >= 0) {
     if (colony_enter_gate) {
       units_mp_exhaust(pool, unit);
-      /* DOS raw 75731-75740: bugs.md #792 — col1_counter16 = 0 on arrival,
-       * then wake (clear Sentry orders on) every unit on the destination
-       * stack; docking a wagon/ship wakes the colony's sentried units. */
-      unit->col1_counter16 = 0;
+      /* DOS raw 75731-75740: bugs.md #792 — +0x315a = 0 on arrival, then
+       * wake (clear Sentry orders on) every unit on the destination stack.
+       *
+       * Runtime trade routes unpack DOS's separate +0x315b profession-byte
+       * cursor into col1_counter16 (see col1_bridge.c). Preserve that cursor:
+       * otherwise arrival changes the stop to 0 before route service, so the
+       * colony check fails and a wagon loops between ports without cargo. */
+      if (unit->orders != UNITS_ORDER_TRADE_ROUTE) {
+        unit->col1_counter16 = 0;
+      }
       int dslot = 0;
       for (ColonizeUnit* stacked = units_next_on_tile(pool, dest_x, dest_y, &dslot);
            stacked != NULL;
