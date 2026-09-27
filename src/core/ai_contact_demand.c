@@ -307,9 +307,10 @@ static uint32_t ai_contact_incite_price(
     }
   }
 
+  /* raw 83542-83543 reads both stock bytes as `*(char *)`, i.e. signed. */
   const int base =
     village_count * 8 + (((brave_value_sum >> 2) & 0xfe) - 2 * village_count) +
-    (int)ind->muskets * 2 + (int)ind->horse_herds * 2;
+    (int)(int8_t)ind->muskets * 2 + (int)(int8_t)ind->horse_herds * 2;
 
   /* FUN_281f_030c reads the DS:0x5b1c table raw — and that table is the
    * ALARM mirror (Linux alarm_by_player), not a friendliness score: the
@@ -421,7 +422,7 @@ int ai_contact_enqueue_incite_target_choice(
   if (nation_id < 4 || nation_id > 11) {
     return 0;
   }
-  const ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
+  ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
   /* audit G3: single treasury — incite pricing is human-reachable. */
   const uint32_t gold = europe_nation_gold(ctx->europe, ctx->col1, e);
 
@@ -439,6 +440,18 @@ int ai_contact_enqueue_incite_target_choice(
     ctx->col1->head.game_options.woi && crown >= 0 && crown <= 3 && crown != e;
 
   (void)gold;
+
+  /*
+   * 83616-83617: with the WoI latch set there is no menu step at all —
+   * `local_14 = *(int *)0x53d2` and the body falls straight into the met
+   * gate + @INDIANWARPATH2 price confirm. bugs.md #961.
+   */
+  if (woi_fixed) {
+    ai_contact_enqueue_incite_confirm(
+      ctx, ind, nation_id, e, crown, is_missionary, is_capital
+    );
+    return 1;
+  }
   (void)ind;
 
   /*
@@ -458,7 +471,7 @@ int ai_contact_enqueue_incite_target_choice(
     if (target == e) {
       continue;
     }
-    if (woi_fixed ? (target != crown) : (target == crown)) {
+    if (target == crown) {
       continue;
     }
     snprintf(label_buf[n], sizeof(label_buf[n]), "%s", ai_contact_euro_name(target));
@@ -1133,10 +1146,11 @@ int ai_contact_meet_economics_2154(
     const int sh = ((local_5a >> 1) + 1) & 31;
     out->ask[14] = (int16_t)((tech * pop1) << sh);
   }
-  out->ask[15] = (int16_t)((-tech - ((int)ind->muskets - 7)) * 4);
+  /* raw 81880 / 81883: both stock bytes are read as `*(char *)` (signed). */
+  out->ask[15] = (int16_t)((-tech - ((int)(int8_t)ind->muskets - 7)) * 4);
   out->bid[8] =
     (int16_t)((int)ind->horse_breeding / ((diff >> 1) + 1));
-  out->ask[8] = (int16_t)((-tech - ((int)ind->horse_herds - 9)) * 4);
+  out->ask[8] = (int16_t)((-tech - ((int)(int8_t)ind->horse_herds - 9)) * 4);
   out->bid[15] = 0;
 
   /* Phase 5: clamp ask 0..0x32; capital mix; tons mix; half-cross. */
@@ -2144,14 +2158,20 @@ void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
 
-  int eligible = ind->woi_defect_forced != 0;
-  if (!eligible) {
-    /* FUN_281f_030c = alarm toward the rebel nation: >= 25 and RNG(1,400) >= alarm. */
-    const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, human);
-    if (alarm >= 25) {
-      const int roll = dos_rng_range(ctx->rng, 1, 400);
-      eligible = roll >= alarm;
-    }
+  /*
+   * raw 81562-81570: the alarm gate always runs first (and burns its draw);
+   * the forced bit 0x40 is ORed in AFTERWARDS, it does not short-circuit.
+   * FUN_281f_030c = alarm toward the rebel nation: eligible iff alarm >= 25
+   * AND alarm >= RNG(1,400) (`(alarm < 25) || (alarm < roll)` -> false).
+   */
+  int eligible = 0;
+  const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, human);
+  if (alarm >= 25) {
+    const int roll = dos_rng_range(ctx->rng, 1, 400);
+    eligible = alarm >= roll;
+  }
+  if (ind->woi_defect_forced) {
+    eligible = 1;
   }
   if (!eligible) {
     return;
@@ -2529,9 +2549,6 @@ void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id) {
       const int cap = ((int)ctx->col1->stuff.tribe_population_totals[slot] + 0x19) * 2;
       if (hb > cap) {
         hb = cap;
-      }
-      if (hb < 0) {
-        hb = 0;
       }
       ind->horse_breeding = (uint16_t)hb;
     }

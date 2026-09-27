@@ -3782,9 +3782,9 @@ static int sp_30(void) {
     }
 
     /*
-     * Trade CHOICE with no contacting unit/cargo → haggle stub OK
-     * "Trade concluded." Cite: FUN_5bfb_022e / 2aac…311e thin; deep 2820
-     * PARKED.
+     * Trade CHOICE with no contacting unit/cargo → the 2820 shell returns
+     * through LAB_003582 with NO popup at all (bugs.md #960; the old
+     * typed-English "Trade concluded." fallback was a Linux invention).
      */
     {
       ai_popup_clear(&pop);
@@ -3796,16 +3796,12 @@ static int sp_30(void) {
       pop.result_nation_a = 0;
       pop.result_nation_b = 4;
       ai_contact_apply_popup_result(&ctx, &pop);
-      if (pop.queue_count < 1) {
-        return fail("Trade fail should enqueue Trade concluded OK");
+      if (pop.queue_count != 0) {
+        return fail("Trade fail should enqueue no popup");
       }
-      if (pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK ||
-          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_MEET) {
-        return fail("Trade fail follow-up should be CONTACT_MEET OK");
-      }
-      if (strstr(st_pop, "Trade concluded") == NULL) {
+      if (st_pop[0] != '\0') {
         fprintf(stderr, "unit_ai_contact: trade-stub status '%s'\n", st_pop);
-        return fail("Trade fail should set Trade concluded status");
+        return fail("Trade fail should set no status line");
       }
     }
   return 0;

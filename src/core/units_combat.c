@@ -3345,8 +3345,11 @@ static void units_lcr_roll_outcome(
  * "Stay clear of those!" draws nothing off the stream.
  *
  * The nearest village's tribe claims the mounds when RNG(1, (dist+5) << skill)
- * < 4 and it has met the nation (0a38 & 0x20 — no per-tribe contact flag here,
- * treated as met). Variant by the roll's `gate` (local_c): <25 → BURIAL1 empty;
+ * < 4 and it has met the nation (103665-103667: `FUN_281f_0a38(*0x5394,
+ * *0x8d50) & 0x20`, where 0x8d50 is the tribe the 0d84/4cc6_0356 nearest-village
+ * walk selected through FUN_281f_0a4c). The met test runs after the claim draw,
+ * so an unmet tribe still burns that draw and only then loses the claim.
+ * Variant by the roll's `gate` (local_c): <25 → BURIAL1 empty;
  * <50, or <65 with no claim → BURIAL2 3d8*10 gold; else BURIAL3 Treasure unit
  * worth (RNG(1,8) + (skill+5)*2)*2 hundred. A claim adds @SCREWED and +100
  * relation hit (FUN_281f_0d6c(tribe, nation, 100)) — DOS does not kill the unit
@@ -3377,6 +3380,14 @@ void units_lcr_burial_resolve_w(
     const int span = (dist + 5) << skill;
     if (dos_rng_range(rng, 1, span < 1 ? 1 : span) < 4) {
       screwed_tribe = near_tribe;
+    }
+    /* 103665-103667: unmet tribe -> local_32 = -1 (no claim, no @SCREWED, and
+     * the `gate < 65` BURIAL2 widening plus the 0x24 cue stay on). */
+    const int tidx = near_tribe - 4;
+    const bool met = col1 && tidx >= 0 && tidx < 8 && nation >= 0 && nation < 4 &&
+      (col1->indian[tidx].euro_diplo[nation] & COL1_INDIAN_MET_BIT) != 0;
+    if (!met) {
+      screwed_tribe = -1;
     }
   }
   if (gate < 25) {

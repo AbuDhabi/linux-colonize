@@ -703,10 +703,9 @@ static void ai_indian_152e_village_growth(
        * the bump carries out of the low byte instead of wrapping in it. */
       int w = (int)t->alarm[threat_nation].friction |
               ((int)t->alarm[threat_nation].attacks << 8);
-      w += local_c + alarm / 5;
-      if (w > 0x7fff) {
-        w = 0x7fff;
-      }
+      /* raw 81509 is a bare int16 add — it wraps in 16 bits, no saturation;
+       * the two store bytes below take the wrapped value. */
+      w = (int)(uint16_t)(unsigned)(w + local_c + alarm / 5);
       t->alarm[threat_nation].friction = (uint8_t)(w & 0xff);
       t->alarm[threat_nation].attacks = (uint8_t)((w >> 8) & 0xff);
     }
