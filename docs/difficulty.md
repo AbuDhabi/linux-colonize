@@ -46,7 +46,7 @@ Save field: `ColonizeCol1Head.difficulty` (`uint8_t`, clamp 0..4). Runtime:
 | Intervention pools | `1a26` census seed uses `−diff` / `(4−diff)/2`; landing size fixed | Wired |
 | Euro AI gold / hire | Harder → less free gold, higher hire gate | Wired |
 | AI immigration pressure | `((8-diff)*score)>>3` | Wired (AI only) |
-| Indian alarm prelude | Harder → escalate more often / larger bumps | Wired |
+| Indian alarm prelude | — (invented table retired 2026-09-09; real terms are the `465b` trespass bump `diff+5` and the WoI defect roll) | Retired |
 | Raid kind demote | Discoverer only: harsh → STORES/NOTHING | Wired |
 | Indian land purchase | Harder → costlier for human, cheaper for AI | Wired |
 | Conquest treasure | Difficulty bands 0..3 (Gov+Vic share band 3) | Wired |
@@ -364,19 +364,17 @@ until the first dock immigrant; afterward only church production — not a fixed
 
 ## Indians
 
-### Alarm prelude
+### Alarm prelude — RETIRED 2026-09-09 (smell #72)
 
-[`ai_contact_indian_prelude`](../src/core/ai_contact.c): roll `1..8 ≤ chance`, then bump.
-
-| Diff | Chance (`2+(4-diff)`) | Alarm bump (`5+(4-diff)`) |
-|-----:|----------------------:|--------------------------:|
-| 0 | 6 | 9 |
-| 1 | 5 | 8 |
-| 2 | 4 | 7 |
-| 3 | 3 | 6 |
-| 4 | 2 | 5 |
-
-Harder → escalate **more often** with **larger** bumps (Pocahontas / French may half).
+There is no difficulty-scaled alarm prelude. The former `2+(4-diff)` chance /
+`5+(4-diff)` bump table was invented: it ran off indian record **+6**, a byte no
+DOS export reads or writes. [`ai_contact_indian_prelude`](../src/core/ai_contact_demand.c)
+now only clamps alarms; the retirement rationale sits in its comment block.
+DOS's sole alarm-growth channel is `FUN_4d56_152e`'s threat accumulator
+(−8 crossing = alarm +1), with the Pocahontas / French halving inside
+`FUN_4cc6_00f2`. The difficulty terms that *are* real in the Indian tick are
+`FUN_465b_0000`'s trespass bump (`difficulty + 5`, doubled on a village tile,
+sextupled on a capital) and the WoI defect roll `rng(0, (5-difficulty)*2) == 0`.
 
 ### Raid demote
 

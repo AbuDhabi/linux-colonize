@@ -619,7 +619,7 @@ Used by contact / mission / raid gates ([indian_contact.md](../original_sources_
 | **40–54** | Mid: demand/payoff; hard-bargain trade (~45–49); teach refused |
 | **≥ 55** | Refuse trade / gifts / convert; raid gate (non-mission villages) |
 | **≥ 80** | Burn/raid band; stronger escort. (Mission burn `FUN_4cc6_0000` is NOT this band: it needs alarm == 100 AND the at-peace bit `0a38 & 0x40`, then `rng(0,10) <= difficulty+1`, raw 80900-80912) |
-| **≥ 90 / 95** | Scout displace; ~¼ RNG kill at ≥95 even when flee exists |
+| **≥ 75** | Speak With Chief kill band — `thunk_FUN_1000_a60c` (overlays.c 77494-77654) gates the whole friendly switch on `alarm < 0x4b`; at or above it, and on a failed `alarm >> 2 < rng(0, seasoned ? 140 : 100)` roll below it, the outcome is **deterministic** `@CHIEFKILL` unless the nation owns FF 6 Coronado (`@CHIEFBORED`). The old "≥ 90 / 95 scout displace, ~¼ RNG kill" figures were never in DOS — corrected 2026-09-27. |
 
 First-contact **reject** floors alarm/friction into the **≥80** band
 (`@INDIANSHUN`).
