@@ -2714,6 +2714,21 @@ static bool game_apply_popup_combat_and_gifts(ColonizeGameState* game) {
     ai_popup_consume_result(&game->ai_popups);
   return true;
   }
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_LCR_BURIAL) {
+    (void)units_lcr_burial_apply_popup_w(
+      &(ColonizeWorld){
+        .units = game->units_ok ? &game->units : NULL,
+        .map = &game->world_map,
+        .col1 = game->col1_ok ? &game->col1 : NULL,
+        .col1_ok = game->col1_ok,
+        .rng = &game->move_rng,
+        .europe = game->europe_ok ? &game->europe : NULL
+      },
+      &game->ai_popups, game->human_nation
+    );
+    ai_popup_consume_result(&game->ai_popups);
+  return true;
+  }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_FOUNTAIN_YOUTH) {
     (void)units_fountain_youth_apply_popup_ex(
       game->europe_ok ? &game->europe : NULL, &game->ai_popups, &game->messages,

@@ -544,6 +544,8 @@ static const char* ai_popup_tag_name(AiPopupTag tag) {
       return "CONTACT_LEARNSTAY";
     case AI_POPUP_TAG_FOUNTAIN_YOUTH:
       return "FOUNTAIN_YOUTH";
+    case AI_POPUP_TAG_LCR_BURIAL:
+      return "LCR_BURIAL";
     case AI_POPUP_TAG_BREWSTER_PICK:
       return "BREWSTER_PICK";
     case AI_POPUP_TAG_CONTACT_TRADE_PICK:

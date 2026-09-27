@@ -3337,6 +3337,160 @@ static void units_lcr_roll_outcome(
   }
 }
 
+/*
+ * Burial-mounds payout block, DOS 65dd post-choice 103653-103715. Split out of
+ * the dispatch tail because DOS asks @LOSTCITY4 first (65dd:04eb, local_3c)
+ * and only runs this when the human answered row 1 ("Let us search for
+ * treasure!") — every roll below therefore happens AFTER the answer, so a
+ * "Stay clear of those!" draws nothing off the stream.
+ *
+ * The nearest village's tribe claims the mounds when RNG(1, (dist+5) << skill)
+ * < 4 and it has met the nation (0a38 & 0x20 — no per-tribe contact flag here,
+ * treated as met). Variant by the roll's `gate` (local_c): <25 → BURIAL1 empty;
+ * <50, or <65 with no claim → BURIAL2 3d8*10 gold; else BURIAL3 Treasure unit
+ * worth (RNG(1,8) + (skill+5)*2)*2 hundred. A claim adds @SCREWED and +100
+ * relation hit (FUN_281f_0d6c(tribe, nation, 100)) — DOS does not kill the unit
+ * here; the angry tribe does that on its own turn.
+ */
+void units_lcr_burial_resolve_w(
+  const ColonizeWorld* w,
+  int nation,
+  int human_nation,
+  int x,
+  int y,
+  int skill,
+  int gate
+) {
+  if (!w) {
+    return;
+  }
+  ColonizeUnitPool* pool = w->units;
+  ColonizeCol1Save* col1 = w->col1;
+  ColonizeDosRng* rng = w->rng;
+  EuropeScreen* europe = w->europe;
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  int dist = 0x7fffffff;
+  const int near_tribe = units_lcr_nearest_tribe_dist(col1, x, y, &dist);
+  int screwed_tribe = -1;
+  if (near_tribe >= 0 && dist < 0x7fffffff) {
+    const int span = (dist + 5) << skill;
+    if (dos_rng_range(rng, 1, span < 1 ? 1 : span) < 4) {
+      screwed_tribe = near_tribe;
+    }
+  }
+  if (gate < 25) {
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_INFO, "BURIAL1", nation, -1, 0, &tok, "");
+  } else if (gate < 50 || (screwed_tribe < 0 && gate < 65)) {
+    int g = dos_rng_range(rng, 1, 8);
+    g += dos_rng_range(rng, 1, 8);
+    g += dos_rng_range(rng, 1, 8);
+    const int gold = g * 10;
+    units_lcr_credit_gold(col1, europe, human_nation, nation, gold);
+    tok.has_number0 = true;
+    tok.number0 = gold;
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_INFO, "BURIAL2", nation, -1, gold, &tok, "");
+  } else {
+    const int gold = (dos_rng_range(rng, 1, 8) + (skill + 5) * 2) * 2 * 100;
+    (void)units_spawn_treasure_train(pool, x, y, nation, gold);
+    /* 65dd:0654: human + no tribe claim → 0x24 treasure tune (281f_048e). */
+    if (nation == human_nation && screwed_tribe < 0) {
+      units_play_event_sound(0x24);
+    }
+    tok.has_number1 = true;
+    tok.number1 = gold;
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_INFO, "BURIAL3", nation, -1, gold, &tok, "");
+  }
+  if (screwed_tribe >= 0) {
+    /* 65dd:06e6: human → 0x32 Military sting ahead of @SCREWED. */
+    if (nation == human_nation) {
+      units_play_event_sound(0x32);
+    }
+    PopupMsgTokens stok;
+    memset(&stok, 0, sizeof(stok));
+    if (col1 && nation >= 0 && nation < 4) {
+      /* DOS FUN_281f_0d6c(tribe, nation, 100): +100 there is an ALARM rise;
+       * the port's relation accessor is sign-inverted (worse = negative),
+       * same convention as the FUN_5fef_31ea conquest delta. */
+      ai_diplo_indian_relation_delta(col1, screwed_tribe, nation, -100);
+    }
+    stok.string0 = units_combat_nation_label(col1, screwed_tribe);
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_INFO, "SCREWED", nation, -1, 0, &stok, "");
+  }
+}
+
+/*
+ * 65dd:04eb for case 4: raise the composed @LOSTCITY4 CHOICE ("Let us search
+ * for treasure!" / "Stay clear of those!") and defer the payout block to
+ * units_lcr_burial_apply_popup_w. Returns false when there is no popup queue
+ * (headless tests, AI nations), in which case the caller resolves inline —
+ * DOS's own `local_3c` starts at 1, so a non-human explorer searches.
+ */
+static bool units_lcr_burial_enqueue_choice(
+  int nation,
+  int x,
+  int y,
+  int skill,
+  int gate
+) {
+  if (!g_units_combat_popups) {
+    return false;
+  }
+  const ColonizeMsgSection* sec =
+    g_units_combat_game_txt ? assets_msg_find(g_units_combat_game_txt, "LOSTCITY4") : NULL;
+  if (!sec) {
+    return false; /* no catalog text = no invented wording; search inline */
+  }
+  char raw_choices[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+  const int nch = popup_msg_choices(sec, raw_choices, AI_POPUP_CHOICE_MAX);
+  if (nch < 2) {
+    return false;
+  }
+  char c0[AI_POPUP_CHOICE_LEN];
+  char c1[AI_POPUP_CHOICE_LEN];
+  popup_msg_apply_tokens(c0, sizeof(c0), raw_choices[0], NULL);
+  popup_msg_apply_tokens(c1, sizeof(c1), raw_choices[1], NULL);
+  const char* labels[2] = {c0, c1};
+  const int ids[2] = {1, 2};
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(g_units_combat_game_txt, "LOSTCITY4", &tok, "", body, sizeof(body));
+  const int payload = (x & 0xff) | ((y & 0xff) << 8) | ((gate & 0xff) << 16);
+  if (!ai_popup_enqueue_choice_ctx(
+        g_units_combat_popups, AI_POPUP_TAG_LCR_BURIAL, nation, skill, payload, NULL, body,
+        labels, ids, 2)) {
+    return false;
+  }
+  /* 65dd:04eb latches DS:0x1f5e = 3 (MSS3 frontiersman) right before 0998. */
+  ai_popup_set_last_graphic_mss(g_units_combat_popups, 3);
+  return true;
+}
+
+bool units_lcr_burial_apply_popup_w(
+  const ColonizeWorld* w,
+  AiPopupState* popups,
+  int human_nation
+) {
+  if (!popups || popups->result_tag != AI_POPUP_TAG_LCR_BURIAL) {
+    return false;
+  }
+  /* DOS gates the whole block on local_3c == 1; Esc / row 2 = stay clear. */
+  if (!popups->result_cancelled && popups->result_choice_id == 1) {
+    const int payload = popups->result_payload;
+    units_lcr_burial_resolve_w(
+      w, popups->result_nation_a, human_nation,
+      payload & 0xff, (payload >> 8) & 0xff, popups->result_nation_b,
+      (payload >> 16) & 0xff
+    );
+  }
+  return true;
+}
+
 bool units_resolve_lcr_rumour_w(
   const ColonizeWorld* w,
   int unit_id,
@@ -3591,70 +3745,16 @@ bool units_resolve_lcr_rumour_w(
   case COLONIZE_LCR_BURIAL_MOUNDS: {
     units_play_event_sound(0x33); /* FUN_65dd_0004 65dd:04c0 case 4: queued tune (281f_048e) */
     /*
-     * @LOSTCITY4 (Search / Stay clear) auto-resolves as Search (DOS
-     * local_3c==1; interactive CHOICE PARK). Post-choice block 103653-
-     * 103715: the nearest village's tribe claims the mounds when
-     * RNG(1, (dist+5) << skill) < 4 and it has met the nation (0a38 &
-     * 0x20 — no per-tribe contact flag here, treated as met). Variant by
-     * the loop's `gate`: <25 → BURIAL1 empty; <50, or <65 with no claim →
-     * BURIAL2 3d8*10 gold; else BURIAL3 Treasure unit worth
-     * (RNG(1,8) + (skill+5)*2)*2 hundred. A claim adds @SCREWED and +100
-     * relation hit (FUN_281f_0d6c(tribe, nation, 100)) — DOS does not kill
-     * the unit here; the angry tribe does that on its own turn.
+     * @LOSTCITY4 Search / Stay clear (65dd:04eb `local_3c`, human only):
+     * the payout block below it runs from the popup result, so declining
+     * draws nothing. A non-human explorer (or a headless queue) keeps DOS's
+     * `local_3c = 1` initial value and searches inline.
      */
-    int dist = 0x7fffffff;
-    const int near_tribe = units_lcr_nearest_tribe_dist(col1, x, y, &dist);
-    int screwed_tribe = -1;
-    if (near_tribe >= 0 && dist < 0x7fffffff) {
-      const int span = (dist + 5) << skill;
-      if (dos_rng_range(rng, 1, span < 1 ? 1 : span) < 4) {
-        screwed_tribe = near_tribe;
-      }
+    if (nation == human_nation &&
+        units_lcr_burial_enqueue_choice(nation, x, y, skill, roll.gate)) {
+      break;
     }
-    if (roll.gate < 25) {
-      units_combat_enqueue_tok(
-        AI_POPUP_TAG_INFO, "BURIAL1", nation, -1, 0, &tok, "");
-    } else if (roll.gate < 50 || (screwed_tribe < 0 && roll.gate < 65)) {
-      int g = dos_rng_range(rng, 1, 8);
-      g += dos_rng_range(rng, 1, 8);
-      g += dos_rng_range(rng, 1, 8);
-      const int gold = g * 10;
-      units_lcr_credit_gold(col1, europe, human_nation, nation, gold);
-      tok.has_number0 = true;
-      tok.number0 = gold;
-      units_combat_enqueue_tok(
-        AI_POPUP_TAG_INFO, "BURIAL2", nation, -1, gold, &tok, "");
-    } else {
-      const int gold = (dos_rng_range(rng, 1, 8) + (skill + 5) * 2) * 2 * 100;
-      (void)units_spawn_treasure_train(pool, x, y, nation, gold);
-      /* 65dd:0654: human + no tribe claim → 0x24 treasure tune (281f_048e). */
-      if (nation == human_nation && screwed_tribe < 0) {
-        units_play_event_sound(0x24);
-      }
-      tok.has_number1 = true;
-      tok.number1 = gold;
-      units_combat_enqueue_tok(
-        AI_POPUP_TAG_INFO, "BURIAL3", nation, -1, gold, &tok,
-        "");
-    }
-    if (screwed_tribe >= 0) {
-      /* 65dd:06e6: human → 0x32 Military sting ahead of @SCREWED. */
-      if (nation == human_nation) {
-        units_play_event_sound(0x32);
-      }
-      PopupMsgTokens stok;
-      memset(&stok, 0, sizeof(stok));
-      if (col1 && nation >= 0 && nation < 4) {
-        /* DOS FUN_281f_0d6c(tribe, nation, 100): +100 there is an ALARM rise;
-         * the port's relation accessor is sign-inverted (worse = negative),
-         * same convention as the FUN_5fef_31ea conquest delta. */
-        ai_diplo_indian_relation_delta(col1, screwed_tribe, nation, -100);
-      }
-      stok.string0 = units_combat_nation_label(col1, screwed_tribe);
-      units_combat_enqueue_tok(
-        AI_POPUP_TAG_INFO, "SCREWED", nation, -1, 0, &stok,
-        "");
-    }
+    units_lcr_burial_resolve_w(w, nation, human_nation, x, y, skill, roll.gate);
     break;
   }
   }
