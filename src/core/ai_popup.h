@@ -189,6 +189,16 @@ typedef enum AiPopupTag {
                                  * hold alone. nation_a = unit id, nation_b = hold
                                  * index, payload = amount | (1 << 20) when the ask
                                  * came from "Unload all cargo" and the loop resumes. */
+  ,
+  AI_POPUP_TAG_LCR_BURIAL = 71 /* bugs.md #956. FUN_65dd_0004 65dd:04eb: the composed
+                                 * @LOSTCITY4 (DS:0x1dae + case) burial-mounds CHOICE the
+                                 * human answers BEFORE the payout block at 103653 runs
+                                 * (DOS gates it on `local_8 == 4 && local_3c == 1`).
+                                 * 1 = "Let us search for treasure!", 2 / Esc = "Stay clear
+                                 * of those!" (no rolls at all, the rumour tile is already
+                                 * cleared). nation_a = explorer nation, nation_b = the
+                                 * 65dd:103450 skill tier, payload = x | y << 8 | gate << 16
+                                 * (gate = the roll's local_c magnitude byte). */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {

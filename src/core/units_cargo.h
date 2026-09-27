@@ -21,6 +21,27 @@ bool units_resolve_lcr_rumour_w(
   int human_nation
 );
 
+/*
+ * FUN_65dd_0004 case 4 split (bugs.md #956): the burial-mounds payout block
+ * (103653-103715) and the @LOSTCITY4 Search / Stay-clear CHOICE that gates it
+ * (65dd:04eb `local_3c`). The resolver is what DOS runs on row 1; the apply
+ * hook consumes the popup result (row 2 / Esc = nothing rolled at all).
+ */
+void units_lcr_burial_resolve_w(
+  const ColonizeWorld* w,
+  int nation,
+  int human_nation,
+  int x,
+  int y,
+  int skill,
+  int gate
+);
+bool units_lcr_burial_apply_popup_w(
+  const ColonizeWorld* w,
+  AiPopupState* popups,
+  int human_nation
+);
+
 
 /*
  * Spawn a Treasure Train at (x,y) for nation_id, value stored DOS-style in

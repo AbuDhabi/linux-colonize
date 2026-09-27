@@ -112,7 +112,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@LOSTCITY1` | Done thin | Fountain of Youth — 8 dock immigrants (human only; AI has no EuropeScreen pool) |
 | `@LOSTCITY2` | Done thin | Seven Cities of Cibola — big treasure train (needs Galleon home) |
 | `@LOSTCITY3` | Done thin | Ruins gold, credited direct to nation |
-| `@LOSTCITY4` | Done thin | Burial mounds — auto-resolves as Search (Stay-clear CHOICE PARKED) → `@BURIAL1`/`2`/`3`/`@SCREWED` |
+| `@LOSTCITY4` | Done | Burial mounds CHOICE (`AI_POPUP_TAG_LCR_BURIAL`): row 1 Search runs the payout block → `@BURIAL1`/`2`/`3`/`@SCREWED`, row 2 / Esc Stay clear rolls nothing (bugs.md #956) |
 | `@SCREWED` | Done thin | Hostile burial-ground natives — relation malus; 50/50 expedition lost (full combat resolve PARKED) |
 | `@BURIAL1` | Done thin | Burial search — nothing found |
 | `@BURIAL2` | Done thin | Burial search — trinkets (small gold) |
