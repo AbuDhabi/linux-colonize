@@ -3544,8 +3544,14 @@ int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit* u, int
      */
     if (!(pioneer_aboard || pioneer_at_found_south || ship_on_found_hold ||
           (!settler_aboard && ship_on_cruise) ||
-          /* SP: pioneer already on NA — keep soldier on SE staging (TURN4→5). */
-          (pioneer_at_found && !settler_aboard && lf_x == 53 && lf_y == 56) ||
+          /*
+           * 2026-09-27, bugs.md #530 S5c: a disjunct stood here, commented
+           * "SP: pioneer already on NA -- keep soldier on SE staging":
+           * pioneer_at_found && !settler_aboard && lf_x == 53 && lf_y == 56.
+           * Deleted as dead -- gated alone it left golden_ai_turns 6/6, the
+           * golden suite clean and ctest 95/95, the very TURN4->5 step its
+           * comment cited included, so it was not doing that job.
+           */
           /* SP: both landed, ship still at the beachhead tip because it acts
            * after the land units under the DOS id order (AI_6D8E_DOS_LOOP);
            * the cruise it is about to set is the same staging the legacy

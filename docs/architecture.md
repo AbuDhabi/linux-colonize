@@ -20,6 +20,7 @@ lives](#where-detail-lives)).
 | Acceptance order / fidelity bar | [project_goals.md](project_goals.md) |
 | Phase order / what’s next | [port_plan.md](port_plan.md) |
 | Manual feature gaps | [manual_gap.md](manual_gap.md) |
+| Accepted DOS divergences, captures still needed | [known_divergences.md](known_divergences.md) |
 | AI FUN / unpark | [port_plan.md](port_plan.md) |
 | Euro AI control flow (machine-readable map + flowchart) | [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml), rendered by `tools/ai_logic_map.py` to [diagrams/ai_euro_logic.html](diagrams/ai_euro_logic.html) |
 | Decomp / data navigation | [original_index.md](original_index.md) |
