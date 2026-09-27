@@ -2,6 +2,8 @@
 #include "core/ai.h"
 #include "core/combat_strength.h"
 #include "core/units_combat.h"
+#include "core/combat_analysis.h"
+#include "core/units_internal.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -611,6 +613,9 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
     /* 465b commit tail clears+recomputes unit+0x3147's observed nibble
      * (FUN_281f_08da / 084e / 07fe) on every step — braves included. */
     units_vis_mask_after_move(units, map, u->id, nx, ny);
+    /* FUN_465b_0000 commit -> FUN_5bfb_3180, raw 98628-98646:
+     * native steps also wake adjacent foreign sentries (#530). */
+    units_sentry_wake_scan(units, map, ai_s_native_colonies, u->id);
   }
   u->moves = spent + cost;
   /*

@@ -2165,6 +2165,21 @@ static void ai_euro_ship_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* 
   if (u->x != u->goto_x || u->y != u->goto_y) {
     ok = units_next_goto_step_w(&w, id, &px, &py);
   }
+  /* FUN_6662_0f74 LAB_1599, raw 104758: the pathfinder writes +0x314f
+   * on EVERY return, including -1 when already at the goal. Keeping the
+   * previous step here fed a stale facing penalty into 20e6's next score
+   * (bugs.md #530: Spain's second step became W instead of SW). */
+  int dir = -1;
+  if (ok) {
+    for (int d = 0; d < 8; ++d) {
+      if (px == u->x + MAP_DIR8_DX[d] && py == u->y + MAP_DIR8_DY[d]) {
+        dir = d;
+        break;
+      }
+    }
+  }
+  u->last_dir = dir;
+  ai_euro_s_euro_last_dir[id] = (int8_t)dir;
   if (!ok) {
     u->orders = UNITS_ORDER_NONE; /* FUN_2a1f_0210 found no direction */
     return;
@@ -2213,7 +2228,10 @@ void ai_euro_act_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_
     return;
   }
   u = units_get(ctx->units, id);
-  if (!u || !u->active || u->moves <= 0) {
+  /* FUN_521d_5b66 5bda..5c0e (overlay asm 139925): dispatch the
+   * resulting order even when unloading exhausted MP. An arrived step
+   * still clears its order and facing through FUN_479b_0972 (#530). */
+  if (!u || !u->active) {
     return;
   }
   if (u->orders == AI_EURO_ACT_GOAL || u->orders == AI_EURO_ACT_STEP) {

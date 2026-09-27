@@ -1250,7 +1250,14 @@ void units_sentry_wake_scan(
       if (!units_is_sea(pool, f->id) && map_tile_is_water(map, f->x, f->y)) {
         continue; /* land unit on water: riding in a hold (raw 98635-98638) */
       }
+      /* This automatic wake writes only +0x314c in DOS (raw 98640).
+       * Keep the saved destination; units_wake's explicit activation path
+       * clears it, which lost the AI landfall goal (#530). */
+      const int gx = f->goto_x;
+      const int gy = f->goto_y;
       units_wake(pool, f->id);
+      f->goto_x = gx;
+      f->goto_y = gy;
     }
   }
 }
