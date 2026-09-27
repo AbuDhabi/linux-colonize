@@ -6,6 +6,7 @@
 #include "../common/test_catalogs.h"
 #include "core/ai_diplo.h"
 #include "core/ai_euro.h"
+#include "core/ai_euro_internal.h"
 #include "core/ai_goals.h"
 #include "core/ai_popup.h"
 #include "core/col1_save.h"
@@ -717,6 +718,175 @@ static int unit_empty_ship_hs_cadence(void) {
             ship->goto_x, ship->goto_y);
     fixture_free(&f);
     return fail("457e cadence did not send the empty ship to the High Seas");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
+/*
+ * DOS-LITERAL FUN_521d_20e6 raw 89725-89728, the dock-demand sail-home arm
+ * (bugs.md #954). An empty hull with no qualifying hold cargo, not goal-tasked
+ * and passing the hull-type gate, falls through to LAB_521d_3fa6 when
+ * DS:0x945a[n] (own land units waiting on the Europe dock) exceeds
+ * DS:0x9456[n] (own hulls already heading home). The fixture deliberately
+ * defeats the 1-in-32 LAB_521d_457e cadence — `((char)id + (char)turn) & 0x1f`
+ * is made non-zero — so only the new arm can send this hull anywhere, and it
+ * must stamp DOS's `+0x314b = 0x45` Europe course.
+ */
+static int unit_europe_dock_demand_sails_home(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  for (int y = 0; y < 16; ++y) {
+    for (int x = 12; x < 16; ++x) {
+      f.map.terrain[y * 16 + x] = 25; /* ocean */
+    }
+    f.map.terrain[y * 16 + 15] = 26; /* high seas */
+  }
+  /* Well-stocked own colony so the 4393 haul pick declines first, as in the
+   * 457e cadence case. */
+  ColonizeColony* own = &f.colonies.colonies[0];
+  own->id = 0;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 11;
+  own->y = 8;
+  own->population = 3;
+  own->colonist_count = 3;
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    own->stock[c] = 200;
+  }
+  own->building_in_production = -1;
+  f.colonies.colony_count = 1;
+  f.colonies.next_id = 1;
+
+  const int ship_id = units_spawn(&f.units, 2, 13, 8);
+  ColonizeUnit* ship = units_get(&f.units, ship_id);
+  if (!ship) {
+    fixture_free(&f);
+    return fail("spawn ship");
+  }
+  ship->nation_id = nation;
+  ship->moves = 4 * UNITS_MP_PER_TILE;
+  ship->orders = 0;
+  /* Defeat the 457e cadence: any turn whose parity is NOT 0 mod 32. */
+  f.turn = (uint32_t)(32 - (ship_id % 32) + 1);
+
+  /* Two colonists waiting on the Europe dock, no hull in the lane yet. */
+  for (int i = 0; i < 2; ++i) {
+    const int pid = units_spawn_allow_stack(&f.units, 0, 200, 100);
+    ColonizeUnit* p = units_get(&f.units, pid);
+    if (!p) {
+      fixture_free(&f);
+      return fail("spawn dock colonist");
+    }
+    p->nation_id = nation;
+    p->orders = UNITS_ORDER_SENTRY;
+    p->moves = 0;
+  }
+  if (ai_euro_europe_dock_land_units(&f.units, nation) != 2) {
+    fixture_free(&f);
+    return fail("DS:0x945a tally should see 2 waiting colonists");
+  }
+  if (ai_euro_europe_lane_ships(&f.units, nation) != 0) {
+    fixture_free(&f);
+    return fail("DS:0x9456 tally should be empty before the course is set");
+  }
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  ship = units_get(&f.units, ship_id);
+  if (!ship || !ship->active) {
+    fixture_free(&f);
+    return fail("ship vanished");
+  }
+  const int parked = units_coords_in_europe_park(ship->x, ship->y);
+  const int hs_goto = !parked && units_orders_follow_goto(ship->orders) &&
+                      ship->goto_x < 200 &&
+                      map_tile_is_high_seas(&f.map, ship->goto_x, ship->goto_y);
+  if (!parked && !hs_goto) {
+    fprintf(stderr, "ship pos=(%d,%d) orders=%d goto=(%d,%d) plan=%u\n", ship->x, ship->y,
+            ship->orders, ship->goto_x, ship->goto_y, (unsigned)ship->col1_ai_plan);
+    fixture_free(&f);
+    return fail("dock demand did not send the empty hull home");
+  }
+  if (hs_goto && ship->col1_ai_plan != AI_EURO_PLAN_EUROPE_BOUND) {
+    fixture_free(&f);
+    return fail("48d3_015e must stamp +0x314b = 0x45 on the Europe course");
+  }
+  /*
+   * The hull now counts itself in the lane tally, which is what stops DOS
+   * sending a second one for the same queue. Asserted as a delta rather than an
+   * absolute: the 5d04 hire ladder legitimately buys its own hull into the park
+   * during this same dispatcher turn and boards the waiting colonists onto it,
+   * so the nation's lane total is not this hull's alone.
+   */
+  if (hs_goto) {
+    const int lane_with = ai_euro_europe_lane_ships(&f.units, nation);
+    ship->col1_ai_plan = 0;
+    const int lane_without = ai_euro_europe_lane_ships(&f.units, nation);
+    ship->col1_ai_plan = AI_EURO_PLAN_EUROPE_BOUND;
+    if (lane_with != lane_without + 1) {
+      fprintf(stderr, "lane with=%d without=%d\n", lane_with, lane_without);
+      fixture_free(&f);
+      return fail("DS:0x9456 must count a hull that carries the Europe course");
+    }
+  }
+  fixture_free(&f);
+  return 0;
+}
+
+/*
+ * The other half of raw 89725-89728: with as many hulls already heading home as
+ * there are colonists waiting, the guard disjunction is true and the band does
+ * NOT fall through to LAB_3fa6. One waiting colonist, one hull already stamped
+ * with the Europe course, so the second hull must be left for the other arms.
+ */
+static int unit_europe_dock_demand_throttled_by_lane(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  for (int y = 0; y < 16; ++y) {
+    for (int x = 12; x < 16; ++x) {
+      f.map.terrain[y * 16 + x] = 25;
+    }
+    f.map.terrain[y * 16 + 15] = 26;
+  }
+  const int waiting = units_spawn_allow_stack(&f.units, 0, 200, 100);
+  ColonizeUnit* w = units_get(&f.units, waiting);
+  if (!w) {
+    fixture_free(&f);
+    return fail("spawn dock colonist");
+  }
+  w->nation_id = nation;
+  w->orders = UNITS_ORDER_SENTRY;
+
+  const int bound_id = units_spawn(&f.units, 2, 13, 4);
+  ColonizeUnit* bound = units_get(&f.units, bound_id);
+  const int idle_id = units_spawn(&f.units, 2, 13, 8);
+  ColonizeUnit* idle = units_get(&f.units, idle_id);
+  if (!bound || !idle) {
+    fixture_free(&f);
+    return fail("spawn hulls");
+  }
+  bound->nation_id = nation;
+  bound->col1_ai_plan = AI_EURO_PLAN_EUROPE_BOUND;
+  idle->nation_id = nation;
+  idle->moves = 4 * UNITS_MP_PER_TILE;
+  idle->orders = 0;
+
+  if (ai_euro_europe_dock_land_units(&f.units, nation) != 1 ||
+      ai_euro_europe_lane_ships(&f.units, nation) != 1) {
+    fixture_free(&f);
+    return fail("fixture tallies should be 1 and 1");
+  }
+  if (ai_euro_20e6_europe_dock_demand(&f.ctx, idle, nation)) {
+    fixture_free(&f);
+    return fail("dock demand must not fire when the lane already covers the queue");
   }
   fixture_free(&f);
   return 0;
@@ -2198,6 +2368,18 @@ static int unit_border_park_skipped_on_own_colony(void) {
  * so both stacked and unstacked end the turn in place. It is covered
  * behaviourally by golden_woi_ref01 instead.)
  */
+/*
+ * (No case here for the LAB_521d_5183 attack-tail hold, raw 89033-89039 /
+ * bugs.md #955.) The gate only fires when the WINNING wander candidate is an
+ * attack, and this file's synthetic fixtures cannot produce one: the attack arm
+ * rejects any pairing under odds 0x0c outright (raw 88886-88954, score -= 999),
+ * and every pairing tried here — Soldier vs Soldier in a foreign colony,
+ * Artillery vs a lone unarmed colonist, over 200 RNG seeds — scores `saw_foe`
+ * but never wins the direction. The gate is carried by its citation and by the
+ * rest of the suite staying green; a real test needs a combat-odds fixture this
+ * file does not have.
+ */
+
 static int gate_course_run(int own_colony, int* out_x, int* out_y, int* out_def_alive) {
   const int nation = 1;
   Fixture f;
@@ -2302,6 +2484,8 @@ static const TestCase k_cases[] = {
     {"unit_wagon_dead_end_destroyed", unit_wagon_dead_end_destroyed},
     {"unit_wagon_with_target_survives", unit_wagon_with_target_survives},
     {"unit_empty_ship_hs_cadence", unit_empty_ship_hs_cadence},
+    {"unit_europe_dock_demand_sails_home", unit_europe_dock_demand_sails_home},
+    {"unit_europe_dock_demand_throttled_by_lane", unit_europe_dock_demand_throttled_by_lane},
     {"unit_delivery_matrix_skips_full_producer", unit_delivery_matrix_skips_full_producer},
     {"unit_delivery_sell_tail_dumps_cargo", unit_delivery_sell_tail_dumps_cargo},
     {"unit_load_matrix_picks_priced_cargo", unit_load_matrix_picks_priced_cargo},

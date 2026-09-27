@@ -293,6 +293,83 @@ static int case_next_unit_selection(void) {
   return 0;
 }
 
+/*
+ * bugs.md #953: a unit parked in the off-map Europe park must get its
+ * allotment back every turn. The Euro AI stamps DOS's `+0x314c = 1` (the
+ * port's UNITS_ORDER_SENTRY) on everything waiting in the park, and the MP
+ * refresh used to read that as the human sentry order and hand it 0 thirds —
+ * which froze the hull and every passenger the 5d04 hire tail loaded onto it
+ * for the rest of the game, because the 6d8e dispatcher skips a ship with no
+ * MP. A sentried unit ON the map still keeps 0 (it is dug in), and a crown
+ * wreck parked in the same slot is held at 0 by turn_route_damaged_ships.
+ */
+static int case_europe_park_refresh(void) {
+  fx_begin();
+  memset(&fx_units, 0, sizeof(fx_units));
+  units_reset(&fx_units);
+  units_set_occupancy_map(NULL);
+  fx_units.type_count = 2;
+  snprintf(fx_units.types[0].name, sizeof(fx_units.types[0].name), "Soldiers");
+  fx_units.types[0].movement = 1;
+  fx_units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(fx_units.types[1].name, sizeof(fx_units.types[1].name), "Caravel");
+  fx_units.types[1].movement = 4;
+  fx_units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  fx_units.types[1].cargo = 2;
+
+  /* Parked in Europe: a hull and a land unit, both sentry, both out of MP. */
+  const int hull = units_spawn_allow_stack(&fx_units, 1, 200, 100);
+  const int pax = units_spawn_allow_stack(&fx_units, 0, 200, 100);
+  /* Same nation, sentried on a real tile: stays asleep. */
+  const int ashore = units_spawn_allow_stack(&fx_units, 0, 5, 5);
+  if (hull < 0 || pax < 0 || ashore < 0) {
+    fprintf(stderr, "europe park spawn failed\n");
+    return 1;
+  }
+  ColonizeUnit* uh = units_get(&fx_units, hull);
+  ColonizeUnit* up = units_get(&fx_units, pax);
+  ColonizeUnit* ua = units_get(&fx_units, ashore);
+  uh->nation_id = 1;
+  up->nation_id = 1;
+  ua->nation_id = 1;
+  uh->orders = UNITS_ORDER_SENTRY;
+  up->orders = UNITS_ORDER_SENTRY;
+  ua->orders = UNITS_ORDER_SENTRY;
+  uh->moves = 0;
+  up->moves = 0;
+  ua->moves = 0;
+
+  if (!units_coords_in_europe_park(200, 100) || units_coords_in_europe_park(5, 5)) {
+    fprintf(stderr, "europe park predicate wrong\n");
+    return 1;
+  }
+
+  turn_refresh_moves_for_nation_w(
+    &(ColonizeWorld){.units = &fx_units, .colonies = NULL, .map = NULL, .col1 = NULL,
+                     .col1_ok = false},
+    1, NULL, NULL
+  );
+
+  uh = units_get(&fx_units, hull);
+  up = units_get(&fx_units, pax);
+  ua = units_get(&fx_units, ashore);
+  if (uh->moves != units_max_mp(&fx_units, hull)) {
+    fprintf(stderr, "parked hull got %d thirds, want %d\n", uh->moves,
+            units_max_mp(&fx_units, hull));
+    return 1;
+  }
+  if (up->moves != units_max_mp(&fx_units, pax)) {
+    fprintf(stderr, "parked land unit got %d thirds, want %d\n", up->moves,
+            units_max_mp(&fx_units, pax));
+    return 1;
+  }
+  if (ua->moves != 0) {
+    fprintf(stderr, "sentry ashore must stay parked, got %d thirds\n", ua->moves);
+    return 1;
+  }
+  return 0;
+}
+
 static int case_nation_colors(void) {
   fx_begin();
   /* Turn-owner colors: NAMES.TXT @COUNTRY; England fill uses saturated red 112. */
@@ -6347,6 +6424,7 @@ static const TestCase k_cases[] = {
   {"free_production", case_free_production},
   {"turn_end_calendar", case_turn_end_calendar},
   {"next_unit_selection", case_next_unit_selection},
+  {"europe_park_refresh", case_europe_park_refresh},
   {"nation_colors", case_nation_colors},
   {"owner_indicator", case_owner_indicator},
   {"processor_indicator_steps", case_processor_indicator_steps},

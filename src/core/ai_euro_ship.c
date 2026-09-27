@@ -1507,6 +1507,12 @@ int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
   units_occupancy_notify_moved(ctx->units, ox, oy, 200, 100);
   ai_euro_sync_aboard_cargo_xy(ctx->units, ship);
   ai_euro_set_goto(ship, UNITS_ORDER_AI_SAIL, 200, 100);
+  /* The course is spent. DOS keeps counting the hull in DS:0x9456 while it
+   * stands in the Europe columns (raw 78182-78185) and only drops it on the
+   * 48d3_0346 departure; the port's lane tally reads the park itself, so the
+   * `+0x314b = 0x45` stamp must come off here or the hull would be counted
+   * twice and its own re-cross gate would keep firing. */
+  ship->col1_ai_plan = 0;
   ship->moves = 0;
   return 1;
 }

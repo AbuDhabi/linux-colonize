@@ -464,6 +464,19 @@ int ai_euro_20e6_bvar20_seed(
   const ColonizeTurnContext* ctx, const ColonizeUnit* u, int dos_type
 );
 int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
+
+/* `+0x314b = 0x45` ('E'), the Europe-course stamp FUN_48d3_015e writes
+ * (raw 77712-77727). The port keeps DOS's byte in `ColonizeUnit.col1_ai_plan`,
+ * and the crossing gate in the shared mover (FUN_479b_076e raw 77095-77107)
+ * reads it. */
+#define AI_EURO_PLAN_EUROPE_BOUND 0x45
+
+/* DS:0x945a[n] / DS:0x9456[n] census tallies and the LAB_521d_3fa6 sail-home
+ * course setter — bodies carry the prose (ai_euro_land.c). */
+int ai_euro_europe_dock_land_units(const ColonizeUnitPool* units, int nation_id);
+int ai_euro_europe_lane_ships(const ColonizeUnitPool* units, int nation_id);
+int ai_euro_20e6_3fa6_sail_home(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
+int ai_euro_20e6_europe_dock_demand(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 void ai_euro_20e6_stay_tail_589e(ColonizeUnit* u);
 int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 void ai_euro_try_violate_notify(ColonizeTurnContext* ctx, ColonizeUnit* u);

@@ -39,6 +39,11 @@ bool units_is_on_map(const ColonizeUnit* unit) {
   return unit && unit->active && unit->id >= 0 && unit->aboard_ship_id < 0;
 }
 
+/* Header owns the prose: the off-map park at (200,100). */
+bool units_coords_in_europe_park(int x, int y) {
+  return x >= 200 || y >= 200;
+}
+
 /*
  * Tile-stack walk (theme M). DOS parks a boarded passenger off-map at (-2,-2)
  * (FUN_1427_10be), so an on-map test is the DOS-faithful stack filter and a

@@ -611,6 +611,13 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_war_trade(struct ai_euro_act_
    * fights come from the LAB_4d2e wander scorer, whose attack arm already
    * takes a Privateer against an unmet owner (raw 88880-88940).)
    */
+  /*
+   * DOS position: the raw 89725-89728 dock-demand arm sits between the
+   * Man-O-War REF guard and the delivery-colony picker, ahead of the 4393 haul
+   * and the 457e cadence, and carries no war gate of its own.
+   */
+  const int sailed_home = ai_euro_20e6_europe_dock_demand(ctx, u, nation_id);
+
   const int at_war =
     ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id);
   /* (The "treasure aboard → keep the Europe sail" suppression that stood here
@@ -621,7 +628,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_war_trade(struct ai_euro_act_
    * §2d2; TOOLS only (no invented FOOD cargo). Skip when war /
    * useful sail already set.
    */
-  if (!at_war && !ai_euro_has_useful_goto(u, ctx->map)) {
+  if (!sailed_home && !at_war && !ai_euro_has_useful_goto(u, ctx->map)) {
     if (!ai_euro_try_post_found_coast_cruise(ctx, nation_id, u)) {
       {
         if (!ai_euro_try_ship_trade_haul(ctx, nation_id, u)) {
@@ -1774,6 +1781,23 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
  * five ship stages in DOS order; any stage may end the act.
  */
 void ai_euro_act_ship(struct ai_euro_act_ctx* a) {
+  /*
+   * The map->Europe crossing is not an AI arm: FUN_479b_076e (raw 77095-77107,
+   * duplicated at 76477-76490) is the shared human/AI goto-step mover, and it
+   * calls FUN_291f_0208 -> FUN_48d3_007a for any unit that ends its goto on a
+   * High Seas tile while owned by an AI nation or carrying `+0x314b = 0x45`.
+   * So in DOS a hull crosses whatever path took it to the rim; the port's
+   * ai_euro_ship_enter_europe used to be reachable from three specific arms
+   * only, which is half of why an AI Europe dock queue never drained
+   * (bugs.md #954). The port runs the gate at the head of the hull's next act
+   * rather than inside units_try_move, and on the 0x45 stamp alone — DOS's
+   * broader "any AI nation" clause would also re-cross a hull that the Europe
+   * EXIT had just placed on a rim tile.
+   */
+  if (a && a->u && a->ctx && a->u->col1_ai_plan == AI_EURO_PLAN_EUROPE_BOUND &&
+      ai_euro_ship_enter_europe(a->ctx, a->u)) {
+    return;
+  }
   if (ai_euro_act_ship_europe_exit(a) == AI_EURO_ACT_RETURN) {
     return;
   }

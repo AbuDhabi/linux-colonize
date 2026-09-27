@@ -2257,9 +2257,25 @@ int ai_euro_20e6_wander_step(
       best_attack = attack;
     }
   }
-  /* LAB_5183 tail for an attack pick: DOS stays when fewer than 3 thirds
-   * (one full move) remain — Linux moves is whole moves and the act
-   * loop already requires >0, so nothing extra to gate here. */
+  /*
+   * DOS-LITERAL LAB_521d_5183 tail, the `local_ce != 0` (attack pick) arm —
+   * raw 89033-89039:
+   *   uVar14 = FUN_281f_090c(unit);                    // max allotment
+   *   if ((int)((uVar14 & 0xff) - unit[+0x3149]) < 3)  // remaining thirds
+   *     local_76 = 8;                                  // stay, do not attack
+   * i.e. a hull or land unit that picked an attack but has less than one full
+   * tile of movement left holds its ground instead. The port skipped this on
+   * the claim that "Linux moves is whole moves", which is wrong — `moves` is
+   * in THIRDS (UNITS_MP_PER_TILE, docs/conventions.md "MP thirds") — and
+   * `moves > 0` is a weaker bar than DOS's, so the port let a unit attack on a
+   * 1/3 or 2/3 remainder that DOS would never spend. bugs.md #955.
+   * DOS's +0x3149 is spent, `u->moves` is what is LEFT, so the port compares
+   * the remainder directly.
+   */
+  if (best_attack && best_dir != 8 && u->moves < UNITS_MP_PER_TILE) {
+    best_dir = 8;
+    best_attack = 0;
+  }
   if (out_attack) {
     *out_attack = best_attack;
   }
@@ -3055,27 +3071,172 @@ int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
   if (!spare && (((char)u->id + (char)s.turn) & 0x1f) != 0) {
     return 0;
   }
-  /* Already on High Seas — orders 0x45 means cross, not re-spiral (the
-   * re-spiral skips the own tile as occupied and wiggles the hull between
-   * two rim tiles forever). */
-  if (map_tile_is_high_seas(ctx->map, u->x, u->y)) {
-    if (getenv("AI_20E6_HS_TRACE")) {
-      fprintf(stderr, "[457e] ship %d n%d (%d,%d) turn %d on HS -> Europe\n", u->id, nation_id,
-              u->x, u->y, s.turn);
+  if (getenv("AI_20E6_HS_TRACE")) {
+    fprintf(stderr, "[457e] ship %d n%d (%d,%d) turn %d spare %d -> sail home\n", u->id,
+            nation_id, u->x, u->y, s.turn, spare);
+  }
+  return ai_euro_20e6_3fa6_sail_home(ctx, u, nation_id);
+}
+
+/*
+ * DS:0x945a[nation] — rebuilt every turn by the census FUN_4962_0018 (raw
+ * 78147 clears it, raw 78167-78170 bumps it): own NON-ship units whose map x
+ * byte satisfies `x - nation == -0x14`, i.e. standing on this nation's Europe
+ * dock column (236+n). DOS's 48d3_0346 departure decrements it once per land
+ * passenger (raw 77748). The port parks every nation's dock on the single
+ * off-map slot (units_coords_in_europe_park), so the same tally spells
+ * "own land units waiting in Europe".
+ */
+int ai_euro_europe_dock_land_units(const ColonizeUnitPool* units, int nation_id) {
+  if (!units || nation_id < 0 || nation_id > 3) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &units->units[i];
+    if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
+      continue;
     }
+    if (units_is_sea(units, u->id)) {
+      continue;
+    }
+    if (units_coords_in_europe_park(u->x, u->y)) {
+      n++;
+    }
+  }
+  return n > 127 ? 127 : n;
+}
+
+/*
+ * DS:0x9456[nation] — the same census's hull tally (raw 78182-78185): own
+ * ships standing in the two Europe-bound lane columns (240+n / 244+n).
+ * FUN_48d3_015e bumps it the instant a hull is GIVEN its Europe course (raw
+ * 77712), and the divert arm decrements it again (raw 90575), so it is a
+ * "how many hulls are already heading home" throttle rather than a position
+ * read. The port has no lane columns and crosses in one step, so a hull is
+ * "in the lane" when it either sits in the Europe park or still carries the
+ * `+0x314b = 0x45` Europe stamp that 015e writes.
+ */
+int ai_euro_europe_lane_ships(const ColonizeUnitPool* units, int nation_id) {
+  if (!units || nation_id < 0 || nation_id > 3) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &units->units[i];
+    if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
+      continue;
+    }
+    if (!units_is_sea(units, u->id)) {
+      continue;
+    }
+    if (units_coords_in_europe_park(u->x, u->y) ||
+        u->col1_ai_plan == AI_EURO_PLAN_EUROPE_BOUND) {
+      n++;
+    }
+  }
+  return n > 127 ? 127 : n;
+}
+
+/*
+ * LAB_521d_3fa6 -> FUN_291f_02ea -> FUN_48d3_015e (raw 77636-77728): "set
+ * course for Europe". DOS runs an expanding ring (radius 1 .. DS:0x853a) for a
+ * tile of terrain class 0x1a (High Seas) whose owner is free or own, and on a
+ * hit bumps DS:0x9456[nation], writes the tile into +0x314d/+0x314e and stamps
+ * `+0x314b = 0x45` ('E'). On a miss it does nothing.
+ *
+ * DOS does NOT cross here: 015e only stamps the goal, and the crossing happens
+ * later in the shared goto-step mover (FUN_479b_076e raw 77095-77107) when the
+ * hull ends its goto standing on High Seas. The port runs that gate at the head
+ * of the hull's next act (ai_euro_act_ship), so a hull that is already standing
+ * on High Seas when an arm asks for a course crosses now instead of re-spiralling
+ * — the re-spiral would skip its own tile as occupied and wiggle it between two
+ * rim tiles forever (the 2026-09-10 wiggle).
+ */
+int ai_euro_20e6_3fa6_sail_home(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
+  if (!ctx || !ctx->map || !ctx->units || !u || !u->active) {
+    return 0;
+  }
+  if (map_tile_is_high_seas(ctx->map, u->x, u->y)) {
     return ai_euro_ship_enter_europe(ctx, u);
   }
   int hx = 0;
   int hy = 0;
   if (!units_spiral_place_hs_near(ctx->units, ctx->map, u->x, u->y, nation_id, &hx, &hy)) {
+    return 0; /* 015e's ring found nothing: DOS leaves the hull alone */
+  }
+  ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, hx, hy);
+  u->col1_ai_plan = AI_EURO_PLAN_EUROPE_BOUND; /* raw 77712-77727 */
+  return 1;
+}
+
+/*
+ * DOS-LITERAL FUN_521d_20e6 raw 89725-89728 — the dock-demand sail-home arm,
+ * the trigger that keeps an AI nation's Europe dock queue moving. It sits in
+ * the ship band between the Man-O-War REF guard (raw 89717-89722) and the
+ * delivery-colony picker (raw 89729+), and the band falls through to
+ * LAB_521d_3fa6 when the whole guard disjunction is false, i.e. when ALL of:
+ *
+ *   local_a8 == 0      no passengers aboard   (raw 89412-89413)
+ *   local_44 <  0      no qualifying hold cargo (raw 89393-89400)
+ *   bVar7              the hull-type gate     (raw 88556-88579)
+ *   local_6 == 0       order byte is not 't' / 'i' (raw 88418-88422)
+ *   DS:0x945a[n] > DS:0x9456[n]
+ *
+ * — more land units waiting on my Europe dock than hulls already heading home.
+ * Cargo-independent, tested on every act rather than on a cadence, which is why
+ * an AI nation with nothing to export still collects its emigrants. The port had
+ * only the 1-in-32 LAB_521d_457e cadence and the Man-O-War arm, so a nation
+ * whose queue was growing had no signal at all (bugs.md #954).
+ */
+int ai_euro_20e6_europe_dock_demand(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
+  if (!ctx || !ctx->units || !ctx->map || !u || !u->active) {
+    return 0;
+  }
+  if (u->id < 0 || u->id >= COLONIZE_UNITS_MAX) {
+    return 0;
+  }
+  Ai20e6Unit s;
+  ai_euro_20e6_prologue(ctx, u, nation_id, &s);
+  if (s.dos_type < 0xd || s.dos_type > 0x12) {
+    return 0;
+  }
+  if (s.order_code == 't' || s.order_code == 'i') {
+    return 0; /* local_6 */
+  }
+  if (u->cargo_count != 0) {
+    return 0; /* local_a8 = stack-1 */
+  }
+  {
+    const int holds = units_goods_hold_count(ctx->units, u->id);
+    for (int h = 0; h < holds; ++h) {
+      const int ct = u->hold_goods_type[h];
+      if (units_hold_amount(ctx->units, u->id, h) <= 0 || ct < 0) {
+        continue;
+      }
+      if (ct > 0xc || ct == 8) {
+        return 0; /* local_44 >= 0 */
+      }
+    }
+  }
+  if (!ai_euro_20e6_457e_type_gate(ctx, u, s.dos_type)) {
+    return 0; /* bVar7 */
+  }
+  /* A hull already carrying the course counts itself in the lane tally, so the
+   * comparison below would stop re-firing for it; let it keep sailing home. */
+  if (u->col1_ai_plan == AI_EURO_PLAN_EUROPE_BOUND) {
+    return ai_euro_20e6_3fa6_sail_home(ctx, u, nation_id);
+  }
+  if (ai_euro_europe_dock_land_units(ctx->units, nation_id) <=
+      ai_euro_europe_lane_ships(ctx->units, nation_id)) {
     return 0;
   }
   if (getenv("AI_20E6_HS_TRACE")) {
-    fprintf(stderr, "[457e] ship %d n%d (%d,%d) turn %d spare %d -> HS (%d,%d)\n", u->id,
-            nation_id, u->x, u->y, s.turn, spare, hx, hy);
+    fprintf(stderr, "[3fa6] ship %d n%d (%d,%d) dock %d > lane %d -> sail home\n", u->id,
+            nation_id, u->x, u->y, ai_euro_europe_dock_land_units(ctx->units, nation_id),
+            ai_euro_europe_lane_ships(ctx->units, nation_id));
   }
-  ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, hx, hy);
-  return 1;
+  return ai_euro_20e6_3fa6_sail_home(ctx, u, nation_id);
 }
 
 /*
