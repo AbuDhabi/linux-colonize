@@ -270,7 +270,83 @@ static int case_874_drain_and_merc_offer_exclusive(void) {
   return rc;
 }
 
+/* #530: FUN_521d_20e6 raw 89467-89480 clears the accumulated mask
+ * BEFORE the continent/latitude gate, and only act state 0x0b overrides it
+ * with 0xffff for a land goal. A 0x0c step is not that goal order. */
+static int case_530_unload_mask_scan_and_order(void) {
+  ColonizeWorldMap map;
+  ColonizeUnitPool units;
+  ColonizeColonyPool colonies;
+  ColonizeCol1Save col1;
+  const int nation = 1;
+  if (!fx_map_alloc(&map, 16, 16, 25, false)) {
+    return 1;
+  }
+  memset(map.layer3, 0xf1, map.tile_count);
+  map.terrain[3 * 16 + 6] = 2; /* SE: eligible shore, scanned before NW. */
+  map.layer3[3 * 16 + 6] = 0xf2;
+  fx_units_init(&units);
+  fx_colonies_init(&colonies);
+  col1_save_init(&col1);
+  ai_goals_reset();
+  units.type_count = 2;
+  units.types[0].kind_plus1 = UNITS_KIND_SOLDIER + 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].movement = 1;
+  units.types[1].kind_plus1 = UNITS_KIND_CARAVEL + 1;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].movement = 4;
+  units.types[1].cargo = 2;
+  const int ship_id = units_spawn(&units, 1, 5, 2);
+  const int pax_id = units_spawn(&units, 0, 6, 3);
+  ColonizeUnit* ship = units_get(&units, ship_id);
+  ColonizeUnit* pax = units_get(&units, pax_id);
+  int rc = 1;
+  if (!ship || !pax) {
+    goto done;
+  }
+  ship->nation_id = pax->nation_id = nation;
+  if (!units_board(&units, pax_id, ship_id)) {
+    goto done;
+  }
+  ColonizeTurnContext ctx = {
+    .units = &units, .colonies = &colonies, .map = &map,
+    .col1 = &col1, .col1_ok = true
+  };
+  ai_euro_refresh_continent_stance(&ctx, nation);
+  if (ai_euro_20e6_unload_mask(&ctx, ship, nation) != 0x10) {
+    fprintf(stderr, "#530: isolated eligible shore must allow military unload\n");
+    goto done;
+  }
+  map.terrain[1 * 16 + 4] = 2; /* NW: empty land, but latitude gate fails. */
+  map.layer3[1 * 16 + 4] = 0xf2;
+  if (ai_euro_20e6_unload_mask(&ctx, ship, nation) != 0) {
+    fprintf(stderr, "#530: last empty land tile must clear the earlier mask\n");
+    goto done;
+  }
+  map.terrain[1 * 16 + 4] = 25;
+  map.layer3[1 * 16 + 4] = 0xf1;
+  ship->goto_x = 6;
+  ship->goto_y = 3;
+  ship->orders = AI_EURO_ACT_GOAL;
+  if (ai_euro_20e6_unload_mask(&ctx, ship, nation) != 0xffff) {
+    fprintf(stderr, "#530: goal order must unload all cargo on its continent\n");
+    goto done;
+  }
+  ship->orders = AI_EURO_ACT_STEP;
+  if (ai_euro_20e6_unload_mask(&ctx, ship, nation) != 0x10) {
+    fprintf(stderr, "#530: step order must not force an all-cargo unload\n");
+    goto done;
+  }
+  rc = 0;
+done:
+  col1_save_free(&col1);
+  fx_map_free(&map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"case_530_unload_mask_scan_and_order", case_530_unload_mask_scan_and_order},
     {"case_651_col5_reads_defense", case_651_col5_reads_defense},
     {"case_668_fallback_table_is_attack", case_668_fallback_table_is_attack},
     {"case_661_max_landing_reads_mow_holds", case_661_max_landing_reads_mow_holds},
