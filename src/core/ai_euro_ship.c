@@ -2199,7 +2199,7 @@ int ai_euro_20e6_unload_mask(ColonizeTurnContext* ctx, ColonizeUnit* ship, int n
     return 0;
   }
   int goto_cid = -2;
-  if (units_orders_follow_goto(ship->orders) && ship->goto_x >= 0 && ship->goto_y >= 0 &&
+  if (ship->orders == AI_EURO_ACT_GOAL && ship->goto_x >= 0 && ship->goto_y >= 0 &&
       ship->goto_x < (int)ctx->map->width && ship->goto_y < (int)ctx->map->height) {
     goto_cid = map_continent_id_at(ctx->map, ship->goto_x, ship->goto_y);
   }
@@ -2217,6 +2217,9 @@ int ai_euro_20e6_unload_mask(ColonizeTurnContext* ctx, ColonizeUnit* ship, int n
     if (!(pres < 0 || pres == nation)) {
       continue; /* 88c2 own/empty */
     }
+    /* FUN_521d_20e6 raw 89470: even a shore rejected by the stance or
+     * latitude gate clears the previous neighbour's mask (bugs.md #530). */
+    mask = 0;
     const int cid = map_continent_id_at(ctx->map, ax, ay);
     if (cid < 0 || ai_euro_continent_stance_at(nation, cid) == 0) {
       continue; /* DS:0x9870 G-table zero */
@@ -2224,7 +2227,6 @@ int ai_euro_20e6_unload_mask(ColonizeTurnContext* ctx, ColonizeUnit* ship, int n
     if (!(ay > 1 && ay <= ctx->map->height - 3)) {
       continue;
     }
-    mask = 0; /* DOS re-zero per qualifying tile */
     if (goto_cid >= 0 && goto_cid == cid) {
       mask = 0xffff; /* act_state 0x0b goto lands here: unload everything */
     }

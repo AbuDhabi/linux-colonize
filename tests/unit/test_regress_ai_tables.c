@@ -7,6 +7,7 @@
 #include "../common/test_runner.h"
 
 #include "core/ai_euro.h"
+#include "core/ai_internal.h"
 #include "core/ai_euro_internal.h"
 #include "core/ai_king.h"
 #include "core/ai_king_internal.h"
@@ -345,7 +346,119 @@ done:
   return rc;
 }
 
+/* FUN_6662_0f74 LAB_1599 (raw 104758), FUN_521d_5b66 5bda:
+ * arrival writes facing=-1 and clears the course even with no MP left. */
+static int case_530_ship_arrival_facing(void) {
+  ColonizeWorldMap map;
+  ColonizeUnitPool units;
+  ColonizeColonyPool colonies;
+  if (!fx_map_alloc(&map, 16, 16, 25, false)) return 1;
+  fx_units_init(&units);
+  fx_colonies_init(&colonies);
+  ai_euro_reset();
+  units.type_count = 1;
+  units.types[0].kind_plus1 = UNITS_KIND_CARAVEL + 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].movement = 4;
+  const int id = units_spawn(&units, 0, 7, 7);
+  ColonizeUnit* u = units_get(&units, id);
+  if (!u) { fx_map_free(&map); return 1; }
+  u->nation_id = 1;
+  ColonizeTurnContext ctx = {.units=&units, .colonies=&colonies, .map=&map};
+  int rc = 0;
+  for (int mp = 1; mp >= 0; --mp) {
+    u->moves = mp;
+    u->orders = AI_EURO_ACT_GOAL;
+    u->goto_x = u->x;
+    u->goto_y = u->y;
+    u->last_dir = 7;
+    ai_euro_s_euro_last_dir[id] = 7;
+    ai_euro_act_ship_dos(&ctx, u, 1);
+    if (u->orders != UNITS_ORDER_NONE || u->last_dir != -1 ||
+        ai_euro_s_euro_last_dir[id] != -1 || u->moves != mp ||
+        u->x != 7 || u->y != 7 || u->goto_x != 7 || u->goto_y != 7) {
+      fprintf(stderr, "#530: arrival with %d MP retained order/facing or changed position/MP\n", mp);
+      rc = 1;
+      break;
+    }
+  }
+  fx_map_free(&map);
+  return rc;
+}
+
+/* FUN_465b_0000 -> FUN_5bfb_3180, raw 98628-98646: a native step
+ * wakes adjacent foreign sentries without erasing their saved goal. */
+static int case_530_native_step_wakes_landfall(void) {
+  int saw_move = 0;
+  for (int seed = 0; seed < 24 && !saw_move; ++seed) {
+    ColonizeWorldMap map;
+    ColonizeUnitPool units;
+    ColonizeCol1Save col1;
+    ColonizeCol1Tribe tribe = {.x=5, .y=5, .nation_id=4, .population=3};
+    if (!fx_map_alloc(&map, 12, 12, 0, true)) return 1;
+    memset(map.layer3, 0xf0, map.tile_count);
+    fx_units_init(&units);
+    ai_native_reset();
+    units.type_count = 2;
+    for (int t = 0; t < 2; ++t) {
+      units.types[t].kind_plus1 = (t ? UNITS_KIND_SOLDIER : UNITS_KIND_BRAVE) + 1;
+      units.types[t].domain = COLONIZE_UNIT_DOMAIN_LAND;
+      units.types[t].movement = 1;
+      units.types[t].attack = units.types[t].defense = 2;
+    }
+    memset(&col1, 0, sizeof(col1));
+    col1.tribe = &tribe;
+    col1.head.tribe_count = 1;
+    col1.indian[0].euro_diplo[1] = 1;
+    int id = units_spawn(&units, 0, 5, 5);
+    ColonizeUnit* b = units_get(&units, id);
+    if (!b) { fx_map_free(&map); return 1; }
+    b->nation_id = 4;
+    b->home_tribe_id = 0;
+    b->moves = 0;
+    b->last_dir = 8;
+    /* Empty immediate neighbours; sentries two tiles away ensure any
+     * committed direction approaches a foreign stack without combat. */
+    for (int y = 3; y <= 7; ++y) for (int x = 3; x <= 7; ++x) {
+      if (x != 3 && x != 7 && y != 3 && y != 7) continue;
+      ColonizeUnit* f = units_get(&units, units_spawn(&units, 1, x, y));
+      if (!f) { fx_map_free(&map); return 1; }
+      f->nation_id = 1;
+      f->orders = UNITS_ORDER_SENTRY;
+      f->goto_x = 9;
+      f->goto_y = 10;
+      f->moves = 0;
+    }
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, (uint32_t)(seed * 12345 + 7));
+    int steps = 0;
+    (void)ai_native_brave_step(&units, &map, &col1, &rng, 4, false, b,
+                              5, 5, 0, 3, 0, &steps);
+    int rc = 0;
+    if (b->active && (b->x != 5 || b->y != 5)) {
+      saw_move = 1;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* f = &units.units[i];
+        if (!f->active || f->nation_id != 1) continue;
+        const int near = abs(f->x-b->x) <= 1 && abs(f->y-b->y) <= 1;
+        if (f->orders != (near ? UNITS_ORDER_NONE : UNITS_ORDER_SENTRY) ||
+            f->goto_x != 9 || f->goto_y != 10 || f->moves != 0) {
+          fprintf(stderr, "#530: native step must wake only adjacent sentries and preserve goals/MP\n");
+          rc = 1;
+          break;
+        }
+      }
+    }
+    fx_map_free(&map);
+    if (rc) return rc;
+  }
+  if (!saw_move) fprintf(stderr, "#530: native wake test produced no move\n");
+  return !saw_move;
+}
+
 static const TestCase k_cases[] = {
+    {"case_530_ship_arrival_facing", case_530_ship_arrival_facing},
+    {"case_530_native_step_wakes_landfall", case_530_native_step_wakes_landfall},
     {"case_530_unload_mask_scan_and_order", case_530_unload_mask_scan_and_order},
     {"case_651_col5_reads_defense", case_651_col5_reads_defense},
     {"case_668_fallback_table_is_attack", case_668_fallback_table_is_attack},
