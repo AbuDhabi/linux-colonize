@@ -2915,13 +2915,30 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_ship_found(
   ColonizeTurnContext* ctx, int nation_id, AiEuroInventory* inv,
   int urgency
 ) {
-  /* Ship FOUND: first colony via 06ae/0a60 landfall seed (adj 06ae from coastal
-   * ship still prefers inland high 2f77). Second-wave while < 6 uses live 06ae
-   * + coastal prefer. */
+  /*
+   * Ship FOUND, first colony only: 06ae/0a60 landfall seed (adj 06ae from a
+   * coastal ship still prefers the inland high 2f77). Both of its inputs are
+   * still fixture fit (bugs.md #530): ai_euro_recover_landfall_from_ship is a
+   * 3-entry seed-100 ship->landfall table, and 06ae's landfall->site step is
+   * the fitted latitude-band offset triple, not the full multi-ring walk. This
+   * arm is what supplies the Dutch (49,14), French (50,37) and Spanish (45,52)
+   * first-colony sites at golden TURN3->4 / TURN5->6; nothing else does, the
+   * AI_SHIP_DOS hull path included.
+   *
+   * 2026-09-27 (#530 S6): the second-wave arm that stood here (1 <= colonies
+   * < 6, primary FOUND at prio 4 from a live ai_euro_pick_founding_tile on the
+   * ship's own tile) is deleted. It was an invented producer -- the row's
+   * survey found the only DOS primary-FOUND writers are raw 87983/88049, both
+   * ocean tiles -- it was already off wholesale under AI_SHIP_DOS=1, and
+   * disabling it moved no expectation anywhere: golden_ai_turns stayed 6/6 and
+   * ctest 95/95. Measuring one arm at a time is what showed the first-colony
+   * arm alone is load-bearing, so do not restore this one to "fix" a
+   * second-colony regression without a FUN_/raw cite for it.
+   */
   {
     const int colonies = inv ? inv->colony_count : 0;
-    if (colonies < 6) {
-      const int found_prio = (colonies == 0) ? (6 + urgency / 2) : 4;
+    if (colonies == 0) {
+      const int found_prio = 6 + urgency / 2;
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
         ColonizeUnit* u = &ctx->units->units[i];
         if (!u->active || u->nation_id != nation_id) {
@@ -2932,27 +2949,10 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_ship_found(
         }
         int fx = 0;
         int fy = 0;
-        int have = 0;
-        if (colonies == 0) {
-          int lx = 0;
-          int ly = 0;
-          if (ai_euro_recover_landfall_from_ship(u->x, u->y, &lx, &ly) &&
-              ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lx, ly, &fx, &fy)) {
-            have = 1;
-          }
-        } else if (ai_euro_pick_founding_tile(
-                     ctx->map,
-                     ctx->colonies,
-                     ctx->col1_ok ? ctx->col1 : NULL,
-                     ctx->units,
-                     nation_id,
-                     u->x,
-                     u->y,
-                     &fx,
-                     &fy)) {
-          have = 1;
-        }
-        if (have) {
+        int lx = 0;
+        int ly = 0;
+        if (ai_euro_recover_landfall_from_ship(u->x, u->y, &lx, &ly) &&
+            ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lx, ly, &fx, &fy)) {
           ai_goals_upsert_primary(nation_id, fx, fy, AI_GOAL_FOUND, found_prio);
         }
       }

@@ -499,11 +499,11 @@ graphs:
         status: linux
       - id: ship_found
         kind: step
-        label: "Ship FOUND — colonies<6: 06ae landfall seed from each ship at sea → FOUND primary"
+        label: "Ship FOUND — colonies==0 only: 06ae landfall seed from each ship at sea → FOUND primary (fitted, bugs.md #530)"
         fn: ai_euro.c:ai_euro_06ae_first_colony_from_landfall
         dos: FUN_521d_06ae site pick (20e6 unload placement 89587 / landing ~85045)
         status: structural
-        note: "Section H used to follow this node: `ai_euro_colony_goals_bind_founders`, an uncited loop that stamped an AI_MOVE goto at ai_goals_best_found_tile_near on every idle on-map Pioneer/Colonist. Deleted 2026-09-23, bugs.md #707 — DOS binds a unit to a goal only in FUN_521d_0a60's consumption tail (+0x314c = 0x0b, +0x314d/e), and FOUND eligibility there needs unit+0x3148 bit 2, granted (raw 87511-87514 via 8aac/0d38 case 3) only from a Pioneer or a military unit in the unit's own stack, so a lone Colonist never takes a FOUND goal. The DOS type-0 arms are the FUN_521d_20e6 labor arm, the explore ring and the become-a-Pioneer fall-through (raw 89350-89357), all in the move_scoring_gate graph."
+        note: "2026-09-27, bugs.md #530 S6: the second-wave arm (1<=colonies<6, prio-4 FOUND from a live ai_euro_pick_founding_tile on the ship tile) is deleted — an invented producer with no FUN_/raw cite, already off wholesale under AI_SHIP_DOS=1, and disabling it moved no expectation (golden_ai_turns 6/6, ctest 95/95). What remains is the colonies==0 arm only, which is measurably load-bearing: it alone supplies the Dutch (49,14), French (50,37) and Spanish (45,52) first-colony sites at golden TURN3->4 / TURN5->6, and the AI_SHIP_DOS hull path does not supply them either. Its two inputs are both still fixture fit (the 3-entry seed-100 ship->landfall table, and 06ae's fitted latitude-band offset triple). Section H used to follow this node: `ai_euro_colony_goals_bind_founders`, an uncited loop that stamped an AI_MOVE goto at ai_goals_best_found_tile_near on every idle on-map Pioneer/Colonist. Deleted 2026-09-23, bugs.md #707 — DOS binds a unit to a goal only in FUN_521d_0a60's consumption tail (+0x314c = 0x0b, +0x314d/e), and FOUND eligibility there needs unit+0x3148 bit 2, granted (raw 87511-87514 via 8aac/0d38 case 3) only from a Pioneer or a military unit in the unit's own stack, so a lone Colonist never takes a FOUND goal. The DOS type-0 arms are the FUN_521d_20e6 labor arm, the explore ring and the become-a-Pioneer fall-through (raw 89350-89357), all in the move_scoring_gate graph."
       - id: end
         kind: end
         label: return
