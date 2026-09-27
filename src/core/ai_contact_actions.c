@@ -1944,8 +1944,10 @@ static void ai_contact_apply_popup_result_menu(
     /* FALLTHROUGH */
   case AI_CONTACT_CHOICE_TRADE:
     /* FUN_4d56_2820 shell (ai_contact_2820_begin): tables, hold pick, sell loop, buy loop. */
-    if (!other || !ai_contact_2820_begin(ctx, ind, nation_id, e, other)) {
-      ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "", "Trade concluded.");
+    /* A failed begin (no adjacent unit / econ build fails) returns through
+     * LAB_003582 with no popup at all — bugs.md #960. */
+    if (other) {
+      (void)ai_contact_2820_begin(ctx, ind, nation_id, e, other);
     }
     break;
   case AI_CONTACT_CHOICE_GIFT: {
