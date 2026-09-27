@@ -2664,22 +2664,22 @@ static void ai_euro_unload_settle_first_landfall(
       }
     }
   }
-  const int lf_x0 = landfall_x >= 0 ? landfall_x : ship->x;
-  const int lf_y0 = landfall_y >= 0 ? landfall_y : ship->y;
   int found_x = 0;
   int found_y = 0;
-  int lf_x = lf_x0;
-  int lf_y = lf_y0;
-  int have_found = ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &found_x, &found_y);
-  if (!have_found) {
-    int rx = 0;
-    int ry = 0;
-    if (ai_euro_recover_landfall_from_ship(ship->x, ship->y, &rx, &ry)) {
-      lf_x = rx;
-      lf_y = ry;
-      have_found = ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &found_x, &found_y);
-    }
-  }
+  /* Live landfall: the ashore soldier's or pioneer's goto, else the ship tile.
+   * No longer reassigned now that the seed-100 retry below is gone, so const. */
+  const int lf_x = landfall_x >= 0 ? landfall_x : ship->x;
+  const int lf_y = landfall_y >= 0 ? landfall_y : ship->y;
+  /*
+   * 2026-09-27, bugs.md #530 S5: a seed-100 fallback stood after this call --
+   * when 06ae failed on the live landfall it retried from
+   * ai_euro_recover_landfall_from_ship(ship). Deleted: it is dead (gated alone,
+   * golden_ai_turns 6/6, golden suite clean, ctest 95/95), and the live
+   * landfall above -- the ashore soldier's or pioneer's goto, else the ship's
+   * own tile -- is the only input with a cite. If 06ae fails on it, have_found
+   * staying 0 is the intended "no found target here" signal.
+   */
+  const int have_found = ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &found_x, &found_y);
 
   /* Found-approach: pioneer still aboard after soldier beachhead.
    * Thin local_9c founder bit (0x40): land-adj unload toward 06ae found

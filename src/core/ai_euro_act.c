@@ -473,18 +473,14 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_first_colony_course(struct ai
       }
     }
     const int west_explore_course = u->goto_x == 4 && u->goto_y == 13;
-    {
-      int fx_try = 0;
-      int fy_try = 0;
-      if (plx < 0 || !ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, plx, ply, &fx_try, &fy_try)) {
-        int rx = 0;
-        int ry = 0;
-        if (ai_euro_recover_landfall_from_ship(u->x, u->y, &rx, &ry)) {
-          plx = rx;
-          ply = ry;
-        }
-      }
-    }
+    /*
+     * 2026-09-27, bugs.md #530 S5: a seed-100 fallback stood here -- when 06ae
+     * failed on the land unit's goto (plx, ply) it replaced that goto with
+     * ai_euro_recover_landfall_from_ship(u). Deleted as dead: gated alone it
+     * left golden_ai_turns 6/6, the golden suite clean and ctest 95/95. The
+     * staging pick below wants a landfall, and the land unit's own goto is the
+     * only cited source of one here.
+     */
     if (has_settler && west_explore_course && plx >= 0) {
       int sx = plx;
       int sy = ply;
@@ -700,14 +696,13 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_war_trade(struct ai_euro_act_
     ai_euro_settlers_ashore(ctx, nation_id, &pioneer_ashore, &soldier_ashore, &lf_x, &lf_y);
     int fx = 0;
     int fy = 0;
-    if (lf_x < 0 || !ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &fx, &fy)) {
-      int rx = 0;
-      int ry = 0;
-      if (ai_euro_recover_landfall_from_ship(u->x, u->y, &rx, &ry)) {
-        lf_x = rx;
-        lf_y = ry;
-      }
-    }
+    /*
+     * 2026-09-27, bugs.md #530 S5: the seed-100 fallback that stood between
+     * these two 06ae calls (06ae fails on lf -> replace lf with
+     * ai_euro_recover_landfall_from_ship(u) -> try again) is deleted as dead:
+     * gated alone it left golden_ai_turns 6/6, the golden suite clean and
+     * ctest 95/95. One 06ae call on the live landfall is all that remains.
+     */
     if (lf_x >= 0 && ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &fx, &fy)) {
       ai_euro_first_colony_ship_course(
         ctx, u, nation_id, fx, fy, pioneer_aboard, any_cargo, pioneer_ashore, soldier_ashore

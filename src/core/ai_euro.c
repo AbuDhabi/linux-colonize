@@ -701,6 +701,52 @@ int ai_euro_06ae_first_colony_from_landfall(
 }
 
 /*
+ * First-colony site named by a unit's goto.
+ *
+ * 2026-09-27, bugs.md #530 S5. The dispatcher wake rules used to do this:
+ * feed the unit's goto to `ai_euro_06ae_first_colony_from_landfall`, and when
+ * that failed, round-trip through the seed-100 table
+ * (`ai_euro_recover_nation_landfall` -> `ai_euro_recover_landfall_from_ship`)
+ * to get a landfall and run 06ae again. Logging every firing of that fallback
+ * across the six golden steps showed what it was actually compensating for:
+ * the incoming goto was ALREADY the found site, never a landfall -- Dutch
+ * (49,14), French (50,37), Spanish (45,52)/(46,54)/(46,55). 06ae's gate wants
+ * an eastern-rim landfall (x >= 53), so it failed by construction, and the
+ * table then mapped the ship's tile back to the very site the goto already
+ * held. So this was a type confusion (a site passed where a landfall was
+ * expected), not the "planning yanked the goto" repair its old comment
+ * claimed.
+ *
+ * Accepting the goto as the site when 06ae fails on it is strictly more
+ * general than the table -- it is map- and seed-independent -- and removes two
+ * of the three callers of the seed-100 landfall table.
+ */
+int ai_euro_found_site_from_goto(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int goto_x,
+  int goto_y,
+  int* out_x,
+  int* out_y
+) {
+  if (!ctx || !ctx->map || !out_x || !out_y) {
+    return 0;
+  }
+  if (goto_x < 0 || goto_y < 0 || goto_x >= (int)ctx->map->width ||
+      goto_y >= (int)ctx->map->height) {
+    return 0;
+  }
+  if (ai_euro_06ae_first_colony_from_landfall(
+        ctx->map, ctx->colonies, ctx->units, nation_id, goto_x, goto_y, out_x, out_y
+      )) {
+    return 1;
+  }
+  *out_x = goto_x;
+  *out_y = goto_y;
+  return 1;
+}
+
+/*
  * Recover seed-100 landfall when planning yanked cargo/settler gotos off the
  * Atlantic landfall keys. Match ship (or nearby staging) to approach/tip.
  */
@@ -1021,19 +1067,18 @@ int ai_euro_try_post_found_coast_cruise(
     }
   }
   const int colony_n = colonies_count_for_nation(ctx->colonies, nation_id);
-  if (fx < 0) {
-    /* Pre-found SP: tip from landfall table while pioneer sits on town. */
-    int lx = 0;
-    int ly = 0;
-    if (!ai_euro_recover_landfall_from_ship(u->x, u->y, &lx, &ly) ||
-        !ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lx, ly, &fx, &fy)) {
-      return 0;
-    }
-    const int pioneer_on_found = ai_euro_pioneer_ashore_at(ctx, nation_id, fx, fy);
-    if (!pioneer_on_found) {
-      return 0;
-    }
-  } else if (colony_n != 1) {
+  /*
+   * 2026-09-27, bugs.md #530 S5: a "pre-found SP" arm stood here for the
+   * fx < 0 case -- it recovered a tip through ai_euro_recover_landfall_from_ship
+   * + 06ae and then required a pioneer already standing on the 06ae site
+   * (ai_euro_pioneer_ashore_at). It was a second consumer of the seed-100
+   * landfall table with no FUN_/raw cite, and it is dead: gating it alone left
+   * golden_ai_turns 6/6, the whole golden suite clean and ctest 95/95. A
+   * nation with no colony now simply does not cruise, which is also the only
+   * reading this function's own premise supports (its cruise legs are measured
+   * off a *founded* colony).
+   */
+  if (fx < 0 || colony_n != 1) {
     return 0;
   }
   int tip_x = 0;
@@ -2613,14 +2658,7 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
             if (guard > 0) {
               int fx = 0;
               int fy = 0;
-              int lf_x = u->goto_x;
-              int lf_y = u->goto_y;
-              if (lf_x < 0 || lf_y < 0 ||
-                  !ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &fx, &fy)) {
-                ai_euro_recover_nation_landfall(ctx, nation_id, &lf_x, &lf_y);
-              }
-              if (lf_x >= 0 && lf_y >= 0 &&
-                  ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &fx, &fy) &&
+              if (ai_euro_found_site_from_goto(ctx, nation_id, u->goto_x, u->goto_y, &fx, &fy) &&
                   u->x == fx && u->y == fy) {
                 continue;
               }
@@ -2629,17 +2667,10 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
             continue;
           } else {
             /* Pioneer ashore, cargo empty: wake only on found tile or cruise. */
-            int lf_x = u->goto_x;
-            int lf_y = u->goto_y;
             int fx = 0;
             int fy = 0;
             int ok = 0;
-            if (lf_x < 0 || lf_y < 0 ||
-                !ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &fx, &fy)) {
-              ai_euro_recover_nation_landfall(ctx, nation_id, &lf_x, &lf_y);
-            }
-            if (lf_x >= 0 && lf_y >= 0 &&
-                ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &fx, &fy)) {
+            if (ai_euro_found_site_from_goto(ctx, nation_id, u->goto_x, u->goto_y, &fx, &fy)) {
               if (u->x == fx && u->y == fy) {
                 ok = 1;
               } else if (guard == 0) {

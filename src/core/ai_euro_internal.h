@@ -192,6 +192,18 @@ int ai_euro_recover_landfall_from_ship(
   int* out_x,
   int* out_y
 );
+/*
+ * First-colony site named by a unit's goto: 06ae when the goto is a landfall,
+ * else the goto itself (it already names the site). See ai_euro.c for why.
+ */
+int ai_euro_found_site_from_goto(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int goto_x,
+  int goto_y,
+  int* out_x,
+  int* out_y
+);
 int ai_euro_land_adjacent_to(
   const ColonizeWorldMap* map,
   int wx,
