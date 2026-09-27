@@ -590,6 +590,20 @@ combat_entry_resolved:
   units_occupancy_refresh_tile(pool, ox, oy, unit_id);
   units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
   units_vis_mask_after_move(pool, map, unit_id, dest_x, dest_y);
+  /*
+   * DOS-LITERAL FUN_465b_0000 raw 75712 / 75813: `FUN_281f_07a0(0x281f)` (the
+   * far thunk to FUN_13f1_02f8) sits in the mover, unconditionally, right after
+   * the arrival bookkeeping (0948 stack_set_xy, 084e, 07fe) on both of that
+   * body's move-commit arms. So DOS reveals once per *step*, not once per turn:
+   * a hull that takes three steps stamps its owner nibble onto the unclaimed
+   * tiles around all three, water included, which is why the seed-100 TURN2/3
+   * layer3 grids show 0x11/0x21/0x31 blocks along each AI ship's whole route.
+   * The port previously revealed only at the turn top
+   * (turn.c turn_reveal_fog_for_nation, FUN_3844_00f2) plus the human order
+   * paths, so every intermediate tile of an AI multi-step move went unstamped
+   * (bugs.md #530 S4).
+   */
+  (void)units_reveal_sight_w(w, unit);
 
   /* Departure pickup: sentried units on the tile AND passengers of other own
    * ships still there, first come first served (DOS ship-switch quirk). */
