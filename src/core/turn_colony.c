@@ -866,8 +866,11 @@ void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
         u->y = 100;
         units_occupancy_notify_moved(ctx->units, ox, oy, u->x, u->y);
         ai_euro_sync_aboard_cargo_xy(ctx->units, u);
-        u->moves = 0;
       }
+      /* Every turn, not just the one that parks it: the MP refresh hands the
+       * allotment back to anything in the park now (bugs.md #953), and a
+       * wreck waiting out its repair timer must not sail. */
+      u->moves = 0;
       continue;
     }
     if (nation == ctx->human_nation && !woi && ctx->europe && u->cargo_count == 0) {

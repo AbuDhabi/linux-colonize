@@ -376,6 +376,18 @@ void units_vis_mask_after_move(
 int units_count_sea_for_nation(const ColonizeUnitPool* pool, int nation_id);
 bool units_is_on_map(const ColonizeUnit* unit);
 
+/*
+ * The off-map park. DOS relocates a unit that stands on no tile (a boarded
+ * passenger, a Europe-dock colonist, a wreck with no repair port) to a
+ * pseudo-tile outside the map: `nation - 0x14` in both coordinates
+ * (FUN_5fef_0352 raw 99641-99644, FUN_281f_0812/0844). The port spells that
+ * park (200,100) for every nation; `ai_euro_in_europe` is the same test and
+ * forwards here so the constant lives in one place. A parked unit is on no
+ * tile, so tile rules — stacks, and the sleep orders of
+ * `units_orders_skip_turn` — do not apply to it.
+ */
+bool units_coords_in_europe_park(int x, int y);
+
 /* Equipment the unit carries into a new colony warehouse when founding. */
 void units_founder_loot(
   const ColonizeUnitPool* pool,

@@ -458,7 +458,14 @@ Also parked with these: MAPEDIT catalog track (old W5.4).
 vocabulary, FUN_* inventory, dated write-ups) moved to
 [archive/port_plan_deferred_ai_track.md](archive/port_plan_deferred_ai_track.md).
 Genuinely open AI-side work: land-assault-vs-2+-defender-colony residue is
-CLOSED (bugs.md #521 FIXED 2026-09-22); remaining items are D4 chrome —
+CLOSED (bugs.md #521 FIXED 2026-09-22). **2026-09-26: the Europe-queue slice
+landed** — bugs.md #953 (the off-map Europe park denied its own units their MP
+refresh, freezing the first hull a nation ever sailed home plus every colonist
+loaded onto it) and #954 (the DS:0x945a > DS:0x9456 dock-demand sail-home arm,
+raw 89725-89728, and the path-independent map->Europe crossing were both
+missing). A colonyless AI nation is still stuck, but now on the first-colony
+scaffolding (#530 / #712), not on transport; `tools/ai_replay` is the driver
+for measuring it. Remaining items are D4 chrome —
 T5.1 VGA-identical dialog chrome (meet/diplo/king wood frames, FA `3f41`
 widget body) and T5.3 F3 Congress portrait grid polish (blocked on material
 not in the repo) — see the Deferred phases table above.

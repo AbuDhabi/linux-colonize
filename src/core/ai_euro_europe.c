@@ -1053,23 +1053,11 @@ static int ai_euro_5d04_cb_colonies_wanting_colonists(int nation_id) {
  * final loop. (Raw 77748 is the same tally under a different base.)
  */
 static int ai_euro_5d04_cb_europe_land_units(int nation_id) {
-  int n = 0;
-  if (!ai_euro_s_5d04_ctx || !ai_euro_s_5d04_ctx->units) {
+  if (!ai_euro_s_5d04_ctx) {
     return 0;
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &ai_euro_s_5d04_ctx->units->units[i];
-    if (!u->active || u->nation_id != nation_id) {
-      continue;
-    }
-    if (units_is_sea(ai_euro_s_5d04_ctx->units, u->id)) {
-      continue;
-    }
-    if (ai_euro_in_europe(u->x, u->y)) {
-      n++;
-    }
-  }
-  return n > 127 ? 127 : n;
+  /* Same tally as the 20e6 dock-demand arm reads (ai_euro_land.c). */
+  return ai_euro_europe_dock_land_units(ai_euro_s_5d04_ctx->units, nation_id);
 }
 
 /*

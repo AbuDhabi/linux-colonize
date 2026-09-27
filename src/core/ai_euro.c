@@ -366,7 +366,7 @@ int ai_euro_continent_stance_at(int nation_id, int continent_id) {
 
 
 int ai_euro_in_europe(int x, int y) {
-  return x >= 200 || y >= 200;
+  return units_coords_in_europe_park(x, y) ? 1 : 0;
 }
 
 /* Sync passenger tile coords after Europe→map teleport (FUN_48d3_048e). */

@@ -546,6 +546,13 @@ colonize_add_test(NAME sav_json
   NO_CTEST
 )
 
+colonize_add_test(NAME ai_replay
+  SOURCES tools/ai_replay_main.c
+  LIBS colonize_core
+  INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
+  NO_CTEST
+)
+
 colonize_add_test(NAME render_report
   SOURCES tools/render_report_main.c tools/render_common.c
   LIBS colonize_core

@@ -707,6 +707,19 @@ graphs:
         fn: ai_euro.c:ai_euro_coastal_staging_from_landfall
         status: golden
         note: TURN2–5 goldens (ship XY = staging tip; FR lands near 52,43).
+      - id: cross_europe
+        kind: step
+        label: "Map → Europe crossing — a hull carrying the +0x314b = 0x45 Europe course that stands on High Seas enters the Europe park. DOS does this in the shared goto-step mover for any AI hull that ends its goto on High Seas, not in an AI arm; the port runs it at the head of the hull's next act"
+        fn: ai_euro_ship.c:ai_euro_ship_enter_europe
+        dos: FUN_479b_076e (77095-77107) → FUN_291f_0208 → FUN_48d3_007a
+        status: structural
+      - id: dock_demand
+        kind: decision
+        label: "Sail home? Empty hull, no qualifying hold cargo, not goal-tasked, hull-type gate, and DS:0x945a[n] (own land units waiting on the Europe dock) > DS:0x9456[n] (own hulls already heading home) → LAB_3fa6 sets the Europe course. This is what keeps an AI nation's Europe dock queue moving; cargo-independent and tested every act"
+        fn: ai_euro_land.c:ai_euro_20e6_europe_dock_demand
+        dos: FUN_521d_20e6 raw 89725-89728 → LAB_521d_3fa6 → FUN_48d3_015e (77636-77728)
+        status: dos
+        note: "bugs.md #954. Before 2026-09-26 the port had only the 1-in-32 LAB_521d_457e cadence and the Man-O-War REF arm, and kept no 0x945a/0x9456 state, so a nation whose dock queue was growing had no signal to fetch it."
       - id: at_war
         kind: decision
         label: At war with a Euro peer?
@@ -760,9 +773,12 @@ graphs:
         label: return
     edges:
       - [in_europe, exit_europe, "yes"]
-      - [in_europe, retarget, "no"]
-      - [exit_europe, at_war]
-      - [retarget, at_war]
+      - [in_europe, cross_europe, "no"]
+      - [cross_europe, retarget, "not Europe-bound on High Seas"]
+      - [exit_europe, dock_demand]
+      - [retarget, dock_demand]
+      - [dock_demand, cross_europe, "yes, and already on High Seas"]
+      - [dock_demand, at_war, "no, or course only set"]
       - [at_war, peace_haul, "no, and no useful goto"]
       - [at_war, war_naval, "yes"]
       - [peace_haul, haul, "no coast cruise"]

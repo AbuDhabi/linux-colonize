@@ -192,7 +192,22 @@ void turn_refresh_moves_for_nation_w(
       u->moves = units_max_mp(pool, u->id);
       continue;
     }
-    if (units_orders_skip_turn(u)) {
+    /*
+     * The off-map Europe park is not a sleep order. DOS's `+0x314c = 1` on an
+     * off-map unit is the aboard / waiting-in-Europe marker that
+     * FUN_1427_10be writes at boarding (raw 8297/8674) and that the 0a60 top
+     * re-stamps on every Euro AI turn (ai_euro_goals.c's `in_transit` arm) —
+     * not the human's sentry order — and DOS's day top clears the spent byte
+     * for EVERY unit with no position or order test (raw 6355-6357). Treating
+     * it as a park here zeroed the allotment of every Euro AI unit sitting in
+     * the park on each of its turns, and the 6d8e dispatcher skips a ship
+     * with no MP unconditionally (ai_euro.c), so the first hull a nation ever
+     * sailed into Europe was frozen there for the rest of the game together
+     * with every colonist the 5d04 hire tail loaded onto it. bugs.md #953.
+     * A crown wreck waiting out its repair timer in the same park is held by
+     * turn_route_damaged_ships, which runs after this refresh.
+     */
+    if (units_orders_skip_turn(u) && !units_coords_in_europe_park(u->x, u->y)) {
       /* bugs.md: count the nights parked — a unit fortified/sentried on a
        * PREVIOUS turn wakes with its full allotment (units_wake checks
        * park_nights > 0); one dug in this turn does not get its spent
