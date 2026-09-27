@@ -317,6 +317,16 @@ cmake --build build/debug --target golden_ai_joint         # when AI or turn ord
   IDs are permanent and never reused. Cite rows as `bugs.md #NNN` (the `#`
   column). Before 2026-09-16 citations were file line numbers; old line N = id
   N−6, and every in-tree citation was rewritten.
+- **`bugs.md` is a work queue, not a findings dump.** A finding nobody intends to
+  act on does not belong there: an accepted difference from DOS, or a static
+  question that is blocked on a live DOS capture, goes to
+  `docs/known_divergences.md` (keeping its `#` id, so `bugs.md #NNN` citations
+  still resolve). A finding that resolves to "the port is right" is **REFUTED**
+  and goes to `docs/archive/bugs_fixed_pending.md` like any other resolution.
+  Never leave an unclosable row OPEN in `bugs.md`. Grep
+  `docs/known_divergences.md` for a feature before "fixing" behaviour that looks
+  wrong — several entries exist because the DOS-literal write would be worse in
+  the port's data model.
 
 ---
 
