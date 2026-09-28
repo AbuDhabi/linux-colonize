@@ -933,6 +933,52 @@ void colony_screen_blit_buildings(
       );
     }
   }
+
+  /*
+   * DOS-LITERAL FUN_2f2b_05ee raw OVL03:05ee — hover name label, called from
+   * FUN_2f2b_44d4's DS:0x7f6 == 0 arm with (building, slot_x, slot_y + 8, cls).
+   *
+   *   bw = [cls+0x230]; bh = [cls+0x236];        // size-class box
+   *   w1 = strwidth(name) + 1; h = 7;
+   *   lx = x + bw/2 - w1/2;
+   *   ly = y;
+   *   if (cls == 2 || cls == 4 || building < 0) ly += bh/2 - h/2;
+   *   lx = clamp(lx, 0, 0xc7 - w1);              // 0xc7 = 199
+   *   fill(lx, ly, w1, 7); text(lx + 1, ly + 1, name, ink 15);
+   *
+   * The caller's +8 is this port's COLONY_VIEWPORT_Y origin, so `ly` starts at
+   * the building's top edge; only the two wide classes push it to the middle
+   * of the box.
+   */
+  if (font && view->hover_building_row >= 0) {
+    for (int i = 0; i < colony_screen_building_slot_count; ++i) {
+      if (colony_screen_category_built(pool, colony, i) != view->hover_building_row) {
+        continue;
+      }
+      const ColonizeBuildingType* bt = colonies_building_type(pool, view->hover_building_row);
+      if (!bt || !bt->name[0]) {
+        break;
+      }
+      const int cls = colony_screen_building_slots[i].size_class;
+      const int w1 = font_text_width(font, bt->name) + 1;
+      const int h = 7;
+      int lx = slot_x[i] + colony_screen_class_box[cls][0] / 2 - w1 / 2;
+      int ly = slot_oy + slot_y[i];
+      if (cls == 2 || cls == 4) {
+        ly += colony_screen_class_box[cls][1] / 2 - h / 2;
+      }
+      if (lx > 0xc7 - w1) {
+        lx = 0xc7 - w1;
+      }
+      if (lx < 0) {
+        lx = 0;
+      }
+      lx += slot_ox;
+      fb_fill_rect(framebuffer, lx, ly, w1, h, COLONIZE_COL_SHADOW);
+      font_draw_text(font, framebuffer, lx + 1, ly + 1, bt->name, 15);
+      break;
+    }
+  }
 }
 
 

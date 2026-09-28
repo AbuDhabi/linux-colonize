@@ -56,6 +56,7 @@ void colony_screen_reset_ui(ColonyScreenView* view) {
   }
   view->selected_colonist = -1;
   view->selected_outside_unit = -1;
+  view->hover_building_row = -1;
   /* show_production_numbers deliberately NOT reset here: it is DOS's
    * game-wide DS:0x336 numbers toggle and survives between colonies. */
   /* bugs.md: DOS opens the colony screen on the construction view. */

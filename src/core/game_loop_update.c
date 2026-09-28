@@ -1854,6 +1854,20 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
       colony_screen_refresh_transports(csv, &game->units, colony);
     }
 
+    /* Pointer-over building name label (DOS FUN_2f2b_44d4 hover arm). */
+    csv->hover_building_row = -1;
+    if (colony && !csv->construction_open && !csv->jobs_open && !csv->eject_open &&
+        !csv->dock_orders_open && !csv->custom_house_open &&
+        csv->message_kind == COLONY_MSG_NONE && !ui_drag_active(&game->ui_drag)) {
+      const ColonyScreenHitResult hover = colony_screen_hit_test(
+        csv, &game->colonies, colony, game->units_ok ? &game->units : NULL, input->mouse_x,
+        input->mouse_y
+      );
+      if (hover.kind == COLONY_HIT_BUILDING) {
+        csv->hover_building_row = hover.index;
+      }
+    }
+
     {
       const GameUpdateStep sub = game_colony_screen_keys(game, input, colony, csv, cmap);
       if (sub != GAME_UPDATE_CONTINUE) {
@@ -1897,6 +1911,15 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
         game_open_pedia_article(game, PEDIA_CAT_TERRAIN, index, false);
         game->pedia_return_colony_id = cid;
         game_status_from_menu_row(game, "REPORTS", 1, game->status, sizeof(game->status));
+        return GAME_UPDATE_RETURN_TRUE;
+      }
+      /* Right-click on a built settlement building: its Colonizopedia
+       * article, back to the colony screen on exit. @BUILDING row order is
+       * the pedia building index (pedia.c PEDIA_CAT_BUILDING). */
+      if (hit.kind == COLONY_HIT_BUILDING && hit.index >= 0) {
+        const int cid = game->colony_view_id;
+        game_open_pedia_article(game, PEDIA_CAT_BUILDING, hit.index, false);
+        game->pedia_return_colony_id = cid;
         return GAME_UPDATE_RETURN_TRUE;
       }
     }

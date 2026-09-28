@@ -489,6 +489,99 @@ static int unit_building_click_reaches_owned(void) {
 }
 
 /*
+ * Hover label: pointing at a built building draws its name over the building
+ * (DOS FUN_2f2b_44d4 hover arm -> FUN_2f2b_05ee). With no hover nothing is
+ * drawn, and the label must stay inside the settlement panel (the 0..0xc7-w1
+ * clamp) whatever slot the building landed in.
+ */
+static int unit_building_hover_label(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "hover_label: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  memset(&pool, 0, sizeof(pool));
+  colonies_init(&pool);
+  colonies_load_buildings(&pool, &names);
+
+  ColonyScreenView view;
+  memset(&view, 0, sizeof(view));
+  char err[256];
+  if (!colony_screen_load(&view, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "hover_label: colony_screen_load failed: %s\n", err);
+    assets_msg_free(&names);
+    return 1;
+  }
+  ColonizeFont font;
+  memset(&font, 0, sizeof(font));
+  if (!ff_load("COLONIZE/FONTTINY.FF", &font, err, sizeof(err))) {
+    fprintf(stderr, "hover_label: FONTTINY load failed: %s\n", err);
+    colony_screen_free(&view);
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  ColonizeColony col;
+  memset(&col, 0, sizeof(col));
+  col.x = 31;
+  col.y = 14;
+  snprintf(col.name, sizeof(col.name), "Montreal");
+  const int town_hall = colonies_find_building(&pool, "Town Hall");
+  int rc = 0;
+  if (town_hall < 0) {
+    fprintf(stderr, "hover_label: 'Town Hall' not in NAMES.TXT @BUILDING\n");
+    rc = 1;
+  } else {
+    col.has_building[town_hall] = true;
+  }
+
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+
+  static uint8_t pixels_off[320 * 200];
+  static uint8_t pixels_on[320 * 200];
+  ColonizeFramebuffer8 fb_off = {.width = 320, .height = 200, .pixels = pixels_off};
+  ColonizeFramebuffer8 fb_on = {.width = 320, .height = 200, .pixels = pixels_on};
+  memset(pixels_off, 0, sizeof(pixels_off));
+  memset(pixels_on, 0, sizeof(pixels_on));
+
+  if (rc == 0) {
+    view.hover_building_row = -1;
+    colony_screen_blit_buildings(&view, &pool, &col, &units, NULL, &font, false, &fb_off);
+    view.hover_building_row = town_hall;
+    colony_screen_blit_buildings(&view, &pool, &col, &units, NULL, &font, false, &fb_on);
+
+    int changed = 0;
+    for (int y = 0; y < 200; ++y) {
+      for (int x = 0; x < 320; ++x) {
+        if (pixels_off[y * 320 + x] == pixels_on[y * 320 + x]) {
+          continue;
+        }
+        changed++;
+        if (x < COLONY_VIEWPORT_X || x >= COLONY_VIEWPORT_X + COLONY_VIEWPORT_W) {
+          fprintf(stderr, "hover_label: label pixel at x=%d escapes the panel clamp\n", x);
+          rc = 1;
+        }
+      }
+    }
+    if (rc == 0 && changed == 0) {
+      fprintf(stderr, "hover_label: hovering a built Town Hall drew no name label\n");
+      rc = 1;
+    }
+  }
+
+  colony_screen_free(&view);
+  ff_free(&font);
+  assets_msg_free(&names);
+  if (rc == 0) {
+    fprintf(stderr, "unit_colony_screen: building hover label ok\n");
+  }
+  return rc;
+}
+
+/*
  * The rest of the original hand-written main() is one continuous narrative:
  * a single ColonyScreenView/pool/units/map/terrain/colony rig is built up
  * once and progressively mutated (found colony -> assign fields -> render
@@ -2685,6 +2778,7 @@ static const TestCase k_cases[] = {
     {"unit_multi_units_pane_roster", unit_multi_units_pane_roster},
     {"unit_fence_strip_profession_gate", unit_fence_strip_profession_gate},
     {"unit_warehouse_confirm_and_hold_append", unit_warehouse_confirm_and_hold_append},
+    {"unit_building_hover_label", unit_building_hover_label},
     {"case_colony_screen_render_workflow", case_colony_screen_render_workflow},
 };
 
