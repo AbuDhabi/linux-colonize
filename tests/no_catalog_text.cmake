@@ -1,5 +1,5 @@
 if(NOT DEFINED BINARY OR NOT EXISTS "${BINARY}")
-  message(FATAL_ERROR "colonize_linux binary not found: ${BINARY}")
+  message(FATAL_ERROR "opencol binary not found: ${BINARY}")
 endif()
 
 find_program(STRINGS_TOOL strings REQUIRED)
@@ -39,6 +39,6 @@ set(forbidden_catalog_text
 foreach(needle IN LISTS forbidden_catalog_text)
   string(FIND "${binary_strings}" "${needle}" found_at)
   if(NOT found_at EQUAL -1)
-    message(FATAL_ERROR "Catalog wording compiled into colonize_linux: ${needle}")
+    message(FATAL_ERROR "Catalog wording compiled into opencol: ${needle}")
   endif()
 endforeach()

@@ -2313,7 +2313,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
 
 const char* game_status_text(const ColonizeGameState* game) {
   if (!game) {
-    return "Colonization Linux Port";
+    return "OpenCol";
   }
   /* Status feeds the window title — plain text, so eat any {} emphasis
    * markup a GAME.TXT-sourced line carried along. */

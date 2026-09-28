@@ -79,7 +79,7 @@ RNG uses elapsed time. `"seed": 0` is a real seed and pins the LCG to 0.
 was built with `COLONIZE_DEBUG_MENU=OFF`). `debug.mouse_coords` and
 `debug.building_rects` are pointer HUD / colony building outlines, toggled
 from that pulldown (no CLI flags); the toggles write the keys back.
-`debug.logs` (default false) gates `diag_info` lines in `colonize-linux.log`;
+`debug.logs` (default false) gates `diag_info` lines in `opencol.log`;
 WARN/ERROR still always write. `debug.trace_autosaves` (default false) writes
 one extra save per turn, `trace_autosave_turn_XXX.sav` in the save directory,
 alongside the normal COLONY08/09 autosaves and regardless of the DOS autosave

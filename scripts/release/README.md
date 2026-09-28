@@ -1,4 +1,4 @@
-# linux-colonize
+# opencol
 
 Linux port of **Sid Meier's Colonization** (MicroProse, 1994 DOS).
 
@@ -8,16 +8,16 @@ original game data — you must provide your own copy of the DOS game.
 
 ## Installation
 
-1. Extract this archive anywhere, e.g. `~/games/linux-colonize`.
+1. Extract this archive anywhere, e.g. `~/games/opencol`.
 2. Copy the contents of the original game's directory (the DOS `COLONIZE`
    folder: `VICEROY.EXE`, `*.SS`, `*.COL`, `*.MP`, `*.TXT`, etc.) into the
-   `COLONIZE/` folder next to the `linux-colonize` binary. The floppy/CD
+   `COLONIZE/` folder next to the `opencol` binary. The floppy/CD
    version 3.0 of the game is the reference; GOG's package contains the same
    files.
 3. Run the game from this directory:
 
    ```
-   ./linux-colonize
+   ./opencol
    ```
 
    The game looks for its data in `./COLONIZE` relative to the current
@@ -42,7 +42,7 @@ Settings and saves are written next to the game data.
 
 ## Licenses
 
-- **linux-colonize** (the binary and this package's original files):
+- **opencol** (the binary and this package's original files):
   PolyForm Noncommercial 1.0.0 — see `LICENSE`. Full source:
   <https://github.com/AbuDhabi/linux-colonize>
 - **Roland_SC-55.sf2** soundfont: GPL v3 or later, Copyright (c) 2015

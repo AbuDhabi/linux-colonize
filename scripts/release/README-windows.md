@@ -1,7 +1,7 @@
-# linux-colonize (Windows build)
+# opencol (Windows build)
 
 Windows port of **Sid Meier's Colonization** (MicroProse, 1994 DOS) — the
-Windows build of the linux-colonize project.
+Windows build of the opencol project.
 
 This is a standalone build: SDL2 and FluidSynth are linked into the
 executable, and the Roland SC-55 soundfont is included. It does **not**
@@ -13,9 +13,9 @@ game.
 1. Extract this archive anywhere, e.g. `C:\Games\colonize`.
 2. Copy the contents of the original game's directory (the DOS `COLONIZE`
    folder: `VICEROY.EXE`, `*.SS`, `*.COL`, `*.MP`, `*.TXT`, etc.) into the
-   `COLONIZE\` folder next to `colonize.exe`. The floppy/CD version 3.0 of
+   `COLONIZE\` folder next to `opencol.exe`. The floppy/CD version 3.0 of
    the game is the reference; GOG's package contains the same files.
-3. Run `colonize.exe` from that folder. The game looks for its data in
+3. Run `opencol.exe` from that folder. The game looks for its data in
    `.\COLONIZE` relative to the current directory (or pass
    `--data-dir C:\path\to\COLONIZE`).
 
@@ -38,7 +38,7 @@ Settings and saves are written next to the game data.
 
 ## Licenses
 
-- **linux-colonize** (the executable and this package's original files):
+- **opencol** (the executable and this package's original files):
   PolyForm Noncommercial 1.0.0 — see `LICENSE`. Full source:
   <https://github.com/AbuDhabi/linux-colonize>
 - **Roland_SC-55.sf2** soundfont: GPL v3 or later, Copyright (c) 2015

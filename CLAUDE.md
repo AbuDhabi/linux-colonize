@@ -19,7 +19,7 @@ make test          # configure (if needed) + build preset debug + ctest --preset
 make golden        # build + run golden_ai_joint (not in ctest; run when AI/turn code changed)
 make build         # build only
 make test T=unit_ff [CASE=name]   # one test target (cheapest; prefer over full ctest)
-./build/debug/colonize_linux --data-dir COLONIZE
+./build/debug/opencol --data-dir COLONIZE
 ```
 
 Canonical build dir is `build/debug`. `build-*/`, `deps-*/`, `dist/` are release /

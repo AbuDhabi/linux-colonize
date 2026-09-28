@@ -152,18 +152,18 @@ static bool resolve_exe_dir(char* out_dir, size_t out_dir_size) {
 bool diag_init(int argc, char** argv) {
   (void)argc;
   resolve_exe_dir(g_exe_dir, sizeof(g_exe_dir));
-  str_path_join(g_log_path, sizeof(g_log_path), g_exe_dir, "colonize-linux.log");
+  str_path_join(g_log_path, sizeof(g_log_path), g_exe_dir, "opencol.log");
 
   g_log = fopen(g_log_path, "w");
   if (!g_log) {
-    str_copy_trunc(g_log_path, sizeof(g_log_path), "./colonize-linux.log");
+    str_copy_trunc(g_log_path, sizeof(g_log_path), "./opencol.log");
     g_log = fopen(g_log_path, "w");
   }
   if (!g_log) {
     return false;
   }
 
-  diag_info("=== Colonization Linux diagnostics ===");
+  diag_info("=== OpenCol diagnostics ===");
   diag_info("Log file: %s", g_log_path);
   diag_info("Executable directory: %s", g_exe_dir);
 

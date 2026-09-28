@@ -2874,7 +2874,7 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
       }
       game->in_menu = true;
       sound_stop_bgm();
-      set_status(game, "Colonization Linux Port", NULL);
+      set_status(game, "OpenCol", NULL);
     } else {
       /* Keep playing (or Esc): back on the map, campaign continues. */
       if (game->col1_ok) {

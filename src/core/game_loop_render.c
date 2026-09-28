@@ -1739,7 +1739,7 @@ static void game_create_resolve_data_dir(ColonizeGameState* game, const Colonize
     set_status(game, "Asset error", err);
     diag_error("Asset validation failed: %s", err);
   } else {
-    snprintf(game->status, sizeof(game->status), "Colonization Linux Port");
+    snprintf(game->status, sizeof(game->status), "OpenCol");
     diag_info("Asset validation succeeded for data_dir=%s", game->resolved_data_dir);
   }
   game_hof_load(game);

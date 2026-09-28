@@ -486,7 +486,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
     if (!new_game_active(&game->new_game)) {
       /* Cancelled back to title. */
       game->in_menu = true;
-      set_status(game, "Colonization Linux Port", NULL);
+      set_status(game, "OpenCol", NULL);
     }
     return GAME_UPDATE_RETURN_TRUE;
   }
@@ -3218,7 +3218,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       } else {
         game->in_menu = true;
         sound_stop_bgm();
-        set_status(game, "Colonization Linux Port", NULL);
+        set_status(game, "OpenCol", NULL);
       }
     }
     return true;

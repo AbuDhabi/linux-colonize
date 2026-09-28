@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build standalone Linux release tarball (dist/linux-colonize-<version>-linux-x86_64.tar.gz).
+# Build standalone Linux release tarball (dist/opencol-<version>-linux-x86_64.tar.gz).
 # Usage: bash scripts/build_release.sh
 # External requirements: CMake, compiler, SDL2/FluidSynth (or build_static_deps.sh for static linking)
 set -euo pipefail
@@ -13,7 +13,7 @@ VERSION="$(sed -n 's/.*COLONIZE_VERSION_STRING "\(.*\)".*/\1/p' "$ROOT/src/core/
 BUILD_DIR="$ROOT/${BUILD_DIR:-build-release}"
 DEPS_PREFIX="$ROOT/${DEPS_PREFIX:-deps-static}"
 DIST_ROOT="$ROOT/dist"
-PKG_NAME="linux-colonize-$VERSION"
+PKG_NAME="opencol-$VERSION"
 PKG_DIR="$DIST_ROOT/$PKG_NAME"
 
 if ! ls "$DEPS_PREFIX"/lib*/libSDL2.a "$DEPS_PREFIX"/lib*/libfluidsynth.a >/dev/null 2>&1; then
@@ -30,14 +30,14 @@ PKG_CONFIG_PATH="$DEPS_PREFIX/lib/pkgconfig:$DEPS_PREFIX/lib64/pkgconfig" cmake 
   -DCOLONIZE_DEBUG_MENU=OFF \
   -DCOLONIZE_STATIC_DEPS=ON \
   -DCMAKE_PREFIX_PATH="$DEPS_PREFIX"
-cmake --build "$BUILD_DIR" --target colonize_linux -j"$(nproc)"
+cmake --build "$BUILD_DIR" --target opencol -j"$(nproc)"
 
 echo "== Assembling package =="
 rm -rf "$PKG_DIR"
 mkdir -p "$PKG_DIR/data/soundfonts" "$PKG_DIR/COLONIZE"
 
-cp "$BUILD_DIR/colonize_linux" "$PKG_DIR/linux-colonize"
-strip "$PKG_DIR/linux-colonize" || true
+cp "$BUILD_DIR/opencol" "$PKG_DIR/opencol"
+strip "$PKG_DIR/opencol" || true
 
 cp "$ROOT/data/soundfonts/Roland_SC-55.sf2" "$PKG_DIR/data/soundfonts/"
 cp "$ROOT/data/soundfonts/COPYRIGHT.Roland_SC-55" "$PKG_DIR/data/soundfonts/"
@@ -85,8 +85,8 @@ fi
 echo "== Sanity: dynamic deps of the binary =="
 # Must be base system only (libc/libm & friends). Any SDL/fluidsynth/glib/codec
 # soname here means static linking silently regressed.
-objdump -p "$PKG_DIR/linux-colonize" | awk '/NEEDED/{print "  " $2}'
-if objdump -p "$PKG_DIR/linux-colonize" | grep -E "NEEDED.*(SDL|fluid|glib|sndfile|FLAC|vorbis|opus|ogg|mpg123|mp3lame|jack)"; then
+objdump -p "$PKG_DIR/opencol" | awk '/NEEDED/{print "  " $2}'
+if objdump -p "$PKG_DIR/opencol" | grep -E "NEEDED.*(SDL|fluid|glib|sndfile|FLAC|vorbis|opus|ogg|mpg123|mp3lame|jack)"; then
   echo "error: binary still links bundled deps dynamically" >&2
   exit 1
 fi
