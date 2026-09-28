@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 /*
- * Linux-only convenience: what a native settlement has TOLD a European
+ * OpenCol-only convenience: what a native settlement has TOLD a European
  * player it buys and sells, plus the skill it teaches, so the map sidebar
  * can list that knowledge under the settlement (View Pieces).
  *

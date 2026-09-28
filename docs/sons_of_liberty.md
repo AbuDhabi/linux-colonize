@@ -155,7 +155,7 @@ operations that doesn't match either the decomp or the actual
 **Port:** [`colony_prod_refresh_sol_flags`](../src/core/colony_production.c)
 wires `sol_50` / `sol_100` **one-step** per EOT (DOS nest: majority before
 unanimous). Bit `0x08` is **repurposed** as food-starvation in
-the Linux Col1 mapping — not the DOS inefficient-gov latch. Inefficient-gov
+the OpenCol Col1 mapping — not the DOS inefficient-gov latch. Inefficient-gov
 chrome uses port-only `ColonizeColony.inefficient_gov` +
 `turn_emit_inefficient_gov_chrome`. Human latch /
 decade chrome: `turn_emit_sol_phase_d_chrome` (`@REBELMAJORITY` /

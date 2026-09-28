@@ -529,7 +529,7 @@ bool europe_dock_dos_type_is_valid(int dos_type) {
 /*
  * Audit SC-20/AE-18. The six dock type names are NAMES.TXT @UNIT rows 0..5
  * (reports_dock_type_name) — they were typed out twice in this file 24
- * lines apart, and a third time in ai_euro.c's ai_euro_5d04_linux_type_for
+ * lines apart, and a third time in ai_euro.c's ai_euro_5d04_port_type_for
  * with singular fallbacks bolted on.
  *
  * `with_singular_fallback` is that third spelling: when the pool has no

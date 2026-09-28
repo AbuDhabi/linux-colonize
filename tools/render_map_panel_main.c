@@ -18,7 +18,7 @@
  *              the "With:" row can be checked without a save that has one —
  *              e.g. load=1:100,4:37 is a full sugar hold and a part-full furs
  *              hold, which DOS draws colored and grey respectively.
- *   buys=a,b,c / sells=a,b,c  seed the Linux-only village trade intel for the
+ *   buys=a,b,c / sells=a,b,c  seed the OpenCol-only village trade intel for the
  *              settlement on the tile (@CARGO ids), so the sidebar's "Buys:" /
  *              "Sells:" rows can be checked (View Pieces on a village).
  *

@@ -172,7 +172,7 @@ void ai_euro_try_violate_notify(ColonizeTurnContext* ctx, ColonizeUnit* u);
  * !amicable-latch; Indian side = alarm>=0x4b or 23000-matrix WAR bit.
  * See the gate in the pressure loop below.
  *
- * Linux-only overrides kept on top of the real formula (protect existing
+ * OpenCol-only overrides kept on top of the real formula (protect existing
  * tested behavior that has no direct DOS table backing this specific way):
  * at-war or high Indian hostility sticky with own colony presence forces
  * military(4) — see move_scoring_ship.md Series F1. Tried dropping the
@@ -641,7 +641,7 @@ int ai_euro_ocean_3558_empty_cruise_tip(
  * now succeed via a nearby tile — fixes "adj 06ae still misses some coastal
  * first towns" (R0) without inventing new geometry or touching any call site.
  * (2026-09-08: the ring-2..4 fallback and the coastal=40 bias this paragraph
- * used to lean on are gone — both were Linux inventions absent from 06ae.)
+ * used to lean on are gone — both were OpenCol inventions absent from 06ae.)
  */
 int ai_euro_06ae_first_colony_from_landfall(
   const ColonizeWorldMap* map,
@@ -689,7 +689,7 @@ int ai_euro_06ae_first_colony_from_landfall(
    * 2026-08-28: the seed *is* the DOS target (seed-100 TURN4: New Amsterdam
    * founded on (49,14), the French Soldier walks onto (50,37), the Spanish
    * Pioneer pursues (45,52)) — the neighbour re-score below (coastal +40,
-   * west bias) is Linux-only and was pulling every target one tile off.
+   * west bias) is OpenCol-only and was pulling every target one tile off.
    * Keep the picker purely as the fallback for an unfoundable seed.
    */
   if (!colonies || colonies_can_found(colonies, map, fx, fy)) {
@@ -1743,7 +1743,7 @@ int ai_euro_colony_wants_construction_labor(
   if (!pool || !c || !c->active) {
     return 0;
   }
-  /* Col1 +0x1d bit7 latch (FUN_5952) — save import or Linux construction set. */
+  /* Col1 +0x1d bit7 latch (FUN_5952) — save import or OpenCol construction set. */
   if ((c->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) != 0) {
     return 1;
   }
@@ -2076,7 +2076,7 @@ int ai_euro_land_is_passive_orders(const ColonizeUnit* u) {
 }
 
 /*
- * FUN_521d_06ae founding pick. The Linux coastal preference (+40 first colony,
+ * FUN_521d_06ae founding pick. The OpenCol coastal preference (+40 first colony,
  * +10 later) and its `colony_count` argument were removed 2026-09-08: DOS's
  * 06ae scores only DS:0x2f77[terrain class] + 0492*0x10 + the 074a nibble
  * (decomp 87286-87304), and a flat +10 swamped the 0..6 terrain byte.
@@ -2135,7 +2135,7 @@ int ai_euro_nearest_military_goal(
 /*
  * Removed (bugs.md #493/#495): ai_euro_scout_contact_ring_target,
  * ai_euro_scout_fog_explore_target and ai_euro_is_seasoned_scout_name were
- * Linux inventions (tribe ring MD 2-4 with x1000/x50/x10 weights, an MD<=8
+ * OpenCol inventions (tribe ring MD 2-4 with x1000/x50/x10 weights, an MD<=8
  * fog sweep, and a "Seasoned Scout prefers deeper fog" profession read).
  * DOS FUN_521d_20e6's type-5 band reads no profession byte and no relation
  * matrix; its explore ring and radius are ported in
@@ -2203,7 +2203,7 @@ int ai_euro_europe_sail_target(
 }
 
 /*
- * Deleted 2026-09-23 (bugs.md #745): ai_euro_treasure_coast_target — a Linux
+ * Deleted 2026-09-23 (bugs.md #745): ai_euro_treasure_coast_target — an OpenCol
  * invention cited only to "Colonization.pdf Treasure Trains", with a
  * coastal-colony preference, a Manhattan distance, no landmass test and a
  * bare-coast-tile fallback DOS never produces. FUN_521d_20e6's treasure band
@@ -2306,7 +2306,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
 
   /*
    * Early move-scoring gate (~90552): if orders!=goto (or fresh), call 20e6;
-   * non-zero return aborts act. Linux: always score when not already on goto.
+   * non-zero return aborts act. OpenCol: always score when not already on goto.
    * Treasure / Missionary: defer course to act-level coast / CONTACT routing
    * (do not FOUND-yank before treasure coast or missionary mission hunt).
    */
@@ -2582,7 +2582,7 @@ static void ai_euro_dispatcher_turn_plan(ColonizeTurnContext* ctx, int nation_id
   ai_euro_0a60_goal_orders_structural(ctx, nation_id);
 
   /* Opportunistic balance after plan (separate from timer slot). Not for
-   * the WoI crown slot: this pass is Linux-shaped (war-fatigue peace roll,
+   * the WoI crown slot: this pass is OpenCol-shaped (war-fatigue peace roll,
    * upkeep drain, privateer spawn, Indian matrix — no DOS counterpart in
    * the 6d8e nation turn, verified 2026-09-07g), and its peace arm would
    * silently end the War of Independence. */

@@ -570,7 +570,7 @@ static ColonizeUnit* ai_euro_5d04_cb_unit(int idx) {
   return &ai_euro_s_5d04_ctx->units->units[idx];
 }
 /*
- * DOS unit+0x3146 @UNIT code for a Linux type, by name (fixtures use small
+ * DOS unit+0x3146 @UNIT code for an OpenCol type, by name (fixtures use small
  * synthetic pools, so pool indices are not DOS indices). 0xff = unknown.
  *
  * Audit AE-4: this file carried two name→@UNIT tables. This one used to
@@ -587,12 +587,12 @@ static int ai_euro_5d04_dos_type_of(const ColonizeUnitPool* pool, int type_index
   return code >= 0 ? code : 0xff;
 }
 /*
- * DOS @UNIT code → Linux pool type. Codes 0..5 are the Europe dock table
+ * DOS @UNIT code → OpenCol pool type. Codes 0..5 are the Europe dock table
  * (europe_dock_unit_type_index_ex with the singular fallbacks this path
  * needs, audit AE-18); 0xb = Artillery, which the dock table does not
  * carry, so it keeps its own arm.
  */
-int ai_euro_5d04_linux_type_for(const ColonizeUnitPool* pool, int dos_code) {
+int ai_euro_5d04_port_type_for(const ColonizeUnitPool* pool, int dos_code) {
   if (dos_code == UNITS_KIND_ARTILLERY) {
     const int t = units_kind_type_index(pool, UNITS_KIND_ARTILLERY);
     return t >= 0 ? t : units_kind_type_index(pool, UNITS_KIND_ARTILLERY);
@@ -601,11 +601,11 @@ int ai_euro_5d04_linux_type_for(const ColonizeUnitPool* pool, int dos_code) {
 }
 /*
  * DS:0x5238[type] — the @UNIT hull-space column for a DOS @UNIT code. The
- * table is DOS-indexed, so the code has to be translated back to a Linux pool
+ * table is DOS-indexed, so the code has to be translated back to an OpenCol pool
  * type first; 1 when the pool has no such row (DOS's own land-unit default).
  */
 int ai_euro_5d04_dos_type_space(const ColonizeUnitPool* pool, int dos_code) {
-  const int lt = ai_euro_5d04_linux_type_for(pool, dos_code);
+  const int lt = ai_euro_5d04_port_type_for(pool, dos_code);
   const ColonizeUnitType* t = lt >= 0 ? units_type(pool, lt) : NULL;
   return t ? t->space : 1;
 }
@@ -618,7 +618,7 @@ static int ai_euro_5d04_cb_unit_dispatch_byte(int idx) {
 }
 static void ai_euro_5d04_cb_set_unit_dispatch_byte(int idx, int value) {
   ColonizeUnit* u = ai_euro_5d04_cb_unit(idx);
-  const int lt = u ? ai_euro_5d04_linux_type_for(ai_euro_s_5d04_ctx->units, value) : -1;
+  const int lt = u ? ai_euro_5d04_port_type_for(ai_euro_s_5d04_ctx->units, value) : -1;
   if (!u || lt < 0) {
     return;
   }
@@ -701,7 +701,7 @@ static int ai_euro_5d04_cb_dock_pop_candidate(int profession) {
       type = 4;
     }
   }
-  const int lt = ai_euro_5d04_linux_type_for(ctx->units, type);
+  const int lt = ai_euro_5d04_port_type_for(ctx->units, type);
   if (lt < 0) {
     return -1;
   }
@@ -762,7 +762,7 @@ static int ai_euro_5d04_refill_pool_slot(int slot) {
   return europe_nation_refill_pool_slot(ctx->col1, ai_euro_s_5d04_nation, slot, false, ctx->rng);
 }
 /* Europe SELL quote: FUN_291f_09ea → FUN_38fd_0040 = euro_price − 1 (the same
- * value europe_sell_price returns), from the EuropeScreen (the one Linux
+ * value europe_sell_price returns), from the EuropeScreen (the one OpenCol
  * market) when present, else from the nation's col1 euro_price byte. */
 static int ai_euro_5d04_cb_sell_price(int cargo) {
   ColonizeTurnContext* ctx = ai_euro_s_5d04_ctx;
@@ -961,7 +961,7 @@ static int ai_euro_5d04_cb_goal_trigger(int code, int a, int b, int c) {
   (void)b;
   (void)c;
   ColonizeTurnContext* ctx = ai_euro_s_5d04_ctx;
-  const int lt = ctx && ctx->units ? ai_euro_5d04_linux_type_for(ctx->units, code) : -1;
+  const int lt = ctx && ctx->units ? ai_euro_5d04_port_type_for(ctx->units, code) : -1;
   if (lt < 0) {
     return -1;
   }
@@ -1480,7 +1480,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
         (void)ai_euro_5d04_refill_pool_slot(slot); /* FUN_38fd_46d4 */
         bVar9 = 1;
         bVar8_2 = 1;
-        /* DS:0x5238[type] is indexed by the DOS @UNIT code, not by a Linux
+        /* DS:0x5238[type] is indexed by the DOS @UNIT code, not by an OpenCol
          * pool index — translate as every other consumer of the dispatch
          * byte does (fixed 2026-09-09; the raw index only happened to agree
          * on a NAMES-ordered pool). */
@@ -1527,7 +1527,7 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
   int8_t cargo_demand[16];
   ai_euro_5d04_cb_cargo_demand(nation_id, cargo_demand);
   int matched;
-  /* DOS drops a departed ship from the Europe stack (FUN_291f_0ec2); Linux
+  /* DOS drops a departed ship from the Europe stack (FUN_291f_0ec2); OpenCol
    * leaves it at the Europe coords until the dispatcher's own act teleports
    * it, so remember which ships this pass already handled. */
   uint8_t departed[COLONIZE_UNITS_MAX];
@@ -1798,7 +1798,7 @@ void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
    * Europe purchases live (the thin ship-buy ladder that used to sit below
    * is retired; the DOS ladder + Artillery dock buy cover it).
    *
-   * 2026-09-07e: the Linux-shaped hire matrix that used to run *after* the
+   * 2026-09-07e: the OpenCol-shaped hire matrix that used to run *after* the
    * orchestrator is RETIRED (~765 lines). It was an invention, not a port:
    * a `hire_cost = 200 + 25*difficulty` treasury gate, a Europe-dock expert
    * ladder keyed on NAMES display strings (tools/blacksmith/food/fisherman/

@@ -272,9 +272,9 @@ uint8_t unit_chrome_names_color(int nation_id) {
  *     else                                            local_14 = 3;  // TOP_LEFT
  *   }
  *
- * Callers hand this a Linux POOL INDEX (units_display_type_index, units.c;
+ * Callers hand this an OpenCol POOL INDEX (units_display_type_index, units.c;
  * europe_dock_display_type_index / europe_ship_display_type, europe.c), and
- * "a Linux POOL INDEX is not a DOS @UNIT id" is the rule units.c:5117 states
+ * "an OpenCol POOL INDEX is not a DOS @UNIT id" is the rule units.c:5117 states
  * for the combat gates. It holds here only because of a data-format
  * invariant, not by construction: units_load_types appends NAMES.TXT @UNIT
  * rows in file order, and the DOS exe hardcodes these very ids, so the
@@ -306,7 +306,7 @@ UnitChromeCorner unit_chrome_corner_for_type(int dos_unit_type_id, bool damaged)
      * raw 2109-2111 is `bVar1 == 0xb && (*(byte *)(local_2c + 0x3148) & 0x80)`
      * → local_14 = 4 (the y+2 box at raw 2253-2254). The port used to pass
      * `aboard_ship_id >= 0` here; every caller now passes the unit's real
-     * damaged bit (Linux col1_flags15 & 0x80, the same +0x3148 bit7 the
+     * damaged bit (OpenCol col1_flags15 & 0x80, the same +0x3148 bit7 the
      * damaged-Artillery combat gates read at units.c:11130/11294).
      */
     if (t == 11 && damaged) {

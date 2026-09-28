@@ -35,13 +35,13 @@ DEFAULT_MAP = os.path.join(REPO, "docs", "ai_euro_logic_map.yaml")
 SRC_DIRS = [os.path.join(REPO, "src", "core"), os.path.join(REPO, "src")]
 
 KINDS = {"phase", "step", "decision", "loop", "call", "sub", "end"}
-STATUSES = {"dos", "structural", "thin", "linux", "golden"}
+STATUSES = {"dos", "structural", "thin", "port", "golden"}
 
 STATUS_FILL = {
     "dos": ("#d8f5d0", "#2b8a3e"),
     "structural": ("#d0ebff", "#1971c2"),
     "thin": ("#fff3bf", "#e67700"),
-    "linux": ("#e9ecef", "#495057"),
+    "port": ("#e9ecef", "#495057"),
     "golden": ("#f3d9fa", "#9c36b5"),
     None: ("#ffffff", "#868e96"),
 }
@@ -309,7 +309,7 @@ def render_html(doc, with_lib=True):
     parts.append("<div class='legend'>" + "".join(
         f"<span><i style='background:{STATUS_FILL[s][0]};border-color:{STATUS_FILL[s][1]}'></i>{lab}</span>"
         for s, lab in [("dos", "DOS-literal"), ("structural", "structural port"), ("thin", "thin approximation"),
-                       ("linux", "Linux-only"), ("golden", "golden-fit")]) +
+                       ("port", "OpenCol-only"), ("golden", "golden-fit")]) +
         "<span><i style='border:2px dashed #212529'></i>jump to another graph</span>"
         "<span>◇ decision · ▱ loop · ⟦ ⟧ call · ( ) exit</span></div>")
     for g in doc["graphs"]:

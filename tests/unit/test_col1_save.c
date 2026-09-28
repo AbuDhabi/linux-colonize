@@ -23,7 +23,7 @@ static void fill_pattern(uint8_t* p, size_t n, uint8_t seed) {
   }
 }
 
-/* Read → encode → compare to on-disk bytes (codec only — not Linux→DOS playability).
+/* Read → encode → compare to on-disk bytes (codec only — not OpenCol→DOS playability).
  * FF pool stash is skipped until side table is initialized (sync/accrual). */
 static bool assert_byte_identical_roundtrip(const char* path, ColonizeCol1Save* out, char* err, size_t err_size) {
   col1_save_init(out);
@@ -1709,7 +1709,7 @@ int main(void) {
   fprintf(stderr, "col1 fixture saves + bridge ok\n");
 
   /*
-   * Linux→DOS structural interop: occupancy + ai_plan after capture.
+   * OpenCol→DOS structural interop: occupancy + ai_plan after capture.
    * Codec byte-identical round-trips above do NOT prove this.
    */
   {

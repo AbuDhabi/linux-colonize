@@ -128,7 +128,7 @@ static ColonizeCol1Tribe* ai_contact_2e92_visited_village(
  * tile. The port used col1_tribe_first_of here until 2026-09-15, so trading
  * at any other village of a tribe priced and remembered goods against the
  * first one. The first-record fallback only covers callers whose unit is
- * not beside a settlement of that tribe (the Linux meet-pulse stand-in).
+ * not beside a settlement of that tribe (the OpenCol meet-pulse stand-in).
  */
 static ColonizeCol1Tribe* ai_contact_2e92_tribe(
   ColonizeTurnContext* ctx, int nation_id, const ColonizeUnit* unit
@@ -1563,7 +1563,7 @@ int ai_contact_2e92_haggle(int difficulty, int bid, ColonizeDosRng* rng, int* io
 }
 
 /*
- * Sidebar trade intel (Linux-only, village_trade_intel.h): the settlement of
+ * Sidebar trade intel (OpenCol-only, village_trade_intel.h): the settlement of
  * `nation_id` the trading unit stands next to. NULL when none is adjacent —
  * never guess the tribe's first village, the knowledge is per settlement.
  */
@@ -2200,7 +2200,7 @@ void ai_contact_apply_trade_pick(
 }
 
 /*
- * AI-silent path (Brave-adjacency meet pulse — a Linux stand-in; DOS's own
+ * AI-silent path (Brave-adjacency meet pulse — an OpenCol stand-in; DOS's own
  * 2820 callers are the village-enter arms). Scope kept from the earlier
  * stand-in so the pulse does not strip every AI cargo unit each turn: sells
  * only a TRADE_GOODS hold (full LAB_002bbc mechanics, whole hold, then the
@@ -2213,7 +2213,7 @@ void ai_contact_apply_trade_pick(
  * when an errand wagon reaches its village. Runs the real 2820 shell on the
  * AI-silent path (random hold pick, LAB_002bbc sell / gift by alarm) — the
  * same machine the human Trade row uses. 2820 itself clears the DOS errand
- * byte (+0x3158) for land types at entry; the caller owns the Linux latch.
+ * byte (+0x3158) for land types at entry; the caller owns the OpenCol latch.
  * Returns 1 when the trade shell ran (sold, gifted or priced-out), 0 when
  * the gates refused (no contact yet / bad record).
  */

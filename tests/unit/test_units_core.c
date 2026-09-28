@@ -3454,7 +3454,7 @@ static int case_coastal_fort_naval_fire(void) {
 
     /* bugs.md #465 (user-observed: Spanish Caravel shot at while F8 showed
      * Spain at peace): the battery obeys DOS's PEACE bit (0x40, the byte F8
-     * reads), not the Linux WAR bit — a stale WAR bit beside PEACE must not
+     * reads), not the OpenCol WAR bit — a stale WAR bit beside PEACE must not
      * fire. */
     ai_diplo_or_both(&fcol1, 0, 1, AI_DIPLO_WAR);
     const int stale_id = units_spawn_allow_stack(&pool, caravel_ti, wx, wy);

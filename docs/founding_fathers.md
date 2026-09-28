@@ -38,7 +38,7 @@ zero on a successful elect (raw 73370) — the surplus over the threshold is
 discarded, never carried over; `FUN_43f7_1a26` zeroes it at the declaration
 of independence (raw 74738). `+0xe` (`liberty_bells_last_turn`) is this
 turn's bells only: zeroed before the per-colony loop (`FUN_3844_00f2` raw
-58382) and never read back by DOS. The old Linux side table
+58382) and never read back by DOS. The old OpenCol side table
 `s_ff_bells_since_elect`, its save-time stash into `+0xe` behind an
 `unknown21_pad` marker, and the spent-sum reconstruction on load are all
 deleted — a DOS save's `+0xc` loads as the pool directly, and the score's

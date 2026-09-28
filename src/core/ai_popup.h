@@ -68,7 +68,7 @@ typedef enum AiPopupTag {
   /* 18 retired (bugs.md #542): CONTACT_VILLAGE_WARN was a port invention. */
   AI_POPUP_TAG_DIPLO_WAR = 20,
   AI_POPUP_TAG_DIPLO_PEACE = 21,
-  /* 22 was DIPLO_ALLIANCE — retired with the Linux-only Euro alliance
+  /* 22 was DIPLO_ALLIANCE — retired with the OpenCol-only Euro alliance
    * machinery (T2.4 2026-09-06); keep the gap, tags are stable ids. */
   AI_POPUP_TAG_DIPLO_BREAK = 23, /* 13b0 treaty-cancel OK */
   AI_POPUP_TAG_DIPLO_BOYCOTT = 24,

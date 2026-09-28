@@ -674,7 +674,7 @@ static int case_tile_stack(void) {
 }
 
 /*
- * Linux-only village trade intel: "Buys:" / "Sells:" icon rows under the
+ * OpenCol-only village trade intel: "Buys:" / "Sells:" icon rows under the
  * settlement line, each only once that half has been disclosed to the
  * viewing player; reset and village removal forget it. Uses the shared
  * panel/labels fixture but its own map/pixels; explicitly resets the

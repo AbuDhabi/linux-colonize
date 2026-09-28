@@ -1013,7 +1013,7 @@ static int map_panel_draw_cargo_icons(
 }
 
 /*
- * Linux-only "Buys:" / "Sells:" / "Skill:" rows under a native settlement
+ * OpenCol-only "Buys:" / "Sells:" / "Skill:" rows under a native settlement
  * — what the settlement has told the player in trade / chief / teaching
  * dialogs (village_trade_intel.h). Each row is skipped until known. Trade
  * icons share one column so those two rows line up; skill always follows.

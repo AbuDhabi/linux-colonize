@@ -2,12 +2,12 @@
 
 For a navigable index of decomp sources, `COLONIZE/` data files, and DOSBox memory
 dumps, see [original_index.md](original_index.md). Manual feature coverage vs the
-Linux port: [manual_gap.md](manual_gap.md). European / Indian AI FUN_* inventory and
+OpenCol port: [manual_gap.md](manual_gap.md). European / Indian AI FUN_* inventory and
 1:1 transcription roadmap: [port_plan.md](port_plan.md).
 
 This repository keeps Ghidra exports of `VICEROY.EXE` / `MAPEDIT.EXE` under
 [`original_sources_decompiled/`](../original_sources_decompiled/) for reverse-engineering
-reference. They are not buildable with a modern Linux compiler and retain DOS
+reference. They are not buildable with a modern OpenCol compiler and retain DOS
 memory-model / runtime artifacts.
 
 | File | Source | Notes |
@@ -65,7 +65,7 @@ functions that were candidates for deep porting that day):
 | `FUN_521d_5c38` | ~~`Removing unreachable block`~~ **fixed 2026-08-13** — turned out to be a genuine trivial 4-byte `return 1;` stub, not corrupted content — nothing to correct |
 | `FUN_5fef_0000` | **root-caused 2026-08-13** — not a disassembly-fault warning at all; Ghidra's decompiler hits `Offset must be between 0x0 and 0x10ffef, got 0xffffffff`, confirmed as a decompiler bug in `CALLF 0x1000:XXXX` far-call resolution (same class as `OVL12_L0000:0` below), not corruption — raw disassembly clean (362 bytes, self-contained, no bad pcode varnodes at the instruction level). Structural hand-read (candidate-unit search/scoring loop), not fully semantically ported; see `indian_raid_loot.md` |
 | `FUN_521d_20e6` | ~~`Unable to decompile 'FUN_521d_20e6' — process: timeout`~~ **fixed 2026-08-13** — the central move-scoring formula (every seed-100 peel routes through this); never decompiled at all before, now clean in 27s, 2219 lines, zero warnings. Found a real missing branch while there — see the seed-100 notes "Root cause candidate". **Re-verified 2026-08-14**: a fresh independent re-recovery (2215 lines, zero warnings) found the canonical export's *current* body has since drifted from that fix — a confusing self-referencing call in its commit-phase tail (past the explore-ring section) isn't present in the fresh recovery, so the 2026-08-13 fix likely wasn't patched back byte-for-byte past the section it was investigating. Full current-clean body: [`move_scoring_20e6_full.md`](../original_sources_annotated/ai/move_scoring_20e6_full.md) — treat that file, not the live canonical export, as authoritative for this function from here on. **Checked 2026-08-14 whether the shipped port was affected — it isn't**: `ai_native_pick_dir_asm` (`src/core/ai.c`) has no reference to the stray self-call at all, and the cited `2a1f_04f4` symbol only ever appears as the normal caller-side entry thunk in the docs used for porting, never inside `20e6`'s own body. Drift confined to the tracking file; no port-side action needed |
-| `FUN_OVL12_L0000_0` (task #2, real `a6e4` target) | **root-caused 2026-08-13** — same decompiler pcode bug as `FUN_5fef_0000` above, not corruption. Hand-transcribed clean from raw disassembly (145 bytes, tribe search + no-match dialog fallback); see `euro_unit_act.md`. Not ported to Linux — needs unlabeled DS globals/callees named first, same gate as `FUN_4d56_417e` (task #5) |
+| `FUN_OVL12_L0000_0` (task #2, real `a6e4` target) | **root-caused 2026-08-13** — same decompiler pcode bug as `FUN_5fef_0000` above, not corruption. Hand-transcribed clean from raw disassembly (145 bytes, tribe search + no-match dialog fallback); see `euro_unit_act.md`. Not ported to OpenCol — needs unlabeled DS globals/callees named first, same gate as `FUN_4d56_417e` (task #5) |
 | `FUN_5952_035e` | ~~`Instruction at (ram,0x0005a676) overlaps instruction at (ram,0x0005a675)` + 2× `Removing unreachable block`~~ **fixed 2026-08-14** — the colony per-turn production/AI-hint tick, cited by `save_format_map.md`/`colony.h` as source of truth for 8 already-`mapped` fields (`garrison_quota`/`specialty_cargo`/`cargo_idle_turns`/`improve_timer`/`labor_shortage`/`warehouse_level`/`capitol_level`/`ai_flags` bits). Canonical export's param count (4) didn't even match the clean recovery (2) — real mismatch, not just noise. Clean 1577-line recovery spot-checks all 8 fields as **confirmed, not corrected**. Also caught and reverted a false lead from earlier the same session: a claimed `0x94e6` read site "inside `FUN_5952_035e`" was corrupted-tail content that doesn't belong to this function at all — see `colony_tick_5952_035e.md` and its correction in `move_scoring_land.md`. Full body: [`colony_tick_5952_035e.md`](../original_sources_annotated/ai/colony_tick_5952_035e.md) |
 
 **Catalog-tail sweep, 2026-08-13** — the ~70 `FUNCTION_CATALOG.md`-only
@@ -84,7 +84,7 @@ original doc-count filter). Re-disassembled all 13 via the overlay project:
 | `FUN_4720_049e` | **own body clean** (232 bytes, confirms `save_format_map.md`/`move_enter.md`) — inlining cited `FUN_0000_7e22`/`035c`/`fe5e`/`0d04`; **corrected (task #14): all false positives except `fe5e`**, see below |
 | `FUN_479b_00ca` | **own body clean** (141 bytes) — inlining cited `FUN_0000_0512`; **corrected (task #14): false positive**, see below |
 | `FUN_75c2_2d46` | **own body clean** (947 bytes, confirms `save_format_map.md` boot-timer citation) — inlining cited `FUN_0000_42cc`'s neighborhood; **corrected (task #14): false positive** — offset 0x4386 is a real instruction inside `FUN_0000_42cc`'s own already-clean body (confirmed decompiling perfectly earlier this session), see below |
-| `FUN_684c_08c0` | **disassembly confirmed 100% clean** (6317 bytes, 3972 instructions, 0 gaps) — this is the **NEW WORLD map-generate entry** (`golden_mapgen_seed100`'s subject). Decompiler itself crashes (`Unable to resolve constructor` at 3 addresses, then a low-level RPC desync) — a real Ghidra bug, not corruption; existing Linux `map_generate` port already passes its golden so no urgent action, this just confirms it isn't standing on corrupted disassembly |
+| `FUN_684c_08c0` | **disassembly confirmed 100% clean** (6317 bytes, 3972 instructions, 0 gaps) — this is the **NEW WORLD map-generate entry** (`golden_mapgen_seed100`'s subject). Decompiler itself crashes (`Unable to resolve constructor` at 3 addresses, then a low-level RPC desync) — a real Ghidra bug, not corruption; existing OpenCol `map_generate` port already passes its golden so no urgent action, this just confirms it isn't standing on corrupted disassembly |
 | `FUN_15eb_1d4c` | **corrected 2026-08-15 (this pass) — the 2026-08-13 table-content claim below was wrong, verified against the actual table bytes.** The address boundary is correct: `FUN_0000_7bfc` runs `0x7bfc`-`0x7e21` (549 bytes, not 497 — that number was a subtraction slip, not an address problem), ends in a real `LEAVE; RETF`, immediately followed by the already-confirmed-clean `FUN_0000_7e22`. But the jump-table content this row previously described (`0x74c0`/`0x9ad4`/`0xc483` as case targets, case 10 → `0xbe03` "mid-instruction", case 11 → `0x1` "not a valid code address") **does not match the table's actual bytes** — read directly off `viceroy_unpacked_2.asm` (`15eb:1f44`-`15eb:1f55`, the same table under its other-file alias) and cross-verified via `ndisasm`, all 9 entries are ordinary same-segment code addresses (`0x1ed8` ×6, `0x1e50`, `0x1e82`, `0x1f18`) landing on sensible, decodable code — no partial resolution, no mid-instruction landings, no invalid entries. Full peel: [`manufacturing_worker_calc_1d4c.md`](../original_sources_annotated/turn/manufacturing_worker_calc_1d4c.md). The real corruption is confined to the **`.c` pseudocode export** (both `viceroy_unpacked_2.c` and `viceroy_overlays.c` independently synthesize unrelated sound/driver code for several switch cases) — not the jump table, not the `.asm`. Where the earlier `0x74c0` etc. numbers actually came from wasn't chased down this pass. `building_production.md`'s formula-domain content (percentage-scaling read, `unit+0x1a` class byte vs. `DS:0x543f` stride-0x34 table) is confirmed byte-exact and safe to treat as legitimate |
 
 **Resident pocket (task #14), resolved 2026-08-13 — mostly false positives,
@@ -237,12 +237,12 @@ Observed direct I/O and hardware assumptions in the decomp exports:
 - BIOS tick/global data style references:
   - patterns around `DAT_0000_046c` and low-memory globals
 
-These routines belong behind a Linux platform API and must not remain as raw
+These routines belong behind an OpenCol platform API and must not remain as raw
 port I/O in the native build.
 
 ## Proposed Boundary: Core vs Platform
 
-Linux-side present layout and intended constraints (living):
+OpenCol-side present layout and intended constraints (living):
 [architecture.md](architecture.md).
 
 ### Core Candidate (kept behavior-first)
@@ -252,7 +252,7 @@ Linux-side present layout and intended constraints (living):
 - Economic/unit/map logic
 - Scenario/rules logic
 
-### Platform Candidate (replace with SDL2/Linux services)
+### Platform Candidate (replace with SDL2/OpenCol services)
 
 - Palette and framebuffer presentation
 - Keyboard/mouse polling and event translation
@@ -267,7 +267,7 @@ Linux-side present layout and intended constraints (living):
 - Route every platform call through explicit interfaces so unresolved behavior
   can be logged and implemented incrementally.
 
-## Current Linux Bring-Up Status
+## Current OpenCol Bring-Up Status
 
 - SDL2 shell, diagnostics log, save/load: original `COLONY##.SAV` structs +
   byte-identical I/O in `src/core/col1_save.{h,c}`; runtime bridge in
@@ -362,13 +362,13 @@ Linux-side present layout and intended constraints (living):
 
 ## End-of-turn recovery checklist
 
-Full orchestration map (Linux `TURN_PROC_*` ↔ DOS `FUN_130d_0290` /
+Full orchestration map (OpenCol `TURN_PROC_*` ↔ DOS `FUN_130d_0290` /
 `FUN_3844_*`, Layer D extracts): [turn_between_players.md](turn_between_players.md)
 · [`original_sources_annotated/turn/between_turns.md`](../original_sources_annotated/turn/between_turns.md)
 (callee depth: production / Europe EOT / census / landfall / mid-pass / ship-spawn /
 fort fire / bells-FF / finish bridge).
 
-Ordered pipeline recovered for the Linux port:
+Ordered pipeline recovered for the port:
 
 1. **Human ends turn** — Space / ORDERS → No Orders (`LABELS.TXT` “End of Turn”)
 2. **Advance calendar** — `head.year` / `autumn` / `turn` (`@TIMECHANGE` in `GAME.TXT`):
@@ -439,7 +439,7 @@ nation skip were stale.
 
 ## Map generation (VICEROY)
 
-Procedural NEW WORLD maps live in **VICEROY**, not MAPEDIT. Entry: `FUN_684c_08c0` (dispatched via `FUN_2a1f_083e`); land blobs `FUN_684c_02a8` / form thunks; continent labeling `FUN_67bf_0000`. Customize UI: `FUN_733a_0270` on `CUSTOMIZ.PIK` (4 columns × 3 rows; defaults all mid/`1`). Linux port: `src/core/map_gen.c` (`map_generate` / `MapGenParams`) + `NEW_GAME_PHASE_CUSTOMIZE` in `src/core/new_game.c`. See [assets.md](assets.md) “Map generation (NEW WORLD)”.
+Procedural NEW WORLD maps live in **VICEROY**, not MAPEDIT. Entry: `FUN_684c_08c0` (dispatched via `FUN_2a1f_083e`); land blobs `FUN_684c_02a8` / form thunks; continent labeling `FUN_67bf_0000`. Customize UI: `FUN_733a_0270` on `CUSTOMIZ.PIK` (4 columns × 3 rows; defaults all mid/`1`). OpenCol port: `src/core/map_gen.c` (`map_generate` / `MapGenParams`) + `NEW_GAME_PHASE_CUSTOMIZE` in `src/core/new_game.c`. See [assets.md](assets.md) “Map generation (NEW WORLD)”.
 
 Continent flood-fill IDs (`FUN_67bf_0000`) are not written to layer2 in gen v1 (shipped AMER2 leaves layer2 zero); diagonal land cleanup (2×2 masks 6/9) is ported. RNG is exact DOS `FUN_1d1d_0e04` / `FUN_19ef_0032` (`src/core/dos_rng.c`); the DOS timer word (`FUN_281f_04ca` ← DS:0x83a6) is read at one chokepoint, `game_pick_rng_seed`, which CLI `--seed N` overrides (`--seed 100` = VR_SEED goldens). NEW WORLD draws customize axes (`range(0,3)`) then reseeds before `map_generate`. Tribe placement (`FUN_6a09`) **reseeds to `rng_seed`** at entry (matches DOS `6a09` / VR_SEED timer word) — it does **not** continue the post-mapgen stream or restore a post-axes LCG (stale “post-axes restore” docs were wrong for this path). Land mask, latitude/climate paint, forest wander, rivers, and arctic/HS tail bit-match seed 100 terrain. `FUN_6a09` capitals/satellites match SEED100; Braves spawn then take one post-`6a09` native pulse (`FUN_4d56_1816` path in `ai.c`) so coordinates/MP/`col1_counter16` match the golden save (34 tribes / 46 units). Golden fidelity: `golden_mapgen_seed100` vs `original_saves/mapgen/SEED100.SAV` (no seed-special runtime path).
 

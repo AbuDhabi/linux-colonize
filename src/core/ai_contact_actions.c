@@ -548,7 +548,7 @@ int ai_contact_continent_war_count_a89c(const ColonizeTurnContext* ctx, int nati
  * The four census tables (-0x6a4e / -0x6be4 / -0x6e34 / -0x6e7c) are
  * recomputed live through ai_contact_land_combat_sum, exactly as the
  * Demand-Tribute roll below does: the port never refreshes the DS:0x95b2 /
- * 0x91cc mirrors for a Linux-started game.
+ * 0x91cc mirrors for an OpenCol-started game.
  */
 void ai_contact_colony_tick_war_5952(ColonizeTurnContext* ctx, int nation_id, int cx, int cy) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->map || nation_id < 0 || nation_id > 3) {

@@ -3,13 +3,13 @@
 
 /* Smoke: Euro second-wave settle + CONTACT scout rings + tools delivery. */
 /*
- * 2026-09-07e — 31 scenarios RETIRED with the Linux-shaped 5d04 hire matrix
+ * 2026-09-07e — 31 scenarios RETIRED with the OpenCol-shaped 5d04 hire matrix
  * they were written against (`unit_tools/lumber/food/horses/muskets_cargo_hire`,
  * `unit_tools_mid_threshold_hire`, the seven `unit_wagon_hire_*_once`, and the
  * seventeen `unit_dock_*_hire` Europe-dock expert cases). None of that
  * behaviour exists in FUN_521d_5d04: the invented `hire_cost = 200 +
  * 25*difficulty` gate, the NAMES-display-string dock-expert ladder and the
- * `inv->*_short` wagon/cargo ladders were all Linux stand-ins, deleted from
+ * `inv->*_short` wagon/cargo ladders were all OpenCol stand-ins, deleted from
  * ai_euro.c when the DOS hire matrix (raw 92568-93070,
  * `ai_euro_5d04_hire_ladder_tail`) became the only Europe hire economy.
  * Per docs/port_plan.md "Method notes": a fidelity fix invalidates the test

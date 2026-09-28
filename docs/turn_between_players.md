@@ -17,7 +17,7 @@ Bring-up checklist (shorter): [decomp_inventory.md](decomp_inventory.md)
 
 ---
 
-## Linux path (authoritative for the port)
+## OpenCol path (authoritative for the port)
 
 Entry: Space / Wait / End-of-Turn option →
 [`game_do_end_turn`](../src/core/game_loop.c) →
@@ -48,7 +48,7 @@ Either EURO leg falls straight through to the next step when no slot qualifies.
 
 ### `TURN_PROC_SETUP` (no turn-owner indicator)
 
-| Step | Linux | DOS provenance |
+| Step | OpenCol | DOS provenance |
 |------|-------|----------------|
 | Calendar | `turn_advance_calendar` (`@TIMECHANGE`) | `FUN_130d_0290` year/autumn tick (runs **after** nation pass in DOS) |
 | Colony production (**AI nations only**) | `turn_run_colony_production` (`s_prod_skip_nation` = human) | `FUN_364b_0688` via `291f_0950` inside `3844_00f2` (per nation in DOS) |
@@ -59,7 +59,7 @@ Either EURO leg falls straight through to the next step when no slot qualifies.
 
 Order EN→FR→SP→DU; skip `human_nation` and withdrawn (`player.control==2`).
 
-| Step | Linux | DOS |
+| Step | OpenCol | DOS |
 |------|-------|-----|
 | Set active + MP refresh | `turn_set_active_nation` / `turn_refresh_moves_for_nation` | spent clear is mid-pass in `130d`; MP refresh at act entry |
 | Lone-Convert tick | `units_tick_convert_outside_colony` | `FUN_3844_0004` — ages unit +0x16 for a solitary @JOB 27 Convert on an open tile; >8 removes it (AI owner: silently) |
@@ -67,13 +67,13 @@ Order EN→FR→SP→DU; skip `human_nation` and withdrawn (`player.control==2`)
 
 ### `TURN_PROC_INDIAN` (indicator on; one nation 4..11 per frame)
 
-| Step | Linux | DOS |
+| Step | OpenCol | DOS |
 |------|-------|-----|
 | Nation turn | `ai_indian_nation_turn` (`1816`-shaped) | Mid-pass `1b3a` in `130d` calls `1816(slot)` for each Indian slot (tribe flag bit7 clear) **before** the Euro loop ([`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md)) |
 
 ### `TURN_PROC_FINISH` (human colony EOT; indicator on for the production run)
 
-| Step | Linux | DOS |
+| Step | OpenCol | DOS |
 |------|-------|-----|
 | **Human colony production** | `turn_run_colony_production` (`s_prod_only_nation` = human) + `turn_run_colony_unit_construction` + `turn_run_colony_building_completion` | `FUN_364b_0688` inside the human's own `3844_00f2`, which `130d` runs **immediately before** that nation's Move Pieces |
 | Census / blockade probe | `ai_euro_census_ship_pressure_refresh(human)` | `FUN_291f_0a74` → `FUN_4962_0018` after the colony-EOT loop (`:58390`) |
@@ -86,7 +86,7 @@ when the king runs (bugs.md #394/404/407).
 
 ### `TURN_PROC_KING` (no indicator)
 
-| Step | Linux | DOS |
+| Step | OpenCol | DOS |
 |------|-------|-----|
 | King / REF | `TURN_PROC_KING` step in `turn.c` → `ai_king_nation_turn` | `FUN_43f7_2424` via `291f_0a66` **inside** `3844_00f2` |
 | Year-end chrome | `turn_run_year_end_chrome` | `FUN_3844_0442` section B (thin) |
@@ -158,7 +158,7 @@ Major thunks (catalog):
 
 ## Phase correspondence
 
-| Linux step | DOS site | Linux symbol | Fidelity |
+| OpenCol step | DOS site | OpenCol symbol | Fidelity |
 |------------|----------|--------------|----------|
 | Human already done | `2b5a_3b68` inside `130d` | (prior frame) | Reshape — intentional |
 | SETUP calendar | `130d` post-nation tick | `turn_advance_calendar` | **Done** (`@TIMECHANGE`) |
@@ -180,7 +180,7 @@ Major thunks (catalog):
 
 ### Known reshape (do not paper over)
 
-| Concern | DOS | Linux |
+| Concern | DOS | OpenCol |
 |---------|-----|-------|
 | Human slot | Inside nation loop | Pipeline is **post-human only** |
 | Calendar | After nations | **First** in SETUP |
@@ -189,9 +189,9 @@ Major thunks (catalog):
 | `00f2` | Atomic per Euro | Split across SETUP / EURO / FINISH / KING |
 
 Manual “natives first” order is **not** what either DOS `130d` (as resolved) or
-Linux runs. Relative to the human's end of turn the DOS order is: Euro slots
+OpenCol runs. Relative to the human's end of turn the DOS order is: Euro slots
 above the human, then the mid-pass Indian turns, then the slots below the
-human (seed-100, human = England: FR → SP → DU → Indians → EN). Linux
+human (seed-100, human = England: FR → SP → DU → Indians → EN). OpenCol
 `turn_processor_advance` splits `TURN_PROC_EURO` around `TURN_PROC_INDIAN`
 the same way (2026-08-28; the 2026-08-27 "Indians before every Euro" order
 broke the Dutch TURN2→3 first contact).
@@ -216,7 +216,7 @@ broke the Dutch TURN2→3 first contact).
   Calendar from `@TIMECHANGE` + `130d` year/autumn math.
 - **`FUN_4d56_1816`**: **caller resolved 2026-08-27** (static) — `4d56_1b3a`
   phase 2 via overlay-local stub `4d56:4c2c` → record `281f:23b0`. DOS runs
-  all Indian turns in the mid-pass before Euro 0..3; Linux INDIAN phase
+  all Indian turns in the mid-pass before Euro 0..3; OpenCol INDIAN phase
   reordered before EURO to match (2026-08-27). Map:
   [`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md).
 - **`FUN_3844_0442`**: **UI mapped**

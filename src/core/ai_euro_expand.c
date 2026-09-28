@@ -208,7 +208,7 @@ int ai_euro_unit_hold_has_cargo_type(
  */
 
 /*
- * (`ai_euro_haul_load_amount` — the Linux 20/10/pop*2 load chunk — was deleted
+ * (`ai_euro_haul_load_amount` — the OpenCol 20/10/pop*2 load chunk — was deleted
  * on 2026-09-06g together with the wagon load ladder it fed. DOS's own load
  * quantity is `min(stock[g], 100)` inside the 20e6 LOAD matrix, md:3126-3129,
  * live in `ai_euro_20e6_load_pick`'s call sites.)
@@ -305,12 +305,12 @@ int ai_euro_20e6_ship_hold_budget(
  * `ai_euro_is_cargo_ship_name` hulls ever reach this function, so the
  * unresolved half is unreachable rather than approximated.
  *
- * Linux-only, kept from the pre-decode version and now sourced from the
+ * OpenCol-only, kept from the pre-decode version and now sourced from the
  * colony record instead of squatting on the DOS `+4` byte: the Series R
  * specialty tie-break (+32 when the hauler already carries the target
  * colony's specialty cargo).
  *
- * Also Linux-only, and required by the tail: DOS runs `20e6` once per unit
+ * Also OpenCol-only, and required by the tail: DOS runs `20e6` once per unit
  * per turn, so a hauler claims at most one slot per tick. This port's
  * dispatcher re-enters `ai_euro_unit_act` for a unit that still has moves,
  * which without a latch let the *second* entry claim a *second* slot and
@@ -430,7 +430,7 @@ int ai_euro_4393_work_queue_haul_pick(
     /* −0x5f24 score, DOS distance normalization (md:2214 / 2134:
      * score / ((dist >> 2) + 1) — replaced the thin `score − d*4`). */
     int score = (int)w->score / ((d >> 2) + 1);
-    /* Series R specialty tie-break (Linux-only heuristic, not DOS). */
+    /* Series R specialty tie-break (OpenCol-only heuristic, not DOS). */
     if (hauler && c->specialty_cargo != 0xff &&
         (int)c->specialty_cargo < COLONIZE_CARGO_COUNT &&
         ai_euro_unit_hold_has_cargo_type(ctx->units, hauler, (int)c->specialty_cargo)) {
@@ -464,10 +464,10 @@ int ai_euro_4393_work_queue_haul_pick(
 }
 
 /*
- * (`ai_euro_nearest_haul_short_colony` — the Linux "drive to the nearest own
+ * (`ai_euro_nearest_haul_short_colony` — the OpenCol "drive to the nearest own
  * colony that is short of something" fallback — was deleted on 2026-09-06g.
  * It was the delivery-direction consumer that forced the 0a60 registration
- * gate to stay on the Linux `haul_short` boolean; with the gate flipped to
+ * gate to stay on the OpenCol `haul_short` boolean; with the gate flipped to
  * DOS's `bVar5` the queue is a PICKUP queue and this function pulled haulers
  * the wrong way. DOS has no such scan: when LAB_521d_4393 finds no slot a
  * wagon falls to LAB_521d_457e's origin-colony walk and a ship to the 457e
@@ -560,7 +560,7 @@ int ai_euro_20e6_wagon_origin_walk(
  *                        the wagon at a colony that HAS goods — the queue is
  *                        a PICKUP queue.
  *
- * 2026-09-06g: the Linux specialty/produced/food-first load ladder and the
+ * 2026-09-06g: the OpenCol specialty/produced/food-first load ladder and the
  * `ai_euro_nearest_haul_short_colony` delivery-direction fallback are DELETED
  * with the 0a60 `haul_short` → `bVar5` gate flip. The ladder existed only to
  * feed that fallback; both are replaced by the DOS load matrix above plus the
@@ -1012,7 +1012,7 @@ int ai_euro_type_is_wagon_name(ColonizeUnitKind kind) {
 
 /*
  * The AI_EURO_*_PURCHASE_GOLD / AI_EURO_VETERAN_SOLDIER_TRAIN_GOLD constants
- * that used to sit here were the Linux-shaped hire matrix's private price
+ * that used to sit here were the OpenCol-shaped hire matrix's private price
  * copies; they went unreferenced when that matrix was retired 2026-09-07e and
  * are removed 2026-09-07. The real prices are the DS:0x978d stride-6 purchase
  * table europe.c now owns (europe_purchase_price, audit AE-17), and DOS
@@ -1034,7 +1034,7 @@ int ai_euro_type_is_wagon_name(ColonizeUnitKind kind) {
  * col1_save.h / euro_g_table_0a60.md — see those for the trace): year/
  * turn/difficulty (col1->head), nation.gold (32-bit, direct — the DOS body
  * does manual 16-bit lo/hi carry arithmetic on nation+0x2a/+0x2c that the
- * already-32-bit Linux `gold` field doesn't need), the per-nation census
+ * already-32-bit OpenCol `gold` field doesn't need), the per-nation census
  * block (colony_counts/ship_counts/colony_pop_totals/armed_ship_counts/
  * ship_cargo_totals/census_pop_proxy — col1_save.h `ColonizeCol1Stuff`),
  * unit_type_counts[nation][16]/[17], DS:0x5382 bit0 — **confirmed** (live

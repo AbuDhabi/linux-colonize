@@ -1,10 +1,10 @@
-# opencol
+# OpenCol
 
 > **Note:** this project was written largely by AI (Claude, Cursor and GPT,
 > among others), under human direction. Disclosed per the papal recommendation
 > in *Magnifica humanitas*.
 
-Linux port of **Sid Meier's Colonization** (MicroProse, 1994 DOS). Goal: same
+OpenCol, port of **Sid Meier's Colonization** (MicroProse, 1994 DOS). Goal: same
 rules, assets, saves, and inputs as the original. Fidelity bar and conflict
 order: [docs/project_goals.md](docs/project_goals.md).
 

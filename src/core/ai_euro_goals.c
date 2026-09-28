@@ -653,7 +653,7 @@ void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int nation_id
          * earlier this same block), not the goal's — this checks
          * whether the re-evaluating unit is *currently sitting in any
          * Euro colony* (any nation), not whether the goal is occupied.
-         * `colonies_id_at` is the Linux equivalent (colony pool holds
+         * `colonies_id_at` is the OpenCol equivalent (colony pool holds
          * only Euro colonies; native villages are a separate `col1`
          * table, matching DOS's own tribe-owner exclusion in
          * `euro_settlement_owner`).
@@ -736,7 +736,7 @@ void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int nation_id
  * Mode 0xd (every-4th CONTACT-scan skip, Σ ship hold capacity in the
  * stack) is wired for real at the lurk scan — 2026-09-06b rewire.
  * The village-population scratch (aiStack_14e) only feeds a dead
- * accumulator and the G-formula's Indian presence test, which Linux's
+ * accumulator and the G-formula's Indian presence test, which OpenCol's
  * stance recompute already covers via live Brave units — not modeled.
  */
 
@@ -2207,7 +2207,7 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_labor(
   const int construction = ai_euro_colony_wants_construction_labor(ctx->colonies, c);
   if (construction) {
     labor = 1;
-    /* Latch Col1 +0x1d bit7 when Linux sees named construction. */
+    /* Latch Col1 +0x1d bit7 when OpenCol sees named construction. */
     if (c->building_in_production >= 0) {
       c->build_ai_flags |= COLONIZE_BUILD_AI_WANTS_CONSTRUCTION;
     }
@@ -2225,7 +2225,7 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_labor(
     /*
      * Real 0a60 write site (raw decomp, thunk_FUN_2a1f_0470 call #2 in
      * the colony loop): code is actually CONTACT(0), not a distinct
-     * COLONY/COLONY_ALT type — Linux keeps its own COLONY/COLONY_ALT
+     * COLONY/COLONY_ALT type — OpenCol keeps its own COLONY/COLONY_ALT
      * codes (downstream ai_euro_unit_act already branches on them for
      * "go work/garrison this colony", a real behavior CONTACT's own
      * downstream handling — move-and-attack — doesn't have), but the
@@ -2267,7 +2267,7 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_work(
   /*
    * NO expand-FOUND seed here — REFUTED 2026-09-08. The old "FOUND via
    * 06ae around colony" row (and the ring-2..4 rescan that made it
-   * functional) was a Linux invention: 06ae's only DOS callers are the
+   * functional) was an OpenCol invention: 06ae's only DOS callers are the
    * 20e6 ship unload placement (decomp 89587) and the landing block
    * (~85045), and the full FUN_521d_016a call-site enumeration shows
    * DOS writes FOUND (code 1) primaries in exactly two producers, both
@@ -2288,7 +2288,7 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_work(
    * per-cargo Σ `euro_price[cargo][nation] * clamp(f(stock,target),
    * 0,target)` over all 16 cargo slots except FOOD(0)/LUMBER(5)/
    * TRADE_GOODS(13) — confirmed real, both tables already live in
-   * Linux (`col1->nation[n].trade.euro_price[]`, `col1_save.h`;
+   * OpenCol (`col1->nation[n].trade.euro_price[]`, `col1_save.h`;
    * `c->stock[]`, same 16-slot order, cross-checked field-for-field
    * against `col1_save.h`'s Col1 colony struct at +0x9a). TOOLS(14)/
    * MUSKETS(15) only contribute (with a flat −100 discount) when
@@ -2317,7 +2317,7 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_work(
    * are read back by `FUN_521d_4393` — `loads` as the "slot still has
    * work" gate and the quantity its tail decrements, `military` as
    * the permission for a non-civilian hull to take the slot. The old
-   * Linux `flag_a = specialty_cargo` hint moved into the 4393 pick
+   * OpenCol `flag_a = specialty_cargo` hint moved into the 4393 pick
    * itself (it reads `c->specialty_cargo` directly now), so nothing
    * downstream lost the Series R tie-break.
    * Cite: move_scoring_ship.md Series F2; col1_save.h `stock`/
@@ -2348,7 +2348,7 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_work(
      * colony (2026-09-06e) and for wagons (2026-09-06f), and the
      * delivery half afterwards is owned by the already-ported DOS
      * arms (ship: delivery-tally matrix + sell tail + Europe export;
-     * wagon: own-colony dump sweep + village errand). The Linux
+     * wagon: own-colony dump sweep + village errand). The OpenCol
      * shortage ladder and `ai_euro_nearest_haul_short_colony` that
      * pulled the queue the other way are deleted with this pass.
      */
@@ -2359,7 +2359,7 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_work(
      * FUN_1000_8f2a → FUN_281f_0d3a → FUN_15eb_0a50 is exactly the
      * already-known, already-documented warehouse-capacity formula
      * (`save_format_map.md`/`FUNCTION_CATALOG.md`: 100×(1+
-     * warehouse_level)) — already live in Linux as
+     * warehouse_level)) — already live in OpenCol as
      * `colonies_warehouse_capacity`. DOS calls this once per colony
      * (no cargo_type arg), same as here — and since smell audit #25
      * removed the port's uncited FOOD-199 branch, the accessor is now
@@ -2381,7 +2381,7 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_work(
      * follow, `FUN_1000_89d0`/`84d4`; both resolved this pass via
      * `address_mapping.csv`: canonical `FUN_281f_07e0`/`02e4`,
      * already-known `ai/accessors.c` unit-on-tile + transport-chain
-     * helpers). Linux has no live per-tile unit stack to walk, so
+     * helpers). OpenCol has no live per-tile unit stack to walk, so
      * iterate + filter x/y instead — same substitution this file
      * already uses elsewhere (e.g. the garrison_quota scan just
      * above). +800 (saturating in DOS; harmless to add plain here,
@@ -2506,7 +2506,7 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_work(
       /*
        * Raw :87677 `local_1a += *(char *)(colony + 0x8f) * 8;` — the
        * `cargo_idle_turns` bonus is DOS's, unconditional inside the
-       * `bVar5` branch (it was previously carried only on the Linux
+       * `bVar5` branch (it was previously carried only on the OpenCol
        * shortage arm), applied BEFORE the 0x7fff clamp. `+0x8f` is a
        * signed char in DOS, and `cargo_idle_turns` is the port's own
        * name for it.
@@ -2523,7 +2523,7 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_work(
        * `loads == 0` "no work" state `4393` skips is unreachable here —
        * which is why the 2026-08-18 "colony never registers" regression
        * signature cannot recur. The old floor-of-1 existed only to give
-       * the Linux shortage arm a fake load; that arm is gone.
+       * the OpenCol shortage arm a fake load; that arm is gone.
        */
       if (wloads > 255) {
         wloads = 255;
@@ -3443,7 +3443,7 @@ int ai_euro_score_move(
  * fatigue → local_12), explore-plane low nibble (ai_euro_20e6_site_nibble
  * reads the real seen-plane site-score nibble).
  *
- * NOT here (own Linux mechanics already cover them, or closed as dead in
+ * NOT here (own OpenCol mechanics already cover them, or closed as dead in
  * port_plan.md T1.2/T1.3): 0x42/0x65 found/contact writes; the LAB_3558
  * colony-sail matrix / HS spiral / work-queue haul tails beyond the unload
  * rule.
@@ -3458,11 +3458,11 @@ int ai_euro_score_move(
  *     ai_euro_dispatcher_turn)
  *
  * Deliberate substitutions (each marked at its use site):
- *   - DS:0x9faa coarse fog plane (far-probe +8): Linux keeps that plane only
+ *   - DS:0x9faa coarse fog plane (far-probe +8): OpenCol keeps that plane only
  *     for tribe placement, so the per-nation seen[] plane is used instead.
  *   - explore-plane low nibble (FUN_1000_893a & 0xf): now the real seen-plane
  *     site-score nibble on DOS-imported maps (ai_euro_20e6_site_nibble);
- *     Linux-generated maps carry no nibble, old unseen→4 stand-in kept there.
+ *     OpenCol-generated maps carry no nibble, old unseen→4 stand-in kept there.
  *   - −0x6168[continent] rival-strength: live (s_euro_rival_strength,
  *     the 0a60 max-tracker recomputed per call) + ai_euro_s_20e6_explore_fatigue for
  *     unit+0x3154; radius shrink and >40 halving now fire.
@@ -3471,5 +3471,5 @@ int ai_euro_score_move(
  *     ai_euro_20e6_stack_count) — case 2 = total stack count (the old
  *     "# military types" reading was case 4), case 0xb = stack combat sum;
  *     the 0x42/0x65 gates (case 2 < 2 = "unit is alone") stay closed per
- *     T1.2 — Linux's goal-driven found/contact impulses cover them.
+ *     T1.2 — OpenCol's goal-driven found/contact impulses cover them.
  */

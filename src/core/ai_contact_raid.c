@@ -350,7 +350,7 @@ static int ai_contact_raid_roll_stores_cargo(
  * it bypasses only the walls VERDICT — DOS still draws the walls roll
  * (raw 99775/99786), so the LCG stays in step.
  *
- * This replaces a Linux stand-in that picked by alarm band (>=85/70/60/55/50)
+ * This replaces an OpenCol stand-in that picked by alarm band (>=85/70/60/55/50)
  * with a rand(0,99) and then demoted on YEAR thresholds 1500/1520 that exist
  * nowhere in the decomp (bugs.md #827). The alarm scalar has no role at this
  * head in DOS at all; the raid pulse's own targeting is where friction bites.
@@ -1545,7 +1545,7 @@ COLONIZE_INTERNAL void ai_contact_raid_human_chrome(
      * it always fires the per-kind tag for a human victim (0x1b94
      * @RAIDSTORES / 0x1b9f @RAIDBURN / 0x1ba8 @RAIDSHIP / 0x1bb1
      * @RAIDGOLD / 0x1bba @RAIDNOTHING, raw 99909-100020). The war /
-     * deniability sentence is Linux chrome, so it now rides IN FRONT
+     * deniability sentence is OpenCol chrome, so it now rides IN FRONT
      * of the DOS line instead of replacing it.
      */
     char raid_full[AI_POPUP_BODY_LEN];
@@ -1554,7 +1554,7 @@ COLONIZE_INTERNAL void ai_contact_raid_human_chrome(
       char pre_buf[224];
       if (had_peace && max_alarm >= 55) {
         /*
-         * Linux war notice. It used to be labelled "@INDIANWAR thin",
+         * OpenCol war notice. It used to be labelled "@INDIANWAR thin",
          * but @INDIANWAR is dead GAME.TXT text: no NUL-terminated
          * "INDIANWAR" tag string exists anywhere in VICEROY.EXE's DS
          * (only "INDIANWARPATH"/"INDIANWARPATH2"/"INDIANWARFARE"), so
@@ -1648,7 +1648,7 @@ COLONIZE_INTERNAL void ai_contact_raid_resolve_on_tile(
    * (audit AC-37); the live @BURNED chrome is in units.c's
    * capture/fallout path.
    */
-  /* (Retired 2026-09-08.) A Linux-only per-tribe attacks++ counter
+  /* (Retired 2026-09-08.) An OpenCol-only per-tribe attacks++ counter
    * sat here backing the "only the FIRST attack is deniable" chrome
    * (bugs.md). DOS has no such counter on this path: the attacks
    * byte is the attitude-word high byte, bumped only by the 465b
@@ -1681,7 +1681,7 @@ COLONIZE_INTERNAL void ai_contact_raid_resolve_on_tile(
   if (kind != AI_RAID_NOTHING && max_alarm >= 55) {
     /* No alarm push here: DOS 0f14's only alarm write is the tail
      * above, and it is negative. The peace-bit clear / hostility sync
-     * are Linux chrome for the @INDIANWAR line below and must not add
+     * are OpenCol chrome for the @INDIANWAR line below and must not add
      * a second alarm store (the old −3/−5 relation push, and the
      * fandom kind bump that replaced it, both did). */
     if (had_peace) {
@@ -1802,7 +1802,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
    * pulse reaches it through `ai_contact_auto_trade` — do NOT re-port the
    * body here; this post-pulse path keeps the thin @RAID* / combat arms. Human `4528` `@ACTIONS` arm is ported (P8.8); `4528` VGA meet
    * chrome and the alarmed act-pick mid-body remain PARKED.
-   * Linux stays on thin @RAID* / combat + equal-dist mil/tools/silver
+   * OpenCol stays on thin @RAID* / combat + equal-dist mil/tools/silver
    * approach. Widgets Done structural (ai_popup); VGA PARKED. Mid-friction prefers non-mission
    * villages (below). Cite: indian_raid_outcomes.md §10; indian_contact.md
    * PORT DEBT; docs/port_plan.md FUN_4d56_2820; Marathon2 R6 PARK.

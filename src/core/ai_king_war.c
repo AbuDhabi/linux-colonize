@@ -148,7 +148,7 @@ int ai_king_new_war_event(ColonizeTurnContext* ctx) {
   }
   europe_nation_gold_add(ctx->europe, col1, human, (long)gold); /* audit G3 */
   /* FUN_281f_095c(type 1 Soldier, nation, -20,-20) x count, profession 0x15 = Veteran:
-   * the units appear in Europe — Linux puts them on the docks. */
+   * the units appear in Europe — OpenCol puts them on the docks. */
   if (ctx->europe) {
     for (int i = 0; i < count; ++i) {
       if (!europe_dock_push_load(

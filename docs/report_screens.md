@@ -201,7 +201,7 @@ default).
 - **Rebels/Tories total** is `stuff.census_pop_proxy[nation]` (DS:0x9410),
   not summed colony population (misses field colonist-type units);
   `rebels = floor(total × rebel_sentiment / 100)`. Caveat: that field is
-  RMW-preserved from load, not recomputed during Linux play — fine for a
+  RMW-preserved from load, not recomputed during OpenCol play — fine for a
   loaded save, stale after live changes.
 
 ### Score (F10)

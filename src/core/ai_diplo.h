@@ -48,7 +48,7 @@ static inline int ai_relation_quartile(int v) {
  * event (FUN_38fd_5930). Same encoding as indian.euro_diplo. Real saves show
  * 00/20/22/60/a0/e0/e2/e8 and the bits are directional (a→b ≠ b→a).
  * AI_DIPLO_ATTACK_CONFIRMED (0x04, ex-ALLY) is never SET on Euro pairs (DOS uses 0x04 only on
- * Indian pairs as "attack-village confirmed"; the Linux-only alliance
+ * Indian pairs as "attack-village confirmed"; the OpenCol-only alliance
  * machinery that set it was retired T2.4 2026-09-06). Readers left: the
  * self-pair virtual in ai_diplo_read, and ai_king 2244's byte-faithful
  * eligibility check (reduces to self-only, as in DOS). 0x08 AMICABLE and
@@ -99,7 +99,7 @@ static inline int ai_relation_quartile(int v) {
  *
  * 2026-09-09 collision reconciled (smell #99), citation corrected again
  * 2026-09-23 (bugs.md #747). The follow-up bits were once carried as a
- * Linux-only `AI_DIPLO_TREASURE_STRONGER` stand-in; **REFUTED — the write is
+ * OpenCol-only `AI_DIPLO_TREASURE_STRONGER` stand-in; **REFUTED — the write is
  * DOS's own.** The writer is `FUN_465b_0000` (viceroy_unpacked.c:75527-75545),
  * and the acting unit is a **Privateer** (`+0x3146 == 0x10` = @UNIT row 16;
  * the earlier note here read that constant as "a Treasure", which was wrong —
@@ -162,7 +162,7 @@ typedef struct Ai153eWorthinessScore {
                              2026-09-06 asm note (OVL16 0x1BED-0x1C7B): the probe call site
                              pushes param_3 (target) fixed, and FUN_5bfb_0000 only ever writes
                              param_4 or -1 into its matched-out — so the matched==param_2
-                             branch is DEAD in DOS and own_border is always 0. Linux
+                             branch is DEAD in DOS and own_border is always 0. OpenCol
                              faithfully reproduces that (probe never returns self). */
   int border_value;      /* raw local_b2: Σ (doubled off-continent) target-matched probe value */
   int any_border;        /* raw local_62: any target-matched colony probe */
@@ -197,7 +197,7 @@ int ai_diplo_00f8_top_ranked_nation(const ColonizeCol1Save* col1);
  * Column 1 feeds `FUN_521d_03d0` (`4 − t1` divisor, `t1*3 − 7`), column 2
  * `FUN_5952_035e`'s `(t2 + 2) * 50`; those two are read but not yet wired
  * in this port. Live copy confirmed in every DOS save (Stuff file-off 0,
- * Linux `unknown34_pad`) and in the `original_memory_dumps` DOSBox-X
+ * OpenCol `unknown34_pad`) and in the `original_memory_dumps` DOSBox-X
  * `Memory` blobs at DS:237D + 0x9566.
  *
  * `column` 0..2, `nation` 0..3; 0 when unavailable.
@@ -224,11 +224,11 @@ int ai_diplo_153e_encounter_forced(ColonizeTurnContext* ctx, int human, int targ
 /*
  * FUN_15b3_0004 / 0032 / 0066 / 00d0 (decomp 9056-9117). Byte-audited
  * 2026-09-08: both sides take the FULL 0..11 nation space (4 Euro + 8
- * Indian) and the pair resolves to one of four Linux fields —
+ * Indian) and the pair resolves to one of four OpenCol fields —
  * nation[].euro_relation[] / nation[].relation_by_indian[] /
  * indian[].euro_diplo[] / indian[].unknown33_pad[] — see the quadrant map
  * on ai_diplo_flag_byte in ai_diplo.c. Out-of-range reads 0 / writes nothing.
- * Self-pair is a Linux virtual (read → PEACE|ALLY, write → no-op); DOS has
+ * Self-pair is an OpenCol virtual (read → PEACE|ALLY, write → no-op); DOS has
  * no self case, so byte-faithful callers must go to the field directly.
  */
 uint8_t ai_diplo_read(const ColonizeCol1Save* col1, int nation_a, int nation_b);
@@ -247,7 +247,7 @@ void ai_diplo_make_peace(ColonizeCol1Save* col1, int nation_a, int nation_b);
  * declare/make_peace then write ctx->status when human is involved; also
  * enqueue AI OK popup when ctx->ai_popups is set (FUN_15b3 / 5bfb). AI
  * callers keep using declare_war / make_peace without status.
- * FA 3f41 full UI PARKED. Linux-only alliance machinery retired T2.4. */
+ * FA 3f41 full UI PARKED. OpenCol-only alliance machinery retired T2.4. */
 void ai_diplo_set_sound_hook(void (*play_fn)(int id));
 void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
 
@@ -266,7 +266,7 @@ int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id);
 void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id);
 
 /* Opportunistic war by military balance (5bfb_10ec) + 13b0 treaty
- * sign/cancel tick (Linux-only alliance arms retired T2.4 2026-09-06);
+ * sign/cancel tick (OpenCol-only alliance arms retired T2.4 2026-09-06);
  * at-war Privateer spawn once/war peer on hunt-ready water (unknown26[9]);
  * PARKED 8g treasury prize only when units null (no hold-plunder API);
  * war-fatigue (timer==0) + near-parity → make_peace_ctx;
@@ -290,7 +290,7 @@ void ai_diplo_indian_alarm_delta(
 );
 
 /*
- * Linux-side "relation" view of the same store: relation = 100 - alarm
+ * OpenCol-side "relation" view of the same store: relation = 100 - alarm
  * (high = friendly), delta d == alarm_delta(-d). Kept for the fandom-derived
  * sites written in relation terms. nation.relation_by_indian is NOT this
  * scalar — in every DOS save it is the 0x60 (MET|PEACE) flag byte.
@@ -323,7 +323,7 @@ int ai_diplo_indian_at_war(const ColonizeCol1Save* col1, int euro_nation, int in
  * or relation < 26). Contact/diplo helper. */
 int ai_diplo_indian_any_at_war(const ColonizeCol1Save* col1, int euro_nation);
 
-/* Read the Linux Indian-hostility sticky (nation record +0x4b, unknown26[11],
+/* Read the OpenCol Indian-hostility sticky (nation record +0x4b, unknown26[11],
  * the one byte of that block DOS never touches): 0 clear, 1 at-war, 2 very-low
  * deepen. Moved off +0x48 2026-09-09 (smell #52) — that byte is the DOS
  * FUN_4d56_4528 grace/waiver counter.

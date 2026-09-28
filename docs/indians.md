@@ -42,7 +42,7 @@ visible ([assets.md](assets.md)).
 
 **Capital marker:** Col1 `tribe.state.capital` bit drives growth, homeland
 radius, surrender, and Cortes `rich_capital`. Fandom “starburst” on capitals is
-**Unverified vs DOS** as a separate sprite — Linux blits the same tech icon
+**Unverified vs DOS** as a separate sprite — OpenCol blits the same tech icon
 `#10–13` for capital and satellite villages.
 
 Euro colony contrast: settlement art **#0–3** (none / stockade / fort /
@@ -63,7 +63,7 @@ attack, combat, …
 | Mtd. Warriors | 113 | 4 | 3 | 3 | Horses + muskets |
 
 Nation stocks `indian.muskets` / `horse_herds` / `horse_breeding` feed equipment
-upgrades (Col1; see save atlas). Quiet Brave AI: `FUN_4d56_14fe` → Linux
+upgrades (Col1; see save atlas). Quiet Brave AI: `FUN_4d56_14fe` → OpenCol
 `ai_native_nation_pulse` (history: port_plan.md T1.23). Brave MP uses
 terrain table ×3 (same scale note as unit orders).
 
@@ -78,13 +78,13 @@ the truth is the 15-entry JMPF stub table at `4d56:4c22..4c6c`,
   row whose `+2` nation byte matches. It is **dead code** in the shipped EXE
   (absent from the export stub table, no near CALL/JMP in segment `4d56`, no
   bank record targets it), so there is nothing to port. `col1_kill_indian_nation`
-  (`ai.c`) is a Linux invention with a wider blast radius; `col1_destroy_tribe_at`
+  (`ai.c`) is an OpenCol invention with a wider blast radius; `col1_destroy_tribe_at`
   (`units.c`) is the real `00e0` port.
 - `FUN_4d56_14fe` (`4d56:14fe..152c`) is **faithful** and is three branches
   only: `dir = FUN_4d56_021a(unit)`; `dir != 8` → `FUN_2a1f_0150` (→ `465b`
   step); else `FUN_281f_0934` (exhaust MP — the guarding `dir >= 0` test is
   dead). `021a` already exhausts on its own `dir == 8` exit (`021a:14e6`), so
-  the Linux `moves = max_mp` covers both writes.
+  the OpenCol `moves = max_mp` covers both writes.
   The `465b` step itself is not a plain move when the destination is foreign
   (`local_4` = stack-head nation, else settlement owner, != Brave): DOS
   exhausts (< 3 MP left) or attacks via `1b0e`, and never lands the Brave on
@@ -122,7 +122,7 @@ the truth is the 15-entry JMPF stub table at `4d56:4c22..4c6c`,
   #846 REFUTED); the `orders` cower latch 5→6 on stay, 0 on move
   (`021a:11cd`/`126e`) — `ai_brave.c:517`, latched only over
   `NONE/FORTIFY/FORTIFIED` because the port's §9 raid escort can leave a
-  Brave holding the Linux-only `FOLLOW` order (`ai_contact_raid.c:1809`,
+  Brave holding the OpenCol-only `FOLLOW` order (`ai_contact_raid.c:1809`,
   bugs.md #826); and the **in-field arm/mount upgrade**
   (`021a:11ef..126c`) — `ai_brave.c:531`. The upgrade: a Brave that stays on its own
   tribe's tile gets type `0x13`/`0x15` → +1 when `indian+7` muskets > 0 (musket
@@ -135,7 +135,7 @@ the truth is the 15-entry JMPF stub table at `4d56:4c22..4c6c`,
   `tests/golden/test_ai_turns.c:195` compares Brave `moves`/`col1_counter16`: DOS
   increments the act counter `+0x315a` (= `col1_counter16`) once per **attempt**
   before calling `14fe` (`4d56:1af3`), caps at `0x14` then exhausts and zeroes
-  it; the Linux pulse does the same — it bumps `col1_counter16` **before** the
+  it; the OpenCol pulse does the same — it bumps `col1_counter16` **before** the
   `021a` pick, with the same `> 0x14` → exhaust + zero cap
   (`ai_brave.c:438-452`), corrected 2026-09-23 (bugs.md #850). Gate is
   `FUN_281f_097a` → `FUN_1427_13b0` (AX-register arg): index in range, `+0x3144`
@@ -446,7 +446,7 @@ identified:
   (iVar7 < 0) iVar7 = 0; *(int*)(iVar6+0x54f6) = iVar7;` (a clamping RMW),
   then `tier = min(iVar7 >> 5, 3)`, forced to 3 when
   `FUN_15dc_00e0(indian, nation) > 0x4a`. Tier picks glyph 10/11/14/12. The
-  Linux port (`map_panel.c`, `map_panel_draw_tribe_chrome`) sources the tier
+  OpenCol port (`map_panel.c`, `map_panel_draw_tribe_chrome`) sources the tier
   from `tribe.alarm[nation].{friction,attacks}` — which, as of the 2026-09-08
   correction, **is** the DS:0x54f6 word, so this was the DOS read all along,
   not the stand-in it was labelled as. (DOS's RMW clamps a negative word to 0
@@ -494,7 +494,7 @@ state now.
 ported in `units.c`** (closes the "left open" note; raw =
 `viceroy_unpacked.c`):
 
-| Site | Raw | DOS gate | Index cleared | Linux |
+| Site | Raw | DOS gate | Index cleared | OpenCol |
 |------|-----|----------|---------------|-------|
 | combat discharge | 101039-101041 | attacker nation ≥ 4 **and** defender nation < 4, **and** (`local_10 < 0` ∥ `DS:0x8db8 != 0` ∥ attacker won). `local_10` = `FUN_281f_0614(x, y, -1, -1)` nearest-colony scan on the **defender's** tile, `0x8db8` = that scan's distance output, so the two leading terms together read "the fight was not on a colony tile". The `else` limb is DOS's handoff to `FUN_5fef_0f14`, which carries its own clear. | `tribe[attacker.+0x314a].alarm[defender_nation]`, whole word | `units_indian_attack_tension_clear`, called from both arms of `units_resolve_land_combat_ff` |
 | capital razed | 101289-101298 | `local_c != 0` (dwelling destroyed) **and** `local_ce != 0` (record +3 bit 2, capital). Same block first clamps alarm **down** to 15 when above (`FUN_281f_030c` → `FUN_281f_0d6c(-(alarm-15))`) and then draws `@INDIANBOW` (0x1cd7 — the DS string at 121248+0x1cd7 is

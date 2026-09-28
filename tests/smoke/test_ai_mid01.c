@@ -34,7 +34,7 @@
 /*
  * Pair compare MID01→MID02 using the same joint surface as golden_ai_turns:
  * calendar moved, Euro+Brave units remain, tribes/colonies present, diplo rows
- * readable. Exact unit XY golden is Linux-derived (regenerated each run).
+ * readable. Exact unit XY golden is OpenCol-derived (regenerated each run).
  */
 static int compare_mid_pair(const ColonizeCol1Save* a, const ColonizeCol1Save* b) {
   if (!joint_assert_fields(a, "MID01") || !joint_assert_fields(b, "MID02")) {

@@ -13,7 +13,7 @@ Structs: [`src/core/col1_save.h`](../src/core/col1_save.h).
 ## Goal / non-goals
 
 **Goal:** name every byte (or bit) with evidence — DOS reader/writer cite and
-allowed value ranges — so Linux→DOS export can rebuild templates without
+allowed value ranges — so OpenCol→DOS export can rebuild templates without
 inventing blobs.
 
 **Non-goals:**
@@ -122,7 +122,7 @@ as peels land.
 | `nation_relation[4]` | 8 | `mapped` | |
 | `rebel_sentiment_report` + `crown_nation_id`/`rival_nation_slot_1`/`_2`/`sol_pct_last_notified` (was `unknown45_pad[8]`) | 10 | `mapped` | DS:`0x53d0`; the 4 int16 slots resolved 2026-08-19 (crown nation, 2 lazy rival-nation caches, SoL-report dedup) |
 | `expeditionary_force` / `backup_force` | 16 | `mapped` | |
-| `market_demand_pool_raw` / `market_demand_pool[16]` | 32 | `partial` | DOS market saturation/demand pool (not price) @`0x53ea`, formula traced 2026-08-19 (`FUN_38fd_0058`): seeded `RNG(600,1000)`, topped up per-turn from a per-nation demand table; Linux king bytes no longer overlay this (moved 2026-08-28 to `game_options` bits + the human nation's `unknown23_pad`, see that row). Only **rum/cigars/cloth/coats** confirmed as a live price group by code (index-9-12 floor-at-1 special case) — was previously only a smcol/experimental guess (SG also lists sugar/tobacco/cotton/fur, but experiments say those move independently); pool→`euro_price[16]` link traced 2026-08-27 in the same function's tail: group target `3*sum(group)/pool`, sign-of-(price−target) pushes `trade.nr` by `avg(rise,fall)*100` at EOT, direct clamp otherwise; Linux `europe_tick_market_prices` already implements it. `mapped` in substance |
+| `market_demand_pool_raw` / `market_demand_pool[16]` | 32 | `partial` | DOS market saturation/demand pool (not price) @`0x53ea`, formula traced 2026-08-19 (`FUN_38fd_0058`): seeded `RNG(600,1000)`, topped up per-turn from a per-nation demand table; OpenCol king bytes no longer overlay this (moved 2026-08-28 to `game_options` bits + the human nation's `unknown23_pad`, see that row). Only **rum/cigars/cloth/coats** confirmed as a live price group by code (index-9-12 floor-at-1 special case) — was previously only a smcol/experimental guess (SG also lists sugar/tobacco/cotton/fur, but experiments say those move independently); pool→`euro_price[16]` link traced 2026-08-27 in the same function's tail: group target `3*sum(group)/pool`, sign-of-(price−target) pushes `trade.nr` by `avg(rise,fall)*100` at EOT, direct clamp otherwise; OpenCol `europe_tick_market_prices` already implements it. `mapped` in substance |
 | `event` | 2 | `mapped` | Woodcut / discovery flags |
 | `unknown05` | 2 | `mapped` | DS:`0x540c`; bits 17-32 of the same once-only woodcut/splash bit array that `event` is bits 1-16 of (accessor `FUN_12fd_000e`/`0048`, dispatcher `FUN_12fd_006c`). Only the demo-autoplay loop (`FUN_130d`, DS:`0x828`, counter DS:`0x150` → 25) reaches ids 14-25; normal play tops out at id 13. Resolved statically 2026-08-27 |
 
@@ -146,23 +146,23 @@ as peels land.
 |-------|------|--------|-------|
 | `x` / `y` / `name` / `nation_id` / `population` | — | `mapped` | |
 | `ai_flags` (`ColonizeCol1ColonyAiFlags`) | 1 | `mapped` | +0x1b; bits 0/1 = 4962_0018 blockade pair (bit1 = Frigate 0x11 ONLY, bit0 = other armed ship incl. MoW — JSON keys `nearby_frigate` / `military_surplus` (0x04) / `short_defenders` (0x08); old keys `nearby_man_o_war` / `needs_military` / `defense_surplus` still read by col1_json.c), refreshed for EVERY nation each turn (human wired 2026-09-08d, turn.c FINISH); bits 2..7 = 5952_035e planner (AI-only) + COLONY 5|8; thin needs_colonists/garrison |
-| `flags` (`ColonizeCol1ColonyFlags`) | 1 | `mapped` | +0x1c; Linux `colony_flags` — bit3 inefficient-gov latch + sol_50/100 + wagon/coastal/small (`FUN_364b_0688`) |
-| `build_ai_flags` | 1 | `mapped` | +0x1d; bit7 `wants_construction` (0x80) — Linux field + LABOR latch + clear on queue done; other bits reserved |
-| `garrison_quota` | 1 | `mapped` | +0x1e; `threat>>3` (`FUN_5952_035e`, clean recovery 2026-08-14 confirms exact match — [`colony_tick_5952_035e.md`](../original_sources_annotated/ai/colony_tick_5952_035e.md)); Linux `ColonizeColony.garrison_quota` + fortify DEC + thin latch |
+| `flags` (`ColonizeCol1ColonyFlags`) | 1 | `mapped` | +0x1c; OpenCol `colony_flags` — bit3 inefficient-gov latch + sol_50/100 + wagon/coastal/small (`FUN_364b_0688`) |
+| `build_ai_flags` | 1 | `mapped` | +0x1d; bit7 `wants_construction` (0x80) — OpenCol field + LABOR latch + clear on queue done; other bits reserved |
+| `garrison_quota` | 1 | `mapped` | +0x1e; `threat>>3` (`FUN_5952_035e`, clean recovery 2026-08-14 confirms exact match — [`colony_tick_5952_035e.md`](../original_sources_annotated/ai/colony_tick_5952_035e.md)); OpenCol `ColonizeColony.garrison_quota` + fortify DEC + thin latch |
 | `occupation` / `profession` | 64 | `mapped` | |
 | `specialty[16]` | 16 | `yes` | +0x60; per-colonist **education turn counter** nibble (`FUN_15eb_0c7a` read / `FUN_15eb_0cbc` write, raw 10202-10240, writer clamps at 15). The teaching loop `FUN_364b_0688` (raw 57503-57539) reads, adds 1 and writes it back for *every* colonist each turn, which is why long-lived human colonies read 15 and freshly seated AI colonies read 0 — the old "profession & 0xf" formula and the later constant 15/0 export were both wrong. A real job change zeroes it (`FUN_15eb_1068`, raw 11256-11258) and the canonical colonist reorder permutes it (raw 47225/47241). Port field: `ColonizeColonist.turns_in_job` — loaded and written back, so a DOS save round-trips byte-exact |
 | `tiles[20]` | 20 | `mapped` | +0x70; work plots. The ring DOS works is `DS:0x329[FUN_15eb_0470()]` = {0,4,8,12,20} with `0470 = min(039e(10),2)+2`, i.e. +4 slots per owned @BUILDING row `0x0a`/`0x0b` (`buildings.town_hall` bits 1-2). Both rows are unbuildable in stock DOS, so `[8..19]` is `0xff` in every fixture; the port still loads all 20 slots (`[0..7]` remapped to its clockwise ring, `[8..19]` identity) and works the ones the colony's ring covers. bugs.md #593 |
 | `buildings` / `custom_house` | — | `mapped` | `unused05` pad. **A per-building BITMASK, not a tier count** — this is DOS's own colony `+0x84` bitfield, one bit per `@BUILDING` file index, read by `FUN_15eb_035e` as bit `n & 7` of byte `n >> 3`; the struct's field boundaries line up with the chains exactly (Warehouse = bits 15-16, Capitol = 30-31, and `unused05` = the 6 bits past building 41). It usually *reads* cumulative (`0/1/3/7`) because DOS requires the lower tier as a prerequisite and never clears it on upgrade — the 2026-08-18 "always `(1<<N)-1`" reading came from that — but pillage clears one building's bit on its own, and lone-upper-bit values are real: across 977 colonies in `original_saves`, `carpenters_shop` reads 2 in 16 of them, `printing_press` 2 in 14, `church` 2 in 2 (a Lumber Mill with no Carpenter's Shop, a Newspaper with no Printing Press, a Cathedral with no Church). Decoding those as "popcount tiers, lowest first" silently downgraded them on load. `col1_apply_building_bits` / `col1_encode_building_bits` (col1_bridge.c) are bit-exact now; 916 real colonies round-trip byte-identical (16 did not before). **Exception — `warehouse` and `capitol`:** DOS gives the upper tier no bit at all. `FUN_364b_0114` only INCs the level counter at `+0x95`/`+0x96` for it, and `FUN_15eb_3650` gates a second Warehouse Expansion on the resulting capacity (`> 299`) instead of on ownership. Every real save agrees: `warehouse` is only ever 0 or 1 (95 colonies pair mask 1 with `warehouse_level` 2), `capitol` always 0. The bridge encodes tier 0 only and restores tier 1 from the counter. |
-| `improve_timer` | 1 | `mapped` | +0x8c; INC cap `0x7f`; Linux field + pioneer gate (≥2 thin) + clear on plow/road |
-| `specialty_cargo` | 1 | `mapped` | +0x8d; `0xff` none (`FUN_5952_0306`); Linux field + haul prefer + warehouse-cap clear |
-| `labor_shortage` | 1 | `mapped` | +0x8e; Linux `ColonizeColony.labor_shortage` + admit decrement + AI LABOR latch |
+| `improve_timer` | 1 | `mapped` | +0x8c; INC cap `0x7f`; OpenCol field + pioneer gate (≥2 thin) + clear on plow/road |
+| `specialty_cargo` | 1 | `mapped` | +0x8d; `0xff` none (`FUN_5952_0306`); OpenCol field + haul prefer + warehouse-cap clear |
+| `labor_shortage` | 1 | `mapped` | +0x8e; OpenCol `ColonizeColony.labor_shortage` + admit decrement + AI LABOR latch |
 | `cargo_idle_turns` | 1 | `mapped` | +0x8f; INC cap `0x7f` (`FUN_5952_035e`); clear on goods unload; AI haul score `*8` |
-| `cargo_produced_mask` | 2 | `mapped` | +0x90; bit per cargo (`FUN_364b_0688`); Linux field + clear/OR on produce + haul prefer |
+| `cargo_produced_mask` | 2 | `mapped` | +0x90; bit per cargo (`FUN_364b_0688`); OpenCol field + clear/OR on produce + haul prefer |
 | `hammers` / `building_in_production` | — | `mapped` | |
-| `warehouse_level` | 1 | `mapped` | +0x95; Linux field; cap `100*(1+level)` (`FUN_15eb_0a50`); INC on Warehouse/Expansion complete; also derived from `has_building` |
-| `capitol_level` | 1 | `mapped` | +0x96; Linux field; INC on Capitol/Expansion complete (`FUN_364b_0114`); bridged |
+| `warehouse_level` | 1 | `mapped` | +0x95; OpenCol field; cap `100*(1+level)` (`FUN_15eb_0a50`); INC on Warehouse/Expansion complete; also derived from `has_building` |
+| `capitol_level` | 1 | `mapped` | +0x96; OpenCol field; INC on Capitol/Expansion complete (`FUN_364b_0114`); bridged |
 | `depletion_counter` | 1 | `mapped` | +0x97; INC on ore/silver field yield; wrap at 50 → `MAP_LAYER2_SUPPRESS` on worked tile (`FUN_364b_033a`) |
-| `hammers_purchased` | 2 | `mapped` | +0x98; BUY remainder (`FUN_2f2b_5e44`); Linux field + accumulate on `colonies_buy_construction` |
+| `hammers_purchased` | 2 | `mapped` | +0x98; BUY remainder (`FUN_2f2b_5e44`); OpenCol field + accumulate on `colonies_buy_construction` |
 | `stock[16]` | 32 | `mapped` | |
 | `visible_to_euro[4]` | 4 | `known` | +0xba; DOS array form `idx*0xca+0x5e00+nation`; writer `FUN_364b_1b4c` = live population on tile reveal, reader `FUN_364b_1b76` known-to-human gate; **smcol `population_on_map[4]`** — fog-of-war population as each Euro sees this colony. Founding (`FUN_364b_1ba8`) writes `1` per slot (and only when tile seen via map `0x10<<euro`); lategame fixtures store real/estimate pops (owner slot ≈ live `population`). Port still names/exports as visibility latch — **misnamed** vs smcol+fixtures |
 | `fortification_on_map[4]` | 4 | `known` | +0xbe; was `unknown13_pad`. smcol `fortification_on_map[4]` (0 none … 3 fortress) confirmed in DOS code. Written by `FUN_364b_1b4c` (on tile reveal, `FUN_13f1_000a`) = owned-building count along Stockade parent chain; founding/`FUN_13f1_00a6` clear to 0. DOS addresses via array form `idx*0xca+0x5e04+nation`, not the `0x8542` pointer (why it was grep-invisible). No DOS reader found — write-only fog snapshot. Resolved statically 2026-08-27; earlier ISR lead retracted |
@@ -174,7 +174,7 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
-| `x` / `y` / `type` / `nation_id` | — | `mapped` | Europe sentinels ≥200. **Full lane chain resolved 2026-09-18 (bugs.md #489)** from `FUN_48d3_06ba`'s four `thunk_FUN_2a1f_0246` → `FUN_48d3_03d0` hops (raw 77965-77980) plus `FUN_48d3_007a` (raw 77626: eastbound entry `nation-0x0c`) and `FUN_48d3_0346` (raw 77755: westbound entry `nation-0x18`): eastbound `244+n` → `240+n` → `236+n` = **the Europe port** (no `03d0` call walks it; it is the dock lane land units sit on), then westbound `232+n` → `228+n` → `224+n`, which `FUN_48d3_064e` → `048e` places on the map. So `228+n` is the last westbound lane ("arrives next tick"), **not** "in port" — confirmed by `mapgen/SEED100.SAV` and `COLONY00.SAV` (turn-0 AI fleets at 229/230/231, counter 0, `goto` = landfall, chained passengers) and by lategame `COLONY06.SAV` (human Dutch stack at 231 counter 0 vs French at 233 counter 1). `col1_counter16` (+0x16) = voyage turns left in the current lane. Port mapping: `236+n` harbor, `228+n` Bound, `244+n` Expected. nawagers' 235/239/243 = nation 3 on those diagonals. Linux capture/apply honor all three ship lanes (savegame.md "Human Europe ships") |
+| `x` / `y` / `type` / `nation_id` | — | `mapped` | Europe sentinels ≥200. **Full lane chain resolved 2026-09-18 (bugs.md #489)** from `FUN_48d3_06ba`'s four `thunk_FUN_2a1f_0246` → `FUN_48d3_03d0` hops (raw 77965-77980) plus `FUN_48d3_007a` (raw 77626: eastbound entry `nation-0x0c`) and `FUN_48d3_0346` (raw 77755: westbound entry `nation-0x18`): eastbound `244+n` → `240+n` → `236+n` = **the Europe port** (no `03d0` call walks it; it is the dock lane land units sit on), then westbound `232+n` → `228+n` → `224+n`, which `FUN_48d3_064e` → `048e` places on the map. So `228+n` is the last westbound lane ("arrives next tick"), **not** "in port" — confirmed by `mapgen/SEED100.SAV` and `COLONY00.SAV` (turn-0 AI fleets at 229/230/231, counter 0, `goto` = landfall, chained passengers) and by lategame `COLONY06.SAV` (human Dutch stack at 231 counter 0 vs French at 233 counter 1). `col1_counter16` (+0x16) = voyage turns left in the current lane. Port mapping: `236+n` harbor, `228+n` Bound, `244+n` Expected. nawagers' 235/239/243 = nation 3 on those diagonals. OpenCol capture/apply honor all three ship lanes (savegame.md "Human Europe ships") |
 | `vis_mask` | 4 bits | `mapped` | euro owner `1<<n` (`FUN_1427_0992`) on MAP units only; natives 0 on spawn/capture. **Europe-sentinel units (x/y ≥ 200) carry vis 0 in every original save** (2026-09-03 survey) — capture forces 0 there |
 | 8 named bits (was `unknown15_lo`/`ship_damaged`) | 1 | `mapped` | bit7 `ship_damaged` (`FUN_1427_13b0`); bit0 dead; bits1/2/3/5/6 resolved 2026-08-19 (roam-reeval, stack founders/military, garrison-request, bound-in-transit); bit4 `wander_dest_chosen` partial — see mysteries_catalog.md |
 | `moves` / `orders` / `goto_*` | — | `mapped` | |
@@ -188,19 +188,19 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
 | `tax_rate` / `recruit*` / FF / bells / gold / crosses | — | `mapped` | |
-| `liberty_bells_pool` / `liberty_bells_last_turn` | 2+2 | `mapped` | `+0xc` = the **live Founding-Father bell pool** (was misnamed `liberty_bells_total`): `FUN_4345_0a22` adds each colony's bells (raw 73341) and zeroes it on a successful elect (raw 73370); `FUN_43f7_1a26` zeroes it at the declaration of independence (raw 74738). `+0xe` = bells produced **this turn** only — zeroed before the per-colony loop (`FUN_3844_00f2` raw 58382), write-only in DOS. bugs.md #933 deleted the Linux FF side table and the conditional stash of the pool into `+0xe`; both words are now written straight through, so a DOS save's `+0xc` loads as the pool and a port save hands DOS a real pool. All fixtures codec byte-identical. See [savegame.md](savegame.md) Phase 5 |
+| `liberty_bells_pool` / `liberty_bells_last_turn` | 2+2 | `mapped` | `+0xc` = the **live Founding-Father bell pool** (was misnamed `liberty_bells_total`): `FUN_4345_0a22` adds each colony's bells (raw 73341) and zeroes it on a successful elect (raw 73370); `FUN_43f7_1a26` zeroes it at the declaration of independence (raw 74738). `+0xe` = bells produced **this turn** only — zeroed before the per-colony loop (`FUN_3844_00f2` raw 58382), write-only in DOS. bugs.md #933 deleted the OpenCol FF side table and the conditional stash of the pool into `+0xe`; both words are now written straight through, so a DOS save's `+0xc` loads as the pool and a port save hands DOS a real pool. All fixtures codec byte-identical. See [savegame.md](savegame.md) Phase 5 |
 | `nation_flags` | 1 | `partial` | Was `unknown19`; bits `0x04`/`0x08`/`0x40` live; bit `0x04` named 2026-08-19 = nation achieved independence |
 | `tax_hike_count` | 1 | `mapped` | Was `unused07`; `FUN_38fd_44a4` |
 | `unknown21_pad` | 1 | `opaque` | Was `unknown21`; resolved 2026-08-19 confirmed dead — untouched by all 3 DOS exports, the one gap new-game zero-init skips. The 2026-08-22 `FF_POOL_STASH_MARKER` repurpose was removed by bugs.md #933; nothing writes this byte now |
 | `king_audience_tax_delta` | 2 | `mapped` | Was `unknown22`; `int16`; resolved 2026-08-19: signed King-audience tax delta, `FUN_38fd_5be8` computes/writes, `FUN_38fd_3dc8` applies same-call to `tax_rate`; no DOS reader of the saved copy |
 | `ff_count_end_prob` | 2 | `community` | smcol; cleared on independence; no FF-prob reader |
-| `rebel_sentiment` + `rebellion_pct_last_notified` + `unknown23_pad[3]` | 5 | `mapped` | nation+0x19; `rebellion_pct_last_notified` (was `unknown23_pad[0]`) resolved 2026-08-19: independence-news dedup latch. `unknown23_pad[0..1]` of the **human** nation are DOS-dead and since 2026-08-28 host the Linux king latches (`ai_king_latch_get/set`, `ai_king.h`): byte0 bits0-1 endgame (0 none/1 won/2 lost/3 peace-1800), byte1 bitfield boycott/merc/congress/WARN1-3/SOONRETIRE0-1. WoI / REF-present live on their real `0x5382` bits. |
+| `rebel_sentiment` + `rebellion_pct_last_notified` + `unknown23_pad[3]` | 5 | `mapped` | nation+0x19; `rebellion_pct_last_notified` (was `unknown23_pad[0]`) resolved 2026-08-19: independence-news dedup latch. `unknown23_pad[0..1]` of the **human** nation are DOS-dead and since 2026-08-28 host the OpenCol king latches (`ai_king_latch_get/set`, `ai_king.h`): byte0 bits0-1 endgame (0 none/1 won/2 lost/3 peace-1800), byte1 bitfield boycott/merc/congress/WARN1-3/SOONRETIRE0-1. WoI / REF-present live on their real `0x5382` bits. |
 | `artillery_count` / `boycott_bitmap` | — | `mapped` | |
 | `royal_money` + `unknown24_pad[4]` | 8 | `mapped` | `int32` @ +0x22 REF budget; `unknown24_pad` = write-only int32 cumulative treasure income (`FUN_5fef_1908` `-0x77d2 += net`, found 2026-08-27); no reader. (Was: confirmed dead 2026-08-19) |
 | `return_from_europe_x/y` | 2 | `mapped` | `FUN_48d3_007a` |
-| `euro_relation[4]` | 4 | `mapped` | −0x77c4 peer flags, **re-derived from DOS writers 2026-08-27 (T1.19)**: MET `0x20`, WAR `0x02`, PEACE `0x40`, planner war-intent `0x01` (`6d8e`), crown-arms `0x10` (`38fd_5930`); `0x04`/`0x08`/`0x80` seen in saves, `0x04` = attack-village-confirmed on Indian pairs; directional (a→b ≠ b→a). Linux `ai_diplo.h` now matches (was WAR`0x01`/PEACE`0x02`/MET`0x40`). `ALLY 0x04` is Linux-only on Euro pairs |
+| `euro_relation[4]` | 4 | `mapped` | −0x77c4 peer flags, **re-derived from DOS writers 2026-08-27 (T1.19)**: MET `0x20`, WAR `0x02`, PEACE `0x40`, planner war-intent `0x01` (`6d8e`), crown-arms `0x10` (`38fd_5930`); `0x04`/`0x08`/`0x80` seen in saves, `0x04` = attack-village-confirmed on Indian pairs; directional (a→b ≠ b→a). OpenCol `ai_diplo.h` now matches (was WAR`0x01`/PEACE`0x02`/MET`0x40`). `ALLY 0x04` is OpenCol-only on Euro pairs |
 | `relation_by_indian[8]` | 8 | `mapped` | |
-| `treaty_timer` / sticky / privateer | 12 | `partial` | Linux stand-ins in `unknown26[]` (`ai_diplo.c`); flags are **not** here. DOS layout fully known 2026-08-27: +0x40-43 diplo cooldown, +0x44/45 recruit RNG, +0x46/47 int16 last-colony-founded turn (`FUN_479b_076e`→`FUN_521d_052c`), +0x48-4a crosses/hammers carry, +0x4b dead |
+| `treaty_timer` / sticky / privateer | 12 | `partial` | OpenCol stand-ins in `unknown26[]` (`ai_diplo.c`); flags are **not** here. DOS layout fully known 2026-08-27: +0x40-43 diplo cooldown, +0x44/45 recruit RNG, +0x46/47 int16 last-colony-founded turn (`FUN_479b_076e`→`FUN_521d_052c`), +0x48-4a crosses/hammers carry, +0x4b dead |
 | `trade` (240) | 240 | `mapped` | euro_price / nr / gold / tons |
 
 ### Tribe (18 × T)
@@ -219,7 +219,7 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | `capitol_*` / `tech` / `tons` / `alarm_by_player` | — | `mapped` | |
 | `extinct` | 1 bit | `mapped` | bit7 of first unknown31 byte |
 | `lands_bought` | 1 | `mapped` | `FUN_479b_00ca` INC |
-| `unknown31_flags` | 1 | `opaque` | Confirmed unread by DOS 2026-09-09 (offset tally, smell #72); old Linux prelude bit `0x20` retired |
+| `unknown31_flags` | 1 | `opaque` | Confirmed unread by DOS 2026-09-09 (offset tally, smell #72); old OpenCol prelude bit `0x20` retired |
 | `muskets` / `horse_herds` | 2 | `mapped` | |
 | `horse_breeding` | 2 | `mapped` | ±0x32 acquire/tick (`FUN_5bfb_*` / `4d56`). Smcol: herds→breeding each turn; cash horses at ≥25; notes a DOS bug where only one tribe breeds and breeding += herds×(non-extinct count) |
 | `unknown31b`/`unknown31c` pads | 2 | `opaque` | Closed as no-reader pads |
@@ -227,7 +227,7 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | `contact_state[4]` | 8 | `mapped` | +0x2e; FSM 0/1/2 |
 | `euro_relation_accum[4]` | 4 | `mapped` | +0x36; spill → `FUN_281f_0d6c` |
 | `euro_diplo[4]` | 4 | `mapped` | +0x3a; met `0x20` / peace `0x40` (was `met_by_player`) |
-| `unknown33_pad[8]` | 8 | `opaque` | +0x3e; was `unknown33`; confirmed dead 2026-08-24 (zero literal touches of `0x8d4e+0x3e..+0x45` in any DOS export). Linux peace bit moved to `euro_diplo[4]` |
+| `unknown33_pad[8]` | 8 | `opaque` | +0x3e; was `unknown33`; confirmed dead 2026-08-24 (zero literal touches of `0x8d4e+0x3e..+0x45` in any DOS export). OpenCol peace bit moved to `euro_diplo[4]` |
 
 ### Stuff (727)
 
@@ -344,10 +344,10 @@ planes byte-exact). Tail preserved; blank templates may stamp
 | **P0 — Atlas** | Inventory every opaque hole | This document exists; all `unknown*` listed | **Done** |
 | **P1 — Correct the big mis-split** | Reconcile stuff vs post-map vs `FUN_75c2_0288` / `FUN_67f4_0088`; fix wrong comments | Connectivity planes named; stuff chunk table; `ColonizeCol1PostMap` | **Done** |
 | **P2 — Absorb proven community names** | Rename head/nation/indian/unit/trade fields where smcol + decomp agree | Struct names match evidence; sizes unchanged; `unit_col1_save` byte-identical | **Done** |
-| **P3 — Export rebuild** | Template/new-game rebuilds connectivity (+ required defaults) so DOS survives past UNITFLAG | Linux→DOS smoke; remaining holes documented | **Done** |
+| **P3 — Export rebuild** | Template/new-game rebuilds connectivity (+ required defaults) so DOS survives past UNITFLAG | OpenCol→DOS smoke; remaining holes documented | **Done** |
 | **P4 — Deep leftovers** | Colony opaques, indian contact, stuff FA/counts, pathfinder | Cite + value ranges | **Done** |
 | **P5 — Remaining holes** | Ready peels + nation/head pads + `unknown36` chunk split + `other`/head vestigial close | Every byte named or closed save-only/vestigial + DS | **Done** |
-| **P6 — Linux→DOS interop** | Mask density, blank census, colony capture fill, vis_mask, AI blob discipline | Template export smoke; fixture RMW identical | **Done** |
+| **P6 — OpenCol→DOS interop** | Mask density, blank census, colony capture fill, vis_mask, AI blob discipline | Template export smoke; fixture RMW identical | **Done** |
 
 ```mermaid
 flowchart TB
@@ -358,7 +358,7 @@ flowchart TB
   export[P3 Bridge rebuild for DOS-safe new-game]
   deep[P4 Colony nation indian head leftovers]
   p5[P5 Map remaining holes]
-  p6[P6 Full Linux DOS interop]
+  p6[P6 Full OpenCol DOS interop]
   codec --> atlas
   atlas --> absorb
   atlas --> connect
@@ -437,7 +437,7 @@ pacific walk — prefer `FUN_684c_08c0`.
 
 ## Related docs
 
-- [savegame.md](savegame.md) — interop layers, bridge, Linux→DOS gaps
+- [savegame.md](savegame.md) — interop layers, bridge, OpenCol→DOS gaps
 - [project_goals.md](project_goals.md) — 100% save interop acceptance
 - [decomp_inventory.md](decomp_inventory.md) — what is shipped vs open RE
 - [manual_gap.md](manual_gap.md) — Col1 I/O checklist (playable ≠ fully mapped)

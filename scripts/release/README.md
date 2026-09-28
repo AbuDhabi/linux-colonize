@@ -1,6 +1,6 @@
-# opencol
+# OpenCol
 
-Linux port of **Sid Meier's Colonization** (MicroProse, 1994 DOS).
+OpenCol, port of **Sid Meier's Colonization** (MicroProse, 1994 DOS).
 
 This is a standalone build: SDL2 and FluidSynth are linked into the binary,
 and the Roland SC-55 soundfont is included. It does **not** include the

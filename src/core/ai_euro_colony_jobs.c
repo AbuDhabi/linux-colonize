@@ -1457,7 +1457,7 @@ static void ai_euro_5952_carpenter_arm(
  * food target holds, then two general passes. Building workers keep their
  * workplaces here — DOS's later statesman/carpenter passes in the same
  * function are the existing expert-workplace heuristics' territory.
- * Food target: Linux population×2 consumption vs town commons + placed food.
+ * Food target: OpenCol population×2 consumption vs town commons + placed food.
  *
  * STOP CONDITION (both halves fixed 2026-09-09):
  *   - It is a `goto LAB_5952_178f` (raw 94596 in the food pass, raw 94614 in
@@ -1475,7 +1475,7 @@ static void ai_euro_5952_carpenter_arm(
  *     than 16 turns' worth of deficit — in practice any well-fed colony —
  *     demands yield >= 5 from a general-pass winner and otherwise stops.
  *     The `< 5` half was unported.
- * STILL NOT PORTED here, deliberately (all DOS-side detail with no Linux
+ * STILL NOT PORTED here, deliberately (all DOS-side detail with no OpenCol
  * counterpart yet): the loop-entry guards `local_7e`/`local_80`/`local_1e`
  * (pop vs ring size, horses stock, gross production vs demand).
  * (`local_84`'s second use at raw 94609-94611, which flips the per-slot
@@ -2743,7 +2743,7 @@ void ai_euro_colony_tick_28c8_reassign(
      * colony admits its first Lumberjack unconditionally and a
      * non-construction one does not. Beyond the first, DOS demands either
      * COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR (+0x1b bit 0x20) or a live
-     * lumber shortfall. This is that bit's FIRST Linux reader — colony.h
+     * lumber shortfall. This is that bit's FIRST OpenCol reader — colony.h
      * called it write-only, because all four of DOS's readers (raw 94422,
      * 94454, 94499, 94751) sit in unported passes and this is the first one
      * to land.

@@ -24,7 +24,7 @@ MADSPACK layouts, or full bring-up checklists.
 4. Otherwise open the raw export under
    [`original_sources_decompiled/`](../original_sources_decompiled/)
    (`viceroy_unpacked.c` / `.asm` or `mapedit.c`).
-5. Match the Linux module under `src/core/` and the data file under `COLONIZE/`.
+5. Match the OpenCol module under `src/core/` and the data file under `COLONIZE/`.
 6. Follow the deep-dive link for formats and port status.
 
 Regenerate the catalog after re-export: `python3 scripts/gen_fun_catalog.py`.
@@ -34,7 +34,7 @@ Regenerate the catalog after re-export: `python3 scripts/gen_fun_catalog.py`.
 ## Decompiled sources at a glance
 
 Ghidra exports live in [`original_sources_decompiled/`](../original_sources_decompiled/).
-Not buildable; DOS memory-model / runtime artifacts remain. The Linux binary never
+Not buildable; DOS memory-model / runtime artifacts remain. The OpenCol binary never
 compiles these files.
 
 | Artifact | Source | Size (approx.) | When to use |
@@ -125,12 +125,12 @@ Full bring-up narrative and fidelity notes → [decomp_inventory.md](decomp_inve
 
 ## Known entry-point index
 
-High-value addresses already cited in this repo. “Linux” is the port counterpart when
+High-value addresses already cited in this repo. “OpenCol” is the port counterpart when
 one exists.
 
 ### VICEROY (`original_sources_decompiled/viceroy_unpacked.c`)
 
-| Address | Purpose | Linux / docs |
+| Address | Purpose | OpenCol / docs |
 |---------|---------|--------------|
 | `FUN_2a1f_083e` | Dispatches into map-gen pipeline | [map_gen.c](../src/core/map_gen.c), [assets.md](assets.md) |
 | `FUN_684c_08c0` | NEW WORLD procedural map entry | `map_generate` / `MapGenParams` |
@@ -146,7 +146,7 @@ one exists.
 | `FUN_4d56_1816` | Indian nation turn | **partial** (structural phases + quiet pulse + `ai_contact_*`; `4528` Done 2026-08-27/28, `2820` rewritten 2026-08-29; deep `2820` haggle / VGA PARKED) |
 | `FUN_6a09_0006` | Tribe placement | ai / map gen (T2 seed-100) |
 | `FUN_521d_6d8e` | Euro AI dispatcher | **Done as a dispatcher** (entry `ai_euro_nation_turn` in `ai.c` → `ai_euro.c` phases; gate `golden_ai_turns`) — not claimed 1:1 ([port_plan.md](port_plan.md) per-module table) |
-| `FUN_521d_0a60` / `5d04` | Euro unit goals / planning | **fully live 2026-09-07d-e** (`0a60` goal-consumption tail; `ai_euro_5d04_hire_ladder_tail` is the only Europe hire economy — the invented Linux matrix is deleted) |
+| `FUN_521d_0a60` / `5d04` | Euro unit goals / planning | **fully live 2026-09-07d-e** (`0a60` goal-consumption tail; `ai_euro_5d04_hire_ladder_tail` is the only Europe hire economy — the invented OpenCol matrix is deleted) |
 | `FUN_521d_20e6` / nested `5b66` | Move scoring / unit act | **structurally done, cargo/boarding/census arms live** (land arms 2026-08-27; six thin pieces closed 2026-09-06; `3558` cargo matrices ported 2026-09-08) — step scorer not T3 |
 | `FUN_6a9f_0118` | Map viewport tile loop | [map.c](../src/core/map.c) / map_panel |
 | `FUN_15eb_06d2` | Shared world-map / pedia draw entry | map / pedia |
@@ -157,7 +157,7 @@ one exists.
 
 ### GSOUND (`original_sources_decompiled/gsound.c.zip`; unzip to read)
 
-| Symbol | Role | Linux / notes |
+| Symbol | Role | OpenCol / notes |
 |--------|------|---------------|
 | `FUN_1000_01fd` | Voice opcode interpreter | [sound.c](../src/core/sound.c) decode |
 | `FUN_1000_19bc` | Sound-ID → handler tables | BGM `0x2A6E`, event `0x2AC4` |
@@ -165,7 +165,7 @@ one exists.
 
 ### MAPEDIT (`original_sources_decompiled/mapedit.c`)
 
-| Address | Purpose | Linux / docs |
+| Address | Purpose | OpenCol / docs |
 |---------|---------|--------------|
 | `FUN_1a47_0932` | Tile draw / compositor entry | [map.c](../src/core/map.c), [assets.md](assets.md), inventory |
 | `FUN_1a47_01ae` | Land mask / coast setup | map.c |
@@ -181,7 +181,7 @@ one exists.
 ## `COLONIZE/` data index
 
 Runtime data root (~289 files). Intended location at runtime: `COLONIZE/` next to
-the Linux executable (same pile as DOS). Override with `--data-dir`. Formats and
+the OpenCol executable (same pile as DOS). Override with `--data-dir`. Formats and
 screen wiring: [assets.md](assets.md). Official 3.0 notes: `COLONIZE/README.TXT`.
 
 ### Extension counts
@@ -271,7 +271,7 @@ screen wiring: [assets.md](assets.md). Official 3.0 notes: `COLONIZE/README.TXT`
 
 | File | Purpose |
 |------|---------|
-| `GSOUND.COL` | General MIDI driver — **used by Linux port** |
+| `GSOUND.COL` | General MIDI driver — **used by OpenCol port** |
 | `ASOUND.COL` / `PSOUND.COL` / `RSOUND.COL` | AdLib / SB / Roland (not used yet) |
 | `COLDIG.BIN` | Digital SFX — decoded and played (2026-08-27); see [assets.md](assets.md) |
 | `AMERICA.MOV` | Short map-tooling motion blob (not the LEVN voyage) |
@@ -290,7 +290,7 @@ Repo SoundFont (not in `COLONIZE/`): `data/soundfonts/Roland_SC-55.sf2`.
 | `INSTALL.EXE` / `MPSCOPY.EXE` | Installer / copy |
 | `COLONIZE.BAT` / `COLDEMO.BAT` | Launchers |
 
-### Critical for the Linux port (short list)
+### Critical for the port (short list)
 
 `AMER2.MP`, `TERRAIN.SS`, `PHYS0.SS`, `CURSOR.SS`, `ICONS.SS`, `WOODTILE.SS`,
 `OPENTILE.SS`, `WOODPANL.PIK`, `OPENMENU.PIK`, `FONTTINY.FF`, `GAME.TXT`, `MENU.TXT`,

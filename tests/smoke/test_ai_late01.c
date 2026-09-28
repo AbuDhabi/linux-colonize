@@ -1,6 +1,6 @@
 /*
  * Joint late-war smoke test (T3 Series K). Filed under tests/smoke, not
- * tests/golden: the geometry it checks is Linux-derived and regenerated each
+ * tests/golden: the geometry it checks is OpenCol-derived and regenerated each
  * run, so nothing here is a DOS-derived expectation.
  * LATE01: load MID02, stamp late-war Indian×Euro fields, write LATE01.SAV,
  * run one full joint turn, then structural pair compare (not TURN XY field-diff).

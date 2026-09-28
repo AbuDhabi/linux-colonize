@@ -665,7 +665,7 @@ void reports_render_colony_garrisons(
         const int sprite = units_map_sprite(units, unit->id);
         /*
          * WARNING — pool index used as a DOS @UNIT id. units_display_type_index
-         * returns a Linux POOL INDEX; `ru->type` below is the col1 save's raw
+         * returns an OpenCol POOL INDEX; `ru->type` below is the col1 save's raw
          * DOS type byte, and unit_chrome_corner_for_type's argument is a DOS
          * @UNIT id. The three only agree because of the NAMES.TXT ordering
          * invariant documented at unit_chrome.c's unit_chrome_corner_for_type

@@ -8,7 +8,7 @@ Rules:
 
 ## What this is
 
-Linux port of Sid Meier's Colonization (DOS, 1994), C11 + SDL2, reverse-engineered
+OpenCol, port of Sid Meier's Colonization (DOS, 1994), C11 + SDL2, reverse-engineered
 from the Ghidra decomp of VICEROY.EXE. Fidelity to DOS behaviour and Col1 save
 interop beat "improvements" — see docs/project_goals.md.
 

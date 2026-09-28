@@ -656,7 +656,7 @@ static void col1_occupancy_or_xy(
  * Rebuild Col1 mask / live layer2 occupancy bits (has_unit / has_city) from
  * live units, colonies, and tribe villages. Clears bits 0-1 then sets them;
  * preserves road/plow/suppress/purchased/pacific and other high mask bits.
- * Pass NULL for save or map to skip that side. Required before Linux->DOS write.
+ * Pass NULL for save or map to skip that side. Required before OpenCol->DOS write.
  * tribe_save supplies village tiles (may be the same pointer as save, or a
  * const apply-time snapshot when save is NULL).
  */

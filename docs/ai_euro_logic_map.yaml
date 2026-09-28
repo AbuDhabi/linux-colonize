@@ -14,7 +14,7 @@
 #   nodes[].status  dos        = DOS-literal / byte-verified port
 #                   structural = same control flow, some accessors substituted
 #                   thin       = approximation of a DOS arm
-#                   linux      = Linux-only mechanic, no DOS counterpart
+#                   port       = OpenCol-only mechanic, no DOS counterpart
 #                   golden     = curve-fit to golden saves, not DOS evidence
 #   edges[]         [from, to] or [from, to, "label"]; labels on decision
 #                   edges are the branch condition.
@@ -51,7 +51,7 @@ sources:
 how_to_read: |
   Start at graph `nation_turn`, follow `sub` nodes downward. The order of
   nodes inside a graph is execution order unless an edge label says
-  otherwise. A `status: linux` node is a mechanic the port added (usually
+  otherwise. A `status: port` node is a mechanic the port added (usually
   build-queue policy or golden-fit staging); everything else maps to a DOS
   FUN_521d_* body listed in docs/port_plan.md "FUN_* inventory".
 
@@ -148,7 +148,7 @@ graphs:
         fn: ai_euro_expand.c:ai_euro_colony_inventory
         dos: FUN_521d_5cf6-shaped tallies; FUN_5952_035e +0x8f/+0x8c increments
         status: structural
-        note: "Per own colony tools<20, muskets<10, food<pop*2, ore<20, lumber-labor want; ++cargo_idle_turns, ++improve_timer. DOS's own loop (raw 93107-93135) is the 5952_035e tick + specialty/muskets/tools/horses demand tallies (0xa0cc/0xa0db/0xa0da/0xa0d4) and the NEEDS_COLONISTS count; the port's tallies here are Linux-shaped, the DOS ones live in ai_euro_5d04_cb_colony_needs / plan_scratch_refresh."
+        note: "Per own colony tools<20, muskets<10, food<pop*2, ore<20, lumber-labor want; ++cargo_idle_turns, ++improve_timer. DOS's own loop (raw 93107-93135) is the 5952_035e tick + specialty/muskets/tools/horses demand tallies (0xa0cc/0xa0db/0xa0da/0xa0d4) and the NEEDS_COLONISTS count; the port's tallies here are OpenCol-shaped, the DOS ones live in ai_euro_5d04_cb_colony_needs / plan_scratch_refresh."
       - id: treaty_timers
         kind: call
         label: Treaty timers tick
@@ -171,7 +171,7 @@ graphs:
         kind: step
         label: Build-queue policy (cancel stale, peace construction ladder, craft upgrades)
         fn: ai_euro.c:ai_euro_prefer_peace_construction
-        status: linux
+        status: port
         note: ai_euro_cancel_stale_zero_hammer_builds, prefer_peace_construction (Stockade→Fort→Fortress→Warehouse→Docks, Drydock→Shipyard, Custom House — NOT the Church, which is built by the 5952 build cascade, ai_euro_colony_jobs.c:ai_euro_5952_build_cascade @BUILDING 0x25), prefer_all_buildings, prefer_craft_upgrades, clear_pre_stockade_build_queue.
       - id: goals
         kind: sub
@@ -191,8 +191,8 @@ graphs:
         label: Euro diplomacy balance (war/peace rolls)
         sub: diplo_balance
         fn: ai_diplo.c:ai_diplo_euro_balance
-        status: linux
-        note: Linux-shaped pass with DOS pieces inside (10ec, 13b0); skipped for the crown because its peace arm would end the WoI.
+        status: port
+        note: OpenCol-shaped pass with DOS pieces inside (10ec, 13b0); skipped for the crown because its peace arm would end the WoI.
       - id: unit_loop
         kind: loop
         label: "do { wave 0: Treasure/Artillery/Wagon; wave 1: all; ids high→low; first unit with MP drained, rescan } while wave 1 progressed && guard<64"
@@ -485,7 +485,7 @@ graphs:
       - id: food
         kind: step
         label: Food emergency — food_short ≥ 4 → bind nearest food-capable colonist MD≤8 to LABOR
-        status: linux
+        status: port
       - id: sec_f
         kind: loop
         label: "F: tribes — tribe-adjacent FOUND secondary prio 2 (never on the village); friction>50 → MILITARY (capital higher)"
@@ -502,7 +502,7 @@ graphs:
         kind: step
         label: "G: continent stance — own≥2: at war MILITARY on weakest/nearest foe prio 6/7/8; peace bump one FOUND +1 or explore"
         fn: ai_euro.c:ai_euro_refresh_continent_stance
-        status: linux
+        status: port
       - id: ship_found
         kind: step
         label: "Ship FOUND — colonies==0 only: 06ae landfall seed from each ship at sea → FOUND primary (fitted, bugs.md #530)"
@@ -555,7 +555,7 @@ graphs:
       - id: skip_job
         kind: decision
         label: Mid Pioneer job (CLEAR_PLOW / BUILD_ROAD)?
-        status: linux
+        status: port
         note: Port guard — pilot state is fresh each turn, so a multi-turn job would otherwise be hijacked.
       - id: skip_state
         kind: decision
@@ -986,7 +986,7 @@ graphs:
       - id: peace_border
         kind: step
         label: "(retired 2026-09-23, bugs.md #760) — pass-through, no DOS peace border wake"
-        status: linux
+        status: port
         note: "The peace colony-defence wake (garrison or Artillery on its own colony wakes and hunts a foreign Euro land unit within MD<=2) was deleted as invented: manual-only citation (Colonization.pdf 'Defending a Colony'), and FUN_521d_20e6 raw 88266-90445 has no MD<=2 threat scan. DOS's own-colony handling is the type-agnostic LAB_5899 garrison arm (raw 88584-88612, node fortify / ai_euro_20e6_land_arms). The ctx flag peace_border_hunted is now always 0; its six unit tests were deleted with the arm."
       - id: treasure
         kind: step
@@ -1024,7 +1024,7 @@ graphs:
       - id: labor
         kind: step
         label: LABOR bind ladder — carpenter hammers, lumber, tools-short Pioneer, food labor, Free Colonist; MD≤8
-        status: linux
+        status: port
       - id: found_now
         kind: decision
         label: FOUND goal and standing on its tile?
@@ -1248,7 +1248,7 @@ graphs:
         kind: step
         label: Indian relation matrix tick
         fn: ai_diplo.c:ai_diplo_indian_matrix_tick
-        status: linux
+        status: port
       - id: peer_loop
         kind: loop
         label: Each Euro peer (skip self and control==2 slots)
@@ -1266,11 +1266,11 @@ graphs:
         kind: step
         label: Wartime Privateer spawn (or prize gold when no unit pool)
         fn: ai_diplo.c:ai_diplo_war_privateer_spawn
-        status: linux
+        status: port
       - id: fatigue
         kind: decision
         label: Near parity, timer 0, RNG(1,30)==1 → war-fatigue peace?
-        status: linux
+        status: port
       - id: eligible
         kind: decision
         label: self > 2×other + edge && self > war-min? (10ec war-worthy)
@@ -1281,8 +1281,8 @@ graphs:
         kind: step
         label: "RNG(1,20)==1 → declare war (human peer gets a CHOICE popup)"
         fn: ai_diplo.c:ai_diplo_declare_war_ctx
-        status: linux
-        note: "Second, Linux-only war opener. DOS AI→Euro war starts only via WAR_INTENT (treaty_timers) followed by an attack site setting WAR, or 13b0's paid @SMITE. 10ec itself is a pure eligibility predicate in DOS."
+        status: port
+        note: "Second, OpenCol-only war opener. DOS AI→Euro war starts only via WAR_INTENT (treaty_timers) followed by an attack site setting WAR, or 13b0's paid @SMITE. 10ec itself is a pure eligibility predicate in DOS."
       - id: treaty
         kind: call
         label: Treaty sign / cancel tick (requires an encounter this turn; (a+turn+b)%3 cadence)
@@ -1320,7 +1320,7 @@ graphs:
         fn: ai_euro_colony_jobs.c:ai_euro_colony_tick_28c8_reassign
         dos: FUN_5952_035e via 2a1f_0530 → 521d_5cf6 → 2a1f_05a8 — raw 93119, inside the PRELUDE colony loop
         status: dos
-        note: "ORDER DIVERGES: DOS runs the tick per colony in the 6d8e prelude (before 5d04 / 0342 / 0a60 and before any unit acts), so planning reads post-tick colony state. The port runs it last on purpose (w31-28c8 2026-08-29: the Linux expert field-assign arm needed a free tile first; that arm was deleted 2026-09-18 as invented, the position note is kept for the remaining ordering divergence). Body is DOS; position is Linux."
+        note: "ORDER DIVERGES: DOS runs the tick per colony in the 6d8e prelude (before 5d04 / 0342 / 0a60 and before any unit acts), so planning reads post-tick colony state. The port runs it last on purpose (w31-28c8 2026-08-29: the OpenCol expert field-assign arm needed a free tile first; that arm was deleted 2026-09-18 as invented, the position note is kept for the remaining ordering divergence). Body is DOS; position is OpenCol."
       - id: pioneer
         kind: loop
         label: Pioneer supply / road-connect / tile-improve trio — FUN_5952_035e raw 94370-94551

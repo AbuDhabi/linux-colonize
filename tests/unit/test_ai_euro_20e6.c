@@ -504,7 +504,7 @@ static int unit_explorer_clears_explore_goal_on_its_tile(void) {
  * civilian into the founder count, and DOS's sail gate skips a ship whose
  * cargo is ALL founders (`pioneers == a8` with an empty mask) — that hull
  * belongs to the explore/found machinery. The old fixture (colonist only)
- * passed through `ai_euro_nearest_short_coastal_colony`, a Linux-only
+ * passed through `ai_euro_nearest_short_coastal_colony`, an OpenCol-only
  * fallback retired with the still-thin list; the Scout makes the DOS gate
  * itself pass (cargo not all founders), which is what this scenario is for.
  */
@@ -1160,7 +1160,7 @@ static int unit_load_matrix_picks_priced_cargo(void) {
  * A 2-hold Caravel berths beside its own colony carrying 80 Ore and 40 Furs.
  * Neither is a delivery cargo (the raw 1702-1712 tally keeps only 0x0d..0x0f
  * and 0x08), so the delivery matrix and its sell tail stay out of the way;
- * the colony is not Ore-short (60 ≥ 20) so the port's Linux "colony is short
+ * the colony is not Ore-short (60 ≥ 20) so the port's OpenCol "colony is short
  * of this" unload arm refuses the hull; and the hull is not empty, so the 06e
  * empty-hull gate refused the load matrix. DOS has none of those rules: raw
  * 3002-3007 dumps EVERY hold into the colony unconditionally, and only then

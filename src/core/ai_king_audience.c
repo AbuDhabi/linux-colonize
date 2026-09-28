@@ -81,7 +81,7 @@ static void ai_king_msg_list_entry(
  * −0x6d68 = DS:0x9298 = stuff.colony_counts[] (save_format_map.md row 241),
  * the same table ai_king_rank_nations_0218 reads. Ported 2026-09-10 (audit
  * D9) — a human with zero colonies used to keep drawing tax audiences.
- * Gate: turn counter (DS:0x538e, Linux ctx->turn_number) >= 30; interval
+ * Gate: turn counter (DS:0x538e, OpenCol ctx->turn_number) >= 30; interval
  * base 18/15/12/9 by year band (>1600/>1700/>1750), narrowed by
  * difficulty (DOS: only when the audience's own nation *is* the human —
  * this port only ever rolls the audience for the human's nation, so that
@@ -971,7 +971,7 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    * the other Euro powers are fully removed: diplomatic status withdrawn
    * *and* every unit they own destroyed (colonies are untouched by 0108
    * itself -- DOS leaves them ownerless/inert once their nation's
-   * status=2). Linux already set control=2 here ("withdrawn"); the
+   * status=2). OpenCol already set control=2 here ("withdrawn"); the
    * unit-scrub half was missing. Crown-nation units (the REF spawns below)
    * must survive.
    */
@@ -1016,7 +1016,7 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
        * (0x08 is AI_DIPLO_AMICABLE, the DOS amicable-negotiation latch --
        * clearing it is the DOS write. Renamed 2026-09-09, smell #99: it was
        * called AI_DIPLO_TREASURE_STRONGER, which wrongly implied a
-       * Linux-invented second owner of the bit; DOS writes 0x08 both here,
+       * OpenCol-invented second owner of the bit; DOS writes 0x08 both here,
        * at 153e's tail, and in FUN_465b_0000's treasure arm.)
        */
       const uint8_t k_0108_clear =

@@ -9,7 +9,7 @@
 /*
  * Colony production golden #2: COLONY00-dutch2-t0.SAV -> one turn_end() ->
  * compare against COLONY01-dutch2-t1.SAV, a save produced by running the
- * *real* one turn in original DOS (not Linux-derived). A later, larger
+ * *real* one turn in original DOS (not OpenCol-derived). A later, larger
  * capture than colony_prod01 (turn 169, 17 colonies, established Dutch
  * economy with indoor manufacturing specialists), same idea: the player
  * made no moves that turn, so any Dutch colony field/building drift is

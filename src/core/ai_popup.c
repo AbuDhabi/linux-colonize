@@ -107,7 +107,7 @@ static bool ai_popup_enqueue(AiPopupState* st, const AiPopupRequest* req) {
 /*
  * Status line with an explicit DOS arm kind (FUN_1009_0244's first argument).
  * The plain enqueue is kind 1, the gold success ink DOS uses for a sale line;
- * kind 3 (red refusal) is DOS-real but has no Linux producer yet, so this
+ * kind 3 (red refusal) is DOS-real but has no OpenCol producer yet, so this
  * entry point is currently reached only through the kind-1 wrapper.
  */
 static bool ai_popup_enqueue_bar_message_kind(
@@ -149,7 +149,7 @@ const char* ai_popup_bar_message(const AiPopupState* st) {
  * (FUN_281f_0dc2(1, 0x78, 0), raw 77421 and 77503) and 3 for the red refusal
  * (FUN_281f_0de0(0x479b, 0x16, 3), raw 77369, plus the overlay Europe screen's
  * thunk_FUN_1000_99a0(3, 0x78, 0)). Kind 3 is DOS-real and simply unported —
- * the Linux ring has one producer, ai_popup_enqueue_bar_message's kind 1.
+ * the OpenCol ring has one producer, ai_popup_enqueue_bar_message's kind 1.
  * Corrected 2026-09-10 (audit #20), which read the 1/2 pair as two producers.
  */
 uint8_t ai_popup_bar_message_color(const AiPopupState* st) {

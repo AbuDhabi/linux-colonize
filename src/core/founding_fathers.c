@@ -1093,7 +1093,7 @@ static void apply_effect(
           europe->boycott_bitmap = 0;
         }
         /* No DOS write ties the king's tax-refuse latch (AI_KING_BOYCOTT_BYTE,
-         * a Linux-only bit) to Fugger's elect case — FUN_4345_0342 case 1
+         * an OpenCol-only bit) to Fugger's elect case — FUN_4345_0342 case 1
          * (raw 73079-73081) only ever zeroes nation+0x20. The latch
          * self-clears next king tick via ai_king_sync_boycott_refuse once it
          * observes boycott_bitmap==0 (ai_king.c), so an explicit clear here

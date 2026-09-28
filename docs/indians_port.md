@@ -15,7 +15,7 @@ Development snapshots tracking native-nation / Indian-contact porting progress.
 on `indian[idx].alarm_by_player[euro]` — 0..100, high = hostile, map-gen seed
 `RNG(0,14)` (+2×difficulty for AI nations), first contact clamps ≤20, **no
 per-turn decay** (byte-stable across seed-100 TURN3..7). `nation.relation_by_indian`
-is a flag byte (`0x60` once met) in every DOS save, never a scalar. Linux
+is a flag byte (`0x60` once met) in every DOS save, never a scalar. OpenCol
 therefore now has one store:
 
 - `ai_diplo_indian_alarm` / `ai_diplo_indian_alarm_delta` — DOS-native; used at
@@ -23,7 +23,7 @@ therefore now has one store:
   direction was inverted before: the tribe turns *hostile to the rebels*,
   content with the Crown; 2820/417e price operands; `0x4b` MADAT gates).
 - `ai_diplo_indian_relation` = `100 − alarm`, `_delta(d)` = `alarm_delta(−d)` —
-  the Linux-side view for fandom-derived sites (thresholds <40 refuse-talk,
+  the OpenCol-side view for fandom-derived sites (thresholds <40 refuse-talk,
   <50 thin at-war, raids/attacks −5, trade +2).
 - Retired as fiction: peaceful drift (+1/turn), peace feeler (+2), the
   relation ±1 arm of `ai_contact_indian_relation_tick`, the raid −3/−5 double
@@ -33,7 +33,7 @@ therefore now has one store:
   `euro_diplo` (`COL1_INDIAN_WAR_BIT`): DOS sets it only in `FUN_5bfb_153e`'s FA branch
   (`@SMITEINDIANS`/`@SMITEEUROPE` — pay an AI nation to declare war;
   unported) and clears it in `FUN_4cc6_00f2` when alarm cools below 75
-  (mirrored in `ai_diplo_indian_alarm_delta`). Linux sticky bands moved to
+  (mirrored in `ai_diplo_indian_alarm_delta`). OpenCol sticky bands moved to
   the DOS scale: at-war relation < 26, very-low < 16.
 
 ### 2026-09-06d — 152e / 1816 / 1b3a deepening (all three chains closed)
@@ -46,7 +46,7 @@ Result + trap + citation. Raw bodies: `viceroy_unpacked.c` 81387-81534
 raw thunk bytes read out of `viceroy_overlays.asm`, since Ghidra's C export
 of several of these thunks is reloc-`0000` garbage):
 
-| DOS call in 152e/1816/1b3a | Real target | Meaning | Linux |
+| DOS call in 152e/1816/1b3a | Real target | Meaning | OpenCol |
 |---|---|---|---|
 | `FUN_281f_095c` | `FUN_1427_06b4` | unit CREATE (type, nation, x, y) | `ai_indian_152e_spawn_brave` |
 | `FUN_281f_07b4` | `FUN_15eb_3960` | **Founding-Father bit test** (per-nation bitmap, stride `0x13c`) | `founding_fathers_nation_has` |
@@ -96,7 +96,7 @@ Indian alarm):
 - **§4** `if ((char)indian[+7] < 0) = 0` is a clamp on **`muskets`**, not on
   alarm. DOS treats `muskets` as a signed byte everywhere (152e's spend test
   is `'\0' < muskets` too). The old `ai_contact_clamp_alarms` alarm clamp was
-  a stand-in; kept, but relabelled Linux-only.
+  a stand-in; kept, but relabelled OpenCol-only.
 - **§6a goods decay** (was missing): `indian.tons[16]` (+0x0e, the 16 Col1
   cargo types) walks toward zero by `tech + 1` every Indian turn, clamped at
   0 and never crossing; a zero entry is not written at all. This is the trade
@@ -120,9 +120,9 @@ Indian alarm):
   one over-armed.
 
 *Deliberately not ported from `1816`* (display-only / already covered):
-`FUN_281f_04ca` timer reseed (Linux `ai_nation_reseed`), `FUN_281f_0a42`
+`FUN_281f_04ca` timer reseed (OpenCol `ai_nation_reseed`), `FUN_281f_0a42`
 context select and `FUN_281f_0590` turn-owner chrome colour, `FUN_281f_0470`
-UI pump (all three are DOS presentation state Linux keeps elsewhere), the
+UI pump (all three are DOS presentation state OpenCol keeps elsewhere), the
 `0x5394` active-nation word (`turn_set_active_nation`), and the act-loop /
 `act_counter` shape, which lives in `ai_native_nation_pulse` unchanged — it is
 golden-pinned and this pass deliberately did not touch it.
@@ -151,7 +151,7 @@ label is the reloc-`0000` stub misresolve documented in
   `ai.c`'s existing `k_ring_dx`/`k_ring_dy`. Harmless until now (the two
   tables are the same multiset, and both prior consumers only needed the
   *set*), but it matters the moment an index is paired with `colony.tiles[i]`.
-  Linux drives phase 3 off `colonies_field_tile_delta` + `colony->tiles[]`
+  OpenCol drives phase 3 off `colonies_field_tile_delta` + `colony->tiles[]`
   instead of re-deriving the DS index, so the claimed tile set is identical
   regardless of enumeration order.
 

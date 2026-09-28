@@ -11,20 +11,20 @@ Three layers — do not conflate them:
 | Layer | Status | What it proves |
 |-------|--------|----------------|
 | **Codec** (`col1_save_read_file` / `_memory` ↔ `col1_save_write_file`) | Strong | Byte-identical round-trip of original 3.0 fixtures |
-| **Linux import** (`col1_bridge_apply`) | Strong for mapped fields | Originals load and play in the port |
-| **Linux→DOS export** (`col1_bridge_capture`) | Strong for templates | Occupancy + density + blank census + colony levels; late `unknown_ds_*` / `other` stay zero/RMW |
+| **OpenCol import** (`col1_bridge_apply`) | Strong for mapped fields | Originals load and play in the port |
+| **OpenCol→DOS export** (`col1_bridge_capture`) | Strong for templates | Occupancy + density + blank census + colony levels; late `unknown_ds_*` / `other` stay zero/RMW |
 
 `col1_save_read_*` / `col1_save_write_*` are intended to be **byte-identical**
 round-trips of original 3.0 saves: every section is read into a packed struct
 (or opaque buffer) and written back in the same order and size. That does **not**
-mean a campaign save written after Linux play is DOS-safe.
+mean a campaign save written after OpenCol play is DOS-safe.
 
 Layout sizes are enforced by `col1_save_check_layout()` (also in
 `unit_col1_save`).
 
 **Header validation** mirrors DOS `FUN_75c2_0840` (slot probe / load):
 
-| Check | DOS | Linux |
+| Check | DOS | OpenCol |
 |-------|-----|-------|
 | Signature | NUL-terminated `COLONIZE` then `0x1A` (`FUN_1b2c_*`) | `col1_save_validate_head` |
 | Version | `uint16` == DS:`0x81a` (3.0 = **73**) | reject older → obsolete; newer → invalid |
@@ -174,7 +174,7 @@ Advanced by `turn_end()` in `src/core/turn.c` (and written back on Save):
 Autosave (when `game_options.autosave` is set): slot **9** every turn, slot **8** when entering a decade Spring year.
 
 Default save directory is `<exe>/COLONIZE` (via `savegame_default_dir()`), matching
-the DOS install layout so Linux and DOS can share the same `COLONY##.SAV` pile.
+the DOS install layout so OpenCol and DOS can share the same `COLONY##.SAV` pile.
 The directory is created empty on startup if missing. Override with `--save-dir`.
 
 Manual Save/Load (map menu, title **LOAD**, **S**/**L**) opens a wood slot popup:
@@ -191,7 +191,7 @@ from live pools + `tribe[]`, and defaults unit `ai_plan` to `0x58` when
 unset (`COL1_UNIT_UNKNOWN16_HI_DEFAULT`). Runtime `layer2` occupancy is kept
 via `units_set_occupancy_map` on spawn/move/despawn.
 
-### Remaining Linux→DOS gaps (known)
+### Remaining OpenCol→DOS gaps (known)
 
 Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_map.md)**.
 
@@ -283,10 +283,10 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   it means "arrives next tick"), with chained passengers kept
   aboard as `cargo_types`/`cargo_professions`; anything else at Europe
   coords stays the old harbor path (passengers to the docks, matching the
-  Linux arrival model). Guarded by `unit_col1_save`'s recapture block
+  OpenCol arrival model). Guarded by `unit_col1_save`'s recapture block
   (colony/unit counts survive apply→capture on all 19 fixtures; COLONY04
   Expected lane, COLONY06 harbor + synthetic Bound round-trip).
-  **2026-09-03:** user loaded a Linux-written save with a ship at sea in DOS;
+  **2026-09-03:** user loaded an OpenCol-written save with a ship at sea in DOS;
   it arrived.
 - **Colony cap** raised 32 → 48 (`COLONIZE_COLONIES_MAX`): DOS's founding
   gate is `colony_count < 0x30`; five 33-colony lategame fixtures were

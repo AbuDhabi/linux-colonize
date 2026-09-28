@@ -1162,7 +1162,7 @@ static int game_trade_stop_coords(
 }
 
 /*
- * Aim TRADE_ROUTE unit at stop index. Linux stand-in: follow_unit_id = route
+ * Aim TRADE_ROUTE unit at stop index. OpenCol stand-in: follow_unit_id = route
  * slot (0..11); col1_counter16 = stop index. Load/unload nibbles still thin.
  */
 int game_trade_route_aim_stop(ColonizeGameState* game, ColonizeUnit* u, int stop_i) {

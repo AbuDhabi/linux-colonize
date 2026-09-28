@@ -605,7 +605,7 @@ ColonizeForeignTradeGate colonies_foreign_trade_gate(
    * bugs.md #808: FUN_5f7a_020e has no "not my own colony" test — DOS gets
    * that for free here, because euro_relation[n][n] is a byte nothing ever
    * writes, so a same-nation actor reads 0 and takes the no-treaty arm
-   * (FUN_281f_03fe; return). ai_diplo_read has a Linux-only self virtual
+   * (FUN_281f_03fe; return). ai_diplo_read has an OpenCol-only self virtual
    * that answers PEACE, so the self pair is spelled out instead of being
    * smuggled into colonies_ftrade_bind as an invented gate.
    */

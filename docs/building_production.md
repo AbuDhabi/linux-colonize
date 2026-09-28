@@ -389,7 +389,7 @@ Full catalog: [sons_of_liberty.md](sons_of_liberty.md). Tory thresh by difficult
 
 ## UI: settlement badges vs Production tab
 
-| UI element | Should show | Linux port today |
+| UI element | Should show | OpenCol port today |
 |------------|-------------|------------------|
 | **Settlement badges** | Building slots | Workplace output-type + amount (Town Hall / Church include free passives even when empty) |
 | **Production tab** | Every cargo good / shortfall + hammers | [`colony_preview.c`](../src/core/colony_preview.c) via [`colony_production.c`](../src/core/colony_production.c); crosses/bells → people meters |
@@ -483,7 +483,7 @@ Note `sol_bonus` folds in *before* tier/skill scaling — it is not a flat post-
 
 ---
 
-## Linux implementation map
+## OpenCol implementation map
 
 | Concern | Module |
 |---------|--------|

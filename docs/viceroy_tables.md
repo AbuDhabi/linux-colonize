@@ -92,7 +92,7 @@ Candidate for coastline / connectivity variant selection (sprites in the 112–1
 [decomp_inventory.md](decomp_inventory.md). Retained as a VICEROY candidate for unrelated
 texture/connectivity work.
 
-### Linux compositor usage
+### OpenCol compositor usage
 
 | Table | Wired? | Notes |
 |-------|--------|-------|

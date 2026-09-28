@@ -83,7 +83,7 @@ static void units_mounted_attack_spend_all(ColonizeUnitPool* pool, int attacker_
  * auto-loss and the raid flag are the same latch, computed once.
  *
  * @UNIT type ids are the NAMES.TXT @UNIT line order (Colonists 0 … Artillery
- * 0xb … Braves 0x13), but a Linux POOL INDEX is not a DOS @UNIT id — synthetic
+ * 0xb … Braves 0x13), but an OpenCol POOL INDEX is not a DOS @UNIT id — synthetic
  * fixtures and modded rosters place types at arbitrary slots, and the raw
  * `type_index == 0x13/0x0b` test silently no-opped there (smell audit
  * 2026-09-09 #8). Match by type-name family, the rule combat_strength.c
@@ -817,7 +817,7 @@ int units_coastal_fort_attack_strength(
  * Affairs report reads the very same byte and bit (reports.c
  * REPORTS_FOREIGN_PEACE_BIT), so what the player sees as Peace/War there is
  * exactly what the battery obeys. The earlier port spelling gated on the
- * Linux WAR bit (0x02) instead: a treaty writer that set PEACE without
+ * OpenCol WAR bit (0x02) instead: a treaty writer that set PEACE without
  * clearing WAR left a pair reading "peace" in F8 while the fort still fired
  * (user-observed: Spanish Caravel shot at while F8 showed Spain at peace).
  */

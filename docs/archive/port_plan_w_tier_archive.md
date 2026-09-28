@@ -109,7 +109,7 @@ W4.3/W4.4 → deferred; W5.x → D4; W5.5 → D1/D3.
     ~75640) — so attacking costs `(step_cost + 3)` MP total regardless of
     outcome. Land units' max MP (≤4) is consumed either way ("attack ends
     the turn"); ships' much higher max MP survives it as a genuine slow —
-    that's what "ship-slow" names. Linux's `units_try_move` previously
+    that's what "ship-slow" names. OpenCol's `units_try_move` previously
     charged only the step cost, and only on a **win**; a loss charged
     nothing at all. Fixed in `src/core/units.c` (`units_try_move`): the
     surcharge is folded into the shared step-cost/RNG-overspend gate's
@@ -141,7 +141,7 @@ W4.3/W4.4 → deferred; W5.x → D4; W5.5 → D1/D3.
     i.e. an undefended **Euro** colony, not a village) spawns a *different*
     temp defender via `FUN_281f_02c6` (→ `FUN_112b_0002`,
     profession→ICONS.SS index) using colony fields at `+0x1f`/`+0xb8`
-    (viceroy_unpacked.c ~100417-100432) — Linux currently has no equivalent
+    (viceroy_unpacked.c ~100417-100432) — OpenCol currently has no equivalent
     at all; `units_try_capture_foreign_colony` walks straight into any
     colony with zero live defenders, no token-militia combat. Filed as
     **W1.8** below rather than ported here (needs its own RE pass on the
@@ -257,7 +257,7 @@ W4.3/W4.4 → deferred; W5.x → D4; W5.5 → D1/D3.
   empty Indian dwelling — a different code path (`FUN_281f_02c6` →
   `FUN_112b_0002`, profession→ICONS.SS index; colony fields `+0x1f`/`+0xb8`;
   viceroy_unpacked.c ~100417-100432) from the already-ported village-Brave
-  arm. Linux's `units_try_capture_foreign_colony` currently walks straight
+  arm. OpenCol's `units_try_capture_foreign_colony` currently walks straight
   into *any* colony with no live defenders and captures it — no combat, no
   chance to lose, unlike DOS which apparently always makes the attacker
   fight a token colonist-militia defender first. Static RE only (no live

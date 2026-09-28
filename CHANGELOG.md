@@ -10,7 +10,7 @@ bug rows resolved.
 
 Two themes dominate. First, the rival-European and native AI stopped being an
 approximation: the original's own decision logic now runs end to end, and around
-five thousand lines of Linux-only invented AI behaviour were deleted. Second, a
+five thousand lines of OpenCol-only invented AI behaviour were deleted. Second, a
 long audit pass removed invented rules throughout the game — Founding Father
 effects, native mechanics, combat rules and trade flows that came from wikis and
 guesswork rather than the 1994 binary — and replaced them with what the original

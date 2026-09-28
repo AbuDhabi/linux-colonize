@@ -713,7 +713,7 @@ static int missionary_bless_roll_matches_dos_one_in_four(void) {
 
 /*
  * Case 4 — the hire chain's @UNIT table. `ai_euro_5d04_dos_type_of` is the
- * DOS-side view of a Linux unit type, and its rows have to be NAMES.TXT
+ * DOS-side view of an OpenCol unit type, and its rows have to be NAMES.TXT
  * @UNIT file order (COLONIZE/NAMES.TXT:301-323): 0 Colonists .. 5 Scouts,
  * then the four WoI rows 6 Regulars / 7 Cont. Cav. / 8 Cavalry / 9 Cont.
  * Army, then 10 Treasure / 11 Artillery / 12 Wagon Train. Until 2026-09-09
@@ -779,7 +779,7 @@ static int dos_type_table_is_names_txt_unit_order(void) {
  * Case 5 — DS:0x5238[type], the hull-space column the recruit-buy loop
  * subtracts from `local_42` (raw 92656). The loop holds a DOS @UNIT code (it
  * has just written one with `set_unit_dispatch_byte`), and DS:0x5238 is a
- * DOS-indexed table, so the code must be translated back to a Linux pool type
+ * DOS-indexed table, so the code must be translated back to an OpenCol pool type
  * before the row is read. Until 2026-09-09 the code went straight into
  * `units_type()` as a pool index, which only happened to agree when the pool
  * was loaded from NAMES.TXT in file order.

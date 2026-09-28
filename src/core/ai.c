@@ -175,7 +175,7 @@ static void ai_coarse_fog_mark_tribe(int x, int y) {
  * ((y>>2)+(x>>2)*18 |= 1 or 5) and colonies (|= 2). Mapgen (FUN_6a09) writes
  * its tribe marks into the same bytes, so the init pulse sees those, but by
  * the first mid-turn Brave pulse the plane only holds the *last* Euro
- * nation's stamps — the far-probe +8 fires almost everywhere. Linux kept the
+ * nation's stamps — the far-probe +8 fires almost everywhere. OpenCol kept the
  * mapgen tribe marks forever (2026-08-28 fix).
  */
 void ai_coarse_fog_euro_restamp(
@@ -659,7 +659,7 @@ uint8_t ai_layer2_at(const ColonizeWorldMap* map, int x, int y) {
 
 /* FUN_281f_0754 / mask &0x0a: village (0x02) or road (Col1 mask 0x08).
  * 2026-08-27: the road half now reads the real improvement plane
- * (map_tile_has_road) — layer2 bit 0x08 is Linux's rumour-cleared stand-in
+ * (map_tile_has_road) — layer2 bit 0x08 is OpenCol's rumour-cleared stand-in
  * and bit 0x40 is plowed, neither is a road; reading them here made the
  * river/road "+1" pair term fire on 2 of the 3 parked seed-100 Braves. */
 int ai_mask_fa_flags(const ColonizeWorldMap* map, int x, int y) {

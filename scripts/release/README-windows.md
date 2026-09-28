@@ -1,4 +1,4 @@
-# opencol (Windows build)
+# OpenCol (Windows build)
 
 Windows port of **Sid Meier's Colonization** (MicroProse, 1994 DOS) — the
 Windows build of the opencol project.

@@ -556,7 +556,7 @@ static int ai_goals_tile_layer2_owner(const ColonizeWorldMap* map, int x, int y,
  * FUN_281f_074a → FUN_137f_02f8: the DS:0x168 seen plane byte. Its LOW nibble
  * is the map-gen colony-site score (0..15); the per-nation seen bits live in
  * the HIGH nibble (0x10 << nation). Mirrors ai_euro_20e6_site_nibble
- * (ai_euro.c:11084) including its generated-map fallback: Linux map_gen writes
+ * (ai_euro.c:11084) including its generated-map fallback: OpenCol map_gen writes
  * no nibble at all, and an all-zero nibble field would silently zero the whole
  * extras term, so when no tile in the plane carries a low nibble the old
  * per-nation unseen→4 stand-in is used instead.
@@ -643,7 +643,7 @@ int ai_goals_pick_founding_tile_ex_w(
      * No Arctic exclusion: DOS 06ae (decomp 87282-87285) gates the candidate
      * on 0302 (inset) && !0768 (not ocean/high-seas) only. Arctic's DS:0x2f77
      * founding byte is 0, so it can only ever win when nothing else scores —
-     * the explicit `terrain_index == 24 -> continue` here was Linux-only.
+     * the explicit `terrain_index == 24 -> continue` here was OpenCol-only.
      */
     /*
      * Never the village tile itself (DOS: "Illegal entry into village").
@@ -715,7 +715,7 @@ int ai_goals_pick_founding_tile_ex_w(
     /*
      * Base: terrain-class founding byte @ DS:0x2f77 (decomp 87286-87287).
      * That byte plus `bal * 0x10` plus the seen-plane nibble is DOS's *whole*
-     * term set — the Linux `coastal_bonus` (+10 every colony, +40 the first)
+     * term set — the OpenCol `coastal_bonus` (+10 every colony, +40 the first)
      * and its `x - nx` west bias were removed 2026-09-08: a flat +10 on every
      * coastal candidate dominates a 0..6 terrain byte outright.
      */
@@ -806,7 +806,7 @@ int ai_goals_pick_founding_tile_ex_w(
   if (!any) {
     /*
      * DOS has no fallback: `local_10` is seeded 8 and 06ae returns it, i.e.
-     * "stay". The Linux ring-2..4 rescan that used to sit here invented sites
+     * "stay". The OpenCol ring-2..4 rescan that used to sit here invented sites
      * two to four tiles away that DOS never scores, so it is gone (2026-09-08).
      * The port keeps a 0 = "no site" return rather than DOS's unconditional
      * dir 8 because ~9 call sites branch on it (ai_euro.c:16928 hands the

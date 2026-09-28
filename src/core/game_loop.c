@@ -1249,7 +1249,7 @@ COLONIZE_INTERNAL void game_render_begin_menu(
       tx = inner_x + L.title_pad_x;
     }
     /* audit GL-8: was a private char-by-char copy of the {} emphasis drawer.
-     * The line is load_begin_menu's fixed "{COLONIZATION} Linux Port <ver>",
+     * The line is load_begin_menu's fixed "{COLONIZATION} OpenCol <ver>",
      * so the one place the two differ — popup_draw_text_markup drops the
      * ~ / # hotkey markers that the old loop drew as glyphs — cannot arise. */
     (void)popup_draw_text_markup(

@@ -1,7 +1,7 @@
 # Popup inventory
 
 Inventory of every player-facing modal in original Colonization, cross-checked
-against the Linux port. Canonical copy identity is the `@SECTION` name in
+against the port. Canonical copy identity is the `@SECTION` name in
 [`COLONIZE/GAME.TXT`](../COLONIZE/GAME.TXT) (499 sections). Decomp call sites
 are secondary citations.
 

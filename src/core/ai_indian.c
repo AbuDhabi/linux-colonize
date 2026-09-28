@@ -108,7 +108,7 @@ static int ai_indian_152e_worth_cap(
  * **The old stub's premise was wrong**: DOS's `local_4` is not a "cost", it
  * is `param_1` of `1427:06b4` — the *unit type*. 152e builds it as
  * `0x13 + 1*(a musket was spent) + 2*(50 horse-breeding was spent)`, i.e.
- * exactly the four native unit types Linux already knows from
+ * exactly the four native unit types OpenCol already knows from
  * `ai_euro.c`'s NAMES map: 0x13 Brave, 0x14 Armed Brave, 0x15 Mtd. Brave,
  * 0x16 Mtd. Warrior. So this branch arms the newborn out of the nation's
  * own musket/horse stock — the muskets/horses were never a "cost paid for
@@ -126,7 +126,7 @@ static int ai_indian_152e_worth_cap(
  *     `0xff/0xff` writes just above it are pre-placement scratch; Ghidra
  *     drops 02ca's register args).
  *
- * Linux uses `units_spawn_allow_stack` for the placement half (native units
+ * OpenCol uses `units_spawn_allow_stack` for the placement half (native units
  * routinely stack on their own village tile) and mirrors the DOS pool cap.
  * The branch's gate is `t->state.needs_colonist`. Its DOS producer is unit
  * DESTROY, `FUN_1427_0824` raw 7796-7799, NOT village CREATE
@@ -541,7 +541,7 @@ static bool ai_indian_152e_ff_bit(
  * Field mapping (DOS 0x8d4a "settlement record" == this tribe;
  * DOS 0x8d4e "indian state" == col1->indian[nation_id-4]):
  *   +3 bit0 "needs first colonist"     -> t->state.needs_colonist (new bit,
- *                                          no Linux producer yet, see its
+ *                                          no OpenCol producer yet, see its
  *                                          own comment in col1_save.h).
  *   +3 bit4 "capital-class multiplier" -> t->state.capital.
  *   +4 "worth"                         -> t->population (existing T0 map).
@@ -713,7 +713,7 @@ static void ai_indian_152e_village_growth(
      * DOS spends the accumulator through FUN_281f_0d6c (raw 80240/80247/
      * 80255), and 0d6c is a bare thunk to FUN_4cc6_00f2 — the WHOLE of it,
      * escalation tail included. 0x5b1c is written nowhere else in any
-     * decompiled export, so there is no "bare writer" in DOS: the Linux
+     * decompiled export, so there is no "bare writer" in DOS: the OpenCol
      * split into ai_diplo_indian_alarm_delta (first half) and
      * ai_contact_alarm_delta_00f2 (+ tail) is a port artifact, and this —
      * DOS's sole alarm-growth channel — must take the full function or the
@@ -922,7 +922,7 @@ int ai_quiet_fog_explore_ex(
  *   *3 if a Euro colony sits there; <<1 if a native village does;
  *   Missionary (0xb) with neither -> 0; crown nation at home (0x8db8==0)
  *   with neither -> >>1; (@UNIT flag 0x10 && G-table stance 4) -> *3 —
- *   the stance table is Euro-only in Linux (ai_euro_continent_stance_at
+ *   the stance table is Euro-only in OpenCol (ai_euro_continent_stance_at
  *   returns 0 for nations >= 4), so that last term never fires for Braves.
  *   clamp: >999 or <0 -> 1000; then score -= 999 when e8 < 12 for a land
  *   unit, else score += max(1, e8) * 4.
