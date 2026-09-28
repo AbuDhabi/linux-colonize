@@ -254,6 +254,12 @@ bool units_board(ColonizeUnitPool* pool, int land_unit_id, int ship_id);
 /* Board without adjacency check (COL1 import; passenger already stacked on ship tile). */
 bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id);
 /*
+ * Same, but with no capacity gate: restoring a saved manifest (COL1 load /
+ * pre-capture ocean-orphan repair). See units_cargo.c for why a DOS-legit
+ * ship can carry more than the boarding gate would pass.
+ */
+bool units_board_stacked_restore(ColonizeUnitPool* pool, int land_unit_id, int ship_id);
+/*
  * Own ship on (x,y) with room for `need_space` holds, or -1.
  * Cite: FUN_4720_0006 / 015c land→ocean embark probe; the room test is
  * FUN_4720_00e0's `param_2 <= room` (raw 74637-74644).
