@@ -1941,34 +1941,35 @@ int ai_euro_ship_dos_enabled(void) {
   return ai_euro_env_flag("AI_SHIP_DOS", 0);
 }
 
-/*
- * DOS-LITERAL FUN_281f_0984 -> FUN_1427_09dc for a mover standing on its own
- * tile: 1 when any of the eight neighbours carries a foreign unit
- * (FUN_137f_03e4, layer2 bit 2) or, failing that, a foreign settlement —
- * colony OR village (FUN_137f_0314, layer2 bit 1 + owner nibble). With the
- * mover's own unit on the centre tile the water/land domain test in the loop
- * is always satisfied, so it drops out.
- */
+/* DOS-LITERAL FUN_1427_09dc raw 7927-7968. 03e4 reads layer2
+ * bit 0x02 (settlement), 0314 reads bit 0x01 (unit). A mover outside a
+ * settlement only detects adjacent units in its own water/land domain.
+ * Swapping these probes let coastal Braves interrupt a ship's arrived
+ * order before the pathfinder could clear its facing (#530). */
 static int ai_euro_09dc_dos(const ColonizeTurnContext* ctx, int x, int y, int nation_id) {
+  const ColonizeCol1Save* col1 = ctx->col1_ok ? ctx->col1 : NULL;
+  const int settled = ai_euro_20e6_colony_owner_at(ctx, x, y) >= 0 ||
+                      ai_euro_village_nation_at(col1, x, y) >= 0;
+  int water = map_tile_is_water(ctx->map, x, y);
   for (int d = 0; d < 8; ++d) {
     const int nx = x + MAP_DIR8_DX[d];
     const int ny = y + MAP_DIR8_DY[d];
     if (!map_in_bounds(ctx->map, nx, ny)) {
       continue;
     }
-    int owner = -1;
-    const int uid = units_id_at(ctx->units, nx, ny);
-    if (uid >= 0) {
-      const ColonizeUnit* nu = units_get_const(ctx->units, uid);
+    const int domain = settled ? water : map_tile_is_water(ctx->map, nx, ny);
+    int owner = ai_euro_20e6_colony_owner_at(ctx, nx, ny);
+    if (owner < 0) {
+      owner = ai_euro_village_nation_at(col1, nx, ny);
+    }
+    if (owner < 0) {
+      const int uid = units_id_at(ctx->units, nx, ny);
+      const ColonizeUnit* nu = uid >= 0 ? units_get_const(ctx->units, uid) : NULL;
       owner = nu ? nu->nation_id : -1;
+    } else {
+      water = domain;
     }
-    if (owner < 0) {
-      owner = ai_euro_20e6_colony_owner_at(ctx, nx, ny);
-    }
-    if (owner < 0) {
-      owner = ai_euro_village_nation_at(ctx->col1_ok ? ctx->col1 : NULL, nx, ny);
-    }
-    if (owner >= 0 && owner != nation_id) {
+    if (owner >= 0 && owner != nation_id && domain == water) {
       return 1;
     }
   }

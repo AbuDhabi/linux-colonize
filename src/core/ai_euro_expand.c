@@ -906,34 +906,10 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
 
 /* --- inventory (6d8e steps 1–3) ---------------------------------------- */
 
-void ai_euro_colony_inventory(ColonizeTurnContext* ctx, int nation_id) {
-  AiEuroInventory* inv = ai_goals_inventory(nation_id);
-  if (!inv || !ctx) {
-    return;
-  }
-  ai_goals_inventory_clear(nation_id);
-  inv->colony_count = colonies_count_for_nation(ctx->colonies, nation_id);
-  /* founding_expansion_urgency stand-in: early game → 8. */
-  inv->urgency = (inv->colony_count < 3) ? 8 : (inv->colony_count < 6 ? 4 : 0);
-
-  if (!ctx->colonies) {
-    return;
-  }
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id != nation_id) {
-      continue;
-    }
-    /* 5cf6-shaped shortage tallies. */
-    if (c->stock[COLONIZE_CARGO_TOOLS] < 20) {
-      inv->tools_short += 20 - c->stock[COLONIZE_CARGO_TOOLS];
-    }
-    if (c->stock[COLONIZE_CARGO_MUSKETS] < 10) {
-      inv->muskets_short += 10 - c->stock[COLONIZE_CARGO_MUSKETS];
-    }
-    if (c->stock[COLONIZE_CARGO_FOOD] < c->population * 2) {
-      inv->food_short += (c->population * 2) - c->stock[COLONIZE_CARGO_FOOD];
-    }
+/* FUN_5952_035e turn-top counters and origin binding, before threat census. */
+void ai_euro_5952_colony_counters(
+  ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c
+) {
     /* FUN_5952_035e thin: INC cargo_idle_turns (+0x8f) + improve_timer (+0x8c)
      * cap 0x7f. */
     if (c->cargo_idle_turns < 0x7f) {
@@ -969,6 +945,39 @@ void ai_euro_colony_inventory(ColonizeTurnContext* ctx, int nation_id) {
           su->col1_origin = (uint8_t)c->id;
         }
       }
+    }
+}
+
+void ai_euro_colony_inventory(ColonizeTurnContext* ctx, int nation_id) {
+  AiEuroInventory* inv = ai_goals_inventory(nation_id);
+  if (!inv || !ctx) {
+    return;
+  }
+  ai_goals_inventory_clear(nation_id);
+  inv->colony_count = colonies_count_for_nation(ctx->colonies, nation_id);
+  /* founding_expansion_urgency stand-in: early game → 8. */
+  inv->urgency = (inv->colony_count < 3) ? 8 : (inv->colony_count < 6 ? 4 : 0);
+
+  if (!ctx->colonies) {
+    return;
+  }
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    /* 5cf6-shaped shortage tallies. */
+    if (c->stock[COLONIZE_CARGO_TOOLS] < 20) {
+      inv->tools_short += 20 - c->stock[COLONIZE_CARGO_TOOLS];
+    }
+    if (c->stock[COLONIZE_CARGO_MUSKETS] < 10) {
+      inv->muskets_short += 10 - c->stock[COLONIZE_CARGO_MUSKETS];
+    }
+    if (c->stock[COLONIZE_CARGO_FOOD] < c->population * 2) {
+      inv->food_short += (c->population * 2) - c->stock[COLONIZE_CARGO_FOOD];
+    }
+    if (!ai_euro_ship_dos_enabled()) {
+      ai_euro_5952_colony_counters(ctx, nation_id, c);
     }
     /*
      * The 11-cargo "surplus haul ladder" that used to refresh +0x8d here was

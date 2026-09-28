@@ -2111,6 +2111,33 @@ static void ai_euro_colony_threat_seed_5952(
   }
 }
 
+/* FUN_5952_035e raw 94097-94352: per-colony state before placement.
+ * Keep iStack_76 local to this whole prelude, including absorption. */
+void ai_euro_5952_colony_prelude(
+  ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c
+) {
+  /*
+   * FUN_5952_035e threat accumulator → garrison_quota (+0x1e). DOS order:
+   * the quota write happens BEFORE the tick's ai_flags bit writes, so the
+   * refresh below reads this turn's quota (it used to read last turn's).
+   */
+  int labor_running = 0; /* iStack_76, carried into the absorption arm */
+  ai_euro_colony_threat_seed_5952(ctx, nation_id, c, &labor_running);
+  /* FUN_5952_035e raw 94170-94190 — the tick's Indian war-declare block
+   * (or_both(nation, tribe+4, 2)); lives in ai_contact.c. DOS runs it in
+   * the same per-colony body, between the expansion-appetite math and the
+   * +0x1b flag writes; it draws no RNG, so its position inside the tick
+   * cannot shift a stream. */
+  ai_contact_colony_tick_war_5952(ctx, nation_id, c->x, c->y);
+  ai_euro_refresh_colony_ai_flags(ctx, nation_id, c);
+  /*
+   * raw 94231-94352: the tile re-scan absorption arm and the equip arm, at
+   * DOS's position — after every +0x1b flag write and the by-profession
+   * census, before the build-preference / construction cascade.
+   */
+  ai_euro_5952_absorb_equip(ctx, nation_id, c, &labor_running);
+}
+
 /* --- 0a60 colony goals: stage helpers ---------------------------------- */
 
 COLONIZE_INTERNAL void ai_euro_colony_goals_unit_contact(
@@ -2155,26 +2182,9 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_labor(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c,
   AiEuroInventory* inv, int urgency
 ) {
-  /*
-   * FUN_5952_035e threat accumulator → garrison_quota (+0x1e). DOS order:
-   * the quota write happens BEFORE the tick's ai_flags bit writes, so the
-   * refresh below reads this turn's quota (it used to read last turn's).
-   */
-  int labor_running = 0; /* iStack_76, carried into the absorption arm */
-  ai_euro_colony_threat_seed_5952(ctx, nation_id, c, &labor_running);
-  /* FUN_5952_035e raw 94170-94190 — the tick's Indian war-declare block
-   * (or_both(nation, tribe+4, 2)); lives in ai_contact.c. DOS runs it in
-   * the same per-colony body, between the expansion-appetite math and the
-   * +0x1b flag writes; it draws no RNG, so its position inside the tick
-   * cannot shift a stream. */
-  ai_contact_colony_tick_war_5952(ctx, nation_id, c->x, c->y);
-  ai_euro_refresh_colony_ai_flags(ctx, nation_id, c);
-  /*
-   * raw 94231-94352: the tile re-scan absorption arm and the equip arm, at
-   * DOS's position — after every +0x1b flag write and the by-profession
-   * census, before the build-preference / construction cascade.
-   */
-  ai_euro_5952_absorb_equip(ctx, nation_id, c, &labor_running);
+  if (!ai_euro_ship_dos_enabled()) {
+    ai_euro_5952_colony_prelude(ctx, nation_id, c);
+  }
   /*
    * `|| c->labor_shortage > 0` used to be a third disjunct here. It was
    * calibrated against the retired thin latch (0 unless something set

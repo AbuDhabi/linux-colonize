@@ -356,19 +356,26 @@ static int case_530_ship_arrival_facing(void) {
   fx_units_init(&units);
   fx_colonies_init(&colonies);
   ai_euro_reset();
-  units.type_count = 1;
+  units.type_count = 2;
   units.types[0].kind_plus1 = UNITS_KIND_CARAVEL + 1;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
   units.types[0].movement = 4;
+  units.types[1].kind_plus1 = UNITS_KIND_BRAVE + 1;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  map.terrain[8 * 16 + 6] = 2;
+  ColonizeUnit* brave = units_get(&units, units_spawn(&units, 1, 6, 8));
+  if (!brave) { fx_map_free(&map); return 1; }
+  brave->nation_id = 4;
   const int id = units_spawn(&units, 0, 7, 7);
   ColonizeUnit* u = units_get(&units, id);
   if (!u) { fx_map_free(&map); return 1; }
   u->nation_id = 1;
   ColonizeTurnContext ctx = {.units=&units, .colonies=&colonies, .map=&map};
   int rc = 0;
+  for (int order = AI_EURO_ACT_GOAL; order <= AI_EURO_ACT_STEP; ++order) {
   for (int mp = 1; mp >= 0; --mp) {
     u->moves = mp;
-    u->orders = AI_EURO_ACT_GOAL;
+    u->orders = order;
     u->goto_x = u->x;
     u->goto_y = u->y;
     u->last_dir = 7;
@@ -381,6 +388,7 @@ static int case_530_ship_arrival_facing(void) {
       rc = 1;
       break;
     }
+  }
   }
   fx_map_free(&map);
   return rc;
