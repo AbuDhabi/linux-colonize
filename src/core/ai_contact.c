@@ -1489,33 +1489,10 @@ int ai_contact_try_ship_village_unit(
     return 1;
   }
 
-  /* Narrow mid-relation window: thin Meet CHOICE (land path stand-in). */
-  /* Mid band ≥0x32..<0x4b: cooler ship voice, still fall through (Series T). */
-  int mid_wary = 0;
-  if (alarm > 25 && alarm <= 50 && friction < 0x40) {
-    char wary[AI_POPUP_BODY_LEN];
-    snprintf(
-      wary,
-      sizeof(wary),
-      "The %s are wary of ships.",
-      ai_contact_tribe_name(indian_nation)
-    );
-    ai_contact_human_chrome(ctx, euro_nation, AI_POPUP_TAG_INFO, indian_nation, "", wary);
-    if (!ai_contact_euro_is_human(ctx, euro_nation)) {
-      ai_contact_set_status(ctx, wary);
-    }
-    mid_wary = 1;
-  }
-
   /* Ship contact never carries a Missionary; capital status is real
    * (the specific village record was already resolved above). */
-  if (ai_contact_try_village_meet_unit_at(
-        ctx, euro_nation, indian_nation, 0, tribe->state.capital, unit_id, tribe_index)) {
-    return 1;
-  }
-  if (!mid_wary) {
-    ai_contact_set_status(ctx, "The village will not receive our ships.");
-  }
+  ai_contact_try_village_meet_unit_at(
+    ctx, euro_nation, indian_nation, 0, tribe->state.capital, unit_id, tribe_index);
   return 1;
 }
 
