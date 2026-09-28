@@ -3002,6 +3002,171 @@ int main(void) {
   }
 
   /*
+   * campaign4 trade-route regression: capture restores the raw DOS
+   * +0x0c..+0x15 block a unit arrived with (brave counters, pioneer tools,
+   * the wagon errand latch) and then overwrites only the hold slots the
+   * runtime still fills. A carrier that has unloaded since the save was
+   * applied therefore wrote its OLD cargo back out, and the next load handed
+   * the wagon phantom goods that blocked every pickup — the route hauled
+   * nothing and the source colonies piled up. Emptied slots inside the
+   * unit's own hold count must come back zeroed.
+   */
+  {
+    ColonizeMsgCatalog names;
+    assets_msg_init(&names);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+      fprintf(stderr, "stale hold: NAMES.TXT load failed\n");
+      return 1;
+    }
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    if (!map_alloc(&map, COLONIZE_COL1_MAP_W_STD, COLONIZE_COL1_MAP_H_STD, err, sizeof(err))) {
+      fprintf(stderr, "stale hold: map_alloc: %s\n", err);
+      assets_msg_free(&names);
+      return 1;
+    }
+    for (size_t i = 0; i < map.tile_count; ++i) {
+      map.terrain[i] = 1; /* land */
+    }
+    ColonizeCol1Save save;
+    if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
+      fprintf(stderr, "stale hold: template: %s\n", err);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
+    units_reset(&units);
+    units_set_occupancy_map(NULL);
+    if (!units_load_types(&units, &names)) {
+      fprintf(stderr, "stale hold: unit types failed\n");
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    units_set_occupancy_map(&map);
+    const int wagon_t = units_find_type(&units, "Wagon Train");
+    const int wagon = units_spawn(&units, wagon_t >= 0 ? wagon_t : 12, 20, 20);
+    ColonizeUnit* w0 = units_get(&units, wagon);
+    if (!w0) {
+      fprintf(stderr, "stale hold: wagon spawn failed\n");
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    w0->nation_id = 0;
+    w0->hold_goods_type[0] = COLONIZE_CARGO_SILVER;
+    w0->hold_goods_amount[0] = 70;
+    w0->hold_goods_type[1] = COLONIZE_CARGO_SUGAR;
+    w0->hold_goods_amount[1] = 44;
+
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
+    EuropeScreen europe;
+    memset(&europe, 0, sizeof(europe));
+    europe.cargo_count = 16;
+    const ColonizeWorld w_out = {.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true, .europe=(EuropeScreen*)(&europe)};
+    if (!col1_bridge_capture_w(&w_out, 1492, 0, 1, 0, 20, 20, 20, 20, wagon, 0, err, sizeof(err))) {
+      fprintf(stderr, "stale hold: capture (loaded): %s\n", err);
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    /* Round-trip through apply so the wagon carries the raw +0x0c..+0x15
+     * block the capture side restores. */
+    ColonizeUnitPool units2;
+    memset(&units2, 0, sizeof(units2));
+    units_reset(&units2);
+    units_set_occupancy_map(NULL);
+    if (!units_load_types(&units2, &names)) {
+      fprintf(stderr, "stale hold: unit types (2) failed\n");
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeColonyPool colonies2;
+    colonies_init(&colonies2);
+    colonies_set_occupancy_map(NULL);
+    EuropeScreen europe2;
+    memset(&europe2, 0, sizeof(europe2));
+    europe2.cargo_count = 16;
+    ColonizeWorldMap map2;
+    memset(&map2, 0, sizeof(map2));
+    ColonizeCol1BridgeResult br2;
+    if (!col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units2), .colonies=(ColonizeColonyPool*)(&colonies2), .map=(ColonizeWorldMap*)(&map2), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true, .europe=(EuropeScreen*)(&europe2)}, &br2, err, sizeof(err))) {
+      fprintf(stderr, "stale hold: apply: %s\n", err);
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    int rc = 0;
+    int wid = -1;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = units_get_const(&units2, i);
+      if (u && u->active && u->hold_goods_amount[0] == 70) {
+        wid = u->id;
+        break;
+      }
+    }
+    ColonizeUnit* w2 = wid >= 0 ? units_get(&units2, wid) : NULL;
+    if (!w2) {
+      fprintf(stderr, "stale hold: apply did not restore the loaded wagon\n");
+      rc = 1;
+    } else {
+      /* The route unloads the whole wagon at its next stop. */
+      memset(w2->hold_goods_type, 0, sizeof(w2->hold_goods_type));
+      memset(w2->hold_goods_amount, 0, sizeof(w2->hold_goods_amount));
+      units_set_occupancy_map(&map2);
+      if (!col1_bridge_capture_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units2), .colonies=(ColonizeColonyPool*)(&colonies2), .map=(ColonizeWorldMap*)(&map2), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true, .europe=(EuropeScreen*)(&europe2)}, 1492, 0, 1, 0, 20, 20, 20, 20, wid, 0, err, sizeof(err))) {
+        fprintf(stderr, "stale hold: capture (emptied): %s\n", err);
+        rc = 1;
+      } else {
+        int found = -1;
+        for (uint16_t i = 0; i < save.head.unit_count; ++i) {
+          if (save.unit[i].type == 0x0c) {
+            found = (int)i;
+            break;
+          }
+        }
+        if (found < 0) {
+          fprintf(stderr, "stale hold: emptied wagon missing from the capture\n");
+          rc = 1;
+        } else if (save.unit[found].holds_occupied != 0 ||
+                   save.unit[found].cargo_hold[0] != 0 || save.unit[found].cargo_hold[1] != 0) {
+          fprintf(
+            stderr,
+            "stale hold: emptied wagon saved holds=%u cargo=[%u,%u] (want 0/[0,0])\n",
+            (unsigned)save.unit[found].holds_occupied,
+            (unsigned)save.unit[found].cargo_hold[0],
+            (unsigned)save.unit[found].cargo_hold[1]
+          );
+          rc = 1;
+        }
+      }
+    }
+    units_set_occupancy_map(NULL);
+    map_free(&map2);
+    map_free(&map);
+    col1_save_free(&save);
+    assets_msg_free(&names);
+    if (rc != 0) {
+      return 1;
+    }
+    fprintf(stderr, "emptied carrier holds do not resurrect stale cargo ok\n");
+  }
+
+  /*
    * Two file-driven decoder bounds, both on raw bytes an untrusted save can
    * carry (smell audit #72/#73):
    *

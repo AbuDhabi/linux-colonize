@@ -2905,6 +2905,8 @@ bool col1_bridge_capture_w(
          */
         memcpy(&dst->holds_occupied, src->col1_hold_raw, sizeof(src->col1_hold_raw));
       }
+      const ColonizeUnitType* cap_type = units_type(units, src->type_index);
+      const bool carries_goods = cap_type && cap_type->cargo > 0;
       {
         /* Pack goods into nibble fields + amounts. Passengers are not goods. */
         int gi = 0;
@@ -2940,6 +2942,28 @@ bool col1_bridge_capture_w(
         if (gi > 0 || !src->col1_hold_raw_valid) {
           dst->holds_occupied = (uint8_t)gi;
         }
+        /*
+         * campaign4 trade-route regression: the raw +0x0c..+0x15 restore
+         * above re-emits the hold bytes stashed at APPLY time, and the
+         * packing loop only overwrites slots 0..gi-1. A carrier that has
+         * since unloaded therefore saved its old cargo, and reloading gave
+         * the wagon/ship phantom goods that filled its holds — the route
+         * then hauled nothing and the source colonies piled up
+         * (trace_autosave_turn_243: wagon empty in play, 70 silver + 44
+         * sugar in the file; turn 253: live 56 silver plus the stale 44).
+         * Slots the port models are the port's to own; only the ones past
+         * the unit's hold count keep DOS's repurposed bytes (brave
+         * counters, pioneer tools, the wagon errand latch at hold[4]).
+         */
+        if (carries_goods && src->col1_hold_raw_valid) {
+          const int holds =
+            cap_type->cargo < COLONIZE_UNIT_CARGO_MAX ? cap_type->cargo : COLONIZE_UNIT_CARGO_MAX;
+          for (int h = gi; h < holds && h < 6; ++h) {
+            dst->cargo_hold[h] = 0;
+            col1_unit_set_cargo_item(dst, h, 0);
+          }
+          dst->holds_occupied = (uint8_t)gi;
+        }
       }
       /* DOS pioneer tools = cargo_hold[5] (FUN_479b_0158). Keep actual count.
        * A stashed hold[5] > 100 is the repurposed DOS byte, never tools —
@@ -2949,8 +2973,6 @@ bool col1_bridge_capture_w(
        * column, not units_is_transport — that predicate also demands the unit
        * be on the map, so an off-map (aboard / in-Europe) Wagon Train fell
        * into the pioneer-tools arm and could zero its raw hold[5]. */
-      const ColonizeUnitType* cap_type = units_type(units, src->type_index);
-      const bool carries_goods = cap_type && cap_type->cargo > 0;
       if (!units_is_sea(units, src->id) && !carries_goods) {
         const uint8_t raw5 = src->col1_hold_raw_valid ? src->col1_hold_raw[9] : 0u;
         if (raw5 <= 100u) {
