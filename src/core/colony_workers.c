@@ -717,9 +717,11 @@ int colonies_equip_tools_take(int available) {
  * distinction; callers that pass NULL get the row list only.
  *
  * The same DOS function serves a unit standing on the fence (a band index at
- * or past the colonist count forces leave-as mode), so game_loop.c's
+ * or past the colonist count forces leave-as mode), so game_loop_colony.c's
  * game_colony_list_outside_roles is a twin of this list and must stay
- * row-for-row identical, greying included.
+ * row-for-row identical, greying included. That twin passes the standing
+ * body's own gear as add_*: FUN_2f2b_348c raw 50553-50569 adds the body's
+ * current-@JOB cargo list into stock before the row loop (bugs.md #972).
  *
  * Earlier cites for the bless row: Colonization.pdf Establishing a Mission /
  * Church; building_production Missionary.

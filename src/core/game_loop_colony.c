@@ -1381,18 +1381,25 @@ static int game_colony_list_outside_roles(
   if (!colony || !unit || !out_roles || out_max <= 0) {
     return 0;
   }
-  /* bugs.md #649: FUN_15eb_3454's >= 0x13 arm (raw 13583) gates every row on
-   * DS:0x8542 colony warehouse stock alone — it never adds the standing
-   * unit's own carried gear, so an outside Dragoon on an empty-warehouse
-   * colony sees the same greyed rows an inside colonist would. The apply-time
-   * check (game_colony_apply_outside_role) still refunds the unit's gear into
-   * stock before testing, matching FUN_2f2b_348c's post-refund apply. */
+  /* bugs.md #972 (reverses #649): FUN_15eb_3454's >= 0x13 arm (raw 13583)
+   * does read DS:0x8542 warehouse stock alone, but its CALLER has already put
+   * the standing body's own gear there. FUN_2f2b_348c raw 50553-50569, before
+   * the row loop at raw 50576, takes the body's current @JOB
+   * (FUN_281f_0c0e -> FUN_15eb_0e18), asks FUN_15eb_0d8e for that job's cargo
+   * list and adds 0x32 per muskets/horses entry (and the body's own tool byte
+   * at +0x3159 for the tools entry) into stock[cargo] for the whole dialog.
+   * So a Soldier on the fence is gated on muskets + 50, a Dragoon on
+   * muskets + 50 and horses + 50. #649 removed that and a Soldier could not be
+   * mounted into a Dragoon unless the warehouse held 50 spare muskets on top
+   * of his own — while Soldier -> Scout -> Dragoon worked, because the Scout
+   * step banked the muskets. Amounts are flat 0x32 in DOS, which is what a
+   * body's muskets/horses field always holds; tools are per-body in both. */
   return colonies_list_eject_roles_gear(
     pool,
     colony,
-    0,
-    0,
-    0,
+    unit->tools > 0 ? unit->tools : 0,
+    unit->muskets > 0 ? UNITS_EQUIP_MUSKETS : 0,
+    unit->horses > 0 ? UNITS_EQUIP_HORSES : 0,
     unit->profession,
     out_roles,
     out_enabled,
