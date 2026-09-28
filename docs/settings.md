@@ -54,7 +54,7 @@ defaults no matter what file is sitting in the build directory.
     "midi_backend": ""
   },
   "display": { "windowed": true, "window_scale": 2 },
-  "debug": { "menu": false, "mouse_coords": false, "building_rects": false, "logs": false },
+  "debug": { "menu": false, "mouse_coords": false, "building_rects": false, "logs": false, "trace_autosaves": false },
   "data_dir": "./COLONIZE",
   "save_dir": "",
   "no_sound": false,
@@ -80,7 +80,10 @@ was built with `COLONIZE_DEBUG_MENU=OFF`). `debug.mouse_coords` and
 `debug.building_rects` are pointer HUD / colony building outlines, toggled
 from that pulldown (no CLI flags); the toggles write the keys back.
 `debug.logs` (default false) gates `diag_info` lines in `colonize-linux.log`;
-WARN/ERROR still always write. A wrong type, a negative `seed`, or an empty
+WARN/ERROR still always write. `debug.trace_autosaves` (default false) writes
+one extra save per turn, `trace_autosave_turn_XXX.sav` in the save directory,
+alongside the normal COLONY08/09 autosaves and regardless of the DOS autosave
+option bit; the files are never reused or pruned. A wrong type, a negative `seed`, or an empty
 path is not a valid value and the hardcoded default stays.
 
 ### What `debug.logs` records

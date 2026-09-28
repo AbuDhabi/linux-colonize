@@ -304,7 +304,9 @@ bool game_load_col1_slot(ColonizeGameState* game, int slot, char* err, size_t er
   return true;
 }
 
-bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size) {
+/* Shared by both writers below: bring game->col1 up to date with the live
+ * world (and build a template head for a never-saved new game). */
+static bool game_capture_col1(ColonizeGameState* game, char* err, size_t err_size) {
   if (!game->world_map_ok) {
     snprintf(err, err_size, "no map loaded");
     return false;
@@ -375,7 +377,23 @@ bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t er
   if (!col1_bridge_capture_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true, .europe=(EuropeScreen*)(&game->europe)}, game->game_year, game->game_autumn, game->turn_number, game->human_nation, game->map_cursor_x, game->map_cursor_y, game->map_view_x, game->map_view_y, game->units.selected_id, game->view_pieces_mode, err, err_size)) {
     return false;
   }
+  return true;
+}
+
+bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size) {
+  if (!game_capture_col1(game, err, err_size)) {
+    return false;
+  }
   return savegame_write_col1(game->config.save_dir, slot, &game->col1, err, err_size);
+}
+
+bool game_save_col1_named(ColonizeGameState* game, const char* name, char* err, size_t err_size) {
+  if (!game_capture_col1(game, err, err_size)) {
+    return false;
+  }
+  char path[768];
+  snprintf(path, sizeof(path), "%s/%s", game->config.save_dir, name);
+  return col1_save_write_file(path, &game->col1, err, err_size);
 }
 
 void game_open_report(ColonizeGameState* game, ColonizeReportId id) {

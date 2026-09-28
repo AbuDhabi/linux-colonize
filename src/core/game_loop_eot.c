@@ -105,6 +105,18 @@ static void game_apply_turn_autosave(ColonizeGameState* game, const ColonizeTurn
       diag_info("Turn autosave → COLONY09.SAV");
     }
   }
+  /* Port-only debug.trace_autosaves: one extra save per turn, kept forever,
+   * so a reported turn can be replayed later. Independent of the DOS autosave
+   * option bit. */
+  if (settings_is_loaded() && settings_get()->trace_autosaves) {
+    char name[64];
+    snprintf(name, sizeof(name), "trace_autosave_turn_%03u.sav", game->turn_number);
+    if (!game_save_col1_named(game, name, err, sizeof(err))) {
+      diag_warn("Trace autosave failed: %s", err);
+    } else {
+      diag_info("Trace autosave → %s", name);
+    }
+  }
 }
 
 void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext* ctx) {
