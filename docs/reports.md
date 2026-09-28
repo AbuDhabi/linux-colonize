@@ -131,7 +131,10 @@ independently golden-confirmed.
 - Cheat-only line: under `if ((*(byte *)0x5383 & 0x20) != 0)` — DS:0x5383
   bit5 = `head.game_options.cheats_enabled`, the Alt-WIN unlock — DOS
   formats DS:0x11a9 `"(%d of %d)"` from the same `nation+0x2e`/`+0x30` pair
-  and draws it. Not ported (bugs.md #976).
+  and draws it at x=10, y=25, colour 15. Ported 2026-09-28 (bugs.md #977):
+  the template has no catalog row, so it is read out of the shipped
+  `VICEROY.EXE` (`reports_ds_string`) and composed by hand, never through
+  printf; with no EXE present nothing is drawn.
 - Ordering: crosses bar, then the cheat line when the flag is set.
 - Scroll/paging: none.
 - Click targets: none (shared OK button only).
@@ -142,7 +145,7 @@ independently golden-confirmed.
   moving it onto `reports_draw_dos_icon_bar`: 25 crosses over a denominator
   of 128 give step 2 / shift 0 / rem 38, i.e. icon origins 10, 12, 14, 16,
   19, 21, 23, 26 … — the irregular 3px gaps are the Bresenham remainder, and
-  they are on the golden too. Only the cheat line (#976) is missing.
+  they are on the golden too.
 
 ## F3 - Continental Congress
 
@@ -198,7 +201,11 @@ independently golden-confirmed.
   `if ((*(byte *)0x5383 & 0x20) != 0)` (DS:0x5383 bit5 =
   `head.game_options.cheats_enabled`), DOS composes a line from the
   shortfall `local_56 - min(pool, local_56)`, the DS:0x2dee token and
-  `local_56`. Not ported (bugs.md #977).
+  `local_56`. The overlay asm (OVL06_L0040 000c01-000c78) settles the
+  composition the decompiled C had lost: `" (" <needed - min(pool, needed)>
+  " " <@MISC 26 "in"> " " <needed> ")"`, appended to the header buffer, which
+  DOS then draws whether or not the header itself is empty. Ported
+  2026-09-28 (bugs.md #978).
 - Not a gate (checked 2026-09-28): Ghidra structures `06d0`'s tail so that
   the "Founding Fathers:" list *and* the page-1→page-2 advance sit inside
   `if (sum(backup_force) != 0)`, with an `else` falling into
@@ -311,9 +318,13 @@ independently golden-confirmed.
   index at `-0x777c`, both 32-bit. Per value, independently:
   `if (high >= 0 && (high > 0 || low > 9999)) { FUN_1d1d_0f92(&low, 1000, 0);
   splice DS:0x2e2c; }` — a divide-by-1000 plus a separator/suffix token for
-  large figures (bugs.md #974, not ported). The sign attribute
+  large figures — DS:0x2e2c resolves to LABELS.TXT @MISC 57, "K", and Gold
+  then appends DS:0x11b4 "$" after it ("12K$"). Ported 2026-09-28
+  (bugs.md #975). The sign attribute
   (`local_8c = high < 0 ? 4 : 2`) is likewise computed twice, once per
-  column; the port paints both cells from one combined rule (bugs.md #975).
+  column; the port used to paint both cells from one combined rule
+  (bugs.md #976, fixed 2026-09-28 — the palette indices stay as measured off
+  the golden, since DOS's 2+8/4+8 index its own default palette).
 - Port status: Done (golden `economic_p1.png`/`economic_p2.png`) —
   `reports_render_economic_trade`/`_cargo` (`reports.c:1588`/`1700`).
 
@@ -382,9 +393,10 @@ independently golden-confirmed.
   (→ `REPORT7.PIK`), draws the four column headers DS:0x2e34/0x2e36/
   0x2e38/0x2e3a, three dividers and eight row rules. This doc used to cite
   `FUN_3f41_1e80`/`FUN_3f41_1ed8` here; both push `6` and are F6's
-  Military Garrisons pair (see F6). **The port was therefore built against
-  the golden only and has never been checked against `220c`** — bugs.md
-  #972 (row list, row names, row0 y) and #973 (Location/Destination).
+  Military Garrisons pair (see F6). The port had therefore been built
+  against the golden only; it was re-derived from `220c` on 2026-09-28
+  (bugs.md #973), and what is left is [known_divergences.md](known_divergences.md)
+  #974, the Europe-lane rows.
   F-key dispatch thunk: `FUN_291f_03c6` → `FUN_3f41_220c`.
 - Background: `REPORT7.PIK`.
 - Data source (`FUN_3f41_220c`): a single pass over the unit array for
@@ -394,26 +406,38 @@ independently golden-confirmed.
   loop over the `unit+0x3150` holds, the row name from the @UNIT name table
   (`type*0xe + 0x5230`), Location from `FUN_291f_0f82(x, y, nation&0xf, 0)`,
   Destination from the goto target (`+0x314d`/`+0x314e`) when the orders
-  byte `+0x314c` is 3, 0xb or 2, else `FUN_281f_0302(x, y)` with two
-  Europe-lane x-delta arms (`0x5426 + nation*0x34`, `-0x7c74 + nation*2`).
+  byte `+0x314c` is 3, 0xb or 2 (note: **not** 12/AI_MOVE, which the port's
+  shared `units_orders_follow_goto` does accept), else `FUN_281f_0302(x, y)`
+  and, when that is 0, a Europe-lane arm keyed on `nation - x`: 0x18/0x1c →
+  `DS:0x5426 + nation*0x34`, 0x0c/0x10 → `DS:0x838c + nation*2`, anything
+  else → empty. `FUN_291f_0f82` = `FUN_49dd_02d0` = colony name at the tile
+  else the `(x, y)` pair — `naval.png` shows both forms.
 - Columns/layout: 4-column table — Ship (icon+class) / Cargo (goods icons,
   100-unit stacks colored, partial grey) / Location / Destination. DOS row0
-  y is `0x2a` = 42 with sprites at +3 and step `0x14` = 20; the port uses a
-  golden-measured 40 (bugs.md #972). Column dividers x=82/162/242.
-- Ordering: DOS's unit-array order, with each listed non-ship unit taking
-  its own row wherever the array puts it. The port instead emits each
-  ship's passengers immediately above that ship (bugs.md #972).
+  y is `0x2a` = 42, step `0x14` = 20, unit sprite at row_y, cargo icons at
+  row_y+3, text at row_y+6; the port's golden-measured ROW0_Y 40 + ICON_DY 2
+  + TEXT_DY 8 reproduce all three exactly, so the constants differ but the
+  ink does not. Cargo icons start at x=88 (`[BP-0x56] + 0x56`) with pitch
+  `0xc` = 12 — both were wrong (84 / 14) until 2026-09-28. Ship sprite from
+  x=2 and its name at x=26; a non-ship row's sprite sits at x=88 and its
+  name at x=112. Column dividers x=82/162/242; Location is centred in
+  [162,242] and Destination in [242,318].
+- Ordering: unit-array order, with each listed non-ship unit taking its own
+  row wherever the array puts it — there is no pinning of a passenger to its
+  carrier. Ported 2026-09-28; on `naval.png`'s save the two orders coincide.
 - Scroll/paging: 7 rows/page (`reports_naval_page_count`).
 - Click targets: none; OK/Esc/Enter advances page.
 - Strings: title "NAVAL ADVISER REPORT" and the 4 column headers ("Ship"/
   "Cargo"/"Location"/"Destination", `@MISC` #61-64, a clean consecutive
   block) all resolve live (**fixed 2026-08-27**); body needs FONTTINY not
   FONTSMAL (FONTSMAL rendered upper-case-only and too wide at this size).
-- Port status: golden-matched (`naval.png`), **not decomp-verified** —
-  `reports_render_naval` (`reports_military.c`). The row list, row labels
-  and both text columns were fitted to the golden while this doc pointed at
-  F6's functions; see bugs.md #972/#973 for the specific divergences from
-  `FUN_3f41_220c`. Two real pre-existing `col1_bridge_apply` bugs found
+- Port status: Done (golden `naval.png`, 1896 px diff, was 2070) —
+  `reports_render_naval` (`reports_military.c`). Row list, ordering, row
+  labels (@UNIT name for every row, retiring the profession-based label of
+  bugs.md #605) and the cargo-icon geometry were re-derived from
+  `FUN_3f41_220c` on 2026-09-28 (bugs.md #973). Still divergent by
+  necessity: the Europe-lane rows —
+  [known_divergences.md](known_divergences.md) #974. Two real pre-existing `col1_bridge_apply` bugs found
   and fixed while building this report's row list: Fortified land units at
   a colony dock were being "boarded" onto the docked ship; `cargo_hold[]`
   bytes past `holds_occupied` can be stale, producing phantom cargo —

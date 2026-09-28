@@ -172,11 +172,14 @@ onto a docked ship, forcing `orders = Sentry` + `aboard_ship_id`:
 native y = 40..180 step 20, column rules x = 82/162/242. Passengers get
 their own row above the ship's. Body font FONTTINY.
 
-**Golden-fitted, not decomp-verified** (2026-09-28). All of the above was
-measured off `naval.png` while reports.md pointed F7 at F6's functions. The
-real pair is `FUN_3f41_20b4` (chrome) + `FUN_3f41_220c` (body); DOS's row
-list, row labels, Location and Destination all differ from the port — see
-reports.md's F7 section and bugs.md #972/#973 before touching this screen.
+**Re-derived from the decomp 2026-09-28.** The geometry above was measured
+off `naval.png` while reports.md pointed F7 at F6's functions; the real pair
+is `FUN_3f41_20b4` (chrome) + `FUN_3f41_220c` (body). The row geometry
+survived the check unchanged, but the row list, the row labels and the cargo
+icon's x/pitch did not — bugs.md #973. Cargo icons start at x=88, pitch 12.
+Rows are unit-array order (ships always, other units only on an Ocean/Sea
+Lane tile); a passenger is not pinned above its ship. What remains is
+[known_divergences.md](known_divergences.md) #974, the Europe-lane rows.
 
 ### Foreign Affairs (F8)
 

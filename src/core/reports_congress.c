@@ -50,6 +50,26 @@ void reports_render_religious(
     icons, font, fb, REPORTS_CROSS_ICON, REPORTS_CROSS_X, REPORTS_CROSS_Y, REPORTS_CROSS_W, 0,
     (int)current, (int)needed
   );
+
+  /*
+   * DOS-LITERAL FUN_3f41_0618, overlay asm OVL06_L0040 000a7a-000aac: with
+   * DS:0x5383 bit5 (`cheats_enabled`, the Alt-WIN unlock) set, DOS formats
+   * DS:0x11a9 ("(%d of %d)") from the same nation+0x2e / nation+0x30 pair and
+   * draws it at x=10, y=25, colour 15 — on top of the bar's left end
+   * (bugs.md #977). The template has no `COLONIZE` text catalogs row, so it is read
+   * out of the shipped EXE rather than typed in (docs/data_vs_hardcoded.md
+   * Part D); with no EXE to read, nothing is drawn.
+   */
+  if (col1->head.game_options.cheats_enabled && view) {
+    char fmt[64];
+    char text[96];
+    if (reports_ds_string(view->data_dir, REPORTS_RELIGIOUS_CHEAT_DS, fmt, sizeof(fmt)) &&
+        reports_ds_two_numbers(fmt, (int)current, (int)needed, text, sizeof(text))) {
+      reports_draw_line(
+        font, fb, REPORTS_CROSS_X, REPORTS_CROSS_Y, text, REPORTS_RELIGIOUS_CHEAT_COLOR
+      );
+    }
+  }
 }
 
 /*
@@ -189,6 +209,28 @@ void reports_render_congress_page1(
       reports_nation_adjective(ally),
       reports_misc_word(113, "", w1, sizeof(w1))
     );
+  }
+  /*
+   * DOS-LITERAL FUN_3f41_06d0, overlay asm OVL06_L0040 000c01-000c78: with
+   * DS:0x5383 bit5 (`cheats_enabled`, the Alt-WIN unlock) set, the header
+   * buffer gets a bells-shortfall tail appended before it is drawn —
+   * " " "(" <needed - min(pool, needed)> " " <DS:0x2dee> " " <needed> ")".
+   * DS:0x50/0x5e/0x60 are the literal " ", "(" and ")"; DS:0x2dee is
+   * LABELS.TXT @MISC 26. DOS draws the buffer unconditionally after this, so
+   * the tail shows even when the header itself is empty (bugs.md #978).
+   */
+  if (col1->head.game_options.cheats_enabled) {
+    const unsigned pool = founding_fathers_bells_pool(col1, human);
+    const unsigned need = founding_fathers_bells_needed(col1, human);
+    const unsigned drawn = pool < need ? pool : need;
+    const size_t at = strlen(line);
+    if (at + 1 < line_sz) {
+      char in_w[32];
+      snprintf(
+        line + at, line_sz - at, " (%u %s %u)", need - drawn,
+        reports_misc_word(26, "", in_w, sizeof(in_w)), need
+      );
+    }
   }
   if (line[0]) {
     reports_draw_line(font, fb, 8, REPORTS_CONGRESS_TEXT1_Y, line, 15);

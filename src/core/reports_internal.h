@@ -28,6 +28,10 @@
 #define REPORTS_CROSS_ICON 56 /* ICONS.SS #56 (DOS sprite id 0x39, 1-based) */
 #define REPORTS_CROSS_X 10 /* `3f41:0670` pushes x=10, y=25, w=0x12c */
 #define REPORTS_CROSS_Y 25
+/* F2's cheat-only overlay: DS:0x11a9 "(%d of %d)" drawn over the bar's left
+ * end in colour 15 (`3f41:0a7a`..`0aac`; bugs.md #977). */
+#define REPORTS_RELIGIOUS_CHEAT_DS 0x11a9
+#define REPORTS_RELIGIOUS_CHEAT_COLOR 15
 #define REPORTS_CROSS_W 300
 
 
@@ -202,6 +206,7 @@ void reports_render_naval(
   int human,
   const ColonizeUnitPool* units,
   const ColonizeColonyPool* colonies,
+  const ColonizeWorldMap* map,
   const EuropeScreen* europe,
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,

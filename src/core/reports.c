@@ -794,7 +794,7 @@ void reports_render_w(
       break;
     }
     case COLONIZE_REPORT_NAVAL:
-      reports_render_naval(view, human, units, colonies, europe, font, framebuffer, naval_page);
+      reports_render_naval(view, human, units, colonies, map, europe, font, framebuffer, naval_page);
       break;
     case COLONIZE_REPORT_FOREIGN:
       reports_render_foreign(view, col1, human, font, framebuffer);

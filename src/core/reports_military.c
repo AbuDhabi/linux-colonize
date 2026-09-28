@@ -46,8 +46,8 @@
 #define REPORTS_NAVAL_DIV3_X 242 /* Location | Destination */
 #define REPORTS_NAVAL_SHIP_ICON_X 0
 #define REPORTS_NAVAL_SHIP_NAME_X 26
-#define REPORTS_NAVAL_CARGO_ICON_X (REPORTS_NAVAL_DIV1_X + 2)
-#define REPORTS_NAVAL_CARGO_ICON_PITCH 14 /* same goods-hold pitch as colony_screen.c's COLONY_HOLD_PITCH */
+#define REPORTS_NAVAL_CARGO_ICON_X 88 /* DOS-LITERAL FUN_3f41_220c (asm 002654): `[BP-0x56] + 0x56` = 2 + 86. */
+#define REPORTS_NAVAL_CARGO_ICON_PITCH 12 /* DOS-LITERAL FUN_3f41_220c (asm OVL06_L0040 00268a): `ADD [BP-0x5a],0xc` after each hold icon. The golden has at most one icon per row, so this was a 14px guess copied from colony_screen.c until bugs.md #973. */
 #define REPORTS_NAVAL_CARGO_LABEL_X (REPORTS_NAVAL_DIV1_X + 30) /* passenger-row type name */
 #define REPORTS_NAVAL_ICON_DY 2 /* icon top = row_top + this */
 #define REPORTS_NAVAL_TEXT_DY 8 /* text top = row_top + this */
@@ -106,52 +106,32 @@ static int reports_naval_goods_icon(int cargo_type, int amount) {
 }
 
 /*
- * Plural expert label for a passenger row.
+ * Builds the flat row list.
  *
- * 2026-09-28: the function this rationale cited, `FUN_3f41_1ed8`, is not
- * the Naval Adviser at all — it pushes `6` to the plate bring-up and is
- * F6's Military Garrisons body. The real F7 body is `FUN_3f41_220c` (raw
- * 70675-70785), and it *does* have a text channel here: every row, ship or
- * passenger, is named from the @UNIT name table (`type*0xe + 0x5230`). So
- * this label rule is not just an uncited readability extension (bugs.md
- * #605) — it is contradicted by the real body, and the fix is tracked as
- * bugs.md #972. Left in place until that row is worked, since replacing it
- * piecemeal would regress `naval.png` without the rest of #972.
+ * DOS-LITERAL FUN_3f41_220c (asm OVL06_L0040 0028a6-002916): one pass over
+ * the unit array in array order, taking every unit whose `+0x3147 & 0xf` is
+ * this nation. A ship (type 0x0d-0x12) always gets a row, drawn from x=2; any
+ * other unit gets one only when `FUN_281f_0768(x, y)` (= `FUN_13e4_0074`,
+ * terrain 0x19 Ocean / 0x1a Sea Lane) says its tile is water — i.e. it is at
+ * sea, aboard something — and is drawn from x=88 with its name in the Cargo
+ * column. There is no walk of a ship's cargo list and no pinning of a
+ * passenger to its carrier's row: the array order is the row order, and a
+ * passenger lands next to its ship only because that is where the array put
+ * it (bugs.md #973).
  *
- * The rule it follows is DOS's own identity rule, the one the map panel's
- * `FUN_49dd_0386` (`units_profession_line`) uses: a unit is named by its
- * PROFESSION when that profession is a skilled one, and by its @UNIT row
- * otherwise. The old five-entry whitelist (professions 20-24, the equipment
- * kits) was a curve fit to naval.png's single example and left every other
- * expert — an Expert Fisherman most visibly — reading as plain "Colonists".
+ * Europe-side ships still come from `europe`'s harbor/expected/bound lists
+ * below; DOS reads them as ordinary unit records on the sentinel Atlantic
+ * lanes, which `col1_bridge_apply` consumes into EuropeScreen instead
+ * (bugs.md #974).
  *
- * `FUN_15eb_0002`'s unskilled set is 0x13 Colonist, 0x19 Ind. Servant,
- * 0x1a Criminal, 0x1b Convert and 0x1c none; those take the @UNIT plural.
+ * Returns the row count (<= max_rows). Shared by page_count and render so
+ * pagination always matches what's actually drawn.
  */
-static const char* reports_naval_passenger_label(int profession, const char* base_name) {
-  const bool skilled =
-    profession >= 0 && profession != UNITS_JOB_NONE && profession != UNITS_JOB_COLONIST &&
-    profession != UNITS_JOB_SERVANT && profession != UNITS_JOB_CRIMINAL &&
-    profession != UNITS_JOB_CONVERT;
-  if (skilled) {
-    /* NAMES.TXT @JOB column 1 ("Expert Fishermen", "Hardy Pioneers"). */
-    const char* job = reports_job_name(profession);
-    if (job && job[0]) {
-      return job;
-    }
-  }
-  return (base_name && base_name[0]) ? base_name : "";
-}
-
-/* Builds the flat ship/passenger row list (on-mapboard ships from `units`,
- * Europe-side ships from `europe`'s harbor/expected/bound lists — a ship
- * mid-Atlantic exists only in the latter, never in `units`, until it
- * arrives). Returns the row count (<= max_rows). Shared by page_count and
- * render so pagination always matches what's actually drawn. */
 static int reports_naval_build_rows(
   int human,
   const ColonizeUnitPool* units,
   const ColonizeColonyPool* colonies,
+  const ColonizeWorldMap* map,
   const EuropeScreen* europe,
   NavalRow* rows,
   int max_rows
@@ -163,43 +143,39 @@ static int reports_naval_build_rows(
       if (!u->active || u->nation_id != human) {
         continue;
       }
-      if (!units_is_sea(units, u->id)) {
-        continue;
-      }
+      const bool is_ship = units_is_sea(units, u->id);
       /* Docked-in-Europe ships are represented separately (and more
        * completely — resolved cargo/hold state) via europe->harbor[]. */
       if (reports_unit_in_europe(u->x, u->y)) {
         continue;
       }
-      for (int c = 0; c < u->cargo_count && c < COLONIZE_UNIT_CARGO_MAX && n < max_rows; ++c) {
-        const ColonizeUnit* pax = units_get_const(units, u->cargo_ids[c]);
-        if (!pax) {
-          continue;
-        }
-        NavalRow* r = &rows[n++];
-        memset(r, 0, sizeof(*r));
-        r->has_passenger = true;
-        r->pass_sprite = units_map_sprite(units, pax->id);
-        r->pass_type = units_display_type_index(units, pax->id);
-        r->pass_nation = pax->nation_id;
-        r->pass_orders = pax->orders;
-        r->pass_damaged = (pax->col1_flags15 & 0x80u) != 0;
-        const ColonizeUnitType* pt = units_type(units, pax->type_index);
-        r->pass_label = reports_naval_passenger_label(pax->profession, pt ? pt->name : NULL);
-        reports_naval_location(colonies, u->x, u->y, r->location, sizeof(r->location));
-      }
-      if (n >= max_rows) {
-        break;
+      if (!is_ship && !map_tile_is_water(map, u->x, u->y)) {
+        continue;
       }
       NavalRow* r = &rows[n++];
       memset(r, 0, sizeof(*r));
-      r->has_ship = true;
-      r->ship_sprite = units_map_sprite(units, u->id);
-      r->ship_type = units_display_type_index(units, u->id);
-      r->ship_nation = u->nation_id;
-      r->ship_orders = u->orders;
-      const ColonizeUnitType* st = units_type(units, u->type_index);
-      r->ship_name = (st && st->name[0]) ? st->name : "";
+      const ColonizeUnitType* t = units_type(units, u->type_index);
+      /* DOS names every row — ship or passenger — from the @UNIT name table
+       * (`type * 0xe + 0x5230`, asm 0026ea). */
+      const char* name = (t && t->name[0]) ? t->name : "";
+      if (is_ship) {
+        r->has_ship = true;
+        r->ship_sprite = units_map_sprite(units, u->id);
+        r->ship_type = units_display_type_index(units, u->id);
+        r->ship_nation = u->nation_id;
+        r->ship_orders = u->orders;
+        r->ship_name = name;
+      } else {
+        r->has_passenger = true;
+        r->pass_sprite = units_map_sprite(units, u->id);
+        r->pass_type = units_display_type_index(units, u->id);
+        r->pass_nation = u->nation_id;
+        r->pass_orders = u->orders;
+        r->pass_damaged = (u->col1_flags15 & 0x80u) != 0;
+        r->pass_label = name;
+      }
+      /* The hold loop is shared by both row shapes in DOS (asm 00268f); a
+       * land unit simply has no occupied holds. */
       for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX && r->goods_count < COLONIZE_UNIT_CARGO_MAX; ++h) {
         const int amt = u->hold_goods_amount[h];
         const int gtype = u->hold_goods_type[h];
@@ -212,9 +188,20 @@ static int reports_naval_build_rows(
         }
       }
       reports_naval_location(colonies, u->x, u->y, r->location, sizeof(r->location));
-      if (units_orders_follow_goto(u->orders) && u->goto_x != UNITS_GOTO_NONE &&
-          u->goto_y != UNITS_GOTO_NONE) {
-        snprintf(r->destination, sizeof(r->destination), "(%d, %d)", u->goto_x, u->goto_y);
+      /*
+       * DOS (asm 002795) tests the orders byte against exactly 3, 0xb and 2
+       * and then formats the goto target through the same name-or-coordinates
+       * helper as Location. Note the shared `units_orders_follow_goto` also
+       * accepts 12 (AI_MOVE); this report does not, so the triple is spelled
+       * out rather than borrowed.
+       */
+      const bool has_goto = u->orders == UNITS_ORDER_GOTO ||
+                            u->orders == UNITS_ORDER_AI_SAIL ||
+                            u->orders == UNITS_ORDER_TRADE_ROUTE;
+      if (has_goto && u->goto_x != UNITS_GOTO_NONE && u->goto_y != UNITS_GOTO_NONE) {
+        reports_naval_location(
+          colonies, u->goto_x, u->goto_y, r->destination, sizeof(r->destination)
+        );
       }
     }
   }
@@ -251,9 +238,8 @@ static int reports_naval_build_rows(
           r->pass_type = s->cargo_types[c];
           r->pass_nation = human;
           r->pass_orders = 1; /* Sentry — aboard, matching the docked/undirected passenger look */
-          r->pass_label = reports_naval_passenger_label(
-            s->cargo_professions[c], pt ? pt->name : NULL
-          );
+          /* @UNIT name, like every other row (asm 0026ea). */
+          r->pass_label = (pt && pt->name[0]) ? pt->name : "";
           snprintf(r->location, sizeof(r->location), "%s", lanes[lane].loc);
         }
         if (n >= max_rows) {
@@ -293,7 +279,8 @@ int reports_naval_page_count_w(
   const EuropeScreen* europe = w->europe;
 
   NavalRow rows[REPORTS_NAVAL_ROWS_MAX];
-  const int n = reports_naval_build_rows(human_nation, units, colonies, europe, rows, REPORTS_NAVAL_ROWS_MAX);
+  const int n =
+    reports_naval_build_rows(human_nation, units, colonies, w->map, europe, rows, REPORTS_NAVAL_ROWS_MAX);
   int pages = (n + REPORTS_NAVAL_ROWS_PER_PAGE - 1) / REPORTS_NAVAL_ROWS_PER_PAGE;
   if (pages < 1) {
     pages = 1;
@@ -323,6 +310,7 @@ void reports_render_naval(
   int human,
   const ColonizeUnitPool* units,
   const ColonizeColonyPool* colonies,
+  const ColonizeWorldMap* map,
   const EuropeScreen* europe,
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,
@@ -372,7 +360,8 @@ void reports_render_naval(
   reports_draw_vline(fb, REPORTS_NAVAL_DIV3_X, REPORTS_NAVAL_VLINE_TOP_Y, table_bottom, REPORTS_NAVAL_LINE_COLOR);
 
   NavalRow rows[REPORTS_NAVAL_ROWS_MAX];
-  const int total = reports_naval_build_rows(human, units, colonies, europe, rows, REPORTS_NAVAL_ROWS_MAX);
+  const int total =
+    reports_naval_build_rows(human, units, colonies, map, europe, rows, REPORTS_NAVAL_ROWS_MAX);
   const int skip = page * REPORTS_NAVAL_ROWS_PER_PAGE;
   const ColonizePalette* active_palette =
     (view && view->background_ok[COLONIZE_REPORT_NAVAL] && view->backgrounds[COLONIZE_REPORT_NAVAL].has_palette)
