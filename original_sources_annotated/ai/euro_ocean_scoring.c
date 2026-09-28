@@ -3,12 +3,12 @@
  *
  * Decomp: viceroy_unpacked.c ~89384–90224.
  *   3558 ship body ~89384–89870; 3fa6 HS spiral; 4393–47b9 cargo/wagon.
- * Linux:  ai_euro_ocean_score_step (thin). Full −0x6790 / local_9c matrix OPEN.
+ * OpenCol:  ai_euro_ocean_score_step (thin). Full −0x6790 / local_9c matrix OPEN.
  *
  * Section map: ai/move_scoring_ship.md
  * Cite: move_scoring.md band table; FUN_48d3_015e / 0434 / 048e; 06ae via 04ac.
  *
- * Reference only — not compiled into the Linux binary.
+ * Reference only — not compiled into the OpenCol binary.
  */
 
 #include "viceroy_types.h"
@@ -114,7 +114,7 @@ int euro_ocean_spiral_hs_goto(int unit_index) {
  * FUN_48d3_0434 — tile OK for HS place: in-bounds, terrain class == 0x1a,
  * owner empty or own nation.
  * FUN_48d3_048e — expanding spiral from landfall goto until 0434 hits;
- * teleport ship + sync cargo (Linux: units_spiral_place_hs_near).
+ * teleport ship + sync cargo (OpenCol: units_spiral_place_hs_near).
  */
 int euro_ocean_hs_place_ok(int x, int y) {
   (void)x;

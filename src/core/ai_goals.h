@@ -9,7 +9,7 @@
 #include "core/world.h"
 
 /*
- * Linux port of FUN_521d_0000…0906 goal tables (annotated euro_goals.c).
+ * OpenCol, port of FUN_521d_0000…0906 goal tables (annotated euro_goals.c).
  * DOS *consumer* of `primary[]` — the code that reads these slots back to
  * assign unit orders/act-state/goal-target x-y — is `FUN_521d_0a60`'s tail
  * (mapped, not ported, 2026-08-14): see
@@ -82,7 +82,7 @@ typedef struct AiEuroInventory {
   int muskets_short;
   int food_short;
   /* horses_short / found_flags / profession_demand[] were write-only after the
-   * Linux-shaped 5d04 hire matrix was retired 2026-09-07e; their real DOS
+   * OpenCol-shaped 5d04 hire matrix was retired 2026-09-07e; their real DOS
    * replacements are ai_euro_5d04_cb_colonies_wanting_colonists (DS:0xa0b8)
    * and ai_euro_5d04_cb_cargo_demand (DS:0xa0cc). Removed 2026-09-07. */
   int colony_count;
@@ -95,7 +95,7 @@ void ai_goals_reset(void);
  * FUN_281f_074a → FUN_137f_02f8: low nibble of the DS:0x168 seen-plane byte =
  * the map-gen colony-site score (0..15); high nibble holds the per-nation seen
  * bits. Falls back to the `unseen ? 4 : 0` stand-in on maps whose plane
- * carries no nibble at all (Linux map_gen writes none). That whole-map probe
+ * carries no nibble at all (OpenCol map_gen writes none). That whole-map probe
  * is memoised in ai_goals.c and invalidated by ai_goals_reset — call this
  * rather than copying the probe, which is how a second, never-invalidated
  * cache came to live in ai_euro.c (smell audit 2026-09-10 D8).

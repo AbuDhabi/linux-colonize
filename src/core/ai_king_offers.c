@@ -111,7 +111,7 @@ int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, int hy,
 }
 
 /*
- * Linux-invented stand-in, NOT a faithful port of FUN_43f7_2244 or
+ * OpenCol-invented stand-in, NOT a faithful port of FUN_43f7_2244 or
  * FUN_43f7_2022 — corrected 2026-08-14, see king_ref.md "2244/2022 —
  * corrected". Neither DOS function has an SoL/300-gold gate or a
  * once-per-war human CHOICE; 2022 is a recurring per-turn self-funded

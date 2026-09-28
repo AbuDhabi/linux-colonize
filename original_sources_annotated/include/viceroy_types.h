@@ -5,7 +5,7 @@
  * original_sources_decompiled/viceroy_unpacked.c and the Col1 save unit
  * record in src/core/col1_save.h (28-byte / 0x1c stride).
  *
- * Reference only — not compiled into the Linux binary.
+ * Reference only — not compiled into the OpenCol binary.
  */
 #ifndef VICEROY_TYPES_H
 #define VICEROY_TYPES_H
@@ -105,7 +105,7 @@ _Static_assert(sizeof(ViceroyTribe) == VICEROY_TRIBE_STRIDE, "ViceroyTribe strid
 
 /* ---- Directions (8-way + stay) ----------------------------------------- */
 
-/* Matching Linux k_ai_dir8_dx/dy in src/core/ai.c. */
+/* Matching OpenCol k_ai_dir8_dx/dy in src/core/ai.c. */
 enum {
   VICEROY_DIR_N = 0,
   VICEROY_DIR_NE,

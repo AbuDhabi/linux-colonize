@@ -4,10 +4,10 @@
  * Source: original_sources_decompiled/viceroy_unpacked.c ~86772–87403
  * Callers: FUN_521d_0a60 (upserts), FUN_521d_6d8e plan pass (0342),
  *          FUN_521d_20e6 founding (06ae via 2a1f_04ac).
- * Linux:   `src/core/ai_goals.c` (T0 port); first-colony sites via landfall
+ * OpenCol:   `src/core/ai_goals.c` (T0 port); first-colony sites via landfall
  *          latitude geometry in `ai_euro.c` when adj 06ae misses coastal towns.
  *
- * Reference only — not compiled into the Linux binary.
+ * Reference only — not compiled into the OpenCol binary.
  */
 
 #include <stdint.h>
@@ -286,7 +286,7 @@ int founding_expansion_urgency(int nation_id) {
  * Ghidra: FUN_521d_0492 | colony_count_balance_flags
  * Compare continent colony target vs counted colonies; return bitfield
  * (−1/0/1 +2/+4 flags). Used by 06ae founding extras and unit priority.
- * Linux: ai_goals_colony_balance_flags (live counts + tally_b/12).
+ * OpenCol: ai_goals_colony_balance_flags (live counts + tally_b/12).
  */
 int colony_count_balance_flags(int unk_goal, int continent_or_nation) {
   (void)unk_goal;
@@ -325,7 +325,7 @@ int composite_unit_priority(int nation_id, int unit_index) {
  * whose DS:0x523d capability record has bit 0x40 — types 0 Colonist,
  * 2 Pioneer, 5 Scout; strictly-greater replaces, so ties keep the first.
  * −1 when the chain holds none (ships are 0x81/0x82/0xa2, so a carrier
- * never picks itself). Linux: ai_goals_stack_settler_pick.
+ * never picks itself). OpenCol: ai_goals_stack_settler_pick.
  */
 int stack_settler_pick(int unit_index) {
   int best = -1;
@@ -352,7 +352,7 @@ int stack_settler_pick(int unit_index) {
  * explore-mask terms when param_4≠0. Returns best dir index (0..8).
  *
  * Called from Euro FUN_521d_20e6 via 2a1f_04ac when scoring founding moves.
- * Linux: ai_goals_pick_founding_tile uses DS:0x2f77 + 0492*16 extras; first-colony
+ * OpenCol: ai_goals_pick_founding_tile uses DS:0x2f77 + 0492*16 extras; first-colony
  * sites use landfall latitude geometry when adj 06ae misses coastal towns.
  *
  * param_1 = nation, param_2/3 = x/y, param_4 = score-extras gate,
@@ -376,9 +376,9 @@ int pick_best_adjacent_founding_tile(int nation_id, int x, int y,
     }
     if (map_tile_in_bounds(nx, ny) && !ocean_or_high_seas(nx, ny) &&
         (dir == 8 || ok)) {
-      int score = 0; /* terrain_class byte @ 0x2f77 — Linux map_dos_terr_found_score_byte */
+      int score = 0; /* terrain_class byte @ 0x2f77 — OpenCol map_dos_terr_found_score_byte */
       if (score_extras) {
-        /* neighbor explore/owner walk; 0492*0x10 — Linux ai_goals_colony_balance_flags */
+        /* neighbor explore/owner walk; 0492*0x10 — OpenCol ai_goals_colony_balance_flags */
         (void)tile_explore_mask;
         (void)continent_id;
       }

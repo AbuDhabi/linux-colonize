@@ -305,7 +305,7 @@ bool col1_save_write_memory(
 
 /*
  * ---------------------------------------------------------------------
- * Port extension block (Linux-only, DOS-transparent)
+ * Port extension block (OpenCol-only, DOS-transparent)
  * ---------------------------------------------------------------------
  * Layout, little-endian, appended after trade_route[]:
  *

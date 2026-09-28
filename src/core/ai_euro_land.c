@@ -364,7 +364,7 @@ void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* co
    * bodies gate on `units_is_pioneer`, which wants tools > 0, so the phantom
    * is handed tools. Nothing survives the despawn either way.
    */
-  const int ptype = ai_euro_5d04_linux_type_for(ctx->units, 2);
+  const int ptype = ai_euro_5d04_port_type_for(ctx->units, 2);
   if (ptype < 0) {
     return;
   }
@@ -524,7 +524,7 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
       continue; /* raw 93625 FUN_281f_04d4(0, count - 2) */
     }
     /* The virtual walk, raw 93632-93652. */
-    const int wtype = ai_euro_5d04_linux_type_for(ctx->units, 2);
+    const int wtype = ai_euro_5d04_port_type_for(ctx->units, 2);
     if (wtype < 0) {
       return 0;
     }
@@ -702,7 +702,7 @@ uint8_t ai_euro_s_20e6_explore_fatigue[COLONIZE_UNITS_MAX];
 int8_t ai_euro_s_20e6_hop_steps[COLONIZE_UNITS_MAX];
 int16_t ai_euro_s_20e6_hop_slot[COLONIZE_UNITS_MAX];
 
-/* DOS unit+0x3146 type index (NAMES.TXT @UNIT order) from a Linux unit. */
+/* DOS unit+0x3146 type index (NAMES.TXT @UNIT order) from an OpenCol unit. */
 /*
  * DS:0x5239 = the @UNIT "cost" column (ColonizeUnitType.cost). The @UNIT
  * loader (raw 121115-121135) stores the NAMES.TXT numeric columns in file
@@ -1068,7 +1068,7 @@ int ai_euro_20e6_open_continents(const ColonizeTurnContext* ctx, int nation) {
 /*
  * FUN_281f_074a & 0xf — the seen-plane low nibble = map-gen colony-site AI
  * score (save_format_map.md "seen" row; nawagers). DOS-imported maps carry it;
- * Linux map_gen writes no nibble, so when the whole plane carries none the
+ * OpenCol map_gen writes no nibble, so when the whole plane carries none the
  * old per-nation unseen→4 stand-in stays (an all-zero nibble field would
  * otherwise disable the explore ring on generated maps).
  */
@@ -1108,7 +1108,7 @@ static int ai_euro_20e6_site_nibble(const ColonizeTurnContext* ctx, int x, int y
  *   1/7/8/9  return 0
  * Case 2 helper — used by the LAB_52aa odds divisor and the labor loop
  * (both call sites ndisasm-confirmed `PUSH 0x2`, viceroy_overlays.asm
- * 135593 / 139050+). Aboard units are modelled as ship cargo in Linux, so
+ * 135593 / 139050+). Aboard units are modelled as ship cargo in OpenCol, so
  * they are excluded here and counted by the cargo-side queries instead.
  */
 static int ai_euro_20e6_stack_count(const ColonizeTurnContext* ctx, int x, int y) {
@@ -1312,7 +1312,7 @@ static int ai_euro_20e6_surplus_recall_arm(
  * DOS 8d4a village attitude[nation] — UNPARKED 2026-09-06. The record's
  * +10+nation*2 int16 maps exactly onto ColonizeCol1Tribe.alarm[nation]
  * (= {uint8_t friction; uint8_t attacks;} at byte offset +10, low byte
- * friction — settlement_record_8d4a.md "Relationship to Linux", exact
+ * friction — settlement_record_8d4a.md "Relationship to OpenCol", exact
  * offset match), save-backed and live. The 0x4c gates now read it for
  * real: word == 0 for the scout arm, word < 0x40 for the colonist arm.
  * What stays session-local is only the VISIT-INCREMENT writer
@@ -1337,7 +1337,7 @@ uint8_t ai_euro_s_20e6_village_visited[AI_20E6_VILLAGE_MAX];
  *     profession byte is 0x1c (Free/none) or 0x19 (Indentured Servant),
  *     record +3 bit2 (tribe.state.learned) clear, attitude < 0x40 (stand-in).
  * Outcome: DOS writes orders 0x4c + a 2a1f_059c dir (enter the village);
- * Linux resolves the entry through the same @ACTIONS outcome functions
+ * OpenCol resolves the entry through the same @ACTIONS outcome functions
  * (Speak With Chief / Live Among The Natives) — an AI unit stepping onto a
  * village tile is an attack in this port, so the peaceful entry runs in
  * place. Returns 1 when the act was consumed.
@@ -1477,7 +1477,7 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
      */
     u->col1_ai_plan = 0x3d; /* +0x314b */
     {
-      const int pioneer_type = ai_euro_5d04_linux_type_for(ctx->units, 2);
+      const int pioneer_type = ai_euro_5d04_port_type_for(ctx->units, 2);
       if (pioneer_type >= 0) {
         u->type_index = pioneer_type; /* +0x3146 = 2 */
       }
@@ -2107,7 +2107,7 @@ int ai_euro_20e6_wander_step(
         (partner >= 0 && partner < 4 && ctx->col1_ok && ctx->col1 &&
          ctx->col1->player[partner].control == 0);
       /* DOS scores the tile as an attack when the owner is not yet MET (a
-       * forced first contact) or a Privateer is involved; Linux contact is
+       * forced first contact) or a Privateer is involved; OpenCol contact is
        * driven by ai_contact_*, so this port only takes the arm at war —
        * a deliberate narrowing, not a transcription slip. */
       const int at_war = partner >= 0 && ctx->col1 && ai_diplo_at_war(ctx->col1, nation, partner);
@@ -2276,7 +2276,7 @@ int ai_euro_20e6_wander_step(
    *     local_76 = 8;                                  // stay, do not attack
    * i.e. a hull or land unit that picked an attack but has less than one full
    * tile of movement left holds its ground instead. The port skipped this on
-   * the claim that "Linux moves is whole moves", which is wrong — `moves` is
+   * the claim that "OpenCol moves is whole moves", which is wrong — `moves` is
    * in THIRDS (UNITS_MP_PER_TILE, docs/conventions.md "MP thirds") — and
    * `moves > 0` is a weaker bar than DOS's, so the port let a unit attack on a
    * 1/3 or 2/3 remainder that DOS would never spend. bugs.md #955.
@@ -2490,7 +2490,7 @@ int ai_euro_20e6_ship_wander_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
  * 4 tiles out along a latched random ring20 direction. Slot unset → roll
  * FUN_1000_86c4(1,0x14) − 1; target = (ring_dx*4, ring_dy*4); validate
  * walkable land (84f2), fresh coarse region (−0x6056 nibble &6 == 0 —
- * Linux substitution per the block header: target tile unseen by the
+ * OpenCol substitution per the block header: target tile unseen by the
  * nation, the same seen-plane stand-in used for DS:0x9faa), same continent
  * (8912) and no presence at all (88c2 < 0). On success the hop length
  * max(dx*4, dy*4) (signed char, byte-faithful) latches into +0x3155, the
@@ -2584,7 +2584,7 @@ static int ai_euro_20e6_nearest_own_unit(
  * no coastal colony: an AI Treasure that reaches ANY own colony is money.
  *
  * Traps carried over from the 47b9 pass (see its header): iStack_2e == 0 must
- * be read as `home_colony >= 0 && home_dist == 0` because the Linux prologue
+ * be read as `home_colony >= 0 && home_dist == 0` because the OpenCol prologue
  * zeroes home_dist on a missed colony search, and a unit sitting in the Europe
  * pool has lane-sentinel coordinates and must be excluded outright.
  *
@@ -2632,7 +2632,7 @@ int ai_euro_20e6_treasure_cash_in(
   if (s.order_code == 't' || s.order_code == 'i') {
     return 0;
   }
-  /* iStack_2e == 0, read the Linux way (47b9 trap 1). */
+  /* iStack_2e == 0, read the OpenCol way (47b9 trap 1). */
   if (!(s.home_colony >= 0 && s.home_dist == 0)) {
     return 0;
   }

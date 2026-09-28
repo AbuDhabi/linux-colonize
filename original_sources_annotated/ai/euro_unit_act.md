@@ -134,7 +134,7 @@ turn" (`FUN_281f_0d3a`) is actually **warehouse capacity**
 (`FUN_15eb_0a50`, `100×(1+expansion)`, per `FUNCTION_CATALOG.md`). So the
 real formula is just an ordinary warehouse-capacity clamp: `add =
 clamp(local_14*20<<hardy, 0, capacity - stock[LUMBER]); stock[LUMBER] +=
-add` — no gold, no throttle. This is exactly the shape Linux's existing
+add` — no gold, no throttle. This is exactly the shape OpenCol's existing
 placeholder in `units.c` (`units_pioneer_work_tick`'s clearing branch)
 already implements, just with `local_14` hardcoded to `1` (flat `20`)
 instead of the real mill/terrain-scaled `+8` value.
@@ -153,7 +153,7 @@ already-known Col1 colony fields (`ai_flags`/`colony_flags`/
 `cargo_produced_mask`/`specialty_cargo=0xff`/`improve_timer`/
 `labor_shortage`/`cargo_idle_turns`/`hammers_purchased`/cargo stock (16
 slots) all cleared, building-owned array reset). **Already correctly
-cross-referenced in the Linux port**: `colonies_found` (`colony.c:518`)
+cross-referenced in the port**: `colonies_found` (`colony.c:518`)
 cites this exact function by name at line 572 for the cargo-stock-clear
 behavior, and its `specialty_cargo=0xff`/`building_in_production=-1`/
 `tiles[]=-1` field-reset pattern already matches. Back on `FUN_479b_076e`:
@@ -177,7 +177,7 @@ same `default` thunk before clearing state.
 **Move drivers checked this same day, one resolved, two corrupted:**
 `FUN_2a1f_0142` → `FUN_465b_0000` — **already known/ported**, this is the
 terrain-MP-cost helper (`ai_transcription.md`'s "Shared move/terrain
-helpers" table, Linux `ai_dos_move_spent`). `FUN_291f_044e` →
+helpers" table, OpenCol `ai_dos_move_spent`). `FUN_291f_044e` →
 `FUN_4720_049e` carries a real Ghidra disassembly-fault warning
 (`Instruction at (ram,0x0004c035) overlaps instruction at
 (ram,0x0004c033)`, `viceroy_unpacked.c:76063`) — corrupted, needs the
@@ -211,7 +211,7 @@ none of those commit, a full 8-neighbor scored fallback (walkability +
 own-tile bias + distance-improvement + a toughness deduction) with an
 up-to-8-try random "wiggle" retry if the chosen tile gets rejected for
 ownership reasons on arrival. This is a materially richer algorithm than
-Linux's current single-tier `ai_euro_score_move` (direct-only, no
+OpenCol's current single-tier `ai_euro_score_move` (direct-only, no
 detour/waypoint tier, no wiggle-retry) — real "OPEN (unpark #4)" territory,
 now unblocked to attempt, but a genuinely large port (4 more local
 helpers — `0015b7`/`0015bc`/`0015c1`/`000000` — still unnamed within this
@@ -261,7 +261,7 @@ wrong. If ever resumed, `0015b7` alone (the tiny direct-step helper) is
 the one genuinely quick win left in this specific area.
 
 **Doc-sync + `0015b7` decompiled, 2026-08-19: this whole tier structure
-already has a real Linux counterpart, just never cross-referenced here.**
+already has a real OpenCol counterpart, just never cross-referenced here.**
 `units_next_goto_step` (`units.c`) independently implements the *same*
 three-tier shape this section describes — adjacent sign-step (in-code
 cite `FUN_6662_0086`), near-range destination cost-flood for both axes
@@ -279,7 +279,7 @@ the real `0086`/`00f2` addresses directly rather than through this file's
 this pass (Ghidra headless, `OverlayTest` project, `OVL20_L0000:15b7`):
 confirms the "sign(dx)/sign(dy) → 8-direction-table lookup" reading
 exactly (loop over the same 8-entry dx/dy table used throughout this
-project, default 8 = no direction when both signs are 0) — but Linux's
+project, default 8 = no direction when both signs are 0) — but OpenCol's
 existing `units_sign_i`-based direct step (used in the adjacent tier
 above) already produces the identical result without needing a literal
 port of the table-lookup shape, so there's no remaining gap to fill with
@@ -313,7 +313,7 @@ tail is now precisely transcribed, not just summarized:
 
 **First attempt** (`units_greedy_next_step`/`units_next_goto_step` in
 `units.c`, gated on `ColonizeDosRng*` so it's a no-op when `rng==NULL`)
-wrote `unit+0x314f`'s obvious Linux home, `ColonizeUnit.last_dir`
+wrote `unit+0x314f`'s obvious OpenCol home, `ColonizeUnit.last_dir`
 (`col1_bridge.c` round-trips it as `facing`) — reverted before shipping
 on discovering **that field already has a live, different owner**:
 `ai.c`'s Indian native Brave-movement engine (`ai_native_pick_dir`,
@@ -400,7 +400,7 @@ findings from reading the raw body directly:
   named (below). DOS reuses one edge-cost formula across both the flood
   search and the scored fallback, not two independent ones — a real,
   concrete, low-risk target for closing the byte-exactness gap if this is
-  resumed, since the formula and its Linux implementation already exist.
+  resumed, since the formula and its OpenCol implementation already exist.
 - Also folds in claim-ownership/diplomacy gating (`FUN_1000_88c2`/`88d6`/
   `88ae`/`88a4`) shaped like a `+8` cost penalty for entering another
   nation's claimed territory under certain relation states, gated by the
@@ -422,7 +422,7 @@ findings from reading the raw body directly:
   in the ship range `0xd..0x12` — same range this project already knows
   from `0x5236`'s "combat-capable, ship range excluded" idiom
   (`euro_diplo_153e_full.md` etc). **Real formula is base-plus-conditional-
-  ship-bonus, not the flat `type->movement` Linux currently reads** — but
+  ship-bonus, not the flat `type->movement` OpenCol currently reads** — but
   the bonus can only ever matter if base MP is already `<2`, which no real
   ship type is, so this is a confirmed-real but practically-inert gap; not
   wired (`units.c`'s comment at the fallback-tier formula updated with the
@@ -457,16 +457,16 @@ actually targets — a **land unit stepping onto empty, unoccupied land**
 that happens to be tribe territory or near an enemy fort/colony — the
 land branch falls straight through to `units_village_squat_illegal` and
 then `COLONIZE_ENTER_OK`, with no ownership check of any kind. **So the
-DOS `+8` claim-avoidance penalty has no Linux counterpart at all today**,
+DOS `+8` claim-avoidance penalty has no OpenCol counterpart at all today**,
 not "probably already covered." The four DOS accessors behind it are
 already identified, not new unknowns: `FUN_1000_88a4`→`continent_id`,
 `FUN_1000_88ae`→`tile_tribe_owner`, `FUN_1000_88c2`→
 `tile_tribe_or_presence`, `FUN_1000_88d6`→"enemy Euro fort/colony owner
 vs nation" (`FUNCTION_CATALOG.md` lines 1352-1357, thunks resolved to
-`FUN_281f_06b4/06be/06d2/06e6`) — Linux equivalents of the first three
+`FUN_281f_06b4/06be/06d2/06e6`) — OpenCol equivalents of the first three
 already exist (`map_continent_id_at` in `map.c`; `ai_owner_nibble`/
 `ai_tile_tribe_or_presence`, currently `static` and private to `ai.c`'s
-Indian quiet-scoring gate, `ai.c:2841-2861`), the fourth has no Linux
+Indian quiet-scoring gate, `ai.c:2841-2861`), the fourth has no OpenCol
 equivalent yet. **Still not wired**: the exact "certain relation states"
 condition that gates the `+8` (which relation states, whose perspective)
 wasn't traced this pass — that's the one remaining unknown, not the
@@ -530,7 +530,7 @@ question this pass targeted).
 **Still not wired** — `units.c` has no nation-scoped tribe/fort-owner
 accessor exposed today (the three ready ingredients are private statics
 in `ai.c`'s Indian-scoring file, and `enemy_fort_or_colony_owner` has no
-Linux port at all), and the AI-vs-human reject/penalty asymmetry means
+OpenCol port at all), and the AI-vs-human reject/penalty asymmetry means
 this can't be a single flat cost term — it needs a caller-nation check
 inside `units_flood_next_step` itself. Real remaining steps if resumed:
 (2) expose `tile_tribe_or_presence`/an `enemy_fort_or_colony_owner` port
@@ -582,7 +582,7 @@ reading of "fort/colony tile" would assume. Bit `0x08` is
 (`viceroy_types.h:VICEROY_LAYER2_FA_ROAD`); bit `0x40` has **no
 established real-DOS-mask meaning anywhere in this project** — it is
 *not* the same thing as this project's own `MAP_LAYER2_FA_ROAD=0x40u`
-(that's an explicitly-noted Linux-side synthetic stand-in bit, per
+(that's an explicitly-noted OpenCol-side synthetic stand-in bit, per
 `map.h`'s own comment, unrelated to the original save format). Best
 working guess (not verified, not wired on the strength of a guess per
 project convention): a per-tile fortification-tier marker mirrored onto
@@ -712,7 +712,7 @@ still not done — see "still open" at the end of this entry.**
 
 - **`0015c1` — force-decompiled clean for the first time (this row's own
   2026-08-20 note said it was never independently read raw; the shipped
-  Linux `units_bfs_next_step` was built citing a *different* DOS pair,
+  OpenCol `units_bfs_next_step` was built citing a *different* DOS pair,
   `0086`/`00f2`, not this one).** 5-byte stub function count aside, the
   real body is ~230 lines, clean, `OVL20_L0000:15c1`. Structure, read
   directly rather than inferred: an 18×18-window (`0x12`) flood-fill, same
@@ -804,7 +804,7 @@ still not done — see "still open" at the end of this entry.**
   }
   ```
 
-  Not ported to Linux this pass — called from `0009ae`/`0015c1` (above),
+  Not ported to OpenCol this pass — called from `0009ae`/`0015c1` (above),
   both of which are themselves still unwired; porting `000000` alone
   without its two callers' own remaining open questions (register-arg
   roles, `FUN_1000_8560`/`FUN_1000_856a` identities) would be RE without
@@ -877,7 +877,7 @@ load-bearing accessor and an unfound data-population step.**
   `0015bc` itself, already ported as `units_flood_next_step`** — then
   returns its first-step result (`DS:0xa370`). Reads as "if the real goal
   is close enough, skip the windowed 18×18 dance and just reuse the
-  16×16 near-flood directly." Structurally this mirrors Linux's own
+  16×16 near-flood directly." Structurally this mirrors OpenCol's own
   `units_next_goto_step` tiering (`adx<=6 && ady<=6` → `units_flood_next_step`)
   — the same ~8-tile-ish near/far split appears independently in two
   places in the DOS call graph, not just at `0f74`'s own top dispatch.
@@ -933,7 +933,7 @@ load-bearing accessor and an unfound data-population step.**
   builds them ahead of a pathfind call has not been identified in this or
   any prior session. Without it, a literal byte-exact translation of
   `0009ae`'s 8-neighbor window scan or `0015c1`'s own 18×18 flood isn't
-  implementable; a Linux port would need to substitute live
+  implementable; an OpenCol port would need to substitute live
   `units_can_enter()` checks (an approximation, matching how
   `units_flood_next_step` already substitutes for `0015bc`'s own
   equivalent gating — not a new problem in principle, just not previously
@@ -1071,7 +1071,7 @@ safe to port `0009ae`/`0015c1` — new open sub-items, not old ones).**
   true entry is earlier than `0x7ef` (same fallthrough pattern as blocker
   1's still-open shortcut function). Finding that caller is required to
   know *when* this population runs (once per AI turn vs. once per
-  individual pathfind call) before it could be safely modeled in Linux —
+  individual pathfind call) before it could be safely modeled in OpenCol —
   precise, well-scoped next step if resumed, not chased this pass.
 
 **Net for this third pass**: both blockers are substantially further
@@ -1200,7 +1200,7 @@ No `src/` change.**
   again from anywhere reachable in this codebase — it's genuinely
   undetermined whether DOS's runtime pathfinder later reads meaningfully
   live data from them mid-game, or a map-generation-time-only snapshot.
-  This doesn't change the port decision either way: Linux has no
+  This doesn't change the port decision either way: OpenCol has no
   equivalent one-time new-game hook regardless, so the existing
   `units_can_enter()`-based live substitute (already how `0015bc`'s
   analogous gating was handled) stays correct either way — not filing as
@@ -1252,7 +1252,7 @@ gating **popup dialog calls** (`FUN_1000_8842` with catalog ids
 **Correction (2026-08-15, third pass) — the gating bit is `MET`, not
 `PEACE`.** Cross-checked `FUN_1000_8c28`'s `&0x40` bit against ground
 truth instead of trusting the (inconsistent, across 3 different docs this
-project already had) "0x40 = ..." guesses: Linux's `ai_diplo_read`
+project already had) "0x40 = ..." guesses: OpenCol's `ai_diplo_read`
 (`ai_diplo.c`) returns the DOS `euro_relation` byte **completely raw, no
 remapping** (`return *f;`), and its own `#define AI_DIPLO_MET 0x40` is
 that literal DOS bit — confirmed by `ai_diplo_write`'s callers only ever
@@ -1288,7 +1288,7 @@ unit search at/near the destination):
    `nation*2 + -0x6be4` between the two nations to decide `|=2` or `|=8`.
    No popup, pure state.
 
-   **`-0x6be4` resolved — it's already fully live in Linux, no unknowns
+   **`-0x6be4` resolved — it's already fully live in OpenCol, no unknowns
    left**: `mod 0x10000` = `0x941c` = `save_format_map.md` row 247,
    `land_combat_strength[4]`, already computed every turn in
    `col1_stuff_census.c` (`ColonizeCol1Save.stuff.land_combat_strength`).
@@ -1301,7 +1301,7 @@ unit search at/near the destination):
    pass established — a passive Treasure-Train encounter conditionally
    setting the PEACE bit (on an already-default-peaceful unmet pair) reads
    as a near-no-op most of the time, which is a suspicious fit for a
-   "tension" mechanic. Bit `0x08` is completely unmapped in Linux's
+   "tension" mechanic. Bit `0x08` is completely unmapped in OpenCol's
    4-bit `AI_DIPLO_*` enum (only `WAR`/`PEACE`/`ALLY`/`MET` — `0x02`,
    `0x01`, `0x04`, `0x40` — are modeled; `0x08`/`0x10`/`0x20`/`0x80` are
    real DOS bits this port has never needed before now). Given this
@@ -1330,11 +1330,11 @@ unit search at/near the destination):
 
    **Shipped**: `ai_euro_treasure_tension_bump` now writes the real DOS
    bit 2 (`AI_DIPLO_PEACE`) for the weaker-rival branch instead of a
-   Linux-only stand-in, with one own-addition guard (skip if already at
+   OpenCol-only stand-in, with one own-addition guard (skip if already at
    war, to avoid an internally contradictory WAR+PEACE byte — DOS itself
    doesn't guard this, but nothing here depends on matching that edge
    case exactly). Full `ctest` 42/43, same pre-existing baseline, no
-   regression. Bit 8 keeps its Linux-only `AI_DIPLO_TREASURE_STRONGER`
+   regression. Bit 8 keeps its OpenCol-only `AI_DIPLO_TREASURE_STRONGER`
    stand-in pending further tracing.
 2. `A` has met `B` → format **only `uStack_e`'s** name into slot 0,
    popup **`0x13ba`**, 1-button — but the code then branches on the
@@ -1380,7 +1380,7 @@ target for a focused follow-up (ideally with a live capture to confirm
 the id↔tag mapping directly) — smaller and more concrete now than the
 `0f74`/`5d04` large-body items.
 
-**2026-08-14, same day — checked cases 8/9 against Linux's existing
+**2026-08-14, same day — checked cases 8/9 against OpenCol's existing
 Pioneer plow/road port (`units_pioneer_work_tick` in `units.c`), found
 it already faithful on the core timing and shipped one confirmed gap.**
 `units_pioneer_work_needed` (`terr_cost + 2` for plow/clear, halved for
@@ -1395,7 +1395,7 @@ lumber → nearest same-nation colony... Thin add=20 (terrain×20/Hardy×2
 PARKED)") — correctly still parked, the real formula needs the unmapped
 `0x2f80` table values.
 
-**Case 9's completion reward had no Linux port at all — implemented this
+**Case 9's completion reward had no OpenCol port at all — implemented this
 pass.** DOS is a flat, fully-resolved formula (no unmapped table, no FF
 gate): nearest same-nation colony (no radius limit —
 `FUN_281f_0614(x,y,nation,0xffff)`) gets `hammers_purchased += 10`.
@@ -1417,8 +1417,8 @@ numbers in the ~90446–92260 range — that entire range is the corrupted
 blob this correction replaces, not real content.** Section "0" and "1"
 and "2. Case `0x0b` settle-adjacent notes" describe DOS behavior that does
 not exist at those citations; treat their DOS-side claims as unverified.
-The many "Linux thin — ..." subsections from `2b` onward describe actual
-Linux port behavior and stay valid as behavioral documentation — they're
+The many "OpenCol thin — ..." subsections from `2b` onward describe actual
+OpenCol port behavior and stay valid as behavioral documentation — they're
 just not reliably tied to the specific DOS line numbers some of them cite
 in passing. Not re-derived from the real `FUN_479b_*` handlers this pass
 (out of scope — see the unmapped list above for what a full redo would
@@ -1507,7 +1507,7 @@ int FUN_OVL12_L0000_0(int param_1, int param_2) {
 }
 ```
 
-Not ported to Linux - same "needs unlabeled DS globals named first"
+Not ported to OpenCol - same "needs unlabeled DS globals named first"
 blocker as `FUN_4d56_417e` (task #5); disassembly-level task #2 is closed,
 semantic porting stays deferred pending that naming pass.
 
@@ -1582,7 +1582,7 @@ scoring slices are OPEN** (unpark #4) — now anchored to those real
 functions, not the old fictional line range; many thin peels (dock hire
 matrix, construction prefers, haul, fortify/wake, naval prey) are **Done**.
 
-Linux: `ai_euro_unit_act` + expand/war thin — deepen vs peels (**OPEN** remainders).
+OpenCol: `ai_euro_unit_act` + expand/war thin — deepen vs peels (**OPEN** remainders).
 
 ## Entry / wiring
 
@@ -1612,7 +1612,7 @@ switch (orders) cases 7..0x0b
 
 | Lines | Case | Label |
 |-------|------|-------|
-| 90589–91142 | **7** | Europe hire (`0500`/`5c3c`), founding urgency, treasury buy — **partial** (Linux: dock expert matrix Done; deep economy/treasury OPEN; see §2d / §2e) |
+| 90589–91142 | **7** | Europe hire (`0500`/`5c3c`), founding urgency, treasury buy — **partial** (OpenCol: dock expert matrix Done; deep economy/treasury OPEN; see §2d / §2e) |
 | 91143–91158 | **8** | short |
 | 91159–91194 | **9** | short |
 | 91195–91362 | **10** | UI/chrome / dialog-ish (`281f_04ac` ≠ `06ae`) |
@@ -1630,7 +1630,7 @@ switch (orders) cases 7..0x0b
 
 Post-act primary upsert for exhausted ships lives in **`6d8e`**, not here.
 
-### 2b. Linux thin — naval war hunt (act-level)
+### 2b. OpenCol thin — naval war hunt (act-level)
 
 When nation is at war with a Euro peer, ships **not in Europe** that are idle /
 station-keeping get `AI_SAIL` toward the nearest enemy sea unit or coastal water
@@ -1661,7 +1661,7 @@ prefers `AI_SAIL` toward coastal water by a **threatened** own coastal colony
 coast). Cite: Colonization.pdf naval transport; Europe purchase Galleon/Frigate;
 Jones Frigate/MoW fallback; king_ref MoW. Full ships without space keep plain hunt.
 
-### 2c. Linux thin — land war hunt (act-level)
+### 2c. OpenCol thin — land war hunt (act-level)
 
 When at war with a Euro peer, **or** Indian hostility sticky with a tribe/Brave
 on the map, idle land military (Soldier / Dragoon / **Regular** /
@@ -1680,7 +1680,7 @@ Colonization.pdf war / Defending a Colony.
 **Alarmed tribe MILITARY (planning F):** friction>50 → MILITARY; capital tribes
 prio 5 vs 3.
 
-### 2c2. Linux thin — CONTACT scout rings (0a60 E / act)
+### 2c2. OpenCol thin — CONTACT scout rings (0a60 E / act)
 
 Peace + own colonies ≥ 1: idle Scout upserts `AI_GOAL_CONTACT` at a Manhattan
 ring tile (MD 2–4) around the nearest beyond-adjacent tribe and `AI_MOVE`s
@@ -1703,7 +1703,7 @@ squares (de Soto: all units → "as well as scouts"); do **not** invent extra
 sight radius or MP. Cite: Colonization.pdf Lost City Rumours / Seasoned Scout;
 Pass5 LCR scaffold; manual fog / Col1 seen bit.
 
-### 2c5. Linux thin — Treasure train coast (act)
+### 2c5. OpenCol thin — Treasure train coast (act)
 
 Idle land unit named Treasure → `AI_MOVE` toward nearest **own coastal colony**
 (`map_tile_is_coastal`). If none, nearest coastal land tile (Europe sail path
@@ -1912,7 +1912,7 @@ Full write-up: `docs/ai_port_plan.md` T1.13's 2026-08-24 entry. Stays
 PARKED — a future attempt needs either a genuinely new overlay hypothesis
 or a live DOSBox-X capture, not a repeat of either sweep above.
 
-### 2c6. Linux thin — Missionary CONTACT (act)
+### 2c6. OpenCol thin — Missionary CONTACT (act)
 
 Peace + Missionary/Jesuit, **not fleeing** (adjacent tribe Alarm/friction ≥55 —
 same band as `ai_contact` flee): upsert `AI_GOAL_CONTACT` (prio 3 > Scout ring
@@ -1921,21 +1921,21 @@ Jesuit prefers convert CONTACT over Scout explore / FOUND yank. Adjacent
 convert lives in `ai_contact`. Cite: Colonization.pdf Establishing a Mission;
 indian_contact.md.
 
-### 2c3. Linux thin — multi-step land goto (FOUND / MILITARY / CONTACT / hunt)
+### 2c3. OpenCol thin — multi-step land goto (FOUND / MILITARY / CONTACT / hunt)
 
 Toward `AI_GOAL_FOUND`, `AI_GOAL_MILITARY`, or `AI_GOAL_CONTACT`, or when
 act-level land war hunt / peace-border wake / scout explore set the goto,
 scored advances **drain `moves_left`** in the same act (thin `20e6` MP
 full-drain; was hard-cap 2). Full combat multi-step scoring stays **PARKED**.
 
-### 2c4. Linux thin — multi-step naval sail (AI_SAIL)
+### 2c4. OpenCol thin — multi-step naval sail (AI_SAIL)
 
 Ships on `AI_SAIL` use scored ocean steps (same `ai_euro_score_move` /
 `ai_euro_ocean_score_step` as land) and **drain `moves_left`** — mirror land
 MP-drain. Replaces full `units_advance_goto` so HS west-explore bias applies
 per step. Full ocean combat `20e6` stays **PARKED**.
 
-### 2d. Linux thin — Pioneer tools delivery
+### 2d. OpenCol thin — Pioneer tools delivery
 (mislabeled "case 7 economy stand-in" in earlier passes — case 7 is Found
 Colony, not a hire economy; this section's own DOS citations are `5d04`/
 `5cf6`, unrelated to `5b66` case 7 — see "Case dispatch targets resolved")
@@ -1963,7 +1963,7 @@ empty capacity, load that cargo via `colonies_transfer_to_unit` before hauling
 (load order tools>lumber>ore>muskets>horses>food). Cite: manual Wagon Train
 cargo; `COLONIZE_CARGO_*`; §2d unload delivery; 5cf6 lumber/ore_short.
 
-### 2d2. Linux thin — Caravel/Merchantman/Galleon coastal haul (act)
+### 2d2. OpenCol thin — Caravel/Merchantman/Galleon coastal haul (act)
 
 Peace + idle Caravel/Merchantman/**Galleon** with goods-hold capacity or TOOLS /
 LUMBER / ORE / MUSKETS / HORSES / FOOD cargo → `AI_SAIL` toward coastal water by
@@ -1991,7 +1991,7 @@ same FUN_364b load (prefer Silver) then `AI_MOVE` nearest own coastal colony;
 on coastal tile unload export holds into colony stock for ship pickup. Cite:
 §2d Wagon Train; §2d2 Europe export.
 
-### 2d4. Linux thin — Jan de Witt foreign-colony TRADE_GOODS (act)
+### 2d4. OpenCol thin — Jan de Witt foreign-colony TRADE_GOODS (act)
 
 With FF Jan de Witt + peace: Wagon on foreign Euro colony tile loads
 `TRADE_GOODS` surplus (stock≥20 → 10; same muskets haul chunk) via
@@ -2003,7 +2003,7 @@ on foreign dock (ships may enter foreign Euro docks when de Witt + peace via
 Europe (existing dump-sell). Stock transfer only — no gold/price.
 Cite: docs/fandom_col1994.md Jan de Witt; `colonies_de_witt_transfer_*`.
 
-### 2d3. Linux thin — peace colony garrison fortify (act)
+### 2d3. OpenCol thin — peace colony garrison fortify (act)
 
 **`garrison_quota` (+0x1e):** fortify consumes quota (DEC); planning thin-latches
 `=1` when idle unfortified garrison sits on colony (full `threat>>3` seed PARKED).
@@ -2105,28 +2105,28 @@ Clear/Plow/Road. Remaining mid `5d04` deep economy / deep combat scoring stay
 Wagon hire-once covers tools/lumber/ore (>30), muskets/horses (>20), and food
 (>30). Surplus load prefers FOOD when `food_short>20` (else tools ladder).
 
-### 2d5. Linux thin — Col1 `labor_shortage` (+0x8e)
+### 2d5. OpenCol thin — Col1 `labor_shortage` (+0x8e)
 
 Runtime `ColonizeColony.labor_shortage` bridged from Col1. Planning D upserts
 `AI_GOAL_LABOR` when `>0` (and thin-latches `=1` when other LABOR needs fire;
 full `FUN_5952_035e` seed PARKED). `colonies_admit_unit` decrements on join
 (decomp ~91589 / order `'G'`). Cite: save_format_map.md +0x8e.
 
-### 2d6. Linux thin — Col1 `specialty_cargo` (+0x8d)
+### 2d6. OpenCol thin — Col1 `specialty_cargo` (+0x8d)
 
 Runtime `ColonizeColony.specialty_cargo` bridged from Col1 (`0xff` = none).
 Inventory refreshes via `colonies_specialty_cargo_update` (FUN_5952_0306 shape:
 warehouse-cap / boycott clear). Wagon/ship surplus load tries specialty first.
 Smoke: `smoke_specialty_cargo_haul_prefer`. Cite: save_format_map.md +0x8d.
 
-### 2d7. Linux thin — Col1 `cargo_idle_turns` (+0x8f)
+### 2d7. OpenCol thin — Col1 `cargo_idle_turns` (+0x8f)
 
 Runtime `ColonizeColony.cargo_idle_turns` bridged from Col1. Euro inventory INC
 cap `0x7f` (FUN_5952_035e); `colonies_transfer_from_unit` clears on goods unload
 (~90249). Haul short-colony pick maximizes `idle*8 - MD` (~87677). Smoke:
 `smoke_cargo_idle_turns_haul_prefer`. Cite: save_format_map.md +0x8f.
 
-### 2d8. Linux thin — Col1 `improve_timer` (+0x8c)
+### 2d8. OpenCol thin — Col1 `improve_timer` (+0x8c)
 
 Runtime `ColonizeColony.improve_timer` bridged from Col1. Inventory INC cap
 `0x7f`. AI pioneer plow/road skips colony surround until timer ≥ 2 (thin stand-in
@@ -2134,7 +2134,7 @@ for terr@0x2f78+2; full table PARKED). Successful plow/road clears timer
 (~94546). Smoke: `smoke_improve_timer_pioneer_gate`. Cite: save_format_map.md
 +0x8c; FUN_5952 ~93663.
 
-### 2d9. Linux thin — Col1 `build_ai_flags` (+0x1d bit7)
+### 2d9. OpenCol thin — Col1 `build_ai_flags` (+0x1d bit7)
 
 Runtime `ColonizeColony.build_ai_flags` bridged from Col1. Bit7
 `COLONIZE_BUILD_AI_WANTS_CONSTRUCTION` latches construction LABOR (even without
@@ -2143,7 +2143,7 @@ Runtime `ColonizeColony.build_ai_flags` bridged from Col1. Bit7
 `smoke_build_ai_flags_wants_construction`. Cite: save_format_map.md +0x1d;
 FUN_5952 ~94660 / ~95792.
 
-### 2d10. Linux thin — Col1 `cargo_produced_mask` (+0x90)
+### 2d10. OpenCol thin — Col1 `cargo_produced_mask` (+0x90)
 
 Runtime `ColonizeColony.cargo_produced_mask` bridged from Col1. Cleared at
 colony production start; OR bit per cargo with positive yield/craft
@@ -2151,7 +2151,7 @@ colony production start; OR bit per cargo with positive yield/craft
 specialty. Smoke: `smoke_cargo_produced_mask_haul_prefer`. Cite:
 save_format_map.md +0x90.
 
-### 2d11. Linux thin — Col1 `ai_flags` (+0x1b)
+### 2d11. OpenCol thin — Col1 `ai_flags` (+0x1b)
 
 Runtime `ColonizeColony.ai_flags` bridged from Col1. Planning refreshes ship
 bits via MD≤5 foreign armed sea scan (MoW → 0x02, else attack>0 → 0x01;
@@ -2159,7 +2159,7 @@ bits via MD≤5 foreign armed sea scan (MoW → 0x02, else attack>0 → 0x01;
 else **5** (euro_dispatcher). Thin latches needs_colonists / needs_garrison.
 Smoke: `smoke_colony_ai_flags_mow_colony_alt`. Cite: save_format_map.md +0x1b.
 
-### 2d12. Linux thin — Col1 `colony_flags` (+0x1c)
+### 2d12. OpenCol thin — Col1 `colony_flags` (+0x1c)
 
 Runtime `ColonizeColony.colony_flags` bridged from Col1. The AI's "eating into
 its stores" test (food < pop×2) forces LABOR; it used to be stored in bit 0x08,
@@ -2169,7 +2169,7 @@ now reads the stock directly and leaves the bit to the colony tick. Thin wagon
 `smoke_colony_flags_starvation_labor`. Cite: save_format_map.md +0x1c;
 FUN_364b_0688.
 
-### 2d13. Linux thin — Col1 `hammers_purchased` (+0x98)
+### 2d13. OpenCol thin — Col1 `hammers_purchased` (+0x98)
 
 Runtime `ColonizeColony.hammers_purchased` bridged from Col1.
 `colonies_buy_construction` adds BUY remainder (gold cost) to the counter
@@ -2184,21 +2184,21 @@ Runtime `ColonizeColony.hammers_purchased` bridged from Col1.
 lines, one unrelated minor warning left. Calls `thunk_FUN_1000_997c` —
 target not resolved this pass. Confirms this mapping, not a correction.
 
-### 2d14. Linux thin — Col1 SoL latches on `colony_flags` (+0x1c)
+### 2d14. OpenCol thin — Col1 SoL latches on `colony_flags` (+0x1c)
 
 `colony_prod_refresh_sol_flags` sets sol_50 (0x04) / sol_100 (0x02) from
 `colony_prod_sol_percent` (≥50 / ≥100); clears on drop. Called from colony
 production and Euro planning. Cite: FUN_364b_0688 ~55373; unit_colonies SoL
 flag checks.
 
-### 2d15. Linux thin — Col1 `depletion_counter` (+0x97)
+### 2d15. OpenCol thin — Col1 `depletion_counter` (+0x97)
 
 Runtime `ColonizeColony.depletion_counter` bridged from Col1. Each ore/silver
 field yield INC; wrap at 50 subtracts 50 and sets `MAP_LAYER2_SUPPRESS` on the
 worked tile (`FUN_364b_033a` feature 4). Smoke: turn `depletion_counter
 wrap+suppress`. Cite: save_format_map.md +0x97.
 
-### 2d16. Linux thin — Col1 `warehouse_level` / `capitol_level` (+0x95/+0x96)
+### 2d16. OpenCol thin — Col1 `warehouse_level` / `capitol_level` (+0x95/+0x96)
 
 Runtime fields bridged from Col1. Warehouse capacity uses `100*(1+level)`
 (`FUN_15eb_0a50`); level also derived from Warehouse / Expansion buildings and
@@ -2206,7 +2206,7 @@ INC on complete. Capitol level INC on Capitol / Capitol Expansion complete
 (`FUN_364b_0114`). Smoke: `smoke_warehouse_capitol_levels`. Cite:
 save_format_map.md +0x95/+0x96.
 
-### 2e. Linux thin — LABOR bind (food/tools short + construction)
+### 2e. OpenCol thin — LABOR bind (food/tools short + construction)
 
 Idle colonist-capable land unit (Pioneer/Hardy/Free Colonist/Colonist) within
 MD≤1 of an own colony when inventory `tools_short` or `food_short` and the
@@ -2377,7 +2377,7 @@ indian land purchase; `colonies_indian_land_purchase_gold`.
 
 **Pioneer plow/road** — see §2d (unparked).
 
-### 2f. Linux thin — naval adjacent-foe pick
+### 2f. OpenCol thin — naval adjacent-foe pick
 
 Like land adjacent-foe: when choosing naval `try_attack` target —
 **Privateer** prefers Merchantman/Caravel cargo over warships; **Frigate**
@@ -2421,7 +2421,7 @@ colony Stockade/Fort/Fortress %, and FUN_157e_004a vet/Drake +50% peels +
 despawn; Expected→Harbor tick). KINGGALLEON2 extra share **Done** 2026-08-27
 (`FUN_5fef_1908`). Unset treasure value still PARK (no invented default).
 
-### 2g. Linux thin — ocean west-explore / east-Europe HS bias
+### 2g. OpenCol thin — ocean west-explore / east-Europe HS bias
 
 When ship is on high seas and goto is westward, ocean `20e6` score prefers
 westward HS steps and **leaving HS into ocean** (Atlantic first-leg). When goto
@@ -2544,7 +2544,7 @@ miss — no scored fallback for Indians). All wired in `units.c`
 `units_flood_next_step`, `units_next_goto_step`). Golden evidence for the
 tail formula: TURN4→5 unit 4's `facing = 4` in TURN5.SAV = a final south
 step, i.e. DOS took three ⅓-MP river steps (50,38)→(49,38)→(48,38)→(48,39);
-Linux now picks the same path but its whole-unit land MP stops it at
+OpenCol now picks the same path but its whole-unit land MP stops it at
 (48,38) — MP thirds are a separate gap (docs/port_plan.md). Open, noted at
 the wire sites: sea continent==1 gate, `FUN_1000_894e` (type ≥ 0x13), the
 BX cost cap, `unit+0x314b != '9'`.
@@ -2570,7 +2570,7 @@ body, plus one that fell out of reading `0526` beside it:
    forest clear pays lumber only to an own colony within DOS distance 4
    (`max + min/2`, `FUN_124c_0040`). The road body `0526` has **no** such
    gate — it just requires the nearest colony (searched with `0xffff`, any
-   nation) to be owned by the unit's nation. Linux used an unbounded
+   nation) to be owned by the unit's nation. OpenCol used an unbounded
    Manhattan nearest-own-colony search for both; the clear branch now
    gates at `< 4` and both branches use the DOS metric
    (`units_nearest_colony_dos`).
@@ -2579,8 +2579,8 @@ body, plus one that fell out of reading `0526` beside it:
    the *bound colony's* tile, not the worked tile) adds 1 before the
    Lumber-Mill floor. A colony tile always carries the city bit, so the
    bump always lands in DOS and the road half of the test is dead there;
-   Linux adds the +1 unconditionally rather than reading layer2, because
-   Linux's layer2 bit `0x08` is `MAP_LAYER2_RUMOUR_CLEARED`, not Col1's
+   OpenCol adds the +1 unconditionally rather than reading layer2, because
+   OpenCol's layer2 bit `0x08` is `MAP_LAYER2_RUMOUR_CLEARED`, not Col1's
    road bit. With no mill the whole thing is still forced to 1 (floor,
    not gate) so the flat-20 case is unchanged.
 3. **`LAB_479b_043b` — the tribal-land tail, previously unported.** Gates

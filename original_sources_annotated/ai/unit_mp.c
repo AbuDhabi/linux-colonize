@@ -5,9 +5,9 @@
  * real body. Annotate the real body here; ignore the thunk machinery.
  *
  * Source: original_sources_decompiled/viceroy_unpacked.c
- * Linux:  src/core/ai.c — Brave max_mp=3; pulse spent < max_mp
+ * OpenCol:  src/core/ai.c — Brave max_mp=3; pulse spent < max_mp
  *
- * Reference only — not compiled into the Linux binary.
+ * Reference only — not compiled into the OpenCol binary.
  */
 
 #include <stdint.h>
@@ -20,7 +20,7 @@
  *
  * max_mp = type_table[type].base_mp at DS:0x5234 + type*0x0e.
  * If FUN_15eb_3960(nation, 5) nonzero AND type in 0x0d..0x12 (ships): +3.
- * Brave (type 19): table byte is 3 — Linux hardcodes 3.
+ * Brave (type 19): table byte is 3 — OpenCol hardcodes 3.
  */
 int unit_max_mp(int unit_index) {
   ViceroyUnit* u = VICEROY_UNIT_AT(unit_index);

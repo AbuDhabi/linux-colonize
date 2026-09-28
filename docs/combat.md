@@ -209,7 +209,7 @@ nothing. Pinned by `tests/unit/test_combat_strength.c`
 | Discoverer human-attacker doubling (raw 100549) — **resolve-only** | `difficulty == 0` and the **ATTACKER** is a human-controlled European; no other gate (runs even under WoI) | attacker `<<1` |
 | Brave vs human Artillery (raw 100573-100577) — **resolve-only** | plain Brave (@UNIT 0x13) attacks human-controlled Euro Artillery (@UNIT 0xb) | roll drawn, then `atk_wins` forced false (`local_ca` latch, also FUN_5fef_0f14 param_4) |
 
-Crown nation = DS:`0x53d2` (Linux: peer of human Euro slot, same as
+Crown nation = DS:`0x53d2` (OpenCol: peer of human Euro slot, same as
 `ai_king_crown_nation`). WoI / `ref_present` read the real `game_options`
 bits (the old `market_demand_pool_raw[0]/[1]` stand-ins were retired 2026-08-28 — that
 array is DOS `market_demand_pool`, see king_ref.md).
@@ -444,7 +444,7 @@ Combat loss remaps **unit type** (not merely profession). Cite:
   damage exemption, late-game (turn>0x4f) forced Caravel sink, the
   and the per-nation stored-port *coords* (`DS -0x77c6` = the Europe landfall
   tile, written to the loser's goto fields +0x314d/e so DOS's repaired hull
-  knows where to come back to — the Linux Europe lane carries its own exit
+  knows where to come back to — the OpenCol Europe lane carries its own exit
   tile instead).
 
 ### Artillery: two different settlement gates — 2026-09-04
@@ -493,7 +493,7 @@ is-ship flags `bVar9` / `bVar10` (100347, 100451) gate only the later
 artillery clauses. `combat_naval_engage` calls the same
 `combat_apply_1b0e_peels`, so the port already matches; nothing to gate.
 
-Linux: `ai_contact_try_tired_attack_confirm` + `AI_POPUP_TAG_COMBAT_HALF`
+OpenCol: `ai_contact_try_tired_attack_confirm` + `AI_POPUP_TAG_COMBAT_HALF`
 (the last of `game_try_unit_move`'s pre-move confirms, matching 1b0e's own
 order), `units_remaining_mp` (native units keep DOS's spent byte in
 `moves`; Europeans keep the remainder).
@@ -535,7 +535,7 @@ Frigate held the tile "contested" forever and no land force could take the
 port. Both post-win gates now use `units_domain_blocker_at` (`units.c`), which
 applies `FUN_5fef_0000`'s own domain rule — the walk-in gate in
 `units_try_move` and the contested test in `units_try_capture_foreign_colony`.
-`ai_euro.c`'s adjacent-walk-in arm carries a Linux-only "sink every foreign
+`ai_euro.c`'s adjacent-walk-in arm carries an OpenCol-only "sink every foreign
 hull in the port" loop written against the old PARK; it is now unnecessary
 and DOS-contradicting (owner's call to remove).
 

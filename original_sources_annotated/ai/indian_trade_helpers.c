@@ -3,9 +3,9 @@
  *
  * Decomp: viceroy_unpacked.c ~82064–83476
  * Section map: ai/indian_trade_2820.md
- * Linux: ai_contact_* thin auto-trade / gift / hard-bargain; deep PARKED.
+ * OpenCol: ai_contact_* thin auto-trade / gift / hard-bargain; deep PARKED.
  *
- * Reference only — not compiled into the Linux binary.
+ * Reference only — not compiled into the OpenCol binary.
  */
 
 #include <stdint.h>

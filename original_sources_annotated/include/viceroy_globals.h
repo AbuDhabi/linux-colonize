@@ -2,10 +2,10 @@
  * Named DS / near-pointer globals used by AI nation turns.
  *
  * Values are absolute offsets as written in the Ghidra C export
- * (`*(int *)0x5394`, etc.). The Linux port does not share this address space;
+ * (`*(int *)0x5394`, etc.). The port does not share this address space;
  * names exist so annotated AI bodies read as simulation code.
  *
- * Reference only — not compiled into the Linux binary.
+ * Reference only — not compiled into the OpenCol binary.
  */
 #ifndef VICEROY_GLOBALS_H
 #define VICEROY_GLOBALS_H

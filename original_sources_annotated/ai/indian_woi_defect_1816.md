@@ -8,12 +8,12 @@ found and read `FUN_4d56_1816` (Indian nation turn — `viceroy_unpacked.c:
 `indian_contact.md` already confirmed) in full for the first time. Items
 1 and 3-8 of `indian_contact.md`'s existing phase checklist all check out
 byte-for-byte against this canonical copy. **Item 2 ("select indian
-context + chrome" → Linux "no-op / turn cursor") is not a no-op** — it
+context + chrome" → OpenCol "no-op / turn cursor") is not a no-op** — it
 contains a real, previously undocumented mechanic: **a tribe may defect to
 support the rebel side during the War of Independence**, receiving a
 one-time musket/horse windfall. Genuinely clean code (bounded by a real
 `^}` at line 81680, no corruption-fault warnings on this section), all
-touched fields already exist in Linux's `ColonizeCol1Indian` struct with
+touched fields already exist in OpenCol's `ColonizeCol1Indian` struct with
 confirmed exact offsets — this is a real gap, not a stale-doc mirage like
 the last two leads this session.
 
@@ -85,7 +85,7 @@ point here instead of speculating further.
 ## Fields — all already in `ColonizeCol1Indian` (`col1_save.h`), offsets
 confirmed exact:
 
-| DOS offset | Linux field | Current Linux semantics |
+| DOS offset | OpenCol field | Current OpenCol semantics |
 |---|---|---|
 | `+3` bits `0x20`/`0x40` | `unknown31_lo` (7 bits, currently fully opaque) | Would need two new named bits: one-shot "resolved this WoI" latch, and a "guaranteed defect" override |
 | `+7` | `muskets` | Already read/written elsewhere |
@@ -103,12 +103,12 @@ further this pass.
 
 Ported as `ai_contact_indian_woi_defect` in `ai_contact.c`, wired into
 `ai_indian_nation_turn` (item §2, right after reseed, before the alarm
-prelude — matches DOS phase order). New Linux-side pieces:
+prelude — matches DOS phase order). New OpenCol-side pieces:
 
 - `ColonizeCol1Indian.unknown31_lo` (`col1_save.h`, offset `+3`, previously
   fully opaque) split into `woi_defect_resolved` (bit `0x20`, one-shot
   latch) and `woi_defect_forced` (bit `0x40`, override — no known DOS
-  setter found this pass, so nothing sets it from Linux either; reserved).
+  setter found this pass, so nothing sets it from OpenCol either; reserved).
 - `ai_king_crown_nation` / `ai_king_independence_declared` made public
   (were `static` in `ai_king.c`) — both already existed for other King
   features, just needed exposing across the module boundary.
@@ -124,7 +124,7 @@ prelude — matches DOS phase order). New Linux-side pieces:
   tribe was being disarmed on defection and a small high-tech one
   over-armed. `ai_contact_indian_woi_defect` now reads the census array
   (also reads muskets/herds as signed bytes, as DOS does). DOS's exact
-  status wording is still not reproduced — Linux invents its own.
+  status wording is still not reproduced — OpenCol invents its own.
 - **`FUN_2a1f_0398` "mission clear" side-effect — wired 2026-08-14**, same
   day, once its target (`FUN_4cc6_0000`) was fully read (`viceroy_unpacked.c:
   80774-80802`, clean/uncorrupted). Byte-exact: `param_1` at the call site

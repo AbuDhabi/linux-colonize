@@ -57,8 +57,8 @@ UI/assignment flow not yet traced (out of scope for this pass — the
 | `colony+0x95` | Colony level byte (`0` → pop cap 100; else `(level+1)*100`) | `FUN_15eb_0a50`, this session |
 | `colony+0x1a` | Owning nation index (0-3 Euro) | Already used this way throughout this overlay |
 | `DS:0x8dc6` | "current colony index" (distinct from the colony *pointer* at `0x8542`) — feeds the building-bitmask table's row | `FUN_15eb_038e` |
-| `DS:0x5dca`, stride `0xca` | Per-colony building-ownership bitmask, indexed `[colony_idx][bit]` | `FUN_15eb_035e`; **already modeled in Linux** as `ColonizeColony.has_building[COLONIZE_BUILDING_TYPES_MAX]` (`colony.h`) — no raw bitmask math needs porting, just `has_building[@BUILDING_index]` |
-| `FUN_15eb_039e(building_idx)` | Census: does the colony have `building_idx` (walks a stride-`0xc` linked list at `DS:-0x707a`, testing `FUN_15eb_035e` per node) | Trivially `has_building[building_idx]` in Linux — the linked-list walk is DOS's own building-inventory representation, not a separate concept |
+| `DS:0x5dca`, stride `0xca` | Per-colony building-ownership bitmask, indexed `[colony_idx][bit]` | `FUN_15eb_035e`; **already modeled in OpenCol** as `ColonizeColony.has_building[COLONIZE_BUILDING_TYPES_MAX]` (`colony.h`) — no raw bitmask math needs porting, just `has_building[@BUILDING_index]` |
+| `FUN_15eb_039e(building_idx)` | Census: does the colony have `building_idx` (walks a stride-`0xc` linked list at `DS:-0x707a`, testing `FUN_15eb_035e` per node) | Trivially `has_building[building_idx]` in OpenCol — the linked-list walk is DOS's own building-inventory representation, not a separate concept |
 | `FUN_15eb_0470()` | Workable-plot **tier**: `min(has-Town-Hall-lvl2-count, 2) + 2` → `{2,3,4}` | This session; see Fidelity below |
 | `DS:0x329[tier]` | Tile count for that tier: `{2:0, 3:4, 4:8, [tier]:...}` — real indices used are `[2]=8`, `[3]=12`, `[4]=20` | Byte-searched `dosbox-x-dumps/find_memory`, this session, cross-calibrated against the known `DS:0x2f76` cost table (`HDR=0x88`, `DS=0x237d`) |
 | `colony+0xde+i` / `colony+200+i` (`i`=0..tile_count-1) | Candidate work-plot's `(dx,dy)` offset pair from the colony center | Read directly; matches the standard 8-tile-ring-then-outward-ring Colonization layout |
@@ -77,7 +77,7 @@ UI/assignment flow not yet traced (out of scope for this pass — the
 | `FUN_15eb_0544(nation)` | Per-nation treasury/gold accessor | `indian_trade_2820.md` |
 | `FUN_15eb_0668(x,y)` | Mark tile `MAP_LAYER2_PURCHASED` | `euro_unit_act.md`'s own T1.8 XREF sweep, same address |
 | `FUN_137f_0314`/`_03e4`/`_0228` | Generic tile-record find/create family | `terrain_yields.md`'s river-bit dig |
-| `FUN_137f_02a0(x,y)` | `continent_id(x,y)` | Already named Linux accessor, `T1.8` |
+| `FUN_137f_02a0(x,y)` | `continent_id(x,y)` | Already named OpenCol accessor, `T1.8` |
 
 ## Structure (real control flow, not paraphrased)
 
@@ -143,7 +143,7 @@ faithful port could implement scoring first and this discovery roll as a
 follow-up slice, matching this project's usual "port the clean part,
 park the rest" discipline.
 
-## Fidelity: the 8-tile Linux model already matches DOS's common case
+## Fidelity: the 8-tile OpenCol model already matches DOS's common case
 
 `ColonizeColony` (`colony.h`) hardcodes `COLONIZE_COLONY_FIELD_TILES = 8`
 (the immediate ring only). DOS's own tile count is tier-dependent via
@@ -158,7 +158,7 @@ against the known `DS:0x2f76` cost-column bytes before trusting the read):
 | 4 | Town Hall level-2 count `>= 2` (capped) | 20 |
 
 **Tier 2's tile count is exactly 8** — identical to `colony.h`'s existing
-constant. So the current Linux data model isn't an approximation of DOS's
+constant. So the current OpenCol data model isn't an approximation of DOS's
 typical colony, it *is* DOS's typical colony, byte-for-byte; only colonies
 that have built Town Hall level 2+ need more storage than `tiles[8]`
 provides. A first port can faithfully cover the tier-2 case entirely
@@ -241,7 +241,7 @@ general RE" placeholder:
   level," stride `0x10`, `DS:0x918c`) and `-0x6e34` = its Indian-side
   sibling (per tribe-type×continent Brave combat-value sum, `DS:0x91cc`),
   both already fully traced in `euro_g_table_0a60.md` with an existing
-  Linux accessor (`ai_euro_continent_stance_at`, per this project's own
+  OpenCol accessor (`ai_euro_continent_stance_at`, per this project's own
   earlier `T1.9` note). `0x9180` = `land_combat_totals[4]`, per-nation Euro
   combat-value total (`save_format_map.md` offset 32). `-0x6e7c` =
   `tribe_data_9184`, per-tribe Brave combat-value sum (`save_format_map.md`
@@ -255,7 +255,7 @@ general RE" placeholder:
 - **`local_24`'s exact relationship to `local_34`** — `FUN_15eb_18ec`'s
   3rd arg is an out-param (`&local_24`), and later code indexes by
   `local_24` (not `local_34`) for the per-job headcount/throttle lookups.
-  Linux's own `colony_yield_for_tile(map,x,y,field_job)` (already-ported
+  OpenCol's own `colony_yield_for_tile(map,x,y,field_job)` (already-ported
   equivalent) takes an explicit job and has no comparable out-param — a
   port substituting `local_34` for `local_24` throughout is a plausible,
   reasonable approximation (the two are very likely always equal in

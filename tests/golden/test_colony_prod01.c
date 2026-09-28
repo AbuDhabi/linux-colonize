@@ -15,7 +15,7 @@
 /*
  * Colony production golden: COLONY00_no-transports.SAV -> one turn_end() ->
  * compare against COLONY01_no-transports.SAV, a save produced by running
- * the *real* one turn in original DOS (not Linux-derived, unlike the
+ * the *real* one turn in original DOS (not OpenCol-derived, unlike the
  * test-saves-ai/ series). Both fixtures had every European ship / wagon
  * train stripped first (see original_saves/colony-prod-tests/), so this
  * is Euro-unit-free and isolates colony field production math.
@@ -23,7 +23,7 @@
  * First pass, human-controlled Dutch (nation_id 3) colonies only: the
  * player made no moves that turn (no pioneers/military built, no orders),
  * so any Dutch colony field drift is either engine production math or a
- * bridge apply/capture bug — not a player-action Linux can't know about.
+ * bridge apply/capture bug — not a player-action OpenCol can't know about.
  * AI nations (English/French/Spanish) are NOT checked here: their turn
  * involves AI unit/build decisions this suite does not attempt to
  * reproduce move-for-move against the DOS RNG stream.

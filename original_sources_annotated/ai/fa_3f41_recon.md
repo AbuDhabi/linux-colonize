@@ -49,10 +49,10 @@ Several tags never appear as DS strings because DOS builds them by
 
 ### Tag → owning site (all in `FUN_5bfb_153e`)
 
-`raw` = line in `viceroy_unpacked.c`. "Linux" = state in `src/core/ai_diplo.c`
+`raw` = line in `viceroy_unpacked.c`. "OpenCol" = state in `src/core/ai_diplo.c`
 (`ai_diplo_153e_encounter` state machine) as of 2026-09-08.
 
-| tag | DS id | raw | trigger (as read) | Linux |
+| tag | DS id | raw | trigger (as read) | OpenCol |
 |---|---|---|---|---|
 | `@HELLO`+`FIRST`/`AHOY` | 0x18c7 + 0x18d2/0x18cd | 97705–97715 | first contact: `FUN_281f_0a38(self,target) & 0x20 == 0`; `AHOY` when the encountering unit's type (`+0x3146`) is in `0x0d..0x12` (a ship), else `FIRST` | live (`ai_diplo.c:2941-2944`) |
 | `@HELLO`+`MEEK`/`MANLY` | + 0x18b0/0x18b5 | 97691–97705 | already met; tone = `iVar6` (see "tone selector") | live |
@@ -147,15 +147,15 @@ declare:
 }
 ```
 
-Linux `ai_diplo.c:2290-2296` implements only the `@PROVOKE` leg and then
+OpenCol `ai_diplo.c:2290-2296` implements only the `@PROVOKE` leg and then
 falls straight to `AI_TALK_ST_PEACEMENU`. Consequences:
 
 - `@RID` ("…we order you to leave {%STRING1} immediately. If you do not, we
   shall drive you into the sea.") never fires — it is the *only* one of the
-  17 entry tags with no Linux site at all.
+  17 entry tags with no OpenCol site at all.
 - The post-tribute war declaration is silently skipped: a "worthy" AI that
   already ran a `@TRIBUTE` dialog (which unconditionally stamps
-  `score = 999`) should declare war; in Linux it just opens the peace menu.
+  `score = 999`) should declare war; in OpenCol it just opens the peace menu.
 
 This is the answer to the brief's "war-declare dispatch is completely
 unknown": it is these three lines, and it is a real behavioural defect, not

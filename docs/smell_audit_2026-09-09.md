@@ -81,7 +81,7 @@ record of what was looked at, not as a work queue — anything still live was re
 
 32. ai_euro.c:7194-7208 — `ai_euro_5d04_dos_type_of` tests "Cav" before "Cont": Cont. Cav.→8, Cont. Army→7; NAMES.TXT @UNIT order is 6 Regulars / 7 Cont. Cav. / 8 Cavalry / 9 Cont. Army, and sibling `ai_euro_20e6_dos_type` (:10929) encodes that correctly. Two @UNIT tables in one file disagree on WoI rows. H
 
-33. ai_euro.c:8118-8120 — DOS @UNIT code from `cb_unit_dispatch_byte` passed to `units_type()` as a Linux pool index (every other consumer translates via `ai_euro_5d04_linux_type_for`); wrong `space` subtracted from the recruit-buy hull budget. M-H
+33. ai_euro.c:8118-8120 — DOS @UNIT code from `cb_unit_dispatch_byte` passed to `units_type()` as an OpenCol pool index (every other consumer translates via `ai_euro_5d04_port_type_for`); wrong `space` subtracted from the recruit-buy hull budget. M-H
 
 34. ai_euro.c:9832 vs :10217 — 0a60 work-queue "+1500 exposed combat unit" arm reads `ai_euro_continent_stance_at` ~380 lines before the only planning-phase refresh; sees last turn's table, all-zero on turn 1 (arm fires for every armed unit in every colony). M-H
 
@@ -105,7 +105,7 @@ record of what was looked at, not as a work queue — anything still live was re
 
 ## D. Native / King AI (ai_contact.c, ai.c, ai_king.c, ai_diplo.c, ai_popup.c)
 
-44. COL1_INDIAN_WAR_BIT (0x02) — six production readers (ai_contact.c:7840, ai_diplo.c:545/3121/3129, ai_euro.c:254/9298, units.c:3650), zero production writers (only clears at ai_diplo.c:3773); every gate permanently false in a Linux-started game — e.g. raid vent's at-war no-discharge exception never fires, so raids always cool alarm 4-16. col1_save.h:616 admits the bit is never set. H
+44. COL1_INDIAN_WAR_BIT (0x02) — six production readers (ai_contact.c:7840, ai_diplo.c:545/3121/3129, ai_euro.c:254/9298, units.c:3650), zero production writers (only clears at ai_diplo.c:3773); every gate permanently false in an OpenCol-started game — e.g. raid vent's at-war no-discharge exception never fires, so raids always cool alarm 4-16. col1_save.h:616 admits the bit is never set. H
 
 45. ai.c:3115-3119 vs :3131-3138 — 152e mission arm decrements tribe attitude as an 8-bit byte (`friction` only) while the adjacent threat arm maintains the DOS int16 word (friction+attacks, clamps at 0x7fff); once the word passes 255 a mission can never reduce it (friction bottoms at 0, high byte untouched). DOS writes the full int both times (viceroy 81490-81496). H
 

@@ -4,10 +4,10 @@
  * Source: original_sources_decompiled/viceroy_unpacked.c
  *   0172 ~6220–6234; 019e ~6238–6257; 0222 ~6262+; 0290 ~6283–6514
  * Thunk entry: FUN_281f_0546 → 130d_0290
- * Linux:  src/core/turn.c TURN_PROC_* is a post-human batch reshape of this
+ * OpenCol:  src/core/turn.c TURN_PROC_* is a post-human batch reshape of this
  *         interleaved loop (see docs/turn_between_players.md).
  *
- * Reference only — not compiled into the Linux binary.
+ * Reference only — not compiled into the OpenCol binary.
  */
 
 #include <stdint.h>
@@ -66,7 +66,7 @@ extern uint16_t read_timer_tick(void);            /* 1c0c_0006 */
 /*
  * Ghidra: FUN_130d_0172 | autosave_pick_slot
  * Decade Spring (year%10==0 && autumn==0 && turn>2) → slot 8; else slot 9.
- * Linux: turn_processor FINISH autosave flags + game_apply_turn_autosave.
+ * OpenCol: turn_processor FINISH autosave flags + game_apply_turn_autosave.
  */
 void autosave_pick_slot(void) {
   int slot = 9;
@@ -105,11 +105,11 @@ void independence_splash(void) {
  *   for nation 0..3:
  *     if not withdrawn: nation_eot (3844_00f2)
  *     if AI: euro_nation_turn (521d_6d8e)
- *     if human: merc offer + Move Pieces (2b5a_3b68)   ← Linux already done
+ *     if human: merc offer + Move Pieces (2b5a_3b68)   ← OpenCol already done
  *   calendar: year++ or autumn toggle (@TIMECHANGE shape, year≥1600)
  *   year_end_chrome (3844_0442)
  *
- * Linux batch-after-human never re-enters Move Pieces here; see TURN_PROC_*.
+ * OpenCol batch-after-human never re-enters Move Pieces here; see TURN_PROC_*.
  */
 void year_turn_loop(void) {
   int first_pass_done = 0;
@@ -176,7 +176,7 @@ void year_turn_loop(void) {
       } else if (control == 0) {
         /* Human: set focus; camera; maybe autosave; merc offer; Move Pieces */
         human_merc_offer();   /* 43f7_2244 */
-        move_pieces_loop();   /* 2b5a_3b68 — Linux: already finished */
+        move_pieces_loop();   /* 2b5a_3b68 — OpenCol: already finished */
         human_acted = 1;
       }
 
@@ -193,7 +193,7 @@ void year_turn_loop(void) {
     /*
      * turn++; if year > 0x63f (1599): autumn++; if autumn>=2 reset autumn
      * and year++. Special dialog at year==0x640 && autumn==0.
-     * Linux: turn_advance_calendar in TURN_PROC_SETUP (before AI).
+     * OpenCol: turn_advance_calendar in TURN_PROC_SETUP (before AI).
      */
     /* LAB_130d_0600: */
 

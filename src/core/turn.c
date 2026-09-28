@@ -388,7 +388,7 @@ static int turn_next_euro_ai(const ColonizeTurnContext* ctx, int start) {
 /*
  * DOS FUN_130d_0290 runs, per year tick: mid-pass Indian turns (4d56_1b3a →
  * 1816 per slot), then the Euro 0..3 loop with the human's Move Pieces inside
- * it. Linux's pipeline starts after the human ends their turn, so relative
+ * it. OpenCol's pipeline starts after the human ends their turn, so relative
  * to that point the DOS order is: Euro slots above the human → Indians → Euro
  * slots below the human. Seed-100 golden (human = slot 0): the Dutch
  * TURN2→3 landing meets an Aztec Brave that only moves away in the Indian
@@ -535,7 +535,7 @@ COLONIZE_INTERNAL void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurn
           ctx->ai_popups, AI_POPUP_TAG_FF_CONGRESS, AI_POPUP_TAG_COLONY_EVENT
         );
       }
-      /* Mid-pass Euro rank (FUN_5bfb_00f8) — DOS before nation loop; Linux SETUP. */
+      /* Mid-pass Euro rank (FUN_5bfb_00f8) — DOS before nation loop; OpenCol SETUP. */
       ctx->euro_power_rank_ok =
         turn_rank_euro_nations(
           ctx->col1_ok ? ctx->col1 : NULL, ctx->colonies, ctx->euro_power_rank

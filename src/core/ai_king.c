@@ -878,7 +878,7 @@ void ai_king_set_independence(ColonizeCol1Save* col1, int on) {
     return;
   }
   /* game_options.woi IS the latch — ai_king_latch_set(AI_KING_WOI_BYTE)
-   * writes this same field and returns, so the "legacy Linux mirror" call
+   * writes this same field and returns, so the "legacy OpenCol mirror" call
    * that used to precede this line was writing it twice (deleted 2026-09-14
    * with the market_demand_pool_raw[] mirror it referred to, which no longer exists). */
   col1->head.game_options.woi = on ? 1 : 0;

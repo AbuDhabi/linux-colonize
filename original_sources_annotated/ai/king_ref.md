@@ -1,6 +1,6 @@
 # King / REF / independence (`43f7`) — thin section-map
 
-Layer D hygiene for tax → declare → REF → war. Linux:
+Layer D hygiene for tax → declare → REF → war. OpenCol:
 [`src/core/ai_king.c`](../../src/core/ai_king.c) — **partial structural port**.
 Odd deviations OK; not T3.
 
@@ -25,9 +25,9 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | Crown | tax residual `1d42`?; pools>0 → `0982` invasion; else `06a6` irregulars |
 | Rebel | once `1eca` promote (colony-SoL bands; Soldier/Regular + Dragoon/Cavalry); each turn: REF-absent-or-artillery-pool-empty → self-funded troop-gift roll (own treasury) via `10f0` mode 1; else `10f0` mode 0 drains `backup_force` free (see "`2244`/`2022` — corrected" below; `2022`'s rebel branch is the wartime merc hire, `2244` its peacetime twin — both human-facing) |
 
-## Key symbols → Linux
+## Key symbols → OpenCol
 
-| Symbol | Role | Linux |
+| Symbol | Role | OpenCol |
 |--------|------|-------|
 | `0004` | Pop-weighted SoL | `ai_king_sol_percent` |
 | `1d42` | Royal purse tick → REF pool buys (**not** the tax audience — that is `38fd_5be8`; see "1d42 real port" below) | `ai_king_1d42_royal_purse` (full, 2026-09-06) |
@@ -44,7 +44,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 
 ## DS / Col1 anchors
 
-| DOS | Linux stand-in |
+| DOS | OpenCol stand-in |
 |-----|----------------|
 | `0x5382` bit0 war | `head.game_options.woi` (mapped); `unknown46[0]` legacy sync only |
 | `0x5382` bit1 REF present | `head.game_options.ref_present` (real bit; `ai_king_latch_get(AI_KING_REF_PRESENT_BYTE)`) |
@@ -61,7 +61,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | Foreign pools `0x53e2…` | `head.backup_force[4]` — **10f0 stand-in** (seeded on declare) |
 | Crown id `0x53d2` | Non-human Euro nation slot (0 or 1) |
 
-Exact `0x5382` Col1 bit rename: **Done** — `game_options.woi` mapped; `unknown46[0]` kept in sync on declare for legacy Linux saves.
+Exact `0x5382` Col1 bit rename: **Done** — `game_options.woi` mapped; `unknown46[0]` kept in sync on declare for legacy OpenCol saves.
 
 ### 2026-09-06 deep-port pass — 1d42 / 2424 tail / 1a26 tails / gates
 
@@ -135,14 +135,14 @@ name (was hardcoded "Soldiers").
 **`1528` correction**: it is the foreign-INTERVENTION announce (@INTERVENTION
 0x12db, sets `0x5382` bit2, names rival slot 0x53d4 + the human's
 largest coastal colony), called from the `4345_0a22` bells spend — NOT a
-"REF arrival announce" as this file's table said. Linux models it inside
+"REF arrival announce" as this file's table said. OpenCol models it inside
 `ai_king_foreign_intervene_ex` (announce-once latch). Colony-name pick
 **closed 2026-09-06d** (`ai_king_1528_announce_colony`). Remaining
-divergence: Linux couples announce+first landing in one beat (DOS announces,
+divergence: OpenCol couples announce+first landing in one beat (DOS announces,
 lands next `2022` turn).
 
 **`10f0` nit (documented)**: DOS's water-tile scorer subtracts 999 per
-CROWN Man-O-War on the tile and allows human units; Linux blocks any
+CROWN Man-O-War on the tile and allows human units; OpenCol blocks any
 foreign-unit tile outright and penalizes a human MoW — kept (bugs.md 259
 battle-tested), noted as a deviation.
 
@@ -234,7 +234,7 @@ temporarily restoring the landing-colony pick, which names Jamestown and
 fails the assert.
 
 **Still open here (not closed this pass):** `1528` announce and first
-landing still happen in one Linux beat (DOS announces from the `4345_0a22`
+landing still happen in one OpenCol beat (DOS announces from the `4345_0a22`
 bells spend and lands on the next `2022` turn) — a turn-cadence change that
 would touch the bugs.md-259 landing sequencing, so it stays filed. The
 `10f0` water-tile scorer nit above stays a deliberate divergence.
@@ -243,7 +243,7 @@ would touch the bugs.md-259 landing sequencing, so it stays filed. The
 
 DOS `FUN_43f7_2424` peacetime path stores `FUN_43f7_0004` result in
 `DS:0x53d0` (`head.rebel_sentiment_report`) for tax-audience favor scoring
-(`38fd_5be8`: `RNG(1,1000) + (report*2 − tax)*5`). Linux:
+(`38fd_5be8`: `RNG(1,1000) + (report*2 − tax)*5`). OpenCol:
 `ai_king_nation_turn` writes `rebel_sentiment_report = ai_king_sol_percent`
 at **turn end** (audience on the same turn uses the prior cached value).
 Decile congress notify (`sol_pct_last_notified`): **full port 2026-09-06**
@@ -488,7 +488,7 @@ dropped — DOS blocks on a dialog nobody can answer. The old AI-turn call
 (`ai_king_ai_peacetime_gift` in `ai_king.c`, called from
 `ai_euro_nation_turn` — the DOS caller, `FUN_281f_0668` at
 `viceroy_unpacked.c:6409-6421`, sits in the SAME generic per-Euro-nation
-turn loop gated on the identical human-controlled flag byte Linux's
+turn loop gated on the identical human-controlled flag byte OpenCol's
 the `TURN_PROC_EURO` slice already uses to skip the human, confirming
 this is genuinely unreachable for a human turn). Gate: WoI not declared,
 1-in-21 roll. Picks a random Euro nation 0-3 as beneficiary; eligible only
@@ -509,7 +509,7 @@ reachable through this call chain — always auto-accepts when affordable.
 **Approximated**: which global exactly represents "the acting nation" for
 the self/ally eligibility check (DOS reads `DS:0x5398`, which this
 specific call chain doesn't visibly reassign in the read window — the
-more locally-scoped loop variable is `DS:0x5396`/`0x5394`) — used Linux's
+more locally-scoped loop variable is `DS:0x5396`/`0x5394`) — used OpenCol's
 own per-AI-nation-turn loop variable, matching every other established
 convention in this codebase; not independently confirmed byte-exact for
 this one call chain. Test: `test_ai_king.c`'s dedicated seeded block
@@ -559,7 +559,7 @@ established in the case-8/9 terrain-improve investigation
 (`euro_unit_act.md`). So **only Veteran-status** Soldier/Dragoon promote —
 an ordinary armed colonist (type Soldier/Dragoon, profession
 `UNITS_JOB_NONE`) does **not**, even fortified on the colony's own tile.
-Previously unported (Linux checked only the raw type, no profession gate)
+Previously unported (OpenCol checked only the raw type, no profession gate)
 — **fixed same day**: `ai_king_war_act`'s 1eca block now also requires
 `u->profession == UNITS_JOB_SOLDIER`. Verified against `unit_ai_king`'s
 existing 1eca test blocks (updated to grant Veteran profession to the
@@ -574,7 +574,7 @@ body" — that was wrong. A full end-to-end read of `FUN_43f7_1eca`
 (`viceroy_unpacked.c:74910-74972`) shows only two per-unit tests: the type
 byte at `unit+0x3146` and the profession byte at `unit+0x315b`. `orders`
 (`ViceroyUnit.orders`, `original_sources_annotated/include/viceroy_types.h`)
-lives at `unit+0x08`, an address this function never reads. The Linux port
+lives at `unit+0x08`, an address this function never reads. The port
 had carried an extra `u->orders != UNITS_ORDER_FORTIFIED` gate (added
 2026-08-14 alongside the real profession-gate fix, apparently by inference
 rather than a direct byte-offset citation) that DOS does not have — removed
@@ -582,7 +582,7 @@ this pass, tests updated to prove a non-fortified on-tile Veteran Soldier
 now promotes.
 
 Source: `FUN_43f7_1eca`. King promote path only — **not** FF Washington
-mass-promote / combat upgrade. Linux: `ai_king_war_act` in `ai_king.c`
+mass-promote / combat upgrade. OpenCol: `ai_king_war_act` in `ai_king.c`
 (`unit_ai_king` 1eca block covers the own-tile-gate, Veteran-profession-gate,
 shared-cap, and SoL==50-edge cases).
 
@@ -964,7 +964,7 @@ handoff, each decomp-cited at its code site:
 - `ai_euro_is_military_name`/`is_colony_garrison_name` now match
   "Cavalry"/"Cont." (NAMES.TXT @UNIT spellings) — REF Cavalry no longer
   falls into the explorer bands.
-- Crown-slot euro guards: `ai_diplo_euro_balance` skipped (Linux-only
+- Crown-slot euro guards: `ai_diplo_euro_balance` skipped (OpenCol-only
   content, no DOS 6d8e counterpart — 0342 is goal-promote only, verified),
   first-colony founding blocked for the WoI crown.
 - Warships in a fallen port are sunk by the euro seize arm (0512 texture;
@@ -973,7 +973,7 @@ handoff, each decomp-cited at its code site:
 vs the ≤t12 bar, all 7 colonies fall by t16 vs t24 under the old hunt) —
 the euro-driven REF is stronger, no re-baseline was needed.
 
-## Linux `ai_king_nation_turn` checklist
+## OpenCol `ai_king_nation_turn` checklist
 
 1. SoL (`0004`)
 2. If !WoI: tax (`1d42`) → SoL 40–49 chrome (+ optional high-tax mention) → declare gate (`2564`/`1a26`; seeds REF + thin `backup_force` + thin `160a` rename + `unknown46[5]` congress)

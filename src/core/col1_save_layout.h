@@ -207,7 +207,7 @@ typedef struct ColonizeCol1Head {
    * -1/0xffff = none, all reset together in FUN_75c2_235c (new game). */
   int16_t crown_nation_id; /* DS:0x53d2 — already named elsewhere in the
      port (combat.md, king_ref.md, ai_king_crown_nation) as "Crown nation":
-     the non-human REF/King's-own Euro nation slot. Linux computes this
+     the non-human REF/King's-own Euro nation slot. OpenCol computes this
      functionally (ai_king_crown_nation) rather than reading this save
      copy; kept here for DOS byte-fidelity only. */
   int16_t rival_nation_slot_1; /* DS:0x53d4 — year-end chrome's "rival
@@ -231,7 +231,7 @@ typedef struct ColonizeCol1Head {
   uint16_t backup_force[4];
   /*
    * DS:0x53ea — DOS uint16 market_demand_pool[16] (FUN_38fd_0058).
-   * Linux king latches used to overlay the first bytes of this array — moved
+   * OpenCol king latches used to overlay the first bytes of this array — moved
    * 2026-08-28 to game_options bits + the human nation's unknown23_pad (see
    * ai_king_latch_get in ai_king.h); nothing but the market tick writes here now.
    *   [0] WoI  [1] REF  [2] boycott  [3] merc  [4] unused  [5] congress
@@ -463,7 +463,7 @@ typedef struct ColonizeCol1Unit {
   uint8_t stack_has_founders_or_military : 1; /* bit2 (0x04) — FUN_521d_0a60:
      ship's cargo stack carries a founder-type or military-type passenger
      (FUN_1000_8aac modes 3/4/6 "stack query", not independently disassembled,
-     but the info they report is now computed directly in the Linux port from
+     but the info they report is now computed directly in the port from
      real cargo_ids[] — see ai_euro.c ai_euro_0a60_unit_can_pursue_goal) */
   uint8_t stack_has_military : 1; /* bit3 (0x08) — as above, specifically
      the founders/military-modes-4-or-6 branch; always set alongside bit2 */
@@ -566,7 +566,7 @@ typedef struct ColonizeCol1Nation {
      diplomatic relations update to the other 3 nations. Bytes +0x1b..+0x1d
      (unknown23_pad[1..3]) never touched anywhere in any of the 3 decompiled
      exports — kept as pad below. See docs/archive/mysteries_catalog.md. */
-  uint8_t unknown23_pad[3]; /* DOS-dead; bytes 0-1 of the HUMAN nation host the Linux king
+  uint8_t unknown23_pad[3]; /* DOS-dead; bytes 0-1 of the HUMAN nation host the OpenCol king
      latches since 2026-08-28 (ai_king_latch_get/set, ai_king.h): endgame + once-flags. */
   uint16_t artillery_count;
   uint16_t boycott_bitmap;
@@ -575,7 +575,7 @@ typedef struct ColonizeCol1Nation {
      FUN_5fef_1908 (King's Galleon treasure cash, `-0x77d2 += net`) and
      (2026-08-28) by FUN_364b_0688's Custom House arm (`+= net` of every
      sale, with the tax going to royal_money) — a write-only cumulative
-     net-income accumulator; no reader found. Linux mirrors the Custom
+     net-income accumulator; no reader found. OpenCol mirrors the Custom
      House write (europe_custom_house_autosell). */
   /* (history)
      Earlier note (kept for history): confirmed dead 2026-08-19 — no
@@ -601,7 +601,7 @@ typedef struct ColonizeCol1Nation {
      hence the 0x60, same MET/PEACE encoding as euro_relation, and DOS also
      reads bit 0x02 (WAR) here (viceroy_overlays.c:55515; 153e's
      `FUN_1000_8c28(self,tribe+4) & 2`). WAR-bit writers live 2026-09-09 (the
-     "Linux never sets it" note here was stale): DOS has exactly two, both
+     "OpenCol never sets it" note here was stale): DOS has exactly two, both
      `or_both` so both sides of the matrix move together —
      FUN_5bfb_13b0's paid "smite" arm (raw 98378, ai_diplo.c
      AI_TALK_ST_ALLY_PAY) and FUN_5952_035e's colony-tick declare (raw
@@ -609,11 +609,11 @@ typedef struct ColonizeCol1Nation {
      thunk of its own, so or_both/clear_both are the only mutation channel;
      FUN_4cc6_00f2's cool-below-75 clear is the only other toucher. */
   /*
-   * Linux diplo stand-ins (exact DS PARKED, deliberately NOT touched this
+   * OpenCol diplo stand-ins (exact DS PARKED, deliberately NOT touched this
    * pass — this union is live, load-bearing gameplay code across
    * ai_diplo.c/ai_euro.c, not an unused mystery byte). Two sub-ranges got
    * concrete (if partial) DOS answers 2026-08-19, both confirming the
-   * Linux names below are functional stand-ins, not decodes — findings
+   * OpenCol names below are functional stand-ins, not decodes — findings
    * recorded here without renaming/restructuring anything live:
    *   +0x44/+0x45 ("diplo_flag[0..1]"): real DOS content is per-nation
    *     recruit-type RNG cycling state, nothing to do with diplomacy —
@@ -641,16 +641,16 @@ typedef struct ColonizeCol1Nation {
    *     nation owns Benjamin Franklin (FF bit 0x13 via FUN_15eb_3960);
    *     FUN_521d_6d8e decrements it every turn and, at 0, may relapse the
    *     pair into war (relation bit 0x08 latch, 1-in-3); FUN_465b_0000
-   *     reads it as a nonzero "skip encounter escalation" gate. Linux
-   *     treaty_timer[4] decrement matches; the expiry action is a Linux
+   *     reads it as a nonzero "skip encounter escalation" gate. OpenCol
+   *     treaty_timer[4] decrement matches; the expiry action is an OpenCol
    *     simplification.
    *   +0x46/+0x47: int16 last_colony_founded_turn (DS -0x77b2) — written
    *     = turn by the found-colony order body FUN_479b_076e, read by the
    *     unit desirability score FUN_521d_052c (`+= (turn-stamp)>>4` when
-   *     founding urgency is nonzero). Linux diplo_flag[2..3] overlay it;
-   *     DOS value unused by Linux. Resolved 2026-08-27.
+   *     founding urgency is nonzero). OpenCol diplo_flag[2..3] overlay it;
+   *     DOS value unused by OpenCol. Resolved 2026-08-27.
    *   +0x4b: confirmed dead 2026-08-27 (no literal touch anywhere) — which is
-   *     why the Linux `indian_hostility_sticky` stand-in was moved onto it
+   *     why the OpenCol `indian_hostility_sticky` stand-in was moved onto it
    *     2026-09-09 (smell #52), off the +0x48 grace counter it had been
    *     overwriting every turn.
    * All 12 bytes now have a DOS meaning; see docs/archive/mysteries_catalog.md
@@ -666,7 +666,7 @@ typedef struct ColonizeCol1Nation {
        * (FUN_364b_0114 raw 56943-56946: a non-human colony's completed
        * Artillery project increments it — bugs.md #766); nothing else in
        * the port writes it, and nothing yet reads it back (4528's own
-       * decrementing consumer is unported). The Linux "indian hostility
+       * decrementing consumer is unported). The OpenCol "indian hostility
        * sticky" stand-in used to live on this byte and stomped it every
        * turn, so on a DOS-authored save the first read of either quantity
        * was the other one (smell #52, 2026-09-09). The stand-in moved to
@@ -675,7 +675,7 @@ typedef struct ColonizeCol1Nation {
       uint8_t privateer_spawn_mask;
       uint8_t unknown26_pad; /* +0x4a — DOS carry accumulator raw banked total. */
       /* +0x4b — confirmed dead in DOS (2026-08-27: no literal touch anywhere),
-       * so this is the port's own byte. Home of the Linux Indian-hostility
+       * so this is the port's own byte. Home of the OpenCol Indian-hostility
        * sticky stand-in (0 clear / 1 at-war / 2 very-low deepen); it still
        * round-trips through the save file, it just no longer collides with a
        * real DOS quantity. */
@@ -805,7 +805,7 @@ typedef struct ColonizeCol1Indian {
   uint8_t unknown31_flags; /* 0x8d4e+6 — unmapped, and confirmed unread by DOS
      2026-09-09 (smell #72): offset tally over viceroy_unpacked / _2 /
      viceroy_overlays shows only +0/+2/+3/+5/+7/+8/+10 ever accessed. The old
-     "bit 0x20 = contact prelude fired" latch was a Linux invention that
+     "bit 0x20 = contact prelude fired" latch was an OpenCol invention that
      shadowed the real WoI latch at +3 (`woi_defect_resolved`); retired with
      the prelude escalate. Nothing reads or writes this byte now. */
   uint8_t muskets;
@@ -845,12 +845,12 @@ typedef struct ColonizeCol1Indian {
   /*
    * +0x3a — per-euro diplo flags (was met_by_player).
    * DOS: bit0x20 met, bit0x40 peace (FUN_5bfb_0182 / FUN_15b3_*).
-   * Linux meet still sets the byte non-zero; peace uses bit 0x40.
+   * OpenCol meet still sets the byte non-zero; peace uses bit 0x40.
    */
   uint8_t euro_diplo[4];
   uint8_t unknown33_pad[8]; /* 0x8d4e+0x3e..+0x45 — confirmed dead 2026-08-24:
      zero literal offset touches (+0x3e through +0x45) in any of the 3
-     decompiled DOS exports; Linux formerly parked peace bookkeeping here,
+     decompiled DOS exports; OpenCol formerly parked peace bookkeeping here,
      since moved off (see euro_diplo above). */
   uint16_t alarm_by_player[4];
 } ColonizeCol1Indian;

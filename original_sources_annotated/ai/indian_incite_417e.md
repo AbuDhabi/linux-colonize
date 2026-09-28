@@ -1,8 +1,8 @@
 # `FUN_4d56_417e` — Incite Indians (WARPATH) price + gold deduct
 
 Disassembly-clean, structure fully clarified, transaction identified and
-**ported to Linux** (2026-08-13, task #5, closed). First-draft quality —
-see "Ported to Linux" below for exactly what's faithful vs. approximated.
+**ported to OpenCol** (2026-08-13, task #5, closed). First-draft quality —
+see "Ported to OpenCol" below for exactly what's faithful vs. approximated.
 
 **History on this doc, same day:** first guess was "skill-teach price"
 (wrong — teaching is free, user-corrected; see `indians.md`). Then a full
@@ -125,7 +125,7 @@ the resident stub's target segment is patched at runtime.
      contact bit;
   3. `wealth_rank[AI nation] (0x917c) < wealth_rank[human]` (`-0x6e84`
      indexed by human id) — the AI nation ranks **poorer** than the human
-     (`FUN_5bfb_00f8` table, Linux `turn_rank_euro_nations`);
+     (`FUN_5bfb_00f8` table, OpenCol `turn_rank_euro_nations`);
   4. AI nation gold (`nation*0x13c-0x77ce/-0x77cc`, 32-bit) `>= 0x5dc`
      (1500);
   5. `RNG(0,4) != 0` (`FUN_1000_86c4` = `FUN_281f_04d4`, 4-in-5) **or**
@@ -144,7 +144,7 @@ the human, has ≥1500 gold, and walks a Missionary into a village that is
 already cool (<75) toward the human, bribes that village onto the
 warpath against the human 4 times in 5 (always, if the village has no
 mission yet). This closes `ai_port_plan.md` T4.5's "is Mode 2 even real"
-question. **Not ported yet** — Linux AI missionaries only establish
+question. **Not ported yet** — OpenCol AI missionaries only establish
 missions (`ai_euro.c` Missionary CONTACT goal); an AI auto-incite hook
 would sit where the AI missionary reaches its CONTACT target, reuse
 `ai_contact_incite_price(..., is_missionary=1, ...)` with
@@ -174,7 +174,7 @@ void FUN_4d56_417e(undefined2 param_1, int param_2, uint param_3, undefined2 par
 | `*(int*)0x8d4a` (`VICEROY_DS_CUR_TRIBE_PTR`) | current tribe record | Already named in `viceroy_globals.h`; discount loop reads `+2` (type-ish byte) and `+5&0xf` (nation nibble) — same fields `4528` reads from the identical pointer |
 | `*(int*)0x8d4e` (`VICEROY_DS_INDIAN_STATE_PTR`) | Indian-nation state block | Already documented as "signed bytes at +7/+8" — read here (`*2` each) as two of the four additive price terms |
 | `*(int*)0x8d52` (`VICEROY_DS_CUR_INDIAN_ALT`) | holds a pointer, dereferenced with `-0x69d6`/`-0x6e7c` | Two more price terms, byte-table lookups by whatever `CUR_INDIAN_ALT` currently points to (likely tribe civilization/sophistication class) |
-| `nation[param_3].gold` at `param_3*0x13c - 0x77cc` / `-0x77ce` | the actual charge target | Matches `difficulty.md`'s already-documented `nation.gold (+0x2a/+0x2c)` field exactly — same `nation*0x13c` stride, 2-byte offset gap between the two halves of the 32-bit value. Linux home: `col1->nation[n].gold` (`europe.h`) |
+| `nation[param_3].gold` at `param_3*0x13c - 0x77cc` / `-0x77ce` | the actual charge target | Matches `difficulty.md`'s already-documented `nation.gold (+0x2a/+0x2c)` field exactly — same `nation*0x13c` stride, 2-byte offset gap between the two halves of the 32-bit value. OpenCol home: `col1->nation[n].gold` (`europe.h`) |
 | `FUN_1000_84fc(dialog, a, b)` | relation/eligibility **score** (0-100ish) | Same function `4528` uses, compared there against 75/50/25 thresholds; here used once as the price *divisor* (`iVar3 + 0x4b`) and again later as a straight eligibility gate (`< 0x4b` → reject) |
 | `FUN_1000_8c28(dialog, a, b)` | diplomacy/relation **flags** byte | Same function `4528` uses; `& 0x20` bit gates both — "peaceful enough" |
 | `FUN_1000_935a` | affordability/gold check | Called on the computed price; non-affordable path takes the "reject, no dialog" branch |
@@ -366,7 +366,7 @@ feature to fall back on. Stopping here — the exact calling function's
 name doesn't block the port below; everything it needs (trigger
 condition, live params, full formula shape) is already confirmed.
 
-## Ported to Linux (2026-08-13, task #5 closed)
+## Ported to OpenCol (2026-08-13, task #5 closed)
 
 `src/core/ai_contact.c`: `ai_contact_incite_target_choice` (menu step) +
 `ai_contact_incite_price` (formula) + `ai_contact_apply_incite` (pay +
@@ -406,7 +406,7 @@ out to be already-named, already-real fields that were just never wired in
 all. **Base price formula (all four additive terms + the relation-scaled
 division) is now the real DOS formula, not an approximation.**
 
-**Discount loop — byte-exact, 2026-08-14 (was a Linux-invented "100 gold if
+**Discount loop — byte-exact, 2026-08-14 (was an OpenCol-invented "100 gold if
 relation>128" stand-in).** Re-read the raw disassembly directly (not just
 the earlier prose pseudocode) and found the loop is a real, fully-decodable
 match against fields this project already has named on `ColonizeCol1Tribe`:
@@ -435,7 +435,7 @@ against `nation_id`. The exact same range bug, independently present in
 day), meant `village_count` was silently always 0 — fixed identically.
 Lesson: a plausible-sounding range-mismatch diagnosis still needs
 cross-checking against how the *same field* is used elsewhere in the
-already-shipped Linux code before trusting it, not just re-reading the DOS
+already-shipped OpenCol code before trusting it, not just re-reading the DOS
 side once more.
 
 **Base-combine op resolved byte-exact, 2026-08-14 (same day, later in the
@@ -523,7 +523,7 @@ establish-mission / denounce-heresy arms in `ai_contact_missionary_convert`,
 matching the `case 7` priority in the `4528` switch. Open caveat kept: the
 `wealth_rank[ai] < wealth_rank[human]` compare is applied literally on
 `ctx->euro_power_rank` (`turn_rank_euro_nations`, 0 = strongest); DOS's
-`0x917c` table polarity vs. that Linux table was not independently
+`0x917c` table polarity vs. that OpenCol table was not independently
 re-verified.
 
 ## 2026-09-06 — full-fidelity audit pass: five corrections, both modes now byte-faithful
@@ -549,7 +549,7 @@ Deep-port audit of `4528`/`417e` (static only, decompile lines 83511-83690
    slams the tribe into the war band against the target. The shipped flat
    `+10` was a placeholder; both modes now route through
    `ai_diplo_indian_alarm_delta` with `ai_contact_alarm_bump_amount`
-   (the existing Linux mirror of `00f2`'s halving).
+   (the existing OpenCol mirror of `00f2`'s halving).
 3. **String-id table corrected** (raw-EXE reads): `0x16b7=@NOCONTACT`,
    `0x16c1=@INDIANWARPATH2` (the pay confirm), `0x16d0=@UNFORTUNATE`,
    `0x16dc=@ALREADYSMITE`, `0x16e9=@INDIANWARFARE` — this doc's old
@@ -578,7 +578,7 @@ safe as shipped — `0x917c`'s writer `FUN_5bfb_00f8` is the same function
 `turn_rank_euro_nations` ports, so `ctx->euro_power_rank` carries the DOS
 table's own polarity by construction and the literal `<` compare matches
 the DOS bytes whichever way the English gloss reads. Mode-1 remaining
-chrome deltas (documented, outcome-equivalent): Linux merges the DOS
+chrome deltas (documented, outcome-equivalent): OpenCol merges the DOS
 `@INDIANWARPATH2` pay-confirm into the target menu (price shown per row)
 and filters unaffordable rows instead of showing `@UNFORTUNATE` after a
 doomed pick.

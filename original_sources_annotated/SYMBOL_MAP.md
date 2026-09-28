@@ -1,4 +1,4 @@
-# Symbol map — Ghidra ↔ annotated ↔ Linux
+# Symbol map — Ghidra ↔ annotated ↔ OpenCol
 
 Phase 1 AI-critical symbols + Euro early-settle Layer D + between-turns
 (`130d` / `3844`). Prefer annotated files when listed; otherwise use
@@ -6,7 +6,7 @@ Phase 1 AI-critical symbols + Euro early-settle Layer D + between-turns
 
 ## Functions
 
-| Ghidra | Annotated name | File | Linux counterpart |
+| Ghidra | Annotated name | File | OpenCol counterpart |
 |--------|----------------|------|-------------------|
 | `FUN_281f_04ca` | `ai_reseed_from_timer` | `ai/accessors.c` | `ai_nation_reseed` / `dos_rng` via timer word |
 | `FUN_281f_04d4` | `rng_range` | `ai/accessors.c` | `ai_rng_range` / `dos_rng_range` |
@@ -37,28 +37,28 @@ Phase 1 AI-critical symbols + Euro early-settle Layer D + between-turns
 | `FUN_4d56_1816` | `indian_nation_turn` | `ai/indian_nation_turn.c` | `ai_indian_nation_turn` |
 | `FUN_4d56_14fe` / `func_0x00042191` | `indian_unit_act` (14fe; Ghidra 42191 overlay collision) | `ai/indian_nation_turn.c` | quiet path in `ai_native_nation_pulse` |
 | `func_0x0004219b` = **`FUN_4d56_021a`** (stub `4c3b`) | `indian_pick_dir` — real body is `4d56:021a..14fd`, 4836 bytes, emitted by Ghidra as `??` bytes; has its OWN nine-way dir scorer (021a:5aa..11ae); the far call at `021a:1182` (`291f:012c` → `FUN_7a65_0008`) is the on-map score plotter, not a scorer | `src/core/ai.c` `ai_native_pick_dir_021a` / `ai_native_021a_tail` | **Ported 2026-09-15** |
-| `FUN_4d56_01e2` | `indian_wipe_tribe_settlements` — descending tribe-array walk calling `00e0`; **dead code**, nothing reaches it (2026-09-08) | `ai/indian_nation_turn.c` | none (`col1_kill_indian_nation` is a Linux invention) |
+| `FUN_4d56_01e2` | `indian_wipe_tribe_settlements` — descending tribe-array walk calling `00e0`; **dead code**, nothing reaches it (2026-09-08) | `ai/indian_nation_turn.c` | none (`col1_kill_indian_nation` is an OpenCol invention) |
 | (callgraph) | — | `ai/brave_spent_callgraph.md` | spent `0x3149` writers |
 | quiet `20e6` / `LAB_521d_4ea9` | `quiet_brave_pick_dir_asm` | `ai/quiet_brave_scoring.c` | `ai_native_pick_dir_asm` (sole picker since 2026-09-14) |
 | Init A/B dumps | `AI_LCG_AUDIT` / `AI_AB` / `AI_SCORE_DUMP` | `src/core/ai.c` | phase 7–8: fog `+8` flips `(47,53)`; far tiles AGREE SAV |
 | `AI_ASM_STAY_SYNC` | audit stay-shaped +1 next | `src/core/ai.c` | matched RNG for score dump only |
-| `LAB_521d_54f5` gate | `quiet_lab_54f5_gate` | `ai/quiet_brave_scoring.c` | not in Linux (reverted) |
+| `LAB_521d_54f5` gate | `quiet_lab_54f5_gate` | `ai/quiet_brave_scoring.c` | not in OpenCol (reverted) |
 | military −10 | `quiet_score_military_minus10` | `ai/quiet_brave_scoring.c` | diplomacy stub 0 |
 | (apply step) | `quiet_brave_apply_step` | `ai/indian_nation_turn.c` | `ai_native_apply_step` |
 | `FUN_281f_04d4(1,3)` quiet base | `quiet_score_base` | `ai/quiet_brave_scoring.c` | empiricism uses range(1,5)+stay |
 | Init LCG audit | `AI_LCG_AUDIT=1` logs | `src/core/ai.c` | stay surplus +34 on init |
 | quiet terrain ± | `quiet_score_terrain` | `ai/quiet_brave_scoring.c` | empiricism river/fa / home |
 | quiet facing `−diff²×2` | `quiet_score_facing` | `ai/quiet_brave_scoring.c` | empiricism +4/−6/+3 |
-| `bVar20` fog/explore | `quiet_score_fog_explore` | `ai/quiet_brave_scoring.c` | not in Linux pick_dir yet |
+| `bVar20` fog/explore | `quiet_score_fog_explore` | `ai/quiet_brave_scoring.c` | not in OpenCol pick_dir yet |
 | `LAB_521d_52aa` colony pull | `quiet_score_colony_pull` | `ai/quiet_brave_scoring.c` | no-op early game |
 | `FUN_281f_0302` | `map_tile_in_bounds` | `ai/accessors.c` | map inset |
 | `FUN_281f_074a` / `0x168` | `tile_explore_mask` | `ai/accessors.c` | Euro-only +2; Indians skip |
-| DS:`0x9faa` / `−0x6056` | `VICEROY_DS_COARSE_FOG` (size `0x10e`) | `viceroy_globals.h` | Linux `s_ai_coarse_fog` |
+| DS:`0x9faa` / `−0x6056` | `VICEROY_DS_COARSE_FOG` (size `0x10e`) | `viceroy_globals.h` | OpenCol `s_ai_coarse_fog` |
 | explore `(y>>2)+(x>>2)*18` | `coarse_fog_explore_index` / `coarse_fog_unseen` | `ai/accessors.c` | +8 gate in quiet ASM (`521d:56d8`) |
 | tribe `(y/5)+(x/5)*18` | `coarse_fog_tribe_index` | `ai/accessors.c` | `ai_coarse_fog_mark_tribe` |
 | `FUN_281f_0682` / `0314` | `tile_owner_or_presence` | `ai/accessors.c` | **layer2 bit0** then owner |
 | `FUN_281f_06d2` / `0428` | `tile_tribe_or_presence` | `ai/accessors.c` | tribe else presence |
-| `FUN_281f_07e0` | `unit_index_on_tile` | `ai/accessors.c` | Linux unit-pool scan (cutover) |
+| `FUN_281f_07e0` | `unit_index_on_tile` | `ai/accessors.c` | OpenCol unit-pool scan (cutover) |
 | `FUN_281f_078c` | `terrain_class_at` | `ai/accessors.c` | `ai_dos_terr_class` |
 | `FUN_521d_0000` | `clear_primary_goal_slot` | `ai/euro_goals.c` | `ai_goals_*` |
 | `FUN_521d_001c` | `invalidate_nearby_secondary_goals` | `ai/euro_goals.c` | `ai_goals_*` |
@@ -149,7 +149,7 @@ Phase 1 AI-critical symbols + Euro early-settle Layer D + between-turns
 
 ## Map / terrain bits
 
-| Mask / value | Annotated | Linux |
+| Mask / value | Annotated | OpenCol |
 |--------------|-----------|-------|
 | terrain `&0x1f` | `VICEROY_TERRAIN_TYPE_MASK` | type decode |
 | terrain `&0x20` | `VICEROY_TERRAIN_HILL_BIT` | hill class |
@@ -180,11 +180,11 @@ Phase 1 AI-critical symbols + Euro early-settle Layer D + between-turns
 - [x] Parked-body maps: `20e6` land/ship, `2820` nest, `4528` head, `2154` meet score, `5fef` loot, `0442` UI
 - [x] This symbol map
 
-## Out of scope for Layer D deepen (T0 Linux ports exist)
+## Out of scope for Layer D deepen (T0 OpenCol ports exist)
 
-Deep extracts below are still thin/parked; Linux T0 counterparts live under `src/core/`:
+Deep extracts below are still thin/parked; OpenCol T0 counterparts live under `src/core/`:
 
-| Cluster | Linux T0 |
+| Cluster | OpenCol T0 |
 |---------|----------|
 | `FUN_4d56_2154` / `2820` / `4528` | `ai_contact.c` (partial; maps: meet_2154 / trade_2820 / settlement_4528) |
 | Euro/ocean `20e6` / full `5b66` / `5d04` | `ai_euro.c` |

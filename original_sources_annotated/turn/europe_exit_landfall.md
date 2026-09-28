@@ -32,12 +32,12 @@ Bridge: [`between_turns.md`](between_turns.md) ·
 
 ## Related (not this FUN)
 
-Europe→map place: `48d3_048e` via `2a1f_0262` (Linux
+Europe→map place: `48d3_048e` via `2a1f_0262` (OpenCol
 `units_spiral_place_hs_near` / `ai_europe_exit_to_map`).
 
-## Linux
+## OpenCol
 
-| DOS | Linux | Fidelity |
+| DOS | OpenCol | Fidelity |
 |-----|-------|----------|
 | Treasure tax cash-in | `europe_cash_treasure` (+ Cortes path) | **Done** — Crown cut `min(tax, 50)` |
 | Arriving-ship Europe focus | `game_europe_deliver_bound_ships` | Reshape |
@@ -61,7 +61,7 @@ tile source. There is no map-wide scan anywhere in the `48d3` module.
 | Per-turn Atlantic tick | `FUN_48d3_03d0` | Decrements `+0x315a`; at 0 calls `281f_0880` + `08c6` → the `048e` placement. New-game fleets are created with `+0x315a = 0`, so they land on turn 1. |
 | Lane cleanup | `FUN_48d3_064e` | Walks non-ship types out of the lane. |
 
-**Linux**: `units_spiral_place_hs_near` = `048e` + `0434` and is now the only
+**OpenCol**: `units_spiral_place_hs_near` = `048e` + `0434` and is now the only
 placement path (`units_new_world_start`, `ai_spawn_euro_fleet`,
 `game_europe_deliver_bound_ships`, `ai_king` MoW, `ai_euro` Europe exit).
 `units_find_eastern_high_seas_tile` has **no DOS counterpart** and is kept only

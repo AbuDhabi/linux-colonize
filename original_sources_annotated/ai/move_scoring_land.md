@@ -25,7 +25,7 @@ Soldier/Dragoon colony-mass gate at `:11720`); `0x4c` village arms **ported**
 (`ai_euro_20e6_village_arm`, `:11306`, called `:12637`); colonist labor loop
 **ported** (`ai_euro_20e6_labor_arm`, `:11357`); `0x42`/`0x65` closed dead
 (T1.2); ship band see
-[`move_scoring_ship.md`](move_scoring_ship.md). Older note: mapped; Linux `ai_euro_score_move` settlement/siege peels +
+[`move_scoring_ship.md`](move_scoring_ship.md). Older note: mapped; OpenCol `ai_euro_score_move` settlement/siege peels +
 `ai_euro_land_best_adjacent_foe` Done thin. Full clean whole-function recovery (2215 lines, zero warnings,
 2026-08-14, supersedes the canonical export's tail — see its own header for
 what changed): [`move_scoring_20e6_full.md`](move_scoring_20e6_full.md).
@@ -85,7 +85,7 @@ LAB_521d_5183
 | `0x56` | Type 2 / combat unit, no colony bind | Scout / patrol |
 | `0x4c` | Scout (type 5, +3 bit8 clear) or plain colonist (prof 0x1c/0x19, +3 bit2 clear) beside a village | Peaceful village entry (chief visit / live-among) — corrected 2026-09-06, was "Missionary mission plant" |
 
-Exact opcode names in Linux ORDERS menu may differ; treat values as DOS act codes
+Exact opcode names in OpenCol ORDERS menu may differ; treat values as DOS act codes
 consumed by `5b66` / move apply — **do not invent** menu strings here.
 
 ## Explore ring (`2912` → `2a59`)
@@ -165,7 +165,7 @@ still need their own write-site hunt).
 already-wired `continent_tally_a[16]`.** `−0x6ba2` mod 0x10000 = `0x945e`,
 which `save_format_map.md` row 304 already identifies as
 `continent_tally_a[16]` (`uint16_t`, "land terrain-class filter; rebuilt",
-status `mapped`) — live in Linux as
+status `mapped`) — live in OpenCol as
 `col1->post_map.continent_tally_a[continent_id]`
 ([`col1_post_map.c`](../../src/core/col1_post_map.c), filled per-continent
 land-tile count). So the `local_de` tier-select (`<9`→0, `<0x19`→1, `<0x31`→2,
@@ -196,9 +196,9 @@ not wired.** `local_12 = *(byte*)(local_38 + -0x6168)*8 +
   carried?) — not resolvable further without a working theory, but the
   field identity itself is solid.
 
-**Still not wired into Linux.** Both inputs are now named, but `local_12`
+**Still not wired into OpenCol.** Both inputs are now named, but `local_12`
 only feeds `local_de`/`local_ca` — a **radius** for DOS's windowed best-
-tile-in-a-box explore scan. Linux's `ai_euro_score_move` is architecturally
+tile-in-a-box explore scan. OpenCol's `ai_euro_score_move` is architecturally
 a single-step 8-neighbor scorer, not a windowed scan-then-commit — the same
 structural mismatch flagged from the start of this "0x8db8 identified"
 section. Wiring `local_12` in without that redesign would mean inventing a
@@ -220,19 +220,19 @@ nation*0x10]` (Σ `FUN_281f_09c8(unit,mode=1)`, combat-adjusted vet/Drake-
 bonused value, over that nation's units on that continent — also feeds the
 already-known `land_combat_strength[4]` nation total). This doc's own
 earlier pass just hadn't been synced with that confirmation. **Neither
-table is computed in Linux at all yet** (`grep` for either name in
+table is computed in OpenCol at all yet** (`grep` for either name in
 `src/core/` is empty) — real, concrete, well-specified gap now, template
 available in `col1_post_map.c`'s existing `continent_tally_a` per-continent
 tally loop. Still blocked from being *wired into `20e6`'s scoring* by the
 separate, larger issue: this arithmetic lives inside the windowed best-
-tile-in-box explore scan (`2912`/`2a59`), which Linux's single-step
+tile-in-box explore scan (`2912`/`2a59`), which OpenCol's single-step
 8-neighbor `ai_euro_score_move` doesn't structurally have a home for —
 that walker-architecture mismatch, not missing data, is now the only real
 remaining blocker.
 
 **Update (2026-08-15): windowed scan shipped, thin.** Turns out the
 "walker-architecture mismatch" didn't need a rewrite of `ai_euro_score_move`
-at all — Linux already separates "pick a goal (gx,gy)" from "step toward it"
+at all — OpenCol already separates "pick a goal (gx,gy)" from "step toward it"
 (the existing goto/orders machinery). Added `ai_euro_land_explore_scan_target`
 (`ai_euro.c`): a real radius-5 box scan (same continent, land, unclaimed,
 unseen-preferred, LCR-avoided) replacing the old placeholder wander goal
@@ -285,14 +285,14 @@ assumed from the corrupted export's line numbers), then checking that.
 | `281f_09e6` | `15eb_002c` | Bind active colony |
 | `281f_090c` | max MP | Stay when spent near max |
 
-## Linux thin vs OPEN
+## OpenCol thin vs OPEN
 
-| Behavior | Linux today | OPEN (this map) |
+| Behavior | OpenCol today | OPEN (this map) |
 |----------|-------------|-----------------|
 | Adjacent foe pick | `ai_euro_land_best_adjacent_foe` (+ settlement prefer) | Defended case Done |
-| `0x46` undefended colony | `ai_euro_land_try_adjacent_colony_seize` — **Done** full port: combat-capable land unit (attack>1) adjacent to a foreign, at-war Euro colony tile with **no defending unit** walks in and captures it outright (Colonization capture-by-move), then fortifies to hold the prize (own addition — prevents the unrelated "on own colony, no quota → admit as LABOR" beachhead gate from absorbing the conqueror into the workforce next outer-wave pass). Decomp scans all 8 neighbors via `euro_settlement_owner`; Linux additionally gates on war state (decomp has no live peacetime-seize case). Covered by `unit_land_adjacent_colony_seize` in `test_ai_euro_war.c`. |
+| `0x46` undefended colony | `ai_euro_land_try_adjacent_colony_seize` — **Done** full port: combat-capable land unit (attack>1) adjacent to a foreign, at-war Euro colony tile with **no defending unit** walks in and captures it outright (Colonization capture-by-move), then fortifies to hold the prize (own addition — prevents the unrelated "on own colony, no quota → admit as LABOR" beachhead gate from absorbing the conqueror into the workforce next outer-wave pass). Decomp scans all 8 neighbors via `euro_settlement_owner`; OpenCol additionally gates on war state (decomp has no live peacetime-seize case). Covered by `unit_land_adjacent_colony_seize` in `test_ai_euro_war.c`. |
 | Step toward goal | goal-directed: `ai_euro_score_move` (thin Manhattan); idle: `ai_euro_20e6_wander_step` (**2026-08-27 structural port** of LAB_4d2e→5183) | — (LAB_52aa odds tail completed 2026-09-06: crown==2 halving + Soldier/Dragoon colony mass gate) |
-| Explore ring | `ai_euro_land_explore_scan_target` — **2026-08-27 structural port**, 2026-09-06: real seen-plane site nibble (`ai_euro_20e6_site_nibble`) + live `local_12` (`ai_euro_20e6_rival_strength_on` × 8 + `s_20e6_explore_fatigue`) | nibble falls back to unseen→4 on Linux-generated maps (map_gen writes no site score) |
+| Explore ring | `ai_euro_land_explore_scan_target` — **2026-08-27 structural port**, 2026-09-06: real seen-plane site nibble (`ai_euro_20e6_site_nibble`) + live `local_12` (`ai_euro_20e6_rival_strength_on` × 8 + `s_20e6_explore_fatigue`) | nibble falls back to unseen→4 on OpenCol-generated maps (map_gen writes no site score) |
 | SCOUT/PATROL `0x56` | `ai_euro_20e6_patrol_arm` — **Done** 2026-08-27 | — |
 | Explorer flag `iStack_6a` | `ai_euro_20e6_explorer_flag` — **Done** 2026-08-27 (all clauses) | `FUN_521d_0600` via `ai_goals_composite_unit_priority` |
 | Found / contact opcodes | Goals via `0a60` / peels | Live `0x42`/`0x65` writes inside `20e6` (T1.2 closed) |

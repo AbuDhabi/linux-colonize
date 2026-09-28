@@ -3,13 +3,13 @@
 
 /* Smoke: at-war Euro mid-hire / MILITARY bind + G stance + thin naval hunt. */
 /*
- * 2026-09-07e — 6 scenarios RETIRED with the Linux-shaped 5d04 hire matrix
+ * 2026-09-07e — 6 scenarios RETIRED with the OpenCol-shaped 5d04 hire matrix
  * they were written against: `unit_mid_hire_mil_colonies_ge6`,
  * `unit_mid_hire_dragoon_prefer`, `unit_mid_hire_veteran_prefer`,
  * `unit_at_war_tools_prefer_soldier`, `unit_mid_hire_artillery`,
  * `unit_artillery_treasury_fallback`. FUN_521d_5d04 has no war/peace hire
  * fork, no Dragoon-over-Soldier or Veteran-over-Soldier preference and no
- * `units_find_type("Artillery")` gold gate — those were Linux inventions,
+ * `units_find_type("Artillery")` gold gate — those were OpenCol inventions,
  * deleted from ai_euro.c when the DOS hire matrix (raw 92568-93070,
  * `ai_euro_5d04_hire_ladder_tail`) became the only Europe hire economy.
  * What DOS actually does: Colonist + 50 Muskets -> Soldier, then + 50

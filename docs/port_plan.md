@@ -176,7 +176,7 @@ goldens all in (2026-09-03). Remaining mismatches go through
   human colonies gate via `custom_house_bits` (`15eb_0302`); only AI
   colonies use the `364b_0636` type gate (Lumber deny is AI-only). Sell
   price `euro_price − 1`, buy `euro_price + burden` screen-wide
-  (`38fd_0040`/`0016`) — Linux had both +1; `europe_sell_price`/
+  (`38fd_0040`/`0016`) — OpenCol had both +1; `europe_sell_price`/
   `europe_buy_price` added. **Trap (2026-08-27 near-miss, reverted):**
   wiring the `0636` deny list for human colonies read cleanly from the
   decompile but immediately failed both real-DOS goldens (Lumber genuinely
@@ -250,7 +250,7 @@ chrome only (P11/D4).
 - [x] P5.5 [auto] 2026-08-28 — `FUN_43f7_10f0` static: intervention force
   is **player-controlled** (spawn nation = `DS:0x5398`, the human), not
   ally-tagged; MoW water-tile scorer static after all; troop pools Cont.
-  Cav ≤2 / Artillery ≤2 / Cont. Army remainder (Linux caps were inverted).
+  Cav ≤2 / Artillery ≤2 / Cont. Army remainder (OpenCol caps were inverted).
   `ai_king_foreign_intervene` rewritten.
 - [x] P5.6 [auto] 2026-08-26 — post-declare economy all wired: Europe
   closed, Custom House tax-free, `FUN_43f7_1eca` bell promotions (full
@@ -284,7 +284,7 @@ Sail/harbor/market/recruit/train/purchase/equip Done; volume-price
   iterated until it reproduced the after-save, then C port matched).
   Keys: phase-1 ledger is `trade.tons2`; pool decay only in nation 0's
   pass; rise/fall threshold sheds `±100` **unconditionally** (only the ±1
-  bid step is range-gated — Linux gated both, so capped cargos ran
+  bid step is range-gated — OpenCol gated both, so capped cargos ran
   pressure away); Dutch attrition ×2 on odd turns; `@PRICEUP`/`@PRICEDOWN`
   real popups. `1dfa`/`1d80` sale-volume ledger also exact: difficulty
   term `(difficulty−2)·16·amt/100`, every sale lands on all four nation
@@ -405,7 +405,7 @@ MAPEDIT; `.MP` load Done.
   `unit_col1_save`; caught the 32-colony cap (DOS gate is `< 0x30`, now 48)
   and dropped human Europe-lane ships (now written as DOS does: `228+n`
   port, `232+n` outbound, `244+n` inbound, `col1_counter16` = voyage turns).
-  Details: [savegame.md](savegame.md). 2026-09-03: Linux-written save
+  Details: [savegame.md](savegame.md). 2026-09-03: OpenCol-written save
   loads in real DOS, ship arrives.
 - [x] P10.2 [auto] 2026-08-26 — `tools/check_save_interop.sh` (fast
   `unit_col1_save`-only gate, ~0.1s).

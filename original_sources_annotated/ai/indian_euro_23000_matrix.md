@@ -9,7 +9,7 @@ quartet byte-audit"):** the `23000` table is not a distinct object — it is
 the `indian[]` array addressed from a different base. `DS:0x8d4e` holds the
 pointer to that array, it lives at `23254`, `sizeof(ColonizeCol1Indian) ==
 0x4e` exactly, and `23000 + (t+4)*0x4e == 23254 + t*0x4e + 0x3a` =
-`indian[t].euro_diplo`. So this doc's "already-ported Linux mirror"
+`indian[t].euro_diplo`. So this doc's "already-ported OpenCol mirror"
 conclusion was right, and its arithmetic reason is now closed too. Byte 12+
 of each row (`peer ≥ 4`, the Indian×Indian quadrant) is `unknown33_pad[8]`
 at `+0x3e..+0x45` — the same "no evidence of ever being touched" finding,
@@ -85,13 +85,13 @@ successfully for its own blocked calls), not another decompile pass.
 
 ## Redundancy check (2026-08-14, same day) — resolved, not redundant, but not fully missing either
 
-User asked to check whether DOS's boolean flags and Linux's numeric
+User asked to check whether DOS's boolean flags and OpenCol's numeric
 threshold model actually drive the same decisions before extending
 anything. They don't need reconciling — **for the bits that matter most
-(met, peace), Linux already ported this exact table, just without ever
+(met, peace), OpenCol already ported this exact table, just without ever
 connecting it to the "23000 table" identity.**
 
-`ai_contact.c:594` (`ai_contact_try_first_welcome`, the Linux port of
+`ai_contact.c:594` (`ai_contact_try_first_welcome`, the port of
 `FUN_5bfb_022e`'s first-contact arm) carries the comment "DOS OR bit 0x20
 before dialog; accept ORs PEACE 0x40 → euro_diplo 0x60" — and that is
 *exactly* `FUN_5bfb_022e`'s own literal code at `viceroy_unpacked.c:
@@ -100,7 +100,7 @@ before dialog; accept ORs PEACE 0x40 → euro_diplo 0x60" — and that is
 `switchD_2000:da9f::caseD_10(...,0x20)` (or-both, → `FUN_15b3_0066`) sets
 it — the *identical* accessor family this doc maps, on the Indian side of
 the pair. So `ColonizeCol1Indian.euro_diplo[euro_nation]` **is** the
-already-ported Linux mirror of (at least) the 23000 table's met/peace
+already-ported OpenCol mirror of (at least) the 23000 table's met/peace
 bits — `col1_save.h`'s existing comment ("DOS: bit0x20 met, bit0x40
 peace") already had the right bit *values*, just not the "this is the
 23000 matrix" cross-reference. That also resolves the "`0x20` unreconciled"
@@ -171,7 +171,7 @@ Indian nation"), the likeliest caller is somewhere in the human/AI war-
 declare or `153e` diplomacy flow against an Indian nation, or a colony-
 destroyed/tribe-wiped-out path — not chased this pass (2026-08-19), still
 correctly parked, caller unknown (the redundancy question around it is
-resolved; the caller question isn't). **Not wired into Linux** on
+resolved; the caller question isn't). **Not wired into OpenCol** on
 account of the unresolved caller — porting the mechanical effect without
 knowing when DOS actually fires it risks inventing a trigger condition,
 so this stays documentation-only for now.
@@ -216,7 +216,7 @@ pieces:
    raises a contact claim only when `FUN_281f_030c` alarm `> 0x4a` **or**
    `DS:0x54f6[tile-unit's +0x06 home settlement][acting Euro] > 0x7f`.
    The other two DOS reads (`FUN_112b_0790`'s `>>5` 4-tier village-chrome
-   icon, whose Linux stand-in in `map_panel.c` sources the tier from
+   icon, whose OpenCol stand-in in `map_panel.c` sources the tier from
    `tribe.alarm` instead; and `FUN_5952_035e`'s parked colony threat
    accumulator at `viceroy_unpacked.c:94967`) are recorded but deliberately
    unported — see `docs/indians.md`'s "Read side wired 2026-09-08" block for
@@ -235,7 +235,7 @@ pieces:
    manual/fandom text. **Not ported** — the currently-live
    `ai_diplo_indian_relation_delta` clamps to `[0,255]` (byte range), not
    DOS's `[0,100]`, so a literal `v==100` check would almost never fire in
-   Linux the way it reliably does in DOS once the original hits its hard
+   OpenCol the way it reliably does in DOS once the original hits its hard
    cap; porting this branch correctly needs the relation clamp itself
    re-scoped to 0-100 first (separate, slightly bigger PORT DEBT item, not
    done this pass to avoid touching a shared clamp blind).

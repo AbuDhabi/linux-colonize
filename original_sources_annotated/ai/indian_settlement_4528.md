@@ -13,7 +13,7 @@ Loot outcomes (sibling path, not direct callees inside `4528`):
 `0352` / `0ec0`).
 
 **Port status:** human `@ACTIONS` 9-way dispatch **Done** (P8.8, 2026-08-28);
-ship abort + Linux raid/fallout arms **Done** thin; full body recovered clean
+ship abort + OpenCol raid/fallout arms **Done** thin; full body recovered clean
 (see below) — VGA chrome still open (T5.1). The old "warn CHOICE" is only the
 unmet fallback (deleted 2026-09-21, bugs.md #542: DOS builds @ACTIONS for unmet land units too). **2026-09-06 full audit: logic Done both arms** — see the
 per-case table at the end of this file; case-7 Mode-2 auto-incite fixed to the
@@ -47,7 +47,7 @@ So: the CHOICE-building `if` block = human; the `else`
 `switch(unit_type)` = **AI-controlled mover's automatic decision** —
 which is exactly the "does the AI get an equivalent" mechanic T1.7
 was looking for. `ai_king.c`'s `FUN_43f7_2244` header and
-`ai_diplo.c:1544`'s comment carry the same inverted wording; Linux code
+`ai_diplo.c:1544`'s comment carry the same inverted wording; OpenCol code
 itself (turn.c's `TURN_PROC_EURO` slice, `control==0` = human) is right.
 
 **2. The tail `switch(uStack_56)` cases call 8 different OVL13 functions,
@@ -142,12 +142,12 @@ version of this reasoning, corrected here):** the mechanical
 Attack/Speak-to-Chief/Mission/Learn-Skill/Trade dispatch this doc spent
 most of its effort decoding (the `switch(unit_type)` block and its case-3
 sub-formula) is **DOS's real human-only path**, not an "AI decision
-procedure that Linux is missing." DOS's own AI genuinely does not
+procedure that OpenCol is missing." DOS's own AI genuinely does not
 mechanically resolve a village encounter through this function either —
-matching, not contradicting, Linux's current architecture: human-facing
+matching, not contradicting, OpenCol's current architecture: human-facing
 interactive paths (`ai_contact_try_village_raid_warn`,
 `ai_contact_try_village_meet`, both `ai_contact_euro_is_human`-gated) are
-**correctly scoped**, and the separate, deliberately-Linux-invented
+**correctly scoped**, and the separate, deliberately-OpenCol-invented
 `ai_euro_land_try_adjacent_village_seize` (AI attacks an adjacent
 undefended war-target village, reached via move-scoring rather than this
 reactive move-encounter function) is the right shape of answer for "how
@@ -215,7 +215,7 @@ ids until string table peel.
 - Ship with relation ≥ 75 or friction ≥ 64 → `@MADATSHIPS`
 - Human cancels CHOICE (`291f_0182==0`)
 
-Linux: `COLONIZE_ENTER_VILLAGE_SHIP` + `ai_contact_try_ship_village` (no landfall).
+OpenCol: `COLONIZE_ENTER_VILLAGE_SHIP` + `ai_contact_try_ship_village` (no landfall).
 
 ## Decomp contamination note (ASM pass, 2026-08-13 — correction of a same-day
 ## over-claim, see below)
@@ -625,9 +625,9 @@ of this doc (`FUN_5fef_0f14`/`016c`/`0352`/`0ec0`,
 Next step for anyone picking up raid-action porting: check those sibling
 functions and `4528`'s call sites, not this dispatch tail.
 
-## Linux phase arms vs head
+## OpenCol phase arms vs head
 
-| DOS head idea | Linux `ai_contact_indian_raids` |
+| DOS head idea | OpenCol `ai_contact_indian_raids` |
 |---------------|----------------------------------|
 | Relation / friction gates | Alarm/friction ≥40 (uniform; the Spain ≥35 special was retired 2026-09-09, smell #76); war prefer |
 | Human warn CHOICE | (deleted 2026-09-21, bugs.md #542 — no DOS counterpart; unmet land units get @ACTIONS) |
@@ -658,7 +658,7 @@ items below are stale, corrected in place rather than left misleading:**
   (`ai-transcription-fulldraft` memory, "third pass"): `FUN_465b_0000`
   line 74214 via thunk `2a1f_016c` — 0 = caller continues its own logic,
   1/2 = caller skips via `goto LAB_465b_0bd1`, confirmed against the raw
-  body. Whether Linux's `ai_contact_indian_raids` needs an equivalent
+  body. Whether OpenCol's `ai_contact_indian_raids` needs an equivalent
   three-way signal, or whether its existing direct architecture already
   covers the same effect some other way, is un-checked — that's the real
   remaining question, not the return-code semantics themselves.
@@ -774,7 +774,7 @@ completely decoded.**
   `col1_save.h` (`0xff` none, else low nibble = Euro nation 0-3, bit
   `0x10` = Jesuit-grade). `*(char*)(...+5) < '\0'` (line 349) is precisely
   "mission byte's sign bit set," i.e. `mission == 0xff` as a *signed*
-  read — **exact bit-for-bit match** to Linux's own `COL1_TRIBE_MISSION_NONE`
+  read — **exact bit-for-bit match** to OpenCol's own `COL1_TRIBE_MISSION_NONE`
   encoding, already implemented, not a guess.
 - **`FUN_1000_8b24` — [CORRECTED 2026-09-04: this is the village-interaction
   MP forfeit, not bookkeeping. See the correction section at the end of this
@@ -787,8 +787,8 @@ completely decoded.**
   table family **T1.9** flagged as a "real wall" for a *different*
   investigation; no conflict, this call only *reads* it) plus a Founding-
   Father-gated ship-speed bonus. A stat-cache refresh, not a narration or
-  popup call — Linux's unit model computes MP live from `type->movement`
-  with no equivalent cache to refresh, so this call has no Linux
+  popup call — OpenCol's unit model computes MP live from `type->movement`
+  with no equivalent cache to refresh, so this call has no OpenCol
   counterpart to write.
 
 **Full decoded case 3, now unambiguous:**
@@ -817,7 +817,7 @@ specific `thunk_FUN_1000_a5xx` calls (already established above as a
 shared generic bookkeeping stub, not per-case action code) don't change
 this. **Net: case 3 is now fully decodable, zero remaining unnamed
 fields.** Not wired this pass — the real remaining question is a caller-
-integration one, not RE: does Linux's `ai_contact_indian_raids` /
+integration one, not RE: does OpenCol's `ai_contact_indian_raids` /
 `ai_euro_land_try_adjacent_village_seize` path need (or already
 implicitly have) an equivalent to the 0/1/2 three-way signal, particularly
 whether the mission-owner nation matters to it at all today. Check that
@@ -833,11 +833,11 @@ bugs.md ("After a unit interacts with an Indian village their remaining
 movement points should be forfeit") sent this back to the ASM. The
 2026-08-27 reading above — "`8b24` recomputes and writes `unit+0x3149`
 from a per-unit-type max-MP table … a stat-cache refresh, not a narration
-… no Linux counterpart to write" — describes the mechanic correctly but
+… no OpenCol counterpart to write" — describes the mechanic correctly but
 draws the wrong conclusion from it. `0x3149` is **moves-spent**; writing
 it *from* the max-MP table means **spent := max**, i.e. the unit's whole
 remaining movement is burned. That is `unit_exhaust_mp`, and it is very
-much a Linux-visible mechanic.
+much an OpenCol-visible mechanic.
 
 Chain, all static:
 
@@ -896,10 +896,10 @@ not decoded, and the `1` arm is the common one.
 Static audit of every dispatch case against the clean decompile (this
 file's 312-line recovery) + `indian_actions_menu.md`'s per-handler specs.
 Result: **all 9 outcome cases are ported at byte-faithful tier on the
-human arm; the AI arm is fully wired where Linux AI movement can reach
+human arm; the AI arm is fully wired where OpenCol AI movement can reach
 it.** ctest 57/57 after the case-7 fixes below.
 
-| case | DOS action | Linux (human arm) | Linux (AI arm) | tier |
+| case | DOS action | OpenCol (human arm) | OpenCol (AI arm) | tier |
 |-----:|------------|-------------------|----------------|------|
 | 1 | Trade (`a63c` → `2820`) | `ai_contact_2820_begin` | **Reachable 2026-09-06f**: the 20e6 wagon LOAD matrix writes the village-errand byte (+0x3158), the errand walker routes the wagon to the village, and `ai_contact_ai_wagon_village_trade` runs this arm on the AI-silent 2820 path (move_scoring_20e6_full.md 2026-09-06f) — the trigger is DOS's own, not invented | Done (2820 rewrite 2026-08-29; AI arm live 2026-09-06f) |
 | 2 | Enter Hostile Village (`a5e8`) | `ai_contact_enter_hostile_village` (rand(0,500) vs alarm/2·alarm → KILLWAGONS/MADATWAGONS/GRUDGEWAGONS→trade) | n/a (human-menu row only) | Done |
@@ -909,7 +909,7 @@ it.** ctest 57/57 after the case-7 fixes below.
 | 6 | Speak With Chief (`a60c`) | `ai_contact_speak_with_chief` (seasoned/Arawak-kill/gift-gold/reveal) | **live** (stale "unreachable" corrected 2026-09-07f) — DOS's own trigger is 20e6's orders-`0x4c` scout arm (raw 1366): `ai_euro_20e6_village_arm` (`ai_euro.c:11306`, called `:12637`) → `ai_contact_ai_scout_visit_village` (`ai_contact.c:9540`) | Done |
 | 7 | Incite (`a5b8` → `417e`) | `ai_contact_apply_incite` | `ai_contact_ai_incite_human` (convert-pulse hook, case-7 priority) | **Done byte-faithful both modes 2026-09-06** (price alarm-polarity fix, +100 `4cc6_00f2` slam, NOCONTACT/ALREADYSMITE/UNFORTUNATE gates, INDIANWARFARE announce, WoI crown target — `indian_incite_417e.md`) |
 | 8 | Demand Tribute (`a5f4`) | `ai_contact_demand_tribute` (euro-vs-indian census rolls, EXTORT* arms) | n/a (human-menu row) | Done |
-| 9 | Attack (`8bf6(…,4)` + move) | Attack Village commit via game_loop | `ai_euro_land_try_adjacent_village_seize` — trigger is Linux-shaped (war target + garrison-free) but DOS's own AI only reaches case 9 by *choosing* to walk a military unit in, which Linux move scoring equally only does via the seize goal; outcome identical | Done human / structural-trigger AI |
+| 9 | Attack (`8bf6(…,4)` + move) | Attack Village commit via game_loop | `ai_euro_land_try_adjacent_village_seize` — trigger is OpenCol-shaped (war target + garrison-free) but DOS's own AI only reaches case 9 by *choosing* to walk a military unit in, which OpenCol move scoring equally only does via the seize goal; outcome identical | Done human / structural-trigger AI |
 | 10 | Leave/cancel | dismiss + MP forfeit | n/a | Done |
 
 Cross-cutting: the MP forfeit (`8b24`, return-code 1) and the case-3/9
@@ -918,7 +918,7 @@ type→case table (types 1/4/0xb→9, 3→7/3/4, 5→6, 0xc→1, default→5) is
 mirrored where reachable. The wagon row (0xc→1) became reachable
 2026-09-06f — DOS's own trigger turned out to be the 20e6 wagon LOAD
 matrix's village-errand byte, no invention needed (see the case-1 row).
-The scout row (5→6) can still only fire if Linux AI movement ever routes a
+The scout row (5→6) can still only fire if OpenCol AI movement ever routes a
 Scout onto a village tile, which no goal does — porting it would mean
 inventing a trigger DOS doesn't have (the method-notes "structural ≠
 semantic" trap), so it stays documented as unreachable rather than

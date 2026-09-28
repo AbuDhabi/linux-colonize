@@ -108,7 +108,7 @@ COLONIZE_INTERNAL void ai_euro_20e6_stay_tail_589e(ColonizeUnit* u);
  *   - `+0x48` is `col1_save.h`'s `king_grace_counter`, a REAL DOS quantity
  *     (FUN_4d56_4528's decrementing grace/waiver counter) that the port may
  *     read but must never write — so it cannot host scratch either;
- *   - `+0x49` is the one remaining Linux stand-in collision here
+ *   - `+0x49` is the one remaining OpenCol stand-in collision here
  *     (`privateer_spawn_mask`), and `+0x4a` (`unknown26_pad`) is DOS's raw
  *     banked musket total.
  * Same reasoning as the `0x53de` correction: don't reuse a live field on an
@@ -378,7 +378,7 @@ void ai_euro_colony_inventory(ColonizeTurnContext* ctx, int nation_id);
 int ai_euro_type_is_wagon_name(ColonizeUnitKind kind);
 extern ColonizeTurnContext* ai_euro_s_5d04_ctx;
 extern int ai_euro_s_5d04_nation;
-int ai_euro_5d04_linux_type_for(const ColonizeUnitPool* pool, int dos_code);
+int ai_euro_5d04_port_type_for(const ColonizeUnitPool* pool, int dos_code);
 extern Ai5d04HireScratch ai_euro_s_5d04_hire_scratch[4];
 void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id);
 #define AI_EURO_ACT_GOAL UNITS_ORDER_AI_SAIL /* 0x0b — pursue +0x314d/e */

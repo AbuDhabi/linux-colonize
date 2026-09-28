@@ -15,7 +15,7 @@ canonical decomp is clean at every site cited below).
 **Status: mapped; the one bounded, sign-resolved call site (`96751-96827`,
 `@INDIANBEGFOOD`) is ported (2026-08-14, `ai_contact_try_village_beg_food`).
 Everything else — the deep `2820`/`4528`-adjacent gift/trade-selection
-scope — stays PARKED.** See "Relationship to Linux" and "Open question"
+scope — stays PARKED.** See "Relationship to OpenCol" and "Open question"
 at the end for what's genuinely still blocked.
 
 ## Storage and selection
@@ -105,7 +105,7 @@ Written at creation and re-read every growth tick (`FUN_4d56_152e`:
 `4c54 → JMPF 2a1f:0410` (loader + offset `0`). Candidate `FUN_4d56_0000`
 (`2*tech+3` / capital `tech+1`) matches founding pop for non-capitals
 but cannot explain seed-100 capital `growth_accum` accrual; live worth
-callee still unidentified. Linux keeps flat-15 stub — see
+callee still unidentified. OpenCol keeps flat-15 stub — see
 `ai_indian_152e_worth_cap_stub` / `ai_port_plan.md` T1.15.
 
 ### `+5` — owner + persistent flags
@@ -153,7 +153,7 @@ remaining 8 bytes exactly) at every site checked:
   colony's attitude toward the unit's nation," gating a missionary/return
   order when `==0`.
 - Same read/clear pattern in `FUN_5bfb_022e` (`96700-97000`, the **Indian
-  meet/contact dispatcher — already fully ported in Linux**, see
+  meet/contact dispatcher — already fully ported in OpenCol**, see
   `indian_contact.md`), compared against `0x7f`/`0x80` and zeroed on some
   outcomes.
 - Also touched in `FUN_5952_035e`, `FUN_4d56_4528`, `FUN_4d56_311e/3582`.
@@ -216,26 +216,26 @@ helper. Read sites gate on small thresholds (`<2`, `<3`, `==1`, `!=0`,
 functional interpretation for a port, but confirm no non-menu code path
 reuses the same writer before relying on it.
 
-## Relationship to Linux — RESOLVED (2026-08-14)
+## Relationship to OpenCol — RESOLVED (2026-08-14)
 
 **This is the *Indian* half of the array, not the Euro colony half — and
 for that half, no new struct is needed.** Confusingly, this one DOS array
 (`0x54ec`, stride `0x12`) covers *both* Euro colonies and native villages
-(owner nibble ≤3 vs >3, per `FUN_4d56_00e0`), but Linux already models
+(owner nibble ≤3 vs >3, per `FUN_4d56_00e0`), but OpenCol already models
 those with two separate, already-existing structs — `ColonizeColony`
 (`colony.h`, unrelated to this array) for the Euro side, and
 `ColonizeCol1Tribe`/`ColonizeCol1Indian` (`col1_save.h`) for the native
 side. Checked `FUN_5bfb_022e` (Indian meet/contact) field-by-field against
 `col1_save.h` and the offsets line up almost exactly:
 
-| DOS (via `0x8d4a`/`0x8d4e` selectors) | Linux (`col1_save.h`) | Match |
+| DOS (via `0x8d4a`/`0x8d4e` selectors) | OpenCol (`col1_save.h`) | Match |
 |---|---|---|
-| `0x8d4a` record `+10..+17` (`int16_t attitude[4]`, per Euro nation) | `ColonizeCol1Tribe.alarm[4]` = `{uint8_t friction; uint8_t attacks;}`, **byte offset +10** in that struct (x+y+nation_id+state+population+mission+growth_accum+pad+last_bought+last_sold = 10 bytes before `alarm[4]`) | **Exact offset match.** DOS's 16-bit word = Linux's packed `{friction, attacks}` pair (low byte friction, high byte attacks) — explains why a few sites decompiled it as 4-byte `*(int*)`: `attacks` dominates once non-zero (`attacks*256`), so the `iVar16 > 0x7f` gate at `viceroy_unpacked.c:96712` is mostly "has this village recorded any attacks from this nation," not a friction threshold. |
+| `0x8d4a` record `+10..+17` (`int16_t attitude[4]`, per Euro nation) | `ColonizeCol1Tribe.alarm[4]` = `{uint8_t friction; uint8_t attacks;}`, **byte offset +10** in that struct (x+y+nation_id+state+population+mission+growth_accum+pad+last_bought+last_sold = 10 bytes before `alarm[4]`) | **Exact offset match.** DOS's 16-bit word = OpenCol's packed `{friction, attacks}` pair (low byte friction, high byte attacks) — explains why a few sites decompiled it as 4-byte `*(int*)`: `attacks` dominates once non-zero (`attacks*256`), so the `iVar16 > 0x7f` gate at `viceroy_unpacked.c:96712` is mostly "has this village recorded any attacks from this nation," not a friction threshold. |
 | `0x8d4e` record `+0x2e` (word, 0/1/2 state) | `ColonizeCol1Indian.contact_state[4]`, cited in `col1_save.h:466` as "**+0x2e** — per-euro contact FSM 0/1/2 (`FUN_5bfb_*`)" | **Exact, already documented.** |
 | `0x8d4e` record `+0x46` (clamped ≤20) | `ColonizeCol1Indian.alarm_by_player[4]`, `col1_save.h:477`, offset **+0x46** (`unknown33[8]` at +0x3e, +8 = 0x46) | **Exact offset match.** |
 
 So `0x8d4a`/`0x8d4e` are simply DOS's runtime "currently selected village" /
-"currently selected native-nation" pointers into data Linux already has,
+"currently selected native-nation" pointers into data OpenCol already has,
 fully save-backed, already read/written in dozens of places in `ai_contact.c`
 (`t->alarm[e].friction`, `ind->alarm_by_player[e]`, etc.). **No new struct
 or field is needed to port any of this.**
@@ -243,8 +243,8 @@ or field is needed to port any of this.**
 **The real, narrower, confirmed gap** is behavioral, not structural: read
 `FUN_5bfb_022e` end to end (`viceroy_unpacked.c:96565-97101`) and compared
 it against `ai_contact_indian_meet_trade` (`ai_contact.c:3604`, the actual
-Linux port of this function). DOS's body has two parts:
-1. **First contact** (`96614-96676`) — **Done** in Linux
+OpenCol, port of this function). DOS's body has two parts:
+1. **First contact** (`96614-96676`) — **Done** in OpenCol
    (`ai_contact_try_first_welcome` + friction-decay/mission-offer stand-in).
 2. **Already-met Brave/Euro adjacency** (`96677-97101`, ~420 lines) — calls
    the already-ported `FUN_4d56_2154` scorer (`96750`, "Done scorer" per
@@ -258,7 +258,7 @@ Linux port of this function). DOS's body has two parts:
    `Trade/Gift/Demand/Teach/Incite/Leave` village-meet CHOICE menu's own
    `ai_contact_auto_trade`/`ai_contact_gift_or_demand` stand-ins for
    everything else unrelated to this specific begging-for-food scenario —
-   those remain separate, Linux-invented approximations, not replaced.
+   those remain separate, OpenCol-invented approximations, not replaced.
 
 **2026-08-14, later same day — correcting the estimate above after a full
 end-to-end read (attempted implementation, aborted):** "~75-line block
@@ -324,7 +324,7 @@ unrecovered — the breakpoint mostly caught a different, already-mapped
 dialog family), but it surfaced the right real-world mechanic by a
 different route: user recognized `@INDIANBEGFOOD` (a real, complete
 `GAME.TXT` tag, `COLONIZE/GAME.TXT:909-917` — confirmed **zero references
-anywhere in the Linux port's source**, so this is a genuine unwired gap,
+anywhere in the port's source**, so this is a genuine unwired gap,
 not an approximation) as "a common popup — triggers randomly when a
 colony has *substantial* food stores (never seen it with little food
 stored). Indians come, demand food. If you give them food, relations

@@ -151,7 +151,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@INDIANGIVESTUFF` | Done | as `@INDIANGIVEFOOD` (goods flavor). Confirmed 2026-09-16 |
 | `@INDIANCOMMENT` | Done | Colony encroachment OK via `popup_msg_fill` |
 | `@INDIANBEGFOOD` | Done | `ai_contact_try_village_beg_food`/`ai_contact_apply_beg_food` — real accept/decline CHOICE, `AI_POPUP_TAG_CONTACT_BEGFOOD` (2026-08-14, was unwired; sign convention resolved via live user gameplay testimony, see `settlement_record_8d4a.md`) |
-| `@INDIANWAR` | n/a — dead GAME.TXT | no `INDIANWAR` DS string (only `INDIANWARPATH`/`INDIANWARPATH2`/`INDIANWARFARE`), 2026-09-16. The port's raid-time "declare war" sentence stays as Linux chrome and no longer claims this section |
+| `@INDIANWAR` | n/a — dead GAME.TXT | no `INDIANWAR` DS string (only `INDIANWARPATH`/`INDIANWARPATH2`/`INDIANWARFARE`), 2026-09-16. The port's raid-time "declare war" sentence stays as OpenCol chrome and no longer claims this section |
 | `@INDIANGRUDGE` | Done | WoI tribe defection (`ai_contact_indian_woi_defect`): DOS `FUN_4d56_1816` item 2 flushes tag 0x14f6 with both tribe name forms right before the ±100 alarm pair (viceroy_unpacked.asm 136388). Popup wired 2026-09-16 (was a status line only, id unresolved) |
 | `@INDIANLAND` | Done | colony encroachment CHOICE (`game_loop.c` `AI_POPUP_TAG_INDIAN_LAND`) — real GAME.TXT body + rows. Confirmed 2026-09-16 |
 | `@INDIANROAD` | Done | as `@INDIANLAND` (road flavor) |

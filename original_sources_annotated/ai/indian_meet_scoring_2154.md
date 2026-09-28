@@ -41,11 +41,11 @@ for gift/demand price tables (`DS:0x9e*`), not a raid action body.
 | `0x9e58`…`0x9e76` | Ask table (16×int16) — Ghidra `-25000` |
 | `0x9e78`…`0x9e96` | Bid table (16×int16) — Ghidra `-0x6188` |
 
-## Linux — **Done** (scorer + consumers)
+## OpenCol — **Done** (scorer + consumers)
 
 Port: `ai_contact_meet_economics_2154` in [`ai_contact.c`](../../src/core/ai_contact.c).
 
-| Phase | Linux |
+| Phase | OpenCol |
 |-------|-------|
 | 1 Cover | Tribe-local 25-cell mask from colony↔tribe relative overlap; `281f_0ce0`→`15eb_06a6`→`15eb_05e2` work-slot gate **Done** — colony's own tile always covered, else one of the 8 immediate (N/NE/E/SE/S/SW/W/NW) ring tiles covered only when actively worked (`colony->tiles[dir] >= 0`); outer distance-2 ring cells never worker-assignable (`col1_bridge.c` `tiles[8..19]` stay `-1`) so are never covered, matching DOS byte-for-byte |
 | 2–3 Buckets | `map_dos_terr_class_at` class arms (`0x1b`/`0x1c`/`0x18`/plains/forest) |

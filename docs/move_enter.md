@@ -5,7 +5,7 @@ DOS `FUN_465b_0000` ([`move_spent.c`](../original_sources_annotated/ai/move_spen
 naval validity `FUN_4720_015c` / UI `FUN_4720_049e` (reason `DS:0x9e4e`),
 combat `FUN_5fef_1b0e`, colony join `FUN_647e_0094`, village `FUN_4d56_4528`.
 
-Linux entry: `units_enter_probe` → `units_can_enter` / `units_try_move` /
+OpenCol entry: `units_enter_probe` → `units_can_enter` / `units_try_move` /
 `game_try_unit_move` ([`units.c`](../src/core/units.c), [`game_loop.c`](../src/core/game_loop.c)).
 
 Status: **Done** / **Partial** / **Missing** / **PARKED**.
@@ -30,7 +30,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 
 ## Terrain × domain
 
-| Mover | Dest | DOS | Linux | Status |
+| Mover | Dest | DOS | OpenCol | Status |
 |-------|------|-----|-------|--------|
 | Land | Land (clear/forest/hills/mtn) | Cost `terr_cost[class]*3`; enter if afford / full MP / gamble | DOS `terr_cost` table via `map_move_cost_*` (NAMES MP scale; Brave keeps `*3`); road/river pair→1; full-MP + `range(1,cost)` | Done (unit MP = DOS thirds for every unit, `UNITS_MP_PER_TILE = 3`; the `*3`-scale PARK closed 2026-08-29 with T1.8) |
 | Land | Road pair (both FA `&0x0a`) | Cost **1** | `map_move_cost_step` both roads → 1; else dest road still halves | Done |
@@ -48,7 +48,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 
 ## Occupancy
 
-| Mover | Occupant | DOS (`465b`) | Linux | Status |
+| Mover | Occupant | DOS (`465b`) | OpenCol | Status |
 |-------|----------|--------------|-------|--------|
 | Any | Same nation | Stack | Stack | Done |
 | Land combat (`5236≠0` / attack>0) | Foreign land unit | Fight → `5fef_1b0e` | `157e` strength + combat analysis | Partial |
@@ -63,7 +63,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 
 ## Settlements
 
-| Mover | Tile | DOS | Linux | Status |
+| Mover | Tile | DOS | OpenCol | Status |
 |-------|------|-----|-------|--------|
 | Land | Own colony | Stack / join | Enter | Done |
 | Land | Foreign Euro + defender | Combat | Combat | Partial |
@@ -118,7 +118,7 @@ So any move that crosses the water/land boundary outside a colony spends the
 unit's entire allotment — a landfall onto bare coast, and equally boarding a
 ship from open shore. A colony on either end (a dock) exempts the step, which
 is why loading and unloading in port stays cheap; an Indian village does not
-(`FUN_281f_0696` clamps owners above 3 to −1). Linux:
+(`FUN_281f_0696` clamps owners above 3 to −1). OpenCol:
 `units_move_crosses_shore`, applied in `units_try_move` and
 `units_unload_passenger` (bugs.md: "dragoons should have their entire movement
 spent from stepping off a ship onto land").
@@ -191,7 +191,7 @@ Reason 5 is not a hard deny (2026-09-03): the UI handler (`FUN_4720_049e`
 case 4, `viceroy_ndisasm.asm` 0x3FEA6) asks **@SAILHOME** — Yes sails for
 Europe, No **commits the eastward step anyway** (lanes are fully
 traversable); with the WoI declared (`DS:0x5382` bit0) it shows
-@EUROPENOTLEAVE and still commits the step. Linux:
+@EUROPENOTLEAVE and still commits the step. OpenCol:
 `game_try_unit_move` intercepts `COLONIZE_ENTER_BLOCKED_HS_SAIL` →
 `AI_POPUP_TAG_SAILHOME` / `game_commit_sea_lane_step`.
 

@@ -2,7 +2,7 @@
 
 ## 2026-09-06 — live-port close-out (audit vs raw asm; 6 fixes + @WANTSTUFF)
 
-The whole function is now live in Linux: phase 1 = `ai_diplo_153e_worthiness_score`
+The whole function is now live in OpenCol: phase 1 = `ai_diplo_153e_worthiness_score`
 (exported, real), phases 2-4 = the `ai_diplo_153e_encounter` popup state machine
 (`ai_diplo.c`), fired from BOTH move sides of `FUN_5bfb_3180` — the human's
 move (`game_loop.c` post-move hook) and, new this pass, the AI's move
@@ -20,7 +20,7 @@ AHOY, 0x18d2 FIRST, 0x18d8 HELLOUSA, 0x18e1 APOSTATES, 0x18eb HEATHEN,
 NOTHINGWITHDRAW, 0x19a6/0x19c9 WITHDRAW, 0x19af NOTWITHDRAW, 0x19bb
 MAYBEWITHDRAW, 0x19f2 THREATS, 0x1a03 NOCONTACT, 0x1a0d ALREADYSMITE, 0x1a1a
 SMITEINDIANS, 0x1a27 SMITEEUROPE, 0x1a33 UNFORTUNATE, 0x1a3f MERCENARY,
-0x17e8 USA — confirming the existing Linux tag choices wholesale.
+0x17e8 USA — confirming the existing OpenCol tag choices wholesale.
 
 **Asm-verified findings (all new, none guessed):**
 
@@ -28,27 +28,27 @@ SMITEINDIANS, 0x1a27 SMITEEUROPE, 0x1a33 UNFORTUNATE, 0x1a3f MERCENARY,
    call site (asm 0x1BED-0x1BFF) pushes `param_3` fixed, and `FUN_5bfb_0000`
    (viceroy_unpacked.c:96448) only ever writes `param_4` or -1 into its
    matched-out — so the `matched == param_2` branch (raw 777-780, asm
-   0x1C72-0x1C88) can never fire and `own_border` is always 0. The Linux
+   0x1C72-0x1C88) can never fire and `own_border` is always 0. The OpenCol
    probe reproduced this faithfully already; documented in `ai_diplo.h`.
    Consequence: SIEGES fires only vs targets with `colony_pop_totals>>2 == 0`,
    and the sieges-paid withdraw-cost discount is always −0.
-2. **WITHDRAW threat-roll polarity was inverted in Linux** (asm 0x2EF2-0x2EFA:
+2. **WITHDRAW threat-roll polarity was inverted in OpenCol** (asm 0x2EF2-0x2EFA:
    `cmp cx(=totals[self]),ax(=roll); jl refuse` — roll ≤ the human's
    field-combat total → the AI backs down). Fixed.
 3. **@WANTSTUFF transfers FURS, not the demanded cargo** — a genuine DOS bug,
    byte-verified: the accept transfer (asm 0x2995-0x29B2) indexes the colony
    stock rows with `[bp-0xa2]`, the loop counter the euro rival-tally
    do-while leaves at 4, NOT the picked cargo `[bp-0xb2]`. The dialog names
-   the picked cargo; Furs move. Ported faithfully (Linux-only bound: source
+   the picked cargo; Furs move. Ported faithfully (OpenCol-only bound: source
    stock floors at 0 where DOS int16 would underflow).
 4. **Rival-tally tribe hostility reads the SELF↔tribe war bit** (asm
-   0x2049-0x205E: `FUN_1000_8c28(self, tribe+4) & 2`) — the earlier Linux
+   0x2049-0x205E: `FUN_1000_8c28(self, tribe+4) & 2`) — the earlier OpenCol
    read of the target's byte was a decompile-arg misread. Fixed; the
    tribe-extinct gate (`[0x8d4e+3] & 0x80`, asm 0x202B) is now ported too
    (`col1->indian[i].extinct`).
 5. **`uStack_68 = 999` after TRIBUTE is unconditional** (decline included,
    raw :97894) — gates @WANTSTUFF off and makes the worthy/PROVOKE arm read
-   999 ≥ 0x65. Linux previously only set it on accept. Fixed.
+   999 ≥ 0x65. OpenCol previously only set it on accept. Fixed.
 6. **Smaller fixes**: ST_THIRD now honors the crown-armed gate (raw
    `uStack_9e == 0`); the third-party HEATHEN "yes" arm routes through the
    real alarm-delta writer (`FUN_281f_0d6c` clamp 0..100, was a 255 clamp);
@@ -60,7 +60,7 @@ SMITEINDIANS, 0x1a27 SMITEEUROPE, 0x1a33 UNFORTUNATE, 0x1a3f MERCENARY,
 **@WANTSTUFF demand phase ported** (raw :97562-97593 pick + :97896-97930
 dialog/transfer): armed only when the encounter's moving unit belongs to
 `target`; receiver = target's nearest colony (`FUN_1000_8804`, Chebyshev
-approx), source = the colony on the encounter tile (`FUN_1000_89ae`; Linux
+approx), source = the colony on the encounter tile (`FUN_1000_89ae`; OpenCol
 takes the first adjacent colony since the encounter API carries no
 direction); per-cargo value = min(warehouse-capacity deficit at receiver
 (`FUN_1000_8f2a` = `FUN_15eb_0a50`), source stock) × `euro_price[target][c]`
@@ -94,7 +94,7 @@ counterpart of that already-live decrement) and `FUN_465b_0000`'s foreign-
 tile encounter body (`move_spent_foreign_combat_parked`, PARKED). Full
 writeup: `docs/mysteries_catalog.md`'s Section D `unknown26` entry,
 `+0x40-0x43` sub-range. Not ported — `153e` itself still has no live call
-site in Linux, so this reset has nowhere to attach yet.
+site in OpenCol, so this reset has nowhere to attach yet.
 
 ## Status: the "5 local helpers" from the earlier pass were a false lead — RETRACTED below. The `003bc6-003bf8` region is a resident-thunk jump table dispatching to 10 ALREADY-KNOWN `FUN_5bfb_*` functions, not new flavor-text/attitude code. Real structural finding: 153e's outcome dispatch reuses existing, mostly-already-ported machinery (102a/1092/0182 dialogs, 312e/0000 score, 13b0 alliance, 10ec war/ally eligibility, 022e Indian contact) plus one still-unresolved branch (`FUN_5bfb_12d0`, already tracked elsewhere as "Order clear `12d0` deep"). Worthiness-score phase and the exact war-declare state flip remain genuinely open.
 
@@ -159,7 +159,7 @@ continuing. `FUN_2a1f_05fc` and its 9 neighbors (offset +0xe each,
 call then a direct forward), and **every one of the 10 targets is already
 a known, named, mostly-already-documented function**:
 
-| Table idx | Thunk offset | Target | Linux status |
+| Table idx | Thunk offset | Target | OpenCol status |
 |---|---|---|---|
 | 0 | `2a1f:05fc` | `FUN_5bfb_153e` (self) | this function |
 | 1 | `2a1f:060a` | `FUN_5bfb_12d0` | **resolved 2026-08-19** — see below |
@@ -229,13 +229,13 @@ sides' border garrisons refreshed) and once from this table's index 1 —
 i.e. **"wake up border-garrison units near the other nation's territory
 so they re-plan, because the diplomatic relationship with that neighbor
 just changed."** `euro_diplo.md`'s "Order clear `12d0` deep" line item is
-now fully resolved; not ported to Linux yet — `ai_diplo_form_alliance_ctx`
+now fully resolved; not ported to OpenCol yet — `ai_diplo_form_alliance_ctx`
 doesn't currently touch unit orders, and this is small enough to be a
 quick follow-up (loop units of the two nations, same adjacency/order-state
 test, no new struct fields needed) rather than a semantic gap.
 
 **Ported 2026-08-19** as `ai_diplo_wake_border_garrisons` (`ai_diplo.c`,
-runtime layer): DOS order-state 5/6 lines up numerically with Linux's own
+runtime layer): DOS order-state 5/6 lines up numerically with OpenCol's own
 `UNITS_ORDER_FORTIFY`/`FORTIFIED`, so the port clears a Fortify/Fortified
 order (`units_clear_orders`) on any combat-capable (`attack>1`) land unit
 of `nation_b` sitting adjacent to a `nation_a` colony; wired into
@@ -338,7 +338,7 @@ neutral stubs in the code):
   never fire.
 - `-0x6ada` — per-continent skilled-unit count. Stubbed to 0.
 - `0x53c8[]` — a per-nation declare-war cooldown timer (raw 421-424,
-  436-437, 548, 556). No persistent Linux equivalent tracked (reference
+  436-437, 548, 556). No persistent OpenCol equivalent tracked (reference
   port, not live); stubbed as "always eligible."
 - `0xa153` — a single byte (raw 509), compared directly to `param_2`. No
   match anywhere else in this project's docs or `address_mapping.csv`.
@@ -600,7 +600,7 @@ line phase map:
    knowing this build's string-index scheme (not resolved this pass; the
    IDs are real data if anyone wants to chase a byte-exact port later).
 
-**Confirms this is the real war-declare *trigger* Linux is missing** —
+**Confirms this is the real war-declare *trigger* OpenCol is missing** —
 `ai_diplo.c`'s existing "thin 153e" citations are all about *side effects*
 once a war starts (gold sting, tax bump, embargo), sourced from a
 *different*, already-ported, simpler function (`FUN_5bfb_10ec`-shaped
@@ -1797,7 +1797,7 @@ Moved here 2026-09-14 from `src/core/ai_diplo.c`, where it was a
 `(void)` casts added to keep it compiling). Columns: table slot in the
 `OVL16_L0040:3bcb-3bf8` selector table, `153e`'s own call-site symbol, the
 canonical `FUN_5bfb_XXXX` bound to that slot, and where the target lives in the
-Linux port.
+OpenCol port.
 
 | slot | ovl offset | target | port status |
 |---|---|---|---|

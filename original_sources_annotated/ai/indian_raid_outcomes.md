@@ -1,6 +1,6 @@
 # Indian raid outcomes — thin section-map
 
-Maps settlement-raid / loot clusters for a **reasonable** Linux port in
+Maps settlement-raid / loot clusters for a **reasonable** OpenCol port in
 `ai_contact_indian_raids`. **Correction 2026-08-13**: the "~3073 lines,
 PARKED" figure below was from the *corrupted* canonical decompile export
 — re-disassembled clean this session via the overlay-addressing project:
@@ -25,14 +25,14 @@ Related: [`indian_contact.md`](indian_contact.md),
 | `FUN_4d56_359c` | Relation-gated kill / warn / displace by RNG — thin: displace Scout, despawn if blocked |
 | `FUN_4d56_2154` | Meet economics scorer from `5bfb_022e` — **mapped** [`indian_meet_scoring_2154.md`](indian_meet_scoring_2154.md); **not** raid |
 
-### `4528` head vs Linux phase arms
+### `4528` head vs OpenCol phase arms
 
 DOS head (mapped): bind tribe → relation/friction → human warn strings
 `0x1710`…`0x172e` + CHOICE → early `LAB_4d56_4bf2` aborts (ship / cancel).
-Linux skips ship/warn VGA and jumps to structural raid phases below (combat /
+OpenCol skips ship/warn VGA and jumps to structural raid phases below (combat /
 approach / `@RAID*` loot via `5fef`-shaped helpers).
 
-## Linux phase arms (`ai_contact_indian_raids`)
+## OpenCol phase arms (`ai_contact_indian_raids`)
 
 1. **Gate** — among Euros with max(`alarm_by_player`, tribe friction) ≥ 40
    (**uniform; no per-nation term** — the old "Spain ≥35" was invented and
@@ -131,7 +131,7 @@ approach / `@RAID*` loot via `5fef`-shaped helpers).
 
 ## `@RAID*` message tags (`COLONIZE/GAME.TXT`)
 
-UI strings, not numeric tables. Linux uses the **kind enum** to pick loot.
+UI strings, not numeric tables. OpenCol uses the **kind enum** to pick loot.
 **2026-08-26: 6 of 7 kinds now render the real `GAME.TXT` body** (via
 `popup_msg_fill`, `ai_contact.c`'s human-status block) instead of the old
 hand-typed paraphrase, which now only serves as the fallback when no
@@ -140,7 +140,7 @@ real DOS text is a third-party "Spies report... {nation-adjective} colony
 of..." frame — wrong register for the raid's own victim, so it keeps the
 paraphrase on purpose):
 
-| Tag | Kind | Linux loot stand-in | Human status |
+| Tag | Kind | OpenCol loot stand-in | Human status |
 |-----|------|---------------------|---------------|
 | `@RAIDNOTHING` | NOTHING | No stock change | Real body: "{tribe} raiding party wiped out in {colony}! Colonists jubilant!" |
 | `@RAIDWREAK` | *(not a kind)* | **Corrected 2026-09-23 (bugs.md #829).** 0x1b8a is not a loot kind at all: raw 99897-99899 fires it once per **successful** raid whose victim colony is NOT human-controlled. It loots nothing. The port's old `AI_RAID_WREAK` (food −1, tools −1, construction cleared) was an invention and is deleted. | Real body, at the HUMAN: "Spies report: {tribe} raiding party wreaks havoc in the {nation} colony of {colony}." |

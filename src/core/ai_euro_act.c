@@ -1211,7 +1211,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
     if (ai_euro_try_wagon_haul(ctx, nation_id, u)) {
       wagon_hauled = 1;
     }
-    /* (The wagon Europe-export feeder — a thin Linux-only arm — was retired
+    /* (The wagon Europe-export feeder — a thin OpenCol-only arm — was retired
      * 2026-09-07b: DOS's 457e origin walk owns every off-errand wagon beat,
      * so wagons never fed the coastal export leg in DOS. Surplus reaches
      * Europe through the ships-only 4393 pickup queue.) */

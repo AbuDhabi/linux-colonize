@@ -34,7 +34,7 @@ census of human/crown. Bridge: [`between_turns.md`](between_turns.md).
 | `0x924c` | `unit_type_counts[4][19]` |
 | `0x944e` | mean colony pop |
 | `0x95f2` | continent AI flag bytes (bitmask meaning fully resolved 2026-08-14, see below) |
-| colony `+0x1b` | ship-pressure bits (Linux `ai_flags`) |
+| colony `+0x1b` | ship-pressure bits (OpenCol `ai_flags`) |
 
 **Nation×continent block, resolved 2026-08-14** (this phase-2 sub-work was
 previously undetailed here — full trace in
@@ -57,9 +57,9 @@ own per-turn pass — see `euro_g_table_0a60.md` for why).
 
 Helper: `FUN_4962_0006` — saturating +1 to 255.
 
-### Linux
+### OpenCol
 
-| DOS | Linux | Fidelity |
+| DOS | OpenCol | Fidelity |
 |-----|-------|----------|
 | Full EOT census | `col1_stuff_census_refresh_colony_counts` in SETUP | Colony + unit/combat tallies **Done** thin |
 | Blank-template fill | `col1_stuff_census_fill_blank` | **Partial** |
@@ -82,7 +82,7 @@ Helper: `FUN_4962_0006` — saturating +1 to 255.
 2. Units of nation with specialty (`281f_0b78`): `hist[unit+0x315b]++`  
 3. Colonies: each colonist job (`281f_0c54`) → `hist[job]++`
 
-### Linux
+### OpenCol
 
 Runtime **`turn_tally_professions`** fills `ctx->profession_tally[4][32]` in SETUP
 for every Euro nation (colonist jobs + unit professions). DS:0x9430 RMW writer

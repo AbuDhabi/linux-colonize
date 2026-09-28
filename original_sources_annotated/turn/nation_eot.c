@@ -3,10 +3,10 @@
  *
  * Source: original_sources_decompiled/viceroy_unpacked.c
  *   0004 ~58268–58301; 00f2 ~58305–58425; thunk_291f_0a58 ~58685–58690
- * Linux:  pieces split across TURN_PROC_SETUP / EURO / FINISH in src/core/turn.c
+ * OpenCol:  pieces split across TURN_PROC_SETUP / EURO / FINISH in src/core/turn.c
  *         (see docs/turn_between_players.md). King arm → ai_king.c.
  *
- * Reference only — not compiled into the Linux binary.
+ * Reference only — not compiled into the OpenCol binary.
  */
 
 #include <stdint.h>
@@ -56,7 +56,7 @@ extern void apply_tax_delta(int msg_id, int mode);           /* 291f_0ae0 → 38
  * stack cargo query < 2. Increments turns_worked (0x315a); after 8 turns
  * outside own Euro colony: destroy unit + optional message for human.
  *
- * Linux: units_tick_treasure_outside_colony (turn.c EURO/FINISH).
+ * OpenCol: units_tick_treasure_outside_colony (turn.c EURO/FINISH).
  */
 int eot_treasure_tick(int unit_index) {
   /* Simplified structure — bytes: viceroy_unpacked.c:58268 */
@@ -94,12 +94,12 @@ void thunk_treasure_tick(int unit_index) {
  *   6. Optional Europe screen if ship-ready flagged (0x14c)
  *   7. Colony production pass (364b_0688) for this nation's colonies
  *   8. Census (4962_0018)
- *   9. SoL / king dispatch (43f7_2424)  ← Linux moves this to FINISH
+ *   9. SoL / king dispatch (43f7_2424)  ← OpenCol moves this to FINISH
  *  10. Occasional immigrant/ship spawn (every 8 turns, peacetime)
  *
- * Linux reshape: production + nation ticks in SETUP; treasure beside EURO/
+ * OpenCol reshape: production + nation ticks in SETUP; treasure beside EURO/
  * human FINISH; king in FINISH; Europe market tick uses 38fd_0058 in FINISH
- * (sibling of 5e52). Coastal fort fire (364b_03f6) is Linux SETUP-only addition
+ * (sibling of 5e52). Coastal fort fire (364b_03f6) is OpenCol SETUP-only addition
  * after production.
  */
 void nation_eot(void) {

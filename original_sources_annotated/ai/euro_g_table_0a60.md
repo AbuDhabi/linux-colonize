@@ -26,14 +26,14 @@ real, not heuristic. Two approximations kept, both documented in-code:
 the DOS diplomacy-flag gate on which rivals count toward pressure (two
 still-unidentified bits) is skipped — every rival/tribe with presence is
 always counted, a defensible superset since DOS's gate only ever narrows
-that set; and the existing Linux-only at-war/Indian-hostility-sticky
+that set; and the existing OpenCol-only at-war/Indian-hostility-sticky
 overrides are kept layered on top (protect tested behavior with no direct
 DOS-table backing). Full `ctest` 42/43 (same pre-existing unrelated
 `unit_ai_euro_expand` baseline failure, confirmed via `git stash` — no
 regression), including all T2 golden gates (`golden_ai_turns`/`_mid01`/
 `_late01`/`_joint`) unchanged.
 
-Parent: [`move_scoring.md`](move_scoring.md). Linux:
+Parent: [`move_scoring.md`](move_scoring.md). OpenCol:
 `ai_euro_refresh_continent_stance` / `s_euro_continent_stance` in `ai_euro.c`.
 
 ## Real DOS formula (transcribed, not yet ported)
@@ -91,7 +91,7 @@ for (continent = 0; continent < 0x10; continent++) {
   int scaled = (table_B1A[own_nation][continent] + presence_sum) * 20;
   int cap = continent_tally_b[continent];        /* DS −0x7a38 == 0x85c8,
                                                        ALREADY-NAMED, ALREADY
-                                                       LIVE in Linux */
+                                                       LIVE in OpenCol */
   G_table[own_nation][continent] = (scaled <= cap) ? 6 /* develop */ : 0 /* none */;
   if (expand_pressure)   G_table[own_nation][continent] = 4; /* pressure to expand → "military"-numbered tier, see note */
   if (military_pressure) G_table[own_nation][continent] = 3; /* rival stronger → "expand"-numbered tier, see note */
@@ -107,7 +107,7 @@ for (continent = 0; continent < 0x10; continent++) {
 ```
 
 **Naming caveat on tier values 3/4, checked at port time:** the numeric
-G-table values `{0,3,4,6}` are the same set Linux's
+G-table values `{0,3,4,6}` are the same set OpenCol's
 `ai_euro_refresh_continent_stance` already produced, but this
 transcription's `expand_pressure→4` / `military_pressure→3` assignment is
 copied straight from the decompile's own literal writes — it does **not**
@@ -129,7 +129,7 @@ this exact table, not attempted.
 - `−0x7a38` **= `continent_tally_b[16]`** (`0x10000 − 0x7a38 = 0x85c8`,
   `save_format_map.md` row 305, already `mapped`, already live at
   `col1->post_map.continent_tally_b[]`). The G-table's baseline develop/none
-  split is gated by the *same* field Linux's current thin stance already
+  split is gated by the *same* field OpenCol's current thin stance already
   uses (`target = continent_tally_b[cid] / 12`) — real cross-validation that
   the thin version's instinct (compare against this field) was right, just
   scaled/shaped differently from the real formula.
@@ -220,16 +220,16 @@ Structurally ready for a real port attempt next time, not just documentation.
   also fell out of the same trace — was `unknown_ds_947e`, now confirmed.
 - `FUN_281f_0a38` — **already identified**, checked this pass:
   `euro_diplo.md` names it as the `FUN_15b3_0004` thunk, "Read peer byte,"
-  which already branches Euro (`nation<4`, `euro_relation[]`, Linux
+  which already branches Euro (`nation<4`, `euro_relation[]`, OpenCol
   `ai_diplo_read` — ported) vs Indian (`nation≥4`, `nation*0x4e+23000`
-  matrix, flagged there as "full matrix **PORT DEBT** on Linux" — explains
-  why this G-table formula's Indian-side pass reads real DOS bytes Linux
+  matrix, flagged there as "full matrix **PORT DEBT** in OpenCol" — explains
+  why this G-table formula's Indian-side pass reads real DOS bytes OpenCol
   doesn't fully model yet). The bitmasks used here (`0x60`/`0x48`/`0x20`/`0x2`)
   don't match `euro_relation[]`'s documented `WAR 0x01/PEACE 0x02/ALLY
   0x04/MET 0x40` convention on their face — **not reconciled this pass**,
   worth checking whether `0a38`'s return is a repacked/translated byte
   (matching `euro_diplo.md`'s own note that the raw peer byte and the
-  Linux-side bit convention aren't a direct 1:1) before assuming either
+  OpenCol-side bit convention aren't a direct 1:1) before assuming either
   side is wrong.
 
 **Ported, same day (fourth pass).** All data tables above resolved via raw

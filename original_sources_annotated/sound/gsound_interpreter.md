@@ -1,7 +1,7 @@
 # GSOUND.COL voice interpreter (`FUN_1000_01fd`)
 
 Layer D notes for [`original_sources_decompiled/gsound.c`](../../original_sources_decompiled/gsound.c).
-Linux port: [`src/core/sound.c`](../../src/core/sound.c).
+OpenCol port: [`src/core/sound.c`](../../src/core/sound.c).
 
 Ghidra entry/`MPU`/EMS tails are noisy; the fidelity-relevant core is small.
 
@@ -49,7 +49,7 @@ Active notes for the channel: four slots at `DS:8200 + ch*4` (`0xFF` = empty).
 
 ## Opcode map (`FUN_1000_01fd`) — fidelity deltas
 
-| Op | Bytes | Driver | Linux (`sound.c`) |
+| Op | Bytes | Driver | OpenCol (`sound.c`) |
 |----|------:|--------|-------------------|
 | `≤BA` note,dur | 2 | note-on + gate | done |
 | `C4..EB` | ALU / cond-jump VM | **done** (sizes + regs; was default `+2` desync) |
@@ -83,5 +83,5 @@ Table entries normally begin `CALL … / MOV CX,track / CALL start_voice / … /
 
 Some (e.g. id `0x25` Fiddler's Dance) point at a **warm-restart** stub
 (`CMP word [DS:E6],0 / … / RET`). The real cold-start (seed `E6`/`E8`/`EA` then
-the `B9` track list) is the next function after that `RET`. Linux
+the `B9` track list) is the next function after that `RET`. OpenCol
 `sound_parse_handler_tracks` detects the `83 3E E6 00` stub and parses from there.

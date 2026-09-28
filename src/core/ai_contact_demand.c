@@ -313,7 +313,7 @@ static uint32_t ai_contact_incite_price(
     (int)(int8_t)ind->muskets * 2 + (int)(int8_t)ind->horse_herds * 2;
 
   /* FUN_281f_030c reads the DS:0x5b1c table raw — and that table is the
-   * ALARM mirror (Linux alarm_by_player), not a friendliness score: the
+   * ALARM mirror (OpenCol alarm_by_player), not a friendliness score: the
    * 4528 ship gate treats >=0x4b as @MADATSHIPS, FUN_4cc6_00f2 writes it
    * with the French/Pocahontas alarm-growth halving, and
    * indian_actions_menu.md pins 84fc == indian.alarm_by_player[e]. The
@@ -388,7 +388,7 @@ static uint32_t ai_contact_incite_price(
    * id or specific village index to survive the async CHOICE round-trip):
    * -1500 if the unit performing Incite is a Missionary
    * (UNITS_JOB_MISSIONARY, DOS unit-state byte 0x18 — a real, already-named
-   * Linux constant); -500 if the specific village visited is the tribe
+   * OpenCol constant); -500 if the specific village visited is the tribe
    * capital (DOS CUR_TRIBE_PTR state+3&4, ColonizeCol1Tribe.state.capital).
    */
   if (is_missionary) {
@@ -461,7 +461,7 @@ int ai_contact_enqueue_incite_target_choice(
    * still offered and answered with @UNFORTUNATE after the confirm, which
    * is why the price never appears on these rows (it belongs to the
    * @INDIANWARPATH2 confirm below). The port used to filter by gold and
-   * print "Incite against the X (N gold)"; both were Linux inventions.
+   * print "Incite against the X (N gold)"; both were OpenCol inventions.
    */
   const char* labels[3];
   char label_buf[3][48];
@@ -608,7 +608,7 @@ static void ai_contact_incite_warfare_chrome(
  * Apply Incite Indians (FUN_4d56_417e Mode-1 tail, viceroy_unpacked.c
  * 83616-83650 + LAB_4d56_4499). DOS gate order after the target pick:
  *   1. 0a38(tribe, target) & 0x20 clear → @NOCONTACT (0x16b7), no charge;
- *   2. @INDIANWARPATH2 pay confirm (0x16c1 — merged into the Linux
+ *   2. @INDIANWARPATH2 pay confirm (0x16c1 — merged into the OpenCol
  *      target menu, which already shows the price per row);
  *   3. treasury < price → @UNFORTUNATE (0x16d0), no charge;
  *   4. 030c(tribe, target) >= 0x4b (tribe already in the war band with
@@ -1729,7 +1729,7 @@ void ai_contact_apply_beg_food(
  * FUN_465b's move tail (FUN_281f_0984 → FUN_5bfb_3180) for the tile a unit
  * just stepped beside, so a Brave that has been parked next to a colony for
  * twenty turns raises nothing, while one that walks over raises a visit.
- * The Linux native pulse commits its steps inline and runs the contact arms
+ * The OpenCol native pulse commits its steps inline and runs the contact arms
  * once per nation afterwards (ai.c §9), so this reconstructs the trigger
  * from the pulse's recorded pre-move tile: the Brave must have moved this
  * turn AND not already have been adjacent to this colony before it moved.
@@ -2315,7 +2315,7 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
    * musket/horse windfall (81581-81592) — it never touches alarm_by_player or
    * tribe friction, and the `0x20` it latches is at indian record +3, not +6.
    *
-   * Linux's escalate ran on `unknown31_flags` = indian record **+6**, a byte
+   * OpenCol's escalate ran on `unknown31_flags` = indian record **+6**, a byte
    * no DOS export reads or writes (offset tally over all three decompiled
    * exports: only +0/+2/+3/+5/+7/+8/+10 are ever touched) — so both the
    * once-per-nation latch and the `alarm < 30` band were invented, and the
@@ -2357,7 +2357,7 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
    */
 
   /*
-   * Mission burn: the old Linux "alarm/friction ≥80 each tick" stand-in was
+   * Mission burn: the old OpenCol "alarm/friction ≥80 each tick" stand-in was
    * retired 2026-09-07d. DOS burns missions only from FUN_4cc6_00f2's
    * escalation tail — alarm delta lands the pair at 100 while at PEACE,
    * difficulty-gated RNG roll — now ported as ai_contact_alarm_delta_00f2.
@@ -2483,7 +2483,7 @@ void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id) {
 
   /*
    * The former "relation ±1 by alarm band" arm is gone (2026-08-27): it moved
-   * a Linux-only scalar; DOS alarm has no per-turn drift (seed-100 TURN3-7
+   * an OpenCol-only scalar; DOS alarm has no per-turn drift (seed-100 TURN3-7
    * saves) — the real ±1 is the 152e accumulator in ai.c. Friction part kept.
    */
   /*
@@ -2558,7 +2558,7 @@ void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id) {
 /*
  * FUN_4d56_2af6 abort-trade close (catalog): clear tribe last_bought /
  * last_sold bookkeeping before refuse chrome. Deep demand-table wipe at
- * DOS −25000 stays PARKED (no Linux table). Cite: FUNCTION_CATALOG 2af6.
+ * DOS −25000 stays PARKED (no OpenCol table). Cite: FUNCTION_CATALOG 2af6.
  */
 /*
  * ===========================================================================

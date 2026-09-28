@@ -2449,7 +2449,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 ### Segment `43f7` (21 defs) — ai/ui — King/REF/tax/independence + @COUNTRY colors
 
-Thin map: [ai/king_ref.md](ai/king_ref.md). Linux: `src/core/ai_king.c`.
+Thin map: [ai/king_ref.md](ai/king_ref.md). OpenCol: `src/core/ai_king.c`.
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|

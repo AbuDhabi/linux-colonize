@@ -22,13 +22,13 @@ duplicate — see pointers below.
 on the WoI intervention spend, and at the declaration of independence
 (`FUN_43f7_1a26`, raw 74738); surplus over the threshold is discarded. `+0xe`
 is this turn's bells only — zeroed before the per-colony loop
-(`FUN_3844_00f2`, raw 58382) and never read back by DOS. The Linux side table
+(`FUN_3844_00f2`, raw 58382) and never read back by DOS. The OpenCol side table
 `s_ff_bells_since_elect` and its save-time stash were deleted (bugs.md #933);
 the port's `liberty_bells_pool` field is literally `+0xc`.
 
-## Linux
+## OpenCol
 
-| DOS | Linux | Notes |
+| DOS | OpenCol | Notes |
 |-----|-------|-------|
 | Per-colony accrue in `0688` | `turn_run_nation_ticks` accrues **per colony** and re-runs the elect test after each one (bugs.md #934) | Human + AI (`control!=2`); dock immigrants human-only; the human's elect test stays in `TURN_PROC_FINISH` (bugs.md #434) |
 | Idle / pressure crosses | **+2**/turn into `current_crosses` until first dock immigrant; then churches only | Human (AI always +2; spawn PARKED) |

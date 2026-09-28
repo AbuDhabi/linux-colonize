@@ -3,7 +3,7 @@
 #include "test_ai_euro_expand_common.h"
 
 /*
- * 2026-09-08 — 2 more scenarios RETIRED with the Linux-shaped 06ae extras
+ * 2026-09-08 — 2 more scenarios RETIRED with the OpenCol-shaped 06ae extras
  * they were written against (`unit_second_wave`, ring-2..4 rescan founding
  * around an existing colony; `unit_second_colony_coastal_prefer`, the +10/+40
  * coastal bias). DOS's 06ae scores only DS:0x2f77[class] + 0492*0x10 + the

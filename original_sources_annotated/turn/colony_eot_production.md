@@ -11,12 +11,12 @@ Orchestration: [`between_turns.md`](between_turns.md) ·
 [`docs/turn_between_players.md`](../../docs/turn_between_players.md) ·
 [`docs/building_production.md`](../../docs/building_production.md).
 
-**Port status:** Linux **Partial** — spine in `turn_run_colony_production` /
+**Port status:** OpenCol **Partial** — spine in `turn_run_colony_production` /
 `turn_produce_one_colony` (`src/core/turn.c`); shared rules in
 `colony_production.c` / `colony_craft.c`. **Birth + starve-kill Done** (I–J).
 **AI dump-sell Done** thin (O). **Education F–H Done** thin. **Phase D SoL chrome Done** thin. **Inefficient-gov chrome Done** thin.
 K / P msgs **mapped**; port **Done** thin (was stale here — see Deep K /
-Linux correspondence below; 2026-08-24 demand-gate fix).
+OpenCol correspondence below; 2026-08-24 demand-gate fix).
 
 **Phase A compose boundary (2026-09-09, smell audit #62/#63).** `281f_0c22`
 → `15eb_3956` → `15eb_1f72` fills the 20-word gross scratch at `−0x7238`
@@ -40,7 +40,7 @@ changed his own tick's craft output.
 ## Sibling — `FUN_364b_03f6` (coastal fort fire)
 
 Full map: [`coastal_fort_fire.md`](coastal_fort_fire.md). Nested here at
-`57227` (`291f_09ce`); Linux SETUP after all colony production (reshape).
+`57227` (`291f_09ce`); OpenCol SETUP after all colony production (reshape).
 
 ## Colony offsets touched
 
@@ -108,7 +108,7 @@ Scratch: `DS:−0x7238` (gross), `−0x71f6` (reserve). Net: `281f_0b50` → `15
 - Food (`cargo==0`) AI: `+= difficulty>>1` (`0x53a6`).
 - Add into `stock[+0x9a+2*c]`; floor 0.
 - Custom House (`09fc(0x12)` + mask): if stock>99 and eligible → sell
-  `stock−50` via `0a2e` (leave 50). Linux: `europe_custom_house_autosell`.
+  `stock−50` via `0a2e` (leave 50). OpenCol: `europe_custom_house_autosell`.
   **Full read 2026-08-28 (57257–57330):**
   - Human colonies are shut while `colony+0x1b & 3` (enemy armed ship /
     MoW nearby); AI colonies ignore that.
@@ -124,7 +124,7 @@ Scratch: `DS:−0x7238` (gross), `−0x71f6` (reserve). Net: `281f_0b50` → `15
     (cumulative net trade income) += net.
   - Human only: message box assembled 0056/006a/0074/007e/0088/07d4
     (colony, amt, cargo, gross, tax%, tax, net) + sound `0x78` when
-    `0xa897` set. Linux: one OK popup from `europe->status` per colony.
+    `0xa897` set. OpenCol: one OK popup from `europe->status` per colony.
 - OR `cargo_produced_mask` (`+0x90`) when scratch gross `−0x7238[c] != 0`
   AND net>0 — where net is `local_86` AFTER the Custom House sale
   (`local_86 -= sold`, 57273), so a cargo sold down to 50 does not count as
@@ -152,7 +152,7 @@ Scratch: `DS:−0x7238` (gross), `−0x71f6` (reserve). Net: `281f_0b50` → `15
 | Decade up / down | chrome only | `0xdc1` / `0xdc8` |
 | Tory pressure ≥ difficulty band | OR / clear **0x08** | `0xdd1` / `0xddd` → port `@INEFFICIENT`/`@EFFICIENT` on that same Col1 bit3 (`COLONIZE_COLONY_FLAG_INEFFICIENT_GOV`) |
 
-Bit3 is the Tory latch above in the port too (2026-09-04). Linux's own
+Bit3 is the Tory latch above in the port too (2026-09-04). OpenCol's own
 food-vs-need reading, previously `COLONIZE_COLONY_FLAG_STARVATION` on this bit,
 is the runtime-only `ColonizeColony.food_shortfall_latch`. `colony_prod_refresh_sol_flags` covers sol_50/100
 **one-step** (majority then unanimous on separate ticks). Human chrome:
@@ -221,7 +221,7 @@ Compose (`FUN_15eb_0b52`) writes per-cargo:
 
 `@FOODLOW` (`0xe5e`) only when **`8e5a == 0`** and **`8e32 != 0`** and
 **stock < `8e32 × 4`** (and report bit `0x5384&0x40` clear). Surplus harvest
-(`production ≥ consumption` → `8e32==0`) never warns. Linux:
+(`production ≥ consumption` → `8e32==0`) never warns. OpenCol:
 `food_shortfall = consumed − field_food` with the same stock gate.
 
 ## Deep — K build advisories (57696–57728)
@@ -306,7 +306,7 @@ For cargo `1..15` with surplus `stock − warehouse_cap > 0`:
 - Then spoilage: if surplus &gt; reserved cap `aiStack_e4[c]`, subtract excess
   (lose `local_74` if ≥2) or clamp stock to cap.
 
-Linux: `colonies_apply_warehouse_spoilage` (trim); `europe_ai_colony_dump_sell`
+OpenCol: `colonies_apply_warehouse_spoilage` (trim); `europe_ai_colony_dump_sell`
 **Done** thin (`nation_horses[]` / `nation_musket_batches[]` on EuropeScreen).
 
 ### P — spoilage msgs (57874–57931)
@@ -320,9 +320,9 @@ Linux: `colonies_apply_warehouse_spoilage` (trim); `europe_ai_colony_dump_sell`
 phrasing **Done** thin; full dialogs PARKED; century tip **Done** thin
 (cross 100s → status + `tut3.nr6` once-latch); trim **Done**.
 
-## Linux correspondence
+## OpenCol correspondence
 
-| DOS | Linux |
+| DOS | OpenCol |
 |-----|-------|
 | A fort fire (nested) | Separate SETUP — [`coastal_fort_fire.md`](coastal_fort_fire.md) |
 | A bells/FF | [`nation_ticks_bells_ff.md`](nation_ticks_bells_ff.md) |

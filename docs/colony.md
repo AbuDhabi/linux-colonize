@@ -136,7 +136,7 @@ FUN_5952_035e (viceroy_unpacked.c 94195-94199) from the same comparison:
   local_82 < local_74                            -> set 0x08 (short of want)
   local_74 + (local_74 > 1) < local_82           -> set 0x04 (surplus)
 So 0x08 is the "short of defenders" side and 0x04 the "has spare military"
-side. (0x04 was named NEEDS_MILITARY until 2026-09-16 — inverted.) Two Linux readers
+side. (0x04 was named NEEDS_MILITARY until 2026-09-16 — inverted.) Two OpenCol readers
 now (both DOS's own, see the consumer audit below):
 ai_euro_20e6_surplus_recall_arm (the read-and-clear recall) and
 ai_euro_20e6_wander_step's flag ladder. Grep the macro rather than trusting
@@ -203,7 +203,7 @@ ai_euro_colony_tick_28c8_reassign, where this bit (or a live lumber
 shortfall, DS:0x8e64) is what lets a colony take a SECOND Expert
 Lumberjack onto its ring. The other three live in the colony-tick
 pioneer-improve pass (raw 94330-94560), which spawns a phantom worker and
-has no Linux counterpart; see docs/archive/smell_audit_2026-09-10.md, the
+has no OpenCol counterpart; see docs/archive/smell_audit_2026-09-10.md, the
 "FUN_5952_035e building / expert passes" section.
 
 ## COLONIZE_COLONY_AI_WANTS_PIONEER_WORK
@@ -251,7 +251,7 @@ reader is the unported expansion gate at raw 95762 (`(+0x1c & 0x20) != 0 ||
 turn > 0x63f || ...`), so the port re-derives the bit every AI turn in
 ai_euro_refresh_colony_ai_flags purely to keep the save field honest; DOS
 is the only consumer. Documented debt, not dead code: wiring raw 95762 is
-what would give it a Linux reader.
+what would give it an OpenCol reader.
 
 ## COLONIZE_COLONY_FLAG_COASTAL
 

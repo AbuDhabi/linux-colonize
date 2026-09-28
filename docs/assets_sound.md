@@ -19,7 +19,7 @@ Reference: [assets.md](assets.md) for graphics and map formats.
 ## Music / sound
 
 There are **no** standalone `.MID` / `.XMI` song files. Music lives inside the MZ sound
-drivers. The Linux port loads **`GSOUND.COL`** (General MIDI) and **emulates the driver
+drivers. The port loads **`GSOUND.COL`** (General MIDI) and **emulates the driver
 literally** in [`src/core/gsound_vm.c`](../src/core/gsound_vm.c); [`src/core/sound.c`](../src/core/sound.c)
 ticks that VM in real time from the audio callback and mirrors the DOS BGM scheduler
 (segment `129f`).

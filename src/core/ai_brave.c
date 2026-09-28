@@ -181,7 +181,7 @@ static bool ai_init_sched_apply(AiRng* rng, int nation_id, int brave_index) {
  * ai_native_nation_pulse. Two deliberate port guards, documented inline:
  * the stay/move orders latch only touches NONE/FORTIFY/FORTIFIED (DOS
  * escorts leave 021a via the raid dispatch, never the wander tail, so the
- * Linux FOLLOW/GOTO machinery must survive the latch), and a Brave upgraded
+ * OpenCol FOLLOW/GOTO machinery must survive the latch), and a Brave upgraded
  * to a mounted type keeps this pulse's max_mp=3 until the next turn refresh
  * (DOS re-reads 090c per act; the port's spent-byte semantics make the
  * difference invisible outside the upgrade turn itself).
@@ -436,10 +436,10 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
      * 021a:11cd orders latch: stay -> 5 (FORTIFY), repeat stay -> 6
      * (FORTIFIED) — the DOS byte values equal the port enum. DOS stomps
      * any orders byte; the port latches only over NONE/FORTIFY/FORTIFIED
-     * so the Linux-side FOLLOW/GOTO escort machinery survives (DOS
+     * so the OpenCol-side FOLLOW/GOTO escort machinery survives (DOS
      * escorts exit 021a through the raid dispatch, never this tail).
      *
-     * bugs.md #826 asked whether a Brave can ever hold a Linux-only order,
+     * bugs.md #826 asked whether a Brave can ever hold an OpenCol-only order,
      * i.e. whether the guard can go and the latch become unconditional as
      * at 021a:11cd/1272. It cannot: `ai_contact_raid.c` (:1809) hands an
      * idle Brave UNITS_ORDER_FOLLOW through units_follow_unit in the §9
@@ -666,7 +666,7 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
   (*steps)++;
   /*
    * The DOS 0x14 act cap now trips on `col1_counter16` at the attempt top
-   * (4d56:1af7). `cost <= 0` stays as a Linux-only belt (DOS has no such
+   * (4d56:1af7). `cost <= 0` stays as an OpenCol-only belt (DOS has no such
    * break — it keeps acting until the counter or MP gate trips).
    */
   if (cost <= 0) {
@@ -780,7 +780,7 @@ void ai_native_nation_pulse(
  *   phase 2  for slot 0..7: if !(DS:0x5ad9 + 0x4e*slot & 0x80) -> 1816(slot)
  *   phase 3  for every colony: claim worked ring tiles off the natives
  *
- * Phase 2 is already the Linux `TURN_PROC_INDIAN` cursor loop (the DOS call
+ * Phase 2 is already the OpenCol `TURN_PROC_INDIAN` cursor loop (the DOS call
  * looks like `FUN_41f2_0266` only because of the reloc-0000 stub misresolve
  * documented in turn/mid_pass_indian_rank.md). The two halves below are
  * phases 1 and 3, and they bracket that loop exactly as DOS does.
@@ -837,12 +837,12 @@ void ai_indian_midpass_clear_tables(ColonizeTurnContext* ctx) {
  * (it needs a native settlement on the tile, which the `06d2` gate already
  * excluded), so this is a pure ownership stamp with no chrome.
  *
- * Ring mapping: Linux drives the loop off `colonies_field_tile_delta` +
+ * Ring mapping: OpenCol drives the loop off `colonies_field_tile_delta` +
  * `colony->tiles[]` rather than re-deriving DS:0xc8/0xde by index. DOS's own
  * enumeration order differs from `colony.h`'s `tiles[]` convention, but both
  * pair index -> offset self-consistently and cover the identical 8-tile set,
  * so the set of tiles claimed is the same. Tiers 3/4's outer ring (DS:0x329
- * = 12/20) has no Linux storage — the deliberate P4.2 decision, and every
+ * = 12/20) has no OpenCol storage — the deliberate P4.2 decision, and every
  * real DOS `.SAV` leaves those slots 0xff, so nothing is skipped in practice.
  */
 void ai_indian_midpass_claim_worked_tiles(ColonizeTurnContext* ctx) {
@@ -943,7 +943,7 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
 }
 
 /*
- * Linux-only whole-nation wipe. The DOS analogue is FUN_4d56_01e2 (raw
+ * OpenCol-only whole-nation wipe. The DOS analogue is FUN_4d56_01e2 (raw
  * :81352, asm 4d56:01e2..0219): nation = param_1 + 4, then walk the tribe
  * array DOWNWARD (i = DS:0x539a - 1 .. 0, stride 0x12 at DS:0x54ec) and call
  * FUN_4d56_00e0(i) — i.e. col1_destroy_tribe_at — for every row whose +2
@@ -953,7 +953,7 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
  * 2026-09-08: 01e2 is DEAD CODE in the shipped VICEROY.EXE. It is not one of
  * the 15 entries in overlay 0x0C's export stub table (4d56:4c22..4c6c), no
  * near CALL/JMP anywhere in segment 4d56 targets 0x01e2, and no overlay bank
- * record JMPFs to it. So this helper is a Linux invention, not a port of it,
+ * record JMPFs to it. So this helper is an OpenCol invention, not a port of it,
  * and it deliberately does more than an 01e2 loop would: it despawns *every*
  * unit of the nation (00e0 only despawns units whose +0x314a names the village
  * being razed), paints owner nibble 0x0f, and resets the indian[] slot, while
@@ -1040,7 +1040,7 @@ int col1_kill_indian_nation_w(
     memset(ind, 0, sizeof(*ind));
     ind->tech = tech;
     /*
-     * The 15b3 matrix is symmetric storage in two different Linux fields —
+     * The 15b3 matrix is symmetric storage in two different OpenCol fields —
      * nation[e].relation_by_indian[idx] is the Euro→tribe direction, and the
      * indian[idx].euro_diplo[e] the memset above just cleared is the other —
      * so a raw one-sided assignment here was the last write to it outside the
@@ -1057,7 +1057,7 @@ int col1_kill_indian_nation_w(
      *
      * FUN_4d56_00e0, the per-village DOS razer this whole helper stands in
      * for, does not touch the matrix at all (raw 81292-81346) — it only ORs
-     * the extinct bit 0x80 into indian[].+3 — which is why this is a Linux
+     * the extinct bit 0x80 into indian[].+3 — which is why this is an OpenCol
      * invention routed to the DOS helper rather than a port of a DOS write.
      */
     for (int e = 0; e < 4; ++e) {

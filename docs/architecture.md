@@ -1,6 +1,6 @@
 # Code architecture
 
-Living hub for the Linux port’s **present** code shape and **intended**
+Living hub for the port’s **present** code shape and **intended**
 architectural constraints. Fidelity bar and conflict order:
 [project_goals.md](project_goals.md). Whole-project phases:
 [port_plan.md](port_plan.md).
@@ -48,7 +48,7 @@ lives](#where-detail-lives)).
 
 **Non-goal:** restructuring `src/` to mirror VICEROY overlays. DOS segment maps
 ([`MODULE_MAP.md`](../original_sources_annotated/MODULE_MAP.md)) are for RE
-navigation, not the Linux module plan. Implementation may diverge from DOS for
+navigation, not the OpenCol module plan. Implementation may diverge from DOS for
 technological reasons; fidelity is judged by player-visible and save/interop
 behavior ([project_goals.md](project_goals.md)).
 
@@ -307,7 +307,7 @@ pools). The legacy native COLZ POC format was removed 2026-08-29 —
 Navigational only. Do **not** treat this as a required 1:1 file split.
 Segment systems: [`MODULE_MAP.md`](../original_sources_annotated/MODULE_MAP.md).
 
-| Linux cluster | Typical VICEROY systems / segments |
+| OpenCol cluster | Typical VICEROY systems / segments |
 |---------------|-------------------------------------|
 | Platform | `platform` (`1d1d`, `210d`, `1a58`, …) |
 | Map draw / panel | `mapdraw` (`15eb`, `1427`), map planes (`137f`) |

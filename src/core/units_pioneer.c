@@ -426,7 +426,7 @@ bool units_pioneer_work_tick_w(
        * road|city on the receiving colony's own tile; a colony tile always
        * carries the city bit, so in DOS that bump always lands (the road half
        * of the test is dead there) — kept as an unconditional +1 rather than
-       * a Linux layer2 read, because Linux's layer2 bit 0x08 is
+       * an OpenCol layer2 read, because OpenCol's layer2 bit 0x08 is
        * MAP_LAYER2_LCR_CONSUMED, not Col1's road bit.
        */
       int lumber_add = 0;

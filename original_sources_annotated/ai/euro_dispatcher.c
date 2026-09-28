@@ -18,13 +18,13 @@
  * Source: original_sources_decompiled/viceroy_unpacked.c
  *   6d8e ~93073–93325; 0a60 ~87408–88246; 5d04 92325–93070 (hire matrix
  *   92568–93070, ported 2026-09-07e); 5b66 → euro_unit_act.md
- * Linux:  src/core/ai_euro.c — ai_euro_dispatcher_turn
+ * OpenCol:  src/core/ai_euro.c — ai_euro_dispatcher_turn
  *         src/core/ai.c — ai_euro_nation_turn / ai_euro_early_turn (seed-100)
  *
  * Goal helpers: ai/euro_goals.c. Quiet Brave scoring: ai/quiet_brave_scoring.c.
  * Euro/ocean move scoring: ai/move_scoring.md (thin). Per-unit act: euro_unit_act.md.
  *
- * Reference only — not compiled into the Linux binary.
+ * Reference only — not compiled into the OpenCol binary.
  */
 
 #include <stdint.h>
@@ -65,7 +65,7 @@ extern int probe_adjacent_contact_claim(int x, int y, int nation_id, int unk);
  * WORLD" — live DOSBox-X capture 2026-08-18, see SYMBOL_MAP.md. So the
  * wagon-destroy scan below fires on independence, not on a scenario type;
  * "type 0x12" itself is still an unconfirmed unit-type-id guess.
- * Linux thin: peace dock/wagon/shortage hire at any colony_count; Free
+ * OpenCol thin: peace dock/wagon/shortage hire at any colony_count; Free
  * Colonist settle spam gated colonies≥6; mid-game still ship-buy + at-war
  * Soldier/Dragoon/Veteran/Artillery hire;
  * colonies>=2 also Artillery (Cannon fallback) when type exists — mil already
@@ -80,7 +80,7 @@ extern int probe_adjacent_contact_claim(int x, int y, int nation_id, int unk);
  * See `ai-5d04-structural-port` memory for the resolved-symbol table.
  *
  * 2026-09-07e — HIRE MATRIX IS NOW THE DOS ONE. Everything described as
- * "Linux thin" above is DELETED from ai_euro.c (~765 lines): the invented
+ * "OpenCol thin" above is DELETED from ai_euro.c (~765 lines): the invented
  * `hire_cost = 200 + 25*difficulty` gate, the NAMES-display-string Europe
  * dock expert ladder (tools/blacksmith/food/fisherman/carpenter/lumberjack/
  * ore/gunsmith/missionary/scout/elder/preacher/teacher/craft), the
@@ -235,7 +235,7 @@ void euro_nation_colony_goals_pass(int nation_id) {
  *   G continent stance thin (≥2 col; prio 6/7/8); deep −0x6790 **OPEN** (unpark #4)
  *   H bind founders→FOUND (light)
  *
- * Linux: seed-100 still uses ai_euro_early_turn sail/unload/found peels unless
+ * OpenCol: seed-100 still uses ai_euro_early_turn sail/unload/found peels unless
  * AI_FULL_DISPATCH=1; mid-planner deepen is **OPEN** (unpark #4).
  */
 
@@ -279,7 +279,7 @@ void euro_unit_colony_goals(int nation_id) {
   /*
    * decomp ~87762–87989: MILITARY (4), CONTACT scout ring (0),
    * FOUND|MIL_EXPAND (1|7). Early gate: difficulty*turn < 0xb5 && nation<4.
-   * Linux thin: upsert MILITARY on foreign colonies at war; bind one idle
+   * OpenCol thin: upsert MILITARY on foreign colonies at war; bind one idle
    * Soldier/Dragoon → nearest MILITARY. CONTACT scout rings (unpark #4):
    * peace + own≥1 → idle Scout → upsert CONTACT prio 2 at Manhattan ring
    * 2–4 around nearest beyond-adjacent tribe; AI_MOVE toward ring tile.
@@ -295,11 +295,11 @@ void euro_unit_colony_goals(int nation_id) {
   /* --- G–H. Continent stance + bind units→goals ------------------------- */
   /*
    * G ~88054–88152: rewrite nation×continent stance bytes (−0x6790) ∈ {0,3,4,6}
-   *   — deep table **OPEN** (unpark #4). Linux thin (ai_euro_colony_goals): if own≥2,
+   *   — deep table **OPEN** (unpark #4). OpenCol thin (ai_euro_colony_goals): if own≥2,
    *   at-war → urgency+2 + MILITARY prio 6 on weakest/nearest foe colony;
    *   peace → bump primary FOUND +1 or idle Scout/Soldier explore→tribe/FOUND.
    * H ~88153–88242: walk primary table; set order chars '1'/'t'/'i'
-   *   Linux H-bind (ai_euro_colony_goals): idle land founders
+   *   OpenCol H-bind (ai_euro_colony_goals): idle land founders
    *   (Pioneer / Free Colonist / Hardy) → primary FOUND goto; do not steal
    *   Soldiers from MILITARY/CONTACT. Second-wave settle while colony_count<6.
    */
@@ -338,10 +338,10 @@ static int unit_is_wave0_type(uint8_t type) {
  *   2a1f_0470 → 016a     upsert_primary_goal (also post-ship follow-up)
  *
  * Sticky anti-spin: DS:0x2d12 unit index, DS:0x2d14 act count; >0x14 → clear.
- * Thin sticky CONTACT re-hunt (Linux): end of `ai_euro_unit_act` — if moves
+ * Thin sticky CONTACT re-hunt (OpenCol): end of `ai_euro_unit_act` — if moves
  * remain and an adjacent foreign Euro is at war, `try_attack` once more.
  *
- * Linux: ai_euro_nation_turn reseeds, ticks crosses, then
+ * OpenCol: ai_euro_nation_turn reseeds, ticks crosses, then
  * ai_euro_dispatcher_turn by default (structural 6d8e). Opt into retired
  * ai_euro_early_turn with AI_EURO_EARLY_FIXTURE=1 (bisect only).
  * Mid-planner **OPEN** (unpark #4): [5d04 hire matrix CLOSED 2026-09-07e],
@@ -403,7 +403,7 @@ void euro_nation_turn(int nation_id) {
    * take the FIRST unit with MP left, act it until MP==0 (inner while,
    * no break), set local_a=1 and leave the wave. Outer do-while restarts
    * from the top and returns when wave 1 found nobody. So DOS drains one
-   * wave-0 unit and one any-unit per outer pass. The Linux port instead
+   * wave-0 unit and one any-unit per outer pass. The port instead
    * gives every ship one act, then every unit one act, per pass.
    */
   int any_acted;
@@ -436,7 +436,7 @@ void euro_nation_turn(int nation_id) {
            * transport pick-up request. Unported. Camera follow omitted.
            * (No `break` in DOS — the inner while re-acts until MP==0.)
            */
-          break; /* Linux structural shape only */
+          break; /* OpenCol structural shape only */
         }
       }
     }
@@ -446,20 +446,20 @@ void euro_nation_turn(int nation_id) {
 }
 
 /*
- * Linux cross-reference (not DOS):
+ * OpenCol cross-reference (not DOS):
  *   ai_euro_nation_turn
  *     → ai_euro_dispatcher_turn by default (ai_euro.c)
  *     → AI_EURO_EARLY_FIXTURE=1: retired ai_euro_early_turn (bisect only)
  *       treaty timers + ai_diplo_euro_balance (see ai/euro_diplo.md)
  * PORT DEBT → OPEN (unpark #4): [mid-game 5d04 hire matrix CLOSED
- * 2026-09-07e — the "wagon matrix" was a Linux invention, not a DOS arm],
+ * 2026-09-07e — the "wagon matrix" was an OpenCol invention, not a DOS arm],
  * deeper 0a60 E–H,
  * multi-step 20e6 land/combat, 5b66 case 7 / coastal unload (TURN2→3).
- * Linux thin (5b66): at-war naval hunt — idle ships AI_SAIL → foe sea / coastal
+ * OpenCol thin (5b66): at-war naval hunt — idle ships AI_SAIL → foe sea / coastal
  * colony water; adjacent → try_attack. Full 20e6 naval scoring still PARKED (ocean/T3).
- * Linux thin (5b66): at-war land hunt — idle Soldier/Dragoon/Scout AI_MOVE →
+ * OpenCol thin (5b66): at-war land hunt — idle Soldier/Dragoon/Scout AI_MOVE →
  * foe land unit / enemy colony; adjacent → try_attack preferring weaker
  * defense / non-fortified (thin 20e6 combat score). Multi-step land 20e6 **OPEN**.
- * Linux thin (0a60/5b66 E): peace + own≥1 idle Scout → CONTACT ring MD 2–4
+ * OpenCol thin (0a60/5b66 E): peace + own≥1 idle Scout → CONTACT ring MD 2–4
  * around nearest beyond-adjacent tribe; deep fog rings PARKED.
  */

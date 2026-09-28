@@ -6,7 +6,7 @@
  * FUN_137f_* / FUN_13e4_* / FUN_19ef_* implementations where the thunk was
  * only FUN_210d_0d91() + a near call.
  *
- * Reference only — not compiled into the Linux binary.
+ * Reference only — not compiled into the OpenCol binary.
  */
 
 #include <stdint.h>
@@ -92,20 +92,20 @@ int tile_has_minor_river(int x, int y) {
 }
 
 /* Ghidra: FUN_281f_0754 inlined → layer2_byte & FA mask.
- * Linux: ai_mask_fa_flags. */
+ * OpenCol: ai_mask_fa_flags. */
 int tile_fa_flags(int x, int y) {
   return (int)(layer2_byte(x, y) & VICEROY_LAYER2_FA_MASK);
 }
 
 /* Ghidra: FUN_137f_01ca | continent_id  (FUN_281f_06b4 thunk)
- * Low nibble of layer3. Linux: ai_continent_id. */
+ * Low nibble of layer3. OpenCol: ai_continent_id. */
 int continent_id(int x, int y) {
   return (int)(layer3_byte(x, y) & 0x0fu);
 }
 
 /* Ghidra: FUN_137f_0228 | set_owner_nibble
  * Writes high nibble of layer3; preserves low (continent) nibble.
- * Linux: ai_set_owner_nibble. param nation_or_ff: 0..14 owner, 0xf unowned.
+ * OpenCol: ai_set_owner_nibble. param nation_or_ff: 0..14 owner, 0xf unowned.
  * Side path when nation < 4 also probes colonies / UI — not needed for Brave claim. */
 void set_owner_nibble(int x, int y, int nation_or_ff) {
   uint8_t *p = layer3_ptr(x, y);
@@ -115,7 +115,7 @@ void set_owner_nibble(int x, int y, int nation_or_ff) {
   *p = (uint8_t)((*p & 0x0fu) | ((nation_or_ff & 0x0f) << 4));
 }
 
-/* Owner high nibble; 0xf → unowned (−1 in Linux). */
+/* Owner high nibble; 0xf → unowned (−1 in OpenCol). */
 int owner_nibble(int x, int y) {
   int hi = (layer3_byte(x, y) >> 4) & 0x0f;
   return (hi == VICEROY_OWNER_UNOWNED) ? -1 : hi;
@@ -123,7 +123,7 @@ int owner_nibble(int x, int y) {
 
 /* Ghidra: FUN_13e4_0074 | ocean_or_high_seas  (FUN_281f_0768 thunk)
  * True when terrain type is 0x19 (ocean) or 0x1a (high seas).
- * Linux: ai_is_ocean_hs. */
+ * OpenCol: ai_is_ocean_hs. */
 int ocean_or_high_seas(int x, int y) {
   uint8_t t = (uint8_t)(terrain_byte(x, y) & VICEROY_TERRAIN_TYPE_MASK);
   return (t == VICEROY_TERRAIN_OCEAN || t == VICEROY_TERRAIN_HIGH_SEAS) ? 1 : 0;
@@ -131,7 +131,7 @@ int ocean_or_high_seas(int x, int y) {
 
 /* Ghidra: FUN_13e4_000e | decode_terrain_class
  * Hill bit 0x20 → class 0x1b/0x1c from major 0x80; else low 5 bits.
- * Linux: ai_dos_terr_class. */
+ * OpenCol: ai_dos_terr_class. */
 int decode_terrain_class(uint8_t terrain) {
   if ((terrain & VICEROY_TERRAIN_HILL_BIT) != 0) {
     /* unaff major-bit path in decomp; port uses fixed 0x1b/0x1c mapping */
@@ -162,7 +162,7 @@ int tile_explore_mask(int x, int y) {
  * bits at >>2 cells (0a60). Quiet Brave +8 tests explore index byte == 0.
  *
  * Annotated tree has no live DS image — coarse_fog_byte_* helpers document
- * the formulas; Linux owns a real buffer in src/core/ai.c.
+ * the formulas; OpenCol owns a real buffer in src/core/ai.c.
  */
 int coarse_fog_explore_index(int x, int y) {
   return (y >> 2) + (x >> 2) * VICEROY_COARSE_FOG_PITCH;
@@ -179,7 +179,7 @@ int coarse_fog_unseen(int x, int y) {
     return 0;
   }
   /* No live plane here — return 1 only documents the zero-means-unseen test.
-   * Prefer Linux ai_coarse_fog_unseen for fidelity. */
+   * Prefer OpenCol ai_coarse_fog_unseen for fidelity. */
   (void)ix;
   return 1;
 }
@@ -226,7 +226,7 @@ int tile_tribe_or_presence(int x, int y) {
 /*
  * Ghidra: FUN_281f_07e0 → FUN_1427_005c | unit_index_on_tile
  * First unit on (x,y) or −1 if empty. Annotated: no live unit pool — stub −1
- * (empty). Linux cutover scans ColonizeUnitPool.
+ * (empty). OpenCol cutover scans ColonizeUnitPool.
  */
 int unit_index_on_tile(int x, int y) {
   (void)x;
@@ -237,7 +237,7 @@ int unit_index_on_tile(int x, int y) {
 /*
  * Ghidra: FUN_281f_0a38 | diplomacy_flags(self, other)
  * Early NEW WORLD quiet: stub returns 0 (military −10 never fires here).
- * Live Linux pairwise bytes: ai_diplo_read (nation.unknown26[4+peer];
+ * Live OpenCol pairwise bytes: ai_diplo_read (nation.unknown26[4+peer];
  * see ai/euro_diplo.md). Annotated-only build keeps stub 0.
  */
 int diplomacy_flags(int self_nation, int other_nation) {
@@ -277,7 +277,7 @@ int map_tile_in_bounds(int x, int y) {
 
 /* Ghidra: FUN_124c_0040 | dos_dist
  * Diagonal-ish distance on absolute deltas: min/2 + max.
- * Linux: ai_dos_dist. */
+ * OpenCol: ai_dos_dist. */
 int dos_dist(int dx, int dy) {
   if (dx < 0) {
     dx = -dx;
@@ -305,7 +305,7 @@ int move_spent_cost_only(
 ) {
   (void)unit_index;
   int terr_class = decode_terrain_class(terrain_byte(to_x, to_y));
-  /* g_terr_cost[terr_class] at DS:0x2f76 — Linux k_ai_dos_terr_cost */
+  /* g_terr_cost[terr_class] at DS:0x2f76 — OpenCol k_ai_dos_terr_cost */
   int spent = /* g_terr_cost[terr_class & 31] */ 0 * 3;
   (void)terr_class;
 

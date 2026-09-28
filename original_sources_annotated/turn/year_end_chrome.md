@@ -78,7 +78,7 @@ Decomp: `viceroy_unpacked.c` **58430–58680**. Thunk `281f_061e`.
 - Cap: expr `(int)((−(uint)(bit6==0) & 0xfff9) + 8)`. bit6 **clear** →
   `0xfff9 + 8` = `−7 + 8` = **1**, so the King must be down to zero land units;
   bit6 **set** → `0 + 8` = **8**, the looser bar (`ref_unit_threshold`, set once
-  the crown has taken a colony this war). Linux `turn.c` has this right.
+  the crown has taken a colony this war). OpenCol `turn.c` has this right.
 - REF pool thin: `(2 − (0x53dc==0) − (0x53e0==0) + 0x53da) < 4` **or** flags bit5
 - On fire: OR `0x5382` bit3; set `DS:0x104=1`
 
@@ -142,7 +142,7 @@ Anniversary requires `autumn==0` for 1790 path; both require flags bit4 clear.
 | 5 | Force victory path (`0x20`) |
 | 6 | **Looser** land-force cap: set = give up at `< 8` units, clear = `< 1` (`0x40`, `ref_unit_threshold`) |
 
-## Linux
+## OpenCol
 
 No `year_end_chrome` module. Pieces: `ai_king` war/declare thin; HoF stub;
 calendar in SETUP. Full dialog string port **PARKED**.

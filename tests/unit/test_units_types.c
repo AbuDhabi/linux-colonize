@@ -322,7 +322,7 @@ static int unit_kind_without_name_resolver(void) {
 /*
  * Smell audit 2026-09-09, units/combat batch (#4, #6, #7, #8, #12, #13).
  * Everything here runs on synthetic rosters/pools on purpose — the point of
- * several of these fixes is that a Linux pool index is NOT a DOS @UNIT id.
+ * several of these fixes is that an OpenCol pool index is NOT a DOS @UNIT id.
  */
 static void audit_type(
   ColonizeUnitType* t, const char* name, int mv, int atk, int def, ColonizeUnitDomain dom

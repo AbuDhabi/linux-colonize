@@ -13,7 +13,7 @@
  * (PARK 8g prize when units set) + Franklin Peace concluded human chrome +
  * R4 Franklin at-war skips the PARK prize (gold unchanged) +
  * Marathon4 R1 Privateer commission is status-only (no INFO OK popup).
- * (Linux-only Euro×Euro alliance machinery + its tests retired T2.4
+ * (OpenCol-only Euro×Euro alliance machinery + its tests retired T2.4
  * 2026-09-06 — DOS has no Euro×Euro alliances.) */
 #include "core/ai_diplo.h"
 #include "core/ai_popup.h"
@@ -388,7 +388,7 @@ static int case_declare_peace_narrative(void) {
     }
   }
 
-  /* 6d8e step 4: treaty timer decrement (the Linux-only ally expiry-break arm
+  /* 6d8e step 4: treaty timer decrement (the OpenCol-only ally expiry-break arm
    * was retired with the alliance machinery, T2.4 2026-09-06). */
   {
     col1.nation[0].unknown26[2] = 1; /* timer toward peer 2 → expires */
@@ -835,7 +835,7 @@ static int case_trade_deepen_military_score(void) {
      * rank must not contribute (the invented blend is retired).
      * 2026-09-10 (sweep-3 D2): computed LIVE (Σ combat_unit_base_x8 over the
      * nation's active land units), no longer read from the stuff mirror —
-     * that mirror has no live writer in a Linux-started game. The stale
+     * that mirror has no live writer in an OpenCol-started game. The stale
      * mirror values below must therefore NOT reach the score: the fixture's
      * one Soldier (attack 2) is worth 2*8 = 16.
      */
@@ -3114,7 +3114,7 @@ static int case_153e_wantstuff_demand(void) {
       return fail("153e wantstuff: accepting must move FURS by the demanded amount (DOS stale index)");
     }
     if (qcol.colonies[0].stock[COLONIZE_CARGO_FURS] != 0) {
-      return fail("153e wantstuff: source furs floor at 0 (Linux bound on the DOS underflow)");
+      return fail("153e wantstuff: source furs floor at 0 (OpenCol bound on the DOS underflow)");
     }
     if (qcol.colonies[0].stock[COLONIZE_CARGO_MUSKETS] != 60) {
       return fail("153e wantstuff: the NAMED cargo must not move (DOS transfers Furs)");

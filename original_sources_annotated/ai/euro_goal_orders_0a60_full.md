@@ -134,7 +134,7 @@ it back to assign orders.
   `FUN_0000_2500(dx,dy) = max(dx,dy) + min(dx,dy)/2` — the classic octile-
   distance formula, matching the project's already-documented
   `FUN_124c_0040`/`ai_dos_dist` shape. Almost certainly the same helper
-  under a different resident thunk; **already available in Linux**, no new
+  under a different resident thunk; **already available in OpenCol**, no new
   port needed for this piece.
 - `FUN_1000_96aa` **traced one hop, not fully resolved**: thunks to
   `FUN_1000_1e7b`, which opens with a computed function-pointer dispatch
@@ -158,7 +158,7 @@ it back to assign orders.
   (`FUN_291f_0928`/`FUN_2a1f_088a`) are resource/overlay reads, not the
   text-file parser, so the actual bit values live in a binary data segment
   this project's tooling doesn't have a path to inspect yet. Real reason
-  Linux's whole surrounding cascade uses name-string matching
+  OpenCol's whole surrounding cascade uses name-string matching
   (`ai_euro_is_artillery_name` and friends) instead of a bitmask: this
   exact byte was never recoverable. Not a gap in this pass's work — a
   standing limitation the rest of the codebase already worked around the
@@ -167,7 +167,7 @@ it back to assign orders.
 ## Implementation: ported, same pass (2026-08-14)
 
 **Correction to this section's first draft**: an initial pass checking
-`ai_goals_primary()`'s 7 call sites concluded Linux had nothing resembling
+`ai_goals_primary()`'s 7 call sites concluded OpenCol had nothing resembling
 DOS's real algorithm and floated two speculative integration paths
 ("wholesale replacement" vs. "additive fallback") without picking either.
 That was premature — a closer read (looking for a safe insertion point)
@@ -242,11 +242,11 @@ the act-state 5/6 re-evaluation skip clause, and the best-slot commit
 (order_code/act_state/goal_x/goal_y write + non-MILITARY tally bump).
 DOS-only per-unit scratch bytes (`+0x314b/c/d/e`) live in a file-local
 `s_0a60_pilot_state[]` shadow array (name kept from the pilot pass) —
-Linux has no persisted struct field for them. **Live**: called once per
+OpenCol has no persisted struct field for them. **Live**: called once per
 nation per turn from `ai_euro_dispatcher_turn`, right after
 `ai_euro_colony_goals`; `ai_euro_unit_act`'s old three-loop scan was
 deleted and replaced with a read-back of the shadow state
-(`act_state==0xb`) plus the one Linux-only override that had no mapped
+(`act_state==0xb`) plus the one OpenCol-only override that had no mapped
 0a60 equivalent (threatened-Stockade LABOR), kept as a post-override.
 The shadow array is memset at the top of every `ai_euro_dispatcher_turn`
 call (alongside the pre-existing `s_deferred_found`/`s_founded_colony_turn`
@@ -294,10 +294,10 @@ load-then-call stub:
 - `thunk_FUN_2a1f_0524` → `FUN_521d_02be` = `upsert_work_queue` (already
   in `euro_goals.c`, fully resolved) — **confirms `ai_euro_colony_goals`'s
   existing haul work-queue registration is the structurally correct call
-  shape**, not a Linux invention.
+  shape**, not an OpenCol invention.
 - `thunk_FUN_2a1f_0560` → `FUN_521d_031c` = `clear_work_queue` (already in
   `euro_goals.c`, fully resolved) — DOS calls this once, between the unit
-  loop and the colony loop; Linux's `ai_euro_colony_goals` already calls
+  loop and the colony loop; OpenCol's `ai_euro_colony_goals` already calls
   the equivalent `ai_goals_clear_work_queue()` once, at the top of the
   function — functionally identical (nothing between "top of function"
   and "end of unit loop" touches the work queue either way), just not at
@@ -311,7 +311,7 @@ work-queue score (raw lines ~528-604, the call into `upsert_work_queue`
 just confirmed above) is not the "16×6 matrix OPEN" mystery it was filed
 as — it's `Σ over 16 cargo slots (skip FOOD/LUMBER/TRADE_GOODS) of
 euro_price[cargo][nation] * clamp(f(stock,target), 0, target)`, both
-tables already fully live in Linux: `-0x7b44` is `col1->nation[n].trade.
+tables already fully live in OpenCol: `-0x7b44` is `col1->nation[n].trade.
 euro_price[]` (cross-referenced via `indian_raid_loot.md`/
 `indian_trade_2820.md`/`euro_diplo_153e_full.md`, all already citing this
 same table as "euro price"), and `colony_ptr+0x9a` is `c->stock[]` — same
@@ -412,13 +412,13 @@ fires when ai_flags bit0 (`COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP`) or bit1
 (`COLONIZE_COLONY_AI_NEARBY_MAN_O_WAR`) is actually set (naval threat near
 the colony), never unconditionally. Fixed in `ai_euro_colony_goals`: the
 prio values (5/8) were already right, only the gate was invented; kept
-Linux's own `COLONY`/`COLONY_ALT` codes rather than switching to literal
+OpenCol's own `COLONY`/`COLONY_ALT` codes rather than switching to literal
 `CONTACT` (downstream `ai_euro_unit_act` already branches on them for
 "go work/garrison this colony", a behavior `CONTACT`'s own downstream
 handling — move-and-attack — doesn't have; DOS's own code being literally
 `CONTACT` at this site likely means its 5b66/20e6 tail treats an
 own-colony `CONTACT` target specially in a way not worth reverse-
-engineering just to rename an already-correctly-behaving Linux code).
+engineering just to rename an already-correctly-behaving OpenCol code).
 **Also confirmed unrelated**: a second failure surfaced once this one was
 fixed (`unit_5d04_buy_caravel_colonies_ge6`, further into the same test
 binary) — isolated via `git stash`/checkout bisection and found to
@@ -458,7 +458,7 @@ gate fix's thunk resolutions) had these two targets — it did, for both:
   which is itself a thunk to `FUN_15eb_0a50` — already fully documented
   elsewhere in this project (`save_format_map.md`, `FUNCTION_CATALOG.md`
   ×2) as the **warehouse capacity formula**, `100×(1+warehouse_level)`,
-  already live in Linux as `colonies_warehouse_capacity`. The "target"
+  already live in OpenCol as `colonies_warehouse_capacity`. The "target"
   scalar the haul-score clamp uses (previously a flat `100` placeholder)
   is now the real per-colony value. Confirmed via `GhidraDecompileAt` on
   `0000:28f2a` (`= 0x281f*0x10 + 0x0d3a`, i.e. the *canonical* thunk
@@ -484,11 +484,11 @@ gate fix's thunk resolutions) had these two targets — it did, for both:
   conflated in the prior pass's writeup.
 
 **Ported, same pass**: the missionary/exposed-combat-unit haul-score
-bonus this file's "Second pass" section deferred. Linux has no live
+bonus this file's "Second pass" section deferred. OpenCol has no live
 per-tile unit stack to walk, so iterates + filters `x/y` instead (same
 substitution this file already uses for `garrison_quota`). +800 per
 Missionary/Jesuit at the colony tile (DOS's "colony ai_flags bit7 clear"
-gate approximated as always-clear — unnamed bit, no Linux field, a
+gate approximated as always-clear — unnamed bit, no OpenCol field, a
 defensible superset since the real gate would only narrow this); +1500
 per exposed combat-capable land unit (`attack>1`, real `ColonizeUnitType`
 field, not a name-match this time) when `ai_euro_continent_stance_at()`
@@ -499,7 +499,7 @@ runs before the shadow state gets populated — so this arm is always
 satisfied here, correctly, not a shortcut).
 
 **Not changed**: `flag_b`'s real DOS meaning (whether the +1500 arm fired)
-still isn't wired — kept as Linux's own haul/CONTACT work-queue
+still isn't wired — kept as OpenCol's own haul/CONTACT work-queue
 discriminator, same reasoning as the "Second pass" section already gave
 for `flag_a`.
 
@@ -534,7 +534,7 @@ decomp's own args at this call site are `uStack_36`/`uStack_3a` — the
 block), not the goal's. Real check: "is the re-evaluating unit currently
 sitting in any Euro colony (any nation)", not "is anyone standing on the
 goal tile" — a different tile *and* a different question. Fixed to
-`colonies_id_at(ctx->colonies, u->x, u->y) >= 0` (Linux's colony pool
+`colonies_id_at(ctx->colonies, u->x, u->y) >= 0` (OpenCol's colony pool
 holds only Euro colonies, matching DOS's own tribe-owner exclusion).
 Verified: clean rebuild, identical `ctest` failure set, no regressions.
 
@@ -578,7 +578,7 @@ symbols along the way:
   `move_scoring_ship.md`), the raw comparison
   `type_table_5237[unit.type] == unit+0x3150` resolves cleanly as **"is
   this ship's cargo hold completely full"** (`u->cargo_count ==
-  units_ship_capacity(...)` in Linux terms) — not the "type ==
+  units_ship_capacity(...)` in OpenCol terms) — not the "type ==
   personality" non-sequitur an unlabeled read would suggest.
 - `func_0x0001854c` (the `aiStack_1da` weight-seed initializer) —
   attempted via `GhidraDecompileAt`; `createFunction` failed the same way
@@ -609,7 +609,7 @@ land-unit name checks (`ai_euro_name_is_pioneer`, `ai_euro_is_military_
 name`), so a Caravel loaded with colonists ready to found a new town had
 no way to be assigned that goal via this mechanism. Fixed: since DOS's
 own query mechanism (modes 3/4/6) isn't safely portable, computed the
-same *information* directly from Linux's real ship cargo hold
+same *information* directly from OpenCol's real ship cargo hold
 (`u->cargo_ids[]`, scanning each passenger's name) instead — ships with a
 military passenger now qualify for MIL_EXPAND, ships with a founder or
 military passenger now qualify for FOUND. Not modeled: DOS's "if this
@@ -742,7 +742,7 @@ at entry). These pair exactly with the DS:0x523d capability mask: FOUND
 bit1 / MIL_EXPAND bit7 = the transports, CONTACT bit0 = the warships —
 DOS stages loaded transports off coasts worth settling and lurks
 warships off foreign harbors; land units can't take water goals
-(continent −1) so Linux's name-gated land consumption is untouched.
+(continent −1) so OpenCol's name-gated land consumption is untouched.
 
 **4. Deep G-table literal-write completion** — in
 `ai_euro_refresh_continent_stance`: the two previously-approximated
@@ -768,9 +768,9 @@ fixtures' units, exactly as in DOS.
 
 **Still deliberately thin** (documented in-code, unchanged): the haul
 work-queue registration gate + `flag_a`/`flag_b` meanings (tested
-Linux behavior, see "Second pass"); the consumption tail's land-unit type
+OpenCol behavior, see "Second pass"); the consumption tail's land-unit type
 gate stays the tested name-check equivalent of the 0x523d mask (swapping
-it would break the Linux-only COLONY/COLONY_ALT codes, whose mask bit 8
+it would break the OpenCol-only COLONY/COLONY_ALT codes, whose mask bit 8
 cannot exist in a byte). The `func_0x0001854c` weight seed was on this
 list until **2026-09-06d** — see the next section; it is real now.
 
@@ -843,7 +843,7 @@ claim shifted a slot's score by 2%; with the real early-game 3 it shifts it
 by 33%. That is the mechanism by which DOS spreads a nation's units over
 distinct goal slots instead of stacking them on the cheapest one.
 
-Linux: `ai_euro_0a60_weight_seed(ctx, nation_id)` in `src/core/ai_euro.c`
+OpenCol: `ai_euro_0a60_weight_seed(ctx, nation_id)` in `src/core/ai_euro.c`
 (reads `col1->stuff.all_unit_counts[]`, which `turn.c` already refreshes
 per turn via `col1_stuff_census_refresh_colony_counts`; falls back to a
 live tally for col1-less unit-test contexts). Verified: full `ctest`
@@ -1773,8 +1773,8 @@ record bytes `+2`, `+4`, `+5`. Cross-referenced against the `4393` reader
   filed as *not wired*; it is wired now. `4393` reads it as the permission
   for a non-civilian hull (`bVar17` false) to take the slot.
 
-Linux fields renamed to match (`AiWorkSlot.loads` / `.military`,
-`ai_goals.h`). The old Linux `flag_a = specialty_cargo` hint did not die: the
+OpenCol fields renamed to match (`AiWorkSlot.loads` / `.military`,
+`ai_goals.h`). The old OpenCol `flag_a = specialty_cargo` hint did not die: the
 `4393` pick now reads `c->specialty_cargo` off the colony record directly, so
 the Series R +32 tie-break survives without squatting on a DOS-real byte.
 

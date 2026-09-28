@@ -5,10 +5,10 @@
  * Thunk entry: FUN_281f_061e → 3844_0442
  * Called from FUN_130d_0290 after calendar tick (LAB_130d_0600 path).
  * Full UI map (strings / subst / thresholds): turn/year_end_chrome.md
- * Linux: no dedicated year-end module; pieces in ai_king / HoF PARKED.
+ * OpenCol: no dedicated year-end module; pieces in ai_king / HoF PARKED.
  *         See docs/turn_between_players.md.
  *
- * Reference only — not compiled into the Linux binary.
+ * Reference only — not compiled into the OpenCol binary.
  */
 
 #include <stdint.h>

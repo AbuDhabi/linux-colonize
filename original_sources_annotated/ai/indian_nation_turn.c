@@ -7,11 +7,11 @@
  *
  * Source: original_sources_decompiled/viceroy_unpacked.c ~81371–81690
  * ASM:    CODE_124:4d56 (14fe, 1816); act CALL mislabeled as 41f2 trampoline
- * Linux:  src/core/ai.c — ai_indian_nation_turn / ai_native_nation_pulse
+ * OpenCol:  src/core/ai.c — ai_indian_nation_turn / ai_native_nation_pulse
  *         src/core/ai_contact.c — prelude / relation / meet / raids
  * Contact thin maps: ai/indian_contact.md, ai/indian_raid_outcomes.md
  *
- * Reference only — not compiled into the Linux binary.
+ * Reference only — not compiled into the OpenCol binary.
  */
 
 #include <stdint.h>
@@ -92,7 +92,7 @@ void step_unit_in_dir(int unit_index, int dir) {
   int nx = u->x + k_dir8_dx[dir];
   int ny = u->y + k_dir8_dy[dir];
   move_spent_add(unit_index, nx, ny);
-  (void)set_owner_nibble; /* 465b commit sets owner; Linux apply_step mirrors */
+  (void)set_owner_nibble; /* 465b commit sets owner; OpenCol apply_step mirrors */
 }
 
 /*
@@ -139,8 +139,8 @@ void indian_unit_act(int unit_index) {
  * overlay 0x0C's 15-entry export stub table (4d56:4c22..4c6c), no near
  * CALL/JMP anywhere in segment 4d56 resolves to 0x01e2, and no overlay bank
  * record JMPFs to it. Nothing calls it; nothing to port. (docs/port_plan.md's
- * "per-tribe act plumbing" description of 01e2 is wrong.) Linux's
- * col1_kill_indian_nation is a wider Linux-only helper, not a port of this.
+ * "per-tribe act plumbing" description of 01e2 is wrong.) OpenCol's
+ * col1_kill_indian_nation is a wider OpenCol-only helper, not a port of this.
  */
 void indian_wipe_tribe_settlements(int indian_index) {
   int nation = indian_index + 4;
@@ -148,13 +148,13 @@ void indian_wipe_tribe_settlements(int indian_index) {
   for (int i = tribe_count - 1; i >= 0; --i) {
     ViceroyTribe* tr = VICEROY_TRIBE_AT(i);
     if ((int)tr->nation_id == nation) {
-      /* FUN_4d56_00e0 — Linux col1_destroy_tribe_at. */
+      /* FUN_4d56_00e0 — OpenCol col1_destroy_tribe_at. */
       (void)i;
     }
   }
 }
 
-/* Ghidra: FUN_4d56_152e | village_growth_accum — Linux
+/* Ghidra: FUN_4d56_152e | village_growth_accum — OpenCol
  * ai_indian_152e_village_growth (full port 2026-09-06d, no callee stubs
  * left; see docs/indians.md "2026-09-06d"). */
 void village_growth_accum(int tribe_index) {
@@ -164,7 +164,7 @@ void village_growth_accum(int tribe_index) {
 
 /*
  * Wrapper for SYMBOL_MAP: ASM quiet pick (no empirical base-200).
- * Stay-dir LCG burn is caller's responsibility (Linux pulse).
+ * Stay-dir LCG burn is caller's responsibility (OpenCol pulse).
  */
 int quiet_brave_pick_dir(int x, int y, int nation_id, int home_x, int home_y, int last_dir,
                          int nation_tech) {
@@ -181,7 +181,7 @@ void quiet_brave_apply_step(int unit_index, int dir) {
 /*
  * Alarm prelude (NEW WORLD bit0 @ DS:0x5382): when indian state +3 bit 0x20
  * clear, may roll difficulty-scaled RNG and set war/alarm flags, dialogs,
- * FUN_2a1f_0398. Linux: Inca=14 / Aztec=4 LCG prelude burns approximate the
+ * FUN_2a1f_0398. OpenCol: Inca=14 / Aztec=4 LCG prelude burns approximate the
  * stream cost; flag bodies PARKED.
  */
 static void indian_alarm_prelude_parked(int indian_index) {
@@ -218,7 +218,7 @@ static void indian_alarm_prelude_parked(int indian_index) {
  *      6c  `horse_breeding += horse_herds` (both signed reads), capped at
  *          `(tribe_population_totals[slot] + 0x19) * 2` — hence 6b first.
  *      Also: §4's clamp is on **muskets** (indian+7, signed), not alarm.
- *      Linux: ai_contact_indian_relation_tick (all three), verified against
+ *      OpenCol: ai_contact_indian_relation_tick (all three), verified against
  *      real TURN7.SAV by `unit_ai_indian_census`.
  *   7. Clear act_counter for all units of this nation (4d56:1a6c..1a8a;
  *      act_counter = unit +0x315a = COL1 unit +0x16 `turns_worked`; the match
@@ -302,7 +302,7 @@ void indian_nation_turn(int indian_index) {
 }
 
 /*
- * Linux cross-reference (not DOS):
+ * OpenCol cross-reference (not DOS):
  *   ai_indian_nation_turn
  *     → reseed → ai_contact_indian_prelude
  *     → ai_grow_villages → ai_contact_indian_relation_tick

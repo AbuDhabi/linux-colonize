@@ -34,9 +34,9 @@ Host: `FUN_3844_00f2` @58305–58425. Bridge: [`between_turns.md`](between_turns
 
 **Not set here:** `DS:0x14e` focus unit — that comes from `48d3_06ba` treasure/ship focus path.
 
-### Linux
+### OpenCol
 
-Ship construction progress / ready chrome: Linux **`units_tick_ship_build_ready`**
+Ship construction progress / ready chrome: OpenCol **`units_tick_ship_build_ready`**
 (thin) — types `0x0d..0x12` + `col1_unknown15` bit7; `+1`/`+2` `turns_worked`;
 threshold = `type.defense` (DOS `0x5235` = NAMES `@UNIT` combat; **Done** thin);
 clear bit7; Europe open on arrivals: `game_europe_deliver_bound_ships`. Off-colony
@@ -81,10 +81,10 @@ If `local_4 == 1`:
 4. OR flag bit **`0x40`** on `+0x3148` (in-transit / bound)
 5. Human: `291f_0ae0` → `38fd_3dc8` tax-delta chrome `0xf01` mode 10
 
-### Linux reshape
+### OpenCol reshape
 
 Dock immigrants / crosses thresholds live in `turn_run_nation_ticks` (SETUP).
 Bound-ship delivery in `game_finish_end_turn`. Atomic every-8-turns Merc spawn
-from census pressure: Linux **Done** thin (`turn_run_nation_ticks`, year≥1600,
+from census pressure: OpenCol **Done** thin (`turn_run_nation_ticks`, year≥1600,
 `turn&7==0`, peacetime; `48d3_0002` duration 1/2 **Done** thin; census/dialog
 PARKED).

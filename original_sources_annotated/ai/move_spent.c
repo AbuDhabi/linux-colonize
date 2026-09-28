@@ -3,7 +3,7 @@
  *
  * Source: original_sources_decompiled/viceroy_unpacked.c ~75417–75843
  * ASM:    CODE_115:465b (viceroy_unpacked.asm)
- * Linux:  src/core/ai.c — ai_dos_move_spent + ocean force-to-max in
+ * OpenCol:  src/core/ai.c — ai_dos_move_spent + ocean force-to-max in
  *         ai_native_nation_pulse.
  *
  * Quiet NEW WORLD Braves only exercise the cost head + friendly ADD path
@@ -11,7 +11,7 @@
  * (resolved FUN_1427_*; no Brave 0x3149 write). Euro combat / diplomacy /
  * colony contact tails are labeled PARKED.
  *
- * Reference only — not compiled into the Linux binary.
+ * Reference only — not compiled into the OpenCol binary.
  *
  * =====================================================================
  * Phase 14 — every local_40 / moves_spent (0x3149) mutation (ASM-cited)
@@ -34,7 +34,7 @@
  * Foreign path skips the ADD block (JZ at 05de). Gamble fail after ADD does
  * not undo the ADD (JMP 0bcc).
  *
- * Phase 15–17: dump_b465r3 Sioux ADD AL=9 (= Linux class*3). T1/T2 land pairs
+ * Phase 15–17: dump_b465r3 Sioux ADD AL=9 (= OpenCol class*3). T1/T2 land pairs
  * share presence→unowned shape yet golden spent 9 vs 3 — do not invent
  * exhaust caps from tile contrast. dump_b465f3: stock force-max NOT entered
  * for Sioux T2 (still ends spent=3). dump_vrb465x2: Sioux spent=9 without XY
@@ -85,7 +85,7 @@ extern void unit_exhaust_mp(int unit_index);          /* 0934 → 155e */
  * return that owner; else −1. Used as the "no settlement on tile" gate for
  * ocean/HS force-to-max (both tiles must return < 0).
  *
- * Older Linux comments called this "colony index"; the decomp returns a
+ * Older OpenCol comments called this "colony index"; the decomp returns a
  * nation id or −1, not a colony slot.
  */
 int euro_settlement_owner(int x, int y) {
@@ -114,11 +114,11 @@ int euro_settlement_owner(int x, int y) {
  * Apache (45,52)→(46,53) have the same cost-head inputs as TURN1 Sioux
  * (49,41)→(49,40) spent=9 — FROM presence (l2&1), DEST no tribe, no FA/river
  * pair — yet goldens spent=3. From-presence caps break TURN1.
- * dump_b465r3: Sioux ADD AL=9 (cost head matches Linux); golden 3 is post-ADD.
+ * dump_b465r3: Sioux ADD AL=9 (cost head matches OpenCol); golden 3 is post-ADD.
  * Apache SAV head=6; "AL≈3" inference retired (post-ADD can clamp 6→3 too).
  * Control T2 (47,46)→(48,46) same presence shape stays spent=9.
  *
- * Linux: ai_dos_move_spent.
+ * OpenCol: ai_dos_move_spent.
  */
 int move_spent_cost_head(int from_x, int from_y, int to_x, int to_y, int dir) {
   int terr_class = terrain_class_at(to_x, to_y);
@@ -270,12 +270,12 @@ int move_spent_ocean_force_max(
  *   from the wall clock. Deliberately NOT ported (would break seeded
  *   determinism); this is the "NULL-rng" in old port-plan notes.
  *
- * AI Brave pulse in Linux always commits (no gamble); human pathfinder uses
+ * AI Brave pulse in OpenCol always commits (no gamble); human pathfinder uses
  * the range(1,cost) rule in units.c. 097a loop allows spent to exceed max
  * after a successful ADD (force-to-max or large cost).
  *
  * Exit bookkeeping (act_counter bump, clear orders after 0x14) is PARKED for
- * quiet pulse — Linux uses turns_worked++ per step instead.
+ * quiet pulse — OpenCol uses turns_worked++ per step instead.
  */
 int move_spent_partial_overspend_ok(int remaining, int step_cost, int moves_spent_was_zero) {
   if (step_cost <= remaining || moves_spent_was_zero) {
@@ -404,5 +404,5 @@ void move_spent_post_add_commit(
   (void)from_x;
   (void)from_y;
   (void)self;
-  /* Linux quiet_brave_apply_step already set xy/owner; chrome is DOS-only. */
+  /* OpenCol quiet_brave_apply_step already set xy/owner; chrome is DOS-only. */
 }

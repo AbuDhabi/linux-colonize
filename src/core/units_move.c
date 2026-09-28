@@ -1461,10 +1461,10 @@ static bool units_flood_next_step(
    *  - neighbour pick (:86760-86840): cost[cand] != 0 && < cost[unit];
    *    score = cost[cand] + owner term + edge(unit->cand); lower score
    *    wins, equal score only if octile(goal,cand) is strictly lower.
-   * Not ported: the sea "continent id == 1" main-ocean gate (Linux water
+   * Not ported: the sea "continent id == 1" main-ocean gate (OpenCol water
    * tiles carry no continent id), the type >= 0x13 `FUN_1000_894e` tile
    * gate (accessor unidentified), the DS:0xa370 cost cap register (BX at
-   * entry — convention unresolved; Linux caps at "reached").
+   * entry — convention unresolved; OpenCol caps at "reached").
    */
   /* DS:0x5234 is in thirds (NAMES movement * 3): `< 4` is true only for
    * 1-tile units (Colonist/Soldier/Pioneer/Brave...), not the 2-tile Wagon. */
@@ -2042,7 +2042,7 @@ static bool units_greedy_next_step(
    * best pick is the exact reverse of the unit's last-taken step, DOS
    * doesn't take it — it rerolls up to 8 random directions instead,
    * accepting the first legal/affordable one (0f74 gates this on
-   * unit+0x314c=='\v'/goto-pending; Linux has no live copy of that cache
+   * unit+0x314c=='\v'/goto-pending; OpenCol has no live copy of that cache
    * per move_scoring_20e6_full.md, so gate on the live equivalent —
    * already following a goto here). Avoids visible ping-pong between two
    * tiles. Cite: euro_unit_act.md T1.8.
@@ -2094,7 +2094,7 @@ static bool units_greedy_next_step(
  * DS:0x86f6 sea; 15 rows x 18 cols, stride 0x12, cell = 4x4 tiles, sample
  * point = (4cx+1, 4cy+1)) built once per game by FUN_OVL21_L0040__0007d8:
  * each cell byte is an 8-bit mask of the directions (DS:0xb4/0xbe order)
- * whose neighbour cell is reachable in that domain. Linux rebuilds the
+ * whose neighbour cell is reachable in that domain. OpenCol rebuilds the
  * same tables lazily per map (terrain is static): a cell holds the domain
  * when any tile of its 2x2 sample block does (the FUN_OVL20_L0000__000000
  * probe's own test), and bit d is set when a windowed flood between the two
@@ -2114,7 +2114,7 @@ static bool units_greedy_next_step(
  *   0f74 far arm   flood (0015bc) toward the waypoint; if that fails, toward
  *                  the probed centre of U (DS:0xa572/0xa574 * 4 + 1); then
  *                  the scored 8-neighbour fallback.
- * The DOS sea probe also requires continent id 1; Linux water tiles carry no
+ * The DOS sea probe also requires continent id 1; OpenCol water tiles carry no
  * continent id (map_continent_id_at -> -1), so that term is dropped.
  * ====================================================================== */
 #define UNITS_COARSE_ROWS 15
@@ -2140,7 +2140,7 @@ static int units_coarse_domain_tile(const ColonizeWorldMap* map, int x, int y, i
 
 /* Body id a coarse cell probe compares (FUN_1000_88a4 on the sample tile):
  * land -> continent id; sea -> the DOS ocean-body nibble (1 = the main
- * ocean, lakes differ) — Linux keeps that nibble in layer3 for water too
+ * ocean, lakes differ) — OpenCol keeps that nibble in layer3 for water too
  * when it came from a save; a zero nibble is read as the main ocean. */
 static int units_coarse_body_id(const ColonizeWorldMap* map, int x, int y, int sea) {
   if (!sea) {
@@ -2522,7 +2522,7 @@ bool units_next_goto_step_w(
    *   Euro nations: the scored 8-neighbour fallback (units_greedy_next_step).
    * Not ported: the `unit+0x314b != '9'` letter gate on the reversal check
    * (orders letter unidentified); DOS reads DS:0xa572/0xa574 stale when the
-   * unit snap failed — Linux skips that flood instead.
+   * unit snap failed — OpenCol skips that flood instead.
    */
   const bool near_tier = adx <= 6 && ady <= 6;
   bool near_missed = false;

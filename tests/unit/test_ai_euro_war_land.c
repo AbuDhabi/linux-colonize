@@ -608,7 +608,7 @@ static int unit_land_adjacent_foe_prefer_weak(void) {
 /*
  * LAB_521d_4d2e adjacent foes: Scout (N) and Treasure (S), both at war with
  * the mover. The DOS scorer takes whichever direction scores higher (the
- * former "prefer Treasure loot" rule was a Linux invention, retired with the
+ * former "prefer Treasure loot" rule was an OpenCol invention, retired with the
  * adjacent-attack stand-in, bugs.md #521); the test pins that exactly one of
  * the two is attacked and killed.
  */

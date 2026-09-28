@@ -193,7 +193,7 @@ int main(void) {
   }
   /*
    * DOS FUN_4345_0342 case 1 (raw 73079-73081) only ever zeroes nation+0x20
-   * (boycott_bitmap, asserted above) — nothing there touches the Linux-only
+   * (boycott_bitmap, asserted above) — nothing there touches the OpenCol-only
    * king tax-refuse latch. That latch self-clears on the NEXT king tick via
    * ai_king_sync_boycott_refuse once it observes boycott_bitmap==0
    * (ai_king.c), not synchronously inside the elect. See docs discussion

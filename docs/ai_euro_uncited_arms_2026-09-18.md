@@ -29,7 +29,7 @@ Tags: **arm** = code an act stage calls, decision is manual-cited ·
 
 ## Treasure — **RESOLVED 2026-09-23 (bugs.md #745/#746): deleted, not parked**
 
-Every row below was a Linux invention. `FUN_521d_20e6`'s treasure band (raw
+Every row below was an OpenCol invention. `FUN_521d_20e6`'s treasure band (raw
 89997-90040) is the only AI treasure code in DOS: cash at ANY own colony
 untaxed → destroy; else walk to the NEAREST own colony on the same landmass
 (no coastline term); else walk to the nearest own unit on the landmass; else
@@ -256,7 +256,7 @@ enemy at war does attack" demonstration.
   the LAB_5a78 demote all write the real bytes.
 
 - **`ai_goals_primary_code_at`** (new, `ai_goals.c`) replaces the mirror's
-  Linux-only `goal_code` field: DOS has no per-unit goal-code byte and
+  OpenCol-only `goal_code` field: DOS has no per-unit goal-code byte and
   re-reads the table at `+0x314d/e`.
 
 - **Deliberate divergences, each measured:**

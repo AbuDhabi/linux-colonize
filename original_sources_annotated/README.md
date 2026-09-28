@@ -1,7 +1,7 @@
 # Annotated VICEROY / MAPEDIT sources
 
 Readable working copy and **light function catalog** for the Ghidra exports.
-**Not compiled** into the Linux binary. **Never edit** the raw export under
+**Not compiled** into the OpenCol binary. **Never edit** the raw export under
 [`../original_sources_decompiled/`](../original_sources_decompiled/) to “fix”
 names — put renames and labels here instead.
 
@@ -148,7 +148,7 @@ the catalog only mirrors light-label status.
 |------|------|
 | [`FUNCTION_CATALOG.md`](FUNCTION_CATALOG.md) | All VICEROY + MAPEDIT `FUN_*` (light) |
 | [`MODULE_MAP.md`](MODULE_MAP.md) | Segment → system cheat sheet + peel summary |
-| [`SYMBOL_MAP.md`](SYMBOL_MAP.md) | Deep AI: Ghidra ↔ annotated ↔ Linux |
+| [`SYMBOL_MAP.md`](SYMBOL_MAP.md) | Deep AI: Ghidra ↔ annotated ↔ OpenCol |
 | [`include/viceroy_types.h`](include/viceroy_types.h) | Unit / tribe / map-plane layouts |
 | [`include/viceroy_globals.h`](include/viceroy_globals.h) | Named DS addresses used by AI |
 | [`ai/accessors.c`](ai/accessors.c) | Map / RNG / move-cost helpers |
@@ -171,7 +171,7 @@ the catalog only mirrors light-label status.
 | [`ai/indian_raid_outcomes.md`](ai/indian_raid_outcomes.md) | Thin map: `@RAID*` outcomes / `4528` stand-ins |
 | [`ai/indian_settlement_4528.md`](ai/indian_settlement_4528.md) | `4528` authentic head only (mid-body soup deferred) |
 | [`ai/king_ref.md`](ai/king_ref.md) | Thin map: King / tax / REF (`43f7`) |
-| [`turn/between_turns.md`](turn/between_turns.md) | Thin map: year loop / nation EOT / year-end ↔ Linux `TURN_PROC_*` |
+| [`turn/between_turns.md`](turn/between_turns.md) | Thin map: year loop / nation EOT / year-end ↔ OpenCol `TURN_PROC_*` |
 | [`turn/year_loop.c`](turn/year_loop.c) | `FUN_130d_0290` (+ autosave/splash helpers) |
 | [`turn/nation_eot.c`](turn/nation_eot.c) | `FUN_3844_00f2` + treasure `0004` |
 | [`turn/nation_eot_ship_spawn.md`](turn/nation_eot_ship_spawn.md) | Ship-build ready + immigrant ship spawn arms |
@@ -210,11 +210,11 @@ the catalog only mirrors light-label status.
 
 - Phase 1: AI-critical accessors, Indian nation turn entry, Euro dispatcher shell.
 - Phase 2: Quiet Brave `LAB_521d_4ea9` annotated in `ai/quiet_brave_scoring.c`.
-- Phase 9: Coarse fog `DS:0x9faa` dual index + Linux buffer.
+- Phase 9: Coarse fog `DS:0x9faa` dual index + OpenCol buffer.
 - Phase 10–11: Seed-100 **init and mid-turn** quiet ASM cutover (stay LCG +
   peels). The legacy `AI_EMPIRICISM=1` empirical picker was deleted 2026-09-14.
 - Phase 12: `FUN_465b_0000` annotated end-to-end in `ai/move_spent.c` (cost head,
-  foreign gate, ocean force-to-max, ADD/gamble; combat PARKED). Linux ocean gate
+  foreign gate, ocean force-to-max, ADD/gamble; combat PARKED). OpenCol ocean gate
   uses `euro_settlement_owner`.
 - Phase 13: Multi-step / Inca tw cleared via river cost=1 peels (`097a` loop).
 - Phase 14–17: Spent-only static RE + dump-free predicates exhausted; quiet

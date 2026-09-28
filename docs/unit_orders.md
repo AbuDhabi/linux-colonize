@@ -7,7 +7,7 @@ in which context. Authority: manual pp. 23–29; `NAMES.TXT` `@ORDERS`;
 `112b` (orders chrome), `4720` (embark), `48d3` (landfall goto),
 `2f2b_5746` (colony docked-unit orders).
 
-Linux entry: `units_*` order APIs ([`units.h`](../src/core/units.h) /
+OpenCol entry: `units_*` order APIs ([`units.h`](../src/core/units.h) /
 [`units.c`](../src/core/units.c)), ORDERS enable
 `map_menu_refresh_orders_dos` ([`map_menu.c`](../src/core/map_menu.c)),
 apply path `game_apply_map_menu_action` ([`game_loop.c`](../src/core/game_loop.c)),
@@ -77,7 +77,7 @@ flowchart TD
   Apply --> Byte
 ```
 
-| Context | Expected (DOS) | Linux | Status |
+| Context | Expected (DOS) | OpenCol | Status |
 |---------|----------------|-------|--------|
 | ORDERS pulldown | `FUN_2b5a_0070` / `2464` mega-dispatch; enable via `0b34` | `map_menu` → `game_apply_map_menu_action` | Done |
 | Plain letter hotkeys | MENU `~` markers | `map_menu_orders_hotkey` | Done |
@@ -128,7 +128,7 @@ stateDiagram-v2
 
 ### Selection / turn flow
 
-| Command | When | Expected (DOS) | Linux | Status |
+| Command | When | Expected (DOS) | OpenCol | Status |
 |---------|------|----------------|-------|--------|
 | Wait | ORDERS / Wait | Select next human unit with remaining MP | Same; status “Continue turn.” | Done |
 | No Orders (Space) | ORDERS / Space | End turn when exhausted / option | Full turn pipeline | Done |
@@ -137,7 +137,7 @@ stateDiagram-v2
 
 ### Fortify / Anchor / Sentry
 
-| Command | When | Expected (DOS) | Linux | Status |
+| Command | When | Expected (DOS) | OpenCol | Status |
 |---------|------|----------------|-------|--------|
 | Fortify (land) | ORDERS / **F**; `FUN_2b5a_1112` | 8-neighbour scan first: a treaty partner's colony adjacent (relation 0x40) raises `@HAVETREATY`; answer != 2 = no fortify, 2 = war bit set + 0x40 cleared then proceed (raw 42389-42411, bugs.md #691). Then order 5, zero `+0x315a`, exhaust MP — unconditionally, even if already Fortified (bugs.md #695); overnight → 6 (`479b_0b6c`) | `game_fortify_treaty_confirm` + `units_order_fortify` + refresh | Done |
 | Anchor (ship) | 2nd Fortify menu / `@SHIPOPTIONS` | Sea unit at own colony or adjacent sea → fortify path | `MAP_MENU_ACTION_ANCHOR` → `game_order_fortify` (same handler as the land row) | Done |
@@ -149,7 +149,7 @@ stateDiagram-v2
 
 ### Go-To / Trade Route / Follow
 
-| Command | When | Expected (DOS) | Linux | Status |
+| Command | When | Expected (DOS) | OpenCol | Status |
 |---------|------|----------------|-------|--------|
 | Go to Place | Land ORDERS / drag | Order 3; path `6662`; walk until MP out; resume next turn; no MP gamble | Drag / Place → `game_issue_goto`: adjacent destination = arrow-key move (`game_try_unit_move`), longer trip = `units_set_goto`; 10 steps/sec | Done |
 | One-tile Go To | Drag / Place / Port onto a neighbour tile | No separate go-to mover: order 3's tick commits through the ordinary move routine, so it is an arrow-key step (landfall off a ship, village `@ACTIONS`, `@SAILHOME`, combat) and no order is left | `game_issue_goto` moves at once when the unit has MP; a 0-MP unit keeps order 3 and walks next turn | Done (2026-09-04) |
@@ -164,7 +164,7 @@ stateDiagram-v2
 
 ### Pioneer
 
-| Command | When | Expected (DOS) | Linux | Status |
+| Command | When | Expected (DOS) | OpenCol | Status |
 |---------|------|----------------|-------|--------|
 | Clear Forest (**P**) | Pioneer on forest | Order 8; `479b_01a6`; turns = `terr_cost+2` (Hardy ÷2); −20 tools; lumber → nearest own colony **within DOS distance 4** (`0x8db8 < 4`), scale `terr[+8] + 1` behind a Lumber-Mill floor; then `LAB_479b_043b` tribal-land tail | `units_pioneer_plow` clear path + `units_pioneer_native_land_tail` | Done (2026-09-06e) |
 | Plow Fields (**P**) | Pioneer on open land | Same order 8; separate job; refuse if already plowed; terrain veto = classes `0x1b`/`0x1c` (Mountains/Hills) only — Arctic IS plowable (`0b34` raw 42224-42227) | Plow path; Mountains/Hills deny (bugs.md #619) | Done |
@@ -173,7 +173,7 @@ stateDiagram-v2
 
 ### Found / Join / cargo / Europe
 
-| Command | When | Expected (DOS) | Linux | Status |
+| Command | When | Expected (DOS) | OpenCol | Status |
 |---------|------|----------------|-------|--------|
 | Build Colony (**B**) | Land founder off colony | `479b_076e` found body; name `@COLONY` | Immediate found; `@SEACOLONY` on water; `@TOOMOUNTAIN` on mountains; `@NOPORT` CHOICE inland; order 7 unused | Done |
 | Join Colony (**B**) | On own colony tile | Admit / open colony | Admit selected land unit; `@FULL` if at POP_MAX; else open colony | Done |
@@ -184,7 +184,7 @@ stateDiagram-v2
 
 ### Pillage / Live In Village
 
-| Command | When | Expected (DOS) | Linux | Status |
+| Command | When | Expected (DOS) | OpenCol | Status |
 |---------|------|----------------|-------|--------|
 | Pillage | Military on foreign colony / improvements | Full `2b5a` body; menu item often hidden in `0b34` | Thin loot ≤100 richest non-food / clear plow+road; **menu always hidden** (DOS-faithful); API reachable | Partial |
 | Live In Village (4) | — | `@ORDERS` letter **L** | Immediate menu action, no tick | Done 2026-08-28 (`ai_contact_live_among_natives`) |
@@ -226,7 +226,7 @@ commands, End Turn, Activate, or Move Pieces itself all resume it too).
 
 Full inventory in [popups.md](popups.md) §3 / `@SECTION` index. Order-related:
 
-| `@SECTION` | Trigger | Expected | Linux | Status |
+| `@SECTION` | Trigger | Expected | OpenCol | Status |
 |------------|---------|----------|-------|--------|
 | `@ONLYPIO` | — | **Never shown.** The literal `ONLYPIO` does not occur in VICEROY.EXE; `0b34` raw 42211-42215 greys menu ids 0x312/0x313/0x314 instead | Popup deleted (bugs.md #621); `map_menu.c` greys the rows | Dead text |
 | `@NEEDTOOLS` / `@NEEDTOOLS0` | Colony construction tools shortage (DS 0x3745), colony EOT path only — **no pioneer path raises them** (bugs.md #635) | Modal | EOT `@NEEDTOOLS`/`@NEEDTOOLS0` | Done thin |

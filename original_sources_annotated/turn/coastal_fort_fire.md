@@ -24,13 +24,13 @@ every hostile hull on it. The hostility gate is DOS's literal
 
 ## Call sites / reshape
 
-| | DOS | Linux |
+| | DOS | OpenCol |
 |--|-----|-------|
 | When | Nested in `364b_0688` phase A (`57227`: `thunk_291f_09ce`) after bind `09e6` / nation page | `TURN_PROC_SETUP` **after** `turn_run_colony_production` (all colonies) |
 | Scope | Active colony `DS:0x8542` only | Every active Fort/Fortress colony |
 | Combat | Spawn temp attacker `291f_0a20`→`478c_002c`, engage `0a14`→`5fef_1b0e`, undo `0a06`→`478c_00d0` | Direct strength vs ship defense; sink on fort win (no temp unit / dialog) |
 
-Do not “fix” docs to nest fort fire inside Linux production.
+Do not “fix” docs to nest fort fire inside OpenCol production.
 
 ## Phase table
 
@@ -58,7 +58,7 @@ Do not “fix” docs to nest fort fire inside Linux production.
 | `0x5372..0x537d` | Spawn/combat scratch |
 | `0x5230+type*0xe` | Type table (name subst `0438`) |
 
-## Linux formula
+## OpenCol formula
 
 `units_coastal_fort_attack_strength`: Fortress → tier 2 else Fort → 1;
 `atk = 4 * tier * (1 + arty_on_colony_tile)`. Pulse: water neighbors; hostile =

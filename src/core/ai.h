@@ -84,7 +84,7 @@ void ai_indian_midpass_claim_worked_tiles(ColonizeTurnContext* ctx);
  *
  * DOS drives every Indian-side contact off the move itself: FUN_465b's tail
  * runs FUN_281f_0984 -> FUN_5bfb_3180 -> FUN_5bfb_022e for the tile the Brave
- * just stepped next to. The Linux pulse commits its steps inline and the
+ * just stepped next to. The OpenCol pulse commits its steps inline and the
  * contact arms run once per nation afterwards (ai.c section 9), so they need
  * the pre-move tile to tell "a Brave walked up to this colony this turn" from
  * "a Brave has been parked beside it for twenty turns".

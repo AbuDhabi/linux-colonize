@@ -550,9 +550,9 @@ void game_cheat_test_routine(ColonizeGameState* game) {
 
 /*
  * DEBUG.TXT @MEMORY reports DOS heap pools (Memory/Menu/Near/Stack Available,
- * PSP segment) that have no Linux equivalent under malloc. Closest real
+ * PSP segment) that have no OpenCol equivalent under malloc. Closest real
  * analogue: actual process RSS (getrusage) plus the port's own fixed-size
- * unit/colony pool headroom, which is where a Linux "out of memory" cheat
+ * unit/colony pool headroom, which is where an OpenCol "out of memory" cheat
  * check would actually matter.
  */
 void game_cheat_memory_check(ColonizeGameState* game) {
@@ -563,7 +563,7 @@ void game_cheat_memory_check(ColonizeGameState* game) {
 #ifndef _WIN32
   struct rusage ru;
   if (getrusage(RUSAGE_SELF, &ru) == 0) {
-    rss_kb = ru.ru_maxrss; /* Linux: KB already */
+    rss_kb = ru.ru_maxrss; /* OpenCol: KB already */
   }
 #endif
   const int units_n = game->units_ok ? game->units.unit_count : 0;
@@ -1277,11 +1277,11 @@ void load_begin_menu(ColonizeGameState* game) {
   game->menu_dialog_width = 160;
   game->menu_dialog_y = 91;
   game->menu_smallfont = false;
-  /* Title dialog version line: COLONIZATION in emphasis, then Linux port tag. */
+  /* Title dialog version line: COLONIZATION in emphasis, then OpenCol port tag. */
   snprintf(
     game->menu_version_line,
     sizeof(game->menu_version_line),
-    "{COLONIZATION} Linux Port %s",
+    "{COLONIZATION} OpenCol %s",
     COLONIZE_VERSION_STRING
   );
 

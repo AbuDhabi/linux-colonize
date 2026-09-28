@@ -41,7 +41,7 @@
  * Peer flags: `nation[a].euro_relation[b]` (DS −0x77c4 / Col1 mapped).
  * Do NOT use unknown26[4..7] for flags — those save bytes are unrelated and
  * false-triggered WAR (Privateer spam on seed-100 TURN1→2).
- * Remaining unknown26 Linux stand-ins (timers / sticky / privateer mask):
+ * Remaining unknown26 OpenCol stand-ins (timers / sticky / privateer mask):
  *   [0..3] treaty timers  [9] Privateer spawn mask  [11] Indian sticky
  * ([8] carried the sticky until 2026-09-09 (smell #52); that byte is DOS's
  * FUN_4d56_4528 grace/waiver counter — [11] is the block's one dead byte.)
@@ -65,7 +65,7 @@
  * colony-gap −25 trade sting (follow-up A), a Tools embargo — is retired:
  * DOS charges nothing on a declare. What remains is the relation/PEACE/WAR
  * bit work and the treaty-timer seed.
- * FA 3f41 full body/UI PARKED. Linux-only alliance machinery (ally-aid,
+ * FA 3f41 full body/UI PARKED. OpenCol-only alliance machinery (ally-aid,
  * FA gift, break trust) retired T2.4 2026-09-06.
  * Euro×Euro war does NOT boycott Europe cargos (DOS tea-party / king refuse
  * only). An invented wartime all-16-bit embargo was removed after
@@ -107,11 +107,11 @@
  * writes (`n * 0x13c + -0x77ce`) finds no constant-valued treasury decrement
  * anywhere in the game. docs/smell_audit_2026-09-09.md follow-up A. */
 /*
- * Linux war/peace pressure bands for ai_diplo_military_score, named 2026-09-09
+ * OpenCol war/peace pressure bands for ai_diplo_military_score, named 2026-09-09
  * (smell #51) when the score became the DS:0x941c quantity. DOS has no bands of
  * this shape at all — its own war-worthiness test is FUN_5bfb_10ec, ported
  * whole in ai_euro.c and reached through ai_diplo_13b0_treaty_tick. These four
- * gate only the Linux war-fatigue peace roll and the opportunistic declare
+ * gate only the OpenCol war-fatigue peace roll and the opportunistic declare
  * pressure, and each gates an RNG draw, so they sit in the shared DOS RNG
  * stream.
  *
@@ -125,7 +125,7 @@
  * so they stay put.
  *
  * 2026-09-10: the score is recomputed live (see ai_diplo_military_score), so
- * these bands and their draws are now reached in a Linux-started game too. The
+ * these bands and their draws are now reached in an OpenCol-started game too. The
  * old mirror read returned 0 there — nothing refreshes `stuff` outside the
  * save-writing path — which silenced both arms outside a loaded DOS save.
  */
@@ -138,11 +138,11 @@
 #define AI_DIPLO_WAR_FATIGUE_TIMER 8u
 /* Retired: AI_DIPLO_INDIAN_DRIFT_CAP (no DOS per-turn alarm decay,
  * docs/archive/smell_audit_2026-09-10.md #16) and AI_DIPLO_WAR_INDIAN_HIT (fed only
- * the Linux-only Euro-alliance hit, gone with T2.4). */
+ * the OpenCol-only Euro-alliance hit, gone with T2.4). */
 /* At-war gate: relation < 26, i.e. DOS alarm > 0x4a. */
 #define AI_DIPLO_INDIAN_AT_WAR_REL 26 /* alarm > 0x4a (FUN_5bfb_153e hostile tier) */
 /* Very-low deepen: relation < 16, i.e. DOS alarm >= 85. */
-#define AI_DIPLO_INDIAN_VERY_LOW_REL 16 /* alarm >= 85: sticky deepen band (Linux) */
+#define AI_DIPLO_INDIAN_VERY_LOW_REL 16 /* alarm >= 85: sticky deepen band (OpenCol) */
 /* Retired: AI_DIPLO_INDIAN_HARASS_GOLD (invented −2g/turn native-war drain).
  * No native machinery (FUN_4d56_152e, 4cc6_00f2, 5952_035e, 465b_0000) touches
  * a Euro treasury. docs/smell_audit_2026-09-09.md #49. */
@@ -558,7 +558,7 @@ void ai_diplo_indian_capital_surrender(
   /*
    * The peace half of the DOS post-condition, in the port's own encoding.
    * DOS's alarm-delta above has already cleared WAR (0x02) both directions;
-   * it never sets PEACE (0x40) at this site. Linux reads Indian<->Euro peace
+   * it never sets PEACE (0x40) at this site. OpenCol reads Indian<->Euro peace
    * off COL1_INDIAN_PEACE_BIT (ai.c at_peace; the mission / trade / raid
    * gates) rather than off the war bit, so the port states the same
    * post-condition on the bit it actually consumes. The clear-war + set-0x60
@@ -652,7 +652,7 @@ static uint8_t* ai_diplo_timer_byte(ColonizeCol1Save* col1, int nation, int peer
  * tree cite 7752-7761 — line drift, same bodies) are dual-mode accessors
  * over the FULL 0..11 nation space (4 Euro + 8 Indian) on BOTH sides of the
  * pair. The peer argument is a raw byte index into a 12-wide row, so the
- * four quadrants land in four different Linux fields — byte-audited
+ * four quadrants land in four different OpenCol fields — byte-audited
  * 2026-09-08:
  *
  *   nation < 4  : *(peer + nation*0x13c − 0x77c4).
@@ -745,7 +745,7 @@ uint8_t ai_diplo_read(const ColonizeCol1Save* col1, int nation_a, int nation_b) 
     return 0;
   }
   if (nation_a == nation_b) {
-    /* Linux virtual: DOS has no self-pair case (it would address
+    /* OpenCol virtual: DOS has no self-pair case (it would address
      * euro_relation[n][n], which nothing ever writes and every DOS save
      * leaves 0). Kept because live callers read "self is at peace/allied"
      * off it; ai_goals.c's 20e6 land-claim gate deliberately bypasses this
@@ -2589,7 +2589,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
          * indexes the colony stock rows with [bp-0xa2] — the loop counter
          * left at 4 by the euro rival-tally do-while — NOT the picked cargo
          * [bp-0xb2]. So DOS always moves FURS (cargo 4) by the demanded
-         * amount, whatever the dialog named. Ported faithfully. Linux-only
+         * amount, whatever the dialog named. Ported faithfully. OpenCol-only
          * bound: source stock floors at 0 (DOS int16 may underflow when the
          * picked cargo != Furs); receiver is uncapped like DOS.
          */
@@ -2609,7 +2609,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
       return;
     case AI_TALK_ST_WORTHY:
       if (choice == 1) {
-        ai_diplo_clear_both(col1, h, t, AI_DIPLO_WAR); /* bugs.md #465: PEACE and the Linux WAR bit must not coexist */
+        ai_diplo_clear_both(col1, h, t, AI_DIPLO_WAR); /* bugs.md #465: PEACE and the OpenCol WAR bit must not coexist */
         ai_diplo_or_both(col1, h, t, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET));
         col1->head.nation_relation[t] = (int16_t)(col1->head.turn + 0x10);
         k->stage = AI_TALK_ST_PEACEMENU;
@@ -2903,7 +2903,7 @@ static int ai_diplo_153e_encounter_gated(
    * moving unit (DOS param_4, from FUN_5bfb_3180) belongs to `target` — an
    * AI unit walked up to the human side. Receiver = target's nearest colony
    * (FUN_1000_8804, nearest-by-distance approximated Chebyshev); source =
-   * the colony on the encounter tile (FUN_1000_89ae at unit+dir; the Linux
+   * the colony on the encounter tile (FUN_1000_89ae at unit+dir; the OpenCol
    * encounter has no direction, so the first adjacent colony stands in —
    * identical whenever one adjacent colony exists, which is the DOS case).
    * value = min(warehouse-capacity deficit at receiver, source stock) ×
@@ -3129,16 +3129,16 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
  * blend added the same quantity twice on two different scales.
  *
  * The value is a word, ×8 the DOS combat byte. The AI_DIPLO_STRENGTH_* bands
- * that read this score are unchanged Linux constants — see their own note.
+ * that read this score are unchanged OpenCol constants — see their own note.
  *
  * 2026-09-10: computed LIVE instead of read out of `stuff`. The mirror has no
  * live writer in the port — col1_stuff_census_fill_blank (col1_stuff_census.c)
  * is reached only from col1_bridge_capture, i.e. the save-WRITING path, and
- * only while the census window is still blank — so in a Linux-started game the
+ * only while the census window is still blank — so in an OpenCol-started game the
  * word is 0 until the first (auto)save and frozen at that turn's roster ever
  * after. ai_contact.c's FUN_5952_035e block and its Demand-Tribute roll made
  * the same call for the same reason (ai_contact_land_combat_sum, "the port
- * never refreshes the DS:0x95b2 / 0x91cc mirrors for a Linux-started game").
+ * never refreshes the DS:0x95b2 / 0x91cc mirrors for an OpenCol-started game").
  *
  * The recompute reproduces FUN_4962_0018's per-nation arm byte for byte, so a
  * loaded DOS save yields the number the save already carries: every ACTIVE
@@ -3240,7 +3240,7 @@ static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
   if ((rel_ab & AI_DIPLO_WAR) || (rel_ba & AI_DIPLO_WAR)) {
     return;
   }
-  /* Linux choice: an unmet pair still gets the bit effects (DOS does sign
+  /* OpenCol choice: an unmet pair still gets the bit effects (DOS does sign
    * PEACE on unmet pairs — real saves carry 0xa0), but no notice/status, so
    * a never-contacted nation can't narrate over the human's own status line. */
   const int notify = ai_diplo_involves_human(ctx, a, b) && (rel_ab & AI_DIPLO_MET) != 0;
@@ -3309,7 +3309,7 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
    *    → make_peace_ctx (timer==0 while WAR)
    *  2 military score (0000/00f8/312e stand-in)
    *  3 10ec eligibility: war if self ≫ other
-   *  4 13b0 treaty sign/cancel (ai_diplo_13b0_treaty_tick; the Linux-only
+   *  4 13b0 treaty sign/cancel (ai_diplo_13b0_treaty_tick; the OpenCol-only
    *    alliance form/break + ally aid / FA gift / longevity arms were retired
    *    T2.4 2026-09-06 — DOS has no Euro×Euro alliances)
    *  5 declare_war_ctx → human status (102a/1092 chrome); the 153e gold/tax
@@ -3377,7 +3377,7 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
       continue;
     }
 
-    /* The Linux-only standing-alliance arms (FA gift / ally-aid / longevity /
+    /* The OpenCol-only standing-alliance arms (FA gift / ally-aid / longevity /
      * imbalance break CHOICE) were retired with the Euro×Euro alliance
      * machinery (T2.4 2026-09-06) — DOS has no Euro×Euro alliances; 13b0 is
      * treaty sign/cancel only. */
@@ -3432,7 +3432,7 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
 
     /* FUN_5bfb_13b0: AI-initiated treaty sign/cancel (replaces the invented
      * near-parity alliance offer, 2026-08-27). Sticky deep native unrest still
-     * refuses new treaties this balance (Linux layer, kept; its old
+     * refuses new treaties this balance (OpenCol layer, kept; its old
      * "precludes new alliances" status chrome retired with T2.4). */
     if (ai_diplo_indian_hostility_sticky(ctx->col1, nation_id) != AI_DIPLO_STICKY_DEEP) {
       ai_diplo_13b0_treaty_tick(ctx, nation_id, peer);
@@ -3443,7 +3443,7 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
 /*
  * DS:0x54f6 grudge/tension tier-crossing update — FUN_4cc6_00f2's second
  * half (viceroy_unpacked.c:80864-80900), never wired before this pass
- * (docs/archive/mysteries_catalog.md: "still no Linux accessor or struct field").
+ * (docs/archive/mysteries_catalog.md: "still no OpenCol accessor or struct field").
  *
  * Raw DOS body (only the reachable arm, see below):
  *   if (iVar5 < 100 || !(peace bit set)) {          // most calls take this
@@ -3473,7 +3473,7 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
  * clamp-down arm is implemented below.
  *
  * DOS reads iVar2/iVar5 already clamped to [0,100] from the same storage
- * this function's caller writes (0x5b1c == relation_by_indian). Linux's
+ * this function's caller writes (0x5b1c == relation_by_indian). OpenCol's
  * relation_by_indian is [0,255] (separate PORT DEBT, not rescoped here —
  * see port_plan.md) so old/new are locally capped to 99 for this tier
  * check only, matching DOS's own `if (iVar5>99) iVar5=99` clamp; storage
@@ -3488,7 +3488,7 @@ static void ai_diplo_indian_tension_tier_update(
   int new_relation,
   int delta
 ) {
-  /* Operands are DOS alarm values (0..100), not the Linux relation view. */
+  /* Operands are DOS alarm values (0..100), not the OpenCol relation view. */
   if (!col1 || !col1->tribe || delta >= 0 || euro_nation < 0 || euro_nation > 3) {
     return;
   }
@@ -3545,7 +3545,7 @@ void ai_diplo_indian_alarm_delta(
    * on a 5-point tier crossing after a negative delta, clamp the tribes'
    * DS:0x54f6 tension slots (ai_diplo_indian_tension_tier_update). DOS also
    * clears diplo bit 4 / war bit 2 (281f_0a10) on a negative delta once
-   * below 75 — not mirrored here (Linux war state lives in euro_diplo).
+   * below 75 — not mirrored here (OpenCol war state lives in euro_diplo).
    *
    * 2026-09-07d: the positive-delta halving moved here from the call sites —
    * DOS does it INSIDE 00f2 (raw 80844-80850): France (euro 1) halves, then
@@ -3644,7 +3644,7 @@ void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* p
    * Refuse). OK popups share DIPLO_WAR + choice_id 0.
    *
    * (The DIPLO_ALLIANCE / DIPLO_BREAK alliance CHOICE arms were retired
-   * with the Linux-only Euro×Euro alliance machinery, T2.4 2026-09-06;
+   * with the OpenCol-only Euro×Euro alliance machinery, T2.4 2026-09-06;
    * DIPLO_BREAK remains as the 13b0 treaty-cancel OK tag.)
    */
   if (popup->result_tag == AI_POPUP_TAG_DIPLO_TALK) {

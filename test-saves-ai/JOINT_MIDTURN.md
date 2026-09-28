@@ -11,14 +11,14 @@ Aggregate CI gate: `cmake --build build --target golden_ai_joint`
 
 | Save | Role | Status |
 |------|------|--------|
-| `MID01.SAV` | Linux-derived mid-war stamp from TURN7 (sticky≥2, alarm, year≥1505) | **Done** via `golden_ai_mid01` (regenerates + self-checks) |
+| `MID01.SAV` | OpenCol-derived mid-war stamp from TURN7 (sticky≥2, alarm, year≥1505) | **Done** via `golden_ai_mid01` (regenerates + self-checks) |
 | `MID02.SAV` | One joint turn after MID01 (Euro dispatcher + Indian nation act) | **Done** via `golden_ai_mid01` (write + pair compare) |
 | `LATE01.SAV` | Late-war stamp from MID02 + one joint turn; structural raid/hunt signals | **Done** via `golden_ai_late01` (not TURN XY field-diff; not blanket T3) |
 
 `golden_ai_mid01` loads `TURN7.SAV`, stamps joint mid-war fields, writes
 `MID01.SAV`, runs one `turn_end`, captures `MID02.SAV`, then pair-compares
 calendar / Euro+Brave / tribes / colonies / sticky surfaces (same joint list
-spirit as `golden_ai_turns`). Exact unit XY is Linux-derived each run.
+spirit as `golden_ai_turns`). Exact unit XY is OpenCol-derived each run.
 
 `golden_ai_late01` loads `MID02.SAV`, stamps late-war (year≥1550, sticky≥2,
 alarm/friction hot), writes `LATE01.SAV`, runs one `turn_end`, captures

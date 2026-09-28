@@ -72,7 +72,7 @@ nation unit, and for each found:
 periodic turn-based "should I declare war" check — it's triggered by
 **physical adjacency between units of different nations**, alongside the
 *already-fully-ported* Indian meet/contact path as its structural sibling.
-Confirms `153e` is a real, missing piece of Linux's Euro-Euro first-contact
+Confirms `153e` is a real, missing piece of OpenCol's Euro-Euro first-contact
 handling, not a duplicate of anything already covered.
 
 ## Recovery notes

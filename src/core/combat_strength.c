@@ -72,7 +72,7 @@ void combat_side_flags_clear(ColonizeCombatSideFlags* f) {
  * "Continental"/"Cont. Army" (paying the bonus twice for the Continental
  * Army) while missing "Cont. Cav." entirely — the asymmetry this closes.
  *
- * Matched by name, not by pool index, because a Linux pool index is not a DOS
+ * Matched by name, not by pool index, because an OpenCol pool index is not a DOS
  * @UNIT id (synthetic test fixtures place Soldier/Dragoon at arbitrary slots);
  * that is the same mapping idiom as ai_euro.c's ai_euro_5d04_dos_type_of.
  * On the stock roster "Soldier"/"Dragoon" hit exactly types 1 and 4.

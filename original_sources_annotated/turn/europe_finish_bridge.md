@@ -25,9 +25,9 @@ Landfall helpers under `FUN_48d3_06ba` / nation EOT; optional Europe UI when
 focus-ship chrome when `param_2 >= 0`, then event loop until `0x9e38` clear
 (demo `0x828` auto-exit branch).
 
-## Linux reshape
+## OpenCol reshape
 
-| DOS | Linux |
+| DOS | OpenCol |
 |-----|-------|
 | Inline Europe UI mid-`00f2` | `game_finish_end_turn` → `game_europe_deliver_bound_ships`; open Europe if `europe.open_on_dock` |
 | Delay ticks / spiral place | Voyage timers + `units_spiral_place_hs_near` / `ai_europe_exit_to_map` (split) |

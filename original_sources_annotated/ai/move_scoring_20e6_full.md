@@ -29,7 +29,7 @@ treated as unverified until re-checked against this file, same "a function
 without a warning at its own declaration can still have real desync deeper
 inside" lesson `decomp_inventory.md` already documents for other functions.
 
-**2026-08-14, verified this does NOT implicate the Linux port**: checked
+**2026-08-14, verified this does NOT implicate the port**: checked
 whether `ai_native_pick_dir_asm` (`src/core/ai.c`, the actual port) has
 any recursive/self-referencing call pattern matching the canonical
 export's stray `thunk_FUN_2a1f_04f4` self-call — it doesn't (`grep` finds
@@ -196,10 +196,10 @@ surrounding code left in those registers, meaning `iStack_154` is a real,
 variable, found-by-search unit id, not a "slot 2" reference — this
 actually *rules out* the "unit-table slot 2 is a reserved sentinel"
 framing for `0a60`'s call (only `20e6`'s literal-2-as-second-arg shape
-suggested it). Checked Linux (`grep` `units.c`/`units.h`/`col1_bridge.c`)
+suggested it). Checked OpenCol (`grep` `units.c`/`units.h`/`col1_bridge.c`)
 for any already-known reserved/sentinel low unit index — nothing; this
 port never inherited the DOS chain mechanism, so there's no shortcut via
-existing Linux knowledge either. Confirming what registers hold at that
+existing OpenCol knowledge either. Confirming what registers hold at that
 exact `0a60` call point needs reading a long stretch of that function's
 own preceding code (which coordinates are live there), the same
 diminishing-returns shape as `417e`'s caller hunt — **parking here, not a
@@ -211,13 +211,13 @@ and is fully documented above regardless.
 **Update (2026-08-15, sixth pass) — closed out, no code to ship.** User
 asked to wire `0x42`/`0x65` anyway with the singleton-check best-guess,
 flagged as approximate. Before writing it, checked whether the *outcome*
-is already produced elsewhere in Linux — it is. `ai_euro_unit_act`'s
+is already produced elsewhere in OpenCol — it is. `ai_euro_unit_act`'s
 "H: light bind" block already binds idle, founding-capable land units
 (Pioneer/Free Colonist/etc, not Soldiers, not aboard a ship, not already
 on a goto) toward the best founding tile; `ai_euro_scout_contact_ring_target`
 does the equivalent for Scout/contact. Both already tested and shipping.
 DOS's field-2 "singleton chain" check is the same *kind* of safety gate as
-Linux's already-present `aboard_ship_id >= 0` / `units_orders_follow_goto`
+OpenCol's already-present `aboard_ship_id >= 0` / `units_orders_follow_goto`
 checks in that same block — just checking against DOS fields
 (`unit+0x315e`/`0x315c`) this port never actively maintains for land units
 (round-tripped through save/load only, never written by live logic).
@@ -290,11 +290,11 @@ resolve the true target via `rtlink_decode`'s segment table (raw file offset →
 segment index), not trust this address — **not done this pass** (would need
 regenerating `seg_data_resident.bin` via `tools/rtlink_overlay_extract.py`, the
 loose extraction from earlier sessions is gone from disk). Until then, `0x42`/
-`0x65` stay unported; Linux's existing goal-driven found/contact impulses
+`0x65` stay unported; OpenCol's existing goal-driven found/contact impulses
 (`0a60`/`5d04`) are a reasonable functional stand-in, just not this live path.
 
 **Epilogue / commit block (line ~2213-2275) is fully resolved, zero unnamed
-globals** — but has no Linux structural home yet. After the upstream arms
+globals** — but has no OpenCol structural home yet. After the upstream arms
 (whichever one fires) leave `local_76` = chosen dir (0..7) or 8 = stay:
 1. Write `unit+0x314f` = `local_76` (last-commanded-dir byte).
 2. If staying (8): set `unit+0x314c` (pending-order-state cache) to 5
@@ -308,7 +308,7 @@ globals** — but has no Linux structural home yet. After the upstream arms
    `0x30` (idle default) and re-arm `0x314c=5`. If `0x314c==5` (roaming), scan
    8 neighbors via `FUN_1000_8886`/`FUN_1000_8c28`(`&0x40` — **correction,
    2026-08-15**: this is the `MET` flag, not "at-war" as originally guessed
-   here — cross-checked against Linux's `ai_diplo_read`, which returns the
+   here — cross-checked against OpenCol's `ai_diplo_read`, which returns the
    DOS `euro_relation` byte completely raw and defines `AI_DIPLO_MET 0x40`
    as that literal bit, no remapping; see `euro_unit_act.md`'s
    `FUN_4720_049e` writeup for the full cross-check) and clear the roam
@@ -324,7 +324,7 @@ globals** — but has no Linux structural home yet. After the upstream arms
 **Correction, same pass: the "missing persistent cache" claim below was
 wrong — checked `units.h` after writing it.** `unit+0x314c` (pending-order
 cache), `+0x314d`/`+0x314e` (goto stash), and `+0x314f` (facing/last dir)
-already have direct Linux homes: `ColonizeUnit.orders` (`UNITS_ORDER_NONE`/
+already have direct OpenCol homes: `ColonizeUnit.orders` (`UNITS_ORDER_NONE`/
 `SENTRY`/`FORTIFY`/`FORTIFIED`/`BUILD_COLONY` = DOS `0`/`1`/`5`/`6`/`7`,
 already numerically DOS-shaped), `.goto_x`/`.goto_y`
 (`UNITS_GOTO_NONE`=0xFF), and `.last_dir` — and `unit+0x314b` (the orders/
@@ -343,7 +343,7 @@ same shape, not a gap requiring new plumbing.
 
 **Real remaining redesign, scoped correctly this time:** just the windowed
 best-tile-in-box explore scan (`move_scoring_land.md`'s `2912`/`2a59`
-section) replacing Linux's single-step 8-neighbor greedy walker — that one
+section) replacing OpenCol's single-step 8-neighbor greedy walker — that one
 genuinely doesn't fit the current architecture and still needs `−0x6b1a`/
 `−0x6a8e` (structurally located, semantically unresolved) wired in. The
 epilogue's state-machine *transitions* (write orders/goto/facing after a
@@ -353,7 +353,7 @@ of that scan redesign — smaller, real, immediately portable slice.
 **2026-08-20: roam-abort transition shipped.** Wired the one piece of the
 "stop passively roaming next to any nation you've already encountered"
 transition described above — `unit+0x314c==5` idle-roam state, cleared the
-moment a MET foreign unit lands adjacent, forcing a re-decide. Linux has no
+moment a MET foreign unit lands adjacent, forcing a re-decide. OpenCol has no
 persistent `act_state` distinguishing *why* a given AI_MOVE goto was set, so
 introduced a narrow file-local marker (`s_euro_roam_wander[]` in
 `ai_euro.c`) that `ai_euro_move_scoring_gate` sets only on its two genuine
@@ -430,10 +430,10 @@ very likely the same transport-chain link fields case 2 above splices,
 `unit+0x315e`/`0x315c`), spending a per-unit-type move-cost
 (stride-`0xe` table at `0x5238`) out of the shared budget and marking
 `unit+0x314c=1` ("moved this turn") on each unit until the budget or
-chain is exhausted. Checked Linux (`units.c`): `moves_left` is tracked
+chain is exhausted. Checked OpenCol (`units.c`): `moves_left` is tracked
 **independently per unit**, no shared/pooled chain budget exists — this
 DOS mechanic (wagon-train-style shared movement pool) may be a real gap,
-or may be functionally superseded by Linux's simpler per-unit model the
+or may be functionally superseded by OpenCol's simpler per-unit model the
 same way the `0x42`/`0x65` gate turned out to already be closed by
 different means (sixth pass above). **Not chased further this pass** —
 flagging as a fresh, undocumented lead for a future session rather than
@@ -950,7 +950,7 @@ Ported arm by arm from the raw C below into `src/core/ai_euro.c` (block
 "FUN_521d_20e6 — structural land port", wired through
 `ai_euro_move_scoring_gate`'s idle branch; test `tests/unit/test_ai_euro_20e6.c`):
 
-| Raw lines (approx) | Arm | Linux |
+| Raw lines (approx) | Arm | OpenCol |
 |---|---|---|
 | 1006-1090 | prologue locals (`uStack_62`/`iStack_2e`/`iStack_2c`/`iStack_74`/`uStack_2a`/`uStack_ac`/`iStack_a0`) | `ai_euro_20e6_prologue` → `Ai20e6Unit` |
 | 1095-1180 | `iStack_6a` explorer flag, every clause | `ai_euro_20e6_explorer_flag` |
@@ -3228,7 +3228,7 @@ colony: sum of 8aac(adjacent Spanish-owned units?, 0xb) ≤ 8aac(unit, 0xb)
 Still open before a byte-exact port: what `FUN_5fef_1b0e` returns in
 probe mode (the odds base) and what `4fa8` cases 0 / 2 / 0xb read on a unit
 record (the doc's "case 2 = transport-chain splice" verdict cannot be what
-a divisor uses — re-check that case against this call). The Linux
+a divisor uses — re-check that case against this call). The OpenCol
 `combat_strength` substitution stays, now with the exact target shape.
 
 **Resolved (same day):** `FUN_1000_8aac` = `FUN_281f_08bc` → `FUN_1427_0d38`
@@ -3290,7 +3290,7 @@ no peel-table changes.
    verbatim (dist>>1, ×need, ×2 full), candidate while stack-military
    (`8aac` case 2) + pop < wanted+2. Standing on the pick →
    `colonies_admit_unit`; else walk (27f5). No pick: on own colony →
-   Pioneer conversion (DOS orders 0x3d / type 2 / `+0x3159`=0x14 → Linux
+   Pioneer conversion (DOS orders 0x3d / type 2 / `+0x3159`=0x14 → OpenCol
    `tools = 20`); off colony, outside WoI → `iStack_6a = 1` re-loop, ported
    as a force-explorer parameter on `ai_euro_land_explore_scan_target`.
 4. **Ship band per-cargo unload** (`ai_euro_20e6_unload_mask` /
@@ -3304,14 +3304,14 @@ no peel-table changes.
    probes 7/1, `0x173e`); 0x10 military cargo (WoI human-colony continent,
    war stance 4, `−0x6a0e` bit4 = foreign colony + close, probes, `0x173c`).
    Unload: every carried land unit with `0x523d & mask` steps ashore toward
-   the `2a1f_04ac → 521d_06ae` founding tile (Linux
+   the `2a1f_04ac → 521d_06ae` founding tile (OpenCol
    `ai_goals_pick_founding_tile` + `ai_euro_pick_unload_land`), rescanning
    after each drop; ship consumed after any unload. Wired into
    `ai_euro_unload_settle`'s post-first-colony tail; the golden-pinned
    first-colony beachhead branch is untouched, and an empty mask falls back
    to the previous best-passenger landfall. Substitutions, each cited in
    the code: `0x1734` urgency → count of NEEDS_GARRISON/MILITARY colonies;
-   `0x173c`/`0x173e` → live goal-table continents (Linux 0a60 producers are
+   `0x173c`/`0x173e` → live goal-table continents (OpenCol 0a60 producers are
    still thin); `0x1740` recall latch and `−0x6a0e` bit8 → absent;
    `iStack_46` (`8aac` case 6, undecoded) → 0. **`0x9650` resolved** while
    porting (decomp 78316): count of continents with `continent_tally_a > 7`
@@ -3335,7 +3335,7 @@ no peel-table changes.
    (save_format_map.md seen row / nawagers) — verified live in
    `original_saves/COLONY00.SAV` (2240 of 4176 tiles carry a non-zero low
    nibble, values 0..15). `ai_euro_20e6_site_nibble` reads it from
-   `map->seen` (imported verbatim by `map_seen_from_col1`); Linux
+   `map->seen` (imported verbatim by `map_seen_from_col1`); OpenCol
    `map_gen` writes no nibble, so a plane with no nibble anywhere falls
    back to the old unseen→4 stand-in rather than silently disabling the
    ring on generated maps. Used by both the ring score (`nib*4`, founder
@@ -3452,7 +3452,7 @@ DOS's `score / ((dist>>2)+1)` (raw 2214/2134) instead of the thin
 
 ### 4. 8d4a attitude array — read side UNPARKED
 
-`settlement_record_8d4a.md`'s "Relationship to Linux" already proved the
+`settlement_record_8d4a.md`'s "Relationship to OpenCol" already proved the
 record's `+10+nation*2` int16 is `ColonizeCol1Tribe.alarm[nation]`
 (`{friction, attacks}`, exact offset match, save-backed). The 0x4c
 village arms now read it for real (`ai_euro_20e6_village_attitude`:
@@ -3490,7 +3490,7 @@ they aren't explorer-flagged), goldens byte-green. Trace env:
 
 - ~~Hold-cargo colony-delivery matrix (raw 2052-2146: `acStack_c8`
   per-cargo tallies vs colony stock `+0x9a`, embargo bits `+0x90`,
-  `−0x7b44` price weights) — Linux keeps the tested
+  `−0x7b44` price weights) — OpenCol keeps the tested
   `ai_euro_try_ship_trade_haul` / nearest-short-colony equivalent.~~
   **Ported 2026-09-06d** (see that section below; the anchor is raw
   2047-2139 = doc 2059-2153, and `+0x90` is `cargo_produced_mask`, not an
@@ -3587,13 +3587,13 @@ pick (`if (-1 < uStack_24)`), there is no extra threshold.
 ### Substitutions / stubs left (none invented)
 
 - **Coastal probe**: `+0x1c` bit 0x40 is OR'd with a live
-  `map_tile_is_coastal` call because Linux only latches that bit from the AI
+  `map_tile_is_coastal` call because OpenCol only latches that bit from the AI
   colony tick (same belt-and-braces as `ai_euro.c:3651`). No behaviour
   invented — DOS colonies always carry the bit.
 - **Warehouse capacity**: `colonies_warehouse_capacity` is asked for a
-  non-FOOD cargo so its Linux-only FOOD-199 special case (DOS `8f2a` has
+  non-FOOD cargo so its OpenCol-only FOOD-199 special case (DOS `8f2a` has
   none) cannot leak in. FOOD is never a delivery cargo on this path anyway.
-- **unit `+0x314a`**: no Linux unit field (it is cargo-hold storage in DOS,
+- **unit `+0x314a`**: no OpenCol unit field (it is cargo-hold storage in DOS,
   like `+0x3154..+0x3156`), so it rides a session-local
   `s_20e6_load_colony[]` (`colony_id + 1`, 0 = unset), same pattern as
   `s_20e6_hop_slot`. Written where the port's haul block actually loads.
@@ -3615,7 +3615,7 @@ colony ends the block rather than retrying a thin pick. With no delivery
 cargo aboard (`iStack_44 < 0`) DOS never enters the block, so the `4393` peel
 and the short-colony haul keep owning FOOD/LUMBER/ORE runs unchanged. The
 first attempt kept `4393` in front and it shadowed the matrix outright in the
-new fixture — a Linux-only precedence, not a DOS one.
+new fixture — an OpenCol-only precedence, not a DOS one.
 
 ### Test evidence
 
@@ -3708,7 +3708,7 @@ DOS "bind once, never a dead end again" lifecycle holds.
 
 **Traps found while porting:**
 
-- `iStack_2e == 0` is **not** "standing on a colony" in the Linux
+- `iStack_2e == 0` is **not** "standing on a colony" in the OpenCol
   prologue: `ai_euro_20e6_prologue` zeroes `home_dist` when the colony
   search misses (DOS leaves `DS:0x8db8` stale). Read it as
   `home_colony >= 0 && home_dist == 0` or a colony-less nation's wagon
@@ -3812,7 +3812,7 @@ decode:
 | +5 | uint8 | **`flag_b` = exposed-combat-unit present** (`uStack_44`) | same | `4393`'s warship permission |
 
 Both flags are therefore **DECODED, not dead-ended** — see the 0a60 doc for
-the producer side. Renamed in Linux to `AiWorkSlot.loads` / `.military`
+the producer side. Renamed in OpenCol to `AiWorkSlot.loads` / `.military`
 (`ai_goals.h`).
 
 ### The tail (ported — `ai_goals_work_consume`)
@@ -3835,7 +3835,7 @@ record base `0x3144`, so `+0x0c`).
 
 ### Pick-loop terms newly wired
 
-- Eligibility is `rec[+0] >= 0 && rec[+4] > 0` — **`+4`, not `+5`**. Linux's
+- Eligibility is `rec[+0] >= 0 && rec[+4] > 0` — **`+4`, not `+5`**. OpenCol's
   old `flag_b != 1` filter existed only to skip a port-invented CONTACT row
   (removed, see 0a60 doc).
 - `unit+0x314a != DS:0x8dc6`: `+0x314a` is `ColonizeCol1Unit.origin` (record
@@ -3847,7 +3847,7 @@ record base `0x3144`, so `+0x0c`).
 - `(colony+0x1b & 2) == 0 || type > 0x0f`: a colony with
   `COLONIZE_COLONY_AI_NEARBY_MAN_O_WAR` set is warship-only work.
 - Tie rule is DOS `iStack_e2 <= uStack_28` with `iStack_e2 = -1` — later
-  slot wins ties (Linux had strict `>` and a `-999999` seed).
+  slot wins ties (OpenCol had strict `>` and a `-999999` seed).
 
 ### `flag_b` gate nuance (raw ~2216) and the `bVar17` DEAD END
 
@@ -4179,7 +4179,7 @@ its premise.
 
 The 06b note read `iStack_68 = thunk_FUN_1000_a654(param_2)` as "the unit's
 goal slot" and parked the demote branch waiting for a per-unit goal binding
-Linux does not have. It never needed one. Two facts settle it:
+OpenCol does not have. It never needed one. Two facts settle it:
 
 * `FUN_OVL14_L0000__007326(nation, param_3, cont)` indexes `param_3` as a
   **unit** (`param_3*0x1c + 0x3144/0x3145` x/y, `+0x3146` type, `+0x315b`
@@ -4279,7 +4279,7 @@ wagon with +0x3158 != 0 (raw 2284-2307):
              (2820 clears +0x3158 for land types, viceroy_unpacked.c:82122)
 ```
 
-Linux (`src/core/ai_euro.c` + `ai_contact.c`):
+OpenCol (`src/core/ai_euro.c` + `ai_contact.c`):
 
 - `ai_euro_try_wagon_haul` own-colony block now runs the DOS arrival
   sequence first: full dump sweep, then `ai_euro_20e6_load_pick(…, 0)`
@@ -4288,7 +4288,7 @@ Linux (`src/core/ai_euro.c` + `ai_contact.c`):
   DOS reuses as land-unit scratch; same session-local divergence class as
   the ring-hop latches, a save/load drops the errand). The old
   specialty/produced/food-first ladder survives BELOW the matrix as the
-  Linux fallback feeding the (still Linux-direction) short-colony haul; it
+  OpenCol fallback feeding the (still OpenCol-direction) short-colony haul; it
   retires with the 0a60 `haul_short` gate once the work queue flips to
   DOS's pickup direction — the wagon half of that pickup consumer now
   exists, the ship half is the 06e load matrix.
@@ -4418,7 +4418,7 @@ AI treasure ALWAYS insta-cashes at any own colony — the port's AI-side
 ship/Cortes/board/Europe chain has no counterpart in the band and is now
 unreachable for AI treasures (helpers left in place;
 `units_cortes_cash_coastal_treasures` still runs at AI nation-turn setup, a
-Linux-only precedence shared with the human path). Kill switch
+OpenCol-only precedence shared with the human path). Kill switch
 `AI_20E6_TREASURE_CASH=0`; trace `AI_20E6_TREASURE_TRACE`; zero golden hits.
 
 **Village arm refuted:** every `DS:0x8d4a` scan in the 457e/47b9 band
@@ -4452,7 +4452,7 @@ with live errands (DOS-correct; the port used to drop them).
 - DOS 4393 is ships-only; wagons kept on the queue as substitute for the
   unported `LAB_521d_457e` `+0x314a` origin walk + `0x55` sentry (own pass —
   changes where every idle wagon goes).
-- `ai_euro_nearest_short_coastal_colony` — Linux delivery-direction ship
+- `ai_euro_nearest_short_coastal_colony` — OpenCol delivery-direction ship
   fallback below the tip; fires only on an empty queue.
 - `+0x314a` load latch turn-scoped (DOS persistent; needs
   `colony_tick_5952_035e`'s `unit->origin = DS:0x8dc6` refresh) and not
@@ -4548,7 +4548,7 @@ new boarding scan gate (`< 0x19`). Exposed as
   (0x5236 combat > 1, orders byte not 'G'/'A') on a stance-0 continent, or a
   Pioneer (type 2) unless the ship's composite priority (iStack_14 =
   FUN_521d_0600 of the SHIP) is 0 on a non-0-stance continent. DOS marks
-  act_state 1 and debits the hold budget by 0x5238 size; Linux boards into
+  act_state 1 and debits the hold budget by 0x5238 size; OpenCol boards into
   cargo_ids directly (the ship_cargo_counts stack substitution) and debits
   the same budget the load matrix then uses. `0x1734[nation] = 0` after the
   scan.
@@ -4578,7 +4578,7 @@ AI side.
 
 ### Retired with this pass
 
-- `ai_euro_try_wagon_europe_export_feeder` + helpers (Linux-only wagon
+- `ai_euro_try_wagon_europe_export_feeder` + helpers (OpenCol-only wagon
   inland→coast Europe feeder): DOS wagons never fed the export leg — the
   457e origin walk owns every off-errand wagon beat. Surplus reaches Europe
   via the ships-only 4393 pickup. Its two test scenarios removed; four other
@@ -4600,7 +4600,7 @@ write with unit/orders/target).
   Man-O-War `−0x6da2` nation byte — no decoded writer (carried forward).
 - `s_20e6_cower` (+0x315a) is session-local, not save-round-tripped (COL1
   cargo-hold scratch; same class as `+0x3154..6`).
-- Boarding marks act_state 1 in DOS and boards via the tile stack; Linux
+- Boarding marks act_state 1 in DOS and boards via the tile stack; OpenCol
   boards immediately into cargo_ids — a one-beat timing difference when the
   ship would have left before pickup.
 - The 3fa6 stamp (`orders 0x45`, `DS:0x9456+nation`) stays modelled by the
@@ -4704,10 +4704,10 @@ real ocean terrain, coastal colony for the flood gate).
   set by the berth scan (raw 3024-3051) board at the ship's *next* act
   (usually the next beat of the same turn, since DOS units act repeatedly
   while they have moves), and 20e6's raw ~2990 loop (decomp 90233-90238)
-  clears stale act_state-1 marks on the tile before re-marking. Linux
+  clears stale act_state-1 marks on the tile before re-marking. OpenCol
   collapses mark→assemble into one beat (`units_board` at the berth scan);
   restructuring to the literal two-phase would have to reconcile the 0a60
-  housekeeping's act_state 1..3 reset with the Linux one-act-per-turn ship
+  housekeeping's act_state 1..3 reset with the OpenCol one-act-per-turn ship
   loop for no observable difference — deliberately not done.
 - The 3fa6 stamp stays modelled by the dispatcher Europe-export arm.
 - `+0x3148`-adjacent AI scratch bytes not named in the tables remain
@@ -4752,7 +4752,7 @@ So one 20e6 ship act at an own-colony berth runs, in this order:
 
 Ghidra prints the arrival block *after* `LAB_3558` only because every path
 inside the `if` leaves by `goto`, so the block reads as the `if`'s fall-out.
-**Mark and assembly are one act.** The Linux port's "collapsed to one beat"
+**Mark and assembly are one act.** The port's "collapsed to one beat"
 substitution was accidentally correct in timing; what it was actually missing
 was the mark/assemble split, the stale-mark clear, and the fact that `10be`
 runs at `LAB_3558` on *every* ship act, not only at a berth.
@@ -4764,7 +4764,7 @@ runs at `LAB_3558` on *every* ship act, not only at a berth.
 `0x5237[type] − +0x3150`), walk the stack, board every member with
 `act_state == 1` whose `0x5238` size fits, debiting `free`. Called at the
 arrival tail (DOS's `0x354e → 0x3558` fall-through) and at the top of
-`ai_euro_20e6_unload_mask`, which is the Linux anchor for `0x3609` — the call
+`ai_euro_20e6_unload_mask`, which is the OpenCol anchor for `0x3609` — the call
 sits immediately before the `ai_euro_20e6_ship_cargo_counts` 0d38 batch, the
 same adjacency the asm shows.
 
@@ -4773,7 +4773,7 @@ same adjacency the asm shows.
 - Raw 2991-2997 stale-mark clear is live, over the berth tile stack, all
   nations (DOS iterates a tile stack, not an owner list).
 - **Sentinel coords never reach the port.** A DOS passenger is a unit parked
-  at `(−2,−2)` via `FUN_1427_0362` on the shared tile lists; Linux keeps
+  at `(−2,−2)` via `FUN_1427_0362` on the shared tile lists; OpenCol keeps
   passengers in `cargo_ids`, the same substitution
   `ai_euro_20e6_ship_cargo_counts` / `ai_euro_20e6_stack_settler` already
   make, so `units_board` *is* the sentinel park and no `(−2,−2)` coordinate is
@@ -4785,7 +4785,7 @@ same adjacency the asm shows.
   decomp :87560-87563, and that reset runs before the unit loop. A mark
   therefore cannot survive a save/load observably. In-turn-only semantics,
   documented at the function.
-- Linux tile substitution: DOS ships berth ON the colony tile so `10be`'s own
+- OpenCol tile substitution: DOS ships berth ON the colony tile so `10be`'s own
   stack already holds the marked land units; this port berths on adjacent
   water (`ai_euro_tiles_near`, as the arrival block and the 06e load block
   already do), so the sweep covers the ship's tile plus the adjacent own
@@ -4881,7 +4881,7 @@ too (it previously only ever re-stamped an already-marked unit).
 
 - Trace `AI_20E6_BOARD_TRACE=1` now labels the arm:
   `via mark` / `via force:offmap` / `via force:water`.
-- **Zero force-arm hits on any golden or unit test** — expected: Linux
+- **Zero force-arm hits on any golden or unit test** — expected: OpenCol
   passengers live in `cargo_ids`/`aboard_ship_id`, which the loop's
   `aboard_ship_id >= 0` skip already keeps attached, so the arms only cover
   what that skip does not (an unattached unit in a non-Europe off-map park, or

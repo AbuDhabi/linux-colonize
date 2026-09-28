@@ -262,7 +262,7 @@ static int unit_indian_land_found(void) {
 
   /*
    * 2026-09-08: the expand-FOUND-around-own-colony writer this phase used
-   * to probe was a Linux invention and is deleted (DOS 0a60 writes FOUND
+   * to probe was an OpenCol invention and is deleted (DOS 0a60 writes FOUND
    * only at village-adjacent ocean beachheads on colony-free continents,
    * decomp 88049, and next to foreign colonies, decomp 87983 — both
    * ported). The FOUND goal is now seeded directly; this scenario's subject

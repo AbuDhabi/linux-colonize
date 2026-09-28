@@ -5,16 +5,16 @@
 | Piece | State |
 |-------|--------|
 | Annotated quiet + `54f5` + fog | **Done** |
-| Linux init pick | Quiet ASM (stay LCG + seed-100 peels) |
-| Linux mid-turn pick | Quiet ASM (stay LCG + mid peels + **2** spent residuals) |
+| OpenCol init pick | Quiet ASM (stay LCG + seed-100 peels) |
+| OpenCol mid-turn pick | Quiet ASM (stay LCG + mid peels + **2** spent residuals) |
 | `FUN_465b_0000` section map | **Done** — [`move_spent.c`](move_spent.c) |
-| Ocean / HS force-to-max | Annotated; Linux uses `euro_settlement_owner` (0358); **not** Sioux T2 writer (`dump_b465f3`) |
+| Ocean / HS force-to-max | Annotated; OpenCol uses `euro_settlement_owner` (0358); **not** Sioux T2 writer (`dump_b465f3`) |
 | Multi-step / Inca tw | Cleared (river cost=1 peels; `097a` continues while spent&lt;3) |
 | Spent-only Sioux/Apache | Residual; dump-free predicates exhausted (phase 17); hang X last resort |
 | Force empiricism | gone — `AI_EMPIRICISM` / `AI_QUIET_ASM` and the empirical picker were deleted 2026-09-14 |
 | Far `(43,49)`/`(43,53)` vs SAV | **AGREE** |
 | Complete Map / Reveal | **Irrelevant** |
-| Coarse fog plane | Dual index; Linux buffer; `+8` gated |
+| Coarse fog plane | Dual index; OpenCol buffer; `+8` gated |
 | DOS hang recipes | **Parked** (X/`dump_b465x3` only when dump-free done) |
 | Full `20e6` band table | **Done** (below) |
 | Ship band annotated stub | [`euro_ocean_scoring.c`](euro_ocean_scoring.c) |
@@ -42,14 +42,14 @@ few cascade fixes). See [`docs/seed100_brave.md`](../../docs/seed100_brave.md).
 
 - Base `range(1,3)`; river/fa `+1` else `−2f76`
 - Gated facing / coarse fog
-- Stay-shaped LCG burn after each pick (Linux stream sync)
+- Stay-shaped LCG burn after each pick (OpenCol stream sync)
 
 ## Full `FUN_521d_20e6` band table
 
 Decomp: `viceroy_unpacked.c` **88266–90435** (~2170 lines). Callers: `5b66` via
 `2a1f_04f4` (nonzero abort). Nested act is **not** inside `20e6`.
 
-| Lines (approx) | LAB / gate | Role | Linux status |
+| Lines (approx) | LAB / gate | Role | OpenCol status |
 |----------------|------------|------|--------------|
 | 88266–88446 | prologue | Locals; load unit xy/type/orders | shared |
 | 88447–88458 | `local_34` / `local_90` | Ship iff type ∈ **[0x0d,0x12]**; terrain ocean `0x19` / HS `0x1a` | `units_is_sea` |
@@ -83,8 +83,8 @@ Naval type tests elsewhere use open upper **(0x0c, 0x13)** — wider than dispat
 | Annotated | `pick_best_adjacent_founding_tile` in [`euro_goals.c`](euro_goals.c) |
 | Decomp site | **Sole call** ~89587 inside `20e6` (land/non-naval walk; `type==0x0b` filter arg) |
 | Behavior | Score dirs 0..8 around unit/colony tile; prefer empty land; terrain + explore extras |
-| Linux | `ai_goals_pick_founding_tile` / `_ex`: DS:0x2f77 class founding byte; `param_4` extras = **`0492(candidate continent)*0x10 + (explore&0xf)`** per empty land neighbor (`ai_goals_colony_balance_flags`: live nation×continent + `continent_tally_b/12`). Explore thin (`seen→1`). Coastal +10 via `coastal_bonus` (first colony and later) |
-| Linux first colony | `ai_euro_06ae_first_colony_from_landfall` thin port (latitude seed until multi-ring live `06ae`). Resolve: FOUND → 06ae seed → adj 06ae. Full-dispatch ceiling TURN1→7. |
+| OpenCol | `ai_goals_pick_founding_tile` / `_ex`: DS:0x2f77 class founding byte; `param_4` extras = **`0492(candidate continent)*0x10 + (explore&0xf)`** per empty land neighbor (`ai_goals_colony_balance_flags`: live nation×continent + `continent_tally_b/12`). Explore thin (`seen→1`). Coastal +10 via `coastal_bonus` (first colony and later) |
+| OpenCol first colony | `ai_euro_06ae_first_colony_from_landfall` thin port (latitude seed until multi-ring live `06ae`). Resolve: FOUND → 06ae seed → adj 06ae. Full-dispatch ceiling TURN1→7. |
 
 Do not confuse with `FUN_281f_04ac` sites inside `5b66` case 10 (different helper).
 
@@ -94,8 +94,8 @@ Do not confuse with `FUN_281f_04ac` sites inside `5b66` case 10 (different helpe
 |------|--------|
 | Section map | [`move_scoring_ship.md`](move_scoring_ship.md) |
 | Annotated stub | [`euro_ocean_scoring.c`](euro_ocean_scoring.c) |
-| Place | `FUN_48d3_048e` spiral + `0434` (HS-only); Linux `units_spiral_place_hs_near` |
-| Linux scorer | `ai_euro_ocean_score_step`: dist to goal, HS ± west/east bias, leave-HS-into-ocean when westbound, fort avoid (port's own goto walker) |
+| Place | `FUN_48d3_048e` spiral + `0434` (HS-only); OpenCol `units_spiral_place_hs_near` |
+| OpenCol scorer | `ai_euro_ocean_score_step`: dist to goal, HS ± west/east bias, leave-HS-into-ocean when westbound, fort avoid (port's own goto walker) |
 | Ship wander / combat | **Ported 2026-09-15** — ships reach `LAB_4d2e` via raw 90219; ship arms of the 8-dir scorer + far-roam latch in `ai_euro_20e6_wander_step` / `_ship_far_roam` / `_ship_wander_act`. No distant naval hunt exists in DOS. See [`move_scoring_ship.md`](move_scoring_ship.md) "Ship wander" |
 | Atlantic tips | Approach + post-beachhead cruise are latitude-band geometry from landfall/found (retired XY peels; TURN1→7). Post-found SW cruise / SP tip−1 berth geometric from tip. Thin full `3558` cargo/colony sail OPEN. |
 

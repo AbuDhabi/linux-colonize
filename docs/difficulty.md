@@ -1,7 +1,7 @@
 # Difficulty level effects
 
 Reference for what the new-game difficulty byte (`0` Discoverer … `4` Viceroy) changes
-in original Colonization rules, and how the Linux port tracks that today.
+in original Colonization rules, and how the port tracks that today.
 
 Sentiment production math beyond the Tory **threshold** is owned by
 [sons_of_liberty.md](sons_of_liberty.md) (building throughput without sentiment:

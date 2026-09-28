@@ -819,7 +819,7 @@ int units_tick_ship_build_ready(
     }
     const ColonizeUnitType* ty = units_type(pool, u->type_index);
     /*
-     * DOS type*0xe+0x5235 = NAMES @UNIT combat (Linux defense). Loader writes
+     * DOS type*0xe+0x5235 = NAMES @UNIT combat (OpenCol defense). Loader writes
      * attack→5236 then combat→5235. Cite: viceroy ~121115; nation_eot_ship_spawn.md.
      */
     int threshold = ty && ty->defense > 0 ? ty->defense : 4;

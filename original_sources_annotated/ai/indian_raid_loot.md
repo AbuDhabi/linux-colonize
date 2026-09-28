@@ -17,7 +17,7 @@ corruption class). Line count (309) is close to this doc's existing
 desynced, just untrusted pending verification. Confirms the `iStack_6`
 variable documented below as the `@RAID*` kind selector is real and the
 existing line-range docs below are trustworthy as written; not re-ported
-here (existing Linux `ai_contact_indian_raids` phase coverage already
+here (existing OpenCol `ai_contact_indian_raids` phase coverage already
 matches the documented shape).
 
 ---
@@ -123,7 +123,7 @@ disassembly is in the 2026-08-13 investigation log if anyone resumes this.
 4. **AI**: score each slot = `euro_price[type][nation] * qty` (`-0x7b44` table);
    sort (`291f_0ed0`); pick best index
 
-**Linux:** `units_plunder_ship_holds` — goods-value sort shape; human CHOICE
+**OpenCol:** `units_plunder_ship_holds` — goods-value sort shape; human CHOICE
 **thin/PARKED**. (`0f14`'s own STORES cargo pick is **not** this sort — see the
 2026-09-23 correction below.)
 
@@ -196,9 +196,9 @@ Then clear the word at `(param_3*9 + euro)*2 + 0x54f6` — **corrected
 2026-09-08**: that address is not a table of its own but field **+10** of the
 stride-`0x12` settlement record at `DS:0x54ec`
 (`(t*9+e)*2 + 0x54f6 == t*0x12 + 0x54ec + 10 + e*2`), i.e. `int16_t
-attitude[4]` = Linux `ColonizeCol1Tribe.alarm[e]` `{friction, attacks}`. DOS
+attitude[4]` = OpenCol `ColonizeCol1Tribe.alarm[e]` `{friction, attacks}`. DOS
 zeroes the **whole word**, so both bytes go. `param_3` is the raiding unit's
-home-tribe/settlement index (same index space as `unit+6` / Linux
+home-tribe/settlement index (same index space as `unit+6` / OpenCol
 `ColonizeUnit.home_tribe_id`). The clear sits at the function's single `return`
 and fires unconditionally for every roll of `local_6` (kind 0..4 —
 including "Nothing"/raiding-party-wiped-out): the act of raiding itself
@@ -207,7 +207,7 @@ nation, win or lose loot-wise.
 
 Human: sounds + side-art strings `0x1b8a`…`0x1bba` by kind.
 
-**Linux:** `@RAID*` kind picker in `ai_contact_indian_raids` — structural.
+**OpenCol:** `@RAID*` kind picker in `ai_contact_indian_raids` — structural.
 STORES half-stock clamp **Done** thin; GOLD drain peel **Done** thin.
 **Kind 3 (ship) Done 2026-09-09** — victim = a ship on the colony tile
 (`ai_contact_raid_port_ship`), always damaged via `units_raid_damage_ship`

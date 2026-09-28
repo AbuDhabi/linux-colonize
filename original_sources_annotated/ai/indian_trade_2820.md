@@ -1,7 +1,7 @@
 # Indian trade / meet decision (`FUN_4d56_2820` + nest)
 
 Layer D map for the **trade shell** and nested buy/haggle/demand helpers.
-Linux keeps thin auto-trade / gift-demand / hard-bargain stand-ins in
+OpenCol keeps thin auto-trade / gift-demand / hard-bargain stand-ins in
 `ai_contact_*` — deep body **PARKED** for port; **mapped** here.
 
 Related: [`indian_contact.md`](indian_contact.md). Stubs:
@@ -753,12 +753,12 @@ Subst slots: `281f_0438` slots 0..3 load cargo-name ptrs from table `−0x6840`.
 6. **Cargo** — empty holds → close via `2a9b`/`3582`; else pick `local_c8` good (human dialog or AI).
 7. **Hand off** — `2aac` dispatch.
 
-## Linux thin vs PARKED
+## OpenCol thin vs PARKED
 
-| Behavior | Linux (`ai_contact`) | This map |
+| Behavior | OpenCol (`ai_contact`) | This map |
 |----------|----------------------|----------|
 | Auto-trade (AI-silent) | Real `LAB_002bbc` shape (2026-08-22): contacting unit's own TRADE_GOODS hold drained, Euro gold CREDITED. Refuse gate (`relation>0x31`) identified, not wired (polarity unconfirmed) | `LAB_002e92` (tribe sells its own goods to an empty-handed unit — different cargo universe) still PARKED |
-| Human trade CHOICE | `ai_popup` Accept/Decline Done, same `LAB_002bbc` shape as above, locked price shown then credited — a Linux agency layer, **not** a port of any DOS human branch (DOS's own human-with-cargo dispatch reaches neither label) | Deep Haggle / hard-bargain counter-offer resume-loops (the `iStack_5e==2`/`3` branches inline in `2820`'s own body) still unported — moot for the AI side (single deterministic decision, no resume), open for a human wanting to push back. Multi-good cargo-select CHOICE (`0x15a0`) not ported (TRADE_GOODS only) |
+| Human trade CHOICE | `ai_popup` Accept/Decline Done, same `LAB_002bbc` shape as above, locked price shown then credited — an OpenCol agency layer, **not** a port of any DOS human branch (DOS's own human-with-cargo dispatch reaches neither label) | Deep Haggle / hard-bargain counter-offer resume-loops (the `iStack_5e==2`/`3` branches inline in `2820`'s own body) still unported — moot for the AI side (single deterministic decision, no resume), open for a human wanting to push back. Multi-good cargo-select CHOICE (`0x15a0`) not ported (TRADE_GOODS only) |
 | Hard-bargain mid-alarm | **Retired 2026-08-22** — no basis in `LAB_002bbc`'s real body; trade now behaves identically at any alarm below the outer `>=50` refuse-talk gate | n/a |
 | Gift-amount CHOICE | `ai_popup` Done | Deep nest still PARKED |
 | VGA wood dialog | PARKED | `291f_019c` / `0438` subst |
@@ -784,7 +784,7 @@ transcription of the human branch's own constants.
 `FUN_4d56_2154`, which is already fully ported** as
 `ai_contact_meet_economics_2154` in `ai_contact.c` (`ask[16]`/`bid[16]`,
 tested — see `indian_meet_scoring_2154.md`, status "Done"). `2820`'s price
-formula is a *consumer* of already-working Linux state, not a fresh
+formula is a *consumer* of already-working OpenCol state, not a fresh
 extraction target.
 
 Formula (`iStack_c8` = cargo type, `iStack_6a` = quantity, `aiStack_d6[0]`
@@ -845,7 +845,7 @@ padding large enough to host both new counters (`musket_sell_throttle`,
 turns out to matter for the price formula too) without a save-format
 break. **Not yet implemented** — this doc records the finding; adding the
 fields + wiring init/decay/consume is the next concrete step (needs to
-locate `FUN_4d56_1816`'s existing Linux port to hook the same cadence, not
+locate `FUN_4d56_1816`'s existing OpenCol port to hook the same cadence, not
 yet located from this pass).
 
 ## Open RE
@@ -858,7 +858,7 @@ yet located from this pass).
   `ai_contact_2820_ai_buy_price`** (`ai_contact.c`), replacing an
   unverified `(relation>>2)<<1` bit-shift approximation that was also
   missing the 0-255→0-100 rescale entirely (operated on
-  `ai_diplo_indian_relation`'s raw 0-255 Linux scale with no conversion —
+  `ai_diplo_indian_relation`'s raw 0-255 OpenCol scale with no conversion —
   a real magnitude bug, not just an approximation, now fixed). `ctest`
   42/43 unchanged (only the known pre-existing unrelated failure), all
   goldens green.
@@ -1021,14 +1021,14 @@ not silently changed.
 ## per-unit `LAB_002bbc` shape, colony-warehouse invention dropped
 
 User's call on the hybrid question above: port the real mechanic
-structurally (not a Linux-convenient refactor) so future comparison
+structurally (not an OpenCol-convenient refactor) so future comparison
 against the DOS decompile stays easy. Implemented in `ai_contact.c`:
 
 - **`ai_contact_auto_trade` now keys on the ONE contacting Euro unit**
   (found the same way the Meet CHOICE dispatcher already finds it,
   `ai_contact_find_adjacent_euro`), not a radius-4/5 "nearest colony or
   ship/wagon" search. DOS's own `2820` never reads a colony warehouse at
-  all — that whole search was a Linux invention with no counterpart;
+  all — that whole search was an OpenCol invention with no counterpart;
   removed. 1 unit of TRADE_GOODS is now literally moved into/out of the
   contacting unit's own `hold_goods_type`/`hold_goods_amount`, matching
   `LAB_002bbc`'s real `FUN_1000_8cdc`/canonical `FUN_0000_902c` effect
@@ -1052,7 +1052,7 @@ against the DOS decompile stays easy. Implemented in `ai_contact.c`:
   carrying cargo (falls straight to the closing code, no cargo/gold
   effect — see the 2026-08-22 dispatch trace above). The existing human
   Accept/Decline CHOICE is NOT a port of a DOS human branch (there isn't
-  one here) — it's a deliberate Linux-side agency layer over the same
+  one here) — it's a deliberate OpenCol-side agency layer over the same
   `002bbc`-shaped sale, now labeled as such in `ai_contact_enqueue_trade_price_choice`'s
   header instead of miscited as "`LAB_002e92` human branch."
 - **Mid-alarm "hard bargain" 2x-drain peel retired.** The earlier finding
@@ -1095,7 +1095,7 @@ mis-mapping. `FUN_1000_84fc` → `FUN_15dc_00e0` reads
 sets `*0x8d4e = idx*0x4e + 0x5ad6`, so `0x5b1c = 0x5ad6 + 70` =
 `indian[idx].alarm_by_player[euro]` — the accessor is the **nation-level
 alarm word**, not `nation.relation_by_indian` (DOS never reads `-0x77c0`;
-that byte array is a Linux-only construct).
+that byte array is an OpenCol-only construct).
 
 Polarity, from the writers of the same table:
 - map-gen (`:107764`): `alarm[e] = RNG(0,14) + (AI nation ? 2*difficulty : 0)`;
@@ -1113,13 +1113,13 @@ The DOS refuse gate is therefore already wired; nothing to add.
 Remaining fidelity gaps (refinements, not blockers):
 - post-trade alarm delta: DOS `c4 = RNG(0,1) + ((bid[good] - 2*tier + 4) >> 2)`,
   accept → `alarm += -2*c4` (if `c4 > 0`), refuse → `alarm += -4*(c4+1)`
-  plus `tribe.contact_state[e] -= 2*0x8dc4` (floored 0); Linux does a flat
+  plus `tribe.contact_state[e] -= 2*0x8dc4` (floored 0); OpenCol does a flat
   `alarm--` + `relation_by_indian += 2`;
 - refuse also sets `tribe+7 = 0xff` and `tribe+8 = 0xff` (muskets/horses)
   or `= cargo` otherwise.
-- cross-cutting: Linux `ai_diplo_indian_relation`/`_delta` (~40 call sites)
+- cross-cutting: OpenCol `ai_diplo_indian_relation`/`_delta` (~40 call sites)
   store on `nation.relation_by_indian` with inverted polarity where DOS
-  stores on `alarm_by_player`; the two Linux fields drift independently.
+  stores on `alarm_by_player`; the two OpenCol fields drift independently.
   Candidate Tier 2 consolidation, not done here (behavior change across
   many sites — user call).
 
@@ -1173,7 +1173,7 @@ Re-read the quoted C top to bottom against the shipped `ai_contact.c` port
 - **Human gates** (lines 656-675): `last_bought == cargo || last_sold ==
   cargo || ask[cargo] == 0` → `@BADCARGO` (STRING1..3 = highest asks after
   zeroing last_bought/last_sold); `sticky == cargo` → `@BADHAGGLE1`; else
-  the `LAB_002bbc` loop. The old Linux `alarm >= 50 || relation < 40`
+  the `LAB_002bbc` loop. The old OpenCol `alarm >= 50 || relation < 40`
   "refuse to trade" and the `2af6` last-goods clear had no basis here and
   are gone. `@TRADE0` has four rows (accept / fairer / gift / never mind),
   `@TRADE1` three; STRING0 is the NAMES `@VALUES` adjective
@@ -1186,7 +1186,7 @@ Re-read the quoted C top to bottom against the shipped `ai_contact.c` port
   / "Trade accepted" chrome were inventions and are gone.
 - **AI with cargo** (`iStack_5e = alarm > 0x31 ? 3 : 1`): 3 is the *gift*
   arm, not a refusal — a hostile tribe takes the cargo for free (alarm
-  `-4*(c4+1)`). Ported. The Brave-adjacency meet pulse (a Linux stand-in;
+  `-4*(c4+1)`). Ported. The Brave-adjacency meet pulse (an OpenCol stand-in;
   DOS's own callers are the village-enter arms) keeps its TRADE_GOODS-only
   scope so AI wagons are not stripped of every cargo each turn.
 - **Buy phase order**: `LAB_002e92` is reached only via `goto` after the

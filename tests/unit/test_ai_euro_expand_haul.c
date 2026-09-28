@@ -22,7 +22,7 @@
  * Second half of this case is a direct FUN_5952_0306 unit test: a
  * warehouse-full stock clears the specialty.
  *
- * 2026-09-06g rewrite. The old fixture asserted the retired Linux ladder's
+ * 2026-09-06g rewrite. The old fixture asserted the retired OpenCol ladder's
  * "specialty first" reorder by expecting 20 LUMBER aboard; cargo 5 is skipped
  * for every hauler in DOS, so that load cannot happen. The colony keeps its
  * LUMBER specialty and now also holds 80 ORE, and the assertion is that the
@@ -37,7 +37,7 @@
  * What the wagon does take is the highest-scoring cargo the matrix allows —
  * here ORE.
  *
- * 2026-09-06g rewrite. The old fixture asserted the retired Linux ladder's
+ * 2026-09-06g rewrite. The old fixture asserted the retired OpenCol ladder's
  * "prefer produced surplus" reorder by expecting the wagon to load 20 LUMBER;
  * DOS never loads Lumber onto anything. Fixture keeps the same shape (a
  * producing supply colony and a second colony to travel to) with DOS's own
@@ -322,7 +322,7 @@ static int unit_specialty_cargo_haul_prefer(void) {
  *
  * 2026-09-06g rewrite: registration is DOS's `bVar5` now (raw
  * viceroy_unpacked.c:87663 `if (0x4a < local_2a) bVar5 = true;`), not the old
- * Linux "is this colony short of a haul cargo" boolean, and the queue is a
+ * OpenCol "is this colony short of a haul cargo" boolean, and the queue is a
  * PICKUP queue. The old fixture registered both colonies by making each SHORT
  * of something; a short colony has nothing to collect and no longer registers
  * at all. Both colonies now hold 80 RUM instead — cargo 9 is counted by the
@@ -494,8 +494,8 @@ static int unit_specialty_flag_a_haul_match(void) {
  *
  * 2026-09-06g rewrite. The old fixture made both colonies merely SHORT and
  * relied on `ai_euro_nearest_haul_short_colony`'s own `idle*8 − d` score —
- * a Linux delivery-direction scan that is now deleted, and DOS's idle bonus
- * was carried only on that Linux arm. Both colonies now hold the same 80 RUM
+ * an OpenCol delivery-direction scan that is now deleted, and DOS's idle bonus
+ * was carried only on that OpenCol arm. Both colonies now hold the same 80 RUM
  * so they register identically under `bVar5`; the only difference left is
  * idle 0 vs 20, i.e. exactly the DOS term. Same assertion: goto (4,8).
  */
@@ -754,7 +754,7 @@ static int unit_wagon_haul_tools_short(void) {
  * Idle Caravel with goods-hold capacity → AI_SAIL toward the registered
  * coastal colony's berth (4393 pickup tip). 2026-09-07b: the colony holds 80
  * RUM so it registers on DOS's bVar5 gate — the old fixture relied on the
- * retired Linux-only `nearest_short_coastal_colony` scan (a merely SHORT
+ * retired OpenCol-only `nearest_short_coastal_colony` scan (a merely SHORT
  * colony holds nothing to collect and never registers in DOS).
  */
 static int unit_ship_trade_haul_tools_short(void) {
@@ -1078,7 +1078,7 @@ static int unit_galleon_trade_haul_tools_short(void) {
  *
  * 2026-09-06g: the colony now also holds 80 RUM. The work queue registers on
  * DOS's `bVar5` (goods present, raw viceroy_unpacked.c:87663), not on the old
- * Linux "is short of a haul cargo" boolean, so a colony with nothing to
+ * OpenCol "is short of a haul cargo" boolean, so a colony with nothing to
  * collect no longer enters the queue and no hauler is tipped at it. The
  * assertion is unchanged and still concrete — the wagon is aimed at (4,4),
  * where `ai_euro_try_wagon_haul`'s own-colony block dumps its MUSKETS.
@@ -1368,7 +1368,7 @@ static int unit_wagon_haul_ore_short(void) {
 }
 
 /* (unit_wagon_europe_export_feeder / _unload removed 2026-09-07b with the
- * Linux-only wagon Europe-export feeder — DOS's LAB_457e origin walk owns
+ * OpenCol-only wagon Europe-export feeder — DOS's LAB_457e origin walk owns
  * every off-errand wagon beat; surplus reaches Europe via the ships-only
  * 4393 pickup queue.) */
 
@@ -1573,7 +1573,7 @@ static int unit_wagon_food_delivery(void) {
  * aims the wagon at the registered colony. Cite: Colonization.pdf Wagon Train;
  * FUN_521d_20e6 load matrix raw 3059-3134.
  *
- * 2026-09-06g rewrite. The old fixture asserted the retired Linux ladder:
+ * 2026-09-06g rewrite. The old fixture asserted the retired OpenCol ladder:
  * 30 FOOD (a "surplus" only by the port's pop*4 rule) loaded by the
  * tools>lumber>ore>muskets>horses>food ladder, then hauled to whichever
  * colony was FOOD-short. DOS has neither half — its wagon load arm needs
@@ -1726,7 +1726,7 @@ static int unit_wagon_food_load_haul(void) {
  * (Tools) and 0xf (Muskets) are `iStack_34 != 0` arms, i.e. SHIPS ONLY, and
  * are skipped for a land hauler even when the colony produces them.
  *
- * 2026-09-06g rewrite. The old fixture asserted the retired Linux ladder's
+ * 2026-09-06g rewrite. The old fixture asserted the retired OpenCol ladder's
  * `food_short > 20` reorder (30 FOOD beating 50 TOOLS because the nation's
  * inventory was hungry). DOS has no such reorder and no such trigger; it
  * refuses TOOLS to a wagon outright and needs `term >= 0x32` for the FOOD it

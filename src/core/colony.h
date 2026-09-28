@@ -124,7 +124,7 @@ typedef struct ColonizeColony {
   uint8_t improve_timer;
   /*
    * Col1 +0x1d build AI flags. Bit7 (0x80) = wants_construction (FUN_5952).
-   * Latches construction LABOR when set (Col1 import or Linux construction).
+   * Latches construction LABOR when set (Col1 import or OpenCol construction).
    */
   uint8_t build_ai_flags;
   /*

@@ -2224,7 +2224,7 @@ static int case_europe_workflow(void) {
       europe_free(&eu);
       return 1;
     }
-    /* Unseeded nation byte (new game, never round-tripped) → the one Linux
+    /* Unseeded nation byte (new game, never round-tripped) → the one OpenCol
      * market's sell price (bid − 1, matching the derived DS:0x84BC table),
      * still untaxed: 80 × 2 = 160. */
     dscol1.nation[1].gold = 0;

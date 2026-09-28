@@ -158,7 +158,7 @@ static void fx_close(void) {
 /*
  * bugs.md #827: FUN_5fef_0f14's kind is `rand(1,4)` behind a walls roll, so a
  * fixture can no longer "force" a kind through an alarm band the way the
- * retired Linux band-picker allowed. This probe keeps those blocks honest
+ * retired OpenCol band-picker allowed. This probe keeps those blocks honest
  * without changing what they exercise: snapshot the whole fixture, replay the
  * pulse over successive turn values (the pulse's local RNG is keyed on the
  * turn) until `want` comes up, restore the snapshot, and leave `turn` on the
@@ -3784,7 +3784,7 @@ static int sp_30(void) {
     /*
      * Trade CHOICE with no contacting unit/cargo → the 2820 shell returns
      * through LAB_003582 with NO popup at all (bugs.md #960; the old
-     * typed-English "Trade concluded." fallback was a Linux invention).
+     * typed-English "Trade concluded." fallback was an OpenCol invention).
      */
     {
       ai_popup_clear(&pop);

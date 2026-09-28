@@ -307,7 +307,7 @@ const char* ai_contact_euro_name(int euro_nation) {
  * a human-controlled euro, else 1); on success expel that euro's missions
  * from every tribe of the nation (mission byte → 0xff) and, when any were
  * cleared and the euro is human, show GAME.TXT @INDIANBURN (DS tag 0x14c8,
- * %STRING0 = the Indian nation). Replaces the old Linux "burn at alarm
+ * %STRING0 = the Indian nation). Replaces the old OpenCol "burn at alarm
  * ≥80 every tick" stand-in (2026-09-07d).
  */
 void ai_contact_alarm_delta_00f2(
@@ -602,7 +602,7 @@ void ai_contact_apply_welcome_reject(
   }
   ai_contact_clear_peace(ctx->col1, nation_id, e);
   /*
-   * DOS +100 hostility → Linux at-war band (0 < relation < 26, i.e. alarm
+   * DOS +100 hostility → OpenCol at-war band (0 < relation < 26, i.e. alarm
    * > 0x4a; the band constant is AI_DIPLO_INDIAN_AT_WAR_REL, not the 50 this
    * comment claimed until 2026-09-09, smell #57). Write a hostile floor (1),
    * not unmet 0 — seed-100 early goldens keep r==0/sticky clear until first
@@ -822,7 +822,7 @@ static int ai_contact_meet_choice_pending(const AiPopupState* st, int e, int nat
  * Acting-unit classification for the DOS @ACTIONS gating. DOS reads the
  * unit-type byte (0x3146: 5 = Scouts, 3 = Missionaries, 0xc = Wagon Train,
  * 0xd..0x12 = ships), the type's attack column (0x5236) and the profession
- * byte (0x315b: 0x1b = Indian Convert). Linux keys the same facts off the
+ * byte (0x315b: 0x1b = Indian Convert). OpenCol keys the same facts off the
  * @UNIT type name / domain.
  */
 
@@ -1537,7 +1537,7 @@ void ai_contact_clamp_alarms(ColonizeCol1Indian* ind) {
   }
   for (int e = 0; e < 4; ++e) {
     /*
-     * Linux-only guard: keep the uint16 alarm mirror in band. NOT DOS 1816
+     * OpenCol-only guard: keep the uint16 alarm mirror in band. NOT DOS 1816
      * §4 — that clamp is on `muskets`, see below (mis-mapped until
      * 2026-09-06d).
      *

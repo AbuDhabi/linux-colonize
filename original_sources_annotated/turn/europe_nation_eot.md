@@ -2,7 +2,7 @@
 
 Decomp: `original_sources_decompiled/viceroy_unpacked.c`.
 Caller (DOS): `FUN_3844_00f2` via `291f_0a90` (`5e52`) and nested
-`291f_0cbc` (`0058`). Linux reshape: `europe_tick_market_prices` /
+`291f_0cbc` (`0058`). OpenCol reshape: `europe_tick_market_prices` /
 `europe_apply_volume_price` in FINISH; full `5e52` immigrant/tax/FF arms
 mostly **PARKED**.
 
@@ -42,9 +42,9 @@ Bridge: [`between_turns.md`](between_turns.md) ·
 | `0x84fc` | Nation Europe block (`nation*0x13c`) |
 | `0x543f+n*0x34` | Player control |
 
-### Linux
+### OpenCol
 
-| DOS | Linux | Fidelity |
+| DOS | OpenCol | Fidelity |
 |-----|-------|----------|
 | Phase 3 market | `europe_tick_market_prices` (FINISH) | **Partial** |
 | Pressure / recruit / tax / FF | dock immigrants + `europe_tick_immigration_pressure` (584a +2/tick + phase5 pool→dock; `@UNREST` not `open_on_dock`) **Done** thin; phase-5 slot roll (`04d4` RNG(0,2), see below) **Done**; king tax elsewhere | Interactive **R** Recruit UI (3-slot picker) **Done** (`game_loop.c` `EUROPE_MENU_RECRUIT`, re-checked 2026-08-24 — stale "Recruit UI PARKED" removed); atomic `5e52` phase-6 tax/FF chrome **PARKED** (not Europe-screen scope — see phase 6 below) |
@@ -87,18 +87,18 @@ trustworthy source.
 | `0x96fe..` | `@CARGO` low/rise/fall |
 | `0x538a` / `0x53a6` | Year / difficulty |
 
-### Linux
+### OpenCol
 
-| DOS | Linux |
+| DOS | OpenCol |
 |-----|-------|
 | EOT all-cargo | `europe_tick_market_prices` | **Done, byte-exact vs 2 real DOS turn pairs (2026-08-28, `golden_market_prices01`)** |
 | Post buy/sell | `europe_apply_volume_price` (threshold shed fixed 2026-08-28; volume term itself still unvalidated) |
 | Phase 1 pool decay | **Done exact** — ledger `= price_group (signed) + Σ_n max(0, trade.tons2[n][c])` (`+0xfc` — the earlier "nation ledgers" were read as `tons`; wrong field), `price_group −= ledger >> 7` **only in nation 0's pass** (`0x9e12==0`, so never while nation 0 is withdrawn — the no-transports pair proves it); the colony-stock approximation is gone |
 | Phase 2 cargos 9..12 | **Done exact** — `trade_nr += sign * mid * 100` (confirmed real for the human pass) |
 | Phase 3 cargos 1..4 | **Done exact** — `trade_nr += mid * sign`; fur year &lt;1700/&lt;1600 |
-| Phase 4 attrition / rise / fall | **Done exact** — `nr += attrition` (×2 for `0x9e12==3` on odd post-increment turns); threshold sheds `rise*100`/`fall*100` unconditionally, only the bid ±1 is gated by `[low,high]` (Linux used to gate both); `@PRICEUP`/`@PRICEDOWN` now real OK popups via `EuropeScreen.price_event_*` → `turn.c` FINISH |
+| Phase 4 attrition / rise / fall | **Done exact** — `nr += attrition` (×2 for `0x9e12==3` on odd post-increment turns); threshold sheds `rise*100`/`fall*100` unconditionally, only the bid ±1 is gated by `[low,high]` (OpenCol used to gate both); `@PRICEUP`/`@PRICEDOWN` now real OK popups via `EuropeScreen.price_event_*` → `turn.c` FINISH |
 | Phase 4 AI-only arms | **Not ported** (AI records aren't ticked): `high += (diff−4)*2 + (turn−600)/100` for cargos ≥14, bid caps for Horses/Tools/Muskets `((diff−4)*−3>>1)+3`, per-nation `DS:-0x7b44` table `= bid − 1` (this is the Custom House sale price — P4.4) |
-| Sale / purchase ledger `38fd_1dfa` / `1d80` | **Done exact 2026-08-28** (`europe_apply_trade_volume`): `term = (amt << volatility) + 1d44(amt)`, `1d44 = ((0x9e12 human ? difficulty−2 : −2)·16·amt)/100` (C truncation); every nation's `nr[c] += term` (buy `−=`), the Dutch record (slot 3) gets `(term·2)/3`; seller `tons`/`tons2 ±= amt`; `gold[c] += (price·amt·(100−tax))/100` (sell) / `−= ask·amt` (buy). Sell price `38fd_0040 = euro_price − 1`, buy price `38fd_0016 = euro_price + burden` (Linux `bid`/`ask` were both +1; fixed, screen now shows Food 0/8 like the 1494 screenshot). Verified on the dutch2 pair: lumber sellers 54 (human, Viceroy) + 12 + 18 (AI) → +93 on nations 0–2, +61 on the Dutch; treasury +36 vs ledger +35 (different rounding, both real). Only the harbor buy/sell path follows with `0058(0, cargo)`; Custom House / AI dump-sell do not. |
+| Sale / purchase ledger `38fd_1dfa` / `1d80` | **Done exact 2026-08-28** (`europe_apply_trade_volume`): `term = (amt << volatility) + 1d44(amt)`, `1d44 = ((0x9e12 human ? difficulty−2 : −2)·16·amt)/100` (C truncation); every nation's `nr[c] += term` (buy `−=`), the Dutch record (slot 3) gets `(term·2)/3`; seller `tons`/`tons2 ±= amt`; `gold[c] += (price·amt·(100−tax))/100` (sell) / `−= ask·amt` (buy). Sell price `38fd_0040 = euro_price − 1`, buy price `38fd_0016 = euro_price + burden` (OpenCol `bid`/`ask` were both +1; fixed, screen now shows Food 0/8 like the 1494 screenshot). Verified on the dutch2 pair: lumber sellers 54 (human, Viceroy) + 12 + 18 (AI) → +93 on nations 0–2, +61 on the Dutch; treasury +36 vs ledger +35 (different rounding, both real). Only the harbor buy/sell path follows with `0058(0, cargo)`; Custom House / AI dump-sell do not. |
 
 ---
 
@@ -218,7 +218,7 @@ needed the price math.
 | 68617 | `0b7a`→`5be8()` | King tax audience; **1** = dialog ran |
 | 68618–19 | if **0**: `0c84`→`5930()` | FF cargo/gold grant path |
 
-Linux: dock immigrants / crosses in `turn_run_nation_ticks`; tax in `ai_king`;
+OpenCol: dock immigrants / crosses in `turn_run_nation_ticks`; tax in `ai_king`;
 atomic `5e52` **PARKED** — `5be8`/`5930` are king-audience and FF-grant
 functions, out of `europe.c`'s domain (`ai_king.c`/`founding_fathers.c`), not
 attempted from the Europe-screen side (2026-08-24 re-check).
@@ -290,7 +290,7 @@ Cite: **58787–58929** (phase 4 attrition already in table above).
 
 For `g=0..0xf`: seed from `DS:0x53ea[g]`; add nation ledgers at
 `(n*0x4f+g)*4 − 0x76fc`. If `param_1==0` and `0x9e12==0`:
-`0x53ea[g] −= (sum >> 7)`. Linux approximates with colony stock `>>7`.
+`0x53ea[g] −= (sum >> 7)`. OpenCol approximates with colony stock `>>7`.
 
 ### Phase 2 — cargos **9..12**
 
@@ -367,7 +367,7 @@ linear address, unlike the canonical project's own segment-prefixed
 ## Dock-immigrant "equip before boarding" — investigated, disproven, don't build
 
 User asked whether a dock colonist can be equipped with tools/muskets/
-horses before boarding a ship (Linux currently can't — `EuropeDockImmigrant`
+horses before boarding a ship (OpenCol currently can't — `EuropeDockImmigrant`
 only carries `profession`). The only DOS candidate is the dock-immigrant
 action mega-dialog, `FUN_38fd_3746` (**61212-64066**, 2854 lines, catalog
 "board/orders", real Ghidra corruption warnings above its declaration:

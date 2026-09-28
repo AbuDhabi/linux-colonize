@@ -12,11 +12,11 @@
  * (Brave type 19 → flags 0x38). Other unit kinds use different bases in the
  * same scorer and are out of scope here.
  *
- * Reference only — not compiled into the Linux binary.
+ * Reference only — not compiled into the OpenCol binary.
  *
  * 2026-09-06 — NO home-village tether in this dir loop. Verified by grep:
  * zero DS:0x8db8 reads anywhere in the LAB_521d_4ea9 body
- * (viceroy_unpacked.asm lines ~152400-156000). The Linux emp picker's
+ * (viceroy_unpacked.asm lines ~152400-156000). The OpenCol emp picker's
  * "home_dist > 2 → score -= home_dist*3" term (ai.c ai_native_pick_dir_emp,
  * deleted 2026-09-14) was empiricism-fit, NOT DOS; wiring it into the default asm picker broke
  * golden_ai_turns TURN6→7 (DOS moves the Apache Brave at (43,53) to the
@@ -96,7 +96,7 @@ extern int unit_index_on_tile(int x, int y);
 extern int diplomacy_flags(int self_nation, int other_nation);
 extern int unit_type_combat_byte(int unit_type);
 
-/* Direction deltas at DS:0xbe / 0xb4 — same order as Linux k_ai_dir8_*. */
+/* Direction deltas at DS:0xbe / 0xb4 — same order as OpenCol k_ai_dir8_*. */
 static const int k_dir8_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
 static const int k_dir8_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
 
@@ -191,7 +191,7 @@ int quiet_score_facing(int score, int dir, int last_dir) {
  * Brave type 19 has combat byte 0 → enters the path; early NEW WORLD usually
  * finds no war-flagged foreign combat units → often a no-op.
  * Annotated: diplomacy_flags stub returns 0 → −10 never fires here.
- * Linux cutover walks the live unit pool when diplomacy is wired.
+ * OpenCol cutover walks the live unit pool when diplomacy is wired.
  */
 int quiet_score_military_minus10(
   int score,
@@ -319,7 +319,7 @@ int quiet_score_colony_pull(int score, int colony_count) {
    * a corruption signal, just this rendering style plus a stale line
    * cite pointing at an unrelated function's real (non-thunk) call.
    *
-   * **Real target, already known**: `FUN_5fef_1b0e` — Linux's own
+   * **Real target, already known**: `FUN_5fef_1b0e` — OpenCol's own
    * `combat_apply_1b0e_peels` (`combat.md`), the open-field combat-
    * strength formula `atk = ((terrain_stash+4)*atk>>2)*3>>1`. Its
    * return here (`iVar20`) feeds directly into this block's own score

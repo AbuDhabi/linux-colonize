@@ -271,7 +271,7 @@ spawn + fort VGA chrome.
 
 ## FUN_* index
 
-| DOS | Linux |
+| DOS | OpenCol |
 |-----|-------|
 | `FUN_157e_004a` | `combat_unit_base_x8` |
 | `FUN_157e_015e` | `combat_engagement_strength` |

@@ -43,7 +43,7 @@ existing note that the real per-unit act is a separate mechanism
 (`func_0x00042191` / `indian_unit_act`, decomp_inventory.md), not inline
 in `1816`.
 
-Linux: [`src/core/ai_contact.c`](../../src/core/ai_contact.c) +
+OpenCol: [`src/core/ai_contact.c`](../../src/core/ai_contact.c) +
 `ai_indian_nation_turn` in [`ai.c`](../../src/core/ai.c). **Partial structural
 port** — odd deviations OK; not T3.
 
@@ -51,7 +51,7 @@ port** — odd deviations OK; not T3.
 
 Annotated shell (quiet path only for act):
 
-| # | DOS section | Linux |
+| # | DOS section | OpenCol |
 |---|-------------|-------|
 | 1 | Reseed LCG (`04ca`); set active nation = indian+4 | `ai_nation_reseed` |
 | 2 | Select indian context + chrome | (no-op / turn cursor) |
@@ -64,7 +64,7 @@ Annotated shell (quiet path only for act):
 | 9 | Meet / trade / raid (other paths; not inside `14fe`) | post-pulse `ai_contact_indian_meet_trade` / `…_raids` |
 
 Alarmed / mission branches inside unit act: **PARKED** (`2154` / `2820` / `4528`).
-Thin Linux meet arm (**after** first-contact treaty): human Brave×Euro
+Thin OpenCol meet arm (**after** first-contact treaty): human Brave×Euro
 adjacency does **not** write refuse-talk / gift chrome (village dialog
 PARKED). AI Euros skip auto-trade/gift when `alarm_by_player >= 55` or
 relation `< 40`.
@@ -73,14 +73,14 @@ Unmet first contact uses `@INDIANWELCOME` on **land** units only (not ships)
 Teach-skill / missionary convert remain tribe-adjacency pulses with status
 when the Euro is human.
 
-### Prelude deepen (Linux `ai_contact_indian_prelude`)
+### Prelude deepen (OpenCol `ai_contact_indian_prelude`)
 
 1. Clamp `alarm_by_player` band. **Flag-body escalate RETIRED 2026-09-09**
    (smell #72): it had no DOS counterpart. 1816 §2 (viceroy 81558-81599) is the
    WoI defection (`ai_contact_indian_woi_defect`) — ±100 relation, mission clear,
    musket/horse windfall, latch at indian record **+3** bit 0x20
    (`woi_defect_resolved`); it never touches `alarm_by_player` or friction.
-   Linux's escalate latched `unknown31_flags` = record **+6**, a byte no DOS
+   OpenCol's escalate latched `unknown31_flags` = record **+6**, a byte no DOS
    export reads (offset tally over all three exports: +0/+2/+3/+5/+7/+8/+10
    only), so both the once-per-nation latch and the `alarm < 30` band were
    invented.
@@ -172,11 +172,11 @@ corroborating site, `FUN_4d56_4528`, is itself the already-known corrupted
 decompile). Implementing a guessed polarity would make the AI silently do
 the *opposite* of DOS on every already-met encounter — worse than not
 porting it. **Stays PARKED** until the popup string table becomes
-recoverable. Linux's current stand-in (`ai_contact.c:3673-3703` — CHOICE
+recoverable. OpenCol's current stand-in (`ai_contact.c:3673-3703` — CHOICE
 menu for humans, silent auto-trade/gift-demand for AI) remains what
 ships. The underlying data fields (`t->alarm[e].friction`/`.attacks`,
 `ind->contact_state[e]`, `ind->alarm_by_player[e]`) do already exist in
-Linux with confirmed exact offset matches to DOS's `0x8d4a`/`0x8d4e`
+OpenCol with confirmed exact offset matches to DOS's `0x8d4a`/`0x8d4e`
 selected-record fields, so *if* the string blocker ever lifts, this is a
 behavior-only port, not a new-struct one.
 
@@ -191,14 +191,14 @@ placeholder-resolution risk), calls only resident helpers — no local
 overlay self-calls. Confirms the checklist below is working from
 trustworthy source, not a correction.
 
-## Meet / trade `5bfb_022e` checklist (Linux)
+## Meet / trade `5bfb_022e` checklist (OpenCol)
 
 0. **First contact** (`FUN_5bfb_022e` unmet / `FUN_5bfb_0182`): when
    `met_by_player` is clear, **land** unit adjacency to a village
    (`col1_contact_adjacent_tribe` / `game_loop`) **or** Brave adjacent to a
    **land** Euro during Indian turn enqueues **CONTACT_WELCOME** Yes/No
    (`@INDIANWELCOME`). Ships are skipped (natives do not hail vessels; DOS
-   meet gates ocean). DOS ORs met bit `0x20` before the dialog — Linux sets
+   meet gates ocean). DOS ORs met bit `0x20` before the dialog — OpenCol sets
    `met_by_player` when welcome is shown.
    - **Yes** → `FUN_5bfb_0182` stand-in: peace bit `euro_diplo[euro] |= 0x40` (`COL1_INDIAN_PEACE_BIT`; was parked on `unknown33`),
      relation floor so refuse-talk (`< 40`) cannot fire next tick; OK
@@ -325,7 +325,7 @@ CONTACT_RAID OK with status. Deep DOS dialog chrome (VGA-identical) stays
 + nested `2aac…311e` haggle stays **PARK only**.
 Scout `359c` warn-on-displace **deleted 2026-09-18** (bugs.md #499 — `359c` is the Enter-Hostile-Village wagon outcome, not an anti-Scout sweep)
 (alarm **≥95**, ~¼ kill even when a flee tile exists; 90..94 prefer displace).
-Linux still kills when displace is blocked.
+OpenCol still kills when displace is blocked.
 
 **Las Casas** (PEDIA `@FATHER24` / `docs/fandom_col1994.md`): existing Indian
 converts (`NAMES` `@JOB` Convert / profession 27) assimilate as free colonists
@@ -371,7 +371,7 @@ FUN_65dd_0004 case/redirect graph **Done 2026-08-27** (`units_lcr_roll_outcome`,
 `src/core/units.c`; static read only — see `docs/mysteries_catalog.md` 65dd entry
 for the terrain/counter/case-identity resolution).
 
-### Teach-skill profession map (Linux)
+### Teach-skill profession map (OpenCol)
 
 **RETIRED 2026-09-23 (bugs.md #573, #779).** The nation→default table and the
 `last_sold` override below were port inventions; the live port draws the skill
@@ -421,11 +421,11 @@ remain **PARKED**. Player meet/trade/gift/teach **status chrome thinned**; **wid
   meet/raid decision matrix; nested trade `2aac` (good dispatch) → `2af6` /
   `2bbc` (AI buy) / `2b92` / `311e` (demand / no-deal); choice loops,
   hard-bargain tension, per-good price arms; alarmed-branch dialog dispatch.
-  Linux meet path keeps thin trade-goods→alarm + gift/demand / teach /
+  OpenCol meet path keeps thin trade-goods→alarm + gift/demand / teach /
   convert status only — **not** a 2820 port. Peels: `layer_b_combat_raid`,
   `layer_b_2a1f_midlo`. Cite: `docs/ai_transcription.md` FUN_4d56_2820.
 - **Done (structural unpark #1):** player meet/trade/raid/gift/teach **dialog widgets**
-  (`5bfb_102a` / `1092`, teach chrome) — Linux: status + `ai_popups` OK/CHOICE
+  (`5bfb_102a` / `1092`, teach chrome) — OpenCol: status + `ai_popups` OK/CHOICE
   enqueue + `ai_contact_apply_popup_result` (thin handlers incl. gift/demand
   amount CHOICE); VGA-identical dialog chrome still PARKED
 - Full skill-from-`@TRIBES` flavor-good string parse — **Done** as trade-flavor
@@ -453,7 +453,7 @@ remain **PARKED**. Player meet/trade/gift/teach **status chrome thinned**; **wid
   (Separate from the DOS-literal `@INDIANWAGONS`/`@INDIANCITY` reparations demand
   ported 2026-09-08 as `ai_contact_try_village_reparations` — that one is
   `LAB_5bfb_0def` with the real Hand-them-over / refuse CHOICE and the
-  `word += 0x80` decline; this row remains the Linux friction-band stand-in
+  `word += 0x80` decline; this row remains the OpenCol friction-band stand-in
   reached from `ai_contact_gift_or_demand`.)
 - **Done (thin `@INDIANSCONVERT` / `@INDIANBURN`):** convert names colony; mission
   burn names tribe. (`@INDIANCOMMENT` retired with the encroachment bumps.)

@@ -167,9 +167,9 @@ the sail loop); a busy hull only takes an attack pick from it, never a step
 Work-queue layout (AI goals): id @ `−0x5f24`, score @ `−0x5f22`, count byte
 `−0x5f20`, flag `−0x5f1f` — same family as `euro_goals.c` work queue.
 
-## Linux thin vs OPEN
+## OpenCol thin vs OPEN
 
-| Behavior | Linux | OPEN |
+| Behavior | OpenCol | OPEN |
 |----------|-------|------|
 | Ocean step toward goto | `ai_euro_ocean_score_step` (HS west/east bias, fort avoid) — the port's own; DOS walks a committed goto via FUN_6662 | — |
 | Idle / adjacent-foe wander | **Ported 2026-09-15**: `ai_euro_20e6_ship_wander_act` → `_ship_far_roam` + `_wander_step` ship arms (see "Ship wander") | — |

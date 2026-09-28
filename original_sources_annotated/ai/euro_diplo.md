@@ -4,11 +4,11 @@ Layer D hygiene for bilateral flags + war/ally policy. Quiet Brave
 `diplomacy_flags` stub: [`accessors.c`](accessors.c). Indian meet/raid:
 [`indian_contact.md`](indian_contact.md).
 
-Linux: [`src/core/ai_diplo.c`](../../src/core/ai_diplo.c) — **partial structural
+OpenCol: [`src/core/ai_diplo.c`](../../src/core/ai_diplo.c) — **partial structural
 port**. Odd deviations OK; not T3.
 
 > **RETIRED 2026-09-06 (port_plan T2.4) — read before trusting the alliance
-> sections below.** The whole Linux-only Euro alliance machinery was deleted:
+> sections below.** The whole OpenCol-only Euro alliance machinery was deleted:
 > `ai_diplo_form_alliance` / `ai_diplo_break_alliance[_ctx]`, `ai_diplo_fa_gift`,
 > ally treasury cost / treaty-min / trust penalty / Indian sticky raise /
 > ally-aid / longevity helpers, the `euro_balance` ALLY arms, the treaty-timer
@@ -42,17 +42,17 @@ Decomp addressing (`viceroy_unpacked.c:9056-9117`; older citations of
 
 Both sides of the pair span the whole **0..11** nation space and `peer` is a
 raw index into a **12-wide row**, so the accessor is a 12×12 matrix spread
-over four quadrants — all four resolved to live Linux fields 2026-09-08, see
+over four quadrants — all four resolved to live OpenCol fields 2026-09-08, see
 the dated note at the end of this file. **PORT DEBT retired** (the old
-"Indian branch has no Linux mirror" framing was stale twice over; full map
+"Indian branch has no OpenCol mirror" framing was stale twice over; full map
 of the Indian half in [`indian_euro_23000_matrix.md`](indian_euro_23000_matrix.md)).
 
-Linux Euro×Euro stand-in (316-byte / `0x13c` nation record):
+OpenCol Euro×Euro stand-in (316-byte / `0x13c` nation record):
 
 | Slot | Use |
 |------|-----|
 | `nation[a].euro_relation[b]` | **Peer diplo flags** (DS −0x77c4 / `FUN_15b3_*`) — WAR/PEACE/ALLY/MET |
-| `nation[a].unknown26[0..3]` | Treaty timers toward peer (6d8e §4) — Linux stand-in |
+| `nation[a].unknown26[0..3]` | Treaty timers toward peer (6d8e §4) — OpenCol stand-in |
 | `nation[a].unknown26[8]` | Indian hostility sticky (`0` clear / `1` at-war / `2` very-low deepen) |
 | `nation[a].unknown26[9]` | Wartime Privateer spawn mask (`bit peer` = commissioned once this war) |
 
@@ -60,7 +60,7 @@ Linux Euro×Euro stand-in (316-byte / `0x13c` nation record):
 `15b3` peer flags — reading them as WAR false-commissioned Privateers on
 seed-100 TURN1→2 while `euro_relation[]` stayed zero (peace).
 
-### Bit constants (DOS-derived 2026-08-27, T1.19 — Linux `ai_diplo.h` matches)
+### Bit constants (DOS-derived 2026-08-27, T1.19 — OpenCol `ai_diplo.h` matches)
 
 | Bit | Name | DOS writers |
 |-----|------|-------|
@@ -98,7 +98,7 @@ euro_nation_turn (6d8e)
 | `FUN_5bfb_102a` / `1092` / `0182` | dialogs | thin `ctx->status` **Done**; widgets **OPEN** (unpark #1 / #5) |
 | `FUN_3f41_*` | FA advisor | **PARKED** (R15: no further thin gap — ally-aid + FA gift only; full F2–F9 report bodies / dialog UI stay parked) |
 
-### Benjamin Franklin NW peace (Linux)
+### Benjamin Franklin NW peace (OpenCol)
 
 Cite: `docs/fandom_col1994.md` — King’s European wars no longer affect New World
 relations; Europeans in the New World always offer peace in negotiations.
@@ -113,7 +113,7 @@ Gate: `founding_fathers_franklin_keeps_nw_peace` (either peer owns FF).
   peaceful). Elect via `founding_fathers_tick` clears Euro×Euro WAR.
 - FA `3f41` full UI stays **PARKED**. No gold fiction.
 
-### Thin `153e` war sting (Linux)
+### Thin `153e` war sting (OpenCol)
 
 On first `ai_diplo_declare_war` (not already at war; Franklin pair already returned):
 
@@ -145,7 +145,7 @@ Embargo lift (thin; leftover bits only — declare no longer sets them):
 - Raw PEACE-only writes (clear WAR without those APIs) do **not** lift; Jakob Fugger / FF boycott forgive may clear bits later — full lift chrome **PARKED**
 - Privateer prize is WAR-gated in `euro_balance` and **null-units only** — `make_peace` stops further prizes (no dedicated prize-clear flag); with units → spawn-only
 
-### Thin make-peace (Linux)
+### Thin make-peace (OpenCol)
 
 `ai_diplo_make_peace(col1, a, b)` — dedicated PEACE path (not ally):
 
@@ -158,7 +158,7 @@ Embargo lift (thin; leftover bits only — declare no longer sets them):
 
 `ai_diplo_euro_balance` at-war peer visit: after upkeep, if military scores are in the ally-eligible near-parity band (`self>10`, `other>10`, `|self−other|<15`) **and** peer treaty timer is **0** (war fatigue / aged) and RNG `1/30`, call `make_peace_ctx` (status when human involved: `"Peace concluded with %s"` / Tools lift chrome). No low-gold / invented tribute.
 
-### Thin war/peace status chrome (Linux)
+### Thin war/peace status chrome (OpenCol)
 
 Contact/King pattern — thin `ctx->status` stand-in for `102a`/`1092` (widgets **OPEN**):
 
@@ -204,7 +204,7 @@ sign and from `153e`'s PEACE tail; live as `ai_diplo_wake_border_garrisons`
 — it's actually already mapped above, §"`15b3` bilateral bytes"):**
 `FUN_15b3_0004`/`0032` is dual-mode — Euro owner (`<4`) addresses
 `*(peer + nation*0x13c − 0x77c4)`, exactly `nation[a].euro_relation[b]`
-(confirmed, already the live Linux field, `ai_diplo_read`/`write`'s
+(confirmed, already the live OpenCol field, `ai_diplo_read`/`write`'s
 backing store); Indian owner (`≥4`) addresses a **separate** table at
 `*(peer + nation*0x4e + 23000)` — that Indian branch is the real remaining
 gap, already correctly called out below as full-matrix PORT DEBT.
@@ -213,21 +213,21 @@ gap, already correctly called out below as full-matrix PORT DEBT.
 the Indian branch (e.g. `FUN_4cc6_0092`, Indian-nation-type elimination
 paralleling the already-ported `FUN_43f7_0108`) can't be safely ported by
 just widening the existing bounds check — the `23000`/`0x4e` table itself
-has no Linux mirror yet, and it's unclear which of that record's 78 bytes
+has no OpenCol mirror yet, and it's unclear which of that record's 78 bytes
 are meaningful vs. reserved. Real next-step candidate, but a new-struct
 project (comparable to the `0x8d4a` settlement-record pass), not a quick
 follow-up — flagging rather than guessing at the table layout.
 **Superseded 2026-09-08 — see the byte-audit note directly below; the
-"no Linux mirror / new-struct project" conclusion was wrong on both counts.**
+"no OpenCol mirror / new-struct project" conclusion was wrong on both counts.**
 
 ### `15b3` quartet byte-audit — Done 2026-09-08
 
 Four DOS bodies read in full (`viceroy_unpacked.c:9056-9117`, cross-read
 against the thunk bodies at `33044`/`33054`/`33094` and `43826`). Result:
 the accessor is **one 12×12 relation matrix in four quadrants**, and every
-quadrant already has a Linux field — nothing new to model.
+quadrant already has an OpenCol field — nothing new to model.
 
-| DOS address | Quadrant | Linux field |
+| DOS address | Quadrant | OpenCol field |
 |---|---|---|
 | `peer + nation*0x13c − 0x77c4`, `peer<4` | Euro × Euro | `nation[n].euro_relation[peer]` |
 | same row, `peer 4..11` | Euro × Indian | `nation[n].relation_by_indian[peer−4]` |
@@ -263,7 +263,7 @@ argument unchanged), so after OR-ing / AND-NOT-ing the same mask into both
 directions the masked halves are always equal. Nothing to port. Their return
 value (the `(a,b)` post-value) is discarded at every call site
 (`42413`, `73554/73555`, `74825`, `75593`, `80819`, `80858/80861`), so the
-Linux `void` signatures stand.
+OpenCol `void` signatures stand.
 
 Port change: `ai_diplo_flag_byte`/`_const` are now the four-quadrant map and
 the quartet's range check widened `0..3` → `0..11` (`src/core/ai_diplo.c`).
@@ -276,7 +276,7 @@ the quartet's range check widened `0..3` → `0..11` (`src/core/ai_diplo.c`).
 branch is reachable only by new callers. `ai_diplo_clear_both` also stopped
 hand-rolling its store and now goes through `ai_diplo_write` like the OR
 side. The self-pair virtual (`read` returns `PEACE|ALLY`, `write` is a
-no-op) is a **deliberate Linux substitution kept as-is** — DOS has no
+no-op) is a **deliberate OpenCol substitution kept as-is** — DOS has no
 self-pair case at all, `euro_relation[n][n]` is never written and reads 0;
 `ai_goals.c`'s 20e6 land-claim gate already bypasses the accessor for the
 byte-faithful read, and `ai_king` 2244 relies on the virtual.
@@ -289,7 +289,7 @@ re-implementation of this accessor and takes the **wrong quadrant** for
 `MET` + a WAR bit derived from `ai_diplo_indian_at_war`. Routing it through
 the now-dual-mode `ai_diplo_read` would be byte-faithful but is a live
 regression until `relation_by_indian`'s WAR bit (`0x02`) is actually
-maintained on the Linux side — today only `ai_contact.c:529` (`= 96`) and
+maintained on the OpenCol side — today only `ai_contact.c:529` (`= 96`) and
 `ai.c:4879` (`= 0`) ever write that row, so the real byte carries no war
 information and the three 20e6 consumers (`ai_euro.c:11892/11910/11949`,
 one of them the golden-sensitive `(rel & 0x60) != 0x20` neighbour penalty)
@@ -315,7 +315,7 @@ prescribed order and the synthesiser deleted:
   (byte 0x60); the synthetic bare `MET` wrongly penalised them.
 ctest 60/60, goldens byte-green.
 
-### Thin alliance treasury + treaty timer (Linux)
+### Thin alliance treasury + treaty timer (OpenCol)
 
 On `ai_diplo_form_alliance` (Euro×Euro):
 
@@ -325,7 +325,7 @@ On `ai_diplo_form_alliance` (Euro×Euro):
 - Flags still clear WAR and set ALLY|PEACE|MET as before
 - Full `13b0` gold/score gates **PARKED**
 
-### Thin break-alliance trust penalty (Linux)
+### Thin break-alliance trust penalty (OpenCol)
 
 On `ai_diplo_break_alliance` when the pair **was** allied:
 
@@ -334,7 +334,7 @@ On `ai_diplo_break_alliance` when the pair **was** allied:
 - Re-break when not allied does **not** re-penalize or re-hit Indians
 - Timer-expiry and `euro_balance` RNG break both go through this path
 
-### Thin FA / ally foreign aid (Linux)
+### Thin FA / ally foreign aid (OpenCol)
 
 Stand-in for Foreign Affairs ally-aid chrome; full `FUN_3f41_*` body + dialogs **PARKED**.
 
@@ -344,7 +344,7 @@ In `ai_diplo_euro_balance`, once per allied peer visit (before break check):
 - Transfer **10** gold from this nation to the ally
 - At-war peers skip (upkeep-only path); no aid when donor below 50 or peer already ≥ half
 
-### Thin FA goodwill gift (Linux)
+### Thin FA goodwill gift (OpenCol)
 
 Separate from ally-aid; still a thin `3f41` stand-in (FA dialog UI **PARKED**).
 
@@ -360,7 +360,7 @@ Wired from `ai_diplo_euro_balance` (after ally-aid, before break check):
 - If gift gold gates fail (timer still **1**) → longevity **+1** both treaty timers (**no** second gold transfer)
 - Goodwill refresh even if peer is not "poor" (unlike the 10g aid path); aid and gift stay independent
 
-### Thin peaceful Indian relation drift (Linux)
+### Thin peaceful Indian relation drift (OpenCol)
 
 Called at end of `ai_diplo_treaty_timers` (6d8e §4 path):
 
@@ -368,7 +368,7 @@ Called at end of `ai_diplo_treaty_timers` (6d8e §4 path):
 - Else for each of 8 `relation_by_indian[i]`: if `< 160`, **+1** (cap **160**)
 - Stand-in only; full Indian×Euro `15b3` bilateral matrix is **OPEN** (unpark #5)
 
-### Thin Indian×Euro matrix stand-in (Linux)
+### Thin Indian×Euro matrix stand-in (OpenCol)
 
 Gates reuse contact conventions (not new combat numbers):
 
@@ -405,7 +405,7 @@ API / behavior:
 - sticky **== 2** also skips **FA gift** to allied peers (no 15g transfer); longevity
   timer+1 still applies when timer==1 (no gold). Ally-aid 10g unchanged.
 
-## Linux checklist
+## OpenCol checklist
 
 **Stale-row note 2026-09-07f:** items **6, 7, 8** name functions deleted by
 T2.4 (2026-09-06) — `ai_diplo_form_alliance`, `ai_diplo_break_alliance`,
@@ -751,7 +751,7 @@ value range and the readers are byte-confirmed; the *names* "belligerence"
 etc. are inference from how the columns are consumed, not from any string
 in the binary.
 
-### Linux
+### OpenCol
 
 `ai_diplo_leader_trait(ctx, nation, column)` in `src/core/ai_diplo.c`
 (declared in `ai_diplo.h`; lives there rather than in `ai_euro.c` because

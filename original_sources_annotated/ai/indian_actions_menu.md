@@ -10,7 +10,7 @@ overlay decompile for those literals, and (c) reading the `.asm` where Ghidra
 dropped `PUSH imm16` suffix arguments (`FUN_0000_d9b4(auStack_c)` with the
 suffix missing = a `LEARN`+`MASTER`/`ALREADY`/`SLOW`/`LATER`/`DONE` strcat).
 
-Linux: `src/core/ai_contact.c` (`ai_contact_enqueue_village_meet`,
+OpenCol: `src/core/ai_contact.c` (`ai_contact_enqueue_village_meet`,
 `ai_contact_live_among_natives`, `ai_contact_speak_with_chief`,
 `ai_contact_demand_tribute`, `ai_contact_denounce_heresy`,
 `ai_contact_establish_mission`, `ai_contact_enter_hostile_village`) and
@@ -34,7 +34,7 @@ dlg = FUN_1000_9372()                            ; load CHOICE, rows from NAMES 
 ```
 
 `alarm` = `FUN_1000_84fc(slot, e)` = `indian.alarm_by_player[e]` (0..100).
-`village.attitude[e]` is the int16 at settlement `+0xa+e*2` (Linux
+`village.attitude[e]` is the int16 at settlement `+0xa+e*2` (OpenCol
 `tribe.alarm[e]` friction|attacks<<8).
 
 Row enabling (`FUN_1000_8212(row)` + `LAB_1000_9365` per row; asm
@@ -61,11 +61,11 @@ default → nothing.
 Before the human menu the same function auto-routes AI / mode entries
 (`caseD_6..a/2` at `0x472f`): unskilled Free Colonist (0x1c) or Indentured
 Servant (0x19) with `8d68 ≥ 0` and alarm < 0x4b → mode 5 (Live Among). The
-Linux port keeps its per-turn `ai_contact_teach_skill` pulse for AI nations
+OpenCol port keeps its per-turn `ai_contact_teach_skill` pulse for AI nations
 and routes humans through the menu.
 
 **Not in DOS:** a "Gift" village action. Gold gifts do not exist; goods gifts
-are the 2820 trade flow's gift arm (already ported). The Linux
+are the 2820 trade flow's gift arm (already ported). The OpenCol
 `AI_CONTACT_CHOICE_GIFT` handler is kept for its amount-CHOICE path but is no
 longer listed.
 
@@ -154,7 +154,7 @@ else: @EXTORTLAUGH (tribe)
 FUN_4cc6_00f2(slot, e, bump)
 ```
 
-The census bytes are recomputed live on Linux (`ai_contact_land_combat_sum`,
+The census bytes are recomputed live in OpenCol (`ai_contact_land_combat_sum`,
 same `combat_unit_base_x8(mode 1)` value the incite price uses).
 
 ## `thunk_FUN_1000_a594` — Denounce Heresy
@@ -166,7 +166,7 @@ for each village v of the tribe:
   c = (n == foreign ? theirs += s : n == e ? mine += s : s)
   if v has a mission: c += v.population; ×2 if +5 & 0x10 (Jesuit); ×2 if capital
                       owner == e ? mine += c : pro_me += c
-jesuit_me = unit profession == 3 per the decompile literal (Linux: is_jesuit_grade)
+jesuit_me = unit profession == 3 per the decompile literal (OpenCol: is_jesuit_grade)
 cap = village+3 & 0x04 (value 4 when set)
 pro_me += alarm[foreign] << cap ;  mine += alarm[e] >> ((1 - cap) & 0x1f)
 d_me = quartile(mine)+1 ; d_them = quartile(pro_me)+1
@@ -228,11 +228,11 @@ if price > 0:
 Conclusions that unblock the old P8.5 note: "Take it" has **no** invented
 balance number to guess — nothing happens at the site; encroachment friction is
 the already-ported `FUN_4d56_152e` pass. "Offer gold" is greyed, not hidden,
-when unaffordable (the Linux port drops the row). Outside the dialog (no
+when unaffordable (the port drops the row). Outside the dialog (no
 peace, Minuit, bought tile) DOS founds/clears/builds **without charging**; the
-Linux "need N gold" hard block is gone.
+OpenCol "need N gold" hard block is gone.
 
-Radius correction: Linux `colonies_tile_indian_homeland` used the manual's
+Radius correction: OpenCol `colonies_tile_indian_homeland` used the manual's
 "capital → 2" rule; DOS keys the radius on tech tier (Inca 3, Aztec 2, others
 1) and filters villages by continent. Fixed in `colony.c`.
 
@@ -251,11 +251,11 @@ Speak With Chief.
   heresy roll as `ai_contact_4cc6_03f8` — ring threat sums, colony score by
   buildings/pop/tech/difficulty/distance, continent halving, French and
   Pocahontas halving, mission-owner scaling of the best score. The
-  building count reads the 48 building bits (`colony+0x84..0x89`), Linux
+  building count reads the 48 building bits (`colony+0x84..0x89`), OpenCol
   `has_building[]`.
 - The a618 RNG reseed base `DS:0x8d80` is `boot_timer` (save row 608,
   written at boot from the clock, not the seed) — DOS's "stable per
-  village" skill only holds within a session; Linux seeds from the village
+  village" skill only holds within a session; OpenCol seeds from the village
   position, so it is stable across sessions. Nothing left to name.
 - `FUN_1000_8d68` = `FUN_15eb_0902` = `DS:0x30e[unit type]` default
   profession `{19,21,20,24,23,22,-1,23,-1,21,-1…}`; ≥ 0 only for
@@ -264,7 +264,7 @@ Speak With Chief.
   gates apply. Documented in `ai_contact_classify_unit`.
 - Establish Mission's `%STRING1` fallback table (`-0x7c74` = `DS:0x838c`)
   holds non-string words in the unpacked image (`0x14bc` → `MENUCOLR.SS`);
-  probably overlay-relative. Linux keeps `player.country_name`. Cosmetic.
+  probably overlay-relative. OpenCol keeps `player.country_name`. Cosmetic.
 - P8.4 raid defence (the "stockade/soldier defense odds" half) — the
   `FUN_5fef_0f14` head is now ported into `ai_contact_pick_raid_kind`:
   walls = `FUN_281f_0ab0(0)` = Stockade→Fort→Fortress chain count,

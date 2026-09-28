@@ -59,11 +59,11 @@ Colonization `.PIK` layout (after MADSPACK explode):
 | 1 | Indexed 8-bit pixels (`width * height`) |
 | 2 | Optional VGA palette (768 bytes = 256×RGB, 6-bit DAC values) |
 
-The Linux port decompresses MADSPACK/FAB and blits `.PIK` images. The main menu uses `OPENMENU.PIK` with its embedded palette, then overlays `@BEGINMENU` as a shared **popup window** (`OPENTILE.SS` fill, 3px wood bevel chrome from `src/core/popup.c`, `@width`/`@y`/`@smallfont` → `FONTTINY.FF`). Text colors come from `NAMES.TXT` `@COLORS` (`basic=68`, `{hilite}=149`, `select=138` on WOODPANL / in-game palettes; remapped by RGB onto `OPENMENU.PIK` so the title menu matches Colonizopedia greens — see `src/core/ui_colors.h`). Border colors (`border0/1/2`) are remapped the same way. Version line is `{COLONIZATION} Linux Port` + `COLONIZE_VERSION_STRING`. `CCBKGD.PIK` is the Continental Congress / Founding Fathers background.
+The port decompresses MADSPACK/FAB and blits `.PIK` images. The main menu uses `OPENMENU.PIK` with its embedded palette, then overlays `@BEGINMENU` as a shared **popup window** (`OPENTILE.SS` fill, 3px wood bevel chrome from `src/core/popup.c`, `@width`/`@y`/`@smallfont` → `FONTTINY.FF`). Text colors come from `NAMES.TXT` `@COLORS` (`basic=68`, `{hilite}=149`, `select=138` on WOODPANL / in-game palettes; remapped by RGB onto `OPENMENU.PIK` so the title menu matches Colonizopedia greens — see `src/core/ui_colors.h`). Border colors (`border0/1/2`) are remapped the same way. Version line is `{COLONIZATION} OpenCol Port` + `COLONIZE_VERSION_STRING`. `CCBKGD.PIK` is the Continental Congress / Founding Fathers background.
 
 ### Popup window
 
-Colonization uses the same wood dialog chrome for many confirmations and prompts. The Linux port exposes it as a reusable template in `src/core/popup.c` / `popup.h`:
+Colonization uses the same wood dialog chrome for many confirmations and prompts. The port exposes it as a reusable template in `src/core/popup.c` / `popup.h`:
 
 | Layer (outside → in) | Size | Color (`NAMES.TXT` `@COLORS`) |
 |----------------------|------|-------------------------------|
@@ -115,7 +115,7 @@ Each terrain byte (FreeCol `ColonizationMapLoader` / MAPEDIT):
   - `0x80` with `0x20` → mountain; with `0x40` → major river; alone unused for land art
 
 Forest indices 8–15 use bit 3; 16–23 use bit 4 (same eight forest types on cleared land 0–7).
-The Linux port decodes the index as `byte & 0x1f`.
+The port decodes the index as `byte & 0x1f`.
 
 ### Map terrain index (bits 0–4)
 
@@ -201,7 +201,7 @@ Authority for static map art is decompiled **`MAPEDIT.EXE` /
 Compile-time toggles `MAP_COAST_OVERLAYS_ENABLED` / `MAP_ESTUARY_OVERLAYS_ENABLED`
 (default **1** in `src/core/map.h`) exist only to disable coast/estuary for debugging.
 
-The Linux port draws cleared terrain from `TERRAIN.SS` (bits 0–4), then composites `PHYS0.SS` in MAPEDIT order:
+The port draws cleared terrain from `TERRAIN.SS` (bits 0–4), then composites `PHYS0.SS` in MAPEDIT order:
 
 1. **Base** — land TERRAIN, or coastal **underlayer** (last cardinal land neighbour’s TERRAIN)
 2. **Land transitions** (`FUN_1a47_06da`, land tiles only) — PHYS0 **104+q** colour-0 edge, then neighbour TERRAIN into holes; ocean neighbours resolve via land cardinals W→S→E→N
@@ -308,7 +308,7 @@ DOS layout: 15×12 main view (see `MENU.TXT` zoom levels) leaves an 80px strip. 
 | Tile stack | `ICONS.SS` + `NAMES.TXT` `@ORDERS` | Units on the tile **plus everyone aboard a transport on it** (COL1 keeps carried units in the same tile chain), re-ordered like `FUN_1427_04d6` (transports, then Treasure, then descending `@UNIT` size class). One 18px row each: chrome icon at x=242, text at x=260 — tools / profession / treasure gold / inline cargo icons / orders. Move Pieces skips the selected unit (it has its own block); View Pieces lists everything. A foreign-owned stack collapses to one `<Nationality> <Type>` row for the top unit, and only when its visibility bit is set. Listing stops at `y >= 0xb8` with the `@CTITLE` `(More)` marker |
 | Date + gold + tax | Campaign calendar + `EuropeScreen` gold/tax | First row at y=0x33: `Spring 1492`; second `Gold:N$  Tax: N%` — DOS runs the amount straight onto its `@CTITLE` label with no separator, then two spaces before `Tax:`. Both rows are drawn in every mode, AI turns included (`FONTTINY.FF`, `@COLORS` basic) |
 | Tile details | `NAMES.TXT` / WorldMap `improve` (Col1 mask fallback) / colonies / units | Under Locat: ownership (explored land only), `(Terrain)`, features (plow/road/river/resource/rumour), colony or native camp (`ICONS.SS` **#0–3** / **#10–13**). A fogged tile gets a single `(Unexplored)` line instead |
-| Village trade intel (Linux-only) | `ICONS.SS` **#22–37** | Under the native camp line: `Buys:` row (goods named by @BRING / @BADCARGO / @CHIEFHOWDY) and `Sells:` row (@BUYWHICH), 13px rows, icons in one shared column; each row only once that dialog has been shown to the player. Side table `village_trade_intel.c` keyed by settlement tile and European nation — persisted in the save's port extension block (`VTIN` chunk, docs/savegame.md), wiped by `ai_contact_reset` (new game / Load, before `col1_bridge_apply` restores it) and on village removal. `render_map_panel … buys=a,b,c sells=a,b,c` seeds it |
+| Village trade intel (OpenCol-only) | `ICONS.SS` **#22–37** | Under the native camp line: `Buys:` row (goods named by @BRING / @BADCARGO / @CHIEFHOWDY) and `Sells:` row (@BUYWHICH), 13px rows, icons in one shared column; each row only once that dialog has been shown to the player. Side table `village_trade_intel.c` keyed by settlement tile and European nation — persisted in the save's port extension block (`VTIN` chunk, docs/savegame.md), wiped by `ai_contact_reset` (new game / Load, before `col1_bridge_apply` restores it) and on village removal. `render_map_panel … buys=a,b,c sells=a,b,c` seeds it |
 | Nation box | Turn indicator at `(315,197)` | 5×3 fill in the acting nation's color (`FUN_1984_00aa`), painted at the head of **every** nation's end-of-turn — the human's own production pass included |
 
 Not used for this panel: `WOODPAN2.PIK` (score/fame chrome), `WOODFRAM.SS` (milestone-woodcut frame). Fog-of-war on the minimap is not drawn yet.
@@ -545,7 +545,7 @@ Enter or left-click **skips** the remaining sail frames (QoL; original is hard t
 ### Map generation (NEW WORLD)
 
 VICEROY (not MAPEDIT) builds random maps in `FUN_684c_08c0`
-(`original_sources_decompiled/viceroy_unpacked.c`). The Linux port mirrors that
+(`original_sources_decompiled/viceroy_unpacked.c`). The port mirrors that
 pipeline in `src/core/map_gen.c` into the same three-layer layout as `.MP` files
 (terrain filled; layer2/3 left 0 for gen v1). Size is fixed **58×72** (`0x3a`×`0x48`).
 CUSTOMIZE edits the four UI axes on `CUSTOMIZ.PIK` via `FUN_733a_0270` /

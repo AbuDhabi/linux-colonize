@@ -7,7 +7,7 @@ each own-colony body in `ai_euro_colony_goals` (DOS order: the +0x1e write
 precedes the `+0x1b` ai_flags writes). Resolved call targets, via
 `FUN_1000_X = FUN_281f_(X − 0x81f0)`:
 
-| Raw | Canonical | Meaning | Linux |
+| Raw | Canonical | Meaning | OpenCol |
 |-----|-----------|---------|-------|
 | `FUN_1000_84f2` | `FUN_281f_0302` | `map_tile_in_bounds` | width/height test |
 | `FUN_1000_89d0` / `84d4` | `281f_07e0` / `02e4` | tile stack head / next | `units_id_at` + pool scan |

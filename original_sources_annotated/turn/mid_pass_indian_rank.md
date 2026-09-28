@@ -1,6 +1,6 @@
 # Mid-pass Indian tables + Euro rank
 
-DOS year-loop mid-pass (before EN..DU nation loop), not Linux's full
+DOS year-loop mid-pass (before EN..DU nation loop), not OpenCol's full
 `TURN_PROC_INDIAN`. Bridge: [`between_turns.md`](between_turns.md).
 
 ---
@@ -19,7 +19,7 @@ DOS year-loop mid-pass (before EN..DU nation loop), not Linux's full
 3. Sort scores + perm (`291f_0ed0`→`1cf8_000a`)
 4. Write inverse rank: `DS:0x917c[perm[i]] = i`
 
-**Linux:** `turn_rank_euro_nations` **Done** thin — fills
+**OpenCol:** `turn_rank_euro_nations` **Done** thin — fills
 `ctx->euro_power_rank[]` in `TURN_PROC_SETUP` (0 = strongest). Live colony/pop
 + gold/100; live `land_combat_strength` via census refresh. Diplo military score
 uses place. Not a save DS:0x917c writer (RMW layout PARKED).
@@ -42,7 +42,7 @@ uses place. Not a save DS:0x917c writer (RMW layout PARKED).
 | 2 | For Indian slots 0..7: if `DS:0x5ad9 + 0x4e*slot` (tribe flags) bit7 clear → **`FUN_4d56_1816(slot)`** — the full Indian nation turn. Ghidra labels the call `FUN_41f2_0266`; that is a misresolve (see "Dispatcher — resolved") |
 | 3 | For each colony: bind; for each worked ring tile with owner nibble: if tile owner is Indian (>3) and ≠ colony owner, and no tribe presence → `281f_0704` stamp ownership toward colony nation |
 
-**Linux (2026-09-06d — phases 1 and 3 now real, was "Reshape"):**
+**OpenCol (2026-09-06d — phases 1 and 3 now real, was "Reshape"):**
 `ai_indian_midpass_clear_tables` and `ai_indian_midpass_claim_worked_tiles`
 (`ai.c`), called from `turn.c` immediately before native slot 4 and
 immediately after slot 11 — the same bracket DOS uses. Phase 2 is the
@@ -63,11 +63,11 @@ immediately after slot 11 — the same bracket DOS uses. Phase 2 is the
 - Trap: the DS ring tables are `DS:0xc8` = **dx**, `DS:0xde` = **dy** — the
   reverse of `colonist_work_plot_28c8.md`'s labels (corrected there). Note the DOS order:
 all eight Indian nation turns run **inside the mid-pass, before** the Euro
-0..3 loop; Linux `TURN_PROC_INDIAN` now runs before `TURN_PROC_EURO` too (2026-08-27).
-**2026-08-28 correction for the Linux pipeline:** "before the Euro loop" is
+0..3 loop; OpenCol `TURN_PROC_INDIAN` now runs before `TURN_PROC_EURO` too (2026-08-27).
+**2026-08-28 correction for the OpenCol pipeline:** "before the Euro loop" is
 per year tick; the human's Move Pieces is *inside* that loop, so seen from
 the human's end of turn the order is Euro slots above the human → Indians →
-slots below. Linux now splits `TURN_PROC_EURO` around `TURN_PROC_INDIAN`
+slots below. OpenCol now splits `TURN_PROC_EURO` around `TURN_PROC_INDIAN`
 accordingly (`turn.c` `turn_human_slot`). The `DS:5394 = 3` dump evidence
 is consistent with either reading.
 
@@ -78,7 +78,7 @@ Related: [`indian_contact.md`](../ai/indian_contact.md).
 ## `FUN_4d56_1816` — Indian nation turn (live; overlay-dispatched)
 
 Body annotated in [`indian_nation_turn.c`](../ai/indian_nation_turn.c).
-Linux: `ai_indian_nation_turn` in `TURN_PROC_INDIAN`.
+OpenCol: `ai_indian_nation_turn` in `TURN_PROC_INDIAN`.
 
 ### Mapped (hang dumps 2026-08-10)
 

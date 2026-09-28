@@ -604,7 +604,7 @@ int ai_euro_20e6_wagon_village_errand(
  *   }
  *
  * A DOS passenger is a unit parked at sentinel coords (−2,−2) on the shared
- * tile-stack lists, not an entry in a ship-side array. Linux keeps passengers
+ * tile-stack lists, not an entry in a ship-side array. OpenCol keeps passengers
  * in `cargo_ids` (the same substitution `ai_euro_20e6_ship_cargo_counts` and
  * `ai_euro_20e6_stack_settler` make), so the sentinel park is `units_board`
  * and no (−2,−2) coordinate ever reaches the unit pool or the save. Nothing
@@ -676,7 +676,7 @@ int ai_euro_20e6_wagon_village_errand(
  *
  * So +0x314c only ever carries 0/1 in this sweep.
  *
- * Linux tile substitution: DOS ships berth ON the colony tile, so 10be's own
+ * OpenCol tile substitution: DOS ships berth ON the colony tile, so 10be's own
  * tile stack already holds the marked land units. This port berths ships on
  * adjacent water (`ai_euro_tiles_near`, same substitution the arrival block
  * and the 06e load block make), so the sweep covers the ship's tile plus any
@@ -837,7 +837,7 @@ static int ai_euro_20e6_transport_assemble(
      * is the only one that recruits — which is why the 2026-09-07e port with
      * the mark arm alone matched the goldens.
      *
-     * Linux mapping: passengers live in `cargo_ids`/`aboard_ship_id` rather
+     * OpenCol mapping: passengers live in `cargo_ids`/`aboard_ship_id` rather
      * than in a shared sentinel bucket, so the units the two arms re-attach
      * are exactly the ones the `aboard_ship_id >= 0` skip above already keeps
      * attached — the arms are ported for the cases that skip does NOT cover:
@@ -1052,7 +1052,7 @@ static int ai_euro_20e6_ship_berth_arrival(
     const int moved =
       colonies_transfer_from_unit(ctx->colonies, c->id, ctx->units, ship->id, hold, NULL);
     if (moved <= 0) {
-      break; /* warehouse refused (Linux-only clamp) — do not spin */
+      break; /* warehouse refused (OpenCol-only clamp) — do not spin */
     }
     dumped += moved;
     if (trace) {
@@ -1387,7 +1387,7 @@ int ai_euro_try_ship_trade_haul(
   int from_tip = 0;
   if (!have_dest) {
     /*
-     * Queue tip only (2026-09-07): the Linux-only nearest-short-coastal-colony
+     * Queue tip only (2026-09-07): the OpenCol-only nearest-short-coastal-colony
      * fallback is retired — DOS has no such scan. An empty queue drops the
      * ship to LAB_457e's arms (HS cadence / Europe export / explore band),
      * exactly where the dispatcher chain sends a declined ship here.
@@ -1756,7 +1756,7 @@ int ai_euro_has_useful_goto(const ColonizeUnit* u, const ColonizeWorldMap* map) 
  * separately by the LAB_521d_4d2e wander scorer's attack term). Decomp scans all 8 neighbors via `FUN_281f_0696`
  * (`euro_settlement_owner`) and stamps orders `0x46` the moment any
  * neighbor is owned by a different, non-crown Euro nation. 2026-09-28: the
- * claim that "Linux checks war state too" that stood here was stale — this
+ * claim that "OpenCol checks war state too" that stood here was stale — this
  * body has no at-war gate (matching DOS); `ai_diplo_at_war` appears only in
  * the tail, to decide whether the seize DECLARES a war. One seize per call —
  * re-armed next act pass like the decomp reflex check.
@@ -1920,7 +1920,7 @@ static int ai_euro_20e6_goal_on_continent(int nation, int cid, int want_mil) {
 
 /*
  * FUN_281f_08bc (= FUN_1427_0d38) stack-query counts over the ship's cargo
- * (DOS: tile stack — carried units share the ship's tile there; Linux keeps
+ * (DOS: tile stack — carried units share the ship's tile there; OpenCol keeps
  * them in cargo_ids, the equivalent set for a ship at sea). Modes ndisasm-
  * confirmed at the LAB_3558 call block (viceroy_overlays.asm 136292-136330,
  * literal PUSHes) against the byte-exact 0d38 case bodies (2026-09-06):
@@ -2000,7 +2000,7 @@ void ai_euro_20e6_ship_cargo_counts(
  *  - a654 per-unit goal id for the goal fold: nation-level FOUND/MIL_EXPAND
  *    goal existence (see the fold comment in the body).
  *  - presence bit 0x08 of −0x6a0e: writer undecoded — read as 0.
- *  - DS:0x1740 recall latch (5bfb full-recall event): no Linux producer — 0.
+ *  - DS:0x1740 recall latch (5bfb full-recall event): no OpenCol producer — 0.
  */
 /*
  * `a654` — resolved 2026-09-06e, and it is NOT a per-unit goal binding.
@@ -2023,7 +2023,7 @@ void ai_euro_20e6_ship_cargo_counts(
  * 2 Pioneer and 5 Scout (k_20e6_type_flags); every ship type carries
  * 0x81/0x82/0xa2, so a carrier never selects itself and an empty ship yields
  * -1 — which is why the fold's `-1 < iStack_68` gate is meaningful and not
- * vacuous. Linux keeps carried units in cargo_ids rather than on the ship's
+ * vacuous. OpenCol keeps carried units in cargo_ids rather than on the ship's
  * tile stack, the same substitution ai_euro_20e6_ship_cargo_counts makes.
  */
 static const ColonizeUnit* ai_euro_20e6_stack_settler(
