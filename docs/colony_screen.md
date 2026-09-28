@@ -194,6 +194,44 @@ that isn't a minimap hit confirms via `game_do_end_turn`. Pending check is
 exhausted-units test looked only at `moves`, so it wrongly counted
 Fortified/Sentried units as pending).
 
+### Building hover label + right-click pedia
+
+`FUN_2f2b_44d4` has two arms behind the same slot scan. The one this port
+already had is the assign/click arm; the other fires when `DS:0x7f6 == 0`
+(pointer move, no drag): it caches the hovered building in `DS:0xb9a`
+(`DS:0xb9b` = a label is up, so it can be erased), and calls `FUN_2f2b_05ee`,
+which concatenates the building's name string (table at `DS:0x8f82`, stride
+12), measures it (`FUN_281f_0204`), clamps `x = slot_x + [0x230+cls]/2 -
+(w+1)/2` into the settlement panel and draws it in ink 15.
+
+The Ghidra output loses `FUN_2f2b_05ee`'s geometry; the ndisasm body
+(`OVL03_L0000:05ee`) has it:
+
+```
+bw = [cls+0x230]; bh = [cls+0x236]; w1 = strwidth(name) + 1; h = 7;
+lx = x + bw/2 - w1/2;
+ly = y;                                    /* caller passes slot_y + 8 */
+if (cls == 2 || cls == 4 || building < 0) ly += bh/2 - h/2;
+lx = clamp(lx, 0, 0xc7 - w1);              /* 0xc7 = 199 */
+fill(lx, ly, w1, h); text(lx + 1, ly + 1, name, ink 15);
+```
+
+So the label sits on the hovered building's **top edge** — not the panel's top
+row — and only the two wide size classes (2 and 4) drop it to the middle of
+the box. The caller's `+8` is this port's `COLONY_VIEWPORT_Y` origin.
+
+Ported as `ColonyScreenView.hover_building_row` (set each frame in
+`game_update_colony_screen` from `colony_screen_hit_test`, cleared while any
+sub-dialog or drag is up) plus a tail block in `colony_screen_blit_buildings`.
+Only the backdrop fill colour is approximate — DOS's is a windowed save-under
+blit through `DS:0x2da8..0x2dae`, not re-measured against a golden.
+
+Right-click on a built building opens its Colonizopedia article
+(`PEDIA_CAT_BUILDING`; `@BUILDING` row order *is* the pedia building index)
+and returns to the colony screen on exit, matching the area-view tile's
+right-click terrain article. Unbuilt slots are not hoverable or right-clickable
+— the slot scan runs past them (bugs.md #430).
+
 ### Debug: Building Rects
 
 `MAP_MENU_ACTION_DEBUG_BUILDING_RECTS` (DEBUG pulldown, `debug.building_rects`,

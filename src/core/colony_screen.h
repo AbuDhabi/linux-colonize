@@ -288,6 +288,11 @@ typedef struct ColonyScreenView {
   int selected_colonist;
   int selected_outside_unit; /* map unit id, or -1 */
   bool show_production_numbers;
+  /* DOS FUN_2f2b_44d4's hover arm (DS:0x7f6 == 0 branch, DS:0xb9a caches the
+   * last-labelled building): pointing at a built settlement building draws its
+   * name (FUN_2f2b_05ee) centred over the building at the top of the
+   * settlement panel. Building-type index, or -1 when nothing is hovered. */
+  int hover_building_row;
   ColonyMultiMode multi_mode;
   int selected_cargo; /* warehouse cargo highlighted for =/+ load; -1 none */
 
