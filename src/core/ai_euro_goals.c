@@ -507,6 +507,17 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
          * longer has to dodge it. The `>= 10` arm is the one that carries the
          * AI courses.
          */
+        /* DOS day-top clears spent MP regardless of orders (raw 6357).
+         * Undo the port's overnight Sentry park when 0a60 activates a
+         * landed AI unit; preserve the goal bytes as DOS does (#530). */
+        if (ai_euro_ship_dos_enabled() && u->orders == UNITS_ORDER_SENTRY &&
+            u->aboard_ship_id < 0 && u->park_nights > 0) {
+          const int gx = u->goto_x;
+          const int gy = u->goto_y;
+          units_wake(ctx->units, u->id);
+          u->goto_x = gx;
+          u->goto_y = gy;
+        }
         if ((u->orders >= AI_EURO_ACT_ADJACENT && u->col1_ai_plan != 0x31) ||
             (u->orders >= 1 && u->orders <= 3)) {
           u->orders = UNITS_ORDER_NONE;
@@ -1058,7 +1069,16 @@ static void ai_euro_0a60_village_producers(
   *io_mask_found = mask_found;
 }
 
+/* FUN_521d_0a60 DS:173c/173e, consumed by 20e6's shore scan. */
+uint16_t ai_euro_s_0a60_mask_mil[4];
+uint16_t ai_euro_s_0a60_mask_found[4];
+
 static void ai_euro_0a60_settlement_goal_producers(ColonizeTurnContext* ctx, int nation_id) {
+  if (nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  ai_euro_s_0a60_mask_mil[nation_id] = 0;
+  ai_euro_s_0a60_mask_found[nation_id] = 0;
   if (!ctx || !ctx->map || !ctx->units || !ctx->colonies) {
     return;
   }
@@ -1120,6 +1140,9 @@ static void ai_euro_0a60_settlement_goal_producers(ColonizeTurnContext* ctx, int
     ctx, nation_id, map, have_col1, turn, col_cnt, land_cnt, &mask_mil_expand,
     &mask_found
   );
+  ai_euro_s_0a60_mask_mil[nation_id] = mask_mil_expand;
+  ai_euro_s_0a60_mask_found[nation_id] = mask_found;
+
 }
 
 /* --- FUN_5952_035e colony threat accumulator ---------------------------- */

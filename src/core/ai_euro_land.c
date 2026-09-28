@@ -1634,7 +1634,12 @@ static int ai_euro_land_explore_scan_target(
           if (d < 6) {
             const int rel = ai_diplo_indian_alarm(ctx->col1, (int)v->nation_id, nation_id);
             const int quart = rel < 25 ? 0 : rel < 50 ? 1 : rel < 75 ? 2 : 3;
-            int base = ((int)v->population + quart + 3) * 2;
+            /* FUN_521d_20e6 raw 89200: DS:8d4e points to the Indian
+             * nation record (15dc:0006), whose +2 is tech, not village
+             * population. The wrong penalty displaced the #530 site. */
+            const int ind = (int)v->nation_id - 4;
+            const int tech = ctx->col1->indian[(ind >= 0 && ind < 8) ? ind : 0].tech;
+            int base = (tech + quart + 3) * 2;
             if (vcid != s.cid) {
               base >>= 1;
             }
@@ -3378,7 +3383,9 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
    * oscillate between two tiles forever.
    */
   int landed_settle = 0;
-  if (ctx->colonies && colonies_count_for_nation(ctx->colonies, nation_id) == 0) {
+  /* #530: the DOS path reaches the real 2912 founding-site scan below. */
+  if (!ai_euro_ship_dos_enabled() && ctx->colonies &&
+      colonies_count_for_nation(ctx->colonies, nation_id) == 0) {
     const ColonizeUnitKind fkind = ai_euro_unit_kind(ctx->units, u);
     if (ai_euro_name_is_pioneer(fkind) || fkind == UNITS_KIND_COLONIST) {
       int lx = 0;
@@ -3703,6 +3710,15 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
       }
       return 0;
     }
+  }
+  if (ai_euro_ship_dos_enabled()) {
+    /* LAB_2e3a -> 27f5 -> FUN_521d_20c6: bind, then let 5b66 walk.
+     * The fitted movement scorer consumed an extra RNG draw here. */
+    if (is_roam) {
+      u->col1_ai_plan = 0x32; /* 2e40: MOV DX,0032 before calling 20c6 */
+    }
+    ai_euro_set_goto(u, AI_EURO_ACT_GOAL, gx, gy);
+    return 0;
   }
   int dx = 0;
   int dy = 0;

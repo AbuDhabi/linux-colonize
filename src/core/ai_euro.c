@@ -2229,7 +2229,8 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   }
   /* First-colony land may wake sentry (moves was 0). Ships still need MP. */
   const int is_ship_early = ai_euro_is_ship_type(ctx->units, u->id);
-  if (!is_ship_early && ai_euro_try_first_colony_land(ctx, u, nation_id)) {
+  if (!ai_euro_ship_dos_enabled() && !is_ship_early &&
+      ai_euro_try_first_colony_land(ctx, u, nation_id)) {
     return;
   }
   if (u->moves <= 0) {
@@ -2449,6 +2450,18 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * not a unit act. The garrison_quota == 0 admit that used to sit here cited
    * only test-saves-ai/TURN4–5 and was deleted (sibling of bugs.md #512).
    */
+
+  /* FUN_521d_5b66 cases 0b/0c (overlay asm 139947): the same pathfinder
+   * walks hulls and land units. Avoid the fitted land-role/move ladder
+   * under the DOS opening switch (#530); case 7 was handled above. */
+  if (ai_euro_ship_dos_enabled()) {
+    if (u->orders == AI_EURO_ACT_GOAL || u->orders == AI_EURO_ACT_STEP) {
+      ai_euro_goal_walk_479b(ctx, u);
+    } else {
+      u->moves = 0;
+    }
+    return;
+  }
 
   struct ai_euro_act_ctx a;
   memset(&a, 0, sizeof(a));
@@ -2914,6 +2927,8 @@ void ai_euro_reset(void) {
   /* Save-backed latch: goes through its own accessor, not a raw memset. */
   ai_euro_wagon_errand_clear_all();
   memset(ai_euro_s_0a60_work_registered, 0, sizeof(ai_euro_s_0a60_work_registered));
+  memset(ai_euro_s_0a60_mask_mil, 0, sizeof(ai_euro_s_0a60_mask_mil));
+  memset(ai_euro_s_0a60_mask_found, 0, sizeof(ai_euro_s_0a60_mask_found));
   ai_euro_s_5d04_ctx = NULL;
   ai_euro_s_5d04_nation = -1;
   memset(ai_euro_s_5d04_hire_scratch, 0, sizeof(ai_euro_s_5d04_hire_scratch));

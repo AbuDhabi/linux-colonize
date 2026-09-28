@@ -1903,33 +1903,17 @@ int ai_euro_land_try_adjacent_village_seize(ColonizeTurnContext* ctx, ColonizeUn
 /* (The ai_euro_foreign_land_threat_near helper was deleted with the invented
  * peace colony-defence wake arm, bugs.md #760.) */
 
-/*
- * DS:0x173c / 0x173e continent bitmasks (FUN_521d_0a60 goal producers, raw
- * ~1157/1273 of euro_goal_orders_0a60_full.md). Linux's 0a60 producers are
- * still the thin ai_euro_colony_goals stand-in, so the masks are derived from
- * the live goal table instead: a FOUND-class primary goal on the continent
- * stands in for 0x173e, a MILITARY/MIL_EXPAND one for 0x173c.
- */
-static int ai_euro_20e6_goal_on_continent(
-  const ColonizeTurnContext* ctx, int nation, int cid, int want_mil
-) {
-  if (cid < 0) {
+/* FUN_521d_0a60 raw 87935/87938/88050 records the LAND continent
+ * independently of its ocean goal tile; 20e6 reads those masks directly
+ * (raw 89515/89552). Re-deriving them from goal coordinates loses that
+ * distinction and suppresses a valid unload (#530). */
+static int ai_euro_20e6_goal_on_continent(int nation, int cid, int want_mil) {
+  if (nation < 0 || nation >= 4 || cid < 0 || cid >= 16) {
     return 0;
   }
-  for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
-    const AiGoalSlot* g = ai_goals_primary(nation, i);
-    if (!g || g->code == AI_GOAL_EMPTY) {
-      continue;
-    }
-    const int is_mil = (g->code == AI_GOAL_MIL_EXPAND || g->code == AI_GOAL_MILITARY);
-    if (want_mil ? !is_mil : g->code != AI_GOAL_FOUND) {
-      continue;
-    }
-    if (map_continent_id_at(ctx->map, (int)g->x, (int)g->y) == cid) {
-      return 1;
-    }
-  }
-  return 0;
+  const uint16_t mask = want_mil ? ai_euro_s_0a60_mask_mil[nation]
+                                 : ai_euro_s_0a60_mask_found[nation];
+  return (mask & (1u << cid)) != 0;
 }
 
 /*
@@ -2278,7 +2262,7 @@ int ai_euro_20e6_unload_mask(ColonizeTurnContext* ctx, ColonizeUnit* ship, int n
       if (probe1 != 0) {
         mask |= 0x40;
       }
-      if (ai_euro_20e6_goal_on_continent(ctx, nation, cid, 0)) {
+      if (ai_euro_20e6_goal_on_continent(nation, cid, 0)) {
         mask |= 0x40; /* DS:0x173e */
       }
     }
@@ -2310,7 +2294,7 @@ int ai_euro_20e6_unload_mask(ColonizeTurnContext* ctx, ColonizeUnit* ship, int n
       if (probe7 != 0 || probe1 != 0) {
         mask |= 0x10;
       }
-      if (ai_euro_20e6_goal_on_continent(ctx, nation, cid, 1)) {
+      if (ai_euro_20e6_goal_on_continent(nation, cid, 1)) {
         mask |= 0x10; /* DS:0x173c */
       }
     }

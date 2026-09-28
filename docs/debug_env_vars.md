@@ -8,7 +8,7 @@ comparing golden output.
 
 | Var | File:line | Kind | Effect | Default |
 |-----|-----------|------|--------|---------|
-| `AI_SHIP_DOS` | `src/core/ai_euro.c` (`ai_euro_ship_dos_enabled`) | **behaviour** | bugs.md #530 prototype: AI hulls act through the DOS-literal `FUN_521d_5b66` + 20e6 hull path (`ai_euro_act_ship_dos`) instead of the fitted first-colony ship band; also turns off the invented FOUND producers and ports the #528 turn-top clear of act states 1-3. Fails `golden_ai_turns` TURN2+ (RNG alignment) | off |
+| `AI_SHIP_DOS` | `src/core/ai_euro_act.c` (`ai_euro_ship_dos_enabled`) | **behaviour** | bugs.md #530 prototype: DOS hull path plus land founding-site scan and shared 479b goal walk; bypasses fitted opening producers/land approaches. Passes TURN1→2 through TURN3→4; TURN4→5 onward still differs. Evidence: `docs/ai_first_colony_trace.md` | off |
 | `DOS_RNG_TRACE` | `src/core/dos_rng.c:10` | trace | Logs every RNG draw with a running index | off |
 | `AI_LCG_AUDIT` | `src/core/ai.c` (`ai_lcg_audit_enabled`) | trace | Logs init-pulse `pick_dir` burn counts (phase 5) | off |
 | `AI_INIT_SCHED` | `src/core/ai_brave.c` (`ai_init_sched_apply`) | **behaviour** | `"n:idx:count[:R];..."` — init-pulse burn schedule sweep: burn `count` draws before Brave `idx` of nation `n` picks (`idx=-1` = before the pulse; `R` = reseed to the pulse seed first). Normal play adds no draws. `golden_mapgen_seed100` is the oracle | unset |
