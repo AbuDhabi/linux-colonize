@@ -33,6 +33,20 @@ void game_destroy(ColonizeGameState* game);
 void game_set_platform(ColonizeGameState* game, ColonizePlatform* platform);
 bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint32_t dt_ms);
 void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette);
+
+/*
+ * Port-only message log strip below the 320x200 screen (settings.json
+ * display.window_log_lines; core/window_log.h holds the lines). Called by the
+ * host loop with the FULL-height framebuffer, after game_render has drawn the
+ * screen into its 320x200 top part — every screen renderer centres and clears
+ * by fb->height, so the game itself must never see the taller buffer. Pass the
+ * palette game_render just produced: the strip's WOODPANL-family indices are
+ * remapped into it, so the wood and the text stay right on screens that carry
+ * a palette of their own (title menu, new-game wizard, cinematics).
+ */
+void game_render_window_log(
+  const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, const ColonizePalette* palette
+);
 const char* game_status_text(const ColonizeGameState* game);
 /* Build/toggle SDL mouse cursor from CURSOR.SS when the pointer is over the 320x200 frame. */
 void game_apply_mouse_cursor(

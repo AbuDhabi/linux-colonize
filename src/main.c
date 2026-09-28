@@ -8,6 +8,7 @@
 #include "core/text_edit.h"
 #include "core/settings.h"
 #include "core/sound.h"
+#include "core/window_log.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
@@ -144,11 +145,17 @@ int main(int argc, char** argv) {
     "MADSPACK .PIK/.SS art and the MAPEDIT-faithful map compositor are live."
   );
 
+  /* Port-only message log strip under the screen; windowed mode only, and the
+   * framebuffer grows with it so game_render can paint it (core/window_log.h). */
+  const int log_strip_h =
+    cli.windowed ? window_log_strip_height(settings_get()->window_log_lines) : 0;
+
   ColonizePlatformConfig platform_cfg = {
     .data_dir = cli.data_dir,
     .windowed = cli.windowed,
     .no_sound = cli.no_sound,
-    .window_scale = cli.window_scale
+    .window_scale = cli.window_scale,
+    .extra_height = log_strip_h
   };
 
   ColonizePlatform* platform = platform_create(&platform_cfg);
@@ -219,10 +226,10 @@ int main(int argc, char** argv) {
 
   diag_info("Diagnostics log path (for bug reports): %s", diag_log_path());
 
-  uint8_t framebuffer_pixels[320 * 200];
+  static uint8_t framebuffer_pixels[320 * (200 + WINDOW_LOG_MAX_STRIP_H)];
   ColonizeFramebuffer8 framebuffer = {
     .width = 320,
-    .height = 200,
+    .height = 200 + log_strip_h,
     .pixels = framebuffer_pixels
   };
   ColonizePalette palette;
@@ -247,7 +254,11 @@ int main(int argc, char** argv) {
       running = false;
     }
     game_apply_mouse_cursor(game, platform, input.mouse_x, input.mouse_y);
-    game_render(game, &framebuffer, &palette);
+    /* The game draws into the 320x200 top part only; the log strip below is
+     * painted after, so no screen renderer sees the taller framebuffer. */
+    ColonizeFramebuffer8 screen_fb = {.width = 320, .height = 200, .pixels = framebuffer_pixels};
+    game_render(game, &screen_fb, &palette);
+    game_render_window_log(game, &framebuffer, &palette);
     platform_set_window_title(platform, game_status_text(game));
     if (!platform_present(platform, &framebuffer, &palette)) {
       running = false;

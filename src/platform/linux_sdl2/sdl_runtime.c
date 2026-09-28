@@ -16,7 +16,8 @@ struct ColonizePlatform {
   SDL_Texture* texture;
   uint32_t* rgba_buffer;
   int width;
-  int height;
+  int height;      /* texture / framebuffer rows, screen + log strip */
+  int game_height; /* the 320x200 screen part; mouse never reports below it */
   int window_scale;
   bool audio_enabled;
   SDL_AudioDeviceID audio_device;
@@ -107,7 +108,13 @@ static void sdl_audio_callback(void* userdata, Uint8* stream, int len) {
 
 ColonizePlatform* platform_create(const ColonizePlatformConfig* config) {
   const int width = 320;
-  const int height = 200;
+  const int game_height = 200;
+  int extra = (config && config->extra_height > 0) ? config->extra_height : 0;
+  /* Log strip is a windowed-mode affordance; fullscreen keeps 320x200. */
+  if (!(config && config->windowed)) {
+    extra = 0;
+  }
+  const int height = game_height + extra;
   int scale = 2;
   if (config && config->window_scale > 0) {
     scale = config->window_scale;
@@ -145,6 +152,7 @@ ColonizePlatform* platform_create(const ColonizePlatformConfig* config) {
 
   platform->width = width;
   platform->height = height;
+  platform->game_height = game_height;
   platform->window_scale = scale;
   platform->default_cursor = SDL_GetDefaultCursor();
   platform->window = SDL_CreateWindow(
@@ -320,8 +328,10 @@ static void mouse_to_logical(
   if (lx >= platform->width) {
     lx = platform->width - 1;
   }
-  if (ly >= platform->height) {
-    ly = platform->height - 1;
+  /* The log strip is not part of the game screen: a pointer over it reads as
+   * the bottom screen row, so map / panel hit tests never see y >= 200. */
+  if (ly >= platform->game_height) {
+    ly = platform->game_height - 1;
   }
   if (out_x) {
     *out_x = lx;
@@ -545,7 +555,10 @@ bool platform_present(
   const int fb_h = framebuffer->height;
   const int copy_w = fb_w < platform->width ? fb_w : platform->width;
   const int copy_h = fb_h < platform->height ? fb_h : platform->height;
-  if (fb_w != platform->width || fb_h != platform->height) {
+  /* Only a width mismatch leaves stale columns; a shorter framebuffer is the
+   * normal case for the nested modal pumps (their local fb is 320x200), and
+   * the log strip rows below must keep the last full render's pixels. */
+  if (fb_w != platform->width) {
     static bool size_mismatch_warned = false;
     if (!size_mismatch_warned) {
       size_mismatch_warned = true;

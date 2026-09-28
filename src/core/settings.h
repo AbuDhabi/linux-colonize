@@ -80,6 +80,7 @@ typedef struct ColonizeSettings {
    * invalid settings.json key keeps the hardcoded default. */
   bool windowed;
   int window_scale; /* 1..8 */
+  int window_log_lines; /* 0 = off; message strip rows under the screen, windowed only */
   bool no_sound;
   char data_dir[512];
   char save_dir[512]; /* empty = platform default (<exe>/COLONIZE) */

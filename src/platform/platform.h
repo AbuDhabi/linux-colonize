@@ -114,6 +114,9 @@ typedef struct ColonizePlatformConfig {
   bool windowed;
   bool no_sound;
   int window_scale;
+  /* Extra rows below the 320x200 screen for the port-only message log strip
+   * (settings.json display.window_log_lines); 0 = plain 320x200. */
+  int extra_height;
 } ColonizePlatformConfig;
 
 typedef struct ColonizePlatform ColonizePlatform;

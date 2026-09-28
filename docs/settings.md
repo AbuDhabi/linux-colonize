@@ -53,7 +53,7 @@ defaults no matter what file is sitting in the build directory.
     "soundfont": "",
     "midi_backend": ""
   },
-  "display": { "windowed": true, "window_scale": 2 },
+  "display": { "windowed": true, "window_scale": 2, "window_log_lines": 0 },
   "debug": { "menu": false, "mouse_coords": false, "building_rects": false, "logs": false, "trace_autosaves": false },
   "data_dir": "./COLONIZE",
   "save_dir": "",
@@ -71,6 +71,29 @@ means auto-detect (bundled SC-55, then system banks). Unreadable path falls
 back to auto-detect with a logged warning. `sound_options.midi_backend` picks
 the synth: `"fluidsynth"`, `"tsf"` (bundled TinySoundFont), or empty = auto
 (FluidSynth if built in, else TSF); any other string is ignored at load.
+`display.window_log_lines` (default 0, clamped 0..24) adds that many FONTTINY
+rows of message log under the 320x200 screen: the window (and the framebuffer)
+grows by `2 + lines * 7` px — a 1px black rule against the screen, a 1px
+margin, then `WOODTILE.SS` fill with the same screen-aligned grain as the menu
+bar and the map sidebar. Newest entry at the bottom, older ones pushed up; each entry starts with a
+`*` and its wrapped rows line up after it.
+Contents are the popup texts (title + flattened body) as each popup is
+presented (`window_log_push` in `ai_popup.c`), `{}` emphasis markup kept: the
+strip draws it in the popup's yellow (`popup_draw_text_markup`) and uses it to
+decide what survives when a line is too long. `window_log_wrap` (game_loop.c)
+flows one entry over as many rows as it needs, capped at half the strip so a
+long popup cannot evict every older message; words are re-braced per row, so
+emphasis crossing a break stays balanced. Whatever does not fit the last
+allowed row goes through `window_log_fit_line`, which keeps the first two
+words, the last two and every emphasised one, collapsing each dropped run into
+`...`; if that still overflows it gives up the emphasised words
+middle-outwards. The store is `src/core/window_log.c` and
+the strip is painted by `game_render_window_log`, called by the host loop
+*after* `game_render` — every screen renderer clears and centres by
+`fb->height`, so the game itself only ever sees 320x200. Windowed mode only:
+fullscreen ignores the key (`platform_create` zeroes the extra height), and a
+pointer over the strip reads as the bottom screen row.
+
 Port-only keys, no DOS bit, no head bridge.
 `save_dir` empty means the platform default (`<exe>/COLONIZE`). `seed` is
 `null` in a first-run file (same as omitting the key): not set, so the campaign

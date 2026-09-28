@@ -119,6 +119,7 @@
 #include "core/unit_chrome.h"
 #include "core/unit_stack.h"
 #include "core/units.h"
+#include "core/window_log.h"
 #include "core/woodcut.h"
 #include "core/combat_analysis.h"
 #include "core/version.h"
@@ -2234,6 +2235,358 @@ COLONIZE_INTERNAL void game_render_map(
   );
   game_render_map_panel(game, framebuffer, view_x, view_y, view_cols, view_rows);
   game_render_map_dialogs(game, framebuffer, palette);
+}
+
+/*
+ * Fit one log line into `avail` px by dropping the least interesting words.
+ * Kept, in order of claim: the first two words, the last two words, and any
+ * {emphasised} word — the same markup the popup itself highlights. Each run of
+ * dropped words collapses into one "...". Emphasis is re-braced per surviving
+ * word, so the output is always balanced however much was cut.
+ */
+#define WINDOW_LOG_MAX_WORDS 128
+
+/* Split into words, each carrying its own emphasis flag (braces dropped, so
+ * every re-emitted word can brace itself and the markup cannot go unbalanced).
+ * A word straddling a brace keeps the emphasis it started with. */
+static int window_log_split_words(
+  const char* text,
+  char words[WINDOW_LOG_MAX_WORDS][40],
+  bool* hilite
+) {
+  int count = 0;
+  bool hi = false;
+  size_t w = 0;
+  for (const char* p = text;; ++p) {
+    if (*p == '{' || *p == '}') {
+      hi = (*p == '{');
+      continue;
+    }
+    if (*p == '\0' || *p == ' ' || *p == '\t' || *p == '\n') {
+      if (w > 0) {
+        words[count][w] = '\0';
+        count++;
+        w = 0;
+      }
+      if (*p == '\0' || count >= WINDOW_LOG_MAX_WORDS) {
+        break;
+      }
+      continue;
+    }
+    if (w == 0) {
+      hilite[count] = hi;
+    }
+    if (w + 1 < sizeof(words[0])) {
+      words[count][w++] = *p;
+    }
+  }
+  return count;
+}
+
+/* Join words [from, to) back into one marked-up string. */
+static void window_log_join(
+  char* out,
+  size_t out_size,
+  char words[WINDOW_LOG_MAX_WORDS][40],
+  const bool* hilite,
+  int from,
+  int to
+) {
+  size_t at = 0;
+  out[0] = '\0';
+  for (int i = from; i < to; ++i) {
+    char braced[44];
+    const char* piece = words[i];
+    if (hilite[i]) {
+      snprintf(braced, sizeof(braced), "{%s}", words[i]);
+      piece = braced;
+    }
+    const int n = snprintf(out + at, out_size - at, "%s%s", at ? " " : "", piece);
+    if (n <= 0 || (size_t)n >= out_size - at) {
+      break;
+    }
+    at += (size_t)n;
+  }
+}
+
+static void window_log_compose(
+  char* out,
+  size_t out_size,
+  char words[WINDOW_LOG_MAX_WORDS][40],
+  const bool* hilite,
+  const bool* keep,
+  int count
+) {
+  size_t at = 0;
+  bool gap = false;
+  out[0] = '\0';
+  for (int i = 0; i < count; ++i) {
+    const char* piece = NULL;
+    char braced[44];
+    if (!keep[i]) {
+      if (gap) {
+        continue;
+      }
+      gap = true;
+      piece = "...";
+    } else {
+      gap = false;
+      if (hilite[i]) {
+        snprintf(braced, sizeof(braced), "{%s}", words[i]);
+        piece = braced;
+      } else {
+        piece = words[i];
+      }
+    }
+    const int n = snprintf(out + at, out_size - at, "%s%s", at ? " " : "", piece);
+    if (n <= 0 || (size_t)n >= out_size - at) {
+      break;
+    }
+    at += (size_t)n;
+  }
+}
+
+void window_log_fit_line(
+  const ColonizeFont* font,
+  const char* text,
+  int avail,
+  char* out,
+  size_t out_size
+) {
+  snprintf(out, out_size, "%s", text);
+  if (popup_markup_text_width(font, out) <= avail) {
+    return;
+  }
+
+  static char words[WINDOW_LOG_MAX_WORDS][40];
+  static bool hilite[WINDOW_LOG_MAX_WORDS];
+  static bool keep[WINDOW_LOG_MAX_WORDS];
+  const int count = window_log_split_words(text, words, hilite);
+  if (count == 0) {
+    return;
+  }
+  for (int i = 0; i < count; ++i) {
+    keep[i] = true;
+  }
+
+  /* Pass 1: only the first two, last two and emphasised words survive. */
+  for (int i = 0; i < count; ++i) {
+    keep[i] = (i < 2) || (i >= count - 2) || hilite[i];
+  }
+  window_log_compose(out, out_size, words, hilite, keep, count);
+  if (popup_markup_text_width(font, out) <= avail) {
+    return;
+  }
+
+  /* Pass 2: still too wide — give up the emphasised words too, middle first,
+   * then the second word and the second-to-last, until it fits or only the
+   * first and last words are left. */
+  for (int drop = 0; drop < count; ++drop) {
+    int victim = -1;
+    int best = -1;
+    for (int i = 1; i < count - 1; ++i) {
+      if (!keep[i]) {
+        continue;
+      }
+      const int from_middle = (i * 2 > count) ? (i * 2 - count) : (count - i * 2);
+      if (best < 0 || from_middle < best) {
+        best = from_middle;
+        victim = i;
+      }
+    }
+    if (victim < 0) {
+      break;
+    }
+    keep[victim] = false;
+    window_log_compose(out, out_size, words, hilite, keep, count);
+    if (popup_markup_text_width(font, out) <= avail) {
+      return;
+    }
+  }
+
+  /* Last resort: a single word wider than the strip. Chop characters. */
+  size_t len = strlen(out);
+  while (len > 3 && popup_markup_text_width(font, out) > avail) {
+    out[--len] = '\0';
+  }
+}
+
+/*
+ * Word-wrap one log entry over at most `max_lines` rows of `avail` px. Words
+ * are re-braced per line, so emphasis crossing a break stays balanced. When
+ * the text needs more rows than it is allowed, whatever is left is elided into
+ * the last one by window_log_fit_line — so the entry keeps its ending.
+ */
+int window_log_wrap(
+  const ColonizeFont* font,
+  const char* text,
+  int avail,
+  int max_lines,
+  char out[][WINDOW_LOG_LINE_LEN]
+) {
+  if (max_lines < 1) {
+    return 0;
+  }
+  static char words[WINDOW_LOG_MAX_WORDS][40];
+  static bool hilite[WINDOW_LOG_MAX_WORDS];
+  const int count = window_log_split_words(text, words, hilite);
+  if (count == 0) {
+    return 0;
+  }
+
+  int line = 0;
+  int i = 0;
+  while (i < count && line < max_lines) {
+    const int start = i;
+    char candidate[WINDOW_LOG_LINE_LEN];
+    int fit = start; /* first word NOT on this line */
+    while (fit < count) {
+      window_log_join(candidate, sizeof(candidate), words, hilite, start, fit + 1);
+      if (popup_markup_text_width(font, candidate) > avail && fit > start) {
+        break;
+      }
+      fit++;
+    }
+    if (line == max_lines - 1 && fit < count) {
+      /* Out of rows: elide everything still unplaced into this last one. */
+      char rest[WINDOW_LOG_LINE_LEN];
+      window_log_join(rest, sizeof(rest), words, hilite, start, count);
+      window_log_fit_line(font, rest, avail, out[line], WINDOW_LOG_LINE_LEN);
+      return line + 1;
+    }
+    window_log_join(out[line], WINDOW_LOG_LINE_LEN, words, hilite, start, fit);
+    i = fit;
+    line++;
+  }
+  return line;
+}
+
+/*
+ * The strip is drawn in WOODPANL / in-game palette indices, but the screen
+ * above it may be on a palette of its own (OPENMENU on the title menu,
+ * DIFFICUL / NATIONS / CUSTOMIZ in the new-game wizard, cinematics): those
+ * indices then land on whatever colour happens to sit there. Same problem the
+ * title menu solves for its text with menu_col_* — generalised here to every
+ * index, by remapping through nearest-RGB into the palette actually in force.
+ * The 256-entry table is rebuilt only when the live palette changes.
+ */
+static const uint8_t* window_log_palette_map(
+  const ColonizePalette* reference,
+  const ColonizePalette* live
+) {
+  static ColonizePalette cached_ref;
+  static ColonizePalette cached_live;
+  static uint8_t lut[256];
+  static bool have_lut = false;
+  if (have_lut && memcmp(&cached_ref, reference, sizeof(cached_ref)) == 0 &&
+      memcmp(&cached_live, live, sizeof(cached_live)) == 0) {
+    return lut;
+  }
+  cached_ref = *reference;
+  cached_live = *live;
+  for (int i = 0; i < 256; ++i) {
+    lut[i] = assets_palette_nearest_rgb(
+      live, reference->rgb[i][0], reference->rgb[i][1], reference->rgb[i][2]
+    );
+  }
+  have_lut = true;
+  return lut;
+}
+
+/*
+ * Port-only message log strip below the 320x200 screen (settings.json
+ * display.window_log_lines, windowed mode only). Same WOODTILE grain as the
+ * menu bar and the map sidebar, 1px black rule against the screen then a 1px
+ * margin, newest line at the bottom. Nested modal pumps render into their own
+ * 320x200 framebuffer and skip this; platform_present keeps the last strip
+ * pixels.
+ */
+void game_render_window_log(
+  const ColonizeGameState* game,
+  ColonizeFramebuffer8* framebuffer,
+  const ColonizePalette* palette
+) {
+  if (!game || !framebuffer || !framebuffer->pixels) {
+    return;
+  }
+  const int strip_h = framebuffer->height - 200;
+  if (strip_h <= 0) {
+    return;
+  }
+  fb_hline(framebuffer, 200, 0, framebuffer->width - 1, 0);
+  const int fill_y = 201;          /* 1px margin between the rule and row 0 */
+  const int y0 = fill_y + 1;
+  const int rows = (strip_h - 2) / WINDOW_LOG_LINE_H;
+  const ColonizeSpriteSheet* wood =
+    (game->map_panel_ok && game->map_panel.wood_ok) ? &game->map_panel.wood_tile : NULL;
+  if (wood) {
+    map_menu_tile_rect_screen_phase(wood, 0, fill_y, framebuffer->width, strip_h - 1, framebuffer);
+  } else {
+    fb_fill_rect(framebuffer, 0, fill_y, framebuffer->width, strip_h - 1,
+      4 /* WOODTILE-less fallback, map_menu.c MAP_MENU_COL_PANEL */);
+  }
+  /* Wood is painted first, then remapped as a block: the text below is drawn
+   * in already-remapped colours and must not go through the table twice. */
+  uint8_t basic = COLONIZE_COL_BASIC;
+  uint8_t hilite = COLONIZE_COL_HILITE;
+  /* WOODTILE.SS and @COLORS are authored against the in-game palette; WOODPANL
+   * is the stand-in before a game is loaded (game->palette is no help — the
+   * title screen overwrites it with OPENMENU's). */
+  const ColonizePalette* ref =
+    game->map_palette_ok ? &game->map_palette
+    : ((game->pedia_wood_ok && game->pedia_wood.has_palette) ? &game->pedia_wood.palette : NULL);
+  if (palette && ref) {
+    const uint8_t* lut = window_log_palette_map(ref, palette);
+    for (int y = fill_y; y < 200 + strip_h; ++y) {
+      uint8_t* row = &framebuffer->pixels[(size_t)y * (size_t)framebuffer->width];
+      for (int px = 0; px < framebuffer->width; ++px) {
+        row[px] = lut[row[px]];
+      }
+    }
+    basic = lut[COLONIZE_COL_BASIC];
+    hilite = lut[COLONIZE_COL_HILITE];
+  }
+
+  const ColonizeFont* font = game->colony_font_ok ? &game->colony_font
+    : (game->menu_font_ok ? &game->menu_font : NULL);
+  if (!font) {
+    return;
+  }
+  const int x = 2;
+  /* "*" marks where an entry starts; its continuation rows line up after it. */
+  const int bullet_w = font_text_width(font, "* ");
+  const int text_x = x + bullet_w;
+  const int avail = framebuffer->width - text_x - 2;
+  /* One entry may take several rows, but never more than half the strip, so a
+   * long popup cannot push every older message out on its own. */
+  const int cap = rows > 1 ? (rows + 1) / 2 : 1;
+  static char wrapped[WINDOW_LOG_MAX_LINES][WINDOW_LOG_LINE_LEN];
+  int rows_left = rows;
+  for (int age = 0; rows_left > 0; ++age) {
+    const char* line = window_log_line(age);
+    if (!line) {
+      break;
+    }
+    const int n = window_log_wrap(
+      font, line, avail, cap < rows_left ? cap : rows_left, wrapped
+    );
+    if (n <= 0) {
+      break;
+    }
+    rows_left -= n;
+    for (int k = 0; k < n; ++k) {
+      const int y = y0 + (rows_left + k) * WINDOW_LOG_LINE_H;
+      if (k == 0) {
+        font_draw_text(font, framebuffer, x, y, "*", basic);
+      }
+      bool hi = false;
+      (void)popup_draw_text_markup(
+        font, framebuffer, text_x, y, wrapped[k],
+        basic, hilite,
+        /*unbold=*/false, /*shadow=*/false, &hi
+      );
+    }
+  }
 }
 
 void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette) {
