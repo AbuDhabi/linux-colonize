@@ -239,7 +239,9 @@ int units_ship_free_passenger_slots(const ColonizeUnitPool* pool, int ship_id) {
   return free_slots > 0 ? free_slots : 0;
 }
 
-bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id) {
+static bool units_board_stacked_gated(
+  ColonizeUnitPool* pool, int land_unit_id, int ship_id, bool enforce_capacity
+) {
   ColonizeUnit* land = units_get(pool, land_unit_id);
   ColonizeUnit* ship = units_get(pool, ship_id);
   if (!land || !ship) {
@@ -272,8 +274,12 @@ bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id) 
      * used to fit one Galleon.
      */
     const int need = (lt && lt->space > 0) ? lt->space : 1;
-    if (units_ship_capacity(pool, ship_id) <= 0 ||
-        units_ship_free_passenger_slots(pool, ship_id) < need) {
+    if (enforce_capacity &&
+        (units_ship_capacity(pool, ship_id) <= 0 ||
+         units_ship_free_passenger_slots(pool, ship_id) < need)) {
+      return false;
+    }
+    if (!enforce_capacity && land->cargo_count >= COLONIZE_UNIT_CARGO_MAX) {
       return false;
     }
   }
@@ -310,6 +316,28 @@ bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id) 
   land->orders = UNITS_ORDER_SENTRY; /* sentry aboard */
   ship->cargo_ids[ship->cargo_count++] = land_unit_id;
   return true;
+}
+
+bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id) {
+  return units_board_stacked_gated(pool, land_unit_id, ship_id, true);
+}
+
+/*
+ * Restore a saved manifest verbatim: no capacity gate.
+ *
+ * DOS never re-validates a hold on load (the load is a bulk fread of the unit
+ * array), and a DOS-legit state can exceed what the boarding gate would pass
+ * today: FUN_1427_10be budgets room as @UNIT cargo (DS:0x5237) minus
+ * holds_occupied (+0x3150) and does NOT increment +0x3150 for the passenger it
+ * boards, so the later goods-append gate (FUN_15eb_30b8: holds_occupied <
+ * cargo) happily fills every hold behind a passenger's back. A Caravel
+ * (cargo 2) carrying a Scout plus two goods holds is therefore a real DOS
+ * state, and re-running the boarding gate on import dropped the passenger back
+ * onto the map — where it drew on the ship's water tile instead of the ship
+ * (campaign4 COLONY02.SAV: Scout on (44,24) instead of its Caravel).
+ */
+bool units_board_stacked_restore(ColonizeUnitPool* pool, int land_unit_id, int ship_id) {
+  return units_board_stacked_gated(pool, land_unit_id, ship_id, false);
 }
 
 /* units_board = units_board_stacked plus the adjacency gate and the selection

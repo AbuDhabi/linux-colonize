@@ -1802,7 +1802,9 @@ bool col1_bridge_apply_w(
         map_tile_is_land(map, (int)save->unit[i].x, (int)save->unit[i].y)) {
       continue;
     }
-    units_board_stacked(units, id_by_index[i], id_by_index[ship_idx]);
+    /* Manifest restore, not a fresh boarding: no capacity gate (a DOS-legit
+     * hull can be over the gate — see units_board_stacked_restore). */
+    units_board_stacked_restore(units, id_by_index[i], id_by_index[ship_idx]);
   }
 
   /*
@@ -2039,7 +2041,7 @@ static void col1_bridge_sanitize_units_for_dos(
       if (!units_is_sea(units, ship->id) || ship->x != land->x || ship->y != land->y) {
         continue;
       }
-      if (units_board_stacked(units, land->id, ship->id)) {
+      if (units_board_stacked_restore(units, land->id, ship->id)) {
         break;
       }
     }

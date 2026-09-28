@@ -758,6 +758,98 @@ static bool test_port_ext(char* err, size_t err_size) {
   return ok;
 }
 
+/*
+ * A saved manifest imports verbatim, even over the boarding capacity gate.
+ * port_saves/campaign4/COLONY02.SAV: a Caravel (@UNIT cargo 2) on water with
+ * both goods holds full AND a chained Scout passenger — DOS-legit, because
+ * FUN_1427_10be never bumps holds_occupied for a passenger, so the goods
+ * append gate (FUN_15eb_30b8) fills the holds behind it. The import used to
+ * re-run the gate, refuse the board and leave the Scout on the map, where it
+ * drew on the water tile instead of its Caravel.
+ */
+static bool test_import_overfull_ship_keeps_passenger(char* err, size_t err_size) {
+  ColonizeCol1Save save;
+  col1_save_init(&save);
+  save.head.map_size_x = 8;
+  save.head.map_size_y = 8;
+  save.head.unit_count = 2;
+  save.head.difficulty = 2;
+  save.head.human_player = 0;
+  save.player[0].control = 0;
+  col1_save_stamp_head(&save.head);
+  if (!col1_save_alloc_sections(&save, err, err_size)) {
+    return false;
+  }
+  memset(save.map.tile, T_OCEAN, save.map.tile_count);
+  /* slot 0: the Caravel, two goods holds occupied, passenger at chain prev. */
+  save.unit[0].x = 4;
+  save.unit[0].y = 4;
+  save.unit[0].type = 13;
+  save.unit[0].nation_id = 0;
+  save.unit[0].profession = UNITS_JOB_NONE;
+  save.unit[0].holds_occupied = 2;
+  save.unit[0].cargo_item_0 = 12;
+  save.unit[0].cargo_item_1 = 4;
+  save.unit[0].cargo_hold[0] = 32;
+  save.unit[0].cargo_hold[1] = 42;
+  save.unit[0].transport_chain.prev_unit_idx = 1;
+  save.unit[0].transport_chain.next_unit_idx = -1;
+  /* slot 1: the Scout passenger (Sentry orders, same water tile). */
+  save.unit[1].x = 4;
+  save.unit[1].y = 4;
+  save.unit[1].type = 5;
+  save.unit[1].nation_id = 0;
+  save.unit[1].orders = UNITS_ORDER_SENTRY;
+  save.unit[1].profession = UNITS_JOB_NONE;
+  save.unit[1].transport_chain.prev_unit_idx = -1;
+  save.unit[1].transport_chain.next_unit_idx = 0;
+
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units.type_count = 23;
+  for (int t = 0; t < units.type_count; ++t) {
+    units.types[t].movement = 1;
+    units.types[t].domain = (t >= 13 && t <= 18) ? COLONIZE_UNIT_DOMAIN_SEA
+                                                 : COLONIZE_UNIT_DOMAIN_LAND;
+    units.types[t].cargo = (t == 13) ? 2 : ((t >= 14 && t <= 18) ? 6 : 0);
+    units.types[t].space = (t >= 13 && t <= 18) ? 99 : 1;
+  }
+  units_set_occupancy_map(NULL);
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.cargo_count = 16;
+  ColonizeCol1BridgeResult result;
+  bool ok = col1_bridge_apply_w(
+    &(ColonizeWorld){.units=&units, .colonies=&colonies, .map=&map, .col1=&save,
+                     .col1_ok=true, .europe=&europe},
+    &result, err, err_size
+  );
+  if (ok) {
+    const ColonizeUnit* ship = &units.units[0];
+    const ColonizeUnit* pax = &units.units[1];
+    if (pax->aboard_ship_id != ship->id) {
+      snprintf(err, err_size, "chained passenger should import aboard the over-full ship");
+      ok = false;
+    } else if (units_is_on_map(pax)) {
+      snprintf(err, err_size, "imported passenger must not stand on the ship's water tile");
+      ok = false;
+    } else if (units_top_on_map_tile(&units, 4, 4, true, &map) != ship->id) {
+      snprintf(err, err_size, "the ship, not its passenger, must draw on the tile");
+      ok = false;
+    }
+  }
+  units_set_occupancy_map(NULL);
+  col1_save_free(&save);
+  map_free(&map);
+  return ok;
+}
+
 static bool test_imported_tile_chain_order(char* err, size_t err_size) {
   ColonizeCol1Save save;
   col1_save_init(&save);
@@ -915,6 +1007,11 @@ int main(void) {
   if (!test_port_ext(err, sizeof(err))) {
     return 1;
   }
+  if (!test_import_overfull_ship_keeps_passenger(err, sizeof(err))) {
+    fprintf(stderr, "over-full ship passenger import: %s\n", err);
+    return 1;
+  }
+  fprintf(stderr, "Col1 over-full ship keeps its chained passenger ok\n");
   if (!test_imported_tile_chain_order(err, sizeof(err))) {
     fprintf(stderr, "tile-chain order: %s\n", err);
     return 1;
