@@ -3618,6 +3618,16 @@ bool units_resolve_lcr_rumour_w(
     break;
   }
   case COLONIZE_LCR_FOUNTAIN_OF_YOUTH:
+    /*
+     * Order is DOS order (103622-103731): the @LOSTCITY1 announcement goes up
+     * FIRST (`FUN_1d1d_07e4(local_2c,0x1dae)` + `FUN_281f_0182`), then the
+     * 0x37 tune and the woodcut, and only then the eight recruit picks. The
+     * port used to queue the picks first, so the player picked immigrants
+     * before being told a Fountain had been found.
+     */
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_INFO, "LOSTCITY1", nation, -1, 0, &tok,
+      "");
     units_play_event_sound(0x37); /* FUN_65dd_0004 65dd:04a9 case 1: queued tune (281f_048e) */
     /* 65dd:04a9, right after that 0x37: FUN_281f_0524(8), human explorer only. */
     if (nation == human_nation) {
@@ -3673,9 +3683,6 @@ bool units_resolve_lcr_rumour_w(
         europe_nation_refill_pool_slot(col1, nation, 1, false, rng);
       }
     }
-    units_combat_enqueue_tok(
-      AI_POPUP_TAG_INFO, "LOSTCITY1", nation, -1, 0, &tok,
-      "");
     break;
   case COLONIZE_LCR_CIBOLA: {
     units_play_event_sound(0x3c); /* FUN_65dd_0004 65dd:04b6 case 2: queued tune (281f_048e) */
