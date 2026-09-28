@@ -108,13 +108,15 @@ static int reports_naval_goods_icon(int cargo_type, int amount) {
 /*
  * Plural expert label for a passenger row.
  *
- * DOS has no text channel here: the Naval Adviser body `FUN_3f41_1ed8`
- * (raw 70555-70620) draws the ship name once (`FUN_281f_013c`, colony/ship
- * record +2) and then one SPRITE per qualifying passenger
- * (`FUN_281f_02bc(100, 0xffff)`), filtered on the @UNIT attack column
- * (`type*0xe + 0x5236 != 0`) and the type band `< 0xd || > 0x12`. So this
- * column is a port-side readability extension, not a transcription
- * (bugs.md #605).
+ * 2026-09-28: the function this rationale cited, `FUN_3f41_1ed8`, is not
+ * the Naval Adviser at all — it pushes `6` to the plate bring-up and is
+ * F6's Military Garrisons body. The real F7 body is `FUN_3f41_220c` (raw
+ * 70675-70785), and it *does* have a text channel here: every row, ship or
+ * passenger, is named from the @UNIT name table (`type*0xe + 0x5230`). So
+ * this label rule is not just an uncited readability extension (bugs.md
+ * #605) — it is contradicted by the real body, and the fix is tracked as
+ * bugs.md #972. Left in place until that row is worked, since replacing it
+ * piecemeal would regress `naval.png` without the rest of #972.
  *
  * The rule it follows is DOS's own identity rule, the one the map panel's
  * `FUN_49dd_0386` (`units_profession_line`) uses: a unit is named by its
@@ -1088,9 +1090,8 @@ void reports_render_indian(
     /*
      * "Missions" (@MISC #28) and "Horse Herds" (@MISC #45) are real
      * LABELS.TXT words, live-resolved 2026-08-27. "Muskets" is the
-     * NAMES.TXT @CARGO name (reports_cargo_name, 2026-08-28). "Villages"
-     * alone has no match anywhere in LABELS.TXT (only "Villages Burned"),
-     * so it stays hardcoded.
+     * NAMES.TXT @CARGO name (reports_cargo_name, 2026-08-28). The
+     * settlement noun comes from @LEVELS — see the DOS-LITERAL note below.
      */
     char buf[32];
     /* DOS-LITERAL FUN_3f41_010a raw 69557-69564: the settlement noun is the

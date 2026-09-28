@@ -1624,8 +1624,8 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_0364` | 34910 | 10 | thunk | Far thunk → FUN_43f7_0218 (Crown-nation bootstrap: fold status≠0 Euro into peer; set DS:0x53d2) | inferred |  |
 | `FUN_291f_03aa` | 34920 | 10 | thunk | Far thunk → FUN_41f2_0092 (nation score + optional report UI) | inferred |  |
 | `FUN_291f_03b8` | 34930 | 10 | thunk | Far thunk → FUN_3f41_2548 (Foreign Affairs Advisor F8) | inferred |  |
-| `FUN_291f_03c6` | 34940 | 10 | thunk | Far thunk → FUN_3f41_220c (unit disposition list) | inferred |  |
-| `FUN_291f_03d4` | 34950 | 10 | thunk | Far thunk → FUN_3f41_1ed8 (Naval Adviser body) | inferred |  |
+| `FUN_291f_03c6` | 34940 | 10 | thunk | Far thunk → FUN_3f41_220c (Naval Adviser F7 body) | inferred |  |
+| `FUN_291f_03d4` | 34950 | 10 | thunk | Far thunk → FUN_3f41_1ed8 (Colony Adviser F6 Garrisons body) | inferred |  |
 | `FUN_291f_03e2` | 34960 | 10 | thunk | Far thunk → FUN_3f41_1710 (Economic Adviser F5) | inferred |  |
 | `FUN_291f_03f0` | 34970 | 10 | thunk | Far thunk → FUN_3f41_10d8 (Labor Adviser F4) | inferred |  |
 | `FUN_291f_03fe` | 34980 | 10 | thunk | Far thunk → FUN_3f41_06d0 (Religious Adviser F2) | inferred |  |
@@ -1820,12 +1820,12 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_0ee8` | 36870 | 10 | thunk | Far thunk → FUN_3f41_008a (Report footer/title strip blit) | inferred |  |
 | `FUN_291f_0ef6` | 36880 | 10 | thunk | Far thunk → FUN_3f41_1438 (Economic Adviser header chrome; REPORT5) | inferred |  |
 | `FUN_291f_0f04` | 36890 | 10 | thunk | Far thunk → FUN_3f41_1b94 (Colony Adviser header chrome; REPORT6) | inferred |  |
-| `FUN_291f_0f12` | 36900 | 10 | thunk | Far thunk → FUN_3f41_20b4 (Unit disposition report header; column labels) | inferred |  |
-| `FUN_291f_0f20` | 36910 | 10 | thunk | Far thunk → FUN_3f41_1bec (Colony Adviser F6; pop/build/garrison rows) | inferred |  |
+| `FUN_291f_0f12` | 36900 | 10 | thunk | Far thunk → FUN_3f41_20b4 (Naval Adviser F7 header chrome) | inferred |  |
+| `FUN_291f_0f20` | 36910 | 10 | thunk | Far thunk → FUN_3f41_1bec (Colony Adviser F6 Sons of Liberty body) | inferred |  |
 | `FUN_291f_0f2e` | 36920 | 10 | thunk | Far thunk → FUN_3f41_1550 (Economic Adviser colony cargo-stock rows) | inferred |  |
 | `FUN_291f_0f3c` | 36930 | 10 | thunk | Far thunk → FUN_3f41_0d3e (Labor Adviser detail; profession colony placements) | inferred |  |
 | `FUN_291f_0f4a` | 36940 | 10 | thunk | Far thunk → FUN_3f41_0000 (Report plate bring-up; art+palette into 2da8) | inferred |  |
-| `FUN_291f_0f58` | 36950 | 10 | thunk | Far thunk → FUN_3f41_1e80 (Naval/military-in-colony report header chrome) | inferred |  |
+| `FUN_291f_0f58` | 36950 | 10 | thunk | Far thunk → FUN_3f41_1e80 (Colony Adviser F6 Garrisons header chrome) | inferred |  |
 | `FUN_291f_0f66` | 36960 | 10 | thunk | Far thunk → FUN_4345_0982 (Compute next liberty-bell threshold) | inferred |  |
 | `FUN_291f_0f74` | 36970 | 10 | thunk | Far thunk → FUN_4345_024a (FF election / announcement UI screen) | inferred |  |
 | `FUN_291f_0f82` | 36980 | 10 | thunk | Far thunk → FUN_49dd_02d0 (Resolve tile tip string; orders/colony/terrain) | inferred |  |
@@ -2408,11 +2408,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_3f41_1550` | 70212 | 69 | ui | Economic Adviser colony cargo-stock rows | inferred |  |
 | `FUN_3f41_1710` | 70281 | 145 | ui | Economic Adviser (F5): cargo buy/sell ledger table | inferred | docs/assets.md |
 | `FUN_3f41_1b94` | 70426 | 17 | ui | Colony Adviser header chrome (REPORT6 plate) | inferred | docs/assets.md |
-| `FUN_3f41_1bec` | 70443 | 95 | ui | Colony Adviser (F6): per-colony pop/build/garrison rows | inferred | docs/assets.md |
-| `FUN_3f41_1e80` | 70538 | 17 | ui | Naval/military-in-colony report header chrome | inferred |  |
-| `FUN_3f41_1ed8` | 70555 | 75 | ui | Naval Adviser body: combat units docked per colony | inferred | docs/assets.md |
-| `FUN_3f41_20b4` | 70630 | 45 | ui | Unit disposition report header (column labels) | inferred |  |
-| `FUN_3f41_220c` | 70675 | 112 | ui | Unit disposition list (land/naval; orders/dest chrome) | inferred |  |
+| `FUN_3f41_1bec` | 70443 | 95 | ui | Colony Adviser (F6) Sons of Liberty page body: SoL %, building test, worker loop (REPORT6) | inferred | docs/reports.md |
+| `FUN_3f41_1e80` | 70538 | 17 | ui | Colony Adviser (F6) Military Garrisons header chrome (REPORT6, not F7) | inferred | docs/reports.md |
+| `FUN_3f41_1ed8` | 70555 | 75 | ui | Colony Adviser (F6) Military Garrisons page body: stack count/reorder/pitch (REPORT6, not F7) | inferred | docs/reports.md |
+| `FUN_3f41_20b4` | 70630 | 45 | ui | Naval Adviser (F7) header chrome: REPORT7 plate + 4 column labels | inferred | docs/reports.md |
+| `FUN_3f41_220c` | 70675 | 112 | ui | Naval Adviser (F7) body: ship/passenger rows, cargo, location, destination | inferred | docs/reports.md |
 | `FUN_3f41_2548` | 70787 | 247 | ui | Foreign Affairs Advisor (F8): euro rivals, war, strength | inferred | docs/assets.md |
 
 ### Segment `41f2` (9 defs) — ai — Tribe growth (Indian-turn growth tick + message UI)
