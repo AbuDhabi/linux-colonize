@@ -1303,15 +1303,12 @@ void units_fountain_youth_enqueue_pick(
     labels[i] = europe_pool_label(europe, i);
     ids[i] = i;
   }
-  /* @RECRUIT with %NUMBER0 = 0: 4884(1,0) zeroes the passage before drawing
-   * the same list; the FoY tail carries no section of its own. */
-  PopupMsgTokens tok;
-  memset(&tok, 0, sizeof(tok));
-  tok.number0 = 0;
-  tok.has_number0 = true;
+  /* DOS 4884 picks the tag by arm: 38fd:4910 pushes DS:0x10f1 = @LOSTCITY0
+   * for the FoY picks (0x10fb @RECRUITCHOOSE Brewster, 0x1109 @RECRUIT paid).
+   * @LOSTCITY0 takes no tokens - no "0 gold" passage line. */
   char body[AI_POPUP_BODY_LEN];
   if (game_txt) {
-    popup_msg_fill(game_txt, "RECRUIT", &tok, "", body, sizeof(body));
+    popup_msg_fill(game_txt, "LOSTCITY0", NULL, "", body, sizeof(body));
   } else {
     body[0] = '\0';
   }
