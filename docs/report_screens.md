@@ -172,20 +172,29 @@ onto a docked ship, forcing `orders = Sentry` + `aboard_ship_id`:
 native y = 40..180 step 20, column rules x = 82/162/242. Passengers get
 their own row above the ship's. Body font FONTTINY.
 
+**Golden-fitted, not decomp-verified** (2026-09-28). All of the above was
+measured off `naval.png` while reports.md pointed F7 at F6's functions. The
+real pair is `FUN_3f41_20b4` (chrome) + `FUN_3f41_220c` (body); DOS's row
+list, row labels, Location and Destination all differ from the port — see
+reports.md's F7 section and bugs.md #972/#973 before touching this screen.
+
 ### Foreign Affairs (F8)
 
 Unpaginated, fixed English/French/Spanish/Dutch blocks (rules y =
-10/55/100/145, line pitch 7, columns x = 2/80). Withdrawn
-(`player[n].control == 2`) nations show "(Withdrawn from New World)" and
-are skipped from every peer list. Title sits at native y=2 (per-report
-override; everyone else keeps the y=5 default).
+10/55/100/145, line pitch 7, cell x ladder 2/80/160/240). The withdrawn
+slot is `head.crown_nation_id` (DS:0x53d2) — **not** `player[n].control`,
+which only happened to agree on `dutch-reports.SAV`; that block shows
+"(Withdrawn from New World)" and is skipped from every peer list. Title
+sits at native y=2 (per-report override; everyone else keeps the y=5
+default).
 
-- **War/Peace decode:** `ai_diplo.h`'s `AI_DIPLO_WAR` (0x01) never appears
-  in the captured save; bit **0x02 set in either direction's byte** exactly
-  fits every golden pair. Kept report-local (`reports_foreign_at_war()`) —
-  a single-save empirical fit must not rewrite a shared live-AI module's
-  semantics. (Superseded for the de Witt pass by the bit 0x40 = peace
-  reading; see reports.md.)
+- **War/Peace decode (settled 2026-08-31, this section corrected
+  2026-09-28):** one byte, one direction — `nation[a].euro_relation[b]`
+  (DOS `FUN_281f_0a38(a, b)`), bit 0x20 = met, bit 0x40 = at peace, clear
+  = at war. The earlier "bit 0x02 in either direction" note was a
+  single-save empirical fit and is dead; `reports_foreign_at_war()`
+  implements the byte decode. `ai_diplo.h`'s `AI_DIPLO_WAR` (0x01) is still
+  a different id space and still untouched. Full write-up in reports.md.
 - **Rebels/Tories total** is `stuff.census_pop_proxy[nation]` (DS:0x9410),
   not summed colony population (misses field colonist-type units);
   `rebels = floor(total × rebel_sentiment / 100)`. Caveat: that field is
@@ -223,8 +232,11 @@ Flat unpaginated list (DOS `FUN_3f41_010a` has no paging — don't invent
 it), 21px blocks from y=28. Per tribe: headband portrait + plural name
 (`NAMES.TXT @TRIBES` **column 0**, trailing colon) + right-aligned level,
 then stats line (Villages always; Missions/Muskets/Horse Herds skip 0).
-"Missions"/"Horse Herds" resolve live from `@MISC` 28/45;
-"Villages"/"Muskets" have no shipped label string.
+"Missions"/"Horse Herds" resolve live from `@MISC` 28/45, "Muskets" from
+`@CARGO` (2026-08-28), and the settlement noun from the tribe's
+`NAMES.TXT @LEVELS` row — column 1 at a count of exactly 1, column 2
+otherwise (DOS-LITERAL `FUN_3f41_010a` raw 69557-69564; the port printed a
+fixed "Villages" until 2026-09-21, this section said so until 2026-09-28).
 
 - **Muskets = `(indian.muskets + count of Armed Braves + Mtd. Warriors)
   × 50`** — from reading `FUN_3f41_010a` line-by-line. Horse Herds is the
@@ -240,6 +252,8 @@ then stats line (Villages always; Missions/Muskets/Horse Herds skip 0).
   came back dist2=0) — probe per report, it varies.
 - Name/level lines have a 1px down-right black drop shadow
   (`reports_draw_line_shadowed`); the black stats line doesn't.
-- **Unresolved:** headband variants #113-117 are alarm-picked via an
-  unidentified `0x281f` helper; both golden tribes render #113, so the
-  port always uses #113.
+- **Headband (resolved 2026-09-07, this section corrected 2026-09-28):**
+  `q = FUN_281f_0a60(FUN_281f_030c(tribe, viewer))` is the alarm quartile
+  (cuts 25/50/75), forced to 3 by the `extinct` bit (`indian+3 & 0x80`),
+  and the sprite is ICONS.SS **113 + q**. Both golden tribes are q=0, which
+  is why #113 alone used to fit. Port is pixel-exact; see reports.md.

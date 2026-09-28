@@ -27,8 +27,9 @@ profession grid to its own per-profession detail page
 (`FUN_3f41_10d8` -> `FUN_3f41_0d3e`). There is no DOS mechanic for clicking a
 report row to jump to the colony/map screen.
 
-Open gaps: leftover hardcoded English with no shipped string ("Villages" on
-F9, port-only empty states, HoF "Nation" + Esc hint). Hall of Fame has no
+Open gaps: leftover hardcoded English with no shipped string (port-only
+empty states, HoF "Nation" + Esc hint; F9's "Villages" was fixed 2026-09-21
+— it is the tribe's `@LEVELS` noun). Hall of Fame has no
 golden and no reference capture exists in the repo — see the Hall of Fame
 section for exactly what one would have to contain. Congress page 2 draws
 all 25 FF portraits from CC-xx.SS sprite anchors (the old 10/25 slot table
@@ -109,35 +110,39 @@ independently golden-confirmed.
 
 - DOS FUN: **`FUN_3f41_0618`** (viceroy_unpacked.c:69611, 39 lines) — the
   F2/F3 pair was **swapped in this doc until 2026-09-07**. `0618` pushes `2`
-  to the plate bring-up (→ `REPORT2.PIK`), formats DS:0x11a9 `"(%d of %d)"`
-  (the recruit-pool / immigrants-en-route line), and draws its fill bar with
+  to the plate bring-up (→ `REPORT2.PIK`) and draws its fill bar with
   sprite `0x39` (= ICONS.SS #56, the cross) over `BX = nation+0x2e`
   (current) / `DX = nation+0x30` (needed). `06d0` does none of that and is
   the Congress plate — see F3.
+- **Re-read 2026-09-28.** The whole body is: plate bring-up, the crosses
+  bar, one cheat-gated line, footer strip. There is no recruit-pool line,
+  no immigrants-en-route line and **no FF-name tail list** — this doc
+  claimed all three until 2026-09-28, and `0x53da`/`0x53e2` (which it also
+  cited here) are F3's force arrays, untouched by `0618`. `religious.png`
+  below the bar is plain REPORT2.PIK art, and `reports_render_religious`
+  correctly draws nothing there.
 - Background: `REPORT2.PIK`.
-- Data source: nation crosses pool (needed/accumulated split), founding-
-  father bitmask for the FF-name tail loop (0x25-entry table at `-0x69ae`),
-  immigration/recruit-pool counts (4-slot arrays at `0x53da`/`0x53e2`).
+- Data source: nation crosses pool only — `nation+0x2e` accumulated,
+  `nation+0x30` needed.
 - Columns/layout: single column — title, crosses proportional fill bar
   (`3f41:0670` pushes x=10, y=25, w=300, min_w=0, split=0, flags=1;
   ICONS.SS#56; icons blit at y+1=26 — 2026-09-07, was x=10/y=27 with a
-  proportional width), two conditional summary lines (recruit
-  pool / immigrants en route — suppressed entirely when zero, not shown as
-  "0"), FF-name tail list wrapping across 4 columns.
-- Ordering: crosses bar always first; summary lines conditional.
+  proportional width).
+- Cheat-only line: under `if ((*(byte *)0x5383 & 0x20) != 0)` — DS:0x5383
+  bit5 = `head.game_options.cheats_enabled`, the Alt-WIN unlock — DOS
+  formats DS:0x11a9 `"(%d of %d)"` from the same `nation+0x2e`/`+0x30` pair
+  and draws it. Not ported (bugs.md #976).
+- Ordering: crosses bar, then the cheat line when the flag is set.
 - Scroll/paging: none.
 - Click targets: none (shared OK button only).
-- Strings: title "RELIGIOUS ADVISER REPORT" resolves live (`reports_title`);
-  FF names live from `NAMES.TXT @FATHERS` (`reports_ff_name`, `k_ff_names[]`
-  is the no-assets fallback).
+- Strings: title "RELIGIOUS ADVISER REPORT" resolves live (`reports_title`).
 - Port status: Done (golden `religious.png`) —
   `reports_render_religious`. The crosses bar itself is **pixel-exact**
   since 2026-09-07 (0 differing pixels in x=4..79, y=24..41; was 471) after
   moving it onto `reports_draw_dos_icon_bar`: 25 crosses over a denominator
   of 128 give step 2 / shift 0 / rem 38, i.e. icon origins 10, 12, 14, 16,
   19, 21, 23, 26 … — the irregular 3px gaps are the Bresenham remainder, and
-  they are on the golden too. The rest of the plate (FF-name tail) still
-  differs.
+  they are on the golden too. Only the cheat line (#976) is missing.
 
 ## F3 - Continental Congress
 
@@ -189,6 +194,19 @@ independently golden-confirmed.
   `local_68 = min(pool, threshold)` — so an over-full pool cannot overrun
   the bar. (When DS:0x5382 bit 1 is set the threshold is first raised to
   `max(pool, threshold)`.)
+- Cheat-only line (2026-09-28): between the clamp and the bar, under
+  `if ((*(byte *)0x5383 & 0x20) != 0)` (DS:0x5383 bit5 =
+  `head.game_options.cheats_enabled`), DOS composes a line from the
+  shortfall `local_56 - min(pool, local_56)`, the DS:0x2dee token and
+  `local_56`. Not ported (bugs.md #977).
+- Not a gate (checked 2026-09-28): Ghidra structures `06d0`'s tail so that
+  the "Founding Fathers:" list *and* the page-1→page-2 advance sit inside
+  `if (sum(backup_force) != 0)`, with an `else` falling into
+  `FUN_2f2b_0d89` (a terrain-tile helper — an unresolved overlay
+  placeholder, see conventions.md). It is a mis-structure, not behaviour:
+  `dutch-reports.SAV` has `backup_force = [0,0,0,0]` and
+  `continental_p1.png` still shows the FF header and name grid (ink at
+  native rows 126-176). Drawing the list unconditionally is correct.
 - Scroll/paging: 2 pages; any dismiss on page 1 advances to page 2 instead
   of leaving the report; page 2 closes on any click.
 - Click targets: none inside a page; page-advance only.
@@ -288,15 +306,37 @@ independently golden-confirmed.
   #204) via `reports_labels_field`, same as the report titles. Both page
   subtitles also resolve live now: "European Trade" (`@MISC` #206) and
   "Cargo in Port" (`@MISC` #207).
+- Number format (`FUN_3f41_1710`, raw 70281-70422, re-read 2026-09-28):
+  tons come from `(nation*0x4f + cargo)*4 + -0x773c` and gold from the same
+  index at `-0x777c`, both 32-bit. Per value, independently:
+  `if (high >= 0 && (high > 0 || low > 9999)) { FUN_1d1d_0f92(&low, 1000, 0);
+  splice DS:0x2e2c; }` — a divide-by-1000 plus a separator/suffix token for
+  large figures (bugs.md #974, not ported). The sign attribute
+  (`local_8c = high < 0 ? 4 : 2`) is likewise computed twice, once per
+  column; the port paints both cells from one combined rule (bugs.md #975).
 - Port status: Done (golden `economic_p1.png`/`economic_p2.png`) —
   `reports_render_economic_trade`/`_cargo` (`reports.c:1588`/`1700`).
 
 ## F6 - Colony Adviser
 
-- DOS FUN: header chrome `FUN_3f41_1b94` (70426) — thunk `FUN_291f_0f04`.
-  Body `FUN_3f41_1bec` (70443, 95 lines, "per-colony pop/build/garrison
-  rows") — thunk `FUN_291f_0f20`. Panel draw helper `FUN_647e_09da`
-  (102793, "draw colony report panel") — thunk `FUN_2a1f_0770`.
+- DOS FUN (**re-sorted 2026-09-28** — both halves of F6 live here; this
+  doc used to hand the Garrisons pair to F7): all four functions push `6`
+  to the plate bring-up (`thunk_FUN_291f_0f4a(...,6)` → `REPORT6.PIK`) and
+  differ only in the subtitle string they load.
+  - Military Garrisons: chrome `FUN_3f41_1e80` (70538, subtitle DS:0x2f5a)
+    — thunk `FUN_291f_0f58`; body `FUN_3f41_1ed8` (70555) — the stack
+    count/reorder/pitch loop described under Columns/layout below. It tail-
+    calls `thunk_FUN_291f_0f20` to hand over to the Sons of Liberty half.
+  - Sons of Liberty: chrome `FUN_3f41_1b94` (70426, subtitle DS:0x2f5c) —
+    thunk `FUN_291f_0f04`; body `FUN_3f41_1bec` (70443, 95 lines) — SoL
+    percent, the `FUN_281f_09fc(0x14)`/`(0x13)` building test and the
+    worker loop over `colony+0x1f`. It draws no unit stack at all; the old
+    "per-colony pop/build/garrison rows" label was wrong.
+  - Panel draw helper `FUN_647e_09da` (102793, "draw colony report panel")
+    — thunk `FUN_2a1f_0770`.
+  - F-key dispatch thunk: `FUN_291f_03d4` → `FUN_3f41_1ed8`, i.e. the key
+    lands on the Garrisons half and the SoL half is reached by its tail
+    call. (This doc listed `03d4` under F7 until 2026-09-28.)
 - Background: `REPORT6.PIK`.
 - Data source: per colony — population, fortification bits (popcount ->
   marker tier), SoL % via `colony_prod_sol_percent` (not the raw rebel-pct
@@ -336,27 +376,44 @@ independently golden-confirmed.
 
 ## F7 - Naval Adviser
 
-- DOS FUN: header chrome `FUN_3f41_1e80` (70538) — thunk `FUN_291f_0f58`.
-  Body `FUN_3f41_1ed8` (70555, 75 lines, "combat units docked per colony")
-  — thunk `FUN_291f_03d4`.
+- DOS FUN (**corrected 2026-09-28**): header chrome `FUN_3f41_20b4`
+  (70630-70671) — thunk `FUN_291f_0f12`; body `FUN_3f41_220c`
+  (70675-70785). `20b4` is the one that pushes `7` to the plate bring-up
+  (→ `REPORT7.PIK`), draws the four column headers DS:0x2e34/0x2e36/
+  0x2e38/0x2e3a, three dividers and eight row rules. This doc used to cite
+  `FUN_3f41_1e80`/`FUN_3f41_1ed8` here; both push `6` and are F6's
+  Military Garrisons pair (see F6). **The port was therefore built against
+  the golden only and has never been checked against `220c`** — bugs.md
+  #972 (row list, row names, row0 y) and #973 (Location/Destination).
+  F-key dispatch thunk: `FUN_291f_03c6` → `FUN_3f41_220c`.
 - Background: `REPORT7.PIK`.
-- Data source: this nation's ship units (types 0x0d-0x12), each ship's
-  cargo hold, any boarded passenger (transport-chain walk), colony/Europe
-  location string, destination.
+- Data source (`FUN_3f41_220c`): a single pass over the unit array for
+  `(unit+0x3147 & 0xf) == nation`. Ships are always listed; a non-ship unit
+  (`type < 0xd || 0x12 < type`) is listed only when
+  `FUN_281f_0768(unit+0x3144, +0x3145) != 0`. Per row: cargo icons from a
+  loop over the `unit+0x3150` holds, the row name from the @UNIT name table
+  (`type*0xe + 0x5230`), Location from `FUN_291f_0f82(x, y, nation&0xf, 0)`,
+  Destination from the goto target (`+0x314d`/`+0x314e`) when the orders
+  byte `+0x314c` is 3, 0xb or 2, else `FUN_281f_0302(x, y)` with two
+  Europe-lane x-delta arms (`0x5426 + nation*0x34`, `-0x7c74 + nation*2`).
 - Columns/layout: 4-column table — Ship (icon+class) / Cargo (goods icons,
-  100-unit stacks colored, partial grey) / Location / Destination. Each
-  ship is one row; each passenger gets its own row above the ship's row
-  (icon+type name only). Row0 y=40 step=20, column dividers x=82/162/242.
-- Ordering: save's unit array order for this nation's ships, filtered to
-  naval types.
+  100-unit stacks colored, partial grey) / Location / Destination. DOS row0
+  y is `0x2a` = 42 with sprites at +3 and step `0x14` = 20; the port uses a
+  golden-measured 40 (bugs.md #972). Column dividers x=82/162/242.
+- Ordering: DOS's unit-array order, with each listed non-ship unit taking
+  its own row wherever the array puts it. The port instead emits each
+  ship's passengers immediately above that ship (bugs.md #972).
 - Scroll/paging: 7 rows/page (`reports_naval_page_count`).
 - Click targets: none; OK/Esc/Enter advances page.
 - Strings: title "NAVAL ADVISER REPORT" and the 4 column headers ("Ship"/
   "Cargo"/"Location"/"Destination", `@MISC` #61-64, a clean consecutive
   block) all resolve live (**fixed 2026-08-27**); body needs FONTTINY not
   FONTSMAL (FONTSMAL rendered upper-case-only and too wide at this size).
-- Port status: Done (golden `naval.png`) — `reports_render_naval`
-  (`reports.c:2417`). Two real pre-existing `col1_bridge_apply` bugs found
+- Port status: golden-matched (`naval.png`), **not decomp-verified** —
+  `reports_render_naval` (`reports_military.c`). The row list, row labels
+  and both text columns were fitted to the golden while this doc pointed at
+  F6's functions; see bugs.md #972/#973 for the specific divergences from
+  `FUN_3f41_220c`. Two real pre-existing `col1_bridge_apply` bugs found
   and fixed while building this report's row list: Fortified land units at
   a colony dock were being "boarded" onto the docked ship; `cargo_hold[]`
   bytes past `holds_occupied` can be stale, producing phantom cargo —
@@ -475,8 +532,8 @@ independently golden-confirmed.
   chief portrait at x=10, top = name_y - 3 (ICONS.SS #113 + alarm quartile;
   see "Chief portrait" below) + "<PluralTribeName>:"
   (NAMES.TXT @TRIBES col 0) + right-aligned tribe level, then a black stats
-  line: Villages (always shown) / Missions / Muskets / Horse Herds (each
-  skipped when 0). Row0 y=28 step=21.
+  line: settlement count + `@LEVELS` noun (always shown) / Missions /
+  Muskets / Horse Herds (each skipped when 0). Row0 y=28 step=21.
 - Ordering: tribe array order, filtered to tribes met by the viewing
   nation.
 - Scroll/paging: none in DOS — `FUN_3f41_010a` has an unconditional
@@ -487,7 +544,11 @@ independently golden-confirmed.
   @TRIBES col 0 (plural, not the singular/adjective col 1 used elsewhere);
   tribe-level words live from `@LEVELS` (`reports_tribe_level`, 2026-08-26);
   "Missions"/"Horse Herds" from `@MISC`, "Muskets" from `@CARGO`
-  (2026-08-28); "Villages" stays hardcoded (no bare-word string shipped).
+  (2026-08-28). The settlement noun is **not** a hardcoded "Villages"
+  (fixed in code 2026-09-21, in this doc 2026-09-28): DOS-LITERAL
+  `FUN_3f41_010a` raw 69557-69564 takes the tribe's own `NAMES.TXT @LEVELS`
+  row (indexed by `indian.tech`), column 1 when the count is exactly 1
+  ("1 City") and column 2 otherwise ("3 Camps").
 - Chief portrait (**resolved 2026-09-07, T5.3** — was "variant
   unidentified, always renders #113"). `3f41:0522`..`3f41:05d2`:
 
