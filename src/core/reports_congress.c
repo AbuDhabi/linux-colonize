@@ -34,6 +34,16 @@ void reports_render_religious(
   ColonizeFramebuffer8* fb
 ) {
   const ColonizeSpriteSheet* icons = reports_icons_for(view, COLONIZE_REPORT_RELIGIOUS);
+  /*
+   * FONTTINY, like every other report body: the 3f41 overlay only ever loads
+   * the FONTTINY pointer at DS:0x89e and has no second font (bugs.md #428).
+   * This was the one renderer that kept the dispatcher's font, which is
+   * `game->menu_font` = FONTSMAL — so the bar's number overlay and the
+   * cheat-only line below drew in the wrong face (bugs.md #979). It shows
+   * only when a number is actually drawn (the DOS numbers toggle, or
+   * step == 1 && amount > 1), which is why the golden never caught it.
+   */
+  font = (view && view->title_font_ok) ? &view->title_font : font;
   if (!col1) {
     return;
   }
