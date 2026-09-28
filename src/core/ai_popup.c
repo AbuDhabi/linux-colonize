@@ -494,6 +494,8 @@ static const char* ai_popup_tag_name(AiPopupTag tag) {
       return "DIPLO_PEACE";
     case AI_POPUP_TAG_DIPLO_BREAK:
       return "DIPLO_BREAK";
+    case AI_POPUP_TAG_DIPLO_SNEAK:
+      return "DIPLO_SNEAK";
     case AI_POPUP_TAG_DIPLO_BOYCOTT:
       return "DIPLO_BOYCOTT";
     case AI_POPUP_TAG_DIPLO_FA:
