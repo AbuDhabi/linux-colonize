@@ -2678,6 +2678,69 @@ int main(void) {
   }
 
   /*
+   * Brewster on load: the port's eu->brewster_no_criminals is not in the save,
+   * so a loaded save used to refill the recruit pool (Recruit menu, Brewster
+   * pick, Fountain of Youth picks) with Petty Criminals / Indentured Servants
+   * again. DOS tests the FF bit live; apply now re-derives the flag.
+   */
+  {
+    ColonizeWorldMap map;
+    char err[256];
+    if (!map_alloc(&map, 32, 32, err, sizeof(err))) {
+      fprintf(stderr, "brewster on load: map_alloc: %s\n", err);
+      return 1;
+    }
+    ColonizeCol1Save save;
+    if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
+      fprintf(stderr, "brewster on load: template: %s\n", err);
+      map_free(&map);
+      return 1;
+    }
+    const int hn = save.head.human_player & 3;
+    save.nation[hn].recruit[0] = 0x1a; /* Petty Criminals */
+    save.nation[hn].recruit[1] = 0x19; /* Indentured Servants */
+    save.nation[hn].recruit[2] = 0x13;
+    save.nation[hn].founding_fathers[FF_WILLIAM_BREWSTER / 8] |=
+      (uint8_t)(1u << (FF_WILLIAM_BREWSTER % 8));
+
+    ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
+    units_reset(&units);
+    units_set_occupancy_map(NULL);
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
+    EuropeScreen europe;
+    memset(&europe, 0, sizeof(europe));
+    europe.cargo_count = 16;
+    ColonizeCol1BridgeResult br;
+    if (!col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, &br, err, sizeof(err))) {
+      fprintf(stderr, "brewster on load: apply: %s\n", err);
+      col1_save_free(&save);
+      map_free(&map);
+      return 1;
+    }
+    if (!europe.brewster_no_criminals) {
+      fprintf(stderr, "brewster on load: flag not re-derived from the FF bit\n");
+      col1_save_free(&save);
+      map_free(&map);
+      return 1;
+    }
+    for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
+      if (europe.pool[i].profession == UNITS_JOB_SERVANT ||
+          europe.pool[i].profession == UNITS_JOB_CRIMINAL) {
+        fprintf(stderr, "brewster on load: pool slot %d still servant/criminal\n", i);
+        col1_save_free(&save);
+        map_free(&map);
+        return 1;
+      }
+    }
+    col1_save_free(&save);
+    map_free(&map);
+    fprintf(stderr, "brewster on load: pool filtered ok\n");
+  }
+
+  /*
    * bugs.md: nation+6 (the Recruit passage ladder counter) was never bridged,
    * so game_apply_col1_save's europe_reset_campaign dropped it to 0 on every
    * load and the Europe passage price fell back to its opening rung. Round-trip
