@@ -14,6 +14,7 @@
 #include "core/game_dialogs.h"
 #include "core/internal.h"
 #include "core/world.h"
+#include "core/window_log.h"
 
 typedef enum GameMoveStep {
   GAME_MOVE_CONTINUE = 0,  /* fall through to the next stage of game_try_unit_move */
@@ -92,6 +93,18 @@ GameUpdateStep game_update_title_menu(ColonizeGameState* game, const ColonizeInp
 GameUpdateStep game_update_map_menu_bar(ColonizeGameState* game, const ColonizeInputState* input);
 GameUpdateStep game_update_map_keys(ColonizeGameState* game, const ColonizeInputState* input);
 void game_render_begin_menu(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer);
+/* Window log strip line fitter: drops the least interesting words (keeping the
+ * first two, the last two and any {emphasised} one) until the line fits
+ * `avail` px, collapsing each dropped run into "...". */
+void window_log_fit_line(
+  const ColonizeFont* font, const char* text, int avail, char* out, size_t out_size
+);
+/* Word-wraps one log entry over at most max_lines rows of `avail` px, eliding
+ * whatever is left into the last row. Returns the rows used. */
+int window_log_wrap(
+  const ColonizeFont* font, const char* text, int avail, int max_lines,
+  char out[][WINDOW_LOG_LINE_LEN]
+);
 bool game_render_fullscreen_takeover(
   const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette
 );

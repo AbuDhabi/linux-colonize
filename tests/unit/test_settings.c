@@ -4,6 +4,7 @@
 
 #include "core/col1_save_layout.h"
 #include "core/settings.h"
+#include "core/window_log.h"
 
 static int g_failures = 0;
 
@@ -28,6 +29,7 @@ static void test_missing_file_defaults(void) {
   check(s.water_color_cycling, "default water cycling on");
   check(s.background_music && s.event_music && s.sound_effects, "default sound on");
   check(s.window_scale == 2 && s.windowed, "default display");
+  check(s.window_log_lines == 0, "default window_log_lines off");
   check(!s.no_sound && s.seed == 0 && !s.seed_present, "default launch flags off");
   check(s.skip_intro, "default skip_intro true (new file skips later launches)");
   check(strcmp(s.data_dir, "./COLONIZE") == 0, "default data_dir");
@@ -48,6 +50,7 @@ static void test_roundtrip(void) {
   out.labels_on_buildings = false;
   out.event_music = false;
   out.window_scale = 3;
+  out.window_log_lines = 4;
   out.windowed = false;
   out.no_sound = true;
   out.seed = 100;
@@ -68,6 +71,44 @@ static void test_roundtrip(void) {
   ColonizeSettings back;
   check(settings_load_file(k_path, &back, err, sizeof(err)), "load file");
   check(memcmp(&out, &back, sizeof(out)) == 0, "round-trip is exact");
+}
+
+/* window_log_lines clamps into 0..WINDOW_LOG_MAX_LINES, and the ring keeps the
+ * newest line at age 0. */
+static void test_window_log(void) {
+  FILE* f = fopen(k_path, "wb");
+  check(f != NULL, "open window-log file");
+  if (!f) {
+    return;
+  }
+  fprintf(f, "{\"version\": 1, \"display\": {\"window_log_lines\": 999}}\n");
+  fclose(f);
+
+  ColonizeSettings s;
+  char err[256] = {0};
+  check(settings_load_file(k_path, &s, err, sizeof(err)), "window-log file loads");
+  check(s.window_log_lines == WINDOW_LOG_MAX_LINES, "window_log_lines clamped high");
+  check(window_log_clamp_lines(-3) == 0, "negative window_log_lines clamps off");
+  check(window_log_strip_height(0) == 0, "no strip when off");
+  check(window_log_strip_height(3) == 2 + 3 * WINDOW_LOG_LINE_H,
+        "strip height = rule + margin + rows");
+
+  window_log_clear();
+  window_log_push("first");
+  window_log_push("");
+  window_log_push("second");
+  check(window_log_count() == 2, "empty push ignored");
+  check(strcmp(window_log_line(0), "second") == 0, "age 0 is newest");
+  check(strcmp(window_log_line(1), "first") == 0, "age 1 is older");
+  check(window_log_line(2) == NULL, "past the end is NULL");
+  for (int i = 0; i < WINDOW_LOG_MAX_LINES + 5; ++i) {
+    char line[32];
+    snprintf(line, sizeof(line), "line%d", i);
+    window_log_push(line);
+  }
+  check(window_log_count() == WINDOW_LOG_MAX_LINES, "ring caps at max lines");
+  check(strcmp(window_log_line(0), "line28") == 0, "ring keeps the newest");
+  window_log_clear();
 }
 
 /* Unknown keys and a partial object keep defaults for whatever is absent. */
@@ -283,6 +324,7 @@ static void test_init_keeps_corrupt_file(void) {
 int main(void) {
   test_missing_file_defaults();
   test_roundtrip();
+  test_window_log();
   test_partial_file();
   test_invalid_launch_keys_keep_defaults();
   test_seed_null_omitted_and_zero();

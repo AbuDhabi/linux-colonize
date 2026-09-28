@@ -7,6 +7,7 @@
 #include "core/map_menu.h"
 #include "core/popup.h"
 #include "core/strutil.h"
+#include "core/window_log.h"
 #include "platform/diagnostics.h"
 
 /* @HOWMUCHn kind -> readable name, for the debug log only. */
@@ -67,6 +68,13 @@ static void howmuch_finish(HowmuchDialog* dlg, bool cancelled) {
   dlg->result_amount = cancelled ? 0 : dlg->amount;
   dlg->result_kind = dlg->kind;
   howmuch_close(dlg);
+  /* Window log strip: the GAME.TXT prompt plus the amount that was entered
+   * (no binary-sourced wording — the prompt is the catalog's). */
+  if (!cancelled && dlg->prompt[0]) {
+    char line[WINDOW_LOG_LINE_LEN];
+    snprintf(line, sizeof(line), "%s {%d}", dlg->prompt, dlg->result_amount);
+    window_log_push(line);
+  }
   diag_info(
     "POPUP answered tag=HOWMUCH_%s %s amount=%d/%d cargo=%d",
     howmuch_kind_name(dlg->result_kind), cancelled ? "cancelled" : "picked",

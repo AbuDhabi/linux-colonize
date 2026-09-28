@@ -8,6 +8,7 @@
 #include "core/popup_msg.h"
 #include "core/ui_button.h"
 #include "core/ui_colors.h"
+#include "core/window_log.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
@@ -121,6 +122,10 @@ static bool ai_popup_enqueue_bar_message_kind(
     return false;
   }
   snprintf(st->bar_msg[st->bar_msg_count], AI_POPUP_BAR_MSG_LEN, "%s", text);
+  /* Sidebar ticker lines are popup text too — they join the window log strip
+   * (settings.json display.window_log_lines) as they are queued, since they
+   * scroll past on the map and are otherwise gone. */
+  window_log_push(text);
   st->bar_msg_kind[st->bar_msg_count] = (uint8_t)(kind < 0 ? 0 : kind);
   st->bar_msg_count++;
   return true;
@@ -598,12 +603,52 @@ static void ai_popup_flatten(char* out, size_t out_size, const char* text) {
   out[n] = '\0';
 }
 
+/* snprintf("%s") of a long source into a short buffer trips
+ * -Wformat-truncation; the window log clips deliberately, so append by hand. */
+static void ai_popup_log_append(char* dst, size_t cap, size_t* at, const char* src) {
+  while (*src && *at + 1 < cap) {
+    dst[(*at)++] = *src++;
+  }
+  dst[*at] = '\0';
+}
+
 static void ai_popup_log_present(const AiPopupRequest* req) {
-  if (!diag_info_enabled() || !req) {
+  if (!req) {
     return;
   }
   char body[AI_POPUP_BODY_LEN];
   ai_popup_flatten(body, sizeof(body), req->body);
+
+  /* Port-only window log strip (settings.json display.window_log_lines): the
+   * same flattened text the POPUP diagnostics line carries, title first. {}
+   * emphasis markup is KEPT — the strip renderer colours it and uses it to
+   * pick what survives elision — but the caret line marks are dropped. The
+   * body is NOT truncated here: eliding it is the renderer's job, and cutting
+   * it short would lose the ending the elision keeps. */
+  {
+    char line[WINDOW_LOG_LINE_LEN];
+    size_t at = 0;
+    if (req->title[0]) {
+      ai_popup_log_append(line, sizeof(line), &at, req->title);
+      ai_popup_log_append(line, sizeof(line), &at, ": ");
+    } else {
+      line[0] = '\0';
+    }
+    ai_popup_log_append(line, sizeof(line), &at, body);
+    size_t w = 0;
+    for (size_t r = 0; line[r]; ++r) {
+      if (line[r] == POPUP_MSG_LINE_MARK || line[r] == POPUP_MSG_CENTER_MARK) {
+        continue;
+      }
+      line[w++] = line[r];
+    }
+    line[w] = '\0';
+    window_log_push(line);
+  }
+
+  if (!diag_info_enabled()) {
+    return;
+  }
   char choices[AI_POPUP_CHOICE_MAX * (AI_POPUP_CHOICE_LEN + 8)];
   choices[0] = '\0';
   size_t at = 0;

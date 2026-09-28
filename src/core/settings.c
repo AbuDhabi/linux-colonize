@@ -9,6 +9,7 @@
 
 #include "core/json_min.h"
 #include "core/strutil.h"
+#include "core/window_log.h"
 #include "platform/diagnostics.h"
 
 #define SETTINGS_FILE_NAME "settings.json"
@@ -138,6 +139,7 @@ void settings_defaults(ColonizeSettings* out) {
 
   out->windowed = true;
   out->window_scale = 2;
+  out->window_log_lines = 0;
   out->no_sound = false;
   snprintf(out->data_dir, sizeof(out->data_dir), "./COLONIZE");
   out->save_dir[0] = '\0';
@@ -199,7 +201,8 @@ bool settings_save_file(const char* path, const ColonizeSettings* in, char* err,
 
   fprintf(f, "  \"display\": {\n");
   wb(f, "windowed", in->windowed, false);
-  fprintf(f, "    \"window_scale\": %d\n", in->window_scale);
+  fprintf(f, "    \"window_scale\": %d,\n", in->window_scale);
+  fprintf(f, "    \"window_log_lines\": %d\n", in->window_log_lines);
   fprintf(f, "  },\n");
 
   fprintf(f, "  \"debug\": {\n");
@@ -346,6 +349,10 @@ bool settings_load_file(const char* path, ColonizeSettings* out, char* err, size
   int64_t scale = 0;
   if (d && json_get_i64(d, "window_scale", &scale)) {
     out->window_scale = settings_clamp_window_scale(scale);
+  }
+  int64_t log_lines = 0;
+  if (d && json_get_i64(d, "window_log_lines", &log_lines)) {
+    out->window_log_lines = window_log_clamp_lines(log_lines);
   }
 
   const JsonValue* dbg = json_obj_get(root, "debug");

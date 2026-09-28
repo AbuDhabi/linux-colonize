@@ -140,6 +140,7 @@ add_library(colonize_sim STATIC
   src/core/col1_stuff_census.c
   # --- Shared ---------------------------------------------------------------
   src/core/ai_popup.c
+  src/core/window_log.c
   src/core/popup_msg.c
   src/core/assets.c
   src/core/strutil.c
@@ -645,6 +646,7 @@ set(COLONIZE_SLIM_SOURCES
   src/core/founding_fathers.c
   src/core/ai_diplo.c
   src/core/ai_popup.c
+  src/core/window_log.c
   src/core/ai_popup_render.c
   src/core/popup.c
   src/core/popup_msg.c

@@ -14,7 +14,9 @@
 #include "core/ai_internal.h"
 #include "core/col1_save.h"
 #include "core/game_dialogs.h"
+#include "core/ff.h"
 #include "core/game_loop_internal.h"
+#include "core/popup.h"
 #include "core/turn_internal.h"
 
 #include "../common/ai_fixture.h"
@@ -216,6 +218,112 @@ static int test_game_render_select_palette(void) {
     return fail("game_render_select_palette did not pick game->palette for in_menu");
   }
   return 0;
+}
+
+/*
+ * window_log_fit_line: a line that does not fit keeps the first two words, the
+ * last two and the {emphasised} ones, with "..." for each dropped run.
+ */
+static int test_window_log_fit_line(void) {
+  ColonizeFont font;
+  memset(&font, 0, sizeof(font));
+  char err[128];
+  if (!ff_load("COLONIZE/FONTTINY.FF", &font, err, sizeof(err))) {
+    return 0; /* no data dir in this checkout — the seam is still compiled */
+  }
+
+  const char* text =
+    "Colony: the people of {Jamestown} are alarmed by filler filler filler filler end here";
+  char out[160];
+  int rc = 0;
+
+  window_log_fit_line(&font, text, 4000, out, sizeof(out));
+  if (strcmp(out, text) != 0) {
+    rc = fail("a line that fits must be left alone");
+  }
+
+  window_log_fit_line(&font, text, 150, out, sizeof(out));
+  if (popup_markup_text_width(&font, out) > 150) {
+    fprintf(stderr, "  got \"%s\" (%d px)\n", out, popup_markup_text_width(&font, out));
+    rc = fail("fitted line still wider than the strip");
+  }
+  if (strncmp(out, "Colony: the", 11) != 0 || !strstr(out, "{Jamestown}") ||
+      !strstr(out, "end here") || !strstr(out, "...")) {
+    fprintf(stderr, "  got \"%s\"\n", out);
+    rc = fail("fitted line lost a first/last/emphasised word, or the ellipsis");
+  }
+
+  /* Squeezed hard, the emphasis goes too, but the braces stay balanced. */
+  window_log_fit_line(&font, text, 60, out, sizeof(out));
+  if (popup_markup_text_width(&font, out) > 60) {
+    fprintf(stderr, "  got \"%s\"\n", out);
+    rc = fail("hard-squeezed line still too wide");
+  }
+  int open_braces = 0;
+  for (const char* p = out; *p; ++p) {
+    if (*p == '{') {
+      open_braces++;
+    } else if (*p == '}') {
+      open_braces--;
+    }
+    if (open_braces < 0) {
+      break;
+    }
+  }
+  if (open_braces != 0) {
+    fprintf(stderr, "  got \"%s\"\n", out);
+    rc = fail("elision left unbalanced emphasis markup");
+  }
+
+  /* A full-length popup body (the @REBELMAJORITY text) must keep its ending:
+   * the log stores whole bodies and elides in the middle. */
+  const char* sol =
+    "Sons of Liberty membership in {Jamestown} is up to 75%, Your Excellency. "
+    "A majority of the colonists there support the idea of independence from "
+    "England! All colonists in Jamestown gain +1 to their base production "
+    "abilities.";
+  window_log_fit_line(&font, sol, 316, out, sizeof(out));
+  if (popup_markup_text_width(&font, out) > 316) {
+    fprintf(stderr, "  got \"%s\"\n", out);
+    rc = fail("SoL line still wider than the strip");
+  }
+  if (strncmp(out, "Sons of", 7) != 0 || !strstr(out, "production abilities.")) {
+    fprintf(stderr, "  got \"%s\"\n", out);
+    rc = fail("SoL line lost its opening or its ending");
+  }
+
+  /* Word wrap: given room, a long entry flows over several rows intact; given
+   * one row, the tail is elided into it. */
+  static char wrapped[WINDOW_LOG_MAX_LINES][WINDOW_LOG_LINE_LEN];
+  const int n = window_log_wrap(&font, sol, 316, 4, wrapped);
+  if (n < 2) {
+    rc = fail("long entry did not wrap over several rows");
+  }
+  char joined[WINDOW_LOG_LINE_LEN * 4] = {0};
+  for (int i = 0; i < n; ++i) {
+    if (popup_markup_text_width(&font, wrapped[i]) > 316) {
+      fprintf(stderr, "  row %d: \"%s\"\n", i, wrapped[i]);
+      rc = fail("wrapped row wider than the strip");
+    }
+    strncat(joined, wrapped[i], sizeof(joined) - strlen(joined) - 1);
+    strncat(joined, " ", sizeof(joined) - strlen(joined) - 1);
+  }
+  if (strstr(joined, "...") != NULL) {
+    fprintf(stderr, "  got \"%s\"\n", joined);
+    rc = fail("entry that fits the rows must not be elided");
+  }
+  if (!strstr(joined, "{Jamestown}") || !strstr(joined, "abilities.")) {
+    fprintf(stderr, "  got \"%s\"\n", joined);
+    rc = fail("wrapped entry lost emphasis or its ending");
+  }
+  if (window_log_wrap(&font, sol, 316, 1, wrapped) != 1 ||
+      !strstr(wrapped[0], "...") || !strstr(wrapped[0], "abilities.")) {
+    fprintf(stderr, "  got \"%s\"\n", wrapped[0]);
+    rc = fail("single-row wrap must elide and keep the ending");
+  }
+
+  ff_free(&font);
+  return rc;
 }
 
 /* bugs.md #948: amount 0 is the normal whole-hold unload request. */
@@ -917,6 +1025,7 @@ static const TestCase k_cases[] = {
     {"test_ai_465b_dest_owner", test_ai_465b_dest_owner},
     {"test_ai_brave_field_attack", test_ai_brave_field_attack},
     {"test_game_render_select_palette", test_game_render_select_palette},
+    {"test_window_log_fit_line", test_window_log_fit_line},
     {"test_game_colony_unload_whole_hold", test_game_colony_unload_whole_hold},
     {"test_colony_zoom_hold_survives_pedia_detour", test_colony_zoom_hold_survives_pedia_detour},
     {"test_trade_route_wagon_services_arrival_stop", test_trade_route_wagon_services_arrival_stop},
