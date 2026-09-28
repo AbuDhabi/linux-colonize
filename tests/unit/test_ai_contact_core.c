@@ -5133,9 +5133,11 @@ static int sp_41(void) {
 static int sp_42(void) {
 
   /*
-   * Series T: 4528 ship-village mid-relation wary band.
-   * rel 60 → wary INFO + Meet CHOICE; rel 80 → MADAT (no wary); friction≥64 mad.
-   * Cite: indian_settlement_4528.md; ai_contact_try_ship_village.
+   * Series T: 4528 ship-village relation bands. DOS has exactly two abort
+   * arms (@DONTKNOWSHIPS unmet, @MADATSHIPS alarm>=0x4b or friction>=0x40);
+   * everything below them falls straight through to the village meet with no
+   * extra message (bugs.md #983). rel 60 → Meet CHOICE only; rel 80 → MADAT;
+   * friction>=64 → mad. Cite: indian_settlement_4528.md.
    */
   {
     AiPopupState pop;
@@ -5159,24 +5161,18 @@ static int sp_42(void) {
     if (!ai_contact_try_ship_village(&ctx, 0, 5, 5)) {
       return fail("ship mid-band should handle village tile");
     }
-    int wary_ok = 0;
     int meet_ok = 0;
     for (int qi = 0; qi < pop.queue_count; ++qi) {
-      if (pop.queue[qi].tag == AI_POPUP_TAG_INFO &&
-          pop.queue[qi].body[0] &&
-          strstr(pop.queue[qi].body, "wary of ships") != NULL) {
-        wary_ok = 1;
+      if (pop.queue[qi].tag == AI_POPUP_TAG_INFO && pop.queue[qi].body[0]) {
+        return fail("ship mid-band must not enqueue an extra INFO popup");
       }
       if (pop.queue[qi].tag == AI_POPUP_TAG_CONTACT_MEET &&
           pop.queue[qi].kind == AI_POPUP_KIND_CHOICE) {
         meet_ok = 1;
       }
     }
-    if (!wary_ok) {
-      return fail("ship mid-band should enqueue wary INFO");
-    }
     if (!meet_ok) {
-      return fail("ship mid-band should still enqueue Meet CHOICE");
+      return fail("ship mid-band should enqueue Meet CHOICE");
     }
 
     /* ASM: FUN_1000_84fc (alarm) >= 0x4b → MADAT; no wary. */
