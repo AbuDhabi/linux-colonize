@@ -358,6 +358,8 @@ int ai_euro_4393_work_queue_haul_pick(
 );
 extern uint8_t ai_euro_s_20e6_wagon_errand[COLONIZE_UNITS_MAX];
 extern int16_t ai_euro_s_0a60_work_registered[4];
+extern uint16_t ai_euro_s_0a60_mask_mil[4];
+extern uint16_t ai_euro_s_0a60_mask_found[4];
 int ai_euro_0a60_work_registered(int nation_id);
 void ai_euro_wagon_errand_clear_all(void);
 int ai_euro_try_wagon_haul(
@@ -598,6 +600,7 @@ void ai_euro_act_ship(struct ai_euro_act_ctx* a);
 void ai_euro_act_land(struct ai_euro_act_ctx* a);
 int ai_euro_ship_dos_enabled(void);
 void ai_euro_act_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
+void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u);
 
 #ifdef COLONIZE_TESTING
 void ai_euro_colony_goals_unit_contact(ColonizeTurnContext* ctx, int nation_id);

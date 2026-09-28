@@ -2155,7 +2155,7 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
 }
 
 /* FUN_479b_0972: one pathfinder step toward +0x314d/e. */
-static void ai_euro_ship_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
+void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   const int id = u->id;
   const int state = u->orders;
   int px = 0;
@@ -2235,7 +2235,7 @@ void ai_euro_act_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_
     return;
   }
   if (u->orders == AI_EURO_ACT_GOAL || u->orders == AI_EURO_ACT_STEP) {
-    ai_euro_ship_goal_walk_479b(ctx, u);
+    ai_euro_goal_walk_479b(ctx, u);
   } else {
     u->moves = 0; /* FUN_1000_8b24 */
   }

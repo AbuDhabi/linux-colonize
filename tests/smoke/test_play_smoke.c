@@ -16,6 +16,7 @@
 
 #include "core/ai_popup.h"
 #include "core/game_loop.h"
+#include "core/game_dialogs.h"
 #include "core/savegame.h"
 
 static ColonizeGameState* g_game;
@@ -66,6 +67,12 @@ static bool fail(const char* msg) {
   return false;
 }
 
+/* AI nations can found before the player (#530). The all-nation colony
+ * count is not evidence that the human Build flow ran. */
+static int human_colony_count(void) {
+  return colonies_count_for_nation(&g_game->colonies, g_game->human_nation);
+}
+
 static bool run(void) {
   /* Title → NEW WORLD (index 0). */
   if (!frame(COLONIZE_KEY_ENTER)) return fail("enter NEW WORLD");
@@ -82,7 +89,7 @@ static bool run(void) {
   int last_x = -1, last_y = -1, stuck = 0;
   const ColonizeKey west[3] = {COLONIZE_KEY_KP4, COLONIZE_KEY_KP7, COLONIZE_KEY_KP1};
   int west_i = 0;
-  for (int i = 0; i < 4000 && game_colony_count(g_game) == 0; ++i) {
+  for (int i = 0; i < 4000 && human_colony_count() == 0; ++i) {
     if (game_modal_open(g_game) || game_ai_popup_pending(g_game)) {
       if (!dismiss_modal()) return fail("modal dismiss");
       continue;
@@ -102,7 +109,7 @@ static bool run(void) {
     }
     if (!sea) {
       if (!frame(COLONIZE_KEY_B)) return fail("found colony key");
-      if (game_colony_count(g_game) == 0 && !game_modal_open(g_game)) {
+      if (human_colony_count() == 0 && !game_modal_open(g_game)) {
         /* Not foundable here (too near / mountain): walk west one step. */
         if (!frame(west[west_i % 3])) return fail("land step");
         west_i++;
@@ -133,7 +140,7 @@ static bool run(void) {
     }
     if (!frame(west[west_i % 3])) return fail("sail west");
   }
-  if (game_colony_count(g_game) == 0) return fail("no colony founded within budget");
+  if (human_colony_count() == 0) return fail("no colony founded within budget");
   while (game_modal_open(g_game) || game_ai_popup_pending(g_game)) {
     if (!dismiss_modal()) return fail("post-found modal");
   }
@@ -151,8 +158,6 @@ static bool run(void) {
     if (!frame(COLONIZE_KEY_ENTER)) return fail("enter colony");
   }
   if (!game_in_colony_screen(g_game)) {
-    int cx = 0, cy = 0;
-    if (!game_colony_pos(g_game, 0, &cx, &cy)) return fail("colony pos");
     return fail("colony screen did not open after the found woodcut");
   }
   render("colony screen");

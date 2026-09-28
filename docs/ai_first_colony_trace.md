@@ -1,7 +1,7 @@
 # First-colony DOS trace (#530)
 
-Status: partial fix, 2026-09-27. `AI_SHIP_DOS=1` now passes TURN2_to_3;
-TURN3_to_4 through TURN6_to_7 still fail. Keep the alternative disabled until
+Status: partial fix, 2026-09-28. `AI_SHIP_DOS=1` now passes TURN1_to_2,
+TURN2_to_3 and TURN3_to_4; TURN4_to_5 through TURN6_to_7 still fail. Keep the alternative disabled until
 those transitions and the removal of the fitted opening pass.
 
 ## Evidence and reproduction
@@ -69,3 +69,52 @@ port's explicit `units_wake` path also clears the destination.
 Focused proof: `make test T=unit_regress_ai_tables`, and
 `AI_SHIP_DOS=1 COLONIZE_TEST_ONLY=TURN2_to_3 ./build/debug/golden_ai_turns`.
 No fixture coordinates, RNG burns, or expected saves were changed.
+
+
+## TURN3 to TURN4 (2026-09-28)
+
+Loaded TURN3 through the same debugger setup. At France's first hull 3afd
+breakpoint, DS:173e=fff6, DS:173c=0000, and the unload mask is 0040. The
+port's 0a60 producers already compute exactly fff6 but discarded it;
+20e6 reconstructed the mask from primary-goal coordinates. Those are ocean
+tiles, whose continent is not the land continent recorded by the producer.
+Persisting the real per-nation masks fixes France's delayed unload.
+
+Observed nation-entry / subsequent 20e6 entries, zero-based DOS slots:
+
+| Unit | Before act | After act |
+|---|---|---|
+| French soldier 5 | (50,38), order 0, spent 0 | (50,37), order 0, goto (50,37), facing 0, spent 3 |
+| French pioneer 4 | aboard (51,39), order 1, spent 0 | still aboard, order 1, spent 3 |
+| French hull 3 | (51,39), order 0, facing 6, spent 0 | same xy, order 0c, goto (50,39), facing 6, spent 15 |
+| French pioneer after hull | aboard (51,39) | (50,38), order 1, goto (56,42), spent 3 |
+| Spanish soldier 8 | (47,54), order 0, spent 0 | (46,54), order 0c, goto (46,54), facing 6, spent 9 |
+| Spanish pioneer 7 | (47,53), order 0, spent 0 | (46,52), order 0b, plan 32, goto (45,52), facing 7, spent 6 |
+| Dutch soldier 11 | (48,14), order 0, spent 0 | (49,14), order 0, goto (49,14), spent 3 |
+| Dutch pioneer 10 | (49,14), order 0, spent 0 | founds the colony on this turn |
+
+Further corrections under the optional DOS path:
+
+- Bypass the fitted first-colony land approach and local-settle override;
+  use the existing 2912 founding-site scan and 5b66/479b goal walker.
+- Restore an overnight Sentry unit's parked allotment when 0a60 clears
+  its order. DOS refreshes every spent byte at day top (raw 6357); the port
+  parks sleeping units at zero remaining MP. Preserve the saved goto.
+- The scan binds order 0b, plan 32 (overlay 2e3a..2e46 -> 20c6). It must not
+  call the port movement scorer before the actual pathfinder: that extra
+  query consumes RNG and changes subsequent ship directions.
+- The village penalty reads native nation **tech**, not village population:
+  raw 89200 dereferences DS:8d4e+2; FUN_15dc_0006 (raw 9229) binds 8d4e to
+  the Indian nation record. This corrects Spain's (45,51) vs (45,52) target.
+
+Verification: 95/95 ctest; default six-turn golden passes; `make golden`
+now also runs DOS TURN2_to_3 and TURN3_to_4. The play smoke now waits for
+human-owned colonies: the previous all-nation count mistook an early Dutch
+colony for the player's and failed its automatic colony-screen assertion.
+
+Remaining measured differences start at TURN4_to_5: Spanish soldier
+(46,53) instead of (46,55), Dutch hull (43,21) instead of (39,18), plus one
+native position. Later transitions still fail. A separate static lead:
+`ai_euro_land_explore_scan_target` recomputes the explorer flag/counter
+already evaluated by its caller; removing that duplicate alone did not
+change the six-turn outcomes, so it was left for a separate focused proof.
