@@ -492,6 +492,8 @@ void game_open_report(ColonizeGameState* game, ColonizeReportId id);
 void game_open_retire_score(ColonizeGameState* game);
 void game_reveal_sight_for_unit(ColonizeGameState* game, const ColonizeUnit* u);
 bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
+/* Same capture, arbitrary file name inside the save dir (trace autosaves). */
+bool game_save_col1_named(ColonizeGameState* game, const char* name, char* err, size_t err_size);
 bool game_select_next_unit_awaiting_orders(ColonizeGameState* game);
 void game_select_unit(ColonizeGameState* game, int unit_id);
 void game_set_view_center(ColonizeGameState* game, int x, int y);

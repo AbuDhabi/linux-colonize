@@ -93,6 +93,7 @@ static const SettingsBoolOpt k_debug_opts[] = {
   {"mouse_coords", offsetof(ColonizeSettings, show_mouse_coords), false},
   {"building_rects", offsetof(ColonizeSettings, show_building_rects), false},
   {"logs", offsetof(ColonizeSettings, debug_logs), false},
+  {"trace_autosaves", offsetof(ColonizeSettings, trace_autosaves), false},
 };
 
 #define SETTINGS_OPT_COUNT(t) ((int)(sizeof(t) / sizeof((t)[0])))
