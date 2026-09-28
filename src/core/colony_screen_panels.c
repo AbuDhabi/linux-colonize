@@ -351,6 +351,121 @@ static void colony_screen_prod_slot_split(ColonyProdSlot* s, int c, int used, in
   s->color1 = 15;
 }
 
+/* Fill `s` with one cargo's Production-tab cell (cases 1..4 below); returns
+ * false when this colony has nothing to say about that cargo, leaving the
+ * grid cell empty. */
+static bool colony_screen_prod_cargo_slot(
+  const ColonizeColonyPreview* p, int c, ColonyProdSlot* s
+) {
+  /* Food is shown on the People band's fish/grain meter, not repeated
+   * here — golden-confirmed (no Food badge in this pane). Every other
+   * cargo shows its GROSS production this tick (field-worker output
+   * plus, for a manufactured good, the building's own gross craft
+   * output) rather than `goods[]`'s net-after-further-consumption — see
+   * ColonizeColonyPreview.field_gross/craft_gross's header comment.
+   * Horses has no craft recipe of its own (breeding only), so `goods[]`
+   * is already the right (and only) figure for it. */
+  const int produced =
+    (c == COLONIZE_CARGO_HORSES) ? p->goods[c] : (p->field_gross[c] + p->craft_gross[c]);
+  const int short_amt = p->shortfall[c];
+
+  if (c == COLONIZE_CARGO_LUMBER && short_amt <= 0 && p->hammers_capacity > produced) {
+    /* Player-reported (bugs.md): a carpenter demanding more lumber than
+     * this tick *produces* is a lumber shortage — even when warehouse
+     * stock is still feeding him (production 0, stock > 0), and doubly
+     * so when there is no stock either. Same red pairing as the craft
+     * recipes' input-side shortfall. */
+    s->icon0 = produced > 0 ? COLONY_CARGO_ICON_BASE + c : -1;
+    s->amount0 = produced;
+    s->color0 = 15;
+    s->icon1 = COLONY_CARGO_GREY_BASE + c;
+    s->amount1 = p->hammers_capacity - produced;
+    s->color1 = 12;
+    return true;
+  }
+
+  if (c == COLONIZE_CARGO_LUMBER && short_amt <= 0 && p->hammers > 0 && produced > 0) {
+    /* Case 4: Lumber->Hammers isn't a colony_craft_preview() recipe
+     * (the Carpenter's hammers bank is `colony_prod_colony_hammers`, a
+     * separate computation), so it never earns a shortfall[] entry —
+     * but it's the one real surplus-of-what's-used case in this game.
+     * Player-reported (New Amsterdam golden): 22 Lumber = 16 spent on
+     * this tick's hammers + 6 left over, shown as two adjacent white
+     * counters, not one plain "22". */
+    int used = p->hammers;
+    if (used > produced) {
+      used = produced;
+    }
+    const int stored = produced - used;
+    if (stored > 0) {
+      colony_screen_prod_slot_split(s, c, used, stored);
+      return true;
+    }
+  }
+
+  if (short_amt <= 0 && produced > 0) {
+    /* Case 4, general form: some *other* cargo's craft recipe (not
+     * Lumber's hammers — that's the special case above) drew on this
+     * tick's production as its raw input. Not DOS-accurate — DOS shows
+     * Ore/Tools here as one plain number even when the Blacksmith/
+     * Armory visibly consume part of it (checked against the golden:
+     * 28 Ore, 24 Tools, both single) — a deliberate departure from
+     * pixel-fidelity, player-requested: the Production tab is
+     * explicitly not staying 1:1 with DOS here, splitting every
+     * resource this way as a UI improvement. `goods[c]` is already the
+     * net-of-consumption warehouse delta, so `produced - goods[c]` is
+     * exactly what got drawn off this tick and `goods[c]` itself is
+     * exactly what's left to store — no separate bookkeeping needed. */
+    const int used = produced - p->goods[c];
+    const int stored = p->goods[c];
+    if (used > 0 && stored > 0) {
+      colony_screen_prod_slot_split(s, c, used, stored);
+      return true;
+    }
+  }
+
+  if (short_amt > 0) {
+    /* Cases 2/3: produced (white, 0 if nothing produced) paired with
+     * the shortfall (red) in one cell — not summed into one number,
+     * not two separate cells. */
+    s->icon0 = produced > 0 ? COLONY_CARGO_ICON_BASE + c : -1;
+    s->amount0 = produced;
+    s->color0 = 15;
+    s->icon1 = COLONY_CARGO_GREY_BASE + c;
+    s->amount1 = short_amt;
+    s->color1 = 12;
+    return true;
+  }
+  if (produced > 0) {
+    /* Case 1. */
+    s->icon0 = COLONY_CARGO_ICON_BASE + c;
+    s->amount0 = produced;
+    s->color0 = 15;
+    s->icon1 = -1;
+    s->amount1 = 0;
+    s->color1 = 0;
+    return true;
+  }
+  return false;
+}
+
+/* Hammers' own cell (player-reported, bugs.md): a lumber-starved carpenter
+ * shows the hammers he could not bank as a red number, in the same one-cell
+ * pairing the cargo shortfalls use. */
+static bool colony_screen_prod_hammers_slot(const ColonizeColonyPreview* p, ColonyProdSlot* s) {
+  const int short_h = p->hammers_capacity - p->hammers;
+  if (p->hammers <= 0 && short_h <= 0) {
+    return false;
+  }
+  s->icon0 = p->hammers > 0 ? COLONY_ICON_HAMMER : -1;
+  s->amount0 = p->hammers;
+  s->color0 = 15;
+  s->icon1 = short_h > 0 ? COLONY_ICON_HAMMER : -1;
+  s->amount1 = short_h > 0 ? short_h : 0;
+  s->color1 = short_h > 0 ? 12 : 0;
+  return true;
+}
+
 void colony_screen_draw_multifunction(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,
@@ -406,142 +521,36 @@ void colony_screen_draw_multifunction(
      * improvement, this pane only, not a "we got DOS wrong" fix.
      */
     const ColonizeColonyPreview* p = &view->preview;
-    ColonyProdSlot slots[COLONIZE_CARGO_COUNT + 1];
-    int slot_count = 0;
-    /* Food is shown on the People band's fish/grain meter, not repeated
-     * here — golden-confirmed (no Food badge in this pane). Every other
-     * cargo shows its GROSS production this tick (field-worker output
-     * plus, for a manufactured good, the building's own gross craft
-     * output) rather than `goods[]`'s net-after-further-consumption — see
-     * ColonizeColonyPreview.field_gross/craft_gross's header comment.
-     * Horses has no craft recipe of its own (breeding only), so `goods[]`
-     * is already the right (and only) figure for it. */
-    for (int c = 1; c < COLONIZE_CARGO_COUNT; ++c) {
-      if (slot_count >= (int)(sizeof(slots) / sizeof(slots[0]))) {
-        break;
-      }
-      const int produced =
-        (c == COLONIZE_CARGO_HORSES) ? p->goods[c] : (p->field_gross[c] + p->craft_gross[c]);
-      const int short_amt = p->shortfall[c];
-
-      if (c == COLONIZE_CARGO_LUMBER && short_amt <= 0 &&
-          p->hammers_capacity > produced) {
-        /* Player-reported (bugs.md): a carpenter demanding more lumber than
-         * this tick *produces* is a lumber shortage — even when warehouse
-         * stock is still feeding him (production 0, stock > 0), and doubly
-         * so when there is no stock either. Same red pairing as the craft
-         * recipes' input-side shortfall. */
-        ColonyProdSlot* s = &slots[slot_count++];
-        s->icon0 = produced > 0 ? COLONY_CARGO_ICON_BASE + c : -1;
-        s->amount0 = produced;
-        s->color0 = 15;
-        s->icon1 = COLONY_CARGO_GREY_BASE + c;
-        s->amount1 = p->hammers_capacity - produced;
-        s->color1 = 12;
-        continue;
-      }
-
-      if (c == COLONIZE_CARGO_LUMBER && short_amt <= 0 && p->hammers > 0 && produced > 0) {
-        /* Case 4: Lumber->Hammers isn't a colony_craft_preview() recipe
-         * (the Carpenter's hammers bank is `colony_prod_colony_hammers`, a
-         * separate computation), so it never earns a shortfall[] entry —
-         * but it's the one real surplus-of-what's-used case in this game.
-         * Player-reported (New Amsterdam golden): 22 Lumber = 16 spent on
-         * this tick's hammers + 6 left over, shown as two adjacent white
-         * counters, not one plain "22". */
-        int used = p->hammers;
-        if (used > produced) {
-          used = produced;
-        }
-        const int stored = produced - used;
-        if (stored > 0) {
-          colony_screen_prod_slot_split(&slots[slot_count++], c, used, stored);
-          continue;
-        }
-      }
-
-      if (short_amt <= 0 && produced > 0) {
-        /* Case 4, general form: some *other* cargo's craft recipe (not
-         * Lumber's hammers — that's the special case above) drew on this
-         * tick's production as its raw input. Not DOS-accurate — DOS shows
-         * Ore/Tools here as one plain number even when the Blacksmith/
-         * Armory visibly consume part of it (checked against the golden:
-         * 28 Ore, 24 Tools, both single) — a deliberate departure from
-         * pixel-fidelity, player-requested: the Production tab is
-         * explicitly not staying 1:1 with DOS here, splitting every
-         * resource this way as a UI improvement. `goods[c]` is already the
-         * net-of-consumption warehouse delta, so `produced - goods[c]` is
-         * exactly what got drawn off this tick and `goods[c]` itself is
-         * exactly what's left to store — no separate bookkeeping needed. */
-        const int used = produced - p->goods[c];
-        const int stored = p->goods[c];
-        if (used > 0 && stored > 0) {
-          colony_screen_prod_slot_split(&slots[slot_count++], c, used, stored);
-          continue;
-        }
-      }
-
-      if (short_amt > 0) {
-        /* Cases 2/3: produced (white, 0 if nothing produced) paired with
-         * the shortfall (red) in one cell — not summed into one number,
-         * not two separate cells. */
-        ColonyProdSlot* s = &slots[slot_count++];
-        s->icon0 = produced > 0 ? COLONY_CARGO_ICON_BASE + c : -1;
-        s->amount0 = produced;
-        s->color0 = 15;
-        s->icon1 = COLONY_CARGO_GREY_BASE + c;
-        s->amount1 = short_amt;
-        s->color1 = 12;
-      } else if (produced > 0) {
-        /* Case 1. */
-        ColonyProdSlot* s = &slots[slot_count++];
-        s->icon0 = COLONY_CARGO_ICON_BASE + c;
-        s->amount0 = produced;
-        s->color0 = 15;
-        s->icon1 = -1;
-        s->amount1 = 0;
-        s->color1 = 0;
-      }
-    }
-    if ((p->hammers > 0 || p->hammers_capacity > p->hammers) &&
-        slot_count < (int)(sizeof(slots) / sizeof(slots[0]))) {
-      /* Hammer shortfall (player-reported, bugs.md): a lumber-starved
-       * carpenter shows the hammers he could not bank as a red number, in
-       * the same one-cell pairing the cargo shortfalls use. */
-      ColonyProdSlot* s = &slots[slot_count++];
-      const int short_h = p->hammers_capacity - p->hammers;
-      {
-        s->icon0 = p->hammers > 0 ? COLONY_ICON_HAMMER : -1;
-        s->amount0 = p->hammers;
-        s->color0 = 15;
-        if (short_h > 0) {
-          s->icon1 = COLONY_ICON_HAMMER;
-          s->amount1 = short_h;
-          s->color1 = 12;
-        } else {
-          s->icon1 = -1;
-          s->amount1 = 0;
-          s->color1 = 0;
-        }
-      }
-    }
-    if (slot_count > 0 && pane_w > 0 && pane_h > 0) {
-      /* Prefer a single column; add columns when rows would be shorter than icons. */
-      const int min_row_h = 8;
-      int cols = 1;
-      int rows = slot_count;
-      while (cols < slot_count && pane_h / rows < min_row_h) {
-        cols++;
-        rows = (slot_count + cols - 1) / cols;
-      }
-      const int cell_w = pane_w / cols;
-      const int cell_h = pane_h / rows;
-      for (int i = 0; i < slot_count; ++i) {
-        const int col = i / rows;
-        const int row = i % rows;
+    /* Fixed grid, player-specified (2026-09-28): four equal-height rows,
+     * four equal-width columns each except the last row's three. Every
+     * cargo owns its cell whatever this colony produces, so the numbers
+     * stay put between colonies and between turns; a cargo nothing
+     * touches just leaves its cell blank. -1 = the hammers cell. */
+#define COLONY_PROD_CELL_HAMMERS (-1)
+    static const int prod_cells[15] = {
+      COLONIZE_CARGO_SUGAR,  COLONIZE_CARGO_RUM,      COLONIZE_CARGO_TOBACCO,
+      COLONIZE_CARGO_CIGARS, COLONIZE_CARGO_COTTON,   COLONIZE_CARGO_CLOTH,
+      COLONIZE_CARGO_FURS,   COLONIZE_CARGO_COATS,    COLONIZE_CARGO_LUMBER,
+      COLONY_PROD_CELL_HAMMERS, COLONIZE_CARGO_HORSES, COLONIZE_CARGO_SILVER,
+      COLONIZE_CARGO_ORE,    COLONIZE_CARGO_TOOLS,    COLONIZE_CARGO_MUSKETS,
+    };
+    const int cell_h = pane_h / 4;
+    if (pane_w > 0 && cell_h > 0) {
+      for (int i = 0; i < 15; ++i) {
+        const int row = i < 12 ? i / 4 : 3;
+        const int col = i < 12 ? i % 4 : i - 12;
+        const int cols = row < 3 ? 4 : 3;
+        const int cell_w = pane_w / cols;
         const int sx = px + col * cell_w;
         const int sy = py + row * cell_h;
-        const ColonyProdSlot* s = &slots[i];
+        ColonyProdSlot slot;
+        const bool have = prod_cells[i] == COLONY_PROD_CELL_HAMMERS
+                            ? colony_screen_prod_hammers_slot(p, &slot)
+                            : colony_screen_prod_cargo_slot(p, prod_cells[i], &slot);
+        if (!have) {
+          continue;
+        }
+        const ColonyProdSlot* s = &slot;
         if (s->icon1 < 0 || s->icon0 < 0) {
           /* Single value: cases 1/2 outright, and case 2's "nothing
            * produced" collapses here too rather than splitting an empty
