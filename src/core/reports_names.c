@@ -533,3 +533,96 @@ void reports_names_free_catalogs(void) {
     g_reports_labels_ok = false;
   }
 }
+
+/*
+ * One NUL-terminated DS string straight out of the shipped
+ * `COLONIZE/VICEROY.EXE` (DS string = file offset 121248 + addr — see
+ * docs/popup_tag_ids.md).
+ *
+ * The port never compiles MicroProse wording in (docs/data_vs_hardcoded.md
+ * Part D), and a handful of DOS strings live only in the EXE's data segment
+ * with no `COLONIZE` text catalogs row behind them. Those are *read*, like every
+ * other shipped asset, never typed. The EXE is not in
+ * `assets_validate_required_files`, so a miss is normal and returns false;
+ * every caller then draws nothing, which is the same "miss = empty string"
+ * rule the catalog lookups follow.
+ *
+ * Only plain printable ASCII is accepted, so a wrong offset or a different
+ * build cannot feed arbitrary bytes into a draw call.
+ */
+bool reports_ds_string(const char* data_dir, unsigned addr, char* out, size_t out_sz) {
+  if (!out || out_sz == 0) {
+    return false;
+  }
+  out[0] = '\0';
+  if (!data_dir || !data_dir[0]) {
+    return false;
+  }
+  char path[512];
+  if (!dos_compat_normalize_asset_path(data_dir, "VICEROY.EXE", path, sizeof(path))) {
+    return false;
+  }
+  FILE* f = fopen(path, "rb");
+  if (!f) {
+    return false;
+  }
+  bool ok = false;
+  if (fseek(f, (long)COLONIZE_REPORTS_DS_BASE + (long)addr, SEEK_SET) == 0) {
+    size_t n = 0;
+    int c;
+    while (n + 1 < out_sz && (c = fgetc(f)) != EOF) {
+      if (c == 0) {
+        ok = n > 0;
+        break;
+      }
+      if (c < 0x20 || c > 0x7e) {
+        break;
+      }
+      out[n++] = (char)c;
+    }
+    out[n] = '\0';
+  }
+  fclose(f);
+  if (!ok) {
+    out[0] = '\0';
+  }
+  return ok;
+}
+
+/*
+ * Render one of those DS strings that is a two-number printf template, with
+ * the two values substituted. The template comes from a file, so it is split
+ * on its own "%d" markers and composed by hand — it is never handed to
+ * printf. Anything that is not exactly "<a>%d<b>%d<c>" with no other '%' is
+ * rejected and the caller draws nothing.
+ */
+bool reports_ds_two_numbers(const char* fmt, int a, int b, char* out, size_t out_sz) {
+  if (!out || out_sz == 0) {
+    return false;
+  }
+  out[0] = '\0';
+  if (!fmt) {
+    return false;
+  }
+  const char* slot[2] = {NULL, NULL};
+  int found = 0;
+  for (const char* p = fmt; *p; ++p) {
+    if (*p != '%') {
+      continue;
+    }
+    if (p[1] != 'd' || found >= 2) {
+      return false; /* some other conversion, or a third one */
+    }
+    slot[found++] = p;
+    ++p;
+  }
+  if (found != 2) {
+    return false;
+  }
+  const int head_len = (int)(slot[0] - fmt);
+  const int mid_len = (int)(slot[1] - (slot[0] + 2));
+  const int n = snprintf(
+    out, out_sz, "%.*s%d%.*s%d%s", head_len, fmt, a, mid_len, slot[0] + 2, b, slot[1] + 2
+  );
+  return n > 0 && (size_t)n < out_sz;
+}

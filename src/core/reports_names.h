@@ -29,4 +29,11 @@ const char* reports_tribe_level(uint8_t tech);
 
 extern const int k_job_count;
 
+/* DS string base: a VICEROY.EXE data-segment address is at this file offset
+ * plus the address (docs/popup_tag_ids.md). */
+#define COLONIZE_REPORTS_DS_BASE 121248
+
+bool reports_ds_string(const char* data_dir, unsigned addr, char* out, size_t out_sz);
+bool reports_ds_two_numbers(const char* fmt, int a, int b, char* out, size_t out_sz);
+
 #endif /* COLONIZE_CORE_REPORTS_NAMES_H */

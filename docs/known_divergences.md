@@ -79,3 +79,37 @@ change the port's behaviour on a guess.
 Seed `0x7fff` at `ai_euro_colony_jobs.c` ~1015 still needs a live capture.
 Parts (a) and (b) of the original #915 bundle were REFUTED — see
 [bugs_fixed_pending.md](archive/bugs_fixed_pending.md).
+
+### #974 — F7 Naval: Europe-lane ships are EuropeScreen rows, not unit rows
+DOS `FUN_3f41_220c` has no Europe special case: a ship waiting in port or
+mid-Atlantic is an ordinary unit record on the nation's sentinel diagonal
+(236+n in port, 232+n / 228+n westbound, 244+n / 240+n eastbound — see
+`col1_bridge.c`'s lane notes), so it is listed by the same array pass as every
+other ship. Its Location comes from the shared namer `FUN_291f_0f82`
+(= `FUN_49dd_02d0`) applied to the sentinel coordinates, and its Destination
+from four x-delta arms (asm OVL06_L0040 0027d4-00283c): `nation - x` of 0x18 or
+0x1c takes the New World name at `DS:0x5426 + nation*0x34`, 0x0c or 0x10 takes
+the Europe port name from the pointer table at `DS:0x838c + nation*2`, and
+anything else draws an empty cell. A unit standing on a real map tile without a
+goto order gets no Destination at all (`FUN_281f_0302(x, y) != 0` skips it).
+
+The port cannot reproduce this as written: `col1_bridge_apply` consumes those
+sentinel unit records into `EuropeScreen`'s harbor/expected/bound lists, so they
+are not in the unit pool for `reports_naval_build_rows` to walk. The report
+rebuilds them from those lists instead and labels them "High Seas" (@MISC 60) /
+`europe->port_city` / `europe->colony_region` — the same two names DOS's two
+arms resolve to, reached a different way, plus a Location string DOS would
+have taken from the sentinel tile.
+
+What is actually unknown is only that Location: what `FUN_49dd_02d0` prints for
+an off-map sentinel coordinate. On-map it is settled and the port matches —
+`naval.png` shows "New Amsterdam" for a colony tile and "(51, 48)" for open
+water, which is exactly `reports_naval_location`. Settling the off-map case
+needs a live DOS capture of F7 with a ship in port and one mid-ocean; until
+then, re-plumbing the lanes would trade a working display for a guess.
+
+Two claims filed with the original #974 were resolved rather than accepted:
+the Location/Destination *formats* were called port inventions and are not
+(golden-confirmed above), and the Destination order test is now the DOS triple
+3 / 0xb / 2 rather than the shared `units_orders_follow_goto`, which also
+accepts 12 (AI_MOVE) — fixed 2026-09-28 with [#973](archive/bugs_fixed_pending.md).

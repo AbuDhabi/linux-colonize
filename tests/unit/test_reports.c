@@ -6,6 +6,7 @@
 
 #include "core/col1_save.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "platform/diagnostics.h"
 
 #include "../common/test_runner.h"
@@ -1026,6 +1027,56 @@ static int case_names_survive_missing_report_art(void) {
   return rc;
 }
 
+/*
+ * F2's cheat-only line reads its template out of the shipped VICEROY.EXE
+ * rather than compiling MicroProse wording in (bugs.md #977). Check the
+ * reader and, above all, the hand-rolled substitution: the template comes
+ * from a file and must never reach printf, so anything that is not exactly
+ * two "%d" markers has to be refused.
+ */
+static int case_ds_string_two_numbers(void) {
+  char out[64];
+
+  if (!reports_ds_two_numbers("(%d of %d)", 25, 128, out, sizeof(out)) ||
+      strcmp(out, "(25 of 128)") != 0) {
+    fprintf(stderr, "two_numbers: got '%s'\n", out);
+    return 1;
+  }
+  if (!reports_ds_two_numbers("%d/%d", -3, 0, out, sizeof(out)) || strcmp(out, "-3/0") != 0) {
+    fprintf(stderr, "two_numbers signed: got '%s'\n", out);
+    return 1;
+  }
+  /* Everything else is refused, and leaves an empty string behind. */
+  const char* bad[] = {"%d", "%d %d %d", "%s and %d", "%d %n", "no markers", NULL};
+  for (int i = 0; bad[i]; ++i) {
+    if (reports_ds_two_numbers(bad[i], 1, 2, out, sizeof(out)) || out[0] != '\0') {
+      fprintf(stderr, "two_numbers accepted '%s'\n", bad[i]);
+      return 1;
+    }
+  }
+  if (reports_ds_two_numbers(NULL, 1, 2, out, sizeof(out))) {
+    return 1;
+  }
+
+  /* The real template, read from the shipped EXE: only its shape is
+   * asserted — the wording is MicroProse's and stays out of this file. */
+  char fmt[64];
+  if (!reports_ds_string("COLONIZE", 0x11a9, fmt, sizeof(fmt))) {
+    fprintf(stderr, "reports_ds_string(0x11a9) failed\n");
+    return 1;
+  }
+  if (!reports_ds_two_numbers(fmt, 25, 128, out, sizeof(out)) || !strstr(out, "25") ||
+      !strstr(out, "128")) {
+    fprintf(stderr, "EXE template did not compose: '%s' -> '%s'\n", fmt, out);
+    return 1;
+  }
+  /* A missing data dir is a normal miss, not a crash. */
+  if (reports_ds_string("no/such/dir", 0x11a9, fmt, sizeof(fmt)) || fmt[0] != '\0') {
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"cargo_names_no_alias", case_cargo_names_no_alias},
   {"report_backgrounds", case_report_backgrounds},
@@ -1047,6 +1098,7 @@ static const TestCase k_cases[] = {
   {"indian_tribe_listed_gate", case_indian_tribe_listed_gate},
   {"foreign_affairs_golden", case_foreign_affairs_golden},
   {"names_survive_missing_report_art", case_names_survive_missing_report_art},
+  {"ds_string_two_numbers", case_ds_string_two_numbers},
   {"post_free_fallback", case_post_free_fallback},
 };
 

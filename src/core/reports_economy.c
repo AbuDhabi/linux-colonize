@@ -53,6 +53,30 @@
 #define REPORTS_ECON1_BID_RIGHT 199
 #define REPORTS_ECON1_ASK_RIGHT 251
 
+/*
+ * One Tons or Gold cell of the F5 ledger.
+ *
+ * DOS-LITERAL FUN_3f41_1710 (overlay asm OVL06_L0040 001cb0-001d10, and the
+ * identical second copy at 001d80-...): the value is a 32-bit pair; when its
+ * high word is negative DOS negates the pair and takes attribute 4 instead of
+ * 2, then
+ *
+ *     if (high > 0 || (high == 0 && low >= 0x2710))   // i.e. |v| > 9999
+ *         FUN_0000_e162(&v, 1000, 0);                 // v /= 1000
+ *         strcat(suffix, DS:0x2e2c);                  // @MISC 57 = "K"
+ *
+ * and finally appends the digits, then the suffix. Both decisions are made
+ * once per value, so the two columns can disagree (bugs.md #975/#976).
+ */
+static void reports_econ_amount(int32_t v, const char* k_word, char* out, size_t out_sz) {
+  const long a = v < 0 ? -(long)v : (long)v;
+  if (a > 9999) {
+    snprintf(out, out_sz, "%ld%s", a / 1000, k_word ? k_word : "");
+    return;
+  }
+  snprintf(out, out_sz, "%ld", a);
+}
+
 /* ===================== Economic/Trade & Cargo report (reports_render_economic_trade .. reports_render_economic_cargo) ===================== */
 void reports_render_economic_trade(
   const ColonizeReportsView* view,
@@ -118,12 +142,22 @@ void reports_render_economic_trade(
 
     const int32_t tons = nat ? nat->trade.tons[c] : 0;
     const int32_t g = nat ? nat->trade.gold[c] : 0;
-    const bool net_bought = tons < 0 || (tons == 0 && g < 0);
-    const uint8_t sign_color = net_bought ? REPORTS_ECON_NEG_COLOR : REPORTS_ECON_POS_COLOR;
-    snprintf(line, line_sz, "%d", tons < 0 ? -tons : tons);
-    reports_draw_right(font, fb, REPORTS_ECON1_TONS_RIGHT, text_y, line, sign_color);
-    snprintf(line, line_sz, "%d$", g < 0 ? -g : g);
-    reports_draw_right(font, fb, REPORTS_ECON1_GOLD_RIGHT, text_y, line, sign_color);
+    /* DS:0x2e2c — LABELS.TXT @MISC 57, the thousands marker ("K"). */
+    char k_word[16];
+    reports_misc_word(57, "", k_word, sizeof(k_word));
+    /* Attribute is decided per value (DOS `local_8c`), not once per row. */
+    const uint8_t tons_color = tons < 0 ? REPORTS_ECON_NEG_COLOR : REPORTS_ECON_POS_COLOR;
+    const uint8_t gold_color = g < 0 ? REPORTS_ECON_NEG_COLOR : REPORTS_ECON_POS_COLOR;
+    reports_econ_amount(tons, k_word, line, line_sz);
+    reports_draw_right(font, fb, REPORTS_ECON1_TONS_RIGHT, text_y, line, tons_color);
+    {
+      char gold_digits[32];
+      reports_econ_amount(g, k_word, gold_digits, sizeof(gold_digits));
+      /* DOS appends DS:0x11b4 ("$") after the suffix, so a scaled figure
+       * reads "12K$" — `FUN_1d1d_07a4(buf, 0x11b4)` at 001d10. */
+      snprintf(line, line_sz, "%s$", gold_digits);
+    }
+    reports_draw_right(font, fb, REPORTS_ECON1_GOLD_RIGHT, text_y, line, gold_color);
 
     int bid;
     int ask;
