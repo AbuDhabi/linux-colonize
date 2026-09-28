@@ -416,9 +416,6 @@ void reports_compute_score_w(
 #define REPORTS_SCORE_CITIZENS_Y 24
 #define REPORTS_SCORE_ICON_X 16
 #define REPORTS_SCORE_ICON_Y 32
-#define REPORTS_SCORE_ICON_W 288
-#define REPORTS_SCORE_CONGRESS_Y 60
-#define REPORTS_SCORE_FF_ROW0_Y 67
 #define REPORTS_SCORE_FF_ROW_STEP 7
 #define REPORTS_SCORE_FF_COL0_X 16
 #define REPORTS_SCORE_FF_COL_STEP 72
@@ -432,59 +429,55 @@ void reports_compute_score_w(
 #define REPORTS_SCORE_BAR_H 7
 #define REPORTS_SCORE_BAR_MAX 1000 /* fill = min(total,MAX)/MAX of the track — measured 305/1000 on the golden */
 
-/* Citizens icon strip: one units_job_icon_sprite() portrait per counted
- * citizen (same job list reports_compute_score sums points from), packed
- * left-to-right at a fixed pitch, wrapping to a new row when a row would
- * exceed [x, x+w). Golden (score.png, 48 icons) measured via its row-1
- * boot-shadow pixels: a uniform REPORTS_SCORE_ICON_PITCH_X=8 native advance
- * per icon, 37 icons filling one full row ((37-1)*8=288=w exactly), with
- * the remaining 11 spilling onto a second row — confirming DOS wraps
- * rather than compressing pitch to force everything onto one line. Row 2
- * (and every following even 1-indexed row) is shifted right by half an
- * icon's width, and each row starts half an icon's height below the last
- * — both directly visible in the golden's brick-offset overlap and
- * confirmed against the sprite sheet's own reported 6x16 portrait size. */
+/* DOS-LITERAL FUN_41f2_0048 raw 71050 (advance+draw) driven from
+ * FUN_41f2_0092's cursor init DS:0x2d0e=0x10 / DS:0x2d10=0x20.
+ *
+ * Per citizen DOS advances the cursor FIRST, then draws:
+ *   x += 8; if (x > 0x123) { y += 8; x = ((x & 8) >> 1) + 0x10; }
+ *   if (y < 0x90) blit(x, y);
+ * so row 1 runs x=24..288 (34 icons), and each wrap alternates the row
+ * start between 20 and 16 (the brick offset), never compressing pitch.
+ * The y < 0x90 gate is the overflow guard: with enough citizens DOS simply
+ * stops drawing portraits at y=144 instead of running into the score
+ * lines. The caller needs the final cursor y because the Continental
+ * Congress line and the Founding Father grid below are positioned
+ * relative to it (0x2d10 + font_h + 0x15), which is what makes the DOS
+ * layout responsive to the citizen count.
+ *
+ * (The earlier 37-per-row reading measured off score.png was a
+ * miscount of the row-1 boot shadows; the decomp wins per the evidence
+ * hierarchy, and 34/34 still reproduces the golden's two-row block.) */
 #define REPORTS_SCORE_ICON_PITCH_X 8
-static void reports_score_draw_citizen_icons(
+#define REPORTS_SCORE_ICON_X_MAX 0x123
+#define REPORTS_SCORE_ICON_Y_MAX 0x90
+static int reports_score_draw_citizen_icons(
   const ColonizeReportsView* view,
   ColonizeFramebuffer8* fb,
   const int* icon_ids,
   int count,
   int x,
-  int y,
-  int w
+  int y
 ) {
   const ColonizeSpriteSheet* icons = reports_icons_for(view, COLONIZE_REPORT_SCORE);
-  if (!view || !icons || count <= 0 || w <= 0) {
-    return;
+  if (!view || !icons || count <= 0) {
+    return y;
   }
-  int icon_w = 6;
-  int icon_h = 16;
   for (int i = 0; i < count; ++i) {
-    const int probe = icon_ids[i];
-    if (probe >= 0 && probe < icons->sprite_count) {
-      icon_w = icons->sprites[probe].width;
-      icon_h = icons->sprites[probe].height;
-      break;
+    x += REPORTS_SCORE_ICON_PITCH_X;
+    if (x > REPORTS_SCORE_ICON_X_MAX) {
+      y += REPORTS_SCORE_ICON_PITCH_X;
+      x = ((x & 8) >> 1) + REPORTS_SCORE_ICON_X;
     }
-  }
-  const int per_row = w / REPORTS_SCORE_ICON_PITCH_X + 1;
-  const int row_dy = icon_h / 2;
-  const int row_dx = icon_w / 2;
-  for (int i = 0; i < count; ++i) {
+    if (y >= REPORTS_SCORE_ICON_Y_MAX) {
+      continue;
+    }
     const int icon = icon_ids[i];
     if (icon < 0 || icon >= icons->sprite_count) {
       continue;
     }
-    const int row = i / per_row;
-    const int col = i % per_row;
-    int ix = x + col * REPORTS_SCORE_ICON_PITCH_X;
-    if (row % 2 == 1) {
-      ix += row_dx;
-    }
-    const int iy = y + row * row_dy;
-    ss_blit_sprite(icons, icon, fb, ix, iy);
+    ss_blit_sprite(icons, icon, fb, x, y);
   }
+  return y;
 }
 
 void reports_render_score(
@@ -574,6 +567,7 @@ void reports_render_score(
   reports_draw_line(
     body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_CITIZENS_Y, line, REPORTS_SCORE_GREEN_COLOR
   );
+  int icon_end_y = REPORTS_SCORE_ICON_Y;
   {
     /* bugs.md (score_screen.SAV): strip icons are per-citizen sprites —
      * equipped map art for units (Continentals, veterans with kit), job
@@ -582,10 +576,18 @@ void reports_render_score(
     int icons[REPORTS_SCORE_CITIZENS_MAX];
     const int n =
       reports_score_collect_citizen_jobs(col1, human, jobs, icons, REPORTS_SCORE_CITIZENS_MAX);
-    reports_score_draw_citizen_icons(
-      view, fb, icons, n, REPORTS_SCORE_ICON_X, REPORTS_SCORE_ICON_Y, REPORTS_SCORE_ICON_W
+    icon_end_y = reports_score_draw_citizen_icons(
+      view, fb, icons, n, REPORTS_SCORE_ICON_X, REPORTS_SCORE_ICON_Y
     );
   }
+  /* FUN_41f2_0092: everything below the strip hangs off the final cursor
+   * row DS:0x2d10, not off a fixed y — the Congress line at +0x14 and the
+   * FF grid at +font_h+0x15 (font_h = 6, so FF_ROW_STEP = font_h + 1). The
+   * golden's 48 citizens end the strip on row 2 (y=40), reproducing the
+   * measured y=60 / y=67; more citizens push both blocks down instead of
+   * letting the strip overdraw them. */
+  const int congress_y = icon_end_y + 0x14;
+  const int ff_row0_y = icon_end_y + (REPORTS_SCORE_FF_ROW_STEP - 1) + 0x15;
 
   /* Continental Congress line + 4-column Founding Father name grid. */
   snprintf(
@@ -597,7 +599,7 @@ void reports_render_score(
     sc.congress
   );
   reports_draw_line(
-    body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_CONGRESS_Y, line, REPORTS_SCORE_GREEN_COLOR
+    body_font, fb, REPORTS_SCORE_LEFT_X, congress_y, line, REPORTS_SCORE_GREEN_COLOR
   );
   {
     int shown = 0;
@@ -608,7 +610,11 @@ void reports_render_score(
       const int col = shown % REPORTS_SCORE_FF_COLS;
       const int row = shown / REPORTS_SCORE_FF_COLS;
       const int x = REPORTS_SCORE_FF_COL0_X + col * REPORTS_SCORE_FF_COL_STEP;
-      const int y = REPORTS_SCORE_FF_ROW0_Y + row * REPORTS_SCORE_FF_ROW_STEP;
+      const int y = ff_row0_y + row * REPORTS_SCORE_FF_ROW_STEP;
+      if (y >= 0x91) { /* FUN_41f2_0092: `if (iVar1 < 0x91)` gates the name draw */
+        shown++;
+        continue;
+      }
       reports_draw_line(body_font, fb, x, y, reports_ff_name(idx), REPORTS_SCORE_GREEN_COLOR);
       shown++;
     }
