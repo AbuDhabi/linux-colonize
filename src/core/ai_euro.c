@@ -2454,7 +2454,13 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   /* FUN_521d_5b66 cases 0b/0c (overlay asm 139947): the same pathfinder
    * walks hulls and land units. Avoid the fitted land-role/move ladder
    * under the DOS opening switch (#530); case 7 was handled above. */
-  if (ai_euro_ship_dos_enabled()) {
+  const ColonizeUnitKind dispatch_kind = ai_euro_unit_kind(ctx->units, u);
+  const int deferred_band = ai_euro_is_treasure_name(dispatch_kind) ||
+    ai_euro_is_missionary_name(dispatch_kind) || ai_euro_type_is_wagon_name(dispatch_kind);
+  /* These types bypassed the scoring gate above because their 20e6 bands
+   * already live in ai_euro_act_land. Keep those handlers reachable; they
+   * are independent of the first-colony settler approach being replaced. */
+  if (ai_euro_ship_dos_enabled() && !deferred_band) {
     if (u->orders == AI_EURO_ACT_GOAL || u->orders == AI_EURO_ACT_STEP) {
       ai_euro_goal_walk_479b(ctx, u);
     } else {
@@ -2556,8 +2562,10 @@ static void ai_euro_dispatcher_turn_plan(ColonizeTurnContext* ctx, int nation_id
   /* 5. Plan: 5d04 → 0342 → 0a60 */
   ai_euro_nation_planning(ctx, nation_id);
   ai_goals_promote_secondary_to_primary(nation_id);
-  ai_euro_cancel_stale_zero_hammer_builds(ctx, nation_id);
-  ai_euro_clear_pre_stockade_build_queue(ctx, nation_id);
+  if (!ai_euro_ship_dos_enabled()) {
+    ai_euro_cancel_stale_zero_hammer_builds(ctx, nation_id);
+    ai_euro_clear_pre_stockade_build_queue(ctx, nation_id);
+  }
   ai_euro_colony_goals(ctx, nation_id);
   /*
    * bugs.md #483 — DOS's ONE construction picker, FUN_5952_035e's tail. It
@@ -2849,36 +2857,18 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
   /* FUN_521d_6d8e raw 93118-93142: the complete 5952 colony tick
    * precedes inventory and Europe planning; those read its new stocks. */
   if (ai_euro_ship_dos_enabled()) {
-    ai_euro_colony_tick_28c8_reassign(ctx, nation_id);
+    ai_euro_colony_tick_5952(ctx, nation_id);
   }
 
   ai_euro_dispatcher_turn_plan(ctx, nation_id);
 
   ai_euro_dispatcher_turn_unit_waves(ctx, nation_id);
 
-  /*
-   * POSITION IS WRONG ON PURPOSE, bugs.md #964. DOS runs the whole per-colony
-   * FUN_5952_035e tick FIRST: FUN_521d_6d8e raw 93118-93142 walks the nation's
-   * owned colonies through thunk_FUN_2a1f_0530 -> FUN_521d_5cf6 (raw 92316) ->
-   * FUN_2a1f_05a8 -> FUN_5952_035e (035e's only call site in the EXE) before
-   * the treaty timers (raw ~93175), FUN_521d_5d04 planning (thunk 2a1f_0554)
-   * and FUN_521d_0a60 (thunk 2a1f_050c), and the census counters in that same
-   * loop body read the colony record after the tick has run.
-   *
-   * Moving this one call to the top does NOT fix it, and was tried and
-   * reverted 2026-09-28. DOS's order *inside* 035e is
-   *   tools/connect -> improve -> colonist placement -> build cascade -> ARM 2
-   * and the port has that body split across two call sites: everything except
-   * the cascade lives in ai_euro_colony_tick_28c8_reassign, while the cascade
-   * (ai_euro_5952_build_cascade) runs up in the plan phase. Hoisting the tick
-   * alone therefore puts ARM 2's expert purchase in front of the cascade and
-   * breaks the [BP+0xff62] Docks latch order bugs.md #586 depends on.
-   * The move needs all three pieces to travel together, and the cascade is
-   * pinned where it is by the ring-1 threat count (ai_euro_s_5952_ring1),
-   * produced inside ai_euro_colony_goals by ai_euro_colony_threat_seed_5952
-   * and tangled there with its labor_running accumulator. Extracting that
-   * seed is the prerequisite.
-   */
+  /* Legacy phase order retained while the DOS opening path is opt-in.
+   * #964/#530: DOS mode runs counters/origin binding, threat/absorption,
+   * placement, build cascade and specialist arms together before planning.
+   * The default still needs the broader colony/dispatch regressions resolved
+   * before this fallback can be removed. */
   if (!ai_euro_ship_dos_enabled()) {
     ai_euro_colony_tick_28c8_reassign(ctx, nation_id);
   }

@@ -1246,7 +1246,9 @@ static int ai_euro_20e6_patrol_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, co
   if (!hc) {
     return 0;
   }
-  ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, hc->x, hc->y);
+  /* FUN_521d_20c6 via LAB_27f5 (raw 89056): a persistent goal,
+   * not LAB_589e's one-step order. 479b clears it on arrival. */
+  ai_euro_set_goto(u, AI_EURO_ACT_GOAL, hc->x, hc->y);
   return 1;
 }
 

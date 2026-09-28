@@ -79,7 +79,7 @@ typedef struct ColonizeTurnContext {
  *   units_try_move_w(&w, id, dx, dy);
  */
 static inline ColonizeWorld world_from_turn_ctx(const ColonizeTurnContext* ctx) {
-  ColonizeWorld w;
+  ColonizeWorld w = {0};
   w.units = ctx->units;
   w.colonies = ctx->colonies;
   w.map = ctx->map;

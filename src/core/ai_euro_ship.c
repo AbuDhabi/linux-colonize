@@ -1409,6 +1409,12 @@ int ai_euro_try_ship_trade_haul(
       return 0;
     }
   }
+  if (ai_euro_ship_dos_enabled()) {
+    /* FUN_521d_20e6 LAB_4567 -> 27f5, raw 89927-89929: the
+     * destination is the colony itself, not a neighbouring water tile. */
+    ai_euro_set_goto(ship, AI_EURO_ACT_GOAL, cx, cy);
+    return 1;
+  }
   int wx = 0;
   int wy = 0;
   if (!ai_euro_coastal_water_near(ctx->map, cx, cy, ship->x, ship->y, &wx, &wy)) {

@@ -90,7 +90,7 @@ T1.23 / T3.3).
 
 `golden_ai_joint` is a **build-only convenience target**, not a ctest test: it
 re-runs `golden_mapgen_seed100`, `golden_ai_turns` (plus the proven #530 DOS
-TURN2→3 and TURN3→4 transitions), the three `unit_ai_contact_*` slices,
+TURN2→3 through TURN6→7 transitions), the three `unit_ai_contact_*` slices,
 `unit_ai_diplo`, `smoke_ai_mid01` and `smoke_ai_late01` in one shot. Registering
 it as a test made a plain `ctest` run all six twice, so the `add_test()` was
 dropped 2026-09-14 (duplication audit TT-14). Run it explicitly:

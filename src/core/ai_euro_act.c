@@ -17,6 +17,7 @@
 #include "core/ai_euro.h"
 
 #include "core/ai.h"
+#include "core/ai_internal.h"
 #include "core/ai_contact.h"
 #include "core/ai_diplo.h"
 #include "core/ai_king.h"
@@ -2120,9 +2121,6 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
     ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);
     return 0;
   }
-  /* +0x314f facing is a real save byte (u->last_dir); the scorer's facing
-   * term reads the file-local shadow, so seed it from the unit. */
-  ai_euro_s_euro_last_dir[id] = (int8_t)u->last_dir;
   int attack = 0;
   const int dir = ai_euro_20e6_wander_step(ctx, u, &s, &attack, NULL);
   if (getenv("AI_SHIP_TRACE")) {
@@ -2162,7 +2160,10 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   int px = 0;
   int py = 0;
   int ok = 0;
-  ColonizeWorld w = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, ctx->rng, NULL);
+  ColonizeWorld w = world_from_turn_ctx(ctx);
+  /* FUN_465b_0000 raw 75649: partial-MP moves reseed before rolling. */
+  w.rng_reseed = ai_turn_seed(ctx);
+  w.rng_reseed_set = true;
   if (u->x != u->goto_x || u->y != u->goto_y) {
     ok = units_next_goto_step_w(&w, id, &px, &py);
   }

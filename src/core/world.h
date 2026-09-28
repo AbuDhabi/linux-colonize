@@ -66,7 +66,7 @@ static inline ColonizeWorld world_make(
   const ColonizeDosRng* rng,
   const EuropeScreen* europe
 ) {
-  ColonizeWorld w;
+  ColonizeWorld w = {0};
   w.units = (ColonizeUnitPool*)units;
   w.colonies = (ColonizeColonyPool*)colonies;
   w.map = (ColonizeWorldMap*)map;
