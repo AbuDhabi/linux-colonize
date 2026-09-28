@@ -1354,8 +1354,10 @@ static int ai_euro_20e6_village_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, c
   if (t->nation_id < 4 || t->nation_id > 11) {
     return 0;
   }
-  /* Real 8d4a attitude[nation] gates (raw 1366 scout ==0, raw 1686 colonist
-   * <0x40) — the record word is tribe.alarm[nation] {friction, attacks}. */
+  /* Real 8d4a attitude[nation] gates (md:1366 scout ==0, md:1686 colonist
+   * <0x40 — annotated move_scoring_20e6_full.md numbering, NOT raw lines in
+   * viceroy_unpacked.c) — the record word is tribe.alarm[nation]
+   * {friction, attacks}. */
   const int att = ai_euro_20e6_village_attitude(t, s->nation);
   if (s->dos_type == UNITS_KIND_SCOUT && !t->state.scouted && att == 0) {
     if (ai_contact_ai_scout_visit_village(ctx, s->nation, s->village_idx, u->id)) {
@@ -3360,6 +3362,15 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
         return 0;
       }
       if (armed < 2) {
+        /* bugs.md #967 REFUTED 2026-09-28: DOS decrements +0x8e unconditionally
+         * (signed char, raw 88607), but this arm is only entered with
+         * `labor_shortage >= 1` (the gate above; the `admitted` disjunct
+         * returns at the LAB_5899 stay before here), so the >0 test can never
+         * fire and the counter cannot underflow. Kept as an assertion of that
+         * invariant — the field is uint8_t, where an unclamped decrement would
+         * wrap to 0xff and read as a huge shortage at every unsigned consumer,
+         * which is not DOS either (DOS's own readers compare signed: see the
+         * `labor_shortage < 1` transcription above). */
         if (oc->labor_shortage > 0) {
           oc->labor_shortage--;
         }
@@ -3673,6 +3684,17 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
        * that scored no attack this scan falls back into the garrison hold,
        * i.e. colony.labor_shortage--, order_code = 0x47, stay. It also
        * suppresses the 0x46 park arm below (raw 88985 reads local_8e == 0).
+       */
+      /*
+       * bugs.md #968 REFUTED 2026-09-28: DOS decrements +0x8e on the colony in
+       * the global DS:0x8542, which on this path is `local_62` = the nearest
+       * own-nation colony to the acting unit's own tile (bound at raw 88429,
+       * re-asserted at raw 88588 on the only path into LAB_521d_5888). The
+       * tile lookup below is equivalent here because `force_wander` is set
+       * only inside the `local_2e == 0` own-colony block above (distance 0 =>
+       * the nearest own colony IS the colony on the tile) and every arm
+       * between that block and this tail is gated on `!force_wander`, so the
+       * unit cannot have moved. The >0 test is the same dead clamp as #967.
        */
       if (!wander_attack && force_wander) {
         const int hcid = ctx->colonies ? colonies_id_at(ctx->colonies, u->x, u->y) : -1;

@@ -1755,9 +1755,11 @@ int ai_euro_has_useful_goto(const ColonizeUnit* u, const ColonizeWorldMap* map) 
  * combat only triggers when a defender is actually present, handled
  * separately by the LAB_521d_4d2e wander scorer's attack term). Decomp scans all 8 neighbors via `FUN_281f_0696`
  * (`euro_settlement_owner`) and stamps orders `0x46` the moment any
- * neighbor is owned by a different, non-crown Euro nation; Linux checks
- * war state too (decomp's world model has no live peacetime seize). One
- * seize per call — re-armed next act pass like the decomp reflex check.
+ * neighbor is owned by a different, non-crown Euro nation. 2026-09-28: the
+ * claim that "Linux checks war state too" that stood here was stale — this
+ * body has no at-war gate (matching DOS); `ai_diplo_at_war` appears only in
+ * the tail, to decide whether the seize DECLARES a war. One seize per call —
+ * re-armed next act pass like the decomp reflex check.
  */
 int ai_euro_land_try_adjacent_colony_seize(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   if (!ctx || !ctx->units || !ctx->colonies || !u || !u->active ||
@@ -3035,21 +3037,16 @@ void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, int nat
   if (!pax) {
     return;
   }
-  /* Second-wave settle while under 6 colonies. */
-  if (colonies_count_for_nation(ctx->colonies, nation_id) < 6) {
-    int fx2 = pax->x;
-    int fy2 = pax->y;
-    if (ai_goals_pick_founding_tile_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, nation_id, pax->x, pax->y, &fx2, &fy2)) {
-      if (fx2 != pax->x || fy2 != pax->y) {
-        ai_euro_set_goto(pax, UNITS_ORDER_AI_MOVE, fx2, fy2);
-        return;
-      }
-    }
-    if (colonies_can_found(ctx->colonies, ctx->map, pax->x, pax->y)) {
-      ai_euro_found_with_unit(ctx, pax, nation_id);
-      return;
-    }
-  }
+  /*
+   * bugs.md #969 (2026-09-28): the "second-wave settle while under 6 colonies"
+   * arm that lived here was deleted as invented. FUN_521d_20e6's unload/settle
+   * section (LAB_3558, md:3400-3419 / md:4230-4260) promotes a civilian to a
+   * founder *before* unloading, to decide whether the unit is unloaded at all;
+   * it has no colony-count gate and no found-on-the-spot arm driven by the
+   * just-unloaded passenger. Nothing in FUN_521d_20e6 compares a nation colony
+   * count against 6. This was the same producer bugs.md #530 S6 removed from
+   * the goal writer on 2026-09-27, surviving at a second call site.
+   */
   /* Else goto best expand FOUND / landfall dest already chosen above. */
   ai_euro_set_goto(pax, UNITS_ORDER_AI_MOVE, dest_x, dest_y);
 }

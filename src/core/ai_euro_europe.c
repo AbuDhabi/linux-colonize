@@ -376,9 +376,10 @@ static void ai_euro_5d04_apply_naval_gold_floors(
  * earlier as "overlaps existing thin coverage, callees genuinely
  * unresolved." Ported anyway per request: control flow and arithmetic
  * 1:1 where resolved, every callee stubbed (inert defaults) per the
- * original brief. NOT wired into the live path — a complete reference
- * implementation alongside `ai_euro_nation_planning`, same posture as
- * the gate-cascade section above. Most of this body is naturally inert
+ * original brief. (2026-09-28: the "NOT wired into the live path" note that
+ * stood here was stale — `ai_euro_nation_planning` is called live from
+ * src/core/ai_euro.c, and the hire gate below is the raw 92568 gate; see the
+ * wiring note further down.) Most of this body is naturally inert
  * at runtime (unit-iteration stubs return "none found"), which is safe
  * by construction, not a workaround — see each stub's own comment. */
 
@@ -439,10 +440,9 @@ static int ai_euro_5d04_propose_ship_buy(
     u->goto_x = (int)nat->return_from_europe_x;
     u->goto_y = (int)nat->return_from_europe_y;
   }
-  nat->gold -= price;
-  if (ctx->europe && nation_id == ctx->human_nation) {
-    ctx->europe->gold = (int)nat->gold;
-  }
+  /* One treasury per nation (europe.h): the accessor picks the store by
+   * nation, so never assign one gold store from the other (bugs.md #970). */
+  europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -(long)price);
   return 1;
 }
 
@@ -788,7 +788,13 @@ static int ai_euro_5d04_cb_price(int cargo) {
 static void ai_euro_5d04_cb_sync_gold(void) {
   ColonizeTurnContext* ctx = ai_euro_s_5d04_ctx;
   if (ctx && ctx->europe && ctx->col1 && ai_euro_s_5d04_nation == ctx->human_nation) {
-    ctx->europe->gold = (int)ctx->col1->nation[ai_euro_s_5d04_nation].gold;
+    /* bugs.md #970: go through the one accessor that picks the store by
+     * nation rather than assigning one gold store from the other. */
+    const long want = (long)ctx->col1->nation[ai_euro_s_5d04_nation].gold;
+    const long have = (long)europe_nation_gold(ctx->europe, ctx->col1, ai_euro_s_5d04_nation);
+    if (want != have) {
+      europe_nation_gold_add(ctx->europe, ctx->col1, ai_euro_s_5d04_nation, want - have);
+    }
   }
 }
 static void ai_euro_5d04_cb_market_volume(int cargo, int qty, int is_buy) {
