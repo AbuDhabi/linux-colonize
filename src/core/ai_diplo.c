@@ -78,8 +78,13 @@
  * (viceroy 64481/64502), and every gold move beside a war-bit write is a
  * TRANSFER (153e paid-@SMITE viceroy 98387-98397; 5fef_1b0e plunder viceroy
  * 100995-101002), never a symmetric drain.
- * docs/smell_audit_2026-09-09.md #47. */
-#define AI_DIPLO_WAR_UPKEEP_GOLD 5u
+ * docs/smell_audit_2026-09-09.md #47.
+ * Retired 2026-09-28 (bugs.md #965): AI_DIPLO_WAR_UPKEEP_GOLD, the 5 gold/turn
+ * "thin ongoing 153e friction" drain, was the same invention one step removed —
+ * FUN_5bfb_153e's gold moves are one-shot audience outcomes, so a recurring
+ * per-turn charge has no DOS trace and compounds over a long war (conventions
+ * "No per-turn drip effects without a DOS trace"). The human status-line chrome
+ * that hung off it went with it. */
 /* PARKED accuracy debt: null-units treasury stand-in only; do not change rate. */
 #define AI_DIPLO_PRIVATEER_PRIZE_GOLD 8u
 #define AI_DIPLO_WAR_FOOD_EMBARGO_BIT (1u << COLONIZE_CARGO_FOOD)
@@ -208,16 +213,6 @@ static void ai_diplo_war_fatigue_timer_seed(ColonizeCol1Save* col1, int nation_a
   if (tb && *tb == 0) {
     *tb = (uint8_t)AI_DIPLO_WAR_FATIGUE_TIMER;
   }
-}
-
-/* Per-turn light upkeep while at war (euro_balance); floor 0. */
-static void ai_diplo_war_upkeep_drain(ColonizeCol1Save* col1, int nation_id) {
-  const uint32_t g = europe_nation_gold(NULL, col1, nation_id); /* audit G3 */
-  if (g == 0u) {
-    return;
-  }
-  const long d = g > AI_DIPLO_WAR_UPKEEP_GOLD ? -(long)AI_DIPLO_WAR_UPKEEP_GOLD : -(long)g;
-  europe_nation_gold_add(NULL, col1, nation_id, d);
 }
 
 /*
@@ -3325,7 +3320,6 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
    */
   ai_diplo_indian_matrix_tick(ctx, nation_id);
   const int self = ai_diplo_military_score(ctx, nation_id);
-  int war_upkeep_status_done = 0;
   for (int peer = 0; peer < 4; ++peer) {
     if (peer == nation_id || ctx->col1->player[peer].control == 2) {
       continue;
@@ -3334,23 +3328,11 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
     const uint8_t bits = ai_diplo_read(ctx->col1, nation_id, peer);
 
     if (bits & AI_DIPLO_WAR) {
-      /* Thin ongoing 153e friction: 5 gold/turn while gold>0 (per war peer). */
-      /* uint32: the nation gold word is 32-bit (col1_save.h +0x2a/+0x2c). A
-       * uint16 here read 0 at exactly 65536/131072/… and silently swallowed
-       * the status line at those treasuries (smell #56). */
-      const uint32_t gold_before_upkeep = europe_nation_gold(NULL, ctx->col1, nation_id);
-      ai_diplo_war_upkeep_drain(ctx->col1, nation_id);
       /*
-       * Thin war-upkeep human chrome once per euro_balance tick (not per peer).
-       * Prefer later privateer / peace status if those fire. FA UI PARKED.
-       * Source: Contact/King 102a/1092 status stand-in; 153e upkeep drain.
+       * No per-turn war upkeep drain here: DOS charges nothing for simply
+       * being at war (bugs.md #965, see the AI_DIPLO_WAR_UPKEEP_GOLD
+       * retirement note at the top of this file).
        */
-      if (!war_upkeep_status_done && gold_before_upkeep > 0 &&
-          ctx->human_nation == nation_id && ctx->status && ctx->status_size > 0) {
-        /* Status only — no GAME.TXT war-upkeep dialog. */
-        snprintf(ctx->status, ctx->status_size, "War upkeep costs gold.");
-        war_upkeep_status_done = 1;
-      }
       /*
        * Wartime Privateer: spawn-only when ctx->units is set (unknown26[9] gate;
        * hunt-ready coast / New World sea stack / Europe dock). ai_euro naval

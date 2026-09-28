@@ -2,7 +2,7 @@
  * (the −100/+1 "sting" was retired 2026-09-09, smell #47),
  * Euro war does not boycott Europe cargos, war-fatigue
  * peace + status, make_peace + full wartime mask lift + peace feeler restore
- * (sticky==1; sticky==2 refuses treaties), upkeep + human upkeep status,
+ * (sticky==1; sticky==2 refuses treaties), no-war-upkeep regression (#965),
  * privateer prize + human status + prize stops after peace, treaty timer
  * decrement, Indian drift/feeler status/sticky pressure,
  * Sugar/Tobacco/Tools + first newly boycotted cargo status +
@@ -11,7 +11,7 @@
  * Marathon3 R1 Benjamin Franklin NW peace gate (declare no-op / euro_balance
  * skip war pressure / at-war always offer peace) + R2 spawn-only Privateer
  * (PARK 8g prize when units set) + Franklin Peace concluded human chrome +
- * R4 Franklin at-war skips upkeep/PARK prize (gold unchanged) +
+ * R4 Franklin at-war skips the PARK prize (gold unchanged) +
  * Marathon4 R1 Privateer commission is status-only (no INFO OK popup).
  * (Linux-only Euro×Euro alliance machinery + its tests retired T2.4
  * 2026-09-06 — DOS has no Euro×Euro alliances.) */
@@ -253,16 +253,21 @@ static int case_declare_peace_narrative(void) {
     }
   }
 
-  /* Re-war for upkeep tests below. */
+  /* Re-war for the euro_balance tests below. */
   ai_diplo_declare_war(&col1, 0, 1);
   if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0 ||
       (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
     return fail("re-war after make_peace must not boycott Europe cargos");
   }
 
-  /* euro_balance at-war upkeep (before timer pass can PEACE-tweak zero timers).
-   * Neutralize privateer by keeping peer gold equal after upkeep (or both 0).
-   * Raise Indian relations so harassment −2 does not mix into upkeep asserts. */
+  /*
+   * bugs.md #965 regression: DOS charges nothing for merely being at war.
+   * The invented 5 gold/turn "war upkeep" drain and its human status line
+   * were retired 2026-09-28, so euro_balance must leave both treasuries
+   * exactly as it found them. Peer gold is kept equal so the (null-units)
+   * privateer prize cannot fire and mask a drain; Indian relations are
+   * raised so harassment does not mix into the asserts.
+   */
   {
     ColonizeDosRng rng_up;
     dos_rng_seed(&rng_up, 1);
@@ -284,161 +289,37 @@ static int case_declare_peace_narrative(void) {
       col1.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
     col1.nation[0].gold = 40;
-    col1.nation[1].gold = 35; /* after −5 upkeep: equal → no privateer */
+    col1.nation[1].gold = 40;
     ai_diplo_euro_balance(&ctx_up, 0);
-    if (col1.nation[0].gold != 35) {
-      return fail("euro_balance at-war should drain 5 gold upkeep");
+    if (col1.nation[0].gold != 40 || col1.nation[1].gold != 40) {
+      fprintf(stderr, "unit_ai_diplo: at-war gold %u/%u (want 40/40)\n",
+              (unsigned)col1.nation[0].gold, (unsigned)col1.nation[1].gold);
+      return fail("euro_balance must not drain gold for being at war");
     }
-    if (col1.nation[1].gold != 35) {
-      return fail("euro_balance upkeep must not move gold when treasuries equal");
-    }
-    if (strcmp(status_up, "War upkeep costs gold.") != 0) {
+    if (strstr(status_up, "War upkeep") != NULL) {
       fprintf(stderr, "unit_ai_diplo: upkeep status '%s'\n", status_up);
-      return fail("euro_balance should status War upkeep costs gold for human");
-    }
-    /* AI-only: no upkeep status overwrite. */
-    snprintf(status_up, sizeof(status_up), "keep");
-    ctx_up.human_nation = 2;
-    col1.nation[0].gold = 40;
-    col1.nation[1].gold = 35;
-    ai_diplo_euro_balance(&ctx_up, 0);
-    if (strcmp(status_up, "keep") != 0) {
-      return fail("war upkeep status must not write for AI-only nation");
-    }
-    ctx_up.human_nation = 0;
-    col1.nation[0].gold = 3;
-    col1.nation[1].gold = 0; /* after floor: equal 0 → no privateer */
-    ai_diplo_euro_balance(&ctx_up, 0);
-    if (col1.nation[0].gold != 0) {
-      return fail("euro_balance upkeep should floor gold at 0");
-    }
-    status_up[0] = '\0';
-    ai_diplo_euro_balance(&ctx_up, 0);
-    if (col1.nation[0].gold != 0) {
-      return fail("euro_balance upkeep should no-op when gold already 0");
-    }
-    if (status_up[0] != '\0') {
-      return fail("war upkeep status must not write when gold already 0");
+      return fail("retired war-upkeep status must not be written");
     }
     if (col1.nation[2].gold != 500) {
-      return fail("euro_balance upkeep must not drain peaceful peer treasury");
+      return fail("euro_balance must not touch a peaceful peer treasury");
     }
     /*
-     * Smell #56: the pre-drain snapshot was a uint16 over a uint32 gold word,
-     * so a treasury of exactly 65536 (or 131072, …) read 0 and swallowed the
-     * status line even though the drain went through.
+     * Smell #56 lives on as a boundary case: the retired drain snapshotted
+     * gold into a uint16, so a treasury of exactly 65536 read 0. Nothing may
+     * move at that boundary now either.
      */
-    ctx_up.human_nation = 0;
     col1.nation[0].gold = 65536u;
-    col1.nation[1].gold = 65531u; /* equal after the drain → no privateer */
+    col1.nation[1].gold = 65536u;
     status_up[0] = '\0';
     ai_diplo_euro_balance(&ctx_up, 0);
-    if (col1.nation[0].gold != 65531u) {
-      return fail("euro_balance upkeep should drain 5 from a 65536 treasury");
-    }
-    if (strcmp(status_up, "War upkeep costs gold.") != 0) {
-      fprintf(stderr, "unit_ai_diplo: 65536 upkeep status '%s'\n", status_up);
-      return fail("war upkeep status must survive a 16-bit-boundary treasury");
+    if (col1.nation[0].gold != 65536u || col1.nation[1].gold != 65536u) {
+      return fail("euro_balance must not drain a 16-bit-boundary treasury");
     }
     col1.nation[0].gold = 0;
     col1.nation[1].gold = 0;
   }
 
-  /* Smell #49: at war with a tribe must cost NO gold (the invented −2/turn
-   * "harassment" drain is retired). Sticky sync still runs: set 1 at-war,
-   * deepen 2 when very-low, clear when none — and it must land on the port's
-   * own byte (+0x4b / unknown26[11]), never on the DOS grace counter at
-   * +0x48 / unknown26[8] (smell #52). */
-  {
-    ColonizeDosRng rng_h;
-    dos_rng_seed(&rng_h, 2);
-    uint32_t turn_h = 2;
-    ColonizeTurnContext ctx_h;
-    memset(&ctx_h, 0, sizeof(ctx_h));
-    ctx_h.messages = test_game_txt();
-    ctx_h.col1 = &col1;
-    ctx_h.col1_ok = true;
-    ctx_h.rng = &rng_h;
-    ctx_h.turn_number = &turn_h;
-    /* Peace with all Euros so upkeep/privateer do not fire; only harassment. */
-    ai_diplo_make_peace(&col1, 0, 1);
-    for (int i = 0; i < 8; ++i) {
-      col1.indian[i].alarm_by_player[0] = 80; /* DOS bands: relation 40 */ /* at war vs Indians, not very-low */
-      col1.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-    }
-    col1.nation[0].unknown26[11] = 0;
-    col1.nation[0].unknown26[8] = 7; /* DOS grace/waiver counter — sacred */
-    col1.nation[0].gold = 20;
-    ai_diplo_euro_balance(&ctx_h, 0);
-    if (col1.nation[0].gold != 20) {
-      fprintf(stderr, "unit_ai_diplo: native-war gold %u (want 20)\n",
-              (unsigned)col1.nation[0].gold);
-      return fail("war with a tribe must not drain the treasury (#49)");
-    }
-    /* Repeated ticks stay free too — the drain used to compound every turn. */
-    ai_diplo_euro_balance(&ctx_h, 0);
-    ai_diplo_euro_balance(&ctx_h, 0);
-    if (col1.nation[0].gold != 20) {
-      return fail("native-war gold must not compound across balance ticks (#49)");
-    }
-    col1.nation[0].gold = 18; /* restore for sticky asserts below */
-    if (ai_diplo_indian_hostility_sticky(&col1, 0) != 1) {
-      return fail("indian_at_war should set the hostility sticky once");
-    }
-    if (col1.nation[0].unknown26[8] != 7) {
-      fprintf(stderr, "unit_ai_diplo: +0x48 grace counter clobbered (%u)\n",
-              (unsigned)col1.nation[0].unknown26[8]);
-      return fail("sticky must not write the DOS grace counter at +0x48 (#52)");
-    }
-    if (col1.nation[0].unknown26[11] != 1) {
-      return fail("sticky belongs on the port's own byte +0x4b / unknown26[11] (#52)");
-    }
-    if (&col1.nation[0].indian_hostility_sticky != &col1.nation[0].unknown26[11] ||
-        &col1.nation[0].king_grace_counter != &col1.nation[0].unknown26[8]) {
-      return fail("unknown26 union layout: sticky at [11], grace counter at [8]");
-    }
-    if (!ai_diplo_indian_any_at_war(&col1, 0) || !ai_diplo_indian_at_war(&col1, 0, 0)) {
-      return fail("indian_at_war/any_at_war should remain true at rel 40");
-    }
-    /* Second tick: sticky stays 1 (idempotent at rel 40). */
-    ai_diplo_euro_balance(&ctx_h, 0);
-    if (ai_diplo_indian_hostility_sticky(&col1, 0) != 1) {
-      return fail("Indian hostility sticky must stay set");
-    }
-    /* Very-low deepen: relation < 40 → sticky 2. */
-    for (int i = 0; i < 8; ++i) {
-      col1.indian[i].alarm_by_player[0] = 90; /* DOS bands: relation 30 */
-      col1.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-    }
-    ai_diplo_indian_hostility_sync(&col1, 0);
-    if (ai_diplo_indian_hostility_sticky(&col1, 0) != 2) {
-      return fail("sticky should deepen to 2 when any relation < 40");
-    }
-    /* Clear when all slots recover above at-war floor. */
-    for (int i = 0; i < 8; ++i) {
-      col1.indian[i].alarm_by_player[0] = 0; /* relation 100 */
-      col1.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-    }
-    ai_diplo_indian_hostility_sync(&col1, 0);
-    if (ai_diplo_indian_hostility_sticky(&col1, 0) != 0) {
-      return fail("sticky should clear when no indian_at_war slots remain");
-    }
-    if (ai_diplo_indian_any_at_war(&col1, 0)) {
-      return fail("any_at_war should be false after recover");
-    }
-    /* Restore Euro war for privateer/upkeep follow-ons; clear Indian hostility. */
-    ai_diplo_declare_war(&col1, 0, 1);
-    for (int i = 0; i < 8; ++i) {
-      col1.indian[i].alarm_by_player[0] = 0; /* relation 100 */
-      col1.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-      col1.indian[i].alarm_by_player[1] = 0; /* relation 100 */
-      col1.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
-    }
-    ai_diplo_indian_hostility_sync(&col1, 0);
-    ai_diplo_indian_hostility_sync(&col1, 1);
-  }
-
-  /* Thin privateer prize: richer→poorer 8g (separate from 5g upkeep); no units → treasury-only. */
+  /* Thin privateer prize: richer→poorer 8g; no units → treasury-only. */
   {
     ColonizeDosRng rng_pr;
     dos_rng_seed(&rng_pr, 4);
@@ -457,18 +338,18 @@ static int case_declare_peace_narrative(void) {
     col1.nation[0].gold = 200;
     col1.nation[1].gold = 50;
     ai_diplo_euro_balance(&ctx_pr, 1); /* poorer nation tick */
-    /* poorer: 50 − 5 upkeep + 8 prize = 53; richer: 200 − 8 = 192 */
-    if (col1.nation[1].gold != 53) {
-      return fail("euro_balance privateer should add 8 gold to poorer after upkeep");
+    /* poorer: 50 + 8 prize = 58; richer: 200 − 8 = 192 */
+    if (col1.nation[1].gold != 58) {
+      return fail("euro_balance privateer should add 8 gold to poorer");
     }
     if (col1.nation[0].gold != 192) {
       return fail("euro_balance privateer should take 8 gold from richer peer");
     }
-    /* Donor below 8: no prize (upkeep still applies). Peer is richer but broke. */
+    /* Donor below 8: no prize. Peer is richer but broke. */
     col1.nation[0].gold = 7;
-    col1.nation[1].gold = 6; /* after −5: 1; peer 7 still richer, donor < 8 */
+    col1.nation[1].gold = 6; /* peer 7 still richer, donor < 8 */
     ai_diplo_euro_balance(&ctx_pr, 1);
-    if (col1.nation[1].gold != 1 || col1.nation[0].gold != 7) {
+    if (col1.nation[1].gold != 6 || col1.nation[0].gold != 7) {
       return fail("privateer prize should require donor gold >= 8");
     }
     /* R7: human privateer status chrome when prize transfers. */
@@ -1782,8 +1663,8 @@ static int case_r8_lumber_boycott_privateer(void) {
       ctx_pr.col1_ok = true;
       ctx_pr.rng = &rng_pr;
       ctx_pr.turn_number = &turn_pr;
-      ai_diplo_euro_balance(&ctx_pr, 1); /* poorer: 50−5+8=53; richer 192 */
-      if (pr.nation[1].gold != 53 || pr.nation[0].gold != 192) {
+      ai_diplo_euro_balance(&ctx_pr, 1); /* poorer: 50+8=58; richer 192 */
+      if (pr.nation[1].gold != 58 || pr.nation[0].gold != 192) {
         return fail("R8 privateer setup: prize should fire while at war");
       }
       ai_diplo_make_peace(&pr, 0, 1);
@@ -1794,7 +1675,7 @@ static int case_r8_lumber_boycott_privateer(void) {
       pr.nation[1].gold = 50;
       ai_diplo_euro_balance(&ctx_pr, 1);
       if (pr.nation[0].gold != 200 || pr.nation[1].gold != 50) {
-        return fail("after peace, euro_balance must not apply privateer prize or war upkeep");
+        return fail("after peace, euro_balance must not apply the privateer prize");
       }
     }
 
@@ -2216,8 +2097,8 @@ static int case_marathon2_privateer_spawn(void) {
       pr.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
     }
     ai_diplo_declare_war(&pr, 0, 1);
-    /* Equal gold after upkeep → no prize; spawn chrome stays. */
-    pr.nation[0].gold = 50;
+    /* Equal gold → no prize; spawn chrome stays. */
+    pr.nation[0].gold = 45;
     pr.nation[1].gold = 45;
 
     ColonizeDosRng rng;
@@ -2356,9 +2237,10 @@ static int case_marathon2_privateer_spawn(void) {
     status[0] = '\0';
     ai_popup_clear(&pop);
     ai_diplo_euro_balance(&ctx, 0);
-    /* upkeep −5 only; no 8g prize while spawn path owns wartime Privateer. */
-    if (pr.nation[0].gold != 195 || pr.nation[1].gold != 50) {
-      fprintf(stderr, "unit_ai_diplo: M3R2 spawn-only gold %u/%u (want 195/50)\n",
+    /* Nothing moves: no upkeep drain, and no 8g prize while the spawn path
+     * owns wartime Privateer. */
+    if (pr.nation[0].gold != 200 || pr.nation[1].gold != 50) {
+      fprintf(stderr, "unit_ai_diplo: M3R2 spawn-only gold %u/%u (want 200/50)\n",
               (unsigned)pr.nation[0].gold, (unsigned)pr.nation[1].gold);
       free(map.terrain);
       free(map.layer2);

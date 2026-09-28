@@ -2267,39 +2267,6 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   }
 
   /*
-   * FUN_521d_20e6 epilogue roam-abort (unit+0x314c==5 cleared the moment a
-   * met foreign unit is adjacent, forcing a re-decide next call — see
-   * move_scoring_20e6_full.md "Epilogue / commit block", line ~2213-2275).
-   * Scoped to gotos this port's own idle-wander branch set
-   * (ai_euro_s_euro_roam_wander, written only by ai_euro_move_scoring_gate's
-   * explore-scan / fallback-west arms); goal-directed AI_MOVE gotos (found-
-   * tile pursuit, war hunt, wagon delivery, ship staging) are not DOS's
-   * "roaming" state and are left alone. MET check both directions, same
-   * gate as ai_euro_try_violate_notify's adjacency scan.
-   */
-  if (!is_ship && is_goto && u->orders == UNITS_ORDER_AI_MOVE && u->id >= 0 &&
-      u->id < COLONIZE_UNITS_MAX && ai_euro_s_euro_roam_wander[u->id] && ctx->col1_ok && ctx->col1) {
-    static const int rdx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-    static const int rdy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
-    for (int d = 0; d < 8; ++d) {
-      const int fid = units_id_at(ctx->units, u->x + rdx[d], u->y + rdy[d]);
-      if (fid < 0 || units_is_sea(ctx->units, fid)) {
-        continue;
-      }
-      const ColonizeUnit* f = units_get_const(ctx->units, fid);
-      if (!f || f->nation_id == u->nation_id || f->nation_id < 0 || f->nation_id >= 4) {
-        continue;
-      }
-      if ((ai_diplo_read(ctx->col1, u->nation_id, f->nation_id) & AI_DIPLO_MET) &&
-          (ai_diplo_read(ctx->col1, f->nation_id, u->nation_id) & AI_DIPLO_MET)) {
-        ai_euro_set_goto(u, UNITS_ORDER_NONE, u->x, u->y);
-        is_goto = units_orders_follow_goto(u->orders);
-        break;
-      }
-    }
-  }
-
-  /*
    * No land-unit-initiated embark arm here. DOS boarding is ship-side only:
    * FUN_1427_10be (raw 8606-8679) runs over the SHIP, walks the unit list at
    * the ship's tile and stamps +0x314c = 1 on each land unit whose @UNIT size
@@ -2391,6 +2358,53 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       if (u->orders == AI_EURO_ACT_ADJACENT || u->orders == UNITS_ORDER_NONE) {
         u->col1_ai_plan = 0x30;             /* +0x314b = '0' */
         u->orders = UNITS_ORDER_FORTIFY;    /* +0x314c = 5 */
+      }
+      /*
+       * DOS-LITERAL FUN_521d_20e6 raw 90405-90421 — the second half of the
+       * LAB_521d_5a78 tail, and it runs AFTER the demotion above, on the
+       * act_state 5 the demotion just handed out:
+       *
+       *   if (unit+0x314c == 5) {
+       *     for (i = 0; i < 8; i++) {
+       *       local_10 = FUN_281f_0696(unit.x + DS:0xb4[i], unit.y + DS:0xbe[i]);
+       *       if (-1 < local_10 && local_10 != self) {
+       *         if (FUN_281f_0a38(self, local_10) & 0x40) {   // PEACE
+       *           unit+0x314c = 0; break;
+       *         }
+       *       }
+       *     }
+       *   }
+       *
+       * FUN_281f_0696 -> FUN_137f_0358 is `euro_settlement_owner` (raw
+       * 6793-6810): the owner of the Euro COLONY on that tile, -1 when the
+       * tile carries no settlement or its owner is >= 4. It is not a unit
+       * probe. Bit 0x40 of the raw peer byte is PEACE (see the FUN_281f_0a38
+       * note in ai_goals.c), not MET. So an idle unit standing beside a
+       * colony of a nation we are at peace with drops to the courseless
+       * state 0 and re-decides on the next call; a hostile or unmet
+       * neighbour's colony leaves it parked. The neighbour order is
+       * irrelevant — every hit does the same thing and breaks. bugs.md #966.
+       *
+       * DOS writes only +0x314c here: the goal bytes +0x314d/e are left
+       * standing, and 0a60's turn-top clear (raw 87560-87564) is what drops
+       * the stale course.
+       */
+      if (u->orders == UNITS_ORDER_FORTIFY && ctx->colonies) {
+        static const int rdx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+        static const int rdy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+        for (int d = 0; d < 8; ++d) {
+          const int cid = colonies_id_at(ctx->colonies, u->x + rdx[d], u->y + rdy[d]);
+          const ColonizeColony* nb = colonies_get(ctx->colonies, cid);
+          if (!nb || !nb->active || nb->nation_id < 0 || nb->nation_id > 3 ||
+              nb->nation_id == u->nation_id) {
+            continue;
+          }
+          if (ctx->col1_ok && ctx->col1 &&
+              (ai_diplo_read(ctx->col1, u->nation_id, nb->nation_id) & AI_DIPLO_PEACE)) {
+            u->orders = UNITS_ORDER_NONE;   /* +0x314c = 0 */
+            break;
+          }
+        }
       }
       /*
        * FUN_521d_5b66 switch case 7 (bugs.md #683). 5b66 calls 20e6 at raw
@@ -2821,13 +2835,30 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
 
   ai_euro_dispatcher_turn_plan(ctx, nation_id);
 
-
   ai_euro_dispatcher_turn_unit_waves(ctx, nation_id);
 
   /*
-   * FUN_5952_035e colonist re-placement runs after the unit acts so the
-   * admit-time expert field-assign paths (which need a free tile) still
-   * land; the tick then re-scores everyone with real professions.
+   * POSITION IS WRONG ON PURPOSE, bugs.md #964. DOS runs the whole per-colony
+   * FUN_5952_035e tick FIRST: FUN_521d_6d8e raw 93118-93142 walks the nation's
+   * owned colonies through thunk_FUN_2a1f_0530 -> FUN_521d_5cf6 (raw 92316) ->
+   * FUN_2a1f_05a8 -> FUN_5952_035e (035e's only call site in the EXE) before
+   * the treaty timers (raw ~93175), FUN_521d_5d04 planning (thunk 2a1f_0554)
+   * and FUN_521d_0a60 (thunk 2a1f_050c), and the census counters in that same
+   * loop body read the colony record after the tick has run.
+   *
+   * Moving this one call to the top does NOT fix it, and was tried and
+   * reverted 2026-09-28. DOS's order *inside* 035e is
+   *   tools/connect -> improve -> colonist placement -> build cascade -> ARM 2
+   * and the port has that body split across two call sites: everything except
+   * the cascade lives in ai_euro_colony_tick_28c8_reassign, while the cascade
+   * (ai_euro_5952_build_cascade) runs up in the plan phase. Hoisting the tick
+   * alone therefore puts ARM 2's expert purchase in front of the cascade and
+   * breaks the [BP+0xff62] Docks latch order bugs.md #586 depends on.
+   * The move needs all three pieces to travel together, and the cascade is
+   * pinned where it is by the ring-1 threat count (ai_euro_s_5952_ring1),
+   * produced inside ai_euro_colony_goals by ai_euro_colony_threat_seed_5952
+   * and tangled there with its labor_running accumulator. Extracting that
+   * seed is the prerequisite.
    */
   ai_euro_colony_tick_28c8_reassign(ctx, nation_id);
 }
