@@ -108,7 +108,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@DEPLETION` | Done thin | EOT ore/silver wrap ai_popup OK (`@DEPLETION`); VGA PARKED |
 | `@UNITFLAG` | n/a | Col1 flag bits; not a dialog (no id in `popup_tag_ids.md`), re-verified 2026-09-16 |
 | `@COLONYFLAG` | n/a | Col1 flag bits; not a dialog (no id in `popup_tag_ids.md`), re-verified 2026-09-16 |
-| `@LOSTCITY0` | n/a | Not an LCR outcome — reused recruit-menu text ("Which of the following individuals shall we recruit?"), unrelated section number |
+| `@LOSTCITY0` | Done | Body of the 8 Fountain-of-Youth picks — DOS `38fd:4910` pushes tag `0x10f1` for the `4884(1,0)` arm, so the picks show "Which of the following individuals shall we recruit?" and **no** `@RECRUIT` "(0 gold)" passage line (`units_fountain_youth_enqueue_pick`) |
 | `@LOSTCITY1` | Done thin | Fountain of Youth — 8 dock immigrants (human only; AI has no EuropeScreen pool) |
 | `@LOSTCITY2` | Done thin | Seven Cities of Cibola — big treasure train (needs Galleon home) |
 | `@LOSTCITY3` | Done thin | Ruins gold, credited direct to nation |
