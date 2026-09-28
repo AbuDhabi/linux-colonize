@@ -139,6 +139,11 @@ independently golden-confirmed.
 - Scroll/paging: none.
 - Click targets: none (shared OK button only).
 - Strings: title "RELIGIOUS ADVISER REPORT" resolves live (`reports_title`).
+- Font: FONTTINY for the bar's number overlay and the cheat line, like every
+  other report body — the 3f41 overlay loads no second font (bugs.md #428).
+  F2 was the one renderer missing the override and drew them in FONTSMAL
+  until 2026-09-28 (bugs.md #979); invisible on the golden, whose bar has
+  step 2 and so draws no number.
 - Port status: Done (golden `religious.png`) —
   `reports_render_religious`. The crosses bar itself is **pixel-exact**
   since 2026-09-07 (0 differing pixels in x=4..79, y=24..41; was 471) after
