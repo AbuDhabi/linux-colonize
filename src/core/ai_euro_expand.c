@@ -711,6 +711,16 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
   int horses = 0;
   units_founder_loot(ctx->units, founder->id, &tools, &muskets, &horses);
   /*
+   * FUN_479b_076e -0x77b2 stamp — see ai_goals.h AiNationPlanScratch. DOS
+   * writes it (and marks the founder spent via FUN_281f_0934) BEFORE the
+   * FUN_291f_09b2 -> FUN_364b_1ba8 creation call, so a creation that fails
+   * its `local_4 < 0` return still leaves the scratch stamped; the port used
+   * to stamp it only on success (bugs.md #971).
+   */
+  ai_goals_note_colony_founded(
+    nation_id, ctx->turn_number ? (int)*ctx->turn_number : 0
+  );
+  /*
    * FUN_4cc6_07c2 Indian homeland purchase when founding on tribe land.
    * Cite: Colonization.pdf / wiki Peter Minuit (FF 2) → free; else charge
    * via colonies_found_with_indian_land. Short gold → PARK (no despawn).
@@ -808,46 +818,27 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
     if (cid >= 0 && cid < COLONIZE_COLONIES_MAX) {
       ai_euro_s_founded_colony_turn[cid] = 1;
     }
-    /* FUN_479b_076e -0x77b2 stamp — see ai_goals.h AiNationPlanScratch. */
-    ai_goals_note_colony_founded(
-      nation_id, ctx->turn_number ? (int)*ctx->turn_number : 0
-    );
     units_despawn(ctx->units, founder->id);
     if (ctx->col1_ok && ctx->col1 && nation_id >= 0 && nation_id < 4) {
       ctx->col1->player[nation_id].founded_colonies++;
     }
     /*
-     * First colony: release empty ships still latched on found-hold (fy+2) so
-     * a later outer pass can sail (TURN4→5 FR). Cite: test-saves-ai/TURN5.
+     * FITTED, NOT DOS (bugs.md #971, same family as #530 S5): FUN_479b_076e
+     * repositions no unit but the founder — it resets the founder's own
+     * fields, recenters the map, prompts the name on a human turn, marks the
+     * unit spent (FUN_281f_0934), stamps the -0x77b2 scratch and creates the
+     * colony. The two arms below hand fixed offsets to OTHER units of the
+     * founding nation and are cited only by seed-100 goldens.
+     *
+     * Measured 2026-09-28 by gating each arm alone against golden_ai_turns:
+     * two of the four were dead and are deleted — the empty-ship release off
+     * the (fx, fy+2) found-hold to (fx+2, fy+6), and the SP cruise-tip berth
+     * that moved a hull standing at (wx-1, wy) to (wx, wy-1). These two are
+     * load-bearing, one golden step each (Pioneer = TURN4->5, Soldier =
+     * TURN5->6), so they stay until the opening runs through the DOS ship/land
+     * act order. The cruise-tip probe below now only gates the Soldier arm.
      */
     if (ctx->units && ctx->map && colonies_count_for_nation(ctx->colonies, nation_id) == 1) {
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* sh = &ctx->units->units[i];
-        if (!sh->active || sh->nation_id != nation_id || !units_is_sea(ctx->units, sh->id)) {
-          continue;
-        }
-        if ((sh->goto_x == founded_x && sh->goto_y == founded_y + 2) ||
-            (sh->x == founded_x && sh->y == founded_y + 2)) {
-          int tx = founded_x + 2;
-          int ty = founded_y + 6;
-          if (tx >= (int)ctx->map->width) {
-            tx = (int)ctx->map->width - 1;
-          }
-          if (ty >= (int)ctx->map->height) {
-            ty = (int)ctx->map->height - 1;
-          }
-          if (tx < 0) {
-            tx = 0;
-          }
-          if (ty < 0) {
-            ty = 0;
-          }
-          ai_euro_set_goto(sh, UNITS_ORDER_AI_SAIL, tx, ty);
-          if (sh->moves <= 0) {
-            sh->moves = units_max_mp(ctx->units, sh->id);
-          }
-        }
-      }
       /* Pioneer on found+1: SW coast course after first town. Cite: TURN5 FR. */
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
         ColonizeUnit* p = &ctx->units->units[i];
@@ -874,30 +865,6 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
         if (ai_euro_ocean_3558_empty_cruise_tip(
               ctx->map, founded_x, founded_y, &wx, &wy
             )) {
-          for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-            ColonizeUnit* sh = &ctx->units->units[i];
-            if (!sh->active || sh->nation_id != nation_id ||
-                !units_is_sea(ctx->units, sh->id)) {
-              continue;
-            }
-            if (sh->x == wx - 1 && sh->y == wy) {
-              const int tx = wx;
-              const int ty = wy - 1;
-              if (map_tile_is_water(ctx->map, tx, ty) ||
-                  map_tile_is_high_seas(ctx->map, tx, ty)) {
-                ai_euro_set_goto(sh, UNITS_ORDER_AI_MOVE, tx, ty);
-              } else if (map_tile_is_water(ctx->map, wx, wy + 1) ||
-                         map_tile_is_high_seas(ctx->map, wx, wy + 1)) {
-                /* Fallback berth south of tip if north is land. */
-                ai_euro_set_goto(sh, UNITS_ORDER_AI_MOVE, wx, wy + 1);
-              } else {
-                ai_euro_set_goto(sh, UNITS_ORDER_AI_MOVE, wx, wy);
-              }
-              if (sh->moves <= 0) {
-                sh->moves = units_max_mp(ctx->units, sh->id);
-              }
-            }
-          }
           for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
             ColonizeUnit* su = &ctx->units->units[i];
             if (!su->active || su->nation_id != nation_id || su->aboard_ship_id >= 0) {
