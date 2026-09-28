@@ -325,6 +325,7 @@ extern int ai_euro_s_5952_census_nonexpert[COLONIZE_COLONIES_MAX]; /* aiStack_68
 void ai_euro_5952_build_cascade(
   ColonizeTurnContext* ctx, ColonizeColony* col
 );
+void ai_euro_colony_tick_5952(ColonizeTurnContext* ctx, int nation_id);
 void ai_euro_5952_colony_counters(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c
 );

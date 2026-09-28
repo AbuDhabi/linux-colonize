@@ -394,6 +394,42 @@ static int case_530_ship_arrival_facing(void) {
   return rc;
 }
 
+/* 479b -> 465b, raw 75649: the move's partial-MP roll uses the
+ * turn seed, even after colony planning has consumed the RNG stream. */
+static int case_530_goal_walk_partial_mp(void) {
+  ColonizeWorldMap map;
+  ColonizeUnitPool units;
+  ColonizeColonyPool colonies;
+  if (!fx_map_alloc(&map, 16, 16, 2, true)) return 1;
+  fx_units_init(&units);
+  fx_colonies_init(&colonies);
+  ai_euro_reset();
+  units.type_count = 1;
+  units.types[0].kind_plus1 = UNITS_KIND_PIONEER + 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].movement = 1;
+  const int id = units_spawn(&units, 0, 7, 7);
+  ColonizeUnit* u = units_get(&units, id);
+  if (!u) { fx_map_free(&map); return 1; }
+  u->nation_id = 1;
+  u->moves = 1;
+  u->orders = AI_EURO_ACT_GOAL;
+  u->goto_x = 8;
+  u->goto_y = 7;
+  ColonizeDosRng rng = {.state = 0xc1408068};
+  ColonizeDosRng expected;
+  dos_rng_seed(&expected, 100);
+  (void)dos_rng_next(&expected);
+  ColonizeTurnContext ctx = {.units=&units, .colonies=&colonies, .map=&map,
+                             .rng=&rng, .rng_seed=100, .rng_seed_set=true};
+  ai_euro_goal_walk_479b(&ctx, u);
+  const int rc = u->x != 8 || u->y != 7 || u->orders != UNITS_ORDER_NONE ||
+                 u->moves != 0 || rng.state != expected.state;
+  if (rc) fprintf(stderr, "#530: partial-MP goal arrival failed or used the planning RNG state\n");
+  fx_map_free(&map);
+  return rc;
+}
+
 /* FUN_465b_0000 -> FUN_5bfb_3180, raw 98628-98646: a native step
  * wakes adjacent foreign sentries without erasing their saved goal. */
 static int case_530_native_step_wakes_landfall(void) {
@@ -465,6 +501,7 @@ static int case_530_native_step_wakes_landfall(void) {
 }
 
 static const TestCase k_cases[] = {
+    {"case_530_goal_walk_partial_mp", case_530_goal_walk_partial_mp},
     {"case_530_ship_arrival_facing", case_530_ship_arrival_facing},
     {"case_530_native_step_wakes_landfall", case_530_native_step_wakes_landfall},
     {"case_530_unload_mask_scan_and_order", case_530_unload_mask_scan_and_order},

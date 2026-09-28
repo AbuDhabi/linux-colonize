@@ -2520,8 +2520,8 @@ void ai_euro_5952_tools_supply_and_connect(
   ColonizeTurnContext* ctx, ColonizeColony* col
 );
 
-void ai_euro_colony_tick_28c8_reassign(
-  ColonizeTurnContext* ctx, int nation_id
+static void ai_euro_colony_tick_run(
+  ColonizeTurnContext* ctx, int nation_id, bool whole_tick
 ) {
   if (!ctx || !ctx->colonies || !ctx->map || nation_id == ctx->human_nation) {
     return;
@@ -2531,7 +2531,7 @@ void ai_euro_colony_tick_28c8_reassign(
     if (!col->active || col->nation_id != nation_id || col->colonist_count <= 0) {
       continue;
     }
-    if (ai_euro_ship_dos_enabled()) {
+    if (whole_tick) {
       ai_euro_5952_colony_counters(ctx, nation_id, col);
       ai_euro_5952_colony_prelude(ctx, nation_id, col);
     }
@@ -2838,7 +2838,7 @@ void ai_euro_colony_tick_28c8_reassign(
      */
     if (ai_euro_5952_indoor_pass_enabled()) {
       ai_euro_5952_indoor_pass(ctx, col, placed, n);
-      if (ai_euro_ship_dos_enabled()) {
+      if (whole_tick) {
         ai_euro_5952_build_cascade(ctx, col);
       }
       /* DOS raw ~95860-95958, the tick's last two arms (bugs.md #571/#572). */
@@ -2900,6 +2900,20 @@ void ai_euro_colony_tick_28c8_reassign(
         (void)colonies_assign_field(ctx->colonies, col->id, s, best.tile, best.job);
       }
     }
+    if (whole_tick) {
+      ai_euro_5952_build_cascade(ctx, col);
+    }
     ai_euro_5952_specialist_arms(ctx, col, n);
   }
+}
+
+/* Placement-stage seam retained for isolated 28c8/5952 tests and legacy
+ * dispatch. Its caller owns the counters, threat seed and build cascade. */
+void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nation_id) {
+  ai_euro_colony_tick_run(ctx, nation_id, false);
+}
+
+/* FUN_5952_035e: the complete per-colony sequence before 5d04 planning. */
+void ai_euro_colony_tick_5952(ColonizeTurnContext* ctx, int nation_id) {
+  ai_euro_colony_tick_run(ctx, nation_id, true);
 }

@@ -1,8 +1,9 @@
 # First-colony DOS trace (#530)
 
-Status: partial fix, 2026-09-28. `AI_SHIP_DOS=1` now passes TURN1_to_2,
-TURN2_to_3 and TURN3_to_4; TURN4_to_5 through TURN6_to_7 still fail. Keep the alternative disabled until
-those transitions and the removal of the fitted opening pass.
+Status: opening goldens pass, 2026-09-28. `AI_SHIP_DOS=1` passes all six
+TURN1_to_2 through TURN6_to_7 transitions. Still opt-in: the full suite with
+that switch fails 13 test targets outside the opening. Resolve those before
+enabling the path and removing the remaining fitted helpers (#530 remains OPEN).
 
 ## Evidence and reproduction
 
@@ -118,3 +119,74 @@ native position. Later transitions still fail. A separate static lead:
 `ai_euro_land_explore_scan_target` recomputes the explorer flag/counter
 already evaluated by its caller; removing that duplicate alone did not
 change the six-turn outcomes, so it was left for a separate focused proof.
+
+## TURN4–7 follow-up (2026-09-28)
+
+Live DOS TURN4 proves the Spanish soldier's facing must come from saved
+unit +0x314f, not the zero-initialized per-unit scratch mirror. Reading the
+real field corrects its final (46,55), including the subsequent native wake.
+
+Dutch TURN4 exposed two independent defects:
+
+- DOS enters the first hull act with RNG 00000064; the port entered with
+  016d2d97. A debugger backtrace located the extra draw in the 5d04 artillery
+  check (raw 92569–92578). DOS absorbs the colony's soldier before planning,
+  adding 50 muskets; the port planned with stock zero. Under DOS mode the
+  5952 counters/origin binding, threat/flags/absorption, tools/improvement,
+  placement, build cascade, and specialist arms now run together before
+  inventory and planning. This is the #964 prerequisite extraction, not a
+  hoist of the old placement-only call. Default phase order is retained.
+- FUN_1427_09dc's two presence probes were reversed in the ship helper:
+  137f_03e4 reads settlement bit 02; 137f_0314 reads unit bit 01. Outside a
+  settlement, a ship ignores neighbouring land units. Coastal Braves wrongly
+  interrupted order-0c arrival cleanup, retaining facing instead of ff.
+
+DOS Dutch hull trace: (43,16) -> (42,17) -> (41,18) -> (41,19) ->
+(40,18) -> (39,18). Between steps, order 0c is queried once at its arrived
+coordinate, becoming order 0 with facing ff. After the first three moves
+RNG states are 06a641ac, b2e257f4, bdc2652d; after the fourth, 2c9146c0.
+
+TURN5 French pioneer enters 20e6 at (48,39), RNG c1408068, and returns to
+its colony (50,37), order 0, spent 3. The patrol arm's LAB_27f5 -> 20c6
+bind is order 0b, not the port's 0c. Its partial-MP movement invokes the
+465b reseed (raw 75649): the following ship enters with RNG 016d2d97.
+The shared 479b walker now supplies `ai_turn_seed` to movement. Both world
+constructors also initialize all members: newly added reseed fields were
+otherwise indeterminate, causing inconsistent repeated runs.
+
+TURN6 French ship remains (52,43), order 0b, goal (50,37). The 4393 haul
+pick goes through LAB_4567 -> 27f5 (raw 89927–89929): it targets the colony,
+not the port helper's neighbouring water tile (51,38).
+
+Mutation proof: individually reverting saved facing, colony phase order, the
+coastal-unit probe, patrol goal order, partial-MP reseed, or haul destination
+makes its focused regression fail; all mutations were restored.
+
+Focused proof: arrival cleanup beside a coastal Brave, a partial-MP goal
+arrival after prior planning draws, and all six unchanged DOS opening
+fixtures. The joint golden target additionally guards TURN4_to_5,
+TURN5_to_6 and TURN6_to_7. These fixtures compare their declared fields;
+they do not prove byte-for-byte equality of all saved state.
+
+### Remaining default-switch blockers
+
+`AI_SHIP_DOS=1 ctest --preset debug --output-on-failure` fails these targets:
+`unit_ai_euro_5952_build`, `unit_ai_euro_expand_purchase`,
+`unit_ai_euro_expand_haul`, `unit_ai_euro_expand_europe`,
+`unit_ai_euro_expand_build`, `unit_ai_euro_expand_settle`,
+`unit_ai_euro_war_core`, `unit_ai_euro_war_land`,
+`unit_ai_euro_war_garrison`, `unit_ai_euro_war_transport`,
+`unit_ai_euro_20e6`, `unit_ai_euro_20e6_ports`, `unit_ai_euro_5d04_hire`.
+
+Several failures are concrete dispatch omissions: the DOS-mode land return
+bypasses the existing deferred Treasure/Wagon/Missionary bands, so their
+cash-in and haul handlers never execute. Colony-tick ordering also changes
+construction, recruitment and improvement inputs; old assertions need DOS
+evidence before being changed. Other failures cover naval boarding/cadence,
+combat, and transport unloading. Do not hide these by selectively enabling
+DOS behavior only for fixture nations, coordinates or early turns.
+
+The land copy `ai_euro_20e6_adjacent_foreign_09dc` still carries the reversed
+probe interpretation and continent-id comparison; it should share the
+correct water/land-domain implementation once its affected callers are
+verified. The duplicate explorer-counter evaluation noted above also remains.

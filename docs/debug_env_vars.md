@@ -8,7 +8,7 @@ comparing golden output.
 
 | Var | File:line | Kind | Effect | Default |
 |-----|-----------|------|--------|---------|
-| `AI_SHIP_DOS` | `src/core/ai_euro_act.c` (`ai_euro_ship_dos_enabled`) | **behaviour** | bugs.md #530 prototype: DOS hull path plus land founding-site scan and shared 479b goal walk; bypasses fitted opening producers/land approaches. Passes TURN1→2 through TURN3→4; TURN4→5 onward still differs. Evidence: `docs/ai_first_colony_trace.md` | off |
+| `AI_SHIP_DOS` | `src/core/ai_euro_act.c` (`ai_euro_ship_dos_enabled`) | **behaviour** | bugs.md #530 prototype: DOS hull path plus land founding-site scan and shared 479b goal walk; bypasses fitted opening producers/land approaches. Passes all six TURN1→2 through TURN6→7 goldens; full DOS-mode suite still fails 13 targets. Includes colony tick before planning. Evidence: `docs/ai_first_colony_trace.md` | off |
 | `DOS_RNG_TRACE` | `src/core/dos_rng.c:10` | trace | Logs every RNG draw with a running index | off |
 | `AI_LCG_AUDIT` | `src/core/ai.c` (`ai_lcg_audit_enabled`) | trace | Logs init-pulse `pick_dir` burn counts (phase 5) | off |
 | `AI_INIT_SCHED` | `src/core/ai_brave.c` (`ai_init_sched_apply`) | **behaviour** | `"n:idx:count[:R];..."` — init-pulse burn schedule sweep: burn `count` draws before Brave `idx` of nation `n` picks (`idx=-1` = before the pulse; `R` = reseed to the pulse seed first). Normal play adds no draws. `golden_mapgen_seed100` is the oracle | unset |
