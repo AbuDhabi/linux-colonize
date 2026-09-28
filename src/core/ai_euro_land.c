@@ -1959,7 +1959,10 @@ int ai_euro_20e6_wander_step(
   int best_dir = 8;
   int best_attack = 0;
   int saw_foe = 0; /* local_ea */
-  const int last_dir = (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) ? ai_euro_s_euro_last_dir[u->id] : -1;
+  /* FUN_521d_20e6 raw 88779 reads the saved facing byte for land and
+   * ships alike. The scratch mirror starts at zero after loading a save
+   * and biased land units north (#530 TURN4 Spanish soldier). */
+  const int last_dir = u->last_dir;
   for (int d = 0; d < 8; ++d) {
     const int nx = u->x + MAP_DIR8_DX[d];
     const int ny = u->y + MAP_DIR8_DY[d];

@@ -2531,6 +2531,10 @@ void ai_euro_colony_tick_28c8_reassign(
     if (!col->active || col->nation_id != nation_id || col->colonist_count <= 0) {
       continue;
     }
+    if (ai_euro_ship_dos_enabled()) {
+      ai_euro_5952_colony_counters(ctx, nation_id, col);
+      ai_euro_5952_colony_prelude(ctx, nation_id, col);
+    }
     /*
      * FUN_5952_035e raw 94402-94551 runs immediately BEFORE the colonist idle
      * sweep below (bugs.md #612).
@@ -2834,6 +2838,9 @@ void ai_euro_colony_tick_28c8_reassign(
      */
     if (ai_euro_5952_indoor_pass_enabled()) {
       ai_euro_5952_indoor_pass(ctx, col, placed, n);
+      if (ai_euro_ship_dos_enabled()) {
+        ai_euro_5952_build_cascade(ctx, col);
+      }
       /* DOS raw ~95860-95958, the tick's last two arms (bugs.md #571/#572). */
       ai_euro_5952_specialist_arms(ctx, col, n);
       continue;

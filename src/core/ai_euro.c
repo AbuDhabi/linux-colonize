@@ -2568,7 +2568,7 @@ static void ai_euro_dispatcher_turn_plan(ColonizeTurnContext* ctx, int nation_id
    * other half of the same DOS body and is what produces the ring-1 threat
    * count (iStack_22) the Wagon Train arm reads.
    */
-  if (ctx->colonies) {
+  if (ctx->colonies && !ai_euro_ship_dos_enabled()) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       ColonizeColony* c = &ctx->colonies->colonies[i];
       if (c->active && c->nation_id == nation_id) {
@@ -2846,6 +2846,12 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
   ai_euro_dispatcher_turn_reset(ctx);
   ai_euro_20e6_refresh_type_cache(ctx->units);
 
+  /* FUN_521d_6d8e raw 93118-93142: the complete 5952 colony tick
+   * precedes inventory and Europe planning; those read its new stocks. */
+  if (ai_euro_ship_dos_enabled()) {
+    ai_euro_colony_tick_28c8_reassign(ctx, nation_id);
+  }
+
   ai_euro_dispatcher_turn_plan(ctx, nation_id);
 
   ai_euro_dispatcher_turn_unit_waves(ctx, nation_id);
@@ -2873,7 +2879,9 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
    * and tangled there with its labor_running accumulator. Extracting that
    * seed is the prerequisite.
    */
-  ai_euro_colony_tick_28c8_reassign(ctx, nation_id);
+  if (!ai_euro_ship_dos_enabled()) {
+    ai_euro_colony_tick_28c8_reassign(ctx, nation_id);
+  }
 }
 
 /*
