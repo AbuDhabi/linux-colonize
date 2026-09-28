@@ -30,9 +30,9 @@ These require Python 3.
 | Name | Purpose | Invocation | Needs |
 |------|---------|-----------|-------|
 | `build_static_deps.sh` | Build static SDL2 and minimal FluidSynth for release binary | `bash scripts/build_static_deps.sh [PREFIX]` | meson, ninja, autotools (or system static glib); no docker required |
-| `build_release.sh` | Build standalone Linux release tarball | `bash scripts/build_release.sh` | CMake, compiler; output: `dist/linux-colonize-<version>-linux-x86_64.tar.gz` |
-| `build_release_container.sh` | Build release tarball in manylinux2014 container (glibc 2.17 floor) | `bash scripts/build_release_container.sh` | docker or podman; output: `dist/linux-colonize-<version>-linux-x86_64.tar.gz` |
-| `build_release_windows.sh` | Cross-build Windows release zip in Fedora container | `bash scripts/build_release_windows.sh` | docker or podman; mingw-w64; output: `dist/linux-colonize-<version>-windows-x86_64.zip` |
+| `build_release.sh` | Build standalone Linux release tarball | `bash scripts/build_release.sh` | CMake, compiler; output: `dist/opencol-<version>-linux-x86_64.tar.gz` |
+| `build_release_container.sh` | Build release tarball in manylinux2014 container (glibc 2.17 floor) | `bash scripts/build_release_container.sh` | docker or podman; output: `dist/opencol-<version>-linux-x86_64.tar.gz` |
+| `build_release_windows.sh` | Cross-build Windows release zip in Fedora container | `bash scripts/build_release_windows.sh` | docker or podman; mingw-w64; output: `dist/opencol-<version>-windows-x86_64.zip` |
 | `grid_overlay.sh` | Overlay pixel-coordinate grid on a screenshot | `bash scripts/grid_overlay.sh <image> [grid_step] [out]` | ImageMagick (convert); default grid_step=20, out=<image>.grid.png |
 | `render_diff.sh` | Pixel-diff two screenshots, highlighting mismatches in red | `bash scripts/render_diff.sh <reference> <candidate> [out]` | ImageMagick (convert); prints absolute error (AE) pixel count |
 

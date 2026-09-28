@@ -1,4 +1,4 @@
-# Root convenience Makefile for linux-colonize.
+# Root convenience Makefile for opencol.
 #
 # Canonical dev loop: `make test`. Everything else (build/release, cross
 # builds, etc.) is a release/cross-build artefact only — build/debug (CMake

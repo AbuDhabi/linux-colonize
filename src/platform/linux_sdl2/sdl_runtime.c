@@ -148,7 +148,7 @@ ColonizePlatform* platform_create(const ColonizePlatformConfig* config) {
   platform->window_scale = scale;
   platform->default_cursor = SDL_GetDefaultCursor();
   platform->window = SDL_CreateWindow(
-    "Colonization Linux Port",
+    "OpenCol",
     SDL_WINDOWPOS_CENTERED,
     SDL_WINDOWPOS_CENTERED,
     width * scale,

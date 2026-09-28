@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(colonize_linux C)
+project(opencol C)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -210,7 +210,7 @@ add_library(colonize_ui STATIC
 
 target_link_libraries(colonize_ui PUBLIC colonize_sim)
 
-# Kept so every existing consumer (colonize_linux, all tests/tools) can go on
+# Kept so every existing consumer (opencol, all tests/tools) can go on
 # linking one name. INTERFACE, so it contributes no objects of its own.
 add_library(colonize_core INTERFACE)
 target_link_libraries(colonize_core INTERFACE colonize_ui)
@@ -316,52 +316,52 @@ target_link_options(colonize_sim_linkcheck PRIVATE
 add_dependencies(colonize_sim_linkcheck colonize_sim)
 
 if(SDL2_FOUND)
-  add_executable(colonize_linux
+  add_executable(opencol
     src/main.c
     src/platform/linux_sdl2/sdl_runtime.c
   )
 
-  target_include_directories(colonize_linux PRIVATE
+  target_include_directories(opencol PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
   )
 
-  target_link_libraries(colonize_linux PRIVATE
+  target_link_libraries(opencol PRIVATE
     colonize_core
     ${COLONIZE_SDL2_TARGET}
   )
 
   if(COLONIZE_ENABLE_AUDIO)
-    target_compile_definitions(colonize_linux PRIVATE COLONIZE_ENABLE_AUDIO=1)
+    target_compile_definitions(opencol PRIVATE COLONIZE_ENABLE_AUDIO=1)
   endif()
 
   # LICENSE always. Bundled SC-55 SoundFont is optional — copy only if present
   # so deleting it (or dropping it from the repo) does not fail the build.
   add_custom_command(
-    TARGET colonize_linux POST_BUILD
+    TARGET opencol POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${CMAKE_SOURCE_DIR}/LICENSE
-            $<TARGET_FILE_DIR:colonize_linux>/LICENSE
+            $<TARGET_FILE_DIR:opencol>/LICENSE
     COMMAND ${CMAKE_COMMAND}
             -DSRC=${CMAKE_SOURCE_DIR}/data/soundfonts/Roland_SC-55.sf2
-            -DDST=$<TARGET_FILE_DIR:colonize_linux>/data/soundfonts/Roland_SC-55.sf2
+            -DDST=$<TARGET_FILE_DIR:opencol>/data/soundfonts/Roland_SC-55.sf2
             -P ${CMAKE_SOURCE_DIR}/cmake/copy_if_exists.cmake
     COMMAND ${CMAKE_COMMAND}
             -DSRC=${CMAKE_SOURCE_DIR}/data/soundfonts/COPYRIGHT.Roland_SC-55
-            -DDST=$<TARGET_FILE_DIR:colonize_linux>/data/soundfonts/COPYRIGHT.Roland_SC-55
+            -DDST=$<TARGET_FILE_DIR:opencol>/data/soundfonts/COPYRIGHT.Roland_SC-55
             -P ${CMAKE_SOURCE_DIR}/cmake/copy_if_exists.cmake
-    COMMENT "Copy LICENSE and optional bundled soundfont next to colonize_linux"
+    COMMENT "Copy LICENSE and optional bundled soundfont next to opencol"
   )
 else()
-  message(WARNING "SDL2 not found. colonize_linux target is disabled; build/install SDL2 dev packages to enable.")
+  message(WARNING "SDL2 not found. opencol target is disabled; build/install SDL2 dev packages to enable.")
 endif()
 
 enable_testing()
 
-if(TARGET colonize_linux)
+if(TARGET opencol)
   add_test(
     NAME lint_no_catalog_text
     COMMAND ${CMAKE_COMMAND}
-            -DBINARY=$<TARGET_FILE:colonize_linux>
+            -DBINARY=$<TARGET_FILE:opencol>
             -P ${CMAKE_SOURCE_DIR}/tests/no_catalog_text.cmake
   )
   set_tests_properties(lint_no_catalog_text PROPERTIES

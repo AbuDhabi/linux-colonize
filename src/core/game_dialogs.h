@@ -347,7 +347,7 @@ struct ColonizeGameState {
   int debug_mouse_y;
   bool debug_show_mouse_coords; /* DEBUG menu toggle; default off */
   bool debug_building_rects; /* DEBUG menu toggle: colony-screen building sprite bounds; default off */
-  bool debug_logs; /* DEBUG menu toggle: diag_info to colonize-linux.log; default off */
+  bool debug_logs; /* DEBUG menu toggle: diag_info to opencol.log; default off */
   bool debug_show_strategy; /* CHEAT Show Strategy: per-nation top AI goal overlay */
   bool debug_show_colony_sites; /* CHEAT Show Colony Sites: ai_goals_best_found_tile overlay */
   uint16_t debug_flags_mask; /* CHEAT Debug Info Flags (DEBUG.TXT @OPTIONS, DS:0x894);

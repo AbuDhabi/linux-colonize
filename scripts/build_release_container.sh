@@ -49,6 +49,6 @@ IMAGE=quay.io/pypa/manylinux2014_x86_64
 #  chowning there would shift files to a subuid instead)
 
 echo "== Container build done =="
-BIN="$ROOT/dist/$(ls "$ROOT/dist" | grep -v tar | head -1)/linux-colonize"
+BIN="$ROOT/dist/$(ls "$ROOT/dist" | grep -v tar | head -1)/opencol"
 echo "glibc floor: $(objdump -T "$BIN" | grep -o "GLIBC_[0-9.]*" | sort -Vu | tail -1)"
 ls -l "$ROOT/dist/"

@@ -1,4 +1,4 @@
-# linux-colonize
+# opencol
 
 > **Note:** this project was written largely by AI (Claude, Cursor and GPT,
 > among others), under human direction. Disclosed per the papal recommendation
@@ -60,7 +60,7 @@ you obtained yourself (see [License](#license)).
 ```bash
 cmake --preset debug
 cmake --build --preset debug
-./build/debug/colonize_linux
+./build/debug/opencol
 ```
 
 Useful flags (CLI wins over `settings.json`, which wins over the default):
@@ -103,7 +103,7 @@ square-wave fallback (no MIDI).
 
 ## License
 
-**linux-colonize code** is [PolyForm Noncommercial 1.0.0](LICENSE)
+**opencol code** is [PolyForm Noncommercial 1.0.0](LICENSE)
 (`PolyForm-Noncommercial-1.0.0`). Noncommercial use, modification, and
 redistribution are allowed if you keep the license and the
 `Required Notice:` attribution line. **Commercial use needs explicit
