@@ -1930,6 +1930,16 @@ bool col1_bridge_apply_w(
       } else {
         europe_seed_pool(europe, (int)europe->difficulty, true);
       }
+      /* DOS has no latch: 4884/46d4 test the FF bit live, so a loaded save
+       * with Brewster must filter too. The port's eu->brewster_no_criminals
+       * is not in the save, so re-derive it here (idempotent substitution,
+       * same as 4345_0342 case 0x14). Without it, every post-load pool
+       * refill - Recruit menu, Brewster pick, Fountain of Youth - could roll
+       * Petty Criminals / Indentured Servants again. */
+      europe_apply_brewster(
+        europe,
+        founding_fathers_nation_has(save, local.human_nation, FF_WILLIAM_BREWSTER) ? 1 : 0
+      );
     }
     for (int i = 0; i < europe->cargo_count && i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
       europe->cargo[i].bid = nat->trade.euro_price[i];
