@@ -21,6 +21,7 @@
 #include "core/ai_contact.h"
 #include "core/ai_diplo.h"
 #include "core/ai_king.h"
+#include "core/ai_popup.h"
 #include "core/ai_goals.h"
 #include "core/assets.h"
 #include "core/ai_euro_internal.h"
@@ -3916,6 +3917,26 @@ void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int t
           ctx->status, ctx->status_size
         );
         popup_msg_strip_markup(ctx->status); /* status line: no {} coloring */
+        /*
+         * bugs.md: @SNEAK is a modal popup in DOS, not just a status line.
+         * FUN_4720_049e asm 0x3f1b4 `lea bx,[0x87c] ("GAME"); lea ax,[0x13c5];
+         * sub dx,dx; call 0x181f:0x998` is the plain message-box call shape
+         * (same as @NODOCKS 0x3fe20, @TRADENONE 0x60618) and it runs BEFORE
+         * the @DECLAREWAR dialog at 0x3f262. ai_diplo_declare_war_ctx has
+         * already queued that one, so queue @SNEAK and promote it in front.
+         */
+        char sneak_body[256];
+        sneak_body[0] = '\0';
+        popup_msg_fill(ctx->messages, "SNEAK", &tok, "", sneak_body, sizeof(sneak_body));
+        if (sneak_body[0] != '\0' && ctx->ai_popups) {
+          (void)ai_popup_enqueue_ok_ctx(
+            ctx->ai_popups, AI_POPUP_TAG_DIPLO_SNEAK, u->nation_id, f->nation_id, 0, NULL,
+            sneak_body
+          );
+          ai_popup_promote_tag_before(
+            ctx->ai_popups, AI_POPUP_TAG_DIPLO_SNEAK, AI_POPUP_TAG_DIPLO_WAR
+          );
+        }
       }
     }
   }

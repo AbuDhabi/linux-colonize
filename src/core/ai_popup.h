@@ -198,7 +198,13 @@ typedef enum AiPopupTag {
                                  * of those!" (no rolls at all, the rumour tile is already
                                  * cleared). nation_a = explorer nation, nation_b = the
                                  * 65dd:103450 skill tier, payload = x | y << 8 | gate << 16
-                                 * (gate = the roll's local_c magnitude byte). */
+                                 * (gate = the roll's local_c magnitude byte). */,
+  AI_POPUP_TAG_DIPLO_SNEAK = 72 /* @SNEAK (DS:0x13c5). FUN_4720_049e asm 0x3f1b4:
+                                 * `lea bx,[0x87c] ("GAME"); lea ax,[0x13c5]; sub dx,dx;
+                                 * call 0x181f:0x998` — the same modal-message call shape
+                                 * as @NODOCKS / @TRADENONE, i.e. DOS shows the sneak
+                                 * attack as its own OK popup BEFORE the @DECLAREWAR
+                                 * dialog at 0x3f262, not as a bare status line. */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {
