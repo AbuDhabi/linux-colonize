@@ -617,9 +617,15 @@ graphs:
         status: thin
       - id: roam_abort
         kind: step
-        label: Roam-abort — idle-wander goto cleared when a MET foreign unit is adjacent
-        dos: 20e6 epilogue unit+0x314c==5 clear (raw ~2213-2275)
-        status: structural
+        label: Roam-abort — act_state 5 cleared when a peaceful nation's colony is adjacent
+        fn: ai_euro.c:ai_euro_unit_act
+        dos: LAB_521d_5a78 tail, raw 90405-90421 (after the 90400-90404 demotion)
+        status: dos
+        note: >-
+          Runs on the act_state 5 the demotion just wrote. Probe is
+          FUN_281f_0696 = euro_settlement_owner (an adjacent Euro COLONY's
+          owner), and the relation bit is 0x40 PEACE — not a unit scan and not
+          MET. Corrected 2026-09-28, bugs.md #966.
       - id: mow_home
         kind: decision
         label: WoI crown Man-O-War → sail home once pool spent?
@@ -1254,12 +1260,6 @@ graphs:
         kind: decision
         label: Franklin held?
         note: Europeans in the New World always offer peace — conclude peace (AI→human enqueues CHOICE).
-      - id: upkeep
-        kind: step
-        label: War upkeep drain (5 gold/turn per war peer)
-        fn: ai_diplo.c:ai_diplo_war_upkeep_drain
-        status: linux
-        note: No DOS per-turn war gold drain exists; 153e's stings are one-shot audience outcomes.
       - id: privateer
         kind: step
         label: Wartime Privateer spawn (or prize gold when no unit pool)
@@ -1296,8 +1296,7 @@ graphs:
       - [peer_loop, at_war]
       - [at_war, franklin, "yes"]
       - [franklin, peer_loop, "yes: make peace"]
-      - [franklin, upkeep, "no"]
-      - [upkeep, privateer]
+      - [franklin, privateer, "no"]
       - [privateer, fatigue]
       - [fatigue, peer_loop, "yes: peace offer"]
       - [fatigue, treaty, "no"]
