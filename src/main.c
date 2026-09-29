@@ -212,15 +212,19 @@ int main(int argc, char** argv) {
   sound_set_midi_backend(settings_get()->midi_backend);
   sound_init(cli.data_dir, platform_audio_enabled(platform));
   sound_set_options(settings_sound_options(settings_get()));
-  if (!game_try_start_intro(game) && !sound_playback_enabled()) {
-    diag_info(
-      "Music autoplay disabled; use GAME → Pick Music to preview songs%s.",
-      platform_audio_enabled(platform) ? "" : " (audio device off)"
-    );
+  if (!game_try_start_intro(game)) {
+    /* Intro skipped: the title menu is the first screen, so arm its pool here
+     * (game_finish_intro does it when the cinematic does run). */
+    sound_set_bgm(SOUND_TITLE_BGM_POOL);
+    if (!sound_playback_enabled()) {
+      diag_info(
+        "Music autoplay disabled; use GAME → Pick Music to preview songs%s.",
+        platform_audio_enabled(platform) ? "" : " (audio device off)"
+      );
+    }
   }
   /* Resume after the opening cue is queued, so the pool pump cannot draw a
-   * tune ahead of the intro's 0x34.  With no intro, VICEROY's pump starts a
-   * default-pool tune on the title menu (sound.c, asm 129f:020a-020e). */
+   * tune ahead of the intro's 0x34. */
   if (platform_audio_enabled(platform)) {
     platform_audio_resume(platform);
   }

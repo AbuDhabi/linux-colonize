@@ -202,9 +202,9 @@ static void game_finish_intro(ColonizeGameState* game) {
   opening_close(&game->opening);
   game->opening_just_opened = false;
   /* OPENING.EXE exits here in DOS, which also ends its 0x34 music. VICEROY
-   * then runs with no pool armed, and its pump draws from the default pool —
-   * that is the title-menu music (sound.c, asm 129f:020a-020e). */
-  sound_stop_bgm();
+   * then opens the title menu on pool 5 — Natives once, then the general
+   * pool (sound.h SOUND_TITLE_BGM_POOL). */
+  sound_set_bgm(SOUND_TITLE_BGM_POOL);
 }
 
 bool game_try_start_intro(ColonizeGameState* game) {
@@ -2902,7 +2902,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
       return GAME_UPDATE_RETURN_TRUE;
     }
     game->in_menu = true;
-    sound_stop_bgm();
+    sound_set_bgm(SOUND_TITLE_BGM_POOL);
     diag_info("Returned to main menu.");
     return GAME_UPDATE_RETURN_TRUE;
   }
@@ -3247,7 +3247,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         game_enqueue_war_scored_choice(game);
       } else {
         game->in_menu = true;
-        sound_stop_bgm();
+        sound_set_bgm(SOUND_TITLE_BGM_POOL);
         set_status(game, "OpenCol", NULL);
       }
     }

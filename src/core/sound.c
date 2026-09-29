@@ -1051,10 +1051,6 @@ void sound_set_bgm(int track) {
   pthread_mutex_unlock(&g_sound.lock);
 }
 
-void sound_stop_bgm(void) {
-  sound_set_bgm(0);
-}
-
 /* True while the port's in-process OPENING/CLOSING cinematic is on screen. */
 void sound_set_cinematic(bool active) {
   if (!g_sound.inited) {

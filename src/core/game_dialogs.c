@@ -2891,7 +2891,7 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
         game->col1.head.turn_loop_running = 0;
       }
       game->in_menu = true;
-      sound_stop_bgm();
+      sound_set_bgm(SOUND_TITLE_BGM_POOL);
       set_status(game, "OpenCol", NULL);
     } else {
       /* Keep playing (or Esc): back on the map, campaign continues. */

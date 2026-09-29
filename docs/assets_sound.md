@@ -62,8 +62,15 @@ handler). The combat cue `0x32` is therefore **Indian Victory**. ID `0x33` (= Na
 is dispatched for the Meeting Natives woodcut and Burial Mounds. VICEROY has no
 title-menu dispatch for it; the port's former title uses of `0x33` were removed.
 That removal left the title menu **silent, which is wrong** (user-observed DOS,
-2026-09-29): the menu does play music and then cycles tunes. It needs no dispatch
-— see the pool-0 default below.
+2026-09-29): the menu opens on Natives (`0x33`) and then cycles tunes like the map.
+That is pool 5's behaviour (one-shot Natives → general pool), so the menu needs no
+song dispatch — the port arms `SOUND_TITLE_BGM_POOL` (5) at every title entry.
+**Untraced:** which DOS code sets pool 5. `DS:0x9a` is 0 in the EXE image
+(DGROUP+0x9a, anchored on the "MS Run-Time Library" string; `0x9e`/`0xa0`/`0xa2`
+= 1/1/1 there), no root function sets a pool at startup, and the `@BEGINMENU`
+string (DGROUP+0x2343) has no resolved code xref — the title menu lives in an
+overlay. The pool value is DOS machinery; only the call site is inferred from
+the observed behaviour.
 
 ### DOS BGM scheduler (`FUN_129f_00f6` / `0318` / `02cc`)
 
@@ -82,6 +89,7 @@ That removal left the title menu **silent, which is wrong** (user-observed DOS,
   The port therefore may **not** treat "no pool" as "stay quiet": the only thing allowed
   to park the pump is the port's in-process `OPENING`/`CLOSING` cinematic (`sound_set_cinematic`),
   which in DOS is a separate program owning the driver with its own `0x34` / `0x3d` cue.
+  The title menu itself runs on pool 5, not pool 0 (see the `0x33` note above).
 * All songs **end** (no `FD` loop except `0x34`); when the driver reports no voice active
   the pump draws the next random tune from the pool, never repeating the last id.
 * `sound_play(id)` = `FUN_129f_02cc`: queue + fade, pump starts it when idle.
