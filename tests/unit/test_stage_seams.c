@@ -496,6 +496,61 @@ static int test_trade_route_wagon_services_arrival_stop(void) {
   return rc;
 }
 
+/* DOS FUN_479b_0bd0 raw 77234-77238 copies the DS:0x8542 colony record's
+ * x/y into the unit's goto pair whatever the unit's domain: a route ship
+ * aims at the colony TILE and docks there (which is what puts passengers
+ * ashore), never at an adjacent water tile. */
+static int test_trade_route_ship_aims_colony_tile(void) {
+  ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/2, /*with_seen=*/true)) {
+    return fail("trade-route ship map alloc");
+  }
+  game.world_map_ok = true;
+  game.human_nation = 0;
+  game.col1_ok = true;
+
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 1;
+  game.units.types[0].kind_plus1 = UNITS_KIND_CARAVEL + 1;
+  game.units.types[0].movement = 4;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  game.units.types[0].cargo = 2;
+
+  fx_colonies_init(&game.colonies);
+  game.colonies_ok = true;
+  ColonizeColony* port = fx_colony_add(&game.colonies, 0, 5, 4, 1);
+  units_set_occupancy_map(&game.world_map);
+  colonies_set_occupancy_map(&game.world_map);
+
+  ColonizeCol1TradeRoute* route = &game.col1.trade_route[0];
+  route->dest_count = 2;
+  route->stop[0].colony_index = (uint16_t)port->id;
+  route->stop[1].colony_index = 999;
+
+  const int uid = units_spawn(&game.units, 0, 2, 4);
+  ColonizeUnit* ship = units_get(&game.units, uid);
+  int rc = 0;
+  if (!ship) {
+    rc = fail("trade-route ship spawn");
+  } else {
+    ship->nation_id = 0;
+    ship->orders = UNITS_ORDER_TRADE_ROUTE;
+    ship->follow_unit_id = 0;
+    if (!game_trade_route_aim_stop(&game, ship, 0)) {
+      rc = fail("trade-route ship could not aim colony stop");
+    } else if (ship->goto_x != port->x || ship->goto_y != port->y) {
+      rc = fail("trade-route ship stopped short of the colony tile");
+    }
+  }
+
+  colonies_set_occupancy_map(NULL);
+  units_set_occupancy_map(NULL);
+  fx_map_free(&game.world_map);
+  return rc;
+}
+
 /* DOS FUN_2b5a_1e66 raw 42862-42864 assigns order 2 and immediately calls
  * FUN_479b_0bd0(unit, 1). Starting a full-MP wagon at the other stop must
  * therefore retain control long enough to begin moving, even when another
@@ -1030,6 +1085,7 @@ static const TestCase k_cases[] = {
     {"test_colony_zoom_hold_survives_pedia_detour", test_colony_zoom_hold_survives_pedia_detour},
     {"test_trade_route_wagon_services_arrival_stop", test_trade_route_wagon_services_arrival_stop},
     {"test_trade_route_begin_moves_wagon_to_selected_stop", test_trade_route_begin_moves_wagon_to_selected_stop},
+    {"test_trade_route_ship_aims_colony_tile", test_trade_route_ship_aims_colony_tile},
     {"test_ai_euro_5952_absorb_colonist", test_ai_euro_5952_absorb_colonist},
     {"test_ai_euro_5952_absorb_soldier", test_ai_euro_5952_absorb_soldier},
     {"test_ai_euro_5952_equip_scout", test_ai_euro_5952_equip_scout},
