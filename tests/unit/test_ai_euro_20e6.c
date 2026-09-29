@@ -682,11 +682,15 @@ static int unit_empty_ship_hs_cadence(void) {
   own->y = 8;
   own->population = 3;
   own->colonist_count = 3;
-  /* Well-stocked: the 4393 work-queue haul (ai_euro_try_ship_trade_haul) must
-   * decline first — DOS reaches LAB_457e only after that pick fails. */
-  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-    own->stock[c] = 200;
-  }
+  /* No export surplus: 0a60 raw 87663 registers cargo above 74 tons.
+   * Stocking every cargo with 200 created pickup work, so DOS correctly
+   * took 4393 before ever reaching the 457e cadence under test. Food and
+   * lumber are excluded from that registration; equipment stays below it. */
+  own->stock[COLONIZE_CARGO_FOOD] = 200;
+  own->stock[COLONIZE_CARGO_LUMBER] = 200;
+  own->stock[COLONIZE_CARGO_TOOLS] = 50;
+  own->stock[COLONIZE_CARGO_MUSKETS] = 50;
+  own->stock[COLONIZE_CARGO_HORSES] = 50;
   own->building_in_production = -1;
   f.colonies.colony_count = 1;
   f.colonies.next_id = 1;
@@ -700,6 +704,13 @@ static int unit_empty_ship_hs_cadence(void) {
   ship->nation_id = nation;
   ship->moves = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
+  /* Census describes the hull and colony this fixture actually owns.
+   * A zero ship count would trigger a 5d04 replacement purchase and board
+   * the waiting dock units before the ship-act arm being tested. */
+  f.col1.stuff.ship_counts[nation] = 1;
+  f.col1.stuff.ship_cargo_totals[nation] = 2;
+  f.col1.stuff.colony_counts[nation] = 1;
+  f.col1.stuff.census_pop_proxy[nation] = 3;
   /* ((char)id + (char)turn) & 0x1f == 0 */
   f.turn = (uint32_t)(32 - (ship_id % 32));
 
@@ -771,6 +782,13 @@ static int unit_europe_dock_demand_sails_home(void) {
   ship->nation_id = nation;
   ship->moves = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
+  /* Census describes the hull and colony this fixture actually owns.
+   * A zero ship count would trigger a 5d04 replacement purchase and board
+   * the waiting dock units before the ship-act arm being tested. */
+  f.col1.stuff.ship_counts[nation] = 1;
+  f.col1.stuff.ship_cargo_totals[nation] = 2;
+  f.col1.stuff.colony_counts[nation] = 1;
+  f.col1.stuff.census_pop_proxy[nation] = 3;
   /* Defeat the 457e cadence: any turn whose parity is NOT 0 mod 32. */
   f.turn = (uint32_t)(32 - (ship_id % 32) + 1);
 
