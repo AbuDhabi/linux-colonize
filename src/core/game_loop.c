@@ -107,6 +107,7 @@
 #include "core/reports_names.h"
 #include "core/save_load_dialog.h"
 #include "core/savegame.h"
+#include "core/screen_geom.h"
 #include "core/settings.h"
 #include "core/sound.h"
 #include "core/ss.h"
@@ -269,6 +270,43 @@ void game_track_screen(ColonizeGameState* game) {
   diag_set_context(game->log_screen);
 }
 
+/*
+ * Port-only scratch frames for the nested present pumps.
+ *
+ * The logical screen is no longer a fixed 320x200 (core/screen_geom.h), so the
+ * modal loops and animations below cannot keep a 64000-byte array on the stack.
+ * Each call site owns one lazily grown buffer instead; false means the growth
+ * failed and the caller must skip its animation rather than draw into a frame
+ * of the wrong size.
+ * ponytail: never freed — the buffer only ever grows with the window.
+ */
+static bool game_scratch_fb(
+  uint8_t** buf, size_t* cap, int w, int h, ColonizeFramebuffer8* out
+) {
+  if (!buf || !cap || !out || w <= 0 || h <= 0) {
+    return false;
+  }
+  const size_t need = (size_t)w * (size_t)h;
+  if (need > *cap) {
+    uint8_t* grown = (uint8_t*)realloc(*buf, need);
+    if (!grown) {
+      diag_warn("Scratch framebuffer alloc failed (%dx%d)", w, h);
+      return false;
+    }
+    *buf = grown;
+    *cap = need;
+  }
+  out->width = w;
+  out->height = h;
+  out->pixels = *buf;
+  return true;
+}
+
+/* Same, sized to the whole logical screen. */
+static bool game_screen_scratch_fb(uint8_t** buf, size_t* cap, ColonizeFramebuffer8* out) {
+  return game_scratch_fb(buf, cap, screen_geom_w(), screen_geom_h(), out);
+}
+
 static void game_combat_analysis_present(const ColonizeCombatEngagement* eng, void* user) {
   ColonizeGameState* game = (ColonizeGameState*)user;
   if (!game || !eng || !game->units_ok) {
@@ -282,10 +320,15 @@ static void game_combat_analysis_present(const ColonizeCombatEngagement* eng, vo
     combat_analysis_close(&game->combat_analysis);
     return;
   }
-  uint8_t pixels[320 * 200];
-  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  static uint8_t* s_ca_buf;
+  static size_t s_ca_cap;
+  ColonizeFramebuffer8 fb;
+  if (!game_screen_scratch_fb(&s_ca_buf, &s_ca_cap, &fb)) {
+    combat_analysis_close(&game->combat_analysis);
+    return;
+  }
   ColonizePalette pal;
-  memset(pixels, 0, sizeof(pixels));
+  memset(fb.pixels, 0, (size_t)fb.width * (size_t)fb.height);
   while (game->combat_analysis.open) {
     ColonizeInputState input = {0};
     if (!platform_poll_input(game->platform, &input) || input.quit_requested) {
@@ -379,27 +422,33 @@ static void game_blit_unit_in_viewport(
   bool damaged,
   const ColonizePalette* active_palette
 ) {
-  static uint8_t s_viewport[MAP_VIEW_W * MAP_VIEW_H];
-  if (!fb || !fb->pixels || fb->width < MAP_VIEW_W || fb->height < MAP_MENU_BAR_H + MAP_VIEW_H) {
+  static uint8_t* s_viewport;
+  static size_t s_viewport_cap;
+  const int view_w = MAP_VIEW_W;
+  const int view_h = MAP_VIEW_H;
+  if (!fb || !fb->pixels || fb->width < view_w || fb->height < MAP_MENU_BAR_H + view_h) {
     return;
   }
-  ColonizeFramebuffer8 view = {.width = MAP_VIEW_W, .height = MAP_VIEW_H, .pixels = s_viewport};
-  for (int row = 0; row < MAP_VIEW_H; ++row) {
+  ColonizeFramebuffer8 view;
+  if (!game_scratch_fb(&s_viewport, &s_viewport_cap, view_w, view_h, &view)) {
+    return;
+  }
+  for (int row = 0; row < view_h; ++row) {
     memcpy(
-      &s_viewport[(size_t)row * MAP_VIEW_W],
+      &view.pixels[(size_t)row * (size_t)view_w],
       &fb->pixels[(size_t)(MAP_MENU_BAR_H + row) * (size_t)fb->width],
-      MAP_VIEW_W
+      (size_t)view_w
     );
   }
   unit_chrome_blit_unit_for_palette(
     &view, font, sheet, sprite_index, x, y - MAP_MENU_BAR_H, display_type_index, nation_id,
     orders_index, show_stack, damaged, active_palette
   );
-  for (int row = 0; row < MAP_VIEW_H; ++row) {
+  for (int row = 0; row < view_h; ++row) {
     memcpy(
       &fb->pixels[(size_t)(MAP_MENU_BAR_H + row) * (size_t)fb->width],
-      &s_viewport[(size_t)row * MAP_VIEW_W],
-      MAP_VIEW_W
+      &view.pixels[(size_t)row * (size_t)view_w],
+      (size_t)view_w
     );
   }
 }
@@ -419,16 +468,26 @@ static void game_native_score_plot(
   if (!font) {
     return;
   }
-  uint8_t pixels[320 * 200];
-  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  static uint8_t* s_score_fb;
+  static size_t s_score_fb_cap;
+  ColonizeFramebuffer8 fb;
+  if (!game_screen_scratch_fb(&s_score_fb, &s_score_fb_cap, &fb)) {
+    return;
+  }
   ColonizePalette pal;
   game_render(game, &fb, &pal);
-  static uint8_t score_view[MAP_VIEW_W * MAP_VIEW_H];
-  ColonizeFramebuffer8 view = {.width = MAP_VIEW_W, .height = MAP_VIEW_H, .pixels = score_view};
-  for (int row = 0; row < MAP_VIEW_H; ++row) {
+  static uint8_t* s_score_view;
+  static size_t s_score_view_cap;
+  const int view_w = MAP_VIEW_W;
+  const int view_h = MAP_VIEW_H;
+  ColonizeFramebuffer8 view;
+  if (!game_scratch_fb(&s_score_view, &s_score_view_cap, view_w, view_h, &view)) {
+    return;
+  }
+  for (int row = 0; row < view_h; ++row) {
     memcpy(
-      &score_view[(size_t)row * MAP_VIEW_W],
-      &fb.pixels[(size_t)(MAP_MENU_BAR_H + row) * (size_t)fb.width], MAP_VIEW_W
+      &view.pixels[(size_t)row * (size_t)view_w],
+      &fb.pixels[(size_t)(MAP_MENU_BAR_H + row) * (size_t)fb.width], (size_t)view_w
     );
   }
   int cols = 0, rows = 0, vx = 0, vy = 0;
@@ -451,10 +510,10 @@ static void game_native_score_plot(
       ty * tile_px + (6 >> game->map_zoom), label, 15
     );
   }
-  for (int row = 0; row < MAP_VIEW_H; ++row) {
+  for (int row = 0; row < view_h; ++row) {
     memcpy(
       &fb.pixels[(size_t)(MAP_MENU_BAR_H + row) * (size_t)fb.width],
-      &score_view[(size_t)row * MAP_VIEW_W], MAP_VIEW_W
+      &view.pixels[(size_t)row * (size_t)view_w], (size_t)view_w
     );
   }
   (void)platform_present(game->platform, &fb, &pal);
@@ -508,8 +567,12 @@ COLONIZE_INTERNAL void game_move_watch_w(
     }
   }
 
-  uint8_t pixels[320 * 200];
-  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  static uint8_t* s_slide_fb;
+  static size_t s_slide_fb_cap;
+  ColonizeFramebuffer8 fb;
+  if (!game_screen_scratch_fb(&s_slide_fb, &s_slide_fb_cap, &fb)) {
+    return;
+  }
   ColonizePalette pal;
   const bool fast = game->col1.head.game_options.fast_piece_slide != 0;
 
@@ -698,8 +761,12 @@ void game_combat_watch(
   /* Outbound only, ending one full tile out (16px at zoom 0) as DOS's
    * pixel-step loop does; the snap home below is a single frame. */
   static const int k_step[3] = {6, 11, 16};
-  uint8_t pixels[320 * 200];
-  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  static uint8_t* s_lunge_fb;
+  static size_t s_lunge_fb_cap;
+  ColonizeFramebuffer8 fb;
+  if (!game_screen_scratch_fb(&s_lunge_fb, &s_lunge_fb_cap, &fb)) {
+    return;
+  }
   ColonizePalette pal;
   /* bugs.md #241: the lunge must draw ON TOP of everything and not fight its
    * own static sprite — hide the attacker from the base frame (as the move
@@ -771,13 +838,18 @@ void game_combat_watch(
  */
 void game_combat_dissolve(void* user, int phase) {
   ColonizeGameState* game = (ColonizeGameState*)user;
-  static uint8_t s_before[320 * 200];
+  static uint8_t* s_before;
+  static size_t s_before_cap;
   static bool s_before_ok = false;
   if (!game || !game->platform) {
     return;
   }
-  uint8_t pixels[320 * 200];
-  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  static uint8_t* s_dissolve_fb;
+  static size_t s_dissolve_fb_cap;
+  ColonizeFramebuffer8 fb;
+  if (!game_screen_scratch_fb(&s_dissolve_fb, &s_dissolve_fb_cap, &fb)) {
+    return;
+  }
   ColonizePalette pal;
   /*
    * bugs.md #533: freeze the map blink (DS:0x929c) across BOTH frames. The
@@ -790,8 +862,13 @@ void game_combat_dissolve(void* user, int phase) {
    */
   game->combat_dissolve_freeze = true;
   if (phase == 0) {
+    ColonizeFramebuffer8 keep;
+    if (!game_screen_scratch_fb(&s_before, &s_before_cap, &keep)) {
+      game->combat_dissolve_freeze = false;
+      return;
+    }
     game_render(game, &fb, &pal);
-    memcpy(s_before, pixels, sizeof(s_before));
+    memcpy(keep.pixels, fb.pixels, (size_t)fb.width * (size_t)fb.height);
     s_before_ok = true;
     return;
   }
@@ -813,19 +890,36 @@ void game_combat_dissolve(void* user, int phase) {
  * animation, so an off-screen change stays instant.
  */
 void game_fizzle_present(ColonizeGameState* game, const uint8_t* before) {
-  static uint8_t s_work[320 * 200];
+  static uint8_t* s_work;
+  static size_t s_work_cap;
+  static uint8_t* s_fizzle_fb;
+  static size_t s_fizzle_fb_cap;
   if (!game || !game->platform || !before) {
     return;
   }
-  uint8_t pixels[320 * 200];
-  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
-  ColonizePalette pal;
-  game_render(game, &fb, &pal);
-  if (memcmp(before, pixels, sizeof(pixels)) == 0) {
+  ColonizeFramebuffer8 fb;
+  ColonizeFramebuffer8 wfb;
+  if (!game_screen_scratch_fb(&s_fizzle_fb, &s_fizzle_fb_cap, &fb) ||
+      !game_screen_scratch_fb(&s_work, &s_work_cap, &wfb)) {
     return;
   }
-  memcpy(s_work, before, sizeof(s_work));
-  ColonizeFramebuffer8 wfb = {.width = 320, .height = 200, .pixels = s_work};
+  const size_t frame_px = (size_t)fb.width * (size_t)fb.height;
+  ColonizePalette pal;
+  game_render(game, &fb, &pal);
+  if (memcmp(before, fb.pixels, frame_px) == 0) {
+    return;
+  }
+  /*
+   * The DOS LFSR walks a 16-bit index over exactly 64000 pixels, so it only
+   * describes a 320x200 screen. A resized window (core/screen_geom.h) has no
+   * DOS counterpart to be faithful to: present the finished frame instead of
+   * dissolving part of it.
+   */
+  if (frame_px != (size_t)SCREEN_BASE_W * (size_t)SCREEN_BASE_H) {
+    platform_present(game->platform, &fb, &pal);
+    return;
+  }
+  memcpy(wfb.pixels, before, frame_px);
   /* DOS duration 8 spreads the 64000 copies over roughly half a second;
    * 16 presented batches × 28ms reads the same at 60Hz. */
   const int k_batches = 16;
@@ -845,7 +939,7 @@ void game_fizzle_present(ColonizeGameState* game, const uint8_t* before) {
       }
       if (lfsr <= 0xFA00u) {
         const unsigned idx = (unsigned)lfsr - 1u;
-        s_work[idx] = pixels[idx];
+        wfb.pixels[idx] = fb.pixels[idx];
         --budget;
       }
     }
@@ -865,11 +959,16 @@ void game_fizzle_present(ColonizeGameState* game, const uint8_t* before) {
  * state WITHOUT it, present that frame as DOS does, then flip the state on and
  * fizzle into it.
  */
-bool game_fizzle_snapshot_present(ColonizeGameState* game, uint8_t* out_before) {
-  if (!game || !game->platform || !out_before) {
+bool game_fizzle_snapshot_present(ColonizeGameState* game, uint8_t** buf, size_t* cap) {
+  if (!game || !game->platform || !buf || !cap) {
     return false;
   }
-  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = out_before};
+  /* The buffer is grown here rather than supplied: a caller-sized 320x200
+   * array was a heap/stack overrun once the screen could be bigger. */
+  ColonizeFramebuffer8 fb;
+  if (!game_screen_scratch_fb(buf, cap, &fb)) {
+    return false;
+  }
   ColonizePalette pal;
   game_render(game, &fb, &pal);
   return platform_present(game->platform, &fb, &pal);
@@ -897,9 +996,10 @@ void game_congress_reveal_new_father(ColonizeGameState* game, int ff_index) {
   if ((*bits & mask) == 0) {
     return;
   }
-  static uint8_t before[320 * 200];
+  static uint8_t* before;
+  static size_t before_cap;
   *bits = (uint8_t)(*bits & (uint8_t)~mask);
-  const bool have_before = game_fizzle_snapshot_present(game, before);
+  const bool have_before = game_fizzle_snapshot_present(game, &before, &before_cap);
   *bits = (uint8_t)(*bits | mask);
   if (have_before) {
     game_fizzle_present(game, before);
@@ -922,8 +1022,13 @@ void game_combat_popup_pump(void* user) {
     return;
   }
   pumping = true;
-  uint8_t pixels[320 * 200];
-  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  static uint8_t* s_pump_fb;
+  static size_t s_pump_fb_cap;
+  ColonizeFramebuffer8 fb;
+  if (!game_screen_scratch_fb(&s_pump_fb, &s_pump_fb_cap, &fb)) {
+    pumping = false;
+    return;
+  }
   ColonizePalette pal;
   while (ai_popup_busy(&game->ai_popups)) {
     if (!game->ai_popups.open && game->ai_popups.has_result) {
@@ -2501,6 +2606,69 @@ static const uint8_t* window_log_palette_map(
  * 320x200 framebuffer and skip this; platform_present keeps the last strip
  * pixels.
  */
+/*
+ * Offset the last game_render used to centre a DOS-sized screen in a larger
+ * window; 0,0 on the map view. game_update shifts pointer coordinates by it so
+ * the fixed screens hit-test in their own 320x200 space (one frame of lag at
+ * most, which is how the window log strip's mouse clamp already behaves).
+ */
+static int s_fixed_off_x = 0;
+static int s_fixed_off_y = 0;
+/* True when the last game_render painted the overland map rather than one of
+ * the DOS-sized screens — the message log strip belongs to the map only. */
+static bool s_last_render_was_map = false;
+
+COLONIZE_INTERNAL void game_screen_offset(int* out_x, int* out_y) {
+  if (out_x) {
+    *out_x = s_fixed_off_x;
+  }
+  if (out_y) {
+    *out_y = s_fixed_off_y;
+  }
+}
+
+/*
+ * WOODTILE fill for a rect of the frame, remapped into the active palette the
+ * same way the window log strip does it (the sheet is authored against the
+ * in-game palette, and a screen with a palette of its own would otherwise show
+ * the wood in its own colours).
+ */
+static void game_paint_wood_rect(
+  const ColonizeGameState* game,
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y,
+  int w,
+  int h,
+  const ColonizePalette* palette
+) {
+  if (!game || !framebuffer || !framebuffer->pixels || w <= 0 || h <= 0) {
+    return;
+  }
+  const ColonizeSpriteSheet* wood =
+    (game->map_panel_ok && game->map_panel.wood_ok) ? &game->map_panel.wood_tile : NULL;
+  if (wood) {
+    map_menu_tile_rect_screen_phase(wood, x, y, w, h, framebuffer);
+  } else {
+    fb_fill_rect(framebuffer, x, y, w, h, 4 /* map_menu.c MAP_MENU_COL_PANEL */);
+  }
+  const ColonizePalette* ref =
+    game->map_palette_ok ? &game->map_palette
+    : ((game->pedia_wood_ok && game->pedia_wood.has_palette) ? &game->pedia_wood.palette : NULL);
+  if (!palette || !ref) {
+    return;
+  }
+  const uint8_t* lut = window_log_palette_map(ref, palette);
+  const int y1 = (y + h < framebuffer->height) ? y + h : framebuffer->height;
+  const int x1 = (x + w < framebuffer->width) ? x + w : framebuffer->width;
+  for (int row = (y > 0 ? y : 0); row < y1; ++row) {
+    uint8_t* px = &framebuffer->pixels[(size_t)row * (size_t)framebuffer->width];
+    for (int col = (x > 0 ? x : 0); col < x1; ++col) {
+      px[col] = lut[px[col]];
+    }
+  }
+}
+
 void game_render_window_log(
   const ColonizeGameState* game,
   ColonizeFramebuffer8* framebuffer,
@@ -2509,12 +2677,22 @@ void game_render_window_log(
   if (!game || !framebuffer || !framebuffer->pixels) {
     return;
   }
-  const int strip_h = framebuffer->height - 200;
+  const int screen_h = screen_geom_h();
+  const int strip_h = framebuffer->height - screen_h;
   if (strip_h <= 0) {
     return;
   }
-  fb_hline(framebuffer, 200, 0, framebuffer->width - 1, 0);
-  const int fill_y = 201;          /* 1px margin between the rule and row 0 */
+  /*
+   * The log strip belongs to the overland map. Any other screen is a DOS-sized
+   * frame sitting in its own padding, so the strip becomes part of that
+   * padding — plain wood, no rule and no lines.
+   */
+  if (!s_last_render_was_map) {
+    game_paint_wood_rect(game, framebuffer, 0, screen_h, framebuffer->width, strip_h, palette);
+    return;
+  }
+  fb_hline(framebuffer, screen_h, 0, framebuffer->width - 1, 0);
+  const int fill_y = screen_h + 1; /* 1px margin between the rule and row 0 */
   const int y0 = fill_y + 1;
   const int rows = (strip_h - 2) / WINDOW_LOG_LINE_H;
   const ColonizeSpriteSheet* wood =
@@ -2537,7 +2715,7 @@ void game_render_window_log(
     : ((game->pedia_wood_ok && game->pedia_wood.has_palette) ? &game->pedia_wood.palette : NULL);
   if (palette && ref) {
     const uint8_t* lut = window_log_palette_map(ref, palette);
-    for (int y = fill_y; y < 200 + strip_h; ++y) {
+    for (int y = fill_y; y < screen_h + strip_h; ++y) {
       uint8_t* row = &framebuffer->pixels[(size_t)y * (size_t)framebuffer->width];
       for (int px = 0; px < framebuffer->width; ++px) {
         row[px] = lut[row[px]];
@@ -2589,19 +2767,85 @@ void game_render_window_log(
   }
 }
 
+/*
+ * Port-only: every screen but the overland map is authored for DOS's fixed
+ * 320x200. Those render into a scratch frame of that size, which is then
+ * centred in the (larger) window with WOODTILE padding around it — only the
+ * map view lays itself out from the live logical size (core/screen_geom.h).
+ */
+static void game_render_centre_fixed(
+  const ColonizeGameState* game,
+  const ColonizeFramebuffer8* src,
+  ColonizeFramebuffer8* dst,
+  const ColonizePalette* palette
+) {
+  if (!src || !src->pixels || !dst || !dst->pixels) {
+    return;
+  }
+  const int off_x = (dst->width - src->width) / 2;
+  const int off_y = (dst->height - src->height) / 2;
+  s_fixed_off_x = off_x;
+  s_fixed_off_y = off_y;
+  game_paint_wood_rect(game, dst, 0, 0, dst->width, off_y, palette);
+  game_paint_wood_rect(
+    game, dst, 0, off_y + src->height, dst->width, dst->height - off_y - src->height, palette
+  );
+  game_paint_wood_rect(game, dst, 0, off_y, off_x, src->height, palette);
+  game_paint_wood_rect(
+    game, dst, off_x + src->width, off_y, dst->width - off_x - src->width, src->height, palette
+  );
+  /* 1px rule just OUTSIDE the screen rect, so it separates the DOS frame from
+   * the surrounding wood without covering a pixel of it. Clipped away when a
+   * side has no padding to draw into. */
+  fb_rect_outline(dst, off_x - 1, off_y - 1, src->width + 2, src->height + 2, 0, 0);
+  for (int row = 0; row < src->height; ++row) {
+    memcpy(
+      &dst->pixels[(size_t)(off_y + row) * (size_t)dst->width + (size_t)off_x],
+      &src->pixels[(size_t)row * (size_t)src->width],
+      (size_t)src->width
+    );
+  }
+}
+
 void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette) {
   static uint32_t render_log_counter = 0;
   if (!game || !framebuffer || !palette || !framebuffer->pixels) {
     return;
   }
 
-  if (game_render_fullscreen_takeover(game, framebuffer, palette)) {
+  /* Anything but the map view draws at DOS size and is centred afterwards. */
+  const bool oversize =
+    framebuffer->width != SCREEN_BASE_W || framebuffer->height != SCREEN_BASE_H;
+  ColonizeFramebuffer8 fixed_fb;
+  ColonizeFramebuffer8* fixed = framebuffer;
+  if (oversize) {
+    static uint8_t* s_fixed;
+    static size_t s_fixed_cap;
+    if (!game_scratch_fb(&s_fixed, &s_fixed_cap, SCREEN_BASE_W, SCREEN_BASE_H, &fixed_fb)) {
+      return;
+    }
+    fixed = &fixed_fb;
+  }
+
+  if (game_render_fullscreen_takeover(game, fixed, palette)) {
+    s_last_render_was_map = false;
+    if (oversize) {
+      game_render_centre_fixed(game, fixed, framebuffer, palette);
+    }
     return;
   }
 
   game_render_select_palette(game, framebuffer, palette, render_log_counter);
 
-  if (!game_render_screen(game, framebuffer, palette)) {
+  if (game_render_screen(game, fixed, palette)) {
+    s_last_render_was_map = false;
+    if (oversize) {
+      game_render_centre_fixed(game, fixed, framebuffer, palette);
+    }
+  } else {
+    s_fixed_off_x = 0;
+    s_fixed_off_y = 0;
+    s_last_render_was_map = true;
     game_render_map(game, framebuffer, palette);
   }
 
@@ -2723,7 +2967,7 @@ void game_apply_mouse_cursor(
 
   /* Game cursor over the full 320x200 frame on every screen (menu, map, reports…). */
   const bool on_game_frame =
-    mouse_x >= 0 && mouse_x < 320 && mouse_y >= 0 && mouse_y < 200;
+    mouse_x >= 0 && mouse_x < screen_geom_w() && mouse_y >= 0 && mouse_y < screen_geom_h();
 
   if (on_game_frame && game->mouse_cursor_built) {
     platform_show_game_mouse_cursor(platform, true);

@@ -8,6 +8,7 @@
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 #include "core/sound.h"
+#include "core/screen_geom.h" /* SCREEN_MAX_W / SCREEN_MAX_H — resize clamp */
 #include "core/ss.h" /* COLONIZE_SS_TRANSPARENT — the cursor key, platform.h:138 */
 
 struct ColonizePlatform {
@@ -15,9 +16,10 @@ struct ColonizePlatform {
   SDL_Renderer* renderer;
   SDL_Texture* texture;
   uint32_t* rgba_buffer;
-  int width;
+  int width;       /* logical screen columns; grows with the window */
   int height;      /* texture / framebuffer rows, screen + log strip */
-  int game_height; /* the 320x200 screen part; mouse never reports below it */
+  int game_height; /* the screen part; mouse never reports below it */
+  int extra_height; /* log strip rows = height - game_height */
   int window_scale;
   bool audio_enabled;
   SDL_AudioDeviceID audio_device;
@@ -107,8 +109,30 @@ static void sdl_audio_callback(void* userdata, Uint8* stream, int len) {
 }
 
 ColonizePlatform* platform_create(const ColonizePlatformConfig* config) {
-  const int width = 320;
-  const int game_height = 200;
+  /* Restored logical size (settings.json display.window_width/height); the DOS
+   * 320x200 when unset. Fullscreen ignores it — the desktop size decides. */
+  int width = SCREEN_BASE_W;
+  int game_height = SCREEN_BASE_H;
+  if (config && config->windowed) {
+    if (config->window_width > 0) {
+      width = config->window_width;
+    }
+    if (config->window_height > 0) {
+      game_height = config->window_height;
+    }
+  }
+  if (width < SCREEN_BASE_W) {
+    width = SCREEN_BASE_W;
+  }
+  if (width > SCREEN_MAX_W) {
+    width = SCREEN_MAX_W;
+  }
+  if (game_height < SCREEN_BASE_H) {
+    game_height = SCREEN_BASE_H;
+  }
+  if (game_height > SCREEN_MAX_H) {
+    game_height = SCREEN_MAX_H;
+  }
   int extra = (config && config->extra_height > 0) ? config->extra_height : 0;
   /* Log strip is a windowed-mode affordance; fullscreen keeps 320x200. */
   if (!(config && config->windowed)) {
@@ -142,6 +166,9 @@ ColonizePlatform* platform_create(const ColonizePlatformConfig* config) {
   uint32_t flags = 0;
   if (!(config && config->windowed)) {
     flags = SDL_WINDOW_FULLSCREEN_DESKTOP;
+  } else {
+    /* Resizable also gives the window manager's maximize button. */
+    flags = SDL_WINDOW_RESIZABLE;
   }
 
   ColonizePlatform* platform = calloc(1, sizeof(*platform));
@@ -153,6 +180,7 @@ ColonizePlatform* platform_create(const ColonizePlatformConfig* config) {
   platform->width = width;
   platform->height = height;
   platform->game_height = game_height;
+  platform->extra_height = extra;
   platform->window_scale = scale;
   platform->default_cursor = SDL_GetDefaultCursor();
   platform->window = SDL_CreateWindow(
@@ -168,6 +196,9 @@ ColonizePlatform* platform_create(const ColonizePlatformConfig* config) {
     platform_destroy(platform);
     return NULL;
   }
+  SDL_SetWindowMinimumSize(
+    platform->window, SCREEN_BASE_W * scale, (SCREEN_BASE_H + extra) * scale
+  );
 
   platform->renderer = SDL_CreateRenderer(platform->window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
   if (!platform->renderer) {
@@ -299,6 +330,91 @@ void platform_destroy(ColonizePlatform* platform) {
   free(platform);
 }
 
+/*
+ * The logical framebuffer is blitted 1:1 into the texture and drawn at integer
+ * `window_scale`, centred in the window; the up-to-(scale-1) leftover pixels on
+ * each axis stay black (letterbox) instead of stretching the pixels.
+ */
+static void present_dest_rect(const ColonizePlatform* platform, int out_w, int out_h, SDL_Rect* rect) {
+  const int scale = platform->window_scale > 0 ? platform->window_scale : 1;
+  rect->w = platform->width * scale;
+  rect->h = platform->height * scale;
+  rect->x = (out_w - rect->w) / 2;
+  rect->y = (out_h - rect->h) / 2;
+  if (rect->x < 0) {
+    rect->x = 0;
+  }
+  if (rect->y < 0) {
+    rect->y = 0;
+  }
+}
+
+/* Window resized: grow/shrink the logical screen to fit, at the same integer
+ * scale. Texture + RGBA buffer are rebuilt; on any failure the old size is
+ * kept intact (never a half-updated platform). */
+static void platform_resize(ColonizePlatform* platform, int win_w, int win_h) {
+  const int scale = platform->window_scale > 0 ? platform->window_scale : 1;
+  const int min_h = SCREEN_BASE_H + platform->extra_height;
+  int new_w = win_w / scale;
+  int new_h = win_h / scale;
+  if (new_w < SCREEN_BASE_W) {
+    new_w = SCREEN_BASE_W;
+  }
+  if (new_w > SCREEN_MAX_W) {
+    new_w = SCREEN_MAX_W;
+  }
+  if (new_h < min_h) {
+    new_h = min_h;
+  }
+  if (new_h > SCREEN_MAX_H + platform->extra_height) {
+    new_h = SCREEN_MAX_H + platform->extra_height;
+  }
+  if (new_w == platform->width && new_h == platform->height) {
+    return;
+  }
+
+  SDL_Texture* texture = SDL_CreateTexture(
+    platform->renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, new_w, new_h
+  );
+  if (!texture) {
+    diag_warn("Resize to %dx%d: SDL_CreateTexture failed (%s); keeping %dx%d",
+      new_w, new_h, SDL_GetError(), platform->width, platform->height);
+    return;
+  }
+  uint32_t* buffer = calloc((size_t)new_w * (size_t)new_h, sizeof(uint32_t));
+  if (!buffer) {
+    SDL_DestroyTexture(texture);
+    diag_warn("Resize to %dx%d: RGBA buffer allocation failed; keeping %dx%d",
+      new_w, new_h, platform->width, platform->height);
+    return;
+  }
+
+  if (platform->texture) {
+    SDL_DestroyTexture(platform->texture);
+  }
+  free(platform->rgba_buffer);
+  platform->texture = texture;
+  platform->rgba_buffer = buffer;
+  platform->width = new_w;
+  platform->height = new_h;
+  platform->game_height = new_h - platform->extra_height;
+  diag_info("Window resized: logical framebuffer=%dx%d game_height=%d scale=%d",
+    platform->width, platform->height, platform->game_height, scale);
+}
+
+void platform_framebuffer_size(const ColonizePlatform* platform, int* out_w, int* out_h) {
+  if (out_w) {
+    *out_w = platform ? platform->width : SCREEN_BASE_W;
+  }
+  if (out_h) {
+    *out_h = platform ? platform->height : SCREEN_BASE_H;
+  }
+}
+
+int platform_log_strip_height(const ColonizePlatform* platform) {
+  return platform ? platform->extra_height : 0;
+}
+
 static void mouse_to_logical(
   const ColonizePlatform* platform,
   int window_x,
@@ -306,10 +422,18 @@ static void mouse_to_logical(
   int* out_x,
   int* out_y
 ) {
-  int ww = platform->width;
-  int wh = platform->height;
+  const int scale = platform->window_scale > 0 ? platform->window_scale : 1;
+  int ww = platform->width * scale;
+  int wh = platform->height * scale;
   if (platform->window) {
     SDL_GetWindowSize(platform->window, &ww, &wh);
+  }
+  /* SDL reports mouse events in window points; the dest rect platform_present
+   * centres lives in DRAWABLE pixels, which differ under HiDPI scaling. */
+  int out_w = ww;
+  int out_h = wh;
+  if (platform->renderer) {
+    SDL_GetRendererOutputSize(platform->renderer, &out_w, &out_h);
   }
   if (ww < 1) {
     ww = 1;
@@ -317,8 +441,10 @@ static void mouse_to_logical(
   if (wh < 1) {
     wh = 1;
   }
-  int lx = window_x * platform->width / ww;
-  int ly = window_y * platform->height / wh;
+  SDL_Rect dest;
+  present_dest_rect(platform, out_w, out_h, &dest);
+  int lx = (window_x * out_w / ww - dest.x) / scale;
+  int ly = (window_y * out_h / wh - dest.y) / scale;
   if (lx < 0) {
     lx = 0;
   }
@@ -407,6 +533,8 @@ bool platform_poll_input(ColonizePlatform* platform, ColonizeInputState* out_inp
           }
           platform->mouse_left_down = false;
           platform->mouse_right_down = false;
+        } else if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+          platform_resize(platform, event.window.data1, event.window.data2);
         }
         break;
       case SDL_TEXTINPUT:
@@ -544,7 +672,7 @@ bool platform_present(
 
   /*
    * `rgba_buffer` and the streaming texture are both platform->width x
-   * platform->height (platform_create's 320x200), so the caller's dimensions
+   * platform->height (the current logical size), so the caller's dimensions
    * are never allowed to size this loop: sizing it from
    * framebuffer->width * framebuffer->height while the allocation came from
    * the hardcoded 320x200 was a latent heap overrun for any larger
@@ -586,8 +714,14 @@ bool platform_present(
   }
 
   SDL_UpdateTexture(platform->texture, NULL, platform->rgba_buffer, platform->width * (int)sizeof(uint32_t));
+  int out_w = platform->width * platform->window_scale;
+  int out_h = platform->height * platform->window_scale;
+  SDL_GetRendererOutputSize(platform->renderer, &out_w, &out_h);
+  SDL_Rect dest;
+  present_dest_rect(platform, out_w, out_h, &dest);
+  SDL_SetRenderDrawColor(platform->renderer, 0, 0, 0, 255);
   SDL_RenderClear(platform->renderer);
-  SDL_RenderCopy(platform->renderer, platform->texture, NULL, NULL);
+  SDL_RenderCopy(platform->renderer, platform->texture, NULL, &dest);
   SDL_RenderPresent(platform->renderer);
 
   present_counter++;

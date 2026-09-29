@@ -5,6 +5,7 @@
 
 #include "core/game_loop.h"
 #include "core/savegame.h"
+#include "core/screen_geom.h"
 #include "core/text_edit.h"
 #include "core/settings.h"
 #include "core/sound.h"
@@ -155,6 +156,8 @@ int main(int argc, char** argv) {
     .windowed = cli.windowed,
     .no_sound = cli.no_sound,
     .window_scale = cli.window_scale,
+    .window_width = settings_get()->window_width,
+    .window_height = settings_get()->window_height,
     .extra_height = log_strip_h
   };
 
@@ -165,6 +168,13 @@ int main(int argc, char** argv) {
     fprintf(stderr, "See diagnostics log: %s\n", diag_log_path());
     diag_shutdown();
     return 1;
+  }
+
+  {
+    int fb_w0 = SCREEN_BASE_W;
+    int fb_h0 = SCREEN_BASE_H + log_strip_h;
+    platform_framebuffer_size(platform, &fb_w0, &fb_h0);
+    screen_geom_set(fb_w0, fb_h0 - platform_log_strip_height(platform));
   }
 
   /* Text fields (leader / colony names) cut and paste via the system clipboard. */
@@ -231,13 +241,24 @@ int main(int argc, char** argv) {
 
   diag_info("Diagnostics log path (for bug reports): %s", diag_log_path());
 
-  static uint8_t framebuffer_pixels[320 * (200 + WINDOW_LOG_MAX_STRIP_H)];
+  static uint8_t framebuffer_pixels[SCREEN_MAX_W * (SCREEN_MAX_H + WINDOW_LOG_MAX_STRIP_H)];
   ColonizeFramebuffer8 framebuffer = {
-    .width = 320,
-    .height = 200 + log_strip_h,
+    .width = SCREEN_BASE_W,
+    .height = SCREEN_BASE_H + log_strip_h,
     .pixels = framebuffer_pixels
   };
   ColonizePalette palette;
+
+  /*
+   * Remember the window size across launches (settings.json display.*). The
+   * window manager delivers a resize event per dragged pixel, so the write is
+   * debounced: the size has to hold still before settings.json is rewritten.
+   */
+  const uint32_t k_resize_save_delay_ms = 1000u;
+  int saved_w = settings_get()->window_width;
+  int saved_h = settings_get()->window_height;
+  bool resize_pending = false;
+  uint32_t resize_at_ms = 0;
 
   uint32_t prev_ticks = platform_ticks_ms();
   bool running = true;
@@ -254,14 +275,49 @@ int main(int argc, char** argv) {
     uint32_t dt = now - prev_ticks;
     prev_ticks = now;
 
+    /* Window may have been resized: the logical framebuffer follows it, and
+     * the map view lays itself out for the game part (strip excluded). */
+    int fb_w = SCREEN_BASE_W;
+    int fb_h = SCREEN_BASE_H + log_strip_h;
+    platform_framebuffer_size(platform, &fb_w, &fb_h);
+    const int strip_h = platform_log_strip_height(platform);
+    framebuffer.width = fb_w;
+    framebuffer.height = fb_h;
+    screen_geom_set(fb_w, fb_h - strip_h);
+
+    if (cli.windowed && settings_is_loaded() &&
+        (screen_geom_w() != saved_w || screen_geom_h() != saved_h)) {
+      resize_pending = true;
+      resize_at_ms = now;
+    }
+    if (resize_pending && now - resize_at_ms >= k_resize_save_delay_ms) {
+      ColonizeSettings prefs = *settings_get();
+      prefs.window_width = screen_geom_w();
+      prefs.window_height = screen_geom_h();
+      settings_set(&prefs);
+      char save_err[256];
+      if (settings_flush(save_err, sizeof(save_err))) {
+        diag_info("Window size %dx%d stored in %s",
+          prefs.window_width, prefs.window_height, settings_path());
+      } else {
+        diag_warn("Could not store window size: %s", save_err);
+      }
+      saved_w = prefs.window_width;
+      saved_h = prefs.window_height;
+      resize_pending = false;
+    }
+
     game_set_platform(game, platform);
     if (!game_update(game, &input, dt)) {
       running = false;
     }
     game_apply_mouse_cursor(game, platform, input.mouse_x, input.mouse_y);
-    /* The game draws into the 320x200 top part only; the log strip below is
-     * painted after, so no screen renderer sees the taller framebuffer. */
-    ColonizeFramebuffer8 screen_fb = {.width = 320, .height = 200, .pixels = framebuffer_pixels};
+    /* The game draws into the top (screen) part only; the log strip below is
+     * painted after, so no screen renderer sees the taller framebuffer. Same
+     * pixel array and same stride — the strip is simply the bottom rows. */
+    ColonizeFramebuffer8 screen_fb = {
+      .width = fb_w, .height = fb_h - strip_h, .pixels = framebuffer_pixels
+    };
     game_render(game, &screen_fb, &palette);
     game_render_window_log(game, &framebuffer, &palette);
     platform_set_window_title(platform, game_status_text(game));

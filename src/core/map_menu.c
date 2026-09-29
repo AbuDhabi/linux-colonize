@@ -7,6 +7,7 @@
 #include "core/fb.h"
 #include "core/font.h"
 #include "core/map_panel.h"
+#include "core/screen_geom.h"
 #include "core/ss.h"
 #include "core/strutil.h"
 #include "core/ui_colors.h"
@@ -996,14 +997,14 @@ static void map_menu_layout_titles(MapMenuBar* bar, const ColonizeFont* font) {
     menu->title_w = tw + 8;
     /* Center over the minimap (same horizontal math as map_panel_minimap_rect). */
     const int inner_x0 = MAP_PANEL_X + 2;
-    const int inner_w = 319 - inner_x0 + 1;
+    const int inner_w = (screen_geom_w() - 1) - inner_x0 + 1;
     const int mx = inner_x0 + (inner_w - MAP_PANEL_MINIMAP_W) / 2;
     menu->title_x = mx + MAP_PANEL_MINIMAP_W / 2 - tw / 2;
     if (menu->title_x < MAP_PANEL_X) {
       menu->title_x = MAP_PANEL_X;
     }
-    if (menu->title_x + menu->title_w > 320) {
-      menu->title_x = 320 - menu->title_w;
+    if (menu->title_x + menu->title_w > screen_geom_w()) {
+      menu->title_x = screen_geom_w() - menu->title_w;
     }
   }
 }
@@ -1051,8 +1052,8 @@ static void map_menu_dropdown_rect(
   if (h < 4) {
     h = 4;
   }
-  if (x + w > 318) {
-    x = 318 - w;
+  if (x + w > screen_geom_w() - 2) {
+    x = screen_geom_w() - 2 - w;
   }
   if (x < 1) {
     x = 1;

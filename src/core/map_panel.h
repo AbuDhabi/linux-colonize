@@ -11,29 +11,43 @@
 #include "core/font.h"
 #include "core/map.h"
 #include "core/map_menu.h"
+#include "core/screen_geom.h"
 #include "core/ss.h"
 #include "core/units.h"
 #include "platform/platform.h"
 #include "core/world.h"
 
 /*
- * Main-map right sidebar + scrolling 1:1-tile minimap (DOS layout).
+ * Main-map right sidebar + scrolling 1:1-tile minimap (DOS layout, port-resized).
  *
- *   Menu bar:     y = 0 .. MAP_MENU_BAR_H-1  (8px; black rule on last row)
- *   Map viewport: x = 0 .. MAP_PANEL_X-1     (240px = 15×16 tiles; 12 rows)
- *   Right panel:  x = MAP_PANEL_X .. 319     (80px)
+ * DOS is a fixed 320x200; the port lets the main map view grow with the window
+ * (core/screen_geom.h). Everything below is derived from the live logical size,
+ * and evaluates to the DOS literals at 320x200:
  *
- * Minimap is a scrolling window (MAP_PANEL_MINIMAP_W × MAP_PANEL_MINIMAP_H).
+ *   Menu bar:     y = 0 .. MAP_MENU_BAR_H-1    (8px; black rule on last row)
+ *   Map viewport: x = 0 .. MAP_PANEL_X-1       (240px = 15x16 tiles; 12 rows)
+ *   Right panel:  x = MAP_PANEL_X .. w-1       (80px, flush at the right edge)
+ *
+ * The panel keeps its 80px width and grows downwards; the viewport takes the
+ * rest. Minimap is a scrolling window (MAP_PANEL_MINIMAP_W x MAP_PANEL_MINIMAP_H)
+ * and does not resize.
+ *
+ * NOTE: MAP_PANEL_X / MAP_VIEW_* are function calls, not integer constant
+ * expressions — use the _MAX forms for array dimensions and static initialisers.
  */
-#define MAP_PANEL_X 240
-#define MAP_PANEL_W (320 - MAP_PANEL_X)
+#define MAP_PANEL_W 80
+#define MAP_PANEL_X (screen_geom_w() - MAP_PANEL_W)
 #define MAP_VIEW_W MAP_PANEL_X
 #define MAP_VIEW_TILE_W 16
 #define MAP_VIEW_TILE_H 16
-#define MAP_VIEW_TILE_COLS (MAP_VIEW_W / MAP_VIEW_TILE_W)
 #define MAP_VIEW_ORIGIN_Y MAP_MENU_BAR_H
-#define MAP_VIEW_TILE_ROWS ((200 - MAP_MENU_BAR_H) / MAP_VIEW_TILE_H)
-#define MAP_VIEW_H (MAP_VIEW_TILE_ROWS * MAP_VIEW_TILE_H)
+#define MAP_VIEW_H (screen_geom_h() - MAP_MENU_BAR_H)
+/* Round up: a partial tile at the right/bottom edge is clipped, not dropped. */
+#define MAP_VIEW_TILE_COLS ((MAP_VIEW_W + MAP_VIEW_TILE_W - 1) / MAP_VIEW_TILE_W)
+#define MAP_VIEW_TILE_ROWS ((MAP_VIEW_H + MAP_VIEW_TILE_H - 1) / MAP_VIEW_TILE_H)
+/* Compile-time maxima, for buffer sizing only. */
+#define MAP_VIEW_W_MAX (SCREEN_MAX_W - MAP_PANEL_W)
+#define MAP_VIEW_H_MAX (SCREEN_MAX_H - MAP_MENU_BAR_H)
 
 #define MAP_PANEL_MINIMAP_W 56
 #define MAP_PANEL_MINIMAP_H 39

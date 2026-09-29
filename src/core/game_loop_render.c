@@ -257,7 +257,19 @@ int game_map_zoom_clamp(int zoom) {
     return 0;
   }
   if (zoom > MAP_ZOOM_MAX) {
-    return MAP_ZOOM_MAX;
+    zoom = MAP_ZOOM_MAX;
+  }
+  /*
+   * Port-only: the offscreen compositor works at native 16px/tile, so the
+   * whole zoomed tile grid has to fit MAP_ZOOM_MAX_VIEW_COLS/ROWS. At the DOS
+   * 320x200 every tier fits exactly (15<<3 == 120, 12<<3 == 96); a resized
+   * window (core/screen_geom.h) already starts wider at zoom 0, so its
+   * deepest tiers drop out rather than composite a half-empty buffer.
+   */
+  while (zoom > 0 &&
+         ((MAP_VIEW_TILE_COLS << zoom) > MAP_ZOOM_MAX_VIEW_COLS ||
+          (MAP_VIEW_TILE_ROWS << zoom) > MAP_ZOOM_MAX_VIEW_ROWS)) {
+    --zoom;
   }
   return zoom;
 }

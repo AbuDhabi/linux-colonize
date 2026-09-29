@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "core/col1_save_layout.h"
+#include "core/screen_geom.h"
 #include "core/settings.h"
 #include "core/window_log.h"
 
@@ -30,6 +31,8 @@ static void test_missing_file_defaults(void) {
   check(s.background_music && s.event_music && s.sound_effects, "default sound on");
   check(s.window_scale == 2 && s.windowed, "default display");
   check(s.window_log_lines == 0, "default window_log_lines off");
+  check(s.window_width == SCREEN_BASE_W && s.window_height == SCREEN_BASE_H,
+        "default window size is the DOS 320x200");
   check(!s.no_sound && s.seed == 0 && !s.seed_present, "default launch flags off");
   check(s.skip_intro, "default skip_intro true (new file skips later launches)");
   check(strcmp(s.data_dir, "./COLONIZE") == 0, "default data_dir");
@@ -51,6 +54,8 @@ static void test_roundtrip(void) {
   out.event_music = false;
   out.window_scale = 3;
   out.window_log_lines = 4;
+  out.window_width = 1024;
+  out.window_height = 768;
   out.windowed = false;
   out.no_sound = true;
   out.seed = 100;
@@ -89,6 +94,10 @@ static void test_window_log(void) {
   check(settings_load_file(k_path, &s, err, sizeof(err)), "window-log file loads");
   check(s.window_log_lines == WINDOW_LOG_MAX_LINES, "window_log_lines clamped high");
   check(window_log_clamp_lines(-3) == 0, "negative window_log_lines clamps off");
+  check(settings_clamp_window_width(1) == SCREEN_BASE_W, "window_width clamps up");
+  check(settings_clamp_window_width(999999) == SCREEN_MAX_W, "window_width clamps down");
+  check(settings_clamp_window_height(1) == SCREEN_BASE_H, "window_height clamps up");
+  check(settings_clamp_window_height(999999) == SCREEN_MAX_H, "window_height clamps down");
   check(window_log_strip_height(0) == 0, "no strip when off");
   check(window_log_strip_height(3) == 2 + 3 * WINDOW_LOG_LINE_H,
         "strip height = rule + margin + rows");

@@ -41,6 +41,10 @@
 #define COLONIZE_WINDOW_SCALE_MAX 8
 int settings_clamp_window_scale(int64_t scale);
 
+/* Clamp a stored logical window size into the screen_geom.h range. */
+int settings_clamp_window_width(int64_t w);
+int settings_clamp_window_height(int64_t h);
+
 /*
  * Everything here is stored in the player-facing sense: true means the thing
  * happens. Several DOS bits are inverted suppress flags (water cycling, all
@@ -80,6 +84,11 @@ typedef struct ColonizeSettings {
    * invalid settings.json key keeps the hardcoded default. */
   bool windowed;
   int window_scale; /* 1..8 */
+  /* Logical screen size the window last had, EXCLUDING the log strip
+   * (core/screen_geom.h clamps: 320x200 .. SCREEN_MAX_W x SCREEN_MAX_H).
+   * Rewritten when the player resizes the window; windowed mode only. */
+  int window_width;
+  int window_height;
   int window_log_lines; /* 0 = off; message strip rows under the screen, windowed only */
   bool no_sound;
   char data_dir[512];

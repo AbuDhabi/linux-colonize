@@ -135,9 +135,10 @@ static void game_colony_reveal_new_building(ColonizeGameState* game, int cid, in
   if (!col || !col->has_building[bid]) {
     return;
   }
-  static uint8_t before[320 * 200];
+  static uint8_t* before;
+  static size_t before_cap;
   col->has_building[bid] = false;
-  const bool have_before = game_fizzle_snapshot_present(game, before);
+  const bool have_before = game_fizzle_snapshot_present(game, &before, &before_cap);
   col->has_building[bid] = true;
   sound_play(0x54);
   if (have_before) {
