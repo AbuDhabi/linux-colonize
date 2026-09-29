@@ -1982,6 +1982,17 @@ bool col1_bridge_apply_w(
     }
   }
 
+  /* Port-only build queues, same deal: restored from 'BQUE', cleared without it. */
+  {
+    const uint8_t* q = NULL;
+    size_t q_size = 0;
+    if (!col1_save_ext_find(save, COLONIZE_COL1_EXT_TAG_BUILD_QUEUE, &q, &q_size)) {
+      q = NULL;
+      q_size = 0;
+    }
+    colonies_build_queue_deserialize(colonies, q, q_size);
+  }
+
   if (out) {
     *out = local;
   }
@@ -3404,6 +3415,13 @@ bool col1_bridge_capture_w(
     uint8_t* intel = village_trade_intel_serialize(&intel_size);
     col1_save_ext_put(save, COLONIZE_COL1_EXT_TAG_VILLAGE_TRADE_INTEL, intel, intel_size);
     free(intel);
+  }
+
+  {
+    size_t q_size = 0;
+    uint8_t* q = colonies_build_queue_serialize(colonies, &q_size);
+    col1_save_ext_put(save, COLONIZE_COL1_EXT_TAG_BUILD_QUEUE, q, q_size);
+    free(q);
   }
 
   if (err && err_size) {

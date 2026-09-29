@@ -1370,6 +1370,7 @@ static GameUpdateStep game_colony_screen_mouse_click(
       colony_screen_close_custom_house(csv);
       break;
     case COLONY_HIT_CONSTRUCTION_CLEAR:
+      colonies_build_queue_clear(&game->colonies, game->colony_view_id);
       colonies_clear_construction(&game->colonies, game->colony_view_id);
       colony_screen_close_construction(csv);
       set_status(game, "Construction cleared", NULL);
@@ -1377,7 +1378,12 @@ static GameUpdateStep game_colony_screen_mouse_click(
       break;
     case COLONY_HIT_CONSTRUCTION_ROW:
       if (hit.index >= 0 && hit.index < csv->buildable_count) {
-        game_colony_commit_construction(game, csv->buildable_ids[hit.index]);
+        const int bid = csv->buildable_ids[hit.index];
+        if (input->shift_held) {
+          game_colony_queue_construction(game, bid);
+        } else {
+          game_colony_commit_construction(game, bid);
+        }
       } else {
         colony_screen_close_construction(csv);
         colony_screen_set_status(csv, game->status);
@@ -1481,12 +1487,18 @@ static GameUpdateStep game_colony_screen_key_enter(
     if (csv->construction_open) {
       const int bi = csv->construction_selection - 1;
       if (csv->construction_selection == 0) {
+        colonies_build_queue_clear(&game->colonies, game->colony_view_id);
         colonies_clear_construction(&game->colonies, game->colony_view_id);
         set_status(game, "Construction cleared", NULL);
         colony_screen_close_construction(csv);
         colony_screen_set_status(csv, game->status);
       } else if (bi >= 0 && bi < csv->buildable_count) {
-        game_colony_commit_construction(game, csv->buildable_ids[bi]);
+        /* Shift+Enter is the keyboard twin of the Shift-click queue pick. */
+        if (input->shift_held) {
+          game_colony_queue_construction(game, csv->buildable_ids[bi]);
+        } else {
+          game_colony_commit_construction(game, csv->buildable_ids[bi]);
+        }
       } else {
         colony_screen_close_construction(csv);
         colony_screen_set_status(csv, game->status);

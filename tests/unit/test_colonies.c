@@ -182,6 +182,106 @@ static int unit_carpenter_fallback_ignores_shop_ownership_and_cap(void) {
  * project completes (~56925 / ~56935); FUN_5952_0214 / _02f4 clear it again
  * when a project is assigned or the queue is cleared (~93714 / ~93754).
  */
+/*
+ * Port-only QOL build queue: a completion starts the queue head (through
+ * colonies_set_construction_ex, so the build-complete latch clears too), an
+ * entry already owned is skipped, and the queues survive a 'BQUE' round trip.
+ */
+static int unit_build_queue(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  const char* names[3] = {"Docks", "Stable", "Church"};
+  for (int i = 0; i < 3; ++i) {
+    snprintf(pool.building_types[i].name, sizeof(pool.building_types[i].name), "%s", names[i]);
+    pool.building_types[i].hammers = 10;
+    pool.building_types[i].tools_cost = 0;
+  }
+  pool.building_type_count = 3;
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->id = 0;
+  c->active = true;
+  c->x = 7;
+  c->y = 9;
+  c->population = 1;
+  c->colonist_count = 1;
+  c->building_in_production = -1;
+  pool.colony_count = 1;
+
+  if (!colonies_set_construction(&pool, 0, 0)) {
+    fprintf(stderr, "build queue: set_construction(Docks) failed\n");
+    return 1;
+  }
+  /* The project in production and duplicates are refused; order is kept. */
+  if (colonies_build_queue_push(&pool, 0, 0)) {
+    fprintf(stderr, "build queue: queued the project already in production\n");
+    return 1;
+  }
+  if (!colonies_build_queue_push(&pool, 0, 1) || !colonies_build_queue_push(&pool, 0, 2) ||
+      colonies_build_queue_push(&pool, 0, 1)) {
+    fprintf(stderr, "build queue: push sequence wrong\n");
+    return 1;
+  }
+  if (colonies_build_queue_pos(&pool, 0, 1) != 1 || colonies_build_queue_pos(&pool, 0, 2) != 2 ||
+      colonies_build_queue_pos(&pool, 0, 0) != 0) {
+    fprintf(stderr, "build queue: positions wrong\n");
+    return 1;
+  }
+
+  /* Round trip through the save's port extension payload. */
+  {
+    size_t n = 0;
+    uint8_t* blob = colonies_build_queue_serialize(&pool, &n);
+    if (!blob || n == 0) {
+      fprintf(stderr, "build queue: serialize produced nothing\n");
+      free(blob);
+      return 1;
+    }
+    c->build_queue_count = 0;
+    colonies_build_queue_deserialize(&pool, blob, n);
+    free(blob);
+    if (c->build_queue_count != 2 || c->build_queue[0] != 1 || c->build_queue[1] != 2) {
+      fprintf(stderr, "build queue: round trip lost the queue\n");
+      return 1;
+    }
+  }
+
+  c->hammers = 10;
+  if (!colonies_try_complete_building(&pool, 0)) {
+    fprintf(stderr, "build queue: Docks did not complete\n");
+    return 1;
+  }
+  if (c->building_in_production != 1 || c->build_queue_count != 1 ||
+      (c->colony_flags & COLONIZE_COLONY_FLAG_BUILD_COMPLETE) != 0) {
+    fprintf(stderr, "build queue: completion did not start the queue head\n");
+    return 1;
+  }
+  /* Stable completes, but Church was meanwhile granted: the queue drains and
+   * leaves no project rather than re-selecting something already owned. */
+  c->has_building[2] = true;
+  c->hammers = 10;
+  if (!colonies_try_complete_building(&pool, 0)) {
+    fprintf(stderr, "build queue: Stable did not complete\n");
+    return 1;
+  }
+  if (c->build_queue_count != 0 || c->building_in_production != 1) {
+    fprintf(stderr, "build queue: unbuildable head not dropped\n");
+    return 1;
+  }
+  /* Empty queues write no chunk at all. */
+  {
+    size_t n = 1;
+    uint8_t* blob = colonies_build_queue_serialize(&pool, &n);
+    if (blob || n != 0) {
+      fprintf(stderr, "build queue: empty queues still serialized\n");
+      free(blob);
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static int unit_build_complete_latch(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
@@ -3183,6 +3283,7 @@ static const TestCase k_cases[] = {
     {"unit_carpenter_fallback_ignores_shop_ownership_and_cap", unit_carpenter_fallback_ignores_shop_ownership_and_cap},
     {"unit_warehouse_capitol_levels", unit_warehouse_capitol_levels},
     {"unit_build_complete_latch", unit_build_complete_latch},
+    {"unit_build_queue", unit_build_queue},
     {"unit_craft_preview_clamps", unit_craft_preview_clamps},
     {"unit_foreign_colony_trade", unit_foreign_colony_trade},
     {"unit_ship_construction", unit_ship_construction},

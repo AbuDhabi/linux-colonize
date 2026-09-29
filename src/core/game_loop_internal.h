@@ -231,6 +231,8 @@ void game_colony_area_tile_drop(
 void game_colony_assign_building_drop(ColonizeGameState* game, int building_index);
 ColoniesBuildableOpts game_colony_buildable_opts(const ColonizeGameState* game);
 void game_colony_commit_construction(ColonizeGameState* game, int bid);
+/* Shift pick: queue behind the current project, keep the picker open. */
+void game_colony_queue_construction(ColonizeGameState* game, int bid);
 void game_colony_commit_job(ColonizeGameState* game, ColonizeColony* colony, int job);
 void game_colony_drag_begin_cargo(ColonizeGameState* game, int cargo_type);
 void game_colony_drag_begin_colonist(ColonizeGameState* game, int colonist_index);

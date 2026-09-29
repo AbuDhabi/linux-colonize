@@ -86,6 +86,9 @@ typedef struct ColonizeColonist {
   uint8_t turns_in_job;
 } ColonizeColonist;
 
+/* Port-only build-queue depth (see ColonizeColony::build_queue). */
+#define COLONIZE_COLONY_BUILD_QUEUE_MAX 8
+
 typedef struct ColonizeColony {
   int id;
   char name[COLONIZE_COLONY_NAME_MAX];
@@ -103,6 +106,15 @@ typedef struct ColonizeColony {
   int stock[COLONIZE_CARGO_COUNT];
   int hammers;
   int building_in_production; /* @BUILDING index, or -1 */
+  /*
+   * Port-only QOL build queue (docs/colony.md): projects to start, in order,
+   * as each completion frees the slot. Shift-click in the Construction picker
+   * appends; a plain pick wipes it. DOS has no such field, so it rides in the
+   * save's port extension block ('BQUE' chunk, col1_save.h) instead of a DOS
+   * colony record byte.
+   */
+  int build_queue[COLONIZE_COLONY_BUILD_QUEUE_MAX];
+  int build_queue_count;
   /* Custom House per-cargo enable mask layout (see docs/colony.md#colonize_custom_house_default_mask) */
 #define COLONIZE_CUSTOM_HOUSE_DEFAULT_MASK 0x1edeu
   uint16_t custom_house_bits;
@@ -665,6 +677,28 @@ bool colonies_set_construction_ex(
   int building_type,
   const ColoniesBuildableOpts* opts
 );
+/*
+ * Port-only build queue (ColonizeColony::build_queue). Push appends one project
+ * id (real @BUILDING index or unit build code) and returns false when the queue
+ * is full, the id is already queued/in production, or the colony is gone.
+ * `colonies_build_queue_pos` returns the 1-based queue position of `bid`, or 0.
+ * A completion pops the head into the project slot through
+ * colonies_set_construction_ex, so a queued start behaves like a manual pick.
+ */
+bool colonies_build_queue_push(ColonizeColonyPool* pool, int colony_id, int bid);
+void colonies_build_queue_clear(ColonizeColonyPool* pool, int colony_id);
+int colonies_build_queue_pos(const ColonizeColonyPool* pool, int colony_id, int bid);
+/*
+ * Serialize every colony's queue into a freshly malloc'd 'BQUE' payload keyed
+ * by colony tile (colony records are matched by tile across a save round trip).
+ * NULL / *out_size 0 when no colony has a queue. The deserializer clears every
+ * queue first, so a save without the chunk restores empty queues.
+ */
+uint8_t* colonies_build_queue_serialize(const ColonizeColonyPool* pool, size_t* out_size);
+void colonies_build_queue_deserialize(
+  ColonizeColonyPool* pool, const uint8_t* data, size_t size
+);
+
 /* Colony count DOS shows as @NOMOREWAGONS %NUMBER0, or 0 with no census. */
 int colonies_nation_colony_count_census(const ColonizeCol1Save* col1, int nation_id);
 

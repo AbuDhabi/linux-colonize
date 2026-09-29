@@ -162,7 +162,11 @@ static void colony_screen_draw_construction_popup(
     }
     char label[80];
     char cost[48];
+    /* Port-only QOL build queue: a queued (not current) project shows its
+     * 1-based queue position in yellow ahead of the name. */
+    char queue_prefix[8];
     cost[0] = 0;
+    queue_prefix[0] = 0;
     if (more_row) {
       /* @CTITLE row 7 "(More)"; the clear row is row 6 "(No Production)". */
       snprintf(label, sizeof(label), "%s", reports_ctitle_word(6));
@@ -170,6 +174,10 @@ static void colony_screen_draw_construction_popup(
       snprintf(label, sizeof(label), "%s", reports_ctitle_word(5));
     } else {
       const int bid = view->buildable_ids[gi - 1];
+      const int qpos = colony ? colonies_build_queue_pos(pool, colony->id, bid) : 0;
+      if (qpos > 0) {
+        snprintf(queue_prefix, sizeof(queue_prefix), "%d ", qpos);
+      }
       const ColonizeBuildingType* bt = colonies_building_type(pool, bid);
       const char* uname = NULL;
       int uh = 0;
@@ -212,7 +220,12 @@ static void colony_screen_draw_construction_popup(
       }
     }
     if (font) {
-      font_draw_text(font, framebuffer, inner_x + pad, row_y + 1, label, ink);
+      int label_x = inner_x + pad;
+      if (queue_prefix[0]) {
+        font_draw_text(font, framebuffer, label_x, row_y + 1, queue_prefix, 14u); /* DOS 0xe */
+        label_x += font_text_width(font, queue_prefix);
+      }
+      font_draw_text(font, framebuffer, label_x, row_y + 1, label, ink);
       if (cost[0]) {
         const int cw = font_text_width(font, cost);
         font_draw_text(font, framebuffer, inner_x + inner_w - pad - cw, row_y + 1, cost, ink);

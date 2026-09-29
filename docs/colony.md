@@ -540,6 +540,34 @@ col1 may be NULL (headless callers with no save loaded), which is treated
 as "no player table" and falls back to the short-on-tools refusal for
 every colony — the same as the port's pre-#755 behaviour.
 
+## ColonizeColony.build_queue
+
+Port-only QOL (no DOS counterpart): the projects a colony starts, in order, as
+each completion frees `building_in_production`. Shift-clicking a row in the
+Construction picker — or Shift+Enter on the selected row — appends to it
+(`game_colony_queue_construction`) and leaves the picker open; with nothing in
+production that Shift pick starts the project instead, still without closing, so
+the next Shift pick queues behind it. A
+plain pick or "(No Production)" wipes the queue
+(`game_colony_commit_construction`, `colonies_build_queue_clear`). Queued rows
+are drawn with their 1-based position in yellow ahead of the name.
+
+Both completion paths (`colonies_try_complete_building_ex`,
+`colonies_try_complete_unit_construction`) pop the head through
+`colonies_set_construction_ex`, so a queued start passes the same gates and
+clears the same `+0x1c` build-complete latch as a manual pick; a head that no
+longer qualifies (already built via an upgrade, wagon cap reached, population
+dropped) is dropped and the next one tried, so the queue cannot wedge. Every
+caller — the EOT sweeps in `turn_colony.c` and the inline complete in
+`turn_production.c` — routes through those two functions, so nothing else
+needs to know about the queue.
+
+Persisted in the save's port extension block (`BQUE` chunk, docs/savegame.md)
+keyed by colony tile, the same way `VTIN` carries village intel: DOS never sees
+it and drops it on a re-save. Depth `COLONIZE_COLONY_BUILD_QUEUE_MAX` = 8; a
+payload from a deeper build is truncated on load. Covered by `unit_colonies`
+(`unit_build_queue`).
+
 ## colonies_buy_construction
 
 Rush-buy the current project: tops hammers up to the completion

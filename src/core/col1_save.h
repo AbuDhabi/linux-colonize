@@ -326,6 +326,9 @@ bool col1_save_write_memory(
 /* 'VTIN': village trade/skill sidebar knowledge (village_trade_intel.h). */
 #define COLONIZE_COL1_EXT_TAG_VILLAGE_TRADE_INTEL 0x4e495456u
 
+/* 'BQUE': per-colony port-only build queues (ColonizeColony::build_queue). */
+#define COLONIZE_COL1_EXT_TAG_BUILD_QUEUE 0x45555142u
+
 /* True when `data` is a well-formed ext block (magic, version, chunk walk). */
 bool col1_save_ext_valid(const uint8_t* data, size_t size);
 
