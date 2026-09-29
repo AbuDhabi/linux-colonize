@@ -453,6 +453,10 @@ bool units_try_move_w(
      * FUN_5fef_0000 having run out of defenders, and that picker never sees
      * the other domain, so a hull in a fallen port does not bar the town. */
     if (units_domain_blocker_at(pool, dest_x, dest_y, unit_id, unit->nation_id) >= 0) {
+      /* The attack still cost the full allotment (1b0e's FUN_281f_0934 at
+       * entry, raw 100381-100383) — a naval winner whose advance is barred by
+       * the rest of the enemy stack must not keep its moves. */
+      units_mp_exhaust(pool, unit);
       return false;
     }
     /*

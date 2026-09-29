@@ -1096,6 +1096,19 @@ void colony_screen_draw_transports(
     const ColonizeUnitType* type = units_type(units, u->type_index);
     const int x = COLONY_TRANSPORT_X + 4 + i * tr_pitch;
     const int y = COLONY_TRANSPORT_ICON_Y;
+    /*
+     * bugs.md #705's repair countdown is not map-only: DOS carries the same
+     * badge arm (FUN_112b_01ba raw 2148-2172) inline in its other unit-icon
+     * sites, so a hull sitting out its repair in port shows the digit here
+     * too. `halve` is DOS's interior-tile test FUN_137f_000a, and a colony
+     * can never stand on the map border, so it is true for every docked hull.
+     */
+    const bool damaged = (u->col1_flags15 & 0x80u) != 0;
+    const int repair_badge = unit_chrome_repair_badge_index(
+      units_display_type_index(units, u->id), damaged, type ? type->defense : 0,
+      (int)u->col1_counter16, true
+    );
+    const int badge_orders = repair_badge >= 0 ? repair_badge : u->orders;
     if (type && type->icon_sprite >= 0 && view->icons_ok) {
       unit_chrome_blit_unit_for_palette(
         framebuffer,
@@ -1106,9 +1119,9 @@ void colony_screen_draw_transports(
         y,
         units_display_type_index(units, u->id),
         u->nation_id,
-        u->orders,
+        badge_orders,
         view->docked_transport_count > 1,
-        false,
+        damaged,
         (view->frame_ok && view->frame.has_palette) ? &view->frame.palette : NULL
       );
       if (view->transport_unit_id == u->id) {
