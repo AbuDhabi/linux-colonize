@@ -3,6 +3,107 @@
 Player-facing changes. Bracketed numbers are [bugs.md](bugs.md) row ids (closed
 rows live in [docs/archive/bugs_closed.md](docs/archive/bugs_closed.md)).
 
+## 0.7-alpha — 2026-09-29
+
+Covers `0.6-alpha` (2026-09-20) to 2026-09-29: 156 commits, ~520 bug rows
+resolved. The lists below are **not exhaustive** — they pick the changes a
+player is most likely to notice.
+
+Two themes: a per-feature audit pass that walked every unit, job, building and
+sound cue against the 1994 binary (and deleted the port's invented behaviour
+wherever the two disagreed), and a save/load overhaul that fixed a long tail of
+state which silently reset on reload. The project is now called **OpenCol**; the
+binary is `opencol`.
+
+### Gameplay
+
+- Rival European AI plays properly: it expands, its colonies pick real build
+  projects, its Pioneers plow, clear and road, and its ships no longer idle in
+  Europe or circle the map. [953] [954]
+- AI colonies seat workers sensibly — food tiles get farmers and fishermen,
+  building jobs are not abandoned, and colonies stop starving for no reason.
+  [562] [567] [568] [569] [572]
+- Braves attack units caught in the open instead of standing next to them, and
+  raids burn the lowest owned building tier as the original does. [822] [925]
+- Factory-tier production math matches the original when inputs run short —
+  Rum, Cigars, Cloth, Tools and Muskets. [897] [910]
+- Coastal forts no longer fire on neutral or allied ships. [465]
+- Treasure Trains need the right Galleon capacity and cash in correctly,
+  including the King's transport offer. [484] [736] [738]
+- Veteran Dragoons harden into Continental Cavalry, not Continental Army. [534]
+- Founding Father effects corrected (Bolivar, Brebeuf, Las Casas, Pocahontas);
+  more invented effects removed. [476] [477]
+- Trade routes actually carry their configured cargo instead of running empty.
+  [949] [982]
+- Wagon Trains can no longer board ships. [482]
+
+### Graphics
+
+- Damaged and sunk ships pixelate away inside the dissolve animation, whether
+  the kill came from combat or from a coastal fort. [462] [464]
+- Your own winning unit no longer plays the death dissolve. [533]
+- Map draw order fixed so plowed fields sit correctly under roads and rivers.
+  [622]
+- Units outside a colony keep the original's fixed position as the
+  fortification is upgraded. [536]
+- Damaged Artillery uses its damaged icon, and the sidebar shows a repair
+  countdown instead of a stale order letter. [763] [705]
+
+### Sound
+
+- Every sound cue in the original was traced and wired: combat now picks the
+  attacker- and defender-specific shot, loss and sinking cues, native attacks
+  get their own stings, and colony, Europe, mission, tea-party and raid events
+  all fire the right sound.
+- Title-menu music is back — the menu opens on the Natives theme and then
+  cycles tunes like the map does.
+- The three original option flags (Background Music, Event Music, Sound
+  Effects) now gate exactly what they gate in the original.
+- Scout and native-encounter cue order fixed. [502] [729] [765] [849]
+
+### User Interface
+
+- Report screens repaired: Religious, Congress, Economic and Naval Adviser had
+  wrong fonts, missing columns and mis-formatted numbers. [973]-[979]
+- Popups that showed blank choice labels now show their text, and a batch of
+  invented English popup strings was replaced with the original's own text (or
+  removed). [541] [542] [543] [983]-[990]
+- Unit and sidebar names corrected, including Continental Cavalry showing as
+  "Soldier". [538] [591]
+- Diplomacy text no longer substitutes a nation name for a leader's name. [468]
+  [474]
+- The colony jobs popup lists indoor jobs, not just the nine field jobs. [900]
+- Trade route editor regained its table headers; long cargo names stop
+  overflowing. [945] [946]
+- Simultaneous fortress fire resolves one combat at a time instead of stacking
+  every announcement ahead of every result. [535]
+- "This unit cannot attack" no longer wedges input during a Go To. [469]
+
+### Quality of Life
+
+- Optional message log strip under the screen (`display.window_log_lines` in
+  settings.json, 0-24 rows) keeps the popups you just dismissed readable.
+- Placing a colonist from the fence picks a job that makes sense for the tile.
+  [944]
+- Sentried units wake for approaching enemies, including REF landings. [539]
+- Popups raised inside a colony are no longer held back by a detour to the map
+  or the Colonopedia, and the docks-required warning appears at once. [950]
+  [951]
+- Confirmation prompt restored before attacking a village on reduced movement.
+  [940]
+
+### Technical Improvements
+
+- Save/load: a long list of state that used to reset on reload now survives —
+  cargo on trade-route carriers, ships' passengers, Brewster's immigration
+  filter, and more. [972] [981] [982]
+- The original's music driver is emulated rather than approximated, so song
+  selection and the tune pools behave as the DOS build does.
+- `docs/known_divergences.md` records the deliberate differences from the
+  original, so they stop being re-reported as bugs.
+- The largest source files were split by feature (AI, colony, Europe, units,
+  reports, turn, game loop) with matching test targets.
+
 ## 0.6-alpha — 2026-09-20
 
 Covers `0.5-alpha` (2026-09-05) to 2026-09-20: 160 commits, ~130 user-reported

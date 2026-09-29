@@ -1,5 +1,6 @@
 #include "core/game_dialogs.h"
 #include "core/game_loop_internal.h"
+#include "core/reports_names.h"
 
 /*
  * Sections:

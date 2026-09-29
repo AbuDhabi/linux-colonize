@@ -1,4 +1,5 @@
 #include "core/map_panel.h"
+#include "core/unit_chrome_draw.h"
 
 #include "core/ai.h"
 
