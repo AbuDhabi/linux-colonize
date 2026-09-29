@@ -1291,9 +1291,12 @@ int ai_contact_try_euro_attack_confirm(
   if (!ai_contact_euro_is_human(ctx, euro_nation)) {
     return 0;
   }
-  if (ai_diplo_at_war(ctx->col1, euro_nation, target_nation)) {
-    return 0;
-  }
+  /*
+   * No "already at war, skip" gate: FUN_465b_0000's band is entered on the
+   * 0x40 bit alone (raw 75530 / 75546), never on 0x02. A pair carrying both
+   * bits (an AI capture used to leave PEACE|WAR) must still be asked
+   * @HAVETREATY, and the answer is what clears 0x40.
+   */
   /*
    * FUN_465b_0000 raw 75528-75529: the band that asks @HAVETREATY and
    * declares the war is entered only when the tile occupant is NOT a
@@ -1322,8 +1325,12 @@ int ai_contact_try_euro_attack_confirm(
    */
   const uint8_t rel = ai_diplo_read(ctx->col1, euro_nation, target_nation);
   if ((rel & AI_DIPLO_PEACE) == 0) {
-    /* No treaty: DOS attacks without a prompt — open hostilities and go. */
-    ai_diplo_declare_war_ctx(ctx, euro_nation, target_nation);
+    /* No treaty: DOS attacks without a prompt — open hostilities and go.
+     * Already at war: 465b's band writes nothing here (its declare arm needs
+     * a 0x40 bit), so don't re-run the declare and re-zero DS:0x53c8. */
+    if (!ai_diplo_at_war(ctx->col1, euro_nation, target_nation)) {
+      ai_diplo_declare_war_ctx(ctx, euro_nation, target_nation);
+    }
     return 0;
   }
   const char* name = ai_contact_euro_name(target_nation);

@@ -157,6 +157,18 @@ static int colonies_capture_col1_effects(
   }
   col1->head.nation_relation[old_nation] = 0;
   col1->head.nation_relation[new_nation] = 0;
+  /*
+   * FUN_465b_0000 raw 75545-75552 runs on the move INTO the tile, ahead of
+   * this tail: when either direction still carries 0x40 it announces the war
+   * (@DECLAREWAR / @SNEAK) and then clears PEACE both ways via
+   * FUN_281f_0a10(mover, target, 0x40). Its `local_4` is the SETTLEMENT owner
+   * (FUN_281f_06be), so an undefended colony enters that band too. The port
+   * walks into an empty foreign colony without it (units_enter_probe finds no
+   * defender, ai_euro_try_attack returns early on foe < 0), so fold the clear
+   * in here: without it a capture at peace leaves PEACE|WAR = 0x62 and the
+   * Foreign Affairs report (PEACE bit only) keeps printing "at peace".
+   */
+  ai_diplo_clear_both(col1, old_nation, new_nation, AI_DIPLO_PEACE);
   if ((ai_diplo_read(col1, old_nation, new_nation) & AI_DIPLO_WAR) == 0) {
     ai_diplo_or_both(col1, old_nation, new_nation, AI_DIPLO_WAR);
   }
