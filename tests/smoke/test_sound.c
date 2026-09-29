@@ -116,19 +116,36 @@ int main(void) {
     return 1;
   }
 
-  /* Idle pump must stay silent until sound_play / sound_set_bgm. Launch used
-   * to start a random pool tune, then fade to intro 0x34 a second later. */
+  /* Pool 0 is the default pool, not silence (asm 129f:020a-020e): the pump
+   * draws a main tune with no pool armed, which is the title-menu music. Only
+   * the in-process cinematic holds it off. */
   {
     int16_t idle[512];
     memset(idle, 0, sizeof(idle));
-    sound_render_s16(idle, 512, 1, 44100);
+    sound_set_cinematic(true);
+    sound_render_s16(idle, 512, 1, 44100); /* the render callback pumps too */
     sound_service();
     if (sound_active_song_id() != -1) {
-      fprintf(stderr, "idle pump started song 0x%02x with no pool armed\n",
+      fprintf(stderr, "idle pump started song 0x%02x under the cinematic\n",
               sound_active_song_id());
       sound_shutdown();
       return 1;
     }
+    sound_set_cinematic(false);
+    sound_service();
+    {
+      const int title = sound_active_song_id();
+      if (title < 0x20 || title > 0x3b) {
+        fprintf(stderr, "title menu drew no default-pool tune (got 0x%02x)\n", title);
+        sound_shutdown();
+        return 1;
+      }
+    }
+    /* Keep the pump parked for the rest of the file: the blocks below measure
+     * one cue at a time, and a live pool would layer a tune under them. */
+    sound_play(0);
+    sound_set_cinematic(true);
+    sound_service();
     sound_play(0x34);
     sound_service();
     if (sound_active_song_id() != 0x34) {

@@ -86,6 +86,7 @@ typedef struct SoundState {
   int category_applied;
   uint32_t pick_rng; /* DOS reseeds from DS:0x83a8 around each pick; private LCG here */
   bool preview_active; /* Pick Music: selection plays immediately (FUN_281f_04c0) */
+  bool cinematic; /* OPENING/CLOSING cue owns the driver (separate EXEs in DOS) */
   double samples_to_tick; /* audio frames left before the next PIT tick */
 
   SoundSong decoded; /* one-entry cache for the offline event API */
@@ -903,7 +904,17 @@ static void sound_pump_unlocked(void) {
     if (g_sound.preview_active) {
       return;
     }
-    if (g_sound.category <= 0 && g_sound.category_applied <= 0) {
+    /*
+     * asm 129f:020a-020e: DS:0x9a-1 unsigned-compared against 6, so pool 0
+     * takes the JA past the switch and the pick runs on the pre-switch
+     * default pool (129f:0140-01a2, all 12 main tunes). VICEROY therefore
+     * plays music on the title menu with no pool armed at all, and 129f:0258
+     * then latches DS:0x9a from the tune it drew, so the menu keeps cycling
+     * like the map does. Only the in-process cinematics may hold the pump
+     * off: DOS runs OPENING.EXE / CLOSING.EXE as separate programs, so their
+     * cue (0x34 / 0x3d) owns the driver there and no VICEROY pool exists yet.
+     */
+    if (g_sound.cinematic) {
       return;
     }
     id = sound_pick_next_tune_id();
@@ -1042,6 +1053,16 @@ void sound_set_bgm(int track) {
 
 void sound_stop_bgm(void) {
   sound_set_bgm(0);
+}
+
+/* True while the port's in-process OPENING/CLOSING cinematic is on screen. */
+void sound_set_cinematic(bool active) {
+  if (!g_sound.inited) {
+    return;
+  }
+  pthread_mutex_lock(&g_sound.lock);
+  g_sound.cinematic = active;
+  pthread_mutex_unlock(&g_sound.lock);
 }
 
 int sound_active_song_id(void) {
