@@ -21,7 +21,7 @@ choices from data where a real `@SECTION` exists.
 | Quit / title exit | `game_enqueue_yes_no` | `@DOS` | Authentic | — |
 | Retire | same | `@RETIRE` | Authentic | — |
 | Disband land/ship | same | `@SUREDISBAND` / `@DISBANDSHIP` | Authentic | `@DISBANDSHIP` = cargo-blocked error OK; confirm always `@SUREDISBAND` |
-| Overboard | same | `@OVERBOARD` | Authentic | — |
+| Overboard | `game_request_overboard_confirm` | `@OVERBOARD` | Authentic | Hold picker, not a Yes/No (bugs.md #984) |
 | Trade delete | same | `@SUREDELETE` | Authentic | — |
 | Find colony / trade select | `cheat_list` + `popup_msg_fill` | `@FINDCITY` / `@TRADE` | Authentic | — |
 | Howmuch | `howmuch_dialog` | `@HOWMUCH*` | Authentic | — |
@@ -117,3 +117,30 @@ choices from data where a real `@SECTION` exists.
 lifted." overrides were dead or port chrome and now touch only the status
 line (`DIPLO_BOYCOTT` has no producer). Every remaining Partial row in
 [popups_catalog.md](popups_catalog.md) Appendix A names its DOS site and blocker.
+
+## 2026-09-28 sweep (mechanical, whole tree)
+
+Method: parse every `ai_popup_enqueue_ok/_ok_ctx/_choice/_choice_ctx/_colony_event`
+and `game_enqueue_yes_no` call, resolve the body argument back to its writer in
+the enclosing function, and flag any body/label that is a literal or an
+`snprintf` of typed English instead of `popup_msg_*` over a `COLONIZE/*.TXT`
+section. 152 popup sites; all but the rows below resolve to a real `@SECTION`.
+
+| Site | Verdict | Row | Fixed |
+|------|---------|-----|-------|
+| Throw Cargo Overboard (`game_dialogs.c`) | **Invented** labels + wrong shape (`@OVERBOARD` is a cargo picker) | bugs.md #984 | Rebuilt as the @TRADEWICH-shaped hold picker (`AI_POPUP_TAG_OVERBOARD_WHICH`); typed labels gone |
+| Foreign-colony attack confirm (`game_loop_orders.c`) | **Invented** body + labels | bugs.md #985 | Deleted — DOS's only gate is FUN_465b_0000 (@HAVETREATY / open hostilities), which already runs on that move; tag 63 retired |
+| Privateer prize notice (`units_combat_resolve.c`) | **Invented** (self-declared port-authored) | bugs.md #986 | Popup dropped; the Royal-Navy arm keeps `@SEIZURESEA` |
+| Raid ship-sunk, no-port arm (`units_combat.c`) | **Invented** wording vs `@SHIPSUNK` | bugs.md #987 | Renders `@SHIPSUNK` with the loser tokens and empty sinker pair; the coastal-fort arm's typed "shore"/"batteries" became the firing nation + empty hull |
+| Diplo ally-pick body (`ai_diplo.c`) | **Invented** body; Accept/Refuse labels PARKED | bugs.md #988 | Body blank until the section/numeric id is found; labels unchanged (parked apply stand-in) |
+| 8 × typed `popup_msg_fill` fallback bodies | Rule violation, dead text | bugs.md #989 | All `""` now, including the `europe->status`-as-fallback chain in `turn_production.c` (`turn_emit_built_chrome` lost the parameter) |
+| Chrome headings/titles | **Invented** although LABELS.TXT rows exist | bugs.md #990 | `@CMISC[1]` "Units Present" for the stack title; `@CTITLE[4]/[5]/[6]` for the build picker heading, clear row and More row; "Leave as" heading and both cheat prompts now draw nothing |
+
+Residual, deliberately left: `unit_stack.c` annotates a unit aboard a ship
+with "aboard"/"ready" — typed English, but no catalog row carries either word
+and dropping it would lose the state cue. Needs the DOS stack-list read.
+
+Clean by construction: the popup-choice label arrays (only `ai_diplo.c:3411`
+holds literals), `popup_msg_fill` section names, and every `turn_production.c`
+colony-event body. Status-line text (`europe->status`, `set_status`) is port
+chrome and out of scope here.

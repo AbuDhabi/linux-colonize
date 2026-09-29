@@ -2118,16 +2118,21 @@ int units_raid_damage_ship(ColonizeUnitPool* pool, int ship_id, const ColonizeCo
   }
   if (!damaged) {
     if (human && g_units_combat_popups) {
-      /* GAME.TXT @SHIPSUNK names the sinker (%STRING2 %STRING3); this arm has
-       * no winner unit at all, so enqueue the plain line rather than the
-       * section with two empty tokens. */
-      char body[AI_POPUP_BODY_LEN];
-      snprintf(
-        body, sizeof(body), "%s %s sunk!", units_combat_nation_label(col1, lose->nation_id),
-        lt ? lt->name : ""
-      );
-      (void)ai_popup_enqueue_ok_ctx(
-        g_units_combat_popups, AI_POPUP_TAG_COMBAT_SHIP, -1, lose->nation_id, 0, NULL, body
+      /*
+       * DOS 0x1b81 = @SHIPSUNK, and raw 99518-99527 fills %STRING0/%STRING1
+       * (loser nation + hull) for every ship loss, this arm included; the
+       * sinker pair %STRING2/%STRING3 comes from the winner unit, which this
+       * call has none of (param_2 < 0). Empty tokens, never typed English
+       * (bugs.md #987).
+       */
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = units_combat_nation_label(col1, lose->nation_id);
+      tok.string1 = lt ? lt->name : "";
+      tok.string2 = "";
+      tok.string3 = "";
+      units_combat_enqueue_tok(
+        AI_POPUP_TAG_COMBAT_SHIP, "SHIPSUNK", -1, lose->nation_id, 0, &tok, ""
       );
       units_play_event_sound(0x57);
     }
@@ -2609,10 +2614,8 @@ static int col1_destroy_tribe_at(
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
         tok.string0 = units_combat_nation_label(col1, nation_id);
-        char fb[160];
-        snprintf(fb, sizeof(fb), "The %s tribe has become extinct!", tok.string0);
         units_combat_enqueue_tok(
-          AI_POPUP_TAG_COMBAT_COLONY, "EXTINCT", nation_id, -1, 0, &tok, fb
+          AI_POPUP_TAG_COMBAT_COLONY, "EXTINCT", nation_id, -1, 0, &tok, ""
         );
       } else {
         const int div = -1 - (int)*vc;

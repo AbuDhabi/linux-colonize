@@ -809,18 +809,9 @@ void game_enqueue_yes_no(
   popup_msg_fill(&game->messages, section, tok, fallback_body, body, sizeof(body));
   char choice_buf[2][POPUP_MSG_CHOICE_LEN];
   const char* labels[2];
-  /* @OVERBOARD has body text but no catalog choices. Its two labels are a
-   * port UI affordance; every other confirmation must use its own rows and
-   * stay empty on a catalog miss. */
-  const bool overboard = section && strcmp(section, "OVERBOARD") == 0;
+  /* Rows come from the section itself and stay empty on a catalog miss. */
   popup_msg_section_labels(
-    &game->messages,
-    section,
-    tok,
-    overboard ? "Throw it overboard" : "",
-    overboard ? "Keep it aboard" : "",
-    choice_buf,
-    labels
+    &game->messages, section, tok, "", "", choice_buf, labels
   );
   const int ids[] = {1, 0};
   game->map_confirm = confirm;
@@ -851,13 +842,14 @@ static void game_do_disband(ColonizeGameState* game, int uid) {
   }
 }
 
-static void game_do_overboard(ColonizeGameState* game, int uid) {
+static void game_do_overboard_hold(ColonizeGameState* game, int uid, int hold) {
   if (!game) {
     return;
   }
   int ctype = 0;
   int amt = 0;
-  if (uid < 0 || units_dump_cargo_overboard(&game->units, uid, &ctype, &amt) <= 0) {
+  if (uid < 0 || hold < 0 ||
+      units_unload_goods_hold(&game->units, uid, hold, &ctype, &amt) <= 0) {
     set_status(game, "No cargo to dump", NULL);
   } else {
     snprintf(game->status, sizeof(game->status), "Dumped %d overboard", amt);
@@ -1039,9 +1031,6 @@ static void game_apply_map_confirm(ColonizeGameState* game) {
   switch (conf) {
     case GAME_MAP_CONFIRM_DISBAND:
       game_do_disband(game, payload);
-      break;
-    case GAME_MAP_CONFIRM_OVERBOARD:
-      game_do_overboard(game, payload);
       break;
     case GAME_MAP_CONFIRM_QUIT:
       game->elapsed_ms = UINT32_MAX;
@@ -1338,6 +1327,12 @@ void game_request_buy_construction_confirm(ColonizeGameState* game) {
   }
 }
 
+/*
+ * @OVERBOARD (GAME.TXT:2975) asks WHICH cargo goes over the side and carries no
+ * choice rows, so the rows are the ship's occupied goods holds — the
+ * @TRADEWHICH picker shape (bugs.md #984, was an invented Yes/No that dumped
+ * hold 0).
+ */
 void game_request_overboard_confirm(ColonizeGameState* game) {
   if (!game) {
     return;
@@ -1347,16 +1342,50 @@ void game_request_overboard_confirm(ColonizeGameState* game) {
     set_status(game, "No cargo to dump", NULL);
     return;
   }
-  PopupMsgTokens tok;
-  memset(&tok, 0, sizeof(tok));
-  game_enqueue_yes_no(
-    game,
-    GAME_MAP_CONFIRM_OVERBOARD,
-    sid,
-    "OVERBOARD",
-    "",
-    &tok
-  );
+  const ColonizeUnit* u = units_get_const(&game->units, sid);
+  if (!u) {
+    return;
+  }
+  const int holds = units_goods_hold_count(&game->units, sid);
+  int rows = 0;
+  char labels_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+  const char* labels[AI_POPUP_CHOICE_MAX];
+  int ids[AI_POPUP_CHOICE_MAX];
+  for (int h = 0; h < holds && rows < AI_POPUP_CHOICE_MAX - 1; ++h) {
+    const int amt = units_hold_amount(&game->units, sid, h);
+    if (amt <= 0) {
+      continue;
+    }
+    snprintf(
+      labels_buf[rows], sizeof(labels_buf[rows]), "%d %s", amt,
+      reports_cargo_display_name(u->hold_goods_type[h])
+    );
+    labels[rows] = labels_buf[rows];
+    ids[rows] = h + 1;
+    rows++;
+  }
+  if (rows <= 0) {
+    set_status(game, "No cargo to dump", NULL);
+    return;
+  }
+  /* Cancel row text = LABELS @MISC[32], the same "nothing" row @TRADEWHICH uses. */
+  {
+    const char* nothing_live = reports_labels_field("MISC", 32);
+    snprintf(
+      labels_buf[rows], sizeof(labels_buf[rows]), "%s", nothing_live ? nothing_live : ""
+    );
+  }
+  labels[rows] = labels_buf[rows];
+  ids[rows] = 99;
+  rows++;
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(&game->messages, "OVERBOARD", NULL, "", body, sizeof(body));
+  if (ai_popup_enqueue_choice_ctx(
+        &game->ai_popups, AI_POPUP_TAG_OVERBOARD_WHICH, sid, -1, 0, NULL, body, labels, ids,
+        rows
+      )) {
+    (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_OVERBOARD_WHICH);
+  }
 }
 
 /* ===================== Find-colony & trade-route pickers (game_open_find_colony_picker .. game_open_trade_route_picker) ===================== */
@@ -2512,26 +2541,15 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
     (void)europe_buyback_boycott(eu, &game->col1, game->human_nation, cargo_type);
   return true;
   }
-  if (game->ai_popups.result_tag == AI_POPUP_TAG_COLONY_ATTACK) {
+  /* @OVERBOARD hold pick (bugs.md #984): id 99 / cancel = keep the cargo. */
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_OVERBOARD_WHICH) {
     const int unit_id = game->ai_popups.result_nation_a;
-    const int dest_x = game->ai_popups.result_payload & 0xff;
-    const int dest_y = (game->ai_popups.result_payload >> 8) & 0xff;
-    const bool go = !game->ai_popups.result_cancelled && game->ai_popups.result_choice_id == 1;
-    const int payload = game->ai_popups.result_payload;
+    const int choice = game->ai_popups.result_cancelled ? 99 : game->ai_popups.result_choice_id;
     ai_popup_consume_result(&game->ai_popups);
-    ColonizeUnit* u = units_get(&game->units, unit_id);
-    if (go && u && u->active) {
-      game->units.selected_id = unit_id;
-      game->colony_attack_ok_unit = unit_id;
-      game->colony_attack_ok_payload = payload;
-      (void)game_try_unit_move(game, dest_x, dest_y);
-      game->colony_attack_ok_unit = -1;
-  return true;
+    if (choice > 0 && choice != 99) {
+      game_do_overboard_hold(game, unit_id, choice - 1);
+      game_after_unit_action(game);
     }
-    if (u && u->active && units_orders_follow_goto(u->orders)) {
-      units_clear_orders(&game->units, unit_id);
-    }
-    set_status(game, "Attack called off", NULL);
   return true;
   }
   /* FUN_5f7a_020e hold pick (@TRADEWHICH): id 99 / cancel = never mind. */

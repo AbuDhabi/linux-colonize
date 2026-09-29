@@ -111,7 +111,7 @@ static void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
     }
     if (ctx->europe && col->nation_id == ctx->human_nation) {
       snprintf(ctx->europe->status, sizeof(ctx->europe->status), "%s completed.", name);
-      turn_emit_built_chrome(ctx->messages, ctx->ai_popups, col, name, ctx->europe->status);
+      turn_emit_built_chrome(ctx->messages, ctx->ai_popups, col, name);
     }
   }
 }
@@ -152,7 +152,7 @@ static void turn_run_colony_building_completion(ColonizeTurnContext* ctx) {
     }
     if (ctx->europe && col->nation_id == ctx->human_nation) {
       snprintf(ctx->europe->status, sizeof(ctx->europe->status), "%s completed.", bt->name);
-      turn_emit_built_chrome(ctx->messages, ctx->ai_popups, col, bt->name, ctx->europe->status);
+      turn_emit_built_chrome(ctx->messages, ctx->ai_popups, col, bt->name);
     }
   }
 }

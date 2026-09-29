@@ -902,52 +902,11 @@ COLONIZE_INTERNAL GameMoveStep game_move_colony_prompts(
   ColonizeGameState* game, ColonizeUnit* selected, int sid, int dest_x, int dest_y
 ) {
   /*
-   * bugs.md #437: attacking a foreign EURO COLONY — armed or not, at war or
-   * not — always asks first. One-shot latch (colony_attack_ok) so the Yes
-   * retry through game_try_unit_move does not re-ask.
+   * bugs.md #985: there is no separate "confirm the attack on a foreign Euro
+   * colony" dialog. DOS's only gate is FUN_465b_0000 below — @HAVETREATY when
+   * a peace treaty is signed, otherwise the attack simply opens hostilities.
+   * The port's own port-authored confirm (bugs.md #437) is gone with it.
    */
-  if (game->col1_ok && combat_unit_is_combat_role(&game->units, sid) &&
-      !units_is_sea(&game->units, sid) &&
-      units_id_at(&game->units, dest_x, dest_y) < 0 &&
-      !(game->colony_attack_ok_unit == sid &&
-        game->colony_attack_ok_payload == (dest_x | (dest_y << 8)))) {
-    const int cid = colonies_id_at(&game->colonies, dest_x, dest_y);
-    const ColonizeColony* col = colonies_get(&game->colonies, cid);
-    if (col && col->active && col->nation_id >= 0 && col->nation_id <= 3 &&
-        col->nation_id != selected->nation_id) {
-      bool pending = game->ai_popups.open &&
-                     game->ai_popups.current.tag == AI_POPUP_TAG_COLONY_ATTACK &&
-                     game->ai_popups.current.nation_a == sid;
-      for (int qi = 0; !pending && qi < game->ai_popups.queue_count; ++qi) {
-        pending = game->ai_popups.queue[qi].tag == AI_POPUP_TAG_COLONY_ATTACK &&
-                  game->ai_popups.queue[qi].nation_a == sid;
-      }
-      if (pending) {
-        set_status(game, "Attack?", NULL);
-        return GAME_MOVE_RETURN_TRUE;
-      }
-      /* Port-authored confirm (bugs.md #437): no shipped DOS dialog covers a
-       * Euro-colony attack the way @WHACKINDIANS covers a village, so this
-       * wording is deliberately not the catalog's "Shall we attack the
-       * {%STRING0}, Your Excellency?" phrasing. */
-      char body[AI_POPUP_BODY_LEN];
-      snprintf(
-        body, sizeof(body), "Order troops against %s?",
-        col->name[0] ? col->name : "the enemy colony"
-      );
-      static const char* labels[] = {"Hold position.", "Attack!"};
-      static const int ids[] = {2, 1};
-      const int payload = dest_x | (dest_y << 8);
-      if (ai_popup_enqueue_choice_ctx(
-            &game->ai_popups, AI_POPUP_TAG_COLONY_ATTACK, sid, col->nation_id, payload, NULL,
-            body, labels, ids, 2
-          )) {
-        (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_COLONY_ATTACK);
-        set_status(game, "Attack?", NULL);
-        return GAME_MOVE_RETURN_TRUE;
-      }
-    }
-  }
   /*
    * FUN_465b_0000 Euro peer at peace (bugs.md): DOS never refuses the attack —
    * a signed treaty asks @HAVETREATY first, no treaty just opens hostilities.

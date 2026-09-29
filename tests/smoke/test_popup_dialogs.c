@@ -249,16 +249,19 @@ static int case_game_confirmation_catalog_choices(void) {
     return fail("confirmation must preserve section-specific choice rows");
   }
 
+  /* bugs.md #984: a section without choice rows gets EMPTY rows — never
+   * port-authored English. @OVERBOARD is that case (its own picker builds the
+   * rows from the ship's holds instead). */
   ai_popup_clear(&game->ai_popups);
   game_enqueue_yes_no(
-    game, GAME_MAP_CONFIRM_OVERBOARD, 0, "OVERBOARD", "", NULL
+    game, GAME_MAP_CONFIRM_EUROPE_SAIL, 0, "OVERBOARD", "", NULL
   );
   if (game->ai_popups.queue_count != 1 ||
-      game->ai_popups.queue[0].choices[0][0] == '\0' ||
-      game->ai_popups.queue[0].choices[1][0] == '\0') {
+      game->ai_popups.queue[0].choices[0][0] != '\0' ||
+      game->ai_popups.queue[0].choices[1][0] != '\0') {
     assets_msg_free(&game->messages);
     free(game);
-    return fail("choice-less OVERBOARD needs port-authored action labels");
+    return fail("choice-less section must leave the rows empty");
   }
 
   assets_msg_free(&game->messages);

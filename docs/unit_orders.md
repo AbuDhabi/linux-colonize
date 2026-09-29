@@ -179,7 +179,7 @@ stateDiagram-v2
 | Join Colony (**B**) | On own colony tile | Admit / open colony | Admit selected land unit; `@FULL` if at POP_MAX; else open colony | Done |
 | Load / Unload Cargo | Transport on Euro settlement | Board/unload cargo UI | ORDERS + **O**/**U**; gated off-settlement | Done |
 | Return to Europe | Ship on High Seas | Sail home lane | Despawn → Europe Expected | Done |
-| Dump Cargo Overboard | Transport with goods | Confirm `@OVERBOARD`; dump hold | Yes/No then first goods hold | Done |
+| Dump Cargo Overboard | Transport with goods | `@OVERBOARD` picker; dump the chosen hold | Same (rows = occupied holds + @MISC[32] cancel) | Done |
 | Disband | Shift+D / ORDERS | `@SUREDISBAND` confirm; `@DISBANDSHIP` OK if ship has units aboard | Confirm then `units_disband` | Done |
 
 ### Pillage / Live In Village
@@ -235,7 +235,7 @@ Full inventory in [popups.md](popups.md) §3 / `@SECTION` index. Order-related:
 | `@USEDUPTOOLS` | Pioneer tools depleted | Modal | Type→Colonists + `@USEDUPTOOLS` ai_popup OK | Done thin |
 | `@SUREDISBAND` | Disband confirm | Yes/No | `AI_POPUP_TAG_MAP_CONFIRM` | Done |
 | `@DISBANDSHIP` | Ship carrying units | OK (error) | `AI_POPUP_TAG_INFO` | Done |
-| `@OVERBOARD` | Dump cargo confirm | Yes/No | Same | Done |
+| `@OVERBOARD` | Which cargo to dump | Hold picker (section has no rows) | Same | Done (bugs.md #984) |
 | `@LANDFALL` / `@LANDFALL2` | Ship→bare land | Stay / Make Landfall | Done — see [move_enter.md](move_enter.md) |
 | `@SHIPOPTIONS` / `@UNITOPTIONS` | Colony dock icon, 2nd click | Move to front / Clear orders / Sentry / Fortify (+ ship-only Unload all cargo) / No changes | `colony_screen_open_dock_orders`; ineligible rows omitted (matches `2f2b_5746`) | Done thin |
 | `@COLONYUNIT` | Title for the above | "Options for {unit}:" | `popup_msg_fill` | Done |

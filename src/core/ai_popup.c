@@ -583,10 +583,10 @@ static const char* ai_popup_tag_name(AiPopupTag tag) {
       return "COLONY_CLEARSPEC";
     case AI_POPUP_TAG_COLONY_WAREHOUSE:
       return "COLONY_WAREHOUSE";
-    case AI_POPUP_TAG_COLONY_ATTACK:
-      return "COLONY_ATTACK";
     case AI_POPUP_TAG_SCOUT_COLONY:
       return "SCOUT_COLONY";
+    case AI_POPUP_TAG_OVERBOARD_WHICH:
+      return "OVERBOARD_WHICH";
   }
   return "UNKNOWN";
 }

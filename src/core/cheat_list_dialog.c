@@ -168,7 +168,9 @@ bool cheat_list_open_kill_indians(CheatListDialog* dlg, const ColonizeMsgCatalog
   dlg->has_result = false;
   dlg->kind = CHEAT_LIST_KIND_KILL_INDIANS;
   dlg->width = 190;
-  str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), "Select Tribe To Kill");
+  /* bugs.md #990: no DEBUG.TXT section carries a prompt for the kill-tribe
+   * cheat, so the rows (the @TRIBES names) stand alone. */
+  dlg->prompt[0] = '\0';
 
   /* @TRIBES field 1 — the singular tribe word ("Inca"), the same column the
    * map panel and the unit labels name one tribe by. The caller's catalog
@@ -207,9 +209,8 @@ static bool cheat_list_open_simple_list(
   dlg->kind = kind;
   dlg->width = width;
   dlg->multi_select = false;
-  str_copy_trunc(
-    dlg->prompt, sizeof(dlg->prompt), prompt && prompt[0] ? prompt : "Choose entry"
-  );
+  /* Catalog miss = empty prompt, never typed English (bugs.md #990). */
+  str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), prompt ? prompt : "");
   for (int i = 0; i < count; ++i) {
     str_copy_trunc(
       dlg->options[i],
