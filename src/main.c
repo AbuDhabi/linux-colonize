@@ -249,17 +249,6 @@ int main(int argc, char** argv) {
   };
   ColonizePalette palette;
 
-  /*
-   * Remember the window size across launches (settings.json display.*). The
-   * window manager delivers a resize event per dragged pixel, so the write is
-   * debounced: the size has to hold still before settings.json is rewritten.
-   */
-  const uint32_t k_resize_save_delay_ms = 1000u;
-  int saved_w = settings_get()->window_width;
-  int saved_h = settings_get()->window_height;
-  bool resize_pending = false;
-  uint32_t resize_at_ms = 0;
-
   uint32_t prev_ticks = platform_ticks_ms();
   bool running = true;
   while (running) {
@@ -285,28 +274,6 @@ int main(int argc, char** argv) {
     framebuffer.height = fb_h;
     screen_geom_set(fb_w, fb_h - strip_h);
 
-    if (cli.windowed && settings_is_loaded() &&
-        (screen_geom_w() != saved_w || screen_geom_h() != saved_h)) {
-      resize_pending = true;
-      resize_at_ms = now;
-    }
-    if (resize_pending && now - resize_at_ms >= k_resize_save_delay_ms) {
-      ColonizeSettings prefs = *settings_get();
-      prefs.window_width = screen_geom_w();
-      prefs.window_height = screen_geom_h();
-      settings_set(&prefs);
-      char save_err[256];
-      if (settings_flush(save_err, sizeof(save_err))) {
-        diag_info("Window size %dx%d stored in %s",
-          prefs.window_width, prefs.window_height, settings_path());
-      } else {
-        diag_warn("Could not store window size: %s", save_err);
-      }
-      saved_w = prefs.window_width;
-      saved_h = prefs.window_height;
-      resize_pending = false;
-    }
-
     game_set_platform(game, platform);
     if (!game_update(game, &input, dt)) {
       running = false;
@@ -326,6 +293,24 @@ int main(int argc, char** argv) {
     }
 
     platform_sleep_ms(16);
+  }
+
+  /* Remember the window size for the next launch (settings.json display.*).
+   * Once on the way out — no debounce, and a drag in progress cannot race it. */
+  if (cli.windowed && settings_is_loaded() &&
+      (screen_geom_w() != settings_get()->window_width ||
+       screen_geom_h() != settings_get()->window_height)) {
+    ColonizeSettings prefs = *settings_get();
+    prefs.window_width = screen_geom_w();
+    prefs.window_height = screen_geom_h();
+    settings_set(&prefs);
+    char save_err[256];
+    if (settings_flush(save_err, sizeof(save_err))) {
+      diag_info("Window size %dx%d stored in %s",
+        prefs.window_width, prefs.window_height, settings_path());
+    } else {
+      diag_warn("Could not store window size: %s", save_err);
+    }
   }
 
   game_destroy(game);
