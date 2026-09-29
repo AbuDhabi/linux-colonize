@@ -249,7 +249,7 @@ broke the Dutch TURN2→3 first contact).
 
 | Gate | Path |
 |------|------|
-| Calendar / production unit | `tests/unit/test_turn.c` |
+| Calendar / production unit | `tests/unit/test_turn_core.c`, `test_turn_school.c`, `test_turn_colony.c` (`make test T=unit_turn_core` etc.; seams in `turn_internal.h`) |
 | Early AI T2 | `golden_ai_turns` (`TURN1`…`TURN7`) |
-| King thin | `unit_ai_king` |
+| King thin | `unit_ai_king_core`, `unit_ai_king_war`, `unit_ai_king_revolution` |
 | Saves / autosave fields | [savegame.md](savegame.md) |

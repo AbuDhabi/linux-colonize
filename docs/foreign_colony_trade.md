@@ -103,7 +103,7 @@ Both accepting arms then do `colony.stock[sold] += qty`.
 
 * Sim: `colonies_foreign_trade_gate` / `_prepare` / `_apply` (`colony.c`,
   `colony.h`), tested by `unit_colonies` (`tests/unit/test_colonies.c`).
-* UI: `game_move_native_and_scout_prompts` (`game_loop.c`) raises
+* UI: `game_foreign_trade_price_hold` (`game_loop_orders.c`) raises
   `AI_POPUP_TAG_FOREIGN_TRADE_WHICH` / `_OFFER`; results are applied in
   `game_dialogs.c`. Both sit in the shared `ai_popups` queue, so
   `game_modal_open` already covers them.

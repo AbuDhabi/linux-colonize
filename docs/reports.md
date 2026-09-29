@@ -6,8 +6,10 @@ while porting). This file records, per report: DOS renderer address, data
 source, column layout, ordering, scroll/paging model, click targets,
 strings, and current status against `src/core/reports.c`.
 
-Code: `src/core/reports.c`/`reports.h`, dispatcher `reports_render()`. Host
-input/paging state lives in `src/core/game_loop.c` around line 7564.
+Code: `src/core/reports.c`/`reports.h` (split family `reports_{congress,economy,
+military,names,score}.c`, seams in `reports_internal.h`), dispatcher
+`reports_render_w()`. Host input/paging state lives in `src/core/game_loop_update.c`
+(report click/page-advance handling, ~line 1055).
 
 DOS key numbering: F1 opens the Colonizopedia terrain article (not a report
 plate); F2 Religious through F10 Score are the nine report plates
@@ -89,9 +91,9 @@ independently golden-confirmed.
 ## Shared chrome (every F2-F9 report)
 
 - Plate bring-up: `FUN_3f41_0000` (load art+palette into the "2da8" UI box)
-  -> `reports_load()`/`reports_render()`.
+  -> `reports_load()`/`reports_render_w()`.
 - Footer/title strip: `FUN_3f41_008a` (default y=0xb8) -> centered
-  FONTTINY.FF title in `reports_render_body_start()` (`reports.c:421`),
+  FONTTINY.FF title in `reports_render_body_start()` (`reports.c:253`),
   native y=5 for every report except Foreign (y=2, golden override) and
   Score (own layout).
 - OK button: bottom-right, native (286,184)-(316,198)
@@ -286,7 +288,7 @@ independently golden-confirmed.
   detail page's "Off Mapboard (Europe)"/"On Mapboard"/"In Colonies"
   (#53/#54/#55) resolve live (2026-08-28).
 - Port status: Done (golden `labor.png`/`labor_detail.png`) —
-  `reports_render_labor_grid`/`_detail` (`reports.c:1340`/`1392`). Real gap
+  `reports_render_labor_grid`/`_detail` (`reports_congress.c:718`/`773`). Real gap
   found and fixed while porting: `UNITS_JOB_NONE` (28) must fold into Free
   Colonists (19) or unspecialized colonists silently drop out of every
   bucket.
@@ -331,7 +333,7 @@ independently golden-confirmed.
   (bugs.md #976, fixed 2026-09-28 — the palette indices stay as measured off
   the golden, since DOS's 2+8/4+8 index its own default palette).
 - Port status: Done (golden `economic_p1.png`/`economic_p2.png`) —
-  `reports_render_economic_trade`/`_cargo` (`reports.c:1588`/`1700`).
+  `reports_render_economic_trade`/`_cargo` (`reports_economy.c:81`/`213`).
 
 ## F6 - Colony Adviser
 
@@ -380,7 +382,7 @@ independently golden-confirmed.
   as F5); colony/building names from save.
 - Port status: Done (golden `colony_p1.png`/`colony_p2.png`) —
   `reports_render_colony_sidebar`/`_garrisons`/`_sol`
-  (`reports.c:1878`/`1912`/`2032`). Row sizing was wrong until
+  (`reports_economy.c:462`/`497`/`709`). Row sizing was wrong until
   2026-09-04 (fixed slot cap of 8, fixed pitch 18): a 15-unit New Amsterdam
   in `port_saves/campaign2/COLONY09.SAV` showed 8 icons instead of 14.
   Still unported: DOS reorders the tile stack (`FUN_281f_07ea` ->
@@ -694,7 +696,7 @@ independently golden-confirmed.
   uses the same `exploits_tier` through `sound_retire_tune_id`.
 - Port status: Done (golden `score.png`) — `reports_render_score`/
   `reports_score_collect_citizen_jobs`/`reports_score_draw_citizen_icons`
-  (`reports.c:3335`/`3071`/`3294`). Golden's citizen breakdown (142
+  (`reports_score.c:483`/`177`/`453`). Golden's citizen breakdown (142
   colony-pop + 16 field-colonist points = 158) required the exact
   "profession byte 0-27 or nothing" rule above; flipped one pre-existing
   unit test's expected value (a Pioneer with sentinel profession byte 28

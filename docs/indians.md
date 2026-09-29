@@ -277,9 +277,11 @@ outside that dialog nothing is charged — see
 skill to **one** colonist, **total across all Euro nations** — once any
 nation's colonist learns there, the offer is gone for everyone. The tribe's
 **capital** is exempt from that one-shot and teaches unlimited colonists.
-`ai_contact_teach_skill` (`ai_contact.c`) implements this via
+`ai_contact_learnstay_apply` (`ai_contact_actions.c`) implements this via
 `tribe.state.learned` (one-shot, shared — matches "total across all
-nations") gated by `!tribe.state.capital` (capital bypasses the gate).
+nations") gated by `!tribe.state.capital` (capital bypasses the gate). (The
+older `ai_contact_teach_skill` village-adjacency pulse was retired, bugs.md
+#573 — see the RETIRED note in `ai_contact.c`.)
 
 **Human teach is the "Live Among The Natives" menu action** (2026-08-28,
 `ai_contact_live_among_natives` = `thunk_FUN_1000_a618`): `@LEARNSTAY`
@@ -474,7 +476,8 @@ garrison_quota = threat >> 3`, where `walls` = `FUN_281f_0ab0(0)` = owned
 Stockade/Fort/Fortress, so walls only cap an already-large threat and never
 push the quota below 2. The old "idle unfortified Soldier on the colony tile →
 quota 1" latch is retired. Covered by
-`tests/unit/test_ai_euro_war.c:unit_garrison_quota_threat_seed`. Still not
+`tests/unit/test_ai_euro_war_garrison.c:unit_garrison_quota_threat_seed`
+(`make test T=unit_ai_euro_war_garrison`). Still not
 ported from the same loop: the `iStack_22` ring-1 counter and the
 `iStack_76` `labor_shortage` (+0x8e) formula that consumes it.
 
@@ -684,9 +687,12 @@ section picked from alarm (`VILLAGEHAPPY/SAVAGE/MEDIUM/BAD/WAR`, built in DOS
 from the DS `"VILLAGE"` stem + suffix). `@INDIANHELLO1` / `HELLO2` are **dead
 GAME.TXT**: 2026-09-16 scan of `VICEROY.EXE` DS finds no `INDIANHELLO` tag
 string at all, so DOS never shows them. Deep bargain matrix `FUN_4d56_2820` is **ported**, not parked (stale
-row corrected 2026-09-07f): `ai_contact.c:4882-5400` — hold pick, throttle
+row corrected 2026-09-07f) — hold pick, throttle
 table `k_2820_throttle` (`:5066`), want-sort (`:5050`), haggle, gift,
-post-sale buy. Verification rewrite 2026-08-29,
+post-sale buy. `ai_contact.c` was split 2026-09-23; the 2820 machinery now
+lives in `ai_contact_trade.c` (village trade economics) and
+`ai_contact_actions.c` (`ai_contact_2820_begin` shell + menu), seams in
+`ai_contact_internal.h`. Verification rewrite 2026-08-29,
 [`indian_trade_2820.md`](../original_sources_annotated/ai/indian_trade_2820.md).
 
 **Interacting with a village forfeits the unit's remaining MP** (2026-09-04).
@@ -815,7 +821,7 @@ Odds / resolve: [combat.md](combat.md).
 
 Not landfall: `@DONTKNOWSHIPS` / `@MADATSHIPS` ([move_enter.md](move_enter.md);
 settlement head `FUN_4d56_4528` warn→Attack Done thin; `2820` ported —
-`ai_contact.c:4882`).
+see `ai_contact_trade.c` / `ai_contact_actions.c` above).
 
 ### Nation turn shell
 

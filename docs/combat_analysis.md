@@ -159,7 +159,7 @@ even when the live multiplier comes from `local_1a` arithmetic above.
 | A. Warship | adjacent foreign ship on a **water** tile (a docked ship is on land → branch B). Per ship in that stack: drain by the **neighbour's** type — Privateer 4, Frigate 6, Man-O-War 8 thirds, other hulls nothing. Roll `1..(P_self + P_foe + 2)` with `P = 312e` = max MP thirds + 3, ×2 Privateer, +3 Galleon, −4 per hold in use, floor 1. roll < P_self → no slow, `@SHIPRUN` if either side human; roll == P_self → half drain; else full. `@SHIPSLOW` (0x1a51) when the mover is human. Stops once the mover is out of MP |
 | B. Fort | adjacent foreign colony: Fortress → +50 spent (dead stop), Fort → +2 thirds, Stockade nothing. No roll. `@SHIPSLOW` (0x1a5a) with the building name when the mover is human |
 | Not | fort fire (below) — that is an end-of-turn temp-attacker combat and never touches MP |
-| Test | `test_ai_euro_war.c` `unit_naval_ambush` (drain 0/4/8 sweep, PEACE, Privateer, Stockade/Fort/Fortress) |
+| Test | `test_ai_euro_war_*.c` (split 2026-09-23) `unit_naval_ambush` (drain 0/4/8 sweep, PEACE, Privateer, Stockade/Fort/Fortress) |
 
 The pre-2026-09-16 port had only an AI-only end-of-act "naval ambush" keyed on the mover's own type with tie = no slow; deleted.
 
@@ -263,9 +263,9 @@ spawn + fort VGA chrome.
 |------|----------|
 | `tests/unit/test_units_*.c (split 2026-09-23)` | move-enter combat; naval; fort fire; analysis gate; land engage/colony; best defender; capture/loot; popups |
 | `tests/unit/test_founding_fathers.c` | Washington promote; Drake naval; Revere; fallout |
-| `tests/unit/test_ai_euro_war.c` | naval/land hunt; adjacent combat chain; Stockade note |
-| `tests/unit/test_ai_king.c` | Cont. promote (king path) |
-| `tests/unit/test_ai_contact.c` | raid resolve fallout |
+| `tests/unit/test_ai_euro_war_*.c` (split 2026-09-23) | naval/land hunt; adjacent combat chain; Stockade note |
+| `tests/unit/test_ai_king_*.c` (split 2026-09-23) | Cont. promote (king path) |
+| `tests/unit/test_ai_contact_*.c` (split 2026-09-23) | raid resolve fallout |
 
 ---
 

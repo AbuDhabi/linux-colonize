@@ -1,6 +1,7 @@
 # Porting the Colony screen (multipurpose view) to golden fidelity
 
-How `src/core/colony_screen.c`/`.h` was aligned to six DOS reference
+How the `colony_screen*` family (`colony_screen{,_draw,_buildings,_panels,_popups}.c`,
+seams in `colony_screen_internal.h`) was aligned to six DOS reference
 screenshots — New Amsterdam and Recife (Dutch) × three `ColonyMultiMode`
 tabs — from `original_saves/report-screen-goldens/dutch-reports.SAV`.
 Follows the methodology in [report_screens.md](report_screens.md); read that
@@ -112,9 +113,11 @@ tab's hammers bar (own block). Production-tab badge ink is white (15), not
 - **BUY (`FUN_2f2b_5e44`, player-corrected twice):** one uniform `@BUYME1`
   Yes/No when affordable, `@BUYME0` info when not — never a
   tools-short-specific popup (`@NEEDTOOLS*` stays turn.c's EOT notice).
-  Cost = `hammers_deficit × 13` + `tools_deficit × (per-nation byte + 4)`
-  (table byte unresolved; approximated `difficulty + 4`, flagged in code),
-  **doubled when `colony->hammers == 0`**. BUY only tops up
+  Cost = `hammers_deficit × 13` + `tools_deficit × (nation's live Europe
+  Tools price + 4)`, **doubled when `colony->hammers == 0`**. The price byte
+  is nation record +0x5a; the old `difficulty + 4` approximation is retired
+  (carpenter audit, bugs.md #917) — formula owner is
+  [colony.md](colony.md) `colonies_construction_gold_cost`. BUY only tops up
   hammers/tools — completion happens next turn via
   `turn_run_colony_building_completion` (DOS's 5e44 has no completion
   call either). That pass also fixed a latent gap: the inline completion

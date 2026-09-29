@@ -2,7 +2,7 @@
 
 Method + pitfalls from porting the F2–F10 reports, written so future screen
 passes go faster. Read this before starting one. Code:
-`src/core/reports.c`/`.h`; `reports_render()` dispatches per
+`src/core/reports.c`/`.h`; `reports_render_w()` dispatches per
 `ColonizeReportId`.
 
 ## Tools
@@ -11,7 +11,7 @@ passes go faster. Read this before starting one. Code:
 - `scripts/render_diff.sh <reference> <candidate> [out]` — pixel diff;
   smoke check only (see "diff noise" below).
 - `build/render_report <data_dir> <save.SAV> <out.ppm> [report_id] [congress_page2]`
-  — calls `reports_load()`/`reports_render()` directly, no SDL/xvfb. **Use
+  — calls `reports_load()`/`reports_render_w()` directly, no SDL/xvfb. **Use
   this, not the live app**, for iterating. `convert out.ppm out.png` to
   view. Prints FF bells pool/need to stderr.
 - `build/sav_json <save.SAV>` — JSON dump; the fastest way to check what a
@@ -76,7 +76,7 @@ Title + OK button drawn once in the dispatcher
 (`reports_render_body_start`, `reports_render_ok_button`). Exceptions:
 Congress page 2 (full-bleed image, no chrome) and F10 Score (no OK button)
 — both need click-anywhere dismissal wired in `game_loop.c`. Multi-page
-reports plumb page state through `reports_render()` and the OK hit-test.
+reports plumb page state through `reports_render_w()` and the OK hit-test.
 
 ## Backgrounds and palettes
 
@@ -105,8 +105,10 @@ reports plumb page state through `reports_render()` and the OK hit-test.
   a fallback chain in the Score FF count (broken field tried first,
   correct bitmask only on exact zero) — grep other reads of a field once
   it's proven unreliable.
-- **Branch order in value pickers:** `founding_fathers_sync_from_col1()`'s
-  "treat bells as cumulative" branch ran first and almost always won,
+- **Branch order in value pickers:** `founding_fathers_sync_from_col1()` (since
+  retired — the port now reads `col1->nation[].liberty_bells_pool` directly,
+  there is no second live pool to sync) had a "treat bells as cumulative"
+  branch that ran first and almost always won,
   zeroing a valid live pool — symptom "right after gameplay, zero on fresh
   load" (accrual doesn't run the sync path). If a value is sometimes
   mysteriously zero, check earlier branches before suspecting the data.
