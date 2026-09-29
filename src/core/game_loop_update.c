@@ -3176,6 +3176,22 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     return false;
   }
 
+  /*
+   * Port-only: a DOS-sized screen is centred in a larger window, so shift the
+   * pointer into its own 320x200 space before anything hit-tests it. The map
+   * view reports a zero offset and is unaffected.
+   */
+  ColonizeInputState shifted;
+  int screen_off_x = 0;
+  int screen_off_y = 0;
+  game_screen_offset(&screen_off_x, &screen_off_y);
+  if (screen_off_x != 0 || screen_off_y != 0) {
+    shifted = *input;
+    shifted.mouse_x -= screen_off_x;
+    shifted.mouse_y -= screen_off_y;
+    input = &shifted;
+  }
+
   if (game->elapsed_ms == UINT32_MAX) {
     return false;
   }

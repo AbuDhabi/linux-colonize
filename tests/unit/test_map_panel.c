@@ -107,6 +107,55 @@ static int case_panel_geometry_constants(void) {
   return 0;
 }
 
+/* Resized window (core/screen_geom.h): sidebar keeps its 80px and stays flush
+ * right, the viewport takes the rest, partial edge tiles round up, and the
+ * stack-list / End-of-Turn cut-offs follow the bottom. */
+static int case_panel_geometry_resized(void) {
+  int rc = 0;
+  screen_geom_set(1024, 768);
+  if (MAP_PANEL_W != 80 || MAP_PANEL_X != 944 || MAP_VIEW_W != 944) {
+    rc = fail("resized panel x/w mismatch");
+  }
+  if (rc == 0 && (MAP_VIEW_H != 760 || MAP_VIEW_ORIGIN_Y != MAP_MENU_BAR_H)) {
+    rc = fail("resized viewport height mismatch");
+  }
+  if (rc == 0 && (MAP_VIEW_TILE_COLS != 59 || MAP_VIEW_TILE_ROWS != 48)) {
+    rc = fail("resized viewport tile counts mismatch");
+  }
+  /* Round up: 1000px of viewport is 63 tiles, the last one clipped. */
+  if (rc == 0) {
+    screen_geom_set(1080, 768);
+    if (MAP_VIEW_W != 1000 || MAP_VIEW_TILE_COLS != 63) {
+      rc = fail("partial edge tile should round up");
+    }
+  }
+  if (rc == 0) {
+    screen_geom_set(1024, 768);
+    if (!map_panel_contains_xy(1000, 700) || map_panel_contains_xy(900, 700) ||
+        map_panel_contains_xy(1000, 800)) {
+      rc = fail("resized panel hit test mismatch");
+    }
+  }
+  /* Clamps: never below the DOS screen, never past the allocation ceiling. */
+  if (rc == 0) {
+    screen_geom_set(64, 64);
+    if (screen_geom_w() != SCREEN_BASE_W || screen_geom_h() != SCREEN_BASE_H) {
+      rc = fail("screen_geom_set should clamp up to 320x200");
+    }
+  }
+  if (rc == 0) {
+    screen_geom_set(99999, 99999);
+    if (screen_geom_w() != SCREEN_MAX_W || screen_geom_h() != SCREEN_MAX_H) {
+      rc = fail("screen_geom_set should clamp down to the maximum");
+    }
+  }
+  screen_geom_set(SCREEN_BASE_W, SCREEN_BASE_H);
+  if (rc == 0 && (MAP_PANEL_X != 240 || MAP_VIEW_H != 192)) {
+    rc = fail("reset to 320x200 should restore the DOS geometry");
+  }
+  return rc;
+}
+
 static int case_panel_load_and_labels(void) {
   if (ensure_shared() != 0) {
     return 1;
@@ -985,6 +1034,7 @@ static int case_repair_badge_digit(void) {
 
 static const TestCase k_cases[] = {
   {"panel_geometry_constants", case_panel_geometry_constants},
+  {"panel_geometry_resized", case_panel_geometry_resized},
   {"panel_load_and_labels", case_panel_load_and_labels},
   {"map_load_size", case_map_load_size},
   {"minimap_rect_and_origin", case_minimap_rect_and_origin},

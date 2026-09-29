@@ -108,7 +108,8 @@ void map_panel_free(MapPanel* panel) {
 }
 
 bool map_panel_contains_xy(int mouse_x, int mouse_y) {
-  return mouse_x >= MAP_PANEL_X && mouse_x < 320 && mouse_y >= MAP_MENU_BAR_H && mouse_y < 200;
+  return mouse_x >= MAP_PANEL_X && mouse_x < screen_geom_w() && mouse_y >= MAP_MENU_BAR_H &&
+         mouse_y < screen_geom_h();
 }
 
 void map_panel_clamp_view_origin(
@@ -168,7 +169,7 @@ void map_panel_minimap_rect(
 
   /* Center horizontally in the panel interior (leave room for the left rule + brown). */
   const int inner_x0 = MAP_PANEL_X + 2;
-  const int inner_x1 = 319;
+  const int inner_x1 = screen_geom_w() - 1;
   const int inner_w = inner_x1 - inner_x0 + 1;
   const int px = inner_x0 + (inner_w - w) / 2;
   /* Brown top border at MAP_MENU_BAR_H touches the menu black rule above. */
@@ -714,10 +715,15 @@ static const char* map_panel_order_label(const ColonizeMsgCatalog* names, int or
 #define MAP_PANEL_TEXT_TOP 0x33
 /* One unit-chrome row. */
 #define MAP_PANEL_ROW_H 0x12
-/* Stop listing the tile stack once a row would start at/after this y. */
-#define MAP_PANEL_STACK_Y_LIMIT 0xb8
-/* "End of Turn" never sits lower than this minus one text line. */
-#define MAP_PANEL_EOT_Y_MAX 0xc6
+/* Stop listing the tile stack once a row would start at/after this y.
+ * DOS-LITERAL FUN_49dd_0424: the absolute 0xb8 (184), measured 16px up from the
+ * 200px screen bottom. Port-only rebasing onto the live screen height so the
+ * stack list grows with the window; == 0xb8 at h = 200. */
+#define MAP_PANEL_STACK_Y_LIMIT (screen_geom_h() - 16)
+/* "End of Turn" never sits lower than this minus one text line.
+ * DOS-LITERAL FUN_49dd_0424: absolute 0xc6 (198) = 2px up from the 200px screen
+ * bottom; port-only rebasing as above; == 0xc6 at h = 200. */
+#define MAP_PANEL_EOT_Y_MAX (screen_geom_h() - 2)
 /* Grey (partially loaded) commodity icons; colored set is CARGO_ICON_BASE. */
 #define MAP_PANEL_CARGO_GREY_BASE 38
 /* DOS: a hold shows the colored icon at 100, the grey one below that. */

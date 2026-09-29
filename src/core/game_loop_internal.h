@@ -334,7 +334,13 @@ void game_combat_watch(
 void game_combat_dissolve(void* user, int phase);
 /* DOS FUN_281f_03ea fizzle present, shared by combat outcomes and the two
  * "un-dissolve" reveals (colony building, Continental Congress father). */
-bool game_fizzle_snapshot_present(ColonizeGameState* game, uint8_t* out_before);
+/* Centring offset of the last rendered DOS-sized screen (0,0 on the map). */
+void game_screen_offset(int* out_x, int* out_y);
+
+/* Render + present the current state into *buf, growing it to the live screen
+ * size (core/screen_geom.h) first. Pass the same buf/cap statics to
+ * game_fizzle_present afterwards. */
+bool game_fizzle_snapshot_present(ColonizeGameState* game, uint8_t** buf, size_t* cap);
 void game_fizzle_present(ColonizeGameState* game, const uint8_t* before);
 void game_congress_reveal_new_father(ColonizeGameState* game, int ff_index);
 void game_combat_popup_pump(void* user);

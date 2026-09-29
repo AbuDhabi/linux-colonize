@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "core/json_min.h"
+#include "core/screen_geom.h"
 #include "core/strutil.h"
 #include "core/window_log.h"
 #include "platform/diagnostics.h"
@@ -117,6 +118,26 @@ int settings_clamp_window_scale(int64_t scale) {
   return (int)scale;
 }
 
+int settings_clamp_window_width(int64_t w) {
+  if (w < SCREEN_BASE_W) {
+    return SCREEN_BASE_W;
+  }
+  if (w > SCREEN_MAX_W) {
+    return SCREEN_MAX_W;
+  }
+  return (int)w;
+}
+
+int settings_clamp_window_height(int64_t h) {
+  if (h < SCREEN_BASE_H) {
+    return SCREEN_BASE_H;
+  }
+  if (h > SCREEN_MAX_H) {
+    return SCREEN_MAX_H;
+  }
+  return (int)h;
+}
+
 void settings_defaults(ColonizeSettings* out) {
   if (!out) {
     return;
@@ -139,6 +160,8 @@ void settings_defaults(ColonizeSettings* out) {
 
   out->windowed = true;
   out->window_scale = 2;
+  out->window_width = SCREEN_BASE_W;
+  out->window_height = SCREEN_BASE_H;
   out->window_log_lines = 0;
   out->no_sound = false;
   snprintf(out->data_dir, sizeof(out->data_dir), "./COLONIZE");
@@ -202,6 +225,8 @@ bool settings_save_file(const char* path, const ColonizeSettings* in, char* err,
   fprintf(f, "  \"display\": {\n");
   wb(f, "windowed", in->windowed, false);
   fprintf(f, "    \"window_scale\": %d,\n", in->window_scale);
+  fprintf(f, "    \"window_width\": %d,\n", in->window_width);
+  fprintf(f, "    \"window_height\": %d,\n", in->window_height);
   fprintf(f, "    \"window_log_lines\": %d\n", in->window_log_lines);
   fprintf(f, "  },\n");
 
@@ -349,6 +374,14 @@ bool settings_load_file(const char* path, ColonizeSettings* out, char* err, size
   int64_t scale = 0;
   if (d && json_get_i64(d, "window_scale", &scale)) {
     out->window_scale = settings_clamp_window_scale(scale);
+  }
+  int64_t win_w = 0;
+  if (d && json_get_i64(d, "window_width", &win_w)) {
+    out->window_width = settings_clamp_window_width(win_w);
+  }
+  int64_t win_h = 0;
+  if (d && json_get_i64(d, "window_height", &win_h)) {
+    out->window_height = settings_clamp_window_height(win_h);
   }
   int64_t log_lines = 0;
   if (d && json_get_i64(d, "window_log_lines", &log_lines)) {

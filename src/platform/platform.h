@@ -75,7 +75,7 @@ typedef struct ColonizeInputState {
   bool mouse_right_down;
   bool mouse_right_clicked; /* edged: true on right button down this frame */
   bool mouse_right_released; /* edged: true on right button up this frame */
-  int mouse_x;             /* framebuffer/logical coords (320×200 space) */
+  int mouse_x;             /* framebuffer/logical coords (platform_framebuffer_size) */
   int mouse_y;
   ColonizeKey last_key;
   bool alt_held;           /* Left/Right Alt down this frame */
@@ -114,8 +114,12 @@ typedef struct ColonizePlatformConfig {
   bool windowed;
   bool no_sound;
   int window_scale;
-  /* Extra rows below the 320x200 screen for the port-only message log strip
-   * (settings.json display.window_log_lines); 0 = plain 320x200. */
+  /* Initial logical screen size, EXCLUDING extra_height (settings.json
+   * display.window_width / window_height). 0 = the DOS 320x200. */
+  int window_width;
+  int window_height;
+  /* Extra rows below the screen for the port-only message log strip
+   * (settings.json display.window_log_lines); 0 = no strip. */
   int extra_height;
 } ColonizePlatformConfig;
 
@@ -129,6 +133,11 @@ bool platform_present(
   const ColonizeFramebuffer8* framebuffer,
   const ColonizePalette* palette
 );
+/* Current FULL logical framebuffer size (game screen + log strip). Starts at
+ * 320x(200+extra) and grows when the window is resized. */
+void platform_framebuffer_size(const ColonizePlatform* platform, int* out_w, int* out_h);
+int platform_log_strip_height(const ColonizePlatform* platform);
+
 uint32_t platform_ticks_ms(void);
 void platform_sleep_ms(uint32_t ms);
 

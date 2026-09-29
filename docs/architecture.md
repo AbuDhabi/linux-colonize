@@ -262,7 +262,42 @@ Cluster table (not every file). Paths are under `src/core/` unless noted.
    `platform_present`
 4. Shutdown: `game_destroy`, `sound_shutdown`, `platform_destroy`, `diag_shutdown`
 
-Framebuffer is fixed **320×200** indexed + `ColonizePalette`.
+Framebuffer is an indexed 8-bit surface + `ColonizePalette`. DOS is a fixed
+**320×200**; the port's window is resizable (and maximizable), so the surface is
+the window size divided by the integer `display.window_scale`, clamped to
+`[320, SCREEN_MAX_W] × [200, SCREEN_MAX_H]` with the leftover sub-scale pixels
+letterboxed black.
+
+#### Dynamic window sizing
+
+[`src/core/screen_geom.h`](../src/core/screen_geom.h) holds the live logical
+screen size (excluding the port-only message-log strip). `main.c` re-sets it
+from `platform_framebuffer_size` every frame; it defaults to 320×200, so every
+headless path and every test sees DOS geometry unless something resizes.
+
+Who reads it:
+
+| Area | Behaviour when the window grows |
+|------|--------------------------------|
+| Overland map view | The only screen that lays itself out from the live size. |
+| Menu bar (`map_menu.c`) | Stretches; titles stay left-packed from x=12, COLONIZOPEDIA stays right-aligned over the minimap, so the slack lands in front of it. |
+| Right sidebar (`map_panel.c`) | Keeps `MAP_PANEL_W` = 80 px, stays flush right, grows downwards — the unit stack list (`MAP_PANEL_STACK_Y_LIMIT`) and the End-of-Turn line (`MAP_PANEL_EOT_Y_MAX`) are rebased on the live height. |
+| Map viewport | Takes the rest; partial tiles at the right/bottom edge are clipped, so `MAP_VIEW_TILE_COLS/ROWS` round **up**. |
+| Message log strip | Stays at the bottom, stretches horizontally; its height is still `display.window_log_lines`. |
+| Persistence | `display.window_width` / `window_height` hold the last logical size (strip excluded, defaults 320×200). `main.c` rewrites them ~1 s after the size stops changing, windowed mode only; `platform_create` restores them. |
+| Every other screen | Rendered into a 320×200 scratch frame by `game_render`, then centred by `game_render_centre_fixed` with WOODTILE padding and a 1px black rule drawn just OUTSIDE the frame (it separates without covering a pixel). `game_update` shifts the pointer by `game_screen_offset` so they hit-test in their own 320×200 space, and the log strip is replaced by plain wood — the strip belongs to the map view only. |
+
+`MAP_PANEL_X` / `MAP_VIEW_*` are **function calls, not integer constant
+expressions** — array dimensions and static initialisers must use the
+`MAP_VIEW_W_MAX` / `MAP_VIEW_H_MAX` forms, or a grown scratch buffer
+(`game_scratch_fb` in `game_loop.c`, which the nested present pumps use).
+
+Two DOS-literal behaviours have no counterpart above 320×200 and degrade
+deliberately: `game_map_zoom_clamp` drops the deepest zoom tiers when the
+zoomed tile grid would overflow `MAP_ZOOM_MAX_VIEW_COLS/ROWS` (the offscreen
+compositor works at native 16 px/tile), and `game_fizzle_present` presents the
+finished frame instead of running the 16-bit, exactly-64000-pixel LFSR
+dissolve.
 
 ### Contracts (pointers, not API dumps)
 

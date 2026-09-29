@@ -140,6 +140,7 @@ add_library(colonize_sim STATIC
   src/core/col1_stuff_census.c
   # --- Shared ---------------------------------------------------------------
   src/core/ai_popup.c
+  src/core/screen_geom.c
   src/core/window_log.c
   src/core/popup_msg.c
   src/core/assets.c
@@ -651,6 +652,7 @@ set(COLONIZE_SLIM_SOURCES
   src/core/popup.c
   src/core/popup_msg.c
   src/core/map_menu.c
+  src/core/screen_geom.c
   src/core/europe.c
   src/core/europe_pool.c
   src/core/europe_dock.c
