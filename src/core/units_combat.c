@@ -2556,27 +2556,16 @@ static int col1_destroy_tribe_at(
   if (map) {
     map_occupancy_set_layer2(map, x, y, MAP_OCCUPANCY_HAS_CITY, false);
   }
-  const uint16_t old_count = col1->head.tribe_count;
-  if (found + 1 < (int)old_count) {
-    memmove(
-      &col1->tribe[found],
-      &col1->tribe[found + 1],
-      ((size_t)old_count - (size_t)found - 1u) * sizeof(ColonizeCol1Tribe)
-    );
-  }
-  col1->head.tribe_count = (uint16_t)(old_count - 1u);
-
-  /*
-   * DS:0x54f6 attitude[euro] IS field +10 of the settlement record (stride
-   * 0x12 = the "9 words" of the 0x54f6 indexing), so the memmove above
-   * already carried it — no parallel array to shift since the phantom
-   * `indian_tension` was retired 2026-09-08.
-   */
-
   /* FUN_4d56_00e0 (raw 81310-81319): units bound to the destroyed village
    * are DESTROYED with it (any Indian-owned unit whose +0x314a home-village
    * byte names it), higher indexes shift down. The old port only cleared
-   * the binding to -1. */
+   * the binding to -1.
+   *
+   * Order is load-bearing: DOS runs this loop BEFORE the record compaction
+   * below, so the needs_colonist bit each despawn stamps on record `found`
+   * (FUN_1427_0824, units_map.c) is overwritten by the shift and is a no-op.
+   * With the compaction first, that bit landed on the surviving neighbour
+   * village, which then issued a spurious extra replacement Brave. */
   if (units) {
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       ColonizeUnit* u = &units->units[i];
@@ -2596,6 +2585,23 @@ static int col1_destroy_tribe_at(
       }
     }
   }
+
+  const uint16_t old_count = col1->head.tribe_count;
+  if (found + 1 < (int)old_count) {
+    memmove(
+      &col1->tribe[found],
+      &col1->tribe[found + 1],
+      ((size_t)old_count - (size_t)found - 1u) * sizeof(ColonizeCol1Tribe)
+    );
+  }
+  col1->head.tribe_count = (uint16_t)(old_count - 1u);
+
+  /*
+   * DS:0x54f6 attitude[euro] IS field +10 of the settlement record (stride
+   * 0x12 = the "9 words" of the 0x54f6 indexing), so the memmove above
+   * already carried it — no parallel array to shift since the phantom
+   * `indian_tension` was retired 2026-09-08.
+   */
 
   /* FUN_4d56_00e0 tail (raw 81332-81346): decrement the nation's village
    * count (DS:0x962a); at zero the nation goes EXTINCT (indian +3 bit 0x80,
