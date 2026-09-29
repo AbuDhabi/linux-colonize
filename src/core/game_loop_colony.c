@@ -864,10 +864,23 @@ void game_colony_area_tile_drop(
  * behind the current project and leaves the picker open. With nothing in
  * production there is nothing to queue behind, so it starts the project
  * instead — still without closing, so a follow-up Shift pick queues behind it.
+ *
+ * A finished project counts as nothing in production: DOS leaves
+ * building_in_production pointed at the completed building (see
+ * colonies_try_complete_building), so queueing behind it would wait on a
+ * project that can never complete again.
  */
+static bool game_colony_production_idle(const ColonizeColony* col) {
+  const int bid = col->building_in_production;
+  if (bid < 0) {
+    return true;
+  }
+  return bid < COLONIZE_BUILDING_TYPES_MAX && col->has_building[bid];
+}
+
 void game_colony_queue_construction(ColonizeGameState* game, int bid) {
   const ColonizeColony* col = colonies_get(&game->colonies, game->colony_view_id);
-  if (col && col->building_in_production < 0) {
+  if (col && game_colony_production_idle(col)) {
     const ColoniesBuildableOpts bopts = game_colony_buildable_opts(game);
     colonies_set_construction_ex(&game->colonies, game->colony_view_id, bid, &bopts);
   } else {
