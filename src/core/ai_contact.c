@@ -1294,6 +1294,18 @@ int ai_contact_try_euro_attack_confirm(
   if (ai_diplo_at_war(ctx->col1, euro_nation, target_nation)) {
     return 0;
   }
+  /*
+   * FUN_465b_0000 raw 75528-75529: the band that asks @HAVETREATY and
+   * declares the war is entered only when the tile occupant is NOT a
+   * Privateer (0x10), and its treaty arm only when the mover is not one
+   * either. Hunting a Privateer, or raiding with one, opens no war and asks
+   * nothing (units_privateer_attack).
+   */
+  if (units_privateer_attack(
+        ctx->units, unit_id, units_id_at(ctx->units, dest_x, dest_y)
+      )) {
+    return 0;
+  }
   if (ai_contact_euro_war_pending(ctx->ai_popups, unit_id)) {
     return 1;
   }

@@ -500,7 +500,11 @@ ColonizeEnterReason units_enter_probe_w(
     if (sea && foe_sea) {
       const ColonizeUnit* fu = units_get_const(pool, foe);
       const int foe_nation = fu ? fu->nation_id : -1;
-      if (mover && !units_at_war_for_move(mover_nation, foe_nation)) {
+      /* 465b raw 75528-75529: a Privateer on either side of the entry skips
+       * the relation band entirely — it is fair game at peace and it preys at
+       * peace, no war needed (units_privateer_attack). */
+      if (mover && !units_at_war_for_move(mover_nation, foe_nation) &&
+          !units_privateer_attack(pool, mover->id, foe)) {
         g_units_last_enter_reason = COLONIZE_ENTER_BOUNCE_PEACE;
       } else if (mover && !units_is_combat_role(pool, mover)) {
         /*

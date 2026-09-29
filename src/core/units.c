@@ -439,6 +439,30 @@ UNITS_TYPE_PREDICATE(units_type_is_frigate, UNITS_KIND_FRIGATE)
 UNITS_TYPE_PREDICATE(units_type_is_man_o_war, UNITS_KIND_MAN_O_WAR)
 #undef UNITS_TYPE_PREDICATE
 
+/*
+ * DOS-LITERAL FUN_465b_0000 raw 75527-75551: the whole relation band
+ *
+ *     if ((3 < uVar11) || (*(char *)(iVar12 * 0x1c + 0x3146) != '\x10')) {
+ *       if (mover_type == 0x10) { ...sighting bits only... }
+ *       else if (mover Euro)    { ...@HAVETREATY / declare war... }
+ *
+ * skips the treaty prompt AND the war declaration whenever either side of the
+ * entry is a Privateer (@UNIT row 0x10): the occupant test guards the band,
+ * the mover test takes the sighting-bit arm instead. So hunting a Privateer,
+ * or raiding with one, never opens a Euro war (bugs.md).
+ */
+bool units_privateer_attack(const ColonizeUnitPool* pool, int mover_id, int foe_id) {
+  if (!pool) {
+    return false;
+  }
+  const ColonizeUnit* m = units_get_const(pool, mover_id);
+  const ColonizeUnit* f = units_get_const(pool, foe_id);
+  if (m && m->active && units_type_is_privateer(units_type(pool, m->type_index))) {
+    return true;
+  }
+  return f && f->active && units_type_is_privateer(units_type(pool, f->type_index));
+}
+
 bool units_type_is_continental(const ColonizeUnitType* t) {
   return units_kind_is_continental(units_type_kind(t));
 }

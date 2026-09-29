@@ -1797,11 +1797,20 @@ void map_panel_render_w(
             );
           }
           char line[72];
+          /*
+           * DOS-LITERAL FUN_49dd_0424 raw 79266: the foreign-stack row skips
+           * the @NATIONALITY word when the top unit's type byte is 0x10 —
+           * a foreign Privateer flies no flag and reads just "Privateer".
+           * The @UNIT name draw that follows is unconditional.
+           */
+          const bool flagless = units_type_is_privateer(
+            units_type(units, units_display_type_index(units, top->id))
+          );
           snprintf(
             line,
             sizeof(line),
-            "%s %s",
-            map_panel_nationality(top->nation_id),
+            flagless ? "%s%s" : "%s %s",
+            flagless ? "" : map_panel_nationality(top->nation_id),
             map_panel_unit_type_name(units, top)
           );
           font_draw_text(font, framebuffer, indent_x, text_y + 2, line, MAP_PANEL_COL_TEXT);
