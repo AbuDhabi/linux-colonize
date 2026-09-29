@@ -103,6 +103,7 @@ Chunks:
 | Tag | Owner | Contents |
 |-----|-------|----------|
 | `VTIN` | `village_trade_intel.c` | Village sidebar `Buys:` / `Sells:` / `Skill:` knowledge per settlement tile × European nation (`uint16` version 2, `uint16` entry count, 40 B per entry; version 1's 36 B trade-only entries remain readable) |
+| `BQUE` | `colony_build.c` | Port-only per-colony build queues (`uint16` record count, then `x`, `y`, `count`, `count` project ids per colony, keyed by colony tile). QOL only — DOS keeps one project per colony |
 
 Wiring: `col1_bridge_capture` serializes the live side tables into chunks,
 `col1_bridge_apply` restores them (and clears the table when the save has no

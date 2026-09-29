@@ -858,9 +858,28 @@ void game_colony_area_tile_drop(
  *
  * Closes the construction panel and publishes the status line on every path.
  */
+/*
+ * Port-only QOL: Shift-click / Shift+Enter on a Construction row queues `bid`
+ * behind the current project and leaves the picker open. With nothing in
+ * production there is nothing to queue behind, so it starts the project
+ * instead — still without closing, so a follow-up Shift pick queues behind it.
+ */
+void game_colony_queue_construction(ColonizeGameState* game, int bid) {
+  const ColonizeColony* col = colonies_get(&game->colonies, game->colony_view_id);
+  if (col && col->building_in_production < 0) {
+    const ColoniesBuildableOpts bopts = game_colony_buildable_opts(game);
+    colonies_set_construction_ex(&game->colonies, game->colony_view_id, bid, &bopts);
+  } else {
+    colonies_build_queue_push(&game->colonies, game->colony_view_id, bid);
+  }
+}
+
 void game_colony_commit_construction(ColonizeGameState* game, int bid) {
   ColonyScreenView* csv = &game->colony_screen;
   const ColoniesBuildableOpts bopts = game_colony_buildable_opts(game);
+  /* A plain (non-Shift) pick replaces the whole plan, port-only build queue
+   * included — Shift-click is the only way to keep one. */
+  colonies_build_queue_clear(&game->colonies, game->colony_view_id);
   if (colonies_set_construction_ex(&game->colonies, game->colony_view_id, bid, &bopts)) {
     const ColonizeBuildingType* bt = colonies_building_type(&game->colonies, bid);
     const char* uname = NULL;

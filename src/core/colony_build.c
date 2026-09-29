@@ -339,6 +339,164 @@ bool colonies_set_construction_ex(
   return true;
 }
 
+/*
+ * Port-only QOL build queue (ColonizeColony::build_queue). Nothing here has a
+ * DOS counterpart: DOS keeps one project per colony and asks the player again
+ * on every completion. The queue only feeds colonies_set_construction_ex, so a
+ * queued start goes through the same gates and latch clears as a manual pick.
+ */
+int colonies_build_queue_pos(const ColonizeColonyPool* pool, int colony_id, int bid) {
+  const ColonizeColony* col = colonies_get(pool, colony_id);
+  if (!col) {
+    return 0;
+  }
+  for (int i = 0; i < col->build_queue_count; ++i) {
+    if (col->build_queue[i] == bid) {
+      return i + 1;
+    }
+  }
+  return 0;
+}
+
+void colonies_build_queue_clear(ColonizeColonyPool* pool, int colony_id) {
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (col) {
+    col->build_queue_count = 0;
+  }
+}
+
+bool colonies_build_queue_push(ColonizeColonyPool* pool, int colony_id, int bid) {
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (!col || bid < 0) {
+    return false;
+  }
+  if (col->build_queue_count >= COLONIZE_COLONY_BUILD_QUEUE_MAX) {
+    return false;
+  }
+  if (col->building_in_production == bid || colonies_build_queue_pos(pool, colony_id, bid) > 0) {
+    return false;
+  }
+  col->build_queue[col->build_queue_count++] = bid;
+  return true;
+}
+
+/*
+ * A completion freed the project slot: start the head of the queue. Entries
+ * that no longer pass colonies_set_construction_ex (already built by an
+ * upgrade, wagon cap reached, population dropped) are dropped and the next one
+ * tried, so the queue never wedges. Called from both completion paths, which
+ * is where every caller — EOT sweeps and the inline production complete —
+ * converges.
+ */
+static void colonies_build_queue_advance(
+  ColonizeColonyPool* pool, ColonizeColony* col, const ColonizeCol1Save* col1
+) {
+  if (!pool || !col || col->build_queue_count <= 0) {
+    return;
+  }
+  ColoniesBuildableOpts opts;
+  memset(&opts, 0, sizeof(opts));
+  opts.col1 = col1;
+  while (col->build_queue_count > 0) {
+    const int bid = col->build_queue[0];
+    for (int i = 1; i < col->build_queue_count; ++i) {
+      col->build_queue[i - 1] = col->build_queue[i];
+    }
+    col->build_queue_count--;
+    if (colonies_set_construction_ex(pool, col->id, bid, &opts)) {
+      return;
+    }
+  }
+}
+
+/* 'BQUE' payload: u16 record count, then {u8 x, u8 y, u8 n, u8 ids[n]} each. */
+uint8_t* colonies_build_queue_serialize(const ColonizeColonyPool* pool, size_t* out_size) {
+  if (out_size) {
+    *out_size = 0;
+  }
+  if (!pool) {
+    return NULL;
+  }
+  size_t need = 2;
+  int records = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* col = &pool->colonies[i];
+    if (!col->active || col->build_queue_count <= 0) {
+      continue;
+    }
+    records++;
+    need += 3 + (size_t)col->build_queue_count;
+  }
+  if (records == 0) {
+    return NULL;
+  }
+  uint8_t* buf = (uint8_t*)malloc(need);
+  if (!buf) {
+    return NULL;
+  }
+  buf[0] = (uint8_t)(records & 0xff);
+  buf[1] = (uint8_t)((records >> 8) & 0xff);
+  size_t at = 2;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* col = &pool->colonies[i];
+    if (!col->active || col->build_queue_count <= 0) {
+      continue;
+    }
+    buf[at++] = (uint8_t)col->x;
+    buf[at++] = (uint8_t)col->y;
+    buf[at++] = (uint8_t)col->build_queue_count;
+    for (int q = 0; q < col->build_queue_count; ++q) {
+      buf[at++] = (uint8_t)col->build_queue[q];
+    }
+  }
+  if (out_size) {
+    *out_size = at;
+  }
+  return buf;
+}
+
+void colonies_build_queue_deserialize(
+  ColonizeColonyPool* pool, const uint8_t* data, size_t size
+) {
+  if (!pool) {
+    return;
+  }
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    pool->colonies[i].build_queue_count = 0;
+  }
+  if (!data || size < 2) {
+    return;
+  }
+  const int records = (int)data[0] | ((int)data[1] << 8);
+  size_t at = 2;
+  for (int r = 0; r < records; ++r) {
+    if (at + 3 > size) {
+      return;
+    }
+    const int x = data[at];
+    const int y = data[at + 1];
+    const int stored = data[at + 2];
+    at += 3;
+    if (at + (size_t)stored > size) {
+      return;
+    }
+    ColonizeColony* col = NULL;
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      ColonizeColony* c = &pool->colonies[i];
+      if (c->active && c->x == x && c->y == y) {
+        col = c;
+        break;
+      }
+    }
+    /* A payload from a build with a deeper queue is truncated, not rejected. */
+    for (int q = 0; q < stored && col && col->build_queue_count < COLONIZE_COLONY_BUILD_QUEUE_MAX;
+         ++q) {
+      col->build_queue[col->build_queue_count++] = data[at + q];
+    }
+    at += (size_t)stored;
+  }
+}
+
 bool colonies_clear_construction(ColonizeColonyPool* pool, int colony_id) {
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
   if (!col) {
@@ -567,6 +725,7 @@ bool colonies_try_complete_building_ex(
    * a later call against the same still-selected, now-owned project. */
   col->build_ai_flags =
     (uint8_t)(col->build_ai_flags & (uint8_t)~COLONIZE_BUILD_AI_WANTS_CONSTRUCTION);
+  colonies_build_queue_advance(pool, col, col1);
   return true;
 }
 
@@ -645,6 +804,7 @@ int colonies_try_complete_unit_construction(
    * needed: a unit is never "owned" by the colony, and resetting hammers to
    * 0 here is itself the guard (next call reads hammers_need > 0 again). */
   col->hammers = 0;
+  colonies_build_queue_advance(pool, col, col1);
   return uid;
 }
 

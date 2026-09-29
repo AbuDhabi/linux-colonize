@@ -321,7 +321,18 @@ void colony_screen_open_construction(
     pool, colony_id, view->buildable_ids, COLONY_BUILDABLE_MAX, buildable_opts
   );
   view->construction_open = true;
+  /* Row 0 is "(no production)"; rows 1.. are buildable_ids. Highlight the
+   * colony's current project so CHANGE opens on it, not on row 0. */
   view->construction_selection = 0;
+  const ColonizeColony* col = colonies_get(pool, colony_id);
+  if (col && col->building_in_production >= 0) {
+    for (int i = 0; i < view->buildable_count; ++i) {
+      if (view->buildable_ids[i] == col->building_in_production) {
+        view->construction_selection = i + 1;
+        break;
+      }
+    }
+  }
 }
 
 void colony_screen_close_jobs(ColonyScreenView* view) {
