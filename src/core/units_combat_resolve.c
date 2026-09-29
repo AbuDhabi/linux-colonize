@@ -680,45 +680,25 @@ bool units_resolve_naval_combat_ff_w(
        * damaged. A warship defeating a warship is damage-or-sink only.
        */
       const int def_transport = dt && dt->attack == 0;
-      if (human && def_transport && !def_alive) {
+      if (human && def_transport && !def_alive && !is_priv) {
+        /*
+         * Crown / warship seizure → Royal Navy @SEIZURESEA. bugs.md #986: a
+         * PRIVATEER prize gets no dialog here. @SEIZURE* is Royal Navy / Army
+         * wording and no catalog section covers a privateer capture, so the
+         * port shows nothing rather than typed English; the real DOS cue is
+         * one of the unresolved numeric message ids (docs/popup_string_resolver.md).
+         */
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
         tok.string0 = dt && dt->name[0] ? dt->name : "";
-        if (is_priv) {
-          /*
-           * Privateer prize — not Crown. GAME.TXT @SEIZURE* is Royal Navy /
-           * Army wording, so it doesn't fit; no catalog section covers a
-           * Privateer capture at all. Port-authored short notice.
-           */
-          char body[AI_POPUP_BODY_LEN];
-          snprintf(
-            body,
-            sizeof(body),
-            "%s taken as a prize.",
-            tok.string0
-          );
-          if (g_units_combat_popups) {
-            ai_popup_enqueue_ok_ctx(
-              g_units_combat_popups,
-              AI_POPUP_TAG_COMBAT_SEIZURE,
-              atk_nation,
-              def_nation,
-              0,
-              NULL,
-              body
-            );
-          }
-        } else {
-          /* Crown / warship seizure → Royal Navy @SEIZURESEA. */
-          units_combat_enqueue_tok(
-            AI_POPUP_TAG_COMBAT_SEIZURE,
-            "SEIZURESEA",
-            atk_nation,
-            def_nation,
-            0,
-            &tok,
-            "");
-        }
+        units_combat_enqueue_tok(
+          AI_POPUP_TAG_COMBAT_SEIZURE,
+          "SEIZURESEA",
+          atk_nation,
+          def_nation,
+          0,
+          &tok,
+          "");
       }
     }
     g_units_last_combat = 1;
@@ -950,12 +930,16 @@ bool units_fort_vs_ship(
       memset(&tok, 0, sizeof(tok));
       tok.string0 = units_combat_nation_label(col1, def->nation_id);
       tok.string1 = dt->name;
-      tok.string2 = "shore";
-      tok.string3 = "batteries";
-      char fb[AI_POPUP_BODY_LEN];
-      snprintf(fb, sizeof(fb), "%s %s sunk by coastal fortifications!", tok.string0, tok.string1);
+      /*
+       * %STRING2 %STRING3 = the winner nation + hull (0352 raw 99654-99658).
+       * The fort's temp attacker has no unit type of its own, so the pair is
+       * the firing nation and an empty hull — the old "shore"/"batteries"
+       * words were typed English, not catalog text (bugs.md #987).
+       */
+      tok.string2 = units_combat_nation_label(col1, fort_nation);
+      tok.string3 = "";
       units_combat_enqueue_tok(
-        AI_POPUP_TAG_COMBAT_SHIP, "SHIPSUNK", def->nation_id, -1, 0, &tok, fb
+        AI_POPUP_TAG_COMBAT_SHIP, "SHIPSUNK", def->nation_id, -1, 0, &tok, ""
       );
       units_play_event_sound(0x57);
     }

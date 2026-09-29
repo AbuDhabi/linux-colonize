@@ -2383,9 +2383,14 @@ static AiTalkStepStatus ai_talk_stage_ally_pick(
   if (n == 0) {
     return AI_TALK_STEP_CONTINUE;
   }
+  /*
+   * bugs.md #988: the prompt line is PARKED with the rest of FA 3f41 — no
+   * GAME.TXT section carries it and its numeric id is unresolved, so the list
+   * stands alone rather than under typed English.
+   */
   (void)ai_popup_enqueue_choice_ctx(
     ctx->ai_popups, AI_POPUP_TAG_DIPLO_TALK, h, t, AI_TALK_ST_ALLY_PICK,
-    NULL, "\"Against whom shall we ally?\"", labels, picks, n
+    NULL, "", labels, picks, n
   );
   ai_popup_set_last_graphic_myr(ctx->ai_popups, t);
   return AI_TALK_STEP_RETURN;

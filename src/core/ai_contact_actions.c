@@ -1555,10 +1555,8 @@ static void ai_contact_establish_mission(
   tok.number0 = ctx->game_year ? (int)*ctx->game_year : 0;
   tok.has_number0 = true;
   tok.string3 = ai_contact_tribe_name(nation_id);
-  char fb[AI_POPUP_BODY_LEN];
-  snprintf(fb, sizeof(fb), "%s %s mission founded in %s, %d.", tok.string0, tok.string1, tok.string2, tok.number0);
   char body[AI_POPUP_BODY_LEN];
-  popup_msg_fill(ctx->messages, section, &tok, fb, body, sizeof(body));
+  popup_msg_fill(ctx->messages, section, &tok, "", body, sizeof(body));
   /* a5dc mission founded, gated on a human actor (asm 126365-126375). */
   if (ai_contact_euro_is_human(ctx, e)) {
     sound_play(0x8024);

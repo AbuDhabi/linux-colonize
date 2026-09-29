@@ -6450,6 +6450,40 @@ static int case_combat_privateer_seizure(void) {
         fprintf(stderr, "seizure naval should win\n");
         return 1;
       }
+      /* bugs.md #986: a PRIVATEER prize gets no dialog — @SEIZURE* is Royal
+       * Navy / Army wording and no catalog section covers a privateer capture,
+       * so the port shows nothing rather than typed English. */
+      for (int i = 0; i < pops.queue_count; ++i) {
+        if (pops.queue[i].tag == AI_POPUP_TAG_COMBAT_SEIZURE) {
+          fprintf(stderr, "privateer prize must not enqueue SEIZURE\n");
+          return 1;
+        }
+      }
+      (void)units_despawn(&pool, aid);
+      if (units_get(&pool, did) && units_get(&pool, did)->active) {
+        units_despawn(&pool, did);
+      }
+
+      /* The Royal-Navy / warship arm still shows @SEIZURESEA. */
+      ai_popup_clear(&pops);
+      const int frig = units_find_type(&pool, "Frigate");
+      if (frig < 0) {
+        fprintf(stderr, "seizure Frigate type missing\n");
+        return 1;
+      }
+      pool.types[frig].attack = 16;
+      pool.types[frig].defense = 8;
+      pool.types[frig].guns = 12;
+      const int aid2 = units_spawn_allow_stack(&pool, frig, 4, 4);
+      const int did2 = units_spawn_allow_stack(&pool, car, 5, 4);
+      ColonizeUnit* a2 = units_get(&pool, aid2);
+      ColonizeUnit* d2 = units_get(&pool, did2);
+      a2->nation_id = 0;
+      d2->nation_id = 1;
+      if (!units_resolve_naval_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, aid2, did2)) {
+        fprintf(stderr, "seizure naval should win (frigate)\n");
+        return 1;
+      }
       int found = 0;
       for (int i = 0; i < pops.queue_count; ++i) {
         if (pops.queue[i].tag == AI_POPUP_TAG_COMBAT_SEIZURE) {
@@ -6458,14 +6492,14 @@ static int case_combat_privateer_seizure(void) {
         }
       }
       if (!found) {
-        fprintf(stderr, "SEIZURE popup missing (queue=%d)\n", pops.queue_count);
+        fprintf(stderr, "SEIZURESEA popup missing (queue=%d)\n", pops.queue_count);
         return 1;
       }
-      (void)units_despawn(&pool, aid);
-      if (units_get(&pool, did) && units_get(&pool, did)->active) {
-        units_despawn(&pool, did);
+      (void)units_despawn(&pool, aid2);
+      if (units_get(&pool, did2) && units_get(&pool, did2)->active) {
+        units_despawn(&pool, did2);
       }
-      fprintf(stderr, "unit_units: privateer SEIZURE popup ok\n");
+      fprintf(stderr, "unit_units: privateer prize silent, Royal Navy SEIZURESEA ok\n");
   combat_phase2_close();
   return 0;
 }

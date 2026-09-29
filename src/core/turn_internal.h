@@ -49,8 +49,7 @@ void turn_emit_built_chrome(
   const ColonizeMsgCatalog* messages,
   AiPopupState* ai_popups,
   const ColonizeColony* colony,
-  const char* built_name,
-  const char* fallback
+  const char* built_name
 );
 void turn_produce_one_colony(
   ColonizeColonyPool* pool,

@@ -9,6 +9,7 @@
 #include "core/map_menu.h"
 #include "core/popup.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "core/ui_button.h"
 #include "core/ui_colors.h"
 #include "core/unit_chrome.h"
@@ -392,7 +393,9 @@ void unit_stack_render(
   }
 
   char title[48];
-  snprintf(title, sizeof(title), "Units (%d,%d)", dlg->tile_x, dlg->tile_y);
+  /* LABELS.TXT @CMISC row 2 ("Units Present") — bugs.md #990. */
+  const char* live = reports_labels_field("CMISC", 1);
+  snprintf(title, sizeof(title), "%s", live ? live : "");
   if (font) {
     font_draw_text(font, framebuffer, inner_x + pad_x, inner_y + pad_y, title, text_color);
   }

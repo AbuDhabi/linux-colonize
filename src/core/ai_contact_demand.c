@@ -549,12 +549,10 @@ void ai_contact_enqueue_incite_confirm(
   tok.has_number0 = true;
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, "INDIANWARPATH2", &tok, "", body, sizeof(body));
-  char pay_fb[POPUP_MSG_CHOICE_LEN];
-  snprintf(pay_fb, sizeof(pay_fb), "Pay %u.", (unsigned)price);
   char row_buf[2][POPUP_MSG_CHOICE_LEN];
   const char* labels[2];
   (void)popup_msg_section_labels(
-    ctx->messages, "INDIANWARPATH2", &tok, pay_fb, "", row_buf, labels
+    ctx->messages, "INDIANWARPATH2", &tok, "", "", row_buf, labels
   );
   int ids[2];
   ids[0] = AI_CONTACT_INCITE_PAY;

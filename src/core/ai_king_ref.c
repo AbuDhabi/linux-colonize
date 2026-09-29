@@ -566,11 +566,7 @@ static void ai_king_ref_tory_uprising(ColonizeTurnContext* ctx, int crown, int h
     memset(&tok, 0, sizeof(tok));
     tok.string0 = c->name[0] ? c->name : "";
     char body[AI_POPUP_BODY_LEN];
-    char fallback[AI_POPUP_BODY_LEN];
-    snprintf(fallback, sizeof(fallback),
-             "Tory uprising near %s! Loyalist irregulars take up arms for the King!",
-             tok.string0);
-    popup_msg_fill(ctx->messages, "TORYUPRISING", &tok, fallback, body, sizeof(body));
+    popup_msg_fill(ctx->messages, "TORYUPRISING", &tok, "", body, sizeof(body));
     (void)ai_popup_enqueue_ok_ctx(
       ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, crown, spawned, NULL, body
     );

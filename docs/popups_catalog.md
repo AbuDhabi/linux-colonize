@@ -457,7 +457,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@EXTINCT` | Done | last village razed → `units.c` `col1_destroy_tribe_at` tail (`FUN_4d56_00e0`, tag 0x14d4) — real GAME.TXT body. Confirmed 2026-09-16 |
 | `@MERCENARIES` | Done | ai_popup CHOICE structural |
 | `@MERCS` | Done | ai_popup CHOICE structural |
-| `@OVERBOARD` | Done | dump Yes/No |
+| `@OVERBOARD` | Done | hold picker: rows = occupied goods holds, 99 = cancel (bugs.md #984) |
 | `@ALREADYREVOLUTION` | Done | ai_popup CHOICE structural |
 | `@SUREDISBAND` | Done | disband Yes/No |
 | `@NEWCOLONIST` | Done thin | EOT Phase I birth ai_popup OK (`@NEWCOLONIST`); VGA PARKED |

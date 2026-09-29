@@ -348,10 +348,8 @@ void ai_contact_alarm_delta_00f2(
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = ai_contact_tribe_name(nation_id);
-    char fb[AI_POPUP_BODY_LEN];
-    snprintf(fb, sizeof(fb), "The %s burn your missions!", tok.string0);
     char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(ctx->messages, "INDIANBURN", &tok, fb, body, sizeof(body));
+    popup_msg_fill(ctx->messages, "INDIANBURN", &tok, "", body, sizeof(body));
     ai_contact_human_chrome(
       ctx, euro, AI_POPUP_TAG_CONTACT_RAID, nation_id, "", body
     );

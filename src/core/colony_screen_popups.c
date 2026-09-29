@@ -143,7 +143,8 @@ static void colony_screen_draw_construction_popup(
    * and the "|   " (DS:0xd1d) tab in 2f2b_5a68 right-justifies the cost. */
   const uint8_t ink = 10u;
   if (font && inner_w > 0) {
-    font_draw_text(font, framebuffer, inner_x + pad, inner_y + pad, "Construction", ink);
+    /* LABELS.TXT @CTITLE row 5 ("Select An Item To Build") — bugs.md #990. */
+    font_draw_text(font, framebuffer, inner_x + pad, inner_y + pad, reports_ctitle_word(4), ink);
   }
   const int list_y0 = inner_y + pad + line_h;
   view->construction_rect.list_y0 = list_y0;
@@ -163,9 +164,10 @@ static void colony_screen_draw_construction_popup(
     char cost[48];
     cost[0] = 0;
     if (more_row) {
-      snprintf(label, sizeof(label), "More...");
+      /* @CTITLE row 7 "(More)"; the clear row is row 6 "(No Production)". */
+      snprintf(label, sizeof(label), "%s", reports_ctitle_word(6));
     } else if (gi == 0) {
-      snprintf(label, sizeof(label), "Clear project");
+      snprintf(label, sizeof(label), "%s", reports_ctitle_word(5));
     } else {
       const int bid = view->buildable_ids[gi - 1];
       const ColonizeBuildingType* bt = colonies_building_type(pool, bid);
@@ -493,9 +495,8 @@ static void colony_screen_draw_eject_popup(
     &inner_x, &inner_y, &inner_w, &inner_h
   );
 
-  if (font && inner_w > 0) {
-    font_draw_text(font, framebuffer, inner_x + pad, inner_y + pad, "Leave as", 15);
-  }
+  /* bugs.md #990: FUN_2f2b_348c's leave-as mode draws the @JOB rows only — no
+   * catalog row carries a heading for it, so the port types none either. */
   const int list_y0 = inner_y + pad + line_h;
   view->eject_rect.list_y0 = list_y0;
 

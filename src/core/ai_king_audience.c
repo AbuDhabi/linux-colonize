@@ -582,11 +582,8 @@ void ai_king_tax_hike_apply(
       tok.has_number0 = true;
       tok.number1 = (int)nat->tax_rate;
       tok.has_number1 = true;
-      char fallback[AI_POPUP_BODY_LEN];
-      snprintf(fallback, sizeof(fallback),
-               "The King, moved by your poverty, lowers taxes to %u%%.", nat->tax_rate);
       char body[AI_POPUP_BODY_LEN];
-      popup_msg_fill(ctx->messages, section, &tok, fallback, body, sizeof(body));
+      popup_msg_fill(ctx->messages, section, &tok, "", body, sizeof(body));
       if (ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human,
                                   ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), (int)nat->tax_rate,
                                   NULL, body)) {
@@ -648,10 +645,8 @@ void ai_king_tax_hike_apply(
       tok.has_number0 = true;
       tok.number1 = (int)nat->tax_rate;
       tok.has_number1 = true;
-      char fallback[AI_POPUP_BODY_LEN];
-      snprintf(fallback, sizeof(fallback), "The King raises taxes to %u%%.", nat->tax_rate);
       char body[AI_POPUP_BODY_LEN];
-      popup_msg_fill(ctx->messages, section, &tok, fallback, body, sizeof(body));
+      popup_msg_fill(ctx->messages, section, &tok, "", body, sizeof(body));
       /* 38fd:3f8d dispatches 0x3e for this no-cargo audience arm.  The
        * separate 0x56 dispatch belongs only to the completed tea party. */
       sound_play(0x3e);

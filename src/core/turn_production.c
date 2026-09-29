@@ -125,7 +125,7 @@ static void turn_emit_inefficient_gov_chrome(
   tok.string0 = cname;
   tok.number0 = thresh;
   tok.has_number0 = true;
-  popup_msg_fill(messages, section, &tok, status_buf, body, sizeof(body));
+  popup_msg_fill(messages, section, &tok, "", body, sizeof(body));
   ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
 }
 
@@ -233,7 +233,7 @@ static void turn_emit_sol_phase_d_chrome(
   }
   tok.number0 = sol_after;
   tok.has_number0 = true;
-  popup_msg_fill(messages, section, &tok, fallback, body, sizeof(body));
+  popup_msg_fill(messages, section, &tok, "", body, sizeof(body));
   ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
 }
 
@@ -314,8 +314,7 @@ void turn_emit_built_chrome(
   const ColonizeMsgCatalog* messages,
   AiPopupState* ai_popups,
   const ColonizeColony* colony,
-  const char* built_name,
-  const char* fallback
+  const char* built_name
 ) {
   if (!ai_popups || !colony) {
     return;
@@ -325,7 +324,7 @@ void turn_emit_built_chrome(
   memset(&tok, 0, sizeof(tok));
   tok.string0 = colony->name[0] ? colony->name : "";
   tok.string1 = (built_name && built_name[0]) ? built_name : "";
-  popup_msg_fill(messages, "BUILT", &tok, fallback, body, sizeof(body));
+  popup_msg_fill(messages, "BUILT", &tok, "", body, sizeof(body));
   ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
 }
 
@@ -405,10 +404,8 @@ static void turn_emit_needtools_notice(
   if (tools_cost <= 0 || tools_have >= tools_cost) {
     return;
   }
-  const char* fallback = "Need tools.";
   if (europe) {
     snprintf(europe->status, sizeof(europe->status), "Need tools.");
-    fallback = europe->status;
   }
   if (!ai_popups) {
     return;
@@ -426,7 +423,7 @@ static void turn_emit_needtools_notice(
     tok.number1 = tools_have;
     tok.has_number1 = true;
   }
-  popup_msg_fill(messages, section, &tok, fallback, body, sizeof(body));
+  popup_msg_fill(messages, section, &tok, "", body, sizeof(body));
   ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
 }
 
@@ -1302,7 +1299,7 @@ void turn_produce_one_colony(
           PopupMsgTokens tok;
           memset(&tok, 0, sizeof(tok));
           tok.string0 = colony->name[0] ? colony->name : "";
-          popup_msg_fill(messages, sec, &tok, europe->status, body, sizeof(body));
+          popup_msg_fill(messages, sec, &tok, "", body, sizeof(body));
           ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
         }
       }
@@ -1345,7 +1342,7 @@ void turn_produce_one_colony(
           PopupMsgTokens tok;
           memset(&tok, 0, sizeof(tok));
           tok.string0 = colony->name[0] ? colony->name : "";
-          popup_msg_fill(messages, sec, &tok, europe->status, body, sizeof(body));
+          popup_msg_fill(messages, sec, &tok, "", body, sizeof(body));
           ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
         }
       } else if (
@@ -1363,7 +1360,7 @@ void turn_produce_one_colony(
           tok.string0 = colony->name[0] ? colony->name : "";
           tok.number0 = stock;
           tok.has_number0 = true;
-          popup_msg_fill(messages, "FOODLOW", &tok, europe->status, body, sizeof(body));
+          popup_msg_fill(messages, "FOODLOW", &tok, "", body, sizeof(body));
           ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
         }
       }
@@ -1442,7 +1439,7 @@ void turn_produce_one_colony(
             } else {
               snprintf(europe->status, sizeof(europe->status), "Building completed.");
             }
-            turn_emit_built_chrome(messages, ai_popups, colony, bname, europe->status);
+            turn_emit_built_chrome(messages, ai_popups, colony, bname);
           }
         }
       }
@@ -1873,7 +1870,7 @@ void turn_produce_one_colony(
         tok.string1 = cargo_name ? cargo_name : "";
         tok.number0 = cap > 0 ? cap : after;
         tok.has_number0 = true;
-        popup_msg_fill(messages, sec, &tok, europe->status, body, sizeof(body));
+        popup_msg_fill(messages, sec, &tok, "", body, sizeof(body));
         ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
 
         /* @TUTORIAL6, once per campaign (DS:0x5387 bit1). */

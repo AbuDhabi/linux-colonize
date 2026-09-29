@@ -147,11 +147,7 @@ typedef enum AiPopupTag {
                                  * make him an ordinary Free Colonist (profession 0x1c).
                                  * 1 = Yes, 2 / Esc = No.
                                  * nation_a = colonist index. */
-  AI_POPUP_TAG_COLONY_ATTACK = 63 /* bugs.md #437: confirm before attacking a foreign Euro
-                                 * COLONY (armed or not). 1 = attack, 2 / Esc = cancel.
-                                 * nation_a = unit id, nation_b = target nation,
-                                 * payload = dest x | dest y << 8. */
-  ,
+  /* 63 retired with bugs.md #985 (the invented Euro-colony attack confirm). */
   AI_POPUP_TAG_SCOUT_COLONY = 64 /* bugs.md #438 / FUN_5f7a_000e @SCOUTCOLONY (DS:0x1a64):
                                  * scout at a foreign Euro colony. 1 = Meet With Mayor,
                                  * 2 = Infiltrate Colony, 3 = Attack Colony, 4 = Nothing.
@@ -205,6 +201,13 @@ typedef enum AiPopupTag {
                                  * as @NODOCKS / @TRADENONE, i.e. DOS shows the sneak
                                  * attack as its own OK popup BEFORE the @DECLAREWAR
                                  * dialog at 0x3f262, not as a bare status line. */
+  ,
+  AI_POPUP_TAG_OVERBOARD_WHICH = 73 /* bugs.md #984. @OVERBOARD (GAME.TXT:2975) is a
+                                 * PICKER — "What cargo shall we throw overboard, Your
+                                 * Excellency?" with no choice rows of its own, so the
+                                 * rows are the ship's occupied goods holds (same shape
+                                 * as @TRADEWHICH). nation_a = unit id, choice ids are
+                                 * hold_index + 1, 99 = never mind. */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {
