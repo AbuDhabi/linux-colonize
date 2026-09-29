@@ -102,6 +102,13 @@ void sound_stop_preview(void);
  */
 void sound_set_bgm(int track);
 void sound_stop_bgm(void);
+/*
+ * Pool 0 is not silence: DOS picks from the default pool (all 12 main tunes)
+ * whenever no pool is armed, which is what plays on the title menu. Set this
+ * while the port's in-process OPENING/CLOSING cinematic is up — in DOS those
+ * are separate programs whose cue owns the driver.
+ */
+void sound_set_cinematic(bool active);
 void sound_service(void);
 
 /* Currently playing song id (BGM/event/title), or -1 if none. Ambient BGM

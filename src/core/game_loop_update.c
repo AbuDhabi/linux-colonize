@@ -201,7 +201,9 @@ static void game_finish_intro(ColonizeGameState* game) {
   }
   opening_close(&game->opening);
   game->opening_just_opened = false;
-  /* OPENING.EXE exits here in DOS, which also ends its 0x34 music. */
+  /* OPENING.EXE exits here in DOS, which also ends its 0x34 music. VICEROY
+   * then runs with no pool armed, and its pump draws from the default pool —
+   * that is the title-menu music (sound.c, asm 129f:020a-020e). */
   sound_stop_bgm();
 }
 
@@ -418,6 +420,11 @@ static bool game_service_opening(
 COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, const ColonizeInputState* input, uint32_t dt_ms) {
   game->elapsed_ms += dt_ms;
   game_track_screen(game);
+  /* The port hosts OPENING/CLOSING in-process; DOS runs them as separate
+   * programs. Their cue owns the driver there, so hold off VICEROY's pool
+   * pump (which plays from the default pool even with no pool armed) until
+   * the cinematic is gone. */
+  sound_set_cinematic(game->opening.open || game->closing.open);
   sound_service();
   if (game_service_opening(game, input, dt_ms)) {
     return GAME_UPDATE_RETURN_TRUE;

@@ -60,7 +60,10 @@ Independence `0x29..0x2d` (Love Forever … Independence Way), Military `0x2e..0
 are not in Pick Music (`0x28` is drawn by the Europe pool; `0x3c` picks random patches in its
 handler). The combat cue `0x32` is therefore **Indian Victory**. ID `0x33` (= Natives)
 is dispatched for the Meeting Natives woodcut and Burial Mounds. VICEROY has no
-title-menu dispatch for it; the port's former title uses were removed.
+title-menu dispatch for it; the port's former title uses of `0x33` were removed.
+That removal left the title menu **silent, which is wrong** (user-observed DOS,
+2026-09-29): the menu does play music and then cycles tunes. It needs no dispatch
+— see the pool-0 default below.
 
 ### DOS BGM scheduler (`FUN_129f_00f6` / `0318` / `02cc`)
 
@@ -69,6 +72,16 @@ title-menu dispatch for it; the port's former title uses were removed.
   Hornpipe), 3 = Europe (`0x28` + Independence), 4 = Military, 5/6/7 = one-shot Natives /
   Tenochtitlan / Pizarro then the general pool (all 12, 1-in-8 chance of the 13–23 set).
   `sound_set_bgm(pool)` mirrors `FUN_129f_0318`: a pool change fades the current song.
+* **Pool 0 is not silence.** `129f:020a-020e` does `DEC AX / CMP AX,6 / JA`, so pool 0
+  (and anything above 7) jumps past the switch table to `LAB_129f_0226` and picks from the
+  **pre-switch default pool** set at `129f:0140-01a2` (tunes 1–12, 1-in-9 for 13–23).
+  `129f:0258` then latches `DS:0x9a` from the tune it drew, so the next pick comes from
+  that tune's pool. This is the **title-menu music**: VICEROY launches with no pool armed
+  and the idle pump (gated only on `DS:0xa2` Background Music / `DS:0x9e`) starts a main
+  tune and keeps cycling. No title-menu song dispatch exists because none is needed.
+  The port therefore may **not** treat "no pool" as "stay quiet": the only thing allowed
+  to park the pump is the port's in-process `OPENING`/`CLOSING` cinematic (`sound_set_cinematic`),
+  which in DOS is a separate program owning the driver with its own `0x34` / `0x3d` cue.
 * All songs **end** (no `FD` loop except `0x34`); when the driver reports no voice active
   the pump draws the next random tune from the pool, never repeating the last id.
 * `sound_play(id)` = `FUN_129f_02cc`: queue + fade, pump starts it when idle.
@@ -305,7 +318,9 @@ normal campaign can reach a branch or whether the user's sound options allow out
 Corrections made by this audit include the native typed/generic two-cue sequence,
 loss and village selectors, colony capture gate, all five raid outcome mappings,
 mission/heresy cues, drydock `@REFIT`, tea-party-only `0x56`, and removal of menu/title
-`0x33` plus the invented King's Galleon `0x5a`. The Galleon path now performs its actual
+`0x33` plus the invented King's Galleon `0x5a`. (The `0x33` removal was half right: the id
+was invented, but the audit also concluded the title menu is silent, which it is not — the
+pool-0 default above covers it. Corrected 2026-09-29.) The Galleon path now performs its actual
 DOS sound operation, pool 2 after the treasure popup.
 
 ## Discovery Order

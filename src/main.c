@@ -218,8 +218,9 @@ int main(int argc, char** argv) {
       platform_audio_enabled(platform) ? "" : " (audio device off)"
     );
   }
-  /* Resume after the opening cue is queued.  DOS does not dispatch a title
-   * song when OPENING.EXE returns or when the intro is skipped. */
+  /* Resume after the opening cue is queued, so the pool pump cannot draw a
+   * tune ahead of the intro's 0x34.  With no intro, VICEROY's pump starts a
+   * default-pool tune on the title menu (sound.c, asm 129f:020a-020e). */
   if (platform_audio_enabled(platform)) {
     platform_audio_resume(platform);
   }
