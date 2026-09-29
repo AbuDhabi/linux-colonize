@@ -1132,30 +1132,20 @@ static int game_trade_stop_coords(
   if (!c || !c->active) {
     return 0;
   }
-  if (units_is_sea(&game->units, u->id)) {
-    /* Ships aim coastal water next to colony. */
-    static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-    static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
-    int best = -1;
-    int bx = c->x;
-    int by = c->y;
-    for (int d = 0; d < 8; ++d) {
-      const int nx = c->x + dx[d];
-      const int ny = c->y + dy[d];
-      if (!map_tile_is_water(&game->world_map, nx, ny)) {
-        continue;
-      }
-      const int dist = abs(nx - u->x) + abs(ny - u->y);
-      if (best < 0 || dist < best) {
-        best = dist;
-        bx = nx;
-        by = ny;
-      }
-    }
-    *ox = bx;
-    *oy = by;
-    return 1;
-  }
+  /*
+   * DOS FUN_479b_0bd0 not-arrived arm (viceroy_unpacked.c:77234-77238):
+   * FUN_281f_09e6(dest colony) then the colony record at DS:0x8542 supplies
+   * bytes [0]/[1] straight into the unit's goto pair (+0x314d/+0x314e) — the
+   * goto is the COLONY TILE, for ships as much as for wagons, and arrival is
+   * the unit standing on it. The old port aimed sea units at the nearest
+   * adjacent water tile instead, so a route ship stopped one tile short,
+   * counted that as arrival and turned around without ever docking: goods
+   * still moved (service_stop allows an adjacent berth) but passengers never
+   * came ashore, because disembark-all hangs off units_try_move's colony
+   * dock (units_move.c "docking puts everyone ashore"), not off the route
+   * code. The flood admits a land goal tile that carries a settlement, so a
+   * ship can path to it.
+   */
   *ox = c->x;
   *oy = c->y;
   return 1;
