@@ -136,11 +136,24 @@ int main(void) {
     {
       const int title = sound_active_song_id();
       if (title < 0x20 || title > 0x3b) {
-        fprintf(stderr, "title menu drew no default-pool tune (got 0x%02x)\n", title);
+        fprintf(stderr, "pool 0 drew no default-pool tune (got 0x%02x)\n", title);
         sound_shutdown();
         return 1;
       }
     }
+    /* Title menu = pool 5: Natives once (129f:01da), then the general pool. */
+    sound_play(0);
+    sound_set_bgm(SOUND_TITLE_BGM_POOL);
+    sound_service();
+    if (sound_active_song_id() != 0x33) {
+      fprintf(stderr, "title pool played 0x%02x, want Natives 0x33\n", sound_active_song_id());
+      sound_shutdown();
+      return 1;
+    }
+    /* Cycling after it ends is the same pool-0 fall-through asserted above:
+     * the arm at 129f:01da only skips the one-shot while DS:0x96 is still
+     * 0x33, which the pump leaves set. Not asserted here — it would mean
+     * rendering the whole song. */
     /* Keep the pump parked for the rest of the file: the blocks below measure
      * one cue at a time, and a live pool would layer a tune under them. */
     sound_play(0);

@@ -578,7 +578,7 @@ static void game_build_exploits(ColonizeGameState* game, const ColonizeScoreBrea
  * exploits screen (FUN_41f2_0b70) when a tier qualifies, else straight to
  * the Hall of Fame; both end at the title menu. */
 void game_retire_after_score(ColonizeGameState* game) {
-  sound_stop_bgm();
+  sound_set_bgm(SOUND_TITLE_BGM_POOL); /* both paths end at the title menu */
   if (!game->col1_ok) {
     game->in_menu = true;
     set_status(game, "Retired to main menu", NULL);

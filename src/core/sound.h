@@ -100,8 +100,18 @@ void sound_stop_preview(void);
  * A change fades the current song; the pump then draws a random tune from the
  * pool (never the one just played) and keeps drawing when each song ends.
  */
+/*
+ * Pool the title menu runs on. User-observed DOS (2026-09-29): the menu opens
+ * on Natives (`0x33`) and then cycles like the map does — that is pool 5's
+ * documented behaviour (one-shot Natives, then the general pool), so the menu
+ * needs no song dispatch of its own. Where VICEROY sets it is not traced yet:
+ * DS:0x9a's image value is 0, nothing in the root sets a pool at startup, and
+ * the @BEGINMENU code lives in an overlay whose string references Ghidra did
+ * not resolve. The pool value is DOS machinery; only the call site is a guess.
+ */
+#define SOUND_TITLE_BGM_POOL 5
+
 void sound_set_bgm(int track);
-void sound_stop_bgm(void);
 /*
  * Pool 0 is not silence: DOS picks from the default pool (all 12 main tunes)
  * whenever no pool is armed, which is what plays on the title menu. Set this
