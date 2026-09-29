@@ -863,6 +863,9 @@ static int unit_capture_col1_effects(void) {
   col1.stuff.colony_pop_totals[0] = 10;
   col1.head.crown_nation_id = 1;
 
+  /* Both sides still carry a signed treaty: 465b's declare band clears it. */
+  ai_diplo_or_both(&col1, 0, 1, (uint8_t)(AI_DIPLO_MET | AI_DIPLO_PEACE));
+
   colonies_set_col1_context(&col1);
   int plunder = -1;
   CHECK(colonies_capture_ex(&pool, 0, 1, &plunder), "capture_ex ok");
@@ -874,6 +877,11 @@ static int unit_capture_col1_effects(void) {
   CHECK(col1.stuff.colony_counts[0] == 1 && col1.stuff.colony_counts[1] == 1, "colony tallies");
   CHECK(col1.stuff.colony_pop_totals[0] == 6 && col1.stuff.colony_pop_totals[1] == 4, "pop tallies");
   CHECK((ai_diplo_read(&col1, 0, 1) & AI_DIPLO_WAR) != 0, "capture sets WAR");
+  CHECK(
+    (ai_diplo_read(&col1, 0, 1) & AI_DIPLO_PEACE) == 0 &&
+      (ai_diplo_read(&col1, 1, 0) & AI_DIPLO_PEACE) == 0,
+    "capture clears PEACE both ways (else Foreign Affairs prints peace at war)"
+  );
   CHECK(col1.head.game_options.ref_unit_threshold == 0, "peacetime: no REF threshold bit");
 
   /* WoI + crown captor: no plunder, REF threshold bit set. */
