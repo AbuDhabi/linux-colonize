@@ -2068,6 +2068,12 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
         return 0;
       }
     }
+    /* FUN_521d_20e6 raw 89725-89728: Europe dock demand precedes
+     * goods delivery and the work-queue haul; reuse the literal handler. */
+    if (ai_euro_20e6_europe_dock_demand(ctx, u, nation_id)) {
+      ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);
+      return 0;
+    }
   }
   /* Berth block / goods delivery / sell / LAB_4393 haul. */
   if (!tasked) {

@@ -834,13 +834,18 @@ static int unit_ship_trade_haul_tools_short(void) {
     return fail("ship-haul should remain active");
   }
   /* Expect sail toward water near (4,4) — typically (3,4). */
-  const int near_colony =
-    abs(ship->goto_x - 4) <= 1 && abs(ship->goto_y - 4) <= 1 &&
-    (ship->goto_x != 4 || ship->goto_y != 4);
+  /* LAB_4567 -> 27f5 (raw 89927): DOS binds the colony itself.
+   * The opt-out path retains the legacy neighbouring-water target. */
+  const int near_colony = ai_euro_ship_dos_enabled()
+    ? ship->goto_x == 4 && ship->goto_y == 4
+    : abs(ship->goto_x - 4) <= 1 && abs(ship->goto_y - 4) <= 1 &&
+      (ship->goto_x != 4 || ship->goto_y != 4);
   const int sailed = ship->orders == UNITS_ORDER_AI_SAIL && near_colony;
   /* Or already moved onto berth water. */
-  const int at_berth = abs(ship->x - 4) <= 1 && abs(ship->y - 4) <= 1 &&
-                       map_tile_is_water(&map, ship->x, ship->y);
+  const int at_berth = ai_euro_ship_dos_enabled()
+    ? ship->x == 4 && ship->y == 4
+    : abs(ship->x - 4) <= 1 && abs(ship->y - 4) <= 1 &&
+      map_tile_is_water(&map, ship->x, ship->y);
   if (!sailed && !at_berth) {
     fprintf(
       stderr,
@@ -940,12 +945,17 @@ static int unit_ship_trade_haul_muskets_short(void) {
     fx_map_free(&map);
     return fail("ship-muskets should remain active");
   }
-  const int near_colony =
-    abs(ship->goto_x - 4) <= 1 && abs(ship->goto_y - 4) <= 1 &&
-    (ship->goto_x != 4 || ship->goto_y != 4);
+  /* LAB_4567 -> 27f5 (raw 89927): DOS binds the colony itself.
+   * The opt-out path retains the legacy neighbouring-water target. */
+  const int near_colony = ai_euro_ship_dos_enabled()
+    ? ship->goto_x == 4 && ship->goto_y == 4
+    : abs(ship->goto_x - 4) <= 1 && abs(ship->goto_y - 4) <= 1 &&
+      (ship->goto_x != 4 || ship->goto_y != 4);
   const int sailed = ship->orders == UNITS_ORDER_AI_SAIL && near_colony;
-  const int at_berth = abs(ship->x - 4) <= 1 && abs(ship->y - 4) <= 1 &&
-                       map_tile_is_water(&map, ship->x, ship->y);
+  const int at_berth = ai_euro_ship_dos_enabled()
+    ? ship->x == 4 && ship->y == 4
+    : abs(ship->x - 4) <= 1 && abs(ship->y - 4) <= 1 &&
+      map_tile_is_water(&map, ship->x, ship->y);
   const int delivered = c->stock[COLONIZE_CARGO_MUSKETS] > 2;
   if (!sailed && !at_berth && !delivered) {
     fprintf(
@@ -1046,12 +1056,17 @@ static int unit_galleon_trade_haul_tools_short(void) {
     fx_map_free(&map);
     return fail("galleon-haul should remain active");
   }
-  const int near_colony =
-    abs(ship->goto_x - 4) <= 1 && abs(ship->goto_y - 4) <= 1 &&
-    (ship->goto_x != 4 || ship->goto_y != 4);
+  /* LAB_4567 -> 27f5 (raw 89927): DOS binds the colony itself.
+   * The opt-out path retains the legacy neighbouring-water target. */
+  const int near_colony = ai_euro_ship_dos_enabled()
+    ? ship->goto_x == 4 && ship->goto_y == 4
+    : abs(ship->goto_x - 4) <= 1 && abs(ship->goto_y - 4) <= 1 &&
+      (ship->goto_x != 4 || ship->goto_y != 4);
   const int sailed = ship->orders == UNITS_ORDER_AI_SAIL && near_colony;
-  const int at_berth = abs(ship->x - 4) <= 1 && abs(ship->y - 4) <= 1 &&
-                       map_tile_is_water(&map, ship->x, ship->y);
+  const int at_berth = ai_euro_ship_dos_enabled()
+    ? ship->x == 4 && ship->y == 4
+    : abs(ship->x - 4) <= 1 && abs(ship->y - 4) <= 1 &&
+      map_tile_is_water(&map, ship->x, ship->y);
   if (!sailed && !at_berth) {
     fprintf(
       stderr,
