@@ -423,6 +423,9 @@ void ai_king_tax_teaparty(ColonizeTurnContext* ctx, int human, int cargo) {
   }
   if (ai_king_human_popups(ctx)) {
     ai_king_enqueue_teaparty_ok(ctx, human, cargo);
+    /* DOS 3dc8 shows @TEAPARTY inline, right after the refused audience — the
+     * queue tail put it behind whatever else the turn had pending. */
+    (void)ai_popup_move_tag_to_front(ctx->ai_popups, AI_POPUP_TAG_KING_TAX);
   }
 }
 
