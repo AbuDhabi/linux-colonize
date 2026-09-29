@@ -284,7 +284,7 @@ Who reads it:
 | Right sidebar (`map_panel.c`) | Keeps `MAP_PANEL_W` = 80 px, stays flush right, grows downwards — the unit stack list (`MAP_PANEL_STACK_Y_LIMIT`) and the End-of-Turn line (`MAP_PANEL_EOT_Y_MAX`) are rebased on the live height. |
 | Map viewport | Takes the rest; partial tiles at the right/bottom edge are clipped, so `MAP_VIEW_TILE_COLS/ROWS` round **up**. |
 | Message log strip | Stays at the bottom, stretches horizontally; its height is still `display.window_log_lines`. |
-| Persistence | `display.window_width` / `window_height` hold the last logical size (strip excluded, defaults 320×200). `main.c` rewrites them ~1 s after the size stops changing, windowed mode only; `platform_create` restores them. |
+| Persistence | `display.window_width` / `window_height` hold the last logical size (strip excluded, defaults 320×200). `main.c` writes them once on exit (windowed mode only, and only when a settings file is in play); `platform_create` restores them. |
 | Every other screen | Rendered into a 320×200 scratch frame by `game_render`, then centred by `game_render_centre_fixed` with WOODTILE padding and a 1px black rule drawn just OUTSIDE the frame (it separates without covering a pixel). `game_update` shifts the pointer by `game_screen_offset` so they hit-test in their own 320×200 space, and the log strip is replaced by plain wood — the strip belongs to the map view only. |
 
 `MAP_PANEL_X` / `MAP_VIEW_*` are **function calls, not integer constant
