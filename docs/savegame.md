@@ -325,7 +325,9 @@ found lategame `valid-lategame-saves/COLONY{00–08,10}.SAV` and AI
 here as open drift. Unnoticed at the time: the *same-day* commit `753662d`
 "Fix FF + I work" (2026-08-22, 42 minutes after the drift note was written)
 had already fixed it — `founding_fathers_stash_pools_into_col1`/
-`_restore_col1_last_turn` gained a `saved_pad21` parameter that stashes and
+`_restore_col1_last_turn` (both since retired: the FF bell pool now lives in
+col1's `liberty_bells_pool`, so there is nothing to stash) gained a
+`saved_pad21` parameter that stashes and
 restores nation `unknown21_pad` (the `FF_POOL_STASH_MARKER` byte) alongside
 `liberty_bells_last_turn`; before that fix, a save write that stashed the FF
 pool into `liberty_bells_last_turn` left `unknown21_pad` un-restored, so a

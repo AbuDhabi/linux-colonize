@@ -127,12 +127,12 @@ whose ordinal is N (`local_164 == local_16c` → box `+0x4c`).
 Port: `assets_msg_load_file` records a `blank_before[]` flag per stored line
 (blank lines are still not stored — ordinal indexing depends on that), and
 `popup_msg_section_body` / `popup_msg_choices` run the same state machine.
-The old keyword list (`popup_msg_is_choice_word`) stays only as a backstop for
-blankless catalogs; it never knew the quoted rows of `@KINGGALLEON2/3` or the
+The old choice-keyword list is retired — `popup_msg_choices` carries what is
+left of it. It never knew the quoted rows of `@KINGGALLEON2/3` or the
 Euro-diplomacy dialogs, which is why those popups printed their own options
 inside the body (bugs.md). `@default` rides the same side-channel as `@width`
 (`popup_msg_take_pending_default` → `AiPopupRequest.default_choice` →
-`ai_popup` initial selection). `unit_popup_msg` sweeps all 508 GAME.TXT
+`ai_popup` initial selection). `unit_popup_msg` sweeps all 499 GAME.TXT
 sections asserting no choice row appears in a body.
 
 **Missing sections show nothing.** `FUN_7314_001a` scans the file for `@TAG`
@@ -305,9 +305,13 @@ real sites.
 
 Still not wired: `FUN_479b_076e`'s idx-5 WoI popup.
 
-Modal input (`game_loop.c`): early gate before parent hotkeys (E/Q/etc.) —
-pick_music → save_load → options → name_entry → howmuch → cheat_list →
-**ai_popups** → unit_stack. Letters typed in name/howmuch do not switch views.
+Modal input (`game_dialogs.c` `game_handle_modal_input`): early gate before
+parent hotkeys (E/Q/etc.) — pick_music → save_load → options →
+combat_analysis → name_entry → howmuch → cheat_list → **ai_popups** →
+trade_screen → unit_stack (opening/closing screens gate before all of these).
+Letters typed in name/howmuch do not switch views. Every arm in this chain is
+also a `GAME_MODAL_LIST` member, so `game_modal_open()` sees it structurally —
+new modals only need to join that macro list (`game_loop.c`).
 
 **Blocking invariant (2026-09-01):** every modal blocks all simulation,
 including mid-EOT — `game_update`'s EOT branch presents queued popups/woodcuts
@@ -471,7 +475,7 @@ Deep mechanics: [combat.md](combat.md).
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
 | Combat Analysis (options bit) | After strengths, before roll; human side | Done | DOS `636c` layout: 214-wide frame, per-column header (chrome + type name + baseline right-aligned), label/±N% split rows at 20px pitch; gated by `combat_analysis` |
-| `@LOOT*` / `@LOOTCAPTURE` / `@LOOTCASH` | Combat loot / treasure capture | Done | `@LOOT` treasure + `@LOOT2` burn Done; `@LOOTCAPTURE` treasure capture-alive (`FUN_5fef_0352` raw 99392-99413) Done; `@LOOTCASH` Europe fleet cash-in (`units_king_galleon_cash_in` / `europe_cash_treasure`) Done — see section 9 |
+| `@LOOT*` / `@LOOTCAPTURE` / `@LOOTCASH` | Combat loot / treasure capture | Done | `@LOOT` treasure + `@LOOT2` burn Done; `@LOOTCAPTURE` treasure capture-alive (`FUN_5fef_0352` raw 99392-99413) Done; `@LOOTCASH` Europe fleet cash-in (`units_king_galleon_credit` / `europe_cash_treasure_passengers`) Done — see section 9 |
 | `@CAPTURED*` / `@BURNED*` / `@SHIPDAMAGE` / `@SHIPSUNK` | Capture / burn / naval | Done | Colony `@CAPTURED*`/`@BURNED*`; ship damage/sunk Done |
 | `@COLONISTCAPTURE*` / `@WAGONCAPTURE` / `@CARGOCAPTURE` | Unit / wagon capture | Done | Structural combat popups; treasure uses `@LOOTCAPTURE` |
 | `@EUROPEWIN` / `@EUROPELOSE` | Euro combat outcome | Done | `{atk} defeat {def nation unit} near {place}!` / reverse; LABELS defeat/defeats |
@@ -535,7 +539,7 @@ DOS module = segment `647e` (mislabelled "colony" in the catalog — records are
 | `@TRADENAMES` + `@TRADENAME` | Create: default name + entry | Done | "<Colony> <random word>", " A"-suffix dedupe; name_entry TRADE_NAME (31 chars) |
 | `@TRADENONE` / `@TRADENONE2` | Begin/Edit with no (matching) routes | Done | ai_popup OK; %STRING0 = @ROUTE Sea/Land |
 | `@TRADESELECT` route picker | Begin (sea/land filtered) / Edit | Done | `cheat_list` TRADE_SELECT, "N. NAME" rows |
-| `@SAILPORT` / `@TRAVELPLACE` | Begin: multi-stop route starting-stop picker | Done | `game_trade_open_stop_picker` (`game_loop.c`), title by `r->sea` (DOS `FUN_647e_090a`), "N. stop" rows, preselect = unit's current stop or 0 |
+| `@SAILPORT` / `@TRAVELPLACE` | Begin: multi-stop route starting-stop picker | Done | `game_trade_open_stop_picker` (`game_loop_menus.c`), title by `r->sea` (DOS `FUN_647e_090a`), "N. stop" rows, preselect = unit's current stop or 0 |
 | `@CARGOLOAD` / `@CARGOUNLOAD` | Editor cargo append | Done | `cheat_list` TRADE_CARGO_ONE, %STRING0 = stop; 190px frame fits the prompt |
 | `@TRADEDELETE` / `@SUREDELETE` | Delete confirm | Done | Route picker + Yes/No; DOS unit fixup + array compaction |
 | `@ROUTELOOP` | Route with one distinct port | Done | ai_popup OK at stop service; unit parked |

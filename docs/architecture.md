@@ -93,7 +93,7 @@ From [`CMakeLists.txt`](../CMakeLists.txt):
 
 | Target | Contents | Links |
 |--------|----------|-------|
-| **`colonize_sim`** (STATIC) | Simulation: `map*`, `units`, `unit_chrome` (colour/flag lookups), `colony*` (less screen/chrome), `combat_*` (less render), `turn`, `europe`, `founding_fathers`, `ai*` incl. `ai_popup`, `col1_*`, `savegame`, `reports_names`, `new_game_scenario`, `woodcut` (queue), `dos_rng`. Shared: `assets`, `strutil`, `ff`, `madspack`, `popup_msg`, `sound`, `gsound_vm`, `settings`, `json_min`, `src/data/viceroy_tables.c`, `platform/diagnostics`, `platform/dos_compat` | `m`, `pthread`; optional FluidSynth |
+| **`colonize_sim`** (STATIC) | Simulation: `map*`, `units`, `unit_chrome` (colour/flag lookups), `colony*` (less screen/chrome), `combat_*` (less render), `turn`, `europe`, `founding_fathers`, `ai*` incl. `ai_popup`, `col1_*`, `savegame`, `reports_names`, `new_game_scenario`, `woodcut` (queue), `dos_rng`, `village_trade_intel` (port-only VTIN intel). Shared: `assets`, `strutil`, `ff`, `madspack`, `popup_msg`, `window_log`, `sound`, `gsound_vm`, `settings`, `json_min`, `src/data/viceroy_tables.c`, `platform/diagnostics`, `platform/dos_compat` | `m`, `pthread`; optional FluidSynth |
 | **`colonize_ui`** (STATIC) | Presentation: `fb`, `font`, `pik`, `ss`, `popup`, `ui_*`, `text_edit`, every `*_dialog`, `game_loop`, `game_dialogs`, `map_menu`, `map_panel`, `unit_stack`, `unit_chrome_draw`, `units_render`, `colony_screen`, `colony_chrome`, `colony_preview`, `europe_art`, `reports`, `pedia`, `new_game`, `trade_screen`, `combat_analysis_render`, `ai_popup_render`, `woodcut_present`, `declaration`, `opening`, `closing`, `debug_atlas` | **`colonize_sim`** (PUBLIC) |
 | **`colonize_core`** (INTERFACE) | No objects of its own — the one name every consumer still links | `colonize_ui` (hence `colonize_sim`) |
 | **`colonize_sim_linkcheck`** (SHARED) | `cmake/sim_linkcheck.c` + all of `colonize_sim` under `-Wl,--no-undefined`; builds with ALL | `colonize_sim` |
@@ -123,7 +123,7 @@ rather than paint, move that helper to the shared half (`reports_names`,
 
 ### Files split by half
 
-Eleven files carry a `_<half>` sibling because logic and paint used to
+Nine files carry a `_<half>` sibling because logic and paint used to
 cohabit. Every split was a **pure move** (2026-09-16) — bodies unchanged, only
 `static` removed where the other half still calls in, via a small internal
 header (`*_render.h` / `*_draw.h` / `*_art.h` / `reports_names.h`).
@@ -237,9 +237,9 @@ Cluster table (not every file). Paths are under `src/core/` unless noted.
   and modal priority; `game_dialogs.c` contains dialog wiring (game_request_*/
   game_open_*/game_apply_*_result), modal input handling, and AI popup result
   appliers. `game_update` is now a ~157-line dispatcher over `game_update_<screen>`
-  functions. Modal input gate (before parent hotkeys): pick_music → save_load →
-  options → name_entry → howmuch → cheat_list → **ai_popups** → unit_stack — see
-  [popups.md](popups.md) Architecture.
+  functions. The modal input gate (`game_dialogs.c` `game_handle_modal_input`,
+  ahead of parent hotkeys) and the `GAME_MODAL_LIST` contract are owned by
+  [popups.md](popups.md) — see its Architecture section for the current arm order.
 - UI and simulation still **cohabit in `src/core/`** (there is no `src/ui/`),
   but since 2026-09-16 they are two link targets: `colonize_sim` and
   `colonize_ui`. `colonize_core` is now an INTERFACE alias for both, so no
@@ -379,9 +379,12 @@ greenfield redesign or a mandated `game_loop` rewrite phase.
   a `DISABLED` property in [`CMakeLists.txt`](../CMakeLists.txt). The parking
   that started 2026-08-19 ended 2026-09-05 (port_plan T1.23 / T3.3).
   `golden_ai_joint` is a **build-only convenience target** that re-runs the
-  six gates in one shot (`cmake --build build/debug --target golden_ai_joint`); it
-  has no `add_test()` registration, because each of the six is already its
-  own ctest test.
+  AI gates in one shot (`cmake --build build/debug --target golden_ai_joint`):
+  `golden_mapgen_seed100`, `golden_ai_turns` (plus its five `AI_SHIP_DOS=1`
+  TURN2→3 … TURN6→7 single-case replays, bugs.md #530), the three
+  `unit_ai_contact_*` slices, `unit_ai_diplo`, `smoke_ai_mid01` and
+  `smoke_ai_late01`. It has no `add_test()` registration, because every gate it
+  runs is already its own ctest test (duplication audit TT-14).
 
 ### Explicitly not intended (unless decided elsewhere)
 

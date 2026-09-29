@@ -1,5 +1,11 @@
 # Fandom wiki digest — Sid Meier's Colonization (1994)
 
+> **TIER 3 / UNVERIFIED SOURCE — NOT A SPEC.** This is a community wiki
+> digest, rank 3 in the Authority table below (code and decomp win on any
+> conflict). Every claim here is "Unverified vs DOS" unless explicitly marked
+> reconciled. Do not port behaviour from this file without checking it
+> against the decomp; do not cite it as evidence in bug reports or fixes.
+
 Community digest of [civilization.fandom.com](https://civilization.fandom.com/wiki/Sid_Meier%27s_Colonization) pages tagged for the **original 1994 game** (`(Col)` / “in Colonization (1994)”). Use this for checklists and effect prose while porting — **not** as a DOS oracle.
 
 **Crawl date:** 2026-08-04 (MediaWiki `api.php` wikitext).

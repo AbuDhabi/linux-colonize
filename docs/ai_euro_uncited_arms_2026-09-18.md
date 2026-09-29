@@ -51,12 +51,13 @@ offer (`FUN_465b_0000` raw 75800) is human-control gated (bugs.md #478).
 | `ai_euro_unload_settle` / passenger picker (Treasure stays aboard) | DELETED |
 | `ai_euro_act_land_treasure` | REWRITTEN as the literal band (arm 1 + `ai_euro_20e6_47b9_dead_end` arms 2/3) |
 
-## Missionary
+## Missionary — RESOLVED 2026-09-22 (bugs.md #557): deleted
 
-| Function | Lines | Tag |
-|---|---|---|
-| `ai_euro_missionary_should_flee` | 2295-2296 | helper |
-| `ai_euro_missionary_no_mission_target` | 2330 | helper |
+`ai_euro_missionary_should_flee` / `ai_euro_missionary_no_mission_target` and
+the whole invented AI-missionary-pulse machinery around them were deleted;
+replaced by `ai_contact_ai_missionary_village` (the real `FUN_4d56_4528`
+non-human switch, hooked at village adjacency). Neither function exists in
+the tree any more.
 
 ## Pioneer / wagon / found
 
@@ -285,9 +286,11 @@ enemy at war does attack" demonstration.
 
 ## Counts
 
-- arm: 18 functions (28 hits)
-- helper: 11 functions (13 hits)
-- note: 5 functions (7 hits)
+Stale as of the original 2026-09-18 triage: 18 arm / 11 helper / 5 note
+functions, 28/13/7 hits. Since then the Treasure cluster (10 functions),
+the land-combat adjacent-attack pair, and both Missionary helpers were
+deleted (see the "Resolved"/"RESOLVED" sections above) — not recounted here;
+treat the remaining live rows in the tables above as the current open set.
 
 Highest-value next targets: `ai_euro_act_land_goal_consume` (7 hits, the
 Skills-Chart profession→LABOR ladder), `ai_euro_act_land_hunt_scout` (6 hits),

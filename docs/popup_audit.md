@@ -1,5 +1,10 @@
 # Popup authenticity audit
 
+STATUS: audit dump, not a spec. Most flagged rows are resolved in place
+(2026-09-28 sweep: bugs.md #984-990, all Fixed) or explicitly Demoted/PARKED
+by design. One open item remains: "Village-approach warning CHOICE" (below)
+has no matching `GAME.TXT` section and is still unresolved as of 2026-09-28.
+
 Cross-check of **currently ported** player-facing modals against
 `COLONIZE/GAME.TXT` / `DEBUG.TXT`. Goal: no invented wood dialogs; bodies and
 choices from data where a real `@SECTION` exists.
@@ -8,7 +13,7 @@ choices from data where a real `@SECTION` exists.
 
 | Verdict | Meaning |
 |---------|---------|
-| **Authentic** | Real `@SECTION`; port loads body (and choices when applicable) via `popup_msg_*` / `ai_contact_msg_body` |
+| **Authentic** | Real `@SECTION`; port loads body (and choices when applicable) via `popup_msg_*` (`popup_msg_section_body` / `popup_msg_choices` / `popup_msg_fill`) |
 | **MissingWire** | Section exists; port still uses hardcoded English (fixable) |
 | **Mismatch** | Wrong section or wrong choice set vs GAME.TXT |
 | **Invented** | No DOS wood dialog for this chrome; demote to status or remove modal |

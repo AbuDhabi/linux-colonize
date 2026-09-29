@@ -555,8 +555,8 @@ order where the original burns RNG.
 | **T3 — 1:1 transcription** | Structured like the decomp (dispatcher → goals → scoring), all branches. **Not claimed** for any full planner |
 
 **Port rule:** AI algorithms are baked into C from VICEROY decomp (not data
-files — [data_vs_hardcoded.md](data_vs_hardcoded.md)). Use
-[`dos_rng.c`](../src/core/dos_rng.c) for any path that must match seed-100
+files — [data_vs_hardcoded.md](../data_vs_hardcoded.md)). Use
+[`dos_rng.c`](../../src/core/dos_rng.c) for any path that must match seed-100
 or save-diff. Planner modules are split (`ai_euro` / `ai_contact` /
 `ai_diplo` / `ai_king` / `ai_goals` / `ai_popup`); `ai.c` keeps init, pulse,
 and nation-turn entry.
@@ -696,10 +696,10 @@ helpers; every helper had a live twin in ai_euro.c/ai.c).
   `"IND0A0"`, tribe added to byte 3, alarm quartile to byte 5; DS:0x1f5c ≥ 8
   swaps in DS:0x1f72 = `"KING"`) and `FUN_6f74_14c6` (placement, OVL24
   `0x17a0..0x189c`). Both were already ported; the 2026-09-07e pass made the
-  geometry literal — see the `IND*.SS` row in [indians.md](indians.md).
+  geometry literal — see the `IND*.SS` row in [indians.md](../indians.md).
 - [ ] **T5.3 — F3 Congress portrait grid polish leftovers.** Two of three
   closed **2026-09-07**; the third is blocked on material that is not in the
-  repo. See [reports.md](reports.md).
+  repo. See [reports.md](../reports.md).
   - *Bell glyph* — **done**. There was no missing 2×7 glyph: the mark is
     `ICONS.SS` #62 overpainted by its own neighbour. The port's
     proportional-width "spread N icons" bar was the wrong shape entirely;
@@ -857,5 +857,5 @@ planner arms.
 ---
 
 > The pre-2026-08-24 W-tier queue was moved to
-> [archive/port_plan_w_tier_archive.md](archive/port_plan_w_tier_archive.md) (2026-09-05).
+> [port_plan_w_tier_archive.md](port_plan_w_tier_archive.md) (2026-09-05).
 

@@ -1,5 +1,8 @@
 # Numeric popup message-id resolver — investigation (2026-08-14)
 
+STATUS: RESOLVED 2026-08-27 — mechanism found (below); table lives in
+[popup_tag_ids.md](popup_tag_ids.md). Kept as investigation history.
+
 ## Why this matters
 
 Several AI functions are permanently blocked on "which outcome branch is

@@ -171,5 +171,5 @@ behavior): `test_ai.c` village-threat and `test_map_panel.c` village-chrome
 fixtures `memset` their `ColonizeCol1Save`, which says nation 0 owns all 25
 Fathers — unclaimed is `-1` (`col1_save_init`), and the scorer now really
 reads FF 16; both now seed `head.founding_father[] = -1`.
-`test_ai_contact.c`'s WoI-windfall case now seeds
+`test_ai_contact_core.c`'s WoI-windfall case now seeds
 `stuff.tribe_village_counts[0]` instead of relying on `tech`.

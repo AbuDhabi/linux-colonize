@@ -378,7 +378,7 @@ sextupled on a capital) and the WoI defect roll `rng(0, (5-difficulty)*2) == 0`.
 
 ### Raid demote
 
-[`ai_contact_raid_kind_demote`](../src/core/ai_contact.c): only `difficulty <= 0`
+[`ai_contact_pick_raid_kind`](../src/core/ai_contact_raid.c)'s demote chain: only `difficulty <= 0`
 (Discoverer) demotes SCALP / WREAK / GOLD → STORES or NOTHING.
 
 ### Land purchase
