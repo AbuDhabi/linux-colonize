@@ -1781,6 +1781,118 @@ static int unit_royal_loss_tax_cut(void) {
   return 0;
 }
 
+/*
+ * Naval win against a STACK: DOS's 0ec0 sweep hands every stackmate on the
+ * loser tile to 0352, so a won fight must leave none of them untouched.
+ */
+static int unit_naval_stack_sweep(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  char names_path[512];
+  if (!dos_compat_normalize_asset_path("COLONIZE", "NAMES.TXT", names_path, sizeof(names_path)) ||
+      !assets_msg_load_file(&names, names_path)) {
+    fprintf(stderr, "naval-sweep: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    fprintf(stderr, "naval-sweep: units_load_types failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  assets_msg_free(&names);
+  const int mow = units_find_type(&pool, "Man-O-War");
+  const int frigate = units_find_type(&pool, "Frigate");
+  if (mow < 0 || frigate < 0) {
+    fprintf(stderr, "naval-sweep: types missing\n");
+    return 1;
+  }
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 8;
+  map.height = 8;
+  map.tile_count = 64;
+  map.terrain = calloc(64, 1);
+  map.layer2 = calloc(64, 1);
+  map.layer3 = calloc(64, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    free(map.terrain); free(map.layer2); free(map.layer3);
+    return 1;
+  }
+  for (int i = 0; i < 64; ++i) {
+    map.terrain[i] = T_OCEAN;
+  }
+  units_set_occupancy_map(&map);
+  units_set_combat_colonies(NULL);
+
+  ColonizeCol1Save c1;
+  memset(&c1, 0, sizeof(c1));
+  memset(c1.head.founding_father, 0xff, sizeof(c1.head.founding_father));
+  c1.player[0].control = 0;
+  c1.player[1].control = 1;
+  c1.head.difficulty = 2;
+  c1.head.turn = 10;
+  c1.stuff.colony_counts[0] = 2;
+  c1.stuff.colony_counts[1] = 2;
+  units_set_ff_col1(&c1);
+  units_set_combat_human_nation(-1);
+
+  const int aid = units_spawn_allow_stack(&pool, mow, 4, 5);
+  const int d1 = units_spawn_allow_stack(&pool, frigate, 5, 5);
+  const int d2 = units_spawn_allow_stack(&pool, frigate, 5, 5);
+  const int d3 = units_spawn_allow_stack(&pool, frigate, 5, 5);
+  if (aid < 0 || d1 < 0 || d2 < 0 || d3 < 0) {
+    fprintf(stderr, "naval-sweep: spawn failed\n");
+    return 1;
+  }
+  units_get(&pool, aid)->nation_id = 0;
+  units_get(&pool, d1)->nation_id = 1;
+  units_get(&pool, d2)->nation_id = 1;
+  units_get(&pool, d3)->nation_id = 1;
+
+  units_get(&pool, aid)->moves = units_max_mp(&pool, aid);
+  /* rng NULL: deterministic `atk >= def` win, and every 0352 roll below
+   * short-circuits to "damaged" — the sweep's effect is still visible.
+   * Routed through units_try_move so the attack's MP charge is covered too:
+   * the surviving stackmates bar the advance, and DOS still charged the full
+   * allotment at 1b0e entry. */
+  const bool won = units_try_move_w(
+    &(ColonizeWorld){.units = &pool, .map = &map, .col1 = &c1, .col1_ok = true, .rng = NULL},
+    aid, 5, 5);
+  (void)d1;
+  (void)won;
+  int rc = 0;
+  {
+    const ColonizeUnit* a = units_get_const(&pool, aid);
+    if (!a || !a->active) {
+      fprintf(stderr, "naval-sweep: attacker lost (fixture)\n");
+      return 1;
+    }
+    if (a->moves != 0) {
+      fprintf(stderr, "naval-sweep: attacker kept %d MP after a won naval fight\n", a->moves);
+      rc = 1;
+    }
+  }
+  const int mates[2] = {d2, d3};
+  for (int i = 0; i < 2; ++i) {
+    const ColonizeUnit* u = units_get_const(&pool, mates[i]);
+    const int untouched = u && u->active && (u->col1_flags15 & 0x80u) == 0;
+    if (untouched) {
+      fprintf(stderr, "naval-sweep: stackmate %d untouched after a won naval fight\n", i);
+      rc = 1;
+    }
+  }
+  units_set_ff_col1(NULL);
+  units_set_occupancy_map(NULL);
+  free(map.terrain); free(map.layer2); free(map.layer3);
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: naval stack sweep ok\n");
+  }
+  return rc;
+}
+
 int main(void) {
   diag_init(0, NULL);
   if (unit_royal_loss_tax_cut() != 0) {
@@ -1824,6 +1936,10 @@ int main(void) {
     return 1;
   }
   if (unit_1b0e_defender_bonus_live() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_naval_stack_sweep() != 0) {
     diag_shutdown();
     return 1;
   }

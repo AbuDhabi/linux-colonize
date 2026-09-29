@@ -18,6 +18,7 @@
 #include "core/colony_craft.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
+#include "core/combat_strength.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
@@ -252,6 +253,21 @@ bool turn_select_next_unit(ColonizeUnitPool* pool, int human_nation) {
       continue;
     }
     if (!units_is_on_map(u)) {
+      continue;
+    }
+    /*
+     * DOS FUN_1427_1410 raw 8804-8805 (same clause in the sibling predicates
+     * 1330 raw 8756-8757 and 13b0 raw 8776-8778): a unit is eligible only if
+     *   ((+0x3148 & 0x80) == 0 || +0x3146 == 0x0b)
+     * i.e. a COMBAT-DAMAGED piece is skipped by the awaiting-orders rotation
+     * outright — Artillery (@UNIT 0x0b), which carries the same bit7 in its
+     * damaged form, is the one exemption. FUN_1427_14a0 (raw 32480-32502) is
+     * the scanner that walks this predicate, so a wrecked hull cannot be
+     * cycled to at all while its repair timer runs (bugs.md: damaged Frigate
+     * was movable the turn after the fight).
+     */
+    if ((u->col1_flags15 & 0x80u) != 0 &&
+        !combat_type_is_artillery(units_type(pool, u->type_index))) {
       continue;
     }
     if (best_any < 0 || u->id < best_any) {

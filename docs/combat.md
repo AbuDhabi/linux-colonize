@@ -431,6 +431,14 @@ Combat loss remaps **unit type** (not merely profession). Cite:
   is not a ship (fort fire), Frigate floor 4 / Man-O-War floor 8; the EOT ship
   tick counts +1, +2 on a colony tile. The damage turn itself does not count
   (`repair_pending == 2`), so a damaged ship is always out at least one turn.
+  A damaged piece is also **parked**: DOS's awaiting-orders predicates
+  (`FUN_1427_1410` raw 8804-8805, `1330` 8756-8757, `13b0` 8776-8778) require
+  `(+0x3148 & 0x80) == 0 || type == 0x0b`, so the rotation never lands on a
+  wrecked hull while its timer runs — Artillery is the one exemption
+  (`turn_select_next_unit`, bugs.md #997). The repair countdown digit
+  (`unit_chrome_repair_badge_index`) is drawn on the map AND on the colony
+  Transport strip; DOS carries that badge arm inline at four icon sites
+  (raw 2148-2172, 4047-4059, 5981-5993, 12249-12261), bugs.md #998.
 - **Stack sweep** (`units_sweep_naval_stack_after_loss`, DOS `FUN_5fef_0ec0`):
   every stackmate on the loser's tile takes its own 0352 — each ship its own
   plunder + damage-vs-sink roll; land stackmates are destroyed (a ship winner
@@ -498,9 +506,12 @@ OpenCol: `ai_contact_try_tired_attack_confirm` + `AI_POPUP_TAG_COMBAT_HALF`
 order), `units_remaining_mp` (native units keep DOS's spent byte in
 `moves`; Europeans keep the remainder).
 
-**Unported residue:** DOS also calls `unit_exhaust_mp` on the attacker after
-the prompt, so a DOS attack always ends the unit's turn; the port still drains
-step cost + 3, which can leave a fast unit enough for a second attack.
+**Ported (stale note corrected 2026-09-29):** DOS exhausts the attacker's full
+allotment at 1b0e entry (`FUN_281f_0934` -> `FUN_1427_155e`, raw 100381-100383 /
+8880-8888) with no naval exception, and 465b's step cost is attack-skipped
+(75639-75648). The port charges it at every outcome of `units_try_move` —
+including the naval win whose advance is barred by the rest of the enemy stack
+(bugs.md #996), which used to return with the moves unspent.
 
 ### Colony capture
 
