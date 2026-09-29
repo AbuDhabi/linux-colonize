@@ -323,6 +323,8 @@ bool units_type_is_caravel(const ColonizeUnitType* t);
 bool units_type_is_merchantman(const ColonizeUnitType* t);
 bool units_type_is_galleon(const ColonizeUnitType* t);
 bool units_type_is_privateer(const ColonizeUnitType* t);
+/* Either side of an attack is a Privateer: 465b skips treaty prompt + war. */
+bool units_privateer_attack(const ColonizeUnitPool* pool, int mover_id, int foe_id);
 bool units_type_is_frigate(const ColonizeUnitType* t);
 bool units_type_is_man_o_war(const ColonizeUnitType* t);
 bool units_type_is_ship(const ColonizeUnitType* t);

@@ -3876,7 +3876,11 @@ void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int t
   if (!f || f->nation_id == u->nation_id) {
     return;
   }
-  if (ctx->col1_ok && ctx->col1 && f->nation_id >= 0 && f->nation_id < 4) {
+  if (ctx->col1_ok && ctx->col1 && f->nation_id >= 0 && f->nation_id < 4 &&
+      !units_privateer_attack(ctx->units, u->id, foe)) {
+    /* 465b skips the whole treaty/declare band when either side is a
+     * Privateer (units_privateer_attack) — the attack still happens, it just
+     * opens no war. */
     if (!ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
       /*
        * bugs.md #472: the signed-treaty bit 0x40 gates every Euro target

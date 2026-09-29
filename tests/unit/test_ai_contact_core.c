@@ -6266,6 +6266,59 @@ static int sp_48(void) {
         wp.queue[0].tag != AI_POPUP_TAG_CONTACT_EURO_WAR) {
       return fail("our own peace bit must raise HAVETREATY even if theirs is clear");
     }
+    /*
+     * FUN_465b_0000 raw 75528-75529: either side a Privateer (@UNIT 0x10) and
+     * the whole treaty/declare band is skipped — no @HAVETREATY, no war, the
+     * attack just happens. Privateers fly no flag: they are hunted at peace
+     * and they prey at peace.
+     */
+    ai_popup_clear(&wp);
+    {
+      static ColonizeUnitPool pp;
+      memset(&pp, 0, sizeof(pp));
+      pp.type_count = 2;
+      snprintf(pp.types[0].name, sizeof(pp.types[0].name), "Frigate");
+      pp.types[0].kind_plus1 = (uint8_t)(UNITS_KIND_FRIGATE + 1);
+      pp.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+      pp.types[0].movement = 6;
+      snprintf(pp.types[1].name, sizeof(pp.types[1].name), "Privateer");
+      pp.types[1].kind_plus1 = (uint8_t)(UNITS_KIND_PRIVATEER + 1);
+      pp.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+      pp.types[1].movement = 8;
+      const int frig = units_spawn_allow_stack(&pp, 0, 4, 6);
+      const int priv = units_spawn_allow_stack(&pp, 1, 5, 6);
+      ColonizeUnit* fu = units_get(&pp, frig);
+      ColonizeUnit* pu = units_get(&pp, priv);
+      if (!fu || !pu) {
+        return fail("privateer gate: spawn failed");
+      }
+      fu->nation_id = 0;
+      pu->nation_id = 1;
+      wctx.units = &pp;
+      ai_diplo_write(&col1, 0, 1, AI_DIPLO_MET | AI_DIPLO_PEACE);
+      ai_diplo_write(&col1, 1, 0, AI_DIPLO_MET | AI_DIPLO_PEACE);
+      if (ai_contact_try_euro_attack_confirm(&wctx, 0, 1, frig, 5, 6) || wp.queue_count != 0) {
+        return fail("hunting a Privateer must not raise HAVETREATY");
+      }
+      if (ai_diplo_at_war(&col1, 0, 1)) {
+        return fail("hunting a Privateer must not declare war");
+      }
+      /* Mirror: our Privateer raids their Frigate — also warless. */
+      fu->nation_id = 1;
+      pu->nation_id = 0;
+      if (ai_contact_try_euro_attack_confirm(&wctx, 0, 1, priv, 4, 6) || wp.queue_count != 0) {
+        return fail("raiding with a Privateer must not raise HAVETREATY");
+      }
+      if (ai_diplo_at_war(&col1, 0, 1)) {
+        return fail("raiding with a Privateer must not declare war");
+      }
+      /* Control: Frigate vs Frigate on the same tiles still prompts. */
+      pu->type_index = 0;
+      if (!ai_contact_try_euro_attack_confirm(&wctx, 0, 1, frig, 4, 6) || wp.queue_count != 1) {
+        return fail("non-privateer attack under treaty must still ask HAVETREATY");
+      }
+      wctx.units = NULL;
+    }
     ai_popup_clear(&wp);
     ai_diplo_write(&col1, 0, 1, 0);
     ai_diplo_write(&col1, 1, 0, 0);
