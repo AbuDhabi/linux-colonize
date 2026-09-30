@@ -4,6 +4,8 @@
 > among others), under human direction. Disclosed per the papal recommendation
 > in *Magnifica humanitas*.
 
+![Screenshot](./screenshots/2026-09-29_20-15.webp)
+
 OpenCol, port of **Sid Meier's Colonization** (MicroProse, 1994 DOS). Goal: same
 rules, assets, saves, and inputs as the original. Fidelity bar and conflict
 order: [docs/project_goals.md](docs/project_goals.md).
