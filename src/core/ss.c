@@ -365,25 +365,43 @@ static void ss_blit_run(
     return;
   }
 
-  for (int y = 0; y < sprite->height; ++y) {
-    int fy = dst_y + y;
-    if (fy < 0 || fy >= framebuffer->height) {
-      continue;
-    }
-    for (int x = 0; x < sprite->width; ++x) {
-      int fx = dst_x + x;
-      if (fx < 0 || fx >= framebuffer->width) {
-        continue;
+  /* Clip once, then run the rows: the inner loop keeps only the transparency
+   * test (and the dest match in WHERE_DEST mode). Per-pixel bounds checks and
+   * a per-pixel mode compare made this the single hottest function in a
+   * full-window map frame. */
+  const int x0 = dst_x < 0 ? -dst_x : 0;
+  const int y0 = dst_y < 0 ? -dst_y : 0;
+  int x1 = sprite->width;
+  int y1 = sprite->height;
+  if (dst_x + x1 > framebuffer->width) {
+    x1 = framebuffer->width - dst_x;
+  }
+  if (dst_y + y1 > framebuffer->height) {
+    y1 = framebuffer->height - dst_y;
+  }
+  for (int y = y0; y < y1; ++y) {
+    const uint8_t* src = &sprite->pixels[y * sprite->width];
+    /* Row base, not row base + dst_x: dst_x can be negative here and only
+     * dst_x + x (x >= x0) is guaranteed in range. */
+    uint8_t* dst = &framebuffer->pixels[(dst_y + y) * framebuffer->width];
+    if (mode == SS_BLIT_WHERE_DEST) {
+      for (int x = x0; x < x1; ++x) {
+        if (dst[dst_x + x] == key_color && src[x] != COLONIZE_SS_TRANSPARENT) {
+          dst[dst_x + x] = src[x];
+        }
       }
-      const int di = fy * framebuffer->width + fx;
-      if (mode == SS_BLIT_WHERE_DEST && framebuffer->pixels[di] != key_color) {
-        continue;
+    } else if (mode == SS_BLIT_REPLACE) {
+      for (int x = x0; x < x1; ++x) {
+        if (src[x] != COLONIZE_SS_TRANSPARENT) {
+          dst[dst_x + x] = key_color;
+        }
       }
-      const uint8_t color = sprite->pixels[y * sprite->width + x];
-      if (color == COLONIZE_SS_TRANSPARENT) {
-        continue;
+    } else {
+      for (int x = x0; x < x1; ++x) {
+        if (src[x] != COLONIZE_SS_TRANSPARENT) {
+          dst[dst_x + x] = src[x];
+        }
       }
-      framebuffer->pixels[di] = (mode == SS_BLIT_REPLACE) ? key_color : color;
     }
   }
 }
@@ -463,25 +481,32 @@ void ss_tile_rect(
   if (!tile->pixels || tile->width <= 0 || tile->height <= 0) {
     return;
   }
-  const int x1 = origin_x + rect_w;
-  const int y1 = origin_y + rect_h;
-  for (int y = origin_y; y < y1; y += tile->height) {
-    for (int x = origin_x; x < x1; x += tile->width) {
-      for (int sy = 0; sy < tile->height; ++sy) {
-        const int fy = y + sy;
-        if (fy < origin_y || fy >= y1 || fy < 0 || fy >= framebuffer->height) {
-          continue;
-        }
-        for (int sx = 0; sx < tile->width; ++sx) {
-          const int fx = x + sx;
-          if (fx < origin_x || fx >= x1 || fx < 0 || fx >= framebuffer->width) {
-            continue;
+  /* Clip the rect against the framebuffer once, then clip each tile against
+   * the rect once: the old per-pixel four-way bounds test made the WOODTILE
+   * background a measurable slice of every non-map frame. */
+  int cx0 = origin_x < 0 ? 0 : origin_x;
+  int cy0 = origin_y < 0 ? 0 : origin_y;
+  int cx1 = origin_x + rect_w;
+  int cy1 = origin_y + rect_h;
+  if (cx1 > framebuffer->width) {
+    cx1 = framebuffer->width;
+  }
+  if (cy1 > framebuffer->height) {
+    cy1 = framebuffer->height;
+  }
+  for (int y = origin_y; y < cy1; y += tile->height) {
+    const int sy0 = y < cy0 ? cy0 - y : 0;
+    const int sy1 = y + tile->height > cy1 ? cy1 - y : tile->height;
+    for (int x = origin_x; x < cx1; x += tile->width) {
+      const int sx0 = x < cx0 ? cx0 - x : 0;
+      const int sx1 = x + tile->width > cx1 ? cx1 - x : tile->width;
+      for (int sy = sy0; sy < sy1; ++sy) {
+        const uint8_t* src = &tile->pixels[sy * tile->width];
+        uint8_t* dst = &framebuffer->pixels[(size_t)(y + sy) * (size_t)framebuffer->width];
+        for (int sx = sx0; sx < sx1; ++sx) {
+          if (src[sx] != COLONIZE_SS_TRANSPARENT) {
+            dst[x + sx] = src[sx];
           }
-          const uint8_t color = tile->pixels[sy * tile->width + sx];
-          if (color == COLONIZE_SS_TRANSPARENT) {
-            continue;
-          }
-          framebuffer->pixels[fy * framebuffer->width + fx] = color;
         }
       }
     }

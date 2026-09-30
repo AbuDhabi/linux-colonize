@@ -2010,18 +2010,28 @@ COLONIZE_INTERNAL void game_render_map_composite(
   framebuffer = framebuffer_screen;
   {
     const int step = 1 << map_zoom;
-    for (int sy = 0; sy < MAP_VIEW_H; ++sy) {
+    /* MAP_VIEW_W/H call screen_geom_*() — reading them per pixel made the
+     * getter one of the hottest functions in a full-window frame. Hoist, and
+     * at zoom 0 (step 1) the "decimation" is a row copy. */
+    const int view_w = MAP_VIEW_W;
+    const int view_h = MAP_VIEW_H;
+    int cols = view_w;
+    if ((cols - 1) * step >= zoom_fb.width) {
+      cols = (zoom_fb.width + step - 1) / step;
+    }
+    for (int sy = 0; sy < view_h; ++sy) {
       const int src_y = sy * step;
       if (src_y >= zoom_fb.height) {
         continue;
       }
       const uint8_t* src_row = &zoom_fb.pixels[(size_t)src_y * (size_t)zoom_fb.width];
       uint8_t* dst_row = &framebuffer->pixels[(size_t)(MAP_MENU_BAR_H + sy) * (size_t)framebuffer->width];
-      for (int sx = 0; sx < MAP_VIEW_W; ++sx) {
-        const int src_x = sx * step;
-        if (src_x < zoom_fb.width) {
-          dst_row[sx] = src_row[src_x];
-        }
+      if (step == 1) {
+        memcpy(dst_row, src_row, (size_t)cols);
+        continue;
+      }
+      for (int sx = 0; sx < cols; ++sx) {
+        dst_row[sx] = src_row[sx * step];
       }
     }
   }
