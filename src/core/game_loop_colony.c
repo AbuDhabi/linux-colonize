@@ -691,15 +691,33 @@ void game_colony_assign_building_drop(ColonizeGameState* game, int building_inde
 /* Docks / Drydock / Shipyard — same check as colony_preview.c / turn.c. */
 
 /*
- * bugs.md #284 — DOS work-assign complaint (overlays.c ~8789, the colony
- * tiles[] writer): putting a colonist on Indian-claimed land bumps the
- * owning tribe's alarm. base = difficulty+5 (human turn); ×2 when the
- * claiming village stands within 3 tiles, +base again within 2; ×2 on a
- * road. No dialog in DOS — the resentment is the alarm itself; the port
- * adds a status line so the player learns why. (DOS's AI-colony
- * auto-purchase arm is not ported — AI assignment runs elsewhere.)
+ * The colony screen's two field-assign commits. Both go through
+ * colonies_assign_field_w so DOS's FUN_0000_6582 tail (the native land-work
+ * alarm) fires — it used to be a UI-local copy here, which is why the seven AI
+ * assignment sites never paid it. `europe` is passed for the AI land-purchase
+ * arm inside that tail; a human colony never reaches it.
  */
-static void game_colony_indian_land_worked(
+static bool game_colony_assign_field(
+  ColonizeGameState* game,
+  int colonist_index,
+  int tile_index,
+  int field_job
+) {
+  const ColonizeWorld w = world_make(
+    game->units_ok ? &game->units : NULL, &game->colonies,
+    game->world_map_ok ? &game->world_map : NULL, &game->col1, game->col1_ok, NULL,
+    &game->europe
+  );
+  return colonies_assign_field_w(&w, game->colony_view_id, colonist_index, tile_index, field_job);
+}
+
+/*
+ * Status-line chrome only — the alarm itself is charged inside
+ * colonies_assign_field_w. DOS shows no dialog at all here (bugs.md #284); the
+ * port keeps this line so the player learns why the tribe soured. Read-only, so
+ * running it after the assign cannot double-charge.
+ */
+static void game_colony_indian_land_status(
   ColonizeGameState* game,
   const ColonizeColony* colony,
   int tile_index
@@ -712,33 +730,19 @@ static void game_colony_indian_land_worked(
   if (!colonies_field_tile_delta(tile_index, &dx, &dy)) {
     return;
   }
-  const int x = colony->x + dx;
-  const int y = colony->y + dy;
-  ColonizeCol1Save* col1 = &game->col1;
-  const int ti = colonies_indian_claim_tribe_from_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, colony->nation_id, colony->x, colony->y, x, y);
-  if (ti < 0 || !col1->tribe) {
+  const ColonizeWorld w = world_make(
+    game->units_ok ? &game->units : NULL, &game->colonies, &game->world_map, &game->col1,
+    game->col1_ok, NULL, NULL
+  );
+  const int ti = colonies_indian_claim_tribe_from_w(
+    &w, colony->nation_id, colony->x, colony->y, colony->x + dx, colony->y + dy
+  );
+  if (ti < 0 || !game->col1.tribe) {
     return;
   }
-  const ColonizeCol1Tribe* t = &col1->tribe[ti];
-  const int tn = (int)t->nation_id;
-  int base = (int)col1->head.difficulty + 5;
-  int amt = base;
-  const int ddx = abs((int)t->x - x);
-  const int ddy = abs((int)t->y - y);
-  const int dist = ddx > ddy ? ddx : ddy;
-  if (dist < 3) {
-    amt = base * 2;
-  }
-  if (dist < 2) {
-    amt += base;
-  }
-  if (map_tile_has_road(&game->world_map, x, y)) {
-    amt *= 2;
-  }
-  ai_diplo_indian_alarm_delta(col1, tn, colony->nation_id, amt);
   snprintf(
     game->status, sizeof(game->status), "The %s resent the use of their land.",
-    ai_contact_tribe_name(tn)
+    ai_contact_tribe_name((int)game->col1.tribe[ti].nation_id)
   );
 }
 
@@ -840,10 +844,10 @@ void game_colony_area_tile_drop(
     colony_screen_set_status(csv, game->status);
     return;
   }
-  if (colonies_assign_field(&game->colonies, game->colony_view_id, ci, tile_index, job)) {
+  if (game_colony_assign_field(game, ci, tile_index, job)) {
     game_colony_assign_job_sound(job);
     snprintf(game->status, sizeof(game->status), "Working as %s", colony_yield_job_name(job));
-    game_colony_indian_land_worked(game, colony, tile_index);
+    game_colony_indian_land_status(game, colony, tile_index);
   } else {
     set_status(game, "Cannot assign field", NULL);
   }
@@ -994,12 +998,10 @@ void game_colony_commit_job(ColonizeGameState* game, ColonizeColony* colony, int
     set_status(game, "No docks", NULL);
   } else if (ci < 0) {
     set_status(game, "Select a colonist first", NULL);
-  } else if (colonies_assign_field(
-               &game->colonies, game->colony_view_id, ci, csv->jobs_tile_index, job
-             )) {
+  } else if (game_colony_assign_field(game, ci, csv->jobs_tile_index, job)) {
     game_colony_assign_job_sound(job);
     snprintf(game->status, sizeof(game->status), "Working as %s", colony_yield_job_name(job));
-    game_colony_indian_land_worked(
+    game_colony_indian_land_status(
       game, colonies_get(&game->colonies, game->colony_view_id), csv->jobs_tile_index
     );
   } else {

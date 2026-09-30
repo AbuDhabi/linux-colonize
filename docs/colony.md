@@ -301,6 +301,42 @@ Also answers the plain "what claims this tile" question with origin ==
 the queried tile (the thin colonies_indian_claim_tribe wrapper that used
 to spell that was deleted 2026-09-14, audit CO-22 — it had no callers).
 
+## colonies_assign_field_w
+
+DOS's `FUN_0000_6582`, the shared colony `tiles[]` writer. Besides seating the
+colonist it carries the native land-work reaction, because DOS runs that from
+this writer and not from the colony screen:
+
+- the plot's claim comes from `colonies_indian_claim_tribe_from_w`
+  (DOS's 5x5 table at DS:-0x7262, `FUN_15eb_26e4`);
+- a **non-human** colony first tries to buy the plot outright at
+  `colonies_indian_land_purchase_gold`, and pays only when it holds 1.5x the
+  price (`gold - price >= price/2`, raw 8785-8798) — a successful buy raises no
+  alarm at all;
+- otherwise alarm rises by `base = (human ? difficulty : 0) + 5`, doubled when
+  the nearest village (DS:0x8db8, the distance `FUN_4cc6_0356` wrote) is within
+  3, plus `base` again within 2, and doubled once more when the tile holds a
+  prime resource (`FUN_0000_3ca0`, the same hash as `map_resource_type_at` —
+  it is **not** a road test).
+
+The charge is once per plot: `FUN_15eb_26e4` (raw 12851-12854) leaves a plot
+that already has a worker out of the claim table, and it builds that table at
+colony-pass entry, before the AI placement section's
+`memset(colony+0x70, 0xff, 0x14)` wipe. `ColonizeColony.plot_was_worked_mask`
+carries that fact across the port's equivalent clear, so the AI's yearly
+clear-and-reseat does not re-charge. Verified against real DOS saves: replaying
+`original_saves/early-game-seed-100/TURN1.SAV` six turns headless reproduces
+TURN7.SAV's `alarm_by_player` on all 8 tribes x 4 nations exactly.
+
+Not modelled: DOS's `*(char *)0x34d` gate, which `FUN_15eb_28c8` raises while
+it trial-seats colonists through 6582 to score plots and lowers again for the
+one committing seat. The port scores without seating, so no probe reaches this
+writer.
+
+The pool-only `colonies_assign_field` spelling is the no-world (test) form; it
+has no col1/map and therefore cannot raise alarm. Every real assignment path
+must use `_w`. bugs.md #1002.
+
 ## colonies_indian_land_pay
 
 Pay for tribal land at (x,y): debit *gold by cost (when gold non-NULL),

@@ -448,10 +448,45 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
   p->col1->head.game_options.tutorial_hints = (p->col1->head.difficulty == 0) ? 1 : 0;
 
   /* Seed indian tech from @TRIBES when available. */
+  /*
+   * DOS-LITERAL FUN_6a09_0006 raw (viceroy_unpacked_2.c:98645-98656) — the
+   * per-tribe record init this loop is the port of also SEEDS THE ALARM:
+   *
+   *   for (e = 0; e < 4; e++) {
+   *     bonus = (e < 4 && DS:0x543f[e] == 0) ? DS:0x53a6 * 2 : 0;  // human
+   *     indian[+0x46 + e*2] = rand(0, 14) + bonus;                 // alarm
+   *     indian[+0x36 + e]   = 0;                                   // accum
+   *   }
+   *
+   * Nobody was writing it, so every port game started at alarm 0 on all 32
+   * (tribe, nation) pairs and stayed there — which pinned the quartile the
+   * @MISSION0..3 band and every other `0x4b` / quartile gate read. Real DOS
+   * saves show the seed plainly: early-game-seed-100 TURN1.SAV is turn 0,
+   * before anyone has moved, and already carries 0..14 on every pair.
+   *
+   * Isolated RNG, not the shared new-game stream. In DOS these 32 draws sit
+   * between 6a09's entry reseed and its village placement; the port's
+   * placement stream is pinned byte-exact against TURN1.SAV's tribe rows by
+   * golden_mapgen_seed100, and it matches with no draws burned here, so where
+   * exactly the port's reseed lands relative to DOS's is unresolved. Taking
+   * these from a side stream keeps the DOS-derived village golden honest and
+   * the values distributed as DOS distributes them.
+   * ponytail: side stream; move it onto the shared LCG if the placement
+   * reseed is ever pinned down.
+   */
+  AiRng alarm_rng;
+  dos_rng_seed(&alarm_rng, ai_new_game_seed(p) ^ 0x6a09u);
   for (int t = 0; t < 8; ++t) {
     p->col1->indian[t].capitol_x = 1;
     p->col1->indian[t].capitol_y = 1;
     p->col1->indian[t].tech = (uint8_t)(t < 2 ? 3 - t : (t < 5 ? 1 : 0));
+    for (int e = 0; e < 4; ++e) {
+      const int bonus =
+        (p->col1->player[e].control == 0) ? (int)p->col1->head.difficulty * 2 : 0;
+      p->col1->indian[t].alarm_by_player[e] =
+        (uint16_t)(dos_rng_range(&alarm_rng, 0, 14) + bonus);
+      p->col1->indian[t].euro_relation_accum[e] = 0;
+    }
   }
   if (p->names) {
     const ColonizeMsgSection* tribes = assets_msg_find(p->names, "TRIBES");

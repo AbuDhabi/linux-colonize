@@ -278,7 +278,9 @@ static int ai_euro_28c8_score_full(
     const int ty = col->y + dy;
     /* DS:0x8d9e (-0x7262), FUN_15eb_26e4's 5x5 Indian-claim table. A HUMAN
      * colony skips a claimed plot outright (raw 12993-12995); an AI colony
-     * scores it and pays the alarm term below. */
+     * scores it, with the reluctance term below. That term is scoring only —
+     * the actual alarm is billed when the seat commits, inside
+     * colonies_assign_field_w (FUN_0000_6582, bugs.md #1002). */
     int claim_village = -1;
     int claim_tribe = -1;
     if (col1) {
@@ -533,6 +535,7 @@ void ai_euro_28c8_auto_assign_plots(ColonizeTurnContext* ctx, int colony_id, int
   if (!col || !col->active) {
     return;
   }
+  const ColonizeWorld world = world_from_turn_ctx(ctx);
   for (int s = 0; s < col->colonist_count; ++s) {
     if (colonist_slot >= 0 && s != colonist_slot) {
       continue;
@@ -544,7 +547,7 @@ void ai_euro_28c8_auto_assign_plots(ColonizeTurnContext* ctx, int colony_id, int
     AiEuro28c8JobCandidate best;
     const int ok =
       ai_euro_28c8_score_full(ctx, col, s, c->profession, -1, 0, &best);
-    if (ok && colonies_assign_field(ctx->colonies, colony_id, s, best.tile, best.job)) {
+    if (ok && colonies_assign_field_w(&world, colony_id, s, best.tile, best.job)) {
       continue;
     }
     colonies_assign_carpenter_fallback(ctx->colonies, colony_id, s);
@@ -1130,7 +1133,7 @@ static void ai_euro_5952_indoor_pass(
     } else {
       /* raw 94861 `FUN_1000_8d5e(slot, 0xffff)` — mode −1 commits the plot. */
       if (probe_ok && probe.yield != 0 &&
-          colonies_assign_field(ctx->colonies, col->id, s, probe.tile, probe.job)) {
+          colonies_assign_field_w(&world, col->id, s, probe.tile, probe.job)) {
         placed[s] = true;
         continue;
       }
@@ -1302,7 +1305,7 @@ static bool ai_euro_5952_forced_lumberjack(
       if (!ok) {
         continue; /* 8d5e != 0 — DOS just walks on to the next slot */
       }
-      if (colonies_assign_field(pool, col->id, s, best.tile, best.job)) {
+      if (colonies_assign_field_w(&world, col->id, s, best.tile, best.job)) {
         placed[s] = true;
         any = true; /* iStack_8c = 1, raw 94676 */
         /* FUN_281f_0c04 — the refresh that ends the loop. */
@@ -2526,6 +2529,7 @@ static void ai_euro_colony_tick_run(
   if (!ctx || !ctx->colonies || !ctx->map || nation_id == ctx->human_nation) {
     return;
   }
+  const ColonizeWorld world = world_from_turn_ctx(ctx);
   for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
     ColonizeColony* col = &ctx->colonies->colonies[ci];
     if (!col->active || col->nation_id != nation_id || col->colonist_count <= 0) {
@@ -2637,7 +2641,7 @@ static void ai_euro_colony_tick_run(
         section_done = true; /* raw 94596 */
         break;
       }
-      if (colonies_assign_field(ctx->colonies, col->id, s, best.tile, best.job)) {
+      if (colonies_assign_field_w(&world, col->id, s, best.tile, best.job)) {
         placed[s] = true;
         if (best.job == COLONIZE_JOB_FARMER || best.job == COLONIZE_JOB_FISHERMAN) {
           food_have += best.yield;
@@ -2689,7 +2693,7 @@ static void ai_euro_colony_tick_run(
           section_done = true; /* raw 94614 */
           break;
         }
-        if (colonies_assign_field(ctx->colonies, col->id, s, best.tile, best.job)) {
+        if (colonies_assign_field_w(&world, col->id, s, best.tile, best.job)) {
           placed[s] = true;
           if (best.job == COLONIZE_JOB_FARMER || best.job == COLONIZE_JOB_FISHERMAN) {
             food_have += best.yield;
@@ -2825,7 +2829,7 @@ static void ai_euro_colony_tick_run(
         if (!ok) {
           continue;
         }
-        if (colonies_assign_field(ctx->colonies, col->id, s, best.tile, best.job)) {
+        if (colonies_assign_field_w(&world, col->id, s, best.tile, best.job)) {
           placed[s] = true;
         }
       }
@@ -2897,7 +2901,7 @@ static void ai_euro_colony_tick_run(
       const int ok = ai_euro_28c8_score(ctx, col, s, col->colonists[s].profession, &best);
       col->colonists[s].field_job = -1;
       if (ok && best.yield >= 2) {
-        (void)colonies_assign_field(ctx->colonies, col->id, s, best.tile, best.job);
+        (void)colonies_assign_field_w(&world, col->id, s, best.tile, best.job);
       }
     }
     if (whole_tick) {
