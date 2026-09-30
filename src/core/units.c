@@ -1447,7 +1447,7 @@ bool units_brewster_apply_popup_ex_w(
   /* Mirror the dock immigrant as the Europe-map unit (Col1 capture), same
    * shape as turn.c's random-pick path. */
   if (units && europe->dock_count > 0 && human >= 0 && human < 4) {
-    const EuropeDockImmigrant* d = &europe->dock[europe->dock_count - 1];
+    const EuropeDockImmigrant* d = &europe->dock[0];
     /* Same shared stream turn.c's imm==1 path uses: europe_dock_unit_dos_type's
      * Dragoon roll (46d4 bound difficulty+4 for a human) is a real DOS draw, and
      * passing NULL here dropped it — every Brewster Soldier mirrored as Soldiers.

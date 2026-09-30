@@ -388,12 +388,12 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       }
       const char* name = "";
       if (ctx->europe->dock_count > 0) {
-        name = ctx->europe->dock[ctx->europe->dock_count - 1].name;
+        name = ctx->europe->dock[0].name;
       }
       turn_notify_dock_immigrant(ctx, out, name);
       /* Mirror dock immigrant as Europe-map unit for Col1 capture. */
       if (ctx->units && ctx->europe->dock_count > 0) {
-        const EuropeDockImmigrant* d = &ctx->europe->dock[ctx->europe->dock_count - 1];
+        const EuropeDockImmigrant* d = &ctx->europe->dock[0];
         (void)europe_spawn_dock_mirror_unit(
           ctx->units, ctx->human_nation, d->profession, (int)ctx->europe->difficulty, true,
           ctx->rng
