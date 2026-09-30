@@ -10,26 +10,9 @@ order: [docs/project_goals.md](docs/project_goals.md).
 
 Version: **0.7-alpha**.
 
-## Current state
+## Documentation
 
-Playability tracks P1–P11 closed 2026-09-03. Strong on shell, map art,
-navigation, reports / pedia, Col1 save/load, units / naval passengers, founding
-a colony, Europe buy/sell/recruit/hire/equip, rumours/treasure (incl.
-KINGGALLEON2), Indian contact and diplomacy, king/REF, FF election
-(all 25 Fathers), and trade routes. The rival-European and Indian AI tracks
-closed at logic level on 2026-09-07/08 (`0a60`/`5d04`/`20e6` and
-`2820`/`2154`/`4528`/`152e`/`1816`/`021a`); what is left there is fidelity
-hardening, not missing planner arms. Music is a literal `GSOUND.COL` driver
-emulator; `COLDIG.BIN` SFX are wired (leftover misfires are polish).
-
-Remaining work is incoming [bugs.md](bugs.md) nits, production / combat depth
-on the Partial rows in [manual_gap.md](docs/manual_gap.md), and the two
-still-open deferred phases: pixel-exact dialog chrome and VGA meet chrome
-(D4), SC-55 timbre (D5). (D3, known-seed determinism, closed 2026-09-05 —
-golden gates are 60/60 live; its remaining residue is documented port debt,
-not required for playability.)
-
-Living status:
+Status:
 
 - [docs/architecture.md](docs/architecture.md) — present / intended code architecture
 - [tests/README.md](tests/README.md) — smoke / unit / golden test layout
@@ -44,7 +27,7 @@ see [docs/conventions.md](docs/conventions.md); for debug env vars and
 The port-only preference file `settings.json` lives next to the executable
 (see [docs/settings.md](docs/settings.md)).
 
-## Requirements
+## Bulid requirements
 
 - CMake ≥ 3.20
 - SDL2 (required for the game binary)
