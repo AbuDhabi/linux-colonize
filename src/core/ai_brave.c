@@ -616,6 +616,15 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
     /* FUN_465b_0000 commit -> FUN_5bfb_3180, raw 98628-98646:
      * native steps also wake adjacent foreign sentries (#530). */
     units_sentry_wake_scan(units, map, ai_s_native_colonies, u->id);
+    /* bugs.md: native steps commit inline instead of going through
+     * units_move_unit, so they never reached the move-watch hook and
+     * "Show Indian Moves" jump-cut while Euro AI steps slid. */
+    if (g_units_move_watch) {
+      g_units_move_watch(
+        g_units_move_watch_user, units, map, ai_s_native_colonies, u->id, step_ox, step_oy,
+        nx, ny
+      );
+    }
   }
   u->moves = spent + cost;
   /*
