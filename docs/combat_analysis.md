@@ -72,7 +72,7 @@ dual column. Shown **before** the combat roll (strengths known; no outcome yet).
   | Row | DOS blit | Sprite | Indent |
   |-----|----------|--------|--------|
   | Bombard (`0x8000`) | `FUN_281f_0254` → `1c36_000a` | ICONS.SS: Man-O-War (`DS:0x532e` = `@UNIT` 18 icon) when the colony's `+0x1c` bit `0x40` (coastal) is set or there is no colony, else Artillery (`DS:0x52cc` = `@UNIT` 11) | `0x10` |
-  | Ambush / Terrain (`0x80`) | `FUN_281f_033a` → `1baa_0006` | TERRAIN.SS engagement tile (both columns show the same tile) | `0x11` |
+  | Ambush / Terrain (`0x80`) | `FUN_281f_033a` → `1baa_0006` | Engagement tile (both columns show the same tile). `1baa_0006` is a plain surface-to-surface rect copy off the **rendered map**, so the tile carries its overlays — a mountain over Savannah shows the mountain. The port redraws it from `map_tile_layer_cmds` (TERRAIN.SS + PHYS0.SS, the same list the map viewport and colony minimap blit); `terrain_x`/`terrain_y` on `ColonizeCombatSideFlags` carry the tile, and the bare `terrain_sprite` base tile is only the fallback when the map / PHYS0.SS are missing | `0x11` |
   | Fort tier (`0x40`) | `FUN_281f_02a8` → `112b_0c64` @100 | ICONS.SS #0–3 + owner flag (`colonies_blit_settlement_icon`) | `0x14` |
   | Village (`0x8`) | `FUN_281f_02b2` → `112b_0790` @100 | ICONS.SS #10–13 by tribe tech (`112b_0790` reads `indian[tribe].tech` from `DS:0x5ad8` stride `0x4e`, clamps it to 3 and blits `11 + tech` 1-based; `DS:0x84c` is indexed by *tribe* and supplies both the relation-bar colour and the tribe tint dots painted onto the shared low-tech sprites at `112b:0815` — 3 marks for tech 0, 2 for tech 1, none above), plus the capital starburst ICONS.SS #17 when the settlement's `+3` bit `0x04` is set | `0x14` |
 

@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "core/col1_save.h"
+#include "core/map.h"
 #include "core/combat_strength.h"
 #include "core/font.h"
 #include "core/popup.h"
@@ -76,6 +77,11 @@ typedef struct CombatAnalysisRow {
   int icon_kind; /* CombatAnalysisRowIcon */
   int icon_sprite; /* sheet index for icon_kind; -1 = nothing to draw */
   int icon_nation; /* settlement flag recolor; -1 = none */
+  /* COMBAT_ROW_ICON_TERRAIN: engagement tile, so the renderer can redraw the
+   * whole map_tile_layer_cmds stack (mountain / hills / river / road) the way
+   * DOS gets it for free by copying the map surface. -1 = base sprite only. */
+  int icon_tile_x;
+  int icon_tile_y;
   int label_indent; /* DOS local_76 bump for this row's icon */
 } CombatAnalysisRow;
 
@@ -150,6 +156,8 @@ void combat_analysis_render(
   const ColonizeSpriteSheet* wood_tile,
   const ColonizeSpriteSheet* unit_icons,
   const ColonizeSpriteSheet* terrain, /* TERRAIN.SS for the Ambush/Terrain row icon; may be NULL */
+  const ColonizeSpriteSheet* phys0, /* PHYS0.SS tile overlays for that row; may be NULL */
+  const ColonizeWorldMap* map, /* engagement tile lookup for that row; may be NULL */
   const ColonizePopupColors* colors,
   uint8_t text_color,
   uint8_t select_color,
