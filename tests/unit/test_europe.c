@@ -807,7 +807,7 @@ static int case_europe_workflow(void) {
     eu.menu_selection = 0; /* "Yes" */
     if (!europe_menu_confirm_ex(&eu, NULL) || eu.gold != gold_before - confirm_cost ||
         eu.dock_count != dock_before + 1 ||
-        strcmp(eu.dock[eu.dock_count - 1].name, "Artillery") != 0 ||
+        strcmp(eu.dock[0].name, "Artillery") != 0 || /* newest at slot 0 (#999) */
         eu.menu != EUROPE_MENU_NONE) {
       fprintf(stderr, "purchase 'Yes' answer did not debit/spawn correctly\n");
       europe_free(&eu);
@@ -1055,6 +1055,46 @@ static int case_europe_workflow(void) {
     europe_free(&eu);
     return 1;
   }
+  /*
+   * bugs.md #999: a colonist CREATED in Europe joins at slot 0 (DOS links it
+   * in as the newest unit on the dock lane), one that ARRIVES from the New
+   * World joins at the back (FUN_1427_03a0 re-links it as the oldest).
+   */
+  {
+    const int prof0 = eu.dock[0].profession;
+    const int prof1 = eu.dock[1].profession;
+    if (!europe_immigrant_from_pool(&eu, NULL) || eu.dock_count != 3 ||
+        eu.dock[1].profession != prof0 || eu.dock[2].profession != prof1) {
+      fprintf(
+        stderr, "created immigrant did not land on slot 0: count=%d p=%d/%d/%d\n",
+        eu.dock_count, eu.dock[0].profession, eu.dock[1].profession, eu.dock[2].profession
+      );
+      europe_free(&eu);
+      return 1;
+    }
+    const int created = eu.dock[0].profession;
+    EuropeHarborShip late;
+    memset(&late, 0, sizeof(late));
+    late.cargo_count = 1;
+    late.cargo_types[0] = -2; /* nameless colonist, no unit pool needed */
+    late.cargo_professions[0] = 19;
+    europe_disembark_passengers_to_dock(&eu, &late, NULL);
+    if (eu.dock_count != 4 || eu.dock[3].profession != 19 || eu.dock[0].profession != created ||
+        late.cargo_count != 0) {
+      fprintf(
+        stderr, "New World arrival did not land at the back: count=%d p0=%d p3=%d cargo=%d\n",
+        eu.dock_count, eu.dock[0].profession, eu.dock[3].profession, late.cargo_count
+      );
+      europe_free(&eu);
+      return 1;
+    }
+    eu.dock_count = 2; /* restore the two-passenger dock the boarding test wants */
+    memset(&eu.dock[2], 0, sizeof(eu.dock[2]));
+    memset(&eu.dock[3], 0, sizeof(eu.dock[3]));
+    eu.dock[0].profession = prof0;
+    eu.dock[1].profession = prof1;
+  }
+
   /* Boarding: only sentry from front; skip non-sentry ahead of queue. */
   eu.dock_count = 3;
   snprintf(eu.dock[0].name, sizeof(eu.dock[0].name), "%s", "Indentured Servants");

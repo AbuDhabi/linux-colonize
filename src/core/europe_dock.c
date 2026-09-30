@@ -147,8 +147,7 @@ bool europe_recruit_from_pool_ex(EuropeScreen* eu, int pool_index, ColonizeDosRn
     return false;
   }
   eu->gold -= eu->recruit_passage;
-  EuropeDockImmigrant* slot = &eu->dock[eu->dock_count++];
-  memset(slot, 0, sizeof(*slot));
+  EuropeDockImmigrant* slot = europe_dock_insert_front(eu);
   snprintf(slot->name, sizeof(slot->name), "%s", eu->pool[pool_index].name);
   slot->profession = eu->pool[pool_index].profession;
   slot->present = true;
@@ -195,8 +194,7 @@ bool europe_recruit_free_from_pool_ex(
   }
   /* FUN_38fd_4884 with param_1 != 0: passage forced to 0, the +6 recruit
    * counter and the +0x2e crosses word are left alone (64695-64697, 64778). */
-  EuropeDockImmigrant* slot = &eu->dock[eu->dock_count++];
-  memset(slot, 0, sizeof(*slot));
+  EuropeDockImmigrant* slot = europe_dock_insert_front(eu);
   snprintf(slot->name, sizeof(slot->name), "%s", eu->pool[pool_index].name);
   slot->profession = eu->pool[pool_index].profession;
   slot->present = true;
@@ -252,8 +250,7 @@ bool europe_immigrant_from_pool(EuropeScreen* eu, ColonizeDosRng* rng) {
    * off the same shared stream (bugs.md #671). The 4884 Recruit-click paths
    * really are spawn-then-refill and stay as they are. */
   europe_refill_pool_slot_rng(eu, slot, eu->pool_force_expert, rng);
-  EuropeDockImmigrant* d = &eu->dock[eu->dock_count++];
-  memset(d, 0, sizeof(*d));
+  EuropeDockImmigrant* d = europe_dock_insert_front(eu);
   snprintf(d->name, sizeof(d->name), "%s", name);
   d->profession = profession;
   d->present = true;
@@ -301,8 +298,7 @@ bool europe_train_ex(EuropeScreen* eu, int train_index, ColonizeDosRng* rng) {
     return false;
   }
   eu->gold -= t->cost;
-  EuropeDockImmigrant* slot = &eu->dock[eu->dock_count++];
-  memset(slot, 0, sizeof(*slot));
+  EuropeDockImmigrant* slot = europe_dock_insert_front(eu);
   snprintf(slot->name, sizeof(slot->name), "%s", t->expert_name);
   slot->profession = t->job_index;
   slot->present = true;
@@ -397,8 +393,7 @@ bool europe_purchase_commit(
     return false;
   }
   eu->gold -= cost;
-  EuropeDockImmigrant* slot = &eu->dock[eu->dock_count++];
-  memset(slot, 0, sizeof(*slot));
+  EuropeDockImmigrant* slot = europe_dock_insert_front(eu);
   snprintf(slot->name, sizeof(slot->name), "%s", p->name);
   slot->profession = -1;
   slot->present = true;

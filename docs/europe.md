@@ -240,11 +240,15 @@ Writes at most `cap` bytes; returns false on a bad index.
 
 ## europe_dock_push_load
 
-Push a save-loaded Europe-dock colonist straight onto the dock (append at
-back, present, default sentry) — for col1_bridge_apply restoring a human
-nation's waiting-in-Europe colonists on load. Unlike europe_recruit_from_
-pool/europe_train/europe_purchase this charges no gold and posts no status
-message. Returns false if the dock is full.
+Push a colonist onto the BACK of the dock queue (present, default sentry),
+charging no gold and posting no status message. Two callers: col1_bridge_apply
+restoring a human nation's waiting-in-Europe colonists on load, and
+europe_disembark_passengers_to_dock — DOS sends an arrival from the New World
+to the oldest end of the dock lane chain (FUN_281f_08c6 = FUN_1427_03a0 after
+the FUN_48d3_03d0 lane hop), so it queues behind everyone already there.
+Colonists *created* in Europe go the other way, onto slot 0, through
+europe_dock_insert_front (europe_internal.h). bugs.md #999. Returns false if
+the dock is full.
 
 ## europe_remove_dock_mirror_unit
 

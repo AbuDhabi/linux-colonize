@@ -33,12 +33,6 @@
 /* Forward declarations for this file's own statics (the split moved
    section order; these keep every call site legal). */
 static unsigned europe_rng_next(unsigned* state);
-static bool europe_dock_push_front(
-  EuropeScreen* eu,
-  const char* name,
-  int profession,
-  bool sentry
-);
 static int europe_type_is_treasure(const ColonizeUnitPool* units, int type_tag);
 static void europe_cash_treasure_passengers(
   EuropeScreen* eu,
@@ -259,28 +253,30 @@ int europe_dock_type_row_of_name(const char* name) {
   return -1;
 }
 
-/* Insert at dock front (index 0). Returns false if docks are full. */
-static bool europe_dock_push_front(
-  EuropeScreen* eu,
-  const char* name,
-  int profession,
-  bool sentry
-) {
+/*
+ * A fresh dock slot at index 0.
+ *
+ * DOS has no dock array: the Europe dock is the unit chain on the nation's
+ * dock lane tile (x = y = nation - 0x14), and dock slot 0 is what
+ * FUN_281f_07e0 answers — FUN_1427_0002 walks +0x315c to the NEWEST unit on
+ * the tile, and FUN_38fd_15aa then paints slot 0, 1, 2 ... walking
+ * FUN_281f_02e4 (+0x315e) back towards the oldest. Every colonist DOS
+ * *creates* in Europe (FUN_38fd_0718 -> FUN_281f_095c -> FUN_1427_06b4 ->
+ * FUN_1427_02ca: crosses immigrant, recruit, Brewster pick, train, purchase,
+ * King mercenaries) is linked in as the newest, so it lands on slot 0.
+ * Colonists that *arrive* from the New World do not: see
+ * europe_dock_push_load. bugs.md #999.
+ */
+EuropeDockImmigrant* europe_dock_insert_front(EuropeScreen* eu) {
   if (!eu || eu->dock_count >= EUROPE_DOCK_MAX) {
-    return false;
+    return NULL;
   }
   for (int i = eu->dock_count; i > 0; --i) {
     eu->dock[i] = eu->dock[i - 1];
   }
-  EuropeDockImmigrant* d = &eu->dock[0];
-  memset(d, 0, sizeof(*d));
-  snprintf(d->name, sizeof(d->name), "%s", name ? name : "");
-  d->profession = profession;
-  d->present = true;
-  d->sentry = sentry;
-  d->dos_type = europe_dock_type_for(d->name, profession);
   eu->dock_count++;
-  return true;
+  memset(&eu->dock[0], 0, sizeof(eu->dock[0]));
+  return &eu->dock[0];
 }
 
 bool europe_dock_push_load(EuropeScreen* eu, const char* name, int profession) {
@@ -375,7 +371,22 @@ static void europe_cash_treasure_passengers(
   ship->cargo_count = w;
 }
 
-/* Unload passengers onto dock front (preserves on-board order); clear holds. */
+/*
+ * Unload a home-come ship's passengers onto the dock.
+ *
+ * DOS puts them at the BACK of the queue, not the front. FUN_48d3_03d0 (raw
+ * 77761-77782) ticks the crossing counter +0x315a of every unit on the lane —
+ * the hull and its passengers share it, stamped together by the sail-for-home
+ * setter at raw 77611-77626 — and for each one that reaches 0 it calls
+ * FUN_281f_0880 (place on the port lane, which links it in as the newest) and
+ * then FUN_281f_08c6 = FUN_1427_03a0, which unlinks it again and re-links it
+ * at the OLDEST end (+0x315e = -1). So an arrival always sorts behind every
+ * colonist already waiting, while a created one goes to slot 0
+ * (europe_dock_insert_front). bugs.md #999.
+ *
+ * Order among the arrivals is boarding order: 03d0 walks the lane newest to
+ * oldest and each push-to-back reverses that again.
+ */
 void europe_disembark_passengers_to_dock(
   EuropeScreen* eu,
   EuropeHarborShip* ship,
@@ -385,7 +396,7 @@ void europe_disembark_passengers_to_dock(
     return;
   }
   europe_cash_treasure_passengers(eu, ship, units);
-  for (int i = ship->cargo_count - 1; i >= 0; --i) {
+  for (int i = 0; i < ship->cargo_count; ++i) {
     char name[40];
     const int tag = ship->cargo_types[i];
     const int prof = ship->cargo_professions[i];
@@ -402,19 +413,30 @@ void europe_disembark_passengers_to_dock(
       snprintf(name, sizeof(name), "%s", "");
     }
     /* Passengers keep sentry ("board next") — same convention as aboard ship. */
-    if (!europe_dock_push_front(eu, name, prof, true)) {
+    if (!europe_dock_push_load(eu, name, prof)) {
       /* bugs.md #750: no catalog tag for the docks-full case — show nothing. */
       eu->status[0] = '\0';
-      /* Leave remaining passengers (0..i) on the ship. */
-      ship->cargo_count = i + 1;
+      /* Leave the passengers from i on, compacted to the head of the holds. */
+      int w = 0;
+      for (int j = i; j < ship->cargo_count; ++j, ++w) {
+        ship->cargo_types[w] = ship->cargo_types[j];
+        ship->cargo_professions[w] = ship->cargo_professions[j];
+        ship->cargo_treasure_gold[w] = ship->cargo_treasure_gold[j];
+      }
+      for (int j = w; j < ship->cargo_count; ++j) {
+        ship->cargo_types[j] = 0;
+        ship->cargo_professions[j] = -1;
+        ship->cargo_treasure_gold[j] = 0;
+      }
+      ship->cargo_count = w;
       return;
     }
     /* bugs.md #669: a Continental keeps its @UNIT row (DOS keeps +0x3146);
-     * the name scan above only knows the six @ARMOPTIONS rows. */
+     * europe_dock_push_load's name scan only knows the six @ARMOPTIONS rows. */
     if (units && tag >= 0) {
       const int kind = (int)units_type_kind(units_type(units, tag));
       if (kind == (int)UNITS_KIND_CONT_ARMY || kind == (int)UNITS_KIND_CONT_CAV) {
-        eu->dock[0].dos_type = kind;
+        eu->dock[eu->dock_count - 1].dos_type = kind;
       }
     }
   }
