@@ -883,20 +883,27 @@ static bool game_colony_production_idle(const ColonizeColony* col) {
 
 void game_colony_queue_construction(ColonizeGameState* game, int bid) {
   const ColonizeColony* col = colonies_get(&game->colonies, game->colony_view_id);
+  bool acted = false;
   if (col && game_colony_production_idle(col)) {
     const ColoniesBuildableOpts bopts = game_colony_buildable_opts(game);
-    colonies_set_construction_ex(&game->colonies, game->colony_view_id, bid, &bopts);
-    /* The picker stays open, so its highlight has to follow the new current
-     * project (row 0 is "(no production)", rows 1.. are buildable_ids). */
-    ColonyScreenView* csv = &game->colony_screen;
-    for (int i = 0; i < csv->buildable_count; ++i) {
-      if (csv->buildable_ids[i] == bid) {
-        csv->construction_selection = i + 1;
-        break;
-      }
-    }
+    acted = colonies_set_construction_ex(&game->colonies, game->colony_view_id, bid, &bopts);
   } else {
-    colonies_build_queue_push(&game->colonies, game->colony_view_id, bid);
+    acted = colonies_build_queue_push(&game->colonies, game->colony_view_id, bid);
+  }
+  /* The picker stays open, so its highlight follows the row the Shift pick
+   * acted on — the new current project when the pick started one, the newly
+   * queued row otherwise (row 0 is "(no production)", rows 1.. are
+   * buildable_ids). A refused pick (already built / min-population / queue
+   * full / duplicate) moves nothing, so the highlight never lies. */
+  if (!acted) {
+    return;
+  }
+  ColonyScreenView* csv = &game->colony_screen;
+  for (int i = 0; i < csv->buildable_count; ++i) {
+    if (csv->buildable_ids[i] == bid) {
+      csv->construction_selection = i + 1;
+      break;
+    }
   }
 }
 

@@ -15,6 +15,7 @@
 #include "core/col1_save.h"
 #include "core/game_dialogs.h"
 #include "core/ff.h"
+#include "core/colony_screen.h"
 #include "core/game_loop_internal.h"
 #include "core/popup.h"
 #include "core/turn_internal.h"
@@ -1072,6 +1073,105 @@ static int test_ai_brave_field_attack(void) {
   return rc;
 }
 
+/*
+ * Shift pick in the construction picker: the picker stays open, so its
+ * highlight must follow the row the pick acted on — the started project when
+ * production was idle (nothing queued, or the current project already built),
+ * the queued row once something is really in production. A refused pick moves
+ * nothing.
+ */
+static int test_colony_shift_pick_moves_highlight(void) {
+  ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    return fail("NAMES.TXT load");
+  }
+  colonies_init(&game.colonies);
+  if (!colonies_load_buildings(&game.colonies, &names)) {
+    assets_msg_free(&names);
+    return fail("@BUILDING load");
+  }
+  ColonizeColony* col = &game.colonies.colonies[0];
+  col->id = 1;
+  col->active = true;
+  col->nation_id = 0;
+  col->population = 4;
+  game.colonies.colony_count = 1;
+  game.colony_view_id = col->id;
+
+  const int carpenter = colonies_find_building(&game.colonies, "Carpenter's Shop");
+  const int church = colonies_find_building(&game.colonies, "Church");
+  const int stockade = colonies_find_building(&game.colonies, "Stockade");
+  if (carpenter < 0 || church < 0 || stockade < 0) {
+    assets_msg_free(&names);
+    return fail("building rows");
+  }
+
+  int rc = 0;
+  for (int pass = 0; pass < 2 && rc == 0; ++pass) {
+    /* pass 0: nothing in production. pass 1: current project already built. */
+    memset(col->has_building, 0, sizeof(col->has_building));
+    colonies_build_queue_clear(&game.colonies, col->id);
+    if (pass == 0) {
+      col->building_in_production = -1;
+    } else {
+      col->has_building[carpenter] = true;
+      col->building_in_production = carpenter;
+    }
+    const ColoniesBuildableOpts bopts = game_colony_buildable_opts(&game);
+    colony_screen_open_construction(&game.colony_screen, &game.colonies, col->id, &bopts);
+    ColonyScreenView* csv = &game.colony_screen;
+    if (csv->construction_selection != 0) {
+      rc = fail("an idle colony must open the picker on the (no production) row");
+      break;
+    }
+    int want_church = -1;
+    int want_stockade = -1;
+    for (int i = 0; i < csv->buildable_count; ++i) {
+      if (csv->buildable_ids[i] == church) {
+        want_church = i + 1;
+      } else if (csv->buildable_ids[i] == stockade) {
+        want_stockade = i + 1;
+      }
+    }
+    if (want_church <= 0 || want_stockade <= 0) {
+      rc = fail("picker fixture must list Church and Stockade");
+      break;
+    }
+    /* Idle: the pick starts the project and the highlight follows it. */
+    game_colony_queue_construction(&game, church);
+    if (col->building_in_production != church || col->build_queue_count != 0) {
+      rc = fail("a Shift pick on an idle colony must start the project");
+      break;
+    }
+    if (csv->construction_selection != want_church) {
+      rc = fail("the highlight must follow the started project");
+      break;
+    }
+    /* Busy: the pick queues and the highlight follows the queued row. */
+    game_colony_queue_construction(&game, stockade);
+    if (colonies_build_queue_pos(&game.colonies, col->id, stockade) != 1) {
+      rc = fail("a Shift pick with a live project must queue it");
+      break;
+    }
+    if (csv->construction_selection != want_stockade) {
+      rc = fail("the highlight must follow the queued row");
+      break;
+    }
+    /* Refused (already queued): nothing moves. */
+    game_colony_queue_construction(&game, church);
+    if (csv->construction_selection != want_stockade) {
+      rc = fail("a refused Shift pick must not move the highlight");
+      break;
+    }
+    colony_screen_close_construction(csv);
+  }
+  assets_msg_free(&names);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"test_turn_year_end_rival_rebels", test_turn_year_end_rival_rebels},
     {"test_ai_contact_raid_alarm_delta", test_ai_contact_raid_alarm_delta},
@@ -1090,6 +1190,7 @@ static const TestCase k_cases[] = {
     {"test_ai_euro_5952_absorb_soldier", test_ai_euro_5952_absorb_soldier},
     {"test_ai_euro_5952_equip_scout", test_ai_euro_5952_equip_scout},
     {"test_ai_euro_5952_equip_pioneer", test_ai_euro_5952_equip_pioneer},
+    {"test_colony_shift_pick_moves_highlight", test_colony_shift_pick_moves_highlight},
 };
 
 TEST_MAIN(k_cases)
