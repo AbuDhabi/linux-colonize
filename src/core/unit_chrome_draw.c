@@ -15,6 +15,7 @@
 #include "core/assets.h"
 #include "core/fb.h"
 #include "core/font.h"
+#include "core/screen_geom.h"
 #include "core/ss.h"
 #include "core/strutil.h"
 #include "core/turn.h"
@@ -378,8 +379,11 @@ void turn_draw_owner_indicator(ColonizeFramebuffer8* framebuffer, int nation_id)
     return;
   }
   const uint8_t color = unit_chrome_nation_color(nation_id);
-  const int x0 = TURN_OWNER_INDICATOR_X;
-  const int y0 = TURN_OWNER_INDICATOR_Y;
+  /* DOS constants are bottom-right of a 320x200 screen; the port's sidebar is
+   * flush right and grows downwards, so keep the same inset from the logical
+   * screen's bottom-right corner. */
+  const int x0 = screen_geom_w() - (SCREEN_BASE_W - TURN_OWNER_INDICATOR_X);
+  const int y0 = screen_geom_h() - (SCREEN_BASE_H - TURN_OWNER_INDICATOR_Y);
   for (int y = y0; y < y0 + TURN_OWNER_INDICATOR_H; ++y) {
     if (y < 0 || y >= framebuffer->height) {
       continue;
