@@ -564,24 +564,30 @@ COLONIZE_INTERNAL int ai_contact_raid_gate_target(
   int best_at_war = 0;
   const int indian_idx = nation_id - 4;
   for (int e = 0; e < 4; ++e) {
-    int alarm = (int)ind->alarm_by_player[e];
-    if (ctx->col1->tribe) {
-      for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-        const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-        if ((int)t->nation_id != nation_id || (int)t->alarm[e].friction <= alarm) {
-          continue;
-        }
-        /*
-         * Mid friction: prefer non-mission villages for the raid gate
-         * (fandom Alarm — missions slow hostility). Mission tribes only
-         * raise the gate in the burn band (≥80). Cite: indian_contact.md.
-         */
-        if (t->mission != COL1_TRIBE_MISSION_NONE && (int)t->alarm[e].friction < 80) {
-          continue;
-        }
-        alarm = (int)t->alarm[e].friction;
-      }
-    }
+    /*
+     * bugs.md #1003: the NATION scalar only. This used to take
+     * `max(alarm_by_player[e], worst village friction of the nation)`, with a
+     * clause that skipped mission villages below friction 80 — and then handed
+     * that one number to every Brave of the nation, so a single angry village
+     * licensed ambushes by Braves homed in villages that were perfectly calm.
+     *
+     * DOS does not couple the two layers anywhere. `FUN_4d56_4528` reads
+     * `FUN_281f_030c(bound tribe slot, euro)` — the `alarm_by_player` read —
+     * and compares it against 0x4b; it never touches DS:0x54f6. Across all
+     * three decompiled exports the only DOS *gate* reads of that word are
+     * `FUN_5bfb_022e` raw 87333 (`0x7f < word`, demand-vs-gift arm) and
+     * `FUN_4962_0018` raw 94967 (`word < 0x80`, AI garrison-quota threat seed),
+     * and both key on `unit +0x314a` — the acting Brave's own home village,
+     * never a nation-wide maximum. Everything else there is a write or the
+     * FUN_4d56_152e read-modify-write.
+     *
+     * The band values below (40 gate / 55 ambush / 70 approach / 80 hot) stay
+     * as they were: they belong to this pass, which is an acknowledged thin
+     * stand-in for the PARKED `FUN_4d56_2820` decision matrix, and inventing
+     * new thresholds to replace invented thresholds buys nothing. What is fixed
+     * here is only the cross-village coupling.
+     */
+    const int alarm = (int)ind->alarm_by_player[e];
     /*
      * Uniform gate, no per-nation term. Smell #76 (2026-09-09): the old
      * "Spain (2) gates at 35" special was invented AND backwards. DOS's only
@@ -1066,17 +1072,9 @@ int ai_contact_colony_raid_repelled_w(
   ctx.rng = rng;
   ctx.human_nation = -1;
 
-  /* Same alarm scalar the pulse's own gate hands the picker, for this Euro. */
-  int max_alarm = (int)col1->indian[indian_nation - 4].alarm_by_player[euro_nation];
-  if (col1->tribe) {
-    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
-      const ColonizeCol1Tribe* t = &col1->tribe[ti];
-      if ((int)t->nation_id == indian_nation && (int)t->alarm[euro_nation].friction > max_alarm) {
-        max_alarm = (int)t->alarm[euro_nation].friction;
-      }
-    }
-  }
-
+  /* The village-friction maximum this used to build here was dead on arrival:
+   * ai_contact_pick_raid_kind takes no alarm argument and derives its own.
+   * Deleted with the rest of the cross-village coupling (bugs.md #1003). */
   const AiRaidKind kind =
     ai_contact_pick_raid_kind(&ctx, c, indian_nation, euro_nation, rng, forced);
   ai_contact_apply_raid_loot(&ctx, c, indian_nation, euro_nation, kind);

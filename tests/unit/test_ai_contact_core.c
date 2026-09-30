@@ -2140,9 +2140,16 @@ static int sp_20(void) {
   }
 
   /*
-   * Mid-friction raid gate prefers non-mission villages: tribe friction 55 with
-   * mission set must not raise the gate when alarm_by_player is low (<40).
-   * Cite: fandom Alarm — missions slow hostility; indian_raid_outcomes.md gate.
+   * bugs.md #1003 — the raid gate reads the NATION scalar and nothing else.
+   * This case used to assert the opposite: that a village friction word of 85
+   * "still raises the gate" past a cold `alarm_by_player`, with mission
+   * villages excused below 80. DOS couples the two layers nowhere
+   * (`FUN_4d56_4528` gates on `FUN_281f_030c` vs 0x4b and never reads
+   * DS:0x54f6; the word's only DOS gate readers key on the acting Brave's own
+   * home village), and the coupling let one angry village license ambushes by
+   * Braves homed in calm ones. Now pinned the other way round: a hot village
+   * word does NOT raid while the nation is cold, and the nation scalar alone
+   * does.
    */
   {
     for (int i = 0; i < 256; ++i) {
@@ -2154,10 +2161,10 @@ static int sp_20(void) {
     brave->y = 5;
     brave->moves = 0;
     brave->nation_id = 4;
-    ind->alarm_by_player[0] = 10; /* below raid gate alone */
+    ind->alarm_by_player[0] = 10; /* nation cold: below the 40 gate */
     col1.tribe[0].nation_id = 4;
     col1.tribe[0].mission = 0; /* mission present */
-    col1.tribe[0].alarm[0].friction = 55; /* mid — should be ignored */
+    col1.tribe[0].alarm[0].friction = 55;
     col1.tribe[0].alarm[0].attacks = 0;
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met; alarm 10 pinned above */
     ColonizeColony* c_ms = &colonies.colonies[0];
@@ -2175,16 +2182,27 @@ static int sp_20(void) {
     RUN_INDIAN_RAIDS();
     if (c_ms->stock[COLONIZE_CARGO_FOOD] != food_ms ||
         col1.tribe[0].alarm[0].attacks != 0) {
-      return fail("mid-friction mission tribe should not raise raid gate");
+      return fail("#1003: village friction 55 must not raid while the nation is cold");
     }
-    /* Burn band (≥80) from mission tribe still raises the gate. */
+    /* Burn-band village word, nation still cold: also no raid now. */
     col1.tribe[0].alarm[0].friction = 85;
+    col1.tribe[0].mission = 0xff; /* no mission either — the word alone must not gate */
     brave->moves = 0;
     RUN_INDIAN_RAIDS();
-    if (c_ms->stock[COLONIZE_CARGO_FOOD] >= food_ms &&
-        col1.tribe[0].alarm[0].attacks == 0) {
-      return fail("burn-band mission tribe friction should still allow raid");
+    if (c_ms->stock[COLONIZE_CARGO_FOOD] != food_ms ||
+        col1.tribe[0].alarm[0].attacks != 0) {
+      return fail("#1003: village friction 85 must not raid while the nation is cold");
     }
+    /* The nation scalar alone does gate it: cold word, hot nation. */
+    col1.tribe[0].alarm[0].friction = 0;
+    ind->alarm_by_player[0] = 85;
+    brave->moves = 0;
+    RUN_INDIAN_RAIDS();
+    if (c_ms->stock[COLONIZE_CARGO_FOOD] == food_ms &&
+        col1.tribe[0].alarm[0].attacks == 0) {
+      return fail("#1003: a hot nation scalar must still raid with a cold village word");
+    }
+    ind->alarm_by_player[0] = 10;
     col1.tribe[0].mission = 0xff;
   }
   return 0;
