@@ -2270,6 +2270,8 @@ COLONIZE_INTERNAL void game_render_map_dialogs(
         game->unit_icons_ok ? &game->unit_icons : NULL,
         /* Ambush/Terrain row icon: DOS 636c blits the engagement tile itself. */
         game->terrain_ok ? &game->terrain : NULL,
+        game->phys0_ok ? &game->phys0 : NULL,
+        game->world_map_ok ? &game->world_map : NULL,
         &popup_cols,
         COLONIZE_COL_BASIC,
         COLONIZE_COL_SELECT,

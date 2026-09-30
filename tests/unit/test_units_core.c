@@ -3155,6 +3155,35 @@ static int case_fort_defense_bonus(void) {
           fprintf(stderr, "land analysis missing Attack Bonus/Veteran lines\n");
           return 1;
         }
+        /* Ambush/Terrain row carries the engagement tile, not just its base
+         * sprite: DOS copies the rendered map tile, overlays (mountain over
+         * Savannah) included. */
+        {
+          ColonizeCombatEngagement teng = eng;
+          teng.atk_flags.flags |= COMBAT_FLAG_TERRAIN;
+          teng.atk_flags.terrain_byte = 2;
+          teng.atk_flags.terrain_sprite = 3;
+          teng.atk_flags.terrain_x = 11;
+          teng.atk_flags.terrain_y = 7;
+          CombatAnalysisDialog tdlg;
+          memset(&tdlg, 0, sizeof(tdlg));
+          if (!combat_analysis_open(&tdlg, &pool, &teng)) {
+            fprintf(stderr, "terrain-row analysis open failed\n");
+            return 1;
+          }
+          int found_tile = 0;
+          for (int i = 0; i < tdlg.atk_line_count; ++i) {
+            if (tdlg.atk_rows[i].icon_kind != COMBAT_ROW_ICON_TERRAIN) {
+              continue;
+            }
+            found_tile = tdlg.atk_rows[i].icon_tile_x == 11 && tdlg.atk_rows[i].icon_tile_y == 7;
+          }
+          if (!found_tile) {
+            fprintf(stderr, "terrain row must carry the engagement tile coords\n");
+            return 1;
+          }
+          combat_analysis_close(&tdlg);
+        }
         /* Village Attack same-click: unarmed until mouse up / idle frame. */
         {
           ColonizeInputState in;

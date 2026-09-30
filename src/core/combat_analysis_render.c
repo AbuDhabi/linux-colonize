@@ -55,13 +55,21 @@ static void combat_analysis_blit_side(
  *   SETTLEMENT FUN_281f_02a8 → FUN_112b_0c64 at scale 100 — ICONS.SS #0-3
  *              plus the owner's flag pixels, which is colonies_blit_settlement_icon.
  *   VILLAGE    FUN_281f_02b2 → FUN_112b_0790 at scale 100 — ICONS.SS #10-13.
- *   TERRAIN    FUN_281f_033a → FUN_1baa_0006 — the engagement tile from
- *              TERRAIN.SS. Silently skipped when the sheet is not loaded.
+ *   TERRAIN    FUN_281f_033a → FUN_1baa_0006 — the engagement tile. 1baa_0006
+ *              is a plain surface-to-surface rect copy off the *rendered map*,
+ *              so the row shows the tile exactly as the map draws it, overlays
+ *              included (a mountain over Savannah shows the mountain). The port
+ *              redraws it from map_tile_layer_cmds, the same list the map
+ *              viewport and the colony minimap blit; it falls back to the bare
+ *              base tile when the map or PHYS0.SS is not available, and is
+ *              silently skipped when TERRAIN.SS is not loaded.
  */
 static void combat_analysis_blit_row_icon(
   ColonizeFramebuffer8* fb,
   const ColonizeSpriteSheet* icons,
   const ColonizeSpriteSheet* terrain,
+  const ColonizeSpriteSheet* phys0,
+  const ColonizeWorldMap* map,
   const CombatAnalysisRow* row,
   int x,
   int y,
@@ -73,6 +81,25 @@ static void combat_analysis_blit_row_icon(
   const ColonizeSpriteSheet* sheet =
     row->icon_kind == COMBAT_ROW_ICON_TERRAIN ? terrain : icons;
   if (!sheet || row->icon_sprite >= sheet->sprite_count) {
+    return;
+  }
+  if (row->icon_kind == COMBAT_ROW_ICON_TERRAIN && map && phys0 && row->icon_tile_x >= 0) {
+    ColonizeMapLayerCmd cmds[MAP_LAYER_CMDS_MAX];
+    const int ncmd =
+      map_tile_layer_cmds(map, row->icon_tile_x, row->icon_tile_y, 0, cmds, MAP_LAYER_CMDS_MAX);
+    for (int ci = 0; ci < ncmd; ++ci) {
+      const ColonizeMapLayerCmd* cmd = &cmds[ci];
+      const ColonizeSpriteSheet* layer =
+        (cmd->sheet == MAP_LAYER_SHEET_TERRAIN) ? terrain : phys0;
+      if (cmd->sprite < 0 || cmd->sprite >= layer->sprite_count) {
+        continue;
+      }
+      if (cmd->into_holes) {
+        ss_blit_sprite_where_dest(layer, cmd->sprite, fb, x + cmd->ox, y + cmd->oy, 0);
+      } else {
+        ss_blit_sprite(layer, cmd->sprite, fb, x + cmd->ox, y + cmd->oy);
+      }
+    }
     return;
   }
   if (row->icon_kind == COMBAT_ROW_ICON_SETTLEMENT) {
@@ -90,6 +117,8 @@ void combat_analysis_render(
   const ColonizeSpriteSheet* wood_tile,
   const ColonizeSpriteSheet* unit_icons,
   const ColonizeSpriteSheet* terrain,
+  const ColonizeSpriteSheet* phys0,
+  const ColonizeWorldMap* map,
   const ColonizePopupColors* colors,
   uint8_t text_color,
   uint8_t select_color,
@@ -227,7 +256,7 @@ void combat_analysis_render(
       /* DOS blits the row's picture at the column's left edge on the row top
        * (local_76 / local_10), then draws the label local_76 + indent along. */
       combat_analysis_blit_row_icon(
-        framebuffer, unit_icons, terrain, row, col_x, row_top, active_palette
+        framebuffer, unit_icons, terrain, phys0, map, row, col_x, row_top, active_palette
       );
       const int label_x = col_x + row->label_indent;
       popup_draw_text_shadowed(font, framebuffer, label_x, ry, row->label, text_color);

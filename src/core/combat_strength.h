@@ -63,8 +63,12 @@ typedef struct ColonizeCombatSideFlags {
    *   colony_icon    ICONS.SS settlement marker drawn beside that row
    *                  (FUN_112b_0c64 at scale 100); -1 = no row icon.
    *   colony_nation  nation whose flag that marker is recolored with.
-   *   terrain_sprite TERRAIN.SS tile drawn beside the Ambush/Terrain row
-   *                  (FUN_1baa_0006); -1 = none.
+   *   terrain_sprite TERRAIN.SS base tile drawn beside the Ambush/Terrain row
+   *                  (FUN_1baa_0006); -1 = none. DOS copies the tile straight
+   *                  off the rendered map surface, so the row shows the tile's
+   *                  overlays (mountain, hills, river, road, ...) too;
+   *                  terrain_x/terrain_y carry the tile so the renderer can
+   *                  redraw the full map_tile_layer_cmds stack. -1 = none.
    *   bombard_icon   ICONS.SS icon on the WoI Bombard row: Man-O-War
    *                  (DS:0x532e = @UNIT 18 icon) over a coastal colony,
    *                  else Artillery (DS:0x52cc = @UNIT 11 icon); -1 = none.
@@ -73,6 +77,8 @@ typedef struct ColonizeCombatSideFlags {
   int colony_icon;
   int colony_nation;
   int terrain_sprite;
+  int terrain_x;
+  int terrain_y;
   int bombard_icon;
 } ColonizeCombatSideFlags;
 

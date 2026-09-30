@@ -74,6 +74,8 @@ static void combat_analysis_push_row(
   row->icon_kind = COMBAT_ROW_ICON_NONE;
   row->icon_sprite = -1;
   row->icon_nation = -1;
+  row->icon_tile_x = -1;
+  row->icon_tile_y = -1;
   row->label_indent = 0;
   (*count)++;
 }
@@ -266,6 +268,11 @@ static void combat_analysis_fill_mods(
       -1,
       0x11
     );
+    if (*count > 0) {
+      /* DOS blits the tile off the map surface, overlays included. */
+      rows[*count - 1].icon_tile_x = flags->terrain_x;
+      rows[*count - 1].icon_tile_y = flags->terrain_y;
+    }
   }
   /*
    * DOS 636c colony row (bit 0x40, asm 636c:09db-0a05): the settlement marker

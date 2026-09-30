@@ -54,6 +54,8 @@ void combat_side_flags_clear(ColonizeCombatSideFlags* f) {
   f->colony_icon = -1;
   f->colony_nation = -1;
   f->terrain_sprite = -1;
+  f->terrain_x = -1;
+  f->terrain_y = -1;
   f->bombard_icon = -1;
 }
 
@@ -426,6 +428,8 @@ int combat_engagement_strength(
         out_flags->terrain_byte = terr_byte;
         /* 636c draws the engagement tile beside the row (FUN_281f_033a → 1baa_0006). */
         out_flags->terrain_sprite = map_terrain_sprite_at(ctx->map, u->x, u->y);
+        out_flags->terrain_x = u->x;
+        out_flags->terrain_y = u->y;
       }
       goto fortify;
     }
@@ -480,6 +484,8 @@ int combat_engagement_strength(
         out_flags->flags |= COMBAT_FLAG_TERRAIN;
         out_flags->terrain_byte = terr_byte;
         out_flags->terrain_sprite = map_terrain_sprite_at(ctx->map, u->x, u->y);
+        out_flags->terrain_x = u->x;
+        out_flags->terrain_y = u->y;
       }
     } else if (!skip_stash) {
       /*
@@ -491,6 +497,8 @@ int combat_engagement_strength(
         out_flags->terrain_byte = terr_byte;
         /* Carried to the attacker column with the stash (land_engage below). */
         out_flags->terrain_sprite = map_terrain_sprite_at(ctx->map, u->x, u->y);
+        out_flags->terrain_x = u->x;
+        out_flags->terrain_y = u->y;
       }
     }
   }
@@ -1060,6 +1068,8 @@ void combat_land_engage(
       out->atk_flags.terrain_stash = stash;
       /* 636c draws the same engagement tile on both columns. */
       out->atk_flags.terrain_sprite = out->def_flags.terrain_sprite;
+      out->atk_flags.terrain_x = out->def_flags.terrain_x;
+      out->atk_flags.terrain_y = out->def_flags.terrain_y;
     }
   }
   if (out->atk_strength < 0) {
