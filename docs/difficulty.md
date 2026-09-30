@@ -370,11 +370,20 @@ There is no difficulty-scaled alarm prelude. The former `2+(4-diff)` chance /
 `5+(4-diff)` bump table was invented: it ran off indian record **+6**, a byte no
 DOS export reads or writes. [`ai_contact_indian_prelude`](../src/core/ai_contact_demand.c)
 now only clamps alarms; the retirement rationale sits in its comment block.
-DOS's sole alarm-growth channel is `FUN_4d56_152e`'s threat accumulator
-(−8 crossing = alarm +1), with the Pocahontas / French halving inside
-`FUN_4cc6_00f2`. The difficulty terms that *are* real in the Indian tick are
-`FUN_465b_0000`'s trespass bump (`difficulty + 5`, doubled on a village tile,
-sextupled on a capital) and the WoI defect roll `rng(0, (5-difficulty)*2) == 0`.
+DOS's only *per-turn* alarm-growth channel is `FUN_4d56_152e`'s threat
+accumulator (−8 crossing = alarm +1), with the Pocahontas / French halving
+inside `FUN_4cc6_00f2`. The difficulty terms that *are* real in the Indian tick
+are `FUN_465b_0000`'s trespass bump (`difficulty + 5`, doubled on a village
+tile, sextupled on a capital) and the WoI defect roll
+`rng(0, (5-difficulty)*2) == 0`.
+
+Corrected 2026-09-30 (bugs.md #1002): the two big *discrete* difficulty-scaled
+alarm charges are `FUN_0000_6582`'s land-work bill (`difficulty + 5`, doubled
+inside village distance 3, plus base again inside 2, doubled on a prime-resource
+tile — `colonies_assign_field_w`) and that same 465b trespass bump. Map-gen also
+seeds `alarm_by_player` at `rand(0,14) + difficulty*2` for the human and
+`rand(0,14)` for each AI (`FUN_6a09_0006`, bugs.md #1001), so a harder game
+starts the player deeper in the hole.
 
 ### Raid demote
 

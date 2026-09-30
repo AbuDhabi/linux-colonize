@@ -319,6 +319,119 @@ conquest / French cooperation hooks, not a named personality enum.
 
 ## Alarm
 
+### What moves the nation-level number
+
+Every write goes through `FUN_4cc6_00f2` (`ai_diplo_indian_alarm_delta` +
+`ai_contact_alarm_delta_00f2`), which applies, in order: France (euro 1) halves
+any **increase**; Pocahontas (FF 0x10) halves any **increase** again; clamp
+0..100; a **decrease** clears the attack-confirmed bit and, below 0x4b, the WAR
+bit both ways; landing on exactly 100 while at PEACE rolls
+`rand(0,10) <= (human ? difficulty : 1) + 1` and burns every mission that euro
+holds in the nation (@INDIANBURN). Decreases are never scaled.
+
+Map-gen seeds the pair at `rand(0,14) + (human ? difficulty*2 : 0)`
+(`FUN_6a09_0006`, bugs.md #1001). First contact clamps it down to 20.
+
+Raisers, all verified against the decomp 2026-09-30:
+
+| Event | DOS | Delta |
+|---|---|---|
+| Seat a colonist on tribal land | `FUN_0000_6582` | `difficulty + 5`, x2 within village distance 3, **+base again** within 2, x2 on a prime-resource tile. Once per plot (bugs.md #1002) |
+| Pioneer clear / plow / road on tribal land | `thunk_FUN_1000_96aa` (orders dispatch cases 0xb/0xc) | `(human ? difficulty : 0) + 3`, x2 within 3, +base again within 2; **Peter Minuit (FF 2) exempts entirely**; reason code 1 |
+| Attack a native unit | `FUN_465b_0000` | `difficulty + 5`, x2 on a village tile, **x6** on a capital; also `attacks++` on that village's word |
+| Per-turn encroachment | `FUN_4d56_152e` via `thunk_FUN_1000_a5d0` | +1 per -8 of threat accumulated into `euro_relation_accum` |
+| Establish a mission | `thunk_FUN_1000_a5dc` | `count*8 - {25,15,10,5}[band]`, +/-8 at a capital — **negative** (goodwill) for the first missions, positive once you hold several |
+| Denounce heresy | `thunk_FUN_1000_a594` | `+/-(quartile+1)`, doubled at a capital, doubled for a Jesuit mission; winner's nation gains, loser's loses |
+| Learn a skill (@LEARNSTAY) | `thunk_FUN_1000_a618` | +3 |
+| Village trade | `thunk_FUN_1000_a63c` | six arms: `price/0x19 + 1`, `+2`, `+1`, `(tier2>>1)+1`, and the cooling `-2*c4` / `-4*c4` |
+| Demand tribute from them | `thunk_FUN_1000_a5f4` | difficulty-scaled (`e == 2` x1.5) |
+| Incite a village against a rival | `thunk_FUN_1000_a5b8` (417e mode 2) | +100 |
+| Tribe defects to the Crown (WoI) | `thunk_FUN_1000_a5a0` | **+100** to the human, **-100** to the Crown |
+| Refuse a food beg | `FUN_5bfb_022e` | village word x1.5 |
+| Refuse goods / wagon reparations | `FUN_5bfb_022e` | village word +0x80 (permanently moves that village onto the demand arm) |
+
+Coolers:
+
+| Event | DOS | Delta |
+|---|---|---|
+| Mission goodwill, per mission village per turn | `FUN_4d56_152e` | `(jesuit ? 4 : 1) << capital`, x2 Las Casas, /2 Sepulveda into the purse; **-1 per +8**. Stacked Jesuit missions outrun almost any raiser |
+| Natural cooling roll | `FUN_4d56_152e` | `quartile^2 + 1` draws of `rand(0, 12 - quartile^2)`, each zero = +1 goodwill. ~1/13 per village/turn below alarm 25, ~2.5 at 75+ — **high alarm decays fast, low alarm barely moves** |
+| Concede a goods demand | five `FUN_OVL16_L0040__003b*` arms | `-(price[cargo] * qty * 4) / 100`, proportional to what you hand over |
+| Pay a gold demand | `thunk_FUN_1000_a8b8` | -4 / -8 / -12 / -16 by branch; also zeroes that village's word |
+| **Buy** the plot instead of taking it | `FUN_0000_6582` non-human arm | 0 — no charge at all |
+| Gift of gold | port stand-in (`FUN_5bfb_102a`) | -1 (5 gold) / -2 (10 gold) — amounts NOT recovered from DOS |
+| Concede a tools / gold demand | port stand-in | -3 — amount NOT recovered from DOS |
+| Peaceful village visit | `ai_contact_indian_raids` | village friction -1, only while alarm < 40 |
+| Any resolved native-vs-Euro land fight, or a raid | `FUN_5fef_1b0e` / `FUN_5fef_0f14` | that village's whole word -> 0 |
+| Raze their capital | `FUN_5fef_1b0e` | alarm clamped down to 15; every village word of the nation zeroed |
+| Elect Pocahontas | FF 0x10 | alarm -> 0 with every tribe, and all future increases halved |
+
+### Thresholds that read the number
+
+**Which number, though.** The nation scalar, and only that. `FUN_4d56_4528`
+gates on `FUN_281f_030c(bound tribe slot, euro)` — the `alarm_by_player` read —
+against `0x4b`, and never touches the per-village word. Across all three
+decompiled exports the only DOS *gate* reads of `DS:0x54f6` are
+`FUN_5bfb_022e` raw 87333 (`0x7f < word`, the demand-vs-gift arm) and
+`FUN_4962_0018` raw 94967 (`word < 0x80`, the AI garrison-quota threat seed) —
+both keyed on `unit +0x314a`, the **acting Brave's own home village**, never a
+nation-wide maximum. Everything else at that address is a write or the 152e
+read-modify-write.
+
+Until 2026-09-30 the port coupled the layers: `ai_contact_raid_gate_target`
+took `max(alarm_by_player[e], worst village friction of the nation)`, excused
+mission villages below friction 80, and handed that one scalar to every Brave —
+so a single angry village licensed ambushes by Braves homed in calm ones
+(bugs.md #1003, a real campaign4 case: Arawak nation alarm 0, one un-missioned
+village at friction 83, the attacking Braves all homed in the player's own
+mission villages). Removed; the gate is the nation number.
+
+The village word still matters, and diverges sharply from the nation number,
+because the two have very different dampers: the nation scalar is fed through
+the `euro_relation_accum` +/-8 spill and the France / Pocahontas halving, while
+the village word takes `threat + alarm/5` raw every turn (`FUN_4d56_152e`, a
+bare int16 add) with relief only from a mission on that same village, gifts,
+conceded demands, an adjacent-Brave visit (-1, and only while nation alarm < 40)
+or a fight. An un-missioned village next to developed colonies therefore climbs
+more or less forever while the nation scalar stays low. Note also that the 152e
+scorer is **geometric, not topological** — `map_dos_dist < 7`, no pathfinding
+and no landmass-shape term — so a village an impassable walk away still accrues
+from colonies that are close as the crow flies.
+
+Bands on the nation scalar (this pass's own stand-in values, not decomp-derived
+— DOS's real matrix `FUN_4d56_2820` is PARKED): **>= 40** the nation picks that European as
+its raid target at all; **>= 55** arms the adjacent-unit ambush arm
+(@INDIANWIN0/1/2, "{tribe} ambush {nation} {unit} near {place}!"); **>= 80**
+"hot" — `md_max` 8 instead of 6 and `hot_wealth` on.
+
+Note on the discharge: a resolved fight zeroes the word of the **attacking
+Brave's home** village (`unit +0x314a`), not necessarily the village that is
+angriest. That is DOS (raw 101039-101041). It only mattered while the raid gate
+read a nation-wide maximum, which let a Brave from a calm village keep attacking
+off another village's grudge with nothing ever discharging it (#1003).
+
+Consumers of the nation scalar read `ai_relation_quartile`
+(<25 / <50 / <75 / else), not the raw value.
+
+- **0x4b (75) — the hostility line.** Natives will attack (`units_combat_resolve`);
+  village trade and visits refuse with @MADATSHIPS; raid demands bail; the Euro AI
+  marks the village a military target (`ai_euro_goals`) and stops building roads
+  near it; the map sidebar paints it red.
+- `0x4a` (74): village visit and demand visitor blocked.
+- `0x47` (71): trade delta cap.
+- 55: the **AI**'s auto-trade / gift stops (the human path returns before this gate).
+- `0x32` (50): AI defensive schoolhouse build. `0x31` (49): they gift rather than sell.
+- 40: peaceful-visit cooldown stops; gifts refused (pair friction >= 40).
+- `0x19` (25): quartile 1 — the @MISSION band leaves "curiousity"; friendly-tribe
+  unit threat stops being zeroed.
+- 100: the mission-burn roll above.
+
+Continuous, no threshold: land purchase cost `x(quartile + 1)` (so x1..x4);
+village trade `tier2 = quartile << 1` subtracted from what they will pay you
+(zeroed for muskets and horses); village goods price `+ alarm * 4`; raid severity
+from `max(alarm, village friction)`; popup portrait tier and the Indian Nations
+report icon.
+
 ### Two layers
 
 | Layer | Field | Scope |
