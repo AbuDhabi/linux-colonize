@@ -1201,6 +1201,18 @@ void map_menu_tile_rect_screen_phase(
   int rect_h,
   ColonizeFramebuffer8* framebuffer
 ) {
+  map_menu_tile_rect_screen_phase_lut(sheet, origin_x, origin_y, rect_w, rect_h, framebuffer, NULL);
+}
+
+void map_menu_tile_rect_screen_phase_lut(
+  const ColonizeSpriteSheet* sheet,
+  int origin_x,
+  int origin_y,
+  int rect_w,
+  int rect_h,
+  ColonizeFramebuffer8* framebuffer,
+  const uint8_t* lut
+) {
   if (!sheet || sheet->sprite_count < 1 || !framebuffer || rect_w <= 0 || rect_h <= 0) {
     return;
   }
@@ -1222,13 +1234,54 @@ void map_menu_tile_rect_screen_phase(
   if (y1 > framebuffer->height) {
     y1 = framebuffer->height;
   }
+  /* The screen-phase index is `dy % th`, `dx % tw`; at window sizes the two
+   * divisions per pixel dominated the frame (a full-window wood border cost
+   * ~31ms). Same pixels, walked with wrapping counters instead. */
+  const int tw = tile->width;
+  const int th = tile->height;
+  const int run = x1 - origin_x;
+  int ty = origin_y % th;
   for (int dy = origin_y; dy < y1; ++dy) {
-    for (int dx = origin_x; dx < x1; ++dx) {
-      const uint8_t px = tile->pixels[(dy % tile->height) * tile->width + dx % tile->width];
-      if (px == COLONIZE_SS_TRANSPARENT) {
-        continue;
+    const uint8_t* trow = &tile->pixels[(size_t)ty * (size_t)tw];
+    uint8_t* frow = &framebuffer->pixels[(size_t)dy * (size_t)framebuffer->width];
+    int tx = origin_x % tw;
+    bool opaque = true;
+    for (int i = 0; i < tw; ++i) {
+      if (trow[i] == COLONIZE_SS_TRANSPARENT) {
+        opaque = false;
+        break;
       }
-      framebuffer->pixels[dy * framebuffer->width + dx] = px;
+    }
+    if (opaque && run > tw) {
+      /* No holes in this tile row: lay one period down pixel by pixel, then
+       * let memcpy double it across the rest. WOODTILE is opaque, so this is
+       * the path every wood fill takes. */
+      for (int i = 0; i < tw; ++i) {
+        const uint8_t px = trow[tx];
+        frow[origin_x + i] = lut ? lut[px] : px;
+        if (++tx == tw) {
+          tx = 0;
+        }
+      }
+      int done = tw;
+      while (done < run) {
+        int n = (done < run - done) ? done : run - done;
+        memcpy(&frow[origin_x + done], &frow[origin_x], (size_t)n);
+        done += n;
+      }
+    } else {
+      for (int dx = origin_x; dx < x1; ++dx) {
+        const uint8_t px = trow[tx];
+        if (px != COLONIZE_SS_TRANSPARENT) {
+          frow[dx] = lut ? lut[px] : px;
+        }
+        if (++tx == tw) {
+          tx = 0;
+        }
+      }
+    }
+    if (++ty == th) {
+      ty = 0;
     }
   }
 }

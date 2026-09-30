@@ -2647,25 +2647,17 @@ static void game_paint_wood_rect(
   }
   const ColonizeSpriteSheet* wood =
     (game->map_panel_ok && game->map_panel.wood_ok) ? &game->map_panel.wood_tile : NULL;
-  if (wood) {
-    map_menu_tile_rect_screen_phase(wood, x, y, w, h, framebuffer);
-  } else {
-    fb_fill_rect(framebuffer, x, y, w, h, 4 /* map_menu.c MAP_MENU_COL_PANEL */);
-  }
+  /* The remap used to be a second full-rect pass over the wood just painted;
+   * folded into the fill instead — same pixels, half the memory traffic. */
   const ColonizePalette* ref =
     game->map_palette_ok ? &game->map_palette
     : ((game->pedia_wood_ok && game->pedia_wood.has_palette) ? &game->pedia_wood.palette : NULL);
-  if (!palette || !ref) {
-    return;
-  }
-  const uint8_t* lut = window_log_palette_map(ref, palette);
-  const int y1 = (y + h < framebuffer->height) ? y + h : framebuffer->height;
-  const int x1 = (x + w < framebuffer->width) ? x + w : framebuffer->width;
-  for (int row = (y > 0 ? y : 0); row < y1; ++row) {
-    uint8_t* px = &framebuffer->pixels[(size_t)row * (size_t)framebuffer->width];
-    for (int col = (x > 0 ? x : 0); col < x1; ++col) {
-      px[col] = lut[px[col]];
-    }
+  const uint8_t* lut = (palette && ref) ? window_log_palette_map(ref, palette) : NULL;
+  if (wood) {
+    map_menu_tile_rect_screen_phase_lut(wood, x, y, w, h, framebuffer, lut);
+  } else {
+    const uint8_t fill = 4 /* map_menu.c MAP_MENU_COL_PANEL */;
+    fb_fill_rect(framebuffer, x, y, w, h, lut ? lut[fill] : fill);
   }
 }
 
@@ -2697,14 +2689,9 @@ void game_render_window_log(
   const int rows = (strip_h - 2) / WINDOW_LOG_LINE_H;
   const ColonizeSpriteSheet* wood =
     (game->map_panel_ok && game->map_panel.wood_ok) ? &game->map_panel.wood_tile : NULL;
-  if (wood) {
-    map_menu_tile_rect_screen_phase(wood, 0, fill_y, framebuffer->width, strip_h - 1, framebuffer);
-  } else {
-    fb_fill_rect(framebuffer, 0, fill_y, framebuffer->width, strip_h - 1,
-      4 /* WOODTILE-less fallback, map_menu.c MAP_MENU_COL_PANEL */);
-  }
-  /* Wood is painted first, then remapped as a block: the text below is drawn
-   * in already-remapped colours and must not go through the table twice. */
+  /* Wood goes through the remap table as it is laid down (it used to be a
+   * second full-strip pass): the text below is drawn in already-remapped
+   * colours and must not go through the table twice. */
   uint8_t basic = COLONIZE_COL_BASIC;
   uint8_t hilite = COLONIZE_COL_HILITE;
   /* WOODTILE.SS and @COLORS are authored against the in-game palette; WOODPANL
@@ -2713,16 +2700,18 @@ void game_render_window_log(
   const ColonizePalette* ref =
     game->map_palette_ok ? &game->map_palette
     : ((game->pedia_wood_ok && game->pedia_wood.has_palette) ? &game->pedia_wood.palette : NULL);
-  if (palette && ref) {
-    const uint8_t* lut = window_log_palette_map(ref, palette);
-    for (int y = fill_y; y < screen_h + strip_h; ++y) {
-      uint8_t* row = &framebuffer->pixels[(size_t)y * (size_t)framebuffer->width];
-      for (int px = 0; px < framebuffer->width; ++px) {
-        row[px] = lut[row[px]];
-      }
-    }
+  const uint8_t* lut = (palette && ref) ? window_log_palette_map(ref, palette) : NULL;
+  if (lut) {
     basic = lut[COLONIZE_COL_BASIC];
     hilite = lut[COLONIZE_COL_HILITE];
+  }
+  if (wood) {
+    map_menu_tile_rect_screen_phase_lut(
+      wood, 0, fill_y, framebuffer->width, strip_h - 1, framebuffer, lut
+    );
+  } else {
+    const uint8_t fill = 4 /* WOODTILE-less fallback, map_menu.c MAP_MENU_COL_PANEL */;
+    fb_fill_rect(framebuffer, 0, fill_y, framebuffer->width, strip_h - 1, lut ? lut[fill] : fill);
   }
 
   const ColonizeFont* font = game->colony_font_ok ? &game->colony_font

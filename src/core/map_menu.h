@@ -267,4 +267,20 @@ void map_menu_tile_rect_screen_phase(
   ColonizeFramebuffer8* framebuffer
 );
 
+/*
+ * Same fill, but each tile pixel goes through a 256-entry remap table on the
+ * way in (NULL = no remap). The wood paths used to tile and then walk the rect
+ * a second time to remap it; at window sizes that second full-rect pass was
+ * pure cost.
+ */
+void map_menu_tile_rect_screen_phase_lut(
+  const ColonizeSpriteSheet* sheet,
+  int origin_x,
+  int origin_y,
+  int rect_w,
+  int rect_h,
+  ColonizeFramebuffer8* framebuffer,
+  const uint8_t* lut
+);
+
 #endif
