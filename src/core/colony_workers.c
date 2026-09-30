@@ -356,13 +356,122 @@ bool colonies_toggle_custom_house_cargo(ColonizeColonyPool* pool, int colony_id,
   return true;
 }
 
-bool colonies_assign_field(
-  ColonizeColonyPool* pool,
+/*
+ * DOS-LITERAL FUN_0000_6582 tail (viceroy_overlays.c:8758-8830) — the native
+ * land-work reaction. DOS runs it from the SHARED colony tiles[] writer, so it
+ * fires for AI colonies and for every re-seat, not only from the human colony
+ * screen. bugs.md #284 first ported it onto the two colony-screen call sites in
+ * game_loop_colony.c, which left the seven ai_euro_colony_jobs.c assignment
+ * sites silent: the AI encroachment the real DOS seed-100 saves show
+ * (TURN1 -> TURN7, three pop-1 colonies, indian[3].alarm[2] 5 -> 34 and
+ * indian[2].alarm[3] 14 -> 28 in six turns) could not happen here at all.
+ *
+ *   iVar5 = the 5x5 claim table at DS:-0x7262 (FUN_15eb_26e4)
+ *           -> colonies_indian_claim_tribe_from_w;
+ *   a NON-human colony first tries to buy the plot at FUN_1000_8f68's price,
+ *     and only the failure to pay reaches the alarm arm (raw 8781-8798: the
+ *     32-bit compare is `gold - price >= price/2`, i.e. 1.5x the price on hand);
+ *   base = (human ? DS:0x53a6 difficulty : 0) + 5, doubled when DS:0x8db8 < 3
+ *     and increased by base again when < 2 — 0x8db8 is the nearest-village
+ *     distance FUN_4cc6_0356 wrote on the way in, not this tile's own delta —
+ *     then doubled once more when FUN_0000_3ca0 finds a prime resource on the
+ *     tile (same hash as map_resource_type_at; it is NOT a road test).
+ *
+ * DOS then 0xff's its scratch claim entry so one colony-screen visit charges
+ * once. The port has no such scratch table (the claim is derived live from the
+ * map), so re-seating the same tile within one visit charges again. Left as is
+ * on purpose: the persistent MAP_LAYER2_PURCHASED bit means "bought or gifted"
+ * and stamping it on the take arm would make the plot permanently free.
+ *
+ * DOS's `*(char *)0x34d == '\0'` gate on the whole tail is not modelled — the
+ * global is unidentified; do not invent one.
+ *
+ * Bare ai_diplo_indian_alarm_delta rather than the full FUN_4cc6_00f2: there is
+ * no turn context here, the same standing port debt as the units.c /
+ * game_loop.c callers (ai_contact_demand.c "smell #46" note).
+ */
+static void colonies_assign_field_land_reaction(
+  const ColonizeWorld* w,
+  const ColonizeColony* col,
+  int tile_index,
+  bool plot_was_worked
+) {
+  /*
+   * FUN_15eb_26e4 raw 12851-12854: a plot whose `FUN_15eb_06a6(dx,dy)` (the
+   * colony+0x70 tiles[] read) is already >= 0 is left OUT of the claim table
+   * it builds, so a tile that already had a worker is never claimed land and
+   * never charges. That — not the 0xff scratch write, which only stops a
+   * second charge inside one pass — is DOS's once-per-tile guard: the table is
+   * rebuilt each pass and by then the plot reads as worked. Without it the AI
+   * colony tick re-charged every plot every turn and the DOS seed-100
+   * trajectory overshot ~2.7x (alarm 5 -> 92 in six turns against DOS's 34).
+   */
+  if (plot_was_worked) {
+    return;
+  }
+  if (!w || !w->col1_ok || !w->col1 || !w->map || !col) {
+    return;
+  }
+  ColonizeCol1Save* col1 = w->col1;
+  const ColonizeWorldMap* map = w->map;
+  const int nation = col->nation_id;
+  if (nation < 0 || nation > 3 || !col1->tribe) {
+    return;
+  }
+  int dx = 0;
+  int dy = 0;
+  if (!colonies_field_tile_delta(tile_index, &dx, &dy)) {
+    return;
+  }
+  const int x = col->x + dx;
+  const int y = col->y + dy;
+  const int ti = colonies_indian_claim_tribe_from_w(w, nation, col->x, col->y, x, y);
+  if (ti < 0 || ti >= (int)col1->head.tribe_count) {
+    return;
+  }
+  const ColonizeCol1Tribe* t = &col1->tribe[ti];
+  const int tribe_nation = (int)t->nation_id;
+  if (tribe_nation < 4 || tribe_nation > 11) {
+    return;
+  }
+  const bool human = col1->player[nation].control == 0;
+  if (!human && w->europe) {
+    const int price = colonies_indian_land_purchase_gold(col1, map, x, y, nation);
+    const long gold = (long)europe_nation_gold(w->europe, col1, nation);
+    if (price > 0 && gold - (long)price >= (long)(price >> 1)) {
+      /* gold = NULL: the spend goes through europe_nation_gold_add, the one
+       * sanctioned writer; land_pay still does lands_bought++ + the purchased
+       * stamp (FUN_479b_00ca / FUN_281f_068c). */
+      colonies_indian_land_pay(col1, map, x, y, nation, NULL, price);
+      europe_nation_gold_add(w->europe, col1, nation, -(long)price);
+      return;
+    }
+  }
+  /* DS:0x8db8 — colonies_nearest_tribe_on's own map_dos_dist to the village it
+   * returned, so recomputing it here reproduces the word DOS reads. */
+  const int dist = map_dos_dist(x - (int)t->x, y - (int)t->y);
+  const int base = (human ? (int)col1->head.difficulty : 0) + 5;
+  int amt = base;
+  if (dist < 3) {
+    amt = base * 2;
+  }
+  if (dist < 2) {
+    amt += base;
+  }
+  if (map_resource_type_at(map, x, y) >= 0) {
+    amt <<= 1;
+  }
+  ai_diplo_indian_alarm_delta(col1, tribe_nation, nation, amt);
+}
+
+bool colonies_assign_field_w(
+  const ColonizeWorld* w,
   int colony_id,
   int colonist_index,
   int tile_index,
   int field_job
 ) {
+  ColonizeColonyPool* pool = w ? w->colonies : NULL;
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
   if (!col || !pool) {
     return false;
@@ -382,8 +491,14 @@ bool colonies_assign_field(
   if (!c->active) {
     return false;
   }
-  /* Evict prior worker on this tile. */
+  /* Evict prior worker on this tile. `prev >= 0`, plus the bit colonies_clear_field
+   * carried across an AI-pass plot wipe, is DOS's land-claim guard — see
+   * colonies_assign_field_land_reaction. */
   const int prev = (int)col->tiles[tile_index];
+  const uint32_t worked_bit = 1u << tile_index;
+  const bool plot_was_worked =
+    prev >= 0 || (col->plot_was_worked_mask & worked_bit) != 0;
+  col->plot_was_worked_mask &= ~worked_bit;
   if (prev >= 0 && prev < col->colonist_count && prev != colonist_index) {
     col->colonists[prev].field_job = -1;
   }
@@ -403,7 +518,20 @@ bool colonies_assign_field(
       colony_yield_job_name(field_job)
     );
   }
+  colonies_assign_field_land_reaction(w, col, tile_index, plot_was_worked);
   return true;
+}
+
+bool colonies_assign_field(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  int colonist_index,
+  int tile_index,
+  int field_job
+) {
+  return colonies_assign_field_w(
+    &(ColonizeWorld){.colonies = pool}, colony_id, colonist_index, tile_index, field_job
+  );
 }
 
 bool colonies_clear_field(ColonizeColonyPool* pool, int colony_id, int tile_index) {
@@ -415,6 +543,12 @@ bool colonies_clear_field(ColonizeColonyPool* pool, int colony_id, int tile_inde
     return false;
   }
   const int who = (int)col->tiles[tile_index];
+  if (who >= 0 && tile_index < 32) {
+    /* Carry "was worked" past the wipe — FUN_15eb_26e4's claim table predates
+     * the AI placement section's plot memset. See
+     * colonies_assign_field_land_reaction. */
+    col->plot_was_worked_mask |= 1u << tile_index;
+  }
   col->tiles[tile_index] = -1;
   if (who >= 0 && who < col->colonist_count) {
     col->colonists[who].field_job = -1;

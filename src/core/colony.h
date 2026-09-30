@@ -102,6 +102,20 @@ typedef struct ColonizeColony {
   bool has_building[COLONIZE_BUILDING_TYPES_MAX];
   /* surrounding field slot ring order (see docs/colony.md#colonizecolonytiles) */
   int8_t tiles[COLONIZE_COLONY_FIELD_TILES_MAX];
+  /*
+   * Runtime-only bit per field plot: "this plot was worked when the Indian
+   * claim table was last built". DOS's FUN_15eb_26e4 leaves a worked plot OUT
+   * of its 5x5 claim table (DS:-0x7262) and builds that table at colony-pass
+   * entry — BEFORE the AI placement section's `memset(colony+0x70, 0xff, 0x14)`
+   * wipe — so a plot that is continuously worked never re-charges the
+   * land-work alarm. The port has no such table; this mask carries the same
+   * fact across the wipe: colonies_clear_field sets it, colonies_assign_field_w
+   * consumes it. Not serialized (no DOS field holds it); a plot cleared and
+   * then left empty keeps its bit until something re-seats it, where DOS would
+   * rebuild the table and re-claim it — the one place this is thinner than the
+   * real table.
+   */
+  uint32_t plot_was_worked_mask;
   /* Warehouse + build queue — production ticks in src/core/turn.c. */
   int stock[COLONIZE_CARGO_COUNT];
   int hammers;
@@ -493,7 +507,21 @@ void colonies_emit_school_faculty_chrome(
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 );
-/* Assign colonist to a surround tile with a field @JOB. Clears workplace. */
+/*
+ * Assign colonist to a surround tile with a field @JOB. Clears workplace.
+ * This is DOS's FUN_0000_6582, the shared colony tiles[] writer, so it also
+ * carries the native land-work reaction (AI land purchase / tribe alarm) —
+ * see docs/colony.md#colonies_assign_field_w. Every assignment path must go
+ * through it; the pool-only spelling below is the no-world (test) form and
+ * cannot raise alarm because it has no col1/map to read.
+ */
+bool colonies_assign_field_w(
+  const ColonizeWorld* w,
+  int colony_id,
+  int colonist_index,
+  int tile_index,
+  int field_job
+);
 bool colonies_assign_field(
   ColonizeColonyPool* pool,
   int colony_id,

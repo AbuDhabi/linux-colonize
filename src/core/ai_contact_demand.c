@@ -2318,9 +2318,10 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
    * exports: only +0/+2/+3/+5/+7/+8/+10 are ever touched) — so both the
    * once-per-nation latch and the `alarm < 30` band were invented, and the
    * latch additionally aliased nothing real. Precedent: the encroachment
-   * drips retired 2026-09-03 below; DOS's sole alarm grower is FUN_4d56_152e's
-   * threat accumulator, and the Pocahontas/French halving already lives
-   * inside ai_diplo_indian_alarm_delta (FUN_4cc6_00f2, viceroy 80844-80850).
+   * drips retired 2026-09-03 below; DOS's only PER-TURN alarm grower is
+   * FUN_4d56_152e's threat accumulator, and the Pocahontas/French halving
+   * already lives inside ai_diplo_indian_alarm_delta (FUN_4cc6_00f2, viceroy
+   * 80844-80850).
    * Isolated-RNG-only block, so no shared dos_rng draws change.
    */
 
@@ -2331,13 +2332,19 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
   /*
    * Retired 2026-09-03 (bugs.md "alarm rises incredibly fast"): the former
    * unit-encroacher and colony-encroachment +2/turn direct bumps on tribe
-   * friction + alarm_by_player were fandom-invented, not DOS. DOS grows
-   * alarm only through FUN_4d56_152e's threat-score accumulator (colonies
-   * within distance 7 + the 20-tile military ring feed euro_relation_accum;
-   * every −8 crossing = alarm +1), which a 1-colonist colony scores ~0 on —
-   * hence decades of quiet in DOS vs ~50 turns to alarm 100 here. The
-   * @INDIANCOMMENT land-use chrome fired only off those invented bumps and
-   * retires with them (DOS's own trigger unlocated).
+   * friction + alarm_by_player were fandom-invented, not DOS. DOS's per-turn
+   * channel is only FUN_4d56_152e's threat-score accumulator (colonies within
+   * distance 7 + the 20-tile military ring feed euro_relation_accum; every
+   * −8 crossing = alarm +1), which a 1-colonist colony scores ~0 on — hence
+   * decades of quiet in DOS vs ~50 turns to alarm 100 here.
+   *
+   * 2026-09-30 (bugs.md #1002): that is not the whole story, and this note
+   * used to read "DOS's sole alarm grower". Real encroachment alarm is a
+   * DISCRETE charge, not a drip — FUN_0000_6582, the shared colony tiles[]
+   * writer, bills 10..60 the first time a colonist is seated on tribal land
+   * (now colonies_assign_field_w). That is what moves early-game alarm in the
+   * DOS seed-100 saves; nothing here needs to drip. The @INDIANCOMMENT
+   * land-use chrome still has no located DOS trigger and stays retired.
    */
 
   /*

@@ -4,6 +4,8 @@
 
 #include "core/ai_contact_internal.h"
 
+#include "../common/ai_fixture.h"
+
 /*
  * FUN_5952_035e war-declare block (ai_contact_colony_tick_war_5952) — the AI
  * colony tick's `or_both(nation, tribe + 4, 2)` (raw viceroy_unpacked.c:94170-
@@ -784,8 +786,115 @@ static int test_803_last_bought_keyed_on_unit_slot(void) {
   return 0;
 }
 
+/*
+ * FUN_0000_6582 tail — the native land-work alarm now lives in the shared
+ * tiles[] writer (colonies_assign_field_w), not in the two colony-screen UI
+ * call sites, so an AI colony pays it too. Pins three things:
+ *   1. a newly taken claimed plot charges (difficulty+5 for a human, doubled
+ *      inside distance 3, plus base again inside 2);
+ *   2. re-seating a plot that already had a worker charges nothing
+ *      (FUN_15eb_26e4 raw 12851 keeps a worked plot out of the claim table);
+ *   3. the clear-then-reassign the AI placement pass does every turn charges
+ *      nothing either — that is what the plot_was_worked_mask carry is for.
+ *     Without (2)/(3) the DOS seed-100 TURN1->TURN7 replay overshoots ~2.7x.
+ */
+static int test_land_work_alarm_6582(void) {
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  col1.head.difficulty = 2;
+  for (int ffi = 0; ffi < (int)COLONIZE_COL1_FF_COUNT; ++ffi) {
+    col1.head.founding_father[ffi] = -1; /* no Minuit / Pocahontas */
+  }
+  col1.head.tribe_count = 1;
+  col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
+  if (!col1.tribe) {
+    return fail("6582: alloc tribe");
+  }
+  /* Village one tile off the colony's N plot, so the plot is inside the
+   * tech-0 claim radius of 1 and DS:0x8db8 lands under 2. */
+  col1.tribe[0].x = 8;
+  col1.tribe[0].y = 7;
+  col1.tribe[0].nation_id = 4;
+  col1.tribe[0].mission = 0xff;
+  col1.tribe[0].population = 4;
+  memset(&col1.indian[0], 0, sizeof(col1.indian[0]));
+  col1.indian[0].tech = 0;
+  col1.indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT;
+  col1.player[0].control = 0; /* human colony: base picks up difficulty */
+
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 3 /* plains, no prime-resource fold */, false)) {
+    return fail("6582: alloc map");
+  }
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  ColonizeColony* col = fx_colony_add(&colonies, 0, 8, 8, 2);
+  memset(col->tiles, -1, sizeof(col->tiles));
+  for (int i = 0; i < col->colonist_count; ++i) {
+    col->colonists[i].active = true;
+    col->colonists[i].building_type = -1;
+    col->colonists[i].field_job = -1;
+  }
+  const ColonizeWorld w = fx_world(NULL, &colonies, &map, &col1, NULL, NULL);
+
+  const int plot = colonies_field_tile_index(0, -1); /* the N plot, (8,7) */
+  if (plot < 0) {
+    return fail("6582: N plot index");
+  }
+  if (colonies_indian_claim_tribe_from_w(&w, 0, col->x, col->y, 8, 7) != 0) {
+    return fail("6582: fixture plot must read as tribe-claimed land");
+  }
+
+  /*
+   * (1) first take of the plot charges: base = difficulty + 5, doubled inside
+   * distance 3 and increased by base again inside 2 (dist here is 0), then
+   * doubled once more by FUN_0000_3ca0's prime resource. This fixture tile
+   * carries one — asserted, so swapping the coordinates cannot silently drop
+   * the prime factor from the expectation.
+   */
+  const int base = (int)col1.head.difficulty + 5;
+  if (map_resource_type_at(&map, 8, 7) < 0) {
+    return fail("6582: fixture plot is expected to hold a prime resource");
+  }
+  const int want = base * 3 * 2;
+  if (!colonies_assign_field_w(&w, col->id, 0, plot, COLONIZE_JOB_FARMER)) {
+    return fail("6582: first assign");
+  }
+  const int after_take = (int)col1.indian[0].alarm_by_player[0];
+  if (after_take != want) {
+    fprintf(stderr, "unit_ai_contact: 6582 take alarm=%d want %d\n", after_take, want);
+    return fail("6582: newly taken claimed plot must charge (difficulty+5)*3, x2 on a prime tile");
+  }
+
+  /* (2) seating a second colonist over a plot that already has one: no charge. */
+  if (!colonies_assign_field_w(&w, col->id, 1, plot, COLONIZE_JOB_FARMER)) {
+    return fail("6582: re-assign over worker");
+  }
+  if ((int)col1.indian[0].alarm_by_player[0] != after_take) {
+    return fail("6582: re-seating an already-worked plot must not charge again");
+  }
+
+  /* (3) the AI pass's clear-then-reassign must not charge either. */
+  if (!colonies_clear_field(&colonies, col->id, plot)) {
+    return fail("6582: clear_field");
+  }
+  if (!colonies_assign_field_w(&w, col->id, 0, plot, COLONIZE_JOB_FARMER)) {
+    return fail("6582: reassign after clear");
+  }
+  if ((int)col1.indian[0].alarm_by_player[0] != after_take) {
+    return fail("6582: clear+reassign in one pass must not re-charge the plot");
+  }
+
+  fx_map_free(&map);
+  free(col1.tribe);
+  col1.tribe = NULL;
+  col1_save_free(&col1);
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"test_colony_tick_war_5952", test_colony_tick_war_5952},
+    {"test_land_work_alarm_6582", test_land_work_alarm_6582},
     {"test_prelude_alarm_band", test_prelude_alarm_band},
     {"test_ai_missionary_village_arm", test_ai_missionary_village_arm},
     {"test_beg_conceded_falls_into_gift_863", test_beg_conceded_falls_into_gift_863},
