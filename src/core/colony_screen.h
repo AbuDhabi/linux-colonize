@@ -373,6 +373,11 @@ typedef struct ColonyScreenView {
    * (FUN_2f2b_0434). bugs.md #578. Unset = the screenshot goldens' value. */
   bool layout_seed_set;
   uint32_t layout_seed_base;
+
+  /* Frame clock for the screen's own blinks (game_loop elapsed_ms), set by
+   * the renderer each frame. Only consumer: the CHANGE button's
+   * already-built blink in the Construction pane. */
+  uint32_t blink_ms;
 } ColonyScreenView;
 
 /* Hand the loaded/new game's post_map.boot_timer to the colony screen. */

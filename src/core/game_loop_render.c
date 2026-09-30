@@ -1489,6 +1489,9 @@ void render_colony_screen(const ColonizeGameState* game, ColonizeFramebuffer8* f
     ? &game->colony_font
     : (game->menu_font_ok ? &game->menu_font : NULL);
   /* View is mutated for UI scratch (deltas / highlight); game pointer stays const. */
+  if (game->colony_screen_ok) {
+    ((ColonyScreenView*)&game->colony_screen)->blink_ms = game->elapsed_ms;
+  }
   colony_screen_render_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(game->units_ok ? &game->units : NULL), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(game->world_map_ok ? &game->world_map : NULL), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL)}, game->colony_screen_ok ? (ColonyScreenView*)&game->colony_screen : NULL, colony, game->terrain_ok ? &game->terrain : NULL, game->phys0_ok ? &game->phys0 : NULL, game->game_year, game->game_autumn, game->europe.gold, font, game->debug_building_rects, game->labels_ok ? &game->labels : NULL, framebuffer);
   game_render_modal_overlays(game, font, framebuffer);
 }
