@@ -699,7 +699,25 @@ void colony_screen_draw_multifunction(
           ui_button_draw(font, framebuffer, px, py + 10 - 4, buy_w, buy_h, buy_lbl, &bc);
         }
         const int change_x = COLONY_MULTI_X + COLONY_MULTI_W - chg_w - 4 - 10;
-        ui_button_draw(font, framebuffer, change_x, py + 10 - 4, chg_w, chg_h, chg_lbl, &bc);
+        const int change_y = py + 10 - 4;
+        /* Player-requested: the project in production is already built (a
+         * dead queue — nothing will ever complete), so CHANGE blinks
+         * normal / white-filled to flag it. Not a DOS behaviour. */
+        const bool already_built =
+          colony->building_in_production >= 0
+          && colony->building_in_production < COLONIZE_BUILDING_TYPES_MAX
+          && colony->has_building[colony->building_in_production];
+        if (already_built && (view->blink_ms / 500u) % 2u == 0u) {
+          UiButtonColors wb = bc;
+          wb.dark = 15;
+          wb.light = 15;
+          wb.text = 0;
+          wb.hotkey = 0;
+          fb_fill_rect(framebuffer, change_x, change_y, chg_w, chg_h, 15);
+          ui_button_draw(font, framebuffer, change_x, change_y, chg_w, chg_h, chg_lbl, &wb);
+        } else {
+          ui_button_draw(font, framebuffer, change_x, change_y, chg_w, chg_h, chg_lbl, &bc);
+        }
       }
     }
     /* Accumulated carpenter hammers toward the current project, as four
