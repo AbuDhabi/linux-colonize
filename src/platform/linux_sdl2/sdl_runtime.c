@@ -701,15 +701,18 @@ bool platform_present(
       (size_t)platform->width * (size_t)platform->height * sizeof(uint32_t)
     );
   }
+  /* One ARGB lookup table per frame beats three palette byte loads and three
+   * shifts per pixel (the conversion touches the whole window every frame). */
+  uint32_t argb[256];
+  for (int i = 0; i < 256; ++i) {
+    argb[i] = 0xff000000u | ((uint32_t)palette->rgb[i][0] << 16) |
+              ((uint32_t)palette->rgb[i][1] << 8) | (uint32_t)palette->rgb[i][2];
+  }
   for (int y = 0; y < copy_h; ++y) {
     const uint8_t* src_row = &framebuffer->pixels[(size_t)y * (size_t)fb_w];
     uint32_t* dst_row = &platform->rgba_buffer[(size_t)y * (size_t)platform->width];
     for (int x = 0; x < copy_w; ++x) {
-      const uint8_t index = src_row[x];
-      const uint8_t r = palette->rgb[index][0];
-      const uint8_t g = palette->rgb[index][1];
-      const uint8_t b = palette->rgb[index][2];
-      dst_row[x] = 0xff000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
+      dst_row[x] = argb[src_row[x]];
     }
   }
 
@@ -777,5 +780,12 @@ void platform_set_window_title(ColonizePlatform* platform, const char* title) {
   if (!platform || !platform->window || !title) {
     return;
   }
+  /* Called every frame from the main loop; the title changes rarely and each
+   * set is a window-manager round trip. */
+  static char last[256];
+  if (strncmp(last, title, sizeof(last) - 1) == 0) {
+    return;
+  }
+  snprintf(last, sizeof(last), "%s", title);
   SDL_SetWindowTitle(platform->window, title);
 }
