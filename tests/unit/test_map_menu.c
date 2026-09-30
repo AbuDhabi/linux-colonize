@@ -912,6 +912,72 @@ static int case_view_pieces_orders_gating(void) {
   return rc;
 }
 
+/*
+ * The wood tiler grew a memcpy fast path and an optional remap table (the two
+ * full-rect passes were costing ~31ms a frame at window sizes). Both must lay
+ * down exactly the pixels the plain `dy % th` / `dx % tw` reference does.
+ */
+static int tile_rect_check(int tw, int th, bool with_hole, const uint8_t* lut) {
+  uint8_t tile_px[8 * 8];
+  for (int i = 0; i < tw * th; ++i) {
+    tile_px[i] = (uint8_t)(i % 200 + 1);
+  }
+  if (with_hole) {
+    tile_px[tw + 1] = COLONIZE_SS_TRANSPARENT;
+  }
+  ColonizeSprite sprite = {.width = tw, .height = th, .pixels = tile_px};
+  ColonizeSpriteSheet sheet = {.sprites = &sprite, .sprite_count = 1};
+
+  enum { FB_W = 61, FB_H = 29 };
+  uint8_t got[FB_W * FB_H];
+  uint8_t want[FB_W * FB_H];
+  memset(got, 7, sizeof(got));
+  memset(want, 7, sizeof(want));
+  ColonizeFramebuffer8 fb = {.width = FB_W, .height = FB_H, .pixels = got};
+
+  /* Odd origin and an over-wide rect so the clip and the phase both bite. */
+  const int ox = 3, oy = 5, rw = FB_W, rh = FB_H;
+  map_menu_tile_rect_screen_phase_lut(&sheet, ox, oy, rw, rh, &fb, lut);
+  for (int dy = oy; dy < FB_H; ++dy) {
+    for (int dx = ox; dx < FB_W; ++dx) {
+      const uint8_t px = tile_px[(dy % th) * tw + dx % tw];
+      if (px == COLONIZE_SS_TRANSPARENT) {
+        continue;
+      }
+      want[dy * FB_W + dx] = lut ? lut[px] : px;
+    }
+  }
+  if (memcmp(got, want, sizeof(got)) != 0) {
+    for (int i = 0; i < FB_W * FB_H; ++i) {
+      if (got[i] != want[i]) {
+        fprintf(stderr,
+          "tile_rect %dx%d hole=%d lut=%d: pixel %d,%d got %u want %u\n",
+          tw, th, (int)with_hole, lut != NULL, i % FB_W, i / FB_W, got[i], want[i]);
+        break;
+      }
+    }
+    return 1;
+  }
+  return 0;
+}
+
+static int case_tile_rect_screen_phase(void) {
+  uint8_t lut[256];
+  for (int i = 0; i < 256; ++i) {
+    lut[i] = (uint8_t)(255 - i);
+  }
+  int rc = 0;
+  for (int hole = 0; hole < 2; ++hole) {
+    /* 8x8 takes the memcpy doubling path; 8x3 exercises the row wrap, and a
+     * tile wider than the rect run takes the plain path. */
+    rc |= tile_rect_check(8, 8, hole != 0, NULL);
+    rc |= tile_rect_check(8, 8, hole != 0, lut);
+    rc |= tile_rect_check(8, 3, hole != 0, lut);
+    rc |= tile_rect_check(5, 7, hole != 0, lut);
+  }
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"menu_counts_and_titles", case_menu_counts_and_titles},
   {"cheat_items", case_cheat_items},
@@ -923,6 +989,7 @@ static const TestCase k_cases[] = {
   {"cheat_visible_toggle", case_cheat_visible_toggle},
   {"click_open_and_save", case_click_open_and_save},
   {"hidden_cheat_click_blocked", case_hidden_cheat_click_blocked},
+  {"tile_rect_screen_phase", case_tile_rect_screen_phase},
   {"orders_gating", case_orders_gating},
   {"build_join_gating", case_build_join_gating},
   {"view_pieces_orders_gating", case_view_pieces_orders_gating},
