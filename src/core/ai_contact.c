@@ -300,42 +300,41 @@ const char* ai_contact_euro_name(int euro_nation) {
 
 
 /*
- * FUN_4cc6_00f2 with its escalation tail (raw 80903-80915) + FUN_4cc6_0000:
- * apply the alarm delta (halving/clamp/clears/tension tiers live in
- * ai_diplo_indian_alarm_delta), then — when the pair lands at alarm 100
- * while formally at PEACE — roll rng(0,10) <= cap+1 (cap = difficulty for
- * a human-controlled euro, else 1); on success expel that euro's missions
- * from every tribe of the nation (mission byte → 0xff) and, when any were
- * cleared and the euro is human, show GAME.TXT @INDIANBURN (DS tag 0x14c8,
- * %STRING0 = the Indian nation). Replaces the old OpenCol "burn at alarm
- * ≥80 every tick" stand-in (2026-09-07d).
+ * FUN_4cc6_00f2 escalation tail (raw 80903-80915) + FUN_4cc6_0000: when the
+ * pair sits at alarm 100 while formally at PEACE, roll rng(0,10) <= cap+1
+ * (cap = difficulty for a human-controlled euro, else 1) and expel that
+ * euro's missions from every tribe of the nation (mission byte -> 0xff).
+ * Returns 1 when any mission was cleared, i.e. the caller owes @INDIANBURN
+ * to a human euro.
  */
-void ai_contact_alarm_delta_00f2(
-  ColonizeTurnContext* ctx, int nation_id, int euro, int delta
+static int ai_contact_00f2_expel(
+  ColonizeCol1Save* col1,
+  ColonizeDosRng* rng,
+  int nation_id,
+  int euro,
+  int human
 ) {
-  if (!ctx || !ctx->col1) {
-    return;
-  }
-  ai_diplo_indian_alarm_delta(ctx->col1, nation_id, euro, delta);
   const int idx = nation_id - 4;
-  if (euro < 0 || euro > 3 || idx < 0 || idx >= 8) {
-    return;
+  if (!col1 || euro < 0 || euro > 3 || idx < 0 || idx >= 8) {
+    return 0;
   }
-  const ColonizeCol1Indian* ind = &ctx->col1->indian[idx];
+  const ColonizeCol1Indian* ind = &col1->indian[idx];
   if (ind->alarm_by_player[euro] < 100 ||
       (ind->euro_diplo[euro] & COL1_INDIAN_PEACE_BIT) == 0) {
-    return;
+    return 0;
   }
-  /* Audit note: this read the control byte directly and so ignored the
-   * ctx->human_nation override the rest of the file honours. */
-  const int human = ai_contact_euro_is_human(ctx, euro);
-  const int cap = human ? (int)ctx->col1->head.difficulty : 1;
-  if (dos_rng_range(ctx->rng, 0, 10) > cap + 1) {
-    return;
+  /* No stream, no roll: dos_rng_range(NULL) answers its low bound, which
+   * would make the burn unconditional for headless/legacy callers. */
+  if (!rng) {
+    return 0;
+  }
+  const int cap = human ? (int)col1->head.difficulty : 1;
+  if (dos_rng_range(rng, 0, 10) > cap + 1) {
+    return 0;
   }
   int cleared = 0;
-  for (uint16_t ti = 0; ctx->col1->tribe && ti < ctx->col1->head.tribe_count; ++ti) {
-    ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+  for (uint16_t ti = 0; col1->tribe && ti < col1->head.tribe_count; ++ti) {
+    ColonizeCol1Tribe* t = &col1->tribe[ti];
     if ((int)t->nation_id != nation_id || t->mission == COL1_TRIBE_MISSION_NONE) {
       continue;
     }
@@ -344,16 +343,76 @@ void ai_contact_alarm_delta_00f2(
       cleared = 1;
     }
   }
-  if (cleared && human) {
-    PopupMsgTokens tok;
-    memset(&tok, 0, sizeof(tok));
-    tok.string0 = ai_contact_tribe_name(nation_id);
-    char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(ctx->messages, "INDIANBURN", &tok, "", body, sizeof(body));
-    ai_contact_human_chrome(
-      ctx, euro, AI_POPUP_TAG_CONTACT_RAID, nation_id, "", body
-    );
+  return cleared;
+}
+
+/* GAME.TXT @INDIANBURN body (DS tag 0x14c8, %STRING0 = the Indian nation). */
+static void ai_contact_00f2_burn_body(
+  const ColonizeMsgCatalog* messages, int nation_id, char* out, size_t out_size
+) {
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = ai_contact_tribe_name(nation_id);
+  popup_msg_fill(messages, "INDIANBURN", &tok, "", out, out_size);
+}
+
+/*
+ * FUN_4cc6_00f2 with its escalation tail (raw 80826-80917) + FUN_4cc6_0000:
+ * apply the alarm delta (halving/clamp/clears/tension tiers live in
+ * ai_diplo_indian_alarm_delta), then run the mission expel above and show
+ * GAME.TXT @INDIANBURN to a human euro. Replaces the old OpenCol "burn at
+ * alarm >= 80 every tick" stand-in (2026-09-07d).
+ */
+void ai_contact_alarm_delta_00f2(
+  ColonizeTurnContext* ctx, int nation_id, int euro, int delta
+) {
+  if (!ctx || !ctx->col1) {
+    return;
   }
+  ai_diplo_indian_alarm_delta(ctx->col1, nation_id, euro, delta);
+  /* Audit note: this read the control byte directly and so ignored the
+   * ctx->human_nation override the rest of the file honours. */
+  const int human = ai_contact_euro_is_human(ctx, euro);
+  if (!ai_contact_00f2_expel(ctx->col1, ctx->rng, nation_id, euro, human) || !human) {
+    return;
+  }
+  char body[AI_POPUP_BODY_LEN];
+  ai_contact_00f2_burn_body(ctx->messages, nation_id, body, sizeof(body));
+  ai_contact_human_chrome(ctx, euro, AI_POPUP_TAG_CONTACT_RAID, nation_id, "", body);
+}
+
+/*
+ * Context-free form of the same whole DOS body, for the positive-delta sites
+ * that hold a ColonizeWorld but no turn context: the colony-screen land-work
+ * bill, the pioneer clear/plow/road charge and the 465b trespass slam
+ * (bugs.md #1004). DOS has no half writer -- FUN_281f_0d6c is a bare thunk to
+ * the whole of FUN_4cc6_00f2 -- so those sites used to pin a pair at alarm
+ * 100 forever and never burn a mission, while DOS rolls on every charge that
+ * lands on 100. "Human" is the DS:0x543f control byte here; there is no
+ * ctx->human_nation override to honour and no status line to write, so the
+ * @INDIANBURN notice goes straight to the popup queue when the world carries
+ * one (NULL queue = mechanics only, as before).
+ */
+void ai_contact_alarm_delta_00f2_w(
+  const ColonizeWorld* w, int nation_id, int euro, int delta
+) {
+  if (!w || !w->col1) {
+    return;
+  }
+  ai_diplo_indian_alarm_delta(w->col1, nation_id, euro, delta);
+  const int human =
+    (euro >= 0 && euro <= 3) ? (w->col1->player[euro].control == 0) : 0;
+  if (!ai_contact_00f2_expel(w->col1, w->rng, nation_id, euro, human) || !human) {
+    return;
+  }
+  if (!w->ai_popups) {
+    return;
+  }
+  char body[AI_POPUP_BODY_LEN];
+  ai_contact_00f2_burn_body(w->messages, nation_id, body, sizeof(body));
+  ai_popup_enqueue_ok_ctx(
+    w->ai_popups, AI_POPUP_TAG_CONTACT_RAID, euro, nation_id, 0, NULL, body
+  );
 }
 
 int ai_contact_indian_has_peace(
@@ -539,16 +598,15 @@ void ai_contact_apply_welcome_accept(
   if (ind->alarm_by_player[e] > 20u) {
     ind->alarm_by_player[e] = 20u;
   }
-  if (ctx->col1->tribe) {
-    for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-      ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-      if ((int)t->nation_id != nation_id) {
-        continue;
-      }
-      t->alarm[e].friction = 0;
-      t->alarm[e].attacks = 0;
-    }
-  }
+  /*
+   * bugs.md #1008: no village-attitude wipe here. DOS's contact arm ORs the
+   * MET bit and clamps alarm and writes no DS:0x54f6 word at all (raw
+   * 96612-96760 — the only 0d6c in the block is the @INDIANSHUN reject +100).
+   * The loop that used to zero every tribe's alarm[e] discarded real
+   * pre-contact state: the 152e threat arm and the 465b trespass bump can
+   * both raise a village word before the formal welcome, and that grudge
+   * survives first contact in DOS.
+   */
   ai_diplo_indian_hostility_sync(ctx->col1, e);
 
   /* Land grant on occupied tile (copy-only → thin ownership write). */
@@ -1538,9 +1596,9 @@ void ai_contact_clamp_alarms(ColonizeCol1Indian* ind) {
      * 2026-09-09 (smell #53): the band was 200, while FUN_4cc6_00f2 clamps
      * 0..100 on every write (ai_diplo_indian_alarm_delta) and
      * ai_diplo_indian_alarm clamps 0..100 on every read. That left a 101..200
-     * window in which the raw readers in this file — ai_contact_pair_friction
-     * and the raid-target gate — saw a different number than every accessor
-     * path, so two band tests in the same file disagreed about one pair.
+     * window in which the raw readers in this file — the raid-target gate
+     * among them — saw a different number than every accessor path, so two
+     * band tests in the same file disagreed about one pair.
      * 100 is the only value consistent with both.
      */
     if (ind->alarm_by_player[e] > 100) {

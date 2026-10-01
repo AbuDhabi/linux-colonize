@@ -141,14 +141,19 @@ static ColonizeColony* units_nearest_colony_dos(
  *     indian.lands_bought++, purchased bit) and takes no anger at all.
  * Otherwise the tribe's alarm rises by `base` (+ difficulty when the acting
  * nation is the human, DS:0x53a6), doubled within DOS distance 3 and tripled
- * within 2, via FUN_281f_0d6c → FUN_4cc6_00f2 (positive delta = alarm up).
+ * within 2, via FUN_281f_0d6c → FUN_4cc6_00f2 (positive delta = alarm up) —
+ * the WHOLE of 00f2, escalation tail included (bugs.md #1004): a clear/plow/
+ * road charge that lands on alarm 100 rolls DOS's mission burn.
  * The 4th argument DOS passes 0d6c (2 for clear, 1 for road) is not read by
  * 00f2's body — recorded, not modelled.
  */
 static void units_pioneer_native_land_tail(
+  const ColonizeWorld* w,
   const ColonizeUnit* u,
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages,
   int base_add
 ) {
   ColonizeCol1Save* col1 = g_units_fallout_col1;
@@ -191,7 +196,14 @@ static void units_pioneer_native_land_tail(
   if (dist < 2) {
     amount += base;
   }
-  ai_diplo_indian_alarm_delta(col1, (int)col1->tribe[ti].nation_id, nation, amount);
+  /* g_units_fallout_col1 is the save the rest of this body already works on;
+   * the world only supplies the rng and the @INDIANBURN sink. */
+  ColonizeWorld aw = w ? *w : (ColonizeWorld){0};
+  aw.col1 = col1;
+  aw.col1_ok = true;
+  aw.ai_popups = ai_popups;
+  aw.messages = messages;
+  ai_contact_alarm_delta_00f2_w(&aw, (int)col1->tribe[ti].nation_id, nation, amount);
 }
 
 static bool units_pioneer_tile_can_clear_or_plow(
@@ -402,7 +414,7 @@ bool units_pioneer_work_tick_w(
       units_pioneer_emit_useduptools(u, err, err_size, ai_popups, messages);
     }
     /* LAB_479b_0687 tail: base 3 (0d6c mode 1). */
-    units_pioneer_native_land_tail(u, map, colonies, 3);
+    units_pioneer_native_land_tail(w, u, map, colonies, ai_popups, messages, 3);
   } else {
     bool clearing = false;
     (void)units_pioneer_tile_can_clear_or_plow(map, u->x, u->y, &clearing);
@@ -502,7 +514,7 @@ bool units_pioneer_work_tick_w(
        * i.e. only a finished forest CLEAR angers the tribe / triggers the AI
        * land buy — plowing an already-open tile does not reach the label.
        */
-      units_pioneer_native_land_tail(u, map, colonies, 5);
+      units_pioneer_native_land_tail(w, u, map, colonies, ai_popups, messages, 5);
     } else {
       map_tile_set_plowed(map, u->x, u->y, true);
       const bool demoted = units_pioneer_wear_tools(pool, u);

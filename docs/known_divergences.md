@@ -64,6 +64,30 @@ Promote either back to bugs.md only if the user asks for the feature.
 Static reading cannot settle these. Each names exactly what to capture. Do not
 change the port's behaviour on a guess.
 
+### #1009 — `@ATTITUDE` / `@ATTITUDINAL` have no located consumer
+Alarm never reaches the player as words. `NAMES.TXT @ATTITUDE` (Content /
+Uneasy / Restless / Angry / War) and `@ATTITUDINAL` (Extremely / Very / Rather
+/ Somewhat / Slightly) are shipped catalogs that no port code reads, and
+2026-10-01 established that **no decompiled DOS function reads them either**:
+`FUN_75c2_10ae` (`viceroy_unpacked.c:121168-121184`) loads `@ATTITUDE`
+(DS tag 0x2273) into `DS:0x9348..0x9351` and `@ATTITUDINAL` (DS tag 0x227c)
+into `DS:0x9352..0x935b`, and every word offset of both arrays has zero reads
+across all three decompiled files. The control is the `@LEVELS` table
+(`DS:0x5230`), loaded a few lines earlier by the same function, which *is* read
+back repeatedly in `viceroy_overlays.c` — so the sweep does surface real
+consumers. Leads checked and empty: all ~25 `FUN_281f_030c` (alarm read) call
+sites, and `FUN_281f_0a60`, which is a two-line thunk unrelated to NAMES.TXT.
+The port's own alarm displays stay as they are: the F9 Indian Adviser's
+`@LEVELS` tech word plus the `113 + alarm quartile` chief portrait
+(`reports_indian_build_rows`, DOS-cited `3f41:0522..05d2`), the map sidebar
+tier glyph (`FUN_112b_0790`), and the village-meet body band
+(@VILLAGEHAPPY / MEDIUM / BAD / WAR).
+
+**Capture:** DOSBox-X watchpoint on `DS:0x9348-0x935b` through a session that
+reaches several alarm tiers, to see whether anything reads either array and on
+which screen. Until then do not invent a threshold table — 25 gradations only
+*suggest* modifier x label.
+
 ### #909 — Craft audit statics
 - The origin of the skill-match flag `[bp-0x1c]` is unlocated.
 - Train dialog row order for the 1000/1100/1200 ties

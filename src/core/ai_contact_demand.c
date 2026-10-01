@@ -42,65 +42,37 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ===================== Friction/gift-gold, choice popups & incite pricing/confirmation (ai_contact_friction_decay .. ai_contact_apply_incite) ===================== */
+/* ===================== Friction/gift-gold, choice popups & incite pricing/confirmation (ai_contact_pair_cool .. ai_contact_apply_incite) ===================== */
 
 
-/* Decay alarm_by_player + this nation's tribe frictions by `amount` (floor 0). */
-static void ai_contact_friction_decay(
-  ColonizeCol1Indian* ind,
-  ColonizeCol1Save* col1,
+/*
+ * Cool an Indian×Euro pair by `amount` (bugs.md #1007). Goes through the whole
+ * of FUN_4cc6_00f2, so the cooling also clears the attack-confirmed bit and,
+ * below 0x4b, the war bit, and runs the 5-point village-word tier clamp — all
+ * of which the old raw store on alarm_by_player[e] bypassed. It writes no
+ * village word of its own: DOS's coolers either zero ONE village's whole word
+ * (the acting Brave's home, which these arms do not have in hand) or spend
+ * through 0d6c, and no DOS site decays every village of a nation.
+ */
+static void ai_contact_pair_cool(
+  ColonizeTurnContext* ctx,
   int nation_id,
   int e,
   int amount
 ) {
-  if (!ind || amount <= 0 || e < 0 || e > 3) {
+  if (!ctx || amount <= 0 || e < 0 || e > 3) {
     return;
   }
-  if ((int)ind->alarm_by_player[e] > amount) {
-    ind->alarm_by_player[e] = (uint16_t)(ind->alarm_by_player[e] - (uint16_t)amount);
-  } else {
-    ind->alarm_by_player[e] = 0;
-  }
-  if (!col1 || !col1->tribe) {
-    return;
-  }
-  for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
-    ColonizeCol1Tribe* t = &col1->tribe[ti];
-    if ((int)t->nation_id != nation_id) {
-      continue;
-    }
-    if ((int)t->alarm[e].friction > amount) {
-      t->alarm[e].friction = (uint8_t)(t->alarm[e].friction - (uint8_t)amount);
-    } else {
-      t->alarm[e].friction = 0;
-    }
-  }
-}
-
-/* Max of alarm_by_player and tribe frictions for this Indian×Euro pair. */
-int ai_contact_pair_friction(
-  const ColonizeCol1Indian* ind,
-  const ColonizeCol1Save* col1,
-  int nation_id,
-  int e
-) {
-  int friction = ind ? (int)ind->alarm_by_player[e] : 0;
-  if (!col1 || !col1->tribe) {
-    return friction;
-  }
-  for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
-    const ColonizeCol1Tribe* t = &col1->tribe[ti];
-    if ((int)t->nation_id == nation_id && (int)t->alarm[e].friction > friction) {
-      friction = (int)t->alarm[e].friction;
-    }
-  }
-  return friction;
+  ai_contact_alarm_delta_00f2(ctx, nation_id, e, -amount);
 }
 
 /*
- * Apply a gift-band gold drain (CONTACT_GIFT amount CHOICE or auto Large).
- * Small −5 / friction −1; Large −10 / friction −2. Cite: FUN_5bfb_102a;
- * indian_contact.md gift stand-in (no invented crosses).
+ * Apply the 022e auto-gift gold drain (Large −10 / friction −2, Generous
+ * −20 / −3). There is no DOS body for the amounts — the cited
+ * FUN_5bfb_102a is a plural/singular text formatter with no gold or alarm
+ * arithmetic — so these are a stand-in, now reached only from
+ * ai_contact_gift_or_demand; the invented player-driven gift CHOICE that used
+ * to call it with −5 was deleted with bugs.md #1006.
  * Pocahontas: gift decays full friction (half-rate applies only to positive
  * alarm/friction bumps — prelude/encroachment/raid; wiki/fandom).
  */
@@ -119,13 +91,15 @@ void ai_contact_apply_gift_gold(
     return;
   }
   /*
-   * ai_contact_pair_friction seeds from alarm_by_player[e] and then only
-   * grows, so `friction >= alarm_by_player[e]` always holds: the
-   * `alarm_by_player[e] >= 55` disjunct could never decide anything, and
-   * `>= 55 || >= 40` is just `>= 40`. Reduced 2026-09-09 (smell #54).
+   * bugs.md #1005: the nation alarm scalar alone (FUN_281f_030c), not a
+   * max() over the tribes' DS:0x54f6 attitude words. DOS's gift/demand gates
+   * read 030c; the only gate reads of a village word (FUN_5bfb_022e raw
+   * 87333, FUN_4962_0018 raw 94967) are keyed on the acting Brave's OWN home
+   * village, never a nation-wide maximum — so one un-missioned village at
+   * attitude 83 used to make the whole tribe refuse gifts at alarm 0.
    */
-  const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
-  if (friction >= 40) {
+  const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
+  if (alarm >= 40) {
     ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_GIFT, "Gift", "gifts");
     return;
   }
@@ -140,7 +114,7 @@ void ai_contact_apply_gift_gold(
     return;
   }
   europe_nation_gold_add(ctx->europe, ctx->col1, e, -(long)gold_cost);
-  ai_contact_friction_decay(ind, ctx->col1, nation_id, e, friction_decay);
+  ai_contact_pair_cool(ctx, nation_id, e, friction_decay);
   {
     char gift_fb[AI_POPUP_BODY_LEN];
     snprintf(
@@ -156,14 +130,8 @@ void ai_contact_apply_gift_gold(
 }
 
 /*
- * Human Gift amount CHOICE (Small −5 / Large −10 / Generous −20). Returns 1 if
- * enqueued. Cite: FUN_5bfb_102a amount stand-in; indian_contact.md.
- */
-/*
  * Shared head/tail of the human amount CHOICE enqueues (audit AC-29): the
- * gift-amount and demand-amount builders differed only in which rows they
- * pushed, so the "is a human CHOICE reachable at all" guard and the
- * titleless enqueue live here.
+ * "is a human CHOICE reachable at all" guard and the titleless enqueue.
  */
 static int ai_contact_choice_ctx_ready(const ColonizeTurnContext* ctx, int e) {
   return ctx && ctx->ai_popups && ctx->col1_ok && ctx->col1 && e >= 0 && e <= 3 &&
@@ -186,47 +154,6 @@ static int ai_contact_enqueue_choice(
          )
            ? 1
            : 0;
-}
-
-int ai_contact_enqueue_gift_amount_choice(
-  ColonizeTurnContext* ctx,
-  int e,
-  int nation_id
-) {
-  if (!ai_contact_choice_ctx_ready(ctx, e)) {
-    return 0;
-  }
-  /* audit G3: single treasury — the human's purse is EuropeScreen.gold. */
-  const unsigned gold = (unsigned)europe_nation_gold(ctx->europe, ctx->col1, e);
-  if (gold < 5u) {
-    return 0; /* cannot pay Small — caller refuses */
-  }
-  const char* labels[3];
-  int ids[3];
-  int n = 0;
-  labels[n] = "Small gift (5 gold)";
-  ids[n] = AI_CONTACT_GIFT_SMALL;
-  n++;
-  if (gold >= 10u) {
-    labels[n] = "Large gift (10 gold)";
-    ids[n] = AI_CONTACT_GIFT_LARGE;
-    n++;
-  }
-  if (gold >= 20u) {
-    labels[n] = "Generous gift (20 gold)";
-    ids[n] = AI_CONTACT_GIFT_GENEROUS;
-    n++;
-  }
-  char body[AI_POPUP_BODY_LEN];
-  snprintf(
-    body,
-    sizeof(body),
-    "Offer gold to the %s?",
-    ai_contact_tribe_name(nation_id)
-  );
-  return ai_contact_enqueue_choice(
-    ctx, AI_POPUP_TAG_CONTACT_GIFT, e, nation_id, 0, body, labels, ids, n
-  );
 }
 
 /*
@@ -756,11 +683,11 @@ static int ai_contact_demand_can_pay_gold(const ColonizeTurnContext* ctx, int e)
 }
 
 /*
- * Shared 40..54 demand band gate (audit AC-4): must be met, and the pair
- * friction must sit in the mid band — below 40 there is nothing to appease,
- * at 55 and above the tribe refuses to talk at all. Same reduction as the
- * gift gate (smell #54): pair_friction dominates alarm_by_player[e], so that
- * disjunct is dead; the band itself is kept verbatim.
+ * Shared 40..54 demand band gate (audit AC-4): must be met, and the nation
+ * alarm scalar must sit in the mid band — below 40 there is nothing to
+ * appease, at 55 and above the tribe refuses to talk at all. bugs.md #1005:
+ * reads ai_diplo_indian_alarm (FUN_281f_030c), not a max() over the tribes'
+ * attitude words.
  */
 static int ai_contact_demand_band_ok(
   ColonizeTurnContext* ctx,
@@ -774,8 +701,8 @@ static int ai_contact_demand_band_ok(
   if (!ind->euro_diplo[e]) {
     return 0;
   }
-  const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
-  if (friction >= 55 || friction < 40) {
+  const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
+  if (alarm >= 55 || alarm < 40) {
     ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_DEMAND, "", "demands");
     return 0;
   }
@@ -807,7 +734,7 @@ int ai_contact_apply_demand_tools(
     ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_DEMAND, "", "demands");
     return 0;
   }
-  ai_contact_friction_decay(ind, ctx->col1, nation_id, e, 3);
+  ai_contact_pair_cool(ctx, nation_id, e, 3);
   ai_contact_human_chrome(
     ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "", ""
   );
@@ -832,7 +759,7 @@ int ai_contact_apply_demand_gold(
     return 0;
   }
   europe_nation_gold_add(ctx->europe, ctx->col1, e, -15L); /* audit G3 */
-  ai_contact_friction_decay(ind, ctx->col1, nation_id, e, 3);
+  ai_contact_pair_cool(ctx, nation_id, e, 3);
   ai_contact_human_chrome(
     ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "", ""
   );
@@ -1219,21 +1146,18 @@ void ai_contact_gift_or_demand(
   if (!ind->euro_diplo[e]) {
     return;
   }
-  const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
+  const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
   const int human = ai_contact_euro_is_human(ctx, e);
   /*
    * Same ≥55 gate as refuse-talk/teach: alarmed → no gift and no demand
    * payoff (no invented gold penalties). Cite: fandom Alarm — refuse trade.
-   * The `|| alarm_by_player[e] >= 55` disjunct this gate used to carry was
-   * dead: ai_contact_pair_friction seeds friction FROM alarm_by_player[e] and
-   * only raises it, so friction >= alarm always (smell #54, reduced here by
-   * audit D10 2026-09-10).
-   * The message band below is a different quantity on purpose: it maxes the
-   * TRIBE friction rows only, without the alarm_by_player seed, so the
-   * gift-band (<40) "refuse gifts" wording stays reachable even when the
-   * pair value that opened this arm came from alarm alone.
+   * bugs.md #1005: the gate is the nation alarm scalar alone; the village
+   * attitude words are per-village state and DOS never maxes them here.
+   * The wording band below is chrome only — it still asks whether any
+   * village of the nation is sour enough to be in the demand band, which
+   * only decides which refuse sentence prints.
    */
-  if (friction >= 55) {
+  if (alarm >= 55) {
     if (human) {
       int tribe_fr = 0;
       if (ctx->col1->tribe) {
@@ -1283,7 +1207,7 @@ void ai_contact_gift_or_demand(
   const int delta = ask0 - bid0;
 
   /* Low friction gift / tribute (2154 ask−bid + gold≥0x4b → Generous). */
-  if (friction < 40) {
+  if (alarm < 40) {
     /* Cannot pay −10 gift drain → refuse with status (widgets unparked). */
     if (purse < 10u) {
       ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_GIFT, "Gift", "gifts");

@@ -394,6 +394,14 @@ int ai_contact_indian_has_peace(const ColonizeCol1Save* col1, int indian_nation,
  * ai_diplo_indian_alarm_delta whenever a turn context is available.
  */
 void ai_contact_alarm_delta_00f2(ColonizeTurnContext* ctx, int nation_id, int euro, int delta);
+/*
+ * Same whole DOS body for callers that hold a ColonizeWorld but no turn
+ * context (colony land-work bill, pioneer clear/plow/road, 465b trespass).
+ * Never call ai_diplo_indian_alarm_delta directly from those sites — DOS has
+ * no half writer, and skipping the tail pins a pair at alarm 100 with its
+ * missions intact forever (bugs.md #1004).
+ */
+void ai_contact_alarm_delta_00f2_w(const ColonizeWorld* w, int nation_id, int euro, int delta);
 /* Tribe display name for Indian nation ids 4..11. */
 const char* ai_contact_tribe_name(int nation_id);
 

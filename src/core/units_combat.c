@@ -2985,7 +2985,17 @@ bool units_try_native_settlement_fallout_w(
         }
       }
     } else {
-      ai_diplo_indian_relation_delta(col1, tribe_nation, attacker_nation_id, -5);
+      /*
+       * bugs.md #1010: no alarm delta on the ordinary "settlement destroyed,
+       * not the capital" outcome. FUN_5fef_1b0e (raw 100251-101310) holds
+       * exactly two 0d6c writes: the `local_a6` native-attack vent at 101137
+       * (ported as units_indian_attack_alarm_vent) and the capital-fall
+       * clamp-to-15 at 101290-101292, whose gate is
+       * `local_c != 0 && local_ce != 0` — destroyed AND capital, i.e. the
+       * sibling branch above. With local_ce == 0 DOS falls through to
+       * LAB_5fef_362a with no alarm or relation write at all, so the +5 that
+       * used to sit here was a copy of a neighbouring arm's magnitude.
+       */
       ai_diplo_indian_hostility_sync(col1, attacker_nation_id);
     }
   }
