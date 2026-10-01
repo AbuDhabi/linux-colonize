@@ -14,6 +14,8 @@ typedef struct ColonizeWorldMap ColonizeWorldMap;
 typedef struct ColonizeCol1Save ColonizeCol1Save;
 typedef struct ColonizeDosRng ColonizeDosRng;
 typedef struct EuropeScreen EuropeScreen;
+typedef struct AiPopupState AiPopupState;
+typedef struct ColonizeMsgCatalog ColonizeMsgCatalog;
 
 /*
  * ColonizeWorld — the simulation's context object (2026-09-16).
@@ -44,6 +46,14 @@ typedef struct ColonizeWorld {
   bool col1_ok; /* mirrors ColonizeTurnContext.col1_ok (col1 loaded/usable) */
   ColonizeDosRng* rng;
   EuropeScreen* europe;
+  /*
+   * Human-facing popup queue + GAME.TXT catalog, for sim bodies whose DOS
+   * original shows a dialog but which are reached without a turn context
+   * (the FUN_4cc6_00f2 @INDIANBURN tail, bugs.md #1004). NULL on a
+   * world_make view = mechanics only, no dialog.
+   */
+  AiPopupState* ai_popups;
+  const ColonizeMsgCatalog* messages;
   /* FUN_281f_04ca timer word for the 465b overspend reseed (raw 75649):
    * game_loop passes ColonizeGameState.ai_rng_seed; unset = no reseed
    * (tests / headless callers keep the plain stream). bugs.md #842. */

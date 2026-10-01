@@ -31,6 +31,12 @@ void ai_contact_alarm_delta_00f2(ColonizeTurnContext* ctx, int nation_id, int eu
   ai_diplo_indian_alarm_delta(ctx->col1, nation_id, euro, delta);
 }
 
+void ai_contact_alarm_delta_00f2_w(
+  const ColonizeWorld* w, int nation_id, int euro, int delta
+) {
+  ai_diplo_indian_alarm_delta(w->col1, nation_id, euro, delta);
+}
+
 /* No units visible to the exposure walk; slim targets never run the
  * Euro-vs-Euro 153e war tick. */
 int ai_contact_land_combat_sum(

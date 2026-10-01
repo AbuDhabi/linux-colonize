@@ -581,6 +581,12 @@ static int sp_06(void) {
     ind->euro_diplo[0] |= COL1_INDIAN_PEACE_BIT;
     col1.head.difficulty = 4; /* cap+1 = 5: roll <= 5 of 0..10 */
     ind->alarm_by_player[0] = 99;
+    /* The tail refuses to roll without a stream (bugs.md #1004) — a NULL rng
+     * answers dos_rng_range's low bound and would burn unconditionally. */
+    ColonizeDosRng burn_rng;
+    dos_rng_seed(&burn_rng, 0x4cc6u);
+    ColonizeDosRng* const burn_rng_save = ctx.rng;
+    ctx.rng = &burn_rng;
     int fired = 0;
     for (int tries = 0; tries < 64 && !fired; ++tries) {
       ai_contact_alarm_delta_00f2(&ctx, 4, 0, 5);
@@ -598,6 +604,7 @@ static int sp_06(void) {
       fprintf(stderr, "unit_ai_contact: mission-burn status '%s'\n", status_burn);
       return fail("mission expel should name tribe (@INDIANBURN)");
     }
+    ctx.rng = burn_rng_save;
     ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~COL1_INDIAN_PEACE_BIT);
     ind->alarm_by_player[0] = 55; /* restore the fixture band for later arms */
     col1.head.difficulty = 2;
@@ -897,8 +904,11 @@ static int sp_10(void) {
             (unsigned)col1.nation[0].gold);
     return fail("AI gift gold 20..74 should cost Euro 10 gold (Large)");
   }
-  if (col1.tribe[0].alarm[0].friction != 8) {
-    return fail("Large AI gift should reduce tribe friction by 2");
+  /* bugs.md #1007: the cooler is a 00f2 alarm delta and writes no village
+   * word; the tribe's own attitude byte only moves if 00f2's tier clamp
+   * catches it. Assert the pair scalar instead. */
+  if (ind->alarm_by_player[0] != 8) {
+    return fail("Large AI gift should cool pair alarm by 2");
   }
   if (status[0] != '\0') {
     return fail("AI gift stand-in should not set human chrome status");
@@ -911,8 +921,8 @@ static int sp_10(void) {
   if (col1.nation[0].gold != 15u) {
     return fail("AI gift gold 20..39 should cost Euro 10 gold (Large)");
   }
-  if (col1.tribe[0].alarm[0].friction != 8) {
-    return fail("Large AI gift should reduce tribe friction by 2");
+  if (ind->alarm_by_player[0] != 8) {
+    return fail("Large AI gift should cool pair alarm by 2");
   }
   return 0;
 }
@@ -955,8 +965,9 @@ static int sp_11(void) {
               (unsigned)col1.nation[0].gold);
       return fail("sparse capital + gold≥75 should Generous (−20)");
     }
-    if (col1.tribe[0].alarm[0].friction != 7) {
-      return fail("Generous AI gift should reduce tribe friction by 3");
+    /* bugs.md #1007: cooler writes the pair scalar, not village words. */
+    if (ind->alarm_by_player[0] != 7) {
+      return fail("Generous AI gift should cool pair alarm by 3");
     }
     /* Gold 40 alone must not Generous (needs ≥0x4b). */
     col1.tribe[0].state.capital = 1;
@@ -1787,7 +1798,9 @@ static int sp_18(void) {
     col1.tribe[0].mission = 0xff;
     col1.tribe[0].alarm[0].friction = 45;
     ind->euro_diplo[0] = 1;
-    ind->alarm_by_player[0] = 20;
+    /* bugs.md #1005: the demand band is the NATION alarm scalar, not a max()
+     * over the village attitude words. */
+    ind->alarm_by_player[0] = 45;
     col1.nation[0].gold = 5;
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
     c->active = true;
@@ -1806,14 +1819,16 @@ static int sp_18(void) {
     if (c->stock[COLONIZE_CARGO_TOOLS] != tools_ok - 10) {
       return fail("demand succeed should take 10 tools from stock ≥20");
     }
-    if (col1.tribe[0].alarm[0].friction != (uint8_t)(fr_ok - 3) ||
-        ind->alarm_by_player[0] != (uint16_t)(al_ok - 3)) {
-      return fail("demand succeed should decay friction by 3");
+    /* bugs.md #1007: the cooling is a 00f2 alarm delta; no village word of
+     * the nation is touched (the tier clamp may still cap one). */
+    if (ind->alarm_by_player[0] != (uint16_t)(al_ok - 3)) {
+      return fail("demand succeed should cool pair alarm by 3");
     }
+    (void)fr_ok;
     /* Stock <20 + gold <50 → no drain (AI silent, no refuse chrome). */
     c->stock[COLONIZE_CARGO_TOOLS] = 15;
     col1.tribe[0].alarm[0].friction = 45;
-    ind->alarm_by_player[0] = 20;
+    ind->alarm_by_player[0] = 45;
     col1.nation[0].gold = 5;
     status[0] = '\0';
     const int tools_short = c->stock[COLONIZE_CARGO_TOOLS];
@@ -1845,7 +1860,9 @@ static int sp_18(void) {
     col1.tribe[0].mission = 0xff;
     col1.tribe[0].alarm[0].friction = 45;
     ind->euro_diplo[0] = 1;
-    ind->alarm_by_player[0] = 20;
+    /* bugs.md #1005: the demand band is the NATION alarm scalar, not a max()
+     * over the village attitude words. */
+    ind->alarm_by_player[0] = 45;
     col1.nation[0].gold = 50;
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
     c->active = true;
@@ -1866,10 +1883,10 @@ static int sp_18(void) {
     if (c->stock[COLONIZE_CARGO_TOOLS] != 10 || euro->tools != 5) {
       return fail("demand gold path should not touch tools when stock < 20");
     }
-    if (col1.tribe[0].alarm[0].friction != (uint8_t)(fr_g - 3) ||
-        ind->alarm_by_player[0] != (uint16_t)(al_g - 3)) {
-      return fail("demand gold path should decay friction by 3");
+    if (ind->alarm_by_player[0] != (uint16_t)(al_g - 3)) {
+      return fail("demand gold path should cool pair alarm by 3");
     }
+    (void)fr_g;
   }
 
   /*
@@ -1897,7 +1914,9 @@ static int sp_18(void) {
     brave->nation_id = 4;
     col1.tribe[0].alarm[0].friction = 45;
     ind->euro_diplo[0] = 1;
-    ind->alarm_by_player[0] = 20;
+    /* bugs.md #1005: the demand band is the NATION alarm scalar, not a max()
+     * over the village attitude words. */
+    ind->alarm_by_player[0] = 45;
     col1.nation[0].gold = 60;
     c->active = true;
     c->nation_id = 0;
@@ -3377,8 +3396,10 @@ static int sp_26(void) {
     if (ai_diplo_indian_relation(&col1, 4, 0) < 40) {
       return fail("WELCOME Yes should raise relation above refuse band");
     }
-    if (ind->alarm_by_player[0] > 20 || col1.tribe[0].alarm[0].friction != 0) {
-      return fail("WELCOME Yes should clamp alarm <= 20 (FUN_5bfb :96624) and clear friction");
+    /* bugs.md #1008: the contact arm clamps alarm and writes no village
+     * attitude word at all, so a pre-contact grudge survives the welcome. */
+    if (ind->alarm_by_player[0] > 20) {
+      return fail("WELCOME Yes should clamp alarm <= 20 (FUN_5bfb :96624)");
     }
     /* Land grant: occupied tile stamped purchased + euro owner nibble. */
     {
@@ -4205,6 +4226,11 @@ static int sp_33(void) {
       ind->euro_diplo[0] |= COL1_INDIAN_PEACE_BIT;
       col1.tribe[0].alarm[0].friction = 10;
       st_pop[0] = '\0';
+      /* The tail needs a stream (bugs.md #1004). */
+      ColonizeDosRng burn_rng2;
+      dos_rng_seed(&burn_rng2, 0x4cc6u);
+      ColonizeDosRng* const burn_rng2_save = ctx.rng;
+      ctx.rng = &burn_rng2;
       int fired = 0;
       for (int tries = 0; tries < 64 && !fired; ++tries) {
         ai_contact_alarm_delta_00f2(&ctx, 4, 0, 5);
@@ -4224,6 +4250,7 @@ static int sp_33(void) {
           pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_RAID) {
         return fail("mission burn OK should use CONTACT_RAID tag");
       }
+      ctx.rng = burn_rng2_save;
       ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~COL1_INDIAN_PEACE_BIT);
       ind->alarm_by_player[0] = 10;
     }
@@ -4233,8 +4260,10 @@ static int sp_33(void) {
 static int sp_34(void) {
 
     /*
-     * Gift CHOICE → amount CHOICE (Small/Large); Large apply −10 gold.
-     * Cite: FUN_5bfb_102a / 1092; indian_contact.md gift amount widget.
+     * bugs.md #1006: there is no player gift action. NAMES.TXT @ACTIONS has
+     * no gift row, nothing emits the old choice id 2, and the invented
+     * Small/Large/Generous amount CHOICE is gone. What survives is the 022e
+     * auto-gift drain, reached from ai_contact_gift_or_demand.
      */
     {
       ai_popup_clear(&pop);
@@ -4249,7 +4278,7 @@ static int sp_34(void) {
       ColonizeUnit* braveg = units_get(&units, bg);
       ColonizeUnit* eurog = units_get(&units, eg);
       if (!braveg || !eurog) {
-        return fail("gift CHOICE spawn");
+        return fail("gift spawn");
       }
       braveg->nation_id = 4;
       eurog->nation_id = 0;
@@ -4259,42 +4288,34 @@ static int sp_34(void) {
       col1.tribe[0].state.learned = 1;
       col1.tribe[0].mission = 0xff;
       col1.nation[0].gold = 50;
-/* alarm pinned above (was relation write) */
       col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
       st_pop[0] = '\0';
       pop.has_result = true;
       pop.result_cancelled = false;
-      pop.result_choice_id = 2; /* GIFT */
+      pop.result_choice_id = 2; /* the retired gift row */
       pop.result_tag = AI_POPUP_TAG_CONTACT_MEET;
       pop.result_nation_a = 0;
       pop.result_nation_b = 4;
       ai_contact_apply_popup_result(&ctx, &pop);
       if (col1.nation[0].gold != 50u) {
-        return fail("Meet Gift should defer drain until amount CHOICE");
+        return fail("retired Meet gift row should move no gold");
       }
-      if (pop.queue_count < 1 ||
-          pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_CHOICE ||
-          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_GIFT) {
-        return fail("Gift CHOICE should enqueue CONTACT_GIFT amount CHOICE");
+      for (int qi = 0; qi < pop.queue_count; ++qi) {
+        if (pop.queue[qi].tag == AI_POPUP_TAG_CONTACT_GIFT &&
+            pop.queue[qi].kind == AI_POPUP_KIND_CHOICE) {
+          return fail("no gift amount CHOICE should exist (bugs.md #1006)");
+        }
       }
-      if (pop.queue[pop.queue_count - 1].choice_count < 3) {
-        return fail("amount CHOICE should offer Small, Large, and Generous when gold≥20");
-      }
-      /* Apply Large (−10). */
+
+      /* 022e auto-gift Large: −10 gold, friction −2, Gift OK follow-up. */
       ai_popup_clear(&pop);
-      pop.has_result = true;
-      pop.result_cancelled = false;
-      pop.result_choice_id = 2; /* AI_CONTACT_GIFT_LARGE */
-      pop.result_tag = AI_POPUP_TAG_CONTACT_GIFT;
-      pop.result_nation_a = 0;
-      pop.result_nation_b = 4;
       st_pop[0] = '\0';
-      ai_contact_apply_popup_result(&ctx, &pop);
+      ai_contact_apply_gift_gold(&ctx, ind, 4, 0, 10u, 2);
       if (col1.nation[0].gold != 40u) {
         return fail("Large gift should drain 10 gold");
       }
-      if (col1.tribe[0].alarm[0].friction != 8) {
-        return fail("Large gift should reduce friction by 2");
+      if (ind->alarm_by_player[0] != 8) {
+        return fail("Large gift should cool pair alarm by 2");
       }
       if (pop.queue_count < 1 ||
           pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_GIFT ||
@@ -4305,44 +4326,30 @@ static int sp_34(void) {
         return fail("Large gift should set Gift status");
       }
 
-      /* Small gift (−5 / friction −1). */
-      ai_popup_clear(&pop);
-      col1.nation[0].gold = 30;
-      ind->alarm_by_player[0] = 10;
-      col1.tribe[0].alarm[0].friction = 10;
-      pop.has_result = true;
-      pop.result_cancelled = false;
-      pop.result_choice_id = 1; /* AI_CONTACT_GIFT_SMALL */
-      pop.result_tag = AI_POPUP_TAG_CONTACT_GIFT;
-      pop.result_nation_a = 0;
-      pop.result_nation_b = 4;
-      st_pop[0] = '\0';
-      ai_contact_apply_popup_result(&ctx, &pop);
-      if (col1.nation[0].gold != 25u) {
-        return fail("Small gift should drain 5 gold");
-      }
-      if (col1.tribe[0].alarm[0].friction != 9) {
-        return fail("Small gift should reduce friction by 1");
-      }
-
-      /* Generous gift (−20 / friction −3); deep amount arm thin. */
+      /* Generous: −20 gold, friction −3. */
       ai_popup_clear(&pop);
       col1.nation[0].gold = 40;
       ind->alarm_by_player[0] = 12;
       col1.tribe[0].alarm[0].friction = 12;
-      pop.has_result = true;
-      pop.result_cancelled = false;
-      pop.result_choice_id = 3; /* AI_CONTACT_GIFT_GENEROUS */
-      pop.result_tag = AI_POPUP_TAG_CONTACT_GIFT;
-      pop.result_nation_a = 0;
-      pop.result_nation_b = 4;
-      st_pop[0] = '\0';
-      ai_contact_apply_popup_result(&ctx, &pop);
+      ai_contact_apply_gift_gold(&ctx, ind, 4, 0, 20u, 3);
       if (col1.nation[0].gold != 20u) {
         return fail("Generous gift should drain 20 gold");
       }
-      if (col1.tribe[0].alarm[0].friction != 9) {
-        return fail("Generous gift should reduce friction by 3");
+      if (ind->alarm_by_player[0] != 9) {
+        return fail("Generous gift should cool pair alarm by 3");
+      }
+
+      /*
+       * bugs.md #1005: the gift gate is the nation alarm scalar alone. A
+       * single sour village no longer makes the whole tribe refuse.
+       */
+      ai_popup_clear(&pop);
+      col1.nation[0].gold = 40;
+      ind->alarm_by_player[0] = 0;
+      col1.tribe[0].alarm[0].friction = 83;
+      ai_contact_apply_gift_gold(&ctx, ind, 4, 0, 10u, 2);
+      if (col1.nation[0].gold != 30u) {
+        return fail("one sour village must not gate the gift (bugs.md #1005)");
       }
 
       /*
@@ -4356,18 +4363,9 @@ static int sp_34(void) {
       col1.nation[0].gold = 30;
       ind->alarm_by_player[0] = 12;
       col1.tribe[0].alarm[0].friction = 12;
-      pop.has_result = true;
-      pop.result_cancelled = false;
-      pop.result_choice_id = 2; /* AI_CONTACT_GIFT_LARGE */
-      pop.result_tag = AI_POPUP_TAG_CONTACT_GIFT;
-      pop.result_nation_a = 0;
-      pop.result_nation_b = 4;
-      ai_contact_apply_popup_result(&ctx, &pop);
+      ai_contact_apply_gift_gold(&ctx, ind, 4, 0, 10u, 2);
       if (col1.nation[0].gold != 20u) {
         return fail("Pocahontas Large gift should still drain 10 gold");
-      }
-      if (col1.tribe[0].alarm[0].friction != 10) {
-        return fail("Pocahontas should not halve gift friction decay");
       }
       if (ind->alarm_by_player[0] != 10) {
         return fail("Pocahontas should not halve gift alarm decay");
@@ -4625,8 +4623,9 @@ static int sp_36(void) {
       eurod->nation_id = 0;
       eurod->tools = 5;
       ind->euro_diplo[0] = 1;
-      ind->alarm_by_player[0] = 20;
-      col1.tribe[0].alarm[0].friction = 45; /* mid demand band */
+      /* bugs.md #1005: the band is the nation alarm scalar. */
+      ind->alarm_by_player[0] = 45;
+      col1.tribe[0].alarm[0].friction = 45;
       col1.tribe[0].state.learned = 1;
       col1.tribe[0].mission = 0xff;
       col1.nation[0].gold = 80;
@@ -4666,6 +4665,7 @@ static int sp_36(void) {
       pop.result_nation_b = 4;
       st_pop[0] = '\0';
       const uint8_t fr_d = col1.tribe[0].alarm[0].friction;
+      const uint16_t al_d = ind->alarm_by_player[0];
       ai_contact_apply_popup_result(&ctx, &pop);
       if (col1.nation[0].gold != 65u) {
         return fail("Demand gold CHOICE should drain 15 gold");
@@ -4673,16 +4673,18 @@ static int sp_36(void) {
       if (c->stock[COLONIZE_CARGO_TOOLS] != 25) {
         return fail("Demand gold CHOICE should not touch tools");
       }
-      if (col1.tribe[0].alarm[0].friction != (uint8_t)(fr_d - 3)) {
-        return fail("Demand gold CHOICE should decay friction by 3");
+      /* bugs.md #1007: pair scalar, not the village word. */
+      if (ind->alarm_by_player[0] != (uint16_t)(al_d - 3)) {
+        return fail("Demand gold CHOICE should cool pair alarm by 3");
       }
+      (void)fr_d;
       if (pop.queue_count < 1 || pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK) {
         return fail("Demand gold CHOICE should enqueue an OK chrome popup");
       }
       /* Tools path from amount CHOICE. */
       ai_popup_clear(&pop);
       col1.nation[0].gold = 80;
-      ind->alarm_by_player[0] = 20;
+      ind->alarm_by_player[0] = 45; /* bugs.md #1005: nation alarm band */
       col1.tribe[0].alarm[0].friction = 45;
       c->stock[COLONIZE_CARGO_TOOLS] = 25;
       pop.has_result = true;
@@ -4733,7 +4735,8 @@ static int sp_36(void) {
       col1.tribe[0].state.learned = 1;
       col1.tribe[0].mission = 0xff;
       col1.nation[0].gold = 100;
-      col1.indian[0].alarm_by_player[0] = 20; /* relation 80 */
+      /* bugs.md #1005: the refuse line is the nation alarm scalar, so the
+       * fixture must keep the 60 set above rather than reset it to 20. */
       col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
       c->active = true;
       c->nation_id = 0;

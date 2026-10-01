@@ -299,9 +299,14 @@ bool units_try_move_w(
             break;
           }
         }
-        ai_diplo_indian_alarm_delta(
-          (ColonizeCol1Save*)g_units_ff_col1, foe_nation, unit->nation_id, delta
-        );
+        /* Full FUN_4cc6_00f2 (bugs.md #1004): the trespass slam is a
+         * positive delta, so it can land on alarm 100 and owes DOS's
+         * mission-burn roll. g_units_ff_col1 is the same save w->col1
+         * points at; the world form carries the rng and popup queue. */
+        ColonizeWorld aw = *w;
+        aw.col1 = (ColonizeCol1Save*)g_units_ff_col1;
+        aw.col1_ok = true;
+        ai_contact_alarm_delta_00f2_w(&aw, foe_nation, unit->nation_id, delta);
       }
     }
     /*

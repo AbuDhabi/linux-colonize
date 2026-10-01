@@ -69,7 +69,8 @@ AiRaidStatus ai_contact_raid_stage_colony(struct ai_contact_raid_ctx* a);
 /* Module-wide types and popup/choice id enums (were file-local). */
 enum {
   AI_CONTACT_CHOICE_TRADE = 1,
-  AI_CONTACT_CHOICE_GIFT = 2,
+  /* 2 was AI_CONTACT_CHOICE_GIFT — no @ACTIONS gift row, no DOS body, nothing
+   * ever emitted it (bugs.md #1006). Ids stay pinned; 2 is simply unused. */
   AI_CONTACT_CHOICE_DEMAND = 3,
   AI_CONTACT_CHOICE_TEACH = 4,
   AI_CONTACT_CHOICE_LEAVE = 5,
@@ -84,12 +85,6 @@ enum {
 enum {
   AI_CONTACT_LEARNSTAY_YES = 1,
   AI_CONTACT_LEARNSTAY_NO = 2
-};
-
-enum {
-  AI_CONTACT_GIFT_SMALL = 1,    /* −5 gold, friction −1 */
-  AI_CONTACT_GIFT_LARGE = 2,    /* −10 gold, friction −2 */
-  AI_CONTACT_GIFT_GENEROUS = 3  /* −20 gold, friction −3 (deep amount arm thin) */
 };
 
 enum {
@@ -257,14 +252,12 @@ int ai_contact_auto_trade( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, in
 int ai_contact_brave_visited_this_turn( const ColonizeTurnContext* ctx, int nation_id, int brave_id );
 int ai_contact_brave_walked_up_to(const ColonizeUnit* brave, int cx, int cy);
 int ai_contact_enqueue_demand_amount_choice( ColonizeTurnContext* ctx, int e, int nation_id, ColonizeUnit* other, int near_x, int near_y );
-int ai_contact_enqueue_gift_amount_choice( ColonizeTurnContext* ctx, int e, int nation_id );
 int ai_contact_enqueue_incite_target_choice( ColonizeTurnContext* ctx, int e, int nation_id, int is_missionary, int is_capital );
 int ai_contact_enter_hostile_village( ColonizeTurnContext* ctx, int e, int nation_id, ColonizeUnit* u );
 int ai_contact_euro_is_human(const ColonizeTurnContext* ctx, int e);
 int ai_contact_is_petty_criminal(const ColonizeUnitPool* units, const ColonizeUnit* u);
 int ai_contact_meet_economics_2154( ColonizeTurnContext* ctx, int indian_nation, const ColonizeCol1Tribe* tribe, AiContactMeetEcon2154* out );
 int ai_contact_nearest_colony( const ColonizeTurnContext* ctx, int nation, int x, int y, int continent, int min_tools, int max_dist, int* out_dist );
-int ai_contact_pair_friction( const ColonizeCol1Indian* ind, const ColonizeCol1Save* col1, int nation_id, int e );
 int ai_contact_visit_demand_allowed( ColonizeTurnContext* ctx, const ColonizeCol1Indian* ind, const ColonizeCol1Tribe* t, int nation_id, int e, int brave_id, int alarm );
 int ai_contact_welcome_pending(const AiPopupState* st, int e, int nation_id);
 void ai_contact_apply_beg_food( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, int colony_id, int home_tribe, int accept );

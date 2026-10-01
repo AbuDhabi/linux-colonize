@@ -17,6 +17,7 @@
 #include "core/dos_rng.h"
 #include "core/font.h"
 #include "core/founding_fathers.h"
+#include "core/ai_contact.h"
 #include "core/ai_diplo.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
@@ -386,9 +387,9 @@ bool colonies_toggle_custom_house_cargo(ColonizeColonyPool* pool, int colony_id,
  * DOS's `*(char *)0x34d == '\0'` gate on the whole tail is not modelled — the
  * global is unidentified; do not invent one.
  *
- * Bare ai_diplo_indian_alarm_delta rather than the full FUN_4cc6_00f2: there is
- * no turn context here, the same standing port debt as the units.c /
- * game_loop.c callers (ai_contact_demand.c "smell #46" note).
+ * The full FUN_4cc6_00f2 via its world form (bugs.md #1004): this is the
+ * dominant early-game alarm raiser, and calling the bare half writer meant a
+ * pair pinned at alarm 100 by encroachment never rolled DOS's mission burn.
  */
 static void colonies_assign_field_land_reaction(
   const ColonizeWorld* w,
@@ -461,7 +462,7 @@ static void colonies_assign_field_land_reaction(
   if (map_resource_type_at(map, x, y) >= 0) {
     amt <<= 1;
   }
-  ai_diplo_indian_alarm_delta(col1, tribe_nation, nation, amt);
+  ai_contact_alarm_delta_00f2_w(w, tribe_nation, nation, amt);
 }
 
 bool colonies_assign_field_w(

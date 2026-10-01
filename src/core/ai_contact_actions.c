@@ -1728,17 +1728,13 @@ static AiContactPopupStatus ai_contact_apply_popup_result_tags(
   }
 
   /*
-   * Gift amount CHOICE (FUN_5bfb_102a stand-in): Small −5 / Large −10.
-   * Cite: indian_contact.md gift amount widget.
+   * CONTACT_GIFT is OK-chrome only — the refuse notice and the 022e auto-gift
+   * notice. There is no gift row in NAMES.TXT @ACTIONS and no DOS body for a
+   * player-driven gift amount, so the Small/Large/Generous CHOICE this used to
+   * answer was invented and unreachable (bugs.md #1006). Acknowledging the tag
+   * keeps the chrome result ending the beat instead of falling through.
    */
   if (popup->result_tag == AI_POPUP_TAG_CONTACT_GIFT) {
-    if (popup->result_choice_id == AI_CONTACT_GIFT_SMALL) {
-      ai_contact_apply_gift_gold(ctx, ind, nation_id, e, 5u, 1);
-    } else if (popup->result_choice_id == AI_CONTACT_GIFT_LARGE) {
-      ai_contact_apply_gift_gold(ctx, ind, nation_id, e, 10u, 2);
-    } else if (popup->result_choice_id == AI_CONTACT_GIFT_GENEROUS) {
-      ai_contact_apply_gift_gold(ctx, ind, nation_id, e, 20u, 3);
-    }
     return AI_CONTACT_POPUP_DONE;
   }
 
@@ -1948,27 +1944,6 @@ static void ai_contact_apply_popup_result_menu(
       (void)ai_contact_2820_begin(ctx, ind, nation_id, e, other);
     }
     break;
-  case AI_CONTACT_CHOICE_GIFT: {
-    /*
-     * Gift-band + human popups → Small/Large amount CHOICE (FUN_5bfb_102a).
-     * Else thin gift_or_demand (auto Large / demand / refuse). Cite:
-     * indian_contact.md gift amount widget.
-     */
-    const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
-    /* pair_friction dominates alarm_by_player[e] (it is seeded from it and
-     * only raised), so the old `&& friction < 55 && alarm_by_player[e] < 55`
-     * conjuncts were both dead under `< 40` (smell #54 / audit D10). */
-    const int gift_band = friction < 40;
-    if (gift_band && ctx->ai_popups && ai_contact_euro_is_human(ctx, e)) {
-      if (ai_contact_enqueue_gift_amount_choice(ctx, e, nation_id)) {
-        break;
-      }
-    }
-    if (other) {
-      ai_contact_gift_or_demand(ctx, ind, nation_id, e, other, near_x, near_y);
-    }
-    break;
-  }
   case AI_CONTACT_CHOICE_DEMAND: {
     /* "Demand Tribute" — thunk_FUN_1000_a5f4 on the acting unit. */
     if (menu_unit && menu_village) {
@@ -1981,10 +1956,11 @@ static void ai_contact_apply_popup_result_menu(
      * (CONTACT_DEMAND; no amount CHOICE / no drain). Cite:
      * indian_contact.md demand amount widget / alarmed refuse.
      */
-    const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
-    /* `alarm_by_player[e] < 55` dropped: pair_friction is seeded from it and
-     * only raised, so `friction < 55` already implies it (smell #54 / D10). */
-    const int demand_band = friction >= 40 && friction < 55;
+    /* bugs.md #1005: nation alarm scalar (FUN_281f_030c), which is what
+     * DOS's FUN_4d56_4528 demand entry gates on — not a max() over the
+     * tribes' DS:0x54f6 attitude words. */
+    const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
+    const int demand_band = alarm >= 40 && alarm < 55;
     if (demand_band && ctx->ai_popups && ai_contact_euro_is_human(ctx, e)) {
       if (ai_contact_enqueue_demand_amount_choice(
             ctx, e, nation_id, other, near_x, near_y
@@ -1994,9 +1970,7 @@ static void ai_contact_apply_popup_result_menu(
     }
     if (other) {
       ai_contact_gift_or_demand(ctx, ind, nation_id, e, other, near_x, near_y);
-      /* friction >= 55 alone: pair_friction dominates alarm_by_player[e]
-       * (seeded from it, only raised) — smell #54 / audit D10. */
-    } else if (friction >= 55) {
+    } else if (alarm >= 55) {
       /* No adjacent Euro unit — still show alarmed refuse chrome. */
       ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_DEMAND, "", "demands");
     }
