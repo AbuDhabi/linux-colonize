@@ -804,9 +804,11 @@ ColonyScreenHitResult colony_screen_hit_test(
       my < COLONY_HOLD_Y + COLONY_HOLD_H) {
     const int holds = units_goods_hold_count(units, view->transport_unit_id);
     if (mx >= COLONY_HOLD_X && holds > 0) {
+      /* Bucket by pitch, not by icon width: the 3px gaps between hold covers
+       * stay live so a drop landing between two holds picks the nearer one
+       * (player-reported: drop boxes too strict). Matches EUROPE_HIT_HOLD. */
       const int idx = (mx - COLONY_HOLD_X) / COLONY_HOLD_PITCH;
-      if (idx >= 0 && idx < holds &&
-          mx < COLONY_HOLD_X + idx * COLONY_HOLD_PITCH + COLONY_HOLD_W) {
+      if (idx >= 0 && idx < holds) {
         hit.kind = COLONY_HIT_HOLD;
         hit.index = idx;
         return hit;
