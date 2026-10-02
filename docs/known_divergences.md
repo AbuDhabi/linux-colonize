@@ -137,3 +137,21 @@ the Location/Destination *formats* were called port inventions and are not
 (golden-confirmed above), and the Destination order test is now the DOS triple
 3 / 0xb / 2 rather than the shared `units_orders_follow_goto`, which also
 accepts 12 (AI_MOVE) — fixed 2026-09-28 with [#973](archive/bugs_fixed_pending.md).
+
+### #1018 — Europe buy with insufficient gold: partial fill vs outright reject
+`FUN_38fd_1fa2`'s committed-buy arm (viceroy_unpacked.c raw 60377-60503, `param_4 != 0`)
+clamps the requested amount to the hold's room (100 max), computes
+`price * amount`, compares it against the treasury via `FUN_281f_0a92`, and on
+`gold < cost` raises the insufficient-funds popup and returns **without buying
+anything** — no partial fill. The port's `europe_buy_cargo_w`
+(src/core/europe_market.c:793-882) instead computes `can_afford = eu->gold / ask`
+and silently clamps the purchase down to it, so the player always gets as much as
+they can pay for.
+
+Not resolvable statically: the amount reaching that check has already passed
+through `FUN_281f_035c(DS:0x9cc8, 0, amount)`, an unidentified clamp, so DOS's
+later funds test may be a dead safety net behind a pre-clamp that already equals
+"affordable amount" — in which case the port's behaviour is the DOS behaviour.
+Needs a live DOS capture: on the Europe screen, order more of a good than the
+treasury covers and record whether the hold fills partially or the buy is refused.
+Identify DS:0x9cc8 in the same session.
