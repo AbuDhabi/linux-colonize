@@ -69,7 +69,9 @@ orders when the ship spawns back on the map). Zero-init = none.
 
 Crosses meter = DOS Europe +0x2e / +0x30 (same words as immigration pressure).
 needed = FUN_38fd_584a score each EOT; idle +2 until first dock immigrant;
-then church crosses only; spawn when current > needed.
+then church crosses only; spawn when current > needed. New-campaign seed is the
+human's COLONY00 pair, current 2 / needed 9, with every AI nation at 0 / 0
+until its own first 584a tick scores it (bugs.md #1015).
 Cite: europe_nation_eot.md; TURN1–7 goldens.
 
 ## EuropeScreen pool_force_expert
@@ -169,7 +171,14 @@ was actually credited.
 FUN_48d3_0002 voyage roll. rng NULL → 1 (no roll). The x<3 west-edge
 branch in DOS only burns RNG(0,1)+an FF test and discards both — there
 is no west-edge sail penalty in the shipped code (PEDIA's Magellan
-"west edge" line describes the 10% delay this FF removes).
+"west edge" line describes the 10% delay this FF removes). The port still
+takes `new_world_x` and burns that draw, because the shared stream has to
+land where DOS leaves it (bugs.md #1019). The argument is the New World
+column of the crossing: Ghidra drops it at all three call sites, and the
+asm (viceroy_unpacked.asm:93551 / :123097 / :123378) pushes nation +0x32
+`return_from_europe_x` or unit +0x314d as the second cdecl argument. Port
+call sites pass the unit's x, the nation's `return_from_europe_x`, or the
+harbor ship's `exit_x`.
 
 ## europe_compute_recruit_passage
 
@@ -213,6 +222,15 @@ rolls bid = RNG(start_lo..start_hi) inclusive for each of the 16 cargo
 slots (16 LCG draws, cargo order, hi==lo still draws), one roll shared by
 all four nations. New game only — the load path keeps the save's
 euro_price. Smell audit #55.
+
+`europe_seed_campaign_prices_w` is the whole of 6024's price work and the form
+the new-campaign path calls: the rolls above, then the broadcast onto
+`col1->nation[0..3].trade.euro_price[]` (DOS writes `cargo + nation*0x13c -
+0x77ac` for n = 0..3), then its per-nation `0058(1, -1)` tail
+(`europe_market_seed_tail_w`), whose mode-1 arm rewrites cargos 9..12 as
+clamp(ratio, low, high) — ratio 3 against the still-empty ledger, so those four
+open at 3 rather than at their roll. Without the broadcast every AI nation
+priced every cargo at 0 for the whole campaign. bugs.md #1011/#1016.
 
 ## Europe dock arrival Dragoon roll (_ex forms)
 
@@ -497,16 +515,34 @@ Only the human's record is live in `eu->trade_nr`; `col1` (optional) gets
 the seller's tons/tons2/gold ledgers. Verified 2026-08-28 against the
 dutch2 t169→t170 pair: three lumber sellers (54 human @ Viceroy, 12 + 18
 AI) → +93 on every non-Dutch nr[5], +61 on the Dutch one.
-`immediate_threshold` runs the FUN_38fd_0058(0, cargo) single-cargo
-rise/fall step the harbor buy/sell path calls afterwards; the Custom
-House / AI dump-sell arms do NOT call it (they only get the EOT tick).
+`immediate_threshold` runs the whole FUN_38fd_0058(0, cargo) the harbor
+buy/sell path calls afterwards — phase 1 over all 16 cargos (pool decay
+included, when the bound record is nation 0), the phase 2/3 nudge for that
+cargo, and phase 4 with the attrition added and taken back out (raw
+58989-58992); bugs.md #1017. The Custom House / AI dump-sell arms do NOT call
+it (they only get the EOT tick).
 
 ## europe_tick_market_prices_w
 
-FUN_38fd_0058 EOT peel (param_2 < 0): optional col1/colonies apply colony
-ledger → market_demand_pool half (DS:0x53ea); phases 2–3 nudge trade_nr
-(Europe +0x5c pressure) for cargos 9..12 (*100) and 1..4 (no *100); then
-nr += attrition per cargo and rise/fall ±1 within [low,high].
+FUN_38fd_0058 EOT peel (param_2 < 0): phase 1 builds
+ledger[c] = market_demand_pool[c] + Σ max(0, nation tons2[c]) and, in the
+bound-nation-0 pass only, sheds ledger>>7 from the stored pool (DS:0x53ea);
+phases 2–3 nudge the pressure word (record +0x5c) for cargos 9..12 (*100,
+denominator Σledger[9..12]) and 1..4 (no *100, denominator
+ledger[4]/2 + ledger[1..3] — the loop's own cargos, bugs.md #1022); phase 4
+adds attrition and steps the bid ±1 at the rise/fall thresholds, then applies
+the two AI-only caps (cargo 14/15 rise cap `high + (diff-4)*2 + (turn-600)/100`,
+cargo 8/14/15 ceiling `((4-diff)*3)/2 + 3`).
+
+**DOS keeps four independent price tracks** — bid at record +0x4c, pressure at
++0x5c — and runs this per NATION as the first act of each nation's own 5e52.
+The phases live in a shared core (`EuropeMarketTick` in europe_harbor.c) driven
+over a bid/nr pair that points either at the human's EuropeScreen or at a
+nation's col1 row; `europe_nation_tick_market_prices_w` is the non-human form,
+and turn.c walks nations 0..3 in index order, skipping control-2 slots the way
+FUN_3844_00f2 does. Port deviation: DOS spreads the four calls across the turn
+round, the port batches them in TURN_PROC_KING — the tick draws no RNG, so only
+ordering against mid-round trades differs. bugs.md #1011/#1012.
 Cite: viceroy_unpacked.c FUN_38fd_0058; turn/europe_nation_eot.md.
 
 ## europe_tick_immigration_pressure_w design

@@ -2408,7 +2408,13 @@ void game_commit_new_campaign(ColonizeGameState* game) {
     game->ai_rng_seed = ai.rng_seed;
     /* FUN_38fd_6024 opening-price roll — new campaign only, 16 draws from
      * the campaign stream (smell audit #55). Load path keeps euro_price. */
-    europe_seed_campaign_prices(&game->europe, &game->move_rng);
+    europe_seed_campaign_prices_w(
+      &(ColonizeWorld){
+        .col1 = (ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL),
+        .col1_ok = ((game->col1_ok ? &game->col1 : NULL) != NULL),
+        .europe = (EuropeScreen*)(&game->europe)},
+      &game->move_rng
+    );
     /*
      * Reveal around owned units and colonies. Was NEW WORLD/CUSTOMIZE-only in
      * practice — scenario .MP starts (Original Americas/AMER2) used to load

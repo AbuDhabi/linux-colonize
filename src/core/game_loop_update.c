@@ -2092,19 +2092,40 @@ static GameUpdateStep game_europe_screen_keys(
     if (eu->selected_harbor < 0) {
       snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
     } else {
+      /* bugs.md #1013: DOS's own sell-all arm (FUN_38fd_2cac raw 60860-60888)
+       * walks hold slots in INDEX order 0..5, skipping an empty or boycotted
+       * hold (latching a flag on the latter) and selling the rest.
+       * europe_best_sell_hold's ranking is a port-only heuristic with no DOS
+       * counterpart and is boycott-unaware, so re-picking it every guard
+       * iteration kept landing on the same boycotted hold forever. */
       int sold = 0;
+      int skipped_boycott = 0;
       const int gold_before = eu->gold;
-      for (int guard = 0; guard < EUROPE_SHIP_CARGO_MAX; ++guard) {
-        const int hold = europe_best_sell_hold(eu, eu->selected_harbor);
-        if (hold < 0) {
-          break;
+      const EuropeHarborShip* ship = &eu->harbor[eu->selected_harbor];
+      for (int i = 0; i < EUROPE_SHIP_CARGO_MAX; ++i) {
+        const int amt = ship->hold_goods_amount[i];
+        if (amt <= 0 || amt >= 255) {
+          continue;
         }
-        europe_sell_hold(eu, &game->col1, game->human_nation, eu->selected_harbor, hold);
-        sold++;
+        if (europe_cargo_boycotted_ex(eu, &game->col1, game->human_nation, ship->hold_goods_type[i])) {
+          skipped_boycott = 1;
+          continue;
+        }
+        if (europe_sell_hold(eu, &game->col1, game->human_nation, eu->selected_harbor, i) > 0) {
+          sold++;
+        }
       }
       game_europe_drain_price_events(game);
       if (sold == 0) {
-        snprintf(eu->status, sizeof(eu->status), "%s", "Nothing to sell.");
+        snprintf(
+          eu->status, sizeof(eu->status), "%s",
+          skipped_boycott ? "Boycotted goods — nothing to sell." : "Nothing to sell."
+        );
+      } else if (skipped_boycott) {
+        snprintf(
+          eu->status, sizeof(eu->status), "Unloaded %d hold%s for %d$ (boycotted goods skipped).",
+          sold, sold == 1 ? "" : "s", eu->gold - gold_before
+        );
       } else {
         snprintf(
           eu->status, sizeof(eu->status), "Unloaded %d hold%s for %d$.", sold,

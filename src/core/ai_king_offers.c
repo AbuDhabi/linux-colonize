@@ -377,8 +377,14 @@ static int ai_king_frigate_spawn(ColonizeTurnContext* ctx, int nation) {
    * tally. A human with his whole fleet in the harbour therefore got the
    * `< 3 hulls` fast crossing for the Crown's gift Frigate.
    */
+  /* The x the DOS site pushes is the nation record's +0x32 landfall column
+   * (viceroy_unpacked.asm:93551); bugs.md #1019. */
+  const int land_x = (ctx->col1_ok && ctx->col1 && nation >= 0 &&
+                      nation < (int)COLONIZE_COL1_NATION_COUNT)
+                       ? (int)ctx->col1->nation[nation].return_from_europe_x
+                       : u->x;
   const int dur = europe_voyage_turns_roll(
-    ctx->rng, magellan, turn_voyage_ship_count(ctx, nation)
+    ctx->rng, magellan, turn_voyage_ship_count(ctx, nation), land_x
   );
   u->col1_counter16 = (uint8_t)dur;
   return id;

@@ -46,6 +46,8 @@ Aligns with [`colony_eot_production.md`](../original_sources_annotated/turn/colo
 
 Manufacturing before hammers so ore→tools and cotton→cloth see same-turn field intake.
 
+The **Custom House** auto-sell is part of step 1/3's cargo loop (DOS Phase B), so it runs *before* the food-growth test and before construction spends tools — bugs.md #1023.
+
 ---
 
 ## Worker output: colonist class

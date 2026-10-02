@@ -355,7 +355,9 @@ void europe_set_messages(EuropeScreen* eu, const struct ColonizeMsgCatalog* game
 /* Europe sale status line -- see docs/europe.md#europe-sale-status-line */
 
 /* europe_voyage_turns_roll -- see docs/europe.md#europe_voyage_turns_roll */
-int europe_voyage_turns_roll(struct ColonizeDosRng* rng, bool magellan, int ship_count);
+int europe_voyage_turns_roll(
+  struct ColonizeDosRng* rng, bool magellan, int ship_count, int new_world_x
+);
 
 /* europe_compute_recruit_passage -- see docs/europe.md#europe_compute_recruit_passage */
 int europe_compute_recruit_passage(
@@ -391,6 +393,14 @@ void europe_set_pool_slot(EuropeScreen* eu, int slot, int profession);
 void europe_seed_pool(EuropeScreen* eu, int difficulty, bool human);
 /* europe_seed_campaign_prices -- see docs/europe.md#europe_seed_campaign_prices */
 void europe_seed_campaign_prices(EuropeScreen* eu, struct ColonizeDosRng* rng);
+/*
+ * The whole of FUN_38fd_6024's price work: the 16 rolls above, broadcast to
+ * ALL FOUR nation records (DOS writes `cargo + nation*0x13c - 0x77ac` for
+ * n = 0..3, raw 68645-68654), then its per-nation 0058(1, -1) tail. Without
+ * the broadcast every AI nation starts a port campaign with euro_price 0.
+ * bugs.md #1011/#1016.
+ */
+void europe_seed_campaign_prices_w(const ColonizeWorld* w, struct ColonizeDosRng* rng);
 /* Shared recruit-choice source: DOS FUN_38fd_4884 draws the same three pool
  * slots for the Recruit menu, the Brewster @RECRUITCHOOSE pick and the
  * Fountain of Youth @RECRUIT picks. Ensure fills empty slots; label is the
@@ -724,6 +734,19 @@ void europe_tick_market_prices_w(
   int human_nation,
   uint32_t turn
 );
+/*
+ * The same FUN_38fd_0058(0, -1) tick for a nation with no EuropeScreen — its
+ * own price track is the col1 record (bid +0x4c, pressure +0x5c). DOS runs one
+ * per nation out of 5e52 every EOT; silent, since every price dialog in 0058
+ * is gated on the bound nation being human. bugs.md #1012.
+ */
+void europe_nation_tick_market_prices_w(const ColonizeWorld* w, int nation, uint32_t turn);
+/*
+ * FUN_38fd_0058(1, -1) — the FUN_38fd_6024 campaign tail, which rewrites
+ * cargos 9..12 from the (still empty) trade ledger right after the opening
+ * roll. One call per nation. bugs.md #1016.
+ */
+void europe_market_seed_tail_w(const ColonizeWorld* w, int nation, uint32_t turn);
 /*
  * FUN_38fd_584a score: (pop+units)<<1 if <4000, +8, cap 4000;
  * AI ((8-diff)*score)>>3; English (nation 0) *2/3.

@@ -736,5 +736,17 @@ void europe_credit_sale_tax(
   if (tax_paid <= 0) {
     return;
   }
-  col1->nation[nation].royal_money += tax_paid;
+  ColonizeCol1Nation* nat = &col1->nation[nation];
+  nat->royal_money += tax_paid;
+  /* nation +0x26 write-only cumulative net-income counter (unknown24_pad,
+   * int32 LE) — same write the Custom House arm and treasure cash-in make;
+   * harbor/transport sells were the odd one out (bugs.md #1021). */
+  uint32_t cum = (uint32_t)nat->unknown24_pad[0] | ((uint32_t)nat->unknown24_pad[1] << 8) |
+                 ((uint32_t)nat->unknown24_pad[2] << 16) |
+                 ((uint32_t)nat->unknown24_pad[3] << 24);
+  cum += (uint32_t)net;
+  nat->unknown24_pad[0] = (uint8_t)(cum & 0xffu);
+  nat->unknown24_pad[1] = (uint8_t)((cum >> 8) & 0xffu);
+  nat->unknown24_pad[2] = (uint8_t)((cum >> 16) & 0xffu);
+  nat->unknown24_pad[3] = (uint8_t)((cum >> 24) & 0xffu);
 }

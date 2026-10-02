@@ -392,8 +392,14 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
     ai_set_nation_identity(p->col1, i, i == human ? 0 : 1, leader, country_name);
     p->col1->head.nation_relation[i] = -1;
     p->col1->nation[i].gold = (i == human) ? ai_starting_gold(p->difficulty) : 0u;
-    p->col1->nation[i].current_crosses = 0u;
-    p->col1->nation[i].needed_crosses = (i == human) ? 9u : 8u;
+    /*
+     * original_saves/COLONY00.SAV, the only real turn-0 sample: nation 0
+     * (human) carries current 2 / needed 9, every AI nation 0 / 0 — DOS leaves
+     * an AI pair at zero until that nation's own first 584a/5e52 tick scores
+     * it. The old `8` for AI nations was uncited. bugs.md #1015.
+     */
+    p->col1->nation[i].current_crosses = (i == human) ? 2u : 0u;
+    p->col1->nation[i].needed_crosses = (i == human) ? 9u : 0u;
     memset(p->col1->nation[i].euro_relation, 0, sizeof(p->col1->nation[i].euro_relation));
   }
   p->col1->head.difficulty = (uint8_t)(p->difficulty < 0 ? 0 : (p->difficulty > 4 ? 4 : p->difficulty));

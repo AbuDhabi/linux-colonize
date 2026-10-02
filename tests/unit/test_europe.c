@@ -135,11 +135,13 @@ static int case_europe_workflow(void) {
     europe_free(&eu);
     return 1;
   }
-  /* Reset seeds needed_crosses=9/current=0/count=0/difficulty=0 → 140. */
-  if (eu.recruit_count != 0 || eu.recruit_passage != 140) {
+  /* Reset seeds needed_crosses=9/current=2/count=0/difficulty=0 → 132: the
+   * COLONY00 crosses pair (bugs.md #1015) buys two crosses' worth of the
+   * FUN_38fd_4884 discount off the 140 the current=0 seed used to give. */
+  if (eu.recruit_count != 0 || eu.recruit_passage != 132) {
     fprintf(
       stderr,
-      "initial recruit state want count=0 passage=140 got count=%d passage=%d\n",
+      "initial recruit state want count=0 passage=132 got count=%d passage=%d\n",
       eu.recruit_count,
       eu.recruit_passage
     );
@@ -965,7 +967,7 @@ static int case_europe_workflow(void) {
 
   /* Voyage: enqueue Expected → tick → harbor; set_sail → Bound. */
   /* FUN_48d3_0002: 1 turn; 2 only on RNG>89 with >2 ships and no Magellan. */
-  if (europe_voyage_turns_roll(NULL, false, 9) != 1) {
+  if (europe_voyage_turns_roll(NULL, false, 9, 40) != 1) {
     fprintf(stderr, "voyage turns unexpected\n");
     europe_free(&eu);
     return 1;
@@ -981,9 +983,9 @@ static int case_europe_workflow(void) {
     int two_magellan = 0;
     int two_few_ships = 0;
     for (int i = 0; i < 400; ++i) {
-      two += europe_voyage_turns_roll(&vr, false, 3) == 2;
-      two_magellan += europe_voyage_turns_roll(&vm, true, 3) == 2;
-      two_few_ships += europe_voyage_turns_roll(&vf, false, 2) == 2;
+      two += europe_voyage_turns_roll(&vr, false, 3, 40) == 2;
+      two_magellan += europe_voyage_turns_roll(&vm, true, 3, 40) == 2;
+      two_few_ships += europe_voyage_turns_roll(&vf, false, 2, 40) == 2;
     }
     if (two == 0 || two > 100 || two_magellan != 0 || two_few_ships != 0) {
       fprintf(stderr, "voyage roll gate wrong: %d/%d/%d\n", two, two_magellan, two_few_ships);
@@ -2884,10 +2886,76 @@ done:
   return rc;
 }
 
+/*
+ * bugs.md #1011/#1016: FUN_38fd_6024 broadcasts the one opening-price roll to
+ * ALL FOUR nation records and then runs its 0058(1, -1) tail, which rewrites
+ * cargos 9..12 from the (empty) trade ledger — ratio 3, clamped into
+ * [low, high]. Before the fix only the human's EuropeScreen was seeded, so
+ * every AI nation priced every cargo at 0 for the whole campaign.
+ */
+static int case_europe_seed_prices_all_nations(void) {
+  diag_init(0, NULL);
+  EuropeScreen eu;
+  char err[256];
+  if (!test_europe_load(&eu, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "europe_load: %s\n", err);
+    return 1;
+  }
+  ColonizeCol1Save* save = calloc(1, sizeof(*save));
+  if (!save) {
+    europe_free(&eu);
+    return 1;
+  }
+  col1_save_init(save);
+  europe_set_nation(&eu, 0, NULL);
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 12345u);
+  const ColonizeWorld w = {
+    .col1 = save, .col1_ok = true, .europe = &eu};
+  europe_seed_campaign_prices_w(&w, &rng);
+
+  int rc = 0;
+  for (int c = 0; c < eu.cargo_count && c < (int)COLONIZE_COL1_CARGO_TYPES; ++c) {
+    for (int n = 0; n < 4; ++n) {
+      if ((int)save->nation[n].trade.euro_price[c] != eu.cargo[c].bid) {
+        fprintf(
+          stderr, "seed: nation %d cargo %d want %d got %d\n", n, c, eu.cargo[c].bid,
+          (int)save->nation[n].trade.euro_price[c]
+        );
+        rc = 1;
+      }
+    }
+    if (c >= 9 && c <= 12) {
+      int want = 3;
+      if (want < eu.cargo[c].low) {
+        want = eu.cargo[c].low;
+      }
+      if (want > eu.cargo[c].high) {
+        want = eu.cargo[c].high;
+      }
+      if (eu.cargo[c].bid != want) {
+        fprintf(stderr, "seed tail: cargo %d want %d got %d\n", c, want, eu.cargo[c].bid);
+        rc = 1;
+      }
+    }
+    if (save->nation[1].trade.euro_price[c] == 0 && eu.cargo[c].bid != 0) {
+      fprintf(stderr, "seed: AI nation left at 0 for cargo %d\n", c);
+      rc = 1;
+    }
+  }
+  if (rc == 0) {
+    fprintf(stderr, "Europe opening prices reach all four nations ok\n");
+  }
+  free(save);
+  europe_free(&eu);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"case_europe_dock_continental_row", case_europe_dock_continental_row},
     {"case_europe_workflow", case_europe_workflow},
     {"case_europe_dragoon_roll_and_caption", case_europe_dragoon_roll_and_caption},
+    {"case_europe_seed_prices_all_nations", case_europe_seed_prices_all_nations},
 };
 
 TEST_MAIN(k_cases)

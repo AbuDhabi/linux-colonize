@@ -185,18 +185,29 @@ bool europe_recruit_free_from_pool_ex(
   if (!eu || pool_index < 0 || pool_index >= EUROPE_POOL_SIZE) {
     return false;
   }
-  if (!eu->pool[pool_index].filled) {
-    europe_refill_pool_slot_rng(eu, pool_index, false, rng);
-  }
   if (eu->dock_count >= EUROPE_DOCK_MAX) {
     europe_set_status(eu, "Docks are full.");
     return false;
   }
+  /* bugs.md #1020: DOS slots have no "unfilled" state — an unfilled slot
+   * just reads back as job 0x1c (Free Colonist), same as
+   * europe_immigrant_from_pool's 5e52 read. The port used to roll a
+   * pre-step refill to populate the slot before reading it, which burned
+   * an extra FUN_38fd_46d4 tier draw on this RNG stream for one event. */
+  char name[sizeof(eu->pool[0].name)];
+  int profession;
+  if (eu->pool[pool_index].filled) {
+    snprintf(name, sizeof(name), "%s", eu->pool[pool_index].name);
+    profession = eu->pool[pool_index].profession;
+  } else {
+    snprintf(name, sizeof(name), "%s", europe_pool_job_name(EUROPE_POOL_JOB_FREE_COLONIST));
+    profession = EUROPE_POOL_JOB_FREE_COLONIST;
+  }
   /* FUN_38fd_4884 with param_1 != 0: passage forced to 0, the +6 recruit
    * counter and the +0x2e crosses word are left alone (64695-64697, 64778). */
   EuropeDockImmigrant* slot = europe_dock_insert_front(eu);
-  snprintf(slot->name, sizeof(slot->name), "%s", eu->pool[pool_index].name);
-  slot->profession = eu->pool[pool_index].profession;
+  snprintf(slot->name, sizeof(slot->name), "%s", name);
+  slot->profession = profession;
   slot->present = true;
   slot->sentry = true;
   slot->dos_type = europe_dock_type_roll(eu, slot->name, slot->profession, rng);

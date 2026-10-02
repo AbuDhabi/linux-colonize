@@ -509,6 +509,40 @@ void europe_seed_campaign_prices(EuropeScreen* eu, ColonizeDosRng* rng) {
   }
 }
 
+void europe_seed_campaign_prices_w(const ColonizeWorld* w, ColonizeDosRng* rng) {
+  if (!w || !w->europe) {
+    return;
+  }
+  EuropeScreen* eu = w->europe;
+  europe_seed_campaign_prices(eu, rng);
+  struct ColonizeCol1Save* col1 = w->col1_ok ? w->col1 : NULL;
+  if (!col1) {
+    return;
+  }
+  /*
+   * raw 68645-68654: the one roll per cargo lands on every nation's record
+   * (`cargo + nation*0x13c - 0x77ac` for n = 0..3), not just the screen the
+   * human looks at — without this an AI nation prices every cargo at 0 for
+   * the whole campaign (bugs.md #1011).
+   */
+  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+    for (int c = 0; c < eu->cargo_count && c < (int)COLONIZE_COL1_CARGO_TYPES; ++c) {
+      int bid = eu->cargo[c].bid;
+      if (bid < 0) {
+        bid = 0;
+      }
+      if (bid > 255) {
+        bid = 255;
+      }
+      col1->nation[n].trade.euro_price[c] = (uint8_t)bid;
+    }
+  }
+  /* raw 68655-68660: then one 0058(1, -1) per nation (bugs.md #1016). */
+  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+    europe_market_seed_tail_w(w, n, 0u);
+  }
+}
+
 static void europe_init_pool(EuropeScreen* eu) {
   /* Reset time: the real difficulty is not cached yet (europe_reset_campaign
    * zeroes it and the first EOT tick fills it in), so this is the Discoverer
@@ -786,16 +820,28 @@ void europe_set_nation(EuropeScreen* eu, int nation, const ColonizeMsgCatalog* n
   eu->bound_nation = (uint8_t)nation;
 }
 
-int europe_voyage_turns_roll(ColonizeDosRng* rng, bool magellan, int ship_count) {
+int europe_voyage_turns_roll(
+  ColonizeDosRng* rng, bool magellan, int ship_count, int new_world_x
+) {
   if (!rng) {
     return 1;
   }
   /* 48d3:0042 RNG(1,100) always rolled; >0x59 && ship_counts>2 && !FF5 → 2. */
   const int roll = dos_rng_range(rng, 1, 100);
-  if (roll > 89 && ship_count > 2 && !magellan) {
-    return 2;
+  const int turns = (roll > 89 && ship_count > 2 && !magellan) ? 2 : 1;
+  /*
+   * raw 77583-77586: with the result already settled, `param_2 < 3` burns one
+   * more RNG(0,1) and a Magellan test and throws both away — there is no
+   * west-edge voyage penalty in the shipped code, but the draw still leaves
+   * the shared stream one step further on, so the port has to burn it too
+   * (bugs.md #1019). param_2 is the New World x of the crossing: the asm
+   * (viceroy_unpacked.asm:93551 / :123097 / :123378) pushes nation +0x32
+   * (return_from_europe_x) or unit +0x314d as the second cdecl argument.
+   */
+  if (new_world_x < 3) {
+    (void)dos_rng_range(rng, 0, 1);
   }
-  return 1;
+  return turns;
 }
 
 int europe_clamp_voyage_turns(int t) {
@@ -822,8 +868,13 @@ void europe_reset_campaign_nation(EuropeScreen* eu, int nation) {
   europe_set_nation(eu, nation, NULL);
   eu->gold = 1000;
   eu->tax_percent = 0;
-  eu->current_crosses = 0;
-  /* Match new-game Col1 human needed seed (COLONY00); first EOT overwrites via 584a. */
+  /*
+   * Match the new-game Col1 human seed in original_saves/COLONY00.SAV
+   * (nation 0: current 2, needed 9 — one 584a idle tick has already run by the
+   * time DOS writes that save); the first EOT overwrites needed via 584a.
+   * bugs.md #1015.
+   */
+  eu->current_crosses = 2;
   eu->needed_crosses = 9;
   eu->crosses_immigrant_seen = false;
   eu->liberty_bells_pool = 0;

@@ -409,7 +409,7 @@ bool game_ship_sail_to_europe(ColonizeGameState* game, int sid) {
       )) {
     set_status(game, "Failed to sail ship", NULL);
   } else {
-    const int voyage_turns = game_voyage_turns_for(game, voyage_ship_count);
+    const int voyage_turns = game_voyage_turns_for(game, voyage_ship_count, exit_x);
     if (!europe_enqueue_expected(
           &game->europe,
           type_index,
@@ -1395,7 +1395,7 @@ void game_europe_service_trade_harbor(ColonizeGameState* game) {
     const bool exit_east = ship->exit_east;
     const int bound_before = eu->bound_ships;
     if (!europe_set_sail_from_harbor(
-          eu, i, game_voyage_turns(game), &game->units, game->human_nation
+          eu, i, game_voyage_turns(game, exit_x), &game->units, game->human_nation
         )) {
       ++i; /* outbound lane full — stay docked, retry next EOT */
       continue;

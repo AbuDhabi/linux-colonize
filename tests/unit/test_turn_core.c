@@ -2190,6 +2190,13 @@ static int case_depletion_counter(void) {
   col->building_in_production = -1;
   col->stock[COLONIZE_CARGO_FOOD] = 100;
   col->depletion_counter = 0x31; /* one INC wraps */
+  /*
+   * bugs.md #1024: the wrap handler (FUN_364b_033a raw 56977-57012) keys on
+   * the colonist's SPECIALTY, not the job he works — an unskilled colonist
+   * mining a deposit banks the counter but DOS suppresses nothing on the
+   * wrap. Give this one the specialty so the suppress arm is exercised.
+   */
+  col->colonists[0].profession = COLONIZE_PROF_ORE_MINER;
   snprintf(col->name, sizeof(col->name), "Potosi");
 
   EuropeScreen eu;
