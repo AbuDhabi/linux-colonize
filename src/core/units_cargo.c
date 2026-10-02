@@ -298,16 +298,13 @@ static bool units_board_stacked_gated(
    */
   /*
    * What rides along is the passenger's own spent byte: DOS keeps +0x3149
-   * as it was (bugs.md #544). A live allotment is carried as is; an
-   * overnight Sentry/Fortified zero is a park (DOS spent 0, full); any
-   * other zero is a real spend. Natives never board, but a native zero
-   * means "nothing spent", so they carry full.
+   * as it was (bugs.md #544). A live allotment is carried as is; a zero
+   * is a real spend. Natives never board, but a native zero means
+   * "nothing spent", so they carry full.
    */
   if (land->moves > 0) {
     land->aboard_moves = land->moves;
-  } else if (land->nation_id >= 4 ||
-             ((land->orders == UNITS_ORDER_SENTRY || land->orders == UNITS_ORDER_FORTIFIED) &&
-              land->park_nights > 0)) {
+  } else if (land->nation_id >= 4) {
     land->aboard_moves = -1;
   } else {
     land->aboard_moves = 0;

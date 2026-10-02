@@ -142,13 +142,11 @@ typedef struct ColonizeUnit {
    * clock, ship repair timer, trade-route stop index, cower timer, Europe
    * voyage turns. Was turns_worked. */
   int col1_counter16;
-  /* Port-only nights-parked counter for units_wake MP refund (see docs/units.md#colonizeunit-park_nights). */
-  uint8_t park_nights;
   /* Port-only "this zero is a SPEND, not a park" flag (see docs/units.md#colonizeunit-mp_spent_turn). */
   uint8_t mp_spent_turn;
   /* Port-only allotment remaining for a boarded passenger (see docs/units.md#colonizeunit-aboard_moves). */
   int aboard_moves;
-  int last_dir; /* DOS unit facing / Col1 facing; 0..7 for AI scoring */
+  int last_dir; /* DOS unit+0x314f signed facing byte (Col1 facing): 0..7 dir, 8 stay, -1 none */
   uint8_t col1_flags15; /* DOS unit+0x15 flag byte (bits named in ColonizeCol1Unit); bit7 = ship damaged. Was col1_unknown15. */
   /*
    * DOS unit+0x07 / Col1 ai_plan. Starter saves use 0x58 ('X') on essentially
@@ -162,9 +160,6 @@ typedef struct ColonizeUnit {
   /* Raw DOS unit +0x06 (origin). Euro units DO carry values here in original
    * campaign saves (home colony index, 0-based) — not just Braves. */
   uint8_t col1_origin;
-  /* Raw DOS facing byte +0x0b upper 5 bits (facing_pad) — set on some
-   * original units; dropped bits changed the byte on round-trip. */
-  uint8_t col1_facing_pad;
   /* Port-only, not saved: bit7 came from combat damage (repair timer), so the
    * completion popup says "repaired", not "construction complete". */
   uint8_t repair_pending;
@@ -404,7 +399,7 @@ void units_founder_loot(
 /* Test-fixture hygiene: reset process-global callback hooks (see docs/units.md#units_reset_hooks). */
 void units_reset_hooks(void);
 
-/* Per-unit-id shadow state reset, outlives units_reset(pool) (see docs/units.md#units_reset_state). */
+/* Pathfinder flood-cache reset on New Game / Load (see docs/units.md#units_reset_state). */
 void units_reset_state(void);
 
 

@@ -136,6 +136,11 @@ typedef void (*ColonizeUnitsMoveWatchFn)(
   int to_y
 );
 void units_set_move_watch(ColonizeUnitsMoveWatchFn fn, void* user);
+/* Fire the move watch for a unit already placed at its new tile (DOS 02d0 slide without a move). */
+void units_move_watch_notify(
+  const ColonizeUnitPool* pool, const ColonizeWorldMap* map, const ColonizeColonyPool* colonies,
+  int unit_id, int from_x, int from_y
+);
 
 /* @ORDERS indices (NAMES.TXT) + Col1 AI order bytes seen in saves. */
 #define UNITS_ORDER_NONE 0
@@ -232,14 +237,6 @@ bool units_advance_follow_one_step_w(
   const ColonizeWorld* w,
   int unit_id
 );
-/*
- * Record a committed goto step (dx,dy in -1..1) for the FUN_6662 anti-backtrack
- * check. units_advance_goto_one_step does this itself; any other stepper that
- * moves a goto-following unit via units_try_move (the AI ship sail loop) must
- * call it after each successful step, or the check compares against stale
- * history and drops correct pathfinder hits.
- */
-void units_note_goto_step(int unit_id, int dx, int dy);
 /*
  * Next adjacent step toward goto (DOS FUN_6662 tiers: sign-step / cost flood / BFS).
  * Writes (out_x,out_y); returns false if stuck or already there. rng may be

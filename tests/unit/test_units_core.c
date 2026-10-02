@@ -1832,14 +1832,10 @@ static int case_fortify_sentry_disband(void) {
       assets_msg_free(&names);
       return 1;
     }
-    /* Overnight promotion (same as turn_refresh_moves_for_nation) — the
-     * refresh also counts the night in park_nights, which is what lets
-     * the wake refund the allotment (bugs.md: fortified on a PREVIOUS turn
-     * moves on activation; same-turn dig-ins do not get refunds). Smell
-     * #39: col1_counter16 is the shared DOS +0x16 clock, no longer used. */
+    /* Overnight promotion (same as turn_refresh_moves_for_nation): the
+     * promotion night spends the allotment (FUN_479b_0b6c). */
     su->orders = UNITS_ORDER_FORTIFIED;
     su->moves = 0;
-    su->park_nights = 1;
     if (su->orders != UNITS_ORDER_FORTIFIED || su->moves != 0) {
       fprintf(stderr, "fortify overnight failed orders=%d mp=%d\n", su->orders, su->moves);
       ss_free(&icons);
@@ -1863,9 +1859,9 @@ static int case_fortify_sentry_disband(void) {
       assets_msg_free(&names);
       return 1;
     }
+    /* A later night: the refresh hands Fortified its allotment (#715). */
     su->orders = UNITS_ORDER_FORTIFIED;
-    su->moves = 0;
-    su->park_nights = 1;
+    su->moves = 3 * UNITS_MP_PER_TILE;
     if (!units_wake(&pool, sid) || su->orders != UNITS_ORDER_NONE || su->moves <= 0) {
       fprintf(stderr, "wake fortified failed\n");
       ss_free(&icons);

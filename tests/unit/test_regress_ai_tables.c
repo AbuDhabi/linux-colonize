@@ -379,10 +379,9 @@ static int case_530_ship_arrival_facing(void) {
     u->goto_x = u->x;
     u->goto_y = u->y;
     u->last_dir = 7;
-    ai_euro_s_euro_last_dir[id] = 7;
     ai_euro_act_ship_dos(&ctx, u, 1);
     if (u->orders != UNITS_ORDER_NONE || u->last_dir != -1 ||
-        ai_euro_s_euro_last_dir[id] != -1 || u->moves != mp ||
+        u->moves != mp ||
         u->x != 7 || u->y != 7 || u->goto_x != 7 || u->goto_y != 7) {
       fprintf(stderr, "#530: arrival with %d MP retained order/facing or changed position/MP\n", mp);
       rc = 1;

@@ -384,11 +384,7 @@ COLONIZE_INTERNAL int ai_king_0982_spawn_pool_unit(ColonizeTurnContext* ctx, int
    * own tile and froze the wave once the king-side hunt was retired (D1). */
   /* 0982: the landed unit's moves are spent this beat (02d0 animate + 0948). */
   u->moves = 0;
-  /* bugs.md: landings are in plain sight — stamp watcher vis bits so the
-   * wave draws immediately instead of after its first move. */
-  if (ctx->map) {
-    u->col1_vis_mask |= units_vis_mask_for_tile(ctx->map, x, y, crown);
-  }
+  /* Vis bit for the target nation: the caller (0982_land_troops) stamps it. */
   return uid;
 }
 
@@ -574,6 +570,28 @@ static void ai_king_ref_tory_uprising(ColonizeTurnContext* ctx, int crown, int h
 }
 
 /*
+ * DOS lands a spawned unit with `FUN_281f_02d0` (FUN_112b_0eb6, the slide
+ * animation only) then `FUN_281f_0948` (FUN_1427_040c, set x/y): no terrain
+ * cost, no MP roll, no move side effects (bugs.md #878 lead; raw 74211-74216,
+ * 74436-74441). The port fires its move watch for the slide.
+ */
+static void ai_king_place_slide(ColonizeTurnContext* ctx, int uid, int x, int y) {
+  ColonizeUnit* lu = units_get(ctx->units, uid);
+  if (!lu) {
+    return;
+  }
+  const int ox = lu->x;
+  const int oy = lu->y;
+  lu->x = x;
+  lu->y = y;
+  if (lu->aboard_ship_id < 0 && units_is_on_map(lu)) {
+    units_tile_stack_arrive(ctx->units, lu->id);
+  }
+  units_occupancy_notify_moved(ctx->units, ox, oy, x, y);
+  units_move_watch_notify(ctx->units, ctx->map, ctx->colonies, uid, ox, oy);
+}
+
+/*
  * FUN_43f7_0982 land wave (raw 74150-74266): the disembark loop that walks
  * the Regular/Dragoon/Artillery pools ashore around the landing tile.
  * Extracted verbatim from ai_king_ref_wave.
@@ -649,14 +667,21 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
     int sy2[8];
     int ss2[8];
     int ns = 0;
-    for (int t = 0; t < nc; ++t) {
-      const int occ = units_id_at(ctx->units, cx[t], cy[t]);
-      const ColonizeUnit* ou = occ >= 0 ? units_get_const(ctx->units, occ) : NULL;
-      if (!ou || ou->nation_id == crown) {
-        sx2[ns] = cx[t];
-        sy2[ns] = cy[t];
-        ss2[ns] = cs[t];
-        ns++;
+    /* raw 74190: `FUN_281f_06dc(x,y) == DS:0x53d2` (layer3 owner nibble =
+     * crown) lands at once and re-sweeps while it lands, so crown-held
+     * tiles take every unit while one exists; an empty tile (nibble 0xf)
+     * only enters through the min-strength pass (bugs.md #878 lead).
+     * pass 0 = crown-held, pass 1 = empty. */
+    for (int pass = 0; pass < 2 && ns == 0; ++pass) {
+      for (int t = 0; t < nc; ++t) {
+        const int occ = units_id_at(ctx->units, cx[t], cy[t]);
+        const ColonizeUnit* ou = occ >= 0 ? units_get_const(ctx->units, occ) : NULL;
+        if (pass == 0 ? (ou && ou->nation_id == crown) : !ou) {
+          sx2[ns] = cx[t];
+          sy2[ns] = cy[t];
+          ss2[ns] = cs[t];
+          ns++;
+        }
       }
     }
     if (ns > 0) {
@@ -691,45 +716,19 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
     } else {
       break;
     }
-    /* bugs.md: show the troops DISEMBARKING — spawn on the ship's
-     * tile and step ashore through units_try_move, which fires the
-     * move-watch slide, so the player can see what landed. Fall
-     * back to a direct beach spawn if the step is refused. */
+    /* Spawn on the ship's tile and slide ashore (ai_king_place_slide). */
     const int uid = ai_king_0982_spawn_pool_unit(ctx, crown, k, lx, ly);
     if (uid < 0) {
       break;
     }
-    {
-      /* One step's worth of MP for the walk ashore (spawn parks at 0). */
-      ColonizeUnit* lu = units_get(ctx->units, uid);
-      if (lu) {
-        lu->moves = 3;
-        lu->goto_x = cx[slot];
-        lu->goto_y = cy[slot];
-      }
-    }
-    ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, ctx->rng, NULL);
-    if (!units_try_move_w(&w_, uid, cx[slot], cy[slot])) {
-      ColonizeUnit* lu = units_get(ctx->units, uid);
-      if (lu) {
-        const int sx0 = lu->x;
-        const int sy0 = lu->y;
-        lu->x = cx[slot];
-        lu->y = cy[slot];
-        if (lu->aboard_ship_id < 0 && units_is_on_map(lu)) {
-          units_tile_stack_arrive(ctx->units, lu->id);
-        }
-        units_occupancy_notify_moved(ctx->units, sx0, sy0, lu->x, lu->y);
-      }
-    }
+    ai_king_place_slide(ctx, uid, cx[slot], cy[slot]);
     {
       ColonizeUnit* lu = units_get(ctx->units, uid);
       if (lu) {
         lu->moves = 0; /* landing consumes the turn */
-        if (ctx->map) {
-          lu->col1_vis_mask |=
-            units_vis_mask_for_tile(ctx->map, lu->x, lu->y, crown);
-        }
+        /* DOS-LITERAL raw 74210: caseD_1 = FUN_1427_0992(unit, param_1) sets
+         * the target nation's vis bit only (bugs.md #878 lead). */
+        lu->col1_vis_mask |= (uint8_t)(1u << c->nation_id);
       }
     }
     /* DOS-LITERAL FUN_43f7_0982 raw 74217-74219:
@@ -941,12 +940,9 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
          * the hull froze on the landing tile forever (bugs.md #866).
          */
         ship->col1_counter16 = 0;
-        /* bugs.md: the invasion fleet is in plain sight of the colony —
-         * stamp watcher vis bits like a real move (the land units get
-         * theirs in ai_king_0982_spawn_pool_unit). */
-        if (ctx->map) {
-          ship->col1_vis_mask |= units_vis_mask_for_tile(ctx->map, lx, ly, crown);
-        }
+        /* DOS-LITERAL raw 74142: caseD_1 = FUN_1427_0992(hull, param_1), the
+         * target nation's vis bit only (bugs.md #878 lead). */
+        ship->col1_vis_mask |= (uint8_t)(1u << w->human);
         landed = true;
         exhaust = false;
         /* @INVASION (thin 1528 announce; VGA chrome PARKED). */
@@ -1414,35 +1410,16 @@ static void ai_king_10f0_disembark(
       if (!paid && backup[k] > 0) {
         backup[k]--; /* DOS 74445: `if (param_1 == 0) *(0x53e2 + k*2) -= 1` */
       }
+      ai_king_place_slide(ctx, uid, hx, hy);
       ColonizeUnit* lu = units_get(ctx->units, uid);
-      if (lu) {
-        lu->moves = 3;
-        lu->goto_x = hx;
-        lu->goto_y = hy;
-      }
-      ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, ctx->rng, NULL);
-      if (!units_try_move_w(&w_, uid, hx, hy)) {
-        lu = units_get(ctx->units, uid);
-        if (lu) {
-          const int ox = lu->x;
-          const int oy = lu->y;
-          lu->x = hx;
-          lu->y = hy;
-          if (lu->aboard_ship_id < 0 && units_is_on_map(lu)) {
-            units_tile_stack_arrive(ctx->units, lu->id);
-          }
-          units_occupancy_notify_moved(ctx->units, ox, oy, lu->x, lu->y);
-        }
-      }
-      lu = units_get(ctx->units, uid);
       if (lu) {
         lu->moves = units_max_mp(ctx->units, uid);
         lu->orders = UNITS_ORDER_NONE;
         lu->goto_x = UNITS_GOTO_NONE;
         lu->goto_y = UNITS_GOTO_NONE;
-        if (ctx->map) {
-          lu->col1_vis_mask |= units_vis_mask_for_tile(ctx->map, lu->x, lu->y, human);
-        }
+        /* raw 74435: caseD_1 = FUN_1427_0992(unit, iVar2), the spawn
+         * nation's own vis bit (bugs.md #878 lead). */
+        lu->col1_vis_mask |= (uint8_t)(1u << human);
       }
     }
   }
@@ -1532,9 +1509,9 @@ void ai_king_10f0_land(
   if (mow < 0) {
     return;
   }
-  if (ctx->map) {
-    map_reveal_tile(ctx->map, sx, sy, human);
-  }
+  /* raw 74386 `FUN_281f_0e08(x, y, 0)` -> FUN_1984_029e is a camera centre on
+   * the hull's tile (DS:0x17c/0x17e), not a reveal; the only reveal is the
+   * 5x5 `09ba` per landed unit below (bugs.md #878 lead). Camera unported. */
   int landings = 1;
   static const int pool_k[3] = {0, 1, 3};
   /*
@@ -1578,7 +1555,7 @@ void ai_king_10f0_land(
   }
 
   /* bugs.md #253: land troops disembark VISIBLY — spawn on the ship's tile
-   * and slide into the colony through units_try_move (fires the move-watch
+   * and slide into the colony (ai_king_place_slide fires the move-watch
    * animation), like the REF landing. Unlike normal disembark rules they
    * arrive ready for action: full moves restored after the step. */
   ai_king_10f0_disembark(

@@ -246,9 +246,8 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   never at a nation's day end; DOS mid-turn saves like COLONY02.SAV show acted
   AI land units at full-or-overspent thirds. The earlier "export 0" rule came
   from AI-turn goldens captured after the day ended and refunded MP on reload,
-  2026-09-09. Overnight Sentry/Fortified parks with `park_nights>0` still
-  export 0 — their zeroed `moves` is a port-only skip flag, not DOS
-  spent). Natives still round-trip the
+  2026-09-09. Sentry/Fortified keep real MP overnight since bugs.md #715,
+  so a zero is always a spend). Natives still round-trip the
   literal byte (the Brave engine keeps DOS spent in `moves`, max 3).
   Euro unit tiles stamp `map.path` / layer3 **owner** high nibble (`FUN_1427_02ca`
   / `FUN_137f_0228`) on spawn/move and capture — unowned ocean under a human

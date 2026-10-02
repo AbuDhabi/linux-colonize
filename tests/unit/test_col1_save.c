@@ -2889,6 +2889,8 @@ int main(void) {
     sv->orders = UNITS_ORDER_TRADE_ROUTE;
     sv->follow_unit_id = 3; /* route with no stops */
     sv->col1_counter16 = 0;
+    w->last_dir = -1; /* bugs.md #1046: full signed +0x314f byte round-trips */
+    sv->last_dir = 8;
     const int wagon_x = w->x;
     const int wagon_y = w->y;
     const int stray_x = sv->x;
@@ -2979,6 +2981,11 @@ int main(void) {
         w2 ? w2->follow_unit_id : -1,
         w2 ? w2->col1_counter16 : -1
       );
+      rc = 1;
+    }
+    if (!w2 || !sv2 || w2->last_dir != -1 || sv2->last_dir != 8) {
+      fprintf(stderr, "facing byte: round-trip gave %d/%d (want -1/8)\n",
+              w2 ? w2->last_dir : 99, sv2 ? sv2->last_dir : 99);
       rc = 1;
     }
     if (!sv2 || sv2->orders != UNITS_ORDER_NONE || sv2->follow_unit_id != -1) {
@@ -3883,9 +3890,8 @@ int main(void) {
    * the human's own unmoved units sit at 0. Exporting 0 for an exhausted
    * land unit refunded a whole turn of movement on save+reload.
    *
-   * Sentry/Fortified held from a previous night are the one legitimate 0:
-   * turn.c zeroes moves as a "skip this unit" flag, and units_wake
-   * hands the allotment back (park_nights > 0).
+   * Sentry/Fortified keep their real MP overnight (bugs.md #715): an
+   * overnight park exports what it holds, a zero is a spend.
    */
   {
     ColonizeMsgCatalog names;
@@ -3954,21 +3960,20 @@ int main(void) {
       int type;
       int orders;
       int moves;
-      uint8_t park_nights;
       int want_spent;
       const char* what;
     } cases[] = {
       /* Mid-Move-Pieces exhausted: the whole allotment is gone. */
-      {30, 0, UNITS_ORDER_NONE, 0, 0, 3, "exhausted colonist"},
-      {31, 4, UNITS_ORDER_NONE, 0, 0, 12, "exhausted dragoon"},
+      {30, 0, UNITS_ORDER_NONE, 0, 3, "exhausted colonist"},
+      {31, 4, UNITS_ORDER_NONE, 0, 12, "exhausted dragoon"},
       /* Untouched and partly moved keep working as before. */
-      {32, 4, UNITS_ORDER_NONE, 12, 0, 0, "fresh dragoon"},
-      {33, 4, UNITS_ORDER_NONE, 5, 0, 7, "partly moved dragoon"},
-      /* Parks: overnight = 0 (DOS never spent it), same-turn = spent. */
-      {34, 0, UNITS_ORDER_FORTIFIED, 0, 2, 0, "overnight fortified colonist"},
-      {35, 0, UNITS_ORDER_SENTRY, 0, 1, 0, "overnight sentried colonist"},
-      {36, 0, UNITS_ORDER_FORTIFY, 0, 0, 3, "same-turn fortify colonist"},
-      {37, 0, UNITS_ORDER_FORTIFIED, 0, 0, 3, "promotion-night fortified colonist"},
+      {32, 4, UNITS_ORDER_NONE, 12, 0, "fresh dragoon"},
+      {33, 4, UNITS_ORDER_NONE, 5, 7, "partly moved dragoon"},
+      /* Parks: overnight = full MP (spent 0), same-turn = spent. */
+      {34, 0, UNITS_ORDER_FORTIFIED, 3, 0, "overnight fortified colonist"},
+      {35, 0, UNITS_ORDER_SENTRY, 3, 0, "overnight sentried colonist"},
+      {36, 0, UNITS_ORDER_FORTIFY, 0, 3, "same-turn fortify colonist"},
+      {37, 0, UNITS_ORDER_FORTIFIED, 0, 3, "promotion-night fortified colonist"},
     };
     const int case_count = (int)(sizeof(cases) / sizeof(cases[0]));
     for (int c = 0; c < case_count; ++c) {
@@ -3984,7 +3989,6 @@ int main(void) {
       u->nation_id = 0;
       u->orders = cases[c].orders;
       u->moves = cases[c].moves;
-      u->park_nights = cases[c].park_nights;
     }
 
     ColonizeColonyPool colonies;

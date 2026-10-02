@@ -1553,11 +1553,10 @@ bool col1_bridge_apply_w(
             memcpy(mu->col1_hold_raw, &src->holds_occupied, sizeof(mu->col1_hold_raw));
             mu->col1_hold_raw_valid = 1;
             mu->col1_origin = src->origin;
-            mu->col1_facing_pad = src->facing_pad;
             /* DOS facing is the full byte at unit+0x0b: values >= 8 (pad
              * bits set; 8 = stayed last act) disable the AI facing term —
              * reconstruct them instead of collapsing to direction 0. */
-            mu->last_dir = (int)(src->facing | ((unsigned)src->facing_pad << 3));
+            mu->last_dir = (int8_t)(src->facing | (src->facing_pad << 3));
             mu->goto_x = 0;
             mu->goto_y = 0;
             mu->moves = 0;
@@ -1672,7 +1671,7 @@ bool col1_bridge_apply_w(
       u->col1_ai_plan = src->ai_plan;
       u->col1_vis_mask = src->vis_mask;
       /* Full DOS facing byte (see europe-dock load above): >= 8 = no facing bias. */
-      u->last_dir = (int)(src->facing | ((unsigned)src->facing_pad << 3));
+      u->last_dir = (int8_t)(src->facing | (src->facing_pad << 3));
       /*
        * Commodity holds: ships/wagons only. Land pioneers store tools in
        * cargo_hold[5] (DOS unit+0x15) — not a goods slot.
@@ -1737,7 +1736,6 @@ bool col1_bridge_apply_w(
       memcpy(u->col1_hold_raw, &src->holds_occupied, sizeof(u->col1_hold_raw));
       u->col1_hold_raw_valid = 1;
       u->col1_origin = src->origin;
-      u->col1_facing_pad = src->facing_pad;
     }
     id_by_index[i] = id;
     local.imported_units++;
@@ -2784,19 +2782,10 @@ bool col1_bridge_capture_w(
              * their full 4-tile allotment; dutch2-t0 nations 0/1 likewise,
              * with 13..19 where DOS's overspend ADD ran past max). Exporting
              * 0 here refunded a full turn of movement to every exhausted land
-             * unit on save+reload (smell #75).
-             *
-             * The one zero that is a PARK, not a spend: Sentry/Fortified held
-             * from a previous night. turn.c zeroes moves as its "skip
-             * this unit" flag while DOS's spent byte stays 0, and units_wake
-             * hands those their allotment back (park_nights > 0). Same-turn
-             * Fortify / the Fortified promotion night DO spend (viceroy
-             * 77146-77153), so they export the allotment like anything else.
+             * unit on save+reload (smell #75). Sentry/Fortified keep their
+             * real MP overnight (bugs.md #715), so a zero is always a spend.
              */
-            const bool overnight_park =
-              (src->orders == UNITS_ORDER_SENTRY || src->orders == UNITS_ORDER_FORTIFIED) &&
-              src->park_nights > 0;
-            spent = overnight_park ? 0 : max_mp;
+            spent = max_mp;
           } else if (src->moves < max_mp) {
             spent = max_mp - src->moves;
           }
@@ -2899,10 +2888,9 @@ bool col1_bridge_capture_w(
       }
       dst->ai_plan =
         src->col1_ai_plan != 0 ? src->col1_ai_plan : COL1_UNIT_UNKNOWN16_HI_DEFAULT;
-      dst->facing = (uint8_t)(src->last_dir & 7);
-      /* Preserve the raw upper 5 bits of the DOS facing byte (set on some
-       * original units; semantics unmapped). */
-      dst->facing_pad = src->col1_hold_raw_valid ? (uint8_t)(src->col1_facing_pad & 0x1fu) : 0u;
+      /* Full signed DOS facing byte unit+0x314f (-1 none, 8 stay; bugs.md #1046). */
+      dst->facing = (uint8_t)src->last_dir & 7u;
+      dst->facing_pad = (uint8_t)((uint8_t)src->last_dir >> 3);
       memset(dst->cargo_hold, 0, sizeof(dst->cargo_hold));
       if (src->col1_hold_raw_valid) {
         /*

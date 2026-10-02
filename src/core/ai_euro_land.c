@@ -2436,7 +2436,7 @@ int ai_euro_20e6_ship_wander_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
   }
   if (dir < 0 || dir > 7) {
     if (!busy) {
-      ai_euro_s_euro_last_dir[u->id] = 8; /* unit+0x314f, 8 = stay */
+      u->last_dir = 8; /* unit+0x314f, 8 = stay */
     }
     return 0;
   }
@@ -2448,7 +2448,7 @@ int ai_euro_20e6_ship_wander_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
     if (!f || f->nation_id == nation_id) {
       return 0;
     }
-    ai_euro_s_euro_last_dir[u->id] = (int8_t)dir;
+    u->last_dir = dir;
     if (getenv("AI_SHIP_TRACE")) {
       fprintf(stderr, "[ship] unit %d wander attack (%d,%d)\n", u->id, nx, ny);
     }
@@ -2458,7 +2458,7 @@ int ai_euro_20e6_ship_wander_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
   if (busy) {
     return 0;
   }
-  ai_euro_s_euro_last_dir[u->id] = (int8_t)dir;
+  u->last_dir = dir;
   if (getenv("AI_SHIP_TRACE")) {
     fprintf(stderr, "[ship] unit %d wander step (%d,%d)\n", u->id, nx, ny);
   }
@@ -3253,10 +3253,7 @@ void ai_euro_20e6_stay_tail_589e(ColonizeUnit* u) {
   if (!u) {
     return;
   }
-  if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
-    ai_euro_s_euro_last_dir[u->id] = 8; /* +0x314f = local_76 = 8 */
-  }
-  u->last_dir = 8;
+  u->last_dir = 8; /* +0x314f = local_76 = 8 */
   if (u->orders != UNITS_ORDER_FORTIFY && u->orders != UNITS_ORDER_FORTIFIED) {
     u->orders = UNITS_ORDER_FORTIFY; /* +0x314c = 5 */
   }
@@ -3700,9 +3697,7 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
         ai_euro_20e6_stay_tail_589e(u); /* LAB_5899 local_76 = 8 -> LAB_589e */
         return 0; /* stay put next to the foreign border colony */
       }
-      if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
-        ai_euro_s_euro_last_dir[u->id] = (int8_t)dir; /* unit+0x314f, 8 = stay */
-      }
+      u->last_dir = dir; /* unit+0x314f, 8 = stay */
       if (dir == 8) {
         ai_euro_20e6_stay_tail_589e(u); /* LAB_589e: +0x314c = 5 (6 when admitted) */
         return 0;

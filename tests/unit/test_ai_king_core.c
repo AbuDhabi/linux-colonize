@@ -3242,6 +3242,71 @@ static int case_purge_tile_seize_notice_793(void) {
   return 0;
 }
 
+/* bugs.md #878 lead: 0982 lands on crown-held tiles while one is adjacent
+ * (raw 74190 owner-nibble == DS:0x53d2 arm re-sweeps); empty tiles only take
+ * units through the min-strength pass when none is. */
+static int case_0982_land_crown_tile_first(void) {
+  fx_begin();
+  ColonizeUnitPool up;
+  memset(&up, 0, sizeof(up));
+  units_reset(&up);
+  units_set_occupancy_map(NULL);
+  up.type_count = 1;
+  up.types[0].kind_plus1 = UNITS_KIND_REGULAR + 1;
+  up.types[0].movement = 1;
+  up.types[0].attack = 3;
+  up.types[0].defense = 2;
+  ColonizeWorldMap m;
+  memset(&m, 0, sizeof(m));
+  char err[128];
+  if (!map_alloc(&m, 8, 8, err, sizeof(err))) {
+    return fail("0982_crown_first: map_alloc");
+  }
+  for (int i = 0; i < 64; ++i) {
+    m.terrain[i] = 1;
+    m.layer3[i] = 0xf1;
+  }
+  const int crown = 1;
+  ColonizeUnit* held = units_get(&up, units_spawn_allow_stack(&up, 0, 4, 4));
+  if (!held) {
+    map_free(&m);
+    return fail("0982_crown_first: spawn");
+  }
+  units_set_nation(held, crown);
+  ColonizeColony col;
+  memset(&col, 0, sizeof(col));
+  col.x = 5;
+  col.y = 3;
+  col.nation_id = 0;
+  ColonizeTurnContext tc;
+  memset(&tc, 0, sizeof(tc));
+  tc.units = &up;
+  tc.map = &m;
+  uint16_t force[4] = {3, 0, 0, 0};
+  /* Ship at (3,3): candidates (4,2) (4,3) empty, (4,4) crown-held. */
+  ai_king_0982_land_troops(&tc, crown, force, &col, map_continent_id_at(&m, 4, 3), 0, 3, 3, 3);
+  int at_held = 0;
+  int elsewhere = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &up.units[i];
+    if (u->active && u->nation_id == crown) {
+      if (u->x == 4 && u->y == 4) {
+        at_held++;
+      } else {
+        elsewhere++;
+      }
+    }
+  }
+  units_set_occupancy_map(NULL);
+  map_free(&m);
+  if (at_held != 4 || elsewhere != 0 || force[0] != 0) {
+    fprintf(stderr, "0982_crown_first: held=%d elsewhere=%d pool=%u (want 4/0/0)\n", at_held,
+            elsewhere, (unsigned)force[0]);
+    return fail("0982_crown_first: all landings go to the crown-held tile");
+  }
+  return 0;
+}
+
 typedef int (*SpineFn)(void);
 
 static const SpineFn k_spine[] = {
@@ -3306,6 +3371,7 @@ static int case_narrative_teardown(void) { return fx_run(35); }
 static const TestCase k_cases[] = {
   {"dump_goods_pick_api", case_dump_goods_pick_api},
   {"purge_tile_seize_notice_793", case_purge_tile_seize_notice_793},
+  {"0982_land_crown_tile_first", case_0982_land_crown_tile_first},
   {"sol_no_bells_fallback", case_sol_no_bells_fallback},
   {"audience_interval_and_tax_gates", case_audience_interval_and_tax_gates},
   {"audience_cut_branch_1d42", case_audience_cut_branch_1d42},
