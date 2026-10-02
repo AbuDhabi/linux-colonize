@@ -543,7 +543,9 @@ FUN_364b_0688 Custom House auto-sell (colony EOT after production).
 Requires Custom House building. Per cargo: mask (0=all eligible) +
 FUN_364b_0636 denylist (not Food/Lumber/Horses/Tools/Muskets) + stock>99
 → sell stock-50 (leave 50). Boycott does not block. Tax via eu tax /
-nation tax_rate unless WoI (col1 head.market_demand_pool_raw[0]). Credits
+nation tax_rate unless WoI (col1 head.game_options.woi — DS:0x5382 bit 0, the
+gate FUN_364b_0688 reads; migrated off head.market_demand_pool_raw[0] on
+2026-08-28, see col1_save_layout.h). Credits
 col1->nation[n].gold; also eu->gold when n==human_nation.
 Returns total gold credited. PARK: per-cargo UI chrome (FUN_15eb_0326).
 
