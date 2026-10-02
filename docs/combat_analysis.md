@@ -175,7 +175,7 @@ The pre-2026-09-16 port had only an AI-only end-of-act "naval ambush" keyed on t
 | Fort loses | bugs.md #249 — **nothing happens**: DOS undoes the temp attacker and the ship sails on. The old `moves=0` ship-slow here was invented; the real MP drain is the separate per-step `FUN_5bfb_3180` branch, see "Ship-slow" below |
 | Repair | `units_tick_drydock_repair` clears combat bit7 for finished ships on own Drydock colony (EOT after ship-build tick); human `@REFIT` ai_popup OK |
 | Turn | `turn_run_coastal_fort_fire` after colony production |
-| AI | `ai_euro_tile_under_enemy_fort_fire` / flee |
+| AI | none: the invented flee step / -800 ocean penalty were deleted (bugs.md #1033); DOS fears a battery only in the LAB_4d2e wander (goods aboard) |
 
 Deep DOS notes: [`coastal_fort_fire.md`](../original_sources_annotated/turn/coastal_fort_fire.md).
 

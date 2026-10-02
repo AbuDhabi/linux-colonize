@@ -2616,7 +2616,7 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_garrison(
 COLONIZE_INTERNAL void ai_euro_colony_goals_foreign_colonies(
   ColonizeTurnContext* ctx, int nation_id, AiEuroInventory* inv
 ) {
-  /* E: foreign colonies MILITARY if at war; thin bind one idle Soldier/Dragoon.
+  /* E: foreign colonies MILITARY if at war.
    * CONTACT scout rings (peace + own≥1): idle Scout → ring MD 2–4 around tribe
    * (fog-aware when map.seen exists). Deep mid-mil scoring — PARKED. */
   if (ctx->colonies && ctx->col1_ok && ctx->col1) {
@@ -2629,43 +2629,10 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_foreign_colonies(
         ai_goals_upsert_primary(nation_id, c->x, c->y, AI_GOAL_MILITARY, 5);
       }
     }
-    /* Thin E deepen: one idle Soldier/Dragoon → nearest foreign MILITARY. */
-    if (ai_euro_at_war_any_peer(ctx->col1, nation_id)) {
-      ColonizeUnit* pick = NULL;
-      int pick_gx = 0;
-      int pick_gy = 0;
-      int pick_d = -1;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &ctx->units->units[i];
-        if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
-          continue;
-        }
-        if (!units_is_on_map(u) || ai_euro_is_ship_type(ctx->units, u->id)) {
-          continue;
-        }
-        if (units_orders_follow_goto(u->orders)) {
-          continue; /* idle only */
-        }
-        if (!ai_euro_is_military_name(ai_euro_unit_kind(ctx->units, u))) {
-          continue;
-        }
-        int gx = 0;
-        int gy = 0;
-        if (!ai_euro_nearest_military_goal(nation_id, u->x, u->y, &gx, &gy)) {
-          continue;
-        }
-        const int d = abs(gx - u->x) + abs(gy - u->y);
-        if (pick_d < 0 || d < pick_d) {
-          pick = u;
-          pick_gx = gx;
-          pick_gy = gy;
-          pick_d = d;
-        }
-      }
-      if (pick) {
-        ai_euro_set_goto(pick, UNITS_ORDER_AI_MOVE, pick_gx, pick_gy);
-      }
-    }
+    /* (A "thin E deepen" stood here: at war, the nearest idle Soldier/Dragoon
+     * got a bare AI_MOVE goto at ai_euro_nearest_military_goal. No DOS cite;
+     * DOS binds units to goals only in the 0a60 tail. Deleted 2026-10-02,
+     * bugs.md #1034(c); no golden moved.) */
     /*
      * The goals-phase twin of the invented act-level scout ring aim used to
      * sit here (bugs.md #493/#495) and is gone with it: DOS has no
@@ -2677,110 +2644,15 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_foreign_colonies(
   }
 }
 
-COLONIZE_INTERNAL void ai_euro_colony_goals_food_emergency(
-  ColonizeTurnContext* ctx, int nation_id, AiEuroInventory* inv
-) {
-  /*
-   * Food emergency (5cf6 food_short high): inventory food_short ≥ 4 → bind
-   * nearest idle food-capable colonist/Pioneer to a hungry own colony LABOR
-   * (MD≤8), even when not already adjacent. Cite: manual 2 food/colonist;
-   * building_production food eat; no invented production rates.
-   */
-  if (inv && inv->food_short >= 4 && ctx->colonies && ctx->units) {
-    for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
-      const ColonizeColony* c = &ctx->colonies->colonies[ci];
-      if (!c->active || c->nation_id != nation_id) {
-        continue;
-      }
-      if (c->stock[COLONIZE_CARGO_FOOD] >= c->population * 2) {
-        continue;
-      }
-      ColonizeUnit* pick = NULL;
-      int pick_d = -1;
-      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
-        ColonizeUnit* u = &ctx->units->units[ui];
-        if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
-          continue;
-        }
-        if (!units_is_on_map(u) || ai_euro_is_ship_type(ctx->units, u->id)) {
-          continue;
-        }
-        if (ai_euro_land_is_fortified(u)) {
-          continue;
-        }
-        /*
-         * Don't yank a Pioneer off an in-progress tile improve job for
-         * emergency food LABOR — exposed once the real DS:0x2f78 threshold
-         * (2026-08-20 live capture) made these jobs usually take more than
-         * one turn, so there's now a real window for this scan to hit a
-         * unit mid-job.
-         */
-        if (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD) {
-          continue;
-        }
-        if (!ai_euro_unit_is_food_labor(ctx->units, u)) {
-          continue;
-        }
-        /* Skip if already on this colony tile (join happens in act). */
-        const int dist = abs(u->x - c->x) + abs(u->y - c->y);
-        if (dist > 8) {
-          continue;
-        }
-        if (units_orders_follow_goto(u->orders) && u->goto_x == c->x &&
-            u->goto_y == c->y) {
-          pick = NULL;
-          pick_d = -1;
-          break; /* already LABOR-bound toward this colony */
-        }
-        if (pick_d < 0 || dist < pick_d) {
-          pick = u;
-          pick_d = dist;
-        }
-      }
-      if (pick) {
-        ai_goals_upsert_primary(nation_id, c->x, c->y, AI_GOAL_LABOR, 5);
-        if (!units_orders_follow_goto(pick->orders) || pick->goto_x != c->x ||
-            pick->goto_y != c->y) {
-          ai_euro_set_goto(pick, UNITS_ORDER_AI_MOVE, c->x, c->y);
-        }
-        break; /* one emergency bind per planning pass */
-      }
-    }
-  }
-}
-
-COLONIZE_INTERNAL void ai_euro_colony_goals_tribe_seeds(
-  ColonizeTurnContext* ctx, int nation_id
-) {
-  /* F: tribe-adjacent FOUND prio 2; alarmed → MILITARY. Never FOUND on village. */
-  if (ctx->col1_ok && ctx->col1 && ctx->col1->tribe) {
-    for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
-      const ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
-      int fx = 0;
-      int fy = 0;
-      {
-        if (ai_euro_pick_founding_tile(
-              ctx->map,
-              ctx->colonies,
-              ctx->col1_ok ? ctx->col1 : NULL,
-              ctx->units,
-              nation_id,
-              t->x,
-              t->y,
-              &fx,
-              &fy)) {
-          ai_goals_upsert_secondary(nation_id, fx, fy, AI_GOAL_FOUND, 2);
-        }
-      }
-      if (t->alarm[nation_id].friction > 50) {
-        /* Capital villages: higher MILITARY prio (Cortes rich_capital path).
-         * Cite: col1 tribe.state.capital; fandom capital / Aztec treasure. */
-        const int prio = t->state.capital ? 5 : 3;
-        ai_goals_upsert_primary(nation_id, t->x, t->y, AI_GOAL_MILITARY, prio);
-      }
-    }
-  }
-}
+/*
+ * (Deleted 2026-10-02, bugs.md #1034(c).) Two goals-phase passes stood here:
+ * ai_euro_colony_goals_food_emergency (food_short >= 4 -> nearest idle food
+ * colonist bound to a hungry colony at MD <= 8, manual cite only) and
+ * ai_euro_colony_goals_tribe_seeds (tribe-adjacent FOUND prio 2, MILITARY on
+ * friction > 50 with capital prio 5 from the fandom wiki). Neither had a DOS
+ * body; DOS's village goal producers are ai_euro_0a60_settlement_goal_producers.
+ * Gated off one at a time they moved no golden.
+ */
 
 COLONIZE_INTERNAL void ai_euro_colony_goals_producers(
   ColonizeTurnContext* ctx, int nation_id, AiEuroInventory* inv,
@@ -2791,157 +2663,15 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_producers(
    * open-sea tiles next to foreign colonies / villages. */
   ai_euro_0a60_settlement_goal_producers(ctx, nation_id);
 
+  /* Thin -0x6790 stance nibbles, read by the 0a60 / ship stance gates. */
+  ai_euro_refresh_continent_stance(ctx, nation_id);
   /*
-   * G continent stance — mid-game pressure once established (≥2 colonies).
-   * Refresh thin −0x6790 stance nibbles {0,3,4,6} from live tallies, then at war
-   * MILITARY primary prio: own≥2 → 6, ≥3 → 7, ≥4 → 8; stance==3 soft-caps hunt
-   * and bumps FOUND; stance==4 keeps mil ladder. Cite: euro_dispatcher.c G.
+   * (Deleted 2026-10-02, bugs.md #1034(c).) A "G continent stance" ladder
+   * stood here: with own >= 2 colonies, at war bumped urgency and upserted MILITARY prio 6/7/8 on the
+   * weakest foe colony (stance 3 soft-cap + FOUND), at peace bumped a FOUND
+   * goal or sent an idle Scout/soldier to a tribe-adjacent site. The deep
+   * DS:0x6790 table it stood in for is unported; no golden moved without it.
    */
-  {
-    ai_euro_refresh_continent_stance(ctx, nation_id);
-    const int own =
-      inv ? inv->colony_count : colonies_count_for_nation(ctx->colonies, nation_id);
-    if (!ai_euro_ship_dos_enabled() && own >= 2 && ctx->colonies) {
-      const int at_war =
-        ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id);
-      if (at_war) {
-        /* Bump founding urgency stand-in + extra MILITARY on weakest/nearest foe. */
-        if (inv) {
-          inv->urgency += 2;
-        }
-        int ref_x = 0;
-        int ref_y = 0;
-        int have_ref = 0;
-        for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-          const ColonizeColony* c = &ctx->colonies->colonies[i];
-          if (c->active && c->nation_id == nation_id) {
-            ref_x = c->x;
-            ref_y = c->y;
-            have_ref = 1;
-            break;
-          }
-        }
-        const ColonizeColony* target = NULL;
-        int best_key = -1;
-        for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-          const ColonizeColony* c = &ctx->colonies->colonies[i];
-          if (!c->active || c->nation_id == nation_id || c->nation_id < 0 ||
-              c->nation_id > 3) {
-            continue;
-          }
-          if (!ai_diplo_at_war(ctx->col1, nation_id, c->nation_id)) {
-            continue;
-          }
-          const int dist =
-            have_ref ? (abs(c->x - ref_x) + abs(c->y - ref_y)) : 0;
-          /* Prefer weaker (low pop), then nearer — pack into one key. */
-          const int key = c->population * 10000 + dist;
-          if (!target || key < best_key) {
-            target = c;
-            best_key = key;
-          }
-        }
-        if (target) {
-          /* Higher than E's foreign MILITARY (5); ladder own≥2/3/4 → 6/7/8. */
-          int mil_prio = 6;
-          if (own >= 4) {
-            mil_prio = 8;
-          } else if (own >= 3) {
-            mil_prio = 7;
-          }
-          int under_cont = 0;
-          if (ctx->map) {
-            const int cid = map_continent_id_at(ctx->map, target->x, target->y);
-            const int stance = ai_euro_continent_stance_at(nation_id, cid);
-            /* stance 3 expand / bal under-target: soft-cap hunt, bump FOUND. */
-            if (stance == 3) {
-              under_cont = 1;
-              if (mil_prio > 6) {
-                mil_prio--;
-              }
-            }
-          }
-          ai_goals_upsert_primary(
-            nation_id, target->x, target->y, AI_GOAL_MILITARY, mil_prio
-          );
-          if (under_cont) {
-            int fx = 0;
-            int fy = 0;
-            if (ai_euro_pick_founding_tile(
-                  ctx->map,
-                  ctx->colonies,
-                  ctx->col1,
-                  ctx->units,
-                  nation_id,
-                  target->x,
-                  target->y,
-                  &fx,
-                  &fy)) {
-              ai_goals_upsert_secondary(nation_id, fx, fy, AI_GOAL_FOUND, 3);
-            }
-          }
-        }
-      } else {
-        /* Peaceful: bump one primary FOUND +1, else idle Scout/Soldier → explore. */
-        int bumped = 0;
-        for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
-          const AiGoalSlot* s = ai_goals_primary(nation_id, i);
-          if (!s || s->code != AI_GOAL_FOUND) {
-            continue;
-          }
-          ai_goals_upsert_primary(
-            nation_id, s->x, s->y, AI_GOAL_FOUND, (int)s->prio + 1
-          );
-          bumped = 1;
-          break;
-        }
-        if (!bumped) {
-          int tx = 0;
-          int ty = 0;
-          int have_t = 0;
-          /* Prefer tribe-adjacent FOUND (never the village tile itself). */
-          if (ctx->col1_ok && ctx->col1 && ctx->col1->tribe &&
-              ctx->col1->head.tribe_count > 0) {
-            const ColonizeCol1Tribe* t0 = &ctx->col1->tribe[0];
-            if (ai_euro_pick_founding_tile(
-                  ctx->map,
-                  ctx->colonies,
-                  ctx->col1_ok ? ctx->col1 : NULL,
-                  ctx->units,
-                  nation_id,
-                  (int)t0->x,
-                  (int)t0->y,
-                  &tx,
-                  &ty)) {
-              have_t = 1;
-            }
-          } else if (ai_goals_best_found_tile(nation_id, &tx, &ty)) {
-            have_t = 1;
-          }
-          if (have_t) {
-            for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-              ColonizeUnit* u = &ctx->units->units[i];
-              if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
-                continue;
-              }
-              if (!units_is_on_map(u) || ai_euro_is_ship_type(ctx->units, u->id)) {
-                continue;
-              }
-              if (units_orders_follow_goto(u->orders)) {
-                continue;
-              }
-              const ColonizeUnitKind kind = ai_euro_unit_kind(ctx->units, u);
-              if (kind != UNITS_KIND_SCOUT && !ai_euro_is_military_name(kind)) {
-                continue;
-              }
-              ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
-              break;
-            }
-          }
-        }
-      }
-    }
-  }
 }
 
 COLONIZE_INTERNAL void ai_euro_colony_goals_ship_found(
@@ -3065,28 +2795,15 @@ void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
 
   ai_euro_colony_goals_foreign_colonies(ctx, nation_id, inv);
 
-  ai_euro_colony_goals_food_emergency(ctx, nation_id, inv);
-
-  const int dos_ship = ai_euro_ship_dos_enabled();
-  if (!dos_ship) {
-    ai_euro_colony_goals_tribe_seeds(ctx, nation_id);
-  }
-
   ai_euro_colony_goals_producers(ctx, nation_id, inv, urgency);
 
-  if (!dos_ship) {
+  if (!ai_euro_ship_dos_enabled()) {
     ai_euro_colony_goals_ship_found(ctx, nation_id, inv, urgency);
   }
 }
 
 /* --- 20e6 scoring (land Manhattan + ocean/ship branch) ----------------- */
 
-int ai_euro_tile_under_enemy_fort_fire(
-  ColonizeTurnContext* ctx,
-  const ColonizeUnit* viewer,
-  int x,
-  int y
-);
 int ai_euro_foe_toughness(
   ColonizeTurnContext* ctx,
   const ColonizeUnitPool* units,
@@ -3167,10 +2884,8 @@ static int ai_euro_ocean_score_step(
     if (on_hs && east_europe && step_hs && MAP_DIR8_DX[d] > 0) {
       score += 6; /* HS east-Europe: prefer eastward HS tiles */
     }
-    /* Avoid enemy Fort/Fortress batteries (FUN_364b_03f6). */
-    if (ai_euro_tile_under_enemy_fort_fire(ctx, u, nx, ny)) {
-      score -= 800;
-    }
+    /* (A -800 "under enemy fort fire" penalty stood here; invented with the
+     * deleted flee step, no golden moved without it -- bugs.md #1033.) */
     /* Thin combat: prefer closing on weaker adjacent foe ships. */
     if (at_war) {
       for (int ad = 0; ad < 8; ++ad) {

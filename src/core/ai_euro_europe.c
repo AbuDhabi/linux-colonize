@@ -1595,7 +1595,11 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
             }
             if ((local_46 <= (int)cargo_demand[p] || expand_signal) &&
                 ((!bVar10 && local_28 == 0) || (cap - used > 2 || expand_signal))) {
-              if (nat->gold >= (uint32_t)(ai_euro_5d04_cb_price(p) * 100)) {
+              /* raw 93041-93046 (bug #1029): gold gate is price * the stale
+               * 0x8dc4 lots scratch, not the literal 100 bought below
+               * (DOS-LITERAL quirk; `last_lots` is the same stale value the
+               * horse-bank branch above reuses). */
+              if (nat->gold >= (uint32_t)(ai_euro_5d04_cb_price(p) * last_lots)) {
                 ai_euro_5d04_cb_apply_bump(idx2, p, 100);
                 cargo_demand[p]--; /* raw 93050 */
               }

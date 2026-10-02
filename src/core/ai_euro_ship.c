@@ -1596,117 +1596,6 @@ int ai_euro_try_ship_europe_export(
 
 
 /*
- * True when (x,y) is adjacent ocean under an enemy Fort/Fortress battery
- * (FUN_364b_03f6 / units_coastal_fort_attack_strength). Cite: Marathon8 peel.
- */
-int ai_euro_tile_under_enemy_fort_fire(
-  ColonizeTurnContext* ctx,
-  const ColonizeUnit* viewer,
-  int x,
-  int y
-) {
-  if (!ctx || !viewer || !ctx->colonies || !ctx->units || !ctx->col1_ok || !ctx->col1 ||
-      !ctx->map) {
-    return 0;
-  }
-  if (!map_tile_is_water(ctx->map, x, y)) {
-    return 0;
-  }
-  const int viewer_nation = viewer->nation_id;
-  const int privateer = units_type_is_privateer(units_type(ctx->units, viewer->type_index));
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    const ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id == viewer_nation || c->nation_id < 0 || c->nation_id > 3) {
-      continue;
-    }
-    /* Same gate the battery itself obeys (FUN_364b_03f6 raw 57082-57083,
-     * units_fort_fire_is_hostile): it fires whenever the PEACE bit is clear
-     * or the hull is a Privateer, not only at declared war. Gating on the WAR bit left hulls loitering
-     * under a no-treaty fort until it sank them. */
-    if (!privateer &&
-        (ai_diplo_read(ctx->col1, c->nation_id, viewer_nation) & AI_DIPLO_PEACE) != 0) {
-      continue;
-    }
-    if (units_coastal_fort_attack_strength(ctx->colonies, c, ctx->units) <= 0) {
-      continue;
-    }
-    for (int d = 0; d < 8; ++d) {
-      if (c->x + MAP_DIR8_DX[d] == x && c->y + MAP_DIR8_DY[d] == y) {
-        return 1;
-      }
-    }
-  }
-  return 0;
-}
-
-/*
- * If ship sits under enemy fort fire, step to adjacent safe water (thin flee).
- * Returns 1 if a flee move was attempted. Cite: FUN_364b_03f6 danger zone.
- */
-int ai_euro_naval_try_flee_fort_fire(ColonizeTurnContext* ctx, ColonizeUnit* u) {
-  if (!ctx || !ctx->units || !ctx->map || !u || !u->active || u->moves <= 0) {
-    return 0;
-  }
-  if (!units_is_sea(ctx->units, u->id) || ai_euro_in_europe(u->x, u->y)) {
-    return 0;
-  }
-  if (!ai_euro_tile_under_enemy_fort_fire(ctx, u, u->x, u->y)) {
-    return 0;
-  }
-  int best_d = -1;
-  int best_dist = -1;
-  for (int d = 0; d < 8; ++d) {
-    const int nx = u->x + MAP_DIR8_DX[d];
-    const int ny = u->y + MAP_DIR8_DY[d];
-    if (!map_tile_is_water(ctx->map, nx, ny)) {
-      continue;
-    }
-    if (ai_euro_tile_under_enemy_fort_fire(ctx, u, nx, ny)) {
-      continue;
-    }
-    if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, u->type_index, nx, ny, u->id)) {
-      continue;
-    }
-    /* Prefer step that increases distance from nearest fort colony. */
-    int dist = 0;
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (!c->active || c->nation_id == u->nation_id) {
-        continue;
-      }
-      if (units_coastal_fort_attack_strength(ctx->colonies, c, ctx->units) <= 0) {
-        continue;
-      }
-      const int md = abs(c->x - nx) + abs(c->y - ny);
-      if (md > dist) {
-        dist = md;
-      }
-    }
-    if (best_d < 0 || dist > best_dist) {
-      best_d = d;
-      best_dist = dist;
-    }
-  }
-  if (best_d < 0) {
-    return 0;
-  }
-  const int tx = u->x + MAP_DIR8_DX[best_d];
-  const int ty = u->y + MAP_DIR8_DY[best_d];
-  ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, ctx->rng, NULL);
-  if (units_try_move_w(&w_, u->id, tx, ty)) {
-    /* A goto that still points under the battery would sail the hull straight
-     * back in on the same act (seen: Privateer shuttling (34,8)<->(33,9) off
-     * Quebec three times a turn). Drop it; the next act re-aims. */
-    ColonizeUnit* m = units_get(ctx->units, u->id);
-    if (m && m->active && ai_euro_tile_under_enemy_fort_fire(ctx, m, m->goto_x, m->goto_y)) {
-      ai_euro_set_goto(m, m->orders, m->x, m->y);
-    }
-    return 1;
-  }
-  return 0;
-}
-
-/*
  * Effective defense for the thin 20e6 adjacent-foe picks (audit AE-10 — the
  * naval and land copies had identical bodies). Naval reads the shared
  * FUN_157e_004a base via combat_unit_base_x8 (damage / holds / Drake); land
@@ -3774,7 +3663,6 @@ void ai_euro_first_colony_ship_course(
  *                                 embark / mil unload, MoW sail-home, early
  *                                 20e6 move-scoring gate, on-colony admit
  *   ai_euro_act_pioneer_corridor  FR tip corridor + 5952_035e equip arm
- *   ai_euro_act_soldier_staging   SP post-found soldier staging corridor
  *   ai_euro_act_ship              ship band (5 sub-stages, see below)
  *   ai_euro_act_land              case 0x0b land band (6 sub-stages)
  *

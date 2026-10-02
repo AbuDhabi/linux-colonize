@@ -11,7 +11,7 @@
  *   FUN_521d_0a60 continent stance + rival-strength tables (ai_euro_refresh_continent_stance)
  *   Landfall / ocean-tip helpers (3558 first leg + empty cruise, 06ae first colony)
  *   Ship unload-site helpers, unit-kind predicates, fortify quota, founding-tile pick
- *   Colony AI-flag refresh, ship pressure, construction preferences (prefer_peace_construction)
+ *   Colony AI-flag refresh, ship pressure
  *   ai_euro_unit_act dispatcher + ai_euro_dispatcher_turn{,_reset,_plan,_unit_waves}
  *   ai_euro_reset lifecycle hook (zeroes every latch in the eight split files)
  */
@@ -698,52 +698,6 @@ int ai_euro_06ae_first_colony_from_landfall(
     return 1;
   }
   return ai_goals_pick_founding_tile_ex_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL)}, nation_id, fx, fy, 0, 0, out_x, out_y);
-}
-
-/*
- * First-colony site named by a unit's goto.
- *
- * 2026-09-27, bugs.md #530 S5. The dispatcher wake rules used to do this:
- * feed the unit's goto to `ai_euro_06ae_first_colony_from_landfall`, and when
- * that failed, round-trip through the seed-100 table
- * (`ai_euro_recover_nation_landfall` -> `ai_euro_recover_landfall_from_ship`)
- * to get a landfall and run 06ae again. Logging every firing of that fallback
- * across the six golden steps showed what it was actually compensating for:
- * the incoming goto was ALREADY the found site, never a landfall -- Dutch
- * (49,14), French (50,37), Spanish (45,52)/(46,54)/(46,55). 06ae's gate wants
- * an eastern-rim landfall (x >= 53), so it failed by construction, and the
- * table then mapped the ship's tile back to the very site the goto already
- * held. So this was a type confusion (a site passed where a landfall was
- * expected), not the "planning yanked the goto" repair its old comment
- * claimed.
- *
- * Accepting the goto as the site when 06ae fails on it is strictly more
- * general than the table -- it is map- and seed-independent -- and removes two
- * of the three callers of the seed-100 landfall table.
- */
-int ai_euro_found_site_from_goto(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  int goto_x,
-  int goto_y,
-  int* out_x,
-  int* out_y
-) {
-  if (!ctx || !ctx->map || !out_x || !out_y) {
-    return 0;
-  }
-  if (goto_x < 0 || goto_y < 0 || goto_x >= (int)ctx->map->width ||
-      goto_y >= (int)ctx->map->height) {
-    return 0;
-  }
-  if (ai_euro_06ae_first_colony_from_landfall(
-        ctx->map, ctx->colonies, ctx->units, nation_id, goto_x, goto_y, out_x, out_y
-      )) {
-    return 1;
-  }
-  *out_x = goto_x;
-  *out_y = goto_y;
-  return 1;
 }
 
 /*
@@ -1728,204 +1682,18 @@ void ai_euro_refresh_colony_ai_flags(
 }
 
 /*
- * True when colony has Stockade, Warehouse, Lumber Mill, Drydock, Shipyard, or
- * Custom House in the build queue — carpenter hammers need on-site labor. Cite:
- * docs/building_production.md chart (Stockade 64h / Warehouse 80h / Lumber Mill
- * 52h / Drydock 80h ship repair / Shipyard 240h ship construction / Custom House
- * 160h Stuyvesant); fandom Naval Docks→Drydock→Shipyard; fandom Peter Stuyvesant
- * Custom House unlock. Structural stay/LABOR only — no invented hammer/gold /
- * auto-sell rates.
+ * Col1 +0x1d bit7 (COLONIZE_BUILD_AI_WANTS_CONSTRUCTION), set by the
+ * FUN_5952_035e build cascade or carried by a save. bugs.md #1034a: the
+ * invented building-name list (Stockade/Warehouse/Lumber Mill/Drydock/...)
+ * that also returned true here was gated off alone 2026-10-02, moved no
+ * golden step and only its own two unit tests; deleted.
  */
 int ai_euro_colony_wants_construction_labor(
   const ColonizeColonyPool* pool,
   const ColonizeColony* c
 ) {
-  if (!pool || !c || !c->active) {
-    return 0;
-  }
-  /* Col1 +0x1d bit7 latch (FUN_5952) — save import or OpenCol construction set. */
-  if ((c->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) != 0) {
-    return 1;
-  }
-  if (c->building_in_production < 0) {
-    return 0;
-  }
-  const ColonizeBuildingType* bt =
-    colonies_building_type(pool, c->building_in_production);
-  if (!bt || bt->name[0] == '\0') {
-    return 0;
-  }
-  return colonies_building_name_row(bt->name) == COLONY_BUILDING_STOCKADE || colonies_building_name_row(bt->name) == COLONY_BUILDING_FORT ||
-         colonies_building_name_row(bt->name) == COLONY_BUILDING_FORTRESS || colonies_building_name_row(bt->name) == COLONY_BUILDING_WAREHOUSE ||
-         colonies_building_name_row(bt->name) == COLONY_BUILDING_LUMBER_MILL || colonies_building_name_row(bt->name) == COLONY_BUILDING_DRYDOCK ||
-         colonies_building_name_row(bt->name) == COLONY_BUILDING_SHIPYARD || colonies_building_name_row(bt->name) == COLONY_BUILDING_CUSTOM_HOUSE;
-}
-
-/*
- * Peace construction pick (5d04 / colony planning): idle/empty
- * building_in_production (< 0) → prefer Stockade → Fort → Fortress → Warehouse
- * → (coastal) Docks via colonies_list_buildable + colonies_set_construction. Cite:
- * docs/fandom_col1994.md Defense Stockade→Fort→Fortress / Storage Warehouse /
- * Naval Docks→Drydock→Shipyard; docs/building_production.md Stockade 64h /
- * Fort 120h / Fortress 320h / Warehouse 80h / Dock 52h. No invented hammer/gold
- * buyouts — queue only.
- * Near warehouse capacity (≥90% any non-food stock) with Warehouse already
- * built → prefer Warehouse Expansion before Docks (spoilage FUN_15eb_0a50).
- * Does not yank Fort/Fortress ahead of defense chain.
- */
-static int ai_euro_colony_near_warehouse_cap(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* c
-) {
-  if (!pool || !c) {
-    return 0;
-  }
-  for (int cargo = 0; cargo < COLONIZE_CARGO_COUNT; ++cargo) {
-    if (cargo == COLONIZE_CARGO_FOOD) {
-      continue;
-    }
-    const int cap = colonies_warehouse_capacity(pool, c, cargo);
-    if (cap > 0 && c->stock[cargo] * 10 >= cap * 9) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
-void ai_euro_prefer_peace_construction(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->colonies || !ctx->map || nation_id < 0 || nation_id >= 4) {
-    return;
-  }
-  const int stockade_id = colonies_building_row(ctx->colonies, COLONY_BUILDING_STOCKADE);
-  const int fort_id = colonies_building_row(ctx->colonies, COLONY_BUILDING_FORT);
-  const int fortress_id = colonies_building_row(ctx->colonies, COLONY_BUILDING_FORTRESS);
-  const int warehouse_id = colonies_building_row(ctx->colonies, COLONY_BUILDING_WAREHOUSE);
-  const int whe_id = colonies_building_row(ctx->colonies, COLONY_BUILDING_WAREHOUSE_EXPANSION);
-  const int docks_id = colonies_building_row(ctx->colonies, COLONY_BUILDING_DOCKS);
-  if (stockade_id < 0 && fort_id < 0 && fortress_id < 0 && warehouse_id < 0 && docks_id < 0) {
-    return;
-  }
-  /*
-   * Defense chain before storage/docks so Fort % live after Stockade. Docks
-   * ahead of Warehouse: every seed-100 AI first town (New Amsterdam TURN4,
-   * Quebec TURN5, Isabella TURN6 — size 1, coastal, no Stockade possible)
-   * starts on Docks in the DOS saves.
-   */
-  const int prefer_def[] = {stockade_id, fort_id, fortress_id, warehouse_id, docks_id};
-  /* Size < 3 (no Stockade yet): Docks first, per the DOS saves above. */
-  const int prefer_young[] = {docks_id, warehouse_id};
-  /* Near-cap + Warehouse owned: Expansion before Docks (still after Fort chain). */
-  const int prefer_exp[] = {
-    stockade_id, fort_id, fortress_id, warehouse_id, whe_id, docks_id
-  };
-  ColoniesBuildableOpts opts;
-  memset(&opts, 0, sizeof(opts));
-  opts.map = ctx->map;
-  opts.col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id != nation_id) {
-      continue;
-    }
-    if (c->building_in_production >= 0) {
-      continue; /* idle/empty queue only — do not yank active project */
-    }
-    const int pop = c->colonist_count > 0 ? c->colonist_count : c->population;
-    const int has_stockade =
-      stockade_id >= 0 && stockade_id < COLONIZE_BUILDING_TYPES_MAX &&
-      c->has_building[stockade_id];
-    const int has_wh =
-      warehouse_id >= 0 && warehouse_id < COLONIZE_BUILDING_TYPES_MAX && c->has_building[warehouse_id];
-    const int use_exp =
-      has_wh && whe_id >= 0 && ai_euro_colony_near_warehouse_cap(ctx->colonies, c);
-    const int stockade_min =
-      stockade_id >= 0 ? ctx->colonies->building_types[stockade_id].min_population : 0;
-    const int young = !has_stockade && stockade_min > 0 && pop < stockade_min;
-    const int* prefer = use_exp ? prefer_exp : (young ? prefer_young : prefer_def);
-    const size_t nprefer =
-      use_exp ? (sizeof(prefer_exp) / sizeof(prefer_exp[0]))
-              : (young ? (sizeof(prefer_young) / sizeof(prefer_young[0]))
-                       : (sizeof(prefer_def) / sizeof(prefer_def[0])));
-    int buildable[COLONIZE_BUILDING_TYPES_MAX];
-    const int n =
-      colonies_list_buildable(ctx->colonies, c->id, buildable, COLONIZE_BUILDING_TYPES_MAX, &opts);
-    int pick = -1;
-    for (size_t p = 0; p < nprefer; ++p) {
-      const int want = prefer[p];
-      if (want < 0) {
-        continue;
-      }
-      if (stockade_id >= 0 && pop >= 2 && !has_stockade && want != stockade_id) {
-        continue;
-      }
-      for (int b = 0; b < n; ++b) {
-        if (buildable[b] == want) {
-          pick = want;
-          break;
-        }
-      }
-      if (pick >= 0) {
-        break;
-      }
-    }
-    if (pick >= 0) {
-      (void)colonies_set_construction_ex(ctx->colonies, c->id, pick, &opts);
-    }
-  }
-}
-
-/*
- * Pop < 3 without Stockade: clear any prefer_* queue so hammers bank with
- * bip 0xFF (TURN5→6 Dutch; golden TURN4→5 New Amsterdam pop2 bip=255).
- * Yes, this wipes what prefer_young just queued this same dispatcher call —
- * deliberately: in the DOS saves a young colony carries a Docks project ONLY
- * on its founding turn (New Amsterdam TURN4 / Quebec TURN5 / Isabella TURN6,
- * all size 1, founded that turn — the colonies_found Docks default lands in
- * the unit-act phase AFTER this clear), and shows bip 0xFF every turn after
- * until Stockade-capable. Smell audit #98 proposed keeping pop-1 picks; the
- * TURN4→5 golden refuted that. Cite: turn.c hammer bank; test-saves-ai/TURN6.
- */
-static void ai_euro_clear_pre_stockade_build_queue(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->colonies || nation_id < 0 || nation_id >= 4) {
-    return;
-  }
-  const int stockade_id = colonies_building_row(ctx->colonies, COLONY_BUILDING_STOCKADE);
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id != nation_id || c->building_in_production < 0) {
-      continue;
-    }
-    const int pop = c->colonist_count > 0 ? c->colonist_count : c->population;
-    const int has_stockade =
-      stockade_id >= 0 && stockade_id < COLONIZE_BUILDING_TYPES_MAX &&
-      c->has_building[stockade_id];
-    if (pop < 3 && !has_stockade) {
-      c->building_in_production = -1;
-    }
-  }
-}
-
-/*
- * Zero-hammer projects on colonies not founded this act: cancel (Quebec
- * TURN5→6 bip→0xFF; keep same-turn Isabella auto-Stockade). Cite: TURN6–7.
- */
-static void ai_euro_cancel_stale_zero_hammer_builds(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->colonies || nation_id < 0 || nation_id >= 4) {
-    return;
-  }
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id != nation_id || c->building_in_production < 0) {
-      continue;
-    }
-    if (c->hammers != 0) {
-      continue;
-    }
-    if (c->id >= 0 && c->id < COLONIZE_COLONIES_MAX && ai_euro_s_founded_colony_turn[c->id]) {
-      continue;
-    }
-    c->building_in_production = -1;
-  }
+  return pool && c && c->active &&
+         (c->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) != 0;
 }
 
 /*
@@ -1999,34 +1767,6 @@ int ai_euro_is_artillery_name(ColonizeUnitKind kind) {
   return kind == UNITS_KIND_ARTILLERY;
 }
 
-/*
- * Col1 +0x1e: fortify only while garrison_quota > 0, then DEC.
- * Cite: save_format_map.md. The quota this consumes is the real
- * FUN_5952_035e threat>>3 seed (ai_euro_colony_threat_seed_5952, ported
- * 2026-09-08) — no longer a thin planning latch.
- */
-int ai_euro_fortify_with_quota(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  ColonizeUnit* u,
-  int colony_id
-) {
-  if (!ctx || !ctx->colonies || !ctx->units || !u) {
-    return 0;
-  }
-  ColonizeColony* c = colonies_get_mut(ctx->colonies, colony_id);
-  if (!c || !c->active || c->nation_id != nation_id || c->garrison_quota == 0) {
-    return 0;
-  }
-  if (!units_order_fortify(ctx->units, u->id)) {
-    return 0;
-  }
-  if (c->garrison_quota > 0) {
-    c->garrison_quota--;
-  }
-  return 1;
-}
-
 int ai_euro_land_is_fortified(const ColonizeUnit* u) {
   if (!u || (u->orders != UNITS_ORDER_FORTIFY && u->orders != UNITS_ORDER_FORTIFIED)) {
     return 0;
@@ -2097,41 +1837,6 @@ int ai_euro_pick_founding_tile(
 ) {
   return ai_goals_pick_founding_tile_ex_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, nation_id, x, y, 1, 0, out_x, out_y);
 }
-
-/* Nearest primary MILITARY goal (Manhattan); 1 if found. */
-int ai_euro_nearest_military_goal(
-  int nation_id,
-  int from_x,
-  int from_y,
-  int* out_x,
-  int* out_y
-) {
-  if (nation_id < 0 || nation_id >= 4 || !out_x || !out_y) {
-    return 0;
-  }
-  int best = -1;
-  int bx = 0;
-  int by = 0;
-  for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
-    const AiGoalSlot* s = ai_goals_primary(nation_id, i);
-    if (!s || s->code != AI_GOAL_MILITARY) {
-      continue;
-    }
-    const int d = abs((int)s->x - from_x) + abs((int)s->y - from_y);
-    if (best < 0 || d < best) {
-      best = d;
-      bx = (int)s->x;
-      by = (int)s->y;
-    }
-  }
-  if (best < 0) {
-    return 0;
-  }
-  *out_x = bx;
-  *out_y = by;
-  return 1;
-}
-
 /*
  * Removed (bugs.md #493/#495): ai_euro_scout_contact_ring_target,
  * ai_euro_scout_fog_explore_target and ai_euro_is_seasoned_scout_name were
@@ -2484,9 +2189,6 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   if (ai_euro_act_pioneer_corridor(&a) == AI_EURO_ACT_RETURN) {
     return;
   }
-  if (ai_euro_act_soldier_staging(&a) == AI_EURO_ACT_RETURN) {
-    return;
-  }
 
   /* Case 7 Europe hire / wagon economy: treasury + dock expert tails in 5d04.
    * Thin tools delivery runs on land Pioneer/Hardy at own colony (below). */
@@ -2562,15 +2264,15 @@ static void ai_euro_dispatcher_turn_plan(ColonizeTurnContext* ctx, int nation_id
   /* 5. Plan: 5d04 → 0342 → 0a60 */
   ai_euro_nation_planning(ctx, nation_id);
   ai_goals_promote_secondary_to_primary(nation_id);
-  if (!ai_euro_ship_dos_enabled()) {
-    ai_euro_cancel_stale_zero_hammer_builds(ctx, nation_id);
-    ai_euro_clear_pre_stockade_build_queue(ctx, nation_id);
-  }
+  /* bugs.md #1034a: the port-only cancel_stale_zero_hammer_builds and
+   * clear_pre_stockade_build_queue passes stood here; each gated off alone
+   * 2026-10-02 moved no golden bip/hammers and no ctest; deleted. */
   ai_euro_colony_goals(ctx, nation_id);
   /*
    * bugs.md #483 — DOS's ONE construction picker, FUN_5952_035e's tail. It
    * replaces the three invented preference passes that used to stand here
-   * (ai_euro_prefer_peace_construction / _all_buildings / _craft_upgrades).
+   * (ai_euro_prefer_peace_construction / _all_buildings / _craft_upgrades;
+   * the last of them, peace_construction, deleted by #1034a).
    * DOS runs it inside the colony tick, the AI turn's first phase; the port
    * runs it immediately after ai_euro_colony_goals because that pass is the
    * other half of the same DOS body and is what produces the ring-1 threat
@@ -2658,102 +2360,41 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
           continue;
         }
         /*
-         * First-colony sentry settlers (Dutch Isabella pioneer) skip overnight
-         * MP — still run unit_act so wake+found can fire. Cite: TURN3→4.
+         * FITTED-NOT-DOS (bugs.md #1035): DOS raw ~93240-93245 has only the
+         * unconditional FUN_281f_097a has-MP gate. Before the nation's first
+         * colony a 0-MP land Pioneer/Soldier still gets one act so the
+         * first-colony wake+found fires; it holds up golden_ai_turns TURN3->4
+         * (Dutch Isabella pioneer, soldier found-approach). The finer wake
+         * rules that stood here (settler/pioneer-aboard, same-act beachhead,
+         * outer-loop re-entry, mid-march cruise tip) were each gated off
+         * alone 2026-10-02 and moved nothing (golden 6/6, ctest unchanged);
+         * deleted. Delete this with the #530 fit layer.
          */
-        if (u->moves <= 0) {
-          if (is_ship || colonies_count_for_nation(ctx->colonies, nation_id) != 0) {
-            continue;
-          }
-          if (!ai_euro_name_is_pioneer(ukind) && !ai_euro_name_is_soldier(ukind)) {
-            continue;
-          }
-          /* Only wake when found-approach eligibility can fire (not beachhead). */
-          const int settler_aboard = ai_euro_nation_settler_aboard(ctx, nation_id);
-          const int pioneer_aboard = ai_euro_nation_pioneer_aboard(ctx, nation_id);
-          if (ai_euro_name_is_soldier(ukind)) {
-            if (!pioneer_aboard && settler_aboard) {
-              continue;
-            }
-            /* Same-act beachhead: soldier on found+1 with pioneer aboard — no wake. */
-            if (pioneer_aboard) {
-              int fx = 0;
-              int fy = 0;
-              if (u->goto_x >= 0 && u->goto_y >= 0 &&
-                  ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, u->goto_x, u->goto_y, &fx, &fy) &&
-                  u->x == fx && u->y == fy + 1) {
-                continue;
-              }
-            }
-            /*
-             * Outer-loop re-entry: soldier already on found after a same-turn
-             * walk must not found until the next dispatcher turn (TURN3→4
-             * Quebec step-on; TURN4→5 founds on guard==0). Cite: TURN3–5.
-             */
-            if (guard > 0) {
-              int fx = 0;
-              int fy = 0;
-              if (ai_euro_found_site_from_goto(ctx, nation_id, u->goto_x, u->goto_y, &fx, &fy) &&
-                  u->x == fx && u->y == fy) {
-                continue;
-              }
-            }
-          } else if (settler_aboard) {
-            continue;
-          } else {
-            /* Pioneer ashore, cargo empty: wake only on found tile or cruise. */
-            int fx = 0;
-            int fy = 0;
-            int ok = 0;
-            if (ai_euro_found_site_from_goto(ctx, nation_id, u->goto_x, u->goto_y, &fx, &fy)) {
-              if (u->x == fx && u->y == fy) {
-                ok = 1;
-              } else if (guard == 0) {
-                /*
-                 * Mid-march toward found: one outer pass only so SP one-hop
-                 * (TURN3→4 → 46,52) is not re-woken into the town same turn.
-                 */
-                int wx = 0;
-                int wy = 0;
-                if (ai_euro_ocean_3558_empty_cruise_tip(ctx->map, fx, fy, &wx, &wy)) {
-                  for (int si = 0; si < COLONIZE_UNITS_MAX; ++si) {
-                    const ColonizeUnit* sh = &ctx->units->units[si];
-                    if (sh->active && sh->nation_id == nation_id &&
-                        units_is_sea(ctx->units, sh->id) &&
-                        ((sh->goto_x == wx && sh->goto_y == wy) ||
-                         map_chebyshev(sh->x, sh->y, wx, wy) <= 1)) {
-                      ok = 1;
-                      break;
-                    }
-                  }
-                }
-              }
-            }
-            if (!ok) {
-              continue;
-            }
-          }
+        if (u->moves <= 0 &&
+            (is_ship || colonies_count_for_nation(ctx->colonies, nation_id) != 0 ||
+             (!ai_euro_name_is_pioneer(ukind) && !ai_euro_name_is_soldier(ukind)))) {
+          continue;
         }
 
         /* DOS inner `while (has_moves)`: drain this unit before the next scan. */
         int first_act = 1;
         while (u->active && (first_act || (dos_loop && u->moves > 0))) {
           first_act = 0;
+        const int before_moves = u->moves;
+        const int before_x = u->x;
+        const int before_y = u->y;
+        /* Raw 93247-93257: same id as DS:0x2d12 -> ++DS:0x2d14; past 0x14
+         * FUN_281f_0934 exhausts MP (the act still runs) so the has-MP test
+         * ends this unit's drain. 0x2d14 resets only on a new unit id. */
         if (u->id == s_sticky_unit) {
-          s_sticky_count++;
-          if (s_sticky_count > 0x14) {
-            /* DOS FUN_281f_0934: clear orders, then act anyway (no skip). */
-            units_clear_orders(ctx->units, u->id);
-            s_sticky_count = 0;
+          if (++s_sticky_count > 0x14) {
+            units_mp_exhaust_unit(ctx->units, u->id);
           }
         } else {
           s_sticky_unit = u->id;
           s_sticky_count = 0;
         }
 
-        const int before_moves = u->moves;
-        const int before_x = u->x;
-        const int before_y = u->y;
         ai_euro_unit_act(ctx, u, nation_id);
 
         const int progressed =

@@ -6,9 +6,9 @@
  *
  * Sections:
  *   FUN_5952_035e equip pick (shared with the goals equip arm)
- *   ai_euro_act_pioneer_corridor / ai_euro_act_soldier_staging
+ *   ai_euro_act_pioneer_corridor
  *   Ship band stages: europe_exit, first_colony_course, war_trade, sail, arrival
- *   Land band stages: hunt_scout, treasure, roles, fortify, goal_consume, goal_dispatch
+ *   Land band stages: hunt_scout, treasure, roles, goal_consume, goal_dispatch
  *   ai_euro_act_ship / ai_euro_act_land band drivers
  *   DOS ship-act path: 09dc gate, 20e6 ship dos, 479b goal walk
  */
@@ -108,6 +108,9 @@ AiEuroActStatus ai_euro_act_pioneer_corridor(struct ai_euro_act_ctx* a) {
   /*
    * FR tip south of new colony: leave found+1 toward SW coast (TURN4→5 pioneer
    * (50,38)→(48,39)). Geometric offset from town — not a nation peel.
+   * FITTED-NOT-DOS (bugs.md #1035): golden-coordinate fit, no FUN_ body. Gated
+   * off 2026-10-02 it fails golden_ai_turns TURN4→5 and TURN5→6, so it stays
+   * until the #530 fit layer goes as a whole.
    */
   if (!is_ship && ctx->colonies && ai_euro_name_is_pioneer(ai_euro_unit_kind(ctx->units, u))) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
@@ -169,65 +172,6 @@ AiEuroActStatus ai_euro_act_pioneer_corridor(struct ai_euro_act_ctx* a) {
        * consumption are all a DOS unit act does for an AI unit standing on
        * its own colony, so nothing replaces it here.
        */
-    }
-  }
-
-  a->u = u;
-  return AI_EURO_ACT_CONTINUE;
-}
-
-/*
- * Stage: SP post-found soldier staging corridor. Extracted verbatim
- * from ai_euro_unit_act.
- */
-AiEuroActStatus ai_euro_act_soldier_staging(struct ai_euro_act_ctx* a) {
-  ColonizeTurnContext* const ctx = a->ctx;
-  ColonizeUnit* u = a->u;
-  const int nation_id = a->nation_id;
-  const int is_ship = a->is_ship;
-
-  /*
-   * SP post-found soldier staging corridor:
-   *   SE+1 → SE+2 (TURN5→6 46,55→46,56)
-   *   SE+2 → SE+3 (TURN6→7 46,56→46,57)
-   * Cite: test-saves-ai/TURN6–7.
-   */
-  if (!is_ship && ctx->colonies &&
-      ai_euro_name_is_soldier(ai_euro_unit_kind(ctx->units, u))) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (!c->active || c->nation_id != nation_id) {
-        continue;
-      }
-      int sy = -1;
-      if (u->x == c->x + 1 && u->y == c->y + 3) {
-        sy = c->y + 4;
-      } else if (u->x == c->x + 1 && u->y == c->y + 4) {
-        sy = c->y + 5;
-      }
-      if (sy < 0) {
-        continue;
-      }
-      {
-        const int sx = c->x + 1;
-        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, sx, sy);
-        if (u->moves <= 0) {
-          (void)units_wake(ctx->units, u->id);
-          u = units_get(ctx->units, u->id);
-        }
-        if (u && u->moves > 0) {
-          (void)units_advance_goto_one_step_w(
-                &(ColonizeWorld){.units = ctx->units, .colonies = ctx->colonies, .map = ctx->map},
-                u->id
-              );
-          u = units_get(ctx->units, u->id);
-        }
-        if (u) {
-          ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
-          u->moves = 0;
-        }
-        return AI_EURO_ACT_RETURN;
-      }
     }
   }
 
@@ -491,6 +435,8 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_first_colony_course(struct ai
          * Already on/near tip (Dutch Atlantic approach): retarget only —
          * do not spend MP sailing onto staging this act. Cite: TURN3 DU
          * ship stays (48,13) with goto (47,13).
+         * FITTED-NOT-DOS (bugs.md #1035): no FUN_ body; gated off 2026-10-02
+         * it fails golden_ai_turns TURN2→3. Goes with the #530 fit layer.
          */
         if (map_chebyshev(u->x, u->y, sx, sy) <= 1) {
           u->moves = 0;
@@ -645,15 +591,11 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_war_trade(struct ai_euro_act_
   /* (A manual-cited "drop Soldier at threatened colony" arm stood here until
    * 2026-09-18; the DOS disembark is the LAB_3558 mask block reached from
    * ai_euro_unload_settle.) */
-  /* Leave enemy Fort/Fortress battery tiles before hunt/attack. Not war-gated:
-   * the battery fires on any hull without a PEACE treaty (bugs.md #465). */
-  if (!ai_euro_in_europe(u->x, u->y) &&
-      ai_euro_naval_try_flee_fort_fire(ctx, u)) {
-    u = units_get(ctx->units, u->id);
-    if (!u || !u->active) {
-      return AI_EURO_ACT_RETURN;
-    }
-  }
+  /* (Deleted 2026-10-02, bugs.md #1033.) An invented "flee fort fire" step
+   * stood here: a hull under a hostile Fort/Fortress stepped to the adjacent
+   * water tile farthest from it. Its only cite, FUN_364b_03f6, is the fort's
+   * own bombardment and has no ship-side logic; DOS's only battery fear is
+   * the LAB_4d2e wander's goods-aboard term. Gated off it moved no golden. */
   /* An at-war block stood here with a war-cargo colony-sail call (retired by
    * smell audit sweep-3 area C #6 — a second, invented entry into
    * LAB_521d_3558), an act-level adjacent-foe naval attack and a distant
@@ -937,6 +879,9 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_arrival(struct ai_euro_act_ct
               break;
             }
           }
+          /* FITTED-NOT-DOS (bugs.md #1035): the (45,52) literal is the seed-100
+           * Spanish site; gated off 2026-10-02 it fails golden_ai_turns
+           * TURN4→5. Goes with the #530 fit layer. */
           const int want_west =
             pioneer_on_found && fx == 45 && fy == 52 &&
             map_tile_is_water(ctx->map, wx - 1, wy);
@@ -976,27 +921,9 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_arrival(struct ai_euro_act_ct
       }
     }
   }
-  /* Post-found coast tip: park AI_MOVE; spent MP stops outer re-act.
-   * COL1 export maps AI_MOVE@self → moves spent 0. Cite: TURN5 FR 52,43. */
-  if (u && u->active && !exited_europe &&
-      colonies_count_for_nation(ctx->colonies, nation_id) > 0 &&
-      u->x == u->goto_x && u->y == u->goto_y) {
-    int match_post = 0;
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (!c->active || c->nation_id != nation_id) {
-        continue;
-      }
-      if (u->x == c->x + 2 && u->y == c->y + 6) {
-        match_post = 1;
-        break;
-      }
-    }
-    if (match_post) {
-      ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
-      u->moves = 0;
-    }
-  }
+  /* (A "post-found coast tip" park -- ship on colony x+2,y+6 -> AI_MOVE@self,
+   * moves 0, cite TURN5 FR 52,43 -- stood here. Golden fit, no DOS body, and
+   * dead: gated off it moved nothing. Deleted 2026-10-02, bugs.md #1035.) */
   /*
    * Post-found SW cruise: park AI_MOVE@self after MP drain (TURN5 DU 39,18).
    * Tip station-keep alone is !useful_goto — without this, trade haul yanks.
@@ -1233,133 +1160,55 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
 }
 
 /*
- * Land stage 4: peace fortify / colonist admit, Artillery siege hunt and
- * Artillery fortify, Missionary CONTACT.
+ * Land stage 4 (ai_euro_act_land_fortify) is gone: every arm it held was
+ * invented and has been deleted. Tombstones:
+ *
+ * (Deleted 2026-10-02, bugs.md #1032.) A "peace fortify" arm stood here:
+ * any idle armed land unit on its own colony tile was FORTIFY-ed and spent
+ * one garrison_quota. It cited FUN_521d_20e6 raw 89011-89013, but that
+ * `+0x314b = 0x46` write also needs local_ea != 0, the unit alone on its
+ * tile and a foreign neighbour -- it is the border park, ported as
+ * ai_euro_20e6_border_park_arm. DOS's own-colony garrison is the LAB_5899
+ * arm (raw 88584-88612, ai_euro_20e6_land_arms: 'G', spends colony +0x8e,
+ * not +0x1e), and the fortify order itself comes from the shared stay tail
+ * (raw 90378-90386, ai_euro_20e6_stay_tail_589e). Gated off it moved
+ * nothing in golden_ai_turns / golden_ai_joint; the unit tests that pinned
+ * it (manual-cited) went with it. The "peace fortify fallback" (military
+ * name + ai_euro_fortify_with_quota) in the goto-advance else branch went
+ * too, same reasons.
+ *
+ * No Artillery-specific siege hunt. DOS has no artillery target band: in
+ * FUN_521d_20e6 type 0x0b appears exactly once in the shared tile scorer
+ * (raw 88911-88913) as a score *modifier* — `type == 0x0b && no colony and
+ * no village on the tile -> score = 0` — and FUN_465b_0000 (raw 75417) is
+ * type-agnostic. The "Artillery siege hunt" arm that used to sit here cited
+ * only Colonization.pdf / king_ref and was deleted (bugs.md #513).
+ *
+ * (Retired 2026-09-23, bugs.md #760.) An "Artillery fortify" arm sat here:
+ * idle Artillery on its own colony was FORTIFY-ed through the garrison quota.
+ * Manual-only citation (euro_unit_act §2d3 / Colonization.pdf / king_ref) and
+ * FUN_521d_20e6 has no `+0x3146 == 0x0b` branch in the act path at all
+ * (raw 88266-90445). DOS's own-colony arm is the type-agnostic LAB_5899
+ * (raw 88584-88612, ported in ai_euro_20e6_land_arms): attack > 1, type
+ * outside [0xd,0x12], not 4, not 8 → labor_shortage--, order_code = 0x47,
+ * stay. Artillery satisfies every one of those tests, so the DOS path already
+ * handles exactly the case this arm was covering. Same invention class as the
+ * already-deleted "Artillery siege hunt" above.
+ *
+ * (Retired 2026-09-22, bugs.md #557.) A missionary CONTACT goal arm sat
+ * here (prio 3 goto of the nearest mission-less tribe, skipped when an
+ * adjacent tribe was alarmed). FUN_521d_20e6 has no `+0x3146 == 3` arm:
+ * DOS AI missionaries are hired/blessed in FUN_521d_5d04 and then take the
+ * generic land wander; a missionary that reaches a village is handled by
+ * FUN_4d56_4528's non-human switch (ai_contact_ai_missionary_village).
  */
-COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_fortify(struct ai_euro_act_ctx* a) {
-  ColonizeTurnContext* const ctx = a->ctx;
-  ColonizeUnit* u = a->u;
-  const int nation_id = a->nation_id;
-  const int at_war_land = a->at_war_land;
-  int land_war_hunted = a->land_war_hunted;
-  int peace_border_hunted = a->peace_border_hunted;
-  int scout_explored = a->scout_explored;
-  int treasure_routed = a->treasure_routed;
-  int wagon_hauled = a->wagon_hauled;
-
-  /*
-   * Peace fortify (case 0x0b fortify arm): idle armed land unit on own colony
-   * tile → FORTIFY if not already. Overrides explore/FOUND scoring-gate yank
-   * while on-colony (defense). At war: wake+hunt owns garrison instead.
-   *
-   * DOS-LITERAL FUN_521d_20e6 raw 89011-89013 (asm OVL14_L0000:0x5992-0x59c9)
-   * — the 'F' (0x46) arm's own unit test is exactly
-   *   `DS:0x5236[type * 0xe] > 1 && (type < 0xd || type > 0x12)`
-   * i.e. the NAMES @UNIT ATTACK column above 1 plus "not a ship type"
-   * (the loader stores column 3 = attack at 0x5236, column 4 = defense at
-   * 0x5235, raw 121115-121119). Replaces this arm's name matching, which
-   * both missed armed types whose name is not in the military list and let
-   * attack-1 types (Colonist, Scout, Pioneer) through. DOS spends no
-   * garrison quota here, so the quota gate is gone from this arm.
-   * bugs.md #512.
-   */
-  const int fort_dos_type = ai_euro_20e6_dos_type(ctx->units, u);
-  if (!at_war_land && !peace_border_hunted && !treasure_routed && !wagon_hauled &&
-      !scout_explored &&
-      !land_war_hunted && fort_dos_type >= 0 &&
-      ai_euro_20e6_type_combat(fort_dos_type) > 1 &&
-      (fort_dos_type < 0xd || fort_dos_type > 0x12) &&
-      !ai_euro_land_is_fortified(u) && ctx->colonies) {
-    const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
-    if (cid >= 0) {
-      const ColonizeColony* c = colonies_get(ctx->colonies, cid);
-      if (c && c->active && c->nation_id == nation_id) {
-        /* Keep MILITARY/CONTACT goto off-colony; on-tile → fortify. */
-        int keep_mil = 0;
-        for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
-          const AiGoalSlot* g = ai_goals_primary(nation_id, i);
-          if (!g || g->code == AI_GOAL_EMPTY) {
-            continue;
-          }
-          if ((g->code == AI_GOAL_MILITARY || g->code == AI_GOAL_CONTACT ||
-               g->code == AI_GOAL_ESCORT) &&
-              (g->x != u->x || g->y != u->y)) {
-            keep_mil = 1;
-            break;
-          }
-        }
-        /* raw 89011-89029 sets +0x314b = 0x46 outright — no garrison-quota
-         * accounting anywhere in the arm, so no quota gate here either. The
-         * colony's quota is still spent so the other quota readers see the
-         * garrison. (The rest of that DOS arm — local_ea, the chain-alone test
-         * and the foreign-settlement neighbour scan — is a different trigger
-         * and lives in ai_euro_20e6_border_park_arm.) bugs.md #512. */
-        if (!keep_mil && units_order_fortify(ctx->units, u->id)) {
-          ColonizeColony* cm = colonies_get_mut(ctx->colonies, cid);
-          if (cm && cm->garrison_quota > 0) {
-            cm->garrison_quota--;
-          }
-          return AI_EURO_ACT_RETURN; /* stay fortified — skip FOUND/explore yank */
-        }
-      }
-    }
-  }
-
-  /*
-   * No Artillery-specific siege hunt. DOS has no artillery target band: in
-   * FUN_521d_20e6 type 0x0b appears exactly once in the shared tile scorer
-   * (raw 88911-88913) as a score *modifier* — `type == 0x0b && no colony and
-   * no village on the tile -> score = 0` — and FUN_465b_0000 (raw 75417) is
-   * type-agnostic. The "Artillery siege hunt" arm that used to sit here cited
-   * only Colonization.pdf / king_ref and was deleted (bugs.md #513).
-   */
-
-  /*
-   * (Retired 2026-09-23, bugs.md #760.) An "Artillery fortify" arm sat here:
-   * idle Artillery on its own colony was FORTIFY-ed through the garrison quota.
-   * Manual-only citation (euro_unit_act §2d3 / Colonization.pdf / king_ref) and
-   * FUN_521d_20e6 has no `+0x3146 == 0x0b` branch in the act path at all
-   * (raw 88266-90445). DOS's own-colony arm is the type-agnostic LAB_5899
-   * (raw 88584-88612, ported in ai_euro_20e6_land_arms): attack > 1, type
-   * outside [0xd,0x12], not 4, not 8 → labor_shortage--, order_code = 0x47,
-   * stay. Artillery satisfies every one of those tests, so the DOS path already
-   * handles exactly the case this arm was covering. Same invention class as the
-   * already-deleted "Artillery siege hunt" above.
-   */
-
-  /*
-   * (Retired 2026-09-22, bugs.md #557.) A missionary CONTACT goal arm sat
-   * here (prio 3 goto of the nearest mission-less tribe, skipped when an
-   * adjacent tribe was alarmed). FUN_521d_20e6 has no `+0x3146 == 3` arm:
-   * DOS AI missionaries are hired/blessed in FUN_521d_5d04 and then take the
-   * generic land wander; a missionary that reaches a village is handled by
-   * FUN_4d56_4528's non-human switch (ai_contact_ai_missionary_village).
-   */
-
-  a->land_war_hunted = land_war_hunted;
-  a->peace_border_hunted = peace_border_hunted;
-  a->scout_explored = scout_explored;
-  a->treasure_routed = treasure_routed;
-  a->wagon_hauled = wagon_hauled;
-  a->u = u;
-  return AI_EURO_ACT_CONTINUE;
-}
 
 /*
  * Land stage 5: FUN_521d_0a60 goal-consumption tail — read the committed
  * primary-goal pick back, else run the founder/labor fallback scan.
  */
 COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_act_ctx* a) {
-  ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
-  const int nation_id = a->nation_id;
-  const int at_war_land = a->at_war_land;
-  int land_war_hunted = a->land_war_hunted;
-  int peace_border_hunted = a->peace_border_hunted;
-  int scout_explored = a->scout_explored;
-  int treasure_routed = a->treasure_routed;
-  const ColonizeUnitKind ukind = a->ukind;
-  int wagon_hauled = a->wagon_hauled;
 
   /*
    * FUN_521d_0a60 goal-consumption tail, structurally ported (see
@@ -1369,175 +1218,31 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_a
    * the byte with a 0x0c wander commit; the concrete AI_GOAL_* code has no
    * DOS byte at all and is re-read from the goal table at the goal tile.
    */
-  int goal_x = (a->goal_code >= 0) ? a->goal_x : u->goto_x;
-  int goal_y = (a->goal_code >= 0) ? a->goal_y : u->goto_y;
-  int goal_code = a->goal_code;
-  {
-    /*
-     * A "threatened-Stockade LABOR override" stood here until 2026-09-18: a
-     * war-threat proximity scan that re-aimed a Free Colonist at any own
-     * colony building a Stockade. It had no DOS counterpart — the goal table
-     * is written only by FUN_521d_0a60 (its 'A' mark block spends colony
-     * +0x1e garrison_quota / +0x8e labor_shortage, neither of which is a
-     * building-choice term) and the one AI construction picker is the
-     * FUN_5952_035e cascade, which selects a Stockade from the colony's own
-     * +0x1b flags, never from an adjacent enemy. Deleted with its helpers.
-     */
+  if (a->goal_code < 0) {
+    a->goal_x = u->goto_x;
+    a->goal_y = u->goto_y;
   }
+  /*
+   * A "threatened-Stockade LABOR override" stood here until 2026-09-18: a
+   * war-threat proximity scan that re-aimed a Free Colonist at any own
+   * colony building a Stockade. It had no DOS counterpart — the goal table
+   * is written only by FUN_521d_0a60 (its 'A' mark block spends colony
+   * +0x1e garrison_quota / +0x8e labor_shortage, neither of which is a
+   * building-choice term) and the one AI construction picker is the
+   * FUN_5952_035e cascade, which selects a Stockade from the colony's own
+   * +0x1b flags, never from an adjacent enemy. Deleted with its helpers.
+   */
 
   /*
-   * LABOR bind (5b66 case 0x0b unload/labor thin): idle colonist-capable land
-   * unit near own colony with inventory food_short/tools_short → COLONY/LABOR
-   * goto (overrides distant FOUND when adjacent/on-tile). Construction deepen:
-   * idle Pioneer/Hardy on a colony with Stockade/Warehouse/Lumber Mill in
-   * production stays for carpenter hammers (LABOR join) rather than leave —
-   * structural only.
-   * Food emergency deepen: food_short ≥ 4 extends search to MD≤8 for
-   * food-capable colonist/Pioneer/Expert Farmer (manual 2 food/colonist).
-   * Expert Farmer deepen: idle Expert Farmer (@JOB Farmer profession 0 or
-   * display-name Farmer) → food-short LABOR when profession exists. Cite:
-   * docs/building_production.md Farmer→Food; Colonization.pdf Skills Chart.
-   * Free Colonist food LABOR (non-Expert Farmer): idle Free Colonist /
-   * Colonist with food_short > 0 → MD≤8 toward hungry colony (same join as
-   * Expert Farmer path, without requiring Farmer profession). Cite: manual
-   * 2 food/colonist; 5cf6 food_short; euro_unit_act §2e. No invented rates.
-   * Tools-short deepen
-   * (peace Pioneer): tools_short > 0 extends MD≤8 toward tools-short colony
-   * so idle Pioneer walks in for case-7 tools delivery. Cite: 5cf6 shortage
-   * tallies + euro_unit_act §2d/§2e; no invented rates.
+   * (Deleted 2026-10-02, bugs.md #1034(b).) A "LABOR bind" stood here: idle
+   * colonist-capable land units were re-aimed at an own colony (MD 1, or 8 on
+   * food_short/tools_short) whose food < pop*2 / tools < 20 / pop < 3 or that
+   * was building a Stockade/Warehouse/Lumber Mill, with an AI_GOAL_LABOR
+   * primary upsert. Its cites were the manual / Skills Chart only; DOS writes
+   * goals only in FUN_521d_0a60 and does its labor routing in FUN_521d_20e6's
+   * type-0 labor arm. Gated off it moved no golden.
    */
-  {
-    const int is_pioneer =
-      ai_euro_name_is_pioneer(ukind);
-    const int is_farmer = ai_euro_unit_is_food_labor(ctx->units, u) &&
-                          (u->profession == COLONIZE_JOB_FARMER);
-    /* Master Carpenter — hammer bind for Stockade/Warehouse/Lumber Mill.
-     * @JOB row 0x0d (Master Carpenter); see raw 3326 comment above for the
-     * same profession value on the analogous production-side check. */
-    const int is_carpenter =
-      ukind == UNITS_KIND_COLONIST && u->profession == 0x0d;
-    const int is_free_colonist =
-      ukind == UNITS_KIND_COLONIST &&
-      (u->profession == 19 ||
-       (!is_pioneer && !is_farmer && !is_carpenter));
-    const int is_colonist_cap =
-      ukind != UNITS_KIND_SOLDIER && ukind != UNITS_KIND_DRAGOON &&
-      ukind != UNITS_KIND_SCOUT && !ai_euro_type_is_wagon_name(ukind) &&
-      (is_pioneer || is_farmer || is_carpenter ||
-       ukind == UNITS_KIND_COLONIST);
-    if (!land_war_hunted && !peace_border_hunted && !scout_explored && !treasure_routed &&
-        !wagon_hauled  &&
-        is_colonist_cap &&
-        ctx->colonies && !ai_euro_land_is_fortified(u)) {
-      AiEuroInventory* inv = ai_goals_inventory(nation_id);
-      const int short_labor =
-        inv && (inv->tools_short > 0 || inv->food_short > 0);
-      const int food_emergency = inv && inv->food_short >= 4;
-      /* Peace Pioneer tools-short: walk toward short colony (MD≤8), not only
-       * adjacent — feeds existing on-tile tools-delivery stand-in. */
-      const int tools_pioneer_bind =
-        !at_war_land && is_pioneer && inv && inv->tools_short > 0;
-      /* Expert Farmer / food labor: food_short → MD≤8 toward hungry colony. */
-      const int food_farmer_bind =
-        ai_euro_unit_is_food_labor(ctx->units, u) && inv && inv->food_short > 0 &&
-        (is_farmer || food_emergency);
-      /* Free Colonist (non-Farmer): food_short → MD≤8 hungry LABOR join. */
-      const int food_free_colonist_bind =
-        is_free_colonist && !is_farmer && ai_euro_unit_is_food_labor(ctx->units, u) &&
-        inv && inv->food_short > 0;
-      /*
-       * Master Carpenter construction LABOR: idle carpenter → Stockade/
-       * Warehouse/Lumber Mill incomplete (same want_construction_labor gate
-       * as Pioneer stay). Cite: docs/building_production.md Carpenter→Hammers;
-       * Skills Chart Master Carpenter; euro_unit_act §2e Stockade pattern.
-       */
-      const int carpenter_bind = is_carpenter && !is_pioneer;
-      /* (The MD≤3 "threatened Stockade" widening stood here; deleted with the
-       * goal-side override above — 2026-09-18.) */
-      const int max_dist =
-        (food_emergency && ai_euro_unit_is_food_labor(ctx->units, u)) ||
-            tools_pioneer_bind || food_farmer_bind || food_free_colonist_bind
-          ? 8
-          : 1;
-      int bx = -1;
-      int by = -1;
-      int best = 99;
-      int code = AI_GOAL_COLONY;
-      int b_construction = 0;
-      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-        const ColonizeColony* c = &ctx->colonies->colonies[i];
-        if (!c->active || c->nation_id != nation_id) {
-          continue;
-        }
-        const int dist = abs(c->x - u->x) + abs(c->y - u->y);
-        if (dist > max_dist) {
-          continue;
-        }
-        const int construction =
-          ai_euro_colony_wants_construction_labor(ctx->colonies, c);
-        /*
-         * On-tile Pioneer/Hardy: leave for tools-delivery stand-in unless
-         * Stockade/Warehouse/Lumber Mill is in production (stay/LABOR for
-         * hammers). Adjacent pioneers still LABOR-goto toward short colonies.
-         * Master Carpenter on-tile always stays when construction wants labor.
-         */
-        if (dist == 0 && is_pioneer && !construction) {
-          continue;
-        }
-        int need = construction || (c->population < 3);
-        if (short_labor && inv->tools_short > 0 &&
-            c->stock[COLONIZE_CARGO_TOOLS] < 20) {
-          need = 1;
-        }
-        if (short_labor && inv->food_short > 0 &&
-            c->stock[COLONIZE_CARGO_FOOD] < c->population * 2) {
-          need = 1;
-        }
-        /* Expert Farmer: food-short LABOR only (Skills Chart Food) — not tools. */
-        if (is_farmer && !is_pioneer) {
-          need = inv && inv->food_short > 0 &&
-                 c->stock[COLONIZE_CARGO_FOOD] < c->population * 2;
-        }
-        /* Free Colonist MD>1 food bind: hungry colony only (not distant tools). */
-        if (food_free_colonist_bind && dist > 1) {
-          need = inv && inv->food_short > 0 &&
-                 c->stock[COLONIZE_CARGO_FOOD] < c->population * 2;
-        }
-        /* Master Carpenter: construction LABOR only (hammers) — Stockade pattern. */
-        if (carpenter_bind) {
-          need = construction;
-        }
-        if (!need) {
-          continue;
-        }
-        if (bx < 0 || dist < best) {
-          best = dist;
-          bx = c->x;
-          by = c->y;
-          code = AI_GOAL_LABOR;
-          b_construction = construction;
-        }
-      }
-      if (bx >= 0) {
-        goal_x = bx;
-        goal_y = by;
-        goal_code = code;
-        ai_goals_upsert_primary(
-          nation_id, bx, by, code, (food_emergency || b_construction) ? 6 : 4
-        );
-      }
-    }
-  }
 
-  a->goal_code = goal_code;
-  a->goal_x = goal_x;
-  a->goal_y = goal_y;
-  a->land_war_hunted = land_war_hunted;
-  a->peace_border_hunted = peace_border_hunted;
-  a->scout_explored = scout_explored;
-  a->treasure_routed = treasure_routed;
-  a->wagon_hauled = wagon_hauled;
-  a->u = u;
   return AI_EURO_ACT_CONTINUE;
 }
 
@@ -1734,15 +1439,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
         break; /* single step for non-FOUND/MILITARY/CONTACT/hunt/scout */
       }
     }
-  } else {
-    /* Peace fortify fallback (case 0x0b): idle garrison on own colony. */
-    if (!at_war_land && ai_euro_is_military_name(ai_euro_unit_kind(ctx->units, u)) && ctx->colonies &&
-        !ai_euro_land_is_fortified(u)) {
-      const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
-      if (cid >= 0) {
-        (void)ai_euro_fortify_with_quota(ctx, nation_id, u, cid);
-      }
-    }
   }
 
   if (u->active && at_war_land && is_land_hunter && !ai_euro_land_is_fortified(u)) {
@@ -1879,9 +1575,6 @@ void ai_euro_act_land(struct ai_euro_act_ctx* a) {
     return;
   }
   if (ai_euro_act_land_roles(a) == AI_EURO_ACT_RETURN) {
-    return;
-  }
-  if (ai_euro_act_land_fortify(a) == AI_EURO_ACT_RETURN) {
     return;
   }
   if (ai_euro_act_land_goal_consume(a) == AI_EURO_ACT_RETURN) {

@@ -1026,113 +1026,6 @@ static int unit_land_adjacent_foe_prefer_non_veteran(void) {
  * handled by the type-agnostic LAB_5899 garrison arm (raw 88584-88612).
  */
 
-/*
- * Dragoon land hunt: prefer open colony over farther Stockade (MD slack ≤3).
- * Cite: king_ref Dragoon open bias; leave fortified ports to Artillery.
- */
-static int unit_dragoon_hunt_prefer_open(void) {
-  const int nation = 1;
-  const int foe_nat = 2;
-
-  ColonizeWorldMap map;
-  if (!fx_map_alloc(&map, 20, 20, 1, false)) {
-    return fail("dragoon-hunt alloc map");
-  }
-
-  ColonizeUnitPool units;
-  fx_units_init(&units);
-  units.type_count = 1;
-  snprintf(units.types[0].name, sizeof(units.types[0].name), "Dragoon");
-  units.types[0].movement = 4;
-  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-  units.types[0].attack = 6;
-  units.types[0].defense = 4;
-
-  ColonizeColonyPool colonies;
-  fx_colonies_init(&colonies);
-  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
-  colonies.building_type_count = 1;
-  /* Stockade off the eastbound path (8,8); open at (10,5) — prefer open within slack. */
-  ColonizeColony* stock_col = &colonies.colonies[0];
-  stock_col->id = 0;
-  stock_col->active = true;
-  stock_col->nation_id = foe_nat;
-  stock_col->x = 8;
-  stock_col->y = 8;
-  stock_col->population = 2;
-  stock_col->colonist_count = 2;
-  stock_col->has_building[0] = true;
-  ColonizeColony* open_col = &colonies.colonies[1];
-  open_col->id = 1;
-  open_col->active = true;
-  open_col->nation_id = foe_nat;
-  open_col->x = 10;
-  open_col->y = 5;
-  open_col->population = 1;
-  open_col->colonist_count = 1;
-  colonies.colony_count = 2;
-
-  const int own_id = units_spawn(&units, 0, 5, 5);
-  ColonizeUnit* drag = units_get(&units, own_id);
-  if (!drag) {
-    fx_map_free(&map);
-    return fail("dragoon-hunt spawn");
-  }
-  drag->nation_id = nation;
-  drag->orders = 0;
-  drag->moves = 4 * UNITS_MP_PER_TILE;
-
-  ColonizeCol1Save col1;
-  col1_save_init(&col1);
-  memset(col1.nation, 0, sizeof(col1.nation));
-  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
-  for (int i = 0; i < 4; ++i) {
-    col1.player[i].control = 0;
-    col1.player[i].diplomacy = 0;
-  }
-  col1.head.difficulty = 0;
-  col1.nation[nation].gold = 50;
-  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
-   * ladder / recruit / Artillery buys naturally inert (blank census). */
-  col1.stuff.ship_counts[nation] = 1;
-  col1.nation[foe_nat].gold = 50;
-  ai_diplo_declare_war(&col1, nation, foe_nat);
-
-  ai_goals_reset();
-  uint32_t turn = 45;
-  ColonizeTurnContext ctx;
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.turn_number = &turn;
-  ctx.units = &units;
-  ctx.colonies = &colonies;
-  ctx.map = &map;
-  ctx.col1 = &col1;
-  ctx.col1_ok = true;
-  ctx.rng = NULL;
-
-  ai_euro_dispatcher_turn(&ctx, nation);
-
-  drag = units_get(&units, own_id);
-  if (!drag || !drag->active) {
-    fx_map_free(&map);
-    return fail("dragoon-hunt despawned");
-  }
-  if (drag->goto_x != 10 || drag->goto_y != 5) {
-    fprintf(
-      stderr,
-      "unit_ai_euro_war: dragoon-hunt goto=(%d,%d) want open (10,5)\n",
-      drag->goto_x,
-      drag->goto_y
-    );
-    fx_map_free(&map);
-    return fail("Dragoon hunt should prefer open colony over Stockade");
-  }
-
-  fx_map_free(&map);
-  fprintf(stderr, "unit_ai_euro_war: Dragoon hunt prefer open ok\n");
-  return 0;
-}
-
 static const TestCase k_cases[] = {
     {"unit_indian_war_capital_hunt", unit_indian_war_capital_hunt},
     {"unit_sticky_contact_rehunt", unit_sticky_contact_rehunt},
@@ -1142,6 +1035,5 @@ static const TestCase k_cases[] = {
     {"unit_land_adjacent_foe_prefer_treasure", unit_land_adjacent_foe_prefer_treasure},
     {"unit_land_adjacent_foe_prefer_open_over_stockade", unit_land_adjacent_foe_prefer_open_over_stockade},
     {"unit_land_adjacent_foe_prefer_non_veteran", unit_land_adjacent_foe_prefer_non_veteran},
-    {"unit_dragoon_hunt_prefer_open", unit_dragoon_hunt_prefer_open},
 };
 TEST_MAIN(k_cases)
