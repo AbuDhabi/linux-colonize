@@ -1251,15 +1251,17 @@ int game_voyage_ship_count(const ColonizeGameState* game) {
 }
 
 /* FUN_48d3_0002 via 291f_0aee: shared by both crossing directions. */
-int game_voyage_turns_for(ColonizeGameState* game, int ships) {
+int game_voyage_turns_for(ColonizeGameState* game, int ships, int new_world_x) {
   const int hn = game->human_nation;
   const bool magellan = game->col1_ok && hn >= 0 && hn < 4 &&
     founding_fathers_nation_has(&game->col1, hn, FF_FERDINAND_MAGELLAN);
-  return europe_voyage_turns_roll(&game->move_rng, magellan, ships);
+  /* new_world_x = the map column the crossing starts from or returns to; DOS
+   * burns one extra draw below 3 (bugs.md #1019). */
+  return europe_voyage_turns_roll(&game->move_rng, magellan, ships, new_world_x);
 }
 
-int game_voyage_turns(ColonizeGameState* game) {
-  return game_voyage_turns_for(game, game_voyage_ship_count(game));
+int game_voyage_turns(ColonizeGameState* game, int new_world_x) {
+  return game_voyage_turns_for(game, game_voyage_ship_count(game), new_world_x);
 }
 
 void game_europe_sail_harbor(ColonizeGameState* game, int hidx) {
@@ -1279,7 +1281,9 @@ void game_europe_sail_harbor(ColonizeGameState* game, int hidx) {
       hs->type_index = resolved;
     }
   }
-  europe_set_sail_from_harbor(eu, hidx, game_voyage_turns(game), &game->units, game->human_nation);
+  europe_set_sail_from_harbor(
+    eu, hidx, game_voyage_turns(game, hs->exit_x), &game->units, game->human_nation
+  );
   /* bugs.md: sailing the LAST docked ship closes the European Status back
    * to the map — nothing is left to manage there. */
   if (eu->harbor_ships <= 0 && game->in_europe) {

@@ -305,6 +305,21 @@ void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int cargo)
   if (best) {
     tons = best->stock[cargo] > 100 ? 100 : best->stock[cargo];
     best->stock[cargo] -= tons;
+    /*
+     * DOS-LITERAL FUN_38fd_3dc8 raw 64293-64298: the tons dumped go straight
+     * into the colony's 32-bit bells accumulator at colony+0xc2
+     * (`[idx*0xca + 0x5e08]` low word, `0x5e0a` high) = rebel_dividend. No
+     * clamp there — the EOT tick's own decay/clamp handles it. bugs.md #1014.
+     */
+    if (ctx->col1_ok && ctx->col1 && ctx->col1->colony) {
+      for (uint16_t ci = 0; ci < ctx->col1->head.colony_count; ++ci) {
+        ColonizeCol1Colony* cc = &ctx->col1->colony[ci];
+        if ((int)cc->x == best->x && (int)cc->y == best->y) {
+          cc->rebel_dividend += (uint32_t)tons;
+          break;
+        }
+      }
+    }
   }
 
   /* reports_cargo_display_name returns reports.c's shared NAMES scratch, so

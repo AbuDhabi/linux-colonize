@@ -71,8 +71,23 @@ static int run_pair(const PairSpec* ps) {
     return 1;
   }
   const int human = br.human_nation;
-  /* DOS increments the turn before the nation passes run. */
-  europe_tick_market_prices_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&colonies), .col1=(ColonizeCol1Save*)(&a), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, human, (uint32_t)a.head.turn + 1u);
+  /*
+   * One EOT = one FUN_38fd_0058(0, -1) per nation, in nation index order, and
+   * none at all for a withdrawn (control 2) slot — the pool decay rides on
+   * nation 0's pass, so a pair with nation 0 withdrawn leaves the pool alone
+   * (bugs.md #1012). DOS increments the turn before the nation passes run.
+   */
+  const ColonizeWorld mw = {.colonies=(ColonizeColonyPool*)(&colonies), .col1=(ColonizeCol1Save*)(&a), .col1_ok=true, .europe=(EuropeScreen*)(&europe)};
+  for (int n = 0; n < 4; ++n) {
+    if (a.player[n].control == 2) {
+      continue;
+    }
+    if (n == human) {
+      europe_tick_market_prices_w(&mw, n, (uint32_t)a.head.turn + 1u);
+    } else {
+      europe_nation_tick_market_prices_w(&mw, n, (uint32_t)a.head.turn + 1u);
+    }
+  }
 
   int rc = 0;
   for (int c = 0; c < 16; ++c) {

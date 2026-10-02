@@ -659,6 +659,12 @@ static void europe_quote_settle(EuropeCargoQuote* q) {
   q->ask = q->bid + q->burden;
 }
 
+/* FUN_38fd_0058(0, cargo) over the screen's own track — the single-cargo
+ * step 1dfa/1d80 run after a trade. Defined with the market tick below. */
+static void europe_market_tick_single_cargo(
+  EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, int cargo
+);
+
 void europe_apply_trade_volume(
   EuropeScreen* eu,
   struct ColonizeCol1Save* col1,
@@ -734,35 +740,15 @@ void europe_apply_trade_volume(
     eu->trade_nr[cargo_type] = (int16_t)nr;
     return;
   }
-  /* 0058 single-cargo: temporary attrition then rise/fall thresholds. */
-  const int bid_before = q->bid; /* bugs.md #225: player-move price popups */
-  int attrition = q->attrition;
-  nr += attrition;
-  const int rise = q->rise;
-  const int fall = q->fall;
-  if (rise > 0 && nr <= -(rise * 100)) {
-    nr += rise * 100; /* shed regardless; bid step gated (see tick) */
-    if (q->bid < q->high) {
-      q->bid += 1;
-    }
-  }
-  if (fall > 0 && nr >= fall * 100) {
-    nr -= fall * 100;
-    if (q->bid > q->low) {
-      q->bid -= 1;
-    }
-  }
-  nr -= attrition;
-  /* Only clamp when @CARGO low/high were loaded (high > low). */
-  europe_quote_settle(q);
-  /* bugs.md #225: a player transaction that moved the price gets the same
-   * @PRICEUP/@PRICEDOWN dialog the EOT market tick shows — record the event;
-   * game_loop drains it into a popup right after the sell/buy. */
-  if (q->bid != bid_before && eu->price_event_count < EUROPE_CARGO_MAX) {
-    eu->price_event_cargo[eu->price_event_count] = cargo_type;
-    eu->price_event_dir[eu->price_event_count] = q->bid > bid_before ? 1 : -1;
-    eu->price_event_count++;
-  }
+  /*
+   * The 1dfa/1d80 tail: the pressure word takes the volume term above and
+   * then the whole of FUN_38fd_0058(0, cargo) runs — phase 1 (the ledger, and
+   * the DS:0x53ea pool decay when the bound record is nation 0), the phase
+   * 2/3 nudge for this cargo, and phase 4's threshold step with the attrition
+   * added and taken back out again (raw 58989-58992). bugs.md #1017; the
+   * @PRICEUP/@PRICEDOWN crumb for a player-move price change (bugs.md #225)
+   * is queued inside phase 4 like the EOT tick's.
+   */
   if (nr < -32768) {
     nr = -32768;
   }
@@ -770,6 +756,7 @@ void europe_apply_trade_volume(
     nr = 32767;
   }
   eu->trade_nr[cargo_type] = (int16_t)nr;
+  europe_market_tick_single_cargo(eu, col1, (int)eu->bound_nation, cargo_type);
 }
 
 void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int is_buy) {
@@ -786,6 +773,377 @@ void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int
 }
 
 /* ===================== Market price ticking & immigration pressure (europe_tick_market_prices_w .. europe_tick_immigration_pressure_w) ===================== */
+/*
+ * DOS FUN_38fd_0058 (viceroy_unpacked.c 58741-59006) — the whole market
+ * engine, run against whatever nation record DS:0x84fc is bound to
+ * (DS:0x9e12 = that nation's index). Its two parameters:
+ *   param_1 — 0 = the full tick (phases 1-4, the one 5e52 runs every EOT and
+ *             the one 1dfa/1d80 run after a single trade); non-0 = the
+ *             FUN_38fd_6024 campaign-seed tail, which runs phase 1 and then
+ *             only phase 2's clamp arm (bugs.md #1016).
+ *   param_2 — <0 = every cargo; otherwise the one cargo a single trade moved
+ *             (phase 1 still walks all 16, including the pool decay).
+ * DOS keeps FOUR independent price tracks — bid at record +0x4c, pressure
+ * word at +0x5c — and 5e52 ticks each nation's own (bugs.md #1011/#1012).
+ * This file therefore runs the phases over a `bid`/`nr` pair the caller
+ * points at either the human's EuropeScreen or a nation's col1 record; the
+ * @CARGO columns (low/high/rise/fall/attrition) are a global table and come
+ * from the screen either way.
+ */
+typedef struct EuropeMarketTick {
+  EuropeScreen* eu; /* @CARGO table + (when `events`) the popup crumb sink */
+  struct ColonizeCol1Save* col1;
+  int nation; /* DS:0x9e12 — the bound record */
+  int mode; /* param_1 */
+  int only_cargo; /* param_2 */
+  uint32_t turn; /* DS:0x538e */
+  int difficulty; /* DS:0x53a6 */
+  bool ai_bound; /* bound nation is AI- or Crown-controlled */
+  bool events; /* queue @PRICEUP/@PRICEDOWN crumbs for this track */
+  int* bid; /* EUROPE_CARGO_MAX slots, in/out */
+  int16_t* nr; /* EUROPE_CARGO_MAX slots, in/out */
+} EuropeMarketTick;
+
+static void europe_market_nr_add(const EuropeMarketTick* t, int cargo, int delta) {
+  int nr = (int)t->nr[cargo] + delta;
+  if (nr < -32768) {
+    nr = -32768;
+  }
+  if (nr > 32767) {
+    nr = 32767;
+  }
+  t->nr[cargo] = (int16_t)nr;
+}
+
+/*
+ * Phase 1 (raw 58789-58820) — ledger[c] = market_demand_pool[c] (signed) plus
+ * every nation's tons2[c], negative entries read as 0. Then, in the bound
+ * nation 0 pass of a full tick only, the stored pool sheds ledger>>7. The
+ * ledger handed to phases 2-3 is the PRE-decay sum: DOS subtracts from
+ * DS:0x53ea and leaves its stack copy alone.
+ */
+static void europe_market_phase1(const EuropeMarketTick* t, long ledger[16]) {
+  struct ColonizeCol1Save* col1 = t->col1;
+  for (int c = 0; c < 16; ++c) {
+    long s = 0;
+    if (col1) {
+      s = (long)(int16_t)col1->head.market_demand_pool[c];
+      for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+        const int32_t v = col1->nation[n].trade.tons2[c];
+        if (v > 0) {
+          s += (long)v;
+        }
+      }
+      if (t->mode == 0 && t->nation == 0) {
+        const long decayed = (long)(int16_t)col1->head.market_demand_pool[c] - (s >> 7);
+        col1->head.market_demand_pool[c] = (uint16_t)(int16_t)decayed;
+      }
+    }
+    ledger[c] = s;
+  }
+}
+
+/*
+ * Phase 2 (raw 58828-58874) — cargos 9..12 off their own ledger share.
+ * ratio = (Σledger[9..12] · 3) / ledger[c]; a full tick nudges the pressure
+ * word by sign(bid − ratio)·((rise+fall)/2)·100, the 6024 tail writes the
+ * ratio straight into the bid, clamped into [low, high].
+ */
+static void europe_market_phase2(const EuropeMarketTick* t, const long ledger[16]) {
+  long sum = ledger[9] + ledger[10] + ledger[11] + ledger[12];
+  if (sum <= 0) {
+    sum = 1;
+  }
+  for (int c = 9; c <= 12; ++c) {
+    if (c >= t->eu->cargo_count || c >= EUROPE_CARGO_MAX) {
+      break;
+    }
+    if (t->only_cargo >= 0 && c != t->only_cargo) {
+      continue;
+    }
+    long L = ledger[c];
+    if (L <= 0) {
+      L = 1;
+    }
+    const long ratio = (sum * 3) / L;
+    const EuropeCargoQuote* q = &t->eu->cargo[c];
+    if (t->mode == 0) {
+      int sign = 0;
+      if (t->bid[c] > (int)ratio) {
+        sign = 1;
+      } else if (t->bid[c] < (int)ratio) {
+        sign = -1;
+      }
+      europe_market_nr_add(t, c, sign * ((q->rise + q->fall) / 2) * 100);
+    } else {
+      long v = ratio;
+      if (v < (long)q->low) {
+        v = q->low;
+      }
+      if (v > (long)q->high) {
+        v = q->high;
+      }
+      t->bid[c] = (int)v;
+    }
+  }
+}
+
+/*
+ * Phase 3 (raw 58876-58925, full tick only) — cargos 1..4. The denominator
+ * pool is ledger[4]/2 + ledger[1] + ledger[2] + ledger[3] (the loop's own
+ * four cargos, with cargo 4 halved exactly as its in-loop L is — DOS reads
+ * the stack ledger slots of cargo 4, not cargo 0; bugs.md #1022), and the
+ * nudge is ((rise+fall)/2)·sign with no ×100. Cargo 4 also takes the two
+ * year biases (+1 before 1700, +1 again before 1600).
+ */
+static void europe_market_phase3(const EuropeMarketTick* t, const long ledger[16]) {
+  long sum = (ledger[4] >> 1) + ledger[1] + ledger[2] + ledger[3];
+  if (sum <= 0) {
+    sum = 1;
+  }
+  const int year = t->col1 ? (int)t->col1->head.year : 0;
+  for (int c = 1; c <= 4; ++c) {
+    if (c >= t->eu->cargo_count || c >= EUROPE_CARGO_MAX) {
+      break;
+    }
+    if (t->only_cargo >= 0 && c != t->only_cargo) {
+      continue;
+    }
+    long L = ledger[c];
+    if (c == 4) {
+      L >>= 1;
+    }
+    if (L <= 0) {
+      L = 1;
+    }
+    long ratio = (sum * 3) / L;
+    if (c == 4) {
+      if (year < 0x6a4) {
+        ratio += 1; /* < 1700 */
+      }
+      if (year < 0x640) {
+        ratio += 1; /* < 1600 */
+      }
+    }
+    const EuropeCargoQuote* q = &t->eu->cargo[c];
+    int sign = 0;
+    if (t->bid[c] > (int)ratio) {
+      sign = 1;
+    } else if (t->bid[c] < (int)ratio) {
+      sign = -1;
+    }
+    europe_market_nr_add(t, c, ((q->rise + q->fall) / 2) * sign);
+  }
+}
+
+/*
+ * Phase 4 (raw 58926-59002, full tick only) — attrition, then the ±1 bid step
+ * at the ±rise·100 / fall·100 thresholds, then the two AI-only price ceilings.
+ * The pressure word always sheds the threshold even when the bid is capped
+ * (golden_market_prices01 caught the other way round on Rum at 20).
+ * Returns the last cargo that rose / fell through `out_rise` / `out_fall` for
+ * the status line.
+ */
+static void europe_market_phase4(const EuropeMarketTick* t, int* out_rise, int* out_fall) {
+  EuropeScreen* eu = t->eu;
+  for (int c = 0; c < eu->cargo_count && c < EUROPE_CARGO_MAX; ++c) {
+    if (t->only_cargo >= 0 && c != t->only_cargo) {
+      continue;
+    }
+    const EuropeCargoQuote* q = &eu->cargo[c];
+    /*
+     * raw 58932-58941: for an AI/Crown nation the top two cargos get a
+     * tighter rise cap that relaxes as the game runs on, and a bid already
+     * above it is pushed back down through the pressure word.
+     */
+    int cap = q->high;
+    if (c > 13 && t->ai_bound) {
+      cap = q->high + (t->difficulty - 4) * 2 + ((int)t->turn - 600) / 100;
+      if (t->only_cargo < 0 && cap < t->bid[c]) {
+        europe_market_nr_add(t, c, q->fall * 100);
+      }
+    }
+    /* DOS: `0x9e12 == 3 && (turn & 1)` — the Netherlands' market recovers
+     * twice as fast on odd turns (turn already incremented for this EOT). */
+    int attrition = q->attrition;
+    if (t->nation == 3 && (t->turn & 1u) != 0u) {
+      attrition <<= 1;
+    }
+    europe_market_nr_add(t, c, attrition);
+    int nr = (int)t->nr[c];
+    const int rise = q->rise;
+    const int fall = q->fall;
+    if (rise > 0 && nr <= -(rise * 100)) {
+      nr += rise * 100;
+      if (t->bid[c] < cap) {
+        t->bid[c] += 1;
+        if (out_rise) {
+          *out_rise = c;
+        }
+        if (t->events && eu->price_event_count < EUROPE_CARGO_MAX) {
+          eu->price_event_cargo[eu->price_event_count] = c;
+          eu->price_event_dir[eu->price_event_count] = 1;
+          eu->price_event_count++;
+        }
+      }
+    }
+    if (fall > 0 && nr >= fall * 100) {
+      nr -= fall * 100;
+      if (t->bid[c] > q->low) {
+        t->bid[c] -= 1;
+        if (out_fall) {
+          *out_fall = c;
+        }
+        if (t->events && eu->price_event_count < EUROPE_CARGO_MAX) {
+          eu->price_event_cargo[eu->price_event_count] = c;
+          eu->price_event_dir[eu->price_event_count] = -1;
+          eu->price_event_count++;
+        }
+      }
+    }
+    /* raw 58989-58992: a single-cargo call takes the attrition back out. */
+    if (t->only_cargo >= 0) {
+      nr -= attrition;
+    }
+    if (nr < -32768) {
+      nr = -32768;
+    }
+    if (nr > 32767) {
+      nr = 32767;
+    }
+    t->nr[c] = (int16_t)nr;
+    /*
+     * raw 58994-58999: an AI/Crown nation's bid for cargos 8/14/15 is capped
+     * at ((4 − difficulty)·3)/2 + 3 — 9 on Discoverer down to 3 on Viceroy.
+     * This is a ceiling, not a floor: DOS keeps min(bid, cap).
+     */
+    if (t->ai_bound && (c == 8 || c == 14 || c == 15)) {
+      const int ceiling = ((4 - t->difficulty) * 3) / 2 + 3;
+      if (t->bid[c] > ceiling) {
+        t->bid[c] = ceiling;
+      }
+    }
+  }
+}
+
+/* FUN_38fd_0058(mode, only_cargo) over one nation's track. */
+static void europe_market_tick_core(const EuropeMarketTick* t, int* out_rise, int* out_fall) {
+  long ledger[16];
+  europe_market_phase1(t, ledger);
+  europe_market_phase2(t, ledger);
+  if (t->mode != 0) {
+    return;
+  }
+  europe_market_phase3(t, ledger);
+  europe_market_phase4(t, out_rise, out_fall);
+}
+
+/* Fill the shared parts of a tick descriptor for `nation`. */
+static EuropeMarketTick europe_market_tick_for(
+  EuropeScreen* eu,
+  struct ColonizeCol1Save* col1,
+  int nation,
+  int mode,
+  int only_cargo,
+  uint32_t turn
+) {
+  EuropeMarketTick t;
+  memset(&t, 0, sizeof(t));
+  t.eu = eu;
+  t.col1 = col1;
+  t.nation = nation;
+  t.mode = mode;
+  t.only_cargo = only_cargo;
+  t.turn = turn;
+  t.difficulty = eu->difficulty;
+  if (col1) {
+    t.difficulty = (int)col1->head.difficulty;
+    /* raw 58932/58994: `3 < 0x9e12 || control != 0` — the AI/Crown arms. */
+    t.ai_bound = nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT ||
+                 col1->player[nation].control != 0;
+  }
+  return t;
+}
+
+/* Load / store a nation record's own price track (bid +0x4c, pressure +0x5c). */
+static void europe_market_track_load(
+  const struct ColonizeCol1Save* col1, int nation, int cargo_count, int* bid, int16_t* nr
+) {
+  for (int c = 0; c < cargo_count && c < EUROPE_CARGO_MAX; ++c) {
+    bid[c] = (c < (int)COLONIZE_COL1_CARGO_TYPES)
+               ? (int)col1->nation[nation].trade.euro_price[c]
+               : 0;
+    nr[c] = (c < (int)COLONIZE_COL1_CARGO_TYPES) ? col1->nation[nation].trade.nr[c] : 0;
+  }
+}
+
+static void europe_market_track_store(
+  struct ColonizeCol1Save* col1, int nation, int cargo_count, const int* bid, const int16_t* nr
+) {
+  for (int c = 0; c < cargo_count && c < EUROPE_CARGO_MAX &&
+                  c < (int)COLONIZE_COL1_CARGO_TYPES;
+       ++c) {
+    int v = bid[c];
+    if (v < 0) {
+      v = 0;
+    }
+    if (v > 255) {
+      v = 255;
+    }
+    col1->nation[nation].trade.euro_price[c] = (uint8_t)v;
+    col1->nation[nation].trade.nr[c] = nr[c];
+  }
+}
+
+void europe_nation_tick_market_prices_w(const ColonizeWorld* w, int nation, uint32_t turn) {
+  EuropeScreen* eu = w->europe;
+  struct ColonizeCol1Save* col1 = w->col1_ok ? w->col1 : NULL;
+  if (!eu || !col1 || nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return;
+  }
+  int bid[EUROPE_CARGO_MAX];
+  int16_t nr[EUROPE_CARGO_MAX];
+  memset(bid, 0, sizeof(bid));
+  memset(nr, 0, sizeof(nr));
+  europe_market_track_load(col1, nation, eu->cargo_count, bid, nr);
+  EuropeMarketTick t = europe_market_tick_for(eu, col1, nation, 0, -1, turn);
+  t.bid = bid;
+  t.nr = nr;
+  /* Silent: every @PRICEUP/@PRICEDOWN dialog in 0058 is gated on the bound
+   * nation being human (raw 58958/58977). */
+  t.events = false;
+  europe_market_tick_core(&t, NULL, NULL);
+  europe_market_track_store(col1, nation, eu->cargo_count, bid, nr);
+}
+
+static void europe_market_tick_single_cargo(
+  EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, int cargo
+) {
+  if (!eu || cargo < 0 || cargo >= eu->cargo_count || cargo >= EUROPE_CARGO_MAX) {
+    return;
+  }
+  int bid[EUROPE_CARGO_MAX];
+  int16_t nr[EUROPE_CARGO_MAX];
+  memset(bid, 0, sizeof(bid));
+  memset(nr, 0, sizeof(nr));
+  for (int c = 0; c < eu->cargo_count && c < EUROPE_CARGO_MAX; ++c) {
+    bid[c] = eu->cargo[c].bid;
+    nr[c] = eu->trade_nr[c];
+  }
+  EuropeMarketTick t = europe_market_tick_for(
+    eu, col1, nation, 0, cargo, col1 ? (uint32_t)col1->head.turn : 0u
+  );
+  t.bid = bid;
+  t.nr = nr;
+  t.events = true;
+  europe_market_tick_core(&t, NULL, NULL);
+  for (int c = 0; c < eu->cargo_count && c < EUROPE_CARGO_MAX; ++c) {
+    eu->cargo[c].bid = bid[c];
+    eu->trade_nr[c] = nr[c];
+    europe_quote_settle(&eu->cargo[c]);
+  }
+}
+
 void europe_tick_market_prices_w(
   const ColonizeWorld* w,
   int human_nation,
@@ -793,26 +1151,17 @@ void europe_tick_market_prices_w(
 ) {
   EuropeScreen* eu = w->europe;
   struct ColonizeCol1Save* col1 = w->col1;
-  struct ColonizeColonyPool* colonies = w->colonies;
 
   /*
-   * FUN_38fd_0058(0, 0xffff) — the human's 5e52 phase-3 call, with nation 0's
-   * pass folded in. Validated 2026-08-28 against two real-DOS turn pairs
-   * (golden_market_prices01; python replica iterated until both matched):
-   *   phase 1 — ledger[g] = price_group[g] (signed) + Σ_n max(0, tons2[n][g])
-   *             (nation +0xfc, NOT tons); in nation 0's pass only, and only
-   *             while nation 0 is not withdrawn: price_group[g] -= ledger>>7.
-   *             The colony-stock approximation that used to sit here is gone.
-   *   phase 2 — cargos 9..12: sign(bid − 3·Σ/L) · (rise+fall)/2 · 100
-   *   phase 3 — cargos 1..4: sign · (rise+fall)/2 (no ×100; fur year bias)
-   *   phase 4 — nr += attrition (Dutch ×2 on odd post-increment turns),
-   *             rise/fall ±1 bid within [low, high]; @PRICEUP/@PRICEDOWN.
-   * Column roles (NAMES.TXT @CARGO): rise=c6, fall=c7, attrition=c8 — the
-   * same fields europe_load_tables already fills. AI nations' own records
-   * are not ticked here (their bids only feed ai_euro purchases).
-   * Cite: viceroy_unpacked.c 58741–59005; turn/europe_nation_eot.md.
+   * The human's own 5e52 phase-3 call, FUN_38fd_0058(0, 0xffff). Validated
+   * 2026-08-28 against two real-DOS turn pairs (golden_market_prices01;
+   * python replica iterated until both matched). The other three nations tick
+   * through europe_nation_tick_market_prices_w (bugs.md #1012); DOS runs each
+   * nation's call inside its own end-of-turn 5e52, and the pool decay belongs
+   * to nation 0's pass, so the caller walks the nations in index order.
+   * Column roles (NAMES.TXT @CARGO): rise=c6, fall=c7, attrition=c8.
+   * Cite: viceroy_unpacked.c 58741-59006; turn/europe_nation_eot.md.
    */
-  (void)colonies;
   if (!eu) {
     return;
   }
@@ -825,164 +1174,25 @@ void europe_tick_market_prices_w(
                       col1->player[eu->bound_nation].control == 0;
   }
 
-  /* Phase 1 — pool decay + ledger. */
-  long ledger[16];
-  if (col1) {
-    const bool nation0_active = col1->player[0].control != 2;
-    for (int c = 0; c < 16; ++c) {
-      long s = (long)(int16_t)col1->head.market_demand_pool[c];
-      for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
-        const int32_t t = col1->nation[n].trade.tons2[c];
-        if (t > 0) {
-          s += (long)t;
-        }
-      }
-      if (nation0_active) {
-        /* Nation 0 decays in its own pass; a later human pass sees the
-         * decayed pool, nation 0 itself (as human) the pre-decay copy. */
-        const long decayed = (long)(int16_t)col1->head.market_demand_pool[c] - (s >> 7);
-        col1->head.market_demand_pool[c] = (uint16_t)(int16_t)decayed;
-        if (human_nation != 0) {
-          s -= (s >> 7);
-        }
-      }
-      ledger[c] = s;
-    }
+  int bid[EUROPE_CARGO_MAX];
+  int16_t nr[EUROPE_CARGO_MAX];
+  memset(bid, 0, sizeof(bid));
+  memset(nr, 0, sizeof(nr));
+  for (int c = 0; c < eu->cargo_count && c < EUROPE_CARGO_MAX; ++c) {
+    bid[c] = eu->cargo[c].bid;
+    nr[c] = eu->trade_nr[c];
   }
-
-  /* Phases 2–3. */
-  if (col1) {
-
-    /* Phase 2 — Rum..Coats (9..12): pressure += sign * mid * 100. */
-    {
-      long sum = ledger[9] + ledger[10] + ledger[11] + ledger[12];
-      if (sum <= 0) {
-        sum = 1;
-      }
-      for (int c = 9; c <= 12; ++c) {
-        if (c >= eu->cargo_count) {
-          break;
-        }
-        long L = ledger[c];
-        if (L <= 0) {
-          L = 1;
-        }
-        const long ratio = (sum * 3) / L;
-        const int bid = eu->cargo[c].bid;
-        int sign = 0;
-        if (bid > (int)ratio) {
-          sign = 1;
-        } else if (bid < (int)ratio) {
-          sign = -1;
-        }
-        const int mid = (eu->cargo[c].rise + eu->cargo[c].fall) / 2;
-        const int delta = sign * mid * 100;
-        int nr = (int)eu->trade_nr[c] + delta;
-        if (nr < -32768) {
-          nr = -32768;
-        }
-        if (nr > 32767) {
-          nr = 32767;
-        }
-        eu->trade_nr[c] = (int16_t)nr;
-      }
-    }
-
-    /* Phase 3 — Sugar..Furs (1..4): pressure += mid * sign (no ×100). */
-    {
-      long half0 = ledger[0] / 2;
-      long sum = half0 + ledger[1] + ledger[2] + ledger[3];
-      if (sum <= 0) {
-        sum = 1;
-      }
-      const int year = (int)col1->head.year;
-      for (int c = 1; c <= 4; ++c) {
-        if (c >= eu->cargo_count) {
-          break;
-        }
-        long L = ledger[c];
-        if (c == 4) {
-          L /= 2;
-        }
-        if (L <= 0) {
-          L = 1;
-        }
-        long ratio = (sum * 3) / L;
-        if (c == 4) {
-          if (year < 0x6a4) {
-            ratio += 1; /* < 1700 */
-          }
-          if (year < 0x640) {
-            ratio += 1; /* < 1600 */
-          }
-        }
-        const int bid = eu->cargo[c].bid;
-        int sign = 0;
-        if (bid > (int)ratio) {
-          sign = 1;
-        } else if (bid < (int)ratio) {
-          sign = -1;
-        }
-        const int mid = (eu->cargo[c].rise + eu->cargo[c].fall) / 2;
-        const int delta = mid * sign;
-        int nr = (int)eu->trade_nr[c] + delta;
-        if (nr < -32768) {
-          nr = -32768;
-        }
-        if (nr > 32767) {
-          nr = 32767;
-        }
-        eu->trade_nr[c] = (int16_t)nr;
-      }
-    }
-  }
-
+  EuropeMarketTick t = europe_market_tick_for(eu, col1, human_nation, 0, -1, turn);
+  t.bid = bid;
+  t.nr = nr;
+  t.events = true;
   int last_rise = -1;
   int last_fall = -1;
-  /* DOS: `0x9e12 == 3 && (turn & 1)` — the Netherlands' market recovers twice
-   * as fast on odd turns (turn already incremented for this EOT). */
-  const bool dutch_double = (human_nation == 3) && ((turn & 1u) != 0u);
+  europe_market_tick_core(&t, &last_rise, &last_fall);
   for (int c = 0; c < eu->cargo_count && c < EUROPE_CARGO_MAX; ++c) {
-    EuropeCargoQuote* q = &eu->cargo[c];
-    int nr = (int)eu->trade_nr[c] + (dutch_double ? q->attrition * 2 : q->attrition);
-    const int rise = q->rise;
-    const int fall = q->fall;
-    /* DOS: the pressure word always sheds rise*100 / fall*100 at the
-     * threshold; only the ±1 bid step is gated by [low, high]. Gating the
-     * shed on the bid too (the old code) let a capped cargo's pressure run
-     * away — golden_market_prices01 caught it on Rum at the 20 cap. */
-    if (rise > 0 && nr <= -(rise * 100)) {
-      nr += rise * 100;
-      if (q->bid < q->high) {
-        q->bid += 1;
-        last_rise = c;
-        if (eu->price_event_count < EUROPE_CARGO_MAX) {
-          eu->price_event_cargo[eu->price_event_count] = c;
-          eu->price_event_dir[eu->price_event_count] = 1;
-          eu->price_event_count++;
-        }
-      }
-    }
-    if (fall > 0 && nr >= fall * 100) {
-      nr -= fall * 100;
-      if (q->bid > q->low) {
-        q->bid -= 1;
-        last_fall = c;
-        if (eu->price_event_count < EUROPE_CARGO_MAX) {
-          eu->price_event_cargo[eu->price_event_count] = c;
-          eu->price_event_dir[eu->price_event_count] = -1;
-          eu->price_event_count++;
-        }
-      }
-    }
-    europe_quote_settle(q);
-    if (nr < -32768) {
-      nr = -32768;
-    }
-    if (nr > 32767) {
-      nr = 32767;
-    }
-    eu->trade_nr[c] = (int16_t)nr;
+    eu->cargo[c].bid = bid[c];
+    eu->trade_nr[c] = nr[c];
+    europe_quote_settle(&eu->cargo[c]);
   }
   /*
    * Phase 4 dialog crumbs 0xfa8/0xfb0 -> price_event_cargo[]/dir[] (queued
@@ -1015,6 +1225,46 @@ void europe_tick_market_prices_w(
     popup_msg_strip_markup(eu->status);
   } else if (last_rise >= 0 || last_fall >= 0) {
     eu->status[0] = '\0';
+  }
+}
+
+/*
+ * The FUN_38fd_6024 campaign tail (raw 68655-68660): bind each nation and run
+ * FUN_38fd_0058(1, -1), which rewrites cargos 9..12 from the (still empty)
+ * ledger instead of the roll that just landed. bugs.md #1016.
+ */
+void europe_market_seed_tail_w(const ColonizeWorld* w, int nation, uint32_t turn) {
+  EuropeScreen* eu = w->europe;
+  struct ColonizeCol1Save* col1 = w->col1_ok ? w->col1 : NULL;
+  if (!eu || nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return;
+  }
+  int bid[EUROPE_CARGO_MAX];
+  int16_t nr[EUROPE_CARGO_MAX];
+  memset(bid, 0, sizeof(bid));
+  memset(nr, 0, sizeof(nr));
+  const bool on_screen = (eu->bound_nation == (uint8_t)nation);
+  if (on_screen || !col1) {
+    for (int c = 0; c < eu->cargo_count && c < EUROPE_CARGO_MAX; ++c) {
+      bid[c] = eu->cargo[c].bid;
+      nr[c] = eu->trade_nr[c];
+    }
+  } else {
+    europe_market_track_load(col1, nation, eu->cargo_count, bid, nr);
+  }
+  EuropeMarketTick t = europe_market_tick_for(eu, col1, nation, 1, -1, turn);
+  t.bid = bid;
+  t.nr = nr;
+  europe_market_tick_core(&t, NULL, NULL);
+  if (col1) {
+    europe_market_track_store(col1, nation, eu->cargo_count, bid, nr);
+  }
+  if (on_screen) {
+    for (int c = 0; c < eu->cargo_count && c < EUROPE_CARGO_MAX; ++c) {
+      eu->cargo[c].bid = bid[c];
+      eu->trade_nr[c] = nr[c];
+      europe_quote_settle(&eu->cargo[c]);
+    }
   }
 }
 

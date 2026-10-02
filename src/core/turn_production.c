@@ -347,11 +347,12 @@ void turn_emit_built_chrome(
  *           when the colony holds no tools at all
  *         }
  *       else colony+0xb6 = local_e;   (AI is handed the tools — ported in
- *                                       colonies_try_complete_unit_construction,
- *                                       the ONLY site this arm applies to:
- *                                       that resolver's project is always a
- *                                       unit-type project, never a real
- *                                       building. bugs.md #755.)
+ *                                       colonies_try_complete_unit_construction
+ *                                       for unit projects (bugs.md #755) and in
+ *                                       colonies_try_complete_building_ex for
+ *                                       real buildings — FUN_281f_0ac4 resolves
+ *                                       both kinds, so the arm is generic.
+ *                                       bugs.md #1026.)
  *     }
  *
  * No latch: DOS re-runs this every EOT, so the notice repeats each turn the
@@ -450,6 +451,65 @@ static void turn_emit_needtools_notice(
  */
 uint8_t turn_prof_census[COLONIZE_COL1_NATION_COUNT][32];
 
+/*
+ * DOS-LITERAL FUN_364b_033a (raw 56977-57012), reached from Phase Q's
+ * `thunk_FUN_291f_0988` whenever a colony's +0x97 depletion counter wraps
+ * past 50. DOS does not remember which plot banked the units: it rescans the
+ * colony's plots and suppresses the deposit on EVERY tile whose worker's
+ * SPECIALTY (`FUN_281f_0c0e`, i.e. the profession byte, NOT the job he is
+ * working) is Ore Miner (6) / Silver Miner (7) and whose resource
+ * (`FUN_137f_04b0` = map_resource_type_for_yield) is Minerals (6) or Silver
+ * Deposit (12), raising one @DEPLETION (DS:0xd75) per tile. A colony working
+ * two mines loses both on the same wrap; the port used to suppress only the
+ * single tile whose depletion unit happened to cross the threshold, keyed by
+ * the worked job instead of the specialty (bugs.md #1024).
+ */
+static int turn_deplete_colony_mines(
+  const ColonizeColony* colony,
+  const ColonizeWorldMap* map,
+  EuropeScreen* europe,
+  int human_nation,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+) {
+  if (!colony || !map) {
+    return 0;
+  }
+  int hits = 0;
+  ColonizeWorkedTileIter it;
+  ColonizeWorkedTile w;
+  colony_yield_worked_tiles_begin(&it, colony);
+  while (colony_yield_worked_tiles_next(&it, &w)) {
+    const ColonizeColonist* c = w.colonist;
+    if (!c || (c->profession != COLONIZE_PROF_ORE_MINER &&
+               c->profession != COLONIZE_PROF_SILVER_MINER)) {
+      continue;
+    }
+    const int res = map_resource_type_for_yield(map, w.x, w.y);
+    if (res != 6 && res != 12) {
+      continue;
+    }
+    /* Production API takes a const map; deplete mutates layer2. */
+    map_occupancy_set_layer2(
+      (ColonizeWorldMap*)(uintptr_t)map, w.x, w.y, MAP_LAYER2_SUPPRESS, true
+    );
+    hits++;
+    if (europe && colony->nation_id == human_nation) {
+      const char* cname = colony->name[0] ? colony->name : "";
+      snprintf(europe->status, sizeof(europe->status), "Mine depleted near %s.", cname);
+      if (ai_popups) {
+        char body[AI_POPUP_BODY_LEN];
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = cname;
+        popup_msg_fill(messages, "DEPLETION", &tok, europe->status, body, sizeof(body));
+        ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+      }
+    }
+  }
+  return hits;
+}
+
 /* ===================== Per-colony production tick (turn_produce_one_colony) ===================== */
 void turn_produce_one_colony(
   ColonizeColonyPool* pool,
@@ -507,8 +567,6 @@ void turn_produce_one_colony(
   int field_food = 0;
   /* DOS 0xa896: ore/silver deposit "depletion units" tallied in FUN_15eb_18ec,
    * rolled down in the FUN_364b_0688 epilogue (see bottom of this function). */
-  int depl_tx[2 * COLONIZE_COLONY_FIELD_TILES_MAX];
-  int depl_ty[2 * COLONIZE_COLONY_FIELD_TILES_MAX];
   int depl_n = 0;
   int field_lumber = 0;
   int field_ore = 0;
@@ -608,11 +666,7 @@ void turn_produce_one_colony(
         } else if (res == 12 && cargo == COLONIZE_CARGO_SILVER) {
           units = 1;
         }
-        while (units-- > 0 && depl_n < (int)(2 * COLONIZE_COLONY_FIELD_TILES_MAX)) {
-          depl_tx[depl_n] = colony->x + dx;
-          depl_ty[depl_n] = colony->y + dy;
-          depl_n++;
-        }
+        depl_n += units;
       }
       if (yld <= 0) {
         continue;
@@ -866,6 +920,96 @@ void turn_produce_one_colony(
           horse_has_stable ? "Stable bred %d horses." : "Horses bred: %d.",
           breed.bred
         );
+      }
+    }
+  }
+
+  /*
+   * DOS-LITERAL FUN_364b_0688 Phase B lumber debit (raw 57238-57253; the
+   * demand word comes from `FUN_15eb_0b96(5, DS:0x8de8)`, raw 12684): the
+   * Carpenter's lumber is spent inside the Phase B cargo loop, i.e. BEFORE
+   * the Custom House arm of that same loop reads the lumber stock, while
+   * the hammer bank itself is only added at Phase L (raw 57730). Clipping
+   * and debiting here, and banking below, keeps both orders DOS-exact
+   * (bugs.md #1023).
+   */
+  const int lumber_before_hammers = colony->stock[COLONIZE_CARGO_LUMBER];
+  int hammers_paid = hammers_phase_a > 0 ? hammers_phase_a : 0;
+  if (hammers_paid > lumber_before_hammers) {
+    hammers_paid = lumber_before_hammers;
+  }
+  if (hammers_paid > 0) {
+    colony->stock[COLONIZE_CARGO_LUMBER] -= hammers_paid;
+    if (delta) {
+      delta->goods[COLONIZE_CARGO_LUMBER] -= hammers_paid;
+    }
+  }
+
+  /*
+   * Custom House auto-sell — DOS runs it INSIDE the Phase B cargo loop
+   * (raw 57257-57330), so it sits here, after every composed cargo has been
+   * applied (fields, craft, the lumber debit above, food eaten, horses bred)
+   * and BEFORE Phase I's birth test (raw 57615) and Phase L's construction
+   * tools spend (raw 57748-57774). It used to run at the very end of the
+   * tick, which let a colony with Food checked in the checklist bank past
+   * 200 and birth a colonist DOS would never have given it (the house sells
+   * food down to 50 first), and let a Tools-checked colony spend tools DOS
+   * had already shipped (bugs.md #1023). Needs europe bids; col1 optional
+   * (WoI tax skip + nation gold).
+   */
+  if (europe) {
+    EuropeCustomHouseSale ch_sales[COLONIZE_CARGO_COUNT];
+    int ch_sale_count = 0;
+    const int ch_total = europe_custom_house_autosell_ex_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(pool), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL), .europe=(EuropeScreen*)(europe)}, colony, human_nation, ch_sales, COLONIZE_CARGO_COUNT, &ch_sale_count);
+    for (int si = 0; si < ch_sale_count; ++si) {
+      if (ch_sales[si].cargo >= 0 && ch_sales[si].cargo < COLONIZE_CARGO_COUNT) {
+        ch_sold[ch_sales[si].cargo] += ch_sales[si].amount;
+      }
+    }
+    /*
+     * FUN_364b_0688 assembles ONE line PER CARGO into DS:0x2d54 and arms it
+     * with FUN_1009_0092 — that is the map's top-strip STATUS LINE, not a
+     * dialog (bugs.md #369). Each line replaces the strip's normal content for
+     * its dwell and the next one follows; nothing has to be clicked away.
+     *
+     * Wording is DOS's own: colony name, LABELS @MISC 47 "sells", amount,
+     * cargo name, @MISC 48 "for", gross, DS:0xd88 ".", then (peacetime only)
+     * tax rate, @CMESSAGE 0x11 "% Tax:", tax paid, @CMESSAGE 0x12 ". Net:",
+     * net. The 0088 calls between fields just trim the trailing space every
+     * append leaves, so the punctuation closes up.
+     */
+    if (ch_total > 0 && colony->nation_id == human_nation && ai_popups) {
+      for (int si = 0; si < ch_sale_count; ++si) {
+        const EuropeCustomHouseSale* sale = &ch_sales[si];
+        const char* cargo_name =
+          (sale->cargo >= 0 && sale->cargo < europe->cargo_count)
+            ? europe->cargo[sale->cargo].name
+            : "goods";
+        char line[AI_POPUP_BAR_MSG_LEN];
+        int n = snprintf(
+          line,
+          sizeof(line),
+          "%s %s %d %s %s %d.",
+          colony->name[0] ? colony->name : "",
+          turn_label("MISC", 47, ""),
+          sale->amount,
+          cargo_name,
+          turn_label("MISC", 48, ""),
+          sale->gross
+        );
+        if (n > 0 && n < (int)sizeof(line) && sale->tax_percent > 0) {
+          snprintf(
+            line + n,
+            sizeof(line) - (size_t)n,
+            " %d%s %d%s %d",
+            sale->tax_percent,
+            turn_label("CMESSAGE", 0x11, ""),
+            sale->tax_paid,
+            turn_label("CMESSAGE", 0x12, ""),
+            sale->net
+          );
+        }
+        ai_popup_enqueue_bar_message(ai_popups, line);
       }
     }
   }
@@ -1381,12 +1525,10 @@ void turn_produce_one_colony(
    * proves nothing; the dutch2 Autumn→Spring pair banks normally, and
    * FUN_364b_0688 Phase L (raw 57730-57733) reads no season term.
    */
-  int lumber_before_hammers;
   {
     /* Composed in Phase A (see the composition-boundary comment above);
      * DOS Phase L only reads the scratch word back with `0b50(0x10)`. */
     const int hammers_add = hammers_phase_a;
-    lumber_before_hammers = colony->stock[COLONIZE_CARGO_LUMBER];
     int hammers = 0;
     if (hammers_add > 0) {
       /*
@@ -1402,16 +1544,11 @@ void turn_produce_one_colony(
        * no Carpenter staffed; FUN_15eb_0b52 raw 10122-10138 confirms this
        * turn's gross lumber counts toward the input ledger.)
       */
-      hammers = hammers_add;
-      if (hammers > colony->stock[COLONIZE_CARGO_LUMBER]) {
-        hammers = colony->stock[COLONIZE_CARGO_LUMBER];
-      }
-      if (hammers > 0) {
-        colony->stock[COLONIZE_CARGO_LUMBER] -= hammers;
-        if (delta) {
-          delta->goods[COLONIZE_CARGO_LUMBER] -= hammers;
-        }
-      }
+      /* Lumber was clipped and debited at the Phase B position above
+       * (bugs.md #1023 — DOS spends it through the lumber demand word in
+       * the Phase B cargo loop, raw 57238-57253, and only banks the hammer
+       * word here at raw 57730). Phase L just banks what was paid for. */
+      hammers = hammers_paid;
       /* DOS adds the Phase A net word into the signed 16-bit +0x92 hammer
        * bank and clamps a negative wrapped result to zero (FUN_364b_0688 raw
        * 57730-57738). Keep the word arithmetic explicit; signed overflow in
@@ -1643,67 +1780,6 @@ void turn_produce_one_colony(
   }
 
   /*
-   * Custom House auto-sell after production (FUN_364b_0688). Needs europe
-   * bids; col1 optional (WoI tax skip + nation gold).
-   */
-  if (europe) {
-    EuropeCustomHouseSale ch_sales[COLONIZE_CARGO_COUNT];
-    int ch_sale_count = 0;
-    const int ch_total = europe_custom_house_autosell_ex_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(pool), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL), .europe=(EuropeScreen*)(europe)}, colony, human_nation, ch_sales, COLONIZE_CARGO_COUNT, &ch_sale_count);
-    for (int si = 0; si < ch_sale_count; ++si) {
-      if (ch_sales[si].cargo >= 0 && ch_sales[si].cargo < COLONIZE_CARGO_COUNT) {
-        ch_sold[ch_sales[si].cargo] += ch_sales[si].amount;
-      }
-    }
-    /*
-     * FUN_364b_0688 assembles ONE line PER CARGO into DS:0x2d54 and arms it
-     * with FUN_1009_0092 — that is the map's top-strip STATUS LINE, not a
-     * dialog (bugs.md #369). Each line replaces the strip's normal content for
-     * its dwell and the next one follows; nothing has to be clicked away.
-     *
-     * Wording is DOS's own: colony name, LABELS @MISC 47 "sells", amount,
-     * cargo name, @MISC 48 "for", gross, DS:0xd88 ".", then (peacetime only)
-     * tax rate, @CMESSAGE 0x11 "% Tax:", tax paid, @CMESSAGE 0x12 ". Net:",
-     * net. The 0088 calls between fields just trim the trailing space every
-     * append leaves, so the punctuation closes up.
-     */
-    if (ch_total > 0 && colony->nation_id == human_nation && ai_popups) {
-      for (int si = 0; si < ch_sale_count; ++si) {
-        const EuropeCustomHouseSale* sale = &ch_sales[si];
-        const char* cargo_name =
-          (sale->cargo >= 0 && sale->cargo < europe->cargo_count)
-            ? europe->cargo[sale->cargo].name
-            : "goods";
-        char line[AI_POPUP_BAR_MSG_LEN];
-        int n = snprintf(
-          line,
-          sizeof(line),
-          "%s %s %d %s %s %d.",
-          colony->name[0] ? colony->name : "",
-          turn_label("MISC", 47, ""),
-          sale->amount,
-          cargo_name,
-          turn_label("MISC", 48, ""),
-          sale->gross
-        );
-        if (n > 0 && n < (int)sizeof(line) && sale->tax_percent > 0) {
-          snprintf(
-            line + n,
-            sizeof(line) - (size_t)n,
-            " %d%s %d%s %d",
-            sale->tax_percent,
-            turn_label("CMESSAGE", 0x11, ""),
-            sale->tax_paid,
-            turn_label("CMESSAGE", 0x12, ""),
-            sale->net
-          );
-        }
-        ai_popup_enqueue_bar_message(ai_popups, line);
-      }
-    }
-  }
-
-  /*
    * FUN_364b_0688 Phase B (raw 57343-57346): cargo_produced_mask (+0x90)
    * bit c is set when the compose scratch (gross production, DS:-0x7238)
    * is non-zero AND the applied net is positive. The net is FUN_281f_0b50's
@@ -1891,10 +1967,11 @@ void turn_produce_one_colony(
 
   /*
    * FUN_364b_0688 ~57932 (Deep Q): per depletion unit, `rng(0, diff+1) != 0`
-   * bumps Col1 +0x97; wrap at 50 → MAP_LAYER2_SUPPRESS (FUN_364b_033a
-   * feature 4) + @DEPLETION. Discoverer thus depletes at 1/2 rate, Viceroy
-   * at 5/6. Rolled here, after the cargo-ready chrome, to keep the DOS rng
-   * order. No rng / col1 (unit tests) → deterministic bump.
+   * bumps Col1 +0x97; wrap past 50 calls thunk_FUN_291f_0988 ->
+   * FUN_364b_033a, which rescans the colony's plots (see
+   * turn_deplete_colony_mines). Discoverer thus depletes at 1/2 rate,
+   * Viceroy at 5/6. Rolled here, after the cargo-ready chrome, to keep the
+   * DOS rng order. No rng / col1 (unit tests) -> deterministic bump.
    */
   if (depl_n > 0) {
     int diff = col1 ? (int)col1->head.difficulty : 4;
@@ -1904,7 +1981,6 @@ void turn_produce_one_colony(
     if (diff > 4) {
       diff = 4;
     }
-    int mine_depleted = 0;
     for (int u = 0; u < depl_n; ++u) {
       if (rng && dos_rng_range(rng, 0, diff + 1) == 0) {
         continue;
@@ -1912,29 +1988,11 @@ void turn_produce_one_colony(
       colony->depletion_counter = (uint8_t)(colony->depletion_counter + 1u);
       if (colony->depletion_counter > 0x31u) {
         colony->depletion_counter = (uint8_t)(colony->depletion_counter - 0x32u);
-        if (map) {
-          /* Production API takes const map; deplete mutates layer2. */
-          map_occupancy_set_layer2(
-            (ColonizeWorldMap*)(uintptr_t)map,
-            depl_tx[u],
-            depl_ty[u],
-            MAP_LAYER2_SUPPRESS,
-            true
-          );
-        }
-        mine_depleted = 1;
-      }
-    }
-    if (mine_depleted && europe && colony->nation_id == human_nation) {
-      const char* cname = colony->name[0] ? colony->name : "";
-      snprintf(europe->status, sizeof(europe->status), "Mine depleted near %s.", cname);
-      if (ai_popups) {
-        char body[AI_POPUP_BODY_LEN];
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        tok.string0 = cname;
-        popup_msg_fill(messages, "DEPLETION", &tok, europe->status, body, sizeof(body));
-        ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+        /* DOS re-enters 033a on every wrap, so a second wrap in the same
+         * tick really does re-announce (the suppress bit is idempotent). */
+        (void)turn_deplete_colony_mines(
+          colony, map, europe, human_nation, ai_popups, messages
+        );
       }
     }
   }

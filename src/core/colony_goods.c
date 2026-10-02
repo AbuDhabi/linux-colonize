@@ -366,12 +366,29 @@ int colonies_apply_warehouse_spoilage(
      * discards only above capacity, and only 2 tons or more.
      */
     const int before = stock_before ? stock_before[c] : colony->stock[c];
-    if (before <= cap) {
+    const int surplus = colony->stock[c] - cap;
+    /* DOS's `aiStack_e4[c]` = clamp(min(this turn's net, surplus), 0) — the
+     * part of the overflow this turn's production put there (raw 57332-57346,
+     * re-clamped at 57486-57501). */
+    const int net = colony->stock[c] - before;
+    int net_capped = net < surplus ? net : surplus;
+    if (net_capped < 0) {
+      net_capped = 0;
+    }
+    if (net_capped >= surplus) {
       /* Overflow is entirely this turn's production: silent clamp. */
       colony->stock[c] = cap;
       continue;
     }
-    int lost = before - cap;
+    /* `stock -= aiStack_e4[c]` first, then `local_74 = min(stock, excess)`:
+     * when the stock FELL this turn while staying over capacity (net < 0) the
+     * loss DOS reports is `stock_now - cap`, not `before - cap` (bugs.md
+     * #1025 — the port used to overstate the @SPOIL number in that case). */
+    const int remain = colony->stock[c] - net_capped;
+    int lost = surplus - net_capped;
+    if (lost > remain) {
+      lost = remain;
+    }
     if (lost < 2) {
       lost = 0;
     }
@@ -382,7 +399,7 @@ int colonies_apply_warehouse_spoilage(
       types++;
       spoiled += lost;
     }
-    colony->stock[c] = before - lost;
+    colony->stock[c] = remain - lost;
   }
   if (out_type_count) {
     *out_type_count = types;

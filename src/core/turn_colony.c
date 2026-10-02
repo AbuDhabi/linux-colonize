@@ -888,7 +888,8 @@ void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
         ctx->col1_ok && ctx->col1 &&
         founding_fathers_nation_has(ctx->col1, nation, FF_FERDINAND_MAGELLAN);
       const int fleet = turn_voyage_ship_count(ctx, nation);
-      const int turns = europe_voyage_turns_roll(ctx->rng, magellan, fleet);
+      /* bugs.md #1019: the roll's x is the New World side of the crossing. */
+      const int turns = europe_voyage_turns_roll(ctx->rng, magellan, fleet, u->x);
       /* Same edge rule as the manual sail-to-Europe path so the ship comes
        * back on the side it left from. */
       const bool east = ctx->map ? (u->x >= (int)ctx->map->width / 2) : true;

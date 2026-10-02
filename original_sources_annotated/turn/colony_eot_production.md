@@ -76,7 +76,7 @@ Scratch: `DS:−0x7238` (gross), `−0x71f6` (reserve). Net: `281f_0b50` → `15
 | **K — Build advisories** | 57696–57728 | Missing building msgs |
 | **L — Hammers / construction** | 57730–57787 | Add hammers; spend tools; complete `097a`→`0114` |
 | **M — Crosses** | 57788–57789 | Scratch → nation crosses |
-| **N — Farmer pressure** | 57790–57805 | Count farmers vs food |
+| **N — dead** | 57790–57805 | `local_c` is computed (`0b82(5)`, lumber-over-cap trim) and never read again — dead code, nothing to port (bugs.md #1026) |
 | **O — AI dump-sell + trim** | 57806–57873 | Non-human sell; spoilage clamp |
 | **P — Spoilage msgs** | 57874–57931 | Multi-cargo / century dialogs |
 | **Q — Depletion** | 57932–57944 | `+0x97` wrap → map feature 4 |
@@ -108,7 +108,11 @@ Scratch: `DS:−0x7238` (gross), `−0x71f6` (reserve). Net: `281f_0b50` → `15
 - Food (`cargo==0`) AI: `+= difficulty>>1` (`0x53a6`).
 - Add into `stock[+0x9a+2*c]`; floor 0.
 - Custom House (`09fc(0x12)` + mask): if stock>99 and eligible → sell
-  `stock−50` via `0a2e` (leave 50). OpenCol: `europe_custom_house_autosell`.
+  `stock−50` via `0a2e` (leave 50). OpenCol: `europe_custom_house_autosell`,
+  called at this Phase B point since 2026-10-02 (#1023) — i.e. before Phase I
+  birth and before Phase L's tools spend; the Carpenter's lumber debit was
+  hoisted to the same point (DOS spends it through the Phase B lumber demand
+  word and banks the hammers only at L).
   **Full read 2026-08-28 (57257–57330):**
   - Human colonies are shut while `colony+0x1b & 3` (enemy armed ship /
     MoW nearby); AI colonies ignore that.
@@ -340,4 +344,4 @@ phrasing **Done** thin; full dialogs PARKED; century tip **Done** thin
 | P spoilage msgs | Europe status + century tip + `tut3.nr6` latch **Done** thin; `@SPOIL1`–`4` section matrix **Done** thin; century `@CARGOREADY0`–`2` (at-cap → 1/2) **Done** thin |
 | K | hammers/tools/raw Europe status + `0x5384` gates **Done** thin; `@LUMBER`/`@ORE`/`@TOOLS` + craft `@COTTON`/`@TOBACCO`/`@CANESUGAR`/`@FURS` chrome **Done** thin; tools-short `@NEEDTOOLS0` / partial `@NEEDTOOLS` **Done** thin |
 | I birth / J starve-kill | **Done** (`turn_produce_one_colony`); birth `@NEWCOLONIST` chrome **Done** thin; `@FOODLOW` when `8e32≠0` (prod&lt;consume) and stock &lt; `8e32×4` and not starving (`8e5a==0`) **Done**; first-latch `@FOOD1`/`@FOOD2` (autumn→FOOD2) **Done** thin; kill when still short and food was 0 at turn start (`local_6c`) `@STARVE1`/`@STARVE2` (autumn→STARVE2) **Done** thin; last colonist `@VANISH` + abandon **Done** thin; **Easy-difficulty no-kill mercy ported 2026-08-19** (decomp ~57641–57647: `difficulty<2` → never kills before year 1520, then `dos_rng_range(0, 2-difficulty)!=0` cancels the kill — 2/3 odds at Discoverer, 1/2 at Explorer; `turn_produce_one_colony`/`turn_run_colony_production` now take a `ColonizeDosRng* rng` param) |
-| Q depletion | wrap + `MAP_LAYER2_SUPPRESS` **Done**; `@DEPLETION` chrome **Done** thin |
+| Q depletion | wrap + `MAP_LAYER2_SUPPRESS` **Done**; `@DEPLETION` chrome **Done** thin. 2026-10-02 (#1024): the wrap handler `FUN_364b_033a` (raw 56977-57012) rescans the plots and suppresses EVERY tile whose worker's **specialty** is Ore/Silver Miner on a Minerals(6)/Silver(12) resource — not the plot that banked the unit — ported as `turn_deplete_colony_mines` |
