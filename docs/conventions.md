@@ -171,9 +171,7 @@ These have each cost a session. Check them before blaming the code.
   Also `*_set_occupancy_map(NULL)` after every `units_reset`/`colonies_init`,
   or a dead stack map stays bound. **Reset functions** (`units_reset_hooks()`,
   `ai_euro_reset()`, `ai_native_reset()`, `turn_reset()`) must be called in all
-  test fixtures and from `ai_init_new_game` + `game_apply_col1_save`. Known
-  exclusion: `s_euro_last_dir` is not reset (intentional — it tracks the human's
-  last ship direction across save/load).
+  test fixtures and from `ai_init_new_game` + `game_apply_col1_save`.
 - **Zeroed `founding_father[]`.** Granting an FF by writing `head.founding_father[i]`
   does nothing — grant via `col1.nation[n].founding_fathers[idx/8] |= 1<<(idx%8)`
   and clear the bit on reset, or grants leak across sub-tests.

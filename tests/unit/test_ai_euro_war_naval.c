@@ -413,8 +413,8 @@ static int unit_naval_multistep_sail(void) {
    * All-ocean geometry left every one of the 8 wander directions equally
    * legal at spawn, so the very first internal step (before any goto is
    * committed) was a dead tie the AI could only break via the momentum
-   * bias in s_euro_last_dir[] (unit+0x314f) — a file-local latch this
-   * binary never resets between tests, so the assertion only held because
+   * bias in unit+0x314f (then a file-local latch, now `last_dir`) that this
+   * binary never reset between tests, so the assertion only held because
    * an *earlier* test happened to leave that slot biased eastward. DOS
    * itself has no distant naval hunt (ai_euro_act_ship_war_trade only
    * fights an adjacent foe; the far pursuit ran through the plain 20e6

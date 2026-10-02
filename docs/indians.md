@@ -117,9 +117,8 @@ the truth is the 15-entry JMPF stub table at `4d56:4c22..4c6c`,
   `ai_brave.c:455`, with one recorded deviation, DOS returns −1 into a
   use-after-free in `14fe` and the port STOPs the Brave instead; the
   unconditional `facing` write including the stay value 8 (`021a:11b9` →
-  `+0x314f`) — `ai_brave.c:508` (the full byte is split across `last_dir` +
-  `col1_facing_pad` in the save, which is why the pad is written too, bugs.md
-  #846 REFUTED); the `orders` cower latch 5→6 on stay, 0 on move
+  `+0x314f`) — `ai_brave.c:508` (`last_dir` is the full signed byte, saved as
+  facing + facing_pad; bugs.md #846, #1046); the `orders` cower latch 5→6 on stay, 0 on move
   (`021a:11cd`/`126e`) — `ai_brave.c:517`, latched only over
   `NONE/FORTIFY/FORTIFIED` because the port's §9 raid escort can leave a
   Brave holding the OpenCol-only `FOLLOW` order (`ai_contact_raid.c:1809`,

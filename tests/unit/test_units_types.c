@@ -685,7 +685,7 @@ static int unit_smell_audit_2026_09_09(void) {
       rc = 1;
     }
     if (rc == 0) {
-      units_get(&pool, bid)->park_nights = 1; /* stood there overnight */
+      units_get(&pool, bid)->moves = 0; /* overnight refresh: native spent 0 (#715) */
       (void)units_wake(&pool, bid);
       if (units_remaining_mp(&pool, bid) != full) {
         fprintf(stderr, "audit#6: woken Brave has %d MP, want %d\n",

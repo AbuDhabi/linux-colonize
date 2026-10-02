@@ -270,8 +270,9 @@ static int case_next_unit_selection(void) {
     /* uid2 fortified, uid3 free: the skip must land on uid3, not uid2. */
     fx_u2->orders = UNITS_ORDER_FORTIFIED;
     fx_units.selected_id = fx_uid;
-    if (turn_select_next_unit(&fx_units, 0) != true || fx_units.selected_id != fx_uid2) {
-      fprintf(stderr, "bare select should stop on the Fortified unit\n");
+    /* bugs.md #715: FUN_1427_1410 drops orders 1/6 itself (raw 8803). */
+    if (turn_select_next_unit(&fx_units, 0) != true || fx_units.selected_id != uid3) {
+      fprintf(stderr, "bare select should skip the Fortified unit\n");
       return 1;
     }
     fx_units.selected_id = fx_uid;
@@ -363,8 +364,10 @@ static int case_europe_park_refresh(void) {
             units_max_mp(&fx_units, pax));
     return 1;
   }
-  if (ua->moves != 0) {
-    fprintf(stderr, "sentry ashore must stay parked, got %d thirds\n", ua->moves);
+  /* bugs.md #715: DOS clears spent for every unit (raw 6357); Sentry stays
+   * out of the rotation by order byte, not MP. */
+  if (ua->moves != units_max_mp(&fx_units, ashore)) {
+    fprintf(stderr, "sentry ashore must get its allotment, got %d thirds\n", ua->moves);
     return 1;
   }
   return 0;

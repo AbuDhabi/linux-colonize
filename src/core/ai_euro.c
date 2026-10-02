@@ -65,19 +65,6 @@ uint8_t ai_euro_s_deferred_found[COLONIZE_UNITS_MAX];
  * first-colony walk's SENTRY wake from re-arming a same-turn landing.
  */
 uint8_t ai_euro_s_unloaded_this_turn[COLONIZE_UNITS_MAX];
-/*
- * Last chosen land-move direction per unit (0..7, dx/dy index below) —
- * DOS `unit+0x314f`, written by FUN_521d_20e6 at its commit point
- * (LAB_521d_589e) and read back in the facing/momentum band (LAB_521d_54f5,
- * already ported for Braves as `quiet_score_facing` in ai.c/
- * quiet_brave_scoring.c) but never wired for Euro units, which had no
- * persisted "last direction" at all. Zero-initialized (== dir 0/North) —
- * a unit's very first move gets a harmless, self-correcting small bias
- * instead of "no bias". No save-file backing in this port (same as the
- * other file-local latches below), so ai_euro_reset() zeroes it on
- * new-game/load too. Cite: move_scoring_20e6_full.md.
- */
-int8_t ai_euro_s_euro_last_dir[COLONIZE_UNITS_MAX];
 /* Colony ids founded this dispatcher_turn — keep auto-Stockade bip one turn. */
 uint8_t ai_euro_s_founded_colony_turn[COLONIZE_COLONIES_MAX];
 /*
@@ -2528,24 +2515,6 @@ void ai_euro_reset(void) {
   memset(ai_euro_s_deferred_found, 0, sizeof(ai_euro_s_deferred_found));
   memset(ai_euro_s_unloaded_this_turn, 0, sizeof(ai_euro_s_unloaded_this_turn));
   ai_euro_s_20e6_type_cache_valid = 0; /* bugs.md #655: refreshed next dispatcher_turn */
-  /*
-   * ai_euro_s_euro_last_dir (unit+0x314f) has no save-file backing in this port
-   * either — it round-trips only within a single dispatcher_turn/turn
-   * sequence as a momentum/facing bias, same class of latch as the arrays
-   * above, so it belongs in the same new-game/load zeroing as the rest.
-   * It was previously excluded here because zeroing it made
-   * unit_naval_multistep_sail (tests/unit/test_ai_euro_war.c) regress: that
-   * test ran on an all-ocean map where every one of the 8 wander
-   * directions was a dead tie at spawn, so it only advanced toward its foe
-   * because an *earlier* test in the same binary had left this unit-id's
-   * slot biased eastward — cross-test global-state bleed, not a genuine
-   * DOS requirement (DOS ships have no distant hunt either: a fresh
-   * unit's first move is exactly this ambiguous in the original game
-   * too). Fixed by walling the test's map so east is the only legal first
-   * step, making it deterministic without relying on this leftover state;
-   * see that test for the full writeup.
-   */
-  memset(ai_euro_s_euro_last_dir, 0, sizeof(ai_euro_s_euro_last_dir));
   memset(ai_euro_s_founded_colony_turn, 0, sizeof(ai_euro_s_founded_colony_turn));
   memset(s_euro_continent_stance, 0, sizeof(s_euro_continent_stance));
   memset(s_euro_rival_strength, 0, sizeof(s_euro_rival_strength));

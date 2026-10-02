@@ -193,34 +193,10 @@ void turn_refresh_moves_for_nation_w(
       u->moves = units_max_mp(pool, u->id);
       continue;
     }
-    /*
-     * The off-map Europe park is not a sleep order. DOS's `+0x314c = 1` on an
-     * off-map unit is the aboard / waiting-in-Europe marker that
-     * FUN_1427_10be writes at boarding (raw 8297/8674) and that the 0a60 top
-     * re-stamps on every Euro AI turn (ai_euro_goals.c's `in_transit` arm) —
-     * not the human's sentry order — and DOS's day top clears the spent byte
-     * for EVERY unit with no position or order test (raw 6355-6357). Treating
-     * it as a park here zeroed the allotment of every Euro AI unit sitting in
-     * the park on each of its turns, and the 6d8e dispatcher skips a ship
-     * with no MP unconditionally (ai_euro.c), so the first hull a nation ever
-     * sailed into Europe was frozen there for the rest of the game together
-     * with every colonist the 5d04 hire tail loaded onto it. bugs.md #953.
-     * A crown wreck waiting out its repair timer in the same park is held by
-     * turn_route_damaged_ships, which runs after this refresh.
-     */
-    if (units_orders_skip_turn(u) && !units_coords_in_europe_park(u->x, u->y)) {
-      /* bugs.md: count the nights parked — a unit fortified/sentried on a
-       * PREVIOUS turn wakes with its full allotment (units_wake checks
-       * park_nights > 0); one dug in this turn does not get its spent
-       * moves back. park_nights is port-only: bumping col1_counter16 here
-       * double-counted the DOS +0x16 clocks (treasure despawned in ~4
-       * turns not 8, anchored ships repaired ~2x fast — smell #39). */
-      if (u->park_nights < 255) {
-        u->park_nights++;
-      }
-      u->moves = 0;
-      continue;
-    }
+    /* Sentry / Fortified get the full allotment like every other unit: DOS
+     * clears the spent byte for every unit at the day top (raw 6355-6357) and
+     * keeps parked units out of the rotation by order byte, not MP
+     * (FUN_1427_1410 raw 8804, turn_select_next_unit; bugs.md #715, #953). */
     const ColonizeUnitType* type = units_type(pool, u->type_index);
     if (type) {
       /*
@@ -253,6 +229,11 @@ bool turn_select_next_unit(ColonizeUnitPool* pool, int human_nation) {
       continue;
     }
     if (!units_is_on_map(u)) {
+      continue;
+    }
+    /* DOS FUN_1427_1410 raw 8803: `+0x314c != 1 && +0x314c != 6` — Sentry and
+     * Fortified keep their allotment but never enter the rotation (#715). */
+    if (u->orders == UNITS_ORDER_SENTRY || u->orders == UNITS_ORDER_FORTIFIED) {
       continue;
     }
     /*

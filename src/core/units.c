@@ -629,7 +629,6 @@ void units_slot_reset_defaults(
   slot->horses = 0;
   slot->home_tribe_id = -1;
   slot->col1_counter16 = 0;
-  slot->park_nights = 0;
   slot->mp_spent_turn = 0;
   slot->aboard_moves = -1;
   slot->last_dir = 0;

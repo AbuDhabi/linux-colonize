@@ -422,16 +422,10 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
      * bits 0 + pad bit0 in the save split). Keep last_dir = 8 in memory:
      * 521d:54f5 skips the facing term for any byte >= 8.
      *
-     * bugs.md #846 (REFUTED) read `col1_facing_pad` here as a port-only
-     * flag stealing DOS's upper 5 bits. It is not: 021a:11b9 is a FULL
-     * byte store (`byte [BX+0x314f] = chosen dir`), so DOS itself zeroes
-     * those bits on every act. facing (low 3) + pad (high 5) is only how
-     * col1_bridge splits that one byte; writing pad = 1 on a stay is what
-     * reproduces DOS's byte 8. Moving the write to a non-serialized field
-     * would make a stayed Brave round-trip as facing 0 = "faced north".
+     * 021a:11b9 is a FULL byte store (`byte [BX+0x314f] = chosen dir`);
+     * col1_bridge saves last_dir as that whole byte (bugs.md #846, #1046).
      */
     u->last_dir = 8;
-    u->col1_facing_pad = 1;
     /*
      * 021a:11cd orders latch: stay -> 5 (FORTIFY), repeat stay -> 6
      * (FORTIFIED) — the DOS byte values equal the port enum. DOS stomps
@@ -545,7 +539,6 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
       }
       u->moves = max_mp;
       u->last_dir = dir;
-      u->col1_facing_pad = 0;
       if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
         u->orders = UNITS_ORDER_NONE;
       }
@@ -577,7 +570,6 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
     if (roll > max_mp - spent) {
       u->moves = spent + cost;
       u->last_dir = dir;
-      u->col1_facing_pad = 0;
       if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
         u->orders = UNITS_ORDER_NONE;
       }
@@ -648,7 +640,6 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
   /* 021a:11b9 full-byte facing write (pad cleared on a real dir), and
    * 021a:126e — any move resets the stay latch (guarded as above). */
   u->last_dir = dir;
-  u->col1_facing_pad = 0;
   if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
     u->orders = UNITS_ORDER_NONE;
   }

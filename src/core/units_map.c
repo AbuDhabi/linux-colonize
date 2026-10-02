@@ -103,7 +103,6 @@ static void units_clear_slot(ColonizeUnit* unit) {
   unit->horses = 0;
   unit->home_tribe_id = -1;
   unit->col1_counter16 = 0;
-  unit->park_nights = 0;
   unit->mp_spent_turn = 0;
   unit->aboard_moves = -1;
   unit->last_dir = 0;
@@ -567,6 +566,16 @@ void units_set_ff_col1(const ColonizeCol1Save* col1) {
 void units_set_move_watch(ColonizeUnitsMoveWatchFn fn, void* user) {
   g_units_move_watch = fn;
   g_units_move_watch_user = user;
+}
+
+void units_move_watch_notify(
+  const ColonizeUnitPool* pool, const ColonizeWorldMap* map, const ColonizeColonyPool* colonies,
+  int unit_id, int from_x, int from_y
+) {
+  const ColonizeUnit* u = units_get_const(pool, unit_id);
+  if (g_units_move_watch && u && units_is_on_map(u)) {
+    g_units_move_watch(g_units_move_watch_user, pool, map, colonies, unit_id, from_x, from_y, u->x, u->y);
+  }
 }
 
 void units_set_combat_human_nation(int human_nation) {

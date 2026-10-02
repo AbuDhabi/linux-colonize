@@ -507,11 +507,11 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
          * longer has to dodge it. The `>= 10` arm is the one that carries the
          * AI courses.
          */
-        /* DOS day-top clears spent MP regardless of orders (raw 6357).
-         * Undo the port's overnight Sentry park when 0a60 activates a
-         * landed AI unit; preserve the goal bytes as DOS does (#530). */
+        /* 0a60 activates a landed AI Sentry unit; preserve the goal bytes
+         * as DOS does (#530). At the nation-turn top every Sentry ashore
+         * was parked on an earlier night. */
         if (ai_euro_ship_dos_enabled() && u->orders == UNITS_ORDER_SENTRY &&
-            u->aboard_ship_id < 0 && u->park_nights > 0) {
+            u->aboard_ship_id < 0) {
           const int gx = u->goto_x;
           const int gy = u->goto_y;
           units_wake(ctx->units, u->id);
@@ -3094,7 +3094,7 @@ int ai_euro_score_move(
      * `quiet_score_facing`.
      */
     {
-      const int last_dir = ai_euro_s_euro_last_dir[u->id];
+      const int last_dir = u->last_dir;
       if (d == last_dir) {
         score += 4;
       } else if (d == (last_dir ^ 4)) {
@@ -3125,7 +3125,7 @@ int ai_euro_score_move(
   if (best < -999990) {
     return 0;
   }
-  ai_euro_s_euro_last_dir[u->id] = (int8_t)bd;
+  u->last_dir = bd;
   *out_dx = bdx;
   *out_dy = bdy;
   return 1;
@@ -3163,8 +3163,7 @@ int ai_euro_score_move(
  * colony-sail matrix / HS spiral / work-queue haul tails beyond the unload
  * rule.
  *
- * DOS state this port models file-locally (same pattern as ai_euro_s_euro_last_dir
- * for unit+0x314f):
+ * DOS state this port models file-locally:
  *   DS:0xa13c (−0x5ec4) per-continent explorer count → ai_euro_s_20e6_explorers
  * (unit+0x3155/+0x3156, the explorer's 4-tile ring-hop wander latch, sits in
  * the ship-band tail LAB_4b2c and is not reached by the land path ported

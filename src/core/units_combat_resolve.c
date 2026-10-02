@@ -1186,8 +1186,8 @@ void units_ship_slow_scan_w(
  *   - aboard (raw 98635-98638): a NON-ship type (outside 0x0d..0x12) standing
  *     on a water tile is a passenger in a hold and is left asleep.
  *
- * DOS writes the order byte only; the port routes through units_wake so the
- * park_nights MP-refund discriminator stays the single owner of that rule.
+ * DOS writes the order byte only; the port routes through units_wake so its
+ * hold-passenger MP rule stays the single owner of that.
  * bugs.md #539 (REF landfall left the garrison's Sentry units asleep).
  */
 void units_sentry_wake_scan(

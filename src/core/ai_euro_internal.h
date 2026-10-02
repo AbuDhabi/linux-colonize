@@ -140,7 +140,6 @@ int ai_euro_env_flag(const char* name, int dflt);
 extern int ai_euro_s_5952_census_vet_soldier[COLONIZE_COLONIES_MAX];
 extern uint8_t ai_euro_s_deferred_found[COLONIZE_UNITS_MAX];
 extern uint8_t ai_euro_s_unloaded_this_turn[COLONIZE_UNITS_MAX];
-extern int8_t ai_euro_s_euro_last_dir[COLONIZE_UNITS_MAX];
 extern uint8_t ai_euro_s_founded_colony_turn[COLONIZE_COLONIES_MAX];
 extern uint32_t ai_euro_s_violate_last_turn[COLONIZE_UNITS_MAX];
 extern uint8_t ai_euro_s_euro_roam_wander[COLONIZE_UNITS_MAX];

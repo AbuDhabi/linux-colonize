@@ -903,8 +903,6 @@ bool units_set_orders(ColonizeUnitPool* pool, int unit_id, int orders) {
     /* Park = "no moves left this turn": spent-aware, since moves holds
      * REMAINING for Euros and SPENT for natives (audit #6). */
     units_mp_exhaust(pool, u);
-    /* Fresh park: no overnight yet, so a same-turn wake refunds nothing. */
-    u->park_nights = 0;
   }
   if (diag_info_enabled() && prev != orders) {
     char who[96];
@@ -1108,51 +1106,19 @@ bool units_wake(ColonizeUnitPool* pool, int unit_id) {
   const int prev = u->orders;
   units_clear_orders(pool, unit_id);
   /*
-   * Restore the allotment only where the zero was a PARK, not a spend:
-   * boarding parks a passenger at moves 0, and Sentry/Fortify(ed)
-   * zero it as their "skip this unit" flag while DOS's own spent byte
-   * stays 0. A unit with no standing order (None, or mid-Go-To) genuinely
-   * spent its moves — Activate Unit picks who is controlled, it does not
-   * hand out free movement (bugs.md).
+   * Only a hold passenger's zero is a park: the zero stands for the carried
+   * allotment (bugs.md #544), or, never walked aboard, for an unspent one
+   * (mp_spent_turn; bugs.md #423). Sentry/Fortified ashore keep their real
+   * MP through the night (turn refresh, bugs.md #715), so a same-turn park
+   * wakes with what it had and an overnight one already holds its
+   * allotment; the Fortified promotion night spends it (FUN_479b_0b6c,
+   * viceroy 77146-77153). DOS's activate handler writes the order byte only
+   * (viceroy 42717/42781).
    */
-  /*
-   * bugs.md (player-clarified): the order byte itself separates the cases.
-   * FORTIFY (5) was given THIS turn — those moves are spent, no refund.
-   * SENTRY/FORTIFIED use park_nights (bumped by the turn refresh):
-   * overnight parks wake with full moves, same-turn ones keep what they
-   * had. FORTIFIED with park_nights 0 is the overnight-promotion turn —
-   * DOS FUN_479b_0b6c spends the allotment on promotion (viceroy
-   * 77146-77153), so no refund that turn either. Hold passengers restore
-   * as before. DOS's activate handler writes the order byte only (viceroy
-   * 42717/42781), so col1_counter16 (the shared +0x16 repair-timer /
-   * treasure-clock / route-stop counter) is left alone here.
-   */
-  /* mp_spent_turn: the aboard zero is a real DOS spend — walked aboard from
-   * open shore, the one case units_try_move can mark (a unit that is already
-   * out of MP never gets to board, audit A4) — so waking must not refund it
-   * (bugs.md #423; same discriminator the landfall pick uses). */
-  /* Aboard, the zero stands for the carried allotment (bugs.md #544). */
   if (u->aboard_ship_id >= 0 && u->moves <= 0 && u->aboard_moves >= 0) {
     u->moves = u->aboard_moves;
-  } else {
-    const bool parked =
-      (u->aboard_ship_id >= 0 && !u->mp_spent_turn) ||
-      ((prev == UNITS_ORDER_FORTIFIED || prev == UNITS_ORDER_SENTRY ||
-        /* bugs.md #528: FUN_521d_0a60's turn-top clear (ai_euro.c) may already
-         * have zeroed a landfall-waiting unit's `orders` back to NONE before
-         * this wake — this port-only flag (units.h) is the same "was parked
-         * ashore, not really idle" signal, cross-checked against the
-         * DOS-real park_nights counter below so only an overnight park (not
-         * a same-turn 0a60 clear) refunds the allotment. */
-        (prev == UNITS_ORDER_NONE && u->ai_landfall_wait)) &&
-       u->park_nights > 0);
-    if (parked && units_type(pool, u->type_index)) {
-      units_mp_restore(pool, u);
-    }
-  }
-  if (prev == UNITS_ORDER_SENTRY || prev == UNITS_ORDER_FORTIFY ||
-      prev == UNITS_ORDER_FORTIFIED) {
-    u->park_nights = 0;
+  } else if (u->aboard_ship_id >= 0 && !u->mp_spent_turn && units_type(pool, u->type_index)) {
+    units_mp_restore(pool, u);
   }
   if (prev == UNITS_ORDER_SENTRY || prev == UNITS_ORDER_NONE) {
     u->ai_landfall_wait = false; /* woken: no longer just parked ashore (bugs.md #528) */
@@ -1864,53 +1830,17 @@ static int units_dir8_index(int dx, int dy) {
 }
 
 /*
- * FUN_6662_0f74's own last-taken-step tracker (unit+0x314f), used only for
- * the anti-backtrack wiggle-retry below. Deliberately NOT `ColonizeUnit`'s
- * `last_dir` field — that one is already live-owned by ai.c's Indian native
- * Brave engine (`ai_native_pick_dir`); writing it here would silently
- * corrupt that engine's own bookkeeping for any unit that also takes a
- * goto step. Same shadow-array pattern ai_euro.c already uses for its own
- * Euro `last_dir` equivalent (`s_euro_last_dir`), for the same reason.
- * Stored as dir+1 so the zero-initialised slot means "no history" (the old
- * "0 == North, harmless bias" reading was not harmless: a ship whose first
- * pathfinder step was South saw it as the reverse of a step it never took,
- * dropped the flood hit and fell back to the greedy tier — campaign3
- * Spanish Caravel ping-pong at (32,51)). Any goto stepper that commits a
- * move outside units_advance_goto_one_step (the AI ship sail loop) must
- * record its step through units_note_goto_step so the anti-backtrack check
- * compares against the unit's real last step.
+ * FUN_6662_0f74 anti-backtrack: reverse of unit+0x314f (`last_dir`), the one
+ * facing byte shared with the Brave engine and the Euro AI (bugs.md #1046).
+ * DOS tests `-1 < byte && (byte ^ 4) == dir`; 8 (stay) never matches a dir.
  */
-static int8_t s_units_goto_last_dir[COLONIZE_UNITS_MAX];
-
-static int units_goto_last_dir_reverse(int unit_id) {
-  if (unit_id < 0 || unit_id >= COLONIZE_UNITS_MAX || s_units_goto_last_dir[unit_id] <= 0) {
-    return -1;
-  }
-  return (s_units_goto_last_dir[unit_id] - 1) ^ 4;
+static int units_goto_last_dir_reverse(const ColonizeUnit* u) {
+  return u && u->last_dir >= 0 ? (u->last_dir ^ 4) : -1;
 }
 
-void units_note_goto_step(int unit_id, int dx, int dy) {
-  if (unit_id < 0 || unit_id >= COLONIZE_UNITS_MAX) {
-    return;
-  }
-  const int d = units_dir8_index(dx, dy);
-  if (d >= 0) {
-    s_units_goto_last_dir[unit_id] = (int8_t)(d + 1);
-  }
-}
-
-/*
- * Statics-reset sweep 2026-09-16: s_units_goto_last_dir is indexed by
- * unit_id, not owned by the pool, so units_reset(pool) never touches it — a
- * New Game / Load reuses low unit ids for brand-new units that inherit a
- * stale shadow direction from the previous campaign. units_coarse (below,
- * s_units_coarse) is deliberately NOT reset here: it caches walkability by
- * (map pointer, width, height), and the world map's land/water layout never
- * changes across a New Game / Load in the same process (always the same
- * AMER2.MP), so the cache is content-correct without ever rebuilding.
- */
+/* units_coarse (below) is deliberately NOT reset: it caches walkability by map
+ * pointer and size, and the world map's land/water layout never changes. */
 void units_reset_state(void) {
-  memset(s_units_goto_last_dir, 0, sizeof(s_units_goto_last_dir));
   units_flood_cache_invalidate();
 }
 
@@ -2109,9 +2039,7 @@ static bool units_greedy_next_step(
    * doesn't take it; an AI_SAIL unit rerolls up to 8 random directions
    * instead, accepting the first legal one. Cite: euro_unit_act.md T1.8.
    */
-  if (unit_id >= 0 && unit_id < COLONIZE_UNITS_MAX &&
-      units_dir8_index(best_x - u->x, best_y - u->y) ==
-        units_goto_last_dir_reverse(unit_id)) {
+  if (units_dir8_index(best_x - u->x, best_y - u->y) == units_goto_last_dir_reverse(u)) {
     /* DOS-LITERAL raw 104722-104742 (bugs.md #1039): the reverse step is
      * always dropped; only `+0x314c == 0x0b && +0x314b != '9'` re-rolls,
      * every other order fails (MP exhausted, goto cleared by the caller). */
@@ -2605,7 +2533,7 @@ static bool units_goto_director(
           units_remaining_mp(pool, unit_id) < units_max_mp(pool, unit_id);
         const bool reversal =
           moved_this_turn && u->orders == UNITS_ORDER_AI_SAIL && u->col1_ai_plan != '9' &&
-          units_dir8_index(*out_x - u->x, *out_y - u->y) == units_goto_last_dir_reverse(unit_id);
+          units_dir8_index(*out_x - u->x, *out_y - u->y) == units_goto_last_dir_reverse(u);
         if (!reversal || u->nation_id > 3) {
           return true;
         }
@@ -2632,12 +2560,11 @@ bool units_next_goto_step_w(
   /*
    * DOS-LITERAL FUN_6662_0f74 raw 104758: `+0x314f = local_1c` on every
    * exit, failures (-1 / 8) included and before the move is tried
-   * (bugs.md #1046). Stored as dir+1, 0 = none.
+   * (bugs.md #1046).
    */
-  const ColonizeUnit* u = w ? units_get_const(w->units, unit_id) : NULL;
-  if (u && u->active && units_orders_follow_goto(u->orders) && unit_id < COLONIZE_UNITS_MAX) {
-    const int d = ok ? units_dir8_index(*out_x - u->x, *out_y - u->y) : -1;
-    s_units_goto_last_dir[unit_id] = (int8_t)(d + 1);
+  ColonizeUnit* u = w ? units_get(w->units, unit_id) : NULL;
+  if (u && u->active && units_orders_follow_goto(u->orders)) {
+    u->last_dir = ok ? units_dir8_index(*out_x - u->x, *out_y - u->y) : -1;
   }
   return ok;
 }

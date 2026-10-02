@@ -717,8 +717,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_sail(struct ai_euro_act_ctx* 
       if (u->x == u->goto_x && u->y == u->goto_y) {
         break;
       }
-      const int from_x = u->x;
-      const int from_y = u->y;
       int px = 0;
       int py = 0;
       if (!units_next_goto_step_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .rng=(ColonizeDosRng*)(ctx->rng)}, u->id, &px, &py)) {
@@ -746,7 +744,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_sail(struct ai_euro_act_ctx* 
       if (!units_try_move_w(&w_, u->id, px, py)) {
         break;
       }
-      units_note_goto_step(u->id, px - from_x, py - from_y);
       u = units_get(ctx->units, u->id);
       if (!u) {
         return AI_EURO_ACT_RETURN;
@@ -1771,7 +1768,6 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
             u->x, u->y, u->moves, dir, attack);
   }
   if (dir >= 0 && dir < 8 && attack) {
-    ai_euro_s_euro_last_dir[id] = (int8_t)dir;
     u->last_dir = dir;
     ai_euro_try_attack(ctx, u, u->x + MAP_DIR8_DX[dir], u->y + MAP_DIR8_DY[dir]);
     u = units_get(ctx->units, id);
@@ -1782,7 +1778,6 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
   if (dir < 0 || dir > 7) {
     ai_euro_20e6_stay_tail_589e(u);
   } else {
-    ai_euro_s_euro_last_dir[id] = (int8_t)dir;
     u->last_dir = dir;
     const int nx = u->x + MAP_DIR8_DX[dir];
     const int ny = u->y + MAP_DIR8_DY[dir];
@@ -1824,7 +1819,6 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
     }
   }
   u->last_dir = dir;
-  ai_euro_s_euro_last_dir[id] = (int8_t)dir;
   if (!ok) {
     u->orders = UNITS_ORDER_NONE; /* FUN_2a1f_0210 found no direction */
     return;

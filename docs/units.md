@@ -55,14 +55,6 @@ leftmost character is bit 7, so "00111100" = 0x3c (row 4 Dragoons) and
 "00011100" = 0x1c (row 7 Cont. Cav.). Consumed by the AI capability
 tables (FUN_521d_20e6 / the goal walk) that used to hardcode it.
 
-## ColonizeUnit park_nights
-
-Port-only nights-parked counter for the units_wake MP refund (DOS derives
-wake MP from the spent byte alone; +0x16 is the shared treasure-clock /
-repair-timer / route-stop / cower counter and must not be borrowed for
-this). Not serialized: a freshly loaded parked unit imports its real
-moves, so no refund is needed before the first turn refresh.
-
 ## ColonizeUnit mp_spent_turn
 
 Port-only "this zero is a SPEND, not a park" flag for units whose
@@ -219,13 +211,11 @@ the next.
 
 ## units_reset_state
 
-Per-unit-id shadow state that outlives units_reset(pool) because it is
-indexed by unit_id rather than owned by the pool: the goto anti-backtrack
-shadow (s_units_goto_last_dir). Unit ids are reused by a fresh pool on New
-Game / Load, so without this a slot's stale direction from the outgoing
-campaign could false-positive the anti-backtrack check for a unrelated
-unit that happens to reuse the same id. Call at the same point as the
-other new-game/load resets (ai_init_new_game, game_apply_col1_save).
+Invalidates the pathfinder flood cache on New Game / Load. Call at the same
+point as the other new-game/load resets (ai_init_new_game,
+game_apply_col1_save). The goto anti-backtrack facing is the unit's own
+`last_dir` (DOS unit+0x314f, save-backed; bugs.md #1046), shared with the
+Brave engine and the Euro AI.
 
 ## units_spawn_euro_starter_fleet
 
