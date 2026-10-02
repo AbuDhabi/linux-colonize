@@ -705,13 +705,14 @@ graphs:
         dos: FUN_521d_20e6 raw 89725-89728 → LAB_521d_3fa6 → FUN_48d3_015e (77636-77728)
         status: dos
         note: "bugs.md #954. Before 2026-09-26 the port had only the 1-in-32 LAB_521d_457e cadence and the Man-O-War REF arm, and kept no 0x945a/0x9456 state, so a nation whose dock queue was growing had no signal to fetch it."
-      - id: at_war
+      - id: useful_goto
         kind: decision
-        label: At war with a Euro peer?
-        fn: ai_euro.c:ai_euro_at_war_any_peer
+        label: Useful sail goto already set?
+        fn: ai_euro_expand.c:ai_euro_has_useful_goto
+        note: "No war test here: DOS 20e6 reaches LAB_521d_3558 (raw 89381) on hull type and own-colony distance alone. The port's at-war skip outlived the naval war hunt it paired with and froze every laden hull of a nation at war (bugs.md #1036, deleted 2026-10-02)."
       - id: peace_haul
         kind: step
-        label: Peace — post-found coast cruise, else trade haul (arrival block / delivery matrix / queue)
+        label: Post-found coast cruise, else trade haul (arrival block / delivery matrix / queue)
         fn: ai_euro.c:ai_euro_try_post_found_coast_cruise
         status: structural
       - id: haul
@@ -726,7 +727,7 @@ graphs:
         status: golden
       - id: sail
         kind: loop
-        label: "Idle hull (or busy with a foreign unit adjacent, raw 90210) → 20e6 ship wander: far-roam latch (raw 88632), LAB_4d2e 8-dir scorer with the ship arms (open-sea step, fort×holds term, west lean, LAB_52aa odds attack); then AI_SAIL goto: score_move until MP 0 / arrival; back-step guard; on stall → FUN_6662 pathfinder latched per goto"
+        label: "Idle hull (or busy with a foreign unit adjacent, raw 90210) → 20e6 ship wander: far-roam latch (raw 88632), LAB_4d2e 8-dir scorer with the ship arms (open-sea step, fort×holds term, west lean, LAB_52aa odds attack); then AI_SAIL goto: FUN_479b_0972 pathfinder step until MP 0 / arrival (greedy score_move first-step deleted 2026-10-02, bugs.md #1037)"
         fn: ai_euro_goals.c:ai_euro_ocean_score_step
         dos: LAB_521d_3558 ocean branch
         status: structural
@@ -756,9 +757,9 @@ graphs:
       - [exit_europe, dock_demand]
       - [retarget, dock_demand]
       - [dock_demand, cross_europe, "yes, and already on High Seas"]
-      - [dock_demand, at_war, "no, or course only set"]
-      - [at_war, peace_haul, "no, and no useful goto"]
-      - [at_war, reassert, "yes"]
+      - [dock_demand, useful_goto, "no, or course only set"]
+      - [useful_goto, peace_haul, "no"]
+      - [useful_goto, reassert, "yes"]
       - [peace_haul, haul, "no coast cruise"]
       - [haul, reassert]
       - [peace_haul, reassert, "cruise set"]
