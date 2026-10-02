@@ -1,6 +1,7 @@
 /* Slice of the former tests/unit/test_ai_euro_expand.c (split by feature 2026-09-23):
  * Indian-land founding, pioneer improve timer, order 9. */
 #include "test_ai_euro_expand_common.h"
+#include "core/ai_euro_internal.h"
 
 static int count_nation_colonies(const ColonizeColonyPool* colonies, int nation_id) {
   int n = 0;
@@ -669,9 +670,38 @@ static int unit_pioneer_takes_order9(void) {
   return 0;
 }
 
+/*
+ * #1030: inventory urgency is FUN_521d_03d0 (ai_goals_founding_expansion_
+ * urgency), not the old (count<3)?8:... stand-in. Scratch picked so 03d0
+ * returns 2: (census 10 - 1 colony) / 4 = 2, cargo 4 >> 1 = 2, avg pop 8 > 7.
+ */
+static int unit_inventory_urgency_is_03d0(void) {
+  const int nation = 2;
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  colonies.colonies[0].active = true;
+  colonies.colonies[0].nation_id = nation;
+  colonies.colony_count = 1;
+  AiNationPlanScratch* p = ai_goals_plan_scratch(nation);
+  *p = (AiNationPlanScratch){.colony_count = 1, .colonies_wanting_colonists = 1,
+                             .census_pop = 10, .ship_cargo_total = 4, .avg_colony_pop = 8};
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.colonies = &colonies;
+  ai_euro_colony_inventory(&ctx, nation);
+  const int got = ai_goals_inventory(nation)->urgency;
+  *p = (AiNationPlanScratch){0};
+  if (got != 2) {
+    fprintf(stderr, "urgency %d\n", got);
+    return fail("#1030: inventory urgency is not 03d0 = 2");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"unit_pioneer_takes_order9", unit_pioneer_takes_order9},
     {"unit_indian_land_found", unit_indian_land_found},
     {"unit_improve_timer_pioneer_gate", unit_improve_timer_pioneer_gate},
+    {"unit_inventory_urgency_is_03d0", unit_inventory_urgency_is_03d0},
 };
 TEST_MAIN(k_cases)

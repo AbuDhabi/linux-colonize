@@ -20,125 +20,6 @@
  */
 
 /*
- * Thin multi-step land 20e6: Soldier with moves>=3 on MILITARY goto drains
- * scored steps in one dispatcher act when path is clear (MP full-drain).
- */
-static int unit_multistep_military(void) {
-  const int nation = 1;
-  const int foe = 2;
-
-  ColonizeWorldMap map;
-  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
-    return fail("multistep alloc map");
-  }
-
-  ColonizeUnitPool units;
-  fx_units_init(&units);
-  units.type_count = 1;
-  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
-  units.types[0].movement = 4;
-  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-  units.types[0].attack = 2;
-  units.types[0].defense = 2;
-
-  ColonizeColonyPool colonies;
-  fx_colonies_init(&colonies);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 2;
-  c->y = 2;
-  c->population = 3;
-  c->colonist_count = 3;
-  c->stock[COLONIZE_CARGO_FOOD] = 40;
-  c->building_in_production = -1;
-  ColonizeColony* enemy = &colonies.colonies[1];
-  enemy->id = 1;
-  enemy->active = true;
-  enemy->nation_id = foe;
-  enemy->x = 12;
-  enemy->y = 2;
-  enemy->population = 2;
-  enemy->colonist_count = 2;
-  enemy->stock[COLONIZE_CARGO_FOOD] = 20;
-  enemy->building_in_production = -1;
-  colonies.colony_count = 2;
-  colonies.next_id = 2;
-
-  const int sid = units_spawn(&units, 0, 4, 2);
-  ColonizeUnit* soldier = units_get(&units, sid);
-  if (!soldier) {
-    fx_map_free(&map);
-    return fail("multistep spawn soldier");
-  }
-  soldier->nation_id = nation;
-  soldier->moves = 4 * UNITS_MP_PER_TILE;
-  soldier->orders = 0;
-
-  ColonizeCol1Save col1;
-  col1_save_init(&col1);
-  memset(col1.nation, 0, sizeof(col1.nation));
-  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
-  for (int i = 0; i < 4; ++i) {
-    col1.player[i].control = 0;
-    col1.player[i].diplomacy = 0;
-  }
-  col1.head.difficulty = 0;
-  col1.nation[nation].gold = 50;
-  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
-   * ladder / recruit / Artillery buys naturally inert (blank census). */
-  col1.stuff.ship_counts[nation] = 1;
-  col1.nation[foe].gold = 50;
-  ai_diplo_declare_war(&col1, nation, foe);
-
-  ai_goals_reset();
-  ai_goals_upsert_primary(nation, 12, 2, AI_GOAL_MILITARY, 6);
-
-  uint32_t turn = 20;
-  ColonizeTurnContext ctx;
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.turn_number = &turn;
-  ctx.units = &units;
-  ctx.colonies = &colonies;
-  ctx.map = &map;
-  ctx.col1 = &col1;
-  ctx.col1_ok = true;
-  ctx.rng_seed = 42;
-
-  const int x0 = soldier->x;
-  ai_euro_dispatcher_turn(&ctx, nation);
-  soldier = units_get(&units, sid);
-  if (!soldier || !soldier->active) {
-    fx_map_free(&map);
-    return fail("multistep soldier inactive");
-  }
-  const int advanced = soldier->x - x0;
-  if (advanced < 3) {
-    fprintf(
-      stderr,
-      "unit_ai_euro_expand: multistep x %d→%d (want ≥3) orders=%d goto=(%d,%d)\n",
-      x0,
-      soldier->x,
-      soldier->orders,
-      soldier->goto_x,
-      soldier->goto_y
-    );
-    fx_map_free(&map);
-    return fail("expected MILITARY MP-drain advance of ≥3 tiles");
-  }
-
-  fx_map_free(&map);
-  fprintf(
-    stderr,
-    "unit_ai_euro_expand: MILITARY MP-drain ok (x %d→%d)\n",
-    x0,
-    soldier->x
-  );
-  return 0;
-}
-
-/*
  * Thin 5d04 / 5c3c: no Europe ship + gold ≥ Caravel 1000$ → buy Caravel at
  * Europe dock stand-in. Gold tuned so after treasury bump + purchase, hire_cost
  * is not met (ship only). Cite: europe purchase.png Caravel; FUN_521d_5c3c.
@@ -966,7 +847,6 @@ static int unit_treasury_skip_hire(void) {
 }
 
 static const TestCase k_cases[] = {
-    {"unit_multistep_military", unit_multistep_military},
     {"unit_treasury_skip_hire", unit_treasury_skip_hire},
     {"unit_5d04_buy_caravel_colonies_ge6", unit_5d04_buy_caravel_colonies_ge6},
     {"unit_5d04_buy_caravel_no_ship", unit_5d04_buy_caravel_no_ship},

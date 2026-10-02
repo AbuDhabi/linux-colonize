@@ -138,108 +138,6 @@ static int unit_naval_war_hunt(void) {
 }
 
 /*
- * Ship under enemy Fort battery flees to safe water (Marathon8 AI wire).
- * Cite: FUN_364b_03f6; ai_euro_naval_try_flee_fort_fire.
- */
-static int unit_naval_flee_fort_fire(void) {
-  const int nation = 1;
-  const int foe = 2;
-
-  ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
-    return fail("flee-fort alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 25; /* ocean */
-  }
-  /* Land colony tile at (5,5); ship starts at (5,4) under battery. */
-  map.terrain[5 + 5 * 16] = 1;
-
-  ColonizeUnitPool units;
-  fx_units_init(&units);
-  units.type_count = 1;
-  snprintf(units.types[0].name, sizeof(units.types[0].name), "Frigate");
-  units.types[0].movement = 4;
-  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
-  units.types[0].attack = 3;
-  units.types[0].defense = 2;
-
-  ColonizeColonyPool colonies;
-  fx_colonies_init(&colonies);
-  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Fort");
-  colonies.building_type_count = 1;
-  ColonizeColony* col = &colonies.colonies[0];
-  col->id = 0;
-  col->active = true;
-  col->nation_id = foe;
-  col->x = 5;
-  col->y = 5;
-  col->population = 3;
-  col->has_building[0] = true;
-  colonies.colony_count = 1;
-
-  const int own_id = units_spawn(&units, 0, 5, 4);
-  ColonizeUnit* ship = units_get(&units, own_id);
-  if (!ship) {
-    fx_map_free(&map);
-    return fail("flee-fort spawn ship");
-  }
-  ship->nation_id = nation;
-  ship->orders = 0;
-  ship->moves = 4 * UNITS_MP_PER_TILE;
-
-  ColonizeCol1Save col1;
-  col1_save_init(&col1);
-  memset(col1.nation, 0, sizeof(col1.nation));
-  for (int i = 0; i < 4; ++i) {
-    col1.player[i].control = 0;
-  }
-  ai_diplo_declare_war(&col1, nation, foe);
-  if (!ai_diplo_at_war(&col1, nation, foe)) {
-    fx_map_free(&map);
-    return fail("flee-fort expected war");
-  }
-
-  ai_goals_reset();
-  uint32_t turn = 30;
-  ColonizeTurnContext ctx;
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.turn_number = &turn;
-  ctx.units = &units;
-  ctx.colonies = &colonies;
-  ctx.map = &map;
-  ctx.col1 = &col1;
-  ctx.col1_ok = true;
-  ctx.rng_seed = 42;
-
-  ai_euro_dispatcher_turn(&ctx, nation);
-
-  ship = units_get(&units, own_id);
-  if (!ship || !ship->active) {
-    fx_map_free(&map);
-    return fail("flee-fort ship should survive");
-  }
-  /* Left the battery ring (not adjacent to Fort colony). */
-  const int adj = abs(ship->x - 5) <= 1 && abs(ship->y - 5) <= 1 && !(ship->x == 5 && ship->y == 5);
-  if (adj) {
-    fprintf(stderr, "flee-fort still adjacent at %d,%d\n", ship->x, ship->y);
-    fx_map_free(&map);
-    return fail("expected ship to flee Fort battery adjacency");
-  }
-
-  fx_map_free(&map);
-  fprintf(stderr, "unit_ai_euro_war: naval flee fort fire ok (%d,%d)\n", ship->x, ship->y);
-  return 0;
-}
-
-/*
  * Privateer at war with a foe ship adjacent and a prior sail goto: the 20e6
  * wander scorer (raw 90210-90219 busy-unit entry, LAB_52aa odds term) picks
  * the foe tile and the act resolves the naval fight. DOS has no distant hunt.
@@ -903,7 +801,6 @@ static int unit_privateer_sighting_bit(void) {
 
 static const TestCase k_cases[] = {
     {"unit_naval_war_hunt", unit_naval_war_hunt},
-    {"unit_naval_flee_fort_fire", unit_naval_flee_fort_fire},
     {"unit_privateer_sighting_bit", unit_privateer_sighting_bit},
     {"unit_privateer_war_hunt", unit_privateer_war_hunt},
     {"unit_privateer_station_keep_hunt", unit_privateer_station_keep_hunt},

@@ -47,46 +47,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-/*
- * Free Colonist / Colonist / Pioneer / Hardy — can join LABOR for food. Kind
- * comes from the unit's @UNIT type row; the residual "Farmer" case folds
- * into the profession == 0 (@JOB Farmer) check in the caller, so this stays
- * kind-only.
- */
-static int ai_euro_is_food_labor_name(ColonizeUnitKind kind) {
-  if (kind == UNITS_KIND_WAGON) {
-    return 0;
-  }
-  if (kind == UNITS_KIND_SOLDIER || kind == UNITS_KIND_DRAGOON || kind == UNITS_KIND_SCOUT) {
-    return 0;
-  }
-  return kind == UNITS_KIND_PIONEER || kind == UNITS_KIND_COLONIST;
-}
-
-/*
- * Food-LABOR capable unit: kind-based food labor OR @JOB Farmer (profession 0)
- * Expert Farmer on a Free Colonist / Colonist. Cite: docs/building_production.md
- * @JOB Farmer→Expert Farmer / Food; Colonization.pdf Skills Chart. No invented
- * food rates — LABOR join only.
- */
-int ai_euro_unit_is_food_labor(const ColonizeUnitPool* units, const ColonizeUnit* u) {
-  if (!u) {
-    return 0;
-  }
-  const ColonizeUnitKind kind = ai_euro_unit_kind(units, u);
-  if (ai_euro_is_food_labor_name(kind)) {
-    return 1;
-  }
-  /* profession 0 == @JOB Farmer (Expert Farmer skill). */
-  if (u->profession == 0 && kind == UNITS_KIND_COLONIST) {
-    return 1;
-  }
-  return 0;
-}
-
 int ai_euro_type_is_wagon_name(ColonizeUnitKind kind);
 int ai_euro_has_useful_goto(const ColonizeUnit* u, const ColonizeWorldMap* map);
-
 int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship);
 
 void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy) {
@@ -882,18 +844,9 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
       }
     }
   }
-  /*
-   * DOS: a new AI town already carries its first project in the same turn
-   * (seed-100 TURN4-6 saves: Docks). Idle-queue-only pick, so re-running it
-   * here after the planning-phase call is harmless for existing towns.
-   * This is the LAST surviving `ai_euro_prefer_*` pass (bugs.md #483 deleted
-   * the other twenty): the FUN_5952_035e cascade runs in the nation's
-   * planning phase, which a colony founded mid-act has already missed, and
-   * the golden's founding-turn Docks is what this stands in for. Retiring it
-   * means finding DOS's own founding-turn project writer, not moving the
-   * cascade.
-   */
-  ai_euro_prefer_peace_construction(ctx, nation_id);
+  /* bugs.md #1034a: ai_euro_prefer_peace_construction (last #483 survivor,
+   * a founding-turn Docks stand-in) was called here; gated off alone
+   * 2026-10-02 it moved no golden bip and no ctest -- deleted. */
 }
 
 /*
@@ -955,8 +908,11 @@ void ai_euro_colony_inventory(ColonizeTurnContext* ctx, int nation_id) {
   }
   ai_goals_inventory_clear(nation_id);
   inv->colony_count = colonies_count_for_nation(ctx->colonies, nation_id);
-  /* founding_expansion_urgency stand-in: early game → 8. */
-  inv->urgency = (inv->colony_count < 3) ? 8 : (inv->colony_count < 6 ? 4 : 0);
+  /* FUN_521d_03d0 via thunk FUN_2a1f_0494, same (nation, total colonies)
+   * call as ai_euro_europe.c / ai_euro_goals.c / ai_euro_ship.c. */
+  inv->urgency = ai_goals_founding_expansion_urgency(
+    nation_id, ctx->colonies ? ctx->colonies->colony_count : 0
+  );
 
   if (!ctx->colonies) {
     return;

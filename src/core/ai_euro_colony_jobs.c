@@ -2523,6 +2523,39 @@ void ai_euro_5952_tools_supply_and_connect(
   ColonizeTurnContext* ctx, ColonizeColony* col
 );
 
+/*
+ * DOS-LITERAL raw 94570-94584 (colony_tick_5952_035e.md:1053-1060, bugs.md
+ * #1028): local_80/local_1e/local_7e gate the WHOLE colonist-placement
+ * section (food pass + both pass-2 sub-passes) and throttle each pass's own
+ * loop.
+ *   local_80 = pop(+0x1f) < local_a2*2
+ *   local_1e = (+0xaa >= 2 && local_36 > +0xaa)
+ *   local_7e = local_80 || local_1e
+ * `local_a2` is DS:0x329[tier] — the same per-colony work-plot ring as
+ * bugs.md #593, i.e. colonies_work_plot_count(). Colony+0xaa is
+ * `stock[HORSES]` (confirmed by the 50/51/52/100-ish thresholds this same
+ * field is tested against elsewhere in raw 94677-94787 — horse-breeding
+ * headroom, not food). `local_36` is colonies_warehouse_capacity
+ * (FUN_281f_0d3a -> FUN_15eb_0a50, 100*(1+warehouse_level)).
+ */
+bool ai_euro_5952_placement_gate(
+  const ColonizeColonyPool* pool, const ColonizeColony* col,
+  bool* out_local_80, bool* out_local_1e
+) {
+  const int ring = colonies_work_plot_count(pool, col);
+  const bool local_80 = col->population < ring * 2;
+  const int horses = col->stock[COLONIZE_CARGO_HORSES];
+  const int wh_cap = colonies_warehouse_capacity(pool, col, COLONIZE_CARGO_HORSES);
+  const bool local_1e = horses >= 2 && wh_cap > horses;
+  if (out_local_80) {
+    *out_local_80 = local_80;
+  }
+  if (out_local_1e) {
+    *out_local_1e = local_1e;
+  }
+  return local_80 || local_1e;
+}
+
 static void ai_euro_colony_tick_run(
   ColonizeTurnContext* ctx, int nation_id, bool whole_tick
 ) {
@@ -2600,6 +2633,12 @@ static void ai_euro_colony_tick_run(
     /* DOS `goto LAB_5952_178f`: ends the whole placement section, not a pass. */
     bool section_done = false;
 
+    /* local_80/local_1e/local_7e — see ai_euro_5952_placement_gate (bugs.md
+     * #1028) just above this function. */
+    bool local_80 = false;
+    bool local_1e = false;
+    const bool local_7e = ai_euro_5952_placement_gate(ctx->colonies, col, &local_80, &local_1e);
+
     /*
      * Pass 1 — the FOOD pass. DOS-LITERAL raw 94592-94594
      * (colony_tick_5952_035e.md:1071-1075):
@@ -2615,7 +2654,21 @@ static void ai_euro_colony_tick_run(
      * so a food-pass slot can only ever land on a food plot. The port gated
      * on `prev_job[]` and called the unrestricted search (bugs.md #567).
      */
-    for (int s = 0; s < n && food_have < food_need; ++s) {
+    const ColonizeCol1Save* col1_5952 = ctx->col1_ok ? ctx->col1 : NULL;
+    for (int s = 0; s < n && (local_7e || food_stock < 0x4b); ++s) {
+      /*
+       * DOS-LITERAL raw 94593-94594: the food-pass loop's own continuation
+       * test, re-read every iteration — `local_80 || DS:0x8dc8<=DS:0x8e0a ||
+       * local_1e` (DS:0x8dc8/0e0a are the gross/demand ledgers, refreshed
+       * after every assignment; slot 0 = FOOD, bugs.md #1028).
+       */
+      int gross_80[AI_EURO_5952_LEDGER_SLOTS];
+      int demand_80[AI_EURO_5952_LEDGER_SLOTS];
+      ai_euro_5952_ledgers(&world, ctx->colonies, col, col1_5952, gross_80, demand_80);
+      if (!(local_80 || local_1e ||
+            gross_80[COLONIZE_CARGO_FOOD] <= demand_80[COLONIZE_CARGO_FOOD])) {
+        break;
+      }
       if (placed[s]) {
         continue;
       }
@@ -2650,11 +2703,9 @@ static void ai_euro_colony_tick_run(
     }
 
     /* Pass 2 ×2 — everyone else, best job wins; raw 94613-94614 stop. */
-    for (int pass = 0; !section_done && pass < 2; ++pass) {
+    for (int pass = 0; !section_done && pass < 2 && (local_7e || food_stock < 0x4b);
+         ++pass) {
       for (int s = 0; s < n; ++s) {
-        if (placed[s]) {
-          continue;
-        }
         /*
          * local_84, recomputed per slot (raw 94608). DS:0x8e32 is the
          * shortfall of this turn's food production against consumption, so it
@@ -2663,6 +2714,17 @@ static void ai_euro_colony_tick_run(
          */
         const int shortfall = food_need > food_have ? food_need - food_have : 0;
         const bool plenty = (shortfall * 0x10) < food_stock;
+        /*
+         * DOS-LITERAL raw 94607-94608: this sub-pass's loop continuation
+         * test — `(DS:0x8e32 != 0 && +0x9a <= DS:0x8e32*0x10) || local_7e`,
+         * i.e. `(shortfall != 0 && !plenty) || local_7e` (bugs.md #1028).
+         */
+        if (!((shortfall != 0 && !plenty) || local_7e)) {
+          break;
+        }
+        if (placed[s]) {
+          continue;
+        }
         /*
          * DOS-LITERAL raw 94600-94604 (md:1088-1092) — the admission test the
          * port was missing entirely (bugs.md #568):

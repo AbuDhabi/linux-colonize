@@ -106,99 +106,6 @@ static int unit_labor_shortage_join(void) {
   return 0;
 }
 
-static int unit_labor_bind_food_short(void) {
-  const int nation = 1;
-
-  ColonizeWorldMap map;
-  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
-    return fail("labor-bind alloc map");
-  }
-
-  ColonizeUnitPool units;
-  fx_units_init(&units);
-  units.type_count = 1;
-  snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
-  units.types[0].movement = 1;
-  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-
-  ColonizeColonyPool colonies;
-  fx_colonies_init(&colonies);
-  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 3);
-  c->stock[COLONIZE_CARGO_FOOD] = 0; /* food_short vs pop*2 */
-  c->stock[COLONIZE_CARGO_TOOLS] = 40;
-
-  const int uid = units_spawn(&units, 0, 5, 4);
-  ColonizeUnit* col = units_get(&units, uid);
-  if (!col) {
-    fx_map_free(&map);
-    return fail("labor-bind spawn colonist");
-  }
-  col->nation_id = nation;
-  col->orders = 0;
-  col->moves = 1 * UNITS_MP_PER_TILE;
-
-  ai_goals_reset();
-  /* Distant FOUND lure — founders would prefer this without LABOR bind. */
-  ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
-
-  ColonizeCol1Save col1;
-  col1_save_init(&col1);
-  memset(col1.nation, 0, sizeof(col1.nation));
-  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
-  for (int i = 0; i < 4; ++i) {
-    col1.player[i].control = 0;
-    col1.player[i].diplomacy = 0;
-  }
-  col1.nation[nation].gold = 200;
-  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
-   * ladder / recruit / Artillery buys naturally inert (blank census). */
-  col1.stuff.ship_counts[nation] = 1;
-
-  uint32_t turn = 20;
-  ColonizeTurnContext ctx;
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.turn_number = &turn;
-  ctx.units = &units;
-  ctx.colonies = &colonies;
-  ctx.map = &map;
-  ctx.col1 = &col1;
-  ctx.col1_ok = true;
-  ctx.rng = NULL;
-  ctx.rng_seed = 42;
-
-  const int pop_before = c->population;
-  ai_euro_dispatcher_turn(&ctx, nation);
-
-  col = units_get(&units, uid);
-  c = &colonies.colonies[0];
-  const int joined = col == NULL || !col->active;
-  const int at_colony = col && col->active && col->x == 4 && col->y == 4;
-  const int not_yanked = !(col && col->active && col->goto_x == 12 && col->goto_y == 12);
-  const int labor_goal = ai_goals_primary(nation, 0) &&
-                         (ai_goals_primary(nation, 0)->code == AI_GOAL_LABOR ||
-                          ai_goals_primary(nation, 0)->code == AI_GOAL_COLONY);
-
-  if ((!joined && !at_colony) || !not_yanked) {
-    fprintf(
-      stderr,
-      "unit_ai_euro_expand: labor joined=%d at_col=%d goto=(%d,%d) pop %d→%d\n",
-      joined,
-      at_colony,
-      col ? col->goto_x : -1,
-      col ? col->goto_y : -1,
-      pop_before,
-      c->population
-    );
-    fx_map_free(&map);
-    return fail("expected LABOR bind toward food-short colony, not FOUND yank");
-  }
-  (void)labor_goal;
-
-  fx_map_free(&map);
-  fprintf(stderr, "unit_ai_euro_expand: LABOR bind food-short ok\n");
-  return 0;
-}
-
 /*
  * Construction hammers bind: idle Pioneer on own colony with Stockade in
  * production stays/LABOR-joins rather than leave for distant FOUND.
@@ -1015,108 +922,6 @@ static int unit_expert_farmer_food_labor(void) {
 }
 
 /*
- * Free Colonist food LABOR (non-Expert Farmer): idle Free Colonist at MD 5 +
- * food_short > 0 but < 4 (not emergency) → LABOR goto. Cite: euro_unit_act §2e
- * Free Colonist food LABOR; manual 2 food/colonist.
- */
-static int unit_free_colonist_food_labor(void) {
-  const int nation = 1;
-
-  ColonizeWorldMap map;
-  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
-    return fail("fc-food alloc map");
-  }
-
-  ColonizeUnitPool units;
-  fx_units_init(&units);
-  units.type_count = 1;
-  snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
-  units.types[0].movement = 3;
-  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-  units.types[0].attack = 0;
-  units.types[0].defense = 1;
-
-  ColonizeColonyPool colonies;
-  fx_colonies_init(&colonies);
-  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 1);
-  c->stock[COLONIZE_CARGO_FOOD] = 0; /* food_short = 2 (not emergency ≥4) */
-  c->stock[COLONIZE_CARGO_TOOLS] = 40;
-
-  /* Free Colonist at MD 5 — beyond adjacent; needs food-short MD≤8 bind. */
-  const int fid = units_spawn(&units, 0, 9, 4);
-  ColonizeUnit* col = units_get(&units, fid);
-  if (!col) {
-    fx_map_free(&map);
-    return fail("fc-food spawn");
-  }
-  col->nation_id = nation;
-  col->orders = 0;
-  col->moves = 3 * UNITS_MP_PER_TILE;
-
-  ai_goals_reset();
-  ai_goals_upsert_primary(nation, 14, 14, AI_GOAL_FOUND, 5);
-
-  ColonizeCol1Save col1;
-  col1_save_init(&col1);
-  memset(col1.nation, 0, sizeof(col1.nation));
-  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
-  for (int i = 0; i < 4; ++i) {
-    col1.player[i].control = 0;
-    col1.player[i].diplomacy = 0;
-  }
-  col1.head.difficulty = 0;
-  col1.nation[nation].gold = 200;
-  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
-   * ladder / recruit / Artillery buys naturally inert (blank census). */
-  col1.stuff.ship_counts[nation] = 1;
-
-  uint32_t turn = 19;
-  ColonizeTurnContext ctx;
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.turn_number = &turn;
-  ctx.units = &units;
-  ctx.colonies = &colonies;
-  ctx.map = &map;
-  ctx.col1 = &col1;
-  ctx.col1_ok = true;
-  ctx.rng_seed = 19;
-
-  ai_euro_dispatcher_turn(&ctx, nation);
-
-  col = units_get(&units, fid);
-  int labor_bound = 0;
-  for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
-    const AiGoalSlot* g = ai_goals_primary(nation, i);
-    if (g && g->code == AI_GOAL_LABOR && g->x == 4 && g->y == 4) {
-      labor_bound = 1;
-      break;
-    }
-  }
-  const int moving =
-    col && col->active &&
-    ((col->orders == UNITS_ORDER_AI_MOVE && col->goto_x == 4 && col->goto_y == 4) ||
-     (col->x == 4 && col->y == 4) || (abs(col->x - 4) + abs(col->y - 4)) < 5);
-  if (!labor_bound || !moving) {
-    fprintf(
-      stderr,
-      "unit_ai_euro_expand: fc-food orders=%d goto=(%d,%d) pos=(%d,%d) labor=%d\n",
-      col ? col->orders : -1,
-      col ? col->goto_x : -1,
-      col ? col->goto_y : -1,
-      col ? col->x : -1,
-      col ? col->y : -1,
-      labor_bound
-    );
-    fx_map_free(&map);
-    return fail("expected Free Colonist food-short LABOR bind (non-Farmer)");
-  }
-
-  fx_map_free(&map);
-  fprintf(stderr, "unit_ai_euro_expand: Free Colonist food LABOR ok\n");
-  return 0;
-}
-
-/*
  * Tools-short Pioneer deepen: peace Pioneer at MD 5 + tools_short colony →
  * LABOR goto (feeds on-tile tools delivery). Cite: euro_unit_act §2e.
  */
@@ -1219,10 +1024,8 @@ static int unit_tools_short_pioneer_labor(void) {
 
 static const TestCase k_cases[] = {
     {"unit_labor_shortage_join", unit_labor_shortage_join},
-    {"unit_labor_bind_food_short", unit_labor_bind_food_short},
     {"unit_food_emergency_labor", unit_food_emergency_labor},
     {"unit_expert_farmer_food_labor", unit_expert_farmer_food_labor},
-    {"unit_free_colonist_food_labor", unit_free_colonist_food_labor},
     {"unit_tools_short_pioneer_labor", unit_tools_short_pioneer_labor},
     {"unit_colony_flags_starvation_labor", unit_colony_flags_starvation_labor},
     {"unit_colony_ai_flags_mow_colony_alt", unit_colony_ai_flags_mow_colony_alt},

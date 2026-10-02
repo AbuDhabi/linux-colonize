@@ -167,12 +167,6 @@ graphs:
         fn: ai_goals.c:ai_goals_promote_secondary_to_primary
         dos: FUN_521d_0342 — clear 64 primaries, upsert every live secondary
         status: dos
-      - id: build_policy
-        kind: step
-        label: Build-queue policy (cancel stale, peace construction ladder, craft upgrades)
-        fn: ai_euro.c:ai_euro_prefer_peace_construction
-        status: port
-        note: ai_euro_cancel_stale_zero_hammer_builds, prefer_peace_construction (Stockade→Fort→Fortress→Warehouse→Docks, Drydock→Shipyard, Custom House — NOT the Church, which is built by the 5952 build cascade, ai_euro_colony_jobs.c:ai_euro_5952_build_cascade @BUILDING 0x25), prefer_all_buildings, prefer_craft_upgrades, clear_pre_stockade_build_queue.
       - id: goals
         kind: sub
         label: Goal writer — colony/unit goals (0a60 A–H)
@@ -208,14 +202,14 @@ graphs:
         label: moves <= 0?
       - id: wake_elig
         kind: decision
-        label: First-colony sentry wake eligible? (no colonies yet, Pioneer/Soldier, found-approach conditions)
-        fn: ai_euro.c:ai_euro_06ae_first_colony_from_landfall
+        label: First-colony wake eligible? (no colonies yet, land Pioneer/Soldier)
+        fn: ai_euro.c:ai_euro_dispatcher_turn_unit_waves
         status: golden
-        note: Cite TURN3–5 goldens; soldier/pioneer wake rules keyed on landfall + found tile geometry.
+        note: "FITTED-NOT-DOS (bugs.md #1035): DOS has only the has-MP gate. Holds up golden TURN3->4; the finer found-approach wake rules were golden-dead and deleted 2026-10-02."
       - id: sticky
         kind: decision
-        label: Same unit acted > 0x14 times without progress?
-        note: "Anti-spin. DOS (raw 93262-93268): DS:0x2d14 counts consecutive acts of the same unit; >0x14 → FUN_281f_0934 clears its orders and the unit is STILL acted. Port matches since 2026-09-15 (used to skip the unit)."
+        label: Same unit acted > 0x14 times in a row?
+        note: "Anti-spin. DOS (raw 93247-93257): DS:0x2d14 counts consecutive acts of the same unit (reset only on a new id); >0x14 → FUN_281f_0934 exhausts its MP and the unit is STILL acted, so the has-MP test ends its drain (bugs.md #1027, 2026-10-02)."
       - id: act
         kind: sub
         label: Unit act (5b66 dispatcher)
@@ -251,8 +245,7 @@ graphs:
       - [inventory, treaty_timers]
       - [treaty_timers, planning]
       - [planning, promote]
-      - [promote, build_policy]
-      - [build_policy, goals]
+      - [promote, goals]
       - [goals, goal_orders]
       - [goal_orders, is_crown]
       - [is_crown, balance, "no"]
@@ -479,30 +472,17 @@ graphs:
         status: dos
       - id: sec_e
         kind: loop
-        label: "E: foreign colonies at war → MILITARY prio 5; thin bind one idle Soldier/Dragoon"
+        label: "E: foreign colonies at war → MILITARY prio 5"
+        note: "The thin bind of one idle Soldier/Dragoon (bare AI_MOVE at ai_euro_nearest_military_goal) was deleted 2026-10-02, bugs.md #1034(c): no DOS cite, no golden moved."
         fn: ai_diplo.c:ai_diplo_at_war
         status: thin
-      - id: food
-        kind: step
-        label: Food emergency — food_short ≥ 4 → bind nearest food-capable colonist MD≤8 to LABOR
-        status: port
-      - id: sec_f
-        kind: loop
-        label: "F: tribes — tribe-adjacent FOUND secondary prio 2 (never on the village); friction>50 → MILITARY (capital higher)"
-        fn: ai_euro.c:ai_euro_pick_founding_tile
-        status: structural
       - id: producers
         kind: call
         label: Foreign-colony + village producers — MILITARY approach, CONTACT lurk, FOUND/MIL_EXPAND ship staging
         fn: ai_euro_goals.c:ai_euro_0a60_settlement_goal_producers
         dos: 0a60 raw 983-1276 (viceroy ~87795-88052)
         status: dos
-        note: "Fair-play gates difficulty×turn < 0xb5 / 0xc9; outmatched (fewer colonies + owner has ≥8 skilled) vs absent; open-sea staging tile scan ±3; priority ladder (human owner, colony tally, MET-not-PEACE, turn<0x96); weak-defender cancel (defenders ≤ 6 − turn/50). Village loop: CONTACT lurk ring, FOUND beachhead on colony-free continents (0x173c/0x173e masks)."
-      - id: sec_g
-        kind: step
-        label: "G: continent stance — own≥2: at war MILITARY on weakest/nearest foe prio 6/7/8; peace bump one FOUND +1 or explore"
-        fn: ai_euro.c:ai_euro_refresh_continent_stance
-        status: port
+        note: "2026-10-02 (bugs.md #1034(c)): the port-only passes around this node are deleted — food emergency (food_short>=4 LABOR bind, manual cite), F tribe seeds (tribe-adjacent FOUND prio 2, friction>50 MILITARY, fandom capital prio 5) and the G continent-stance ladder (MILITARY 6/7/8, FOUND bump, idle explore); none had a DOS body and gating each off moved no golden. The thin stance refresh (ai_euro_refresh_continent_stance) still runs here because its nibbles are read elsewhere. Fair-play gates difficulty×turn < 0xb5 / 0xc9; outmatched (fewer colonies + owner has ≥8 skilled) vs absent; open-sea staging tile scan ±3; priority ladder (human owner, colony tally, MET-not-PEACE, turn<0x96); weak-defender cancel (defenders ≤ 6 − turn/50). Village loop: CONTACT lurk ring, FOUND beachhead on colony-free continents (0x173c/0x173e masks)."
       - id: ship_found
         kind: step
         label: "Ship FOUND — colonies==0 only: 06ae landfall seed from each ship at sea → FOUND primary (fitted, bugs.md #530)"
@@ -528,11 +508,8 @@ graphs:
       - [d_work, d_garrison]
       - [d_garrison, sec_d, "next colony"]
       - [sec_d, sec_e, "done"]
-      - [sec_e, food]
-      - [food, sec_f]
-      - [sec_f, producers]
-      - [producers, sec_g]
-      - [sec_g, ship_found]
+      - [sec_e, producers]
+      - [producers, ship_found]
       - [ship_found, end]
 
   # ---------------------------------------------------------------------
@@ -655,9 +632,9 @@ graphs:
         label: Gate returned nonzero (act aborted)?
       - id: corridors
         kind: step
-        label: First-colony staging corridors (Pioneer found+1 → SW coast; Soldier SE+1→SE+2→SE+3)
+        label: First-colony staging corridor (Pioneer found+1 → SW coast)
         status: golden
-        note: Geometric offsets from town fitted to TURN4–7 goldens. The FUN_5952_035e absorb+equip pair used to run here on the town tile; RE-HOSTED 2026-09-18 into the colony tick (node d_absorb), which is where DOS runs it. A DOS unit act does nothing extra for an AI unit standing on its own colony — 20e6 move scoring and the 0a60 goal consumption are the whole of it.
+        note: "FITTED-NOT-DOS (bugs.md #1035): gated off 2026-10-02 it fails golden_ai_turns TURN4→5/TURN5→6. The Soldier SE+1→SE+3 corridor was dead under the same test and is deleted (ai_euro_act_soldier_staging is an empty stage until its ai_euro.c call goes). The FUN_5952_035e absorb+equip pair used to run here on the town tile; RE-HOSTED 2026-09-18 into the colony tick (node d_absorb), which is where DOS runs it. A DOS unit act does nothing extra for an AI unit standing on its own colony — 20e6 move scoring and the 0a60 goal consumption are the whole of it."
       - id: is_ship
         kind: decision
         label: Ship?
@@ -742,13 +719,6 @@ graphs:
         label: Ship arrival + trade haul (20e6 ship band)
         sub: ship_haul
         fn: ai_euro_ship.c:ai_euro_try_ship_trade_haul
-      - id: war_naval
-        kind: step
-        label: Flee enemy Fort/Fortress battery water (not war-gated — the battery fires without a PEACE treaty)
-        fn: ai_euro_ship.c:ai_euro_naval_try_flee_fort_fire
-        dos: FUN_364b_03f6
-        status: structural
-        note: The act-level adjacent-foe attack picker, the war-cargo colony-sail entry and the distant "nearest foe / enemy port" hunt aim were all port inventions, retired 2026-09-15/2026-09-18. A hull fights only through the LAB_4d2e wander scorer (node `sail`).
       - id: reassert
         kind: step
         label: Re-assert first-colony ship course (post-beachhead only)
@@ -767,9 +737,9 @@ graphs:
         fn: ai_euro_ship.c:ai_euro_unload_settle
       - id: tips
         kind: step
-        label: First-colony hold / cruise tip MP drain; post-found park (AI_MOVE@self)
+        label: First-colony hold / cruise tip MP drain
         status: golden
-        note: TURN2/TURN5 goldens; COL1 export maps AI_MOVE@self → moves spent 0.
+        note: "TURN2/TURN5 goldens. The (45,52) want-west step is FITTED-NOT-DOS (bugs.md #1035, fails TURN4→5 when gated). The post-found x+2,y+6 park (AI_MOVE@self) was dead when gated and is deleted 2026-10-02."
       - id: ambush
         kind: step
         label: Ship-slow — every ship step next to a foreign warship / Fort / Fortress may lose MP (inside units_try_move)
@@ -788,11 +758,10 @@ graphs:
       - [dock_demand, cross_europe, "yes, and already on High Seas"]
       - [dock_demand, at_war, "no, or course only set"]
       - [at_war, peace_haul, "no, and no useful goto"]
-      - [at_war, war_naval, "yes"]
+      - [at_war, reassert, "yes"]
       - [peace_haul, haul, "no coast cruise"]
-      - [haul, war_naval]
-      - [peace_haul, war_naval, "cruise set"]
-      - [war_naval, reassert]
+      - [haul, reassert]
+      - [peace_haul, reassert, "cruise set"]
       - [reassert, sail]
       - [sail, unload, "not the Europe-exit act"]
       - [sail, tips, "Europe-exit act"]
@@ -987,7 +956,7 @@ graphs:
         kind: step
         label: "(retired 2026-09-23, bugs.md #760) — pass-through, no DOS peace border wake"
         status: port
-        note: "The peace colony-defence wake (garrison or Artillery on its own colony wakes and hunts a foreign Euro land unit within MD<=2) was deleted as invented: manual-only citation (Colonization.pdf 'Defending a Colony'), and FUN_521d_20e6 raw 88266-90445 has no MD<=2 threat scan. DOS's own-colony handling is the type-agnostic LAB_5899 garrison arm (raw 88584-88612, node fortify / ai_euro_20e6_land_arms). The ctx flag peace_border_hunted is now always 0; its six unit tests were deleted with the arm."
+        note: "The peace colony-defence wake (garrison or Artillery on its own colony wakes and hunts a foreign Euro land unit within MD<=2) was deleted as invented: manual-only citation (Colonization.pdf 'Defending a Colony'), and FUN_521d_20e6 raw 88266-90445 has no MD<=2 threat scan. DOS's own-colony handling is the type-agnostic LAB_5899 garrison arm (raw 88584-88612, ai_euro_20e6_land_arms). The ctx flag peace_border_hunted is now always 0; its six unit tests were deleted with the arm."
       - id: treasure
         kind: step
         label: Treasure — cash at any own colony (20e6 arm 1), else walk to nearest own colony (arm 2) / own unit (arm 3), else 47b9 destroy
@@ -1008,23 +977,12 @@ graphs:
         dos: FUN_521d_20e6 raw 90183-90206 (dup raw 85345-85368)
         status: dos
         note: "bugs.md #610/#611: the old node was the INVENTED planner ai_euro_try_pioneer_improve (Colonization.pdf-cited colony-ring scan, plow-before-road, MD<=3, prefer-Hardy), deleted 2026-09-22. DOS's only AI pioneer unit order is this one: at the land commit point a type-2 unit that is not the iStack_6a explorer pick writes +0x314c = 9 / +0x314b = 0x52 and leaves 20e6 (goto LAB_5a78). Nothing in the image then ticks that order for an AI unit — the sole callers of FUN_479b_01a6/0526 are the human ORDERS UI (raw 42512/42603) and the colony tick's phantom-unit sites (raw 93669, raw 94520/94534) — so the write is a park. Real AI tile improvement happens in FUN_5952_035e raw 94402-94551 (ai_euro_5952_improve_best_plot, bugs.md #612), which is a colony-tick arm and therefore not on this unit graph."
-      - id: fortify
-        kind: step
-        label: "Peace fortify — armed land unit (DS:0x5236[type] > 1, type outside 0xd..0x12) on own colony → FORTIFY"
-        fn: ai_euro_act.c:ai_euro_act_land_fortify
-        dos: FUN_521d_20e6 raw 89011-89013 (the 'F' = 0x46 arm's unit test)
-        status: structural
-        note: "FIXED 2026-09-18 (bugs.md #512): the arm's own unit test is now DOS's — the NAMES @UNIT ATTACK column above 1 (loader raw 121115-121119 stores col3 attack at 0x5236, col4 defense at 0x5235) plus not-a-ship-type — instead of name matching, and it spends no garrison quota to fire (DOS's arm has no quota concept; the colony's quota is still decremented so the other quota readers see the garrison). NOT ported from that DOS arm: its remaining guards — local_ea (an adjacent attackable foreigner was seen earlier in the act), FUN_281f_098e == FUN_281f_02ee (the +0x315c and +0x315e stack-chain walks agree, i.e. the unit is alone in its stack) and the 8-neighbour FUN_281f_0696 scan for a Euro colony owned by another nation. Those belong to a DIFFERENT trigger (park beside a foreign border colony) than this port arm's own-colony garrison, so bolting them on would suppress ordinary AI garrison fortification; that trigger is ported separately 2026-09-18 as ai_euro_20e6_border_park_arm (move_scoring_gate graph, node border_park)."
       - id: pilot
         kind: step
         label: Read 0a60 pick (act_state 0xb)
         fn: ai_euro_act.c:ai_euro_act_land_goal_consume
         status: structural
-        note: "2026-09-18: the threatened-Stockade LABOR override and its ai_euro_colony_threatened_by_war helper were deleted as invented — the goal table is written only by FUN_521d_0a60 and the one AI construction picker is the FUN_5952_035e cascade, neither of which has a war-proximity term."
-      - id: labor
-        kind: step
-        label: LABOR bind ladder — carpenter hammers, lumber, tools-short Pioneer, food labor, Free Colonist; MD≤8
-        status: port
+        note: "2026-09-18: the threatened-Stockade LABOR override and its ai_euro_colony_threatened_by_war helper were deleted as invented — the goal table is written only by FUN_521d_0a60 and the one AI construction picker is the FUN_5952_035e cascade, neither of which has a war-proximity term. 2026-10-02 (bugs.md #1032/#1034(b)): the peace-fortify node before this one (own-colony FORTIFY + garrison_quota spend, mis-cited to the raw 89011 border-park arm) and the LABOR bind ladder after it (manual / Skills-Chart only) are deleted; DOS garrisons through LAB_5899 (raw 88584-88612) and fortifies via the 589e stay tail."
       - id: found_now
         kind: decision
         label: FOUND goal and standing on its tile?
@@ -1066,9 +1024,6 @@ graphs:
         fn: ai_euro_goals.c:ai_euro_score_move
         dos: LAB_521d_4d2e→5183 wander scorer, 54f5 facing bias
         status: structural
-      - id: fortify_fallback
-        kind: step
-        label: No goto — peace fortify fallback on own colony
       - id: war_tail
         kind: step
         label: War hunter tail — adjacent colony seize, village seize
@@ -1088,10 +1043,8 @@ graphs:
       - [treasure, end, "cashed / destroyed"]
       - [treasure, wagon, "not treasure"]
       - [wagon, pioneer]
-      - [pioneer, fortify]
-      - [fortify, pilot]
-      - [pilot, labor]
-      - [labor, found_now]
+      - [pioneer, pilot]
+      - [pilot, found_now]
       - [found_now, found, "yes"]
       - [found_now, found_near, "no"]
       - [found, end]
@@ -1100,9 +1053,8 @@ graphs:
       - [on_colony, mil_contact]
       - [mil_contact, set_goto]
       - [set_goto, move_loop, "on goto"]
-      - [set_goto, fortify_fallback, "no goto"]
+      - [set_goto, war_tail, "no goto"]
       - [move_loop, war_tail]
-      - [fortify_fallback, war_tail]
       - [war_tail, end]
 
   # ---------------------------------------------------------------------

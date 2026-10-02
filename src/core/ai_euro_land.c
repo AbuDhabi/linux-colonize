@@ -306,7 +306,7 @@ void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* co
       }
       value -= pen;
     }
-    if (best <= value) { /* raw 94466: `if ((int)local_16e < (int)local_132)` */
+    if (best < value) { /* raw 94466 (bug #1031): `if ((int)local_16e < (int)local_132)` — first tie wins */
       best = value;
       best_plot = ti;
     }
@@ -945,6 +945,7 @@ int ai_euro_10ec_land_units_on(const ColonizeTurnContext* ctx, int nation, int c
   return n > 255 ? 255 : n; /* −0x6b5a byte table */
 }
 
+/* DOS-LITERAL FUN_5bfb_10ec raw ~97148-97211 (bug #1034e: faithful port, name cited here). */
 int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units || !ctx->map || !ctx->turn_number ||
       a < 0 || a > 3 || b < 0 || b > 3 || a == b) {

@@ -259,6 +259,7 @@ static int unit_master_carpenter_construction_labor(void) {
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
   c->building_in_production = 0; /* Stockade incomplete */
+  c->build_ai_flags |= COLONIZE_BUILD_AI_WANTS_CONSTRUCTION; /* 5952 bit7 (#1034a) */
   c->hammers = 10;
   colonies.colony_count = 1;
   colonies.next_id = 1;
@@ -385,6 +386,7 @@ static int unit_lumberjack_warehouse_labor(void) {
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
   c->building_in_production = 0; /* Warehouse incomplete */
+  c->build_ai_flags |= COLONIZE_BUILD_AI_WANTS_CONSTRUCTION; /* 5952 bit7 (#1034a) */
   c->hammers = 10;
   colonies.colony_count = 1;
   colonies.next_id = 1;
