@@ -474,13 +474,11 @@ static int ai_euro_5952_improved_peer_owner_at(
  *     spawn DS:0x524e phantom, +0x315a = 99, FUN_291f_0216 (= FUN_479b_0526
  *       road), FUN_291f_0a06 despawn, return 1
  *
- * Port notes: the walk needs a mover for units_next_goto_step_w (the port of
- * the same FUN_6662 pathfinder), so a walker phantom carries the virtual
- * position DOS keeps in local_18/local_1e; it is despawned BEFORE the
- * occupancy tests so it cannot be mistaken for the occupant DOS's
- * unit-less walk never sees. The road phantom is then spawned on the gap
- * tile exactly as the #612 improve arm does. The step loop carries a
- * width+height cap DOS does not need (its pathfinder always terminates).
+ * Port notes: the walk calls the raw 00f2 flood (units_flood_step_dir) on
+ * plain coordinates, no walker unit, exactly as DOS does (bugs.md #1044).
+ * The road phantom is spawned on the gap tile exactly as the #612 improve
+ * arm does. The step loop carries a width+height cap DOS does not need (its
+ * pathfinder always terminates).
  */
 static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColony* col) {
   if (!ctx || !ctx->map || !ctx->colonies || !ctx->units || !col || !col->active) {
@@ -523,49 +521,28 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
     if (!ctx->rng || dos_rng_range(ctx->rng, 0, own_here - 2) != 0) {
       continue; /* raw 93625 FUN_281f_04d4(0, count - 2) */
     }
-    /* The virtual walk, raw 93632-93652. */
-    const int wtype = ai_euro_5d04_port_type_for(ctx->units, 2);
-    if (wtype < 0) {
-      return 0;
-    }
-    const int wid = units_spawn_allow_stack(ctx->units, wtype, col->x, col->y);
-    ColonizeUnit* walker = units_get(ctx->units, wid);
-    if (!walker) {
-      return 0;
-    }
-    walker->nation_id = nation;
+    /* The virtual walk, raw 93632-93652: the raw 00f2 flood on the shared
+     * grid with DS:0x1dd6 = -1, goal (ox,oy), DS:0x1dd4 = 1, DS:0x1dd2 = 1,
+     * BX = 0x63, from the walk position (local_18 / local_1e). bugs.md #1044. */
     int cx = col->x;
     int cy = col->y;
     int found = 0;
-    if (units_set_goto_w(&w, wid, ox, oy)) {
-      for (int steps = 0; steps < step_cap; ++steps) {
-        int nx = 0;
-        int ny = 0;
-        if (!units_next_goto_step_w(&w, wid, &nx, &ny)) {
-          break; /* dir < 0 or dir == 8 */
-        }
-        const int px = cx;
-        const int py = cy;
-        cx = nx;
-        cy = ny;
-        walker->x = nx;
-        walker->y = ny;
-        if (walker->aboard_ship_id < 0 && units_is_on_map(walker)) {
-          units_tile_stack_arrive(ctx->units, walker->id);
-        }
-        units_occupancy_notify_moved(ctx->units, px, py, nx, ny);
-        units_note_goto_step(wid, nx - px, ny - py);
-        if (cx == ox && cy == oy) {
-          break; /* raw 93639 */
-        }
-        if (ai_euro_5952_settlement_owner_at(ctx->map, cx, cy) < 0 &&
-            (ai_euro_5952_tile_road_or_settlement(ctx->map, cx, cy) & 0x0a) == 0) {
-          found = 1; /* raw 93641-93645: bVar3 = false */
-          break;
-        }
+    for (int steps = 0; steps < step_cap; ++steps) {
+      const int d = units_flood_step_dir(&w, cx, cy, ox, oy, 1, -1, 0x63, true);
+      if (d < 0 || d == 8) {
+        break;
+      }
+      cx += MAP_DIR8_DX[d];
+      cy += MAP_DIR8_DY[d];
+      if (cx == ox && cy == oy) {
+        break; /* raw 93639 */
+      }
+      if (ai_euro_5952_settlement_owner_at(ctx->map, cx, cy) < 0 &&
+          (ai_euro_5952_tile_road_or_settlement(ctx->map, cx, cy) & 0x0a) == 0) {
+        found = 1; /* raw 93641-93645: bVar3 = false */
+        break;
       }
     }
-    units_despawn(ctx->units, wid);
     if (!found) {
       continue;
     }
@@ -588,6 +565,10 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
       return 0;
     }
     /* raw 93667-93671: the road phantom. */
+    const int wtype = ai_euro_5d04_port_type_for(ctx->units, 2);
+    if (wtype < 0) {
+      return 0;
+    }
     const int pid = units_spawn_allow_stack(ctx->units, wtype, cx, cy);
     ColonizeUnit* ph = units_get(ctx->units, pid);
     if (!ph) {

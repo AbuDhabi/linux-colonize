@@ -7,12 +7,31 @@
 /* Movement, pathing, goto, orders, MP: split out of units.h for navigability. */
 
 /*
- * FUN_6662_0906 with param_2 = 1 (sea domain): flood cost from (bx,by) to
- * (ax,ay) inside the |a−b| < 8 window, −1 when unreachable/out of window.
- * FUN_4962_0018's colony ship-pressure probe gates on cost 0..5.
+ * FUN_6662_0906(cap 8, sea) as FUN_4962_0018's colony ship-pressure probe
+ * calls it: the shared 00f2 flood from colony (bx,by), Caravel costs, cost
+ * at the ship (ax,ay) or 0 on a reused grid, -1 when unreachable / out of
+ * the |a-b| < 8 window. The caller gates on cost 0..5.
  */
 int units_short_sea_route_cost(
-  const ColonizeWorldMap* map, int ax, int ay, int bx, int by
+  const ColonizeUnitPool* pool, const ColonizeWorldMap* map, int ax, int ay, int bx, int by
+);
+
+/*
+ * One raw FUN_6662_00f2 call on the shared goto grid (no unit needed):
+ * mover (AX,DX), goal DS:0xa14e/0xa14c, DS:0x1dd2 = type_index, DS:0x1dd6 =
+ * owner (-1 = no ownership terms), BX = cap, DS:0x1dd4 = uniform. Returns
+ * the DS:0xb4/0xbe direction 0..7 or -1. Used by the 5952 road-connect walk.
+ */
+int units_flood_step_dir(
+  const ColonizeWorld* w,
+  int mover_x,
+  int mover_y,
+  int goal_x,
+  int goal_y,
+  int type_index,
+  int owner,
+  int cap,
+  bool uniform
 );
 
 /*
