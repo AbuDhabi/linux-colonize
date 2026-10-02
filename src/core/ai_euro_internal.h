@@ -33,7 +33,6 @@ struct ai_euro_act_ctx {
   int is_ship;
   /* ship band */
   int exited_europe;
-  int at_war;
   /* land band */
   const char* uname;
   ColonizeUnitKind ukind; /* unit's @UNIT type-row kind (never string-derived) */
@@ -145,7 +144,6 @@ extern int8_t ai_euro_s_euro_last_dir[COLONIZE_UNITS_MAX];
 extern uint8_t ai_euro_s_founded_colony_turn[COLONIZE_COLONIES_MAX];
 extern uint32_t ai_euro_s_violate_last_turn[COLONIZE_UNITS_MAX];
 extern uint8_t ai_euro_s_euro_roam_wander[COLONIZE_UNITS_MAX];
-extern uint8_t ai_euro_s_euro_ship_route_latch[COLONIZE_UNITS_MAX];
 void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int nation_id);
 int ai_euro_rival_strength_at(int nation_id, int continent_id);
 int ai_euro_continent_stance_at(int nation_id, int continent_id);

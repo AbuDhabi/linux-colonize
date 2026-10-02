@@ -116,13 +116,6 @@ uint32_t ai_euro_s_violate_last_turn[COLONIZE_UNITS_MAX];
  * (see the check near the top of ai_euro_unit_act).
  */
 uint8_t ai_euro_s_euro_roam_wander[COLONIZE_UNITS_MAX];
-/*
- * Ship sail-loop route latch: set once the greedy ocean scorer stalls against
- * a land wall for a goto, cleared on every goto write. While set, the act
- * routes via the FUN_6662 pathfinder from its first step instead of greedy
- * west / pathfinder east ping-pong (net zero progress = multi-turn "circles").
- */
-uint8_t ai_euro_s_euro_ship_route_latch[COLONIZE_UNITS_MAX];
 
 void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy);
 void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int ty);
@@ -2558,7 +2551,6 @@ void ai_euro_reset(void) {
   memset(s_euro_rival_strength, 0, sizeof(s_euro_rival_strength));
   memset(ai_euro_s_violate_last_turn, 0, sizeof(ai_euro_s_violate_last_turn));
   memset(ai_euro_s_euro_roam_wander, 0, sizeof(ai_euro_s_euro_roam_wander));
-  memset(ai_euro_s_euro_ship_route_latch, 0, sizeof(ai_euro_s_euro_ship_route_latch));
   memset(ai_euro_s_ship_pressure, 0, sizeof(ai_euro_s_ship_pressure));
   memset(ai_euro_s_4393_claim_turn, 0, sizeof(ai_euro_s_4393_claim_turn));
   memset(ai_euro_s_4393_claim_colony, 0, sizeof(ai_euro_s_4393_claim_colony));

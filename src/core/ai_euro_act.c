@@ -561,17 +561,18 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_war_trade(struct ai_euro_act_
    */
   const int sailed_home = ai_euro_20e6_europe_dock_demand(ctx, u, nation_id);
 
-  const int at_war =
-    ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id);
   /* (The "treasure aboard → keep the Europe sail" suppression that stood here
    * went with the invented transport cluster on 2026-09-23, bugs.md #746.) */
   /*
-   * Peace cargo haul: idle Caravel/Merchantman with hold space/TOOLS →
-   * AI_SAIL toward tools/food-short coastal colony water. Cite: euro_unit_act
-   * §2d2; TOOLS only (no invented FOOD cargo). Skip when war /
-   * useful sail already set.
+   * Cargo haul chain: delivery matrix / 4393 haul / 457e cadence / Europe
+   * export. Skipped only when a useful sail is already set. No war gate:
+   * DOS FUN_521d_20e6 reaches LAB_521d_3558 (raw 89381) on hull type
+   * (local_34) and own-colony distance (local_2e) alone. The port's
+   * `!at_war` gate outlived the naval war hunt it paired with (deleted
+   * 2026-09-18) and left every laden hull of a nation at war wandering
+   * forever (bugs.md #1036).
    */
-  if (!sailed_home && !at_war && !ai_euro_has_useful_goto(u, ctx->map)) {
+  if (!sailed_home && !ai_euro_has_useful_goto(u, ctx->map)) {
     if (!ai_euro_try_post_found_coast_cruise(ctx, nation_id, u)) {
       {
         if (!ai_euro_try_ship_trade_haul(ctx, nation_id, u)) {
@@ -653,7 +654,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_war_trade(struct ai_euro_act_
     }
   }
 
-  a->at_war = at_war;
   a->exited_europe = exited_europe;
   a->u = u;
   return AI_EURO_ACT_CONTINUE;
@@ -661,7 +661,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_war_trade(struct ai_euro_act_
 
 /*
  * Ship stage 4: raw 90210-90219 LAB_4d2e idle wander, then the case 0x0b
- * sail loop (scored step, pathfinder fallback, route latch).
+ * sail loop (FUN_479b_0972 pathfinder steps).
  */
 COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_sail(struct ai_euro_act_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
@@ -686,9 +686,13 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_sail(struct ai_euro_act_ctx* 
     }
   }
   /*
-   * Case 0x0b ship sail: preserve landfall/sail goto. Scored ocean steps
-   * (thin 20e6) drain moves — mirror land FOUND/MILITARY MP-drain.
-   * Arrival clears via station-keep below.
+   * Case 0x0b ship sail: FUN_521d_5b66 walks an 0x0b/0x0c goto with
+   * FUN_479b_0972, one pathfinder step per call; the port loops it until MP
+   * runs out. Arrival clears via station-keep below. (A greedy
+   * ai_euro_score_move step used to run first, with the pathfinder only as
+   * fallback; in a coastal pocket the greedy step walked into the dead end
+   * and the pathfinder walked back out, net zero every turn — campaign4
+   * English Caravel at (15,33) for 100+ turns, bugs.md #1037.)
    */
   int gx = u->goto_x;
   int gy = u->goto_y;
@@ -706,8 +710,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_sail(struct ai_euro_act_ctx* 
     fprintf(stderr, "[ship] unit %d at (%d,%d) goto (%d,%d) ord %d mp %d cargo %d\n", u->id, u->x, u->y, u->goto_x, u->goto_y, u->orders, u->moves, u->cargo_count);
   }
   if (units_orders_follow_goto(u->orders) && (u->x != u->goto_x || u->y != u->goto_y)) {
-    int prev_x = -1;
-    int prev_y = -1;
     for (;;) {
       if (!u->active || u->moves <= 0 || !units_orders_follow_goto(u->orders)) {
         break;
@@ -715,92 +717,36 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_sail(struct ai_euro_act_ctx* 
       if (u->x == u->goto_x && u->y == u->goto_y) {
         break;
       }
-      int dx = 0;
-      int dy = 0;
-      int tx = 0;
-      int ty = 0;
-      const int latched =
-        u->id >= 0 && u->id < COLONIZE_UNITS_MAX && ai_euro_s_euro_ship_route_latch[u->id];
-      if (!latched && ai_euro_score_move(ctx, u, u->goto_x, u->goto_y, &dx, &dy)) {
-        tx = u->x + dx;
-        ty = u->y + dy;
-      } else {
-        tx = -1;
-        ty = -1;
-      }
-      /* Greedy step straight back to the tile we just left = local optimum
-       * ping-pong (the on-screen wiggle); route via the pathfinder instead. */
-      if (tx == prev_x && ty == prev_y) {
-        tx = -1;
-        ty = -1;
-      }
       const int from_x = u->x;
       const int from_y = u->y;
-      int moved = 0;
-      if (tx >= 0) {
-        const int foe = units_id_at(ctx->units, tx, ty);
-        const ColonizeUnit* fo = foe >= 0 ? units_get_const(ctx->units, foe) : NULL;
-        if (fo && fo->nation_id != u->nation_id) {
-          /* Naval combat stays on adjacent prefer-weak pick — do not
-           * chain-attack via scored step into a foe tile (try_move cannot
-           * enter ships; mirror prior advance_goto block). Own ships stack. */
-          break;
-        }
-        {
-          ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, ctx->rng, NULL);
-          moved = units_try_move_w(&w_, u->id, tx, ty);
-        }
+      int px = 0;
+      int py = 0;
+      if (!units_next_goto_step_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .rng=(ColonizeDosRng*)(ctx->rng)}, u->id, &px, &py)) {
+        /* Pathfinder finds the goal unreachable from here — drop the goto
+         * so next act re-aims instead of resuming the same grind. */
+        ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, u->x, u->y);
+        break;
       }
       if (getenv("AI_SHIP_TRACE")) {
-        fprintf(stderr, "[ship]   step try (%d,%d) moved=%d mp %d\n", tx, ty, moved, u->moves);
+        fprintf(stderr, "[ship]   pathfinder step (%d,%d)\n", px, py);
       }
-      if (!moved) {
-        /*
-         * Greedy scored step stalled (land wall / own-ship block between
-         * ship and goal). Fall back to the DOS FUN_6662 pathfinder tiers so
-         * a ship with a far goto routes around the coast instead of
-         * grinding the same two tiles every act (the on-screen "wiggle").
-         */
-        int px = 0;
-        int py = 0;
-        /* Stay on the pathfinder for this goto, this act and the next:
-         * greedy-then-pathfinder each act undoes itself (west two, east
-         * two) and the ship circles for turns. */
-        if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
-          ai_euro_s_euro_ship_route_latch[u->id] = 1;
-        }
-        if (!units_next_goto_step_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .rng=(ColonizeDosRng*)(ctx->rng)}, u->id, &px, &py)) {
-          /* Pathfinder agrees the goal is unreachable from here — drop the
-           * goto so next act re-aims instead of resuming the same grind
-           * (the cross-turn A↔B wiggle). */
-          ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, u->x, u->y);
+      {
+        /* Only a FOREIGN occupant blocks the pathfinder step. Own ships
+         * stack (DOS allows same-nation stacking on water); refusing the
+         * tile made two own hulls whose routes crossed block each other
+         * for a hundred turns (campaign3 Spanish Caravel/Privateer at
+         * (32,51)/(31,50), each pathing onto the other's tile). */
+        const int occ = units_id_at(ctx->units, px, py);
+        const ColonizeUnit* o = occ >= 0 ? units_get_const(ctx->units, occ) : NULL;
+        if (o && o->nation_id != u->nation_id) {
           break;
         }
-        if (getenv("AI_SHIP_TRACE")) {
-          fprintf(stderr, "[ship]   pathfinder step (%d,%d)\n", px, py);
-        }
-        {
-          /* Only a FOREIGN occupant blocks the pathfinder step. Own ships
-           * stack (DOS allows same-nation stacking on water); refusing the
-           * tile made two own hulls whose routes crossed block each other
-           * for a hundred turns (campaign3 Spanish Caravel/Privateer at
-           * (32,51)/(31,50), each pathing onto the other's tile). */
-          const int occ = units_id_at(ctx->units, px, py);
-          const ColonizeUnit* o = occ >= 0 ? units_get_const(ctx->units, occ) : NULL;
-          if (o && o->nation_id != u->nation_id) {
-            break;
-          }
-        }
-        ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, ctx->rng, NULL);
-        if (!units_try_move_w(&w_, u->id, px, py)) {
-          break;
-        }
-        units_note_goto_step(u->id, px - from_x, py - from_y);
-      } else {
-        units_note_goto_step(u->id, tx - from_x, ty - from_y);
       }
-      prev_x = from_x;
-      prev_y = from_y;
+      ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, ctx->rng, NULL);
+      if (!units_try_move_w(&w_, u->id, px, py)) {
+        break;
+      }
+      units_note_goto_step(u->id, px - from_x, py - from_y);
       u = units_get(ctx->units, u->id);
       if (!u) {
         return AI_EURO_ACT_RETURN;
@@ -822,7 +768,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_arrival(struct ai_euro_act_ct
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
   const int nation_id = a->nation_id;
-  int at_war = a->at_war;
   int exited_europe = a->exited_europe;
 
   /*
@@ -958,7 +903,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_arrival(struct ai_euro_act_ct
    * AI and human movers alike; the old end-of-act ambush here is gone.
    */
 
-  a->at_war = at_war;
   a->exited_europe = exited_europe;
   a->u = u;
   return AI_EURO_ACT_CONTINUE;

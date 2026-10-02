@@ -82,7 +82,6 @@ void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy) {
    */
   if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
     ai_euro_s_euro_roam_wander[u->id] = 0;
-    ai_euro_s_euro_ship_route_latch[u->id] = 0;
   }
 }
 
