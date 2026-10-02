@@ -1345,27 +1345,24 @@ bool units_advance_follow_one_step_w(
 
 
 #define UNITS_FLOOD_W 16
-#define UNITS_FLOOD_INF 0x3fff
-#define UNITS_FLOOD_QMAX 256
+#define UNITS_FLOOD_POPS 0xe1 /* raw 103979: `DS:0x2d18 < 0xe1` */
 
 /*
- * FUN_OVL20_L0000__0015bc per-edge cost for stepping (cx,cy) -> (nx,ny),
- * viceroy_overlays.c:86680-86700 (2026-08-29 re-read). DOS:
- *   +1  when FA(cur)&0xa && FA(cand)&0xa   (layer2 road 0x08 / city 0x02
- *                                            on both tiles: road move)
- *       or DS:0x1dd4 (the populator's build-mode flag — uniform BFS)
- *       or river(cur)&0x40 && river(cand)&0x40 && cardinal step
+ * FUN_6662_00f2 per-edge cost for stepping (cx,cy) -> (nx,ny)
+ * (raw 103928-103942 expansion, 104015-104028 neighbour pick):
+ *   1  when FA(cur)&0xa && FA(cand)&0xa   (layer2 road 0x08 / city 0x02
+ *                                           on both tiles: road move)
+ *      or DS:0x1dd4 (`uniform`; the expansion only — the neighbour pick
+ *      never reads it)
+ *      or river(cur)&0x40 && river(cand)&0x40 && cardinal step
  *   else `movement < 4` ? 3 : terr_cost[cand]*3.
- * Earlier notes called the 0x1dd4 arm a "cached/favored route" override;
- * it's the road/river pair rule, ×3-scaled like the rest of the formula
- * (map_move_cost_step is the same rule at NAMES scale).
  */
 static int units_flood_edge(
-  const ColonizeWorldMap* map, bool low_move, int cx, int cy, int nx, int ny
+  const ColonizeWorldMap* map, bool low_move, bool uniform, int cx, int cy, int nx, int ny
 ) {
   const bool road_cur = map_tile_has_road(map, cx, cy) || map_tile_has_city(map, cx, cy);
   const bool road_cand = map_tile_has_road(map, nx, ny) || map_tile_has_city(map, nx, ny);
-  if (road_cur && road_cand) {
+  if ((road_cur && road_cand) || uniform) {
     return 1;
   }
   if (map_tile_has_river(map, cx, cy) && map_tile_has_river(map, nx, ny) &&
@@ -1389,27 +1386,32 @@ static int units_flood_edge(
 }
 
 /*
- * 0015bc's ownership terms on a candidate tile (viceroy_overlays.c:86716-
- * 86733, re-applied verbatim in its neighbour-pick tail :86803-86812).
- * Returns -1 = reject, else the additive penalty (0 or 8).
+ * The ownership terms on a candidate tile (raw 103955-103964, re-applied in
+ * the neighbour pick raw 104044-104052), keyed on DS:0x1dd6 (`owner`).
+ * Returns -1 = reject, else the additive penalty (0 or 8). owner < 0 (the
+ * DS:0x1dd6 = -1 callers: 0906, road-connect, AI_MOVE goto) has no terms.
  */
-static int units_flood_owner_term(
-  const ColonizeUnit* u, const ColonizeWorldMap* map, int nx, int ny
-) {
-  if (u->nation_id < 0) {
+static int units_flood_owner_term(const ColonizeWorldMap* map, int owner, int nx, int ny) {
+  if (owner < 0) {
     return 0;
   }
+  /* FUN_281f_06d2: settlement / unit owner on the tile. */
   const int occupant = map_tile_tribe_or_presence(map, nx, ny);
-  if (occupant >= 0 && occupant != u->nation_id) {
+  if (occupant >= 0 && occupant != owner) {
     return -1;
   }
-  if (u->nation_id <= 3 && g_units_ff_col1 && map->improve &&
+  /* FUN_281f_06e6 (FUN_1000_88d6): improved tile of a Euro nation `owner` is
+   * at peace with. DOS indexes the relation table with the caller's nation
+   * unguarded; for a tribe that reads outside the 4-entry Euro table, which
+   * the port cannot reproduce, so the term is Euro-only. */
+  if (owner <= 3 && g_units_ff_col1 && map->improve &&
       map->improve[(size_t)ny * (size_t)map->width + (size_t)nx] != 0) {
-    const int owner = (int)((map_get_layer3(map, nx, ny) >> 4) & 0x0fu);
+    const int peer = (int)((map_get_layer3(map, nx, ny) >> 4) & 0x0fu);
     /* DOS 88d6: euro_relation & 0x40 = PEACE (bit map re-derived 2026-08-27). */
-    if (owner >= 0 && owner <= 3 && owner != u->nation_id &&
-        (g_units_ff_col1->nation[u->nation_id].euro_relation[owner] & AI_DIPLO_PEACE) != 0) {
-      if (u->nation_id != g_units_combat_human_nation) {
+    if (peer >= 0 && peer <= 3 && peer != owner &&
+        (g_units_ff_col1->nation[owner].euro_relation[peer] & AI_DIPLO_PEACE) != 0) {
+      /* `3 < owner || DS:0x543f[owner] != 0` (AI) rejects; the human pays +8. */
+      if (owner != g_units_combat_human_nation) {
         return -1;
       }
       return 8;
@@ -1419,24 +1421,294 @@ static int units_flood_owner_term(
 }
 
 /*
- * The single retained destination cost grid of FUN_6662_00f2 (DS:-0x5d90)
- * and its goal key (DS:0x2d1a / DS:0x2d1c). See units_flood_next_step.
- * bugs.md #706.
+ * The one cost grid FUN_6662_00f2 keeps at DS:-0x5d90 (16x16 bytes, origin
+ * goal-8), its queue (DS:-0x5c8e / -0x5b8e) and its goal key (DS:0x2d1a /
+ * 0x2d1c). Every 00f2 caller shares it: the goto tiers, FUN_6662_0906 (09ae
+ * snap, the 4962 ship-pressure probe) and the 5952 road-connect walk, so a
+ * flood for one of them replaces the key the next goto step tests (bugs.md
+ * #1045). Costs are bytes and wrap past 255 exactly as DOS stores them.
  */
-static int s_flood_cost[UNITS_FLOOD_W][UNITS_FLOOD_W];
-static int s_flood_gx = -1;
-static int s_flood_gy = -1;
-static const ColonizeWorldMap* s_flood_map = NULL;
+typedef struct UnitsFloodGrid {
+  uint8_t cost[UNITS_FLOOD_W][UNITS_FLOOD_W]; /* [x - ox][y - oy] */
+  uint8_t qx[256];
+  uint8_t qy[256];
+  int key_x;
+  int key_y;
+  const ColonizeWorldMap* map;
+} UnitsFloodGrid;
+
+static UnitsFloodGrid s_flood = {.key_x = -1, .key_y = -1};
 
 /* Not a DOS act: DOS never reloads a different world into the same DS. A
  * New Game / Load can reuse a goal coordinate on a different map, so drop
- * the grid with the rest of the goto statics. */
+ * the key with the rest of the goto statics. */
 static void units_flood_cache_invalidate(void) {
-  s_flood_gx = -1;
-  s_flood_gy = -1;
-  s_flood_map = NULL;
+  s_flood.key_x = -1;
+  s_flood.key_y = -1;
+  s_flood.map = NULL;
 }
 
+/* One FUN_6662_00f2 invocation: the DS globals and registers it reads. */
+typedef struct UnitsFloodReq {
+  int mover_x;      /* AX */
+  int mover_y;      /* DX */
+  int goal_x;       /* DS:0xa14e */
+  int goal_y;       /* DS:0xa14c */
+  int type_index;   /* DS:0x1dd2 */
+  bool sea;         /* DS:0x1dd2 in 0x0d..0x12 (taken from the type's domain:
+                     * fixture pools do not use DOS row numbers) */
+  int owner;        /* DS:0x1dd6, -1 = no ownership terms */
+  int cap;          /* BX: DS:0xa370 seed */
+  bool uniform;     /* DS:0x1dd4 */
+  int mover_id;     /* port-only units_can_enter_w filter; -1 = none */
+} UnitsFloodReq;
+
+/* FUN_281f_0696 (FUN_137f_0358): a Euro colony (settlement owner <= 3). */
+static bool units_flood_euro_colony_at(const ColonizeWorldMap* map, int x, int y) {
+  if (!map_tile_has_city(map, x, y)) {
+    return false;
+  }
+  return ((map_get_layer3(map, x, y) >> 4) & 0x0fu) <= 3;
+}
+
+/*
+ * The candidate gate both halves of 00f2 spell identically (raw 103917-103953
+ * / 104017-104037): inside the |cand-goal| < 8 window, on the map
+ * (FUN_281f_0302), and either in the mover's domain (DS:0x1dd2 0x0d..0x12 =
+ * sea, r->sea; sea tiles must be the main ocean, FUN_281f_06b4 == 1) or a Euro
+ * colony (FUN_281f_0696) that is the mover's own tile or the grid key;
+ * natives (DS:0x1dd2 >= 0x13) also refuse FUN_137f_0598 rumour tiles
+ * (bugs.md #1043). The layer3 region nibble is 0 on synthetic maps; that is
+ * read as the main ocean, as units_coarse_body_id does.
+ */
+static bool units_flood_cand_ok(
+  const ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  const UnitsFloodReq* r,
+  int key_x,
+  int key_y,
+  int nx,
+  int ny
+) {
+  if (abs(nx - r->goal_x) >= 8 || abs(ny - r->goal_y) >= 8) {
+    return false;
+  }
+  if (!map_in_bounds(map, nx, ny)) {
+    return false;
+  }
+  const int cls = map_dos_terr_class_at(map, nx, ny);
+  const bool cand_sea = cls == 0x19 || cls == 0x1a;
+  const bool mover_sea = r->sea;
+  bool ok = cand_sea == mover_sea;
+  if (ok && mover_sea) {
+    const int region = (int)(map_get_layer3(map, nx, ny) & 0x0fu);
+    ok = region == 1 || region == 0;
+  }
+  if (!ok) {
+    if (!units_flood_euro_colony_at(map, nx, ny) ||
+        !((nx == r->mover_x && ny == r->mover_y) || (nx == key_x && ny == key_y))) {
+      return false;
+    }
+  }
+  if (r->type_index >= 0x13 && map_dos_0598_rumour_tile(map, nx, ny)) {
+    return false;
+  }
+  /* Port-only: a goto mover also has to pass the live move rules. */
+  if (r->mover_id >= 0 &&
+      !units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, r->type_index, nx, ny, r->mover_id)) {
+    return false;
+  }
+  return true;
+}
+
+/*
+ * DOS-LITERAL FUN_6662_00f2 raw 103841-104095 (the Z/Esc debug overlay tail
+ * excluded). A DESTINATION flood: seeded at the goal with cost 1, expanded
+ * outward over at most 225 pops; a popped cell above DS:0xa370 is not
+ * expanded, and popping the mover's tile lowers DS:0xa370 to its cost. The
+ * grid is rebuilt only when the key moved or grid[mover] == 0 (bugs.md #706);
+ * otherwise DS:0xa370 stays 0. The neighbour pick runs when DS:0xa370 < cap:
+ * cand cost (+8 term) must be non-zero and below grid[mover]; score adds
+ * the mover->cand edge; lowest score wins, a tie only on a strictly smaller
+ * FUN_124c_0040 distance to the goal; both bounds start at 99.
+ * Returns the direction (0..7) or -1; *out_cost = DS:0xa370.
+ */
+static int units_flood_00f2(
+  const ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  const UnitsFloodReq* r,
+  int* out_cost
+) {
+  UnitsFloodGrid* g = &s_flood;
+  const int ox = r->goal_x - UNITS_FLOOD_W / 2;
+  const int oy = r->goal_y - UNITS_FLOOD_W / 2;
+  const ColonizeUnitType* ft = units_type(pool, r->type_index);
+  /* DS:0x5234 is moves*3: `< 4` only for 1-tile types. */
+  const bool low_move = units_type_max_mp(ft) < 4;
+  const int mlx = r->mover_x - ox;
+  const int mly = r->mover_y - oy;
+  const bool mover_in = mlx >= 0 && mly >= 0 && mlx < UNITS_FLOOD_W && mly < UNITS_FLOOD_W;
+  /* DOS reads whatever DS byte sits at grid[mover] when the mover is outside
+   * the 16x16 block; the port reads 0 (rebuild). */
+  int a370 = 0;
+  if (g->map != map || g->key_x != r->goal_x || g->key_y != r->goal_y || !mover_in ||
+      g->cost[mlx][mly] == 0) {
+    g->map = map;
+    g->key_x = r->goal_x;
+    g->key_y = r->goal_y;
+    memset(g->cost, 0, sizeof(g->cost));
+    int head = 0;          /* DS:0x2d18, a plain int */
+    unsigned tail = 1;     /* DS:0x2d16, byte-wrapped */
+    g->qx[0] = (uint8_t)r->goal_x;
+    g->qy[0] = (uint8_t)r->goal_y;
+    g->cost[r->goal_x - ox][r->goal_y - oy] = 1;
+    a370 = r->cap;
+    do {
+      const int cx = g->qx[head & 0xff];
+      const int cy = g->qy[head & 0xff];
+      ++head;
+      const int e = g->cost[cx - ox][cy - oy];
+      if (e > a370) {
+        continue;
+      }
+      if (cx == r->mover_x && cy == r->mover_y) {
+        a370 = e;
+        continue;
+      }
+      for (int d = 0; d < 8; ++d) {
+        const int nx = cx + MAP_DIR8_DX[d];
+        const int ny = cy + MAP_DIR8_DY[d];
+        if (!units_flood_cand_ok(pool, map, colonies, r, g->key_x, g->key_y, nx, ny)) {
+          continue;
+        }
+        const int term = units_flood_owner_term(map, r->owner, nx, ny);
+        if (term < 0) {
+          continue;
+        }
+        const int c = e + term + units_flood_edge(map, low_move, r->uniform, cx, cy, nx, ny);
+        uint8_t* slot = &g->cost[nx - ox][ny - oy];
+        if (*slot == 0 || c < (int)*slot) {
+          *slot = (uint8_t)c;
+          g->qx[tail] = (uint8_t)nx;
+          g->qy[tail] = (uint8_t)ny;
+          tail = (tail + 1) & 0xffu;
+        }
+      }
+    } while ((int)tail != head && head < UNITS_FLOOD_POPS);
+  }
+
+  int best = -1;
+  if (a370 < r->cap) {
+    const int unit_cost = g->cost[mlx][mly];
+    int best_score = 99;
+    int best_tie = 99;
+    for (int d = 0; d < 8; ++d) {
+      const int nx = r->mover_x + MAP_DIR8_DX[d];
+      const int ny = r->mover_y + MAP_DIR8_DY[d];
+      if (!units_flood_cand_ok(pool, map, colonies, r, g->key_x, g->key_y, nx, ny)) {
+        continue;
+      }
+      const int term = units_flood_owner_term(map, r->owner, nx, ny);
+      if (term < 0) {
+        continue;
+      }
+      int c = g->cost[nx - ox][ny - oy] + term;
+      if (c == 0 || c >= unit_cost) {
+        continue;
+      }
+      /* bugs.md #700: no MP pre-filter; FUN_465b_0000 owns the overspend. */
+      c += units_flood_edge(map, low_move, false, r->mover_x, r->mover_y, nx, ny);
+      if (c > best_score) {
+        continue;
+      }
+      const int tie = map_dos_dist(r->goal_x - nx, r->goal_y - ny);
+      if (c < best_score) {
+        best_score = c;
+      } else if (best_tie <= tie) {
+        continue;
+      }
+      best = d;
+      best_tie = tie;
+    }
+  }
+  if (out_cost) {
+    *out_cost = a370;
+  }
+  return best;
+}
+
+/*
+ * FUN_6662_0906: -1 unless |a-b| < 8 on both axes, 0 when a == b, else the
+ * 00f2 flood from b with DS:0x1dd2 = sea ? Caravel (0xd) : Soldier (1),
+ * DS:0x1dd6 = -1, BX = cap, on the shared grid; DS:0xa370 when it found a
+ * step (so 0 when the grid was reused), else -1. `uniform` is the caller's
+ * DS:0x1dd4 (only the 67f4 populator sets it).
+ */
+static int units_flood_0906(
+  const ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  int ax,
+  int ay,
+  int bx,
+  int by,
+  int cap,
+  int sea,
+  bool uniform
+) {
+  if (ax == bx && ay == by) {
+    return 0;
+  }
+  if (abs(ax - bx) >= 8 || abs(ay - by) >= 8) {
+    return -1;
+  }
+  const UnitsFloodReq r = {
+    .mover_x = ax, .mover_y = ay, .goal_x = bx, .goal_y = by,
+    .type_index = sea ? 0x0d : 0x01, .sea = sea != 0, .owner = -1, .cap = cap,
+    .uniform = uniform, .mover_id = -1
+  };
+  int cost = 0;
+  if (units_flood_00f2(pool, map, NULL, &r, &cost) < 0) {
+    return -1;
+  }
+  return cost;
+}
+
+int units_short_sea_route_cost(
+  const ColonizeUnitPool* pool, const ColonizeWorldMap* map, int ax, int ay, int bx, int by
+) {
+  /* FUN_4962_0018 raw 78274: FUN_2a1f_027e(8, 1, colony) from the ship tile. */
+  return units_flood_0906(pool, map, ax, ay, bx, by, 8, 1, false);
+}
+
+int units_flood_step_dir(
+  const ColonizeWorld* w,
+  int mover_x,
+  int mover_y,
+  int goal_x,
+  int goal_y,
+  int type_index,
+  int owner,
+  int cap,
+  bool uniform
+) {
+  if (!w || !w->units || !w->map) {
+    return -1;
+  }
+  const UnitsFloodReq r = {
+    .mover_x = mover_x, .mover_y = mover_y, .goal_x = goal_x, .goal_y = goal_y,
+    .type_index = type_index,
+    .sea = units_type(w->units, type_index) != NULL &&
+           units_type(w->units, type_index)->domain == COLONIZE_UNIT_DOMAIN_SEA,
+    .owner = owner, .cap = cap, .uniform = uniform,
+    .mover_id = -1
+  };
+  return units_flood_00f2(w->units, w->map, w->colonies, &r, NULL);
+}
+
+/* The goto tiers' 00f2 call: FUN_6662_0f74 with DS:0x1dd2 = unit type and
+ * DS:0x1dd6 as FUN_479b_0972 left it (-1 for AI_MOVE, bugs.md #1041). */
 static bool units_flood_next_step(
   const ColonizeUnitPool* pool,
   int unit_id,
@@ -1444,244 +1716,26 @@ static bool units_flood_next_step(
   const ColonizeColonyPool* colonies,
   int gx,
   int gy,
+  int cap,
   int* out_x,
   int* out_y
 ) {
   const ColonizeUnit* u = units_get_const(pool, unit_id);
-  if (!u || !out_x || !out_y) {
+  if (!u || !out_x || !out_y || !map_in_bounds(map, gx, gy)) {
     return false;
   }
-  /*
-   * FUN_OVL20_L0000__0015bc (viceroy_overlays.c:86572-86900), structural
-   * port re-aligned 2026-08-29 against the full decompile:
-   *  - window: candidates need |cand-goal| < 8 on both axes (goal-7..goal+7,
-   *    not the goal-8 edge the old 16-box admitted); 225 expansions max.
-   *  - `movement < 4` (raw DS:0x5234 column) picks flat 3 vs terr_cost*3;
-   *    the road/river pair rule gives +1 (units_flood_edge).
-   *  - cross-domain candidate (land tile for a ship) only when it carries
-   *    a settlement (FUN_1000_8886 >= 0) AND is the unit's own tile or the
-   *    goal — DOS never routes *through* a colony; units_can_enter keeps
-   *    the legality half.
-   *  - ownership terms (units_flood_owner_term): tribe/foreign-presence
-   *    tile hard-rejects; improved tile of a MET Euro nation rejects AI
-   *    movers, +8 for the human nation.
-   *  - popped cells with cost above the unit's own (once known) are not
-   *    expanded; the unit's tile itself is never expanded (DS:0xa370 latch).
-   *  - neighbour pick (:86760-86840): cost[cand] != 0 && < cost[unit];
-   *    score = cost[cand] + owner term + edge(unit->cand); lower score
-   *    wins, equal score only if octile(goal,cand) is strictly lower.
-   * Not ported: the sea "continent id == 1" main-ocean gate (OpenCol water
-   * tiles carry no continent id), the type >= 0x13 `FUN_1000_894e` tile
-   * gate (accessor unidentified), the DS:0xa370 cost cap register (BX at
-   * entry — convention unresolved; OpenCol caps at "reached").
-   */
-  /* DS:0x5234 is in thirds (NAMES movement * 3): `< 4` is true only for
-   * 1-tile units (Colonist/Soldier/Pioneer/Brave...), not the 2-tile Wagon. */
-  const ColonizeUnitType* flood_type = units_type(pool, u->type_index);
-  const bool flood_low_move = units_type_max_mp(flood_type) < 4;
-  const bool unit_sea = units_unit_is_sea(pool, u);
-  const int origin_x = gx - UNITS_FLOOD_W / 2;
-  const int origin_y = gy - UNITS_FLOOD_W / 2;
-
-  const int dx0 = gx - origin_x;
-  const int dy0 = gy - origin_y;
-  if (dx0 < 0 || dy0 < 0 || dx0 >= UNITS_FLOOD_W || dy0 >= UNITS_FLOOD_W) {
+  const UnitsFloodReq r = {
+    .mover_x = u->x, .mover_y = u->y, .goal_x = gx, .goal_y = gy,
+    .type_index = u->type_index, .sea = units_unit_is_sea(pool, u),
+    .owner = u->orders == UNITS_ORDER_AI_MOVE ? -1 : u->nation_id,
+    .cap = cap, .uniform = false, .mover_id = unit_id
+  };
+  const int d = units_flood_00f2(pool, map, colonies, &r, NULL);
+  if (d < 0) {
     return false;
   }
-  if (gx < 0 || gy < 0 || gx >= (int)map->width || gy >= (int)map->height) {
-    return false;
-  }
-
-  /*
-   * DOS-LITERAL FUN_6662_00f2 raw 103880-103886 (bugs.md #706). The cost
-   * grid is a DESTINATION flood (seeded at the goal, expanded outwards), and
-   * DOS keeps exactly one of them in the fixed DS:-0x5d90 block. It is
-   * rebuilt only when
-   *     DS:0x2d1a != goal_x || DS:0x2d1c != goal_y ||
-   *     grid[unit tile] == 0
-   * i.e. when the goal moved, or when the retained grid never reached the
-   * unit asking now. Nothing else is part of the key — not the mover's type,
-   * domain or nation, even though the expansion reads all three (DS:0x1dd2 /
-   * DS:0x1dd6) and stops at the asking unit's own cost. That is why the
-   * "did it reach me" half of the test exists, and it is what makes the
-   * reuse safe enough for DOS: a grid built for another unit either already
-   * covers this one's tile or is thrown away. Ported literally, key and all.
-   */
-  /* bugs.md #700 removed the pathfinder's last MP pre-filters; the helper
-   * stays for the move-commit paths that legitimately ask. */
-  (void)units_can_afford_move_cost;
-
-  int (*cost)[UNITS_FLOOD_W] = s_flood_cost;
-
-  const int ulx = u->x - origin_x;
-  const int uly = u->y - origin_y;
-  const bool unit_in_window =
-    ulx >= 0 && uly >= 0 && ulx < UNITS_FLOOD_W && uly < UNITS_FLOOD_W;
-  /* s_flood_map is not part of the DOS key (DOS has exactly one world in
-   * DS for the whole process); it only stops a grid leaking across a
-   * New Game / Load / unit-test map swap that happens to reuse a goal. */
-  const bool reuse_grid = unit_in_window && s_flood_map == map && s_flood_gx == gx &&
-                          s_flood_gy == gy &&
-                          cost[uly][ulx] < UNITS_FLOOD_INF;
-
-  int unit_cost = UNITS_FLOOD_INF;
-  if (reuse_grid) {
-    unit_cost = cost[uly][ulx];
-  } else {
-  s_flood_map = map;
-  s_flood_gx = gx;
-  s_flood_gy = gy;
-  for (int y = 0; y < UNITS_FLOOD_W; ++y) {
-    for (int x = 0; x < UNITS_FLOOD_W; ++x) {
-      cost[y][x] = UNITS_FLOOD_INF;
-    }
-  }
-
-  int qx[UNITS_FLOOD_QMAX];
-  int qy[UNITS_FLOOD_QMAX];
-  int qh = 0;
-  int qt = 0;
-
-  cost[dy0][dx0] = 1;
-  qx[qt] = gx;
-  qy[qt] = gy;
-  qt = (qt + 1) % UNITS_FLOOD_QMAX;
-
-  int expansions = 0;
-  while (qh != qt && expansions < 225) {
-    const int cx = qx[qh];
-    const int cy = qy[qh];
-    qh = (qh + 1) % UNITS_FLOOD_QMAX;
-    ++expansions;
-    const int lx = cx - origin_x;
-    const int ly = cy - origin_y;
-    const int base = cost[ly][lx];
-    if (base > unit_cost) {
-      continue;
-    }
-    if (cx == u->x && cy == u->y) {
-      unit_cost = base;
-      continue;
-    }
-    for (int dy = -1; dy <= 1; ++dy) {
-      for (int dx = -1; dx <= 1; ++dx) {
-        if (dx == 0 && dy == 0) {
-          continue;
-        }
-        const int nx = cx + dx;
-        const int ny = cy + dy;
-        if (abs(nx - gx) >= 8 || abs(ny - gy) >= 8) {
-          continue;
-        }
-        if (nx < 0 || ny < 0 || nx >= (int)map->width || ny >= (int)map->height) {
-          continue;
-        }
-        const int nlx = nx - origin_x;
-        const int nly = ny - origin_y;
-        const bool cand_water = map_tile_is_water(map, nx, ny) || map_tile_is_high_seas(map, nx, ny);
-        if (cand_water != unit_sea) {
-          if (!map_tile_has_city(map, nx, ny)) {
-            continue;
-          }
-          if (!((nx == u->x && ny == u->y) || (nx == gx && ny == gy))) {
-            continue;
-          }
-        }
-        if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, u->type_index, nx, ny, unit_id)) {
-          continue;
-        }
-        const int owner_term = units_flood_owner_term(u, map, nx, ny);
-        if (owner_term < 0) {
-          continue;
-        }
-        const int nc = base + owner_term + units_flood_edge(map, flood_low_move, cx, cy, nx, ny);
-        if (nc < cost[nly][nlx]) {
-          cost[nly][nlx] = nc;
-          const int next_t = (qt + 1) % UNITS_FLOOD_QMAX;
-          if (next_t != qh) {
-            qx[qt] = nx;
-            qy[qt] = ny;
-            qt = next_t;
-          }
-        }
-      }
-    }
-  }
-
-  } /* !reuse_grid */
-
-  if (unit_cost >= UNITS_FLOOD_INF) {
-    return false;
-  }
-
-  int best_x = -1;
-  int best_y = -1;
-  /*
-   * Both bounds are the DOS-LITERALS, not a port cap: the neighbour-pick tail
-   * opens with `uStack_30 = 99; uStack_e = 99;` (viceroy_overlays.c:86761-86762,
-   * FUN_OVL20_L0000__0015bc). Costs are thirds, so a path priced above 99
-   * inside the 15x15 window genuinely takes no candidate and the flood reports
-   * failure — DOS behaves the same and the caller falls back to the greedy tier.
-   */
-  int best_score = 99;
-  int best_tie = 99;
-  for (int dy = -1; dy <= 1; ++dy) {
-    for (int dx = -1; dx <= 1; ++dx) {
-      if (dx == 0 && dy == 0) {
-        continue;
-      }
-      const int nx = u->x + dx;
-      const int ny = u->y + dy;
-      if (abs(nx - gx) >= 8 || abs(ny - gy) >= 8) {
-        continue;
-      }
-      if (nx < 0 || ny < 0 || nx >= (int)map->width || ny >= (int)map->height) {
-        continue;
-      }
-      const int nlx = nx - origin_x;
-      const int nly = ny - origin_y;
-      int c = cost[nly][nlx];
-      if (c >= unit_cost) {
-        continue;
-      }
-      const int owner_term = units_flood_owner_term(u, map, nx, ny);
-      if (owner_term < 0) {
-        continue;
-      }
-      c += owner_term;
-      if (c >= unit_cost) {
-        continue;
-      }
-      if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, u->type_index, nx, ny, unit_id)) {
-        continue;
-      }
-      /*
-       * bugs.md #700: no MP pre-filter here. FUN_OVL20_L0000__0015bc's
-       * neighbour pick (viceroy_overlays.c:86760-86840) never reads the
-       * mover's remaining MP — the partial-MP overspend is decided later by
-       * FUN_465b_0000 (viceroy_unpacked.c raw 75643), exactly as for an
-       * arrow-key step. Dropping unaffordable candidates here made a
-       * part-spent unit path differently from a fresh one.
-       */
-      const int score = c + units_flood_edge(map, flood_low_move, u->x, u->y, nx, ny);
-      if (score > best_score) {
-        continue;
-      }
-      const int tie = units_octile(gx, gy, nx, ny);
-      if (score == best_score && tie >= best_tie) {
-        continue;
-      }
-      best_score = score;
-      best_tie = tie;
-      best_x = nx;
-      best_y = ny;
-    }
-  }
-  if (best_x < 0) {
-    return false;
-  }
-  *out_x = best_x;
-  *out_y = best_y;
+  *out_x = u->x + MAP_DIR8_DX[d];
+  *out_y = u->y + MAP_DIR8_DY[d];
   return true;
 }
 
@@ -1990,7 +2044,10 @@ static bool units_greedy_next_step(
         const int ny = u->y + dy;
         const int cheb_cand = units_chebyshev(nx, ny, gx, gy);
         const int manh_cand = abs(gx - nx) + abs(gy - ny);
-        if (!is_human_unit && cheb_cand + manh_cand > cheb_cur + manh_cur) {
+        /* DOS-LITERAL raw 104677 (bugs.md #1038): `local_28 = (DS:0x543f ==
+         * 0)` (asm CMP 1 / SBB / NEG); `JZ` takes every candidate for an AI
+         * nation, the human only keeps steps that do not move away. */
+        if (is_human_unit && cheb_cand + manh_cand > cheb_cur + manh_cur) {
           continue;
         }
         /* 0f74's own 06d2/0696 gate, :104678-104690 — see
@@ -2049,17 +2106,18 @@ static bool units_greedy_next_step(
   /*
    * FUN_6662_0f74 tail (anti-backtrack wiggle): when the scored fallback's
    * best pick is the exact reverse of the unit's last-taken step, DOS
-   * doesn't take it — it rerolls up to 8 random directions instead,
-   * accepting the first legal/affordable one (0f74 gates this on
-   * unit+0x314c=='\v'/goto-pending; OpenCol has no live copy of that cache
-   * per move_scoring_20e6_full.md, so gate on the live equivalent —
-   * already following a goto here). Avoids visible ping-pong between two
-   * tiles. Cite: euro_unit_act.md T1.8.
+   * doesn't take it; an AI_SAIL unit rerolls up to 8 random directions
+   * instead, accepting the first legal one. Cite: euro_unit_act.md T1.8.
    */
-  if (rng != NULL && unit_id >= 0 && unit_id < COLONIZE_UNITS_MAX &&
+  if (unit_id >= 0 && unit_id < COLONIZE_UNITS_MAX &&
       units_dir8_index(best_x - u->x, best_y - u->y) ==
-        units_goto_last_dir_reverse(unit_id) &&
-      units_orders_follow_goto(u->orders)) {
+        units_goto_last_dir_reverse(unit_id)) {
+    /* DOS-LITERAL raw 104722-104742 (bugs.md #1039): the reverse step is
+     * always dropped; only `+0x314c == 0x0b && +0x314b != '9'` re-rolls,
+     * every other order fails (MP exhausted, goto cleared by the caller). */
+    if (rng == NULL || u->orders != UNITS_ORDER_AI_SAIL || u->col1_ai_plan == '9') {
+      return false;
+    }
     int wig_x = -1;
     int wig_y = -1;
     for (int tries = 0; tries < 8 && wig_x < 0; ++tries) {
@@ -2107,14 +2165,13 @@ static bool units_greedy_next_step(
  * same tables lazily per map (terrain is static): a cell holds the domain
  * when any tile of its 2x2 sample block does (the FUN_OVL20_L0000__000000
  * probe's own test), and bit d is set when a windowed flood between the two
- * sample points succeeds (the FUN_6662_0906 Chebyshev<8 / 0015bc check the
- * populator runs per direction — approximated with a domain-only BFS in a
- * 16x16 window). The populator's own body is not decompiled; this is the
- * consumer-side reconstruction, flagged as such (euro_unit_act.md).
+ * sample points succeeds (FUN_67f4_0088 raw 105074: FUN_6662_0906 with
+ * cap 9 under DS:0x1dd4 = 1, gate 0 < cost < 8; units_coarse_connected).
  *
  *   FUN_6662_09ae  snap (x,y) to a walkable cell: its own cell when the
- *                  probe passes, else the nearest walkable neighbour cell
- *                  by DOS distance (FUN_124c_0040) from cell centre to (x,y).
+ *                  probe and the 0906 relay (cap 0x12) pass, else the
+ *                  nearest neighbour cell by DOS distance (FUN_124c_0040)
+ *                  from cell centre to (x,y) passing the same two tests.
  *   0015c1         U = snap(unit), G = snap(goal); BFS over the coarse grid
  *                  from G (cost 1) until U pops; among U's neighbours pick
  *                  the lowest cost, ties by octile distance to the goal
@@ -2123,8 +2180,7 @@ static bool units_greedy_next_step(
  *   0f74 far arm   flood (0015bc) toward the waypoint; if that fails, toward
  *                  the probed centre of U (DS:0xa572/0xa574 * 4 + 1); then
  *                  the scored 8-neighbour fallback.
- * The DOS sea probe also requires continent id 1; OpenCol water tiles carry no
- * continent id (map_continent_id_at -> -1), so that term is dropped.
+ * The sea probe requires region nibble 1 (0 on synthetic maps reads as 1).
  * ====================================================================== */
 #define UNITS_COARSE_ROWS 15
 #define UNITS_COARSE_COLS 18
@@ -2192,85 +2248,25 @@ static int units_coarse_probe(
 }
 
 /*
- * FUN_6662_0906 (viceroy_unpacked.c:104150): with (ax,ay) the mover's tile
- * and (bx,by) the flood goal, returns -1 unless |a-b| < 8 on both axes, 0
- * when a == b, else runs 0015bc from b (DS:0x1dd6 = -1, no ownership terms)
- * and returns the flood cost at a (DS:0xa370), -1 when a was not reached.
- * Two callers: the populator (DS:0x1dd4 = 1 -> every edge costs 1, gate
- * 0 < cost < 8) and 0009ae's neighbour validation (gate >= 0). Here the
- * flood is the domain-only walk over 0015bc's own window (|cand-b| < 8,
- * 225 expansions); with `steps` = 1 each edge, `cost` is the step count.
+ * Populator gate (FUN_67f4_0088 raw 105074-105075, asm OVL21_L0040:8b3-8bb):
+ * FUN_2a1f_027e(9, sea, b) under DS:0x1dd4 = 1, then 0 < cost < 8.
  */
-static int units_coarse_reach(const ColonizeWorldMap* map, int ax, int ay, int bx, int by, int sea) {
-  if (abs(ax - bx) >= 8 || abs(ay - by) >= 8) {
-    return -1;
-  }
-  if (ax == bx && ay == by) {
-    return 0;
-  }
-  uint8_t dist[16][16];
-  memset(dist, 0, sizeof(dist));
-  const int ox = bx - 8;
-  const int oy = by - 8;
-  int qx[256];
-  int qy[256];
-  int head = 0;
-  int tail = 0;
-  qx[tail] = bx;
-  qy[tail] = by;
-  tail++;
-  dist[bx - ox][by - oy] = 1;
-  int expansions = 0;
-  while (head < tail && expansions < 225) {
-    const int x = qx[head];
-    const int y = qy[head];
-    head++;
-    ++expansions;
-    if (x == ax && y == ay) {
-      return dist[x - ox][y - oy];
-    }
-    for (int d = 0; d < 8; ++d) {
-      const int nx = x + MAP_DIR8_DX[d];
-      const int ny = y + MAP_DIR8_DY[d];
-      if (abs(nx - bx) >= 8 || abs(ny - by) >= 8) {
-        continue;
-      }
-      const int lx = nx - ox;
-      const int ly = ny - oy;
-      if (dist[lx][ly] != 0) {
-        continue;
-      }
-      if (!units_coarse_domain_tile(map, nx, ny, sea)) {
-        continue;
-      }
-      dist[lx][ly] = (uint8_t)(dist[x - ox][y - oy] + 1);
-      if (tail < 256) {
-        qx[tail] = nx;
-        qy[tail] = ny;
-        tail++;
-      }
-    }
-  }
-  return -1;
-}
-
-int units_short_sea_route_cost(
-  const ColonizeWorldMap* map, int ax, int ay, int bx, int by
+static int units_coarse_connected(
+  const ColonizeUnitPool* pool, const ColonizeWorldMap* map, int ax, int ay, int bx, int by, int sea
 ) {
-  return units_coarse_reach(map, ax, ay, bx, by, 1);
-}
-
-/* Populator gate (asm OVL21_L0040:8b3-8bb): 0 < cost < 8. */
-static int units_coarse_connected(const ColonizeWorldMap* map, int ax, int ay, int bx, int by, int sea) {
-  const int c = units_coarse_reach(map, ax, ay, bx, by, sea);
+  const int c = units_flood_0906(pool, map, ax, ay, bx, by, 9, sea, true);
   return c > 0 && c < 8;
 }
 
-static void units_coarse_build(const ColonizeWorldMap* map) {
+static void units_coarse_build(const ColonizeUnitPool* pool, const ColonizeWorldMap* map) {
   UnitsCoarseGrid* g = &s_units_coarse;
   if (g->map == map && g->width == (int)map->width && g->height == (int)map->height) {
     return;
   }
+  /* DOS runs the populator once at map setup, before any goto flood; the
+   * port builds lazily mid-game, so its floods must not replace the shared
+   * 00f2 grid/key the goto tiers are holding at that moment. */
+  const UnitsFloodGrid saved_flood = s_flood;
   memset(g, 0, sizeof(*g));
   g->map = map;
   g->width = (int)map->width;
@@ -2304,7 +2300,7 @@ static void units_coarse_build(const ColonizeWorldMap* map) {
           if (units_coarse_probe_id(map, nx, ny, sea, &bx, &by) != id_a) {
             continue;
           }
-          if (units_coarse_connected(map, ax, ay, bx, by, sea)) {
+          if (units_coarse_connected(pool, map, ax, ay, bx, by, sea)) {
             g->mask[sea][cx][cy] |= (uint8_t)(1u << d);
             g->mask[sea][nx][ny] |= (uint8_t)(1u << ((d + 4) & 7));
           }
@@ -2312,12 +2308,14 @@ static void units_coarse_build(const ColonizeWorldMap* map) {
       }
     }
   }
+  s_flood = saved_flood;
 }
 
 /* FUN_124c_0040 (ai_dos_dist): max(|dx|,|dy|) + min(|dx|,|dy|)/2. */
 /* FUN_6662_09ae */
 static int units_coarse_snap(
-  const ColonizeWorldMap* map, int x, int y, int sea, int* out_cx, int* out_cy
+  const ColonizeUnitPool* pool, const ColonizeWorldMap* map, int x, int y, int sea,
+  int* out_cx, int* out_cy
 ) {
   const UnitsCoarseGrid* g = &s_units_coarse;
   const int cx = x >> 2;
@@ -2326,8 +2324,15 @@ static int units_coarse_snap(
     return 0;
   }
   int pick = -1;
-  if (g->mask[sea][cx][cy] != 0 && units_coarse_probe(map, cx, cy, sea, NULL, NULL)) {
-    pick = 8; /* stay */
+  if (g->mask[sea][cx][cy] != 0) {
+    /* raw 104236-104239: the own cell also needs the 000000 probe AND the
+     * 0906 relay (cap 0x12) from the probed sample to (x,y). bugs.md #1042. */
+    int px = cx * 4 + 1;
+    int py = cy * 4 + 1;
+    if (units_coarse_probe(map, cx, cy, sea, &px, &py) &&
+        units_flood_0906(pool, map, px, py, x, y, 0x12, sea, false) >= 0) {
+      pick = 8; /* stay */
+    }
   }
   if (pick < 0) {
     int best = 99;
@@ -2350,7 +2355,7 @@ static int units_coarse_snap(
       if (!units_coarse_probe(map, nx, ny, sea, &px, &py)) {
         continue;
       }
-      if (units_coarse_reach(map, px, py, x, y, sea) < 0) {
+      if (units_flood_0906(pool, map, px, py, x, y, 0x12, sea, false) < 0) {
         continue;
       }
       best = dist;
@@ -2368,21 +2373,21 @@ static int units_coarse_snap(
 /* FUN_OVL20_L0000__0015c1: coarse waypoint toward (gx,gy). Also reports the
  * snapped unit cell (DS:0xa572/0xa574) for 0f74's fallback. */
 static int units_coarse_waypoint(
-  const ColonizeWorldMap* map, int ux, int uy, int gx, int gy, int sea,
+  const ColonizeUnitPool* pool, const ColonizeWorldMap* map, int ux, int uy, int gx, int gy, int sea,
   int* out_x, int* out_y, int* out_ucx, int* out_ucy
 ) {
-  units_coarse_build(map);
+  units_coarse_build(pool, map);
   const UnitsCoarseGrid* g = &s_units_coarse;
   int ucx = 0;
   int ucy = 0;
   int gcx = 0;
   int gcy = 0;
-  if (!units_coarse_snap(map, ux, uy, sea, &ucx, &ucy)) {
+  if (!units_coarse_snap(pool, map, ux, uy, sea, &ucx, &ucy)) {
     return 0;
   }
   *out_ucx = ucx;
   *out_ucy = ucy;
-  if (!units_coarse_snap(map, gx, gy, sea, &gcx, &gcy)) {
+  if (!units_coarse_snap(pool, map, gx, gy, sea, &gcx, &gcy)) {
     return 0;
   }
   uint8_t cost[UNITS_COARSE_ROWS][UNITS_COARSE_COLS];
@@ -2460,7 +2465,7 @@ static int units_coarse_waypoint(
   return 1;
 }
 
-bool units_next_goto_step_w(
+static bool units_goto_director(
   const ColonizeWorld* w,
   int unit_id,
   int* out_x,
@@ -2523,20 +2528,20 @@ bool units_next_goto_step_w(
    *     0015bc runs toward DS:0xa14e/0xa14c — the waypoint, or the goal
    *     itself when 0b4e left it alone; on a miss, once more toward the
    *     probed centre of the unit's own coarse cell (DS:0xa572/0xa574).
-   *   a far-flood hit is dropped again when the unit already moved this
-   *     turn (unit+0x3149) and the step is the exact reverse of its last
-   *     one (unit+0x314f ^ 4) — for Indian nations (> 3) the step is still
-   *     returned; Euro nations fall through.
+   *   a far-flood hit is dropped again when an AI_SAIL unit (plan != '9')
+   *     already moved this turn (unit+0x3149) and the step is the exact
+   *     reverse of its last one (unit+0x314f ^ 4) — for Indian nations (> 3)
+   *     the step is still returned; Euro nations fall through.
    *   nation > 3 (Indian): return the result as is (-1 on failure);
    *   Euro nations: the scored 8-neighbour fallback (units_greedy_next_step).
-   * Not ported: the `unit+0x314b != '9'` letter gate on the reversal check
-   * (orders letter unidentified); DOS reads DS:0xa572/0xa574 stale when the
-   * unit snap failed — OpenCol skips that flood instead.
+   * Not ported: DOS reads DS:0xa572/0xa574 stale when the unit snap failed
+   * — OpenCol skips that flood instead.
    */
   const bool near_tier = adx <= 6 && ady <= 6;
   bool near_missed = false;
   if (near_tier) {
-    if (units_flood_next_step(pool, unit_id, map, colonies, gx, gy, out_x, out_y)) {
+    /* raw 104578-104580: BX = 0x3e7. */
+    if (units_flood_next_step(pool, unit_id, map, colonies, gx, gy, 0x3e7, out_x, out_y)) {
       return true;
     }
     near_missed = true;
@@ -2569,13 +2574,14 @@ bool units_next_goto_step_w(
       return true;
     }
     (void)units_bfs_next_step;
-    const int have_wp = units_coarse_waypoint(map, u->x, u->y, gx, gy, sea, &wx, &wy, &ucx, &ucy);
+    const int have_wp = units_coarse_waypoint(pool, map, u->x, u->y, gx, gy, sea, &wx, &wy, &ucx, &ucy);
     if (have_wp || !near_missed) {
       const int tx = have_wp ? wx : gx;
       const int ty = have_wp ? wy : gy;
       scored_x = tx;
       scored_y = ty;
-      bool hit = units_flood_next_step(pool, unit_id, map, colonies, tx, ty, out_x, out_y);
+      /* raw 104595 / 104600: BX = 0x3e6. */
+      bool hit = units_flood_next_step(pool, unit_id, map, colonies, tx, ty, 0x3e6, out_x, out_y);
       if (!hit && ucx >= 0) {
         int fx = ucx * 4 + 1;
         int fy = ucy * 4 + 1;
@@ -2585,18 +2591,26 @@ bool units_next_goto_step_w(
         scored_x = fx;
         scored_y = fy;
         if (fx != u->x || fy != u->y) {
-          hit = units_flood_next_step(pool, unit_id, map, colonies, fx, fy, out_x, out_y);
+          hit = units_flood_next_step(pool, unit_id, map, colonies, fx, fy, 0x3e6, out_x, out_y);
         }
       }
       if (hit) {
+        /*
+         * DOS-LITERAL raw 104605-104620 (bugs.md #1040): the hit is dropped
+         * only for `+0x3149 != 0 && +0x314c == 0x0b && +0x314b != '9'` and a
+         * step that reverses +0x314f; the scored fallback then aims at the
+         * real goal (`DS:0xa14e/0xa14c = +0x314d/e`).
+         */
         const bool moved_this_turn =
           units_remaining_mp(pool, unit_id) < units_max_mp(pool, unit_id);
         const bool reversal =
-          moved_this_turn &&
+          moved_this_turn && u->orders == UNITS_ORDER_AI_SAIL && u->col1_ai_plan != '9' &&
           units_dir8_index(*out_x - u->x, *out_y - u->y) == units_goto_last_dir_reverse(unit_id);
         if (!reversal || u->nation_id > 3) {
           return true;
         }
+        scored_x = gx;
+        scored_y = gy;
       }
     }
   }
@@ -2606,6 +2620,26 @@ bool units_next_goto_step_w(
   return units_greedy_next_step(
     pool, unit_id, map, colonies, rng, scored_x, scored_y, gx, gy, out_x, out_y
   );
+}
+
+bool units_next_goto_step_w(
+  const ColonizeWorld* w,
+  int unit_id,
+  int* out_x,
+  int* out_y
+) {
+  const bool ok = units_goto_director(w, unit_id, out_x, out_y);
+  /*
+   * DOS-LITERAL FUN_6662_0f74 raw 104758: `+0x314f = local_1c` on every
+   * exit, failures (-1 / 8) included and before the move is tried
+   * (bugs.md #1046). Stored as dir+1, 0 = none.
+   */
+  const ColonizeUnit* u = w ? units_get_const(w->units, unit_id) : NULL;
+  if (u && u->active && units_orders_follow_goto(u->orders) && unit_id < COLONIZE_UNITS_MAX) {
+    const int d = ok ? units_dir8_index(*out_x - u->x, *out_y - u->y) : -1;
+    s_units_goto_last_dir[unit_id] = (int8_t)(d + 1);
+  }
+  return ok;
 }
 
 
@@ -2645,8 +2679,6 @@ bool units_advance_goto_one_step_w(
   if (units_remaining_mp(pool, unit_id) <= 0) {
     return false;
   }
-  const int ox = u->x;
-  const int oy = u->y;
   int nx = -1;
   int ny = -1;
   if (!units_next_goto_step_w(w, unit_id, &nx, &ny)) {
@@ -2734,11 +2766,6 @@ bool units_advance_goto_one_step_w(
   }
   u = units_get(pool, unit_id);
   if (u) {
-    /* FUN_6662_0f74's own tail writes unit+0x314f (last_dir) on every step
-     * it commits — feeds the anti-backtrack wiggle check above. Tracked in
-     * s_units_goto_last_dir, not ColonizeUnit.last_dir (see that array's
-     * own header comment for why). */
-    units_note_goto_step(unit_id, nx - ox, ny - oy);
     /*
      * DOS-LITERAL FUN_479b_0972 raw 77136-77142 (bugs.md #697), the arrival
      * tail after a committed step:

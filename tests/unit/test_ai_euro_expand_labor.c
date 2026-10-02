@@ -522,6 +522,10 @@ static int unit_colony_ai_flags_mow_colony_alt(void) {
   c->nation_id = nation;
   c->x = 2; /* coastal: the FUN_6662_0906 sea-flood gate needs a route */
   c->y = 4;
+  /* The 0906 flood steps onto the colony square only through its Euro
+   * settlement (FUN_281f_0696: layer2 city bit + owner nibble <= 3). */
+  map.layer2[c->y * 16 + c->x] = MAP_OCCUPANCY_HAS_CITY;
+  map.layer3[c->y * 16 + c->x] = (uint8_t)(c->nation_id << 4);
   c->population = 4;
   c->colonist_count = 4;
   c->stock[COLONIZE_CARGO_FOOD] = 80;
@@ -531,8 +535,10 @@ static int unit_colony_ai_flags_mow_colony_alt(void) {
   colonies.colony_count = 1;
   colonies.next_id = 1;
 
-  /* Frigate on water inside the 11×11 box, short sea route to the colony. */
-  const int sid = units_spawn(&units, 0, 1, 6);
+  /* Frigate on water adjacent to the colony: the 0906 probe (cap 8, Caravel
+   * ocean edge 3) prices one tile at 4 and two at 7, and only 0..5 counts
+   * (bugs.md #1042). */
+  const int sid = units_spawn(&units, 0, 1, 5);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
     fx_map_free(&map);
@@ -638,6 +644,10 @@ static int unit_human_census_ship_pressure_refresh(void) {
   c->nation_id = human;
   c->x = 2; /* coastal: the FUN_6662_0906 sea-flood gate needs a route */
   c->y = 4;
+  /* The 0906 flood steps onto the colony square only through its Euro
+   * settlement (FUN_281f_0696: layer2 city bit + owner nibble <= 3). */
+  map.layer2[c->y * 16 + c->x] = MAP_OCCUPANCY_HAS_CITY;
+  map.layer3[c->y * 16 + c->x] = (uint8_t)(c->nation_id << 4);
   c->population = 4;
   c->colonist_count = 4;
   c->stock[COLONIZE_CARGO_FOOD] = 80;
@@ -646,8 +656,8 @@ static int unit_human_census_ship_pressure_refresh(void) {
   colonies.colony_count = 1;
   colonies.next_id = 1;
 
-  /* Foreign Frigate on water inside the 11x11 box, short sea route. */
-  const int sid = units_spawn(&units, 0, 1, 6);
+  /* Foreign Frigate adjacent to the colony (0906 cost 4; bugs.md #1042). */
+  const int sid = units_spawn(&units, 0, 1, 5);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
     fx_map_free(&map);

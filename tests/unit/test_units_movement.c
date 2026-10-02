@@ -320,6 +320,46 @@ static int unit_flood_river_pair_step(void) {
 }
 
 /*
+ * bugs.md #1042: FUN_6662_0906 as the FUN_4962_0018 ship-pressure probe calls
+ * it (cap 8, Caravel costs, shared 00f2 grid). One ocean tile from the
+ * colony costs 1 + 3 = 4, two cost 7; a second probe toward the same colony
+ * from a tile the first flood already priced reuses the grid and answers 0.
+ */
+static int unit_ship_pressure_0906_cost(void) {
+  units_reset_state();
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 1;
+  pool.types[0].movement = 1;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 16, 16, err, sizeof(err))) {
+    fprintf(stderr, "ship0906: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 16 * 16; ++i) {
+    map.terrain[i] = 25; /* ocean */
+    map.layer3[i] = 0xf1;
+  }
+  map.terrain[8 * 16 + 8] = 2; /* colony square, nation 0 */
+  map.layer2[8 * 16 + 8] = MAP_OCCUPANCY_HAS_CITY;
+  map.layer3[8 * 16 + 8] = 0x01;
+  int rc = 0;
+  const int one = units_short_sea_route_cost(&pool, &map, 9, 8, 8, 8);
+  const int reused = units_short_sea_route_cost(&pool, &map, 10, 8, 8, 8);
+  units_reset_state();
+  const int two = units_short_sea_route_cost(&pool, &map, 10, 8, 8, 8);
+  if (one != 4 || reused != 0 || two != 7) {
+    fprintf(stderr, "ship0906: want 4/0/7, got %d/%d/%d\n", one, reused, two);
+    rc = 1;
+  }
+  map_free(&map);
+  return rc;
+}
+
+/*
  * bugs.md #696 / #697 / #701 — FUN_479b_0972 + FUN_6662_0f74 tails.
  *  #701 the adjacent tier is FUN_6662_0086, a bare sign->dir8 lookup: it
  *       returns the sign step even onto a tile the unit cannot enter.
@@ -933,6 +973,9 @@ int main(void) {
     return 1;
   }
   if (unit_goto_dos_tails() != 0) {
+    return 1;
+  }
+  if (unit_ship_pressure_0906_cost() != 0) {
     return 1;
   }
   if (unit_wake_passenger_can_land() != 0) {

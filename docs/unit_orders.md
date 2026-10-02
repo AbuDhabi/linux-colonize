@@ -277,3 +277,9 @@ and TRADE chrome polish.
 - [port_plan.md](port_plan.md) — AI use of order bytes
 - [`FUNCTION_CATALOG.md`](../original_sources_annotated/FUNCTION_CATALOG.md) — segments `2b5a`, `479b`, `6662`, `112b`
 - [`units.h`](../src/core/units.h) — order macros and APIs
+
+Pathfinder (`6662`, `units_move.c`): one DOS-literal `00f2` flood core
+(`units_flood_00f2`) on one shared grid/key serves the goto tiers, `0906`
+(09ae snap cap 0x12, 4962 ship probe cap 8, 67f4 populator cap 9 uniform)
+and the 5952 road-connect walk (`units_flood_step_dir`). Audit 2026-10-02:
+bugs.md #1038-#1046.

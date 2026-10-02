@@ -1402,7 +1402,7 @@ static void ai_euro_colony_ship_probe_4962(
       /* Raw 78274-78275: FUN_6662_0906 sea flood, count only cost 0..5
        * ("short navigable route" — filters land-blocked ships). */
       const int cost = ctx->map
-        ? units_short_sea_route_cost(ctx->map, u->x, u->y, c->x, c->y)
+        ? units_short_sea_route_cost(ctx->units, ctx->map, u->x, u->y, c->x, c->y)
         : -1;
       if (cost < 0 || cost > 5) {
         continue;
