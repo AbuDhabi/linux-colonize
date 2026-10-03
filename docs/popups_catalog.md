@@ -82,7 +82,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@COLLEGE2` | Done | purchase / train menus |
 | `@UNIV3` | Done | purchase / train menus |
 | `@NODOCKS` | Done | DOS site confirmed 2026-09-16: `viceroy_overlays.asm` OVL08_L0040 raw :0x13e2 LEA (`LAB_OVL08_L0040__0013e0+2`) OK popup; port shows it at Fisherman assignment without Docks — `game_loop.c` `"NODOCKS"` `popup_msg_fill` sites (colony job pick + keyboard path) |
-| `@CARGOREADY0` | Done thin | Phase P century tip ai_popup OK; ship-ready also uses this section |
+| `@CARGOREADY0` | Done thin | Phase P century tip ai_popup OK |
 | `@CARGOREADY1` | Done thin | Century tip at warehouse cap (basic); ship PARKED |
 | `@CARGOREADY2` | Done thin | Century tip at warehouse cap (expanded); ship PARKED |
 | `@LUMBER` | Done thin | EOT Phase K empty lumber + Carpenter ai_popup OK |

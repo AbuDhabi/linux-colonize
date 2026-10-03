@@ -5683,6 +5683,8 @@ static int case_ship_build_ready(void) {
     return 1;
   }
   (void)units_tick_ship_build_ready(&units, &colonies, 0, 0, status, sizeof(status), &want_eu);
+  /* Timer done; bit7 clear + @REFIT is the repair tick's (FUN_3844_00f2). */
+  (void)units_tick_drydock_repair(&units, &colonies, 0, 0, status, sizeof(status), NULL, NULL);
   if ((u->col1_flags15 & 0x80u) != 0 || u->col1_counter16 < 4) {
     fprintf(
       stderr,
@@ -5692,8 +5694,8 @@ static int case_ship_build_ready(void) {
     );
     return 1;
   }
-  if (strstr(status, "complete") == NULL) {
-    fprintf(stderr, "ship-build status want complete got '%s'\n", status);
+  if (strstr(status, "repaired") == NULL) {
+    fprintf(stderr, "ship-build status want repaired got '%s'\n", status);
     return 1;
   }
   if (want_eu != 0) {
@@ -5706,6 +5708,7 @@ static int case_ship_build_ready(void) {
   units.types[0xd].defense = 2;
   status[0] = '\0';
   (void)units_tick_ship_build_ready(&units, &colonies, 0, 0, status, sizeof(status), &want_eu);
+  (void)units_tick_drydock_repair(&units, &colonies, 0, 0, status, sizeof(status), NULL, NULL);
   if ((u->col1_flags15 & 0x80u) != 0 || u->col1_counter16 != 2) {
     fprintf(
       stderr,
