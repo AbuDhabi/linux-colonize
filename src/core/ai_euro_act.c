@@ -1597,11 +1597,11 @@ static void ai_euro_20e6_ship_tail_5a78(ColonizeTurnContext* ctx, ColonizeUnit* 
   }
   if (u->orders == UNITS_ORDER_FORTIFY && ctx->col1_ok && ctx->col1) {
     /* raw 90406-90420: an idle unit next to a settlement of a nation it is
-     * at war with (FUN_281f_0a38 & 0x40) drops back to act state 0. */
+     * at peace with (FUN_281f_0a38 & 0x40) drops back to act state 0. */
     for (int d = 0; d < 8; ++d) {
       const int owner = ai_euro_20e6_colony_owner_at(ctx, u->x + MAP_DIR8_DX[d], u->y + MAP_DIR8_DY[d]);
       if (owner >= 0 && owner != nation_id && owner < 4 &&
-          (ai_diplo_read(ctx->col1, nation_id, owner) & AI_DIPLO_WAR)) {
+          (ai_diplo_read(ctx->col1, nation_id, owner) & AI_DIPLO_PEACE)) {
         u->orders = UNITS_ORDER_NONE;
         break;
       }

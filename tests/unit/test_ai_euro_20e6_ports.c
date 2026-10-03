@@ -6,8 +6,9 @@
  *   ai_euro_20e6_wagon_origin_walk    (LAB_521d_457e wagon arm, raw 2256-2289)
  *   ai_euro_20e6_delivery_sell_tail   (raw 2140-2163 + the 4393 fall-through)
  *
- * The boarding assertions inspect ai_euro_try_ship_trade_haul directly;
+ * Boarding and sale-ledger assertions inspect ai_euro_try_ship_trade_haul directly;
  * end-of-turn movement can disembark the passengers at their original colony.
+ * The ledger case also excludes unrelated 5d04 recruitment purchases.
  * Other cases exercise ai_euro_dispatcher_turn on hand-built fixtures.
  *
  * Every 10be case below stages its passengers as ordinary LAND-tile members
@@ -265,8 +266,9 @@ static int assemble_boards_whole_reserved_hull(void) {
     fixture_free(&f);
     return fail("10be did not board the whole reserved hull");
   }
-  /* Combined passengers + goods must respect the 2-slot hull (see header). */
-  if (ship_goods_holds(ship) + ship->cargo_count > 2) {
+  /* A second berth act must not load goods into the passenger slots. */
+  (void)ai_euro_try_ship_trade_haul(&f.ctx, nation, ship);
+  if (ship->cargo_count != 2 || ship_goods_holds(ship) != 0) {
     fprintf(stderr, "goods_holds=%d with %d passengers on a 2-slot hull\n",
             ship_goods_holds(ship), ship->cargo_count);
     fixture_free(&f);
@@ -717,7 +719,8 @@ static int sell_tail_untaxed_credit_and_double_book(void) {
   }
   const uint32_t gold_before = f.col1.nation[nation].gold;
 
-  ai_euro_dispatcher_turn(&f.ctx, nation);
+  /* 5d04 may recruit before the ship acts; this case measures only the sale. */
+  (void)ai_euro_try_ship_trade_haul(&f.ctx, nation, ship);
 
   const ColonizeCol1NationTrade* t = &f.col1.nation[nation].trade;
   const uint32_t gold = f.col1.nation[nation].gold;
