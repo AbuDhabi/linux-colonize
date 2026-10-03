@@ -136,7 +136,15 @@ static int unit_sticky_contact_rehunt(void) {
 
   ColonizeUnitPool units;
   fx_units_init(&units);
-  units.type_count = 1;
+  /* A Soldier loss demotes to the Colonist row (0352 raw 99437-99447).
+   * Without that row this fixture falls back to shedding kit on a Soldier
+   * body, so checking destruction cannot identify the chosen defender. */
+  units.type_count = 2;
+  units.types[1].kind_plus1 = UNITS_KIND_COLONIST + 1;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Free Colonist");
+  units.types[1].movement = 1;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].defense = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 1;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
@@ -213,7 +221,7 @@ static int unit_sticky_contact_rehunt(void) {
   soldier = units_get(&units, own_id);
   foe_u = units_get(&units, foe_id);
   const int combat_done =
-    (soldier == NULL || !soldier->active) || (foe_u == NULL || !foe_u->active);
+    (soldier == NULL || !soldier->active) || (foe_u == NULL || !foe_u->active || foe_u->type_index != 0);
 
   if (!combat_done) {
     fprintf(
@@ -234,9 +242,9 @@ static int unit_sticky_contact_rehunt(void) {
 }
 
 /*
- * Thin multi-step land adjacent combat: Soldier with MP>1 kills foe A then
- * continues onto adjacent foe B in the same act (drain moves). Cite:
- * euro_unit_act §2c multi-step combat; ai_euro_land_try_adjacent_attack chain.
+ * A land attack exhausts MP and demotes the adjacent Soldier; it must not
+ * attack the second, more distant Soldier during the same turn.
+ * DOS 1b0e raw 100381-100383; 0352 raw 99437-99447.
  */
 static int unit_land_adjacent_combat_chain(void) {
   const int nation = 1;
@@ -252,7 +260,15 @@ static int unit_land_adjacent_combat_chain(void) {
 
   ColonizeUnitPool units;
   fx_units_init(&units);
-  units.type_count = 1;
+  /* A Soldier loss demotes to the Colonist row (0352 raw 99437-99447).
+   * Without that row this fixture falls back to shedding kit on a Soldier
+   * body, so checking destruction cannot identify the chosen defender. */
+  units.type_count = 2;
+  units.types[1].kind_plus1 = UNITS_KIND_COLONIST + 1;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Free Colonist");
+  units.types[1].movement = 1;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].defense = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
@@ -332,24 +348,29 @@ static int unit_land_adjacent_combat_chain(void) {
   soldier = units_get(&units, own_id);
   fa = units_get(&units, foe_a);
   fb = units_get(&units, foe_b);
-  const int a_dead = !fa || !fa->active;
-  const int b_dead = !fb || !fb->active;
-  /* bugs.md #243: a land attacker stays put after a win — foe A (adjacent)
-   * dies; the AI may then STEP into the vacated tile as a normal move, but
-   * the attack itself no longer carries it there, so foe B two tiles out
-   * survives the act. */
-  if (!a_dead || b_dead) {
+  const int a_defeated = !fa || !fa->active || fa->type_index != 0;
+  const int b_defeated = !fb || !fb->active;
+  /* bugs.md #243: the first defender is defeated, the farther one untouched. */
+  if (!a_defeated || b_defeated) {
     fprintf(
       stderr,
-      "unit_ai_euro_war: chain soldier=%d,%d moves=%d a_dead=%d b_dead=%d\n",
+      "unit_ai_euro_war: chain soldier=%d,%d moves=%d a_defeated=%d b_defeated=%d\n",
       soldier ? soldier->x : -1,
       soldier ? soldier->y : -1,
       soldier ? soldier->moves : -1,
-      a_dead,
-      b_dead
+      a_defeated,
+      b_defeated
     );
     fx_map_free(&map);
-    return fail("adjacent foe dies, attacker stays put, far foe survives");
+    return fail("adjacent foe must be defeated while the far foe survives");
+  }
+
+  if (ai_euro_ship_dos_enabled() &&
+      (!soldier || soldier->x != 5 || soldier->y != 5 || soldier->moves != 0 ||
+       !fa || !fa->active || fa->type_index != 1 || fa->nation_id != foe ||
+       !fb || fb->type_index != 0 || fb->nation_id != foe)) {
+    fx_map_free(&map);
+    return fail("DOS must stop after one attack, leaving the demoted defender in place");
   }
 
   fx_map_free(&map);
@@ -359,8 +380,8 @@ static int unit_land_adjacent_combat_chain(void) {
 
 /*
  * FUN_521d_20e6 `0x46` gate: combat-capable land unit adjacent to an
- * *undefended* foreign Euro colony (no unit on the tile) walks in and
- * seizes it outright — no combat needed. Distinct from
+ * *undefended* foreign Euro colony (no unit on the tile) attacks the colony
+ * militia and enters after winning. Distinct from
  * unit_land_adjacent_combat_chain (defended foe) and from the goal-driven
  * MILITARY-goto capture path (this fires opportunistically regardless of
  * the unit's assigned goal).
@@ -403,6 +424,12 @@ static int unit_land_adjacent_colony_seize(void) {
   target->colonist_count = 1;
   target->stock[0] = 30; /* plunder should be reported, not required to move it */
   colonies.colony_count = 2;
+  /* 20e6 reads DOS settlement presence and ownership from map layers. */
+  memset(map.layer3, 0xf0, map.tile_count);
+  map.layer2[own->y * map.width + own->x] = 2;
+  map.layer3[own->y * map.width + own->x] = (uint8_t)(nation << 4);
+  map.layer2[target->y * map.width + target->x] = 2;
+  map.layer3[target->y * map.width + target->x] = (uint8_t)(foe << 4);
 
   /* Soldier adjacent to the foe colony tile — no defender there. */
   const int own_id = units_spawn(&units, 0, 5, 5);
@@ -765,7 +792,15 @@ static int unit_land_adjacent_foe_prefer_open_over_stockade(void) {
 
   ColonizeUnitPool units;
   fx_units_init(&units);
-  units.type_count = 1;
+  /* A Soldier loss demotes to the Colonist row (0352 raw 99437-99447).
+   * Without that row this fixture falls back to shedding kit on a Soldier
+   * body, so checking destruction cannot identify the chosen defender. */
+  units.type_count = 2;
+  units.types[1].kind_plus1 = UNITS_KIND_COLONIST + 1;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Free Colonist");
+  units.types[1].movement = 1;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].defense = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 1;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
@@ -863,20 +898,20 @@ static int unit_land_adjacent_foe_prefer_open_over_stockade(void) {
   stock = units_get(&units, stock_id);
   open = units_get(&units, open_id);
 
-  const int open_dead = open == NULL || !open->active;
+  const int open_defeated = open == NULL || !open->active || open->type_index != 0;
   const int stock_alive = stock && stock->active;
   const int own_alive = soldier && soldier->active;
 
-  if (!open_dead || !stock_alive || !own_alive) {
+  if (!open_defeated || !stock_alive || !own_alive) {
     fprintf(
       stderr,
-      "unit_ai_euro_war: adj-stockade own=%d open_dead=%d stock_alive=%d\n",
+      "unit_ai_euro_war: adj-stockade own=%d open_defeated=%d stock_alive=%d\n",
       own_alive,
-      open_dead,
+      open_defeated,
       stock_alive
     );
     fx_map_free(&map);
-    return fail("expected attack on open-field Soldier, Stockade left alone");
+    return fail("expected defeat of open-field Soldier, Stockade left alone");
   }
 
   fx_map_free(&map);
@@ -905,7 +940,15 @@ static int unit_land_adjacent_foe_prefer_non_veteran(void) {
 
   ColonizeUnitPool units;
   fx_units_init(&units);
-  units.type_count = 1;
+  /* A Soldier loss demotes to the Colonist row (0352 raw 99437-99447).
+   * Without that row this fixture falls back to shedding kit on a Soldier
+   * body, so checking destruction cannot identify the chosen defender. */
+  units.type_count = 2;
+  units.types[1].kind_plus1 = UNITS_KIND_COLONIST + 1;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Free Colonist");
+  units.types[1].movement = 1;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].defense = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 1;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
@@ -993,20 +1036,20 @@ static int unit_land_adjacent_foe_prefer_non_veteran(void) {
   vet = units_get(&units, vet_id);
   plain = units_get(&units, plain_id);
 
-  const int plain_dead = plain == NULL || !plain->active;
+  const int plain_defeated = plain == NULL || !plain->active || plain->type_index != 0;
   const int vet_alive = vet && vet->active;
   const int own_alive = soldier && soldier->active;
 
-  if (!plain_dead || !vet_alive || !own_alive) {
+  if (!plain_defeated || !vet_alive || !own_alive) {
     fprintf(
       stderr,
-      "unit_ai_euro_war: adj-vet own=%d plain_dead=%d vet_alive=%d\n",
+      "unit_ai_euro_war: adj-vet own=%d plain_defeated=%d vet_alive=%d\n",
       own_alive,
-      plain_dead,
+      plain_defeated,
       vet_alive
     );
     fx_map_free(&map);
-    return fail("expected attack on non-veteran Soldier, veteran left alone");
+    return fail("expected defeat of non-veteran Soldier, veteran left alone");
   }
 
   fx_map_free(&map);
