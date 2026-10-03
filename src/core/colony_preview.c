@@ -136,8 +136,10 @@ void colony_preview_compute_w(
       out->goods[COLONIZE_CARGO_HORSES] += breed.bred;
       out->goods[COLONIZE_CARGO_FOOD] -= breed.bred;
       out->food_net -= breed.bred;
-      horse_shortfall = breed.shortfall; /* DOS scratch 0x8e6a, report-only */
     }
+    /* DOS scratch 0x8e6a, report-only. Outside the bred>0 gate: a herd with
+     * no food surplus breeds 0 but must still show its red potential. */
+    horse_shortfall = breed.shortfall;
   }
 
   {
