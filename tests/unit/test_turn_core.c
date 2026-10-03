@@ -4752,6 +4752,22 @@ static int case_horse_breed_colony(void) {
     map_free(&map);
     return 1;
   }
+  /* No map: field food 0, no surplus. Breeds 0 but the Production tab must
+   * still show the herd's potential as the red shortfall (ceil(h/25)*2). */
+  colony_preview_compute_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=false}, col, &prev);
+  const int want_short = ((col->stock[COLONIZE_CARGO_HORSES] + 24) / 25) * 2;
+  if (prev.goods[COLONIZE_CARGO_HORSES] != 0 ||
+      prev.shortfall[COLONIZE_CARGO_HORSES] != want_short) {
+    fprintf(
+      stderr,
+      "breed no-food preview want goods 0 shortfall %d got %d/%d\n",
+      want_short,
+      prev.goods[COLONIZE_CARGO_HORSES],
+      prev.shortfall[COLONIZE_CARGO_HORSES]
+    );
+    map_free(&map);
+    return 1;
+  }
   map_free(&map);
   fprintf(stderr, "colony horse breed ok\n");
   return 0;
