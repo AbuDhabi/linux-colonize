@@ -867,7 +867,12 @@ static int ai_euro_20e6_transport_assemble(
     if (size > free_holds || size >= 99) {
       continue;
     }
-    if (!units_board(ctx->units, lu->id, ship->id)) {
+    /* FUN_1427_10be walks the ship's coordinate bucket. DOS berths on
+     * the colony tile; units_board only admits adjacent coordinates. */
+    const int same_tile = lu->x == ship->x && lu->y == ship->y;
+    const int attached = same_tile ? units_board_stacked(ctx->units, lu->id, ship->id)
+                                   : units_board(ctx->units, lu->id, ship->id);
+    if (!attached) {
       continue;
     }
     lu->orders = UNITS_ORDER_SENTRY; /* asm 1427:1264 `[BX+0x314c] = 1` */

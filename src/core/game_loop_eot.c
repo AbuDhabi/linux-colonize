@@ -794,10 +794,9 @@ bool game_units_pending_orders(const ColonizeGameState* game) {
   }
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = &game->units.units[i];
-    if (!u->active || u->nation_id != game->human_nation || u->moves <= 0) {
-      continue;
-    }
-    if (!units_is_on_map(u)) {
+    /* Same filter as the selector (incl. the damaged-hull skip), or the End
+     * of Turn prompt never activates while a repairing ship is on the map. */
+    if (!turn_unit_in_rotation(&game->units, u, game->human_nation)) {
       continue;
     }
     if (units_orders_skip_turn(u)) {

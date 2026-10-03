@@ -1589,41 +1589,6 @@ int ai_euro_ship_dos_enabled(void) {
   return ai_euro_env_flag("AI_SHIP_DOS", 0);
 }
 
-/* DOS-LITERAL FUN_1427_09dc raw 7927-7968. 03e4 reads layer2
- * bit 0x02 (settlement), 0314 reads bit 0x01 (unit). A mover outside a
- * settlement only detects adjacent units in its own water/land domain.
- * Swapping these probes let coastal Braves interrupt a ship's arrived
- * order before the pathfinder could clear its facing (#530). */
-static int ai_euro_09dc_dos(const ColonizeTurnContext* ctx, int x, int y, int nation_id) {
-  const ColonizeCol1Save* col1 = ctx->col1_ok ? ctx->col1 : NULL;
-  const int settled = ai_euro_20e6_colony_owner_at(ctx, x, y) >= 0 ||
-                      ai_euro_village_nation_at(col1, x, y) >= 0;
-  int water = map_tile_is_water(ctx->map, x, y);
-  for (int d = 0; d < 8; ++d) {
-    const int nx = x + MAP_DIR8_DX[d];
-    const int ny = y + MAP_DIR8_DY[d];
-    if (!map_in_bounds(ctx->map, nx, ny)) {
-      continue;
-    }
-    const int domain = settled ? water : map_tile_is_water(ctx->map, nx, ny);
-    int owner = ai_euro_20e6_colony_owner_at(ctx, nx, ny);
-    if (owner < 0) {
-      owner = ai_euro_village_nation_at(col1, nx, ny);
-    }
-    if (owner < 0) {
-      const int uid = units_id_at(ctx->units, nx, ny);
-      const ColonizeUnit* nu = uid >= 0 ? units_get_const(ctx->units, uid) : NULL;
-      owner = nu ? nu->nation_id : -1;
-    } else {
-      water = domain;
-    }
-    if (owner >= 0 && owner != nation_id && domain == water) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
 /* LAB_521d_5a78 tail (raw 90399-90436), hull subset. */
 static void ai_euro_20e6_ship_tail_5a78(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
   if (u->orders == AI_EURO_ACT_ADJACENT || u->orders == UNITS_ORDER_NONE) {
@@ -1763,7 +1728,7 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
   const int idle = u->orders == UNITS_ORDER_NONE || u->orders == AI_EURO_ACT_ADJACENT ||
                    u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED ||
                    (u->orders == AI_EURO_ACT_GOAL && u->goto_x == u->x && u->goto_y == u->y);
-  if (!idle && !ai_euro_09dc_dos(ctx, u->x, u->y, nation_id)) {
+  if (!idle && !ai_euro_20e6_adjacent_foreign_09dc(ctx, u->x, u->y, nation_id)) {
     ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);
     return 0;
   }
@@ -1848,6 +1813,14 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   if (u->x != u->goto_x || u->y != u->goto_y) {
     return;
   }
+  /* DOS-LITERAL FUN_479b_0972 raw 77099-77103: arriving pioneers
+   * discard their explorer hop countdown and slot (+0x3155/+0x3156).
+   * The port stores the slot plus one, so zero represents DOS 0xff. */
+  if (ai_euro_unit_kind(ctx->units, u) == UNITS_KIND_PIONEER &&
+      id >= 0 && id < COLONIZE_UNITS_MAX) {
+    ai_euro_s_20e6_hop_steps[id] = 0;
+    ai_euro_s_20e6_hop_slot[id] = 0;
+  }
   if (state == AI_EURO_ACT_GOAL) {
     u->moves = 0; /* FUN_281f_0934 on arrival */
   }
@@ -1874,7 +1847,7 @@ void ai_euro_act_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_
   if (!fresh && u->orders == AI_EURO_ACT_GOAL) {
     Ai20e6Unit s;
     ai_euro_20e6_prologue(ctx, u, nation_id, &s);
-    run_20e6 = (s.flags & 1) && ai_euro_09dc_dos(ctx, u->x, u->y, nation_id); /* FUN_1000_8b74 */
+    run_20e6 = (s.flags & 1) && ai_euro_20e6_adjacent_foreign_09dc(ctx, u->x, u->y, nation_id); /* FUN_1000_8b74 */
   }
   if (run_20e6 && ai_euro_20e6_ship_dos(ctx, u, nation_id)) {
     return;

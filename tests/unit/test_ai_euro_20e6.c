@@ -2552,7 +2552,36 @@ static int unit_gate_adjacent_foe_reaches_scorer(void) {
  * itself is exercised through ai_euro_20e6_land_arms.
  */
 
+/* DOS FUN_1427_09dc raw 7927-7968: an unoccupied probe tile uses
+ * terrain domains for units, but a settlement is detected across a coast. */
+static int unit_adjacent_foreign_domains(void) {
+  Fixture f;
+  if (fixture_init(&f, 1) != 0) return 1;
+  f.map.terrain[8 * 16 + 8] = 25;
+  const int uid = units_spawn(&f.units, 1, 9, 8);
+  ColonizeUnit* u = units_get(&f.units, uid);
+  if (!u) {
+    fixture_free(&f);
+    return fail("adjacency spawn");
+  }
+  u->nation_id = 0;
+  const int coastal_unit = ai_euro_20e6_adjacent_foreign_09dc(&f.ctx, 8, 8, 1);
+  f.map.terrain[8 * 16 + 8] = 2;
+  f.map.layer3[8 * 16 + 8] = 1;
+  f.map.layer3[8 * 16 + 9] = 2;
+  const int land_unit = ai_euro_20e6_adjacent_foreign_09dc(&f.ctx, 8, 8, 1);
+  f.map.terrain[8 * 16 + 8] = 25;
+  treasure_add_colony(&f, 0, 0, 9, 8);
+  const int coastal_colony = ai_euro_20e6_adjacent_foreign_09dc(&f.ctx, 8, 8, 1);
+  fixture_free(&f);
+  if (coastal_unit || !land_unit || !coastal_colony) {
+    return fail("09dc must distinguish settlement presence from unit terrain domain");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_adjacent_foreign_domains", unit_adjacent_foreign_domains},
     {"unit_gate_adjacent_foe_reaches_scorer", unit_gate_adjacent_foe_reaches_scorer},
     {"unit_goal_walk_keeps_stored_goal", unit_goal_walk_keeps_stored_goal},
     {"unit_goal_binding_dropped_on_arrival", unit_goal_binding_dropped_on_arrival},
