@@ -45,7 +45,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@VICEROY2` | Done | new-game wizard |
 | `@LANDHO` | Done | first land sight → name New World |
 | `@COLONY` | Done | name entry after found |
-| `@RENAMECOLONY` | Done | colony **R** rename |
+| `@RENAMECOLONY` | Done | colony title-bar click (DOS) or **R** (port extra) rename |
 | `@LANDFALL` | Done | AI_POPUP_TAG_LANDFALL |
 | `@LANDFALL2` | Done | river variant: `game_loop.c` picks LANDFALL vs LANDFALL2 by `map_tile_has_river` on the dest tile (DOS FUN_4720_015c terrain-flag bit 0x40) |
 | `@ONLYPIO` | Dead text | literal absent from VICEROY.EXE; DOS greys the menu row (`0b34` raw 42211-42215). Popup deleted 2026-09-22, bugs.md #621 |

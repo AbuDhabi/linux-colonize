@@ -525,25 +525,32 @@ int colonies_nation_settlement_count(const ColonizeColonyPool* pool, int nation_
  * DOS thunk_FUN_2a1f_01f4 (raw 76995) builds the nation's next default colony
  * name into a local BEFORE the name prompt runs, without consuming it — the
  * prompt may still be cancelled (bugs.md #682). Non-advancing peek.
+ *
+ * FUN_479b_0000 walks the COLONY.TXT nation section up to the nation counter
+ * (nation*0x34+0x5440). Row 0 is always copied; hitting @STOP before the
+ * counter returns that row 0 and leaves the counter alone, so an exhausted
+ * list repeats its first name forever (no wrap). An empty section leaves the
+ * DS:0x1434 seed "?".
  */
 const char* colonies_peek_next_name(const ColonizeColonyPool* pool, int nation_id) {
   if (!pool) {
-    return "New Colony";
+    return "?";
   }
   if (nation_id < 0 || nation_id > 3) {
     nation_id = 0;
   }
   if (pool->name_count[nation_id] == 0) {
-    return "New Colony";
+    return "?"; /* DOS-LITERAL FUN_479b_0000 DS:0x1434 */
   }
-  return pool->names[nation_id][pool->name_next[nation_id] % pool->name_count[nation_id]];
+  const int k = pool->name_next[nation_id];
+  return pool->names[nation_id][(k >= 0 && k < pool->name_count[nation_id]) ? k : 0];
 }
 
 static const char* colonies_next_name(ColonizeColonyPool* pool, int nation_id) {
   const char* n = colonies_peek_next_name(pool, nation_id);
   if (pool) {
     const int nid = (nation_id < 0 || nation_id > 3) ? 0 : nation_id;
-    if (pool->name_count[nid] != 0) {
+    if (pool->name_next[nid] < pool->name_count[nid]) {
       pool->name_next[nid]++;
     }
   }

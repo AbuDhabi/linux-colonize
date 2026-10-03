@@ -190,7 +190,8 @@ typedef enum ColonyScreenHit {
   COLONY_HIT_MESSAGE_OK,
   COLONY_HIT_MESSAGE_OUTSIDE,
   COLONY_HIT_CUSTOM_HOUSE_ROW,
-  COLONY_HIT_CUSTOM_HOUSE_OUTSIDE
+  COLONY_HIT_CUSTOM_HOUSE_OUTSIDE,
+  COLONY_HIT_TITLE /* name bar (0,0)-(320,7): DOS zone 10, @RENAMECOLONY */
 } ColonyScreenHit;
 
 typedef enum ColonyMessageKind {

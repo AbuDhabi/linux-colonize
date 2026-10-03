@@ -429,7 +429,7 @@ static bool game_found_finalize(ColonizeGameState* game, int uid, const char* ch
    * paths already bump player.founded_colonies); the human path didn't, so
    * a reload re-derived nothing and the session counter drifted. */
   if (game->col1_ok && hn >= 0 && hn < 4) {
-    game->col1.player[hn].founded_colonies++;
+    game->col1.player[hn].founded_colonies = (uint8_t)game->colonies.name_next[hn];
   }
   colonies_reveal_founded_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL)}, cid); /* FUN_364b_1dd6 Coronado */
   ColonizeColony* col = colonies_get_mut(&game->colonies, cid);
