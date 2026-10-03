@@ -824,7 +824,7 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
           }
         }
         int want_eu = 0;
-        const int ships_ready = units_tick_ship_build_ready(
+        (void)units_tick_ship_build_ready(
           ctx->units,
           ctx->colonies,
           ctx->human_nation,
@@ -846,9 +846,6 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
         turn_route_damaged_ships(ctx, ctx->human_nation);
         if (want_eu) {
           proc->result.request_europe_open = true;
-        }
-        if (ships_ready > 0 && ctx->ai_popups && ctx->status && ctx->status[0]) {
-          popup_chrome_ok(ctx->ai_popups, ctx->messages, "CARGOREADY0", NULL, ctx->status);
         }
         /* No King's-Galleon offer here: FUN_465b_0000 raw 75800-75815 is the
          * only DOS trigger and it fires on the move onto the colony tile

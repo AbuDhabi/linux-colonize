@@ -92,7 +92,7 @@ when the king runs (bugs.md #394/404/407).
 | Year-end chrome | `turn_run_year_end_chrome` | `FUN_3844_0442` section B (thin) |
 | Europe market | `europe_tick_market_prices` + one `@PRICEUP`/`@PRICEDOWN` OK dialog per cargo that crossed | `FUN_38fd_0058` (sibling of nation EOT `38fd_5e52`), phase 4 |
 | Human fog + MP refresh | `turn_reveal_fog_for_nation` + `turn_refresh_moves_for_nation` | Human refresh at act entry |
-| Human ticks | `units_tick_convert_outside_colony` (`@DEADCONVERTS`), `units_tick_ship_build_ready` (`@CARGOREADY0`), `units_tick_drydock_repair`, `turn_route_damaged_ships`, King's Galleon offer | Human Convert expiry inside that nation’s `00f2`; `FUN_465b_0000` → `FUN_5fef_1908` for the Galleon |
+| Human ticks | `units_tick_convert_outside_colony` (`@DEADCONVERTS`), `units_tick_ship_build_ready` (timer only), `units_tick_drydock_repair` (`@REFIT`), `turn_route_damaged_ships`, King's Galleon offer | Human Convert expiry inside that nation’s `00f2`; `FUN_465b_0000` → `FUN_5fef_1908` for the Galleon |
 | Select next unit | `turn_select_next_unit_awaiting_orders` (plain `turn_select_next_unit` + the Fortified/Sentry skip) | Return to Move Pieces / focus |
 | Autosave flags | decade Spring → slot 8 else 9 | `FUN_130d_0172` |
 

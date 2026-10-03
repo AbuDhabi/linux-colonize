@@ -882,15 +882,13 @@ int units_tick_ship_build_ready(
     if (u->col1_counter16 < threshold) {
       continue;
     }
-    if (u->repair_pending) {
-      continue; /* repair completion (bit7 clear + @REFIT) is the repair tick's */
-    }
-    u->col1_flags15 = (uint8_t)(u->col1_flags15 & 0x7fu);
+    /* Timer done. bit7 clear + @REFIT belong to units_tick_drydock_repair
+     * (FUN_3844_00f2 has one completion arm: @REFIT; there is no ship
+     * "construction" popup — bit7 is only ever the repair timer). */
     completed++;
-    if (nation_id == human_nation && status && status_size > 0) {
-      const char* name = (ty && ty->name[0]) ? ty->name : "";
-      snprintf(status, status_size, "%s construction complete.", name);
-    }
+    (void)human_nation;
+    (void)status;
+    (void)status_size;
     if (!on_colony && want_europe_open) {
       *want_europe_open = 1;
     }
@@ -947,7 +945,10 @@ int units_tick_drydock_repair(
       /* FUN_3844_00f2 / @REFIT: repaired human ship, asm 89523-89534. */
       units_play_event_sound(0x54);
       const char* ship_name = (ty && ty->name[0]) ? ty->name : "";
-      const char* col_name = (col && col->name[0]) ? col->name : "";
+      /* DOS: colony name on a colony tile, else the nation's harbour
+       * (-0x7c74 table). */
+      const char* col_name = col ? (col->name[0] ? col->name : "")
+                                 : units_home_port_name(NULL, nation_id);
       if (status && status_size > 0) {
         snprintf(status, status_size, "%s repaired.", ship_name);
       }

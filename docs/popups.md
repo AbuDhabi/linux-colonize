@@ -407,7 +407,7 @@ fragment. Related sections are listed in the first column.
 | `@FULL` | Join at population cap | Done thin | `colonies_emit_full_chrome` → ai_popup OK |
 | Spoil / starve (`@SPOIL*`, `@STARVE*`, …) | EOT production | Done | `ai_popup` OK from turn production |
 | Docked unit orders | `@COLONYUNIT` + `@SHIPOPTIONS`/`@UNITOPTIONS`, 2nd click on selected dock icon | Done thin | `colony_screen_open_dock_orders`; ineligible rows omitted (`2f2b_5746`); VGA chrome PARKED |
-| `@CARGOREADY*` | Century tip / ship-ready | Done thin | EOT century `@CARGOREADY0`–`2`; ship FINISH still thin |
+| `@CARGOREADY*` | Century tip | Done thin | EOT century `@CARGOREADY0`–`2` |
 
 ### 5. Europe
 
