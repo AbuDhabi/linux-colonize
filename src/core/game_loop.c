@@ -319,6 +319,11 @@ static void game_combat_analysis_present(const ColonizeCombatEngagement* eng, vo
   if (!combat_analysis_open(&game->combat_analysis, &game->units, eng)) {
     return;
   }
+  /* Analysis draws over the live map: centre it on the fight first. */
+  const ColonizeUnit* ca_def = units_get_const(&game->units, eng->defender_id);
+  if (ca_def) {
+    game_set_view_center(game, ca_def->x, ca_def->y);
+  }
   /* Headless / no platform: auto-dismiss (tests never set presenter). */
   if (!game->platform) {
     combat_analysis_close(&game->combat_analysis);
@@ -732,8 +737,7 @@ void game_combat_watch(
 ) {
   ColonizeGameState* game = (ColonizeGameState*)user;
   const ColonizeUnit* atk = pool ? units_get_const(pool, attacker_id) : NULL;
-  if (!game || !atk || !game->platform || !game->world_map_ok || game->map_zoom != 0 ||
-      !game->unit_icons_ok) {
+  if (!game || !atk || !game->platform || !game->world_map_ok) {
     return;
   }
   /* Only when the human can see the fight (live sight of either tile). */
@@ -741,7 +745,11 @@ void game_combat_watch(
   if (!map_tile_seen_by(&game->world_map, def_x, def_y, hn)) {
     return;
   }
+  /* Centre at every zoom; only the lunge is zoom-0-only. */
   game_set_view_center(game, def_x, def_y);
+  if (game->map_zoom != 0 || !game->unit_icons_ok) {
+    return;
+  }
   int cols = 0;
   int rows = 0;
   game_map_zoom_view_size(game->map_zoom, &cols, &rows);
