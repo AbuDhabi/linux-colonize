@@ -781,7 +781,8 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
     }
     units_despawn(ctx->units, founder->id);
     if (ctx->col1_ok && ctx->col1 && nation_id >= 0 && nation_id < 4) {
-      ctx->col1->player[nation_id].founded_colonies++;
+      /* FUN_479b_0000 bumps only while names remain; the pool counter caps it. */
+      ctx->col1->player[nation_id].founded_colonies = (uint8_t)ctx->colonies->name_next[nation_id];
     }
     /*
      * FITTED, NOT DOS (bugs.md #971, same family as #530 S5): FUN_479b_076e

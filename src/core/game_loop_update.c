@@ -1149,6 +1149,14 @@ COLONIZE_INTERNAL GameUpdateStep game_update_report_screen(ColonizeGameState* ga
   return GAME_UPDATE_CONTINUE;
 }
 
+/* @RENAMECOLONY name entry. DOS opens it by clicking the title bar
+ * (thunk_FUN_1000_9898, zone 10); the R key is a port extra. */
+static void game_colony_open_rename(ColonizeGameState* game, const ColonizeColony* colony) {
+  char prompt[AI_POPUP_BODY_LEN];
+  popup_msg_fill(&game->messages, "RENAMECOLONY", NULL, "", prompt, sizeof(prompt));
+  name_entry_open(&game->name_entry, NAME_ENTRY_KIND_RENAME, prompt, colony->name, game->colony_view_id);
+}
+
 /* Colony screen input. */
 /* Colony screen: left-click dispatch over every panel of the colony view. */
 static GameUpdateStep game_colony_screen_mouse_click(
@@ -1163,6 +1171,9 @@ static GameUpdateStep game_colony_screen_mouse_click(
       csv, &game->colonies, colony, game->units_ok ? &game->units : NULL, input->mouse_x, input->mouse_y
     );
     switch (hit.kind) {
+    case COLONY_HIT_TITLE:
+      game_colony_open_rename(game, colony);
+      return GAME_UPDATE_RETURN_TRUE;
     case COLONY_HIT_EXIT:
       game_ui_drag_clear(game);
       game->in_colony = false;
@@ -1644,22 +1655,7 @@ static GameUpdateStep game_colony_screen_keys(
     }
     if ((ch == 'r' || ch == 'R') && colony && !csv->jobs_open && !csv->construction_open &&
         csv->message_kind == COLONY_MSG_NONE) {
-      char prompt[AI_POPUP_BODY_LEN];
-      popup_msg_fill(
-        &game->messages,
-        "RENAMECOLONY",
-        NULL,
-        "",
-        prompt,
-        sizeof(prompt)
-      );
-      name_entry_open(
-        &game->name_entry,
-        NAME_ENTRY_KIND_RENAME,
-        prompt,
-        colony->name,
-        game->colony_view_id
-      );
+      game_colony_open_rename(game, colony);
       return GAME_UPDATE_RETURN_TRUE;
     }
   }

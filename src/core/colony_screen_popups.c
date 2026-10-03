@@ -781,6 +781,13 @@ ColonyScreenHitResult colony_screen_hit_test(
     return hit;
   }
 
+  /* Title bar: thunk_FUN_1000_98bc rect (0,0,0x140,7) = zone 10, the rename
+   * click (thunk_FUN_1000_9898). */
+  if (mx >= 0 && mx < COLONY_SCREEN_WIDTH && my >= 0 && my < 7) {
+    hit.kind = COLONY_HIT_TITLE;
+    return hit;
+  }
+
   if (mx >= COLONY_EXIT_X && mx < COLONY_SCREEN_WIDTH &&
       my >= COLONY_EXIT_Y && my < COLONY_SCREEN_HEIGHT) {
     hit.kind = COLONY_HIT_EXIT;

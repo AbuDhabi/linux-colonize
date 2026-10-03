@@ -3264,6 +3264,20 @@ static int unit_settlement_count_and_name_peek(void) {
     fprintf(stderr, "settlement count: per-nation tally wrong\n");
     rc = 1;
   }
+  /* FUN_479b_0000: an exhausted list repeats row 0 and the counter holds. */
+  snprintf(pool.names[2][0], sizeof(pool.names[2][0]), "%s", "First");
+  snprintf(pool.names[2][1], sizeof(pool.names[2][1]), "%s", "Second");
+  pool.name_count[2] = 2;
+  const int cnt = 2;
+  pool.name_next[2] = cnt;
+  const int d = colonies_found(&pool, &map, 13, 2, 2, -1, UNITS_JOB_NONE, 0, 0, 0);
+  const ColonizeColony* cd = colonies_get(&pool, d);
+  const char* want = "First";
+  if (!cd || strcmp(cd->name, want) != 0 || pool.name_next[2] != cnt) {
+    fprintf(stderr, "exhausted names: got '%s' next %d, want '%s' next %d\n",
+            cd ? cd->name : "(none)", pool.name_next[2], want, cnt);
+    rc = 1;
+  }
   map_free(&map);
   return rc;
 }
