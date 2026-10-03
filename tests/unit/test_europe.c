@@ -1881,7 +1881,18 @@ static int case_europe_workflow(void) {
       europe_free(&eu);
       return 1;
     }
+    /* DOS walks all four records (bugs.md #1047): the AI rows moved too. */
+    if (col1.nation[1].trade.nr[lumber] != 93 || col1.nation[2].trade.nr[lumber] != 93 ||
+        col1.nation[3].trade.nr[lumber] != 61) {
+      fprintf(stderr, "1dfa AI rows want 93/93/61 got %d/%d/%d\n",
+              (int)col1.nation[1].trade.nr[lumber], (int)col1.nation[2].trade.nr[lumber],
+              (int)col1.nation[3].trade.nr[lumber]);
+      europe_free(&led);
+      europe_free(&eu);
+      return 1;
+    }
     /* Dutch human (slot 3): every contribution ×2/3, per seller. */
+    led.bound_nation = 3;
     led.trade_nr[lumber] = 0;
     europe_apply_trade_volume(&led, &col1, 3, 3, lumber, 54, 0, 0);
     europe_apply_trade_volume(&led, &col1, 0, 3, lumber, 12, 0, 0);
@@ -2250,15 +2261,17 @@ static int case_europe_workflow(void) {
     }
     /*
      * Ledger double-book (asm 364b:17b0-17e6): 1dfa already added the taxed
-     * (bid−1)·80·(100−50)/100 = 80 and tons += 80; the arm then adds the
-     * untaxed 880 to trade.gold and — verbatim — the CARGO INDEX to tons.
+     * (bid−1)·80·(100−50)/100 = 11·80/2 = 440 on the BOUND record's own bid
+     * (the arm credits +0x2a of that same record, so it is the colony's
+     * nation — bugs.md #1049) and tons += 80; the arm then adds the untaxed
+     * 880 to trade.gold and — verbatim — the CARGO INDEX to tons.
      */
-    if (dscol1.nation[1].trade.gold[COLONIZE_CARGO_TOBACCO] != 960 ||
+    if (dscol1.nation[1].trade.gold[COLONIZE_CARGO_TOBACCO] != 1320 ||
         dscol1.nation[1].trade.tons[COLONIZE_CARGO_TOBACCO] !=
           80 + COLONIZE_CARGO_TOBACCO) {
       fprintf(
         stderr,
-        "dump-sell ledger gold=%d tons=%d (want 960/%d)\n",
+        "dump-sell ledger gold=%d tons=%d (want 1320/%d)\n",
         (int)dscol1.nation[1].trade.gold[COLONIZE_CARGO_TOBACCO],
         (int)dscol1.nation[1].trade.tons[COLONIZE_CARGO_TOBACCO],
         80 + COLONIZE_CARGO_TOBACCO

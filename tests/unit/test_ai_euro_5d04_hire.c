@@ -288,7 +288,8 @@ static int europe_land_unit_count(const Fixture* f, int nation) {
  * `expand_signal` is 0 (turn % 3 != 0 and the past-the-end bVar23 read is a
  * hard 0), so the `local_46 <= demand[p]` test is the ONLY way into the buy.
  * Only Ore clears it (demand 1), so exactly 100 Ore is bought, for
- * price(Ore) = euro_price + 1 = 2 → 200 gold.
+ * price(Ore) = euro_price + burden = 2 + 0 → 200 gold (FUN_38fd_0016; no
+ * @CARGO table is loaded here, so every burden reads 0).
  *
  * The two-pass hire loop and the recruit-purchase loop stay inert here: the
  * Europe list holds only the ship (dispatch byte 0x0d → not "skilled", and
@@ -302,7 +303,7 @@ static int departing_ship_buys_wanted_cargo(void) {
     return 1;
   }
   fixture_ore_colony(&f, nation, 3);
-  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 1; /* price 2 */
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 2; /* price 2 (burden 0 headless) */
   const int sid = spawn_europe_ship(&f, nation);
   if (sid < 0) {
     fixture_free(&f);
@@ -347,7 +348,7 @@ static int afloat_cargo_cancels_colony_demand(void) {
     return 1;
   }
   fixture_ore_colony(&f, nation, 3);
-  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 1;
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 2;
   const int sid = spawn_europe_ship(&f, nation);
   if (sid < 0) {
     fixture_free(&f);
@@ -394,9 +395,9 @@ static int europe_dock_queue_raises_cargo_bar(void) {
     return 1;
   }
   fixture_ore_colony(&f, nation, 3);
-  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 1;      /* buy 100 = 200 */
-  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 19; /* 50 = 1000 */
-  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_TOOLS] = 19;   /* 100 = 2000 */
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 2;      /* buy 100 = 200 */
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 20; /* 50 = 1000 */
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_TOOLS] = 20;   /* 100 = 2000 */
   const int sid = spawn_europe_ship(&f, nation);
   if (sid < 0 || spawn_europe_colonist(&f, nation, 0, 0x1c) < 0 ||
       spawn_europe_colonist(&f, nation, 0, 0x1c) < 0) {
@@ -463,7 +464,8 @@ static int recruit_swap_follows_colonies_wanting_colonists(void) {
      * would want for the colonist the swap just put on the dock
      * (base2 140 + muskets 50) — so the swap is the only mover here and the
      * gold delta is exact. */
-    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 200;
+    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 201;
+    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 1; /* muskets 50 = 50 (burden 0) */
     f.col1.nation[nation].gold = 300;
     if (spawn_europe_ship(&f, nation) < 0) {
       fixture_free(&f);
@@ -512,7 +514,8 @@ static int recruit_swap_spawns_sentry_and_refills_pool(void) {
   }
   ColonizeColony* c = fixture_ore_colony(&f, nation, 3);
   c->ai_flags = COLONIZE_COLONY_AI_NEEDS_COLONISTS;
-  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 200;
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 201;
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 1; /* muskets 50 = 50 (burden 0) */
   f.col1.nation[nation].gold = 300;
   if (spawn_europe_ship(&f, nation) < 0) {
     fixture_free(&f);
@@ -604,8 +607,8 @@ static int pioneer_training_skipped_past_turn_99(void) {
        * therefore never `handled` — without this the late runs would skip the
        * Pioneer arm for the WRONG reason and the sweep would prove nothing.
        * The same 10000 also prices the recruit-purchase loop out. */
-      f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_TOOLS] = 0;
-      f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 199;
+      f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_TOOLS] = 1;
+      f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 200;
       if (spawn_europe_ship(&f, nation) < 0 ||
           spawn_europe_colonist(&f, nation, 0, 0x1c) < 0) {
         fixture_free(&f);
@@ -674,8 +677,8 @@ static int missionary_bless_roll_matches_dos_one_in_four(void) {
     /* Price the earlier muskets/tools training arms out (same trick as
      * pioneer_training_skipped_past_turn_99) so a candidate never gets
      * `handled` before reaching the Missionary arm under test. */
-    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_TOOLS] = 199;
-    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 199;
+    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_TOOLS] = 200;
+    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 200;
     if (spawn_europe_ship(&f, nation) < 0 ||
         spawn_europe_colonist(&f, nation, 0, 0x1c) < 0) {
       fixture_free(&f);

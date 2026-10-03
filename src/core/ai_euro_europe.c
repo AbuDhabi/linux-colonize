@@ -761,29 +761,21 @@ static int ai_euro_5d04_refill_pool_slot(int slot) {
   }
   return europe_nation_refill_pool_slot(ctx->col1, ai_euro_s_5d04_nation, slot, false, ctx->rng);
 }
-/* Europe SELL quote: FUN_291f_09ea → FUN_38fd_0040 = euro_price − 1 (the same
- * value europe_sell_price returns), from the EuropeScreen (the one OpenCol
- * market) when present, else from the nation's col1 euro_price byte. */
+/* Europe SELL / BUY quotes: FUN_291f_09ea / 0c3e -> FUN_38fd_0040 / 0016 on
+ * the bound record, i.e. THIS nation's own track (bugs.md #1049). */
 static int ai_euro_5d04_cb_sell_price(int cargo) {
   ColonizeTurnContext* ctx = ai_euro_s_5d04_ctx;
   if (!ctx || !ctx->col1 || cargo < 0 || cargo >= (int)COLONIZE_COL1_CARGO_TYPES) {
     return 0;
   }
-  if (ctx->europe && cargo < ctx->europe->cargo_count && ctx->europe->cargo[cargo].bid > 0) {
-    return europe_sell_price(ctx->europe, cargo);
-  }
-  const int p = (int)ctx->col1->nation[ai_euro_s_5d04_nation].trade.euro_price[cargo] - 1;
-  return p < 0 ? 0 : p;
+  return europe_nation_sell_price(ctx->europe, ctx->col1, ai_euro_s_5d04_nation, cargo);
 }
 static int ai_euro_5d04_cb_price(int cargo) {
   ColonizeTurnContext* ctx = ai_euro_s_5d04_ctx;
   if (!ctx || !ctx->col1 || cargo < 0 || cargo >= (int)COLONIZE_COL1_CARGO_TYPES) {
     return 1;
   }
-  if (ctx->europe && cargo < ctx->europe->cargo_count && ctx->europe->cargo[cargo].ask > 0) {
-    return ctx->europe->cargo[cargo].ask;
-  }
-  return (int)ctx->col1->nation[ai_euro_s_5d04_nation].trade.euro_price[cargo] + 1;
+  return europe_nation_buy_price(ctx->europe, ctx->col1, ai_euro_s_5d04_nation, cargo);
 }
 static void ai_euro_5d04_cb_sync_gold(void) {
   ColonizeTurnContext* ctx = ai_euro_s_5d04_ctx;
@@ -797,10 +789,15 @@ static void ai_euro_5d04_cb_sync_gold(void) {
     }
   }
 }
+/* 291f_0c14 = FUN_38fd_1d80 (buy) / 291f_0a2e = FUN_38fd_1dfa (sell) for
+ * every nation: ledgers + all four pressure words, no FUN_38fd_0058 step
+ * (1ebc/1f0c never call it). bugs.md #1048. */
 static void ai_euro_5d04_cb_market_volume(int cargo, int qty, int is_buy) {
   ColonizeTurnContext* ctx = ai_euro_s_5d04_ctx;
-  if (ctx && ctx->europe && ai_euro_s_5d04_nation == ctx->human_nation) {
-    europe_apply_volume_price(ctx->europe, cargo, qty, is_buy);
+  if (ctx && ctx->europe) {
+    europe_apply_trade_volume(
+      ctx->europe, ctx->col1, ai_euro_s_5d04_nation, ctx->human_nation, cargo, qty, is_buy, 0
+    );
   }
 }
 static void ai_euro_5d04_cb_set_pool_counter(int cargo, int qty) {

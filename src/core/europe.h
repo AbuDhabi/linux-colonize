@@ -683,6 +683,14 @@ void europe_set_bgm_hook(void (*set_bgm_fn)(int pool));
 void europe_notify_immigrant_sound(EuropeScreen* eu);
 int europe_sell_price(const EuropeScreen* eu, int cargo_type);
 int europe_buy_price(const EuropeScreen* eu, int cargo_type);
+/* Same, for `nation`'s own track: the screen when it is bound to `nation`,
+ * else col1->nation[nation].trade.euro_price. bugs.md #1049. */
+int europe_nation_sell_price(
+  const EuropeScreen* eu, const struct ColonizeCol1Save* col1, int nation, int cargo_type
+);
+int europe_nation_buy_price(
+  const EuropeScreen* eu, const struct ColonizeCol1Save* col1, int nation, int cargo_type
+);
 /* europe_cargo_burden -- see docs/europe.md#europe_cargo_burden */
 int europe_cargo_burden(int cargo_type);
 /* gross − gross·tax/100 (FUN_364b_0688 Custom House arm; same rounding as

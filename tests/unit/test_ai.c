@@ -441,6 +441,8 @@ static int run_init_and_turns(
   bool col1_ok = false;
   EuropeScreen europe;
   memset(&europe, 0, sizeof(europe));
+  /* Real @CARGO table: AI Europe trades price off it (bugs.md #1049). */
+  (void)europe_load_tables(&europe, &names);
   europe.gold = 1000;
 
   AiNewGameParams ai;
@@ -469,6 +471,14 @@ static int run_init_and_turns(
     return 1;
   }
 
+  {
+    /* Opening prices on every nation's track, as the new-game path does
+     * (FUN_38fd_6024); own RNG so the AI stream is untouched. */
+    ColonizeDosRng price_rng;
+    dos_rng_seed(&price_rng, 0x6024u);
+    const ColonizeWorld pw = world_make(&units, NULL, &map, &col1, col1_ok, NULL, &europe);
+    europe_seed_campaign_prices_w(&pw, &price_rng);
+  }
   if (!col1_ok || col1.head.tribe_count == 0) {
     fprintf(stderr, "%s: expected tribes, got %u\n", label, col1.head.tribe_count);
     map_free(&map);
