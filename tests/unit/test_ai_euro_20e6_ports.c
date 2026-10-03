@@ -659,10 +659,11 @@ static int wagon_off_landmass_is_destroyed(void) {
  * and qty to tons[g] a SECOND time — and the +0x2a treasury credit is single
  * and pays no Crown cut at all.
  *
- * 100 Tools at euro_price 2 (bid 3 → DOS sell price = bid−1 = 2) with a 50%
- * tax rate therefore lands as:
+ * 100 Tools at euro_price 2 with a 50% tax rate therefore lands as (the
+ * ledger prices at the nation's OWN byte − 1 = 1, FUN_38fd_0040 on the bound
+ * record — not the human's screen, bugs.md #1049):
  *   nation gold   += 2*100          = 200   (untaxed, single)
- *   trade.gold[T] += 100 + 200      = 300   (taxed ledger + untaxed tail)
+ *   trade.gold[T] += 50 + 200       = 250   (taxed ledger + untaxed tail)
  *   trade.tons[T] += 100 + 100      = 200   (double booked)
  *   trade.tons2[T]+= 100                    (ledger only — the tail never
  *                                            touches +0xfc)
@@ -693,8 +694,7 @@ static int sell_tail_untaxed_credit_and_double_book(void) {
     eu->cargo[g].volatility = 0;
     eu->cargo[g].attrition = 0;
   }
-  eu->cargo[COLONIZE_CARGO_TOOLS].bid = 3; /* sell price = bid − 1 = 2 */
-  eu->cargo[COLONIZE_CARGO_TOOLS].ask = 4;
+  eu->bound_nation = 0; /* the screen is the human's, not this nation's */
   f.ctx.europe = eu;
 
   for (int y = 0; y < 16; ++y) {
@@ -740,10 +740,10 @@ static int sell_tail_untaxed_credit_and_double_book(void) {
 
   const ColonizeCol1NationTrade* t = &f.col1.nation[nation].trade;
   const uint32_t gold = f.col1.nation[nation].gold;
-  if (gold != gold_before + 200u || t->gold[COLONIZE_CARGO_TOOLS] != 300 ||
+  if (gold != gold_before + 200u || t->gold[COLONIZE_CARGO_TOOLS] != 250 ||
       t->tons[COLONIZE_CARGO_TOOLS] != 200 || t->tons2[COLONIZE_CARGO_TOOLS] != 100) {
     fprintf(stderr,
-            "gold %u->%u (want +200) ledger gold=%d (want 300) tons=%d (want 200) tons2=%d "
+            "gold %u->%u (want +200) ledger gold=%d (want 250) tons=%d (want 200) tons2=%d "
             "(want 100)\n",
             (unsigned)gold_before, (unsigned)gold, (int)t->gold[COLONIZE_CARGO_TOOLS],
             (int)t->tons[COLONIZE_CARGO_TOOLS], (int)t->tons2[COLONIZE_CARGO_TOOLS]);

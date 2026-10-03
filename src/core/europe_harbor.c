@@ -615,6 +615,40 @@ int europe_buy_price(const EuropeScreen* eu, int cargo_type) {
   return eu->cargo[cargo_type].ask < 0 ? 0 : eu->cargo[cargo_type].ask;
 }
 
+/* FUN_38fd_0040 / 0016 read the BOUND record (DS:0x84fc) — the acting
+ * nation's own track. The screen holds the human's; any other nation reads
+ * its col1 byte. bugs.md #1049. */
+int europe_nation_sell_price(
+  const EuropeScreen* eu, const struct ColonizeCol1Save* col1, int nation, int cargo_type
+) {
+  if (eu && (!col1 || nation == (int)eu->bound_nation)) {
+    return europe_sell_price(eu, cargo_type);
+  }
+  if (!col1 || nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT || cargo_type < 0 ||
+      cargo_type >= (int)COLONIZE_COL1_CARGO_TYPES) {
+    return 0;
+  }
+  const int p = (int)col1->nation[nation].trade.euro_price[cargo_type] - 1;
+  return p < 0 ? 0 : p;
+}
+
+int europe_nation_buy_price(
+  const EuropeScreen* eu, const struct ColonizeCol1Save* col1, int nation, int cargo_type
+) {
+  if (eu && (!col1 || nation == (int)eu->bound_nation)) {
+    return europe_buy_price(eu, cargo_type);
+  }
+  if (!col1 || nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT || cargo_type < 0 ||
+      cargo_type >= (int)COLONIZE_COL1_CARGO_TYPES) {
+    return 0;
+  }
+  /* The @CARGO burden column is one global table; the screen carries it. */
+  const int burden = (eu && cargo_type < eu->cargo_count) ? eu->cargo[cargo_type].burden
+                                                          : europe_cargo_burden(cargo_type);
+  const int p = (int)col1->nation[nation].trade.euro_price[cargo_type] + burden;
+  return p < 0 ? 0 : p;
+}
+
 int europe_net_after_tax(int gross, int tax_percent) {
   if (gross <= 0) {
     return 0;
@@ -664,6 +698,8 @@ static void europe_quote_settle(EuropeCargoQuote* q) {
 static void europe_market_tick_single_cargo(
   EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, int cargo
 );
+/* Write the screen's track through to its nation's col1 row. */
+static void europe_screen_track_to_col1(const EuropeScreen* eu, struct ColonizeCol1Save* col1);
 
 void europe_apply_trade_volume(
   EuropeScreen* eu,
@@ -695,17 +731,31 @@ void europe_apply_trade_volume(
    * never takes the human arm. */
   const int seller_is_human =
     (seller_nation >= 0 && seller_nation < 4 && seller_nation == human_nation);
-  int term = (amount << shift) + europe_1d44_term(amount, seller_is_human, difficulty);
-  /* Only the human's record is live here (col1_bridge binds eu->trade_nr to
-   * head.human_player's nation.trade.nr); DOS walks all four records. The
-   * Dutch record (slot 3) takes (term·2)/3 regardless of who sold — SELL
-   * side only: FUN_38fd_1dfa's `if (local_a == 3) iVar5 = (iVar3*2)/3`
-   * (viceroy 60263-60268) has no counterpart in the buy routine
-   * FUN_38fd_1d80, which subtracts the undamped term from all four records
-   * (viceroy 60216-60221). */
-  if (!is_buy && human_nation == 3) {
-    term = (term * 2) / 3;
+  const int raw_term = (amount << shift) + europe_1d44_term(amount, seller_is_human, difficulty);
+  /* DOS walks all four records (bugs.md #1047): the screen's own track lives
+   * in eu->trade_nr, the other three in col1->nation[n].trade.nr. The Dutch
+   * record (slot 3) takes (term·2)/3 regardless of who sold — SELL side
+   * only: FUN_38fd_1dfa's `if (local_a == 3) iVar5 = (iVar3*2)/3` (viceroy
+   * 60263-60268) has no counterpart in the buy routine FUN_38fd_1d80, which
+   * subtracts the undamped term from all four records (viceroy 60216-60221). */
+  const int track = (int)eu->bound_nation;
+  if (col1 && (unsigned)cargo_type < COLONIZE_COL1_CARGO_TYPES) {
+    for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+      if (n == track) {
+        continue;
+      }
+      const int tn = (!is_buy && n == 3) ? (raw_term * 2) / 3 : raw_term;
+      int v = (int)col1->nation[n].trade.nr[cargo_type] + (is_buy ? -tn : tn);
+      if (v < -32768) {
+        v = -32768;
+      }
+      if (v > 32767) {
+        v = 32767;
+      }
+      col1->nation[n].trade.nr[cargo_type] = (int16_t)v;
+    }
   }
+  const int term = (!is_buy && track == 3) ? (raw_term * 2) / 3 : raw_term;
   int nr = (int)eu->trade_nr[cargo_type];
   if (is_buy) {
     nr -= term;
@@ -720,24 +770,27 @@ void europe_apply_trade_volume(
     t->tons2[cargo_type] += signed_amt;
     if (is_buy) {
       /* 1d80: gold[cargo] −= buy_price·amount. */
-      t->gold[cargo_type] -= (int32_t)europe_buy_price(eu, cargo_type) * (int32_t)amount;
+      t->gold[cargo_type] -=
+        (int32_t)europe_nation_buy_price(eu, col1, seller_nation, cargo_type) * (int32_t)amount;
     } else {
       /* 1dfa: gold[cargo] += (sell_price·amount·(100−tax))/100 — note the
        * ledger rounds the other way from the treasury credit (54 lumber @1,
        * 35% → ledger +35, treasury +36). */
       const int tax = (int)col1->nation[seller_nation].tax_rate;
-      const long gross = (long)europe_sell_price(eu, cargo_type) * (long)amount;
+      const long gross =
+        (long)europe_nation_sell_price(eu, col1, seller_nation, cargo_type) * (long)amount;
       t->gold[cargo_type] += (int32_t)((gross * (long)(100 - tax)) / 100L);
     }
   }
+  if (nr < -32768) {
+    nr = -32768;
+  }
+  if (nr > 32767) {
+    nr = 32767;
+  }
+  eu->trade_nr[cargo_type] = (int16_t)nr;
   if (!immediate_threshold) {
-    if (nr < -32768) {
-      nr = -32768;
-    }
-    if (nr > 32767) {
-      nr = 32767;
-    }
-    eu->trade_nr[cargo_type] = (int16_t)nr;
+    europe_screen_track_to_col1(eu, col1);
     return;
   }
   /*
@@ -749,13 +802,6 @@ void europe_apply_trade_volume(
    * @PRICEUP/@PRICEDOWN crumb for a player-move price change (bugs.md #225)
    * is queued inside phase 4 like the EOT tick's.
    */
-  if (nr < -32768) {
-    nr = -32768;
-  }
-  if (nr > 32767) {
-    nr = 32767;
-  }
-  eu->trade_nr[cargo_type] = (int16_t)nr;
   europe_market_tick_single_cargo(eu, col1, (int)eu->bound_nation, cargo_type);
 }
 
@@ -844,6 +890,17 @@ static void europe_market_phase1(const EuropeMarketTick* t, long ledger[16]) {
 }
 
 /*
+ * sign(bid − ratio) the way DOS takes it: the FUN_1d1d_0ec6 quotient is
+ * truncated to a 16-bit int and subtracted from the signed bid byte in 16
+ * bits (raw ~58845 `local_6 - (int)lVar15`, ~58899 `local_52`). Only differs
+ * from a plain compare once the ratio passes 32767. bugs.md #1051.
+ */
+static int europe_market_bid_sign(int bid, long ratio) {
+  const int16_t d = (int16_t)(uint16_t)((unsigned)(int8_t)bid - (unsigned)(uint16_t)ratio);
+  return (d > 0) - (d < 0);
+}
+
+/*
  * Phase 2 (raw 58828-58874) — cargos 9..12 off their own ledger share.
  * ratio = (Σledger[9..12] · 3) / ledger[c]; a full tick nudges the pressure
  * word by sign(bid − ratio)·((rise+fall)/2)·100, the 6024 tail writes the
@@ -868,12 +925,7 @@ static void europe_market_phase2(const EuropeMarketTick* t, const long ledger[16
     const long ratio = (sum * 3) / L;
     const EuropeCargoQuote* q = &t->eu->cargo[c];
     if (t->mode == 0) {
-      int sign = 0;
-      if (t->bid[c] > (int)ratio) {
-        sign = 1;
-      } else if (t->bid[c] < (int)ratio) {
-        sign = -1;
-      }
+      const int sign = europe_market_bid_sign(t->bid[c], ratio);
       europe_market_nr_add(t, c, sign * ((q->rise + q->fall) / 2) * 100);
     } else {
       long v = ratio;
@@ -926,12 +978,7 @@ static void europe_market_phase3(const EuropeMarketTick* t, const long ledger[16
       }
     }
     const EuropeCargoQuote* q = &t->eu->cargo[c];
-    int sign = 0;
-    if (t->bid[c] > (int)ratio) {
-      sign = 1;
-    } else if (t->bid[c] < (int)ratio) {
-      sign = -1;
-    }
+    const int sign = europe_market_bid_sign(t->bid[c], ratio);
     europe_market_nr_add(t, c, ((q->rise + q->fall) / 2) * sign);
   }
 }
@@ -1095,6 +1142,23 @@ static void europe_market_track_store(
   }
 }
 
+/*
+ * DOS has ONE store per nation (record +0x4c / +0x5c) and refreshes the
+ * DS:0x84bc mirror in every 0058 pass; the port's human track lives in the
+ * EuropeScreen, so every write to it goes straight through to the col1 row
+ * the rest of the sim reads (bugs.md #1050).
+ */
+static void europe_screen_track_to_col1(const EuropeScreen* eu, struct ColonizeCol1Save* col1) {
+  if (!eu || !col1 || eu->bound_nation >= COLONIZE_COL1_NATION_COUNT) {
+    return;
+  }
+  int bid[EUROPE_CARGO_MAX];
+  for (int c = 0; c < eu->cargo_count && c < EUROPE_CARGO_MAX; ++c) {
+    bid[c] = eu->cargo[c].bid;
+  }
+  europe_market_track_store(col1, (int)eu->bound_nation, eu->cargo_count, bid, eu->trade_nr);
+}
+
 void europe_nation_tick_market_prices_w(const ColonizeWorld* w, int nation, uint32_t turn) {
   EuropeScreen* eu = w->europe;
   struct ColonizeCol1Save* col1 = w->col1_ok ? w->col1 : NULL;
@@ -1142,6 +1206,7 @@ static void europe_market_tick_single_cargo(
     eu->trade_nr[c] = nr[c];
     europe_quote_settle(&eu->cargo[c]);
   }
+  europe_screen_track_to_col1(eu, col1);
 }
 
 void europe_tick_market_prices_w(
@@ -1194,6 +1259,7 @@ void europe_tick_market_prices_w(
     eu->trade_nr[c] = nr[c];
     europe_quote_settle(&eu->cargo[c]);
   }
+  europe_screen_track_to_col1(eu, col1);
   /*
    * Phase 4 dialog crumbs 0xfa8/0xfb0 -> price_event_cargo[]/dir[] (queued
    * in loop order above, one entry per cargo that actually crossed

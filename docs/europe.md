@@ -488,6 +488,10 @@ save-canonical `euro_price` word (nation +0x4c); the port PAYS
 buy (`ask`). Real DOS Europe screen at 1494: Food 0/8, Lumber 1/6,
 Silver 19/20 — see original_screenshots/europe/main_with_caravel_*.png.
 
+`europe_nation_sell_price` / `europe_nation_buy_price` read `nation`'s own
+track: the screen when bound to it, else the col1 byte (−1 / +burden) — DOS
+0040/0016 always read the bound record DS:0x84fc. bugs.md #1049.
+
 ## europe_cargo_burden
 
 @CARGO burden column for `cargo_type`, cached from the last NAMES.TXT load
@@ -511,8 +515,13 @@ FUN_38fd_1dfa (sell) / FUN_38fd_1d80 (buy) volume ledger, exact:
   Dutch record (slot 3) gets (term·2)/3 — 1d80 (buy) has no such case;
   seller's tons/tons2 += amount (buy: −=), and gold[cargo]
   += price·amount·(100−tax)/100.
-Only the human's record is live in `eu->trade_nr`; `col1` (optional) gets
-the seller's tons/tons2/gold ledgers. Verified 2026-08-28 against the
+The screen's own record (bound nation) is `eu->trade_nr`; with `col1` the
+other three nations' `trade.nr` rows take the term too (bugs.md #1047), and
+the seller's tons/tons2/gold ledgers are written, priced off the seller's
+OWN track (`europe_nation_sell_price/buy_price`, bugs.md #1049). Every write
+to the screen track goes through to the bound nation's col1 row
+(`europe_screen_track_to_col1`, bugs.md #1050), so col1 euro_price/nr is live
+for every nation. Verified 2026-08-28 against the
 dutch2 t169→t170 pair: three lumber sellers (54 human @ Viceroy, 12 + 18
 AI) → +93 on every non-Dutch nr[5], +61 on the Dutch one.
 `immediate_threshold` runs the whole FUN_38fd_0058(0, cargo) the harbor
