@@ -2516,9 +2516,8 @@ static int gate_course_run(int own_colony, int* out_x, int* out_y, int* out_def_
     *out_x = r->x;
     *out_y = r->y;
   }
-  /* "Alive" = still an armed defender of its own nation. A beaten Soldier is
-   * demoted to a Colonist and captured (DOS), not necessarily destroyed; the
-   * fixture's colonist type now resolves by @UNIT kind, so that path runs. */
+  /* "Alive" = still an armed defender. A beaten Soldier becomes a Colonist;
+   * on a colony tile it retains its nation until the colony is captured. */
   *out_def_alive =
     (d && d->active && d->nation_id == 0 && d->type_index == 1) ? 1 : 0;
   fixture_free(&f);
@@ -2532,7 +2531,12 @@ static int unit_gate_adjacent_foe_reaches_scorer(void) {
   if (gate_course_run(0, &x, &y, &def_alive) != 0) {
     return fail("gate course fixture (foe)");
   }
-  if (def_alive || x != 9 || y != 8) {
+  /* DOS 1b0e raw 100648-100650 enables colony capture only after beating
+   * its temporary defender (bVar28). This attack demotes the field Soldier
+   * and exhausts MP; the legacy act helper immediately starts another fight
+   * on its follow-up move, capturing the colony in the same act. */
+  const int expected_x = ai_euro_ship_dos_enabled() ? 8 : 9;
+  if (def_alive || x != expected_x || y != 8) {
     fprintf(stderr, "unit_ai_euro_20e6: gate mover at (%d,%d), defender alive=%d\n", x, y,
             def_alive);
     return fail("raw 90217: an adjacent foreigner must send a busy unit to LAB_4d2e");
