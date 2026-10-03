@@ -299,7 +299,8 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
          * of the nation's units and leaves a loitering one alone, which is
          * what FUN_5bfb_3180's per-step neighbour scan does.
          */
-        if (!ai_contact_brave_walked_up_to(bu, c->x, c->y)) {
+        if (!ai_contact_brave_walked_up_to(bu, c->x, c->y) &&
+            !ai_contact_is_visit_brave(ctx, nation_id, e, bu)) {
           continue;
         }
         best_ci = ci;
