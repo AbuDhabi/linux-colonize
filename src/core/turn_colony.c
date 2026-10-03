@@ -537,9 +537,19 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       /* DOS-LITERAL raw 73347: `(0x5382 & 6) == 0` — bit 0x02 is the
        * intervention-ANNOUNCE latch (game_options.ref_present, bugs.md
        * #865), bit 0x04 the hint one-shot. */
+      /* bugs.md #1057c: 0a22 runs per colony for the OWNING nation, so the
+       * `bells < pool` test (raw 73345-73346) and the 0f66 %NUMBER0 read
+       * whichever nation's pool is accruing first, not the human's. */
+      int hint_nation = -1;
+      for (int n = 0; n < 4 && hint_nation < 0; ++n) {
+        if (ctx->col1->player[n].control != 2 &&
+            founding_fathers_bells_pool(ctx->col1, n) > 0u) {
+          hint_nation = n;
+        }
+      }
       if (!ctx->col1->head.game_options.ref_present &&
           !ctx->col1->head.game_options.woi_crosses_event &&
-          founding_fathers_bells_pool(ctx->col1, ctx->human_nation) > 0u &&
+          hint_nation >= 0 &&
           ctx->ai_popups) {
         const int ally = (int)ctx->col1->head.rival_nation_slot_1;
         const char* ally_name = "";
@@ -556,7 +566,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
         memset(&tok, 0, sizeof(tok));
         tok.string0 = ally_name;
         tok.has_number0 = true;
-        tok.number0 = (int)founding_fathers_bells_needed(ctx->col1, ctx->human_nation);
+        tok.number0 = (int)founding_fathers_bells_needed(ctx->col1, hint_nation);
         popup_chrome_ok(
           ctx->ai_popups, ctx->messages, "CONSIDER", &tok,
           ""

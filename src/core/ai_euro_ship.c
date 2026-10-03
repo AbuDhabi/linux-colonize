@@ -29,6 +29,7 @@
 #include "core/ai_goals.h"
 #include "core/assets.h"
 #include "core/ai_euro_internal.h"
+#include "core/ai_internal.h"
 #include "core/colony.h"
 #include "core/colony_craft.h"
 #include "core/colony_yield.h"
@@ -1493,13 +1494,39 @@ static int ai_euro_ship_sail_to_europe(ColonizeTurnContext* ctx, ColonizeUnit* s
 }
 
 /*
- * AI High Seas → Europe crossing (the missing half of the 48d3_015e stand-in):
- * a ship the export/loot arms sent to a High Seas tile enters the Europe park
- * (200,100) once it stands on one. Without this the sail target re-resolves
- * every act — units_find_eastern_high_seas_tile skips the ship's OWN tile as
- * occupied, so the "best" rim tile flips between two neighbours and the ship
- * wiggles on the sealane forever, never selling. Next act the in_europe branch
- * cash/sells and teleports it back out toward its landfall.
+ * FUN_48d3_0002 (raw 77563-77588) for an AI hull: reseed from the timer word
+ * (FUN_281f_04ca(DS:0x83a6) = ai_nation_reseed), then the shared 1-2 turn
+ * roll over the nation's hull tally DS:0x9418 and Magellan. The second
+ * argument is the New World x of the crossing (bugs.md #1019).
+ */
+static int ai_euro_lane_voyage_turns(ColonizeTurnContext* ctx, int nation_id, int new_world_x) {
+  ai_nation_reseed(ctx);
+  const bool magellan = ctx->col1_ok && ctx->col1 &&
+    founding_fathers_nation_has(ctx->col1, nation_id, FF_FERDINAND_MAGELLAN);
+  return europe_voyage_turns_roll(
+    ctx->rng, magellan, turn_voyage_ship_count(ctx, nation_id), new_world_x
+  );
+}
+
+/* Hop a parked hull (and its passengers) to another off-map slot. */
+static void ai_euro_lane_move(ColonizeTurnContext* ctx, ColonizeUnit* ship, int x, int y) {
+  const int ox = ship->x;
+  const int oy = ship->y;
+  ship->x = x;
+  ship->y = y;
+  units_occupancy_notify_moved(ctx->units, ox, oy, x, y);
+  ai_euro_sync_aboard_cargo_xy(ctx->units, ship);
+}
+
+/*
+ * AI High Seas -> Europe crossing, DOS-LITERAL FUN_48d3_007a (raw
+ * 77592-77632): a hull standing on a High Seas tile records it as its
+ * landfall (+0x314d/e; DOS also writes the nation's -0x77c6/-0x77c5 copy,
+ * which only the human's Europe screen reads), takes FUN_48d3_0002's 1-2
+ * turn roll into +0x315a and is parked on the eastbound lane n - 0x0c
+ * (244+n). ai_euro_europe_lane_tick walks it to the dock (bugs.md #1056;
+ * it used to arrive instantly). Without this gate the sail target
+ * re-resolves every act and the ship wiggles on the sealane forever.
  */
 int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
   if (!ctx || !ctx->map || !ctx->units || !ship ||
@@ -1508,19 +1535,71 @@ int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
   }
   const int ox = ship->x;
   const int oy = ship->y;
-  ship->x = 200;
-  ship->y = 100;
-  units_occupancy_notify_moved(ctx->units, ox, oy, 200, 100);
-  ai_euro_sync_aboard_cargo_xy(ctx->units, ship);
-  ai_euro_set_goto(ship, UNITS_ORDER_AI_SAIL, 200, 100);
-  /* The course is spent. DOS keeps counting the hull in DS:0x9456 while it
-   * stands in the Europe columns (raw 78182-78185) and only drops it on the
-   * 48d3_0346 departure; the port's lane tally reads the park itself, so the
-   * `+0x314b = 0x45` stamp must come off here or the hull would be counted
-   * twice and its own re-cross gate would keep firing. */
+  const int n = ship->nation_id;
+  ship->col1_counter16 = ai_euro_lane_voyage_turns(ctx, n, ox);
+  ai_euro_lane_move(ctx, ship, 244 + n, 244 + n);
+  ai_euro_set_goto(ship, UNITS_ORDER_NONE, ox, oy);
+  /* The course is spent: DS:0x9456 now counts the hull through its lane
+   * position (raw 78182-78185), so the `+0x314b = 0x45` stamp comes off or
+   * the hull would be counted twice. */
   ship->col1_ai_plan = 0;
   ship->moves = 0;
   return 1;
+}
+
+/*
+ * Europe -> New World departure, DOS-LITERAL FUN_48d3_0346 (raw
+ * 77732-77757, reached through FUN_291f_0ec2 from the FUN_521d_5d04 dock
+ * pass): roll the crossing against the landfall x and park the hull on the
+ * westbound lane n - 0x18 (232+n). The port departs from the dispatcher's
+ * Europe act rather than inside 5d04 (bugs.md #1056).
+ */
+void ai_euro_ship_leave_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
+  if (!ctx || !ctx->units || !ship) {
+    return;
+  }
+  int lx = 0;
+  int ly = 0;
+  ai_euro_resolve_landfall_goto(ctx, ship, &lx, &ly);
+  const int n = ship->nation_id;
+  ship->col1_counter16 = ai_euro_lane_voyage_turns(ctx, n, lx);
+  ai_euro_lane_move(ctx, ship, 232 + n, 232 + n);
+  ship->moves = 0;
+}
+
+/*
+ * FUN_48d3_06ba head (raw 77965-77980): four FUN_48d3_03d0 hops, in DOS
+ * order, run at the end of the nation's own FUN_3844_00f2. Each hop walks
+ * the hulls on one lane, ticks +0x315a down while it is non-zero and moves
+ * the hull on when it reads zero. 224+n is left for the dispatcher's
+ * Europe act to place (the FUN_48d3_064e / 048e tail); 236+n is the dock,
+ * the port's (200,100).
+ */
+void ai_euro_europe_lane_tick(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->units || nation_id < 0 || nation_id > 3) {
+    return;
+  }
+  static const int hops[4][2] = {{228, 224}, {232, 228}, {240, 236}, {244, 240}};
+  for (int h = 0; h < 4; ++h) {
+    const int from = hops[h][0] + nation_id;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* u = &ctx->units->units[i];
+      if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0 ||
+          u->x != from || u->y != from) {
+        continue;
+      }
+      if (u->col1_counter16 > 0) {
+        u->col1_counter16--;
+      }
+      if (u->col1_counter16 == 0) {
+        if (hops[h][1] == 236) {
+          ai_euro_lane_move(ctx, u, 200, 100);
+        } else {
+          ai_euro_lane_move(ctx, u, hops[h][1] + nation_id, hops[h][1] + nation_id);
+        }
+      }
+    }
+  }
 }
 
 int ai_euro_try_ship_europe_export(

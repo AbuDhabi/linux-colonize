@@ -963,8 +963,72 @@ static int unit_colony_enter_hull_stack_gate_791_792(void) {
   return rc;
 }
 
+/*
+ * bugs.md #1057a: FUN_4720_049e raw 76126-76135 sets the moving nation's
+ * player+0x30 bit 0x80 once a committed move ends with land in the 3x3
+ * around the destination. AI nations only here; the human's bit belongs to
+ * the @LANDHO naming dialog.
+ */
+static int unit_ai_move_marks_new_world(void) {
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[1].control = 1;
+  col1.player[0].control = 0;
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 1;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Caravel");
+  pool.types[0].movement = 4;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.terrain[i] = 25; /* ocean */
+  }
+  map.terrain[3 * 8 + 6] = 1; /* one land tile at (6,3) */
+  units_set_occupancy_map(&map);
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  const ColonizeWorld w = {.units = &pool, .colonies = &colonies, .map = &map, .col1 = &col1};
+  int rc = 0;
+  const int ai = units_spawn_allow_stack(&pool, 0, 2, 3);
+  const int hu = units_spawn_allow_stack(&pool, 0, 2, 5);
+  units_get(&pool, ai)->nation_id = 1;
+  units_get(&pool, ai)->moves = 12;
+  units_get(&pool, hu)->nation_id = 0;
+  units_get(&pool, hu)->moves = 12;
+  if (!units_try_move_w(&w, ai, 3, 3) || col1.player[1].named_new_world) {
+    fprintf(stderr, "new_world: open-sea move must not set the bit\n");
+    rc = 1;
+  }
+  if (rc == 0 && (!units_try_move_w(&w, ai, 4, 3) || col1.player[1].named_new_world)) {
+    fprintf(stderr, "new_world: land two tiles off must not set the bit\n");
+    rc = 1;
+  }
+  if (rc == 0 && (!units_try_move_w(&w, ai, 5, 3) || !col1.player[1].named_new_world)) {
+    fprintf(stderr, "new_world: AI move next to land must set the bit\n");
+    rc = 1;
+  }
+  if (rc == 0 && (!units_try_move_w(&w, hu, 3, 4) || !units_try_move_w(&w, hu, 4, 4) ||
+                  !units_try_move_w(&w, hu, 5, 4) || col1.player[0].named_new_world)) {
+    fprintf(stderr, "new_world: human bit is the @LANDHO dialog's, not the mover's\n");
+    rc = 1;
+  }
+  units_set_occupancy_map(NULL);
+  map_free(&map);
+  return rc;
+}
+
 int main(void) {
   diag_init(0, NULL);
+  if (unit_ai_move_marks_new_world() != 0) {
+    diag_shutdown();
+    return 1;
+  }
   if (unit_mp_entry_gating_713_724() != 0) {
     diag_shutdown();
     return 1;

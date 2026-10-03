@@ -715,6 +715,24 @@ combat_entry_resolved:
    * Sentry units (raw 98628-98646). Runs for every mover, land or sea. */
   units_sentry_wake_scan(pool, map, colonies, unit_id);
   unit = units_get(pool, unit_id);
+  /*
+   * DOS-LITERAL FUN_4720_049e raw 76126-76135 (bugs.md #1057a): after a
+   * committed move the MOVING nation's player+0x30 bit 0x80 is set once any
+   * tile of the 3x3 around the destination is land (FUN_281f_0768 == 0).
+   * Only the naming dialog (FUN_281f_0f6c) is human; the human's bit is set
+   * by that dialog (game_dialogs.c), which reads it unset as its trigger.
+   */
+  if (unit && w->col1 && unit->nation_id >= 0 && unit->nation_id < 4 &&
+      w->col1->player[unit->nation_id].control == 1 &&
+      !w->col1->player[unit->nation_id].named_new_world) {
+    for (int ny = dest_y - 1; ny <= dest_y + 1; ++ny) {
+      for (int nx = dest_x - 1; nx <= dest_x + 1; ++nx) {
+        if (map_tile_is_land(map, nx, ny)) {
+          w->col1->player[unit->nation_id].named_new_world = 1;
+        }
+      }
+    }
+  }
   if (g_units_move_watch && units_is_on_map(unit)) {
     g_units_move_watch(
       g_units_move_watch_user,

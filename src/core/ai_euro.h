@@ -22,6 +22,13 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id);
 void ai_euro_census_ship_pressure_refresh(ColonizeTurnContext* ctx, int nation_id);
 
 /*
+ * FUN_48d3_06ba head: tick this AI nation's Europe sailing lanes (bugs.md
+ * #1056). Runs at the end of the nation's FUN_3844_00f2, before its
+ * FUN_521d_6d8e turn. See ai_euro_ship.c.
+ */
+void ai_euro_europe_lane_tick(ColonizeTurnContext* ctx, int nation_id);
+
+/*
  * FUN_15eb_28c8 — colonist work-plot job scoring, structural reference port
  * (docs/port_plan.md T1.17 / docs/port_plan.md W1.7). See ai_euro.c's own
  * header comment above the definition, and

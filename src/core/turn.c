@@ -600,6 +600,10 @@ COLONIZE_INTERNAL void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnC
             ctx->messages
           );
           turn_route_damaged_ships(ctx, n);
+          if (n != ctx->human_nation) {
+            /* 00f2 tail FUN_291f_0a82 -> FUN_48d3_06ba (raw 58377). */
+            ai_euro_europe_lane_tick(ctx, n);
+          }
         }
       }
       if (turn_euro_nation_is_ref(ctx, n)) {

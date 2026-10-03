@@ -280,6 +280,28 @@ int main(void) {
     }
   }
 
+  /* bugs.md #1057e: a headless run with no human still elects AI Fathers. */
+  {
+    ColonizeCol1Save hcol1;
+    col1_save_init(&hcol1);
+    seed_unclaimed(&hcol1);
+    ff_test_calendar(&hcol1);
+    hcol1.player[0].control = 1;
+    hcol1.player[1].control = 1;
+    memset(&hcol1.nation[1], 0, sizeof(hcol1.nation[1]));
+    hcol1.nation[1].liberty_bells_pool = 48;
+    hcol1.nation[1].next_founding_father = FF_WILLIAM_BREWSTER;
+    ColonizeTurnContext hctx;
+    memset(&hctx, 0, sizeof(hctx));
+    hctx.human_nation = -1;
+    hctx.col1 = &hcol1;
+    hctx.col1_ok = true;
+    founding_fathers_tick(&hctx);
+    if (!founding_fathers_nation_has(&hcol1, 1, FF_WILLIAM_BREWSTER)) {
+      return fail("no-human run must elect AI Fathers");
+    }
+  }
+
   /* bugs.md #728: FUN_4345_0342 case 0x14 rewrites only the three recruit
    * slots — colonists already on the docks stay Indentured / Criminal. */
   {

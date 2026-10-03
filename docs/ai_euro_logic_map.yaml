@@ -694,10 +694,11 @@ graphs:
         note: TURN2–5 goldens (ship XY = staging tip; FR lands near 52,43).
       - id: cross_europe
         kind: step
-        label: "Map → Europe crossing — a hull carrying the +0x314b = 0x45 Europe course that stands on High Seas enters the Europe park. DOS does this in the shared goto-step mover for any AI hull that ends its goto on High Seas, not in an AI arm; the port runs it at the head of the hull's next act"
+        label: "Map → Europe crossing — a hull carrying the +0x314b = 0x45 Europe course that stands on High Seas enters the Europe park. DOS does this in the shared goto-step mover for any AI hull that ends its goto on High Seas, not in an AI arm; the port runs it at the head of the hull's next act. The hull parks on the eastbound lane 244+n with the 1-2 turn FUN_48d3_0002 roll; the nation's 06ba lane tick walks it 244 → 240 → dock, and a docked hull departs onto 232+n (0346) and is placed from 224+n"
         fn: ai_euro_ship.c:ai_euro_ship_enter_europe
-        dos: FUN_479b_076e (77095-77107) → FUN_291f_0208 → FUN_48d3_007a
+        dos: FUN_479b_076e (77095-77107) → FUN_291f_0208 → FUN_48d3_007a; FUN_48d3_0346; FUN_48d3_06ba → 03d0
         status: structural
+        note: "bugs.md #1056: crossings used to be instant both ways."
       - id: dock_demand
         kind: decision
         label: "Sail home? Empty hull, no qualifying hold cargo, not goal-tasked, hull-type gate, and DS:0x945a[n] (own land units waiting on the Europe dock) > DS:0x9456[n] (own hulls already heading home) → LAB_3fa6 sets the Europe course. This is what keeps an AI nation's Europe dock queue moving; cargo-independent and tested every act"

@@ -147,6 +147,8 @@ void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int nation_id);
 int ai_euro_rival_strength_at(int nation_id, int continent_id);
 int ai_euro_continent_stance_at(int nation_id, int continent_id);
 int ai_euro_in_europe(int x, int y);
+int ai_euro_europe_lane(int nation_id, int x, int y);
+int ai_euro_at_europe_dock(int nation_id, int x, int y);
 void ai_euro_sync_aboard_cargo_xy(ColonizeUnitPool* units, ColonizeUnit* ship);
 void ai_euro_resolve_landfall_goto(
   ColonizeTurnContext* ctx,
@@ -505,6 +507,7 @@ int ai_euro_try_ship_trade_haul(
   ColonizeUnit* ship
 );
 int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship);
+void ai_euro_ship_leave_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship);
 int ai_euro_try_ship_europe_export(
   ColonizeTurnContext* ctx,
   int nation_id,

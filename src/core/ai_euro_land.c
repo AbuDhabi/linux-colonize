@@ -3108,9 +3108,10 @@ int ai_euro_europe_dock_land_units(const ColonizeUnitPool* units, int nation_id)
  * FUN_48d3_015e bumps it the instant a hull is GIVEN its Europe course (raw
  * 77712), and the divert arm decrements it again (raw 90575), so it is a
  * "how many hulls are already heading home" throttle rather than a position
- * read. The port has no lane columns and crosses in one step, so a hull is
- * "in the lane" when it either sits in the Europe park or still carries the
- * `+0x314b = 0x45` Europe stamp that 015e writes.
+ * read. The port tallies on demand instead of census + bump, so a hull
+ * counts while it stands on either eastbound lane (bugs.md #1056) or still
+ * carries the `+0x314b = 0x45` Europe stamp that 015e writes. A docked hull
+ * is not counted (it stands on 236+n).
  */
 int ai_euro_europe_lane_ships(const ColonizeUnitPool* units, int nation_id) {
   if (!units || nation_id < 0 || nation_id > 3) {
@@ -3125,8 +3126,8 @@ int ai_euro_europe_lane_ships(const ColonizeUnitPool* units, int nation_id) {
     if (!units_is_sea(units, u->id)) {
       continue;
     }
-    if (units_coords_in_europe_park(u->x, u->y) ||
-        u->col1_ai_plan == AI_EURO_PLAN_EUROPE_BOUND) {
+    const int lane = ai_euro_europe_lane(nation_id, u->x, u->y);
+    if (lane == 240 || lane == 244 || u->col1_ai_plan == AI_EURO_PLAN_EUROPE_BOUND) {
       n++;
     }
   }

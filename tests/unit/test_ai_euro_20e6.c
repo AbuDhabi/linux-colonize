@@ -911,6 +911,79 @@ static int unit_europe_dock_demand_throttled_by_lane(void) {
 }
 
 /*
+ * bugs.md #1056: an AI hull crosses on the DOS sentinel lanes, not in one step.
+ * FUN_48d3_007a parks it on 244+n with FUN_48d3_0002's roll in +0x315a; each
+ * FUN_48d3_06ba tick walks 244 -> 240 -> dock, so a roll of T docks after T+1
+ * ticks. FUN_48d3_0346 does the same westbound 232 -> 228 -> 224, where the
+ * dispatcher's Europe act places the hull.
+ */
+static int unit_europe_lane_crossing_ticks(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  for (int y = 0; y < 16; ++y) {
+    for (int x = 12; x < 16; ++x) {
+      f.map.terrain[y * 16 + x] = 25;
+    }
+    f.map.terrain[y * 16 + 15] = 26;
+  }
+  const int ship_id = units_spawn(&f.units, 2, 15, 4);
+  ColonizeUnit* ship = units_get(&f.units, ship_id);
+  if (!ship) {
+    fixture_free(&f);
+    return fail("spawn ship");
+  }
+  ship->nation_id = nation;
+  ship->moves = 4 * UNITS_MP_PER_TILE;
+  if (!ai_euro_ship_enter_europe(&f.ctx, ship)) {
+    fixture_free(&f);
+    return fail("hull on High Seas must enter the eastbound lane");
+  }
+  const int east_turns = ship->col1_counter16;
+  if (ship->x != 244 + nation || ship->y != 244 + nation || east_turns < 1 || east_turns > 2 ||
+      ship->goto_x != 15 || ship->goto_y != 4) {
+    fixture_free(&f);
+    return fail("007a: lane 244+n, roll 1-2, landfall = the High Seas tile");
+  }
+  if (ai_euro_europe_lane_ships(&f.units, nation) != 1) {
+    fixture_free(&f);
+    return fail("DS:0x9456 counts a hull on the eastbound lane");
+  }
+  int ticks = 0;
+  while (!ai_euro_at_europe_dock(nation, ship->x, ship->y) && ticks < 10) {
+    ai_euro_europe_lane_tick(&f.ctx, nation);
+    ++ticks;
+  }
+  if (ticks != east_turns + 1 || ship->x != 200 || ship->y != 100) {
+    fixture_free(&f);
+    return fail("eastbound: roll T docks after T+1 ticks");
+  }
+  if (ai_euro_europe_lane_ships(&f.units, nation) != 0) {
+    fixture_free(&f);
+    return fail("DS:0x9456 does not count a docked hull");
+  }
+  ai_euro_ship_leave_europe(&f.ctx, ship);
+  const int west_turns = ship->col1_counter16;
+  if (ship->x != 232 + nation || west_turns < 1 || west_turns > 2) {
+    fixture_free(&f);
+    return fail("0346: lane 232+n, roll 1-2");
+  }
+  ticks = 0;
+  while (ai_euro_europe_lane(nation, ship->x, ship->y) != 224 && ticks < 10) {
+    ai_euro_europe_lane_tick(&f.ctx, nation);
+    ++ticks;
+  }
+  if (ticks != west_turns + 1) {
+    fixture_free(&f);
+    return fail("westbound: roll T reaches 224+n after T+1 ticks");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
+/*
  * Hold-cargo colony-delivery matrix (raw 2047-2139): a Caravel holding TOOLS
  * with two own coastal colonies in reach. The near one already PRODUCES tools
  * (+0x90 cargo_produced_mask) and sits on 150 of them (> 99), so the raw
@@ -2504,6 +2577,7 @@ static const TestCase k_cases[] = {
     {"unit_empty_ship_hs_cadence", unit_empty_ship_hs_cadence},
     {"unit_europe_dock_demand_sails_home", unit_europe_dock_demand_sails_home},
     {"unit_europe_dock_demand_throttled_by_lane", unit_europe_dock_demand_throttled_by_lane},
+    {"unit_europe_lane_crossing_ticks", unit_europe_lane_crossing_ticks},
     {"unit_delivery_matrix_skips_full_producer", unit_delivery_matrix_skips_full_producer},
     {"unit_delivery_sell_tail_dumps_cargo", unit_delivery_sell_tail_dumps_cargo},
     {"unit_load_matrix_picks_priced_cargo", unit_load_matrix_picks_priced_cargo},
