@@ -215,6 +215,19 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_europe_exit(struct ai_euro_ac
    */
   int exited_europe = 0;
   if (ai_euro_in_europe(u->x, u->y)) {
+    /* bugs.md #1056: only a hull the lane tick brought to 224+n is placed.
+     * A docked hull departs onto the westbound lane (FUN_48d3_0346); one
+     * still crossing has nothing to do. */
+    const int lane = ai_euro_europe_lane(u->nation_id, u->x, u->y);
+    if (lane != 224) {
+      if (lane == 0) {
+        ai_euro_ship_leave_europe(ctx, u);
+      }
+      u->moves = 0;
+      return AI_EURO_ACT_RETURN;
+    }
+  }
+  if (ai_euro_in_europe(u->x, u->y)) {
     int lx = 0;
     int ly = 0;
     ai_euro_resolve_landfall_goto(ctx, u, &lx, &ly);

@@ -143,7 +143,7 @@ static void ai_euro_5d04_woi_seize_manowar(ColonizeTurnContext* ctx, int nation_
   }
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id != nation_id || !ai_euro_in_europe(u->x, u->y)) {
+    if (!u->active || u->nation_id != nation_id || !ai_euro_at_europe_dock(nation_id, u->x, u->y)) {
       continue;
     }
     if (ai_euro_20e6_dos_type(ctx->units, u) == 0x12) {
@@ -534,8 +534,8 @@ static int ai_euro_5d04_ship_buy_ladder(
  *   FUN_291f_0d8e          buy+load 100 of a cargo onto the ship.
  *   FUN_291f_0ec2          ship departs Europe: the dock stack boards, the
  *                          ship leaves the Europe list (the dispatcher's
- *                          own FUN_48d3_048e teleport places it on the
- *                          high seas next act).
+ *                          Europe act puts it on the westbound lane,
+ *                          bugs.md #1056).
  *   0x5238[type]           ColonizeUnitType.space (ship slots taken).
  *   DS:0xa0db / 0xa0da     per-turn counts from FUN_521d_6d8e's prelude:
  *                          own colonies with specialty muskets or an empty
@@ -549,7 +549,10 @@ static int ai_euro_5d04_cb_in_europe_list(int idx) {
     return 0;
   }
   const ColonizeUnit* u = &ai_euro_s_5d04_ctx->units->units[idx];
-  return u->active && u->nation_id == ai_euro_s_5d04_nation && ai_euro_in_europe(u->x, u->y);
+  /* The list is the dock tile only (236+n); hulls crossing on a lane are
+   * not in Europe yet (bugs.md #1056). */
+  return u->active && u->nation_id == ai_euro_s_5d04_nation &&
+         ai_euro_at_europe_dock(u->nation_id, u->x, u->y);
 }
 static int ai_euro_5d04_cb_list_iter_next(int prev) {
   for (int i = prev + 1; i < COLONIZE_UNITS_MAX; ++i) {
@@ -930,7 +933,8 @@ static void ai_euro_5d04_cb_unit_exhaust(int idx) {
     }
     (void)units_board_stacked(ctx->units, u->id, ship_id);
   }
-  /* The dispatcher's Europe act (FUN_48d3_048e teleport) takes it from here. */
+  /* The dispatcher's Europe act departs it onto the westbound lane
+   * (ai_euro_ship_leave_europe, FUN_48d3_0346). */
 }
 /* FUN_291f_0d8e(unit, cargo, 100): buy 100 of cargo onto the ship. */
 static void ai_euro_5d04_cb_apply_bump(int idx, int cargo, int qty) {

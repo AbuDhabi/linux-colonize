@@ -1453,9 +1453,8 @@ void founding_fathers_tick(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
     return;
   }
-  if (ctx->human_nation < 0 || ctx->human_nation >= (int)COLONIZE_COL1_NATION_COUNT) {
-    return;
-  }
+  /* No human_nation range gate (bugs.md #1057e): a headless run with no
+   * human still elects every control == 1 nation's Fathers. */
 
   ColonizeCol1Save* col1 = ctx->col1;
 
