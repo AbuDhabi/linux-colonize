@@ -1678,6 +1678,22 @@ int ai_contact_brave_walked_up_to(const ColonizeUnit* brave, int cx, int cy) {
   return 1;
 }
 
+/*
+ * The Brave whose 022e mood roll ran this turn for (nation, e). A Brave that
+ * resolves its pending encounter at 021a:13d7 stands still, so the walked-up
+ * selector cannot pick it; the published verdict names it instead.
+ */
+int ai_contact_is_visit_brave(
+  const ColonizeTurnContext* ctx, int nation_id, int e, const ColonizeUnit* brave
+) {
+  if (!ctx || !brave || nation_id < 4 || nation_id > 11 || e < 0 || e > 3) {
+    return 0;
+  }
+  const AiContactVisitMood* m = &ai_contact_s_visit_mood[nation_id - 4][e];
+  const int turn = ctx->turn_number ? (int)*ctx->turn_number : -1;
+  return m->valid && m->turn == turn && m->brave_id == brave->id;
+}
+
 static int ai_contact_beg_food_pending(const AiPopupState* st) {
   return ai_popup_pending(st, AI_POPUP_TAG_CONTACT_BEGFOOD, -1, AI_POPUP_KEY_ANY, 0, 0) ? 1 : 0;
 }
@@ -1770,7 +1786,8 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
         /* Same DOS move-tail selector as the gift half — see the helper.
          * bugs.md #824: this arm now runs from the Brave's own step, so the
          * test picks the stepping Brave rather than reconstructing one. */
-        if (!ai_contact_brave_walked_up_to(bu, c->x, c->y)) {
+        if (!ai_contact_brave_walked_up_to(bu, c->x, c->y) &&
+            !ai_contact_is_visit_brave(ctx, nation_id, e, bu)) {
           continue;
         }
         brave_adjacent = true;

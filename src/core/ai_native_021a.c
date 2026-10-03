@@ -1107,10 +1107,7 @@ int ai_native_pick_dir_021a(
 
 /*
  * FUN_4d56_021a post-loop tail (021a:1277..14e6). Returns the final dir (8 =
- * stay). Not ported: the human-colony warning chrome (021a:1329..13ae) and
- * the pending-encounter resolver call (2a1f_0192 -> 5bfb_3180) — the port's
- * §9 contact pass after the pulse plays the visit from the unit's position,
- * so here the bit only costs the act, as in DOS.
+ * stay). Not ported: the human-colony warning chrome (021a:1329..13ae).
  */
 int ai_native_021a_tail(
   ColonizeUnitPool* units,
@@ -1150,8 +1147,13 @@ int ai_native_021a_tail(
     flags &= 0x7f;
   }
   if (u->col1_flags15 & 0x08u) {
-    /* 021a:13cc — pending encounter at own tile resolves, unit stays. */
+    /* 021a:13cc..13f3 — clear the pending-encounter bit, run the encounter
+     * resolver at the unit's own tile (2a1f_0192 -> 5bfb_3180 -> 022e), stay.
+     * This is where a deliberate 0x80 visit is played: the bit set below
+     * makes the arrival step's own 3180 skip 022e, so the visit fires on the
+     * Brave's next act. */
     u->col1_flags15 &= (uint8_t)~0x08u;
+    (void)ai_native_step_first_contact(units, map, col1, u, nation_id);
     return 8;
   }
   if (flags & 0x80) {

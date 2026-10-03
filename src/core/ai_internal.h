@@ -137,6 +137,11 @@ int ai_mask_fa_flags(const ColonizeWorldMap* map, int x, int y);
 
 void ai_nation_reseed(ColonizeTurnContext* ctx);
 
+int ai_native_step_first_contact(
+  ColonizeUnitPool* units, const ColonizeWorldMap* map, ColonizeCol1Save* col1,
+  ColonizeUnit* u, int nation_id
+);
+
 int ai_native_021a_tail(
   ColonizeUnitPool* units,
   const ColonizeWorldMap* map,

@@ -251,6 +251,7 @@ int ai_contact_apply_demand_tools( ColonizeTurnContext* ctx, ColonizeCol1Indian*
 int ai_contact_auto_trade( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit );
 int ai_contact_brave_visited_this_turn( const ColonizeTurnContext* ctx, int nation_id, int brave_id );
 int ai_contact_brave_walked_up_to(const ColonizeUnit* brave, int cx, int cy);
+int ai_contact_is_visit_brave( const ColonizeTurnContext* ctx, int nation_id, int e, const ColonizeUnit* brave );
 int ai_contact_enqueue_demand_amount_choice( ColonizeTurnContext* ctx, int e, int nation_id, ColonizeUnit* other, int near_x, int near_y );
 int ai_contact_enqueue_incite_target_choice( ColonizeTurnContext* ctx, int e, int nation_id, int is_missionary, int is_capital );
 int ai_contact_enter_hostile_village( ColonizeTurnContext* ctx, int e, int nation_id, ColonizeUnit* u );

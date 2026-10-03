@@ -218,8 +218,10 @@ int ai_native_first_contact_this_turn(int nation_id, int euro_nation) {
   return s_ai_first_contact_this_turn[nation_id - 4][euro_nation] != 0;
 }
 
-/* Returns 1 when a first contact fired (MP exhausted by the caller). */
-static int ai_native_step_first_contact(
+/* FUN_5bfb_3180 encounter scan around the unit's tile: from the step commit
+ * tail and from 021a:13d7's pending-encounter resolve. Returns 1 when a first
+ * contact fired (MP exhausted by the step caller). */
+int ai_native_step_first_contact(
   ColonizeUnitPool* units, const ColonizeWorldMap* map, ColonizeCol1Save* col1,
   ColonizeUnit* u, int nation_id
 ) {
