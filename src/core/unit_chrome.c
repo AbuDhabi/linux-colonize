@@ -343,6 +343,12 @@ char unit_chrome_order_letter(int orders_index, int nation_id) {
   }
   /* bugs.md #705: the digit arm is DOS's last write to the badge char, so it
    * overrides the @ORDERS letter (and the natives clamp below) outright. */
+  if (orders_index == UNIT_CHROME_ORDERS_PRIVATEER_X) {
+    return 'X';
+  }
+  if (orders_index >= UNIT_CHROME_ORDERS_HOLDS_BASE) {
+    return (char)('0' + (orders_index - UNIT_CHROME_ORDERS_HOLDS_BASE) % 10);
+  }
   if (orders_index >= UNIT_CHROME_ORDERS_REPAIR_BASE) {
     const int n = orders_index - UNIT_CHROME_ORDERS_REPAIR_BASE;
     return n < 10 ? (char)('0' + n) : '+';
@@ -357,7 +363,15 @@ char unit_chrome_order_letter(int orders_index, int nation_id) {
   return ch ? ch : '-';
 }
 
+bool unit_chrome_is_repair_badge(int orders_index) {
+  return orders_index >= UNIT_CHROME_ORDERS_REPAIR_BASE &&
+         orders_index < UNIT_CHROME_ORDERS_PRIVATEER_X;
+}
+
 uint8_t unit_chrome_letter_color(int nation_id, int orders_index) {
+  if (unit_chrome_is_repair_badge(orders_index)) {
+    return nation_id == 2 ? 12 : 15;
+  }
   if (nation_id > 3) {
     orders_index = 0;
   }

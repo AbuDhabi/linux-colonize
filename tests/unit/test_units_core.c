@@ -6696,6 +6696,12 @@ static int case_combat_fort_fire_repair(void) {
         fprintf(stderr, "close fort hit must set damaged bit7\n");
         return 1;
       }
+      /* bugs.md #871: an AI hull with no repair port leaves the map at once. */
+      if (!units_coords_in_europe_park(ship->x, ship->y)) {
+        fprintf(stderr, "damaged AI hull with no drydock must park off-map (at %d,%d)\n",
+                ship->x, ship->y);
+        return 1;
+      }
       /* bugs.md #254: combat damage presets the repair TIMER below the
        * threshold (fort winner doubles the bill → remaining = full
        * threshold here) and marks repair_pending. */

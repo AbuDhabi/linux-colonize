@@ -718,9 +718,8 @@ void turn_tally_professions(
  * a Drydock; a nation with no such colony sends them to Europe when Europe
  * is friendly: the pre-WoI human's ships sail home as an Expected-Soon
  * voyage (that voyage IS the repair timeout — they arrive repaired), and a
- * damaged Tory Man-O-War sails back to the King's dockyards (despawn; the
- * next wave draws on the fleet pool). AI peers with no drydock keep the old
- * stay-put behavior. Runs each nation phase, after units_tick_drydock_repair.
+ * damaged AI hull (crown or peer) is parked off-map in the Europe park
+ * until its repair timer runs out (bugs.md #871). Runs each nation phase, after units_tick_drydock_repair.
  */
 /* Drydock (DOS colony feature bit 7) or its Shipyard upgrade. */
 static int turn_colony_repairs_ships(const ColonizeColony* c, int drydock, int shipyard) {
@@ -776,8 +775,6 @@ void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
   }
   const int woi =
     ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi != 0;
-  const int crown =
-    woi ? ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation) : -1;
   const int drydock = colonies_building_row(ctx->colonies, COLONY_BUILDING_DRYDOCK);
   const int shipyard = colonies_building_row(ctx->colonies, COLONY_BUILDING_SHIPYARD);
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
@@ -837,7 +834,7 @@ void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
       units_occupancy_notify_moved(ctx->units, ox, oy, best->x, best->y);
       continue;
     }
-    if (nation == crown) {
+    if (nation != ctx->human_nation) {
       /*
        * DOS-LITERAL FUN_5fef_0352 raw 99641-99644 (bugs.md #871): a damaged
        * hull whose owner has no repair port is relocated OFF-MAP for EVERY

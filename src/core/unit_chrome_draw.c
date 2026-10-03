@@ -318,7 +318,12 @@ void unit_chrome_blit_unit_for_palette(
      * fortified indistinguishable). Black is index 0 in every palette, so
      * no remap is needed for the black case.
      */
-    if (orders_index == 1 /* Sentry */ || orders_index == 6 /* Fortified */) {
+    if (unit_chrome_is_repair_badge(orders_index)) {
+      /* DOS local_1a ink: 12 (light red) for nation 2, else 15 (white). */
+      letter_override = nation_id == 2
+                          ? assets_palette_nearest_rgb(active_palette, 255, 85, 85)
+                          : assets_palette_nearest_rgb(active_palette, 255, 255, 255);
+    } else if (orders_index == 1 /* Sentry */ || orders_index == 6 /* Fortified */) {
       static const uint8_t k_grey_rgb[3] = {180, 180, 180};
       const uint8_t* letter_rgb =
         nation_id == g_chrome_crown_nation ? k_grey_rgb : k_nation_letter_rgb_native[nation_id];

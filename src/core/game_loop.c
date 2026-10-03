@@ -312,6 +312,10 @@ static void game_combat_analysis_present(const ColonizeCombatEngagement* eng, vo
   if (!game || !eng || !game->units_ok) {
     return;
   }
+  /* DOS popups block where they are raised: anything queued before this
+   * fight (e.g. the attacker's @SHIPRUN slip on its approach step) must be
+   * answered before the analysis, not after it. */
+  game_combat_popup_pump(game);
   if (!combat_analysis_open(&game->combat_analysis, &game->units, eng)) {
     return;
   }
