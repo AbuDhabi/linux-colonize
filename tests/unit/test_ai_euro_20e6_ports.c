@@ -6,9 +6,9 @@
  *   ai_euro_20e6_wagon_origin_walk    (LAB_521d_457e wagon arm, raw 2256-2289)
  *   ai_euro_20e6_delivery_sell_tail   (raw 2140-2163 + the 4393 fall-through)
  *
- * All three are static inside src/core/ai_euro.c, so the seam is the same one
- * the existing 20e6 test uses: ai_euro_dispatcher_turn on a hand-built
- * fixture. No production code is touched by these tests.
+ * The boarding assertions inspect ai_euro_try_ship_trade_haul directly;
+ * end-of-turn movement can disembark the passengers at their original colony.
+ * Other cases exercise ai_euro_dispatcher_turn on hand-built fixtures.
  *
  * Every 10be case below stages its passengers as ordinary LAND-tile members
  * of the berth stack (in the colony the ship is berthed at), so the
@@ -24,6 +24,7 @@
  */
 #include "core/ai_diplo.h"
 #include "core/ai_euro.h"
+#include "core/ai_euro_internal.h"
 #include "core/ai_goals.h"
 #include "core/ai_popup.h"
 #include "core/col1_save.h"
@@ -65,6 +66,8 @@ typedef struct Fixture {
  */
 static int fixture_init(Fixture* f, int nation) {
   memset(f, 0, sizeof(*f));
+  ai_euro_reset();
+  ai_goals_reset();
   f->map.width = 16;
   f->map.height = 16;
   f->map.tile_count = 256;
@@ -209,15 +212,8 @@ static int ship_goods_holds(const ColonizeUnit* ship) {
  * AI_20E6_SHIP_DUMP_TRACE on this fixture shows the DOS shape exactly:
  *   MARKS unit 2 / MARKS unit 3 / (no [load] line) / assembles 2 / assembles 3.
  *
- * The dispatcher's outer any_acted loop then gives the ship a SECOND act, and
- * that act must find NO free hull: the two Pioneers fill the Caravel. Until
- * 2026-09-08 it seeded its budget from `ai_euro_hauler_free_holds` (goods
- * holds only) and took a hold of Silver, leaving 2 passengers AND 1 cargo on a
- * 2-slot hull. DOS cannot reach that state: it re-derives the chain every
- * berth act (stale-mark clear → re-mark → re-debit `iStack_d2`), so the load
- * matrix never sees hull a passenger is sitting in. The port charges the
- * passengers directly instead (`ai_euro_20e6_ship_hold_budget`), which is why
- * the goods-hold count is asserted 0 below.
+ * Repeating the berth band must also respect the occupied passenger slots;
+ * passengers plus goods may never exceed the hull capacity.
  */
 static int assemble_boards_whole_reserved_hull(void) {
   const int nation = 1;
@@ -229,8 +225,8 @@ static int assemble_boards_whole_reserved_hull(void) {
   c->stock[COLONIZE_CARGO_SILVER] = 60; /* the load matrix's only candidate */
   f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_SILVER] = 20;
 
-  const int ship_id = units_spawn(&f.units, 2, 12, 4);
-  const int p1 = units_spawn(&f.units, 4, 11, 4);
+  const int ship_id = units_spawn(&f.units, 2, 11, 4);
+  const int p1 = units_spawn_allow_stack(&f.units, 4, 11, 4);
   const int p2 = units_spawn_allow_stack(&f.units, 4, 11, 4);
   ColonizeUnit* ship = units_get(&f.units, ship_id);
   ColonizeUnit* a = units_get(&f.units, p1);
@@ -253,7 +249,8 @@ static int assemble_boards_whole_reserved_hull(void) {
   b->moves = 0;
   b->orders = 0;
 
-  ai_euro_dispatcher_turn(&f.ctx, nation);
+  /* Inspect 10be before a later movement act can disembark at this colony. */
+  (void)ai_euro_try_ship_trade_haul(&f.ctx, nation, ship);
 
   ship = units_get(&f.units, ship_id);
   a = units_get(&f.units, p1);
@@ -262,19 +259,7 @@ static int assemble_boards_whole_reserved_hull(void) {
     fixture_free(&f);
     return fail("assemble ship vanished");
   }
-  /* units_get returns NULL for a consumed (inactive) unit — see below. */
-  /*
-   * Since the 20e6 ship wander port (2026-09-15) the berthed hull no longer
-   * ends the act on the colony square: with nothing else to do it takes the
-   * LAB_4d2e step, and the later acts of the same turn may run the unload
-   * arm on the passengers it just boarded. What the fixture proves is that
-   * the whole reserved hull was assembled by the ship's berth act — the two
-   * Pioneers had moves 0, so only the ship could move them off (11,4):
-   * each is still aboard, or has since been put ashore / absorbed by it.
-   */
-  const int a_moved = !a || a->aboard_ship_id == ship_id || a->x != 11 || a->y != 4;
-  const int b_moved = !b || b->aboard_ship_id == ship_id || b->x != 11 || b->y != 4;
-  if (!a_moved || !b_moved) {
+  if (!a || !b || a->aboard_ship_id != ship_id || b->aboard_ship_id != ship_id) {
     fprintf(stderr, "aboard=(%d,%d) want (%d,%d) goods_holds=%d\n", a ? a->aboard_ship_id : -2,
             b ? b->aboard_ship_id : -2, ship_id, ship_id, ship_goods_holds(ship));
     fixture_free(&f);
@@ -308,8 +293,8 @@ static int assemble_ignores_empty_hold_sentinel(void) {
   }
   (void)fixture_coastal_colony(&f, nation); /* no loadable stock */
 
-  const int ship_id = units_spawn(&f.units, 2, 12, 4);
-  const int p1 = units_spawn(&f.units, 4, 11, 4);
+  const int ship_id = units_spawn(&f.units, 2, 11, 4);
+  const int p1 = units_spawn_allow_stack(&f.units, 4, 11, 4);
   const int p2 = units_spawn_allow_stack(&f.units, 4, 11, 4);
   ColonizeUnit* ship = units_get(&f.units, ship_id);
   ColonizeUnit* a = units_get(&f.units, p1);
@@ -330,16 +315,12 @@ static int assemble_ignores_empty_hold_sentinel(void) {
   b->moves = 0;
   b->orders = 0;
 
-  ai_euro_dispatcher_turn(&f.ctx, nation);
+  /* Inspect 10be before a later movement act can disembark at this colony. */
+  (void)ai_euro_try_ship_trade_haul(&f.ctx, nation, ship);
 
   a = units_get(&f.units, p1);
   b = units_get(&f.units, p2);
-  /* Same reading as case 1a: since the ship wander port the hull leaves the
-   * berth after boarding and later acts may put a passenger ashore; both
-   * Pioneers (moves 0) can only have left (11,4) through the ship. */
-  const int a_moved = !a || a->aboard_ship_id == ship_id || a->x != 11 || a->y != 4;
-  const int b_moved = !b || b->aboard_ship_id == ship_id || b->x != 11 || b->y != 4;
-  if (!a_moved || !b_moved) {
+  if (!a || !b || a->aboard_ship_id != ship_id || b->aboard_ship_id != ship_id) {
     fprintf(
       stderr, "sentinel hull aboard=(%d,%d) want (%d,%d)\n", a ? a->aboard_ship_id : -2,
       b ? b->aboard_ship_id : -2, ship_id, ship_id

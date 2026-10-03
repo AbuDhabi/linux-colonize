@@ -2910,55 +2910,36 @@ int ai_euro_20e6_hs_cadence_enabled(void) {
   return ai_euro_env_flag("AI_20E6_HS_CADENCE", AI_20E6_HS_CADENCE_DEFAULT);
 }
 
-/*
- * FUN_281f_0984 → FUN_1427_09dc (decomp 7927-7968): walk the 8 neighbours of
- * (x,y); a tile with a foreign UNIT owner always hits (the body compare is
- * trivially true on that arm — local_8 is overwritten with the neighbour's
- * body first); a foreign COLONY hits only when the neighbour tile's body id
- * equals the probe tile's current body (local_8 is NOT overwritten on that
- * arm), which for a ship at sea means never (land vs water body). Owner
- * lookups substituted with pool scans (the DOS layer2/3 presence bits mirror
- * them).
- */
-int ai_euro_20e6_adjacent_foreign_09dc(
-  const ColonizeTurnContext* ctx, int x, int y, int nation_id
-) {
-  if (!ctx || !ctx->map) {
-    return 0;
-  }
-  const int own_unit = ctx->units ? units_id_at(ctx->units, x, y) : -1;
-  int own_tile_owner = -1;
-  if (own_unit >= 0) {
-    const ColonizeUnit* ou = units_get_const((ColonizeUnitPool*)ctx->units, own_unit);
-    own_tile_owner = ou ? ou->nation_id : -1;
-  }
-  int local_8 = (int)(map_get_layer3(ctx->map, x, y) & 0x0fu);
+/* DOS-LITERAL FUN_1427_09dc raw 7927-7968. 03e4 reads layer2
+ * bit 0x02 (settlement), 0314 reads bit 0x01 (unit). A mover outside a
+ * settlement only detects adjacent units in its own water/land domain.
+ * Swapping these probes let coastal Braves interrupt a ship's arrived
+ * order before the pathfinder could clear its facing (#530). */
+int ai_euro_20e6_adjacent_foreign_09dc(const ColonizeTurnContext* ctx, int x, int y, int nation_id) {
+  if (!ctx || !ctx->map || !ctx->units) return 0;
+  const ColonizeCol1Save* col1 = ctx->col1_ok ? ctx->col1 : NULL;
+  const int settled = ai_euro_20e6_colony_owner_at(ctx, x, y) >= 0 ||
+                      ai_euro_village_nation_at(col1, x, y) >= 0;
+  int water = map_tile_is_water(ctx->map, x, y);
   for (int d = 0; d < 8; ++d) {
     const int nx = x + MAP_DIR8_DX[d];
     const int ny = y + MAP_DIR8_DY[d];
-    if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
+    if (!map_in_bounds(ctx->map, nx, ny)) {
       continue;
     }
-    int b = local_8;
-    if (own_tile_owner < 0) {
-      b = (int)(map_get_layer3(ctx->map, nx, ny) & 0x0fu);
-    }
-    int owner = -1;
-    const int uid = ctx->units ? units_id_at(ctx->units, nx, ny) : -1;
-    if (uid >= 0) {
-      const ColonizeUnit* nu = units_get_const((ColonizeUnitPool*)ctx->units, uid);
-      owner = nu ? nu->nation_id : -1;
-    }
-    int keep = b;
+    const int domain = settled ? water : map_tile_is_water(ctx->map, nx, ny);
+    int owner = ai_euro_20e6_colony_owner_at(ctx, nx, ny);
     if (owner < 0) {
-      const int cid = ctx->colonies ? colonies_id_at(ctx->colonies, nx, ny) : -1;
-      if (cid >= 0) {
-        owner = ctx->colonies->colonies[cid].nation_id;
-      }
-      keep = local_8;
+      owner = ai_euro_village_nation_at(col1, nx, ny);
     }
-    local_8 = keep;
-    if (owner >= 0 && owner != nation_id && b == local_8) {
+    if (owner < 0) {
+      const int uid = units_id_at(ctx->units, nx, ny);
+      const ColonizeUnit* nu = uid >= 0 ? units_get_const(ctx->units, uid) : NULL;
+      owner = nu ? nu->nation_id : -1;
+    } else {
+      water = domain;
+    }
+    if (owner >= 0 && owner != nation_id && domain == water) {
       return 1;
     }
   }

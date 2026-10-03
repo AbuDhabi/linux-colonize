@@ -255,6 +255,8 @@ void turn_refresh_moves_for_nation_w(
   const ColonizeMsgCatalog* messages
 );
 /* Select next human unit with moves > 0; centers not done here. */
+/* FUN_1427_1410 eligibility: the rotation filter turn_select_next_unit applies. */
+bool turn_unit_in_rotation(const ColonizeUnitPool* pool, const ColonizeUnit* u, int human_nation);
 bool turn_select_next_unit(ColonizeUnitPool* pool, int human_nation);
 
 /*

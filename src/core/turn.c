@@ -216,6 +216,33 @@ void turn_refresh_moves_for_nation_w(
   }
 }
 
+bool turn_unit_in_rotation(const ColonizeUnitPool* pool, const ColonizeUnit* u, int human_nation) {
+  if (!pool || !u || !u->active || u->nation_id != human_nation || u->moves <= 0) {
+    return false;
+  }
+  if (!units_is_on_map(u)) {
+    return false;
+  }
+  /* DOS FUN_1427_1410 raw 8803: `+0x314c != 1 && +0x314c != 6` — Sentry and
+   * Fortified keep their allotment but never enter the rotation (#715). */
+  if (u->orders == UNITS_ORDER_SENTRY || u->orders == UNITS_ORDER_FORTIFIED) {
+    return false;
+  }
+  /*
+   * DOS FUN_1427_1410 raw 8804-8805 (same clause in the sibling predicates
+   * 1330 raw 8756-8757 and 13b0 raw 8776-8778): a unit is eligible only if
+   *   ((+0x3148 & 0x80) == 0 || +0x3146 == 0x0b)
+   * i.e. a COMBAT-DAMAGED piece is skipped by the awaiting-orders rotation
+   * outright — Artillery (@UNIT 0x0b), which carries the same bit7 in its
+   * damaged form, is the one exemption. FUN_1427_14a0 (raw 32480-32502) is
+   * the scanner that walks this predicate, so a wrecked hull cannot be
+   * cycled to at all while its repair timer runs (bugs.md: damaged Frigate
+   * was movable the turn after the fight).
+   */
+  return (u->col1_flags15 & 0x80u) == 0 ||
+         combat_type_is_artillery(units_type(pool, u->type_index));
+}
+
 bool turn_select_next_unit(ColonizeUnitPool* pool, int human_nation) {
   if (!pool) {
     return false;
@@ -225,30 +252,7 @@ bool turn_select_next_unit(ColonizeUnitPool* pool, int human_nation) {
   int best_any = -1;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = &pool->units[i];
-    if (!u->active || u->nation_id != human_nation || u->moves <= 0) {
-      continue;
-    }
-    if (!units_is_on_map(u)) {
-      continue;
-    }
-    /* DOS FUN_1427_1410 raw 8803: `+0x314c != 1 && +0x314c != 6` — Sentry and
-     * Fortified keep their allotment but never enter the rotation (#715). */
-    if (u->orders == UNITS_ORDER_SENTRY || u->orders == UNITS_ORDER_FORTIFIED) {
-      continue;
-    }
-    /*
-     * DOS FUN_1427_1410 raw 8804-8805 (same clause in the sibling predicates
-     * 1330 raw 8756-8757 and 13b0 raw 8776-8778): a unit is eligible only if
-     *   ((+0x3148 & 0x80) == 0 || +0x3146 == 0x0b)
-     * i.e. a COMBAT-DAMAGED piece is skipped by the awaiting-orders rotation
-     * outright — Artillery (@UNIT 0x0b), which carries the same bit7 in its
-     * damaged form, is the one exemption. FUN_1427_14a0 (raw 32480-32502) is
-     * the scanner that walks this predicate, so a wrecked hull cannot be
-     * cycled to at all while its repair timer runs (bugs.md: damaged Frigate
-     * was movable the turn after the fight).
-     */
-    if ((u->col1_flags15 & 0x80u) != 0 &&
-        !combat_type_is_artillery(units_type(pool, u->type_index))) {
+    if (!turn_unit_in_rotation(pool, u, human_nation)) {
       continue;
     }
     if (best_any < 0 || u->id < best_any) {
