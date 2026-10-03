@@ -502,6 +502,10 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       if (n != ctx->human_nation) {
         const ColonizeWorld w = world_from_turn_ctx(ctx);
         (void)europe_nation_immigration_tick_w(&w, n);
+        /* 5e52 tail (raw 68614): the King's tax roll, peacetime only. */
+        if (!ai_king_independence_declared(ctx->col1)) {
+          ai_king_tax_event_ai(ctx, n);
+        }
       }
       {
         unsigned cur = (unsigned)nat->current_crosses + (unsigned)nc;

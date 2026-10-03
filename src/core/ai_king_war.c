@@ -1428,7 +1428,9 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
   if (ctx->active_turn_nation) {
     *ctx->active_turn_nation = ctx->human_nation;
   }
-  if (ctx->col1_ok && ctx->col1) {
+  /* 2424 writes both caches only in peacetime (`(0x5382 & 1) == 0`, raw
+   * 75169); during the war they freeze at the declaration value. bugs.md #1055. */
+  if (ctx->col1_ok && ctx->col1 && !ai_king_independence_declared(ctx->col1)) {
     /*
      * FUN_43f7_2424 (43f7:2478..2492): every nation caches its own SoL into
      * `nation + 0x19` — the byte the Foreign Affairs report multiplies the

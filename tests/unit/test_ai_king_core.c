@@ -574,6 +574,35 @@ static int sp_06(void) {
     }
     col1.nation[0].royal_money = 0; /* keep later blocks purse-quiet */
   }
+  {
+    /* bugs.md #1053: 5be8 rolls for AI nations too (bare 18-turn interval,
+     * no dialog); the human EuropeScreen mirror must stay untouched. */
+    const uint32_t turn_before = turn;
+    const uint8_t ctl_before = col1.player[1].control;
+    const uint8_t cc_before = col1.stuff.colony_counts[1];
+    const int sr_before = col1.head.rebel_sentiment_report;
+    const int eu_tax = europe.tax_percent;
+    turn = 36;
+    col1.player[1].control = 1;
+    col1.stuff.colony_counts[1] = 1;
+    col1.head.rebel_sentiment_report = 101; /* score > 949: a raise */
+    col1.nation[1].tax_rate = 0;
+    ColonizeDosRng ai_rng;
+    dos_rng_seed(&ai_rng, 1u);
+    ctx.rng = &ai_rng;
+    ai_king_tax_event_ai(&ctx, 1);
+    ctx.rng = NULL;
+    if (col1.nation[1].tax_rate == 0 || europe.tax_percent != eu_tax) {
+      fprintf(stderr, "unit_ai_king: AI tax roll tax=%u eu=%d\n", col1.nation[1].tax_rate,
+              europe.tax_percent);
+      return fail("AI nation should take the 5be8 raise silently");
+    }
+    col1.nation[1].tax_rate = 0;
+    col1.player[1].control = ctl_before;
+    col1.stuff.colony_counts[1] = cc_before;
+    col1.head.rebel_sentiment_report = sr_before;
+    turn = turn_before;
+  }
   return 0;
 }
 
