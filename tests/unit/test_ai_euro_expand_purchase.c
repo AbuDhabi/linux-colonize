@@ -61,6 +61,10 @@ static int unit_5d04_buy_caravel_colonies_ge6(void) {
     c->colonist_count = 2;
     c->stock[COLONIZE_CARGO_FOOD] = 40;
     c->stock[COLONIZE_CARGO_TOOLS] = 30;
+    /* >= 2 lumber keeps FUN_5952_035e's turn%8 lumber buy (200 gold each,
+     * ai_euro_5952_lumber_purchase) quiet: under AI_SHIP_DOS the colony tick
+     * runs before 5d04 and would spend the purse first. */
+    c->stock[COLONIZE_CARGO_LUMBER] = 20;
     c->building_in_production = -1;
   }
   colonies.colony_count = 6;

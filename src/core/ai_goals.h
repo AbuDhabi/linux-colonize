@@ -101,6 +101,13 @@ void ai_goals_reset(void);
  * cache came to live in ai_euro.c (smell audit 2026-09-10 D8).
  */
 int ai_goals_site_nibble(const ColonizeWorldMap* map, int x, int y, int nation);
+/* FUN_682a_000c: write the map-gen colony-site score into the seen plane's
+ * low nibble (new-game bootstrap). */
+void ai_goals_write_site_scores(ColonizeWorldMap* map, const struct ColonizeMsgCatalog* names);
+/* Port repair: score a loaded plane that carries no site score at all. */
+void ai_goals_repair_site_scores(ColonizeWorldMap* map, const struct ColonizeMsgCatalog* names);
+/* DS:0x97b2: @RESOURCE field 1 site desirability (0 on catalog miss). */
+int ai_goals_resource_site_byte(const struct ColonizeMsgCatalog* names, int resource);
 void ai_goals_promote_secondary_to_primary(int nation_id);
 void ai_goals_upsert_primary(int nation_id, int x, int y, int code, int prio);
 void ai_goals_upsert_secondary(int nation_id, int x, int y, int code, int prio);

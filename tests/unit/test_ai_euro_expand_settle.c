@@ -267,7 +267,11 @@ static int unit_indian_land_found(void) {
    * only at village-adjacent ocean beachheads on colony-free continents,
    * decomp 88049, and next to foreign colonies, decomp 87983 — both
    * ported). The FOUND goal is now seeded directly; this scenario's subject
-   * is the Indian homeland purchase, not goal production.
+   * is the Indian homeland purchase, not goal production. Each founder also
+   * carries act state 7 (UNITS_ORDER_BUILD_COLONY), the byte the 20e6 2912
+   * site scan commits and FUN_521d_5b66 case 7 consumes: under AI_SHIP_DOS
+   * that is the only founding trigger, and this fixture has no seen plane
+   * for the scan to score.
    */
   uint32_t turn = 40;
   ColonizeTurnContext ctx;
@@ -316,7 +320,7 @@ static int unit_indian_land_found(void) {
       return fail("indian-land spawn pay");
     }
     founder->nation_id = nation;
-    founder->orders = 0;
+    founder->orders = UNITS_ORDER_BUILD_COLONY; /* act state 7: the 20e6 2912 commit */
     founder->moves = 3 * UNITS_MP_PER_TILE;
 
     ai_goals_reset();
@@ -421,7 +425,7 @@ static int unit_indian_land_found(void) {
       return fail("indian-land spawn gate");
     }
     founder->nation_id = nation;
-    founder->orders = 0;
+    founder->orders = UNITS_ORDER_BUILD_COLONY; /* act state 7: the 20e6 2912 commit */
     founder->moves = 3 * UNITS_MP_PER_TILE;
 
     ai_goals_reset();
@@ -481,7 +485,7 @@ static int unit_indian_land_found(void) {
       return fail("indian-land spawn poor");
     }
     founder->nation_id = nation;
-    founder->orders = 0;
+    founder->orders = UNITS_ORDER_BUILD_COLONY; /* act state 7: the 20e6 2912 commit */
     founder->moves = 3 * UNITS_MP_PER_TILE;
 
     char status[128];
@@ -548,7 +552,7 @@ static int unit_indian_land_found(void) {
       return fail("indian-land spawn Minuit");
     }
     founder->nation_id = nation;
-    founder->orders = 0;
+    founder->orders = UNITS_ORDER_BUILD_COLONY; /* act state 7: the 20e6 2912 commit */
     founder->moves = 3 * UNITS_MP_PER_TILE;
 
     ai_goals_reset();

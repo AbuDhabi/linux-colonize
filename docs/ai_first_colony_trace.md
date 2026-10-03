@@ -1,9 +1,9 @@
 # First-colony DOS trace (#530)
 
-Status: opening goldens pass, 2026-09-28. `AI_SHIP_DOS=1` passes all six
-TURN1_to_2 through TURN6_to_7 transitions. Still opt-in: the full suite with
-that switch fails 13 test targets outside the opening. Resolve those before
-enabling the path and removing the remaining fitted helpers (#530 remains OPEN).
+Status 2026-10-03: `AI_SHIP_DOS` is ON by default. Full ctest, all six
+opening goldens and `make golden` pass in both modes. The fitted helpers
+(#530 S5, #971, #1035) are now reachable only with `AI_SHIP_DOS=0` and can be
+deleted together with that switch. See "Fresh-map founding" at the end.
 
 ## Evidence and reproduction
 
@@ -219,3 +219,43 @@ from assertions inherited from the fitted path before enabling the switch.
 Do not selectively enable DOS behavior for fixture nations, coordinates,
 or early turns. The duplicate explorer-counter evaluation noted above also
 remains. #530 stays OPEN and `AI_SHIP_DOS` remains opt-in.
+
+## Fresh-map founding (2026-10-03b)
+
+The opening goldens all start from DOS saves, so they never exercised an
+OpenCol-generated new game. A headless new-game driver (new game on seeds
+5/77/4242/9001/31337/100, then `ai_replay`) showed the DOS path founding
+**zero** colonies on every port-made map, while it founded on DOS TURN1.SAV
+of the very same seed-100 map. Three start-state defects, all fixed:
+
+- **Site-score nibble.** FUN_682a_000c (raw 105147, called once by the
+  new-game bootstrap FUN_75c2_235c raw 121595) writes the colony-site score
+  into the low nibble of the seen plane (DS:0x168). `map_gen` never did, so
+  the 20e6 2912 ring scan (`best_nib > 0`) found nothing once tiles were
+  seen. Ported as `ai_goals_write_site_scores` (asm-read; ring tables DS:0xc8
+  / 0xde, site column DS:0x2f79, @RESOURCE column DS:0x97b2, FUN_137f_000a
+  inset bounds, specials scored as before villages exist). Byte-exact against
+  all 4176 tiles of SEED100.SAV / TURN1.SAV; `golden_mapgen_seed100` now
+  checks it. Old port saves (no nibble anywhere) are scored once on load
+  (`ai_goals_repair_site_scores`).
+- **Nation landfall bytes.** Nation +0x32/+0x33 (-0x77c6/-0x77c5) were never
+  written for AI nations, so every Europe sailing (`ai_euro_europe.c`) aimed
+  at (0,0) and parked fleets on the west map edge. `ai_init_new_game` stamps
+  them; loaded records still at (0,0) get the High Seas tile nearest the
+  nation's first colony or unit (`ai_repair_nation_landfalls`, port repair).
+- **Starter hull order byte.** FUN_75c2_235c raw 121624 writes orders 0, not
+  GOTO; only the goto bytes carry the landfall.
+
+Result: the DOS path founds a first colony for every AI nation on every map
+tried; on the live campaign4 save (turn 377) England goes from 0 to 3
+colonies within 60 turns. Remaining weakness is economic, not founding: by
+turn 150 AI nations hold 1-3 colonies with few colonists, buying mostly
+military while gold stays near zero.
+
+The remaining DOS-mode test failures were fixtures written against the old
+phase order or the fitted path (all fixture-only, no src change): 5952-tick
+flag rebuild ahead of 5d04 (ocean ring), turn%8 lumber buy (lumber stock),
+asm-22da Docks arm (landlocked colony), founding stimulus = act state 7,
+unnamed-kind expert types (kind_plus1), 06ae landing tile within 2 of the
+colony, and Europe-lane hulls in the AMERICA distance sum. With those, the
+switch was flipped on by default.

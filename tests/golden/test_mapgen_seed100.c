@@ -277,6 +277,24 @@ int main(void) {
     goto fail;
   }
 
+  /* FUN_682a_000c: colony-site score in the seen plane's low nibble
+   * (ai_goals_write_site_scores, run by ai_init_new_game). */
+  if (golden.map.seen && map.seen) {
+    int nib_diff = 0;
+    for (size_t i = 0; i < map.tile_count; ++i) {
+      if ((map.seen[i] & 0x0f) != (golden.map.seen[i] & 0x0f)) {
+        if (nib_diff++ < 5) {
+          fprintf(stderr, "site score (%zu,%zu) got %u want %u\n", i % map.width, i / map.width,
+                  map.seen[i] & 0x0fu, golden.map.seen[i] & 0x0fu);
+        }
+      }
+    }
+    if (nib_diff) {
+      fprintf(stderr, "site score: %d tiles differ\n", nib_diff);
+      goto fail;
+    }
+  }
+
   /* Tribes */
   if (col1.head.tribe_count != SEED100_TRIBE_COUNT) {
     fprintf(stderr, "tribe_count %u expected %d\n", col1.head.tribe_count, SEED100_TRIBE_COUNT);

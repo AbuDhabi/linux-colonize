@@ -138,23 +138,9 @@ const int8_t ai_euro_k_20e6_ring20_dy[20] = {-1, -1, 0, 1, 1, 1, 0, -1, -2, -2, 
  * raw 94417 reads the same column (`*(byte *)(class * 0x10 + 0x2f79)`) as the
  * base improvement value of a candidate work plot.
  */
-/*
- * DS:0x97b2 (`-0x684e`) — the 14-byte special-resource desirability column.
- * Raw 120909 loads it at start-up from the same NAMES.TXT section the
- * @RESOURCE names come from (`FUN_2a1f_088a` per row, 0xe rows), so it is a
- * catalog column, not a compiled constant: read it back out of @RESOURCE
- * field 1 (data_vs_hardcoded.md Part D — catalog miss = 0, never a typed
- * fallback).
- */
+/* DS:0x97b2 @RESOURCE site column (shared with FUN_682a_000c). */
 static int ai_euro_5952_resource_site_byte(const ColonizeMsgCatalog* names, int resource) {
-  char buf[32];
-  if (!names || resource < 0 || resource > 13) {
-    return 0;
-  }
-  if (!assets_msg_row_field(names, "RESOURCE", resource, 1, buf, sizeof(buf))) {
-    return 0;
-  }
-  return atoi(buf);
+  return ai_goals_resource_site_byte(names, resource);
 }
 
 /* `layer2 & 0x0a` (FUN_281f_0754): road OR settlement on the tile. */

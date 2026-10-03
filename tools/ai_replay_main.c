@@ -27,6 +27,8 @@
  * and the War of Independence despawns every rival Euro unit on turn 1. The
  * queue below is what keeps a replay of a late-game save meaningful.
  */
+#include "core/ai.h"
+#include "core/ai_goals.h"
 #include "core/ai_popup.h"
 #include "core/assets.h"
 #include "core/col1_bridge.h"
@@ -184,6 +186,8 @@ int main(int argc, char** argv) {
     col1_save_free(&save);
     return 1;
   }
+  ai_goals_repair_site_scores(&map, &names); /* as game_apply_col1_save */
+  ai_repair_nation_landfalls(&(ColonizeWorld){.units = &units, .colonies = &colonies, .map = &map, .col1 = &save, .col1_ok = true});
 
   uint32_t turn_number = br.turn_number;
   uint16_t year = br.year;
