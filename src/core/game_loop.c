@@ -922,35 +922,39 @@ void game_fizzle_present(ColonizeGameState* game, const uint8_t* before) {
     return;
   }
   /*
-   * The DOS LFSR walks a 16-bit index over exactly 64000 pixels, so it only
-   * describes a 320x200 screen. A resized window (core/screen_geom.h) has no
-   * DOS counterpart to be faithful to: present the finished frame instead of
-   * dissolving part of it.
+   * The DOS LFSR walks a 16-bit index over exactly 64000 pixels (taps
+   * 0xB400). A resized window (core/screen_geom.h) has no DOS counterpart, so
+   * it runs the same Galois walk on the narrowest maximal-length register that
+   * covers the frame; at 320x200 that is the DOS register, bit for bit.
    */
-  if (frame_px != (size_t)SCREEN_BASE_W * (size_t)SCREEN_BASE_H) {
-    platform_present(game->platform, &fb, &pal);
-    return;
+  static const uint32_t k_taps[] = {
+    0xB400u, 0x12000u, 0x20400u, 0x72000u, 0x90000u, 0x140000u, 0x300000u /* 16..22 bits */
+  };
+  int bits = 16;
+  while (bits < 22 && ((1u << bits) - 1u) < frame_px) {
+    ++bits;
   }
+  const uint32_t taps = k_taps[bits - 16];
   memcpy(wfb.pixels, before, frame_px);
   /* DOS duration 8 spreads the 64000 copies over roughly half a second;
    * 16 presented batches × 28ms reads the same at 60Hz. */
   const int k_batches = 16;
-  uint16_t lfsr = 1;
+  uint32_t lfsr = 1;
   bool cycled = false;
   for (int f = 0; f < k_batches && !cycled; ++f) {
-    int budget = 64000 / k_batches;
+    size_t budget = frame_px / k_batches;
     while (budget > 0) {
       const unsigned carry = lfsr & 1u;
       lfsr >>= 1;
       if (carry) {
-        lfsr ^= 0xB400u;
+        lfsr ^= taps;
       }
       if (lfsr == 1u) { /* full LFSR cycle: every pixel visited */
         cycled = true;
         break;
       }
-      if (lfsr <= 0xFA00u) {
-        const unsigned idx = (unsigned)lfsr - 1u;
+      if (lfsr <= frame_px) {
+        const size_t idx = (size_t)lfsr - 1u;
         wfb.pixels[idx] = fb.pixels[idx];
         --budget;
       }
