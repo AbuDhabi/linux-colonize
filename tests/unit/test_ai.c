@@ -500,6 +500,21 @@ static int run_init_and_turns(
     assets_msg_free(&names);
     return 1;
   }
+  /* bugs.md #1052: FUN_38fd_6024 seeds every nation's recruit pool, not just
+   * the human's (diff 0: slot 0 = 0x19, Spain 0x18; slots 1-2 rolled). */
+  for (int n = 0; n < 4; ++n) {
+    if (n == human_nation) {
+      continue;
+    }
+    const uint8_t* r = col1.nation[n].recruit;
+    if (r[0] != (n == 2 ? 0x18 : 0x19) || r[1] == 0 || r[2] == 0) {
+      fprintf(stderr, "%s: AI nation %d recruit pool unseeded [%u,%u,%u]\n", label, n, r[0], r[1], r[2]);
+      map_free(&map);
+      col1_save_free(&col1);
+      assets_msg_free(&names);
+      return 1;
+    }
+  }
   if (count_braves(&units) <= 0) {
     fprintf(stderr, "%s: expected Braves\n", label);
     map_free(&map);

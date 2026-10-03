@@ -146,7 +146,9 @@ static int ai_king_audience_roll(
     interval_base -= 3;
   }
   const int diff = col1->head.difficulty;
-  const int crown_adjust = diff - 2; /* "is human" branch — always true here */
+  /* 5be8 raw 68443-68448: `diff - 2` only for a human-controlled nation;
+   * every AI nation gets 0 (bare 18/15/12/9 interval). bugs.md #1053. */
+  const int crown_adjust = (col1->player[human].control == 0) ? diff - 2 : 0;
   const int interval = interval_base - 2 * crown_adjust;
   if (interval <= 0 || (int)(turn % (uint32_t)interval) != 0) {
     return 0;
@@ -504,6 +506,23 @@ void ai_king_tax_event(ColonizeTurnContext* ctx) {
     return; /* no audience this turn: interval gate, or degenerate 0% cut */
   }
   ai_king_tax_hike_apply(ctx, human, delta, &flavor);
+}
+
+/*
+ * bugs.md #1053: FUN_38fd_5e52 ends every peacetime nation's EOT with the
+ * 5be8 roll (raw 68614, thunk_FUN_291f_0b7a) — no control gate. For an AI
+ * nation 3dc8 applies the clamped delta (raw 64170-64180) and skips only the
+ * audience / tea-party dialog (`control == 0` gate, raw 64181).
+ */
+void ai_king_tax_event_ai(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4 ||
+      ctx->col1->player[nation_id].control != 1) {
+    return;
+  }
+  int delta = 0;
+  if (ai_king_audience_roll(ctx, nation_id, &delta, NULL)) {
+    ai_king_audience_apply_delta(&ctx->col1->nation[nation_id], delta, NULL);
+  }
 }
 
 /*

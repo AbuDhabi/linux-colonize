@@ -1601,12 +1601,13 @@ int ai_king_spend_woi_bell_pool(ColonizeTurnContext* ctx, int nation_id) {
   if (ai_king_latch_get(ctx->col1, AI_KING_INTERVENE_ANNOUNCED_BYTE) != 0) {
     return 0; /* pool kept, same as DOS */
   }
-  if (nation_id == ctx->human_nation) {
-    /* DOS 0a22 wartime arm (raw 73366-73369): announce ONLY (FUN_43f7_1528),
-     * no landing. The force itself arrives from 2022's once-per-turn free
-     * drain on a later turn. bugs.md #538. */
-    ai_king_1528_announce(ctx, ctx->human_nation);
-  }
+  /* DOS 0a22 wartime arm (raw 73366-73369): announce ONLY (FUN_43f7_1528),
+   * no landing. The force itself arrives from 2022's once-per-turn free
+   * drain on a later turn. bugs.md #538. No control gate: 0a22 runs for the
+   * ticking colony's owner, so an AI nation's pool reaching the threshold
+   * announces too; 1528 itself is hardwired to the human (`*0x5398`).
+   * bugs.md #1054. */
+  ai_king_1528_announce(ctx, ctx->human_nation);
   return 1;
 }
 
