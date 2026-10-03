@@ -1023,8 +1023,38 @@ static int unit_ai_move_marks_new_world(void) {
   return rc;
 }
 
+/* Manifest restore skips the capacity gate but must still stop at the
+ * cargo_ids[] array, or the 7th passenger overwrites the next unit. */
+static int unit_board_restore_bounded(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  pool.types[0].movement = 4;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  pool.types[0].cargo = 2;
+  pool.types[1].space = 1;
+  pool.types[1].movement = 1;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  const int ship = units_spawn_allow_stack(&pool, 0, 3, 3);
+  int boarded = 0;
+  for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX + 3; ++i) {
+    const int pax = units_spawn_allow_stack(&pool, 1, 3, 3);
+    boarded += units_board_stacked_restore(&pool, pax, ship) ? 1 : 0;
+  }
+  const ColonizeUnit* su = units_get_const(&pool, ship);
+  if (!su || boarded != COLONIZE_UNIT_CARGO_MAX || su->cargo_count != COLONIZE_UNIT_CARGO_MAX) {
+    fprintf(stderr, "board_restore: boarded %d, cargo_count %d\n", boarded, su ? su->cargo_count : -1);
+    return 1;
+  }
+  return 0;
+}
+
 int main(void) {
   diag_init(0, NULL);
+  if (unit_board_restore_bounded() != 0) {
+    diag_shutdown();
+    return 1;
+  }
   if (unit_ai_move_marks_new_world() != 0) {
     diag_shutdown();
     return 1;

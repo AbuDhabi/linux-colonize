@@ -1788,6 +1788,12 @@ bool col1_bridge_apply_w(
     if (units_is_sea(units, id_by_index[i])) {
       continue;
     }
+    /* A passenger shares its hull's tile and nation; a chain that leads to
+     * another tile or flag is a stale link, not a manifest. */
+    if (save->unit[i].x != save->unit[ship_idx].x || save->unit[i].y != save->unit[ship_idx].y ||
+        save->unit[i].nation_id != save->unit[ship_idx].nation_id) {
+      continue;
+    }
     /*
      * bugs.md interop: the capture now writes FULL per-tile stacking chains
      * (DOS FUN_1427_02ca semantics), so a sentried land unit standing in a

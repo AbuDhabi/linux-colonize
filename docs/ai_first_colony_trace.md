@@ -168,25 +168,54 @@ fixtures. The joint golden target additionally guards TURN4_to_5,
 TURN5_to_6 and TURN6_to_7. These fixtures compare their declared fields;
 they do not prove byte-for-byte equality of all saved state.
 
+### Follow-up — 2026-10-03
+
+The broader DOS path now retains the deferred Treasure/Wagon/Missionary
+handlers. The full 5952 colony tick has its own entry point, preserving the
+placement-only seam. Europe dock demand is wired before delivery/haul;
+its fixtures now carry a consistent census and no unintended export surplus.
+Haul assertions distinguish DOS colony-coordinate goals from legacy water goals.
+
+Further source-backed corrections:
+
+- Land and ship callers now share the corrected FUN_1427_09dc settlement/unit
+  probes and terrain-domain comparison (raw 7927–7968). A regression covers
+  a coastal foreign unit, a land unit across different continent labels, and
+  a coastal settlement. The old land implementation fails it.
+- FUN_479b_0972 arrival clears a pioneer's hop countdown and slot
+  (raw 77099–77103). The partial-MP arrival regression now seeds both latches
+  and checks their reset as well as the RNG reseed; it failed before the fix.
+- FUN_1427_10be assembles passengers sharing the ship's coordinate bucket.
+  The handler called `units_board`, whose adjacency check rejects identical
+  coordinates. It now uses capacity-checked `units_board_stacked` for that
+  case. Boarding tests put the hull on the colony tile and inspect the berth
+  band directly, including a repeated act with an already full hull.
+- The ship LAB_5a78 tail now reads PEACE (bit 0x40), matching raw 90406–90420
+  and the land tail. The old code read WAR. A border-hull regression covers
+  peace, war, contact-only, and zero relations.
+
+The former boarding assertions inferred boarding from end-of-turn positions.
+Tracing showed both passengers boarded, then disembarked at their original
+colony when the hull entered it: those final positions cannot prove boarding.
+The direct berth assertions require both passengers aboard instead. Likewise,
+the sale-ledger test now isolates the trade band: a treasury watchpoint showed
+two legitimate 140-gold recruitment debits before the correct 200-gold sale.
+Its exact sale credit and double-book ledger assertions are unchanged.
+
+Validation: default ctest **96/96**, joint golden target passes, DOS opening
+fixtures unchanged. DOS-mode ctest **88/96**. Logic-map check: 13 graphs,
+179 nodes, 230 edges, no errors or warnings.
+
 ### Remaining default-switch blockers
 
-`AI_SHIP_DOS=1 ctest --preset debug --output-on-failure` fails these targets:
-`unit_ai_euro_5952_build`, `unit_ai_euro_expand_purchase`,
-`unit_ai_euro_expand_haul`, `unit_ai_euro_expand_europe`,
-`unit_ai_euro_expand_build`, `unit_ai_euro_expand_settle`,
-`unit_ai_euro_war_core`, `unit_ai_euro_war_land`,
-`unit_ai_euro_war_garrison`, `unit_ai_euro_war_transport`,
-`unit_ai_euro_20e6`, `unit_ai_euro_20e6_ports`, `unit_ai_euro_5d04_hire`.
+`AI_SHIP_DOS=1 ctest --preset debug --output-on-failure` still fails:
+`unit_ai`, `unit_ai_euro_expand_purchase`, `unit_ai_euro_expand_build`,
+`unit_ai_euro_expand_settle`, `unit_ai_euro_war_land`,
+`unit_ai_euro_war_transport`, `unit_ai_euro_20e6`, `unit_ai_euro_5d04_hire`.
 
-Several failures are concrete dispatch omissions: the DOS-mode land return
-bypasses the existing deferred Treasure/Wagon/Missionary bands, so their
-cash-in and haul handlers never execute. Colony-tick ordering also changes
-construction, recruitment and improvement inputs; old assertions need DOS
-evidence before being changed. Other failures cover naval boarding/cadence,
-combat, and transport unloading. Do not hide these by selectively enabling
-DOS behavior only for fixture nations, coordinates or early turns.
-
-The land copy `ai_euro_20e6_adjacent_foreign_09dc` still carries the reversed
-probe interpretation and continent-id comparison; it should share the
-correct water/land-domain implementation once its affected callers are
-verified. The duplicate explorer-counter evaluation noted above also remains.
+These cover opening expectations, construction/recruitment, land combat,
+settlement, and transport landing positions. Separate actual DOS omissions
+from assertions inherited from the fitted path before enabling the switch.
+Do not selectively enable DOS behavior for fixture nations, coordinates,
+or early turns. The duplicate explorer-counter evaluation noted above also
+remains. #530 stays OPEN and `AI_SHIP_DOS` remains opt-in.

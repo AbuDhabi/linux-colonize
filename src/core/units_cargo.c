@@ -279,7 +279,7 @@ static bool units_board_stacked_gated(
          units_ship_free_passenger_slots(pool, ship_id) < need)) {
       return false;
     }
-    if (!enforce_capacity && land->cargo_count >= COLONIZE_UNIT_CARGO_MAX) {
+    if (!enforce_capacity && ship->cargo_count >= COLONIZE_UNIT_CARGO_MAX) {
       return false;
     }
   }

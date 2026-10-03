@@ -2580,7 +2580,33 @@ static int unit_adjacent_foreign_domains(void) {
   return 0;
 }
 
+/* LAB_5a78 raw 90406-90420 reads treaty bit 0x40, not the war bit.
+ * A border hull reaches this tail without any intervening movement bands. */
+static int unit_ship_idle_tail_treaty(void) {
+  const uint8_t relations[] = {AI_DIPLO_PEACE, AI_DIPLO_WAR, AI_DIPLO_MET, 0};
+  for (unsigned i = 0; i < sizeof(relations) / sizeof(relations[0]); ++i) {
+    Fixture f;
+    if (fixture_init(&f, 1) != 0) return 1;
+    f.map.terrain[8 * 16] = 25;
+    treasure_add_colony(&f, 0, 0, 1, 8);
+    const int id = units_spawn(&f.units, 2, 0, 8);
+    ColonizeUnit* u = units_get(&f.units, id);
+    if (!u) { fixture_free(&f); return fail("border hull spawn"); }
+    u->nation_id = 1;
+    u->orders = UNITS_ORDER_FORTIFY;
+    u->moves = units_max_mp(&f.units, id);
+    ai_diplo_write(&f.col1, 1, 0, relations[i]);
+    ai_euro_act_ship_dos(&f.ctx, u, 1);
+    const int expected = relations[i] == AI_DIPLO_PEACE ? UNITS_ORDER_NONE : UNITS_ORDER_FORTIFY;
+    const int actual = u->orders;
+    fixture_free(&f);
+    if (actual != expected) return fail("idle hull must clear its order only beside a treaty colony");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_ship_idle_tail_treaty", unit_ship_idle_tail_treaty},
     {"unit_adjacent_foreign_domains", unit_adjacent_foreign_domains},
     {"unit_gate_adjacent_foe_reaches_scorer", unit_gate_adjacent_foe_reaches_scorer},
     {"unit_goal_walk_keeps_stored_goal", unit_goal_walk_keeps_stored_goal},
