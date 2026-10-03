@@ -119,6 +119,12 @@ UnitChromeCorner unit_chrome_corner_for_type(int dos_unit_type_id, bool damaged)
  * unit's real orders byte.
  */
 #define UNIT_CHROME_ORDERS_REPAIR_BASE 0x100
+/* FUN_112b_01ba raw 2122-2129: a foreign Privateer's badge is 'X'. */
+#define UNIT_CHROME_ORDERS_PRIVATEER_X 0x200
+/* Same routine: a foreign hull's goods-hold count digit (ordinary ink). */
+#define UNIT_CHROME_ORDERS_HOLDS_BASE 0x300
+/* Repair digit ink (raw 2290-2296): 12 for nation 2, else 15. */
+bool unit_chrome_is_repair_badge(int orders_index);
 int unit_chrome_repair_badge_index(
   int dos_unit_type_id, bool damaged, int repair_threshold, int repair_counter, bool halve
 );

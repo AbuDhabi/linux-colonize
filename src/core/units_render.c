@@ -9,9 +9,11 @@
 
 #include <string.h>
 
+#include "core/assets.h"
 #include "core/font.h"
 #include "core/ss.h"
 #include "core/unit_chrome.h"
+#include "core/units_cargo.h"
 
 void units_render_on_map(
   const ColonizeUnitPool* pool,
@@ -107,8 +109,39 @@ void units_render_on_map(
       fog_map && top->x >= 1 && top->y >= 1 && top->x < (int)fog_map->width - 1 &&
         top->y < (int)fog_map->height - 1
     );
-    const int badge_orders = repair_badge >= 0 ? repair_badge : top->orders;
+    /*
+     * FUN_112b_01ba raw 2122-2129: a hull not owned by the viewer (DS:0x5396)
+     * shows its goods-hold count (+0x3150) instead of an order letter; a
+     * Privateer additionally hides its nation unless Complete Map (DS:0x53a2,
+     * fog_nation -1 here) is on: 'X' badge, flag fill 0 (black, local_11),
+     * letter ink 15 (white, local_21). The damaged digit above still wins
+     * (raw 2148-2172 is the last write).
+     */
+    int badge_orders = top->orders;
+    bool privateer_mask = false;
+    if (fog_nation >= 0 && fog_nation <= 3 && top->nation_id != fog_nation &&
+        units_is_sea(pool, top->id)) {
+      privateer_mask = units_type_is_privateer(top_type);
+      badge_orders = privateer_mask ? UNIT_CHROME_ORDERS_PRIVATEER_X
+                                    : UNIT_CHROME_ORDERS_HOLDS_BASE + units_holds_used(pool, top->id);
+    }
+    if (repair_badge >= 0) {
+      badge_orders = repair_badge;
+    }
 
+    if (privateer_mask) {
+      /* local_21 = 15; a damaged nation-2 hull's repair ink is 12 instead. */
+      const bool red = repair_badge >= 0 && top->nation_id == 2;
+      const int white = active_palette ? assets_palette_nearest_rgb(
+                                           active_palette, 255, red ? 85 : 255, red ? 85 : 255
+                                         )
+                                       : (red ? 12 : 15);
+      unit_chrome_blit(
+        framebuffer, font, nation_sheet, sprite, px, py, UNIT_CHROME_SPRITE_ORDERS, 0, dtype,
+        top->nation_id, badge_orders, stacked, damaged, 0, white
+      );
+      continue;
+    }
     unit_chrome_blit_unit_for_palette(
       framebuffer,
       font,
