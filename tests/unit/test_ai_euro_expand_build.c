@@ -239,6 +239,9 @@ static int unit_master_carpenter_construction_labor(void) {
   fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Master Carpenter");
+  /* Row 0 = Colonists: the 20e6 labor arm (AI_SHIP_DOS) keys on the DOS kind, not the name;
+   * the expert is a Colonist whose profession carries the skill. */
+  units.types[0].kind_plus1 = (uint8_t)(UNITS_KIND_COLONIST + 1);
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
@@ -366,6 +369,9 @@ static int unit_lumberjack_warehouse_labor(void) {
   fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Lumberjack");
+  /* Row 0 = Colonists: the 20e6 labor arm (AI_SHIP_DOS) keys on the DOS kind, not the name;
+   * the expert is a Colonist whose profession carries the skill. */
+  units.types[0].kind_plus1 = (uint8_t)(UNITS_KIND_COLONIST + 1);
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
@@ -494,7 +500,9 @@ static int unit_peace_construction_stockade(void) {
   for (int i = 0; i < 256; ++i) {
     map.terrain[i] = 1; /* plains */
   }
-  map.terrain[4 * 16 + 3] = 25; /* ocean west → coastal (Docks also buildable) */
+  /* Landlocked: FUN_5952_035e's cascade (asm 22da) puts a coastal colony whose
+   * placement leaves it food-heavy on Docks before Stockade, and under
+   * AI_SHIP_DOS that tick runs before planning. */
 
   ColonizeUnitPool units;
   fx_units_init(&units);
@@ -587,7 +595,7 @@ static int unit_peace_construction_fort(void) {
   if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("peace-fort alloc map");
   }
-  map.terrain[4 * 16 + 3] = 25;
+  /* Landlocked, as unit_peace_construction_stockade. */
 
   ColonizeUnitPool units;
   fx_units_init(&units);

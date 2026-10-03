@@ -1330,6 +1330,11 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
       ay = landfalls[prev][1];
     }
     ai_pick_landfall(params, n, ax, ay, &landfalls[n][0], &landfalls[n][1]);
+    /* FUN_75c2_235c raw 121625-121626 reads the landfall back from the nation
+     * record (-0x77c6/-0x77c5 = nation +0x32/+0x33); later Europe sailings
+     * (ai_euro_europe.c) aim at the same bytes. Unset, AI ships sail to (0,0). */
+    params->col1->nation[n].return_from_europe_x = (uint8_t)landfalls[n][0];
+    params->col1->nation[n].return_from_europe_y = (uint8_t)landfalls[n][1];
     if (!ai_spawn_euro_fleet(
           params,
           params->units,
@@ -1413,6 +1418,8 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
     diag_warn("ai: no tribes placed");
   }
   free(tribes);
+  /* FUN_75c2_235c raw 121595: FUN_2a1f_07f8 -> FUN_682a_000c site scores. */
+  ai_goals_write_site_scores(params->map, params->names);
 
   diag_info(
     "ai_init_new_game: human=%d tribes=%u units=%d",
@@ -1421,6 +1428,67 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
     params->units->unit_count
   );
   return true;
+}
+
+/*
+ * Port repair, no DOS counterpart. OpenCol new games before 2026-10-03 never
+ * wrote the nation landfall bytes (-0x77c6/-0x77c5), so every AI sailing from
+ * Europe (ai_euro_europe.c) aimed at (0,0) and parked on the west map edge.
+ * DOS only rewrites them when a ship leaves for Europe (FUN_48d3_007a), which
+ * a stuck fleet never does. (0,0) is never a real landfall (it is off the
+ * inset), so it marks a broken record.
+ */
+void ai_repair_nation_landfalls(const ColonizeWorld* w) {
+  if (!w || !w->col1 || !w->map || !w->units) {
+    return;
+  }
+  for (int n = 0; n < 4; ++n) {
+    ColonizeCol1Nation* nat = &w->col1->nation[n];
+    if (nat->return_from_europe_x != 0 || nat->return_from_europe_y != 0) {
+      continue;
+    }
+    int ax = -1;
+    int ay = -1;
+    if (w->colonies) {
+      for (int i = 0; i < COLONIZE_COLONIES_MAX && ax < 0; ++i) {
+        const ColonizeColony* c = &w->colonies->colonies[i];
+        if (c->active && c->nation_id == n) {
+          ax = c->x;
+          ay = c->y;
+        }
+      }
+    }
+    for (int i = 0; i < COLONIZE_UNITS_MAX && ax < 0; ++i) {
+      const ColonizeUnit* u = &w->units->units[i];
+      if (u->active && u->nation_id == n && map_in_bounds(w->map, u->x, u->y)) {
+        ax = u->x;
+        ay = u->y;
+      }
+    }
+    if (ax < 0) {
+      continue;
+    }
+    const int reach = (int)(w->map->width > w->map->height ? w->map->width : w->map->height);
+    for (int r = 0; r < reach; ++r) {
+      int found = 0;
+      for (int dy = -r; dy <= r && !found; ++dy) {
+        for (int dx = -r; dx <= r && !found; ++dx) {
+          if (abs(dx) != r && abs(dy) != r) {
+            continue;
+          }
+          if (map_coords_inset(w->map, ax + dx, ay + dy) &&
+              map_tile_is_high_seas(w->map, ax + dx, ay + dy)) {
+            nat->return_from_europe_x = (uint8_t)(ax + dx);
+            nat->return_from_europe_y = (uint8_t)(ay + dy);
+            found = 1;
+          }
+        }
+      }
+      if (found) {
+        break;
+      }
+    }
+  }
 }
 
 /* ===================== Euro nation turn dispatch (ai_nation_reseed .. ai_euro_nation_turn) ===================== */

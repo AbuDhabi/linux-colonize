@@ -1510,8 +1510,10 @@ int units_spawn_euro_starter_fleet(
   }
   units_set_nation(ship, nation_id);
   ship->profession = 0; /* FUN_1427_06b4 transport profession */
+  /* DOS-LITERAL FUN_75c2_235c raw 121624-121627: orders +0x314c = 0, only the
+   * landfall goto bytes are written. */
   if (goto_x >= 0 && goto_x < 255 && goto_y >= 0 && goto_y < 255) {
-    ship->orders = UNITS_ORDER_GOTO;
+    ship->orders = 0;
     ship->goto_x = goto_x;
     ship->goto_y = goto_y;
   }

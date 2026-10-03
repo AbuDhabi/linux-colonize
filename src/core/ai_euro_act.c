@@ -1586,7 +1586,7 @@ void ai_euro_act_land(struct ai_euro_act_ctx* a) {
  *   -> LAB_5a78 tail.
  */
 int ai_euro_ship_dos_enabled(void) {
-  return ai_euro_env_flag("AI_SHIP_DOS", 0);
+  return ai_euro_env_flag("AI_SHIP_DOS", 1); /* default on since 2026-10-03 (#530) */
 }
 
 /* LAB_521d_5a78 tail (raw 90399-90436), hull subset. */

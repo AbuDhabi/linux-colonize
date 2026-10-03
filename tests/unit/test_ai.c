@@ -83,7 +83,10 @@ static int ai_europe_land_count(const ColonizeUnitPool* units, int nation) {
   return n;
 }
 
-static int ai_ship_dist_sum(const ColonizeUnitPool* units, int nation) {
+/* on_map: skip hulls on the off-map Europe lanes (x >= width). A hull that
+ * has unloaded sails home through FUN_521d_20e6's Europe arm, so its goto is
+ * no longer the landfall the sum measures. */
+static int ai_ship_dist_sum(const ColonizeUnitPool* units, int nation, const ColonizeWorldMap* on_map) {
   int sum = 0;
   int n = 0;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
@@ -95,6 +98,9 @@ static int ai_ship_dist_sum(const ColonizeUnitPool* units, int nation) {
       continue;
     }
     if (u->goto_x >= 255 || u->goto_y >= 255) {
+      continue;
+    }
+    if (on_map && !map_in_bounds(on_map, u->x, u->y)) {
       continue;
     }
     const int dx = u->x - u->goto_x;
@@ -744,7 +750,7 @@ static int run_init_and_turns(
     }
   }
 
-  const int dist0 = america ? ai_ship_dist_sum(&units, human_nation == 1 ? 0 : 1) : -1;
+  const int dist0 = america ? ai_ship_dist_sum(&units, human_nation == 1 ? 0 : 1, NULL) : -1;
   const int pop0 = tribe_pop_sum(&col1);
   const uint16_t crosses0 = col1.nation[human_nation == 1 ? 0 : 1].current_crosses;
   const int dock0 = ai_europe_land_count(&units, human_nation == 1 ? 0 : 1);
@@ -882,7 +888,7 @@ static int run_init_and_turns(
     }
   }
 
-  const int dist1 = america ? ai_ship_dist_sum(&units, human_nation == 1 ? 0 : 1) : -1;
+  const int dist1 = america ? ai_ship_dist_sum(&units, human_nation == 1 ? 0 : 1, &map) : -1;
   const int pop1 = tribe_pop_sum(&col1);
   const uint16_t crosses1 = col1.nation[human_nation == 1 ? 0 : 1].current_crosses;
   const int dock1 = ai_europe_land_count(&units, human_nation == 1 ? 0 : 1);

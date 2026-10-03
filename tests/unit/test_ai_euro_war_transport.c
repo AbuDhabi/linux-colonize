@@ -187,7 +187,10 @@ static int unit_unload_regular_threatened(void) {
     fx_map_free(&map);
     return fail("expected Regular unloaded at threatened coastal colony");
   }
-  if (abs(reg->x - 4) > 1 || abs(reg->y - 4) > 1) {
+  /* Ship rides at (3,4), beside the colony. DOS hull unload (FUN_521d_06ae)
+   * picks its own landing tile among land next to the ship (e.g. (2,5)), so
+   * "near" = within 2 of the colony. */
+  if (abs(reg->x - 4) > 2 || abs(reg->y - 4) > 2) {
     fx_map_free(&map);
     return fail("expected Regular unloaded near threatened colony");
   }
@@ -333,7 +336,10 @@ static int unit_unload_continental_army_threatened(void) {
     fx_map_free(&map);
     return fail("expected Continental Army unloaded at threatened coastal colony");
   }
-  if (abs(army->x - 4) > 1 || abs(army->y - 4) > 1) {
+  /* Ship rides at (3,4), beside the colony. DOS hull unload (FUN_521d_06ae)
+   * picks its own landing tile among land next to the ship (e.g. (2,5)), so
+   * "near" = within 2 of the colony. */
+  if (abs(army->x - 4) > 2 || abs(army->y - 4) > 2) {
     fx_map_free(&map);
     return fail("expected Continental Army unloaded near threatened colony");
   }
@@ -474,7 +480,10 @@ static int unit_unload_continental_cavalry_threatened(void) {
     fx_map_free(&map);
     return fail("expected Continental Cavalry unloaded at threatened coastal colony");
   }
-  if (abs(cav->x - 4) > 1 || abs(cav->y - 4) > 1) {
+  /* Ship rides at (3,4), beside the colony. DOS hull unload (FUN_521d_06ae)
+   * picks its own landing tile among land next to the ship (e.g. (2,5)), so
+   * "near" = within 2 of the colony. */
+  if (abs(cav->x - 4) > 2 || abs(cav->y - 4) > 2) {
     fx_map_free(&map);
     return fail("expected Continental Cavalry unloaded near threatened colony");
   }

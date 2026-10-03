@@ -114,6 +114,7 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
     return false;
   }
   game->world_map_ok = true;
+  ai_goals_repair_site_scores(&game->world_map, game->names_ok ? &game->names : NULL);
   game->turn_number = result.turn_number;
   game->game_year = result.year;
   game->game_autumn = result.autumn;
@@ -168,6 +169,7 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
 
   col1_save_free(&game->col1);
   game->col1 = *loaded;
+  ai_repair_nation_landfalls(&(ColonizeWorld){.units=&game->units, .colonies=&game->colonies, .map=&game->world_map, .col1=&game->col1, .col1_ok=true});
   memset(loaded, 0, sizeof(*loaded));
   game->col1_ok = true;
   /* DS:0x8d80 (post_map.boot_timer) seeds every colony's building layout

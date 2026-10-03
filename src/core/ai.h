@@ -50,6 +50,9 @@ typedef struct AiNewGameParams {
 
 /* Col1 template, AI fleets, tribes/Braves, fix human unit nation_id. */
 bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size);
+/* Port repair for OpenCol saves whose nation +0x32/+0x33 landfall is (0,0):
+ * stamp the High Seas tile nearest the nation's first colony (else unit). */
+void ai_repair_nation_landfalls(const ColonizeWorld* w);
 
 /* One European AI nation: refresh already done by caller; sail/unload/found + crosses. */
 void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id);

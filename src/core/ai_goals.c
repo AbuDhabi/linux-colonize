@@ -1,6 +1,7 @@
 #include "core/ai_goals.h"
 
 #include "core/ai_diplo.h"
+#include "core/assets.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
 #include "core/map.h"
@@ -591,6 +592,150 @@ int ai_goals_site_nibble(const ColonizeWorldMap* map, int x, int y, int nation) 
     return (int)(map->seen[(size_t)y * (size_t)w + (size_t)x] & 0x0f);
   }
   return !map_tile_seen_by(map, x, y, nation) ? 4 : 0;
+}
+
+/*
+ * DS:0x97b2 (`-0x684e`) — the 14-byte special-resource desirability column.
+ * Raw 120909 loads it at start-up from the same NAMES.TXT section the
+ * @RESOURCE names come from (`FUN_2a1f_088a` per row, 0xe rows), so it is a
+ * catalog column, not a compiled constant: read it back out of @RESOURCE
+ * field 1 (data_vs_hardcoded.md Part D — catalog miss = 0, never a typed
+ * fallback).
+ */
+int ai_goals_resource_site_byte(const ColonizeMsgCatalog* names, int resource) {
+  char buf[32];
+  if (!names || resource < 0 || resource > 13) {
+    return 0;
+  }
+  if (!assets_msg_row_field(names, "RESOURCE", resource, 1, buf, sizeof(buf))) {
+    return 0;
+  }
+  return atoi(buf);
+}
+
+/* DS:0x2f79 = terrain record +3, the per-class site byte (same column as
+ * ai_euro_land.c k_20e6_terr_site_byte; FUN_682a_000c reads it per ring tile). */
+static const uint8_t k_682a_terr_site_byte[32] = {
+  2, 2, 4, 4, 4, 4, 2, 2, 3, 1, 3, 3, 3, 3, 1, 1, 3, 1, 3, 3, 3, 3, 1, 1, 0, 3, 0, 2, 2, 0, 0, 0
+};
+/* DS:0xc8 / DS:0xde (VICEROY.EXE 121248+addr): dir4, diagonals, radius-2
+ * orthogonals, knight moves, then the centre tile last. */
+static const int8_t k_682a_ring_dx[21] = {0, 1, 0, -1, -1, 1, 1, -1, 0, 2, 0, -2, -1, 1, -1, 1, -2, -2, 2, 2, 0};
+static const int8_t k_682a_ring_dy[21] = {-1, 0, 1, 0, -1, -1, 1, 1, -2, 0, 2, 0, -2, -2, 2, 2, -1, 1, -1, 1, 0};
+
+/*
+ * DOS-LITERAL FUN_682a_000c (raw 105147, asm viceroy_unpacked.asm 181631;
+ * called once by the new-game bootstrap FUN_75c2_235c raw 121595 via
+ * FUN_2a1f_07f8): the colony-site score every reader of the seen plane's low
+ * nibble (FUN_137f_02f8 / ai_goals_site_nibble) consumes. Per land tile, sum
+ * over the 21-tile ring:
+ *   v = @RESOURCE desirability when the tile has a special (0718 != -1),
+ *       else ocean (class 0x19): (2 + 2 * land neighbours) >> 2,
+ *       else DS:0x2f79[class];
+ *   +1 for a river (072c & 0x40);
+ *   ring k 0..3 weight 9 (ocean halved first: (v+1)>>1), 4..7 weight 6,
+ *   8..11 weight 4, 12..19 weight 3, centre weight 4; sum += weight*v >> 1.
+ * Then halve unless the tile is open-sea coastal (0d12 + 06b4 == 1), zero on
+ * mountains (0x1b), halve on hills (0x1c), and store clamp(sum/10, 0, 15).
+ * DOS stores the whole byte (no nation has seen anything yet at bootstrap);
+ * this keeps the high nibble so a caller after a reveal loses nothing.
+ * Without it every generated map scored 0 everywhere once seen, and the
+ * FUN_521d_20e6 founding-site ring (best_nib > 0) never found a site.
+ */
+void ai_goals_write_site_scores(ColonizeWorldMap* map, const ColonizeMsgCatalog* names) {
+  if (!map || !map->seen) {
+    return;
+  }
+  for (int y = 0; y < (int)map->height; ++y) {
+    for (int x = 0; x < (int)map->width; ++x) {
+      int sum = 0;
+      if (map_coords_inset(map, x, y) && !map_tile_is_water(map, x, y)) {
+        for (int k = 0; k < 21; ++k) {
+          const int tx = x + k_682a_ring_dx[k];
+          const int ty = y + k_682a_ring_dy[k];
+          if (!map_coords_inset(map, tx, ty)) { /* 0302 = FUN_137f_000a */
+            continue;
+          }
+          const int cls = map_dos_terr_class_at(map, tx, ty);
+          /* 0718 = FUN_137f_04b0. Its settlement gate (0392) is moot here:
+           * DOS runs 682a before FUN_6a09 places villages, so a special under
+           * a later village still scores (TURN1.SAV nibbles confirm). */
+          const int res = map_resource_type_for_yield(map, tx, ty);
+          int v;
+          if (res != -1) {
+            v = ai_goals_resource_site_byte(names, res);
+          } else if (cls == 0x19) {
+            v = 2;
+            for (int d = 0; d < 8; ++d) {
+              const int nx = tx + MAP_DIR8_DX[d];
+              const int ny = ty + MAP_DIR8_DY[d];
+              if (map_in_bounds(map, nx, ny) && !map_tile_is_water(map, nx, ny)) {
+                v += 2;
+              }
+            }
+            v >>= 2;
+          } else {
+            v = k_682a_terr_site_byte[cls & 0x1f];
+          }
+          if (map_tile_has_river(map, tx, ty)) {
+            v++;
+          }
+          int weight = 2;
+          if (k < 4) {
+            weight = 5;
+            if (cls == 0x19) {
+              v = (v + 1) >> 1;
+            }
+          }
+          if (k < 8) {
+            weight += 2;
+          }
+          if (k < 12) {
+            weight++;
+          }
+          if (k < 20) {
+            weight++;
+          }
+          if (k == 20) {
+            weight = 4;
+          }
+          sum += (weight * v) >> 1;
+        }
+      }
+      if (!map_tile_is_open_sea_adjacent(map, x, y)) {
+        sum >>= 1;
+      }
+      const int cls = map_dos_terr_class_at(map, x, y);
+      if (cls == 0x1b) {
+        sum = 0;
+      }
+      if (cls == 0x1c) {
+        sum >>= 1;
+      }
+      int v = sum / 10;
+      v = v < 0 ? 0 : (v > 15 ? 15 : v);
+      uint8_t* b = &map->seen[(size_t)y * map->width + (size_t)x];
+      *b = (uint8_t)((*b & 0xf0u) | (unsigned)v);
+    }
+  }
+  ai_goals_site_nibble_cache_clear();
+}
+
+/*
+ * Port repair, no DOS counterpart: saves written by OpenCol before
+ * ai_goals_write_site_scores existed carry no site score at all (DOS saves
+ * always do). Score such a plane once on load; leave any scored plane alone.
+ */
+void ai_goals_repair_site_scores(ColonizeWorldMap* map, const struct ColonizeMsgCatalog* names) {
+  if (!map || !map->seen) {
+    return;
+  }
+  for (size_t i = 0; i < map->tile_count; ++i) {
+    if (map->seen[i] & 0x0f) {
+      return;
+    }
+  }
+  ai_goals_write_site_scores(map, names);
 }
 
 /*
