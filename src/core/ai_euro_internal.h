@@ -36,14 +36,9 @@ struct ai_euro_act_ctx {
   /* land band */
   const char* uname;
   ColonizeUnitKind ukind; /* unit's @UNIT type-row kind (never string-derived) */
-  int is_land_hunter;
-  int is_scout;
   int is_treasure;
-  int at_war_land;
-  int land_war_hunted;
   int scout_explored;
   int treasure_routed;
-  int peace_border_hunted;
   int wagon_hauled;
   int goal_x;
   int goal_y;
@@ -212,10 +207,8 @@ int ai_euro_colony_wants_construction_labor(
 );
 int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id);
 int ai_euro_is_military_name(ColonizeUnitKind k);
-int ai_euro_is_land_war_hunter(ColonizeUnitKind kind);
 int ai_euro_is_artillery_name(ColonizeUnitKind kind);
 int ai_euro_land_is_fortified(const ColonizeUnit* u);
-int ai_euro_land_is_passive_orders(const ColonizeUnit* u);
 int ai_euro_is_treasure_name(ColonizeUnitKind kind);
 int ai_euro_europe_sail_target(
   ColonizeTurnContext* ctx,
@@ -460,8 +453,6 @@ int ai_euro_foe_toughness(
   int is_naval
 );
 int ai_euro_has_useful_goto(const ColonizeUnit* u, const ColonizeWorldMap* map);
-int ai_euro_land_try_adjacent_colony_seize(ColonizeTurnContext* ctx, ColonizeUnit* u);
-int ai_euro_land_try_adjacent_village_seize(ColonizeTurnContext* ctx, ColonizeUnit* u);
 void ai_euro_20e6_ship_cargo_counts(
   ColonizeTurnContext* ctx, const ColonizeUnit* ship,
   int* pioneers, int* mil, int* scouts, int* milvet, int* civ
@@ -482,11 +473,6 @@ int ai_euro_20e6_unload_by_mask(
 int ai_euro_20e6_colony_sail_pick(
   ColonizeTurnContext* ctx, const ColonizeUnit* ship, int nation, int mil, int pioneers_b4,
   int urgency, int* out_x, int* out_y
-);
-int ai_euro_land_engage_adjacent(
-  ColonizeTurnContext* ctx,
-  ColonizeUnit* u,
-  int* hunted
 );
 int ai_euro_5952_equip_pick(const ColonizeColony* c, int target);
 void ai_euro_act_land(struct ai_euro_act_ctx* a);

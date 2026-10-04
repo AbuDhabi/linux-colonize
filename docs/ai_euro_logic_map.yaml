@@ -753,12 +753,12 @@ graphs:
 
   # ---------------------------------------------------------------------
   - id: land_band
-    title: Land band — unit_act land branch (5b66 case 0x0b + act-level arms)
+    title: Land band — unit_act deferred-type branch (Treasure / Missionary / Wagon)
     entry: bind
     nodes:
       - id: bind
         kind: step
-        label: Read this unit's primary goal (role-aware) + at_war_land (peer war, or Indian sticky war with a real hunt target)
+        label: Treasure / Missionary / Wagon only — read this unit's primary goal
         fn: ai_euro.c:ai_euro_unit_act
         status: structural
       - id: lcr
@@ -767,17 +767,6 @@ graphs:
         fn: units_combat.c:units_resolve_lcr_rumour_w
         dos: FUN_65dd_0004
         status: dos
-      - id: war_hunt
-        kind: step
-        label: War — wake passive hunter, seize adjacent colony, seize adjacent village
-        fn: ai_euro_ship.c:ai_euro_land_engage_adjacent
-        status: structural
-        note: "2026-09-18: the distant land war hunt (ai_euro_land_war_hunt_target) was deleted as invented — DOS has no distant land hunt, exactly as it has none for ships. The adjacent-attack loop (ai_euro_land_try_adjacent_attack / ai_euro_land_best_adjacent_foe) is kept and marked a GOLDEN-BACKED STAND-IN: DOS scores an adjacent foe inside the LAB_521d_4d2e attack term (raw 88880-88940) and resolves it via FUN_465b_0000, but the port's copy of that term needs owner >= 0 && at_war from the destination's layer3 nibble, so a foe on an unclaimed tile is never scored; deleting the pair left golden_woi_ref01's REF unable to reduce two defended colonies. 2026-09-18b (bugs.md #521): two DOS divergences behind that stall were fixed — the LAB_52aa WoI gate (raw 88883-88885: during WoI an attack is scored only on a human-controlled player slot or a tribe, not the port's `!woi || owner < 0`) and the best-defender rule of FUN_465b_0000 / FUN_5fef_0000 in ai_euro_score_move and the goal-dispatch drain loop (a berthed foreign hull was hiding a colony garrison). Without the stand-in the REF now leaves 1 surviving colony instead of 2; the residue is volume, not reachability — on land every @UNIT col9 byte is 0 so the LAB_52aa odds core is 0 for any 2+ defender stack, and the assault must come from the 0a60 MILITARY goal walk, whose binding this port drops the moment the unit stands adjacent (0a60 housekeeping sets act_state 10, raw 87566-87568, and the goal tail reads a goal only at act_state 0x0b). 2026-09-18c: act_state 10 decoded and the lead closed — FUN_521d_0a60 raw 87567 is its only writer in the game and it marks 'a foreign unit or settlement stands on one of my eight neighbours' (FUN_521d_0906 via FUN_281f_0682/06be, filtered by FUN_521d_0896 which passes any Euro owner). DOS gives such a unit no goal (raw 88164 assigns only at 0/5/6), admits it into 20e6 (raw 88404-88406), sends it straight to LAB_521d_4d2e with no goal pathing (raw 90210-90214) and demotes it to 5 with order code '0' at the tail (raw 90399-90404, now ported at every ai_euro_move_scoring_gate exit); FUN_521d_5b66 dispatches a goal only at 0x0b (raw 90552) and its switch case 10 (raw 91195) is unreachable. So DOS unbinds the adjacent unit exactly as this port does and the goal walk is NOT the assault route. Case 0 of FUN_1427_0d38 confirmed byte-exact from the 1427:0d78 jump table as 'DI += DS:0x5239[type*0xe]', so the 0-odds-vs-2+-stack behaviour is DOS's own. Also fixed here: the uncited at-war land-hunter early return in ai_euro_move_scoring_gate (20e6 has no war gate) and the drain loop's nation-blind units_id_at fallback, which handed an own unit on the step tile to ai_euro_try_attack and froze REF columns two tiles short — with the stand-in all seven colonies now fall at t15 (was t21). Lead (c) refuted: raw 88686 is an inert ship/ocean skip gate, not the normal-branch test (that is raw 88774-88776 and already matches). 2026-09-18e (bugs.md #522/#523): the reachability half is now fixed — the gate's two missing DOS act-state tests (own-colony garrison arm raw 88584-88612, pre-LAB_4d2e gate raw 90210-90219) are ported, the three uncited early returns they replaced are gone, and golden_woi_ref01's land arms now take 118 wander steps where they took 0. It did not retire the stand-in: with ai_euro_land_try_adjacent_attack disabled the REF parks beside the human colonies (1368 border-park exits) and 2 colonies survive, because the LAB_52aa odds core still scores 0 against every 2+-defender land stack and local_ce is therefore never set. With the stand-in the war now ends at t11 (@LOSING3 surrender) instead of t15-t17. #523 is REFUTED: `goto LAB_521d_5183` out of the Soldier/Dragoon colony-mass gate is the direction loop's own increment, not an exit from the scan — viceroy_overlays.asm LAB_OVL14_L0000__005183 is `INC word ptr [BP-0x4e]` followed by `CMP [BP-0x4e],0x8 / JL`, with 14 XREFs; the port's per-tile skip already matches. 2026-09-18f (bugs.md #525/#526): FUN_521d_5b66 fully decoded off its own 198 bytes (see the move_scoring_gate graph, node goal_walk) and the port now walks the unit's stored +0x314d/e instead of re-deriving a nearest FOUND tile on every act; the 0a60 shadow is retired and the raw 90210-90219 gate reads the real +0x314c. It does not retire the stand-in either: with ai_euro_land_try_adjacent_attack disabled golden_woi_ref01 still leaves 1 colony standing and never latches the endgame (with it, endgame=2 at t16). The LAB_52aa odds core scoring 0 against every 2+-defender land stack remains the sole blocker and still needs a DOSBox-X trace. 2026-09-22 CLOSED (bugs.md #521): the 0-odds core was a port column slip — ai_euro_20e6_unit_col9 read the @UNIT guns column (0x523b) instead of 0x5239 = the cost column (loader raw 121115-121135), which is non-zero for every land type. With the real column the 4d2e attack term assaults stacked colonies on its own; the adjacent-attack stand-in pair is deleted, the drain loop steps straight into an adjacent foreign-held goto tile (the 4d2e pick) instead of re-scoring it, and owner −1 tiles enter the Euro arm as DOS does (raw 88877 `local_10 < 4`)."
-      - id: peace_border
-        kind: step
-        label: "(retired 2026-09-23, bugs.md #760) — pass-through, no DOS peace border wake"
-        status: port
-        note: "The peace colony-defence wake (garrison or Artillery on its own colony wakes and hunts a foreign Euro land unit within MD<=2) was deleted as invented: manual-only citation (Colonization.pdf 'Defending a Colony'), and FUN_521d_20e6 raw 88266-90445 has no MD<=2 threat scan. DOS's own-colony handling is the type-agnostic LAB_5899 garrison arm (raw 88584-88612, ai_euro_20e6_land_arms). The ctx flag peace_border_hunted is now always 0; its six unit tests were deleted with the arm."
       - id: treasure
         kind: step
         label: Treasure — cash at any own colony (20e6 arm 1), else walk to nearest own colony (arm 2) / own unit (arm 3), else 47b9 destroy
@@ -791,13 +780,6 @@ graphs:
         fn: ai_euro_expand.c:ai_euro_try_wagon_haul
         dos: 20e6 wagon arms (iStack_34==0), LAB_457e origin walk, 8d4a village errand
         status: dos
-      - id: pioneer
-        kind: step
-        label: "Pioneer — order 9 (Build Road) park, unless a village claims the tile or a foreign colony is within 3"
-        fn: ai_euro_land.c:ai_euro_move_scoring_gate
-        dos: FUN_521d_20e6 raw 90183-90206 (dup raw 85345-85368)
-        status: dos
-        note: "bugs.md #610/#611: the old node was the INVENTED planner ai_euro_try_pioneer_improve (Colonization.pdf-cited colony-ring scan, plow-before-road, MD<=3, prefer-Hardy), deleted 2026-09-22. DOS's only AI pioneer unit order is this one: at the land commit point a type-2 unit that is not the iStack_6a explorer pick writes +0x314c = 9 / +0x314b = 0x52 and leaves 20e6 (goto LAB_5a78). Nothing in the image then ticks that order for an AI unit — the sole callers of FUN_479b_01a6/0526 are the human ORDERS UI (raw 42512/42603) and the colony tick's phantom-unit sites (raw 93669, raw 94520/94534) — so the write is a park. Real AI tile improvement happens in FUN_5952_035e raw 94402-94551 (ai_euro_5952_improve_best_plot, bugs.md #612), which is a colony-tick arm and therefore not on this unit graph."
       - id: pilot
         kind: step
         label: Read 0a60 pick (act_state 0xb)
@@ -813,11 +795,7 @@ graphs:
         fn: ai_euro_expand.c:ai_euro_found_with_unit
         dos: 5b66 case 7 FOUND
         status: dos
-        note: "One FITTED arm remains (bugs.md #971): Pioneer on (fx,fy+1) re-aimed to (fx-3,fy+3) after the first colony; load-bearing for golden TURN4->5."
-      - id: found_near
-        kind: decision
-        label: No goal, founder type, best FOUND tile adjacent?
-        fn: ai_goals.c:ai_goals_best_found_tile_near
+        note: "2026-10-04 (bugs.md #971): the fitted post-founding Pioneer/Soldier re-aims are deleted; FUN_479b_076e moves only the founder. The pioneer's TURN4->5 move comes from the 20e6 explore ring, which scores coastal tiles only."
       - id: on_colony
         kind: step
         label: Own colony arrival — no unit-act outcome (join/TOOLS-delivery arms deleted)
@@ -842,42 +820,29 @@ graphs:
         fn: ai_euro_expand.c:ai_euro_set_goto
       - id: move_loop
         kind: loop
-        label: Follow goto — score_move step, units_try_move; drain MP for FOUND/MILITARY/CONTACT/hunt/scout else one step
+        label: Follow goto — score_move step, units_try_move; drain MP for FOUND/MILITARY/CONTACT/ESCORT/LCR else one step
         fn: ai_euro_goals.c:ai_euro_score_move
         dos: LAB_521d_4d2e→5183 wander scorer, 54f5 facing bias
         status: structural
-      - id: war_tail
-        kind: step
-        label: War hunter tail — adjacent colony seize, village seize
-        fn: ai_euro_ship.c:ai_euro_land_try_adjacent_colony_seize
-        status: structural
-        note: "2026-09-28 audit: the adjacent-ATTACK half of this node's old label is gone — the golden-backed stand-in pair was deleted when bugs.md #521 closed 2026-09-22 (tombstone src/core/ai_euro_ship.c:1741-1748), and the DOS 4d2e attack term now assaults unaided. What remains is two DOS-cited seize helpers (FUN_281f_0696 8-neighbour owner scan; war declared as a side effect of capture, raw 75567-75593), hence `structural`, not `thin`. There is no at-war gate in the body, matching DOS." 
       - id: end
         kind: end
         label: return
     edges:
       - [bind, lcr]
-      - [lcr, war_hunt, "resolve rumour, unit survives"]
+      - [lcr, treasure, "resolve rumour, unit survives"]
       - [lcr, end, "unit vanished"]
-      - [war_hunt, end, "hunt bound"]
-      - [war_hunt, peace_border, "not at war / not hunter"]
-      - [peace_border, treasure]
       - [treasure, end, "cashed / destroyed"]
       - [treasure, wagon, "not treasure"]
-      - [wagon, pioneer]
-      - [pioneer, pilot]
+      - [wagon, pilot]
       - [pilot, found_now]
       - [found_now, found, "yes"]
-      - [found_now, found_near, "no"]
+      - [found_now, on_colony, "no"]
       - [found, end]
-      - [found_near, found, "yes"]
-      - [found_near, on_colony, "no"]
       - [on_colony, mil_contact]
       - [mil_contact, set_goto]
       - [set_goto, move_loop, "on goto"]
-      - [set_goto, war_tail, "no goto"]
-      - [move_loop, war_tail]
-      - [war_tail, end]
+      - [set_goto, end, "no goto"]
+      - [move_loop, end]
 
   # ---------------------------------------------------------------------
   - id: move_scoring_gate

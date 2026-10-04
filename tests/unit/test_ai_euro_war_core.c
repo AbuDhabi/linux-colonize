@@ -314,10 +314,8 @@ static int unit_peace_tail_does_not_open_war(void) {
  * DEFENDER (FUN_5fef_0000), so neither a berthed foreign hull on the colony
  * tile nor the garrison behind it may read as "nothing to attack" and leave
  * the unit oscillating beside its own target (the REF stall in
- * golden_woi_ref01). Drive ai_euro_act_land_goal_dispatch directly with
- * is_land_hunter = 0 so the golden-backed adjacent-attack stand-in in the
- * same stage cannot run: only the drain loop's own step can produce the
- * attack.
+ * golden_woi_ref01). Drive ai_euro_act_land_goal_dispatch directly: only
+ * the drain loop's own step can produce the attack.
  */
 static int unit_goal_tail_assaults_defended_colony(void) {
   const int nation = 1;
@@ -404,8 +402,6 @@ static int unit_goal_tail_assaults_defended_colony(void) {
   act.nation_id = nation;
   act.is_ship = 0;
   act.uname = units_display_name(&units, a);
-  act.at_war_land = 1;
-  act.is_land_hunter = 0; /* keep the stand-in out of this stage */
   act.goal_code = AI_GOAL_MILITARY;
   act.goal_x = 9;
   act.goal_y = 8;

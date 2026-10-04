@@ -1554,7 +1554,10 @@ static int ai_euro_land_explore_scan_target(
       }
       const int coastal = map_tile_is_coastal(ctx->map, tx, ty) ? 1 : 0;
       if (!coastal) {
-        nib = 0;
+        /* raw 89134-89138: local_4c = 0 (and a dead `local_50 == 8` score
+         * zero); the best-site compare (raw 89257) sits inside the coastal
+         * `else`, so an inland tile is never a candidate (bugs.md #971). */
+        continue;
       } else {
         int cd = 9999;
         const int ncol = ai_euro_20e6_nearest_colony(ctx, tx, ty, -1, s.cid, &cd);

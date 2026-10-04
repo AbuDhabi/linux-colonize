@@ -774,8 +774,6 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
   }
   if (cid >= 0) {
     colonies_reveal_founded_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, cid); /* FUN_364b_1dd6 Coronado */
-    const int founded_x = founder->x;
-    const int founded_y = founder->y;
     if (cid >= 0 && cid < COLONIZE_COLONIES_MAX) {
       ai_euro_s_founded_colony_turn[cid] = 1;
     }
@@ -784,30 +782,10 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
       /* FUN_479b_0000 bumps only while names remain; the pool counter caps it. */
       ctx->col1->player[nation_id].founded_colonies = (uint8_t)ctx->colonies->name_next[nation_id];
     }
-    /*
-     * FITTED, NOT DOS (bugs.md #971): FUN_479b_076e repositions no unit but
-     * the founder. This arm hands a fixed offset to the founding nation's
-     * Pioneer and is cited only by golden TURN4->5 (French pioneer
-     * (50,38)->(48,39), goto (47,40)); the DOS hull/land path does not
-     * reproduce that move yet.
-     */
-    if (ctx->units && colonies_count_for_nation(ctx->colonies, nation_id) == 1) {
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* p = &ctx->units->units[i];
-        if (!p->active || p->nation_id != nation_id || p->aboard_ship_id >= 0) {
-          continue;
-        }
-        if (!ai_euro_name_is_pioneer(ai_euro_unit_kind(ctx->units, p))) {
-          continue;
-        }
-        if (p->x == founded_x && p->y == founded_y + 1) {
-          ai_euro_set_goto(p, UNITS_ORDER_AI_SAIL, founded_x - 3, founded_y + 3);
-          /* three cardinal minor-river steps at 1 third each: a fresh
-           * 3-third allotment covers it. */
-          p->moves = units_max_mp(ctx->units, p->id);
-        }
-      }
-    }
+    /* bugs.md #971: FUN_479b_076e repositions no unit but the founder. The
+     * fitted post-founding Pioneer/Soldier re-aims that stood here are gone;
+     * the pioneer's DOS move comes from the 20e6 explore ring (coastal-only
+     * candidates, ai_euro_land_explore_scan_target). */
   }
   /* bugs.md #1034a: ai_euro_prefer_peace_construction (last #483 survivor,
    * a founding-turn Docks stand-in) was called here; gated off alone
