@@ -1186,10 +1186,46 @@ void units_ship_slow_scan_w(
  *   - aboard (raw 98635-98638): a NON-ship type (outside 0x0d..0x12) standing
  *     on a water tile is a passenger in a hold and is left asleep.
  *
+ * The same pass carries 3180's facing write (raw 98648-98651, inline below).
+ *
  * DOS writes the order byte only; the port routes through units_wake so its
  * hold-passenger MP rule stays the single owner of that.
  * bugs.md #539 (REF landfall left the garrison's Sentry units asleep).
  */
+/*
+ * aiStack_20[nation] after FUN_5bfb_3180's encounter call for a neighbour of
+ * `owner` (raw 98652-98674). The encounters themselves run in the port's
+ * contact scans; this only reports whether DOS would have latched the nation.
+ *   Indian x Indian: alliance-share arm, always 1.
+ *   Euro x Euro: FUN_5bfb_153e, not called during the WoI (DS:0x5382 bit0,
+ *     latch stays 0); otherwise 153e returns 1 (raw 97406-97411 AI pair,
+ *     97436 human audience).
+ *   Euro x Indian: FUN_5bfb_022e returns 1 on first contact (MET clear);
+ *     already met with a Euro mover it exits 0 at overlay 0x48c-0x49c
+ *     (neighbour head not type 0x0c).
+ * ponytail: an already-met Brave mover runs 022e's visit gates (raw
+ * 96735-96760) before returning; taken as 1, the same one-encounter-per-
+ * nation rule ai_native_step_first_contact applies. Wire the real 022e
+ * result here if a two-neighbour Brave case ever diverges.
+ */
+static int units_3180_contact_latch(const ColonizeCol1Save* col1, int mover_nation, int owner) {
+  if (mover_nation >= 4 && owner >= 4) {
+    return 1;
+  }
+  if (mover_nation < 4 && owner < 4) {
+    return col1 && col1->head.game_options.woi ? 0 : 1;
+  }
+  if (!col1) {
+    return 1;
+  }
+  const int euro = mover_nation < 4 ? mover_nation : owner;
+  const int indian = mover_nation < 4 ? owner : mover_nation;
+  if (col1->indian[indian - 4].euro_diplo[euro] == 0) {
+    return 1;
+  }
+  return mover_nation < 4 ? 0 : 1;
+}
+
 void units_sentry_wake_scan(
   ColonizeUnitPool* pool,
   const ColonizeWorldMap* map,
@@ -1207,21 +1243,48 @@ void units_sentry_wake_scan(
   /* local_36 / local_34 (raw 98502-98504). */
   const bool dest_water = map_tile_is_water(map, dest_x, dest_y);
   const bool mover_in_colony = colonies && colonies_id_at(colonies, dest_x, dest_y) >= 0;
+  int contact_latched[12] = {0}; /* aiStack_20 */
   for (int d = 0; d < 8; ++d) {
     const int nx = dest_x + MAP_DIR8_DX[d];
     const int ny = dest_y + MAP_DIR8_DY[d];
     if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
       continue;
     }
-    /* local_44 = FUN_281f_07e0(n) stack head, local_46 = its nation nibble. */
+    /* local_44 = FUN_281f_07e0(n) stack head; local_46 = its nation nibble,
+     * else the settlement owner FUN_281f_06be(n) (raw 98510-98520). */
     const int top = units_id_at(pool, nx, ny);
-    const ColonizeUnit* topu = top >= 0 ? units_get_const(pool, top) : NULL;
-    if (!topu || !topu->active || topu->nation_id < 0 || topu->nation_id == mover_nation) {
+    ColonizeUnit* topu = top >= 0 ? units_get(pool, top) : NULL;
+    if (topu && !topu->active) {
+      topu = NULL;
+    }
+    const int cid = colonies ? colonies_id_at(colonies, nx, ny) : -1;
+    const ColonizeColony* ncol = cid >= 0 ? colonies_get(colonies, cid) : NULL;
+    const ColonizeCol1Tribe* ntribe = col1 ? col1_save_tribe_at(col1, nx, ny) : NULL;
+    const bool nb_settlement = ncol != NULL || ntribe != NULL;
+    const int owner = topu ? topu->nation_id
+                    : ncol ? ncol->nation_id
+                    : ntribe ? (int)ntribe->nation_id
+                    : -1;
+    if (owner < 0 || owner > 11 || owner == mover_nation) {
       continue;
     }
-    const bool nb_settlement =
-      (colonies && colonies_id_at(colonies, nx, ny) >= 0) ||
-      (col1 && col1_save_tribe_at(col1, nx, ny) != NULL);
+    /*
+     * DOS-LITERAL FUN_5bfb_3180 raw 98648-98651: with mover and neighbour
+     * both on land, the neighbour's stack head turns to face away from the
+     * mover (+0x314f = the scan direction), once per nation until that
+     * nation's encounter latches aiStack_20. 021a scores the facing term
+     * off this byte, so a Brave beside a Euro unit that just stepped up
+     * picks with DOS's facing (seed-100 TURN3/TURN4 peel rows).
+     */
+    if (!dest_water && !map_tile_is_water(map, nx, ny) && !contact_latched[owner]) {
+      if (topu) {
+        topu->last_dir = (int8_t)d;
+      }
+      contact_latched[owner] = units_3180_contact_latch(col1, mover_nation, owner);
+    }
+    if (!topu) {
+      continue;
+    }
     if (!mover_in_colony && !nb_settlement && map_tile_is_water(map, nx, ny) != dest_water) {
       continue;
     }

@@ -742,7 +742,7 @@ static void ai_indian_152e_village_growth(
   }
 }
 
-/* ===================== Village growth tick, tile/owner helpers & native pull scoring (ai_grow_villages .. ai_native_apply_seed100_peels) ===================== */
+/* ===================== Village growth tick, tile/owner helpers & native pull scoring (ai_grow_villages .. ai_native_foreign_euro_pull) ===================== */
 void ai_grow_villages(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
     return;
@@ -1050,88 +1050,6 @@ int ai_native_foreign_euro_pull(
     e8 = 1;
   }
   return score + e8 * 4;
-}
-
-/*
- * Seed-100 dir peels (init + mid-turn tables) shared by both Brave pickers.
- * Returns the (possibly overridden) dir. audit_unseen/audit_seen may be NULL
- * (the 021a picker has no seen/unseen branch pair).
- */
-int ai_native_apply_seed100_peels(
-  int nation_id,
-  int x,
-  int y,
-  int best_dir,
-  int dump,
-  const int* audit_unseen,
-  const int* audit_seen,
-  int unit_seen_by_any
-) {
-  /*
-   * Seed-100 peels: quiet formula at matched LCG still misses these dirs
-   * (empiricism matches golden). Override after scoring/LCG burns.
-   */
-  /* Init-pulse peels retired 2026-09-15: SEED100.SAV matches without them. */
-  if (ai_s_seed100_midturn_turn > 0 && !ai_brave_peels_disabled()) {
-    /*
-     * Mid-turn dir peels — residue after the FUN_4d56_021a picker landed
-     * (2026-09-15). 99 scoring holdouts + 6 river/multi-step + 2 cascade rows
-     * of the retired 20e6-shaped scorer collapsed to the six below: each is
-     * a 1..5-point near-tie the 021a transcription still resolves the other
-     * way (see docs/port_plan.md "D3 determinism debt"). AI_PEEL_AUDIT=1
-     * re-classifies them; drop a row the moment picked == golden.
-     */
-    static const struct {
-      int turn;
-      int nation_id;
-      int x, y, dir;
-    } k_mid_peels[] = {
-      {1, 6, 48, 15, 6}, /* W (47,15); 207 vs NW 212 */
-      {3, 6, 26, 6, 5}, /* SW (25,7); tie 203/203 with S, strict > keeps S */
-      {3, 7, 46, 53, 3}, /* SE (47,54); 208 vs W 209 */
-      {3, 10, 49, 39, 5}, /* SW (48,40); 204 vs N 207 (French-owned N) */
-      {4, 7, 47, 54, 0}, /* N (47,53); 202 vs S 207 */
-      {4, 10, 47, 38, 6}, /* W (46,38); 200 vs NE 212 */
-    };
-    for (size_t i = 0; i < sizeof(k_mid_peels) / sizeof(k_mid_peels[0]); ++i) {
-      if (k_mid_peels[i].turn == ai_s_seed100_midturn_turn &&
-          k_mid_peels[i].nation_id == nation_id && k_mid_peels[i].x == x &&
-          k_mid_peels[i].y == y) {
-        if (ai_peel_audit_enabled()) {
-          fprintf(
-            stderr,
-            "AI_PEEL_AUDIT turn=%d n=%d xy=(%d,%d) golden=%d picked=%d "
-            "unseen_best=%d seen_best=%d gate_now=%d\n",
-            ai_s_seed100_midturn_turn,
-            nation_id,
-            x,
-            y,
-            k_mid_peels[i].dir,
-            best_dir,
-            audit_unseen ? ai_peel_audit_argmax(audit_unseen) : -1,
-            audit_seen ? ai_peel_audit_argmax(audit_seen) : -1,
-            unit_seen_by_any
-          );
-        }
-        if (dump) {
-          /* Keep the LCG trace honest: the peel below overrides the dir the
-           * scored walk just printed. */
-          fprintf(
-            stderr,
-            "AI_PEEL n=%d xy=(%d,%d) dir %d -> %d\n",
-            nation_id,
-            x,
-            y,
-            best_dir,
-            k_mid_peels[i].dir
-          );
-        }
-        best_dir = k_mid_peels[i].dir;
-        break;
-      }
-    }
-  }
-  return best_dir;
 }
 
 /* Sentinel for a direction the ASM scorer rejected outright (was `continue;`). */

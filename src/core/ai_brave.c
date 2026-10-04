@@ -55,9 +55,6 @@ static int ai_native_pick_dir(
   int dir = ai_native_pick_dir_021a(
     rng, map, units, col1, ai_s_native_colonies, u, nation_id, res
   );
-  dir = ai_native_apply_seed100_peels(
-    nation_id, u->x, u->y, dir, ai_score_at_match(nation_id, u->x, u->y), NULL, NULL, 0
-  );
   res->dir = dir;
   return dir;
 }
@@ -914,13 +911,13 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
     dos_rng_seed(&local, seed);
     rng = &local;
   }
-  /* Mid-turn pulse always runs; seed-100 latches the calendar turn so the
-   * mid-turn dir peels below can key off it. */
+  /* Mid-turn pulse always runs; seed-100 latches the calendar turn for the
+   * AI_021A_ACT / AI_STEP_AUDIT trace lines. */
   if (ctx->rng_seed == 100u && ctx->turn_number) {
     ai_s_seed100_midturn_turn = (int)*ctx->turn_number;
   }
 
-  /* §7–8 quiet 14fe act loop (+ seed-100 overlays). */
+  /* §7–8 quiet 14fe act loop. */
   ai_s_native_colonies = ctx->colonies;
   ai_s_native_col1 = ctx->col1_ok ? ctx->col1 : NULL;
   s_ai_native_ctx = ctx;

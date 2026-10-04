@@ -266,3 +266,33 @@ asm-22da Docks arm (landlocked colony), founding stimulus = act state 7,
 unnamed-kind expert types (kind_plus1), 06ae landing tile within 2 of the
 colony, and Europe-lane hulls in the AMERICA distance sum. With those, the
 switch was flipped on by default.
+
+## Brave 021a trace (2026-10-04)
+
+Retired the last six `k_mid_peels` rows. Method, reusable for any overlay
+routine:
+
+- Launch through `opening.exe -g` (COLONIZE.BAT); running VR_SEED's
+  VICEROY.EXE directly hangs in text mode. Run DOSBox-X under a nested
+  `Xephyr :57` and capture with `DISPLAY=:57 import -window root`: the
+  debugger's MEMDUMPBIN of A000 reads back zeros. Navigate with BIOS-buffer
+  key injection while `BPINT 16` is set. Send one key at a time and confirm
+  each against a screenshot: the intro's final frame looks like the menu,
+  and keys sent during it are lost.
+- Trap the overlay load: in a private VICEROY.EXE copy, change file byte
+  0x46ffa (overlay 13 + 0x21a, the `enter` of 021a) from C8 to CC. `BPINT 3`
+  then stops on the first Brave act and gives the overlay CS. Restore C8
+  with `SM cs:21a c8`, then set `BP cs:1167` (after the RNG(1,5) add:
+  AX = roll, [bp-0x24] = score, [bp-0x34] = dir, [bp+6] = unit) and
+  `BP cs:11ae` (pick: [bp-0x48] dir, [bp-0x8e] score).
+
+TURN3->4 result: every RNG roll matched the port. Each score difference
+came from the Brave's facing byte. Two Braves had facing values that
+differed from the save: 3 -> 4 for the n=7 Brave at (46,53) and
+0 -> 5 for the n=10 Brave at (49,39). In both cases a Euro unit had just
+stepped next to the Brave. The writer is FUN_5bfb_3180 raw 98648-98651:
+when the mover and the neighbour are both on land, the neighbour's stack
+head gets facing = scan direction, once per nation until that nation's
+encounter latches. The port now does this in `units_sentry_wake_scan`.
+Landfall (`units_unload_passenger_w`) now runs that scan too, because DOS
+lands a passenger with a 465b step. Without peels, `golden_ai_turns` 6/6.

@@ -98,8 +98,6 @@ int ai_021a_settle_owner(const ColonizeWorldMap* map, int x, int y);
 
 int ai_021a_trace_enabled(void);
 
-int ai_brave_peels_disabled(void);
-
 uint8_t ai_coarse_fog_explore_byte(int x, int y);
 
 uint8_t ai_coarse_fog_tribe_byte(int x, int y);
@@ -151,17 +149,6 @@ int ai_native_021a_tail(
   int nation_id,
   int dir,
   int flags
-);
-
-int ai_native_apply_seed100_peels(
-  int nation_id,
-  int x,
-  int y,
-  int best_dir,
-  int dump,
-  const int* audit_unseen,
-  const int* audit_seen,
-  int unit_seen_by_any
 );
 
 int ai_native_foreign_euro_pull(
@@ -219,10 +206,6 @@ int ai_native_pick_dir_021a(
 );
 
 int ai_owner_nibble(const ColonizeWorldMap* map, int x, int y);
-
-int ai_peel_audit_argmax(const int score[8]);
-
-int ai_peel_audit_enabled(void);
 
 int ai_quiet_fog_explore_ex(
   const ColonizeWorldMap* map,

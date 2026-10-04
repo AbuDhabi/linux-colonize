@@ -292,43 +292,11 @@ int ai_step_audit_enabled(void) {
   return cached;
 }
 
-/* Seed-100 init pulse: peels + select quiet ASM. */
+/* Seed-100 init pulse: selects the quiet ASM path. */
 int ai_s_seed100_init_pulse;
 uint32_t ai_s_init_pulse_seed;
-/* Calendar turn after advance during seed-100 mid-turn pulse (0 = not mid-turn). */
+/* Calendar turn during a seed-100 mid-turn pulse (0 = not mid-turn); trace lines only. */
 int ai_s_seed100_midturn_turn;
-
-/* AI_PEEL_AUDIT=1: classify each firing peel row against both branch scorers. */
-int ai_peel_audit_enabled(void) {
-  static int cached = -1;
-  if (cached < 0) {
-    const char* e = getenv("AI_PEEL_AUDIT");
-    cached = (e && e[0] == '1') ? 1 : 0;
-  }
-  return cached;
-}
-
-int ai_peel_audit_argmax(const int score[8]) {
-  int best = -0x3e7;
-  int dir = 8;
-  for (int d = 0; d < 8; ++d) {
-    if (score[d] > best) {
-      best = score[d];
-      dir = d;
-    }
-  }
-  return dir;
-}
-
-/* AI_NO_BRAVE_PEELS=1: skip seed-100 dir peels (audit how many quiet misses remain). */
-int ai_brave_peels_disabled(void) {
-  static int cached = -1;
-  if (cached < 0) {
-    const char* e = getenv("AI_NO_BRAVE_PEELS");
-    cached = (e && e[0] && e[0] != '0') ? 1 : 0;
-  }
-  return cached;
-}
 
 int ai_s_lcg_in_pick;
 int ai_s_lcg_pick_burns;
