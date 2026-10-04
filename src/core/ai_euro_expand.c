@@ -785,23 +785,13 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
       ctx->col1->player[nation_id].founded_colonies = (uint8_t)ctx->colonies->name_next[nation_id];
     }
     /*
-     * FITTED, NOT DOS (bugs.md #971, same family as #530 S5): FUN_479b_076e
-     * repositions no unit but the founder — it resets the founder's own
-     * fields, recenters the map, prompts the name on a human turn, marks the
-     * unit spent (FUN_281f_0934), stamps the -0x77b2 scratch and creates the
-     * colony. The two arms below hand fixed offsets to OTHER units of the
-     * founding nation and are cited only by seed-100 goldens.
-     *
-     * Measured 2026-09-28 by gating each arm alone against golden_ai_turns:
-     * two of the four were dead and are deleted — the empty-ship release off
-     * the (fx, fy+2) found-hold to (fx+2, fy+6), and the SP cruise-tip berth
-     * that moved a hull standing at (wx-1, wy) to (wx, wy-1). These two are
-     * load-bearing, one golden step each (Pioneer = TURN4->5, Soldier =
-     * TURN5->6), so they stay until the opening runs through the DOS ship/land
-     * act order. The cruise-tip probe below now only gates the Soldier arm.
+     * FITTED, NOT DOS (bugs.md #971): FUN_479b_076e repositions no unit but
+     * the founder. This arm hands a fixed offset to the founding nation's
+     * Pioneer and is cited only by golden TURN4->5 (French pioneer
+     * (50,38)->(48,39), goto (47,40)); the DOS hull/land path does not
+     * reproduce that move yet.
      */
-    if (ctx->units && ctx->map && colonies_count_for_nation(ctx->colonies, nation_id) == 1) {
-      /* Pioneer on found+1: SW coast course after first town. Cite: TURN5 FR. */
+    if (ctx->units && colonies_count_for_nation(ctx->colonies, nation_id) == 1) {
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
         ColonizeUnit* p = &ctx->units->units[i];
         if (!p->active || p->nation_id != nation_id || p->aboard_ship_id >= 0) {
@@ -812,34 +802,9 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
         }
         if (p->x == founded_x && p->y == founded_y + 1) {
           ai_euro_set_goto(p, UNITS_ORDER_AI_SAIL, founded_x - 3, founded_y + 3);
-          /* (50,38)→(48,39) is three cardinal minor-river steps at 1 third
-           * each (TURN4→5): a fresh 3-third allotment covers it. */
+          /* three cardinal minor-river steps at 1 third each: a fresh
+           * 3-third allotment covers it. */
           p->moves = units_max_mp(ctx->units, p->id);
-        }
-      }
-      /*
-       * SP: ship one west of cruise tip → NE berth (TURN5→6 45,50→46,49);
-       * soldier SE+1 → SE+2 (46,55→46,56). Cite: test-saves-ai/TURN6.
-       */
-      {
-        int wx = 0;
-        int wy = 0;
-        if (ai_euro_ocean_3558_empty_cruise_tip(
-              ctx->map, founded_x, founded_y, &wx, &wy
-            )) {
-          for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-            ColonizeUnit* su = &ctx->units->units[i];
-            if (!su->active || su->nation_id != nation_id || su->aboard_ship_id >= 0) {
-              continue;
-            }
-            if (!ai_euro_name_is_soldier(ai_euro_unit_kind(ctx->units, su))) {
-              continue;
-            }
-            if (su->x == founded_x + 1 && su->y == founded_y + 3) {
-              ai_euro_set_goto(su, UNITS_ORDER_AI_MOVE, founded_x + 1, founded_y + 4);
-              su->moves = UNITS_MP_PER_TILE;
-            }
-          }
         }
       }
     }
@@ -931,9 +896,6 @@ void ai_euro_colony_inventory(ColonizeTurnContext* ctx, int nation_id) {
     }
     if (c->stock[COLONIZE_CARGO_FOOD] < c->population * 2) {
       inv->food_short += (c->population * 2) - c->stock[COLONIZE_CARGO_FOOD];
-    }
-    if (!ai_euro_ship_dos_enabled()) {
-      ai_euro_5952_colony_counters(ctx, nation_id, c);
     }
     /*
      * The 11-cargo "surplus haul ladder" that used to refresh +0x8d here was

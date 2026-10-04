@@ -168,48 +168,6 @@ int ai_euro_ocean_3558_first_leg_tip(
   int* out_x,
   int* out_y
 );
-int ai_euro_ocean_3558_empty_cruise_tip(
-  const ColonizeWorldMap* map,
-  int found_x,
-  int found_y,
-  int* out_x,
-  int* out_y
-);
-int ai_euro_06ae_first_colony_from_landfall(
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  const ColonizeUnitPool* units,
-  int nation_id,
-  int landfall_x,
-  int landfall_y,
-  int* out_x,
-  int* out_y
-);
-int ai_euro_recover_landfall_from_ship(
-  int ship_x,
-  int ship_y,
-  int* out_x,
-  int* out_y
-);
-int ai_euro_land_adjacent_to(
-  const ColonizeWorldMap* map,
-  int wx,
-  int wy,
-  int* out_x,
-  int* out_y
-);
-int ai_euro_ship_has_land_adjacent(const ColonizeWorldMap* map, int sx, int sy);
-int ai_euro_pick_unload_land(
-  ColonizeTurnContext* ctx,
-  ColonizeUnit* ship,
-  int pax_id,
-  int prefer_x,
-  int prefer_y,
-  int avoid_x,
-  int avoid_y,
-  int* out_x,
-  int* out_y
-);
 int ai_euro_unload_pax_at(
   ColonizeTurnContext* ctx,
   ColonizeUnit* ship,
@@ -222,7 +180,6 @@ int ai_euro_unload_pax_at(
 );
 ColonizeUnitKind ai_euro_unit_kind(const ColonizeUnitPool* pool, const ColonizeUnit* u);
 int ai_euro_name_is_pioneer(ColonizeUnitKind kind);
-int ai_euro_name_is_soldier(ColonizeUnitKind kind);
 int ai_euro_coastal_staging_from_landfall(
   const ColonizeWorldMap* map,
   int landfall_x,
@@ -231,11 +188,6 @@ int ai_euro_coastal_staging_from_landfall(
   int* out_y
 );
 int ai_euro_foreign_unit_at(const ColonizeTurnContext* ctx, const ColonizeUnit* u, int x, int y);
-int ai_euro_try_post_found_coast_cruise(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  ColonizeUnit* u
-);
 typedef struct AiEuroShipPressure {
   uint8_t frigate_colonies; /* DS:0xa89b */
   uint8_t other_colonies;   /* DS:0xa89a */
@@ -264,17 +216,6 @@ int ai_euro_is_land_war_hunter(ColonizeUnitKind kind);
 int ai_euro_is_artillery_name(ColonizeUnitKind kind);
 int ai_euro_land_is_fortified(const ColonizeUnit* u);
 int ai_euro_land_is_passive_orders(const ColonizeUnit* u);
-int ai_euro_pick_founding_tile(
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  const ColonizeCol1Save* col1,
-  const ColonizeUnitPool* units,
-  int nation_id,
-  int x,
-  int y,
-  int* out_x,
-  int* out_y
-);
 int ai_euro_is_treasure_name(ColonizeUnitKind kind);
 int ai_euro_europe_sail_target(
   ColonizeTurnContext* ctx,
@@ -441,7 +382,6 @@ int ai_euro_20e6_wander_step(
   ColonizeTurnContext* ctx, ColonizeUnit* u, Ai20e6Unit* s, int* out_attack, int* out_saw_foe
 );
 int ai_euro_20e6_ship_far_roam(ColonizeTurnContext* ctx, ColonizeUnit* u, const Ai20e6Unit* s);
-int ai_euro_20e6_ship_wander_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id, int busy);
 int ai_euro_20e6_treasure_cash_in(
   ColonizeTurnContext* ctx,
   ColonizeUnit* u,
@@ -543,42 +483,13 @@ int ai_euro_20e6_colony_sail_pick(
   ColonizeTurnContext* ctx, const ColonizeUnit* ship, int nation, int mil, int pioneers_b4,
   int urgency, int* out_x, int* out_y
 );
-void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, int nation_id);
-int ai_euro_nation_settler_aboard(ColonizeTurnContext* ctx, int nation_id);
-int ai_euro_nation_pioneer_aboard(ColonizeTurnContext* ctx, int nation_id);
-int ai_euro_recover_nation_landfall(
-  ColonizeTurnContext* ctx, int nation_id, int* lf_x, int* lf_y
-);
-int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 int ai_euro_land_engage_adjacent(
   ColonizeTurnContext* ctx,
   ColonizeUnit* u,
   int* hunted
 );
-void ai_euro_settlers_ashore(
-  const ColonizeTurnContext* ctx,
-  int nation_id,
-  int* out_pioneer,
-  int* out_soldier,
-  int* lf_x,
-  int* lf_y
-);
-void ai_euro_first_colony_ship_course(
-  ColonizeTurnContext* ctx,
-  ColonizeUnit* u,
-  int nation_id,
-  int fx,
-  int fy,
-  int pioneer_aboard,
-  int any_cargo,
-  int pioneer_ashore,
-  int soldier_ashore
-);
 int ai_euro_5952_equip_pick(const ColonizeColony* c, int target);
-AiEuroActStatus ai_euro_act_pioneer_corridor(struct ai_euro_act_ctx* a);
-void ai_euro_act_ship(struct ai_euro_act_ctx* a);
 void ai_euro_act_land(struct ai_euro_act_ctx* a);
-int ai_euro_ship_dos_enabled(void);
 void ai_euro_act_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u);
 
@@ -598,9 +509,6 @@ void ai_euro_colony_goals_foreign_colonies(
   ColonizeTurnContext* ctx, int nation_id, AiEuroInventory* inv
 );
 void ai_euro_colony_goals_producers(
-  ColonizeTurnContext* ctx, int nation_id, AiEuroInventory* inv, int urgency
-);
-void ai_euro_colony_goals_ship_found(
   ColonizeTurnContext* ctx, int nation_id, AiEuroInventory* inv, int urgency
 );
 /* ai_euro_colony_goals_bind_founders retired 2026-09-23 — bugs.md #707. */
@@ -659,18 +567,12 @@ COLONIZE_INTERNAL void ai_euro_5952_lumber_purchase(
   struct EuropeScreen* eu, struct ColonizeCol1Save* col1, ColonizeColony* col, int turn,
   bool lumber_producer_placed
 );
-AiEuroActStatus ai_euro_act_pioneer_corridor(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_ship_europe_exit(struct ai_euro_act_ctx* a);
-AiEuroActStatus ai_euro_act_ship_first_colony_course(struct ai_euro_act_ctx* a);
-AiEuroActStatus ai_euro_act_ship_war_trade(struct ai_euro_act_ctx* a);
-AiEuroActStatus ai_euro_act_ship_sail(struct ai_euro_act_ctx* a);
-AiEuroActStatus ai_euro_act_ship_arrival(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_treasure(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_act_ctx* a);
-void ai_euro_act_ship(struct ai_euro_act_ctx* a);
 void ai_euro_act_land(struct ai_euro_act_ctx* a);
 #endif /* COLONIZE_TESTING */
 

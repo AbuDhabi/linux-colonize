@@ -415,8 +415,7 @@ greenfield redesign or a mandated `game_loop` rewrite phase.
   that started 2026-08-19 ended 2026-09-05 (port_plan T1.23 / T3.3).
   `golden_ai_joint` is a **build-only convenience target** that re-runs the
   AI gates in one shot (`cmake --build build/debug --target golden_ai_joint`):
-  `golden_mapgen_seed100`, `golden_ai_turns` (plus its five `AI_SHIP_DOS=1`
-  TURN2→3 … TURN6→7 single-case replays, bugs.md #530), the three
+  `golden_mapgen_seed100`, `golden_ai_turns`, the three
   `unit_ai_contact_*` slices, `unit_ai_diplo`, `smoke_ai_mid01` and
   `smoke_ai_late01`. It has no `add_test()` registration, because every gate it
   runs is already its own ctest test (duplication audit TT-14).

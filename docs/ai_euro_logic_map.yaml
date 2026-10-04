@@ -142,6 +142,11 @@ graphs:
         dos: FUN_521d_0a60 entry memset(0xa13c,0,16); housekeeping clears act_state 1/2/3 at :87560
         status: structural
         note: Sticky-unit counter, deferred-found, unloaded-this-turn, 0a60 pilot state, per-continent explorer count; wagon-errand / explore-fatigue / ring-hop latches of dead unit ids.
+      - id: colony_tick
+        kind: sub
+        label: Colony tick — colonist re-placement (FUN_5952_035e)
+        sub: colony_tick
+        fn: ai_euro_colony_jobs.c:ai_euro_colony_tick_28c8_reassign
       - id: inventory
         kind: call
         label: Colony inventory — shortage tallies
@@ -193,19 +198,13 @@ graphs:
         fn: ai_euro.c:ai_euro_dispatcher_turn
         dos: 6d8e steps 6–7, raw 93237-93325
         status: structural
-        note: "DOS shape ported 2026-09-15 (was ships-first, one act per unit per pass — a mislabelled type constant in the annotated header). Wave 0 = types 0x0a/0x0b/0x0c (bVar4), wave 1 = every unit; each wave scans ids high→low, takes the first unit with MP, acts it until MP==0, then leaves; the outer loop restarts from the top and returns when wave 1 found nobody. Port-only: a no-progress act marks the unit exhausted for the scan (DOS re-acts until the >0x14 sticky clear) and the guard<64 ceiling stays. AI_6D8E_DOS_LOOP=0 = legacy shape (bisect aid). Refit needed for the DOS order: SP soldier first-colony eligibility (both landed, ship still at the tip)."
+        note: "DOS shape ported 2026-09-15 (was ships-first, one act per unit per pass — a mislabelled type constant in the annotated header). Wave 0 = types 0x0a/0x0b/0x0c (bVar4), wave 1 = every unit; each wave scans ids high→low, takes the first unit with MP, acts it until MP==0, then leaves; the outer loop restarts from the top and returns when wave 1 found nobody. Port-only: a no-progress act marks the unit exhausted for the scan (DOS re-acts until the >0x14 sticky clear) and the guard<64 ceiling stays."
       - id: skip
         kind: decision
         label: Skip? (inactive / other nation / aboard ship / land in wave 0)
       - id: no_mp
         kind: decision
         label: moves <= 0?
-      - id: wake_elig
-        kind: decision
-        label: First-colony wake eligible? (no colonies yet, land Pioneer/Soldier)
-        fn: ai_euro.c:ai_euro_dispatcher_turn_unit_waves
-        status: golden
-        note: "FITTED-NOT-DOS (bugs.md #1035): DOS has only the has-MP gate. Holds up golden TURN3->4; the finer found-approach wake rules were golden-dead and deleted 2026-10-02."
       - id: sticky
         kind: decision
         label: Same unit acted > 0x14 times in a row?
@@ -232,16 +231,12 @@ graphs:
         dos: raw 93286-93298 (thunk_FUN_2a1f_0470(nation, x, y, 2, prio))
         status: dos
         note: "Ported 2026-09-15 as AI_GOAL_ESCORT (replaced the invented ship→CONTACT arm). Consumers per DS:0x523d bit 2 (k_20e6_type_flags 0x1c/0x3c/0x64): Soldiers, Dragoons, Regulars, Continentals, Cavalry, Scouts — no ship type. Consumption: 0a60 tail capability match → goto to the tile (drains MP like CONTACT); nothing special on arrival yet."
-      - id: colony_tick
-        kind: sub
-        label: Colony tick — colonist re-placement (FUN_5952_035e)
-        sub: colony_tick
-        fn: ai_euro_colony_jobs.c:ai_euro_colony_tick_28c8_reassign
       - id: end
         kind: end
         label: return
     edges:
-      - [reset, inventory]
+      - [reset, colony_tick]
+      - [colony_tick, inventory]
       - [inventory, treaty_timers]
       - [treaty_timers, planning]
       - [planning, promote]
@@ -254,10 +249,8 @@ graphs:
       - [unit_loop, skip]
       - [skip, unit_loop, "yes: next unit"]
       - [skip, no_mp, "no"]
-      - [no_mp, wake_elig, "yes"]
+      - [no_mp, unit_loop, "yes: next unit"]
       - [no_mp, sticky, "no"]
-      - [wake_elig, sticky, "yes"]
-      - [wake_elig, unit_loop, "no: next unit"]
       - [sticky, unit_loop, "yes: clear orders"]
       - [sticky, act, "no"]
       - [act, progressed]
@@ -265,8 +258,7 @@ graphs:
       - [progressed, ship_contact, "no"]
       - [encounter, ship_contact]
       - [ship_contact, unit_loop, "next unit"]
-      - [unit_loop, colony_tick, "no unit acted or guard==64"]
-      - [colony_tick, end]
+      - [unit_loop, end, "no unit acted or guard==64"]
 
   # ---------------------------------------------------------------------
   - id: planning_5d04
@@ -483,13 +475,6 @@ graphs:
         dos: 0a60 raw 983-1276 (viceroy ~87795-88052)
         status: dos
         note: "2026-10-02 (bugs.md #1034(c)): the port-only passes around this node are deleted — food emergency (food_short>=4 LABOR bind, manual cite), F tribe seeds (tribe-adjacent FOUND prio 2, friction>50 MILITARY, fandom capital prio 5) and the G continent-stance ladder (MILITARY 6/7/8, FOUND bump, idle explore); none had a DOS body and gating each off moved no golden. The thin stance refresh (ai_euro_refresh_continent_stance) still runs here because its nibbles are read elsewhere. Fair-play gates difficulty×turn < 0xb5 / 0xc9; outmatched (fewer colonies + owner has ≥8 skilled) vs absent; open-sea staging tile scan ±3; priority ladder (human owner, colony tally, MET-not-PEACE, turn<0x96); weak-defender cancel (defenders ≤ 6 − turn/50). Village loop: CONTACT lurk ring, FOUND beachhead on colony-free continents (0x173c/0x173e masks)."
-      - id: ship_found
-        kind: step
-        label: "Ship FOUND — colonies==0 only: 06ae landfall seed from each ship at sea → FOUND primary (fitted, bugs.md #530)"
-        fn: ai_euro.c:ai_euro_06ae_first_colony_from_landfall
-        dos: FUN_521d_06ae site pick (20e6 unload placement 89587 / landing ~85045)
-        status: structural
-        note: "2026-09-27, bugs.md #530 S6: the second-wave arm (1<=colonies<6, prio-4 FOUND from a live ai_euro_pick_founding_tile on the ship tile) is deleted — an invented producer with no FUN_/raw cite, already off wholesale under AI_SHIP_DOS=1, and disabling it moved no expectation (golden_ai_turns 6/6, ctest 95/95). What remains is the colonies==0 arm only, which is measurably load-bearing: it alone supplies the Dutch (49,14), French (50,37) and Spanish (45,52) first-colony sites at golden TURN3->4 / TURN5->6, and the AI_SHIP_DOS hull path does not supply them either. Its two inputs are both still fixture fit (the 3-entry seed-100 ship->landfall table, and 06ae's fitted latitude-band offset triple). Section H used to follow this node: `ai_euro_colony_goals_bind_founders`, an uncited loop that stamped an AI_MOVE goto at ai_goals_best_found_tile_near on every idle on-map Pioneer/Colonist. Deleted 2026-09-23, bugs.md #707 — DOS binds a unit to a goal only in FUN_521d_0a60's consumption tail (+0x314c = 0x0b, +0x314d/e), and FOUND eligibility there needs unit+0x3148 bit 2, granted (raw 87511-87514 via 8aac/0d38 case 3) only from a Pioneer or a military unit in the unit's own stack, so a lone Colonist never takes a FOUND goal. The DOS type-0 arms are the FUN_521d_20e6 labor arm, the explore ring and the become-a-Pioneer fall-through (raw 89350-89357), all in the move_scoring_gate graph."
       - id: end
         kind: end
         label: return
@@ -509,8 +494,7 @@ graphs:
       - [d_garrison, sec_d, "next colony"]
       - [sec_d, sec_e, "done"]
       - [sec_e, producers]
-      - [producers, ship_found]
-      - [ship_found, end]
+      - [producers, end]
 
   # ---------------------------------------------------------------------
   - id: goal_orders
@@ -584,13 +568,6 @@ graphs:
         kind: decision
         label: Unit inactive or aboard a ship?
         fn: ai_euro.c:ai_euro_unit_act
-      - id: first_colony
-        kind: call
-        label: First-colony land beachhead (no colonies yet — Pioneer/Soldier found walk / sentry / found)
-        fn: ai_euro_ship.c:ai_euro_try_first_colony_land
-        dos: 06ae site pick + 20e6 landing block; geometry fitted to TURN2–5 goldens
-        status: golden
-        note: Wakes sentry units; SP/FR/DU staging tips hard-coded from goldens (e.g. landfall 53,56).
       - id: no_mp
         kind: decision
         label: moves <= 0?
@@ -617,11 +594,17 @@ graphs:
         fn: ai_king_war.c:ai_king_mow_sail_home_20e6
         dos: 20e6 ship-band tail raw 89717-89720 + FUN_48d3_015e
         status: dos
+      - id: ship
+        kind: step
+        label: "Ship -> ai_euro_act_ship_dos (5b66 + 20e6 hull path: LAB_3558 unload mask, colony-sail pick, delivery/4393 haul, 457e, LAB_4d2e scorer, then 479b_0972 goal walk); return"
+        fn: ai_euro_act.c:ai_euro_act_ship_dos
+        dos: FUN_521d_5b66 + FUN_521d_20e6 hull path
+        status: dos
       - id: gate_q
         kind: decision
         label: "Not on a goto OR at a full MP allotment, not mid Pioneer job, and type not deferred (Treasure/Missionary/Wagon/cargo ship)?"
         dos: raw 90551 — `+0x3149 == 0 || +0x314c != 0x0b` (no MP spent yet, or not on a goto)
-        note: "The full-allotment term was added 2026-09-18 (bugs.md #493): without it a unit that ever got an AI_MOVE goto never re-entered 20e6. Audited 2026-09-28: DOS applies the MP-spent half of the test ONLY to act_state 0x0b — every other state makes `+0x314c != 0x0b` true and re-runs 20e6 regardless of MP. The port keys it on `units_orders_follow_goto`, which also covers GOTO (3), AI_MOVE (0x0c) and TRADE_ROUTE, so those are gated where DOS would not gate them. Inert today: AI units are never given GOTO, and 0x0c is written only inside the AI_SHIP_DOS path, which has its own gate. Becomes live if AI_SHIP_DOS is defaulted on or a goto-carrying wagon reaches this head."
+        note: "The full-allotment term was added 2026-09-18 (bugs.md #493): without it a unit that ever got an AI_MOVE goto never re-entered 20e6. Audited 2026-09-28: DOS applies the MP-spent half of the test ONLY to act_state 0x0b — every other state makes `+0x314c != 0x0b` true and re-runs 20e6 regardless of MP. The port keys it on `units_orders_follow_goto`, which also covers GOTO (3), AI_MOVE (0x0c) and TRADE_ROUTE, so those are gated where DOS would not gate them. Inert today: AI units are never given GOTO, and 0x0c is written only by the DOS paths (ship act, goal walk), which have their own gates. Becomes live if a goto-carrying wagon reaches this head."
       - id: gate
         kind: sub
         label: Move-scoring gate (FUN_521d_20e6 land)
@@ -630,18 +613,12 @@ graphs:
       - id: gate_ret
         kind: decision
         label: Gate returned nonzero (act aborted)?
-      - id: corridors
+      - id: land_walk
         kind: step
-        label: First-colony staging corridor (Pioneer found+1 → SW coast)
-        status: golden
-        note: "FITTED-NOT-DOS (bugs.md #1035): gated off 2026-10-02 it fails golden_ai_turns TURN4→5/TURN5→6. The Soldier SE+1→SE+3 corridor was dead under the same test and is deleted (ai_euro_act_soldier_staging is an empty stage until its ai_euro.c call goes). The FUN_5952_035e absorb+equip pair used to run here on the town tile; RE-HOSTED 2026-09-18 into the colony tick (node d_absorb), which is where DOS runs it. A DOS unit act does nothing extra for an AI unit standing on its own colony — 20e6 move scoring and the 0a60 goal consumption are the whole of it."
-      - id: is_ship
-        kind: decision
-        label: Ship?
-      - id: ship_band
-        kind: sub
-        label: Ship band
-        sub: ship_band
+        label: "Non-deferred land type (not Treasure/Missionary/Wagon): act_state 0x0b/0x0c -> goal walk, else moves = 0"
+        fn: ai_euro.c:ai_euro_goal_walk_479b
+        dos: FUN_521d_5b66 case 0x0b/0x0c -> FUN_479b_0972
+        status: dos
       - id: land_band
         kind: sub
         label: Land band
@@ -651,127 +628,24 @@ graphs:
         label: return
     edges:
       - [guard, end, "yes"]
-      - [guard, first_colony, "no"]
-      - [first_colony, end, "handled"]
-      - [first_colony, no_mp, "not handled"]
+      - [guard, no_mp, "no"]
       - [no_mp, end, "yes"]
       - [no_mp, notify, "no"]
       - [notify, roam_abort]
       - [roam_abort, mow_home]
       - [mow_home, end, "sailed"]
-      - [mow_home, gate_q, "no"]
+      - [mow_home, ship, "no"]
+      - [ship, end, "ship"]
+      - [ship, gate_q, "land"]
       - [gate_q, gate, "yes"]
-      - [gate_q, corridors, "no"]
+      - [gate_q, land_walk, "no"]
       - [gate, gate_ret]
       - [gate_ret, end, "yes"]
-      - [gate_ret, corridors, "no"]
-      - [corridors, is_ship]
-      - [is_ship, ship_band, "yes"]
-      - [is_ship, land_band, "no"]
-      - [ship_band, end]
+      - [gate_ret, land_walk, "no"]
+      - [land_walk, end, "walked / MP zeroed"]
+      - [land_walk, land_band, "deferred type"]
       - [land_band, end]
 
-  # ---------------------------------------------------------------------
-  - id: ship_band
-    title: Ship band — unit_act is_ship branch (5b66 case 0x0b sail + 20e6 ship band)
-    entry: in_europe
-    nodes:
-      - id: in_europe
-        kind: decision
-        label: Ship in Europe?
-        fn: ai_euro.c:ai_euro_in_europe
-      - id: exit_europe
-        kind: step
-        label: Europe → map — spiral-place on High Seas near landfall goto; first leg = scored ocean steps; then goto = home coastal colony water (established nation) else west-explore (4,13)
-        fn: ai_euro.c:ai_euro_resolve_landfall_goto
-        dos: FUN_48d3_048e/0434; LAB_521d_3558 ocean scorer
-        status: structural
-      - id: retarget
-        kind: step
-        label: Post-west-explore retarget to coastal staging by passenger landfall; post-found coast retarget
-        fn: ai_euro.c:ai_euro_coastal_staging_from_landfall
-        status: golden
-        note: TURN2–5 goldens (ship XY = staging tip; FR lands near 52,43).
-      - id: cross_europe
-        kind: step
-        label: "Map → Europe crossing — a hull carrying the +0x314b = 0x45 Europe course that stands on High Seas enters the Europe park. DOS does this in the shared goto-step mover for any AI hull that ends its goto on High Seas, not in an AI arm; the port runs it at the head of the hull's next act. The hull parks on the eastbound lane 244+n with the 1-2 turn FUN_48d3_0002 roll; the nation's 06ba lane tick walks it 244 → 240 → dock, and a docked hull departs onto 232+n (0346) and is placed from 224+n"
-        fn: ai_euro_ship.c:ai_euro_ship_enter_europe
-        dos: FUN_479b_076e (77095-77107) → FUN_291f_0208 → FUN_48d3_007a; FUN_48d3_0346; FUN_48d3_06ba → 03d0
-        status: structural
-        note: "bugs.md #1056: crossings used to be instant both ways."
-      - id: dock_demand
-        kind: decision
-        label: "Sail home? Empty hull, no qualifying hold cargo, not goal-tasked, hull-type gate, and DS:0x945a[n] (own land units waiting on the Europe dock) > DS:0x9456[n] (own hulls already heading home) → LAB_3fa6 sets the Europe course. This is what keeps an AI nation's Europe dock queue moving; cargo-independent and tested every act"
-        fn: ai_euro_land.c:ai_euro_20e6_europe_dock_demand
-        dos: FUN_521d_20e6 raw 89725-89728 → LAB_521d_3fa6 → FUN_48d3_015e (77636-77728)
-        status: dos
-        note: "bugs.md #954. Before 2026-09-26 the port had only the 1-in-32 LAB_521d_457e cadence and the Man-O-War REF arm, and kept no 0x945a/0x9456 state, so a nation whose dock queue was growing had no signal to fetch it."
-      - id: useful_goto
-        kind: decision
-        label: Useful sail goto already set?
-        fn: ai_euro_expand.c:ai_euro_has_useful_goto
-        note: "No war test here: DOS 20e6 reaches LAB_521d_3558 (raw 89381) on hull type and own-colony distance alone. The port's at-war skip outlived the naval war hunt it paired with and froze every laden hull of a nation at war (bugs.md #1036, deleted 2026-10-02)."
-      - id: peace_haul
-        kind: step
-        label: Post-found coast cruise, else trade haul (arrival block / delivery matrix / queue)
-        fn: ai_euro.c:ai_euro_try_post_found_coast_cruise
-        status: structural
-      - id: haul
-        kind: sub
-        label: Ship arrival + trade haul (20e6 ship band)
-        sub: ship_haul
-        fn: ai_euro_ship.c:ai_euro_try_ship_trade_haul
-      - id: reassert
-        kind: step
-        label: Re-assert first-colony ship course (post-beachhead only)
-        fn: ai_euro_ship.c:ai_euro_first_colony_ship_course
-        status: golden
-      - id: sail
-        kind: loop
-        label: "Idle hull (or busy with a foreign unit adjacent, raw 90210) → 20e6 ship wander: far-roam latch (raw 88632), LAB_4d2e 8-dir scorer with the ship arms (open-sea step, fort×holds term, west lean, LAB_52aa odds attack); then AI_SAIL goto: FUN_479b_0972 pathfinder step until MP 0 / arrival (greedy score_move first-step deleted 2026-10-02, bugs.md #1037)"
-        fn: ai_euro_goals.c:ai_euro_ocean_score_step
-        dos: LAB_521d_3558 ocean branch
-        status: structural
-      - id: unload
-        kind: sub
-        label: Settle unload (passengers → landfall / FOUND)
-        sub: unload_settle
-        fn: ai_euro_ship.c:ai_euro_unload_settle
-      - id: tips
-        kind: step
-        label: First-colony hold / cruise tip MP drain
-        status: golden
-        note: "TURN2/TURN5 goldens. The (45,52) want-west step is FITTED-NOT-DOS (bugs.md #1035, fails TURN4→5 when gated). The post-found x+2,y+6 park (AI_MOVE@self) was dead when gated and is deleted 2026-10-02."
-      - id: ambush
-        kind: step
-        label: Ship-slow — every ship step next to a foreign warship / Fort / Fortress may lose MP (inside units_try_move)
-        fn: units_combat_resolve.c:units_ship_slow_scan_w
-        dos: FUN_5bfb_3180 naval half (98519-98624)
-        status: dos
-      - id: end
-        kind: end
-        label: return
-    edges:
-      - [in_europe, exit_europe, "yes"]
-      - [in_europe, cross_europe, "no"]
-      - [cross_europe, retarget, "not Europe-bound on High Seas"]
-      - [exit_europe, dock_demand]
-      - [retarget, dock_demand]
-      - [dock_demand, cross_europe, "yes, and already on High Seas"]
-      - [dock_demand, useful_goto, "no, or course only set"]
-      - [useful_goto, peace_haul, "no"]
-      - [useful_goto, reassert, "yes"]
-      - [peace_haul, haul, "no coast cruise"]
-      - [haul, reassert]
-      - [peace_haul, reassert, "cruise set"]
-      - [reassert, sail]
-      - [sail, unload, "not the Europe-exit act"]
-      - [sail, tips, "Europe-exit act"]
-      - [unload, tips]
-      - [tips, ambush]
-      - [ambush, end]
-
-  # ---------------------------------------------------------------------
   - id: ship_haul
     title: Ship arrival + haul — 20e6 ship band at an own colony (md:1691, md:2044-2168, md:2991-3138, LAB_4393, LAB_457e)
     entry: cap_gate
@@ -878,61 +752,6 @@ graphs:
       - [cadence, end]
 
   # ---------------------------------------------------------------------
-  - id: unload_settle
-    title: Settle unload — ai_euro_unload_settle (20e6 LAB_3558 unload mask + landfall)
-    entry: no_colony
-    nodes:
-      - id: no_colony
-        kind: decision
-        label: Nation has no colony yet?
-        fn: ai_euro_ship.c:ai_euro_unload_settle
-      - id: beachhead
-        kind: step
-        label: Beachhead choreography — found-approach with pioneer aboard, empty-transport cruise, staging tip unload-all
-        fn: ai_euro_ship.c:ai_euro_unload_settle_first_landfall
-        status: golden
-        note: Dist ≤1 / staging tests keyed on 06ae found tile; TURN2–4 goldens.
-      - id: mask
-        kind: step
-        label: Per-cargo unload mask (0x40/0x20/0x10/0xffff bits) → unload by mask
-        fn: ai_euro_ship.c:ai_euro_20e6_unload_mask
-        dos: LAB_3558 raw ~1746-1762 goal fold + mask
-        status: dos
-        note: Runs transport_assemble first (the 0x3609 anchor). Civilian→founder promotion via goal fold.
-      - id: pick_pax
-        kind: step
-        label: Pick best passenger (Pioneer > Colonist; Treasure stays aboard)
-        status: structural
-      - id: site
-        kind: step
-        label: Site — nearest primary FOUND on this landmass, else pick_founding_tile, else landfall tile
-        fn: ai_goals.c:ai_goals_best_found_tile_near
-        dos: FUN_521d_06ae / 052c
-        status: structural
-      - id: unload_pax
-        kind: step
-        label: Unload passenger (adjacent landfall fallback)
-        fn: ai_euro.c:ai_euro_unload_pax_at
-      - id: goto_site
-        kind: step
-        label: AI_MOVE the unloaded passenger to the chosen landfall/staging dest
-        fn: ai_euro.c:ai_euro_set_goto
-        status: dos
-        note: "bugs.md #969 (2026-09-28): the `second_wave` decision that sat here (under 6 colonies and pax can found here? -> ai_euro_found_with_unit) was deleted as invented. FUN_521d_20e6's unload/settle section (LAB_3558, md:3400-3419 / md:4230-4260) promotes a civilian to a founder BEFORE unloading, to decide whether the unit is unloaded at all; it has no colony-count gate, no found-on-the-spot arm driven by the just-unloaded passenger, and nothing in the body compares a nation colony count against 6. Same producer bugs.md #530 S6 removed from the goal writer on 2026-09-27, surviving at a second call site. ctest 95/95 + golden 98/98 unchanged without it." 
-      - id: end
-        kind: end
-        label: return
-    edges:
-      - [no_colony, beachhead, "yes"]
-      - [no_colony, mask, "no"]
-      - [beachhead, end]
-      - [mask, pick_pax]
-      - [pick_pax, site]
-      - [site, unload_pax]
-      - [unload_pax, goto_site]
-      - [goto_site, end]
-
-  # ---------------------------------------------------------------------
   - id: land_band
     title: Land band — unit_act land branch (5b66 case 0x0b + act-level arms)
     entry: bind
@@ -994,6 +813,7 @@ graphs:
         fn: ai_euro_expand.c:ai_euro_found_with_unit
         dos: 5b66 case 7 FOUND
         status: dos
+        note: "One FITTED arm remains (bugs.md #971): Pioneer on (fx,fy+1) re-aimed to (fx-3,fy+3) after the first colony; load-bearing for golden TURN4->5."
       - id: found_near
         kind: decision
         label: No goal, founder type, best FOUND tile adjacent?
@@ -1274,7 +1094,7 @@ graphs:
         fn: ai_euro_colony_jobs.c:ai_euro_colony_tick_28c8_reassign
         dos: FUN_5952_035e via 2a1f_0530 → 521d_5cf6 → 2a1f_05a8 — raw 93119, inside the PRELUDE colony loop
         status: dos
-        note: "ORDER DIVERGES: DOS runs the tick per colony in the 6d8e prelude (before 5d04 / 0342 / 0a60 and before any unit acts), so planning reads post-tick colony state. The port runs it last on purpose (w31-28c8 2026-08-29: the OpenCol expert field-assign arm needed a free tile first; that arm was deleted 2026-09-18 as invented, the position note is kept for the remaining ordering divergence). Body is DOS; position is OpenCol."
+        note: "Runs first in ai_euro_dispatcher_turn (before planning / 0342 / 0a60 / any unit act), matching the DOS 6d8e prelude. The trailing 28c8_reassign call and the planning-time 5952 build-cascade loop are gone."
       - id: pioneer
         kind: loop
         label: Pioneer supply / road-connect / tile-improve trio — FUN_5952_035e raw 94370-94551

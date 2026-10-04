@@ -157,14 +157,6 @@ int ai_goals_best_found_tile(int nation_id, int* out_x, int* out_y);
  * that has a foundable land neighbour -- the map-agnostic landing target for a
  * loaded transport with no landfall of its own. Ties break westward.
  */
-int ai_goals_nearest_landing_water_w(
-  const ColonizeWorld* w,
-  int from_x,
-  int from_y,
-  int max_radius,
-  int* out_x,
-  int* out_y
-);
 /* Same, but tie-broken by distance from (from_x, from_y) and preferring
  * the landmass that point sits on. Pass from_x < 0 for the plain scan. */
 int ai_goals_best_found_tile_near(
@@ -409,13 +401,5 @@ int ai_goals_pick_founding_tile_ex_w(
 /*
  * FUN_521d_06ae with score_extras=1, artillery_filter=0 (0a60 FOUND writer default).
  */
-int ai_goals_pick_founding_tile_w(
-  const ColonizeWorld* w,
-  int nation_id,
-  int x,
-  int y,
-  int* out_x,
-  int* out_y
-);
 
 #endif

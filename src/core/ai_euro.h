@@ -35,7 +35,7 @@ void ai_euro_europe_lane_tick(ColonizeTurnContext* ctx, int nation_id);
  * original_sources_annotated/turn/colonist_work_plot_28c8.md, for scope and
  * fidelity notes. The structural entry point scores with plain (non-expert)
  * tile yields so tests/unit/test_ai_euro_28c8_job_score.c stays
- * hand-auditable; the live AI colony tick (ai_euro_colony_tick_28c8_reassign,
+ * hand-auditable; the live AI colony tick (ai_euro_colony_tick_5952,
  * W3.1 2026-08-29, DOS FUN_5952_035e) uses the same scorer with the
  * colonist's real profession.
  */

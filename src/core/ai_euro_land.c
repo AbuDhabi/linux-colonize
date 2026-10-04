@@ -2194,7 +2194,7 @@ int ai_euro_20e6_wander_step(
     if (fog_enable) {
       const int fx = u->x + MAP_DIR8_DX[d] * 4;
       const int fy = u->y + MAP_DIR8_DY[d] * 4;
-      if (s->is_ship && ai_euro_ship_dos_enabled()) {
+      if (s->is_ship) {
         /* raw 88837-88840: the real DS:0x9faa coarse plane, restamped with
          * this nation's units and colonies at its 0a60 entry. */
         if (map_coords_inset(ctx->map, fx, fy) && !map_tile_is_water(ctx->map, fx, fy) &&
@@ -2391,66 +2391,6 @@ int ai_euro_20e6_ship_far_roam(ColonizeTurnContext* ctx, ColonizeUnit* u, const 
     *flags &= (uint8_t)~0x10u;
   }
   return 0;
-}
-
-/*
- * Ship entry into the 20e6 wander scorer (raw 90210-90219 → LAB_4d2e). An
- * idle hull (act state 0 / 5 / 6 / 0xa, or a step goto onto its own tile)
- * always scores; a busy one only when FUN_281f_0984 finds a foreign unit
- * adjacent, and then the port keeps its course unless the pick is an attack
- * (a wander step would otherwise overwrite a delivery goto the port has no
- * goal record to rebuild from). An attack pick resolves at once through
- * ai_euro_try_attack (LAB_589e's step into a foe tile); a water pick becomes
- * a one-tile AI_SAIL goto for the sail loop below. Returns 1 when the act
- * committed something.
- */
-int ai_euro_20e6_ship_wander_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id, int busy) {
-  if (!ctx || !ctx->map || !u || !u->active || u->id < 0 || u->id >= COLONIZE_UNITS_MAX) {
-    return 0;
-  }
-  Ai20e6Unit s;
-  ai_euro_20e6_prologue(ctx, u, nation_id, &s);
-  if (!s.is_ship) {
-    return 0;
-  }
-  if (!busy && ai_euro_20e6_ship_far_roam(ctx, u, &s)) {
-    return 1;
-  }
-  const int dir = ai_euro_20e6_wander_step(ctx, u, &s, NULL, NULL);
-  if (getenv("AI_SHIP_TRACE")) {
-    fprintf(stderr, "[ship] unit %d wander dir %d busy %d at (%d,%d)\n", u->id, dir, busy, u->x, u->y);
-  }
-  if (dir < 0 || dir > 7) {
-    if (!busy) {
-      u->last_dir = 8; /* unit+0x314f, 8 = stay */
-    }
-    return 0;
-  }
-  const int nx = u->x + MAP_DIR8_DX[dir];
-  const int ny = u->y + MAP_DIR8_DY[dir];
-  const int foe = units_id_at(ctx->units, nx, ny);
-  if (foe >= 0) {
-    const ColonizeUnit* f = units_get_const(ctx->units, foe);
-    if (!f || f->nation_id == nation_id) {
-      return 0;
-    }
-    u->last_dir = dir;
-    if (getenv("AI_SHIP_TRACE")) {
-      fprintf(stderr, "[ship] unit %d wander attack (%d,%d)\n", u->id, nx, ny);
-    }
-    ai_euro_try_attack(ctx, u, nx, ny);
-    return 1;
-  }
-  if (busy) {
-    return 0;
-  }
-  u->last_dir = dir;
-  if (getenv("AI_SHIP_TRACE")) {
-    fprintf(stderr, "[ship] unit %d wander step (%d,%d)\n", u->id, nx, ny);
-  }
-  ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, nx, ny);
-  ai_euro_s_euro_roam_wander[u->id] = 1; /* unit+0x314c==5 idle-roam */
-  return 1;
 }
 
 /* Returns non-zero to abort act (DOS 20e6 non-zero return). */
@@ -2877,9 +2817,7 @@ int ai_euro_20e6_wagon_origin_walk(
  * the 4393 work-queue haul (ai_euro_try_ship_trade_haul) declines, which is
  * where LAB_457e sits in the raw flow, and behind the same
  * `!at_war && !ship_has_useful_goto` chain guard as its
- * neighbours. The golden-pinned SW coastal cruise
- * (ai_euro_try_post_found_coast_cruise) still runs first, so it keeps
- * ownership of the TURN4→7 beachhead transports; the cadence never fires on
+ * neighbours. The cadence never fires on
  * any golden fixture (AI_20E6_HS_TRACE over golden_ai_turns / _mid01 /
  * _late01 / _joint / smoke_play: zero hits) and all 57 ctest cases stay
  * green. Kill switch / bisect: AI_20E6_HS_CADENCE=0.
@@ -3111,7 +3049,7 @@ int ai_euro_europe_lane_ships(const ColonizeUnitPool* units, int nation_id) {
  * DOS does NOT cross here: 015e only stamps the goal, and the crossing happens
  * later in the shared goto-step mover (FUN_479b_076e raw 77095-77107) when the
  * hull ends its goto standing on High Seas. The port runs that gate at the head
- * of the hull's next act (ai_euro_act_ship), so a hull that is already standing
+ * of the hull's next act (ai_euro_act_ship_dos), so a hull that is already standing
  * on High Seas when an arm asks for a course crosses now instead of re-spiralling
  * — the re-spiral would skip its own tile as occupied and wiggle it between two
  * rim tiles forever (the 2026-09-10 wiggle).
@@ -3340,39 +3278,6 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
   int fy = 0;
   int is_roam = 0;
   /*
-   * No colony yet: settle where we landed, FUN_521d_06ae style (own tile plus
-   * the eight neighbours), rather than walking at the nation-wide goal band.
-   * Those goals sit next to villages all over the map, so a freshly landed
-   * founder used to set off across the continent and either never arrive or
-   * oscillate between two tiles forever.
-   */
-  int landed_settle = 0;
-  /* #530: the DOS path reaches the real 2912 founding-site scan below. */
-  if (!ai_euro_ship_dos_enabled() && ctx->colonies &&
-      colonies_count_for_nation(ctx->colonies, nation_id) == 0) {
-    const ColonizeUnitKind fkind = ai_euro_unit_kind(ctx->units, u);
-    if (ai_euro_name_is_pioneer(fkind) || fkind == UNITS_KIND_COLONIST) {
-      int lx = 0;
-      int ly = 0;
-      if (ai_euro_pick_founding_tile(
-            ctx->map, ctx->colonies, ctx->col1_ok ? ctx->col1 : NULL, ctx->units,
-            nation_id, u->x, u->y, &lx, &ly
-          )) {
-        /*
-         * bugs.md #708: the `ai_goals_upsert_primary(..., AI_GOAL_FOUND, 7)`
-         * that stood here is gone (2026-09-23). FUN_521d_20e6 contains no goal
-         * table writer at all — the goal tables are written only by
-         * FUN_521d_0a60 and the 0906 producers — and the priority 7 was a bare
-         * constant with no DOS origin. The local 06ae-shaped pick below is kept
-         * as this act's walk target only (#530 opening scaffolding, untouched).
-         */
-        fx = lx;
-        fy = ly;
-        landed_settle = 1;
-      }
-    }
-  }
-  /*
    * FUN_521d_20e6 pre-LAB_4d2e gate, raw 90210-90219 — the last thing the arm
    * chain does before the 8-direction scorer:
    *   if (act_state != 0 && act_state != 10 && act_state != 5 &&
@@ -3451,7 +3356,7 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
   Ai20e6Unit s;
   ai_euro_20e6_prologue(ctx, u, nation_id, &s);
   ai_euro_20e6_explorer_flag(ctx, u, &s);
-  if (!landed_settle && !force_wander && s.dos_type == 2 && s.explorer == 0) {
+  if (!force_wander && s.dos_type == 2 && s.explorer == 0) {
     {
       {
       int allow = 1; /* local_a */
@@ -3495,18 +3400,13 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
   }
   int to_4d2e = force_wander || !ai_euro_has_useful_goto(u, ctx->map) ||
                 ai_euro_20e6_adjacent_foreign_09dc(ctx, u->x, u->y, nation_id);
-  if (landed_settle) {
-    to_4d2e = 0; /* FUN_521d_06ae settle-where-landed commits its own course */
-    gx = fx;
-    gy = fy;
-  } else if (!to_4d2e) {
+  if (!to_4d2e) {
     /*
      * `goto LAB_521d_5a78` — 20e6 sets NO course here. DOS leaves the unit
      * bound to the goal already stored in +0x314d/e and FUN_521d_5b66's
      * switch (case 0x0b / 0x0c → FUN_479b_0972) walks one pathfinder step
-     * toward it, keeping the binding until the unit stands on the tile.
-     * `ai_euro_score_move` below is this port's stand-in for that walk, so
-     * the only thing to do is aim it at the unit's OWN goal.
+     * toward it, keeping the binding until the unit stands on the tile, so
+     * the only thing to do is re-bind the unit's OWN goal.
      *
      * A `ai_goals_best_found_tile_near` re-derive stood here until
      * 2026-09-18 (bugs.md #526) and re-aimed every already-bound land unit
@@ -3684,24 +3584,11 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
       return 0;
     }
   }
-  if (ai_euro_ship_dos_enabled()) {
-    /* LAB_2e3a -> 27f5 -> FUN_521d_20c6: bind, then let 5b66 walk.
-     * The fitted movement scorer consumed an extra RNG draw here. */
-    if (is_roam) {
-      u->col1_ai_plan = 0x32; /* 2e40: MOV DX,0032 before calling 20c6 */
-    }
-    ai_euro_set_goto(u, AI_EURO_ACT_GOAL, gx, gy);
-    return 0;
+  /* LAB_2e3a -> 27f5 -> FUN_521d_20c6: bind, then let 5b66 walk. */
+  if (is_roam) {
+    u->col1_ai_plan = 0x32; /* 2e40: MOV DX,0032 before calling 20c6 */
   }
-  int dx = 0;
-  int dy = 0;
-  if (!ai_euro_score_move(ctx, u, gx, gy, &dx, &dy)) {
-    return 1;
-  }
-  ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, gx, gy);
-  if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
-    ai_euro_s_euro_roam_wander[u->id] = (uint8_t)is_roam;
-  }
+  ai_euro_set_goto(u, AI_EURO_ACT_GOAL, gx, gy);
   return 0;
 }
 

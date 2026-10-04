@@ -2973,8 +2973,8 @@ static void ai_euro_colony_tick_run(
   }
 }
 
-/* Placement-stage seam retained for isolated 28c8/5952 tests and legacy
- * dispatch. Its caller owns the counters, threat seed and build cascade. */
+/* Placement-stage seam for isolated 28c8/5952 tests: skips the counters,
+ * threat seed and build cascade that ai_euro_colony_tick_5952 adds. */
 void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nation_id) {
   ai_euro_colony_tick_run(ctx, nation_id, false);
 }

@@ -1,9 +1,13 @@
 # First-colony DOS trace (#530)
 
-Status 2026-10-03: `AI_SHIP_DOS` is ON by default. Full ctest, all six
-opening goldens and `make golden` pass in both modes. The fitted helpers
-(#530 S5, #971, #1035) are now reachable only with `AI_SHIP_DOS=0` and can be
-deleted together with that switch. See "Fresh-map founding" at the end.
+Status 2026-10-04: the `AI_SHIP_DOS` switch is gone; the DOS hull/land path
+is the only path. The fitted first-colony layer (#530 S5, #1035, the #971
+Soldier arm, the seed-100 landfall table, ship FOUND producer, legacy
+`ai_euro_act_ship` band, dispatcher 0-MP carve-out) is deleted. One fitted
+arm survives: the #971 post-founding Pioneer re-aim in
+`ai_euro_found_with_unit` (French pioneer to (47,40)), still load-bearing for
+golden TURN4->5. ctest 96/96, golden_ai_turns 6/6, `make golden` clean.
+`AI_SHIP_DOS=1` in the sections below is historical; drop it from commands.
 
 ## Evidence and reproduction
 
