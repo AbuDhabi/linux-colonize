@@ -286,15 +286,14 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_europe_exit(struct ai_euro_ac
 }
 
 /*
- * Land stage 1: LCR on entry, land-war engage/hunt, peace-border hunt,
- * scout exploration.
+ * Land stage 1: LCR on entry. (The land-war engage/hunt and scout arms that
+ * stood here went with the #530 fit layer: only Treasure / Missionary /
+ * Wagon reach this band; military and Scouts take the DOS 20e6 gate + 479b
+ * walk in ai_euro_unit_act.)
  */
 COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
-  const int at_war_land = a->at_war_land;
-  const int is_land_hunter = a->is_land_hunter;
-  int land_war_hunted = a->land_war_hunted;
   int scout_explored = a->scout_explored;
 
   /*
@@ -318,60 +317,8 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act
     }
   }
 
-  /*
-   * War land band: wake a passive hunter, then take the two adjacent-settlement
-   * arms (FUN_521d_20e6 `0x46` colony seize / `0x4c` village seize). The unit's
-   * actual fight is picked afterwards by the shared LAB_521d_4d2e wander scorer
-   * in ai_euro_20e6_land_step (attack term raw 88880-88940), which commits the
-   * enemy tile as a one-shot goto that FUN_465b_0000 resolves — no act-level
-   * adjacent-attack loop and no distant hunt aim (both retired 2026-09-18).
-   * Cite: units.h units_wake; euro_unit_act §2c wake.
-   */
-  if (at_war_land && is_land_hunter && ai_euro_land_is_passive_orders(u) &&
-      !ai_euro_has_useful_goto(u, ctx->map)) {
-    (void)units_wake(ctx->units, u->id);
-  }
-  /* Board already attempted early (pre-gate); engage if still on map. */
-  if (at_war_land && is_land_hunter && !ai_euro_land_is_fortified(u) &&
-      !u->ai_landfall_wait) {
-    if (!ai_euro_land_engage_adjacent(ctx, u, &land_war_hunted)) {
-      return AI_EURO_ACT_RETURN;
-    }
-  }
 
-  /*
-   * (Retired 2026-09-23, bugs.md #760.) A "peace colony-defence wake" arm sat
-   * here: a military unit or Artillery standing on its own colony woke and
-   * hunted any foreign Euro land unit within MD<=2, with an extra artillery
-   * clause that overrode an existing course. It cited only Colonization.pdf
-   * ("Defending a Colony") and euro_unit_act §2d3 — no FUN_/raw — and a sweep
-   * of FUN_521d_20e6 (raw 88266-90445) has no counterpart: the only own-colony
-   * garrison handling in DOS is the type-agnostic LAB_5899 arm (raw 88584-88612,
-   * ported above in ai_euro_20e6_land_arms), which keeps an armed unit on the
-   * colony via order_code 0x47 and releases a surplus stack to the ordinary
-   * LAB_4d2e neighbour scorer. Artillery's only 20e6 modifier is the
-   * score-zero-off-a-settlement at raw 88911.
-   * The flag stays in the ctx (owned by ai_euro_internal.h) and is now always 0.
-   */
-  int peace_border_hunted = 0;
 
-  /*
-   * The invented "CONTACT scout ring / fog explore" arm that stood here is
-   * gone (bugs.md #493/#495). It scored a ring of tiles (MD 2-4) around the
-   * nearest tribe with weights x1000/x50/x10 and a fog sweep of MD<=8, and
-   * it cited the manual, not a FUN_. Worse, it re-stamped an AI_MOVE goto on
-   * every act, so a Scout was permanently "on a goto" and the real
-   * FUN_521d_20e6 type-5 machinery (explorer flag / patrol 0x56 / village
-   * 0x4c / explore ring) behind ai_euro_move_scoring_gate never ran for it.
-   * DOS's Scout band reads no relation matrix and no profession byte at all
-   * (raw 88514-88530 pre-gate, 89047-89059 patrol, 89064-89068 village,
-   * 89076+ explore ring); its explore radius comes from the continent
-   * rival-strength byte and the unit's own hold[0] explore counter
-   * (local_12, raw 89290-89291), never from "Seasoned Scout".
-   */
-
-  a->land_war_hunted = land_war_hunted;
-  a->peace_border_hunted = peace_border_hunted;
   a->scout_explored = scout_explored;
   a->u = u;
   return AI_EURO_ACT_CONTINUE;
@@ -442,8 +389,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
   const int nation_id = a->nation_id;
-  int land_war_hunted = a->land_war_hunted;
-  int peace_border_hunted = a->peace_border_hunted;
   int scout_explored = a->scout_explored;
   int treasure_routed = a->treasure_routed;
   const ColonizeUnitKind ukind = a->ukind;
@@ -471,8 +416,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
     }
   }
 
-  a->land_war_hunted = land_war_hunted;
-  a->peace_border_hunted = peace_border_hunted;
   a->scout_explored = scout_explored;
   a->treasure_routed = treasure_routed;
   a->wagon_hauled = wagon_hauled;
@@ -576,40 +519,16 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
   const int nation_id = a->nation_id;
-  const int at_war_land = a->at_war_land;
   int goal_code = a->goal_code;
   int goal_x = a->goal_x;
   int goal_y = a->goal_y;
-  const int is_land_hunter = a->is_land_hunter;
-  const int is_ship = a->is_ship;
-  int land_war_hunted = a->land_war_hunted;
-  int peace_border_hunted = a->peace_border_hunted;
   int scout_explored = a->scout_explored;
   int treasure_routed = a->treasure_routed;
-  const ColonizeUnitKind ukind = a->ukind;
   int wagon_hauled = a->wagon_hauled;
 
   if (goal_code == AI_GOAL_FOUND && u->x == goal_x && u->y == goal_y) {
     ai_euro_found_with_unit(ctx, u, nation_id);
     return AI_EURO_ACT_RETURN;
-  }
-  /*
-   * A founder can also arrive on a FOUND tile through the 20e6 move-scoring
-   * gate, which writes the goto but leaves no 0a60 goal code behind. Nothing
-   * then founded on arrival: settlers walked to the site and stood on it for
-   * the rest of the game. Found when we are standing on this nation's own best
-   * FOUND tile and the tile still takes a colony.
-   */
-  if (goal_code < 0 && !is_ship &&
-      (ai_euro_name_is_pioneer(ukind) || ukind == UNITS_KIND_COLONIST)) {
-    int bfx = 0;
-    int bfy = 0;
-    if (ai_goals_best_found_tile_near(ctx->map, nation_id, u->x, u->y, &bfx, &bfy) &&
-        bfx == u->x && bfy == u->y &&
-        colonies_can_found(ctx->colonies, ctx->map, u->x, u->y)) {
-      ai_euro_found_with_unit(ctx, u, nation_id);
-      return AI_EURO_ACT_RETURN;
-    }
   }
 
   /*
@@ -678,7 +597,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
 
   /* Preserve land-war / peace-border / scout / treasure / missionary / wagon /
    * pioneer-improve / LABOR. */
-  if (goal_code >= 0 && !land_war_hunted && !peace_border_hunted && !scout_explored &&
+  if (goal_code >= 0 && !scout_explored &&
       !treasure_routed && !wagon_hauled) {
     ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, goal_x, goal_y);
   }
@@ -692,9 +611,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
   if (units_orders_follow_goto(u->orders)) {
     const int drain =
       (goal_code == AI_GOAL_FOUND || goal_code == AI_GOAL_MILITARY ||
-       goal_code == AI_GOAL_CONTACT || goal_code == AI_GOAL_ESCORT || land_war_hunted ||
-       peace_border_hunted ||
-       scout_explored);
+       goal_code == AI_GOAL_CONTACT || goal_code == AI_GOAL_ESCORT || scout_explored);
     /* drain: while MP left; else one scored step (prior non-multi path). */
     for (;;) {
       if (!u->active || u->moves <= 0 || !units_orders_follow_goto(u->orders)) {
@@ -762,12 +679,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
     }
   }
 
-  if (u->active && at_war_land && is_land_hunter && !ai_euro_land_is_fortified(u)) {
-    (void)ai_euro_land_try_adjacent_colony_seize(ctx, u);
-    if (u->active) {
-      (void)ai_euro_land_try_adjacent_village_seize(ctx, u);
-    }
-  }
 
   /* The "sticky CONTACT re-hunt" tail that used to sit here is folded into the
    * block above (smell audit sweep-3 area C #1): zero hits when instrumented
@@ -780,8 +691,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
   a->goal_code = goal_code;
   a->goal_x = goal_x;
   a->goal_y = goal_y;
-  a->land_war_hunted = land_war_hunted;
-  a->peace_border_hunted = peace_border_hunted;
   a->scout_explored = scout_explored;
   a->treasure_routed = treasure_routed;
   a->wagon_hauled = wagon_hauled;
@@ -791,56 +700,22 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
 
 /*
  * Land band driver (case 0x0b). Binds the per-unit role flags the stages
- * share, then runs the six land stages in DOS order.
+ * share, then runs the land stages in DOS order.
  */
 void ai_euro_act_land(struct ai_euro_act_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
-  const int nation_id = a->nation_id;
 
-  /* Case 0x0b land: bind primary goal (role-aware scan). */
+  /* Treasure / Missionary / Wagon only (see ai_euro_unit_act). */
   const char* uname = units_display_name(ctx->units, u);
   const ColonizeUnitKind ukind = ai_euro_unit_kind(ctx->units, u);
-  const int is_land_hunter = ai_euro_is_land_war_hunter(ukind);
-  const int is_scout = ukind == UNITS_KIND_SCOUT;
   const int is_treasure = ai_euro_is_treasure_name(ukind);
-  /*
-   * Land war: Euro peer war, or Indian hostility sticky with a real hunt
-   * target (tribe / Brave). Sticky alone is not enough — memset relation=0
-   * syncs sticky during euro_balance and would skip peace fortify / admit
-   * Soldiers as LABOR. Cite: ai_diplo_indian_hostility_sticky; §2c hunt.
-   */
-  int indian_war_hunt = 0;
-  if (ctx->col1_ok && ctx->col1 &&
-      ai_diplo_indian_hostility_sticky(ctx->col1, nation_id) != 0 &&
-      ai_diplo_indian_any_at_war(ctx->col1, nation_id)) {
-    if (ctx->col1->tribe && ctx->col1->head.tribe_count > 0) {
-      indian_war_hunt = 1;
-    } else if (ctx->units) {
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        const ColonizeUnit* f = &ctx->units->units[i];
-        if (f->active && f->nation_id >= 4 && f->nation_id <= 11 && units_is_on_map(f) &&
-            !units_is_sea(ctx->units, f->id)) {
-          indian_war_hunt = 1;
-          break;
-        }
-      }
-    }
-  }
-  const int at_war_land =
-    ctx->col1_ok && ctx->col1 &&
-    (ai_euro_at_war_any_peer(ctx->col1, nation_id) || indian_war_hunt);
-  int land_war_hunted = 0;
   int scout_explored = 0;
   int treasure_routed = 0;
 
   a->uname = uname;
   a->ukind = ukind;
-  a->is_land_hunter = is_land_hunter;
-  a->is_scout = is_scout;
   a->is_treasure = is_treasure;
-  a->at_war_land = at_war_land;
-  a->land_war_hunted = land_war_hunted;
   a->scout_explored = scout_explored;
   a->treasure_routed = treasure_routed;
   a->u = u;

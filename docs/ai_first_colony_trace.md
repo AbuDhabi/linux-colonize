@@ -1,12 +1,15 @@
 # First-colony DOS trace (#530)
 
 Status 2026-10-04: the `AI_SHIP_DOS` switch is gone; the DOS hull/land path
-is the only path. The fitted first-colony layer (#530 S5, #1035, the #971
-Soldier arm, the seed-100 landfall table, ship FOUND producer, legacy
-`ai_euro_act_ship` band, dispatcher 0-MP carve-out) is deleted. One fitted
-arm survives: the #971 post-founding Pioneer re-aim in
-`ai_euro_found_with_unit` (French pioneer to (47,40)), still load-bearing for
-golden TURN4->5. ctest 96/96, golden_ai_turns 6/6, `make golden` clean.
+is the only path. The whole fitted first-colony layer (#530 S5, #1035, both
+#971 arms, the seed-100 landfall table, ship FOUND producer, legacy
+`ai_euro_act_ship` band, dispatcher 0-MP carve-out) is deleted. The last arm
+(#971 Pioneer re-aim to (47,40)) was standing in for the 20e6 explore ring:
+DOS scores only coastal tiles there (the best-site compare, raw 89257, sits
+inside the coastal branch), the port let inland tiles win with nib 0 and so
+never committed. With that fixed the French pioneer's TURN4->5 move is DOS's
+own (order 0x0b, plan '2', goto (47,40)). No fitted opening code remains.
+ctest 96/96, golden_ai_turns 6/6, `make golden` clean.
 `AI_SHIP_DOS=1` in the sections below is historical; drop it from commands.
 
 ## Evidence and reproduction

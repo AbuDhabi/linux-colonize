@@ -1212,22 +1212,6 @@ int ai_euro_is_military_name(ColonizeUnitKind k) {
          k == UNITS_KIND_CAVALRY || units_kind_is_continental(k);
 }
 
-/*
- * Soldier / Dragoon / Regular / Continental — land war hunt; not founders.
- *
- * Scouts were in this set (bugs.md #494) and therefore skipped the
- * FUN_521d_20e6 move-scoring gate at war and ran the combat hunt arm
- * instead. DOS's 20e6 type-5 band carries no war term at all: the pre-gate
- * (raw 88514-88530), the patrol 0x56 arm (raw 89047-89059), the village
- * 0x4c arm (raw 89064-89068) and the explore ring (raw 89076+) read the
- * G-table, continent ids, turn counters and the village record — never a
- * per-peer relation byte. A Scout (attack 1) is also never issued the
- * 0x46 seize order, so it has no hunt business at war.
- */
-int ai_euro_is_land_war_hunter(ColonizeUnitKind kind) {
-  return ai_euro_is_military_name(kind);
-}
-
 /* @UNIT row 11 ("Artillery", or a pool spelling it "Cannon"). */
 int ai_euro_is_artillery_name(ColonizeUnitKind kind) {
   return kind == UNITS_KIND_ARTILLERY;
@@ -1272,13 +1256,6 @@ int ai_euro_land_is_fortified(const ColonizeUnit* u) {
    * narrow it to exactly '0'.
    */
   return u->col1_ai_plan != 0x30;
-}
-
-/* Sentry / fortify / fortified — wake-eligible passive land orders. */
-int ai_euro_land_is_passive_orders(const ColonizeUnit* u) {
-  return u &&
-         (u->orders == UNITS_ORDER_SENTRY || u->orders == UNITS_ORDER_FORTIFY ||
-          u->orders == UNITS_ORDER_FORTIFIED);
 }
 
 /*
