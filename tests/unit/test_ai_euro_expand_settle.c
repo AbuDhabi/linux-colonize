@@ -269,7 +269,7 @@ static int unit_indian_land_found(void) {
    * ported). The FOUND goal is now seeded directly; this scenario's subject
    * is the Indian homeland purchase, not goal production. Each founder also
    * carries act state 7 (UNITS_ORDER_BUILD_COLONY), the byte the 20e6 2912
-   * site scan commits and FUN_521d_5b66 case 7 consumes: under AI_SHIP_DOS
+   * site scan commits and FUN_521d_5b66 case 7 consumes:
    * that is the only founding trigger, and this fixture has no seen plane
    * for the scan to score.
    */

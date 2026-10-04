@@ -1065,12 +1065,6 @@ add_custom_target(golden_ai_joint
   COMMAND ${CMAKE_COMMAND} -E echo "golden_ai_joint: mapgen + turns + contact + diplo + mid01 + late01"
   COMMAND $<TARGET_FILE:golden_mapgen_seed100>
   COMMAND $<TARGET_FILE:golden_ai_turns>
-  # #530: proven DOS opening transitions, independently loaded save pairs.
-  COMMAND ${CMAKE_COMMAND} -E env AI_SHIP_DOS=1 COLONIZE_TEST_ONLY=TURN2_to_3 $<TARGET_FILE:golden_ai_turns>
-  COMMAND ${CMAKE_COMMAND} -E env AI_SHIP_DOS=1 COLONIZE_TEST_ONLY=TURN3_to_4 $<TARGET_FILE:golden_ai_turns>
-  COMMAND ${CMAKE_COMMAND} -E env AI_SHIP_DOS=1 COLONIZE_TEST_ONLY=TURN4_to_5 $<TARGET_FILE:golden_ai_turns>
-  COMMAND ${CMAKE_COMMAND} -E env AI_SHIP_DOS=1 COLONIZE_TEST_ONLY=TURN5_to_6 $<TARGET_FILE:golden_ai_turns>
-  COMMAND ${CMAKE_COMMAND} -E env AI_SHIP_DOS=1 COLONIZE_TEST_ONLY=TURN6_to_7 $<TARGET_FILE:golden_ai_turns>
   COMMAND $<TARGET_FILE:unit_ai_contact_core>
   COMMAND $<TARGET_FILE:unit_ai_contact_meet>
   COMMAND $<TARGET_FILE:unit_ai_contact_colony>

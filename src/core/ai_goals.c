@@ -293,94 +293,6 @@ const AiWorkSlot* ai_goals_work(int slot) {
   return &s_work[slot];
 }
 
-/*
- * Nearest water tile a loaded transport can actually land settlers from.
- *
- * A loaded transport whose goto resolves to the high-seas tile it already
- * occupies (or to nothing at all) would sit on its spawn tile with the
- * colonists aboard forever; the seed-100 landfall tables the Euro planner keys
- * most of its first-colony geometry off do not resolve anywhere else. This is
- * the map-agnostic fallback: ring-scan out
- * from `from` for a water/high-seas tile that is free and has a land neighbour
- * a colony could be founded on. Nearest ring wins; inside a ring prefer the
- * westward tile (America lies west of every Atlantic start), then the one
- * closest to the starting latitude.
- */
-int ai_goals_nearest_landing_water_w(
-  const ColonizeWorld* w,
-  int from_x,
-  int from_y,
-  int max_radius,
-  int* out_x,
-  int* out_y
-) {
-  const ColonizeWorldMap* map = w->map;
-  const ColonizeUnitPool* units = w->units;
-  const ColonizeColonyPool* colonies = w->colonies;
-
-  if (!map || !out_x || !out_y || from_x < 0 || from_y < 0) {
-    return 0;
-  }
-  if (max_radius < 1) {
-    max_radius = 1;
-  }
-  for (int r = 1; r <= max_radius; ++r) {
-    int best_x = -1;
-    int best_y = -1;
-    int best_key = INT_MAX;
-    for (int y = from_y - r; y <= from_y + r; ++y) {
-      for (int x = from_x - r; x <= from_x + r; ++x) {
-        const int ax = (x > from_x) ? x - from_x : from_x - x;
-        const int ay = (y > from_y) ? y - from_y : from_y - y;
-        if ((ax > ay ? ax : ay) != r) {
-          continue; /* ring edge only */
-        }
-        if (x < 0 || y < 0 || x >= (int)map->width || y >= (int)map->height) {
-          continue;
-        }
-        if (!map_tile_is_water(map, x, y) && !map_tile_is_high_seas(map, x, y)) {
-          continue;
-        }
-        if (units && units_id_at(units, x, y) >= 0) {
-          continue; /* another ship is parked there */
-        }
-        int landable = 0;
-        for (int d = 0; d < 8; ++d) {
-          const int lx = x + MAP_DIR8_DX[d];
-          const int ly = y + MAP_DIR8_DY[d];
-          if (lx < 0 || ly < 0 || lx >= (int)map->width || ly >= (int)map->height) {
-            continue;
-          }
-          if (!map_tile_is_land(map, lx, ly) || map_tile_is_water(map, lx, ly)) {
-            continue;
-          }
-          if (colonies && !colonies_can_found(colonies, map, lx, ly)) {
-            continue;
-          }
-          landable = 1;
-          break;
-        }
-        if (!landable) {
-          continue;
-        }
-        /* West first, then nearest latitude. */
-        const int key = x * 256 + ay;
-        if (key < best_key) {
-          best_key = key;
-          best_x = x;
-          best_y = y;
-        }
-      }
-    }
-    if (best_x >= 0) {
-      *out_x = best_x;
-      *out_y = best_y;
-      return 1;
-    }
-  }
-  return 0;
-}
-
 
 int ai_goals_best_found_tile(int nation_id, int* out_x, int* out_y) {
   /* Position-free query (CHEAT colony-site overlay): no distance tiebreak. */
@@ -965,21 +877,6 @@ int ai_goals_pick_founding_tile_ex_w(
   return 1;
 }
 
-
-int ai_goals_pick_founding_tile_w(
-  const ColonizeWorld* w,
-  int nation_id,
-  int x,
-  int y,
-  int* out_x,
-  int* out_y
-) {
-  const ColonizeWorldMap* map = w->map;
-  const ColonizeColonyPool* colonies = w->colonies;
-  const ColonizeCol1Save* col1 = w->col1;
-
-  return ai_goals_pick_founding_tile_ex_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(NULL), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, nation_id, x, y, 1, 0, out_x, out_y);
-}
 
 
 /* Test-only accessor (tests/unit/test_ai_goals.c): production refills the

@@ -219,7 +219,7 @@ static ColonizeColony* fixture_ore_colony(Fixture* f, int nation, int population
  * NEEDS_COLONISTS writer (ai_euro_colony_needs_colonists_5952) counts water
  * plots as blocked, so `pop - tier*2 < ring - blocked` reads 0 < 0 for the
  * fixture's tier 2 once the colony holds 4: no flag. Under the DOS phase
- * order (AI_SHIP_DOS) that tick runs before 5d04, so a hand-cleared flag on
+ * order that tick runs before 5d04, so a hand-cleared flag on
  * an all-land pop-3 colony would simply be re-raised.
  */
 static void fixture_water_ring(Fixture* f, ColonizeColony* c) {
@@ -463,7 +463,7 @@ static int europe_dock_queue_raises_cargo_bar(void) {
  * refreshes it in ai_euro_colony_goals, which runs AFTER ai_euro_nation_
  * planning, so what 5d04 reads is the flag as the PREVIOUS beat left it —
  * DOS's own ordering (6d8e's prelude builds 0xa0b8 from the colony bytes
- * before it calls 5d04). Under AI_SHIP_DOS the 5952 tick runs first and
+ * before it calls 5d04). The 5952 tick runs first and
  * rebuilds the flag, so the flag-clear run also rings the colony with ocean
  * (fixture_water_ring) to make the tick agree. The specialty stays Ore at an
  * unaffordable 201/unit: the swap is then the only thing in the whole tail

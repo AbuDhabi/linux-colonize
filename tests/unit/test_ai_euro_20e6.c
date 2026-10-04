@@ -2533,9 +2533,8 @@ static int unit_gate_adjacent_foe_reaches_scorer(void) {
   }
   /* DOS 1b0e raw 100648-100650 enables colony capture only after beating
    * its temporary defender (bVar28). This attack demotes the field Soldier
-   * and exhausts MP; the legacy act helper immediately starts another fight
-   * on its follow-up move, capturing the colony in the same act. */
-  const int expected_x = ai_euro_ship_dos_enabled() ? 8 : 9;
+   * and exhausts MP, so the colony is not captured in the same act. */
+  const int expected_x = 8;
   if (def_alive || x != expected_x || y != 8) {
     fprintf(stderr, "unit_ai_euro_20e6: gate mover at (%d,%d), defender alive=%d\n", x, y,
             def_alive);

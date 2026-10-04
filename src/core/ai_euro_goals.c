@@ -510,7 +510,7 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
         /* 0a60 activates a landed AI Sentry unit; preserve the goal bytes
          * as DOS does (#530). At the nation-turn top every Sentry ashore
          * was parked on an earlier night. */
-        if (ai_euro_ship_dos_enabled() && u->orders == UNITS_ORDER_SENTRY &&
+        if (u->orders == UNITS_ORDER_SENTRY &&
             u->aboard_ship_id < 0) {
           const int gx = u->goto_x;
           const int gy = u->goto_y;
@@ -1438,8 +1438,8 @@ static void ai_euro_5952_ai_flags(
 /* ===== FUN_5952_035e absorption + equip arm (raw 94231-94352) ===========
  *
  * RE-HOSTED 2026-09-18. Both arms used to run from the arriving unit's act
- * (`ai_euro_act_colony_absorb` / the on-tile block of
- * `ai_euro_act_pioneer_corridor`). DOS runs them inside the COLONY tick, at
+ * (`ai_euro_act_colony_absorb` / the on-tile block of the since-deleted
+ * pioneer corridor stage). DOS runs them inside the COLONY tick, at
  * this exact position — after the +0x1b flag writes and the by-profession
  * census (raw 94219-94229) and before the build-preference / construction
  * cascade — as a re-scan of the units standing on the colony tile. The
@@ -2182,9 +2182,6 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_labor(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c,
   AiEuroInventory* inv, int urgency
 ) {
-  if (!ai_euro_ship_dos_enabled()) {
-    ai_euro_5952_colony_prelude(ctx, nation_id, c);
-  }
   /*
    * `|| c->labor_shortage > 0` used to be a third disjunct here. It was
    * calibrated against the retired thin latch (0 unless something set
@@ -2674,55 +2671,6 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_producers(
    */
 }
 
-COLONIZE_INTERNAL void ai_euro_colony_goals_ship_found(
-  ColonizeTurnContext* ctx, int nation_id, AiEuroInventory* inv,
-  int urgency
-) {
-  /*
-   * Ship FOUND, first colony only: 06ae/0a60 landfall seed (adj 06ae from a
-   * coastal ship still prefers the inland high 2f77). Both of its inputs are
-   * still fixture fit (bugs.md #530): ai_euro_recover_landfall_from_ship is a
-   * 3-entry seed-100 ship->landfall table, and 06ae's landfall->site step is
-   * the fitted latitude-band offset triple, not the full multi-ring walk. This
-   * arm is what supplies the Dutch (49,14), French (50,37) and Spanish (45,52)
-   * first-colony sites at golden TURN3->4 / TURN5->6; nothing else does, the
-   * AI_SHIP_DOS hull path included.
-   *
-   * 2026-09-27 (#530 S6): the second-wave arm that stood here (1 <= colonies
-   * < 6, primary FOUND at prio 4 from a live ai_euro_pick_founding_tile on the
-   * ship's own tile) is deleted. It was an invented producer -- the row's
-   * survey found the only DOS primary-FOUND writers are raw 87983/88049, both
-   * ocean tiles -- it was already off wholesale under AI_SHIP_DOS=1, and
-   * disabling it moved no expectation anywhere: golden_ai_turns stayed 6/6 and
-   * ctest 95/95. Measuring one arm at a time is what showed the first-colony
-   * arm alone is load-bearing, so do not restore this one to "fix" a
-   * second-colony regression without a FUN_/raw cite for it.
-   */
-  {
-    const int colonies = inv ? inv->colony_count : 0;
-    if (colonies == 0) {
-      const int found_prio = 6 + urgency / 2;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &ctx->units->units[i];
-        if (!u->active || u->nation_id != nation_id) {
-          continue;
-        }
-        if (!ai_euro_is_ship_type(ctx->units, u->id) || ai_euro_in_europe(u->x, u->y)) {
-          continue;
-        }
-        int fx = 0;
-        int fy = 0;
-        int lx = 0;
-        int ly = 0;
-        if (ai_euro_recover_landfall_from_ship(u->x, u->y, &lx, &ly) &&
-            ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lx, ly, &fx, &fy)) {
-          ai_goals_upsert_primary(nation_id, fx, fy, AI_GOAL_FOUND, found_prio);
-        }
-      }
-    }
-  }
-}
-
 /*
  * bugs.md #707 — RETIRED 2026-09-23. The "H: light bind" arm that stood here
  * scanned every idle on-map land unit of kind Pioneer or Colonist and stamped
@@ -2796,10 +2744,6 @@ void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
   ai_euro_colony_goals_foreign_colonies(ctx, nation_id, inv);
 
   ai_euro_colony_goals_producers(ctx, nation_id, inv, urgency);
-
-  if (!ai_euro_ship_dos_enabled()) {
-    ai_euro_colony_goals_ship_found(ctx, nation_id, inv, urgency);
-  }
 }
 
 /* --- 20e6 scoring (land Manhattan + ocean/ship branch) ----------------- */
@@ -3153,7 +3097,7 @@ int ai_euro_score_move(
  * colony mass gate, ai_euro_20e6_attack_term), 0x4c village arms
  * (ai_euro_20e6_village_arm → ai_contact AI wrappers), colonist labor loop
  * (ai_euro_20e6_labor_arm), LAB_3558 per-cargo unload mask
- * (ai_euro_20e6_unload_mask / _unload_by_mask in ai_euro_unload_settle),
+ * (ai_euro_20e6_unload_mask / _unload_by_mask in ai_euro_act_ship_dos),
  * −0x6168 rival strength (persistent 0a60 max-tracker + explore
  * fatigue → local_12), explore-plane low nibble (ai_euro_20e6_site_nibble
  * reads the real seen-plane site-score nibble).

@@ -51,7 +51,6 @@ int ai_euro_env_flag(const char* name, int dflt) {
   return (e && *e) ? (*e != '0') : dflt;
 }
 
-int ai_euro_ship_dos_enabled(void);
 
 /* Sticky anti-spin stand-ins for DS:0x2d12 / DS:0x2d14. */
 static int s_sticky_unit = -1;
@@ -540,315 +539,6 @@ int ai_euro_ocean_3558_first_leg_tip(
   return 1;
 }
 
-/*
- * LAB_521d_3558 / 457e-shaped empty-ship coastal cruise tip after first town.
- * Latitude soft tips scored onto water/HS. Mid returns Quebec coast tip so
- * callers need not hardcode fx+2,fy+6; pre-found FR empty-transport still
- * holds south of found (see unload_settle). Cite: TURN3–6; move_scoring_ship.md.
- *   southern found (y<30): (−6,+2) → Isabella (49,14)→(43,16)
- *   northern found (y≥50): (+1,−2) → New Amsterdam (45,52)→(46,50)
- *   mid:               (+2,+6) → Quebec (50,37)→(52,43)
- */
-int ai_euro_ocean_3558_empty_cruise_tip(
-  const ColonizeWorldMap* map,
-  int found_x,
-  int found_y,
-  int* out_x,
-  int* out_y
-) {
-  if (!out_x || !out_y || found_x < 0 || found_y < 0) {
-    return 0;
-  }
-  int tx = 0;
-  int ty = 0;
-  if (found_y < 30) {
-    tx = found_x - 6;
-    ty = found_y + 2;
-  } else if (found_y >= 50) {
-    tx = found_x + 1;
-    ty = found_y - 2;
-  } else {
-    tx = found_x + 2;
-    ty = found_y + 6;
-  }
-  if (map) {
-    if (tx < 0) {
-      tx = 0;
-    }
-    if (ty < 0) {
-      ty = 0;
-    }
-    if (tx >= (int)map->width) {
-      tx = (int)map->width - 1;
-    }
-    if (ty >= (int)map->height) {
-      ty = (int)map->height - 1;
-    }
-    if (!map_tile_is_water(map, tx, ty) && !map_tile_is_high_seas(map, tx, ty)) {
-      int found = 0;
-      for (int d = 0; d < 8; ++d) {
-        static const int kdx[] = {-1, -1, 0, 1, 1, 1, 0, -1};
-        static const int kdy[] = {0, 1, 1, 1, 0, -1, -1, -1};
-        const int nx = tx + kdx[d];
-        const int ny = ty + kdy[d];
-        if (nx >= 0 && ny >= 0 && nx < (int)map->width && ny < (int)map->height &&
-            (map_tile_is_water(map, nx, ny) || map_tile_is_high_seas(map, nx, ny))) {
-          tx = nx;
-          ty = ny;
-          found = 1;
-          break;
-        }
-      }
-      if (!found) {
-        return 0;
-      }
-    }
-  }
-  *out_x = tx;
-  *out_y = ty;
-  return 1;
-}
-
-/*
- * FUN_521d_06ae / 0a60 first-colony FOUND from Atlantic landfall.
- * Live port: latitude soft tip (Quebec/NA/Isabella) when foundable — soft tip
- * is a prior inside this function, not a separate resolve seed branch.
- * Full multi-ring 06ae OPEN. Cite: euro_goals.c; TURN3–6; Series E.
- * Gate: eastern rim landfall (x≥53; mid x≥55 so approach tip is not landfall).
- *   southern (y<30): (−4, 0) → Isabella (53,14)→(49,14)
- *   northern (y≥50): (−8,−4) → New Amsterdam (53,56)→(45,52)
- *   mid:             (−6,−5) → Quebec (56,42)→(50,37)
- */
-/*
- * 2026-08-20, T1.3 attempt — tried replacing this fixed-band heuristic
- * with a multi-ring search using 06ae's own real terrain-founding byte
- * (`map_dos_terr_found_score_byte`), reasoning the fixed offsets below are
- * seed-100-fixture-fit, not DOS-derived. Reverted: this function's
- * *failure* return (0) turned out to be load-bearing at several of its
- * 12+ call sites in this file (a deliberate "no landfall target here,
- * fall through to other logic" signal, not just "couldn't find a tile") —
- * a ring search that almost always succeeds changed which branch several
- * unrelated call sites took, regressing `unit_ai`'s
- * "AI ship Y far from landfall/goto Y" sanity check even with the search
- * radius capped small. Real fix needs each of those 12+ call sites'
- * success/failure expectations mapped first, not a drop-in replacement —
- * left for a future pass; see `port_plan.md` T1.3.
- *
- * 2026-08-20, T1.4/T1.5 follow-up — call sites catalogued (`port_plan.md`
- * T1.4): 11 "cascading fallback" sites tolerate a success-rate increase
- * fine, but 5 "exact wake/skip gate" sites need the *same* (fx,fy) back for
- * the *same* landfall on repeat calls within a turn, not just success.
- * That's a value-stability constraint, not a success-rate one — so the fix
- * below keeps the exact same golden-tuned latitude-band seed geometry
- * (unchanged: same gates, same offsets, still a pure function of
- * (landfall_x, landfall_y, map, colonies) with no hidden state), only
- * replacing the seed tile's *validation* from a single point-check (fail
- * outright if that one tile is water/HS/non-foundable) with
- * `ai_goals_pick_founding_tile_ex` — the already byte-faithful DOS `06ae`
- * port, which scores the seed's 8 neighbors + stay using the real
- * terrain-founding byte. Previously-succeeding seeds are unaffected (same
- * tile, same result); only seeds whose exact point used to fail outright can
- * now succeed via a nearby tile — fixes "adj 06ae still misses some coastal
- * first towns" (R0) without inventing new geometry or touching any call site.
- * (2026-09-08: the ring-2..4 fallback and the coastal=40 bias this paragraph
- * used to lean on are gone — both were OpenCol inventions absent from 06ae.)
- */
-int ai_euro_06ae_first_colony_from_landfall(
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  const ColonizeUnitPool* units,
-  int nation_id,
-  int landfall_x,
-  int landfall_y,
-  int* out_x,
-  int* out_y
-) {
-  if (!out_x || !out_y || landfall_x < 0 || landfall_y < 0) {
-    return 0;
-  }
-  int fx = 0;
-  int fy = 0;
-  if (landfall_y < 30) {
-    if (landfall_x < 53) {
-      return 0;
-    }
-    fx = landfall_x - 4;
-    fy = landfall_y;
-  } else if (landfall_y >= 50) {
-    if (landfall_x < 53) {
-      return 0;
-    }
-    fx = landfall_x - 8;
-    fy = landfall_y - 4;
-  } else {
-    if (landfall_x < 55) {
-      return 0;
-    }
-    fx = landfall_x - 6;
-    fy = landfall_y - 5;
-  }
-  if (!map) {
-    *out_x = fx;
-    *out_y = fy;
-    return 1;
-  }
-  if (fx < 0 || fy < 0 || fx >= (int)map->width || fy >= (int)map->height) {
-    return 0;
-  }
-  /*
-   * 2026-08-28: the seed *is* the DOS target (seed-100 TURN4: New Amsterdam
-   * founded on (49,14), the French Soldier walks onto (50,37), the Spanish
-   * Pioneer pursues (45,52)) — the neighbour re-score below (coastal +40,
-   * west bias) is OpenCol-only and was pulling every target one tile off.
-   * Keep the picker purely as the fallback for an unfoundable seed.
-   */
-  if (!colonies || colonies_can_found(colonies, map, fx, fy)) {
-    *out_x = fx;
-    *out_y = fy;
-    return 1;
-  }
-  return ai_goals_pick_founding_tile_ex_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL)}, nation_id, fx, fy, 0, 0, out_x, out_y);
-}
-
-/*
- * Recover seed-100 landfall when planning yanked cargo/settler gotos off the
- * Atlantic landfall keys. Match ship (or nearby staging) to approach/tip.
- */
-int ai_euro_recover_landfall_from_ship(
-  int ship_x,
-  int ship_y,
-  int* out_x,
-  int* out_y
-) {
-  if (!out_x || !out_y) {
-    return 0;
-  }
-  /* FR approach / staging / hold */
-  if ((ship_x == 54 && ship_y == 38) || (ship_x == 51 && ship_y == 39) ||
-      (ship_x == 50 && ship_y == 39)) {
-    *out_x = 56;
-    *out_y = 42;
-    return 1;
-  }
-  /* SP approach / staging / post-beachhead cruise (incl. one west of tip). */
-  if ((ship_x == 50 && ship_y == 53) || (ship_x == 48 && ship_y == 53) ||
-      (ship_x == 46 && ship_y == 50) || (ship_x == 45 && ship_y == 50)) {
-    *out_x = 53;
-    *out_y = 56;
-    return 1;
-  }
-  /* DU approach / staging / post-beachhead cruise */
-  if ((ship_x == 48 && ship_y == 13) || (ship_x == 47 && ship_y == 13) ||
-      (ship_x == 43 && ship_y == 16)) {
-    *out_x = 53;
-    *out_y = 14;
-    return 1;
-  }
-  return 0;
-}
-
-/*
- * Landfall preference order N, W, E, S, NW, NE, SW, SE — deliberately NOT the
- * clockwise MAP_DIR8_DX/DY walk: the disembark/landfall arms scan the four
- * orthogonals before the diagonals, so the first hit differs from a clockwise
- * scan. Shared by ai_euro_land_adjacent_to and ai_euro_pick_unload_land.
- */
-static const int k_landfall_pref_dx[8] = {0, -1, 1, 0, -1, 1, -1, 1};
-static const int k_landfall_pref_dy[8] = {-1, 0, 0, 1, -1, -1, 1, 1};
-
-/* Land neighbour of coastal water (prefer N, then W/E/S, then diagonals). */
-int ai_euro_land_adjacent_to(
-  const ColonizeWorldMap* map,
-  int wx,
-  int wy,
-  int* out_x,
-  int* out_y
-) {
-  if (!map || !out_x || !out_y) {
-    return 0;
-  }
-  for (int i = 0; i < 8; ++i) {
-    const int nx = wx + k_landfall_pref_dx[i];
-    const int ny = wy + k_landfall_pref_dy[i];
-    if (nx < 0 || ny < 0 || nx >= (int)map->width || ny >= (int)map->height) {
-      continue;
-    }
-    if (!map_tile_is_water(map, nx, ny) && !map_tile_is_high_seas(map, nx, ny)) {
-      *out_x = nx;
-      *out_y = ny;
-      return 1;
-    }
-  }
-  return 0;
-}
-
-int ai_euro_ship_has_land_adjacent(const ColonizeWorldMap* map, int sx, int sy) {
-  int lx = 0;
-  int ly = 0;
-  return ai_euro_land_adjacent_to(map, sx, sy, &lx, &ly);
-}
-
-/*
- * Pick land tile adjacent to ship for unload. Prefer toward landfall; skip
- * occupied/forbidden. Returns 0 if none.
- */
-int ai_euro_pick_unload_land(
-  ColonizeTurnContext* ctx,
-  ColonizeUnit* ship,
-  int pax_id,
-  int prefer_x,
-  int prefer_y,
-  int avoid_x,
-  int avoid_y,
-  int* out_x,
-  int* out_y
-) {
-  ColonizeUnit* pax = NULL;
-  if (!ctx || !ctx->map || !ctx->units || !ship || !out_x || !out_y) {
-    return 0;
-  }
-  pax = units_get(ctx->units, pax_id);
-  if (!pax) {
-    return 0;
-  }
-  int best_x = -1;
-  int best_y = -1;
-  int best_d = 9999;
-  for (int i = 0; i < 8; ++i) {
-    const int nx = ship->x + k_landfall_pref_dx[i];
-    const int ny = ship->y + k_landfall_pref_dy[i];
-    if (nx < 0 || ny < 0 || nx >= (int)ctx->map->width || ny >= (int)ctx->map->height) {
-      continue;
-    }
-    if (map_tile_is_water(ctx->map, nx, ny) || map_tile_is_high_seas(ctx->map, nx, ny)) {
-      continue;
-    }
-    if (nx == avoid_x && ny == avoid_y) {
-      continue;
-    }
-    if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, pax->type_index, nx, ny, pax_id)) {
-      continue;
-    }
-    int d = 0;
-    if (prefer_x >= 0 && prefer_y >= 0) {
-      d = map_chebyshev(nx, ny, prefer_x, prefer_y);
-    } else {
-      d = i; /* N-first preference order */
-    }
-    if (d < best_d) {
-      best_d = d;
-      best_x = nx;
-      best_y = ny;
-    }
-  }
-  if (best_x < 0) {
-    return 0;
-  }
-  *out_x = best_x;
-  *out_y = best_y;
-  return 1;
-}
-
 int ai_euro_unload_pax_at(
   ColonizeTurnContext* ctx,
   ColonizeUnit* ship,
@@ -899,11 +589,6 @@ ColonizeUnitKind ai_euro_unit_kind(const ColonizeUnitPool* pool, const ColonizeU
 /* @UNIT row 2 (Pioneers / "Hardy Pioneer" display name). */
 int ai_euro_name_is_pioneer(ColonizeUnitKind kind) {
   return kind == UNITS_KIND_PIONEER;
-}
-
-/* @UNIT row 1 (Soldiers / "Veteran Soldier" display name). */
-int ai_euro_name_is_soldier(ColonizeUnitKind kind) {
-  return kind == UNITS_KIND_SOLDIER;
 }
 
 
@@ -960,20 +645,6 @@ int ai_euro_coastal_staging_from_landfall(
   return 1;
 }
 
-/* 1 when an own pioneer stands (not aboard) on (fx, fy). */
-static int ai_euro_pioneer_ashore_at(ColonizeTurnContext* ctx, int nation_id, int fx, int fy) {
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* p = &ctx->units->units[i];
-    if (!p->active || p->nation_id != nation_id || p->aboard_ship_id >= 0) {
-      continue;
-    }
-    if (ai_euro_name_is_pioneer(ai_euro_unit_kind(ctx->units, p)) && p->x == fx && p->y == fy) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
 /* Set a goto and walk it step by step until arrival or the unit is out of
  * moves, then park the unit where it stands. *u_io follows a re-fetch. */
 /* Foreign unit (any nation but the mover's) standing on (x, y). */
@@ -981,221 +652,6 @@ int ai_euro_foreign_unit_at(const ColonizeTurnContext* ctx, const ColonizeUnit* 
   const int id = units_id_at(ctx->units, x, y);
   const ColonizeUnit* o = id >= 0 ? units_get_const(ctx->units, id) : NULL;
   return o && o->active && o->nation_id != u->nation_id;
-}
-
-static void ai_euro_drain_goto(
-  ColonizeTurnContext* ctx, ColonizeUnit** u_io, int order, int gx, int gy
-) {
-  ColonizeUnit* u = *u_io;
-  ai_euro_set_goto(u, order, gx, gy);
-  while (u && u->active && u->moves > 0 && (u->x != gx || u->y != gy)) {
-    if (!units_advance_goto_one_step_w(
-                &(ColonizeWorld){.units = ctx->units, .colonies = ctx->colonies, .map = ctx->map},
-                u->id
-              )) {
-      break;
-    }
-    u = units_get(ctx->units, u->id);
-  }
-  if (u && u->active) {
-    ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
-    u->moves = 0;
-  }
-  *u_io = u;
-}
-
-/*
- * Empty ship on / past the post-beachhead tip with exactly one colony: continue
- * SW coastal cruise (TURN4→5 DU 43,16→39,18; TURN5→6 →37,19). Trade haul must
- * not yank tip station-keep toward colony berth water. Cite: TURN5–6.
- */
-int ai_euro_try_post_found_coast_cruise(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  ColonizeUnit* u
-) {
-  if (!ctx || !ctx->map || !ctx->colonies || !ctx->units || !u || !u->active) {
-    return 0;
-  }
-  if (u->cargo_count > 0) {
-    return 0;
-  }
-  int fx = -1;
-  int fy = -1;
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    const ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (c->active && c->nation_id == nation_id) {
-      fx = c->x;
-      fy = c->y;
-      break;
-    }
-  }
-  const int colony_n = colonies_count_for_nation(ctx->colonies, nation_id);
-  /*
-   * 2026-09-27, bugs.md #530 S5: a "pre-found SP" arm stood here for the
-   * fx < 0 case -- it recovered a tip through ai_euro_recover_landfall_from_ship
-   * + 06ae and then required a pioneer already standing on the 06ae site
-   * (ai_euro_pioneer_ashore_at). It was a second consumer of the seed-100
-   * landfall table with no FUN_/raw cite, and it is dead: gating it alone left
-   * golden_ai_turns 6/6, the whole golden suite clean and ctest 95/95. A
-   * nation with no colony now simply does not cruise, which is also the only
-   * reading this function's own premise supports (its cruise legs are measured
-   * off a *founded* colony).
-   */
-  if (fx < 0 || colony_n != 1) {
-    return 0;
-  }
-  int tip_x = 0;
-  int tip_y = 0;
-  if (!ai_euro_ocean_3558_empty_cruise_tip(ctx->map, fx, fy, &tip_x, &tip_y)) {
-    return 0;
-  }
-  /* Mid-band tip is scored (no longer caller-hardcoded). FR leg1 home uses mid. */
-  const int tip_from_table = !(fy >= 30 && fy < 50);
-  /* On tip or SW cruise legs — not SP one-west tip (45,50). */
-  const int on_tip = (u->x == tip_x && u->y == tip_y);
-  const int on_leg1 = (u->x == tip_x - 4 && u->y == tip_y + 2);
-  const int on_leg2 = (u->x == tip_x - 6 && u->y == tip_y + 3);
-  /* SP: one west of tip after pioneer landfall — NE berth (TURN5→6). */
-  if (!on_tip && !on_leg1 && !on_leg2 && u->x == tip_x - 1 && u->y == tip_y) {
-    if (colony_n != 1) {
-      /* Pre-found: hold tip−1 so trade haul cannot yank (TURN5 45,50). */
-      ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
-      u->moves = 0;
-      return 1;
-    }
-    int bx = tip_x;
-    int by = tip_y - 1;
-    if (!map_tile_is_water(ctx->map, bx, by) && !map_tile_is_high_seas(ctx->map, bx, by)) {
-      return 0;
-    }
-    if (u->moves <= 0 || units_orders_skip_turn(u)) {
-      (void)units_wake(ctx->units, u->id);
-      u = units_get(ctx->units, u->id);
-      if (!u || !u->active) {
-        return 1;
-      }
-    }
-    ai_euro_drain_goto(ctx, &u, UNITS_ORDER_AI_MOVE, bx, by);
-    return 1;
-  }
-  /* SP: already on NE berth — hold against trade-haul yank (TURN6 46,49). */
-  if (!on_tip && !on_leg1 && !on_leg2 && u->x == tip_x && u->y == tip_y - 1 &&
-      colony_n == 1) {
-    ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
-    u->moves = 0;
-    return 1;
-  }
-  if (!on_tip && !on_leg1 && !on_leg2) {
-    return 0;
-  }
-  /* Post-found SW legs only after the town exists (DU/FR). */
-  if (colony_n != 1) {
-    /* SP: tip station with pioneer on found → one west (TURN4→5 46,50→45,50). */
-    if (on_tip && map_tile_is_water(ctx->map, tip_x - 1, tip_y)) {
-      const int pioneer_on_found = ai_euro_pioneer_ashore_at(ctx, nation_id, fx, fy);
-      if (pioneer_on_found) {
-        if (u->moves <= 0 || units_orders_skip_turn(u)) {
-          (void)units_wake(ctx->units, u->id);
-          u = units_get(ctx->units, u->id);
-          if (!u || !u->active) {
-            return 1;
-          }
-        }
-        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tip_x - 1, tip_y);
-        (void)units_advance_goto_one_step_w(
-                &(ColonizeWorld){.units = ctx->units, .colonies = ctx->colonies, .map = ctx->map},
-                u->id
-              );
-        u = units_get(ctx->units, u->id);
-        if (u) {
-          ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
-          u->moves = 0;
-        }
-        return 1;
-      }
-    }
-    return 0; /* do not latch tip before pioneer arrives */
-  }
-  /*
-   * FR mid-band: after SW leg1, sail home to tip with colony goto
-   * (TURN6→7 48,45→52,43 g=Quebec). tip_from_table is false for mid.
-   * Cite: test-saves-ai/TURN7; Series E3.
-   */
-  if (on_leg1 && !tip_from_table) {
-    if (u->moves <= 0 || units_orders_skip_turn(u)) {
-      (void)units_wake(ctx->units, u->id);
-      u = units_get(ctx->units, u->id);
-      if (!u || !u->active) {
-        return 1;
-      }
-    }
-    ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, tip_x, tip_y);
-    while (u && u->active && u->moves > 0 && (u->x != tip_x || u->y != tip_y)) {
-      if (!units_advance_goto_one_step_w(
-                &(ColonizeWorld){.units = ctx->units, .colonies = ctx->colonies, .map = ctx->map},
-                u->id
-              )) {
-        break;
-      }
-      u = units_get(ctx->units, u->id);
-    }
-    if (u && u->active) {
-      ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, fx, fy);
-      u->moves = 0;
-    }
-    return 1;
-  }
-  /*
-   * Geometric legs from tip: first (−4,+2) → TURN5 DU 39,18 / TURN6 FR 48,45;
-   * next (−6,+3) → TURN6 DU 37,19; next (−11,+6) → TURN7 DU 32,22.
-   * Cite: test-saves-ai/TURN5–7.
-   */
-  int gx = tip_x - 4;
-  int gy = tip_y + 2;
-  if (on_leg2) {
-    gx = tip_x - 11;
-    gy = tip_y + 6;
-  } else if (on_leg1) {
-    gx = tip_x - 6;
-    gy = tip_y + 3;
-  }
-  if (gx < 0) {
-    gx = 0;
-  }
-  if (gy < 0) {
-    gy = 0;
-  }
-  if (gx >= (int)ctx->map->width) {
-    gx = (int)ctx->map->width - 1;
-  }
-  if (gy >= (int)ctx->map->height) {
-    gy = (int)ctx->map->height - 1;
-  }
-  if (!map_tile_is_water(ctx->map, gx, gy) && !map_tile_is_high_seas(ctx->map, gx, gy)) {
-    for (int d = 0; d < 8; ++d) {
-      static const int kdx[] = {-1, -1, 0, 1, -1, 0, 1, 1};
-      static const int kdy[] = {0, 1, 1, 1, -1, -1, -1, 0};
-      const int nx = gx + kdx[d];
-      const int ny = gy + kdy[d];
-      if (nx >= 0 && ny >= 0 && nx < (int)ctx->map->width && ny < (int)ctx->map->height &&
-          (map_tile_is_water(ctx->map, nx, ny) || map_tile_is_high_seas(ctx->map, nx, ny))) {
-        gx = nx;
-        gy = ny;
-        break;
-      }
-    }
-  }
-  if (u->moves <= 0 || units_orders_skip_turn(u)) {
-    (void)units_wake(ctx->units, u->id);
-    u = units_get(ctx->units, u->id);
-    if (!u || !u->active) {
-      return 1;
-    }
-  }
-  /* Pathfind drain — ocean score_move overshoots (38,19 vs 39,18). */
-  ai_euro_drain_goto(ctx, &u, UNITS_ORDER_AI_SAIL, gx, gy);
-  return 1;
 }
 
 /*
@@ -1826,28 +1282,6 @@ int ai_euro_land_is_passive_orders(const ColonizeUnit* u) {
 }
 
 /*
- * FUN_521d_06ae founding pick. The OpenCol coastal preference (+40 first colony,
- * +10 later) and its `colony_count` argument were removed 2026-09-08: DOS's
- * 06ae scores only DS:0x2f77[terrain class] + 0492*0x10 + the 074a nibble
- * (decomp 87286-87304), and a flat +10 swamped the 0..6 terrain byte.
- * `units` is now passed for real so DOS's 06d2/08bc occupant + wagon-XOR gate
- * runs on this path too — it used to be handed NULL, which disabled the gate
- * everywhere except the landfall caller. Cite: euro_goals.c; move_scoring.md §06ae.
- */
-int ai_euro_pick_founding_tile(
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  const ColonizeCol1Save* col1,
-  const ColonizeUnitPool* units,
-  int nation_id,
-  int x,
-  int y,
-  int* out_x,
-  int* out_y
-) {
-  return ai_goals_pick_founding_tile_ex_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, nation_id, x, y, 1, 0, out_x, out_y);
-}
-/*
  * Removed (bugs.md #493/#495): ai_euro_scout_contact_ring_target,
  * ai_euro_scout_fog_explore_target and ai_euro_is_seasoned_scout_name were
  * OpenCol inventions (tribe ring MD 2-4 with x1000/x50/x10 weights, an MD<=8
@@ -1942,12 +1376,6 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   if (!ctx || !u || !u->active || u->aboard_ship_id >= 0) {
     return;
   }
-  /* First-colony land may wake sentry (moves was 0). Ships still need MP. */
-  const int is_ship_early = ai_euro_is_ship_type(ctx->units, u->id);
-  if (!ai_euro_ship_dos_enabled() && !is_ship_early &&
-      ai_euro_try_first_colony_land(ctx, u, nation_id)) {
-    return;
-  }
   if (u->moves <= 0) {
     return;
   }
@@ -1960,11 +1388,11 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * to its real DOS home on 2026-09-23 — FUN_465b_0000's move-into-foreign
    * arm, ai_euro_465b_privateer_sighting, called from units_try_move_w.)
    */
-  if (!is_ship_early) {
+  const int is_ship = ai_euro_is_ship_type(ctx->units, u->id);
+  if (!is_ship) {
     ai_euro_try_violate_notify(ctx, u);
   }
 
-  const int is_ship = is_ship_early;
   int is_goto = units_orders_follow_goto(u->orders);
 
   /*
@@ -1997,7 +1425,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * 2026-09-18: manual-cited, with no DOS counterpart. DOS disembarks military
    * passengers through the LAB_521d_3558 per-cargo mask block (raw 89440-89560,
    * local_9c bits 0x10/0x20/0x40 against DS:0x523d[type*0xe]), ported as
-   * ai_euro_20e6_unload_mask / _unload_by_mask under ai_euro_unload_settle.)
+   * ai_euro_20e6_unload_mask / _unload_by_mask in ai_euro_act_ship_dos.)
    */
 
   /*
@@ -2014,7 +1442,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     return;
   }
 
-  if (is_ship && ai_euro_ship_dos_enabled()) {
+  if (is_ship) {
     ai_euro_act_ship_dos(ctx, u, nation_id);
     return;
   }
@@ -2167,15 +1595,13 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    */
 
   /* FUN_521d_5b66 cases 0b/0c (overlay asm 139947): the same pathfinder
-   * walks hulls and land units. Avoid the fitted land-role/move ladder
-   * under the DOS opening switch (#530); case 7 was handled above. */
+   * walks hulls and land units; case 7 was handled above. */
   const ColonizeUnitKind dispatch_kind = ai_euro_unit_kind(ctx->units, u);
   const int deferred_band = ai_euro_is_treasure_name(dispatch_kind) ||
     ai_euro_is_missionary_name(dispatch_kind) || ai_euro_type_is_wagon_name(dispatch_kind);
   /* These types bypassed the scoring gate above because their 20e6 bands
-   * already live in ai_euro_act_land. Keep those handlers reachable; they
-   * are independent of the first-colony settler approach being replaced. */
-  if (ai_euro_ship_dos_enabled() && !deferred_band) {
+   * live in ai_euro_act_land; every other land unit stops here. */
+  if (!deferred_band) {
     if (u->orders == AI_EURO_ACT_GOAL || u->orders == AI_EURO_ACT_STEP) {
       ai_euro_goal_walk_479b(ctx, u);
     } else {
@@ -2193,20 +1619,6 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   a.goal_code = bound_goal_code;
   a.goal_x = bound_goal_x;
   a.goal_y = bound_goal_y;
-
-  /* FUN_5952_035e's absorption + equip arms are NOT a unit act: they run in
-   * the colony tick (ai_euro_5952_absorb_equip), re-hosted 2026-09-18. */
-  if (ai_euro_act_pioneer_corridor(&a) == AI_EURO_ACT_RETURN) {
-    return;
-  }
-
-  /* Case 7 Europe hire / wagon economy: treasury + dock expert tails in 5d04.
-   * Thin tools delivery runs on land Pioneer/Hardy at own colony (below). */
-
-  if (is_ship) {
-    ai_euro_act_ship(&a);
-    return;
-  }
 
   ai_euro_act_land(&a);
 }
@@ -2278,24 +1690,8 @@ static void ai_euro_dispatcher_turn_plan(ColonizeTurnContext* ctx, int nation_id
    * clear_pre_stockade_build_queue passes stood here; each gated off alone
    * 2026-10-02 moved no golden bip/hammers and no ctest; deleted. */
   ai_euro_colony_goals(ctx, nation_id);
-  /*
-   * bugs.md #483 — DOS's ONE construction picker, FUN_5952_035e's tail. It
-   * replaces the three invented preference passes that used to stand here
-   * (ai_euro_prefer_peace_construction / _all_buildings / _craft_upgrades;
-   * the last of them, peace_construction, deleted by #1034a).
-   * DOS runs it inside the colony tick, the AI turn's first phase; the port
-   * runs it immediately after ai_euro_colony_goals because that pass is the
-   * other half of the same DOS body and is what produces the ring-1 threat
-   * count (iStack_22) the Wagon Train arm reads.
-   */
-  if (ctx->colonies && !ai_euro_ship_dos_enabled()) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (c->active && c->nation_id == nation_id) {
-        ai_euro_5952_build_cascade(ctx, c);
-      }
-    }
-  }
+  /* bugs.md #483: DOS's one construction picker (ai_euro_5952_build_cascade)
+   * runs inside the 5952 colony tick at the top of the nation turn. */
   /* FUN_521d_0a60 goal-consumption tail (structural port) — stamps each idle
    * unit's next goal into its own +0x314b/c/d/e; consumed by
    * ai_euro_unit_act below. See the function's header comment for scope. */
@@ -2342,12 +1738,9 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
    *
    * That DOS shape is the default since 2026-09-15. AI_6D8E_DOS_LOOP=0
    * restores the legacy "wave 0 = ships, one act per unit per pass" shape
-   * (bisect aid only). Two port-only rules keep the goldens under the DOS
+   * (bisect aid only). One port-only rule keeps the goldens under the DOS
    * order: a unit whose act makes no progress counts as exhausted for the
-   * scan (DOS would re-act it until the sticky clear), and the SP soldier's
-   * first-colony eligibility accepts "both landed, ship still at the tip"
-   * (ai_euro_try_first_colony_land) because the ship now acts after the
-   * land units.
+   * scan (DOS would re-act it until the sticky clear).
    */
   const int dos_loop = !(getenv("AI_6D8E_DOS_LOOP") && getenv("AI_6D8E_DOS_LOOP")[0] == '0');
   int any_acted;
@@ -2369,20 +1762,8 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
         if (!in_wave) {
           continue;
         }
-        /*
-         * FITTED-NOT-DOS (bugs.md #1035): DOS raw ~93240-93245 has only the
-         * unconditional FUN_281f_097a has-MP gate. Before the nation's first
-         * colony a 0-MP land Pioneer/Soldier still gets one act so the
-         * first-colony wake+found fires; it holds up golden_ai_turns TURN3->4
-         * (Dutch Isabella pioneer, soldier found-approach). The finer wake
-         * rules that stood here (settler/pioneer-aboard, same-act beachhead,
-         * outer-loop re-entry, mid-march cruise tip) were each gated off
-         * alone 2026-10-02 and moved nothing (golden 6/6, ctest unchanged);
-         * deleted. Delete this with the #530 fit layer.
-         */
-        if (u->moves <= 0 &&
-            (is_ship || colonies_count_for_nation(ctx->colonies, nation_id) != 0 ||
-             (!ai_euro_name_is_pioneer(ukind) && !ai_euro_name_is_soldier(ukind)))) {
+        /* DOS raw ~93240-93245: the unconditional FUN_281f_097a has-MP gate. */
+        if (u->moves <= 0) {
           continue;
         }
 
@@ -2507,22 +1888,11 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
 
   /* FUN_521d_6d8e raw 93118-93142: the complete 5952 colony tick
    * precedes inventory and Europe planning; those read its new stocks. */
-  if (ai_euro_ship_dos_enabled()) {
-    ai_euro_colony_tick_5952(ctx, nation_id);
-  }
+  ai_euro_colony_tick_5952(ctx, nation_id);
 
   ai_euro_dispatcher_turn_plan(ctx, nation_id);
 
   ai_euro_dispatcher_turn_unit_waves(ctx, nation_id);
-
-  /* Legacy phase order retained while the DOS opening path is opt-in.
-   * #964/#530: DOS mode runs counters/origin binding, threat/absorption,
-   * placement, build cascade and specialist arms together before planning.
-   * The default still needs the broader colony/dispatch regressions resolved
-   * before this fallback can be removed. */
-  if (!ai_euro_ship_dos_enabled()) {
-    ai_euro_colony_tick_28c8_reassign(ctx, nation_id);
-  }
 }
 
 /*

@@ -365,8 +365,7 @@ static int unit_land_adjacent_combat_chain(void) {
     return fail("adjacent foe must be defeated while the far foe survives");
   }
 
-  if (ai_euro_ship_dos_enabled() &&
-      (!soldier || soldier->x != 5 || soldier->y != 5 || soldier->moves != 0 ||
+  if ((!soldier || soldier->x != 5 || soldier->y != 5 || soldier->moves != 0 ||
        !fa || !fa->active || fa->type_index != 1 || fa->nation_id != foe ||
        !fb || fb->type_index != 0 || fb->nation_id != foe)) {
     fx_map_free(&map);
