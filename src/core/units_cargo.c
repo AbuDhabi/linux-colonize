@@ -584,6 +584,12 @@ bool units_unload_passenger_w(
     }
   }
   diag_info("Unloaded unit %d from ship %d to (%d,%d)", pax_id, ship_id, dest_x, dest_y);
+  /* A landfall is a 465b step, so its commit tail runs FUN_5bfb_3180 (sentry
+   * wake + neighbour facing). Seed-100 TURN3: the French pioneer landing at
+   * (50,38) turns the Arawak Brave at (49,39) to SW before it acts. */
+  if (ship->x != dest_x || ship->y != dest_y) {
+    units_sentry_wake_scan(pool, map, colonies, pax_id);
+  }
   return true;
 }
 

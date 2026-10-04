@@ -916,8 +916,7 @@ int ai_native_pick_dir_021a(
   const int unit_fa = ai_mask_fa_flags(map, x, y) & 0x0a;
   const int unit_river = (int)(map_get_terrain_or(map, x, y, 25) & 0x40u);
   const int home = u->home_tribe_id;
-  const int dump = ai_score_at_match(nation_id, x, y) ||
-                   (ai_peel_audit_enabled() && ai_s_seed100_midturn_turn > 0);
+  const int dump = ai_score_at_match(nation_id, x, y);
 
   /* 0x291: FUN_1427_0bce — 0 when standing on a settlement tile. */
   int adj_foreign = 0;
