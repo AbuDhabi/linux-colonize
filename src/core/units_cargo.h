@@ -418,5 +418,10 @@ int units_spawn_ship_with_cargo(
   const int* hold_goods_type,
   const int* hold_goods_amount
 );
+/* Transfer already-counted Europe lane units into the runtime pool. */
+int units_transfer_ship_from_europe(
+  ColonizeUnitPool* pool, int ship_type_index, int x, int y, const int* cargo_types,
+  int cargo_count, const int* hold_goods_type, const int* hold_goods_amount
+);
 
 #endif

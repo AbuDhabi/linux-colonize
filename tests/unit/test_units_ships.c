@@ -5,6 +5,48 @@ static int g_refit_sound_calls;
 static int g_galleon_bgm_pool;
 static int g_galleon_bgm_calls;
 
+static void test_transit_reservation(
+  void* user, int nation, int* external, bool* human, int* census
+) {
+  (void)user;
+  (void)nation;
+  *external = 2; /* ship and one passenger still in the Europe lane */
+  *human = true;
+  *census = 0;
+}
+
+static int unit_europe_transfer_at_dos_cap(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  pool.types[0].cargo = 1;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  for (int i = 0; i < COLONIZE_UNITS_MAX - 2; ++i) {
+    pool.units[i].active = true;
+    pool.units[i].id = i + 1;
+    pool.units[i].x = 200;
+    pool.units[i].y = 100;
+  }
+  pool.unit_count = COLONIZE_UNITS_MAX - 2;
+  pool.next_id = COLONIZE_UNITS_MAX - 1;
+  units_set_spawn_gate_hook(test_transit_reservation, NULL);
+  const int fresh = units_spawn_allow_stack(&pool, 0, 5, 5);
+  const int passenger_type = 1;
+  const int returned = units_transfer_ship_from_europe(
+    &pool, 0, 5, 5, &passenger_type, 1, NULL, NULL
+  );
+  units_set_spawn_gate_hook(NULL, NULL);
+  const ColonizeUnit* ship = units_get_const(&pool, returned);
+  if (fresh >= 0 || !ship || ship->cargo_count != 1 ||
+      pool.unit_count != COLONIZE_UNITS_MAX) {
+    fprintf(stderr, "Europe transfer failed at DOS cap (fresh=%d return=%d count=%d)\n",
+            fresh, returned, pool.unit_count);
+    return 1;
+  }
+  return 0;
+}
+
 static void capture_refit_sound(int id) {
   g_refit_sound_id = id;
   g_refit_sound_calls++;
@@ -839,6 +881,10 @@ fail:
 }
 int main(void) {
   diag_init(0, NULL);
+  if (unit_europe_transfer_at_dos_cap() != 0) {
+    diag_shutdown();
+    return 1;
+  }
   if (unit_king_galleon_offer() != 0) {
     return 1;
   }

@@ -2104,6 +2104,34 @@ static void game_create_load_screens(ColonizeGameState* game) {
   }
 }
 
+static void game_europe_spawn_reservation(
+  void* user, int nation, int* out_external, bool* out_human, int* out_census
+) {
+  const ColonizeGameState* game = user;
+  int reserved = 0;
+  const EuropeScreen* eu = &game->europe;
+  for (int i = 0; i < eu->harbor_ships; ++i) {
+    reserved += 1 + eu->harbor[i].cargo_count;
+  }
+  for (int i = 0; i < eu->expected_ships; ++i) {
+    reserved += 1 + eu->expected[i].cargo_count;
+  }
+  for (int i = 0; i < eu->bound_ships; ++i) {
+    reserved += 1 + eu->bound[i].cargo_count;
+  }
+  *out_external = reserved;
+  if (nation >= 0 && nation < 4 && game->col1_ok) {
+    *out_human = game->col1.player[nation].control == 0;
+  }
+  if (out_census && nation >= 0 && nation < 4 && game->col1_ok) {
+    *out_census = game->col1.stuff.all_unit_counts[nation];
+  }
+}
+
+void game_register_europe_spawn_reservation(ColonizeGameState* game) {
+  units_set_spawn_gate_hook(game_europe_spawn_reservation, game);
+}
+
 ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   ColonizeGameState* game = calloc(1, sizeof(*game));
   if (!game || !config) {
@@ -2111,6 +2139,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
     return NULL;
   }
   game_create_reset_fields(game, config);
+  game_register_europe_spawn_reservation(game);
   game_create_resolve_data_dir(game, config);
   game_create_load_text_assets(game, config);
   game_create_load_menu_art(game);
@@ -2138,6 +2167,7 @@ void game_destroy(ColonizeGameState* game) {
   units_set_combat_watch(NULL, NULL);
   units_set_combat_dissolve(NULL, NULL);
   units_set_combat_popup_pump(NULL, NULL);
+  units_set_spawn_gate_hook(NULL, NULL);
   ai_set_native_score_plot(NULL, NULL);
   combat_analysis_set_presenter(NULL, NULL);
   combat_analysis_close(&game->combat_analysis);

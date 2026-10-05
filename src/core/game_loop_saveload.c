@@ -110,7 +110,13 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   ai_native_reset();
   turn_reset();
   units_reset_state(); /* goto anti-backtrack shadow, indexed by reused unit_id */
-  if (!col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(loaded), .col1_ok=((loaded) != NULL), .europe=(EuropeScreen*)(&game->europe)}, &result, err, err_size)) {
+  /* A legacy port save can already exceed DOS's 300-record global limit.
+   * Restore every saved record first; the live spawn reservation resumes
+   * immediately afterward for new runtime-pool units. */
+  units_set_spawn_gate_hook(NULL, NULL);
+  const bool applied = col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(loaded), .col1_ok=((loaded) != NULL), .europe=(EuropeScreen*)(&game->europe)}, &result, err, err_size);
+  game_register_europe_spawn_reservation(game);
+  if (!applied) {
     return false;
   }
   game->world_map_ok = true;

@@ -53,6 +53,8 @@ extern char g_units_levels[5][24];
 extern char g_units_nationality[4][24];
 bool units_move_crosses_shore( const ColonizeWorldMap* map, const ColonizeColonyPool* colonies, int from_x, int from_y, int to_x, int to_y );
 ColonizeUnit* units_slot(ColonizeUnitPool* pool);
+ColonizeUnit* units_slot_transfer(ColonizeUnitPool* pool);
+int units_spawn_allow_stack_transfer(ColonizeUnitPool* pool, int type_index, int x, int y);
 void units_slot_reset_defaults( ColonizeUnitPool* pool, ColonizeUnit* slot, const ColonizeUnitType* type, int type_index, int x, int y );
 bool units_type_is_brave_named(const ColonizeUnitType* t);
 

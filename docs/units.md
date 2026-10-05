@@ -4,6 +4,18 @@ Design/rationale prose moved out of `src/core/units.h` so the header stays
 declaration-focused. Each heading below names the symbol the prose documents;
 content is verbatim from the original header comment.
 
+## DOS unit limit and Europe transfers
+
+FUN_1427_06b4 (raw 7719-7720) refuses new unit records once DS:0x539c
+reaches 300. Ships and passengers crossing the Atlantic are existing records
+in DOS, so FUN_48d3_048e places them on the map without calling that allocator.
+OpenCol keeps human Europe ships outside its runtime unit pool; the game spawn
+gate therefore counts their hulls and passengers as reserved records. A return
+transfers those records into the pool without charging the creation gate again.
+The physical pool remains 300. Older port saves that already contain more than
+300 total records load intact but cannot land an overdue ship until enough
+on-map unit slots are freed; the status line reports the immediate shortfall.
+
 ## units_set_native_fallout_context
 
 Optional post-win native settlement fallout context for

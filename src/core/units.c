@@ -32,13 +32,35 @@
 /* ===================== Unit pool slots, type loading & kind/type predicates (units_slot .. units_equip_role_type_name) ===================== */
 
 
-ColonizeUnit* units_slot(ColonizeUnitPool* pool) {
+static ColonizeUnitsSpawnGateFn s_spawn_gate_fn;
+static void* s_spawn_gate_user;
+
+ColonizeUnit* units_slot_transfer(ColonizeUnitPool* pool) {
+  if (!pool) {
+    return NULL;
+  }
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     if (!pool->units[i].active) {
       return &pool->units[i];
     }
   }
   return NULL;
+}
+
+ColonizeUnit* units_slot(ColonizeUnitPool* pool) {
+  if (!pool) {
+    return NULL;
+  }
+  int external = 0;
+  if (s_spawn_gate_fn) {
+    bool human = true;
+    int census = 0;
+    s_spawn_gate_fn(s_spawn_gate_user, 0, &external, &human, &census);
+  }
+  if (pool->unit_count + external >= COLONIZE_UNITS_MAX) {
+    return NULL;
+  }
+  return units_slot_transfer(pool);
 }
 
 /*
@@ -642,11 +664,13 @@ void units_slot_reset_defaults(
   units_sync_equip_after_type_change(slot, type);
 }
 
-int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y) {
+static int units_spawn_allow_stack_impl(
+  ColonizeUnitPool* pool, int type_index, int x, int y, bool transfer
+) {
   if (!pool || type_index < 0 || type_index >= pool->type_count) {
     return -1;
   }
-  ColonizeUnit* slot = units_slot(pool);
+  ColonizeUnit* slot = transfer ? units_slot_transfer(pool) : units_slot(pool);
   if (!slot) {
     return -1;
   }
@@ -662,8 +686,13 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   return slot->id;
 }
 
-static ColonizeUnitsSpawnGateFn s_spawn_gate_fn;
-static void* s_spawn_gate_user;
+int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y) {
+  return units_spawn_allow_stack_impl(pool, type_index, x, y, false);
+}
+
+int units_spawn_allow_stack_transfer(ColonizeUnitPool* pool, int type_index, int x, int y) {
+  return units_spawn_allow_stack_impl(pool, type_index, x, y, true);
+}
 
 void units_set_spawn_gate_hook(ColonizeUnitsSpawnGateFn fn, void* user) {
   s_spawn_gate_fn = fn;

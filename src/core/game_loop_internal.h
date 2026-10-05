@@ -260,6 +260,7 @@ bool game_end_turn_prompt_active(const ColonizeGameState* game);
 void game_enqueue_war_scored_choice(ColonizeGameState* game);
 void game_enter_colony_at_cursor(ColonizeGameState* game);
 void game_europe_deliver_bound_ships(ColonizeGameState* game);
+void game_register_europe_spawn_reservation(ColonizeGameState* game);
 bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my, bool shift);
 EuropeHitResult game_europe_hit(const ColonizeGameState* game, int mx, int my);
 bool game_europe_menu_confirm(ColonizeGameState* game);
