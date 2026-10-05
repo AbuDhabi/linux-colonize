@@ -566,6 +566,15 @@ void game_europe_deliver_bound_ships(ColonizeGameState* game) {
 
     int cargo_count = slot->cargo_count > EUROPE_SHIP_CARGO_MAX ? EUROPE_SHIP_CARGO_MAX
                                                                : slot->cargo_count;
+    if (game->units.unit_count + 1 + cargo_count > COLONIZE_UNITS_MAX) {
+      snprintf(
+        game->status, sizeof(game->status),
+        "Unit limit reached: free %d unit slots for %s to arrive",
+        game->units.unit_count + 1 + cargo_count - COLONIZE_UNITS_MAX, name
+      );
+      diag_warn("Europe arrival: %s — parked in lane", game->status);
+      break;
+    }
     int resolved_cargo[EUROPE_SHIP_CARGO_MAX];
     for (int i = 0; i < cargo_count; ++i) {
       resolved_cargo[i] = game_europe_resolve_pax_type(&game->units, slot->cargo_types[i]);
@@ -577,7 +586,7 @@ void game_europe_deliver_bound_ships(ColonizeGameState* game) {
       hold_amts[i] = slot->hold_goods_amount[i];
     }
 
-    const int ship_id = units_spawn_ship_with_cargo(
+    const int ship_id = units_transfer_ship_from_europe(
       &game->units, type_index, fx, fy, resolved_cargo, cargo_count, hold_types, hold_amts
     );
     if (ship_id < 0) {
