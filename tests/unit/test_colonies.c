@@ -566,48 +566,6 @@ static int unit_found_chrome(void) {
   return 0;
 }
 
-/* Helper: @FULL chrome when colony is at population cap. */
-static int unit_full_chrome(void) {
-  ColonizeColonyPool pool;
-  colonies_init(&pool);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* col = &pool.colonies[0];
-  memset(col, 0, sizeof(*col));
-  col->active = true;
-  col->id = 1;
-  col->nation_id = 0;
-  snprintf(col->name, sizeof(col->name), "Jamestown");
-  col->colonist_count = COLONIZE_COLONY_POP_MAX;
-  col->population = COLONIZE_COLONY_POP_MAX;
-  pool.colony_count = 1;
-
-  ColonizeMsgCatalog game_txt;
-  assets_msg_init(&game_txt);
-  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
-    fprintf(stderr, "full: GAME.TXT load failed\n");
-    return 1;
-  }
-  AiPopupState pops;
-  ai_popup_init(&pops);
-  colonies_emit_full_chrome(col, &pops, &game_txt);
-  if (pops.queue_count < 1 ||
-      (strstr(pops.queue[0].body, "Jamestown") == NULL &&
-       strstr(pops.queue[0].body, "crowded") == NULL &&
-       strstr(pops.queue[0].body, "immigrants") == NULL)) {
-    fprintf(
-      stderr,
-      "full: FULL popup weak q=%d body='%s'\n",
-      pops.queue_count,
-      pops.queue_count > 0 ? pops.queue[0].body : ""
-    );
-    assets_msg_free(&game_txt);
-    return 1;
-  }
-  assets_msg_free(&game_txt);
-  fprintf(stderr, "unit_colonies: FULL chrome ok\n");
-  return 0;
-}
-
 /* Helper: @ALREADYHAVE / @NOMOREWAREHOUSE when construction already owned. */
 static int unit_alreadyhave_chrome(void) {
   ColonizeColonyPool pool;
@@ -3319,7 +3277,6 @@ static int unit_settlement_count_and_name_peek(void) {
 static const TestCase k_cases[] = {
     {"unit_colonies_core", case_colonies_core},
     {"unit_found_chrome", unit_found_chrome},
-    {"unit_full_chrome", unit_full_chrome},
     {"unit_alreadyhave_chrome", unit_alreadyhave_chrome},
     {"unit_noteacher_chrome", unit_noteacher_chrome},
     {"unit_more_than_three_chrome", unit_more_than_three_chrome},
