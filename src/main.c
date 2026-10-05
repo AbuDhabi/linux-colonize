@@ -7,6 +7,7 @@
 #include "core/savegame.h"
 #include "core/screen_geom.h"
 #include "core/text_edit.h"
+#include "core/units.h"
 #include "core/settings.h"
 #include "core/sound.h"
 #include "core/window_log.h"
@@ -109,6 +110,7 @@ int main(int argc, char** argv) {
   }
   {
     const ColonizeSettings* prefs = settings_get();
+    units_set_unlimited(prefs->unlimited_units);
     if (!cli.data_dir_from_cli && prefs->data_dir[0]) {
       cli.data_dir = prefs->data_dir;
     }

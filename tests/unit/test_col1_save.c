@@ -558,6 +558,56 @@ static bool build_synthetic(ColonizeCol1Save* save, char* err, size_t err_size) 
  * slot probe flags the file, and removing the last chunk drops the tail
  * again. Also covers the 'VTIN' payload (village Buys/Sells sidebar intel).
  */
+/* More than 300 units: DOS section keeps 300 (links into the rest cut), the
+ * remainder rides in 'UNXT' and comes back on read. */
+static bool test_unit_overflow(char* err, size_t err_size) {
+  ColonizeCol1Save save;
+  if (!build_synthetic(&save, err, err_size)) {
+    return false;
+  }
+  const uint16_t n = (uint16_t)(COLONIZE_COL1_DOS_UNIT_MAX + 7u);
+  ColonizeCol1Unit* units = calloc(n, sizeof(*units));
+  if (!units) {
+    col1_save_free(&save);
+    return false;
+  }
+  for (uint16_t i = 0; i < n; ++i) {
+    units[i].x = (uint8_t)(i % 50);
+    units[i].type = 0;
+    units[i].transport_chain.next_unit_idx = -1;
+    units[i].transport_chain.prev_unit_idx = -1;
+  }
+  units[299].transport_chain.next_unit_idx = 300;
+  units[300].transport_chain.prev_unit_idx = 299;
+  units[n - 1].x = 77;
+  free(save.unit);
+  save.unit = units;
+  save.head.unit_count = n;
+  save.head.active_unit = (uint16_t)(n - 1);
+  uint8_t* data = NULL;
+  size_t size = 0;
+  bool ok = col1_save_write_memory(&save, &data, &size, err, err_size);
+  ColonizeCol1Head dos_head;
+  ColonizeCol1Save back;
+  col1_save_init(&back);
+  if (ok) {
+    memcpy(&dos_head, data, sizeof(dos_head));
+    ok = dos_head.unit_count == COLONIZE_COL1_DOS_UNIT_MAX && dos_head.active_unit == 0xffffu &&
+         col1_save_read_memory(data, size, &back, err, err_size) &&
+         back.head.unit_count == n && back.unit[n - 1].x == 77 &&
+         back.head.active_unit == n - 1 && back.unit[299].transport_chain.next_unit_idx == -1 &&
+         back.unit[300].transport_chain.prev_unit_idx == 299 &&
+         !col1_save_ext_find(&back, COLONIZE_COL1_EXT_TAG_UNIT_OVERFLOW, NULL, NULL);
+  }
+  if (!ok) {
+    fprintf(stderr, "unit overflow: round trip failed (%s)\n", err);
+  }
+  free(data);
+  col1_save_free(&back);
+  col1_save_free(&save);
+  return ok;
+}
+
 static bool test_port_ext(char* err, size_t err_size) {
   ColonizeCol1Save save;
   if (!build_synthetic(&save, err, err_size)) {
@@ -850,6 +900,88 @@ static bool test_import_overfull_ship_keeps_passenger(char* err, size_t err_size
   return ok;
 }
 
+static int count_active(const ColonizeUnitPool* units) {
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    n += units->units[i].active ? 1 : 0;
+  }
+  return n;
+}
+
+/* Bridge + file round trip of a game past the DOS 300-record limit. */
+static bool test_bridge_unit_overflow(char* err, size_t err_size) {
+  const int n = 320;
+  ColonizeCol1Save save;
+  col1_save_init(&save);
+  save.head.map_size_x = 8;
+  save.head.map_size_y = 8;
+  save.head.unit_count = (uint16_t)n;
+  save.head.difficulty = 2;
+  save.player[0].control = 0;
+  col1_save_stamp_head(&save.head);
+  if (!col1_save_alloc_sections(&save, err, err_size)) {
+    return false;
+  }
+  memset(save.map.tile, 0, save.map.tile_count);
+  for (int i = 0; i < n; ++i) {
+    save.unit[i].x = (uint8_t)(1 + i % 6);
+    save.unit[i].y = (uint8_t)(1 + (i / 6) % 6);
+    save.unit[i].nation_id = 1;
+    save.unit[i].profession = UNITS_JOB_NONE;
+    save.unit[i].transport_chain.prev_unit_idx = -1;
+    save.unit[i].transport_chain.next_unit_idx = -1;
+  }
+  ColonizeUnitPool* units = calloc(2, sizeof(ColonizeUnitPool));
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.cargo_count = 16;
+  ColonizeCol1BridgeResult result;
+  uint8_t* data = NULL;
+  size_t size = 0;
+  bool ok = units != NULL;
+  for (int k = 0; ok && k < 2; ++k) {
+    units_reset(&units[k]);
+    units[k].type_count = 23;
+    for (int t = 0; t < units[k].type_count; ++t) {
+      units[k].types[t].movement = 1;
+      units[k].types[t].domain = (t >= 13 && t <= 18) ? COLONIZE_UNIT_DOMAIN_SEA
+                                                      : COLONIZE_UNIT_DOMAIN_LAND;
+      units[k].types[t].cargo = (t >= 13 && t <= 18) ? 6 : 0;
+    }
+  }
+  units_set_occupancy_map(NULL);
+  ok = ok && col1_bridge_apply_w(
+    &(ColonizeWorld){.units=&units[0], .colonies=&colonies, .map=&map, .col1=&save,
+                     .col1_ok=true, .europe=&europe},
+    &result, err, err_size
+  ) && count_active(&units[0]) == n;
+  ok = ok && col1_bridge_capture_w(
+    &(ColonizeWorld){.units=&units[0], .colonies=&colonies, .map=&map, .col1=&save,
+                     .col1_ok=true, .europe=&europe},
+    1492, 0, 1, 0, 3, 3, 3, 3, -1, false, err, err_size
+  ) && save.head.unit_count == n;
+  ok = ok && col1_save_write_memory(&save, &data, &size, err, err_size) &&
+       col1_save_read_memory(data, size, &save, err, err_size) && save.head.unit_count == n;
+  ok = ok && col1_bridge_apply_w(
+    &(ColonizeWorld){.units=&units[1], .colonies=&colonies, .map=&map, .col1=&save,
+                     .col1_ok=true, .europe=&europe},
+    &result, err, err_size
+  ) && count_active(&units[1]) == n;
+  if (!ok) {
+    fprintf(stderr, "bridge unit overflow: %s (count %d / %d)\n", err,
+            units ? count_active(&units[0]) : -1, units ? count_active(&units[1]) : -1);
+  }
+  free(data);
+  free(units);
+  col1_save_free(&save);
+  map_free(&map);
+  return ok;
+}
+
 static bool test_imported_tile_chain_order(char* err, size_t err_size) {
   ColonizeCol1Save save;
   col1_save_init(&save);
@@ -1005,6 +1137,12 @@ int main(void) {
   fprintf(stderr, "col1 layout sizes ok\n");
 
   if (!test_port_ext(err, sizeof(err))) {
+    return 1;
+  }
+  if (!test_unit_overflow(err, sizeof(err))) {
+    return 1;
+  }
+  if (!test_bridge_unit_overflow(err, sizeof(err))) {
     return 1;
   }
   if (!test_import_overfull_ship_keeps_passenger(err, sizeof(err))) {

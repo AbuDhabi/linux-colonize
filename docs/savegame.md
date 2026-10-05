@@ -103,6 +103,7 @@ Chunks:
 | Tag | Owner | Contents |
 |-----|-------|----------|
 | `VTIN` | `village_trade_intel.c` | Village sidebar `Buys:` / `Sells:` / `Skill:` knowledge per settlement tile × European nation (`uint16` version 2, `uint16` entry count, 40 B per entry; version 1's 36 B trade-only entries remain readable) |
+| `UNXT` | `col1_save.c` | Unit records past `COLONIZE_COL1_DOS_UNIT_MAX` (300), written when `settings.json` `divergences.unlimited_units` let the game grow beyond DOS's `FUN_1427_06b4` limit: `uint16` original `head.active_unit` if it points into these records (else `0xffff`), `uint16` 0, then verbatim 28-byte unit records. Handled inside `col1_save_read_*` / `_write_*` only: in memory the save just has `head.unit_count > 300`. The DOS section keeps records 0..299 with `head.unit_count = 300`; tile-chain links into the overflow are cut to -1 and an overflow `active_unit` becomes `0xffff`. A DOS re-save drops the overflow units. A carrier in the DOS part whose passengers spilled still counts them in `holds_occupied` |
 | `BQUE` | `colony_build.c` | Port-only per-colony build queues (`uint16` record count, then `x`, `y`, `count`, `count` project ids per colony, keyed by colony tile). QOL only — DOS keeps one project per colony |
 
 Wiring: `col1_bridge_capture` serializes the live side tables into chunks,

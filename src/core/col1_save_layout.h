@@ -25,6 +25,10 @@
 #define COLONIZE_COL1_OTHER_SIZE 24u
 #define COLONIZE_COL1_COLONY_SIZE 202u
 #define COLONIZE_COL1_UNIT_SIZE 28u
+/* FUN_1427_06b4 never lets DS:0x539c pass 300: the most unit records DOS can
+ * load. A port save holding more (settings divergences.unlimited_units)
+ * writes the rest to the 'UNXT' extension chunk. */
+#define COLONIZE_COL1_DOS_UNIT_MAX 300u
 /* DOS unit ai_plan default seen on virtually all units in original starters. */
 #define COL1_UNIT_UNKNOWN16_HI_DEFAULT 0x58u
 #define COLONIZE_COL1_NATION_SIZE 316u

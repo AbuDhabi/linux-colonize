@@ -55,6 +55,7 @@ defaults no matter what file is sitting in the build directory.
   },
   "display": { "windowed": true, "window_scale": 2, "window_log_lines": 0 },
   "debug": { "menu": false, "mouse_coords": false, "building_rects": false, "logs": false, "trace_autosaves": false },
+  "divergences": { "unlimited_units": false },
   "data_dir": "./COLONIZE",
   "save_dir": "",
   "no_sound": false,
@@ -93,6 +94,16 @@ the strip is painted by `game_render_window_log`, called by the host loop
 `fb->height`, so the game itself only ever sees 320x200. Windowed mode only:
 fullscreen ignores the key (`platform_create` zeroes the extra height), and a
 pointer over the strip reads as the bottom screen row.
+
+`divergences` holds deliberate departures from DOS behaviour, all off by
+default. `divergences.unlimited_units` (read at startup, `main.c` ->
+`units_set_unlimited`) skips the `FUN_1427_06b4` unit limits (292 for AI and
+natives, 300 total, 200 per European nation, `@TOOMANYUNITS`); the physical
+pool `COLONIZE_UNITS_MAX` (1024) is the only cap left. Records past 300 are
+saved in the `UNXT` port extension chunk (docs/savegame.md), so DOS still
+loads the first 300 and never sees the rest. Turning the flag off again does
+not drop units: a save already above 300 loads whole, and new units wait
+until the count falls back under the DOS limit.
 
 Port-only keys, no DOS bit, no head bridge.
 `save_dir` empty means the platform default (`<exe>/COLONIZE`). `seed` is
