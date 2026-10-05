@@ -1361,7 +1361,7 @@ int europe_compute_immigration_score_w(
   }
   int units_n = 0;
   if (units) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(units); ++i) {
       const ColonizeUnit* u = &units->units[i];
       if (u->active && u->nation_id == nation_id) {
         units_n++;
@@ -1634,7 +1634,7 @@ static int europe_nation_crosses_delta(const ColonizeWorld* w, int nation_id) {
   if ((col1->nation[nation_id].nation_flags & 0x40u) == 0u) {
     return delta;
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(w->units); ++i) {
     const ColonizeUnit* u = &w->units->units[i];
     if (!u->active || u->nation_id != nation_id) {
       continue;

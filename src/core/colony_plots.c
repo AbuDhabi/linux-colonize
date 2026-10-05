@@ -281,7 +281,7 @@ uint8_t colonies_plot_blocked_mask(
   if (owner >= 0 && owner != col->nation_id && owner < 4 &&
       !map_tile_is_water((ColonizeWorldMap*)map, x, y) && w->units) {
     const int pioneer_type = units_kind_type_index(w->units, UNITS_KIND_PIONEER);
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(w->units); ++i) {
       const ColonizeUnit* u = &w->units->units[i];
       if (!u->active || u->x != x || u->y != y) {
         continue;

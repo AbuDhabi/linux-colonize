@@ -321,7 +321,7 @@ int ai_indian_village_threat_w(
         score[ry][rx] = 0;
       }
     }
-    for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+    for (int ui = 0; ui < units_slot_end(pool); ++ui) {
       const ColonizeUnit* u = &pool->units[ui];
       if (!u->active || !units_is_on_map(u)) {
         continue;
@@ -829,7 +829,7 @@ int ai_unit_index_on_tile(const ColonizeUnitPool* units, int x, int y) {
   if (!units) {
     return -1;
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(units); ++i) {
     const ColonizeUnit* u = &units->units[i];
     if (u->active && u->aboard_ship_id < 0 && u->x == x && u->y == y) {
       return i;
@@ -998,7 +998,7 @@ int ai_native_foreign_euro_pull(
   }
   int stack_cost = 0;
   int stack_military = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(units); ++i) {
     const ColonizeUnit* o = &units->units[i];
     if (!o->active || o->aboard_ship_id >= 0 || o->x != x || o->y != y) {
       continue;

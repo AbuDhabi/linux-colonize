@@ -712,7 +712,7 @@ void turn_tally_professions(
     return;
   }
   if (units) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(units); ++i) {
       const ColonizeUnit* u = &units->units[i];
       if (!u->active || u->nation_id != nation_id) {
         continue;
@@ -810,7 +810,7 @@ void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
     ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi != 0;
   const int drydock = colonies_building_row(ctx->colonies, COLONY_BUILDING_DRYDOCK);
   const int shipyard = colonies_building_row(ctx->colonies, COLONY_BUILDING_SHIPYARD);
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->nation_id != nation || u->aboard_ship_id >= 0) {
       continue;

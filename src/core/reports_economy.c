@@ -555,7 +555,7 @@ void reports_render_colony_garrisons(
        * row), and icons are emitted from x=110 for as long as x <= 0x12c.
        * There is no fixed slot cap: a 10-unit garrison draws all 10. */
       int stack_n = 0;
-      for (int u = 0; u < COLONIZE_UNITS_MAX; ++u) {
+      for (int u = 0; u < units_slot_end(units); ++u) {
         const ColonizeUnit* unit = &units->units[u];
         if (!unit->active || unit->nation_id != human) {
           continue;
@@ -596,7 +596,7 @@ void reports_render_colony_garrisons(
        */
       int stack_ids[COLONIZE_UNITS_MAX];
       int stack_count = 0;
-      for (int u = 0; u < COLONIZE_UNITS_MAX; ++u) {
+      for (int u = 0; u < units_slot_end(units); ++u) {
         const ColonizeUnit* unit = &units->units[u];
         if (!unit->active || unit->nation_id != human) {
           continue;

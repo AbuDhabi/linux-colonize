@@ -1088,7 +1088,7 @@ void units_ship_slow_scan_w(
        * port used to skip stackmates of a different nation than the tile's
        * top unit.
        */
-      for (int i = 0; i < COLONIZE_UNITS_MAX && u->moves > 0; ++i) {
+      for (int i = 0; i < units_slot_end(pool) && u->moves > 0; ++i) {
         const ColonizeUnit* f = &pool->units[i];
         if (!f->active || f->x != nx || f->y != ny || !units_is_sea(pool, f->id)) {
           continue;

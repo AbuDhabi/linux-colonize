@@ -430,7 +430,7 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_occupant(struct ai_021a_ctx* c) {
       int treasure = 0;
       if (presence >= 0) {
         score += map_dos_terr_found_score_byte(terr & 31) << 2;
-        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        for (int i = 0; i < units_slot_end(units); ++i) {
           const ColonizeUnit* su = &units->units[i];
           if (!su->active || su->aboard_ship_id >= 0 || su->x != nx || su->y != ny) {
             continue;
@@ -742,7 +742,7 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_angry(struct ai_021a_ctx* c) {
             defs >>= 3;
           }
         }
-        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        for (int i = 0; i < units_slot_end(units); ++i) {
           const ColonizeUnit* su = &units->units[i];
           if (!su->active || su->aboard_ship_id >= 0 || su->x != nx || su->y != ny) {
             continue;
@@ -967,7 +967,7 @@ int ai_native_pick_dir_021a(
       continue;
     }
     int cnt = 0;
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(units); ++i) {
       const ColonizeUnit* o_u = &units->units[i];
       if (!o_u->active || o_u->aboard_ship_id >= 0 || o_u->x != nx || o_u->y != ny) {
         continue;

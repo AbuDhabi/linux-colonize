@@ -641,7 +641,7 @@ static void europe_retype_dock_mirror_unit(
     return;
   }
   int fallback = -1;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(units); ++i) {
     ColonizeUnit* u = &units->units[i];
     if (!u->active || u->nation_id != nation_id || u->x != 236 || u->y != 236 ||
         u->aboard_ship_id >= 0 || units_is_sea(units, u->id)) {
@@ -701,7 +701,7 @@ void europe_remove_dock_mirror_unit(ColonizeUnitPool* units, int nation_id, int 
     return;
   }
   int fallback = -1;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(units); ++i) {
     const ColonizeUnit* u = &units->units[i];
     if (!u->active || u->nation_id != nation_id || u->x != 236 || u->y != 236 ||
         u->aboard_ship_id >= 0 || units_is_sea(units, u->id)) {

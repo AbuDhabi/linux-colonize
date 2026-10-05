@@ -86,6 +86,8 @@ void units_set_combat_music_hooks(
  * when loading a save that already holds more; records past 300 are saved in
  * the 'UNXT' port extension chunk (docs/savegame.md). */
 #define COLONIZE_UNITS_MAX 1024
+/* id -> slot index size: a power of two, at least twice COLONIZE_UNITS_MAX. */
+#define COLONIZE_UNITS_ID_HASH 2048
 #define COLONIZE_UNIT_TYPES_MAX 32
 #define COLONIZE_UNIT_CARGO_MAX 6 /* Man-O-War hold size */
 
@@ -185,7 +187,34 @@ typedef struct ColonizeUnitPool {
   int board_first_slot;
   int next_id;
   uint64_t next_tile_stack_order;
+  /*
+   * Slot bookkeeping, kept by the allocator (units_slot_reset_defaults) and
+   * units_despawn: every slot in use (active, or holding an id) is below
+   * slot_end, and id_slot maps each in-use id to its slot (open addressing,
+   * linear probing on id & (COLONIZE_UNITS_ID_HASH-1); entry = slot + 1,
+   * 0 = empty). Code that fills slots by hand (test fixtures) must call
+   * units_pool_sync afterwards. Under ctest (COLONIZE_UNITS_STRICT=1) the
+   * accessors abort on a pool that breaks this.
+   */
+  int slot_end;
+  int16_t id_slot[COLONIZE_UNITS_ID_HASH];
 } ColonizeUnitPool;
+
+/* One past the highest slot that can hold a unit: the bound for every walk
+ * over pool->units. Re-read each iteration, so units spawned during a walk
+ * are visited exactly as with a full-array walk. */
+extern int g_units_strict; /* COLONIZE_UNITS_STRICT=1, read at startup */
+void units_pool_check_slot_end(const ColonizeUnitPool* pool);
+static inline int units_slot_end(const ColonizeUnitPool* pool) {
+  if (g_units_strict) {
+    units_pool_check_slot_end(pool);
+  }
+  return pool->slot_end;
+}
+
+/* Rebuild slot_end, unit_count and the id index from the slots' active/id
+ * fields after filling pool->units by hand. */
+void units_pool_sync(ColonizeUnitPool* pool);
 
 bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names);
 void units_reset(ColonizeUnitPool* pool);

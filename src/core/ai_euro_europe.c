@@ -141,7 +141,7 @@ static void ai_euro_5d04_woi_seize_manowar(ColonizeTurnContext* ctx, int nation_
   if (!ctx->units) {
     return;
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->nation_id != nation_id || !ai_euro_at_europe_dock(nation_id, u->x, u->y)) {
       continue;
@@ -558,7 +558,7 @@ static int ai_euro_5d04_cb_in_europe_list(int idx) {
          ai_euro_at_europe_dock(u->nation_id, u->x, u->y);
 }
 static int ai_euro_5d04_cb_list_iter_next(int prev) {
-  for (int i = prev + 1; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = prev + 1; ai_euro_s_5d04_ctx && ai_euro_s_5d04_ctx->units && i < units_slot_end(ai_euro_s_5d04_ctx->units); ++i) {
     if (ai_euro_5d04_cb_in_europe_list(i)) {
       return i;
     }
@@ -1017,7 +1017,7 @@ static void ai_euro_5d04_cb_colony_needs(int nation_id, int* out_muskets, int* o
   }
   /* raw 93168-93170: every own Pioneer (@UNIT type 0x02) decrements 0xa0da. */
   if (ai_euro_s_5d04_ctx && ai_euro_s_5d04_ctx->units) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(ai_euro_s_5d04_ctx->units); ++i) {
       const ColonizeUnit* u = &ai_euro_s_5d04_ctx->units->units[i];
       if (!u->active || u->nation_id != nation_id) {
         continue;
@@ -1106,7 +1106,7 @@ static void ai_euro_5d04_cb_cargo_demand(int nation_id, int8_t out[16]) {
     }
   }
   if (ai_euro_s_5d04_ctx->units) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(ai_euro_s_5d04_ctx->units); ++i) {
       const ColonizeUnit* u = &ai_euro_s_5d04_ctx->units->units[i];
       if (!u->active || u->nation_id != nation_id) {
         continue;

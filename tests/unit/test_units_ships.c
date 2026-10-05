@@ -28,8 +28,8 @@ static int unit_europe_transfer_at_dos_cap(void) {
     pool.units[i].x = 200;
     pool.units[i].y = 100;
   }
-  pool.unit_count = COLONIZE_UNITS_DOS_MAX - 2;
   pool.next_id = COLONIZE_UNITS_DOS_MAX - 1;
+  units_pool_sync(&pool);
   units_set_spawn_gate_hook(test_transit_reservation, NULL);
   const int fresh = units_spawn_allow_stack(&pool, 0, 5, 5);
   const int passenger_type = 1;
@@ -73,7 +73,9 @@ static int unit_spawn_room_dos_gates(void) {
   memset(&pool, 0, sizeof(pool));
   for (int i = 0; i < 0x124; ++i) {
     pool.units[i].active = true;
+    pool.units[i].id = pool.next_id++;
   }
+  units_pool_sync(&pool);
   units_set_spawn_gate_hook(test_gate_inputs, NULL);
   units_set_spawn_refused_hook(test_gate_refused);
   g_gate_refused = 0;
@@ -90,7 +92,9 @@ static int unit_spawn_room_dos_gates(void) {
   g_gate_census = 0;
   for (int i = 0x124; i < 300; ++i) {
     pool.units[i].active = true;
+    pool.units[i].id = pool.next_id++;
   }
+  units_pool_sync(&pool);
   const bool human_300 = units_spawn_room(&pool, 1);
   units_set_spawn_refused_hook(NULL);
   units_set_spawn_gate_hook(NULL, NULL);

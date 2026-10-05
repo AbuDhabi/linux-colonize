@@ -128,7 +128,7 @@ static void game_apply_kill_indians(ColonizeGameState* game, int nation_id, cons
   /* Count units before wipe so empty-tribe status is accurate. */
   int unit_n = 0;
   if (game->units_ok) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(&game->units); ++i) {
       const ColonizeUnit* u = &game->units.units[i];
       if (u->active && u->nation_id == nation_id) {
         unit_n++;
@@ -504,7 +504,7 @@ void game_cheat_test_routine(ColonizeGameState* game) {
   }
   int units_n = 0;
   if (game->units_ok) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(&game->units); ++i) {
       if (game->units.units[i].active) {
         units_n++;
       }
@@ -998,7 +998,7 @@ void game_apply_trade_dest(ColonizeGameState* game, int id) {
     memset(&r->stop[r->dest_count - 1], 0, sizeof(r->stop[0]));
     r->dest_count--;
     if (game->units_ok) {
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      for (int i = 0; i < units_slot_end(&game->units); ++i) {
         ColonizeUnit* u = &game->units.units[i];
         if (u->active && u->orders == UNITS_ORDER_TRADE_ROUTE &&
             u->follow_unit_id == game->trade_screen.route &&

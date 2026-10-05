@@ -1917,7 +1917,7 @@ void ai_euro_5952_build_cascade(
   }
   int arty_on_tile = 0; /* iStack_92, asm 5952:2642 */
   if (ctx->units) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
       if (!u->active || !units_is_on_map(u) || u->x != col->x || u->y != col->y) {
         continue;

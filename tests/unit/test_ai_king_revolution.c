@@ -299,7 +299,8 @@ static int case_revolution_warn_one_colony(void) {
       u->nation_id = 1;
       u->x = 0;
       u->y = 0;
-      eu.unit_count = 1;
+      u->id = eu.next_id++;
+      units_pool_sync(&eu);
     }
     /* DOS 3844_0442 win gate: a bare typeless crown unit doesn't count as
      * land force — keep the REF Regulars pool stocked so the King has not
@@ -596,7 +597,8 @@ static int case_revolution_warn3_pop_share(void) {
       memset(u, 0, sizeof(*u));
       u->active = true;
       u->nation_id = 1;
-      eu.unit_count = 1;
+      u->id = eu.next_id++;
+      units_pool_sync(&eu);
     }
 
     ColonizeMsgCatalog game_txt;
@@ -798,7 +800,8 @@ static int case_revolution_lose3_pop_share(void) {
       memset(u, 0, sizeof(*u));
       u->active = true;
       u->nation_id = 1;
-      eu.unit_count = 1;
+      u->id = eu.next_id++;
+      units_pool_sync(&eu);
     }
 
     ColonizeMsgCatalog game_txt;
@@ -1089,7 +1092,8 @@ static int case_revolution_retiring2_1850_stalemate(void) {
       memset(u, 0, sizeof(*u));
       u->active = true;
       u->nation_id = 1; /* crown still in the field */
-      eu.unit_count = 1;
+      u->id = eu.next_id++;
+      units_pool_sync(&eu);
     }
     /* DOS win gate (bugs.md #255): keep the REF pool stocked so the
      * exhaustion win cannot preempt the 1850 war-weariness loss. */
@@ -1454,7 +1458,8 @@ static int case_wartime_soonretiring1_1840(void) {
       memset(u, 0, sizeof(*u));
       u->active = true;
       u->nation_id = 1;
-      eu.unit_count = 1;
+      u->id = eu.next_id++;
+      units_pool_sync(&eu);
     }
     /* DOS win gate (bugs.md #255): stocked pool keeps the war live at 1840. */
     end.head.expeditionary_force[0] = 5;

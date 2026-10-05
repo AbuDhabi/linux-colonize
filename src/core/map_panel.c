@@ -903,7 +903,7 @@ int map_panel_collect_stack(
     return 0;
   }
   int n = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX && n < max; ++i) {
+  for (int i = 0; i < units_slot_end(units) && n < max; ++i) {
     const ColonizeUnit* u = &units->units[i];
     if (!u->active || u->id < 0) {
       continue;
@@ -1344,7 +1344,7 @@ void map_panel_render_w(
     }
 
     if (units) {
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      for (int i = 0; i < units_slot_end(units); ++i) {
         const ColonizeUnit* u = &units->units[i];
         if (!units_is_on_map(u)) {
           continue;

@@ -210,7 +210,7 @@ static int ai_king_crown_ships_in_europe_lane(const ColonizeTurnContext* ctx, in
    * the highest slot in a short one. DOS walks the unit ARRAY in record
    * order (raw 78159). Fixed 2026-09-10 (audit second-wave Leads item 2).
    */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->nation_id != crown || u->aboard_ship_id >= 0) {
       continue;
@@ -298,7 +298,7 @@ int ai_king_mow_sail_home_20e6(ColonizeTurnContext* ctx, ColonizeUnit* u, int cr
   }
   /* iStack_a8: any other unit sharing the ship's tile blocks the beat. */
   /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* o = &ctx->units->units[i];
     if (!o->active || o->id == u->id || o->aboard_ship_id >= 0) {
       continue;
@@ -354,7 +354,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
     const int crown_now = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation);
     bool crown_on_map = false;
     /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
       /* Loose test on purpose: any live crown-slot unit in the New World
        * (incl. hold passengers) keeps the presence armed. */
@@ -464,7 +464,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
          * "Continental Army status" for a Dragoon->Continental Cavalry
          * promote. Only %STRING1 (the PRE-promote type, "Dragoons") varies.
          * Do not retarget the text: the mechanic is already correct. */
-        for (int i = 0; i < COLONIZE_UNITS_MAX && cap > 0; ++i) {
+        for (int i = 0; i < units_slot_end(ctx->units) && cap > 0; ++i) {
           ColonizeUnit* u = &ctx->units->units[i];
           if (!u->active || u->nation_id != human) {
             continue;
@@ -964,7 +964,7 @@ static AiKingWoiEndStatus ai_king_woi_end_win(struct ai_king_woi_end_ctx* w) {
   const int crown_colonies = colonies_count_for_nation(ctx->colonies, crown);
   int crown_land = 0;
   if (ctx->units) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
       if (!u->active || u->nation_id != crown) {
         continue;

@@ -92,7 +92,7 @@ int game_owned_unit_at(const ColonizeGameState* game, int x, int y) {
   if (!game || !game->units_ok) {
     return -1;
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(&game->units); ++i) {
     const ColonizeUnit* u = &game->units.units[i];
     if (!units_is_on_map(u) || u->x != x || u->y != y) {
       continue;
@@ -1762,7 +1762,7 @@ void game_colony_apply_dock_order(
        * random OTHER unit at the head of the boarding queue and left the
        * flagged one in ordinary chain order. Write the slot. */
       game->units.board_first_slot = -1;
-      for (int bi = 0; bi < COLONIZE_UNITS_MAX; ++bi) {
+      for (int bi = 0; bi < units_slot_end(&game->units); ++bi) {
         if (game->units.units[bi].active && game->units.units[bi].id == uid) {
           game->units.board_first_slot = bi;
           break;

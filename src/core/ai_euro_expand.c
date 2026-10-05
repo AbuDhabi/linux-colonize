@@ -825,7 +825,7 @@ void ai_euro_5952_colony_counters(
       /* Slot walk (audit second-wave Leads 2, 2026-09-10): the loop variable
        * is an ARRAY index, not a unit id — see the ai_euro_refresh_continent_
        * stance note. */
-      for (int uid = 0; uid < COLONIZE_UNITS_MAX; ++uid) {
+      for (int uid = 0; uid < units_slot_end(ctx->units); ++uid) {
         ColonizeUnit* su = &ctx->units->units[uid];
         if (!su->active || su->nation_id != nation_id || su->aboard_ship_id >= 0) {
           continue;

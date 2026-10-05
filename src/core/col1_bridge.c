@@ -695,7 +695,7 @@ static void col1_bridge_sync_map_occupancy(
   }
 
   if (units) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(units); ++i) {
       const ColonizeUnit* u = &units->units[i];
       if (!units_is_on_map(u)) {
         continue;
@@ -1848,7 +1848,7 @@ bool col1_bridge_apply_w(
       id_by_index[save->head.active_unit] >= 0) {
     units->selected_id = id_by_index[save->head.active_unit];
   } else if (!save_has_no_active_unit && units->unit_count > 0) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(units); ++i) {
       if (units->units[i].active && units_is_on_map(&units->units[i])) {
         units->selected_id = units->units[i].id;
         break;
@@ -2032,7 +2032,7 @@ static void col1_bridge_sanitize_units_for_dos(
   if (!units || !map) {
     return;
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(units); ++i) {
     ColonizeUnit* land = &units->units[i];
     if (!land->active || land->nation_id < 0 || land->nation_id > 3) {
       continue;
@@ -2058,7 +2058,7 @@ static void col1_bridge_sanitize_units_for_dos(
     if (map_tile_is_land(map, land->x, land->y)) {
       continue;
     }
-    for (int s = 0; s < COLONIZE_UNITS_MAX; ++s) {
+    for (int s = 0; s < units_slot_end(units); ++s) {
       ColonizeUnit* ship = &units->units[s];
       if (!ship->active || ship->nation_id != land->nation_id) {
         continue;
@@ -2072,7 +2072,7 @@ static void col1_bridge_sanitize_units_for_dos(
     }
   }
 
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(units); ++i) {
     ColonizeUnit* land = &units->units[i];
     if (!land->active || land->nation_id < 0 || land->nation_id > 3) {
       continue;
@@ -2661,7 +2661,7 @@ bool col1_bridge_capture_w(
   /* Rebuild units from live pool (includes natives only if still in pool). */
   {
     int live = 0;
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(units); ++i) {
       if (units->units[i].active) {
         live++;
       }
@@ -2702,7 +2702,7 @@ bool col1_bridge_capture_w(
     /* DOS "no active unit" = 0xffff (dutch-campaign COLONY09 / french
      * COLONY08 originals, saved in View mode). 0 claimed unit 0 active. */
     int active_col1 = -1;
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(units); ++i) {
       const ColonizeUnit* src = &units->units[i];
       if (!src->active) {
         continue;
@@ -3013,7 +3013,7 @@ bool col1_bridge_capture_w(
     }
 
     /* Wire passenger → ship chains (pax0→pax1→…→ship). */
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(units); ++i) {
       const ColonizeUnit* ship = &units->units[i];
       if (!ship->active || ship->cargo_count <= 0) {
         continue;
@@ -3124,7 +3124,7 @@ bool col1_bridge_capture_w(
       for (int r = 0; r < EUROPE_DOCK_MAX; ++r) {
         claimed[r] = false;
       }
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      for (int i = 0; i < units_slot_end(units); ++i) {
         const ColonizeUnit* u = &units->units[i];
         /* The same shape europe_remove_dock_mirror_unit matches on. */
         if (!u->active || (u->nation_id & 0xF) != human_nation || u->x != 236 || u->y != 236 ||

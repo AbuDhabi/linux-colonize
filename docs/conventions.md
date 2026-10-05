@@ -192,6 +192,13 @@ These have each cost a session. Check them before blaming the code.
 - **FF head-only.** See above; `head.founding_father` is not a gate.
 - **id-vs-slot.** `pool.units[id]` in a fixture edits the wrong slot. Use
   `units_get`.
+- **Hand-filled unit pools.** Unit walks stop at `units_slot_end(pool)` and
+  `units_get` looks ids up in `pool->id_slot`; only the allocator and
+  `units_despawn` keep those current. A fixture that writes `units[i].active`,
+  `.id`, `unit_count`, or copies records into slots must give every in-use
+  slot a unique id (retired slots: `active = false; id = -1`) and then call
+  `units_pool_sync(&pool)`. ctest sets `COLONIZE_UNITS_STRICT=1`, which
+  aborts with "call units_pool_sync" on a pool that skipped it.
 - **Stale build tree.** Live trees are `build/debug` and `build/release`
   (CMakePresets `binaryDir`). `ctest --test-dir build` on the bare `build/` dir
   gives phantom pass/fail. Always `--test-dir build/debug`.

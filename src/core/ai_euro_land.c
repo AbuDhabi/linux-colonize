@@ -886,7 +886,7 @@ static int ai_euro_20e6_combat_value_on(const ColonizeTurnContext* ctx, int nati
   }
   ColonizeCombatStrengthCtx sctx = combat_strength_ctx_from_turn(ctx);
   /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* o = &ctx->units->units[i];
     if (!o->active || o->nation_id != nation || units_is_sea(ctx->units, o->id)) {
       continue;
@@ -906,7 +906,7 @@ static int ai_euro_20e6_combat_value_on(const ColonizeTurnContext* ctx, int nati
 int ai_euro_10ec_land_units_on(const ColonizeTurnContext* ctx, int nation, int cid) {
   int n = 0;
   /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* o = &ctx->units->units[i];
     if (!o->active || o->nation_id != nation || units_is_sea(ctx->units, o->id)) {
       continue;
@@ -1099,7 +1099,7 @@ static int ai_euro_20e6_stack_combat_0b(ColonizeTurnContext* ctx, int x, int y) 
   const int water = map_tile_is_water(ctx->map, x, y);
   int sum = 0;
   /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* o = &ctx->units->units[i];
     if (!o->active || o->aboard_ship_id >= 0 || o->x != x || o->y != y) {
       continue;
@@ -1774,7 +1774,7 @@ static int ai_euro_20e6_attack_term(
   int stack = 0;
   if (foe_id >= 0) {
     /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* o = &ctx->units->units[i];
       if (!o->active || o->aboard_ship_id >= 0 || o->x != nx || o->y != ny) {
         continue;
@@ -2189,7 +2189,7 @@ int ai_euro_20e6_wander_step(
         if (bonus >= 150) {
           pen = 0x28;
         }
-        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        for (int i = 0; i < units_slot_end(ctx->units); ++i) {
           const ColonizeUnit* o = &ctx->units->units[i];
           if (o->active && o->aboard_ship_id < 0 && o->x == ax && o->y == ay &&
               ai_euro_20e6_dos_type(ctx->units, o) == 0xb) {
@@ -2470,7 +2470,7 @@ static int ai_euro_20e6_nearest_own_unit(
    * so `except_id` (the caller passes `u->id`) has to be matched against
    * `o->id`, and the returned handle is `o->id`, which is what the caller
    * feeds back to `units_get_const`. */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* o = &ctx->units->units[i];
     if (!o->active || o->nation_id != nation || o->id == except_id) {
       continue;
@@ -3001,7 +3001,7 @@ int ai_euro_europe_dock_land_units(const ColonizeUnitPool* units, int nation_id)
     return 0;
   }
   int n = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(units); ++i) {
     const ColonizeUnit* u = &units->units[i];
     if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
       continue;
@@ -3032,7 +3032,7 @@ int ai_euro_europe_lane_ships(const ColonizeUnitPool* units, int nation_id) {
     return 0;
   }
   int n = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(units); ++i) {
     const ColonizeUnit* u = &units->units[i];
     if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
       continue;
@@ -3247,9 +3247,9 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
         dtype != 8 && (oc->labor_shortage >= 1 || admitted)) {
       /* raw 88594-88600: the tile-chain armed count. */
       int armed = 0;
-      for (int id = 1; id < COLONIZE_UNITS_MAX; ++id) {
-        const ColonizeUnit* su = units_get_const(ctx->units, id);
-        if (!su || !su->active || su->x != u->x || su->y != u->y) {
+      for (int si = 0; si < units_slot_end(ctx->units); ++si) {
+        const ColonizeUnit* su = &ctx->units->units[si];
+        if (!su->active || su->x != u->x || su->y != u->y) {
           continue;
         }
         const int st = ai_euro_20e6_dos_type(ctx->units, su);

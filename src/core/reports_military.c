@@ -138,7 +138,7 @@ static int reports_naval_build_rows(
 ) {
   int n = 0;
   if (units) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX && n < max_rows; ++i) {
+    for (int i = 0; i < units_slot_end(units) && n < max_rows; ++i) {
       const ColonizeUnit* u = &units->units[i];
       if (!u->active || u->nation_id != human) {
         continue;
@@ -948,7 +948,7 @@ static int reports_indian_build_rows(
     }
     int armed_units = 0;
     if (units) {
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      for (int i = 0; i < units_slot_end(units); ++i) {
         const ColonizeUnit* u = &units->units[i];
         if (!u->active || u->nation_id != nation_id) {
           continue;

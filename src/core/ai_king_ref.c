@@ -155,7 +155,7 @@ static int ai_king_10f0_score_tile(const ColonizeTurnContext* ctx, int human, in
    */
   const int crown = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human);
   int tile_owner = -1; /* 281f_0682 */
-  for (int i = 0; i < COLONIZE_UNITS_MAX && ctx->units; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units) && ctx->units; ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->x != tx || u->y != ty || u->aboard_ship_id >= 0) {
       continue;
@@ -269,7 +269,7 @@ int ai_king_weakest_port(ColonizeTurnContext* ctx, int nation_id, int* out_x, in
 COLONIZE_INTERNAL int ai_king_0982_garrison_score(const ColonizeTurnContext* ctx, const ColonizeColony* c) {
   int g = (c->stock[COLONIZE_CARGO_MUSKETS] + 50) / 100 + 1;
   const ColonizeCombatStrengthCtx cs = combat_strength_ctx_from_turn(ctx);
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->x != c->x || u->y != c->y || !units_is_on_map(u) ||
         units_is_sea(ctx->units, u->id)) {
@@ -291,7 +291,7 @@ COLONIZE_INTERNAL int ai_king_0982_garrison_score(const ColonizeTurnContext* ctx
 COLONIZE_INTERNAL int ai_king_0982_tile_strength(const ColonizeTurnContext* ctx, int x, int y) {
   const ColonizeCombatStrengthCtx cs = combat_strength_ctx_from_turn(ctx);
   int s = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
     if (u->active && u->x == x && u->y == y && units_is_on_map(u)) {
       s += combat_unit_base_x8(&cs, u->id, 0, NULL) >> 4;
@@ -305,7 +305,7 @@ COLONIZE_INTERNAL int ai_king_0982_tile_strength(const ColonizeTurnContext* ctx,
  * @SEIZURELAND / @SEIZURESEA notice (%STRING0 = unit type name).
  */
 COLONIZE_INTERNAL void ai_king_0982_purge_tile(ColonizeTurnContext* ctx, int crown, int x, int y) {
-  for (int i = COLONIZE_UNITS_MAX - 1; i >= 0; --i) {
+  for (int i = units_slot_end(ctx->units) - 1; i >= 0; --i) {
     ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->x != x || u->y != y || !units_is_on_map(u) || u->nation_id == crown) {
       continue;
@@ -343,7 +343,7 @@ COLONIZE_INTERNAL void ai_king_0982_purge_tile(ColonizeTurnContext* ctx, int cro
 
 COLONIZE_INTERNAL int ai_king_0982_crown_mow_alive(const ColonizeTurnContext* ctx, int crown) {
   int n = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
     if (u->active && u->nation_id == crown && ai_king_is_mow(ctx->units, u)) {
       n++;
@@ -464,7 +464,7 @@ static void ai_king_ref_tory_uprising(ColonizeTurnContext* ctx, int crown, int h
     const int sol_p = ai_king_colony_sol_at(ctx, human, (int)c->x, (int)c->y);
     int score = ((int)c->population * (100 - sol_p) * 2) / 100 +
                 (int)ctx->col1->head.difficulty + 1;
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
       if (u->active && u->aboard_ship_id < 0 && u->x == (int)c->x && u->y == (int)c->y) {
         const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
@@ -810,7 +810,7 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
       if (!tu || tu->nation_id != crown) {
         continue;
       }
-      for (int k = 0; k < COLONIZE_UNITS_MAX && g > 0; ++k) {
+      for (int k = 0; k < units_slot_end(ctx->units) && g > 0; ++k) {
         const ColonizeUnit* u = &ctx->units->units[k];
         if (!u->active || u->x != nx || u->y != ny || !units_is_on_map(u)) {
           continue;
@@ -902,7 +902,7 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
         const int occ = units_id_at(ctx->units, wx, wy);
         const ColonizeUnit* ou = occ >= 0 ? units_get_const(ctx->units, occ) : NULL;
         if (ou && ou->nation_id != crown) {
-          for (int k = 0; k < COLONIZE_UNITS_MAX; ++k) {
+          for (int k = 0; k < units_slot_end(ctx->units); ++k) {
             const ColonizeUnit* u = &ctx->units->units[k];
             if (!u->active || u->x != wx || u->y != wy || !units_is_on_map(u)) {
               continue;

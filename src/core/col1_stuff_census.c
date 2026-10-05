@@ -47,7 +47,7 @@ static void col1_stuff_census_tally_units(
   if (!units) {
     return;
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(units); ++i) {
     const ColonizeUnit* u = &units->units[i];
     if (!u->active) {
       continue;

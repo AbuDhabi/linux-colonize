@@ -801,7 +801,7 @@ bool game_units_pending_orders(const ColonizeGameState* game) {
   if (!game || !game->units_ok) {
     return false;
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(&game->units); ++i) {
     const ColonizeUnit* u = &game->units.units[i];
     /* Same filter as the selector (incl. the damaged-hull skip), or the End
      * of Turn prompt never activates while a repairing ship is on the map. */

@@ -84,7 +84,7 @@ static int ai_euro_0a60_weight_seed(const ColonizeTurnContext* ctx, int nation_i
      * same saturating all-active-units-of-nation tally FUN_4962_0018 does. */
     count = 0;
     /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
       if (u->active && u->nation_id == nation_id && count < 255) {
         count++;
@@ -324,7 +324,7 @@ static void ai_euro_0a60_stack_counts(
     return;
   }
   /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(units); ++i) {
     const ColonizeUnit* m = &units->units[i];
     if (!m->active || m->aboard_ship_id >= 0 || m->x != x || m->y != y) {
       continue;
@@ -380,7 +380,7 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
   int merchantmen = 0;
   int galleons = 0;
   /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->nation_id != nation_id) {
       continue;
@@ -399,7 +399,7 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
   const int woi = (ctx->col1_ok && ctx->col1) ? (int)ctx->col1->head.game_options.woi : 0;
 
   /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index, not a unit id. */
-  for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+  for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
     ColonizeUnit* u = &ctx->units->units[ui];
     if (!u->active) {
       continue;
@@ -562,7 +562,7 @@ void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int nation_id
   }
 
   /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index, not a unit id. */
-  for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+  for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
     ColonizeUnit* u = &ctx->units->units[ui];
     if (!u->active || u->nation_id != nation_id || u->id < 0 ||
         u->id >= COLONIZE_UNITS_MAX) {
@@ -1108,7 +1108,7 @@ static void ai_euro_0a60_settlement_goal_producers(ColonizeTurnContext* ctx, int
     }
   }
   /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->nation_id < 0 || u->nation_id > 3 ||
         units_is_sea(ctx->units, u->id)) {
@@ -1247,7 +1247,7 @@ static void ai_euro_5952_labor_demand(
   int outside = 0; /* DS:0x8d72 — FUN_15eb_09c0 raw 10014-10034 */
   if (ctx->units) {
     /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
       if (!u->active || u->aboard_ship_id >= 0 || u->x != c->x || u->y != c->y) {
         continue;
@@ -1278,7 +1278,7 @@ static void ai_euro_5952_labor_demand(
   const int want_pre = want;
   if (ctx->units) {
     /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
       if (!u->active || u->aboard_ship_id >= 0 || u->x != c->x || u->y != c->y) {
         continue;
@@ -1303,7 +1303,7 @@ static void ai_euro_5952_labor_demand(
   int homed_mil = 0;
   if (ctx->units) {
     /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
       if (!u->active || (u->nation_id & 0xf) != nation_id) {
         continue;
@@ -1487,7 +1487,7 @@ static int ai_euro_5952_tile_stack(
   /* DS:0x8d72 (FUN_15eb_09c0 raw 10014-10034) — the same predicate
    * ai_euro_5952_labor_demand counts `outside` with. Slot walk: `i` is an
    * array index, not a unit id. */
-  for (int i = 0; i < COLONIZE_UNITS_MAX && n < max; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units) && n < max; ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->aboard_ship_id >= 0 || u->x != c->x || u->y != c->y) {
       continue;
@@ -1985,7 +1985,7 @@ static void ai_euro_colony_threat_seed_5952(
       /* DOS walks the whole tile stack once the head qualified — including
        * any own-nation unit stacked behind a foreign one. */
       /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index, not an id. */
-      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+      for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
         const ColonizeUnit* u = &ctx->units->units[ui];
         if (!u->active || !units_is_on_map(u) || u->x != tx || u->y != ty) {
           continue;
@@ -2144,7 +2144,7 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_unit_contact(
   ColonizeTurnContext* ctx, int nation_id
 ) {
   /* B: own units — CONTACT from adjacent foreign; work queue only for bindable. */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
       continue;
@@ -2422,7 +2422,7 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_work(
     int wmilitary = 0;
     if (ctx->units) {
       const int cid = map_continent_id_at(ctx->map, c->x, c->y);
-      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+      for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
         const ColonizeUnit* u = &ctx->units->units[ui];
         if (!u->active || u->x != c->x || u->y != c->y) {
           continue;
@@ -2584,7 +2584,7 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_garrison(
     static const int k_adm_vet[5] = {-1, 0, 1, 0, 1}; /* -1 any; 0/1 vs prof 0x15 */
     for (int pass = 0; pass < 5 && c->labor_shortage > 0; ++pass) {
       /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index. */
-      for (int ui = 0; ui < COLONIZE_UNITS_MAX && c->labor_shortage > 0; ++ui) {
+      for (int ui = 0; ui < units_slot_end(ctx->units) && c->labor_shortage > 0; ++ui) {
         ColonizeUnit* gu = &ctx->units->units[ui];
         if (!gu->active || gu->nation_id != nation_id || gu->x != c->x ||
             gu->y != c->y || gu->id < 0 || gu->id >= COLONIZE_UNITS_MAX) {

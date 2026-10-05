@@ -70,7 +70,7 @@ static void ai_replay_count(
       out->population += c->population;
     }
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(units); ++i) {
     const ColonizeUnit* u = &units->units[i];
     if (!u->active || u->nation_id != nation_id) {
       continue;
@@ -90,7 +90,7 @@ static void ai_replay_count(
 static void ai_replay_dump_units(
   const ColonizeUnitPool* units, int human_nation, const char* tag
 ) {
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(units); ++i) {
     const ColonizeUnit* u = &units->units[i];
     if (!u->active || u->nation_id < 0 || u->nation_id > 3 || u->nation_id == human_nation) {
       continue;

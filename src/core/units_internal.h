@@ -53,6 +53,11 @@ extern char g_units_levels[5][24];
 extern char g_units_nationality[4][24];
 bool units_move_crosses_shore( const ColonizeWorldMap* map, const ColonizeColonyPool* colonies, int from_x, int from_y, int to_x, int to_y );
 ColonizeUnit* units_slot(ColonizeUnitPool* pool);
+/* Slot bookkeeping (units_map.c): index slot->id / drop it, bump slot_end. */
+void units_index_add(ColonizeUnitPool* pool, ColonizeUnit* slot);
+void units_index_remove(ColonizeUnitPool* pool, ColonizeUnit* slot);
+/* COLONIZE_UNITS_STRICT full bookkeeping check (no-op otherwise). */
+void units_pool_check(const ColonizeUnitPool* pool);
 ColonizeUnit* units_slot_transfer(ColonizeUnitPool* pool);
 int units_spawn_allow_stack_transfer(ColonizeUnitPool* pool, int type_index, int x, int y);
 void units_slot_reset_defaults( ColonizeUnitPool* pool, ColonizeUnit* slot, const ColonizeUnitType* type, int type_index, int x, int y );

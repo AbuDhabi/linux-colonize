@@ -61,6 +61,7 @@ ColonizeUnit* units_slot(ColonizeUnitPool* pool) {
   if (!pool) {
     return NULL;
   }
+  units_pool_check(pool);
   /* The DOS 300 cap needs the game's Europe reservation; without the hook
    * (save load, headless harnesses) only the physical pool bounds a spawn. */
   if (s_spawn_gate_fn && !s_unlimited) {
@@ -311,6 +312,8 @@ void units_reset(ColonizeUnitPool* pool) {
     return;
   }
   memset(pool->units, 0, sizeof(pool->units));
+  memset(pool->id_slot, 0, sizeof(pool->id_slot));
+  pool->slot_end = 0;
   pool->unit_count = 0;
   pool->selected_id = -1;
   pool->board_first_slot = -1;
@@ -625,7 +628,9 @@ void units_slot_reset_defaults(
   int x,
   int y
 ) {
+  units_index_remove(pool, slot); /* a reused slot may still hold a stale id */
   slot->id = pool->next_id++;
+  units_index_add(pool, slot);
   slot->type_index = type_index;
   slot->x = x;
   slot->y = y;
@@ -724,7 +729,7 @@ static bool units_spawn_room_test(const ColonizeUnitPool* pool, int nation, bool
   }
   *out_human = human;
   int total = external;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(pool); ++i) {
     total += pool->units[i].active ? 1 : 0;
   }
   if (!((nation < 4 && human) || total < 0x124)) {
@@ -854,7 +859,7 @@ int units_tick_convert_outside_colony(
     return 0;
   }
   int removed = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(pool); ++i) {
     ColonizeUnit* u = &pool->units[i];
     /*
      * bugs.md #887: the aboard-ship skip has no literal DOS counterpart and is
@@ -887,7 +892,7 @@ int units_tick_convert_outside_colony(
     }
     /* FUN_1427_0d38 case 2: total stack size at the tile. */
     int stack = 0;
-    for (int j = 0; j < COLONIZE_UNITS_MAX; ++j) {
+    for (int j = 0; j < units_slot_end(pool); ++j) {
       const ColonizeUnit* o = &pool->units[j];
       if (o->active && o->aboard_ship_id < 0 && o->x == u->x && o->y == u->y) {
         stack++;
@@ -922,7 +927,7 @@ int units_tick_ship_build_ready(
     *want_europe_open = 0;
   }
   int completed = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(pool); ++i) {
     ColonizeUnit* u = &pool->units[i];
     if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
       continue;
@@ -1012,7 +1017,7 @@ int units_tick_drydock_repair(
     return 0;
   }
   int repaired = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(pool); ++i) {
     ColonizeUnit* u = &pool->units[i];
     if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
       continue;
@@ -1313,7 +1318,7 @@ int units_king_galleon_offer_for_unit_w(
   const bool cortes = founding_fathers_nation_has(col1, nation_id, FF_HERNAN_CORTES);
   /* FUN_465b_0000: per-nation unit-type count table (-0x6db4, stride 0x13), type 0xf = Galleon. */
   bool has_galleon = false;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(pool); ++i) {
     const ColonizeUnit* u = &pool->units[i];
     if (!u->active || u->nation_id != nation_id) {
       continue;
