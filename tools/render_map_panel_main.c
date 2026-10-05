@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
 
   int selected = -1;
   if (select_unit) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(&rs.units); ++i) {
       const ColonizeUnit* u = &rs.units.units[i];
       if (units_is_on_map(u) && u->x == tile_x && u->y == tile_y && u->nation_id == human) {
         selected = u->id;

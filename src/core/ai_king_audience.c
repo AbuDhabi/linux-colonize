@@ -845,7 +845,7 @@ void ai_king_succession(ColonizeTurnContext* ctx) {
   /* Units: in a colony → transfer to the heir; in the field/at sea → gone
    * (DOS 0302==0 → 0808 despawn). */
   if (ctx->units) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       ColonizeUnit* u = &ctx->units->units[i];
       if (!u->active || u->nation_id != merged) {
         continue;
@@ -1047,7 +1047,7 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
     if (n == crown_fold || !ctx->units) {
       continue;
     }
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
       if (u->active && u->nation_id == n) {
         units_despawn(ctx->units, u->id);
@@ -1093,7 +1093,7 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    * FUN_281f_0934 (unit_exhaust_mp) — "This will end our turn" (@DECLARE).
    */
   if (ctx->units) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       ColonizeUnit* u = &ctx->units->units[i];
       if (u->active && u->nation_id == human) {
         u->moves = 0;

@@ -82,11 +82,12 @@ static int apply_trade_offer_choice(
  */
 #define RUN_INDIAN_RAIDS()                                       \
   do {                                                           \
+    units_pool_sync(&units);                                    \
     const ColonizeUnit brave_snap_ = *brave;                     \
     ai_contact_indian_raids(&ctx, 4);                            \
     if (brave_snap_.active && !brave->active) {                  \
       *brave = brave_snap_;                                      \
-      units.unit_count++;                                        \
+      units_pool_sync(&units);                                   \
     }                                                            \
   } while (0)
 
@@ -115,6 +116,7 @@ static ColonizeWorldMap map;
 static ColonizeUnitPool units;
 static ColonizeColonyPool colonies;
 static int brave_id;
+static int euro_id_;
 static ColonizeUnit* brave;
 static ColonizeUnit* euro;
 static ColonizeColony* c;
@@ -280,9 +282,9 @@ static int sp_00(void) {
   units.types[1].defense = 1;
 
   brave_id = units_spawn_allow_stack(&units, 0, 5, 5);
-  const int euro_id = units_spawn_allow_stack(&units, 1, 8, 5);
+  euro_id_ = units_spawn_allow_stack(&units, 1, 8, 5);
   brave = units_get(&units, brave_id);
-  euro = units_get(&units, euro_id);
+  euro = units_get(&units, euro_id_);
   if (!brave || !euro) {
     return fail("spawn");
   }
@@ -843,6 +845,8 @@ static int sp_09(void) {
     euro->x = 6;
     euro->y = 5;
     euro->active = true;
+    euro->id = euro_id_;
+    units_pool_sync(&units);
     euro->profession = UNITS_JOB_NONE;
     col1.tribe[0].nation_id = 4;
     col1.tribe[0].state.learned = 0;
@@ -1551,6 +1555,8 @@ static int sp_16(void) {
     euro->x = 6;
     euro->y = 5;
     euro->active = true;
+    euro->id = euro_id_;
+    units_pool_sync(&units);
     euro->profession = UNITS_JOB_NONE;
     brave->x = 5;
     brave->y = 5;
@@ -1741,6 +1747,8 @@ static int sp_18(void) {
     euro->x = 6;
     euro->y = 5;
     euro->active = true;
+    euro->id = euro_id_;
+    units_pool_sync(&units);
     euro->tools = 20;
     brave->x = 5;
     brave->y = 5;
@@ -1787,6 +1795,8 @@ static int sp_18(void) {
     euro->x = 6;
     euro->y = 5;
     euro->active = true;
+    euro->id = euro_id_;
+    units_pool_sync(&units);
     euro->tools = 5;
     brave->x = 5;
     brave->y = 5;
@@ -1849,6 +1859,8 @@ static int sp_18(void) {
     euro->x = 6;
     euro->y = 5;
     euro->active = true;
+    euro->id = euro_id_;
+    units_pool_sync(&units);
     euro->tools = 5;
     brave->x = 5;
     brave->y = 5;
@@ -1908,6 +1920,8 @@ static int sp_18(void) {
     euro->x = 6;
     euro->y = 5;
     euro->active = true;
+    euro->id = euro_id_;
+    units_pool_sync(&units);
     euro->tools = 5;
     brave->x = 5;
     brave->y = 5;
@@ -2252,6 +2266,8 @@ static int sp_21(void) {
     euro->x = 12;
     euro->y = 12;
     euro->active = true;
+    euro->id = euro_id_;
+    units_pool_sync(&units);
     c->x = 14;
     c->y = 14; /* park */
     col1.tribe[0].mission = 0xff;
@@ -2300,6 +2316,8 @@ static int sp_22(void) {
     brave->moves = 0;
     brave->nation_id = 4;
     brave->active = true;
+    brave->id = brave_id;
+    units_pool_sync(&units);
     ind->alarm_by_player[0] = 65;
     col1.tribe[0].alarm[0].friction = 65;
     col1.tribe[0].alarm[0].attacks = 0;
@@ -2371,6 +2389,8 @@ static int sp_22(void) {
     brave->moves = 0;
     brave->nation_id = 4;
     brave->active = true;
+    brave->id = brave_id;
+    units_pool_sync(&units);
     ind->alarm_by_player[0] = 65;
     col1.tribe[0].alarm[0].friction = 65;
     col1.tribe[0].alarm[0].attacks = 0;
@@ -2438,6 +2458,8 @@ static int sp_22(void) {
     brave->moves = 0;
     brave->nation_id = 4;
     brave->active = true;
+    brave->id = brave_id;
+    units_pool_sync(&units);
     ind->alarm_by_player[0] = 55;
     col1.tribe[0].alarm[0].friction = 55;
     col1.tribe[0].alarm[0].attacks = 0;
@@ -2523,11 +2545,15 @@ static int sp_23(void) {
     euro->x = 12;
     euro->y = 12;
     euro->active = true;
+    euro->id = euro_id_;
+    units_pool_sync(&units);
     brave->x = 5;
     brave->y = 5;
     brave->moves = 0;
     brave->nation_id = 4;
     brave->active = true;
+    brave->id = brave_id;
+    units_pool_sync(&units);
     ind->alarm_by_player[0] = 65;
     col1.tribe[0].nation_id = 4;
     col1.tribe[0].mission = 0xff;
@@ -2620,11 +2646,15 @@ static int sp_23(void) {
     euro->x = 12;
     euro->y = 12;
     euro->active = true;
+    euro->id = euro_id_;
+    units_pool_sync(&units);
     brave->x = 5;
     brave->y = 5;
     brave->moves = 0;
     brave->nation_id = 4;
     brave->active = true;
+    brave->id = brave_id;
+    units_pool_sync(&units);
     col1.tribe[0].nation_id = 4;
     col1.tribe[0].mission = 0xff;
     for (int e = 0; e < 4; ++e) {
@@ -2735,11 +2765,15 @@ static int sp_23(void) {
     euro->x = 12;
     euro->y = 12;
     euro->active = true;
+    euro->id = euro_id_;
+    units_pool_sync(&units);
     brave->x = 5;
     brave->y = 5;
     brave->moves = 0;
     brave->nation_id = 4;
     brave->active = true;
+    brave->id = brave_id;
+    units_pool_sync(&units);
     ind->alarm_by_player[0] = 65;
     col1.tribe[0].nation_id = 4;
     col1.tribe[0].mission = 0xff;
@@ -2834,6 +2868,8 @@ static int sp_24(void) {
     euro->x = 14;
     euro->y = 14;
     euro->active = true;
+    euro->id = euro_id_;
+    units_pool_sync(&units);
     ind->alarm_by_player[0] = 0;
     col1.tribe[0].alarm[0].friction = 0;
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 50; alarm pinned above) */
@@ -2852,6 +2888,8 @@ static int sp_24(void) {
     brave->y = 5;
     brave->nation_id = 4;
     brave->active = true;
+    brave->id = brave_id;
+    units_pool_sync(&units);
     brave->moves = 0;
     brave->orders = UNITS_ORDER_NONE;
     brave->follow_unit_id = -1;
@@ -2889,6 +2927,8 @@ static int sp_24(void) {
     euro->x = 14;
     euro->y = 14;
     euro->active = true;
+    euro->id = euro_id_;
+    units_pool_sync(&units);
     ind->alarm_by_player[0] = 55;
     col1.tribe[0].alarm[0].friction = 55;
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 40; alarm pinned above) */
@@ -2904,6 +2944,8 @@ static int sp_24(void) {
     brave->y = 5;
     brave->nation_id = 4;
     brave->active = true;
+    brave->id = brave_id;
+    units_pool_sync(&units);
     brave->moves = 0;
     brave->orders = UNITS_ORDER_NONE;
     brave->follow_unit_id = -1;
@@ -3078,11 +3120,15 @@ static int sp_25(void) {
     euro->x = 12;
     euro->y = 12;
     euro->active = true;
+    euro->id = euro_id_;
+    units_pool_sync(&units);
     brave->x = 5;
     brave->y = 5;
     brave->moves = 0;
     brave->nation_id = 4;
     brave->active = true;
+    brave->id = brave_id;
+    units_pool_sync(&units);
     ind->alarm_by_player[0] = 50;
     col1.tribe[0].nation_id = 4;
     col1.tribe[0].mission = 0xff;

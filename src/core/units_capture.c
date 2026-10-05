@@ -183,7 +183,7 @@ void units_try_capture_foreign_colony(
   if (g_units_ff_col1 && g_units_ff_col1->head.game_options.woi &&
       u->nation_id == (int)g_units_ff_col1->head.crown_nation_id && cid >= 0 &&
       cid <= 0x7f) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(pool); ++i) {
       ColonizeUnit* n = &pool->units[i];
       if (!units_is_on_map(n) || n->nation_id != u->nation_id || n->id == u->id) {
         continue;

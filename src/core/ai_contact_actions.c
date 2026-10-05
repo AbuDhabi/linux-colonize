@@ -244,7 +244,7 @@ int ai_contact_land_combat_sum(
    * was folded onto this helper by the 2026-09-14 audit, AC-10). Fixed
    * 2026-09-10 (audit Leads item 1).
    */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->nation_id != nation || units_is_sea(ctx->units, u->id)) {
       continue;
@@ -413,7 +413,7 @@ int ai_contact_continent_presence_4962(
     }
   }
   if (ctx->units) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX && (presence & 0xa) != 0xa; ++i) {
+    for (int i = 0; i < units_slot_end(ctx->units) && (presence & 0xa) != 0xa; ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
       if (!u->active || !units_is_on_map(u) || u->aboard_ship_id >= 0) {
         continue;
@@ -477,7 +477,7 @@ int ai_contact_continent_war_count_a89c(const ColonizeTurnContext* ctx, int nati
     return 0;
   }
   unsigned mask = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
     if (!ai_contact_4962_unit_sets_bit8(ctx, u, nation_id)) {
       continue;
@@ -1253,7 +1253,7 @@ static int ai_contact_4cc6_03f8(
       int sum = 0;
       /* Slot walk (DOS record order, and `i` is not a unit id) — see
        * ai_contact_land_combat_sum's note. Fixed 2026-09-10. */
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      for (int i = 0; i < units_slot_end(ctx->units); ++i) {
         const ColonizeUnit* u = &ctx->units->units[i];
         if (!u->active || u->x != tx || u->y != ty || u->aboard_ship_id >= 0) {
           continue;

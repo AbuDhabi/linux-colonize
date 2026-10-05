@@ -885,7 +885,7 @@ static void game_do_trade_delete_slot(ColonizeGameState* game, int slot) {
   char gone[32];
   snprintf(gone, sizeof(gone), "%s", game->col1.trade_route[slot].name);
   if (game->units_ok) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(&game->units); ++i) {
       ColonizeUnit* u = &game->units.units[i];
       if (!u->active || u->orders != UNITS_ORDER_TRADE_ROUTE) {
         continue;
@@ -1084,7 +1084,7 @@ void game_request_disband_confirm(ColonizeGameState* game) {
     if (u && u->cargo_count > 0) {
       has_pax = 1;
     } else {
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      for (int i = 0; i < units_slot_end(&game->units); ++i) {
         const ColonizeUnit* p = &game->units.units[i];
         if (p->active && p->aboard_ship_id == uid) {
           has_pax = 1;

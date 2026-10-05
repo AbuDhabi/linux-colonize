@@ -54,7 +54,7 @@ ColonizeUnit* units_next_on_tile(ColonizeUnitPool* pool, int x, int y, int* slot
   if (!pool || !slot) {
     return NULL;
   }
-  for (int i = *slot < 0 ? 0 : *slot; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = *slot < 0 ? 0 : *slot; i < units_slot_end(pool); ++i) {
     ColonizeUnit* u = &pool->units[i];
     if (!units_is_on_map(u) || u->x != x || u->y != y) {
       continue;
@@ -81,7 +81,135 @@ int units_count_at(const ColonizeUnitPool* pool, int x, int y) {
   return n;
 }
 
-static void units_clear_slot(ColonizeUnit* unit) {
+/* ===== Slot index: id -> slot hash and slot_end high-water mark ===== */
+
+#define UNITS_ID_MASK (COLONIZE_UNITS_ID_HASH - 1)
+
+static bool units_slot_in_use(const ColonizeUnit* u) {
+  return u->active || u->id > 0;
+}
+
+/* Hash position holding `id`, or -1. */
+static int units_index_find(const ColonizeUnitPool* pool, int id) {
+  for (int h = id & UNITS_ID_MASK, n = 0; n < COLONIZE_UNITS_ID_HASH;
+       h = (h + 1) & UNITS_ID_MASK, ++n) {
+    const int e = pool->id_slot[h];
+    if (e == 0) {
+      return -1;
+    }
+    if (pool->units[e - 1].id == id) {
+      return h;
+    }
+  }
+  return -1;
+}
+
+void units_index_add(ColonizeUnitPool* pool, ColonizeUnit* slot) {
+  const int s = (int)(slot - pool->units);
+  if (s + 1 > pool->slot_end) {
+    pool->slot_end = s + 1;
+  }
+  if (slot->id < 0) {
+    return;
+  }
+  int h = slot->id & UNITS_ID_MASK;
+  while (pool->id_slot[h] != 0) {
+    h = (h + 1) & UNITS_ID_MASK;
+  }
+  pool->id_slot[h] = (int16_t)(s + 1);
+}
+
+/* Linear-probing delete with backward shift, so no tombstones pile up. */
+void units_index_remove(ColonizeUnitPool* pool, ColonizeUnit* slot) {
+  if (slot->id < 0) {
+    return;
+  }
+  int i = units_index_find(pool, slot->id);
+  if (i < 0 || pool->id_slot[i] - 1 != (int)(slot - pool->units)) {
+    return;
+  }
+  for (int j = (i + 1) & UNITS_ID_MASK;; j = (j + 1) & UNITS_ID_MASK) {
+    const int e = pool->id_slot[j];
+    if (e == 0) {
+      break;
+    }
+    const int home = pool->units[e - 1].id & UNITS_ID_MASK;
+    const bool stays = (i <= j) ? (i < home && home <= j) : (i < home || home <= j);
+    if (!stays) {
+      pool->id_slot[i] = (int16_t)e;
+      i = j;
+    }
+  }
+  pool->id_slot[i] = 0;
+}
+
+void units_pool_sync(ColonizeUnitPool* pool) {
+  if (!pool) {
+    return;
+  }
+  memset(pool->id_slot, 0, sizeof(pool->id_slot));
+  pool->slot_end = 0;
+  pool->unit_count = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &pool->units[i];
+    if (!units_slot_in_use(u)) {
+      continue;
+    }
+    units_index_add(pool, u);
+    pool->unit_count++;
+  }
+}
+
+/* COLONIZE_UNITS_STRICT=1 (set for every ctest run): verify the bookkeeping
+ * and abort on a pool filled by hand without units_pool_sync. The allocator
+ * runs the full check; units_slot_end and units_get an O(1) one (the slot
+ * right at slot_end), and units_get also proves a miss by a full scan. */
+int g_units_strict;
+
+__attribute__((constructor)) static void units_strict_init(void) {
+  const char* e = getenv("COLONIZE_UNITS_STRICT");
+  g_units_strict = (e && e[0] == '1') ? 1 : 0;
+}
+
+void units_pool_check_slot_end(const ColonizeUnitPool* pool) {
+  if (pool->slot_end < COLONIZE_UNITS_MAX && units_slot_in_use(&pool->units[pool->slot_end])) {
+    fprintf(stderr,
+            "units: slot %d in use at slot_end; call units_pool_sync after filling a "
+            "pool by hand\n",
+            pool->slot_end);
+    abort();
+  }
+}
+
+void units_pool_check(const ColonizeUnitPool* pool) {
+  if (!g_units_strict) {
+    return;
+  }
+  int in_use = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (!units_slot_in_use(u)) {
+      continue;
+    }
+    in_use++;
+    const int h = u->id >= 0 ? units_index_find(pool, u->id) : -1;
+    if (i >= pool->slot_end || h < 0 || pool->id_slot[h] - 1 != i) {
+      fprintf(stderr,
+              "units: slot %d (id %d) outside slot_end %d or unindexed; "
+              "call units_pool_sync after filling a pool by hand\n",
+              i, u->id, pool->slot_end);
+      abort();
+    }
+  }
+  if (in_use != pool->unit_count) {
+    fprintf(stderr, "units: unit_count %d but %d slots in use; call units_pool_sync\n",
+            pool->unit_count, in_use);
+    abort();
+  }
+}
+
+static void units_clear_slot(ColonizeUnitPool* pool, ColonizeUnit* unit) {
+  units_index_remove(pool, unit);
   unit->active = false;
   unit->id = -1;
   unit->type_index = -1;
@@ -110,6 +238,9 @@ static void units_clear_slot(ColonizeUnit* unit) {
   unit->col1_flags15 = 0;
   unit->col1_ai_plan = 0;
   unit->col1_vis_mask = 0;
+  while (pool->slot_end > 0 && !units_slot_in_use(&pool->units[pool->slot_end - 1])) {
+    pool->slot_end--;
+  }
 }
 
 bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
@@ -125,7 +256,7 @@ bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
     for (int i = 0; i < unit->cargo_count; ++i) {
       ColonizeUnit* pax = units_get(pool, unit->cargo_ids[i]);
       if (pax) {
-        units_clear_slot(pax);
+        units_clear_slot(pool, pax);
         if (pool->unit_count > 0) {
           pool->unit_count--;
         }
@@ -169,7 +300,7 @@ bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
       unit->home_tribe_id < (int)g_units_fallout_col1->head.tribe_count) {
     g_units_fallout_col1->tribe[unit->home_tribe_id].state.needs_colonist = 1;
   }
-  units_clear_slot(unit);
+  units_clear_slot(pool, unit);
   if (pool->unit_count > 0) {
     pool->unit_count--;
   }
@@ -267,7 +398,7 @@ static void units_reveal_tile_effects(void* vctx, int x, int y, bool outer) {
     }
   }
   const uint8_t bit = (uint8_t)(1u << (ctx->nation & 3));
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->pool); ++i) {
     ColonizeUnit* o = &ctx->pool->units[i];
     if (!units_is_on_map(o) || o->x != x || o->y != y) {
       continue;
@@ -358,7 +489,7 @@ int units_count_sea_for_nation(const ColonizeUnitPool* pool, int nation_id) {
     return 0;
   }
   int n = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(pool); ++i) {
     const ColonizeUnit* u = &pool->units[i];
     if (u->active && u->nation_id == nation_id && units_unit_is_sea(pool, u)) {
       n++;
@@ -425,7 +556,7 @@ int units_tile_head_id_at(const ColonizeUnitPool* pool, int x, int y) {
   }
   int head_id = -1;
   uint64_t head_order = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(pool); ++i) {
     const ColonizeUnit* u = &pool->units[i];
     if (!units_is_on_map(u) || u->x != x || u->y != y) {
       continue;
@@ -439,29 +570,31 @@ int units_tile_head_id_at(const ColonizeUnitPool* pool, int x, int y) {
 }
 
 ColonizeUnit* units_get(ColonizeUnitPool* pool, int unit_id) {
-  if (!pool || unit_id < 0) {
-    return NULL;
-  }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    ColonizeUnit* u = &pool->units[i];
-    if (u->active && u->id == unit_id) {
-      return u;
-    }
-  }
-  return NULL;
+  return (ColonizeUnit*)units_get_const(pool, unit_id);
 }
 
 const ColonizeUnit* units_get_const(const ColonizeUnitPool* pool, int unit_id) {
   if (!pool || unit_id < 0) {
     return NULL;
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &pool->units[i];
-    if (u->active && u->id == unit_id) {
-      return u;
-    }
+  if (g_units_strict) {
+    units_pool_check_slot_end(pool);
   }
-  return NULL;
+  const int h = units_index_find(pool, unit_id);
+  if (h < 0) {
+    if (g_units_strict) {
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        if (pool->units[i].active && pool->units[i].id == unit_id) {
+          fprintf(stderr, "units: id %d active in slot %d but unindexed; call units_pool_sync\n",
+                  unit_id, i);
+          abort();
+        }
+      }
+    }
+    return NULL;
+  }
+  const ColonizeUnit* u = &pool->units[pool->id_slot[h] - 1];
+  return u->active ? u : NULL;
 }
 
 const ColonizeUnitType* units_type(const ColonizeUnitPool* pool, int type_index) {
@@ -754,7 +887,7 @@ void units_occupancy_notify_moved(ColonizeUnitPool* pool, int old_x, int old_y, 
   if (new_x >= 0 && new_y >= 0 && new_x < 200 && new_y < 200) {
     units_occupancy_refresh_tile(pool, new_x, new_y, -1);
     /* AI teleport/step movers: same vis reset as units_try_move, for the whole arriving stack. */
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(pool); ++i) {
       const ColonizeUnit* u = &pool->units[i];
       if (units_is_on_map(u) && u->aboard_ship_id < 0 && u->x == new_x && u->y == new_y) {
         units_vis_mask_after_move(pool, units_occupancy_map, u->id, new_x, new_y);
@@ -779,7 +912,7 @@ void units_occupancy_rebuild(ColonizeUnitPool* pool) {
   for (size_t i = 0; i < map->tile_count; ++i) {
     map->layer2[i] = (uint8_t)(map->layer2[i] & (uint8_t)~MAP_OCCUPANCY_HAS_UNIT);
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(pool); ++i) {
     const ColonizeUnit* u = &pool->units[i];
     if (!u->active || u->aboard_ship_id >= 0 || !units_is_on_map(u) || u->x >= 200 ||
         u->y >= 200) {

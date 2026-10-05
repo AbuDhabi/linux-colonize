@@ -283,7 +283,11 @@ static int case_debug_test_ignores_directives(void) {
   game->units_ok = true;
   game->colonies_ok = true;
   game->units.units[0].active = true;
+  game->units.units[0].id = 1;
   game->units.units[3].active = true;
+  game->units.units[3].id = 2;
+  game->units.next_id = 3;
+  units_pool_sync(&game->units);
   game->colonies.colonies[0].active = true;
 
   game_cheat_test_routine(game);

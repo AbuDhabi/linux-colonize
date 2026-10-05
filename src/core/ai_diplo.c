@@ -273,7 +273,7 @@ static int ai_diplo_find_privateer_spawn(
     }
   }
   if (ctx->units) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
       if (!u->active || u->nation_id != nation_id || !units_is_on_map(u)) {
         continue;
@@ -1188,7 +1188,7 @@ static void ai_diplo_wake_border_garrisons(
    * the highest slot in a short one. DOS walks the unit ARRAY in record
    * order, which a slot walk reproduces. Fixed 2026-09-10 (audit Leads 1).
    */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->nation_id != nation_b || units_is_sea(ctx->units, u->id)) {
       continue;
@@ -1264,7 +1264,7 @@ typedef struct Ai153eBorderProbe {
 static int ai_diplo_stack_military_count(const ColonizeTurnContext* ctx, int x, int y) {
   int n = 0;
   /* Slot walk — `i` is not a unit id; see ai_diplo_wake_border_garrisons. */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->aboard_ship_id >= 0 || u->x != x || u->y != y) {
       continue;
@@ -1283,7 +1283,7 @@ static int ai_diplo_stack_attack_sum(const ColonizeTurnContext* ctx, int x, int 
   const int tile_land = ctx->map ? map_tile_is_land(ctx->map, x, y) : 1;
   int sum = 0;
   /* Slot walk — `i` is not a unit id; see ai_diplo_wake_border_garrisons. */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->aboard_ship_id >= 0 || u->x != x || u->y != y) {
       continue;
@@ -1383,7 +1383,7 @@ int ai_diplo_00f8_top_ranked_nation(const ColonizeCol1Save* col1) {
 static int ai_diplo_153e_skilled_units_at(const ColonizeTurnContext* ctx, int nation, int cid) {
   int n = 0;
   /* Slot walk — `i` is not a unit id; see ai_diplo_wake_border_garrisons. */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->nation_id != nation || u->aboard_ship_id >= 0 ||
         u->type_index < 0 || u->type_index > 9) {
@@ -1525,7 +1525,7 @@ static int ai_diplo_153e_land_units_at(
     return 0;
   }
   /* Slot walk, `u->id` to units_is_sea — see ai_diplo_wake_border_garrisons. */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
     if (u->active && u->nation_id == nation && !units_is_sea(ctx->units, u->id) &&
         map_continent_id_at(ctx->map, u->x, u->y) == continent_id) {
@@ -1968,7 +1968,7 @@ static void ai_talk_unit_to_europe(ColonizeTurnContext* ctx, int unit_id) {
 static int ai_talk_withdraw(ColonizeTurnContext* ctx, int who, int near_nation) {
   int moved = 0;
   /* Slot walk, `u->id` to units_is_sea — see ai_diplo_wake_border_garrisons. */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->nation_id != who || u->aboard_ship_id >= 0 || u->x >= 200 ||
         units_is_sea(ctx->units, u->id)) {
@@ -2545,7 +2545,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
          * ai_diplo_wake_border_garrisons. (`ai_talk_unit_to_europe` below
          * already took `u->id`, so this loop reached only the Privateers
          * whose id happened to fall under COLONIZE_UNITS_MAX.) */
-        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        for (int i = 0; i < units_slot_end(ctx->units); ++i) {
           const ColonizeUnit* u = &ctx->units->units[i];
           if (!u->active || u->nation_id != h) {
             continue;
@@ -3206,13 +3206,13 @@ static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
     if (ctx->units) {
       /* Slot walks on both levels — `i`/`j` are not unit ids; see
        * ai_diplo_wake_border_garrisons. */
-      for (int i = 0; i < COLONIZE_UNITS_MAX && !encounter; ++i) {
+      for (int i = 0; i < units_slot_end(ctx->units) && !encounter; ++i) {
         const ColonizeUnit* u = &ctx->units->units[i];
         if (!u->active || u->nation_id != a || u->aboard_ship_id >= 0 || u->x >= 200 ||
             u->y >= 200) {
           continue;
         }
-        for (int j = 0; j < COLONIZE_UNITS_MAX && !encounter; ++j) {
+        for (int j = 0; j < units_slot_end(ctx->units) && !encounter; ++j) {
           const ColonizeUnit* o = &ctx->units->units[j];
           if (!o->active || o->nation_id != b || o->aboard_ship_id >= 0) {
             continue;

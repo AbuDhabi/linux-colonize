@@ -202,7 +202,7 @@ void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int nation_id) {
    * `0x3144 + local_1a * 0x1c`), which is exactly a slot walk.
    * Fixed 2026-09-10 (audit second-wave Leads item 2).
    */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->nation_id < 0 || u->nation_id >= 12) {
       continue;
@@ -856,7 +856,7 @@ static void ai_euro_colony_ship_probe_4962(
   c->ai_flags = (uint8_t)(c->ai_flags & (uint8_t)~(COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP |
                                                     COLONIZE_COLONY_AI_NEARBY_FRIGATE));
   if (ctx->units) {
-    for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+    for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
       const ColonizeUnit* u = &ctx->units->units[ui];
       if (!u->active || u->nation_id == nation_id || u->aboard_ship_id >= 0) {
         continue;
@@ -1109,7 +1109,7 @@ void ai_euro_refresh_colony_ai_flags(
      * 2026-09-10 D7.
      */
     int wagon = 0;
-    for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+    for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
       const ColonizeUnit* u = &ctx->units->units[ui];
       if (!u->active || u->nation_id != nation_id || u->col1_origin >= 0x80 ||
           (int)u->col1_origin != c->id) {
@@ -1726,7 +1726,7 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
     any_acted = 0;
     for (int wave = 0; wave < 2; ++wave) {
       int wave_acted = 0;
-      for (int i = COLONIZE_UNITS_MAX - 1; i >= 0 && !(dos_loop && wave_acted); --i) {
+      for (int i = units_slot_end(ctx->units) - 1; i >= 0 && !(dos_loop && wave_acted); --i) {
         ColonizeUnit* u = &ctx->units->units[i];
         if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
           continue;

@@ -2515,7 +2515,7 @@ static int units_count_nation_on_tile(
     return 0;
   }
   int count = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(pool); ++i) {
     const ColonizeUnit* u = &pool->units[i];
     if (!u->active || u->aboard_ship_id >= 0) {
       continue;
@@ -2583,7 +2583,7 @@ static int col1_destroy_tribe_at(
    * With the compaction first, that bit landed on the surviving neighbour
    * village, which then issued a spurious extra replacement Brave. */
   if (units) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(units); ++i) {
       ColonizeUnit* u = &units->units[i];
       if (!u->active || u->home_tribe_id < 0) {
         continue;

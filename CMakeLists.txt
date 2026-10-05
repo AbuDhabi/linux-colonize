@@ -426,6 +426,8 @@ function(colonize_add_test)
 
   if(NOT CAT_NO_CTEST)
     add_test(NAME ${CAT_NAME} COMMAND ${CAT_NAME} WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    # Abort on unit pools filled by hand without units_pool_sync (units.h).
+    set_tests_properties(${CAT_NAME} PROPERTIES ENVIRONMENT "COLONIZE_UNITS_STRICT=1")
   endif()
 endfunction()
 

@@ -371,7 +371,7 @@ int units_find_boardable_ship(
   if (need_space < 1) {
     need_space = 1;
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(pool); ++i) {
     const ColonizeUnit* ship = &pool->units[i];
     if (!ship->active || ship->nation_id != nation_id) {
       continue;
@@ -448,7 +448,7 @@ int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int 
   if (pool->board_first_slot >= 0 && pool->board_first_slot < COLONIZE_UNITS_MAX) {
     order[on++] = pool->board_first_slot;
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(pool); ++i) {
     if (i != pool->board_first_slot) {
       order[on++] = i;
     }
@@ -829,7 +829,7 @@ int units_collect_tile_stack(
     return 0;
   }
   int n = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX && n < out_max; ++i) {
+  for (int i = 0; i < units_slot_end(pool) && n < out_max; ++i) {
     const ColonizeUnit* u = &pool->units[i];
     if (!u->active || u->nation_id != nation_id) {
       continue;
@@ -839,7 +839,7 @@ int units_collect_tile_stack(
     }
   }
   /* Passengers of ships on this tile (may already share x,y). */
-  for (int i = 0; i < COLONIZE_UNITS_MAX && n < out_max; ++i) {
+  for (int i = 0; i < units_slot_end(pool) && n < out_max; ++i) {
     const ColonizeUnit* ship = &pool->units[i];
     if (!ship->active || ship->nation_id != nation_id || ship->aboard_ship_id >= 0) {
       continue;

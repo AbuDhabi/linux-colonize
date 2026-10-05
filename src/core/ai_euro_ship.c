@@ -703,7 +703,7 @@ static void ai_euro_20e6_clear_stale_board_marks(
     return;
   }
   /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index. */
-  for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+  for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
     ColonizeUnit* lu = &ctx->units->units[ui];
     if (!lu->active || lu->aboard_ship_id >= 0 || lu->id < 0 ||
         lu->id >= COLONIZE_UNITS_MAX) {
@@ -768,7 +768,7 @@ static int ai_euro_20e6_transport_assemble(
   int boarded = 0;
   /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index — `units_board`,
    * `units_is_sea` and the id-keyed shadow all take `lu->id`. */
-  for (int ui = 0; ui < COLONIZE_UNITS_MAX && free_holds > 0; ++ui) {
+  for (int ui = 0; ui < units_slot_end(ctx->units) && free_holds > 0; ++ui) {
     ColonizeUnit* lu = &ctx->units->units[ui];
     if (!lu->active || lu->id == ship->id || lu->nation_id != nation_id ||
         lu->id < 0 || lu->id >= COLONIZE_UNITS_MAX) {
@@ -1130,7 +1130,7 @@ static int ai_euro_20e6_ship_berth_arrival(
     const int stance = ai_euro_continent_stance_at(nation_id, cid);
     const int turn = (ctx->turn_number && *ctx->turn_number) ? (int)*ctx->turn_number : 0;
     const int ship_prio = ai_goals_composite_unit_priority_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, nation_id, ship->x, ship->y, arrival_dos_type, ship->profession, turn, colonies_count_for_nation(ctx->colonies, nation_id));
-    for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+    for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
       if (ai_euro_s_0a60_work_registered[nation_id] >= 0x19) {
         break;
       }
@@ -1560,7 +1560,7 @@ void ai_euro_europe_lane_tick(ColonizeTurnContext* ctx, int nation_id) {
   static const int hops[4][2] = {{228, 224}, {232, 228}, {240, 236}, {244, 240}};
   for (int h = 0; h < 4; ++h) {
     const int from = hops[h][0] + nation_id;
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       ColonizeUnit* u = &ctx->units->units[i];
       if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0 ||
           u->x != from || u->y != from) {

@@ -72,7 +72,7 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
    * this pulse — original player dialogs are village enter / 2820 (PARKED).
    * Cite: FUN_5bfb_022e first-contact exit; indian_contact.md §0.
    */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     ColonizeUnit* brave = &ctx->units->units[i];
     if (!brave->active || brave->nation_id != nation_id) {
       continue;
@@ -267,7 +267,7 @@ COLONIZE_INTERNAL int ai_contact_raid_port_ship(ColonizeTurnContext* ctx, const 
   if (!ctx || !ctx->units || !c) {
     return -1;
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     ColonizeUnit* u = &ctx->units->units[i];
     if (!units_is_on_map(u) || u->x != c->x || u->y != c->y) {
       continue;
@@ -684,7 +684,7 @@ static int ai_contact_escort_pick_lead(
   int lead = -1;
   int best_md = 99;
   int best_target_d = 99;
-  for (int j = 0; j < COLONIZE_UNITS_MAX; ++j) {
+  for (int j = 0; j < units_slot_end(ctx->units); ++j) {
     const ColonizeUnit* o = &ctx->units->units[j];
     if (!o->active || o->id == follower_id || o->nation_id != nation_id) {
       continue;
@@ -1811,7 +1811,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
   a.ind = ind;
   a.rng = rng;
   a.nation_id = nation_id;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     ColonizeUnit* brave = &ctx->units->units[i];
     /* Natives keep the DOS SPENT byte in moves — gate on remaining MP
      * via the accessor, not the raw byte (audit: raw read skipped FRESH

@@ -879,7 +879,7 @@ static int effect_las_casas_assimilate(
       }
       if (units) {
         /* Retarget this immigrant's mirror unit before the map half runs. */
-        for (int u = 0; u < COLONIZE_UNITS_MAX; ++u) {
+        for (int u = 0; u < units_slot_end(units); ++u) {
           ColonizeUnit* mu = &units->units[u];
           if (!mu->active || mu->nation_id != nation_id || mu->x != 236 || mu->y != 236) {
             continue;
@@ -917,7 +917,7 @@ static int effect_las_casas_assimilate(
   }
 
   if (units) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(units); ++i) {
       ColonizeUnit* u = &units->units[i];
       if (!u->active || u->nation_id != nation_id) {
         continue;
@@ -984,7 +984,7 @@ static bool ff_find_coastal_water(
   }
 
   if (units) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(units); ++i) {
       const ColonizeUnit* u = &units->units[i];
       if (!u->active || u->nation_id != nation_id || !units_is_on_map(u)) {
         continue;

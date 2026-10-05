@@ -755,7 +755,7 @@ int ai_goals_pick_founding_tile_ex_w(
           continue;
         }
         int on_tile = 0;
-        for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+        for (int ui = 0; ui < units_slot_end(units); ++ui) {
           const ColonizeUnit* tu = &units->units[ui];
           if (tu->active && tu->aboard_ship_id < 0 && tu->x == nx && tu->y == ny) {
             on_tile++;
@@ -1423,7 +1423,7 @@ int ai_goals_probe_adjacent_contact_claim_w(
            * dropped every unit with id >= 256 plus the highest slot. DOS
            * walks the unit ARRAY in record order (raw 78159).
            * Fixed 2026-09-10 (audit second-wave Leads item 2). */
-          for (int ui = 0; ui < COLONIZE_UNITS_MAX && !armed; ++ui) {
+          for (int ui = 0; ui < units_slot_end(units) && !armed; ++ui) {
             const ColonizeUnit* su = &units->units[ui];
             if (!su->active || su->aboard_ship_id >= 0 || su->x != nx || su->y != ny) {
               continue;

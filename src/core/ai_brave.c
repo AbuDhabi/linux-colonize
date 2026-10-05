@@ -716,7 +716,7 @@ void ai_native_nation_pulse(
   }
 
   /* Clear col1_counter16 for this nation's Braves (DOS 1816 ~81630). */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(units); ++i) {
     ColonizeUnit* u = &units->units[i];
     if (u->active && u->nation_id == nation_id) {
       u->col1_counter16 = 0;
@@ -729,7 +729,7 @@ void ai_native_nation_pulse(
    * nation's units on every pulse, and §9 runs immediately after this pulse
    * for the same nation, so a reader never sees another nation's turn.
    */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(units); ++i) {
     ColonizeUnit* u = &units->units[i];
     if (!u->active || u->nation_id != nation_id) {
       continue;
@@ -738,7 +738,7 @@ void ai_native_nation_pulse(
   }
 
   int brave_index = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(units); ++i) {
     ColonizeUnit* u = &units->units[i];
     if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
       continue;
@@ -973,7 +973,7 @@ int col1_kill_indian_nation_w(
 
   /* Despawn all units of this nation (iterate carefully — despawn mutates pool). */
   if (units) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(units); ++i) {
       ColonizeUnit* u = &units->units[i];
       if (!u->active || u->nation_id != nation_id) {
         continue;
@@ -1011,7 +1011,7 @@ int col1_kill_indian_nation_w(
 
     /* Remap home_tribe_id for surviving units. */
     if (units) {
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      for (int i = 0; i < units_slot_end(units); ++i) {
         ColonizeUnit* u = &units->units[i];
         if (!u->active || u->home_tribe_id < 0) {
           continue;

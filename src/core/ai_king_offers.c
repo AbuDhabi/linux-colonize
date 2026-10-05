@@ -423,7 +423,7 @@ void ai_king_frigate_offer(ColonizeTurnContext* ctx, int nation) {
    * bound with the array size, not the live population (as every other unit
    * sweep in this file does). Bounding by unit_count hid an existing Frigate
    * behind any hole and re-fired the offer (free ship + a real +10% tax). */
-  for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+  for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
     const ColonizeUnit* u = &ctx->units->units[ui];
     if (u->active && u->nation_id == nation && u->type_index == ft) {
       return; /* per-nation Frigate count != 0 */

@@ -284,7 +284,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
         continue;
       }
       /* Slot walk — `ui` is not a unit id; see ai_contact_land_combat_sum. */
-      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+      for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
         const ColonizeUnit* bu = &ctx->units->units[ui];
         if (!bu->active || bu->nation_id != nation_id || !units_is_on_map(bu)) {
           continue;
@@ -869,7 +869,7 @@ static ColonizeUnit* ai_contact_reparations_visitor(
     return NULL;
   }
   /* Slot walk — `ui` is not a unit id; see ai_contact_land_combat_sum. */
-  for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+  for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
     ColonizeUnit* bu = &ctx->units->units[ui];
     if (!bu->active || bu->nation_id != nation_id || !units_is_on_map(bu)) {
       continue;
@@ -1096,7 +1096,7 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
     ColonizeUnit* wag = NULL;
     int hold = -1;
     /* Slot walk — `ui` is not a unit id; see ai_contact_land_combat_sum. */
-    for (int ui = 0; ui < COLONIZE_UNITS_MAX && !wag; ++ui) {
+    for (int ui = 0; ui < units_slot_end(ctx->units) && !wag; ++ui) {
       ColonizeUnit* u = &ctx->units->units[ui];
       if (!u->active || u->nation_id != e || !units_is_on_map(u)) {
         continue;
@@ -2343,7 +2343,7 @@ ColonizeUnit* ai_contact_find_adjacent_euro(
   if (!ctx || !ctx->units || e < 0 || e > 3) {
     return NULL;
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     ColonizeUnit* brave = &ctx->units->units[i];
     if (!brave->active || brave->nation_id != nation_id) {
       continue;

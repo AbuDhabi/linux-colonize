@@ -239,7 +239,7 @@ COLONIZE_INTERNAL bool turn_year_end_woi_chrome(
       ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.independence_force;
     int warships = 0;
     if (ctx->units) {
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      for (int i = 0; i < units_slot_end(ctx->units); ++i) {
         const ColonizeUnit* u = &ctx->units->units[i];
         if (!u->active || u->nation_id != crown) {
           continue;

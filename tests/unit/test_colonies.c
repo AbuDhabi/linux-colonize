@@ -1402,9 +1402,11 @@ static int case_colonies_core(void) {
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
         if (!units.units[i].active) {
           units.units[i].active = true;
+          units.units[i].id = units.next_id++;
           filled[i] = true;
         }
       }
+      units_pool_sync(&units);
       CHECK(
         colonies_eject_colonist(&pool, cid, 0, &units, COLONIZE_EJECT_DRAGOON) < 0,
         "full-pool dragoon eject fails"
@@ -1417,8 +1419,10 @@ static int case_colonies_core(void) {
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
         if (filled[i]) {
           units.units[i].active = false;
+          units.units[i].id = -1;
         }
       }
+      units_pool_sync(&units);
     }
     /*
      * bugs.md #658: colony join folds Dragoon (0x17) to Soldier (0x15)

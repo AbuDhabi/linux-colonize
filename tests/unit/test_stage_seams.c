@@ -163,10 +163,12 @@ static int test_ai_465b_dest_owner(void) {
   }
   ColonizeUnit* g = &units.units[0];
   g->active = true;
+  g->id = units.next_id++;
   g->x = 5;
   g->y = 4;
   g->aboard_ship_id = -1;
   g->nation_id = 2;
+  units_pool_sync(&units);
   if (rc == 0 && ai_465b_dest_owner(&map, &units, 5, 4) != 2) {
     rc = fail("garrisoned colony must read the garrison's nation");
   }
@@ -178,11 +180,12 @@ static int test_ai_465b_dest_owner(void) {
   }
   ColonizeUnit* later = &units.units[1];
   later->active = true;
-  later->id = 1;
+  later->id = units.next_id++;
   later->x = 3;
   later->y = 3;
   later->aboard_ship_id = -1;
   later->nation_id = 3;
+  units_pool_sync(&units);
   units_tile_stack_arrive(&units, g->id);
   units_tile_stack_arrive(&units, later->id);
   if (rc == 0 && ai_465b_dest_owner(&map, &units, 3, 3) != 3) {
@@ -1024,7 +1027,6 @@ static int test_ai_brave_field_attack(void) {
     b->home_tribe_id = 0;
     b->moves = 0; /* Braves store thirds SPENT (conventions.md) */
     b->last_dir = 8;
-    units.unit_count = 1;
     for (int d = 0; d < 8; ++d) {
       ColonizeUnit* f = &units.units[1 + d];
       f->id = 2 + d;
@@ -1036,8 +1038,9 @@ static int test_ai_brave_field_attack(void) {
       f->aboard_ship_id = -1;
       f->home_tribe_id = -1;
       f->moves = 1;
-      units.unit_count++;
     }
+    units.next_id = 10;
+    units_pool_sync(&units);
     int before = 0;
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       before += units.units[i].active ? 1 : 0;

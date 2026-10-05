@@ -54,7 +54,7 @@ static void turn_reveal_fog_for_nation(ColonizeTurnContext* ctx, int nation_id) 
   if (!ctx || !ctx->map || !ctx->units || nation_id < 0 || nation_id > 3) {
     return;
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->nation_id != nation_id || !units_is_on_map(u)) {
       continue;
@@ -117,7 +117,7 @@ void turn_clear_mp_spent_all_nations(ColonizeUnitPool* pool) {
   if (!pool) {
     return;
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(pool); ++i) {
     ColonizeUnit* u = &pool->units[i];
     if (!u->active) {
       continue;
@@ -164,7 +164,7 @@ void turn_refresh_moves_for_nation_w(
   );
   const bool magellan =
     col1 && founding_fathers_nation_has(col1, nation_id, FF_FERDINAND_MAGELLAN);
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(pool); ++i) {
     ColonizeUnit* u = &pool->units[i];
     if (!u->active || u->nation_id != nation_id) {
       continue;
@@ -250,7 +250,7 @@ bool turn_select_next_unit(ColonizeUnitPool* pool, int human_nation) {
   const int start = pool->selected_id;
   int best_after = -1;
   int best_any = -1;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(pool); ++i) {
     const ColonizeUnit* u = &pool->units[i];
     if (!turn_unit_in_rotation(pool, u, human_nation)) {
       continue;

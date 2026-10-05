@@ -41,7 +41,7 @@ void units_render_on_map(
   bool visited[COLONIZE_UNITS_MAX];
   memset(visited, 0, sizeof(visited));
 
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(pool); ++i) {
     const ColonizeUnit* unit = &pool->units[i];
     if (!units_is_on_map(unit) || visited[i]) {
       continue;
@@ -56,7 +56,7 @@ void units_render_on_map(
     }
 
     /* Mark all on-map units on this tile visited. */
-    for (int j = 0; j < COLONIZE_UNITS_MAX; ++j) {
+    for (int j = 0; j < units_slot_end(pool); ++j) {
       const ColonizeUnit* u = &pool->units[j];
       if (units_is_on_map(u) && u->x == unit->x && u->y == unit->y) {
         visited[j] = true;

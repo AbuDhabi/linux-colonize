@@ -260,6 +260,7 @@ static int case_indian_hostility_gate(void) {
   pool.units[0].active = true;
   pool.units[0].id = 0;
   pool.units[0].home_tribe_id = 1; /* village 1 of the tribe array */
+  units_pool_sync(&pool);
 
   const int me = 2;    /* acting Euro nation */
   const int them = 5;  /* Indian nation id 5 -> col1->indian[1] */

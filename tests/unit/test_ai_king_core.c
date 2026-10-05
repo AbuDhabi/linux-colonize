@@ -1262,6 +1262,8 @@ static int sp_15(void) {
          u->type_index == ty_cont_cav || u->type_index == ty_artillery) &&
         u->x >= 4 && u->x <= 6 && u->y >= 4 && u->y <= 6) {
       u->active = false;
+      u->id = -1;
+      units_pool_sync(&units);
     }
   }
   return 0;
@@ -1291,6 +1293,8 @@ static int sp_16(void) {
       ColonizeUnit* u = &units.units[i];
       if (u->active && u->nation_id == 1 && units_is_sea(&units, u->id)) {
         u->active = false;
+        u->id = -1;
+        units_pool_sync(&units);
       } else if (u->active && u->nation_id == 1) {
         u->moves = 0;
         if (u->x == 5 && u->y == 5) {
@@ -1352,6 +1356,8 @@ static int sp_16(void) {
       ColonizeUnit* u = &units.units[i];
       if (u->active && u->nation_id == 1 && units_is_sea(&units, u->id)) {
         u->active = false;
+        u->id = -1;
+        units_pool_sync(&units);
       }
     }
     colonies.colonies[0].has_building[0] = false; /* clear fort for later */
@@ -1840,6 +1846,8 @@ static int sp_22(void) {
       ColonizeUnit* u = &units.units[i];
       if (u->active && u->nation_id == 1) {
         u->active = false; /* no crown unit may reach and fight the probes */
+        u->id = -1;
+        units_pool_sync(&units);
       }
     }
     const int ca_id = units_spawn_allow_stack(&units, ty_cont_army, 10, 5);
@@ -1924,15 +1932,21 @@ static int sp_22(void) {
         return fail("King turn must not retarget a human unit's Go To");
       }
       ca->active = false;
+      ca->id = -1;
+      units_pool_sync(&units);
     }
     {
       ColonizeUnit* cav = units_get(&units, cav_id);
       ColonizeUnit* fort = units_get(&units, fort_id);
       if (cav) {
         cav->active = false;
+        cav->id = -1;
+        units_pool_sync(&units);
       }
       if (fort) {
         fort->active = false;
+        fort->id = -1;
+        units_pool_sync(&units);
       }
     }
   }
@@ -1957,6 +1971,8 @@ static int sp_23(void) {
       ColonizeUnit* u = &units.units[i];
       if (u->active && u->nation_id == 1 && units_is_sea(&units, u->id)) {
         u->active = false;
+        u->id = -1;
+        units_pool_sync(&units);
       } else if (u->active && u->nation_id == 1) {
         u->moves = 0;
         if (u->x == 5 && u->y == 5) {
@@ -2009,6 +2025,8 @@ static int sp_24(void) {
       ColonizeUnit* u = &units.units[i];
       if (u->active && u->nation_id == 1 && units_is_sea(&units, u->id)) {
         u->active = false;
+        u->id = -1;
+        units_pool_sync(&units);
       } else if (u->active && u->nation_id == 1) {
         u->moves = 0;
         if (u->x == 5 && u->y == 5) {
@@ -2084,6 +2102,8 @@ static int sp_25(void) {
       ColonizeUnit* u = &units.units[i];
       if (u->active && u->nation_id == 1 && units_is_sea(&units, u->id)) {
         u->active = false;
+        u->id = -1;
+        units_pool_sync(&units);
       } else if (u->active && u->nation_id == 1) {
         u->moves = 0;
         if (u->x == 5 && u->y == 5) {
@@ -2952,6 +2972,8 @@ static int sp_33(void) {
       ColonizeUnit* wu2 = &units.units[i];
       if (wu2->active && wu2->y == 5 && (wu2->x == 4 || wu2->x == 6)) {
         wu2->active = false;
+        wu2->id = -1;
+        units_pool_sync(&units);
       }
     }
     const uint32_t merc_gold_before = europe_nation_gold(ctx.europe, &col1, 0);

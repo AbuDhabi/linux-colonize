@@ -185,7 +185,7 @@ void ai_coarse_fog_euro_restamp(
 ) {
   ai_coarse_fog_clear();
   if (units) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(units); ++i) {
       const ColonizeUnit* u = &units->units[i];
       if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0 || u->x >= 200 ||
           u->y >= 200) {
@@ -1225,7 +1225,7 @@ static void ai_fix_human_nation_ids(ColonizeUnitPool* units, int human_nation) {
   if (!units) {
     return;
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(units); ++i) {
     ColonizeUnit* u = &units->units[i];
     if (!u->active) {
       continue;
@@ -1266,7 +1266,7 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
   if (params->human_nation != 0) {
     ai_fix_human_nation_ids(params->units, params->human_nation);
   } else {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(params->units); ++i) {
       if (params->units->units[i].active) {
         params->units->units[i].nation_id = 0;
       }
@@ -1371,7 +1371,7 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
      * then one Brave action tick before the human turn-0 view / save.
      * Spawn leaves @UNIT movement; COL1 spent starts at 0.
      */
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    for (int i = 0; i < units_slot_end(params->units); ++i) {
       ColonizeUnit* u = &params->units->units[i];
       if (u->active && u->nation_id >= 4) {
         u->moves = 0;
@@ -1427,7 +1427,7 @@ void ai_repair_nation_landfalls(const ColonizeWorld* w) {
         }
       }
     }
-    for (int i = 0; i < COLONIZE_UNITS_MAX && ax < 0; ++i) {
+    for (int i = 0; i < units_slot_end(w->units) && ax < 0; ++i) {
       const ColonizeUnit* u = &w->units->units[i];
       if (u->active && u->nation_id == n && map_in_bounds(w->map, u->x, u->y)) {
         ax = u->x;

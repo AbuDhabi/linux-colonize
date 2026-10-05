@@ -2146,7 +2146,7 @@ static void game_europe_spawn_reservation(
   /* Every dock colonist is a DOS unit record; only some have a (236,236)
    * mirror unit in the pool, which the pool count already covers. */
   int mirrors = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+  for (int i = 0; i < units_slot_end(&game->units); ++i) {
     const ColonizeUnit* u = &game->units.units[i];
     if (u->active && u->x == 236 && u->y == 236 && u->nation_id == game->human_nation) {
       mirrors++;
@@ -2502,7 +2502,7 @@ void game_commit_new_campaign(ColonizeGameState* game) {
      * by clearing `seen` after map_load_mp above).
      */
     if (game->world_map_ok) {
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      for (int i = 0; i < units_slot_end(&game->units); ++i) {
         const ColonizeUnit* u = &game->units.units[i];
         if (!u->active || u->nation_id != game->human_nation || !units_is_on_map(u)) {
           continue;

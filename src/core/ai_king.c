@@ -392,7 +392,7 @@ static int ai_king_intervention_nation(const ColonizeTurnContext* ctx, int human
     const int cols = ctx && ctx->colonies ? colonies_count_for_nation(ctx->colonies, n) : 0;
     int force = 0;
     if (ctx && ctx->units) {
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      for (int i = 0; i < units_slot_end(ctx->units); ++i) {
         const ColonizeUnit* u = &ctx->units->units[i];
         if (!u->active || u->nation_id != n) {
           continue;
