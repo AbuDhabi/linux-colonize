@@ -216,23 +216,6 @@ bool colonies_emit_warehouse_full_confirm(
   );
 }
 
-void colonies_emit_full_chrome(
-  const ColonizeColony* colony,
-  AiPopupState* ai_popups,
-  const ColonizeMsgCatalog* messages
-) {
-  if (!ai_popups || !colony || !colony->active) {
-    return;
-  }
-  const char* cname = colony->name[0] ? colony->name : "";
-  char body[AI_POPUP_BODY_LEN];
-  PopupMsgTokens tok;
-  memset(&tok, 0, sizeof(tok));
-  tok.string0 = cname;
-  popup_msg_fill(messages, "FULL", &tok, "", body, sizeof(body));
-  ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
-}
-
 void colonies_emit_already_have_chrome(
   const ColonizeColony* colony,
   const char* building_name,

@@ -822,16 +822,6 @@ bool colonies_emit_warehouse_full_confirm(
 );
 
 /*
- * Human Join Colony chrome: GAME.TXT @FULL when colony is at population cap.
- * No-op if ai_popups NULL.
- */
-void colonies_emit_full_chrome(
-  const ColonizeColony* colony,
-  AiPopupState* ai_popups,
-  const ColonizeMsgCatalog* messages
-);
-
-/*
  * Human construction refuse: @ALREADYHAVE, or @NOMOREWAREHOUSE for Warehouse
  * Expansion. building_name optional (fallback "building"). No-op if ai_popups NULL.
  */
