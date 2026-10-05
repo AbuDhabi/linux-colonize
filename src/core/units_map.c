@@ -163,7 +163,8 @@ void units_pool_sync(ColonizeUnitPool* pool) {
 /* COLONIZE_UNITS_STRICT=1 (set for every ctest run): verify the bookkeeping
  * and abort on a pool filled by hand without units_pool_sync. The allocator
  * runs the full check; units_slot_end and units_get an O(1) one (the slot
- * right at slot_end), and units_get also proves a miss by a full scan. */
+ * right at slot_end), and units_get also proves a miss by a scan up to
+ * slot_end. */
 int g_units_strict;
 
 __attribute__((constructor)) static void units_strict_init(void) {
@@ -583,7 +584,8 @@ const ColonizeUnit* units_get_const(const ColonizeUnitPool* pool, int unit_id) {
   const int h = units_index_find(pool, unit_id);
   if (h < 0) {
     if (g_units_strict) {
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      /* Slots past slot_end are covered by the allocator's full check. */
+      for (int i = 0; i < pool->slot_end; ++i) {
         if (pool->units[i].active && pool->units[i].id == unit_id) {
           fprintf(stderr, "units: id %d active in slot %d but unindexed; call units_pool_sync\n",
                   unit_id, i);

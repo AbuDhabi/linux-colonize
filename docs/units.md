@@ -21,7 +21,7 @@ mirror unit (recruits, trainees, purchases, mercenaries, unloaded passengers):
 each is a DOS record.
 
 `COLONIZE_UNITS_DOS_MAX` (300) is that DOS limit; `COLONIZE_UNITS_MAX`
-(1024) is only the physical pool. Its size costs nothing per scan: every
+(4096) is only the physical pool. Its size costs nothing per scan: every
 walk over `pool->units` is bounded by `units_slot_end(pool)` (one past the
 highest slot in use; new units take the lowest free slot, and despawning the
 top slot trims it), and `units_get` resolves ids through the `id_slot`

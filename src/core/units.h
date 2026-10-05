@@ -85,9 +85,9 @@ void units_set_combat_music_hooks(
  * settings.json divergences.unlimited_units option (units_set_unlimited) or
  * when loading a save that already holds more; records past 300 are saved in
  * the 'UNXT' port extension chunk (docs/savegame.md). */
-#define COLONIZE_UNITS_MAX 1024
+#define COLONIZE_UNITS_MAX 4096
 /* id -> slot index size: a power of two, at least twice COLONIZE_UNITS_MAX. */
-#define COLONIZE_UNITS_ID_HASH 2048
+#define COLONIZE_UNITS_ID_HASH 8192
 #define COLONIZE_UNIT_TYPES_MAX 32
 #define COLONIZE_UNIT_CARGO_MAX 6 /* Man-O-War hold size */
 
