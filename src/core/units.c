@@ -35,6 +35,15 @@
 static ColonizeUnitsSpawnGateFn s_spawn_gate_fn;
 static void* s_spawn_gate_user;
 static ColonizeUnitsSpawnRefusedFn s_spawn_refused_fn;
+static bool s_unlimited;
+
+void units_set_unlimited(bool on) {
+  s_unlimited = on;
+}
+
+bool units_unlimited(void) {
+  return s_unlimited;
+}
 
 ColonizeUnit* units_slot_transfer(ColonizeUnitPool* pool) {
   if (!pool) {
@@ -52,14 +61,16 @@ ColonizeUnit* units_slot(ColonizeUnitPool* pool) {
   if (!pool) {
     return NULL;
   }
-  int external = 0;
-  if (s_spawn_gate_fn) {
+  /* The DOS 300 cap needs the game's Europe reservation; without the hook
+   * (save load, headless harnesses) only the physical pool bounds a spawn. */
+  if (s_spawn_gate_fn && !s_unlimited) {
+    int external = 0;
     bool human = true;
     int census = 0;
     s_spawn_gate_fn(s_spawn_gate_user, 0, &external, &human, &census);
-  }
-  if (pool->unit_count + external >= COLONIZE_UNITS_MAX) {
-    return NULL;
+    if (pool->unit_count + external >= COLONIZE_UNITS_DOS_MAX) {
+      return NULL;
+    }
   }
   return units_slot_transfer(pool);
 }
@@ -719,7 +730,7 @@ static bool units_spawn_room_test(const ColonizeUnitPool* pool, int nation, bool
   if (!((nation < 4 && human) || total < 0x124)) {
     return false;
   }
-  return total < 300 && (nation > 3 || census < 0xc9);
+  return total < COLONIZE_UNITS_DOS_MAX && (nation > 3 || census < 0xc9);
 }
 
 /*
@@ -731,6 +742,9 @@ static bool units_spawn_room_test(const ColonizeUnitPool* pool, int nation, bool
 bool units_spawn_room(const ColonizeUnitPool* pool, int nation) {
   if (!pool) {
     return false;
+  }
+  if (s_unlimited) {
+    return true;
   }
   bool human = true;
   if (units_spawn_room_test(pool, nation, &human)) {

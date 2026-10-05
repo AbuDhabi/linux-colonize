@@ -78,9 +78,14 @@ void units_set_combat_music_hooks(
   ColonizeSoundPlayFn play_fn, ColonizeSoundActiveIdFn active_id_fn
 );
 
-/* DOS FUN_1427_06b4 unit array cap (DS:0x539c < 300). The pool never holds
- * more: the human's Europe units live outside it but count toward the cap. */
-#define COLONIZE_UNITS_MAX 300
+/* DOS FUN_1427_06b4 unit array cap (DS:0x539c < 300). The human's Europe
+ * units live outside the pool but count toward it. */
+#define COLONIZE_UNITS_DOS_MAX 300
+/* Physical pool size. Above COLONIZE_UNITS_DOS_MAX only with the
+ * settings.json divergences.unlimited_units option (units_set_unlimited) or
+ * when loading a save that already holds more; records past 300 are saved in
+ * the 'UNXT' port extension chunk (docs/savegame.md). */
+#define COLONIZE_UNITS_MAX 1024
 #define COLONIZE_UNIT_TYPES_MAX 32
 #define COLONIZE_UNIT_CARGO_MAX 6 /* Man-O-War hold size */
 
@@ -221,6 +226,10 @@ typedef void (*ColonizeUnitsSpawnGateFn)(
   void* user, int nation, int* out_external, bool* out_human, int* out_census
 );
 void units_set_spawn_gate_hook(ColonizeUnitsSpawnGateFn fn, void* user);
+/* Port divergence (settings.json divergences.unlimited_units): skip the DOS
+ * FUN_1427_06b4 limits; only the physical COLONIZE_UNITS_MAX remains. */
+void units_set_unlimited(bool on);
+bool units_unlimited(void);
 /* Called (with the gate hook's user) when units_spawn_room refuses a human
  * nation: the caller shows @TOOMANYUNITS. */
 typedef void (*ColonizeUnitsSpawnRefusedFn)(void* user, int nation);

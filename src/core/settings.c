@@ -98,6 +98,11 @@ static const SettingsBoolOpt k_debug_opts[] = {
   {"trace_autosaves", offsetof(ColonizeSettings, trace_autosaves), false},
 };
 
+/* "divergences": deliberate departures from DOS, all off by default. */
+static const SettingsBoolOpt k_divergence_opts[] = {
+  SETTINGS_BOOL(unlimited_units, false),
+};
+
 #define SETTINGS_OPT_COUNT(t) ((int)(sizeof(t) / sizeof((t)[0])))
 
 static bool* settings_bool_at(ColonizeSettings* s, const SettingsBoolOpt* opt) {
@@ -154,6 +159,9 @@ void settings_defaults(ColonizeSettings* out) {
   }
   for (int i = 0; i < SETTINGS_OPT_COUNT(k_debug_opts); ++i) {
     *settings_bool_at(out, &k_debug_opts[i]) = k_debug_opts[i].def;
+  }
+  for (int i = 0; i < SETTINGS_OPT_COUNT(k_divergence_opts); ++i) {
+    *settings_bool_at(out, &k_divergence_opts[i]) = k_divergence_opts[i].def;
   }
   out->soundfont[0] = '\0';
   out->midi_backend[0] = '\0';
@@ -232,6 +240,10 @@ bool settings_save_file(const char* path, const ColonizeSettings* in, char* err,
 
   fprintf(f, "  \"debug\": {\n");
   wb_group(f, in, k_debug_opts, SETTINGS_OPT_COUNT(k_debug_opts), true);
+  fprintf(f, "  },\n");
+
+  fprintf(f, "  \"divergences\": {\n");
+  wb_group(f, in, k_divergence_opts, SETTINGS_OPT_COUNT(k_divergence_opts), true);
   fprintf(f, "  },\n");
 
   fprintf(f, "  \"data_dir\": ");
@@ -390,6 +402,10 @@ bool settings_load_file(const char* path, ColonizeSettings* out, char* err, size
 
   const JsonValue* dbg = json_obj_get(root, "debug");
   rb_group(dbg, out, k_debug_opts, SETTINGS_OPT_COUNT(k_debug_opts));
+  rb_group(
+    json_obj_get(root, "divergences"), out, k_divergence_opts,
+    SETTINGS_OPT_COUNT(k_divergence_opts)
+  );
 
   const char* data_dir = json_get_str(root, "data_dir");
   if (data_dir && data_dir[0]) {

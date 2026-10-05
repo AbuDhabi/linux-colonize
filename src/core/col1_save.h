@@ -263,7 +263,8 @@ int col1_save_human_nation_from(
   const ColonizeCol1Player* players
 );
 
-/* DOS-shaped size: the part of the file DOS itself reads (no ext block). */
+/* DOS-shaped size: the part of the file DOS itself reads (no ext block;
+ * at most COLONIZE_COL1_DOS_UNIT_MAX unit records). */
 size_t col1_save_expected_size(const ColonizeCol1Save* save);
 /* Bytes actually written by col1_save_write_*: expected size + ext block. */
 size_t col1_save_total_size(const ColonizeCol1Save* save);
@@ -328,6 +329,13 @@ bool col1_save_write_memory(
 
 /* 'BQUE': per-colony port-only build queues (ColonizeColony::build_queue). */
 #define COLONIZE_COL1_EXT_TAG_BUILD_QUEUE 0x45555142u
+
+/* 'UNXT': unit records past COLONIZE_COL1_DOS_UNIT_MAX. Payload: uint16
+ * head.active_unit when it indexes one of these records (else 0xffff; the
+ * DOS head then says "none"), uint16 0, then verbatim 28-byte
+ * ColonizeCol1Unit records. Handled inside col1_save_read_* / _write_*: in
+ * memory the save simply has head.unit_count > 300 and no such chunk. */
+#define COLONIZE_COL1_EXT_TAG_UNIT_OVERFLOW 0x54584e55u
 
 /* True when `data` is a well-formed ext block (magic, version, chunk walk). */
 bool col1_save_ext_valid(const uint8_t* data, size_t size);

@@ -20,6 +20,13 @@ The reservation also counts Europe dock colonists that have no (236,236)
 mirror unit (recruits, trainees, purchases, mercenaries, unloaded passengers):
 each is a DOS record.
 
+`COLONIZE_UNITS_DOS_MAX` (300) is that DOS limit; `COLONIZE_UNITS_MAX`
+(1024) is only the physical pool. `units_slot` applies the DOS cap only while
+the game's reservation hook is set (not during save load or in headless
+harnesses) and `settings.json` `divergences.unlimited_units` is off
+(`units_set_unlimited`); with the flag on `units_spawn_room` always answers
+yes and records past 300 are saved in the `UNXT` chunk (docs/savegame.md).
+
 The full `FUN_1427_06b4` predicate is `units_spawn_room(pool, nation)`:
 AI Euro nations and natives are refused at 292 records (only a human nation,
 DS:0x543f == 0, may use the last eight), everyone at 300, and a Euro nation

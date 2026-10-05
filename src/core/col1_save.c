@@ -385,11 +385,103 @@ bool col1_save_ext_put(
   return true;
 }
 
+/* ---------------- Unit records past the DOS limit ('UNXT') ---------------- */
+
+static uint16_t col1_save_dos_unit_count(const ColonizeCol1Save* save) {
+  return save->head.unit_count > COLONIZE_COL1_DOS_UNIT_MAX
+           ? (uint16_t)COLONIZE_COL1_DOS_UNIT_MAX
+           : save->head.unit_count;
+}
+
+/*
+ * The ext block as it goes to disk: save->ext, plus an 'UNXT' chunk carrying
+ * records 300.. when the save holds more units than DOS can load. `*owned`
+ * is set (caller frees) when a new buffer had to be built.
+ */
+static bool col1_save_file_ext(
+  const ColonizeCol1Save* save, const uint8_t** out, size_t* out_size, uint8_t** owned
+) {
+  *owned = NULL;
+  *out = save->ext;
+  *out_size = save->ext_size;
+  const uint16_t dos = col1_save_dos_unit_count(save);
+  if (save->head.unit_count <= dos || !save->unit) {
+    return true;
+  }
+  ColonizeCol1Save shell;
+  memset(&shell, 0, sizeof(shell));
+  if (save->ext_size > 0 && !col1_save_set_ext(&shell, save->ext, save->ext_size)) {
+    return false;
+  }
+  const size_t records = (size_t)(save->head.unit_count - dos) * sizeof(ColonizeCol1Unit);
+  uint8_t* payload = malloc(4u + records);
+  if (!payload) {
+    free(shell.ext);
+    return false;
+  }
+  const uint16_t active = save->head.active_unit;
+  const uint16_t spilled_active =
+    (active != 0xffffu && active >= dos && active < save->head.unit_count) ? active : 0xffffu;
+  payload[0] = (uint8_t)(spilled_active & 0xffu);
+  payload[1] = (uint8_t)(spilled_active >> 8);
+  payload[2] = 0;
+  payload[3] = 0;
+  memcpy(payload + 4, save->unit + dos, records);
+  const bool put_ok = col1_save_ext_put(
+    &shell, COLONIZE_COL1_EXT_TAG_UNIT_OVERFLOW, payload, 4u + records
+  );
+  free(payload);
+  if (!put_ok) {
+    free(shell.ext);
+    return false;
+  }
+  *owned = shell.ext;
+  *out = shell.ext;
+  *out_size = shell.ext_size;
+  return true;
+}
+
+/* After a read: fold an 'UNXT' chunk back onto the unit array. */
+static void col1_save_unspill_units(ColonizeCol1Save* save) {
+  const uint8_t* payload = NULL;
+  size_t size = 0;
+  if (!col1_save_ext_find(save, COLONIZE_COL1_EXT_TAG_UNIT_OVERFLOW, &payload, &size)) {
+    return;
+  }
+  const size_t extra = size >= 4u ? (size - 4u) / sizeof(ColonizeCol1Unit) : 0;
+  const size_t total = (size_t)save->head.unit_count + extra;
+  if (extra == 0 || (size - 4u) % sizeof(ColonizeCol1Unit) != 0 || total > 0xffffu) {
+    diag_warn("col1_save: malformed %zu-byte UNXT chunk ignored", size);
+    return;
+  }
+  ColonizeCol1Unit* grown = realloc(save->unit, total * sizeof(ColonizeCol1Unit));
+  if (!grown) {
+    diag_warn("col1_save: oom restoring %zu overflow units", extra);
+    return;
+  }
+  memcpy(grown + save->head.unit_count, payload + 4, size - 4u);
+  const uint16_t active = (uint16_t)(payload[0] | (payload[1] << 8));
+  save->unit = grown;
+  save->head.unit_count = (uint16_t)total;
+  if (active != 0xffffu && active < total) {
+    save->head.active_unit = active;
+    save->head.no_unit_selected = 0;
+  }
+  (void)col1_save_ext_put(save, COLONIZE_COL1_EXT_TAG_UNIT_OVERFLOW, NULL, 0);
+}
+
 size_t col1_save_total_size(const ColonizeCol1Save* save) {
   if (!save) {
     return 0;
   }
-  return col1_save_expected_size(save) + save->ext_size;
+  const uint8_t* ext = NULL;
+  size_t ext_size = 0;
+  uint8_t* owned = NULL;
+  if (!col1_save_file_ext(save, &ext, &ext_size, &owned)) {
+    ext_size = save->ext_size;
+  }
+  free(owned);
+  return col1_save_expected_size(save) + ext_size;
 }
 
 size_t col1_save_expected_size(const ColonizeCol1Save* save) {
@@ -400,7 +492,7 @@ size_t col1_save_expected_size(const ColonizeCol1Save* save) {
     save->head.map_size_x,
     save->head.map_size_y,
     save->head.colony_count,
-    save->head.unit_count,
+    col1_save_dos_unit_count(save),
     save->head.tribe_count
   );
 }
@@ -677,6 +769,12 @@ static bool emit_to_stream(
     COL1_FAIL(err, err_size, "null save");
   }
   ColonizeCol1Head head = save->head;
+  const uint16_t dos_units = col1_save_dos_unit_count(save);
+  head.unit_count = dos_units;
+  if (head.active_unit != 0xffffu && head.active_unit >= dos_units) {
+    head.active_unit = 0xffffu; /* the active unit lives in 'UNXT' */
+    head.no_unit_selected = 1;
+  }
   col1_save_stamp_head(&head);
   if (!col1_save_validate_head(&head, -1, -1, err, err_size)) {
     return false;
@@ -716,16 +814,18 @@ static bool emit_to_stream(
       )) {
     return false;
   }
-  if (save->head.unit_count > 0 &&
-      !put(
-        ctx,
-        save->unit,
-        (size_t)save->head.unit_count * sizeof(ColonizeCol1Unit),
-        err,
-        err_size,
-        "units"
-      )) {
-    return false;
+  for (uint16_t i = 0; i < dos_units; ++i) {
+    /* DOS's tile chain must not lead into the 'UNXT' records. */
+    ColonizeCol1Unit u = save->unit[i];
+    if (u.transport_chain.next_unit_idx >= (int16_t)dos_units) {
+      u.transport_chain.next_unit_idx = -1;
+    }
+    if (u.transport_chain.prev_unit_idx >= (int16_t)dos_units) {
+      u.transport_chain.prev_unit_idx = -1;
+    }
+    if (!put(ctx, &u, sizeof(u), err, err_size, "units")) {
+      return false;
+    }
   }
   if (!put(ctx, save->nation, sizeof(save->nation), err, err_size, "nations")) {
     return false;
@@ -752,8 +852,15 @@ static bool emit_to_stream(
     return false;
   }
   /* Port extension block last, so DOS's section-by-section read never sees it. */
-  if (save->ext && save->ext_size > 0 &&
-      !put(ctx, save->ext, save->ext_size, err, err_size, "port_ext")) {
+  const uint8_t* ext = NULL;
+  size_t ext_size = 0;
+  uint8_t* ext_owned = NULL;
+  if (!col1_save_file_ext(save, &ext, &ext_size, &ext_owned)) {
+    COL1_FAIL(err, err_size, "oom building port_ext");
+  }
+  const bool ext_ok = !ext || ext_size == 0 || put(ctx, ext, ext_size, err, err_size, "port_ext");
+  free(ext_owned);
+  if (!ext_ok) {
     return false;
   }
 
@@ -856,6 +963,8 @@ bool col1_save_read_file(const char* path, ColonizeCol1Save* out, char* err, siz
         fread(tail_buf, 1, tail, f) == tail) {
       if (!col1_save_set_ext(out, tail_buf, tail)) {
         diag_warn("col1_save_read_file %s: unrecognised %zu-byte tail ignored", path, tail);
+      } else {
+        col1_save_unspill_units(out);
       }
     }
     free(tail_buf);
@@ -993,8 +1102,12 @@ bool col1_save_read_memory(
   if (!parse_from_stream(mem_take_ctx, &ctx, out, err, err_size)) {
     return false;
   }
-  if (size > expect && !col1_save_set_ext(out, data + expect, size - expect)) {
-    diag_warn("col1_save_read_memory: unrecognised %zu-byte tail ignored", size - expect);
+  if (size > expect) {
+    if (!col1_save_set_ext(out, data + expect, size - expect)) {
+      diag_warn("col1_save_read_memory: unrecognised %zu-byte tail ignored", size - expect);
+    } else {
+      col1_save_unspill_units(out);
+    }
   }
   return true;
 }

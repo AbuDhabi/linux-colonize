@@ -40,7 +40,7 @@ static void test_missing_file_defaults(void) {
   check(s.soundfont[0] == '\0', "default soundfont empty (auto-detect)");
   check(s.midi_backend[0] == '\0', "default midi_backend empty (auto)");
   check(!s.debug_menu && !s.show_mouse_coords && !s.show_building_rects && !s.debug_logs,
-        "default debug overlay off");
+        "default debug overlay off");  check(!s.unlimited_units, "default divergences.unlimited_units off (DOS limits)");
 }
 
 static void test_roundtrip(void) {
@@ -65,6 +65,7 @@ static void test_roundtrip(void) {
   out.show_building_rects = true;
   out.debug_logs = true;
   out.skip_intro = false;
+  out.unlimited_units = true;
   snprintf(out.data_dir, sizeof(out.data_dir), "/tmp/col-data");
   snprintf(out.save_dir, sizeof(out.save_dir), "/tmp/col-saves");
   snprintf(out.soundfont, sizeof(out.soundfont), "/tmp/My \"Bank\".sf2");

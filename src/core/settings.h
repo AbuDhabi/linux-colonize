@@ -101,6 +101,9 @@ typedef struct ColonizeSettings {
   bool debug_logs;          /* write diag_info lines to opencol.log */
   bool trace_autosaves;     /* extra per-turn save trace_autosave_turn_XXX.sav */
   bool skip_intro;          /* true = skip OPENING.EXE at launch (default for a new file) */
+
+  /* "divergences": opt-in departures from DOS behaviour (default all off). */
+  bool unlimited_units; /* skip the FUN_1427_06b4 unit limits (units_set_unlimited) */
 } ColonizeSettings;
 
 /* DOS new-game state (0x5382=0xc600, 0x5384=0, 0x5386=0x0e) plus port
