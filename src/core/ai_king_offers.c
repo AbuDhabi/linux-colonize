@@ -356,6 +356,9 @@ static int ai_king_frigate_spawn(ColonizeTurnContext* ctx, int nation) {
     x = 236;
     y = 236;
   }
+  if (!units_spawn_room(ctx->units, nation)) {
+    return -1;
+  }
   const int id = units_spawn_allow_stack(ctx->units, ti, x, y);
   ColonizeUnit* u = units_get(ctx->units, id);
   if (!u) {

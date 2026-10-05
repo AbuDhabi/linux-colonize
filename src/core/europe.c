@@ -279,6 +279,16 @@ EuropeDockImmigrant* europe_dock_insert_front(EuropeScreen* eu) {
   return &eu->dock[0];
 }
 
+void europe_dock_drop_front(EuropeScreen* eu) {
+  if (!eu || eu->dock_count <= 0) {
+    return;
+  }
+  for (int i = 1; i < eu->dock_count; ++i) {
+    eu->dock[i - 1] = eu->dock[i];
+  }
+  eu->dock_count--;
+}
+
 bool europe_dock_push_load(EuropeScreen* eu, const char* name, int profession) {
   if (!eu || eu->dock_count >= EUROPE_DOCK_MAX) {
     return false;

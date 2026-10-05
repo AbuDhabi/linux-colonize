@@ -317,6 +317,9 @@ int units_spawn_village_temp_defender(
   if (ti < 0) {
     return -1;
   }
+  if (!units_spawn_room(pool, indian_nation)) {
+    return -1;
+  }
   const int id = units_spawn_allow_stack(pool, ti, village_x, village_y);
   ColonizeUnit* u = units_get(pool, id);
   if (!u) {
@@ -2777,6 +2780,9 @@ static int units_spawn_subjugated_convert(
   if (ti < 0) {
     return -1;
   }
+  if (!units_spawn_room(units, nation_id)) {
+    return -1;
+  }
   const int id = units_spawn_allow_stack(units, ti, x, y);
   if (id < 0) {
     return -1;
@@ -2816,6 +2822,9 @@ static int units_spawn_mission_return(
   }
   const int ti = units_kind_type_index(units, UNITS_KIND_MISSIONARY);
   if (ti < 0) {
+    return -1;
+  }
+  if (!units_spawn_room(units, attacker_nation_id)) {
     return -1;
   }
   const int id = units_spawn_allow_stack(units, ti, x, y);
@@ -3691,7 +3700,13 @@ bool units_resolve_lcr_rumour_w(
            * the tail's refill on a private LCG and forced the expert half on
            * every fourth turn, neither of which 4884 does.
            */
-          (void)europe_recruit_free_from_pool_ex(europe, 0, rng);
+          if (units_spawn_room(pool, human_nation)) {
+            (void)europe_recruit_free_from_pool_ex(europe, 0, rng);
+          } else { /* refused 0718: type roll only, no colonist/refill */
+            (void)europe_dock_unit_dos_type(
+              europe->pool[0].profession, (int)europe->difficulty, true, rng
+            );
+          }
         }
       }
     } else if (col1 && nation >= 0 && nation < 4) {
@@ -3753,7 +3768,7 @@ bool units_resolve_lcr_rumour_w(
      * always assigns `tok.string0` here, so the clear has no port-visible
      * effect and is deliberately not transcribed. */
     const int ct = units_kind_type_index(pool, UNITS_KIND_COLONIST);
-    if (ct >= 0) {
+    if (ct >= 0 && units_spawn_room(pool, nation)) {
       const int nid = units_spawn_allow_stack(pool, ct, x, y);
       ColonizeUnit* nu = units_get(pool, nid);
       if (nu) {

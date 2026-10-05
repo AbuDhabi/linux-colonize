@@ -301,6 +301,12 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
       return;
     }
     const int type_idx = units_kind_type_index(&game->units, k_cheat_create_ship_kinds[id]);
+    const int ship_nation = game->cheat_create_pending_nation >= 0
+      ? game->cheat_create_pending_nation
+      : game->human_nation;
+    if (type_idx >= 0 && !units_spawn_room(&game->units, ship_nation)) {
+      return;
+    }
     const int uid = type_idx >= 0
       ? units_spawn_allow_stack(&game->units, type_idx, x, y)
       : -1;
@@ -308,10 +314,7 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
       set_status(game, "Cannot create unit here", NULL);
       return;
     }
-    units_set_nation(
-      units_get(&game->units, uid),
-      game->cheat_create_pending_nation >= 0 ? game->cheat_create_pending_nation : game->human_nation
-    );
+    units_set_nation(units_get(&game->units, uid), ship_nation);
     set_status(game, "Created", units_type(&game->units, type_idx)->name);
     return;
   }
@@ -423,6 +426,9 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
     }
   }
   const int type_idx = units_kind_type_index(&game->units, (ColonizeUnitKind)kind);
+  if (type_idx >= 0 && !units_spawn_room(&game->units, nation)) {
+    return;
+  }
   const int uid =
     type_idx >= 0 ? units_spawn_allow_stack(&game->units, type_idx, x, y) : -1;
   if (uid < 0) {

@@ -771,6 +771,9 @@ int colonies_try_complete_unit_construction(
   if (type_index < 0) {
     return -1;
   }
+  if (!units_spawn_room(units, col->nation_id)) {
+    return -1;
+  }
   const int uid = units_spawn_allow_stack(units, type_index, col->x, col->y);
   if (uid < 0) {
     return -1;

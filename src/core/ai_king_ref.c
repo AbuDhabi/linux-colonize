@@ -368,7 +368,7 @@ COLONIZE_INTERNAL int ai_king_0982_spawn_pool_unit(ColonizeTurnContext* ctx, int
   if (ty < 0) {
     ty = units_kind_type_index(ctx->units, alts[k]);
   }
-  if (ty < 0) {
+  if (ty < 0 || !units_spawn_room(ctx->units, crown)) {
     return -1;
   }
   const int uid = units_spawn_allow_stack(ctx->units, ty, x, y);
@@ -520,7 +520,7 @@ static void ai_king_ref_tory_uprising(ColonizeTurnContext* ctx, int crown, int h
       if (ou && ou->nation_id != crown) {
         continue;
       }
-      const int uid = soldier_ty >= 0
+      const int uid = soldier_ty >= 0 && units_spawn_room(ctx->units, crown)
         ? units_spawn_allow_stack(ctx->units, soldier_ty, nx, ny)
         : -1;
       if (uid >= 0) {
@@ -927,7 +927,9 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
       if (ship_ty < 0) {
         ship_ty = units_kind_type_index(ctx->units, UNITS_KIND_GALLEON);
       }
-      const int sid = ship_ty >= 0 ? units_spawn_allow_stack(ctx->units, ship_ty, lx, ly) : -1;
+      const int sid = ship_ty >= 0 && units_spawn_room(ctx->units, crown)
+        ? units_spawn_allow_stack(ctx->units, ship_ty, lx, ly)
+        : -1;
       ColonizeUnit* ship = units_get(ctx->units, sid);
       if (ship) {
         units_set_nation(ship, crown);
@@ -1104,7 +1106,7 @@ COLONIZE_INTERNAL int ai_king_10f0_spawn_unit(
   for (int i = 0; i < 4 && ty < 0 && names[k][i] >= 0; ++i) {
     ty = units_kind_type_index(ctx->units, (ColonizeUnitKind)names[k][i]);
   }
-  if (ty < 0) {
+  if (ty < 0 || !units_spawn_room(ctx->units, human)) {
     return -1;
   }
   const int uid = units_spawn_allow_stack(ctx->units, ty, x, y);

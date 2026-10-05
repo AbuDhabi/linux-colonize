@@ -493,6 +493,30 @@ bool game_europe_menu_confirm(ColonizeGameState* game) {
       !europe_purchase_affordable(eu, eu->menu_selection - 1)) {
     return false;
   }
+  /* FUN_1427_06b4 refusal (@TOOMANYUNITS) for a Recruit / Train / Purchase
+   * that would create a unit. Recruit (FUN_38fd_4884 raw 64765-64768) has
+   * already zeroed the crosses; Train (FUN_38fd_41ce raw 64432) charges
+   * nothing; Purchase (FUN_38fd_4b50 raw 64878-64884) debits the price
+   * before the create and keeps it. */
+  const bool creates =
+    (eu->menu == EUROPE_MENU_RECRUIT && eu->menu_selection > 0 &&
+     europe_recruit_affordable(eu)) ||
+    (eu->menu == EUROPE_MENU_TRAIN && eu->menu_selection > 0) ||
+    (eu->menu == EUROPE_MENU_PURCHASE && eu->purchase_confirming && eu->menu_selection == 0);
+  if (creates && game->units_ok && !units_spawn_room(&game->units, game->human_nation)) {
+    if (eu->menu == EUROPE_MENU_RECRUIT) {
+      eu->current_crosses = 0;
+      eu->immigration_pressure = 0;
+    } else if (eu->menu == EUROPE_MENU_PURCHASE) {
+      europe_nation_gold_add(
+        eu, game->col1_ok ? &game->col1 : NULL, game->human_nation,
+        -(long)eu->purchase_confirm_cost
+      );
+      eu->purchase_confirming = false;
+    }
+    europe_menu_close(eu);
+    return true;
+  }
   /* The RECRUIT row's pool refill is a `46d4` roll DOS takes off the shared
    * game stream — hand the real rng down (smell audit 2026-09-10 G5). */
   return europe_menu_confirm_ex(eu, &game->move_rng);
@@ -2119,6 +2143,18 @@ static void game_europe_spawn_reservation(
   for (int i = 0; i < eu->bound_ships; ++i) {
     reserved += 1 + eu->bound[i].cargo_count;
   }
+  /* Every dock colonist is a DOS unit record; only some have a (236,236)
+   * mirror unit in the pool, which the pool count already covers. */
+  int mirrors = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &game->units.units[i];
+    if (u->active && u->x == 236 && u->y == 236 && u->nation_id == game->human_nation) {
+      mirrors++;
+    }
+  }
+  if (eu->dock_count > mirrors) {
+    reserved += eu->dock_count - mirrors;
+  }
   *out_external = reserved;
   if (nation >= 0 && nation < 4 && game->col1_ok) {
     *out_human = game->col1.player[nation].control == 0;
@@ -2128,8 +2164,21 @@ static void game_europe_spawn_reservation(
   }
 }
 
+/* FUN_1427_06b4 refusal for a human nation: @TOOMANYUNITS (DS 0x1f3). */
+static void game_spawn_refused(void* user, int nation) {
+  (void)nation;
+  ColonizeGameState* game = user;
+  if (!game) {
+    return;
+  }
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(&game->messages, "TOOMANYUNITS", NULL, "", body, sizeof(body));
+  ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+}
+
 void game_register_europe_spawn_reservation(ColonizeGameState* game) {
   units_set_spawn_gate_hook(game_europe_spawn_reservation, game);
+  units_set_spawn_refused_hook(game_spawn_refused);
 }
 
 ColonizeGameState* game_create(const ColonizeGameConfig* config) {
@@ -2168,6 +2217,7 @@ void game_destroy(ColonizeGameState* game) {
   units_set_combat_dissolve(NULL, NULL);
   units_set_combat_popup_pump(NULL, NULL);
   units_set_spawn_gate_hook(NULL, NULL);
+  units_set_spawn_refused_hook(NULL);
   ai_set_native_score_plot(NULL, NULL);
   combat_analysis_set_presenter(NULL, NULL);
   combat_analysis_close(&game->combat_analysis);

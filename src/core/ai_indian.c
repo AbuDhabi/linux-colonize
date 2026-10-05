@@ -144,13 +144,7 @@ static int ai_indian_152e_spawn_brave(
     return -1;
   }
   /* DOS: `*(int *)0x539c < 0x124` — the native arm's only pool gate. */
-  int live = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    if (ctx->units->units[i].active) {
-      live++;
-    }
-  }
-  if (live >= 0x124) {
+  if (!units_spawn_room(ctx->units, (int)t->nation_id)) {
     return -1;
   }
   /* NAMES pool index == DOS type index for 0x13..0x16 (ai_euro.c k[] map). */

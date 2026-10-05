@@ -204,7 +204,8 @@ bool units_fountain_youth_apply_popup_ex(
   EuropeScreen* europe,
   AiPopupState* popups,
   const ColonizeMsgCatalog* game_txt,
-  ColonizeDosRng* rng
+  ColonizeDosRng* rng,
+  ColonizeUnitPool* units
 );
 bool units_king_galleon_apply_popup_w(
   const ColonizeWorld* w,

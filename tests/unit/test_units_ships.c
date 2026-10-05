@@ -47,6 +47,65 @@ static int unit_europe_transfer_at_dos_cap(void) {
   return 0;
 }
 
+/* FUN_1427_06b4 gates: 292 for AI/natives, 300 total, census <= 200. */
+static bool g_gate_human;
+static int g_gate_census;
+static int g_gate_refused;
+
+static void test_gate_inputs(
+  void* user, int nation, int* external, bool* human, int* census
+) {
+  (void)user;
+  (void)nation;
+  *external = 0;
+  *human = g_gate_human;
+  *census = g_gate_census;
+}
+
+static void test_gate_refused(void* user, int nation) {
+  (void)user;
+  (void)nation;
+  g_gate_refused++;
+}
+
+static int unit_spawn_room_dos_gates(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  for (int i = 0; i < 0x124; ++i) {
+    pool.units[i].active = true;
+  }
+  units_set_spawn_gate_hook(test_gate_inputs, NULL);
+  units_set_spawn_refused_hook(test_gate_refused);
+  g_gate_refused = 0;
+  g_gate_human = false;
+  g_gate_census = 0;
+  const bool ai_292 = units_spawn_room(&pool, 1);
+  const bool native_292 = units_spawn_room(&pool, 5);
+  g_gate_human = true;
+  const bool human_292 = units_spawn_room(&pool, 1);
+  g_gate_census = 0xc8;
+  const bool census_200 = units_spawn_room(&pool, 1);
+  g_gate_census = 0xc9;
+  const bool census_201 = units_spawn_room(&pool, 1);
+  g_gate_census = 0;
+  for (int i = 0x124; i < 300; ++i) {
+    pool.units[i].active = true;
+  }
+  const bool human_300 = units_spawn_room(&pool, 1);
+  units_set_spawn_refused_hook(NULL);
+  units_set_spawn_gate_hook(NULL, NULL);
+  /* Refusals that reach the popup: human census 201 and human at 300. */
+  if (ai_292 || native_292 || !human_292 || !census_200 || census_201 || human_300 ||
+      g_gate_refused != 2) {
+    fprintf(stderr,
+            "06b4 gates: ai=%d native=%d human=%d c200=%d c201=%d h300=%d refused=%d\n",
+            ai_292, native_292, human_292, census_200, census_201, human_300,
+            g_gate_refused);
+    return 1;
+  }
+  return 0;
+}
+
 static void capture_refit_sound(int id) {
   g_refit_sound_id = id;
   g_refit_sound_calls++;
@@ -909,6 +968,10 @@ int main(void) {
     return 1;
   }
   if (unit_europe_arrival_reveals() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_spawn_room_dos_gates() != 0) {
     diag_shutdown();
     return 1;
   }

@@ -441,6 +441,12 @@ bool europe_dock_caption(
 int europe_purchase_cost(const EuropeScreen* eu, int purchase_index);
 
 /* europe_dock_push_load -- see docs/europe.md#europe_dock_push_load */
+/* Fresh dock slot at index 0 (DOS's newest-first dock chain), NULL if full.
+ * Every colonist created in Europe goes here; arrivals from the New World use
+ * europe_dock_push_load (back of the queue). See europe.c. */
+EuropeDockImmigrant* europe_dock_insert_front(EuropeScreen* eu);
+/* Remove dock slot 0 (inverse of europe_dock_insert_front). */
+void europe_dock_drop_front(EuropeScreen* eu);
 bool europe_dock_push_load(EuropeScreen* eu, const char* name, int profession);
 
 /*

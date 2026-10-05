@@ -1031,6 +1031,9 @@ static bool effect_jones_frigate(
   if (ship_ty < 0) {
     return false;
   }
+  if (!units_spawn_room(units, nation_id)) {
+    return false;
+  }
   if (europe) {
     const ColonizeUnitType* ty = units_type(units, ship_ty);
     return europe_harbor_push(

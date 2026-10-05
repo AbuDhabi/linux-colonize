@@ -34,6 +34,7 @@
 
 static ColonizeUnitsSpawnGateFn s_spawn_gate_fn;
 static void* s_spawn_gate_user;
+static ColonizeUnitsSpawnRefusedFn s_spawn_refused_fn;
 
 ColonizeUnit* units_slot_transfer(ColonizeUnitPool* pool) {
   if (!pool) {
@@ -699,17 +700,18 @@ void units_set_spawn_gate_hook(ColonizeUnitsSpawnGateFn fn, void* user) {
   s_spawn_gate_user = user;
 }
 
-/* DOS-LITERAL FUN_1427_06b4 raw 7719-7720 */
-bool units_spawn_room(const ColonizeUnitPool* pool, int nation) {
-  if (!pool) {
-    return false;
-  }
+void units_set_spawn_refused_hook(ColonizeUnitsSpawnRefusedFn fn) {
+  s_spawn_refused_fn = fn;
+}
+
+static bool units_spawn_room_test(const ColonizeUnitPool* pool, int nation, bool* out_human) {
   int external = 0;
   bool human = true;
   int census = 0;
   if (s_spawn_gate_fn) {
     s_spawn_gate_fn(s_spawn_gate_user, nation, &external, &human, &census);
   }
+  *out_human = human;
   int total = external;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     total += pool->units[i].active ? 1 : 0;
@@ -718,6 +720,26 @@ bool units_spawn_room(const ColonizeUnitPool* pool, int nation) {
     return false;
   }
   return total < 300 && (nation > 3 || census < 0xc9);
+}
+
+/*
+ * DOS-LITERAL FUN_1427_06b4 raw 7719-7720 (asm 0x6d30-0x6d61): AI Euro
+ * nations and natives stop at 292 records, everyone at 300, a Euro nation
+ * whose DS:0x8cfc census byte is above 200. A refused human nation gets
+ * @TOOMANYUNITS (asm 0x6e85 `lea bx,[0x1f3]; call 281f:03fe`).
+ */
+bool units_spawn_room(const ColonizeUnitPool* pool, int nation) {
+  if (!pool) {
+    return false;
+  }
+  bool human = true;
+  if (units_spawn_room_test(pool, nation, &human)) {
+    return true;
+  }
+  if (nation < 4 && human && s_spawn_refused_fn) {
+    s_spawn_refused_fn(s_spawn_gate_user, nation);
+  }
+  return false;
 }
 
 void units_set_nation(ColonizeUnit* unit, int nation_id) {
@@ -768,7 +790,7 @@ int units_spawn_treasure_train(
     return -1;
   }
   const int ti = units_kind_type_index(pool, UNITS_KIND_TREASURE);
-  if (ti < 0) {
+  if (ti < 0 || !units_spawn_room(pool, nation_id)) {
     return -1;
   }
   const int id = units_spawn_allow_stack(pool, ti, x, y);
@@ -1406,14 +1428,15 @@ void units_fountain_youth_enqueue_pick(
 bool units_fountain_youth_apply_popup(
   EuropeScreen* europe, AiPopupState* popups, const ColonizeMsgCatalog* game_txt
 ) {
-  return units_fountain_youth_apply_popup_ex(europe, popups, game_txt, NULL);
+  return units_fountain_youth_apply_popup_ex(europe, popups, game_txt, NULL, NULL);
 }
 
 bool units_fountain_youth_apply_popup_ex(
   EuropeScreen* europe,
   AiPopupState* popups,
   const ColonizeMsgCatalog* game_txt,
-  ColonizeDosRng* rng
+  ColonizeDosRng* rng,
+  ColonizeUnitPool* units
 ) {
   if (!popups || popups->result_tag != AI_POPUP_TAG_FOUNTAIN_YOUTH) {
     return false;
@@ -1428,7 +1451,15 @@ bool units_fountain_youth_apply_popup_ex(
   }
   /* The 4884 tail refills the emptied slot with a `46d4` roll off the shared
    * game stream — pass the real rng through (smell audit 2026-09-10 G5). */
-  (void)europe_recruit_free_from_pool_ex(europe, slot, rng);
+  /* 4884(1,0): the 0718 create may be refused at the unit limit
+   * (FUN_1427_06b4, @TOOMANYUNITS) — no colonist, no pool refill. */
+  if (units && !units_spawn_room(units, popups->result_nation_a)) {
+    (void)europe_dock_unit_dos_type(
+      europe->pool[slot].profession, (int)europe->difficulty, true, rng
+    );
+  } else {
+    (void)europe_recruit_free_from_pool_ex(europe, slot, rng);
+  }
   if (remaining - 1 > 0) {
     units_fountain_youth_enqueue_pick(
       europe, popups, game_txt, popups->result_nation_a, remaining - 1
@@ -1497,6 +1528,17 @@ bool units_brewster_apply_popup_ex_w(
     return true;
   }
   const int human = popups->result_nation_a;
+  /* FUN_38fd_4884 raw 64765-64768: crosses are zeroed, then the 0718 create
+   * (its type roll, then FUN_1427_06b4). A refusal at the unit limit stops
+   * there: no dock colonist, no pool refill (@TOOMANYUNITS). */
+  if (units && !units_spawn_room(units, human)) {
+    (void)europe_dock_unit_dos_type(
+      europe->pool[slot].profession, (int)europe->difficulty, true, rng
+    );
+    europe->current_crosses = 0;
+    europe->immigration_pressure = 0;
+    return true;
+  }
   /* Same 4884 tail refill as the FoY pick — the emptied slot's `46d4` roll
    * belongs on the shared game stream (smell audit 2026-09-10 G5). */
   if (!europe_brewster_pick_from_pool_ex(europe, slot, rng)) {

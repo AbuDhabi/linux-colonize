@@ -945,6 +945,9 @@ int units_spawn_colony_temp_defender(
   if (ti < 0) {
     return -1;
   }
+  if (!units_spawn_room(pool, col->nation_id)) {
+    return -1;
+  }
   const int id = units_spawn_allow_stack(pool, ti, col->x, col->y);
   ColonizeUnit* u = units_get(pool, id);
   if (!u) {

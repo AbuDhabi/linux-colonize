@@ -419,7 +419,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
           );
         }
         const int convert_type = units_kind_type_index(ctx->units, UNITS_KIND_COLONIST);
-        if (convert_type >= 0) {
+        if (convert_type >= 0 && units_spawn_room(ctx->units, c->nation_id)) {
           const int cid = units_spawn_allow_stack(ctx->units, convert_type, c->x, c->y);
           ColonizeUnit* convert = cid >= 0 ? units_get(ctx->units, cid) : NULL;
           if (convert) {
