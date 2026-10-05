@@ -407,7 +407,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@TOOTORY` | Done | `ai_king_menu_declare_independence` (FUN_43f7_2564 tail, sol<50 branch) — OK notice via `ai_popup_enqueue_ok_ctx` |
 | `@DECLARE` | Done thin | ai_popup CHOICE body+labels via `popup_msg_*`; VGA PARKED |
 | `@DEADCONVERTS` | Done | `FUN_3844_0004` (viceroy_unpacked.c 58268-58299, tag 0xee2): a lone Convert (type 0, profession 27) on a tile with no settlement ages `col1_counter16` and is removed when it passes 8; human owner gets the popup. Ported 2026-09-23 (`units_tick_convert_outside_colony`, bugs.md #725) |
-| `@TOOMANYUNITS` | n/a | dead text: no DS string in VICEROY.EXE (absent from popup_tag_ids.md) |
+| `@TOOMANYUNITS` | Missing | **NOT dead** (corrected 2026-10-05): `FUN_1427_06b4` raises it for a human nation when the allocator refuses (asm 0x6e85 `lea bx,[0x1f3]; call 181f:03fe`; DS 0x1f3 = "TOOMANYUNITS"). LEA site, missed by the PUSH-pair scan like @TOOMANYCOLONIES. bugs.md #1064 |
 | `@TOOMANYCOLONIES` | Done | **NOT dead** (bugs.md #681, corrected 2026-09-23): the Build handler raises it at asm `0x227dc` (`lea bx,[0x9e5]; call 0x181f:0x3fe`) — a LEA site, which is why the PUSH-pair scan missed it — when `word [0x539e] >= 0x30` (48 colonies) or `byte [nation+0x9298] >= 0x26` (38 settlements for that nation) and there is no colony on the tile. Ported in `game_try_found_colony_at_cursor` |
 | `@PICKMUSIC` | Done | slot / music dialogs |
 | `@PICKINDEPENDENCE` | Done | slot / music dialogs |
