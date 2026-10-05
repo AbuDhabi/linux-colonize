@@ -99,7 +99,7 @@ pointer over the strip reads as the bottom screen row.
 default. `divergences.unlimited_units` (read at startup, `main.c` ->
 `units_set_unlimited`) skips the `FUN_1427_06b4` unit limits (292 for AI and
 natives, 300 total, 200 per European nation, `@TOOMANYUNITS`); the physical
-pool `COLONIZE_UNITS_MAX` (1024) is the only cap left. Records past 300 are
+pool `COLONIZE_UNITS_MAX` (4096) is the only cap left. Records past 300 are
 saved in the `UNXT` port extension chunk (docs/savegame.md), so DOS still
 loads the first 300 and never sees the rest. Turning the flag off again does
 not drop units: a save already above 300 loads whole, and new units wait
