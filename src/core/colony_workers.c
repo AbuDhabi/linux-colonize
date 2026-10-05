@@ -1132,6 +1132,15 @@ int colonies_eject_colonist(
    * (game_loop game_colony_apply_outside_role) never did. */
   const int profession = c->profession;
 
+  /* Spawn before touching the colony, as DOS does (overlays.c:10239-10240:
+   * FUN_0000_4924 allocates, `if (local_1a < 0) goto` exits with the
+   * colonist still inside; FUN_0000_6bb4 removes him only after). With a
+   * full unit pool the port used to remove the colonist first and lose him. */
+  const int uid = units_spawn_allow_stack(units, type_index, col->x, col->y);
+  if (uid < 0) {
+    return -1;
+  }
+
   colonies_clear_colonist_tile(col, colonist_index);
   for (int i = colonist_index; i < col->colonist_count - 1; ++i) {
     col->colonists[i] = col->colonists[i + 1];
@@ -1155,14 +1164,6 @@ int colonies_eject_colonist(
   col->stock[COLONIZE_CARGO_MUSKETS] -= muskets_take;
   col->stock[COLONIZE_CARGO_HORSES] -= horses_take;
 
-  const int uid = units_spawn_allow_stack(units, type_index, col->x, col->y);
-  if (uid < 0) {
-    /* Refund gear if spawn fails (colonist already removed — best-effort). */
-    col->stock[COLONIZE_CARGO_TOOLS] += tools_take;
-    col->stock[COLONIZE_CARGO_MUSKETS] += muskets_take;
-    col->stock[COLONIZE_CARGO_HORSES] += horses_take;
-    return -1;
-  }
   ColonizeUnit* u = units_get(units, uid);
   if (u) {
     units_set_nation(u, col->nation_id);

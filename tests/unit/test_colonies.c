@@ -1390,6 +1390,36 @@ static int case_colonies_core(void) {
         "hardy+tools map icon #101"
       );
     }
+    /* Full unit pool: DOS spawns first and leaves the colonist inside on
+     * failure (overlays.c:10239-10240). The port used to remove him first. */
+    {
+      ColonizeColony* col = colonies_get_mut(&pool, cid);
+      CHECK(col && col->colonist_count > 0, "colony has a colonist for full-pool eject");
+      const int pop = col->colonist_count;
+      col->stock[COLONIZE_CARGO_MUSKETS] = 100;
+      col->stock[COLONIZE_CARGO_HORSES] = 100;
+      bool filled[COLONIZE_UNITS_MAX] = {false};
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        if (!units.units[i].active) {
+          units.units[i].active = true;
+          filled[i] = true;
+        }
+      }
+      CHECK(
+        colonies_eject_colonist(&pool, cid, 0, &units, COLONIZE_EJECT_DRAGOON) < 0,
+        "full-pool dragoon eject fails"
+      );
+      CHECK(col->colonist_count == pop, "full-pool eject keeps the colonist");
+      CHECK(
+        col->stock[COLONIZE_CARGO_MUSKETS] == 100 && col->stock[COLONIZE_CARGO_HORSES] == 100,
+        "full-pool eject keeps the gear"
+      );
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        if (filled[i]) {
+          units.units[i].active = false;
+        }
+      }
+    }
     /*
      * bugs.md #658: colony join folds Dragoon (0x17) to Soldier (0x15)
      * through FUN_15eb_0e8c (raw 11083-11090), same as the founding path.
