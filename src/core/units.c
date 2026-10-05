@@ -662,6 +662,35 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   return slot->id;
 }
 
+static ColonizeUnitsSpawnGateFn s_spawn_gate_fn;
+static void* s_spawn_gate_user;
+
+void units_set_spawn_gate_hook(ColonizeUnitsSpawnGateFn fn, void* user) {
+  s_spawn_gate_fn = fn;
+  s_spawn_gate_user = user;
+}
+
+/* DOS-LITERAL FUN_1427_06b4 raw 7719-7720 */
+bool units_spawn_room(const ColonizeUnitPool* pool, int nation) {
+  if (!pool) {
+    return false;
+  }
+  int external = 0;
+  bool human = true;
+  int census = 0;
+  if (s_spawn_gate_fn) {
+    s_spawn_gate_fn(s_spawn_gate_user, nation, &external, &human, &census);
+  }
+  int total = external;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    total += pool->units[i].active ? 1 : 0;
+  }
+  if (!((nation < 4 && human) || total < 0x124)) {
+    return false;
+  }
+  return total < 300 && (nation > 3 || census < 0xc9);
+}
+
 void units_set_nation(ColonizeUnit* unit, int nation_id) {
   if (!unit) {
     return;

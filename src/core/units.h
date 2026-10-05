@@ -78,8 +78,9 @@ void units_set_combat_music_hooks(
   ColonizeSoundPlayFn play_fn, ColonizeSoundActiveIdFn active_id_fn
 );
 
-/* Original COLONY.SAV can hold well over 64 map units (natives + Europeans). */
-#define COLONIZE_UNITS_MAX 256
+/* DOS FUN_1427_06b4 unit array cap (DS:0x539c < 300). The pool never holds
+ * more: the human's Europe units live outside it but count toward the cap. */
+#define COLONIZE_UNITS_MAX 300
 #define COLONIZE_UNIT_TYPES_MAX 32
 #define COLONIZE_UNIT_CARGO_MAX 6 /* Man-O-War hold size */
 
@@ -213,6 +214,15 @@ const char* units_equip_role_type_name(
 int units_spawn(ColonizeUnitPool* pool, int type_index, int x, int y);
 /* Spawn even if the tile already has a unit (COL1 stacks / passengers). */
 int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y);
+/* Game-side inputs to the DOS spawn gate: units held outside the pool (human
+ * Europe), whether `nation` is a human player (DS:0x543f == 0), and its
+ * DS:0x8cfc all_unit_counts census byte. */
+typedef void (*ColonizeUnitsSpawnGateFn)(
+  void* user, int nation, int* out_external, bool* out_human, int* out_census
+);
+void units_set_spawn_gate_hook(ColonizeUnitsSpawnGateFn fn, void* user);
+/* DOS FUN_1427_06b4 allocator gate: may `nation` get a new unit now? */
+bool units_spawn_room(const ColonizeUnitPool* pool, int nation);
 /* Mark an on-map arrival at the tail of the DOS tile chain. */
 void units_tile_stack_arrive(ColonizeUnitPool* pool, int unit_id);
 /* DOS FUN_281f_07e0: return the latest-arrival unit at (x,y), if any. */
