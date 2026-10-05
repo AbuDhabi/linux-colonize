@@ -1136,6 +1136,9 @@ int colonies_eject_colonist(
    * FUN_0000_4924 allocates, `if (local_1a < 0) goto` exits with the
    * colonist still inside; FUN_0000_6bb4 removes him only after). With a
    * full unit pool the port used to remove the colonist first and lose him. */
+  if (!units_spawn_room(units, col->nation_id)) {
+    return -1;
+  }
   const int uid = units_spawn_allow_stack(units, type_index, col->x, col->y);
   if (uid < 0) {
     return -1;

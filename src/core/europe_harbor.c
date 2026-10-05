@@ -1594,6 +1594,9 @@ int europe_nation_harbor_spawn(const ColonizeWorld* w, int nation_id, int profes
   if (lt < 0) {
     return -1;
   }
+  if (!units_spawn_room(w->units, nation_id)) {
+    return -1;
+  }
   const int id = units_spawn_allow_stack(w->units, lt, 200, 100);
   if (id < 0) {
     return -1;

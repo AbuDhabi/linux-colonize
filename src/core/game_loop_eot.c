@@ -432,7 +432,7 @@ bool game_ship_sail_to_europe(ColonizeGameState* game, int sid) {
        * unit's id/orders/route state — that is precisely why the capacity
        * test moved ahead of the despawn.
        */
-      const int restored = units_spawn_ship_with_cargo(
+      const int restored = units_transfer_ship_from_europe(
         &game->units,
         type_index,
         exit_x,

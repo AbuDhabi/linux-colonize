@@ -373,6 +373,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       const uint32_t turn = ctx->turn_number ? *ctx->turn_number : 0u;
       ctx->europe->pool_force_expert = ((turn & 3u) == 0u);
     }
+    const bool immigrant_seen_before = ctx->europe && ctx->europe->crosses_immigrant_seen;
     const int imm = woi_now ? 0
                             : europe_tick_immigration_pressure_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL), .rng=(ColonizeDosRng*)(ctx->rng), .europe=(EuropeScreen*)(ctx->europe)}, ctx->human_nation);
     if (imm == 2) {
@@ -383,21 +384,39 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
         snprintf(ctx->status, ctx->status_size, "Religious unrest: choose an immigrant.");
       }
     } else if (imm == 1) {
-      if (ctx->europe) {
-        europe_notify_immigrant_sound(ctx->europe); /* FUN_38fd_5e52 38fd:5ecb: pool 2 */
-      }
-      const char* name = "";
-      if (ctx->europe->dock_count > 0) {
-        name = ctx->europe->dock[0].name;
-      }
-      turn_notify_dock_immigrant(ctx, out, name);
-      /* Mirror dock immigrant as Europe-map unit for Col1 capture. */
+      /* Mirror dock immigrant as Europe-map unit for Col1 capture. DOS raw
+       * 68585-68587: crosses and the pool slot are already spent when
+       * FUN_1427_06b4 refuses at the unit limit; the immigrant, its sound
+       * and its popup are lost (@TOOMANYUNITS instead). */
+      bool created = true;
       if (ctx->units && ctx->europe->dock_count > 0) {
-        const EuropeDockImmigrant* d = &ctx->europe->dock[0];
-        (void)europe_spawn_dock_mirror_unit(
-          ctx->units, ctx->human_nation, d->profession, (int)ctx->europe->difficulty, true,
-          ctx->rng
-        );
+        /* Gate without the new dock entry: the reservation hook counts
+         * unmirrored dock colonists as records already. */
+        const EuropeDockImmigrant d = ctx->europe->dock[0];
+        europe_dock_drop_front(ctx->europe);
+        created = units_spawn_room(ctx->units, ctx->human_nation);
+        if (created) {
+          *europe_dock_insert_front(ctx->europe) = d;
+          (void)europe_spawn_dock_mirror_unit(
+            ctx->units, ctx->human_nation, d.profession, (int)ctx->europe->difficulty, true,
+            ctx->rng
+          );
+        } else {
+          (void)europe_dock_unit_dos_type(
+            d.profession, (int)ctx->europe->difficulty, true, ctx->rng
+          );
+          /* raw 68588/68601: the 0x40 latch is set only on success. */
+          ctx->europe->crosses_immigrant_seen = immigrant_seen_before;
+          ctx->europe->status[0] = '\0';
+        }
+      }
+      if (created) {
+        europe_notify_immigrant_sound(ctx->europe); /* FUN_38fd_5e52 38fd:5ecb: pool 2 */
+        const char* name = "";
+        if (ctx->europe->dock_count > 0) {
+          name = ctx->europe->dock[0].name;
+        }
+        turn_notify_dock_immigrant(ctx, out, name);
       }
     }
     /*

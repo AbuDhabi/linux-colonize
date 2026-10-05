@@ -374,6 +374,9 @@ static int ai_diplo_war_privateer_spawn(
       !ai_diplo_privateer_spawn_hunt_ready(ctx, sx, sy)) {
     return 0;
   }
+  if (!units_spawn_room(ctx->units, nation_id)) {
+    return 0;
+  }
   const int sid = units_spawn_allow_stack(ctx->units, ty, sx, sy);
   if (sid < 0) {
     return 0;

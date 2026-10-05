@@ -16,6 +16,22 @@ The physical pool remains 300. Older port saves that already contain more than
 300 total records load intact but cannot land an overdue ship until enough
 on-map unit slots are freed; the status line reports the immediate shortfall.
 
+The reservation also counts Europe dock colonists that have no (236,236)
+mirror unit (recruits, trainees, purchases, mercenaries, unloaded passengers):
+each is a DOS record.
+
+The full `FUN_1427_06b4` predicate is `units_spawn_room(pool, nation)`:
+AI Euro nations and natives are refused at 292 records (only a human nation,
+DS:0x543f == 0, may use the last eight), everyone at 300, and a Euro nation
+whose DS:0x8cfc census byte (`all_unit_counts`, lagging) exceeds 200. Every
+port site that mirrors a DOS `FUN_281f_095c` create calls it before spawning,
+since the spawn helpers learn the nation only afterwards; `units_slot` keeps
+the 300 cap as the backstop. A human refusal fires the refused hook, which
+the game answers with `@TOOMANYUNITS`. Caller effects follow DOS: Purchase
+keeps the debited price, Recruit/Brewster still zero crosses, the crosses
+immigrant loses its pool slot and popup, a birth loses its 200 food, the
+King's mercenaries stop at the first refusal.
+
 ## units_set_native_fallout_context
 
 Optional post-win native settlement fallout context for

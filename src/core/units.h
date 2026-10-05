@@ -221,7 +221,13 @@ typedef void (*ColonizeUnitsSpawnGateFn)(
   void* user, int nation, int* out_external, bool* out_human, int* out_census
 );
 void units_set_spawn_gate_hook(ColonizeUnitsSpawnGateFn fn, void* user);
-/* DOS FUN_1427_06b4 allocator gate: may `nation` get a new unit now? */
+/* Called (with the gate hook's user) when units_spawn_room refuses a human
+ * nation: the caller shows @TOOMANYUNITS. */
+typedef void (*ColonizeUnitsSpawnRefusedFn)(void* user, int nation);
+void units_set_spawn_refused_hook(ColonizeUnitsSpawnRefusedFn fn);
+/* DOS FUN_1427_06b4 allocator gate: may `nation` get a new unit now? Every
+ * DOS unit CREATE (FUN_281f_095c) site calls this before spawning; a refusal
+ * for a human nation fires the refused hook. */
 bool units_spawn_room(const ColonizeUnitPool* pool, int nation);
 /* Mark an on-map arrival at the tail of the DOS tile chain. */
 void units_tile_stack_arrive(ColonizeUnitPool* pool, int unit_id);

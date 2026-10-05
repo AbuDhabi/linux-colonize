@@ -2751,7 +2751,7 @@ static bool game_apply_popup_combat_and_gifts(ColonizeGameState* game) {
   if (game->ai_popups.result_tag == AI_POPUP_TAG_FOUNTAIN_YOUTH) {
     (void)units_fountain_youth_apply_popup_ex(
       game->europe_ok ? &game->europe : NULL, &game->ai_popups, &game->messages,
-      &game->move_rng
+      &game->move_rng, game->units_ok ? &game->units : NULL
     );
     ai_popup_consume_result(&game->ai_popups);
   return true;

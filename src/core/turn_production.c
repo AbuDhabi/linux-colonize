@@ -1314,16 +1314,19 @@ void turn_produce_one_colony(
       birth_food_debit = 200;
       bool born_on_tile = false;
       if (turn_birth_units) {
-        /* bugs.md: the newborn stands on the colony tile awaiting orders. */
+        /* bugs.md: the newborn stands on the colony tile awaiting orders.
+         * DOS raw 57617-57619: food is debited before FUN_281f_095c, so a
+         * birth refused at the unit limit loses the 200 food and the colonist
+         * (no fallback into the colony); @NEWCOLONIST still follows. */
         const int ct = units_kind_type_index(turn_birth_units, UNITS_KIND_COLONIST);
-        if (ct >= 0) {
+        born_on_tile = ct >= 0;
+        if (ct >= 0 && units_spawn_room(turn_birth_units, colony->nation_id)) {
           const int nid =
             units_spawn_allow_stack(turn_birth_units, ct, colony->x, colony->y);
           ColonizeUnit* nu = units_get(turn_birth_units, nid);
           if (nu) {
             units_set_nation(nu, colony->nation_id);
             nu->orders = UNITS_ORDER_NONE;
-            born_on_tile = true;
           }
         }
       }

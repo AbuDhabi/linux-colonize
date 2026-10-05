@@ -150,7 +150,11 @@ int ai_king_new_war_event(ColonizeTurnContext* ctx) {
   /* FUN_281f_095c(type 1 Soldier, nation, -20,-20) x count, profession 0x15 = Veteran:
    * the units appear in Europe — OpenCol puts them on the docks. */
   if (ctx->europe) {
+    /* raw 68404-68405: `if (iVar8 < 0) break;` — FUN_1427_06b4 refusal. */
     for (int i = 0; i < count; ++i) {
+      if (ctx->units && !units_spawn_room(ctx->units, human)) {
+        break;
+      }
       if (!europe_dock_push_load(
             ctx->europe, reports_job_display_name(UNITS_JOB_SOLDIER), UNITS_JOB_SOLDIER
           )) {

@@ -354,6 +354,9 @@ void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* co
   if (ptype < 0) {
     return;
   }
+  if (!units_spawn_room(ctx->units, nation)) {
+    return;
+  }
   const int pid = units_spawn_allow_stack(ctx->units, ptype, tx, ty);
   ColonizeUnit* ph = units_get(ctx->units, pid);
   if (!ph) {
@@ -553,6 +556,9 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
     /* raw 93667-93671: the road phantom. */
     const int wtype = ai_euro_5d04_port_type_for(ctx->units, 2);
     if (wtype < 0) {
+      return 0;
+    }
+    if (!units_spawn_room(ctx->units, nation)) {
       return 0;
     }
     const int pid = units_spawn_allow_stack(ctx->units, wtype, cx, cy);

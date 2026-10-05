@@ -52,10 +52,6 @@ int europe_goods_slots_used(const EuropeHarborShip* ship);
 int europe_ship_cargo_cap(const EuropeHarborShip* ship, const ColonizeUnitPool* units);
 int europe_ship_free_slots(const EuropeHarborShip* ship, const ColonizeUnitPool* units);
 bool europe_dock_name_is_artillery(const char* name);
-/* Fresh dock slot at index 0 (DOS's newest-first dock chain), NULL if full.
- * Every colonist created in Europe goes here; arrivals from the New World use
- * europe_dock_push_load (back of the queue). See europe.c. */
-EuropeDockImmigrant* europe_dock_insert_front(EuropeScreen* eu);
 
 /* Recruit pool slot `pool_index` onto the dock (europe_dock.c); `rng` may be
  * NULL. Shared by europe_menu_confirm_ex (europe_market.c). */

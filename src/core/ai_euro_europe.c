@@ -414,6 +414,9 @@ static int ai_euro_5d04_propose_ship_buy(
   if (lt < 0) {
     return 0;
   }
+  if (!units_spawn_room(ctx->units, nation_id)) {
+    return 0;
+  }
   const int sid = units_spawn_allow_stack(ctx->units, lt, 200, 100);
   if (sid < 0) {
     return 0;
@@ -705,7 +708,7 @@ static int ai_euro_5d04_cb_dock_pop_candidate(int profession) {
     }
   }
   const int lt = ai_euro_5d04_port_type_for(ctx->units, type);
-  if (lt < 0) {
+  if (lt < 0 || !units_spawn_room(ctx->units, ai_euro_s_5d04_nation)) {
     return -1;
   }
   const int id = units_spawn_allow_stack(ctx->units, lt, 200, 100);
@@ -964,6 +967,9 @@ static int ai_euro_5d04_cb_goal_trigger(int code, int a, int b, int c) {
   ColonizeTurnContext* ctx = ai_euro_s_5d04_ctx;
   const int lt = ctx && ctx->units ? ai_euro_5d04_port_type_for(ctx->units, code) : -1;
   if (lt < 0) {
+    return -1;
+  }
+  if (!units_spawn_room(ctx->units, ai_euro_s_5d04_nation)) {
     return -1;
   }
   const int id = units_spawn_allow_stack(ctx->units, lt, 200, 100);

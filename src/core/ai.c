@@ -869,7 +869,8 @@ static void ai_spawn_brave_near(
   /* Capture the FUN_137f_0598 result before the port's generic spawn and
    * nation setter can restamp layer3 while the live occupancy map is bound. */
   const bool rumour = map_dos_0598_rumour_tile(map, ox, oy);
-  const int id = units_spawn_allow_stack(units, brave, ox, oy);
+  const int id =
+    units_spawn_room(units, nation_id) ? units_spawn_allow_stack(units, brave, ox, oy) : -1;
   if (id >= 0) {
     ColonizeUnit* u = units_get(units, id);
     if (u) {
