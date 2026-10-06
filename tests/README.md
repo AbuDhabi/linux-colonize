@@ -99,6 +99,21 @@ dropped 2026-09-14 (duplication audit TT-14). Run it explicitly:
 cmake --build build/debug --target golden_ai_joint
 ```
 
+The VR_SEED.EXE seed-100 idle campaign has a separate, parked full-save gate:
+`golden_idle_campaign`. Its 13 CTest cases cover all 77 adjacent-year pairs in
+`original_saves/1492-1600-seed-100`; missing years split the runs, and the
+isolated saves at 1519, 1521, and 1531 have no transition to check. Each case
+loads the first save of its run, skips the human turn, advances headlessly, and
+compares every byte of the resulting save with the next DOS yearly autosave.
+The target is excluded from the default build and all cases are disabled in
+CTest until between-turn behavior has been aligned. To build and run one case
+manually from the repo root:
+
+```
+cmake --build build/debug --target golden_idle_campaign
+./build/debug/golden_idle_campaign 1492 1499
+```
+
 Most executables expect **repo root** as cwd (`WORKING_DIRECTORY` in CMake).
 
 ## Running a single test
