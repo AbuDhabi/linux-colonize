@@ -619,7 +619,7 @@ typedef struct ColonizeCol1Nation {
    * concrete (if partial) DOS answers 2026-08-19, both confirming the
    * OpenCol names below are functional stand-ins, not decodes — findings
    * recorded here without renaming/restructuring anything live:
-   *   +0x44/+0x45 ("diplo_flag[0..1]"): real DOS content is per-nation
+   *   +0x44/+0x45 (now recruit_lfsr/recruit_salt): real DOS content is per-nation
    *     recruit-type RNG cycling state, nothing to do with diplomacy —
    *     seeded once at nation creation (FUN_38fd_6024: RNG(1,32)/RNG(0,31)),
    *     then +0x44 is overwritten each recruit pick by FUN_291f_0eda (a
@@ -651,7 +651,7 @@ typedef struct ColonizeCol1Nation {
    *   +0x46/+0x47: int16 last_colony_founded_turn (DS -0x77b2) — written
    *     = turn by the found-colony order body FUN_479b_076e, read by the
    *     unit desirability score FUN_521d_052c (`+= (turn-stamp)>>4` when
-   *     founding urgency is nonzero). OpenCol diplo_flag[2..3] overlay it;
+   *     founding urgency is nonzero). Named last_colony_founded_turn;
    *     DOS value unused by OpenCol. Resolved 2026-08-27.
    *   +0x4b: confirmed dead 2026-08-27 (no literal touch anywhere) — which is
    *     why the OpenCol `indian_hostility_sticky` stand-in was moved onto it
@@ -664,7 +664,15 @@ typedef struct ColonizeCol1Nation {
     uint8_t unknown26[12];
     struct {
       uint8_t treaty_timer[4];
-      uint8_t diplo_flag[4];
+      /* +0x44/+0x45 — FUN_38fd_46d4's expert-recruit LFSR: state stepped by
+       * FUN_3f3f_0006 (poly 0x14), salt added before the `& 0x1f`. Seeded
+       * RNG(1,0x20) / RNG(0,0x1f) by FUN_38fd_6024. (Port name was the
+       * unused stand-in diplo_flag[0..1] until bugs.md #1058.) */
+      uint8_t recruit_lfsr;
+      uint8_t recruit_salt;
+      /* +0x46 — int16 turn stamp written by FUN_479b_076e (found colony),
+       * read by FUN_521d_052c. Not yet consumed by the port. */
+      int16_t last_colony_founded_turn;
       /* +0x48 — DOS: the FUN_4d56_4528 decrementing grace/waiver counter (see
        * the note above). Bumped by colonies_try_complete_unit_construction
        * (FUN_364b_0114 raw 56943-56946: a non-human colony's completed

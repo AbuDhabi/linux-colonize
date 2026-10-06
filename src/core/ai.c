@@ -371,25 +371,8 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
     p->col1->nation[i].current_crosses = (i == human) ? 2u : 0u;
     p->col1->nation[i].needed_crosses = (i == human) ? 9u : 0u;
     memset(p->col1->nation[i].euro_relation, 0, sizeof(p->col1->nation[i].euro_relation));
-    /*
-     * FUN_38fd_6024 (raw 68705-68733) seeds recruit[0..2] for EVERY nation,
-     * not just the human: slot 0 = 0x19 below difficulty 4 else 0x1a, slot 1
-     * = 46d4 roll (expert on `0x53a6 < 3`), slot 2 = expert roll, Spain slot 0
-     * forced to 0x18. Only the easy opener is human-gated (`control == 0`);
-     * the human's pool is seeded by europe_seed_pool. Without this every AI
-     * nation's first immigrants came from job byte 0. bugs.md #1052. The
-     * 46d4 draws use the refill's local stream, not the campaign LCG (the
-     * 6024 draw order relative to tribe placement is unmapped).
-     */
-    if (i != human) {
-      const int d = p->difficulty < 0 ? 0 : p->difficulty;
-      p->col1->nation[i].recruit[0] = (uint8_t)(d < 4 ? 0x19 : 0x1a);
-      (void)europe_nation_refill_pool_slot(p->col1, i, 1, d < 3, NULL);
-      (void)europe_nation_refill_pool_slot(p->col1, i, 2, true, NULL);
-      if (i == 2) {
-        p->col1->nation[i].recruit[0] = 0x18;
-      }
-    }
+    /* recruit[0..2] + the +0x44/+0x45 LFSR for every nation are FUN_38fd_6024
+     * work: europe_seed_campaign_w (bugs.md #1052/#1058). */
   }
   p->col1->head.difficulty = (uint8_t)(p->difficulty < 0 ? 0 : (p->difficulty > 4 ? 4 : p->difficulty));
   /*

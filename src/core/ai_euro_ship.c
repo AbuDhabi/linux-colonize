@@ -1798,7 +1798,7 @@ void ai_euro_20e6_ship_cargo_counts(
  *    berth boarding scan), no longer a colony-flag count.
  *  - a654 per-unit goal id for the goal fold: nation-level FOUND/MIL_EXPAND
  *    goal existence (see the fold comment in the body).
- *  - presence bit 0x08 of −0x6a0e: writer undecoded — read as 0.
+ *  - presence bit 0x08 of −0x6a0e: live via ai_contact_continent_presence_4962.
  *  - DS:0x1740 recall latch (5bfb full-recall event): no OpenCol producer — 0.
  */
 /*
@@ -2089,7 +2089,12 @@ int ai_euro_20e6_unload_mask(ColonizeTurnContext* ctx, ColonizeUnit* ship, int n
       if (own_cols == 0 && ai_euro_20e6_foreign_colony_on(ctx, nation, cid) && any_dist < 7) {
         mask |= 0x10; /* −0x6a0e bit4 + close colony */
       }
-      /* −0x6a0e bit 0x08: writer undecoded — no term. */
+      /* Raw 89539-89541: `if (-0x6a0e[cont] & 8) local_9c |= 0x10` — this
+       * nation has a fortified combat unit outside any colony on the
+       * continent (FUN_4962_0018 writer raw 78167-78180, bugs.md #1062). */
+      if (ai_contact_continent_presence_4962(ctx, nation, cid) & 8) {
+        mask |= 0x10;
+      }
     }
     if (mil != 0) {
       if (probe7 != 0 || probe1 != 0) {

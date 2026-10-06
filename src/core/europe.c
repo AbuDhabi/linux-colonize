@@ -87,12 +87,11 @@ void europe_purse_move(
  *    force-expert refill (`46d4(1)`, the (turn & 3) == 0 case) therefore
  *    advances the shared stream not at all.
  *
- * The port has the shared stream (ColonizeTurnContext.rng /
- * ColonizeGameState.move_rng, plumbed in below) but not the LFSR: the port
- * repurposed nation+0x44/+0x45 as ColonizeCol1Nation.diplo_flag[0..1]. So
- * the tier rolls now go through dos_rng_range on the real stream and the
- * expert value keeps this local LCG as the LFSR stand-in — which is also
- * what keeps the shared stream exactly where DOS leaves it.
+ * Tier rolls go through dos_rng_range on the real stream. The expert value
+ * is the DOS LFSR on ColonizeCol1Nation.recruit_lfsr/recruit_salt whenever
+ * the caller has a nation record (EuropePoolRng.lfsr, bugs.md #1058); the
+ * local LCG below is the stand-in only for record-less callers and for a
+ * never-seeded (0) LFSR byte from a pre-#1058 port save.
  *
  * The local state is seeded from the bound stream's current state (a read,
  * never a draw) when there is one; the treasury-derived seed survives only
@@ -126,6 +125,21 @@ int europe_pool_tier_roll(EuropePoolRng* r, int lo, int hi) {
  * which is what a byte-exact RNG trace sees.
  */
 int europe_pool_expert_roll(EuropePoolRng* r, int hi) {
+  if (r->lfsr && *r->lfsr && hi == 0x18) {
+    /* DOS-LITERAL FUN_38fd_46d4 raw 64584-64592: step +0x44 through
+     * FUN_3f3f_0006(&b44, 0x14), add the +0x45 salt, keep 5 bits, reject
+     * > 0x18. No shared-stream draw. A 0 state never occurs in DOS (6024
+     * seeds 1..0x20 and the step maps nonzero to nonzero) but is what every
+     * pre-#1058 port save holds; it would pin the draw (or hang on a salt
+     * > 0x18), so it keeps the local stand-in below. */
+    unsigned v;
+    do {
+      const unsigned b = *r->lfsr;
+      *r->lfsr = (uint8_t)((b >> 1) ^ ((b & 1u) ? 0x14u : 0u));
+      v = (unsigned)(uint8_t)(*r->lfsr + r->salt) & 0x1fu;
+    } while (v > 0x18);
+    return (int)v;
+  }
   if (hi != 0x18) {
     return (int)(europe_rng_next(r->local) % (unsigned)(hi + 1));
   }

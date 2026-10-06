@@ -67,6 +67,21 @@ uses `reports_nation_adjective_woi` / `map_panel_nationality` ("Rebel" /
 "Tory") on both, so they agree with the combat and popup text that DOS
 itself routes through `FUN_281f_09a4` (user request 2026-10-06, #202).
 
+### #1082 — WoI nation words in DOS texts the port has no counterpart for
+DOS names a Euro nation via `FUN_281f_09a4` / `0a1a` (so "Rebel(s)" / "Tory/Tories"
+after the declaration) in texts the port never draws: sidebar village mission-owner
+and threat lines (`FUN_49dd_0424` raw 501/516), OVL10 native-village panel
+(asm 119456-119903), Euro-vs-Euro colony burn @BURNED/@BURNED2/@BURNED3
+(`FUN_5fef_1b0e` raw 100857), @CARGOCAPTURE (asm 153592), @LOSTTHEIRSCOUTS
+(`FUN_5f7a_000e` raw 98871), @INDIANCOMMENT (raw 96981), Europe status line
+`FUN_38fd_1bd2` raw 60109 (no port counterpart found; `europe_dock_caption` is the
+separate 3694 site), 153e USA talk variants (asm 149562/149586/150456; see ai_diplo.c
+"USA text variants"), unresolved popup at OVL12 asm 122653. If any is ever ported use
+`reports_nation_adjective_woi` (09a4) / `reports_nation_plural_woi` (0a1a). The
+colony-screen tribal-land demand `FUN_2f2b_2f3e` (2f2b:326a) lives in colony_screen_*
+(other agent) and was not touched. Port sites that exist (combat, ai_diplo talk,
+ai_contact) already route through the WoI accessors.
+
 ## Blocked on a live DOS capture
 
 Static reading cannot settle these. Each names exactly what to capture. Do not

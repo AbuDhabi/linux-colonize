@@ -478,12 +478,10 @@ static int run_init_and_turns(
   }
 
   {
-    /* Opening prices on every nation's track, as the new-game path does
-     * (FUN_38fd_6024); own RNG so the AI stream is untouched. */
-    ColonizeDosRng price_rng;
-    dos_rng_seed(&price_rng, 0x6024u);
+    /* FUN_38fd_6024 (pools + opening prices, every nation), as the new-game
+     * path runs it; own reseeded stream so the AI stream is untouched. */
     const ColonizeWorld pw = world_make(&units, NULL, &map, &col1, col1_ok, NULL, &europe);
-    europe_seed_campaign_prices_w(&pw, &price_rng);
+    europe_seed_campaign_w(&pw, 0x6024u);
   }
   if (!col1_ok || col1.head.tribe_count == 0) {
     fprintf(stderr, "%s: expected tribes, got %u\n", label, col1.head.tribe_count);
@@ -506,14 +504,16 @@ static int run_init_and_turns(
     assets_msg_free(&names);
     return 1;
   }
-  /* bugs.md #1052: FUN_38fd_6024 seeds every nation's recruit pool, not just
-   * the human's (diff 0: slot 0 = 0x19, Spain 0x18; slots 1-2 rolled). */
+  /* bugs.md #1052/#1058: FUN_38fd_6024 seeds every nation's recruit pool and
+   * LFSR, not just the human's (diff 0: slot 0 = 0x19, Spain 0x18; slots 1-2
+   * expert rolls, never 0x1c). Expert Farmers (0) is a legal roll. */
   for (int n = 0; n < 4; ++n) {
     if (n == human_nation) {
       continue;
     }
     const uint8_t* r = col1.nation[n].recruit;
-    if (r[0] != (n == 2 ? 0x18 : 0x19) || r[1] == 0 || r[2] == 0) {
+    if (r[0] != (n == 2 ? 0x18 : 0x19) || r[1] >= 0x19 || r[2] >= 0x19 ||
+        col1.nation[n].recruit_lfsr == 0) {
       fprintf(stderr, "%s: AI nation %d recruit pool unseeded [%u,%u,%u]\n", label, n, r[0], r[1], r[2]);
       map_free(&map);
       col1_save_free(&col1);

@@ -908,7 +908,9 @@ static void write_nation(FILE* f, const ColonizeCol1Nation* nt) {
   W_U8ARR(f, &n, "euro_relation", nt->euro_relation, 4);
   W_U8ARR(f, &n, "relation_by_indian", nt->relation_by_indian, 8);
   W_U8ARR(f, &n, "treaty_timer", nt->treaty_timer, 4);
-  W_U8ARR(f, &n, "diplo_flag", nt->diplo_flag, 4);
+  wi(f, &n, "recruit_lfsr", nt->recruit_lfsr);
+  wi(f, &n, "recruit_salt", nt->recruit_salt);
+  wi(f, &n, "last_colony_founded_turn", nt->last_colony_founded_turn);
   wi(f, &n, "indian_hostility_sticky", nt->indian_hostility_sticky);
   wi(f, &n, "privateer_spawn_mask", nt->privateer_spawn_mask);
   wi(f, &n, "king_grace_counter", nt->king_grace_counter);
@@ -963,7 +965,18 @@ static void read_nation(const JsonValue* o, ColonizeCol1Nation* nt) {
   read_arr_u8(o, "euro_relation", nt->euro_relation, 4);
   read_arr_u8(o, "relation_by_indian", nt->relation_by_indian, 8);
   read_arr_u8(o, "treaty_timer", nt->treaty_timer, 4);
-  read_arr_u8(o, "diplo_flag", nt->diplo_flag, 4);
+  {
+    /* Pre-#1058 JSON: the four bytes +0x44..+0x47 as "diplo_flag". */
+    uint8_t old[4] = {nt->recruit_lfsr, nt->recruit_salt, 0, 0};
+    memcpy(&old[2], &nt->last_colony_founded_turn, 2);
+    read_arr_u8(o, "diplo_flag", old, 4); /* untouched when the key is absent */
+    nt->recruit_lfsr = old[0];
+    nt->recruit_salt = old[1];
+    memcpy(&nt->last_colony_founded_turn, &old[2], 2);
+  }
+  if (json_get_u64(o, "recruit_lfsr", &u)) nt->recruit_lfsr = (uint8_t)u;
+  if (json_get_u64(o, "recruit_salt", &u)) nt->recruit_salt = (uint8_t)u;
+  if (json_get_i64(o, "last_colony_founded_turn", &i)) nt->last_colony_founded_turn = (int16_t)i;
   if (json_get_u64(o, "indian_hostility_sticky", &u)) nt->indian_hostility_sticky = (uint8_t)u;
   if (json_get_u64(o, "privateer_spawn_mask", &u)) nt->privateer_spawn_mask = (uint8_t)u;
   if (json_get_u64(o, "king_grace_counter", &u)) nt->king_grace_counter = (uint8_t)u;

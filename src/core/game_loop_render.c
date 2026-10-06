@@ -2486,14 +2486,16 @@ void game_commit_new_campaign(ColonizeGameState* game) {
       dos_rng_seed(&game->move_rng, ai.rng_seed);
     }
     game->ai_rng_seed = ai.rng_seed;
-    /* FUN_38fd_6024 opening-price roll — new campaign only, 16 draws from
-     * the campaign stream (smell audit #55). Load path keeps euro_price. */
-    europe_seed_campaign_prices_w(
+    /* FUN_38fd_6024 — new campaign only: recruit LFSR + pools for all four
+     * nations, then the 16 opening prices, on its own stream reseeded from
+     * the campaign seed (DOS DS:0x83a6; bugs.md #1058). Load path keeps the
+     * save's bytes. */
+    europe_seed_campaign_w(
       &(ColonizeWorld){
         .col1 = (ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL),
         .col1_ok = ((game->col1_ok ? &game->col1 : NULL) != NULL),
         .europe = (EuropeScreen*)(&game->europe)},
-      &game->move_rng
+      (uint32_t)ai.rng_seed
     );
     /*
      * Reveal around owned units and colonies. Was NEW WORLD/CUSTOMIZE-only in

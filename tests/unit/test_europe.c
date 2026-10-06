@@ -2501,7 +2501,7 @@ static int case_europe_workflow(void) {
     view.difficulty = 4;
     view.brewster = false;
     EuropePoolRng st;
-    st.dos = NULL;
+    memset(&st, 0, sizeof(st));
 
     unsigned local2 = seed2;
     st.local = &local2;
@@ -2964,6 +2964,75 @@ static int case_europe_seed_prices_all_nations(void) {
   return rc;
 }
 
+/*
+ * bugs.md #1058: FUN_38fd_6024 under the DOS timer word 100 must rebuild
+ * original_saves/mapgen/SEED100.SAV's recruit LFSR bytes, all four pools and
+ * all 16 opening prices (cargos 9..12 come from the 0058(1,-1) tail over the
+ * DS:0x53ea demand pool, copied from the save since 75c2_235c draws it off
+ * an unseeded stream).
+ */
+static int case_europe_seed_campaign_seed100(void) {
+  diag_init(0, NULL);
+  EuropeScreen eu;
+  char err[256];
+  if (!test_europe_load(&eu, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "europe_load: %s\n", err);
+    return 1;
+  }
+  ColonizeCol1Save* gold = calloc(1, sizeof(*gold));
+  ColonizeCol1Save* save = calloc(1, sizeof(*save));
+  int rc = 1;
+  if (!gold || !save ||
+      !col1_save_read_file("original_saves/mapgen/SEED100.SAV", gold, err, sizeof(err))) {
+    fprintf(stderr, "seed100: %s\n", err);
+    goto done;
+  }
+  col1_save_init(save);
+  save->head.difficulty = gold->head.difficulty;
+  memcpy(save->head.market_demand_pool, gold->head.market_demand_pool,
+         sizeof(save->head.market_demand_pool));
+  for (int n = 0; n < 4; ++n) {
+    save->player[n].control = gold->player[n].control;
+  }
+  europe_set_nation(&eu, 0, NULL);
+  const ColonizeWorld w = {.col1 = save, .col1_ok = true, .europe = &eu};
+  europe_seed_campaign_w(&w, 100u);
+  rc = 0;
+  for (int n = 0; n < 4; ++n) {
+    const ColonizeCol1Nation* a = &save->nation[n];
+    const ColonizeCol1Nation* b = &gold->nation[n];
+    if (a->recruit_lfsr != b->recruit_lfsr || a->recruit_salt != b->recruit_salt ||
+        memcmp(a->recruit, b->recruit, 3) != 0) {
+      fprintf(
+        stderr, "seed100 nation %d: lfsr %u/%u salt %u/%u pool %u,%u,%u / %u,%u,%u\n", n,
+        a->recruit_lfsr, b->recruit_lfsr, a->recruit_salt, b->recruit_salt, a->recruit[0],
+        a->recruit[1], a->recruit[2], b->recruit[0], b->recruit[1], b->recruit[2]
+      );
+      rc = 1;
+    }
+    for (int c = 0; c < 16; ++c) {
+      if (a->trade.euro_price[c] != b->trade.euro_price[c]) {
+        fprintf(
+          stderr, "seed100 nation %d cargo %d price %u want %u\n", n, c,
+          a->trade.euro_price[c], b->trade.euro_price[c]
+        );
+        rc = 1;
+      }
+    }
+  }
+  for (int i = 0; i < 3; ++i) {
+    if (eu.pool[i].profession != (int)gold->nation[0].recruit[i]) {
+      fprintf(stderr, "seed100 human screen pool %d = %d\n", i, eu.pool[i].profession);
+      rc = 1;
+    }
+  }
+done:
+  free(gold);
+  free(save);
+  europe_free(&eu);
+  return rc;
+}
+
 /* #1071/#1072: past the old port caps (8 ships / 32 dockers) pushes still land. */
 static int case_europe_lanes_past_old_caps(void) {
   EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
@@ -2995,6 +3064,7 @@ static const TestCase k_cases[] = {
     {"case_europe_workflow", case_europe_workflow},
     {"case_europe_dragoon_roll_and_caption", case_europe_dragoon_roll_and_caption},
     {"case_europe_seed_prices_all_nations", case_europe_seed_prices_all_nations},
+    {"case_europe_seed_campaign_seed100", case_europe_seed_campaign_seed100},
 };
 
 TEST_MAIN(k_cases)

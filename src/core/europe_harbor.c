@@ -1566,6 +1566,8 @@ int europe_nation_refill_pool_slot(
   EuropePoolRng st;
   st.dos = rng;
   st.local = &local;
+  st.lfsr = &nat->recruit_lfsr;
+  st.salt = nat->recruit_salt;
   const int job = europe_roll_pool_profession(&view, slot, force_expert, &st);
   nat->recruit[slot] = (uint8_t)job;
   return job;

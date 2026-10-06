@@ -339,6 +339,27 @@ static int case_530_unload_mask_scan_and_order(void) {
     fprintf(stderr, "#530: step order must not force an all-cargo unload\n");
     goto done;
   }
+  /* #1062: raw 89539-89541, `-0x6a0e[cont] & 8` (an own fortified combat
+   * unit outside any colony, FUN_4962_0018 raw 78167-78180) adds 0x10 even
+   * when the continent stance is not 4 (own land unit present -> 6). */
+  ship->orders = UNITS_ORDER_NONE;
+  units.types[0].defense = 2;
+  const int fort_id = units_spawn(&units, 0, 6, 3);
+  ColonizeUnit* fort = units_get(&units, fort_id);
+  if (!fort) {
+    goto done;
+  }
+  fort->nation_id = nation;
+  ai_euro_refresh_continent_stance(&ctx, nation);
+  if (ai_euro_20e6_unload_mask(&ctx, ship, nation) != 0) {
+    fprintf(stderr, "#1062: unfortified own unit must leave the mask clear\n");
+    goto done;
+  }
+  fort->orders = UNITS_ORDER_FORTIFY;
+  if (ai_euro_20e6_unload_mask(&ctx, ship, nation) != 0x10) {
+    fprintf(stderr, "#1062: fortified own field unit must allow military unload\n");
+    goto done;
+  }
   rc = 0;
 done:
   col1_save_free(&col1);

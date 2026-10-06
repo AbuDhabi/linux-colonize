@@ -212,10 +212,24 @@ always pool[0] — pass `rng` to match; NULL falls back to first-filled
 
 Same refill on the real game stream: DOS's `46d4` tier rolls are
 `FUN_281f_04d4(1,15)/(1,10)/(1,8)` off the shared RNG (viceroy_unpacked.c
-64632/64636/64640). The expert half stays on europe.c's local generator —
-DOS draws that from a per-nation LFSR whose two state bytes the port
-repurposed, and like the LFSR it consumes no shared-stream draw, so a
-force-expert refill leaves `rng` exactly where DOS leaves it.
+64632/64636/64640). The expert half is the per-nation LFSR on nation
++0x44/+0x45 (`recruit_lfsr`/`recruit_salt`, step `FUN_3f3f_0006` poly 0x14,
+bugs.md #1058); it consumes no shared-stream draw, so a force-expert refill
+leaves `rng` exactly where DOS leaves it. A 0 LFSR byte (pre-#1058 port
+save) falls back to europe.c's local generator.
+
+## europe_seed_campaign_w
+
+The new-game caller of FUN_38fd_6024's RNG work (bugs.md #1058): reseed a
+fresh stream from the campaign seed (DOS DS:0x83a6 timer word; `--seed`
+value), then per nation 0..3 `recruit_lfsr = RNG(1,0x20)`, `recruit_salt =
+RNG(0,0x1f)`, recruit[0] = servant/criminal, two 46d4 rolls (slot 1 expert on
+difficulty < 3, slot 2 always), human easy opener, Spain slot 0 = 0x18; the
+bound nation's EuropeScreen pool mirrors its record; then the 16 price rolls
+below on the same stream. Reproduces `original_saves/mapgen/SEED100.SAV`
+(seed 100) byte-for-byte for LFSR, pools and all 16 prices given the save's
+DS:0x53ea demand pool (`unit_europe` case_europe_seed_campaign_seed100).
+The pool itself is still seeded off a private stream in ai.c (bugs.md #1084).
 
 ## europe_seed_campaign_prices
 

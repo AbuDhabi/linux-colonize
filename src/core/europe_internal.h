@@ -25,6 +25,10 @@
 typedef struct EuropePoolRng {
   ColonizeDosRng* dos; /* shared game stream; NULL for fixture callers */
   unsigned* local;     /* LFSR stand-in state; never NULL */
+  /* nation +0x44 / +0x45 (recruit_lfsr / recruit_salt). When lfsr is set the
+   * expert draw is the DOS LFSR; NULL = no nation record, local stand-in. */
+  uint8_t* lfsr;
+  uint8_t salt;
 } EuropePoolRng;
 
 /*
