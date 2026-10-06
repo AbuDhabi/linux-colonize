@@ -304,6 +304,32 @@ static int case_tribe_and_nation_names(void) {
     fprintf(stderr, "nation adjectives 0/3 aliased: got '%s'/'%s'\n", n0, n3);
     return 1;
   }
+
+  /* FUN_15b3_01e0 / 0198: WoI swaps only the human (0x5398) and crown
+   * (0x53d2) slots, and only once declared. */
+  static ColonizeCol1Save woi;
+  memset(&woi, 0, sizeof(woi));
+  for (int i = 0; i < 4; ++i) {
+    woi.player[i].control = 1;
+  }
+  woi.head.human_player = 2;
+  woi.player[2].control = 0;
+  woi.head.crown_nation_id = 0;
+  if (strcmp(reports_nation_adjective_woi(&woi, 2), "Spanish") != 0) {
+    fprintf(stderr, "pre-WoI human want 'Spanish'\n");
+    return 1;
+  }
+  woi.head.game_options.woi = 1;
+  const char* w2 = reports_nation_adjective_woi(&woi, 2);
+  const char* w0 = reports_nation_adjective_woi(&woi, 0);
+  const char* p2 = reports_nation_plural_woi(&woi, 2);
+  const char* p0 = reports_nation_plural_woi(&woi, 0);
+  if (strcmp(w2, "Rebel") != 0 || strcmp(w0, "Tory") != 0 || strcmp(p2, "Rebels") != 0 ||
+      strcmp(p0, "Tories") != 0 || strcmp(reports_nation_adjective_woi(&woi, 1), "French") != 0 ||
+      strcmp(reports_nation_adjective_woi(NULL, 2), "Spanish") != 0) {
+    fprintf(stderr, "WoI words got '%s'/'%s'/'%s'/'%s'\n", w2, w0, p2, p0);
+    return 1;
+  }
   return 0;
 }
 

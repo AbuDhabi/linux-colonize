@@ -452,9 +452,9 @@ void ai_king_frigate_offer(ColonizeTurnContext* ctx, int nation) {
   tok.string0 = reports_difficulty_title(d >= 0 && d < 5 ? d : 0);
   tok.string1 = ctx->col1->player[nation].name[0] ? ctx->col1->player[nation].name
                                                     : "";
-  tok.string2 = ctx->col1->player[nation].country_name[0]
-                  ? ctx->col1->player[nation].country_name
-                  : "";
+  /* FUN_3844_00f2 raw 58399: %STRING2 = FUN_281f_09a4(nation) — the
+   * @NATIONALITY adjective ("the Spanish navy"), not the country name. */
+  tok.string2 = reports_nation_adjective_woi(ctx->col1, nation);
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(
     ctx->messages, "KINGFRIGATE", &tok,

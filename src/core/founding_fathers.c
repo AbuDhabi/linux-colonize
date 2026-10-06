@@ -1329,7 +1329,9 @@ static bool elect_commit(
     char ff_name[48];
     snprintf(ff_name, sizeof(ff_name), "%s", reports_ff_display_name(idx));
     tok.string0 = ff_name;
-    tok.string1 = reports_misc_display_word(36, "");
+    /* FUN_4345_0342 raw 73071: %STRING1 = FUN_281f_09a4(nation) —
+     * "Spanish Founding Fathers", "Rebel" after the declaration. */
+    tok.string1 = reports_nation_adjective_woi(ctx->col1, nation_id);
     popup_msg_fill(
       ctx->messages,
       "FREEDOM",

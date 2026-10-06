@@ -408,30 +408,32 @@ int units_combat_human_involved(const ColonizeCol1Save* col1, int nat_a, int nat
   return a_h || b_h;
 }
 
+/* WoI-aware nation word, singular (FUN_281f_09a4 -> FUN_15b3_01e0: "Rebel"
+ * / "Tory") or plural (FUN_281f_0a1a -> FUN_15b3_0198: "Rebels" / "Tories").
+ * DOS gate: 0x5382&1 and nation == 0x5398 (human) or 0x53d2 (crown). Most
+ * combat texts use 09a4; only @EUROPEWIN/LOSE and @CAPTURED* %STRING0 (the
+ * attacker, raw 100798 / 100971) use 0a1a. */
+static const char* units_combat_nation_label_form(
+  const ColonizeCol1Save* col1, int nation_id, int plural
+);
+
 const char* units_combat_nation_label(const ColonizeCol1Save* col1, int nation_id) {
+  return units_combat_nation_label_form(col1, nation_id, 0);
+}
+
+const char* units_combat_nation_label_plural(const ColonizeCol1Save* col1, int nation_id) {
+  return units_combat_nation_label_form(col1, nation_id, 1);
+}
+
+static const char* units_combat_nation_label_form(
+  const ColonizeCol1Save* col1, int nation_id, int plural
+) {
   if (nation_id >= 0 && nation_id <= 3) {
-    /* bugs.md: during the WoI the crown's borrowed slot is the King's side —
-     * the proper adjective is "Tory" ("Tory Cavalry"), not the peer nation
-     * whose slot it wears and not "Royal". */
-    if (nation_id == unit_chrome_crown_nation()) {
-      /* LABELS.TXT @MISC row 70. Own static buffer (not
-       * reports_misc_display_word's shared one): a Tory-vs-Rebels combat
-       * fills tok.string0/string1 from two calls into this function before
-       * either is read, and a shared buffer would alias them both to
-       * whichever word resolved last. */
-      static char tory_buf[32];
-      str_copy_trunc(tory_buf, sizeof(tory_buf), reports_misc_display_word(70, ""));
-      return tory_buf;
-    }
-    /* bugs.md #239: under the WoI the player faction is "Rebels" (LABELS.TXT
-     * @MISC row 86), never "United Colonies" or the old country name. */
-    if (col1 && col1->head.game_options.woi &&
-        (col1->player[nation_id].control == 0 ||
-         nation_id == g_units_combat_human_nation)) {
-      /* LABELS.TXT @MISC row 86. Own static buffer, same aliasing reason. */
-      static char rebels_buf[32];
-      str_copy_trunc(rebels_buf, sizeof(rebels_buf), reports_misc_display_word(86, ""));
-      return rebels_buf;
+    /* bugs.md #202 ("Tory Cavalry", not "Royal") / #239 (no "United
+     * Colonies" rename): the two WoI sides read the LABELS @MISC words. */
+    if (col1 && col1->head.game_options.woi) {
+      return plural ? reports_nation_plural_woi(col1, nation_id)
+                    : reports_nation_adjective_woi(col1, nation_id);
     }
     /*
      * bugs.md ("New Spain Privateer" should be "Spanish Privateer"): DOS
@@ -568,7 +570,7 @@ void units_combat_notify_colony_captured(
   }
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
-  tok.string0 = units_combat_nation_label(col1, capturer_nation);
+  tok.string0 = units_combat_nation_label_plural(col1, capturer_nation);
   tok.string2 = colony->name[0] ? colony->name : "";
   /* Raw 101015-101029 (FUN_5fef_1b0e capture tail): DOS picks the tag by
    * whether EITHER side is human-controlled (control byte 0), then the WoI
@@ -2405,7 +2407,7 @@ void units_combat_outcome_popups(
       memset(&tok, 0, sizeof(tok));
       const int place_x = atk_wins ? lose->x : win->x;
       const int place_y = atk_wins ? lose->y : win->y;
-      tok.string0 = units_combat_nation_label(col1, atk_nation);
+      tok.string0 = units_combat_nation_label_plural(col1, atk_nation);
       tok.string1 = units_combat_nation_label(col1, def_nation);
       {
         const ColonizeUnit* def_u = atk_wins ? lose : win;

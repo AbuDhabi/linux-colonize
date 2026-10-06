@@ -289,12 +289,21 @@ const char* ai_contact_tribe_name(int nation_id) {
 
 /* FUN_5bfb_022e Yes/No (local_c). */
 
-/* @NATIONALITY (English/French/Spanish/Dutch) via the shared accessor. */
-const char* ai_contact_euro_name(int euro_nation) {
+/* @NATIONALITY (English/French/Spanish/Dutch), WoI-aware: singular =
+ * FUN_281f_09a4 ("Rebel"/"Tory"), plural = FUN_281f_0a1a ("Rebels"/"Tories").
+ * col1 NULL = plain adjective. */
+const char* ai_contact_euro_name(const ColonizeCol1Save* col1, int euro_nation) {
   if (euro_nation < 0 || euro_nation > 3) {
     return "Europeans";
   }
-  return reports_nation_adjective_display_name(euro_nation);
+  return reports_nation_adjective_woi(col1, euro_nation);
+}
+
+const char* ai_contact_euro_plural(const ColonizeCol1Save* col1, int euro_nation) {
+  if (euro_nation < 0 || euro_nation > 3) {
+    return "Europeans";
+  }
+  return reports_nation_plural_woi(col1, euro_nation);
 }
 /* ===================== Peace state, land-grant welcome dialogs & first-contact welcome flow (ai_contact_alarm_delta_00f2 .. ai_contact_try_first_welcome) ===================== */
 
@@ -346,13 +355,17 @@ static int ai_contact_00f2_expel(
   return cleared;
 }
 
-/* GAME.TXT @INDIANBURN body (DS tag 0x14c8, %STRING0 = the Indian nation). */
+/* GAME.TXT @INDIANBURN body (DS tag 0x14c8). FUN_4cc6_0000 raw 80795-80797:
+ * %STRING0 = the Indian nation, %STRING1 = FUN_281f_09a4(euro), the mission
+ * owner ("Rebel" under the WoI). */
 static void ai_contact_00f2_burn_body(
-  const ColonizeMsgCatalog* messages, int nation_id, char* out, size_t out_size
+  const ColonizeMsgCatalog* messages, const ColonizeCol1Save* col1, int nation_id, int euro,
+  char* out, size_t out_size
 ) {
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = ai_contact_tribe_name(nation_id);
+  tok.string1 = ai_contact_euro_name(col1, euro);
   popup_msg_fill(messages, "INDIANBURN", &tok, "", out, out_size);
 }
 
@@ -377,7 +390,7 @@ void ai_contact_alarm_delta_00f2(
     return;
   }
   char body[AI_POPUP_BODY_LEN];
-  ai_contact_00f2_burn_body(ctx->messages, nation_id, body, sizeof(body));
+  ai_contact_00f2_burn_body(ctx->messages, ctx->col1, nation_id, euro, body, sizeof(body));
   ai_contact_human_chrome(ctx, euro, AI_POPUP_TAG_CONTACT_RAID, nation_id, "", body);
 }
 
@@ -409,7 +422,7 @@ void ai_contact_alarm_delta_00f2_w(
     return;
   }
   char body[AI_POPUP_BODY_LEN];
-  ai_contact_00f2_burn_body(w->messages, nation_id, body, sizeof(body));
+  ai_contact_00f2_burn_body(w->messages, w->col1, nation_id, euro, body, sizeof(body));
   ai_popup_enqueue_ok_ctx(
     w->ai_popups, AI_POPUP_TAG_CONTACT_RAID, euro, nation_id, 0, NULL, body
   );
@@ -613,7 +626,7 @@ void ai_contact_apply_welcome_accept(
   ai_contact_apply_welcome_land_grant(ctx, nation_id, e);
 
   const char* tribe = ai_contact_tribe_name(nation_id);
-  const char* euro = ai_contact_euro_name(e);
+  const char* euro = ai_contact_euro_plural(ctx->col1, e); /* 5bfb_0182 0a1a */
   PopupMsgTokens peace_tok;
   memset(&peace_tok, 0, sizeof(peace_tok));
   peace_tok.string0 = tribe;
@@ -1073,7 +1086,7 @@ void ai_contact_enqueue_village_meet(
     (village && (int)(int8_t)village->mission >= 0)
       ? (int)(village->mission & COL1_TRIBE_MISSION_NATION_MASK)
       : -1;
-  const char* rival_adj = (foreign_owner >= 0 && foreign_owner <= 3) ? ai_contact_euro_name(foreign_owner) : NULL;
+  const char* rival_adj = (foreign_owner >= 0 && foreign_owner <= 3) ? ai_contact_euro_plural(ctx->col1, foreign_owner) : NULL; /* 4d56_4528 0a1a */
 #define AI_CONTACT_MENU_ADD(row, id)                                                    \
   do {                                                                                  \
     if (n < AI_POPUP_CHOICE_MAX) {                                                      \
@@ -1391,7 +1404,7 @@ int ai_contact_try_euro_attack_confirm(
     }
     return 0;
   }
-  const char* name = ai_contact_euro_name(target_nation);
+  const char* name = ai_contact_euro_plural(ctx->col1, target_nation); /* 465b @HAVETREATY 0a1a */
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = name;

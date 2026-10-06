@@ -106,6 +106,7 @@ int units_combat_human_involved(const ColonizeCol1Save* col1, int nat_a, int nat
 bool units_combat_is_visible(const ColonizeUnitPool* pool, int a_id, int b_id);
 void units_combat_music_sting(void);
 const char* units_combat_nation_label(const ColonizeCol1Save* col1, int nation_id);
+const char* units_combat_nation_label_plural(const ColonizeCol1Save* col1, int nation_id);
 void units_combat_outcome_popups( const ColonizeUnitPool* pool, const ColonizeUnit* win, const ColonizeUnit* lose, int atk_wins, int atk_nation, int def_nation, int is_naval, int ambush, const ColonizeCol1Save* col1 );
 int units_domain_blocker_at( const ColonizeUnitPool* pool, int x, int y, int mover_id, int mover_nation );
 int units_drake_scale_strength( const ColonizeUnitPool* pool, const ColonizeUnit* unit, int strength, const ColonizeCol1Save* col1 );

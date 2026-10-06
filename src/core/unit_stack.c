@@ -119,16 +119,19 @@ static const char* unit_stack_row_paren_word(
  * adjective, read the plural @JOB column instead of the singular one, print
  * nothing for an unskilled body instead of "(None)", and append a port-only
  * "(aboard)"/"(ready)" suffix no DOS row has (bugs.md #260 asked for that
- * suffix explicitly, so it stays). */
+ * suffix explicitly, so it stays). DOS reads the raw DS:0x8d0a table here
+ * (no WoI swap); the port deliberately uses the WoI words ("Rebel"/"Tory")
+ * to match the sidebar and combat labels (user request 2026-10-06). */
 static void unit_stack_row_label(
   const ColonizeUnitPool* pool,
   const ColonizeMsgCatalog* names,
+  const ColonizeCol1Save* col1,
   const ColonizeUnit* u,
   char* out,
   size_t out_size
 ) {
   const char* name = units_display_name(pool, u);
-  const char* nation_adj = u ? reports_nation_adjective_display_name(u->nation_id) : NULL;
+  const char* nation_adj = u ? reports_nation_adjective_woi(col1, u->nation_id) : NULL;
   const char* word =
     u ? unit_stack_row_paren_word(names, u->type_index, u->profession) : NULL;
   char base[64];
@@ -304,6 +307,7 @@ void unit_stack_render(
   uint8_t text_color,
   uint8_t select_color,
   const ColonizePalette* active_palette,
+  const ColonizeCol1Save* col1,
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!dlg || !dlg->open || !framebuffer || !framebuffer->pixels || !pool) {
@@ -343,7 +347,7 @@ void unit_stack_render(
         icon_adv = (sw > 0 ? sw : icon_slot) + 3;
       }
       char label[72];
-      unit_stack_row_label(pool, names, u, label, sizeof(label));
+      unit_stack_row_label(pool, names, col1, u, label, sizeof(label));
       const int need = (pad_x - 1) + icon_adv + font_text_width(font, label) + 4;
       if (need > col_w) {
         col_w = need;
@@ -446,7 +450,7 @@ void unit_stack_render(
     }
 
     char label[72];
-    unit_stack_row_label(pool, names, u, label, sizeof(label));
+    unit_stack_row_label(pool, names, col1, u, label, sizeof(label));
     if (font) {
       /* bugs.md #260: crop instead of spilling into the next column. */
       unit_stack_crop_label(font, label, col_x0 + dlg->col_w - 2 - text_x);

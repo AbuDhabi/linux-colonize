@@ -2328,6 +2328,7 @@ COLONIZE_INTERNAL void game_render_map_dialogs(
         COLONIZE_COL_BASIC,
         COLONIZE_COL_SELECT,
         palette,
+        game->col1_ok ? &game->col1 : NULL,
         framebuffer
       );
     }

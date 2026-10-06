@@ -559,7 +559,9 @@ int europe_cash_treasure(EuropeScreen* eu, int treasure_value) {
     nat->unknown24_pad[3] = (uint8_t)((cum >> 24) & 0xffu);
   }
   /* GAME.TXT @LOOTCASH, composed live via eu->messages (europe_set_messages). */
-  const char* nation = eu->nation_name[0] ? eu->nation_name : "";
+  /* %STRING0 = FUN_281f_09a4(unit owner) raw 78005: the @NATIONALITY
+   * adjective ("Rebel" under the WoI), not the country name. */
+  const char* nation = reports_nation_adjective_woi(col1, purse_nation);
   const char* port = eu->port_city[0] ? eu->port_city : "";
   eu->status[0] = '\0';
   if (eu->messages) {

@@ -665,6 +665,7 @@ set(COLONIZE_SLIM_SOURCES
   src/core/map.c
   src/core/dos_rng.c
   src/core/strutil.c
+  src/core/col1_save.c
   src/core/assets.c
   src/core/fb.c
   src/core/font.c

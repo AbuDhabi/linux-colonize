@@ -59,6 +59,14 @@ the name only), and (c) pages the list past 16 rows (`local_62 = 2`,
 
 Promote either back to bugs.md only if the user asks for the feature.
 
+### #1081 — Unit-stack list and map sidebar use the WoI nation words
+DOS `FUN_2b5a_1b5a` (stack list, raw 42732) and the `FUN_49dd_0424` unit
+line index the raw @NATIONALITY / @NATIONABBREV tables, so after the
+declaration DOS still prints "Spanish" ("Span." on the sidebar). The port
+uses `reports_nation_adjective_woi` / `map_panel_nationality` ("Rebel" /
+"Tory") on both, so they agree with the combat and popup text that DOS
+itself routes through `FUN_281f_09a4` (user request 2026-10-06, #202).
+
 ## Blocked on a live DOS capture
 
 Static reading cannot settle these. Each names exactly what to capture. Do not

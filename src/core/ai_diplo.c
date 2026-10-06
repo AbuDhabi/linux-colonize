@@ -884,7 +884,7 @@ const char* ai_diplo_rival_name(const ColonizeCol1Save* col1, int nation) {
   if (nation < 0 || nation >= 4) {
     return "rival";
   }
-  const char* adj = reports_nation_adjective_display_name(nation);
+  const char* adj = reports_nation_adjective_woi(col1, nation);
   if (adj && adj[0] != '\0') {
     return adj;
   }
@@ -1892,6 +1892,13 @@ static const char* ai_talk_name(ColonizeTurnContext* ctx, int n) {
   }
   return ai_diplo_rival_name(ctx->col1, n);
 }
+/* FUN_281f_0a1a form: tribe plural (@TRIBES column 0) / WoI-aware Euro plural. */
+static const char* ai_talk_plural(ColonizeTurnContext* ctx, int n) {
+  if (n >= 4 && n <= 11) {
+    return reports_tribe_name(n - 4);
+  }
+  return reports_nation_plural_woi(ctx->col1, n);
+}
 static void ai_talk_gold(ColonizeTurnContext* ctx, int from, int to, int amount) {
   if (amount <= 0) {
     return;
@@ -2410,7 +2417,7 @@ static AiTalkStepStatus ai_talk_stage_ally_pay(
     return AI_TALK_STEP_CONTINUE;
   }
   PopupMsgTokens tp = *tok;
-  tp.string0 = ai_talk_name(ctx, p);
+  tp.string0 = ai_talk_plural(ctx, p); /* OVL16 asm 150895/150935: 0a1a(pick) */
   if (!ai_talk_met(ctx, t, p)) {
     ai_talk_ok(ctx, "NOCONTACT", &tp, "");
     return AI_TALK_STEP_CONTINUE;
@@ -2776,7 +2783,11 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
              * it). */
             ai_diplo_or_both(col1, t, p, AI_DIPLO_WAR);
           }
-          ai_talk_ok(ctx, "MERCENARY", &tok, "");
+          /* OVL16 asm 151125-151132: %STRING0 = 0a1a(t), %STRING1 = 0a1a(p). */
+          PopupMsgTokens tm = tok;
+          tm.string0 = ai_talk_plural(ctx, t);
+          tm.string1 = ai_talk_plural(ctx, p);
+          ai_talk_ok(ctx, "MERCENARY", &tm, "");
           ai_talk_gold(ctx, h, t, k->ally_cost);
         }
       }
@@ -3411,8 +3422,9 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
             char body[AI_POPUP_BODY_LEN];
             PopupMsgTokens tok;
             memset(&tok, 0, sizeof(tok));
-            tok.string0 = ai_diplo_rival_name(ctx->col1, nation_id);
-            tok.string1 = ai_diplo_rival_name(ctx->col1, peer);
+            /* FUN_465b_0000 asm 112755/112762: both via 0a1a (plural). */
+            tok.string0 = reports_nation_plural_woi(ctx->col1, nation_id);
+            tok.string1 = reports_nation_plural_woi(ctx->col1, peer);
             popup_msg_fill(ctx->messages, "CANCELPEACE", &tok, "", body, sizeof(body));
             if (ctx->status && ctx->status_size > 0) {
               snprintf(ctx->status, ctx->status_size, "%s", body);

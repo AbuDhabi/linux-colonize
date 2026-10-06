@@ -371,6 +371,17 @@ const char* reports_home_port_name(int nation) {
     live[nation], sizeof(live[nation]), "HOMEPORT", nation, 0, "");
 }
 
+/* NAMES.TXT @MISSION (row = nation): "Church of" / "Sainte Marie de" ...,
+ * the DS:0x97f8 table @MISSION0-3 %STRING0 reads. */
+const char* reports_mission_prefix(int nation) {
+  static char live[COLONIZE_COL1_NATION_COUNT][24];
+  if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return "";
+  }
+  return reports_names_or(
+    live[nation], sizeof(live[nation]), "MISSION", nation, 0, "");
+}
+
 const char* reports_difficulty_title(int level) {
   static char live[5][24];
   if (level < 0 || level > 4) {
@@ -484,6 +495,31 @@ const char* reports_tribe_level(uint8_t tech) {
 
 const char* reports_nation_adjective_display_name(int nation) {
   return reports_nation_adjective(nation);
+}
+
+/* DOS FUN_15b3_01e0 / FUN_15b3_0198 (viceroy_unpacked.c 9138-9172): the
+ * same @NATIONALITY table, except the two WoI sides once 0x5382&1 is set.
+ * Rows = (DS ptr - 0x2dba) / 2: 0x2e44/0x2e46 = 69/70, 0x2e66/0x2e68 = 86/87. */
+static const char* reports_nation_woi_word(
+  const ColonizeCol1Save* col1, int nation, int rebel_row, int tory_row
+) {
+  if (col1 && nation >= 0 && nation < 4 && col1->head.game_options.woi) {
+    if (nation == col1_save_human_nation(col1)) {
+      return reports_misc_display_word(rebel_row, "");
+    }
+    if (nation == (int)col1->head.crown_nation_id) {
+      return reports_misc_display_word(tory_row, "");
+    }
+  }
+  return reports_nation_adjective(nation);
+}
+
+const char* reports_nation_adjective_woi(const ColonizeCol1Save* col1, int nation) {
+  return reports_nation_woi_word(col1, nation, 69, 70);
+}
+
+const char* reports_nation_plural_woi(const ColonizeCol1Save* col1, int nation) {
+  return reports_nation_woi_word(col1, nation, 86, 87);
 }
 
 const char* reports_tribe_level_display_name(uint8_t tech) {
