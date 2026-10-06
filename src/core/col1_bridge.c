@@ -781,6 +781,16 @@ static void col1_bridge_sync_map_density(ColonizeCol1Save* save, const ColonizeW
   const int h = (int)map->height;
   const int pacific_xmax = w / 2;
   const size_t n = save->map.tile_count < map->tile_count ? save->map.tile_count : map->tile_count;
+  /* A loaded DOS map already carries its density mask. The procedural
+   * offshore/Pacific fallback is for blank export templates only; applying
+   * it to the seed-100 DOS map invented suppress on 2,070 ocean tiles. */
+  bool blank_density = true;
+  for (size_t i = 0; i < n; ++i) {
+    if ((save->map.mask[i] & (0x04u | 0x20u)) != 0) {
+      blank_density = false;
+      break;
+    }
+  }
 
   for (size_t i = 0; i < n; ++i) {
     const int x = (int)(i % (size_t)w);
@@ -804,7 +814,7 @@ static void col1_bridge_sync_map_density(ColonizeCol1Save* save, const ColonizeW
     }
 
     /* FUN_684c_08c0 western pacific walk (param_1==0 → width/2). */
-    if (x >= 1 && x < pacific_xmax && y >= 1 && y < h - 1) {
+    if (blank_density && x >= 1 && x < pacific_xmax && y >= 1 && y < h - 1) {
       int western_water = 1;
       for (int wx = 1; wx <= x; ++wx) {
         if (!col1_mask_is_water_mp(map->terrain[(size_t)y * (size_t)w + (size_t)wx])) {
@@ -818,7 +828,7 @@ static void col1_bridge_sync_map_density(ColonizeCol1Save* save, const ColonizeW
     }
 
     /* Offshore suppress: water with no inset land neighbour in 20-ring. */
-    if (col1_mask_is_water_mp(map->terrain[i])) {
+    if (blank_density && col1_mask_is_water_mp(map->terrain[i])) {
       int has_land = 0;
       for (int k = 0; k < 20; ++k) {
         const int nx = x + MAP_RING20_DX[k];

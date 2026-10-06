@@ -14,6 +14,11 @@ Three layers — do not conflate them:
 | **OpenCol import** (`col1_bridge_apply`) | Strong for mapped fields | Originals load and play in the port |
 | **OpenCol→DOS export** (`col1_bridge_capture`) | Strong for templates | Occupancy + density + blank census + colony levels; late `unknown_ds_*` / `other` stay zero/RMW |
 
+For an imported DOS map, capture retains the saved offshore/Pacific density
+mask through the imported layer2 bits. Procedural density synthesis runs only
+for a blank export template; applying it to the seed-100 idle campaign added
+2,070 suppress bits that DOS did not write in the 1493 autosave.
+
 `col1_save_read_*` / `col1_save_write_*` are intended to be **byte-identical**
 round-trips of original 3.0 saves: every section is read into a packed struct
 (or opaque buffer) and written back in the same order and size. That does **not**

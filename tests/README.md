@@ -113,6 +113,9 @@ manually from the repo root:
 cmake --build build/debug --target golden_idle_campaign
 ./build/debug/golden_idle_campaign 1492 1499
 ```
+Set `GOLDEN_IDLE_DUMP=/tmp/idle_actual.sav` to write the first mismatching
+simulated save for inspection with `sav_json`. The comparison stops at that
+turn, so later years are never treated as bridged across a mismatch.
 
 Most executables expect **repo root** as cwd (`WORKING_DIRECTORY` in CMake).
 

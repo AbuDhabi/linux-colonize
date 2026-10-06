@@ -594,6 +594,10 @@ combat_entry_resolved:
     if (pax) {
       pax->x = dest_x;
       pax->y = dest_y;
+      /* A moving carrier brings its whole DOS tile chain along. The save
+       * chain orders hull then passengers; leaving passenger stack orders
+       * at the old tile rotated the hull behind them on capture. */
+      units_tile_stack_arrive(pool, pax->id);
     }
   }
   units_occupancy_refresh_tile(pool, ox, oy, unit_id);

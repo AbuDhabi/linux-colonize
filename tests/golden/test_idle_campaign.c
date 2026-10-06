@@ -61,6 +61,19 @@ static int compare_save(const ColonizeCol1Save* got, const char* expected_path) 
     fprintf(stderr, "%s: size mismatch: got %zu bytes, DOS %zu bytes\n",
             expected_path, actual_size, expected_size);
   }
+  if (!ok) {
+    const char* dump = getenv("GOLDEN_IDLE_DUMP");
+    if (dump && *dump) {
+      FILE* f = fopen(dump, "wb");
+      int written = f && fwrite(actual, 1, actual_size, f) == actual_size;
+      if (f && fclose(f) != 0) written = 0;
+      if (written) {
+        fprintf(stderr, "wrote simulated save to %s\n", dump);
+      } else {
+        fprintf(stderr, "could not write simulated save to %s\n", dump);
+      }
+    }
+  }
 done:
   free(actual);
   free(expected);
