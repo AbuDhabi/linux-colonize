@@ -991,6 +991,35 @@ colonize_add_test(NAME golden_ai_turns
   LIBS colonize_core
   INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
 )
+# Opt-in full-save DOS campaign gate. Keep it out of the default build and
+# disable every CTest case until the between-turn simulation is aligned.
+colonize_add_test(NAME golden_idle_campaign
+  SOURCES tests/golden/test_idle_campaign.c tests/common/golden_fixture.c
+  LIBS colonize_core
+  INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
+  NO_CTEST
+)
+set_target_properties(golden_idle_campaign PROPERTIES EXCLUDE_FROM_ALL TRUE)
+# Missing years split the yearly autosaves into independent runs. Single-save
+# islands (1519, 1521, 1531) have no next autosave to assert against.
+set(_idle_campaign_runs
+  1492 1499  1501 1506  1508 1509  1511 1517
+  1523 1524  1526 1529  1533 1539  1541 1549
+  1551 1559  1561 1569  1571 1579  1581 1589
+  1591 1599
+)
+list(LENGTH _idle_campaign_runs _idle_campaign_count)
+math(EXPR _idle_campaign_last "${_idle_campaign_count} - 1")
+foreach(_idle_campaign_index RANGE 0 ${_idle_campaign_last} 2)
+  math(EXPR _idle_campaign_end_index "${_idle_campaign_index} + 1")
+  list(GET _idle_campaign_runs ${_idle_campaign_index} _idle_campaign_first)
+  list(GET _idle_campaign_runs ${_idle_campaign_end_index} _idle_campaign_end)
+  set(_idle_campaign_name "golden_idle_${_idle_campaign_first}_${_idle_campaign_end}")
+  add_test(NAME ${_idle_campaign_name}
+    COMMAND golden_idle_campaign ${_idle_campaign_first} ${_idle_campaign_end}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+  set_tests_properties(${_idle_campaign_name} PROPERTIES DISABLED TRUE)
+endforeach()
 # T2 early gate: full Euro dispatcher (TURN1→7). The AI_EURO_EARLY_FIXTURE bisect fixture was deleted 2026-09-14.
 
 # Renamed from golden_ai_* 2026-09-14 (duplication audit TT-13): both generate
