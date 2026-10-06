@@ -229,7 +229,8 @@ bound nation's EuropeScreen pool mirrors its record; then the 16 price rolls
 below on the same stream. Reproduces `original_saves/mapgen/SEED100.SAV`
 (seed 100) byte-for-byte for LFSR, pools and all 16 prices given the save's
 DS:0x53ea demand pool (`unit_europe` case_europe_seed_campaign_seed100).
-The pool itself is still seeded off a private stream in ai.c (bugs.md #1084).
+The pool itself is drawn in ai.c on the campaign seed after the 5 axis draws, and
+nation 0's turn-0 market tick (one pool decay) follows this call (bugs.md #1084).
 
 ## europe_seed_campaign_prices
 

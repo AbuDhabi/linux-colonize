@@ -2498,6 +2498,21 @@ void game_commit_new_campaign(ColonizeGameState* game) {
       (uint32_t)ai.rng_seed
     );
     /*
+     * FUN_3844_00f2 opens turn 0 with nation 0's 5e52, whose first act is
+     * FUN_38fd_0058(0, -1): that nation's price track plus the one DS:0x53ea
+     * pool decay every DOS save carries before its first EOT (SEED100.SAV,
+     * TURN1.SAV; bugs.md #1084). The port's batched EOT tick covers later
+     * rounds only.
+     */
+    if (game->col1_ok) {
+      const ColonizeWorld mw = {.col1 = &game->col1, .col1_ok = true, .europe = &game->europe};
+      if (game->human_nation == 0) {
+        europe_tick_market_prices_w(&mw, 0, 0u);
+      } else {
+        europe_nation_tick_market_prices_w(&mw, 0, 0u);
+      }
+    }
+    /*
      * Reveal around owned units and colonies. Was NEW WORLD/CUSTOMIZE-only in
      * practice — scenario .MP starts (Original Americas/AMER2) used to load
      * fully explored, so this loop was a no-op there (bugs.md #2, fixed

@@ -277,6 +277,17 @@ int main(void) {
     goto fail;
   }
 
+  /* FUN_75c2_235c demand pool (bugs.md #1084). The save holds it after one
+   * FUN_38fd_0058 phase-1 decay (pool -= pool >> 7, all volumes still 0). */
+  for (int c = 0; c < 16; ++c) {
+    const int got = col1.head.market_demand_pool[c];
+    if (got - (got >> 7) != golden.head.market_demand_pool[c]) {
+      fprintf(stderr, "market_demand_pool[%d] got %d (decayed %d) want %u\n", c, got,
+              got - (got >> 7), golden.head.market_demand_pool[c]);
+      goto fail;
+    }
+  }
+
   /* FUN_682a_000c: colony-site score in the seen plane's low nibble
    * (ai_goals_write_site_scores, run by ai_init_new_game). */
   if (golden.map.seen && map.seen) {
