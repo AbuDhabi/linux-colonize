@@ -3305,6 +3305,7 @@ static int case_surplus_no_foodlow(void) {
   for (int i = 0; i < 64; ++i) {
     map.terrain[i] = 1; /* plains */
   }
+  map_reveal_all(&map, 0); /* FUN_15eb_23f2 0x10: an unseen plot is evicted (#1080) */
   col->x = 3;
   col->y = 3;
 
@@ -4719,6 +4720,7 @@ static int case_horse_breed_colony(void) {
   for (int i = 0; i < 64; ++i) {
     map.terrain[i] = 1; /* plains */
   }
+  map_reveal_all(&map, 0); /* FUN_15eb_23f2 0x10: an unseen plot is evicted (#1080) */
   col->x = 3;
   col->y = 3;
 

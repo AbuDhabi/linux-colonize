@@ -2569,6 +2569,8 @@ static void ai_euro_colony_tick_run(
       continue;
     }
     if (whole_tick) {
+      /* FUN_5952_035e raw 93961: FUN_281f_0c22 -> FUN_15eb_3930 (bugs.md #1080). */
+      colonies_recompute_plots_w(&world, col->id);
       ai_euro_5952_colony_counters(ctx, nation_id, col);
       ai_euro_5952_colony_prelude(ctx, nation_id, col);
     }

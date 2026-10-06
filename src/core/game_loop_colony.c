@@ -156,6 +156,15 @@ void game_enter_colony(ColonizeGameState* game, int cid) {
   game->in_pedia = false;
   game->in_report = false;
   game->colony_view_id = cid;
+  /* FUN_2f2b_6cd4 -> FUN_2f2b_2c92 (raw 49278) opens with FUN_281f_0c22 ->
+   * FUN_15eb_3930: workers on enemy-blocked plots are evicted (bugs.md #1080). */
+  {
+    const ColonizeWorld w = world_make(
+      game->units_ok ? &game->units : NULL, &game->colonies,
+      game->world_map_ok ? &game->world_map : NULL, &game->col1, game->col1_ok, NULL, NULL
+    );
+    colonies_recompute_plots_w(&w, cid);
+  }
   /*
    * DOS FUN_2f2b_6cd4 colony bring-up: the colony tune pool
    * (FUN_281f_0498(2)); back on the map the pool is 1 again. Event 0x54

@@ -2768,7 +2768,139 @@ static int unit_fence_strip_profession_gate(void) {
   return 0;
 }
 
+/*
+ * bugs.md #1080 — FUN_15eb_3930 (268e/287e/2ea0): a fortified enemy soldier
+ * on a worked plot evicts the worker; 28c8 reseats him on a free plot, else
+ * the uncapped Carpenter fallback can put a 4th colonist in the shop, and the
+ * building strip must then show and hit-test all four without overlap.
+ */
+static int unit_plot_eviction_1080(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "evict1080: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  colonies_load_buildings(&pool, &names);
+  static ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_load_types(&units, &names);
+  const int soldier_type = units_kind_type_index(&units, UNITS_KIND_SOLDIER);
+  const int colonist_type = units_kind_type_index(&units, UNITS_KIND_COLONIST);
+  const int shop = colonies_building_row(&pool, COLONY_BUILDING_CARPENTERS_SHOP);
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[256];
+  ColonyScreenView view;
+  memset(&view, 0, sizeof(view));
+  if (soldier_type < 0 || colonist_type < 0 || shop < 0 ||
+      !map_alloc(&map, 24, 24, err, sizeof(err)) ||
+      !colony_screen_load(&view, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "evict1080: setup failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  for (int i = 0; i < 24 * 24; ++i) {
+    map.terrain[i] = 2;    /* plains */
+    map.layer3[i] = 0xf1u; /* owner none, continent 1 */
+    map.layer2[i] = 0;
+  }
+  map.prime_resource_seed = 0;
+  map_reveal_all(&map, 0);
+
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
+    c->tiles[i] = -1;
+  }
+  c->active = true;
+  c->id = 0;
+  c->x = 10;
+  c->y = 10;
+  c->nation_id = 0;
+  c->has_building[shop] = true;
+  c->colonist_count = c->population = 4;
+  pool.colony_count = 1;
+  for (int i = 0; i < 4; ++i) {
+    c->colonists[i].active = true;
+    c->colonists[i].unit_type_index = colonist_type;
+    c->colonists[i].profession = COLONIZE_PROF_FREE_COLONIST;
+    c->colonists[i].building_type = i < 3 ? shop : -1; /* three Carpenters */
+    c->colonists[i].field_job = i < 3 ? -1 : COLONIZE_JOB_FARMER;
+  }
+  const int north = colonies_field_tile_index(0, -1);
+  c->tiles[north] = 3;
+
+  int rc = 0;
+  const ColonizeWorld w = world_make(&units, &pool, &map, NULL, false, NULL, NULL);
+  /* One fortified enemy soldier on a foreign-owned worked plot. */
+  for (int ti = 0; ti < 8; ++ti) {
+    int dx = 0;
+    int dy = 0;
+    colonies_field_tile_delta(ti, &dx, &dy);
+    const int x = c->x + dx;
+    const int y = c->y + dy;
+    const int uid = units_spawn_allow_stack(&units, soldier_type, x, y);
+    ColonizeUnit* u = units_get(&units, uid);
+    if (!u) {
+      rc = 1;
+      break;
+    }
+    u->nation_id = 1;
+    u->orders = UNITS_ORDER_FORTIFIED;
+    map.layer2[y * 24 + x] |= MAP_OCCUPANCY_HAS_UNIT;
+    map.layer3[y * 24 + x] = (uint8_t)((1u << MAP_L3_OWNER_SHIFT) | 1u);
+    if (ti == 0) {
+      colonies_recompute_plots_w(&w, c->id);
+      const int t = colonies_colonist_tile(c, 3);
+      if (t < 0 || t == north || c->colonists[3].building_type >= 0) {
+        fprintf(stderr, "evict1080: farmer not moved off N plot (tile %d)\n", t);
+        rc = 1;
+      }
+    }
+  }
+  /* Every ring plot now guarded: no plot scores, Carpenter fallback, uncapped. */
+  colonies_recompute_plots_w(&w, c->id);
+  int carpenters = 0;
+  for (int i = 0; i < 4; ++i) {
+    carpenters += c->colonists[i].building_type == shop;
+  }
+  if (carpenters != 4 || colonies_colonist_tile(c, 3) >= 0) {
+    fprintf(stderr, "evict1080: want 4 carpenters, got %d\n", carpenters);
+    rc = 1;
+  }
+  int ci[COLONIZE_COLONY_POP_MAX];
+  int icons[COLONIZE_COLONY_POP_MAX];
+  int strip_h = 0;
+  const int n = colony_screen_building_worker_strip(&view, c, &units, shop, ci, icons, &strip_h);
+  if (n != 4) {
+    fprintf(stderr, "evict1080: strip shows %d workers, want 4\n", n);
+    rc = 1;
+  } else {
+    const int iw = view.icons.sprites[icons[0]].width;
+    int sx = 0;
+    int sw = 0;
+    colony_screen_building_strip_span(100, 2 * iw, n, iw, &sx, &sw);
+    int xs[COLONIZE_COLONY_POP_MAX];
+    colony_screen_icon_strip_layout(sx, sw, n, iw, xs);
+    for (int i = 1; i < n; ++i) {
+      if (xs[i] - xs[i - 1] < iw) {
+        fprintf(stderr, "evict1080: worker icons %d/%d overlap\n", i - 1, i);
+        rc = 1;
+      }
+    }
+  }
+  colony_screen_free(&view);
+  map_free(&map);
+  assets_msg_free(&names);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_plot_eviction_1080", unit_plot_eviction_1080},
     {"unit_buyme1_tokens", unit_buyme1_tokens},
     {"unit_building_click_reaches_owned", unit_building_click_reaches_owned},
     {"unit_dock_orders_menu", unit_dock_orders_menu},

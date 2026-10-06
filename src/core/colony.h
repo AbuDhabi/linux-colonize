@@ -570,6 +570,10 @@ void colonies_auto_assign_idle(ColonizeColonyPool* pool, int colony_id);
  * plot, else Carpenter (bugs.md #562). */
 void colonies_seat_new_colonist(ColonizeColonyPool* pool, int colony_id, int colonist_index);
 
+/* DOS FUN_15eb_3930 plot recompute: evict workers off blocked plots, reseat
+ * them via 28c8 or Carpenter (uncapped). See docs/colony.md#plot-eviction. */
+void colonies_recompute_plots_w(const ColonizeWorld* w, int colony_id);
+
 /* DOS FUN_15eb_1068(slot, 0xd): the Carpenter fallback both 2ea0 and 28c8 use
  * when no work plot scores (bugs.md #562). */
 void colonies_assign_carpenter_fallback(
@@ -823,7 +827,7 @@ bool colonies_emit_warehouse_full_confirm(
 
 /*
  * Human construction refuse: @ALREADYHAVE, or @NOMOREWAREHOUSE for Warehouse
- * Expansion. building_name optional (fallback "building"). No-op if ai_popups NULL.
+ * Expansion. building_name optional. No-op if ai_popups NULL.
  */
 void colonies_emit_already_have_chrome(
   const ColonizeColony* colony,

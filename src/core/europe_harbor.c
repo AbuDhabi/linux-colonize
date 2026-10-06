@@ -70,7 +70,6 @@ bool europe_harbor_push_ex(
     return false;
   }
   if (eu->harbor_ships >= EUROPE_HARBOR_MAX) {
-    europe_set_status(eu, "Harbor is full.");
     return false;
   }
   EuropeHarborShip* slot = &eu->harbor[eu->harbor_ships++];
@@ -119,7 +118,6 @@ bool europe_enqueue_expected(
     return false;
   }
   if (eu->expected_ships >= EUROPE_HARBOR_MAX) {
-    europe_set_status(eu, "Expected Soon is full.");
     return false;
   }
   EuropeHarborShip* slot = &eu->expected[eu->expected_ships++];
@@ -226,7 +224,6 @@ bool europe_set_sail_from_harbor(
     return false;
   }
   if (eu->bound_ships >= EUROPE_HARBOR_MAX) {
-    europe_set_status(eu, "Outbound lane is full.");
     return false;
   }
   EuropeHarborShip ship;

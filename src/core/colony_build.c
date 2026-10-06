@@ -647,6 +647,12 @@ bool colonies_try_complete_building_ex(
   if (bid >= 0 && bid < COLONIZE_BUILDING_TYPES_MAX && col->has_building[bid]) {
     return false;
   }
+  /* FUN_364b_0114 raw 56906-56910: Warehouse Expansion with +0x95 already
+   * > 1 completes nothing (the human caller shows @NOMOREWAREHOUSE). */
+  if (colonies_building_name_row(bt->name) == COLONY_BUILDING_WAREHOUSE_EXPANSION &&
+      col->warehouse_level > 1u) {
+    return false;
+  }
   if (bt->tools_cost > 0 && col->stock[COLONIZE_CARGO_TOOLS] < bt->tools_cost) {
     /* DOS-LITERAL FUN_364b_0688 Phase L raw 57748-57774: human colonies
      * stop for @NEEDTOOLS; AI and Crown colonies are given the missing tools
@@ -666,16 +672,15 @@ bool colonies_try_complete_building_ex(
   if (bid >= 0 && bid < COLONIZE_BUILDING_TYPES_MAX) {
     col->has_building[bid] = true;
   }
-  /* Col1 +0x95/+0x96: INC warehouse / capitol levels on matching completes. */
+  /* Col1 +0x95/+0x96: FUN_364b_0114 raw 56912-56923 INCs the warehouse /
+   * capitol level on either tier's completion. */
   if (bt->name[0] != '\0') {
-    if (colonies_building_name_row(bt->name) == COLONY_BUILDING_WAREHOUSE && col->warehouse_level < 1u) {
-      col->warehouse_level = 1;
-    } else if (colonies_building_name_row(bt->name) == COLONY_BUILDING_WAREHOUSE_EXPANSION) {
-      col->warehouse_level = 2;
-    } else if (colonies_building_name_row(bt->name) == COLONY_BUILDING_CAPITOL && col->capitol_level < 1u) {
-      col->capitol_level = 1;
-    } else if (colonies_building_name_row(bt->name) == COLONY_BUILDING_CAPITOL_EXPANSION) {
-      col->capitol_level = 2;
+    if (colonies_building_name_row(bt->name) == COLONY_BUILDING_WAREHOUSE ||
+        colonies_building_name_row(bt->name) == COLONY_BUILDING_WAREHOUSE_EXPANSION) {
+      col->warehouse_level++;
+    } else if (colonies_building_name_row(bt->name) == COLONY_BUILDING_CAPITOL ||
+               colonies_building_name_row(bt->name) == COLONY_BUILDING_CAPITOL_EXPANSION) {
+      col->capitol_level++;
     } else if (colonies_building_name_row(bt->name) == COLONY_BUILDING_CUSTOM_HOUSE && col->custom_house_bits == 0) {
       col->custom_house_bits = COLONIZE_CUSTOM_HOUSE_DEFAULT_MASK;
     }

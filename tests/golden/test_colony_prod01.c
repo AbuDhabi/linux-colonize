@@ -789,6 +789,9 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
        * than load-bearing.
        */
       pap->tiles[0] = 0;
+      /* Colonist 1 keeps his real-DOS plot (NW): a plotless field worker is
+       * reseated by FUN_15eb_2ea0 at EOT (bugs.md #1080). Plains, 0 furs. */
+      pap->tiles[7] = 1;
       pap->colonists[0].field_job = COLONIZE_JOB_FARMER;
       pap->colonists[0].profession = 28;
       if (map.terrain) map.terrain[(pap->y + k_fdy[0]) * map.width + (pap->x + k_fdx[0])] = col1_tile_to_mp_terrain(0x02u); /* Plains */
@@ -798,6 +801,32 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
     }
   }
 
+  /*
+   * bugs.md #1080: FUN_15eb_3930 evicts a worker whose plot carries a
+   * fortified foreign unit. The French units standing on Vlissingen N /
+   * Port au Prince NW are orders 0 in both DOS saves, but the port French AI
+   * fortifies them this turn (AI nations are not checked here), and the
+   * hand-placed Vlissingen N worker has no DOS counterpart. Keep this suite
+   * about Dutch production: drop foreign units off worked Dutch plots.
+   */
+  for (int ci = 0; ci < colonies->colony_count; ++ci) {
+    const ColonizeColony* dc = &colonies->colonies[ci];
+    if (!dc->active || dc->nation_id != COLONY_PROD01_HUMAN_NATION) {
+      continue;
+    }
+    for (int ti = 0; ti < 8; ++ti) {
+      if (dc->tiles[ti] < 0) {
+        continue;
+      }
+      for (int ui = 0; ui < units_slot_end(&fx.units); ++ui) {
+        ColonizeUnit* u = &fx.units.units[ui];
+        if (u->active && u->nation_id != dc->nation_id && u->x == dc->x + k_fdx[ti] &&
+            u->y == dc->y + k_fdy[ti]) {
+          units_despawn(&fx.units, u->id);
+        }
+      }
+    }
+  }
   if (!golden_turn(&fx)) {
     golden_close(&fx);
     return 1;

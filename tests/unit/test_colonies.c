@@ -292,7 +292,10 @@ static int unit_build_complete_latch(void) {
   snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "Stable");
   pool.building_types[1].hammers = 10;
   pool.building_types[1].tools_cost = 0;
-  pool.building_type_count = 2;
+  snprintf(pool.building_types[2].name, sizeof(pool.building_types[2].name), "Warehouse Expansion");
+  pool.building_types[2].hammers = 10;
+  pool.building_types[2].tools_cost = 0;
+  pool.building_type_count = 3;
   ColonizeColony* c = &pool.colonies[0];
   memset(c, 0, sizeof(*c));
   c->id = 0;
@@ -402,7 +405,10 @@ static int unit_warehouse_capitol_levels(void) {
   snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "Capitol");
   pool.building_types[1].hammers = 10;
   pool.building_types[1].tools_cost = 0;
-  pool.building_type_count = 2;
+  snprintf(pool.building_types[2].name, sizeof(pool.building_types[2].name), "Warehouse Expansion");
+  pool.building_types[2].hammers = 10;
+  pool.building_types[2].tools_cost = 0;
+  pool.building_type_count = 3;
   ColonizeColony* c = &pool.colonies[0];
   memset(c, 0, sizeof(*c));
   c->id = 0;
@@ -453,6 +459,19 @@ static int unit_warehouse_capitol_levels(void) {
   c->hammers = 10;
   if (!colonies_try_complete_building(&pool, 0) || c->capitol_level != 1) {
     fprintf(stderr, "Capitol complete capitol_level=%u\n", (unsigned)c->capitol_level);
+    return 1;
+  }
+  /* FUN_364b_0114: Expansion INCs +0x95; past level 1 it completes nothing. */
+  c->building_in_production = 2;
+  c->hammers = 10;
+  if (!colonies_try_complete_building(&pool, 0) || c->warehouse_level != 2) {
+    fprintf(stderr, "Expansion complete warehouse_level=%u\n", (unsigned)c->warehouse_level);
+    return 1;
+  }
+  c->has_building[2] = false;
+  c->hammers = 10;
+  if (colonies_try_complete_building(&pool, 0) || c->warehouse_level != 2 || c->has_building[2]) {
+    fprintf(stderr, "Expansion at level 2 must refuse, level=%u\n", (unsigned)c->warehouse_level);
     return 1;
   }
   fprintf(stderr, "unit_colonies: warehouse/capitol levels ok\n");

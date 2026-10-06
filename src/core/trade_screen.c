@@ -182,12 +182,10 @@ bool trade_screen_handle_input(
       row = TRADE_ROW_COUNT - 1;
     }
     if (mx <= TRADE_COL_DEST_X1) {
-      /* Destination column: edit existing stop, or append on the first
-       * empty row (row > dest_count is dead space, as in DOS 0dd4). */
-      if (row <= (int)r->dest_count) {
-        ts->request = TRADE_SCREEN_REQ_DEST;
-        ts->request_stop = row;
-      }
+      /* Destination column: edit an existing stop; any empty row appends
+       * (DOS FUN_647e_0dd4 else-arm, raw 102922: row = stop count). */
+      ts->request = TRADE_SCREEN_REQ_DEST;
+      ts->request_stop = row < (int)r->dest_count ? row : (int)r->dest_count;
       return true;
     }
     if (row >= (int)r->dest_count) {

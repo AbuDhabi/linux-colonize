@@ -26,9 +26,11 @@
  */
 
 /* One TURN_PROC_SETUP slice queues every colony's production chrome at once
- * (starve/spoil/built/…) before the blocking presenter can drain any of it —
- * a large empire overflows 16 and enqueue drops the popup silently. */
-#define AI_POPUP_QUEUE_MAX 32
+ * (starve/spoil/built/…) before the blocking presenter can drain any of it.
+ * DOS shows each popup inline, so none is ever lost (bugs.md #1077): size the
+ * queue so a 48-colony empire cannot fill it in one turn (~1.2 KB a slot;
+ * the state lives in the heap-allocated game state). */
+#define AI_POPUP_QUEUE_MAX 1024
 #define AI_POPUP_CHOICE_MAX 8 /* @TRADEWHICH: up to 6 holds + "never mind" */
 #define AI_POPUP_BODY_LEN 512
 #define AI_POPUP_TITLE_LEN 64

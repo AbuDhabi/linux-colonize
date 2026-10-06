@@ -41,6 +41,7 @@
 #include "core/reports.h"
 #include "core/reports_names.h"
 #include "core/units.h"
+#include "core/units_move.h"
 
 #include <limits.h>
 #include <stdio.h>
@@ -682,95 +683,37 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
     nation_id, ctx->turn_number ? (int)*ctx->turn_number : 0
   );
   /*
-   * FUN_4cc6_07c2 Indian homeland purchase when founding on tribe land.
-   * Cite: Colonization.pdf / wiki Peter Minuit (FF 2) → free; else charge
-   * via colonies_found_with_indian_land. Short gold → PARK (no despawn).
+   * bugs.md #1074: FUN_479b_076e (raw 76961-77047) never prices or pays for
+   * Indian land and stamps no 0x10 purchased bit — no FUN_281f_0d78 /
+   * FUN_4cc6_07c2 / FUN_281f_0af6 call in the body. The AI's land purchase is
+   * FUN_479b_00ca (raw 76673), reached only from the Pioneer work bodies
+   * FUN_479b_01a6 / FUN_479b_0526 (raw 76841, 76939), ported in
+   * units_pioneer_native_land_tail. The invented found-time purchase and its
+   * short-gold gate are gone: founding goes straight to the allocator.
    */
-  int cid = -1;
-  if (ctx->col1_ok && ctx->col1 && nation_id >= 0 && nation_id < 4) {
-    uint32_t* gold = &ctx->col1->nation[nation_id].gold;
-    const int cost = colonies_indian_land_purchase_gold(
-      ctx->col1, ctx->map, founder->x, founder->y, nation_id
-    );
+  const int cid = colonies_found(
+    ctx->colonies,
+    ctx->map,
+    founder->x,
+    founder->y,
+    nation_id,
+    founder->type_index,
+    founder->profession,
+    tools,
+    muskets,
+    horses
+  );
+  if (cid < 0) {
     /*
-     * DOS-LITERAL FUN_479b_00ca affordability gate (bugs.md #709), read
-     * byte-exact off viceroy_unpacked.asm 121034-121094:
-     *   if (nation < 4 && DS:[nation*0x34 + 0x543f] == 0) return 0;  // human
-     *   cost = FUN_281f_0d78(...);          // = the 4cc6_07c2 price
-     *   gold = FUN_281f_0a92(nation);       // 32-bit DX:AX
-     *   SUB CX,AX / SBB BX,DX  ;  SAR (cost),1        →
-     *   if ((long)gold - cost < cost / 2) return 0;   // JL/JC LAB_479b_0150
-     *   FUN_281f_0af6(nation, cost);        // pay
-     *   INC byte [ [0x8d4e] + 5 ];          // tribe lands_bought
-     *   FUN_281f_068c(x, y, 0x10, 1);       // stamp the tile bought
-     * i.e. the AI does not spend down to zero: it buys only when at least half
-     * the price is still left afterwards. The gate is AI-only — for a human
-     * (control byte 0x543f == 0) 00ca returns 0 without touching gold, which is
-     * why the human branch below keeps its own plain `gold < cost` message.
-     * Lead still open: 00ca's caller is the thunk 2a1f:01dd and is unresolved,
-     * so whether a failed gate aborts the founding or founds the colony unpaid
-     * is unknown; the port keeps its existing "found anyway" outcome.
+     * FUN_479b_076e on a -1 from FUN_291f_09b2 -> FUN_364b_1ba8 (48-colony
+     * table full, raw 58029): it has already cleared +0x315a and +0x314c at
+     * entry and run FUN_281f_0934 (-> FUN_1427_155e: spent := full allotment)
+     * on the founder, then returns. The founder survives on its tile, idle
+     * and out of moves.
      */
-    int short_gold;
-    if (cost <= 0) {
-      short_gold = 0;
-    } else if (nation_id == ctx->human_nation) {
-      short_gold = *gold < (uint32_t)cost;
-    } else {
-      short_gold = ((long)*gold - (long)cost) < (long)(cost / 2);
-    }
-    if (short_gold) {
-      /*
-       * FUN_4cc6_07c2 short-gold gate — no despawn. Thin human status only.
-       * Cite: colonies_indian_land_purchase_gold; Colonization.pdf Minuit /
-       * indian land purchase.
-       */
-      if (nation_id == ctx->human_nation && ctx->status && ctx->status_size > 0) {
-        snprintf(
-          ctx->status,
-          ctx->status_size,
-          "Not enough gold to buy Indian land (%d$ needed).",
-          cost
-        );
-        return;
-      }
-      /*
-       * AI nations start with a treasury of 0 (ai_starting_gold: AI always 0),
-       * and the FOUND sites the planner produces are tribe-adjacent by
-       * construction, so this gate used to block every AI first colony
-       * outright — settlers reached their site and stood there for the rest of
-       * the game. The @INDIANLAND dialog's third option is "take it", which
-       * proceeds unpaid with no immediate consequence (game_loop.c
-       * GAME_INDIAN_LAND_TAKE); that is what an AI with no gold does.
-       */
-      cid = colonies_found(
-        ctx->colonies,
-        ctx->map,
-        founder->x,
-        founder->y,
-        nation_id,
-        founder->type_index,
-        founder->profession,
-        tools,
-        muskets,
-        horses
-      );
-    } else {
-      cid = colonies_found_with_indian_land_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL)}, gold, founder->x, founder->y, nation_id, founder->type_index, founder->profession, tools, muskets, horses);
-    }
-  } else {
-    cid = colonies_found(
-      ctx->colonies,
-      ctx->map,
-      founder->x,
-      founder->y,
-      nation_id,
-      founder->type_index,
-      founder->profession,
-      tools,
-      muskets,
-      horses
-    );
+    founder->col1_counter16 = 0;     /* +0x315a = 0 */
+    founder->orders = UNITS_ORDER_NONE; /* +0x314c = 0 */
+    units_mp_exhaust_unit(ctx->units, founder->id); /* FUN_281f_0934 */
   }
   if (cid >= 0) {
     colonies_reveal_founded_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, cid); /* FUN_364b_1dd6 Coronado */

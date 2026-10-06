@@ -1941,7 +1941,7 @@ static void ai_talk_unit_to_europe(ColonizeTurnContext* ctx, int unit_id) {
        * 2026-09-10 G10; without it a gifted ship's passengers arrived
        * labelled with the bare unit name). */
       units_export_cargo_professions(ctx->units, unit_id, profs, COLONIZE_UNIT_CARGO_MAX);
-      if (units_despawn_ship_with_cargo(
+      if (ctx->europe->harbor_ships < EUROPE_HARBOR_MAX && units_despawn_ship_with_cargo(
             ctx->units, unit_id, &type_index, name, sizeof(name), types, &n,
             COLONIZE_UNIT_CARGO_MAX, hold_t, hold_a, COLONIZE_UNIT_CARGO_MAX
           )) {
@@ -1951,8 +1951,9 @@ static void ai_talk_unit_to_europe(ColonizeTurnContext* ctx, int unit_id) {
       }
       return;
     }
-    (void)europe_dock_push_load(ctx->europe, units_display_name(ctx->units, u), u->profession);
-    (void)units_despawn(ctx->units, unit_id);
+    if (europe_dock_push_load(ctx->europe, units_display_name(ctx->units, u), u->profession)) {
+      (void)units_despawn(ctx->units, unit_id);
+    }
     return;
   }
   u->x = 200;

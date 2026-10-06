@@ -795,7 +795,7 @@ graphs:
         fn: ai_euro_expand.c:ai_euro_found_with_unit
         dos: 5b66 case 7 FOUND
         status: dos
-        note: "2026-10-04 (bugs.md #971): the fitted post-founding Pioneer/Soldier re-aims are deleted; FUN_479b_076e moves only the founder. The pioneer's TURN4->5 move comes from the 20e6 explore ring, which scores coastal tiles only."
+        note: "2026-10-04 (bugs.md #971): the fitted post-founding Pioneer/Soldier re-aims are deleted; FUN_479b_076e moves only the founder. The pioneer's TURN4->5 move comes from the 20e6 explore ring, which scores coastal tiles only. 2026-10-05 (bugs.md #1074): 076e never prices or pays for Indian land; the found-time purchase and short-gold PARK are deleted (AI land buys are FUN_479b_00ca from the Pioneer bodies 01a6/0526, units_pioneer.c). On a full 48-colony table (FUN_364b_1ba8 -1) the founder survives with +0x314c/+0x315a cleared and MP spent (FUN_281f_0934)."
       - id: on_colony
         kind: step
         label: Own colony arrival — no unit-act outcome (join/TOOLS-delivery arms deleted)

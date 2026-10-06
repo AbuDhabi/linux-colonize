@@ -2147,7 +2147,10 @@ void turn_run_colony_production_w(
       /* bugs.md #256: DOS never carries an idle colonist — sweep any
        * job-less colonist (stale saves, non-UI admit paths) into work
        * before producing, so the head count always matches the workers. */
-      colonies_auto_assign_idle(pool, i);
+      colonies_auto_assign_idle(pool, pool->colonies[i].id);
+      /* FUN_364b_0688 raw 57229: FUN_281f_0c22 -> FUN_15eb_3930 before the
+       * colony produces (bugs.md #1080). */
+      colonies_recompute_plots_w(w, pool->colonies[i].id);
       /* Snapshot for the debug-log summary — production itself keeps the
        * NULL delta it has always had (a non-NULL one changes which branch
        * fills cargo_produced_mask). */

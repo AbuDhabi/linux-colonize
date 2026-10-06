@@ -43,8 +43,7 @@ enum {
   COLONY_FENCE_W = 73,
   COLONY_FENCE_H = 18,
   COLONY_COAST_W = 75,
-  COLONY_COAST_H = 48,
-  COLONY_BUILDING_WORKERS_MAX = 3
+  COLONY_COAST_H = 48
 };
 
 typedef struct ColonyBuildingSlot {
@@ -129,6 +128,9 @@ int colony_screen_building_worker_strip(
   int* out_ci,
   int* out_icons,
   int* out_strip_h
+);
+void colony_screen_building_strip_span(
+  int bx, int bw, int workers, int ref_iw, int* out_x, int* out_w
 );
 int colony_screen_category_built(
   const ColonizeColonyPool* pool, const ColonizeColony* colony, int cat

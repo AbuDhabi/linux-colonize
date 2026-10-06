@@ -30,6 +30,9 @@
 #include "core/units.h"
 #include "platform/platform.h"
 
+_Static_assert(EUROPE_DOCK_MAX >= 512 && EUROPE_HARBOR_MAX >= 512,
+               "Europe lanes must not bind before the DOS 300-unit cap");
+
 /* Forward declarations for this file's own statics (the split moved
    section order; these keep every call site legal). */
 static unsigned europe_rng_next(unsigned* state);

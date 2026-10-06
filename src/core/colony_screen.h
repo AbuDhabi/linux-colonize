@@ -128,8 +128,9 @@
 #define COLONY_HOLD_H 12
 #define COLONY_HOLD_PITCH 12
 
-/* bugs.md: 12 dropped fence units outright in crowded colonies. */
-#define COLONY_OUTSIDE_MAX 24
+/* DOS FUN_15eb_09c0 counts the colony tile's units into DS:0x8d72 and clamps
+ * at 0x32 (bugs.md #1078). */
+#define COLONY_OUTSIDE_MAX 0x32
 
 typedef enum ColonyMultiMode {
   COLONY_MULTI_PRODUCTION = 0,

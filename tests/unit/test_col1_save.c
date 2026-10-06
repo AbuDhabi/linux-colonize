@@ -1687,6 +1687,7 @@ int main(void) {
     }
 
     ColonizeCol1Save save;
+    col1_save_init(&save); /* template init frees first; stack garbage crashed it */
     if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
       fprintf(stderr, "building roundtrip: template: %s\n", err);
       map_free(&map);
