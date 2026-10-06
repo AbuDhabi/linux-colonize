@@ -568,6 +568,11 @@ and turn.c walks nations 0..3 in index order, skipping control-2 slots the way
 FUN_3844_00f2 does. Port deviation: DOS spreads the four calls across the turn
 round, the port batches them in TURN_PROC_KING — the tick draws no RNG, so only
 ordering against mid-round trades differs. bugs.md #1011/#1012.
+The Dutch odd-turn attrition test reads the turn count from before the
+calendar advance. Seed-100 DOS autosaves first show the doubled Dutch pressure
+delta on saved turn 2 (1494), then turn 4; `turn_step_king` passes that prior
+count to the existing market routine. The other three nations' pressure rows
+match the 1492→1493 DOS transition after the golden fixture loads @CARGO.
 Cite: viceroy_unpacked.c FUN_38fd_0058; turn/europe_nation_eot.md.
 
 ## europe_tick_immigration_pressure_w design

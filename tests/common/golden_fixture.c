@@ -5,6 +5,7 @@
 
 #include "core/ai.h"
 #include "core/ai_euro.h"
+#include "core/europe_art.h"
 #include "core/turn.h"
 #include "core/units.h"
 
@@ -51,6 +52,10 @@ bool golden_open(const char* path_in, const char* path_exp, uint32_t rng_seed, G
   }
   if (!colonies_load_buildings(&fx->colonies, &fx->names)) {
     fprintf(stderr, "colonies_load_buildings failed\n");
+    return false;
+  }
+  if (!europe_load_tables(&fx->europe, &fx->names)) {
+    fprintf(stderr, "europe_load_tables failed\n");
     return false;
   }
   (void)colonies_load_names(&fx->colonies, "COLONIZE/COLONY.TXT");

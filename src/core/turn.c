@@ -755,7 +755,12 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
        */
       if (ctx->europe) {
         const ColonizeWorld mw = world_from_turn_ctx(ctx);
-        const uint32_t mturn = ctx->turn_number ? *ctx->turn_number : 0u;
+        /* DOS's 5e52 market pass sees the turn counter from before SETUP's
+         * calendar advance. In the seed-100 autosaves, Dutch attrition first
+         * doubles on saved turn 2, then on 4; passing the new turn doubled it
+         * on turns 1 and 3 instead (FUN_38fd_0058, DS:0x538e & 1). */
+        const uint32_t mturn =
+          ctx->turn_number && *ctx->turn_number > 0u ? *ctx->turn_number - 1u : 0u;
         for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
           /* FUN_3844_00f2 runs no nation EOT for a withdrawn (control 2) slot,
            * so its track — and, for nation 0, the pool decay — stands still. */
