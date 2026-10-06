@@ -553,32 +553,32 @@ bool units_is_missionary(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
  * 121248+0x2f5), rows 0x13..0x18:
  *   0x13 Colonist->0, 0x14 Pioneer->2, 0x15 Soldier->1,
  *   0x16 Scout->5,    0x17 Dragoon->4,  0x18 Missionary->3
- * bugs.md #648: this used to preserve the Continental/Royal tier, so mounting
- * a Cont. Army gave Cont. Cavalry. The reverse table DS:0x30e (raw 9931/9944,
- * type->job: 7 "Cont. Cav."->0x17, 9 "Cont. Army"->0x15) only files the
- * Continentals under the colonial jobs for the *menu* lookup; it is never read
- * back to re-type, so an equipment change in DOS always lands on the flat
- * colonial type and drops the tier.
+ * bugs.md #648 flattened this per that static reading, but user-observed DOS
+ * (2026-10-06) mounts a Cont. Army into Cont. Cavalry, so the tier is kept
+ * somewhere the static read missed. The reverse table DS:0x30e (raw
+ * 9931/9944, type->job: 7 "Cont. Cav."->0x17, 9 "Cont. Army"->0x15) pairs
+ * the Continentals with the Soldier/Dragoon jobs; a Continental changing
+ * between those two rows keeps its tier. Any other row drops it.
  */
 const char* units_equip_role_type_name(
   const ColonizeUnitPool* units,
   int cur_type_index,
   int role
 ) {
-  (void)cur_type_index;
+  const int is_cont = units_type_is_continental(units_type(units, cur_type_index));
   ColonizeUnitKind dest_kind = UNITS_KIND_COLONIST;
   switch (role) {
   case COLONIZE_EJECT_PIONEER:
     dest_kind = UNITS_KIND_PIONEER;
     break;
   case COLONIZE_EJECT_SOLDIER:
-    dest_kind = UNITS_KIND_SOLDIER;
+    dest_kind = is_cont ? UNITS_KIND_CONT_ARMY : UNITS_KIND_SOLDIER;
     break;
   case COLONIZE_EJECT_SCOUT:
     dest_kind = UNITS_KIND_SCOUT;
     break;
   case COLONIZE_EJECT_DRAGOON:
-    dest_kind = UNITS_KIND_DRAGOON;
+    dest_kind = is_cont ? UNITS_KIND_CONT_CAV : UNITS_KIND_DRAGOON;
     break;
   case COLONIZE_EJECT_MISSIONARY:
     dest_kind = UNITS_KIND_MISSIONARY;
