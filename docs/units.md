@@ -183,10 +183,9 @@ Returns false for anything that is not a unit project code.
 ## units_equip_role_type_name
 
 Destination @UNIT type name for a COLONIZE_EJECT_* equipment change: the
-flat DS:0x2f5 @JOB->@UNIT row DOS re-types through (FUN_15eb_0916). The
-tier is NOT preserved — a Continental or royal body that changes its gear
-lands on the plain colonial type, exactly as in DOS. cur_type_index is
-unused and kept only for call-site shape. See units.c.
+DS:0x2f5 @JOB->@UNIT row (FUN_15eb_0916), except that a Continental keeps
+its tier on the Soldier/Dragoon rows (Cont. Army + horses = Cont. Cavalry,
+user-observed DOS, reverses #648). Other rows drop the tier. See units.c.
 
 ## ColonizeUnitKind DOS type codes
 

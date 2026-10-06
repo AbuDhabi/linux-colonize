@@ -38,13 +38,14 @@ static int unit_continental_equip_tier(void) {
     int role;
     const char* want;
   } cases[] = {
-    /* bugs.md #648: DS:0x2f5 is flat — no tier is preserved by a gear change.
-     * FUN_15eb_1068 case 1 raw 11268-11270 -> FUN_15eb_0916 raw 9949-9955. */
-    {cont_army, COLONIZE_EJECT_DRAGOON, "Dragoons"},
-    {cont_army, COLONIZE_EJECT_SOLDIER, "Soldiers"},
+    /* User-observed DOS (reverses #648): Soldier/Dragoon rows keep the
+     * Continental tier; every other row drops it. */
+    {cont_army, COLONIZE_EJECT_DRAGOON, "Cont. Cav."},
+    {cont_army, COLONIZE_EJECT_SOLDIER, "Cont. Army"},
     {cont_army, COLONIZE_EJECT_COLONIST, "Colonists"},
-    {cont_cav, COLONIZE_EJECT_SOLDIER, "Soldiers"},
-    {cont_cav, COLONIZE_EJECT_DRAGOON, "Dragoons"},
+    {cont_cav, COLONIZE_EJECT_SOLDIER, "Cont. Army"},
+    {cont_cav, COLONIZE_EJECT_DRAGOON, "Cont. Cav."},
+    {cont_cav, COLONIZE_EJECT_SCOUT, "Scouts"},
     {colonists, COLONIZE_EJECT_DRAGOON, "Dragoons"},
     {colonists, COLONIZE_EJECT_SOLDIER, "Soldiers"},
     {regulars, COLONIZE_EJECT_DRAGOON, "Dragoons"},
