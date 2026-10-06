@@ -1073,7 +1073,7 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
       }
       PopupMsgTokens tok;
       memset(&tok, 0, sizeof(tok));
-      tok.string0 = ai_contact_euro_name(e);
+      tok.string0 = ai_contact_euro_name(ctx->col1, e);
       tok.string1 = ai_contact_tribe_name(nation_id);
       tok.string2 = ai_contact_cargo_name(best_cargo);
       tok.string3 = c->name;
@@ -1152,7 +1152,7 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
     }
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
-    tok.string0 = ai_contact_euro_name(e);
+    tok.string0 = ai_contact_euro_name(ctx->col1, e);
     tok.string1 = ai_contact_tribe_name(nation_id);
     tok.string2 = ai_contact_cargo_name(s->cargo);
     tok.number0 = s->qty;

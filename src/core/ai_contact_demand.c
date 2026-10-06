@@ -401,7 +401,7 @@ int ai_contact_enqueue_incite_target_choice(
     if (target == crown) {
       continue;
     }
-    snprintf(label_buf[n], sizeof(label_buf[n]), "%s", ai_contact_euro_name(target));
+    snprintf(label_buf[n], sizeof(label_buf[n]), "%s", ai_contact_euro_plural(ctx->col1, target));
     labels[n] = label_buf[n];
     ids[n] = target;
     n++;
@@ -462,7 +462,7 @@ void ai_contact_enqueue_incite_confirm(
   }
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
-  tok.string0 = ai_contact_euro_name(target);
+  tok.string0 = ai_contact_euro_plural(ctx->col1, target);
   if ((ind->euro_diplo[target] & COL1_INDIAN_MET_BIT) == 0) {
     /* @NOCONTACT (0x16b7): the tribe has never met the named nation. */
     char nb[AI_POPUP_BODY_LEN];
@@ -517,9 +517,9 @@ static void ai_contact_incite_warfare_chrome(
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = ai_contact_tribe_name(nation_id);
-  tok.string1 = ai_contact_euro_name(inciter);
+  tok.string1 = ai_contact_euro_name(ctx->col1, inciter);
   tok.string2 = ai_contact_tribe_name(nation_id);
-  tok.string3 = ai_contact_euro_name(target);
+  tok.string3 = ai_contact_euro_name(ctx->col1, target);
   char fb[AI_POPUP_BODY_LEN];
   fb[0] = '\0';
   char body[AI_POPUP_BODY_LEN];
@@ -563,7 +563,7 @@ void ai_contact_apply_incite(
     /* @NOCONTACT: the tribe has never met the target nation. */
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
-    tok.string0 = ai_contact_euro_name(target);
+    tok.string0 = ai_contact_euro_plural(ctx->col1, target);
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "NOCONTACT", &tok, "", body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_INCITE, nation_id, "Incite", body);
@@ -588,7 +588,7 @@ void ai_contact_apply_incite(
     /* @ALREADYSMITE: tribe already in the war band with the target. */
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
-    tok.string0 = ai_contact_euro_name(target);
+    tok.string0 = ai_contact_euro_plural(ctx->col1, target);
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "ALREADYSMITE", &tok, "", body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_INCITE, nation_id, "Incite", body);

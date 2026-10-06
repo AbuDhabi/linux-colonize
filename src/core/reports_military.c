@@ -636,7 +636,7 @@ static int reports_foreign_build_rows(
     memset(r, 0, sizeof(*r));
     const ColonizeCol1Player* p = &col1->player[i];
     r->leader = p->name[0] ? p->name : reports_nation_adjective(i);
-    r->adjective = reports_nation_adjective(i);
+    r->adjective = reports_nation_adjective_woi(col1, i); /* OVL06 asm 105176: 09a4 */
     r->is_crown = (crown == i);
     if (r->is_crown) {
       continue;

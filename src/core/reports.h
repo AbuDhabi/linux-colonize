@@ -112,6 +112,15 @@ const char* reports_job_display_name(int job);
 const char* reports_cargo_display_name(int cargo);
 const char* reports_tribe_display_name(int t);
 const char* reports_nation_adjective_display_name(int nation);
+/* WoI-aware nation words (DOS FUN_15b3_01e0 via FUN_281f_09a4, and
+ * FUN_15b3_0198 via FUN_281f_0a1a). Once independence is declared
+ * (0x5382 bit0 = game_options.woi) the human slot (0x5398) reads LABELS
+ * @MISC 69 "Rebel" / 86 "Rebels" and the crown slot (0x53d2) @MISC 70
+ * "Tory" / 87 "Tories"; every other nation, or col1 == NULL, falls through
+ * to the plain @NATIONALITY adjective. Use these only where DOS calls the
+ * 09a4/0a1a thunks; sites that index DS:0x8d0a directly stay plain. */
+const char* reports_nation_adjective_woi(const ColonizeCol1Save* col1, int nation);
+const char* reports_nation_plural_woi(const ColonizeCol1Save* col1, int nation);
 const char* reports_tribe_level_display_name(uint8_t tech);
 
 /*
@@ -136,6 +145,7 @@ const char* reports_tribe_level_display_name(uint8_t tech);
  */
 const char* reports_nation_country_name(int nation);
 const char* reports_home_port_name(int nation);
+const char* reports_mission_prefix(int nation);
 const char* reports_difficulty_title(int level);
 const char* reports_tribe_singular_name(int t);
 const char* reports_fort_tier_name(int tier);

@@ -113,8 +113,9 @@ int ai_king_new_war_event(ColonizeTurnContext* ctx) {
     count = 0;
   }
 
-  const char* peer_name =
-    col1->player[peer].country_name[0] ? col1->player[peer].country_name : "rival";
+  /* FUN_38fd_5930 raw ~68390: %STRING2 = FUN_281f_09a4(peer) — the
+   * @NATIONALITY adjective ("the French"), not the country name. */
+  const char* peer_name = reports_nation_adjective_woi(col1, peer);
   if (ctx->ai_popups) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));

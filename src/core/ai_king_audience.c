@@ -1125,7 +1125,7 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    */
   /* bugs.md #239: no "United Colonies" rename — DOS 160a is only the signing
    * cinematic and never touches country_name. Under the WoI the player
-   * faction reads "Rebels" (LABELS 84/101) via units_combat_nation_label. */
+   * faction reads "Rebel"/"Rebels" (@MISC 69/86) via reports_nation_*_woi. */
   if (ctx->status && ctx->status_size) {
     snprintf(ctx->status, ctx->status_size, "Congress declares independence!");
   }

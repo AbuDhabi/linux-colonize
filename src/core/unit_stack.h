@@ -65,6 +65,7 @@ void unit_stack_render(
   uint8_t text_color,
   uint8_t select_color,
   const ColonizePalette* active_palette, /* frame palette for nation-fill remap */
+  const ColonizeCol1Save* col1,          /* WoI Rebel/Tory adjectives; may be NULL */
   ColonizeFramebuffer8* framebuffer
 );
 

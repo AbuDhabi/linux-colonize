@@ -2662,9 +2662,11 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
         /* NAMES.TXT @NATIONALITY, not a hardcoded table (audit GL-31): a
-         * renamed nation printed the wrong adjective in @LOSTOURSCOUTS. */
+         * renamed nation printed the wrong adjective in @LOSTOURSCOUTS.
+         * FUN_5f7a_000e raw 98865 uses FUN_281f_09a4 (WoI "Tory"). */
         tok.string0 = (col->nation_id >= 0 && col->nation_id < 4)
-                        ? reports_nation_adjective_display_name(col->nation_id)
+                        ? reports_nation_adjective_woi(
+                            game->col1_ok ? &game->col1 : NULL, col->nation_id)
                         : "enemy";
         tok.string1 = col->name;
         char body[AI_POPUP_BODY_LEN];

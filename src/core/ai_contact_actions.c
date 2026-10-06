@@ -1020,7 +1020,7 @@ static void ai_contact_speak_with_chief(
             const int r3 = dos_rng_range(rng, 1, 10 - diff);
             const int r6 = dos_rng_range(rng, 1, 6);
             const int gold = ((int)ind->tech + 1) * r6 * (r1 + r2 + r3) * 4;
-            tok.string1 = ai_contact_euro_name(e);
+            tok.string1 = ai_contact_euro_name(ctx->col1, e);
             tok.number0 = gold;
             tok.has_number0 = true;
             if (human) {
@@ -1052,7 +1052,7 @@ static void ai_contact_speak_with_chief(
           return;
         }
         /* bored */
-        tok.string1 = ai_contact_euro_name(e);
+        tok.string1 = ai_contact_euro_name(ctx->col1, e);
         fb[0] = '\0';
         popup_msg_fill(ctx->messages, "CHIEFBORED", &tok, fb, body, sizeof(body));
         ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
@@ -1074,7 +1074,7 @@ static void ai_contact_speak_with_chief(
     units_despawn(ctx->units, u->id);
     return;
   }
-  tok.string1 = ai_contact_euro_name(e);
+  tok.string1 = ai_contact_euro_name(ctx->col1, e);
   fb[0] = '\0';
   popup_msg_fill(ctx->messages, "CHIEFBORED", &tok, fb, body, sizeof(body));
   ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
@@ -1451,8 +1451,8 @@ static void ai_contact_denounce_heresy(
   }
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
-  tok.string0 = ai_contact_euro_name(e);
-  tok.string1 = ai_contact_euro_name(foreign);
+  tok.string0 = ai_contact_euro_name(ctx->col1, e);
+  tok.string1 = ai_contact_euro_name(ctx->col1, foreign);
   tok.string2 = ai_contact_tribe_name(nation_id);
   char body[AI_POPUP_BODY_LEN];
   char fb[AI_POPUP_BODY_LEN];
@@ -1547,7 +1547,8 @@ static void ai_contact_establish_mission(
   const ColonizeColony* c = cid >= 0 ? colonies_get(ctx->colonies, cid) : NULL;
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
-  tok.string0 = ai_contact_euro_name(e);
+  /* OVL a5dc (C 77288): %STRING0 = raw NAMES @MISSION[e] ("Church of"). */
+  tok.string0 = reports_mission_prefix(e);
   tok.string1 = c ? c->name : col1->player[e].country_name;
   /* NAMES.TXT @SEASONS rows 0/1; reports_season_name is the shared live
      lookup, same Spring/Autumn literals kept as its fallback. */

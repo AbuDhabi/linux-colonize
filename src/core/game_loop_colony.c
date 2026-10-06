@@ -1705,7 +1705,8 @@ bool game_fortify_treaty_confirm(ColonizeGameState* game, int uid) {
   }
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
-  tok.string0 = reports_nation_adjective_display_name(partner);
+  /* FUN_2b5a_1112 raw 42405: %STRING0 = FUN_281f_0a1a(partner), plural. */
+  tok.string0 = reports_nation_plural_woi(game->col1_ok ? &game->col1 : NULL, partner);
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(&game->messages, "HAVETREATY", &tok, "", body, sizeof(body));
   char label_buf[2][POPUP_MSG_CHOICE_LEN];

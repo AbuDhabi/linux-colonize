@@ -3758,7 +3758,8 @@ void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int t
           (u->nation_id == ctx->human_nation || f->nation_id == ctx->human_nation) &&
           ctx->status && ctx->status_size > 0) {
         PopupMsgTokens tok = {0};
-        tok.string0 = ai_diplo_rival_name(ctx->col1, u->nation_id);
+        /* FUN_465b_0000 raw ~75562: %STRING0 = FUN_281f_0a1a(mover), plural. */
+        tok.string0 = reports_nation_plural_woi(ctx->col1, u->nation_id);
         popup_msg_fill(
           ctx->messages, "SNEAK", &tok, "",
           ctx->status, ctx->status_size

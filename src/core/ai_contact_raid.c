@@ -758,10 +758,10 @@ static void ai_contact_raid_wreak_bulletin(
   memset(&tok, 0, sizeof(tok));
   tok.string0 = ai_contact_tribe_name(indian_nation);
   tok.string1 = c->name[0] ? c->name : "";
+  /* FUN_5fef_0f14 raw 99896: %STRING3 = FUN_281f_09a4(colony owner), the
+   * @NATIONALITY adjective ("Tory" under the WoI), not the country name. */
   tok.string3 =
-    (ctx->col1_ok && ctx->col1 && target_euro >= 0 && target_euro <= 3)
-      ? ctx->col1->player[target_euro].country_name
-      : "";
+    (target_euro >= 0 && target_euro <= 3) ? reports_nation_adjective_woi(ctx->col1, target_euro) : "";
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, "RAIDWREAK", &tok, "", body, sizeof(body));
   if (body[0]) {
@@ -1319,11 +1319,10 @@ COLONIZE_INTERNAL void ai_contact_raid_stage_combat(struct ai_contact_raid_ctx* 
         ft && ft->name[0] ? ft->name : ""
       );
     }
-    const char* foe_nation_label = "your";
-    if (ctx->col1 && target_euro >= 0 && target_euro <= 3 &&
-        ctx->col1->player[target_euro].country_name[0]) {
-      foe_nation_label = ctx->col1->player[target_euro].country_name;
-    }
+    /* FUN_5fef_1b0e raw 100800: %STRING1 = FUN_281f_09a4(defender), the
+     * @NATIONALITY adjective ("Rebel" under the WoI), not the country name. */
+    const char* foe_nation_label =
+      (target_euro >= 0 && target_euro <= 3) ? reports_nation_adjective_woi(ctx->col1, target_euro) : "";
     /* LABELS.TXT @MISC row 17 = "Wilderness"; reports_misc_display_word is
        the shared sim-side live lookup (reports_names.c), fallback kept. */
     const char* place = reports_misc_display_word(17, "");
