@@ -998,23 +998,41 @@ ColonizeCol1Save* g_colonies_col1 = NULL;
  * the tile, and reseed it like a founding — rebel_divisor = 100, dividend 0
  * (FUN_364b_1ba8, mirrored in col1_bridge's unmatched-colony branch).
  */
+/*
+ * FUN_364b_1ba8 mints the COL1 record at founding (raw 58028-58052), so the
+ * founder's FUN_15eb_1068 seat (+100 divisor, raw 11301) and every later
+ * mirror write land on it before the next export. With no orphan on the tile
+ * the record is appended.
+ */
 static void colonies_col1_forget_record_at(ColonizeCol1Save* col1, int x, int y, int nation_id) {
-  if (!col1 || !col1->colony) {
+  if (!col1) {
     return;
   }
-  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
-    ColonizeCol1Colony* c = &col1->colony[i];
-    if ((int)c->x != x || (int)c->y != y) {
-      continue;
+  ColonizeCol1Colony* c = NULL;
+  for (uint16_t i = 0; col1->colony && i < col1->head.colony_count; ++i) {
+    if ((int)col1->colony[i].x == x && (int)col1->colony[i].y == y) {
+      c = &col1->colony[i];
+      break;
     }
-    memset(c, 0, sizeof(*c));
-    c->x = (uint8_t)x;
-    c->y = (uint8_t)y;
-    c->nation_id = (uint8_t)(nation_id >= 0 && nation_id <= 3 ? nation_id : 0);
-    c->rebel_divisor = 100;
-    c->building_in_production = 0xFF;
-    break;
   }
+  if (!c) {
+    if (col1->head.colony_count >= COLONIZE_COLONIES_MAX) {
+      return;
+    }
+    ColonizeCol1Colony* grown =
+      realloc(col1->colony, (size_t)(col1->head.colony_count + 1) * sizeof(*grown));
+    if (!grown) {
+      return;
+    }
+    col1->colony = grown;
+    c = &grown[col1->head.colony_count++];
+  }
+  memset(c, 0, sizeof(*c));
+  c->x = (uint8_t)x;
+  c->y = (uint8_t)y;
+  c->nation_id = (uint8_t)(nation_id >= 0 && nation_id <= 3 ? nation_id : 0);
+  c->rebel_divisor = 100;
+  c->building_in_production = 0xFF;
 }
 
 /*
@@ -1092,7 +1110,21 @@ int colonies_found(
    * every runtime<->COL1 pairing is by tile, so its SoL/buildings would be
    * inherited by this brand-new colony (see colonies_col1_forget_record_at). */
   colonies_col1_forget_record_at(g_colonies_col1, x, y, nation_id);
+  /* FUN_364b_1ba8 raw 58029: colony_counts[owner]++ (DS:0x9298) at once. */
+  if (g_colonies_col1 && nation_id >= 0 && nation_id < 4) {
+    g_colonies_col1->stuff.colony_counts[nation_id]++;
+  }
   snprintf(slot->name, sizeof(slot->name), "%s", colonies_next_name(pool, nation_id));
+  /* raw 58058-58067: FUN_281f_0d26(cargo, 1) arms the Custom House export of
+   * sugar, tobacco, cotton, furs, ore, silver, rum, cigars, cloth, coats. */
+  slot->custom_house_bits = (uint16_t)((1u << 1) | (1u << 2) | (1u << 3) | (1u << 4) |
+                                       (1u << 6) | (1u << 7) | (1u << 9) | (1u << 10) |
+                                       (1u << 11) | (1u << 12));
+  /* raw 58088-58099: +0xba[0..3] = 1 for all four nations (the 074a seen
+   * test only re-writes the same 1), +0xbe[0..3] = 0. */
+  for (int e = 0; e < 4; ++e) {
+    slot->pop_on_map[e] = 1;
+  }
   colonies_grant_starters(pool, slot);
   colonies_mark_settlement_tile(x, y, true);
 
@@ -1131,6 +1163,8 @@ int colonies_found(
     c->building_type = -1;
     c->field_job = -1;
     slot->population = slot->colonist_count;
+    /* The founder's FUN_15eb_1068 seat: rebel_divisor += 100 (raw 11301). */
+    colonies_col1_rebel_divisor_adjust(g_colonies_col1, x, y, 100);
   } else {
     slot->population = 0;
   }

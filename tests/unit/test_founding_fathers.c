@@ -1014,6 +1014,10 @@ int main(void) {
 
     free(deep_col1.colony);
     map_free(&map);
+    /* The refresh above bound deep_col1 as the colony/unit col1 context;
+     * colonies_found mints records into it, so drop it with the scope. */
+    colonies_set_col1_context(NULL);
+    units_set_native_fallout_context(NULL, NULL, -1);
   }
 
   /* --- AI Euro nation elect (control==1). --- */

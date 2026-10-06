@@ -1514,6 +1514,11 @@ int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
   const int ox = ship->x;
   const int oy = ship->y;
   const int n = ship->nation_id;
+  /* The mover (FUN_465b_0000 raw 76484, FUN_479b_0972 raw 77099) makes the
+   * hull the current unit DS:0x5392 before FUN_291f_0208 -> 007a. Nothing
+   * clears it until the human's Move Pieces entry, so the human's autosave
+   * names the last AI hull that sailed for Europe. */
+  ctx->units->selected_id = ship->id;
   ship->col1_counter16 = ai_euro_lane_voyage_turns(ctx, n, ox);
   ai_euro_lane_move(ctx, ship, 244 + n, 244 + n);
   ai_euro_set_goto(ship, UNITS_ORDER_NONE, ox, oy);
@@ -1553,6 +1558,33 @@ void ai_euro_ship_leave_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
  * Europe act to place (the FUN_48d3_064e / 048e tail); 236+n is the dock,
  * the port's (200,100).
  */
+/*
+ * FUN_48d3_048e (raw 77810-77901): ring-place a hull arriving from Europe on
+ * High Seas around its own saved tile +0x314d/e, set xy (0948), reveal
+ * (07a0). Goto, orders and MP are untouched; the hull then acts as an
+ * ordinary on-map ship. No ring tile at all is FUN_281f_083a's business
+ * (raw 77880-77884); the hull just stays in the lane.
+ */
+static void ai_euro_europe_place_arrival(ColonizeTurnContext* ctx, ColonizeUnit* u) {
+  int lx = 0;
+  int ly = 0;
+  ai_euro_resolve_landfall_goto(ctx, u, &lx, &ly);
+  int hx = lx;
+  int hy = ly;
+  if (!units_spiral_place_hs_near(ctx->units, ctx->map, lx, ly, u->nation_id, &hx, &hy)) {
+    return;
+  }
+  const int ox = u->x;
+  const int oy = u->y;
+  u->x = hx;
+  u->y = hy;
+  units_tile_stack_arrive(ctx->units, u->id);
+  units_occupancy_notify_moved(ctx->units, ox, oy, hx, hy);
+  ai_euro_sync_aboard_cargo_xy(ctx->units, u);
+  ColonizeWorld w = world_from_turn_ctx(ctx);
+  (void)units_reveal_sight_w(&w, u);
+}
+
 void ai_euro_europe_lane_tick(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->units || nation_id < 0 || nation_id > 3) {
     return;
@@ -1576,6 +1608,19 @@ void ai_euro_europe_lane_tick(ColonizeTurnContext* ctx, int nation_id) {
           ai_euro_lane_move(ctx, u, hops[h][1] + nation_id, hops[h][1] + nation_id);
         }
       }
+    }
+  }
+  /* FUN_48d3_06ba tail -> FUN_48d3_064e: every hull (type 0x0d..0x12) on
+   * the arrival lane 224+n is placed. ponytail: slot order, DOS walks the
+   * lane's tile chain (07e0/02e4); differs only with 2+ same-turn arrivals. */
+  if (!ctx->map) {
+    return;
+  }
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+    ColonizeUnit* u = &ctx->units->units[i];
+    if (u->active && u->nation_id == nation_id && u->aboard_ship_id < 0 &&
+        u->x == 224 + nation_id && u->y == 224 + nation_id && units_is_sea(ctx->units, u->id)) {
+      ai_euro_europe_place_arrival(ctx, u);
     }
   }
 }

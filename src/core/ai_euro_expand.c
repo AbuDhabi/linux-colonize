@@ -680,7 +680,7 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
    * to stamp it only on success (bugs.md #971).
    */
   ai_goals_note_colony_founded(
-    nation_id, ctx->turn_number ? (int)*ctx->turn_number : 0
+    ctx->col1_ok ? ctx->col1 : NULL, nation_id, ctx->turn_number ? (int)*ctx->turn_number : 0
   );
   /*
    * bugs.md #1074: FUN_479b_076e (raw 76961-77047) never prices or pays for

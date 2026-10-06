@@ -912,6 +912,9 @@ void ai_goals_plan_scratch_refresh(
   AiNationPlanScratch* p = &s_plan[nation_id];
   p->leader_trait1 = (int8_t)leader_trait1;
   if (col1) {
+    /* The stamp lives in the nation record (+0x46, saved); a loaded game
+     * resumes from it. Only FUN_479b_076e writes it. */
+    p->last_colony_founded_turn = col1->nation[nation_id].last_colony_founded_turn;
     p->colony_count = col1->stuff.colony_counts[nation_id];
     p->census_pop = col1->stuff.census_pop_proxy[nation_id];
     p->ship_cargo_total = col1->stuff.ship_cargo_totals[nation_id];
@@ -954,11 +957,14 @@ void ai_goals_plan_scratch_refresh(
  * COLONY handler, viceroy_unpacked.c:77006): record the current turn as
  * this nation's last colony-founding turn, feeding 052c's decay term.
  */
-void ai_goals_note_colony_founded(int nation_id, int turn) {
+void ai_goals_note_colony_founded(ColonizeCol1Save* col1, int nation_id, int turn) {
   if (nation_id < 0 || nation_id >= 4) {
     return;
   }
   s_plan[nation_id].last_colony_founded_turn = turn;
+  if (col1) {
+    col1->nation[nation_id].last_colony_founded_turn = (int16_t)turn; /* nation +0x46 */
+  }
 }
 
 /*

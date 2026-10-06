@@ -124,6 +124,9 @@ void turn_clear_mp_spent_all_nations(ColonizeUnitPool* pool) {
     }
     u->mp_spent_turn = 0;
     u->aboard_moves = -1;
+    /* +0x3149 = 0 is the spent byte itself: Euro runtime moves are the
+     * remaining allotment, natives keep DOS spent thirds. */
+    u->moves = u->nation_id >= 4 ? 0 : units_max_mp(pool, u->id);
   }
 }
 
@@ -459,6 +462,44 @@ bool turn_processor_show_indicator(const ColonizeTurnProcessor* proc) {
   return proc && proc->show_indicator;
 }
 
+/*
+ * The year loop's calendar step (raw 6446-6458: 0x538e turn++, 0x538a
+ * year++ / 0x538c season) closes the day after the last Euro slot; the next
+ * day top (raw 6353-6363) follows at once. The slots above the human thus
+ * act under the old date, the human's EOT and autosave under the new one.
+ */
+static void turn_advance_day(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
+  proc->year_before = *ctx->game_year;
+  {
+    const uint16_t autumn_before = *ctx->game_autumn;
+    turn_advance_calendar(ctx->game_year, ctx->game_autumn, ctx->turn_number);
+    /*
+     * @TIMECHANGE (raw 6444-6449, FUN_130d_0290): `LEA BX,[0x141]` right
+     * before `CALLF FUN_281f_03fe` — Ghidra drops the LEA-loaded tag arg,
+     * but the asm shows it (0x141 = DS string "TIMECHANGE", GAME.TXT
+     * @TIMECHANGE Calendar-help). Fires exactly once, the instant the
+     * calendar crosses from one-turn-per-year to the Spring/Autumn
+     * biannual split: year==1600 AND season(0x538c)==0, i.e. the single
+     * turn_advance_calendar() call where year was already 1600 and
+     * autumn flips 0→1. No tutorial-hints gate on this one (that gate
+     * covers a different call a few lines up in the same function).
+     */
+    if (proc->year_before == TURN_BIANNUAL_YEAR && autumn_before == 0 &&
+        *ctx->game_autumn == 1) {
+      popup_chrome_ok(
+        ctx->ai_popups, ctx->messages, "TIMECHANGE", NULL,
+        ""
+      );
+    }
+  }
+  if (ctx->col1_ok && ctx->col1) {
+    ctx->col1->head.turn =
+      (uint16_t)(*ctx->turn_number > 65535u ? 65535u : *ctx->turn_number);
+    ctx->col1->head.year = *ctx->game_year;
+    ctx->col1->head.autumn = *ctx->game_autumn;
+  }
+}
+
 COLONIZE_INTERNAL void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
       diag_info(
         "TURN setup: turn=%u year=%u autumn=%u human=%d",
@@ -475,40 +516,7 @@ COLONIZE_INTERNAL void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurn
        * pre-FINISH layout, when human production still ran in SETUP. */
       turn_set_active_nation(ctx, ctx->human_nation);
       proc->show_indicator = false;
-      proc->year_before = *ctx->game_year;
-      {
-        const uint16_t autumn_before = *ctx->game_autumn;
-        turn_advance_calendar(ctx->game_year, ctx->game_autumn, ctx->turn_number);
-        /*
-         * @TIMECHANGE (raw 6444-6449, FUN_130d_0290): `LEA BX,[0x141]` right
-         * before `CALLF FUN_281f_03fe` — Ghidra drops the LEA-loaded tag arg,
-         * but the asm shows it (0x141 = DS string "TIMECHANGE", GAME.TXT
-         * @TIMECHANGE Calendar-help). Fires exactly once, the instant the
-         * calendar crosses from one-turn-per-year to the Spring/Autumn
-         * biannual split: year==1600 AND season(0x538c)==0, i.e. the single
-         * turn_advance_calendar() call where year was already 1600 and
-         * autumn flips 0→1. No tutorial-hints gate on this one (that gate
-         * covers a different call a few lines up in the same function).
-         */
-        if (proc->year_before == TURN_BIANNUAL_YEAR && autumn_before == 0 &&
-            *ctx->game_autumn == 1) {
-          popup_chrome_ok(
-            ctx->ai_popups, ctx->messages, "TIMECHANGE", NULL,
-            ""
-          );
-        }
-      }
-      /* DOS-LITERAL FUN_4d56_1b3a raw 6355-6357 (bugs.md #713): the spent
-       * byte of every unit of every nation is zeroed once here, right after
-       * the calendar advance and before nation 0 moves. */
-      turn_clear_mp_spent_all_nations(ctx->units);
       proc->result.advanced = true;
-      if (ctx->col1_ok && ctx->col1) {
-        ctx->col1->head.turn =
-          (uint16_t)(*ctx->turn_number > 65535u ? 65535u : *ctx->turn_number);
-        ctx->col1->head.year = *ctx->game_year;
-        ctx->col1->head.autumn = *ctx->game_autumn;
-      }
       /* AI nations only — the human's colonies run their EOT at the top of
        * TURN_PROC_FINISH instead, which is where DOS puts it (see the
        * turn_prod_only_nation comment). */
@@ -607,6 +615,11 @@ COLONIZE_INTERNAL void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnC
           if (n != ctx->human_nation) {
             /* 00f2 tail FUN_291f_0a82 -> FUN_48d3_06ba (raw 58377). */
             ai_euro_europe_lane_tick(ctx, n);
+            /* 00f2 tail FUN_291f_0a74 -> FUN_4962_0018 (raw 58390). */
+            if (ctx->col1_ok && ctx->col1) {
+              const ColonizeWorld cw = world_from_turn_ctx(ctx);
+              col1_stuff_census_4962_w(&cw, &ctx->col1->stuff, n);
+            }
           }
         }
       }
@@ -646,6 +659,13 @@ COLONIZE_INTERNAL void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTur
       diag_info("TURN native nation %d", n);
       proc->show_indicator = true;
       if (n == 4) {
+        turn_advance_day(proc, ctx);
+        /* DOS-LITERAL day top, raw 6353-6363 (bugs.md #713): FUN_281f_0550,
+         * then +0x3149 = 0 for every unit of every nation, then 0676 (the
+         * Indian mid-pass) — before nation 0's EOT. The slots above the human
+         * acted at the tail of the previous day, so they read cleared in the
+         * human's autosave (seed-100 idle campaign, every year). */
+        turn_clear_mp_spent_all_nations(ctx->units);
         /* FUN_4d56_1b3a phase 1 — once, before the eight 1816 calls. */
         ai_indian_midpass_clear_tables(ctx);
       }
@@ -727,6 +747,10 @@ COLONIZE_INTERNAL void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTur
        * save-import value. AI nations get the same probe in their own pass.
        */
       ai_euro_census_ship_pressure_refresh(ctx, ctx->human_nation);
+      if (ctx->col1_ok && ctx->col1) {
+        const ColonizeWorld cw = world_from_turn_ctx(ctx);
+        col1_stuff_census_4962_w(&cw, &ctx->col1->stuff, ctx->human_nation);
+      }
       /* bugs.md #434: the human's FF election lands here — start of the
        * player's turn, with the production chrome — not in SETUP. */
       founding_fathers_tick_human_elect(ctx);
@@ -755,13 +779,14 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
        */
       if (ctx->europe) {
         const ColonizeWorld mw = world_from_turn_ctx(ctx);
-        /* DOS's 5e52 market pass sees the turn counter from before SETUP's
-         * calendar advance. In the seed-100 autosaves, Dutch attrition first
-         * doubles on saved turn 2, then on 4; passing the new turn doubled it
-         * on turns 1 and 3 instead (FUN_38fd_0058, DS:0x538e & 1). */
-        const uint32_t mturn =
-          ctx->turn_number && *ctx->turn_number > 0u ? *ctx->turn_number - 1u : 0u;
+        /* Each nation's 5e52 market pass sees DS:0x538e as of its own
+         * 00f2: the slots above the human ticked before the day's calendar
+         * step (turn_advance_day), the human and the slots below after it.
+         * In the seed-100 autosaves, Dutch attrition first doubles on saved
+         * turn 2, then on 4 (FUN_38fd_0058, DS:0x538e & 1). */
+        const uint32_t now = ctx->turn_number ? *ctx->turn_number : 0u;
         for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+          const uint32_t mturn = (n > ctx->human_nation && now > 0u) ? now - 1u : now;
           /* FUN_3844_00f2 runs no nation EOT for a withdrawn (control 2) slot,
            * so its track — and, for nation 0, the pool decay — stands still. */
           if (ctx->col1_ok && ctx->col1 && ctx->col1->player[n].control == 2) {
@@ -858,11 +883,10 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
          * here re-offered parked Treasures every turn and auto-cashed them
          * post-WoI, neither of which DOS does. */
       }
-      /* Go-To resumes at 10 steps/sec in game_update so the player can watch.
-       * The skip-aware form: a bare turn_select_next_unit hands control back
-       * parked on a Fortified/Sentried unit (prior audit #34), which then
-       * flashes into control for a frame. */
-      turn_select_next_unit_awaiting_orders(ctx->units, ctx->human_nation);
+      /* No unit pick here: DOS autosaves (FUN_130d_0172, raw 6413) before the
+       * human arm, and FUN_2b5a_3b68 (raw 46831-46833) opens Move Pieces with
+       * 0x5392 = 0xffff before picking. game_finish_end_turn does both after
+       * its autosave, so the file carries DS:0x5392 as DOS has it then. */
       if (turn_option_autosave(ctx->col1, ctx->col1_ok)) {
         /* FUN_130d_0172: exactly one slot — decade Spring (year%10==0,
          * autumn==0, turn>2) goes to slot 8, every other autosave to 9. */

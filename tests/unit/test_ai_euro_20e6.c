@@ -971,13 +971,15 @@ static int unit_europe_lane_crossing_ticks(void) {
     return fail("0346: lane 232+n, roll 1-2");
   }
   ticks = 0;
-  while (ai_euro_europe_lane(nation, ship->x, ship->y) != 224 && ticks < 10) {
+  while (ai_euro_in_europe(ship->x, ship->y) && ticks < 10) {
     ai_euro_europe_lane_tick(&f.ctx, nation);
     ++ticks;
   }
-  if (ticks != west_turns + 1) {
+  /* The 06ba tail (064e -> 048e) places the hull in the same tick that
+   * brings it to 224+n: on the landfall High Seas tile itself here. */
+  if (ticks != west_turns + 1 || ship->x != 15 || ship->y != 4) {
     fixture_free(&f);
-    return fail("westbound: roll T reaches 224+n after T+1 ticks");
+    return fail("westbound: roll T is placed at the landfall after T+1 ticks");
   }
   fixture_free(&f);
   return 0;

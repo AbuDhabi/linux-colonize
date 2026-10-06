@@ -434,111 +434,6 @@ void ai_euro_resolve_landfall_goto(
   *out_y = ly;
 }
 
-/*
- * LAB_521d_3558 thin — one-act Atlantic tip after FUN_48d3_048e place.
- * Seeds a latitude-band preferred candidate (full cargo/colony matrix OPEN),
- * then scores water/HS tiles within max_steps toward coastal staging.
- * Cite: move_scoring_ship.md; euro_ocean_scoring.c; test-saves-ai/TURN2.
- *   northern (y≥50): (−3,−3) → SP (53,56)→(50,53)
- *   mid:             (−2,−4) → FR (56,42)→(54,38)
- *   southern (y<30): (−5,−1) → DU (53,14)→(48,13)
- */
-int ai_euro_ocean_3558_first_leg_tip(
-  const ColonizeWorldMap* map,
-  int from_x,
-  int from_y,
-  int landfall_x,
-  int landfall_y,
-  int goal_x,
-  int goal_y,
-  int max_steps,
-  int* out_x,
-  int* out_y
-) {
-  if (!map || !out_x || !out_y || max_steps <= 0 || landfall_x < 0 || landfall_y < 0) {
-    return 0;
-  }
-  int seed_x = 0;
-  int seed_y = 0;
-  if (landfall_y < 30) {
-    seed_x = landfall_x - 5;
-    seed_y = landfall_y - 1;
-  } else if (landfall_y >= 50) {
-    seed_x = landfall_x - 3;
-    seed_y = landfall_y - 3;
-  } else {
-    seed_x = landfall_x - 2;
-    seed_y = landfall_y - 4;
-  }
-  {
-    const int tdx = seed_x > from_x ? seed_x - from_x : from_x - seed_x;
-    const int tdy = seed_y > from_y ? seed_y - from_y : from_y - seed_y;
-    const int tcheb = tdx > tdy ? tdx : tdy;
-    if (tcheb > 0 && tcheb <= max_steps &&
-        (map_tile_is_water(map, seed_x, seed_y) || map_tile_is_high_seas(map, seed_x, seed_y))) {
-      *out_x = seed_x;
-      *out_y = seed_y;
-      return 1;
-    }
-  }
-  int best_x = from_x;
-  int best_y = from_y;
-  int best_score = -999999;
-  for (int dy = -max_steps; dy <= max_steps; ++dy) {
-    for (int dx = -max_steps; dx <= max_steps; ++dx) {
-      const int adx = dx < 0 ? -dx : dx;
-      const int ady = dy < 0 ? -dy : dy;
-      const int steps = adx > ady ? adx : ady;
-      if (steps == 0 || steps > max_steps) {
-        continue;
-      }
-      const int nx = from_x + dx;
-      const int ny = from_y + dy;
-      if (nx < 0 || ny < 0 || nx >= (int)map->width || ny >= (int)map->height) {
-        continue;
-      }
-      if (!map_tile_is_water(map, nx, ny) && !map_tile_is_high_seas(map, nx, ny)) {
-        continue;
-      }
-      const int gcx = goal_x > nx ? goal_x - nx : nx - goal_x;
-      const int gcy = goal_y > ny ? goal_y - ny : ny - goal_y;
-      const int goal_cheb = gcx > gcy ? gcx : gcy;
-      const int from_gcx = goal_x > from_x ? goal_x - from_x : from_x - goal_x;
-      const int from_gcy = goal_y > from_y ? goal_y - from_y : from_y - goal_y;
-      const int from_goal_cheb = from_gcx > from_gcy ? from_gcx : from_gcy;
-      if (goal_cheb >= from_goal_cheb) {
-        continue;
-      }
-      if ((goal_x - from_x) * (nx - from_x) < 0) {
-        continue;
-      }
-      if ((goal_y - from_y) * (ny - from_y) < 0) {
-        continue;
-      }
-      int score = 8000 - goal_cheb * 40 - gcy * 15 - steps;
-      if (nx == seed_x && ny == seed_y) {
-        score += 500;
-      }
-      if (map_tile_is_coast_water(map, nx, ny)) {
-        score += 120;
-      } else if (map_tile_is_high_seas(map, nx, ny)) {
-        score += 30;
-      }
-      if (score > best_score) {
-        best_score = score;
-        best_x = nx;
-        best_y = ny;
-      }
-    }
-  }
-  if (best_score < -999990 || (best_x == from_x && best_y == from_y)) {
-    return 0;
-  }
-  *out_x = best_x;
-  *out_y = best_y;
-  return 1;
-}
-
 int ai_euro_unload_pax_at(
   ColonizeTurnContext* ctx,
   ColonizeUnit* ship,
@@ -558,6 +453,12 @@ int ai_euro_unload_pax_at(
   pax = units_get(ctx->units, pax->id);
   if (!pax) {
     return 0;
+  }
+  /* LAB_3558 lands through FUN_465b_0c1e -> FUN_465b_0000, whose commit
+   * arm reveals around the new tile (FUN_281f_07a0, raw 75712/75813). */
+  {
+    ColonizeWorld w = world_from_turn_ctx(ctx);
+    (void)units_reveal_sight_w(&w, pax);
   }
   ai_euro_set_goto(pax, orders, goto_x, goto_y);
   /* Port-only landfall goto memory (bugs.md #528): only the SENTRY-order
@@ -591,59 +492,6 @@ int ai_euro_name_is_pioneer(ColonizeUnitKind kind) {
   return kind == UNITS_KIND_PIONEER;
 }
 
-
-/*
- * 0a60-style coastal staging from Atlantic landfall (same geometry as
- * ai_coastal_staging_from_landfall in ai.c). TURN3 ship XY matches the tip
- * for seed-100 FR/SP landfalls. Cite: test-saves-ai/TURN3; euro_dispatcher 0a60.
- */
-int ai_euro_coastal_staging_from_landfall(
-  const ColonizeWorldMap* map,
-  int landfall_x,
-  int landfall_y,
-  int* out_x,
-  int* out_y
-) {
-  if (!map || !out_x || !out_y) {
-    return 0;
-  }
-  int tip_x = landfall_x - 5;
-  int tip_y = landfall_y - 3;
-  if (landfall_y < 30) {
-    tip_x = landfall_x - 6;
-    tip_y = landfall_y - 1;
-  }
-  int best_x = -1;
-  int best_y = -1;
-  int best_d = 9999;
-  for (int x = tip_x - 3; x <= tip_x + 3; ++x) {
-    for (int y = tip_y - 3; y <= tip_y + 3; ++y) {
-      if (!map_tile_is_coast_water(map, x, y)) {
-        continue;
-      }
-      int dx = x - tip_x;
-      int dy = y - tip_y;
-      if (dx < 0) {
-        dx = -dx;
-      }
-      if (dy < 0) {
-        dy = -dy;
-      }
-      const int d = dx + dy;
-      if (d < best_d) {
-        best_d = d;
-        best_x = x;
-        best_y = y;
-      }
-    }
-  }
-  if (best_x < 0) {
-    return 0;
-  }
-  *out_x = best_x;
-  *out_y = best_y;
-  return 1;
-}
 
 /* Set a goto and walk it step by step until arrival or the unit is out of
  * moves, then park the unit where it stands. *u_io follows a re-fetch. */

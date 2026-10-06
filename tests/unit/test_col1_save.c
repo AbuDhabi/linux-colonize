@@ -3174,8 +3174,8 @@ int main(void) {
    * runtime still fills. A carrier that has unloaded since the save was
    * applied therefore wrote its OLD cargo back out, and the next load handed
    * the wagon phantom goods that blocked every pickup — the route hauled
-   * nothing and the source colonies piled up. Emptied slots inside the
-   * unit's own hold count must come back zeroed.
+   * nothing and the source colonies piled up. The emptied carrier's slot
+   * count must come back zero.
    */
   {
     ColonizeMsgCatalog names;
@@ -3308,14 +3308,13 @@ int main(void) {
         if (found < 0) {
           fprintf(stderr, "stale hold: emptied wagon missing from the capture\n");
           rc = 1;
-        } else if (save.unit[found].holds_occupied != 0 ||
-                   save.unit[found].cargo_hold[0] != 0 || save.unit[found].cargo_hold[1] != 0) {
+        } else if (save.unit[found].holds_occupied != 0) {
+          /* Only the count: DOS (FUN_15eb_317c) leaves stale slot bytes past
+           * it, and every reader gates on it. */
           fprintf(
             stderr,
-            "stale hold: emptied wagon saved holds=%u cargo=[%u,%u] (want 0/[0,0])\n",
-            (unsigned)save.unit[found].holds_occupied,
-            (unsigned)save.unit[found].cargo_hold[0],
-            (unsigned)save.unit[found].cargo_hold[1]
+            "stale hold: emptied wagon saved holds=%u (want 0)\n",
+            (unsigned)save.unit[found].holds_occupied
           );
           rc = 1;
         }

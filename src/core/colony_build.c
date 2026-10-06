@@ -76,6 +76,10 @@ bool colonies_abandon(ColonizeColonyPool* pool, int colony_id) {
     return false;
   }
   colonies_mark_settlement_tile(col->x, col->y, false);
+  /* Colony delete, raw 58154-58155: colony_counts[owner]-- (DS:0x9298). */
+  if (g_colonies_col1 && col->nation_id >= 0 && col->nation_id < 4) {
+    g_colonies_col1->stuff.colony_counts[col->nation_id]--;
+  }
   memset(col, 0, sizeof(*col));
   int active = 0;
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {

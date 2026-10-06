@@ -151,18 +151,6 @@ void ai_euro_resolve_landfall_goto(
   int* out_x,
   int* out_y
 );
-int ai_euro_ocean_3558_first_leg_tip(
-  const ColonizeWorldMap* map,
-  int from_x,
-  int from_y,
-  int landfall_x,
-  int landfall_y,
-  int goal_x,
-  int goal_y,
-  int max_steps,
-  int* out_x,
-  int* out_y
-);
 int ai_euro_unload_pax_at(
   ColonizeTurnContext* ctx,
   ColonizeUnit* ship,
@@ -175,13 +163,6 @@ int ai_euro_unload_pax_at(
 );
 ColonizeUnitKind ai_euro_unit_kind(const ColonizeUnitPool* pool, const ColonizeUnit* u);
 int ai_euro_name_is_pioneer(ColonizeUnitKind kind);
-int ai_euro_coastal_staging_from_landfall(
-  const ColonizeWorldMap* map,
-  int landfall_x,
-  int landfall_y,
-  int* out_x,
-  int* out_y
-);
 int ai_euro_foreign_unit_at(const ColonizeTurnContext* ctx, const ColonizeUnit* u, int x, int y);
 typedef struct AiEuroShipPressure {
   uint8_t frigate_colonies; /* DS:0xa89b */
@@ -415,15 +396,6 @@ void ai_euro_20e6_stay_tail_589e(ColonizeUnit* u);
 int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 void ai_euro_try_violate_notify(ColonizeTurnContext* ctx, ColonizeUnit* u);
 void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int ty);
-int ai_euro_coastal_water_near(
-  const ColonizeWorldMap* map,
-  int cx,
-  int cy,
-  int from_x,
-  int from_y,
-  int* out_x,
-  int* out_y
-);
 int ai_euro_is_cargo_ship_name(ColonizeUnitKind kind);
 int ai_euro_20e6_load_pick(
   ColonizeTurnContext* ctx,
