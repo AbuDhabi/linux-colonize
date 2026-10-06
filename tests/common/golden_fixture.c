@@ -96,8 +96,10 @@ bool golden_turn(GoldenFixture* fx) {
   ctx.rng_seed = fx->seed;
 
   turn_end(&ctx);
+  /* Headless: no UI touches View/Move Pieces, so DS:0x5390 rides through
+   * from the loaded save (capture below). */
 
-  if (!col1_bridge_capture_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&fx->units), .colonies=(ColonizeColonyPool*)(&fx->colonies), .map=(ColonizeWorldMap*)(&fx->map), .col1=(ColonizeCol1Save*)(&fx->start), .col1_ok=true, .europe=(EuropeScreen*)(&fx->europe)}, fx->year, fx->autumn, fx->turn_number, fx->br.human_nation, fx->br.cursor_x, fx->br.cursor_y, fx->br.view_x, fx->br.view_y, fx->units.selected_id, fx->units.selected_id < 0, err, sizeof(err))) {
+  if (!col1_bridge_capture_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&fx->units), .colonies=(ColonizeColonyPool*)(&fx->colonies), .map=(ColonizeWorldMap*)(&fx->map), .col1=(ColonizeCol1Save*)(&fx->start), .col1_ok=true, .europe=(EuropeScreen*)(&fx->europe)}, fx->year, fx->autumn, fx->turn_number, fx->br.human_nation, fx->br.cursor_x, fx->br.cursor_y, fx->br.view_x, fx->br.view_y, fx->units.selected_id, fx->start.head.map_mode != 0, err, sizeof(err))) {
     fprintf(stderr, "bridge capture: %s\n", err);
     return false;
   }

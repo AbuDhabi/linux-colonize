@@ -3447,21 +3447,16 @@ static int sp_26(void) {
     if (ind->alarm_by_player[0] > 20) {
       return fail("WELCOME Yes should clamp alarm <= 20 (FUN_5bfb :96624)");
     }
-    /* Land grant: occupied tile stamped purchased + euro owner nibble. */
+    /* No land grant: FUN_5bfb_0182 (raw 96536-96559) only ORs PEACE; the
+     * seed-100 idle campaign shows no purchased bit at any AI landfall. */
     {
       euro2 = units_get(&units, e2);
       if (!euro2) {
         return fail("WELCOME Yes euro gone");
       }
       const size_t gidx = (size_t)euro2->y * (size_t)map.width + (size_t)euro2->x;
-      if ((map.layer2[gidx] & MAP_LAYER2_PURCHASED) == 0) {
-        return fail("WELCOME Yes should mark occupied tile purchased");
-      }
-      if (((map.layer3[gidx] >> 4) & 0x0fu) != 0u) {
-        return fail("WELCOME Yes should set euro owner nibble on grant tile");
-      }
-      if (colonies_indian_land_purchase_gold(&col1, &map, euro2->x, euro2->y, 0) != 0) {
-        return fail("WELCOME grant tile must be free to found (purchase gold 0)");
+      if ((map.layer2[gidx] & MAP_LAYER2_PURCHASED) != 0) {
+        return fail("WELCOME Yes must not mark the occupied tile purchased");
       }
     }
 

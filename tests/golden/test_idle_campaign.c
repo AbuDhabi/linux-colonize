@@ -130,10 +130,14 @@ int main(int argc, char** argv) {
       ok = 0;
       break;
     }
+    /* The skipped human turn: FUN_2b5a_3b68 opens Move Pieces with
+     * DS:0x5392 = 0xffff (raw 46833) and the idle player ends it there. */
+    fx.units.selected_id = -1;
     if (!golden_turn(&fx)) {
       ok = 0;
       break;
     }
+    col1_bridge_stamp_autosave_head(&fx.start);
     if (!compare_save(&fx.start, expected)) {
       ok = 0;
       break;

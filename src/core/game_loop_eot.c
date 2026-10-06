@@ -92,14 +92,14 @@ static void game_apply_turn_autosave(ColonizeGameState* game, const ColonizeTurn
   }
   char err[256];
   if (result->request_autosave_decade) {
-    if (!game_save_col1_slot(game, 8, err, sizeof(err))) {
+    if (!game_save_col1_autosave_slot(game, 8, err, sizeof(err))) {
       diag_warn("Decade autosave failed: %s", err);
     } else {
       diag_info("Decade autosave → COLONY08.SAV");
     }
   }
   if (result->request_autosave_turn) {
-    if (!game_save_col1_slot(game, 9, err, sizeof(err))) {
+    if (!game_save_col1_autosave_slot(game, 9, err, sizeof(err))) {
       diag_warn("Turn autosave failed: %s", err);
     } else {
       diag_info("Turn autosave → COLONY09.SAV");
@@ -646,13 +646,7 @@ void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* res
   units_set_combat_watch(NULL, NULL);
   units_set_combat_dissolve(NULL, NULL);
   units_set_combat_popup_pump(NULL, NULL);
-  /* turn.c's KING slice already picked the first unit needing orders;
-   * a hand-off parked during the turn that just ended would skip past it. */
   game->turn_flow_deferred = false;
-  /* New turn always resumes Move Pieces (turn.c's KING-slice
-   * turn_select_next_unit_awaiting_orders already picked the first unit
-   * needing orders, or left none) — rearms the activation queue below. */
-  game->view_pieces_mode = false;
   game_europe_service_trade_harbor(game);
   game_europe_deliver_bound_ships(game);
   /*
@@ -668,6 +662,16 @@ void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* res
    * lane again, so reloading COLONY09.SAV delayed each ship a turn.
    */
   game_apply_turn_autosave(game, result);
+  /* FUN_2b5a_3b68 (raw 46831-46833), the human's Move Pieces entry, after
+   * the autosave: 0x5392 = 0xffff (it may still name an AI hull that sailed
+   * for Europe, raw 76484), then the first unit needing orders. A pick
+   * forces Move Pieces (FUN_2b5a raw 42308-42317); with none the View mode
+   * the player left stays, as in every DOS idle autosave. Go-To resumes at
+   * 10 steps/sec in game_update so the player can watch. */
+  game->units.selected_id = -1;
+  if (game_select_next_unit_awaiting_orders(game)) {
+    game->view_pieces_mode = false;
+  }
   if (result && result->request_europe_open && game->europe_ok) {
     game->europe.open_on_dock = true;
   }

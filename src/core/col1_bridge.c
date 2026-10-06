@@ -2177,6 +2177,14 @@ static void col1_bridge_sanitize_units_for_dos(
   }
 }
 
+void col1_bridge_stamp_autosave_head(ColonizeCol1Save* save) {
+  if (!save) {
+    return;
+  }
+  save->head.map_modal_active = 0;
+  save->head.no_unit_selected = 0;
+}
+
 /* ===================== Runtime -> COL1 capture (save export) (col1_bridge_capture_w) ===================== */
 bool col1_bridge_capture_w(
   const ColonizeWorld* w,
@@ -2968,25 +2976,16 @@ bool col1_bridge_capture_w(
           dst->holds_occupied = (uint8_t)gi;
         }
         /*
-         * campaign4 trade-route regression: the raw +0x0c..+0x15 restore
-         * above re-emits the hold bytes stashed at APPLY time, and the
-         * packing loop only overwrites slots 0..gi-1. A carrier that has
-         * since unloaded therefore saved its old cargo, and reloading gave
-         * the wagon/ship phantom goods that filled its holds — the route
-         * then hauled nothing and the source colonies piled up
-         * (trace_autosave_turn_243: wagon empty in play, 70 silver + 44
-         * sugar in the file; turn 253: live 56 silver plus the stale 44).
-         * Slots the port models are the port's to own; only the ones past
-         * the unit's hold count keep DOS's repurposed bytes (brave
-         * counters, pioneer tools, the wagon errand latch at hold[4]).
+         * campaign4 trade-route regression: a carrier that emptied since
+         * apply kept the stale holds_occupied the raw restore re-emitted, so
+         * the next load handed it phantom goods. The count is the runtime's;
+         * the slot bytes past it stay as restored — DOS's own remover
+         * (FUN_15eb_317c) shifts the slots down and decrements +0x3150
+         * without clearing anything, so stale amounts past the count are
+         * DOS's normal state (seed-100 idle campaign: an empty Merchantman
+         * keeps the starter 255 in hold[2]). Every reader gates on the count.
          */
         if (carries_goods && src->col1_hold_raw_valid) {
-          const int holds =
-            cap_type->cargo < COLONIZE_UNIT_CARGO_MAX ? cap_type->cargo : COLONIZE_UNIT_CARGO_MAX;
-          for (int h = gi; h < holds && h < 6; ++h) {
-            dst->cargo_hold[h] = 0;
-            col1_unit_set_cargo_item(dst, h, 0);
-          }
           dst->holds_occupied = (uint8_t)gi;
         }
       }

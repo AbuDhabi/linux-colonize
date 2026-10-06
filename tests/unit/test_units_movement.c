@@ -964,10 +964,11 @@ static int unit_colony_enter_hull_stack_gate_791_792(void) {
 }
 
 /*
- * bugs.md #1057a: FUN_4720_049e raw 76126-76135 sets the moving nation's
- * player+0x30 bit 0x80 once a committed move ends with land in the 3x3
- * around the destination. AI nations only here; the human's bit belongs to
- * the @LANDHO naming dialog.
+ * bugs.md #1057a (reversed 2026-10-06): FUN_4720_049e raw 76126-76135 is the
+ * human UI move handler (it moves DS:0x5392); AI moves go through
+ * FUN_465b_0000 and never set player+0x30 bit 0x80. The seed-100 idle
+ * campaign keeps every AI bit clear for 107 years of AI landfalls. The
+ * human's bit belongs to the @LANDHO naming dialog, so the mover sets none.
  */
 static int unit_ai_move_marks_new_world(void) {
   static ColonizeCol1Save col1;
@@ -1009,8 +1010,8 @@ static int unit_ai_move_marks_new_world(void) {
     fprintf(stderr, "new_world: land two tiles off must not set the bit\n");
     rc = 1;
   }
-  if (rc == 0 && (!units_try_move_w(&w, ai, 5, 3) || !col1.player[1].named_new_world)) {
-    fprintf(stderr, "new_world: AI move next to land must set the bit\n");
+  if (rc == 0 && (!units_try_move_w(&w, ai, 5, 3) || col1.player[1].named_new_world)) {
+    fprintf(stderr, "new_world: AI move next to land must not set the bit\n");
     rc = 1;
   }
   if (rc == 0 && (!units_try_move_w(&w, hu, 3, 4) || !units_try_move_w(&w, hu, 4, 4) ||

@@ -487,30 +487,6 @@ int ai_contact_welcome_pending(const AiPopupState* st, int e, int nation_id) {
   ) ? 1 : 0;
 }
 
-/*
- * Mark tile as gifted/purchased tribal land (FUN_281f_068c bit 0x10).
- * Used by WELCOME land grant and colonies_found_with_indian_land spend path.
- */
-static void ai_contact_mark_tile_purchased(
-  ColonizeCol1Save* col1,
-  ColonizeWorldMap* map,
-  int x,
-  int y
-) {
-  if (col1 && col1->map.mask && col1->head.map_size_x > 0 && x >= 0 && y >= 0) {
-    const size_t idx = (size_t)y * (size_t)col1->head.map_size_x + (size_t)x;
-    if (idx < col1->map.tile_count) {
-      col1->map.mask[idx] = (uint8_t)(col1->map.mask[idx] | 0x10u);
-    }
-  }
-  if (map && map->layer2 && map_coords_inset(map, x, y)) {
-    const size_t idx = (size_t)y * (size_t)map->width + (size_t)x;
-    if (idx < map->tile_count) {
-      map->layer2[idx] = (uint8_t)(map->layer2[idx] | MAP_LAYER2_PURCHASED);
-    }
-  }
-}
-
 /* Euro land unit of e adjacent to a Brave of nation_id (grant / meet apply). */
 ColonizeUnit* ai_contact_find_adjacent_euro(
   ColonizeTurnContext* ctx,
@@ -519,72 +495,6 @@ ColonizeUnit* ai_contact_find_adjacent_euro(
   int* near_x,
   int* near_y
 );
-
-/*
- * @INDIANWELCOME land grant: Euro land unit occupying the gifted tile.
- * Prefer Brave adjacency; else tribe adjacency (game_loop first-contact path).
- */
-static ColonizeUnit* ai_contact_find_land_grant_unit(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  int e
-) {
-  if (!ctx || !ctx->units || e < 0 || e > 3) {
-    return NULL;
-  }
-  ColonizeUnit* by_brave = ai_contact_find_adjacent_euro(ctx, nation_id, e, NULL, NULL);
-  if (by_brave && !units_is_sea(ctx->units, by_brave->id)) {
-    return by_brave;
-  }
-  if (!ctx->col1 || !ctx->col1->tribe) {
-    return NULL;
-  }
-  /* Self tile first, then MAP_DIR8 order (9-entry walk, not the shared table). */
-  static const int dx9[9] = {0, 0, 1, 1, 1, 0, -1, -1, -1};
-  static const int dy9[9] = {0, -1, -1, 0, 1, 1, 1, 0, -1};
-  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-    const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-    if ((int)t->nation_id != nation_id) {
-      continue;
-    }
-    for (int d = 0; d < 9; ++d) {
-      const int oid = units_id_at(ctx->units, (int)t->x + dx9[d], (int)t->y + dy9[d]);
-      if (oid < 0) {
-        continue;
-      }
-      ColonizeUnit* other = units_get(ctx->units, oid);
-      if (!other || other->nation_id != e) {
-        continue;
-      }
-      if (units_is_sea(ctx->units, other->id)) {
-        continue;
-      }
-      return other;
-    }
-  }
-  return NULL;
-}
-
-/*
- * Thin WELCOME land grant (GAME.TXT: "land you now occupy as a gift").
- * Stamp MAP_LAYER2_PURCHASED + euro owner nibble on the contacting unit tile.
- * Deep DOS grant radius / multi-tile arms remain PARKED.
- */
-static void ai_contact_apply_welcome_land_grant(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  int e
-) {
-  ColonizeUnit* u = ai_contact_find_land_grant_unit(ctx, nation_id, e);
-  if (!u) {
-    return;
-  }
-  ai_contact_mark_tile_purchased(ctx->col1, ctx->map, u->x, u->y);
-  if (ctx->map) {
-    /* FUN_137f_0228 layer3 owner nibble; shared writer in map.c. */
-    map_set_owner_nibble(ctx->map, u->x, u->y, e);
-  }
-}
 
 void ai_contact_apply_welcome_accept(
   ColonizeTurnContext* ctx,
@@ -623,8 +533,10 @@ void ai_contact_apply_welcome_accept(
    */
   ai_diplo_indian_hostility_sync(ctx->col1, e);
 
-  /* Land grant on occupied tile (copy-only → thin ownership write). */
-  ai_contact_apply_welcome_land_grant(ctx, nation_id, e);
+  /* No land grant: FUN_5bfb_0182 (raw 96536-96559) only ORs PEACE and
+   * raises the human's @INDIANPEACE text; the "land you occupy" grant that
+   * stood here had no DOS writer (seed-100 idle campaign: no purchased bit
+   * at any AI landfall). */
 
   const char* tribe = ai_contact_tribe_name(nation_id);
   const char* euro = ai_contact_euro_plural(ctx->col1, e); /* 5bfb_0182 0a1a */
@@ -807,6 +719,9 @@ int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int 
    * raw 96619: `caseD_10(euro, indian, 0x20)` = FUN_15b3_0066 or_both, so the
    * Euro-side row gets MET here too, reject or not (2026-09-17). */
   ai_diplo_or_both(ctx->col1, indian_nation, euro_nation, COL1_INDIAN_MET_BIT);
+  /* raw 96669: the first-contact arm ends with contact_state[euro] = 2 on
+   * accept and reject alike (the popup only picks 0650 vs the +100 grudge). */
+  ind->contact_state[euro_nation] = 2;
 
   if (ai_contact_euro_is_human(ctx, euro_nation) && ctx->ai_popups) {
     ai_contact_enqueue_welcome(ctx, euro_nation, indian_nation);

@@ -395,6 +395,14 @@ bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t er
   return savegame_write_col1(game->config.save_dir, slot, &game->col1, err, err_size);
 }
 
+bool game_save_col1_autosave_slot(ColonizeGameState* game, int slot, char* err, size_t err_size) {
+  if (!game_capture_col1(game, err, err_size)) {
+    return false;
+  }
+  col1_bridge_stamp_autosave_head(&game->col1);
+  return savegame_write_col1(game->config.save_dir, slot, &game->col1, err, err_size);
+}
+
 bool game_save_col1_named(ColonizeGameState* game, const char* name, char* err, size_t err_size) {
   if (!game_capture_col1(game, err, err_size)) {
     return false;

@@ -2390,6 +2390,9 @@ int ai_euro_20e6_ship_far_roam(ColonizeTurnContext* ctx, ColonizeUnit* u, const 
       return 0;
     }
     *flags |= 0x10;
+    /* 521d:4e86 MOV DX,0x44 -> LAB_27f5 -> FUN_521d_20c6: +0x314b = 'D',
+     * +0x314c = 0x0b, goto. */
+    u->col1_ai_plan = 0x44;
     ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, tx, ty);
     if (getenv("AI_SHIP_TRACE")) {
       fprintf(stderr, "[ship] unit %d far roam -> (%d,%d)\n", u->id, tx, ty);
@@ -3822,43 +3825,6 @@ void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int t
       }
     }
   }
-}
-
-/* Water tile adjacent to a coastal colony (ships cannot enter foreign land). */
-int ai_euro_coastal_water_near(
-  const ColonizeWorldMap* map,
-  int cx,
-  int cy,
-  int from_x,
-  int from_y,
-  int* out_x,
-  int* out_y
-) {
-  if (!map || !out_x || !out_y || !map_tile_is_coastal(map, cx, cy)) {
-    return 0;
-  }
-  int best = -1;
-  int bx = 0;
-  int by = 0;
-  for (int d = 0; d < 8; ++d) {
-    const int nx = cx + MAP_DIR8_DX[d];
-    const int ny = cy + MAP_DIR8_DY[d];
-    if (!map_tile_is_water(map, nx, ny)) {
-      continue;
-    }
-    const int dist = abs(nx - from_x) + abs(ny - from_y);
-    if (best < 0 || dist < best) {
-      best = dist;
-      bx = nx;
-      by = ny;
-    }
-  }
-  if (best < 0) {
-    return 0;
-  }
-  *out_x = bx;
-  *out_y = by;
-  return 1;
 }
 
 /* Caravel / Merchantman / Galleon — New-World cargo haul (manual trade ships). */

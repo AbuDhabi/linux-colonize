@@ -63,6 +63,14 @@ bool col1_bridge_capture_w(
   size_t err_size
 );
 
+/*
+ * FUN_130d_0172 turn autosave: written from the year loop between the
+ * human's EOT and Move Pieces (raw 6413), where DS:0x53c4 map_modal_active
+ * and DS:0x53c6 no_unit_selected are both 0 (all 93 seed-100 idle-campaign
+ * autosaves). Apply after col1_bridge_capture_w for slots 8/9.
+ */
+void col1_bridge_stamp_autosave_head(ColonizeCol1Save* save);
+
 /* Build a minimal standard-size Col1 template (empty natives/unknown). */
 bool col1_bridge_init_template(
   ColonizeCol1Save* save,

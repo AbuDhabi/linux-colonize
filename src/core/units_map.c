@@ -244,6 +244,16 @@ static void units_clear_slot(ColonizeUnitPool* pool, ColonizeUnit* unit) {
   }
 }
 
+/* DOS-LITERAL FUN_1427_0824 raw 7794-7795: destroying a Euro unit takes it
+ * off the FUN_4962_0018 all_unit_counts snapshot (DS:0x8cfc) at once; the
+ * next census of that nation recounts. */
+static void units_census_count_destroy(const ColonizeUnit* unit) {
+  const int n = unit->nation_id & 0xf;
+  if (g_units_fallout_col1 && n < 4 && g_units_fallout_col1->stuff.all_unit_counts[n] != 0) {
+    g_units_fallout_col1->stuff.all_unit_counts[n]--;
+  }
+}
+
 bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
   ColonizeUnit* unit = units_get(pool, unit_id);
   if (!unit) {
@@ -257,6 +267,7 @@ bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
     for (int i = 0; i < unit->cargo_count; ++i) {
       ColonizeUnit* pax = units_get(pool, unit->cargo_ids[i]);
       if (pax) {
+        units_census_count_destroy(pax);
         units_clear_slot(pool, pax);
         if (pool->unit_count > 0) {
           pool->unit_count--;
@@ -301,6 +312,7 @@ bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
       unit->home_tribe_id < (int)g_units_fallout_col1->head.tribe_count) {
     g_units_fallout_col1->tribe[unit->home_tribe_id].state.needs_colonist = 1;
   }
+  units_census_count_destroy(unit);
   units_clear_slot(pool, unit);
   if (pool->unit_count > 0) {
     pool->unit_count--;

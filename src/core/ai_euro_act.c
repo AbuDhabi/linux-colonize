@@ -100,7 +100,6 @@ int ai_euro_5952_equip_pick(const ColonizeColony* c, int target) {
 COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_europe_exit(struct ai_euro_act_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
-  const int nation_id = a->nation_id;
 
   /* (The Europe/HS treasure cash-in that stood here was deleted 2026-09-23,
    * bugs.md #746 — DOS's AI never puts a treasure on a ship.) */
@@ -119,165 +118,16 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_europe_exit(struct ai_euro_ac
    * sells the warehouse surplus a ship dumped into the colony.
    */
 
-  /*
-   * FUN_48d3_048e Europe→map: spiral-place on HS near landfall goto — never
-   * prefer_y from Europe sentinel (~228+nation); that pinned rivals south.
-   * First leg: scored ocean steps (FUN_521d_20e6 / LAB_521d_3558) toward
-   * west-explore (4,13). TURN2 endpoints are one-act MP landings of that
-   * drain — not a separate approach goal / colony-sail pick.
-   * Cite: FUN_48d3_048e/0434; move_scoring.md §ocean; test-saves-ai/TURN2.
-   */
-  int exited_europe = 0;
+  /* Arrivals (lane 224+n) are placed by the FUN_48d3_06ba tail inside
+   * ai_euro_europe_lane_tick, before the nation acts; a hull still in
+   * Europe here is docked (departs, FUN_48d3_0346) or crossing. */
+  const int exited_europe = 0;
   if (ai_euro_in_europe(u->x, u->y)) {
-    /* bugs.md #1056: only a hull the lane tick brought to 224+n is placed.
-     * A docked hull departs onto the westbound lane (FUN_48d3_0346); one
-     * still crossing has nothing to do. */
-    const int lane = ai_euro_europe_lane(u->nation_id, u->x, u->y);
-    if (lane != 224) {
-      if (lane == 0) {
-        ai_euro_ship_leave_europe(ctx, u);
-      }
-      u->moves = 0;
-      return AI_EURO_ACT_RETURN;
+    if (ai_euro_europe_lane(u->nation_id, u->x, u->y) == 0) {
+      ai_euro_ship_leave_europe(ctx, u);
     }
-  }
-  if (ai_euro_in_europe(u->x, u->y)) {
-    int lx = 0;
-    int ly = 0;
-    ai_euro_resolve_landfall_goto(ctx, u, &lx, &ly);
-    /*
-     * Established nation: the Europe-exit goto is the home coast, not the
-     * opening west-explore course (4,13). A passenger's colony goto wins,
-     * else the own coastal colony nearest the landfall guess. Without this
-     * a mid-game ship left Europe aimed at (4,y): greedy steps west into a
-     * land pocket, the pathfinder fallback routed back east, and the ship
-     * sailed the same loop every turn with its cargo still aboard.
-     */
-    int home_wx = -1;
-    int home_wy = -1;
-    if (colonies_count_for_nation(ctx->colonies, nation_id) > 0) {
-      int cx = -1;
-      int cy = -1;
-      for (int c = 0; c < u->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
-        const ColonizeUnit* pax = units_get_const(ctx->units, u->cargo_ids[c]);
-        if (!pax || !pax->active) {
-          continue;
-        }
-        const ColonizeColony* pc = colonies_find_at_xy(ctx->colonies, pax->goto_x, pax->goto_y);
-        if (pc && pc->nation_id == nation_id && map_tile_is_coastal(ctx->map, pc->x, pc->y)) {
-          cx = pc->x;
-          cy = pc->y;
-          break;
-        }
-      }
-      if (cx < 0) {
-        int best = -1;
-        for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-          const ColonizeColony* c = &ctx->colonies->colonies[i];
-          if (!c->active || c->nation_id != nation_id ||
-              !map_tile_is_coastal(ctx->map, c->x, c->y)) {
-            continue;
-          }
-          const int d = abs(c->x - lx) + abs(c->y - ly);
-          if (best < 0 || d < best) {
-            best = d;
-            cx = c->x;
-            cy = c->y;
-          }
-        }
-      }
-      if (cx >= 0 && ai_euro_coastal_water_near(ctx->map, cx, cy, lx, ly, &home_wx, &home_wy)) {
-        lx = home_wx;
-        ly = home_wy;
-      }
-    }
-    int hx = lx;
-    int hy = ly;
-    int placed = 0;
-    if (units_spiral_place_hs_near(ctx->units, ctx->map, lx, ly, u->nation_id, &hx, &hy)) {
-      placed = 1;
-    }
-    if (!placed &&
-        (map_tile_is_high_seas(ctx->map, lx, ly) || map_tile_is_water(ctx->map, lx, ly)) &&
-        units_id_at(ctx->units, lx, ly) < 0) {
-      hx = lx;
-      hy = ly;
-      placed = 1;
-    }
-    if (!placed &&
-        units_find_high_seas_tile(ctx->units, ctx->map, lx, ly, &hx, &hy)) {
-      placed = 1;
-    }
-    if (!placed &&
-        units_find_eastern_high_seas_tile(ctx->units, ctx->map, ly, &hx, &hy)) {
-      placed = 1;
-    }
-    if (placed) {
-      {
-        const int tel_ox = u->x;
-        const int tel_oy = u->y;
-        u->x = hx;
-        u->y = hy;
-        if (u->aboard_ship_id < 0 && units_is_on_map(u)) {
-          units_tile_stack_arrive(ctx->units, u->id);
-        }
-        units_occupancy_notify_moved(ctx->units, tel_ox, tel_oy, hx, hy);
-      }
-      ai_euro_sync_aboard_cargo_xy(ctx->units, u);
-      int wx = 4;
-      int wy = 13;
-      if (!(map_tile_is_water(ctx->map, wx, wy) || map_tile_is_high_seas(ctx->map, wx, wy))) {
-        wy = ly;
-      }
-      /*
-       * First leg: LAB_521d_3558-shaped waypoint (latitude tip preferred when
-       * in MP range; else score toward coastal staging). Then west-explore.
-       * Cite: move_scoring.md §ocean; test-saves-ai/TURN2.
-       */
-      int approach_x = wx;
-      int approach_y = wy;
-      const int mp = u->moves > 0 ? u->moves : units_max_mp(ctx->units, u->id);
-      int stage_x = lx;
-      int stage_y = ly;
-      int way_x = wx;
-      int way_y = wy;
-      if (ai_euro_coastal_staging_from_landfall(ctx->map, lx, ly, &stage_x, &stage_y) &&
-          ai_euro_ocean_3558_first_leg_tip(
-            ctx->map, u->x, u->y, lx, ly, stage_x, stage_y, mp, &way_x, &way_y
-          )) {
-        approach_x = way_x;
-        approach_y = way_y;
-      } else if (ai_euro_ocean_3558_first_leg_tip(
-                   ctx->map, u->x, u->y, lx, ly, lx, ly, mp, &way_x, &way_y
-                 )) {
-        approach_x = way_x;
-        approach_y = way_y;
-      }
-      ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, approach_x, approach_y);
-      exited_europe = 1;
-      while (u->active && u->moves > 0 &&
-             (u->x != u->goto_x || u->y != u->goto_y)) {
-        if (!units_advance_goto_one_step_w(
-                &(ColonizeWorld){.units = ctx->units, .colonies = ctx->colonies, .map = ctx->map},
-                u->id
-              )) {
-          break;
-        }
-        ai_euro_sync_aboard_cargo_xy(ctx->units, u);
-        u = units_get(ctx->units, u->id);
-        if (!u) {
-          return AI_EURO_ACT_RETURN;
-        }
-      }
-      /* After approach leg: home coast (established), else west-explore
-       * course for later turns (0a60). */
-      if (home_wx >= 0) {
-        ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, home_wx, home_wy);
-      } else {
-        ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, wx, wy);
-      }
-      u->moves = 0;
-    }
+    u->moves = 0;
+    return AI_EURO_ACT_RETURN;
   }
 
   a->exited_europe = exited_europe;
