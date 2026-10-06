@@ -22,6 +22,7 @@
 #include "core/founding_fathers.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "core/sound.h"
 #include "core/strutil.h"
 #include "core/unit_chrome.h"
@@ -450,8 +451,8 @@ static const char* units_combat_nation_label_form(
   }
   if (nation_id >= 4 && nation_id <= 11) {
     /* @TRIBES column 1 is the singular ("Inca"), which is what a unit label
-     * wants — column 0 is the plural. */
-    return reports_tribe_singular_name(nation_id - 4);
+     * wants — column 0 is the plural (FUN_281f_0a1a, raw 100798 %STRING0). */
+    return plural ? reports_tribe_name(nation_id - 4) : reports_tribe_singular_name(nation_id - 4);
   }
   return "enemy";
 }
@@ -2452,13 +2453,13 @@ void units_combat_outcome_popups(
       const int place_x = atk_wins ? lose->x : win->x;
       const int place_y = atk_wins ? lose->y : win->y;
       const ColonizeUnit* def_u = atk_wins ? lose : win;
-      tok.string0 = units_combat_nation_label(col1, atk_nation); /* tribe */
+      tok.string0 = units_combat_nation_label_plural(col1, atk_nation); /* 0a1a raw 100798: plural tribe */
       tok.string1 = units_combat_nation_label(col1, def_nation);
       tok.string2 = units_combat_unit_label(pool, def_u);
       tok.string3 = units_combat_place_label(col1, place_x, place_y);
       if (atk_wins) {
         /* @INDIANWIN0: {tribe} ambush {nation unit} near {place}! */
-        tok.string4 = tok.string0;
+        tok.string4 = units_combat_nation_label(col1, atk_nation);
         units_combat_enqueue_tok(
           AI_POPUP_TAG_COMBAT_AMBUSH,
           "INDIANWIN0",

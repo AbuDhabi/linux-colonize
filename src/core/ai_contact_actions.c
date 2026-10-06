@@ -31,6 +31,7 @@
 #include "core/map.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "core/strutil.h"
 #include "core/units.h"
 #include "core/village_trade_intel.h"
@@ -1175,7 +1176,7 @@ static void ai_contact_demand_tribute(
           c->stock[good] += qty;
         }
         tok.string0 = title;
-        tok.string1 = tribe;
+        tok.string1 = reports_tribe_name(nation_id - 4); /* OVL13 0x169d: 0a1a(tribe) */
         tok.number0 = qty;
         tok.has_number0 = true;
         tok.string2 = ai_contact_cargo_name(good);
@@ -1185,7 +1186,7 @@ static void ai_contact_demand_tribute(
         ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Tribute", body);
       } else {
         tok.string0 = title;
-        tok.string1 = tribe;
+        tok.string1 = reports_tribe_name(nation_id - 4); /* OVL13 0x1692: 0a1a(tribe) */
         fb[0] = '\0';
         popup_msg_fill(ctx->messages, "EXTORTPOOR", &tok, fb, body, sizeof(body));
         ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Tribute", body);
@@ -1194,7 +1195,7 @@ static void ai_contact_demand_tribute(
     } else {
       tok.string0 = title;
       tok.string1 = col1->player[e].name;
-      tok.string2 = tribe;
+      tok.string2 = reports_tribe_name(nation_id - 4); /* OVL13 0x1689: 0a1a(tribe) */
       fb[0] = '\0';
       popup_msg_fill(ctx->messages, "EXTORTNO", &tok, fb, body, sizeof(body));
       ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Tribute", body);

@@ -35,6 +35,7 @@
 #include "core/map.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "core/strutil.h"
 #include "core/units.h"
 #include "core/village_trade_intel.h"
@@ -364,7 +365,7 @@ static void ai_contact_00f2_burn_body(
 ) {
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
-  tok.string0 = ai_contact_tribe_name(nation_id);
+  tok.string0 = reports_tribe_name(nation_id - 4); /* 4cc6_0000: 0a1a(tribe) */
   tok.string1 = ai_contact_euro_name(col1, euro);
   popup_msg_fill(messages, "INDIANBURN", &tok, "", out, out_size);
 }
@@ -629,7 +630,7 @@ void ai_contact_apply_welcome_accept(
   const char* euro = ai_contact_euro_plural(ctx->col1, e); /* 5bfb_0182 0a1a */
   PopupMsgTokens peace_tok;
   memset(&peace_tok, 0, sizeof(peace_tok));
-  peace_tok.string0 = tribe;
+  peace_tok.string0 = reports_tribe_name(nation_id - 4); /* 5bfb_0182: 0a1a(tribe) */
   peace_tok.string1 = euro;
   char peace_fb[AI_POPUP_BODY_LEN];
   peace_fb[0] = '\0';
@@ -1012,7 +1013,6 @@ void ai_contact_enqueue_village_meet(
   if (!ctx || !ctx->ai_popups || !ctx->col1) {
     return;
   }
-  const char* tribe = ai_contact_tribe_name(nation_id);
   const ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
   const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
   const ColonizeUnit* u = (ctx->units && unit_id >= 0) ? units_get_const(ctx->units, unit_id) : NULL;
@@ -1064,7 +1064,7 @@ void ai_contact_enqueue_village_meet(
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = ai_contact_level_noun(ctx, (int)ind->tech);
-  tok.string1 = tribe;
+  tok.string1 = reports_tribe_name(nation_id - 4); /* 4d56_4528: 0a1a(tribe) */
   char fb[AI_POPUP_BODY_LEN];
   fb[0] = '\0';
   char body[AI_POPUP_BODY_LEN];

@@ -401,6 +401,15 @@ void europe_seed_campaign_prices(EuropeScreen* eu, struct ColonizeDosRng* rng);
  * bugs.md #1011/#1016.
  */
 void europe_seed_campaign_prices_w(const ColonizeWorld* w, struct ColonizeDosRng* rng);
+/*
+ * FUN_38fd_6024's RNG work, all on one stream reseeded from `seed` (DOS
+ * DS:0x83a6, the new-game timer word; the port's campaign seed): per nation
+ * 0..3 the +0x44/+0x45 recruit LFSR seed and the three opening pool slots
+ * (two 46d4 rolls, human easy opener, Spain slot 0), then the price work
+ * above. The bound nation's EuropeScreen pool mirrors its record. bugs.md
+ * #1058; matches original_saves/mapgen/SEED100.SAV.
+ */
+void europe_seed_campaign_w(const ColonizeWorld* w, uint32_t seed);
 /* Shared recruit-choice source: DOS FUN_38fd_4884 draws the same three pool
  * slots for the Recruit menu, the Brewster @RECRUITCHOOSE pick and the
  * Fountain of Youth @RECRUIT picks. Ensure fills empty slots; label is the

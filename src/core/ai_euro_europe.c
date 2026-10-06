@@ -523,8 +523,8 @@ static int ai_euro_5d04_ship_buy_ladder(
  *   FUN_291f_0b26 / 0afc   FUN_38fd_0718 recruit spawn (profession-coded,
  *                          Vet. Soldier 1-in-(diff+5) becomes a Dragoon,
  *                          Pioneer gets 100 tools) / FUN_38fd_46d4 next
- *                          recruit profession (the +0x44/+0x45 remap table
- *                          is not ported — a plain RNG pick stands in).
+ *                          recruit profession (europe_roll_pool_profession:
+ *                          +0x44/+0x45 LFSR + remap, bugs.md #1058).
  *   FUN_291f_0c3e / 09ea   Europe buy price of a cargo (nation market).
  *   FUN_291f_0c14 / 0a2e   market buy / sell volume bookkeeping.
  *   FUN_281f_08bc(head,4/0xc/0xe)  FUN_1427_0d38 stack queries: 4 = land

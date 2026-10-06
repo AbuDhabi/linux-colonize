@@ -144,9 +144,9 @@ graphs:
         note: Sticky-unit counter, deferred-found, unloaded-this-turn, 0a60 pilot state, per-continent explorer count; wagon-errand / explore-fatigue / ring-hop latches of dead unit ids.
       - id: colony_tick
         kind: sub
-        label: Colony tick — colonist re-placement (FUN_5952_035e)
+        label: Colony tick — full FUN_5952_035e body
         sub: colony_tick
-        fn: ai_euro_colony_jobs.c:ai_euro_colony_tick_28c8_reassign
+        fn: ai_euro_colony_jobs.c:ai_euro_colony_tick_5952
       - id: inventory
         kind: call
         label: Colony inventory — shortage tallies
@@ -541,7 +541,7 @@ graphs:
         label: "Commit best slot: +0x314b order '1' (FOUND 't', MIL_EXPAND 'i'), +0x314c = 0x0b, +0x314d/e = goal tile; claim-count++ unless MILITARY"
         fn: ai_euro_goals.c:ai_euro_0a60_goal_orders_structural
         status: structural
-        note: "2026-09-18f (bugs.md #525): the commit writes the REAL unit bytes now (u->col1_ai_plan / u->orders / u->goto_x / u->goto_y via ai_euro_set_goto), not the retired s_0a60_pilot_state mirror, so the 20e6 pre-LAB_4d2e gate and the act-level arms see the same course the rest of the port sets. LAND ONLY, and that is a port divergence: DOS binds ships here too (a 0x0b transport whose DS:0x523d bit0 is clear skips 20e6 outright and just walks the goal), but binding them moves every AI transport off its landfall onto this port's own 0a60 ocean-tile FOUND/CONTACT producers and loses four of the six real DOS save pairs in golden_ai_turns — i.e. the SHIP half of the goal table is not faithful enough yet. Open lead. The AI_GOAL_* code itself has no DOS byte at all: `ai_goals_primary_code_at` re-reads it from the goal table at +0x314d/e, and ai_euro_unit_act captures the binding before 20e6's LAB_589e wander commit can overwrite +0x314c with 0x0c."
+        note: "2026-09-18f (bugs.md #525): the commit writes the REAL unit bytes now (u->col1_ai_plan / u->orders / u->goto_x / u->goto_y via ai_euro_set_goto), not the retired s_0a60_pilot_state mirror, so the 20e6 pre-LAB_4d2e gate and the act-level arms see the same course the rest of the port sets. Ships bind here too, as in DOS (a 0x0b transport whose DS:0x523d bit0 is clear skips 20e6 outright and just walks the goal), since 2026-09-19 (bugs.md #527): the old land-only divergence came from ai_euro_0a60_ship_full counting passengers. A hull holding only passengers never gets +0x3148 bits 2/3 (raw 87511-87514 compares 0x5237[type] with the GOODS-hold count +0x3150), so it cannot take FOUND/MIL_EXPAND; such a hull lands its cargo only through the LAB_3558 mask (bugs.md #1062). The AI_GOAL_* code itself has no DOS byte at all: `ai_goals_primary_code_at` re-reads it from the goal table at +0x314d/e, and ai_euro_unit_act captures the binding before 20e6's LAB_589e wander commit can overwrite +0x314c with 0x0c."
       - id: end
         kind: end
         label: "return (unit_act reads +0x314b/c/d/e back off the unit)" 
@@ -1050,13 +1050,13 @@ graphs:
 
   # ---------------------------------------------------------------------
   - id: colony_tick
-    title: Colony tick — ai_euro_colony_tick_28c8_reassign (FUN_5952_035e placement section)
+    title: Colony tick — ai_euro_colony_tick_5952 (whole FUN_5952_035e body)
     entry: loop
     nodes:
       - id: loop
         kind: loop
         label: Each own colony with colonists (AI nations only — DOS has one call site, inside 6d8e)
-        fn: ai_euro_colony_jobs.c:ai_euro_colony_tick_28c8_reassign
+        fn: ai_euro_colony_jobs.c:ai_euro_colony_tick_5952
         dos: FUN_5952_035e via 2a1f_0530 → 521d_5cf6 → 2a1f_05a8 — raw 93119, inside the PRELUDE colony loop
         status: dos
         note: "Runs first in ai_euro_dispatcher_turn (before planning / 0342 / 0a60 / any unit act), matching the DOS 6d8e prelude. The trailing 28c8_reassign call and the planning-time 5952 build-cascade loop are gone."

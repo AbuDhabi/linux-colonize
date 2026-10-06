@@ -2055,7 +2055,17 @@ static void col1_bridge_sanitize_units_for_dos(
      * departures pick Sentry units up through the ordinary move path
      * (units_board_stacked), not here.
      */
-    if (map_tile_is_land(map, land->x, land->y)) {
+    /*
+     * bugs.md #1059: off-map coords read as water (map_is_water_at), so the
+     * Europe park (200,100), the dock and the sea lanes looked like an ocean
+     * orphan. Every save then boarded a nation's whole Europe stack onto
+     * whatever own hull sat in Europe — the uncapped restore board took 22
+     * colonists on one Caravel, ran cargo_ids[] into cargo_count and the
+     * next ids landed on the record two slots further on (the Honduras
+     * Artillery). Units in Europe are not stranded at sea; leave them.
+     */
+    if (units_coords_in_europe_park(land->x, land->y) ||
+        map_tile_is_land(map, land->x, land->y)) {
       continue;
     }
     for (int s = 0; s < units_slot_end(units); ++s) {

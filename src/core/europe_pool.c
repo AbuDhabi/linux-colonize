@@ -233,15 +233,11 @@ static void europe_pool_view_from_screen(EuropePoolView* v, const EuropeScreen* 
  *    profession already in the pool is thrown away and re-rolled, up to
  *    100 attempts.
  *
- * Deviation: DOS draws the expert value from a per-nation 5-bit LFSR
- * (nation +0x44 stepped by FUN_3f3f_0006 with poly 0x14, plus the +0x45
- * salt, rejecting > 0x18) so the sequence never repeats a value inside one
- * cycle. Those two bytes are the ones the port repurposed as
- * ColonizeCol1Nation.diplo_flag[0..1], so the state is not available here;
- * a uniform draw over the same 0..0x18 range is used instead (see
- * EuropePoolRng — like the LFSR it takes no shared-stream draw). The
- * reachable set and its distribution are identical, only the ordering
- * differs. The tier rolls above are the real `04d4` stream draws.
+ * The expert value is the DOS per-nation 5-bit LFSR (nation +0x44 stepped
+ * by FUN_3f3f_0006 with poly 0x14, plus the +0x45 salt, rejecting > 0x18)
+ * when st->lfsr is bound (europe_pool_expert_roll); without a nation record
+ * a local stand-in draws the same 0..0x18 range. The tier rolls above are
+ * the real `04d4` stream draws.
  */
 int europe_roll_pool_profession(
   const EuropePoolView* v, int slot, bool force_expert, EuropePoolRng* st
@@ -346,6 +342,13 @@ static void europe_refill_pool_slot_impl(
   EuropePoolRng st;
   st.dos = dos;
   st.local = rng_state ? rng_state : &local;
+  /* Live refills (bound stream) step the human nation's own +0x44 LFSR. */
+  st.lfsr = NULL;
+  st.salt = 0;
+  if (dos && g_europe_live_save && eu->bound_nation < COLONIZE_COL1_NATION_COUNT) {
+    st.lfsr = &g_europe_live_save->nation[eu->bound_nation].recruit_lfsr;
+    st.salt = g_europe_live_save->nation[eu->bound_nation].recruit_salt;
+  }
   EuropePoolView view;
   europe_pool_view_from_screen(&view, eu);
   const int job = europe_roll_pool_profession(&view, slot, force_expert, &st);
@@ -541,6 +544,43 @@ void europe_seed_campaign_prices_w(const ColonizeWorld* w, ColonizeDosRng* rng) 
   for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
     europe_market_seed_tail_w(w, n, 0u);
   }
+}
+
+void europe_seed_campaign_w(const ColonizeWorld* w, uint32_t seed) {
+  if (!w) {
+    return;
+  }
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, seed); /* FUN_281f_04ca(DS:0x83a6), raw 68641 */
+  struct ColonizeCol1Save* col1 = w->col1_ok ? w->col1 : NULL;
+  if (col1) {
+    /* raw 68662-68733, once per nation in 0..3 order. */
+    const int d = (int)col1->head.difficulty; /* DS:0x53a6 */
+    for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+      ColonizeCol1Nation* nat = &col1->nation[n];
+      nat->recruit_lfsr = (uint8_t)dos_rng_range(&rng, 1, 0x20);
+      nat->recruit_salt = (uint8_t)dos_rng_range(&rng, 0, 0x1f);
+      nat->recruit[0] = (uint8_t)(d < 4 ? UNITS_JOB_SERVANT : UNITS_JOB_CRIMINAL);
+      (void)europe_nation_refill_pool_slot(col1, n, 1, d < 3, &rng);
+      (void)europe_nation_refill_pool_slot(col1, n, 2, true, &rng);
+      if (col1->player[n].control == 0 && d <= 1) {
+        if (d == 0) {
+          nat->recruit[0] = COLONIZE_PROF_CARPENTER;
+        }
+        nat->recruit[1] = COLONIZE_PROF_FARMER;
+        nat->recruit[2] = UNITS_JOB_SCOUT;
+      }
+      if (n == 2) {
+        nat->recruit[0] = UNITS_JOB_MISSIONARY; /* LAB_38fd_6161 */
+      }
+      if (w->europe && w->europe->bound_nation == (uint8_t)n) {
+        for (int i = 0; i < EUROPE_POOL_SIZE && i < 3; ++i) {
+          europe_set_pool_slot(w->europe, i, (int)nat->recruit[i]);
+        }
+      }
+    }
+  }
+  europe_seed_campaign_prices_w(w, &rng);
 }
 
 static void europe_init_pool(EuropeScreen* eu) {

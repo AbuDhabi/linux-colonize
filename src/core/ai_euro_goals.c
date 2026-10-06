@@ -2214,8 +2214,8 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_labor(
     /* The thin `labor_shortage = 1` demand latch that used to sit here is
      * retired 2026-09-09: +0x8e is now stamped unconditionally from the
      * real FUN_5952_035e formula (local_76 / DS:0x8d72) in
-     * ai_euro_colony_threat_seed_5952, called at the top of this same
-     * colony body, and the latch could only overwrite a legitimate 0. */
+     * ai_euro_colony_threat_seed_5952, run by the 5952 colony tick at the
+     * top of the nation turn (bugs.md #964), and the latch could only overwrite a legitimate 0. */
     ai_goals_upsert_primary(nation_id, c->x, c->y, AI_GOAL_LABOR, labor_prio);
   } else if (c->ai_flags & (COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP |
                              COLONIZE_COLONY_AI_NEARBY_FRIGATE)) {
@@ -2252,8 +2252,8 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_work(
 ) {
   /*
    * garrison_quota (+0x1e) is now the real FUN_5952_035e threat>>3 seed —
-   * see ai_euro_colony_threat_seed_5952 above, called at the top of this
-   * colony body in DOS order. The thin latch that used to live here
+   * see ai_euro_colony_threat_seed_5952 above, run by the 5952 colony tick at the
+   * top of the nation turn (bugs.md #964). The thin latch that used to live here
    * ("idle unfortified Soldier/Dragoon on the colony tile and quota == 0
    * → 1, skipped while NEEDS_COLONISTS / LABOR so early towns admit the
    * beachhead soldier") is retired: it had no DOS basis, and its

@@ -33,6 +33,7 @@
 #include "core/map.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "core/strutil.h"
 #include "core/units.h"
 #include "core/village_trade_intel.h"
@@ -518,7 +519,7 @@ static void ai_contact_incite_warfare_chrome(
   memset(&tok, 0, sizeof(tok));
   tok.string0 = ai_contact_tribe_name(nation_id);
   tok.string1 = ai_contact_euro_name(ctx->col1, inciter);
-  tok.string2 = ai_contact_tribe_name(nation_id);
+  tok.string2 = reports_tribe_name(nation_id - 4); /* 417e: 0a1a(tribe) */
   tok.string3 = ai_contact_euro_name(ctx->col1, target);
   char fb[AI_POPUP_BODY_LEN];
   fb[0] = '\0';
@@ -2203,7 +2204,7 @@ void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id) {
     PopupMsgTokens gtok;
     memset(&gtok, 0, sizeof(gtok));
     gtok.string0 = ai_contact_tribe_name(nation_id);
-    gtok.string1 = gtok.string0;
+    gtok.string1 = reports_tribe_name(nation_id - 4); /* 4d56_1816: 0a1a(tribe) */
     char gfb[AI_POPUP_BODY_LEN];
     gfb[0] = '\0';
     char gbody[AI_POPUP_BODY_LEN];

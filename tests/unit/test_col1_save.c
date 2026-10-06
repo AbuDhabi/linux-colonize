@@ -2439,7 +2439,12 @@ int main(void) {
     /* Land unit stranded on a WATER tile beside a second ship (orphan). */
     const int ship2_id = units_spawn_allow_stack(&units, caravel >= 0 ? caravel : 13, 22, 20);
     const int orphan_id = units_spawn_allow_stack(&units, freeman >= 0 ? freeman : 0, 22, 20);
-    if (ship_id < 0 || land_id < 0 || ship2_id < 0 || orphan_id < 0) {
+    /* bugs.md #1059: a hull and a colonist in the Europe park (200,100) —
+     * off-map reads as water, so this used to board the whole dock stack. */
+    const int euro_ship_id = units_spawn_allow_stack(&units, caravel >= 0 ? caravel : 13, 200, 100);
+    const int euro_land_id = units_spawn_allow_stack(&units, freeman >= 0 ? freeman : 0, 200, 100);
+    if (ship_id < 0 || land_id < 0 || ship2_id < 0 || orphan_id < 0 || euro_ship_id < 0 ||
+        euro_land_id < 0) {
       fprintf(stderr, "dock-garrison: spawns failed\n");
       units_set_occupancy_map(NULL);
       col1_save_free(&save);
@@ -2488,6 +2493,21 @@ int main(void) {
         "dock-garrison: water orphan not boarded (aboard=%d want %d)\n",
         ou ? ou->aboard_ship_id : -99,
         ship2_id
+      );
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const ColonizeUnit* eu = units_get(&units, euro_land_id);
+    const ColonizeUnit* es = units_get(&units, euro_ship_id);
+    if (!eu || eu->aboard_ship_id >= 0 || !es || es->cargo_count != 0) {
+      fprintf(
+        stderr,
+        "dock-garrison: Europe-park unit boarded by capture (aboard=%d cargo=%d)\n",
+        eu ? eu->aboard_ship_id : -99,
+        es ? es->cargo_count : -99
       );
       units_set_occupancy_map(NULL);
       col1_save_free(&save);
