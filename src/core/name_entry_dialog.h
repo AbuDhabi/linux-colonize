@@ -20,6 +20,9 @@
 #define NAME_ENTRY_PROMPT_LEN 240
 /* 32: trade-route names are 31 chars + NUL (DOS FUN_1000_9310 limit 0x1f). */
 #define NAME_ENTRY_NAME_LEN 32
+/* @COLONY / @RENAMECOLONY: DOS FUN_291f_0120(0x17) (raw 40204, 76999) takes
+ * at most 23 chars; the save's colony name field is 24 bytes. */
+#define NAME_ENTRY_COLONY_NAME_CHARS 0x17
 
 typedef enum NameEntryKind {
   NAME_ENTRY_KIND_NONE = 0,
@@ -35,6 +38,7 @@ typedef struct NameEntryDialog {
   NameEntryKind kind;
   char prompt[NAME_ENTRY_PROMPT_LEN];
   char name[NAME_ENTRY_NAME_LEN];
+  size_t name_cap; /* buffer capacity incl. NUL used for this kind */
   TextEditState edit;
 
   bool has_result;

@@ -4,6 +4,8 @@ Design/rationale/DOS-layout prose moved out of `src/core/europe.h` comment block
 
 ## EUROPE_DOCK_MAX
 
+2026-10-05 (#1071/#1072): EUROPE_DOCK_MAX and EUROPE_HARBOR_MAX are now 1024 each (static arrays; DOS unit cap is 300 total, so units_spawn_room / FUN_1427_06b4 binds first; only the settings.json unlimited_units mode could exceed it, and 4096 per lane made EuropeScreen ~4MB, overflowing stack-allocated test screens). The 32 / 8 port caps are gone. Historical rationale follows.
+
 Dock queue depth. NOT the drawn-slot count (that is EUROPE_DOCK_ROW0 +
 EUROPE_DOCK_ROW1 = 8, see europe_dock_slot_pos): DOS keeps the whole queue
 and simply stops blitting past tier 1, so a real save can carry far more

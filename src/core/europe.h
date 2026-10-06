@@ -15,9 +15,9 @@
 #define EUROPE_BAR_EVENT_MAX 8
 #define EUROPE_BAR_EVENT_LEN 96
 /* EUROPE_DOCK_MAX -- see docs/europe.md#europe_dock_max */
-#define EUROPE_DOCK_MAX 32
+#define EUROPE_DOCK_MAX 1024 /* > the 300-unit DOS cap; see docs/europe.md */
 #define EUROPE_CLASS_MAX 8
-#define EUROPE_HARBOR_MAX 8
+#define EUROPE_HARBOR_MAX 1024 /* per lane; > the 300-unit DOS cap */
 #define EUROPE_SHIP_CARGO_MAX 6 /* matches COLONIZE_UNIT_CARGO_MAX */
 #define EUROPE_POOL_SIZE 3
 #define EUROPE_TRAIN_MAX 24

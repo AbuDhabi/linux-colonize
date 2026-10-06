@@ -347,28 +347,6 @@ bool game_ship_sail_to_europe(ColonizeGameState* game, int sid) {
     ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
     return false;
   }
-  /*
-   * "Expected Soon" capacity is a PORT artifact, not a DOS rule: DOS keeps a
-   * ship crossing to Europe as a live unit parked on its nation's sentinel
-   * diagonal (`244+n`, `col1_counter16` = voyage turns left — the P10.1 lane
-   * decode in col1_bridge), so it has no arrivals array to fill and never
-   * refuses a departure for want of a slot. EUROPE_HARBOR_MAX is only this
-   * port's array bound, so test it BEFORE the despawn and refuse cleanly:
-   * the ship then stays exactly as it stood, with its id, orders, goto,
-   * follow_unit_id (= the trade-route index) and col1_counter16 (= the route's
-   * current stop) intact.
-   *
-   * The old shape despawned first and, on a full lane, rebuilt the ship with
-   * units_spawn_ship_with_cargo — a FRESH unit with a new id, no orders, no
-   * goto and no follow. game_trade_route_retarget re-fetches the pre-sail id
-   * right after this call, so it got a dead (or recycled) unit and the trade
-   * route was silently dropped for the rest of the game, with only a status
-   * line to show for it.
-   */
-  if (game->europe.expected_ships >= EUROPE_HARBOR_MAX) {
-    set_status(game, "Europe lane is full", NULL);
-    return false;
-  }
   const int exit_x = ship->x;
   const int exit_y = ship->y;
   const bool exit_east = exit_x >= (int)game->world_map.width / 2;
@@ -425,12 +403,9 @@ bool game_ship_sail_to_europe(ColonizeGameState* game, int sid) {
           voyage_turns
         )) {
       /*
-       * Last-resort restore. Unreachable for the capacity case now that it
-       * is caught before the despawn above; kept only so a future
-       * europe_enqueue_expected failure for some other reason still leaves a
-       * ship on the map rather than deleting it. It cannot preserve the
-       * unit's id/orders/route state — that is precisely why the capacity
-       * test moved ahead of the despawn.
+       * Last-resort restore (EUROPE_HARBOR_MAX exceeds the DOS unit cap, so effectively
+       * unreachable): leaves a ship on the map rather than deleting it. It
+       * cannot preserve the unit's id/orders/route state.
        */
       const int restored = units_transfer_ship_from_europe(
         &game->units,
@@ -461,7 +436,6 @@ bool game_ship_sail_to_europe(ColonizeGameState* game, int sid) {
         );
         game->units.selected_id = restored;
       }
-      set_status(game, "Europe lane is full", NULL);
     } else {
       sailed = true;
       game_europe_fill_expected_treasure_gold(

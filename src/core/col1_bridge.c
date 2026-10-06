@@ -1501,8 +1501,8 @@ bool col1_bridge_apply_w(
       if (europe && src->nation_id == (uint8_t)local.human_nation) {
         const char* name = col1_bridge_europe_dock_job_name(europe, (int)src->profession);
         /*
-         * Honour the push's answer. EUROPE_DOCK_MAX is 32 now — past the
-         * 20-deep dock the French originals carry — but a refused push must
+         * Honour the push's answer. EUROPE_DOCK_MAX (1024) exceeds the unit cap, so
+         * a refusal cannot occur on a real save, but a refused push must
          * never fall through onto dock[dock_count-1]: that is a *different*
          * immigrant, and stamping this unit's @UNIT type on it handed the
          * wrong @ARMOPTIONS kit both to that row and (via the mirror block
@@ -2673,7 +2673,7 @@ bool col1_bridge_capture_w(
     /* Dock immigrants whose mirror unit was never spawned are written back
      * from the dock array itself (see the reconciliation below) — reserve a
      * full dock's worth of records for them. */
-    const int europe_dockers = europe ? EUROPE_DOCK_MAX : 0;
+    const int europe_dockers = europe ? europe->dock_count : 0;
     const int capacity = live + europe_ships * (1 + EUROPE_SHIP_CARGO_MAX) + europe_dockers;
     ColonizeCol1Unit* neu = NULL;
     uint64_t* stack_order_by_col1 = NULL;

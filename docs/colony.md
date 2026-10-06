@@ -427,6 +427,21 @@ the AI plot scan FUN_15eb_28c8 (raw 12993) and the human area-view click
 FUN_2f2b_3fa6 (raw 50917) — require the byte to be 0, and 3fa6 simply
 ignores the click otherwise (no popup, no status line).
 
+## plot-eviction
+
+`colonies_recompute_plots_w` (colony_workers.c) = DOS FUN_15eb_3930 (raw
+13794-13808, bugs.md #1080): snapshot the mask above for all 20 slots (268e),
+clear every worked plot whose mask is non-zero (287e; the colonist keeps his
+field job), then reseat each plotless field-job colonist via 28c8, else the
+Carpenter fallback (2ea0). No workers-per-building cap there: the 3-cap is
+UI-only, so a 4th+ Carpenter is legal and the building strip shows them all
+(DOS FUN_2f2b_12cc is uncapped; the port widens the strip one icon per
+worker). Wired at colony-screen entry, EOT production (per colony, before
+`turn_produce_one_colony`) and the AI colony tick. DOS also runs it on join
+(364b_1aec/1b1a) and in the F6 adviser (3f41_1bec); the port does not yet.
+Fixture trap: a synthetic map with an unrevealed `seen` plane makes every
+plot 0x10 and evicts everyone — call `map_reveal_all`.
+
 ## colonies_admit_unit_w
 
 Admit a land unit on the colony tile into the colony (despawn map unit).

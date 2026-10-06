@@ -989,8 +989,8 @@ ColonyScreenHitResult colony_screen_hit_test(
       if (!bspr || bspr->width <= 2 || bspr->height <= 2) {
         continue;
       }
-      int worker_ci[COLONY_BUILDING_WORKERS_MAX];
-      int worker_icons[COLONY_BUILDING_WORKERS_MAX];
+      int worker_ci[COLONIZE_COLONY_POP_MAX];
+      int worker_icons[COLONIZE_COLONY_POP_MAX];
       int strip_h = 16;
       const int workers = colony_screen_building_worker_strip(
         view, colony, units, built, worker_ci, worker_icons, &strip_h
@@ -1005,8 +1005,11 @@ ColonyScreenHitResult colony_screen_hit_test(
       if (worker_icons[0] < view->icons.sprite_count) {
         ref_iw = view->icons.sprites[worker_icons[0]].width;
       }
-      int xs[COLONY_BUILDING_WORKERS_MAX];
-      colony_screen_icon_strip_layout(bx, bspr->width, workers, ref_iw, xs);
+      int xs[COLONIZE_COLONY_POP_MAX];
+      int span_x = bx;
+      int span_w = bspr->width;
+      colony_screen_building_strip_span(bx, bspr->width, workers, ref_iw, &span_x, &span_w);
+      colony_screen_icon_strip_layout(span_x, span_w, workers, ref_iw, xs);
       for (int wi = 0; wi < workers; ++wi) {
         int iw = ref_iw;
         int ih = strip_h;

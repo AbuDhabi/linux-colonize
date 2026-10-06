@@ -665,7 +665,9 @@ void colony_screen_debug_building_rect(
 }
 
 /*
- * Workers assigned to one building (DOS shows up to 3) plus the strip height
+ * Workers assigned to one building (all of them: FUN_2f2b_12cc raw
+ * 47947-47986 walks the whole roster with no cap — the 3-cap is the UI assign
+ * path's, and FUN_15eb_2ea0's Carpenter fallback can exceed it) plus the strip height
  * the drawer and the hit-tester must agree on (audit CO-18: drift between
  * the two silently desynced click regions from what was drawn). Returns the
  * worker count; out_ci gets colonist indices, out_icons their ICONS.SS
@@ -683,7 +685,7 @@ int colony_screen_building_worker_strip(
   int workers = 0;
   int strip_h = 16;
   if (view && colony && units && built >= 0) {
-    for (int ci = 0; ci < colony->colonist_count && workers < COLONY_BUILDING_WORKERS_MAX; ++ci) {
+    for (int ci = 0; ci < colony->colonist_count && workers < COLONIZE_COLONY_POP_MAX; ++ci) {
       const ColonizeColonist* c = &colony->colonists[ci];
       if (!c->active || c->building_type != built) {
         continue;
@@ -710,6 +712,23 @@ int colony_screen_building_worker_strip(
     *out_strip_h = strip_h;
   }
   return workers;
+}
+
+/*
+ * The x-span a building's worker strip is laid out in. DOS FUN_2f2b_12cc
+ * advances a fixed pitch per worker (raw 47982) and never compresses, so a
+ * 4th+ worker runs past the sprite; the port keeps its centred strip and
+ * widens it symmetrically to one icon per worker instead of overlapping.
+ */
+void colony_screen_building_strip_span(
+  int bx, int bw, int workers, int ref_iw, int* out_x, int* out_w
+) {
+  int w = bw;
+  if (ref_iw > 0 && ref_iw * workers > w) {
+    w = ref_iw * workers;
+  }
+  *out_x = bx + (bw - w) / 2;
+  *out_w = w;
 }
 
 void colony_screen_blit_buildings(
@@ -783,12 +802,12 @@ void colony_screen_blit_buildings(
       }
     }
 
-    /* Workers in this building (up to 3): Note 1 strip, bottom-center of sprite. */
+    /* Workers in this building (all of them): Note 1 strip, bottom-center of sprite. */
     if (built < 0 || !units) {
       continue;
     }
-    int worker_ci[COLONY_BUILDING_WORKERS_MAX];
-    int worker_icons[COLONY_BUILDING_WORKERS_MAX];
+    int worker_ci[COLONIZE_COLONY_POP_MAX];
+    int worker_icons[COLONIZE_COLONY_POP_MAX];
     int strip_h = 16;
     const int workers = colony_screen_building_worker_strip(
       view, colony, units, built, worker_ci, worker_icons, &strip_h
@@ -808,13 +827,20 @@ void colony_screen_blit_buildings(
           break;
         }
       }
+      int ref_iw = 12; /* as colony_screen_draw_icon_strip / the hit-test */
+      if (worker_icons[0] < view->icons.sprite_count) {
+        ref_iw = view->icons.sprites[worker_icons[0]].width;
+      }
+      int span_x = bx;
+      int span_w = bw;
+      colony_screen_building_strip_span(bx, bw, workers, ref_iw, &span_x, &span_w);
       colony_screen_draw_icon_strip(
         view,
         NULL,
         framebuffer,
-        bx,
+        span_x,
         strip_y,
-        bw,
+        span_w,
         strip_h,
         worker_icons,
         workers,

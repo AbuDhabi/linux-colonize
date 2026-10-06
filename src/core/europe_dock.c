@@ -134,10 +134,6 @@ bool europe_recruit_from_pool_ex(EuropeScreen* eu, int pool_index, ColonizeDosRn
     europe_set_status(eu, "That recruit is unavailable.");
     return false;
   }
-  if (eu->dock_count >= EUROPE_DOCK_MAX) {
-    europe_set_status(eu, "Docks are full.");
-    return false;
-  }
   if (!europe_recruit_affordable(eu)) {
     /*
      * FUN_38fd_4884 raw 64736-64741: when the nation's 32-bit purse cannot
@@ -183,10 +179,6 @@ bool europe_recruit_free_from_pool_ex(
   EuropeScreen* eu, int pool_index, ColonizeDosRng* rng
 ) {
   if (!eu || pool_index < 0 || pool_index >= EUROPE_POOL_SIZE) {
-    return false;
-  }
-  if (eu->dock_count >= EUROPE_DOCK_MAX) {
-    europe_set_status(eu, "Docks are full.");
     return false;
   }
   /* bugs.md #1020: DOS slots have no "unfilled" state — an unfilled slot
@@ -297,10 +289,6 @@ bool europe_train_ex(EuropeScreen* eu, int train_index, ColonizeDosRng* rng) {
   if (!eu || train_index < 0 || train_index >= eu->train_count) {
     return false;
   }
-  if (eu->dock_count >= EUROPE_DOCK_MAX) {
-    europe_set_status(eu, "Docks are full.");
-    return false;
-  }
   const EuropeTrainOption* t = &eu->train[train_index];
   if (eu->gold < t->cost) {
     /* FUN_38fd_41ce raw 64395-64401 greys an unaffordable row
@@ -385,10 +373,6 @@ bool europe_purchase_commit(
   }
   const EuropePurchaseOption* p = &eu->purchase[purchase_index];
   if (p->is_ship) {
-    if (eu->harbor_ships >= EUROPE_HARBOR_MAX) {
-      europe_set_status(eu, "Harbor is full.");
-      return false;
-    }
     eu->gold -= cost;
     EuropeHarborShip* slot = &eu->harbor[eu->harbor_ships++];
     europe_clear_ship(slot);
@@ -398,10 +382,6 @@ bool europe_purchase_commit(
     snprintf(eu->status, sizeof(eu->status), "Purchased %s (-%d$).", p->name, cost);
     diag_info("EUROPE purchased ship %s for %d$ (gold=%d)", p->name, cost, eu->gold);
     return true;
-  }
-  if (eu->dock_count >= EUROPE_DOCK_MAX) {
-    europe_set_status(eu, "Docks are full.");
-    return false;
   }
   eu->gold -= cost;
   EuropeDockImmigrant* slot = europe_dock_insert_front(eu);

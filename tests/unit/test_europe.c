@@ -2964,7 +2964,33 @@ static int case_europe_seed_prices_all_nations(void) {
   return rc;
 }
 
+/* #1071/#1072: past the old port caps (8 ships / 32 dockers) pushes still land. */
+static int case_europe_lanes_past_old_caps(void) {
+  EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
+  if (!eu) {
+    return 1;
+  }
+  int rc = 0;
+  for (int i = 0; i < 40; ++i) {
+    if (!europe_dock_push_load(eu, "Colonist", 0)) {
+      rc = 1;
+    }
+  }
+  for (int i = 0; i < 12; ++i) {
+    if (!europe_harbor_push_ex(eu, 0, "Ship", NULL, NULL, 0, NULL, NULL)) {
+      rc = 1;
+    }
+  }
+  if (eu->dock_count != 40 || eu->harbor_ships != 12) {
+    fprintf(stderr, "lanes: dock %d harbor %d\n", eu->dock_count, eu->harbor_ships);
+    rc = 1;
+  }
+  free(eu);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"case_europe_lanes_past_old_caps", case_europe_lanes_past_old_caps},
     {"case_europe_dock_continental_row", case_europe_dock_continental_row},
     {"case_europe_workflow", case_europe_workflow},
     {"case_europe_dragoon_roll_and_caption", case_europe_dragoon_roll_and_caption},

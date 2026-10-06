@@ -70,7 +70,10 @@ bool name_entry_open(
     sizeof(dlg->prompt),
     prompt && prompt[0] ? prompt : ""
   );
-  str_copy_trunc(dlg->name, sizeof(dlg->name), initial_name ? initial_name : "");
+  dlg->name_cap = (kind == NAME_ENTRY_KIND_FOUND || kind == NAME_ENTRY_KIND_RENAME)
+                    ? NAME_ENTRY_COLONY_NAME_CHARS + 1
+                    : sizeof(dlg->name);
+  str_copy_trunc(dlg->name, dlg->name_cap, initial_name ? initial_name : "");
   /* DOS opens the field with bit 0x80 set — whole text selected. */
   text_edit_reset(&dlg->edit, dlg->name, true);
   dlg->open = true;
@@ -88,7 +91,7 @@ bool name_entry_handle_input(NameEntryDialog* dlg, const ColonizeInputState* inp
     return true;
   }
 
-  switch (text_edit_handle_input(&dlg->edit, dlg->name, sizeof(dlg->name), input)) {
+  switch (text_edit_handle_input(&dlg->edit, dlg->name, dlg->name_cap, input)) {
     case TEXT_EDIT_ACTION_CANCEL:
       name_entry_finish(dlg, true);
       return true;

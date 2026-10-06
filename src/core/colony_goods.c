@@ -231,28 +231,11 @@ void colonies_emit_already_have_chrome(
   const bool warehouse_exp = (colonies_building_name_row(bname) == COLONY_BUILDING_WAREHOUSE_EXPANSION);
   const char* section = warehouse_exp ? "NOMOREWAREHOUSE" : "ALREADYHAVE";
   char body[AI_POPUP_BODY_LEN];
-  char fallback[192];
-  if (warehouse_exp) {
-    snprintf(
-      fallback,
-      sizeof(fallback),
-      "%s cannot build another Warehouse Expansion.",
-      cname
-    );
-  } else {
-    snprintf(
-      fallback,
-      sizeof(fallback),
-      "%s already built a %s.",
-      cname,
-      bname
-    );
-  }
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = cname;
   tok.string1 = bname;
-  popup_msg_fill(messages, section, &tok, fallback, body, sizeof(body));
+  popup_msg_fill(messages, section, &tok, "", body, sizeof(body));
   ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
 }
 

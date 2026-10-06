@@ -182,8 +182,8 @@ static int unit_improve_timer_pioneer_gate(void) {
 }
 
 /*
- * AI FOUND on Indian homeland: charges FUN_4cc6_07c2 gold; short gold PARK;
- * Minuit elect bit → free. Cite: colonies_found_with_indian_land; FF 2.
+ * AI FOUND on Indian homeland (bugs.md #1074): FUN_479b_076e never pays —
+ * the AI buys land only in FUN_479b_00ca from the Pioneer work bodies.
  *
  * promote_secondary_to_primary wipes pre-set primaries each turn — so seed a
  * stocked colony (COLONY not LABOR), discover its expand FOUND tile, park a
@@ -296,7 +296,9 @@ static int unit_indian_land_found(void) {
     return fail("indian-land: expected homeland purchase gold > 0");
   }
 
-  /* Phase 1: enough gold → found + debit (planning treasury bump then charge). */
+  const size_t tidx = (size_t)fy * (size_t)map.width + (size_t)fx;
+
+  /* Phase 1: founding on homeland with gold to spare → colony, no charge. */
   {
     unit_indian_land_seed_colony(&colonies, nation);
     units_reset(&units);
@@ -310,8 +312,6 @@ static int unit_indian_land_found(void) {
      * ladder / recruit / Artillery buys naturally inert (blank census). */
     col1.stuff.ship_counts[nation] = 1;
     col1.indian[0].lands_bought = 0;
-    col1.nation[nation].founding_fathers[0] = 0;
-    col1.nation[nation].founding_father_count = 0;
 
     const int uid = units_spawn(&units, 0, fx, fy);
     ColonizeUnit* founder = units_get(&units, uid);
@@ -332,57 +332,24 @@ static int unit_indian_land_found(void) {
     founder = units_get(&units, uid);
     const int n = count_nation_colonies(&colonies, nation);
     if (n != 2 || (founder && founder->active)) {
+      fprintf(stderr, "unit_ai_euro_expand: indian-land n=%d cost=%d\n", n, cost);
+      fx_map_free(&map);
+      return fail("indian-land: expected found + despawn");
+    }
+    /* Only the planning treasury bump (<= 80) may move gold; never -cost. */
+    if (col1.nation[nation].gold < gold0 || col1.nation[nation].gold > gold0 + 80u ||
+        (map.layer2[tidx] & MAP_LAYER2_PURCHASED) || col1.indian[0].lands_bought != 0) {
       fprintf(
-        stderr,
-        "unit_ai_euro_expand: indian-land pay n=%d active=%d gold %u→%u "
-        "cost=%d FOUND=(%d,%d)\n",
-        n,
-        founder ? (int)founder->active : 0,
-        gold0,
-        col1.nation[nation].gold,
-        cost,
-        fx,
-        fy
+        stderr, "unit_ai_euro_expand: indian-land gold %u→%u cost=%d\n", gold0,
+        col1.nation[nation].gold, cost
       );
       fx_map_free(&map);
-      return fail("indian-land: expected found + despawn when gold enough");
-    }
-    /* gold_after == gold0 + bump - cost; bump small (≤80). */
-    {
-      const uint32_t spent_and_bump = col1.nation[nation].gold + (uint32_t)cost;
-      if (spent_and_bump < gold0 || spent_and_bump - gold0 > 80u) {
-        fprintf(
-          stderr,
-          "unit_ai_euro_expand: indian-land gold before=%u after=%u cost=%d\n",
-          gold0,
-          col1.nation[nation].gold,
-          cost
-        );
-        fx_map_free(&map);
-        return fail("indian-land: unexpected gold after homeland found");
-      }
+      return fail("#1074: FUN_479b_076e founding must not buy Indian land");
     }
   }
 
-  /*
-   * Phase 1b (bugs.md #709/#710, 2026-09-23): the AI affordability gate is
-   * FUN_479b_00ca's `gold - cost >= cost / 2` (asm 121034-121094), not
-   * `gold >= cost`, and FUN_4cc6_07c2's price carries the census term
-   * `score -= max((10 - census_pop_proxy[nation]) >> 1, 0)` (raw 81213).
-   */
+  /* FUN_4cc6_07c2 census term (raw 81213): a bigger nation pays more. */
   {
-    /* Phase 1 stamped MAP_LAYER2_PURCHASED on (fx,fy); clear so this tile is
-     * chargeable again. */
-    {
-      const size_t idx0 = (size_t)fy * (size_t)map.width + (size_t)fx;
-      if (map.layer2 && idx0 < map.tile_count) {
-        map.layer2[idx0] = (uint8_t)(map.layer2[idx0] & (uint8_t)~MAP_LAYER2_PURCHASED);
-      }
-    }
-    col1.indian[0].lands_bought = 0;
-    col1.nation[nation].founding_fathers[0] = 0;
-    col1.nation[nation].founding_father_count = 0;
-    /* Census term: a bigger nation pays strictly more for the same tile. */
     const uint8_t census0 = col1.stuff.census_pop_proxy[nation];
     col1.stuff.census_pop_proxy[nation] = 0;
     const int cost_small = colonies_indian_land_purchase_gold(&col1, &map, fx, fy, nation);
@@ -390,195 +357,62 @@ static int unit_indian_land_found(void) {
     const int cost_big = colonies_indian_land_purchase_gold(&col1, &map, fx, fy, nation);
     col1.stuff.census_pop_proxy[nation] = census0;
     if (cost_big <= cost_small) {
-      fprintf(
-        stderr, "unit_ai_euro_expand: census term small=%d big=%d\n", cost_small, cost_big
-      );
       fx_map_free(&map);
       return fail("indian-land: census_pop_proxy term must raise the price");
     }
-
-    /* Half-margin gate: gold == cost is NOT affordable for an AI nation. */
-    unit_indian_land_seed_colony(&colonies, nation);
-    units_reset(&units);
-    units_set_occupancy_map(NULL);
-    units.type_count = 1;
-    snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
-    units.types[0].movement = 3;
-    units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-    col1.stuff.ship_counts[nation] = 1;
-    col1.indian[0].lands_bought = 0;
-    col1.nation[nation].founding_fathers[0] = 0;
-    col1.nation[nation].founding_father_count = 0;
-    {
-      const size_t idx = (size_t)fy * (size_t)map.width + (size_t)fx;
-      if (map.layer2 && idx < map.tile_count) {
-        map.layer2[idx] = (uint8_t)(map.layer2[idx] & (uint8_t)~MAP_LAYER2_PURCHASED);
-      }
-    }
-    const int gate_cost = colonies_indian_land_purchase_gold(&col1, &map, fx, fy, nation);
-    col1.nation[nation].gold = (uint32_t)gate_cost;
-
-    const int uid = units_spawn(&units, 0, fx, fy);
-    ColonizeUnit* founder = units_get(&units, uid);
-    if (!founder) {
-      fx_map_free(&map);
-      return fail("indian-land spawn gate");
-    }
-    founder->nation_id = nation;
-    founder->orders = UNITS_ORDER_BUILD_COLONY; /* act state 7: the 20e6 2912 commit */
-    founder->moves = 3 * UNITS_MP_PER_TILE;
-
-    ai_goals_reset();
-    ai_goals_upsert_secondary(nation, fx, fy, AI_GOAL_FOUND, 2);
-    turn = 41;
-    const uint32_t gate_gold0 = col1.nation[nation].gold;
-    ai_euro_dispatcher_turn(&ctx, nation);
-
-    /* DOS's 00ca simply refuses to pay; the port still founds (caller of the
-     * thunk 2a1f:01dd unresolved), so the colony appears with gold intact. */
-    if (count_nation_colonies(&colonies, nation) != 2) {
-      fx_map_free(&map);
-      return fail("indian-land: half-margin gate must still found");
-    }
-    if (col1.nation[nation].gold + (uint32_t)gate_cost <= gate_gold0) {
-      fprintf(
-        stderr,
-        "unit_ai_euro_expand: half-margin gate paid gold %u→%u cost=%d\n",
-        gate_gold0,
-        col1.nation[nation].gold,
-        gate_cost
-      );
-      fx_map_free(&map);
-      return fail("indian-land: gold == cost must not buy (gold-cost < cost/2)");
-    }
   }
 
-  /* Phase 2: short gold → PARK (seed colony remains; no second colony).
-   * Phase 1 stamped MAP_LAYER2_PURCHASED on (fx,fy); clear so charge still
-   * applies (founding must not treat prior buy as free forever for this smoke). */
+  /*
+   * Phase 2 (#1074): 48-colony table full. FUN_364b_1ba8 returns -1 (raw
+   * 58029); FUN_479b_076e returns with the founder alive, +0x314c/+0x315a
+   * cleared and MP spent (FUN_281f_0934). No gold, no purchased bit.
+   */
   {
     unit_indian_land_seed_colony(&colonies, nation);
+    for (int i = 1; i < COLONIZE_COLONIES_MAX; ++i) {
+      ColonizeColony* c = &colonies.colonies[i];
+      c->id = i;
+      c->active = true;
+      c->nation_id = 2;
+      c->x = i % 16;
+      c->y = i / 16; /* rows 0..2, far from (fx,fy) */
+      c->building_in_production = -1;
+    }
+    colonies.colony_count = COLONIZE_COLONIES_MAX;
+    colonies.next_id = COLONIZE_COLONIES_MAX;
     units_reset(&units);
     units_set_occupancy_map(NULL);
     units.type_count = 1;
-    snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
     units.types[0].movement = 3;
     units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-    col1.nation[nation].gold = 10;
-    /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
-     * ladder / recruit / Artillery buys naturally inert (blank census). */
-    col1.stuff.ship_counts[nation] = 1;
+    col1.nation[nation].gold = 500;
     col1.indian[0].lands_bought = 0;
-    col1.nation[nation].founding_fathers[0] = 0;
-    col1.nation[nation].founding_father_count = 0;
-    {
-      const size_t idx = (size_t)fy * (size_t)map.width + (size_t)fx;
-      if (map.layer2 && idx < map.tile_count) {
-        map.layer2[idx] = (uint8_t)(map.layer2[idx] & (uint8_t)~MAP_LAYER2_PURCHASED);
-      }
-    }
-
     const int uid = units_spawn(&units, 0, fx, fy);
     ColonizeUnit* founder = units_get(&units, uid);
     if (!founder) {
       fx_map_free(&map);
-      return fail("indian-land spawn poor");
+      return fail("indian-land spawn full");
     }
     founder->nation_id = nation;
-    founder->orders = UNITS_ORDER_BUILD_COLONY; /* act state 7: the 20e6 2912 commit */
+    founder->orders = UNITS_ORDER_BUILD_COLONY;
     founder->moves = 3 * UNITS_MP_PER_TILE;
-
-    char status[128];
-    memset(status, 0, sizeof(status));
-    col1.player[nation].control = 0; /* human for thin status chrome */
-    ctx.human_nation = nation;
-    ctx.status = status;
-    ctx.status_size = sizeof(status);
-
-    ai_goals_reset();
-    ai_goals_upsert_secondary(nation, fx, fy, AI_GOAL_FOUND, 2);
-    turn = 42;
-    ai_euro_dispatcher_turn(&ctx, nation);
-
+    founder->col1_counter16 = 2;
+    ai_euro_found_with_unit(&ctx, founder, nation);
     founder = units_get(&units, uid);
-    if (count_nation_colonies(&colonies, nation) != 1 || !founder || !founder->active) {
+    if (!founder || !founder->active || founder->orders != UNITS_ORDER_NONE ||
+        founder->moves != 0 || founder->col1_counter16 != 0) {
       fx_map_free(&map);
-      return fail("indian-land: short gold must PARK found");
+      return fail("#1074: full table must leave founder idle and spent");
     }
-    if (col1.nation[nation].gold >= (uint32_t)cost) {
+    if (col1.nation[nation].gold != 500 || (map.layer2[tidx] & MAP_LAYER2_PURCHASED) ||
+        col1.indian[0].lands_bought != 0 || colonies.colony_count != COLONIZE_COLONIES_MAX) {
       fx_map_free(&map);
-      return fail("indian-land: PARK case gold unexpectedly covers cost");
-    }
-    if (strstr(status, "Not enough gold") == NULL) {
-      fprintf(stderr, "unit_ai_euro_expand: indian-land status=%s\n", status);
-      fx_map_free(&map);
-      return fail("indian-land: short gold should set human status");
-    }
-    ctx.status = NULL;
-    ctx.status_size = 0;
-    col1.player[nation].control = 1;
-  }
-
-  /* Phase 3: Minuit elect bit → free homeland found. */
-  {
-    unit_indian_land_seed_colony(&colonies, nation);
-    units_reset(&units);
-    units_set_occupancy_map(NULL);
-    units.type_count = 1;
-    snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
-    units.types[0].movement = 3;
-    units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-    col1.nation[nation].gold = 200;
-    /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
-     * ladder / recruit / Artillery buys naturally inert (blank census). */
-    col1.stuff.ship_counts[nation] = 1;
-    col1.indian[0].lands_bought = 0;
-    col1.nation[nation].founding_fathers[FF_PETER_MINUIT / 8] |=
-      (uint8_t)(1u << (FF_PETER_MINUIT % 8));
-    if (!founding_fathers_nation_has(&col1, nation, FF_PETER_MINUIT)) {
-      fx_map_free(&map);
-      return fail("indian-land: Minuit elect bit helper");
-    }
-    if (colonies_indian_land_purchase_gold(&col1, &map, fx, fy, nation) != 0) {
-      fx_map_free(&map);
-      return fail("indian-land: Minuit must zero purchase gold");
-    }
-
-    const uint32_t gold0 = col1.nation[nation].gold;
-    const int uid = units_spawn(&units, 0, fx, fy);
-    ColonizeUnit* founder = units_get(&units, uid);
-    if (!founder) {
-      fx_map_free(&map);
-      return fail("indian-land spawn Minuit");
-    }
-    founder->nation_id = nation;
-    founder->orders = UNITS_ORDER_BUILD_COLONY; /* act state 7: the 20e6 2912 commit */
-    founder->moves = 3 * UNITS_MP_PER_TILE;
-
-    ai_goals_reset();
-    ai_goals_upsert_secondary(nation, fx, fy, AI_GOAL_FOUND, 2);
-    turn = 43;
-    ai_euro_dispatcher_turn(&ctx, nation);
-
-    founder = units_get(&units, uid);
-    if (count_nation_colonies(&colonies, nation) != 2 || (founder && founder->active)) {
-      fx_map_free(&map);
-      return fail("indian-land: Minuit free found failed");
-    }
-    if (col1.nation[nation].gold < gold0 || col1.nation[nation].gold > gold0 + 80u) {
-      fprintf(
-        stderr,
-        "unit_ai_euro_expand: Minuit gold %u→%u (want bump-only)\n",
-        gold0,
-        col1.nation[nation].gold
-      );
-      fx_map_free(&map);
-      return fail("indian-land: Minuit free found must not spend land gold");
+      return fail("#1074: full table founding lost gold or stamped purchased");
     }
   }
 
   fx_map_free(&map);
-  fprintf(stderr, "unit_ai_euro_expand: indian-land FOUND charge/Minuit ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: indian-land FOUND no-charge / full-table ok\n");
   return 0;
 }
 

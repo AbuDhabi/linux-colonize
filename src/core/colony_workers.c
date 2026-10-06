@@ -730,6 +730,73 @@ void colonies_seat_new_colonist(ColonizeColonyPool* pool, int colony_id, int col
 }
 
 /*
+ * DOS-LITERAL FUN_15eb_3930 raw 13794-13808: `268e(); 287e(); 2ea0();`, run
+ * through FUN_15eb_3956 <- FUN_281f_0c22 (raw 33580) on colony-screen redraw,
+ * EOT production (364b_0688), joins (364b_1aec/1b1a), the F6 adviser
+ * (3f41_1bec) and the AI colony tick (5952_035e). bugs.md #1080.
+ *
+ *  268e (raw 12804-12822): cache FUN_15eb_23f2 for the 5x5. The cache flag
+ *        DS:0x34c is cleared on colony select (FUN_15eb_002c raw 9334), and
+ *        nothing the recompute does changes a mask bit, so one snapshot here
+ *        is the same thing.
+ *  287e (raw 12889-12904): every plot with a non-zero byte gets
+ *        `FUN_15eb_06d2(x,y,0xffff)`, which (param_3 < 0) only writes
+ *        colony+0x70[plot] = 0xff — the occupation byte is left alone, so the
+ *        evicted colonist keeps his field job for 2ea0's `< 9` gate and 28c8's
+ *        current-job term.
+ *  2ea0 (raw 13162-13196): every plotless colonist whose FUN_15eb_0e18 job
+ *        is < 9 (a field job; building workers report their indoor job) gets
+ *        `FUN_15eb_28c8(slot,-1)`, else `FUN_15eb_1068(slot,0xd)` Carpenter.
+ *        Neither has a workers-per-building cap (that cap is UI-only,
+ *        overlays 60486-60496), so a 4th+ Carpenter is legal.
+ * The 2f3c units-outside count (DS:0x33c) and 394c (09c0/1f72 ledgers) are
+ * derived state the port recomputes where it reads them.
+ */
+void colonies_recompute_plots_w(const ColonizeWorld* w, int colony_id) {
+  if (!w || !w->colonies || !w->map) {
+    return;
+  }
+  ColonizeColony* col = colonies_get_mut(w->colonies, colony_id);
+  if (!col || !col->active) {
+    return;
+  }
+  uint8_t mask[COLONIZE_COLONY_FIELD_TILES_MAX]; /* 268e: DS:0x8df0 */
+  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES_MAX; ++ti) {
+    mask[ti] = colonies_plot_blocked_mask(w, col, ti);
+  }
+  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES_MAX; ++ti) { /* 287e */
+    if (mask[ti] != 0 && col->tiles[ti] >= 0) {
+      diag_info(
+        "COLONY %s: colonist #%d evicted from blocked plot %d (mask 0x%02x)",
+        col->name[0] ? col->name : "colony", (int)col->tiles[ti], ti, mask[ti]
+      );
+      col->tiles[ti] = -1;
+    }
+  }
+  ColonizeTurnContext ctx; /* 2ea0 */
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = w->units;
+  ctx.colonies = w->colonies;
+  ctx.map = w->map;
+  ctx.col1 = w->col1;
+  ctx.col1_ok = w->col1_ok && w->col1 != NULL;
+  ctx.human_nation = -1; /* bVar1 per colony, as colonies_seat_new_colonist */
+  if (ctx.col1_ok && col->nation_id >= 0 && col->nation_id < 4 &&
+      w->col1->player[col->nation_id].control == 0) {
+    ctx.human_nation = col->nation_id;
+  }
+  for (int s = 0; s < col->colonist_count; ++s) {
+    const ColonizeColonist* c = &col->colonists[s];
+    if (!c->active || c->building_type >= 0 || c->field_job < 0 ||
+        c->field_job >= COLONIZE_FIELD_JOB_COUNT || /* raw 13185 `0e18(slot) < 9` */
+        colonies_colonist_tile(col, s) >= 0) {
+      continue;
+    }
+    ai_euro_28c8_auto_assign_plots(&ctx, colony_id, s);
+  }
+}
+
+/*
  * Stale-save sweep, NOT a DOS routine: a colonist imported with DOS
  * occupation 0x13 (@JOB row 19, plain "Colonist") is genuinely idle in DOS —
  * FUN_15eb_0e18 returns 19, so FUN_15eb_2ea0's `< 9` gate skips him, and the
