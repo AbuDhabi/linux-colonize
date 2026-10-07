@@ -1118,7 +1118,7 @@ static int ai_euro_20e6_probe_adjacent(const ColonizeTurnContext* ctx, int x, in
  * iStack_6a — "this unit explores this call" (raw lines ~1095-1180). Order of
  * the clauses is DOS's own; later clauses override earlier ones.
  */
-static void ai_euro_20e6_explorer_flag(ColonizeTurnContext* ctx, const ColonizeUnit* u, Ai20e6Unit* s) {
+static void ai_euro_20e6_explorer_flag(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai20e6Unit* s) {
   const int t = s->dos_type;
   int ex = (t == 2 || t == 0) ? 1 : 0; /* Pioneers / Colonists */
   if (u->profession == UNITS_JOB_CONVERT) {           /* Indian Convert */
@@ -1166,6 +1166,13 @@ static void ai_euro_20e6_explorer_flag(ColonizeTurnContext* ctx, const ColonizeU
       ex = 0;
     }
   }
+  /* Unbound combat unit near an own colony on its continent: bind it there
+   * (raw asm OVL14 0x24ec-0x252b, +0x314a = local_62; [BP-0x32] is the
+   * is-ship flag set at 0x22a9). */
+  if (!s->is_ship && s->combat > 1 && ai_euro_20e6_origin_get(u) < 0 &&
+      s->home_colony >= 0 && s->home_dist <= 8 && s->home_cid == s->cid) {
+    ai_euro_20e6_origin_set(u, s->home_colony);
+  }
   /* FUN_521d_0600 composite priority must be non-zero (iStack_14). */
   if (ex) {
     const int prio = ai_goals_composite_unit_priority_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL)}, s->nation, u->x, u->y, t, u->profession, s->turn, colonies_count_for_nation(ctx->colonies, s->nation));
@@ -1210,14 +1217,17 @@ static int ai_euro_20e6_patrol_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, co
     return 0;
   }
   if (s->home_dist == 0) {
-    return 1; /* orders 0x56: stay put, re-evaluate next call */
+    u->col1_ai_plan = 0x56; /* +0x314b = 'V', then LAB_5899 stay */
+    return 1;
   }
   const ColonizeColony* hc = colonies_get(ctx->colonies, s->home_colony);
   if (!hc) {
     return 0;
   }
   /* FUN_521d_20c6 via LAB_27f5 (raw 89056): a persistent goal,
-   * not LAB_589e's one-step order. 479b clears it on arrival. */
+   * not LAB_589e's one-step order. 479b clears it on arrival. 20c6 stores
+   * DX = 'V' in +0x314b (DOSBox BPM, OVL14 0x20d1, seed-100 1496). */
+  u->col1_ai_plan = 0x56;
   ai_euro_set_goto(u, AI_EURO_ACT_GOAL, hc->x, hc->y);
   return 1;
 }
@@ -2661,7 +2671,8 @@ int ai_euro_20e6_47b9_dead_end(ColonizeTurnContext* ctx, ColonizeUnit* u, int na
           u->goto_y == home->y) {
         return 1; /* already walking there */
       }
-      ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, home->x, home->y);
+      u->col1_ai_plan = 0x35; /* LAB_4567: DX = '5' (asm OVL14 0x4574) */
+      ai_euro_set_goto(u, AI_EURO_ACT_GOAL, home->x, home->y);
       return 1;
     }
   }
@@ -2787,7 +2798,8 @@ int ai_euro_20e6_wagon_origin_walk(
   if (units_orders_follow_goto(u->orders) && u->goto_x == home->x && u->goto_y == home->y) {
     return 1;
   }
-  ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, home->x, home->y);
+  u->col1_ai_plan = 0x35; /* LAB_4567: DX = '5' (asm OVL14 0x4574) */
+  ai_euro_set_goto(u, AI_EURO_ACT_GOAL, home->x, home->y);
   return 1;
 }
 

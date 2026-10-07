@@ -1414,7 +1414,9 @@ int ai_euro_try_ship_trade_haul(
     }
   }
   /* FUN_521d_20e6 LAB_4567 -> 27f5, raw 89927-89929: the
-   * destination is the colony itself, not a neighbouring water tile. */
+   * destination is the colony itself, not a neighbouring water tile.
+   * 4567 loads DX = '5' for 20c6's +0x314b (asm OVL14 0x4574). */
+  ship->col1_ai_plan = 0x35;
   ai_euro_set_goto(ship, AI_EURO_ACT_GOAL, cx, cy);
   return 1;
 }

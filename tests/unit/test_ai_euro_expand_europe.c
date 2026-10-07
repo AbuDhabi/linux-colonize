@@ -121,7 +121,7 @@ static int unit_treasure_coast(void) {
     fx_map_free(&map);
     return fail("treasure should remain active");
   }
-  if (treasure->orders != UNITS_ORDER_AI_MOVE || treasure->goto_x != 8 ||
+  if (treasure->orders != UNITS_ORDER_AI_SAIL || treasure->goto_x != 8 ||
       treasure->goto_y != 8) {
     fprintf(
       stderr,
@@ -133,7 +133,7 @@ static int unit_treasure_coast(void) {
       treasure->y
     );
     fx_map_free(&map);
-    return fail("expected Treasure AI_MOVE toward NEAREST own colony (8,8)");
+    return fail("expected Treasure goto (20c6 orders 0x0b) toward NEAREST own colony (8,8)");
   }
 
   fx_map_free(&map);

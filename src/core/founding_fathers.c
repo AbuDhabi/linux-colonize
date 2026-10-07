@@ -465,11 +465,14 @@ static int ff_pick_weighted_of_type(
 
 /* FUN_4345_015a: @FATHERS category with the most eligible unclaimed Fathers. */
 static int ff_pick_strongest_category(const ColonizeCol1Save* col1, int nation) {
+  if (col1->nation[nation].founding_father_count > 0x18) {
+    return 5; /* raw 72923: all 25 elected */
+  }
   int best_type = -1;
   int best_count = -1;
   for (int type = 0; type < 5; ++type) {
     const int n = ff_count_eligible_of_type(col1, nation, type);
-    if (n > best_count) {
+    if (best_count <= n) { /* raw 72928: ties go to the later category */
       best_count = n;
       best_type = type;
     }
@@ -610,20 +613,6 @@ static bool ff_enqueue_debate_from_slate(
   );
 }
 
-static int pick_candidate(ColonizeTurnContext* ctx, const ColonizeCol1Save* col1,
-                          const ColonizeCol1Nation* nat, int nation_id) {
-  const int next = (int)nat->next_founding_father;
-  if (next >= 0 && next < (int)COLONIZE_COL1_FF_COUNT &&
-      ff_available_to(col1, nation_id, next)) {
-    return next;
-  }
-  const int type = ff_pick_strongest_category(col1, nation_id);
-  if (type < 0) {
-    return -1;
-  }
-  return ff_pick_weighted_of_type(col1, nation_id, type, ctx ? ctx->rng : NULL);
-}
-
 static int16_t advance_next_candidate(const ColonizeCol1Save* col1, int elected_idx) {
   (void)col1;
   (void)elected_idx;
@@ -690,9 +679,16 @@ static void ensure_next_candidate(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
 
-  const int idx = pick_candidate(ctx, col1, nat, nation_id);
-  if (idx >= 0) {
-    nat->next_founding_father = (int16_t)idx;
+  /* FUN_4345_06d2 raw 73195-73219: every category with a candidate rolls
+   * (one 04d4 draw each) before 2a1f_001c = FUN_4345_015a picks which roll
+   * the AI keeps (raw 73267). */
+  int rolled[5];
+  for (int type = 0; type < 5; ++type) {
+    rolled[type] = ff_pick_weighted_of_type(col1, nation_id, type, ctx->rng);
+  }
+  const int type = ff_pick_strongest_category(col1, nation_id);
+  if (type >= 0 && type < 5 && rolled[type] >= 0) {
+    nat->next_founding_father = (int16_t)rolled[type];
   }
 }
 

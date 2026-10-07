@@ -198,6 +198,19 @@ typedef struct ColonizeUnitPool {
    */
   int slot_end;
   int16_t id_slot[COLONIZE_UNITS_ID_HASH];
+  /* Live colonies (NULL = none): a unit spawned on a colony tile is bound to
+   * it, FUN_1427_06b4's +0x314a = FUN_15eb_0a76(x, y). Set by turn refresh. */
+  const struct ColonizeColonyPool* spawn_colonies;
+  /* DOS records past the live count, by DOS array index. FUN_1427_0824
+   * compacts by shifting down, so the vacated last slot keeps the old last
+   * unit's bytes; FUN_1427_06b4 never rewrites goto +0x314d/e or facing
+   * +0x314f, so a unit created there inherits them. */
+  struct {
+    uint8_t valid;
+    uint8_t goto_x;
+    uint8_t goto_y;
+    int8_t facing;
+  } dos_tail[COLONIZE_UNITS_DOS_MAX];
 } ColonizeUnitPool;
 
 /* One past the highest slot that can hold a unit: the bound for every walk

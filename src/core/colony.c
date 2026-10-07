@@ -375,6 +375,85 @@ int colonies_building_type_row(const ColonizeColonyPool* pool, int type_index) {
   return g_building_name_row_resolver ? g_building_name_row_resolver(t->name) : -1;
 }
 
+/*
+ * bugs.md (starvation_bug.SAV): the Col1 occupation byte is the DOS @JOB id,
+ * never the port's building-type index (the import side could not map that,
+ * so building workers came back unassigned after a round-trip).
+ */
+int colonies_colonist_occupation_job(const ColonizeColonyPool* pool, const ColonizeColonist* c) {
+  if (c->field_job >= 0 && c->field_job < COLONIZE_FIELD_JOB_COUNT) {
+    return c->field_job;
+  }
+  if (c->building_type < 0 || c->building_type >= COLONIZE_BUILDING_TYPES_MAX) {
+    return 0x12; /* unseated: DOS's idle join is FUN_15eb_1068(slot, 0x12) */
+  }
+  const int row = colonies_building_type_row(pool, c->building_type);
+  int occ = UNITS_JOB_COLONIST;
+  switch (row) {
+    case COLONY_BUILDING_CARPENTERS_SHOP:
+    case COLONY_BUILDING_LUMBER_MILL:
+      occ = 13;
+      break;
+    case COLONY_BUILDING_RUM_DISTILLERS_HOUSE:
+    case COLONY_BUILDING_RUM_DISTILLERY:
+    case COLONY_BUILDING_RUM_FACTORY:
+      occ = 9;
+      break;
+    case COLONY_BUILDING_TOBACCONISTS_HOUSE:
+    case COLONY_BUILDING_TOBACCONISTS_SHOP:
+    case COLONY_BUILDING_CIGAR_FACTORY:
+      occ = 10;
+      break;
+    case COLONY_BUILDING_WEAVERS_HOUSE:
+    case COLONY_BUILDING_WEAVERS_SHOP:
+    case COLONY_BUILDING_TEXTILE_MILL:
+      occ = 11;
+      break;
+    case COLONY_BUILDING_FUR_TRADERS_HOUSE:
+    case COLONY_BUILDING_FUR_TRADING_POST:
+    case COLONY_BUILDING_FUR_FACTORY:
+      occ = 12;
+      break;
+    case COLONY_BUILDING_BLACKSMITHS_HOUSE:
+    case COLONY_BUILDING_BLACKSMITHS_SHOP:
+    case COLONY_BUILDING_IRON_WORKS:
+      occ = 14;
+      break;
+    case COLONY_BUILDING_ARMORY:
+    case COLONY_BUILDING_MAGAZINE:
+    case COLONY_BUILDING_ARSENAL:
+      occ = 15;
+      break;
+    case COLONY_BUILDING_CHURCH:
+    case COLONY_BUILDING_CATHEDRAL:
+      occ = 16;
+      break;
+    case COLONY_BUILDING_TOWN_HALL:
+    case COLONY_BUILDING_TOWN_HALL_2:
+    case COLONY_BUILDING_TOWN_HALL_3:
+      occ = 17;
+      break;
+    case COLONY_BUILDING_SCHOOLHOUSE:
+    case COLONY_BUILDING_COLLEGE:
+    case COLONY_BUILDING_UNIVERSITY:
+      occ = 18;
+      break;
+    default:
+      break;
+  }
+  return occ;
+}
+
+void colonies_colonist_tail_stash(const ColonizeColonyPool* pool, ColonizeColony* col) {
+  const int last = col->colonist_count - 1;
+  if (last < 0 || last >= COLONIZE_COLONY_POP_MAX) {
+    return;
+  }
+  const ColonizeColonist* c = &col->colonists[last];
+  col->col1_tail_occupation[last] = (uint8_t)colonies_colonist_occupation_job(pool, c);
+  col->col1_tail_profession[last] = (uint8_t)(c->profession < 0 ? UNITS_JOB_NONE : c->profession);
+}
+
 int colonies_building_row(const ColonizeColonyPool* pool, ColonizeBuildingRow row) {
   if (!pool || (int)row < 0) {
     return -1;

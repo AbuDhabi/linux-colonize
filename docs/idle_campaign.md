@@ -18,8 +18,9 @@ GOLDEN_IDLE_DUMP=/tmp/x/sim.sav ./build/debug/golden_idle_campaign Y Y+1
 then a recursive JSON diff (show `*_hex` blobs as differing byte offsets). The target is
 `EXCLUDE_FROM_ALL`: rebuild it explicitly (`cmake --build build/debug --target golden_idle_campaign`).
 
-Progress (sum of differing JSON leaves over all 77 transitions): 18,869 → 16,546 → 16,178.
-1493→1494 and 1494→1495 pass byte-for-byte; 1492→1493 is down to the human's first-turn UI.
+Progress (sum of differing JSON leaves over all 77 transitions): 18,869 → 16,546 → 16,178 →
+13,423. 1493→1494, 1494→1495 and 1495→1496 pass byte-for-byte; 1492→1493 is down to the
+human's first-turn UI; 1497→1498 only to the stance-table artifact below.
 
 DOSBox method used here (docs/dos_trace.md): `setup --save year_Y.sav`, load, then `BPM` on the
 record bytes that differ (unit chain +0x18, colony +0x8a / +0x70) or `BP` on a resident routine
@@ -83,9 +84,40 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   -2 group (taken at 0x3609 after 10be), not the tile; DS:0x9456 is counted by the 0x45 plan
   stamp, not order 11 (shared with every AI goto) — the REF fleet no longer parks for good.
 
+## Fixed in the 2026-10-07 pass
+
+- Per-slot EOT and RNG phase (DOSBox BP on 1541:0e04, per-slot draw counts now equal DOS's for
+  every AI and Indian slot): each AI nation's colony EOT (5e52 immigration, Phase A bells + 0a22
+  elect, production, crosses) runs at the head of its own slot (`turn_run_ai_nation_eot`), not
+  batched in SETUP; 5e52 opens with the timer-word reseed `FUN_281f_04ca` (raw 68542), like
+  6d8e. The human's nation tick moved to FINISH (its own 00f2, after the day top) with the same
+  reseed. `FUN_4345_06d2` rolls every category before `015a` picks one; `015a` ties go to the
+  later category.
+- Unit array order: `FUN_1427_0824` compacts and `06b4` appends, so new units take `slot_end`,
+  not the first hole; the vacated DOS record keeps its goto/facing and the next spawn inherits
+  them (`ColonizeUnitPool.dos_tail`). `06b4` binds `origin` to the colony on the spawn tile.
+- Colony colonist bytes past `population` keep DOS's stale tail (`FUN_15eb_0d04` never clears);
+  idle colonists are job 0x12 (DOS's own idle join).
+- Recruit pool stores DOS's 0x1c for Free Colonists (46d4 free tier, Brewster, 3-experts bail);
+  the human's 0x40 crosses-immigrant latch is a save bit, not a unit heuristic; @TUTORIAL5 latch.
+- Plans: 20c6 walk-home `'V'`, LAB_4567 `'5'` + orders 0x0b for wagons/treasure/hauls; 20e6
+  origin bind (OVL14 0x24ec, `[BP-0x32]` is the is-ship flag, not stance); colony tick binds
+  unbound tile units (`DS:0x8dc6`); colony eject reveals while the colonist still counts.
+
+## Harness artifacts (not port bugs)
+
+- The `-0x6790` stance table (DS:0x9870) is not in the save and is zero after a DOS load; the
+  continuous run carried last turn's values. A DOSBox load of year_1497 reproduces the port's
+  Isabella `short_defenders`/`specialty_cargo`, not the save's.
+- DOS's music picker (`FUN_129f_0008`) draws twice at the human's slot start; harmless because
+  every slot's 5e52 reseeds.
+
 ## Open leads (most transitions first)
 
-- **AI colony tick vs DOS**: still the main source from 1497 on (worker/tile choice,
+- Human end-of-slot draws: DOS 5, port 1 in 1497→1498 (human FF debate rolls / merc offer?).
+- Multi-colony nations: Phase A runs for all a nation's colonies before any production; DOS
+  interleaves colony by colony (`turn_run_ai_nation_eot` ponytail note).
+- **AI colony tick vs DOS**: still the main source from 1499 on (worker/tile choice,
   `specialty_cargo`, `building_in_production` 255); trace the first diverging colony with the
   15eb:28c8 / 2d14 breakpoints. Downstream: alarm/friction, recruit pool / FF pick RNG phase.
 - Remaining `transport_chain` diffs (~720 leaves) sit in transitions that already diverge

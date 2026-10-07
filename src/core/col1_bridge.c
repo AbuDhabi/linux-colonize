@@ -1121,6 +1121,10 @@ bool col1_bridge_apply_w(
     col1_apply_colony_buildings(colonies, dst, &src->buildings);
     const int pop = src->population > COLONIZE_COLONY_POP_MAX ? COLONIZE_COLONY_POP_MAX
                                                               : (int)src->population;
+    for (int p = pop; p < COLONIZE_COLONY_POP_MAX; ++p) {
+      dst->col1_tail_occupation[p] = src->occupation[p]; /* DOS stale tail */
+      dst->col1_tail_profession[p] = src->profession[p];
+    }
     /*
      * All 20 plot slots load. Slots 0..7 remap to the port's clockwise ring,
      * 8..19 are identity (the runtime array keeps the DS:0xc8/0xde outer
@@ -1909,16 +1913,9 @@ bool col1_bridge_apply_w(
       europe->recruit_count, europe->difficulty, europe->current_crosses,
       europe->needed_crosses
     );
-    /* Restore immigrant-crosses FSM from save (dock unit / spent crosses). */
-    europe->crosses_immigrant_seen = false;
-    for (int ui = 0; ui < (int)save->head.unit_count; ++ui) {
-      const ColonizeCol1Unit* uu = &save->unit[ui];
-      if (uu->nation_id == (uint8_t)local.human_nation && col1_coord_is_europe(uu->x, uu->y) &&
-          uu->type < 13) {
-        europe->crosses_immigrant_seen = true;
-        break;
-      }
-    }
+    /* nation_flags 0x40: 5e52's crosses-immigrant latch (raw 68601), read by
+     * 584a's dock drain and never cleared. */
+    europe->crosses_immigrant_seen = (nat->nation_flags & 0x40u) != 0;
     /* Bind the nation first: the legacy re-seed below reads eu->bound_nation
      * for the DOS Spain slot-0 override (europe_seed_pool / LAB_38fd_6161). */
     europe_set_nation(europe, local.human_nation, NULL);
@@ -1933,7 +1930,7 @@ bool col1_bridge_apply_w(
     {
       bool have_pool = false;
       for (int i = 0; i < EUROPE_POOL_SIZE && i < 3; ++i) {
-        if (nat->recruit[i] < 0x1c) {
+        if (nat->recruit[i] <= 0x1c) {
           have_pool = true;
         }
       }
@@ -2439,8 +2436,8 @@ bool col1_bridge_capture_w(
         dst->building_in_production = (uint8_t)src->building_in_production;
       }
       for (int p = 0; p < (int)COLONIZE_COL1_COLONY_POP_MAX; ++p) {
-        dst->profession[p] = 0;
-        dst->occupation[p] = 0;
+        dst->profession[p] = src->col1_tail_profession[p];
+        dst->occupation[p] = src->col1_tail_occupation[p];
       }
       for (int p = 0; p < dst->population; ++p) {
         const ColonizeColonist* c = &src->colonists[p];
@@ -2449,76 +2446,7 @@ bool col1_bridge_capture_w(
           prof = UNITS_JOB_NONE;
         }
         dst->profession[p] = (uint8_t)prof;
-        if (c->field_job >= 0 && c->field_job < COLONIZE_FIELD_JOB_COUNT) {
-          dst->occupation[p] = (uint8_t)c->field_job;
-        } else if (c->building_type >= 0 &&
-                   c->building_type < COLONIZE_BUILDING_TYPES_MAX) {
-          /*
-           * bugs.md (starvation_bug.SAV): the occupation byte is the DOS
-           * @JOB id, but this wrote the PORT's building-type index — the
-           * import side then failed to map it, so every building worker
-           * came back unassigned after a save round-trip and the colony
-           * quietly stopped producing until it starved. Map the building
-           * to its @JOB (mirror of the import chains above).
-           */
-          const int row = colonies_building_type_row(colonies, c->building_type);
-          int occ = UNITS_JOB_COLONIST;
-          switch (row) {
-            case COLONY_BUILDING_CARPENTERS_SHOP:
-            case COLONY_BUILDING_LUMBER_MILL:
-              occ = 13;
-              break;
-            case COLONY_BUILDING_RUM_DISTILLERS_HOUSE:
-            case COLONY_BUILDING_RUM_DISTILLERY:
-            case COLONY_BUILDING_RUM_FACTORY:
-              occ = 9;
-              break;
-            case COLONY_BUILDING_TOBACCONISTS_HOUSE:
-            case COLONY_BUILDING_TOBACCONISTS_SHOP:
-            case COLONY_BUILDING_CIGAR_FACTORY:
-              occ = 10;
-              break;
-            case COLONY_BUILDING_WEAVERS_HOUSE:
-            case COLONY_BUILDING_WEAVERS_SHOP:
-            case COLONY_BUILDING_TEXTILE_MILL:
-              occ = 11;
-              break;
-            case COLONY_BUILDING_FUR_TRADERS_HOUSE:
-            case COLONY_BUILDING_FUR_TRADING_POST:
-            case COLONY_BUILDING_FUR_FACTORY:
-              occ = 12;
-              break;
-            case COLONY_BUILDING_BLACKSMITHS_HOUSE:
-            case COLONY_BUILDING_BLACKSMITHS_SHOP:
-            case COLONY_BUILDING_IRON_WORKS:
-              occ = 14;
-              break;
-            case COLONY_BUILDING_ARMORY:
-            case COLONY_BUILDING_MAGAZINE:
-            case COLONY_BUILDING_ARSENAL:
-              occ = 15;
-              break;
-            case COLONY_BUILDING_CHURCH:
-            case COLONY_BUILDING_CATHEDRAL:
-              occ = 16;
-              break;
-            case COLONY_BUILDING_TOWN_HALL:
-            case COLONY_BUILDING_TOWN_HALL_2:
-            case COLONY_BUILDING_TOWN_HALL_3:
-              occ = 17;
-              break;
-            case COLONY_BUILDING_SCHOOLHOUSE:
-            case COLONY_BUILDING_COLLEGE:
-            case COLONY_BUILDING_UNIVERSITY:
-              occ = 18;
-              break;
-            default:
-              break;
-          }
-          dst->occupation[p] = (uint8_t)occ;
-        } else {
-          dst->occupation[p] = (uint8_t)UNITS_JOB_COLONIST;
-        }
+        dst->occupation[p] = (uint8_t)colonies_colonist_occupation_job(colonies, c);
       }
       /*
        * bugs.md interop: DOS keeps each colony's colonist arrays SORTED by

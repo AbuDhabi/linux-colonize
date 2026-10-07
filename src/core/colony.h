@@ -196,6 +196,11 @@ typedef struct ColonizeColony {
   int prod_bells_phase_a;
   int prod_crosses_phase_a;
   uint32_t prod_compose_stamp; /* head.turn + 1; 0 = never composed */
+  /* Col1 occupation[]/profession[] bytes past population: DOS's remover
+   * FUN_15eb_0d04 shifts the live slots down and never clears the vacated
+   * one, so saves carry the last departed colonist there. */
+  uint8_t col1_tail_occupation[COLONIZE_COLONY_POP_MAX];
+  uint8_t col1_tail_profession[COLONIZE_COLONY_POP_MAX];
 } ColonizeColony;
 
 #define COLONIZE_BUILD_AI_WANTS_CONSTRUCTION 0x80u
@@ -407,6 +412,10 @@ bool colonies_has_building_row(
 
 /* @BUILDING row of a pool slot, or -1. */
 int colonies_building_type_row(const ColonizeColonyPool* pool, int type_index);
+/* Col1 occupation byte (@JOB id) of a colonist: field job, building's job, else Free Colonist. */
+int colonies_colonist_occupation_job(const ColonizeColonyPool* pool, const ColonizeColonist* c);
+/* Call before dropping colonists[colonist_count - 1]: keeps its Col1 bytes as the stale tail. */
+void colonies_colonist_tail_stash(const ColonizeColonyPool* pool, ColonizeColony* col);
 /* Test-only seam, same purpose as units_set_name_kind_resolver: fixtures that
  * build a pool out of names get their rows from tests/common. */
 typedef int (*ColoniesBuildingNameRowResolver)(const char* name);

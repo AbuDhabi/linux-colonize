@@ -193,7 +193,7 @@ bool europe_recruit_free_from_pool_ex(
     profession = eu->pool[pool_index].profession;
   } else {
     snprintf(name, sizeof(name), "%s", europe_pool_job_name(EUROPE_POOL_JOB_FREE_COLONIST));
-    profession = EUROPE_POOL_JOB_FREE_COLONIST;
+    profession = UNITS_JOB_NONE;
   }
   /* FUN_38fd_4884 with param_1 != 0: passage forced to 0, the +6 recruit
    * counter and the +0x2e crosses word are left alone (64695-64697, 64778). */
@@ -246,7 +246,7 @@ bool europe_immigrant_from_pool(EuropeScreen* eu, ColonizeDosRng* rng) {
     profession = eu->pool[slot].profession;
   } else {
     snprintf(name, sizeof(name), "%s", europe_pool_job_name(EUROPE_POOL_JOB_FREE_COLONIST));
-    profession = EUROPE_POOL_JOB_FREE_COLONIST;
+    profession = UNITS_JOB_NONE;
   }
   /* 68583: the slot is refilled with `46d4((turn & 3) == 0)` BEFORE the
    * 0b26/0718 harbor spawn (raw 68585) rolls the Soldier->Dragoon type, all

@@ -144,4 +144,7 @@ int ai_native_first_contact_this_turn(int nation_id, int euro_nation);
  */
 void ai_native_reset(void);
 
+/* FUN_281f_04ca: reseed the shared RNG from the DOS timer word (per-slot entry points). */
+void ai_nation_reseed(ColonizeTurnContext* ctx);
+
 #endif

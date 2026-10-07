@@ -248,13 +248,13 @@ int europe_roll_pool_profession(
      * the nation-record view fills the same field. */
     const int threshold = ((v ? v->difficulty : 0) + 3) >> 1;
     if (europe_pool_tier_roll(st, 1, 15) <= threshold) {
-      return (v && v->brewster) ? 0x13 : 0x1a; /* Petty Criminals */
+      return (v && v->brewster) ? UNITS_JOB_NONE : 0x1a; /* Petty Criminals */
     }
     if (europe_pool_tier_roll(st, 1, 10) <= threshold) {
-      return (v && v->brewster) ? 0x13 : 0x19; /* Indentured Servants */
+      return (v && v->brewster) ? UNITS_JOB_NONE : 0x19; /* Indentured Servants */
     }
     if (europe_pool_tier_roll(st, 1, 8) <= threshold) {
-      return 0x13; /* Free Colonists (DOS 0x1c, drawn as Free Colonists) */
+      return UNITS_JOB_NONE; /* 46d4 returns 0x1c, drawn as Free Colonists */
     }
   }
 
@@ -266,7 +266,7 @@ int europe_roll_pool_profession(
       }
     }
     if (!any_non_expert) {
-      return 0x13; /* three experts already in the pool */
+      return UNITS_JOB_NONE; /* three experts already in the pool (46d4: 0x1c) */
     }
     const int job = europe_pool_remap(europe_pool_expert_roll(st, 0x18));
     if (++tries > 100) {
@@ -297,19 +297,9 @@ int europe_roll_pool_profession(
  * draws as Free Colonists (0x1c→0x13 label swap, 64719 / 68591). A direct
  * substitution, not a reroll (bugs.md #224 kept it idempotent).
  *
- * The 0x13 stored below is that swap applied at the store instead of at the
- * draw — the port's single pool convention, not a divergence (smell audit
- * 2026-09-10 G5 secondary, refuted):
- *   - europe_set_pool_slot folds 0x1c (and every unnamed job) to 0x13 on
- *     load, and europe_roll_pool_profession's own free tier returns 0x13
- *     where DOS returns 0x1c, so 0x13 is the port's Free Colonists byte
- *     everywhere in the pool;
- *   - the roll's duplicate check cannot tell them apart: it only ever
- *     compares against europe_pool_remap output (0..0x18), which is never
- *     0x13 nor 0x1c;
- *   - col1_bridge reads a saved 0x1c as "slot empty" (col1_bridge.c:1701)
- *     and would reroll a fully-Brewstered pool on the next load if this
- *     wrote the raw DOS byte. */
+ * The pool stores DOS's own 0x1c (the seed-100 saves hold 0x1c in recruit
+ * slots and never 0x13); europe_pool_job_name gives it the Free Colonists
+ * label, and every unit-side consumer treats 0x1c and 0x13 alike. */
 void europe_apply_brewster(EuropeScreen* eu, int owned) {
   if (!eu || !owned) {
     return;
@@ -319,7 +309,7 @@ void europe_apply_brewster(EuropeScreen* eu, int owned) {
     if (eu->pool[i].filled &&
         (eu->pool[i].profession == UNITS_JOB_SERVANT ||
          eu->pool[i].profession == UNITS_JOB_CRIMINAL)) {
-      eu->pool[i].profession = EUROPE_POOL_JOB_FREE_COLONIST;
+      eu->pool[i].profession = UNITS_JOB_NONE;
       snprintf(
         eu->pool[i].name, sizeof(eu->pool[i].name), "%s",
         europe_pool_job_name(EUROPE_POOL_JOB_FREE_COLONIST)
@@ -384,7 +374,7 @@ void europe_set_pool_slot(EuropeScreen* eu, int slot, int profession) {
    * to be a strcmp against the English name, which a translated NAMES.TXT
    * would have broken (audit SC-13). */
   if (profession < 0 || profession > 0x1a || europe_pool_cand_index(profession) < 0) {
-    profession = EUROPE_POOL_JOB_FREE_COLONIST;
+    profession = UNITS_JOB_NONE; /* DOS's byte; europe_pool_job_name labels it */
   }
   snprintf(p->name, sizeof(p->name), "%s", europe_pool_job_name(profession));
   p->profession = profession;

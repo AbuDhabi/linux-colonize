@@ -1407,6 +1407,7 @@ void turn_produce_one_colony(
           colony->tiles[ti] = (int8_t)((int)colony->tiles[ti] - 1);
         }
       }
+      colonies_colonist_tail_stash(pool, colony);
       for (int i = kill_i; i < colony->colonist_count - 1; ++i) {
         colony->colonists[i] = colony->colonists[i + 1];
       }

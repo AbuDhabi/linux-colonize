@@ -71,6 +71,7 @@ void units_try_capture_foreign_colony(
     if (col->population > 1) {
       col->population--;
       if (col->colonist_count > 1) {
+        colonies_colonist_tail_stash(colonies, col);
         col->colonist_count--;
       }
       /*
