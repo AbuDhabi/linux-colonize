@@ -1123,60 +1123,6 @@ int ai_euro_is_treasure_name(ColonizeUnitKind kind) {
 
 
 /*
- * Europe-bound lane entry for a ship: prefer the eastern High Seas rim
- * (units_find_eastern_high_seas_tile — the 48d3_015e Atlantic exit), else the
- * nearest water tile further east as a stand-in on a map with no HS column.
- * Consumer: ai_euro_ship_sail_to_europe (the FUN_4393 export / Privateer-loot
- * sail). The treasure caller it also had was deleted 2026-09-23 — see below.
- */
-int ai_euro_europe_sail_target(
-  ColonizeTurnContext* ctx,
-  int from_x,
-  int from_y,
-  int* out_x,
-  int* out_y
-) {
-  if (!ctx || !ctx->map || !ctx->units || !out_x || !out_y) {
-    return 0;
-  }
-  int hx = 0;
-  int hy = 0;
-  if (units_find_eastern_high_seas_tile(ctx->units, ctx->map, from_y, &hx, &hy)) {
-    *out_x = hx;
-    *out_y = hy;
-    return 1;
-  }
-  /* No HS on map — eastward water stand-in (Europe edge direction). */
-  int best = -1;
-  int bx = 0;
-  int by = 0;
-  for (int y = 0; y < ctx->map->height; ++y) {
-    for (int x = 0; x < ctx->map->width; ++x) {
-      if (!map_tile_is_water(ctx->map, x, y)) {
-        continue;
-      }
-      if (x <= from_x) {
-        continue;
-      }
-      const int d = abs(x - from_x) + abs(y - from_y);
-      /* Prefer farther east, then nearer in y. */
-      const int score = (ctx->map->width - x) * 1000 + d;
-      if (best < 0 || score < best) {
-        best = score;
-        bx = x;
-        by = y;
-      }
-    }
-  }
-  if (best < 0) {
-    return 0;
-  }
-  *out_x = bx;
-  *out_y = by;
-  return 1;
-}
-
-/*
  * Deleted 2026-09-23 (bugs.md #745): ai_euro_treasure_coast_target — an OpenCol
  * invention cited only to "Colonization.pdf Treasure Trains", with a
  * coastal-colony preference, a Manhattan distance, no landmass test and a
@@ -1647,6 +1593,32 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
           }
           if (near_human) {
             (void)ai_diplo_153e_encounter(ctx, ctx->human_nation, nation_id, u->id);
+          }
+        }
+        /* 3180's AI x AI limb: land mover, land neighbour whose stack head
+         * (07e0) or settlement (06be) is another AI Euro -> 153e -> 13b0,
+         * once per neighbour nation (aiStack_20). */
+        if (progressed && u->active && units_is_on_map(u) && ctx->map &&
+            !map_tile_is_water(ctx->map, u->x, u->y)) {
+          int seen[4] = {0};
+          for (int d = 0; d < 8; ++d) {
+            const int ax = u->x + MAP_DIR8_DX[d];
+            const int ay = u->y + MAP_DIR8_DY[d];
+            if (!map_coords_inset(ctx->map, ax, ay) || map_tile_is_water(ctx->map, ax, ay)) {
+              continue;
+            }
+            const int oid = units_tile_head_id_at(ctx->units, ax, ay);
+            const ColonizeUnit* o = oid >= 0 ? units_get_const(ctx->units, oid) : NULL;
+            int on = o ? o->nation_id : -1;
+            if (on < 0 && ctx->colonies) {
+              const int ccid = colonies_id_at(ctx->colonies, ax, ay);
+              const ColonizeColony* cc = ccid >= 0 ? colonies_get(ctx->colonies, ccid) : NULL;
+              on = cc && cc->active ? cc->nation_id : -1;
+            }
+            if (on >= 0 && on < 4 && on != nation_id && on != ctx->human_nation && !seen[on]) {
+              seen[on] = 1;
+              ai_diplo_13b0_encounter(ctx, nation_id, on);
+            }
           }
         }
         /*

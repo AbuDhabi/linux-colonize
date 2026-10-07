@@ -147,6 +147,12 @@ instruction. On one byte it is fine. It found the 3180 facing writer.
 - DOS compacts the unit array when a unit is deleted (e.g. a colony is
   founded mid-turn). Every later index shifts down by one, so match units
   by xy and type, not by save index.
+- Map layers are far pointers, not DS offsets: DS:0x160/0x162 (layer2 off:seg), DS:0x164/0x166
+  (layer3, the save's `path`). A `BPM seg:off` on one tile byte finds its writer.
+- The RNG state (FUN_1d1d_0e04, resident 1541:0e04) is the dword at 0x28ee in the routine's own
+  DS (read `DS` at the break), not the game DS.
+- 20e6 wander scorer (OVL14): `--patch-cc 0x4e2d6`, trap offset 0x20e6; at CS:5805 `[bp-0x4e]` is
+  the direction and `[bp-0x26]` its score, `[bp+6]` the unit.
 - Save files hold the state at the start of the human's turn. When a turn
   runs, all four European nations move before the Indians. So anything a
   Brave reads may already have been changed by Euro moves made that same

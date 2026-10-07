@@ -144,6 +144,7 @@ bool units_can_afford_move_cost(const ColonizeUnitPool* pool, int unit_id, int c
 bool units_revere_defend_colony_tile( ColonizeUnitPool* pool, ColonizeColonyPool* colonies, int attacker_id, int dest_x, int dest_y, ColonizeDosRng* rng );
 int units_spawn_colony_temp_defender( ColonizeUnitPool* pool, const ColonizeColony* col, bool revere_armed );
 void units_try_capture_foreign_colony( ColonizeUnitPool* pool, ColonizeColonyPool* colonies, int unit_id );
+void units_try_capture_foreign_colony_at( ColonizeUnitPool* pool, ColonizeColonyPool* colonies, int unit_id, int cx, int cy );
 
 /* --- owned by units_move.c --- */
 const char* units_order_name(int orders);

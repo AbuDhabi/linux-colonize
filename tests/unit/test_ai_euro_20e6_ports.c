@@ -352,8 +352,8 @@ static int assemble_refuses_oversize_passenger(void) {
   c->stock[COLONIZE_CARGO_SILVER] = 60;
   f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_SILVER] = 20;
 
-  const int ship_id = units_spawn(&f.units, 2, 12, 4);
-  const int pid = units_spawn(&f.units, 4, 11, 4);
+  const int ship_id = units_spawn(&f.units, 2, 11, 4);
+  const int pid = units_spawn_allow_stack(&f.units, 4, 11, 4);
   ColonizeUnit* ship = units_get(&f.units, ship_id);
   ColonizeUnit* p = units_get(&f.units, pid);
   if (!ship || !p) {
@@ -645,8 +645,9 @@ static int wagon_off_landmass_is_destroyed(void) {
  * 100 Tools at euro_price 2 with a 50% tax rate therefore lands as (the
  * ledger prices at the nation's OWN byte − 1 = 1, FUN_38fd_0040 on the bound
  * record — not the human's screen, bugs.md #1049):
- *   nation gold   += 2*100          = 200   (untaxed, single)
- *   trade.gold[T] += 50 + 200       = 250   (taxed ledger + untaxed tail)
+ *   nation gold   += 1*100          = 100   (untaxed, single; tail price is
+ *                                            euro_price-1 = DS:0x84bc)
+ *   trade.gold[T] += 50 + 100       = 150   (taxed ledger + untaxed tail)
  *   trade.tons[T] += 100 + 100      = 200   (double booked)
  *   trade.tons2[T]+= 100                    (ledger only — the tail never
  *                                            touches +0xfc)
@@ -724,10 +725,10 @@ static int sell_tail_untaxed_credit_and_double_book(void) {
 
   const ColonizeCol1NationTrade* t = &f.col1.nation[nation].trade;
   const uint32_t gold = f.col1.nation[nation].gold;
-  if (gold != gold_before + 200u || t->gold[COLONIZE_CARGO_TOOLS] != 250 ||
+  if (gold != gold_before + 100u || t->gold[COLONIZE_CARGO_TOOLS] != 150 ||
       t->tons[COLONIZE_CARGO_TOOLS] != 200 || t->tons2[COLONIZE_CARGO_TOOLS] != 100) {
     fprintf(stderr,
-            "gold %u->%u (want +200) ledger gold=%d (want 250) tons=%d (want 200) tons2=%d "
+            "gold %u->%u (want +100) ledger gold=%d (want 150) tons=%d (want 200) tons2=%d "
             "(want 100)\n",
             (unsigned)gold_before, (unsigned)gold, (int)t->gold[COLONIZE_CARGO_TOOLS],
             (int)t->tons[COLONIZE_CARGO_TOOLS], (int)t->tons2[COLONIZE_CARGO_TOOLS]);
@@ -802,7 +803,7 @@ static int sell_tail_falls_through_to_work_queue(void) {
     fixture_free(&f);
     return fail("ship vanished");
   }
-  if (ship_goods_holds(ship) != 0 || f.col1.nation[nation].gold != gold_before + 200u) {
+  if (ship_goods_holds(ship) != 0 || f.col1.nation[nation].gold != gold_before + 100u) {
     fprintf(stderr, "holds=%d gold %u->%u\n", ship_goods_holds(ship), (unsigned)gold_before,
             (unsigned)f.col1.nation[nation].gold);
     fixture_free(&f);

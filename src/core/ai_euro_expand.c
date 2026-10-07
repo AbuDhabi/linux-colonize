@@ -749,6 +749,11 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
 void ai_euro_5952_colony_counters(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c
 ) {
+    {
+      /* FUN_5952_035e raw 93958: 281f_0c72 -> FUN_15eb_26e4 claim table. */
+      ColonizeWorld w = world_from_turn_ctx(ctx);
+      colonies_26e4_claim_stamp(&w, c);
+    }
     /* FUN_5952_035e thin: INC cargo_idle_turns (+0x8f) + improve_timer (+0x8c)
      * cap 0x7f. */
     if (c->cargo_idle_turns < 0x7f) {

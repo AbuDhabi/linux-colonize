@@ -19,14 +19,15 @@ then a recursive JSON diff (show `*_hex` blobs as differing byte offsets). The t
 `EXCLUDE_FROM_ALL`: rebuild it explicitly (`cmake --build build/debug --target golden_idle_campaign`).
 
 Progress (sum of differing JSON leaves over all 77 transitions): 18,869 → 16,546 → 16,178 →
-13,423 → 12,739. 1493→1494, 1494→1495 and 1495→1496 pass byte-for-byte; 1492→1493 is down to the
+13,423 → 12,739 → 11,659. 1493→1494, 1494→1495, 1495→1496 and 1505→1506 pass byte-for-byte; 1492→1493 is down to the
 human's first-turn UI; 1497→1498 only to the stance-table artifact below.
 
 **From-load target.** Because DOS keeps unsaved state across turns (stance table, below), the
 archived Y+1 save is not always reachable from Y. Load year_Y in DOSBox (`setup --save`, `load_slot`,
 then press space until `DS:0x538e` changes); the human-slot autosave lands in `$W/C/COLONY09.SAV`.
 `sav_json` it and diff against the sim: whatever remains is a port bug, whatever the archived save
-adds on top is an artifact. 1498→1499 and 1501→1502 match their from-load autosaves exactly.
+adds on top is an artifact. 1498→1499, 1501→1502 and 1502→1503 through 1504→1505 match their from-load
+autosaves exactly.
 
 DOSBox method used here (docs/dos_trace.md): `setup --save year_Y.sav`, load, then `BPM` on the
 record bytes that differ (unit chain +0x18, colony +0x8a / +0x70) or `BP` on a resident routine
@@ -138,7 +139,41 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
 - Nation +0x4b is NOT DOS-dead (lategame DOS saves carry 1..11): round-tripped as `unknown_4b`;
   the port's Indian-hostility sticky is now a session cache re-derived on apply.
 
+## Fixed in the 2026-10-07 third pass (DOSBox-traced)
+
+- Village tiles never take a Euro owner nibble: a port spawn ran the occupancy claim with the
+  nation-0 placeholder (an empty-village temp defender stamped England), and 021a then saw a Euro
+  "colony" next to the village (`units_claim_tile_owner_from_stack`).
+- 48d3_03d0 lane tick counts down every unit on the lane tile, passengers included.
+- 20e6 land far probe: +8 when the DS:0x9faa coarse cell is empty (was a per-nation seen[]
+  stand-in; ships already used the plane).
+- 6d8e prelude 0xa0cc[16] counters ported literally: specialty bumps its own good (muskets twice),
+  empty muskets/goods-8/tools stocks, minus every own hull's held cargo and each Pioneer (tools).
+- FUN_1427_06b4: a native unit's +0x12 word = turn at creation (021a's visit stamp).
+- 584a crosses penalty counts colonists on the dock x == 236+n only, not lane passengers.
+- 26e4 (via 5952_035e) restamps claimed, workable, empty, unbought plots with the tribe nibble
+  (`colonies_26e4_claim_stamp`).
+- AI ships berth ON the colony tile (DOS `iStack_2e == 0`); the "adjacent water" substitution
+  made a hull one tile out dump, reload and sell its hold a turn early.
+- A Brave attacking a colony with no field defender fights 1b0e's militia phantom
+  (`units_revere_defend_colony_tile`); a win runs the native colony limb at the target tile.
+- Harness: `units_reset_hooks` no longer clears the raid-repelled hook (sim wiring, set at load);
+  every golden had lost 1b0e's colony-raid hand-off and its DS:0x54f6 clear.
+- 0f14's early-game grace reads the turn on the 1b0e hand-off too (was skipped: no turn_number).
+- 13b0 treaty tick runs only from an AI mover's 3180 land encounter with another AI Euro, not
+  from the per-turn balance on any adjacency.
+- 3180 marks a nation done only when 022e resolved something; a failed mood roll lets the next
+  tile of that nation roll and take the scan facing.
+- Ship price byte DS:0x84bc = euro_price − 1 (clamped 0) in the delivery score, load matrix and
+  sell tail (`ai_euro_ship_price_84bc`; DOSBox 1505 load matrix scored ore 78 × 3).
+- LAB_3fa6 is the only AI sail-home after the delivery band (holds full or 2+ occupied); the
+  invented "≥ 50 export goods" Europe-export arm is deleted.
+
 ## Harness artifacts (not port bugs)
+
+- 1505→1506: the archived save matches the port; the DOSBox from-load run differs (its Spanish
+  caravel takes the random far-roam arm), so unsaved state diverges there. Prefer the archive when
+  the port already passes it.
 
 - The `-0x6790` stance table (DS:0x9870) is not in the save and is zero after a DOS load; the
   continuous run carried last turn's values. A DOSBox load of year_1497 reproduces the port's

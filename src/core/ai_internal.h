@@ -49,6 +49,7 @@ typedef enum {
 } Ai021aDirStatus;
 
 #ifdef COLONIZE_TESTING
+void ai_021a_set_visit_turn(ColonizeUnit* u, int turn);
 Ai021aDirStatus ai_021a_dir_tile(struct ai_021a_ctx* c);
 Ai021aDirStatus ai_021a_dir_occupant(struct ai_021a_ctx* c);
 Ai021aDirStatus ai_021a_dir_terrain(struct ai_021a_ctx* c);

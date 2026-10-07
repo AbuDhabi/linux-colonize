@@ -1878,7 +1878,7 @@ static int unit_ship_food_delivery(void) {
   c->stock[COLONIZE_CARGO_TOOLS] = 40; /* not tools-short */
   c->stock[COLONIZE_CARGO_FOOD] = 1; /* food-short */
 
-  const int sid = units_spawn(&units, 0, 3, 4); /* adjacent water */
+  const int sid = units_spawn(&units, 0, 4, 4); /* on colony tile (DOS berth) */
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
     fx_map_free(&map);

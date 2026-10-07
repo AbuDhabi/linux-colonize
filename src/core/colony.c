@@ -964,6 +964,48 @@ int colonies_indian_claim_tribe_from_w(
 }
 
 
+/*
+ * DOS-LITERAL FUN_15eb_26e4 raw 12866-12870 (via 281f_0c72, e.g. at the top
+ * of FUN_5952_035e): besides filling the 5x5 claim table, every claimed cell
+ * that is workable (23f2 mask 0), carries no unit (137f_0314) and no
+ * settlement (137f_03e4) gets the claiming tribe's owner nibble (137f_0228).
+ * A plot worked by this colony (06a6) or already bought (0620, layer2 0x10)
+ * is not claimed. DOSBox 1503->1504: a French colony's 26e4 restamped
+ * (46,53) from France to the Arawaks.
+ */
+void colonies_26e4_claim_stamp(const ColonizeWorld* w, const ColonizeColony* col) {
+  if (!w || !w->map || !w->col1 || !w->col1->tribe || !col || !col->active) {
+    return;
+  }
+  ColonizeWorldMap* map = (ColonizeWorldMap*)w->map;
+  for (int dy = -2; dy <= 2; ++dy) {
+    for (int dx = -2; dx <= 2; ++dx) {
+      const int x = col->x + dx;
+      const int y = col->y + dy;
+      if (!map_coords_inset(map, x, y)) {
+        continue;
+      }
+      const int ti = colonies_field_tile_index(dx, dy);
+      if (ti < 0 || colonies_plot_blocked_mask(w, col, ti) != 0) {
+        continue; /* corners / centre: 23f2 never clears them */
+      }
+      if (col->tiles[ti] >= 0) {
+        continue; /* 06a6: worked by this colony */
+      }
+      const size_t i = (size_t)y * (size_t)map->width + (size_t)x;
+      const uint8_t l2 = map->layer2 ? map->layer2[i] : 0;
+      if ((l2 & (MAP_LAYER2_PURCHASED | 0x01u | 0x02u)) != 0) {
+        continue; /* 0620 bought / 0314 unit / 03e4 settlement */
+      }
+      const int tribe = colonies_indian_claim_tribe_from_w(w, col->nation_id, col->x, col->y, x, y);
+      if (tribe < 0) {
+        continue;
+      }
+      map_set_owner_nibble(map, x, y, (int)w->col1->tribe[tribe].nation_id);
+    }
+  }
+}
+
 void colonies_indian_land_pay(
   ColonizeCol1Save* col1,
   const ColonizeWorldMap* map,

@@ -182,6 +182,11 @@ static int ai_indian_152e_spawn_brave(
    */
   u->moves = 0;
   u->col1_counter16 = 0;
+  /* FUN_1427_06b4 raw 7735-7737: a native unit's +0x12 word = DS:0x538e
+   * turn at creation (021a's last-visit stamp). */
+  if (ctx->col1) {
+    ai_021a_set_visit_turn(u, (int)ctx->col1->head.turn);
+  }
   return id;
 }
 

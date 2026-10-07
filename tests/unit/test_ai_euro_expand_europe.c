@@ -1,6 +1,7 @@
 /* Slice of the former tests/unit/test_ai_euro_expand.c (split by feature 2026-09-23):
- * Europe export runs, privateer loot sail, treasure coast/board/cash-in. */
+ * 3fa6 Europe sail runs, privateer loot sail, treasure coast/board/cash-in. */
 #include "test_ai_euro_expand_common.h"
+#include "core/ai_euro_internal.h"
 
 /*
  * NAMES.TXT @CARGO start_lo column — the bid every nation's
@@ -297,8 +298,8 @@ static int unit_treasure_board_sail(void) {
   }
   /* More eastern water for Europe-sail target. */
   for (int y = 0; y < 16; ++y) {
-    map.terrain[y * 16 + 14] = 25;
-    map.terrain[y * 16 + 15] = 25;
+    map.terrain[y * 16 + 14] = 26; /* T_HIGH_SEAS */
+    map.terrain[y * 16 + 15] = 26;
   }
 
   ColonizeUnitPool units;
@@ -419,9 +420,10 @@ static int unit_treasure_board_sail(void) {
 }
 
 /*
- * Idle Caravel with SILVER hold (Custom House–eligible) at coastal colony that
- * is not haul-short → AI_SAIL Europe. Cite: FUN_364b_0636 / europe_cargo_export_eligible;
- * euro_unit_act §2d2 Europe export sail.
+ * Idle Caravel (capacity 2) with ONE loaded SILVER hold at a coastal colony that
+ * is not haul-short → NO Europe course. DOS's only AI route to Europe is
+ * LAB_3fa6 (FUN_521d_20e6 raw 2166-2168: `occupied > 1 || occupied == capacity`);
+ * a single hold on a 2-hold hull fails both arms.
  */
 static int unit_ship_europe_export_silver(void) {
   const int nation = 1;
@@ -436,8 +438,8 @@ static int unit_ship_europe_export_silver(void) {
     return fail("ship-export colony should be coastal");
   }
   for (int y = 0; y < 16; ++y) {
-    map.terrain[y * 16 + 14] = 25;
-    map.terrain[y * 16 + 15] = 25;
+    map.terrain[y * 16 + 14] = 26; /* T_HIGH_SEAS */
+    map.terrain[y * 16 + 15] = 26;
   }
 
   ColonizeUnitPool units;
@@ -458,19 +460,19 @@ static int unit_ship_europe_export_silver(void) {
   c->y = 4;
   c->population = 3;
   c->colonist_count = 3;
-  /* Mid-band stocks: not haul-short and not haul-surplus (food 6..11). */
-  c->stock[COLONIZE_CARGO_TOOLS] = 25;
-  c->stock[COLONIZE_CARGO_LUMBER] = 25;
-  c->stock[COLONIZE_CARGO_ORE] = 25;
-  c->stock[COLONIZE_CARGO_MUSKETS] = 15;
-  c->stock[COLONIZE_CARGO_HORSES] = 15;
+  /* Empty stocks: the load matrix must find nothing to add as a 2nd hold. */
+  c->stock[COLONIZE_CARGO_TOOLS] = 0;
+  c->stock[COLONIZE_CARGO_LUMBER] = 0;
+  c->stock[COLONIZE_CARGO_ORE] = 0;
+  c->stock[COLONIZE_CARGO_MUSKETS] = 0;
+  c->stock[COLONIZE_CARGO_HORSES] = 0;
   c->stock[COLONIZE_CARGO_FOOD] = 8;
-  c->stock[COLONIZE_CARGO_SILVER] = 150;
+  c->stock[COLONIZE_CARGO_SILVER] = 0; /* nothing left for the load matrix to add a 2nd hold */
   c->building_in_production = -1;
   colonies.colony_count = 1;
   colonies.next_id = 1;
 
-  const int sid = units_spawn(&units, 0, 3, 4);
+  const int sid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
     fx_map_free(&map);
@@ -498,7 +500,8 @@ static int unit_ship_europe_export_silver(void) {
    * ladder / recruit / Artillery buys naturally inert (blank census). */
   col1.stuff.ship_counts[nation] = 1;
 
-  uint32_t turn = 32;
+  /* 457e High Seas cadence is (id + turn) & 0x1f == 0; keep it off (id 0). */
+  uint32_t turn = 33;
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));
   ctx.turn_number = &turn;
@@ -516,12 +519,11 @@ static int unit_ship_europe_export_silver(void) {
     fx_map_free(&map);
     return fail("ship-export should remain active");
   }
-  const int sailed_east =
-    ship->orders == UNITS_ORDER_AI_SAIL && ship->goto_x > ship->x;
-  if (!sailed_east) {
+  if (ship->col1_ai_plan == AI_EURO_PLAN_EUROPE_BOUND) {
     fprintf(
       stderr,
-      "unit_ai_euro_expand: ship-export orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_expand: ship-export h0=%d/%d h1=%d/%d orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      ship->hold_goods_type[0], ship->hold_goods_amount[0], ship->hold_goods_type[1], ship->hold_goods_amount[1],
       ship->orders,
       ship->goto_x,
       ship->goto_y,
@@ -529,11 +531,11 @@ static int unit_ship_europe_export_silver(void) {
       ship->y
     );
     fx_map_free(&map);
-    return fail("expected Caravel AI_SAIL eastward with SILVER (Europe export)");
+    return fail("single-hold Caravel must not get a Europe course (3fa6 gate)");
   }
 
   fx_map_free(&map);
-  fprintf(stderr, "unit_ai_euro_expand: ship Europe export silver ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: single-hold Caravel no Europe course ok\n");
   return 0;
 }
 
@@ -541,9 +543,8 @@ static int unit_ship_europe_export_silver(void) {
  * Idle Privateer carrying capture loot (both holds full of SILVER) → AI_SAIL
  * Europe, where the FUN_521d_5d04 dock loop sells it. This is DOS's own route
  * for a laden hull: FUN_521d_20e6 raw 2166-2168 (`occupied == capacity` here)
- * jumps to LAB_003fa6 = FUN_48d3_015e, the High Seas hunt, whose port stand-in
- * is ai_euro_try_ship_europe_export — whose hull test is DOS's raw-1691 one
- * (any type 0x0d..0x12 with holds), not a cargo-ship name list.
+ * jumps to LAB_003fa6 = FUN_48d3_015e, the High Seas hunt, implemented by
+ * ai_euro_20e6_3fa6_sail_home (plan 'E' = AI_EURO_PLAN_EUROPE_BOUND, AI_SAIL).
  * Cite: FUN_521d_20e6 raw 1691 / 2166-2168; FUN_5fef_0352 loot transfer
  * (viceroy_overlays.c:85035-85050); FUN_521d_5d04 dock sell
  * (viceroy_overlays.c:83168-83192).
@@ -566,8 +567,8 @@ static int unit_privateer_europe_loot_sail(void) {
     map.terrain[i] = 25; /* ocean */
   }
   for (int y = 0; y < 16; ++y) {
-    map.terrain[y * 16 + 14] = 25;
-    map.terrain[y * 16 + 15] = 25;
+    map.terrain[y * 16 + 14] = 26; /* T_HIGH_SEAS */
+    map.terrain[y * 16 + 15] = 26;
   }
 
   ColonizeUnitPool units;
@@ -653,8 +654,8 @@ static int unit_privateer_europe_loot_sail(void) {
 }
 
 /*
- * Idle Caravel at coastal SILVER surplus (stock>99) with empty hold → load
- * excess (leave 50) then AI_SAIL Europe. Cite: FUN_364b_0688; euro_unit_act §2d2.
+ * Idle empty Caravel at a coastal SILVER surplus: the 20e6 load matrix fills
+ * both holds (100 + 50), so occupied == capacity → LAB_3fa6 → High Seas course.
  */
 static int unit_ship_europe_export_load_silver(void) {
   const int nation = 1;
@@ -669,8 +670,8 @@ static int unit_ship_europe_export_load_silver(void) {
     return fail("ship-export-load colony should be coastal");
   }
   for (int y = 0; y < 16; ++y) {
-    map.terrain[y * 16 + 14] = 25;
-    map.terrain[y * 16 + 15] = 25;
+    map.terrain[y * 16 + 14] = 26; /* T_HIGH_SEAS */
+    map.terrain[y * 16 + 15] = 26;
   }
 
   ColonizeUnitPool units;
@@ -692,7 +693,7 @@ static int unit_ship_europe_export_load_silver(void) {
   c->stock[COLONIZE_CARGO_FOOD] = 8;
   c->stock[COLONIZE_CARGO_SILVER] = 150;
 
-  const int sid = units_spawn(&units, 0, 3, 4);
+  const int sid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
     fx_map_free(&map);
@@ -766,7 +767,7 @@ static int unit_ship_europe_export_load_silver(void) {
       ship->goto_y
     );
     fx_map_free(&map);
-    return fail("expected load SILVER leave 50 + AI_SAIL Europe");
+    return fail("expected load matrix to fill holds + 3fa6 AI_SAIL Europe");
   }
 
   fx_map_free(&map);
@@ -781,8 +782,8 @@ static int unit_ship_europe_export_load_silver(void) {
  */
 
 /*
- * Idle Galleon at coastal SILVER surplus (stock>99) with empty hold → load
- * excess (leave 50) then AI_SAIL Europe. Cite: FUN_364b_0688; euro_unit_act §2d2.
+ * Idle empty Galleon at a coastal SILVER surplus: the load matrix fills the
+ * holds, then the 3fa6 gate (occupied > 1 || == capacity) sails for Europe.
  */
 static int unit_galleon_europe_export_load_silver(void) {
   const int nation = 1;
@@ -797,8 +798,8 @@ static int unit_galleon_europe_export_load_silver(void) {
     return fail("galleon-export-load colony should be coastal");
   }
   for (int y = 0; y < 16; ++y) {
-    map.terrain[y * 16 + 14] = 25;
-    map.terrain[y * 16 + 15] = 25;
+    map.terrain[y * 16 + 14] = 26; /* T_HIGH_SEAS */
+    map.terrain[y * 16 + 15] = 26;
   }
 
   ColonizeUnitPool units;
@@ -820,7 +821,7 @@ static int unit_galleon_europe_export_load_silver(void) {
   c->stock[COLONIZE_CARGO_FOOD] = 8;
   c->stock[COLONIZE_CARGO_SILVER] = 150;
 
-  const int sid = units_spawn(&units, 0, 3, 4);
+  const int sid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
     fx_map_free(&map);
@@ -894,7 +895,7 @@ static int unit_galleon_europe_export_load_silver(void) {
       ship->goto_y
     );
     fx_map_free(&map);
-    return fail("expected load SILVER leave 50 + AI_SAIL Europe");
+    return fail("expected load matrix to fill holds + 3fa6 AI_SAIL Europe");
   }
 
   fx_map_free(&map);
@@ -909,8 +910,8 @@ static int unit_galleon_europe_export_load_silver(void) {
  */
 
 /*
- * Idle Merchantman at coastal SILVER surplus (stock>99) with empty hold → load
- * excess (leave 50) then AI_SAIL Europe. Cite: FUN_364b_0688; euro_unit_act §2d2.
+ * Idle empty Merchantman at a coastal SILVER surplus: load matrix fills the
+ * holds, then the 3fa6 gate sails for Europe.
  */
 static int unit_merchantman_europe_export_load_silver(void) {
   const int nation = 1;
@@ -925,8 +926,8 @@ static int unit_merchantman_europe_export_load_silver(void) {
     return fail("mm-export-load colony should be coastal");
   }
   for (int y = 0; y < 16; ++y) {
-    map.terrain[y * 16 + 14] = 25;
-    map.terrain[y * 16 + 15] = 25;
+    map.terrain[y * 16 + 14] = 26; /* T_HIGH_SEAS */
+    map.terrain[y * 16 + 15] = 26;
   }
 
   ColonizeUnitPool units;
@@ -948,7 +949,7 @@ static int unit_merchantman_europe_export_load_silver(void) {
   c->stock[COLONIZE_CARGO_FOOD] = 8;
   c->stock[COLONIZE_CARGO_SILVER] = 150;
 
-  const int sid = units_spawn(&units, 0, 3, 4);
+  const int sid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
     fx_map_free(&map);
@@ -1022,7 +1023,7 @@ static int unit_merchantman_europe_export_load_silver(void) {
       ship->goto_y
     );
     fx_map_free(&map);
-    return fail("expected load SILVER leave 50 + AI_SAIL Europe");
+    return fail("expected load matrix to fill holds + 3fa6 AI_SAIL Europe");
   }
 
   fx_map_free(&map);
@@ -1043,8 +1044,8 @@ static int unit_manowar_no_goods_load_818(void) {
     return fail("mow-noload colony should be coastal");
   }
   for (int y = 0; y < 16; ++y) {
-    map.terrain[y * 16 + 14] = 25;
-    map.terrain[y * 16 + 15] = 25;
+    map.terrain[y * 16 + 14] = 26; /* T_HIGH_SEAS */
+    map.terrain[y * 16 + 15] = 26;
   }
 
   ColonizeUnitPool units;

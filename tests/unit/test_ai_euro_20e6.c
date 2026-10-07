@@ -1077,7 +1077,7 @@ static int unit_delivery_matrix_skips_full_producer(void) {
  * Delivery SELL TAIL (raw 2140-2163). The nation's only colony is INLAND, so
  * the raw 2054 coastal gate (+0x1c bit 0x40) rejects the sole candidate and
  * the matrix picks nothing. DOS then dumps the whole hold for gold at the
- * −0x7b44 (= trade.euro_price) rate — untaxed into nation+0x2a, and into the
+ * −0x7b44 (= trade.euro_price − 1, DS:0x84bc) rate — untaxed into nation+0x2a, and into the
  * +0x7c / +0xbc per-cargo ledgers.
  *
  * Trap this fixture avoids: rejecting via the raw 2067-2070 "produces it and
@@ -1147,9 +1147,9 @@ static int unit_delivery_sell_tail_dumps_cargo(void) {
     }
   }
   const ColonizeCol1NationTrade* t = &f.col1.nation[nation].trade;
-  if (still_aboard != 0 || t->gold[COLONIZE_CARGO_TOOLS] != 200 ||
+  if (still_aboard != 0 || t->gold[COLONIZE_CARGO_TOOLS] != 100 ||
       t->tons[COLONIZE_CARGO_TOOLS] != 100 ||
-      f.col1.nation[nation].gold != gold_before + 200u) {
+      f.col1.nation[nation].gold != gold_before + 100u) {
     fprintf(stderr, "aboard=%d ledger_gold=%d tons=%d gold %u->%u\n", still_aboard,
             (int)t->gold[COLONIZE_CARGO_TOOLS], (int)t->tons[COLONIZE_CARGO_TOOLS],
             (unsigned)gold_before, (unsigned)f.col1.nation[nation].gold);
@@ -1204,7 +1204,7 @@ static int unit_load_matrix_picks_priced_cargo(void) {
   f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_SILVER] = 20;
   f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_TRADE_GOODS] = 2;
 
-  const int ship_id = units_spawn(&f.units, 2, 12, 4); /* berthed alongside */
+  const int ship_id = units_spawn(&f.units, 2, 11, 4); /* on colony tile (DOS berth) */
   ColonizeUnit* ship = units_get(&f.units, ship_id);
   if (!ship) {
     fixture_free(&f);
@@ -1323,7 +1323,7 @@ static int unit_ship_berth_dumps_whole_hull(void) {
     f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_HORSES] = 2;
     f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_FURS] = 4;
 
-    const int ship_id = units_spawn(&f.units, 2, 12, 4); /* berthed alongside */
+    const int ship_id = units_spawn(&f.units, 2, 11, 4); /* on colony tile (DOS berth) */
     ColonizeUnit* ship = units_get(&f.units, ship_id);
     if (!ship) {
       fixture_free(&f);
@@ -1466,7 +1466,7 @@ static int unit_berth_marks_then_assembles_passenger(void) {
    * colony as labor (true in both loop shapes only with this ordering). */
   const int sol_id = units_spawn(&f.units, 4, 11, 4);  /* Pioneer in the colony */
   ColonizeUnit* sol = units_get(&f.units, sol_id);
-  const int ship_id = units_spawn(&f.units, 2, 12, 4); /* berthed alongside */
+  const int ship_id = units_spawn_allow_stack(&f.units, 2, 11, 4); /* on colony tile (DOS berth) */
   ColonizeUnit* ship = units_get(&f.units, ship_id);
   if (!ship || !sol) {
     fixture_free(&f);

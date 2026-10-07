@@ -274,6 +274,8 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id);
  * Franklin FF: NW pair with Benjamin Franklin → skip 10ec declare pressure;
  * at-war → always offer/conclude peace (fandom; FA 3f41 UI PARKED). */
 void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id);
+/* FUN_5bfb_13b0 from an AI mover's 3180 land encounter with another AI. */
+void ai_diplo_13b0_encounter(ColonizeTurnContext* ctx, int mover, int other);
 
 /*
  * DOS-native Indian nation alarm (FUN_15dc_00e0 read / FUN_4cc6_00f2 write):

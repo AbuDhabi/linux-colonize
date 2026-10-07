@@ -36,11 +36,26 @@ void units_try_capture_foreign_colony(
   ColonizeColonyPool* colonies,
   int unit_id
 ) {
+  const ColonizeUnit* u = units_get(pool, unit_id);
+  if (u) {
+    units_try_capture_foreign_colony_at(pool, colonies, unit_id, u->x, u->y);
+  }
+}
+
+/* The colony at (cx,cy): the attacker's own tile on a walk-in; a Brave's
+ * target tile, since Indians win from the adjacent tile (465b bVar4). */
+void units_try_capture_foreign_colony_at(
+  ColonizeUnitPool* pool,
+  ColonizeColonyPool* colonies,
+  int unit_id,
+  int cx,
+  int cy
+) {
   ColonizeUnit* u = units_get(pool, unit_id);
   if (!u || !colonies || units_is_sea(pool, unit_id)) {
     return;
   }
-  const int cid = colonies_id_at(colonies, u->x, u->y);
+  const int cid = colonies_id_at(colonies, cx, cy);
   ColonizeColony* col = colonies_get_mut(colonies, cid);
   if (!col || !col->active) {
     return;
@@ -56,7 +71,7 @@ void units_try_capture_foreign_colony(
    * treasury share, and never looks at the unit array except for the WoI
    * neighbour re-home below.
    */
-  if (units_domain_blocker_at(pool, u->x, u->y, unit_id, u->nation_id) >= 0) {
+  if (units_domain_blocker_at(pool, cx, cy, unit_id, u->nation_id) >= 0) {
     return;
   }
   /*
@@ -172,7 +187,7 @@ void units_try_capture_foreign_colony(
   }
   units_combat_notify_colony_captured(g_units_ff_col1, &snap, u->nation_id, plunder);
   /* Raw 100937-100948: the prize claims the ring around it for its new owner. */
-  units_capture_claim_ring(units_occupancy_map, u->x, u->y, u->nation_id);
+  units_capture_claim_ring(units_occupancy_map, cx, cy, u->nation_id);
   /*
    * Raw 100949-100963 (FUN_5fef_1b0e capture tail): WoI + crown winner —
    * every crown unit standing on the 8 neighbouring tiles is re-homed to
@@ -189,8 +204,8 @@ void units_try_capture_foreign_colony(
       if (!units_is_on_map(n) || n->nation_id != u->nation_id || n->id == u->id) {
         continue;
       }
-      const int ddx = n->x - u->x;
-      const int ddy = n->y - u->y;
+      const int ddx = n->x - cx;
+      const int ddy = n->y - cy;
       if (ddx >= -1 && ddx <= 1 && ddy >= -1 && ddy <= 1 && (ddx != 0 || ddy != 0)) {
         n->col1_origin = (uint8_t)cid;
       }

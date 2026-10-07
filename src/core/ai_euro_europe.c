@@ -1002,39 +1002,61 @@ static int ai_euro_5d04_cb_goal_trigger(int code, int a, int b, int c) {
  * +0xaa = 8 Horses, +0xb6 = 14 Tools, +0xb8 = 15 Muskets.
  */
 static void ai_euro_5d04_cb_colony_needs(int nation_id, int* out_muskets, int* out_tools) {
-  int m = 0;
-  int t = 0;
-  if (ai_euro_s_5d04_ctx && ai_euro_s_5d04_ctx->colonies) {
+  /* DOS-LITERAL FUN_521d_6d8e prelude, raw 93108-93171: the per-good
+   * counter DS:0xa0cc[16]. Each own colony bumps its specialty good, then
+   * muskets again for a muskets specialty and for an empty muskets stock,
+   * goods 8 and tools for empty stocks; every own hull (0xd..0x12) takes one
+   * off per occupied hold's cargo, every Pioneer one off tools.
+   * Muskets = 0xa0db, tools = 0xa0da. */
+  int cnt[16] = {0};
+  ColonizeTurnContext* ctx = ai_euro_s_5d04_ctx;
+  if (ctx && ctx->colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &ai_euro_s_5d04_ctx->colonies->colonies[i];
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
       if (!c->active || c->nation_id != nation_id) {
         continue;
       }
-      if (c->specialty_cargo == COLONIZE_CARGO_MUSKETS) {
-        m++;
+      const int spec = (int8_t)c->specialty_cargo;
+      if (spec >= 0 && spec < 16) {
+        cnt[spec]++;
+      }
+      if (spec == COLONIZE_CARGO_MUSKETS) {
+        cnt[COLONIZE_CARGO_MUSKETS]++;
       }
       if (c->stock[COLONIZE_CARGO_MUSKETS] == 0) {
-        m++;
+        cnt[COLONIZE_CARGO_MUSKETS]++;
+      }
+      if (c->stock[8] == 0) {
+        cnt[8]++;
       }
       if (c->stock[COLONIZE_CARGO_TOOLS] == 0) {
-        t++;
+        cnt[COLONIZE_CARGO_TOOLS]++;
       }
     }
   }
-  /* raw 93168-93170: every own Pioneer (@UNIT type 0x02) decrements 0xa0da. */
-  if (ai_euro_s_5d04_ctx && ai_euro_s_5d04_ctx->units) {
-    for (int i = 0; i < units_slot_end(ai_euro_s_5d04_ctx->units); ++i) {
-      const ColonizeUnit* u = &ai_euro_s_5d04_ctx->units->units[i];
+  if (ctx && ctx->units) {
+    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+      const ColonizeUnit* u = &ctx->units->units[i];
       if (!u->active || u->nation_id != nation_id) {
         continue;
       }
-      if (ai_euro_5d04_dos_type_of(ai_euro_s_5d04_ctx->units, u->type_index) == 2) {
-        t--;
+      const int dt = ai_euro_5d04_dos_type_of(ctx->units, u->type_index);
+      if (dt > 0xc && dt < 0x13) {
+        const int nh = units_holds_used(ctx->units, u->id);
+        for (int h = 0; h < nh && h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+          const int g = u->hold_goods_type[h];
+          if (g >= 0 && g < 16) {
+            cnt[g]--;
+          }
+        }
+      }
+      if (dt == 2) {
+        cnt[COLONIZE_CARGO_TOOLS]--;
       }
     }
   }
-  *out_muskets = m;
-  *out_tools = t;
+  *out_muskets = cnt[COLONIZE_CARGO_MUSKETS];
+  *out_tools = cnt[COLONIZE_CARGO_TOOLS];
 }
 
 /*
