@@ -177,8 +177,13 @@ void turn_refresh_moves_for_nation_w(
      * every nation at the day top (raw 6355-6357), which is
      * turn_clear_mp_spent_all_nations called from TURN_PROC_SETUP
      * (bugs.md #713, #423). */
-    /* Fortify completes overnight → Fortified; stay asleep until woken. */
-    if (u->orders == UNITS_ORDER_FORTIFY) {
+    /* Fortify completes overnight → Fortified; stay asleep until woken.
+     * Human only: DOS's 5->6 step (FUN_479b_0b6c: orders 6 + exhaust) is
+     * not on the AI path — FUN_521d_20e6 acts an AI unit on orders 0/5/6
+     * alike (DOSBox 1513: a French soldier on orders 5 wandered out and
+     * attacked an adjacent Brave). */
+    if (u->orders == UNITS_ORDER_FORTIFY &&
+        (!col1 || nation_id > 3 || col1->player[nation_id].control == 0)) {
       u->orders = UNITS_ORDER_FORTIFIED;
       u->moves = 0;
       continue;

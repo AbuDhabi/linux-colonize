@@ -41,7 +41,7 @@ logfile={work}/dosbox.log
 [autoexec]
 mount c {work}/C
 c:
-debugbox opening.exe -g
+debugbox viceroy.exe
 """
 
 KEYS = {
@@ -275,6 +275,13 @@ def cmd_setup(a):
     shutil.copytree(os.path.join(REPO, 'COLONIZE'), game)
     if a.exe != 'VICEROY.EXE':
         shutil.copy(os.path.join(game, a.exe), os.path.join(game, 'VICEROY.EXE'))
+    # A crowded directory makes VICEROY boot crawl (DIRCACHE "All slots full");
+    # drop the EXE variants and non-DOS extras.
+    for f in os.listdir(game):
+        u = f.upper()
+        if (u.startswith('VR_') and u.endswith('.EXE')) or u.startswith('BRK') \
+                or u.endswith('.JSON') or u.endswith('.PDF') or u.endswith('.ZIP'):
+            os.remove(os.path.join(game, f))
     if a.save:
         shutil.copy(a.save, os.path.join(game, 'COLONY00.SAV'))
     for off in a.patch_cc:
@@ -308,7 +315,7 @@ def cmd_start(a):
     _save_pids(work, pids)
     for _ in range(120):
         if os.path.exists(os.path.join(work, 'ready')):
-            print('started; debugger stopped at opening.exe entry')
+            print('started; debugger stopped at viceroy.exe entry')
             return
         time.sleep(0.5)
     sys.exit('controller did not come up; see %s/ctl.log' % work)

@@ -700,8 +700,25 @@ combat_entry_resolved:
       const ColonizeColony* dock_col =
         colonies_get(colonies, colonies_id_at(colonies, dest_x, dest_y));
       if (dock_col && dock_col->active && dock_col->nation_id == unit->nation_id) {
+        int pax_ids[COLONIZE_UNIT_CARGO_MAX];
+        const int npax = unit->cargo_count < COLONIZE_UNIT_CARGO_MAX ? unit->cargo_count
+                                                                     : COLONIZE_UNIT_CARGO_MAX;
+        for (int i = 0; i < npax; ++i) {
+          pax_ids[i] = unit->cargo_ids[i];
+        }
         (void)units_disembark_all(pool, unit_id, dest_x, dest_y);
         units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
+        /* AI hull: its unload exhausts each passenger (FUN_281f_0934; DOSBox
+         * 1511: the French missionary landed with orders 0 and spent 6, and
+         * acted only next turn). The human keeps the restore above. */
+        if (!units_combat_human_involved(g_units_ff_col1, unit->nation_id, -1)) {
+          for (int i = 0; i < npax; ++i) {
+            ColonizeUnit* pax = units_get(pool, pax_ids[i]);
+            if (pax && pax->active && pax->aboard_ship_id < 0) {
+              units_mp_exhaust(pool, pax);
+            }
+          }
+        }
       }
     }
   }

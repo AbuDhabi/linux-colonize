@@ -685,8 +685,9 @@ typedef struct ColonizeCol1Nation {
       uint8_t king_grace_counter;
       uint8_t privateer_spawn_mask;
       uint8_t unknown26_pad; /* +0x4a — DOS carry accumulator raw banked total. */
-      /* +0x4b — NOT dead: the DOS lategame saves carry 1..11 here
-       * (original_saves/valid-lategame-saves, nations 1/2); writer unknown.
+      /* +0x4b — high byte of the +0x4a word: FUN_364b_0688 phase O banks an
+       * AI colony's horse surplus there (raw 57817-57821), hence the 1..11
+       * in the DOS lategame saves.
        * Round-tripped verbatim. The port's Indian-hostility sticky cache that
        * used to squat here is session state in ai_diplo.c since 2026-10-07. */
       uint8_t unknown_4b;

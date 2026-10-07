@@ -904,14 +904,21 @@ void turn_produce_one_colony(
       horse_warehouse_cap,
       horse_has_stable
     );
-    if (breed.bred > 0) {
+    /* FUN_15eb_1f72 adds the UNCAPPED potential (local_e) to the horse gross
+     * DS:0x8dd8 and only the capped local_22 to food consumption. An AI
+     * colony applies gross - consumption (364b_0688 raw 57247), so it gains
+     * the whole potential and the warehouse overflow is dump-sold later
+     * (DOSBox 1508: Spain's capped herd still +8, horse tonnage +8); the
+     * human path (FUN_281f_0b50) applies the capped figure. */
+    const int horses_gain = colony_ai_controlled ? breed.bred + breed.shortfall : breed.bred;
+    if (horses_gain > 0) {
       colony->stock[COLONIZE_CARGO_FOOD] =
         clamp_int(colony->stock[COLONIZE_CARGO_FOOD] - breed.bred, 0, 65535);
       colony->stock[COLONIZE_CARGO_HORSES] =
-        clamp_int(colony->stock[COLONIZE_CARGO_HORSES] + breed.bred, 0, 65535);
+        clamp_int(colony->stock[COLONIZE_CARGO_HORSES] + horses_gain, 0, 65535);
       if (delta) {
         delta->goods[COLONIZE_CARGO_FOOD] -= breed.bred;
-        delta->goods[COLONIZE_CARGO_HORSES] += breed.bred;
+        delta->goods[COLONIZE_CARGO_HORSES] += horses_gain;
       }
       if (europe && colony->nation_id == human_nation) {
         snprintf(

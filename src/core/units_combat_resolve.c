@@ -1252,7 +1252,7 @@ void units_sentry_wake_scan(
     }
     /* local_44 = FUN_281f_07e0(n) stack head; local_46 = its nation nibble,
      * else the settlement owner FUN_281f_06be(n) (raw 98510-98520). */
-    const int top = units_id_at(pool, nx, ny);
+    const int top = units_tile_head_id_at(pool, nx, ny); /* 07e0 -> 1427_0002: chain tail */
     ColonizeUnit* topu = top >= 0 ? units_get(pool, top) : NULL;
     if (topu && !topu->active) {
       topu = NULL;

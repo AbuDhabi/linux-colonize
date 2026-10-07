@@ -161,7 +161,8 @@ static int ai_indian_152e_spawn_brave(
       return -1;
     }
   }
-  const int id = units_spawn_allow_stack(ctx->units, type_index, (int)t->x, (int)t->y);
+  const int id =
+    units_spawn_allow_stack_nation(ctx->units, type_index, (int)t->x, (int)t->y, (int)t->nation_id);
   if (id < 0) {
     return -1;
   }

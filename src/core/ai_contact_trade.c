@@ -76,21 +76,6 @@ static int ai_contact_2e92_unit_can_take(const ColonizeTurnContext* ctx, const C
   return (cap - units_holds_used(ctx->units, unit->id)) >= 1;
 }
 
-/* FUN_1000_8cdc → FUN_15eb_317c: drop hold `slot`, compact the rest. Returns qty. */
-static int ai_contact_2820_remove_slot(ColonizeUnit* unit, int slot) {
-  if (!unit || slot < 0 || slot >= COLONIZE_UNIT_CARGO_MAX) {
-    return 0;
-  }
-  const int qty = unit->hold_goods_amount[slot];
-  for (int i = slot; i + 1 < COLONIZE_UNIT_CARGO_MAX; ++i) {
-    unit->hold_goods_type[i] = unit->hold_goods_type[i + 1];
-    unit->hold_goods_amount[i] = unit->hold_goods_amount[i + 1];
-  }
-  unit->hold_goods_type[COLONIZE_UNIT_CARGO_MAX - 1] = 0;
-  unit->hold_goods_amount[COLONIZE_UNIT_CARGO_MAX - 1] = 0;
-  return qty;
-}
-
 /*
  * FUN_1000_8f48 → FUN_0000_8f68 = FUN_15eb_30b8 (tools/address_mapping.csv):
  * the same loader the colony/Europe screens use — tops a matching hold up to
@@ -1312,7 +1297,7 @@ static void ai_contact_2820_sell_settle(
   ColonizeUnit* unit, AiContact2820* s
 ) {
   const int cargo = s->cargo;
-  const int qty = ai_contact_2820_remove_slot(unit, s->slot);
+  const int qty = units_remove_goods_slot(unit, s->slot);
   s->qty = qty; /* DS:0x8dc4 */
   /* audit G3: single treasury — village trade is the human's main non-Europe
    * gold source, and crediting the record alone meant the sale evaporated at
@@ -1363,7 +1348,7 @@ static void ai_contact_2820_gift_settle(
   ColonizeUnit* unit, AiContact2820* s
 ) {
   const int cargo = s->cargo;
-  const int qty = ai_contact_2820_remove_slot(unit, s->slot);
+  const int qty = units_remove_goods_slot(unit, s->slot);
   s->qty = qty;
   if (t) {
   /*

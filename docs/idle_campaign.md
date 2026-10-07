@@ -19,7 +19,7 @@ then a recursive JSON diff (show `*_hex` blobs as differing byte offsets). The t
 `EXCLUDE_FROM_ALL`: rebuild it explicitly (`cmake --build build/debug --target golden_idle_campaign`).
 
 Progress (sum of differing JSON leaves over all 77 transitions): 18,869 → 16,546 → 16,178 →
-13,423 → 12,739 → 11,659. 1493→1494, 1494→1495, 1495→1496 and 1505→1506 pass byte-for-byte; 1492→1493 is down to the
+13,423 → 12,739 → 8,798. 1493→1494, 1494→1495, 1495→1496, 1505→1506, 1512→1513 and 1513→1514 pass byte-for-byte; 1492→1493 is down to the
 human's first-turn UI; 1497→1498 only to the stance-table artifact below.
 
 **From-load target.** Because DOS keeps unsaved state across turns (stance table, below), the
@@ -168,6 +168,32 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   sell tail (`ai_euro_ship_price_84bc`; DOSBox 1505 load matrix scored ore 78 × 3).
 - LAB_3fa6 is the only AI sail-home after the delivery band (holds full or 2+ occupied); the
   invented "≥ 50 export goods" Europe-export arm is deleted.
+- Europe dock sell loop compacts holds after each sale (FUN_15eb_317c, `units_remove_goods_slot`),
+  so every hold sells; it used to stop after hold 0.
+- Native/phantom spawns get their nation before the tile claim (`units_spawn_allow_stack_nation`):
+  a colony militia phantom stamped England on a French colony tile.
+- The Indian post-pulse meet/trade stand-in (adjacency first contact, auto-trade, gift/demand) is
+  unhooked; 3180 on the mover's step is the only encounter path, as in DOS.
+- AI colony horses: 1f72 adds the UNCAPPED herd potential to the horse gross (DS:0x8dd8) and only
+  the capped figure to food consumption; 0688 applies gross − consumption for AI colonies, so they
+  gain the full potential (human colonies take FUN_281f_0b50's capped figure).
+- 0688 phase O horse arm: the surplus goes to nation word +0x4a (`unknown26_pad` low, `unknown_4b`
+  high — the "live +0x4b" mystery) with sale amount 0, and `trade.tons[c] += c` still runs. The
+  musket arm's +0x49 lot counter is still on the Europe screen (+0x49 hosts the privateer stand-in).
+- 3180's neighbour head is the tile CHAIN head (07e0 -> 1427_0002), not `units_id_at`.
+- 20e6 Missionary arm (type 3) ported: alarm-weighted village pick, plan 'J'; no pick turns the
+  unit into a Free Colonist. (An earlier note said the arm did not exist.)
+- An AI hull docking at its own colony exhausts the passengers it puts ashore (FUN_281f_0934).
+- The Missionary arm resolves the mission from the adjacent tile when its pick is next door (the
+  walker's first step would enter the village: 465b -> 4528 case 3).
+- Overnight FORTIFY -> FORTIFIED with moves 0 is human-only; DOS acts AI units on orders 0/5/6.
+- FUN_1427_0d38 (08bc) stack query modes from the jump table (1427:0d78): 4 = military types
+  1/4/6..9, 0xc = Artillery, 0xe = largest undamaged hull capacity. The 5d04 colony-demand hire
+  read 4 as "land units" and bought a Dragoon DOS never bought.
+- 20e6 ship band: local_a8 (stack count) is a band-entry snapshot, so a hull that just landed its
+  passengers does not take the dock-demand sail-home in the same act.
+- Save export keeps the runtime colonist order (no canonical occupation sort): DOS insert-sorts
+  only at add time and never re-sorts on a job change.
 
 ## Harness artifacts (not port bugs)
 
@@ -182,6 +208,10 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   every slot's 5e52 reseeds.
 
 ## Open leads (most transitions first)
+
+- 1514→1515: France's LCR roll is case 5 (burial mounds latch) in DOS, a different case in the
+  port (RNG phase?). Dutch colony labor_shortage 1 vs 0. Check that the port's colonist ADD
+  insert-sorts by add-time occupation like DOS (the export no longer sorts).
 
 - Human end-of-slot draws: DOS 5, port 1 in 1497→1498 (human FF debate rolls / merc offer?).
 - Multi-colony nations: Phase A runs for all a nation's colonies before any production; DOS

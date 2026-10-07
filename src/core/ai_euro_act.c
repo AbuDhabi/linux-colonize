@@ -226,6 +226,11 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_treasure(struct ai_euro_act_c
     }
   }
 
+  /* The band's next arm in DOS order: the Missionary village pick. */
+  if (!is_treasure && ai_euro_20e6_missionary_arm(ctx, u, nation_id)) {
+    treasure_routed = 1; /* LAB_27f5 course bound: the walker steps it this act */
+  }
+
   a->treasure_routed = treasure_routed;
   a->u = u;
   return AI_EURO_ACT_CONTINUE;
@@ -310,11 +315,11 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
  * already-deleted "Artillery siege hunt" above.
  *
  * (Retired 2026-09-22, bugs.md #557.) A missionary CONTACT goal arm sat
- * here (prio 3 goto of the nearest mission-less tribe, skipped when an
- * adjacent tribe was alarmed). FUN_521d_20e6 has no `+0x3146 == 3` arm:
- * DOS AI missionaries are hired/blessed in FUN_521d_5d04 and then take the
- * generic land wander; a missionary that reaches a village is handled by
- * FUN_4d56_4528's non-human switch (ai_contact_ai_missionary_village).
+ * here (prio 3 goto of the nearest mission-less tribe). The claim that
+ * FUN_521d_20e6 has no `+0x3146 == 3` arm was wrong: the DOS arm is
+ * ai_euro_20e6_missionary_arm (alarm-weighted village pick, plan 'J'),
+ * called from the treasure stage; arrival is FUN_4d56_4528's non-human
+ * switch (ai_contact_ai_missionary_village).
  */
 
 /*
@@ -679,6 +684,10 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
   }
   const int tasked = u->col1_ai_plan == 't' || u->col1_ai_plan == 'i'; /* local_6 */
 
+  /* local_a8 (stack count - 1) is taken once at band entry, before the
+   * LAB_3558 unload; the dock-demand gate reads that snapshot (DOSBox 1514:
+   * a caravel that landed its soldier did not sail home the same act). */
+  const int a8_at_entry = u->cargo_count;
   const int at_own_colony = colonies_id_at(ctx->colonies, u->x, u->y) >= 0 &&
                             ctx->colonies->colonies[colonies_id_at(ctx->colonies, u->x, u->y)]
                                 .nation_id == nation_id;
@@ -727,7 +736,7 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
     }
     /* FUN_521d_20e6 raw 89725-89728: Europe dock demand precedes
      * goods delivery and the work-queue haul; reuse the literal handler. */
-    if (ai_euro_20e6_europe_dock_demand(ctx, u, nation_id)) {
+    if (a8_at_entry == 0 && ai_euro_20e6_europe_dock_demand(ctx, u, nation_id)) {
       ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);
       return 0;
     }
