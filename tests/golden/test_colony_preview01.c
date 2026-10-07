@@ -130,6 +130,11 @@ static int run_fixture(const char* path) {
       if (col->stock[c] == s->cap[c] && s->stock[c] + want >= s->cap[c]) {
         continue; /* clamped at warehouse cap (also over-cap stock clamped down) */
       }
+      if (c == COLONIZE_CARGO_HORSES && col->nation_id >= 0 && col->nation_id < 4 &&
+          save.player[col->nation_id].control != 0) {
+        continue; /* AI colony: 0688 applies 1f72's uncapped herd potential (gross
+                   * - consumption), which the human-path preview never shows */
+      }
       if (c == COLONIZE_CARGO_HORSES) {
         /* Both sides approximate; only flag a sign/gross disagreement. */
         if ((want > 0) != (actual > 0) || abs(want - actual) > 2) {

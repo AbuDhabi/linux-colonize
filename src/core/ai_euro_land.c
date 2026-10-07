@@ -2610,6 +2610,83 @@ int ai_euro_20e6_treasure_cash_in(
 }
 
 /*
+ * DOS-LITERAL FUN_521d_20e6 Missionary arm (type 3, recovered C md:2366-2399,
+ * OVL14 0x4860-0x49f2): over every settlement on the unit's landmass,
+ *   score = (alarm(tribe, nation) << 3) / (dist(unit, village) + 1), x1.5 for
+ *   a capital; strict `>` from -999.
+ * A village already holding THIS nation's mission (+5 & 0xf) is a candidate
+ * only when the treasury is >= 2500, the alarm <= 0x4a, the tribe has met the
+ * nation (0x20) and power_rank[human] > power_rank[nation]. The pick commits
+ * a goto with plan 'J' (0x49e8 MOV DX,0x4a -> LAB_27f5); no pick turns the
+ * unit's type byte to 0 (+0x3146 = 0, a Free Colonist). DOSBox 1512: the
+ * French missionary walked for the Arawak village beside its colony.
+ * Returns 1 when a course was set.
+ */
+int ai_euro_20e6_missionary_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
+  if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe ||
+      !u || !u->active || u->aboard_ship_id >= 0 || ai_euro_in_europe(u->x, u->y)) {
+    return 0;
+  }
+  Ai20e6Unit s;
+  ai_euro_20e6_prologue(ctx, u, nation_id, &s);
+  if (s.dos_type != UNITS_KIND_MISSIONARY || s.cid < 0 || s.order_code == 't' ||
+      s.order_code == 'i') {
+    return 0;
+  }
+  const ColonizeCol1Save* col1 = ctx->col1;
+  const int human = ctx->human_nation;
+  int best = -999;
+  int pick = -1;
+  for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
+    const ColonizeCol1Tribe* t = &col1->tribe[i];
+    if (map_continent_id_at(ctx->map, t->x, t->y) != s.cid) {
+      continue;
+    }
+    const int tn = (int)t->nation_id;
+    if (tn < 4 || tn > 11) {
+      continue;
+    }
+    const int alarm = ai_diplo_indian_alarm(col1, tn, nation_id);
+    if ((t->mission & 0x0f) == nation_id) {
+      if (europe_nation_gold(ctx->europe, ctx->col1, nation_id) < 0x9c4u || alarm > 0x4a ||
+          (col1->indian[tn - 4].euro_diplo[nation_id] & COL1_INDIAN_MET_BIT) == 0 ||
+          (human >= 0 && human < 4 && ctx->euro_power_rank_ok &&
+           ctx->euro_power_rank[human] <= ctx->euro_power_rank[nation_id])) {
+        continue;
+      }
+    }
+    int score = (alarm << 3) / (map_dos_dist(u->x - (int)t->x, u->y - (int)t->y) + 1);
+    if (t->state.capital) {
+      score += score >> 1;
+    }
+    if (best < score) {
+      best = score;
+      pick = (int)i;
+    }
+  }
+  if (pick < 0) {
+    const int ti = units_kind_type_index(ctx->units, UNITS_KIND_COLONIST);
+    if (ti >= 0) {
+      u->type_index = ti; /* +0x3146 = 0 only: profession and goods bytes stay */
+    }
+    return 0;
+  }
+  u->col1_ai_plan = 0x4a; /* 'J' */
+  const int vx = (int)col1->tribe[pick].x;
+  const int vy = (int)col1->tribe[pick].y;
+  ai_euro_set_goto(u, AI_EURO_ACT_GOAL, vx, vy);
+  /* 27f5 -> 5b66's first step enters the village: 465b -> FUN_4d56_4528
+   * case 3. The port's pathfinder never steps onto village tiles, so an
+   * adjacent pick resolves the visit here (DOSBox 1513: the French
+   * missionary founded the Arawak mission from the next tile). */
+  if (abs(u->x - vx) <= 1 && abs(u->y - vy) <= 1 &&
+      ai_contact_ai_missionary_village(ctx, nation_id, pick, u->id)) {
+    return 1;
+  }
+  return 1;
+}
+
+/*
  * LAB_521d_47b9 — wagon / treasure dead-end destroy (raw 2249-2360 of
  * move_scoring_20e6_full.md; `47b9` itself is just
  * `FUN_1000_89f8(unit)` = FUN_281f_0808 → FUN_1427_0824 destroy_unit, then

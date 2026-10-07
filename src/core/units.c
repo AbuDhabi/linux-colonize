@@ -701,7 +701,7 @@ void units_slot_reset_defaults(
 }
 
 static int units_spawn_allow_stack_impl(
-  ColonizeUnitPool* pool, int type_index, int x, int y, bool transfer
+  ColonizeUnitPool* pool, int type_index, int x, int y, bool transfer, int nation_id
 ) {
   if (!pool || type_index < 0 || type_index >= pool->type_count) {
     return -1;
@@ -713,6 +713,12 @@ static int units_spawn_allow_stack_impl(
   const ColonizeUnitType* type = &pool->types[type_index];
   units_slot_reset_defaults(pool, slot, type, type_index, x, y);
   slot->aboard_ship_id = -1;
+  if (nation_id >= 0) {
+    /* FUN_1427_06b4 takes the nation: the tile claim below must see it, not
+     * the nation-0 placeholder (a militia phantom stamped England on a
+     * French colony, DOSBox 1508). */
+    slot->nation_id = nation_id;
+  }
   if (pool->spawn_colonies) {
     /* FUN_1427_06b4: +0x314a = FUN_15eb_0a76(x, y), the colony on the tile. */
     const int cid = colonies_id_at(pool->spawn_colonies, x, y);
@@ -730,11 +736,17 @@ static int units_spawn_allow_stack_impl(
 }
 
 int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y) {
-  return units_spawn_allow_stack_impl(pool, type_index, x, y, false);
+  return units_spawn_allow_stack_impl(pool, type_index, x, y, false, -1);
+}
+
+int units_spawn_allow_stack_nation(
+  ColonizeUnitPool* pool, int type_index, int x, int y, int nation_id
+) {
+  return units_spawn_allow_stack_impl(pool, type_index, x, y, false, nation_id);
 }
 
 int units_spawn_allow_stack_transfer(ColonizeUnitPool* pool, int type_index, int x, int y) {
-  return units_spawn_allow_stack_impl(pool, type_index, x, y, true);
+  return units_spawn_allow_stack_impl(pool, type_index, x, y, true, -1);
 }
 
 void units_set_spawn_gate_hook(ColonizeUnitsSpawnGateFn fn, void* user) {

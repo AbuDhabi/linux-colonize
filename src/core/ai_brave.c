@@ -953,8 +953,10 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
 
   ai_s_seed100_midturn_turn = 0;
 
-  /* §9 meet/trade + raids (5bfb / 4528 paths — not quiet 14fe). */
-  ai_contact_indian_meet_trade(ctx, nation_id);
+  /* §9: no post-pulse meet/trade. DOS resolves Brave x Euro encounters only
+   * in a mover's 3180 (both sides ported on the step); the old pulse's
+   * adjacency first-contact, auto-trade and gift/demand stand-ins gifted
+   * gold DOS never paid (DOSBox 1508: Dutch 20 gold, alarm -3). */
   /*
    * bugs.md 2026-09-04: FUN_5bfb_022e's peaceful visit picks ONE of two
    * halves — generous (@INDIANGIVEFOOD/@INDIANGIVESTUFF) or demanding

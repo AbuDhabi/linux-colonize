@@ -15,7 +15,7 @@ docs/ai_first_colony_trace.md "Brave 021a trace".
 ```bash
 W=/tmp/.../scratchpad/dt          # any private dir; never COLONIZE/ itself
 python3 tools/dosbox_trace.py setup $W --save test-saves-ai/TURN3.SAV --patch-cc 0x46ffa
-python3 tools/dosbox_trace.py start $W        # ~5 s; debugger halted at opening.exe
+python3 tools/dosbox_trace.py start $W        # ~5 s; debugger halted at viceroy.exe
 python3 tools/dosbox_trace.py send $W load.py  # load.py: print(d.load_slot(0))
 python3 tools/dosbox_trace.py send $W trace.py
 python3 tools/dosbox_trace.py stop $W
@@ -37,7 +37,9 @@ python3 tools/dosbox_trace.py stop $W
   send again until that file exists.
 - `stop` SIGKILLs only the PIDs in `pids.json`.
 
-`load_slot(0)` takes 3-5 minutes. Do not send Space to skip the intro: a Space that arrives as the main menu appears starts a New Game (tried 2026-10-07).
+`load_slot(0)` takes about 1.5 minutes: VICEROY is started directly (no OPENING intro) and lands on
+the main menu. `setup` drops the ~30 `VR_*.EXE` variants and other extras from `$W/C`; in a crowded
+directory VICEROY boots very slowly (user-observed, 2026-10-07).
 
 ## `Dbg` API
 
@@ -104,15 +106,13 @@ firing:
 
 ## Launch traps
 
-- Launch via `opening.exe -g`, as COLONIZE.BAT does. OPENING shows the
-  intro and the main menu, then chains `viceroy -o ...`. Started directly,
-  VICEROY hangs in text mode.
+- `viceroy.exe` with no arguments runs and shows the main menu (COLONIZE.BAT
+  goes through `opening.exe -g`, which plays the intro and chains
+  `viceroy -o ...`; `viceroy -o` alone hangs in text mode).
 - Keep DOSBox-X's default Sound Blaster and MPU-401. With `sbtype=none` /
   `mpu401=none` the game hangs probing the configured card. Silence
   belongs on the host side instead: `SDL_AUDIODRIVER=dummy` and
   `mididevice=none`.
-- `setup` copies everything, including ~30 `VR_*.EXE` variants. DOSBox-X
-  then logs "DIRCACHE ... All slots full", which is harmless.
 
 ## Overlay code
 

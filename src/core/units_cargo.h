@@ -218,6 +218,8 @@ bool units_king_galleon_apply_popup_w(
  * only when 0 < amount < 255. Returns the amount, or 0 for an empty hold.
  */
 int units_hold_amount(const ColonizeUnitPool* pool, int unit_id, int hold);
+/* FUN_15eb_317c: remove goods hold `slot`, compact the rest down. */
+int units_remove_goods_slot(ColonizeUnit* unit, int slot);
 /*
  * Goods holds in use = DOS unit +0x3150. GOODS only: boarding parks passengers
  * off-map (FUN_1427_10be) and never bumps the byte, so a troop-laden ship

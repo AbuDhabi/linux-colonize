@@ -2455,48 +2455,17 @@ bool col1_bridge_capture_w(
         dst->occupation[p] = (uint8_t)colonies_colonist_occupation_job(colonies, c);
       }
       /*
-       * bugs.md interop: DOS keeps each colony's colonist arrays SORTED by
-       * occupation. (Not a universal invariant: original campaign saves
-       * carry unsorted arrays too — french COLONY00 Jamestown is
-       * [13,0,12,6,4] — DOS only insert-sorts at colonist ADD, later job
-       * changes don't re-sort. The canonical emit below stays: DOS reads a
-       * permuted colony fine since tiles[] permutes along.) The interop
-       * pair (generated_by_port.SAV vs DOS's own
-       * resave of it) shows exactly an insert-before-first->= ordering:
-       * ascending occupation with ties in REVERSE arrival order. Emit that
-       * canonical order — occupation[], profession[], the specialty nibbles
-       * below, and the tiles[] worker indices all permute together, so DOS
-       * reads the same colony without reshuffling anything.
+       * Colonist order = the runtime order. DOS insert-sorts by occupation
+       * only when a colonist is ADDED and never re-sorts on a job change, so
+       * real saves carry unsorted arrays (french COLONY00 Jamestown is
+       * [13,0,12,6,4]; seed-100 1515's Dutch colony is [0,6,4] after an AI
+       * join). The canonical full sort this export used to apply moved
+       * workers DOS leaves in place. col1_new_index stays the identity map
+       * the per-colonist blocks below index through.
        */
       int col1_new_index[COLONIZE_COL1_COLONY_POP_MAX];
-      {
-        int order[COLONIZE_COL1_COLONY_POP_MAX]; /* new position -> old index */
-        int cnt = 0;
-        for (int p = 0; p < dst->population && p < (int)COLONIZE_COL1_COLONY_POP_MAX; ++p) {
-          int pos = 0;
-          while (pos < cnt && dst->occupation[order[pos]] < dst->occupation[p]) {
-            pos++;
-          }
-          for (int m = cnt; m > pos; --m) {
-            order[m] = order[m - 1];
-          }
-          order[pos] = p;
-          cnt++;
-        }
-        uint8_t occ2[COLONIZE_COL1_COLONY_POP_MAX];
-        uint8_t pro2[COLONIZE_COL1_COLONY_POP_MAX];
-        for (int k = 0; k < (int)COLONIZE_COL1_COLONY_POP_MAX; ++k) {
-          col1_new_index[k] = k;
-        }
-        for (int k = 0; k < cnt; ++k) {
-          occ2[k] = dst->occupation[order[k]];
-          pro2[k] = dst->profession[order[k]];
-          col1_new_index[order[k]] = k;
-        }
-        for (int k = 0; k < cnt; ++k) {
-          dst->occupation[k] = occ2[k];
-          dst->profession[k] = pro2[k];
-        }
+      for (int k = 0; k < (int)COLONIZE_COL1_COLONY_POP_MAX; ++k) {
+        col1_new_index[k] = k;
       }
       /*
        * +0x60 nibbles = the per-colonist education counter, permuted with

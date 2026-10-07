@@ -165,6 +165,22 @@ int units_load_goods(ColonizeUnitPool* pool, int unit_id, int cargo_type, int am
   );
 }
 
+/* FUN_1000_8cdc -> FUN_15eb_317c: drop goods hold `slot` and shift the rest
+ * down (DOS also decrements +0x3150). Returns the removed amount. */
+int units_remove_goods_slot(ColonizeUnit* unit, int slot) {
+  if (!unit || slot < 0 || slot >= COLONIZE_UNIT_CARGO_MAX) {
+    return 0;
+  }
+  const int qty = unit->hold_goods_amount[slot];
+  for (int i = slot; i + 1 < COLONIZE_UNIT_CARGO_MAX; ++i) {
+    unit->hold_goods_type[i] = unit->hold_goods_type[i + 1];
+    unit->hold_goods_amount[i] = unit->hold_goods_amount[i + 1];
+  }
+  unit->hold_goods_type[COLONIZE_UNIT_CARGO_MAX - 1] = 0;
+  unit->hold_goods_amount[COLONIZE_UNIT_CARGO_MAX - 1] = 0;
+  return qty;
+}
+
 int units_unload_goods_hold(
   ColonizeUnitPool* pool,
   int unit_id,

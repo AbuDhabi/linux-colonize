@@ -3474,7 +3474,7 @@ static int case_food2_latch_autumn(void) {
 
 /*
  * FUN_364b_0688 phase O — AI dump-sell: non-human Euro surplus → gold before
- * spoilage. Human colony must not sell. Horses → nation_horses (no gold).
+ * spoilage. Human colony must not sell. Horses → nation +0x4a word (no gold).
  */
 static int case_phase_o_ai_dump_sell(void) {
   fx_begin();
@@ -3550,9 +3550,13 @@ static int case_phase_o_ai_dump_sell(void) {
     );
     return 1;
   }
-  if (eu.nation_horses[1] != 30u) {
-    fprintf(stderr, "dump-sell horses word want 30 got %u\n", (unsigned)eu.nation_horses[1]);
-    return 1;
+  {
+    const unsigned w4a =
+      (unsigned)col1.nation[1].unknown26_pad | ((unsigned)col1.nation[1].unknown_4b << 8);
+    if (w4a != 30u) {
+      fprintf(stderr, "dump-sell horses word (+0x4a) want 30 got %u\n", w4a);
+      return 1;
+    }
   }
   if (eu.nation_musket_batches[1] != 1u) {
     fprintf(

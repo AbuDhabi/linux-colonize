@@ -321,7 +321,7 @@ int units_spawn_village_temp_defender(
   if (!units_spawn_room(pool, indian_nation)) {
     return -1;
   }
-  const int id = units_spawn_allow_stack(pool, ti, village_x, village_y);
+  const int id = units_spawn_allow_stack_nation(pool, ti, village_x, village_y, indian_nation);
   ColonizeUnit* u = units_get(pool, id);
   if (!u) {
     return -1;

@@ -587,21 +587,24 @@ int europe_ai_colony_dump_sell_w(
     if (surplus <= 0) {
       continue;
     }
-    /* Horses: DOS adds surplus to Europe horses word; sell amount → 0. */
+    int amount = surplus;
+    /* Horses (raw 57817-57821): the surplus goes to the nation's +0x4a word
+     * (unknown26_pad low byte, unknown_4b high byte) and the sale amount is
+     * 0 — the 0a2e call and the tons[c] += c quirk below still run. */
     if (c == COLONIZE_CARGO_HORSES) {
-      unsigned h = (unsigned)eu->nation_horses[nation] + (unsigned)surplus;
-      if (h > 65535u) {
-        h = 65535u;
+      if (nat) {
+        const uint16_t w4a = (uint16_t)(nat->unknown26_pad | (nat->unknown_4b << 8));
+        const uint16_t v = (uint16_t)(w4a + (uint16_t)surplus);
+        nat->unknown26_pad = (uint8_t)(v & 0xffu);
+        nat->unknown_4b = (uint8_t)(v >> 8);
       }
-      eu->nation_horses[nation] = (uint16_t)h;
-      continue;
+      amount = 0;
     }
     /*
      * Muskets: DOS while surplus>49: Europe musket counter++, amount−50; then
      * sell remainder for gold. DOS runs this batching before any price read,
      * so a zero price must not skip it.
      */
-    int amount = surplus;
     if (c == COLONIZE_CARGO_MUSKETS) {
       while (amount > 49) {
         if (eu->nation_musket_batches[nation] < 65535u) {

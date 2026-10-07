@@ -261,6 +261,10 @@ const char* units_equip_role_type_name(
 int units_spawn(ColonizeUnitPool* pool, int type_index, int x, int y);
 /* Spawn even if the tile already has a unit (COL1 stacks / passengers). */
 int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y);
+/* Same, owned by nation_id before the tile claim runs (FUN_1427_06b4). */
+int units_spawn_allow_stack_nation(
+  ColonizeUnitPool* pool, int type_index, int x, int y, int nation_id
+);
 /* Game-side inputs to the DOS spawn gate: units held outside the pool (human
  * Europe), whether `nation` is a human player (DS:0x543f == 0), and its
  * DS:0x8cfc all_unit_counts census byte. */

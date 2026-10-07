@@ -811,18 +811,34 @@ static void ai_euro_5d04_cb_market_volume(int cargo, int qty, int is_buy) {
 static void ai_euro_5d04_cb_set_pool_counter(int cargo, int qty) {
   ai_euro_5d04_cb_market_volume(cargo, qty, 1);
 }
+/* FUN_281f_08bc -> FUN_1427_0d38(head, mode): a walk of the dock tile chain,
+ * switch on mode (jump table 1427:0d78, read from the listing 2026-10-07):
+ *   4    count of DOS types 1, 4, 6, 7, 8, 9 (the military rows)
+ *   0x0c count of type 0x0b (Artillery)
+ *   0x0e the LARGEST 0x5237 hold capacity among undamaged hulls (0xd..0x12)
+ * The port used to read 4 as "land units", 0xc as "ships" and 0xe as the
+ * summed capacity (DOSBox 1514: France's lone Free Colonist on the dock
+ * made mode 4 nonzero and bought a Dragoon DOS never bought). */
 static int ai_euro_5d04_cb_colony_demand_query(int head, int mode) {
   (void)head;
   int n = 0;
   for (int i = ai_euro_5d04_cb_list_iter_first(0); i >= 0; i = ai_euro_5d04_cb_list_iter_next(i)) {
     const ColonizeUnit* u = ai_euro_5d04_cb_unit(i);
-    const int is_ship = units_is_sea(ai_euro_s_5d04_ctx->units, u->id);
+    if (!u || u->aboard_ship_id >= 0) {
+      continue;
+    }
+    const int t = ai_euro_5d04_dos_type_of(ai_euro_s_5d04_ctx->units, u->type_index);
     if (mode == 4) {
-      n += (!is_ship && u->aboard_ship_id < 0) ? 1 : 0;
+      n += (t == 1 || t == 4 || (t >= 6 && t <= 9)) ? 1 : 0;
     } else if (mode == 0xc) {
-      n += is_ship ? 1 : 0;
+      n += (t == 0xb) ? 1 : 0;
     } else if (mode == 0xe) {
-      n += is_ship ? units_ship_capacity(ai_euro_s_5d04_ctx->units, u->id) : 0;
+      if (t >= 0xd && t <= 0x12 && !(u->col1_flags15 & 0x80u)) {
+        const int cap = units_ship_capacity(ai_euro_s_5d04_ctx->units, u->id);
+        if (cap > n) {
+          n = cap;
+        }
+      }
     }
   }
   return n;
@@ -842,9 +858,9 @@ static int ai_euro_5d04_cb_reward_value(int idx) {
   return units_hold_amount(ai_euro_s_5d04_ctx->units, u->id, 0);
 }
 static void ai_euro_5d04_cb_reward_ack(int idx) {
-  const ColonizeUnit* u = ai_euro_5d04_cb_unit(idx);
+  ColonizeUnit* u = (ColonizeUnit*)ai_euro_5d04_cb_unit(idx);
   if (u) {
-    (void)units_unload_goods_hold(ai_euro_s_5d04_ctx->units, u->id, 0, NULL, NULL);
+    (void)units_remove_goods_slot(u, 0); /* 8cdc: remove + compact */
   }
 }
 /*
@@ -892,9 +908,11 @@ static int ai_euro_5d04_cb_sell_hold0(int idx) {
       return 0;
     }
   }
-  int cargo = -1;
-  int amount = 0;
-  if (units_unload_goods_hold(ctx->units, u->id, 0, &cargo, &amount) <= 0 || cargo < 0) {
+  const int cargo = u->hold_goods_type[0];
+  /* 0dc6 sells via 8cdc: hold 0 out, the rest shift down, so the caller's
+   * `while (+0x3150)` loop reaches every hold (DOSBox 1508: both holds). */
+  const int amount = units_remove_goods_slot((ColonizeUnit*)u, 0);
+  if (amount <= 0 || cargo < 0) {
     return 0;
   }
   ColonizeCol1Nation* nat = &ctx->col1->nation[ai_euro_s_5d04_nation];
@@ -1405,12 +1423,13 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
     local_24 = ai_euro_5d04_cb_colony_demand_query(local_16, 0xe);
     int local_42 = local_24 - local_22;
     if (turn > 0x50) {
-      while ((uint32_t)(hs->delay_48 + 1) < (uint32_t)hs->musket_bank_raw / 50) {
+      /* OVL14 0x67be-0x67f7: +0x49 (lots) and +0x4a (raw), not +0x48. */
+      while ((uint32_t)(hs->musket_bank_lots + 1) < (uint32_t)hs->musket_bank_raw / 50) {
         hs->musket_bank_raw -= 50;
-        hs->delay_48++;
+        hs->musket_bank_lots++;
       }
-      while ((uint32_t)hs->musket_bank_raw / 50 + 1 < (uint32_t)hs->delay_48) {
-        hs->delay_48--;
+      while ((uint32_t)hs->musket_bank_raw / 50 + 1 < (uint32_t)hs->musket_bank_lots) {
+        hs->musket_bank_lots--;
         hs->musket_bank_raw += 50;
       }
     }
