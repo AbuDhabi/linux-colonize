@@ -454,10 +454,8 @@ static int europe_dock_queue_raises_cargo_bar(void) {
  * NEEDS_COLONISTS:
  *
  *   flag clear → a0b8 = 0 → 0 <= −1 false → no swap, Europe dock stays empty
- *   flag set   → a0b8 = 1 → 0 <=  0 true  → gold −= base
- *                            ((recruit_count − difficulty + 7) * 20 = 140,
- *                            the crosses term is 0 at current_crosses = 0)
- *                            and FUN_38fd_0718 puts a recruit on the dock
+ *   flag set   → a0b8 = 1 → 0 <=  0 true  → FUN_38fd_0718 puts a recruit
+ *                            on the dock
  *
  * The flag is set on the fixture, not derived from `population < 3`: the port
  * refreshes it in ai_euro_colony_goals, which runs AFTER ai_euro_nation_
@@ -465,9 +463,9 @@ static int europe_dock_queue_raises_cargo_bar(void) {
  * DOS's own ordering (6d8e's prelude builds 0xa0b8 from the colony bytes
  * before it calls 5d04). The 5952 tick runs first and
  * rebuilds the flag, so the flag-clear run also rings the colony with ocean
- * (fixture_water_ring) to make the tick agree. The specialty stays Ore at an
- * unaffordable 201/unit: the swap is then the only thing in the whole tail
- * that can move gold or add a dock unit.
+ * (fixture_water_ring) to make the tick agree. Only the dock count is
+ * checked: the departing hull's goods buy (FUN_38fd_1ebc) has no gold gate
+ * and drains the purse either way.
  *
  * This case also pins the "past-the-end bVar23 read is kept as 0" decision:
  * the same gate ANDs `!unit_flag_bit5`, so a port that resolved that stale
@@ -485,11 +483,9 @@ static int recruit_swap_follows_colonies_wanting_colonists(void) {
     if (!wants) {
       fixture_water_ring(&f, c);
     }
-    /* Nothing affordable to buy for the hull (Ore at 201/unit), and a purse
-     * that covers the 140 swap but NOT the 190 the recruit-purchase loop
-     * would want for the colonist the swap just put on the dock
-     * (base2 140 + muskets 50) — so the swap is the only mover here and the
-     * gold delta is exact. */
+    /* A purse that covers the 140 swap but NOT the 190 the recruit-purchase
+     * loop would want for the colonist the swap just put on the dock
+     * (base2 140 + muskets 50). */
     f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 201;
     f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 1; /* muskets 50 = 50 (burden 0) */
     f.col1.nation[nation].gold = 300;
@@ -497,21 +493,16 @@ static int recruit_swap_follows_colonies_wanting_colonists(void) {
       fixture_free(&f);
       return fail("spawn europe ship");
     }
-    const uint32_t gold_before = f.col1.nation[nation].gold;
-
     ai_euro_dispatcher_turn(&f.ctx, nation);
 
     const int dock = europe_land_unit_count(&f, nation);
-    const uint32_t gold = f.col1.nation[nation].gold;
-    if (wants && (dock != 1 || gold != gold_before - 140u)) {
-      fprintf(stderr, "wants=%d dock=%d gold %u->%u (want -140)\n", wants, dock,
-              (unsigned)gold_before, (unsigned)gold);
+    if (wants && dock != 1) {
+      fprintf(stderr, "wants=%d dock=%d\n", wants, dock);
       fixture_free(&f);
       return fail("NEEDS_COLONISTS colony should open the recruit-slot swap");
     }
-    if (!wants && (dock != 0 || gold != gold_before)) {
-      fprintf(stderr, "wants=%d dock=%d gold %u->%u\n", wants, dock, (unsigned)gold_before,
-              (unsigned)gold);
+    if (!wants && dock != 0) {
+      fprintf(stderr, "wants=%d dock=%d\n", wants, dock);
       fixture_free(&f);
       return fail("swap fired with no colony wanting colonists");
     }

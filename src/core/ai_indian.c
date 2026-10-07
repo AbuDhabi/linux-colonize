@@ -355,8 +355,8 @@ int ai_indian_village_threat_w(
       if (!map_coords_inset(map, tx, ty) || map_tile_is_water(map, tx, ty)) {
         continue;
       }
-      if (map_tile_tribe_or_presence(map, tx, ty) >= 0) {
-        s >>= 1;
+      if (ai_021a_settle_owner(map, tx, ty) >= 0) {
+        s >>= 1; /* raw 81058: FUN_281f_06be, a settlement owner only */
       }
       const int adx = MAP_RING20_DX[i] < 0 ? -MAP_RING20_DX[i] : MAP_RING20_DX[i];
       const int ady = MAP_RING20_DY[i] < 0 ? -MAP_RING20_DY[i] : MAP_RING20_DY[i];

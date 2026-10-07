@@ -19,8 +19,14 @@ then a recursive JSON diff (show `*_hex` blobs as differing byte offsets). The t
 `EXCLUDE_FROM_ALL`: rebuild it explicitly (`cmake --build build/debug --target golden_idle_campaign`).
 
 Progress (sum of differing JSON leaves over all 77 transitions): 18,869 → 16,546 → 16,178 →
-13,423. 1493→1494, 1494→1495 and 1495→1496 pass byte-for-byte; 1492→1493 is down to the
+13,423 → 12,739. 1493→1494, 1494→1495 and 1495→1496 pass byte-for-byte; 1492→1493 is down to the
 human's first-turn UI; 1497→1498 only to the stance-table artifact below.
+
+**From-load target.** Because DOS keeps unsaved state across turns (stance table, below), the
+archived Y+1 save is not always reachable from Y. Load year_Y in DOSBox (`setup --save`, `load_slot`,
+then press space until `DS:0x538e` changes); the human-slot autosave lands in `$W/C/COLONY09.SAV`.
+`sav_json` it and diff against the sim: whatever remains is a port bug, whatever the archived save
+adds on top is an artifact. 1498→1499 and 1501→1502 match their from-load autosaves exactly.
 
 DOSBox method used here (docs/dos_trace.md): `setup --save year_Y.sav`, load, then `BPM` on the
 record bytes that differ (unit chain +0x18, colony +0x8a / +0x70) or `BP` on a resident routine
@@ -104,6 +110,34 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   origin bind (OVL14 0x24ec, `[BP-0x32]` is the is-ship flag, not stance); colony tick binds
   unbound tile units (`DS:0x8dc6`); colony eject reveals while the colonist still counts.
 
+## Fixed in the 2026-10-07 second pass
+
+- AI Europe dock is the per-nation sentinel 236+n (FUN_38fd_0718 `n - 0x14`), not (200,100):
+  recruits, purchases, lane arrivals, damaged hulls.
+- FUN_479b_0972 crosses at once when an 'E' goto ends on High Seas (raw 77091-77098); 007a also
+  writes the nation's `return_from_europe` copy, sentries/stamps the passengers, and keeps plan 'E'.
+- 015e's own ring (`units_015e_hs_course`) for the Europe course; 048e's spiral stays for placement.
+- Patrol stay goes through LAB_589e (orders 5, facing 8); surplus recall commits via 20c6 'W'.
+- Brave 021a writes facing and the orders latch from the pick (0x11b9-0x126e) before the tail; a
+  tail stay only exhausts MP (0x14e6).
+- Harness: `golden_turn` now passes `ctx.names` (every @RESOURCE site score read 0 before).
+- 5d04 goods buy = FUN_38fd_1ebc: no gold gate, treasury clamps at 0 (FUN_15eb_0556); passengers
+  and goods share the hull's holds when dock units board.
+- 5952 improve arm: the tribal-claim alarm is `030c(village NATION byte, nation)` unadjusted, so
+  nations 4..7 read indian[4..7] (DOS quirk, `ai_euro_5952_alarm_word`); the phantom pioneer
+  stamps its visitor nibble (`units_set_nation`).
+- Gift picker sort FUN_1cf8_000a is not stable (moved element lands before its equals, unsigned).
+- Market tick FUN_38fd_0058 runs at the head of each nation's own 5e52 (after the reseed), not
+  batched at the round's end.
+- 4cc6_00f2 tier test caps only the new alarm at 99 (cooling 100→99 clamps village attitudes).
+- 465b LAB_0bd1 tail: an unsettled AI move (attack, board, block) with no unit lost → orders 0,
+  +0x315a++ (wrap 20: reset + exhaust); `units_465b_0bd1_tail`, Euro goal walker only so far.
+- 015e ring skips the map border (078c reads class 0x19 outside FUN_137f_000a's interior).
+- 5bfb_3180 turns each newly met neighbour stack head's facing to the scan direction.
+- 4cc6_03f8 threat pressure halves only on a settlement tile (06be), not on unit presence.
+- Nation +0x4b is NOT DOS-dead (lategame DOS saves carry 1..11): round-tripped as `unknown_4b`;
+  the port's Indian-hostility sticky is now a session cache re-derived on apply.
+
 ## Harness artifacts (not port bugs)
 
 - The `-0x6790` stance table (DS:0x9870) is not in the save and is zero after a DOS load; the
@@ -128,7 +162,7 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   mostly downstream of route/placement divergence; recheck after.
 - DOSBox loops: press space every ~200 INT16 polls (popups and the idle human's turn both take it),
   and match units by content, not index — a colony founding compacts the array mid-turn.
-- `nations[].indian_hostility_sticky` is a port stand-in stored in DOS-dead byte +0x4b;
-  DOS saves always carry 0 there. Needs a port-only home (COLNXEXT) before the byte can be 0.
+- Nation +0x4b (`unknown_4b`): DOS writes it late-game (1..11 for nations 1/2); writer unknown.
+- 465b LAB_0bd1 tail is only applied on the Euro goal walker; Brave and other AI movers next.
 - 1492→1493 only: `tut2.nr1`, `rival_nation_slot_2`, `stuff.x/y`, `map_mode` come from the
   human's first Move Pieces (tutorial popup, View key); not reachable headless.

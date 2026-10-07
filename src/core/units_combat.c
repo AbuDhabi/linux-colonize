@@ -1761,8 +1761,8 @@ const char* units_home_port_name(const ColonizeCol1Save* col1, int nation_id) {
  * the ship leaves the map NOW (that is what makes it pixelate away under
  * the combat dissolve) and comes back when the timer is out.
  * Europe is the human's screen only. An AI hull (every nation, bugs.md
- * #871: the off-map relocation is not human-only) goes to the Europe park
- * (200,100) — the same slot turn_route_damaged_ships holds it in until the
+ * #871: the off-map relocation is not human-only) goes to its Europe dock
+ * 236+n (DOS n - 0x14) — the same slot turn_route_damaged_ships holds it in until the
  * repair timer runs out. It used to stay on its tile showing the repair
  * digit, with no dissolve.
  */
@@ -1776,8 +1776,8 @@ static void units_ship_damaged_to_europe(ColonizeUnitPool* pool, ColonizeUnit* l
     if (!units_coords_in_europe_park(lose->x, lose->y)) {
       const int ox = lose->x;
       const int oy = lose->y;
-      lose->x = 200;
-      lose->y = 100;
+      lose->x = 236 + lose->nation_id;
+      lose->y = 236 + lose->nation_id;
       units_occupancy_refresh_tile(pool, ox, oy, -1);
     }
     return;

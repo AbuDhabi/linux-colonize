@@ -7,6 +7,7 @@
  * Mutation signals: raid-side (stock/pop/attacks / hotter relation_by_indian /
  * friction) and hunt-side (≥1 Euro military with useful goto / Brave spent).
  */
+#include "core/ai_diplo.h"
 #include "core/assets.h"
 #include "core/col1_bridge.h"
 #include "core/col1_save.h"
@@ -24,23 +25,29 @@
 #include "tests/common/joint_fixture.h"
 #include "tests/common/test_fail.h"
 
+/* The sticky cache is session state re-derived from the alarm matrix
+ * (ai_diplo_indian_hostility_sync), never a save byte. */
+static unsigned smoke_sticky(const ColonizeCol1Save* s) {
+  ai_diplo_indian_hostility_sync((ColonizeCol1Save*)s, 0);
+  return ai_diplo_indian_hostility_sticky(s, 0);
+}
+
 #define MID02_PATH "test-saves-ai/MID02.SAV"
 #define LATE01_PATH "test-saves-ai/LATE01.SAV"
 #define LATE01_POST_PATH "test-saves-ai/LATE01_POST.SAV"
 #define AI_LATE_VR_SEED 100u
 
 static int write_late01_from_mid02(void) {
-  /* Late-war stamp: calendar floored to 1550, sticky raised to 2, hot
-   * relation rows cooled to 30, contacted-tribe alarm and tribe friction
+  /* Late-war stamp: calendar floored to 1550, hot relation rows cooled to
+   * 30, contacted-tribe alarm (90: sticky derives to 2) and tribe friction
    * raised to their floors (never lowered). */
   const JointHostilityStamp st = {
     .year_floor = 1550,
     .year_set = 1550,
-    .sticky_value = 2,
-    .sticky_force = false,
     .relation_above = 35,
     .relation_set = 30,
-    .alarm_value = 60,
+    .meet_all = true,
+    .alarm_value = 90,
     .alarm_force = false,
     .friction_min = 55
   };
@@ -240,7 +247,7 @@ static int run_late01_turn(ColonizeCol1Save* pre_snap) {
     col1_save_free(&late);
     return fail("LATE01 calendar did not advance");
   }
-  if (late.nation[0].indian_hostility_sticky < 1) {
+  if (smoke_sticky(&late) < 1) {
     map_free(&map);
     assets_msg_free(&names);
     col1_save_free(&late);
@@ -307,7 +314,7 @@ int main(void) {
     col1_save_free(&late);
     return fail("LATE01 should be stamped late-war year≥1550");
   }
-  if (late.nation[0].indian_hostility_sticky < 2) {
+  if (smoke_sticky(&late) < 2) {
     col1_save_free(&late);
     return fail("LATE01 sticky stamp");
   }

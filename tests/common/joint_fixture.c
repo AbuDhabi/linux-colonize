@@ -29,7 +29,7 @@ int joint_assert_fields(const ColonizeCol1Save* s, const char* tag) {
     fprintf(stderr, "%s: no colonies\n", tag);
     return 0;
   }
-  (void)s->nation[0].indian_hostility_sticky;
+  (void)s->nation[0].unknown_4b;
   (void)s->nation[0].relation_by_indian[0];
   (void)s->nation[0].euro_relation[1];
   return 1;
@@ -50,9 +50,6 @@ bool joint_stamp_hostility_fixture(
     save.head.year = st->year_set;
   }
   for (int e = 0; e < 4; ++e) {
-    if (st->sticky_force || save.nation[e].indian_hostility_sticky < st->sticky_value) {
-      save.nation[e].indian_hostility_sticky = st->sticky_value;
-    }
     for (int i = 0; i < 8; ++i) {
       if (save.nation[e].relation_by_indian[i] == 0) {
         continue;
@@ -65,6 +62,9 @@ bool joint_stamp_hostility_fixture(
   for (int n = 0; n < 8; ++n) {
     ColonizeCol1Indian* ind = &save.indian[n];
     for (int e = 0; e < 4; ++e) {
+      if (st->meet_all) {
+        ind->euro_diplo[e] |= COL1_INDIAN_MET_BIT;
+      }
       if (!ind->euro_diplo[e]) {
         continue;
       }

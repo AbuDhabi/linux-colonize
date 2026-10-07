@@ -25,6 +25,7 @@
 #include "core/map.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "core/strutil.h"
 #include "core/units.h"
 #include "core/woodcut.h"
@@ -465,15 +466,24 @@ int ai_diplo_indian_any_at_war(const ColonizeCol1Save* col1, int euro_nation) {
   return 0;
 }
 
+/* Port-only cache, never saved: re-derived on load (col1_bridge_apply_w). */
+static uint8_t s_indian_hostility_sticky[4];
+
 uint8_t ai_diplo_indian_hostility_sticky(const ColonizeCol1Save* col1, int euro_nation) {
   if (!col1 || euro_nation < 0 || euro_nation >= 4) {
     return AI_DIPLO_STICKY_CLEAR;
   }
-  return col1->nation[euro_nation].indian_hostility_sticky;
+  return s_indian_hostility_sticky[euro_nation];
+}
+
+void ai_diplo_indian_hostility_set(int euro_nation, uint8_t value) {
+  if (euro_nation >= 0 && euro_nation < 4) {
+    s_indian_hostility_sticky[euro_nation] = value;
+  }
 }
 
 /*
- * Sync the sticky stand-in (nation record +0x4b, unknown26[11]) from the
+ * Sync the sticky stand-in (session cache, not saved) from the
  * Indian alarm matrix (via ai_diplo_indian_read).
  *  0 — no Indian at-war slots (all unmet r==0, or relation ≥
  *      AI_DIPLO_INDIAN_AT_WAR_REL = 26)
@@ -506,7 +516,7 @@ void ai_diplo_indian_hostility_sync(ColonizeCol1Save* col1, int euro_nation) {
   if (any_war) {
     next = any_very_low ? AI_DIPLO_STICKY_DEEP : AI_DIPLO_STICKY_AT_WAR;
   }
-  col1->nation[euro_nation].indian_hostility_sticky = next;
+  s_indian_hostility_sticky[euro_nation] = next;
 }
 
 void ai_diplo_indian_capital_surrender(
@@ -3513,9 +3523,11 @@ static void ai_diplo_indian_tension_tier_update(
   if (!col1 || !col1->tribe || delta >= 0 || euro_nation < 0 || euro_nation > 3) {
     return;
   }
-  int old99 = old_relation > 99 ? 99 : (old_relation < 0 ? 0 : old_relation);
-  int new99 = new_relation > 99 ? 99 : (new_relation < 0 ? 0 : new_relation);
-  if (old99 / -5 == new99 / -5) {
+  /* raw 80866-80868: only the NEW value is capped at 99; the old one stays
+   * 0..100 (035c), so cooling from 100 to 99 counts as a tier crossing. */
+  const int old100 = old_relation > 100 ? 100 : (old_relation < 0 ? 0 : old_relation);
+  const int new99 = new_relation > 99 ? 99 : (new_relation < 0 ? 0 : new_relation);
+  if (old100 / -5 == new99 / -5) {
     return; /* no tier boundary crossed */
   }
   const int cap = (ai_relation_quartile(new99) >> 1) == 0 ? 0x20 : 0x60;

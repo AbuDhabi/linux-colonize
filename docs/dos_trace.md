@@ -37,7 +37,7 @@ python3 tools/dosbox_trace.py stop $W
   send again until that file exists.
 - `stop` SIGKILLs only the PIDs in `pids.json`.
 
-`load_slot(0)` takes 3-5 minutes. The intro cannot be skipped by keypress.
+`load_slot(0)` takes 3-5 minutes. Do not send Space to skip the intro: a Space that arrives as the main menu appears starts a New Game (tried 2026-10-07).
 
 ## `Dbg` API
 

@@ -249,14 +249,14 @@ static bool compare_ai_state(
         ok = false;
       }
     }
-    if (got->nation[n].indian_hostility_sticky != exp->nation[n].indian_hostility_sticky) {
+    if (got->nation[n].unknown_4b != exp->nation[n].unknown_4b) {
       fprintf(
         stderr,
-        "%s nation[%d].indian_hostility_sticky got %u expected %u\n",
+        "%s nation[%d].unknown_4b got %u expected %u\n",
         step_label,
         n,
-        (unsigned)got->nation[n].indian_hostility_sticky,
-        (unsigned)exp->nation[n].indian_hostility_sticky
+        (unsigned)got->nation[n].unknown_4b,
+        (unsigned)exp->nation[n].unknown_4b
       );
       ok = false;
     }

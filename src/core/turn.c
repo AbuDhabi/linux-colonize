@@ -738,6 +738,14 @@ COLONIZE_INTERNAL void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTur
       if (ctx->col1_ok && ctx->col1 && !ctx->col1->head.game_options.woi) {
         ai_nation_reseed(ctx);
       }
+      /* 5e52 raw 68557: FUN_38fd_0058(0, -1) on the nation's own track
+       * (peacetime only, like the reseed). */
+      if (ctx->europe && !(ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi)) {
+        const ColonizeWorld mw = world_from_turn_ctx(ctx);
+        europe_tick_market_prices_w(
+          &mw, ctx->human_nation, ctx->turn_number ? *ctx->turn_number : 0u
+        );
+      }
       turn_run_nation_ticks(ctx, &proc->result);
       turn_prod_only_nation = ctx->human_nation;
       turn_prod_only_set = true;
@@ -772,35 +780,12 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
       ai_king_nation_turn(ctx);
       turn_run_year_end_chrome(ctx, &proc->result);
       /*
-       * FUN_38fd_0058 EOT market attrition / rise-fall. DOS runs it once per
-       * NATION, as the first act of each nation's own 5e52 (FUN_3844_00f2
-       * :58375), against that nation's own price track (bid +0x4c, pressure
-       * +0x5c) — so all four drift independently, and the DS:0x53ea pool decay
-       * belongs to nation 0's pass. The port batches the four here in nation
-       * index order, so a nation ticking after nation 0 sees the decayed pool
-       * the way DOS's turn round hands it to them. bugs.md #1012.
+       * FUN_38fd_0058 runs as the first act of each nation's own 5e52 (after
+       * the reseed, before immigration): AI slots in turn_run_ai_nation_eot,
+       * the human in its 00f2 in FINISH. Only the human's price popups are
+       * queued here. bugs.md #1012.
        */
       if (ctx->europe) {
-        const ColonizeWorld mw = world_from_turn_ctx(ctx);
-        /* Each nation's 5e52 market pass sees DS:0x538e as of its own
-         * 00f2: the slots above the human ticked before the day's calendar
-         * step (turn_advance_day), the human and the slots below after it.
-         * In the seed-100 autosaves, Dutch attrition first doubles on saved
-         * turn 2, then on 4 (FUN_38fd_0058, DS:0x538e & 1). */
-        const uint32_t now = ctx->turn_number ? *ctx->turn_number : 0u;
-        for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
-          const uint32_t mturn = (n > ctx->human_nation && now > 0u) ? now - 1u : now;
-          /* FUN_3844_00f2 runs no nation EOT for a withdrawn (control 2) slot,
-           * so its track — and, for nation 0, the pool decay — stands still. */
-          if (ctx->col1_ok && ctx->col1 && ctx->col1->player[n].control == 2) {
-            continue;
-          }
-          if (n == ctx->human_nation) {
-            europe_tick_market_prices_w(&mw, n, mturn);
-          } else if (ctx->col1_ok) {
-            europe_nation_tick_market_prices_w(&mw, n, mturn);
-          }
-        }
         /* FUN_38fd_0058 phase 4: 0xfa8 @PRICEUP / 0xfb0 @PRICEDOWN OK dialog
          * (FUN_281f_0652(tag, 2)) for the human nation only. DOS calls this
          * inline once per cargo that crosses threshold — a turn where two

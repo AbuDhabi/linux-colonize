@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/ai_diplo.h"
 #include "core/ai_euro.h"
 #include "core/col1_post_map.h"
 #include "core/col1_save.h"
@@ -895,6 +896,11 @@ bool col1_bridge_apply_w(
   if (!save->map.tile || save->map.tile_count !=
                            (size_t)save->head.map_size_x * (size_t)save->head.map_size_y) {
     COL1_FAIL(err, err_size, "save map layers incomplete");
+  }
+  /* The port's Indian-hostility sticky cache is session state, not saved:
+   * re-derive it from the loaded alarm matrix. */
+  for (int e = 0; e < 4; ++e) {
+    ai_diplo_indian_hostility_sync((ColonizeCol1Save*)save, e);
   }
 
   ColonizeCol1BridgeResult local;

@@ -46,6 +46,7 @@ bool units_try_move_w(
 
   g_units_last_combat = 0;
   g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED;
+  g_units_465b_settled = true; /* the port's pre-checks are not 465b exits */
   ColonizeUnit* unit = units_get(pool, unit_id);
   if (!unit || !map) {
     return false;
@@ -109,6 +110,7 @@ bool units_try_move_w(
   const ColonizeEnterReason reason =
     units_enter_probe_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, unit->type_index, dest_x, dest_y, unit_id);
   g_units_last_enter_reason = reason;
+  g_units_465b_settled = false; /* 465b body from here: bVar5 = false (raw 75449) */
 
   if (reason == COLONIZE_ENTER_BOARD) {
     if (village_temp >= 0) {
@@ -573,6 +575,7 @@ combat_entry_resolved:
     }
   }
   if (!allow) {
+    g_units_465b_settled = true; /* raw 75825-75830: the gamble lost */
     return false;
   }
 
@@ -737,7 +740,35 @@ combat_entry_resolved:
       unit->y
     );
   }
+  g_units_465b_settled = !combat_attack_entry && reason != COLONIZE_ENTER_COMBAT_LAND &&
+                         reason != COLONIZE_ENTER_COMBAT_NAVAL;
   return true;
+}
+
+bool g_units_465b_settled = false;
+
+int units_active_count(const ColonizeUnitPool* pool) {
+  int n = 0;
+  for (int i = 0; pool && i < units_slot_end(pool); ++i) {
+    n += pool->units[i].active ? 1 : 0;
+  }
+  return n;
+}
+
+void units_465b_0bd1_tail(ColonizeUnitPool* pool, int unit_id, int units_before, bool human) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!u || !u->active || units_active_count(pool) != units_before) {
+    return;
+  }
+  u->orders = UNITS_ORDER_NONE;
+  if (human) {
+    return;
+  }
+  u->col1_counter16++;
+  if (u->col1_counter16 > 0x13) {
+    u->col1_counter16 = 0;
+    units_mp_exhaust(pool, u); /* FUN_281f_0934 */
+  }
 }
 
 

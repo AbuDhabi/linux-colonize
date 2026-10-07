@@ -27,10 +27,9 @@ int joint_assert_fields(const ColonizeCol1Save* s, const char* tag);
 typedef struct {
   uint16_t year_floor; /* when head.year < year_floor ... */
   uint16_t year_set;   /*   ... head.year becomes year_set */
-  uint8_t sticky_value;
-  bool sticky_force; /* true: assign; false: raise only when below */
   uint8_t relation_above; /* relation_by_indian > relation_above (0 rows skipped) ... */
   uint8_t relation_set;   /*   ... becomes relation_set */
+  bool meet_all;          /* first: every tribe meets every Euro (MET bit) */
   uint8_t alarm_value;    /* indian[].alarm_by_player[e] where euro_diplo[e] */
   bool alarm_force;       /* true: assign; false: raise only when below */
   int friction_min;       /* < 0: leave tribe alarm friction alone */

@@ -3937,7 +3937,7 @@ static int case_lcr_outcome_dispatch(void) {
    * bugs.md #496: Fountain of Youth runs the eight FUN_291f_0d2c(1,0) picks
    * for an AI nation too (raw 103725-103731 sits outside the `local_a != 0`
    * human gate; 4884 just takes pool slot 1 for a non-human bound nation).
-   * The eight land in the Europe limbo (200,100), never on the human dock.
+   * The eight land on nation 1's Europe dock (237,237), never on the human dock.
    */
 static int case_lcr_fountain_ai(void) {
   if (fx_open() != 0 || fx_stage2() != 0) {
@@ -3981,7 +3981,7 @@ static int case_lcr_fountain_ai(void) {
           int limbo_before = 0;
           for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
             if (pool.units[i].active && pool.units[i].nation_id == 1 &&
-                pool.units[i].x == 200 && pool.units[i].y == 100) {
+                pool.units[i].x == 237 && pool.units[i].y == 237) {
               limbo_before++;
             }
           }
@@ -4000,8 +4000,8 @@ static int case_lcr_fountain_ai(void) {
           bool scout_active = false;
           for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
             if (!pool.units[i].active) continue;
-            if (pool.units[i].nation_id == 1 && pool.units[i].x == 200 &&
-                pool.units[i].y == 100) {
+            if (pool.units[i].nation_id == 1 && pool.units[i].x == 237 &&
+                pool.units[i].y == 237) {
               limbo_after++;
             }
             if (pool.units[i].id == sid) scout_active = true;

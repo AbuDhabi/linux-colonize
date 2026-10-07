@@ -1753,6 +1753,50 @@ bool units_spiral_place_hs_near(
   return false;
 }
 
+bool units_015e_hs_course(
+  const ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  int start_x,
+  int start_y,
+  int nation_id,
+  int* out_x,
+  int* out_y
+) {
+  if (!map || !out_x || !out_y) {
+    return false;
+  }
+  /* FUN_281f_078c -> FUN_13e4_003a: a tile outside FUN_137f_000a's interior
+   * (x or y on the map border) reads class 0x19, never High Seas. */
+  const int w = (int)map->width;
+  const int h = (int)map->height;
+#define HS015E_OK(x, y) \
+  ((x) >= 1 && (y) >= 1 && (x) < w - 1 && (y) < h - 1 && \
+   units_hs_place_tile_ok(pool, map, nation_id, (x), (y)))
+  for (int r = 1; r < w; ++r) {
+    for (int x = start_x - r; x < start_x + r; ++x) {
+      for (int y = start_y - r; y <= start_y + r; y += 2 * r) {
+        if (HS015E_OK(x, y)) {
+          *out_x = x;
+          *out_y = y;
+          return true;
+        }
+      }
+    }
+    for (int c = 0; c < 2; ++c) {
+      const int x = c == 0 ? start_x + r : start_x - r;
+      for (int y = start_y - r; y <= start_y + r; ++y) {
+        if (HS015E_OK(x, y)) {
+          *out_x = x;
+          *out_y = y;
+          return true;
+        }
+      }
+    }
+  }
+#undef HS015E_OK
+  return false;
+}
+
 /*
  * Eastern high-seas scan (UN-18). **No DOS counterpart — port-only, and it is
  * NOT a placement rule.** Audited 2026-09-17 against the whole 48d3 Atlantic

@@ -90,6 +90,7 @@ bool golden_turn(GoldenFixture* fx) {
   ctx.colonies = &fx->colonies;
   ctx.europe = &fx->europe;
   ctx.map = &fx->map;
+  ctx.names = fx->names_loaded ? &fx->names : NULL;
   ctx.col1 = &fx->start;
   ctx.col1_ok = true;
   ctx.rng = &fx->rng;

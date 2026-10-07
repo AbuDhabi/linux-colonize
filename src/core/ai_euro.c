@@ -353,9 +353,9 @@ int ai_euro_in_europe(int x, int y) {
  * live unit on its nation's sentinel diagonal, x = y = lane + nation:
  * eastbound 244+n -> 240+n -> dock 236+n (FUN_48d3_007a drops it at
  * n - 0x0c), westbound 232+n -> 228+n -> 224+n (FUN_48d3_0346 drops it at
- * n - 0x18; FUN_48d3_064e/048e place a 224+n hull on the map). The port's
- * AI dock stays the shared park (200,100); the lanes keep DOS coordinates,
- * so a save writes them verbatim. Returns the lane base, or 0 for the dock
+ * n - 0x18; FUN_48d3_064e/048e place a 224+n hull on the map). The dock is
+ * 236+n too (FUN_38fd_0718 spawns at n - 0x14), so a save writes all of it
+ * verbatim. Returns the lane base, or 0 for the dock
  * (or any coordinate that is not a lane).
  */
 int ai_euro_europe_lane(int nation_id, int x, int y) {
