@@ -672,7 +672,7 @@ static int unit_empty_ship_hs_cadence(void) {
     for (int x = 12; x < 16; ++x) {
       f.map.terrain[y * 16 + x] = 25; /* ocean */
     }
-    f.map.terrain[y * 16 + 15] = 26; /* high seas */
+    f.map.terrain[y * 16 + 14] = 26; /* high seas, inside the rim (137f_000a) */
   }
   ColonizeColony* own = &f.colonies.colonies[0];
   own->id = 0;
@@ -724,7 +724,9 @@ static int unit_empty_ship_hs_cadence(void) {
   const int on_hs = map_tile_is_high_seas(&f.map, ship->x, ship->y);
   const int hs_goto = units_orders_follow_goto(ship->orders) && ship->goto_x < 200 &&
                       map_tile_is_high_seas(&f.map, ship->goto_x, ship->goto_y);
-  if (!on_hs && !hs_goto) {
+  /* 479b raw 77091-77098: arriving on the 'E' goal crosses at once. */
+  const int crossed = ai_euro_europe_lane(nation, ship->x, ship->y) == 244;
+  if (!on_hs && !hs_goto && !crossed) {
     fprintf(stderr, "ship pos=(%d,%d) orders=%d goto=(%d,%d)\n", ship->x, ship->y, ship->orders,
             ship->goto_x, ship->goto_y);
     fixture_free(&f);
@@ -754,7 +756,7 @@ static int unit_europe_dock_demand_sails_home(void) {
     for (int x = 12; x < 16; ++x) {
       f.map.terrain[y * 16 + x] = 25; /* ocean */
     }
-    f.map.terrain[y * 16 + 15] = 26; /* high seas */
+    f.map.terrain[y * 16 + 14] = 26; /* high seas, inside the rim (137f_000a) */
   }
   /* Well-stocked own colony so the 4393 haul pick declines first, as in the
    * 457e cadence case. */
@@ -956,7 +958,7 @@ static int unit_europe_lane_crossing_ticks(void) {
     ai_euro_europe_lane_tick(&f.ctx, nation);
     ++ticks;
   }
-  if (ticks != east_turns + 1 || ship->x != 200 || ship->y != 100) {
+  if (ticks != east_turns + 1 || ship->x != 236 + nation || ship->y != 236 + nation) {
     fixture_free(&f);
     return fail("eastbound: roll T docks after T+1 ticks");
   }

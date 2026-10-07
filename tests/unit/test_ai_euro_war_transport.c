@@ -24,7 +24,7 @@ static int unit_unload_stance0_no_sticky(void) {
     col1.player[i].control = 0;
     col1.player[i].diplomacy = 0;
   }
-  col1.nation[nation].indian_hostility_sticky = 2;
+  ai_diplo_indian_hostility_set(nation, 2);
 
   ColonizeWorldMap map;
   if (!fx_map_alloc(&map, 8, 8, 1, false)) {

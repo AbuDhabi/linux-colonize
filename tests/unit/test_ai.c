@@ -9,6 +9,7 @@
 #include "core/colony.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
+#include "core/europe_art.h"
 #include "core/map.h"
 #include "core/map_gen.h"
 #include "core/new_game.h"

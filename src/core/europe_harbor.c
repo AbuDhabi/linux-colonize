@@ -1577,8 +1577,8 @@ int europe_nation_refill_pool_slot(
  * FUN_38fd_0718 (viceroy_unpacked.c:59098-59147) for an AI nation: the @UNIT
  * type comes from the @JOB byte (europe_dock_unit_dos_type is that same
  * mapping, Dragoon roll included), the record is parked at the port's Europe
- * sentinel tile (the (200,100) limbo `ai_euro_in_europe` tests for, where
- * 5d04's own 0718 spawn already puts purchased units), and the profession
+ * sentinel tile 236+n (0718 raw 59133: n - 0x14, where 5d04's own 0718
+ * spawn puts purchased units too), and the profession
  * byte is stored verbatim — 0718 writes +0x315b = param_1 with no 0x1c swap.
  * Pioneers get the 100 tools of 59134.
  */
@@ -1598,7 +1598,7 @@ int europe_nation_harbor_spawn(const ColonizeWorld* w, int nation_id, int profes
   if (!units_spawn_room(w->units, nation_id)) {
     return -1;
   }
-  const int id = units_spawn_allow_stack(w->units, lt, 200, 100);
+  const int id = units_spawn_allow_stack(w->units, lt, 236 + nation_id, 236 + nation_id);
   if (id < 0) {
     return -1;
   }
@@ -1624,7 +1624,7 @@ int europe_nation_harbor_spawn(const ColonizeWorld* w, int nation_id, int profes
  * FUN_38fd_584a's *param_2 (viceroy_unpacked.c:68256-68281) for a nation
  * record: +2 a turn, flipped negative once the nation's 0x40 latch is up by
  * every colonist-class unit of that nation still parked in Europe (DOS: unit
- * x == nation - 0x14, i.e. the Europe sentinel; port: the (200,100) limbo).
+ * x == nation - 0x14, i.e. the Europe sentinel; same in the port).
  */
 static int europe_nation_crosses_delta(const ColonizeWorld* w, int nation_id) {
   int delta = 2;

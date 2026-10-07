@@ -304,7 +304,7 @@ int ai_king_mow_sail_home_20e6(ColonizeTurnContext* ctx, ColonizeUnit* u, int cr
    * runs this for an empty hull, so it is 0 here. */
   int hx = 0;
   int hy = 0;
-  if (!units_spiral_place_hs_near(ctx->units, ctx->map, u->x, u->y, crown, &hx, &hy)) {
+  if (!units_015e_hs_course(ctx->units, ctx->map, u->x, u->y, crown, &hx, &hy)) {
     return 0;
   }
   /* Port pursue-goal order (0x0b), DOS act_state `+0x314c = 3/0xb`. */

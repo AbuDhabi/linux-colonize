@@ -719,7 +719,8 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
       int cy = 0;
       if (a8 > 0 && (civ != 0 || ((pioneers != a8 || urgency > 0x18) && mask9c == 0)) &&
           ai_euro_20e6_colony_sail_pick(ctx, u, nation_id, mil, pioneers_b4, urgency, &cx, &cy)) {
-        ai_euro_set_goto(u, AI_EURO_ACT_GOAL, cx, cy); /* LAB_27f5 */
+        u->col1_ai_plan = 0x34; /* -> 27f5 -> 20c6 with DX = '4' (OVL14 0x3f47) */
+        ai_euro_set_goto(u, AI_EURO_ACT_GOAL, cx, cy);
         ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);
         return 0;
       }
@@ -845,8 +846,16 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
     u->orders = UNITS_ORDER_NONE; /* FUN_2a1f_0210 found no direction */
     return;
   }
-  if (!units_try_move_w(&w, id, px, py)) {
-    u->moves = 0; /* blocked step: the port has no DOS retry; end the act */
+  const int units_before = units_active_count(ctx->units);
+  const bool moved = units_try_move_w(&w, id, px, py);
+  if (!g_units_465b_settled) {
+    units_465b_0bd1_tail(ctx->units, id, units_before, false);
+  }
+  if (!moved) {
+    u = units_get(ctx->units, id);
+    if (u) {
+      u->moves = 0; /* blocked step: the port has no DOS retry; end the act */
+    }
     return;
   }
   u = units_get(ctx->units, id);
@@ -856,6 +865,20 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   ai_euro_sync_aboard_cargo_xy(ctx->units, u);
   if (u->x != u->goto_x || u->y != u->goto_y) {
     return;
+  }
+  /* FUN_479b_0972 raw 77091-77098: an AI goto that ends on High Seas
+   * (class 0x1a) under plan 'E' crosses at once (FUN_291f_0208 -> 007a);
+   * after the declaration only the crown's Man-O-War on its own slot. */
+  if (state != AI_EURO_ACT_STEP && u->col1_ai_plan == AI_EURO_PLAN_EUROPE_BOUND &&
+      ctx->col1_ok && ctx->col1) {
+    const ColonizeCol1Save* col1 = ctx->col1;
+    const int mow = units_kind_type_index(ctx->units, UNITS_KIND_MAN_O_WAR);
+    const bool open = !col1->head.game_options.woi ||
+      (u->nation_id == ai_king_crown_nation_col1(col1, (int)col1->head.human_player) &&
+       mow >= 0 && u->type_index == mow);
+    if (open && ai_euro_ship_enter_europe(ctx, u)) {
+      return;
+    }
   }
   /* DOS-LITERAL FUN_479b_0972 raw 77099-77103: arriving pioneers
    * discard their explorer hop countdown and slot (+0x3155/+0x3156). */

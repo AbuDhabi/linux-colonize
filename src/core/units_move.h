@@ -118,6 +118,17 @@ bool units_try_move_w(
   int dest_x,
   int dest_y
 );
+/* FUN_465b_0000's bVar5 for the last units_try_move_w: true only when a
+ * non-attack step either moved or lost the MP gamble (raw 75830). */
+extern bool g_units_465b_settled;
+/*
+ * FUN_465b_0000 LAB_0bd1 (raw 75831-75842), for a mover whose 465b call ended
+ * unsettled: if the unit count is unchanged (`units_before` = DS:0x539c at
+ * entry), orders -> 0, and for a non-human unit +0x315a++ with a wrap at 20
+ * that resets it and exhausts the unit.
+ */
+void units_465b_0bd1_tail(ColonizeUnitPool* pool, int unit_id, int units_before, bool human);
+int units_active_count(const ColonizeUnitPool* pool);
 
 /*
  * Observe successful on-map tile moves. The callback is process-global, like
@@ -322,6 +333,22 @@ bool units_find_high_seas_tile(
  * Cite: viceroy_unpacked.c ~77810; move_scoring.md §ocean.
  */
 bool units_spiral_place_hs_near(
+  const ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  int start_x,
+  int start_y,
+  int nation_id,
+  int* out_x,
+  int* out_y
+);
+/*
+ * DOS-LITERAL FUN_48d3_015e ring (raw 77662-77706), the "set course for
+ * Europe" hunt: radius 1 .. map width - 1; per radius the rows y-r and y+r
+ * for x in [x-r, x+r), then the column x+r, then x-r (y-r..y+r); first High
+ * Seas tile whose units are none or nation_id's wins. Not 048e's placement
+ * spiral (units_spiral_place_hs_near).
+ */
+bool units_015e_hs_course(
   const ColonizeUnitPool* pool,
   const ColonizeWorldMap* map,
   int start_x,

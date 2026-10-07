@@ -417,7 +417,7 @@ static int ai_euro_5d04_propose_ship_buy(
   if (!units_spawn_room(ctx->units, nation_id)) {
     return 0;
   }
-  const int sid = units_spawn_allow_stack(ctx->units, lt, 200, 100);
+  const int sid = units_spawn_allow_stack(ctx->units, lt, 236 + nation_id, 236 + nation_id);
   if (sid < 0) {
     return 0;
   }
@@ -711,7 +711,9 @@ static int ai_euro_5d04_cb_dock_pop_candidate(int profession) {
   if (lt < 0 || !units_spawn_room(ctx->units, ai_euro_s_5d04_nation)) {
     return -1;
   }
-  const int id = units_spawn_allow_stack(ctx->units, lt, 200, 100);
+  const int id = units_spawn_allow_stack(
+    ctx->units, lt, 236 + ai_euro_s_5d04_nation, 236 + ai_euro_s_5d04_nation
+  );
   if (id < 0) {
     return -1;
   }
@@ -931,7 +933,10 @@ static void ai_euro_5d04_cb_unit_exhaust(int idx) {
       continue;
     }
     ColonizeUnit* sh = units_get(ctx->units, ship_id);
-    if (!sh || sh->cargo_count >= units_ship_capacity(ctx->units, ship_id)) {
+    /* Passengers and goods lots share the hull's holds (DOS +0x3150 vs
+     * 0x5237[type]); a hull the buy loop filled takes nobody. */
+    if (!sh || sh->cargo_count + ai_euro_0a60_goods_holds_used(ctx->units, sh) >=
+                 units_ship_capacity(ctx->units, ship_id)) {
       break;
     }
     (void)units_board_stacked(ctx->units, u->id, ship_id);
@@ -939,25 +944,24 @@ static void ai_euro_5d04_cb_unit_exhaust(int idx) {
   /* The dispatcher's Europe act departs it onto the westbound lane
    * (ai_euro_ship_leave_europe, FUN_48d3_0346). */
 }
-/* FUN_291f_0d8e(unit, cargo, 100): buy 100 of cargo onto the ship. */
+/* FUN_291f_0d8e(unit, cargo, 100) = FUN_38fd_1ebc (raw 60301-60316): no gold
+ * gate. Charge price * min(qty, 100) through FUN_15eb_0556 (treasury clamps
+ * at 0), book the trade volume (291f_0c14), then load (281f_0d58). */
 static void ai_euro_5d04_cb_apply_bump(int idx, int cargo, int qty) {
   ColonizeTurnContext* ctx = ai_euro_s_5d04_ctx;
   const ColonizeUnit* u = ai_euro_5d04_cb_unit(idx);
   if (!ctx || !u) {
     return;
   }
+  if (qty > 100) {
+    qty = 100;
+  }
   ColonizeCol1Nation* nat = &ctx->col1->nation[ai_euro_s_5d04_nation];
   const uint32_t cost = (uint32_t)(ai_euro_5d04_cb_price(cargo) * qty);
-  if (nat->gold < cost) {
-    return;
-  }
-  const int loaded = units_load_goods(ctx->units, u->id, cargo, qty);
-  if (loaded <= 0) {
-    return;
-  }
-  nat->gold -= (uint32_t)(ai_euro_5d04_cb_price(cargo) * loaded);
+  nat->gold = nat->gold > cost ? nat->gold - cost : 0u;
   ai_euro_5d04_cb_sync_gold();
-  ai_euro_5d04_cb_market_volume(cargo, loaded, 1);
+  ai_euro_5d04_cb_market_volume(cargo, qty, 1);
+  (void)units_load_goods(ctx->units, u->id, cargo, qty);
 }
 /* FUN_281f_095c(0xb, nation, nation-0x14, nation-0x14): Artillery in Europe. */
 static int ai_euro_5d04_cb_goal_trigger(int code, int a, int b, int c) {
@@ -972,7 +976,9 @@ static int ai_euro_5d04_cb_goal_trigger(int code, int a, int b, int c) {
   if (!units_spawn_room(ctx->units, ai_euro_s_5d04_nation)) {
     return -1;
   }
-  const int id = units_spawn_allow_stack(ctx->units, lt, 200, 100);
+  const int id = units_spawn_allow_stack(
+    ctx->units, lt, 236 + ai_euro_s_5d04_nation, 236 + ai_euro_s_5d04_nation
+  );
   ColonizeUnit* u = id >= 0 ? units_get(ctx->units, id) : NULL;
   if (!u) {
     return -1;

@@ -158,19 +158,42 @@ static void ai_contact_2820_friction_sub(ColonizeCol1Tribe* t, int e, int sub, i
   t->alarm[e].attacks = (uint8_t)((w >> 8) & 0xff);
 }
 
-/* FUN_1000_a0c0 → FUN_1cf8_000a: stable insertion sort of ids ascending by key. */
+/*
+ * DOS-LITERAL FUN_1000_a0c0 -> FUN_1cf8_000a (raw 18654-18738): from cursor
+ * i, find the first descent k[i+1] < k[i] (unsigned words), pull that element
+ * out and reinsert it before the first k[j] >= it, then resume at the same i.
+ * Not stable: a moved element lands in front of its equals.
+ */
 static void ai_contact_2820_sort(const int16_t* key, int* order) {
+  uint16_t k[16];
   for (int i = 0; i < 16; ++i) {
+    k[i] = (uint16_t)key[i];
     order[i] = i;
   }
-  for (int i = 1; i < 16; ++i) {
-    const int v = order[i];
-    int j = i - 1;
-    while (j >= 0 && key[order[j]] > key[v]) {
-      order[j + 1] = order[j];
-      j--;
+  int i = 0;
+  for (;;) {
+    while (i < 15 && k[i + 1] >= k[i]) {
+      ++i;
     }
-    order[j + 1] = v;
+    if (i >= 15) {
+      return;
+    }
+    const uint16_t v = k[i + 1];
+    const int id = order[i + 1];
+    for (int m = i + 1; m < 15; ++m) {
+      k[m] = k[m + 1];
+      order[m] = order[m + 1];
+    }
+    int j = 0;
+    while (j < 15 && k[j] < v) {
+      ++j;
+    }
+    for (int m = 15; m > j; --m) {
+      k[m] = k[m - 1];
+      order[m] = order[m - 1];
+    }
+    k[j] = v;
+    order[j] = id;
   }
 }
 

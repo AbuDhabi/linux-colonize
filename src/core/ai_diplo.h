@@ -333,6 +333,8 @@ uint8_t ai_diplo_indian_hostility_sticky(const ColonizeCol1Save* col1, int euro_
 
 /* Sync sticky from relation matrix (set/clear/deepen). Call after relation hits. */
 void ai_diplo_indian_hostility_sync(ColonizeCol1Save* col1, int euro_nation);
+/* Tests: force the session cache (sync re-derives it). */
+void ai_diplo_indian_hostility_set(int euro_nation, uint8_t value);
 
 /*
  * Fandom capital-destroy surrender: reset alarm/friction toward euro, set

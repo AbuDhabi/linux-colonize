@@ -653,10 +653,9 @@ typedef struct ColonizeCol1Nation {
    *     unit desirability score FUN_521d_052c (`+= (turn-stamp)>>4` when
    *     founding urgency is nonzero). Named last_colony_founded_turn;
    *     DOS value unused by OpenCol. Resolved 2026-08-27.
-   *   +0x4b: confirmed dead 2026-08-27 (no literal touch anywhere) — which is
-   *     why the OpenCol `indian_hostility_sticky` stand-in was moved onto it
-   *     2026-09-09 (smell #52), off the +0x48 grace counter it had been
-   *     overwriting every turn.
+   *   +0x4b: "confirmed dead" 2026-08-27 (no literal touch), but the DOS
+   *     lategame saves carry 1..11 there, so something writes it; kept
+   *     verbatim (the port's sticky stand-in left it 2026-10-07).
    * All 12 bytes now have a DOS meaning; see docs/archive/mysteries_catalog.md
    * Meta-mystery section.
    */
@@ -686,12 +685,11 @@ typedef struct ColonizeCol1Nation {
       uint8_t king_grace_counter;
       uint8_t privateer_spawn_mask;
       uint8_t unknown26_pad; /* +0x4a — DOS carry accumulator raw banked total. */
-      /* +0x4b — confirmed dead in DOS (2026-08-27: no literal touch anywhere),
-       * so this is the port's own byte. Home of the OpenCol Indian-hostility
-       * sticky stand-in (0 clear / 1 at-war / 2 very-low deepen); it still
-       * round-trips through the save file, it just no longer collides with a
-       * real DOS quantity. */
-      uint8_t indian_hostility_sticky;
+      /* +0x4b — NOT dead: the DOS lategame saves carry 1..11 here
+       * (original_saves/valid-lategame-saves, nations 1/2); writer unknown.
+       * Round-tripped verbatim. The port's Indian-hostility sticky cache that
+       * used to squat here is session state in ai_diplo.c since 2026-10-07. */
+      uint8_t unknown_4b;
     };
   };
   ColonizeCol1NationTrade trade;

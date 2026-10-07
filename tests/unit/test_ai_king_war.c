@@ -340,14 +340,15 @@ static int case_878e_sail_home_one_at_a_time(void) {
     assets_msg_free(&names);
     return fail("878e: map_alloc failed");
   }
-  /* Rows 1 and 2 are open ocean corridors; the far east edge column is High
-   * Seas (terrain 0x1a = 26), everything else plain ocean (25), far enough
-   * that a 4-tile move budget can't reach it in one act. */
+  /* Rows 1 and 2 are open ocean corridors; the column just inside the east
+   * rim is High Seas (terrain 0x1a = 26; 015e never reads a rim tile as High
+   * Seas, FUN_137f_000a), everything else plain ocean (25), far enough that a
+   * 4-tile move budget can't reach it in one act. */
   for (int i = 0; i < W * H; ++i) {
     map.terrain[i] = 25;
   }
-  map.terrain[1 * W + (W - 1)] = 26;
-  map.terrain[2 * W + (W - 1)] = 26;
+  map.terrain[1 * W + (W - 2)] = 26;
+  map.terrain[2 * W + (W - 2)] = 26;
 
   ColonizeCol1Save col1;
   memset(&col1, 0, sizeof(col1));

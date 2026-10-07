@@ -366,7 +366,7 @@ static int case_declare_peace_narrative(void) {
         col1.indian[i].alarm_by_player[1] = 0; /* relation 100 */
         col1.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
       }
-      col1.nation[1].indian_hostility_sticky = 0;
+      ai_diplo_indian_hostility_set(1, 0);
       ai_diplo_euro_balance(&ctx_pr, 1);
       if (strcmp(status_pr, "Privateer prize from English") != 0) {
         fprintf(stderr, "unit_ai_diplo: privateer status '%s'\n", status_pr);
@@ -487,7 +487,7 @@ static int case_declare_peace_narrative(void) {
     col1.indian[1].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
     col1.indian[2].alarm_by_player[3] = 4; /* relation 96 */ /* already at floor */
     col1.indian[2].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
-    col1.nation[3].indian_hostility_sticky = 1;
+    ai_diplo_indian_hostility_set(3, 1);
     col1.nation[3].gold = 50; /* native war must cost nothing (#49) */
     ai_diplo_euro_balance(&ctx_f, 3);
     if (ai_diplo_indian_relation(&col1, 4 + (0), 3) != 20) {
@@ -580,14 +580,14 @@ static int case_declare_peace_narrative(void) {
       col1.indian[i].alarm_by_player[3] = 10; /* relation 90 */
       col1.indian[i].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
     }
-    col1.nation[3].indian_hostility_sticky = 0;
+    ai_diplo_indian_hostility_set(3, 0);
     ai_diplo_declare_war(&col1, 2, 3);
     /* All mid after −5 → sticky clear; force sticky clear + mid 80. */
     for (int i = 0; i < 8; ++i) {
       col1.indian[i].alarm_by_player[3] = 20; /* relation 80 */
       col1.indian[i].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
     }
-    col1.nation[3].indian_hostility_sticky = 0;
+    ai_diplo_indian_hostility_set(3, 0);
     ai_diplo_make_peace(&col1, 2, 3);
     if (ai_diplo_indian_relation(&col1, 4 + (3), 3) != 80) {
       return fail("make_peace must not feeler-nudge when sticky was clear");
@@ -687,7 +687,7 @@ static int case_indian_sticky_status_chrome(void) {
       st.indian[i].alarm_by_player[0] = 80; /* DOS bands: relation 40 */
       st.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    st.nation[0].indian_hostility_sticky = 0;
+    ai_diplo_indian_hostility_set(0, 0);
     st.nation[0].gold = 30;
     ai_diplo_euro_balance(&ctx_st, 0);
     if (strcmp(status, "Natives grow hostile.") != 0) {
@@ -711,7 +711,7 @@ static int case_indian_sticky_status_chrome(void) {
       st.indian[i].alarm_by_player[1] = 90; /* DOS bands: relation 30 */
       st.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
     }
-    st.nation[1].indian_hostility_sticky = 0;
+    ai_diplo_indian_hostility_set(1, 0);
     ai_diplo_euro_balance(&ctx_st, 1);
     if (strcmp(status, "keep") != 0) {
       return fail("indian sticky status must only write for human nation");
@@ -930,7 +930,7 @@ static int case_war_peace_status_chrome(void) {
       st.indian[i].alarm_by_player[0] = 0; /* relation 100 */
       st.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    st.nation[0].indian_hostility_sticky = 0;
+    ai_diplo_indian_hostility_set(0, 0);
     st.nation[0].boycott_bitmap =
       (uint16_t)(AI_DIPLO_SMOKE_SUGAR_BIT | AI_DIPLO_SMOKE_TOBACCO_BIT |
                  AI_DIPLO_SMOKE_TOOLS_BIT);
@@ -952,7 +952,7 @@ static int case_war_peace_status_chrome(void) {
       st.indian[i].alarm_by_player[0] = 0; /* relation 100 */
       st.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    st.nation[0].indian_hostility_sticky = 0;
+    ai_diplo_indian_hostility_set(0, 0);
     st.nation[0].boycott_bitmap = (uint16_t)AI_DIPLO_SMOKE_WARTIME_MASK;
     status[0] = '\0';
     ai_diplo_declare_war_ctx(&ctx_st, 0, 2);
@@ -971,7 +971,7 @@ static int case_war_peace_status_chrome(void) {
       st.indian[i].alarm_by_player[0] = 0; /* relation 100 */
       st.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    st.nation[0].indian_hostility_sticky = 0;
+    ai_diplo_indian_hostility_set(0, 0);
     st.nation[0].boycott_bitmap = (uint16_t)AI_DIPLO_SMOKE_WARTIME_MASK;
     snprintf(st.player[0].country_name, sizeof(st.player[0].country_name), "Spain");
     snprintf(st.player[2].country_name, sizeof(st.player[2].country_name), "Holland");
@@ -1042,7 +1042,7 @@ static int case_war_peace_status_chrome(void) {
       st.indian[i].alarm_by_player[0] = 70; /* relation 30 */
       st.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    st.nation[0].indian_hostility_sticky = 0;
+    ai_diplo_indian_hostility_set(0, 0);
     st.nation[0].boycott_bitmap = (uint16_t)AI_DIPLO_SMOKE_WARTIME_MASK;
     st.nation[0].gold = 200;
     st.nation[2].gold = 200;
@@ -1104,7 +1104,7 @@ static int case_sticky_pressure_relation_read(void) {
       sp.indian[i].alarm_by_player[0] = 20; /* relation 80 */
       sp.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    sp.nation[0].indian_hostility_sticky = 2;
+    ai_diplo_indian_hostility_set(0, 2);
     sp.nation[0].gold = 40;
     ai_diplo_euro_balance(&ctx_sp, 0);
     if (ai_diplo_indian_relation(&sp, 4 + (1), 0) != 80) {
@@ -1433,7 +1433,7 @@ static int case_r3_r4_sugar_rum_cigars_boycott(void) {
     /* Deep sticky: very-low slot keeps sticky==2 across matrix tick. */
     r3.indian[0].alarm_by_player[0] = 90; /* DOS bands: relation 30 */
     r3.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-    r3.nation[0].indian_hostility_sticky = 2;
+    ai_diplo_indian_hostility_set(0, 2);
     char status[128];
     status[0] = '\0';
     ColonizeDosRng rng_r3;
@@ -1487,7 +1487,7 @@ static int case_r3_r4_sugar_rum_cigars_boycott(void) {
       r3.indian[i].alarm_by_player[0] = 0; /* relation 100 */
       r3.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    r3.nation[0].indian_hostility_sticky = 0;
+    ai_diplo_indian_hostility_set(0, 0);
     /* FUN_5bfb_13b0 (2026-08-27): not war-worthy (turn <= 39) and no PEACE →
      * @SIGNTREATY sets PEACE both ways within the (a+turn+b)%3 cadence. */
     int treaty = 0;
@@ -1693,7 +1693,7 @@ static int case_r8_lumber_boycott_privateer(void) {
       }
       fl.indian[1].alarm_by_player[0] = 20; /* relation 80 */ /* mid-band feeler-eligible */
       fl.indian[1].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-      fl.nation[0].indian_hostility_sticky = 0;
+      ai_diplo_indian_hostility_set(0, 0);
       fl.nation[0].gold = 40;
       char status_fl[128];
       status_fl[0] = '\0';
@@ -1885,7 +1885,7 @@ static int case_declare_war_popup_unpark(void) {
         w2.indian[i].alarm_by_player[1] = 0; /* relation 100 */
         w2.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
       }
-      w2.nation[0].indian_hostility_sticky = 0;
+      ai_diplo_indian_hostility_set(0, 0);
       /* human-as-b */
       ai_diplo_declare_war_ctx(&ctx_w2, 1, 0);
       if (pop_w2.queue_count != 1) {
@@ -2348,8 +2348,8 @@ static int case_marathon2_ai_declare_choice(void) {
       w3.indian[i].alarm_by_player[1] = 0; /* relation 100 */
       w3.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
     }
-    w3.nation[0].indian_hostility_sticky = 0;
-    w3.nation[1].indian_hostility_sticky = 0;
+    ai_diplo_indian_hostility_set(0, 0);
+    ai_diplo_indian_hostility_set(1, 0);
     {
       const char* labels[] = {"Accept", "Refuse"};
       const int ids[] = {1, 2};
@@ -2477,7 +2477,7 @@ static int case_marathon2_sticky_deepen_popup(void) {
       ns.indian[i].alarm_by_player[0] = 20; /* relation 80 */
       ns.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    ns.nation[0].indian_hostility_sticky = 1; /* at-war sticky → deepen to 2 on sync */
+    ai_diplo_indian_hostility_set(0, 1); /* at-war sticky → deepen to 2 on sync */
     ns.nation[0].gold = 40;
     char status_ns[128];
     status_ns[0] = '\0';

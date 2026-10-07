@@ -250,6 +250,14 @@ int ai_native_step_first_contact(
       continue;
     }
     done[e] = 1; /* 3180: one 022e per other nation per scan (aiStack_20) */
+    {
+      /* raw 98633-98635: the tile's stack head (07e0) takes the scan
+       * direction as its facing byte before the encounter resolves. */
+      ColonizeUnit* head = units_get(units, units_tile_head_id_at(units, nx, ny));
+      if (head) {
+        head->last_dir = (int8_t)d;
+      }
+    }
     if (ind->euro_diplo[e] == 0) {
       (void)ai_contact_try_first_welcome(s_ai_native_ctx, e, nation_id);
       s_ai_first_contact_this_turn[nation_id - 4][e] = 1;
@@ -402,18 +410,9 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
   (void)tech;
   Ai021aResult pick;
   int dir = ai_native_pick_dir(rng, map, units, col1, u, nation_id, last_dir, &pick);
-  if (col1) {
-    const int picked = dir;
-    dir = ai_native_021a_tail(units, map, col1, rng, u, nation_id, dir, pick.flags);
-    if (ai_021a_trace_enabled()) {
-      fprintf(
-        stderr,
-        "AI_021A_ACT t=%d n=%d idx=%d xy=(%d,%d) facing=%d spent=%d tw=%d pick=%d flags=%02x dir=%d\n",
-        ai_s_seed100_midturn_turn, nation_id, brave_index, u->x, u->y, last_dir,
-        u->moves, u->col1_counter16, picked, pick.flags, dir
-      );
-    }
-  }
+  /* 021a:11b9 facing = the PICK, then 11c3..126e: a stay pick latches
+   * orders 5/6 and runs the in-field arm, a move pick clears orders to 0 —
+   * all before the 1277 tail, whose own stays only exhaust (14e6 -> 8b24). */
   if (dir < 0 || dir > 7) {
     /*
      * Stay (dir == 8). 021a:11b9 writes the picked dir into the facing
@@ -471,6 +470,25 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
         ind->horse_breeding -= 0x19;
       }
     }
+  } else {
+    u->last_dir = dir; /* 021a:11b9 */
+    if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
+      u->orders = UNITS_ORDER_NONE; /* 021a:126e (port guard as above) */
+    }
+  }
+  if (col1) {
+    const int picked = dir;
+    dir = ai_native_021a_tail(units, map, col1, rng, u, nation_id, dir, pick.flags);
+    if (ai_021a_trace_enabled()) {
+      fprintf(
+        stderr,
+        "AI_021A_ACT t=%d n=%d idx=%d xy=(%d,%d) facing=%d spent=%d tw=%d pick=%d flags=%02x dir=%d\n",
+        ai_s_seed100_midturn_turn, nation_id, brave_index, u->x, u->y, last_dir,
+        u->moves, u->col1_counter16, picked, pick.flags, dir
+      );
+    }
+  }
+  if (dir < 0 || dir > 7) {
     u->moves = max_mp;
     return AI_NATIVE_STEP_STOP;
   }
@@ -537,10 +555,6 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
         }
       }
       u->moves = max_mp;
-      u->last_dir = dir;
-      if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
-        u->orders = UNITS_ORDER_NONE;
-      }
       (*steps)++;
       return AI_NATIVE_STEP_STOP;
     }
@@ -568,10 +582,6 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
     }
     if (roll > max_mp - spent) {
       u->moves = spent + cost;
-      u->last_dir = dir;
-      if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
-        u->orders = UNITS_ORDER_NONE;
-      }
       (*steps)++;
       return AI_NATIVE_STEP_STOP;
     }
@@ -636,12 +646,6 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
     if (!from_euro_set && !to_euro_set) {
       u->moves = max_mp;
     }
-  }
-  /* 021a:11b9 full-byte facing write (pad cleared on a real dir), and
-   * 021a:126e — any move resets the stay latch (guarded as above). */
-  u->last_dir = dir;
-  if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
-    u->orders = UNITS_ORDER_NONE;
   }
   ai_set_owner_nibble_move(map, nx, ny, nation_id);
   if (!seed100_init_burns && ai_native_step_first_contact(units, map, col1, u, nation_id)) {

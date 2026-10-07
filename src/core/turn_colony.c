@@ -382,6 +382,11 @@ void turn_run_ai_nation_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out, i
   ColonizeCol1Nation* nat = &ctx->col1->nation[n];
   if (!ctx->col1->head.game_options.woi) {
     ai_nation_reseed(ctx); /* 5e52 entry: FUN_281f_04ca(DS:0x83a6), raw 68542 */
+    /* raw 68557: FUN_38fd_0058(0, -1), this nation's own price track. */
+    if (ctx->europe) {
+      const ColonizeWorld mw = world_from_turn_ctx(ctx);
+      europe_nation_tick_market_prices_w(&mw, n, ctx->turn_number ? *ctx->turn_number : 0u);
+    }
   }
   /* 5e52 before the colony crosses land: test-saves-ai TURN6->7 nation[3]
    * 12 -> 14 (no arrival) -> 15 with the colony cross. */
@@ -956,7 +961,7 @@ void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
        * Only the no-port *sink* escape at raw 99604-99607 is human-only.
        *
        * The port's equivalent off-map slot is the Europe park
-       * (ai_euro_in_europe / ai_euro_ship_enter_europe's (200,100)). The hull
+       * (ai_euro_in_europe / ai_euro_ship_enter_europe's 236+n dock). The hull
        * stays a LIVE unit with bit7 and its repair timer intact, exactly as
        * in DOS, so it keeps counting:
        *   - in the census (raw 78159-78165 walks the whole unit array and

@@ -39,7 +39,7 @@ bool units_is_on_map(const ColonizeUnit* unit) {
   return unit && unit->active && unit->id >= 0 && unit->aboard_ship_id < 0;
 }
 
-/* Header owns the prose: the off-map park at (200,100). */
+/* Header owns the prose: the off-map park (x or y >= 200). */
 bool units_coords_in_europe_park(int x, int y) {
   return x >= 200 || y >= 200;
 }

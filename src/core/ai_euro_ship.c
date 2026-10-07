@@ -731,7 +731,7 @@ static void ai_euro_20e6_clear_stale_board_marks(
  * (−2,−2) = riding a transport, (−3,−3)/(−4,−4) = the transient parks
  * `FUN_1427_04d6` and 10be's own 101c pre-pass use, and x = nation − 0x14 =
  * that nation's Europe slot. The port has one off-map park and spells it with
- * a positive sentinel (Europe at (200,100), `ai_euro_in_europe`), so the
+ * a positive sentinel (Europe dock 236+n, `ai_euro_in_europe`), so the
  * faithful predicate is "not addressable as a map tile".
  */
 static int ai_euro_20e6_member_off_map(const ColonizeTurnContext* ctx, const ColonizeUnit* u) {
@@ -1413,10 +1413,10 @@ int ai_euro_try_ship_trade_haul(
       return 0;
     }
   }
-  /* FUN_521d_20e6 LAB_4567 -> 27f5, raw 89927-89929: the
-   * destination is the colony itself, not a neighbouring water tile.
-   * 4567 loads DX = '5' for 20c6's +0x314b (asm OVL14 0x4574). */
-  ship->col1_ai_plan = 0x35;
+  /* -> 27f5 -> 20c6: the destination is the colony itself. The delivery
+   * matrix commits with DX = 'P' (raw 89821-89824, OVL14 0x42dd); the
+   * LAB_4567 queue tip (raw 89927-89929) with DX = '5' (OVL14 0x4574). */
+  ship->col1_ai_plan = have_dest ? 0x50 : 0x35;
   ai_euro_set_goto(ship, AI_EURO_ACT_GOAL, cx, cy);
   return 1;
 }
@@ -1503,8 +1503,7 @@ static void ai_euro_lane_move(ColonizeTurnContext* ctx, ColonizeUnit* ship, int 
 /*
  * AI High Seas -> Europe crossing, DOS-LITERAL FUN_48d3_007a (raw
  * 77592-77632): a hull standing on a High Seas tile records it as its
- * landfall (+0x314d/e; DOS also writes the nation's -0x77c6/-0x77c5 copy,
- * which only the human's Europe screen reads), takes FUN_48d3_0002's 1-2
+ * landfall (+0x314d/e and the nation's -0x77c6/-0x77c5 copy), takes FUN_48d3_0002's 1-2
  * turn roll into +0x315a and is parked on the eastbound lane n - 0x0c
  * (244+n). ai_euro_europe_lane_tick walks it to the dock (bugs.md #1056;
  * it used to arrive instantly). Without this gate the sail target
@@ -1523,13 +1522,26 @@ int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
    * clears it until the human's Move Pieces entry, so the human's autosave
    * names the last AI hull that sailed for Europe. */
   ctx->units->selected_id = ship->id;
+  if (ctx->col1_ok && ctx->col1 && n >= 0 && n < 4) {
+    ctx->col1->nation[n].return_from_europe_x = (uint8_t)ox; /* -0x77c6 */
+    ctx->col1->nation[n].return_from_europe_y = (uint8_t)oy;
+  }
   ship->col1_counter16 = ai_euro_lane_voyage_turns(ctx, n, ox);
   ai_euro_lane_move(ctx, ship, 244 + n, 244 + n);
   ai_euro_set_goto(ship, UNITS_ORDER_NONE, ox, oy);
-  /* The course is spent: DS:0x9456 now counts the hull through its lane
-   * position (raw 78182-78185), so the `+0x314b = 0x45` stamp comes off or
-   * the hull would be counted twice. */
-  ship->col1_ai_plan = 0;
+  /* 007a's 02ee/02e4 walk: every passenger sentries (orders 1) and takes
+   * the hull's landfall and voyage turns. */
+  for (int i = 0; i < ship->cargo_count && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+    ColonizeUnit* pax = units_get(ctx->units, ship->cargo_ids[i]);
+    if (pax) {
+      pax->orders = UNITS_ORDER_SENTRY;
+      pax->goto_x = ox;
+      pax->goto_y = oy;
+      pax->col1_counter16 = ship->col1_counter16;
+    }
+  }
+  /* 007a leaves +0x314b alone: the hull keeps its 'E' on the lane (seed-100
+   * autosaves); ai_euro_europe_lane_ships counts lane OR stamp, once. */
   ship->moves = 0;
   return 1;
 }
@@ -1550,6 +1562,13 @@ void ai_euro_ship_leave_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
   ai_euro_resolve_landfall_goto(ctx, ship, &lx, &ly);
   const int n = ship->nation_id;
   ship->col1_counter16 = ai_euro_lane_voyage_turns(ctx, n, lx);
+  /* 0346's 02ee/02e4 walk: every passenger takes the voyage turns. */
+  for (int i = 0; i < ship->cargo_count && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+    ColonizeUnit* pax = units_get(ctx->units, ship->cargo_ids[i]);
+    if (pax) {
+      pax->col1_counter16 = ship->col1_counter16;
+    }
+  }
   ai_euro_lane_move(ctx, ship, 232 + n, 232 + n);
   ship->moves = 0;
 }
@@ -1559,8 +1578,7 @@ void ai_euro_ship_leave_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
  * order, run at the end of the nation's own FUN_3844_00f2. Each hop walks
  * the hulls on one lane, ticks +0x315a down while it is non-zero and moves
  * the hull on when it reads zero. 224+n is left for the dispatcher's
- * Europe act to place (the FUN_48d3_064e / 048e tail); 236+n is the dock,
- * the port's (200,100).
+ * Europe act to place (the FUN_48d3_064e / 048e tail); 236+n is the dock.
  */
 /*
  * FUN_48d3_048e (raw 77810-77901): ring-place a hull arriving from Europe on
@@ -1608,7 +1626,7 @@ void ai_euro_europe_lane_tick(ColonizeTurnContext* ctx, int nation_id) {
       }
       if (u->col1_counter16 == 0) {
         if (hops[h][1] == 236) {
-          ai_euro_lane_move(ctx, u, 200, 100);
+          ai_euro_lane_move(ctx, u, 236 + nation_id, 236 + nation_id);
         } else {
           ai_euro_lane_move(ctx, u, hops[h][1] + nation_id, hops[h][1] + nation_id);
         }

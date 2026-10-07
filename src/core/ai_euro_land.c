@@ -143,6 +143,36 @@ static int ai_euro_5952_resource_site_byte(const ColonizeMsgCatalog* names, int 
   return ai_goals_resource_site_byte(names, resource);
 }
 
+/*
+ * FUN_281f_030c(p1, euro) = FUN_15dc_00e0: the int16 at DS:0x5b1c +
+ * (p1 * 0x27 + euro) * 2, i.e. indian[p1].alarm_by_player[euro] for p1 0..7
+ * (Indian records at DS:0x5ad6, stride 0x4e). A caller passing a nation id
+ * 4..11 reads indian[4..7] for 4..7 and runs off the block into the colony
+ * array (DS:0x5d46 = 0x5ad6 + 8 * 0x4e, stride 0xca) for 8..11.
+ * ponytail: the colony bytes come from the col1 snapshot, which can lag the
+ * live colonies within a turn.
+ */
+static int ai_euro_5952_alarm_word(const ColonizeCol1Save* col1, int p1, int euro) {
+  if (!col1 || p1 < 0 || euro < 0 || euro > 3) {
+    return 0;
+  }
+  long off = ((long)p1 * 0x27 + euro) * 2 + 0x46; /* from DS:0x5ad6 */
+  const uint8_t* b;
+  if (off + 1 < (long)(COLONIZE_COL1_INDIAN_COUNT * sizeof(ColonizeCol1Indian))) {
+    b = (const uint8_t*)col1->indian + off;
+  } else {
+    off -= (long)(COLONIZE_COL1_INDIAN_COUNT * sizeof(ColonizeCol1Indian));
+    const long ci = off / (long)sizeof(ColonizeCol1Colony);
+    const long fo = off % (long)sizeof(ColonizeCol1Colony);
+    if (!col1->colony || ci >= (long)col1->head.colony_count ||
+        fo + 1 >= (long)sizeof(ColonizeCol1Colony)) {
+      return 0;
+    }
+    b = (const uint8_t*)&col1->colony[ci] + fo;
+  }
+  return (int)(int16_t)(uint16_t)(b[0] | (b[1] << 8));
+}
+
 /* `layer2 & 0x0a` (FUN_281f_0754): road OR settlement on the tile. */
 static int ai_euro_5952_tile_road_or_settlement(const ColonizeWorldMap* map, int x, int y) {
   return (map_tile_has_road(map, x, y) || map_tile_has_city(map, x, y)) ? 0x0a : 0;
@@ -271,10 +301,10 @@ void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* co
     const int claim = colonies_indian_claim_tribe_from_w(&w, nation, col->x, col->y, tx, ty);
     if (claim >= 0 && ctx->col1_ok && ctx->col1 && ctx->col1->tribe &&
         claim < (int)ctx->col1->head.tribe_count) {
-      const int ind = (int)ctx->col1->tribe[claim].nation_id - 4;
-      const int alarm = (ind >= 0 && ind < (int)COLONIZE_COL1_INDIAN_COUNT)
-                          ? (int)ctx->col1->indian[ind].alarm_by_player[nation]
-                          : 0;
+      /* raw 94446: 030c(8d9e cell, nation) — the cell is the village's
+       * NATION byte (4..11), passed unadjusted (OVL asm 5952:1318). */
+      const int alarm =
+        ai_euro_5952_alarm_word(ctx->col1, (int)ctx->col1->tribe[claim].nation_id, nation);
       int pen = -(alarm - 4);
       if (res != -1) {
         pen = (alarm - 4) * -2;
@@ -362,7 +392,7 @@ void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* co
   if (!ph) {
     return;
   }
-  ph->nation_id = nation;
+  units_set_nation(ph, nation); /* 06b4 stamps the visitor nibble (FUN_1427_02ca) */
   ph->tools = UNITS_EQUIP_TOOLS_STEP;
   ph->col1_counter16 = 99; /* +0x315a = 99 */
   const ColonizeWorld pw = (ColonizeWorld){
@@ -566,7 +596,7 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
     if (!ph) {
       return 0;
     }
-    ph->nation_id = nation;
+    units_set_nation(ph, nation);
     ph->tools = UNITS_EQUIP_TOOLS_STEP; /* units_is_pioneer gate, see #612 */
     ph->col1_counter16 = 99;            /* +0x315a = 99 */
     const ColonizeWorld pw = (ColonizeWorld){
@@ -1218,6 +1248,7 @@ static int ai_euro_20e6_patrol_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, co
   }
   if (s->home_dist == 0) {
     u->col1_ai_plan = 0x56; /* +0x314b = 'V', then LAB_5899 stay */
+    ai_euro_20e6_stay_tail_589e(u);
     return 1;
   }
   const ColonizeColony* hc = colonies_get(ctx->colonies, s->home_colony);
@@ -1283,10 +1314,10 @@ static int ai_euro_20e6_surplus_recall_arm(
   if (hc->garrison_quota != 0) {
     hc->garrison_quota--;
   }
-  if (u->x == hc->x && u->y == hc->y) {
-    return 1; /* already home — 20c6 has nothing to walk */
-  }
-  ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, hc->x, hc->y);
+  /* LAB_27f5 -> FUN_521d_20c6 with DX = 'W' (OVL14 0x4c26): plan 'W',
+   * orders 0x0b, goal = the colony. */
+  u->col1_ai_plan = 0x57;
+  ai_euro_set_goto(u, AI_EURO_ACT_GOAL, hc->x, hc->y);
   return 1;
 }
 
@@ -1488,7 +1519,7 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
  * unit is already committed to (unit+0x314c==7) within the radius-2 ring.
  */
 static int ai_euro_land_explore_scan_target(
-  ColonizeTurnContext* ctx, const ColonizeUnit* u, int nation_id, int force_explorer, int* out_x, int* out_y
+  ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id, int force_explorer, int* out_x, int* out_y
 ) {
   if (!ctx || !ctx->map || !u || !out_x || !out_y) {
     return 0;
@@ -3081,7 +3112,7 @@ int ai_euro_20e6_3fa6_sail_home(ColonizeTurnContext* ctx, ColonizeUnit* u, int n
   }
   int hx = 0;
   int hy = 0;
-  if (!units_spiral_place_hs_near(ctx->units, ctx->map, u->x, u->y, nation_id, &hx, &hy)) {
+  if (!units_015e_hs_course(ctx->units, ctx->map, u->x, u->y, nation_id, &hx, &hy)) {
     return 0; /* 015e's ring found nothing: DOS leaves the hull alone */
   }
   ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, hx, hy);

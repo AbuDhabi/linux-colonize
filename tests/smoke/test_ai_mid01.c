@@ -8,6 +8,7 @@
  * colonies, euro_relation, relation_by_indian, sticky) — structural diff that
  * calendar advanced and both sides still carry Euro+Brave units.
  */
+#include "core/ai_diplo.h"
 #include "core/assets.h"
 #include "core/col1_bridge.h"
 #include "core/col1_save.h"
@@ -25,6 +26,13 @@
 #define TEST_NAME "smoke_ai_mid01"
 #include "tests/common/joint_fixture.h"
 #include "tests/common/test_fail.h"
+
+/* The sticky cache is session state re-derived from the alarm matrix
+ * (ai_diplo_indian_hostility_sync), never a save byte. */
+static unsigned smoke_sticky(const ColonizeCol1Save* s) {
+  ai_diplo_indian_hostility_sync((ColonizeCol1Save*)s, 0);
+  return ai_diplo_indian_hostility_sticky(s, 0);
+}
 
 #define MID01_PATH "test-saves-ai/MID01.SAV"
 #define MID02_PATH "test-saves-ai/MID02.SAV"
@@ -54,10 +62,10 @@ static int compare_mid_pair(const ColonizeCol1Save* a, const ColonizeCol1Save* b
     );
     return 0;
   }
-  if (a->nation[0].indian_hostility_sticky < 2 || b->nation[0].indian_hostility_sticky < 1) {
+  if (smoke_sticky(a) < 2 || smoke_sticky(b) < 1) {
     fprintf(stderr, "MID pair sticky lost (a=%u b=%u)\n",
-            (unsigned)a->nation[0].indian_hostility_sticky,
-            (unsigned)b->nation[0].indian_hostility_sticky);
+            (unsigned)smoke_sticky(a),
+            (unsigned)smoke_sticky(b));
     return 0;
   }
   /* Tribe count stable-ish (growth may add; never wipe). */
@@ -73,16 +81,16 @@ static int compare_mid_pair(const ColonizeCol1Save* a, const ColonizeCol1Save* b
 }
 
 static int write_mid01_from_turn7(void) {
-  /* Mid-war stamp: sticky pinned to 2, hot relation rows cooled to 35, every
-   * contacted tribe's alarm forced to 60, calendar floored into the 1500s. */
+  /* Mid-war stamp: hot relation rows cooled to 35, every contacted tribe's
+   * alarm forced to 90 (sticky derives to 2, DEEP: relation < 16), calendar
+   * floored into the 1500s. */
   const JointHostilityStamp st = {
     .year_floor = 1500,
     .year_set = 1505,
-    .sticky_value = 2,
-    .sticky_force = true,
     .relation_above = 40,
     .relation_set = 35,
-    .alarm_value = 60,
+    .meet_all = true,
+    .alarm_value = 90,
     .alarm_force = true,
     .friction_min = -1
   };
@@ -206,7 +214,7 @@ int main(void) {
     col1_save_free(&mid);
     return fail("MID01 should be stamped mid-campaign year");
   }
-  if (mid.nation[0].indian_hostility_sticky < 2) {
+  if (smoke_sticky(&mid) < 2) {
     col1_save_free(&mid);
     return fail("MID01 sticky stamp");
   }
