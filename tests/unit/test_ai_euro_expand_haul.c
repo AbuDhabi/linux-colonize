@@ -661,7 +661,7 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
  */
 
 /*
- * Idle Wagon with hold capacity → AI_MOVE toward tools-short colony.
+ * Idle Wagon with hold capacity → goto (20c6 orders 0x0b) toward tools-short colony.
  * Cite: euro_unit_act §2d wagon haul / tools delivery.
  */
 static int unit_wagon_haul_tools_short(void) {
@@ -731,7 +731,7 @@ static int unit_wagon_haul_tools_short(void) {
     fx_map_free(&map);
     return fail("wagon-haul should remain active");
   }
-  if (wagon->orders != UNITS_ORDER_AI_MOVE || wagon->goto_x != 4 || wagon->goto_y != 4) {
+  if (wagon->orders != UNITS_ORDER_AI_SAIL || wagon->goto_x != 4 || wagon->goto_y != 4) {
     fprintf(
       stderr,
       "unit_ai_euro_expand: wagon orders=%d goto=(%d,%d) pos=(%d,%d)\n",
@@ -742,7 +742,7 @@ static int unit_wagon_haul_tools_short(void) {
       wagon->y
     );
     fx_map_free(&map);
-    return fail("expected Wagon AI_MOVE toward tools-short colony (4,4)");
+    return fail("expected Wagon goto (20c6 orders 0x0b) toward tools-short colony (4,4)");
   }
 
   fx_map_free(&map);
@@ -1150,7 +1150,7 @@ static int unit_wagon_haul_muskets_short(void) {
     fx_map_free(&map);
     return fail("wagon-muskets should remain active");
   }
-  if (wagon->orders != UNITS_ORDER_AI_MOVE || wagon->goto_x != 4 || wagon->goto_y != 4) {
+  if (wagon->orders != UNITS_ORDER_AI_SAIL || wagon->goto_x != 4 || wagon->goto_y != 4) {
     fprintf(
       stderr,
       "unit_ai_euro_expand: wagon-muskets orders=%d goto=(%d,%d) pos=(%d,%d)\n",
@@ -1161,7 +1161,7 @@ static int unit_wagon_haul_muskets_short(void) {
       wagon->y
     );
     fx_map_free(&map);
-    return fail("expected Wagon AI_MOVE toward muskets-short colony (4,4)");
+    return fail("expected Wagon goto (20c6 orders 0x0b) toward muskets-short colony (4,4)");
   }
 
   fx_map_free(&map);
@@ -1170,7 +1170,7 @@ static int unit_wagon_haul_muskets_short(void) {
 }
 
 /*
- * Idle Wagon with LUMBER cargo → AI_MOVE toward lumber-short colony (tools OK).
+ * Idle Wagon with LUMBER cargo → goto (20c6 orders 0x0b) toward lumber-short colony (tools OK).
  * Cite: euro_unit_act §2d wagon haul lumber; COLONIZE_CARGO_LUMBER (the
  * inv->lumber_short tally this once cited was deleted, bugs.md #891).
  */
@@ -1246,7 +1246,7 @@ static int unit_wagon_haul_lumber_short(void) {
     fx_map_free(&map);
     return fail("wagon-lumber should remain active");
   }
-  if (wagon->orders != UNITS_ORDER_AI_MOVE || wagon->goto_x != 4 || wagon->goto_y != 4) {
+  if (wagon->orders != UNITS_ORDER_AI_SAIL || wagon->goto_x != 4 || wagon->goto_y != 4) {
     fprintf(
       stderr,
       "unit_ai_euro_expand: wagon-lumber orders=%d goto=(%d,%d) pos=(%d,%d)\n",
@@ -1257,7 +1257,7 @@ static int unit_wagon_haul_lumber_short(void) {
       wagon->y
     );
     fx_map_free(&map);
-    return fail("expected Wagon AI_MOVE toward lumber-short colony (4,4)");
+    return fail("expected Wagon goto (20c6 orders 0x0b) toward lumber-short colony (4,4)");
   }
 
   fx_map_free(&map);
@@ -1266,7 +1266,7 @@ static int unit_wagon_haul_lumber_short(void) {
 }
 
 /*
- * Idle Wagon with ORE cargo → AI_MOVE toward ore-short colony (tools OK).
+ * Idle Wagon with ORE cargo → goto (20c6 orders 0x0b) toward ore-short colony (tools OK).
  * Cite: euro_unit_act §2d wagon haul ore; COLONIZE_CARGO_ORE (the
  * inv->ore_short tally this once cited was deleted, bugs.md #891).
  */
@@ -1342,7 +1342,7 @@ static int unit_wagon_haul_ore_short(void) {
     fx_map_free(&map);
     return fail("wagon-ore should remain active");
   }
-  if (wagon->orders != UNITS_ORDER_AI_MOVE || wagon->goto_x != 4 || wagon->goto_y != 4) {
+  if (wagon->orders != UNITS_ORDER_AI_SAIL || wagon->goto_x != 4 || wagon->goto_y != 4) {
     fprintf(
       stderr,
       "unit_ai_euro_expand: wagon-ore orders=%d goto=(%d,%d) pos=(%d,%d)\n",
@@ -1353,7 +1353,7 @@ static int unit_wagon_haul_ore_short(void) {
       wagon->y
     );
     fx_map_free(&map);
-    return fail("expected Wagon AI_MOVE toward ore-short colony (4,4)");
+    return fail("expected Wagon goto (20c6 orders 0x0b) toward ore-short colony (4,4)");
   }
 
   fx_map_free(&map);
@@ -1367,7 +1367,7 @@ static int unit_wagon_haul_ore_short(void) {
  * 4393 pickup queue.) */
 
 /*
- * Idle Wagon with FOOD cargo → AI_MOVE toward food-short colony (tools OK).
+ * Idle Wagon with FOOD cargo → goto (20c6 orders 0x0b) toward food-short colony (tools OK).
  * Cite: Colonization.pdf Wagon Train; euro_unit_act §2d; 5cf6 food_short
  * (stock < pop*TURN_FOOD_PER_COLONIST).
  */
@@ -1443,7 +1443,7 @@ static int unit_wagon_haul_food_short(void) {
     fx_map_free(&map);
     return fail("wagon-food-haul should remain active");
   }
-  if (wagon->orders != UNITS_ORDER_AI_MOVE || wagon->goto_x != 4 || wagon->goto_y != 4) {
+  if (wagon->orders != UNITS_ORDER_AI_SAIL || wagon->goto_x != 4 || wagon->goto_y != 4) {
     fprintf(
       stderr,
       "unit_ai_euro_expand: wagon-food orders=%d goto=(%d,%d) pos=(%d,%d)\n",
@@ -1454,7 +1454,7 @@ static int unit_wagon_haul_food_short(void) {
       wagon->y
     );
     fx_map_free(&map);
-    return fail("expected Wagon AI_MOVE toward food-short colony (4,4)");
+    return fail("expected Wagon goto (20c6 orders 0x0b) toward food-short colony (4,4)");
   }
 
   fx_map_free(&map);

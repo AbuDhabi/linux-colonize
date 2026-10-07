@@ -49,6 +49,14 @@ ColonizeUnit* units_slot_transfer(ColonizeUnitPool* pool) {
   if (!pool) {
     return NULL;
   }
+  /* DOS FUN_1427_0824 compacts the array on delete and FUN_1427_06b4 appends,
+   * so a new unit lands after every live one: take slot_end, not the first
+   * hole (holes are invisible to the saved order). Seed-100 1497: Quebec's
+   * ejected soldier is record 42, not the absorbed pioneer's old slot. */
+  const int end = units_slot_end(pool);
+  if (end < COLONIZE_UNITS_MAX && !pool->units[end].active) {
+    return &pool->units[end];
+  }
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     if (!pool->units[i].active) {
       return &pool->units[i];
@@ -676,13 +684,19 @@ void units_slot_reset_defaults(
   slot->mp_spent_turn = 0;
   slot->aboard_moves = -1;
   slot->last_dir = 0;
-  /* COL1 +0x06 origin: DOS leaves it unbound at create; 0xff is the "no
-   * home colony / tribe" sentinel every DOS reader tests as < 0. */
+  /* COL1 +0x06 origin: 0xff = unbound, the "no home colony / tribe" sentinel
+   * every DOS reader tests as < 0. units_spawn_allow_stack binds a colony tile. */
   slot->col1_origin = 0xff;
   slot->col1_flags15 = 0;
   slot->col1_ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
   slot->repair_pending = 0;
   slot->ai_landfall_wait = false;
+  if (pool->unit_count >= 0 && pool->unit_count < COLONIZE_UNITS_DOS_MAX &&
+      pool->dos_tail[pool->unit_count].valid) {
+    slot->goto_x = pool->dos_tail[pool->unit_count].goto_x;
+    slot->goto_y = pool->dos_tail[pool->unit_count].goto_y;
+    slot->last_dir = pool->dos_tail[pool->unit_count].facing;
+  }
   units_sync_equip_after_type_change(slot, type);
 }
 
@@ -699,6 +713,13 @@ static int units_spawn_allow_stack_impl(
   const ColonizeUnitType* type = &pool->types[type_index];
   units_slot_reset_defaults(pool, slot, type, type_index, x, y);
   slot->aboard_ship_id = -1;
+  if (pool->spawn_colonies) {
+    /* FUN_1427_06b4: +0x314a = FUN_15eb_0a76(x, y), the colony on the tile. */
+    const int cid = colonies_id_at(pool->spawn_colonies, x, y);
+    if (cid >= 0 && cid < 0x80) {
+      slot->col1_origin = (uint8_t)cid;
+    }
+  }
   pool->unit_count++;
   units_tile_stack_arrive(pool, slot->id);
   if (units_is_on_map(slot)) {

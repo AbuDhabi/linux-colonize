@@ -3606,6 +3606,15 @@ static int case_phase_o_ai_dump_sell(void) {
  * Nation ticks: AI Euro colonies accrue liberty_bells into col1 (DOS 00f2 /
  * 4345_0a22 per nation). Human Europe chrome unchanged.
  */
+/* AI nations run their 00f2 nation tick in their own slot
+ * (turn_run_ai_nation_eot); the shared tick is the human's. */
+static void tick_all_nations(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
+  for (int n = 0; n < 4; ++n) {
+    turn_run_ai_nation_eot(ctx, out, n);
+  }
+  turn_run_nation_ticks(ctx, out);
+}
+
 static int case_nation_bells_tick(void) {
   fx_begin();
   ColonizeColonyPool pool;
@@ -3647,7 +3656,7 @@ static int case_nation_bells_tick(void) {
   ctx.col1 = &col1;
   ctx.col1_ok = true;
 
-  turn_run_nation_ticks(&ctx, NULL);
+  tick_all_nations(&ctx, NULL);
   if (col1.nation[1].liberty_bells_last_turn == 0 || col1.nation[1].liberty_bells_pool == 0) {
     fprintf(
       stderr,
@@ -3727,7 +3736,7 @@ static int case_nation_bells_per_colony_elect(void) {
   /* One bell short: the FIRST colony's bells cross the threshold. */
   col1.nation[1].liberty_bells_pool = (uint16_t)(need - 1u);
 
-  turn_run_nation_ticks(&ctx, NULL);
+  tick_all_nations(&ctx, NULL);
 
   if (col1.nation[1].founding_father_count != 1) {
     fprintf(
@@ -3806,7 +3815,7 @@ static int case_tory_penalty_bells(void) {
   ctx.col1 = &col1;
   ctx.col1_ok = true;
 
-  turn_run_nation_ticks(&ctx, NULL);
+  tick_all_nations(&ctx, NULL);
   /* sol_bonus now folds into colony_prod_bells_worker *before* the
    * skill-match doubling (matches FUN_15eb_1d4c's Statesman body):
    * tag(3)+sol_b(-1)=2, doubled (skilled Statesman) = 4. Town Hall
@@ -3886,7 +3895,7 @@ static int case_ai_bells_subsidy_needs_bolivar(void) {
   ctx.col1 = &col1;
   ctx.col1_ok = true;
 
-  turn_run_nation_ticks(&ctx, NULL);
+  tick_all_nations(&ctx, NULL);
   if (col1.nation[1].liberty_bells_pool != 8) {
     fprintf(
       stderr,
@@ -4287,7 +4296,7 @@ static int case_ai_euro_crosses(void) {
   col1.nation[1].recruit[0] = UNITS_JOB_COLONIST;
   col1.nation[1].recruit[1] = UNITS_JOB_COLONIST;
   col1.nation[1].recruit[2] = UNITS_JOB_COLONIST;
-  turn_run_nation_ticks(&ctx, &out);
+  tick_all_nations(&ctx, &out);
   /* 8 + 2 > 8 → arrival: crosses zeroed, 0x40 latched, one unit in limbo. */
   if (col1.nation[1].needed_crosses != 8 || col1.nation[1].current_crosses != 0) {
     fprintf(
@@ -4315,7 +4324,7 @@ static int case_ai_euro_crosses(void) {
   }
   /* Second tick: the drain rule (584a *param_2) now sees that colonist. */
   const uint16_t before = col1.nation[1].current_crosses;
-  turn_run_nation_ticks(&ctx, &out);
+  tick_all_nations(&ctx, &out);
   if (col1.nation[1].current_crosses != before) {
     fprintf(
       stderr,

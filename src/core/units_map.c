@@ -210,6 +210,19 @@ void units_pool_check(const ColonizeUnitPool* pool) {
 }
 
 static void units_clear_slot(ColonizeUnitPool* pool, ColonizeUnit* unit) {
+  const int n = pool->unit_count; /* still counts this unit */
+  if (n > 0 && n <= COLONIZE_UNITS_DOS_MAX) {
+    for (int i = units_slot_end(pool) - 1; i >= 0; --i) {
+      const ColonizeUnit* last = &pool->units[i];
+      if (last->active) {
+        pool->dos_tail[n - 1].valid = 1;
+        pool->dos_tail[n - 1].goto_x = (uint8_t)last->goto_x;
+        pool->dos_tail[n - 1].goto_y = (uint8_t)last->goto_y;
+        pool->dos_tail[n - 1].facing = (int8_t)last->last_dir;
+        break;
+      }
+    }
+  }
   units_index_remove(pool, unit);
   unit->active = false;
   unit->id = -1;

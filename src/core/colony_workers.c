@@ -1233,8 +1233,23 @@ int colonies_eject_colonist(
   if (uid < 0) {
     return -1;
   }
+  /* 06b4's own tail FUN_13f1_02f8 reveals for the new unit's nation while
+   * the colonist still counts, so the owner's +0xba snapshot sees pop + 1. */
+  ColonizeUnit* nu = units_get(units, uid);
+  if (nu && g_colonies_occupancy_map) {
+    units_set_nation(nu, col->nation_id);
+    const ColonizeWorld rw = {
+      .map = g_colonies_occupancy_map,
+      .units = units,
+      .colonies = pool,
+      .col1 = g_colonies_col1,
+      .col1_ok = g_colonies_col1 != NULL,
+    };
+    (void)units_reveal_sight_w(&rw, nu);
+  }
 
   colonies_clear_colonist_tile(col, colonist_index);
+  colonies_colonist_tail_stash(pool, col); /* FUN_15eb_0d04 leaves it */
   for (int i = colonist_index; i < col->colonist_count - 1; ++i) {
     col->colonists[i] = col->colonists[i + 1];
   }

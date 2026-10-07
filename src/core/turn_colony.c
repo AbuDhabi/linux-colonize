@@ -321,6 +321,13 @@ static void turn_notify_dock_immigrant(
       immigrant_name && immigrant_name[0] ? immigrant_name : ""
     );
   }
+  /* 5e52 raw 68596-68600: with tutorial hints on (DS:0x5382 bit7) the
+   * first such immigrant also gets @TUTORIAL5, once (DS:0x5387 bit0). */
+  const bool tutorial5 = ctx->col1_ok && ctx->col1 &&
+                         ctx->col1->head.game_options.tutorial_hints && !ctx->col1->head.tut3.nr5;
+  if (tutorial5) {
+    ctx->col1->head.tut3.nr5 = 1;
+  }
   if (!ctx->ai_popups) {
     return;
   }
@@ -339,6 +346,93 @@ static void turn_notify_dock_immigrant(
     snprintf(body, sizeof(body), "%s", fb);
   }
   ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+  if (tutorial5 && ctx->messages) {
+    popup_msg_fill(ctx->messages, "TUTORIAL5", &tok, fb, body, sizeof(body));
+    ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+  }
+}
+
+/*
+ * One AI nation's FUN_3844_00f2 colony EOT, at the head of its own slot
+ * (turn_step_euro) rather than batched before slot 1: 5e52 immigration
+ * (raw 58375), then the colony loop 0950 (raw 58384), where each colony's
+ * 0688 Phase A accrues bells and re-tests the 0a22 elect before production
+ * (raw 57231), then the crosses. Seed-100 1497: Spain's 06d2 rolls fall
+ * after France's moves (DOSBox per-slot RNG counts 6/35 for slots 1/2).
+ * ponytail: all of a nation's Phase A runs before all of its production;
+ * DOS interleaves them colony by colony, which matters only once two
+ * colonies of one nation both draw.
+ */
+void turn_run_ai_nation_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out, int n) {
+  if (!ctx || n < 0 || n >= 4 || n == ctx->human_nation) {
+    return;
+  }
+  if (!ctx->col1_ok || !ctx->col1) {
+    turn_prod_only_nation = n;
+    turn_prod_only_set = true;
+    turn_run_colony_eot(ctx, out);
+    turn_prod_only_nation = -1;
+    turn_prod_only_set = false;
+    return;
+  }
+  const uint8_t control = ctx->col1->player[n].control;
+  if (control == 2) {
+    return; /* withdrawn: no 00f2 */
+  }
+  ColonizeCol1Nation* nat = &ctx->col1->nation[n];
+  if (!ctx->col1->head.game_options.woi) {
+    ai_nation_reseed(ctx); /* 5e52 entry: FUN_281f_04ca(DS:0x83a6), raw 68542 */
+  }
+  /* 5e52 before the colony crosses land: test-saves-ai TURN6->7 nation[3]
+   * 12 -> 14 (no arrival) -> 15 with the colony cross. */
+  {
+    const ColonizeWorld w = world_from_turn_ctx(ctx);
+    (void)europe_nation_immigration_tick_w(&w, n);
+    /* 5e52 tail (raw 68614): the King's tax roll, peacetime only. */
+    if (!ai_king_independence_declared(ctx->col1)) {
+      ai_king_tax_event_ai(ctx, n);
+    }
+  }
+  int nb = 0;
+  int nc = 0;
+  static int s_colony_bells[COLONIZE_COLONIES_MAX];
+  int ncol = 0;
+  turn_count_bells_and_crosses_for_nation_ex(
+    ctx->colonies, n, ctx->col1, &nb, &nc, s_colony_bells, &ncol
+  );
+  /* raw 73341-73342 / bugs.md #933-934: +0xc pool per colony, elect re-test. */
+  nat->liberty_bells_last_turn = (uint16_t)(nb > 65535 ? 65535 : nb);
+  for (int ci = 0; ci < ncol && ci < COLONIZE_COLONIES_MAX; ++ci) {
+    if (s_colony_bells[ci] <= 0) {
+      continue;
+    }
+    unsigned pool = (unsigned)nat->liberty_bells_pool + (unsigned)s_colony_bells[ci];
+    if (pool > 65535u) {
+      pool = 65535u;
+    }
+    nat->liberty_bells_pool = (uint16_t)pool;
+    if (control == 1) {
+      (void)founding_fathers_try_elect(ctx, n);
+    }
+  }
+  turn_prod_only_nation = n;
+  turn_prod_only_set = true;
+  turn_run_colony_eot(ctx, out);
+  turn_prod_only_nation = -1;
+  turn_prod_only_set = false;
+  {
+    unsigned cur = (unsigned)nat->current_crosses + (unsigned)nc;
+    if (cur > 65535u) {
+      cur = 65535u;
+    }
+    nat->current_crosses = (uint16_t)cur;
+  }
+  if (control == 1) {
+    /* bugs.md #934: keep electing while the pool clears the new threshold. */
+    int guard = (int)COLONIZE_COL1_FF_COUNT;
+    while (guard-- > 0 && founding_fathers_try_elect(ctx, n)) {
+    }
+  }
 }
 
 void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
@@ -418,6 +512,9 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
         }
       }
       if (created) {
+        if (ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 && ctx->human_nation < 4) {
+          ctx->col1->nation[ctx->human_nation].nation_flags |= 0x40u; /* raw 68601 */
+        }
         europe_notify_immigrant_sound(ctx->europe); /* FUN_38fd_5e52 38fd:5ecb: pool 2 */
         const char* name = "";
         if (ctx->europe->dock_count > 0) {
@@ -475,6 +572,9 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       if (control == 2) {
         continue; /* withdrawn */
       }
+      if (n != ctx->human_nation) {
+        continue; /* AI nations: turn_run_ai_nation_eot, in their own slot */
+      }
       int nb = 0;
       int nc = 0;
       static int s_colony_bells[COLONIZE_COLONIES_MAX];
@@ -496,7 +596,6 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
        * elect here.
        */
       nat->liberty_bells_last_turn = (uint16_t)(nb > 65535 ? 65535 : nb);
-      const bool ai_elects_here = (n != ctx->human_nation) && (control == 1);
       for (int ci = 0; ci < ncol && ci < COLONIZE_COLONIES_MAX; ++ci) {
         if (s_colony_bells[ci] <= 0) {
           continue;
@@ -506,32 +605,6 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
           pool = 65535u;
         }
         nat->liberty_bells_pool = (uint16_t)pool;
-        if (ai_elects_here) {
-          (void)founding_fathers_try_elect(ctx, n);
-        }
-      }
-      /*
-       * AI Euro: the full DOS FUN_38fd_5e52 tick (584a needed + the +2/-2
-       * crosses tick, and on a crossing a real immigrant out of the nation's
-       * own recruit[3] pool, parked in the Europe limbo for the AI's own
-       * 5d04/ship logic to load). Silent — every popup in 5e52 is gated on
-       * control == 0. Was a flat "+2, spawn PARKED" stub.
-       *
-       * Order matters and is DOS's: FUN_3844_00f2 calls 5e52 (FUN_291f_0a90,
-       * :58375) BEFORE the per-colony tick FUN_291f_0950 (:58384), so the
-       * threshold test sees last turn's crosses plus only the 584a +2 — this
-       * turn's church output lands after it. test-saves-ai TURN6→7 nation[3]
-       * 12 → 14 (14 < 14 is false, no arrival) → 15 with the colony cross;
-       * adding the colony crosses first would have spawned an immigrant DOS
-       * did not spawn (and did spawn, in the first cut of this port).
-       */
-      if (n != ctx->human_nation) {
-        const ColonizeWorld w = world_from_turn_ctx(ctx);
-        (void)europe_nation_immigration_tick_w(&w, n);
-        /* 5e52 tail (raw 68614): the King's tax roll, peacetime only. */
-        if (!ai_king_independence_declared(ctx->col1)) {
-          ai_king_tax_event_ai(ctx, n);
-        }
       }
       {
         unsigned cur = (unsigned)nat->current_crosses + (unsigned)nc;
@@ -548,7 +621,6 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
         nat->liberty_bells_last_turn = ctx->europe->liberty_bells_last_turn;
       }
     }
-    founding_fathers_tick(ctx);
 
     /* FUN_4345_0a22 wartime branch: bell pool → intervention / REF, not FF elect. */
     if (ctx->col1->head.game_options.woi) {

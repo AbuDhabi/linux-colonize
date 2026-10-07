@@ -194,6 +194,8 @@ void turn_run_colony_production_w(
 
 /* Crosses → dock immigrant; liberty bells counters (human + AI Euro Col1). */
 void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
+/* One AI nation's 00f2 colony EOT (immigration, bells/FF, production), run in its slot. */
+void turn_run_ai_nation_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out, int n);
 
 /*
  * FUN_5bfb_00f8 — rank Euro nations by gold/100 + 2*colonies + pop + land combat.

@@ -1279,13 +1279,16 @@ static void ai_euro_5952_labor_demand(
   if (ctx->units) {
     /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
     for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-      const ColonizeUnit* u = &ctx->units->units[i];
+      ColonizeUnit* u = &ctx->units->units[i];
       if (!u->active || u->aboard_ship_id >= 0 || u->x != c->x || u->y != c->y) {
         continue;
       }
       const int dtype = ai_euro_20e6_dos_type(ctx->units, u);
       if (dtype >= 0x0d && dtype <= 0x12) {
         continue; /* ships never garrison */
+      }
+      if ((int8_t)u->col1_origin < 0) {
+        u->col1_origin = (uint8_t)c->id; /* unbound: origin = DS:0x8dc6 */
       }
       if (ai_euro_20e6_type_combat(dtype) > 1 && want != 0) {
         want--;

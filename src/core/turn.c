@@ -151,6 +151,7 @@ void turn_refresh_moves_for_nation_w(
   units_set_ff_col1(col1);
   colonies_set_col1_context((ColonizeCol1Save*)col1);
   units_set_occupancy_map(map);
+  pool->spawn_colonies = w->colonies;
   colonies_set_occupancy_map(map);
   if (col1) {
     /* bugs.md #282: the first-`control == 0` scan reads a stale save that
@@ -517,17 +518,10 @@ COLONIZE_INTERNAL void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurn
       turn_set_active_nation(ctx, ctx->human_nation);
       proc->show_indicator = false;
       proc->result.advanced = true;
-      /* AI nations only — the human's colonies run their EOT at the top of
-       * TURN_PROC_FINISH instead, which is where DOS puts it (see the
-       * turn_prod_only_nation comment). */
-      turn_prod_skip_nation = ctx->human_nation;
-      turn_prod_skip_set = true;
-      turn_run_colony_eot(ctx, &proc->result);
-      turn_prod_skip_nation = -1;
-      turn_prod_skip_set = false;
+      /* No colony EOT here: each AI nation runs its own in its slot
+       * (turn_run_ai_nation_eot), the human at the top of TURN_PROC_FINISH. */
       /* FUN_364b_03f6 coastal Fort/Fortress fire after production. */
       (void)turn_run_coastal_fort_fire(ctx);
-      turn_run_nation_ticks(ctx, &proc->result);
       /*
        * DOS FUN_364b_0688 Phase A: bells + Congress (291f_09f8 → 4345_0a22)
        * run in the colony-EOT PROLOGUE, so an FF nomination/election dialog
@@ -615,6 +609,9 @@ COLONIZE_INTERNAL void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnC
           if (n != ctx->human_nation) {
             /* 00f2 tail FUN_291f_0a82 -> FUN_48d3_06ba (raw 58377). */
             ai_euro_europe_lane_tick(ctx, n);
+            /* 00f2 5e52 (raw 58375) + colony loop 0950 (raw 58384); the
+             * lane tick between them in DOS draws nothing. */
+            turn_run_ai_nation_eot(ctx, &proc->result, n);
             /* 00f2 tail FUN_291f_0a74 -> FUN_4962_0018 (raw 58390). */
             if (ctx->col1_ok && ctx->col1) {
               const ColonizeWorld cw = world_from_turn_ctx(ctx);
@@ -736,6 +733,12 @@ COLONIZE_INTERNAL void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTur
        */
       turn_set_active_nation(ctx, ctx->human_nation);
       proc->show_indicator = true;
+      /* The human's own 5e52 (raw 58375) opens its 00f2 here, after the day
+       * top, with the same timer-word reseed every slot's 5e52 does. */
+      if (ctx->col1_ok && ctx->col1 && !ctx->col1->head.game_options.woi) {
+        ai_nation_reseed(ctx);
+      }
+      turn_run_nation_ticks(ctx, &proc->result);
       turn_prod_only_nation = ctx->human_nation;
       turn_prod_only_set = true;
       turn_run_colony_eot(ctx, &proc->result);
