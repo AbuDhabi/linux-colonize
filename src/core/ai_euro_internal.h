@@ -191,13 +191,7 @@ int ai_euro_is_military_name(ColonizeUnitKind k);
 int ai_euro_is_artillery_name(ColonizeUnitKind kind);
 int ai_euro_land_is_fortified(const ColonizeUnit* u);
 int ai_euro_is_treasure_name(ColonizeUnitKind kind);
-int ai_euro_europe_sail_target(
-  ColonizeTurnContext* ctx,
-  int from_x,
-  int from_y,
-  int* out_x,
-  int* out_y
-);
+
 bool ai_euro_5952_job_is_expert(int job);
 /* local_80/local_1e/local_7e placement-section gate (raw 94570-94584,
  * bugs.md #1028): local_7e is the return value; out_local_80 and
@@ -412,11 +406,7 @@ int ai_euro_try_ship_trade_haul(
 );
 int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship);
 void ai_euro_ship_leave_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship);
-int ai_euro_try_ship_europe_export(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  ColonizeUnit* ship
-);
+
 int ai_euro_foe_toughness(
   ColonizeTurnContext* ctx,
   const ColonizeUnitPool* units,

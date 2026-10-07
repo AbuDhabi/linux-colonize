@@ -309,6 +309,8 @@ int colonies_indian_land_owner_tribe(
 );
 
 /* colony-screen continent lookup test (see docs/colony.md#colonies_indian_claim_tribe_from_w) */
+/* FUN_15eb_26e4 owner-nibble side effect (see colony.c). */
+void colonies_26e4_claim_stamp(const ColonizeWorld* w, const ColonizeColony* col);
 int colonies_indian_claim_tribe_from_w(
   const ColonizeWorld* w,
   int viewer_nation,

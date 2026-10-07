@@ -2247,8 +2247,8 @@ int ai_euro_20e6_wander_step(
           score += 8;
         }
       } else if (map_coords_inset(ctx->map, fx, fy) && !map_tile_is_water(ctx->map, fx, fy) &&
-          ctx->map->seen && !map_tile_seen_by(ctx->map, fx, fy, nation)) {
-        score += 8; /* DS:0x9faa coarse cell unseen — per-nation seen[] stand-in */
+          ai_coarse_fog_explore_unseen(fx, fy)) {
+        score += 8; /* DS:0x9faa coarse cell empty (DOSBox 1503: soldier d0/d4 +8) */
       }
       /* raw 88842-88844: a ship in the eastern half leans west (dirs SW/W/NW). */
       if (s->is_ship && d >= 5 && d <= 7 && u->x > (int)ctx->map->width / 2) {

@@ -993,10 +993,15 @@ void units_claim_tile_owner_from_stack(
   if (nation < 0) {
     return;
   }
-  if (nation > 3 && map->layer2) {
-    const uint8_t l2 = map->layer2[y * map->width + x];
-    if ((l2 & MAP_OCCUPANCY_HAS_CITY) != 0) {
-      return; /* village tile keeps tribe owner */
+  if (map->layer2) {
+    const int i = y * map->width + x;
+    /* Village tile keeps its tribe owner. A Euro nibble is never valid there:
+     * DOS creates a unit with its nation (FUN_1427_06b4), while a port spawn
+     * runs this with the nation-0 placeholder before the caller sets it (a
+     * temp defender for an empty village stamped England on the village). */
+    if ((map->layer2[i] & MAP_OCCUPANCY_HAS_CITY) != 0 &&
+        (nation > 3 || (map->layer3[i] >> 4) >= 4)) {
+      return;
     }
   }
   map_set_owner_nibble(map, x, y, nation);

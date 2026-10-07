@@ -175,6 +175,17 @@ static int ai_euro_20e6_delivery_tallies(
  * with smell audit #25), so the cargo argument below is cosmetic — FOOD is
  * never a delivery cargo here anyway. Nothing invented.
  */
+/* DS:0x84bc[nation*0x10 + cargo]: every writer stores euro_price - 1, clamped
+ * at 0 (colony_goods.c colonies_ftrade_price_byte; DOSBox 1505 load matrix
+ * scored ore 78 * 3, not * 4). */
+static int ai_euro_ship_price_84bc(const ColonizeTurnContext* ctx, int nation, int g) {
+  if (!ctx->col1_ok || !ctx->col1) {
+    return 0;
+  }
+  const int p = (int)ctx->col1->nation[nation].trade.euro_price[g] - 1;
+  return p > 0 ? p : 0;
+}
+
 static int ai_euro_20e6_delivery_colony_pick(
   ColonizeTurnContext* ctx,
   const ColonizeUnit* ship,
@@ -229,9 +240,7 @@ static int ai_euro_20e6_delivery_colony_pick(
       }
       if (cap <= tally[g] + stock) {
         /* DS:0x84bc (= −0x7b44) byte table, indexed nation*0x10 + cargo. */
-        const int price = (ctx->col1_ok && ctx->col1)
-                            ? (int)ctx->col1->nation[nation].trade.euro_price[g]
-                            : 0;
+        const int price = ai_euro_ship_price_84bc(ctx, nation, g);
         score += (cap - stock - tally[g]) * price * 4; /* md:2072-2077 */
       }
       if ((int)c->specialty_cargo == g) {
@@ -376,7 +385,7 @@ static int ai_euro_20e6_delivery_sell_tail(
         ctx->europe, ctx->col1, nation, ctx->human_nation, g, qty, 0, 0
       );
     }
-    const int32_t v = (int32_t)nat->trade.euro_price[g] * (int32_t)qty;
+    const int32_t v = (int32_t)ai_euro_ship_price_84bc(ctx, nation, g) * (int32_t)qty;
     nat->gold += (uint32_t)v;
     nat->trade.gold[g] += v;
     nat->trade.tons[g] += (int32_t)qty;
@@ -466,9 +475,7 @@ int ai_euro_20e6_load_pick(
     if (term == 0) {
       continue; /* md:3087 tail */
     }
-    const int price = (ctx->col1_ok && ctx->col1)
-                        ? (int)ctx->col1->nation[nation].trade.euro_price[g]
-                        : 0;
+    const int price = ai_euro_ship_price_84bc(ctx, nation, g);
     int score;
     if (!is_ship) {
       int p = price;
@@ -714,7 +721,7 @@ static void ai_euro_20e6_clear_stale_board_marks(
       const int cid = colonies_id_at(ctx->colonies, lu->x, lu->y);
       const ColonizeColony* lc = cid >= 0 ? colonies_get(ctx->colonies, cid) : NULL;
       if (lc && lc->active && lc->nation_id == nation_id &&
-          ai_euro_tiles_near(ship->x, ship->y, lc->x, lc->y)) {
+          (ship->x == lc->x && ship->y == lc->y)) {
         on_stack = 1;
       }
     }
@@ -783,7 +790,7 @@ static int ai_euro_20e6_transport_assemble(
       const int cid = colonies_id_at(ctx->colonies, lu->x, lu->y);
       const ColonizeColony* lc = cid >= 0 ? colonies_get(ctx->colonies, cid) : NULL;
       if (lc && lc->active && lc->nation_id == nation_id &&
-          ai_euro_tiles_near(ship->x, ship->y, lc->x, lc->y)) {
+          (ship->x == lc->x && ship->y == lc->y)) {
         on_stack = 1;
       }
     }
@@ -1021,7 +1028,7 @@ static int ai_euro_20e6_ship_berth_arrival(
     /* iStack_2e == 0: standing at own colony uStack_62. Ships berth on
      * adjacent water in this port, so near, not colonies_id_at — the same
      * substitution the 06e load block already used. */
-    if (!ai_euro_tiles_near(ship->x, ship->y, cand->x, cand->y)) {
+    if ((ship->x != cand->x || ship->y != cand->y)) {
       continue;
     }
     c = cand;
@@ -1306,7 +1313,7 @@ int ai_euro_try_ship_trade_haul(
       if (!c->active || c->nation_id != nation_id) {
         continue;
       }
-      if (!ai_euro_tiles_near(ship->x, ship->y, c->x, c->y)) {
+      if ((ship->x != c->x || ship->y != c->y)) {
         continue;
       }
       int loaded = 0;
@@ -1370,9 +1377,7 @@ int ai_euro_try_ship_trade_haul(
    * FUN_48d3_015e, the expanding-ring hunt for a High Seas tile that stamps
    * orders 0x45 (resolved in this file's 47b9/457e symbol table). So a ship
    * that leaves the berth laden sails for Europe and never reaches
-   * LAB_004393's work-queue peel — declining here hands it to the
-   * dispatcher's Europe-export arm, which is the port's stand-in for
-   * 48d3_015e.
+   * LAB_004393's work-queue peel; return 2 = the act ends (5a78).
    *
    * Without this the dump+load could park the ship at its own berth forever
    * (the 06e/06f oscillation class); the gate is DOS's own answer to it.
@@ -1388,7 +1393,9 @@ int ai_euro_try_ship_trade_haul(
     const int capacity = units_goods_hold_count(ctx->units, ship->id);
     const int occupied = capacity - ai_euro_hauler_free_holds(ctx->units, ship);
     if (occupied > 1 || (capacity > 0 && occupied == capacity)) {
-      return 0;
+      /* LAB_003fa6 -> 5a78: the course for Europe, hit or miss. */
+      (void)ai_euro_20e6_3fa6_sail_home(ctx, ship, nation_id);
+      return 2;
     }
   }
   if (!have_dest) {
@@ -1421,59 +1428,6 @@ int ai_euro_try_ship_trade_haul(
   return 1;
 }
 
-/*
- * Peace Europe export sail — the port's stand-in for LAB_003fa6
- * (`FUN_1000_94da` = FUN_291f_02ea -> FUN_48d3_015e), the expanding-ring High
- * Seas hunt FUN_521d_20e6 jumps to at md:2166-2168 when the band leaves the
- * hull laden. The Europe end is DOS-real and already ported: FUN_521d_5d04's
- * dock loop (viceroy_overlays.c:83168-83192, `ai_euro_5d04_cb_sell_hold0` /
- * `_cb_reward_case`) empties the holds of EVERY Europe ship of type
- * 0x0d..0x12, warships included — so any hull that gets here has a seller.
- * The colony-surplus LOAD below stays a cargo-hull errand (FUN_364b_0688 /
- * 0636, stock>99 → leave 50); the sail itself is open to any hull already
- * carrying export-eligible goods, which is where a Privateer's capture loot
- * (FUN_5fef_0352, viceroy_overlays.c:85035-85050) goes.
- */
-static int ai_euro_ship_holds_export_goods(const ColonizeUnitPool* units, const ColonizeUnit* ship) {
-  if (!units || !ship) {
-    return 0;
-  }
-  const int n = units_goods_hold_count(units, ship->id);
-  for (int h = 0; h < n; ++h) {
-    if (units_hold_amount(units, ship->id, h) <= 0) {
-      continue;
-    }
-    if (europe_cargo_export_eligible(ship->hold_goods_type[h])) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
-/*
- * Europe-bound sail tail shared by the export and Privateer-loot arms (audit
- * AE-16): step into the Europe park if the ship already stands on a High Seas
- * tile, else aim AI_SAIL at the nearest Europe lane entry. Returns 0 only when
- * there is no lane to aim at, or the ship is already standing on it.
- */
-static int ai_euro_ship_sail_to_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
-  if (ai_euro_ship_enter_europe(ctx, ship)) {
-    return 1;
-  }
-  int ex = 0;
-  int ey = 0;
-  if (!ai_euro_europe_sail_target(ctx, ship->x, ship->y, &ex, &ey)) {
-    return 0;
-  }
-  if (ship->x == ex && ship->y == ey) {
-    return 0;
-  }
-  if (units_orders_follow_goto(ship->orders) && ship->goto_x == ex && ship->goto_y == ey) {
-    return 1;
-  }
-  ai_euro_set_goto(ship, UNITS_ORDER_AI_SAIL, ex, ey);
-  return 1;
-}
 
 /*
  * FUN_48d3_0002 (raw 77563-77588) for an AI hull: reseed from the timer word
@@ -1615,14 +1569,21 @@ void ai_euro_europe_lane_tick(ColonizeTurnContext* ctx, int nation_id) {
   static const int hops[4][2] = {{228, 224}, {232, 228}, {240, 236}, {244, 240}};
   for (int h = 0; h < 4; ++h) {
     const int from = hops[h][0] + nation_id;
+    /* FUN_48d3_03d0 walks the lane tile chain (07e0/02e4), passengers
+     * included: every unit there counts down its own +0x315a. Decrement all
+     * first so a hull hopping ahead does not carry an unticked passenger. */
+    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+      ColonizeUnit* u = &ctx->units->units[i];
+      if (u->active && u->nation_id == nation_id && u->x == from && u->y == from &&
+          u->col1_counter16 > 0) {
+        u->col1_counter16--;
+      }
+    }
     for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       ColonizeUnit* u = &ctx->units->units[i];
       if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0 ||
           u->x != from || u->y != from) {
         continue;
-      }
-      if (u->col1_counter16 > 0) {
-        u->col1_counter16--;
       }
       if (u->col1_counter16 == 0) {
         if (hops[h][1] == 236) {
@@ -1648,55 +1609,6 @@ void ai_euro_europe_lane_tick(ColonizeTurnContext* ctx, int nation_id) {
   }
 }
 
-int ai_euro_try_ship_europe_export(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  ColonizeUnit* ship
-) {
-  if (!ctx || !ctx->units || !ctx->map || !ctx->colonies || !ship || !ship->active) {
-    return 0;
-  }
-  if (ai_euro_in_europe(ship->x, ship->y)) {
-    return 0;
-  }
-  if (!units_is_sea(ctx->units, ship->id)) {
-    return 0;
-  }
-  if (units_goods_hold_count(ctx->units, ship->id) <= 0) {
-    return 0;
-  }
-
-  /*
-   * Colony->ship load sweep retired 2026-09-24 (bugs.md #864): DOS's only AI
-   * ship goods load is FUN_521d_20e6's LOAD matrix (raw 90295-90370,
-   * `ai_euro_20e6_load_pick`); FUN_364b_0688 (raw 57238-57300) is the Custom
-   * House in-place sale and never loads a hull.
-   */
-
-  if (!ai_euro_ship_holds_export_goods(ctx->units, ship)) {
-    return 0;
-  }
-  /*
-   * Only a real load is worth the crossing: the arm's own load rule above
-   * yields >= 50 (stock > 99, leave 50), so hold that bar for cargo the
-   * berth-arrival load matrix put aboard as well. A few furs from a young
-   * colony's stock sent the Caravel to Europe and back every four turns
-   * (the "circles"), the same trip again each time it came home.
-   */
-  {
-    int total = 0;
-    const int n = units_goods_hold_count(ctx->units, ship->id);
-    for (int h = 0; h < n; ++h) {
-      if (europe_cargo_export_eligible(ship->hold_goods_type[h])) {
-        total += units_hold_amount(ctx->units, ship->id, h);
-      }
-    }
-    if (total < 50) {
-      return 0;
-    }
-  }
-  return ai_euro_ship_sail_to_europe(ctx, ship);
-}
 
 /*
  * The war-cargo colony-sail arm that stood here (`ai_euro_try_ship_war_cargo_sail`)

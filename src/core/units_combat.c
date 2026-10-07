@@ -3925,7 +3925,9 @@ void units_reset_hooks(void) {
   g_units_combat_watch_user = NULL;
   g_units_dissolve = NULL;
   g_units_dissolve_user = NULL;
-  g_units_raid_repelled = NULL;
+  /* g_units_raid_repelled stays: it is sim wiring set once at load by
+   * ai_contact_raid.c's constructor, not a session hook (clearing it cut
+   * 1b0e's colony-raid handoff from every golden). */
   g_units_popup_pump = NULL;
   g_units_popup_pump_user = NULL;
   g_units_set_bgm = NULL;

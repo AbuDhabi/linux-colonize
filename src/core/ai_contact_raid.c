@@ -403,8 +403,7 @@ COLONIZE_INTERNAL AiRaidKind ai_contact_pick_raid_kind(
   /*
    * raw 99791-99795: on Discoverer/Explorer, before turn (difficulty-2)*-0x28
    * (turn 40 / 80), the building and ship kinds collapse to nothing. DS:0x538e
-   * is the turn counter; the 1b0e handoff builds a context without one, so the
-   * grace is skipped there (as it was before this port).
+   * is the turn counter (the 1b0e handoff passes the save's turn).
    */
   if (ctx->turn_number) {
     const int t = (difficulty - 2) * -0x28;
@@ -1058,9 +1057,8 @@ int ai_contact_colony_raid_repelled_w(
   /*
    * DOS reaches 0f14 here through the shared globals the combat resolver
    * already bound (FUN_281f_0a42 nation / FUN_281f_09e6 colony), so the only
-   * context 0f14 itself needs is the colony, the pools and the LCG. Build the
-   * same shape the raid pulse hands the loot core; `turn_number` stays NULL
-   * (its only reader, the early-game demote grace, guards on it).
+   * context 0f14 itself needs is the colony, the pools, the LCG and the turn
+   * word. Build the same shape the raid pulse hands the loot core.
    */
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));
@@ -1071,6 +1069,9 @@ int ai_contact_colony_raid_repelled_w(
   ctx.col1_ok = true;
   ctx.rng = rng;
   ctx.human_nation = -1;
+  /* 0f14's early-game grace reads DS:0x538e on this path too (raw 99791). */
+  uint32_t turn = col1->head.turn;
+  ctx.turn_number = &turn;
 
   /* The village-friction maximum this used to build here was dead on arrival:
    * ai_contact_pick_raid_kind takes no alarm argument and derives its own.

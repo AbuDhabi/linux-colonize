@@ -249,7 +249,10 @@ int ai_native_step_first_contact(
     if (e < 0 || done[e]) {
       continue;
     }
-    done[e] = 1; /* 3180: one 022e per other nation per scan (aiStack_20) */
+    /* 3180: aiStack_20[e] = 022e's return, so only a RESOLVED encounter
+     * (first contact, or a visit that went through) closes the nation for
+     * the rest of the scan; a failed mood roll lets the next tile of the
+     * same nation roll again and turn its head (DOSBox 1504->1505). */
     {
       /* raw 98633-98635: the tile's stack head (07e0) takes the scan
        * direction as its facing byte before the encounter resolves. */
@@ -262,6 +265,7 @@ int ai_native_step_first_contact(
       (void)ai_contact_try_first_welcome(s_ai_native_ctx, e, nation_id);
       s_ai_first_contact_this_turn[nation_id - 4][e] = 1;
       fired = 1;
+      done[e] = 1;
       continue;
     }
     /*
@@ -279,6 +283,7 @@ int ai_native_step_first_contact(
     if (!ai_contact_visit_step_roll(s_ai_native_ctx, nation_id, e, u->id)) {
       continue;
     }
+    done[e] = 1;
     /*
      * bugs.md #824: DOS resolves the WHOLE encounter here, in the 465b move
      * tail (0984 -> 3180 -> 022e), not in a later per-nation sweep. The mood
@@ -551,6 +556,21 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
             /* The Brave lost; 1b0e despawned it. Nothing left to stamp. */
             (*steps)++;
             return AI_NATIVE_STEP_STOP;
+          }
+        } else if (!f && ai_s_native_colonies) {
+          /* 1b0e on a colony with no field defender spawns its bVar28
+           * militia and fights it (DOSBox 1504->1505: a Brave next to the
+           * French colony attacked and died); a win runs the colony limb at
+           * the target tile. */
+          ColonizeColonyPool* cols = (ColonizeColonyPool*)ai_s_native_colonies;
+          const bool won = units_revere_defend_colony_tile(units, cols, u->id, nx, ny, rng);
+          const ColonizeUnit* self = units_get_const(units, u->id);
+          if (!self || !self->active) {
+            (*steps)++;
+            return AI_NATIVE_STEP_STOP;
+          }
+          if (won) {
+            units_try_capture_foreign_colony_at(units, cols, u->id, nx, ny);
           }
         }
       }

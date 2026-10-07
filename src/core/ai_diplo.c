@@ -3461,13 +3461,17 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
       continue;
     }
 
-    /* FUN_5bfb_13b0: AI-initiated treaty sign/cancel (replaces the invented
-     * near-parity alliance offer, 2026-08-27). Sticky deep native unrest still
-     * refuses new treaties this balance (OpenCol layer, kept; its old
-     * "precludes new alliances" status chrome retired with T2.4). */
-    if (ai_diplo_indian_hostility_sticky(ctx->col1, nation_id) != AI_DIPLO_STICKY_DEEP) {
-      ai_diplo_13b0_treaty_tick(ctx, nation_id, peer);
-    }
+    /* FUN_5bfb_13b0 is not a balance step: DOS reaches it only from 3180's
+     * land encounter (ai_diplo_13b0_encounter). Running it here on any
+     * adjacency met the Dutch through an arrival placement (DOSBox 1504). */
+  }
+}
+
+/* FUN_5bfb_3180 -> 153e with an AI self (raw 97406) -> 13b0. */
+void ai_diplo_13b0_encounter(ColonizeTurnContext* ctx, int mover, int other) {
+  if (ctx && ctx->col1 &&
+      ai_diplo_indian_hostility_sticky(ctx->col1, mover) != AI_DIPLO_STICKY_DEEP) {
+    ai_diplo_13b0_treaty_tick(ctx, mover, other);
   }
 }
 

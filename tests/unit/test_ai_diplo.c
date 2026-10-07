@@ -1474,6 +1474,7 @@ static int case_r3_r4_sugar_rum_cigars_boycott(void) {
       r3.indian[0].alarm_by_player[0] = 90; /* DOS bands: relation 30 */
       r3.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
       ai_diplo_euro_balance(&ctx_r3, 0);
+      ai_diplo_13b0_encounter(&ctx_r3, 0, 1); /* the 3180 encounter */
       if (r3.nation[0].euro_relation[1] & AI_DIPLO_PEACE) {
         return fail("sticky==2 must refuse signing new treaties this balance");
       }
@@ -1495,6 +1496,7 @@ static int case_r3_r4_sugar_rum_cigars_boycott(void) {
       r3.nation[0].gold = 600;
       r3.nation[1].gold = 600;
       ai_diplo_euro_balance(&ctx_r3, 0);
+      ai_diplo_13b0_encounter(&ctx_r3, 0, 1); /* the 3180 encounter */
       if ((r3.nation[0].euro_relation[1] & AI_DIPLO_PEACE) &&
           (r3.nation[1].euro_relation[0] & AI_DIPLO_PEACE)) {
         treaty = 1;

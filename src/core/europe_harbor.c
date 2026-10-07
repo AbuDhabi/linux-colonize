@@ -1623,8 +1623,8 @@ int europe_nation_harbor_spawn(const ColonizeWorld* w, int nation_id, int profes
 /*
  * FUN_38fd_584a's *param_2 (viceroy_unpacked.c:68256-68281) for a nation
  * record: +2 a turn, flipped negative once the nation's 0x40 latch is up by
- * every colonist-class unit of that nation still parked in Europe (DOS: unit
- * x == nation - 0x14, i.e. the Europe sentinel; same in the port).
+ * every colonist-class unit of that nation on the Europe dock (DOS: unit
+ * x == nation - 0x14 as a byte, i.e. 236+n; hulls' lane passengers do not count).
  */
 static int europe_nation_crosses_delta(const ColonizeWorld* w, int nation_id) {
   int delta = 2;
@@ -1640,8 +1640,8 @@ static int europe_nation_crosses_delta(const ColonizeWorld* w, int nation_id) {
     if (!u->active || u->nation_id != nation_id) {
       continue;
     }
-    if (u->x < 200 && u->y < 200) {
-      continue;
+    if (u->x != 236 + nation_id) {
+      continue; /* raw 68270: (byte)(n - x) == 0x14, the dock only (not the lanes) */
     }
     if (!units_type_has_profession_slot(u->type_index)) {
       continue; /* FUN_281f_0b78(unit) >= 0 */

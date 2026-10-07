@@ -737,12 +737,13 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
     const int ox = u->goto_x;
     const int oy = u->goto_y;
     const int oo = u->orders;
-    if (ai_euro_try_ship_trade_haul(ctx, nation_id, u)) {
+    const int haul = ai_euro_try_ship_trade_haul(ctx, nation_id, u);
+    if (haul) {
       u = units_get(ctx->units, id);
       if (!u || !u->active) {
         return 1;
       }
-      if (u->orders != oo || u->goto_x != ox || u->goto_y != oy || u->moves <= 0) {
+      if (haul == 2 || u->orders != oo || u->goto_x != ox || u->goto_y != oy || u->moves <= 0) {
         ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);
         return 0;
       }
@@ -761,14 +762,10 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
     ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);
     return 0;
   }
-  if (ai_euro_try_ship_europe_export(ctx, nation_id, u)) {
-    u = units_get(ctx->units, id);
-    if (!u || !u->active) {
-      return 1;
-    }
-    ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);
-    return 0;
-  }
+  /* No Europe-export arm here: DOS sails a hull home only through LAB_3fa6
+   * (full or 2+ holds, inside ai_euro_try_ship_trade_haul). The port's
+   * ">= 50 export goods" arm sent half-loaded hulls to Europe (DOSBox 1505:
+   * the Spanish caravel with 78 ore took the far-roam arm instead). */
   /* Pre-LAB_4d2e gate, raw 90210-90219. */
   const int idle = u->orders == UNITS_ORDER_NONE || u->orders == AI_EURO_ACT_ADJACENT ||
                    u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED ||
