@@ -82,6 +82,9 @@ firing:
   key at a time and confirm its effect on screen before sending the next.
   `select()` does this for menus.
 - Extended keys use ascii 0 with the scan code: Down = (0, 0x50).
+- Unattended turn loops: send `space` every ~200 polls. It dismisses popups and, on an idle
+  human turn, skips the selected unit until the turn ends. A loop that presses once stalls
+  at the first popup.
 - After the opening animation the screen goes black and waits for a key.
   `until()` sends a Space whenever the screen is black.
 

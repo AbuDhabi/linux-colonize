@@ -193,10 +193,12 @@ int ai_king_new_war_event(ColonizeTurnContext* ctx) {
  * 0x45` / act_state `+0x314c = 3 (or 0xb)` — i.e. before the hull has
  * actually reached that tile), and the census that recomputes it from the
  * x-sentinel columns only ever finds hulls that already crossed off-map. The
- * port's counterpart of "sail-home decided, not yet resolved" is
- * `u->orders == UNITS_ORDER_AI_SAIL` (ai_king_mow_sail_home_20e6 stamps it
- * at the same decision point, raw-comment above), so a crown sea unit counts
- * here for the whole multi-turn transit, not only its last tile.
+ * port's counterpart of "sail-home decided, not yet resolved" is the DOS
+ * stamp itself, `+0x314b = 0x45` (col1_ai_plan), which
+ * ai_king_mow_sail_home_20e6 writes at the decision point, so a crown sea
+ * unit counts here for the whole transit. Not the order byte: every AI goto
+ * also uses order 11 (UNITS_ORDER_AI_SAIL), and counting those parked the
+ * whole REF fleet once its Man-O-War pool ran dry (golden_woi_ref01).
  */
 static int ai_king_crown_ships_in_europe_lane(const ColonizeTurnContext* ctx, int crown) {
   if (!ctx || !ctx->units || !ctx->map) {
@@ -219,7 +221,7 @@ static int ai_king_crown_ships_in_europe_lane(const ColonizeTurnContext* ctx, in
     if (!units_is_sea(ctx->units, u->id)) {
       continue;
     }
-    if (u->orders == UNITS_ORDER_AI_SAIL || map_tile_is_high_seas(ctx->map, u->x, u->y)) {
+    if (u->col1_ai_plan == 0x45 || map_tile_is_high_seas(ctx->map, u->x, u->y)) {
       n++;
     }
   }
@@ -241,7 +243,7 @@ static int ai_king_crown_ships_in_europe_lane(const ColonizeTurnContext* ctx, in
  *   if (  (DS:0x5382 & 1) == 0                  // not at war
  *      || unit+0x3146 != 0x12                   // not a Man-O-War
  *      || iStack_6 != 0                         // orders byte +0x314b is 't'/'i'
- *      || iStack_a8 != 0                        // 8aac(unit,2)-1: tile stack minus self
+ *      || iStack_a8 != 0                        // 8aac(unit,2)-1: own -2 group minus self
  *      || DS:0x53de != 0                        // MoW pool (expeditionary_force[2]) not empty
  *      || DS:0x9456[nation] != 0                // a ship of this nation is already in the Europe lane
  *      || DS:0x53da+0x53dc+0x53e0 == 0 )        // no land pools left
@@ -252,8 +254,8 @@ static int ai_king_crown_ships_in_europe_lane(const ColonizeTurnContext* ctx, in
  *   //   DS:0x9456+nation, act_state +0x314c = 3 (or 0xb), latch the tile in
  *   //   +0x314d/e and stamp orders +0x314b = 0x45 — i.e. sail home.
  *   // (The port models the goal with its own pursue order UNITS_ORDER_AI_SAIL
- *   //  = 0x0b, the `+0x314c = 3 (or 0xb)` act-state above; the raw DOS
- *   //  +0x314b order byte 0x45 has no port enum — bugs.md #878d.)
+ *   //  = 0x0b, the `+0x314c = 3 (or 0xb)` act-state above, and writes the
+ *   //  +0x314b = 0x45 byte to col1_ai_plan, which the lane count reads.)
  *
  * Nothing credits a pool: `expeditionary_force[]` is untouched on the way
  * out. The fleet cadence comes from FUN_43f7_0982's own opening gate
@@ -266,11 +268,12 @@ static int ai_king_crown_ships_in_europe_lane(const ColonizeTurnContext* ctx, in
  *     REF type can pursue FOUND/MIL_EXPAND (name-gated to Pioneer/Colonist
  *     kinds), so the term stays 0 for a crown Man-O-War even now that the
  *     crown runs the full euro turn (D1 closed 2026-09-07g).
- *   - `iStack_a8` = FUN_1000_8aac(unit, 2) - 1 = the ship's tile stack minus
- *     itself (case 2 = TOTAL stack count, ai_euro.c's 8aac table). DOS
- *     passengers sit at (-2,-2) and never count; the port's sit in
- *     cargo_ids, so this is the tile scan alone and the caller runs the arm
- *     only for an empty hull.
+ *   - `iStack_a8` = FUN_1000_8aac(unit, 2) - 1, taken at overlay 0x3609
+ *     right after FUN_1427_10be has moved the hull and its passengers onto
+ *     the (-2,-2) chain (040c relinks them only at 0x3693; DOSBox trace
+ *     2026-10-06). So it counts the hull's passengers, not other ships on
+ *     the tile: stacked crown MoWs do not block each other. The caller runs
+ *     the arm only for an empty hull, so the term is 0.
  *
  * Departure: DOS hands the hull to the Europe lane (x = 244+nation) and the
  * crown's own Europe dock. The port models no crown dock, so a crown MoW
@@ -297,25 +300,16 @@ int ai_king_mow_sail_home_20e6(ColonizeTurnContext* ctx, ColonizeUnit* u, int cr
   if (ai_king_crown_ships_in_europe_lane(ctx, crown) != 0) {
     return 0; /* DS:0x9456[nation] */
   }
-  /* iStack_a8: any other unit sharing the ship's tile blocks the beat. */
-  /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
-  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-    const ColonizeUnit* o = &ctx->units->units[i];
-    if (!o->active || o->id == u->id || o->aboard_ship_id >= 0) {
-      continue;
-    }
-    if (o->x == u->x && o->y == u->y) {
-      return 0;
-    }
-  }
+  /* iStack_a8 counts the hull's own -2 group (passengers); the caller only
+   * runs this for an empty hull, so it is 0 here. */
   int hx = 0;
   int hy = 0;
   if (!units_spiral_place_hs_near(ctx->units, ctx->map, u->x, u->y, crown, &hx, &hy)) {
     return 0;
   }
-  /* Port pursue-goal order (0x0b), DOS act_state `+0x314c = 3/0xb`; the DOS
-   * `+0x314b = 0x45` order byte itself is not modelled (bugs.md #878d). */
+  /* Port pursue-goal order (0x0b), DOS act_state `+0x314c = 3/0xb`. */
   u->orders = UNITS_ORDER_AI_SAIL;
+  u->col1_ai_plan = 0x45; /* +0x314b = 'E' */
   u->goto_x = hx;
   u->goto_y = hy;
   if (u->moves > 0) {

@@ -668,6 +668,11 @@ void units_slot_reset_defaults(
   slot->horses = 0;
   slot->home_tribe_id = -1;
   slot->col1_counter16 = 0;
+  /* FUN_1427_06b4 clears holds[0..1] and writes 0xff to hold[2] (the AI
+   * explorer bytes +0x3154..+0x3156); the rest of a reused raw block stays. */
+  slot->col1_hold_raw[4] = 0;
+  slot->col1_hold_raw[5] = 0;
+  slot->col1_hold_raw[6] = 0xff;
   slot->mp_spent_turn = 0;
   slot->aboard_moves = -1;
   slot->last_dir = 0;

@@ -555,7 +555,9 @@ uint8_t colonies_plot_blocked_mask(
 /* Forward decl — unit helpers need the unit pool without including units.h here. */
 typedef struct ColonizeUnitPool ColonizeUnitPool;
 
-/* colony admit / La Salle check (see docs/colony.md#colonies_admit_unit_w) */
+/* colony admit / La Salle check (see docs/colony.md#colonies_admit_unit_w);
+ * the _idle form leaves the newcomer plotless (AI tick absorption). */
+int colonies_admit_unit_idle_w(const ColonizeWorld* w, int colony_id, int unit_id);
 int colonies_admit_unit_w(
   const ColonizeWorld* w,
   int colony_id,

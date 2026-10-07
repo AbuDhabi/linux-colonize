@@ -858,12 +858,11 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
     return;
   }
   /* DOS-LITERAL FUN_479b_0972 raw 77099-77103: arriving pioneers
-   * discard their explorer hop countdown and slot (+0x3155/+0x3156).
-   * The port stores the slot plus one, so zero represents DOS 0xff. */
-  if (ai_euro_unit_kind(ctx->units, u) == UNITS_KIND_PIONEER &&
-      id >= 0 && id < COLONIZE_UNITS_MAX) {
-    ai_euro_s_20e6_hop_steps[id] = 0;
-    ai_euro_s_20e6_hop_slot[id] = 0;
+   * discard their explorer hop countdown and slot (+0x3155/+0x3156). */
+  if (ai_euro_unit_kind(ctx->units, u) == UNITS_KIND_PIONEER) {
+    uint8_t* sc = ai_euro_20e6_hold_scratch(u);
+    sc[1] = 0;
+    sc[2] = 0xff;
   }
   if (state == AI_EURO_ACT_GOAL) {
     u->moves = 0; /* FUN_281f_0934 on arrival */

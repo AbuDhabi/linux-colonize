@@ -436,8 +436,8 @@ static int case_530_goal_walk_partial_mp(void) {
   u->orders = AI_EURO_ACT_GOAL;
   u->goto_x = 8;
   u->goto_y = 7;
-  ai_euro_s_20e6_hop_steps[id] = 4;
-  ai_euro_s_20e6_hop_slot[id] = 7;
+  ai_euro_20e6_hold_scratch(u)[1] = 4;
+  ai_euro_20e6_hold_scratch(u)[2] = 7;
   ColonizeDosRng rng = {.state = 0xc1408068};
   ColonizeDosRng expected;
   dos_rng_seed(&expected, 100);
@@ -447,7 +447,7 @@ static int case_530_goal_walk_partial_mp(void) {
   ai_euro_goal_walk_479b(&ctx, u);
   const int rc = u->x != 8 || u->y != 7 || u->orders != UNITS_ORDER_NONE ||
                  u->moves != 0 || rng.state != expected.state ||
-                 ai_euro_s_20e6_hop_steps[id] != 0 || ai_euro_s_20e6_hop_slot[id] != 0;
+                 u->col1_hold_raw[5] != 0 || u->col1_hold_raw[6] != 0xff;
   if (rc) fprintf(stderr, "#530: partial-MP goal arrival, RNG reseed, or pioneer hop reset failed\n");
   fx_map_free(&map);
   return rc;

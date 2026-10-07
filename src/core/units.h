@@ -271,6 +271,10 @@ bool units_spawn_room(const ColonizeUnitPool* pool, int nation);
 void units_tile_stack_arrive(ColonizeUnitPool* pool, int unit_id);
 /* DOS FUN_281f_07e0: return the latest-arrival unit at (x,y), if any. */
 int units_tile_head_id_at(const ColonizeUnitPool* pool, int x, int y);
+/* DOS FUN_1427_10be + FUN_1427_040c on a ship still at its old tile: re-sort
+ * that tile (04d6), then relink hull and passengers on top. `sort_group` adds
+ * the mover's 0644 pass, which puts the hull under its passengers. */
+void units_tile_stack_ship_relink(ColonizeUnitPool* pool, int ship_id, bool sort_group);
 /* Set nation_id and OR owner euro visibility bit (FUN_1427_0992). */
 void units_set_nation(ColonizeUnit* unit, int nation_id);
 
@@ -415,14 +419,18 @@ bool units_reveal_sight_w(
  */
 uint8_t units_vis_mask_for_tile(const ColonizeWorldMap* map, int x, int y, int mover_nation);
 /*
- * Move commit (FUN_465b_0000 / 48d3): FUN_1427_0968 clears the mover's (and
- * its cargo's) vis bits, then FUN_1427_0ce6 + 07fe OR the tile mask back in.
- * The mover's own bit is kept — DOS re-adds it through the reveal that
- * always follows a move (own tile is in the sight core).
+ * Move commit (FUN_465b_0000 raw 75764-75772): FUN_1427_0968 clears the
+ * mover's (and its cargo's) vis bits, 07d6 ORs the bit of the destination's
+ * owner nibble as read BEFORE the relink (06dc, any mover, natives too), and
+ * 084e = FUN_1427_0ce6 ORs every watching nation. `dest_owner` is that
+ * pre-move nibble (units_tile_owner_nibble). The mover's own bit is kept —
+ * DOS re-adds it through the reveal that always follows a move.
  */
 void units_vis_mask_after_move(
-  ColonizeUnitPool* pool, const ColonizeWorldMap* map, int unit_id, int x, int y
+  ColonizeUnitPool* pool, const ColonizeWorldMap* map, int unit_id, int x, int y, int dest_owner
 );
+/* FUN_137f_0200: layer3 owner nibble at (x,y), -1 for 0xf / off map. */
+int units_tile_owner_nibble(const ColonizeWorldMap* map, int x, int y);
 /* Live ships of one nation (DOS -0x6be8 ship_counts[nation] equivalent). */
 int units_count_sea_for_nation(const ColonizeUnitPool* pool, int nation_id);
 bool units_is_on_map(const ColonizeUnit* unit);

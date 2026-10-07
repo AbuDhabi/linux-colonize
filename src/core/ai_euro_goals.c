@@ -1589,7 +1589,7 @@ COLONIZE_INTERNAL void ai_euro_5952_absorb_equip(
          * idle-sentinel job: the refund loop (raw 11234-11248) banks the
          * unit's gear into stock and the colonist keeps its profession. */
         ColonizeWorld w = world_from_turn_ctx(ctx);
-        if (colonies_admit_unit_w(&w, c->id, u->id) < 0) {
+        if (colonies_admit_unit_idle_w(&w, c->id, u->id) < 0) {
           continue;
         }
         restart = 1; /* iStack_32 */

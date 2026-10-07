@@ -597,13 +597,14 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
   {
     const int step_ox = u->x;
     const int step_oy = u->y;
+    const int dest_owner = units_tile_owner_nibble(map, nx, ny); /* 06dc, raw 75766 */
     u->x = nx;
     u->y = ny;
     units_tile_stack_arrive(units, u->id);
     units_occupancy_notify_moved(units, step_ox, step_oy, nx, ny);
     /* 465b commit tail clears+recomputes unit+0x3147's observed nibble
      * (FUN_281f_08da / 084e / 07fe) on every step — braves included. */
-    units_vis_mask_after_move(units, map, u->id, nx, ny);
+    units_vis_mask_after_move(units, map, u->id, nx, ny, dest_owner);
     /* FUN_465b_0000 commit -> FUN_5bfb_3180, raw 98628-98646:
      * native steps also wake adjacent foreign sentries (#530). */
     units_sentry_wake_scan(units, map, ai_s_native_colonies, u->id);

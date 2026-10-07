@@ -307,9 +307,8 @@ void ai_euro_5952_tools_supply_and_connect(
   ColonizeTurnContext* ctx, ColonizeColony* col
 );
 extern uint8_t ai_euro_s_20e6_explorers[16];
-extern uint8_t ai_euro_s_20e6_explore_fatigue[COLONIZE_UNITS_MAX];
-extern int8_t ai_euro_s_20e6_hop_steps[COLONIZE_UNITS_MAX];
-extern int16_t ai_euro_s_20e6_hop_slot[COLONIZE_UNITS_MAX];
+/* DOS unit+0x3154..+0x3156 (fatigue, hop countdown, hop slot) in the raw hold bytes. */
+uint8_t* ai_euro_20e6_hold_scratch(ColonizeUnit* u);
 int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUnit* u);
 /* @UNIT DEFENSE column (bugs.md #651) — exposed for test_regress_ai_tables.c. */
 int ai_euro_20e6_unit_col5(const ColonizeUnitPool* pool, int dos_type);

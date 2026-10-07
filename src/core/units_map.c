@@ -477,14 +477,26 @@ uint8_t units_vis_mask_for_tile(const ColonizeWorldMap* map, int x, int y, int m
   return mask;
 }
 
+int units_tile_owner_nibble(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || !map->layer3 || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return -1;
+  }
+  const int owner = (map_get_layer3(map, x, y) >> 4) & 0x0f;
+  return owner == 0x0f ? -1 : owner;
+}
+
 void units_vis_mask_after_move(
-  ColonizeUnitPool* pool, const ColonizeWorldMap* map, int unit_id, int x, int y
+  ColonizeUnitPool* pool, const ColonizeWorldMap* map, int unit_id, int x, int y, int dest_owner
 ) {
   ColonizeUnit* u = units_get(pool, unit_id);
   if (!u || !u->active) {
     return;
   }
-  uint8_t mask = units_vis_mask_for_tile(map, x, y, u->nation_id);
+  /* -1 as mover nation: 0c9a's own owner term is replaced by 07d6 below. */
+  uint8_t mask = units_vis_mask_for_tile(map, x, y, -1);
+  if (dest_owner >= 0 && dest_owner < 4) { /* 0x10 << nibble, byte-truncated */
+    mask = (uint8_t)(mask | (1u << dest_owner));
+  }
   if (u->nation_id >= 0 && u->nation_id < 4) {
     mask = (uint8_t)(mask | (1u << (u->nation_id & 3)));
   }
@@ -561,6 +573,92 @@ void units_tile_stack_arrive(ColonizeUnitPool* pool, int unit_id) {
     pool->next_tile_stack_order = 1;
   }
   unit->tile_stack_order = pool->next_tile_stack_order++;
+}
+
+/* FUN_1427_04d6 mode 0 bucket: transports, Treasure, then @UNIT size 6..1; 0 is never moved. */
+static int units_stack_rank_04d6(const ColonizeUnitPool* pool, int id) {
+  const ColonizeUnit* u = units_get_const(pool, id);
+  const ColonizeUnitType* t = u ? units_type(pool, u->type_index) : NULL;
+  if (t && t->cargo > 0) {
+    return 8;
+  }
+  if (u && u->type_index == UNITS_KIND_TREASURE) {
+    return 7;
+  }
+  return t && t->space >= 1 && t->space <= 6 ? t->space : 0;
+}
+
+/*
+ * DOS-LITERAL FUN_1427_04d6(unit, 0) raw 7612-7677 on a bottom→top id list:
+ * each bucket is peeled top-down onto the -3 chain, which is relinked
+ * top-first, so the chain ends rank-ascending, stable in its old order.
+ */
+static void units_stack_sort_04d6(const ColonizeUnitPool* pool, int* ids, int n) {
+  for (int i = 1; i < n; ++i) {
+    const int id = ids[i];
+    const int r = units_stack_rank_04d6(pool, id);
+    int at = i;
+    while (at > 0 && units_stack_rank_04d6(pool, ids[at - 1]) > r) {
+      ids[at] = ids[at - 1];
+      --at;
+    }
+    ids[at] = id;
+  }
+}
+
+/* Bottom→top insertion by tile_stack_order. */
+static int units_stack_push_ordered(const ColonizeUnitPool* pool, int* ids, int n, int from, int id) {
+  const uint64_t o = units_get_const(pool, id)->tile_stack_order;
+  int at = n;
+  while (at > from && units_get_const(pool, ids[at - 1])->tile_stack_order > o) {
+    ids[at] = ids[at - 1];
+    --at;
+  }
+  ids[at] = id;
+  return n + 1;
+}
+
+void units_tile_stack_ship_relink(ColonizeUnitPool* pool, int ship_id, bool sort_group) {
+  ColonizeUnit* ship = units_get(pool, ship_id);
+  if (!ship) {
+    return;
+  }
+  /* FUN_1427_10be raw 8606-8680: 04d6 the ship's tile first. */
+  static int tile[COLONIZE_UNITS_MAX];
+  int tn = 0;
+  for (int i = 0; i < units_slot_end(pool); ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (u->active && u->x == ship->x && u->y == ship->y) {
+      tn = units_stack_push_ordered(pool, tile, tn, 0, u->id);
+    }
+  }
+  units_stack_sort_04d6(pool, tile, tn);
+  for (int i = 0; i < tn; ++i) {
+    units_tile_stack_arrive(pool, tile[i]);
+  }
+  /* The hull goes to the -2 chain, then its passengers walked top-down. */
+  int chain[COLONIZE_UNIT_CARGO_MAX + 1];
+  int n = 1;
+  chain[0] = ship->id;
+  for (int i = 0; i < ship->cargo_count && n <= COLONIZE_UNIT_CARGO_MAX; ++i) {
+    if (units_get_const(pool, ship->cargo_ids[i])) {
+      n = units_stack_push_ordered(pool, chain, n, 1, ship->cargo_ids[i]);
+    }
+  }
+  for (int i = 1, j = n - 1; i < j; ++i, --j) {
+    const int t = chain[i];
+    chain[i] = chain[j];
+    chain[j] = t;
+  }
+  /* The mover's FUN_281f_08e4 = FUN_1427_0644 runs 04d6 on the -2 chain
+   * (raw 75704; DOSBox trace 2026-10-06, docs/idle_campaign.md). */
+  if (sort_group) {
+    units_stack_sort_04d6(pool, chain, n);
+  }
+  /* FUN_1427_040c relinks the -2 chain top-first: it lands reversed. */
+  for (int i = n - 1; i >= 0; --i) {
+    units_tile_stack_arrive(pool, chain[i]);
+  }
 }
 
 int units_tile_head_id_at(const ColonizeUnitPool* pool, int x, int y) {
@@ -899,12 +997,13 @@ void units_occupancy_notify_moved(ColonizeUnitPool* pool, int old_x, int old_y, 
     units_occupancy_refresh_tile(pool, old_x, old_y, -1);
   }
   if (new_x >= 0 && new_y >= 0 && new_x < 200 && new_y < 200) {
+    const int dest_owner = units_tile_owner_nibble(units_occupancy_map, new_x, new_y);
     units_occupancy_refresh_tile(pool, new_x, new_y, -1);
     /* AI teleport/step movers: same vis reset as units_try_move, for the whole arriving stack. */
     for (int i = 0; i < units_slot_end(pool); ++i) {
       const ColonizeUnit* u = &pool->units[i];
       if (units_is_on_map(u) && u->aboard_ship_id < 0 && u->x == new_x && u->y == new_y) {
-        units_vis_mask_after_move(pool, units_occupancy_map, u->id, new_x, new_y);
+        units_vis_mask_after_move(pool, units_occupancy_map, u->id, new_x, new_y, dest_owner);
       }
     }
   }

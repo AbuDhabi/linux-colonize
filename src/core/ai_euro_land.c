@@ -655,25 +655,21 @@ void ai_euro_5952_tools_supply_and_connect(
 
 uint8_t ai_euro_s_20e6_explorers[16];
 /*
- * DOS unit+0x3154, the land-explorer branch (raw ~1600-1607): a per-unit
- * explore-fatigue counter, ++ (cap 0x7f) each explore-ring pass; the ring-hop
- * arm decrements it by 8. In DOS the same byte doubles as cargo_hold[0]
- * storage; land explorers never carry cargo, so a session-local array is the
- * honest home (not save-persisted — documented divergence).
+ * DOS unit+0x3154 / +0x3155 / +0x3156 = save record cargo_hold[0..2]
+ * (col1_hold_raw[4..6]): the land explorer's fatigue counter (++ cap 0x7f per
+ * explore-ring pass, -8 per ring hop, raw ~1600-1607 / 2455-2456), its hop
+ * countdown (signed char) and its ring20 hop slot (0xff = unset; raw
+ * 1600-1611 / 2416-2458). FUN_1427_06b4 spawns them 0 / 0 / 0xff, which is
+ * also what an unstashed Euro record exports.
  */
-uint8_t ai_euro_s_20e6_explore_fatigue[COLONIZE_UNITS_MAX];
-/*
- * DOS unit+0x3155 / +0x3156 — the explorer's 4-tile ring-hop wander latch
- * (raw 1600-1611 countdown / 2416-2458 hop pick; ported 2026-09-06).
- * +0x3156 latches a random ring20 slot (0xff = unset, re-rolled rng(1,0x14)−1
- * when needed); +0x3155 counts down the committed hop (max(dx,dy)*4, signed
- * char semantics kept). Like +0x3154 these bytes are cargo_hold storage in
- * DOS and land explorers never carry cargo, so session-local arrays are the
- * honest home (not save-persisted — documented divergence).
- * ai_euro_s_20e6_hop_slot stores slot+1 so the zero-initialised state reads "unset".
- */
-int8_t ai_euro_s_20e6_hop_steps[COLONIZE_UNITS_MAX];
-int16_t ai_euro_s_20e6_hop_slot[COLONIZE_UNITS_MAX];
+uint8_t* ai_euro_20e6_hold_scratch(ColonizeUnit* u) {
+  if (!u->col1_hold_raw_valid) {
+    memset(u->col1_hold_raw, 0, sizeof(u->col1_hold_raw));
+    u->col1_hold_raw[6] = 0xff;
+    u->col1_hold_raw_valid = 1;
+  }
+  return &u->col1_hold_raw[4];
+}
 
 /* DOS unit+0x3146 type index (NAMES.TXT @UNIT order) from an OpenCol unit. */
 /*
@@ -1016,7 +1012,7 @@ int ai_euro_20e6_foreign_colony_on(const ColonizeTurnContext* ctx, int nation, i
  */
 static int ai_euro_20e6_local12(const ColonizeTurnContext* ctx, const ColonizeUnit* u, int nation, int cid) {
   (void)ctx;
-  const int fat = (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) ? (int)ai_euro_s_20e6_explore_fatigue[u->id] : 0;
+  const int fat = u->col1_hold_raw_valid ? (int)u->col1_hold_raw[4] : 0;
   return ai_euro_rival_strength_at(nation, cid) * 8 + fat;
 }
 
@@ -1512,9 +1508,8 @@ static int ai_euro_land_explore_scan_target(
    * local_12 = −0x6168[cid]*8 + that counter. Both terms live now
    * (s_euro_rival_strength writer / ai_euro_s_20e6_explore_fatigue).
    */
-  if (s.explorer && u->id >= 0 && u->id < COLONIZE_UNITS_MAX &&
-      ai_euro_s_20e6_explore_fatigue[u->id] < 0x7f) {
-    ai_euro_s_20e6_explore_fatigue[u->id]++;
+  if (s.explorer && ai_euro_20e6_hold_scratch(u)[0] < 0x7f) {
+    ai_euro_20e6_hold_scratch(u)[0]++;
   }
   const int local_12 = ai_euro_20e6_local12(ctx, u, nation_id, s.cid);
   int radius = 3;
@@ -2420,19 +2415,18 @@ int ai_euro_20e6_ship_far_roam(ColonizeTurnContext* ctx, ColonizeUnit* u, const 
  * commits as a goto (27f5). Returns 1 when a hop goto was set.
  */
 static int ai_euro_20e6_ring_hop(ColonizeTurnContext* ctx, ColonizeUnit* u, const Ai20e6Unit* s) {
-  if (!ctx || !ctx->map || !u || u->id < 0 || u->id >= COLONIZE_UNITS_MAX || s->cid < 0) {
+  if (!ctx || !ctx->map || !u || s->cid < 0) {
     return 0;
   }
-  int16_t* slotp = &ai_euro_s_20e6_hop_slot[u->id];
-  if (*slotp == 0) {
+  uint8_t* sc = ai_euro_20e6_hold_scratch(u);
+  if ((int8_t)sc[2] < 0) {
     if (!ctx->rng) {
       return 0;
     }
-    *slotp = (int16_t)dos_rng_range(ctx->rng, 1, 0x14); /* raw 2421: 86c4(1,0x14), stored +1 */
+    sc[2] = (uint8_t)(dos_rng_range(ctx->rng, 1, 0x14) - 1); /* raw 2421: 86c4(1,0x14)-1 */
   }
-  const int slot = (int)*slotp - 1;
-  if (slot < 0 || slot >= 20) {
-    *slotp = 0;
+  const int slot = sc[2];
+  if (slot >= 20) {
     return 0;
   }
   const int hx = (int)ai_euro_k_20e6_ring20_dx[slot] * 4;
@@ -2454,9 +2448,9 @@ static int ai_euro_20e6_ring_hop(ColonizeTurnContext* ctx, ColonizeUnit* u, cons
   if (getenv("AI_20E6_HOP_TRACE")) {
     fprintf(stderr, "[hop] unit %d n%d slot %d -> (%d,%d)\n", u->id, s->nation, slot, tx, ty);
   }
-  ai_euro_s_20e6_hop_steps[u->id] = (int8_t)(hx < hy ? hy : hx); /* raw 2447-2453 */
-  if (ai_euro_s_20e6_explore_fatigue[u->id] > 8) {
-    ai_euro_s_20e6_explore_fatigue[u->id] -= 8;
+  sc[1] = (uint8_t)(int8_t)(hx < hy ? hy : hx); /* raw 2447-2453 */
+  if (sc[0] > 8) {
+    sc[0] -= 8;
   }
   ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
   return 1;
@@ -3489,15 +3483,16 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
      * reaches the hop pick with a fresh roll.
      */
     int hop_scan = 1;
-    if (!force_wander && s.explorer && u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
-      if (ai_euro_s_20e6_hop_steps[u->id] != 0) {
-        ai_euro_s_20e6_hop_steps[u->id]--;
+    if (!force_wander && s.explorer) {
+      uint8_t* sc = ai_euro_20e6_hold_scratch(u);
+      if (sc[1] != 0) {
+        sc[1]--;
         hop_scan = 0;
         if (ai_euro_20e6_ring_hop(ctx, u, &s)) {
           return 0;
         }
       } else {
-        ai_euro_s_20e6_hop_slot[u->id] = 0; /* raw 1602: +0x3156 = 0xff */
+        sc[2] = 0xff; /* raw 1602 */
       }
     }
     /* Raw 85313-85337, DOS position: after the hop block, before the
@@ -3577,6 +3572,7 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
         ai_euro_20e6_stay_tail_589e(u); /* LAB_5899 local_76 = 8 -> LAB_589e */
         return 0; /* stay put next to the foreign border colony */
       }
+      u->col1_ai_plan = 0x39; /* '9' — raw 89040 fallthrough */
       u->last_dir = dir; /* unit+0x314f, 8 = stay */
       if (dir == 8) {
         ai_euro_20e6_stay_tail_589e(u); /* LAB_589e: +0x314c = 5 (6 when admitted) */

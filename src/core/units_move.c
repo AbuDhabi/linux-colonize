@@ -33,7 +33,6 @@
 
 /* ===================== Unit movement, orders & basic order commands (units_try_move .. units_order_trade_route) ===================== */
 
-
 bool units_try_move_w(
   const ColonizeWorld* w,
   int unit_id,
@@ -583,26 +582,29 @@ combat_entry_resolved:
     unit->orders = UNITS_ORDER_NONE;
   }
 
+  const int dest_owner = units_tile_owner_nibble(map, dest_x, dest_y); /* 06dc, raw 75766 */
   const int ox = unit->x;
   const int oy = unit->y;
+  /* FUN_281f_0916 = FUN_1427_12f6, 08e4 = 0644, 0948 = 040c (raw 75697-75768). */
+  const bool ship = units_is_sea(pool, unit_id);
+  if (ship) {
+    units_tile_stack_ship_relink(pool, unit_id, true);
+  } else {
+    units_tile_stack_arrive(pool, unit_id);
+  }
   unit->x = dest_x;
   unit->y = dest_y;
-  units_tile_stack_arrive(pool, unit_id);
   /* Keep passengers' coordinates mirrored to the ship for debugging / unload. */
   for (int i = 0; i < unit->cargo_count; ++i) {
     ColonizeUnit* pax = units_get(pool, unit->cargo_ids[i]);
     if (pax) {
       pax->x = dest_x;
       pax->y = dest_y;
-      /* A moving carrier brings its whole DOS tile chain along. The save
-       * chain orders hull then passengers; leaving passenger stack orders
-       * at the old tile rotated the hull behind them on capture. */
-      units_tile_stack_arrive(pool, pax->id);
     }
   }
   units_occupancy_refresh_tile(pool, ox, oy, unit_id);
   units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
-  units_vis_mask_after_move(pool, map, unit_id, dest_x, dest_y);
+  units_vis_mask_after_move(pool, map, unit_id, dest_x, dest_y, dest_owner);
   /*
    * DOS-LITERAL FUN_465b_0000 raw 75712 / 75813: `FUN_281f_07a0(0x281f)` (the
    * far thunk to FUN_13f1_02f8) sits in the mover, unconditionally, right after
