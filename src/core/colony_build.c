@@ -685,9 +685,9 @@ bool colonies_try_complete_building_ex(
     } else if (colonies_building_name_row(bt->name) == COLONY_BUILDING_CAPITOL ||
                colonies_building_name_row(bt->name) == COLONY_BUILDING_CAPITOL_EXPANSION) {
       col->capitol_level++;
-    } else if (colonies_building_name_row(bt->name) == COLONY_BUILDING_CUSTOM_HOUSE && col->custom_house_bits == 0) {
-      col->custom_house_bits = COLONIZE_CUSTOM_HOUSE_DEFAULT_MASK;
     }
+    /* No Custom House default here: +0x8a's only writers are FUN_364b_1ba8
+     * (founding), the human dialog (raw 51126) and the AI tick's clear. */
   }
   col->hammers = 0;
   /*

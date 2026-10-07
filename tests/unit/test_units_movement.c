@@ -81,17 +81,23 @@ static int unit_fog_vis_mask_and_snapshot(void) {
   }
 
   /* Move b next to a: mask := watchers (nation 0 adjacent) | own bit. */
-  units_vis_mask_after_move(&units, &map, b, 4, 4);
+  units_vis_mask_after_move(&units, &map, b, 4, 4, -1);
   const uint8_t mb = units_get(&units, b)->col1_vis_mask;
   if ((mb & 1u) == 0 || (mb & 2u) == 0) {
     fprintf(stderr, "fog: mask after move next to watcher = 0x%02x\n", mb);
     return 1;
   }
   /* Move b away again: watcher bit drops, own bit stays. */
-  units_vis_mask_after_move(&units, &map, b, 8, 8);
+  units_vis_mask_after_move(&units, &map, b, 8, 8, -1);
   const uint8_t mb2 = units_get(&units, b)->col1_vis_mask;
   if ((mb2 & 1u) != 0 || (mb2 & 2u) == 0) {
     fprintf(stderr, "fog: mask after move away = 0x%02x\n", mb2);
+    return 1;
+  }
+  /* 465b 07d6(06dc): the destination's pre-move owner nibble adds its bit. */
+  units_vis_mask_after_move(&units, &map, b, 8, 8, 0);
+  if ((units_get(&units, b)->col1_vis_mask & 1u) == 0) {
+    fprintf(stderr, "fog: pre-move owner bit missing\n");
     return 1;
   }
   /*

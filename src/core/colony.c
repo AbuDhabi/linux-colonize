@@ -912,8 +912,12 @@ void colonies_indian_land_pay(
       }
     }
   }
-  /* FUN_281f_068c(..., 0x10, 1) — purchased tribal land on the tile. */
-  if (col1->map.mask && col1->head.map_size_x > 0) {
+  colonies_stamp_worked_plot(col1, map, x, y);
+}
+
+/* FUN_15eb_0668 = FUN_0000_6518(dx, dy, 1): FUN_281f_068c(x, y, 0x10, 1). */
+void colonies_stamp_worked_plot(ColonizeCol1Save* col1, const ColonizeWorldMap* map, int x, int y) {
+  if (col1 && col1->map.mask && col1->head.map_size_x > 0) {
     const size_t idx = (size_t)y * (size_t)col1->head.map_size_x + (size_t)x;
     if (idx < col1->map.tile_count) {
       col1->map.mask[idx] = (uint8_t)(col1->map.mask[idx] | 0x10u);
@@ -1117,9 +1121,7 @@ int colonies_found(
   snprintf(slot->name, sizeof(slot->name), "%s", colonies_next_name(pool, nation_id));
   /* raw 58058-58067: FUN_281f_0d26(cargo, 1) arms the Custom House export of
    * sugar, tobacco, cotton, furs, ore, silver, rum, cigars, cloth, coats. */
-  slot->custom_house_bits = (uint16_t)((1u << 1) | (1u << 2) | (1u << 3) | (1u << 4) |
-                                       (1u << 6) | (1u << 7) | (1u << 9) | (1u << 10) |
-                                       (1u << 11) | (1u << 12));
+  slot->custom_house_bits = COLONIZE_CUSTOM_HOUSE_DEFAULT_MASK;
   /* raw 58088-58099: +0xba[0..3] = 1 for all four nations (the 074a seen
    * test only re-writes the same 1), +0xbe[0..3] = 0. */
   for (int e = 0; e < 4; ++e) {

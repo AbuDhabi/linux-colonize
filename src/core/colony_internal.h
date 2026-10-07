@@ -28,4 +28,8 @@ void colonies_col1_rebel_divisor_adjust(ColonizeCol1Save* col1, int x, int y, in
 /* --- owned by colony_plots.c --- */
 void colonies_clear_colonist_tile(ColonizeColony* col, int colonist_index);
 
+/* Mask bit 0x10 (MAP_LAYER2_PURCHASED): a bought plot, and every plot
+ * FUN_0000_6582 seats a worker on (docs/colony.md#colonies_assign_field_w). */
+void colonies_stamp_worked_plot(ColonizeCol1Save* col1, const ColonizeWorldMap* map, int x, int y);
+
 #endif /* COLONIZE_CORE_COLONY_INTERNAL_H */

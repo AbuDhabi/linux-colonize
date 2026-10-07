@@ -18,8 +18,14 @@ GOLDEN_IDLE_DUMP=/tmp/x/sim.sav ./build/debug/golden_idle_campaign Y Y+1
 then a recursive JSON diff (show `*_hex` blobs as differing byte offsets). The target is
 `EXCLUDE_FROM_ALL`: rebuild it explicitly (`cmake --build build/debug --target golden_idle_campaign`).
 
-Progress (sum of differing JSON leaves over all 77 transitions): 18,869 → 16,546.
-1493→1494 is down to the tile-chain order below; 1492→1493 to the human's first-turn UI.
+Progress (sum of differing JSON leaves over all 77 transitions): 18,869 → 16,546 → 16,178.
+1493→1494 and 1494→1495 pass byte-for-byte; 1492→1493 is down to the human's first-turn UI.
+
+DOSBox method used here (docs/dos_trace.md): `setup --save year_Y.sav`, load, then `BPM` on the
+record bytes that differ (unit chain +0x18, colony +0x8a / +0x70) or `BP` on a resident routine
+(game DS 0x237e; resident CS = Ghidra segment − 0x1000 + 0x0824, e.g. 15eb → 0e0f, 1427 → 0c4b).
+A hit in a high CS is an overlay: find the bytes in the EXE, map the file offset with
+`tools/rtlink_overlay_extract.py`'s segments.json (segmentIndex N = OVLN).
 
 ## What the autosave is (DOS year loop, raw 6330-6470)
 
@@ -52,17 +58,44 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
 - Capture keeps DOS's stale hold bytes past `holds_occupied` (DOS remover `FUN_15eb_317c`
   never clears); autosaves stamp the 130d_0172 head state; Move Pieces entry resets 0x5392.
 
+- Ship tile-chain order (DOSBox BPM trace of unit+0x18/+0x1a, 1492→1494). Every ship relink is
+  `FUN_1427_10be` (04d6 the tile, hull to the -2 chain, passengers on it top-down) then 040c
+  (relink top-first, so reversed). The 465b mover adds `FUN_281f_08e4` = `FUN_1427_0644`
+  (04d6 on the -2 chain) in between, which leaves the hull *under* its passengers; the 20e6
+  LAB_3558 band (overlay 0x3609 10be, 0x3693 040c on the own tile) and the 064e Europe
+  placement do not, which leaves it on top. Port: `units_tile_stack_ship_relink`.
+- AI explorer fatigue / hop countdown / hop slot are the save's `cargo_hold[0..2]`
+  (+0x3154..56) on the unit (`ai_euro_20e6_hold_scratch`), not session arrays; spawn resets
+  them 0/0/0xff (06b4). The land wander tail writes plan `'9'` (raw 89040) like the ship one.
+- Every plot seat (`FUN_0000_6582`) ends in `6518(dx,dy,1)`: mask bit 0x10 on the worked tile,
+  claimed or not (all 869 worked plots in the saves carry it) — `colonies_stamp_worked_plot`.
+- `FUN_5952_035e` opens with `memset(colony+0x8a, 0, 2)` (OVL15 0x39f, BPM-confirmed): AI
+  colonies lose the Custom House bits on their first tick. The invented "default bits when the
+  Custom House completes" in colony_build.c is gone (0d26's only callers: 1ba8, human dialog).
+- DS:0x35e is 0 during the tick's food pass and pass 2 and set at LAB_17a9 (raw 94628), so
+  28c8's food weight `local_4` is 0 there (BP trace of 15eb:2d14 scores).
+- The tick's absorption arm joins through `FUN_15eb_1068(outside slot)`: idle, no 2ea0 seat
+  (`colonies_admit_unit_idle_w`).
+- Move vis (465b raw 75764-75772): `07d6(unit, 06dc(dest))` ORs the destination's owner-nibble
+  bit as read before the relink, for every mover including braves (BPM-traced); the port read it
+  after its own arrival stamp and only for Euro movers. `units_vis_mask_after_move(..., dest_owner)`.
+- Side fix (golden_woi_ref01): the crown MoW sail-home gate's `iStack_a8` is the hull's own
+  -2 group (taken at 0x3609 after 10be), not the tile; DS:0x9456 is counted by the 0x45 plan
+  stamp, not order 11 (shared with every AI goto) — the REF fleet no longer parks for good.
+
 ## Open leads (most transitions first)
 
-- **AI colony tick vs DOS**: colony worker/tile choice, `specialty_cargo`, `building_in_production`
-  255, AI-colony custom-house bits cleared one turn after founding (no static writer of
-  colony+0x8a found besides 1ba8 and the human dialog — needs a DOSBox watch).
-  Downstream: purchased bit on worked tiles, alarm/friction, recruit pool RNG phase.
-- **Tile chain order** (`transport_chain`): after a LAB_3558 unload DOS chains the remaining
-  passenger before the hull (4→3); capture emits hull first.
-- **Native unit `vis_mask`** stays 0 in the port where DOS sets the seeing Euro bit.
-- **Land-unit hold bytes** (`cargo_hold[0]` 1/2 on soldiers/pioneers) and plan codes
-  `'9'` vs `'?'` after landing.
+- **AI colony tick vs DOS**: still the main source from 1497 on (worker/tile choice,
+  `specialty_cargo`, `building_in_production` 255); trace the first diverging colony with the
+  15eb:28c8 / 2d14 breakpoints. Downstream: alarm/friction, recruit pool / FF pick RNG phase.
+- Remaining `transport_chain` diffs (~720 leaves) sit in transitions that already diverge
+  elsewhere; recheck once those close.
+- **Brave routes next to new colonies** (1496→1497): a nation-7 brave steps past French Isabella
+  in DOS (owner stamps 7 on (44,52)/(44,53), tribe friction 9, relation accum) but not in the port —
+  the 021a scorer's inputs around a just-founded colony. Remaining `vis_mask` diffs (~590) are
+  mostly downstream of route/placement divergence; recheck after.
+- DOSBox loops: press space every ~200 INT16 polls (popups and the idle human's turn both take it),
+  and match units by content, not index — a colony founding compacts the array mid-turn.
 - `nations[].indian_hostility_sticky` is a port stand-in stored in DOS-dead byte +0x4b;
   DOS saves always carry 0 there. Needs a port-only home (COLNXEXT) before the byte can be 0.
 - 1492→1493 only: `tut2.nr1`, `rival_nation_slot_2`, `stuff.x/y`, `map_mode` come from the

@@ -71,9 +71,10 @@ void ai_euro_5952_ledgers(
  *   bVar2 = food emergency: `DS:0x35e == 0 && DS:0x8dc8 < DS:0x8e0a`
  *           (food gross < food demand) and, for an AI colony, also
  *           `colony+0x9a <= capacity && !(DS:0x8e32*0x10 < colony+0x9a)`.
- *           DS:0x35e is set to 1 for the whole FUN_5952_035e AI colony tick
- *           (raw 94628 set / 95975 clear), so the emergency branch is
- *           unreachable from the tick — hence `in_ai_tick` here.
+ *           DS:0x35e is set to 1 at FUN_5952_035e's LAB_17a9 (raw 94628)
+ *           and cleared at its exit (raw 95975), so the tick's food pass and
+ *           pass 2 run with it 0 and every later arm with it 1 — hence
+ *           `in_ai_tick` here (DOSBox-confirmed 2026-10-06).
  *   score = yld*8 + (7 - |dx| - |dy|)                       (raw 13017-13024)
  *   sticky x2 when the colonist already holds this job — HUMAN only (bVar1).
  *   then either the food-emergency branch (jobs 0/8 get <<5, Fisherman +8,
@@ -465,8 +466,8 @@ static int ai_euro_28c8_score_full(
 }
 
 /*
- * DOS `FUN_15eb_28c8(slot, job)` as the FUN_5952_035e colony tick calls it:
- * DS:0x35e is 1 for the whole tick, so the food-emergency branch is off.
+ * DOS `FUN_15eb_28c8(slot, job)` as the FUN_5952_035e colony tick calls it
+ * from LAB_17a9 on, where DS:0x35e is 1 and the food-emergency branch is off.
  */
 static int ai_euro_28c8_score_job(
   const ColonizeTurnContext* ctx,
@@ -2569,6 +2570,10 @@ static void ai_euro_colony_tick_run(
       continue;
     }
     if (whole_tick) {
+      /* FUN_5952_035e raw 93943 (OVL15 0x39f, DOSBox-confirmed): the tick
+       * opens with memset(colony+0x8a, 0, 2), so AI colonies carry no
+       * Custom House export bits past their first tick. */
+      col->custom_house_bits = 0;
       /* FUN_5952_035e raw 93961: FUN_281f_0c22 -> FUN_15eb_3930 (bugs.md #1080). */
       colonies_recompute_plots_w(&world, col->id);
       ai_euro_5952_colony_counters(ctx, nation_id, col);
@@ -2682,7 +2687,8 @@ static void ai_euro_colony_tick_run(
       }
       AiEuro28c8JobCandidate best;
       col->colonists[s].field_job = prev_job[s]; /* sticky ×2 on the old job */
-      const int ok = ai_euro_28c8_score_job(ctx, col, s, food_prof, food_prof, &best);
+      /* DS:0x35e is still 0 here: raw 94628 sets it at LAB_17a9, after pass 2. */
+      const int ok = ai_euro_28c8_score_full(ctx, col, s, food_prof, food_prof, 0, &best);
       col->colonists[s].field_job = -1;
       /* DOS-LITERAL raw 94592-94597: the DS:0x8dbe (best yield) stop is INSIDE
        * the `FUN_281f_0b6e(...) == 0` arm. A non-zero 28c8 return (no positive
@@ -2746,7 +2752,9 @@ static void ai_euro_colony_tick_run(
         }
         AiEuro28c8JobCandidate best;
         col->colonists[s].field_job = prev_job[s];
-        const int ok = ai_euro_28c8_score(ctx, col, s, col->colonists[s].profession, &best);
+        /* DS:0x35e still 0 (DOSBox 1495->1496: 0 here, 1 from LAB_17a9 on). */
+        const int ok =
+          ai_euro_28c8_score_full(ctx, col, s, col->colonists[s].profession, -1, 0, &best);
         col->colonists[s].field_job = -1;
         /* raw 94612-94614, same shape as pass 1: an unhandled 28c8 only skips
          * this colonist (bugs.md #585). */

@@ -1479,10 +1479,6 @@ static void ai_euro_dispatcher_turn_reset(ColonizeTurnContext* ctx) {
   memset(ai_euro_s_20e6_explorers, 0, sizeof(ai_euro_s_20e6_explorers));
   /* Village-errand latch hygiene: DOS's +0x3158 dies with its unit record;
    * the session latch must not survive a despawn into a reused unit id.
-   * Same argument for the 20e6 explore-fatigue counter and ring-hop wander
-   * latch (DOS unit+0x3154 / +0x3155 / +0x3156, raw 1600-1611 / 2416-2458):
-   * those bytes are part of the unit record too, so a reused id must not
-   * inherit a foreign fatigue count or hop commitment.
    * NOT a slot walk on purpose (audit second-wave Leads 2, 2026-09-10): these
    * latch arrays are keyed by unit ID everywhere they are read, so this loop
    * walks the addressable ID SPACE and clears the entries no live unit owns.
@@ -1492,9 +1488,6 @@ static void ai_euro_dispatcher_turn_reset(ColonizeTurnContext* ctx) {
       continue;
     }
     ai_euro_s_20e6_wagon_errand[i] = 0;
-    ai_euro_s_20e6_explore_fatigue[i] = 0;  /* fresh counter: 0 == never explored */
-    ai_euro_s_20e6_hop_slot[i] = 0;  /* slot+1 encoding: 0 == unset (DOS 0xff) */
-    ai_euro_s_20e6_hop_steps[i] = 0;
   }
 }
 
@@ -1759,8 +1752,5 @@ void ai_euro_reset(void) {
   memset(ai_euro_s_5d04_hire_scratch, 0, sizeof(ai_euro_s_5d04_hire_scratch));
 
   memset(ai_euro_s_20e6_explorers, 0, sizeof(ai_euro_s_20e6_explorers));
-  memset(ai_euro_s_20e6_explore_fatigue, 0, sizeof(ai_euro_s_20e6_explore_fatigue));
-  memset(ai_euro_s_20e6_hop_steps, 0, sizeof(ai_euro_s_20e6_hop_steps));
-  memset(ai_euro_s_20e6_hop_slot, 0, sizeof(ai_euro_s_20e6_hop_slot));
   memset(ai_euro_s_20e6_village_visited, 0, sizeof(ai_euro_s_20e6_village_visited));
 }

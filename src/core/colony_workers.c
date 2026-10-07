@@ -520,6 +520,14 @@ bool colonies_assign_field_w(
     );
   }
   colonies_assign_field_land_reaction(w, col, tile_index, plot_was_worked);
+  /* DOS-LITERAL FUN_0000_6582 raw 8833: every seat ends in FUN_0000_6518(dx,
+   * dy, 1), claimed plot or not (all 869 worked plots in the seed-100 idle
+   * saves carry the bit). */
+  int dx = 0;
+  int dy = 0;
+  if (w && colonies_field_tile_delta(tile_index, &dx, &dy)) {
+    colonies_stamp_worked_plot(w->col1_ok ? w->col1 : NULL, w->map, col->x + dx, col->y + dy);
+  }
   return true;
 }
 
@@ -562,10 +570,23 @@ bool colonies_clear_field(ColonizeColonyPool* pool, int colony_id, int tile_inde
 }
 
 /* ===================== Colonist admission, seating & auto-assignment of idle workers (colonies_admit_unit_w .. colonies_auto_assign_idle) ===================== */
-int colonies_admit_unit_w(
-  const ColonizeWorld* w,
-  int colony_id,
-  int unit_id
+static int colonies_admit_unit_seat_w(
+  const ColonizeWorld* w, int colony_id, int unit_id, bool seat
+);
+
+int colonies_admit_unit_w(const ColonizeWorld* w, int colony_id, int unit_id) {
+  return colonies_admit_unit_seat_w(w, colony_id, unit_id, true);
+}
+
+/* FUN_5952_035e absorption arm (raw 94231-94274): FUN_281f_0c36 =
+ * FUN_15eb_1068(outside slot, job) takes the unit in idle; no 3930/2ea0 seat,
+ * so no plot and no FUN_0000_6582 stamp (DOSBox 1495->1496). */
+int colonies_admit_unit_idle_w(const ColonizeWorld* w, int colony_id, int unit_id) {
+  return colonies_admit_unit_seat_w(w, colony_id, unit_id, false);
+}
+
+static int colonies_admit_unit_seat_w(
+  const ColonizeWorld* w, int colony_id, int unit_id, bool seat
 ) {
   ColonizeColonyPool* pool = w->colonies;
   ColonizeUnitPool* units = w->units;
@@ -659,7 +680,9 @@ int colonies_admit_unit_w(
   /* bugs.md #256: every admit path (AI joins, capture, save import) puts the
    * newcomer to work immediately — DOS has no idle colonists, and an idle
    * one made the head count disagree with the visible workers. */
-  colonies_seat_new_colonist(pool, colony_id, idx);
+  if (seat) {
+    colonies_seat_new_colonist(pool, colony_id, idx);
+  }
   return idx;
 }
 

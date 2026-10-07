@@ -1194,6 +1194,8 @@ static int ai_euro_20e6_ship_berth_arrival(
    * here, in the same act, into the space the load matrix left free.
    */
   (void)ai_euro_20e6_transport_assemble(ctx, nation_id, ship);
+  /* asm 0x3693: FUN_1000_8b38 (040c) relinks the -2 chain on the ship's own tile. */
+  units_tile_stack_ship_relink(ctx->units, ship->id, false);
   if (trace) {
     fprintf(
       stderr, "[shipdump] ship %d n%d colony %d dumped %d loaded %d\n", ship->id, nation_id,
@@ -1576,9 +1578,10 @@ static void ai_euro_europe_place_arrival(ColonizeTurnContext* ctx, ColonizeUnit*
   }
   const int ox = u->x;
   const int oy = u->y;
+  /* 064e: FUN_281f_0920 (10be) then 048e's 0948 (040c), no 0644. */
+  units_tile_stack_ship_relink(ctx->units, u->id, false);
   u->x = hx;
   u->y = hy;
-  units_tile_stack_arrive(ctx->units, u->id);
   units_occupancy_notify_moved(ctx->units, ox, oy, hx, hy);
   ai_euro_sync_aboard_cargo_xy(ctx->units, u);
   ColonizeWorld w = world_from_turn_ctx(ctx);
@@ -1989,6 +1992,8 @@ int ai_euro_20e6_unload_mask(ColonizeTurnContext* ctx, ColonizeUnit* ship, int n
    */
   ai_euro_20e6_clear_stale_board_marks(ctx, nation, ship);
   (void)ai_euro_20e6_transport_assemble(ctx, nation, ship);
+  /* asm 0x3693: FUN_1000_8b38 (040c) relinks the -2 chain on the ship's own tile. */
+  units_tile_stack_ship_relink(ctx->units, ship->id, false);
   int pioneers = 0;
   int mil = 0;
   int scouts = 0;
