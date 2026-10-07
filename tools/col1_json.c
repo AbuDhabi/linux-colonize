@@ -912,7 +912,7 @@ static void write_nation(FILE* f, const ColonizeCol1Nation* nt) {
   wi(f, &n, "recruit_salt", nt->recruit_salt);
   wi(f, &n, "last_colony_founded_turn", nt->last_colony_founded_turn);
   wi(f, &n, "unknown_4b", nt->unknown_4b);
-  wi(f, &n, "privateer_spawn_mask", nt->privateer_spawn_mask);
+  wi(f, &n, "musket_bank_lots", nt->musket_bank_lots);
   wi(f, &n, "king_grace_counter", nt->king_grace_counter);
   wi(f, &n, "unknown26_pad", nt->unknown26_pad);
   jkey(f, &n, "trade");
@@ -980,7 +980,9 @@ static void read_nation(const JsonValue* o, ColonizeCol1Nation* nt) {
   if (json_get_u64(o, "unknown_4b", &u) || json_get_u64(o, "indian_hostility_sticky", &u)) {
     nt->unknown_4b = (uint8_t)u; /* old key: pre-2026-10-07 dumps */
   }
-  if (json_get_u64(o, "privateer_spawn_mask", &u)) nt->privateer_spawn_mask = (uint8_t)u;
+  if (json_get_u64(o, "musket_bank_lots", &u) || json_get_u64(o, "privateer_spawn_mask", &u)) {
+    nt->musket_bank_lots = (uint8_t)u; /* old key: pre-2026-10-07 dumps */
+  }
   if (json_get_u64(o, "king_grace_counter", &u)) nt->king_grace_counter = (uint8_t)u;
   if (json_get_u64(o, "unknown26_pad", &u)) nt->unknown26_pad = (uint8_t)u;
   /* Legacy exports carried the pre-split two-byte pad [grace, pad]. */

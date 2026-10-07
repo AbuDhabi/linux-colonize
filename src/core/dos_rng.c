@@ -15,6 +15,18 @@ static int dos_rng_trace_enabled(void) {
 
 static unsigned long s_dos_rng_draws;
 
+static int32_t s_dos_rng_83a6 = -1;
+
+void dos_rng_set_83a6(int32_t seed) {
+  s_dos_rng_83a6 = seed;
+}
+
+void dos_rng_reseed_83a6(ColonizeDosRng* rng) {
+  if (rng && s_dos_rng_83a6 >= 0) {
+    dos_rng_seed(rng, (uint32_t)s_dos_rng_83a6);
+  }
+}
+
 void dos_rng_seed(ColonizeDosRng* rng, uint32_t seed) {
   if (!rng) {
     return;

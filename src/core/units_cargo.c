@@ -167,10 +167,43 @@ int units_load_goods(ColonizeUnitPool* pool, int unit_id, int cargo_type, int am
 
 /* FUN_1000_8cdc -> FUN_15eb_317c: drop goods hold `slot` and shift the rest
  * down (DOS also decrements +0x3150). Returns the removed amount. */
+/* Raw DOS hold image (col1_hold_raw: +0x0c count, +0x0d..+0x0f item nibbles,
+ * +0x10..+0x15 amounts). 317c shifts only slots below the count and clears
+ * nothing, so the bytes past the count are what a save carries. Refresh the
+ * live slots first, then shift the image the DOS way. */
+static void units_raw_hold_remove(ColonizeUnit* u, int slot) {
+  if (!u->col1_hold_raw_valid) {
+    return;
+  }
+  uint8_t* r = u->col1_hold_raw;
+  int n = 0;
+  while (n < 6 && u->hold_goods_amount[n] > 0 && u->hold_goods_amount[n] < 255) {
+    n++;
+  }
+  if (slot >= n) {
+    return;
+  }
+  for (int i = 0; i < n; ++i) {
+    const int t = u->hold_goods_type[i];
+    const int sh = (i & 1) ? 4 : 0;
+    r[1 + i / 2] = (uint8_t)((r[1 + i / 2] & ~(0xf << sh)) | ((t & 0xf) << sh));
+    r[4 + i] = (uint8_t)u->hold_goods_amount[i];
+  }
+  for (int i = slot; i < n - 1; ++i) {
+    const int sa = (i & 1) ? 4 : 0;
+    const int sb = ((i + 1) & 1) ? 4 : 0;
+    const int t = (r[1 + (i + 1) / 2] >> sb) & 0xf;
+    r[1 + i / 2] = (uint8_t)((r[1 + i / 2] & ~(0xf << sa)) | (t << sa));
+    r[4 + i] = r[4 + i + 1];
+  }
+  r[0] = (uint8_t)(n - 1);
+}
+
 int units_remove_goods_slot(ColonizeUnit* unit, int slot) {
   if (!unit || slot < 0 || slot >= COLONIZE_UNIT_CARGO_MAX) {
     return 0;
   }
+  units_raw_hold_remove(unit, slot);
   const int qty = unit->hold_goods_amount[slot];
   for (int i = slot; i + 1 < COLONIZE_UNIT_CARGO_MAX; ++i) {
     unit->hold_goods_type[i] = unit->hold_goods_type[i + 1];

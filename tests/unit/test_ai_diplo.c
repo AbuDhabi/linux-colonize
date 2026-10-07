@@ -2167,7 +2167,7 @@ static int case_marathon2_privateer_spawn(void) {
       free(map.layer3);
       return fail("M2R3: Privateer spawn must be hunt-ready (!Europe)");
     }
-    if ((pr.nation[0].unknown26[9] & (1u << 1)) == 0) {
+    if ((ai_diplo_privateer_spawn_mask(0) & (1u << 1)) == 0) {
       free(map.terrain);
       free(map.layer2);
       free(map.layer3);
@@ -2219,7 +2219,7 @@ static int case_marathon2_privateer_spawn(void) {
       return fail("M2R1: second balance must not spawn another Privateer");
     }
     /* Marathon2 R5: unknown26[9] peer bit stays armed and blocks second spawn. */
-    if ((pr.nation[0].unknown26[9] & (1u << 1)) == 0) {
+    if ((ai_diplo_privateer_spawn_mask(0) & (1u << 1)) == 0) {
       free(map.terrain);
       free(map.layer2);
       free(map.layer3);
@@ -2258,7 +2258,7 @@ static int case_marathon2_privateer_spawn(void) {
     }
 
     ai_diplo_make_peace(&pr, 0, 1);
-    if ((pr.nation[0].unknown26[9] & (1u << 1)) != 0) {
+    if ((ai_diplo_privateer_spawn_mask(0) & (1u << 1)) != 0) {
       free(map.terrain);
       free(map.layer2);
       free(map.layer3);

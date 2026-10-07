@@ -88,7 +88,8 @@ static int unit_labor_shortage_join(void) {
   col = units_get(&units, uid);
   c = &colonies.colonies[0];
   const int joined = (col == NULL || !col->active) && c->population == pop_before + 1;
-  if (!joined || c->labor_shortage != 0) {
+  /* DOS never touches +0x8e on a join (only 0a60/20e6 garrison marks). */
+  if (!joined || c->labor_shortage != 1) {
     fprintf(
       stderr,
       "unit_ai_euro_expand: labor_shortage joined=%d pop %d→%d shortage=%u\n",
@@ -98,7 +99,7 @@ static int unit_labor_shortage_join(void) {
       (unsigned)c->labor_shortage
     );
     fx_map_free(&map);
-    return fail("expected join consuming the tick-stamped labor_shortage 1→0");
+    return fail("expected join leaving the tick-stamped labor_shortage at 1");
   }
 
   fx_map_free(&map);

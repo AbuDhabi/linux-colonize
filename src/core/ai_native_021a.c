@@ -410,7 +410,10 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_occupant(struct ai_021a_ctx* c) {
   int score = c->score;
   int flags = c->flags;
 
-  int attack_intent = 0;
+  /* [bp-0x6a]: zeroed once at 021a entry (0x225), set at 0xba0 and never
+   * cleared per direction, so a later direction (incl. the stay at 0xc5c)
+   * still sees an earlier direction's attack intent. */
+  int attack_intent = c->attack_intent;
   int alarm = 0;
   if (occ) {
     if (owner >= 4) {

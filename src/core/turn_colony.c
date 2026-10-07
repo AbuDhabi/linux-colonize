@@ -368,6 +368,7 @@ void turn_run_ai_nation_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out, i
     return;
   }
   if (!ctx->col1_ok || !ctx->col1) {
+    ai_euro_europe_lane_tick(ctx, n);
     turn_prod_only_nation = n;
     turn_prod_only_set = true;
     turn_run_colony_eot(ctx, out);
@@ -398,6 +399,9 @@ void turn_run_ai_nation_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out, i
       ai_king_tax_event_ai(ctx, n);
     }
   }
+  /* 00f2 FUN_291f_0a82 -> FUN_48d3_06ba (raw 58377): after 5e52, so a hull
+   * reaching the dock this turn is not yet counted by 584a's dock penalty. */
+  ai_euro_europe_lane_tick(ctx, n);
   int nb = 0;
   int nc = 0;
   static int s_colony_bells[COLONIZE_COLONIES_MAX];

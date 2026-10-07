@@ -314,12 +314,6 @@ typedef struct EuropeScreen {
   /* Mirrors of needed_crosses / current_crosses after each 584a tick (compat). */
   int16_t immigration_score;
   int16_t immigration_pressure;
-  /*
-   * FUN_364b_0688 O — per-nation Europe horses word / musket×50 batches
-   * (AI dump-sell). Cite: colony_eot_production.md.
-   */
-  uint16_t nation_horses[4];
-  uint16_t nation_musket_batches[4];
   /* EuropeScreen boycott_bitmap -- see docs/europe.md#europescreen-boycott_bitmap */
   uint16_t boycott_bitmap;
   /* Mirrors ColonizeCol1Nation.artillery_count (nation+0x1e) for the human —

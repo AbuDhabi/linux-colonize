@@ -950,6 +950,17 @@ void ai_euro_5952_ledgers(
       colony_prod_manufacturing_input(name, c->profession, r->craft_profession, sol_bonus);
   }
 
+  /* FUN_15eb_1f72 tail: the UNCAPPED herd potential lands in the horse gross
+   * (DS:0x8dd8), same figure turn_production applies to an AI colony. */
+  {
+    const ColonyProdHorseBreed hb = colony_prod_horse_breed(
+      col->stock[COLONIZE_CARGO_HORSES], col->population, gross[COLONIZE_CARGO_FOOD],
+      colonies_warehouse_capacity(pool, col, COLONIZE_CARGO_HORSES),
+      colonies_has_building_row(pool, col, COLONY_BUILDING_STABLE)
+    );
+    gross[COLONIZE_CARGO_HORSES] += hb.bred + hb.shortfall;
+  }
+
   /* FUN_15eb_1f72's own three rows: hammers (lumber demand), crosses, bells. */
   int lumber_use = 0;
   gross[AI_EURO_5952_HAMMERS] = colony_prod_colony_hammers(pool, col, sol_bonus, &lumber_use);

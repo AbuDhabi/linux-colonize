@@ -104,7 +104,7 @@ static int case_surplus_banks_one_lot(void) {
   f.col->stock[COLONIZE_CARGO_MUSKETS] = 250;
   (void)run_tick(&f, 0);
   int rc = 0;
-  if (ai_euro_s_5d04_hire_scratch[NATION].musket_bank_lots != 1) {
+  if (f.col1.nation[NATION].musket_bank_lots != 1) {
     rc = fail("bank not credited");
   }
   if (f.col->stock[COLONIZE_CARGO_MUSKETS] != 200) {
@@ -123,7 +123,7 @@ static int case_garrison_need_blocks_bank(void) {
   f.col->stock[COLONIZE_CARGO_MUSKETS] = 250;
   (void)run_tick(&f, 1);
   int rc = 0;
-  if (ai_euro_s_5d04_hire_scratch[NATION].musket_bank_lots != 0) {
+  if (f.col1.nation[NATION].musket_bank_lots != 0) {
     rc = fail("bank credited despite labor shortfall");
   }
   if (f.col->stock[COLONIZE_CARGO_MUSKETS] != 250) {
@@ -140,10 +140,10 @@ static int case_full_bank_blocks(void) {
     return 1;
   }
   f.col->stock[COLONIZE_CARGO_MUSKETS] = 250;
-  ai_euro_s_5d04_hire_scratch[NATION].musket_bank_lots = 20;
+  f.col1.nation[NATION].musket_bank_lots = 20;
   (void)run_tick(&f, 0);
   int rc = 0;
-  if (ai_euro_s_5d04_hire_scratch[NATION].musket_bank_lots != 20) {
+  if (f.col1.nation[NATION].musket_bank_lots != 20) {
     rc = fail("bank grew past 0x14");
   }
   if (f.col->stock[COLONIZE_CARGO_MUSKETS] != 250) {
@@ -162,7 +162,7 @@ static int case_exactly_199_blocks(void) {
   f.col->stock[COLONIZE_CARGO_MUSKETS] = 199;
   (void)run_tick(&f, 0);
   int rc = 0;
-  if (ai_euro_s_5d04_hire_scratch[NATION].musket_bank_lots != 0) {
+  if (f.col1.nation[NATION].musket_bank_lots != 0) {
     rc = fail("bank credited at 199 muskets");
   }
   if (f.col->stock[COLONIZE_CARGO_MUSKETS] != 199) {

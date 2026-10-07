@@ -683,7 +683,10 @@ typedef struct ColonizeCol1Nation {
        * was the other one (smell #52, 2026-09-09). The stand-in moved to
        * +0x4b, the one byte of the twelve DOS never touches. */
       uint8_t king_grace_counter;
-      uint8_t privateer_spawn_mask;
+      /* +0x49 — the musket-LOT bank (one lot = 50 muskets): FUN_364b_0688
+       * phase O and FUN_5952_035e credit it from AI colony surplus,
+       * FUN_521d_5d04's hire arms spend it (raw 84272-84468). */
+      uint8_t musket_bank_lots;
       uint8_t unknown26_pad; /* +0x4a — DOS carry accumulator raw banked total. */
       /* +0x4b — high byte of the +0x4a word: FUN_364b_0688 phase O banks an
        * AI colony's horse surplus there (raw 57817-57821), hence the 1..11
@@ -767,6 +770,17 @@ typedef struct ColonizeCol1Tribe {
  * `cap < w`, FUN_112b_0790 `if (w < 0) w = 0` before `>> 5`), so the getter
  * sign-extends; the setter clamps into 0..0xffff before splitting the bytes.
  */
+/* Nation +0x4a word (unknown26_pad low byte, unknown_4b high byte): the raw
+ * bank FUN_364b_0688 phase O feeds with horse surplus and FUN_521d_5d04
+ * normalizes against the +0x49 lots (raw 84230-84279). */
+static inline uint16_t col1_nation_bank_4a(const ColonizeCol1Nation* n) {
+  return (uint16_t)(n->unknown26_pad | (n->unknown_4b << 8));
+}
+static inline void col1_nation_bank_4a_set(ColonizeCol1Nation* n, uint16_t v) {
+  n->unknown26_pad = (uint8_t)(v & 0xffu);
+  n->unknown_4b = (uint8_t)(v >> 8);
+}
+
 static inline int col1_tribe_attitude(const ColonizeCol1Tribe* t, int euro_nation) {
   if (!t || euro_nation < 0 || euro_nation > 3) {
     return 0;
