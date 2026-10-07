@@ -389,6 +389,7 @@ COLONIZE_INTERNAL AiRaidKind ai_contact_pick_raid_kind(
         walls++;
       }
     }
+    dos_rng_reseed_83a6(rng); /* raw 99773: FUN_281f_04ca(DS:0x83a6) */
     int r = dos_rng_range(rng, 0, 12) - 1;
     if (victim_human) {
       r += difficulty - 2;

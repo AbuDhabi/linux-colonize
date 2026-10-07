@@ -612,15 +612,17 @@ COLONIZE_INTERNAL void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnC
           );
           turn_route_damaged_ships(ctx, n);
           if (n != ctx->human_nation) {
-            /* 00f2 tail FUN_291f_0a82 -> FUN_48d3_06ba (raw 58377). */
-            ai_euro_europe_lane_tick(ctx, n);
-            /* 00f2 5e52 (raw 58375) + colony loop 0950 (raw 58384); the
-             * lane tick between them in DOS draws nothing. */
+            /* 00f2 5e52 (raw 58375), lane tick 0a82 (raw 58377) and colony
+             * loop 0950 (raw 58384), in that order. */
             turn_run_ai_nation_eot(ctx, &proc->result, n);
             /* 00f2 tail FUN_291f_0a74 -> FUN_4962_0018 (raw 58390). */
             if (ctx->col1_ok && ctx->col1) {
               const ColonizeWorld cw = world_from_turn_ctx(ctx);
               col1_stuff_census_4962_w(&cw, &ctx->col1->stuff, n);
+              /* 00f2 tail FUN_291f_0a66 -> FUN_43f7_2424 (raw 58392). */
+              if (!ai_king_independence_declared(ctx->col1)) {
+                ai_king_cache_nation_sol(ctx, n);
+              }
             }
           }
         }

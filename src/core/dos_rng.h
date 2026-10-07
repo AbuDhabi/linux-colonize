@@ -15,6 +15,11 @@ typedef struct ColonizeDosRng {
 
 void dos_rng_seed(ColonizeDosRng* rng, uint32_t seed);
 uint16_t dos_rng_next(ColonizeDosRng* rng);
+/* FUN_281f_04ca(DS:0x83a6): DOS reseeds from one session word at every nation
+ * slot and at a few in-turn points (0688 starvation, 0f14 raid). The word is
+ * recorded by ai_nation_reseed; -1 until then (no reseed). */
+void dos_rng_set_83a6(int32_t seed);
+void dos_rng_reseed_83a6(ColonizeDosRng* rng);
 /* Inclusive range [lo, hi], matching FUN_19ef_0032. */
 int dos_rng_range(ColonizeDosRng* rng, int lo, int hi);
 

@@ -19,15 +19,16 @@ then a recursive JSON diff (show `*_hex` blobs as differing byte offsets). The t
 `EXCLUDE_FROM_ALL`: rebuild it explicitly (`cmake --build build/debug --target golden_idle_campaign`).
 
 Progress (sum of differing JSON leaves over all 77 transitions): 18,869 → 16,546 → 16,178 →
-13,423 → 12,739 → 8,798. 1493→1494, 1494→1495, 1495→1496, 1505→1506, 1512→1513 and 1513→1514 pass byte-for-byte; 1492→1493 is down to the
+13,423 → 12,739 → 8,798 → 8,122. 1493→1494, 1494→1495, 1495→1496, 1505→1506, 1512→1513 and 1513→1514 pass byte-for-byte; 1492→1493 is down to the
 human's first-turn UI; 1497→1498 only to the stance-table artifact below.
 
 **From-load target.** Because DOS keeps unsaved state across turns (stance table, below), the
 archived Y+1 save is not always reachable from Y. Load year_Y in DOSBox (`setup --save`, `load_slot`,
-then press space until `DS:0x538e` changes); the human-slot autosave lands in `$W/C/COLONY09.SAV`.
+then press space until `DS:0x538e` changes); the human-slot autosave lands in `$W/C/COLONY09.SAV`. Wait for its mtime to change (keep pressing
+space): `setup` copies a stale COLONY09 from COLONIZE/, and a popup can delay the write.
 `sav_json` it and diff against the sim: whatever remains is a port bug, whatever the archived save
 adds on top is an artifact. 1498→1499, 1501→1502 and 1502→1503 through 1504→1505 match their from-load
-autosaves exactly.
+autosaves exactly, and so do 1515→1516 and 1523→1524 (the archive adds unsaved-state diffs there).
 
 DOSBox method used here (docs/dos_trace.md): `setup --save year_Y.sav`, load, then `BPM` on the
 record bytes that differ (unit chain +0x18, colony +0x8a / +0x70) or `BP` on a resident routine
@@ -195,6 +196,41 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
 - Save export keeps the runtime colonist order (no canonical occupation sort): DOS insert-sorts
   only at add time and never re-sorts on a job change.
 
+## Fixed in the 2026-10-07 fourth pass (DOSBox-traced, 1515→1516)
+
+- Nation +0x48/+0x49/+0x4a are the col1 record's own bytes, not port scratch: 5d04 (raw
+  84230-84468 via DS:0x84fc) decrements `king_grace_counter`, spends/credits `musket_bank_lots`
+  (+0x49, was misnamed `privateer_spawn_mask`) and normalizes against the +0x4a word
+  (`col1_nation_bank_4a`). 0688 phase O banks AI colony musket surplus there per 50 and still runs
+  0a2e plus the tons quirk on a 0 remainder (the EuropeScreen batch counter is gone). The
+  wartime-Privateer stand-in's latch moved to session state.
+- DS:0xa0cc is one table: 0xa0d4/0xa0da/0xa0db are its cells 8/14/15, so the prelude's
+  "muskets specialty / empty stock" bumps feed the 5d04 tail's ship-buy demand too
+  (Spain bought 100 muskets the port skipped).
+- 00f2 order: 5e52 immigration tick, then the 0a82 lane tick, then the colony loop (raw
+  58375-58384). The port ran the lane tick first, so a hull reaching the dock was counted by the
+  584a dock penalty.
+- 2424's SoL cache (nation +0x19) is written per slot at the 00f2 tail (0a66, raw 58392), before
+  that nation's units move; the port wrote all four after the turn.
+- FUN_15eb_317c shifts holds only below the count and clears nothing; the port now mirrors that
+  on the raw hold bytes it round-trips, so stale slots match the save.
+- Trace method: BP on the resident buy routine 2143:0d8e (291f_0d8e) reads the 5d04 caller's
+  locals; one-shot `--patch-cc` traps miss later calls once RTLink reloads the overlay unpatched.
+
+- A colony join never writes +0x8e / +0x1e (labor_shortage / garrison_quota); only the 0a60
+  garrison admission (raw 87699-87753) and the 'G' marks do.
+- 0688's starvation mercy roll (raw 57638-57645) runs only when DS:0x8e5a is non-zero (a
+  non-human colony's shortfall below 3 is zeroed first) and is preceded by a reseed
+  (FUN_281f_04ca(DS:0x83a6)). The port rolled it every turn from 1520 on Discoverer/Explorer.
+- FUN_5fef_0f14 (raid picker) reseeds the same way before its walls roll (raw 99773).
+  `dos_rng_reseed_83a6` is the shared helper; `ai_nation_reseed` records the word.
+- Save export keeps a Brave's goto bytes; DOS saves them as-is (the port wrote 0,0 for every
+  native unit without a goto order).
+- The 5952 ledger's horse gross includes 1f72's uncapped herd potential (raw 12679), so a
+  breeding colony does not ask for horses (0306 arm 3).
+- 021a's attack-intent local `[bp-0x6a]` is zeroed once per call (0x225), not per direction, so
+  the stay tile skips its tech roll after any attacking direction.
+
 ## Harness artifacts (not port bugs)
 
 - 1505→1506: the archived save matches the port; the DOSBox from-load run differs (its Spanish
@@ -209,8 +245,11 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
 
 ## Open leads (most transitions first)
 
+- 1516→1517: a new brave's +0x15 byte is 236 in DOS: FUN_281f_0718 never clears it, so a reused
+  unit slot keeps the previous occupant's byte. The port would need the DOS slot memory.
+
 - 1514→1515: France's LCR roll is case 5 (burial mounds latch) in DOS, a different case in the
-  port (RNG phase?). Dutch colony labor_shortage 1 vs 0. Check that the port's colonist ADD
+  port (RNG phase?). Check that the port's colonist ADD
   insert-sorts by add-time occupation like DOS (the export no longer sorts).
 
 - Human end-of-slot draws: DOS 5, port 1 in 1497→1498 (human FF debate rolls / merc offer?).

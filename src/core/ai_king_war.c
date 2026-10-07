@@ -1441,20 +1441,28 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
      * for whichever nation it is ticking, human or AI, before the DS:0x53d0
      * human-only half.
      */
-    for (int n = 0; n < 4; ++n) {
-      int sol = ai_king_sol_percent(ctx, n);
-      if (sol < 0) {
-        sol = 0;
-      }
-      if (sol > 100) {
-        sol = 100;
-      }
-      ctx->col1->nation[n].rebel_sentiment = (uint8_t)sol;
-    }
+    ai_king_cache_nation_sol(ctx, ctx->human_nation);
     /* FUN_43f7_2424 tail: cache nation SoL for next turn's tax-audience score. */
     ctx->col1->head.rebel_sentiment_report =
       (uint8_t)ai_king_sol_percent(ctx, ctx->human_nation);
   }
+}
+
+/* FUN_43f7_2424 raw 75174: nation +0x19 = this nation's SoL, written from
+ * the 00f2 tail FUN_291f_0a66 (raw 58392) of the nation's own slot — after
+ * its colony loop, before its units move. Peacetime only (caller's gate). */
+void ai_king_cache_nation_sol(ColonizeTurnContext* ctx, int n) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || n < 0 || n >= 4) {
+    return;
+  }
+  int sol = ai_king_sol_percent(ctx, n);
+  if (sol < 0) {
+    sol = 0;
+  }
+  if (sol > 100) {
+    sol = 100;
+  }
+  ctx->col1->nation[n].rebel_sentiment = (uint8_t)sol;
 }
 
 void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup) {

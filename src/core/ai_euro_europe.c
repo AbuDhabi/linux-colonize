@@ -1019,7 +1019,7 @@ static int ai_euro_5d04_cb_goal_trigger(int code, int a, int b, int c) {
  * Colony stock offsets pinned from col1_save.h (`stock[16]` u16 @ +0x9a):
  * +0xaa = 8 Horses, +0xb6 = 14 Tools, +0xb8 = 15 Muskets.
  */
-static void ai_euro_5d04_cb_colony_needs(int nation_id, int* out_muskets, int* out_tools) {
+static void ai_euro_5d04_cb_colony_needs(int nation_id, int8_t out[16]) {
   /* DOS-LITERAL FUN_521d_6d8e prelude, raw 93108-93171: the per-good
    * counter DS:0xa0cc[16]. Each own colony bumps its specialty good, then
    * muskets again for a muskets specialty and for an empty muskets stock,
@@ -1073,8 +1073,9 @@ static void ai_euro_5d04_cb_colony_needs(int nation_id, int* out_muskets, int* o
       }
     }
   }
-  *out_muskets = cnt[COLONIZE_CARGO_MUSKETS];
-  *out_tools = cnt[COLONIZE_CARGO_TOOLS];
+  for (int g = 0; g < 16; ++g) {
+    out[g] = (int8_t)cnt[g]; /* DOS byte cells wrap */
+  }
 }
 
 /*
@@ -1117,60 +1118,6 @@ static int ai_euro_5d04_cb_europe_land_units(int nation_id) {
   }
   /* Same tally as the 20e6 dock-demand arm reads (ai_euro_land.c). */
   return ai_euro_europe_dock_land_units(ai_euro_s_5d04_ctx->units, nation_id);
-}
-
-/*
- * DS:0xa0cc[16] (`local_40 + -0x5f34`) — resolved 2026-09-07e. Built by
- * the FUN_521d_6d8e prelude, once per nation-turn, immediately before it
- * calls 5d04 through `thunk_FUN_2a1f_0554`:
- *   raw 93107  memset(0xa0cc, 0, 0x10)
- *   raw 93122  per own colony with `+0x8d` >= 0: demand[specialty]++
- *   raw 93146  memcpy(0xa0bc, 0xa0cc, 0x10)  (untouched snapshot)
- *   raw 93163  per own SHIP (type 0x0d..0x12), per occupied hold slot
- *              0..`+0x3150`: demand[hold cargo]--
- * so it is a **per-cargo demand table**: how many of this nation's
- * colonies specialise in that cargo, minus how much of it is already
- * afloat. 5d04's departing-ship loop walks cargo 15..0 and buys 100 of
- * the first cargo whose demand clears `local_46`, decrementing the cell.
- * This replaces the old `inv->profession_demand[]` stand-in, which was
- * profession-indexed but was being read here with a cargo index.
- */
-static void ai_euro_5d04_cb_cargo_demand(int nation_id, int8_t out[16]) {
-  memset(out, 0, 16 * sizeof(out[0]));
-  if (!ai_euro_s_5d04_ctx) {
-    return;
-  }
-  if (ai_euro_s_5d04_ctx->colonies) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &ai_euro_s_5d04_ctx->colonies->colonies[i];
-      if (!c->active || c->nation_id != nation_id) {
-        continue;
-      }
-      if (c->specialty_cargo < 16) {
-        out[c->specialty_cargo]++;
-      }
-    }
-  }
-  if (ai_euro_s_5d04_ctx->units) {
-    for (int i = 0; i < units_slot_end(ai_euro_s_5d04_ctx->units); ++i) {
-      const ColonizeUnit* u = &ai_euro_s_5d04_ctx->units->units[i];
-      if (!u->active || u->nation_id != nation_id) {
-        continue;
-      }
-      if (!units_is_sea(ai_euro_s_5d04_ctx->units, u->id)) {
-        continue;
-      }
-      const int holds = units_goods_hold_count(ai_euro_s_5d04_ctx->units, u->id);
-      for (int h = 0; h < holds && h < COLONIZE_UNIT_CARGO_MAX; ++h) {
-        /* Sentinel-aware, hold-count bound: a 255 hold is empty, not cargo
-         * already in transit (smell audit sweep-3 area C #5). */
-        if (units_hold_amount(ai_euro_s_5d04_ctx->units, u->id, h) > 0 && u->hold_goods_type[h] >= 0 &&
-            u->hold_goods_type[h] < 16) {
-          out[u->hold_goods_type[h]]--;
-        }
-      }
-    }
-  }
 }
 
 Ai5d04HireScratch ai_euro_s_5d04_hire_scratch[4];
@@ -1257,7 +1204,7 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
                *                  before 2026-09-07e. */
               int try_train = 0;
               int try_642a = 0;
-              if (hs->colonies_need_muskets <= 0) {
+              if (hs->a0cc[COLONIZE_CARGO_MUSKETS] <= 0) {
                 try_642a = 1;
               } else if (dos_rng_range(ctx->rng, 0, local_c + 1) == 0) {
                 try_train = 1;
@@ -1271,14 +1218,14 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
               if (try_train) {
                 /* LAB_521d_6454: tools-side training. */
                 uint32_t local_1a = (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_MUSKETS) * 50);
-                if (hs->musket_bank_lots != 0) {
+                if (nat->musket_bank_lots != 0) {
                   local_1a = 0;
                 }
                 if (nat->gold >= local_1a && !f->cargo_short) {
-                  if (hs->musket_bank_lots == 0) {
+                  if (nat->musket_bank_lots == 0) {
                     ai_euro_5d04_cb_set_pool_counter(0xf, 0x32);
                   } else {
-                    hs->musket_bank_lots--;
+                    nat->musket_bank_lots--;
                   }
                   nat->gold -= local_1a;
                   ai_euro_5d04_cb_set_unit_dispatch_byte(idx, 1);
@@ -1295,7 +1242,7 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
                   }
                   local_8 = 0;
                   bVar10 = 1;
-                  hs->colonies_need_muskets--;
+                  hs->a0cc[COLONIZE_CARGO_MUSKETS]--;
                   if (f->has_college &&
                       dos_rng_range(
                         ctx->rng, 0,
@@ -1304,18 +1251,18 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
                     ai_euro_5d04_cb_set_unit_profession(idx, 0x15); /* Veteran Soldier */
                   }
                   uint32_t local_1a2 = (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_HORSES) * 50);
-                  if ((uint32_t)hs->musket_bank_raw > 0x31) {
+                  if (col1_nation_bank_4a(nat) > 0x31) {
                     local_1a2 = 0;
                   }
                   if (nat->gold >= local_1a2) {
                     nat->gold -= local_1a2;
                     ai_euro_5d04_cb_set_unit_dispatch_byte(idx, 4);
-                    if (hs->musket_bank_raw < 0x32) {
+                    if (col1_nation_bank_4a(nat) < 0x32) {
                       /* raw 92729-92733: DOS only calls FUN_291f_0c14(8,0x32)
                        * here — the old `= 0x32` write-back was invented. */
                       ai_euro_5d04_cb_set_pool_counter(8, 0x32);
                     } else {
-                      hs->musket_bank_raw -= 0x32;
+                      col1_nation_bank_4a_set(nat, (uint16_t)(col1_nation_bank_4a(nat) - 0x32));
                     }
                   }
                   handled = 1;
@@ -1348,7 +1295,7 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
                     local_28 = local_8;
                     local_8 = 0;
                     bVar10 = 1;
-                    hs->colonies_need_tools--;
+                    hs->a0cc[COLONIZE_CARGO_TOOLS]--;
                     handled = 1;
                   }
                 }
@@ -1397,7 +1344,6 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
   const Ai5d04PlanningFlags* f = t->f;
   ColonizeCol1Nation* nat = t->nat;
   const ColonizeCol1Stuff* stuff = t->stuff;
-  Ai5d04HireScratch* hs = t->hs;
   const int turn = t->turn;
   const int difficulty = t->difficulty;
   const int woi = t->woi;
@@ -1424,13 +1370,13 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
     int local_42 = local_24 - local_22;
     if (turn > 0x50) {
       /* OVL14 0x67be-0x67f7: +0x49 (lots) and +0x4a (raw), not +0x48. */
-      while ((uint32_t)(hs->musket_bank_lots + 1) < (uint32_t)hs->musket_bank_raw / 50) {
-        hs->musket_bank_raw -= 50;
-        hs->musket_bank_lots++;
+      while ((uint32_t)(nat->musket_bank_lots + 1) < (uint32_t)col1_nation_bank_4a(nat) / 50) {
+        col1_nation_bank_4a_set(nat, (uint16_t)(col1_nation_bank_4a(nat) - 50));
+        nat->musket_bank_lots++;
       }
-      while ((uint32_t)hs->musket_bank_raw / 50 + 1 < (uint32_t)hs->musket_bank_lots) {
-        hs->musket_bank_lots--;
-        hs->musket_bank_raw += 50;
+      while ((uint32_t)col1_nation_bank_4a(nat) / 50 + 1 < (uint32_t)nat->musket_bank_lots) {
+        nat->musket_bank_lots--;
+        col1_nation_bank_4a_set(nat, (uint16_t)(col1_nation_bank_4a(nat) + 50));
       }
     }
     if (local_34 == 0 && local_24 > 5) {
@@ -1438,8 +1384,8 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
       if (turn > 0x27) {
         adj = (uint32_t)((difficulty - 10) * -100);
       }
-      if (hs->delay_48 != 0) {
-        hs->delay_48--;
+      if (nat->king_grace_counter != 0) {
+        nat->king_grace_counter--;
         adj = 0;
       }
       if (nat->gold >= adj && ai_euro_5d04_cb_goal_trigger(0xb, nation_id, nation_id - 0x14, nation_id - 0x14) >= 0) {
@@ -1458,7 +1404,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
       const long extra =
         ((long)base2 * (long)nat->current_crosses) / (-1L - (long)nat->needed_crosses);
       uint32_t local_38b = (uint32_t)(base2 + extra);
-      if (hs->musket_bank_lots == 0) {
+      if (nat->musket_bank_lots == 0) {
         local_38b += (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_MUSKETS) * 50);
       }
       if (turn > 99) {
@@ -1473,11 +1419,11 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
         const int cdisp = ai_euro_5d04_cb_unit_dispatch_byte(cand);
         int extra_cost = 0;
         if (cdisp == 1 || cdisp == 4) {
-          if (hs->musket_bank_lots == 0) {
+          if (nat->musket_bank_lots == 0) {
             extra_cost = ai_euro_5d04_cb_price(COLONIZE_CARGO_MUSKETS) * -50;
             ai_euro_5d04_cb_market_volume(COLONIZE_CARGO_MUSKETS, 50, 0); /* FUN_291f_0a2e */
           } else {
-            hs->musket_bank_lots++;
+            nat->musket_bank_lots++;
           }
         } else if (cdisp == 2) {
           extra_cost = ai_euro_5d04_cb_price(COLONIZE_CARGO_TOOLS) * -100;
@@ -1501,10 +1447,10 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
           }
         }
         nat->gold -= local_38b;
-        if (hs->musket_bank_lots == 0) {
+        if (nat->musket_bank_lots == 0) {
           ai_euro_5d04_cb_set_pool_counter(0xf, 0x32);
         } else {
-          hs->musket_bank_lots--;
+          nat->musket_bank_lots--;
         }
         if (f->has_college && ai_euro_5d04_cb_unit_profession(cand) != 0x15) {
           const int roll4 = dos_rng_range(
@@ -1519,17 +1465,17 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
         if (turn > 99) {
           local_1a3 += (uint32_t)((int)(difficulty * (int)local_1a3 * 10) / -100);
         }
-        if ((uint32_t)hs->musket_bank_raw > 0x31) {
+        if (col1_nation_bank_4a(nat) > 0x31) {
           local_1a3 = 0;
         }
         if (nat->gold >= local_1a3) {
           nat->gold -= local_1a3;
         }
         ai_euro_5d04_cb_set_unit_dispatch_byte(cand, 4);
-        if (hs->musket_bank_raw < 0x32) {
+        if (col1_nation_bank_4a(nat) < 0x32) {
           ai_euro_5d04_cb_set_pool_counter(8, 0x32);
         } else {
-          hs->musket_bank_raw -= 0x32;
+          col1_nation_bank_4a_set(nat, (uint16_t)(col1_nation_bank_4a(nat) - 0x32));
         }
         (void)ai_euro_5d04_refill_pool_slot(slot); /* FUN_38fd_46d4 */
         bVar9 = 1;
@@ -1556,7 +1502,6 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
   const int nation_id = t->nation_id;
   const Ai5d04PlanningFlags* f = t->f;
   ColonizeCol1Nation* nat = t->nat;
-  Ai5d04HireScratch* hs = t->hs;
   const int turn = t->turn;
   const int has_any_colony = t->has_any_colony;
   const int expand_signal = t->expand_signal;
@@ -1575,11 +1520,9 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
   const int seed46 = ai_euro_5d04_cb_europe_land_units(nation_id);
   int local_46 = seed46 + ((turn & 1) != 0);
   /* raw 93036/93050 `local_40 + -0x5f34` = DS:0xa0cc[16], the per-cargo
-   * demand table 6d8e rebuilds just before calling 5d04. Real since
-   * 2026-09-07e (was `inv->profession_demand[]`, a profession-indexed
-   * array being read with a cargo index). */
-  int8_t cargo_demand[16];
-  ai_euro_5d04_cb_cargo_demand(nation_id, cargo_demand);
+   * demand table 6d8e rebuilds just before calling 5d04 — the same cells
+   * the hire arms decrement as 0xa0db / 0xa0da (muskets / tools). */
+  int8_t* cargo_demand = t->hs->a0cc;
   int matched;
   /* DOS drops a departed ship from the Europe stack (FUN_291f_0ec2); OpenCol
    * leaves it at the Europe coords until the dispatcher's own act teleports
@@ -1620,11 +1563,11 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
           if (kind == COLONIZE_CARGO_MUSKETS) {
             const int v = ai_euro_5d04_cb_reward_value(idx2);
             last_lots = (v + 0x31) / 0x32;
-            hs->musket_bank_lots = (int8_t)(hs->musket_bank_lots + last_lots);
+            nat->musket_bank_lots = (uint8_t)(nat->musket_bank_lots + last_lots);
             ai_euro_5d04_cb_reward_ack(idx2);
           } else if (kind == COLONIZE_CARGO_HORSES) {
             ai_euro_5d04_cb_reward_ack(idx2);
-            hs->musket_bank_raw += last_lots; /* DOS reuses the stale 0x8dc4 lots value */
+            col1_nation_bank_4a_set(nat, (uint16_t)(col1_nation_bank_4a(nat) + last_lots)); /* DOS reuses the stale 0x8dc4 lots value */
           } else if (!ai_euro_5d04_cb_sell_hold0(idx2)) {
             break; /* boycotted hold stays aboard */
           }
@@ -1699,23 +1642,13 @@ static void ai_euro_5d04_hire_ladder_tail(
   Ai5d04HireScratch* hs = &ai_euro_s_5d04_hire_scratch[nation_id];
   ai_euro_s_5d04_ctx = ctx;
   ai_euro_s_5d04_nation = nation_id;
-  {
-    int need_m = 0;
-    int need_t = 0;
-    ai_euro_5d04_cb_colony_needs(nation_id, &need_m, &need_t);
-    if (need_m > 127) { need_m = 127; }
-    if (need_m < -128) { need_m = -128; }
-    if (need_t > 127) { need_t = 127; }
-    if (need_t < -128) { need_t = -128; } /* the Pioneer subtraction can go negative */
-    hs->colonies_need_muskets = (int8_t)need_m;
-    hs->colonies_need_tools = (int8_t)need_t;
-  }
+  ai_euro_5d04_cb_colony_needs(nation_id, hs->a0cc);
 
   /* Raw 92569-92578: no Artillery on the Europe dock + colonies needing
    * muskets → buy one (purchase table entry 0, 500 gold), re-query. */
   int local_16 = ai_euro_5d04_cb_list_iter_first(0x0c);
   int local_34 = ai_euro_5d04_cb_artillery_on_dock(local_16);
-  if (local_34 == 0 && !woi && hs->colonies_need_muskets > 0 &&
+  if (local_34 == 0 && !woi && hs->a0cc[COLONIZE_CARGO_MUSKETS] > 0 &&
       dos_rng_range(ctx->rng, 0, 3) == 0 && !f->cargo_short &&
       stuff->ship_cargo_totals[nation_id] > 4) {
     (void)ai_euro_5d04_propose_ship_buy(ctx, nation_id, 0);

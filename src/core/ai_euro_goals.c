@@ -1935,8 +1935,8 @@ static void ai_euro_5952_build_pref_0306(
    * nation's musket-LOT bank that FUN_521d_5d04's hire arm spends to arm a
    * recruit for free (ai_euro_internal.h Ai5d04HireScratch). */
   if (labor_running == 0 && c->stock[COLONIZE_CARGO_MUSKETS] > 199 && nation_id >= 0 &&
-      nation_id < 4 && ai_euro_s_5d04_hire_scratch[nation_id].musket_bank_lots < 0x14) {
-    ai_euro_s_5d04_hire_scratch[nation_id].musket_bank_lots++;
+      nation_id < 4 && ctx->col1 && ctx->col1->nation[nation_id].musket_bank_lots < 0x14) {
+    ctx->col1->nation[nation_id].musket_bank_lots++;
     c->stock[COLONIZE_CARGO_MUSKETS] -= 0x32;
   }
 }

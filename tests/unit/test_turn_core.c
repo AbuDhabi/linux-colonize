@@ -3558,11 +3558,11 @@ static int case_phase_o_ai_dump_sell(void) {
       return 1;
     }
   }
-  if (eu.nation_musket_batches[1] != 1u) {
+  if (col1.nation[1].musket_bank_lots != 1u) {
     fprintf(
       stderr,
-      "dump-sell musket batches want 1 got %u\n",
-      (unsigned)eu.nation_musket_batches[1]
+      "dump-sell musket lots (+0x49) want 1 got %u\n",
+      (unsigned)col1.nation[1].musket_bank_lots
     );
     return 1;
   }

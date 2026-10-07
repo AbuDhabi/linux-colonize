@@ -593,27 +593,19 @@ int europe_ai_colony_dump_sell_w(
      * 0 — the 0a2e call and the tons[c] += c quirk below still run. */
     if (c == COLONIZE_CARGO_HORSES) {
       if (nat) {
-        const uint16_t w4a = (uint16_t)(nat->unknown26_pad | (nat->unknown_4b << 8));
-        const uint16_t v = (uint16_t)(w4a + (uint16_t)surplus);
-        nat->unknown26_pad = (uint8_t)(v & 0xffu);
-        nat->unknown_4b = (uint8_t)(v >> 8);
+        col1_nation_bank_4a_set(nat, (uint16_t)(col1_nation_bank_4a(nat) + surplus));
       }
       amount = 0;
     }
-    /*
-     * Muskets: DOS while surplus>49: Europe musket counter++, amount−50; then
-     * sell remainder for gold. DOS runs this batching before any price read,
-     * so a zero price must not skip it.
-     */
+    /* Muskets (raw 57813-57818): each whole 50 banks a lot on nation +0x49
+     * (byte, wraps); the remainder, even 0, still goes through 0a2e and the
+     * tons quirk below. */
     if (c == COLONIZE_CARGO_MUSKETS) {
       while (amount > 49) {
-        if (eu->nation_musket_batches[nation] < 65535u) {
-          eu->nation_musket_batches[nation]++;
+        if (nat) {
+          nat->musket_bank_lots++;
         }
         amount -= 50;
-      }
-      if (amount <= 0) {
-        continue;
       }
     }
     if (c >= eu->cargo_count) {

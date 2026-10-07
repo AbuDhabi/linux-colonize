@@ -332,6 +332,8 @@ int ai_diplo_indian_any_at_war(const ColonizeCol1Save* col1, int euro_nation);
  * sticky==2 → peace feeler self-gates off (matrix + make_peace) + refuses new
  * treaties this balance + human "Natives remain hostile." status. */
 uint8_t ai_diplo_indian_hostility_sticky(const ColonizeCol1Save* col1, int euro_nation);
+/* Wartime-Privateer stand-in per-peer latch (session state, not saved). */
+uint8_t ai_diplo_privateer_spawn_mask(int nation_id);
 
 /* Sync sticky from relation matrix (set/clear/deepen). Call after relation hits. */
 void ai_diplo_indian_hostility_sync(ColonizeCol1Save* col1, int euro_nation);

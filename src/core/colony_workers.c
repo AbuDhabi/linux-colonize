@@ -657,16 +657,8 @@ static int colonies_admit_unit_seat_w(
   /* La Salle: this join may have just crossed pop 3 — grant the free
    * Stockade the same moment, not next turn (see founding_fathers.h). */
   (void)founding_fathers_la_salle_check(pool, col1, col->nation_id);
-  /* Col1 +0x8e / +0x1e: LABOR join co-decrements demand counters (~87701).
-   * bugs.md #967 REFUTED 2026-09-28: the >0 test mirrors DOS's own guard —
-   * raw 87699-87701 runs the decrement inside `while (... '\0' < *(char *)
-   * (colony + 0x8e))`, and +0x1e carries its own `!= 0` test. */
-  if (col->labor_shortage > 0) {
-    col->labor_shortage--;
-  }
-  if (col->garrison_quota > 0) {
-    col->garrison_quota--;
-  }
+  /* No +0x8e / +0x1e write: DOS decrements those only in the 0a60 garrison
+   * admission (raw 87699-87753) and the 20e6/0a60 'G' marks, never on a join. */
   /*
    * Early Isabella TURN4→5: beachhead soldier join cancels unused Stockade
    * auto-start (hammers still 0) → COL1 bip 0xFF. Cite: test-saves-ai/TURN5.

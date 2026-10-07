@@ -297,6 +297,14 @@ static int ai_diplo_find_privateer_spawn(
   return 1;
 }
 
+/* Session state: the OpenCol wartime-Privateer stand-in's per-peer latch. It
+ * used to squat on nation +0x49, which DOS uses as the musket-lot bank. */
+static uint8_t s_privateer_spawn_mask[4];
+
+uint8_t ai_diplo_privateer_spawn_mask(int nation_id) {
+  return (nation_id >= 0 && nation_id < 4) ? s_privateer_spawn_mask[nation_id] : 0;
+}
+
 static int ai_diplo_privateer_spawn_armed(
   const ColonizeCol1Save* col1,
   int nation_id,
@@ -305,7 +313,7 @@ static int ai_diplo_privateer_spawn_armed(
   if (!col1 || nation_id < 0 || nation_id >= 4 || peer < 0 || peer >= 4) {
     return 0;
   }
-  return (col1->nation[nation_id].privateer_spawn_mask &
+  return (s_privateer_spawn_mask[nation_id] &
           (uint8_t)(1u << peer)) != 0;
 }
 
@@ -317,8 +325,8 @@ static void ai_diplo_privateer_spawn_set(
   if (!col1 || nation_id < 0 || nation_id >= 4 || peer < 0 || peer >= 4) {
     return;
   }
-  col1->nation[nation_id].privateer_spawn_mask =
-    (uint8_t)(col1->nation[nation_id].privateer_spawn_mask |
+  s_privateer_spawn_mask[nation_id] =
+    (uint8_t)(s_privateer_spawn_mask[nation_id] |
               (uint8_t)(1u << peer));
 }
 
@@ -330,13 +338,13 @@ static void ai_diplo_privateer_spawn_clear(
   if (!col1 || nation_id < 0 || nation_id >= 4 || peer < 0 || peer >= 4) {
     return;
   }
-  col1->nation[nation_id].privateer_spawn_mask =
-    (uint8_t)(col1->nation[nation_id].privateer_spawn_mask &
+  s_privateer_spawn_mask[nation_id] =
+    (uint8_t)(s_privateer_spawn_mask[nation_id] &
               (uint8_t)~(1u << peer));
 }
 
 /*
- * Wartime Privateer unit spawn (once per war peer via unknown26[9] bit).
+ * Wartime Privateer unit spawn (once per war peer via the session peer latch).
  * units_find_type("Privateer") + units_spawn_allow_stack near coast / Europe.
  * No-op if type missing, units null, already commissioned, or spawn fails.
  * Returns 1 on successful spawn. Source: Europe Privateer purchase; fandom
@@ -369,7 +377,7 @@ static int ai_diplo_war_privateer_spawn(
   /*
    * Read-only hunt-ready check (ai_euro naval war hunt needs !in_europe +
    * water). If finder returned a bad New World tile, refuse rather than arm
-   * unknown26[9] on a land/invalid spawn. Europe dock (not hunt-ready) is OK.
+   * the peer latch on a land/invalid spawn. Europe dock (not hunt-ready) is OK.
    */
   if (!AI_DIPLO_IN_EUROPE(sx, sy) &&
       !ai_diplo_privateer_spawn_hunt_ready(ctx, sx, sy)) {
@@ -1105,7 +1113,7 @@ void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation
  * (existing feeler path; restores improve-relations that Euro war blocked).
  * sticky==2 still refuses feeler (self-gated). Full 153e PARKED. Privateer
  * prize + once-per-war spawn bit are WAR-gated — peace stops prize and clears
- * unknown26[9] peer bits so the next war may commission again.
+ * Privateer spawn peer bits so the next war may commission again.
  */
 void ai_diplo_make_peace(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   if (!col1 || nation_a < 0 || nation_a >= 4 || nation_b < 0 || nation_b >= 4 ||
@@ -3364,7 +3372,7 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
        * retirement note at the top of this file).
        */
       /*
-       * Wartime Privateer: spawn-only when ctx->units is set (unknown26[9] gate;
+       * Wartime Privateer: spawn-only when ctx->units is set (session peer latch;
        * hunt-ready coast / New World sea stack / Europe dock). ai_euro naval
        * hunt + units_resolve_naval_combat hold plunder (units_plunder_ship_holds)
        * owns cargo-raid outcomes — no diplo gold fiction.

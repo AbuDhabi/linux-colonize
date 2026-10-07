@@ -1383,12 +1383,26 @@ void turn_produce_one_colony(
      * roll, nonzero cancels (2/3 odds at Discoverer, 1/2 at Explorer). NULL
      * col1/rng safely fall through to the plain kill (old behavior).
      */
+    /* DS:0x8e5a (raw 57623-57625): a non-human colony's shortfall below 3 is
+     * forgiven. Only a non-zero shortfall takes the else branch (raw 57638),
+     * which reseeds (FUN_281f_04ca(DS:0x83a6)) before the mercy roll. */
+    int short_8e5a = need - food_at_start - field_food;
+    if (short_8e5a < 0) {
+      short_8e5a = 0;
+    }
+    if (short_8e5a < 3 && (colony->nation_id > 3 ||
+                           (col1 && col1->player[colony->nation_id].control != 0))) {
+      short_8e5a = 0;
+    }
     int starve_mercy = 0;
-    if (col1 && col1->head.difficulty < 2) {
-      if (col1->head.year < 1520) {
-        starve_mercy = 1;
-      } else if (dos_rng_range(rng, 0, 2 - col1->head.difficulty) != 0) {
-        starve_mercy = 1;
+    if (short_8e5a != 0) {
+      dos_rng_reseed_83a6(rng);
+      if (col1 && col1->head.difficulty < 2) {
+        if (col1->head.year < 1520) {
+          starve_mercy = 1;
+        } else if (dos_rng_range(rng, 0, 2 - col1->head.difficulty) != 0) {
+          starve_mercy = 1;
+        }
       }
     }
 
@@ -1396,7 +1410,7 @@ void turn_produce_one_colony(
      * Phase J — starve-kill when still short and started the turn at 0 food.
      * Last colonist → @VANISH + colonies_abandon (DOS 0xe47 / thunk 0254).
      */
-    if (colony->food_shortfall_latch != 0 && food_at_start == 0 &&
+    if (short_8e5a != 0 && food_at_start == 0 &&
         colony->colonist_count > 0 && !starve_mercy) {
       const int colony_id = colony->id;
       char vanish_name[COLONIZE_COLONY_NAME_MAX];

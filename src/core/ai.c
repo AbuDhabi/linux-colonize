@@ -1458,6 +1458,7 @@ void ai_nation_reseed(ColonizeTurnContext* ctx) {
     return;
   }
   const uint32_t seed = ai_turn_seed(ctx);
+  dos_rng_set_83a6((int32_t)(seed & 0x7fffffffu));
   if (ctx->rng) {
     dos_rng_seed(ctx->rng, seed);
   }
