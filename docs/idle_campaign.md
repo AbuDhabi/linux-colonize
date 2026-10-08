@@ -268,6 +268,9 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   DOS never draws (Spain's plan stage, 1534→1535).
 - Magellan: DOS reads the allotment live (FUN_1427_065a), so the elect turn already moves the
   nation's ships one tile further; the port adds the +1 to remaining MP at election.
+- A native win over an undefended colony uses 1b0e's militia colonist pick (`local_b0`) in the
+  0d04 removal, including the colonist shift and plot-seat renumbering. The loss runs before the
+  winning Brave is removed when population remains above one (raw 100419/100680-100692).
 
 ## Harness artifacts (not port bugs)
 
@@ -288,7 +291,6 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
 - 1534→1535: Montreal's depletion roll (port bumps once; DOS not) — likely the Phase A /
   production interleave lead below. New Amsterdam's worker tile and nation 6's horse breeding
   (DOS 5 after the burn) still differ.
-- A native win with pop > 1 kills DOS's picked colonist (local_b0); the port drops the tail one.
 - `ai_diplo_euro_balance`'s war-fatigue peace roll (rand(1, 30)) is the same invented class as
   the removed war arm; untraced so far.
 

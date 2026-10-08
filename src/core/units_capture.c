@@ -14,6 +14,7 @@
 #include "core/ai_contact.h"
 #include "core/ai_diplo.h"
 #include "core/col1_save.h"
+#include "core/colony_internal.h"
 #include "core/combat_analysis.h"
 #include "core/combat_strength.h"
 #include "core/europe.h"
@@ -30,6 +31,11 @@
 
 /* ===================== Colony capture & movement-point accounting (units_try_capture_foreign_colony .. units_revere_defend_colony_tile) ===================== */
 
+/* FUN_5fef_1b0e local_b0: the militia's source colonist survives the combat
+ * call boundary only until its native-win colony limb has run. */
+static int s_militia_colonist_pick = -1;
+static int s_militia_attacker_id = -1;
+static int s_militia_colony_id = -1;
 
 void units_try_capture_foreign_colony(
   ColonizeUnitPool* pool,
@@ -71,7 +77,10 @@ void units_try_capture_foreign_colony_at(
    * treasury share, and never looks at the unit array except for the WoI
    * neighbour re-home below.
    */
-  if (units_domain_blocker_at(pool, cx, cy, unit_id, u->nation_id) >= 0) {
+  /* During 1b0e's bVar28 win limb the scratch militia still occupies the
+   * destination; DOS applies the colony loss before removing that row. */
+  if (!g_units_colony_autodefender &&
+      units_domain_blocker_at(pool, cx, cy, unit_id, u->nation_id) >= 0) {
     return;
   }
   /*
@@ -84,11 +93,25 @@ void units_try_capture_foreign_colony_at(
   if (u->nation_id > 3) {
     ColonizeColony snap = *col;
     if (col->population > 1) {
-      col->population--;
       if (col->colonist_count > 1) {
+        const int pick =
+          s_militia_attacker_id == unit_id && s_militia_colony_id == cid &&
+                  s_militia_colonist_pick >= 0 &&
+                  s_militia_colonist_pick < col->colonist_count
+            ? s_militia_colonist_pick : col->colonist_count - 1;
         colonies_colonist_tail_stash(colonies, col);
+        for (int i = pick; i < col->colonist_count - 1; ++i) {
+          col->colonists[i] = col->colonists[i + 1];
+        }
+        for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
+          if (col->tiles[i] == pick) col->tiles[i] = -1;
+          else if (col->tiles[i] > pick) col->tiles[i]--;
+        }
         col->colonist_count--;
       }
+      col->population--;
+      colonies_col1_rebel_divisor_adjust((ColonizeCol1Save*)g_units_ff_col1, col->x, col->y, -100);
+      s_militia_colonist_pick = -1;
       /*
        * DOS FUN_5fef_1b0e colony arm (viceroy_unpacked_2.c ~91930): the
        * native winner's colonist kill fires the massacre dialog — human
@@ -1036,10 +1059,12 @@ bool units_revere_defend_colony_tile(
     g_units_ff_col1, col->nation_id, has_soldier, col->stock[COLONIZE_CARGO_MUSKETS]
   );
   /* raw 100419: local_b0 = FUN_281f_04d4(0, colony +0x1f - 1), the colonist
-   * the militia stands in for (a native win with pop > 1 kills that one; the
-   * port still drops the tail colonist). */
+   * the militia stands in for and a native win with pop > 1 kills. */
+  s_militia_colonist_pick = -1;
+  s_militia_attacker_id = attacker_id;
+  s_militia_colony_id = cid;
   if (rng && col->colonist_count > 0) {
-    (void)dos_rng_range(rng, 0, col->colonist_count - 1);
+    s_militia_colonist_pick = dos_rng_range(rng, 0, col->colonist_count - 1);
   }
   const int def_id = units_spawn_colony_temp_defender(pool, col, revere_armed);
   if (def_id < 0) {
@@ -1058,6 +1083,7 @@ bool units_revere_defend_colony_tile(
   g_units_colony_autodefender = true;
   combat_set_auto_defender(true);
   const bool won = units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .col1=(ColonizeCol1Save*)(g_units_ff_col1), .col1_ok=((g_units_ff_col1) != NULL), .rng=(ColonizeDosRng*)(rng)}, attacker_id, def_id);
+  s_militia_colonist_pick = -1;
   combat_set_auto_defender(false);
   g_units_colony_autodefender = false;
   if (won && units_combat_is_visible(pool, attacker_id, def_id)) {

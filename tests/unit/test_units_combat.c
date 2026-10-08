@@ -612,7 +612,7 @@ static int unit_capture_ring_and_alarm_vent(void) {
 
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
-  pool.type_count = 2;
+  pool.type_count = 3;
   snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Soldiers");
   pool.types[0].attack = 99;
   pool.types[0].defense = 99;
@@ -623,6 +623,10 @@ static int unit_capture_ring_and_alarm_vent(void) {
   pool.types[1].defense = 1;
   pool.types[1].movement = 1;
   pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  pool.types[2].kind_plus1 = UNITS_KIND_COLONIST + 1;
+  pool.types[2].defense = 1;
+  pool.types[2].movement = 1;
+  pool.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
@@ -691,12 +695,31 @@ static int unit_capture_ring_and_alarm_vent(void) {
     col1_tribe_attitude_set(&tribe, 0, 200);
     col1.tribe = &tribe;
     units_set_ff_col1(&col1);
+    units_set_combat_colonies(&colonies);
     units_set_combat_human_nation(0);
 
     ColonizeColony* col = colonies_get_mut(&colonies, cid);
     col->nation_id = 0;
     col->population = 3;
     col->colonist_count = 3;
+    for (int i = 0; i < 3; ++i) {
+      col->colonists[i].active = true;
+      col->colonists[i].profession = 10 + i;
+      col->tiles[i] = (int8_t)i;
+    }
+    /* FUN_5fef_1b0e raw 100419/100680: local_b0 picks the militia's
+     * source colonist. Use a seed that picks a non-tail slot. */
+    int picked = -1;
+    for (uint32_t seed = 1; seed < 1000; ++seed) {
+      dos_rng_seed(&rng, seed);
+      ColonizeDosRng probe = rng;
+      picked = dos_rng_range(&probe, 0, 2);
+      if (picked < 2) break;
+    }
+    if (picked >= 2) {
+      rc = 1;
+      goto done;
+    }
 
     const int bid = units_spawn_allow_stack(&pool, 1, 3, 4);
     ColonizeUnit* brave = units_get(&pool, bid);
@@ -704,6 +727,17 @@ static int unit_capture_ring_and_alarm_vent(void) {
     brave->home_tribe_id = 0;
     brave->moves = 0; /* natives: SPENT byte — 0 = fresh full allotment */
     (void)units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(&rng)}, bid, 4, 4);
+
+    if (col->population != 2 || col->colonist_count != 2 ||
+        col->colonists[0].profession != 10 + (picked == 0 ? 1 : 0) ||
+        col->colonists[1].profession != 12 || col->tiles[picked] != -1 ||
+        col->tiles[2] != 1 || units_get(&pool, bid)) {
+      fprintf(stderr, "native colony win: pick=%d pop=%d count=%d prof=%d,%d tiles=%d,%d,%d brave=%d\n",
+              picked, col->population, col->colonist_count,
+              col->colonists[0].profession, col->colonists[1].profession,
+              col->tiles[0], col->tiles[1], col->tiles[2], units_get(&pool, bid) != NULL);
+      rc = 1;
+    }
 
     /* difficulty 3 − 10 = −7 → 40 - 7 = 33. */
     if (col1.indian[0].alarm_by_player[0] != 33) {
