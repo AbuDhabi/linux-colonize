@@ -147,7 +147,8 @@ typedef struct AiEuro28c8Env {
 } AiEuro28c8Env;
 
 static void ai_euro_28c8_env(
-  const ColonizeTurnContext* ctx, const ColonizeColony* col, int in_ai_tick,
+  const ColonizeTurnContext* ctx, const ColonizeColony* col, int colonist_slot,
+  int in_ai_tick,
   AiEuro28c8Env* env
 ) {
   const ColonizeCol1Save* col1 = ctx->col1_ok ? ctx->col1 : NULL;
@@ -160,7 +161,19 @@ static void ai_euro_28c8_env(
   int gross[AI_EURO_5952_LEDGER_SLOTS];
   int demand[AI_EURO_5952_LEDGER_SLOTS];
   const ColonizeWorld w = world_from_turn_ctx(ctx);
-  ai_euro_5952_ledgers(&w, ctx->colonies, col, col1, gross, demand);
+  /* FUN_15eb_28c8 raw 12969-12971 changes this colonist to idle before
+   * FUN_15eb_1f72 refreshes the ledger. Keep the caller's colony intact: a
+   * scoring probe (param_2 == -2) restores its original job in DOS. */
+  ColonizeColony unseated = *col;
+  ColonizeColonist* worker = &unseated.colonists[colonist_slot];
+  worker->field_job = COLONIZE_JOB_IDLE;
+  worker->building_type = -1;
+  for (int ti = 0; ti < COLONIZE_COLONY_TILES_MAX; ++ti) {
+    if (unseated.tiles[ti] == colonist_slot) {
+      unseated.tiles[ti] = -1;
+    }
+  }
+  ai_euro_5952_ledgers(&w, ctx->colonies, &unseated, col1, gross, demand);
   env->lumber_gross = gross[COLONIZE_CARGO_LUMBER];
   for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
     /* DS:0x8e32 production shortfall and DS:0x8e5a unmet-after-stock,
@@ -226,7 +239,7 @@ static int ai_euro_28c8_score_full(
   }
   const int current_job = self->field_job; /* iVar4 = FUN_15eb_0e18 */
   AiEuro28c8Env env;
-  ai_euro_28c8_env(ctx, col, in_ai_tick, &env);
+  ai_euro_28c8_env(ctx, col, colonist_slot, in_ai_tick, &env);
   const ColonizeCol1Save* col1 = ctx->col1_ok ? ctx->col1 : NULL;
   const ColonizeWorld world = world_from_turn_ctx(ctx);
   /* The scorer must answer the Fisherman gate exactly as the tick does, or it
