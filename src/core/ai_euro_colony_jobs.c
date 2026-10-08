@@ -166,9 +166,9 @@ static void ai_euro_28c8_env(
    * scoring probe (param_2 == -2) restores its original job in DOS. */
   ColonizeColony unseated = *col;
   ColonizeColonist* worker = &unseated.colonists[colonist_slot];
-  worker->field_job = COLONIZE_JOB_IDLE;
+  worker->field_job = -1;
   worker->building_type = -1;
-  for (int ti = 0; ti < COLONIZE_COLONY_TILES_MAX; ++ti) {
+  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES_MAX; ++ti) {
     if (unseated.tiles[ti] == colonist_slot) {
       unseated.tiles[ti] = -1;
     }
@@ -182,6 +182,20 @@ static void ai_euro_28c8_env(
     env->shortfall[c] = miss > 0 ? miss : 0;
     const int after = miss - col->stock[c];
     env->unmet[c] = after > 0 ? after : 0;
+  }
+  /* FUN_15eb_1f72 raw 12678-12687 writes DS:0x8e6a (unmet[8]) directly:
+   * potential horse births minus births affordable from food and warehouse
+   * room. FUN_15eb_0b52 never rewrites that slot. A food-limited colony can
+   * therefore double Fisherman scores through this HORSES-indexed word even
+   * while DS:0x35e suppresses the separate food-emergency branch. */
+  {
+    const ColonyProdHorseBreed hb = colony_prod_horse_breed(
+      col->stock[COLONIZE_CARGO_HORSES], col->population,
+      gross[COLONIZE_CARGO_FOOD],
+      colonies_warehouse_capacity(ctx->colonies, col, COLONIZE_CARGO_HORSES),
+      colonies_has_building_row(ctx->colonies, col, COLONY_BUILDING_STABLE)
+    );
+    env->unmet[COLONIZE_CARGO_HORSES] = hb.shortfall;
   }
 
   /* bVar2, raw 12974-12980. */

@@ -137,7 +137,9 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   batched at the round's end.
 - 4cc6_00f2 tier test caps only the new alarm at 99 (cooling 100→99 clamps village attitudes).
 - 465b LAB_0bd1 tail: an unsettled AI move (attack, board, block) with no unit lost → orders 0,
-  +0x315a++ (wrap 20: reset + exhaust); `units_465b_0bd1_tail`, Euro goal walker only so far.
+  +0x315a++ (wrap 20: reset + exhaust); `units_465b_0bd1_tail` now runs for the Euro goal
+  walker and Brave foreign-destination steps. The latter matches the 1534→1535 Fort Orange
+  raider's counter 2.
 - 015e ring skips the map border (078c reads class 0x19 outside FUN_137f_000a's interior).
 - 5bfb_3180 turns each newly met neighbour stack head's facing to the scan direction.
 - 4cc6_03f8 threat pressure halves only on a settlement tile (06be), not on unit presence.
@@ -293,29 +295,33 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   temporary unit spawns/removals overwrite `dos_tail[43]` with zero before that Brave spawns;
   the trace does not identify the DOS record supplying 236. Trace the DOS load/spawn sequence
   before assigning this byte in the port.
-- 1534→1535: Montreal's depletion roll (port bumps once; DOS not) still differs. Both French
-  colonies have passive bells even without Statesmen. A trial that interleaved per-colony bell
-  election and production left all 11 differing save fields unchanged, so that ordering alone
-  does not explain the roll. New Amsterdam's worker tile and nation 6's horse breeding
-  (DOS 5 after the burn) also differ.
-- New Amsterdam's final mask bit at (48,13) follows its worker choice: DOS seats the newcomer
-  on the northwest Fisherman plot and stamps the worked bit; the port seats him on the west
-  Fur plot. In the port's 5952 indoor pass the west score is 456 and northwest score 333;
-  both plots are unblocked and unclaimed. The saved mask byte is a consequence, not a separate
-  map-export fault. The scorer's military tally now walks the live slot range even when
-  despawns leave holes; that correction does not change this particular choice.
+- 1534→1535: Montreal's depletion counter now matches DOS. `FUN_3844_00f2` walks the colony
+  array in descending order and `FUN_364b_0688` adds each colony's bells and checks the Father
+  election before that colony produces. The port previously elected for both French colonies
+  before producing either; the second election consumed five RNG draws before Montreal's two
+  depletion rolls. A live DOS trace at `364b:1aa0` found both rolls start from seed 100 and
+  return zero; the old port drew zero then one. Nation 6's horse breeding also matches DOS (5):
+  the Indian census leaves DS:0x8d4e bound to the last settlement's nation, so five later
+  nation turns breed that same herd after its gain.
+- New Amsterdam's northwest Fisherman placement now matches DOS. A live DOSBox trace at
+  `15eb:2d14` showed the Fisherman candidate score 740 while the port scored 333. The missing
+  multiplier is `DS:0x8e5a[8]`: `FUN_15eb_1f72` writes the horse-breeding shortfall directly
+  to that word after the demand ledger. The scorer now uses that shortfall and seats the worker
+  northwest, also matching the worked-map bit at (48,13). With the breeding and Brave move-tail
+  fixes, this transition has four differing JSON leaves: New Amsterdam's `short_defenders`
+  flag and three stale goto/facing bytes on the Europe Scout. A fresh DOSBox load of
+  `year_1534.sav` followed by one idle turn produces a 24,057-byte autosave identical to the
+  port's output. The four archived differences are unsaved state from the continuous run.
 - 1534→1535 Europe Scout: `FUN_38fd_0718` writes only orders, profession and Pioneer tools
-  after `FUN_1427_06b4`; the dock mirror now preserves reused-slot goto/facing bytes. This
-  transition's remaining Scout bytes (53,52,7 vs 0,0,0) are from a newly allocated slot 46:
-  the port trace shows a temporary native unit repeatedly using that slot before the AI hire,
-  and the 1534 save contains only 46 unit records. Reproducing the archived stale bytes needs
-  a DOS from-load trace; the source record is not present in the 1534 save.
+  after `FUN_1427_06b4`; the dock mirror preserves reused-slot goto/facing bytes. The new
+  Scout uses slot 46 before two deletions compact it to slot 44. Slot 46's goto/facing bytes
+  are zero in the loaded DOS game and in the port. The archived run's (53,52,7) bytes were
+  carried in unsaved memory before its autosave; a fresh DOS load writes (0,0,0), exactly as
+  the port does.
 - `ai_diplo_euro_balance`'s war-fatigue peace roll (rand(1, 30)) is the same invented class as
   the removed war arm; untraced so far.
 
 - Human end-of-slot draws: DOS 5, port 1 in 1497→1498 (human FF debate rolls / merc offer?).
-- Multi-colony nations: Phase A runs for all a nation's colonies before any production; DOS
-  interleaves colony by colony (`turn_run_ai_nation_eot` ponytail note).
 - **AI colony tick vs DOS**: still the main source from 1499 on (worker/tile choice,
   `specialty_cargo`, `building_in_production` 255); trace the first diverging colony with the
   15eb:28c8 / 2d14 breakpoints. Downstream: alarm/friction, recruit pool / FF pick RNG phase.
@@ -325,6 +331,7 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
 - DOSBox loops: press space every ~200 INT16 polls (popups and the idle human's turn both take it),
   and match units by content, not index — a colony founding compacts the array mid-turn.
 - Nation +0x4b (`unknown_4b`): DOS writes it late-game (1..11 for nations 1/2); writer unknown.
-- 465b LAB_0bd1 tail is only applied on the Euro goal walker; Brave and other AI movers next.
+- 465b LAB_0bd1 tail still needs other non-goal AI movers audited; the Brave foreign attack
+  path is covered.
 - 1492→1493 only: `tut2.nr1`, `rival_nation_slot_2`, `stuff.x/y`, `map_mode` come from the
   human's first Move Pieces (tutorial popup, View key); not reachable headless.

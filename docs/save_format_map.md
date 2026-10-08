@@ -221,7 +221,7 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | `lands_bought` | 1 | `mapped` | `FUN_479b_00ca` INC |
 | `unknown31_flags` | 1 | `opaque` | Confirmed unread by DOS 2026-09-09 (offset tally, smell #72); old OpenCol prelude bit `0x20` retired |
 | `muskets` / `horse_herds` | 2 | `mapped` | |
-| `horse_breeding` | 2 | `mapped` | ±0x32 acquire/tick (`FUN_5bfb_*` / `4d56`). Smcol: herds→breeding each turn; cash horses at ≥25; notes a DOS bug where only one tribe breeds and breeding += herds×(non-extinct count) |
+| `horse_breeding` | 2 | `mapped` | ±0x32 acquire/tick (`FUN_5bfb_*` / `4d56`). DOS `FUN_4962_06b6` census leaves the Indian context on the last settlement's nation; `FUN_4d56_1816` then breeds that nation on every later nation turn, using each current nation's population cap. Confirmed by the 1534→1535 nation-6 herd gain and +5 breeding. |
 | `unknown31b`/`unknown31c` pads | 2 | `opaque` | Closed as no-reader pads |
 | `hill_silver_bid_bonus` | 2 | `mapped` | Was `unknown31d[2]`; resolved 2026-08-19: map-gen hill-proximity×tech accumulator, feeds tribe's Silver trade bid (`FUN_6a09_0006` write, `FUN_4d56_2154` read) |
 | `contact_state[4]` | 8 | `mapped` | +0x2e; FSM 0/1/2 |

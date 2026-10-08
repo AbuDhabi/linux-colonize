@@ -549,6 +549,7 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
   {
     const int dest_owner = ai_465b_dest_owner(map, units, nx, ny);
     if (dest_owner >= 0 && dest_owner != nation_id) {
+      const int units_before = units_active_count(units);
       const int left = max_mp - spent;
       if (left >= 3 && cost > left && spent != 0) {
         dos_rng_seed(rng, ai_turn_seed(s_ai_native_ctx)); /* 04ca, no roll */
@@ -586,6 +587,11 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
       /* Spent = the CURRENT type's allotment: a Brave that just took a
        * Dragoon's horses is a 4-MP unit now (1b0e raw 100735-100736). */
       units_mp_exhaust(units, u);
+      /* FUN_465b_0000 LAB_0bd1 raw 75721: an unsettled AI step whose
+       * attacker survived and lost no unit takes the shared orders/counter
+       * tail. The 1534→1535 Fort Orange raid leaves this Brave at the same
+       * tile with counter 2 (1816 attempt + 465b tail). */
+      units_465b_0bd1_tail(units, u->id, units_before, false);
       (*steps)++;
       return AI_NATIVE_STEP_STOP;
     }

@@ -622,9 +622,17 @@ int main(void) {
   save.indian[0].tons[2] = 0;
   const int step0 = (int)save.indian[0].tech + 1;
 
-  /* §6c fixture: herds present, breeding well under the population cap. */
-  save.indian[0].horse_herds = 5;
+  /* §6c: the census leaves DS:0x8d4e on the final settlement's nation.
+   * Its herd breeds once for each current nation whose turn reaches §6c. */
+  const int breeding_slot =
+    (int)save.tribe[save.head.tribe_count - 1].nation_id - 4;
+  if (breeding_slot <= 0 || breeding_slot >= 8) {
+    return fail("fixture must end with a nonzero Indian nation slot");
+  }
+  save.indian[0].horse_herds = 0;
   save.indian[0].horse_breeding = 10;
+  save.indian[breeding_slot].horse_herds = 5;
+  save.indian[breeding_slot].horse_breeding = 10;
 
   for (int n = 4; n <= 11; ++n) {
     ai_contact_indian_relation_tick(&ctx, n);
@@ -677,12 +685,18 @@ int main(void) {
   }
 
   const int cap0 = ((int)save.stuff.tribe_population_totals[0] + 0x19) * 2;
-  const int want_hb = (10 + 5) > cap0 ? cap0 : (10 + 5);
-  if ((int)save.indian[0].horse_breeding != want_hb) {
+  int want_hb = 10;
+  for (int n = 0; n < 8; ++n) {
+    const int cap = ((int)save.stuff.tribe_population_totals[n] + 0x19) * 2;
+    want_hb += 5;
+    if (want_hb > cap) want_hb = cap;
+  }
+  if ((int)save.indian[breeding_slot].horse_breeding != want_hb ||
+      save.indian[0].horse_breeding != 10) {
     fprintf(
       stderr,
       "horse_breeding got %u want %d (cap %d)\n",
-      (unsigned)save.indian[0].horse_breeding,
+      (unsigned)save.indian[breeding_slot].horse_breeding,
       want_hb,
       cap0
     );
@@ -690,9 +704,9 @@ int main(void) {
   }
 
   /* The cap really binds: park breeding above it and it must clamp down. */
-  save.indian[0].horse_breeding = (uint16_t)(cap0 + 500);
+  save.indian[breeding_slot].horse_breeding = (uint16_t)(cap0 + 500);
   ai_contact_indian_relation_tick(&ctx, 4);
-  if ((int)save.indian[0].horse_breeding != cap0) {
+  if ((int)save.indian[breeding_slot].horse_breeding != cap0) {
     return fail("horse breeding cap (pop_total + 25) * 2 not applied");
   }
 
