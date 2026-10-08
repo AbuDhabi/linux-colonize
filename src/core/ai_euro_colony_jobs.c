@@ -185,7 +185,9 @@ static void ai_euro_28c8_env(
   /* local_14 (AI only, raw 12960-12966): own units whose @UNIT defense
    * (DOS type*0xe + 0x5235) is > 1. */
   if (!env->human && ctx->units) {
-    for (int i = 0; i < ctx->units->unit_count; ++i) {
+    /* DOS walks its compact unit array. OpenCol keeps holes after despawns,
+     * so the live equivalent is the slot high-water mark. */
+    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
       if (!u->active || u->nation_id != col->nation_id) {
         continue;
