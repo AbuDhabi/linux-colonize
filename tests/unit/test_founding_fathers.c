@@ -702,10 +702,12 @@ int main(void) {
       map_free(&map);
       return fail("deep Magellan not elected");
     }
-    if (caravel->moves != car_moves) {
+    /* DOS reads the allotment live (FUN_1427_065a): the elect turn already
+     * gives the nation's ships +1 (DOSBox 1534, French caravel spent 15). */
+    if (caravel->moves != car_moves + UNITS_MP_PER_TILE) {
       free(deep_col1.colony);
       map_free(&map);
-      return fail("deep Magellan must not bump moves at elect (no DOS case 5)");
+      return fail("deep Magellan: ship allotment must grow by one tile on the elect turn");
     }
     if (dnat->gold != gold_pre_mag) {
       free(deep_col1.colony);

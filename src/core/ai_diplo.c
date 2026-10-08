@@ -132,8 +132,6 @@
  */
 #define AI_DIPLO_STRENGTH_MIN 10
 #define AI_DIPLO_STRENGTH_PARITY 15
-#define AI_DIPLO_STRENGTH_EDGE 20
-#define AI_DIPLO_STRENGTH_WAR_MIN 30
 /* First declare: seed peer treaty timer so near-parity peace waits for
  * timer==0 (war aged / fatigue). Reuses unknown26[0..3]; live timers kept. */
 #define AI_DIPLO_WAR_FATIGUE_TIMER 8u
@@ -922,29 +920,6 @@ static int ai_diplo_involves_human(const ColonizeTurnContext* ctx, int nation_a,
     return 0;
   }
   return nation_a == human || nation_b == human;
-}
-
-/* True if queue already has OK/CHOICE with same tag + pair (either order). */
-static int ai_diplo_popup_pair_queued(
-  const AiPopupState* st,
-  AiPopupTag tag,
-  int nation_a,
-  int nation_b
-) {
-  if (!st) {
-    return 0;
-  }
-  for (int i = 0; i < st->queue_count; ++i) {
-    const AiPopupRequest* r = &st->queue[i];
-    if (r->tag != tag) {
-      continue;
-    }
-    if ((r->nation_a == nation_a && r->nation_b == nation_b) ||
-        (r->nation_a == nation_b && r->nation_b == nation_a)) {
-      return 1;
-    }
-  }
-  return 0;
 }
 
 /*
@@ -3420,54 +3395,10 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
      * machinery (T2.4 2026-09-06) — DOS has no Euro×Euro alliances; 13b0 is
      * treaty sign/cancel only. */
 
-    /* 10ec war eligibility. */
-    if (self > other * 2 + AI_DIPLO_STRENGTH_EDGE && self > AI_DIPLO_STRENGTH_WAR_MIN) {
-      if (ctx->rng && dos_rng_range(ctx->rng, 1, 20) == 1) {
-        /*
-         * AI→human (FUN_5bfb / 15b3): enqueue CHOICE Accept/Refuse; apply calls
-         * declare_war_ctx. AI↔AI / human-as-actor still auto declare_war_ctx.
-         * Thin 153e sting inside declare_war; full body / 12d0 / FA UI PARKED.
-         */
-        if (ctx->ai_popups && peer == ctx->human_nation) {
-          if (!ai_diplo_popup_pair_queued(
-                ctx->ai_popups, AI_POPUP_TAG_DIPLO_WAR, nation_id, peer
-              )) {
-            /*
-             * @CANCELPEACE ("{%STRING0} cancel peace treaty with {%STRING1}.")
-             * — authentic prompt for the AI-initiated war CHOICE; Accept lets
-             * the declaration stand (declare_war_ctx), Refuse averts it.
-             */
-            char body[AI_POPUP_BODY_LEN];
-            PopupMsgTokens tok;
-            memset(&tok, 0, sizeof(tok));
-            /* FUN_465b_0000 asm 112755/112762: both via 0a1a (plural). */
-            tok.string0 = reports_nation_plural_woi(ctx->col1, nation_id);
-            tok.string1 = reports_nation_plural_woi(ctx->col1, peer);
-            popup_msg_fill(ctx->messages, "CANCELPEACE", &tok, "", body, sizeof(body));
-            if (ctx->status && ctx->status_size > 0) {
-              snprintf(ctx->status, ctx->status_size, "%s", body);
-            }
-            const char* labels[] = {"Accept", "Refuse"};
-            const int ids[] = {1, 2};
-            (void)ai_popup_enqueue_choice_ctx(
-              ctx->ai_popups,
-              AI_POPUP_TAG_DIPLO_WAR,
-              nation_id,
-              peer,
-              0,
-              NULL,
-              body,
-              labels,
-              ids,
-              2
-            );
-          }
-        } else {
-          ai_diplo_declare_war_ctx(ctx, nation_id, peer);
-        }
-      }
-      continue;
-    }
+    /* No "10ec war eligibility" roll here: the self >> other bands and the
+     * rand(1, 20) were invented, and DOSBox shows no such draw in a nation's
+     * plan stage (1534->1535: Spain's next draw is its first 4d2e roll).
+     * DOS's own war test is ai_euro_10ec_war_worthy, reached through 13b0. */
 
     /* FUN_5bfb_13b0 is not a balance step: DOS reaches it only from 3180's
      * land encounter (ai_diplo_13b0_encounter). Running it here on any

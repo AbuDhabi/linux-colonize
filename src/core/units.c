@@ -676,6 +676,19 @@ void units_slot_reset_defaults(
   slot->horses = 0;
   slot->home_tribe_id = -1;
   slot->col1_counter16 = 0;
+  /* A unit created at DOS index unit_count inherits the bytes 06b4 does not
+   * write (+0x0d..+0x0f, +0x13..+0x15) from the record compaction left there. */
+  if (pool->unit_count >= 0 && pool->unit_count < COLONIZE_UNITS_DOS_MAX &&
+      pool->dos_tail[pool->unit_count].valid && pool->dos_tail[pool->unit_count].raw_valid) {
+    memcpy(slot->col1_hold_raw, pool->dos_tail[pool->unit_count].raw, sizeof(slot->col1_hold_raw));
+    slot->col1_hold_raw_valid = 1;
+    slot->col1_hold_raw[0] = 0; /* +0x3150 */
+    if (type_index == 2) {
+      slot->col1_hold_raw[9] = 100; /* +0x3159 */
+    } else if (type_index == 0x0c) {
+      slot->col1_hold_raw[8] = 0; /* +0x3158 */
+    }
+  }
   /* FUN_1427_06b4 clears holds[0..1] and writes 0xff to hold[2] (the AI
    * explorer bytes +0x3154..+0x3156); the rest of a reused raw block stays. */
   slot->col1_hold_raw[4] = 0;

@@ -19,7 +19,8 @@ then a recursive JSON diff (show `*_hex` blobs as differing byte offsets). The t
 `EXCLUDE_FROM_ALL`: rebuild it explicitly (`cmake --build build/debug --target golden_idle_campaign`).
 
 Progress (sum of differing JSON leaves over all 77 transitions): 18,869 → 16,546 → 16,178 →
-13,423 → 12,739 → 8,798 → 8,122. 1493→1494, 1494→1495, 1495→1496, 1505→1506, 1512→1513 and 1513→1514 pass byte-for-byte; 1492→1493 is down to the
+13,423 → 12,739 → 8,798 → 8,122 → 7,023. 1493→1494, 1494→1495, 1495→1496, 1505→1506, 1512→1513, 1513→1514,
+1514→1515 and 1527→1528 pass byte-for-byte; 1492→1493 is down to the
 human's first-turn UI; 1497→1498 only to the stance-table artifact below.
 
 **From-load target.** Because DOS keeps unsaved state across turns (stance table, below), the
@@ -28,7 +29,9 @@ then press space until `DS:0x538e` changes); the human-slot autosave lands in `$
 space): `setup` copies a stale COLONY09 from COLONIZE/, and a popup can delay the write.
 `sav_json` it and diff against the sim: whatever remains is a port bug, whatever the archived save
 adds on top is an artifact. 1498→1499, 1501→1502 and 1502→1503 through 1504→1505 match their from-load
-autosaves exactly, and so do 1515→1516 and 1523→1524 (the archive adds unsaved-state diffs there).
+autosaves exactly, and so do 1496→1497, 1497→1498, 1498→1499, 1508→1509, 1511→1512, 1515→1516,
+1523→1524, 1526→1527 and 1528→1529 (the archive adds unsaved-state diffs there). 1516→1517 is off
+by one stale +0x15 byte; 1533→1534 by one Europe-lane chain link.
 
 DOSBox method used here (docs/dos_trace.md): `setup --save year_Y.sav`, load, then `BPM` on the
 record bytes that differ (unit chain +0x18, colony +0x8a / +0x70) or `BP` on a resident routine
@@ -231,6 +234,41 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
 - 021a's attack-intent local `[bp-0x6a]` is zeroed once per call (0x225), not per direction, so
   the stay tile skips its tech roll after any attacking direction.
 
+## Fixed in the 2026-10-08 pass (DOSBox-traced, 1514→1535)
+
+- LCR: FUN_465b_0000 rolls the rumour inside the move (raw 75763/75788-75791) — the AI landing
+  (`ai_euro_unload_pax_at`) now does too — and FUN_65dd_0004 reseeds from DS:0x83a6 before its
+  roll loop (raw 103462).
+- 5b66 walks a bound treasure with FUN_479b_0972 (arrival on a 0x0b goal exhausts MP); the port's
+  thin goal advance let it re-act and cash the same turn.
+- 20e6 delivery sell takes slot 0 each time through FUN_1000_8cdc (stale bytes past the count).
+- 4528 AI arm (OVL13 0x463c-0x4764, tail 0x4bdb): a computer Soldier/Dragoon/Artillery entering a
+  village takes code 9, OR-ing diplo bit 4 into both rows before the attack; a Scout speaks with
+  the chief, a Missionary runs its arm, a 0x1c/0x19 colonist-class unit lives among them, and
+  every non-attack code returns 1 (MP exhausted, step abandoned). The port attacked with all of them.
+- The empty-village phantom (FUN_478c_002c) has home byte 0xff: its removal never flags the
+  village's needs-colonist bit. 20e6's attack-term probe (FUN_5fef_1b0e probe mode) spawns that
+  phantom too, so an empty village is no longer scored against defence 0.
+- 022e: the beg-food block and the gift half need a colony on the encountered tile (local_4c,
+  raw 96989); a Brave meeting a bare unit gives nothing.
+- dos_tail carries the raw +0x0c..+0x15 block, so a unit created in a reused DOS slot inherits
+  the bytes 06b4 leaves alone; the 5952 improve phantom (478c_002c) skips 06b4's pioneer 100.
+- 5952 improve: plots are scored in DS:0xc8/0xde order (N, E, S, W, NW, NE, SE, SW), first tie
+  wins (raw 94466).
+- 20e6 pre-4d2e gate (raw 90210-90219): only a 0x0b unit on its goal is exempt; a 0x0c unit on its
+  step tile still needs FUN_281f_0984, else 20e6 exits and the walker writes facing −1. 5b66 skips
+  20e6 only for 0x0b with MP spent (raw 90551).
+- 1b0e: an Indian attacker that beats a colony's defender (pop > 1 or a real defender) is
+  destroyed (local_6, FUN_1427_0f30, raw 100390-100395/100753). The native mount/arm gear step
+  applies only to a native ATTACKER (raw 100731) and exhausts it after the type change (raw 100736);
+  the Brave step re-exhausts by the current type. The militia path draws DOS's colonist pick
+  rand(0, pop−1) (raw 100419). A burned colony gives its tribe +1 horse herd / +1 musket lot when
+  it held horses / muskets (raw 100700-100706).
+- Removed `ai_diplo_euro_balance`'s "10ec war eligibility" arm: invented bands and a rand(1, 20)
+  DOS never draws (Spain's plan stage, 1534→1535).
+- Magellan: DOS reads the allotment live (FUN_1427_065a), so the elect turn already moves the
+  nation's ships one tile further; the port adds the +1 to remaining MP at election.
+
 ## Harness artifacts (not port bugs)
 
 - 1505→1506: the archived save matches the port; the DOSBox from-load run differs (its Spanish
@@ -245,12 +283,14 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
 
 ## Open leads (most transitions first)
 
-- 1516→1517: a new brave's +0x15 byte is 236 in DOS: FUN_281f_0718 never clears it, so a reused
-  unit slot keeps the previous occupant's byte. The port would need the DOS slot memory.
-
-- 1514→1515: France's LCR roll is case 5 (burial mounds latch) in DOS, a different case in the
-  port (RNG phase?). Check that the port's colonist ADD
-  insert-sorts by add-time occupation like DOS (the export no longer sorts).
+- 1516→1517: a new brave's +0x15 byte is 236 in DOS (reused slot). dos_tail now carries the raw
+  block, but the port's "last record" is not DOS's when Europe units sit in the array.
+- 1534→1535: Montreal's depletion roll (port bumps once; DOS not) — likely the Phase A /
+  production interleave lead below. New Amsterdam's worker tile and nation 6's horse breeding
+  (DOS 5 after the burn) still differ.
+- A native win with pop > 1 kills DOS's picked colonist (local_b0); the port drops the tail one.
+- `ai_diplo_euro_balance`'s war-fatigue peace roll (rand(1, 30)) is the same invented class as
+  the removed war arm; untraced so far.
 
 - Human end-of-slot draws: DOS 5, port 1 in 1497→1498 (human FF debate rolls / merc offer?).
 - Multi-colony nations: Phase A runs for all a nation's colonies before any production; DOS
@@ -260,10 +300,7 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   15eb:28c8 / 2d14 breakpoints. Downstream: alarm/friction, recruit pool / FF pick RNG phase.
 - Remaining `transport_chain` diffs (~720 leaves) sit in transitions that already diverge
   elsewhere; recheck once those close.
-- **Brave routes next to new colonies** (1496→1497): a nation-7 brave steps past French Isabella
-  in DOS (owner stamps 7 on (44,52)/(44,53), tribe friction 9, relation accum) but not in the port —
-  the 021a scorer's inputs around a just-founded colony. Remaining `vis_mask` diffs (~590) are
-  mostly downstream of route/placement divergence; recheck after.
+- Remaining `vis_mask` diffs are mostly downstream of route/placement divergence; recheck after.
 - DOSBox loops: press space every ~200 INT16 polls (popups and the idle human's turn both take it),
   and match units by content, not index — a colony founding compacts the array mid-turn.
 - Nation +0x4b (`unknown_4b`): DOS writes it late-game (1..11 for nations 1/2); writer unknown.

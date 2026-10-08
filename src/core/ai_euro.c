@@ -468,6 +468,16 @@ int ai_euro_unload_pax_at(
   if (pax->id >= 0 && pax->id < COLONIZE_UNITS_MAX) {
     ai_euro_s_unloaded_this_turn[pax->id] = 1;
   }
+  /* FUN_465b_0000 raw 75763/75788-75791: a Euro unit stepping onto a rumour
+   * tile rolls the LCR (FUN_2a1f_0178 -> FUN_65dd_0004) inside the move,
+   * before the contact scan; a vanished unit skips the rest of the move. */
+  if (ctx->map && map_tile_has_rumour(ctx->map, pax->x, pax->y)) {
+    (void)units_resolve_lcr_rumour_w(&(ColonizeWorld){.units=ctx->units, .map=ctx->map, .col1=ctx->col1_ok ? ctx->col1 : NULL, .col1_ok=ctx->col1_ok, .rng=ctx->rng}, pax->id, -1);
+    pax = units_get(ctx->units, pax->id);
+    if (!pax || !pax->active) {
+      return 1;
+    }
+  }
   /*
    * FUN_5bfb_3180 after landfall: Indian first contact from an adjacent
    * Brave or tribe-owned land (seed-100 Dutch TURN2→3: Soldier lands (48,14)
@@ -1248,7 +1258,9 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * arm to keep moving at all (bugs.md #493).
    */
   const int fresh_allotment = u->moves >= units_max_mp(ctx->units, u->id);
-  if ((!is_goto || fresh_allotment) && !is_pioneer_job_active) {
+  /* Only 0x0b skips 20e6: a one-step 0x0c unit is re-scored first (raw 90551). */
+  (void)is_goto;
+  if ((u->orders != AI_EURO_ACT_GOAL || fresh_allotment) && !is_pioneer_job_active) {
     const ColonizeUnitKind gate_kind = ai_euro_unit_kind(ctx->units, u);
     const int defer_gate =
       ai_euro_is_treasure_name(gate_kind) || ai_euro_is_missionary_name(gate_kind) ||

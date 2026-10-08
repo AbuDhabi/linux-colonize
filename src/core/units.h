@@ -210,6 +210,8 @@ typedef struct ColonizeUnitPool {
     uint8_t goto_x;
     uint8_t goto_y;
     int8_t facing;
+    uint8_t raw_valid; /* raw = the old last unit's +0x0c..+0x15 block */
+    uint8_t raw[10];
   } dos_tail[COLONIZE_UNITS_DOS_MAX];
 } ColonizeUnitPool;
 
