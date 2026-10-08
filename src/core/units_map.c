@@ -211,7 +211,6 @@ void units_pool_check(const ColonizeUnitPool* pool) {
 
 static void units_clear_slot(ColonizeUnitPool* pool, ColonizeUnit* unit) {
   const int n = pool->unit_count; /* still counts this unit */
-  if (getenv("UNIT_TRACE") && n >= 40) fprintf(stderr,"DEL n=%d slot=%td id=%d type=%d raw15=%d\n",n,unit-pool->units,unit->id,unit->type_index,unit->col1_hold_raw[9]);
   if (n > 0 && n <= COLONIZE_UNITS_DOS_MAX) {
     for (int i = units_slot_end(pool) - 1; i >= 0; --i) {
       const ColonizeUnit* last = &pool->units[i];
@@ -222,7 +221,6 @@ static void units_clear_slot(ColonizeUnitPool* pool, ColonizeUnit* unit) {
         pool->dos_tail[n - 1].facing = (int8_t)last->last_dir;
         pool->dos_tail[n - 1].raw_valid = last->col1_hold_raw_valid ? 1 : 0;
         memcpy(pool->dos_tail[n - 1].raw, last->col1_hold_raw, sizeof(pool->dos_tail[n - 1].raw));
-        if (getenv("UNIT_TRACE")) fprintf(stderr,"TAIL %d from slot=%d id=%d type=%d raw15=%d\n",n-1,i,last->id,last->type_index,last->col1_hold_raw[9]);
         break;
       }
     }

@@ -908,6 +908,15 @@ static int unit_europe_dock_demand_throttled_by_lane(void) {
     fixture_free(&f);
     return fail("dock demand must not fire when the lane already covers the queue");
   }
+  /* 00f2's census ran before 5d04 purchased this waiting colonist. A live
+   * recount would send the empty hull home in the same nation turn. */
+  bound->col1_ai_plan = 0;
+  f.ctx.ai_euro_dock_census_valid[nation] = 1;
+  f.ctx.ai_euro_dock_census[nation] = 0;
+  if (ai_euro_20e6_europe_dock_demand(&f.ctx, idle, nation)) {
+    fixture_free(&f);
+    return fail("post-census dock purchase must not raise DS:0x945a");
+  }
   fixture_free(&f);
   return 0;
 }
@@ -985,6 +994,40 @@ static int unit_europe_lane_crossing_ticks(void) {
   }
   fixture_free(&f);
   return 0;
+}
+
+/* 1535→1536: 064e takes the terminal hull of a shared arrival-lane chain
+ * first. Its 10be pickup can move a sentried passenger from another hull. */
+static int unit_europe_lane_shared_arrival_transfers_passenger(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) return 1;
+  f.map.terrain[4 * 16 + 15] = 26;
+  const int first_id = units_spawn_allow_stack(&f.units, 2, 224 + nation, 224 + nation);
+  const int last_id = units_spawn_allow_stack(&f.units, 2, 224 + nation, 224 + nation);
+  const int pax_id = units_spawn_allow_stack(&f.units, 0, 224 + nation, 224 + nation);
+  ColonizeUnit* first = units_get(&f.units, first_id);
+  ColonizeUnit* last = units_get(&f.units, last_id);
+  ColonizeUnit* pax = units_get(&f.units, pax_id);
+  if (!first || !last || !pax) {
+    fixture_free(&f);
+    return fail("shared arrival spawn");
+  }
+  first->nation_id = last->nation_id = pax->nation_id = nation;
+  first->goto_x = last->goto_x = 15;
+  first->goto_y = last->goto_y = 4;
+  first->col1_counter16 = last->col1_counter16 = 0;
+  pax->orders = UNITS_ORDER_SENTRY;
+  if (!units_board_stacked_restore(&f.units, pax_id, first_id)) {
+    fixture_free(&f);
+    return fail("shared arrival board");
+  }
+  ai_euro_europe_lane_tick(&f.ctx, nation);
+  const int ok = first->x == 15 && first->y == 4 && last->x == 15 && last->y == 4 &&
+    first->cargo_count == 0 && last->cargo_count == 1 &&
+    last->cargo_ids[0] == pax_id && pax->aboard_ship_id == last_id;
+  fixture_free(&f);
+  return ok ? 0 : fail("terminal arrival hull must pick up the shared-lane passenger");
 }
 
 /*
@@ -2640,6 +2683,7 @@ static const TestCase k_cases[] = {
     {"unit_europe_dock_demand_sails_home", unit_europe_dock_demand_sails_home},
     {"unit_europe_dock_demand_throttled_by_lane", unit_europe_dock_demand_throttled_by_lane},
     {"unit_europe_lane_crossing_ticks", unit_europe_lane_crossing_ticks},
+    {"unit_europe_lane_shared_arrival_transfers_passenger", unit_europe_lane_shared_arrival_transfers_passenger},
     {"unit_delivery_matrix_skips_full_producer", unit_delivery_matrix_skips_full_producer},
     {"unit_delivery_sell_tail_dumps_cargo", unit_delivery_sell_tail_dumps_cargo},
     {"unit_load_matrix_picks_priced_cargo", unit_load_matrix_picks_priced_cargo},

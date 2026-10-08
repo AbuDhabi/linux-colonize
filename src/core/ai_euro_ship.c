@@ -1514,11 +1514,21 @@ void ai_euro_ship_leave_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
   const int n = ship->nation_id;
   ship->col1_counter16 = ai_euro_lane_voyage_turns(ctx, n, lx);
   /* 0346's 02ee/02e4 walk: every passenger takes the voyage turns. */
+  int dock_passengers = 0;
   for (int i = 0; i < ship->cargo_count && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
     ColonizeUnit* pax = units_get(ctx->units, ship->cargo_ids[i]);
     if (pax) {
       pax->col1_counter16 = ship->col1_counter16;
+      if (!units_is_sea(ctx->units, pax->id)) {
+        dock_passengers++;
+      }
     }
+  }
+  /* FUN_48d3_0346 raw 77748 decrements DS:0x945a for passengers leaving
+   * Europe. The census is a snapshot; this is its live departure writer. */
+  if (n >= 0 && n < 4 && ctx->ai_euro_dock_census_valid[n]) {
+    ctx->ai_euro_dock_census[n] =
+      (uint8_t)(ctx->ai_euro_dock_census[n] - dock_passengers);
   }
   ai_euro_lane_move(ctx, ship, 232 + n, 232 + n);
   ship->moves = 0;
@@ -1550,6 +1560,9 @@ static void ai_euro_europe_place_arrival(ColonizeTurnContext* ctx, ColonizeUnit*
   const int ox = u->x;
   const int oy = u->y;
   /* 064e: FUN_281f_0920 (10be) then 048e's 0948 (040c), no 0644. */
+  /* 064e's 10be peels the whole shared lane before 048e places this hull.
+   * A sentried land unit may transfer from a later hull on that lane. */
+  (void)units_ship_departure_pickup(ctx->units, u->id, ox, oy);
   units_tile_stack_ship_relink(ctx->units, u->id, false);
   u->x = hx;
   u->y = hy;
@@ -1592,12 +1605,12 @@ void ai_euro_europe_lane_tick(ColonizeTurnContext* ctx, int nation_id) {
     }
   }
   /* FUN_48d3_06ba tail -> FUN_48d3_064e: every hull (type 0x0d..0x12) on
-   * the arrival lane 224+n is placed. ponytail: slot order, DOS walks the
-   * lane's tile chain (07e0/02e4); differs only with 2+ same-turn arrivals. */
+   * the arrival lane 224+n is placed. 07e0 starts at the chain terminal;
+   * on a shared lane this is the last slot, so walk descending. */
   if (!ctx->map) {
     return;
   }
-  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+  for (int i = units_slot_end(ctx->units) - 1; i >= 0; --i) {
     ColonizeUnit* u = &ctx->units->units[i];
     if (u->active && u->nation_id == nation_id && u->aboard_ship_id < 0 &&
         u->x == 224 + nation_id && u->y == 224 + nation_id && units_is_sea(ctx->units, u->id)) {

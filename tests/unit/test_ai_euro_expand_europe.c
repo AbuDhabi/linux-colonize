@@ -648,6 +648,19 @@ static int unit_privateer_europe_loot_sail(void) {
     return fail("expected Privateer AI_SAIL eastward with SILVER loot");
   }
 
+  /* FUN_48d3_015e only sets the course. Even a hull already standing on
+   * High Seas crosses later, when FUN_479b_0972 reaches the chosen tile. */
+  ship->x = 14;
+  ship->y = 4;
+  ship->orders = UNITS_ORDER_NONE;
+  ship->col1_ai_plan = 0;
+  if (!ai_euro_20e6_3fa6_sail_home(&ctx, ship, nation) ||
+      ship->x != 14 || ship->y != 4 || ship->orders != UNITS_ORDER_AI_SAIL ||
+      ship->col1_ai_plan != 'E') {
+    fx_map_free(&map);
+    return fail("FUN_48d3_015e must only set a course on a High Seas tile");
+  }
+
   fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Privateer Europe loot sail ok\n");
   return 0;

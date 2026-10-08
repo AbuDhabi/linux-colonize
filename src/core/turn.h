@@ -65,6 +65,10 @@ typedef struct ColonizeTurnContext {
    */
   uint8_t euro_power_rank[4];
   bool euro_power_rank_ok;
+  /* DS:0x945a is the 00f2 census's dockside land count. AI purchases later
+   * in this nation's turn do not raise it; 48d3_0346 departures lower it. */
+  uint8_t ai_euro_dock_census[4];
+  uint8_t ai_euro_dock_census_valid[4];
   /*
    * FUN_4962_0606 profession histogram per Euro nation (SETUP). Indices are
    * @JOB / profession ids 0..31; counts saturate at 255.
