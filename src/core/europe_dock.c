@@ -669,8 +669,8 @@ int europe_spawn_dock_mirror_unit(
   units_set_nation(u, nation_id);
   u->orders = UNITS_ORDER_SENTRY; /* DOS +0x314c = 1 */
   u->profession = profession;
-  u->goto_x = 0;
-  u->goto_y = 0;
+  /* FUN_38fd_0718 raw 59133-59142 leaves +0x314d..+0x314f alone.
+   * FUN_1427_06b4 also leaves them alone on a reused slot. */
   u->moves = 0;
   europe_apply_dock_unit_kit(u, dos_type);
   return id;

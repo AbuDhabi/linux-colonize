@@ -2587,13 +2587,18 @@ static int case_europe_workflow(void) {
       return 1;
     }
 
-    /* 2. The (236,236) mirror unit behind that dock row. */
+    /* 2. The (236,236) mirror unit behind that dock row. DOS 0718 keeps
+     * reused-slot goto and facing bytes (1534->1535 Europe hire). */
+    units.dos_tail[units.unit_count].valid = 1;
+    units.dos_tail[units.unit_count].goto_x = 53;
+    units.dos_tail[units.unit_count].goto_y = 52;
+    units.dos_tail[units.unit_count].facing = 7;
     const int mid = europe_spawn_dock_mirror_unit(
       &units, 0, UNITS_JOB_SCOUT, 3, true, NULL
     );
     const ColonizeUnit* mu = units_get(&units, mid);
     if (!mu || mu->type_index != scout_ti || mu->horses != UNITS_EQUIP_HORSES ||
-        mu->muskets != 0) {
+        mu->muskets != 0 || mu->goto_x != 53 || mu->goto_y != 52 || mu->last_dir != 7) {
       fprintf(
         stderr, "scout kit: dock mirror type=%d horses=%d muskets=%d\n",
         mu ? mu->type_index : -1, mu ? mu->horses : -1, mu ? mu->muskets : -1

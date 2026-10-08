@@ -296,6 +296,12 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
 - 1534→1535: Montreal's depletion roll (port bumps once; DOS not) — likely the Phase A /
   production interleave lead below. New Amsterdam's worker tile and nation 6's horse breeding
   (DOS 5 after the burn) still differ.
+- 1534→1535 Europe Scout: `FUN_38fd_0718` writes only orders, profession and Pioneer tools
+  after `FUN_1427_06b4`; the dock mirror now preserves reused-slot goto/facing bytes. This
+  transition's remaining Scout bytes (53,52,7 vs 0,0,0) are from a newly allocated slot 46:
+  the port trace shows a temporary native unit repeatedly using that slot before the AI hire,
+  and the 1534 save contains only 46 unit records. Reproducing the archived stale bytes needs
+  a DOS from-load trace; the source record is not present in the 1534 save.
 - `ai_diplo_euro_balance`'s war-fatigue peace roll (rand(1, 30)) is the same invented class as
   the removed war arm; untraced so far.
 
