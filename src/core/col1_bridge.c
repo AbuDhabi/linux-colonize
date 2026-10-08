@@ -2969,6 +2969,34 @@ bool col1_bridge_capture_w(
       }
     }
 
+    /* FUN_1427_02ca / 005c also link ships sharing a Europe sentinel tile.
+     * Passenger chains above end at their hull; join those hulls in DOS
+     * record order, keeping each passenger chain intact. 1533->1534 has two
+     * Spanish hulls at (234,234), with a colonist preceding the first one. */
+    for (int i = 0; i < written; ++i) {
+      if (neu[i].x < 200 || neu[i].y < 200 || neu[i].type < 13 || neu[i].type > 18 ||
+          neu[i].transport_chain.next_unit_idx >= 0) {
+        continue;
+      }
+      for (int j = i + 1; j < written; ++j) {
+        if (neu[j].type < 13 || neu[j].type > 18 || neu[j].x != neu[i].x ||
+            neu[j].y != neu[i].y || neu[j].nation_id != neu[i].nation_id) {
+          continue;
+        }
+        int root = j;
+        for (int guard = 0; guard < written && neu[root].transport_chain.prev_unit_idx >= 0;
+             ++guard) {
+          root = neu[root].transport_chain.prev_unit_idx;
+        }
+        if (root == i || neu[root].transport_chain.prev_unit_idx >= 0) {
+          continue;
+        }
+        neu[i].transport_chain.next_unit_idx = (int16_t)root;
+        neu[root].transport_chain.prev_unit_idx = (int16_t)i;
+        break;
+      }
+    }
+
     /*
      * bugs.md interop: DOS tile stacks ARE this chain. FUN_1427_02ca appends
      * arrivals to +0x315c/+0x315e; FUN_1427_0002 follows +0x315c to the tail,

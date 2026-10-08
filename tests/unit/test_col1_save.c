@@ -982,6 +982,77 @@ static bool test_bridge_unit_overflow(char* err, size_t err_size) {
   return ok;
 }
 
+/* 1533->1534: two AI hulls share one Europe lane, and one carries a
+ * passenger. FUN_1427_02ca links the two hull groups on that tile. */
+static bool test_europe_lane_ship_chain(char* err, size_t err_size) {
+  ColonizeCol1Save save;
+  col1_save_init(&save);
+  save.head.map_size_x = 8;
+  save.head.map_size_y = 8;
+  save.head.unit_count = 3;
+  save.head.human_player = 0;
+  save.player[0].control = 0;
+  col1_save_stamp_head(&save.head);
+  if (!col1_save_alloc_sections(&save, err, err_size)) return false;
+  memset(save.map.tile, 0, save.map.tile_count);
+  for (int i = 0; i < 3; ++i) {
+    save.unit[i].x = 234;
+    save.unit[i].y = 234;
+    save.unit[i].nation_id = 2;
+    save.unit[i].type = i == 2 ? 0 : 13;
+    save.unit[i].profession = UNITS_JOB_NONE;
+    save.unit[i].transport_chain.prev_unit_idx = -1;
+    save.unit[i].transport_chain.next_unit_idx = -1;
+  }
+
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units.type_count = 23;
+  for (int i = 0; i < units.type_count; ++i) {
+    units.types[i].movement = 1;
+    units.types[i].domain = i >= 13 && i <= 18 ? COLONIZE_UNIT_DOMAIN_SEA
+                                               : COLONIZE_UNIT_DOMAIN_LAND;
+    units.types[i].cargo = i >= 13 && i <= 18 ? 6 : 0;
+  }
+  units_set_occupancy_map(NULL);
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  ColonizeCol1BridgeResult result;
+  bool ok = col1_bridge_apply_w(
+    &(ColonizeWorld){.units=&units, .colonies=&colonies, .map=&map, .col1=&save,
+                     .col1_ok=true, .europe=&europe}, &result, err, err_size
+  );
+  if (ok) {
+    /* The AI boards a dock colonist after load, as in the campaign turn. */
+    units_board_stacked_restore(&units, units.units[2].id, units.units[0].id);
+    ok = col1_bridge_capture_w(
+      &(ColonizeWorld){.units=&units, .colonies=&colonies, .map=&map, .col1=&save,
+                       .col1_ok=true, .europe=&europe},
+      1492, 0, 1, 0, 0, 0, 0, 0, -1, true, err, err_size
+    );
+  }
+  if (ok && (save.head.unit_count != 3 ||
+             save.unit[2].transport_chain.next_unit_idx != 0 ||
+             save.unit[0].transport_chain.prev_unit_idx != 2 ||
+             save.unit[0].transport_chain.next_unit_idx != 1 ||
+             save.unit[1].transport_chain.prev_unit_idx != 0)) {
+    snprintf(err, err_size, "Europe lane chain count=%u links=%d/%d %d/%d %d/%d",
+             save.head.unit_count,
+             save.unit[0].transport_chain.prev_unit_idx, save.unit[0].transport_chain.next_unit_idx,
+             save.unit[1].transport_chain.prev_unit_idx, save.unit[1].transport_chain.next_unit_idx,
+             save.unit[2].transport_chain.prev_unit_idx, save.unit[2].transport_chain.next_unit_idx);
+    ok = false;
+  }
+  col1_save_free(&save);
+  map_free(&map);
+  return ok;
+}
+
 static bool test_imported_tile_chain_order(char* err, size_t err_size) {
   ColonizeCol1Save save;
   col1_save_init(&save);
@@ -1152,6 +1223,10 @@ int main(void) {
   fprintf(stderr, "Col1 over-full ship keeps its chained passenger ok\n");
   if (!test_imported_tile_chain_order(err, sizeof(err))) {
     fprintf(stderr, "tile-chain order: %s\n", err);
+    return 1;
+  }
+  if (!test_europe_lane_ship_chain(err, sizeof(err))) {
+    fprintf(stderr, "Europe lane chain: %s\n", err);
     return 1;
   }
   fprintf(stderr, "Col1 tile-chain arrival order import/export ok\n");
