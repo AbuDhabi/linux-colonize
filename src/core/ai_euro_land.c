@@ -260,7 +260,9 @@ void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* co
   const int ring = colonies_work_plot_count(ctx->colonies, col);
   int best = -1;      /* local_16e, signed */
   int best_plot = -1; /* local_34 */
-  for (int ti = 0; ti < ring; ++ti) {
+  for (int step = 0; step < ring; ++step) {
+    /* DS:0xc8/0xde order (N, E, S, W, NW, NE, SE, SW, ...): the first tie wins. */
+    const int ti = colonies_field_scan_order(step);
     int dx = 0;
     int dy = 0;
     if (!colonies_field_tile_delta(ti, &dx, &dy)) {
@@ -387,10 +389,18 @@ void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* co
   if (!units_spawn_room(ctx->units, nation)) {
     return;
   }
+  const int tail_n = ctx->units->unit_count;
+  const int tail_raw = tail_n >= 0 && tail_n < COLONIZE_UNITS_DOS_MAX &&
+    ctx->units->dos_tail[tail_n].valid && ctx->units->dos_tail[tail_n].raw_valid;
   const int pid = units_spawn_allow_stack(ctx->units, ptype, tx, ty);
   ColonizeUnit* ph = units_get(ctx->units, pid);
   if (!ph) {
     return;
+  }
+  if (tail_raw) {
+    /* FUN_291f_0a20 -> FUN_478c_002c makes the phantom, not 06b4: no
+     * pioneer +0x3159 = 100 write, the reused slot keeps its byte. */
+    ph->col1_hold_raw[9] = ctx->units->dos_tail[tail_n].raw[9];
   }
   units_set_nation(ph, nation); /* 06b4 stamps the visitor nibble (FUN_1427_02ca) */
   ph->tools = UNITS_EQUIP_TOOLS_STEP;
@@ -1802,7 +1812,21 @@ static int ai_euro_20e6_attack_term(
     }
     base = (er.atk_strength << 3) / (er.def_strength + 1);
   } else {
-    base = (combat_unit_base_x8(&sctx, u->id, 1, NULL) << 3) / 1;
+    /* FUN_5fef_1b0e probe mode (raw 100361-100392): an empty village gets its
+     * temporary Brave (FUN_291f_0a20) even when only scoring, and the odds
+     * run against it; it is removed again at the probe's end. */
+    const int vn = ai_euro_village_nation_at(ctx->col1_ok ? ctx->col1 : NULL, nx, ny);
+    const int tmp = (vn >= 4 && !s->is_ship && ctx->col1_ok && ctx->col1)
+      ? units_spawn_village_temp_defender(ctx->units, ctx->col1, nx, ny, vn, u->id) : -1;
+    if (tmp >= 0) {
+      ColonizeCombatEngageResult er;
+      memset(&er, 0, sizeof(er));
+      combat_land_engage(&sctx, u->id, tmp, &er);
+      base = (er.atk_strength << 3) / (er.def_strength + 1);
+      units_despawn(ctx->units, tmp);
+    } else {
+      base = (combat_unit_base_x8(&sctx, u->id, 1, NULL) << 3) / 1;
+    }
   }
   /* 8aac(foe, 0) + 1 and max(8aac(foe, 2), 1) over the whole foe stack at
    * (nx, ny); case 2 = total stack size (byte-exact 0d38 decode). */
@@ -3524,7 +3548,11 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
       }
     }
   }
-  int to_4d2e = force_wander || !ai_euro_has_useful_goto(u, ctx->map) ||
+  /* Only a 0x0b unit on its goal is exempt (raw 90212); a one-step 0x0c
+   * unit standing on its step tile still needs FUN_281f_0984. */
+  const int step_at_goal =
+    u->orders == AI_EURO_ACT_STEP && u->goto_x == u->x && u->goto_y == u->y;
+  int to_4d2e = force_wander || (!ai_euro_has_useful_goto(u, ctx->map) && !step_at_goal) ||
                 ai_euro_20e6_adjacent_foreign_09dc(ctx, u->x, u->y, nation_id);
   if (!to_4d2e) {
     /*

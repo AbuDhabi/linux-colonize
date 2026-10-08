@@ -297,7 +297,16 @@ int ai_native_step_first_contact(
      * with the call site that needed them. `aiStack_20[nation]` keeps it to
      * one resolved encounter per nation per pass.
      */
-    if (!s_ai_visit_applied_this_turn[nation_id - 4]) {
+    /* 022e binds local_4c = FUN_281f_07be(encounter tile): the beg-food
+     * block and the gift half (raw 96989 `if (local_4c < 0) goto
+     * LAB_5bfb_1005`) both need a colony there; a bare unit gets neither. */
+    int colony_here = 0;
+    if (ai_s_native_colonies) {
+      const int ecid = colonies_id_at(ai_s_native_colonies, nx, ny);
+      const ColonizeColony* ec = ecid >= 0 ? colonies_get(ai_s_native_colonies, ecid) : NULL;
+      colony_here = ec && ec->active && ec->nation_id == e;
+    }
+    if (colony_here && !s_ai_visit_applied_this_turn[nation_id - 4]) {
       s_ai_visit_applied_this_turn[nation_id - 4] = 1;
       if (!ai_contact_try_village_gifts(s_ai_native_ctx, nation_id)) {
         ai_contact_try_village_beg_food(s_ai_native_ctx, nation_id);
@@ -574,7 +583,9 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
           }
         }
       }
-      u->moves = max_mp;
+      /* Spent = the CURRENT type's allotment: a Brave that just took a
+       * Dragoon's horses is a 4-MP unit now (1b0e raw 100735-100736). */
+      units_mp_exhaust(units, u);
       (*steps)++;
       return AI_NATIVE_STEP_STOP;
     }

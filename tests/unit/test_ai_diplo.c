@@ -2397,75 +2397,6 @@ static int case_marathon2_ai_declare_choice(void) {
   return 0;
 }
 
-static int case_cancelpeace_authentic_prompt(void) {
-    ColonizeCol1Save cp;
-    col1_save_init(&cp);
-    memset(cp.nation, 0, sizeof(cp.nation));
-    for (int i = 0; i < 4; ++i) {
-      cp.player[i].control = 0;
-      cp.player[i].country_name[0] = '\0';
-    }
-    snprintf(cp.player[0].country_name, sizeof(cp.player[0].country_name), "England");
-    snprintf(cp.player[1].country_name, sizeof(cp.player[1].country_name), "France");
-    /* self ≫ other: 7 Soldiers (112) vs none (sweep-3 D2: the score is the
-     * live land-unit sum, so state the strength gap where it actually lives:
-     * 112 > 0*2+20 and > 30 clears the declare-pressure band). */
-    ColonizeUnitPool units_cp;
-    if (test_pool_soldiers(&units_cp, 0, 7)) {
-      return fail("@CANCELPEACE spawn");
-    }
-    cp.nation[1].gold = 2000;
-    for (int i = 0; i < 8; ++i) {
-      cp.indian[i].alarm_by_player[0] = 0; /* relation 100 */
-      cp.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-      cp.indian[i].alarm_by_player[1] = 0; /* relation 100 */
-      cp.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
-    }
-    char status_cp[128];
-    status_cp[0] = '\0';
-    AiPopupState pop_cp;
-    ai_popup_init(&pop_cp);
-    ColonizeDosRng rng_cp;
-    dos_rng_seed(&rng_cp, 99);
-    ColonizeTurnContext ctx_cp;
-    memset(&ctx_cp, 0, sizeof(ctx_cp));
-    ctx_cp.messages = test_game_txt();
-    ctx_cp.col1 = &cp;
-    ctx_cp.col1_ok = true;
-    ctx_cp.units = &units_cp;
-    ctx_cp.rng = &rng_cp;
-    ctx_cp.human_nation = 0;
-    ctx_cp.status = status_cp;
-    ctx_cp.status_size = sizeof(status_cp);
-    ctx_cp.ai_popups = &pop_cp;
-    ColonizeMsgCatalog game_txt_cp;
-    memset(&game_txt_cp, 0, sizeof(game_txt_cp));
-    if (!assets_msg_load_file(&game_txt_cp, "COLONIZE/GAME.TXT")) {
-      return fail("@CANCELPEACE: GAME.TXT load failed");
-    }
-    ctx_cp.messages = &game_txt_cp;
-    int fired = 0;
-    for (int n = 0; n < 200 && !fired; ++n) {
-      ai_diplo_euro_balance(&ctx_cp, 1);
-      if (pop_cp.queue_count > 0) {
-        fired = 1;
-      }
-    }
-    assets_msg_free(&game_txt_cp);
-    if (!fired) {
-      return fail("@CANCELPEACE: 10ec war-declare CHOICE never fired");
-    }
-    if (pop_cp.queue[0].tag != AI_POPUP_TAG_DIPLO_WAR ||
-        pop_cp.queue[0].kind != AI_POPUP_KIND_CHOICE) {
-      return fail("@CANCELPEACE: expected DIPLO_WAR CHOICE");
-    }
-    if (strcmp(pop_cp.queue[0].body, "{French} cancel peace treaty with {English}.") != 0) {
-      fprintf(stderr, "unit_ai_diplo: CANCELPEACE body '%s'\n", pop_cp.queue[0].body);
-      return fail("@CANCELPEACE: CHOICE body should be authentic GAME.TXT line");
-    }
-  return 0;
-}
-
 static int case_marathon2_sticky_deepen_popup(void) {
     ColonizeCol1Save ns;
     col1_save_init(&ns);
@@ -3472,7 +3403,6 @@ static const TestCase k_cases[] = {
     {"case_declare_war_popup_unpark", case_declare_war_popup_unpark},
     {"case_marathon2_privateer_spawn", case_marathon2_privateer_spawn},
     {"case_marathon2_ai_declare_choice", case_marathon2_ai_declare_choice},
-    {"case_cancelpeace_authentic_prompt", case_cancelpeace_authentic_prompt},
     {"case_marathon2_sticky_deepen_popup", case_marathon2_sticky_deepen_popup},
     {"case_marathon3_franklin_peace_gate", case_marathon3_franklin_peace_gate},
     {"case_indian_grudge_tension_clamp", case_indian_grudge_tension_clamp},

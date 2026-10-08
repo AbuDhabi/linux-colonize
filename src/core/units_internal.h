@@ -82,6 +82,8 @@ extern void* g_units_move_watch_user;
 extern int g_units_native_chrome_owned;
 extern int g_units_native_gear_armed;
 extern int g_units_native_gear_mounted;
+/* 0 while units_apply_land_loss_outcome runs for a beaten ATTACKER (1b0e raw 100731). */
+extern int g_units_loss_winner_attacked;
 extern ColonizeUnitsPopupPumpFn g_units_popup_pump;
 extern void* g_units_popup_pump_user;
 extern ColonizeUnitsRaidRepelledFn g_units_raid_repelled;

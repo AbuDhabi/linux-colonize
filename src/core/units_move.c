@@ -263,6 +263,20 @@ bool units_try_move_w(
       combat_attack_entry = true;
       goto combat_entry_resolved;
     }
+    /* FUN_465b_0000 raw 75486-75490 -> FUN_4d56_4528 AI arm (OVL13 0x463c-
+     * 0x4708, 0x4bc0): a non-human Euro Soldier / Dragoon / Artillery (type
+     * 1 / 4 / 0x0b) entering a village takes switch code 9, which ORs the
+     * attack bit 4 into both diplo rows before the attack resolves. */
+    if (g_units_ff_col1 && unit->nation_id >= 0 && unit->nation_id <= 3 &&
+        g_units_ff_col1->player[unit->nation_id].control != 0 &&
+        (unit->type_index == 1 || unit->type_index == 4 || unit->type_index == 0x0b)) {
+      const int vn = units_tribe_nation_at(g_units_ff_col1, dest_x, dest_y);
+      if (vn >= 4) {
+        ai_diplo_or_both(
+          (ColonizeCol1Save*)g_units_ff_col1, unit->nation_id, vn, COL1_INDIAN_ATTACK_CONFIRMED_BIT
+        );
+      }
+    }
     /* FUN_465b_0000 raw 75527-75545: Privateer-sighting relation bit,
      * written before the attack resolves (same 465b entry head as the
      * Indian alarm slam below). */

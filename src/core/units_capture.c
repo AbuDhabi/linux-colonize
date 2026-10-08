@@ -144,6 +144,17 @@ void units_try_capture_foreign_colony_at(
       }
       return;
     }
+    /* Raw 100700-100706: the burning tribe takes one horse herd if the
+     * colony held horses (+0xaa) and one musket lot if it held muskets (+0xb8). */
+    if (g_units_ff_col1 && u->nation_id >= 4 && u->nation_id <= 11) {
+      ColonizeCol1Indian* ind = &((ColonizeCol1Save*)g_units_ff_col1)->indian[u->nation_id - 4];
+      if (col->stock[COLONIZE_CARGO_HORSES] != 0) {
+        ind->horse_herds++;
+      }
+      if (col->stock[COLONIZE_CARGO_MUSKETS] != 0) {
+        ind->muskets++;
+      }
+    }
     (void)colonies_abandon(colonies, cid);
     /*
      * DOS native colony arm: the human victim also gets woodcut 11 (COLONY
@@ -1024,6 +1035,12 @@ bool units_revere_defend_colony_tile(
   const bool revere_armed = founding_fathers_revere_should_auto_arm(
     g_units_ff_col1, col->nation_id, has_soldier, col->stock[COLONIZE_CARGO_MUSKETS]
   );
+  /* raw 100419: local_b0 = FUN_281f_04d4(0, colony +0x1f - 1), the colonist
+   * the militia stands in for (a native win with pop > 1 kills that one; the
+   * port still drops the tail colonist). */
+  if (rng && col->colonist_count > 0) {
+    (void)dos_rng_range(rng, 0, col->colonist_count - 1);
+  }
   const int def_id = units_spawn_colony_temp_defender(pool, col, revere_armed);
   if (def_id < 0) {
     return true; /* nobody home at all (pop 0) — nothing to defend with */

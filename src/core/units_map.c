@@ -219,6 +219,8 @@ static void units_clear_slot(ColonizeUnitPool* pool, ColonizeUnit* unit) {
         pool->dos_tail[n - 1].goto_x = (uint8_t)last->goto_x;
         pool->dos_tail[n - 1].goto_y = (uint8_t)last->goto_y;
         pool->dos_tail[n - 1].facing = (int8_t)last->last_dir;
+        pool->dos_tail[n - 1].raw_valid = last->col1_hold_raw_valid ? 1 : 0;
+        memcpy(pool->dos_tail[n - 1].raw, last->col1_hold_raw, sizeof(pool->dos_tail[n - 1].raw));
         break;
       }
     }
@@ -894,6 +896,7 @@ bool units_defender_is_dos_scratch_row(void) {
  */
 int g_units_native_gear_armed = 0;
 int g_units_native_gear_mounted = 0;
+int g_units_loss_winner_attacked = 1;
 
 void units_last_native_gear_step(int* out_armed, int* out_mounted) {
   if (out_armed) {

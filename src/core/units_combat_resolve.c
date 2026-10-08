@@ -396,6 +396,17 @@ bool units_resolve_land_combat_ff_w(
     g_units_last_combat = 1;
     units_dissolve_notify(1);
     units_combat_pump_popups();
+    /* FUN_5fef_1b0e raw 100390-100395 + 100753: an Indian attacker that beats
+     * a colony's defender (population > 1, or a real defender) sets local_6,
+     * and FUN_281f_083a -> FUN_1427_0f30 destroys it instead of putting it
+     * back on its tile. */
+    if (atk_nation >= 4 && atk_nation <= 11 && g_units_combat_colonies) {
+      const int vcid = colonies_id_at(g_units_combat_colonies, def_x, def_y);
+      const ColonizeColony* vc = vcid >= 0 ? colonies_get(g_units_combat_colonies, vcid) : NULL;
+      if (vc && (vc->population > 1 || !g_units_colony_autodefender)) {
+        units_despawn(pool, attacker_id);
+      }
+    }
     return true;
   }
   /* FUN_5fef_1b0e 5fef:2577-259f: attacker-loss cue precedes outcome.
@@ -412,7 +423,9 @@ bool units_resolve_land_combat_ff_w(
     const ColonizeUnit win_snap = *def;
     const ColonizeUnit lose_snap = *atk;
     /* bugs.md #240: loss outcome popups first, then @EUROPELOSE (DOS order). */
+    g_units_loss_winner_attacked = 0;
     (void)units_apply_land_loss_outcome(pool, attacker_id, defender_id, col1, 1, rng);
+    g_units_loss_winner_attacked = 1;
     units_combat_outcome_popups(
       pool, &win_snap, &lose_snap, 0, atk_nation, def_nation, 0, ambush, col1
     );

@@ -350,8 +350,8 @@ static int ai_euro_20e6_delivery_colony_pick(
  * the AI dump-sell pays no Crown cut on this path. Ported as written; the
  * double ledger entry is DOS behaviour, not a port bug.
  *
- * Substitution: DOS's `holds_occupied` walk with slot-0 compaction is a plain
- * sweep over the port's occupied goods holds (same set, same order).
+ * DOS walks `holds_occupied` taking slot 0 each time (the compaction leaves
+ * stale bytes past the count, which saves carry).
  */
 static int ai_euro_20e6_delivery_sell_tail(
   ColonizeTurnContext* ctx,
@@ -366,17 +366,14 @@ static int ai_euro_20e6_delivery_sell_tail(
   const int n = units_goods_hold_count(ctx->units, ship->id);
   int total = 0;
   for (int h = 0; h < n && h < COLONIZE_UNIT_CARGO_MAX; ++h) {
-    const int qty = units_hold_amount(ctx->units, ship->id, h);
-    if (qty <= 0) {
+    const int qty = units_hold_amount(ctx->units, ship->id, 0);
+    const int g = ship->hold_goods_type[0];
+    /* FUN_1000_8cdc: slot 0 is removed (and the rest compacted) before the
+     * ledgers run. */
+    (void)units_remove_goods_slot(ship, 0);
+    if (qty <= 0 || g < 0 || g >= COLONIZE_CARGO_COUNT) {
       continue;
     }
-    const int g = ship->hold_goods_type[h];
-    if (g < 0 || g >= COLONIZE_CARGO_COUNT) {
-      continue;
-    }
-    /* FUN_1000_8cdc: the slot is emptied before the ledgers run. */
-    ship->hold_goods_amount[h] = 0;
-    ship->hold_goods_type[h] = 0;
     /* func_0x00019c1e = 38fd_1dfa. Needs the shared EuropeScreen; when the AI
      * runs headless without one the price/volume ledger is simply skipped —
      * the treasury half below is col1-only and always applies. */

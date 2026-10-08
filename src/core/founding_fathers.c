@@ -1126,7 +1126,21 @@ static void apply_effect(
        * Magellan bumps nothing by itself. The ongoing per-turn refresh
        * (turn_refresh_moves_for_nation, turn.c) is the only real site; the
        * one-shot elect-time bump here was a fandom-sourced invention and is
-       * removed (matches the Franklin/de Soto pattern above). */
+       * removed (matches the Franklin/de Soto pattern above).
+       *
+       * Representation only: DOS keeps MP *spent* and reads the allotment live
+       * (FUN_1427_065a, +3 for ship types 0x0d..0x12 once bit 5 is set), so a
+       * nation electing Magellan in its 00f2 colony loop moves its ships one
+       * tile further that very turn (DOSBox 1534: a French caravel spent 15).
+       * The port stores MP remaining, refreshed before the election. */
+      if (units) {
+        for (int i = 0; i < units_slot_end(units); ++i) {
+          ColonizeUnit* u = &units->units[i];
+          if (u->active && u->nation_id == nation_id && units_is_sea(units, u->id)) {
+            u->moves += UNITS_MP_PER_TILE;
+          }
+        }
+      }
       break;
     case FF_FRANCISCO_CORONADO:
       /* Manual/wiki: "all existing colonies and the area around them become

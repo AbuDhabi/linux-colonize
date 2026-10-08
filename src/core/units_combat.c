@@ -327,7 +327,9 @@ int units_spawn_village_temp_defender(
     return -1;
   }
   u->nation_id = indian_nation;
-  u->home_tribe_id = tribe_index;
+  /* FUN_478c_002c raw 76561: the phantom's home byte +0x314a is 0xff, so
+   * its removal (0808 -> 0824) never flags the village's needs-colonist bit. */
+  u->home_tribe_id = -1;
   /* The nation_id just written is native, so moves is the DOS SPENT byte
    * here: a raw 0 would mean "full allotment", not "cannot act". The phantom
    * must never be able to move (smell audit 2026-09-09 #7). */
@@ -1215,7 +1217,7 @@ int units_apply_land_loss_outcome(
      *       -> brave type += 1 (armed); flags @INDIANWIN1.
      * (bVar14 -> tag suffix '2', bVar13 -> '1' at raw 101088-101095.)
      */
-    if (loser_euro && win->nation_id >= 4 && !on_colony) {
+    if (loser_euro && win->nation_id >= 4 && !on_colony && g_units_loss_winner_attacked) {
       const ColonizeUnitKind lk = units_type_kind(lt);
       const ColonizeUnitKind wk = units_type_kind(wt);
       int step = 0;
@@ -1237,6 +1239,9 @@ int units_apply_land_loss_outcome(
         if (nti >= 0) {
           win->type_index = nti;
           units_sync_equip_after_type_change(win, units_type(pool, nti));
+          if (step == 2) {
+            units_mp_exhaust(pool, win); /* raw 100735-100736: type += 2, then FUN_281f_0934 */
+          }
         } else {
           g_units_native_gear_mounted = 0;
           g_units_native_gear_armed = 0;
@@ -3609,6 +3614,8 @@ bool units_resolve_lcr_rumour_w(
   const bool is_pioneer = pioneer_type >= 0 && u->type_index == pioneer_type;
   /* DS:0x1dc6++ happens before the roll loop (103459). */
   s_lcr_explored_total++;
+  /* 103462: FUN_281f_04ca(DS:0x83a6) reseeds before the roll loop. */
+  dos_rng_reseed_83a6(rng);
   ColonizeLcrRoll roll;
   units_lcr_roll_outcome(
     &roll, col1, map, rng, nation, x, y, skill, de_soto_reroll, woi, is_pioneer

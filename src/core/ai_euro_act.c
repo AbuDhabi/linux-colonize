@@ -230,6 +230,12 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_treasure(struct ai_euro_act_c
   if (!is_treasure && ai_euro_20e6_missionary_arm(ctx, u, nation_id)) {
     treasure_routed = 1; /* LAB_27f5 course bound: the walker steps it this act */
   }
+  /* 20e6 returned with a bound course: FUN_521d_5b66 cases 0x0b/0x0c walk it
+   * with FUN_479b_0972 (arrival on a 0x0b goal exhausts MP, raw 77098). */
+  if (treasure_routed && (u->orders == AI_EURO_ACT_GOAL || u->orders == AI_EURO_ACT_STEP)) {
+    ai_euro_goal_walk_479b(ctx, u);
+    return AI_EURO_ACT_RETURN;
+  }
 
   a->treasure_routed = treasure_routed;
   a->u = u;
@@ -821,6 +827,54 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
 }
 
 /* FUN_479b_0972: one pathfinder step toward +0x314d/e. */
+/*
+ * FUN_465b_0000 raw 75483-75490 -> FUN_4d56_4528 non-human arm (OVL13
+ * 0x463c-0x4764 type switch, 0x4bdb tail, 0x4bf0 return): a computer Euro
+ * land unit stepping onto a village tile. Soldier / Dragoon / Artillery take
+ * code 9 (attack bit, units_try_move_w) and 4528 returns 0, so the move goes
+ * on into the attack. Every other type returns [bp-0x58] = 1: FUN_1000_8b24
+ * exhausts its MP and 465b abandons the step. Scout = code 6 (speak with
+ * chief), Missionary = codes 3/4/7, a colonist-class unit with profession
+ * 0x1c/0x19 under alarm 0x4b = code 5 (live among). Wagon Train (code 1,
+ * trade) is left to the existing move path. Returns 1 when the step was
+ * consumed.
+ */
+static int ai_euro_4528_ai_village_entry(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int ty) {
+  if (!ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe || u->nation_id < 0 || u->nation_id > 3 ||
+      ctx->col1->player[u->nation_id].control == 0 || units_is_sea(ctx->units, u->id)) {
+    return 0;
+  }
+  int tribe_index = -1;
+  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+    const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+    if ((int)t->x == tx && (int)t->y == ty && t->nation_id >= 4 && t->nation_id <= 11) {
+      tribe_index = (int)ti;
+      break;
+    }
+  }
+  const int type = u->type_index;
+  if (tribe_index < 0 || type == 1 || type == 4 || type == 0x0b || type == 0x0c) {
+    return 0;
+  }
+  const int e = u->nation_id;
+  const int id = u->id;
+  if (type == 5) {
+    (void)ai_contact_ai_scout_visit_village(ctx, e, tribe_index, id);
+  } else if (type == 3) {
+    (void)ai_contact_ai_missionary_village(ctx, e, tribe_index, id);
+  } else if ((type == 0 || type == 2 || type == 7 || type == 9) &&
+             (u->profession == UNITS_JOB_NONE || u->profession == UNITS_JOB_SERVANT) &&
+             ai_diplo_indian_alarm(ctx->col1, (int)ctx->col1->tribe[tribe_index].nation_id, e) <
+               0x4b) {
+    (void)ai_contact_ai_live_among_village(ctx, e, tribe_index, id);
+  }
+  ColonizeUnit* after = units_get(ctx->units, id);
+  if (after && after->active) {
+    after->moves = 0; /* FUN_1000_8b24 */
+  }
+  return 1;
+}
+
 void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   const int id = u->id;
   const int state = u->orders;
@@ -850,6 +904,9 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   u->last_dir = dir;
   if (!ok) {
     u->orders = UNITS_ORDER_NONE; /* FUN_2a1f_0210 found no direction */
+    return;
+  }
+  if (ai_euro_4528_ai_village_entry(ctx, u, px, py)) {
     return;
   }
   const int units_before = units_active_count(ctx->units);

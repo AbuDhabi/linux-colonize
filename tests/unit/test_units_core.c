@@ -5856,11 +5856,13 @@ static int case_combat_militia_phantom_row(void) {
         units_set_ff_col1(NULL);
         return 1;
       }
-      if (mil_draws != 1) {
+      /* 1b0e raw 100419 rand(0, pop - 1) colonist pick + the combat roll;
+       * 172c must not roll for a 0x17 row. */
+      if (mil_draws != 2) {
         fprintf(
           stderr,
-          "militia-phantom: seed %d consumed %d RNG draws, expected 1 "
-          "(combat roll only — 172c must not roll for a 0x17 row)\n",
+          "militia-phantom: seed %d consumed %d RNG draws, expected 2 "
+          "(militia colonist pick + combat roll — 172c must not roll for a 0x17 row)\n",
           mil_seed,
           mil_draws
         );
