@@ -31,7 +31,8 @@ space): `setup` copies a stale COLONY09 from COLONIZE/, and a popup can delay th
 adds on top is an artifact. 1498→1499, 1501→1502 and 1502→1503 through 1504→1505 match their from-load
 autosaves exactly, and so do 1496→1497, 1497→1498, 1498→1499, 1508→1509, 1511→1512, 1515→1516,
 1523→1524, 1526→1527 and 1528→1529 (the archive adds unsaved-state diffs there). 1516→1517 is off
-by one stale +0x15 byte; 1533→1534 by one Europe-lane chain link.
+by one stale +0x15 byte. The 1533→1534 Europe-lane chain link now matches DOS; the archived
+save still differs in a Brave's movement and map bytes.
 
 DOSBox method used here (docs/dos_trace.md): `setup --save year_Y.sav`, load, then `BPM` on the
 record bytes that differ (unit chain +0x18, colony +0x8a / +0x70) or `BP` on a resident routine
@@ -271,6 +272,8 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
 - A native win over an undefended colony uses 1b0e's militia colonist pick (`local_b0`) in the
   0d04 removal, including the colonist shift and plot-seat renumbering. The loss runs before the
   winning Brave is removed when population remains above one (raw 100419/100680-100692).
+- Save capture links sibling AI hulls on the same Europe sentinel tile after forming each hull's
+  passenger chain (`FUN_1427_02ca` / `005c`). This restores the 42→4→41 chain in 1533→1534.
 
 ## Harness artifacts (not port bugs)
 
@@ -286,8 +289,10 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
 
 ## Open leads (most transitions first)
 
-- 1516→1517: a new brave's +0x15 byte is 236 in DOS (reused slot). dos_tail now carries the raw
-  block, but the port's "last record" is not DOS's when Europe units sit in the array.
+- 1516→1517: a new brave's +0x15 byte is 236 in DOS (reused slot). A port trace shows several
+  temporary unit spawns/removals overwrite `dos_tail[43]` with zero before that Brave spawns;
+  the trace does not identify the DOS record supplying 236. Trace the DOS load/spawn sequence
+  before assigning this byte in the port.
 - 1534→1535: Montreal's depletion roll (port bumps once; DOS not) — likely the Phase A /
   production interleave lead below. New Amsterdam's worker tile and nation 6's horse breeding
   (DOS 5 after the burn) still differ.
