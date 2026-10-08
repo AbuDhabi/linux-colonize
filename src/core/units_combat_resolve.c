@@ -404,6 +404,14 @@ bool units_resolve_land_combat_ff_w(
       const int vcid = colonies_id_at(g_units_combat_colonies, def_x, def_y);
       const ColonizeColony* vc = vcid >= 0 ? colonies_get(g_units_combat_colonies, vcid) : NULL;
       if (vc && (vc->population > 1 || !g_units_colony_autodefender)) {
+        /* FUN_5fef_1b0e raw 100680-100692: the bVar28 colony loss uses
+         * local_b0 before FUN_1427_0f30 removes the winning Brave. */
+        if (g_units_colony_autodefender) {
+          units_try_capture_foreign_colony_at(
+            pool, (ColonizeColonyPool*)g_units_combat_colonies,
+            attacker_id, def_x, def_y
+          );
+        }
         units_despawn(pool, attacker_id);
       }
     }
