@@ -293,9 +293,17 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   temporary unit spawns/removals overwrite `dos_tail[43]` with zero before that Brave spawns;
   the trace does not identify the DOS record supplying 236. Trace the DOS load/spawn sequence
   before assigning this byte in the port.
-- 1534→1535: Montreal's depletion roll (port bumps once; DOS not) — likely the Phase A /
-  production interleave lead below. New Amsterdam's worker tile and nation 6's horse breeding
-  (DOS 5 after the burn) still differ.
+- 1534→1535: Montreal's depletion roll (port bumps once; DOS not) still differs. Both French
+  colonies have passive bells even without Statesmen. A trial that interleaved per-colony bell
+  election and production left all 11 differing save fields unchanged, so that ordering alone
+  does not explain the roll. New Amsterdam's worker tile and nation 6's horse breeding
+  (DOS 5 after the burn) also differ.
+- New Amsterdam's final mask bit at (48,13) follows its worker choice: DOS seats the newcomer
+  on the northwest Fisherman plot and stamps the worked bit; the port seats him on the west
+  Fur plot. In the port's 5952 indoor pass the west score is 456 and northwest score 333;
+  both plots are unblocked and unclaimed. The saved mask byte is a consequence, not a separate
+  map-export fault. The scorer's military tally now walks the live slot range even when
+  despawns leave holes; that correction does not change this particular choice.
 - 1534→1535 Europe Scout: `FUN_38fd_0718` writes only orders, profession and Pioneer tools
   after `FUN_1427_06b4`; the dock mirror now preserves reused-slot goto/facing bytes. This
   transition's remaining Scout bytes (53,52,7 vs 0,0,0) are from a newly allocated slot 46:
