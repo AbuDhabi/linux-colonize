@@ -20,7 +20,7 @@ then a recursive JSON diff (show `*_hex` blobs as differing byte offsets). The t
 
 Progress (sum of differing JSON leaves over all 77 transitions): 18,869 → 16,546 → 16,178 →
 13,423 → 12,739 → 8,798 → 8,122 → 7,023. 1493→1494, 1494→1495, 1495→1496, 1505→1506, 1512→1513, 1513→1514,
-1514→1515 and 1527→1528 pass byte-for-byte; 1492→1493 is down to the
+1514→1515, 1516→1517 and 1527→1528 pass byte-for-byte; 1492→1493 is down to the
 human's first-turn UI; 1497→1498 only to the stance-table artifact below.
 
 **From-load target.** Because DOS keeps unsaved state across turns (stance table, below), the
@@ -30,8 +30,7 @@ space): `setup` copies a stale COLONY09 from COLONIZE/, and a popup can delay th
 `sav_json` it and diff against the sim: whatever remains is a port bug, whatever the archived save
 adds on top is an artifact. 1498→1499, 1501→1502 and 1502→1503 through 1504→1505 match their from-load
 autosaves exactly, and so do 1496→1497, 1497→1498, 1498→1499, 1508→1509, 1511→1512, 1515→1516,
-1523→1524, 1526→1527 and 1528→1529 (the archive adds unsaved-state diffs there). 1516→1517 is off
-by one stale +0x15 byte. The 1533→1534 Europe-lane chain link now matches DOS; the archived
+1523→1524, 1526→1527 and 1528→1529 (the archive adds unsaved-state diffs there). The 1533→1534 Europe-lane chain link now matches DOS; the archived
 save still differs in a Brave's movement and map bytes.
 
 DOSBox method used here (docs/dos_trace.md): `setup --save year_Y.sav`, load, then `BPM` on the
@@ -276,6 +275,27 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   winning Brave is removed when population remains above one (raw 100419/100680-100692).
 - Save capture links sibling AI hulls on the same Europe sentinel tile after forming each hull's
   passenger chain (`FUN_1427_02ca` / `005c`). This restores the 42→4→41 chain in 1533→1534.
+- 1516→1517 is now byte-identical. A DOS from-load watchpoint on `DS:0x360d` found the AI's
+  throwaway Pioneer tool debit: `FUN_479b_0158` wraps +0x3159 from 0 to 236. The next Brave
+  inherits that byte after the phantom is removed. The port now preserves the wrapped byte in
+  both the plot-improvement and road-connection phantom paths.
+- 1534→1535 Montreal's depletion counter now matches. `FUN_3844_00f2` walks colonies in
+  descending save order and `FUN_364b_0688` checks each colony's Father election before its
+  production. The port had elected for both French colonies first, consuming five RNG draws
+  before Montreal. A DOS trace at `364b:1aa0` found both depletion rolls start from seed 100.
+- New Amsterdam's Fisherman placement and worked-map bit now match. A trace at `15eb:2d14`
+  found score 740; `FUN_15eb_1f72` writes the horse-breeding shortfall directly to
+  `DS:0x8e5a[8]`, supplying the missing multiplier in `FUN_15eb_28c8`.
+- Nation 6's 1534→1535 horse breeding now matches DOS (5): the Indian census leaves
+  DS:0x8d4e bound to the last settlement's nation, so later nation turns breed that herd
+  while using each current nation's population cap.
+- 1535→1536 now matches the two French hulls' map positions, orders, plans and the
+  nearby Soldier's Veteran promotion. A watchpoint on hull slot 40 showed DS:0x9456
+  and DS:0x945a for nation 2 both stay zero through its move, even though 5d04 bought
+  a dockside land unit. `FUN_4962_0018` takes the dock count before that purchase;
+  the port now holds that count during the AI dispatcher. On the shared arrival lane,
+  `064e` takes the chain-terminal hull (slot 40) first; its `10be` pickup takes the
+  sentried passenger from slot 4's hull, matching the DOS watchpoint at `0c4b:02ec`.
 
 ## Harness artifacts (not port bugs)
 
@@ -286,40 +306,26 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
 - The `-0x6790` stance table (DS:0x9870) is not in the save and is zero after a DOS load; the
   continuous run carried last turn's values. A DOSBox load of year_1497 reproduces the port's
   Isabella `short_defenders`/`specialty_cargo`, not the save's.
+- A fresh DOSBox load of `year_1534.sav` followed by one idle turn produces a 24,057-byte
+  autosave identical to the port's output. The archive's four differences are New Amsterdam's
+  `short_defenders` bit and three stale goto/facing bytes on a Europe Scout. The Scout is born
+  in slot 46, then compacted to 44; its slot 46 bytes are zero after a fresh DOS load, matching
+  the port. The archived continuous run carried (53,52,7) in unsaved memory.
+- 1526→1527 still has one archived byte at a new unit's stale +0x15 (DOS 236, port 0),
+  but the previous from-load DOS replay matched the port; do not assign the archive's
+  inherited byte to a port writer without another live trace.
 - DOS's music picker (`FUN_129f_0008`) draws twice at the human's slot start; harmless because
   every slot's 5e52 reseeds.
 
 ## Open leads (most transitions first)
 
-- 1516→1517: a new brave's +0x15 byte is 236 in DOS (reused slot). A port trace shows several
-  temporary unit spawns/removals overwrite `dos_tail[43]` with zero before that Brave spawns;
-  the trace does not identify the DOS record supplying 236. Trace the DOS load/spawn sequence
-  before assigning this byte in the port.
-- 1534→1535: Montreal's depletion counter now matches DOS. `FUN_3844_00f2` walks the colony
-  array in descending order and `FUN_364b_0688` adds each colony's bells and checks the Father
-  election before that colony produces. The port previously elected for both French colonies
-  before producing either; the second election consumed five RNG draws before Montreal's two
-  depletion rolls. A live DOS trace at `364b:1aa0` found both rolls start from seed 100 and
-  return zero; the old port drew zero then one. Nation 6's horse breeding also matches DOS (5):
-  the Indian census leaves DS:0x8d4e bound to the last settlement's nation, so five later
-  nation turns breed that same herd after its gain.
-- New Amsterdam's northwest Fisherman placement now matches DOS. A live DOSBox trace at
-  `15eb:2d14` showed the Fisherman candidate score 740 while the port scored 333. The missing
-  multiplier is `DS:0x8e5a[8]`: `FUN_15eb_1f72` writes the horse-breeding shortfall directly
-  to that word after the demand ledger. The scorer now uses that shortfall and seats the worker
-  northwest, also matching the worked-map bit at (48,13). With the breeding and Brave move-tail
-  fixes, this transition has four differing JSON leaves: New Amsterdam's `short_defenders`
-  flag and three stale goto/facing bytes on the Europe Scout. A fresh DOSBox load of
-  `year_1534.sav` followed by one idle turn produces a 24,057-byte autosave identical to the
-  port's output. The four archived differences are unsaved state from the continuous run.
-- 1534→1535 Europe Scout: `FUN_38fd_0718` writes only orders, profession and Pioneer tools
-  after `FUN_1427_06b4`; the dock mirror preserves reused-slot goto/facing bytes. The new
-  Scout uses slot 46 before two deletions compact it to slot 44. Slot 46's goto/facing bytes
-  are zero in the loaded DOS game and in the port. The archived run's (53,52,7) bytes were
-  carried in unsaved memory before its autosave; a fresh DOS load writes (0,0,0), exactly as
-  the port does.
 - `ai_diplo_euro_balance`'s war-fatigue peace roll (rand(1, 30)) is the same invented class as
   the removed war arm; untraced so far.
+- 1535→1536 is down from 20 to six differing JSON leaves against the from-load DOS
+  autosave: five links in the final shared ship/passenger tile chain and one map owner
+  nibble at (30,50), port 9 vs DOS 1. The archive adds four unsaved-state leaves.
+  `FUN_1427_0d38` mode 2 counts the entire tile stack, while the port substitutes
+  `cargo_count` for 20e6's entry-local `local_a8`; investigate as a separate issue.
 
 - Human end-of-slot draws: DOS 5, port 1 in 1497→1498 (human FF debate rolls / merc offer?).
 - **AI colony tick vs DOS**: still the main source from 1499 on (worker/tile choice,

@@ -532,7 +532,10 @@ int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int 
         continue;
       }
       ColonizeUnit* host = units_get(pool, u->aboard_ship_id);
-      if (!host || !units_is_on_map(host) || host->x != x || host->y != y) {
+      /* FUN_1427_10be also runs on the off-map Europe arrival lane: the
+       * first hull leaving a shared lane can take another hull's sentried
+       * passenger. Tile equality is the gate there too. */
+      if (!host || host->x != x || host->y != y) {
         continue;
       }
       if (!units_remove_from_cargo(host, u->id)) {

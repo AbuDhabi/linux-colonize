@@ -674,6 +674,8 @@ static int case_colony_tick_improves_a_plot(void) {
       ++units_left;
     }
   }
+  const int stale_tools = f.units.dos_tail[0].valid && f.units.dos_tail[0].raw_valid
+    ? f.units.dos_tail[0].raw[9] : -1;
   fx_done(&f);
 
   if (improved != 1) {
@@ -688,6 +690,9 @@ static int case_colony_tick_improves_a_plot(void) {
   }
   if (units_left != 0) {
     return fail("#612: the phantom colonist (FUN_291f_0a06) was not undone");
+  }
+  if (stale_tools != 0xec) {
+    return fail("#612: DOS's phantom Pioneer tool debit must leave 0xec in the reused slot");
   }
   return 0;
 }
@@ -753,6 +758,8 @@ static int case_road_connect_links_two_colonies(void) {
   const int tools = f.col->stock[COLONIZE_CARGO_TOOLS];
   const int timer = f.col->improve_timer;
   const int units_left = f.units.unit_count;
+  const int stale_tools = f.units.dos_tail[0].valid && f.units.dos_tail[0].raw_valid
+    ? f.units.dos_tail[0].raw[9] : -1;
   fx_done(&f);
   if (!roaded) {
     return fail("#641: raw 93669 must road the gap tile on the link");
@@ -765,6 +772,9 @@ static int case_road_connect_links_two_colonies(void) {
   }
   if (units_left != 0) {
     return fail("#641: both phantoms (FUN_291f_0a06) must be undone");
+  }
+  if (stale_tools != 0xec) {
+    return fail("#641: road phantom must preserve DOS's wrapped tool byte");
   }
   return 0;
 }

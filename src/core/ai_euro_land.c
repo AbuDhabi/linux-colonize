@@ -397,11 +397,11 @@ void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* co
   if (!ph) {
     return;
   }
-  if (tail_raw) {
-    /* FUN_291f_0a20 -> FUN_478c_002c makes the phantom, not 06b4: no
-     * pioneer +0x3159 = 100 write, the reused slot keeps its byte. */
-    ph->col1_hold_raw[9] = ctx->units->dos_tail[tail_n].raw[9];
-  }
+  /* FUN_291f_0a20 -> FUN_478c_002c makes the phantom, not 06b4: no
+   * pioneer +0x3159 = 100 write. The reused slot keeps its byte; a fresh
+   * slot starts at zero. */
+  ph->col1_hold_raw[9] = tail_raw ? ctx->units->dos_tail[tail_n].raw[9] : 0;
+  ph->col1_hold_raw_valid = 1;
   units_set_nation(ph, nation); /* 06b4 stamps the visitor nibble (FUN_1427_02ca) */
   ph->tools = UNITS_EQUIP_TOOLS_STEP;
   ph->col1_counter16 = 99; /* +0x315a = 99 */
@@ -432,6 +432,15 @@ void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* co
     worked = units_pioneer_plow_w(&pw, pid, err, sizeof(err), NULL, NULL) ? 1 : 0;
   } else if (do_road) {
     worked = units_pioneer_road_w(&pw, pid, err, sizeof(err), NULL, NULL) ? 1 : 0;
+  }
+  if (worked) {
+    /* FUN_479b_0158 subtracts 0x14 from the byte at +0x3159 before its
+     * unsigned <0x14 check. Zero therefore becomes 0xec in the phantom's
+     * physical record, which a later spawn can inherit after 0824 compacts
+     * the unit array (1516→1517 Brave +0x15). The port's temporary tools
+     * value is only there to pass its Pioneer gate; preserve the DOS byte. */
+    ph->col1_hold_raw[9] =
+      (uint8_t)(ph->col1_hold_raw[9] - 0x14u);
   }
   units_despawn(ctx->units, pid); /* FUN_291f_0a06 */
   if (worked) {
@@ -601,11 +610,18 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
     if (!units_spawn_room(ctx->units, nation)) {
       return 0;
     }
+    const int tail_n = ctx->units->unit_count;
+    const int tail_raw = tail_n >= 0 && tail_n < COLONIZE_UNITS_DOS_MAX &&
+      ctx->units->dos_tail[tail_n].valid && ctx->units->dos_tail[tail_n].raw_valid;
     const int pid = units_spawn_allow_stack(ctx->units, wtype, cx, cy);
     ColonizeUnit* ph = units_get(ctx->units, pid);
     if (!ph) {
       return 0;
     }
+    /* FUN_291f_0a20 -> FUN_478c_002c reuses +0x3159 without 06b4's
+     * Pioneer tools stamp; a fresh record starts with zero. */
+    ph->col1_hold_raw[9] = tail_raw ? ctx->units->dos_tail[tail_n].raw[9] : 0;
+    ph->col1_hold_raw_valid = 1;
     units_set_nation(ph, nation);
     ph->tools = UNITS_EQUIP_TOOLS_STEP; /* units_is_pioneer gate, see #612 */
     ph->col1_counter16 = 99;            /* +0x315a = 99 */
@@ -614,6 +630,11 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
     };
     char err[64];
     const int built = units_pioneer_road_w(&pw, pid, err, sizeof(err), NULL, NULL) ? 1 : 0;
+    if (built) {
+      /* FUN_479b_0526 completion calls FUN_479b_0158, which subtracts
+       * 0x14 from the physical byte even when it underflows. */
+      ph->col1_hold_raw[9] = (uint8_t)(ph->col1_hold_raw[9] - 0x14u);
+    }
     units_despawn(ctx->units, pid); /* FUN_291f_0a06 */
     if (built) {
       return 1;
@@ -3196,20 +3217,13 @@ int ai_euro_europe_lane_ships(const ColonizeUnitPool* units, int nation_id) {
  * hit bumps DS:0x9456[nation], writes the tile into +0x314d/+0x314e and stamps
  * `+0x314b = 0x45` ('E'). On a miss it does nothing.
  *
- * DOS does NOT cross here: 015e only stamps the goal, and the crossing happens
- * later in the shared goto-step mover (FUN_479b_076e raw 77095-77107) when the
- * hull ends its goto standing on High Seas. The port runs that gate at the head
- * of the hull's next act (ai_euro_act_ship_dos), so a hull that is already standing
- * on High Seas when an arm asks for a course crosses now instead of re-spiralling
- * — the re-spiral would skip its own tile as occupied and wiggle it between two
- * rim tiles forever (the 2026-09-10 wiggle).
+ * DOS does NOT cross here: 015e only stamps the goal, even when the hull is
+ * already on High Seas. The crossing belongs to the shared goto-step mover
+ * (FUN_479b_0972 raw 77095-77107) after it reaches the chosen rim tile.
  */
 int ai_euro_20e6_3fa6_sail_home(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
   if (!ctx || !ctx->map || !ctx->units || !u || !u->active) {
     return 0;
-  }
-  if (map_tile_is_high_seas(ctx->map, u->x, u->y)) {
-    return ai_euro_ship_enter_europe(ctx, u);
   }
   int hx = 0;
   int hy = 0;
@@ -3278,13 +3292,15 @@ int ai_euro_20e6_europe_dock_demand(ColonizeTurnContext* ctx, ColonizeUnit* u, i
   if (u->col1_ai_plan == AI_EURO_PLAN_EUROPE_BOUND) {
     return ai_euro_20e6_3fa6_sail_home(ctx, u, nation_id);
   }
-  if (ai_euro_europe_dock_land_units(ctx->units, nation_id) <=
-      ai_euro_europe_lane_ships(ctx->units, nation_id)) {
+  const int dock_count = ctx->ai_euro_dock_census_valid[nation_id]
+    ? ctx->ai_euro_dock_census[nation_id]
+    : ai_euro_europe_dock_land_units(ctx->units, nation_id);
+  if (dock_count <= ai_euro_europe_lane_ships(ctx->units, nation_id)) {
     return 0;
   }
   if (getenv("AI_20E6_HS_TRACE")) {
     fprintf(stderr, "[3fa6] ship %d n%d (%d,%d) dock %d > lane %d -> sail home\n", u->id,
-            nation_id, u->x, u->y, ai_euro_europe_dock_land_units(ctx->units, nation_id),
+            nation_id, u->x, u->y, dock_count,
             ai_euro_europe_lane_ships(ctx->units, nation_id));
   }
   return ai_euro_20e6_3fa6_sail_home(ctx, u, nation_id);

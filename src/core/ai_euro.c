@@ -1687,6 +1687,11 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
 
   ai_euro_dispatcher_turn_reset(ctx);
   ai_euro_20e6_refresh_type_cache(ctx->units);
+  /* FUN_4962_0018 filled DS:0x945a in 00f2 before this dispatcher. 5d04
+   * may buy a dockside colonist later; that purchase does not update 945a. */
+  ctx->ai_euro_dock_census[nation_id] =
+    (uint8_t)ai_euro_europe_dock_land_units(ctx->units, nation_id);
+  ctx->ai_euro_dock_census_valid[nation_id] = 1;
 
   /* FUN_521d_6d8e raw 93118-93142: the complete 5952 colony tick
    * precedes inventory and Europe planning; those read its new stocks. */
