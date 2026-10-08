@@ -636,6 +636,7 @@ void units_slot_reset_defaults(
   int x,
   int y
 ) {
+  if (getenv("UNIT_TRACE") && pool->unit_count >= 40) fprintf(stderr,"SPAWN n=%d type=%d xy=%d,%d tail15=%d valid=%d\n",pool->unit_count,type_index,x,y,pool->dos_tail[pool->unit_count].raw[9],pool->dos_tail[pool->unit_count].raw_valid);
   units_index_remove(pool, slot); /* a reused slot may still hold a stale id */
   slot->id = pool->next_id++;
   units_index_add(pool, slot);

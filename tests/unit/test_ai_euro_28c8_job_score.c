@@ -381,6 +381,14 @@ static int unit_fisherman_clamps_against_horses(void) {
             best.score, want, yld);
     return fail("fisherman_clamp: fish yield was clamped against FOOD, not HORSES");
   }
+  /* FUN_15eb_1f72 writes potential-minus-actual horse births to DS:0x8e6a,
+   * the same "unmet[8]" word 28c8 reads for Fisherman. At 99 horses, room
+   * clamps fish yield to 1 and the birth shortfall doubles the score. */
+  colonies.colonies[0].stock[COLONIZE_CARGO_HORSES] = 99;
+  if (!ai_euro_28c8_colonist_job_score_structural(&ctx, 0, 0, &best) ||
+      best.job != COLONIZE_JOB_FISHERMAN || best.score != (1 * 8 + 6) * 2 * 2) {
+    return fail("fisherman_clamp: horse-birth shortfall must double fish score");
+  }
   return 0;
 }
 
@@ -576,6 +584,48 @@ static int unit_889_ore_rank_gates_chain_not_flat_bonus(void) {
   return 0;
 }
 
+/* FUN_15eb_28c8 raw 12969-12971 unseats the candidate before 1f72 builds
+ * its production ledger. A seated AI worker and the same worker already idle
+ * must therefore see the same score matrix (AI has no sticky-job bonus). */
+static int unit_ledger_excludes_candidate_work(void) {
+  uint8_t terrain[MAP_W * MAP_H];
+  uint8_t layer2[MAP_W * MAP_H];
+  uint8_t layer3[MAP_W * MAP_H];
+  ColonizeWorldMap map;
+  map_init(&map, terrain, layer2, layer3);
+  const int cx = 8, cy = 8;
+  terrain[(cy - 1) * MAP_W + cx] = 3; /* Prairie food plot */
+  suppress_field_tile_resources(&map, cx, cy);
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  colony_init_common(&colonies.colonies[0], 1, cx, cy);
+  ColonizeColony* col = &colonies.colonies[0];
+  col->population = 2; /* make this worker's food matter to the ledger */
+  col->colonists[0].field_job = COLONIZE_JOB_FARMER;
+  col->tiles[0] = 0;
+
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.human_nation = 0;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  AiEuro28c8JobCandidate seated, idle;
+  if (!ai_euro_28c8_colonist_job_score_structural(&ctx, 0, 0, &seated)) {
+    return fail("unseat: seated probe found no plot");
+  }
+  col->colonists[0].field_job = -1;
+  col->tiles[0] = -1;
+  if (!ai_euro_28c8_colonist_job_score_structural(&ctx, 0, 0, &idle)) {
+    return fail("unseat: idle probe found no plot");
+  }
+  if (seated.job != idle.job || seated.tile != idle.tile || seated.score != idle.score) {
+    return fail("unseat: candidate's prior production changed its own score");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"unit_distance_term_breaks_ties", unit_distance_term_breaks_ties},
     {"unit_full_matrix_sticky_doubling", unit_full_matrix_sticky_doubling},
@@ -583,6 +633,7 @@ static const TestCase k_cases[] = {
     {"unit_fisherman_clamps_against_horses", unit_fisherman_clamps_against_horses},
     {"unit_no_docks_scores_no_water_plot", unit_no_docks_scores_no_water_plot},
     {"unit_889_ore_rank_gates_chain_not_flat_bonus", unit_889_ore_rank_gates_chain_not_flat_bonus},
+    {"unit_ledger_excludes_candidate_work", unit_ledger_excludes_candidate_work},
 };
 
 TEST_MAIN(k_cases)

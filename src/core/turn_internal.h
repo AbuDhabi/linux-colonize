@@ -45,6 +45,16 @@ extern bool turn_prod_only_set;
 extern int turn_prod_skip_nation;
 extern bool turn_prod_skip_set;
 bool turn_prod_nation_in_scope(int nation_id);
+typedef void (*TurnColonyBeforeProduction)(void* user, ColonizeColony* colony);
+void turn_run_colony_production_with_w(
+  const ColonizeWorld* w,
+  int human_nation,
+  ColonizeTurnResult* out,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages,
+  TurnColonyBeforeProduction before,
+  void* before_user
+);
 void turn_emit_built_chrome(
   const ColonizeMsgCatalog* messages,
   AiPopupState* ai_popups,

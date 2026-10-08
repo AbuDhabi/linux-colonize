@@ -2142,12 +2142,14 @@ bool turn_prod_nation_in_scope(int nation_id) {
   return true;
 }
 
-void turn_run_colony_production_w(
+void turn_run_colony_production_with_w(
   const ColonizeWorld* w,
   int human_nation,
   ColonizeTurnResult* out,
   AiPopupState* ai_popups,
-  const ColonizeMsgCatalog* messages
+  const ColonizeMsgCatalog* messages,
+  TurnColonyBeforeProduction before,
+  void* before_user
 ) {
   ColonizeColonyPool* pool = w->colonies;
   const ColonizeWorldMap* map = w->map;
@@ -2164,7 +2166,8 @@ void turn_run_colony_production_w(
   for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT && n < 4; ++n) {
     turn_tally_professions(pool, w->units, n, turn_prof_census[n]);
   }
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+  /* FUN_3844_00f2 raw 58384 walks colony indices from count - 1 down. */
+  for (int i = COLONIZE_COLONIES_MAX - 1; i >= 0; --i) {
     if (pool->colonies[i].active && turn_prod_nation_in_scope(pool->colonies[i].nation_id)) {
       /* bugs.md #256: DOS never carries an idle colonist — sweep any
        * job-less colonist (stale saves, non-UI admit paths) into work
@@ -2173,6 +2176,9 @@ void turn_run_colony_production_w(
       /* FUN_364b_0688 raw 57229: FUN_281f_0c22 -> FUN_15eb_3930 before the
        * colony produces (bugs.md #1080). */
       colonies_recompute_plots_w(w, pool->colonies[i].id);
+      if (before) {
+        before(before_user, &pool->colonies[i]);
+      }
       /* Snapshot for the debug-log summary — production itself keeps the
        * NULL delta it has always had (a non-NULL one changes which branch
        * fills cargo_produced_mask). */
@@ -2200,4 +2206,16 @@ void turn_run_colony_production_w(
       );
     }
   }
+}
+
+void turn_run_colony_production_w(
+  const ColonizeWorld* w,
+  int human_nation,
+  ColonizeTurnResult* out,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+) {
+  turn_run_colony_production_with_w(
+    w, human_nation, out, ai_popups, messages, NULL, NULL
+  );
 }

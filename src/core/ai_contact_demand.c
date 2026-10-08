@@ -2482,22 +2482,31 @@ void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id) {
   ai_contact_indian_census_4962_06b6(ctx, nation_id);
 
   /*
-   * §6c — horse breeding. `if (horse_herds != 0) horse_breeding +=
-   * horse_herds`, capped at `(tribe_population_totals[slot] + 0x19) * 2`.
-   * DOS reads +8 (`horse_herds`) as a signed char and +10 as an int.
-   * The cap is why a tribe with few/small villages never accumulates enough
-   * breeding stock to field Mounted Braves.
+   * §6c — horse breeding. FUN_4962_06b6 raw 78392-78406 walks every
+   * settlement through FUN_281f_0a4c (= FUN_15dc_0032), leaving DS:0x8d4e
+   * bound to the last settlement's nation. FUN_4d56_1816 raw 81664-81672
+   * reads herds and writes breeding through that pointer, but caps it using
+   * the CURRENT nation's census total (param_1). Keep this DOS bug: later
+   * nation turns can repeatedly breed the last settlement's nation.
    */
   {
-    const int herds = (int)(int8_t)ind->horse_herds;
+    ColonizeCol1Indian* breeding_ind = ind;
+    if (ctx->col1->tribe && ctx->col1->head.tribe_count > 0) {
+      const int last_nation =
+        (int)ctx->col1->tribe[ctx->col1->head.tribe_count - 1].nation_id;
+      /* FUN_15dc_0006 clamps an invalid bound index to slot 0. */
+      const int bound_slot = (last_nation >= 4 && last_nation <= 11) ? last_nation - 4 : 0;
+      breeding_ind = &ctx->col1->indian[bound_slot];
+    }
+    const int herds = (int)(int8_t)breeding_ind->horse_herds;
     if (herds != 0) {
       const int slot = nation_id - 4;
-      int hb = (int)ind->horse_breeding + herds;
+      int hb = (int)breeding_ind->horse_breeding + herds;
       const int cap = ((int)ctx->col1->stuff.tribe_population_totals[slot] + 0x19) * 2;
       if (hb > cap) {
         hb = cap;
       }
-      ind->horse_breeding = (uint16_t)hb;
+      breeding_ind->horse_breeding = (uint16_t)hb;
     }
   }
 }

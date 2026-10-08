@@ -176,14 +176,21 @@ static void turn_run_colony_building_completion(ColonizeTurnContext* ctx) {
  * The nation scoping (s_prod_skip_* / s_prod_only_*) stays at the call
  * sites: TURN_PROC_SETUP runs every AI nation, TURN_PROC_FINISH the human.
  */
-void turn_run_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
+static void turn_run_colony_eot_with(
+  ColonizeTurnContext* ctx, ColonizeTurnResult* out,
+  TurnColonyBeforeProduction before, void* before_user
+) {
   turn_set_birth_units_pool(ctx->units);
   /* bugs.md #770: FUN_4962_0606 (raw 78332-78374) counts the nation's map
    * units before its colonists, so the specialty census needs the pool. */
-  turn_run_colony_production_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL), .rng=(ColonizeDosRng*)(ctx->rng), .europe=(EuropeScreen*)(ctx->europe)}, ctx->human_nation, out, ctx->ai_popups, ctx->messages);
+  turn_run_colony_production_with_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL), .rng=(ColonizeDosRng*)(ctx->rng), .europe=(EuropeScreen*)(ctx->europe)}, ctx->human_nation, out, ctx->ai_popups, ctx->messages, before, before_user);
   turn_set_birth_units_pool(NULL);
   turn_run_colony_unit_construction(ctx);
   turn_run_colony_building_completion(ctx);
+}
+
+void turn_run_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
+  turn_run_colony_eot_with(ctx, out, NULL, NULL);
 }
 
 int turn_run_coastal_fort_fire(ColonizeTurnContext* ctx) {
@@ -359,10 +366,39 @@ static void turn_notify_dock_immigrant(
  * 0688 Phase A accrues bells and re-tests the 0a22 elect before production
  * (raw 57231), then the crosses. Seed-100 1497: Spain's 06d2 rolls fall
  * after France's moves (DOSBox per-slot RNG counts 6/35 for slots 1/2).
- * ponytail: all of a nation's Phase A runs before all of its production;
- * DOS interleaves them colony by colony, which matters only once two
- * colonies of one nation both draw.
+ * Each colony's bell election now runs inside the descending colony pass,
+ * before that colony produces, as FUN_364b_0688 does. The 1534 Montreal
+ * depletion rolls depend on this order: the next French colony's election
+ * consumes five draws only after Montreal's production.
  */
+typedef struct AiNationColonyBellStep {
+  ColonizeTurnContext* ctx;
+  ColonizeCol1Nation* nat;
+  int nation;
+  uint8_t control;
+  int crosses;
+} AiNationColonyBellStep;
+
+static void turn_ai_colony_bell_step(void* user, ColonizeColony* colony) {
+  AiNationColonyBellStep* step = user;
+  int bells = 0;
+  int crosses = 0;
+  turn_compose_colony_bells_crosses(
+    step->ctx->colonies, colony, step->ctx->col1,
+    colony_prod_sol_bonus(step->ctx->col1, colony), &bells, &crosses
+  );
+  step->crosses += crosses;
+  unsigned last = (unsigned)step->nat->liberty_bells_last_turn + (unsigned)bells;
+  unsigned pool = (unsigned)step->nat->liberty_bells_pool + (unsigned)bells;
+  step->nat->liberty_bells_last_turn = (uint16_t)(last > 65535u ? 65535u : last);
+  step->nat->liberty_bells_pool = (uint16_t)(pool > 65535u ? 65535u : pool);
+  /* FUN_364b_0688 raw 57231 calls FUN_4345_0a22 before this colony's
+   * production; it checks the election even when this colony made no bells. */
+  if (step->control == 1) {
+    (void)founding_fathers_try_elect(step->ctx, step->nation);
+  }
+}
+
 void turn_run_ai_nation_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out, int n) {
   if (!ctx || n < 0 || n >= 4 || n == ctx->human_nation) {
     return;
@@ -402,35 +438,17 @@ void turn_run_ai_nation_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out, i
   /* 00f2 FUN_291f_0a82 -> FUN_48d3_06ba (raw 58377): after 5e52, so a hull
    * reaching the dock this turn is not yet counted by 584a's dock penalty. */
   ai_euro_europe_lane_tick(ctx, n);
-  int nb = 0;
-  int nc = 0;
-  static int s_colony_bells[COLONIZE_COLONIES_MAX];
-  int ncol = 0;
-  turn_count_bells_and_crosses_for_nation_ex(
-    ctx->colonies, n, ctx->col1, &nb, &nc, s_colony_bells, &ncol
-  );
-  /* raw 73341-73342 / bugs.md #933-934: +0xc pool per colony, elect re-test. */
-  nat->liberty_bells_last_turn = (uint16_t)(nb > 65535 ? 65535 : nb);
-  for (int ci = 0; ci < ncol && ci < COLONIZE_COLONIES_MAX; ++ci) {
-    if (s_colony_bells[ci] <= 0) {
-      continue;
-    }
-    unsigned pool = (unsigned)nat->liberty_bells_pool + (unsigned)s_colony_bells[ci];
-    if (pool > 65535u) {
-      pool = 65535u;
-    }
-    nat->liberty_bells_pool = (uint16_t)pool;
-    if (control == 1) {
-      (void)founding_fathers_try_elect(ctx, n);
-    }
-  }
+  AiNationColonyBellStep bell_step = {
+    .ctx = ctx, .nat = nat, .nation = n, .control = control, .crosses = 0
+  };
+  nat->liberty_bells_last_turn = 0;
   turn_prod_only_nation = n;
   turn_prod_only_set = true;
-  turn_run_colony_eot(ctx, out);
+  turn_run_colony_eot_with(ctx, out, turn_ai_colony_bell_step, &bell_step);
   turn_prod_only_nation = -1;
   turn_prod_only_set = false;
   {
-    unsigned cur = (unsigned)nat->current_crosses + (unsigned)nc;
+    unsigned cur = (unsigned)nat->current_crosses + (unsigned)bell_step.crosses;
     if (cur > 65535u) {
       cur = 65535u;
     }
