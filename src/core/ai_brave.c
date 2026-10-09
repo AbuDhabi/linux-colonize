@@ -307,8 +307,10 @@ int ai_native_step_first_contact(
     }
     if (colony_here && !s_ai_visit_applied_this_turn[nation_id - 4]) {
       s_ai_visit_applied_this_turn[nation_id - 4] = 1;
-      if (!ai_contact_try_village_gifts(s_ai_native_ctx, nation_id)) {
-        ai_contact_try_village_beg_food(s_ai_native_ctx, nation_id);
+      /* 5bfb:0683 tests the food-beg arm before the 096c gift arm even for a
+       * generous visit. A conceded beg falls through to 096c itself. */
+      if (!ai_contact_try_village_beg_food(s_ai_native_ctx, nation_id)) {
+        ai_contact_try_village_gifts(s_ai_native_ctx, nation_id);
       }
     }
   }
@@ -502,7 +504,9 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
     }
   }
   if (dir < 0 || dir > 7) {
-    u->moves = max_mp;
+    /* The stay arm can upgrade a Brave in its own village. DOS exhausts it
+     * through 0934 after that upgrade, reading the new type's maximum MP. */
+    u->moves = units_max_mp(units, u->id);
     return AI_NATIVE_STEP_STOP;
   }
   const int nx = u->x + k_ai_dir8_dx[dir];

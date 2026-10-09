@@ -1259,6 +1259,13 @@ int ai_euro_try_ship_trade_haul(
   if (cowered) {
     return 1; /* md:3023 → LAB_5899: parked in port this beat */
   }
+  /* An own-colony berth loads its cargo before the 89725 dock-demand test.
+   * 1537→1538: the Dutch Merchantman loads 22 Furs, then sets its Europe
+   * course to collect the land unit waiting at the dock. */
+  if (berthed_at >= 0 && ship->cargo_count == 0 &&
+      ai_euro_20e6_europe_dock_demand(ctx, ship, nation_id)) {
+    return 2;
+  }
   const int has_tools = ai_euro_unit_hold_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_TOOLS);
   const int has_lumber =
     ai_euro_unit_hold_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_LUMBER);

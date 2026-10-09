@@ -1381,10 +1381,10 @@ bool founding_fathers_try_elect(ColonizeTurnContext* ctx, int nation_id) {
    * and next >= 0. Wiki: choice after first bells, then accumulate to join.
    */
   const unsigned pool = founding_fathers_bells_pool(col1, nation_id);
-  /* +0xe = bells produced this turn (FUN_3844_00f2 raw 58382 zeroes it before
-   * the colony loop), so it is genuine EOT production, never a stash. */
-  const unsigned last_turn_bells = (unsigned)nat->liberty_bells_last_turn;
-  if (pool == 0u && last_turn_bells == 0u) {
+  /* After an election clears the pool, later colony checks in this same
+   * nation turn must leave next_founding_father at -1. The turn's already
+   * produced bells remain in +0xe, but DOS 1538→1539 does not re-debate. */
+  if (pool == 0u) {
     return false;
   }
 

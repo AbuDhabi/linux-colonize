@@ -740,14 +740,12 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
         return 0;
       }
     }
-  }
-  /* FUN_521d_20e6 raw 89725-89728: the dock-demand test follows the
-   * colony-sail branch and also runs on a hull berthed at its own colony.
-   * 1537→1538: a Dutch Merchantman carrying one hold of Furs gets a Europe
-   * course here to collect its waiting dock colonist. */
-  if (a8_at_entry == 0 && ai_euro_20e6_europe_dock_demand(ctx, u, nation_id)) {
-    ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);
-    return 0;
+    /* FUN_521d_20e6 raw 89725-89728: dock demand precedes goods delivery
+     * when the hull has not entered the own-colony berth block. */
+    if (a8_at_entry == 0 && ai_euro_20e6_europe_dock_demand(ctx, u, nation_id)) {
+      ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);
+      return 0;
+    }
   }
   /* Berth block / goods delivery / sell / LAB_4393 haul. */
   if (!tasked) {

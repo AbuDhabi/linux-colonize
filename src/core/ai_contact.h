@@ -177,7 +177,7 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id);
  * ai_contact.c's own header comment on the implementation and
  * settlement_record_8d4a.md for the sign-convention resolution.
  */
-void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id);
+int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id);
 
 /*
  * FUN_5bfb_022e generous half of the same already-met visit

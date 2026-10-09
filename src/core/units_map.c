@@ -436,6 +436,15 @@ static void units_reveal_tile_effects(void* vctx, int x, int y, bool outer) {
       continue;
     }
     o->col1_vis_mask = (uint8_t)(o->col1_vis_mask | bit);
+    /* DOS's tile chain includes a ship's boarded units for the reveal stamp.
+     * The port parks passengers off-map, so carry the bit through its cargo
+     * links when another nation reveals the hull's tile. */
+    for (int c = 0; c < o->cargo_count; ++c) {
+      ColonizeUnit* pax = units_get(ctx->pool, o->cargo_ids[c]);
+      if (pax && pax->active) {
+        pax->col1_vis_mask = (uint8_t)(pax->col1_vis_mask | bit);
+      }
+    }
   }
   if (ctx->colonies) {
     const int cid = colonies_id_at(ctx->colonies, x, y);
