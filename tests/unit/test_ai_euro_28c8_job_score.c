@@ -626,6 +626,47 @@ static int unit_ledger_excludes_candidate_work(void) {
   return 0;
 }
 
+static int unit_trial_owner_stamp_scoped_to_idle_worker(void) {
+  uint8_t terrain[MAP_W * MAP_H];
+  uint8_t layer2[MAP_W * MAP_H];
+  uint8_t layer3[MAP_W * MAP_H];
+  ColonizeWorldMap map;
+  map_init(&map, terrain, layer2, layer3);
+  const int cx = 8, cy = 8;
+  suppress_field_tile_resources(&map, cx, cy);
+  const int bought = cy * MAP_W + (cx - 1);
+  const int unbought = (cy + 1) * MAP_W + (cx + 1);
+  terrain[bought] = terrain[unbought] = 3;
+  layer2[bought] |= MAP_LAYER2_PURCHASED;
+  layer3[bought] = 0x9f;
+  layer3[unbought] = 0x7f;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  colony_init_common(&colonies.colonies[0], 1, cx, cy);
+  colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 50;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.human_nation = 0;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  AiEuro28c8JobCandidate best;
+  if (!ai_euro_28c8_colonist_job_score_structural(&ctx, 0, 0, &best)) {
+    return fail("trial owner: no plot scored");
+  }
+  if (layer3[bought] != 0x1f || layer3[unbought] != 0x7f) {
+    return fail("trial owner: bought plot must be claimed, native land preserved");
+  }
+  layer3[bought] = 0x9f;
+  colonies.colonies[0].colonists[0].field_job = COLONIZE_JOB_LUMBERJACK;
+  (void)ai_euro_28c8_colonist_job_score_structural(&ctx, 0, 0, &best);
+  if (layer3[bought] != 0x9f) {
+    return fail("trial owner: already employed probe claimed plot");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"unit_distance_term_breaks_ties", unit_distance_term_breaks_ties},
     {"unit_full_matrix_sticky_doubling", unit_full_matrix_sticky_doubling},
@@ -634,6 +675,7 @@ static const TestCase k_cases[] = {
     {"unit_no_docks_scores_no_water_plot", unit_no_docks_scores_no_water_plot},
     {"unit_889_ore_rank_gates_chain_not_flat_bonus", unit_889_ore_rank_gates_chain_not_flat_bonus},
     {"unit_ledger_excludes_candidate_work", unit_ledger_excludes_candidate_work},
+    {"unit_trial_owner_stamp_scoped_to_idle_worker", unit_trial_owner_stamp_scoped_to_idle_worker},
 };
 
 TEST_MAIN(k_cases)

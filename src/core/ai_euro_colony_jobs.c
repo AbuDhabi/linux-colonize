@@ -324,6 +324,17 @@ static int ai_euro_28c8_score_full(
     if (env.human && claim_village >= 0) {
       continue;
     }
+    /* DOS 28c8 trials call 06d2, which stamps the owner even when the trial
+     * seat is undone. The 1535→1536 trace catches Montreal's unseated worker
+     * in 2ea0 claiming its bought west plot. Other port scorer paths inspect
+     * this plot in 1527 without a corresponding DOS write. */
+    const size_t plot_i = (size_t)ty * (size_t)ctx->map->width + (size_t)tx;
+    if (current_job < 0 && !in_ai_tick && ctx->map->layer2 && ctx->map->layer3 &&
+        (ctx->map->layer2[plot_i] & 0x03u) == 0 &&
+        ((ctx->map->layer2[plot_i] & MAP_LAYER2_PURCHASED) != 0 ||
+         (ctx->map->layer3[plot_i] >> 4) < 4)) {
+      map_set_owner_nibble(ctx->map, tx, ty, col->nation_id);
+    }
     const int terr = map_dos_terr_class_at(ctx->map, tx, ty);
     /* DOS reads local_32 (the terrain class) in both branches although the
      * decompiler only shows it assigned inside the emergency one — a

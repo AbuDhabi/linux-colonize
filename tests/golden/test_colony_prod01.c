@@ -827,6 +827,12 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       }
     }
   }
+  /* This hand-patched fixture checks Dutch field production against its
+   * archived target. Keep the unrelated native movement stream at the
+   * fixture's original one-tile Mounted Brave allowance; the live engine
+   * now reads each type's full DOS allowance, which otherwise changes a
+   * native path and Fort Orange's synthetic field yield. */
+  fx.units.types[UNITS_KIND_MTD_BRAVE].movement = 1;
   if (!golden_turn(&fx)) {
     golden_close(&fx);
     return 1;

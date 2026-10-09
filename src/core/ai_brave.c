@@ -179,9 +179,8 @@ static bool ai_init_sched_apply(AiRng* rng, int nation_id, int brave_index) {
  * the stay/move orders latch only touches NONE/FORTIFY/FORTIFIED (DOS
  * escorts leave 021a via the raid dispatch, never the wander tail, so the
  * OpenCol FOLLOW/GOTO machinery must survive the latch), and a Brave upgraded
- * to a mounted type keeps this pulse's max_mp=3 until the next turn refresh
- * (DOS re-reads 090c per act; the port's spent-byte semantics make the
- * difference invisible outside the upgrade turn itself).
+ * to a mounted type keeps this pulse's starting max MP until the next turn
+ * refresh (DOS re-reads 090c per act).
  */
 /* Pre-pulse Brave tiles for this turn — see ai_native_brave_turn_origin. */
 static int16_t s_brave_origin_x[COLONIZE_UNITS_MAX];
@@ -367,7 +366,7 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
   int nation_id, bool seed100_init_burns, ColonizeUnit* u, int hx, int hy, int tech,
   int max_mp, int brave_index, int* steps
 ) {
-  /* FUN_281f_097a / 1427_13b0: act while moves_spent < max_mp (=3).
+  /* FUN_281f_097a / 1427_13b0: act while moves_spent < this type's max MP.
    * River/fa cost=1 steps keep spent < 3 so the inner loop continues —
    * that is the multi-step path (not a second act after spent >= max). */
   const int spent = u->moves;
@@ -737,7 +736,6 @@ void ai_native_nation_pulse(
   memset(s_ai_first_contact_this_turn[nation_id - 4], 0, sizeof(s_ai_first_contact_this_turn[0]));
   s_ai_visit_applied_this_turn[nation_id - 4] = 0;
 
-  const int max_mp = 3; /* Brave thirds allotment (FUN_281f_090c path) */
   /*
    * Mid-turn FUN_4d56_1816 prelude: DOS burns nothing on the shared stream
    * before the act loop except the 152e growth-loop draws (already on
@@ -796,6 +794,7 @@ void ai_native_nation_pulse(
       tech = (int)col1->indian[nation_id - 4].tech;
     }
     int steps = 0;
+    const int max_mp = units_max_mp(units, u->id); /* FUN_281f_090c, per Brave type */
     for (;;) {
       if (ai_native_brave_step(
             units, map, col1, rng, nation_id, seed100_init_burns, u, hx, hy, tech,

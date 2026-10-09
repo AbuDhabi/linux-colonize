@@ -858,6 +858,32 @@ static int case_tools_purchase_tops_up_a_broke_colony(void) {
   return 0;
 }
 
+static int case_tools_purchase_records_buy_volume(void) {
+  Fx f;
+  if (fx_build(&f, 3) != 0) {
+    return 1;
+  }
+  fx_enable_road_arms(&f, 999u, 10000);
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  eu.bound_nation = 0;
+  eu.cargo_count = COLONIZE_CARGO_COUNT;
+  f.ctx.europe = &eu;
+  f.col1.nation[NATION].trade.euro_price[COLONIZE_CARGO_TOOLS] = 3;
+  f.turn = 100; /* not a road-connect turn */
+  f.col->ai_flags |= COLONIZE_COLONY_AI_WANTS_PIONEER_WORK;
+  f.col->stock[COLONIZE_CARGO_TOOLS] = 0;
+
+  ai_euro_5952_tools_supply_and_connect(&f.ctx, f.col);
+  const ColonizeCol1Nation* nat = &f.col1.nation[NATION];
+  const int ok = f.col->stock[COLONIZE_CARGO_TOOLS] == 20 && nat->gold == 9960 &&
+    nat->trade.tons[COLONIZE_CARGO_TOOLS] == -20 &&
+    nat->trade.tons2[COLONIZE_CARGO_TOOLS] == -20 &&
+    nat->trade.gold[COLONIZE_CARGO_TOOLS] == -60;
+  fx_done(&f);
+  return ok ? 0 : fail("#640: 20-tool buy must write the separate 1d80 trade ledger");
+}
+
 /*
  * bugs.md #640 — the same colony with an empty purse buys nothing (raw
  * 94376-94380: the 32-bit gold compare).
@@ -909,6 +935,7 @@ static const TestCase k_cases[] = {
   {"case_road_connect_links_two_colonies", case_road_connect_links_two_colonies},
   {"case_road_connect_needs_a_second_colony", case_road_connect_needs_a_second_colony},
   {"case_tools_purchase_tops_up_a_broke_colony", case_tools_purchase_tops_up_a_broke_colony},
+  {"case_tools_purchase_records_buy_volume", case_tools_purchase_records_buy_volume},
   {"case_tools_purchase_needs_gold", case_tools_purchase_needs_gold},
 };
 
