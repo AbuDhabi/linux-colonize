@@ -1717,16 +1717,16 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
  * when it can spare the food (matches this file's established
  * AI-defaults-generous convention for gift-shaped decisions elsewhere).
  */
-void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
+int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->colonies || !ctx->col1->tribe || !ctx->rng) {
-    return;
+    return 0;
   }
   if (nation_id < 4 || nation_id > 11) {
-    return;
+    return 0;
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
   if (ctx->ai_popups && ai_contact_beg_food_pending(ctx->ai_popups)) {
-    return;
+    return 0;
   }
   /*
    * bugs.md: DOS begs at the colony a Brave actually walked next to — the
@@ -1908,13 +1908,14 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
       /* AI Euro: auto-accept, handing over the same half a human would. */
       ai_contact_apply_beg_food(ctx, ind, nation_id, e, best_ci, home_index, 1);
     }
-    return; /* one beg-for-food event per Indian nation per turn */
+    return 1; /* one beg-for-food event per Indian nation per turn */
   }
   /*
    * Nothing begged this visit → LAB_5bfb_0def, the demand half's remaining
    * two sites (@INDIANCITY / @INDIANWAGONS reparations).
    */
   ai_contact_try_village_reparations(ctx, nation_id);
+  return 0;
 }
 /* ===================== Human incite response, missionary convert/flee, WoI defect, prelude & relation tick (ai_contact_ai_incite_human .. ai_contact_indian_relation_tick) ===================== */
 

@@ -163,6 +163,10 @@ int main(void) {
   if (nat->next_founding_father != -1) {
     return fail("next_founding_father not cleared to -1 after elect");
   }
+  nat->liberty_bells_last_turn = 2;
+  if (founding_fathers_try_elect(&ctx, 0) || nat->next_founding_father != -1) {
+    return fail("zero bell pool re-nominated after election");
+  }
   if (strstr(status, "Founding Father elected") == NULL) {
     return fail("status line missing");
   }

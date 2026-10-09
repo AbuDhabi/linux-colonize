@@ -600,11 +600,30 @@ bool units_unload_passenger_w(
   if (!units_remove_from_cargo(ship, pax_id)) {
     return false;
   }
+  /* 465b reads the landing tile's owner before 0948 restamps occupancy.
+   * Its visibility stamp reaches the departing passenger and the ship tile
+   * chain left behind (DOS 1542→1543: a Dutch coast landing marks all three
+   * French units). */
+  const int dest_owner = units_tile_owner_nibble(map, dest_x, dest_y);
   pax->aboard_ship_id = -1;
   pax->x = dest_x;
   pax->y = dest_y;
   units_tile_stack_arrive(pool, pax_id);
   units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
+  units_vis_mask_after_move(pool, map, pax_id, dest_x, dest_y, dest_owner);
+  if (dest_owner >= 0 && dest_owner < 4) {
+    const uint8_t bit = (uint8_t)(1u << dest_owner);
+    for (int i = 0; i < units_slot_end(pool); ++i) {
+      ColonizeUnit* left = &pool->units[i];
+      if (units_is_on_map(left) && left->x == ship->x && left->y == ship->y) {
+        left->col1_vis_mask |= bit;
+        for (int c = 0; c < left->cargo_count; ++c) {
+          ColonizeUnit* carried = units_get(pool, left->cargo_ids[c]);
+          if (carried && carried->active) carried->col1_vis_mask |= bit;
+        }
+      }
+    }
+  }
   pax->orders = UNITS_ORDER_NONE;
   /*
    * Shore-step MP (FUN_465b ADD). Aboard sentry often has moves==0 as a

@@ -492,6 +492,13 @@ static int ai_euro_28c8_score_full(
           if (cargo != COLONIZE_CARGO_LUMBER && forest && lumber_idle) {
             score -= 10; /* raw 13124-13130 */
           }
+          if (getenv("AI_SCORE_TRACE") && (strcmp(col->name, "New Amsterdam") == 0 || strcmp(col->name, "Quebec") == 0) &&
+              colonist_slot == 3 && (job == COLONIZE_JOB_FARMER || job == COLONIZE_JOB_FUR_TRAPPER || job == COLONIZE_JOB_FISHERMAN)) {
+            fprintf(stderr, "[score] %s mode%d slot%d tile%d job%d y%d w%d m%d chain%d sf%d um%d score%d\n",
+                    col->name, in_ai_tick, colonist_slot, ti, job, yld, w4, m,
+                    ai_euro_28c8_chain_owned_upto(ctx->colonies,col,COLONIES_CHAIN_FUR,3),
+                    env.shortfall[sc], env.unmet[sc], score);
+          }
         }
       }
       if (score > out_best->score) {
@@ -965,7 +972,9 @@ void ai_euro_5952_ledgers(
     if (!colonies_field_tile_delta(ti, &dx, &dy)) {
       continue;
     }
-    gross[c->field_job] += colony_yield_for_worker(
+    const int cargo = c->field_job == COLONIZE_JOB_FISHERMAN
+                        ? COLONIZE_CARGO_FOOD : c->field_job;
+    gross[cargo] += colony_yield_for_worker(
       world->map, col->x + dx, col->y + dy, c->field_job, c->profession, docks,
       sol_field, col->colony_flags, hudson
     );
@@ -1180,6 +1189,14 @@ static void ai_euro_5952_indoor_pass(
     }
 
     int commit_job = -1;
+    if (getenv("AI_FORCE_FISH") && strcmp(col->name,"New Amsterdam") == 0 && s == 3) {
+      if (colonies_assign_field_w(&world, col->id, s, 3, COLONIZE_JOB_FISHERMAN)) {
+        placed[s] = true;
+        continue;
+      }
+    }
+    if (getenv("AI_INDOOR_TRACE") && strcmp(col->name,"New Amsterdam")==0 && s==3)
+      fprintf(stderr,"[indoor] %s s3 field%d plot%d/%d indoor%d job%d\n",col->name,field_score,probe.tile,probe.job,best,best_job);
     if (field_score < best) {
       commit_job = best_job; /* raw 94858 `if (*0x8dc0 < best)` */
     } else {

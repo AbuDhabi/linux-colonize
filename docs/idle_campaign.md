@@ -338,6 +338,24 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   stopped after a six-third step instead of taking the second DOS attempt;
   its missing draw shifted the next Brave and Arawak-Spanish contact. The
   archive adds two stale goto bytes to the from-load target.
+- 1537→1538 now matches both the archived and fresh DOS save byte-for-byte.
+  The Dutch Merchantman at its own colony first loads 22 Furs, then uses the
+  Europe dock-demand arm to collect a waiting land unit. Running that arm
+  before the berth skipped the load; omitting it sent the hull on a different
+  route. The port now checks dock demand immediately after its berth load.
+- 1538→1539 now matches a fresh DOS load byte-for-byte. Once a Dutch Father
+  election clears its bell pool, the nation-turn's later colony checks leave
+  the next nominee unset despite the nonzero bells-made-this-turn counter.
+  A French reveal of an English ship also stamps the two boarded passengers'
+  visibility bits through the ship's tile chain. The archived save carries
+  additional unsaved-state differences.
+- 1541→1542 now matches both the archived and fresh DOS save byte-for-byte.
+  A native Brave beside Quebec asks for food before the encounter's generous
+  gift branch. DOS accepts the request for its AI owner and removes half the
+  colony's post-production food (39 of 79); the extra roll also aligns a
+  later Brave's third step. A live watchpoint on Quebec's food word at
+  `DS:5eaa` caught the debit at overlay `8c5a:078f`. The port had attempted
+  gifts first and skipped the beg when the generous branch returned true.
 
 - Human end-of-slot draws: DOS 5, port 1 in 1497→1498 (human FF debate rolls / merc offer?).
 - **AI colony tick vs DOS**: still the main source from 1499 on (worker/tile choice,
