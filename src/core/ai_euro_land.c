@@ -700,6 +700,15 @@ void ai_euro_5952_tools_supply_and_connect(
     const long gold = (long)(int32_t)europe_nation_gold(ctx->europe, ctx->col1, nation);
     if (have_market && gold >= 0 && gold >= cost) {
       europe_nation_gold_add(ctx->europe, ctx->col1, nation, -cost);
+      /* FUN_291f_0c14 = 38fd_1d80: the 20-tool purchase also updates the
+       * Europe buy-volume ledger. Its ask price is distinct from the sell
+       * byte used for the treasury charge above. */
+      if (ctx->europe) {
+        europe_apply_trade_volume(
+          ctx->europe, ctx->col1, nation, ctx->human_nation,
+          COLONIZE_CARGO_TOOLS, 0x14, 1, 0
+        );
+      }
       col->stock[COLONIZE_CARGO_TOOLS] += 0x14;
       have_tools = 1;
     }

@@ -30,7 +30,7 @@ space): `setup` copies a stale COLONY09 from COLONIZE/, and a popup can delay th
 `sav_json` it and diff against the sim: whatever remains is a port bug, whatever the archived save
 adds on top is an artifact. 1498→1499, 1501→1502 and 1502→1503 through 1504→1505 match their from-load
 autosaves exactly, and so do 1496→1497, 1497→1498, 1498→1499, 1508→1509, 1511→1512, 1515→1516,
-1523→1524, 1526→1527 and 1528→1529 (the archive adds unsaved-state diffs there). The 1533→1534 Europe-lane chain link now matches DOS; the archived
+1523→1524, 1526→1527, 1528→1529 and 1536→1537 (the archive adds unsaved-state diffs there). The 1533→1534 Europe-lane chain link now matches DOS; the archived
 save still differs in a Brave's movement and map bytes.
 
 DOSBox method used here (docs/dos_trace.md): `setup --save year_Y.sav`, load, then `BPM` on the
@@ -321,11 +321,23 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
 
 - `ai_diplo_euro_balance`'s war-fatigue peace roll (rand(1, 30)) is the same invented class as
   the removed war arm; untraced so far.
-- 1535→1536 is down from 20 to six differing JSON leaves against the from-load DOS
-  autosave: five links in the final shared ship/passenger tile chain and one map owner
-  nibble at (30,50), port 9 vs DOS 1. The archive adds four unsaved-state leaves.
+- 1535→1536 is down from 20 to five differing JSON leaves against the from-load DOS
+  autosave, all links in the final shared ship/passenger tile chain. A DOS watchpoint at
+  `137f:029e` traced the former (30,50) owner mismatch to a provisional `15eb:06d2`
+  work-plot seat from `15eb:28c8`: the trial is undone but its owner stamp remains.
+  The port now reproduces that stamp for the unseated-worker path; scoring an already
+  employed worker in 1527 did not stamp the plot in DOS. The archive adds four
+  unsaved-state leaves.
   `FUN_1427_0d38` mode 2 counts the entire tile stack, while the port substitutes
   `cargo_count` for 20e6's entry-local `local_a8`; investigate as a separate issue.
+- 1536→1537 now matches a fresh DOS load byte-for-byte. The French 20-tool
+  colony purchase charges the sell-byte price but also calls `291f_0c14` to
+  record 20 units at the Europe ask price in the buy-volume ledger. The six
+  remaining native-unit leaves had one cause: 1816's `097a` reads each unit
+  type's maximum MP. The port had hardcoded three thirds, so a Mounted Brave
+  stopped after a six-third step instead of taking the second DOS attempt;
+  its missing draw shifted the next Brave and Arawak-Spanish contact. The
+  archive adds two stale goto bytes to the from-load target.
 
 - Human end-of-slot draws: DOS 5, port 1 in 1497→1498 (human FF debate rolls / merc offer?).
 - **AI colony tick vs DOS**: still the main source from 1499 on (worker/tile choice,
