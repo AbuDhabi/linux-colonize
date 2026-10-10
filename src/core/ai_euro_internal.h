@@ -419,7 +419,6 @@ void ai_euro_act_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_
 void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u);
 
 #ifdef COLONIZE_TESTING
-void ai_euro_colony_goals_unit_contact(ColonizeTurnContext* ctx, int nation_id);
 void ai_euro_colony_goals_colony_labor(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c,
   AiEuroInventory* inv, int urgency
@@ -429,9 +428,6 @@ void ai_euro_colony_goals_colony_work(
 );
 void ai_euro_colony_goals_colony_garrison(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c
-);
-void ai_euro_colony_goals_foreign_colonies(
-  ColonizeTurnContext* ctx, int nation_id, AiEuroInventory* inv
 );
 void ai_euro_colony_goals_producers(
   ColonizeTurnContext* ctx, int nation_id, AiEuroInventory* inv, int urgency

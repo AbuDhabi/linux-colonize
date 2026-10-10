@@ -680,36 +680,6 @@ static uint8_t* ai_diplo_flag_byte(ColonizeCol1Save* col1, int nation, int peer)
 }
 
 
-/*
- * Save-format only: refresh player[nation].diplomacy, the coarse OR of that
- * nation's four Euro peer-flag bytes. Nothing in src/ reads the field —
- * tools/col1_json.c serialises it — so this exists to keep written saves
- * self-consistent, not to drive any behaviour.
- *
- * It was called ai_diplo_mirror_relation_summary until 2026-09-14 and its
- * comment still claimed to mirror WAR/ALLY into head.nation_relation. It has
- * not touched that field since 2026-08-27: head.nation_relation (DS:0x53c8) is
- * NOT a relation summary but the per-nation Crown-war turn stamp
- * (FUN_38fd_5930 writes the turn; every attack/declare site zeroes both
- * nations' slots) — see ai_diplo_declare_war / ai_king_new_war_event.
- */
-static void ai_diplo_sync_player_diplomacy_byte(ColonizeCol1Save* col1, int nation) {
-  if (!col1 || nation < 0 || nation >= 4) {
-    return;
-  }
-  uint8_t agg = 0;
-  for (int peer = 0; peer < 4; ++peer) {
-    if (peer == nation) {
-      continue;
-    }
-    const uint8_t* f = ai_diplo_flag_byte_const(col1, nation, peer);
-    if (f) {
-      agg = (uint8_t)(agg | *f);
-    }
-  }
-  col1->player[nation].diplomacy = agg;
-}
-
 uint8_t ai_diplo_read(const ColonizeCol1Save* col1, int nation_a, int nation_b) {
   /* decomp 9056-9066 (FUN_15b3_0004): both sides span 0..11, see the
    * four-quadrant map on ai_diplo_flag_byte. 2026-09-08: the range was 0..3
@@ -752,7 +722,8 @@ void ai_diplo_write(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_t 
     return;
   }
   *f = value;
-  ai_diplo_sync_player_diplomacy_byte(col1, nation_a);
+  /* DOS FUN_15b3_0032 raw 9069-9080 writes only this relation byte.
+   * The former player.diplomacy OR-summary was an unsupported save writer. */
 }
 
 /*
@@ -784,8 +755,7 @@ void ai_diplo_clear_both(ColonizeCol1Save* col1, int nation_a, int nation_b, uin
   }
   /* Store the raw result (0 = unwritten/unmet on the next read), same as the
    * OR side — 2026-09-08 this stopped hand-rolling the store so both
-   * directions pick up ai_diplo_write's dual-mode addressing and its
-   * player.diplomacy mirror. */
+   * directions pick up ai_diplo_write's dual-mode addressing. */
   ai_diplo_write(
     col1, nation_a, nation_b, (uint8_t)(ai_diplo_read(col1, nation_a, nation_b) & (uint8_t)~bits)
   );

@@ -19,7 +19,7 @@ then a recursive JSON diff (show `*_hex` blobs as differing byte offsets). The t
 `EXCLUDE_FROM_ALL`: rebuild it explicitly (`cmake --build build/debug --target golden_idle_campaign`).
 
 Progress (sum of differing JSON leaves over all 77 transitions): 18,869 → 16,546 → 16,178 →
-13,423 → 12,739 → 8,798 → 8,122 → 7,023 → 5,666. Fourteen archived transitions
+13,423 → 12,739 → 8,798 → 8,122 → 7,023 → 5,666 → 5,597 → 5,591 → 5,531 → 5,502. Fourteen archived transitions
 pass byte-for-byte: 1493→1494, 1494→1495, 1495→1496, 1505→1506, 1512→1513,
 1513→1514, 1514→1515, 1516→1517, 1527→1528, 1537→1538, 1541→1542,
 1542→1543, 1543→1544 and 1547→1548. 1492→1493 is down to the
@@ -32,7 +32,7 @@ space): `setup` copies a stale COLONY09 from COLONIZE/, and a popup can delay th
 `sav_json` it and diff against the sim: whatever remains is a port bug, whatever the archived save
 adds on top is an artifact. 1498→1499, 1501→1502 and 1502→1503 through 1504→1505 match their from-load
 autosaves exactly, and so do 1496→1497, 1497→1498, 1498→1499, 1508→1509, 1511→1512, 1515→1516,
-1523→1524, 1526→1527, 1528→1529 and 1536→1537 (the archive adds unsaved-state diffs there). The 1533→1534 Europe-lane chain link now matches DOS; the archived
+1523→1524, 1526→1527, 1528→1529, 1536→1537, 1548→1549, 1551→1552 and 1555→1556 (the archive adds unsaved-state diffs there). The 1533→1534 Europe-lane chain link now matches DOS; the archived
 save still differs in a Brave's movement and map bytes.
 
 DOSBox method used here (docs/dos_trace.md): `setup --save year_Y.sav`, load, then `BPM` on the
@@ -331,18 +331,50 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   could incorrectly take the dock-demand or `457e` empty-hull branch. A regression
   fixture with a second stacked hull covers that gate.
 
+- Removed invented primary LABOR goals for construction, stock shortages and
+  low population. DOS `521d_0a60` only produces LABOR in the coastal garrison-demand
+  loop (raw 87684-87696), which remains live. The extra construction goal pulled
+  Spanish Dragoons toward Isabella in 1555 but is absent from the fresh DOS goal
+  table. Ten archived transitions improve by 58 JSON leaves: 1554, 1555, 1574,
+  1583, 1592, 1594, 1595, 1596, 1597 and 1598; none regress.
+- Spare transport marking now reads the earlier `4962_0018` census, like DOS
+  `521d_0a60` raw 87542-87546. A hull bought during `5d04` does not count yet.
+  This clears a false French Caravel spare mark in 1555 and another difference
+  in 1563. Fresh 1555→1556 now matches completely. All fourteen exact archived
+  transitions remain exact after both changes.
+
+- Removed the unsupported `player.diplomacy` OR-summary from relation writes.
+  DOS `15b3_0032` raw 9069-9080 stores only the selected relation byte.
+  This clears 29 fields across 23 archived transitions; fresh 1558→1559
+  confirms all four player bytes remain zero. Its remaining 16 fields belong
+  to two unit decisions and their map effects.
+- Removed duplicate land-adjacency CONTACT and unconditional wartime MILITARY
+  producers. DOS uses act state 10 for land adjacency (raw 87566-87568), and
+  the literal foreign-colony loop retains presence, defender-count and turn
+  gates (raw 87776-87787). Settlement producers now read the earlier census
+  tables, including population in the skilled count. These corrections leave
+  all archived transition results unchanged.
+
 ## Open leads (most transitions first)
 
-- 1535→1536 currently has nine JSON leaves against the fresh DOS autosave. Five are
-  links in the final shared ship/passenger tile chain: DOS orders the members
-  `41→40→4`, while the port writes `40→41→4`. Three are stale goto/facing bytes on
-  the newly used unit slot 45, which was beyond the input save's unit count. The
-  remaining leaf is Montreal's `short_defenders` flag. A DOS watchpoint at
-  `137f:029e` traced the former (30,50) owner mismatch to a provisional
-  `15eb:06d2` work-plot seat from `15eb:28c8`: the trial is undone but its owner
-  stamp remains. The port reproduces that stamp for the unseated-worker path;
-  scoring an already employed worker in 1527 did not stamp the plot in DOS. The
-  archive adds four unsaved-state leaves.
+- Cross-transition triage (2026-10-10): the largest repeated colony cluster is
+  Montreal population 1 versus archived 2 in 40 transitions, with related
+  worker slots, defender flags, musket stock and unit-array shifts. Fresh
+  1548, 1551 and 1555 DOS replays reproduce the port's population, so this cluster
+  needs a later fresh replay before any behavior change. Isabella population
+  also differs in 23 transitions. Raw per-slot unit differences need identity
+  matching first because creation/deletion shifts many following records.
+  Scratch report: `/tmp/idle_common_diffs.json` (field frequency and years).
+
+- A new 1535→1536 fresh DOS replay (2026-10-10) leaves five JSON fields,
+  all final shared ship/passenger tile-chain links: DOS orders the members
+  `41→40→4`, while the port writes `40→41→4`. The previously reported three
+  new-slot goto/facing bytes and Montreal's `short_defenders` now match this
+  fresh replay; do not fit the older target's unsaved bytes.
+  A DOS watchpoint at `137f:029e` traced the former (30,50) owner mismatch
+  to a provisional `15eb:06d2` work-plot seat from `15eb:28c8`: the trial is
+  undone but its owner stamp remains. The port reproduces that stamp for the
+  unseated-worker path; scoring an employed worker in 1527 did not stamp it.
 - 1536→1537 now matches a fresh DOS load byte-for-byte. The French 20-tool
   colony purchase charges the sell-byte price but also calls `291f_0c14` to
   record 20 units at the Europe ask price in the buy-volume ledger. The six
@@ -409,46 +441,40 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   soldier 41 → wagon 46 → soldier 38; the port had only appended arrivals.
   A watch on the three live unit x bytes showed the destination stack's
   existing links change during the third move.
-- 1548→1549: the archived target diverges broadly from a fresh load. A fresh
-  DOS replay narrows the port difference to 9 bytes after the worker fix:
-  two French soldiers one tile ahead of DOS and their stack/map marks.
-  The arriving French caravel now keeps DOS's idle wander state at (52,44):
-  DOS's `457e` empty-ship cadence reads the passenger count snapped before
-  `3558` disembarks its last passenger, while the port read the emptied hold
-  and sailed home in the same act. The remaining archive differences arise
-  from unsaved session history. For the soldiers, both runs step (45,49) →
-  (44,50), then DOS moves south to (44,51) for its remaining six thirds of
-  movement. The port chooses southeast to (45,51) at three thirds and then
-  south to (45,52). A fresh 1548 load and autosave reproduced the same 9-byte
-  residual. The first route difference is the far-tier goto choice from
-  (44,50); the first step from (45,49) is shared.
-  The `UNITS_FAR_BFS=1` diagnostic fallback takes the next step west to
-  (43,51), so the old whole-map BFS does not reproduce DOS's due-south pick.
+- 1548→1549 now matches two fresh DOS autosaves byte-for-byte. The remaining
+  nine bytes were the two Spanish Dragoons' route and resulting stack/map marks.
+  Both runs first step (45,49) → (44,50), with far-tier waypoint (45,53).
+  `FUN_6662_0906` raw 104185 overwrites `DS:0x1dd2` with Soldier for the
+  coarse-snap probe and restores only the owner, so DOS's following flood
+  uses one-tile movement costs. The port restored the Dragoon type instead.
+  Preserving the probe type makes DOS's next south step to (44,51) win;
+  the port formerly picked southeast then south to (45,52). The full 256-byte
+  cost grid now matches the live DOS capture. A regression covers far-tier
+  probe costs and near-tier retention of the mover's own terrain costs.
+  The archived target still adds unsaved-state differences (11 JSON leaves).
+  The arriving French caravel's earlier empty-ship fix remains in place:
+  `457e` reads the passenger count snapped before `3558` disembarks the last
+  passenger, leaving the hull idle at (52,44).
 - The `457e` empty-ship cadence now uses DOS's compact unit-array index in
   its 1-in-32 turn check instead of the port's runtime ID. The existing
   cadence tests now align their beat to the slot; all earlier exact archived
   transitions still pass.
-- 1551→1552: the archived target again diverges broadly from a fresh DOS
-  load. The fresh replay has 17 differing bytes after the worker fix: a Tupi
-  Brave that moves from (49,39) to (50,40) in DOS but stays
-  fortified in the port, a French Dragoon that finishes one tile
-  west-northwest of DOS, one Brave visibility bit, and the corresponding
-  map marks. The archived output has a different unit count and is not a
-  suitable one-turn oracle for this input. A fresh 1551 load and autosave
-  confirms the Dragoon at input (48,40) roams through
-  (49,41) and ends at (50,41) in DOS; the port ends at (49,40). The fresh
-  native/port JSON diff is limited to that Dragoon, the Tupi Brave, its
-  visibility bit, and map layers. That earlier route changes the Brave's
-  adjacent-foreign scan: the port sees the French unit on (49,40), while DOS
-  has moved it away. The port's `021a` score at (49,39) then picks stay 207
-  over southeast 206; that score is downstream of the Euro route mismatch,
-  so it is not an independent Brave
-  scoring lead. The shared turn fortify refresh was checked and did not
-  cause the mismatch. The Euro wander choice remains open after the
-  independent worker-score fix. `AI_4D2E_TRACE` shows the port's second
-  wander act at (49,41) scores north (49,40) at 21 and east (50,41) at 12;
-  DOS takes east. The first act reaches (49,41) in both runs, so the
-  unresolved term is in the second wander score/state.
+- 1551→1552 is down from 17 differing bytes against the fresh DOS autosave
+  to an exact byte-for-byte match with the fresh DOS autosave.
+  The Spanish Dragoon and downstream Tupi Brave now match, including visibility.
+  DOSBox score and RNG breakpoints corrected the earlier route assumption:
+  DOS moves the Dragoon (48,40) → (49,40) → (50,41), with first score vector
+  N=7, E=13, SE=12, SW=12, W=-7. The earlier claim that both first steps
+  went southeast was incorrect. Before those scores, DOS departs dock hull
+  slot 4 from Europe inside 5d04 (291f_0ec2 → 48d3_0346 → 0002), reseeding
+  to 100 and drawing `rng(1,100)`. The port postponed departure until the
+  hull's own unit act, after the Dragoon had consumed the planning stream.
+  Departure now runs at its DOS call site, and the unit act preserves the
+  dock pass's damage gate. The archived output still has a different unit
+  count and is not a suitable one-turn oracle for this input.
+  The last byte was village deletion at (48,58): 4d56_00e0 clears only the
+  settlement bit, leaving layer3 `0x7d`. The port additionally reset the
+  owner to `0xf`, producing `0xfd`; that unsupported write is removed.
 
 - Human end-of-slot draws: DOS 5, port 1 in 1497→1498 (human FF debate rolls / merc offer?).
 - **AI colony tick vs DOS**: still the main source from 1499 on (worker/tile choice,

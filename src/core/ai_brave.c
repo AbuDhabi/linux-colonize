@@ -1098,8 +1098,7 @@ int col1_kill_indian_nation_w(
      * 121620-121622). This site is the second: a nation that no longer
      * exists has no relation with anybody, in either direction. Routed
      * through ai_diplo_clear_both with a full mask so both halves fall
-     * together and ai_diplo_write's dual-mode addressing (plus its
-     * player.diplomacy mirror) is the only channel into the matrix.
+     * together through ai_diplo_write's dual-mode addressing.
      *
      * FUN_4d56_00e0, the per-village DOS razer this whole helper stands in
      * for, does not touch the matrix at all (raw 81292-81346) — it only ORs

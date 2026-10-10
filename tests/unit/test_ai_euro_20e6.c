@@ -140,7 +140,7 @@ static int cheb(int ax, int ay, int bx, int by) {
 }
 
 /*
- * No colonies, peace, idle Soldier: DOS falls through every arm to the
+ * No colonies, peace, idle Veteran Soldier: DOS falls through every arm to the
  * 8-direction wander scorer (LAB_521d_4d2e) and commits ONE adjacent tile
  * (epilogue unit+0x314c=0xc). The old placeholder walked "2 tiles west".
  */
@@ -150,6 +150,7 @@ static int unit_wander_step_is_adjacent(void) {
   if (fixture_init(&f, nation) != 0) {
     return 1;
   }
+  quiet_5d04_planner(&f, nation);
   const int sid = units_spawn(&f.units, 1, 8, 8);
   ColonizeUnit* s = units_get(&f.units, sid);
   if (!s) {
@@ -157,6 +158,9 @@ static int unit_wander_step_is_adjacent(void) {
     return fail("spawn soldier");
   }
   s->nation_id = nation;
+  /* Raw 88500: a veteran stays in the combat role rather than the
+   * explorer ring-hop arm. The fixture tests the adjacent wander commit. */
+  s->profession = UNITS_JOB_SOLDIER;
   s->moves = 1 * UNITS_MP_PER_TILE;
   s->orders = 0;
 
@@ -2246,6 +2250,11 @@ static int park_setup(Fixture* f, int nation, int colony_nation, int stacked) {
   ai_diplo_declare_war(&f->col1, nation, 0);
   if (colony_nation >= 0) {
     treasure_add_colony(f, 0, colony_nation, 9, 8);
+    /* Keep the empty border colony at treaty, so only the defended
+     * western tile contributes an attack candidate to this park fixture. */
+    if (colony_nation != nation) {
+      ai_diplo_write(&f->col1, nation, colony_nation, AI_DIPLO_PEACE);
+    }
     f->map.layer3[8 * f->map.width + 9] = (uint8_t)(colony_nation << 4);
   }
   const int fid = units_spawn(&f->units, 1, 7, 8);
@@ -2412,7 +2421,12 @@ static int goalwalk_binding_after_turn(int subject_orders, int* out_gx, int* out
     fixture_free(&f);
     return -2;
   }
-  ai_euro_dispatcher_turn(&f.ctx, nation);
+  /* Supply real DOS LABOR demand; the former full-turn fixture relied on
+   * the removed low-population LABOR heuristic. Pin the 0a60 binding stage. */
+  f.map.terrain[2 * f.map.width + 3] = 25;
+  f.colonies.colonies[0].labor_shortage = 2;
+  ai_euro_colony_goals(&f.ctx, nation);
+  ai_euro_0a60_goal_orders_structural(&f.ctx, nation);
   const ColonizeUnit* u = units_get_const(&f.units, uid);
   const int ord = u ? u->orders : -1;
   if (u && out_gx && out_gy) {
@@ -2732,7 +2746,143 @@ static int unit_ship_idle_tail_treaty(void) {
   return 0;
 }
 
+/* DOS 5d04 -> 0346 departs before any unit's 5b66 act, including the
+ * voyage reseed. Damaged hulls stay at the dock through the unit wave. */
+static int unit_europe_departure_runs_during_planning(void) {
+  for (int damaged = 0; damaged < 2; ++damaged) {
+    Fixture f;
+    if (fixture_init(&f, 1) != 0) return 1;
+    quiet_5d04_planner(&f, 1);
+    f.col1.stuff.ship_cargo_totals[1] = 2;
+    const int id = units_spawn(&f.units, 2, 237, 237);
+    ColonizeUnit* ship = units_get(&f.units, id);
+    if (!ship) { fixture_free(&f); return fail("planning hull spawn"); }
+    ship->nation_id = 1;
+    ship->goto_x = 10;
+    ship->goto_y = 8;
+    ship->col1_flags15 = damaged ? 0x80 : 0;
+    ai_euro_nation_planning(&f.ctx, 1);
+    const int lane = damaged ? 237 : 233;
+    if (ship->x != lane || ship->y != lane ||
+        (!damaged && (ship->col1_counter16 != 1 || f.rng.state != 23932311u))) {
+      fixture_free(&f);
+      return fail("5d04 must depart healthy hulls and roll the voyage before unit acts");
+    }
+    struct ai_euro_act_ctx a = {.ctx = &f.ctx, .u = ship, .nation_id = 1};
+    ai_euro_act_ship_europe_exit(&a);
+    const int actual_x = ship->x;
+    fixture_free(&f);
+    if (actual_x != lane) return fail("unit act must preserve the dock departure gate");
+  }
+  return 0;
+}
+
+/* DOS 0a60 uses the census taken before Europe's purchases. */
+static int unit_spare_ship_uses_census(void) {
+  for (int count = 1; count <= 2; ++count) {
+    Fixture f;
+    if (fixture_init(&f, 1) != 0) return 1;
+    const int first = units_spawn(&f.units, 2, 233, 233);
+    const int second = units_spawn_allow_stack(&f.units, 2, 233, 233);
+    ColonizeUnit* a = units_get(&f.units, first);
+    ColonizeUnit* b = units_get(&f.units, second);
+    if (!a || !b) { fixture_free(&f); return fail("spare hull spawn"); }
+    a->nation_id = b->nation_id = 1;
+    f.col1.stuff.unit_type_counts[1][UNITS_KIND_CARAVEL] = count;
+    ai_euro_colony_goals(&f.ctx, 1);
+    const int first_spare = (a->col1_flags15 & AI_EURO_F3148_SPARE) != 0;
+    const int second_spare = (b->col1_flags15 & AI_EURO_F3148_SPARE) != 0;
+    fixture_free(&f);
+    if (first_spare != (count == 2) || second_spare) {
+      return fail("spare mark must use census and mark at most one hull");
+    }
+  }
+  return 0;
+}
+
+/* DOS 0a60 records adjacency in act_state 10, not a land CONTACT goal. */
+static int unit_land_contact_does_not_create_goal(void) {
+  Fixture f;
+  if (fixture_init(&f, 1) != 0) return 1;
+  const int id = units_spawn(&f.units, 1, 8, 8);
+  const int foe = units_spawn(&f.units, 1, 9, 8);
+  ColonizeUnit* u = units_get(&f.units, id);
+  ColonizeUnit* v = units_get(&f.units, foe);
+  if (!u || !v) { fixture_free(&f); return fail("land contact spawn"); }
+  u->nation_id = 1;
+  v->nation_id = 2;
+  f.map.layer3[8 * 16 + 9] = 2 << 4;
+  f.map.layer2[8 * 16 + 9] = MAP_OCCUPANCY_HAS_UNIT;
+  ai_diplo_write(&f.col1, 1, 2, AI_DIPLO_WAR);
+  ai_euro_colony_goals(&f.ctx, 1);
+  const int priority = ai_goals_max_primary_prio(1, 9, 8, AI_GOAL_CONTACT);
+  const int order = u->orders;
+  fixture_free(&f);
+  if (priority || order != 10) return fail("land contact must mark adjacency without a goal");
+  return 0;
+}
+
+/* DOS 0a60's military approach requires presence and enough defenders. */
+static int unit_foreign_colony_military_goal_gates(void) {
+  Fixture f;
+  if (fixture_init(&f, 1) != 0) return 1;
+  treasure_add_colony(&f, 0, 2, 9, 8);
+  f.colonies.colonies[0].population = 8;
+  f.col1.head.turn = 5;
+  f.map.layer3[8 * 16 + 9] = (2 << 4) | 3;
+  const int id = units_spawn(&f.units, 1, 8, 8);
+  ColonizeUnit* u = units_get(&f.units, id);
+  if (!u) { fixture_free(&f); return fail("approach unit spawn"); }
+  u->nation_id = 1;
+  f.map.layer3[8 * 16 + 8] = (1 << 4) | 3;
+  ai_diplo_write(&f.col1, 1, 2, AI_DIPLO_WAR);
+  ai_euro_colony_goals(&f.ctx, 1);
+  if (ai_goals_max_primary_prio(1, 9, 8, AI_GOAL_MILITARY)) {
+    fixture_free(&f);
+    return fail("war and live units must not bypass the census presence gate");
+  }
+  f.col1.stuff.land_unit_counts_by_continent[1 * 16 + 3] = 1;
+  ai_goals_reset();
+  ai_euro_colony_goals(&f.ctx, 1);
+  if (ai_goals_max_primary_prio(1, 9, 8, AI_GOAL_MILITARY) != 5) {
+    fixture_free(&f);
+    return fail("valid DOS military approach must remain live");
+  }
+  f.colonies.colonies[0].population = 1;
+  ai_goals_reset();
+  ai_euro_colony_goals(&f.ctx, 1);
+  const int weak_priority = ai_goals_max_primary_prio(1, 9, 8, AI_GOAL_MILITARY);
+  fixture_free(&f);
+  if (weak_priority) return fail("war must not bypass the defender-count gate");
+  return 0;
+}
+
+/* DOS attack scoring is gated by PEACE, including before formal war. */
+static int unit_border_hold_uses_treaty_gate(void) {
+  const uint8_t relations[] = {0, AI_DIPLO_MET, AI_DIPLO_PEACE};
+  for (unsigned i = 0; i < sizeof(relations) / sizeof(relations[0]); ++i) {
+    Fixture f;
+    if (fixture_init(&f, 1) != 0) return 1;
+    const int id = park_setup(&f, 1, 2, 0);
+    ColonizeUnit* u = units_get(&f.units, id);
+    if (!u) { fixture_free(&f); return fail("treaty hold spawn"); }
+    ai_diplo_write(&f.col1, 1, 0, relations[i]);
+    ai_euro_move_scoring_gate(&f.ctx, u, 1);
+    const int held = u->col1_ai_plan == 0x46;
+    fixture_free(&f);
+    if (held != (relations[i] != AI_DIPLO_PEACE)) {
+      return fail("border hold must test treaty bit, not formal war or first contact");
+    }
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_border_hold_uses_treaty_gate", unit_border_hold_uses_treaty_gate},
+    {"unit_foreign_colony_military_goal_gates", unit_foreign_colony_military_goal_gates},
+    {"unit_land_contact_does_not_create_goal", unit_land_contact_does_not_create_goal},
+    {"unit_spare_ship_uses_census", unit_spare_ship_uses_census},
+    {"unit_europe_departure_runs_during_planning", unit_europe_departure_runs_during_planning},
     {"unit_ship_idle_tail_treaty", unit_ship_idle_tail_treaty},
     {"unit_adjacent_foreign_domains", unit_adjacent_foreign_domains},
     {"unit_gate_adjacent_foe_reaches_scorer", unit_gate_adjacent_foe_reaches_scorer},

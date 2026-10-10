@@ -3262,7 +3262,28 @@ static int case_153e_talk_tokens_474(void) {
   return 0;
 }
 
+/* DOS 15b3_0032 only stores the selected relation byte (raw 9069-9080). */
+static int case_relation_writes_preserve_player_bytes(void) {
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  for (int i = 0; i < 4; ++i) col1.player[i].diplomacy = 0xa0 + i;
+  ai_diplo_write(&col1, 1, 2, AI_DIPLO_MET);
+  ai_diplo_or_both(&col1, 1, 2, AI_DIPLO_PEACE);
+  if (ai_diplo_read(&col1, 1, 2) != (AI_DIPLO_MET | AI_DIPLO_PEACE) ||
+      ai_diplo_read(&col1, 2, 1) != AI_DIPLO_PEACE) {
+    return fail("relation setters must retain their directional and bilateral stores");
+  }
+  ai_diplo_clear_both(&col1, 1, 2, AI_DIPLO_PEACE);
+  for (int i = 0; i < 4; ++i) {
+    if (col1.player[i].diplomacy != 0xa0 + i) {
+      return fail("relation setters must preserve the unrelated player byte");
+    }
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"case_relation_writes_preserve_player_bytes", case_relation_writes_preserve_player_bytes},
     {"case_153e_talk_tokens_474", case_153e_talk_tokens_474},
     {"case_declare_peace_narrative", case_declare_peace_narrative},
     {"case_indian_sticky_status_chrome", case_indian_sticky_status_chrome},

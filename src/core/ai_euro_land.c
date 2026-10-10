@@ -2175,13 +2175,11 @@ int ai_euro_20e6_wander_step(
         !s->woi || partner > 3 ||
         (partner >= 0 && partner < 4 && ctx->col1_ok && ctx->col1 &&
          ctx->col1->player[partner].control == 0);
-      /* DOS scores the tile as an attack when the owner is not yet MET (a
-       * forced first contact) or a Privateer is involved; OpenCol contact is
-       * driven by ai_contact_*, so this port only takes the arm at war —
-       * a deliberate narrowing, not a transcription slip. */
-      const int at_war = partner >= 0 && ctx->col1 && ai_diplo_at_war(ctx->col1, nation, partner);
-      if ((at_war ||
-           ((rel & AI_DIPLO_MET) == 0 && s->dos_type == UNITS_KIND_PRIVATEER) ||
+      /* DOS FUN_521d_20e6 raw 88880-88885: treaty bit 0x40 clear, or
+       * either hull is a Privateer. Formal war is not required; even an
+       * unmet land neighbour enters the attack-score and border-hold arms. */
+      if (((rel & AI_DIPLO_PEACE) == 0 ||
+           s->dos_type == UNITS_KIND_PRIVATEER ||
            hu_type == UNITS_KIND_PRIVATEER) &&
           woi_ok) {
         /* raw 88885-88887, LAB_521d_52aa entry: `if (DS:0x5236[type*0xe] !=

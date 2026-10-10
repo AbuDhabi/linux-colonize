@@ -2494,6 +2494,7 @@ static int case_native_settlement_conquer(void) {
       fprintf(stderr, "conquer: tribe should remain after map Brave death\n");
       return 1;
     }
+    const uint8_t conquer_owner_before = tmap.layer3[10 * 20 + 10];
     if (!units_try_native_settlement_fallout_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&tmap), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&crng)}, 0, 4, 10, 10, -1)) {
       free(tmap.layer3);
       free(col1.tribe);
@@ -2517,10 +2518,10 @@ static int case_native_settlement_conquer(void) {
       );
       return 1;
     }
-    if ((tmap.layer3[10 * 20 + 10] >> 4) != 0x0f) {
+    if (tmap.layer3[10 * 20 + 10] != conquer_owner_before) {
       free(tmap.layer3);
       free(col1.tribe);
-      fprintf(stderr, "conquer: village tile should be unowned 0xf\n");
+      fprintf(stderr, "conquer: village deletion should retain the owner nibble\n");
       return 1;
     }
     int peel_gold = -1;
@@ -5501,6 +5502,7 @@ static int case_combat_village_attack_pop_drain(void) {
         return 1;
       }
       a->moves = 3 * UNITS_MP_PER_TILE;
+      const uint8_t village_owner_before_destroy = map_get_layer3(&map, vx, vy);
       if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, aid, vx, vy) ||
           units_last_combat_outcome() <= 0) {
         fprintf(stderr, "village-temp destroy attack failed\n");
@@ -5509,6 +5511,12 @@ static int case_combat_village_attack_pop_drain(void) {
       }
       if (c1.head.tribe_count != 0) {
         fprintf(stderr, "village-temp pop<2 should destroy dwelling\n");
+        free(c1.tribe);
+        return 1;
+      }
+      if (map_tile_has_city(&map, vx, vy) ||
+          map_get_layer3(&map, vx, vy) != village_owner_before_destroy) {
+        fprintf(stderr, "village-temp destruction must clear settlement and retain ownership\n");
         free(c1.tribe);
         return 1;
       }

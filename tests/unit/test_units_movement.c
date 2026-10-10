@@ -325,6 +325,55 @@ static int unit_flood_river_pair_step(void) {
   return rc;
 }
 
+/* FUN_6662_0906 raw 104185 leaves Soldier in DS:0x1dd2. The far goto
+ * flood therefore ignores terrain costs after a coarse snap; a near goto
+ * still uses the Dragoon's own type. Traced in the 1548 idle campaign. */
+static int unit_far_flood_keeps_probe_type(void) {
+  units_reset_state();
+  ColonizeUnitPool pool = {0};
+  pool.type_count = 3;
+  pool.types[1].movement = 1;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  pool.types[2].movement = 3;
+  pool.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeWorldMap map = {0};
+  char err[128];
+  if (!map_alloc(&map, 24, 24, err, sizeof(err))) {
+    return 1;
+  }
+  for (int i = 0; i < 24 * 24; ++i) {
+    map.terrain[i] = 2;
+    map.layer3[i] = 0xf1;
+  }
+  map.terrain[9 * 24 + 9] = 27; /* mountains on the direct diagonal */
+  const int id = units_spawn_allow_stack(&pool, 2, 8, 8);
+  ColonizeUnit* u = units_get(&pool, id);
+  if (!u) {
+    map_free(&map);
+    return 1;
+  }
+  u->nation_id = 2;
+  u->orders = UNITS_ORDER_GOTO;
+  u->goto_x = 9;
+  u->goto_y = 20;
+  ColonizeWorld w = {.units = &pool, .map = &map};
+  int nx = -1, ny = -1;
+  int rc = 0;
+  if (!units_next_goto_step_w(&w, id, &nx, &ny) || nx != 9 || ny != 9) {
+    fprintf(stderr, "probe_type: far flood should use Soldier costs, got (%d,%d)\n", nx, ny);
+    rc = 1;
+  }
+  units_reset_state();
+  u->goto_y = 12;
+  if (!units_next_goto_step_w(&w, id, &nx, &ny) || nx != 8 || ny != 9) {
+    fprintf(stderr, "probe_type: near flood should use Dragoon costs, got (%d,%d)\n", nx, ny);
+    rc = 1;
+  }
+  map_free(&map);
+  units_reset_state();
+  return rc;
+}
+
 /*
  * bugs.md #1042: FUN_6662_0906 as the FUN_4962_0018 ship-pressure probe calls
  * it (cap 8, Caravel costs, shared 00f2 grid). One ocean tile from the
@@ -1058,6 +1107,9 @@ static int unit_board_restore_bounded(void) {
 
 int main(void) {
   diag_init(0, NULL);
+  if (unit_far_flood_keeps_probe_type() != 0) {
+    return 1;
+  }
   if (unit_board_restore_bounded() != 0) {
     diag_shutdown();
     return 1;

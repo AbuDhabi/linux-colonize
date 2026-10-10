@@ -1,6 +1,7 @@
 /* Slice of the former tests/unit/test_ai_euro_expand.c (split by feature 2026-09-23):
  * construction labor and building preference ladder (stockade..capitol). */
 #include "test_ai_euro_expand_common.h"
+#include "core/ai_euro_internal.h"
 
 static int unit_build_ai_flags_wants_construction(void) {
   const int nation = 1;
@@ -1143,7 +1144,38 @@ static int unit_capitol_expansion_prefer(void) {
   return 0;
 }
 
+/* DOS 0a60 has no construction/stock/population LABOR producer. The
+ * coastal garrison demand loop remains its sole source (raw 87684-87696). */
+static int unit_labor_goal_requires_garrison_demand(void) {
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) return fail("labor gate map");
+  map.terrain[4 * 16 + 5] = 25; /* coastal colony */
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  ColonizeColony c = {0};
+  c.x = c.y = 4;
+  c.population = c.colonist_count = 1;
+  c.building_in_production = 0;
+  ColonizeTurnContext ctx = {0};
+  ctx.map = &map;
+  ctx.units = &units;
+  ai_goals_reset();
+  ai_euro_colony_goals_colony_labor(&ctx, 1, &c, NULL, 99);
+  if (ai_goals_max_primary_prio(1, 4, 4, AI_GOAL_LABOR) != 0 ||
+      (c.build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION)) {
+    fx_map_free(&map);
+    return fail("construction and empty stocks must not invent a LABOR goal or latch");
+  }
+  c.labor_shortage = 2;
+  ai_euro_colony_goals_colony_garrison(&ctx, 1, &c);
+  const int priority = ai_goals_max_primary_prio(1, 4, 4, AI_GOAL_LABOR);
+  fx_map_free(&map);
+  if (priority != 4) return fail("coastal garrison demand must retain its LABOR goal");
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_labor_goal_requires_garrison_demand", unit_labor_goal_requires_garrison_demand},
     {"unit_build_ai_flags_wants_construction", unit_build_ai_flags_wants_construction},
     {"unit_construction_labor_stockade", unit_construction_labor_stockade},
     {"unit_master_carpenter_construction_labor", unit_master_carpenter_construction_labor},
