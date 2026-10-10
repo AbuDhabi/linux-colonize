@@ -65,7 +65,7 @@
  * this block once carried — −100 gold + 1 tax on both sides (smell #47), a
  * colony-gap −25 trade sting (follow-up A), a Tools embargo — is retired:
  * DOS charges nothing on a declare. What remains is the relation/PEACE/WAR
- * bit work and the treaty-timer seed.
+ * bit work only.
  * FA 3f41 full body/UI PARKED. OpenCol-only alliance machinery (ally-aid,
  * FA gift, break trust) retired T2.4 2026-09-06.
  * Euro×Euro war does NOT boycott Europe cargos (DOS tea-party / king refuse
@@ -107,34 +107,8 @@
 /* Retired: AI_DIPLO_WAR_TRADE_STING/WAR_COLONY_GAP. A sweep of all 103 gold
  * writes (`n * 0x13c + -0x77ce`) finds no constant-valued treasury decrement
  * anywhere in the game. docs/smell_audit_2026-09-09.md follow-up A. */
-/*
- * OpenCol war/peace pressure bands for ai_diplo_military_score, named 2026-09-09
- * (smell #51) when the score became the DS:0x941c quantity. DOS has no bands of
- * this shape at all — its own war-worthiness test is FUN_5bfb_10ec, ported
- * whole in ai_euro.c and reached through ai_diplo_13b0_treaty_tick. These four
- * gate only the OpenCol war-fatigue peace roll and the opportunistic declare
- * pressure, and each gates an RNG draw, so they sit in the shared DOS RNG
- * stream.
- *
- * The numbers are unchanged. Rescaling them ×8 to match the mirror's scale
- * (80/120/160/240) was tried and reverted: it silences both arms on the early
- * golden turns, drops their RNG draws and shifts everything downstream —
- * golden_ai_turns TURN6→7 diverges (Quebec pop 2 vs 1, a Brave and a colonist
- * lost). The bands were invented against the old Σ(attack+defense) blend and
- * the goldens have been recorded through them ever since; with no DOS
- * constant to appeal to, the recorded stream is the only evidence there is,
- * so they stay put.
- *
- * 2026-09-10: the score is recomputed live (see ai_diplo_military_score), so
- * these bands and their draws are now reached in an OpenCol-started game too. The
- * old mirror read returned 0 there — nothing refreshes `stuff` outside the
- * save-writing path — which silenced both arms outside a loaded DOS save.
- */
-#define AI_DIPLO_STRENGTH_MIN 10
-#define AI_DIPLO_STRENGTH_PARITY 15
-/* First declare: seed peer treaty timer so near-parity peace waits for
- * timer==0 (war aged / fatigue). Reuses unknown26[0..3]; live timers kept. */
-#define AI_DIPLO_WAR_FATIGUE_TIMER 8u
+/* DOS has no per-turn Euro war-fatigue peace roll. 10ec is only a war-worthiness
+ * predicate; 13b0 signs or cancels treaties on an encounter and skips active wars. */
 /* Retired: AI_DIPLO_INDIAN_DRIFT_CAP (no DOS per-turn alarm decay,
  * docs/archive/smell_audit_2026-09-10.md #16) and AI_DIPLO_WAR_INDIAN_HIT (fed only
  * the OpenCol-only Euro-alliance hit, gone with T2.4). */
@@ -192,25 +166,6 @@ static void ai_diplo_war_embargo_lift_if_peace(ColonizeCol1Save* col1, int natio
     }
     ColonizeCol1Nation* nat = &col1->nation[n];
     nat->boycott_bitmap = (uint16_t)(nat->boycott_bitmap & (uint16_t)~lift);
-  }
-}
-
-/*
- * War fatigue: on first declare, if peer treaty timer is 0, seed it to 8 so
- * euro_balance near-parity peace waits until timer==0 (war aged). Live timers
- * left alone. Source: reuse unknown26[0..3] 6d8e timer; no new unknown26 slot.
- */
-static void ai_diplo_war_fatigue_timer_seed(ColonizeCol1Save* col1, int nation_a, int nation_b) {
-  if (!col1) {
-    return;
-  }
-  uint8_t* ta = ai_diplo_timer_byte(col1, nation_a, nation_b);
-  uint8_t* tb = ai_diplo_timer_byte(col1, nation_b, nation_a);
-  if (ta && *ta == 0) {
-    *ta = (uint8_t)AI_DIPLO_WAR_FATIGUE_TIMER;
-  }
-  if (tb && *tb == 0) {
-    *tb = (uint8_t)AI_DIPLO_WAR_FATIGUE_TIMER;
   }
 }
 
@@ -866,7 +821,6 @@ void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
    * 98422). No attack/declare site (5fef_1b0e, 465b, 684c_08c0, 6cb2_24b8)
    * reads it; the old refusal here was a fandom-sourced invention.
    */
-  const int already = ai_diplo_at_war(col1, nation_a, nation_b);
   /* DOS attack/declare sites (5fef_1b0e, 684c_08c0, 6cb2_24b8): DS:0x53c8[a]=[b]=0. */
   if (nation_a >= 0 && nation_a < 4 && nation_b >= 0 && nation_b < 4) {
     col1->head.nation_relation[nation_a] = 0;
@@ -874,19 +828,8 @@ void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   }
   ai_diplo_clear_both(col1, nation_a, nation_b, AI_DIPLO_PEACE);
   ai_diplo_or_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_WAR | AI_DIPLO_MET));
-  /* First-declare side effects. The −100 gold / +1 tax pair (smell #47) and
-   * the colony-gap −25 trade sting (follow-up A) that used to lead this block
-   * were retired 2026-09-09 — no DOS declare path charges any of them; see
-   * the evidence-of-absence notes on the constants block at the top. */
-  if (!already) {
-    /* No Indian-relation hit here: no DOS declare-war site (5fef_1b0e 0x53c8
-     * clears, 153e, 684c_08c0, 6cb2_24b8) touches Indian relations — alarm
-     * grows only through the FUN_4d56_152e accumulator. The −5×8 "Indians
-     * dislike Euro×Euro war" stand-in was retired 2026-09-03 and its no-op
-     * stub deleted 2026-09-14. */
-    /* War fatigue: seed treaty timer if 0 so near-parity peace waits for age. */
-    ai_diplo_war_fatigue_timer_seed(col1, nation_a, nation_b);
-  }
+  /* No extra first-declare effects: DOS writes the relation and WAR|MET bits
+   * here. */
 }
 
 /* Rival label for thin status: player.country_name or "rival". */
@@ -3316,28 +3259,15 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
     return;
   }
-  /*
-   * FUN_5bfb_10ec / 13b0 checklist:
-   *  1 skip human; at-war → upkeep + privateer prize; war-fatigue + near-parity
-   *    → make_peace_ctx (timer==0 while WAR)
-   *  2 military score (0000/00f8/312e stand-in)
-   *  3 10ec eligibility: war if self ≫ other
-   *  4 13b0 treaty sign/cancel (ai_diplo_13b0_treaty_tick; the OpenCol-only
-   *    alliance form/break + ally aid / FA gift / longevity arms were retired
-   *    T2.4 2026-09-06 — DOS has no Euro×Euro alliances)
-   *  5 declare_war_ctx → human status (102a/1092 chrome); the 153e gold/tax
-   *    stings it used to carry are all retired (smells #47/#49, follow-up A)
-   *  + Indian matrix: feeler (skip sticky2 / any Euro war) + sticky sync/pressure
-   *    sticky2 also refuses new treaties
-   *  (No Franklin arm: DOS reads FF 0x13 only in 38fd_5930 + 153e, bugs.md #472.)
-   */
+  /* DOS has no per-turn Euro peace roll. FUN_5bfb_10ec is a war-worthiness
+   * predicate; FUN_5bfb_13b0 signs or cancels treaties on an encounter and
+   * skips active wars. This pass retains the port's at-war Privateer path and
+   * the Indian matrix tick. */
   ai_diplo_indian_matrix_tick(ctx, nation_id);
-  const int self = ai_diplo_military_score(ctx, nation_id);
   for (int peer = 0; peer < 4; ++peer) {
     if (peer == nation_id || ctx->col1->player[peer].control == 2) {
       continue;
     }
-    const int other = ai_diplo_military_score(ctx, peer);
     const uint8_t bits = ai_diplo_read(ctx->col1, nation_id, peer);
 
     if (bits & AI_DIPLO_WAR) {
@@ -3366,26 +3296,6 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
       } else if (ai_diplo_war_privateer_prize(ctx->col1, nation_id, peer)) {
         /* Status only — no GAME.TXT Privateer prize dialog. */
         ai_diplo_status_human_pair(ctx, nation_id, peer, "Privateer prize from %s");
-      }
-      /*
-       * War-fatigue peace: near-parity (ally-eligible band) while at war AND
-       * peer treaty timer==0 (war aged; seeded to 8 on first declare) → rare
-       * make_peace. Human chrome when either party is human (102a/1092
-       * stand-in via status_human_pair + Tools lift on human bitmap).
-       * AI→human (FUN_5bfb / 15b3): enqueue CHOICE Accept/Refuse; apply calls
-       * make_peace_ctx. AI↔AI / human-as-actor still auto make_peace_ctx.
-       * Full 153e / FA 3f41 peace dialog UI PARKED; no gold cost.
-       * Source: extend existing near-parity path; timer==0 + WAR = fatigue.
-       */
-      if (self > AI_DIPLO_STRENGTH_MIN && other > AI_DIPLO_STRENGTH_MIN &&
-          abs(self - other) < AI_DIPLO_STRENGTH_PARITY) {
-        uint8_t* t = ai_diplo_timer_byte(ctx->col1, nation_id, peer);
-        if (t && *t == 0 && ctx->rng && dos_rng_range(ctx->rng, 1, 30) == 1) {
-          /* bugs.md: no invented peace
-           * toast. The treaty is concluded and announced with DOS's own
-           * @SIGNTREATY line, which ai_diplo_make_peace_ctx already emits. */
-          ai_diplo_make_peace_ctx(ctx, nation_id, peer);
-        }
       }
       continue;
     }
@@ -3610,19 +3520,9 @@ void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* p
     }
     return;
   }
-  /*
-   * War-fatigue peace offer CHOICE (FUN_5bfb / 15b3): Accept (1) →
-   * make_peace_ctx; Refuse (2) → status + follow-up OK (chrome polish;
-   * human-facing status also enqueues OK). Full 153e peace UI PARKED.
-   *
-   * 10ec war declare CHOICE AI→human: Accept (1) → declare_war_ctx;
-   * Refuse (2) → status + follow-up OK (chrome polish; mirrors peace
-   * Refuse). OK popups share DIPLO_WAR + choice_id 0.
-   *
-   * (The DIPLO_ALLIANCE / DIPLO_BREAK alliance CHOICE arms were retired
-   * with the OpenCol-only Euro×Euro alliance machinery, T2.4 2026-09-06;
-   * DIPLO_BREAK remains as the 13b0 treaty-cancel OK tag.)
-   */
+  /* DOS treaty notices are OK popups. Legacy choice results can still be
+   * applied if a caller supplies them; the balance pass no longer offers
+   * war-fatigue peace choices. */
   if (popup->result_tag == AI_POPUP_TAG_DIPLO_TALK) {
     if (popup->result_choice_id > 0) {
       ai_talk_resume(ctx, popup->result_payload, popup->result_choice_id);

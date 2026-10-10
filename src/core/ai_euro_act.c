@@ -690,10 +690,18 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
   }
   const int tasked = u->col1_ai_plan == 't' || u->col1_ai_plan == 'i'; /* local_6 */
 
-  /* local_a8 (stack count - 1) is taken once at band entry, before the
-   * LAB_3558 unload; the dock-demand gate reads that snapshot (DOSBox 1514:
-   * a caravel that landed its soldier did not sail home the same act). */
-  const int a8_at_entry = u->cargo_count;
+  /* FUN_1427_0d38 mode 2 counts the whole tile stack (including passengers
+   * linked through ships), then 20e6 subtracts the acting hull. Snapshot it
+   * before LAB_3558 unloads anyone: the dock-demand gate and 457e cadence
+   * still see the entry stack for the rest of this act. */
+  int tile_stack_count = 0;
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+    const ColonizeUnit* member = &ctx->units->units[i];
+    if (member->active && member->x == u->x && member->y == u->y) {
+      ++tile_stack_count;
+    }
+  }
+  const int a8_at_entry = tile_stack_count > 0 ? tile_stack_count - 1 : 0;
   const int at_own_colony = colonies_id_at(ctx->colonies, u->x, u->y) >= 0 &&
                             ctx->colonies->colonies[colonies_id_at(ctx->colonies, u->x, u->y)]
                                 .nation_id == nation_id;

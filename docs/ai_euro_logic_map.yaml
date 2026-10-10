@@ -187,11 +187,11 @@ graphs:
         label: WoI crown slot?
       - id: balance
         kind: sub
-        label: Euro diplomacy balance (war/peace rolls)
+        label: Euro diplomacy balance (OpenCol war effects)
         sub: diplo_balance
         fn: ai_diplo.c:ai_diplo_euro_balance
         status: port
-        note: OpenCol-shaped pass with DOS pieces inside (10ec, 13b0); skipped for the crown because its peace arm would end the WoI.
+        note: OpenCol-shaped pass; 10ec and 13b0 run through separate DOS encounter/attack paths.
       - id: unit_loop
         kind: loop
         label: "do { wave 0: Treasure/Artillery/Wagon; wave 1: all; ids high→low; first unit with MP drained, rescan } while wave 1 progressed && guard<64"
@@ -980,7 +980,7 @@ graphs:
 
   # ---------------------------------------------------------------------
   - id: diplo_balance
-    title: Euro diplomacy balance — ai_diplo_euro_balance (+ FUN_5bfb_10ec / 13b0)
+    title: Euro diplomacy balance — ai_diplo_euro_balance (OpenCol effects)
     entry: indian_tick
     nodes:
       - id: indian_tick
@@ -992,60 +992,25 @@ graphs:
         kind: loop
         label: Each Euro peer (skip self and control==2 slots)
         fn: ai_diplo.c:ai_diplo_euro_balance
-        dos: FUN_5bfb_10ec / FUN_5bfb_13b0
-        status: dos
+        status: port
       - id: at_war
         kind: decision
         label: At war with this peer?
-      - id: franklin
-        kind: decision
-        label: Franklin held?
-        note: Europeans in the New World always offer peace — conclude peace (AI→human enqueues CHOICE).
       - id: privateer
         kind: step
         label: Wartime Privateer spawn (or prize gold when no unit pool)
         fn: ai_diplo.c:ai_diplo_war_privateer_spawn
         status: port
-      - id: fatigue
-        kind: decision
-        label: Near parity, timer 0, RNG(1,30)==1 → war-fatigue peace?
-        status: port
-      - id: eligible
-        kind: decision
-        label: self > 2×other + edge && self > war-min? (10ec war-worthy)
-        fn: ai_euro_land.c:ai_euro_10ec_war_worthy
-        dos: FUN_5bfb_10ec
-        status: dos
-      - id: declare
-        kind: step
-        label: "RNG(1,20)==1 → declare war (human peer gets a CHOICE popup)"
-        fn: ai_diplo.c:ai_diplo_declare_war_ctx
-        status: port
-        note: "Second, OpenCol-only war opener. DOS AI→Euro war starts only via WAR_INTENT (treaty_timers) followed by an attack site setting WAR, or 13b0's paid @SMITE. 10ec itself is a pure eligibility predicate in DOS."
-      - id: treaty
-        kind: call
-        label: Treaty sign / cancel tick (requires an encounter this turn; (a+turn+b)%3 cadence)
-        fn: ai_diplo.c:ai_diplo_13b0_treaty_tick
-        dos: FUN_5bfb_13b0
-        status: dos
-        note: Unworthy pair without PEACE → sign PEACE + wake border garrisons; worthy pair with PEACE → cancel (@CANCELTREATY missing in GAME.TXT).
+        note: The 8g prize branch is a null-unit-pool stand-in; neither branch is the DOS 10ec/13b0 diplomacy path.
       - id: end
         kind: end
         label: return
     edges:
       - [indian_tick, peer_loop]
       - [peer_loop, at_war]
-      - [at_war, franklin, "yes"]
-      - [franklin, peer_loop, "yes: make peace"]
-      - [franklin, privateer, "no"]
-      - [privateer, fatigue]
-      - [fatigue, peer_loop, "yes: peace offer"]
-      - [fatigue, treaty, "no"]
-      - [at_war, eligible, "no"]
-      - [eligible, declare, "yes, not Franklin"]
-      - [eligible, treaty, "no"]
-      - [declare, treaty]
-      - [treaty, peer_loop, "next peer"]
+      - [at_war, privateer, "yes"]
+      - [at_war, peer_loop, "no"]
+      - [privateer, peer_loop]
       - [peer_loop, end, "done"]
 
   # ---------------------------------------------------------------------

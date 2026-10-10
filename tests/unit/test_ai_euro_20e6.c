@@ -858,6 +858,83 @@ static int unit_europe_dock_demand_sails_home(void) {
   return 0;
 }
 
+/* FUN_1427_0d38 mode 2 counts every unit in the tile stack, not only the
+ * acting hull's cargo. A second hull stacked at sea therefore makes 20e6's
+ * entry-local `local_a8` nonzero and blocks the dock-demand sail-home arm. */
+static int unit_europe_dock_demand_uses_tile_stack_snapshot(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  for (int y = 0; y < 16; ++y) {
+    for (int x = 12; x < 16; ++x) {
+      f.map.terrain[y * 16 + x] = 25;
+    }
+    f.map.terrain[y * 16 + 14] = 26;
+  }
+  ColonizeColony* own = &f.colonies.colonies[0];
+  own->id = 0;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 11;
+  own->y = 8;
+  own->population = 3;
+  own->colonist_count = 3;
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    own->stock[c] = 200;
+  }
+  own->building_in_production = -1;
+  f.colonies.colony_count = 1;
+  f.colonies.next_id = 1;
+
+  const int ship_id = units_spawn(&f.units, 2, 13, 8);
+  const int stackmate_id = units_spawn_allow_stack(&f.units, 2, 13, 8);
+  ColonizeUnit* ship = units_get(&f.units, ship_id);
+  ColonizeUnit* stackmate = units_get(&f.units, stackmate_id);
+  if (!ship || !stackmate) {
+    fixture_free(&f);
+    return fail("spawn stacked hulls");
+  }
+  ship->nation_id = nation;
+  ship->moves = 4 * UNITS_MP_PER_TILE;
+  ship->orders = 0;
+  stackmate->nation_id = 2;
+  stackmate->moves = 0;
+  stackmate->orders = UNITS_ORDER_SENTRY;
+  f.col1.stuff.ship_counts[nation] = 1;
+  f.col1.stuff.ship_cargo_totals[nation] = 2;
+  f.col1.stuff.colony_counts[nation] = 1;
+  f.col1.stuff.census_pop_proxy[nation] = 3;
+  f.turn = (uint32_t)(32 - ((int)(ship - f.units.units) % 32) + 1);
+
+  for (int i = 0; i < 2; ++i) {
+    const int pid = units_spawn_allow_stack(&f.units, 0, 200, 100);
+    ColonizeUnit* p = units_get(&f.units, pid);
+    if (!p) {
+      fixture_free(&f);
+      return fail("spawn dock colonist");
+    }
+    p->nation_id = nation;
+    p->orders = UNITS_ORDER_SENTRY;
+    p->moves = 0;
+  }
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+  ship = units_get(&f.units, ship_id);
+  if (!ship || !ship->active) {
+    fixture_free(&f);
+    return fail("stacked dock-demand hull vanished");
+  }
+  if (ship->col1_ai_plan == AI_EURO_PLAN_EUROPE_BOUND ||
+      units_coords_in_europe_park(ship->x, ship->y)) {
+    fixture_free(&f);
+    return fail("nonempty tile stack must block dock-demand sail-home");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
 /*
  * The other half of raw 89725-89728: with as many hulls already heading home as
  * there are colonists waiting, the guard disjunction is true and the band does
@@ -2681,6 +2758,8 @@ static const TestCase k_cases[] = {
     {"unit_wagon_with_target_survives", unit_wagon_with_target_survives},
     {"unit_empty_ship_hs_cadence", unit_empty_ship_hs_cadence},
     {"unit_europe_dock_demand_sails_home", unit_europe_dock_demand_sails_home},
+    {"unit_europe_dock_demand_uses_tile_stack_snapshot",
+     unit_europe_dock_demand_uses_tile_stack_snapshot},
     {"unit_europe_dock_demand_throttled_by_lane", unit_europe_dock_demand_throttled_by_lane},
     {"unit_europe_lane_crossing_ticks", unit_europe_lane_crossing_ticks},
     {"unit_europe_lane_shared_arrival_transfers_passenger", unit_europe_lane_shared_arrival_transfers_passenger},

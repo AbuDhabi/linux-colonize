@@ -19,8 +19,10 @@ then a recursive JSON diff (show `*_hex` blobs as differing byte offsets). The t
 `EXCLUDE_FROM_ALL`: rebuild it explicitly (`cmake --build build/debug --target golden_idle_campaign`).
 
 Progress (sum of differing JSON leaves over all 77 transitions): 18,869 → 16,546 → 16,178 →
-13,423 → 12,739 → 8,798 → 8,122 → 7,023. 1493→1494, 1494→1495, 1495→1496, 1505→1506, 1512→1513, 1513→1514,
-1514→1515, 1516→1517 and 1527→1528 pass byte-for-byte; 1492→1493 is down to the
+13,423 → 12,739 → 8,798 → 8,122 → 7,023 → 5,666. Fourteen archived transitions
+pass byte-for-byte: 1493→1494, 1494→1495, 1495→1496, 1505→1506, 1512→1513,
+1513→1514, 1514→1515, 1516→1517, 1527→1528, 1537→1538, 1541→1542,
+1542→1543, 1543→1544 and 1547→1548. 1492→1493 is down to the
 human's first-turn UI; 1497→1498 only to the stance-table artifact below.
 
 **From-load target.** Because DOS keeps unsaved state across turns (stance table, below), the
@@ -317,19 +319,30 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
 - DOS's music picker (`FUN_129f_0008`) draws twice at the human's slot start; harmless because
   every slot's 5e52 reseeds.
 
+## Fixed in the 2026-10-10 pass
+
+- Removed the invented Euro war-fatigue peace roll and its declare-war timer seed.
+  `FUN_5bfb_10ec` only computes war worthiness; `FUN_5bfb_13b0` signs or cancels
+  treaties on an encounter and returns when either relation is at war. The port now
+  preserves both the 6d8e timer bytes and RNG stream during `ai_diplo_euro_balance`.
+- 20e6's ship-band `local_a8` now snapshots `FUN_1427_0d38` mode 2 (tile-stack
+  count minus the acting hull), including passengers and other units stacked at
+  the same coordinates. The former `cargo_count` snapshot missed stackmates and
+  could incorrectly take the dock-demand or `457e` empty-hull branch. A regression
+  fixture with a second stacked hull covers that gate.
+
 ## Open leads (most transitions first)
 
-- `ai_diplo_euro_balance`'s war-fatigue peace roll (rand(1, 30)) is the same invented class as
-  the removed war arm; untraced so far.
-- 1535→1536 is down from 20 to five differing JSON leaves against the from-load DOS
-  autosave, all links in the final shared ship/passenger tile chain. A DOS watchpoint at
-  `137f:029e` traced the former (30,50) owner mismatch to a provisional `15eb:06d2`
-  work-plot seat from `15eb:28c8`: the trial is undone but its owner stamp remains.
-  The port now reproduces that stamp for the unseated-worker path; scoring an already
-  employed worker in 1527 did not stamp the plot in DOS. The archive adds four
-  unsaved-state leaves.
-  `FUN_1427_0d38` mode 2 counts the entire tile stack, while the port substitutes
-  `cargo_count` for 20e6's entry-local `local_a8`; investigate as a separate issue.
+- 1535→1536 currently has nine JSON leaves against the fresh DOS autosave. Five are
+  links in the final shared ship/passenger tile chain: DOS orders the members
+  `41→40→4`, while the port writes `40→41→4`. Three are stale goto/facing bytes on
+  the newly used unit slot 45, which was beyond the input save's unit count. The
+  remaining leaf is Montreal's `short_defenders` flag. A DOS watchpoint at
+  `137f:029e` traced the former (30,50) owner mismatch to a provisional
+  `15eb:06d2` work-plot seat from `15eb:28c8`: the trial is undone but its owner
+  stamp remains. The port reproduces that stamp for the unseated-worker path;
+  scoring an already employed worker in 1527 did not stamp the plot in DOS. The
+  archive adds four unsaved-state leaves.
 - 1536→1537 now matches a fresh DOS load byte-for-byte. The French 20-tool
   colony purchase charges the sell-byte price but also calls `291f_0c14` to
   record 20 units at the Europe ask price in the buy-volume ledger. The six
@@ -406,8 +419,11 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   from unsaved session history. For the soldiers, both runs step (45,49) →
   (44,50), then DOS moves south to (44,51) for its remaining six thirds of
   movement. The port chooses southeast to (45,51) at three thirds and then
-  south to (45,52). The first route difference is the far-tier goto choice
-  from (44,50).
+  south to (45,52). A fresh 1548 load and autosave reproduced the same 9-byte
+  residual. The first route difference is the far-tier goto choice from
+  (44,50); the first step from (45,49) is shared.
+  The `UNITS_FAR_BFS=1` diagnostic fallback takes the next step west to
+  (43,51), so the old whole-map BFS does not reproduce DOS's due-south pick.
 - The `457e` empty-ship cadence now uses DOS's compact unit-array index in
   its 1-in-32 turn check instead of the port's runtime ID. The existing
   cadence tests now align their beat to the slot; all earlier exact archived
@@ -415,13 +431,24 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
 - 1551→1552: the archived target again diverges broadly from a fresh DOS
   load. The fresh replay has 17 differing bytes after the worker fix: a Tupi
   Brave that moves from (49,39) to (50,40) in DOS but stays
-  fortified in the port, a French Dragoon/Pioneer that finishes one tile
+  fortified in the port, a French Dragoon that finishes one tile
   west-northwest of DOS, one Brave visibility bit, and the corresponding
   map marks. The archived output has a different unit count and is not a
-  suitable one-turn oracle for this input. The port's `021a` scorer at
-  (49,39) picks stay 207 over southeast 206; DOS picks southeast. The
-  shared turn fortify refresh was checked and did not cause this choice.
-  The Brave difference remains after the independent worker-score fix.
+  suitable one-turn oracle for this input. A fresh 1551 load and autosave
+  confirms the Dragoon at input (48,40) roams through
+  (49,41) and ends at (50,41) in DOS; the port ends at (49,40). The fresh
+  native/port JSON diff is limited to that Dragoon, the Tupi Brave, its
+  visibility bit, and map layers. That earlier route changes the Brave's
+  adjacent-foreign scan: the port sees the French unit on (49,40), while DOS
+  has moved it away. The port's `021a` score at (49,39) then picks stay 207
+  over southeast 206; that score is downstream of the Euro route mismatch,
+  so it is not an independent Brave
+  scoring lead. The shared turn fortify refresh was checked and did not
+  cause the mismatch. The Euro wander choice remains open after the
+  independent worker-score fix. `AI_4D2E_TRACE` shows the port's second
+  wander act at (49,41) scores north (49,40) at 21 and east (50,41) at 12;
+  DOS takes east. The first act reaches (49,41) in both runs, so the
+  unresolved term is in the second wander score/state.
 
 - Human end-of-slot draws: DOS 5, port 1 in 1497→1498 (human FF debate rolls / merc offer?).
 - **AI colony tick vs DOS**: still the main source from 1499 on (worker/tile choice,

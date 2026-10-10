@@ -265,14 +265,9 @@ int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id);
  * also thin peaceful Indian relation drift when not at Euro war. */
 void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id);
 
-/* Opportunistic war by military balance (5bfb_10ec) + 13b0 treaty
- * sign/cancel tick (OpenCol-only alliance arms retired T2.4 2026-09-06);
- * at-war Privateer spawn once/war peer on hunt-ready water (unknown26[9]);
- * PARKED 8g treasury prize only when units null (no hold-plunder API);
- * war-fatigue (timer==0) + near-parity → make_peace_ctx;
- * AI→human war/peace offers enqueue CHOICE Accept/Refuse.
- * Franklin FF: NW pair with Benjamin Franklin → skip 10ec declare pressure;
- * at-war → always offer/conclude peace (fandom; FA 3f41 UI PARKED). */
+/* OpenCol balance pass: Indian matrix sync and a port-only wartime Privateer
+ * path. DOS war worthiness (10ec) and treaty sign/cancel (13b0) run from their
+ * own encounter/attack paths; DOS has no per-turn Euro peace roll. */
 void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id);
 /* FUN_5bfb_13b0 from an AI mover's 3180 land encounter with another AI. */
 void ai_diplo_13b0_encounter(ColonizeTurnContext* ctx, int mover, int other);
@@ -350,11 +345,9 @@ void ai_diplo_indian_capital_surrender(
   int euro_nation
 );
 
-/* Apply human choice from map AI popup (peace / war Accept/Refuse).
- * Peace Accept → make_peace_ctx; peace Refuse → status + OK; war Accept →
- * declare_war_ctx; war Refuse → status + OK. No-op if tag mismatch,
- * cancelled, or OK (choice_id 0). FUN_5bfb / 15b3 / 10ec / war-fatigue;
- * FA 3f41 full UI PARKED. (Alliance CHOICE arms retired T2.4.) */
+/* Apply a human choice from a map AI diplomacy popup. No-op if tag mismatch,
+ * cancelled, or OK (choice_id 0). DOS treaty notices are OK popups; the full
+ * FA 3f41 peace audience remains parked. */
 void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup);
 /* Drop any in-flight 153e talk (new game / load: its popups are gone with the
  * old queue, and a stuck talk blocks every later encounter). */

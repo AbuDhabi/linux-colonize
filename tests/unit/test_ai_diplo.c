@@ -1,13 +1,13 @@
 /* Smoke: bilateral 15b3 diplo bytes, declare-war leaves gold/tax alone
  * (the −100/+1 "sting" was retired 2026-09-09, smell #47),
- * Euro war does not boycott Europe cargos, war-fatigue
- * peace + status, make_peace + full wartime mask lift + peace feeler restore
+ * Euro war does not boycott Europe cargos or seed a fatigue timer / peace roll,
+ * make_peace + full wartime mask lift + peace feeler restore
  * (sticky==1; sticky==2 refuses treaties), no-war-upkeep regression (#965),
  * privateer prize + human status + prize stops after peace, treaty timer
  * decrement, Indian drift/feeler status/sticky pressure,
  * Sugar/Tobacco/Tools + first newly boycotted cargo status +
- * Indian war-hit status chrome + war −5 relation floor + R13 war-fatigue peer
- * chrome / Peace concluded + R14 full wartime mask declare/peace smoke +
+ * Indian war-hit status chrome + war −5 relation floor + Peace concluded +
+ * R14 full wartime mask declare/peace smoke +
  * Marathon3 R1 Benjamin Franklin NW peace gate (declare no-op / euro_balance
  * skip war pressure / at-war always offer peace) + R2 spawn-only Privateer
  * (PARK 8g prize when units set) + Franklin Peace concluded human chrome +
@@ -133,8 +133,8 @@ static int case_declare_peace_narrative(void) {
    * only from FUN_38fd_44a4's @TAXRAISE; declare-adjacent gold moves are
    * transfers, not symmetric drains). The probes below now pin the absence.
    * Indians dislike war: −5 on relation_by_indian[0..7] both sides.
-   * Euro war does not boycott Europe cargos (DOS king tea-party only).
-   * War fatigue: seed peer treaty timer to 8 when was 0. */
+   * Euro war does not boycott Europe cargos (DOS king tea-party only), and
+   * declare-war does not seed the 6d8e treaty timer. */
   col1.nation[0].gold = 250;
   col1.nation[1].gold = 80;
   col1.nation[2].gold = 500;
@@ -188,8 +188,8 @@ static int case_declare_peace_narrative(void) {
   if (!ai_diplo_at_war_with_any(&col1, 0) || ai_diplo_at_war_with_any(&col1, 2)) {
     return fail("ai_diplo_at_war_with_any should detect any Euro×Euro war");
   }
-  if (col1.nation[0].unknown26[1] != 8 || col1.nation[1].unknown26[0] != 8) {
-    return fail("declare_war should seed war-fatigue treaty timer to 8 when was 0");
+  if (col1.nation[0].unknown26[1] != 0 || col1.nation[1].unknown26[0] != 0) {
+    return fail("declare_war must not seed a war-fatigue treaty timer");
   }
   /* 2026-09-03: DOS declare-war sites never touch Indian relations (alarm
    * grows only via the 152e accumulator) — the −5/−10 war hit was retired
@@ -1163,189 +1163,64 @@ static int case_sticky_pressure_relation_read(void) {
   return 0;
 }
 
-static int case_r2_war_fatigue_tools(void) {
-    ColonizeCol1Save wf;
-    col1_save_init(&wf);
-    memset(wf.nation, 0, sizeof(wf.nation));
-    for (int i = 0; i < 4; ++i) {
-      wf.player[i].control = 0;
-      wf.player[i].country_name[0] = '\0';
-    }
-    snprintf(wf.player[1].country_name, sizeof(wf.player[1].country_name), "England");
-    /*
-     * Near-parity military strength. Since sweep-3 D2 the score is computed
-     * LIVE (Σ combat_unit_base_x8 over the nation's active land units), so
-     * parity is stated with one Soldier (attack 2 → 16) per side:
-     * |diff| = 0 < 15, both > 10.
-     */
-    ColonizeUnitPool units_wf;
-    if (test_pool_soldiers(&units_wf, 1, 1)) {
-      return fail("war-fatigue spawn");
-    }
-    wf.nation[0].gold = 700;
-    wf.nation[1].gold = 700;
-    for (int i = 0; i < 8; ++i) {
-      wf.indian[i].alarm_by_player[0] = 0; /* relation 100 */
-      wf.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-      wf.indian[i].alarm_by_player[1] = 0; /* relation 100 */
-      wf.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
-    }
-    ai_diplo_declare_war(&wf, 0, 1);
-    /* Declares no longer move gold at all (#47 / follow-up A); the fatigue
-     * timer seed of 8 is the whole first-declare side effect that matters. */
-    if (wf.nation[0].unknown26[1] != 8) {
-      return fail("war-fatigue setup: timer should be 8 after declare");
-    }
-    ColonizeDosRng rng_wf;
-    dos_rng_seed(&rng_wf, 42);
-    uint32_t turn_wf = 1;
-    char status_wf[128];
-    status_wf[0] = '\0';
-    ColonizeTurnContext ctx_wf;
-    memset(&ctx_wf, 0, sizeof(ctx_wf));
-    ctx_wf.messages = test_game_txt();
-    ctx_wf.col1 = &wf;
-    ctx_wf.col1_ok = true;
-    ctx_wf.units = &units_wf;
-    ctx_wf.rng = &rng_wf;
-    ctx_wf.turn_number = &turn_wf;
-    ctx_wf.human_nation = 0;
-    ctx_wf.status = status_wf;
-    ctx_wf.status_size = sizeof(status_wf);
-    /* While timer live, near-parity must not make_peace (fatigue gate). */
-    for (int n = 0; n < 80; ++n) {
-      wf.nation[0].gold = 600;
-      wf.nation[1].gold = 600;
-      wf.nation[0].unknown26[1] = 5; /* keep live */
-      wf.nation[1].unknown26[0] = 5;
-      ai_diplo_euro_balance(&ctx_wf, 0);
-      if (!ai_diplo_at_war(&wf, 0, 1)) {
-        return fail("war-fatigue: near-parity peace must wait for timer==0");
-      }
-    }
-    /* timer==0 + many rolls → at least one peace (1/30) + human status. */
-    int peaced = 0;
-    for (int seed = 1; seed < 400 && !peaced; ++seed) {
-      ai_diplo_declare_war(&wf, 0, 1);
-      wf.nation[0].unknown26[1] = 0;
-      wf.nation[1].unknown26[0] = 0;
-      wf.nation[0].gold = 600;
-      wf.nation[1].gold = 600;
-      for (int i = 0; i < 8; ++i) {
-        wf.indian[i].alarm_by_player[0] = 0; /* relation 100 */
-        wf.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-        wf.indian[i].alarm_by_player[1] = 0; /* relation 100 */
-        wf.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
-      }
-      status_wf[0] = '\0';
-      dos_rng_seed(&rng_wf, (uint32_t)seed);
-      for (int n = 0; n < 60 && ai_diplo_at_war(&wf, 0, 1); ++n) {
-        wf.nation[0].gold = 600;
-        wf.nation[1].gold = 600;
-        wf.nation[0].unknown26[1] = 0;
-        wf.nation[1].unknown26[0] = 0;
-        ai_diplo_euro_balance(&ctx_wf, 0);
-      }
-      if (!ai_diplo_at_war(&wf, 0, 1)) {
-        peaced = 1;
-        if (strcmp(status_wf, diplo_pair_text("SIGNTREATY", 0, 1)) != 0) {
-          fprintf(stderr, "unit_ai_diplo: war-fatigue status '%s'\n", status_wf);
-          return fail("war-fatigue make_peace_ctx should status @SIGNTREATY for human");
-        }
-      }
-    }
-    if (!peaced) {
-      return fail("war-fatigue: timer==0 near-parity should eventually make_peace");
-    }
+static int case_r2_no_fatigue_tools(void) {
+  ColonizeCol1Save wf;
+  col1_save_init(&wf);
+  memset(wf.nation, 0, sizeof(wf.nation));
+  for (int i = 0; i < 4; ++i) {
+    wf.player[i].control = 0;
+    wf.player[i].country_name[0] = '\0';
+  }
+  ColonizeUnitPool units_wf;
+  if (test_pool_soldiers(&units_wf, 1, 1)) {
+    return fail("war-balance soldier setup");
+  }
+  wf.nation[0].gold = 600;
+  wf.nation[1].gold = 600; /* suppress the unrelated null-units prize path */
+  ai_diplo_declare_war(&wf, 0, 1);
+  if (wf.nation[0].unknown26[1] != 0 || wf.nation[1].unknown26[0] != 0) {
+    return fail("declare_war must not seed a war-fatigue treaty timer");
+  }
 
-    /*
-     * R13: war-fatigue chrome when human is the peer (AI actor peaces).
-     * make_peace_ctx status_human_pair fires for either party.
-     */
-    {
-      ColonizeCol1Save wf2;
-      col1_save_init(&wf2);
-      memset(wf2.nation, 0, sizeof(wf2.nation));
-      for (int i = 0; i < 4; ++i) {
-        wf2.player[i].control = 0;
-        wf2.player[i].country_name[0] = '\0';
-      }
-      snprintf(wf2.player[0].country_name, sizeof(wf2.player[0].country_name), "England");
-      snprintf(wf2.player[1].country_name, sizeof(wf2.player[1].country_name), "France");
-      /* Near-parity strength: one Soldier (16) per side (sweep-3 D2 live). */
-      ColonizeUnitPool units_wf2;
-      if (test_pool_soldiers(&units_wf2, 1, 1)) {
-        return fail("war-fatigue peer spawn");
-      }
-      wf2.nation[0].gold = 700;
-      wf2.nation[1].gold = 700;
-      for (int i = 0; i < 8; ++i) {
-        wf2.indian[i].alarm_by_player[0] = 0; /* relation 100 */
-        wf2.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-        wf2.indian[i].alarm_by_player[1] = 0; /* relation 100 */
-        wf2.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
-      }
-      ai_diplo_declare_war(&wf2, 0, 1);
-      char status_peer[128];
-      status_peer[0] = '\0';
-      ColonizeDosRng rng_peer;
-      uint32_t turn_peer = 2;
-      ColonizeTurnContext ctx_peer;
-      memset(&ctx_peer, 0, sizeof(ctx_peer));
-      ctx_peer.messages = test_game_txt();
-      ctx_peer.col1 = &wf2;
-      ctx_peer.col1_ok = true;
-      ctx_peer.units = &units_wf2;
-      ctx_peer.rng = &rng_peer;
-      ctx_peer.turn_number = &turn_peer;
-      ctx_peer.human_nation = 0; /* human is peer of AI actor 1 */
-      ctx_peer.status = status_peer;
-      ctx_peer.status_size = sizeof(status_peer);
-      int peaced_peer = 0;
-      for (int seed = 1; seed < 400 && !peaced_peer; ++seed) {
-        ai_diplo_declare_war(&wf2, 0, 1);
-        wf2.nation[0].unknown26[1] = 0;
-        wf2.nation[1].unknown26[0] = 0;
-        wf2.nation[0].gold = 600;
-        wf2.nation[1].gold = 600;
-        for (int i = 0; i < 8; ++i) {
-          wf2.indian[i].alarm_by_player[0] = 0; /* relation 100 */
-          wf2.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-          wf2.indian[i].alarm_by_player[1] = 0; /* relation 100 */
-          wf2.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
-        }
-        status_peer[0] = '\0';
-        dos_rng_seed(&rng_peer, (uint32_t)seed);
-        for (int n = 0; n < 60 && ai_diplo_at_war(&wf2, 0, 1); ++n) {
-          wf2.nation[0].gold = 600;
-          wf2.nation[1].gold = 600;
-          wf2.nation[0].unknown26[1] = 0;
-          wf2.nation[1].unknown26[0] = 0;
-          ai_diplo_euro_balance(&ctx_peer, 1); /* AI actor; human peer */
-        }
-        if (!ai_diplo_at_war(&wf2, 0, 1)) {
-          peaced_peer = 1;
-          if (strcmp(status_peer, diplo_pair_text("SIGNTREATY", 1, 0)) != 0) {
-            fprintf(stderr, "unit_ai_diplo: war-fatigue peer status '%s'\n",
-                    status_peer);
-            return fail("war-fatigue make_peace_ctx should status @SIGNTREATY when human is peer");
-          }
-        }
-      }
-      if (!peaced_peer) {
-        return fail("war-fatigue: AI actor should eventually peace with human peer");
-      }
-      /* Tools already clear → Peace concluded chrome (either party). */
-      status_peer[0] = '\0';
-      ai_diplo_declare_war(&wf2, 0, 1);
-      wf2.nation[0].boycott_bitmap = 0;
-      wf2.nation[1].boycott_bitmap = 0;
-      ai_diplo_make_peace_ctx(&ctx_peer, 1, 0);
-      if (strcmp(status_peer, diplo_pair_text("SIGNTREATY", 1, 0)) != 0) {
-        fprintf(stderr, "unit_ai_diplo: Peace concluded status '%s'\n", status_peer);
-        return fail("make_peace_ctx should status @SIGNTREATY when Tools already clear");
-      }
-    }
+  ColonizeDosRng rng_wf;
+  dos_rng_seed(&rng_wf, 42);
+  const uint32_t before = rng_wf.state;
+  uint32_t turn_wf = 1;
+  char status_wf[128] = "";
+  ColonizeTurnContext ctx_wf;
+  memset(&ctx_wf, 0, sizeof(ctx_wf));
+  ctx_wf.messages = test_game_txt();
+  ctx_wf.col1 = &wf;
+  ctx_wf.col1_ok = true;
+  ctx_wf.units = &units_wf;
+  ctx_wf.rng = &rng_wf;
+  ctx_wf.turn_number = &turn_wf;
+  ctx_wf.human_nation = 0;
+  ctx_wf.status = status_wf;
+  ctx_wf.status_size = sizeof(status_wf);
+  for (int i = 0; i < 4; ++i) {
+    ai_diplo_indian_hostility_set(i, 0);
+  }
+  for (int n = 0; n < 20; ++n) {
+    ai_diplo_euro_balance(&ctx_wf, 0);
+    ai_diplo_euro_balance(&ctx_wf, 1);
+  }
+  if (!ai_diplo_at_war(&wf, 0, 1) || !ai_diplo_at_war(&wf, 1, 0)) {
+    return fail("Euro balance must not make peace during an active war");
+  }
+  if (rng_wf.state != before) {
+    return fail("Euro balance must not draw a war-fatigue peace roll");
+  }
+  if (wf.nation[0].unknown26[1] != 0 || wf.nation[1].unknown26[0] != 0) {
+    return fail("Euro balance must not create war-fatigue treaty timers");
+  }
+
+  /* The explicit make-peace path still emits DOS's treaty text for either side. */
+  ai_diplo_make_peace_ctx(&ctx_wf, 1, 0);
+  if (strcmp(status_wf, diplo_pair_text("SIGNTREATY", 1, 0)) != 0) {
+    fprintf(stderr, "unit_ai_diplo: Peace concluded status '%s'\n", status_wf);
+    return fail("make_peace_ctx should status @SIGNTREATY when Tools already clear");
+  }
 
     /* Tools embargo human status set/lift (colony gap ≥2). */
     ColonizeCol1Save ts;
@@ -3395,7 +3270,7 @@ static const TestCase k_cases[] = {
     {"case_trade_deepen_military_score", case_trade_deepen_military_score},
     {"case_war_peace_status_chrome", case_war_peace_status_chrome},
     {"case_sticky_pressure_relation_read", case_sticky_pressure_relation_read},
-    {"case_r2_war_fatigue_tools", case_r2_war_fatigue_tools},
+    {"case_r2_no_fatigue_tools", case_r2_no_fatigue_tools},
     {"case_r3_r4_sugar_rum_cigars_boycott", case_r3_r4_sugar_rum_cigars_boycott},
     {"case_r6_ore_silver_boycott", case_r6_ore_silver_boycott},
     {"case_r8_lumber_boycott_privateer", case_r8_lumber_boycott_privateer},
