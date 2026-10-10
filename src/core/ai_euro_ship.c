@@ -1508,8 +1508,7 @@ int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
  * Europe -> New World departure, DOS-LITERAL FUN_48d3_0346 (raw
  * 77732-77757, reached through FUN_291f_0ec2 from the FUN_521d_5d04 dock
  * pass): roll the crossing against the landfall x and park the hull on the
- * westbound lane n - 0x18 (232+n). The port departs from the dispatcher's
- * Europe act rather than inside 5d04 (bugs.md #1056).
+ * westbound lane n - 0x18 (232+n), inside the 5d04 dock pass.
  */
 void ai_euro_ship_leave_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
   if (!ctx || !ctx->units || !ship) {

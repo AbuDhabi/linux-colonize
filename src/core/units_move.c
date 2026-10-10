@@ -1479,6 +1479,9 @@ typedef struct UnitsFloodGrid {
 } UnitsFloodGrid;
 
 static UnitsFloodGrid s_flood = {.key_x = -1, .key_y = -1};
+/* DS:0x1dd2 survives nested 0906 probes; 0f74 sets it only on entry. */
+static int s_flood_type_index;
+static bool s_flood_low_move;
 
 /* Not a DOS act: DOS never reloads a different world into the same DS. A
  * New Game / Load can reuse a goal coordinate on a different map, so drop
@@ -1496,6 +1499,7 @@ typedef struct UnitsFloodReq {
   int goal_x;       /* DS:0xa14e */
   int goal_y;       /* DS:0xa14c */
   int type_index;   /* DS:0x1dd2 */
+  bool low_move;    /* DS:0x5234[type] < 4; probes use canonical DOS costs */
   bool sea;         /* DS:0x1dd2 in 0x0d..0x12 (taken from the type's domain:
                      * fixture pools do not use DOS row numbers) */
   int owner;        /* DS:0x1dd6, -1 = no ownership terms */
@@ -1556,8 +1560,9 @@ static bool units_flood_cand_ok(
     return false;
   }
   /* Port-only: a goto mover also has to pass the live move rules. */
-  if (r->mover_id >= 0 &&
-      !units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, r->type_index, nx, ny, r->mover_id)) {
+  const ColonizeUnit* mover = units_get_const(pool, r->mover_id);
+  if (mover &&
+      !units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, mover->type_index, nx, ny, r->mover_id)) {
     return false;
   }
   return true;
@@ -1585,9 +1590,8 @@ static int units_flood_00f2(
   UnitsFloodGrid* g = &s_flood;
   const int ox = r->goal_x - UNITS_FLOOD_W / 2;
   const int oy = r->goal_y - UNITS_FLOOD_W / 2;
-  const ColonizeUnitType* ft = units_type(pool, r->type_index);
   /* DS:0x5234 is moves*3: `< 4` only for 1-tile types. */
-  const bool low_move = units_type_max_mp(ft) < 4;
+  const bool low_move = r->low_move;
   const int mlx = r->mover_x - ox;
   const int mly = r->mover_y - oy;
   const bool mover_in = mlx >= 0 && mly >= 0 && mlx < UNITS_FLOOD_W && mly < UNITS_FLOOD_W;
@@ -1704,9 +1708,13 @@ static int units_flood_0906(
   if (abs(ax - bx) >= 8 || abs(ay - by) >= 8) {
     return -1;
   }
+  /* FUN_6662_0906 raw 104185: unlike owner, the type is not restored. */
+  s_flood_type_index = sea ? 0x0d : 0x01;
+  s_flood_low_move = sea == 0;
   const UnitsFloodReq r = {
     .mover_x = ax, .mover_y = ay, .goal_x = bx, .goal_y = by,
-    .type_index = sea ? 0x0d : 0x01, .sea = sea != 0, .owner = -1, .cap = cap,
+    .type_index = sea ? 0x0d : 0x01, .low_move = sea == 0,
+    .sea = sea != 0, .owner = -1, .cap = cap,
     .uniform = uniform, .mover_id = -1
   };
   int cost = 0;
@@ -1740,6 +1748,7 @@ int units_flood_step_dir(
   const UnitsFloodReq r = {
     .mover_x = mover_x, .mover_y = mover_y, .goal_x = goal_x, .goal_y = goal_y,
     .type_index = type_index,
+    .low_move = units_type_max_mp(units_type(w->units, type_index)) < 4,
     .sea = units_type(w->units, type_index) != NULL &&
            units_type(w->units, type_index)->domain == COLONIZE_UNIT_DOMAIN_SEA,
     .owner = owner, .cap = cap, .uniform = uniform,
@@ -1748,7 +1757,7 @@ int units_flood_step_dir(
   return units_flood_00f2(w->units, w->map, w->colonies, &r, NULL);
 }
 
-/* The goto tiers' 00f2 call: FUN_6662_0f74 with DS:0x1dd2 = unit type and
+/* The goto tiers' 00f2 call: FUN_6662_0f74 with the current DS:0x1dd2 and
  * DS:0x1dd6 as FUN_479b_0972 left it (-1 for AI_MOVE, bugs.md #1041). */
 static bool units_flood_next_step(
   const ColonizeUnitPool* pool,
@@ -1767,7 +1776,8 @@ static bool units_flood_next_step(
   }
   const UnitsFloodReq r = {
     .mover_x = u->x, .mover_y = u->y, .goal_x = gx, .goal_y = gy,
-    .type_index = u->type_index, .sea = units_unit_is_sea(pool, u),
+    .type_index = s_flood_type_index, .low_move = s_flood_low_move,
+    .sea = units_unit_is_sea(pool, u),
     .owner = u->orders == UNITS_ORDER_AI_MOVE ? -1 : u->nation_id,
     .cap = cap, .uniform = false, .mover_id = unit_id
   };
@@ -2270,6 +2280,8 @@ static void units_coarse_build(const ColonizeUnitPool* pool, const ColonizeWorld
    * port builds lazily mid-game, so its floods must not replace the shared
    * 00f2 grid/key the goto tiers are holding at that moment. */
   const UnitsFloodGrid saved_flood = s_flood;
+  const int saved_type_index = s_flood_type_index;
+  const bool saved_low_move = s_flood_low_move;
   memset(g, 0, sizeof(*g));
   g->map = map;
   g->width = (int)map->width;
@@ -2312,6 +2324,8 @@ static void units_coarse_build(const ColonizeUnitPool* pool, const ColonizeWorld
     }
   }
   s_flood = saved_flood;
+  s_flood_type_index = saved_type_index;
+  s_flood_low_move = saved_low_move;
 }
 
 /* FUN_124c_0040 (ai_dos_dist): max(|dx|,|dy|) + min(|dx|,|dy|)/2. */
@@ -2488,6 +2502,10 @@ static bool units_goto_director(
   if (!units_orders_follow_goto(u->orders)) {
     return false;
   }
+  /* FUN_6662_0f74 raw 104542: later coarse-snap 0906 calls can replace it
+   * with Soldier/Caravel before the far-tier flood (1548 DOS trace). */
+  s_flood_type_index = u->type_index;
+  s_flood_low_move = units_type_max_mp(units_type(pool, u->type_index)) < 4;
   const int gx = u->goto_x;
   const int gy = u->goto_y;
   if (gx < 0 || gy < 0 || gx >= (int)map->width || gy >= (int)map->height ||

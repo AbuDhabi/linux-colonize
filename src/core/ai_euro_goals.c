@@ -375,23 +375,24 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
   if (!ctx || !ctx->map || !ctx->units) {
     return;
   }
-  /* unit_type_counts[nation][0x0d/0x0e/0x0f] recompute (FUN_4962_0018). */
+  /* FUN_521d_0a60 raw 87542-87546 reads the earlier 4962_0018 census,
+   * not the live pool. Hulls bought by 5d04 do not count until next turn
+   * (1555 fresh DOS: second French Caravel, no spare mark on the first). */
   int caravels = 0;
   int merchantmen = 0;
   int galleons = 0;
-  /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
-  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-    const ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id != nation_id) {
-      continue;
-    }
-    const int t = ai_euro_20e6_dos_type(ctx->units, u);
-    if (t == 0x0d) {
-      caravels++;
-    } else if (t == 0x0e) {
-      merchantmen++;
-    } else if (t == 0x0f) {
-      galleons++;
+  if (ctx->col1_ok && ctx->col1) {
+    caravels = ctx->col1->stuff.unit_type_counts[nation_id][0x0d];
+    merchantmen = ctx->col1->stuff.unit_type_counts[nation_id][0x0e];
+    galleons = ctx->col1->stuff.unit_type_counts[nation_id][0x0f];
+  } else {
+    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+      const ColonizeUnit* u = &ctx->units->units[i];
+      if (!u->active || u->nation_id != nation_id) continue;
+      const int t = ai_euro_20e6_dos_type(ctx->units, u);
+      caravels += t == 0x0d;
+      merchantmen += t == 0x0e;
+      galleons += t == 0x0f;
     }
   }
 
@@ -1106,33 +1107,42 @@ static void ai_euro_0a60_settlement_goal_producers(ColonizeTurnContext* ctx, int
   memset(col_cnt, 0, sizeof(col_cnt));
   memset(land_cnt, 0, sizeof(land_cnt));
   memset(skilled_cnt, 0, sizeof(skilled_cnt));
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    const ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id < 0 || c->nation_id > 3) {
-      continue;
+  /* DOS raw 87776-87778 and 87875-87885 read the per-nation census tables. The
+   * skilled count includes colony population, and other nations' rows may
+   * predate their latest moves; rebuilding from the live pool loses both. */
+  if (have_col1) {
+    memcpy(col_cnt, ctx->col1->stuff.colony_counts_by_continent, sizeof(col_cnt));
+    memcpy(land_cnt, ctx->col1->stuff.land_unit_counts_by_continent, sizeof(land_cnt));
+    memcpy(skilled_cnt, ctx->col1->stuff.skilled_unit_counts_by_continent, sizeof(skilled_cnt));
+  } else {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id < 0 || c->nation_id > 3) {
+        continue;
+      }
+      const int cid = map_continent_id_at(map, c->x, c->y);
+      if (cid >= 0 && cid < 16 && col_cnt[c->nation_id][cid] < 0xff) {
+        col_cnt[c->nation_id][cid]++;
+      }
     }
-    const int cid = map_continent_id_at(map, c->x, c->y);
-    if (cid >= 0 && cid < 16 && col_cnt[c->nation_id][cid] < 0xff) {
-      col_cnt[c->nation_id][cid]++;
-    }
-  }
-  /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
-  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-    const ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id < 0 || u->nation_id > 3 ||
-        units_is_sea(ctx->units, u->id)) {
-      continue;
-    }
-    const int cid = map_continent_id_at(map, u->x, u->y);
-    if (cid < 0 || cid >= 16) {
-      continue;
-    }
-    if (land_cnt[u->nation_id][cid] < 0xff) {
-      land_cnt[u->nation_id][cid]++;
-    }
-    if (units_type_has_profession_slot(u->type_index) &&
-        skilled_cnt[u->nation_id][cid] < 0xff) {
-      skilled_cnt[u->nation_id][cid]++;
+    /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
+    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+      const ColonizeUnit* u = &ctx->units->units[i];
+      if (!u->active || u->nation_id < 0 || u->nation_id > 3 ||
+          units_is_sea(ctx->units, u->id)) {
+        continue;
+      }
+      const int cid = map_continent_id_at(map, u->x, u->y);
+      if (cid < 0 || cid >= 16) {
+        continue;
+      }
+      if (land_cnt[u->nation_id][cid] < 0xff) {
+        land_cnt[u->nation_id][cid]++;
+      }
+      if (units_type_has_profession_slot(u->type_index) &&
+          skilled_cnt[u->nation_id][cid] < 0xff) {
+        skilled_cnt[u->nation_id][cid]++;
+      }
     }
   }
 
@@ -2152,85 +2162,23 @@ void ai_euro_5952_colony_prelude(
 
 /* --- 0a60 colony goals: stage helpers ---------------------------------- */
 
-COLONIZE_INTERNAL void ai_euro_colony_goals_unit_contact(
-  ColonizeTurnContext* ctx, int nation_id
-) {
-  /* B: own units — CONTACT from adjacent foreign; work queue only for bindable. */
-  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-    ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
-      continue;
-    }
-    if (!units_is_on_map(u) || ai_euro_is_ship_type(ctx->units, u->id)) {
-      continue;
-    }
-    for (int d = 0; d < 8; ++d) {
-      const int nx = u->x + MAP_DIR8_DX[d];
-      const int ny = u->y + MAP_DIR8_DY[d];
-      const int foe = units_id_at(ctx->units, nx, ny);
-      if (foe < 0) {
-        continue;
-      }
-      const ColonizeUnit* f = units_get_const(ctx->units, foe);
-      if (f && f->nation_id != nation_id) {
-        /*
-         * DOS raw `0a60` unit loop reaches `thunk_FUN_2a1f_0470`
-         * (upsert_primary) only — there is no `0524` (upsert_work_queue)
-         * call anywhere outside the colony loop. The extra work-queue row
-         * this used to write (`ai_goals_upsert_work(u->id, 3, ...)`) was a
-         * port invention: it stored a *unit* id in a queue whose `+0` field
-         * is a colony index, and nothing ever read it back — the 4393
-         * consumer skipped it on the old `flag_b != 1` filter, which is the
-         * only reason the id-namespace collision never bit. Removed
-         * 2026-09-06d with the flag_a/flag_b decode.
-         */
-        ai_goals_upsert_primary(nation_id, nx, ny, AI_GOAL_CONTACT, 3);
-      }
-    }
-  }
-}
+/* FUN_521d_0a60 raw 87566-87568 marks an adjacent contact with act_state
+ * 10; it does not register a goal for that land unit. The foreign-ship
+ * CONTACT producer (raw 87579-87587) lives in housekeeping above. */
 
 COLONIZE_INTERNAL void ai_euro_colony_goals_colony_labor(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c,
   AiEuroInventory* inv, int urgency
 ) {
-  /*
-   * `|| c->labor_shortage > 0` used to be a third disjunct here. It was
-   * calibrated against the retired thin latch (0 unless something set
-   * it); since #38 +0x8e carries the real FUN_5952_035e number and is
-   * >= 1 for essentially every colony of pop >= 3, so the disjunct made
-   * this arm unconditional — it swallowed the DOS-gated ship-pressure
-   * `else` below and pulled every idle unit into the nearest town.
-   * DOS never uses +0x8e as a boolean "wants labor": its consumer is the
-   * garrison-quota distribution loop further down, which registers its
-   * own LABOR goal at prio `shortage − garrisoned + 2` and decrements the
-   * counter per admission. Dropped 2026-09-09.
-   */
-  int labor = (c->population < 3) || ai_euro_colony_food_short(c);
-  if (inv && inv->tools_short > 0 && c->stock[COLONIZE_CARGO_TOOLS] < 20) {
-    labor = 1;
-  }
-  if (inv && inv->food_short > 0 && c->stock[COLONIZE_CARGO_FOOD] < c->population * 2) {
-    labor = 1;
-  }
-  const int construction = ai_euro_colony_wants_construction_labor(ctx->colonies, c);
-  if (construction) {
-    labor = 1;
-    /* Latch Col1 +0x1d bit7 when OpenCol sees named construction. */
-    if (c->building_in_production >= 0) {
-      c->build_ai_flags |= COLONIZE_BUILD_AI_WANTS_CONSTRUCTION;
-    }
-  }
-  if (labor) {
-    const int labor_prio = construction ? 6 : (4 + urgency / 4);
-    /* The thin `labor_shortage = 1` demand latch that used to sit here is
-     * retired 2026-09-09: +0x8e is now stamped unconditionally from the
-     * real FUN_5952_035e formula (local_76 / DS:0x8d72) in
-     * ai_euro_colony_threat_seed_5952, run by the 5952 colony tick at the
-     * top of the nation turn (bugs.md #964), and the latch could only overwrite a legitimate 0. */
-    ai_goals_upsert_primary(nation_id, c->x, c->y, AI_GOAL_LABOR, labor_prio);
-  } else if (c->ai_flags & (COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP |
-                             COLONIZE_COLONY_AI_NEARBY_FRIGATE)) {
+  (void)ctx;
+  (void)inv;
+  (void)urgency;
+  /* FUN_521d_0a60 raw 87603-87607 only registers ship-pressure goals here.
+   * Its sole LABOR producer is the +0x8e garrison loop at raw 87684-87696,
+   * ported below. Construction/stock/low-population LABOR goals were a
+   * duplicate port heuristic (1555 fresh DOS goal-table trace). */
+  if (c->ai_flags & (COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP |
+                     COLONIZE_COLONY_AI_NEARBY_FRIGATE)) {
     /*
      * Real 0a60 write site (raw decomp, thunk_FUN_2a1f_0470 call #2 in
      * the colony loop): code is actually CONTACT(0), not a distinct
@@ -2622,36 +2570,10 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_garrison(
   }
 }
 
-COLONIZE_INTERNAL void ai_euro_colony_goals_foreign_colonies(
-  ColonizeTurnContext* ctx, int nation_id, AiEuroInventory* inv
-) {
-  /* E: foreign colonies MILITARY if at war.
-   * CONTACT scout rings (peace + own≥1): idle Scout → ring MD 2–4 around tribe
-   * (fog-aware when map.seen exists). Deep mid-mil scoring — PARKED. */
-  if (ctx->colonies && ctx->col1_ok && ctx->col1) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (!c->active || c->nation_id == nation_id || c->nation_id < 0 || c->nation_id > 3) {
-        continue;
-      }
-      if (ai_diplo_at_war(ctx->col1, nation_id, c->nation_id)) {
-        ai_goals_upsert_primary(nation_id, c->x, c->y, AI_GOAL_MILITARY, 5);
-      }
-    }
-    /* (A "thin E deepen" stood here: at war, the nearest idle Soldier/Dragoon
-     * got a bare AI_MOVE goto at ai_euro_nearest_military_goal. No DOS cite;
-     * DOS binds units to goals only in the 0a60 tail. Deleted 2026-10-02,
-     * bugs.md #1034(c); no golden moved.) */
-    /*
-     * The goals-phase twin of the invented act-level scout ring aim used to
-     * sit here (bugs.md #493/#495) and is gone with it: DOS has no
-     * goals-phase Scout aim at all. A Scout's course is decided inside
-     * FUN_521d_20e6 (explorer flag / patrol 0x56 / village 0x4c / explore
-     * ring), which the act now reaches on every act (see the DOS re-entry
-     * gate in ai_euro_unit_act, raw 90551).
-     */
-  }
-}
+/* Foreign-colony goals are produced by the literal settlement loop below.
+ * The former unconditional at-war MILITARY pass duplicated that loop while
+ * bypassing its presence, defender-count and every-fourth-turn gates
+ * (FUN_521d_0a60 raw 87776-87787). */
 
 /*
  * (Deleted 2026-10-02, bugs.md #1034(c).) Two goals-phase passes stood here:
@@ -2730,16 +2652,8 @@ void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
   ai_euro_0a60_unit_housekeeping(ctx, nation_id);
   const int urgency = inv ? inv->urgency : 0;
 
-  ai_euro_colony_goals_unit_contact(ctx, nation_id);
-
-  /* D: own colonies — LABOR from tools/food shortage / underpop (5cf6 tallies)
-   * or Stockade/Warehouse under construction. NOT from Col1 labor_shortage
-   * (+0x8e): that disjunct was dropped 2026-09-09 and must not come back —
-   * the long comment at the arm itself explains why (+0x8e is >= 1 for
-   * essentially every colony of pop >= 3, so it made the arm unconditional).
-   * (A "threatened Stockade deepen" LABOR-priority term stood here; deleted
-   * 2026-09-18 with ai_euro_colony_threatened_by_war — the AI's building
-   * choice is the FUN_5952_035e cascade alone, never war proximity.) */
+  /* D: own colonies — ship-pressure goal, work queue, then the sole LABOR
+   * producer: +0x8e garrison demand (FUN_521d_0a60 raw 87684-87696). */
   ai_euro_ship_pressure_reset(nation_id); /* FUN_4962_0018 raw 78239-78242 */
   if (ctx->colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
@@ -2752,8 +2666,6 @@ void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
       ai_euro_colony_goals_colony_garrison(ctx, nation_id, c);
     }
   }
-
-  ai_euro_colony_goals_foreign_colonies(ctx, nation_id, inv);
 
   ai_euro_colony_goals_producers(ctx, nation_id, inv, urgency);
 }

@@ -726,11 +726,9 @@ static int unit_human_census_ship_pressure_refresh(void) {
   return 0;
 }
 
-/*
- * Food emergency: food_short high + Pioneer at MD 5 → LABOR goto toward hungry
- * colony (not only MD≤1 bind). Cite: 5cf6 food_short; manual 2 food/colonist.
- */
-static int unit_food_emergency_labor(void) {
+/* Food shortage alone does not register LABOR in DOS 0a60. A Pioneer can
+ * still approach through the work queue, independent of primary LABOR. */
+static int unit_food_shortage_no_labor_goal(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -800,14 +798,7 @@ static int unit_food_emergency_labor(void) {
       break;
     }
   }
-  const int toward =
-    pioneer && pioneer->active &&
-    ((pioneer->orders == UNITS_ORDER_AI_MOVE && pioneer->goto_x == 4 &&
-      pioneer->goto_y == 4) ||
-     (pioneer->x == 4 && pioneer->y == 4) ||
-     (abs(pioneer->x - 4) + abs(pioneer->y - 4)) < 5);
-
-  if (!labor || !toward) {
+  if (labor || !pioneer || !pioneer->active) {
     fprintf(
       stderr,
       "unit_ai_euro_expand: food-emerg labor=%d orders=%d goto=(%d,%d) pos=(%d,%d)\n",
@@ -819,20 +810,16 @@ static int unit_food_emergency_labor(void) {
       pioneer ? pioneer->y : -1
     );
     fx_map_free(&map);
-    return fail("expected food-emergency LABOR bind for distant Pioneer");
+    return fail("food shortage must not invent a LABOR goal");
   }
 
   fx_map_free(&map);
-  fprintf(stderr, "unit_ai_euro_expand: food-emergency LABOR ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: food shortage has no LABOR goal ok\n");
   return 0;
 }
 
-/*
- * Expert Farmer food LABOR: idle Expert Farmer (profession @JOB Farmer / name)
- * at MD 5 + food_short → LABOR goto. Cite: building_production.md Farmer→Food;
- * euro_unit_act §2e Expert Farmer.
- */
-static int unit_expert_farmer_food_labor(void) {
+/* Profession does not create a food-shortage LABOR goal either. */
+static int unit_expert_farmer_no_food_labor_goal(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -906,13 +893,7 @@ static int unit_expert_farmer_food_labor(void) {
       break;
     }
   }
-  const int moving =
-    farmer && farmer->active &&
-    ((farmer->orders == UNITS_ORDER_AI_MOVE && farmer->goto_x == 4 &&
-      farmer->goto_y == 4) ||
-     (farmer->x == 4 && farmer->y == 4) ||
-     (abs(farmer->x - 4) + abs(farmer->y - 4)) < 5);
-  if (!labor_bound || !moving) {
+  if (labor_bound || !farmer || !farmer->active) {
     fprintf(
       stderr,
       "unit_ai_euro_expand: expert-farmer orders=%d goto=(%d,%d) pos=(%d,%d) labor=%d\n",
@@ -924,11 +905,11 @@ static int unit_expert_farmer_food_labor(void) {
       labor_bound
     );
     fx_map_free(&map);
-    return fail("expected Expert Farmer food-short LABOR bind");
+    return fail("Expert Farmer must not get an invented food-shortage LABOR goal");
   }
 
   fx_map_free(&map);
-  fprintf(stderr, "unit_ai_euro_expand: Expert Farmer food LABOR ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Expert Farmer has no food LABOR goal ok\n");
   return 0;
 }
 
@@ -1035,8 +1016,8 @@ static int unit_tools_short_pioneer_labor(void) {
 
 static const TestCase k_cases[] = {
     {"unit_labor_shortage_join", unit_labor_shortage_join},
-    {"unit_food_emergency_labor", unit_food_emergency_labor},
-    {"unit_expert_farmer_food_labor", unit_expert_farmer_food_labor},
+    {"unit_food_shortage_no_labor_goal", unit_food_shortage_no_labor_goal},
+    {"unit_expert_farmer_no_food_labor_goal", unit_expert_farmer_no_food_labor_goal},
     {"unit_tools_short_pioneer_labor", unit_tools_short_pioneer_labor},
     {"unit_colony_flags_starvation_labor", unit_colony_flags_starvation_labor},
     {"unit_colony_ai_flags_mow_colony_alt", unit_colony_ai_flags_mow_colony_alt},

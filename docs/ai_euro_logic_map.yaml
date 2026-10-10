@@ -351,7 +351,7 @@ graphs:
         label: Departing-ship loop — sell/bank hold, top up with the cargo colonies most want
         dos: raw 92983-93070
         status: dos
-        note: Buys 100 of a cargo when its demand cell (DS:0xa0cc) exceeds Europe land units + turn parity; resets +0x314a=0xff on the ship. (The Missionary latch unit_type_counts[n][3]++ this note used to claim lives in the `two_pass` arm, raw ~92798 / src/core/ai_euro_europe.c:1312-1315, not here.)
+        note: Buys 100 of a cargo when its demand cell (DS:0xa0cc) exceeds Europe land units + turn parity; resets +0x314a=0xff on the ship. FUN_291f_0ec2 departs the hull through 48d3_0346 here, including its 0002 voyage reseed/draw before 0a60 and the unit waves. Damaged hulls stay at the dock. (The Missionary latch unit_type_counts[n][3]++ lives in the `two_pass` arm.)
       - id: end
         kind: end
         label: return
@@ -400,13 +400,7 @@ graphs:
         fn: ai_euro_goals.c:ai_euro_0a60_unit_housekeeping
         dos: 0a60 raw lines 1-189
         status: dos
-        note: FOUND/MIL_EXPAND eligibility (bits 2/3) from 0d38 stack counts (military ≥2 or mobilizable → bits 2+3; Pioneers → bit 2); spare-transport bit5 (one ship per nation per turn); act_state 1/2/3 → 0 on tile, 10 at a contact claim, 1 when aboard/off-map; foreign hostile ship → CONTACT prio 3 (Frigates only post-declaration).
-      - id: sec_b
-        kind: loop
-        label: "B: own land units — adjacent foreign unit → CONTACT prio 3"
-        fn: ai_goals.c:ai_goals_upsert_primary
-        dos: 0a60 unit loop thunk_FUN_2a1f_0470
-        status: dos
+        note: FOUND/MIL_EXPAND eligibility (bits 2/3) from 0d38 stack counts (military ≥2 or mobilizable → bits 2+3; Pioneers → bit 2); spare-transport bit5 (one ship per nation per turn, using the earlier census so 5d04 purchases do not count); act_state 1/2/3 → 0 on tile, 10 at a contact claim, 1 when aboard/off-map; foreign hostile ship → CONTACT prio 3 (Frigates only post-declaration).
       - id: ship_reset
         kind: step
         label: Reset ship-pressure tallies
@@ -441,10 +435,11 @@ graphs:
         note: Floor from building chain rows 0-2; outside>0x32; stance nibble; WoI and SMALL_AI colony adjustments; Indian war-declare block lives in ai_contact.c.
       - id: d_labor
         kind: step
-        label: LABOR primary — tools/food shortage, underpop, Stockade/Warehouse construction; threatened-Stockade prio bump
-        fn: ai_goals.c:ai_goals_upsert_primary
-        status: structural
-        note: NOT from Col1 +0x8e labor_shortage (dropped 2026-09-09, it is ≥1 for nearly every colony).
+        label: Colony ship-pressure gate
+        fn: ai_euro_goals.c:ai_euro_colony_goals_colony_labor
+        dos: FUN_521d_0a60 raw 87603-87607
+        status: dos
+        note: "Construction, stock-shortage and low-population LABOR heuristics removed after fresh 1555 DOS goal-table proof. LABOR is produced only by the garrison-demand loop below."
       - id: d_colony
         kind: step
         label: COLONY / COLONY_ALT primary — blockade bits set → prio 8
@@ -474,15 +469,14 @@ graphs:
         fn: ai_euro_goals.c:ai_euro_0a60_settlement_goal_producers
         dos: 0a60 raw 983-1276 (viceroy ~87795-88052)
         status: dos
-        note: "2026-10-02 (bugs.md #1034(c)): the port-only passes around this node are deleted — food emergency (food_short>=4 LABOR bind, manual cite), F tribe seeds (tribe-adjacent FOUND prio 2, friction>50 MILITARY, fandom capital prio 5) and the G continent-stance ladder (MILITARY 6/7/8, FOUND bump, idle explore); none had a DOS body and gating each off moved no golden. The thin stance refresh (ai_euro_refresh_continent_stance) still runs here because its nibbles are read elsewhere. Fair-play gates difficulty×turn < 0xb5 / 0xc9; outmatched (fewer colonies + owner has ≥8 skilled) vs absent; open-sea staging tile scan ±3; priority ladder (human owner, colony tally, MET-not-PEACE, turn<0x96); weak-defender cancel (defenders ≤ 6 − turn/50). Village loop: CONTACT lurk ring, FOUND beachhead on colony-free continents (0x173c/0x173e masks)."
+        note: "2026-10-10: removed duplicate unconditional wartime MILITARY producer; the literal foreign-colony loop owns its presence, defender and turn gates. Counts now read the earlier census, including colony population in skilled counts. 2026-10-02 (bugs.md #1034(c)): the port-only passes around this node are deleted — food emergency (food_short>=4 LABOR bind, manual cite), F tribe seeds (tribe-adjacent FOUND prio 2, friction>50 MILITARY, fandom capital prio 5) and the G continent-stance ladder (MILITARY 6/7/8, FOUND bump, idle explore); none had a DOS body and gating each off moved no golden. The thin stance refresh (ai_euro_refresh_continent_stance) still runs here because its nibbles are read elsewhere. Fair-play gates difficulty×turn < 0xb5 / 0xc9; outmatched (fewer colonies + owner has ≥8 skilled) vs absent; open-sea staging tile scan ±3; priority ladder (human owner, colony tally, MET-not-PEACE, turn<0x96); weak-defender cancel (defenders ≤ 6 − turn/50). Village loop: CONTACT lurk ring, FOUND beachhead on colony-free continents (0x173c/0x173e masks)."
       - id: end
         kind: end
         label: return
     edges:
       - [clear_wq, sec_a]
       - [sec_a, housekeeping]
-      - [housekeeping, sec_b]
-      - [sec_b, ship_reset]
+      - [housekeeping, ship_reset]
       - [ship_reset, sec_d]
       - [sec_d, d_flags, "each own colony"]
       - [d_flags, d_threat]

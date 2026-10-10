@@ -2657,9 +2657,8 @@ static int col1_destroy_tribe_at(
     }
   }
 
-  if (map) {
-    map_set_owner_nibble(map, x, y, 0x0f);
-  }
+  /* FUN_4d56_00e0 raw 81307-81346 clears only the settlement bit.
+   * The empty tile keeps its owner nibble (DOSBox 1551: (48,58) = 0x7d). */
   return nation_id;
 }
 

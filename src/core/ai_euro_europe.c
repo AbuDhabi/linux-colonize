@@ -536,9 +536,8 @@ static int ai_euro_5d04_ship_buy_ladder(
  *   FUN_291f_0dc6 + 0aba   sell 100 of hold 0, credit the nation's gold.
  *   FUN_291f_0d8e          buy+load 100 of a cargo onto the ship.
  *   FUN_291f_0ec2          ship departs Europe: the dock stack boards, the
- *                          ship leaves the Europe list (the dispatcher's
- *                          Europe act puts it on the westbound lane,
- *                          bugs.md #1056).
+ *                          ship leaves the Europe list for the westbound
+ *                          lane inside this planning pass (48d3_0346).
  *   0x5238[type]           ColonizeUnitType.space (ship slots taken).
  *   DS:0xa0db / 0xa0da     per-turn counts from FUN_521d_6d8e's prelude:
  *                          own colonies with specialty muskets or an empty
@@ -959,8 +958,10 @@ static void ai_euro_5d04_cb_unit_exhaust(int idx) {
     }
     (void)units_board_stacked(ctx->units, u->id, ship_id);
   }
-  /* The dispatcher's Europe act departs it onto the westbound lane
-   * (ai_euro_ship_leave_europe, FUN_48d3_0346). */
+  /* FUN_291f_0ec2 -> FUN_48d3_0346, raw 93069: depart inside 5d04.
+   * Its 0002 voyage reseed/draw precedes 0a60 and the unit-act waves
+   * (DOSBox 1551: unit 4 departs before unit 44's wander scores). */
+  ai_euro_ship_leave_europe(ctx, ship);
 }
 /* FUN_291f_0d8e(unit, cargo, 100) = FUN_38fd_1ebc (raw 60301-60316): no gold
  * gate. Charge price * min(qty, 100) through FUN_15eb_0556 (treasury clamps
@@ -1524,9 +1525,7 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
    * the hire arms decrement as 0xa0db / 0xa0da (muskets / tools). */
   int8_t* cargo_demand = t->hs->a0cc;
   int matched;
-  /* DOS drops a departed ship from the Europe stack (FUN_291f_0ec2); OpenCol
-   * leaves it at the Europe coords until the dispatcher's own act teleports
-   * it, so remember which ships this pass already handled. */
+  /* Remember ships handled during this pass while rescanning the dock. */
   uint8_t departed[COLONIZE_UNITS_MAX];
   memset(departed, 0, sizeof(departed));
   int restarts = 0;

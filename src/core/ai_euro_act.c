@@ -118,14 +118,11 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_europe_exit(struct ai_euro_ac
    * sells the warehouse surplus a ship dumped into the colony.
    */
 
-  /* Arrivals (lane 224+n) are placed by the FUN_48d3_06ba tail inside
-   * ai_euro_europe_lane_tick, before the nation acts; a hull still in
-   * Europe here is docked (departs, FUN_48d3_0346) or crossing. */
+  /* Arrivals (lane 224+n) are placed by the FUN_48d3_06ba tail;
+   * departures run inside 5d04 before the unit waves. A hull still at
+   * the dock here failed that pass's departure gate (e.g. damage). */
   const int exited_europe = 0;
   if (ai_euro_in_europe(u->x, u->y)) {
-    if (ai_euro_europe_lane(u->nation_id, u->x, u->y) == 0) {
-      ai_euro_ship_leave_europe(ctx, u);
-    }
     u->moves = 0;
     return AI_EURO_ACT_RETURN;
   }
