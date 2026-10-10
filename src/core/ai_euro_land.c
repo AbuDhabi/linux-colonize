@@ -3148,7 +3148,9 @@ int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
     return 0;
   }
   const int spare = (u->col1_flags15 & AI_EURO_F3148_SPARE) != 0; /* unit+0x3148 */
-  if (!spare && (((char)u->id + (char)s.turn) & 0x1f) != 0) {
+  /* DOS adds the compact unit-array index, which is not the runtime id. */
+  const int unit_index = (int)(u - ctx->units->units);
+  if (!spare && (((char)unit_index + (char)s.turn) & 0x1f) != 0) {
     return 0;
   }
   if (getenv("AI_20E6_HS_TRACE")) {

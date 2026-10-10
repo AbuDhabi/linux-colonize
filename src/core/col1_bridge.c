@@ -2997,6 +2997,30 @@ bool col1_bridge_capture_w(
       }
     }
 
+    /* DOS also chains loose land units sharing a nation's Europe sentinel
+     * tile. A fresh 1545→1546 load links Spanish soldiers 43→46 at (238,238)
+     * even though neither is aboard a ship. Passenger and hull chains above
+     * already own their members, so only link still-unattached land records. */
+    for (int i = 0; i < written; ++i) {
+      if (neu[i].x < 200 || neu[i].y < 200 || neu[i].type >= 13 ||
+          neu[i].transport_chain.prev_unit_idx >= 0 ||
+          neu[i].transport_chain.next_unit_idx >= 0) {
+        continue;
+      }
+      int last = i;
+      for (int j = i + 1; j < written; ++j) {
+        if (neu[j].type >= 13 || neu[j].x != neu[i].x || neu[j].y != neu[i].y ||
+            neu[j].nation_id != neu[i].nation_id ||
+            neu[j].transport_chain.prev_unit_idx >= 0 ||
+            neu[j].transport_chain.next_unit_idx >= 0) {
+          continue;
+        }
+        neu[last].transport_chain.next_unit_idx = (int16_t)j;
+        neu[j].transport_chain.prev_unit_idx = (int16_t)last;
+        last = j;
+      }
+    }
+
     /*
      * bugs.md interop: DOS tile stacks ARE this chain. FUN_1427_02ca appends
      * arrivals to +0x315c/+0x315e; FUN_1427_0002 follows +0x315c to the tail,

@@ -658,9 +658,9 @@ static int unit_wagon_with_target_survives(void) {
 
 /*
  * LAB_521d_457e (raw 2251-2257): an untasked, empty ship on the cadence beat
- * (`((char)id + (char)turn) & 0x1f == 0`) jumps to LAB_3fa6 — spiral out to a
+ * (`((char)slot + (char)turn) & 0x1f == 0`) jumps to LAB_3fa6 — spiral out to a
  * High Seas tile (terrain 0x1a) and sail. Fixture puts the HS column at the
- * map's east edge and picks the turn so the beat lands on the ship's id.
+ * map's east edge and picks the turn so the beat lands on the ship's slot.
  */
 static int unit_empty_ship_hs_cadence(void) {
   const int nation = 1;
@@ -711,8 +711,8 @@ static int unit_empty_ship_hs_cadence(void) {
   f.col1.stuff.ship_cargo_totals[nation] = 2;
   f.col1.stuff.colony_counts[nation] = 1;
   f.col1.stuff.census_pop_proxy[nation] = 3;
-  /* ((char)id + (char)turn) & 0x1f == 0 */
-  f.turn = (uint32_t)(32 - (ship_id % 32));
+  /* ((char)slot + (char)turn) & 0x1f == 0 */
+  f.turn = (uint32_t)(32 - ((int)(ship - f.units.units) % 32));
 
   ai_euro_dispatcher_turn(&f.ctx, nation);
 
@@ -742,7 +742,7 @@ static int unit_empty_ship_hs_cadence(void) {
  * and passing the hull-type gate, falls through to LAB_521d_3fa6 when
  * DS:0x945a[n] (own land units waiting on the Europe dock) exceeds
  * DS:0x9456[n] (own hulls already heading home). The fixture deliberately
- * defeats the 1-in-32 LAB_521d_457e cadence — `((char)id + (char)turn) & 0x1f`
+ * defeats the 1-in-32 LAB_521d_457e cadence — `((char)slot + (char)turn) & 0x1f`
  * is made non-zero — so only the new arm can send this hull anywhere, and it
  * must stamp DOS's `+0x314b = 0x45` Europe course.
  */
@@ -792,7 +792,7 @@ static int unit_europe_dock_demand_sails_home(void) {
   f.col1.stuff.colony_counts[nation] = 1;
   f.col1.stuff.census_pop_proxy[nation] = 3;
   /* Defeat the 457e cadence: any turn whose parity is NOT 0 mod 32. */
-  f.turn = (uint32_t)(32 - (ship_id % 32) + 1);
+  f.turn = (uint32_t)(32 - ((int)(ship - f.units.units) % 32) + 1);
 
   /* Two colonists waiting on the Europe dock, no hull in the lane yet. */
   for (int i = 0; i < 2; ++i) {

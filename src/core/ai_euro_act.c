@@ -769,7 +769,10 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
     ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);
     return 0;
   }
-  if (ai_euro_20e6_hs_cadence_enabled() && ai_euro_20e6_457e_hs_cadence(ctx, u, nation_id)) {
+  /* LAB_457e reads the entry snapshot local_a8. A hull that disembarked its
+   * last passenger in LAB_3558 is still nonempty for this call. */
+  if (a8_at_entry == 0 && ai_euro_20e6_hs_cadence_enabled() &&
+      ai_euro_20e6_457e_hs_cadence(ctx, u, nation_id)) {
     u = units_get(ctx->units, id);
     if (!u || !u->active) {
       return 1;

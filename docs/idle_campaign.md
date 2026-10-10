@@ -356,6 +356,69 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   later Brave's third step. A live watchpoint on Quebec's food word at
   `DS:5eaa` caught the debit at overlay `8c5a:078f`. The port had attempted
   gifts first and skipped the beg when the generous branch returned true.
+- 1542→1543 now matches byte-for-byte. A Brave's post-upgrade moves-spent byte
+  and three passenger visibility bits match; the Fisherman's gross yield
+  credits food in the AI colony ledger. A DOS scorer trace then showed New
+  Amsterdam's fourth worker elects its eastern Fur plot with score 494 versus
+  the port's old 456. `FUN_15eb_15c6` contributes 2 for a field good whose
+  consumer's base building has a successor: DOS row 32 (Fur Trader's House)
+  points to row 33 at `DS:0x8f86+32*0xc`. The port counted 1 for every
+  consumer root. Correcting all five roots also preserves the 1505→1506
+  byte-identical transition, which a Fur-only score adjustment had regressed.
+- 1543→1544 is byte-identical too after the consumer-chain score correction.
+- 1544→1545 matches a fresh DOS load byte-for-byte. The archived target has
+  six stale bytes on two newly created unit records (goto 53,52 and cargo
+  slot 5 = 236). Loading the 1544 save and advancing one turn in DOS leaves
+  all six zero, as the port does; these bytes live beyond the save's unit
+  count before the turn and depend on unsaved process history.
+- 1545→1546 now matches a fresh DOS load byte-for-byte. The port serialized
+  Spanish land units 43 and 46 at the shared Europe tile (238,238) as separate
+  records; DOS links them 43→46 through the transport-chain words. The COL1
+  save writer now links loose land units on the same Europe sentinel tile,
+  leaving its existing passenger and ship chains in place. The archived
+  target still has stale unit bytes from the earlier unsaved history.
+- 1546→1547 fresh replay is down from 9 to 6 bytes. The fourth New Amsterdam
+  worker now stays on its eastern Fur plot. A DOS scorer breakpoint shows its
+  indoor mode −2 plot probe yields Fur score 494; the port had deducted a
+  forest penalty of 10 and elected Farmer score 486. In DOS, the terrain
+  scratch word read by that penalty is uninitialized outside the food
+  emergency arm, so an AI tick cannot use each candidate's actual terrain
+  there. The remaining fresh differences are a native gift of 6 Tobacco in
+  DOS versus 6 Cotton in the port (the port's rank draw is 3 on equal keys),
+  two Spanish ship flag bytes, one native alarm byte, and a path mark at
+  (45,51). These may share an earlier RNG or unit-state divergence.
+- 1547→1548 now matches both the archived and fresh DOS save byte-for-byte.
+  Three French units reach (45,49) in both runs. DOS sorts the destination's
+  existing wagon-and-soldier stack before appending the next soldier, yielding
+  soldier 41 → wagon 46 → soldier 38; the port had only appended arrivals.
+  A watch on the three live unit x bytes showed the destination stack's
+  existing links change during the third move.
+- 1548→1549: the archived target diverges broadly from a fresh load. A fresh
+  DOS replay narrows the port difference to 9 bytes after the worker fix:
+  two French soldiers one tile ahead of DOS and their stack/map marks.
+  The arriving French caravel now keeps DOS's idle wander state at (52,44):
+  DOS's `457e` empty-ship cadence reads the passenger count snapped before
+  `3558` disembarks its last passenger, while the port read the emptied hold
+  and sailed home in the same act. The remaining archive differences arise
+  from unsaved session history. For the soldiers, both runs step (45,49) →
+  (44,50), then DOS moves south to (44,51) for its remaining six thirds of
+  movement. The port chooses southeast to (45,51) at three thirds and then
+  south to (45,52). The first route difference is the far-tier goto choice
+  from (44,50).
+- The `457e` empty-ship cadence now uses DOS's compact unit-array index in
+  its 1-in-32 turn check instead of the port's runtime ID. The existing
+  cadence tests now align their beat to the slot; all earlier exact archived
+  transitions still pass.
+- 1551→1552: the archived target again diverges broadly from a fresh DOS
+  load. The fresh replay has 17 differing bytes after the worker fix: a Tupi
+  Brave that moves from (49,39) to (50,40) in DOS but stays
+  fortified in the port, a French Dragoon/Pioneer that finishes one tile
+  west-northwest of DOS, one Brave visibility bit, and the corresponding
+  map marks. The archived output has a different unit count and is not a
+  suitable one-turn oracle for this input. The port's `021a` scorer at
+  (49,39) picks stay 207 over southeast 206; DOS picks southeast. The
+  shared turn fortify refresh was checked and did not cause this choice.
+  The Brave difference remains after the independent worker-score fix.
 
 - Human end-of-slot draws: DOS 5, port 1 in 1497→1498 (human FF debate rolls / merc offer?).
 - **AI colony tick vs DOS**: still the main source from 1499 on (worker/tile choice,
