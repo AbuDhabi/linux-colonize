@@ -808,6 +808,10 @@ void ai_contact_live_among_natives(
   const char* section = NULL;
   const char* fb = NULL;
 
+  if (band > 1 && alarm >= 0x4b) {
+    /* DOS's high-alarm village arm consumes the visit without teaching. */
+    return;
+  }
   if (band > 1) {
     ai_contact_alarm_delta_00f2(ctx, nation_id, e, 3);
     const uint8_t rel = ctx->col1->indian[nation_id - 4].euro_diplo[e];

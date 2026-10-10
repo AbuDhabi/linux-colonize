@@ -425,6 +425,15 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
        * escort, or via the ship goal fold in 20e6's band). */
       Ai0a60StackCounts sc;
       ai_euro_0a60_stack_counts(ctx->units, ux, uy, &sc);
+      /* Europe lanes are separate DOS records, even when a dock mirror and
+       * a hull briefly share the same runtime sentinel.  A ship with no
+       * passenger chain must not inherit the land stack's FOUND/MIL bits. */
+      if (is_ship_t && u->cargo_count == 0 && units_coords_in_europe_park(ux, uy)) {
+        sc.pioneers = 0;
+        sc.mil_types = 0;
+        sc.mobilizable = 0;
+        sc.armed = 0;
+      }
       const int has_military = (sc.mil_types >= 2 || sc.mobilizable != 0);
       const int has_founders = (sc.pioneers != 0);
       if (has_founders || has_military) {
