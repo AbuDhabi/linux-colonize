@@ -1027,7 +1027,17 @@ int ai_contact_meet_economics_2154(
   if (tech > 6) {
     tech = 6; /* avoid (7-tech) zero / negative */
   }
-  const int diff = (int)ctx->col1->head.difficulty; /* DS 0x8d52/−0x69d6 stand-in */
+  /* DOS does not use the game difficulty for the Horse bid.  The expression
+   * at raw 81880 reads the live per-tribe village-count table selected by
+   * DS:0x8d52 (`DS:0x962a[indian_nation - 4]`) and divides by
+   * `(count >> 1) + 1`.  This table is refreshed with the Indian census and
+   * is already preserved in the save's `stuff` block. */
+  const int tribe_slot = indian_nation - 4;
+  const int villages =
+    (tribe_slot >= 0 && (unsigned)tribe_slot < COLONIZE_COL1_INDIAN_COUNT)
+      ? (int)ctx->col1->stuff.tribe_village_counts[tribe_slot]
+      : 0;
+  const int diff = (int)ctx->col1->head.difficulty;
   int diff_div = diff;
   if (diff_div < 1) {
     diff_div = 1;
@@ -1075,7 +1085,7 @@ int ai_contact_meet_economics_2154(
   /* raw 81880 / 81883: both stock bytes are read as `*(char *)` (signed). */
   out->ask[15] = (int16_t)((-tech - ((int)(int8_t)ind->muskets - 7)) * 4);
   out->bid[8] =
-    (int16_t)((int)ind->horse_breeding / ((diff >> 1) + 1));
+    (int16_t)((int)ind->horse_breeding / ((villages >> 1) + 1));
   out->ask[8] = (int16_t)((-tech - ((int)(int8_t)ind->horse_herds - 9)) * 4);
   out->bid[15] = 0;
 

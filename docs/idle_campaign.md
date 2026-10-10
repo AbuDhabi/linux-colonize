@@ -377,16 +377,19 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   save writer now links loose land units on the same Europe sentinel tile,
   leaving its existing passenger and ship chains in place. The archived
   target still has stale unit bytes from the earlier unsaved history.
-- 1546→1547 fresh replay is down from 9 to 6 bytes. The fourth New Amsterdam
-  worker now stays on its eastern Fur plot. A DOS scorer breakpoint shows its
+- 1546→1547 now matches a fresh DOS load byte-for-byte. The fourth New Amsterdam
+  worker stays on its eastern Fur plot: a DOS scorer breakpoint shows its
   indoor mode −2 plot probe yields Fur score 494; the port had deducted a
-  forest penalty of 10 and elected Farmer score 486. In DOS, the terrain
-  scratch word read by that penalty is uninitialized outside the food
-  emergency arm, so an AI tick cannot use each candidate's actual terrain
-  there. The remaining fresh differences are a native gift of 6 Tobacco in
-  DOS versus 6 Cotton in the port (the port's rank draw is 3 on equal keys),
-  two Spanish ship flag bytes, one native alarm byte, and a path mark at
-  (45,51). These may share an earlier RNG or unit-state divergence.
+  forest penalty of 10 and elected Farmer score 486. In DOS, that terrain
+  scratch word is uninitialized outside the food emergency arm. The native
+  gift is 6 Tobacco. Its 2154 Horse bid divides by the live village-count
+  table (`DS:0x962a[type]`), not game difficulty; using count 7 gives the
+  same sorted keys and rank-3 Tobacco choice. Europe-lane ships also keep
+  separate stack flags when a passenger chain is empty. A high-alarm colonist
+  village visit consumes the DOS arm without teaching or adding the +3 alarm,
+  and the 28c8 trial scorer leaves its owner stamp during the AI tick; these
+  close the final alarm, learned-state, and (45,51) path residuals. The archived
+  target still carries stale bytes from the earlier unsaved history.
 - 1547→1548 now matches both the archived and fresh DOS save byte-for-byte.
   Three French units reach (45,49) in both runs. DOS sorts the destination's
   existing wagon-and-soldier stack before appending the next soldier, yielding
