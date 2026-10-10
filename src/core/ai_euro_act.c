@@ -698,14 +698,20 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
       ++tile_stack_count;
     }
   }
-  const int a8_at_entry = tile_stack_count > 0 ? tile_stack_count - 1 : 0;
+  int a8_at_entry = tile_stack_count > 0 ? tile_stack_count - 1 : 0;
+  int roam_military_founders = -1;
+  int unload_mask = 0;
   const int at_own_colony = colonies_id_at(ctx->colonies, u->x, u->y) >= 0 &&
                             ctx->colonies->colonies[colonies_id_at(ctx->colonies, u->x, u->y)]
                                 .nation_id == nation_id;
   if (!at_own_colony) {
     /* LAB_3558 unload mask + loop. The loop exhausts every unloaded
      * passenger and then the hull (FUN_281f_0934), but 20e6 runs on. */
-    const int mask9c = ai_euro_20e6_unload_mask(ctx, u, nation_id);
+    AiEuroShipBandCounts band = {0};
+    const int mask9c = ai_euro_20e6_unload_mask_snapshot(ctx, u, nation_id, &band);
+    a8_at_entry = band.stack_other;
+    roam_military_founders = band.military + band.pioneers;
+    unload_mask = mask9c;
     if (getenv("AI_SHIP_TRACE") && mask9c) {
       fprintf(stderr, "[shipdos] unit %d n%d (%d,%d) unload mask 0x%x\n", id, nation_id, u->x, u->y, mask9c);
     }
@@ -718,22 +724,11 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
     }
     /* Colony-sail pick (raw 89614-89711). */
     if (!tasked) {
-      int pioneers = 0;
-      int mil = 0;
-      int scouts = 0;
-      int milvet = 0;
-      int civ = 0;
-      ai_euro_20e6_ship_cargo_counts(ctx, u, &pioneers, &mil, &scouts, &milvet, &civ);
-      int a8 = 0;
-      for (int s = 0; s < u->cargo_count && s < COLONIZE_UNIT_CARGO_MAX; ++s) {
-        const ColonizeUnit* p = units_get_const(ctx->units, u->cargo_ids[s]);
-        if (p && p->active) {
-          a8++;
-        }
-      }
-      const int pioneers_b4 = pioneers;
-      const int found_probe = ai_goals_max_primary_prio(nation_id, u->x, u->y, AI_GOAL_FOUND);
-      ai_euro_20e6_goal_fold(ctx, u, nation_id, found_probe, &pioneers, &civ, NULL);
+      const int pioneers = band.pioneers;
+      const int mil = band.military;
+      const int civ = band.civilians;
+      const int a8 = band.stack_other;
+      const int pioneers_b4 = band.pioneers_before_fold;
       const int urgency = ai_euro_0a60_work_registered(nation_id);
       int cx = 0;
       int cy = 0;
@@ -757,7 +752,9 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
     const int ox = u->goto_x;
     const int oy = u->goto_y;
     const int oo = u->orders;
-    const int haul = ai_euro_try_ship_trade_haul(ctx, nation_id, u);
+    const int haul = ai_euro_try_ship_trade_haul_snapshot(
+      ctx, nation_id, u, at_own_colony ? -1 : a8_at_entry
+    );
     if (haul) {
       u = units_get(ctx->units, id);
       if (!u || !u->active) {
@@ -800,7 +797,7 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
   /* LAB_4d2e. */
   Ai20e6Unit s;
   ai_euro_20e6_prologue(ctx, u, nation_id, &s);
-  if (ai_euro_20e6_ship_far_roam(ctx, u, &s)) {
+  if (ai_euro_20e6_ship_far_roam(ctx, u, &s, roam_military_founders, unload_mask)) {
     ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);
     return 0;
   }

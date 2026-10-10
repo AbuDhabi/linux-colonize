@@ -512,7 +512,7 @@ static int unit_garrison_quota_threat_seed(void) {
 
   ColonizeUnitPool units;
   fx_units_init(&units);
-  units.type_count = 1;
+  units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Brave");
   units.types[0].movement = 1;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
@@ -581,6 +581,20 @@ static int unit_garrison_quota_threat_seed(void) {
   ctx.col1_ok = true;
   ctx.human_nation = 0;
   ctx.rng_seed = 42;
+
+  /* DOS 5952 walks passengers too: a sea hull contributes nothing, but
+   * its boarded Brave contributes the same 10 threat as before boarding. */
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+  units.types[1].movement = 3;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+  const int hull_id = units_spawn_allow_stack(&units, 1, 8, 5);
+  ColonizeUnit* hull = units_get(&units, hull_id);
+  if (!hull) return fail("threat-seed carrier spawn");
+  hull->nation_id = indian;
+  if (!units_board_stacked(&units, bid0, hull_id) || b0->aboard_ship_id != hull_id) {
+    return fail("threat-seed board Brave");
+  }
 
   int rc = 0;
 

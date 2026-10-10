@@ -2443,25 +2443,30 @@ static int ai_euro_20e6_border_park_arm(
  * per act; on 0 it picks a random inset tile (rng(2, w-3), rng(2, h-3)) and,
  * if that is open-sea water more than 7 Manhattan tiles away, latches unit
  * +0x3148 bit 0x10 and commits it as the goto (LAB_27f5). With the bit
- * already set, rng(0, 0x30) == 0 clears it. The unload mask is taken as 0
- * here: the port calls this after the ship band's own unload arm has had its
- * go, which is the only way DOS reaches this line with cargo still aboard.
+ * already set, rng(0, 0x30) == 0 clears it. Both the count and unload mask
+ * remain the ship band's saved DOS locals, even after partial unloading.
  * Returns 1 when a far goto was set.
  */
-int ai_euro_20e6_ship_far_roam(ColonizeTurnContext* ctx, ColonizeUnit* u, const Ai20e6Unit* s) {
-  if (!s->is_ship || s->woi || u->id < 0 || u->id >= COLONIZE_UNITS_MAX) {
+int ai_euro_20e6_ship_far_roam(
+  ColonizeTurnContext* ctx, ColonizeUnit* u, const Ai20e6Unit* s,
+  int military_founders, int unload_mask
+) {
+  if (!s->is_ship || s->woi || unload_mask != 0 || u->id < 0 || u->id >= COLONIZE_UNITS_MAX) {
     return 0;
   }
   if (ai_euro_20e6_probe_adjacent(ctx, u->x, u->y, s->nation) >= 0) {
     return 0; /* bVar20 false */
   }
-  int pioneers = 0;
-  int mil = 0;
-  int scouts = 0;
-  int milvet = 0;
-  int civ = 0;
-  ai_euro_20e6_ship_cargo_counts(ctx, u, &pioneers, &mil, &scouts, &milvet, &civ);
-  if (mil + pioneers == 0) {
+  if (military_founders < 0) {
+    int pioneers = 0;
+    int mil = 0;
+    int scouts = 0;
+    int milvet = 0;
+    int civ = 0;
+    ai_euro_20e6_ship_cargo_counts(ctx, u, &pioneers, &mil, &scouts, &milvet, &civ);
+    military_founders = mil + pioneers;
+  }
+  if (military_founders == 0) {
     return 0;
   }
   uint8_t* flags = &u->col1_flags15; /* unit+0x3148 */
@@ -3048,6 +3053,20 @@ int ai_euro_20e6_adjacent_foreign_09dc(const ColonizeTurnContext* ctx, int x, in
   return 0;
 }
 
+/* DOS FUN_1427_0824 compacts on deletion; the port retains storage holes.
+ * Index arithmetic must use the live record ordinal, as save export does.
+ * Fresh 1553 DOS: deleting the earlier Brave changes the hull from 35 to
+ * 34, so it misses (index + turn 61) & 31 == 0. */
+static int ai_euro_20e6_unit_index(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
+  int index = 0;
+  for (int i = 0; i < units_slot_end(pool); ++i) {
+    const ColonizeUnit* member = &pool->units[i];
+    if (member == u) return index;
+    index += member->active;
+  }
+  return -1;
+}
+
 /* bVar7 (decomp 88556-88579) — see the HS-cadence header above for the
  * operand decode. `u` is the acting ship. */
 int ai_euro_20e6_457e_type_gate(
@@ -3060,7 +3079,7 @@ int ai_euro_20e6_457e_type_gate(
     /* DOS-LITERAL raw 88577: `(param_1 & 1) != 0` — param_1 is the unit's
      * ARRAY INDEX into the 300-slot pool, not its id (ids start at 1 and are
      * not slots; docs/conventions.md). bugs.md #878(a). */
-    if (u && ctx && ctx->units && (((int)(u - ctx->units->units)) & 1) != 0) {
+    if (u && ctx && ctx->units && (ai_euro_20e6_unit_index(ctx->units, u) & 1) != 0) {
       return 1;
     }
     return stuff && n >= 0 && n < 4 && stuff->unit_type_counts[n][0x12] == 1;
@@ -3147,7 +3166,7 @@ int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
   }
   const int spare = (u->col1_flags15 & AI_EURO_F3148_SPARE) != 0; /* unit+0x3148 */
   /* DOS adds the compact unit-array index, which is not the runtime id. */
-  const int unit_index = (int)(u - ctx->units->units);
+  const int unit_index = ai_euro_20e6_unit_index(ctx->units, u);
   if (!spare && (((char)unit_index + (char)s.turn) & 0x1f) != 0) {
     return 0;
   }

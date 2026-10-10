@@ -2877,7 +2877,144 @@ static int unit_border_hold_uses_treaty_gate(void) {
   return 0;
 }
 
+/* A partly unloaded hull keeps 3558's counts for colony-sail and 4393. */
+static int unit_ship_band_keeps_counts_after_unload(void) {
+  Fixture f;
+  if (fixture_init(&f, 1) != 0) return 1;
+  f.map.terrain[8 * 16 + 8] = 25;
+  snprintf(f.units.types[4].name, sizeof(f.units.types[4].name), "Missionary");
+  f.units.types[4].movement = 1;
+  f.units.types[4].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  f.units.type_count = 5;
+  const int id = units_spawn(&f.units, 2, 8, 8);
+  ColonizeUnit* ship = units_get(&f.units, id);
+  if (!ship) { fixture_free(&f); return fail("band hull spawn"); }
+  ship->nation_id = 1;
+  const int military = units_spawn_allow_stack(&f.units, 1, 8, 8);
+  const int civilian = units_spawn_allow_stack(&f.units, 4, 8, 8);
+  ColonizeUnit* soldier = units_get(&f.units, military);
+  ColonizeUnit* missionary = units_get(&f.units, civilian);
+  if (!soldier || !missionary) { fixture_free(&f); return fail("band passenger spawn"); }
+  soldier->nation_id = missionary->nation_id = 1;
+  if (!units_board_stacked(&f.units, military, id) ||
+      !units_board_stacked(&f.units, civilian, id)) {
+    fixture_free(&f);
+    return fail("band passenger board");
+  }
+  AiEuroShipBandCounts band = {0};
+  (void)ai_euro_20e6_unload_mask_snapshot(&f.ctx, ship, 1, &band);
+  const ColonizeWorld world = world_from_turn_ctx(&f.ctx);
+  if (!units_unload_passenger_w(&world, id, military, 9, 8)) {
+    fixture_free(&f);
+    return fail("band military unload");
+  }
+  const int remaining = ship->cargo_count;
+  fixture_free(&f);
+  if (remaining != 1 || band.stack_other != 2 || band.military != 1 ||
+      band.civilians != 1 || band.pioneers != 0) {
+    return fail("ship band must retain the pre-unload military and civilian counts");
+  }
+  return 0;
+}
+
+/* DOS 4393 requires the band-entry stack to contain only the acting hull. */
+static int unit_ship_work_queue_uses_entry_stack(void) {
+  for (int stack_other = -1; stack_other <= 1; ++stack_other) {
+    Fixture f;
+    if (fixture_init(&f, 1) != 0) return 1;
+    for (int x = 0; x < 16; ++x) f.map.terrain[3 * 16 + x] = 25;
+    treasure_add_colony(&f, 0, 1, 8, 4);
+    const int id = units_spawn(&f.units, 2, 4, 3);
+    ColonizeUnit* ship = units_get(&f.units, id);
+    if (!ship) { fixture_free(&f); return fail("queue hull spawn"); }
+    ship->nation_id = 1;
+    if (stack_other < 0) {
+      /* 1544 fresh DOS: an unboarded Scout beside the berth is outside
+       * 0920's selected carrier stack and cannot block 4393. */
+      treasure_add_colony(&f, 1, 1, 4, 3);
+      f.map.terrain[3 * 16 + 4] = 2;
+      memset(f.colonies.colonies[1].stock, 0, sizeof(f.colonies.colonies[1].stock));
+      snprintf(f.units.types[4].name, sizeof(f.units.types[4].name), "Scout");
+      f.units.types[4].movement = 4;
+      f.units.types[4].domain = COLONIZE_UNIT_DOMAIN_LAND;
+      f.units.type_count = 5;
+      const int bystander = units_spawn(&f.units, 4, 4, 4);
+      ColonizeUnit* land = units_get(&f.units, bystander);
+      if (!land) { fixture_free(&f); return fail("berth bystander spawn"); }
+      land->nation_id = 1;
+      land->y = 3;
+    }
+    ai_goals_upsert_work(0, 3000, 1, 1);
+    const int result = ai_euro_try_ship_trade_haul_snapshot(&f.ctx, 1, ship, stack_other);
+    const int queued = ship->orders == AI_EURO_ACT_GOAL &&
+                       ship->goto_x == 8 && ship->goto_y == 4;
+    fixture_free(&f);
+    if ((stack_other <= 0 && (!result || !queued)) || (stack_other > 0 && (result || queued))) {
+      return fail("work-queue pickup must use entry stack, including units already unloaded");
+    }
+  }
+  return 0;
+}
+
+/* Raw 88632: a nonzero saved unload mask suppresses the far-roam RNG draw,
+ * even when military passengers remain on a partly unloaded hull. */
+static int unit_ship_far_roam_uses_band_snapshot(void) {
+  for (int mask = 0; mask <= 0x10; mask += 0x10) {
+    Fixture f;
+    if (fixture_init(&f, 1) != 0) return 1;
+    f.map.terrain[8 * 16 + 8] = 25;
+    const int id = units_spawn(&f.units, 2, 8, 8);
+    ColonizeUnit* ship = units_get(&f.units, id);
+    if (!ship) { fixture_free(&f); return fail("roam snapshot hull spawn"); }
+    ship->nation_id = 1;
+    Ai20e6Unit s;
+    ai_euro_20e6_prologue(&f.ctx, ship, 1, &s);
+    const uint32_t before = f.rng.state;
+    /* The live hull is empty; the band snapshot still has military cargo. */
+    (void)ai_euro_20e6_ship_far_roam(&f.ctx, ship, &s, 1, mask);
+    const int consumed = f.rng.state != before;
+    fixture_free(&f);
+    if (consumed != (mask == 0)) {
+      return fail("far roam must use saved military count and nonzero unload mask gate");
+    }
+  }
+  return 0;
+}
+
+static int unit_ship_index_gates_skip_deleted_slots(void) {
+  for (int turn = 31; turn <= 32; ++turn) {
+    Fixture f;
+    if (fixture_init(&f, 1) != 0) return 1;
+    for (int y = 0; y < 16; ++y) {
+      for (int x = 12; x < 16; ++x) f.map.terrain[y * 16 + x] = 25;
+      f.map.terrain[y * 16 + 14] = 26;
+    }
+    const int deleted = units_spawn(&f.units, 0, 1, 1);
+    const int id = units_spawn(&f.units, 2, 13, 8);
+    ColonizeUnit* ship = units_get(&f.units, id);
+    if (!ship || !units_disband(&f.units, deleted)) {
+      fixture_free(&f);
+      return fail("cadence deleted-slot setup");
+    }
+    ship->nation_id = 1;
+    f.turn = (uint32_t)turn;
+    f.col1.stuff.unit_type_counts[1][0x12] = 2;
+    /* Storage slot 1 is odd; compact DOS index 0 is even. */
+    const int mow_gate = ai_euro_20e6_457e_type_gate(&f.ctx, ship, UNITS_KIND_MAN_O_WAR);
+    const int sailed = ai_euro_20e6_457e_hs_cadence(&f.ctx, ship, 1);
+    fixture_free(&f);
+    if (mow_gate || sailed != (turn == 32)) {
+      return fail("ship cadence and Man-O-War parity must skip inactive storage slots");
+    }
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_ship_index_gates_skip_deleted_slots", unit_ship_index_gates_skip_deleted_slots},
+    {"unit_ship_far_roam_uses_band_snapshot", unit_ship_far_roam_uses_band_snapshot},
+    {"unit_ship_band_keeps_counts_after_unload", unit_ship_band_keeps_counts_after_unload},
+    {"unit_ship_work_queue_uses_entry_stack", unit_ship_work_queue_uses_entry_stack},
     {"unit_border_hold_uses_treaty_gate", unit_border_hold_uses_treaty_gate},
     {"unit_foreign_colony_military_goal_gates", unit_foreign_colony_military_goal_gates},
     {"unit_land_contact_does_not_create_goal", unit_land_contact_does_not_create_goal},

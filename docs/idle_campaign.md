@@ -19,7 +19,7 @@ then a recursive JSON diff (show `*_hex` blobs as differing byte offsets). The t
 `EXCLUDE_FROM_ALL`: rebuild it explicitly (`cmake --build build/debug --target golden_idle_campaign`).
 
 Progress (sum of differing JSON leaves over all 77 transitions): 18,869 → 16,546 → 16,178 →
-13,423 → 12,739 → 8,798 → 8,122 → 7,023 → 5,666 → 5,597 → 5,591 → 5,531 → 5,502. Fourteen archived transitions
+13,423 → 12,739 → 8,798 → 8,122 → 7,023 → 5,666 → 5,597 → 5,591 → 5,531 → 5,502 → 5,431 → 4,774 → 4,771 → 4,745 → 4,744 → 4,676 → 4,668 → 4,660 → 4,656. Fourteen archived transitions
 pass byte-for-byte: 1493→1494, 1494→1495, 1495→1496, 1505→1506, 1512→1513,
 1513→1514, 1514→1515, 1516→1517, 1527→1528, 1537→1538, 1541→1542,
 1542→1543, 1543→1544 and 1547→1548. 1492→1493 is down to the
@@ -354,6 +354,94 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   gates (raw 87776-87787). Settlement producers now read the earlier census
   tables, including population in the skilled count. These corrections leave
   all archived transition results unchanged.
+
+- The Euro wander attack gate now tests treaty bit `0x40`, like DOS
+  `521d_20e6` raw 88880-88885, rather than requiring formal war. Either
+  Privateer still bypasses the treaty gate; the WoI control gate remains.
+  This removes 71 archived fields across 1594 and 1595, with no regressions.
+  Regression covers unmet, MET-only and treaty neighbours. It does not yet
+  explain the separate fresh 1558 Spanish Dragoon mismatch.
+
+- Ship colony-sail and `4393` now retain `3558`'s pre-unload passenger
+  counts (`521d_20e6` raw 89412-89444). Unloading a Dragoon does not turn
+  a mixed hull into a civilian-only colony pull in the same act. The work
+  queue also requires the saved `local_a8 == 0` (raw 89877-89878).
+  At an own berth, `0920` selects only the carrier and boarded members;
+  an unboarded Scout beside it is excluded, confirmed by fresh 1544 DOS.
+  The combined change removes 657 archived JSON leaves, retaining fourteen
+  exact transitions. Nineteen transitions improve; 1592 and 1598 initially
+  remain worse against the archive, but fresh DOS confirms both port carrier
+  and passenger routes. The initial 1553 regression is resolved by the compact
+  unit-index correction below. Debug and Release agree; full tests, golden
+  tests and ship regression tests pass.
+
+- The ship far-roam roll also uses the saved military/founder count and
+  requires the saved unload mask to be zero (`20e6` raw 88632-88637).
+  The former live recount and assumed zero mask could draw RNG after partial
+  unloading. This clears three further archived fields in 1594 without
+  regressions. A regression covers the empty live hull with a nonempty band
+  snapshot, and proves a nonzero unload mask preserves RNG state.
+
+- Empty-ship sailing cadence and Man-O-War parity now use the compact live
+  unit index, matching DOS deletion compaction (`1427_0824`). In 1553 an
+  earlier Brave deletion makes the Spanish hull index 34 rather than storage
+  slot 35; the false Europe departure had changed subsequent RNG. This clears
+  26 archived fields without regressions. Fresh 1553 now matches all unit and
+  map fields, leaving only Quebec's Tobacco gift (30 versus DOS 36). Debug
+  and Release sweeps agree; full tests, golden and the index regression pass.
+
+- Fresh 1553→1554 is now byte-identical. A watch on Quebec Tobacco at
+  `DS:5eae` caught two `022e:0b0a` writes, 24→30→36, from Braves 15 and 25.
+  The port's once-per-native-nation visit latch discarded the second gift;
+  DOS's `3180` encounter latch is local to each Brave scan. Gift selection
+  now uses the current mood's Brave binding instead of an earlier adjacent
+  visitor. This removes one archived leaf without regressions. A regression
+  covers consecutive generous visits and the second Brave's binding. Full
+  tests (96 enabled), golden, Release contact tests and both sweeps pass.
+
+- Fresh 1592→1593 confirms the port's French carrier/passenger records after
+  the queue gate; their archived route differs. Nineteen fresh fields remain,
+  including three Isabella workers elected as Statesmen by the port versus
+  Ore Miner, Lumberjack and Farmer in DOS. The crop and stock ledger matches;
+  the job election is under a live `5952` score trace.
+
+- `00f8` nation ranks now sort unsigned scores ascending, like
+  `291f_0ed0`→`1cf8_000a` (raw 18654-18738). Turn setup had ranked strongest
+  as zero while diplomacy already used DOS's ascending order. DOS's live
+  `DS:917c` in fresh 1592 reads `00 02 03 01`, the reverse of the old port
+  table. This corrects Isabella's three field elections and removes 68
+  archived fields across twenty transitions without regressions. The sorter
+  also reproduces descent reinsertion before ties; the rank regression
+  covers distinct scores and that equal-score case. Full tests (96 enabled),
+  golden, Release turn tests and both archive sweeps pass.
+
+- Save capture preserves education nibbles beyond a colony's current
+  population. Fresh 1592 Cayenne retains inactive slot 1 = 1, while the
+  exporter zeroed all 32 slots before copying only the live roster. Retaining
+  the loaded counters clears eight fields across 1591–1598 without
+  regressions. The save round-trip regression seeds an inactive nibble and
+  verifies capture preserves it. Full tests (96 enabled), golden, Release save
+  tests and both sweeps pass.
+
+- The `5952` closing Horse purchase is now ported (raw 95959-95972, asm
+  2a03–2a63): after turn 40, stock below two and a nonzero stack-head
+  capacity permit buying two Horses for 10 gold. Fresh 1592 Curacao watch
+  `DS:650a` catches the debit and 0→2 write at `5952:2a63`. Its tile is empty:
+  unchecked unit index −1 reads `DS:312a`, terrain row 27's labor byte 24,
+  then capacity address `5237+24*e = 5387`, the tutorial byte. The port
+  reproduces that alias using the existing terrain table and saved tutorial
+  flags. Four archive transitions improve by eight fields, none regress;
+  fresh 1592 falls to ten differing fields. Regression covers turn, purse,
+  existing herd, live carrier and non-carrier, and the empty-tile tutorial gate.
+  Full tests (96 enabled), golden, Release build tests and both sweeps pass.
+
+- `5952` threat scoring now includes boarded land passengers in the whole
+  neighbouring stack. Ships themselves still contribute zero. This aligns
+  fresh 1592 Curacao's garrison quota 3 (formerly 1), leaving nine fresh
+  fields. The archive improves by four fields overall; its Curacao quota
+  remains the older value 1. Three transitions improve and 1592 worsens
+  by one archived field. The threat regression now boards one Brave and
+  verifies that its contribution survives while its carrier adds none.
 
 ## Open leads (most transitions first)
 

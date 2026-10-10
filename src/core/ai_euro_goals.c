@@ -2004,12 +2004,14 @@ static void ai_euro_colony_threat_seed_5952(
         (ai_euro_village_nation_at(col1, tx, ty) >= 0);
       const int dist = map_dos_dist(dx, dy); /* FUN_124c_0040 */
 
-      /* DOS walks the whole tile stack once the head qualified — including
-       * any own-nation unit stacked behind a foreign one. */
+      /* DOS walks the whole tile stack once the head qualified, including
+       * boarded land passengers and own units behind a foreign head.
+       * Fresh 1592 Curacao: the French carrier's Dragoon raises quota to 3;
+       * filtering it through units_is_on_map left quota 1. */
       /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index, not an id. */
       for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
         const ColonizeUnit* u = &ctx->units->units[ui];
-        if (!u->active || !units_is_on_map(u) || u->x != tx || u->y != ty) {
+        if (!u->active || u->x != tx || u->y != ty) {
           continue;
         }
         const int dtype = ai_euro_20e6_dos_type(ctx->units, u);

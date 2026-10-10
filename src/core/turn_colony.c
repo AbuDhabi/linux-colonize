@@ -743,13 +743,13 @@ int turn_rank_euro_nations(
 ) {
   /*
    * FUN_5bfb_00f8: score = gold/100 + 2*colony_count + pop_proxy + land_combat.
-   * Sort descending; inverse rank[nation] = place (0 = strongest).
+   * Sort ascending; inverse rank[nation] = place (0 = weakest).
    * Cite: viceroy_unpacked.c ~96506–96531; turn/mid_pass_indian_rank.md.
    */
   if (!out_rank) {
     return -1;
   }
-  int score[4];
+  uint16_t score[4];
   int perm[4];
   for (int n = 0; n < 4; ++n) {
     perm[n] = n;
@@ -774,18 +774,33 @@ int turn_rank_euro_nations(
     }
     score[n] = gold100 + colonies_n * 2 + pop + land;
   }
-  /* Stable insertion sort by score descending; perm tracks nation ids. */
-  for (int i = 1; i < 4; ++i) {
-    const int s = score[i];
-    const int p = perm[i];
-    int j = i;
-    while (j > 0 && score[j - 1] < s) {
-      score[j] = score[j - 1];
-      perm[j] = perm[j - 1];
-      j--;
+  /* DOS-LITERAL FUN_1cf8_000a raw 18654-18738: unsigned ascending
+   * words; move the next descent before the first equal-or-greater score.
+   * Equal scores keep their order unless a later descent is reinserted. */
+  int cursor = 0;
+  for (;;) {
+    while (cursor < 3 && score[cursor + 1] >= score[cursor]) {
+      ++cursor;
     }
-    score[j] = s;
-    perm[j] = p;
+    if (cursor == 3) {
+      break;
+    }
+    const uint16_t value = score[cursor + 1];
+    const int nation = perm[cursor + 1];
+    for (int i = cursor + 1; i < 3; ++i) {
+      score[i] = score[i + 1];
+      perm[i] = perm[i + 1];
+    }
+    int dest = 0;
+    while (dest < 3 && score[dest] < value) {
+      ++dest;
+    }
+    for (int i = 3; i > dest; --i) {
+      score[i] = score[i - 1];
+      perm[i] = perm[i - 1];
+    }
+    score[dest] = value;
+    perm[dest] = nation;
   }
   for (int place = 0; place < 4; ++place) {
     out_rank[perm[place]] = (uint8_t)place;

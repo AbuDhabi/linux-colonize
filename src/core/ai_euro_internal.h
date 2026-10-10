@@ -325,7 +325,10 @@ extern uint8_t ai_euro_s_20e6_village_visited[AI_20E6_VILLAGE_MAX];
 int ai_euro_20e6_wander_step(
   ColonizeTurnContext* ctx, ColonizeUnit* u, Ai20e6Unit* s, int* out_attack, int* out_saw_foe
 );
-int ai_euro_20e6_ship_far_roam(ColonizeTurnContext* ctx, ColonizeUnit* u, const Ai20e6Unit* s);
+int ai_euro_20e6_ship_far_roam(
+  ColonizeTurnContext* ctx, ColonizeUnit* u, const Ai20e6Unit* s,
+  int military_founders, int unload_mask
+);
 int ai_euro_20e6_treasure_cash_in(
   ColonizeTurnContext* ctx,
   ColonizeUnit* u,
@@ -382,6 +385,9 @@ int ai_euro_try_ship_trade_haul(
   int nation_id,
   ColonizeUnit* ship
 );
+int ai_euro_try_ship_trade_haul_snapshot(
+  ColonizeTurnContext* ctx, int nation_id, ColonizeUnit* ship, int stack_other
+);
 int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship);
 void ai_euro_ship_leave_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship);
 
@@ -404,6 +410,16 @@ void ai_euro_20e6_goal_fold(
   int* pioneers,
   int* civ,
   int* carry80
+);
+typedef struct AiEuroShipBandCounts {
+  int stack_other;
+  int pioneers;
+  int pioneers_before_fold;
+  int military;
+  int civilians;
+} AiEuroShipBandCounts;
+int ai_euro_20e6_unload_mask_snapshot(
+  ColonizeTurnContext* ctx, ColonizeUnit* ship, int nation, AiEuroShipBandCounts* counts
 );
 int ai_euro_20e6_unload_mask(ColonizeTurnContext* ctx, ColonizeUnit* ship, int nation);
 int ai_euro_20e6_unload_by_mask(
@@ -450,6 +466,11 @@ COLONIZE_INTERNAL void ai_euro_5952_set_ring1_threat(int colony_id, int ring1);
 COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
   ColonizeTurnContext* ctx, ColonizeColony* col, int n
 );
+/* FUN_5952_035e raw 95959-95972: buy the two-Horse starter herd. */
+COLONIZE_INTERNAL void ai_euro_5952_seed_horses(
+  ColonizeTurnContext* ctx, ColonizeColony* col
+);
+
 COLONIZE_INTERNAL int ai_euro_5952_docks_started(int colony_id);
 /* FUN_5952_035e's field-placement section (raw 94551-94620), bugs.md #585. */
 COLONIZE_INTERNAL void ai_euro_colony_tick_28c8_reassign(

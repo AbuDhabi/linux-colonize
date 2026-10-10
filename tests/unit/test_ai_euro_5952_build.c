@@ -914,7 +914,58 @@ static int case_tools_purchase_needs_gold(void) {
   return 0;
 }
 
+static int case_starter_horses_purchase(void) {
+  Fx f;
+  if (fx_build(&f, 1)) return 1;
+  f.col1.nation[NATION].gold = 10;
+  f.col1.head.tut3.nr5 = 1;
+  f.col1.head.turn = 39;
+  ai_euro_5952_seed_horses(&f.ctx, f.col);
+  if (f.col->stock[COLONIZE_CARGO_HORSES] || f.col1.nation[NATION].gold != 10) {
+    return fail("starter herd must wait until turn 40");
+  }
+  f.col1.head.turn = 40;
+  f.col1.head.tut3.nr5 = 0;
+  ai_euro_5952_seed_horses(&f.ctx, f.col);
+  if (f.col->stock[COLONIZE_CARGO_HORSES]) {
+    return fail("empty tile's DOS capacity alias must read the tutorial byte");
+  }
+  f.col1.head.tut3.nr5 = 1;
+  f.col1.nation[NATION].gold = 9;
+  ai_euro_5952_seed_horses(&f.ctx, f.col);
+  if (f.col->stock[COLONIZE_CARGO_HORSES]) return fail("starter herd costs 10 gold");
+  f.col1.nation[NATION].gold = 10;
+  ai_euro_5952_seed_horses(&f.ctx, f.col);
+  if (f.col->stock[COLONIZE_CARGO_HORSES] != 2 || f.col1.nation[NATION].gold != 0) {
+    return fail("empty tile with tutorial alias must buy two Horses for 10 gold");
+  }
+  f.col->stock[COLONIZE_CARGO_HORSES] = 0;
+  f.col1.nation[NATION].gold = 10;
+  const int land = units_spawn_allow_stack(&f.units, 0, f.col->x, f.col->y);
+  if (land < 0) return fail("spawn starter-herd land control");
+  ai_euro_5952_seed_horses(&f.ctx, f.col);
+  if (f.col->stock[COLONIZE_CARGO_HORSES]) {
+    return fail("live non-carrier must override the empty-tile alias");
+  }
+  units_disband(&f.units, land);
+  f.col1.head.tut3.nr5 = 0;
+  const int hull_type = units_kind_type_index(&f.units, UNITS_KIND_CARAVEL);
+  if (hull_type < 0 || units_spawn_allow_stack(&f.units, hull_type, f.col->x, f.col->y) < 0) {
+    return fail("spawn starter-herd carrier");
+  }
+  ai_euro_5952_seed_horses(&f.ctx, f.col);
+  if (f.col->stock[COLONIZE_CARGO_HORSES] != 2 || f.col1.nation[NATION].gold != 0) {
+    return fail("live carrier must buy the starter herd without a tutorial flag");
+  }
+  f.col1.nation[NATION].gold = 10;
+  ai_euro_5952_seed_horses(&f.ctx, f.col);
+  if (f.col1.nation[NATION].gold != 10) return fail("existing herd must not be charged again");
+  fx_done(&f);
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"case_starter_horses_purchase", case_starter_horses_purchase},
   {"case_first_pick_is_stockade", case_first_pick_is_stockade},
   {"case_docks_when_ring_worked_out", case_docks_when_ring_worked_out},
   {"case_small_colony_wants_construction", case_small_colony_wants_construction},

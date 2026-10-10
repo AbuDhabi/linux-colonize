@@ -6035,6 +6035,9 @@ static int sp_47(void) {
     ColonizeDosRng* saved_rng = ctx.rng;
     dos_rng_seed(&gift_rng, 7u);
     ctx.rng = &gift_rng;
+    /* This direct apply fixture starts a new encounter without 022e's
+     * move-tail roll; discard the earlier narrative's visitor binding. */
+    ai_contact_visit_mood_clear(4, 0);
     const int gave = ai_contact_try_village_gifts(&ctx, 4);
     ctx.rng = saved_rng;
     if (!gave) {

@@ -1383,6 +1383,23 @@ static int case_r3_r4_sugar_rum_cigars_boycott(void) {
       return fail("without sticky==2, 13b0 should sign a peace treaty");
     }
 
+    /* 153e's exit refreshes the other nation's timer even when 13b0's
+     * cadence skips its body. Signing itself sets the mover's timer to 1. */
+    if (r3.nation[0].treaty_timer[1] != 1 ||
+        r3.nation[1].treaty_timer[0] != (6 - r3.head.difficulty) * 2) {
+      return fail("AI audience must refresh the other nation's treaty cooldown");
+    }
+    while ((turn_r3 + 1) % 3 == 0) turn_r3++;
+    r3.nation[0].treaty_timer[1] = 7;
+    r3.nation[1].treaty_timer[0] = 0;
+    r3.nation[0].founding_fathers[FF_BENJAMIN_FRANKLIN / 8] |=
+      (uint8_t)(1u << (FF_BENJAMIN_FRANKLIN % 8));
+    ai_diplo_13b0_encounter(&ctx_r3, 0, 1);
+    if (r3.nation[0].treaty_timer[1] != 7 ||
+        r3.nation[1].treaty_timer[0] != 6 - r3.head.difficulty) {
+      return fail("audience exit must use mover Franklin and preserve mover timer");
+    }
+
     /* Sugar embargo: set on declare, lift on peace (same bit1 as king refuse). */
     ColonizeCol1Save sg;
     col1_save_init(&sg);

@@ -307,8 +307,13 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
          * of the nation's units and leaves a loitering one alone, which is
          * what FUN_5bfb_3180's per-step neighbour scan does.
          */
-        if (!ai_contact_brave_walked_up_to(bu, c->x, c->y) &&
-            !ai_contact_is_visit_brave(ctx, nation_id, e, bu)) {
+        /* 022e is bound to this step's Brave. An earlier visitor may still
+         * be adjacent and have walked up this turn (fresh 1553, two gifts). */
+        const AiContactVisitMood* selected = &ai_contact_s_visit_mood[nation_id - 4][e];
+        const int selected_turn = ctx->turn_number ? (int)*ctx->turn_number : -1;
+        if (selected->valid && selected->turn == selected_turn
+              ? !ai_contact_is_visit_brave(ctx, nation_id, e, bu)
+              : !ai_contact_brave_walked_up_to(bu, c->x, c->y)) {
           continue;
         }
         best_ci = ci;
@@ -584,7 +589,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
         ai_contact_tribe_name(nation_id), c->name
       );
     }
-    return 1; /* one gift-bearing visit per Indian nation per turn */
+    return 1; /* this Brave's gift-bearing encounter is resolved */
   }
   return 0;
 }

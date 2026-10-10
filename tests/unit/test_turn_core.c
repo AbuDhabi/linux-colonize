@@ -3944,16 +3944,30 @@ static int case_euro_power_rank(void) {
     fprintf(stderr, "rank: call failed\n");
     return 1;
   }
-  /* FR gold-heavy → place 0; EN pop → place 1; SP → 2; DU empty → 3. */
-  if (rank[1] != 0 || rank[0] != 1 || rank[2] != 2 || rank[3] != 3) {
+  /* DOS ascending scores: DU empty → 0; SP → 1; EN → 2; FR → 3. */
+  if (rank[1] != 3 || rank[0] != 2 || rank[2] != 1 || rank[3] != 0) {
     fprintf(
       stderr,
-      "rank got EN=%u FR=%u SP=%u DU=%u want 1/0/2/3\n",
+      "rank got EN=%u FR=%u SP=%u DU=%u want 2/3/1/0\n",
       (unsigned)rank[0],
       (unsigned)rank[1],
       (unsigned)rank[2],
       (unsigned)rank[3]
     );
+    return 1;
+  }
+  /* DOS's descent reinsertion goes before equals, unlike stable insertion.
+   * Scores 2/1/1/3 sort nations 2/1/0/3, placing the later low tie first. */
+  for (int n = 0; n < 3; ++n) {
+    pool.colonies[n].active = false;
+  }
+  col1.nation[0].gold = 200;
+  col1.nation[1].gold = 100;
+  col1.nation[2].gold = 100;
+  col1.nation[3].gold = 300;
+  if (turn_rank_euro_nations(&col1, &pool, rank) != 0 ||
+      rank[0] != 2 || rank[1] != 1 || rank[2] != 0 || rank[3] != 3) {
+    fprintf(stderr, "Euro rank must insert a descending score before equal scores\n");
     return 1;
   }
   fprintf(stderr, "euro power rank ok\n");

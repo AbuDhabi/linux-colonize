@@ -60,7 +60,7 @@ typedef struct ColonizeTurnContext {
   /* Optional LABELS.TXT — @MISC / @CMESSAGE wording for status lines. */
   const ColonizeMsgCatalog* labels;
   /*
-   * FUN_5bfb_00f8 inverse rank filled in TURN_PROC_SETUP (0 = strongest).
+   * FUN_5bfb_00f8 inverse rank filled in TURN_PROC_SETUP (0 = weakest).
    * euro_power_rank_ok set when turn_rank_euro_nations ran this EOT.
    */
   uint8_t euro_power_rank[4];
@@ -203,7 +203,7 @@ void turn_run_ai_nation_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out, i
 
 /*
  * FUN_5bfb_00f8 — rank Euro nations by gold/100 + 2*colonies + pop + land combat.
- * Writes inverse rank into out_rank[nation] (0 = strongest). Returns 0 on success.
+ * Writes inverse rank into out_rank[nation] (0 = weakest). Returns 0 on success.
  * Cite: viceroy_unpacked.c ~96506–96531; turn/mid_pass_indian_rank.md.
  */
 int turn_rank_euro_nations(
