@@ -1474,10 +1474,9 @@ static void ai_euro_dispatcher_turn_plan(ColonizeTurnContext* ctx, int nation_id
   ai_euro_0a60_goal_orders_structural(ctx, nation_id);
 
   /* Opportunistic balance after plan (separate from timer slot). Not for
-   * the WoI crown slot: this pass is OpenCol-shaped (war-fatigue peace roll,
-   * upkeep drain, privateer spawn, Indian matrix — no DOS counterpart in
-   * the 6d8e nation turn, verified 2026-09-07g), and its peace arm would
-   * silently end the War of Independence. */
+   * the WoI crown slot: the privateer spawn / Indian matrix effects remain
+   * OpenCol-shaped. The unsupported war-fatigue peace roll was removed after
+   * confirming that DOS 10ec is a predicate and 13b0 skips active wars. */
   if (!(ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi &&
         nation_id == (int)ctx->col1->head.crown_nation_id)) {
     ai_diplo_euro_balance(ctx, nation_id);
