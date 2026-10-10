@@ -1221,6 +1221,12 @@ int ai_euro_try_ship_trade_haul(
   int nation_id,
   ColonizeUnit* ship
 ) {
+  return ai_euro_try_ship_trade_haul_snapshot(ctx, nation_id, ship, -1);
+}
+
+int ai_euro_try_ship_trade_haul_snapshot(
+  ColonizeTurnContext* ctx, int nation_id, ColonizeUnit* ship, int stack_other
+) {
   if (!ctx || !ctx->units || !ctx->map || !ctx->colonies || !ship || !ship->active) {
     return 0;
   }
@@ -1265,6 +1271,12 @@ int ai_euro_try_ship_trade_haul(
   if (berthed_at >= 0 && ship->cargo_count == 0 &&
       ai_euro_20e6_europe_dock_demand(ctx, ship, nation_id)) {
     return 2;
+  }
+  /* At an own berth DOS 0920 selects the hull and boarded members at
+   * (-2,-2) before 0d38 counts them; unboarded units standing beside the
+   * hull stay outside this carrier stack (1544 fresh DOS Scout case). */
+  if (stack_other < 0) {
+    stack_other = ship->cargo_count;
   }
   const int has_tools = ai_euro_unit_hold_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_TOOLS);
   const int has_lumber =
@@ -1401,6 +1413,11 @@ int ai_euro_try_ship_trade_haul(
       (void)ai_euro_20e6_3fa6_sail_home(ctx, ship, nation_id);
       return 2;
     }
+  }
+  /* FUN_521d_20e6 raw 89877-89878: the work queue requires local_a8 == 0.
+   * A hull that unloaded earlier still uses its band-entry stack count. */
+  if (!have_dest && stack_other != 0) {
+    return 0;
   }
   if (!have_dest) {
     /*
@@ -1922,6 +1939,12 @@ void ai_euro_20e6_goal_fold(
 }
 
 int ai_euro_20e6_unload_mask(ColonizeTurnContext* ctx, ColonizeUnit* ship, int nation) {
+  return ai_euro_20e6_unload_mask_snapshot(ctx, ship, nation, NULL);
+}
+
+int ai_euro_20e6_unload_mask_snapshot(
+  ColonizeTurnContext* ctx, ColonizeUnit* ship, int nation, AiEuroShipBandCounts* counts
+) {
   if (!ctx->map || nation < 0 || nation > 3) {
     return 0;
   }
@@ -1970,7 +1993,23 @@ int ai_euro_20e6_unload_mask(ColonizeTurnContext* ctx, ColonizeUnit* ship, int n
    * founders" conflict noted in the 2026-09-06 pass.
    */
   int carry80 = 0; /* iStack_80 */
+  const int pioneers_before_fold = pioneers;
   ai_euro_20e6_goal_fold(ctx, ship, nation, probe1, &pioneers, &civ, &carry80);
+  /* FUN_521d_20e6 raw 89412-89444: these DOS locals survive unloading.
+   * The colony-sail gate and score must not re-count a partly unloaded hull. */
+  if (counts) {
+    int stack_count = 0;
+    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+      const ColonizeUnit* u = &ctx->units->units[i];
+      stack_count += u->active && u->x == ship->x && u->y == ship->y;
+    }
+    counts->stack_other = stack_count > 0 ? stack_count - 1 : 0;
+    counts->pioneers = pioneers;
+    counts->pioneers_before_fold = pioneers_before_fold;
+    counts->military = mil;
+    counts->civilians = civ;
+  }
+
   /*
    * Raw 1768 sits AFTER the fold, not before it (order corrected 2026-09-06e
    * together with the fold itself): a colonist-only wave arrives with all

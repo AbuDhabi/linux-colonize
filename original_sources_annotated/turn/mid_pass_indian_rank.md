@@ -16,11 +16,11 @@ DOS year-loop mid-pass (before EN..DU nation loop), not OpenCol's full
 
 1. Identity perm at `DS:0xa150`: `perm[i]=i`
 2. Score[i] = `gold/100` + `2*colony_counts[i]` + pop proxy + land combat strength
-3. Sort scores + perm (`291f_0ed0`→`1cf8_000a`)
+3. Sort unsigned score words ascending + perm (`291f_0ed0`→`1cf8_000a`); a descent is reinserted before equal scores
 4. Write inverse rank: `DS:0x917c[perm[i]] = i`
 
 **OpenCol:** `turn_rank_euro_nations` **Done** thin — fills
-`ctx->euro_power_rank[]` in `TURN_PROC_SETUP` (0 = strongest). Live colony/pop
+`ctx->euro_power_rank[]` in `TURN_PROC_SETUP` (0 = weakest). Live colony/pop
 + gold/100; live `land_combat_strength` via census refresh. Diplo military score
 uses place. Not a save DS:0x917c writer (RMW layout PARKED).
 

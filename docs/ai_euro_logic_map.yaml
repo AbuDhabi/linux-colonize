@@ -457,12 +457,6 @@ graphs:
         label: Garrison-quota distribution — LABOR at colony for 'A' military units under quota
         dos: 0a60 raw 904-980; 0d38 case 0xa armed count
         status: dos
-      - id: sec_e
-        kind: loop
-        label: "E: foreign colonies at war → MILITARY prio 5"
-        note: "The thin bind of one idle Soldier/Dragoon (bare AI_MOVE at ai_euro_nearest_military_goal) was deleted 2026-10-02, bugs.md #1034(c): no DOS cite, no golden moved."
-        fn: ai_diplo.c:ai_diplo_at_war
-        status: thin
       - id: producers
         kind: call
         label: Foreign-colony + village producers — MILITARY approach, CONTACT lurk, FOUND/MIL_EXPAND ship staging
@@ -486,8 +480,7 @@ graphs:
       - [d_colony, d_work]
       - [d_work, d_garrison]
       - [d_garrison, sec_d, "next colony"]
-      - [sec_d, sec_e, "done"]
-      - [sec_e, producers]
+      - [sec_d, producers, "done"]
       - [producers, end]
 
   # ---------------------------------------------------------------------
@@ -713,14 +706,14 @@ graphs:
         fn: ai_euro_expand.c:ai_euro_4393_work_queue_haul_pick
         dos: LAB_004393; ai_goals_work_consume
         status: dos
-        note: bugs.md #877 — entry gate raw 89877-89878 (`0xc < type < 0x13 && (bVar20 || bVar7)`) and inner accept raw 89898 (`bVar20 || work[+5]`) are both live; bVar20 = ai_euro_land.c:ai_euro_20e6_bvar20_seed (raw 88556-88573; the WoI clear 88625-88628 is LAB_4d2e-only and never reaches 4393 or the raw 90295 load loop — #818, 2026-09-24). Still open: the `local_a8 == 0 && local_6 == 0` half of the entry `if`.
+        note: bugs.md #877 — entry gate raw 89877-89878 (`0xc < type < 0x13 && (bVar20 || bVar7)`) and inner accept raw 89898 (`bVar20 || work[+5]`) are both live; bVar20 = ai_euro_land.c:ai_euro_20e6_bvar20_seed (raw 88556-88573; the WoI clear 88625-88628 is LAB_4d2e-only and never reaches 4393 or the raw 90295 load loop — #818, 2026-09-24). The later far-roam arm also retains the band military/founder count and requires a zero saved unload mask (raw 88632-88637). The entry also requires `local_a8 == 0 && local_6 == 0`: the acting ship passes the pre-unload stack snapshot, and its existing course blocks this untasked haul path. At an own berth, only the selected carrier and boarded members count (0920), excluding an unboarded Scout beside the hull.
       - id: cadence
         kind: step
         label: Empty untasked ship — High Seas cadence
         fn: ai_euro_land.c:ai_euro_20e6_457e_hs_cadence
         dos: LAB_457e (after the 4393 haul)
         status: dos
-        note: Kill switch AI_20E6_HS_CADENCE=0.
+        note: Kill switch AI_20E6_HS_CADENCE=0. The 32-turn cadence uses the compact live unit index, matching DOS deletion compaction (1427_0824), as does Man-O-War parity; storage slots retain holes in the port.
       - id: end
         kind: end
         label: return
@@ -929,7 +922,7 @@ graphs:
         fn: ai_euro_land.c:ai_euro_20e6_border_park_arm
         dos: FUN_521d_20e6 raw 89011-89029 (LAB_4d2e tail, asm OVL14_L0000:0x005992-0x005a31)
         status: dos
-        note: "Ported 2026-09-18 (bugs.md #512). The LAB_4d2e tail runs local_ce == 0 (asm 0x5840) → local_8e == 0 (asm 0x5876) → the 0x42 / 0x65 pioneer codes (raw 88989-89009, act-level in this port) → this arm → the 0x39 fallthrough (asm 0x586a); every failed sub-test jumps straight to 0x586a. The two chain walks have their far-call args dropped by Ghidra — the asm at 0x59c9 passes the unit index in AX, FUN_1000_8b7e = FUN_281f_098e = FUN_1427_0026 (walk +0x315e to the tail) and FUN_1000_84de = FUN_281f_02ee = FUN_1427_0002 (walk +0x315c to the head), so tail == head is exactly 'alone in the chain' (units_map_stack_chrome). The arm issues no FORTIFY order and no goto: +0x314b is the AI annotation byte and no DOS reader compares it against 0x46, so the whole effect is LAB_5899's local_76 = 8 — the scored wander step is dropped. It spends no garrison quota and needs no colony of its own nearby. Unreachable in the current goldens (the land arms branch of the gate is never taken in golden_ai_turns / smoke_ai_* / golden_woi_ref01), so it changes no golden counter; covered by the four unit_border_park_* cases in tests/unit/test_ai_euro_20e6.c."
+        note: "2026-10-10: attack entry tests treaty bit 0x40 clear (raw 88880-88885), not formal war; either Privateer bypasses it, with the WoI control gate retained. Ported 2026-09-18 (bugs.md #512). The LAB_4d2e tail runs local_ce == 0 (asm 0x5840) → local_8e == 0 (asm 0x5876) → the 0x42 / 0x65 pioneer codes (raw 88989-89009, act-level in this port) → this arm → the 0x39 fallthrough (asm 0x586a); every failed sub-test jumps straight to 0x586a. The two chain walks have their far-call args dropped by Ghidra — the asm at 0x59c9 passes the unit index in AX, FUN_1000_8b7e = FUN_281f_098e = FUN_1427_0026 (walk +0x315e to the tail) and FUN_1000_84de = FUN_281f_02ee = FUN_1427_0002 (walk +0x315c to the head), so tail == head is exactly 'alone in the chain' (units_map_stack_chrome). The arm issues no FORTIFY order and no goto: +0x314b is the AI annotation byte and no DOS reader compares it against 0x46, so the whole effect is LAB_5899's local_76 = 8 — the scored wander step is dropped. It spends no garrison quota and needs no colony of its own nearby. Unreachable in the current goldens (the land arms branch of the gate is never taken in golden_ai_turns / smoke_ai_* / golden_woi_ref01), so it changes no golden counter; covered by the four unit_border_park_* cases in tests/unit/test_ai_euro_20e6.c."
       - id: score
         kind: step
         label: score_move toward target → set AI_MOVE goto
@@ -1084,6 +1077,13 @@ graphs:
         dos: FUN_5952_035e asm 5952:21d4-5952:274b (viceroy_overlays.asm:145550-146167); FUN_5952_0214 / 0280 / 02f4
         status: dos
         note: "bugs.md #483. Prologue clears +0x1d bit 0x80 and sets +0x94 = 0xff, then tries @BUILDING ids in DOS order — 6, 0, 0x11, [pop<4 stop], 0x10, 0x12, {unit 0xc Wagon Train}, 0xc, 3, 0x25, 0x24, 1, 0x28, 0x10, 0x14, 0x14, 0xd, [pop<8 stop], 0xe, 0x25, 2, then the naval band (full craft chain + COASTAL: 8, then unit 0xf Galleon / 0x10 Privateer / 0x11 Frigate from the census), the Artillery arm (unit 0xb), the six-chain FUN_5952_0280 upgrade loop, 0x26, the 26e4 ship arms, the +0x1c 0x10 SMALL_AI writer and the unit-0xb tail. FUN_5952_0214 recurses on the DS:0x8f85 predecessor; FUN_5952_02f4 writes code = row + 0x1f with no gate of its own. Trace AI_5952_BUILD_TRACE=1. POSITION: the port runs it right after ai_euro_colony_goals (which produces the ring-1 threat count it reads), not in the 28c8 body. bugs.md #586 (2026-09-22): a committed Docks arm (asm 0x22bc-0x22ea) stores 0 into [BP+0xff62], the tick-local train_flag, so ARM 2 of node `specialists` cannot fire for that colony that turn; the Stockade arm at 0x22ec does not. Because the port splits the DOS body across two functions the store is carried as the per-colony latch ai_euro_5952_docks_started()."
+      - id: horses
+        kind: step
+        label: Buy two starter Horses for 10 gold
+        fn: ai_euro_colony_jobs.c:ai_euro_5952_seed_horses
+        dos: FUN_5952_035e raw 95959-95972; asm 2a03-2a63
+        status: dos
+        note: Requires turn >= 40, horse stock < 2, gold >= 10 and nonzero stack-head cargo capacity. Empty-tile index -1 aliases terrain row 27's labor byte as type 24, then the saved tutorial byte at DS:5387 as capacity; fresh 1592 Curacao confirms this path.
       - id: end
         kind: end
         label: return
@@ -1098,5 +1098,6 @@ graphs:
       - [expert, indoor]
       - [indoor, specialists]
       - [specialists, build]
-      - [build, loop, "next colony"]
+      - [build, horses]
+      - [horses, loop, "next colony"]
       - [loop, end, "done"]

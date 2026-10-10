@@ -545,6 +545,25 @@ static int test_beg_conceded_falls_into_gift_863(void) {
     return fail("#863 control: without bVar7 the gift arm must give food");
   }
 
+  /* Fresh 1553 DOS resolves two Braves' generous visits in one nation turn.
+   * The published second visitor must win over the earlier walked-up Brave,
+   * and the first gift's contact_state 2 does not veto the second gift. */
+  const int second_id = units_spawn_allow_stack(&units, 0, 6, 5);
+  ColonizeUnit* second = units_get(&units, second_id);
+  if (!second) {
+    return fail("second generous visit: spawn Brave");
+  }
+  second->nation_id = 4;
+  second->home_tribe_id = 0;
+  ai_native_note_brave_turn_origin(second_id, 9, 9);
+  ai_contact_visit_mood_publish(&ctx, 4, 0, second_id, 1);
+  c->stock[COLONIZE_CARGO_FOOD] = 20;
+  if (!ai_contact_try_village_gifts(&ctx, 4) ||
+      c->stock[COLONIZE_CARGO_FOOD] != 0x4b ||
+      !ai_contact_brave_visited_this_turn(&ctx, 4, second_id)) {
+    return fail("second generous visit must gift with its own Brave binding");
+  }
+
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);

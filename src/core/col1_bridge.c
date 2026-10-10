@@ -2478,7 +2478,12 @@ bool col1_bridge_capture_w(
        */
       {
         uint8_t nib[COLONIZE_COL1_COLONY_POP_MAX];
-        memset(nib, 0, sizeof(nib));
+        /* DOS updates the live roster only. Preserve counters beyond pop;
+         * fresh 1592 Cayenne retains inactive slot 1's nibble value 1. */
+        for (int p = 0; p < (int)COLONIZE_COL1_COLONY_POP_MAX; ++p) {
+          nib[p] = (uint8_t)((p & 1) ? dst->specialty[p / 2].odd
+                                    : dst->specialty[p / 2].even);
+        }
         for (int p = 0; p < dst->population && p < (int)COLONIZE_COL1_COLONY_POP_MAX; ++p) {
           /* col1_new_index maps old colonist index -> canonical position. */
           uint8_t v = src->colonists[p].turns_in_job;

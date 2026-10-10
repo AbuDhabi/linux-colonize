@@ -2572,6 +2572,41 @@ COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
   }
 }
 
+/* DOS-LITERAL FUN_5952_035e raw 95959-95972, asm 2a03-2a63. */
+COLONIZE_INTERNAL void ai_euro_5952_seed_horses(
+  ColonizeTurnContext* ctx, ColonizeColony* col
+) {
+  if (!ctx || !col || !ctx->units || !ctx->col1_ok || !ctx->col1 ||
+      col->stock[COLONIZE_CARGO_HORSES] >= 2 || ctx->col1->head.turn < 40) {
+    return;
+  }
+  const int head_id = units_tile_head_id_at(ctx->units, col->x, col->y);
+  const ColonizeUnit* head = units_get_const(ctx->units, head_id);
+  int capacity = 0;
+  if (head) {
+    const ColonizeUnitType* type = units_type(ctx->units, head->type_index);
+    capacity = type ? type->cargo : 0;
+  } else {
+    /* DOS does not guard the 07e0 result -1. Its type address is
+     * 3146 - 1c = 312a = terrain row 27's 2f7a labor byte (24).
+     * Capacity then reads 5237 + 24*e = 5387, the tutorial byte.
+     * Fresh 1592 Curacao: watch 650a catches 0 -> 2 at 5952:2a63,
+     * local_13e = -1, type byte 24, and tutorial nr5 set. */
+    const int type = map_dos_terr_labor_penalty_byte(27);
+    const int address = 0x5237 + type * 0x0e;
+    if (address == 0x5387) {
+      uint8_t tutorial;
+      memcpy(&tutorial, &ctx->col1->head.tut3, sizeof tutorial);
+      capacity = tutorial;
+    }
+  }
+  if (!capacity || (long)(int32_t)europe_nation_gold(ctx->europe, ctx->col1, col->nation_id) < 10) {
+    return;
+  }
+  europe_nation_gold_add(ctx->europe, ctx->col1, col->nation_id, -10);
+  col->stock[COLONIZE_CARGO_HORSES] = 2;
+}
+
 /* FUN_5952_035e tile-improvement arm (raw 94402-94551, bugs.md #612) — the
  * body lives beside the 20e6 terrain/ring tables it shares. */
 void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* col);
@@ -2977,6 +3012,9 @@ static void ai_euro_colony_tick_run(
       }
       /* DOS raw ~95860-95958, the tick's last two arms (bugs.md #571/#572). */
       ai_euro_5952_specialist_arms(ctx, col, n);
+      if (whole_tick) {
+        ai_euro_5952_seed_horses(ctx, col);
+      }
       continue;
     }
 
@@ -3038,6 +3076,9 @@ static void ai_euro_colony_tick_run(
       ai_euro_5952_build_cascade(ctx, col);
     }
     ai_euro_5952_specialist_arms(ctx, col, n);
+    if (whole_tick) {
+      ai_euro_5952_seed_horses(ctx, col);
+    }
   }
 }
 

@@ -1488,8 +1488,18 @@ int main(void) {
         fprintf(stderr, "recapture reread failed %s\n", fix->path);
         return 1;
       }
+      /* The loaded record can retain an education nibble beyond its live
+       * population. Capturing active workers must leave that slot intact. */
+      const bool unused_education = cap.head.colony_count && cap.colony[0].population < 32;
+      if (unused_education) {
+        cap.colony[0].specialty[15].odd = 13;
+      }
       if (!col1_bridge_capture_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&cap), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, br.year, br.autumn, br.turn_number, br.human_nation, br.cursor_x, br.cursor_y, br.view_x, br.view_y, units.selected_id, units.selected_id < 0, err, sizeof(err))) {
         fprintf(stderr, "recapture failed %s: %s\n", fix->path, err);
+        return 1;
+      }
+      if (unused_education && cap.colony[0].specialty[15].odd != 13) {
+        fprintf(stderr, "recapture lost inactive education nibble %s\n", fix->path);
         return 1;
       }
       if (cap.head.colony_count != orig.head.colony_count ||

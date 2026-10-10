@@ -1963,6 +1963,18 @@ static void ai_talk_choice(
 /* ===================== AI talk stage machine: peace offer, tribute, worthiness, alliance (ai_talk_finish .. ai_talk_resume) ===================== */
 static void ai_talk_advance(ColonizeTurnContext* ctx);
 
+/* DOS-LITERAL FUN_5bfb_153e raw 98414-98425: shared audience exit,
+ * including the AI branch that calls 13b0 then jumps to LAB_30de. */
+static void ai_diplo_153e_finish_timer(ColonizeTurnContext* ctx, int self, int target) {
+  if (!ctx || !ctx->col1 || self < 0 || self >= 4 || target < 0 || target >= 4)
+    return;
+  if (ai_talk_peace(ctx, self, target)) {
+    int cool = (6 - (int)ctx->col1->head.difficulty) * 2;
+    if (ai_talk_franklin(ctx, self)) cool >>= 1;
+    ctx->col1->nation[target].treaty_timer[self] = (uint8_t)cool;
+  }
+}
+
 static void ai_talk_finish(ColonizeTurnContext* ctx) {
   Ai153eTalk* k = &s_talk;
   ColonizeCol1Save* col1 = ctx->col1;
@@ -1973,13 +1985,7 @@ static void ai_talk_finish(ColonizeTurnContext* ctx) {
       *f = (uint8_t)(*f | 0x08);
     }
   }
-  if (ai_talk_peace(ctx, k->self, k->target)) {
-    int cool = (6 - (int)col1->head.difficulty) * 2;
-    if (ai_talk_franklin(ctx, k->self)) {
-      cool >>= 1;
-    }
-    col1->nation[k->self].treaty_timer[k->target] = (uint8_t)cool;
-  }
+  ai_diplo_153e_finish_timer(ctx, k->self, k->target);
   k->active = 0;
 }
 
@@ -3292,6 +3298,7 @@ void ai_diplo_13b0_encounter(ColonizeTurnContext* ctx, int mover, int other) {
       ai_diplo_indian_hostility_sticky(ctx->col1, mover) != AI_DIPLO_STICKY_DEEP) {
     ai_diplo_13b0_treaty_tick(ctx, mover, other);
   }
+  ai_diplo_153e_finish_timer(ctx, mover, other);
 }
 
 /*

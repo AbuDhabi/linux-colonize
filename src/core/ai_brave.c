@@ -198,13 +198,6 @@ static uint8_t s_brave_origin_ok[COLONIZE_UNITS_MAX];
  */
 static ColonizeTurnContext* s_ai_native_ctx = NULL;
 static uint8_t s_ai_first_contact_this_turn[8][4];
-/*
- * DOS's `aiStack_20[nation]` (viceroy 98653-98676): the 3180 move tail
- * resolves at most ONE 022e encounter per nation per pass. bugs.md #824
- * moved the gift/beg apply onto the step site, so the latch lives here now
- * instead of being implied by ai.c §9's once-per-nation arm order.
- */
-static uint8_t s_ai_visit_applied_this_turn[8];
 
 /* ===================== First contact, brave-turn origin & brave step/order execution (ai_native_first_contact_this_turn .. ai_native_brave_step) ===================== */
 int ai_native_first_contact_this_turn(int nation_id, int euro_nation) {
@@ -305,8 +298,10 @@ int ai_native_step_first_contact(
       const ColonizeColony* ec = ecid >= 0 ? colonies_get(ai_s_native_colonies, ecid) : NULL;
       colony_here = ec && ec->active && ec->nation_id == e;
     }
-    if (colony_here && !s_ai_visit_applied_this_turn[nation_id - 4]) {
-      s_ai_visit_applied_this_turn[nation_id - 4] = 1;
+    /* DOS 3180's aiStack_20 is local to this encounter scan, not the
+     * whole nation turn. Fresh 1553: Braves 15 and 25 each give Quebec
+     * six Tobacco through 022e:0b0a. `done[e]` above is the scan latch. */
+    if (colony_here) {
       /* 5bfb:0683 tests the food-beg arm before the 096c gift arm even for a
        * generous visit. A conceded beg falls through to 096c itself. */
       if (!ai_contact_try_village_beg_food(s_ai_native_ctx, nation_id)) {
@@ -738,7 +733,6 @@ void ai_native_nation_pulse(
     (void)ai_init_sched_apply(rng, nation_id, -1);
   }
   memset(s_ai_first_contact_this_turn[nation_id - 4], 0, sizeof(s_ai_first_contact_this_turn[0]));
-  s_ai_visit_applied_this_turn[nation_id - 4] = 0;
 
   /*
    * Mid-turn FUN_4d56_1816 prelude: DOS burns nothing on the shared stream
@@ -1132,5 +1126,4 @@ void ai_native_reset(void) {
   memset(s_brave_origin_ok, 0, sizeof(s_brave_origin_ok));
   s_ai_native_ctx = NULL;
   memset(s_ai_first_contact_this_turn, 0, sizeof(s_ai_first_contact_this_turn));
-  memset(s_ai_visit_applied_this_turn, 0, sizeof(s_ai_visit_applied_this_turn));
 }
