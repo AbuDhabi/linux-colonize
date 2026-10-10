@@ -288,6 +288,7 @@ void units_set_spawn_refused_hook(ColonizeUnitsSpawnRefusedFn fn);
 bool units_spawn_room(const ColonizeUnitPool* pool, int nation);
 /* Mark an on-map arrival at the tail of the DOS tile chain. */
 void units_tile_stack_arrive(ColonizeUnitPool* pool, int unit_id);
+void units_tile_stack_sort_at(ColonizeUnitPool* pool, int x, int y);
 /* DOS FUN_281f_07e0: return the latest-arrival unit at (x,y), if any. */
 int units_tile_head_id_at(const ColonizeUnitPool* pool, int x, int y);
 /* DOS FUN_1427_10be + FUN_1427_040c on a ship still at its old tile: re-sort

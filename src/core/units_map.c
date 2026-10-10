@@ -642,6 +642,27 @@ static int units_stack_push_ordered(const ColonizeUnitPool* pool, int* ids, int 
   return n + 1;
 }
 
+void units_tile_stack_sort_at(ColonizeUnitPool* pool, int x, int y) {
+  if (!pool) {
+    return;
+  }
+  int ids[COLONIZE_UNITS_MAX];
+  int n = 0;
+  for (int i = 0; i < units_slot_end(pool); ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (units_is_on_map(u) && u->x == x && u->y == y) {
+      n = units_stack_push_ordered(pool, ids, n, 0, u->id);
+    }
+  }
+  if (n < 2) {
+    return;
+  }
+  units_stack_sort_04d6(pool, ids, n);
+  for (int i = 0; i < n; ++i) {
+    units_tile_stack_arrive(pool, ids[i]);
+  }
+}
+
 void units_tile_stack_ship_relink(ColonizeUnitPool* pool, int ship_id, bool sort_group) {
   ColonizeUnit* ship = units_get(pool, ship_id);
   if (!ship) {

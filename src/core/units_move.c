@@ -607,6 +607,10 @@ combat_entry_resolved:
   if (ship) {
     units_tile_stack_ship_relink(pool, unit_id, true);
   } else {
+    /* DOS sorts the destination's existing stack before appending a land
+     * mover. The 1547→1548 trace reorders a wagon and soldier when the next
+     * soldier enters their tile. */
+    units_tile_stack_sort_at(pool, dest_x, dest_y);
     units_tile_stack_arrive(pool, unit_id);
   }
   unit->x = dest_x;

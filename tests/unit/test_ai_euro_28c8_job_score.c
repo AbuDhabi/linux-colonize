@@ -11,8 +11,8 @@
  *   non-emergency branch: score = (local_38 + local_4) * score   raw 13120
  *     local_4  = 0 (AI) / 1 (human) for jobs 0 and 8 with no AI tick running,
  *                else the DS:0x84bc price byte (0 with no COL1 save bound)
- *     local_38 = local_4 + 1, +1 more when DS:0x2b6[job] names a consumer job
- *                (FUN_15eb_15c6)
+ *     local_38 = local_4 + 1, +2 more when DS:0x2b6[job] names a consumer job
+ *                whose base building has a successor (FUN_15eb_15c6)
  *
  * Both scenarios pin the food-emergency flag (bVar2) OFF so the cargo-weight
  * branch is the one under test: pop 1 (food demand 2) with 50 food in store
@@ -198,9 +198,10 @@ static void recompute_expected(
         w4 = human ? 1 : 0;
       }
       int m = w4 + 1;
-      /* DS:0x2b6 consumer job: sugar/tobacco/cotton/furs/ore have one. */
+      /* DS:0x2b6 consumer job: sugar/tobacco/cotton/furs/ore roots each
+       * have a successor in the @BUILDING row's DS:0x8f86 byte. */
       if (job == 1 || job == 2 || job == 3 || job == 4 || job == COLONIZE_JOB_ORE_MINER) {
-        m += 1;
+        m += 2;
       }
       score = (m + w4) * score;
       if (score > out_best->score) {
@@ -450,8 +451,8 @@ static int unit_no_docks_scores_no_water_plot(void) {
  * One Mountains tile (pedia 27, Ore base yield 4) at N of the colony; every
  * other field tile is Tundra (no Ore, no other job scores), so Ore is the
  * only candidate and its score is fully determined by w4 (local_4):
- *   m = w4 + 1, +1 more for the Ore consumer chain (raw 13112-13118, jobs
- *   1-4/6 have one) -> m = w4 + 2; score = (m + w4) * base = (2*w4 + 2) * base
+ *   m = w4 + 1, +2 more for the Ore consumer chain (raw 13112-13118, jobs
+ *   1-4/6 have a successor) -> m = w4 + 3; score = (m + w4) * base = (2*w4 + 3) * base
  * with base = yld*8 + (7 - |dx| - |dy|) = 4*8 + 6 = 38 for the adjacent N tile
  * (no clamp: capacity 300 - stock 0 > yld). The food-emergency branch is
  * pinned off with a near-full FOOD warehouse (299/300): even at gross=0 the
@@ -563,16 +564,16 @@ static int unit_889_ore_rank_gates_chain_not_flat_bonus(void) {
   }
   /* base = 4*8 + 6 = 38 for both (same map, same tile, same yield). */
   const int base = 38;
-  /* rank-fail: w4 = 0 (price) + 2 (flat) = 2; m = w4+2 = 4; score = (m+w4)*base = 6*38. */
-  const int want_fail = 6 * base;
+  /* rank-fail: w4 = 0 (price) + 2 (flat) = 2; m = w4+3 = 5; score = (m+w4)*base = 7*38. */
+  const int want_fail = 7 * base;
   if (rank_fail.score != want_fail) {
     fprintf(stderr, "unit_ai_euro_28c8_job_score: 889 rank-fail score=%d want=%d\n",
             rank_fail.score, want_fail);
     return fail("889: rank-fail must still get the flat +2 (bug was: 0)");
   }
   /* rank-pass: w4 = 0 + 2 (flat) + 1 (Blacksmith tier1) + 2 (Armory tier1*2) = 5;
-   * m = w4+2 = 7; score = (m+w4)*base = 12*38. */
-  const int want_pass = 12 * base;
+   * m = w4+3 = 8; score = (m+w4)*base = 13*38. */
+  const int want_pass = 13 * base;
   if (rank_pass.score != want_pass) {
     fprintf(stderr, "unit_ai_euro_28c8_job_score: 889 rank-pass score=%d want=%d\n",
             rank_pass.score, want_pass);

@@ -89,9 +89,9 @@ void ai_euro_5952_ledgers(
  *     (ai_euro_5952_ledgers = DS:0x8dc8/0x8e0a) with FUN_15eb_0b52's own
  *     rule (colony_craft.c header).
  *   - FUN_15eb_15c6(DS:0x2b6[job]) is 0 when the field good has no consumer
- *     job, else 1 (+1 when that job's base building itself has a parent tier,
- *     which no chain root in the port's @BUILDING table has) — see
- *     k_ai_euro_28c8_consumer_chain.
+ *     job, else 1 plus another 1 when that job's base building has a successor
+ *     at DS:0x8f86. Every field-good consumer root has one (e.g. Fur Trader's
+ *     House row 32 points to Fur Trading Post row 33), so the term is 2.
  *   - byte[FUN_15eb_0470()+0x329] is the colony's work-plot count. Read off
  *     VICEROY.EXE (file offset 121248 + 0x329): {0, 4, 8, 12, 20}, indexed by
  *     FUN_15eb_0470() = min(FUN_15eb_039e(10), 2) + 2. 039e(10) is 0 in every
@@ -455,14 +455,14 @@ static int ai_euro_28c8_score_full(
             }
           }
           /* FUN_15eb_15c6(DS:0x2b6[job]) raw 11536-11551: 0 with no consumer
-           * job, 1 when its @BUILDING (DS:0x2f4) is a chain root, 2 when that
-           * row has a predecessor. No colony input. Every consumer row DOS
-           * ships (27/24/21/32/39) is a root, so the term is the literal 1
-           * here (bugs.md #776). */
+           * job, 1 when its @BUILDING (DS:0x2f4) has no successor, 2 when it
+           * does. Every field-good consumer row (27/24/21/32/39) points to
+           * its next craft tier at DS:0x8f86, so the term is 2. A live DOS
+           * 1542→1543 watch read row 32's successor as 33. */
           {
             const int chain = ai_euro_28c8_consumer_chain(job);
             if (chain >= 0) {
-              m += 1;
+              m += 2;
             }
           }
           if (claim_tribe >= 0) {
@@ -489,15 +489,15 @@ static int ai_euro_28c8_score_full(
             m = 0;
           }
           score = (m + w4) * score;
-          if (cargo != COLONIZE_CARGO_LUMBER && forest && lumber_idle) {
+          /* DOS local_32 is written only in the food-emergency arm above.
+           * In an AI tick that arm is off, so this non-emergency tail reads
+           * stale stack data rather than the candidate's terrain. The
+           * 1546→1547 indoor probe leaves it outside the forest interval;
+           * testing the candidate terrain here wrongly deducts 10 from Fur
+           * and elects a Farmer. Keep human scoring's existing terrain rule
+           * until its stack residue has a separate trace. */
+          if (cargo != COLONIZE_CARGO_LUMBER && !in_ai_tick && forest && lumber_idle) {
             score -= 10; /* raw 13124-13130 */
-          }
-          if (getenv("AI_SCORE_TRACE") && (strcmp(col->name, "New Amsterdam") == 0 || strcmp(col->name, "Quebec") == 0) &&
-              colonist_slot == 3 && (job == COLONIZE_JOB_FARMER || job == COLONIZE_JOB_FUR_TRAPPER || job == COLONIZE_JOB_FISHERMAN)) {
-            fprintf(stderr, "[score] %s mode%d slot%d tile%d job%d y%d w%d m%d chain%d sf%d um%d score%d\n",
-                    col->name, in_ai_tick, colonist_slot, ti, job, yld, w4, m,
-                    ai_euro_28c8_chain_owned_upto(ctx->colonies,col,COLONIES_CHAIN_FUR,3),
-                    env.shortfall[sc], env.unmet[sc], score);
           }
         }
       }
@@ -1189,14 +1189,6 @@ static void ai_euro_5952_indoor_pass(
     }
 
     int commit_job = -1;
-    if (getenv("AI_FORCE_FISH") && strcmp(col->name,"New Amsterdam") == 0 && s == 3) {
-      if (colonies_assign_field_w(&world, col->id, s, 3, COLONIZE_JOB_FISHERMAN)) {
-        placed[s] = true;
-        continue;
-      }
-    }
-    if (getenv("AI_INDOOR_TRACE") && strcmp(col->name,"New Amsterdam")==0 && s==3)
-      fprintf(stderr,"[indoor] %s s3 field%d plot%d/%d indoor%d job%d\n",col->name,field_score,probe.tile,probe.job,best,best_job);
     if (field_score < best) {
       commit_job = best_job; /* raw 94858 `if (*0x8dc0 < best)` */
     } else {
