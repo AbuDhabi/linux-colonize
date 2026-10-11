@@ -551,6 +551,42 @@ static bool col1_restore_tile_stack_order(
       units_tile_stack_arrive(units, id_by_index[i]);
     }
   }
+  /* Europe lanes use the same link words for sibling hull/loose-unit order
+   * as well as passenger membership. Preserve the saved physical walk so a
+   * later sentinel-to-sentinel move and capture does not silently sort the
+   * fleet by record index (fresh 1585: hulls 40->4 stay 40->4). */
+  for (int i = 0; i < count; ++i) {
+    const ColonizeCol1Unit* start = &save->unit[i];
+    if (start->x < 200 || start->y < 200 || visited[i]) {
+      continue;
+    }
+    const int prev = start->transport_chain.prev_unit_idx;
+    if (prev >= 0 && prev < count && save->unit[prev].x == start->x &&
+        save->unit[prev].y == start->y) {
+      continue;
+    }
+    int current = i;
+    for (int steps = 0; steps < count; ++steps) {
+      if (current < 0 || current >= count || visited[current] ||
+          save->unit[current].x != start->x || save->unit[current].y != start->y) {
+        break;
+      }
+      visited[current] = true;
+      if (id_by_index && id_by_index[current] >= 0) {
+        units_tile_stack_arrive(units, id_by_index[current]);
+      }
+      current = save->unit[current].transport_chain.next_unit_idx;
+    }
+  }
+  for (int i = 0; i < count; ++i) {
+    if ((save->unit[i].x < 200 || save->unit[i].y < 200) || visited[i]) {
+      continue;
+    }
+    visited[i] = true;
+    if (id_by_index && id_by_index[i] >= 0) {
+      units_tile_stack_arrive(units, id_by_index[i]);
+    }
+  }
   free(visited);
   return true;
 }
@@ -2978,30 +3014,49 @@ bool col1_bridge_capture_w(
     }
 
     /* FUN_1427_02ca / 005c also link ships sharing a Europe sentinel tile.
-     * Passenger chains above end at their hull; join those hulls in DOS
-     * record order, keeping each passenger chain intact. 1533->1534 has two
-     * Spanish hulls at (234,234), with a colonist preceding the first one. */
+     * Passenger chains above end at their hull; join those hulls in physical
+     * arrival order, keeping each passenger chain intact. 1533->1534 has two
+     * Spanish hulls at (234,234), with a colonist preceding the first one.
+     * Fresh 1585 retains an existing 40->4 chain after both hulls move from
+     * (246,246) to (242,242), rather than sorting it by record index. */
     for (int i = 0; i < written; ++i) {
-      if (neu[i].x < 200 || neu[i].y < 200 || neu[i].type < 13 || neu[i].type > 18 ||
-          neu[i].transport_chain.next_unit_idx >= 0) {
+      if (neu[i].x < 200 || neu[i].y < 200 || neu[i].type < 13 || neu[i].type > 18) {
         continue;
       }
-      for (int j = i + 1; j < written; ++j) {
+      bool first = true;
+      for (int j = 0; j < i; ++j) {
+        if (neu[j].type >= 13 && neu[j].type <= 18 && neu[j].x == neu[i].x &&
+            neu[j].y == neu[i].y && neu[j].nation_id == neu[i].nation_id) {
+          first = false;
+          break;
+        }
+      }
+      if (!first) {
+        continue;
+      }
+      int hull[COLONIZE_UNITS_MAX];
+      int hn = 0;
+      for (int j = i; j < written && hn < COLONIZE_UNITS_MAX; ++j) {
         if (neu[j].type < 13 || neu[j].type > 18 || neu[j].x != neu[i].x ||
             neu[j].y != neu[i].y || neu[j].nation_id != neu[i].nation_id) {
           continue;
         }
-        int root = j;
+        int at = hn;
+        while (at > 0 && stack_order_by_col1[hull[at - 1]] > stack_order_by_col1[j]) {
+          hull[at] = hull[at - 1];
+          --at;
+        }
+        hull[at] = j;
+        ++hn;
+      }
+      for (int h = 0; h + 1 < hn; ++h) {
+        int root = hull[h + 1];
         for (int guard = 0; guard < written && neu[root].transport_chain.prev_unit_idx >= 0;
              ++guard) {
           root = neu[root].transport_chain.prev_unit_idx;
         }
-        if (root == i || neu[root].transport_chain.prev_unit_idx >= 0) {
-          continue;
-        }
-        neu[i].transport_chain.next_unit_idx = (int16_t)root;
-        neu[root].transport_chain.prev_unit_idx = (int16_t)i;
-        break;
+        neu[hull[h]].transport_chain.next_unit_idx = (int16_t)root;
+        neu[root].transport_chain.prev_unit_idx = (int16_t)hull[h];
       }
     }
 

@@ -1017,6 +1017,9 @@ static bool test_europe_lane_ship_chain(char* err, size_t err_size) {
     save.unit[i].transport_chain.prev_unit_idx = -1;
     save.unit[i].transport_chain.next_unit_idx = -1;
   }
+  /* Saved physical order is deliberately opposite record order. */
+  save.unit[1].transport_chain.next_unit_idx = 0;
+  save.unit[0].transport_chain.prev_unit_idx = 1;
 
   ColonizeUnitPool units;
   memset(&units, 0, sizeof(units));
@@ -1050,10 +1053,10 @@ static bool test_europe_lane_ship_chain(char* err, size_t err_size) {
     );
   }
   if (ok && (save.head.unit_count != 3 ||
+             save.unit[1].transport_chain.next_unit_idx != 2 ||
+             save.unit[2].transport_chain.prev_unit_idx != 1 ||
              save.unit[2].transport_chain.next_unit_idx != 0 ||
-             save.unit[0].transport_chain.prev_unit_idx != 2 ||
-             save.unit[0].transport_chain.next_unit_idx != 1 ||
-             save.unit[1].transport_chain.prev_unit_idx != 0)) {
+             save.unit[0].transport_chain.prev_unit_idx != 2)) {
     snprintf(err, err_size, "Europe lane chain count=%u links=%d/%d %d/%d %d/%d",
              save.head.unit_count,
              save.unit[0].transport_chain.prev_unit_idx, save.unit[0].transport_chain.next_unit_idx,

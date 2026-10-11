@@ -397,6 +397,41 @@ static int afloat_cargo_cancels_colony_demand(void) {
   return 0;
 }
 
+/* FUN_291f_0dc6's hold removal leaves its amount in DS:0x8dc4. The later
+ * departing-goods affordability gate reuses that scratch instead of 100.
+ * A sold 20-unit lot therefore makes a price-10 Ore purchase require 200
+ * gold; resetting the scratch per hull to zero incorrectly permits it. */
+static int sold_amount_seeds_departure_gold_gate(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation, 5, 100) != 0) {
+    return 1;
+  }
+  fixture_ore_colony(&f, nation, 3);
+  f.col1.nation[nation].gold = 100;
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 10;
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_SUGAR] = 1;
+  const int sid = spawn_europe_ship(&f, nation);
+  if (sid < 0 || units_load_goods(&f.units, sid, COLONIZE_CARGO_SUGAR, 20) != 20) {
+    fixture_free(&f);
+    return fail("seed departing ship's partial cargo");
+  }
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  const ColonizeUnit* ship = units_get(&f.units, sid);
+  if (!ship || ship_cargo_total(ship) != 0 || f.col1.nation[nation].gold != 100) {
+    fprintf(stderr, "stale scratch hull=%d ore=%d gold=%u\n",
+            ship ? ship_cargo_total(ship) : -1,
+            ship ? ship_cargo_of(ship, COLONIZE_CARGO_ORE) : -1,
+            (unsigned)f.col1.nation[nation].gold);
+    fixture_free(&f);
+    return fail("sold amount must price the following cargo buy gate");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
 /*
  * Case 3c — DS:0x945a: the dock queue raises the bar (raw 92983-92988). Same
  * colony and price as 3a, but TWO Free Colonists wait on the Europe dock, so
@@ -912,6 +947,7 @@ static int needs_colonists_latch_matches_5952(void) {
 static const TestCase k_cases[] = {
     {"departing_ship_buys_wanted_cargo", departing_ship_buys_wanted_cargo},
     {"afloat_cargo_cancels_colony_demand", afloat_cargo_cancels_colony_demand},
+    {"sold_amount_seeds_departure_gold_gate", sold_amount_seeds_departure_gold_gate},
     {"europe_dock_queue_raises_cargo_bar", europe_dock_queue_raises_cargo_bar},
     {"recruit_swap_follows_colonies_wanting_colonists", recruit_swap_follows_colonies_wanting_colonists},
     {"recruit_swap_spawns_sentry_and_refills_pool", recruit_swap_spawns_sentry_and_refills_pool},
