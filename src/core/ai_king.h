@@ -247,6 +247,8 @@ void ai_king_menu_declare_independence(ColonizeTurnContext* ctx);
 int ai_king_spend_woi_bell_pool(ColonizeTurnContext* ctx, int nation_id);
 /* FUN_38fd_5be8 peacetime tax roll for an AI nation (no dialog). bugs.md #1053. */
 void ai_king_tax_event_ai(ColonizeTurnContext* ctx, int nation_id);
+/* 38fd_3dc8's explicit AI delta: clamp and store, without an audience. */
+void ai_king_tax_delta_ai(ColonizeTurnContext* ctx, int nation_id, int delta);
 
 /* Crown nation-slot FALLBACK formula (nation 1 if human is 0, else nation 0)
  * — only for callers with no save in hand. The real slot is the one the

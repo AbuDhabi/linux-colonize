@@ -646,11 +646,12 @@ void units_tile_stack_sort_at(ColonizeUnitPool* pool, int x, int y) {
   if (!pool) {
     return;
   }
+  /* DOS 040c leaves passengers in the physical destination chain. */
   int ids[COLONIZE_UNITS_MAX];
   int n = 0;
   for (int i = 0; i < units_slot_end(pool); ++i) {
     const ColonizeUnit* u = &pool->units[i];
-    if (units_is_on_map(u) && u->x == x && u->y == y) {
+    if (u->active && u->x == x && u->y == y) {
       n = units_stack_push_ordered(pool, ids, n, 0, u->id);
     }
   }

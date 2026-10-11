@@ -1517,7 +1517,17 @@ static int ai_euro_5952_tile_stack(
     if (!units_type_has_profession_slot(ai_euro_20e6_dos_type(ctx->units, u))) {
       continue;
     }
-    ids[n++] = u->id;
+    /* 15eb_09c0/0924 enumerate 1427_005c + 004a's physical chain,
+     * starting at the latest arrival, rather than the unit array order. */
+    int pos = n;
+    while (pos > 0) {
+      const ColonizeUnit* prev = units_get_const(ctx->units, ids[pos - 1]);
+      if (!prev || prev->tile_stack_order >= u->tile_stack_order) break;
+      ids[pos] = ids[pos - 1];
+      --pos;
+    }
+    ids[pos] = u->id;
+    ++n;
   }
   return n;
 }
@@ -2541,13 +2551,27 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_garrison(
         (int)c->labor_shortage - garrisoned + 2
       );
     }
+    /* FUN_281f_07e0 + 02e4 (raw 87684-87760) walk the tile chain,
+     * latest arrival first, rather than the unit storage array. */
+    ColonizeUnit* stack[COLONIZE_UNITS_MAX];
+    int stack_n = 0;
+    for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
+      ColonizeUnit* gu = &ctx->units->units[ui];
+      if (!units_is_on_map(gu) || gu->x != c->x || gu->y != c->y) continue;
+      int pos = stack_n;
+      while (pos > 0 && stack[pos - 1]->tile_stack_order < gu->tile_stack_order) {
+        stack[pos] = stack[pos - 1];
+        --pos;
+      }
+      stack[pos] = gu;
+      ++stack_n;
+    }
     /* Five admission passes in DOS preference order. */
     static const int k_adm_type[5] = {0x0b, 0x01, 0x01, 0x04, 0x04};
     static const int k_adm_vet[5] = {-1, 0, 1, 0, 1}; /* -1 any; 0/1 vs prof 0x15 */
     for (int pass = 0; pass < 5 && c->labor_shortage > 0; ++pass) {
-      /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index. */
-      for (int ui = 0; ui < units_slot_end(ctx->units) && c->labor_shortage > 0; ++ui) {
-        ColonizeUnit* gu = &ctx->units->units[ui];
+      for (int si = 0; si < stack_n && c->labor_shortage > 0; ++si) {
+        ColonizeUnit* gu = stack[si];
         if (!gu->active || gu->nation_id != nation_id || gu->x != c->x ||
             gu->y != c->y || gu->id < 0 || gu->id >= COLONIZE_UNITS_MAX) {
           continue;

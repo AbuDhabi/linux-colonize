@@ -604,13 +604,15 @@ combat_entry_resolved:
   const int oy = unit->y;
   /* FUN_281f_0916 = FUN_1427_12f6, 08e4 = 0644, 0948 = 040c (raw 75697-75768). */
   const bool ship = units_is_sea(pool, unit_id);
+  /* FUN_281f_07e0 + 08e4 sorts the destination's existing chain for
+   * ships too (FUN_465b_0000 raw 75709-75710), before 0948 relinks arrival. */
+  units_tile_stack_sort_at(pool, dest_x, dest_y);
   if (ship) {
     units_tile_stack_ship_relink(pool, unit_id, true);
   } else {
     /* DOS sorts the destination's existing stack before appending a land
      * mover. The 1547→1548 trace reorders a wagon and soldier when the next
      * soldier enters their tile. */
-    units_tile_stack_sort_at(pool, dest_x, dest_y);
     units_tile_stack_arrive(pool, unit_id);
   }
   unit->x = dest_x;
@@ -2486,7 +2488,8 @@ static bool units_goto_director(
   const ColonizeWorld* w,
   int unit_id,
   int* out_x,
-  int* out_y
+  int* out_y,
+  bool* out_flood
 ) {
   const ColonizeUnitPool* pool = w->units;
   const ColonizeWorldMap* map = w->map;
@@ -2561,6 +2564,7 @@ static bool units_goto_director(
   const bool near_tier = adx <= 6 && ady <= 6;
   bool near_missed = false;
   if (near_tier) {
+    if (out_flood) *out_flood = true;
     /* raw 104578-104580: BX = 0x3e7. */
     if (units_flood_next_step(pool, unit_id, map, colonies, gx, gy, 0x3e7, out_x, out_y)) {
       return true;
@@ -2597,6 +2601,7 @@ static bool units_goto_director(
     (void)units_bfs_next_step;
     const int have_wp = units_coarse_waypoint(pool, map, u->x, u->y, gx, gy, sea, &wx, &wy, &ucx, &ucy);
     if (have_wp || !near_missed) {
+      if (out_flood) *out_flood = true;
       const int tx = have_wp ? wx : gx;
       const int ty = have_wp ? wy : gy;
       scored_x = tx;
@@ -2649,7 +2654,14 @@ bool units_next_goto_step_w(
   int* out_x,
   int* out_y
 ) {
-  const bool ok = units_goto_director(w, unit_id, out_x, out_y);
+  return units_next_goto_step_with_flood_w(w, unit_id, out_x, out_y, NULL);
+}
+
+bool units_next_goto_step_with_flood_w(
+  const ColonizeWorld* w, int unit_id, int* out_x, int* out_y, bool* out_flood
+) {
+  if (out_flood) *out_flood = false;
+  const bool ok = units_goto_director(w, unit_id, out_x, out_y, out_flood);
   /*
    * DOS-LITERAL FUN_6662_0f74 raw 104758: `+0x314f = local_1c` on every
    * exit, failures (-1 / 8) included and before the move is tried

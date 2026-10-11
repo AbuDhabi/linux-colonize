@@ -521,8 +521,14 @@ void ai_king_tax_event_ai(ColonizeTurnContext* ctx, int nation_id) {
   }
   int delta = 0;
   if (ai_king_audience_roll(ctx, nation_id, &delta, NULL)) {
-    ai_king_audience_apply_delta(&ctx->col1->nation[nation_id], delta, NULL);
+    ai_king_tax_delta_ai(ctx, nation_id, delta);
   }
+}
+
+void ai_king_tax_delta_ai(ColonizeTurnContext* ctx, int nation_id, int delta) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4 ||
+      ctx->col1->player[nation_id].control != 1) return;
+  ai_king_audience_apply_delta(&ctx->col1->nation[nation_id], delta, NULL);
 }
 
 /*

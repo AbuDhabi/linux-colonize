@@ -704,12 +704,16 @@ static int test_ai_euro_5952_absorb_colonist(void) {
     }
     w->nation_id = 1;
     w->moves = UNITS_MP_PER_TILE;
+    w->profession = i == 0 ? 8 : 26;
   }
   ai_euro_5952_absorb_equip(&ctx, 1, c, &labor);
   const int pop2 = (int)colonies.colonies[0].population;
   fx_map_free(&map);
   if (pop2 != 5) {
     return fail("the tile re-scan must absorb every eligible unit in one tick");
+  }
+  if (c->colonists[3].profession != 26 || c->colonists[4].profession != 8) {
+    return fail("absorption must enumerate the physical chain, latest arrival first");
   }
   return 0;
 }

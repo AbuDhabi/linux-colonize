@@ -60,8 +60,8 @@ typedef struct ColonizeTurnContext {
   /* Optional LABELS.TXT — @MISC / @CMESSAGE wording for status lines. */
   const ColonizeMsgCatalog* labels;
   /*
-   * FUN_5bfb_00f8 inverse rank filled in TURN_PROC_SETUP (0 = weakest).
-   * euro_power_rank_ok set when turn_rank_euro_nations ran this EOT.
+   * FUN_5bfb_00f8 inverse rank (0 = weakest): normal setup or an audience
+   * refreshes it; a loaded turn initially retains the zero unsaved table.
    */
   uint8_t euro_power_rank[4];
   bool euro_power_rank_ok;
@@ -69,6 +69,9 @@ typedef struct ColonizeTurnContext {
    * in this nation's turn do not raise it; 48d3_0346 departures lower it. */
   uint8_t ai_euro_dock_census[4];
   uint8_t ai_euro_dock_census_valid[4];
+  /* Shared DOS stack word: 20e6's uninitialized local_ea aliases the
+   * previous 6662_00f2 call's saved SI. Not serialized. */
+  int ai_euro_wander_stack_word;
   /*
    * FUN_4962_0606 profession histogram per Euro nation (SETUP). Indices are
    * @JOB / profession ids 0..31; counts saturate at 255.
@@ -211,6 +214,9 @@ int turn_rank_euro_nations(
   const ColonizeColonyPool* colonies,
   uint8_t out_rank[4]
 );
+/* Reset the unsaved rank table on load; refresh it on a 153e audience. */
+void turn_rank_loaded(void);
+void turn_refresh_euro_rank(ColonizeTurnContext* ctx);
 
 /*
  * FUN_4962_0606 thin — profession histogram for one Euro nation from colony

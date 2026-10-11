@@ -260,6 +260,10 @@ bool units_next_goto_step_w(
   int* out_x,
   int* out_y
 );
+/* Also reports whether the DOS 6662_00f2 flood frame was entered. */
+bool units_next_goto_step_with_flood_w(
+  const ColonizeWorld* w, int unit_id, int* out_x, int* out_y, bool* out_flood
+);
 /* One adjacent step toward goto (or clear orders if arrived). rng may be NULL. */
 bool units_advance_goto_one_step_w(
   const ColonizeWorld* w,

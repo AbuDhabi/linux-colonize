@@ -525,7 +525,12 @@ static int case_docks_commit_suppresses_expert_purchase(void) {
     }
     ai_euro_5952_specialist_arms(&f.ctx, f.col, 8);
     const uint32_t gold = f.col1.nation[NATION].gold;
+    const int tax = f.col1.nation[NATION].tax_rate;
     fx_done(&f);
+
+    if (tax != (with_cascade ? 0 : 1)) {
+      return fail("expert purchase must add one tax point, only when it fires");
+    }
 
     if (with_cascade) {
       if (gold != 5000u) {

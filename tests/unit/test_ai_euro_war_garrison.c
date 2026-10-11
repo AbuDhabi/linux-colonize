@@ -1066,7 +1066,44 @@ static int unit_peace_continental_cavalry_fortify_colony(void) {
   return 0;
 }
 
+/* DOS 0a60 raw 87684-87760 admits military units in tile-chain order. */
+static int unit_garrison_admits_tile_head(void) {
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) return fail("admission map");
+  map.terrain[5 * 16 + 6] = T_OCEAN;
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Dragoon");
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].movement = 1;
+  units.types[0].attack = 3;
+  const int old_id = units_spawn_allow_stack(&units, 0, 5, 5);
+  const int new_id = units_spawn_allow_stack(&units, 0, 5, 5);
+  ColonizeUnit* old = units_get(&units, old_id);
+  ColonizeUnit* recent = units_get(&units, new_id);
+  if (!old || !recent) { fx_map_free(&map); return fail("admission units"); }
+  old->nation_id = recent->nation_id = 1;
+  old->col1_ai_plan = recent->col1_ai_plan = '?';
+  ColonizeColony c;
+  memset(&c, 0, sizeof(c));
+  c.x = c.y = 5;
+  c.labor_shortage = c.garrison_quota = 1;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.map = &map;
+  ctx.units = &units;
+  ai_goals_reset();
+  ai_euro_colony_goals_colony_garrison(&ctx, 1, &c);
+  const int rc = recent->col1_ai_plan == 'A' && old->col1_ai_plan == '?' &&
+                 c.labor_shortage == 0 && c.garrison_quota == 0 ? 0 :
+                 fail("garrison must admit latest arrival before older storage slot");
+  fx_map_free(&map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_garrison_admits_tile_head", unit_garrison_admits_tile_head},
     {"unit_fortify_wake_hunt", unit_fortify_wake_hunt},
     {"unit_garrison_quota_threat_seed", unit_garrison_quota_threat_seed},
     {"unit_garrison_quota_one_fortify", unit_garrison_quota_one_fortify},

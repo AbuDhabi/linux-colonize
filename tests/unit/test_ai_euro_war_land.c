@@ -1001,6 +1001,18 @@ static int unit_land_adjacent_foe_prefer_non_veteran(void) {
   plain->moves = 0;
   plain->profession = UNITS_JOB_NONE;
 
+  /* Keep this defender-choice fixture in 0a60's offensive tier through
+   * local strength. Declaring war alone does not override the stance. */
+  for (int i = 0; i < 2; ++i) {
+    ColonizeUnit* reserve = units_get(&units, units_spawn(&units, 0, own->x + i, own->y));
+    if (!reserve) {
+      fx_map_free(&map);
+      return fail("adj-vet spawn reserve");
+    }
+    reserve->nation_id = nation;
+    reserve->moves = 0;
+  }
+
   ColonizeCol1Save col1;
   col1_save_init(&col1);
   memset(col1.nation, 0, sizeof(col1.nation));

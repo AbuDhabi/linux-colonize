@@ -10,6 +10,7 @@
  * their prototypes are declared here only when COLONIZE_TESTING is defined.
  */
 
+#include "core/ai_euro.h"
 #include "core/ai_goals.h"
 #include "core/col1_save.h"
 #include "core/europe.h"
@@ -352,6 +353,12 @@ int ai_euro_20e6_bvar20_seed(
   const ColonizeTurnContext* ctx, const ColonizeUnit* u, int dos_type
 );
 int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
+int ai_euro_20e6_457e_hs_cadence_snapshot(
+  ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id, int stack_other, int delivery_type
+);
+int ai_euro_20e6_delivery_tallies(
+  const ColonizeTurnContext* ctx, const ColonizeUnit* ship, int tally[COLONIZE_CARGO_COUNT]
+);
 
 /* `+0x314b = 0x45` ('E'), the Europe-course stamp FUN_48d3_015e writes
  * (raw 77712-77727). The port keeps DOS's byte in `ColonizeUnit.col1_ai_plan`,
@@ -450,6 +457,10 @@ void ai_euro_colony_goals_producers(
 );
 /* ai_euro_colony_goals_bind_founders retired 2026-09-23 — bugs.md #707. */
 
+int ai_euro_28c8_probe(
+  const ColonizeTurnContext* ctx, const ColonizeColony* col, int slot,
+  AiEuro28c8JobCandidate* best
+);
 int ai_euro_5952_indoor_pass_enabled(void);
 
 /* FUN_5952_035e construction-project cascade (bugs.md #483). */

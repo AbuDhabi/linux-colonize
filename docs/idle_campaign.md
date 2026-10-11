@@ -19,7 +19,7 @@ then a recursive JSON diff (show `*_hex` blobs as differing byte offsets). The t
 `EXCLUDE_FROM_ALL`: rebuild it explicitly (`cmake --build build/debug --target golden_idle_campaign`).
 
 Progress (sum of differing JSON leaves over all 77 transitions): 18,869 → 16,546 → 16,178 →
-13,423 → 12,739 → 8,798 → 8,122 → 7,023 → 5,666 → 5,597 → 5,591 → 5,531 → 5,502 → 5,431 → 4,774 → 4,771 → 4,745 → 4,744 → 4,676 → 4,668 → 4,660 → 4,656. Fourteen archived transitions
+13,423 → 12,739 → 8,798 → 8,122 → 7,023 → 5,666 → 5,597 → 5,591 → 5,531 → 5,502 → 5,431 → 4,774 → 4,771 → 4,745 → 4,744 → 4,676 → 4,668 → 4,660 → 4,656 → 4,653 → 4,643 → 4,638 → 4,635 → 4,627 → 4,622 → 4,528 → 4,520 → 4,514 → 4,522 → 4,521 → 4,536. Fourteen archived transitions
 pass byte-for-byte: 1493→1494, 1494→1495, 1495→1496, 1505→1506, 1512→1513,
 1513→1514, 1514→1515, 1516→1517, 1527→1528, 1537→1538, 1541→1542,
 1542→1543, 1543→1544 and 1547→1548. 1492→1493 is down to the
@@ -442,6 +442,129 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   remains the older value 1. Three transitions improve and 1592 worsens
   by one archived field. The threat regression now boards one Brave and
   verifies that its contribution survives while its carrier adds none.
+  Full tests (96 enabled), golden and Release tests/sweep pass.
+
+- `153e` now applies its shared treaty cooldown exit after AI encounters,
+  and human talks write the other nation's timer for the speaker, as in
+  raw 98414–98425. The cooldown remains `(6-difficulty)*2`, halved by the
+  speaker's Benjamin Franklin. Fresh 1592 matches all three treaty timers
+  and falls from nine differing fields to six. Archives improve by three
+  fields overall across thirteen changed transitions; seven older French
+  timer values differ after this correction. Fourteen exact transitions
+  remain. Regression checks signing, skipped treaty cadence, timer direction
+  and Franklin ownership. Full tests, golden and Release checks pass.
+
+- Save import now restores a zero Pioneer tool count instead of retaining
+  the spawn default of 100. Source 1592 already contains the zero-tool
+  Pioneer; the DOS watch at `0c4b:08a2` confirms record compaction retains
+  zero, and the fresh end-of-turn save does too. Ten archive transitions
+  improve by one field each, none regress; fresh 1592 falls to five fields.
+  The import regression includes a zero-tool land Pioneer alongside a
+  loaded ship/passenger chain. Full tests (96 enabled), golden and Release
+  tests/sweep pass; fourteen archive transitions remain exact.
+
+- `0a60` garrison admission now walks the tile chain, latest arrival first,
+  within each of DOS's five military preference passes (raw 87684–87760).
+  Storage order previously admitted an older Dragoon at fresh 1592 Isabella,
+  leaving the newly ejected Dragoon with `?` rather than DOS's `A`. Five
+  archive fields improve across four transitions, none regress; fresh 1592
+  falls to four fields. Regression pits two same-type arrivals against one
+  remaining admission. Full tests, golden and Release tests/sweep pass.
+
+- `457e` now retains `3558`'s delivery-cargo classification after a sell,
+  alongside the already saved stack count (raw 89393–89408, 89935–89943).
+  Recounting emptied holds prematurely sent fresh 1592's Spanish Caravel
+  home from (53,52), whereas DOS wanders first and departs from (53,53).
+  All three ship/return-tile fields now match, with no archived regressions.
+  Regression checks that a sold delivery hold still blocks this cadence.
+  Full tests, golden and Release tests/sweep pass.
+
+- The `5952` indoor pass now uses `28c8` mode −2: scoring restores the
+  original job and does not commit a plot after clearing DS:034d (raw
+  13142–13144). Assignment scoring remains separate. This removes the
+  stray Quebec owner stamp at (50,36), making fresh 1592→1593 byte-identical.
+  Nine archived transitions improve by one field and 1546 gains one map
+  field, net eight fewer differences. Fresh 1553 remains byte-identical;
+  fresh 1535 retains its five tile-chain fields. Regression compares a
+  probe and an assignment on the same idle worker and bought/native plots.
+  Full tests (96 enabled), golden and Release tests/sweep pass; both builds
+  report 4,627 archive fields with fourteen exact transitions.
+
+- Ship movement now performs the destination's existing-stack sort before
+  arrival, including boarded passengers in that physical chain (465b raw
+  75709–75710). Previously only land movers sorted it, and the sort dropped
+  passengers. This restores fresh 1535's `41→40→4` chain and makes that turn
+  byte-identical. Five archived fields improve with no regressions. The
+  movement regression sends a hull onto another hull/passenger tile and
+  checks their resulting stack order. Full tests (96 enabled), golden and
+  Release tests/sweep pass. Fresh 1553 and 1592 remain byte-identical.
+
+- The wander scorer now retains DOS's shared stack word across unit acts.
+  `521d_6d8e` asm `6fa4` leaves SI at `nation * 0x13c`; a subsequent
+  `6662_00f2` flood saves SI at the same address as the next `20e6`'s
+  uninitialized `local_ea`. The fresh 1558 watch caught Spanish unit 42's
+  `PUSH SI` writing 632 before Dragoon 41's border park. Adjacent sign
+  steps do not enter that frame. The mover reports actual flood entry,
+  and the nation dispatcher resets the transient word before its unit waves.
+  This removes 94 archived fields across nine transitions, with none worse.
+  Fresh 1558 has one treaty timer difference; fresh 1598 has nine leaves,
+  down from twenty. The regression walks an adjacent then distant goal
+  before a different unit parks without an attack candidate. Full tests
+  (96 enabled), golden, Release unit tests and both campaign sweeps pass.
+
+- AI encounters now require movement, rather than any progress in an act.
+  `465b` raw 75797 invokes `3180` from its movement tail. A border park
+  changing a plan to `F` must not refresh the neighbouring nation's timer.
+  This closes the last fresh 1558 difference: the complete save now matches
+  byte for byte. Nine archived transitions improve by one timer field;
+  1591 adds one archived timer difference. Fresh 1598 has eight leaves left.
+  A regression preserves the peer timer when a unit parks without moving.
+
+- `5952` absorption now enumerates the physical tile chain, latest arrival
+  first, like `15eb_09c0` raw 10014-10034 and `0924` raw 9959-9979.
+  Storage order had reversed St. Louis's two newly admitted workers in 1598.
+  This clears six archived and fresh fields, leaving just Isabella's slot 6
+  job and its plot assignment in the fresh save. The existing two-colonist
+  absorption regression now uses distinct professions and checks their order.
+  Full tests (96 enabled), golden, Release stage seams and both sweeps pass.
+
+- Wealth ranks now follow DOS's load-resume lifecycle. `129f` raw 6354-6356
+  skips `00f8` while `DS:0829` marks the loaded human turn; the unsaved
+  rank table starts at zero. `153e` raw 97404 refreshes it on an audience,
+  and the next normal turn refreshes it at setup. Import resets the table;
+  an audience before ending the loaded turn is retained by the setup cache.
+  Fresh 1598's Statesman score is 348 (weight 12), versus the former 145
+  (weight 5); it beats the field score 342 and closes the last two fields.
+  Fresh 1535, 1553, 1558, 1564, 1566, 1592 and 1598 all match byte for byte. The archived
+  sweep adds two differences in each of 1564, 1566, 1567 and 1598, because
+  its rank-dependent jobs differ from a cold replay. Fresh 1564 confirms
+  both added archived differences are correct and is byte-identical now.
+  Fresh 1566 is also byte-identical, clearing three differences from the
+  former rank lifecycle despite its 202 archived differences. The rank regression covers
+  cold load, a pre-end-turn audience and subsequent normal setup. Full tests
+  (96 enabled), golden, Release turn and 20e6 tests and both sweeps pass.
+
+- Fresh 1498→1499 now verified byte-identical as well. The archived
+  Soldier's `W` recall, native friction and growth differences do not
+  reproduce after loading the source in DOS; the port's `9` wander and
+  native records match the fresh replay. No recall change was made.
+
+- Expert purchases now apply DOS's explicit one-point tax increase through
+  the existing tax clamp. `5952` assembly at 29f2-29f7 passes delta 1 to
+  `291f_0ae0`; the decompiler omitted those arguments. This closes fresh
+  1584's sole remaining difference. Eleven fresh replays checked this round
+  match byte for byte. Full tests (96 enabled), golden, the Release purchase
+  regression and both archived sweeps pass; the sweeps total 4,521 leaves.
+
+- `0a60` stance now uses only local presence and strength, as in raw
+  88055-88121. Removed the port's additional overrides for a war anywhere
+  and the global Indian hostility latch. Fresh 1597 now carries its dragoon
+  to the colony instead of unloading on a beach, clearing all 12 fresh
+  differences. All eleven earlier fresh replays remain byte-identical.
+  The defender-choice fixture now supplies local reserves to enter the
+  offensive tier. Full tests (96 enabled), golden, Release 20e6 and war-land
+  tests pass. Both archived sweeps total 4,536 leaves: 1554 adds 16 and
+  1597 loses one. A fresh 1554 replay is underway to classify that change.
 
 ## Open leads (most transitions first)
 

@@ -1738,7 +1738,9 @@ bool col1_bridge_apply_w(
             u->hold_goods_amount[h] = amt;
           }
         }
-      } else if (src->cargo_hold[5] > 0 && src->cargo_hold[5] <= 100) {
+      } else if (src->cargo_hold[5] <= 100) {
+        /* Saved zero is also literal: units_spawn gives Pioneers a default
+         * kit, but DOS can retain type 2 with no tools (fresh 1592 replay). */
         u->tools = (int)src->cargo_hold[5];
       }
       /*
@@ -2013,6 +2015,7 @@ bool col1_bridge_apply_w(
   if (out) {
     *out = local;
   }
+  turn_rank_loaded();
   diag_info(
     "col1_bridge_apply: turn=%u year=%u nation=%d units=%d colonies=%d europe_skip=%d",
     local.turn_number,

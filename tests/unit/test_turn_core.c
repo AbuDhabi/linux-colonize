@@ -3970,6 +3970,38 @@ static int case_euro_power_rank(void) {
     fprintf(stderr, "Euro rank must insert a descending score before equal scores\n");
     return 1;
   }
+  ColonizeUnitPool rank_units;
+  units_reset(&rank_units);
+  uint32_t rank_turn = 106;
+  uint16_t rank_year = 1598, rank_autumn = 0;
+  ColonizeTurnContext rank_ctx = {
+    .turn_number = &rank_turn, .game_year = &rank_year, .game_autumn = &rank_autumn,
+    .units = &rank_units, .colonies = &pool, .col1 = &col1, .col1_ok = true
+  };
+  ColonizeTurnProcessor rank_proc;
+  turn_rank_loaded();
+  turn_processor_start(&rank_proc);
+  if (!turn_processor_advance(&rank_proc, &rank_ctx) || !rank_ctx.euro_power_rank_ok ||
+      memcmp(rank_ctx.euro_power_rank, (uint8_t[4]){0}, 4)) {
+    fprintf(stderr, "loaded turn must retain the zero unsaved rank table\n");
+    return 1;
+  }
+  turn_rank_loaded();
+  turn_refresh_euro_rank(&rank_ctx); /* 153e before ending the loaded turn */
+  memcpy(rank, rank_ctx.euro_power_rank, 4);
+  col1.nation[0].gold = 10000;
+  turn_processor_start(&rank_proc);
+  if (!turn_processor_advance(&rank_proc, &rank_ctx) ||
+      memcmp(rank, rank_ctx.euro_power_rank, 4)) {
+    fprintf(stderr, "loaded turn must preserve a rank refresh from an audience\n");
+    return 1;
+  }
+  turn_processor_start(&rank_proc);
+  if (!turn_processor_advance(&rank_proc, &rank_ctx) || rank_ctx.euro_power_rank[0] != 3) {
+    fprintf(stderr, "later normal turns must refresh the rank table\n");
+    return 1;
+  }
+  turn_reset();
   fprintf(stderr, "euro power rank ok\n");
   return 0;
 }

@@ -822,7 +822,7 @@ static bool test_import_overfull_ship_keeps_passenger(char* err, size_t err_size
   col1_save_init(&save);
   save.head.map_size_x = 8;
   save.head.map_size_y = 8;
-  save.head.unit_count = 2;
+  save.head.unit_count = 3;
   save.head.difficulty = 2;
   save.head.human_player = 0;
   save.player[0].control = 0;
@@ -854,6 +854,15 @@ static bool test_import_overfull_ship_keeps_passenger(char* err, size_t err_size
   save.unit[1].transport_chain.prev_unit_idx = -1;
   save.unit[1].transport_chain.next_unit_idx = 0;
 
+  /* A land Pioneer with a saved zero kit must not inherit spawn's 100. */
+  save.map.tile[2 * 8 + 2] = 2;
+  save.unit[2].x = 2;
+  save.unit[2].y = 2;
+  save.unit[2].type = 2;
+  save.unit[2].profession = UNITS_JOB_NONE;
+  save.unit[2].transport_chain.prev_unit_idx = -1;
+  save.unit[2].transport_chain.next_unit_idx = -1;
+
   ColonizeUnitPool units;
   memset(&units, 0, sizeof(units));
   units_reset(&units);
@@ -865,6 +874,7 @@ static bool test_import_overfull_ship_keeps_passenger(char* err, size_t err_size
     units.types[t].cargo = (t == 13) ? 2 : ((t >= 14 && t <= 18) ? 6 : 0);
     units.types[t].space = (t >= 13 && t <= 18) ? 99 : 1;
   }
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Pioneer");
   units_set_occupancy_map(NULL);
 
   ColonizeWorldMap map;
@@ -883,7 +893,10 @@ static bool test_import_overfull_ship_keeps_passenger(char* err, size_t err_size
   if (ok) {
     const ColonizeUnit* ship = &units.units[0];
     const ColonizeUnit* pax = &units.units[1];
-    if (pax->aboard_ship_id != ship->id) {
+    if (units.units[2].tools != 0) {
+      snprintf(err, err_size, "saved zero Pioneer tools must replace spawn kit");
+      ok = false;
+    } else if (pax->aboard_ship_id != ship->id) {
       snprintf(err, err_size, "chained passenger should import aboard the over-full ship");
       ok = false;
     } else if (units_is_on_map(pax)) {

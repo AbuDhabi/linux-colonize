@@ -452,6 +452,22 @@ static void turn_finish_status(ColonizeTurnContext* ctx, const ColonizeTurnResul
 }
 
 /* ===================== Turn processor state machine: setup/euro/indian/finish/king steps & reset (turn_processor_start .. turn_reset) ===================== */
+static bool turn_rank_resume_loaded;
+static uint8_t turn_rank_cached[4];
+
+void turn_rank_loaded(void) {
+  memset(turn_rank_cached, 0, sizeof turn_rank_cached);
+  turn_rank_resume_loaded = true;
+}
+
+void turn_refresh_euro_rank(ColonizeTurnContext* ctx) {
+  if (!ctx) return;
+  ctx->euro_power_rank_ok = turn_rank_euro_nations(
+    ctx->col1_ok ? ctx->col1 : NULL, ctx->colonies, ctx->euro_power_rank
+  ) == 0;
+  if (ctx->euro_power_rank_ok)
+    memcpy(turn_rank_cached, ctx->euro_power_rank, sizeof turn_rank_cached);
+}
 void turn_processor_start(ColonizeTurnProcessor* proc) {
   if (!proc) {
     return;
@@ -543,11 +559,16 @@ COLONIZE_INTERNAL void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurn
           ctx->ai_popups, AI_POPUP_TAG_FF_CONGRESS, AI_POPUP_TAG_COLONY_EVENT
         );
       }
-      /* Mid-pass Euro rank (FUN_5bfb_00f8) — DOS before nation loop; OpenCol SETUP. */
-      ctx->euro_power_rank_ok =
-        turn_rank_euro_nations(
-          ctx->col1_ok ? ctx->col1 : NULL, ctx->colonies, ctx->euro_power_rank
-        ) == 0;
+      /* 129f year loop raw 6354-6356 skips 00f8 while the load-resume
+       * byte DS:0829 is set. The unsaved rank table starts at zero after
+       * loading; 153e may refresh it before a later nation's colony tick. */
+      if (turn_rank_resume_loaded) {
+        memcpy(ctx->euro_power_rank, turn_rank_cached, sizeof ctx->euro_power_rank);
+        ctx->euro_power_rank_ok = true;
+      } else {
+        turn_refresh_euro_rank(ctx);
+      }
+      turn_rank_resume_loaded = false;
       /* Live census peel: colony + unit/combat tallies (FUN_4962_0018). */
       if (ctx->col1_ok && ctx->col1) {
         col1_stuff_census_refresh_colony_counts_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL)}, &ctx->col1->stuff);
@@ -972,6 +993,8 @@ ColonizeTurnResult turn_end(ColonizeTurnContext* ctx) {
  * units pool pointer must not survive into a different campaign's pool.
  */
 void turn_reset(void) {
+  turn_rank_resume_loaded = false;
+  memset(turn_rank_cached, 0, sizeof turn_rank_cached);
   memset(turn_prof_census, 0, sizeof(turn_prof_census));
   turn_birth_units = NULL;
   turn_prod_only_nation = -1;
