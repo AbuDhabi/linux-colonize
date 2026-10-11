@@ -315,7 +315,7 @@ graphs:
         fn: ai_euro_europe.c:ai_euro_5d04_hire_ladder_tail
         dos: raw 92568-93070
         status: dos
-        note: "Recruit pop/refill (2026-09-18): a popped slot spawns its unit through the port's FUN_38fd_0718 counterpart ai_euro_5d04_cb_dock_pop_candidate, which now also writes the DOS sentry order (+0x314c = 1, raw 59133 — bugs.md #509); the emptied slot is refilled by europe.c's faithful FUN_38fd_46d4 (ai_euro_5d04_refill_pool_slot → europe_nation_refill_pool_slot, raw 64554-64694 — bugs.md #510), the difficulty-scaled tier roll off the shared game stream, replacing a flat dos_rng_range(0, 0x1b) stand-in that could seed the pool with professions 46d4 explicitly remaps away."
+        note: "Recruit pop/refill (2026-09-18): a popped slot spawns its unit through the port's FUN_38fd_0718 counterpart ai_euro_5d04_cb_dock_pop_candidate, which now also writes the DOS sentry order (+0x314c = 1, raw 59133 — bugs.md #509); the emptied slot is refilled by europe.c's faithful FUN_38fd_46d4 (ai_euro_5d04_refill_pool_slot → europe_nation_refill_pool_slot, raw 64554-64694 — bugs.md #510), the difficulty-scaled tier roll off the shared game stream, replacing a flat dos_rng_range(0, 0x1b) stand-in that could seed the pool with professions 46d4 explicitly remaps away. The departure loop reads the frozen FUN_4962_0018 DS:0x945a dock census; a recruit bought earlier in this same 5d04 pass does not raise local_46 (fresh 1586 DOS buy trace)."
       - id: needs
         kind: step
         label: Colony musket/tool needs (DS:0xa0da/0xa0db, minus own Pioneers)

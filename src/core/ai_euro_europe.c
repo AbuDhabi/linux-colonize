@@ -930,7 +930,13 @@ static int ai_euro_5d04_cb_sell_hold0(int idx) {
     nat->gold += (uint32_t)gained;
     ai_euro_5d04_cb_sync_gold();
   }
-  return 1;
+  /* FUN_281f_0aec leaves the removed amount in DS:0x8dc4. The departing
+   * ship loop later (and rather accidentally) reuses that exact scratch in
+   * its buy affordability test. Return the amount so the caller can retain
+   * it across the rest of this hull's hold-removal loop (fresh 1586: the
+   * Merchantman's last sold lot is 20, and every following buy gate uses
+   * price * 20). */
+  return amount;
 }
 /* FUN_291f_0ec2: the ship departs — waiting dock units board first. */
 static void ai_euro_5d04_cb_unit_exhaust(int idx) {
@@ -1117,7 +1123,13 @@ static int ai_euro_5d04_cb_europe_land_units(int nation_id) {
   if (!ai_euro_s_5d04_ctx) {
     return 0;
   }
-  /* Same tally as the 20e6 dock-demand arm reads (ai_euro_land.c). */
+  /* 5d04 reads the earlier FUN_4962_0018 census. A dock recruit bought by
+   * this same planning pass must not raise local_46 retroactively (fresh
+   * 1586 DOS trace: DS:0x945a remains 0 while the new colonist boards). */
+  if (nation_id >= 0 && nation_id < 4 &&
+      ai_euro_s_5d04_ctx->ai_euro_dock_census_valid[nation_id]) {
+    return ai_euro_s_5d04_ctx->ai_euro_dock_census[nation_id];
+  }
   return ai_euro_europe_dock_land_units(ai_euro_s_5d04_ctx->units, nation_id);
 }
 
@@ -1567,8 +1579,12 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
           } else if (kind == COLONIZE_CARGO_HORSES) {
             ai_euro_5d04_cb_reward_ack(idx2);
             col1_nation_bank_4a_set(nat, (uint16_t)(col1_nation_bank_4a(nat) + last_lots)); /* DOS reuses the stale 0x8dc4 lots value */
-          } else if (!ai_euro_5d04_cb_sell_hold0(idx2)) {
-            break; /* boycotted hold stays aboard */
+          } else {
+            const int sold = ai_euro_5d04_cb_sell_hold0(idx2);
+            if (sold <= 0) {
+              break; /* boycotted hold stays aboard */
+            }
+            last_lots = sold; /* FUN_281f_0aec -> DS:0x8dc4 */
           }
         }
         if (bVar9 && units_ship_capacity(ctx->units, ship2->id) == local_24) {

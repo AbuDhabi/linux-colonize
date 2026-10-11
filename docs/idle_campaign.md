@@ -19,7 +19,7 @@ then a recursive JSON diff (show `*_hex` blobs as differing byte offsets). The t
 `EXCLUDE_FROM_ALL`: rebuild it explicitly (`cmake --build build/debug --target golden_idle_campaign`).
 
 Progress (sum of differing JSON leaves over all 77 transitions): 18,869 → 16,546 → 16,178 →
-13,423 → 12,739 → 8,798 → 8,122 → 7,023 → 5,666 → 5,597 → 5,591 → 5,531 → 5,502 → 5,431 → 4,774 → 4,771 → 4,745 → 4,744 → 4,676 → 4,668 → 4,660 → 4,656 → 4,653 → 4,643 → 4,638 → 4,635 → 4,627 → 4,622 → 4,528 → 4,520 → 4,514 → 4,522 → 4,521 → 4,536 → 4,520 → 4,506. Fourteen archived transitions
+13,423 → 12,739 → 8,798 → 8,122 → 7,023 → 5,666 → 5,597 → 5,591 → 5,531 → 5,502 → 5,431 → 4,774 → 4,771 → 4,745 → 4,744 → 4,676 → 4,668 → 4,660 → 4,656 → 4,653 → 4,643 → 4,638 → 4,635 → 4,627 → 4,622 → 4,528 → 4,520 → 4,514 → 4,522 → 4,521 → 4,536 → 4,520 → 4,506 → 4,497 → 4,493. Fourteen archived transitions
 pass byte-for-byte: 1493→1494, 1494→1495, 1495→1496, 1505→1506, 1512→1513,
 1513→1514, 1514→1515, 1516→1517, 1527→1528, 1537→1538, 1541→1542,
 1542→1543, 1543→1544 and 1547→1548. 1492→1493 is down to the
@@ -583,13 +583,28 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
 
 ## Open leads (most transitions first)
 
-- Fresh 1578 and 1581 replays match DOS in all modeled gameplay state. Their
-  remaining 18 and 9 leaves respectively are transport-chain links and, in
-  1578, a swap of two otherwise identical French Europe-lane Dragoon records.
-  The DOS save compactor rebuilds those Europe sentinel chains in an order the
-  runtime port does not yet retain. Existing fresh 1533 and 1545 evidence
-  requires the current record-order hull and loose-land linking, so do not
-  reverse the serializer without tracing the compactor's live chain order.
+- Fresh 1586→1587 has 66 leaves after preserving the 5d04 Europe-dock
+  physical walk. DOS boards the waiting colonist on the first hull in that
+  chain, which the port now also does, lowering the archived sweep by another
+  four leaves. The main remaining split is the departing-goods loop: DOS buys
+  Muskets plus Tools on the Caravel and Muskets, Trade Goods and Horses on the
+  Merchantman, draining Spanish gold 1100→0; the port buys only Muskets on
+  each and ends at 609. DOS also spends 300 French gold. The port's computed
+  cargo-demand cells for goods 8/13/14 are below `local_46`; DOS is evidently
+  entering the `bVar21` expansion bypass at raw 93036. Trace that boolean at
+  5d04:6fxx before changing the documented past-end `unit[-1]+0x3148` read.
+  Fresh 1587→1588 and 1588→1589 are byte-identical, so the split does not
+  persist into the following independently loaded saves.
+
+- Fresh 1578 and 1581→1586 replays match DOS in all modeled gameplay state.
+  Fresh 1584→1585 was already byte-identical. The save bridge now restores
+  Europe sentinel physical order from the incoming chain and serializes
+  sibling hulls by that order rather than record index: fresh 1583→1584 and
+  1585→1586 become byte-identical, and the archived sweep falls by nine leaves
+  to 4,497. A reversed-record-order hull chain with a passenger covers the
+  import/export rule. Fresh 1578 still has an identical-record swap plus chain
+  differences; fresh 1581 and 1582 retain 10 and 5 chain leaves, so DOS has an
+  additional mixed sentinel-chain ordering rule to trace there.
 
 - Fresh 1577 reduces the archived 1577→1578 cluster to 15 JSON leaves. One
   Spanish Dragoon is the only behavioral split: DOS gives it the same
