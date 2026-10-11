@@ -3001,6 +3001,11 @@ static int unit_ship_index_gates_skip_deleted_slots(void) {
     f.col1.stuff.unit_type_counts[1][0x12] = 2;
     /* Storage slot 1 is odd; compact DOS index 0 is even. */
     const int mow_gate = ai_euro_20e6_457e_type_gate(&f.ctx, ship, UNITS_KIND_MAN_O_WAR);
+    /* Empty live holds after selling still retain the entry cargo type. */
+    if (ai_euro_20e6_457e_hs_cadence_snapshot(&f.ctx, ship, 1, 0, COLONIZE_CARGO_TOOLS)) {
+      fixture_free(&f);
+      return fail("cadence must retain delivery classification after selling cargo");
+    }
     const int sailed = ai_euro_20e6_457e_hs_cadence(&f.ctx, ship, 1);
     fixture_free(&f);
     if (mow_gate || sailed != (turn == 32)) {
@@ -3010,7 +3015,85 @@ static int unit_ship_index_gates_skip_deleted_slots(void) {
   return 0;
 }
 
+static int unit_border_park_inherits_previous_flood_stack_word(void) {
+  Fixture f;
+  if (fixture_init(&f, 2)) return 1;
+  const int id = park_setup(&f, 2, 1, 0);
+  ColonizeUnit* u = units_get(&f.units, id);
+  if (!u) { fixture_free(&f); return fail("stack carryover artillery spawn"); }
+  /* No attack candidate: the neighbouring defender is an ally. */
+  ai_diplo_write(&f.col1, 2, 0, AI_DIPLO_PEACE);
+  const int walker_id = units_spawn(&f.units, 1, 12, 12);
+  ColonizeUnit* walker = units_get(&f.units, walker_id);
+  if (!walker) { fixture_free(&f); return fail("stack carryover walker spawn"); }
+  walker->nation_id = 2;
+  walker->orders = UNITS_ORDER_AI_SAIL;
+  walker->moves = UNITS_MP_PER_TILE;
+  walker->goto_x = 12;
+  walker->goto_y = 11;
+  ai_euro_goal_walk_479b(&f.ctx, walker);
+  if (f.ctx.ai_euro_wander_stack_word != 0) {
+    fixture_free(&f); return fail("adjacent sign step must not spill a flood frame");
+  }
+  walker->moves = UNITS_MP_PER_TILE;
+  walker->goto_y = 8;
+  walker->orders = UNITS_ORDER_AI_SAIL;
+  ai_euro_goal_walk_479b(&f.ctx, walker);
+  if (f.ctx.ai_euro_wander_stack_word != 632) {
+    fixture_free(&f); return fail("flood must spill the nation loop's saved SI");
+  }
+  (void)ai_euro_move_scoring_gate(&f.ctx, u, 2);
+  const int parked = u->col1_ai_plan == 'F' && !park_moved(&f, id);
+  fixture_free(&f);
+  return parked ? 0 : fail("prior flood must enable border park without an attack candidate");
+}
+
+static int unit_border_park_does_not_refresh_encounter_timer(void) {
+  Fixture f;
+  if (fixture_init(&f, 2)) return 1;
+  quiet_5d04_planner(&f, 2);
+  const int id = park_setup(&f, 2, 1, 0);
+  if (id < 0) { fixture_free(&f); return fail("park encounter spawn"); }
+  f.col1.nation[1].treaty_timer[2] = 9;
+  ai_euro_dispatcher_turn(&f.ctx, 2);
+  const int timer = f.col1.nation[1].treaty_timer[2];
+  const int moved = park_moved(&f, id);
+  fixture_free(&f);
+  return !moved && timer == 9 ? 0 : fail("parked order change must not open an audience");
+}
+
+/* 0a60 derives each continent's stance from local presence and strength.
+ * A war with an absent peer and the Indian hostility latch add no pressure. */
+static int unit_stance_ignores_remote_war_and_sticky(void) {
+  Fixture f;
+  if (fixture_init(&f, 1) != 0) return 1;
+  ColonizeColony* c = &f.colonies.colonies[0];
+  c->active = true;
+  c->id = 0;
+  c->nation_id = 1;
+  c->x = 4;
+  c->y = 4;
+  f.colonies.colony_count = 1;
+  const int cid = map_continent_id_at(&f.map, 4, 4);
+  ai_euro_refresh_continent_stance(&f.ctx, 1);
+  const int peaceful = ai_euro_continent_stance_at(1, cid);
+  ai_diplo_declare_war(&f.col1, 1, 2);
+  ai_diplo_indian_hostility_set(1, 2);
+  ai_euro_refresh_continent_stance(&f.ctx, 1);
+  const int hostile = ai_euro_continent_stance_at(1, cid);
+  ai_diplo_indian_hostility_set(1, 0);
+  fixture_free(&f);
+  if (cid < 0 || peaceful != 0 || hostile != peaceful)
+    return fail("remote war or sticky hostility changed local continent stance");
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_stance_ignores_remote_war_and_sticky", unit_stance_ignores_remote_war_and_sticky},
+    {"unit_border_park_does_not_refresh_encounter_timer",
+     unit_border_park_does_not_refresh_encounter_timer},
+    {"unit_border_park_inherits_previous_flood_stack_word",
+     unit_border_park_inherits_previous_flood_stack_word},
     {"unit_ship_index_gates_skip_deleted_slots", unit_ship_index_gates_skip_deleted_slots},
     {"unit_ship_far_roam_uses_band_snapshot", unit_ship_far_roam_uses_band_snapshot},
     {"unit_ship_band_keeps_counts_after_unload", unit_ship_band_keeps_counts_after_unload},

@@ -498,7 +498,7 @@ static int ai_euro_28c8_score_full(
         out_best->tile = ti;
         out_best->yield = raw_yield;
         const size_t plot_i = (size_t)ty * (size_t)ctx->map->width + (size_t)tx;
-        if (current_job < 0 && ctx->map->layer2 && ctx->map->layer3 &&
+        if (restrict_job >= -1 && current_job < 0 && ctx->map->layer2 && ctx->map->layer3 &&
             (ctx->map->layer2[plot_i] & 0x03u) == 0 &&
             ((ctx->map->layer2[plot_i] & MAP_LAYER2_PURCHASED) != 0 ||
              (ctx->map->layer3[plot_i] >> 4) < 4)) {
@@ -536,6 +536,15 @@ static int ai_euro_28c8_score(
   AiEuro28c8JobCandidate* out_best
 ) {
   return ai_euro_28c8_score_job(ctx, col, colonist_slot, profession, -1, out_best);
+}
+
+/* FUN_15eb_28c8 mode -2 (raw 13142-13144) restores the job and never
+ * commits 06d2 after clearing the trial flag DS:034d. */
+int ai_euro_28c8_probe(
+  const ColonizeTurnContext* ctx, const ColonizeColony* col, int slot,
+  AiEuro28c8JobCandidate* best
+) {
+  return ai_euro_28c8_score_job(ctx, col, slot, col->colonists[slot].profession, -2, best);
 }
 
 int ai_euro_28c8_colonist_job_score_structural(
@@ -1106,7 +1115,7 @@ static void ai_euro_5952_indoor_pass(
     AiEuro28c8JobCandidate probe;
     memset(&probe, 0, sizeof probe);
     const int probe_ok =
-      ai_euro_28c8_score(ctx, col, s, col->colonists[s].profession, &probe);
+      ai_euro_28c8_probe(ctx, col, s, &probe);
     const int field_score = probe_ok ? probe.score : 0;
 
     ai_euro_5952_ledgers(&world, pool, col, col1, gross, demand);
@@ -2570,6 +2579,9 @@ COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
   if (charged != INT_MIN) {
     europe_nation_gold_add(ctx->europe, ctx->col1, nation, -(long)charged);
   }
+  /* 5952 asm 29f2-29fc / raw 95956: 3dc8(DS:17e0, 1) follows the
+   * expert purchase. Fresh 1584 watch catches Dutch tax 0 -> 1 here. */
+  ai_king_tax_delta_ai(ctx, nation, 1);
 }
 
 /* DOS-LITERAL FUN_5952_035e raw 95959-95972, asm 2a03-2a63. */

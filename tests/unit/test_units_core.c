@@ -7275,7 +7275,43 @@ static int case_fountain_of_youth(void) {
   return 0;
 }
 
+static int case_ship_arrival_sorts_existing_passenger_chain(void) {
+  ColonizeUnitPool p;
+  units_reset_state();
+  units_reset(&p);
+  units_set_occupancy_map(NULL);
+  p.type_count = 2;
+  snprintf(p.types[0].name, sizeof(p.types[0].name), "Caravel");
+  p.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  p.types[0].cargo = 2;
+  p.types[0].space = 99;
+  p.types[0].movement = 4;
+  snprintf(p.types[1].name, sizeof(p.types[1].name), "Colonists");
+  p.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  p.types[1].space = p.types[1].movement = 1;
+  ColonizeWorldMap m;
+  memset(&m, 0, sizeof(m));
+  if (!map_alloc(&m, 8, 8, err, sizeof(err))) return 1;
+  memset(m.terrain, T_OCEAN, 64);
+  const int host = units_spawn_allow_stack(&p, 0, 4, 4);
+  const int pax = units_spawn_allow_stack(&p, 1, 4, 4);
+  const int incoming = units_spawn_allow_stack(&p, 0, 5, 4);
+  if (!units_board_stacked(&p, pax, host)) { map_free(&m); return 1; }
+  ColonizeWorld w = {.units=&p, .map=&m};
+  const bool moved = units_try_move_w(&w, incoming, 4, 4);
+  const ColonizeUnit* a = units_get_const(&p, pax);
+  const ColonizeUnit* b = units_get_const(&p, host);
+  const ColonizeUnit* c = units_get_const(&p, incoming);
+  const bool ok = moved && a && b && c &&
+    a->tile_stack_order < b->tile_stack_order && b->tile_stack_order < c->tile_stack_order;
+  map_free(&m);
+  units_set_occupancy_map(NULL);
+  if (!ok) fprintf(stderr, "ship arrival must sort the existing hull/passenger chain\n");
+  return ok ? 0 : 1;
+}
+
 static const TestCase k_cases[] = {
+  {"ship_arrival_sorts_existing_passenger_chain", case_ship_arrival_sorts_existing_passenger_chain},
   {"starter_fleet", case_starter_fleet},
   {"tile_stack_head_arrival", case_tile_stack_head_tracks_movement},
   {"starter_discoverer_england", case_starter_discoverer_england},

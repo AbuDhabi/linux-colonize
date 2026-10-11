@@ -1991,9 +1991,9 @@ static int ai_euro_20e6_open_sea(const ColonizeWorldMap* map, int x, int y) {
  *
  * `out_attack` = DOS `local_ce` (raw 88874): the winning candidate was scored
  * through LAB_521d_52aa, i.e. the pick is an attack. `out_saw_foe` = DOS
- * `local_ea` (raw 88887): *any* candidate reached LAB_52aa with a non-zero
- * DS:0x5236 row — an attackable foreigner stood next to this unit, whatever
- * the odds came out as. Both are read by the LAB_4d2e tail (raw 88983-89040);
+ * `local_ea` (raw 88887): an attack candidate sets it to 1; otherwise it
+ * retains the shared stack word, including a previous flood frame's saved
+ * SI. Both are read by the LAB_4d2e tail (raw 88983-89040);
  * either may be NULL.
  */
 int ai_euro_20e6_wander_step(
@@ -2028,7 +2028,7 @@ int ai_euro_20e6_wander_step(
   int best = -999;
   int best_dir = 8;
   int best_attack = 0;
-  int saw_foe = 0; /* local_ea */
+  int saw_foe = ctx->ai_euro_wander_stack_word; /* uninitialized local_ea */
   /* FUN_521d_20e6 raw 88779 reads the saved facing byte for land and
    * ships alike. The scratch mirror starts at zero after loading a save
    * and biased land units north (#530 TURN4 Spanish soldier). */
@@ -2360,6 +2360,7 @@ int ai_euro_20e6_wander_step(
   if (out_saw_foe) {
     *out_saw_foe = saw_foe;
   }
+  ctx->ai_euro_wander_stack_word = saw_foe;
   return best_dir;
 }
 
@@ -3130,6 +3131,16 @@ int ai_euro_20e6_bvar20_seed(
 }
 
 int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
+  int tally[COLONIZE_CARGO_COUNT];
+  const int delivery_type = ai_euro_20e6_delivery_tallies(ctx, u, tally);
+  return ai_euro_20e6_457e_hs_cadence_snapshot(
+    ctx, u, nation_id, u ? u->cargo_count : 0, delivery_type
+  );
+}
+
+int ai_euro_20e6_457e_hs_cadence_snapshot(
+  ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id, int stack_other, int delivery_type
+) {
   if (!ctx || !ctx->units || !ctx->map || !u || !u->active) {
     return 0;
   }
@@ -3144,23 +3155,8 @@ int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
   if (s.order_code == 't' || s.order_code == 'i') {
     return 0; /* iStack_6 */
   }
-  if (u->cargo_count != 0) {
-    return 0; /* iStack_a8 = stack−1 */
-  }
-  /* iStack_44: max hold cargo id over `id > 0xc || id == 8`
-   * (TradeGoods/Tools/Muskets, plus Horses) — < 0 means none aboard. */
-  {
-    const int holds = units_goods_hold_count(ctx->units, u->id);
-    for (int h = 0; h < holds; ++h) {
-      const int ct = u->hold_goods_type[h];
-      if (units_hold_amount(ctx->units, u->id, h) <= 0 || ct < 0) {
-        continue;
-      }
-      if (ct > 0xc || ct == 8) {
-        return 0;
-      }
-    }
-  }
+  /* DOS local_a8/local_44 survive unloading and the delivery sell tail. */
+  if (stack_other != 0 || delivery_type >= 0) return 0;
   if (!ai_euro_20e6_457e_type_gate(ctx, u, s.dos_type)) {
     return 0;
   }

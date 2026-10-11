@@ -2781,10 +2781,12 @@ static int ai_diplo_153e_encounter_gated(
 );
 
 int ai_diplo_153e_encounter(ColonizeTurnContext* ctx, int human, int target, int unit_id) {
+  turn_refresh_euro_rank(ctx);
   return ai_diplo_153e_encounter_gated(ctx, human, target, unit_id, 0);
 }
 
 int ai_diplo_153e_encounter_forced(ColonizeTurnContext* ctx, int human, int target, int unit_id) {
+  turn_refresh_euro_rank(ctx);
   return ai_diplo_153e_encounter_gated(ctx, human, target, unit_id, 1);
 }
 
@@ -3294,6 +3296,8 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
 
 /* FUN_5bfb_3180 -> 153e with an AI self (raw 97406) -> 13b0. */
 void ai_diplo_13b0_encounter(ColonizeTurnContext* ctx, int mover, int other) {
+  /* 153e raw 97404 refreshes 00f8 before branching to the AI audience. */
+  turn_refresh_euro_rank(ctx);
   if (ctx && ctx->col1 &&
       ai_diplo_indian_hostility_sticky(ctx->col1, mover) != AI_DIPLO_STICKY_DEEP) {
     ai_diplo_13b0_treaty_tick(ctx, mover, other);

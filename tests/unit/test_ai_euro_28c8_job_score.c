@@ -26,6 +26,7 @@
  * depend on the absolute (x,y) the test picks.
  */
 #include "core/ai_euro.h"
+#include "core/ai_euro_internal.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/colony_internal.h"
@@ -653,6 +654,10 @@ static int unit_trial_owner_stamp_scoped_to_idle_worker(void) {
   ctx.colonies = &colonies;
   ctx.map = &map;
   AiEuro28c8JobCandidate best;
+  if (!ai_euro_28c8_probe(&ctx, &colonies.colonies[0], 0, &best) ||
+      layer3[bought] != 0x9f || layer3[unbought] != 0x7f) {
+    return fail("mode -2 probe must retain map owners for an idle worker");
+  }
   if (!ai_euro_28c8_colonist_job_score_structural(&ctx, 0, 0, &best)) {
     return fail("trial owner: no plot scored");
   }

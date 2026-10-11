@@ -135,13 +135,7 @@ void ai_euro_try_violate_notify(ColonizeTurnContext* ctx, ColonizeUnit* u);
  * tier 4, stronger → tier 3 (DOS's own literal tier-number writes, kept
  * as-is — NOT swapped to match the old thin heuristic's "3=expand/
  * 4=military" comment convention, since that convention was itself never
- * DOS-derived. Checked both hardcoded `stance==3`/`stance==4` consumer
- * sites in this file under the new mapping: `stance==3` now fires when a
- * same-or-stronger rival shares the continent (soft-caps military
- * priority + bumps FOUND — a defensible "don't pick a losing fight, grab
- * a founding spot instead" reading, not obviously wrong); the peacetime
- * `stance==4` sticky-gate is unaffected either way since it's forced by
- * its own explicit override below, independent of this pressure tier).
+ * DOS-derived). No additional tier override follows these pressure counts.
  * Zero own presence (colonies AND land units both) forces tier 4.
  * Cite: euro_g_table_0a60.md "Naming caveat."
  *
@@ -173,9 +167,21 @@ void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int nation_id) {
   uint8_t colony_count[4][16];
   uint8_t land_unit_count[12][16];
   uint8_t defense_value[12][16];
+  bool village_presence[8][16] = {{false}};
   memset(colony_count, 0, sizeof(colony_count));
   memset(land_unit_count, 0, sizeof(land_unit_count));
   memset(defense_value, 0, sizeof(defense_value));
+
+  /* FUN_521d_0a60 raw 87995-88004, 88085-88088: the local village
+   * population table admits native pressure even when no Brave is present. */
+  if (ctx->col1->tribe) {
+    for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
+      const ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
+      const int cid = map_continent_id_at(ctx->map, t->x, t->y);
+      if (t->nation_id >= 4 && t->nation_id < 12 && t->population && cid >= 0 && cid < 16)
+        village_presence[t->nation_id - 4][cid] = true;
+    }
+  }
 
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &ctx->colonies->colonies[i];
@@ -222,8 +228,6 @@ void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int nation_id) {
     defense_value[u->nation_id][cid] = (uint8_t)(sum > 0xff ? 0xff : sum);
   }
 
-  const int at_war = ai_euro_at_war_any_peer(ctx->col1, nation_id);
-  const int sticky = ai_diplo_indian_hostility_sticky(ctx->col1, nation_id);
   for (int cid = 0; cid <= 15; ++cid) {
     int presence_sum = 0;
     for (int n = 0; n < 4; ++n) {
@@ -240,9 +244,9 @@ void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int nation_id) {
       if (other == nation_id) {
         continue;
       }
-      /* Indian side (other>=4) has no colony table; presence is land_unit_count only. */
       const int other_has_presence =
-        (other < 4 && colony_count[other][cid] != 0) || land_unit_count[other][cid] != 0;
+        other < 4 ? (colony_count[other][cid] != 0 || land_unit_count[other][cid] != 0)
+                  : (defense_value[other][cid] != 0 || village_presence[other - 4][cid]);
       if (!other_has_presence) {
         continue;
       }
@@ -285,15 +289,9 @@ void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int nation_id) {
       tier = 4;
     }
 
-    if (at_war && own_colonies > 0) {
-      tier = 4;
-    } else if (sticky >= 2 && own_colonies > 0) {
-      /*
-       * Peacetime −0x6790==4 stand-in: high Indian sticky → military nibble for
-       * mil unload / war cargo arms. Cite: move_scoring_ship.md; Series F1.
-       */
-      tier = 4;
-    }
+    /* FUN_521d_0a60 raw 88055-88121: the pressure counts above are the only overrides.
+     * A war elsewhere or the global Indian hostility latch does not force
+     * every inhabited continent into the military-unload tier. */
     s_euro_continent_stance[nation_id][cid] = (uint8_t)tier;
 
     /* −0x6168 max-tracker (raw lines 1346-1374, same continent loop as the
@@ -1608,8 +1606,10 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
         }
         /* 3180's AI x AI limb: land mover, land neighbour whose stack head
          * (07e0) or settlement (06be) is another AI Euro -> 153e -> 13b0,
-         * once per neighbour nation (aiStack_20). */
+         * once per neighbour nation (aiStack_20). DOS 465b raw 75797 calls
+         * this after movement; changing orders while parked is no encounter. */
         if (progressed && u->active && units_is_on_map(u) && ctx->map &&
+            (u->x != before_x || u->y != before_y) &&
             !map_tile_is_water(ctx->map, u->x, u->y)) {
           int seen[4] = {0};
           for (int d = 0; d < 8; ++d) {
@@ -1685,6 +1685,7 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
   }
 
   ai_euro_dispatcher_turn_reset(ctx);
+  ctx->ai_euro_wander_stack_word = 0;
   ai_euro_20e6_refresh_type_cache(ctx->units);
   /* FUN_4962_0018 filled DS:0x945a in 00f2 before this dispatcher. 5d04
    * may buy a dockside colonist later; that purchase does not update 945a. */

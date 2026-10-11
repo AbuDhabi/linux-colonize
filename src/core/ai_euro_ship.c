@@ -102,7 +102,7 @@ static int ai_euro_20e6_ship_dump_enabled(void) {
  * bytes below the real BP displacement throughout this frame: uStack_50 is
  * [BP-0x4e], iStack_44 is [BP-0x42], uStack_e6 is [BP-0xe4].)
  */
-static int ai_euro_20e6_delivery_tallies(
+int ai_euro_20e6_delivery_tallies(
   const ColonizeTurnContext* ctx, const ColonizeUnit* ship, int tally[COLONIZE_CARGO_COUNT]
 ) {
   int max_type = -1;

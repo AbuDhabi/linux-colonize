@@ -699,6 +699,8 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
     }
   }
   int a8_at_entry = tile_stack_count > 0 ? tile_stack_count - 1 : 0;
+  int delivery_tally[COLONIZE_CARGO_COUNT];
+  const int delivery_at_entry = ai_euro_20e6_delivery_tallies(ctx, u, delivery_tally);
   int roam_military_founders = -1;
   int unload_mask = 0;
   const int at_own_colony = colonies_id_at(ctx->colonies, u->x, u->y) >= 0 &&
@@ -774,7 +776,9 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
   /* LAB_457e reads the entry snapshot local_a8. A hull that disembarked its
    * last passenger in LAB_3558 is still nonempty for this call. */
   if (a8_at_entry == 0 && ai_euro_20e6_hs_cadence_enabled() &&
-      ai_euro_20e6_457e_hs_cadence(ctx, u, nation_id)) {
+      ai_euro_20e6_457e_hs_cadence_snapshot(
+        ctx, u, nation_id, a8_at_entry, delivery_at_entry
+      )) {
     u = units_get(ctx->units, id);
     if (!u || !u->active) {
       return 1;
@@ -891,7 +895,15 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   w.rng_reseed = ai_turn_seed(ctx);
   w.rng_reseed_set = true;
   if (u->x != u->goto_x || u->y != u->goto_y) {
-    ok = units_next_goto_step_w(&w, id, &px, &py);
+    bool flood = false;
+    ok = units_next_goto_step_with_flood_w(&w, id, &px, &py, &flood);
+    /* DOS 6662_00f2 asm 00f9 saves SI at SS:e7c4, the next 20e6's
+     * local_ea (BP-e8). 521d_6d8e asm 6fa4 leaves SI = nation*0x13c.
+     * Fresh 1558 watch: unit 42's flood writes 632 before unit 41 parks.
+     * Adjacent sign steps skip 00f2 entirely. */
+    if (flood && u->nation_id >= 0 && u->nation_id < 4) {
+      ctx->ai_euro_wander_stack_word = u->nation_id * 0x13c;
+    }
   }
   /* FUN_6662_0f74 LAB_1599, raw 104758: the pathfinder writes +0x314f
    * on EVERY return, including -1 when already at the goal. Keeping the
