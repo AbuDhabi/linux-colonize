@@ -1400,8 +1400,9 @@ static int unit_load_matrix_picks_priced_cargo(void) {
  */
 static int unit_ship_berth_dumps_whole_hull(void) {
   const int nation = 1;
-  for (int pass = 0; pass < 2; ++pass) {
-    const int dump_on = (pass == 1);
+  for (int pass = 0; pass < 3; ++pass) {
+    const int dump_on = pass != 0;
+    const int tasked = pass == 2;
     if (dump_on) {
       unsetenv("AI_20E6_SHIP_DUMP");
     } else {
@@ -1456,7 +1457,10 @@ static int unit_ship_berth_dumps_whole_hull(void) {
     }
     ship->nation_id = nation;
     ship->moves = 4 * UNITS_MP_PER_TILE;
-    ship->orders = 0;
+    ship->orders = tasked ? AI_EURO_ACT_GOAL : 0;
+    ship->col1_ai_plan = tasked ? 't' : 0;
+    ship->goto_x = 12;
+    ship->goto_y = 4;
     if (units_load_goods(&f.units, ship_id, COLONIZE_CARGO_ORE, 80) <= 0 ||
         units_load_goods(&f.units, ship_id, COLONIZE_CARGO_FURS, 40) <= 0) {
       fixture_free(&f);
@@ -3088,7 +3092,43 @@ static int unit_stance_ignores_remote_war_and_sticky(void) {
   return 0;
 }
 
+/* 0a60's native-presence side includes village population as well as Braves.
+ * A village at war therefore participates even when no Brave is on its
+ * continent (raw 87995-88004, 88085-88088). */
+static int unit_stance_counts_native_village_population(void) {
+  Fixture f;
+  if (fixture_init(&f, 1) != 0) return 1;
+  ColonizeColony* c = &f.colonies.colonies[0];
+  c->active = true;
+  c->id = 0;
+  c->nation_id = 1;
+  c->x = 4;
+  c->y = 4;
+  f.colonies.colony_count = 1;
+  const int soldier_id = units_spawn(&f.units, 1, 4, 4);
+  ColonizeUnit* soldier = units_get(&f.units, soldier_id);
+  if (!soldier) { fixture_free(&f); return fail("native stance soldier spawn"); }
+  soldier->nation_id = 1;
+  ColonizeCol1Tribe village = {0};
+  village.x = 6;
+  village.y = 4;
+  village.nation_id = 4;
+  village.population = 3;
+  f.col1.tribe = &village;
+  f.col1.head.tribe_count = 1;
+  f.col1.indian[0].euro_diplo[1] |= COL1_INDIAN_WAR_BIT;
+  const int cid = map_continent_id_at(&f.map, 4, 4);
+  ai_euro_refresh_continent_stance(&f.ctx, 1);
+  const int stance = ai_euro_continent_stance_at(1, cid);
+  f.col1.tribe = NULL;
+  f.col1.head.tribe_count = 0;
+  fixture_free(&f);
+  return cid >= 0 && stance == 4 ? 0 : fail("populated native village did not add pressure");
+}
+
 static const TestCase k_cases[] = {
+    {"unit_stance_counts_native_village_population",
+     unit_stance_counts_native_village_population},
     {"unit_stance_ignores_remote_war_and_sticky", unit_stance_ignores_remote_war_and_sticky},
     {"unit_border_park_does_not_refresh_encounter_timer",
      unit_border_park_does_not_refresh_encounter_timer},

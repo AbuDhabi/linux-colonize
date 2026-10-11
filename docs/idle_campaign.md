@@ -19,7 +19,7 @@ then a recursive JSON diff (show `*_hex` blobs as differing byte offsets). The t
 `EXCLUDE_FROM_ALL`: rebuild it explicitly (`cmake --build build/debug --target golden_idle_campaign`).
 
 Progress (sum of differing JSON leaves over all 77 transitions): 18,869 → 16,546 → 16,178 →
-13,423 → 12,739 → 8,798 → 8,122 → 7,023 → 5,666 → 5,597 → 5,591 → 5,531 → 5,502 → 5,431 → 4,774 → 4,771 → 4,745 → 4,744 → 4,676 → 4,668 → 4,660 → 4,656 → 4,653 → 4,643 → 4,638 → 4,635 → 4,627 → 4,622 → 4,528 → 4,520 → 4,514 → 4,522 → 4,521 → 4,536. Fourteen archived transitions
+13,423 → 12,739 → 8,798 → 8,122 → 7,023 → 5,666 → 5,597 → 5,591 → 5,531 → 5,502 → 5,431 → 4,774 → 4,771 → 4,745 → 4,744 → 4,676 → 4,668 → 4,660 → 4,656 → 4,653 → 4,643 → 4,638 → 4,635 → 4,627 → 4,622 → 4,528 → 4,520 → 4,514 → 4,522 → 4,521 → 4,536 → 4,520 → 4,506. Fourteen archived transitions
 pass byte-for-byte: 1493→1494, 1494→1495, 1495→1496, 1505→1506, 1512→1513,
 1513→1514, 1514→1515, 1516→1517, 1527→1528, 1537→1538, 1541→1542,
 1542→1543, 1543→1544 and 1547→1548. 1492→1493 is down to the
@@ -557,16 +557,48 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   regression and both archived sweeps pass; the sweeps total 4,521 leaves.
 
 - `0a60` stance now uses only local presence and strength, as in raw
-  88055-88121. Removed the port's additional overrides for a war anywhere
-  and the global Indian hostility latch. Fresh 1597 now carries its dragoon
-  to the colony instead of unloading on a beach, clearing all 12 fresh
-  differences. All eleven earlier fresh replays remain byte-identical.
-  The defender-choice fixture now supplies local reserves to enter the
-  offensive tier. Full tests (96 enabled), golden, Release 20e6 and war-land
-  tests pass. Both archived sweeps total 4,536 leaves: 1554 adds 16 and
-  1597 loses one. A fresh 1554 replay is underway to classify that change.
+  87995-88121. Removed the port's additional overrides for a war anywhere
+  and the global Indian hostility latch. The local native-presence table now
+  includes village population as well as Brave combat strength; omitting it
+  was the source of the apparent 1554 regression. Fresh 1597 carries its
+  dragoon to the colony instead of unloading on a beach, clearing all 12
+  fresh differences, while fresh 1554 returns to its prior four physical
+  ship-chain differences. All eleven earlier fresh exact replays remain
+  byte-identical. A focused village-without-Brave regression covers the
+  population table, and the defender-choice fixture supplies local reserves
+  to enter the offensive tier. Full tests (96 enabled), golden, logic-map
+  validation, Release 20e6 and war-land tests pass. Debug and Release archived
+  sweeps both total 4,520 leaves with 14 exact transitions.
+
+- The `20e6` own-colony berth block now runs before the `t`/`i` tasked-hull
+  gate, matching raw 2996-3138's position above the first `local_6` checks.
+  Fresh 1576 exposed the shared error: a tasked Dutch Merchantman retained
+  four stale Europe cargoes and left its passenger ashore. DOS first dumps
+  the hull, reserves and assembles the passenger, reloads three colony goods,
+  then resumes the stored founding goal. The corrected replay is byte exact,
+  clearing all 20 fresh differences. The berth regression now covers both
+  untasked and tasked hulls. Full tests (96 enabled), golden, logic-map
+  validation and the optimized 20e6 unit pass; Debug and Release archived
+  sweeps both total 4,506 leaves with 14 exact transitions.
 
 ## Open leads (most transitions first)
+
+- Fresh 1578 and 1581 replays match DOS in all modeled gameplay state. Their
+  remaining 18 and 9 leaves respectively are transport-chain links and, in
+  1578, a swap of two otherwise identical French Europe-lane Dragoon records.
+  The DOS save compactor rebuilds those Europe sentinel chains in an order the
+  runtime port does not yet retain. Existing fresh 1533 and 1545 evidence
+  requires the current record-order hull and loose-land linking, so do not
+  reverse the serializer without tracing the compactor's live chain order.
+
+- Fresh 1577 reduces the archived 1577→1578 cluster to 15 JSON leaves. One
+  Spanish Dragoon is the only behavioral split: DOS gives it the same
+  explore-ring goal at (48,49) as a peer already at (45,49), while the port's
+  ring scan declines and its 4d2e wander ends at (46,55). The remaining unit
+  chain and map-mask leaves follow from that move. Port tracing identifies
+  the actor as unit id 42; it is skipped by the 0a60 Soldier/Dragoon
+  low-presence goal-binding gate and diverges later in the 20e6 explore scan.
+  Resolve the live DOS ring inputs or act ordering before changing the scan.
 
 - Cross-transition triage (2026-10-10): the largest repeated colony cluster is
   Montreal population 1 versus archived 2 in 40 transitions, with related

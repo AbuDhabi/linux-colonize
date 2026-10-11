@@ -750,7 +750,11 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
     }
   }
   /* Berth block / goods delivery / sell / LAB_4393 haul. */
-  if (!tasked) {
+  if (tasked && at_own_colony) {
+    /* Raw 2996-3138 is above LAB_3558's local_6 gates: a FOUND/MIL_EXPAND
+     * transport services its berth first, then resumes the stored goal. */
+    (void)ai_euro_20e6_tasked_ship_berth_arrival(ctx, nation_id, u);
+  } else if (!tasked) {
     const int ox = u->goto_x;
     const int oy = u->goto_y;
     const int oo = u->orders;

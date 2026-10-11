@@ -126,9 +126,10 @@ void ai_euro_try_violate_notify(ColonizeTurnContext* ctx, ColonizeUnit* u);
  *                                 here) — covers nation 0..3 (Euro) and
  *                                 4..11 (Indian, via Brave units; DOS's
  *                                 separate −0x6e34 table over FUN_4962_06b6
- *                                 is the same Brave-combat-value sum, so one
- *                                 unit loop over the full nation_id range
- *                                 covers both sides).
+ *                                 is the same Brave-combat-value sum). DOS
+ *                                 also builds a village-population table;
+ *                                 either nonzero table establishes native
+ *                                 presence on the continent.
  * Baseline tier: (own_colonies + Σcolonies_all_nations)×20 <=
  * continent_tally_b[cid] → develop(6) else none(0); then compared against
  * each rival/tribe with presence: weaker defense (or own zero presence) →
@@ -145,14 +146,7 @@ void ai_euro_try_violate_notify(ColonizeTurnContext* ctx, ColonizeUnit* u);
  * !amicable-latch; Indian side = alarm>=0x4b or 23000-matrix WAR bit.
  * See the gate in the pressure loop below.
  *
- * OpenCol-only overrides kept on top of the real formula (protect existing
- * tested behavior that has no direct DOS table backing this specific way):
- * at-war or high Indian hostility sticky with own colony presence forces
- * military(4) — see move_scoring_ship.md Series F1. Tried dropping the
- * at-war half (it makes DOS's own tier-3 case unreachable during war,
- * since own_colonies>0 is required for tier 3 too) — empirically breaks
- * `unit_ai_euro_war`'s "war cargo sail should prefer Fortress colony over
- * bare" case, so it's load-bearing beyond just this table; kept.
+ * No global war or sticky-hostility override follows the local formula.
  */
 void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || nation_id < 0 || nation_id >= 4) {
