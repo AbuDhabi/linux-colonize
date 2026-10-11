@@ -1209,6 +1209,19 @@ static int ai_euro_20e6_ship_berth_arrival(
   return c->id;
 }
 
+/* Raw 2996-3138 precedes every local_6 (`plan == 't' || 'i'`) gate. A
+ * tasked hull therefore still dumps, reserves/assembles passengers, and
+ * reloads at its own berth before LAB_457e returns it to its stored goal. */
+int ai_euro_20e6_tasked_ship_berth_arrival(
+  ColonizeTurnContext* ctx, int nation_id, ColonizeUnit* ship
+) {
+  if (!ai_euro_20e6_ship_dump_enabled()) {
+    return -1;
+  }
+  int cowered = 0;
+  return ai_euro_20e6_ship_berth_arrival(ctx, nation_id, ship, &cowered);
+}
+
 /*
  * FUN_521d_20e6 ship band entry: own-colony arrival (dump + load matrix),
  * the hold-cargo delivery matrix and its sell tail, then the 4393 work-queue
