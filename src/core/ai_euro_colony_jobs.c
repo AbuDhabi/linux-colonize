@@ -2679,7 +2679,9 @@ static void ai_euro_colony_tick_run(
        * opens with memset(colony+0x8a, 0, 2), so AI colonies carry no
        * Custom House export bits past their first tick. */
       col->custom_house_bits = 0;
-      /* FUN_5952_035e raw 93961: FUN_281f_0c22 -> FUN_15eb_3930 (bugs.md #1080). */
+      /* FUN_5952_035e raw 93958: 281f_0c72 -> FUN_15eb_26e4 claim stamp, then
+       * raw 93961: FUN_281f_0c22 -> FUN_15eb_3930 (bugs.md #1080). */
+      colonies_26e4_claim_stamp(&world, col);
       colonies_recompute_plots_w(&world, col->id);
       ai_euro_5952_colony_counters(ctx, nation_id, col);
       ai_euro_5952_colony_prelude(ctx, nation_id, col);

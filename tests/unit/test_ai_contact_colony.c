@@ -904,6 +904,31 @@ static int test_land_work_alarm_6582(void) {
     return fail("6582: clear+reassign in one pass must not re-charge the plot");
   }
 
+  /*
+   * (4) an AI nation that can afford the plot buys it instead of charging
+   * (6582 tail: gold - price >= price >> 1). The world carries no Europe
+   * store, as on the colony-founding seat path (colonies_seat_new_colonist):
+   * the buy must not depend on one (idle campaign 1586->1587 French gold).
+   */
+  col1.player[0].control = 1;
+  col1.nation[0].gold = 1000;
+  const int plot_w = colonies_field_tile_index(-1, 0); /* (7,8), dist 1 to village */
+  const int price = colonies_indian_land_purchase_gold(&col1, &map, 7, 8, 0);
+  if (plot_w < 0 || price <= 0) {
+    return fail("6582: AI fixture plot must be claimed with a price");
+  }
+  if (!colonies_assign_field_w(&w, col->id, 1, plot_w, COLONIZE_JOB_FARMER)) {
+    return fail("6582: AI assign");
+  }
+  if ((int)col1.indian[0].alarm_by_player[0] != after_take ||
+      col1.nation[0].gold != 1000u - (uint32_t)price || col1.indian[0].lands_bought != 1) {
+    fprintf(
+      stderr, "unit_ai_contact: 6582 AI gold=%u price=%d bought=%u\n", col1.nation[0].gold,
+      price, col1.indian[0].lands_bought
+    );
+    return fail("6582: AI colony must buy the plot (spend + lands_bought), not charge alarm");
+  }
+
   fx_map_free(&map);
   free(col1.tribe);
   col1.tribe = NULL;
@@ -911,7 +936,59 @@ static int test_land_work_alarm_6582(void) {
   return 0;
 }
 
+/*
+ * FUN_364b_1ba8 raw 58088: founding runs FUN_281f_0c72 -> FUN_15eb_26e4, so
+ * every free tribe-claimed plot of the new colony gets the tribe's owner
+ * nibble at once (DOSBox 1586->1587: Cayenne restamped (41,20) to tribe 6).
+ */
+static int test_found_claim_stamp_1ba8(void) {
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  for (int ffi = 0; ffi < (int)COLONIZE_COL1_FF_COUNT; ++ffi) {
+    col1.head.founding_father[ffi] = -1;
+  }
+  col1.head.tribe_count = 1;
+  col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
+  if (!col1.tribe) {
+    return fail("1ba8: alloc tribe");
+  }
+  col1.tribe[0].x = 8; /* two rows north of the colony: (7,7) is claimed */
+  col1.tribe[0].y = 6;
+  col1.tribe[0].nation_id = 4;
+  col1.tribe[0].mission = 0xff;
+  col1.tribe[0].population = 4;
+  memset(&col1.indian[0], 0, sizeof(col1.indian[0]));
+  col1.indian[0].euro_diplo[1] = COL1_INDIAN_MET_BIT;
+  col1.player[1].control = 1;
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 3, false)) {
+    return fail("1ba8: alloc map");
+  }
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  map_set_owner_nibble(&map, 7, 7, 1); /* stamped French by a passing unit */
+  colonies_set_col1_context(&col1);
+  colonies_set_occupancy_map(&map);
+  const int cid = colonies_found(&colonies, &map, 8, 8, 1, 0, -1, 0, 0, 0);
+  colonies_set_occupancy_map(NULL);
+  colonies_set_col1_context(NULL);
+  const int owner = (int)(map.layer3[7 * map.width + 7] >> MAP_L3_OWNER_SHIFT);
+  fx_map_free(&map);
+  free(col1.tribe);
+  col1.tribe = NULL;
+  col1_save_free(&col1);
+  if (cid < 0) {
+    return fail("1ba8: found");
+  }
+  if (owner != 4) {
+    fprintf(stderr, "unit_ai_contact: 1ba8 owner(7,7)=%d want 4\n", owner);
+    return fail("1ba8: founding must restamp claimed plots to the tribe (26e4)");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"test_found_claim_stamp_1ba8", test_found_claim_stamp_1ba8},
     {"test_colony_tick_war_5952", test_colony_tick_war_5952},
     {"test_land_work_alarm_6582", test_land_work_alarm_6582},
     {"test_prelude_alarm_band", test_prelude_alarm_band},
