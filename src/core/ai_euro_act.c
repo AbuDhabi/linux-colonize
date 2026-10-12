@@ -528,6 +528,10 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
         break;
       }
       ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, ctx->rng, NULL);
+      /* FUN_465b_0000 raw 75649: partial-MP moves reseed before rolling
+       * (DOSBox 1591: the French Merchantman's step drew 365). */
+      w_.rng_reseed = ai_turn_seed(ctx);
+      w_.rng_reseed_set = true;
       if (!units_try_move_w(&w_, u->id, tx, ty)) {
         break;
       }
@@ -927,10 +931,23 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
     u->orders = UNITS_ORDER_NONE; /* FUN_2a1f_0210 found no direction */
     return;
   }
+  const int units_before = units_active_count(ctx->units);
   if (ai_euro_4528_ai_village_entry(ctx, u, px, py)) {
+    /* 465b's common exit: the unit did not move into the village tile, so
+     * LAB_465b_0bd1 clears +0x314c and bumps +0x315a (raw 75832-75840). */
+    units_465b_0bd1_tail(ctx->units, id, units_before, false);
     return;
   }
-  const int units_before = units_active_count(ctx->units);
+  /* FUN_479b_0972 -> FUN_465b_0000 runs for a spent unit too (e.g. a hull
+   * the LAB_3558 unload exhausted): cost > left with spent != 0 takes the
+   * raw 75649 reseed and the raw 75825 roll, which can never pass at 0 left.
+   * The port's mover refuses 0 MP up front, so burn the draw here. DOSBox
+   * 1591: the French Merchantman's failed step drew 365. */
+  if (units_remaining_mp(ctx->units, id) <= 0 && w.rng) {
+    const int cost = units_move_cost(ctx->units, id, ctx->map, px, py);
+    dos_rng_seed(w.rng, w.rng_reseed);
+    (void)dos_rng_range(w.rng, 1, cost > 0 ? cost : 1);
+  }
   const bool moved = units_try_move_w(&w, id, px, py);
   if (!g_units_465b_settled) {
     units_465b_0bd1_tail(ctx->units, id, units_before, false);

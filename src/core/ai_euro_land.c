@@ -25,6 +25,7 @@
 #include "core/ai_goals.h"
 #include "core/assets.h"
 #include "core/ai_euro_internal.h"
+#include "core/ai_internal.h"
 #include "core/colony.h"
 #include "core/colony_craft.h"
 #include "core/colony_yield.h"
@@ -992,10 +993,12 @@ int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b) {
   }
   const ColonizeCol1Save* col1 = ctx->col1;
   const int focus = ctx->human_nation; /* DS:0x5398 */
-  /* asm 5bfb:10f4: `CMP [0xa153],AL(=0x5398); JNZ -> return 0` — the AI only
+  /* asm 5bfb:10f4: `CMP [0xa153],AL(=0x5398); JNZ LAB_5bfb_1100` — JNZ jumps
+   * INTO the body; equal falls through to `SUB AX,AX; RETF`. So the AI never
    * weighs war/treaty-cancel while the human is the top-ranked nation
-   * (FUN_5bfb_00f8 rank table). Skipped by the first pass, wired 2026-08-27. */
-  if (ai_diplo_00f8_top_ranked_nation(col1) != focus) {
+   * (FUN_5bfb_00f8 rank table). The 2026-08-27 wiring had the branch
+   * inverted; DOSBox 1593: France and the Dutch went to war here. */
+  if (ai_diplo_00f8_top_ranked_nation(col1) == focus) {
     return 0;
   }
   if ((int)*ctx->turn_number <= 0x27) {
@@ -1437,11 +1440,15 @@ static int ai_euro_20e6_village_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, c
         s->dos_type == UNITS_KIND_MISSIONARY) &&
       (u->profession == UNITS_JOB_NONE || u->profession == UNITS_JOB_SERVANT) && att < 0x40 &&
       !t->state.learned && !units_is_sea(ctx->units, u->id)) {
-    if (ai_contact_ai_live_among_village(ctx, s->nation, s->village_idx, u->id)) {
-      ai_euro_s_20e6_village_visited[s->village_idx] |= (uint8_t)(1u << s->nation);
-      u->moves = 0;
-      return 1;
-    }
+    /* Raw 89363-89372: `local_76 = FUN_2a1f_059c(); +0x314b = 'L'` then
+     * LAB_589e commits the one step onto the village; the visit itself is
+     * 479b -> 465b -> FUN_4d56_4528 (ai_euro_4528_ai_village_entry) and
+     * 465b's 0bd1 tail. DOSBox 1594: a captured Colonist learned that way,
+     * ending with plan 'L', act state 0 and +0x315a bumped. */
+    ai_euro_s_20e6_village_visited[s->village_idx] |= (uint8_t)(1u << s->nation);
+    u->col1_ai_plan = 0x4c;
+    ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, (int)t->x, (int)t->y);
+    return 2;
   }
   return 0;
 }
@@ -1510,10 +1517,27 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
       return 0;
     }
     if (u->x == c->x && u->y == c->y) {
-      (void)colonies_admit_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, best, u->id);
+      /*
+       * DOS-LITERAL FUN_521d_20e6 raw 89345 -> FUN_291f_09a4 -> FUN_364b_1b1a:
+       * 0c72 (26e4 claim stamp), 0c22 (3930 plot pass), then 0c4a admits the
+       * unit and 0c36 = FUN_15eb_1068(idx, 0) (asm 364b:1b3a pushes 0 under
+       * the index): occupation 0, no plot. The plot comes from the colony's
+       * next 3930 pass, not from a 28c8 seat here.
+       */
+      const ColonizeWorld w = world_from_turn_ctx(ctx);
+      colonies_26e4_claim_stamp(&w, c);
+      colonies_recompute_plots_w(&w, best);
+      const int idx = colonies_admit_unit_idle_w(&w, best, u->id);
+      ColonizeColony* jc = colonies_get_mut(ctx->colonies, best);
+      if (idx >= 0 && jc) {
+        jc->colonists[idx].field_job = 0;
+      }
       return 2; /* FUN_1000_9b94 join; unit consumed either way (8b24) */
     }
-    ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, c->x, c->y);
+    /* OVL14 2f..3000: `MOV DX,0x33; JMP LAB_27f5` -> FUN_521d_20c6: plan '3',
+     * act state 0x0b bound to the colony (arrival exhausts MP, 1427_155e). */
+    u->col1_ai_plan = 0x33;
+    ai_euro_set_goto(u, AI_EURO_ACT_GOAL, c->x, c->y);
     return 1;
   }
   if (s->home_dist == 0 && s->home_colony >= 0) {
@@ -2678,6 +2702,10 @@ int ai_euro_20e6_treasure_cash_in(
  * French missionary walked for the Arawak village beside its colony.
  * Returns 1 when a course was set.
  */
+static int ai_euro_20e6_4d2e_tail(
+  ColonizeTurnContext* ctx, ColonizeUnit* u, Ai20e6Unit* s, int force_wander
+);
+
 int ai_euro_20e6_missionary_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
   if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe ||
       !u || !u->active || u->aboard_ship_id >= 0 || ai_euro_in_europe(u->x, u->y)) {
@@ -2723,9 +2751,24 @@ int ai_euro_20e6_missionary_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, int n
   if (pick < 0) {
     const int ti = units_kind_type_index(ctx->units, UNITS_KIND_COLONIST);
     if (ti >= 0) {
+      /* DOS keeps spent MP (+0x3149), not moves left: re-derive the port's
+       * remaining count from the Colonist allotment (Missionary 2 -> 1). */
+      const int spent = units_max_mp(ctx->units, u->id) - u->moves;
       u->type_index = ti; /* +0x3146 = 0 only: profession and goods bytes stay */
+      const int left = units_max_mp(ctx->units, u->id) - spent;
+      u->moves = left > 0 ? left : 0;
     }
-    return 0;
+    /*
+     * Raw 90088 falls through the rest of the same 20e6 call (raw 90094-90219,
+     * nothing taken for a non-explorer with no course) into LAB_521d_4d2e,
+     * still on this call's pre-strip locals. DOSBox 1596: the Dutch
+     * Missionary at Vlissingen is stripped, wander-steps off the colony
+     * ('9', 0x0c) and only walks back on its next act; joining it on the
+     * spot was the port's re-act seeing a fresh Colonist on the colony tile.
+     */
+    ai_euro_20e6_explorer_flag(ctx, u, &s); /* local_6a, pre-strip type */
+    (void)ai_euro_20e6_4d2e_tail(ctx, u, &s, 0);
+    return 1;
   }
   u->col1_ai_plan = 0x4a; /* 'J' */
   const int vx = (int)col1->tribe[pick].x;
@@ -3329,6 +3372,86 @@ int ai_euro_20e6_europe_dock_demand(ColonizeTurnContext* ctx, ColonizeUnit* u, i
 }
 
 /*
+ * LAB_521d_4d2e and its tail (raw 88982-89040): the 8-direction wander pick,
+ * the garrison hold / border park stays, else the '9' one-step commit. Shared
+ * by the gate's land arms and the 457e-band Missionary strip, which falls
+ * through to it inside the same 20e6 call. Always returns 0.
+ */
+static int ai_euro_20e6_4d2e_tail(
+  ColonizeTurnContext* ctx, ColonizeUnit* u, Ai20e6Unit* s, int force_wander
+) {
+  int wander_attack = 0; /* local_ce */
+  int wander_saw_foe = 0; /* local_ea */
+  const int dir = ai_euro_20e6_wander_step(ctx, u, s, &wander_attack, &wander_saw_foe);
+  /*
+   * LAB_4d2e tail, raw 88983-89031: with `local_ce == 0` (the pick is not
+   * an attack) DOS runs the 0x42 / 0x65 / 0x46 park arms before the 0x39
+   * fallthrough, and each of them reaches LAB_5899, which forces
+   * `local_76 = 8` — the scored direction is dropped and the unit stays.
+   * Only the 0x46 arm is ported here; the 0x42 / 0x65 arms (raw
+   * 88989-89009) are the pioneer work codes, which this port runs at act
+   * level in ai_euro_act_land_roles. `local_8e` (raw 88612) is 0 on every
+   * path that reaches this point in the port: it is set only by the DOS
+   * own-colony-with-2+-garrison entry at raw 88584-88612, whose own
+   * outcome (0x47) never reaches the wander scorer's tail arms.
+   * See ai_euro_20e6_border_park_arm.
+   */
+  /*
+   * raw 88982-88984, the first test of the LAB_4d2e tail after
+   * `local_ce == 0`: `if (local_8e != 0) { select(local_62);
+   * goto LAB_521d_5888; }` — a surplus garrison unit (the raw 88612 entry)
+   * that scored no attack this scan falls back into the garrison hold,
+   * i.e. colony.labor_shortage--, order_code = 0x47, stay. It also
+   * suppresses the 0x46 park arm below (raw 88985 reads local_8e == 0).
+   */
+  /*
+   * bugs.md #968 REFUTED 2026-09-28: DOS decrements +0x8e on the colony in
+   * the global DS:0x8542, which on this path is `local_62` = the nearest
+   * own-nation colony to the acting unit's own tile (bound at raw 88429,
+   * re-asserted at raw 88588 on the only path into LAB_521d_5888). The
+   * tile lookup below is equivalent here because `force_wander` is set
+   * only inside the `local_2e == 0` own-colony block above (distance 0 =>
+   * the nearest own colony IS the colony on the tile) and every arm
+   * between that block and this tail is gated on `!force_wander`, so the
+   * unit cannot have moved. The >0 test is the same dead clamp as #967.
+   */
+  if (!wander_attack && force_wander) {
+    const int hcid = ctx->colonies ? colonies_id_at(ctx->colonies, u->x, u->y) : -1;
+    ColonizeColony* hc = hcid >= 0 ? colonies_get_mut(ctx->colonies, hcid) : NULL;
+    if (hc && hc->labor_shortage > 0) {
+      hc->labor_shortage--;
+    }
+    u->col1_ai_plan = 0x47; /* +0x314b */
+    ai_euro_20e6_stay_tail_589e(u); /* LAB_5899 local_76 = 8 -> LAB_589e */
+    return 0;
+  }
+  if (!wander_attack && !force_wander &&
+      ai_euro_20e6_border_park_arm(ctx, u, s, wander_saw_foe)) {
+    u->col1_ai_plan = 0x46; /* +0x314b */
+    ai_euro_20e6_stay_tail_589e(u); /* LAB_5899 local_76 = 8 -> LAB_589e */
+    return 0; /* stay put next to the foreign border colony */
+  }
+  u->col1_ai_plan = 0x39; /* '9' — raw 89040 fallthrough */
+  u->last_dir = dir; /* unit+0x314f, 8 = stay */
+  if (dir == 8) {
+    ai_euro_20e6_stay_tail_589e(u); /* LAB_589e: +0x314c = 5 (6 when admitted) */
+    return 0;
+  }
+  static const int wdx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int wdy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  const int nx = u->x + wdx[dir];
+  const int ny = u->y + wdy[dir];
+  if (!map_coords_inset(ctx->map, nx, ny)) {
+    return 0;
+  }
+  ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, nx, ny);
+  if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
+    ai_euro_s_euro_roam_wander[u->id] = 1; /* unit+0x314c==5 idle-roam (wander step) */
+  }
+  return 0;
+}
+
+/*
  * LAB_521d_589e, the shared FUN_521d_20e6 exit tail, `local_76 == 8` arm
  * (DOS-LITERAL FUN_521d_20e6 raw 90378-90386):
  *   unit+0x314f = local_76;                       // facing, 8 = stay
@@ -3414,6 +3537,16 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
    * more armed units on an own colony marches back out and free-scores its
    * eight neighbours — the assault engine the port was missing.
    */
+  /* Prologue + iStack_6a explorer flag (raw ~88440-88560) run BEFORE the
+   * own-colony garrison block below (raw 88584): the flag's side effect, the
+   * -0x5ec4 per-continent explorer count, also counts a garrisoned Soldier
+   * that then stays. DOSBox 1597: two Spanish garrison Soldiers at (45,52)
+   * filled the cap, so the second Dragoon there wandered instead of taking
+   * its peer's ring goal. Computed ONCE per 20e6 call: the counter side
+   * effect must not run twice. */
+  Ai20e6Unit s;
+  ai_euro_20e6_prologue(ctx, u, nation_id, &s);
+  ai_euro_20e6_explorer_flag(ctx, u, &s);
   int force_wander = 0; /* local_8e */
   {
     const int dtype = ai_euro_20e6_dos_type(ctx->units, u);
@@ -3536,14 +3669,6 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
    * Ported literally anyway: it is what takes the unit out of the wander
    * scorer, which is visible behaviour.
    */
-  /*
-   * The 20e6 prologue and the iStack_6a explorer flag are DOS's, computed
-   * ONCE per 20e6 call: ai_euro_20e6_explorer_flag has a side effect (the
-   * −0x5ec4 per-continent explorer counter), so it must not be run twice.
-   */
-  Ai20e6Unit s;
-  ai_euro_20e6_prologue(ctx, u, nation_id, &s);
-  ai_euro_20e6_explorer_flag(ctx, u, &s);
   if (!force_wander && s.dos_type == 2 && s.explorer == 0) {
     {
       {
@@ -3586,34 +3711,7 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
       }
     }
   }
-  /* Only a 0x0b unit on its goal is exempt (raw 90212); a one-step 0x0c
-   * unit standing on its step tile still needs FUN_281f_0984. */
-  const int step_at_goal =
-    u->orders == AI_EURO_ACT_STEP && u->goto_x == u->x && u->goto_y == u->y;
-  int to_4d2e = force_wander || (!ai_euro_has_useful_goto(u, ctx->map) && !step_at_goal) ||
-                ai_euro_20e6_adjacent_foreign_09dc(ctx, u->x, u->y, nation_id);
-  if (!to_4d2e) {
-    /*
-     * `goto LAB_521d_5a78` — 20e6 sets NO course here. DOS leaves the unit
-     * bound to the goal already stored in +0x314d/e and FUN_521d_5b66's
-     * switch (case 0x0b / 0x0c → FUN_479b_0972) walks one pathfinder step
-     * toward it, keeping the binding until the unit stands on the tile, so
-     * the only thing to do is re-bind the unit's OWN goal.
-     *
-     * A `ai_goals_best_found_tile_near` re-derive stood here until
-     * 2026-09-18 (bugs.md #526) and re-aimed every already-bound land unit
-     * at the nearest top-priority FOUND tile on every act, so no unit ever
-     * finished a walk. It has no DOS counterpart at all: FOUND (code 1) is a
-     * ship-only capability bit (bugs.md #511) and the only writer of a unit's
-     * goal is FUN_521d_0a60's consumption tail.
-     */
-    gx = u->goto_x;
-    gy = u->goto_y;
-    if (gx < 0 || gy < 0 || gx >= UNITS_GOTO_NONE || gy >= UNITS_GOTO_NONE ||
-        !map_coords_inset(ctx->map, gx, gy)) {
-      return 0; /* stale/absent target: nothing to walk, LAB_5a78 tail only */
-    }
-  } else {
+  {
     /*
      * FUN_521d_20e6 land arms, in DOS order: SCOUT/PATROL (LAB_277a) →
      * explorer ring scan (LAB_2912, explorers only) → 8-direction wander
@@ -3649,8 +3747,14 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
      * here since the ring only fires for explorers). A consumed unit (village
      * entry, colony join, Pioneer convert) aborts the act — it may no longer
      * exist; a labor walk (goto set) lets the act loop move it this turn. */
-    if (!force_wander && ai_euro_20e6_village_arm(ctx, u, &s)) {
-      return 1;
+    {
+      const int vr = force_wander ? 0 : ai_euro_20e6_village_arm(ctx, u, &s);
+      if (vr == 2) {
+        return 0; /* LAB_589e step committed: the walk enters the village */
+      }
+      if (vr) {
+        return 1;
+      }
     }
     {
       const int lr = force_wander ? 0 : ai_euro_20e6_labor_arm(ctx, u, &s);
@@ -3707,75 +3811,39 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
     } else if (!force_wander && s.explorer && hop_scan && ai_euro_20e6_ring_hop(ctx, u, &s)) {
       return 0; /* raw 2416-2458: scan failed, hop 4 tiles out instead */
     } else {
-      int wander_attack = 0; /* local_ce */
-      int wander_saw_foe = 0; /* local_ea */
-      const int dir = ai_euro_20e6_wander_step(ctx, u, &s, &wander_attack, &wander_saw_foe);
+      /* The pre-LAB_4d2e act-state gate (raw 90210-90219) sits at the END of
+       * the arm chain: DOSBox 1596, a French Dragoon on its 0x0c step tile
+       * still ran the ring scan (+0x3154++) and the hop roll before 0984
+       * sent it out through LAB_5a78. */
+      /* Only a 0x0b unit on its goal is exempt (raw 90212); a one-step 0x0c
+       * unit standing on its step tile still needs FUN_281f_0984. */
+      const int step_at_goal =
+        u->orders == AI_EURO_ACT_STEP && u->goto_x == u->x && u->goto_y == u->y;
+      int to_4d2e = force_wander || (!ai_euro_has_useful_goto(u, ctx->map) && !step_at_goal) ||
+                    ai_euro_20e6_adjacent_foreign_09dc(ctx, u->x, u->y, nation_id);
+      if (to_4d2e) {
+        return ai_euro_20e6_4d2e_tail(ctx, u, &s, force_wander);
+      }
       /*
-       * LAB_4d2e tail, raw 88983-89031: with `local_ce == 0` (the pick is not
-       * an attack) DOS runs the 0x42 / 0x65 / 0x46 park arms before the 0x39
-       * fallthrough, and each of them reaches LAB_5899, which forces
-       * `local_76 = 8` — the scored direction is dropped and the unit stays.
-       * Only the 0x46 arm is ported here; the 0x42 / 0x65 arms (raw
-       * 88989-89009) are the pioneer work codes, which this port runs at act
-       * level in ai_euro_act_land_roles. `local_8e` (raw 88612) is 0 on every
-       * path that reaches this point in the port: it is set only by the DOS
-       * own-colony-with-2+-garrison entry at raw 88584-88612, whose own
-       * outcome (0x47) never reaches the wander scorer's tail arms.
-       * See ai_euro_20e6_border_park_arm.
+       * `goto LAB_521d_5a78` — 20e6 sets NO course here. DOS leaves the unit
+       * bound to the goal already stored in +0x314d/e and FUN_521d_5b66's
+       * switch (case 0x0b / 0x0c → FUN_479b_0972) walks one pathfinder step
+       * toward it, keeping the binding until the unit stands on the tile, so
+       * the only thing to do is re-bind the unit's OWN goal.
+       *
+       * A `ai_goals_best_found_tile_near` re-derive stood here until
+       * 2026-09-18 (bugs.md #526) and re-aimed every already-bound land unit
+       * at the nearest top-priority FOUND tile on every act, so no unit ever
+       * finished a walk. It has no DOS counterpart at all: FOUND (code 1) is a
+       * ship-only capability bit (bugs.md #511) and the only writer of a unit's
+       * goal is FUN_521d_0a60's consumption tail.
        */
-      /*
-       * raw 88982-88984, the first test of the LAB_4d2e tail after
-       * `local_ce == 0`: `if (local_8e != 0) { select(local_62);
-       * goto LAB_521d_5888; }` — a surplus garrison unit (the raw 88612 entry)
-       * that scored no attack this scan falls back into the garrison hold,
-       * i.e. colony.labor_shortage--, order_code = 0x47, stay. It also
-       * suppresses the 0x46 park arm below (raw 88985 reads local_8e == 0).
-       */
-      /*
-       * bugs.md #968 REFUTED 2026-09-28: DOS decrements +0x8e on the colony in
-       * the global DS:0x8542, which on this path is `local_62` = the nearest
-       * own-nation colony to the acting unit's own tile (bound at raw 88429,
-       * re-asserted at raw 88588 on the only path into LAB_521d_5888). The
-       * tile lookup below is equivalent here because `force_wander` is set
-       * only inside the `local_2e == 0` own-colony block above (distance 0 =>
-       * the nearest own colony IS the colony on the tile) and every arm
-       * between that block and this tail is gated on `!force_wander`, so the
-       * unit cannot have moved. The >0 test is the same dead clamp as #967.
-       */
-      if (!wander_attack && force_wander) {
-        const int hcid = ctx->colonies ? colonies_id_at(ctx->colonies, u->x, u->y) : -1;
-        ColonizeColony* hc = hcid >= 0 ? colonies_get_mut(ctx->colonies, hcid) : NULL;
-        if (hc && hc->labor_shortage > 0) {
-          hc->labor_shortage--;
-        }
-        u->col1_ai_plan = 0x47; /* +0x314b */
-        ai_euro_20e6_stay_tail_589e(u); /* LAB_5899 local_76 = 8 -> LAB_589e */
-        return 0;
+      gx = u->goto_x;
+      gy = u->goto_y;
+      if (gx < 0 || gy < 0 || gx >= UNITS_GOTO_NONE || gy >= UNITS_GOTO_NONE ||
+          !map_coords_inset(ctx->map, gx, gy)) {
+        return 0; /* stale/absent target: nothing to walk, LAB_5a78 tail only */
       }
-      if (!wander_attack && !force_wander &&
-          ai_euro_20e6_border_park_arm(ctx, u, &s, wander_saw_foe)) {
-        u->col1_ai_plan = 0x46; /* +0x314b */
-        ai_euro_20e6_stay_tail_589e(u); /* LAB_5899 local_76 = 8 -> LAB_589e */
-        return 0; /* stay put next to the foreign border colony */
-      }
-      u->col1_ai_plan = 0x39; /* '9' — raw 89040 fallthrough */
-      u->last_dir = dir; /* unit+0x314f, 8 = stay */
-      if (dir == 8) {
-        ai_euro_20e6_stay_tail_589e(u); /* LAB_589e: +0x314c = 5 (6 when admitted) */
-        return 0;
-      }
-      static const int wdx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-      static const int wdy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
-      const int nx = u->x + wdx[dir];
-      const int ny = u->y + wdy[dir];
-      if (!map_coords_inset(ctx->map, nx, ny)) {
-        return 0;
-      }
-      ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, nx, ny);
-      if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
-        ai_euro_s_euro_roam_wander[u->id] = 1; /* unit+0x314c==5 idle-roam (wander step) */
-      }
-      return 0;
     }
   }
   /* LAB_2e3a -> 27f5 -> FUN_521d_20c6: bind, then let 5b66 walk. */
@@ -3983,6 +4051,8 @@ void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int t
   } else if (units_resolve_land_combat(ctx->units, u->id, foe, ctx->rng)) {
     {
       ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, ctx->rng, NULL);
+      w_.rng_reseed = ai_turn_seed(ctx); /* FUN_465b_0000 raw 75649 */
+      w_.rng_reseed_set = true;
       units_try_move_w(&w_, u->id, tx, ty);
     }
   }

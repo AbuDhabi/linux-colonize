@@ -592,37 +592,28 @@ static bool col1_restore_tile_stack_order(
 }
 
 static int col1_find_ship_root(const ColonizeCol1Unit* units, int count, int start) {
-  int i = start;
-  /* Walk prev: DOS Europe fleets often chain ship→pax→pax (ship at head). */
-  for (int guard = 0; guard < count + 2; ++guard) {
-    if (i < 0 || i >= count) {
-      break;
+  /* Walk next first: a passenger precedes its hull (pax -> ... -> hull, the
+   * shape the capture writes). In a lane chain holding two hulls the prev walk
+   * crosses into the previous hull: fresh 1582's 59 -> Caravel -> 49 -> 56 ->
+   * 58 -> Merchantman handed the Caravel all four Dragoons. Prev is the
+   * fallback for fleets chained hull -> pax -> pax (hull at the head). */
+  for (int pass = 0; pass < 2; ++pass) {
+    int i = start;
+    for (int guard = 0; guard < count + 2; ++guard) {
+      if (i < 0 || i >= count) {
+        break;
+      }
+      const uint8_t t = units[i].type;
+      if (t >= 13 && t <= 18) {
+        return i;
+      }
+      const int step = pass == 0 ? units[i].transport_chain.next_unit_idx
+                                 : units[i].transport_chain.prev_unit_idx;
+      if (step < 0 || step == i) {
+        break;
+      }
+      i = step;
     }
-    const uint8_t t = units[i].type;
-    if (t >= 13 && t <= 18) {
-      return i;
-    }
-    const int prev = units[i].transport_chain.prev_unit_idx;
-    if (prev < 0 || prev == i) {
-      break;
-    }
-    i = prev;
-  }
-  /* Walk next: pax→…→ship chains from capture / some saves. */
-  i = start;
-  for (int guard = 0; guard < count + 2; ++guard) {
-    if (i < 0 || i >= count) {
-      return -1;
-    }
-    const uint8_t t = units[i].type;
-    if (t >= 13 && t <= 18) {
-      return i;
-    }
-    const int next = units[i].transport_chain.next_unit_idx;
-    if (next < 0 || next == i) {
-      return -1;
-    }
-    i = next;
   }
   return -1;
 }
@@ -1823,8 +1814,39 @@ bool col1_bridge_apply_w(
    * catch every possible false positive (a Sentried land unit simply
    * standing at a dock, not boarded, would still slip through), but it's a
    * real, low-risk, well-evidenced fix for the concrete case seen — see
-   * docs/report_screens.md's Naval report section. */
-  for (int i = 0; i < (int)save->head.unit_count; ++i) {
+   * docs/report_screens.md's Naval report section.
+   *
+   * Board in chain order, head first, so cargo_ids[] ends with the hull's
+   * `prev` (the nearest link) — the order the capture below writes back and
+   * the order 20e6's LAB_3558 unload walks backwards. DOSBox 1591: the French
+   * Merchantman's chain 52 -> 47 -> hull put 47 ashore first; boarding by
+   * record index had reversed the pair. `depth` = next-links to the hull. */
+  const int nunits = (int)save->head.unit_count;
+  int max_depth = 0;
+  int* depth = calloc((size_t)(nunits > 0 ? nunits : 1), sizeof(int));
+  if (!depth) {
+    free(id_by_index);
+    free(consumed);
+    COL1_FAIL(err, err_size, "oom chain depth");
+  }
+  for (int i = 0; i < nunits; ++i) {
+    int cur = save->unit[i].transport_chain.next_unit_idx;
+    for (int d = 1; d <= nunits && cur >= 0 && cur < nunits; ++d) {
+      if (id_by_index && id_by_index[cur] >= 0 && units_is_sea(units, id_by_index[cur])) {
+        depth[i] = d;
+        break;
+      }
+      cur = save->unit[cur].transport_chain.next_unit_idx;
+    }
+    if (depth[i] > max_depth) {
+      max_depth = depth[i];
+    }
+  }
+  for (int pass = max_depth; pass >= 0; --pass)
+  for (int i = 0; i < nunits; ++i) {
+    if (depth[i] != pass) {
+      continue;
+    }
     if (!id_by_index || id_by_index[i] < 0) {
       continue;
     }
@@ -1868,6 +1890,7 @@ bool col1_bridge_apply_w(
      * hull can be over the gate — see units_board_stacked_restore). */
     units_board_stacked_restore(units, id_by_index[i], id_by_index[ship_idx]);
   }
+  free(depth);
 
   /*
    * Active unit (DS:0x5392) — and the idle state DOS restores with it.

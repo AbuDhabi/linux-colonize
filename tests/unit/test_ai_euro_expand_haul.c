@@ -17,8 +17,9 @@
 /*
  * Col1 +0x8d specialty_cargo does NOT steer what a hauler loads. The DOS LOAD
  * matrix (FUN_521d_20e6 raw 3059-3134) scores by cargo and stock only; the
- * specialty byte's surviving role is the port's Series R +32 tie-break inside
- * the 4393 work-queue pick (covered by unit_specialty_flag_a_haul_match).
+ * 4393 work-queue pick has no specialty term either (raw 89889-89893; the
+ * port's old Series R +32 tie-break was invented) — unit_specialty_flag_a_haul_match
+ * pins that.
  * Second half of this case is a direct FUN_5952_0306 unit test: a
  * warehouse-full stock clears the specialty.
  *
@@ -317,8 +318,10 @@ static int unit_specialty_cargo_haul_prefer(void) {
  * LAB_457e origin walk), so the consumer under test is a Caravel on an ocean
  * row, carrying LUMBER (not a delivery cargo, so the delivery matrix stays
  * out of the way and the laden gate — 1 of 2 holds — does not fire). The
- * colonies move beside the water; the +32 specialty tie-break must aim the
- * ship at the LUMBER-specialty colony A.
+ * colonies move beside the water. 2026-10-12: the +32 specialty tie-break
+ * this case used to pin was OpenCol-only (DOS raw 89889-89893 scores
+ * weight / ((map_dos_dist >> 2) + 1) and nothing else); the case now pins
+ * that the LUMBER specialty does NOT pull the ship to A.
  *
  * 2026-09-06g rewrite: registration is DOS's `bVar5` now (raw
  * viceroy_unpacked.c:87663 `if (0x4a < local_2a) bVar5 = true;`), not the old
@@ -328,9 +331,8 @@ static int unit_specialty_cargo_haul_prefer(void) {
  * at all. Both colonies now hold 80 RUM instead — cargo 9 is counted by the
  * DOS gate (it is not FOOD/LUMBER/TRADE_GOODS, and unlike TOOLS/MUSKETS needs
  * no `cargo_produced_mask` bit), 80 > 0x4a arms the gate, and RUM is absent
- * from `ai_euro.c`'s specialty ladder so it leaves the two specialties (and
- * therefore the +32 tie-break this test is about) untouched. The assertion is
- * unchanged: the wagon aims at (4,8).
+ * from `ai_euro.c`'s specialty ladder so it leaves the two specialties
+ * untouched.
  *
  * Also the guard for the 2026-09-06d queue-decrement tail: the tip colony's
  * work slot is consumed (and freed) the moment this wagon claims it, and the
@@ -363,10 +365,10 @@ static int unit_specialty_flag_a_haul_match(void) {
 
   ColonizeColonyPool colonies;
   fx_colonies_init(&colonies);
-  /* Equal MD=4 (same `(d>>2)+1` bucket) from the ship at (5,1). Inventory
-   * refreshes specialty from surplus: A lumber surplus → specialty LUMBER;
-   * B tools surplus → specialty TOOLS. Both hold 80 RUM so both register on
-   * DOS's bVar5 gate (see header). Ship holds LUMBER → +32 picks A. */
+  /* Equal map_dos_dist 3 from the ship at (5,1), so equal 4393 scores. Both
+   * hold 80 RUM so both register on DOS's bVar5 gate (see header). The ship
+   * holds LUMBER and A's specialty is LUMBER, but DOS has no specialty term
+   * (raw 89889-89893): the tie goes to the later work slot (`>=`), B. */
   ColonizeColony* a = &colonies.colonies[0];
   a->id = 0;
   a->active = true;
@@ -410,7 +412,7 @@ static int unit_specialty_flag_a_haul_match(void) {
   b->stock[COLONIZE_CARGO_RUM] = 80; /* same, so both slots are eligible */
   b->building_in_production = -1;
   b->cargo_idle_turns = 0;
-  b->specialty_cargo = 0xff; /* no specialty → the +32 tie-break must pick A */
+  b->specialty_cargo = 0xff; /* no specialty: must not matter */
   colonies.colony_count = 2;
   colonies.next_id = 2;
 
@@ -457,14 +459,14 @@ static int unit_specialty_flag_a_haul_match(void) {
   ai_euro_dispatcher_turn(&ctx, nation);
 
   wagon = units_get(&units, wid);
-  /* Berth = a water tile beside A (8,2); the pick may also have sailed the
-   * ship onto that berth already this beat. */
-  const int near_a =
+  /* B (2,2) is the pick; the ship may already have sailed into it this beat.
+   * The one-claim-per-tick latch keeps the re-entered act from re-aiming it. */
+  const int near_b =
     wagon && wagon->active &&
-    ((units_orders_follow_goto(wagon->orders) && abs(wagon->goto_x - 8) <= 1 &&
+    ((units_orders_follow_goto(wagon->orders) && abs(wagon->goto_x - 2) <= 1 &&
       abs(wagon->goto_y - 2) <= 1) ||
-     (abs(wagon->x - 8) <= 1 && abs(wagon->y - 2) <= 1));
-  if (!near_a) {
+     (abs(wagon->x - 2) <= 1 && abs(wagon->y - 2) <= 1));
+  if (!near_b) {
     fprintf(
       stderr,
       "unit_ai_euro_expand: flag_a pos=(%d,%d) goto=(%d,%d) orders=%d specA=%u specB=%u\n",
@@ -477,11 +479,11 @@ static int unit_specialty_flag_a_haul_match(void) {
       (unsigned)colonies.colonies[1].specialty_cargo
     );
     fx_map_free(&map);
-    return fail("expected ship goto specialty-matching lumber colony");
+    return fail("4393 tie must go to the later slot; the specialty byte must not bias it");
   }
 
   fx_map_free(&map);
-  fprintf(stderr, "unit_ai_euro_expand: specialty flag_a haul match ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: 4393 pick ignores specialty ok\n");
   return 0;
 }
 

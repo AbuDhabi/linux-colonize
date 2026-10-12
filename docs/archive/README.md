@@ -18,6 +18,7 @@ living doc's favour.
 |------|-----------|----------|--------------|
 | [bugs_fixed_pending.md](bugs_fixed_pending.md) | FIXED / REFUTED bug rows awaiting user verification (full resolution text) | rolling | Agents move rows here from `bugs.md` on FIXED; user closes from here |
 | [bugs_closed.md](bugs_closed.md) | User-verified CLOSED / REFUTED bug rows with full resolution text (#1-#950) | rolling | Looking up one bug id you already have: `grep -n '| NNN |'`. Never read whole |
+| [idle_campaign_fixed_2026-10-06_08.md](idle_campaign_fixed_2026-10-06_08.md) | Idle-campaign gate fix log, passes 2026-10-06..08 (split from docs/idle_campaign.md) | 2026-10-12 | Tracing why an idle-campaign fix was made: grep by FUN_ name / transition |
 | [bugs_resolutions_full_2026-09-05.md](bugs_resolutions_full_2026-09-05.md) | Full user bug list with agent resolutions, pre-2026-09-05 | 2026-09-05 | Looking up how an old bug row was diagnosed/fixed; current bugs live in `bugs.md` |
 | [mysteries_catalog.md](mysteries_catalog.md) | Catalog of DS globals/flags whose meaning was unresolved as of 2026-08-19 | ~2026-08-27 (closed statically per MEMORY) | Investigating an "unknownNN" field name still lingering in code/saves |
 | [port_plan_w_tier_archive.md](port_plan_w_tier_archive.md) | Pre-2026-08-24 W-tier work queue, verbatim from old `port_plan.md` | 2026-09-05 | Mapping an old `W*.*` citation elsewhere in the repo to its current track in `port_plan.md` |

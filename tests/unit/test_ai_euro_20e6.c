@@ -9,6 +9,7 @@
 #include "core/ai_euro.h"
 #include "core/ai_euro_internal.h"
 #include "core/ai_goals.h"
+#include "core/ai_internal.h"
 #include "core/ai_popup.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
@@ -2417,6 +2418,11 @@ static int unit_goal_walk_keeps_stored_goal(void) {
   ColonizeUnit* u = units_get(&f.units, uid);
   u->goto_x = 12;
   u->goto_y = 8;
+  /* 5b66 raw 90552 skips 20e6 only for a 0x0b unit that has already spent
+   * MP; a fresh one runs the whole arm chain (this stance-0 Soldier would
+   * take LAB_277a's PATROL recall). Spend a third so the case is the
+   * stored-goal walk alone. */
+  u->moves = UNITS_MP_PER_TILE - 1;
   ai_euro_dispatcher_turn(&f.ctx, nation);
   u = units_get(&f.units, uid);
   const int x = u ? u->x : -1;
@@ -3183,7 +3189,175 @@ static int unit_stance_counts_native_village_population(void) {
   return cid >= 0 && stance == 4 ? 0 : fail("populated native village did not add pressure");
 }
 
+/* FUN_521d_20e6 labor loop, OVL14 0x3000: a colonist off its chosen colony
+ * binds it through `MOV DX,0x33; JMP LAB_27f5` -> FUN_521d_20c6, i.e. plan
+ * '3' and act state 0x0b (a goal, whose arrival exhausts MP), not a one-step
+ * 0x0c course. DOSBox 1596: the stripped Dutch Missionary walked back to
+ * Vlissingen on that goal and arrived spent instead of joining. */
+static int unit_labor_arm_binds_colony_goal(void) {
+  Fixture f;
+  if (fixture_init(&f, 1)) return 1;
+  treasure_add_colony(&f, 0, 1, 9, 8);
+  f.colonies.colonies[0].population = 1;
+  f.colonies.colonies[0].colonist_count = 1;
+  const int uid = units_spawn(&f.units, 0, 5, 8);
+  ColonizeUnit* u = units_get(&f.units, uid);
+  if (!u) { fixture_free(&f); return fail("labor goal spawn"); }
+  u->nation_id = 1;
+  u->profession = UNITS_JOB_CONVERT; /* joins regardless of NEEDS_COLONISTS, never explores */
+  u->moves = UNITS_MP_PER_TILE;
+  u->orders = 0;
+  (void)ai_euro_move_scoring_gate(&f.ctx, u, 1);
+  const int ok = u->col1_ai_plan == 0x33 && u->orders == AI_EURO_ACT_GOAL && u->goto_x == 9 &&
+                 u->goto_y == 8;
+  if (!ok) {
+    fprintf(stderr, "unit_ai_euro_20e6: labor plan 0x%02x orders %d goto %d,%d\n",
+            u->col1_ai_plan, u->orders, u->goto_x, u->goto_y);
+  }
+  fixture_free(&f);
+  return ok ? 0 : fail("labor walk must bind the colony as a '3' 0x0b goal");
+}
+
+/* FUN_521d_20e6 raw 90088: a Missionary with no village pick becomes a
+ * Colonist (+0x3146 = 0). DOS keeps the spent-MP byte, so the unit is left
+ * with the Colonist allotment (1), not the Missionary's 2; the same call then
+ * falls through to the 4d2e wander. DOSBox 1596 (Dutch, Vlissingen). */
+static int unit_missionary_strip_keeps_spent_mp(void) {
+  Fixture f;
+  if (fixture_init(&f, 1)) return 1;
+  const int mt = f.units.type_count++;
+  snprintf(f.units.types[mt].name, sizeof(f.units.types[mt].name), "Missionaries");
+  f.units.types[mt].movement = 2;
+  f.units.types[mt].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  f.units.types[mt].kind_plus1 = UNITS_KIND_MISSIONARY + 1;
+  f.col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe)); /* no village on any continent */
+  f.col1.head.tribe_count = 0;
+  treasure_add_colony(&f, 0, 1, 9, 8);
+  const int uid = units_spawn(&f.units, mt, 9, 8);
+  ColonizeUnit* u = units_get(&f.units, uid);
+  if (!u || !f.col1.tribe) { fixture_free(&f); return fail("strip spawn"); }
+  u->nation_id = 1;
+  u->orders = 0;
+  u->moves = units_max_mp(&f.units, uid); /* fresh: nothing spent */
+  const int r = ai_euro_20e6_missionary_arm(&f.ctx, u, 1);
+  const int ok = r == 1 && u->type_index == 0 && u->moves == UNITS_MP_PER_TILE;
+  if (!ok) {
+    fprintf(stderr, "unit_ai_euro_20e6: strip r=%d type %d moves %d\n", r, u->type_index,
+            u->moves);
+  }
+  free(f.col1.tribe);
+  f.col1.tribe = NULL;
+  fixture_free(&f);
+  return ok ? 0 : fail("stripped Missionary must keep spent MP against the Colonist allotment");
+}
+
+/* FUN_521d_20e6 raw 90210-90219: the pre-LAB_4d2e act-state gate is the
+ * LAST step of the arm chain. A unit standing on its 0x0c step tile still runs
+ * the explorer ring scan (raw 89287: +0x3154 fatigue++) before 0984 sends it
+ * out through LAB_5a78. DOSBox 1596: a French Dragoon did exactly that. */
+static int unit_step_tile_still_runs_ring_scan(void) {
+  Fixture f;
+  if (fixture_init(&f, 1)) return 1;
+  const int uid = units_spawn(&f.units, 1, 8, 8); /* Soldier, no own colony: explorer */
+  ColonizeUnit* u = units_get(&f.units, uid);
+  if (!u) { fixture_free(&f); return fail("step-tile spawn"); }
+  u->nation_id = 1;
+  u->moves = UNITS_MP_PER_TILE;
+  u->orders = AI_EURO_ACT_STEP;
+  u->goto_x = 8;
+  u->goto_y = 8;
+  (void)ai_euro_move_scoring_gate(&f.ctx, u, 1);
+  const int fatigue = ai_euro_20e6_hold_scratch(u)[0];
+  fixture_free(&f);
+  if (fatigue != 1) {
+    fprintf(stderr, "unit_ai_euro_20e6: step-tile fatigue %d\n", fatigue);
+    return fail("0x0c unit on its step tile must run the ring scan before the 4d2e gate");
+  }
+  return 0;
+}
+
+/* FUN_521d_20e6 raw 88549 vs 88584: the iStack_6a explorer flag (and its
+ * -0x5ec4 per-continent count) is computed before the own-colony garrison
+ * block, so a garrisoned Soldier that then stays still counts toward the
+ * cap. DOSBox 1597: two Spanish garrison Soldiers filled it. */
+static int unit_garrison_soldier_counts_explorer_cap(void) {
+  Fixture f;
+  if (fixture_init(&f, 1)) return 1;
+  treasure_add_colony(&f, 0, 1, 8, 8);
+  f.colonies.colonies[0].labor_shortage = 1; /* garrison wanted */
+  const int uid = units_spawn(&f.units, 1, 8, 8);
+  ColonizeUnit* u = units_get(&f.units, uid);
+  if (!u) { fixture_free(&f); return fail("garrison spawn"); }
+  u->nation_id = 1;
+  u->moves = UNITS_MP_PER_TILE;
+  u->orders = 0;
+  const int cid = map_continent_id_at(&f.map, 8, 8);
+  memset(ai_euro_s_20e6_explorers, 0, sizeof(ai_euro_s_20e6_explorers));
+  (void)ai_euro_move_scoring_gate(&f.ctx, u, 1);
+  const int counted = cid >= 0 ? ai_euro_s_20e6_explorers[cid] : -1;
+  const int stayed = u->col1_ai_plan == 0x47;
+  fixture_free(&f);
+  if (!stayed || counted != 1) { /* a lone act-state-0 Soldier is a candidate */
+    fprintf(stderr, "unit_ai_euro_20e6: garrison stayed %d count %d\n", stayed, counted);
+    return fail("garrisoned Soldier must still bump the explorer count");
+  }
+  return 0;
+}
+
+/* FUN_5bfb_10ec entry, asm 5bfb:10f4: `CMP [0xa153],AL(=0x5398); JNZ body`
+ * — the pair is weighed only while the human is NOT the top-ranked nation.
+ * With no shared continent (local_4 == 0) a weighed pair is war-worthy. */
+static int unit_10ec_skips_while_human_tops_rank(void) {
+  Fixture f;
+  if (fixture_init(&f, 1)) return 1;
+  f.turn = 0x50;
+  f.col1.stuff.colony_pop_totals[1] = 8;
+  f.col1.nation[0].gold = 100000; /* human tops FUN_5bfb_00f8 */
+  const int human_top = ai_euro_10ec_war_worthy(&f.ctx, 1, 3);
+  f.col1.nation[0].gold = 0;
+  f.col1.nation[1].gold = 100000; /* an AI tops it */
+  const int ai_top = ai_euro_10ec_war_worthy(&f.ctx, 1, 3);
+  fixture_free(&f);
+  if (human_top != 0 || ai_top != 1) {
+    fprintf(stderr, "unit_ai_euro_20e6: 10ec human_top %d ai_top %d\n", human_top, ai_top);
+    return fail("10ec must weigh war only while the human is not top-ranked");
+  }
+  return 0;
+}
+
+/* FUN_479b_0972 -> FUN_465b_0000 for a unit with nothing left (raw 75649 /
+ * 75825): cost > left and spent != 0, so 465b reseeds and rolls — a draw
+ * that can never pass at 0 left. DOSBox 1591: the unloaded French
+ * Merchantman's failed step drew 365 before the next unit's 20e6. */
+static int unit_spent_step_burns_465b_roll(void) {
+  Fixture f;
+  if (fixture_init(&f, 1)) return 1;
+  const int uid = units_spawn(&f.units, 1, 8, 8);
+  ColonizeUnit* u = units_get(&f.units, uid);
+  if (!u) { fixture_free(&f); return fail("spent step spawn"); }
+  u->nation_id = 1;
+  u->moves = 0;
+  u->orders = AI_EURO_ACT_STEP;
+  u->goto_x = 9;
+  u->goto_y = 8;
+  dos_rng_seed(&f.rng, 12345);
+  ColonizeDosRng want;
+  dos_rng_seed(&want, ai_turn_seed(&f.ctx));
+  (void)dos_rng_range(&want, 1, 3);
+  ai_euro_goal_walk_479b(&f.ctx, u);
+  const int stayed = u->x == 8 && u->y == 8;
+  const int ok = stayed && f.rng.state == want.state;
+  fixture_free(&f);
+  return ok ? 0 : fail("spent unit's step must reseed and burn the 465b roll, and not move");
+}
+
 static const TestCase k_cases[] = {
+    {"unit_spent_step_burns_465b_roll", unit_spent_step_burns_465b_roll},
+    {"unit_10ec_skips_while_human_tops_rank", unit_10ec_skips_while_human_tops_rank},
+    {"unit_garrison_soldier_counts_explorer_cap", unit_garrison_soldier_counts_explorer_cap},
+    {"unit_step_tile_still_runs_ring_scan", unit_step_tile_still_runs_ring_scan},
+    {"unit_missionary_strip_keeps_spent_mp", unit_missionary_strip_keeps_spent_mp},
+    {"unit_labor_arm_binds_colony_goal", unit_labor_arm_binds_colony_goal},
     {"unit_stance_counts_native_village_population",
      unit_stance_counts_native_village_population},
     {"unit_stance_ignores_remote_war_and_sticky", unit_stance_ignores_remote_war_and_sticky},

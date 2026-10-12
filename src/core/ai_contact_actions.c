@@ -13,6 +13,7 @@
 #include "core/internal.h"
 #include "core/ai_contact.h"
 #include "core/ai_contact_internal.h"
+#include "core/ai_internal.h"
 
 #include "core/ai.h"
 #include "core/ai_diplo.h"
@@ -628,7 +629,19 @@ void ai_contact_colony_tick_war_5952(ColonizeTurnContext* ctx, int nation_id, in
  * (FUN_1000_86ba(y*256+x + DS:0x8d80)) so the answer is stable per village
  * per game; DS:0x8d80 = post_map.boot_timer (saved/restored, bugs.md #564).
  */
+static int ai_contact_a618_skill_ex(
+  ColonizeTurnContext* ctx, int nation_id, const ColonizeCol1Tribe* t, ColonizeDosRng* out_rng
+);
+
 int ai_contact_a618_skill(ColonizeTurnContext* ctx, int nation_id, const ColonizeCol1Tribe* t) {
+  return ai_contact_a618_skill_ex(ctx, nation_id, t, NULL);
+}
+
+/* `out_rng` (may be NULL) receives the village-seeded stream after the pick:
+ * in DOS that stream IS the global one (FUN_1000_86ba reseeds it). */
+static int ai_contact_a618_skill_ex(
+  ColonizeTurnContext* ctx, int nation_id, const ColonizeCol1Tribe* t, ColonizeDosRng* out_rng
+) {
   if (!ctx || !ctx->col1 || !t) {
     return COLONIZE_JOB_FARMER;
   }
@@ -720,6 +733,9 @@ int ai_contact_a618_skill(ColonizeTurnContext* ctx, int nation_id, const Coloniz
       skill = 8;
     }
   }
+  if (out_rng) {
+    *out_rng = rng;
+  }
   return skill;
 }
 /* ===================== Menu actions: live-among-natives, speak-with-chief, demand-tribute, denounce/mission & popup-result dispatch (ai_contact_learnstay_apply .. ai_contact_ai_live_among_village) ===================== */
@@ -758,6 +774,18 @@ static void ai_contact_learnstay_apply(
  * quartile 1 && rand(1,1000) < 200*difficulty+100 → @LEARNSLOW; human →
  * @LEARNSTAY CHOICE (Yes → DONE, No → @LEARNLATER); AI → DONE at once.
  */
+static void ai_contact_live_among_natives_body(
+  ColonizeTurnContext* ctx, int e, int nation_id, ColonizeUnit* u, ColonizeCol1Tribe* t
+);
+
+/*
+ * AI visit: thunk_FUN_1000_a618's skill pick reseeds the GLOBAL stream from
+ * the village record (FUN_1000_86ba, OVL13 0x36b8) and the visit's later rolls
+ * draw from it; the visit then reseeds from the timer word twice (0x381b,
+ * 0x392d -> FUN_281f_04ca(DS:0x83a6)). DOSBox 1594: a captured French
+ * Colonist's visit drew 6302, 12091 and left the next unit's 20e6 starting
+ * at 365. The human path keeps its popup-driven flow.
+ */
 void ai_contact_live_among_natives(
   ColonizeTurnContext* ctx,
   int e,
@@ -768,6 +796,15 @@ void ai_contact_live_among_natives(
   if (!ctx || !ctx->col1 || !u || !t) {
     return;
   }
+  ai_contact_live_among_natives_body(ctx, e, nation_id, u, t);
+  if (!ai_contact_euro_is_human(ctx, e) && ctx->rng) {
+    dos_rng_seed(ctx->rng, ai_turn_seed(ctx));
+  }
+}
+
+static void ai_contact_live_among_natives_body(
+  ColonizeTurnContext* ctx, int e, int nation_id, ColonizeUnit* u, ColonizeCol1Tribe* t
+) {
   ColonizeDosRng local;
   ColonizeDosRng* rng = ai_contact_action_rng(ctx, nation_id, &local);
   const int human = ai_contact_euro_is_human(ctx, e);
@@ -797,7 +834,11 @@ void ai_contact_live_among_natives(
       }
     }
   }
-  const int skill = ai_contact_a618_skill(ctx, nation_id, t);
+  ColonizeDosRng village_rng;
+  const int skill = ai_contact_a618_skill_ex(ctx, nation_id, t, &village_rng);
+  if (!human && ctx->rng) {
+    *ctx->rng = village_rng; /* 86ba reseeded the shared stream */
+  }
   const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
   const int band = ai_relation_quartile(alarm);
   const char* tribe = ai_contact_tribe_name(nation_id);
