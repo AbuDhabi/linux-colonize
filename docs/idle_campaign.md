@@ -583,7 +583,17 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
 
 ## Open leads (most transitions first)
 
-- Fresh 1586→1587 is down to 31 leaves. A DOS buy trace resolved both Europe
+- Fresh 1586→1587 is down to one byte in `map.path` at `(41,20)`: DOS
+  leaves the Sioux owner nibble (`0x67`) while the port retains the prior
+  French owner nibble (`0x17`). The diplomacy accumulators are byte exact.
+  `FUN_521d_0492` reads the frozen `FUN_4962_0018` nation×continent colony
+  census at `DS:0x94e6`; the port instead recounted the live colony pool.
+  France founds Cayenne before its Dragoon acts in this turn, so the live
+  recount erased the Dragoon's frontier bonus, suppressed its explorer flag,
+  and shifted the Dragoon, both Braves, and the complete French transport
+  group. Reading the frozen table makes every unit and all three map planes
+  byte exact. The archived sweep improves from 4,489 to 4,452 leaves with 14
+  exact transitions. A DOS buy trace had already resolved both Europe
   errors: `local_46` reads the frozen pre-planning dock census, and generic
   hold sales leave their amount in global `DS:0x8dc4`, which the later buy
   affordability gate reuses. The Merchantman's last sale leaves 20, so its
@@ -596,8 +606,7 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   profession-carrying types and `1` for other types, including the stamps of
   passengers at their carrier coordinates; ring hops test `& 6` while far
   probes require the entire byte to be zero. This static correction
-  is neutral in the archived sweep and this fresh transition. Remaining leaves are three movement clusters plus their map
-  planes: two Braves, a French transport group, and one French explorer.
+  is neutral in the archived sweep and this fresh transition.
   Fresh 1587→1588 and 1588→1589 remain byte-identical.
 
 - Fresh 1578 and 1581→1586 replays match DOS in all modeled gameplay state.

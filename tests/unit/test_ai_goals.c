@@ -144,6 +144,30 @@ static int case_work_consume_zero_load_gate(void) {
   return 0;
 }
 
+static int case_colony_balance_uses_frozen_census(void) {
+  ColonizeCol1Save save;
+  ColonizeColonyPool colonies;
+  memset(&save, 0, sizeof(save));
+  memset(&colonies, 0, sizeof(colonies));
+  save.post_map.continent_tally_b[7] = 24; /* target = 2 */
+  save.stuff.colony_counts_by_continent[0] = 1; /* census plane is present */
+
+  /* A colony founded after FUN_4962_0018 is live, but absent from the
+   * frozen DS:0x94e6 table that FUN_521d_0492 reads this turn. */
+  colonies.colonies[0].active = true;
+  colonies.colonies[0].nation_id = 1;
+  const ColonizeWorld w = {.colonies = &colonies, .col1 = &save, .col1_ok = true};
+  if (ai_goals_colony_balance_flags_w(&w, 1, 7) != 7) {
+    return fail("0492 must ignore a colony founded after the frozen census");
+  }
+
+  save.stuff.colony_counts_by_continent[1 * 16 + 7] = 1;
+  if (ai_goals_colony_balance_flags_w(&w, 1, 7) != 1) {
+    return fail("0492 must consume the frozen own-colony count");
+  }
+  return 0;
+}
+
 static int case_stack_settler_pick(void) {
   /*
    * FUN_521d_0656 (the `a654` thunk 20e6's cargo goal fold calls), decoded
@@ -406,6 +430,7 @@ static const TestCase k_cases[] = {
     {"case_work_queue_score_order", case_work_queue_score_order},
     {"case_work_consume_4393_tail", case_work_consume_4393_tail},
     {"case_work_consume_zero_load_gate", case_work_consume_zero_load_gate},
+    {"case_colony_balance_uses_frozen_census", case_colony_balance_uses_frozen_census},
     {"case_stack_settler_pick", case_stack_settler_pick},
     {"case_goal_fold_urgency", case_goal_fold_urgency},
     {"case_indian_hostility_gate", case_indian_hostility_gate},

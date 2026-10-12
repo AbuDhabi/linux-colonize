@@ -388,9 +388,9 @@ int ai_goals_best_found_tile_near(
  * dropped the `DS:0x947e[cont]` village base from `used`, which made every
  * continent look emptier than DOS sees it — the `target > used` arm (the
  * "expand here" +1) fired on continents DOS already scores 0 or -1. Indian
- * villages are counted live off `col1->tribe` rather than the saved
- * `stuff.village_counts_by_continent[]`, which nothing in the port keeps
- * fresh (it is only used as the census blank-window boundary marker).
+ * Both operands are the frozen FUN_4962 census tables. In particular, a
+ * colony founded earlier in the same nation turn does not enter 0492 until
+ * the next 00f2 census pass.
  */
 int ai_goals_colony_balance_flags_w(
   const ColonizeWorld* w,
@@ -408,40 +408,34 @@ int ai_goals_colony_balance_flags_w(
     return 0;
   }
 
+  int have_frozen_census = 0;
+  for (int i = 0; i < 64; ++i) {
+    have_frozen_census |= col1->stuff.colony_counts_by_continent[i];
+  }
   int nation_cont[4][16];
   memset(nation_cont, 0, sizeof(nation_cont));
-  if (map && colonies) {
+  if (have_frozen_census) {
+    for (int n = 0; n < 4; ++n) {
+      for (int cid = 0; cid < 16; ++cid) {
+        nation_cont[n][cid] = col1->stuff.colony_counts_by_continent[n * 16 + cid];
+      }
+    }
+  } else if (map && colonies) {
+    /* Synthetic/new-game contexts can precede their first 4962 census. */
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &colonies->colonies[i];
-      if (!c->active || c->nation_id < 0 || c->nation_id > 3) {
-        continue;
-      }
+      if (!c->active || c->nation_id < 0 || c->nation_id > 3) continue;
       const int cid = map_continent_id_at(map, c->x, c->y);
-      if (cid < 0 || cid > 15) {
-        continue;
-      }
-      nation_cont[c->nation_id][cid]++;
+      if (cid >= 0 && cid < 16) nation_cont[c->nation_id][cid]++;
     }
   }
-
   int euro_on_cont = 0;
   for (int n = 0; n < 4; ++n) {
     euro_on_cont += nation_cont[n][continent_id];
   }
 
-  /* DS:0x947e[cont] — Indian villages on this continent (live from tribes). */
-  int villages_on_cont = 0;
-  if (map && col1->tribe) {
-    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
-      const ColonizeCol1Tribe* t = &col1->tribe[ti];
-      if (t->nation_id < 4) {
-        continue;
-      }
-      if (map_continent_id_at(map, t->x, t->y) == continent_id) {
-        villages_on_cont++;
-      }
-    }
-  }
+  /* DS:0x947e[cont] — Indian villages on this continent. */
+  const int villages_on_cont = col1->stuff.village_counts_by_continent[continent_id];
   const int used = villages_on_cont + euro_on_cont;
 
   const unsigned target = (unsigned)col1->post_map.continent_tally_b[continent_id] / 12u;
