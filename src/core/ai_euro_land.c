@@ -1559,14 +1559,13 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
  * unit is already committed to (unit+0x314c==7) within the radius-2 ring.
  */
 static int ai_euro_land_explore_scan_target(
-  ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id, int force_explorer, int* out_x, int* out_y
+  ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id, const Ai20e6Unit* unit_state,
+  int force_explorer, int* out_x, int* out_y
 ) {
-  if (!ctx || !ctx->map || !u || !out_x || !out_y) {
+  if (!ctx || !ctx->map || !u || !unit_state || !out_x || !out_y) {
     return 0;
   }
-  Ai20e6Unit s;
-  ai_euro_20e6_prologue(ctx, u, nation_id, &s);
-  ai_euro_20e6_explorer_flag(ctx, u, &s);
+  Ai20e6Unit s = *unit_state;
   if (force_explorer) {
     s.explorer = 1; /* labor-loop fall-through: DOS re-loops with iStack_6a=1 */
   }
@@ -3688,7 +3687,7 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
       return 0;
     }
     const int scan_r = (!force_wander && s.explorer && hop_scan)
-                         ? ai_euro_land_explore_scan_target(ctx, u, nation_id, s.explorer, &fx, &fy)
+                         ? ai_euro_land_explore_scan_target(ctx, u, nation_id, &s, s.explorer, &fx, &fy)
                          : 0;
     if (scan_r == 2) {
       /*
