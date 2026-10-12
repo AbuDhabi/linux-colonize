@@ -19,8 +19,8 @@ then a recursive JSON diff (show `*_hex` blobs as differing byte offsets). The t
 `EXCLUDE_FROM_ALL`: rebuild it explicitly (`cmake --build build/debug --target golden_idle_campaign`).
 
 Progress (sum of differing JSON leaves over all 77 transitions): 18,869 → 16,546 → 16,178 →
-13,423 → 12,739 → 8,798 → 8,122 → 7,023 → 5,666 → 5,597 → 5,591 → 5,531 → 5,502 → 5,431 → 4,774 → 4,771 → 4,745 → 4,744 → 4,676 → 4,668 → 4,660 → 4,656 → 4,653 → 4,643 → 4,638 → 4,635 → 4,627 → 4,622 → 4,528 → 4,520 → 4,514 → 4,522 → 4,521 → 4,536 → 4,520 → 4,506 → 4,497 → 4,467 → 4,461. Fourteen archived transitions
-pass byte-for-byte: 1493→1494, 1494→1495, 1495→1496, 1505→1506, 1512→1513,
+13,423 → 12,739 → 8,798 → 8,122 → 7,023 → 5,666 → 5,597 → 5,591 → 5,531 → 5,502 → 5,431 → 4,774 → 4,771 → 4,745 → 4,744 → 4,676 → 4,668 → 4,660 → 4,656 → 4,653 → 4,643 → 4,638 → 4,635 → 4,627 → 4,622 → 4,528 → 4,520 → 4,514 → 4,522 → 4,521 → 4,536 → 4,520 → 4,506 → 4,497 → 4,467 → 4,461. Fifteen archived transitions
+pass byte-for-byte: 1493→1494, 1494→1495, 1495→1496, 1496→1497, 1505→1506, 1512→1513,
 1513→1514, 1514→1515, 1516→1517, 1527→1528, 1537→1538, 1541→1542,
 1542→1543, 1543→1544 and 1547→1548. 1492→1493 is down to the
 human's first-turn UI; 1497→1498 only to the stance-table artifact below.
@@ -581,11 +581,36 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   validation and the optimized 20e6 unit pass; Debug and Release archived
   sweeps both total 4,506 leaves with 14 exact transitions.
 
+## Fixed in the 2026-10-12 pass
+
+- AI field-plot purchase (FUN_0000_6582 tail) no longer needs a Europe store in
+  the world. `colonies_seat_new_colonist` builds its context without one, so
+  on the founding seat (`colonies_found` -> 28c8) an AI nation that could
+  afford the plot took the alarm charge instead of buying. Fresh 1586: French
+  gold, `lands_bought` and `alarm_by_player` now match.
+- `FUN_15eb_26e4` claim stamp (via `FUN_281f_0c72`) now runs where DOS runs it:
+  at founding (`FUN_364b_1ba8` raw 58088, founder on occupation 0 and no plot
+  yet), before the 3930 plot pass in the 5952 AI tick (raw 93958 before 93961;
+  the port ran it after), before 3930 in EOT production (`FUN_364b_0688` raw
+  57228), and on colony-screen open (`FUN_2f2b_6cd4` raw 56009). A DOSBox `BPM`
+  on the layer3 byte found the writer: founding Cayenne (40,21) restamped
+  (41,20) from France to tribe 6. Fresh 1586→1587 is now byte exact.
+  Fresh 1576, 1577 and 1583-1588 are exact; 1578, 1581 and 1582 keep 17, 9
+  and 5 chain leaves.
+- Archived: 1496→1497 becomes exact (15 exact transitions); 1533, 1577, 1586
+  and 1596 shrink. 1593, 1595 and 1597 gain one `HAS_UNIT` mask byte each,
+  downstream of unit arrays that already differed in length. (Scratch-sweep
+  leaf metric, which lumps unequal-length lists into one leaf: 1,825 → 1,712.
+  It is not the metric of the progress line above.)
+- Regressions: `test_land_work_alarm_6582` arm (4) (AI buy with no Europe
+  store) and `test_found_claim_stamp_1ba8` (unit_ai_contact_colony).
+- Unported: DOS joins (`FUN_364b_1aec` / `1b1a`) also run 0c72 then 0c22
+  before admitting the colonist; the port's join paths run neither.
+
 ## Open leads (most transitions first)
 
-- Fresh 1586→1587 is down to one byte in `map.path` at `(41,20)`: DOS
-  leaves the Sioux owner nibble (`0x67`) while the port retains the prior
-  French owner nibble (`0x17`). The diplomacy accumulators are byte exact.
+- (Resolved 2026-10-12, see above.) Fresh 1586→1587 was down to one byte in
+  `map.path` at `(41,20)`. Earlier fixes on this transition:
   `FUN_521d_0492` reads the frozen `FUN_4962_0018` nation×continent colony
   census at `DS:0x94e6`; the port instead recounted the live colony pool.
   France founds Cayenne before its Dragoon acts in this turn, so the live
@@ -619,7 +644,8 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   differences; fresh 1581 and 1582 retain 10 and 5 chain leaves, so DOS has an
   additional mixed sentinel-chain ordering rule to trace there.
 
-- Fresh 1577 reduces the archived 1577→1578 cluster to 15 JSON leaves. One
+- (Fresh 1577→1578 is byte exact as of 2026-10-12; kept for history.)
+  Fresh 1577 reduces the archived 1577→1578 cluster to 15 JSON leaves. One
   Spanish Dragoon is the only behavioral split: DOS gives it the same
   explore-ring goal at (48,49) as a peer already at (45,49), while the port's
   ring scan declines and its 4d2e wander ends at (46,55). The remaining unit
