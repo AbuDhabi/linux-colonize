@@ -436,7 +436,7 @@ static void colonies_assign_field_land_reaction(
     return;
   }
   const bool human = col1->player[nation].control == 0;
-  if (!human && w->europe) {
+  if (!human) {
     const int price = colonies_indian_land_purchase_gold(col1, map, x, y, nation);
     const long gold = (long)europe_nation_gold(w->europe, col1, nation);
     if (price > 0 && gold - (long)price >= (long)(price >> 1)) {
