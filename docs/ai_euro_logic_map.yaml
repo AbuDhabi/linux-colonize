@@ -315,7 +315,7 @@ graphs:
         fn: ai_euro_europe.c:ai_euro_5d04_hire_ladder_tail
         dos: raw 92568-93070
         status: dos
-        note: "Recruit pop/refill (2026-09-18): a popped slot spawns its unit through the port's FUN_38fd_0718 counterpart ai_euro_5d04_cb_dock_pop_candidate, which now also writes the DOS sentry order (+0x314c = 1, raw 59133 — bugs.md #509); the emptied slot is refilled by europe.c's faithful FUN_38fd_46d4 (ai_euro_5d04_refill_pool_slot → europe_nation_refill_pool_slot, raw 64554-64694 — bugs.md #510), the difficulty-scaled tier roll off the shared game stream, replacing a flat dos_rng_range(0, 0x1b) stand-in that could seed the pool with professions 46d4 explicitly remaps away. The departure loop reads the frozen FUN_4962_0018 DS:0x945a dock census; a recruit bought earlier in this same 5d04 pass does not raise local_46 (fresh 1586 DOS buy trace)."
+        note: "Recruit pop/refill (2026-09-18): a popped slot spawns its unit through the port's FUN_38fd_0718 counterpart ai_euro_5d04_cb_dock_pop_candidate, which now also writes the DOS sentry order (+0x314c = 1, raw 59133 — bugs.md #509); the emptied slot is refilled by europe.c's faithful FUN_38fd_46d4 (ai_euro_5d04_refill_pool_slot → europe_nation_refill_pool_slot, raw 64554-64694 — bugs.md #510), the difficulty-scaled tier roll off the shared game stream, replacing a flat dos_rng_range(0, 0x1b) stand-in that could seed the pool with professions 46d4 explicitly remaps away. Fresh 1586 DOS traces: the departure loop reads the frozen FUN_4962_0018 DS:0x945a dock census; generic hold sales leave their amount in DS:0x8dc4 for the later buy affordability gate; FUN_48d3_0346 begins with FUN_1427_10be and preserves the relinked dock order on the westbound lane."
       - id: needs
         kind: step
         label: Colony musket/tool needs (DS:0xa0da/0xa0db, minus own Pioneers)
@@ -393,7 +393,7 @@ graphs:
         kind: step
         label: "A: urgency seed; coarse-plane wipe + restamp"
         dos: FUN_1d1d_0dae(0x9faa,0,0x10e)
-        status: structural
+        status: dos
       - id: housekeeping
         kind: call
         label: Unit housekeeping — +0x3148 bits, act-state transitions, foreign-ship CONTACT
@@ -900,7 +900,7 @@ graphs:
         kind: step
         label: Explorer — windowed ring scan (site nibble, fog, far-probe), else ring-hop 4 tiles on a latched direction
         fn: ai_euro_land.c:ai_euro_20e6_ring_hop
-        dos: LAB_2912→2a59 ring scan; raw 2416-2458 ring hop (+0x3155/+0x3156)
+        dos: LAB_2912→2a59 ring scan; raw 2416-2458 ring hop (+0x3155/+0x3156, DS:0x9faa & 6 gate); raw 87555-87558 unit stamps 5 for profession-carrying types, 1 otherwise
         status: dos
         note: "bugs.md #683, ported 2026-09-23: the ring scan's own commit tail is now live. Raw 89272-89275 — `if (0 < local_c) { if (local_6a != 0) { if (best != own tile) goto LAB_521d_27f5; *(param_1 * 0x1c + 0x314c) = 7; goto LAB_521d_5a78; } }` — writes act_state 7 (UNITS_ORDER_BUILD_COLONY) when the best-scoring site is the tile the unit already stands on. It is the only AI writer of act_state 7 in the image, and it is what makes the two readers of that byte live: this scan's own raw-89182 reject (a candidate ring holding another unit already committed to 7 is skipped) and the human @TOONEARBUILD scan at raw 45670. 20e6 then returns 0 (raw 90445) and FUN_521d_5b66 dispatches its switch case 7 = FUN_1000_93ea = FUN_479b_076e (found colony) in the same call — ported as the act_state-7 consumer at the move-scoring-gate exit in ai_euro_unit_act, which calls ai_euro_found_with_unit. Port-only guard: a tile that refuses the colony resets the unit to act_state 5 rather than leaving it wedged behind 20e6's entry bail (raw 88404-88406)."
       - id: wander

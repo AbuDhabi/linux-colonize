@@ -19,7 +19,7 @@ then a recursive JSON diff (show `*_hex` blobs as differing byte offsets). The t
 `EXCLUDE_FROM_ALL`: rebuild it explicitly (`cmake --build build/debug --target golden_idle_campaign`).
 
 Progress (sum of differing JSON leaves over all 77 transitions): 18,869 → 16,546 → 16,178 →
-13,423 → 12,739 → 8,798 → 8,122 → 7,023 → 5,666 → 5,597 → 5,591 → 5,531 → 5,502 → 5,431 → 4,774 → 4,771 → 4,745 → 4,744 → 4,676 → 4,668 → 4,660 → 4,656 → 4,653 → 4,643 → 4,638 → 4,635 → 4,627 → 4,622 → 4,528 → 4,520 → 4,514 → 4,522 → 4,521 → 4,536 → 4,520 → 4,506 → 4,497 → 4,493. Fourteen archived transitions
+13,423 → 12,739 → 8,798 → 8,122 → 7,023 → 5,666 → 5,597 → 5,591 → 5,531 → 5,502 → 5,431 → 4,774 → 4,771 → 4,745 → 4,744 → 4,676 → 4,668 → 4,660 → 4,656 → 4,653 → 4,643 → 4,638 → 4,635 → 4,627 → 4,622 → 4,528 → 4,520 → 4,514 → 4,522 → 4,521 → 4,536 → 4,520 → 4,506 → 4,497 → 4,467 → 4,461. Fourteen archived transitions
 pass byte-for-byte: 1493→1494, 1494→1495, 1495→1496, 1505→1506, 1512→1513,
 1513→1514, 1514→1515, 1516→1517, 1527→1528, 1537→1538, 1541→1542,
 1542→1543, 1543→1544 and 1547→1548. 1492→1493 is down to the
@@ -583,18 +583,22 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
 
 ## Open leads (most transitions first)
 
-- Fresh 1586→1587 has 66 leaves after preserving the 5d04 Europe-dock
-  physical walk. DOS boards the waiting colonist on the first hull in that
-  chain, which the port now also does, lowering the archived sweep by another
-  four leaves. The main remaining split is the departing-goods loop: DOS buys
-  Muskets plus Tools on the Caravel and Muskets, Trade Goods and Horses on the
-  Merchantman, draining Spanish gold 1100→0; the port buys only Muskets on
-  each and ends at 609. DOS also spends 300 French gold. The port's computed
-  cargo-demand cells for goods 8/13/14 are below `local_46`; DOS is evidently
-  entering the `bVar21` expansion bypass at raw 93036. Trace that boolean at
-  5d04:6fxx before changing the documented past-end `unit[-1]+0x3148` read.
-  Fresh 1587→1588 and 1588→1589 are byte-identical, so the split does not
-  persist into the following independently loaded saves.
+- Fresh 1586→1587 is down to 31 leaves. A DOS buy trace resolved both Europe
+  errors: `local_46` reads the frozen pre-planning dock census, and generic
+  hold sales leave their amount in global `DS:0x8dc4`, which the later buy
+  affordability gate reuses. The Merchantman's last sale leaves 20, so its
+  purchases stop after Muskets, Trade Goods and Horses; Spanish cargo, market
+  state and gold now match. `FUN_48d3_0346`'s leading `FUN_1427_10be` relink
+  also restores the exact Caravel→passenger→Merchantman lane chain. Replacing
+  the ring-hop's obsolete per-nation seen stand-in with the already ported
+  `DS:0x9faa` coarse plane makes the French native-land purchase, gold and
+  alarm match. The plane now also preserves 0a60's exact unit stamp: `5` for
+  profession-carrying types and `1` for other types, including the stamps of
+  passengers at their carrier coordinates; ring hops test `& 6` while far
+  probes require the entire byte to be zero. This static correction
+  is neutral in the archived sweep and this fresh transition. Remaining leaves are three movement clusters plus their map
+  planes: two Braves, a French transport group, and one French explorer.
+  Fresh 1587→1588 and 1588→1589 remain byte-identical.
 
 - Fresh 1578 and 1581→1586 replays match DOS in all modeled gameplay state.
   Fresh 1584→1585 was already byte-identical. The save bridge now restores

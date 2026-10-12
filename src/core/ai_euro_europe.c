@@ -964,6 +964,11 @@ static void ai_euro_5d04_cb_unit_exhaust(int idx) {
     }
     (void)units_board_stacked(ctx->units, u->id, ship_id);
   }
+  /* FUN_291f_0ec2 -> FUN_48d3_0346 opens with FUN_281f_0920 =
+   * FUN_1427_10be. Besides boarding, it physically relinks the dock group
+   * before the hull moves; that order survives on the shared westbound lane
+   * (fresh 1586: Caravel -> passenger -> Merchantman). */
+  units_tile_stack_ship_relink(ctx->units, ship_id, false);
   /* FUN_291f_0ec2 -> FUN_48d3_0346, raw 93069: depart inside 5d04.
    * Its 0002 voyage reseed/draw precedes 0a60 and the unit-act waves
    * (DOSBox 1551: unit 4 departs before unit 44's wander scores). */
