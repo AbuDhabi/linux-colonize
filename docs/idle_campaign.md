@@ -52,252 +52,10 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
 `map_mode` = whatever the player left, `active_unit` = last AI hull that sailed for Europe
 (raw 76484/77099 set 0x5392 before `291f_0208`), else 0xffff.
 
-## Fixed in the 2026-10-06 pass
+## Fixed passes 2026-10-06 to 2026-10-08
 
-- Europe arrivals: `FUN_48d3_06ba` tail (064e→048e) places hulls in the nation's own lane tick,
-  before 0a60; the fitted "first leg + west-explore (4,13)" exit course is deleted (the (4,13)
-  goto is the 20e6 far roam, which now also writes plan `'D'`, 521d:4e86). 048e's ±e pair loop:
-  the +e hit wins.
-- Day-top spent clear moved to the Indian mid-pass entry and now restores runtime MP; the
-  calendar advance moved there too (slots above the human act under the old turn; market
-  ticks use each slot's own turn).
-- AI landers reveal on landing (465b_0000 07a0); first contact stamps `contact_state = 2`
-  (raw 96669); the invented WELCOME land grant (purchased bit) is deleted; AI moves no longer
-  set `named_new_world` (bugs.md #1057a reversed: 049e is the human UI mover).
-- `FUN_4962_0018` ported per nation (`col1_stuff_census_4962_w`), called at each nation's 00f2;
-  `FUN_1427_0824` / `FUN_364b_1ba8` / colony delete keep `all_unit_counts` / `colony_counts`
-  live in between.
-- Colony founding mints its COL1 record (1ba8): custom-house export bits, `visible_to_euro`
-  all 1, founder's +100 `rebel_divisor`; `last_colony_founded_turn` is the nation record field.
-- Capture keeps DOS's stale hold bytes past `holds_occupied` (DOS remover `FUN_15eb_317c`
-  never clears); autosaves stamp the 130d_0172 head state; Move Pieces entry resets 0x5392.
-
-- Ship tile-chain order (DOSBox BPM trace of unit+0x18/+0x1a, 1492→1494). Every ship relink is
-  `FUN_1427_10be` (04d6 the tile, hull to the -2 chain, passengers on it top-down) then 040c
-  (relink top-first, so reversed). The 465b mover adds `FUN_281f_08e4` = `FUN_1427_0644`
-  (04d6 on the -2 chain) in between, which leaves the hull *under* its passengers; the 20e6
-  LAB_3558 band (overlay 0x3609 10be, 0x3693 040c on the own tile) and the 064e Europe
-  placement do not, which leaves it on top. Port: `units_tile_stack_ship_relink`.
-- AI explorer fatigue / hop countdown / hop slot are the save's `cargo_hold[0..2]`
-  (+0x3154..56) on the unit (`ai_euro_20e6_hold_scratch`), not session arrays; spawn resets
-  them 0/0/0xff (06b4). The land wander tail writes plan `'9'` (raw 89040) like the ship one.
-- Every plot seat (`FUN_0000_6582`) ends in `6518(dx,dy,1)`: mask bit 0x10 on the worked tile,
-  claimed or not (all 869 worked plots in the saves carry it) — `colonies_stamp_worked_plot`.
-- `FUN_5952_035e` opens with `memset(colony+0x8a, 0, 2)` (OVL15 0x39f, BPM-confirmed): AI
-  colonies lose the Custom House bits on their first tick. The invented "default bits when the
-  Custom House completes" in colony_build.c is gone (0d26's only callers: 1ba8, human dialog).
-- DS:0x35e is 0 during the tick's food pass and pass 2 and set at LAB_17a9 (raw 94628), so
-  28c8's food weight `local_4` is 0 there (BP trace of 15eb:2d14 scores).
-- The tick's absorption arm joins through `FUN_15eb_1068(outside slot)`: idle, no 2ea0 seat
-  (`colonies_admit_unit_idle_w`).
-- Move vis (465b raw 75764-75772): `07d6(unit, 06dc(dest))` ORs the destination's owner-nibble
-  bit as read before the relink, for every mover including braves (BPM-traced); the port read it
-  after its own arrival stamp and only for Euro movers. `units_vis_mask_after_move(..., dest_owner)`.
-- Side fix (golden_woi_ref01): the crown MoW sail-home gate's `iStack_a8` is the hull's own
-  -2 group (taken at 0x3609 after 10be), not the tile; DS:0x9456 is counted by the 0x45 plan
-  stamp, not order 11 (shared with every AI goto) — the REF fleet no longer parks for good.
-
-## Fixed in the 2026-10-07 pass
-
-- Per-slot EOT and RNG phase (DOSBox BP on 1541:0e04, per-slot draw counts now equal DOS's for
-  every AI and Indian slot): each AI nation's colony EOT (5e52 immigration, Phase A bells + 0a22
-  elect, production, crosses) runs at the head of its own slot (`turn_run_ai_nation_eot`), not
-  batched in SETUP; 5e52 opens with the timer-word reseed `FUN_281f_04ca` (raw 68542), like
-  6d8e. The human's nation tick moved to FINISH (its own 00f2, after the day top) with the same
-  reseed. `FUN_4345_06d2` rolls every category before `015a` picks one; `015a` ties go to the
-  later category.
-- Unit array order: `FUN_1427_0824` compacts and `06b4` appends, so new units take `slot_end`,
-  not the first hole; the vacated DOS record keeps its goto/facing and the next spawn inherits
-  them (`ColonizeUnitPool.dos_tail`). `06b4` binds `origin` to the colony on the spawn tile.
-- Colony colonist bytes past `population` keep DOS's stale tail (`FUN_15eb_0d04` never clears);
-  idle colonists are job 0x12 (DOS's own idle join).
-- Recruit pool stores DOS's 0x1c for Free Colonists (46d4 free tier, Brewster, 3-experts bail);
-  the human's 0x40 crosses-immigrant latch is a save bit, not a unit heuristic; @TUTORIAL5 latch.
-- Plans: 20c6 walk-home `'V'`, LAB_4567 `'5'` + orders 0x0b for wagons/treasure/hauls; 20e6
-  origin bind (OVL14 0x24ec, `[BP-0x32]` is the is-ship flag, not stance); colony tick binds
-  unbound tile units (`DS:0x8dc6`); colony eject reveals while the colonist still counts.
-
-## Fixed in the 2026-10-07 second pass
-
-- AI Europe dock is the per-nation sentinel 236+n (FUN_38fd_0718 `n - 0x14`), not (200,100):
-  recruits, purchases, lane arrivals, damaged hulls.
-- FUN_479b_0972 crosses at once when an 'E' goto ends on High Seas (raw 77091-77098); 007a also
-  writes the nation's `return_from_europe` copy, sentries/stamps the passengers, and keeps plan 'E'.
-- 015e's own ring (`units_015e_hs_course`) for the Europe course; 048e's spiral stays for placement.
-- Patrol stay goes through LAB_589e (orders 5, facing 8); surplus recall commits via 20c6 'W'.
-- Brave 021a writes facing and the orders latch from the pick (0x11b9-0x126e) before the tail; a
-  tail stay only exhausts MP (0x14e6).
-- Harness: `golden_turn` now passes `ctx.names` (every @RESOURCE site score read 0 before).
-- 5d04 goods buy = FUN_38fd_1ebc: no gold gate, treasury clamps at 0 (FUN_15eb_0556); passengers
-  and goods share the hull's holds when dock units board.
-- 5952 improve arm: the tribal-claim alarm is `030c(village NATION byte, nation)` unadjusted, so
-  nations 4..7 read indian[4..7] (DOS quirk, `ai_euro_5952_alarm_word`); the phantom pioneer
-  stamps its visitor nibble (`units_set_nation`).
-- Gift picker sort FUN_1cf8_000a is not stable (moved element lands before its equals, unsigned).
-- Market tick FUN_38fd_0058 runs at the head of each nation's own 5e52 (after the reseed), not
-  batched at the round's end.
-- 4cc6_00f2 tier test caps only the new alarm at 99 (cooling 100→99 clamps village attitudes).
-- 465b LAB_0bd1 tail: an unsettled AI move (attack, board, block) with no unit lost → orders 0,
-  +0x315a++ (wrap 20: reset + exhaust); `units_465b_0bd1_tail` now runs for the Euro goal
-  walker and Brave foreign-destination steps. The latter matches the 1534→1535 Fort Orange
-  raider's counter 2.
-- 015e ring skips the map border (078c reads class 0x19 outside FUN_137f_000a's interior).
-- 5bfb_3180 turns each newly met neighbour stack head's facing to the scan direction.
-- 4cc6_03f8 threat pressure halves only on a settlement tile (06be), not on unit presence.
-- Nation +0x4b is NOT DOS-dead (lategame DOS saves carry 1..11): round-tripped as `unknown_4b`;
-  the port's Indian-hostility sticky is now a session cache re-derived on apply.
-
-## Fixed in the 2026-10-07 third pass (DOSBox-traced)
-
-- Village tiles never take a Euro owner nibble: a port spawn ran the occupancy claim with the
-  nation-0 placeholder (an empty-village temp defender stamped England), and 021a then saw a Euro
-  "colony" next to the village (`units_claim_tile_owner_from_stack`).
-- 48d3_03d0 lane tick counts down every unit on the lane tile, passengers included.
-- 20e6 land far probe: +8 when the DS:0x9faa coarse cell is empty (was a per-nation seen[]
-  stand-in; ships already used the plane).
-- 6d8e prelude 0xa0cc[16] counters ported literally: specialty bumps its own good (muskets twice),
-  empty muskets/goods-8/tools stocks, minus every own hull's held cargo and each Pioneer (tools).
-- FUN_1427_06b4: a native unit's +0x12 word = turn at creation (021a's visit stamp).
-- 584a crosses penalty counts colonists on the dock x == 236+n only, not lane passengers.
-- 26e4 (via 5952_035e) restamps claimed, workable, empty, unbought plots with the tribe nibble
-  (`colonies_26e4_claim_stamp`).
-- AI ships berth ON the colony tile (DOS `iStack_2e == 0`); the "adjacent water" substitution
-  made a hull one tile out dump, reload and sell its hold a turn early.
-- A Brave attacking a colony with no field defender fights 1b0e's militia phantom
-  (`units_revere_defend_colony_tile`); a win runs the native colony limb at the target tile.
-- Harness: `units_reset_hooks` no longer clears the raid-repelled hook (sim wiring, set at load);
-  every golden had lost 1b0e's colony-raid hand-off and its DS:0x54f6 clear.
-- 0f14's early-game grace reads the turn on the 1b0e hand-off too (was skipped: no turn_number).
-- 13b0 treaty tick runs only from an AI mover's 3180 land encounter with another AI Euro, not
-  from the per-turn balance on any adjacency.
-- 3180 marks a nation done only when 022e resolved something; a failed mood roll lets the next
-  tile of that nation roll and take the scan facing.
-- Ship price byte DS:0x84bc = euro_price − 1 (clamped 0) in the delivery score, load matrix and
-  sell tail (`ai_euro_ship_price_84bc`; DOSBox 1505 load matrix scored ore 78 × 3).
-- LAB_3fa6 is the only AI sail-home after the delivery band (holds full or 2+ occupied); the
-  invented "≥ 50 export goods" Europe-export arm is deleted.
-- Europe dock sell loop compacts holds after each sale (FUN_15eb_317c, `units_remove_goods_slot`),
-  so every hold sells; it used to stop after hold 0.
-- Native/phantom spawns get their nation before the tile claim (`units_spawn_allow_stack_nation`):
-  a colony militia phantom stamped England on a French colony tile.
-- The Indian post-pulse meet/trade stand-in (adjacency first contact, auto-trade, gift/demand) is
-  unhooked; 3180 on the mover's step is the only encounter path, as in DOS.
-- AI colony horses: 1f72 adds the UNCAPPED herd potential to the horse gross (DS:0x8dd8) and only
-  the capped figure to food consumption; 0688 applies gross − consumption for AI colonies, so they
-  gain the full potential (human colonies take FUN_281f_0b50's capped figure).
-- 0688 phase O horse arm: the surplus goes to nation word +0x4a (`unknown26_pad` low, `unknown_4b`
-  high — the "live +0x4b" mystery) with sale amount 0, and `trade.tons[c] += c` still runs. The
-  musket arm's +0x49 lot counter is still on the Europe screen (+0x49 hosts the privateer stand-in).
-- 3180's neighbour head is the tile CHAIN head (07e0 -> 1427_0002), not `units_id_at`.
-- 20e6 Missionary arm (type 3) ported: alarm-weighted village pick, plan 'J'; no pick turns the
-  unit into a Free Colonist. (An earlier note said the arm did not exist.)
-- An AI hull docking at its own colony exhausts the passengers it puts ashore (FUN_281f_0934).
-- The Missionary arm resolves the mission from the adjacent tile when its pick is next door (the
-  walker's first step would enter the village: 465b -> 4528 case 3).
-- Overnight FORTIFY -> FORTIFIED with moves 0 is human-only; DOS acts AI units on orders 0/5/6.
-- FUN_1427_0d38 (08bc) stack query modes from the jump table (1427:0d78): 4 = military types
-  1/4/6..9, 0xc = Artillery, 0xe = largest undamaged hull capacity. The 5d04 colony-demand hire
-  read 4 as "land units" and bought a Dragoon DOS never bought.
-- 20e6 ship band: local_a8 (stack count) is a band-entry snapshot, so a hull that just landed its
-  passengers does not take the dock-demand sail-home in the same act.
-- Save export keeps the runtime colonist order (no canonical occupation sort): DOS insert-sorts
-  only at add time and never re-sorts on a job change.
-
-## Fixed in the 2026-10-07 fourth pass (DOSBox-traced, 1515→1516)
-
-- Nation +0x48/+0x49/+0x4a are the col1 record's own bytes, not port scratch: 5d04 (raw
-  84230-84468 via DS:0x84fc) decrements `king_grace_counter`, spends/credits `musket_bank_lots`
-  (+0x49, was misnamed `privateer_spawn_mask`) and normalizes against the +0x4a word
-  (`col1_nation_bank_4a`). 0688 phase O banks AI colony musket surplus there per 50 and still runs
-  0a2e plus the tons quirk on a 0 remainder (the EuropeScreen batch counter is gone). The
-  wartime-Privateer stand-in's latch moved to session state.
-- DS:0xa0cc is one table: 0xa0d4/0xa0da/0xa0db are its cells 8/14/15, so the prelude's
-  "muskets specialty / empty stock" bumps feed the 5d04 tail's ship-buy demand too
-  (Spain bought 100 muskets the port skipped).
-- 00f2 order: 5e52 immigration tick, then the 0a82 lane tick, then the colony loop (raw
-  58375-58384). The port ran the lane tick first, so a hull reaching the dock was counted by the
-  584a dock penalty.
-- 2424's SoL cache (nation +0x19) is written per slot at the 00f2 tail (0a66, raw 58392), before
-  that nation's units move; the port wrote all four after the turn.
-- FUN_15eb_317c shifts holds only below the count and clears nothing; the port now mirrors that
-  on the raw hold bytes it round-trips, so stale slots match the save.
-- Trace method: BP on the resident buy routine 2143:0d8e (291f_0d8e) reads the 5d04 caller's
-  locals; one-shot `--patch-cc` traps miss later calls once RTLink reloads the overlay unpatched.
-
-- A colony join never writes +0x8e / +0x1e (labor_shortage / garrison_quota); only the 0a60
-  garrison admission (raw 87699-87753) and the 'G' marks do.
-- 0688's starvation mercy roll (raw 57638-57645) runs only when DS:0x8e5a is non-zero (a
-  non-human colony's shortfall below 3 is zeroed first) and is preceded by a reseed
-  (FUN_281f_04ca(DS:0x83a6)). The port rolled it every turn from 1520 on Discoverer/Explorer.
-- FUN_5fef_0f14 (raid picker) reseeds the same way before its walls roll (raw 99773).
-  `dos_rng_reseed_83a6` is the shared helper; `ai_nation_reseed` records the word.
-- Save export keeps a Brave's goto bytes; DOS saves them as-is (the port wrote 0,0 for every
-  native unit without a goto order).
-- The 5952 ledger's horse gross includes 1f72's uncapped herd potential (raw 12679), so a
-  breeding colony does not ask for horses (0306 arm 3).
-- 021a's attack-intent local `[bp-0x6a]` is zeroed once per call (0x225), not per direction, so
-  the stay tile skips its tech roll after any attacking direction.
-
-## Fixed in the 2026-10-08 pass (DOSBox-traced, 1514→1535)
-
-- LCR: FUN_465b_0000 rolls the rumour inside the move (raw 75763/75788-75791) — the AI landing
-  (`ai_euro_unload_pax_at`) now does too — and FUN_65dd_0004 reseeds from DS:0x83a6 before its
-  roll loop (raw 103462).
-- 5b66 walks a bound treasure with FUN_479b_0972 (arrival on a 0x0b goal exhausts MP); the port's
-  thin goal advance let it re-act and cash the same turn.
-- 20e6 delivery sell takes slot 0 each time through FUN_1000_8cdc (stale bytes past the count).
-- 4528 AI arm (OVL13 0x463c-0x4764, tail 0x4bdb): a computer Soldier/Dragoon/Artillery entering a
-  village takes code 9, OR-ing diplo bit 4 into both rows before the attack; a Scout speaks with
-  the chief, a Missionary runs its arm, a 0x1c/0x19 colonist-class unit lives among them, and
-  every non-attack code returns 1 (MP exhausted, step abandoned). The port attacked with all of them.
-- The empty-village phantom (FUN_478c_002c) has home byte 0xff: its removal never flags the
-  village's needs-colonist bit. 20e6's attack-term probe (FUN_5fef_1b0e probe mode) spawns that
-  phantom too, so an empty village is no longer scored against defence 0.
-- 022e: the beg-food block and the gift half need a colony on the encountered tile (local_4c,
-  raw 96989); a Brave meeting a bare unit gives nothing.
-- dos_tail carries the raw +0x0c..+0x15 block, so a unit created in a reused DOS slot inherits
-  the bytes 06b4 leaves alone; the 5952 improve phantom (478c_002c) skips 06b4's pioneer 100.
-- 5952 improve: plots are scored in DS:0xc8/0xde order (N, E, S, W, NW, NE, SE, SW), first tie
-  wins (raw 94466).
-- 20e6 pre-4d2e gate (raw 90210-90219): only a 0x0b unit on its goal is exempt; a 0x0c unit on its
-  step tile still needs FUN_281f_0984, else 20e6 exits and the walker writes facing −1. 5b66 skips
-  20e6 only for 0x0b with MP spent (raw 90551).
-- 1b0e: an Indian attacker that beats a colony's defender (pop > 1 or a real defender) is
-  destroyed (local_6, FUN_1427_0f30, raw 100390-100395/100753). The native mount/arm gear step
-  applies only to a native ATTACKER (raw 100731) and exhausts it after the type change (raw 100736);
-  the Brave step re-exhausts by the current type. The militia path draws DOS's colonist pick
-  rand(0, pop−1) (raw 100419). A burned colony gives its tribe +1 horse herd / +1 musket lot when
-  it held horses / muskets (raw 100700-100706).
-- Removed `ai_diplo_euro_balance`'s "10ec war eligibility" arm: invented bands and a rand(1, 20)
-  DOS never draws (Spain's plan stage, 1534→1535).
-- Magellan: DOS reads the allotment live (FUN_1427_065a), so the elect turn already moves the
-  nation's ships one tile further; the port adds the +1 to remaining MP at election.
-- A native win over an undefended colony uses 1b0e's militia colonist pick (`local_b0`) in the
-  0d04 removal, including the colonist shift and plot-seat renumbering. The loss runs before the
-  winning Brave is removed when population remains above one (raw 100419/100680-100692).
-- Save capture links sibling AI hulls on the same Europe sentinel tile after forming each hull's
-  passenger chain (`FUN_1427_02ca` / `005c`). This restores the 42→4→41 chain in 1533→1534.
-- 1516→1517 is now byte-identical. A DOS from-load watchpoint on `DS:0x360d` found the AI's
-  throwaway Pioneer tool debit: `FUN_479b_0158` wraps +0x3159 from 0 to 236. The next Brave
-  inherits that byte after the phantom is removed. The port now preserves the wrapped byte in
-  both the plot-improvement and road-connection phantom paths.
-- 1534→1535 Montreal's depletion counter now matches. `FUN_3844_00f2` walks colonies in
-  descending save order and `FUN_364b_0688` checks each colony's Father election before its
-  production. The port had elected for both French colonies first, consuming five RNG draws
-  before Montreal. A DOS trace at `364b:1aa0` found both depletion rolls start from seed 100.
-- New Amsterdam's Fisherman placement and worked-map bit now match. A trace at `15eb:2d14`
-  found score 740; `FUN_15eb_1f72` writes the horse-breeding shortfall directly to
-  `DS:0x8e5a[8]`, supplying the missing multiplier in `FUN_15eb_28c8`.
-- Nation 6's 1534→1535 horse breeding now matches DOS (5): the Indian census leaves
-  DS:0x8d4e bound to the last settlement's nation, so later nation turns breed that herd
-  while using each current nation's population cap.
-- 1535→1536 now matches the two French hulls' map positions, orders, plans and the
-  nearby Soldier's Veteran promotion. A watchpoint on hull slot 40 showed DS:0x9456
-  and DS:0x945a for nation 2 both stay zero through its move, even though 5d04 bought
-  a dockside land unit. `FUN_4962_0018` takes the dock count before that purchase;
-  the port now holds that count during the AI dispatcher. On the shared arrival lane,
-  `064e` takes the chain-terminal hull (slot 40) first; its `10be` pickup takes the
-  sentried passenger from slot 4's hull, matching the DOS watchpoint at `0c4b:02ec`.
+Archived to [archive/idle_campaign_fixed_2026-10-06_08.md](archive/idle_campaign_fixed_2026-10-06_08.md)
+(grep it by `FUN_` name or transition; do not read whole).
 
 ## Harness artifacts (not port bugs)
 
@@ -604,10 +362,110 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   It is not the metric of the progress line above.)
 - Regressions: `test_land_work_alarm_6582` arm (4) (AI buy with no Europe
   store) and `test_found_claim_stamp_1ba8` (unit_ai_contact_colony).
-- Unported: DOS joins (`FUN_364b_1aec` / `1b1a`) also run 0c72 then 0c22
-  before admitting the colonist; the port's join paths run neither.
+- The 20e6 colony join (raw 89345 -> `FUN_291f_09a4` -> `FUN_364b_1b1a`) now
+  runs DOS's order: 26e4 claim stamp, 3930 plot pass, then admit with
+  `FUN_15eb_1068(idx, 0)` (occupation 0, no plot; asm 364b:1b3a pushes the
+  0). The plot comes from the colony's next 3930 pass, not a 28c8 seat.
+- Fresh 1596→1597 (new DOSBox target, 38 leaves) traced three 20e6 errors,
+  now byte exact except one `vis_mask` bit:
+  - Missionary strip (raw 90088): DOS keeps spent MP (+0x3149), so the new
+    Colonist has 1 MP, not the Missionary's 2; the same 20e6 call then falls
+    through to LAB_4d2e (`ai_euro_20e6_4d2e_tail`, extracted). The port's
+    re-act had joined the unit to Vlissingen on the spot.
+  - Labor walk (OVL14 0x3000): `MOV DX,0x33; JMP LAB_27f5` binds the colony
+    as plan '3', act state 0x0b (arrival exhausts MP), not a 0x0c step.
+  - The pre-4d2e act-state gate (raw 90210) now runs after the whole arm
+    chain, as in DOS. A Dragoon on its 0x0c step tile ran the ring scan
+    (+0x3154++) and the hop roll first; the port skipped both, shifting the
+    French RNG stream by one draw and the Merchantman's far-roam roll.
+    `unit_goal_walk_keeps_stored_goal` now spends a third of MP: 5b66 (raw
+    90552) runs 20e6 for a fresh 0x0b unit, and its stance-0 Soldier would
+    take the PATROL recall.
+- Archived sweep (scratch metric) 1,712 → 1,580; 1596→1597 151 → 20. Tests:
+  `unit_labor_arm_binds_colony_goal`, `unit_missionary_strip_keeps_spent_mp`,
+  `unit_step_tile_still_runs_ring_scan`.
+- DS:0x8dc4 is one global (`units_last_hold_amount`), rewritten by every
+  0aec -> `FUN_15eb_317c` hold removal and never saved. The 5d04
+  departing-ship buy gate (`price * 0x8dc4`, raw 93041) reads it stale across
+  hulls and nations; the port had zeroed it per hull. DOSBox 1591: a French
+  unload left 100, so the Dutch hull (boycotted hold, 61 gold) bought nothing
+  where the port bought three cargos. The musket and horse branches now
+  follow raw 93000-93010: their 0aec overwrites the lots value, and the horse
+  bank adds the horse amount. Not yet modelled: the 32a0 / 35d0 writers.
+- The save bridge boards passengers in transport-chain order, head first, so
+  `cargo_ids[]` ends with the hull's `prev`; LAB_3558's unload walks it
+  backwards. DOSBox 1591: chain 52 -> 47 -> hull, DOS put 47 ashore.
+- The 20e6 prologue and explorer flag (raw ~88549, which bumps the
+  -0x5ec4 per-continent cap) now run before the own-colony garrison block
+  (raw 88584). DOSBox 1597: two garrisoned Spanish Soldiers filled the cap,
+  so the second Dragoon at (45,52) wandered instead of taking its peer's ring
+  goal (the 1577 lead's mirror case). Fresh 1597 is byte exact.
+- New fresh targets: 1591 (138 → 8 leaves), 1593 (69 → 52), 1596 (1),
+  1597 (0). Archived sweep 1,580 → 1,475. Tests:
+  `stale_scratch_carries_across_hulls`, `test_import_passengers_in_chain_order`,
+  `unit_garrison_soldier_counts_explorer_cap`.
+- `FUN_5bfb_10ec` (war-worthiness) had its entry gate inverted: asm
+  5bfb:10f4 `CMP [0xa153],AL; JNZ body` weighs a pair only while the human is
+  NOT top-ranked. DOSBox 1593: France and the Dutch went to war on contact.
+- `FUN_521d_20e6` LAB_4393 work-queue pick: distance is `FUN_281f_037a` =
+  map_dos_dist, not Manhattan, and the OpenCol "+32 when the hull carries the
+  colony's specialty" term is deleted (DOS raw 89889-89893 has none). DOSBox
+  1593: two Dutch Merchantmen took each other's queue colonies.
+  `unit_specialty_flag_a_haul_match` now pins that the specialty does not
+  bias the pick.
+- Fresh 1593 and 1597 are byte exact; archived sweep 1,475 → 1,438. Test:
+  `unit_10ec_skips_while_human_tops_rank`.
+- `FUN_479b_0972` -> `FUN_465b_0000` also runs for a spent unit (a hull the
+  LAB_3558 unload exhausted): cost > left with spent != 0 reseeds (raw
+  75649) and rolls (raw 75825), a draw that cannot pass at 0 left. The
+  port's mover refuses 0 MP up front, so `ai_euro_goal_walk_479b` now burns
+  that reseed + draw. DOSBox 1591: the French Merchantman's failed step drew
+  365 before the next unit's 20e6. Two other AI move sites now pass the 465b
+  reseed too. Fresh 1591 138 → 1 leaf; archived sweep 1,438 → 1,434. Test:
+  `unit_spent_step_burns_465b_roll`.
+- Europe lane chains (the old 1578/1581/1582 "mixed sentinel order" lead):
+  - `col1_find_ship_root` walked `prev` first, so in a two-hull lane chain
+    (59 -> Caravel -> 49 -> 56 -> 58 -> Merchantman, fresh 1582) the Caravel
+    got all four Dragoons. A passenger belongs to the hull on its `next`
+    side; `prev` is now the fallback.
+  - Europe departure boarding (`FUN_291f_0ec2` -> `FUN_1427_10be`) picks the
+    boarders walking the dock from the latest arrival until the hull is full,
+    and the chosen group rides in arrival order. Fresh 1578: dock 53 -> 54 ->
+    56, the Caravel took 56 and 54, chained 54 -> 56 -> hull. This also fixed
+    fresh 1571 (Dutch Artillery + Missionary) and 1581.
+  - Fresh 1571, 1578, 1581 and 1582 are byte exact. Tests:
+    `test_import_two_hull_lane_chain`,
+    `dock_boarding_takes_latest_arrivals_in_arrival_order`.
+- Village visits (DOSBox 1594, a captured French Colonist):
+  - The 20e6 colonist live-among case (raw 89363-89372) now sets plan 'L' and
+    commits a step onto the village (LAB_589e), not an in-place visit.
+  - The AI walk's village entry ends through 465b's 0bd1 tail: act state 0,
+    and +0x315a is bumped.
+  - The AI a618 visit draws its skill and roll from the village-seeded shared
+    stream, then reseeds from the timer, as OVL13 0x36b8 / 0x381b / 0x392d do.
+  - Fresh 1594 is down from 30 to 7 leaves. The archived sweep went from
+    1,434 to 1,422.
+  - No dedicated unit test yet.
+- New fresh targets are byte exact: 1566, 1568, 1592 and 1598. To make them,
+  the replay script waits for the next break after a `run_until_break`
+  timeout instead of sending `RUN` again.
+- Unported: the human-side join (`FUN_364b_1aec`) also stamps and runs 3930
+  first. The port's colony-screen joins do neither.
 
 ## Open leads (most transitions first)
+
+- Fresh 1594→1595: 7 leaves remain.
+  - The captured unit's tile-chain slot: DOS 47 -> 44 -> 45 with the captor
+    at the `next` end; the port appends the captured unit last
+    (`units_capture_relocate_to_winner`).
+  - One owner nibble at (26,6): the port stamps it French, DOS keeps it Dutch.
+  - `port_ext_hex` is port-only and expected.
+
+- Fresh 1591→1592: one leaf, `nations[1].treaty_timer[3]` (DOS 12, port 0).
+  DOS ran a 153e/13b0 with the Dutch as mover and France as other (raw
+  98414-98425 writes nation[other].timer[mover]); the port fires none. The
+  Dutch Dragoons at (24,6)/(26,6) end beside French units; the port's 3180
+  AI x AI limb only runs on a land step that changed the tile.
 
 - (Resolved 2026-10-12, see above.) Fresh 1586→1587 was down to one byte in
   `map.path` at `(41,20)`. Earlier fixes on this transition:
@@ -634,7 +492,7 @@ human's Move Pieces. Head UI words at that point: `map_modal_active 0`, `no_unit
   is neutral in the archived sweep and this fresh transition.
   Fresh 1587→1588 and 1588→1589 remain byte-identical.
 
-- Fresh 1578 and 1581→1586 replays match DOS in all modeled gameplay state.
+- (Resolved 2026-10-12, see "Europe lane chains" above.) Fresh 1578 and 1581→1586 replays match DOS in all modeled gameplay state.
   Fresh 1584→1585 was already byte-identical. The save bridge now restores
   Europe sentinel physical order from the incoming chain and serializes
   sibling hulls by that order rather than record index: fresh 1583→1584 and

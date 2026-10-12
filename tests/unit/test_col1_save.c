@@ -913,6 +913,145 @@ static bool test_import_overfull_ship_keeps_passenger(char* err, size_t err_size
   return ok;
 }
 
+/* Passengers import in transport-chain order, head first, so cargo_ids[]
+ * ends with the hull's `prev` — the order the capture writes back and the
+ * order 20e6's LAB_3558 unload walks backwards. DOSBox 1591: chain
+ * 52 -> 47 -> hull, and DOS put 47 ashore first. */
+static bool test_import_passengers_in_chain_order(char* err, size_t err_size) {
+  ColonizeCol1Save save;
+  col1_save_init(&save);
+  save.head.map_size_x = 8;
+  save.head.map_size_y = 8;
+  save.head.unit_count = 3;
+  save.head.difficulty = 2;
+  col1_save_stamp_head(&save.head);
+  if (!col1_save_alloc_sections(&save, err, err_size)) {
+    return false;
+  }
+  memset(save.map.tile, T_OCEAN, save.map.tile_count);
+  for (int i = 0; i < 3; ++i) {
+    save.unit[i].x = 4;
+    save.unit[i].y = 4;
+    save.unit[i].nation_id = 1;
+    save.unit[i].profession = UNITS_JOB_NONE;
+  }
+  save.unit[0].type = 14; /* hull: chain 2 -> 1 -> 0 */
+  save.unit[0].transport_chain.prev_unit_idx = 1;
+  save.unit[0].transport_chain.next_unit_idx = -1;
+  save.unit[1].type = 4;
+  save.unit[1].orders = UNITS_ORDER_SENTRY;
+  save.unit[1].transport_chain.prev_unit_idx = 2;
+  save.unit[1].transport_chain.next_unit_idx = 0;
+  save.unit[2].type = 4;
+  save.unit[2].orders = UNITS_ORDER_SENTRY;
+  save.unit[2].transport_chain.prev_unit_idx = -1;
+  save.unit[2].transport_chain.next_unit_idx = 1;
+
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units.type_count = 23;
+  for (int t = 0; t < units.type_count; ++t) {
+    units.types[t].movement = 1;
+    units.types[t].domain = (t >= 13 && t <= 18) ? COLONIZE_UNIT_DOMAIN_SEA
+                                                 : COLONIZE_UNIT_DOMAIN_LAND;
+    units.types[t].cargo = (t >= 13 && t <= 18) ? 4 : 0;
+    units.types[t].space = (t >= 13 && t <= 18) ? 99 : 1;
+  }
+  units_set_occupancy_map(NULL);
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.cargo_count = 16;
+  ColonizeCol1BridgeResult result;
+  bool ok = col1_bridge_apply_w(
+    &(ColonizeWorld){.units=&units, .colonies=&colonies, .map=&map, .col1=&save,
+                     .col1_ok=true, .europe=&europe},
+    &result, err, err_size
+  );
+  if (ok) {
+    const ColonizeUnit* ship = &units.units[0];
+    if (ship->cargo_count != 2 || ship->cargo_ids[0] != units.units[2].id ||
+        ship->cargo_ids[1] != units.units[1].id) {
+      snprintf(err, err_size, "cargo_ids %d,%d (count %d), want head %d then %d",
+               ship->cargo_ids[0], ship->cargo_ids[1], ship->cargo_count, units.units[2].id,
+               units.units[1].id);
+      ok = false;
+    }
+  }
+  units_set_occupancy_map(NULL);
+  col1_save_free(&save);
+  map_free(&map);
+  return ok;
+}
+
+/* A lane chain holding two hulls: pax -> Caravel -> pax -> Merchantman.
+ * Each passenger belongs to the hull on its `next` side; walking `prev` first
+ * handed the Caravel every passenger (fresh 1582). */
+static bool test_import_two_hull_lane_chain(char* err, size_t err_size) {
+  ColonizeCol1Save save;
+  col1_save_init(&save);
+  save.head.map_size_x = 8;
+  save.head.map_size_y = 8;
+  save.head.unit_count = 4;
+  save.head.difficulty = 2;
+  col1_save_stamp_head(&save.head);
+  if (!col1_save_alloc_sections(&save, err, err_size)) {
+    return false;
+  }
+  memset(save.map.tile, T_OCEAN, save.map.tile_count);
+  const uint8_t type[4] = {4, 13, 4, 14};
+  for (int i = 0; i < 4; ++i) {
+    save.unit[i].x = 233;
+    save.unit[i].y = 233;
+    save.unit[i].type = type[i];
+    save.unit[i].nation_id = 1;
+    save.unit[i].orders = UNITS_ORDER_SENTRY;
+    save.unit[i].profession = UNITS_JOB_NONE;
+    save.unit[i].transport_chain.prev_unit_idx = (int16_t)(i - 1);
+    save.unit[i].transport_chain.next_unit_idx = (int16_t)(i < 3 ? i + 1 : -1);
+  }
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units.type_count = 23;
+  for (int t = 0; t < units.type_count; ++t) {
+    units.types[t].movement = 1;
+    units.types[t].domain = (t >= 13 && t <= 18) ? COLONIZE_UNIT_DOMAIN_SEA
+                                                 : COLONIZE_UNIT_DOMAIN_LAND;
+    units.types[t].cargo = (t >= 13 && t <= 18) ? 4 : 0;
+    units.types[t].space = (t >= 13 && t <= 18) ? 99 : 1;
+  }
+  units_set_occupancy_map(NULL);
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.cargo_count = 16;
+  ColonizeCol1BridgeResult result;
+  bool ok = col1_bridge_apply_w(
+    &(ColonizeWorld){.units=&units, .colonies=&colonies, .map=&map, .col1=&save,
+                     .col1_ok=true, .europe=&europe},
+    &result, err, err_size
+  );
+  if (ok && (units.units[0].aboard_ship_id != units.units[1].id ||
+             units.units[2].aboard_ship_id != units.units[3].id)) {
+    snprintf(err, err_size, "pax0 on %d (want Caravel %d), pax2 on %d (want Merchantman %d)",
+             units.units[0].aboard_ship_id, units.units[1].id, units.units[2].aboard_ship_id,
+             units.units[3].id);
+    ok = false;
+  }
+  units_set_occupancy_map(NULL);
+  col1_save_free(&save);
+  map_free(&map);
+  return ok;
+}
+
 static int count_active(const ColonizeUnitPool* units) {
   int n = 0;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
@@ -1237,6 +1376,14 @@ int main(void) {
     return 1;
   }
   fprintf(stderr, "Col1 over-full ship keeps its chained passenger ok\n");
+  if (!test_import_two_hull_lane_chain(err, sizeof(err))) {
+    fprintf(stderr, "two-hull lane chain: %s\n", err);
+    return 1;
+  }
+  if (!test_import_passengers_in_chain_order(err, sizeof(err))) {
+    fprintf(stderr, "passenger chain order: %s\n", err);
+    return 1;
+  }
   if (!test_imported_tile_chain_order(err, sizeof(err))) {
     fprintf(stderr, "tile-chain order: %s\n", err);
     return 1;

@@ -946,23 +946,48 @@ static void ai_euro_5d04_cb_unit_exhaust(int idx) {
     return;
   }
   const int ship_id = ship->id;
+  /* FUN_1427_10be picks boarders walking the dock chain from its `next` end
+   * (005c -> 0002) along `prev` (004a): latest arrival first, until the hull
+   * is full. The chosen group then rides in arrival order (fresh 1578: dock
+   * 53 -> 54 -> 56, the Caravel takes 56 and 54 and links 54 -> 56 -> hull;
+   * archived 1538 keeps 42 -> 46 -> hull). */
+  int order[COLONIZE_UNITS_MAX];
+  int n = 0;
   for (int i = ai_euro_5d04_cb_list_iter_first(0); i >= 0; i = ai_euro_5d04_cb_list_iter_next(i)) {
-    ColonizeUnit* u = ai_euro_5d04_cb_unit(i);
-    if (u->aboard_ship_id >= 0 || units_is_sea(ctx->units, u->id)) {
-      continue;
+    order[n++] = i;
+  }
+  for (int a = 1; a < n; ++a) { /* tile_stack_order descending */
+    const int v = order[a];
+    int b = a - 1;
+    while (b >= 0 && ai_euro_5d04_cb_unit(order[b])->tile_stack_order <
+                       ai_euro_5d04_cb_unit(v)->tile_stack_order) {
+      order[b + 1] = order[b];
+      b--;
     }
-    const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
-    if (!t || t->space >= 99) {
-      continue;
+    order[b + 1] = v;
+  }
+  int pick[COLONIZE_UNITS_MAX];
+  int np = 0;
+  {
+    const ColonizeUnit* sh = units_get(ctx->units, ship_id);
+    int room = sh ? units_ship_capacity(ctx->units, ship_id) -
+                      (sh->cargo_count + ai_euro_0a60_goods_holds_used(ctx->units, sh))
+                  : 0;
+    for (int k = 0; k < n && room > 0; ++k) {
+      ColonizeUnit* u = ai_euro_5d04_cb_unit(order[k]);
+      if (u->aboard_ship_id >= 0 || units_is_sea(ctx->units, u->id)) {
+        continue;
+      }
+      const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
+      if (!t || t->space >= 99) {
+        continue;
+      }
+      pick[np++] = u->id;
+      room--;
     }
-    ColonizeUnit* sh = units_get(ctx->units, ship_id);
-    /* Passengers and goods lots share the hull's holds (DOS +0x3150 vs
-     * 0x5237[type]); a hull the buy loop filled takes nobody. */
-    if (!sh || sh->cargo_count + ai_euro_0a60_goods_holds_used(ctx->units, sh) >=
-                 units_ship_capacity(ctx->units, ship_id)) {
-      break;
-    }
-    (void)units_board_stacked(ctx->units, u->id, ship_id);
+  }
+  for (int k = np - 1; k >= 0; --k) { /* arrival order: earliest first */
+    (void)units_board_stacked(ctx->units, pick[k], ship_id);
   }
   /* FUN_291f_0ec2 -> FUN_48d3_0346 opens with FUN_281f_0920 =
    * FUN_1427_10be. Besides boarding, it physically relinks the dock group
@@ -1569,8 +1594,11 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
             wship->col1_origin = 0xff;
           }
         }
-        /* unload/sell loop over hold 0 (raw `while (unit+0x3150 != 0)`). */
-        int last_lots = 0; /* DS:0x8dc4 scratch */
+        /* unload/sell loop over hold 0 (raw `while (unit+0x3150 != 0)`).
+         * DS:0x8dc4 (units_last_hold_amount) is the global every 0aec ->
+         * 317c removal rewrites with the removed amount: the musket branch's
+         * own lots write (raw 93004) is overwritten by its 0aec, and the
+         * horse branch banks the horse amount 0aec just left there. */
         for (int guard = 0; guard < COLONIZE_UNIT_CARGO_MAX + 1; ++guard) {
           const int kind = ai_euro_5d04_cb_reward_case(idx2);
           if (kind < 0) {
@@ -1578,18 +1606,18 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
           }
           if (kind == COLONIZE_CARGO_MUSKETS) {
             const int v = ai_euro_5d04_cb_reward_value(idx2);
-            last_lots = (v + 0x31) / 0x32;
-            nat->musket_bank_lots = (uint8_t)(nat->musket_bank_lots + last_lots);
+            nat->musket_bank_lots = (uint8_t)(nat->musket_bank_lots + (v + 0x31) / 0x32);
             ai_euro_5d04_cb_reward_ack(idx2);
           } else if (kind == COLONIZE_CARGO_HORSES) {
             ai_euro_5d04_cb_reward_ack(idx2);
-            col1_nation_bank_4a_set(nat, (uint16_t)(col1_nation_bank_4a(nat) + last_lots)); /* DOS reuses the stale 0x8dc4 lots value */
+            col1_nation_bank_4a_set(
+              nat, (uint16_t)(col1_nation_bank_4a(nat) + units_last_hold_amount)
+            );
           } else {
             const int sold = ai_euro_5d04_cb_sell_hold0(idx2);
             if (sold <= 0) {
               break; /* boycotted hold stays aboard */
             }
-            last_lots = sold; /* FUN_281f_0aec -> DS:0x8dc4 */
           }
         }
         if (bVar9 && units_ship_capacity(ctx->units, ship2->id) == local_24) {
@@ -1612,11 +1640,11 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
             }
             if ((local_46 <= (int)cargo_demand[p] || expand_signal) &&
                 ((!bVar10 && local_28 == 0) || (cap - used > 2 || expand_signal))) {
-              /* raw 93041-93046 (bug #1029): gold gate is price * the stale
-               * 0x8dc4 lots scratch, not the literal 100 bought below
-               * (DOS-LITERAL quirk; `last_lots` is the same stale value the
-               * horse-bank branch above reuses). */
-              if (nat->gold >= (uint32_t)(ai_euro_5d04_cb_price(p) * last_lots)) {
+              /* raw 93041-93046 (bug #1029): gold gate is price * DS:0x8dc4,
+               * the last hold removal anywhere (DOSBox 1591: a French unload
+               * left 100, so the Dutch hull with a boycotted hold bought
+               * nothing), not the literal 100 bought below. */
+              if (nat->gold >= (uint32_t)(ai_euro_5d04_cb_price(p) * units_last_hold_amount)) {
                 ai_euro_5d04_cb_apply_bump(idx2, p, 100);
                 cargo_demand[p]--; /* raw 93050 */
               }

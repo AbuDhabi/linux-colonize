@@ -199,12 +199,17 @@ static void units_raw_hold_remove(ColonizeUnit* u, int slot) {
   r[0] = (uint8_t)(n - 1);
 }
 
+int units_last_hold_amount = 0;
+
 int units_remove_goods_slot(ColonizeUnit* unit, int slot) {
   if (!unit || slot < 0 || slot >= COLONIZE_UNIT_CARGO_MAX) {
     return 0;
   }
   units_raw_hold_remove(unit, slot);
   const int qty = unit->hold_goods_amount[slot];
+  if (qty > 0 && qty < 255) {
+    units_last_hold_amount = qty; /* 317c: DS:0x8dc4 = slot amount */
+  }
   for (int i = slot; i + 1 < COLONIZE_UNIT_CARGO_MAX; ++i) {
     unit->hold_goods_type[i] = unit->hold_goods_type[i + 1];
     unit->hold_goods_amount[i] = unit->hold_goods_amount[i + 1];
@@ -242,6 +247,7 @@ int units_unload_goods_hold(
   }
   u->hold_goods_amount[hold_index] = 0;
   u->hold_goods_type[hold_index] = 0;
+  units_last_hold_amount = amt; /* 317c: DS:0x8dc4 = slot amount */
   return amt;
 }
 

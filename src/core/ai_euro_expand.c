@@ -388,16 +388,13 @@ int ai_euro_4393_work_queue_haul_pick(
     if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_FRIGATE) != 0 && hauler_type <= 0x0f) {
       continue;
     }
-    const int d = abs(c->x - from_x) + abs(c->y - from_y);
-    /* −0x5f24 score, DOS distance normalization (md:2214 / 2134:
-     * score / ((dist >> 2) + 1) — replaced the thin `score − d*4`). */
-    int score = (int)w->score / ((d >> 2) + 1);
-    /* Series R specialty tie-break (OpenCol-only heuristic, not DOS). */
-    if (hauler && c->specialty_cargo != 0xff &&
-        (int)c->specialty_cargo < COLONIZE_CARGO_COUNT &&
-        ai_euro_unit_hold_has_cargo_type(ctx->units, hauler, (int)c->specialty_cargo)) {
-      score += 32;
-    }
+    /* raw 89889-89893: FUN_281f_037a = map_dos_dist ((min >> 1) + max), not
+     * Manhattan; score / ((dist >> 2) + 1). No other term: the OpenCol
+     * "+32 when the hull already carries the colony's specialty" tie-break
+     * that stood here has no DOS counterpart (DOSBox 1593: it swapped two
+     * Dutch Merchantmen's queue picks). */
+    const int d = map_dos_dist(c->x - from_x, c->y - from_y);
+    const int score = (int)w->score / ((d >> 2) + 1);
     /* DOS-LITERAL raw 89898: the inner accept needs
      * `bVar20 || *(char *)(local_50 * 6 + -0x5f1f) != 0` — a hull bVar20
      * rejects may only take slots the colony flagged military (work record

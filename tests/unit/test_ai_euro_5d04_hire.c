@@ -73,6 +73,7 @@ typedef struct Fixture {
 
 static int fixture_init(Fixture* f, int nation, int turn, unsigned seed) {
   memset(f, 0, sizeof(*f));
+  units_last_hold_amount = 0; /* DS:0x8dc4 is process state: isolate cases */
   f->map.width = 16;
   f->map.height = 16;
   f->map.tile_count = 256;
@@ -432,6 +433,38 @@ static int sold_amount_seeds_departure_gold_gate(void) {
   return 0;
 }
 
+/* DS:0x8dc4 is one global, not a per-hull local: a hull that sells nothing
+ * (here: arrives empty) gates its buys on whatever the last hold removal
+ * anywhere left there. DOSBox 1591: a French unload left 100 and the Dutch
+ * hull, whose hold was boycotted, bought nothing with 61 gold. */
+static int stale_scratch_carries_across_hulls(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation, 5, 100) != 0) {
+    return 1;
+  }
+  fixture_ore_colony(&f, nation, 3);
+  f.col1.nation[nation].gold = 100;
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 10;
+  const int sid = spawn_europe_ship(&f, nation);
+  if (sid < 0) {
+    fixture_free(&f);
+    return fail("spawn empty departing ship");
+  }
+  units_last_hold_amount = 100; /* an earlier unload elsewhere */
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  const ColonizeUnit* ship = units_get(&f.units, sid);
+  const int ore = ship ? ship_cargo_of(ship, COLONIZE_CARGO_ORE) : -1;
+  fixture_free(&f);
+  if (ore != 0) {
+    fprintf(stderr, "stale carry ore=%d\n", ore);
+    return fail("buy gate must price on the stale DS:0x8dc4 from an earlier removal");
+  }
+  return 0;
+}
+
 /*
  * Case 3c — DS:0x945a: the dock queue raises the bar (raw 92983-92988). Same
  * colony and price as 3a, but TWO Free Colonists wait on the Europe dock, so
@@ -478,6 +511,39 @@ static int europe_dock_queue_raises_cargo_bar(void) {
   }
   fixture_free(&f);
   return 0;
+}
+
+/* FUN_291f_0ec2 -> FUN_1427_10be: the departing Caravel (2 holds) picks its
+ * boarders walking the dock from the latest arrival, then carries them in
+ * arrival order (cargo_ids[last] = the hull's `prev`). Fresh 1578: dock
+ * 53 -> 54 -> 56, the Caravel took 56 and 54, linked 54 -> 56 -> hull. */
+static int dock_boarding_takes_latest_arrivals_in_arrival_order(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation, 5, 100) != 0) {
+    return 1;
+  }
+  fixture_ore_colony(&f, nation, 3);
+  const int sid = spawn_europe_ship(&f, nation);
+  const int c1 = spawn_europe_colonist(&f, nation, 0, 0x1c);
+  const int c2 = spawn_europe_colonist(&f, nation, 0, 0x1c);
+  const int c3 = spawn_europe_colonist(&f, nation, 0, 0x1c);
+  if (sid < 0 || c1 < 0 || c2 < 0 || c3 < 0) {
+    fixture_free(&f);
+    return fail("spawn dock group");
+  }
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+  const ColonizeUnit* ship = units_get(&f.units, sid);
+  const ColonizeUnit* u1 = units_get(&f.units, c1);
+  const int ok = ship && ship->cargo_count == 2 && ship->cargo_ids[0] == c2 &&
+                 ship->cargo_ids[1] == c3 && u1 && u1->aboard_ship_id < 0;
+  if (!ok) {
+    fprintf(stderr, "boarded n=%d ids %d,%d (want %d,%d), first aboard %d\n",
+            ship ? ship->cargo_count : -1, ship ? ship->cargo_ids[0] : -1,
+            ship ? ship->cargo_ids[1] : -1, c2, c3, u1 ? u1->aboard_ship_id : -2);
+  }
+  fixture_free(&f);
+  return ok ? 0 : fail("dock boarding must take the latest arrivals, kept in arrival order");
 }
 
 /*
@@ -948,6 +1014,9 @@ static const TestCase k_cases[] = {
     {"departing_ship_buys_wanted_cargo", departing_ship_buys_wanted_cargo},
     {"afloat_cargo_cancels_colony_demand", afloat_cargo_cancels_colony_demand},
     {"sold_amount_seeds_departure_gold_gate", sold_amount_seeds_departure_gold_gate},
+    {"stale_scratch_carries_across_hulls", stale_scratch_carries_across_hulls},
+    {"dock_boarding_takes_latest_arrivals_in_arrival_order",
+     dock_boarding_takes_latest_arrivals_in_arrival_order},
     {"europe_dock_queue_raises_cargo_bar", europe_dock_queue_raises_cargo_bar},
     {"recruit_swap_follows_colonies_wanting_colonists", recruit_swap_follows_colonies_wanting_colonists},
     {"recruit_swap_spawns_sentry_and_refills_pool", recruit_swap_spawns_sentry_and_refills_pool},

@@ -220,6 +220,10 @@ bool units_king_galleon_apply_popup_w(
 int units_hold_amount(const ColonizeUnitPool* pool, int unit_id, int hold);
 /* FUN_15eb_317c: remove goods hold `slot`, compact the rest down. */
 int units_remove_goods_slot(ColonizeUnit* unit, int slot);
+/* DS:0x8dc4: the amount the last hold removal took (FUN_15eb_317c writes it
+ * on every removal; never saved, 0 at program start). The 5d04 departing-ship
+ * buy gate reads it stale across ships and nations (raw 93041-93046). */
+extern int units_last_hold_amount;
 /*
  * Goods holds in use = DOS unit +0x3150. GOODS only: boarding parks passengers
  * off-map (FUN_1427_10be) and never bumps the byte, so a troop-laden ship
