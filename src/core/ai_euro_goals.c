@@ -247,8 +247,9 @@ static void ai_euro_0a60_continent_presence(
  *   FUN_1000_84f2 → FUN_137f_000a map_tile_in_bounds (inset interior);
  *   FUN_1000_8958 → FUN_13e4_0074 ocean_or_high_seas;
  *   FUN_1000_8d18 → FUN_15eb_08e6 unit-type-has-profession (region stamp
- *     bit variant only — the whole DS:0x9faa stamp is already covered by
- *     ai_coarse_fog_euro_restamp, which consumers only test for nonzero);
+ *     bit variant only — the whole DS:0x9faa stamp is covered by
+ *     ai_coarse_fog_euro_restamp; 20e6 consumers test either byte zero or
+ *     `(byte & 6) == 0`);
  *   -0x6da6/-0x6da5/0x9259 → unit_type_counts[4][19] (DS:0x924c,
  *     save_format_map.md row 252) at types 0x0e/0x0f/0x0d — Merchantman/
  *     Galleon/Caravel counts, recomputed here like FUN_4962_0018 does;
@@ -487,9 +488,9 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
                          uy < ctx->map->height - 1);
       int in_transit = 1;
       if (inset) {
-        /* DS:0x9faa region stamp (|=1 / |=5 by profession-capability) is
-         * covered by ai_coarse_fog_euro_restamp — its consumers only test
-         * the byte for nonzero, so the 1-vs-5 split is behaviorally inert. */
+        /* DS:0x9faa region stamp (|=1 / |=5 by profession capability) is
+         * covered by ai_coarse_fog_euro_restamp. Far probes test byte zero;
+         * ring hops mask with 6, so the 1-vs-5 split is live. */
         /*
          * DOS raw 87560-87564: `if (act_state == 3 || == 2 || == 1 ||
          * (act_state > 9 && order_code != '1')) act_state = 0;` — an AI
@@ -3066,8 +3067,8 @@ int ai_euro_score_move(
  *     ai_euro_dispatcher_turn)
  *
  * Deliberate substitutions (each marked at its use site):
- *   - DS:0x9faa coarse fog plane (far-probe +8): OpenCol keeps that plane only
- *     for tribe placement, so the per-nation seen[] plane is used instead.
+ *   - DS:0x9faa coarse fog plane is live: 0a60 clears and restamps it for each
+ *     Euro nation; far probes require byte zero and ring hops test `& 6`.
  *   - explore-plane low nibble (FUN_1000_893a & 0xf): now the real seen-plane
  *     site-score nibble on DOS-imported maps (ai_euro_20e6_site_nibble);
  *     OpenCol-generated maps carry no nibble, old unseen→4 stand-in kept there.

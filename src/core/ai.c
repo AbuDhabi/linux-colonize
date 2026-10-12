@@ -173,7 +173,8 @@ static void ai_coarse_fog_mark_tribe(int x, int y) {
 
 /*
  * DS:0x9faa is FUN_521d_0a60's scratch: cleared at every Euro nation's 0a60
- * entry (memset 0x10e) and re-stamped with that nation's units
+ * entry (memset 0x10e) and re-stamped with that nation's units (including
+ * passengers, whose DOS records retain the carrier coordinates)
  * ((y>>2)+(x>>2)*18 |= 1 or 5) and colonies (|= 2). Mapgen (FUN_6a09) writes
  * its tribe marks into the same bytes, so the init pulse sees those, but by
  * the first mid-turn Brave pulse the plane only holds the *last* Euro
@@ -187,13 +188,15 @@ void ai_coarse_fog_euro_restamp(
   if (units) {
     for (int i = 0; i < units_slot_end(units); ++i) {
       const ColonizeUnit* u = &units->units[i];
-      if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0 || u->x >= 200 ||
-          u->y >= 200) {
+      if (!u->active || u->nation_id != nation_id || u->x >= 200 || u->y >= 200) {
         continue;
       }
       const int ix = ai_coarse_fog_explore_index(u->x, u->y);
       if (ix >= 0 && ix < AI_COARSE_FOG_SIZE) {
-        s_ai_coarse_fog[ix] |= 1; /* 0a60: |= 5 (or 0x01 via 0xfc+5) — nonzero either way */
+        /* DOS-LITERAL FUN_521d_0a60 raw 87555-87558: profession-carrying
+         * units stamp 5, other unit types stamp 1. The distinction feeds
+         * 20e6's later `(coarse & 6) == 0` ring-hop gate. */
+        s_ai_coarse_fog[ix] |= units_type_has_profession_slot(u->type_index) ? 5 : 1;
       }
     }
   }
@@ -223,6 +226,15 @@ int ai_coarse_fog_unseen(int x, int y) {
 /* Public read of the +8 far-probe test (FUN_521d_20e6 raw 88837). */
 int ai_coarse_fog_explore_unseen(int x, int y) {
   return ai_coarse_fog_unseen(x, y);
+}
+
+/* FUN_521d_20e6 raw 88877: ring-hop accepts unit-only stamps, rejects bits 1/2. */
+int ai_coarse_fog_ring_hop_open(int x, int y) {
+  const int ix = ai_coarse_fog_explore_index(x, y);
+  if (ix < 0 || ix >= AI_COARSE_FOG_SIZE) {
+    return 0;
+  }
+  return (s_ai_coarse_fog[ix] & 6) == 0;
 }
 
 uint8_t ai_coarse_fog_explore_byte(int x, int y) {

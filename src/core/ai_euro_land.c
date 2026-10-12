@@ -2505,9 +2505,8 @@ int ai_euro_20e6_ship_far_roam(
  * arm): when the windowed ring scan produced no target, an explorer hops
  * 4 tiles out along a latched random ring20 direction. Slot unset → roll
  * FUN_1000_86c4(1,0x14) − 1; target = (ring_dx*4, ring_dy*4); validate
- * walkable land (84f2), fresh coarse region (−0x6056 nibble &6 == 0 —
- * OpenCol substitution per the block header: target tile unseen by the
- * nation, the same seen-plane stand-in used for DS:0x9faa), same continent
+ * walkable land (84f2), fresh coarse region (−0x6056 nibble &6 == 0),
+ * same continent
  * (8912) and no presence at all (88c2 < 0). On success the hop length
  * max(dx*4, dy*4) (signed char, byte-faithful) latches into +0x3155, the
  * explore fatigue drops by 8 when above 8 (raw 2455-2456), and the target
@@ -2535,8 +2534,8 @@ static int ai_euro_20e6_ring_hop(ColonizeTurnContext* ctx, ColonizeUnit* u, cons
   if (!map_coords_inset(ctx->map, tx, ty) || !map_tile_is_land(ctx->map, tx, ty)) {
     return 0; /* 84f2 */
   }
-  if (map_tile_seen_by(ctx->map, tx, ty, s->nation)) {
-    return 0; /* −0x6056 coarse region already stamped (substituted) */
+  if (!ai_coarse_fog_ring_hop_open(tx, ty)) {
+    return 0; /* −0x6056 & 6: colony/other marks block; a unit-only stamp does not */
   }
   if (map_continent_id_at(ctx->map, tx, ty) != s->cid) {
     return 0; /* 8912 */

@@ -4,6 +4,7 @@
 #define _POSIX_C_SOURCE 200809L
 #endif
 #include "../common/test_catalogs.h"
+#include "core/ai.h"
 #include "core/ai_diplo.h"
 #include "core/ai_euro.h"
 #include "core/ai_euro_internal.h"
@@ -424,6 +425,62 @@ static int unit_ring_hop_commits_far_goto(void) {
     fprintf(stderr, "goto=(%d,%d) cheb=%d\n", s->goto_x, s->goto_y, d);
     fixture_free(&f);
     return fail("ring hop goto not 4 tiles out");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
+/* 20e6 uses two distinct reads of DS:0x9faa: far probes require byte zero,
+ * while the ring-hop gate tests only bits 1/2 (raw 88877). */
+static int unit_ring_hop_coarse_mask_ignores_unit_bit(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  const int uid = units_spawn(&f.units, 1, 8, 8);
+  ColonizeUnit* u = units_get(&f.units, uid);
+  if (!u) {
+    fixture_free(&f);
+    return fail("spawn coarse-mask unit");
+  }
+  u->nation_id = nation;
+  u->type_index = 13; /* ship: FUN_281f_0b28 false, coarse stamp 1 */
+  ai_coarse_fog_euro_restamp(&f.units, &f.colonies, nation);
+  if (ai_coarse_fog_explore_unseen(8, 8) || !ai_coarse_fog_ring_hop_open(8, 8)) {
+    fixture_free(&f);
+    return fail("unit bit must block far probe but allow ring hop");
+  }
+  const int pax_id = units_spawn_allow_stack(&f.units, 1, 8, 8);
+  ColonizeUnit* pax = units_get(&f.units, pax_id);
+  if (!pax) {
+    fixture_free(&f);
+    return fail("spawn coarse-mask passenger");
+  }
+  pax->nation_id = nation;
+  pax->type_index = 1;
+  pax->aboard_ship_id = uid;
+  ai_coarse_fog_euro_restamp(&f.units, &f.colonies, nation);
+  if (ai_coarse_fog_ring_hop_open(8, 8)) {
+    fixture_free(&f);
+    return fail("aboard profession unit must contribute its DOS coarse stamp");
+  }
+  units_despawn(&f.units, pax_id);
+  u->type_index = 1; /* Soldier: profession slot, coarse stamp 5 */
+  ai_coarse_fog_euro_restamp(&f.units, &f.colonies, nation);
+  if (ai_coarse_fog_ring_hop_open(8, 8)) {
+    fixture_free(&f);
+    return fail("profession-carrying unit must block ring hop");
+  }
+  u->type_index = 13;
+  f.colonies.colonies[0].active = true;
+  f.colonies.colonies[0].nation_id = nation;
+  f.colonies.colonies[0].x = 9;
+  f.colonies.colonies[0].y = 9;
+  ai_coarse_fog_euro_restamp(&f.units, &f.colonies, nation);
+  if (ai_coarse_fog_ring_hop_open(8, 8)) {
+    fixture_free(&f);
+    return fail("colony bit must block ring hop");
   }
   fixture_free(&f);
   return 0;
@@ -3162,6 +3219,7 @@ static const TestCase k_cases[] = {
     {"unit_stale_goto_rescored_at_full_mp", unit_stale_goto_rescored_at_full_mp},
     {"unit_scout_visits_village_at_war", unit_scout_visits_village_at_war},
     {"unit_ring_hop_commits_far_goto", unit_ring_hop_commits_far_goto},
+    {"unit_ring_hop_coarse_mask_ignores_unit_bit", unit_ring_hop_coarse_mask_ignores_unit_bit},
     {"unit_explorer_clears_explore_goal_on_its_tile", unit_explorer_clears_explore_goal_on_its_tile},
     {"unit_colony_sail_targets_needy_colony", unit_colony_sail_targets_needy_colony},
     {"unit_wagon_dead_end_destroyed", unit_wagon_dead_end_destroyed},
