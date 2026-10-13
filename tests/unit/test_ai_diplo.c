@@ -1341,23 +1341,25 @@ static int case_r3_r4_sugar_rum_cigars_boycott(void) {
     ctx_r3.human_nation = 0;
     ctx_r3.status = status;
     ctx_r3.status_size = sizeof(status);
-    /* sticky==2 blocks the 13b0 treaty tick: no PEACE signed. */
-    for (int n = 0; n < 30; ++n) {
+    /* A deep port-side Indian "sticky" does NOT block the 13b0 tick: DOS
+     * 153e sends an AI self straight to 13b0 (raw 97406-97411). DOSBox 1557:
+     * Spain and France signed on first contact. */
+    int signed_deep = 0;
+    for (int n = 0; n < 6 && !signed_deep; ++n) {
       r3.nation[0].gold = 600;
       r3.nation[1].gold = 600;
-      /* Keep deep sticky (harassment −2g; relation stays <40). */
       r3.indian[0].alarm_by_player[0] = 90; /* DOS bands: relation 30 */
       r3.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
       ai_diplo_euro_balance(&ctx_r3, 0);
       ai_diplo_13b0_encounter(&ctx_r3, 0, 1); /* the 3180 encounter */
-      if (r3.nation[0].euro_relation[1] & AI_DIPLO_PEACE) {
-        return fail("sticky==2 must refuse signing new treaties this balance");
-      }
+      signed_deep = (r3.nation[0].euro_relation[1] & AI_DIPLO_PEACE) != 0;
       turn_r3++;
     }
-    if (ai_diplo_indian_hostility_sticky(&r3, 0) != 2) {
-      return fail("R3 sticky refuse setup should keep sticky==2");
+    if (!signed_deep || ai_diplo_indian_hostility_sticky(&r3, 0) != 2) {
+      return fail("deep sticky must not refuse the 13b0 treaty (raw 97406)");
     }
+    r3.nation[0].euro_relation[1] = 0;
+    r3.nation[1].euro_relation[0] = 0;
     /* Clear sticky → treaty may sign under same near-parity RNG. */
     for (int i = 0; i < 8; ++i) {
       r3.indian[i].alarm_by_player[0] = 0; /* relation 100 */

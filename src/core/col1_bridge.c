@@ -1842,11 +1842,57 @@ bool col1_bridge_apply_w(
       max_depth = depth[i];
     }
   }
-  for (int pass = max_depth; pass >= 0; --pass)
+  /* Hull-at-head chains (hull -> p1 -> p2, the shape 10be leaves before the
+   * 040c move) also board in chain order: prev-links to the hull ascending,
+   * after every pax -> hull chain. Fresh 1575: Missionary then Artillery. */
+  int max_pdepth = 0;
   for (int i = 0; i < nunits; ++i) {
-    if (depth[i] != pass) {
+    if (depth[i] != 0) {
       continue;
     }
+    int cur = save->unit[i].transport_chain.prev_unit_idx;
+    for (int d = 1; d <= nunits && cur >= 0 && cur < nunits; ++d) {
+      if (id_by_index && id_by_index[cur] >= 0 && units_is_sea(units, id_by_index[cur])) {
+        depth[i] = -d;
+        if (d > max_pdepth) {
+          max_pdepth = d;
+        }
+        break;
+      }
+      cur = save->unit[cur].transport_chain.prev_unit_idx;
+    }
+  }
+  /* Order: pax -> hull members farthest first (depth max..1), then
+   * hull-at-head members nearest first (-1..-max), then the rest. */
+  int* board_order = calloc((size_t)(nunits > 0 ? nunits : 1), sizeof(int));
+  int nb = 0;
+  if (!board_order) {
+    free(depth);
+    free(id_by_index);
+    free(consumed);
+    COL1_FAIL(err, err_size, "oom board order");
+  }
+  for (int d = max_depth; d >= 1; --d) {
+    for (int i = 0; i < nunits; ++i) {
+      if (depth[i] == d) {
+        board_order[nb++] = i;
+      }
+    }
+  }
+  for (int d = 1; d <= max_pdepth; ++d) {
+    for (int i = 0; i < nunits; ++i) {
+      if (depth[i] == -d) {
+        board_order[nb++] = i;
+      }
+    }
+  }
+  for (int i = 0; i < nunits; ++i) {
+    if (depth[i] == 0) {
+      board_order[nb++] = i;
+    }
+  }
+  for (int k = 0; k < nb; ++k) {
+    const int i = board_order[k];
     if (!id_by_index || id_by_index[i] < 0) {
       continue;
     }
@@ -1890,6 +1936,7 @@ bool col1_bridge_apply_w(
      * hull can be over the gate — see units_board_stacked_restore). */
     units_board_stacked_restore(units, id_by_index[i], id_by_index[ship_idx]);
   }
+  free(board_order);
   free(depth);
 
   /*

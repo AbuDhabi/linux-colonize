@@ -23,6 +23,7 @@
 #include "core/colony.h"
 #include "core/combat_analysis.h"
 #include "core/combat_strength.h"
+#include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/font.h"
 #include "core/map.h"
@@ -484,6 +485,177 @@ static int case_678_capture_ignores_loser_nation(void) {
 }
 
 /*
+ * FUN_5fef_1b0e raw 100568-100569: `0916(atk); 089e(atk)` park the attacker
+ * off map and 0948 puts it back afterwards, so it ends as its tile's latest
+ * arrival (DOSBox 1554: a Spanish Dragoon that attacked a village).
+ */
+static int case_1b0e_relinks_attacker(void) {
+  LandFixture fx;
+  if (land_fixture_init(&fx) != 0) {
+    return 1;
+  }
+  int rc = 0;
+  const int sold = units_find_type(&fx.pool, "Soldiers");
+  const int colonist = units_find_type(&fx.pool, "Colonists");
+  const int aid = units_spawn_allow_stack(&fx.pool, sold, 3, 3);
+  const int bid = units_spawn_allow_stack(&fx.pool, colonist, 3, 3); /* later arrival */
+  const int did = units_spawn_allow_stack(&fx.pool, sold, 4, 3);
+  ColonizeUnit* a = units_get(&fx.pool, aid);
+  ColonizeUnit* b = units_get(&fx.pool, bid);
+  ColonizeUnit* d = units_get(&fx.pool, did);
+  if (!a || !b || !d) {
+    land_fixture_free(&fx);
+    return 1;
+  }
+  units_set_nation(a, 1);
+  units_set_nation(b, 1);
+  units_set_nation(d, 2);
+  a->muskets = 50;
+  d->muskets = 50;
+  if (units_tile_head_id_at(&fx.pool, 3, 3) != bid) {
+    fprintf(stderr, "1b0e relink: fixture head should be the later arrival\n");
+    land_fixture_free(&fx);
+    return 1;
+  }
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 100);
+  (void)units_resolve_land_combat(&fx.pool, aid, did, &rng);
+  a = units_get(&fx.pool, aid);
+  if (a && a->active && a->x == 3 && a->y == 3 && units_tile_head_id_at(&fx.pool, 3, 3) != aid) {
+    fprintf(stderr, "1b0e relink: attacker must be the tile's latest arrival\n");
+    rc = 1;
+  }
+  land_fixture_free(&fx);
+  return rc;
+}
+
+/*
+ * FUN_5fef_1b0e: the attacker sits off map during the fight and 0948 puts it
+ * back after the outcome (raw 100750), so a colonist it captured is linked
+ * on its tile first and the attacker ends ahead of it (DOSBox 1594: French
+ * Dragoon 45 -> captured colonist 44 -> 47 -> 48).
+ */
+static int case_1b0e_attacker_back_after_capture(void) {
+  for (int seed = 1; seed < 64; ++seed) {
+    LandFixture fx;
+    if (land_fixture_init(&fx) != 0) {
+      return 1;
+    }
+    const int sold = units_find_type(&fx.pool, "Soldiers");
+    const int colonist = units_find_type(&fx.pool, "Colonists");
+    const int aid = units_spawn_allow_stack(&fx.pool, sold, 3, 3);
+    const int did = units_spawn_allow_stack(&fx.pool, colonist, 4, 3);
+    ColonizeUnit* a = units_get(&fx.pool, aid);
+    ColonizeUnit* d = units_get(&fx.pool, did);
+    if (!a || !d) {
+      land_fixture_free(&fx);
+      return 1;
+    }
+    units_set_nation(a, 1);
+    units_set_nation(d, 3);
+    a->muskets = 50;
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, (uint32_t)seed);
+    (void)units_resolve_land_combat(&fx.pool, aid, did, &rng);
+    d = units_get(&fx.pool, did);
+    if (d && d->active && d->nation_id == 1 && d->x == 3 && d->y == 3) {
+      const int head = units_tile_head_id_at(&fx.pool, 3, 3);
+      land_fixture_free(&fx);
+      if (head != aid) {
+        fprintf(stderr, "1b0e capture: head %d, want attacker %d ahead of captive %d\n",
+                head, aid, did);
+        return 1;
+      }
+      return 0;
+    }
+    land_fixture_free(&fx);
+  }
+  fprintf(stderr, "1b0e capture: no seed produced a capture\n");
+  return 1;
+}
+
+/*
+ * FUN_465b_0000 LAB_0673 (raw 75661-75664): a non-human mover ORs the dest
+ * watch mask (0826) into itself and the units behind it on its tile (0c72
+ * walks `prev`). DOSBox 1596: a Dutch hull leaving Vlissingen left France's
+ * bit on the colonist behind it.
+ */
+static int case_465b_0673_vis_or_behind_mover(void) {
+  LandFixture fx;
+  if (land_fixture_init(&fx) != 0) {
+    return 1;
+  }
+  int rc = 0;
+  const int colonist = units_find_type(&fx.pool, "Colonists");
+  const int bid = units_spawn_allow_stack(&fx.pool, colonist, 3, 3); /* behind */
+  const int aid = units_spawn_allow_stack(&fx.pool, colonist, 3, 3); /* next end */
+  const int fid = units_spawn_allow_stack(&fx.pool, colonist, 5, 3);
+  ColonizeUnit* a = units_get(&fx.pool, aid);
+  ColonizeUnit* b = units_get(&fx.pool, bid);
+  ColonizeUnit* f = units_get(&fx.pool, fid);
+  if (!a || !b || !f) {
+    land_fixture_free(&fx);
+    return 1;
+  }
+  units_set_nation(a, 3);
+  units_set_nation(b, 3);
+  units_set_nation(f, 1);
+  units_occupancy_refresh_tile(&fx.pool, 5, 3, -1);
+  a->moves = units_max_mp(&fx.pool, aid);
+  ColonizeWorld w = world_make(&fx.pool, &fx.colonies, &fx.map, &fx.col1, true, NULL, NULL);
+  if (!units_try_move_w(&w, aid, 4, 3)) {
+    fprintf(stderr, "0673: move failed\n");
+    rc = 1;
+  }
+  b = units_get(&fx.pool, bid);
+  if (!rc && (!b || (b->col1_vis_mask & 0x02) == 0)) {
+    fprintf(stderr, "0673: unit behind the mover lacks France's bit (vis %d)\n",
+            b ? b->col1_vis_mask : -1);
+    rc = 1;
+  }
+  land_fixture_free(&fx);
+  return rc;
+}
+
+/*
+ * FUN_5fef_0352 capture arm, asm 5fef:0549-0569: 0812 unlinks the loser,
+ * 0894 flips its flag, 0844 links it on the winner's tile. The flag change
+ * never restamps the tile the loser left (DOSBox 1594/1595: it keeps the
+ * Dutch owner nibble).
+ */
+static int case_capture_keeps_old_tile_owner(void) {
+  LandFixture fx;
+  if (land_fixture_init(&fx) != 0) {
+    return 1;
+  }
+  int rc = 0;
+  const int colonist = units_find_type(&fx.pool, "Colonists");
+  const int sold = units_find_type(&fx.pool, "Soldiers");
+  const int lid = units_spawn_allow_stack(&fx.pool, colonist, 3, 3);
+  const int wid = units_spawn_allow_stack(&fx.pool, sold, 4, 3);
+  ColonizeUnit* l = units_get(&fx.pool, lid);
+  ColonizeUnit* w = units_get(&fx.pool, wid);
+  if (!l || !w) {
+    land_fixture_free(&fx);
+    return 1;
+  }
+  units_set_nation(l, 3);
+  units_set_nation(w, 1);
+  w->muskets = 50;
+  map_set_owner_nibble(&fx.map, 3, 3, 3);
+  (void)units_apply_land_loss_outcome(&fx.pool, lid, wid, &fx.col1, 0, NULL);
+  l = units_get(&fx.pool, lid);
+  const int owner = fx.map.layer3[3 * fx.map.width + 3] >> 4;
+  if (!l || l->nation_id != 1 || l->x != 4 || owner != 3) {
+    fprintf(stderr, "capture: nation %d at %d,%d, old tile owner %d (want 1 at 4,3, owner 3)\n",
+            l ? l->nation_id : -1, l ? l->x : -1, l ? l->y : -1, owner);
+    rc = 1;
+  }
+  land_fixture_free(&fx);
+  return rc;
+}
+
+/*
  * bugs.md #834 — DOS-LITERAL FUN_5fef_1b0e raw 100641-100646: a native
  * winner attacking a tile that carries a colony latches
  * `attacker+0x3148 |= 0x10` (the guaranteed arm of the 0352 gear-return
@@ -587,6 +759,10 @@ static const TestCase k_cases[] = {
     {"case_646_demote_writes_type_only", case_646_demote_writes_type_only},
     {"case_647_demote_gated_off_water", case_647_demote_gated_off_water},
     {"case_678_capture_ignores_loser_nation", case_678_capture_ignores_loser_nation},
+    {"case_capture_keeps_old_tile_owner", case_capture_keeps_old_tile_owner},
+    {"case_1b0e_attacker_back_after_capture", case_1b0e_attacker_back_after_capture},
+    {"case_465b_0673_vis_or_behind_mover", case_465b_0673_vis_or_behind_mover},
+    {"case_1b0e_relinks_attacker", case_1b0e_relinks_attacker},
     {"case_834_native_winner_colony_latch", case_834_native_winner_colony_latch},
     {"case_868_naval_evade_goods_not_passengers", case_868_naval_evade_goods_not_passengers},
 };

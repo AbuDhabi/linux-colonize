@@ -982,7 +982,65 @@ static int unit_frigate_war_transport_threatened(void) {
   return 0;
 }
 
+/*
+ * An AI unload lands through FUN_465b_0000, whose move tail runs 3180: a
+ * Dutch unit put ashore beside a French unit meets France (13b0 + MET both
+ * ways). DOSBox 1591: Dutch Dragoon unloaded at (24,6) beside French units.
+ */
+static int unit_unload_runs_3180_ai_encounter(void) {
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 8, 8, 1, false)) {
+    return fail("u3180 alloc map");
+  }
+  map.terrain[4 * 8 + 2] = 25; /* ship tile at sea */
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 2;
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+  const int sid = units_spawn(&units, 1, 2, 4);
+  const int pid = units_spawn(&units, 0, 1, 4);
+  const int fid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* pax = units_get(&units, pid);
+  ColonizeUnit* ship = units_get(&units, sid);
+  ColonizeUnit* fr = units_get(&units, fid);
+  if (!pax || !ship || !fr) {
+    fx_map_free(&map);
+    return fail("u3180 spawn");
+  }
+  pax->nation_id = 3;
+  ship->nation_id = 3;
+  fr->nation_id = 1;
+  if (!units_board(&units, pid, sid)) {
+    fx_map_free(&map);
+    return fail("u3180 board");
+  }
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = &units;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.human_nation = 0;
+  int ok = ai_euro_unload_pax_at(&ctx, units_get(&units, sid), units_get(&units, pid), 3, 4,
+                                 UNITS_ORDER_NONE, -1, -1);
+  const int met = (col1.nation[3].euro_relation[1] & AI_DIPLO_MET) &&
+                  (col1.nation[1].euro_relation[3] & AI_DIPLO_MET);
+  fx_map_free(&map);
+  if (!ok || !met) {
+    return fail("AI unload beside a French unit must run 3180's 13b0 limb");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_unload_runs_3180_ai_encounter", unit_unload_runs_3180_ai_encounter},
     {"unit_unload_stance0_no_sticky", unit_unload_stance0_no_sticky},
     {"unit_unload_regular_threatened", unit_unload_regular_threatened},
     {"unit_unload_continental_army_threatened", unit_unload_continental_army_threatened},

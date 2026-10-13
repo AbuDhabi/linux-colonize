@@ -245,6 +245,14 @@ bool units_resolve_land_combat_ff_w(
   sctx.units = pool;
   ColonizeCombatEngageResult er;
   combat_land_engage(&sctx, attacker_id, defender_id, &er);
+  /* FUN_5fef_1b0e raw 100568-100569: `FUN_281f_0916(atk); FUN_281f_089e(atk)`
+   * park the attacker off map at (-2,-2) (12f6 -> 0362) for the fight. 0948
+   * puts a survivor back on its tile after the outcome (raw 100750 on a win,
+   * 100764-100768 on a loss), so it becomes the latest arrival there, after
+   * any unit it captured. DOSBox 1554: a Spanish Dragoon that attacked a
+   * village ended on the `next` end of its chain; DOSBox 1594: a French
+   * Dragoon that captured a colonist sits ahead of it. */
+  const bool atk_parked = units_is_on_map(atk);
 
   ColonizeCombatEngagement eng;
   memset(&eng, 0, sizeof(eng));
@@ -357,6 +365,9 @@ bool units_resolve_land_combat_ff_w(
       units_sweep_stack_after_loss(pool, def_x, def_y, def_nation, attacker_id, defender_id, col1);
     }
     atk = units_get(pool, attacker_id);
+    if (atk_parked && atk && atk->active && units_is_on_map(atk)) {
+      units_tile_stack_arrive(pool, attacker_id); /* 0948, raw 100750 */
+    }
     if (atk) {
       (void)units_promote_on_win(pool, atk, col1, eng.atk_strength, eng.def_strength, rng);
     }
@@ -437,6 +448,12 @@ bool units_resolve_land_combat_ff_w(
     units_combat_outcome_popups(
       pool, &win_snap, &lose_snap, 0, atk_nation, def_nation, 0, ambush, col1
     );
+    {
+      const ColonizeUnit* back = units_get_const(pool, attacker_id);
+      if (atk_parked && back && back->active && units_is_on_map(back)) {
+        units_tile_stack_arrive(pool, attacker_id); /* 0948, raw 100764-100768 */
+      }
+    }
     /*
      * bugs.md #473: NO sweep of the attacker's origin tile. DOS 1b0e does run
      * 0ec0 on the attacker after a loss (raw 100759-100760), but before the

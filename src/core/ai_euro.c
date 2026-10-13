@@ -426,6 +426,83 @@ void ai_euro_resolve_landfall_goto(
   *out_y = ly;
 }
 
+/* FUN_5bfb_3180's Euro halves for an AI mover (465b commit tail -> 0984 ->
+ * 0192 -> 3180): the human audience (153e) on any progress, the AI x AI
+ * 13b0 limb on a tile change. Runs from the act drain and from AI unloads,
+ * which land through FUN_465b_0000 too (DOSBox 1591: a Dutch Dragoon
+ * unloaded beside French units signs with France). */
+static void ai_euro_3180_euro_side(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id,
+                                   int progressed, int moved) {
+  /*
+   * FUN_5bfb_3180 runs on the MOVING unit's step for AI units too: an
+   * AI unit that ends its act adjacent to the human's units or colonies
+   * opens the FUN_5bfb_153e audience with DOS param_4 = the AI's own
+   * unit — which is what arms the @WANTSTUFF demand phase (the
+   * human-move path in game_loop passes the human's unit, so the demand
+   * gate `unit[param_4].owner == target` fails there, as in DOS).
+   * No-ops without ctx->ai_popups (headless/golden harness) and the
+   * encounter dedupes once per pair per turn.
+   */
+  /* bugs.md #545: DOS runs the Euro branch only with the mover's tile
+   * AND the neighbour tile both land (FUN_281f_0768 == 0, raw 98614) —
+   * an AI ship at sea beside a coastal colony opens nothing. */
+  if (progressed && u->active && units_is_on_map(u) && ctx->human_nation >= 0 &&
+      ctx->human_nation <= 3 && nation_id != ctx->human_nation && ctx->ai_popups &&
+      ctx->map && !map_tile_is_water(ctx->map, u->x, u->y)) {
+    int near_human = 0;
+    for (int ady = -1; ady <= 1 && !near_human; ++ady) {
+      for (int adx = -1; adx <= 1 && !near_human; ++adx) {
+        if ((adx == 0 && ady == 0) ||
+            map_tile_is_water(ctx->map, u->x + adx, u->y + ady)) {
+          continue;
+        }
+        const int oid = units_id_at(ctx->units, u->x + adx, u->y + ady);
+        const ColonizeUnit* o = oid >= 0 ? units_get_const(ctx->units, oid) : NULL;
+        if (o && o->active && o->nation_id == ctx->human_nation) {
+          near_human = 1;
+        }
+        if (!near_human && ctx->colonies) {
+          const int ccid = colonies_id_at(ctx->colonies, u->x + adx, u->y + ady);
+          const ColonizeColony* cc = ccid >= 0 ? colonies_get(ctx->colonies, ccid) : NULL;
+          if (cc && cc->active && cc->nation_id == ctx->human_nation) {
+            near_human = 1;
+          }
+        }
+      }
+    }
+    if (near_human) {
+      (void)ai_diplo_153e_encounter(ctx, ctx->human_nation, nation_id, u->id);
+    }
+  }
+  /* 3180's AI x AI limb: land mover, land neighbour whose stack head
+   * (07e0) or settlement (06be) is another AI Euro -> 153e -> 13b0,
+   * once per neighbour nation (aiStack_20). DOS 465b raw 75797 calls
+   * this after movement; changing orders while parked is no encounter. */
+  if (moved && u->active && units_is_on_map(u) && ctx->map &&
+      !map_tile_is_water(ctx->map, u->x, u->y)) {
+    int seen[4] = {0};
+    for (int d = 0; d < 8; ++d) {
+      const int ax = u->x + MAP_DIR8_DX[d];
+      const int ay = u->y + MAP_DIR8_DY[d];
+      if (!map_coords_inset(ctx->map, ax, ay) || map_tile_is_water(ctx->map, ax, ay)) {
+        continue;
+      }
+      const int oid = units_tile_head_id_at(ctx->units, ax, ay);
+      const ColonizeUnit* o = oid >= 0 ? units_get_const(ctx->units, oid) : NULL;
+      int on = o ? o->nation_id : -1;
+      if (on < 0 && ctx->colonies) {
+        const int ccid = colonies_id_at(ctx->colonies, ax, ay);
+        const ColonizeColony* cc = ccid >= 0 ? colonies_get(ctx->colonies, ccid) : NULL;
+        on = cc && cc->active ? cc->nation_id : -1;
+      }
+      if (on >= 0 && on < 4 && on != nation_id && on != ctx->human_nation && !seen[on]) {
+        seen[on] = 1;
+        ai_diplo_13b0_encounter(ctx, nation_id, on);
+      }
+    }
+  }
+}
+
 int ai_euro_unload_pax_at(
   ColonizeTurnContext* ctx,
   ColonizeUnit* ship,
@@ -475,6 +552,11 @@ int ai_euro_unload_pax_at(
    * Brave or tribe-owned land (seed-100 Dutch TURN2→3: Soldier lands (48,14)
    * next to Aztec-owned ground → relation 96). Cite: FUN_5bfb_022e.
    */
+  ai_euro_3180_euro_side(ctx, pax, pax->nation_id, 1, 1);
+  pax = units_get(ctx->units, pax->id);
+  if (!pax || !pax->active) {
+    return 1;
+  }
   (void)ai_contact_encounter_scan(ctx, pax->nation_id, pax->x, pax->y);
   return 1;
 }
@@ -1557,75 +1639,8 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
 
         const int progressed =
           !u->active || u->moves < before_moves || u->x != before_x || u->y != before_y;
-        /*
-         * FUN_5bfb_3180 runs on the MOVING unit's step for AI units too: an
-         * AI unit that ends its act adjacent to the human's units or colonies
-         * opens the FUN_5bfb_153e audience with DOS param_4 = the AI's own
-         * unit — which is what arms the @WANTSTUFF demand phase (the
-         * human-move path in game_loop passes the human's unit, so the demand
-         * gate `unit[param_4].owner == target` fails there, as in DOS).
-         * No-ops without ctx->ai_popups (headless/golden harness) and the
-         * encounter dedupes once per pair per turn.
-         */
-        /* bugs.md #545: DOS runs the Euro branch only with the mover's tile
-         * AND the neighbour tile both land (FUN_281f_0768 == 0, raw 98614) —
-         * an AI ship at sea beside a coastal colony opens nothing. */
-        if (progressed && u->active && units_is_on_map(u) && ctx->human_nation >= 0 &&
-            ctx->human_nation <= 3 && nation_id != ctx->human_nation && ctx->ai_popups &&
-            ctx->map && !map_tile_is_water(ctx->map, u->x, u->y)) {
-          int near_human = 0;
-          for (int ady = -1; ady <= 1 && !near_human; ++ady) {
-            for (int adx = -1; adx <= 1 && !near_human; ++adx) {
-              if ((adx == 0 && ady == 0) ||
-                  map_tile_is_water(ctx->map, u->x + adx, u->y + ady)) {
-                continue;
-              }
-              const int oid = units_id_at(ctx->units, u->x + adx, u->y + ady);
-              const ColonizeUnit* o = oid >= 0 ? units_get_const(ctx->units, oid) : NULL;
-              if (o && o->active && o->nation_id == ctx->human_nation) {
-                near_human = 1;
-              }
-              if (!near_human && ctx->colonies) {
-                const int ccid = colonies_id_at(ctx->colonies, u->x + adx, u->y + ady);
-                const ColonizeColony* cc = ccid >= 0 ? colonies_get(ctx->colonies, ccid) : NULL;
-                if (cc && cc->active && cc->nation_id == ctx->human_nation) {
-                  near_human = 1;
-                }
-              }
-            }
-          }
-          if (near_human) {
-            (void)ai_diplo_153e_encounter(ctx, ctx->human_nation, nation_id, u->id);
-          }
-        }
-        /* 3180's AI x AI limb: land mover, land neighbour whose stack head
-         * (07e0) or settlement (06be) is another AI Euro -> 153e -> 13b0,
-         * once per neighbour nation (aiStack_20). DOS 465b raw 75797 calls
-         * this after movement; changing orders while parked is no encounter. */
-        if (progressed && u->active && units_is_on_map(u) && ctx->map &&
-            (u->x != before_x || u->y != before_y) &&
-            !map_tile_is_water(ctx->map, u->x, u->y)) {
-          int seen[4] = {0};
-          for (int d = 0; d < 8; ++d) {
-            const int ax = u->x + MAP_DIR8_DX[d];
-            const int ay = u->y + MAP_DIR8_DY[d];
-            if (!map_coords_inset(ctx->map, ax, ay) || map_tile_is_water(ctx->map, ax, ay)) {
-              continue;
-            }
-            const int oid = units_tile_head_id_at(ctx->units, ax, ay);
-            const ColonizeUnit* o = oid >= 0 ? units_get_const(ctx->units, oid) : NULL;
-            int on = o ? o->nation_id : -1;
-            if (on < 0 && ctx->colonies) {
-              const int ccid = colonies_id_at(ctx->colonies, ax, ay);
-              const ColonizeColony* cc = ccid >= 0 ? colonies_get(ctx->colonies, ccid) : NULL;
-              on = cc && cc->active ? cc->nation_id : -1;
-            }
-            if (on >= 0 && on < 4 && on != nation_id && on != ctx->human_nation && !seen[on]) {
-              seen[on] = 1;
-              ai_diplo_13b0_encounter(ctx, nation_id, on);
-            }
-          }
-        }
+        ai_euro_3180_euro_side(ctx, u, nation_id, progressed,
+                               u->x != before_x || u->y != before_y);
         /*
          * FUN_5bfb_3180's Indian-side half runs on the AI mover's own step as
          * well (465b commit tail -> 0984 -> 0192 -> 3180 -> 022e): a land unit

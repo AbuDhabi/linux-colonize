@@ -1107,17 +1107,27 @@ static void units_capture_relocate_to_winner(
 static void units_capture_to_winner(
   ColonizeUnitPool* pool, ColonizeUnit* lose, ColonizeUnit* win
 ) {
+  /* DOS order (asm 5fef:0549-0569): 0812 unlinks the loser from its own tile,
+   * 0894 flips its flag, 0844 links it on the winner's tile (local_12/14 =
+   * the winner's x/y). The flag change therefore never restamps the tile the
+   * loser left: DOSBox 1594/1595, that tile keeps the Dutch owner nibble. */
+  const int ox = lose->x;
+  const int oy = lose->y;
+  units_capture_relocate_to_winner(pool, lose, win);
+  const bool moved = lose->x != ox || lose->y != oy;
+  const uint8_t vis = lose->col1_vis_mask;
   units_set_nation(lose, win->nation_id);
+  if (moved) {
+    lose->col1_vis_mask = vis; /* the captor tile's sight stamp */
+  }
   lose->orders = UNITS_ORDER_NONE;
   /*
    * DOS-LITERAL FUN_5fef_0352 raw 99393-99399: the capture arm writes the
    * nation nibble (0812/0894/0844 = occupancy remove / set-nation / add) and
    * `+0x314c = 0`. There is NO `+0x3149` MP write, so the port's `moves = 0`
-   * is dropped (bugs.md #646). The relocation below is deliberate and is NOT
-   * DOS: bugs.md #198 (CLOSED, user-observed) requires a captured unit to
-   * change allegiance AND step onto the captor's tile, colony tiles excepted.
+   * is dropped (bugs.md #646). The step onto the captor's tile is DOS's own
+   * 0844 link (bugs.md #198, user-observed), colony tiles excepted.
    */
-  units_capture_relocate_to_winner(pool, lose, win);
 }
 
 int units_apply_land_loss_outcome(
