@@ -539,6 +539,53 @@ static int case_1b0e_relinks_attacker(void) {
  * +0x15, was despawned, and a Soldier spawned later into the same port slot
  * with no raw tail of its own exported that 0xec. The raw bytes belong to the
  * record; clearing the slot must drop them. */
+/* FUN_465b_0000 raw 75577-75578: bVar4 comes from the settlement owner too,
+ * so an AI mover with under 3 thirds left that steps at an UNDEFENDED foreign
+ * colony goes to LAB_465b_01ce: exhaust and stop, with no partial-MP roll
+ * (fresh 1592 three-turn: a French Dragoon at 0 MP beside empty Curacao). */
+static int case_465b_low_mp_foreign_colony_exhausts(void) {
+  LandFixture fx;
+  if (land_fixture_init(&fx) != 0) {
+    return 1;
+  }
+  const int sold = units_find_type(&fx.pool, "Soldiers");
+  const int aid = units_spawn_allow_stack(&fx.pool, sold, 3, 3);
+  ColonizeUnit* a = units_get(&fx.pool, aid);
+  if (!a) {
+    land_fixture_free(&fx);
+    return 1;
+  }
+  units_set_nation(a, 1); /* control 1: AI */
+  a->moves = 2;            /* under one tile */
+  ColonizeColony* c = &fx.colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = 0;
+  c->x = 4;
+  c->y = 3;
+  c->population = 1;
+  fx.colonies.colony_count = 1;
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 7);
+  const ColonizeDosRng before = rng;
+  ColonizeWorld w = world_make(&fx.pool, &fx.colonies, &fx.map, &fx.col1, true, &rng, NULL);
+  const bool moved = units_try_move_w(&w, aid, 4, 3);
+  a = units_get(&fx.pool, aid);
+  int rc = 0;
+  if (moved || !a || a->x != 3) {
+    fprintf(stderr, "465b low MP: the mover must stay outside the colony\n");
+    rc = 1;
+  } else if (units_remaining_mp(&fx.pool, aid) != 0) {
+    fprintf(stderr, "465b low MP: LAB_465b_01ce must exhaust the mover\n");
+    rc = 1;
+  } else if (memcmp(&before, &rng, sizeof rng) != 0) {
+    fprintf(stderr, "465b low MP: no partial-MP roll may be drawn\n");
+    rc = 1;
+  }
+  land_fixture_free(&fx);
+  return rc;
+}
+
 static int case_despawn_drops_raw_record(void) {
   LandFixture fx;
   if (land_fixture_init(&fx) != 0) {
@@ -792,6 +839,7 @@ static const TestCase k_cases[] = {
     {"case_capture_keeps_old_tile_owner", case_capture_keeps_old_tile_owner},
     {"case_1b0e_attacker_back_after_capture", case_1b0e_attacker_back_after_capture},
     {"case_despawn_drops_raw_record", case_despawn_drops_raw_record},
+    {"case_465b_low_mp_foreign_colony_exhausts", case_465b_low_mp_foreign_colony_exhausts},
     {"case_465b_0673_vis_or_behind_mover", case_465b_0673_vis_or_behind_mover},
     {"case_1b0e_relinks_attacker", case_1b0e_relinks_attacker},
     {"case_834_native_winner_colony_latch", case_834_native_winner_colony_latch},
