@@ -30,6 +30,7 @@ static void want_init(AiEuro5952Want* w) {
    * Tools/Muskets `rank[human] <= rank[owner]` doubling DOES fire. */
   w->wealth_rank[0] = 2;
   w->wealth_rank[1] = 2;
+  w->rank_1b0 = 2; /* local_1b0 = the owner */
 }
 
 /* ---- price arm (out < 0x10), asm 5952:1e72 --------------------------- */
@@ -308,6 +309,41 @@ static int case_expert_pass_seats_master_carpenter(void) {
   return 0;
 }
 
+/* local_1b0 can be clobbered by the improvement scan (raw 94482); the election
+ * then reads byte[local_1b0 + 0x917c] past the rank table (asm 5952:2047).
+ * Fresh 1566 two-turn: -1 reads DS:0x917b = 0, so Isabella's statesman weight
+ * doubles and she seats two Statesmen. */
+static int case_rank_byte_unchecked_index(void) {
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof col1);
+  col1.stuff.land_combat_totals[1] = 40;
+  col1.stuff.tribe_data_9184[2] = 120;
+  const unsigned char rank[4] = {2, 0, 3, 1};
+  if (ai_euro_5952_rank_byte(&col1, rank, 2) != 3) {
+    return fail("rank byte: nation 2 reads the rank table");
+  }
+  if (ai_euro_5952_rank_byte(&col1, rank, -1) != 0) {
+    return fail("rank byte: -1 reads DS:0x917b = 0");
+  }
+  if (ai_euro_5952_rank_byte(&col1, rank, 5) != 40) {
+    return fail("rank byte: tribe 5 reads DS:0x9181");
+  }
+  if (ai_euro_5952_rank_byte(&col1, rank, 10) != 120) {
+    return fail("rank byte: tribe 10 reads DS:0x9186");
+  }
+  AiEuro5952Want w;
+  want_init(&w);
+  w.wealth_rank[0] = 2;
+  w.rank_1b0 = 0; /* rank[human] > byte => statesman doubles */
+  const int doubled = ai_euro_5952_want_weight(&w, COLONIZE_PROF_STATESMAN, AI_EURO_5952_BELLS);
+  w.rank_1b0 = 2;
+  const int plain = ai_euro_5952_want_weight(&w, COLONIZE_PROF_STATESMAN, AI_EURO_5952_BELLS);
+  if (doubled != 2 * plain) {
+    return fail("rank byte: a clobbered local_1b0 must drive the statesman doubling");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"expert_pass_seats_master_carpenter", case_expert_pass_seats_master_carpenter},
   {"fallback_job", case_fallback_job},
@@ -320,6 +356,7 @@ static const TestCase k_cases[] = {
   {"hammers_arm", case_hammers_arm},
   {"crosses_arm", case_crosses_arm},
   {"default_weight_three", case_default_weight_three},
+  {"rank_byte_unchecked_index", case_rank_byte_unchecked_index},
 };
 
 TEST_MAIN(k_cases)

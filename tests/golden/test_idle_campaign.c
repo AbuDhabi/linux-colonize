@@ -100,8 +100,12 @@ int main(int argc, char** argv) {
     return 2;
   }
 
-  char from[128], expected[128];
+  char from[512], expected[128];
   save_path(from, sizeof(from), first);
+  /* GOLDEN_IDLE_FROM: start from this save instead of year_FIRST.sav (e.g. a
+   * DOSBox from-load autosave). */
+  const char* from_env = getenv("GOLDEN_IDLE_FROM");
+  if (from_env && *from_env) snprintf(from, sizeof(from), "%s", from_env);
   save_path(expected, sizeof(expected), first + 1);
   GoldenFixture fx;
   if (!golden_open(from, expected, VR_SEED, &fx)) {
@@ -113,7 +117,11 @@ int main(int argc, char** argv) {
     fprintf(stderr, "save filename/calendar mismatch near %d\n", first);
     ok = 0;
   }
-  for (int year = first + 1; ok && year <= last; ++year) {
+  /* GOLDEN_IDLE_KEEP_GOING: keep simulating past a mismatch (multi-turn
+   * from-load DOSBox targets; GOLDEN_IDLE_DUMP then holds the last year). */
+  const char* keep = getenv("GOLDEN_IDLE_KEEP_GOING");
+  const int keep_going = keep && *keep;
+  for (int year = first + 1; (ok || keep_going) && year <= last; ++year) {
     save_path(expected, sizeof(expected), year);
     if (year != first + 1) {
       char err[256];
@@ -140,6 +148,7 @@ int main(int argc, char** argv) {
     col1_bridge_stamp_autosave_head(&fx.start);
     if (!compare_save(&fx.start, expected)) {
       ok = 0;
+      if (keep_going) continue;
       break;
     }
     printf("%d -> %d byte-identical\n", year - 1, year);

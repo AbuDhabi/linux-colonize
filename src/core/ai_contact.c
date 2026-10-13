@@ -734,18 +734,13 @@ int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int 
 /* ===================== Encounter/meet scans, village-meet dialogs & attack/raid confirmations (ai_contact_encounter_scan .. ai_contact_try_tired_attack_confirm) ===================== */
 
 
-int ai_contact_encounter_scan(ColonizeTurnContext* ctx, int euro_nation, int x, int y) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->map || euro_nation < 0 || euro_nation > 3) {
-    return 0;
+/* 3180's "other nation" for neighbour (nx,ny): the unit standing there, else
+ * the tile's settlement owner; -1 off map or none. */
+static int ai_contact_neighbour_nation(const ColonizeTurnContext* ctx, int nx, int ny) {
+  if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
+    return -1;
   }
-  /* DOS DS:0xb4 / DS:0xbe direction tables (N, NE, E, SE, S, SW, W, NW). */
-  int opened = 0;
-  for (int d = 0; d < 8; ++d) {
-    const int nx = x + MAP_DIR8_DX[d];
-    const int ny = y + MAP_DIR8_DY[d];
-    if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
-      continue;
-    }
+  {
     int other = -1;
     /*
      * FUN_137f_03e4 tile_tribe_owner: owner nibble only when bit 0x02 set.
@@ -788,12 +783,41 @@ int ai_contact_encounter_scan(ColonizeTurnContext* ctx, int euro_nation, int x, 
         other = ou->nation_id;
       }
     }
+    return other;
+  }
+}
+
+int ai_contact_encounter_scan(ColonizeTurnContext* ctx, int euro_nation, int x, int y) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->map || euro_nation < 0 || euro_nation > 3) {
+    return 0;
+  }
+  /* DOS DS:0xb4 / DS:0xbe direction tables (N, NE, E, SE, S, SW, W, NW). */
+  int opened = 0;
+  for (int d = 0; d < 8; ++d) {
+    const int other = ai_contact_neighbour_nation(ctx, x + MAP_DIR8_DX[d], y + MAP_DIR8_DY[d]);
     if (other < 4 || other > 11) {
       continue;
     }
     opened += ai_contact_try_first_welcome(ctx, euro_nation, other);
   }
   return opened;
+}
+
+int ai_contact_met_tribe_adjacent(const ColonizeTurnContext* ctx, int euro_nation, int x, int y) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->map || euro_nation < 0 || euro_nation > 3 ||
+      map_tile_is_water(ctx->map, x, y)) {
+    return 0;
+  }
+  for (int d = 0; d < 8; ++d) {
+    const int nx = x + MAP_DIR8_DX[d];
+    const int ny = y + MAP_DIR8_DY[d];
+    const int other = ai_contact_neighbour_nation(ctx, nx, ny);
+    if (other >= 4 && other <= 11 && !map_tile_is_water(ctx->map, nx, ny) &&
+        (ai_diplo_read(ctx->col1, euro_nation, other) & COL1_INDIAN_MET_BIT) != 0) {
+      return 1;
+    }
+  }
+  return 0;
 }
 
 static int ai_contact_meet_choice_pending(const AiPopupState* st, int e, int nation_id) {

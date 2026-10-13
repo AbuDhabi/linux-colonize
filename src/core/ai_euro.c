@@ -1653,6 +1653,12 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
         if (progressed && u->active && units_is_on_map(u) && u->aboard_ship_id < 0 &&
             !units_is_sea(ctx->units, u->id) &&
             (u->x != before_x || u->y != before_y)) {
+          /* 022e's met arm (5bfb:0422) parks the mover's x at its BP-0x2c,
+           * the next 20e6's local_ea (SS:e7c4). Fresh 1565: a Spanish
+           * Dragoon beside a met tribe border-parks on that 49. */
+          if (ai_contact_met_tribe_adjacent(ctx, nation_id, u->x, u->y)) {
+            ctx->ai_euro_wander_stack_word = u->x;
+          }
           (void)ai_contact_encounter_scan(ctx, nation_id, u->x, u->y);
         }
         if (!progressed) {

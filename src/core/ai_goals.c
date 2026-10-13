@@ -717,18 +717,15 @@ int ai_goals_pick_founding_tile_ex_w(
       }
     }
     /*
-     * colonies_can_found is a PORT belt, not a DOS 06ae gate: DOS validates
-     * the site only at found time (5b66 case 7) and tolerates picks its
-     * found routine later refuses. The port's callers treat a pick as a
-     * committed destination (walk there / unload there), so an unfoundable
-     * candidate must be filtered here — for every dir INCLUDING 8. (DOS's
-     * `(local_c == 8 || bVar1)` bypass at decomp 87283-87284 covers only the
-     * 06d2/08bc OCCUPANT gate below, which the port likewise skips at 8;
-     * 2026-09-08 briefly extended the bypass to this belt too, which let an
-     * expand scan seeded on a colony tile return that colony tile itself and
-     * park the founder there forever.)
+     * DOS 06ae settlement gate (raw 87267-87273): 06d2 (FUN_137f_0428) is the
+     * settlement owner on a layer2 & 2 tile, so a settlement tile never takes
+     * the presence path (06be >= 0) and is skipped. Nothing else about the
+     * site matters here: the sole caller is the LAB_3558 unload, and DOS
+     * lands next to a colony freely. The port's colonies_can_found belt
+     * (no colony within one tile) refused that; fresh 1591 two-turn: a
+     * French Dragoon lands at (19,9) beside Dutch Curacao.
      */
-    if (colonies && !colonies_can_found(colonies, map, nx, ny)) {
+    if (colonies && colonies_id_at(colonies, nx, ny) >= 0) {
       continue;
     }
     /*

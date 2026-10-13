@@ -425,6 +425,54 @@ static int case_06ae_occupant_artillery_filter(void) {
   return 0;
 }
 
+/*
+ * FUN_521d_06ae raw 87267-87273: only a settlement tile is skipped (06d2 is the
+ * settlement owner there, so the presence path never runs). A tile next to a
+ * colony is a fine landing (fresh 1591 two-turn: a French Dragoon unloads at
+ * (19,9) beside Dutch Curacao); the port's colonies_can_found belt refused it.
+ */
+static int case_06ae_lands_beside_colony(void) {
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 8, 8, 3, false)) {
+    return fail("06ae colony map alloc");
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.layer3[i] = 0xf0;
+  }
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 1;
+  units.types[0].kind_plus1 = (uint8_t)(UNITS_KIND_SOLDIER + 1);
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  const int nation = 1;
+  const int from_x = 4;
+  const int from_y = 4;
+  (void)fx_colony_add(&colonies, 2, from_x, from_y - 1, 1); /* foreign colony N */
+  /* Foreign units on every other neighbour except NW, which touches the colony. */
+  static const int k_block[6][2] = {{1, -1}, {1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}};
+  for (int b = 0; b < 6; ++b) {
+    ColonizeUnit* bu =
+      units_get(&units, units_spawn(&units, 0, from_x + k_block[b][0], from_y + k_block[b][1]));
+    if (!bu) {
+      fx_map_free(&map);
+      return fail("06ae colony blocker spawn");
+    }
+    bu->nation_id = 0;
+  }
+  const ColonizeWorld w = {.units = &units, .colonies = &colonies, .map = &map};
+  int x = -1;
+  int y = -1;
+  const int ok = ai_goals_pick_founding_tile_ex_w(&w, nation, from_x, from_y, 0, 0, &x, &y);
+  fx_map_free(&map);
+  if (!ok || x != from_x - 1 || y != from_y - 1) {
+    return fail("06ae: the tile beside the colony must be picked, never the colony tile");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"case_upsert_priority_promote", case_upsert_priority_promote},
     {"case_work_queue_score_order", case_work_queue_score_order},
@@ -435,6 +483,7 @@ static const TestCase k_cases[] = {
     {"case_goal_fold_urgency", case_goal_fold_urgency},
     {"case_indian_hostility_gate", case_indian_hostility_gate},
     {"case_06ae_occupant_artillery_filter", case_06ae_occupant_artillery_filter},
+    {"case_06ae_lands_beside_colony", case_06ae_lands_beside_colony},
 };
 
 TEST_MAIN(k_cases)

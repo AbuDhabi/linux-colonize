@@ -507,6 +507,11 @@ static int ai_euro_28c8_score_full(
       }
     }
   }
+  if (getenv("AI_28C8_TRACE")) {
+    fprintf(stderr, "[28c8] colony %d slot %d prof %d restrict %d -> job %d tile %d yield %d score %d\n",
+            col->id, colonist_slot, profession, restrict_job, out_best->job, out_best->tile,
+            out_best->yield, out_best->score);
+  }
   return out_best->job >= 0 ? 1 : 0;
 }
 
@@ -802,6 +807,28 @@ static int ai_euro_5952_clamp(int v, int lo, int hi) {
  * 5952:1fa3-5952:2115 (the three civic arms). DOS-LITERAL FUN_5952_035e
  * raw 94810-94856. No clamps, no guards beyond DOS's own.
  */
+/*
+ * byte[local_1b0 + 0x917c], an unchecked index (asm 5952:2047): 0..3 is the
+ * rank table; a tribe owner (4..11) runs into DS:0x9180 land_combat_totals
+ * and DS:0x9184 tribe_data_9184; 06d2's -1 reads DS:0x917b, the high byte of
+ * the startup word DS:0x917a, which FUN_281f_0e5e -> FUN_1984_06b4 fills
+ * with 0 (DOSBox 1566: 0).
+ */
+COLONIZE_INTERNAL unsigned char ai_euro_5952_rank_byte(
+  const ColonizeCol1Save* col1, const unsigned char rank[4], int local_1b0
+) {
+  if (local_1b0 >= 0 && local_1b0 < 4) {
+    return rank[local_1b0];
+  }
+  if (local_1b0 >= 4 && local_1b0 < 8 && col1) {
+    return col1->stuff.land_combat_totals[local_1b0 - 4];
+  }
+  if (local_1b0 >= 8 && local_1b0 < 12 && col1) {
+    return col1->stuff.tribe_data_9184[local_1b0 - 8];
+  }
+  return 0;
+}
+
 COLONIZE_INTERNAL int ai_euro_5952_want_weight(
   const AiEuro5952Want* w, int job, int out_cargo
 ) {
@@ -810,6 +837,7 @@ COLONIZE_INTERNAL int ai_euro_5952_want_weight(
   }
   const int human = (w->human_nation >= 0 && w->human_nation < 4) ? w->human_nation : 0;
   const int owner = (w->owner_nation >= 0 && w->owner_nation < 4) ? w->owner_nation : 0;
+  const unsigned char rank_1b0 = w->rank_1b0; /* raw 94821, asm 5952:2047-206d */
   if (out_cargo < 0x10) {
     /* asm 5952:1e72 — BX = owner*0x10 + out. */
     const int index = owner * 0x10 + out_cargo;
@@ -819,7 +847,7 @@ COLONIZE_INTERNAL int ai_euro_5952_want_weight(
     }
     if (out_cargo == 0x0e || out_cargo == 0x0f) {
       v += 4; /* asm 5952:1eaf, unconditional for Tools/Muskets */
-      if (w->turn >= 0x32 && w->wealth_rank[human] <= w->wealth_rank[owner]) {
+      if (w->turn >= 0x32 && w->wealth_rank[human] <= rank_1b0) {
         v *= 2;
       }
     }
@@ -852,10 +880,10 @@ COLONIZE_INTERNAL int ai_euro_5952_want_weight(
     if (w->population < 6) {
       v >>= 1;
     }
-    if (w->wealth_rank[human] < w->wealth_rank[owner]) {
+    if (w->wealth_rank[human] < rank_1b0) {
       v >>= 1;
     }
-    if (w->wealth_rank[owner] < w->wealth_rank[human]) {
+    if (rank_1b0 < w->wealth_rank[human]) {
       v <<= 1;
     }
     if (w->nation_flag_bit4) {
@@ -1173,7 +1201,8 @@ COLONIZE_INTERNAL void ai_euro_5952_indoor_expert_pass(
  * colonists already inside a colony.
  */
 static void ai_euro_5952_indoor_pass(
-  ColonizeTurnContext* ctx, ColonizeColony* col, bool* placed, int n
+  ColonizeTurnContext* ctx, ColonizeColony* col, bool* placed, int n, int local_1b0,
+  int local_7c
 ) {
   ColonizeColonyPool* pool = ctx->colonies;
   const ColonizeCol1Save* col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
@@ -1232,6 +1261,7 @@ static void ai_euro_5952_indoor_pass(
     for (int i = 0; i < 4; ++i) {
       want.wealth_rank[i] = ctx->euro_power_rank_ok ? ctx->euro_power_rank[i] : 0;
     }
+    want.rank_1b0 = ai_euro_5952_rank_byte(col1, want.wealth_rank, local_1b0);
     want.year = col1 ? (int)col1->head.year : 0;
     want.turn = col1 ? (int)col1->head.turn : 0;
     want.independence = col1 ? ai_king_independence_declared(col1) : 0;
@@ -1243,12 +1273,7 @@ static void ai_euro_5952_indoor_pass(
       (col->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) != 0;
     want.press_chain_count =
       ai_euro_5952_chain_owned(pool, col, COLONIES_CHAIN_PRESS, NULL, NULL);
-    /* local_7c, FUN_5952_035e raw 93994-93996: tories = (pop*(100-SoL%)+50)/100,
-     * zeroed when DS:0x5382 bit0 (WoI declared) is set. */
-    {
-      const int sol = colony_prod_sol_percent(col1, col);
-      want.tories = want.independence ? 0 : (col->population * (100 - sol) + 50) / 100;
-    }
+    want.tories = local_7c;
     /* DS:0x84bc — the per-nation SELL price row (every writer stores
      * euro_price − 1 clamped at 0; europe.c's dump-sell note). */
     for (int nn = 0; nn < 4 && col1; ++nn) {
@@ -1293,6 +1318,10 @@ static void ai_euro_5952_indoor_pass(
         continue; /* unreachable: job_available guarantees a workplace */
       }
       const int score = ai_euro_5952_job_score(&want, job, out, qty);
+      if (getenv("AI_28C8_TRACE")) {
+        fprintf(stderr, "[5952 job] colony %d slot %d job %d out %d qty %d score %d\n", col->id, s,
+                job, out, qty, score);
+      }
       if (score > best) { /* asm 5952:1ee7 JLE — strictly greater wins */
         best = score;
         best_job = job;
@@ -1300,6 +1329,12 @@ static void ai_euro_5952_indoor_pass(
     }
 
     int commit_job = -1;
+    if (getenv("AI_28C8_TRACE")) {
+      fprintf(stderr, "[5952 indoor] colony %d slot %d field %d best %d job %d rank_1b0 %d tories %d press %d capitol %d bells %d jefferson %d pop %d\n",
+              col->id, s, field_score, best, best_job, want.rank_1b0, want.tories,
+              want.press_chain_count, want.capitol_level, want.gross[AI_EURO_5952_BELLS],
+              want.jefferson, want.population);
+    }
     if (field_score < best) {
       commit_job = best_job; /* raw 94858 `if (*0x8dc0 < best)` */
     } else {
@@ -2744,7 +2779,7 @@ COLONIZE_INTERNAL void ai_euro_5952_seed_horses(
 
 /* FUN_5952_035e tile-improvement arm (raw 94402-94551, bugs.md #612) — the
  * body lives beside the 20e6 terrain/ring tables it shares. */
-void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* col);
+void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* col, int* local_1b0);
 /* FUN_5952_035e raw 94370-94400 — the 20-tool purchase (#640) and the
  * `turn % 7 == 0` inter-colony road-connect arm (#641); both run immediately
  * before the improve arm. */
@@ -2797,6 +2832,14 @@ static void ai_euro_colony_tick_run(
     if (!col->active || col->nation_id != nation_id || col->colonist_count <= 0) {
       continue;
     }
+    /* local_7c, raw 93994-93996: tories = (pop*(100-SoL%)+50)/100, zeroed
+     * under WoI (DS:0x5382 bit0). Taken here, before the prelude absorbs units
+     * (raw 94097+): fresh 1572 two-turn, a Soldier joining Isabella left DOS's
+     * statesman weight on the pre-join population. */
+    const ColonizeCol1Save* col1_7c = ctx->col1_ok ? ctx->col1 : NULL;
+    const int local_7c =
+      (col1_7c && ai_king_independence_declared(col1_7c))
+        ? 0 : (col->population * (100 - colony_prod_sol_percent(col1_7c, col)) + 50) / 100;
     if (whole_tick) {
       /* FUN_5952_035e raw 93943 (OVL15 0x39f, DOSBox-confirmed): the tick
        * opens with memset(colony+0x8a, 0, 2), so AI colonies carry no
@@ -2814,7 +2857,14 @@ static void ai_euro_colony_tick_run(
      * sweep below (bugs.md #612).
      */
     ai_euro_5952_tools_supply_and_connect(ctx, col);
-    ai_euro_5952_improve_best_plot(ctx, col);
+    /* local_1b0: colony+0x1a until the improvement arm's neighbour scan
+     * overwrites it (raw 93981 / 94482). */
+    int local_1b0 = col->nation_id;
+    ai_euro_5952_improve_best_plot(ctx, col, &local_1b0);
+    if (getenv("AI_28C8_TRACE")) {
+      fprintf(stderr, "[5952 local_1b0] colony %d nation %d -> %d\n", col->id, col->nation_id,
+              local_1b0);
+    }
     int prev_job[COLONIZE_COLONY_POP_MAX];
     bool placed[COLONIZE_COLONY_POP_MAX];
     const int n = col->colonist_count < COLONIZE_COLONY_POP_MAX ? col->colonist_count
@@ -3150,7 +3200,7 @@ static void ai_euro_colony_tick_run(
      */
     if (ai_euro_5952_indoor_pass_enabled()) {
       ai_euro_5952_indoor_expert_pass(ctx, col, placed, n);
-      ai_euro_5952_indoor_pass(ctx, col, placed, n);
+      ai_euro_5952_indoor_pass(ctx, col, placed, n, local_1b0, local_7c);
       if (whole_tick) {
         ai_euro_5952_build_cascade(ctx, col);
       }

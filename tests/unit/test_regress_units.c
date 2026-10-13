@@ -535,6 +535,36 @@ static int case_1b0e_relinks_attacker(void) {
  * on its tile first and the attacker ends ahead of it (DOSBox 1594: French
  * Dragoon 45 -> captured colonist 44 -> 47 -> 48).
  */
+/* Fresh 1571 two-turn: a phantom Pioneer stamped 0xec into its record's
+ * +0x15, was despawned, and a Soldier spawned later into the same port slot
+ * with no raw tail of its own exported that 0xec. The raw bytes belong to the
+ * record; clearing the slot must drop them. */
+static int case_despawn_drops_raw_record(void) {
+  LandFixture fx;
+  if (land_fixture_init(&fx) != 0) {
+    return 1;
+  }
+  const int sold = units_find_type(&fx.pool, "Soldiers");
+  const int pid = units_spawn_allow_stack(&fx.pool, sold, 3, 3);
+  ColonizeUnit* p = units_get(&fx.pool, pid);
+  if (!p) {
+    land_fixture_free(&fx);
+    fprintf(stderr, "raw record: spawn\n");
+    return 1;
+  }
+  p->col1_hold_raw[9] = 0xec;
+  p->col1_hold_raw_valid = 1;
+  const int slot = (int)(p - fx.pool.units);
+  units_despawn(&fx.pool, pid);
+  const ColonizeUnit* cleared = &fx.pool.units[slot];
+  const int rc = cleared->col1_hold_raw_valid || cleared->col1_hold_raw[9] != 0;
+  if (rc) {
+    fprintf(stderr, "raw record: a cleared slot must not keep the old record's bytes\n");
+  }
+  land_fixture_free(&fx);
+  return rc;
+}
+
 static int case_1b0e_attacker_back_after_capture(void) {
   for (int seed = 1; seed < 64; ++seed) {
     LandFixture fx;
@@ -761,6 +791,7 @@ static const TestCase k_cases[] = {
     {"case_678_capture_ignores_loser_nation", case_678_capture_ignores_loser_nation},
     {"case_capture_keeps_old_tile_owner", case_capture_keeps_old_tile_owner},
     {"case_1b0e_attacker_back_after_capture", case_1b0e_attacker_back_after_capture},
+    {"case_despawn_drops_raw_record", case_despawn_drops_raw_record},
     {"case_465b_0673_vis_or_behind_mover", case_465b_0673_vis_or_behind_mover},
     {"case_1b0e_relinks_attacker", case_1b0e_relinks_attacker},
     {"case_834_native_winner_colony_latch", case_834_native_winner_colony_latch},
