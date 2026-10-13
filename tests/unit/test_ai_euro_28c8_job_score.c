@@ -460,8 +460,9 @@ static int unit_no_docks_scores_no_water_plot(void) {
  * worst-case shortfall*16 = 16*16 = 256 < 299, so bVar2 is false regardless
  * of the exact town-commons food yield.
  *
- * Rank-pass registers one owned tier in each chain (Blacksmith's House,
- * Armory) so the chain terms are non-zero and distinguishable from the flat
+ * Rank-pass registers one owned row in each 039e walk (Blacksmith's Shop:
+ * 039e(0x28) starts at row 40, so the House never counts; Armory: 039e(3))
+ * so the chain terms are non-zero and distinguishable from the flat
  * +2; rank-fail leaves both chains unbuilt so w4 differs from rank-pass by
  * exactly the chain contribution, never by the whole Ore bonus.
  */
@@ -482,13 +483,13 @@ static void fx_ore_colony(ColonizeColonyPool* colonies, ColonizeWorldMap* map, i
   suppress_field_tile_resources(map, cx, cy);
 }
 
-/* Registers one owned tier (Blacksmith's House, Armory) in the pool + the
+/* Registers one owned row (Blacksmith's Shop, Armory) in the pool + the
  * colony_internal.h name table colonies_building_chain() reads from. */
 static void fx_register_ore_chain_buildings(ColonizeColonyPool* colonies) {
   memset(colony_building_row_names, 0, sizeof(colony_building_row_names));
   colony_building_row_name_count = 0;
-  const int rows[2] = {COLONY_BUILDING_BLACKSMITHS_HOUSE, COLONY_BUILDING_ARMORY};
-  static const char* const names[2] = {"Blacksmith's House", "Armory"};
+  const int rows[2] = {COLONY_BUILDING_BLACKSMITHS_SHOP, COLONY_BUILDING_ARMORY};
+  static const char* const names[2] = {"Blacksmith's Shop", "Armory"};
   colonies->building_type_count = 2;
   for (int i = 0; i < 2; ++i) {
     memset(&colonies->building_types[i], 0, sizeof(colonies->building_types[i]));
@@ -572,7 +573,7 @@ static int unit_889_ore_rank_gates_chain_not_flat_bonus(void) {
             rank_fail.score, want_fail);
     return fail("889: rank-fail must still get the flat +2 (bug was: 0)");
   }
-  /* rank-pass: w4 = 0 + 2 (flat) + 1 (Blacksmith tier1) + 2 (Armory tier1*2) = 5;
+  /* rank-pass: w4 = 0 + 2 (flat) + 1 (Blacksmith's Shop) + 2 (Armory*2) = 5;
    * m = w4+3 = 8; score = (m+w4)*base = 13*38. */
   const int want_pass = 13 * base;
   if (rank_pass.score != want_pass) {

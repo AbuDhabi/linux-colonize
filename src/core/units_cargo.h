@@ -337,6 +337,9 @@ int units_landfall_unload_all_w(
   int dest_x,
   int dest_y
 );
+/* DOS FUN_48d3_03d0 dock hop: sink the hull, then put its passengers on the
+ * Europe dock tile, nearest first, each under the last. */
+void units_lane_dock_arrival(ColonizeUnitPool* pool, int ship_id);
 /*
  * Colony dock: remove all passengers from the ship onto (x,y), clear sentry.
  * Does not change ship position. Returns number disembarked.

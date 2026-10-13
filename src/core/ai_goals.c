@@ -882,8 +882,8 @@ AiNationPlanScratch* ai_goals_plan_scratch(int nation_id) {
 /*
  * FUN_521d_6d8e prelude (decomp 93109 + 93139-93141) plus the four
  * FUN_4962_0018 census bytes 03d0 reads. The census half is already
- * recomputed every turn into col1->stuff by
- * col1_stuff_census_refresh_colony_counts(); only the DS:0xa0b8
+ * recomputed per nation at its EOT into col1->stuff by
+ * col1_stuff_census_4962_w(); only the DS:0xa0b8
  * "colonies asking for colonists" count has no census home, and DOS
  * rebuilds that at the top of each Euro AI nation turn, which is where
  * this is called from.

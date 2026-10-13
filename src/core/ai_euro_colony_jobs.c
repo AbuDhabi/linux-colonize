@@ -114,22 +114,18 @@ static int ai_euro_28c8_consumer_chain(int field_job) {
   }
 }
 
-/* FUN_15eb_039e(b): owned buildings walking b -> parent -> ... `tiers` is how
- * many tiers from the chain root that walk covers (039e(3) = the Armory row
- * alone, 039e(0x28) = Blacksmith's House + Shop). */
-static int ai_euro_28c8_chain_owned_upto(
-  const ColonizeColonyPool* pool, const ColonizeColony* col, int chain, int tiers
+/* FUN_15eb_039e(b) (raw 9561-9577): owned rows walking b and then the
+ * `-0x707a` next-row byte (the upgrade link, docs/colony.md), so 039e(0x28)
+ * = Blacksmith's Shop + Iron Works and 039e(3) = Armory + Magazine +
+ * Arsenal. DOSBox continuous 1578: Isabella owns only the Blacksmith's
+ * House, so Ore loses the +1 and the Convert takes Fur (yield 5). */
+static int ai_euro_28c8_owned_from(
+  const ColonizeColonyPool* pool, const ColonizeColony* col, ColonizeBuildingRow first,
+  ColonizeBuildingRow last
 ) {
-  const char* const* names = colonies_building_chain(chain);
-  if (!pool || !col || !names) {
-    return 0;
-  }
   int n = 0;
-  for (int i = 0; names[i] && i < tiers; ++i) {
-    const int idx = colonies_find_building(pool, names[i]);
-    if (idx >= 0 && idx < COLONIZE_BUILDING_TYPES_MAX && col->has_building[idx]) {
-      ++n;
-    }
+  for (int r = (int)first; r <= (int)last; ++r) {
+    n += colonies_has_building_row(pool, col, (ColonizeBuildingRow)r) ? 1 : 0;
   }
   return n;
 }
@@ -209,14 +205,20 @@ static void ai_euro_28c8_env(
   }
   env->food_emerg = emerg;
 
-  /* local_14 (AI only, raw 12960-12966): own units whose @UNIT defense
-   * (DOS type*0xe + 0x5235) is > 1. */
+  /* local_14 (AI only, raw 12960-12966): units on the colony tile whose
+   * @UNIT defense (DOS type*0xe + 0x5235) is > 1. asm 0000:87c4-8804 calls
+   * FUN_1427_005c with AX/DX = colony x/y and walks the tile chain with
+   * 004a, so passengers of a ship docked there count too. */
   if (!env->human && ctx->units) {
-    /* DOS walks its compact unit array. OpenCol keeps holes after despawns,
-     * so the live equivalent is the slot high-water mark. */
     for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
-      if (!u->active || u->nation_id != col->nation_id) {
+      if (!u->active) {
+        continue;
+      }
+      const ColonizeUnit* at = u->aboard_ship_id >= 0
+                                 ? units_get_const(ctx->units, u->aboard_ship_id)
+                                 : u;
+      if (!at || at->x != col->x || at->y != col->y) {
         continue;
       }
       if (u->type_index >= 0 && u->type_index < ctx->units->type_count &&
@@ -423,11 +425,11 @@ static int ai_euro_28c8_score_full(
                   ctx->euro_power_rank[ctx->human_nation] <= ctx->euro_power_rank[col->nation_id]) {
                 /* FUN_15eb_039e(0x28) / (3): owned tiers of the Blacksmith and
                  * Armory chains — not an RNG draw. */
-                w4 += ai_euro_28c8_chain_owned_upto(
-                  ctx->colonies, col, COLONIES_CHAIN_BLACKSMITH, 2
+                w4 += ai_euro_28c8_owned_from(
+                  ctx->colonies, col, COLONY_BUILDING_BLACKSMITHS_SHOP, COLONY_BUILDING_IRON_WORKS
                 );
-                w4 += ai_euro_28c8_chain_owned_upto(
-                        ctx->colonies, col, COLONIES_CHAIN_ARMORY, 1
+                w4 += ai_euro_28c8_owned_from(
+                        ctx->colonies, col, COLONY_BUILDING_ARMORY, COLONY_BUILDING_ARSENAL
                       ) * 2;
               }
             }

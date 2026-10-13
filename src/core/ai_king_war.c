@@ -720,8 +720,8 @@ static const char* ai_king_richest_colony_name(const ColonizeTurnContext* ctx, i
  * per-colony `pop>0?pop:1` re-sum. Ported 2026-09-10 (audit D7). With no
  * population at all DOS answers 50, not 0.
  *
- * The mirror is refreshed every turn by
- * col1_stuff_census_refresh_colony_counts (turn.c); a blank fixture window
+ * The mirror is refreshed per nation at its EOT by col1_stuff_census_4962_w
+ * (turn.c); a blank fixture window
  * (both rows zero) falls back to summing the live pools before the +1s.
  */
 static int ai_king_woi_pop_share_pct(

@@ -1625,18 +1625,27 @@ void ai_euro_europe_lane_tick(ColonizeTurnContext* ctx, int nation_id) {
         u->col1_counter16--;
       }
     }
+    /* 03d0 walks the lane chain from its latest arrival down (07e0/02e4). */
+    int walk[COLONIZE_UNITS_MAX];
+    int nw = 0;
     for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-      ColonizeUnit* u = &ctx->units->units[i];
+      const ColonizeUnit* u = &ctx->units->units[i];
       if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0 ||
-          u->x != from || u->y != from) {
+          u->x != from || u->y != from || u->col1_counter16 != 0) {
         continue;
       }
-      if (u->col1_counter16 == 0) {
-        if (hops[h][1] == 236) {
-          ai_euro_lane_move(ctx, u, 236 + nation_id, 236 + nation_id);
-        } else {
-          ai_euro_lane_move(ctx, u, hops[h][1] + nation_id, hops[h][1] + nation_id);
-        }
+      int at = nw++;
+      while (at > 0 && ctx->units->units[walk[at - 1]].tile_stack_order < u->tile_stack_order) {
+        walk[at] = walk[at - 1];
+        --at;
+      }
+      walk[at] = i;
+    }
+    for (int k = 0; k < nw; ++k) {
+      ColonizeUnit* u = &ctx->units->units[walk[k]];
+      ai_euro_lane_move(ctx, u, hops[h][1] + nation_id, hops[h][1] + nation_id);
+      if (hops[h][1] == 236) {
+        units_lane_dock_arrival(ctx->units, u->id);
       }
     }
   }
@@ -2194,11 +2203,30 @@ int ai_euro_20e6_unload_by_mask(
   do {
     moved = 0;
     int dir8 = 0;
-    for (int s = ship->cargo_count - 1; s >= 0 && !dir8 && !moved; --s) {
+    /* Walk the tile chain from its top (latest arrival) down: tile order,
+     * not boarding order. Continuous 1589: Dutch hull 39 carries Dragoons
+     * 46 and 44 chained 39 -> 46 -> 44, and DOS lands 44. */
+    int walk[COLONIZE_UNIT_CARGO_MAX];
+    int nw = 0;
+    for (int s = ship->cargo_count - 1; s >= 0; --s) {
       if (s >= COLONIZE_UNIT_CARGO_MAX) {
         continue;
       }
-      const int pid = ship->cargo_ids[s];
+      const ColonizeUnit* q = units_get_const(ctx->units, ship->cargo_ids[s]);
+      const uint64_t qo = q ? q->tile_stack_order : 0;
+      int at = nw++;
+      while (at > 0) {
+        const ColonizeUnit* r = units_get_const(ctx->units, walk[at - 1]);
+        if (r && r->tile_stack_order >= qo) {
+          break;
+        }
+        walk[at] = walk[at - 1];
+        --at;
+      }
+      walk[at] = ship->cargo_ids[s];
+    }
+    for (int k = 0; k < nw && !dir8 && !moved; ++k) {
+      const int pid = walk[k];
       ColonizeUnit* p = units_get(ctx->units, pid);
       if (!p || !p->active) {
         continue;

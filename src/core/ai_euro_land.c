@@ -1045,15 +1045,20 @@ int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b) {
   int local_4 = 0; /* any shared continent */
   int local_8 = 0; /* a's defense value where both present */
   int local_6 = 1; /* b's (units + defense)/2 + 1 */
+  /* Raw 97183-97200 reads the FUN_4962_0018 census tables (-0x6b1a
+   * colonies, -0x6b5a land units, -0x6a8e combat value, nation*0x10 +
+   * continent), frozen since the last census, not live recounts. Continuous
+   * 1590: France meeting the Dutch signs a treaty (0x60, timers 1/12). */
+  const ColonizeCol1Stuff* st = &col1->stuff;
   for (int cid = 1; cid < 0xf; ++cid) {
-    const int a_col = ai_euro_20e6_own_colonies_on(ctx, a, cid);
-    const int a_units = ai_euro_10ec_land_units_on(ctx, a, cid);
-    const int a_def = ai_euro_20e6_combat_value_on(ctx, a, cid);
-    const int b_def = ai_euro_20e6_combat_value_on(ctx, b, cid);
+    const int a_col = st->colony_counts_by_continent[a * 16 + cid];
+    const int a_units = st->land_unit_counts_by_continent[a * 16 + cid];
+    const int a_def = st->combat_value_sum_by_continent[a * 16 + cid];
+    const int b_def = st->combat_value_sum_by_continent[b * 16 + cid];
     if (a_col != 0 && (uint8_t)((a_units >> 1) + (a_def >> 1)) < b_def) {
       return 0; /* a is dwarfed where it has colonies */
     }
-    const int b_units = ai_euro_10ec_land_units_on(ctx, b, cid);
+    const int b_units = st->land_unit_counts_by_continent[b * 16 + cid];
     if (a_def != 0 && b_units != 0) {
       local_8 += a_def;
       local_6 += (b_units + b_def) >> 1;

@@ -307,6 +307,55 @@ static int fx_stage2(void) {
   return 0;
 }
 
+/* FUN_1427_03a0 (5e52 immigrant): the sunk unit goes under every other
+ * occupant, including when the oldest already holds order 1. */
+static int case_tile_stack_sink_oldest_end(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
+  int sx = -1;
+  int sy = -1;
+  for (int y = 1; y + 1 < map.height && sx < 0; ++y) {
+    for (int x = 1; x + 1 < map.width; ++x) {
+      if (map_tile_is_land(&map, x, y) && units_id_at(&pool, x, y) < 0) {
+        sx = x;
+        sy = y;
+        break;
+      }
+    }
+  }
+  const int a = units_spawn_allow_stack(&pool, colonist, sx, sy);
+  const int b = units_spawn_allow_stack(&pool, colonist, sx, sy);
+  const int c = units_spawn_allow_stack(&pool, colonist, sx, sy);
+  ColonizeUnit* ua = units_get(&pool, a);
+  ColonizeUnit* ub = units_get(&pool, b);
+  ColonizeUnit* uc = units_get(&pool, c);
+  int rc = 0;
+  if (sx < 0 || !ua || !ub || !uc) {
+    fprintf(stderr, "stack-sink: setup failed\n");
+    rc = 1;
+  } else {
+    units_tile_stack_sink(&pool, c);
+    if (!(uc->tile_stack_order < ua->tile_stack_order &&
+          ua->tile_stack_order < ub->tile_stack_order) ||
+        units_tile_head_id_at(&pool, sx, sy) != b) {
+      fprintf(stderr, "stack-sink: c should sit under a, b stays head\n");
+      rc = 1;
+    }
+    ua->tile_stack_order = 1;
+    ub->tile_stack_order = 2;
+    units_tile_stack_sink(&pool, b);
+    if (!(ub->tile_stack_order < ua->tile_stack_order &&
+          ub->tile_stack_order < uc->tile_stack_order) ||
+        pool.next_tile_stack_order <= ua->tile_stack_order) {
+      fprintf(stderr, "stack-sink: order-1 floor not lifted\n");
+      rc = 1;
+    }
+  }
+  fx_close();
+  return rc;
+}
+
 static int case_tile_stack_head_tracks_movement(void) {
   if (fx_open() != 0 || fx_stage2() != 0) {
     return 1;
@@ -7361,6 +7410,7 @@ static const TestCase k_cases[] = {
   {"ship_arrival_sorts_existing_passenger_chain", case_ship_arrival_sorts_existing_passenger_chain},
   {"starter_fleet", case_starter_fleet},
   {"tile_stack_head_arrival", case_tile_stack_head_tracks_movement},
+  {"tile_stack_sink_oldest_end", case_tile_stack_sink_oldest_end},
   {"starter_discoverer_england", case_starter_discoverer_england},
   {"starter_discoverer_french", case_starter_discoverer_french},
   {"starter_discoverer_ai_english", case_starter_discoverer_ai_english},

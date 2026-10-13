@@ -200,8 +200,8 @@ void ai_goals_invalidate_nearby_secondary(int nation_id, int code, int x, int y,
  *                        Σ colony pop there and divides by 0x9298 at its
  *                        tail (viceroy_unpacked.c:78323-78326)
  *
- * The first four and the sixth are already kept live per turn by
- * col1_stuff_census_refresh_colony_counts(); ai_goals_plan_scratch_refresh()
+ * The first four and the sixth are already kept per nation (EOT) by
+ * col1_stuff_census_4962_w(); ai_goals_plan_scratch_refresh()
  * copies them plus the two that have no census home.
  *
  * last_colony_founded_turn (DS nation*0x13c-0x77b2) identity confirmed
