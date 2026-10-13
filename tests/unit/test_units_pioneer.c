@@ -312,6 +312,34 @@ static int unit_useduptools(void) {
     }
   }
 
+  /* #636: a 5d04-bought AI Pioneer can hold 0 tools. FUN_2b5a_0b08 is
+   * type-only, and 0158's byte `-= 0x14` wraps 0 to 236, so it works on. */
+  {
+    const int x3 = 1;
+    const int y3 = 5;
+    map_tile_set_road(&map, x3, y3, false);
+    const int zid = units_spawn(&pool, pioneer, x3, y3);
+    ColonizeUnit* zu = units_get(&pool, zid);
+    if (!zu) {
+      fprintf(stderr, "usedup #636: setup failed\n");
+      return 1;
+    }
+    zu->nation_id = 0;
+    zu->tools = 0;
+    zu->profession = UNITS_JOB_NONE;
+    zu->orders = UNITS_ORDER_BUILD_ROAD;
+    zu->col1_counter16 = 0;
+    for (int tick = 0; tick < 10 && zu->orders == UNITS_ORDER_BUILD_ROAD; ++tick) {
+      zu->moves = 1 * UNITS_MP_PER_TILE;
+      (void)units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, zid, msg, sizeof(msg), &pops, &game_txt);
+    }
+    if (!map_tile_has_road(&map, x3, y3) || zu->type_index != pioneer || zu->tools != 236) {
+      fprintf(stderr, "usedup #636: want road, Pioneer, tools 236; got road=%d type=%d tools=%d\n",
+              (int)map_tile_has_road(&map, x3, y3), zu->type_index, zu->tools);
+      return 1;
+    }
+  }
+
   assets_msg_free(&game_txt);
   map_free(&map);
   assets_msg_free(&names);

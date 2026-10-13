@@ -36,10 +36,10 @@ bool units_is_pioneer(const ColonizeUnitPool* pool, int unit_id) {
   if (!u || !u->active || !units_is_on_map(u) || units_is_sea(pool, unit_id)) {
     return false;
   }
-  /* Skill alone is not enough — plow/road require carried tools. */
-  int tools = 0;
-  units_founder_loot(pool, unit_id, &tools, NULL, NULL);
-  return tools > 0;
+  /* FUN_2b5a_0b08 raw 42146-42160 is type-only (+0x3146 == 2): DOS never
+   * reads tools to allow Pioneer work. A 5d04-converted AI Pioneer keeps a
+   * stale +0x3159 (often 0) and still works; 0158 then underflows it. */
+  return units_type_is_pioneer(units_type(pool, u->type_index));
 }
 
 #define UNITS_PIONEER_TOOL_COST 20
@@ -247,11 +247,9 @@ static bool units_pioneer_tile_can_clear_or_plow(
 
 /* FUN_479b_0158: cargo_hold[5] / tools −20; type→Colonist when <20. */
 static bool units_pioneer_wear_tools(ColonizeUnitPool* pool, ColonizeUnit* u) {
-  if (u->tools >= UNITS_PIONEER_TOOL_COST) {
-    u->tools -= UNITS_PIONEER_TOOL_COST;
-  } else {
-    u->tools = 0;
-  }
+  /* DOS-LITERAL raw 76705-76706: a byte `-= 0x14`, so a 0..19 stock wraps
+   * to 236..255 and the Pioneer keeps working (5d04 AI Pioneers, #636). */
+  u->tools = (u->tools - UNITS_PIONEER_TOOL_COST) & 0xff;
   if (u->tools < UNITS_PIONEER_TOOL_COST) {
     u->tools = 0;
     /* DOS-LITERAL FUN_479b_0158 raw 76696-76718: tools-out writes only

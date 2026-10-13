@@ -427,10 +427,12 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
        * escort, or via the ship goal fold in 20e6's band). */
       Ai0a60StackCounts sc;
       ai_euro_0a60_stack_counts(ctx->units, ux, uy, &sc);
-      /* Europe lanes are separate DOS records, even when a dock mirror and
-       * a hull briefly share the same runtime sentinel.  A ship with no
-       * passenger chain must not inherit the land stack's FOUND/MIL bits. */
-      if (is_ship_t && u->cargo_count == 0 && units_coords_in_europe_park(ux, uy)) {
+      /* On the dock tile a hull with no passengers does not take the land
+       * stack's FOUND/MIL bits. A sailing lane is one DOS tile chain, so an
+       * empty hull there counts the riders of another hull on the lane
+       * (continuous 1581: the full Dutch Merchantman 5 takes 0x0c from the
+       * two Dragoons riding Merchantman 39 on 231). */
+      if (is_ship_t && u->cargo_count == 0 && ai_euro_at_europe_dock(nation_id, ux, uy)) {
         sc.pioneers = 0;
         sc.mil_types = 0;
         sc.mobilizable = 0;

@@ -614,6 +614,39 @@ void units_tile_stack_arrive(ColonizeUnitPool* pool, int unit_id) {
   unit->tile_stack_order = pool->next_tile_stack_order++;
 }
 
+void units_tile_stack_sink(ColonizeUnitPool* pool, int unit_id) {
+  ColonizeUnit* unit = units_get(pool, unit_id);
+  if (!pool || !unit) {
+    return;
+  }
+  uint64_t lo = 0;
+  for (int i = 0; i < units_slot_end(pool); ++i) {
+    const ColonizeUnit* o = &pool->units[i];
+    if (o->active && o != unit && o->aboard_ship_id < 0 && o->x == unit->x &&
+        o->y == unit->y && o->tile_stack_order > 0 &&
+        (lo == 0 || o->tile_stack_order < lo)) {
+      lo = o->tile_stack_order;
+    }
+  }
+  if (lo == 0) {
+    return;
+  }
+  if (lo == 1) {
+    /* No room under the oldest: lift the rest of the tile by one. Orders
+     * only compare within a tile, so this keeps every other chain intact. */
+    for (int i = 0; i < units_slot_end(pool); ++i) {
+      ColonizeUnit* o = &pool->units[i];
+      if (o->active && o != unit && o->aboard_ship_id < 0 && o->x == unit->x &&
+          o->y == unit->y && o->tile_stack_order > 0 &&
+          ++o->tile_stack_order >= pool->next_tile_stack_order) {
+        pool->next_tile_stack_order = o->tile_stack_order + 1;
+      }
+    }
+    lo = 2;
+  }
+  unit->tile_stack_order = lo - 1;
+}
+
 /* FUN_1427_04d6 mode 0 bucket: transports, Treasure, then @UNIT size 6..1; 0 is never moved. */
 static int units_stack_rank_04d6(const ColonizeUnitPool* pool, int id) {
   const ColonizeUnit* u = units_get_const(pool, id);

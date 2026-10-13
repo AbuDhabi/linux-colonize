@@ -570,10 +570,6 @@ COLONIZE_INTERNAL void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurn
         turn_refresh_euro_rank(ctx);
       }
       turn_rank_resume_loaded = false;
-      /* Live census peel: colony + unit/combat tallies (FUN_4962_0018). */
-      if (ctx->col1_ok && ctx->col1) {
-        col1_stuff_census_refresh_colony_counts_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL)}, &ctx->col1->stuff);
-      }
       /*
        * DOS order relative to the human's end-of-turn (see
        * turn_human_slot): Euro slots above the human first, then the

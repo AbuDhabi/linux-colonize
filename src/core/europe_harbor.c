@@ -1725,6 +1725,11 @@ int europe_nation_immigration_tick_w(const ColonizeWorld* w, int nation_id) {
   if (id < 0) {
     return 0;
   }
+  /* 5e52 raw 68588: FUN_281f_08c6 = FUN_1427_03a0 relinks the new immigrant
+   * at the oldest end of the dock chain (4884's spawn does not). DOSBox
+   * 1569 -> 1571: the Dutch Missionary 50 sits under Artillery 48
+   * (Missionary +0x315c = 48). */
+  units_tile_stack_sink(w->units, id);
   nat->nation_flags = (uint8_t)(nat->nation_flags | 0x40u); /* 68601 */
   return 1;
 }

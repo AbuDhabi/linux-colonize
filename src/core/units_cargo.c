@@ -895,6 +895,29 @@ int units_landfall_unload_all_w(
 }
 
 
+/* FUN_48d3_03d0 landing a hull on the Europe dock lane (236+n): DOS keeps
+ * no "aboard" link, so the walk moves the hull and then each passenger
+ * (nearest first) with 0880 + 03a0, each sinking under the one before.
+ * Orders, goto and MP are untouched; FUN_1427_10be re-boards by hold room. */
+void units_lane_dock_arrival(ColonizeUnitPool* pool, int ship_id) {
+  ColonizeUnit* ship = units_get(pool, ship_id);
+  if (!ship) {
+    return;
+  }
+  units_tile_stack_sink(pool, ship_id);
+  while (ship->cargo_count > 0) {
+    const int pax_id = ship->cargo_ids[ship->cargo_count - 1];
+    ColonizeUnit* pax = units_get(pool, pax_id);
+    if (!units_remove_from_cargo(ship, pax_id) || !pax) {
+      continue;
+    }
+    pax->aboard_ship_id = -1;
+    pax->x = ship->x;
+    pax->y = ship->y;
+    units_tile_stack_sink(pool, pax_id);
+  }
+}
+
 int units_disembark_all(ColonizeUnitPool* pool, int ship_id, int x, int y) {
   ColonizeUnit* ship = units_get(pool, ship_id);
   if (!ship || !units_is_sea(pool, ship_id)) {

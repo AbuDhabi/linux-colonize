@@ -117,7 +117,7 @@ static int ai_king_audience_roll(
   ColonizeCol1Nation* nat = &col1->nation[human];
   /*
    * DOS's first gate: colony_counts[audience nation] != 0. The census mirror
-   * is refreshed every turn (turn.c → col1_stuff_census_refresh_colony_counts),
+   * is refreshed per nation at its EOT (turn.c → col1_stuff_census_4962_w),
    * but a synthetic fixture can leave the whole window blank, so a zero row
    * falls back to the live colony count before the early-out bites.
    */

@@ -381,10 +381,9 @@ GOLDEN_IDLE_KEEP_GOING=1 GOLDEN_IDLE_DUMP=/tmp/x/sim_%d.sav golden_idle_campaign
 JSON-diff each `sim_Y` against `year_Y`. Four leaves are always the human's
 first-turn UI (`map_mode`, `tut2.nr1`, `stuff.x/y`).
 
-Status: every year through 1577 matches except small residues (below:
-1505/1506 and 1571-1576);
-1578 is the first real split (Isabella's colonists 1 and 4 swap plots), and
-its 1579 sugar amounts grow into the 1580s divergence.
+Status: every year through 1589 matches except small residues (below:
+1505/1506);
+1591 is the first real split.
 
 Fixed by this run:
 - AI moves roll Lost City Rumours in the move (FUN_465b_0000 raw
@@ -430,32 +429,70 @@ Fixed by this run:
   shifts the rest down and leaves the last slot's value past population.
   The pool keeps it in `col1_tail_turns`, like the occupation/profession
   tails. 1529 Isabella: slot 2 = 1.
+- AI immigrants go to the bottom of the dock chain: FUN_38fd_5e52 raw 68588
+  calls FUN_281f_08c6 = FUN_1427_03a0 after the 0b26 spawn, which relinks
+  the new unit at the oldest end (+0x315e = -1). FUN_38fd_4884 (Brewster,
+  free passage) does not. 1571-1576: the Dutch Missionary 50 sits under
+  Artillery 48. Port: `units_tile_stack_sink`. Test:
+  `tile_stack_sink_oldest_end`.
+- FUN_15eb_28c8's `local_14` (raw 12960-12966, subtracted from the Indian
+  land penalty) counts units on the colony tile: asm 0000:87c4-8804 passes
+  the colony x/y in AX/DX to FUN_1427_005c and walks the chain with 004a.
+  The port counted the whole nation. Neutral in the sweep and the
+  continuous run.
+- FUN_15eb_039e(b) walks `b` and then the `-0x707a` next-row (upgrade)
+  byte, so the 28c8 Ore bonus `039e(0x28) + 2*039e(3)` counts Blacksmith's
+  Shop + Iron Works and Armory + Magazine + Arsenal. The port counted the
+  House + Shop and the Armory alone. 1578 Isabella (House only): Ore lost
+  its +1, so the Convert in slot 1 takes Fur (yield 5) in the general pass
+  and the forced-lumberjack arm picks slot 4, as DOS does. 1578 and 1579
+  now match.
+- AI hulls landing on the Europe dock lane put their passengers ashore:
+  FUN_48d3_03d0 moves every lane unit on its own (0880 + 03a0), so at the
+  236+n hop the hull and then each passenger, nearest first, sink to the
+  bottom of the dock chain, keeping orders and goto. FUN_1427_10be then
+  re-boards dock units only while hold room lasts. The port kept them
+  aboard through the Europe stop. 1580: the Dutch Merchantman 5 bought 4
+  holds of goods, so the Soldier it brought stays on the dock (and the
+  Dutch crosses count it). `units_lane_dock_arrival`. 1582-1586 now match.
+- 0a60 FOUND/MIL bits on an empty hull: only the dock tile is excluded; on
+  a sailing lane the riders of another hull count (1581: Merchantman 5
+  takes 0x0c from the Dragoons riding Merchantman 39 on 231).
+- FUN_4962_0018 census runs per nation in that nation's own EOT (and for
+  the human in FUN_3844_0442). The port also refreshed all four nations at
+  round start, so mid-round the Dutch rows were fresher than DOS's. 1590:
+  France meets the Dutch; with DOS's older Dutch rows 10ec finds the pair
+  not war-worthy and 13b0 signs a treaty
+  (0x60, timers 1/12). FUN_5bfb_10ec also reads the frozen census tables
+  (-0x6b1a/-0x6b5a/-0x6a8e) rather than live recounts.
+- AI Pioneers bought in Europe keep a stale tools byte (bugs.md #636, the
+  old deliberate substitution is reverted): FUN_521d_5d04 raw 92770-92783
+  writes only the type, FUN_2b5a_0b08 lets any type-2 unit work, and
+  FUN_479b_0158's byte `-= 0x14` wraps 0 to 236. `units_is_pioneer` is now
+  type-only. 1587: the Spanish Pioneer saves tools 0. Test: `usedup #636`.
+- AI unload (`ai_euro_20e6_unload_by_mask`) walks passengers in tile-chain
+  order (latest arrival first), not boarding order. 1590: Dutch hull 39
+  chained 39 -> 46 -> 44 lands Dragoon 44.
 
 Open:
+- 1591: Dutch hull 39 sails to (28,6) instead of (24,8) after landing its
+  Dragoon; Braves 31 and 34 differ. Reproduced from load (DOSBox 1589 ->
+  1591 twice: only Brave 22 varies between DOS runs). A DOS RNG-draw trace
+  (scratch `dt_rng.py`, BP 1541:0e04) matches the port draw for draw
+  through the hull's whole 1590 wander, except 152e/reseed draws the BP
+  misses; DOS then draws 6 more in the Dutch slot. So the 4d2e direction
+  scores differ on non-random terms (facing, far-probe fog/unseen, colony
+  terms) with identical random draws. Next: BP at the 20e6 commit (OVL14
+  58a9, [bp-0x74] dir / [bp-0xe0] best) for hull 39 in 1590.
 - 1505/1506: ship 4's facing, Brave 26's step and unit 5's goto differ.
   Port from-load 1504 equals DOS from-load, and port continuous differs from
   the archive the same way, so DOS carries something unsaved here that the
   port does not model.
-- 1571-1576: Dutch dock chain at (239,239): DOS saves Artillery 48 on top of
-  Missionary 50 (+0x315c of the Missionary = 48), the port the reverse. A
-  DOSBox 02ca/10be trace from 1569 (scratch `dt_link.py`, about an hour for
-  the two DOS turns to 1571) shows exactly one link at the dock: 06b4 -> 02ca
-  puts the new Missionary on top of the Artillery, as the port does. The
-  swap happens elsewhere (not 02ca, not a 10be/04d6 sort of the dock). Next:
-  trace 023a and the 0824 compaction for both records. Note the JSON
-  `next_unit_idx` is +0x315c and points at the newer unit (DOSBox 1545: 02ca
-  links the new Dragoon 46 onto Colonist 43, saved 43.next = 46); the bridge
-  links loose Europe land units by arrival order, which equals record order
-  everywhere so far.
-- 1578: Isabella's colonists 1 (Convert) and 4 (Free Colonist) hold each
-  other's plot and job. Port: the general pass stops at slot 1 (yield 4,
-  food plentiful, LAB_5952_178f), then the forced-lumberjack arm (raw
-  94659-94679, Isabella lumber 5 after production) takes the first
-  non-expert unplaced slot, slot 1; the indoor pass then gives slot 4 the
-  plot DOS gave slot 1. DOS has slot 4 as the lumberjack, so in DOS slot 1
-  was seated before that arm or the arm did not run. The colonist that
-  makes pop 8 is absorbed in the 5952 prelude (absorb_equip). DOS from-load
-  1577 only reaches pop 6, so only a continuous DOS run can show which.
+  A DOS replay from `year_1492` (scratch `mkfreshn.sh 1492 12`, about 1.3
+  minutes a turn) equals the archive through 1496 and differs from 1497
+  (unit 34 stays at (49,..) with full moves), where the port continuous run
+  matches the archive. So a DOS replay is not an oracle for the archive's
+  later years either.
 
 ## Open leads (most transitions first)
 

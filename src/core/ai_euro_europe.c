@@ -634,23 +634,11 @@ static void ai_euro_5d04_cb_set_unit_dispatch_byte(int idx, int value) {
   } else if (value == 4) {
     u->muskets = 50;
     u->horses = 50;
-  } else if (value == 2) {
-    /*
-     * DELIBERATE PORT SUBSTITUTION (bugs.md #636), not a transcription.
-     * DOS FUN_521d_5d04 raw 92770-92783 (dup raw 86688-86697) writes only
-     * `unit[+0x3146] = 2` plus the FUN_291f_0c14(0xe, 100) market
-     * bookkeeping for the 100 tools it just bought; it never touches
-     * `+0x3159`, so the fresh unit keeps whatever slot-reuse garbage is
-     * there — often 0, which is how DOS feeds the FUN_479b_0158 tools
-     * underflow family. The port stocks the 100 tools it paid for instead,
-     * because a 0-tools AI Pioneer is inert here (`units_is_pioneer`
-     * requires tools > 0). Keep as is; do not "fix" to DOS without a live
-     * trace — reverting would disarm every Europe-bought AI Pioneer.
-     */
-    if (u->tools < 100) {
-      u->tools = 100;
-    }
   }
+  /* value == 2: DOS-LITERAL FUN_521d_5d04 raw 92770-92783 writes only the
+   * type (+ the 291f_0c14(0xe, 100) market booking); +0x3159 keeps whatever
+   * the record held, usually 0 (continuous 1587: the Spanish Pioneer saves
+   * tools 0). units_is_pioneer is type-only and 0158 wraps, so it works. */
 }
 static int ai_euro_5d04_cb_unit_profession(int idx) {
   const ColonizeUnit* u = ai_euro_5d04_cb_unit(idx);
