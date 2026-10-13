@@ -1263,6 +1263,10 @@ int colonies_eject_colonist(
   }
 
   colonies_clear_colonist_tile(col, colonist_index);
+  /* FUN_15eb_1068 raw 11256-11258: the outside occupation differs from the
+   * seat, so the counter is zeroed before 0d04 shifts (1516: a departing
+   * last colonist leaves nibble 0). */
+  col->colonists[colonist_index].turns_in_job = 0;
   colonies_colonist_tail_stash(pool, col); /* FUN_15eb_0d04 leaves it */
   for (int i = colonist_index; i < col->colonist_count - 1; ++i) {
     col->colonists[i] = col->colonists[i + 1];

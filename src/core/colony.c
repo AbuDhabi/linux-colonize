@@ -452,6 +452,7 @@ void colonies_colonist_tail_stash(const ColonizeColonyPool* pool, ColonizeColony
   const ColonizeColonist* c = &col->colonists[last];
   col->col1_tail_occupation[last] = (uint8_t)colonies_colonist_occupation_job(pool, c);
   col->col1_tail_profession[last] = (uint8_t)(c->profession < 0 ? UNITS_JOB_NONE : c->profession);
+  col->col1_tail_turns[last] = c->turns_in_job > 0x0f ? 0x0f : c->turns_in_job;
 }
 
 int colonies_building_row(const ColonizeColonyPool* pool, ColonizeBuildingRow row) {

@@ -312,12 +312,13 @@ static int unit_scout_visits_village_at_war(void) {
   if (fixture_init(&f, nation) != 0) {
     return 1;
   }
-  f.units.type_count = 5;
-  snprintf(f.units.types[4].name, sizeof(f.units.types[4].name), "Scout");
-  f.units.types[4].movement = 4;
-  f.units.types[4].attack = 1;
-  f.units.types[4].defense = 1;
-  f.units.types[4].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  /* DOS type 5: FUN_4d56_4528 switches on the raw type byte. */
+  f.units.type_count = 6;
+  snprintf(f.units.types[5].name, sizeof(f.units.types[5].name), "Scout");
+  f.units.types[5].movement = 4;
+  f.units.types[5].attack = 1;
+  f.units.types[5].defense = 1;
+  f.units.types[5].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColony* own = &f.colonies.colonies[0];
   own->id = 0;
@@ -345,8 +346,10 @@ static int unit_scout_visits_village_at_war(void) {
 
   /* Euro peer war — the term the port used to let short-circuit the gate. */
   ai_diplo_declare_war(&f.col1, nation, 0);
+  /* AI-controlled: FUN_4d56_4528 runs the non-human Scout arm on the step. */
+  f.col1.player[nation].control = 1;
 
-  const int sid = units_spawn(&f.units, 4, 8, 8);
+  const int sid = units_spawn(&f.units, 5, 8, 8);
   ColonizeUnit* s = units_get(&f.units, sid);
   if (!s) {
     f.col1.tribe = NULL;

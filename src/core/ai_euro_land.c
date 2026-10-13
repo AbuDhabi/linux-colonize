@@ -1418,12 +1418,15 @@ static int ai_euro_20e6_village_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, c
    * viceroy_unpacked.c) — the record word is tribe.alarm[nation]
    * {friction, attacks}. */
   const int att = ai_euro_20e6_village_attitude(t, s->nation);
+  /* Raw 89064-89068: `local_76 = FUN_2a1f_059c(); +0x314b = 'L'`, then
+   * LAB_589e commits the step and 465b -> 4528 speaks with the chief (the
+   * colonist arm's shape). DOSBox 1531 -> 1532: the Spanish Scout at
+   * (47,48) ends with plan 'L', act state 0 and +0x315a = 1. */
   if (s->dos_type == UNITS_KIND_SCOUT && !t->state.scouted && att == 0) {
-    if (ai_contact_ai_scout_visit_village(ctx, s->nation, s->village_idx, u->id)) {
-      ai_euro_s_20e6_village_visited[s->village_idx] |= (uint8_t)(1u << s->nation);
-      u->moves = 0;
-      return 1;
-    }
+    ai_euro_s_20e6_village_visited[s->village_idx] |= (uint8_t)(1u << s->nation);
+    u->col1_ai_plan = 0x4c;
+    ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, (int)t->x, (int)t->y);
+    return 2;
   }
   /*
    * FUN_4d56_4528 non-human switch caseD_3 (Missionary): incite the village
