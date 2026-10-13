@@ -186,12 +186,21 @@ static int test_encounter_scan_ignores_stale_owner_stamp(void) {
   ctx.ai_popups = &pop;
   ctx.human_nation = 1;
 
+  /* 022e's met arm (stack word for 20e6) needs MET already set. */
+  const int met_before = ai_contact_met_tribe_adjacent(&ctx, 1, 6, 5);
+
   /* A French unit steps to (6,5) — beside the Cherokee village, nowhere near
    * any Aztec settlement. */
   (void)ai_contact_encounter_scan(&ctx, 1, 6, 5);
 
   int rc = 0;
-  if (col1.indian[4].euro_diplo[1] == 0) {
+  if (met_before) {
+    rc = fail("met adjacent: an unmet tribe must not count");
+  } else if (!ai_contact_met_tribe_adjacent(&ctx, 1, 6, 5)) {
+    rc = fail("met adjacent: the now-met Cherokee village beside (6,5) must count");
+  } else if (ai_contact_met_tribe_adjacent(&ctx, 1, 9, 9)) {
+    rc = fail("met adjacent: a tile with no tribe neighbour must not count");
+  } else if (col1.indian[4].euro_diplo[1] == 0) {
     rc = fail("stale stamp: the Cherokee village on the tile must open contact");
   } else if (col1.indian[1].euro_diplo[1] != 0) {
     rc = fail("stale stamp: a passing Brave's nibble must not make France meet the Aztec");

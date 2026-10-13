@@ -587,6 +587,7 @@ graphs:
         fn: ai_euro_act.c:ai_euro_act_ship_dos
         dos: FUN_521d_5b66 + FUN_521d_20e6 hull path
         status: dos
+        note: "LAB_3558 unload tiles come from 06ae (ai_goals_pick_founding_tile_ex_w), which skips only settlement tiles; a landing beside a colony is legal (fresh 1591 two-turn, 2026-10-13)."
       - id: gate_q
         kind: decision
         label: "Not on a goto OR at a full MP allotment, not mid Pioneer job, and type not deferred (Treasure/Missionary/Wagon/cargo ship)?"
@@ -909,7 +910,7 @@ graphs:
         fn: ai_euro_land.c:ai_euro_20e6_wander_step
         dos: LAB_521d_4d2e→5183
         status: dos
-        note: "20e6 local_ea is uninitialized: retain the prior 6662_00f2 saved SI (6d8e nation*0x13c), confirmed by fresh 1558 stack watch. Adjacent sign steps do not spill that frame. bugs.md #523 REFUTED 2026-09-18e. ai_euro_20e6_attack_term's Soldier/Dragoon colony-mass gate (raw 88921-88937) returns 'skip this tile' and the caller `continue`s to the next direction; that IS DOS. `goto LAB_521d_5183` is the direction loop's own increment: viceroy_overlays.asm `LAB_OVL14_L0000__0054b0 CMP [BP+0xff28],AX / JL 0054b5 / JMP 005183` and `LAB_OVL14_L0000__005183 = INC word ptr [BP-0x4e]`, immediately followed by `LAB_..__005186 CMP [BP-0x4e],0x8 / JL 00518f` — the loop counter bump and test, with 14 XREFs (every unscoreable-direction arm in the scorer jumps there). No abandonment of the 8-direction scan anywhere."
+        note: "20e6 local_ea is uninitialized: retain the prior 6662_00f2 saved SI (6d8e nation*0x13c), confirmed by fresh 1558 stack watch. A step beside an already-met tribe instead leaves the mover's x there (5bfb_022e 042c via 3180, fresh 1565 CPU log). Adjacent sign steps do not spill that frame. bugs.md #523 REFUTED 2026-09-18e. ai_euro_20e6_attack_term's Soldier/Dragoon colony-mass gate (raw 88921-88937) returns 'skip this tile' and the caller `continue`s to the next direction; that IS DOS. `goto LAB_521d_5183` is the direction loop's own increment: viceroy_overlays.asm `LAB_OVL14_L0000__0054b0 CMP [BP+0xff28],AX / JL 0054b5 / JMP 005183` and `LAB_OVL14_L0000__005183 = INC word ptr [BP-0x4e]`, immediately followed by `LAB_..__005186 CMP [BP-0x4e],0x8 / JL 00518f` — the loop counter bump and test, with 14 XREFs (every unscoreable-direction arm in the scorer jumps there). No abandonment of the 8-direction scan anywhere."
       - id: surplus_tail
         kind: decision
         label: "Surplus garrison (local_8e) whose scan picked no attack → back to the garrison hold"

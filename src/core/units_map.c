@@ -254,6 +254,11 @@ static void units_clear_slot(ColonizeUnitPool* pool, ColonizeUnit* unit) {
   unit->col1_flags15 = 0;
   unit->col1_ai_plan = 0;
   unit->col1_vis_mask = 0;
+  /* The raw DOS bytes belong to this record, not the port slot: a later
+   * spawn into the slot with no raw tail of its own must not inherit them
+   * (fresh 1571 two-turn: a phantom Pioneer's 0xec leaked into a Soldier). */
+  unit->col1_hold_raw_valid = 0;
+  memset(unit->col1_hold_raw, 0, sizeof(unit->col1_hold_raw));
   while (pool->slot_end > 0 && !units_slot_in_use(&pool->units[pool->slot_end - 1])) {
     pool->slot_end--;
   }

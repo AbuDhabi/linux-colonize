@@ -769,7 +769,12 @@ int turn_rank_euro_nations(
     int land = 0;
     if (col1 && n < (int)COLONIZE_COL1_NATION_COUNT) {
       gold100 = (int)(europe_nation_gold(NULL, col1, n) / 100u);
-      /* Land combat from stuff census when present; colony/pop always live. */
+      /* Raw 96513-96515 reads the FUN_4962_0018 census, not live pools:
+       * DS:0x9298 colony_counts, DS:0x9410 census_pop_proxy, DS:0x941c
+       * land_combat_strength. Fresh 1566 two-turn: Isabella's statesman
+       * weight halved on a live recount that ranked Spain above England. */
+      colonies_n = col1->stuff.colony_counts[n];
+      pop = col1->stuff.census_pop_proxy[n];
       land = (int)col1->stuff.land_combat_strength[n];
     }
     score[n] = gold100 + colonies_n * 2 + pop + land;

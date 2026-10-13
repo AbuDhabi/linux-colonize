@@ -118,6 +118,9 @@ Status, the DOS autosave timing it models and open leads: [docs/idle_campaign.md
 Set `GOLDEN_IDLE_DUMP=/tmp/idle_actual.sav` to write the first mismatching
 simulated save for inspection with `sav_json`. The comparison stops at that
 turn, so later years are never treated as bridged across a mismatch.
+`GOLDEN_IDLE_KEEP_GOING=1` keeps simulating past mismatches (the dump then holds
+the last year), for comparing against multi-turn from-load DOSBox runs.
+`GOLDEN_IDLE_FROM=path.sav` starts from that save instead of `year_FIRST.sav`.
 
 Most executables expect **repo root** as cwd (`WORKING_DIRECTORY` in CMake).
 

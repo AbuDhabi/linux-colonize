@@ -229,7 +229,7 @@ static int ai_euro_5952_plot_job(const ColonizeColony* col, int plot) {
  *       gold, halved otherwise. `value -= penalty`.
  *   best wins, `>=` (DOS seeds `local_16e = 0xffff` = -1 as a signed 16-bit).
  */
-void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* col) {
+void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* col, int* local_1b0) {
   if (!ctx || !ctx->map || !ctx->colonies || !col || !col->active) {
     return;
   }
@@ -353,6 +353,11 @@ void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* co
     const int owner = map_tile_tribe_or_presence(
       ctx->map, tx + ai_euro_k_20e6_ring20_dx[d], ty + ai_euro_k_20e6_ring20_dy[d]
     );
+    /* raw 94482 stores 06d2 into local_1b0, the colony-nation local the
+     * later job election still reads (raw 94821, asm 5952:2047). */
+    if (local_1b0) {
+      *local_1b0 = owner;
+    }
     if (owner >= 0 && owner < 4 && owner == ctx->human_nation) {
       allow = 0; /* DS:0x543f[owner] == 0, the human-controlled seat */
     }

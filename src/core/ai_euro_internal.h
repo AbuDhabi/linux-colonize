@@ -63,6 +63,9 @@ typedef struct AiEuro5952Want {
   int owner_nation;                     /* colony +0x1a */
   int human_nation;                     /* DS:0x5398 */
   unsigned char wealth_rank[4];         /* DS:0x917c, 0 = richest */
+  unsigned char rank_1b0;               /* byte[local_1b0 + 0x917c]: the owner's
+                                           rank unless the improvement scan
+                                           overwrote local_1b0 */
   int year;                             /* DS:0x538a */
   int turn;                             /* DS:0x538e */
   int independence;                     /* DS:0x5382 & 1 */
@@ -76,6 +79,8 @@ typedef struct AiEuro5952Want {
   unsigned char sell_price[64];         /* DS:0x84bc, nation*0x10 + cargo */
 } AiEuro5952Want;
 
+COLONIZE_INTERNAL unsigned char ai_euro_5952_rank_byte(
+  const ColonizeCol1Save* col1, const unsigned char rank[4], int local_1b0);
 COLONIZE_INTERNAL int ai_euro_5952_want_weight(const AiEuro5952Want* w, int job, int out_cargo);
 COLONIZE_INTERNAL int ai_euro_5952_fallback_job(
   int has_church, int lumber_surplus, int preacher_count
@@ -274,7 +279,7 @@ extern uint32_t ai_euro_s_20e6_type_cache_valid;
 void ai_euro_20e6_refresh_type_cache(const ColonizeUnitPool* units);
 extern const int8_t ai_euro_k_20e6_ring20_dx[20];
 extern const int8_t ai_euro_k_20e6_ring20_dy[20];
-void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* col);
+void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* col, int* local_1b0);
 void ai_euro_5952_tools_supply_and_connect(
   ColonizeTurnContext* ctx, ColonizeColony* col
 );
