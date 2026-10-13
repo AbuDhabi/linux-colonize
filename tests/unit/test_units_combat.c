@@ -1,4 +1,5 @@
 #include "test_units_common.h"
+#include "core/units_internal.h"
 
 
 /* Helper: Drydock repair emits @REFIT. */

@@ -198,9 +198,11 @@ typedef struct ColonizeColony {
   uint32_t prod_compose_stamp; /* head.turn + 1; 0 = never composed */
   /* Col1 occupation[]/profession[] bytes past population: DOS's remover
    * FUN_15eb_0d04 shifts the live slots down and never clears the vacated
-   * one, so saves carry the last departed colonist there. */
+   * one, so saves carry the last departed colonist there. Same for the
+   * +0x60 education nibble (0c7a/0cbc shift). */
   uint8_t col1_tail_occupation[COLONIZE_COLONY_POP_MAX];
   uint8_t col1_tail_profession[COLONIZE_COLONY_POP_MAX];
+  uint8_t col1_tail_turns[COLONIZE_COLONY_POP_MAX];
 } ColonizeColony;
 
 #define COLONIZE_BUILD_AI_WANTS_CONSTRUCTION 0x80u

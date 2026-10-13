@@ -381,7 +381,8 @@ GOLDEN_IDLE_KEEP_GOING=1 GOLDEN_IDLE_DUMP=/tmp/x/sim_%d.sav golden_idle_campaign
 JSON-diff each `sim_Y` against `year_Y`. Four leaves are always the human's
 first-turn UI (`map_mode`, `tut2.nr1`, `stuff.x/y`).
 
-Status: every year through 1577 matches except small residues (below);
+Status: every year through 1577 matches except small residues (below:
+1505/1506 and 1571-1576);
 1578 is the first real split (Isabella's colonists 1 and 4 swap plots), and
 its 1579 sugar amounts grow into the 1580s divergence.
 
@@ -419,17 +420,42 @@ Fixed by this run:
 - Europe departure boarding restamps the boarders' tile order in boarding
   order, so the arrival relink lands hull, then passengers in that order
   (1558: Dutch hull, Dragoon, Soldier at (50,4)).
+- AI Scout village visit (FUN_521d_20e6 raw 89064-89068): DOS writes plan
+  'L' and commits a step onto the village; 465b -> 4528 speaks with the
+  chief and the 0bd1 tail clears the act state and bumps +0x315a. The port
+  resolved the visit in place. DOSBox 1531 -> 1532: Spanish Scout at
+  (47,48). Test: `unit_scout_visits_village_at_war` (Scout now DOS type 5).
+- Colonist removal leaves the education nibble: FUN_15eb_1068 zeroes the
+  leaving colonist's +0x60 counter (raw 11256-11258), then FUN_15eb_0d04
+  shifts the rest down and leaves the last slot's value past population.
+  The pool keeps it in `col1_tail_turns`, like the occupation/profession
+  tails. 1529 Isabella: slot 2 = 1.
 
 Open:
 - 1505/1506: ship 4's facing, Brave 26's step and unit 5's goto differ.
   Port from-load 1504 equals DOS from-load, and port continuous differs from
   the archive the same way, so DOS carries something unsaved here that the
   port does not model.
-- 1529 (Isabella specialty bit), 1533/1534 (a unit's +0x15a counter and
-  roam bit; also in the two-turn run from archive 1531): not chased yet.
-- 1571-1576: Dutch dock chain. A Soldier bought in 1570 while the hull sat at
-  the dock; DOS saves Soldier -> hull, the port hull -> Soldier.
-- 1578: Isabella's colonists 1 and 4 hold each other's plot and job.
+- 1571-1576: Dutch dock chain at (239,239): DOS saves Artillery 48 on top of
+  Missionary 50 (+0x315c of the Missionary = 48), the port the reverse. A
+  DOSBox 02ca/10be trace from 1569 (scratch `dt_link.py`, about an hour for
+  the two DOS turns to 1571) shows exactly one link at the dock: 06b4 -> 02ca
+  puts the new Missionary on top of the Artillery, as the port does. The
+  swap happens elsewhere (not 02ca, not a 10be/04d6 sort of the dock). Next:
+  trace 023a and the 0824 compaction for both records. Note the JSON
+  `next_unit_idx` is +0x315c and points at the newer unit (DOSBox 1545: 02ca
+  links the new Dragoon 46 onto Colonist 43, saved 43.next = 46); the bridge
+  links loose Europe land units by arrival order, which equals record order
+  everywhere so far.
+- 1578: Isabella's colonists 1 (Convert) and 4 (Free Colonist) hold each
+  other's plot and job. Port: the general pass stops at slot 1 (yield 4,
+  food plentiful, LAB_5952_178f), then the forced-lumberjack arm (raw
+  94659-94679, Isabella lumber 5 after production) takes the first
+  non-expert unplaced slot, slot 1; the indoor pass then gives slot 4 the
+  plot DOS gave slot 1. DOS has slot 4 as the lumberjack, so in DOS slot 1
+  was seated before that arm or the arm did not run. The colonist that
+  makes pop 8 is absorbed in the 5952 prelude (absorb_equip). DOS from-load
+  1577 only reaches pop 6, so only a continuous DOS run can show which.
 
 ## Open leads (most transitions first)
 

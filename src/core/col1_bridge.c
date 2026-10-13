@@ -1157,6 +1157,8 @@ bool col1_bridge_apply_w(
     for (int p = pop; p < COLONIZE_COLONY_POP_MAX; ++p) {
       dst->col1_tail_occupation[p] = src->occupation[p]; /* DOS stale tail */
       dst->col1_tail_profession[p] = src->profession[p];
+      dst->col1_tail_turns[p] =
+        (uint8_t)((p & 1) ? src->specialty[p / 2].odd : src->specialty[p / 2].even);
     }
     /*
      * All 20 plot slots load. Slots 0..7 remap to the port's clockwise ring,
@@ -2587,11 +2589,11 @@ bool col1_bridge_capture_w(
        */
       {
         uint8_t nib[COLONIZE_COL1_COLONY_POP_MAX];
-        /* DOS updates the live roster only. Preserve counters beyond pop;
-         * fresh 1592 Cayenne retains inactive slot 1's nibble value 1. */
+        /* DOS updates the live roster only; past pop, FUN_15eb_0d04 leaves
+         * the last departed colonist's counter (fresh 1592 Cayenne slot 1;
+         * 1529 Isabella slot 2 = 1, ticked before the colonist left). */
         for (int p = 0; p < (int)COLONIZE_COL1_COLONY_POP_MAX; ++p) {
-          nib[p] = (uint8_t)((p & 1) ? dst->specialty[p / 2].odd
-                                    : dst->specialty[p / 2].even);
+          nib[p] = src->col1_tail_turns[p];
         }
         for (int p = 0; p < dst->population && p < (int)COLONIZE_COL1_COLONY_POP_MAX; ++p) {
           /* col1_new_index maps old colonist index -> canonical position. */
@@ -3150,24 +3152,36 @@ bool col1_bridge_capture_w(
     /* DOS also chains loose land units sharing a nation's Europe sentinel
      * tile. A fresh 1545→1546 load links Spanish soldiers 43→46 at (238,238)
      * even though neither is aboard a ship. Passenger and hull chains above
-     * already own their members, so only link still-unattached land records. */
+     * already own their members, so only link still-unattached land records.
+     * FUN_1427_02ca links each arrival on top (old top +0x315c = new), so
+     * next runs oldest to newest by arrival (DOSBox 1545: 02ca links the new
+     * Dragoon 46 onto 43). */
     for (int i = 0; i < written; ++i) {
       if (neu[i].x < 200 || neu[i].y < 200 || neu[i].type >= 13 ||
           neu[i].transport_chain.prev_unit_idx >= 0 ||
           neu[i].transport_chain.next_unit_idx >= 0) {
         continue;
       }
-      int last = i;
-      for (int j = i + 1; j < written; ++j) {
+      int group[COLONIZE_UNITS_MAX];
+      int gn = 0;
+      for (int j = i; j < written && gn < COLONIZE_UNITS_MAX; ++j) {
         if (neu[j].type >= 13 || neu[j].x != neu[i].x || neu[j].y != neu[i].y ||
             neu[j].nation_id != neu[i].nation_id ||
             neu[j].transport_chain.prev_unit_idx >= 0 ||
             neu[j].transport_chain.next_unit_idx >= 0) {
           continue;
         }
-        neu[last].transport_chain.next_unit_idx = (int16_t)j;
-        neu[j].transport_chain.prev_unit_idx = (int16_t)last;
-        last = j;
+        int at = gn;
+        while (at > 0 && stack_order_by_col1[group[at - 1]] > stack_order_by_col1[j]) {
+          group[at] = group[at - 1];
+          --at;
+        }
+        group[at] = j;
+        ++gn;
+      }
+      for (int k = 0; k + 1 < gn; ++k) {
+        neu[group[k]].transport_chain.next_unit_idx = (int16_t)group[k + 1];
+        neu[group[k + 1]].transport_chain.prev_unit_idx = (int16_t)group[k];
       }
     }
 
