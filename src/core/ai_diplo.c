@@ -3298,11 +3298,16 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
 void ai_diplo_13b0_encounter(ColonizeTurnContext* ctx, int mover, int other) {
   /* 153e raw 97404 refreshes 00f8 before branching to the AI audience. */
   turn_refresh_euro_rank(ctx);
-  if (ctx && ctx->col1 &&
-      ai_diplo_indian_hostility_sticky(ctx->col1, mover) != AI_DIPLO_STICKY_DEEP) {
-    ai_diplo_13b0_treaty_tick(ctx, mover, other);
-  }
+  /* Raw 97406-97411: an AI self goes straight to 2a1f_065e = 13b0. The port's
+   * "deep Indian hostility" skip that stood here has no DOS counterpart
+   * (DOSBox 1557: Spain and France signed on first contact). */
+  ai_diplo_13b0_treaty_tick(ctx, mover, other);
   ai_diplo_153e_finish_timer(ctx, mover, other);
+  /* 153e returns local_8e = 1 on the AI branch, so 3180 (raw 98676-98678)
+   * ORs MET (0x20) into both relation bytes. */
+  if (ctx && ctx->col1) {
+    ai_diplo_or_both(ctx->col1, mover, other, AI_DIPLO_MET);
+  }
 }
 
 /*

@@ -375,6 +375,16 @@ int ai_euro_20e6_missionary_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, int n
 int ai_euro_20e6_europe_dock_demand(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 void ai_euro_20e6_stay_tail_589e(ColonizeUnit* u);
 int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
+/* FUN_5952_035e indoor-expert pass (OVL15 0x1cb2-0x1e65), ahead of the scored
+ * indoor pass: seats unplaced indoor experts in their own job. */
+void ai_euro_5952_indoor_expert_pass(
+  ColonizeTurnContext* ctx, ColonizeColony* col, bool* placed, int n
+);
+/* FUN_5952_035e LAB_5952_178f: real 28c8 seat of the bad winner, then
+ * 169c + 1068(slot, 0x12). */
+void ai_euro_5952_178f_unseat(
+  const ColonizeWorld* world, ColonizeColony* col, int s, const AiEuro28c8JobCandidate* best
+);
 void ai_euro_try_violate_notify(ColonizeTurnContext* ctx, ColonizeUnit* u);
 void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int ty);
 int ai_euro_is_cargo_ship_name(ColonizeUnitKind kind);

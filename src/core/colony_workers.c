@@ -384,8 +384,9 @@ bool colonies_toggle_custom_house_cargo(ColonizeColonyPool* pool, int colony_id,
  * on purpose: the persistent MAP_LAYER2_PURCHASED bit means "bought or gifted"
  * and stamping it on the take arm would make the plot permanently free.
  *
- * DOS's `*(char *)0x34d == '\0'` gate on the whole tail is not modelled — the
- * global is unidentified; do not invent one.
+ * DOS's `*(char *)0x34d == '\0'` gate on the whole tail is FUN_15eb_28c8's
+ * trial-seat flag (set around its candidate loop): every seat that reaches
+ * this port writer is a real one, so it always passes.
  *
  * The full FUN_4cc6_00f2 via its world form (bugs.md #1004): this is the
  * dominant early-game alarm raiser, and calling the bare half writer meant a
@@ -518,6 +519,27 @@ bool colonies_assign_field_w(
       col->name[0] ? col->name : "colony", who, tile_index,
       colony_yield_job_name(field_job)
     );
+  }
+  /* DOS-LITERAL FUN_15eb_06d2 raw 9858-9864: a worker seated on a plot with no
+   * unit (137f_0314) and no settlement (137f_03e4) stamps the plot's owner
+   * nibble with the colony's nation (137f_0228), ahead of the land reaction.
+   * The tail is gated on DS:0x34d == 0, which is FUN_15eb_28c8's trial-seat
+   * flag (1 around its candidate loop, cleared before the final 06d2): only a
+   * real seat stamps, and every seat reaching this writer is a real one. */
+  {
+    int pdx = 0;
+    int pdy = 0;
+    ColonizeWorldMap* pm = (ColonizeWorldMap*)w->map;
+    if (pm && pm->layer2 && colonies_field_tile_delta(tile_index, &pdx, &pdy)) {
+      const int px = col->x + pdx;
+      const int py = col->y + pdy;
+      if (map_coords_inset(pm, px, py)) {
+        const size_t pi = (size_t)py * (size_t)pm->width + (size_t)px;
+        if ((pm->layer2[pi] & (MAP_OCCUPANCY_HAS_UNIT | MAP_OCCUPANCY_HAS_CITY)) == 0) {
+          map_set_owner_nibble(pm, px, py, col->nation_id);
+        }
+      }
+    }
   }
   colonies_assign_field_land_reaction(w, col, tile_index, plot_was_worked);
   /* DOS-LITERAL FUN_0000_6582 raw 8833: every seat ends in FUN_0000_6518(dx,

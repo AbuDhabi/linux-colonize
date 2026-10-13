@@ -33,6 +33,43 @@
 
 /* ===================== Unit movement, orders & basic order commands (units_try_move .. units_order_trade_route) ===================== */
 
+/*
+ * FUN_465b_0000 LAB_465b_0673 (raw 75661-75664): a mover that is not the
+ * human ORs FUN_281f_0826(dest, own nation) — the dest owner bit plus every
+ * nation watching dest — into its vis via 07fe = FUN_1427_0c72, which walks
+ * from the mover along `prev` (004a). Runs before the attack (0a14) and
+ * before the move; a mover is cleared again by 08da on arrival, so the bits
+ * stick on an attacker and on the units behind it on the tile it leaves.
+ * DOSBox 1596: a Dutch hull leaving Vlissingen left France's bit on the
+ * colonist behind it.
+ */
+static void units_465b_0673_vis_or(
+  ColonizeUnitPool* pool, const ColonizeWorldMap* map, ColonizeUnit* unit, int dest_x, int dest_y
+) {
+  if (!map || unit->nation_id < 0 || unit->nation_id == g_units_combat_human_nation) {
+    return;
+  }
+  const uint8_t mask = units_vis_mask_for_tile(map, dest_x, dest_y, unit->nation_id);
+  if (!mask || !units_is_on_map(unit)) {
+    unit->col1_vis_mask |= mask;
+    return;
+  }
+  for (int i = 0; i < units_slot_end(pool); ++i) {
+    ColonizeUnit* o = &pool->units[i];
+    if (!units_is_on_map(o) || o->x != unit->x || o->y != unit->y ||
+        o->tile_stack_order > unit->tile_stack_order) {
+      continue;
+    }
+    o->col1_vis_mask |= mask;
+    for (int c = 0; c < o->cargo_count; ++c) {
+      ColonizeUnit* pax = units_get(pool, o->cargo_ids[c]);
+      if (pax && pax->active) {
+        pax->col1_vis_mask |= mask;
+      }
+    }
+  }
+}
+
 bool units_try_move_w(
   const ColonizeWorld* w,
   int unit_id,
@@ -336,6 +373,7 @@ bool units_try_move_w(
      * 0a14 → 1b0e call at 75692). Gated on col1 being wired so bare unit
      * fixtures keep their attacks.
      */
+    units_465b_0673_vis_or(pool, map, unit, dest_x, dest_y);
     if (g_units_ff_col1 && units_remaining_mp(pool, unit_id) < UNITS_MP_PER_TILE) {
       const bool ai_controlled =
         unit->nation_id > 3 ||
@@ -591,6 +629,9 @@ combat_entry_resolved:
   if (!allow) {
     g_units_465b_settled = true; /* raw 75825-75830: the gamble lost */
     return false;
+  }
+  if (!combat_attack_entry) {
+    units_465b_0673_vis_or(pool, map, unit, dest_x, dest_y);
   }
 
   /* Moving cancels sentry / fortify; Go-To cleared only on arrival elsewhere. */

@@ -491,6 +491,20 @@ static bool units_remove_from_cargo(ColonizeUnit* ship, int pax_id) {
  * pickup is charged the rider's @UNIT size column, so a Treasure only ever
  * hops to a hull with six free holds (FUN_4720_00e0).
  */
+/* 10be links each boarder at the temp tile behind the last, and the 040c
+ * group move then reverses the chain: the first boarder ends nearest the
+ * hull (cargo_ids' last slot), later ones farther out (lower slots). */
+static void units_cargo_last_to_front(ColonizeUnit* ship) {
+  if (!ship || ship->cargo_count < 2) {
+    return;
+  }
+  const int id = ship->cargo_ids[ship->cargo_count - 1];
+  for (int i = ship->cargo_count - 1; i > 0; --i) {
+    ship->cargo_ids[i] = ship->cargo_ids[i - 1];
+  }
+  ship->cargo_ids[0] = id;
+}
+
 int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int y) {
   ColonizeUnit* ship = units_get(pool, ship_id);
   if (!pool || !ship || !units_is_sea(pool, ship_id)) {
@@ -503,9 +517,43 @@ int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int 
   if (pool->board_first_slot >= 0 && pool->board_first_slot < COLONIZE_UNITS_MAX) {
     order[on++] = pool->board_first_slot;
   }
-  for (int i = 0; i < units_slot_end(pool); ++i) {
-    if (i != pool->board_first_slot) {
-      order[on++] = i;
+  /*
+   * FUN_1427_10be walks the old tile's chain from its `next` end (005c ->
+   * 0002) along `prev` (004a): latest arrival first, and a hull is followed
+   * by its own passengers nearest-first (cargo_ids walked backwards).
+   * DOSBox 1574: a Caravel leaving a tile holding another Caravel with two
+   * Dragoons took the nearer one. Slot order took the other.
+   */
+  {
+    int tile[COLONIZE_UNITS_MAX];
+    int tn = 0;
+    for (int i = 0; i < units_slot_end(pool); ++i) {
+      const ColonizeUnit* t = &pool->units[i];
+      if (t->active && t->aboard_ship_id < 0 && t->x == x && t->y == y && t->id != ship_id) {
+        tile[tn++] = i;
+      }
+    }
+    for (int a = 1; a < tn; ++a) { /* tile_stack_order descending */
+      const int v = tile[a];
+      int b = a - 1;
+      while (b >= 0 && pool->units[tile[b]].tile_stack_order < pool->units[v].tile_stack_order) {
+        tile[b + 1] = tile[b];
+        b--;
+      }
+      tile[b + 1] = v;
+    }
+    for (int k = 0; k < tn && on < COLONIZE_UNITS_MAX; ++k) {
+      const ColonizeUnit* t = &pool->units[tile[k]];
+      if (tile[k] != pool->board_first_slot) {
+        order[on++] = tile[k];
+      }
+      for (int c = t->cargo_count - 1; c >= 0 && on < COLONIZE_UNITS_MAX; --c) {
+        const ColonizeUnit* p = units_get_const(pool, t->cargo_ids[c]);
+        const int ps = p ? (int)(p - pool->units) : -1;
+        if (ps >= 0 && ps != pool->board_first_slot) {
+          order[on++] = ps;
+        }
+      }
     }
   }
   for (int oi = 0; oi < on; ++oi) {
@@ -551,6 +599,7 @@ int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int 
       u->x = ship->x;
       u->y = ship->y;
       ship->cargo_ids[ship->cargo_count++] = u->id;
+      units_cargo_last_to_front(ship);
       taken++;
     } else {
       /* Sentried land unit standing on the tile (colony / ocean stack). */
@@ -559,6 +608,7 @@ int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int 
         continue;
       }
       if (units_board_stacked(pool, u->id, ship_id)) {
+        units_cargo_last_to_front(ship);
         taken++;
       }
     }

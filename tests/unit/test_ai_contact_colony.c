@@ -876,10 +876,16 @@ static int test_land_work_alarm_6582(void) {
     return fail("6582: fixture plot is expected to hold a prime resource");
   }
   const int want = base * 3 * 2;
+  map_set_owner_nibble(&map, 8, 7, 4); /* the tribe's owner nibble before the seat */
   if (!colonies_assign_field_w(&w, col->id, 0, plot, COLONIZE_JOB_FARMER)) {
     return fail("6582: first assign");
   }
   const int after_take = (int)col1.indian[0].alarm_by_player[0];
+  /* FUN_15eb_06d2 raw 9858-9864: the real seat stamps the plot's owner
+   * nibble with the colony's nation (no unit or settlement on it). */
+  if ((map.layer3[7 * map.width + 8] >> 4) != 0) {
+    return fail("6582: seating a plot must stamp its owner nibble (06d2)");
+  }
   if (after_take != want) {
     fprintf(stderr, "unit_ai_contact: 6582 take alarm=%d want %d\n", after_take, want);
     return fail("6582: newly taken claimed plot must charge (difficulty+5)*3, x2 on a prime tile");

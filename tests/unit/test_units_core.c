@@ -6956,6 +6956,14 @@ static int case_ship_switch_quirk(void) {
       fprintf(stderr, "ship-switch: passengers should ride the departing ship\n");
       return 1;
     }
+    /* FUN_1427_10be walks B's passengers nearest-first (pax2, then pax1);
+     * after the 040c move the first boarder rides nearest the hull, i.e.
+     * last in cargo_ids, so the order is kept: [pax1, pax2] (DOSBox 1574). */
+    if (sA->cargo_ids[0] != pax1 || sA->cargo_ids[1] != pax2) {
+      fprintf(stderr, "ship-switch: transfer order %d,%d want %d,%d\n", sA->cargo_ids[0],
+              sA->cargo_ids[1], pax1, pax2);
+      return 1;
+    }
     /* Awake passenger stays with its own ship. */
     units_get(&pool, pax1)->orders = UNITS_ORDER_NONE;
     if (units_ship_departure_pickup(&pool, shipB, wx, wy) != 1 ||

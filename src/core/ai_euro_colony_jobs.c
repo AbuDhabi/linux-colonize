@@ -1051,6 +1051,110 @@ void ai_euro_5952_ledgers(
 }
 
 /*
+ * DOS-LITERAL FUN_5952_035e indoor-expert pass, asm OVL15 0x1cb2-0x1e65 (the
+ * decompile at raw 94766-94780 is a broken jump table). It runs between the
+ * field-specialist restore and the scored indoor pass: every unplaced expert
+ * (FUN_281f_0c9a) whose @JOB is an indoor one (9..0x11), whose workplace
+ * exists (aiStack_16a) and with fewer than three placed in that job this
+ * tick (local_e4) is seated in its own job when:
+ *   9..0xc, 0xe: its input cargo (DS:0x2a2[job]) is not short after stock
+ *                (DS:0x8e5a) and the colony holds or produces some of it;
+ *   0xd Carpenter: if the colony wants construction (+0x1d & 0x80) and has
+ *                more than one Master Carpenter (BP-0x4c), this one becomes
+ *                a Free Colonist instead (0cae -> 0e8c(slot, 0x1c)) and the
+ *                count drops; else lumber not short (DS:0x8e64 == 0) and
+ *                lumber stock + gross (colony+0xa4 + DS:0x8dd2) != 0;
+ *   0x10 Preacher: outside the War of Independence; during it the expert
+ *                becomes a Free Colonist (and the preacher count drops);
+ *   0x11 Statesman: outside the War of Independence.
+ * DOSBox 1552: Fort Nassau's absorbed Master Carpenter never reached 28c8
+ * and was seated as Carpenter.
+ * ponytail: Gunsmith (0xf) is skipped: DS:0x2a2[0xf] is -1 and the arm then
+ * reads stray words (DS:0x8e58, colony+0x98, DS:0x8dc6); the scored pass
+ * below still places it.
+ */
+COLONIZE_INTERNAL void ai_euro_5952_indoor_expert_pass(
+  ColonizeTurnContext* ctx, ColonizeColony* col, bool* placed, int n
+) {
+  ColonizeColonyPool* pool = ctx->colonies;
+  const ColonizeCol1Save* col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
+  const ColonizeWorld world = world_from_turn_ctx(ctx);
+  const bool woi = col1 && ai_king_independence_declared(col1);
+  int placed_count[COLONIZE_PROF_TEACHER + 1];
+  memset(placed_count, 0, sizeof placed_count);
+  for (int job = COLONIZE_PROF_DISTILLER; job <= COLONIZE_PROF_STATESMAN; ++job) {
+    const char* const* names = colonies_building_chain(ai_euro_5952_job_chain(job));
+    for (int i = 0; names && names[i]; ++i) {
+      const int idx = colonies_find_building(pool, names[i]);
+      if (idx >= 0) {
+        placed_count[job] += colonies_building_worker_count(col, idx);
+      }
+    }
+  }
+  int carpenters = 0; /* BP-0x4c */
+  int preachers = 0;  /* BP-0x46 */
+  for (int s = 0; s < n; ++s) {
+    if (!col->colonists[s].active) {
+      continue;
+    }
+    carpenters += col->colonists[s].profession == COLONIZE_PROF_CARPENTER;
+    preachers += col->colonists[s].profession == COLONIZE_PROF_PREACHER;
+  }
+  for (int s = 0; s < n; ++s) {
+    ColonizeColonist* c = &col->colonists[s];
+    if (placed[s] || !c->active) {
+      continue;
+    }
+    const int prof = (int)c->profession;
+    if (!ai_euro_5952_job_is_expert(prof) || prof < COLONIZE_PROF_DISTILLER ||
+        prof > COLONIZE_PROF_STATESMAN || prof == COLONIZE_PROF_GUNSMITH) {
+      continue;
+    }
+    if (!ai_euro_5952_job_available(pool, col, prof) || placed_count[prof] >= 3) {
+      continue;
+    }
+    int gross[AI_EURO_5952_LEDGER_SLOTS];
+    int demand[AI_EURO_5952_LEDGER_SLOTS];
+    ai_euro_5952_ledgers(&world, pool, col, col1, gross, demand); /* 8df4 refresh */
+    bool ok = false;
+    if (prof == COLONIZE_PROF_CARPENTER) {
+      if ((col->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) != 0 && carpenters > 1) {
+        c->profession = COLONIZE_PROF_FREE_COLONIST; /* 8e9e(slot, 0x1c) */
+        --carpenters;
+        continue;
+      }
+      const int lc = COLONIZE_CARGO_LUMBER;
+      const int unmet = demand[lc] - gross[lc] - col->stock[lc];
+      ok = unmet <= 0 && col->stock[lc] + gross[lc] != 0;
+    } else if (prof == COLONIZE_PROF_PREACHER) {
+      if (woi) {
+        c->profession = COLONIZE_PROF_FREE_COLONIST;
+        --preachers;
+        continue;
+      }
+      ok = true;
+    } else if (prof == COLONIZE_PROF_STATESMAN) {
+      ok = !woi;
+    } else {
+      const int in = (int)k_ai_euro_5952_job_input[prof];
+      if (in >= 0 && in < COLONIZE_CARGO_COUNT) {
+        const int unmet = demand[in] - gross[in] - col->stock[in];
+        ok = unmet <= 0 && (col->stock[in] > 0 || gross[in] != 0);
+      }
+    }
+    if (!ok) {
+      continue;
+    }
+    int workplace = -1;
+    (void)ai_euro_5952_chain_owned(pool, col, ai_euro_5952_job_chain(prof), NULL, &workplace);
+    ++placed_count[prof]; /* local_e4[job]++ follows the 8e26 seat */
+    if (workplace >= 0 && colonies_assign_workplace(pool, col->id, s, workplace)) {
+      placed[s] = true;
+    }
+  }
+}
+
+/*
  * DOS-LITERAL FUN_5952_035e raw 94784-94860 (asm 5952:1ef7-5952:2193) — the
  * indoor-workplace pass, the last placement arm of the AI colony tick. For
  * every colonist the field passes left unplaced it elects one indoor @JOB
@@ -1556,6 +1660,25 @@ static void ai_euro_5952_carpenter_arm(
 int ai_euro_20e6_nearest_village(
   const ColonizeTurnContext* ctx, int x, int y, int* out_dist
 );
+
+/*
+ * The bad-winner stop of the 5952 placement passes. `FUN_281f_0b6e` is a
+ * real FUN_15eb_28c8 seat, so its final 06d2 has already stamped the plot
+ * (owner nibble, land reaction, purchased bit) when the yield test fails.
+ * LAB_5952_178f (asm 5952:178f-17a6) then runs `0aa6(slot)` = FUN_15eb_169c
+ * (06d2(plot, -1): clear the plot) and `0c36(slot, 0x12)` = FUN_15eb_1068
+ * with the idle job, as at raw 94557. DOSBox 1556: Guadeloupe's colonist
+ * stamped (34,28) purchased this way before the carpenter arm took him.
+ */
+COLONIZE_INTERNAL void ai_euro_5952_178f_unseat(
+  const ColonizeWorld* world, ColonizeColony* col, int s, const AiEuro28c8JobCandidate* best
+) {
+  if (colonies_assign_field_w(world, col->id, s, best->tile, best->job)) {
+    colonies_clear_field(world->colonies, col->id, best->tile);
+  }
+  col->colonists[s].field_job = -1;
+  col->colonists[s].building_type = -1;
+}
 
 /* ===== FUN_5952_035e construction-project cascade (asm 5952:21d4-5952:2747) ===== */
 
@@ -2719,6 +2842,10 @@ static void ai_euro_colony_tick_run(
        */
       placed[s] = !c->active;
     }
+    /* The 26e4 claim table is rebuilt every tick, so "worked before the wipe"
+     * only spans this tick: drop earlier ticks' bits before taking the new
+     * snapshot. */
+    col->plot_was_worked_mask = 0;
     for (int s = 0; s < n; ++s) {
       if (placed[s]) {
         continue;
@@ -2806,6 +2933,7 @@ static void ai_euro_colony_tick_run(
         continue;
       }
       if (best.yield < 3) {
+        ai_euro_5952_178f_unseat(&world, col, s, &best);
         section_done = true; /* raw 94596 */
         break;
       }
@@ -2869,6 +2997,7 @@ static void ai_euro_colony_tick_run(
           continue;
         }
         if (best.yield < 3 || (plenty && best.yield < 5)) {
+          ai_euro_5952_178f_unseat(&world, col, s, &best);
           section_done = true; /* raw 94614 */
           break;
         }
@@ -3020,6 +3149,7 @@ static void ai_euro_colony_tick_run(
      * "leftovers" field stand-in below (docs/debug_env_vars.md).
      */
     if (ai_euro_5952_indoor_pass_enabled()) {
+      ai_euro_5952_indoor_expert_pass(ctx, col, placed, n);
       ai_euro_5952_indoor_pass(ctx, col, placed, n);
       if (whole_tick) {
         ai_euro_5952_build_cascade(ctx, col);

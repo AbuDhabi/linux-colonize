@@ -544,6 +544,37 @@ static int case_docks_commit_suppresses_expert_purchase(void) {
 }
 
 /*
+ * LAB_5952_178f (asm 5952:178f-17a6): the bad-winner stop follows a REAL
+ * FUN_15eb_28c8 seat (`0b6e`), so the plot keeps its 06d2 stamps (purchased
+ * bit via 0668) even though 169c + 1068(slot, 0x12) unseat the colonist
+ * right away. DOSBox 1556: Guadeloupe stamped (34,28) purchased this way.
+ */
+static int case_178f_stop_keeps_seat_stamp(void) {
+  Fx f;
+  if (fx_build(&f, 1) != 0) {
+    return 1;
+  }
+  ai_euro_reset();
+  fx_wake_colonists(&f, 1);
+  const ColonizeWorld world = world_from_turn_ctx(&f.ctx);
+  AiEuro28c8JobCandidate best;
+  memset(&best, 0, sizeof best);
+  best.tile = 0; /* N plot (8,7) */
+  best.job = COLONIZE_JOB_FARMER;
+  best.yield = 2;
+  ai_euro_5952_178f_unseat(&world, f.col, 0, &best);
+  const int purchased = (f.map.layer2[7 * 24 + 8] & MAP_LAYER2_PURCHASED) != 0;
+  const int tile = colonies_colonist_tile(f.col, 0);
+  const int job = f.col->colonists[0].field_job;
+  fx_done(&f);
+  if (!purchased || tile >= 0 || job != -1) {
+    fprintf(stderr, "%s: purchased=%d tile=%d job=%d\n", TEST_NAME, purchased, tile, job);
+    return fail("178f: real seat stamps the plot, then the slot is left idle");
+  }
+  return 0;
+}
+
+/*
  * bugs.md #585 — DOS raw 94592-94597. A non-zero FUN_15eb_28c8 return only
  * advances `local_ac` to the next colonist; only a HANDLED call whose
  * DS:0x8dbe best yield is under 3 ends the placement section.
@@ -985,6 +1016,7 @@ static const TestCase k_cases[] = {
   {"case_small_ai_flag_written", case_small_ai_flag_written},
   {"case_docks_commit_suppresses_expert_purchase", case_docks_commit_suppresses_expert_purchase},
   {"case_food_pass_skips_unplaceable_colonist", case_food_pass_skips_unplaceable_colonist},
+  {"case_178f_stop_keeps_seat_stamp", case_178f_stop_keeps_seat_stamp},
   {"case_edge_ring_has_no_phantom_water", case_edge_ring_has_no_phantom_water},
   {"case_colony_tick_improves_a_plot", case_colony_tick_improves_a_plot},
   {"case_colony_tick_skips_road_connect_turn", case_colony_tick_skips_road_connect_turn},

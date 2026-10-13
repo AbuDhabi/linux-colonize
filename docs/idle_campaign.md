@@ -433,6 +433,10 @@ Archived to [archive/idle_campaign_fixed_2026-10-06_08.md](archive/idle_campaign
     and the chosen group rides in arrival order. Fresh 1578: dock 53 -> 54 ->
     56, the Caravel took 56 and 54, chained 54 -> 56 -> hull. This also fixed
     fresh 1571 (Dutch Artillery + Missionary) and 1581.
+  - A hull-at-head chain (hull -> p1 -> p2, the shape 10be leaves before
+    the 040c move) now imports in chain order too, so the colony disembark
+    lands p1 first. Fresh 1575 (Dutch Missionary + Artillery) is byte exact.
+    Test: `test_import_hull_head_chain_order`.
   - Fresh 1571, 1578, 1581 and 1582 are byte exact. Tests:
     `test_import_two_hull_lane_chain`,
     `dock_boarding_takes_latest_arrivals_in_arrival_order`.
@@ -446,26 +450,120 @@ Archived to [archive/idle_campaign_fixed_2026-10-06_08.md](archive/idle_campaign
   - Fresh 1594 is down from 30 to 7 leaves. The archived sweep went from
     1,434 to 1,422.
   - No dedicated unit test yet.
-- New fresh targets are byte exact: 1566, 1568, 1592 and 1598. To make them,
+- `units_ship_departure_pickup` (FUN_1427_10be at the old tile) now walks
+  the tile chain from its `next` end. A hull comes first, then its passengers
+  nearest-first. Each boarder goes to the front of `cargo_ids`, because 10be
+  plus the 040c group move leave the first boarder nearest the hull.
+  DOSBox 1574: a Caravel took the near Dragoon from another hull. Fresh
+  1574 is byte exact. Test: extended `ship_switch_quirk`.
+- `colonies_assign_field_w` now stamps the plot's owner nibble with the
+  colony's nation, unless a unit or settlement stands there (FUN_15eb_06d2
+  raw 9858-9864). DS:0x34d, the flag gating that tail, is FUN_15eb_28c8's
+  trial-seat flag: it is 1 only around 28c8's candidate loop. The archive
+  is neutral. Test: the 06d2 check in `test_land_work_alarm_6582`.
+- Land combat relinks the attacker on its own tile before the roll
+  (FUN_5fef_1b0e raw 100568-100569, `0916` then `089e`), so the attacker
+  becomes the tile's latest arrival. DOSBox 1554: a Spanish Dragoon that
+  attacked a village. Fresh 1554 is byte exact. Test:
+  `case_1b0e_relinks_attacker`.
+- Captures follow DOS's 0812/0894/0844 order: unlink, flip the flag, then
+  link on the winner's tile. The old tile keeps its owner nibble (DOSBox
+  1594/1595). Fresh 1595 is byte exact. Test:
+  `case_capture_keeps_old_tile_owner`.
+- The AI x AI encounter (3180 -> 153e -> 13b0) changed in two ways:
+  - It no longer skips 13b0 when the port-only "deep Indian hostility"
+    sticky is set. DOS sends an AI self straight to 13b0 (raw 97406-97411).
+  - It now ORs MET (0x20) into both relation bytes, as 3180 does after 153e
+    returns 1 (raw 98676-98678).
+  - DOSBox 1557: Spain and France met and signed (0x60). Fresh 1557 is byte
+    exact. The sticky test in `case_r3_r4_sugar_rum_cigars_boycott` now
+    expects the signing.
+- New fresh targets are byte exact: 1498, 1501, 1502, 1504, 1508, 1511, 1515,
+  1528, 1557, 1561, 1562-1564, 1572,
+  1566-1568, 1573, 1592 and
+  1598. To make them,
   the replay script waits for the next break after a `run_until_break`
   timeout instead of sending `RUN` again.
+- 5952 indoor-expert pass (OVL15 0x1cb2-0x1e65) is now ported as
+  `ai_euro_5952_indoor_expert_pass`. It runs before the scored indoor pass.
+  - Experts whose @JOB row is 9..0x11 get seated in their own workplace when
+    one is free and fewer than 3 are seated there.
+  - A Carpenter is seated when there is no lumber shortfall and there is
+    lumber stock or gross output. If the colony wants construction and has
+    more than one carpenter, it is demoted to Free Colonist instead.
+  - A Preacher is demoted during the War of Independence; a Statesman is
+    seated only outside it.
+  - Crafts are seated when there is no input shortfall and there is input
+    stock or gross output.
+  - Gunsmith is skipped (ponytail note in the code).
+  - Fresh 1552 is byte exact; archived sweep 1416 -> 1413. Test:
+    `expert_pass_seats_master_carpenter`.
+- AI unloads now run 3180's Euro halves. `ai_euro_unload_pax_at` lands
+  through FUN_465b_0000 (LAB_3558 -> 465b_0c1e), whose move tail runs
+  0984 -> 0192 -> 3180. The port ran only the Indian half there. The human
+  153e limb and the AI x AI 13b0 limb now share `ai_euro_3180_euro_side` with
+  the act drain. DOSBox 1591: a Dutch Dragoon unloaded at (24,6) beside French
+  units sets `nations[1].treaty_timer[3]` = 12. Fresh 1591 is byte exact;
+  archived sweep 1413 -> 1412. Test: `unit_unload_runs_3180_ai_encounter`.
+- 1b0e attacker restore point. Raw 100568-100569 (`0916` + `089e` = 12f6 ->
+  0362(unit, -2, -2)) park the attacker off map for the fight. 0948 puts a
+  survivor back on its saved tile after the outcome: raw 100750 on a win,
+  after the 0352 capture, and raw 100764-100768 on a loss. The port relinked
+  it before the roll, so a captured unit landed ahead of its captor.
+  - DOSBox 1594: French 45 captured Dutch colonist 44, giving the chain
+    45 -> 44 -> 47 -> 48.
+  - Fresh 1594 is down to `port_ext_hex` (port-only); 1554 stays exact.
+  - Test: `case_1b0e_attacker_back_after_capture`.
+  - FUN_1427_03a0 (via 08c6) sends a unit to the `prev` end. 1b0e calls it
+    on the parked attacker, so the tile chain does not see it.
+- 465b LAB_0673 pre-move vis OR (raw 75661-75664). A mover that is not the
+  human ORs FUN_281f_0826(dest, own nation) into its vis: the dest owner bit
+  plus every nation watching dest. It goes through 07fe = FUN_1427_0c72,
+  which walks from the mover along `prev` (004a).
+  - It runs before the attack (0a14) and before a granted move.
+  - The mover itself is cleared again on arrival (08da), so the bits stick
+    on an attacker and on the units behind it on the tile it leaves.
+  - DOSBox 1596 (BPM on the unit's +3 byte, hit 0c4b:0c8a): a Dutch hull
+    leaving Vlissingen left France's bit on the colonist behind it.
+  - Fresh 1596 is byte exact. Test: `case_465b_0673_vis_or_behind_mover`.
+  - Trace note: DOS deletes dead units at turn start and shifts the array,
+    so a BPM on a slot from the loaded save can follow a different unit.
+- 5952 placement stop (LAB_5952_178f, asm 5952:178f-17a6). The food pass
+  and the general passes call `FUN_281f_0b6e` = a real FUN_15eb_28c8 seat,
+  then test DS:0x8dbe. On a poor winner they jump to 178f:
+  `0aa6(slot)` = 169c (clear the plot) and `0c36(slot, 0x12)` = 1068 with the
+  idle job.
+  - The seat's 06d2 has already stamped the plot: the owner nibble, the land
+    reaction, and the purchased bit (0668).
+  - The port skipped the seat. It now seats, then unseats, in
+    `ai_euro_5952_178f_unseat`.
+  - DOSBox 1556 (BPM on the layer2 byte; stack 137f_0184 <- 15eb_0668 <-
+    06d2 <- 28c8:2e64 with args (slot 0, -1)): Guadeloupe's colonist stamped
+    (34,28) purchased before the carpenter arm took him.
+  - Fresh 1556 and fresh 1546 are byte exact; archived sweep 1412 -> 1410.
+  - Test: `case_178f_stop_keeps_seat_stamp`.
+  - `plot_was_worked_mask` is now reset at the start of each tick, because
+    DOS rebuilds the 26e4 claim table every tick. This was neutral on every
+    measure.
 - Unported: the human-side join (`FUN_364b_1aec`) also stamps and runs 3930
   first. The port's colony-screen joins do neither.
 
 ## Open leads (most transitions first)
 
-- Fresh 1594→1595: 7 leaves remain.
-  - The captured unit's tile-chain slot: DOS 47 -> 44 -> 45 with the captor
-    at the `next` end; the port appends the captured unit last
-    (`units_capture_relocate_to_winner`).
-  - One owner nibble at (26,6): the port stamps it French, DOS keeps it Dutch.
-  - `port_ext_hex` is port-only and expected.
-
-- Fresh 1591→1592: one leaf, `nations[1].treaty_timer[3]` (DOS 12, port 0).
-  DOS ran a 153e/13b0 with the Dutch as mover and France as other (raw
-  98414-98425 writes nation[other].timer[mover]); the port fires none. The
-  Dutch Dragoons at (24,6)/(26,6) end beside French units; the port's 3180
-  AI x AI limb only runs on a land step that changed the tile.
+- Fresh 1565→1566 (14 leaves): Spanish Dragoon (save 38) steps (50,36) to
+  (49,36), and DOS then border-parks it ('F'). Its 20e6 `local_ea`
+  (SS:E7C4, BP-0xE8) reads 49 at the park. A DOSBox BPM traced that write to
+  8c5a:042F, `OR [BP-0x28],AX` in `FUN_5fef_0352` (combat, via
+  1b0e -> 2a1f_06e0). It happened between the Dragoon's two 20e6 calls, so it
+  most likely came from another unit's combat in that act pass. The port's
+  `ai_euro_wander_stack_word` models only the 00f2 flood spill. Modelling the
+  combat spill needs the frame depth of each call path; it is not done yet.
+  - 2026-10-13: that word is 0352's `local_2a` (raw 99354-99361). It is
+    `FUN_13e4_0074` (0/1: is the tile class 0x19/0x1a) of the loser's and the
+    winner's tiles, ORed in. On the `else` path it is never zeroed, so the
+    49 that DOS read is older stack contents plus a 0/1 flag. A faithful port
+    needs the word's value before the fight as well, i.e. the frame layout
+    of whatever ran last at that depth.
 
 - (Resolved 2026-10-12, see above.) Fresh 1586→1587 was down to one byte in
   `map.path` at `(41,20)`. Earlier fixes on this transition:

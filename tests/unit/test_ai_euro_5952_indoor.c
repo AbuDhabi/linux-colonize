@@ -261,7 +261,55 @@ static int case_fallback_job(void) {
   return 0;
 }
 
+/* OVL15 0x1cb2-0x1e65: an unplaced Master Carpenter with lumber on hand is
+ * seated as Carpenter before the scored indoor pass (DOSBox 1552). */
+static int case_expert_pass_seats_master_carpenter(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
+  pool.building_types[0].row_plus1 = COLONY_BUILDING_CARPENTERS_SHOP + 1;
+  pool.building_type_count = 1;
+  ColonizeColony* c = &pool.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = 1;
+  c->population = 1;
+  c->colonist_count = 1;
+  c->building_in_production = -1;
+  pool.colony_count = 1;
+  pool.next_id = 1;
+  const int shop = colonies_building_row(&pool, COLONY_BUILDING_CARPENTERS_SHOP);
+  if (shop < 0) {
+    return fail("catalog has no Carpenter's Shop row");
+  }
+  c->has_building[shop] = true;
+  c->stock[COLONIZE_CARGO_LUMBER] = 20;
+  c->colonists[0].active = true;
+  c->colonists[0].profession = COLONIZE_PROF_CARPENTER;
+  c->colonists[0].building_type = -1;
+  c->colonists[0].field_job = -1;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof ctx);
+  ctx.colonies = &pool;
+  bool placed[1] = {false};
+  ai_euro_5952_indoor_expert_pass(&ctx, c, placed, 1);
+  if (!placed[0] || c->colonists[0].building_type < 0 ||
+      colonies_building_occupation(&pool, c->colonists[0].building_type) !=
+        COLONIZE_PROF_CARPENTER) {
+    return fail("Master Carpenter with lumber must be seated as Carpenter");
+  }
+  c->colonists[0].building_type = -1;
+  c->stock[COLONIZE_CARGO_LUMBER] = 0; /* no lumber stock or production */
+  placed[0] = false;
+  ai_euro_5952_indoor_expert_pass(&ctx, c, placed, 1);
+  if (placed[0]) {
+    return fail("no lumber at all leaves the Carpenter to the scored pass");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"expert_pass_seats_master_carpenter", case_expert_pass_seats_master_carpenter},
   {"fallback_job", case_fallback_job},
   {"price_plain_cargo", case_price_plain_cargo},
   {"price_tools_plus4_and_double", case_price_tools_plus4_and_double},
