@@ -2930,7 +2930,24 @@ bool col1_bridge_capture_w(
        * col1_origin is now live AI state (spawn inits it to 0xff, the load
        * matrix / 457e walk / colony tick write it), so export it verbatim. */
       if ((src->nation_id & 0xF) < 4) {
+        /* col1_origin holds the colony id; DOS stores the array index, and a
+         * deleted colony compacts the array (raw 58156-58200). */
         dst->origin = src->col1_origin;
+        if (colonies && src->col1_origin < 0x80) {
+          int idx = 0;
+          int found = -1;
+          for (int ci = 0; ci < COLONIZE_COLONIES_MAX && found < 0; ++ci) {
+            const ColonizeColony* c = &colonies->colonies[ci];
+            if (!c->active) {
+              continue;
+            }
+            if (c->id == (int)src->col1_origin) {
+              found = idx;
+            }
+            idx++;
+          }
+          dst->origin = found >= 0 ? (uint8_t)found : 0xff;
+        }
       } else {
         dst->origin =
           (uint8_t)(src->home_tribe_id < 0 || src->home_tribe_id > 255 ? 0xff

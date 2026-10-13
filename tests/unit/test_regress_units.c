@@ -612,6 +612,36 @@ static int case_despawn_drops_raw_record(void) {
   return rc;
 }
 
+/* A spawned hull carries DOS record bytes, and an unload shifts them the
+ * FUN_15eb_317c way: the slot past the count keeps the last goods (seed-100
+ * continuous 1506: a Spanish Merchantman sold Furs and Cloth, loaded 78
+ * Sugar, and the save kept Cloth 100 in hold 1). */
+static int case_unload_keeps_stale_hold_bytes(void) {
+  LandFixture fx;
+  if (land_fixture_init(&fx) != 0) {
+    return 1;
+  }
+  const int cara = units_find_type(&fx.pool, "Caravel");
+  const int sid = units_spawn_allow_stack(&fx.pool, cara, 3, 3);
+  ColonizeUnit* s = units_get(&fx.pool, sid);
+  int rc = !s || !s->col1_hold_raw_valid;
+  if (!rc) {
+    s->hold_goods_type[0] = COLONIZE_CARGO_FURS;
+    s->hold_goods_amount[0] = 100;
+    s->hold_goods_type[1] = COLONIZE_CARGO_CLOTH;
+    s->hold_goods_amount[1] = 100;
+    units_unload_goods_hold(&fx.pool, sid, 0, NULL, NULL);
+    units_unload_goods_hold(&fx.pool, sid, 1, NULL, NULL);
+    const uint8_t* r = s->col1_hold_raw;
+    rc = r[4] != 100 || r[5] != 100 || (r[1] >> 4) != COLONIZE_CARGO_CLOTH;
+  }
+  if (rc) {
+    fprintf(stderr, "raw holds: unload must shift the DOS image, keeping hold 1\n");
+  }
+  land_fixture_free(&fx);
+  return rc;
+}
+
 static int case_1b0e_attacker_back_after_capture(void) {
   for (int seed = 1; seed < 64; ++seed) {
     LandFixture fx;
@@ -839,6 +869,7 @@ static const TestCase k_cases[] = {
     {"case_capture_keeps_old_tile_owner", case_capture_keeps_old_tile_owner},
     {"case_1b0e_attacker_back_after_capture", case_1b0e_attacker_back_after_capture},
     {"case_despawn_drops_raw_record", case_despawn_drops_raw_record},
+    {"case_unload_keeps_stale_hold_bytes", case_unload_keeps_stale_hold_bytes},
     {"case_465b_low_mp_foreign_colony_exhausts", case_465b_low_mp_foreign_colony_exhausts},
     {"case_465b_0673_vis_or_behind_mover", case_465b_0673_vis_or_behind_mover},
     {"case_1b0e_relinks_attacker", case_1b0e_relinks_attacker},

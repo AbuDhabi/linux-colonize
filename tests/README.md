@@ -119,7 +119,9 @@ Set `GOLDEN_IDLE_DUMP=/tmp/idle_actual.sav` to write the first mismatching
 simulated save for inspection with `sav_json`. The comparison stops at that
 turn, so later years are never treated as bridged across a mismatch.
 `GOLDEN_IDLE_KEEP_GOING=1` keeps simulating past mismatches (the dump then holds
-the last year), for comparing against multi-turn from-load DOSBox runs.
+the last year), for comparing against multi-turn from-load DOSBox runs, and plays
+through years the archive lacks. A `%d` in `GOLDEN_IDLE_DUMP` takes the year, so
+`1492 1599` with `sim_%d.sav` dumps one continuous run year by year.
 `GOLDEN_IDLE_FROM=path.sav` starts from that save instead of `year_FIRST.sav`.
 
 Most executables expect **repo root** as cwd (`WORKING_DIRECTORY` in CMake).

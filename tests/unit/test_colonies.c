@@ -3293,8 +3293,66 @@ static int unit_settlement_count_and_name_peek(void) {
   return rc;
 }
 
+/* Colony delete, raw 58156-58200: DOS compacts the colony array and unbinds
+ * the units of the dead colony, so the next colony is appended after every
+ * live one (seed-100 continuous 1542: Guadeloupe after Fort Nassau, not in
+ * Fort Orange's old slot). */
+static int case_colony_delete_appends_next(void) {
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[256];
+  if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  int ids[3];
+  int n = 0;
+  for (int y = 2; y < (int)map.height - 2 && n < 3; y += 4) {
+    for (int x = 2; x < (int)map.width - 2 && n < 3; x += 4) {
+      if (colonies_can_found(&pool, &map, x, y)) {
+        ids[n++] = colonies_found(&pool, &map, x, y, 0, -1, UNITS_JOB_NONE, 0, 0, 0);
+      }
+    }
+  }
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units.units[0].active = true;
+  units.units[0].nation_id = 0;
+  units.units[0].col1_origin = (uint8_t)ids[1];
+  units.slot_end = 1;
+  colonies_set_units_context(&units);
+  int rc = n != 3 || !colonies_abandon(&pool, ids[1]);
+  colonies_set_units_context(NULL);
+  int fx = -1, fy = -1;
+  for (int y = 40; y < (int)map.height - 2 && fx < 0; y += 3) {
+    for (int x = 2; x < (int)map.width - 2 && fx < 0; x += 3) {
+      if (colonies_can_found(&pool, &map, x, y)) {
+        fx = x;
+        fy = y;
+      }
+    }
+  }
+  const int nid = rc ? -1 : colonies_found(&pool, &map, fx, fy, 0, -1, UNITS_JOB_NONE, 0, 0, 0);
+  int last = -1;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    if (pool.colonies[i].active) {
+      last = pool.colonies[i].id;
+    }
+  }
+  if (rc || nid < 0 || last != nid || units.units[0].col1_origin != 0xff) {
+    fprintf(stderr, "colony delete: new colony must come last (%d vs %d), origin 0xff (%d)\n",
+            last, nid, units.units[0].col1_origin);
+    rc = 1;
+  }
+  map_free(&map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"unit_colonies_core", case_colonies_core},
+    {"colony_delete_appends_next", case_colony_delete_appends_next},
     {"unit_found_chrome", unit_found_chrome},
     {"unit_alreadyhave_chrome", unit_alreadyhave_chrome},
     {"unit_noteacher_chrome", unit_noteacher_chrome},

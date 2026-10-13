@@ -39,15 +39,17 @@ fail:
   return 0;
 }
 
-static int compare_save(const ColonizeCol1Save* got, const char* expected_path) {
+static int compare_save(const ColonizeCol1Save* got, const char* expected_path, int year) {
   uint8_t *actual = NULL, *expected = NULL;
   size_t actual_size = 0, expected_size = 0;
   char err[256];
   int ok = 0;
   if (!col1_save_write_memory(got, &actual, &actual_size, err, sizeof(err))) {
-    fprintf(stderr, "serialize %s: %s\n", expected_path, err);
+    fprintf(stderr, "serialize %d: %s\n", year, err);
     goto done;
   }
+  /* No archived save for this year: only dump. */
+  if (!expected_path) goto dump;
   if (!read_bytes(expected_path, &expected, &expected_size)) goto done;
   const size_t common = actual_size < expected_size ? actual_size : expected_size;
   size_t offset = 0;
@@ -61,9 +63,18 @@ static int compare_save(const ColonizeCol1Save* got, const char* expected_path) 
     fprintf(stderr, "%s: size mismatch: got %zu bytes, DOS %zu bytes\n",
             expected_path, actual_size, expected_size);
   }
+dump:
   if (!ok) {
-    const char* dump = getenv("GOLDEN_IDLE_DUMP");
-    if (dump && *dump) {
+    /* A "%d" in GOLDEN_IDLE_DUMP takes the year (one file per KEEP_GOING turn). */
+    const char* dump_env = getenv("GOLDEN_IDLE_DUMP");
+    char dump[512];
+    if (dump_env && *dump_env) {
+      const char* pct = strstr(dump_env, "%d");
+      if (pct) {
+        snprintf(dump, sizeof(dump), "%.*s%d%s", (int)(pct - dump_env), dump_env, year, pct + 2);
+      } else {
+        snprintf(dump, sizeof(dump), "%s", dump_env);
+      }
       FILE* f = fopen(dump, "wb");
       int written = f && fwrite(actual, 1, actual_size, f) == actual_size;
       if (f && fclose(f) != 0) written = 0;
@@ -106,34 +117,41 @@ int main(int argc, char** argv) {
    * DOSBox from-load autosave). */
   const char* from_env = getenv("GOLDEN_IDLE_FROM");
   if (from_env && *from_env) snprintf(from, sizeof(from), "%s", from_env);
-  save_path(expected, sizeof(expected), first + 1);
+  /* The fixture wants an expected save; the loop reloads it per year. */
   GoldenFixture fx;
-  if (!golden_open(from, expected, VR_SEED, &fx)) {
+  if (!golden_open(from, from, VR_SEED, &fx)) {
     golden_close(&fx);
     return 1;
   }
   int ok = 1;
-  if (fx.orig.head.year != first || fx.expect.head.year != first + 1) {
+  if (fx.orig.head.year != first) {
     fprintf(stderr, "save filename/calendar mismatch near %d\n", first);
     ok = 0;
   }
   /* GOLDEN_IDLE_KEEP_GOING: keep simulating past a mismatch (multi-turn
-   * from-load DOSBox targets; GOLDEN_IDLE_DUMP then holds the last year). */
+   * from-load DOSBox targets, or one continuous run from year_1492 through
+   * the archive's missing years; GOLDEN_IDLE_DUMP may take a "%d"). */
   const char* keep = getenv("GOLDEN_IDLE_KEEP_GOING");
   const int keep_going = keep && *keep;
   for (int year = first + 1; (ok || keep_going) && year <= last; ++year) {
     save_path(expected, sizeof(expected), year);
-    if (year != first + 1) {
+    int have = 1;
+    {
       char err[256];
       col1_save_free(&fx.expect);
       col1_save_init(&fx.expect);
       if (!col1_save_read_file(expected, &fx.expect, err, sizeof(err))) {
-        fprintf(stderr, "read %s: %s\n", expected, err);
-        ok = 0;
-        break;
+        /* The archive skips some years; a continuous run plays through them. */
+        if (keep_going) {
+          have = 0;
+        } else {
+          fprintf(stderr, "read %s: %s\n", expected, err);
+          ok = 0;
+          break;
+        }
       }
     }
-    if (fx.expect.head.year != year) {
+    if (have && fx.expect.head.year != year) {
       fprintf(stderr, "%s records year %u\n", expected, fx.expect.head.year);
       ok = 0;
       break;
@@ -146,7 +164,11 @@ int main(int argc, char** argv) {
       break;
     }
     col1_bridge_stamp_autosave_head(&fx.start);
-    if (!compare_save(&fx.start, expected)) {
+    if (!have) {
+      compare_save(&fx.start, NULL, year);
+      continue;
+    }
+    if (!compare_save(&fx.start, expected, year)) {
       ok = 0;
       if (keep_going) continue;
       break;

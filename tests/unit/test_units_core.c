@@ -2495,7 +2495,7 @@ static int case_native_settlement_conquer(void) {
       return 1;
     }
     const uint8_t conquer_owner_before = tmap.layer3[10 * 20 + 10];
-    if (!units_try_native_settlement_fallout_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&tmap), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&crng)}, 0, 4, 10, 10, -1)) {
+    if (!units_try_native_settlement_fallout_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&tmap), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&crng)}, 0, 4, 10, 10, -1, 10, 10)) {
       free(tmap.layer3);
       free(col1.tribe);
       fprintf(stderr, "conquer: fallout should destroy empty dwelling\n");
@@ -2604,7 +2604,7 @@ static int case_native_settlement_conquer(void) {
       fprintf(stderr, "conquer combat2 failed\n");
       return 1;
     }
-    if (!units_try_native_settlement_fallout_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&tmap), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, 0, 4, 11, 10, 500)) {
+    if (!units_try_native_settlement_fallout_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&tmap), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, 0, 4, 11, 10, 500, 11, 10)) {
       free(tmap.layer3);
       free(col1.tribe);
       fprintf(stderr, "conquer fallout2 failed\n");
@@ -2668,7 +2668,7 @@ static int case_native_settlement_conquer(void) {
     tmap.layer3[10 * 20 + 12] = (uint8_t)((4u << 4) | 1u);
     ColonizeDosRng nrng;
     dos_rng_seed(&nrng, 7);
-    if (!units_try_native_settlement_fallout_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&tmap), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&nrng)}, 0, 4, 12, 10, -1)) {
+    if (!units_try_native_settlement_fallout_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&tmap), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&nrng)}, 0, 4, 12, 10, -1, 12, 10)) {
       free(tmap.layer3);
       free(col1.tribe);
       fprintf(stderr, "no-Cortes conquer: fallout should destroy dwelling\n");
@@ -2775,7 +2775,7 @@ static int case_convert_join(void) {
       fprintf(stderr, "convert-join combat: attacker should win\n");
       return 1;
     }
-    if (!units_try_native_settlement_fallout_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&tmap), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&crng)}, 2, 5, 12, 12, -1)) {
+    if (!units_try_native_settlement_fallout_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&tmap), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&crng)}, 2, 5, 12, 12, -1, 12, 12)) {
       free(tmap.layer3);
       free(col1.tribe);
       fprintf(stderr, "convert-join fallout failed\n");
@@ -3607,6 +3607,45 @@ static int case_lcr_clear_desoto(void) {
     units_despawn(&pool, scid);
     units_despawn(&pool, scid2);
     map_free(&lmap);
+  fx_close();
+  return 0;
+}
+
+/* FUN_465b_0000 raw 75763/75788-75791: an AI European walking onto an
+ * unvisited rumour tile rolls the LCR inside the move (DOSBox 1499 -> 1501:
+ * a French Soldier stepping onto (45,55) found burial mounds). */
+static int case_lcr_ai_step_resolves(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
+  const size_t i = (size_t)15 * map.width + 9;
+  map.layer3[i] = (uint8_t)(0xf0u | (map.layer3[i] & 0x0fu)); /* nobody visited */
+  const uint16_t seed_before = map.prime_resource_seed;
+  map.prime_resource_seed = 100; /* AMER2 seed; 0598 wants DS:0x190 != 0 */
+  if (!map_dos_0598_rumour_tile(&map, 9, 15)) {
+    fprintf(stderr, "AMER2 (9,15) expected a 0598 rumour\n");
+    return 1;
+  }
+  int from_x = -1;
+  for (int dx = -1; dx <= 1 && from_x < 0; dx += 2) {
+    if (!map_tile_is_water(&map, 9 + dx, 15)) {
+      from_x = 9 + dx;
+    }
+  }
+  const int id = from_x >= 0 ? units_spawn_allow_stack(&pool, colonist, from_x, 15) : -1;
+  ColonizeUnit* u = units_get(&pool, id);
+  if (!u) {
+    fprintf(stderr, "LCR AI step: no land neighbour or colonist\n");
+    return 1;
+  }
+  units_set_nation(u, 1);
+  ColonizeDosRng rng = {0};
+  units_try_move_w(&(ColonizeWorld){.units = &pool, .map = &map, .rng = &rng}, id, 9, 15);
+  if (map_tile_has_rumour(&map, 9, 15)) {
+    fprintf(stderr, "AI step onto a rumour must resolve it in the move\n");
+    return 1;
+  }
+  map.prime_resource_seed = seed_before;
   fx_close();
   return 0;
 }
@@ -7347,6 +7386,7 @@ static const TestCase k_cases[] = {
   {"fort_defense_bonus", case_fort_defense_bonus},
   {"coastal_fort_naval_fire", case_coastal_fort_naval_fire},
   {"lcr_clear_desoto", case_lcr_clear_desoto},
+  {"lcr_ai_step_resolves", case_lcr_ai_step_resolves},
   {"lcr_case_matrix", case_lcr_case_matrix},
   {"lcr_case5_latch", case_lcr_case5_latch},
   {"lcr_outcome_dispatch", case_lcr_outcome_dispatch},

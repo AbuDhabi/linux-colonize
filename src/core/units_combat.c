@@ -337,6 +337,11 @@ int units_spawn_village_temp_defender(
   return id;
 }
 
+static void units_village_convert_roll(
+  ColonizeUnitPool* units, const ColonizeCol1Save* col1, ColonizeDosRng* rng,
+  int attacker_nation_id, int defender_nation_id, uint8_t mission, int x, int y
+);
+
 void units_finish_village_temp_defender(
   ColonizeUnitPool* pool,
   ColonizeCol1Save* col1,
@@ -346,6 +351,8 @@ void units_finish_village_temp_defender(
   int attacker_nation,
   int village_x,
   int village_y,
+  int attacker_x,
+  int attacker_y,
   ColonizeDosRng* rng
 ) {
   if (!pool || temp_id < 0) {
@@ -378,9 +385,11 @@ void units_finish_village_temp_defender(
    * Cite: *(tribe+4) check before DEC; FUN_291f_0248 destroy; 31ea fallout.
    */
   if (tribe->population < 2) {
-    (void)units_try_native_settlement_fallout_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL), .rng=(ColonizeDosRng*)(rng)}, attacker_nation, indian_nation, village_x, village_y, -1);
+    (void)units_try_native_settlement_fallout_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL), .rng=(ColonizeDosRng*)(rng)}, attacker_nation, indian_nation, village_x, village_y, -1, attacker_x, attacker_y);
   } else {
     tribe->population--;
+    units_village_convert_roll(pool, col1, rng, attacker_nation, indian_nation, tribe->mission,
+                               attacker_x, attacker_y);
   }
 }
 
@@ -2859,13 +2868,49 @@ static int units_spawn_mission_return(
   return id;
 }
 
+/*
+ * Subjugated convert-join, FUN_5fef_1b0e raw 101144-101184. It runs after
+ * EVERY European win over a village's phantom defender (bVar28) whose mission
+ * byte names the attacker, razed or not, and the Convert appears on the
+ * ATTACKER's tile (uVar21/uVar22 = the attacker's x/y, raw 100566-100567).
+ * DOSBox 1519 -> 1521: a French Dragoon at (45,53) beat village (45,54)
+ * (population 7 -> 6) and a Convert joined at (45,53). @INDIANSLAVES 0x1cbf.
+ */
+static void units_village_convert_roll(
+  ColonizeUnitPool* units, const ColonizeCol1Save* col1, ColonizeDosRng* rng,
+  int attacker_nation_id, int defender_nation_id, uint8_t mission, int x, int y
+) {
+  if (attacker_nation_id < 0 || attacker_nation_id >= 4 || !rng) {
+    return;
+  }
+  const int thr = units_subjugated_convert_join_threshold(col1, attacker_nation_id, mission);
+  if (thr < 0 || dos_rng_range(rng, 0, 12) >= thr) {
+    return;
+  }
+  (void)units_spawn_subjugated_convert(units, x, y, attacker_nation_id);
+  /* DOS announces the convert to a HUMAN conqueror (raw 101176-101181):
+   * slot 0 = the tribe's name, slot 1 = the conquering nation's adjective. */
+  if (attacker_nation_id == g_units_combat_human_nation) {
+    PopupMsgTokens stok;
+    memset(&stok, 0, sizeof(stok));
+    stok.string0 = units_combat_nation_label(col1, defender_nation_id);
+    stok.string1 = units_combat_nation_label(col1, attacker_nation_id);
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_COMBAT_COLONY, "INDIANSLAVES", attacker_nation_id,
+      defender_nation_id, 0, &stok, ""
+    );
+  }
+}
+
 bool units_try_native_settlement_fallout_w(
   const ColonizeWorld* w,
   int attacker_nation_id,
   int defender_nation_id,
   int tile_x,
   int tile_y,
-  int gold_amount
+  int gold_amount,
+  int convert_x,
+  int convert_y
 ) {
   ColonizeCol1Save* col1 = w->col1;
   ColonizeUnitPool* units = w->units;
@@ -2918,41 +2963,10 @@ bool units_try_native_settlement_fallout_w(
     (void)units_spawn_mission_return(units, tile_x, tile_y, attacker_nation_id, mission);
   }
 
-  /*
-   * Subjugated convert-join. DOS order (FUN_5fef_1b0e): destroy (00e0) →
-   * mission return → convert → treasure; the convert used to run before the
-   * destroy here (moved 2026-09-21, bugs.md #551). Cite: FUN_5fef_1b0e
-   * ~101155–101184; @INDIANSLAVES 0x1cbf.
-   */
-  if (attacker_nation_id >= 0 && attacker_nation_id < 4 && rng) {
-    const int thr =
-      units_subjugated_convert_join_threshold(col1, attacker_nation_id, mission);
-    if (thr >= 0) {
-      const int roll = dos_rng_range(rng, 0, 12);
-      if (roll < thr) {
-        (void)units_spawn_subjugated_convert(units, tile_x, tile_y, attacker_nation_id);
-        /*
-         * @INDIANSLAVES (0x1cbf, viceroy_unpacked.c 101176-101181): DOS
-         * announces the convert to a HUMAN conqueror, with slot 0 = the
-         * tribe's name and slot 1 = the conquering nation's adjective, in
-         * the same `attacker < 4 && not AI-run` gate the rest of 1b0e's
-         * chrome uses. The spawn itself was already ported; only the popup
-         * was missing (2026-09-16).
-         */
-        if (attacker_nation_id == g_units_combat_human_nation) {
-          PopupMsgTokens stok;
-          memset(&stok, 0, sizeof(stok));
-          stok.string0 = units_combat_nation_label(col1, defender_nation_id);
-          stok.string1 = units_combat_nation_label(col1, attacker_nation_id);
-          units_combat_enqueue_tok(
-            AI_POPUP_TAG_COMBAT_COLONY, "INDIANSLAVES", attacker_nation_id,
-            defender_nation_id, 0, &stok, ""
-          );
-        }
-      }
-    }
-  }
-
+  /* Subjugated convert-join: DOS order destroy (00e0) -> mission return ->
+   * convert -> treasure (bugs.md #551). */
+  units_village_convert_roll(units, col1, rng, attacker_nation_id, defender_nation_id, mission,
+                             convert_x, convert_y);
 
   if (attacker_nation_id >= 0 && attacker_nation_id < 4) {
     /*

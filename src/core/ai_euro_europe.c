@@ -989,6 +989,13 @@ static void ai_euro_5d04_cb_unit_exhaust(int idx) {
   for (int k = np - 1; k >= 0; --k) { /* arrival order: earliest first */
     (void)units_board_stacked(ctx->units, pick[k], ship_id);
   }
+  /* The group rides in boarding order: restamp the boarders' tile order to
+   * match, so the relink below and the 064e relink on arrival keep it
+   * (seed-100 continuous 1558: Dutch hull, Dragoon, Soldier land in that
+   * order at (50,4); the dock order had put the Soldier first). */
+  for (int k = np - 1; k >= 0; --k) {
+    units_tile_stack_arrive(ctx->units, pick[k]);
+  }
   /* FUN_291f_0ec2 -> FUN_48d3_0346 opens with FUN_281f_0920 =
    * FUN_1427_10be. Besides boarding, it physically relinks the dock group
    * before the hull moves; that order survives on the shared westbound lane

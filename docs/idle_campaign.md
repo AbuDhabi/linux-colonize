@@ -366,6 +366,71 @@ copy taken later can already hold the next save.
 - Unported: the human-side join (`FUN_364b_1aec`) also stamps and runs 3930
   first. The port's colony-screen joins do neither.
 
+## Continuous run from year_1492 (2026-10-13)
+
+The archive was made in one sitting, so the strongest check is one port run
+from `year_1492.sav` through every later year, carrying the port's own
+session state the way DOS carries its unsaved memory:
+
+```
+GOLDEN_IDLE_KEEP_GOING=1 GOLDEN_IDLE_DUMP=/tmp/x/sim_%d.sav golden_idle_campaign 1492 1599
+```
+
+`%d` in `GOLDEN_IDLE_DUMP` takes the year; years missing from the archive
+(DOS made no autosave there) are played and dumped but not compared. Then
+JSON-diff each `sim_Y` against `year_Y`. Four leaves are always the human's
+first-turn UI (`map_mode`, `tut2.nr1`, `stuff.x/y`).
+
+Status: every year through 1577 matches except small residues (below);
+1578 is the first real split (Isabella's colonists 1 and 4 swap plots), and
+its 1579 sugar amounts grow into the 1580s divergence.
+
+Fixed by this run:
+- AI moves roll Lost City Rumours in the move (FUN_465b_0000 raw
+  75763/75788-75791: `075e` = FUN_137f_0598 read before the step, then
+  `2a1f_0178` -> FUN_65dd_0004 for a mover with nation < 4). The port only
+  did this on ship unloads. 1499 -> 1501: a French Soldier walked onto
+  (45,55) and found burial mounds (`lcr_case5_bonus_used`, tribe alarm 97).
+  Test: `lcr_ai_step_resolves`.
+- Every spawned unit has a raw +0x0c..+0x15 image (zero, or the compaction
+  tail), and goods unloads shift it the FUN_15eb_317c way. 1506: a Spanish
+  Merchantman kept Cloth 100 in hold 1 after selling both holds and loading
+  78 Sugar. Test: `case_unload_keeps_stale_hold_bytes`.
+- Colony phantom defender: DOS deletes the phantom (00d0, raw 100637) before
+  a losing attacker, so the vacated slots keep phantom, then the last real
+  record. The port deleted the attacker first. DOSBox 1499 -> 1504 (from
+  load): the Brave born in slot 44 carries +0x15 = 0, not 196. Port
+  from-load 1499 now equals DOS from-load for four turns.
+- Village convert-join (FUN_5fef_1b0e raw 101144-101184) runs after every
+  European win over a village's phantom defender, razed or not, and the
+  Convert appears on the attacker's tile (uVar21/22, raw 100566). The port
+  rolled it only when razing, on the village tile. DOSBox 1519 -> 1521 (a
+  06b4 breakpoint, then a CPU log): a French Dragoon at (45,53) beat village
+  (45,54), population 7 -> 6, Convert at (45,53). Test:
+  `unit_village_win_convert_on_attacker_tile`.
+- Colony delete (raw 58135-58200) compacts the colony array and unbinds the
+  units bound to the dead colony (+0x314a = 0xff); later colonies shift one
+  index down. The port kept a hole, so Guadeloupe (1542) took Fort Orange's
+  old slot ahead of Fort Nassau, and the units bound to Fort Nassau saved
+  origin 5 instead of 4. Now: new colonies go after the last live slot,
+  `colonies_abandon` unbinds (`colonies_set_units_context`), the save writer
+  maps `col1_origin` (a colony id) to the DOS index, and the surplus recall
+  looks the colony up by id. Test: `colony_delete_appends_next`.
+- Europe departure boarding restamps the boarders' tile order in boarding
+  order, so the arrival relink lands hull, then passengers in that order
+  (1558: Dutch hull, Dragoon, Soldier at (50,4)).
+
+Open:
+- 1505/1506: ship 4's facing, Brave 26's step and unit 5's goto differ.
+  Port from-load 1504 equals DOS from-load, and port continuous differs from
+  the archive the same way, so DOS carries something unsaved here that the
+  port does not model.
+- 1529 (Isabella specialty bit), 1533/1534 (a unit's +0x15a counter and
+  roam bit; also in the two-turn run from archive 1531): not chased yet.
+- 1571-1576: Dutch dock chain. A Soldier bought in 1570 while the hull sat at
+  the dock; DOS saves Soldier -> hull, the port hull -> Soldier.
+- 1578: Isabella's colonists 1 and 4 hold each other's plot and job.
+
 ## Open leads (most transitions first)
 
 - (Resolved 2026-10-12, see above.) Fresh 1586→1587 was down to one byte in

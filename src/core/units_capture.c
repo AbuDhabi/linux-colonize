@@ -1080,6 +1080,19 @@ bool units_revere_defend_colony_tile(
    * different `local_a6` row for it (see units_indian_attack_alarm_vent), and
    * the strength peels read it for the Discoverer beginner shield (raw
    * 100544: `if (bVar28 && difficulty == 0) local_92 = 0`). */
+  /* DOS deletes the phantom (00d0, raw 100637) BEFORE the loser; the port
+   * deletes a losing attacker inside the resolve. Keep what that order
+   * leaves in the vacated slots: see the fix-up after the despawn below. */
+  const int count_with_phantom = pool->unit_count;
+  ColonizeUnit atk_copy = *atk;
+  bool atk_is_last_real = false;
+  for (int i = units_slot_end(pool) - 1; i >= 0; --i) {
+    const ColonizeUnit* t = &pool->units[i];
+    if (t->active && t->id != def_id) {
+      atk_is_last_real = t->id == attacker_id;
+      break;
+    }
+  }
   g_units_colony_autodefender = true;
   combat_set_auto_defender(true);
   const bool won = units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .col1=(ColonizeCol1Save*)(g_units_ff_col1), .col1_ok=((g_units_ff_col1) != NULL), .rng=(ColonizeDosRng*)(rng)}, attacker_id, def_id);
@@ -1096,6 +1109,16 @@ bool units_revere_defend_colony_tile(
     ColonizeUnit* d = units_get(pool, def_id);
     if (d && d->active) {
       units_despawn(pool, def_id);
+    }
+    /* A lost attacker went first in the port, so both stashes copied the
+     * phantom. In DOS the phantom's slot keeps the phantom, and the next one
+     * down keeps the last real record: the attacker itself when it was last
+     * (DOSBox 1499 -> 1504: the Brave born there carries +0x15 = 0, not the
+     * phantom's 196). */
+    const ColonizeUnit* a = units_get(pool, attacker_id);
+    if ((!a || !a->active) && pool->unit_count == count_with_phantom - 2) {
+      units_dos_tail_stash(pool, pool->unit_count,
+                           atk_is_last_real ? &atk_copy : units_last_active(pool));
     }
   }
   if (!won) {

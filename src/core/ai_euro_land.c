@@ -1342,11 +1342,8 @@ static int ai_euro_20e6_surplus_recall_arm(
     return 0;
   }
   const int home = ai_euro_20e6_origin_get(u); /* +0x314a, −1 unbound */
-  if (home < 0 || home >= COLONIZE_COLONIES_MAX) {
-    return 0;
-  }
-  ColonizeColony* hc = &ctx->colonies->colonies[home];
-  if (!hc->active || hc->nation_id != s->nation) {
+  ColonizeColony* hc = home >= 0 ? colonies_get_mut(ctx->colonies, home) : NULL;
+  if (!hc || !hc->active || hc->nation_id != s->nation) {
     return 0;
   }
   if ((hc->ai_flags & COLONIZE_COLONY_AI_MILITARY_SURPLUS) == 0) {

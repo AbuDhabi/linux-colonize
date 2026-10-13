@@ -97,7 +97,9 @@ bool units_try_native_settlement_fallout_w(
   int defender_nation_id,
   int tile_x,
   int tile_y,
-  int gold_amount
+  int gold_amount,
+  int convert_x, /* the attacker's tile: a Convert joins there */
+  int convert_y
 );
 
 

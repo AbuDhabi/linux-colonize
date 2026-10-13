@@ -1209,16 +1209,26 @@ int colonies_found(
     return -1;
   }
 
-  ColonizeColony* slot = NULL;
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    if (!pool->colonies[i].active) {
-      slot = &pool->colonies[i];
+  /* DOS appends at index DS:0x539e: a deleted colony compacted the array
+   * (raw 58156-58166), so the new one comes after every live colony. The
+   * port keeps holes, so take the first free slot past the last live one;
+   * only a pool full up to its end falls back to a hole. */
+  int pick = COLONIZE_COLONIES_MAX;
+  for (int i = COLONIZE_COLONIES_MAX - 1; i >= 0; --i) {
+    if (pool->colonies[i].active) {
       break;
     }
+    pick = i;
   }
-  if (!slot) {
+  for (int i = 0; pick >= COLONIZE_COLONIES_MAX && i < COLONIZE_COLONIES_MAX; ++i) {
+    if (!pool->colonies[i].active) {
+      pick = i;
+    }
+  }
+  if (pick >= COLONIZE_COLONIES_MAX) {
     return -1;
   }
+  ColonizeColony* slot = &pool->colonies[pick];
 
   memset(slot, 0, sizeof(*slot));
   slot->id = pool->next_id++;
