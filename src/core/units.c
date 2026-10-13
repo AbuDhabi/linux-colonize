@@ -689,6 +689,9 @@ void units_slot_reset_defaults(
       slot->col1_hold_raw[8] = 0; /* +0x3158 */
     }
   }
+  /* Every DOS record has these bytes: a slot no compaction reached is zero.
+   * The later hold removes shift them the 317c way (units_raw_hold_remove). */
+  slot->col1_hold_raw_valid = 1;
   /* FUN_1427_06b4 clears holds[0..1] and writes 0xff to hold[2] (the AI
    * explorer bytes +0x3154..+0x3156); the rest of a reused raw block stays. */
   slot->col1_hold_raw[4] = 0;

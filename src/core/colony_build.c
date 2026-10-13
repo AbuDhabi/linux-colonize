@@ -80,6 +80,17 @@ bool colonies_abandon(ColonizeColonyPool* pool, int colony_id) {
   if (g_colonies_col1 && col->nation_id >= 0 && col->nation_id < 4) {
     g_colonies_col1->stuff.colony_counts[col->nation_id]--;
   }
+  /* Raw 58190-58200: every European unit bound to the dead colony (+0x314a)
+   * becomes unbound. Later colonies shift down one DOS index, which the
+   * save writer's id -> index map already gives. */
+  if (g_colonies_units) {
+    for (int i = 0; i < units_slot_end(g_colonies_units); ++i) {
+      ColonizeUnit* u = &g_colonies_units->units[i];
+      if (u->active && u->nation_id < 4 && u->col1_origin == (uint8_t)colony_id) {
+        u->col1_origin = 0xff;
+      }
+    }
+  }
   memset(col, 0, sizeof(*col));
   int active = 0;
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
@@ -93,6 +104,12 @@ bool colonies_abandon(ColonizeColonyPool* pool, int colony_id) {
 
 void colonies_set_col1_context(ColonizeCol1Save* col1) {
   g_colonies_col1 = col1;
+}
+
+ColonizeUnitPool* g_colonies_units = NULL;
+
+void colonies_set_units_context(ColonizeUnitPool* units) {
+  g_colonies_units = units;
 }
 
 /*

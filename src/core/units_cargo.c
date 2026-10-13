@@ -245,6 +245,7 @@ int units_unload_goods_hold(
   if (out_amount) {
     *out_amount = amt;
   }
+  units_raw_hold_remove(u, hold_index);
   u->hold_goods_amount[hold_index] = 0;
   u->hold_goods_type[hold_index] = 0;
   units_last_hold_amount = amt; /* 317c: DS:0x8dc4 = slot amount */

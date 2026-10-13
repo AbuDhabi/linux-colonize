@@ -209,21 +209,31 @@ void units_pool_check(const ColonizeUnitPool* pool) {
   }
 }
 
+void units_dos_tail_stash(ColonizeUnitPool* pool, int index, const ColonizeUnit* last) {
+  if (!pool || !last || index < 0 || index >= COLONIZE_UNITS_DOS_MAX) {
+    return;
+  }
+  pool->dos_tail[index].valid = 1;
+  pool->dos_tail[index].goto_x = (uint8_t)last->goto_x;
+  pool->dos_tail[index].goto_y = (uint8_t)last->goto_y;
+  pool->dos_tail[index].facing = (int8_t)last->last_dir;
+  pool->dos_tail[index].raw_valid = last->col1_hold_raw_valid ? 1 : 0;
+  memcpy(pool->dos_tail[index].raw, last->col1_hold_raw, sizeof(pool->dos_tail[index].raw));
+}
+
+const ColonizeUnit* units_last_active(const ColonizeUnitPool* pool) {
+  for (int i = units_slot_end(pool) - 1; i >= 0; --i) {
+    if (pool->units[i].active) {
+      return &pool->units[i];
+    }
+  }
+  return NULL;
+}
+
 static void units_clear_slot(ColonizeUnitPool* pool, ColonizeUnit* unit) {
   const int n = pool->unit_count; /* still counts this unit */
   if (n > 0 && n <= COLONIZE_UNITS_DOS_MAX) {
-    for (int i = units_slot_end(pool) - 1; i >= 0; --i) {
-      const ColonizeUnit* last = &pool->units[i];
-      if (last->active) {
-        pool->dos_tail[n - 1].valid = 1;
-        pool->dos_tail[n - 1].goto_x = (uint8_t)last->goto_x;
-        pool->dos_tail[n - 1].goto_y = (uint8_t)last->goto_y;
-        pool->dos_tail[n - 1].facing = (int8_t)last->last_dir;
-        pool->dos_tail[n - 1].raw_valid = last->col1_hold_raw_valid ? 1 : 0;
-        memcpy(pool->dos_tail[n - 1].raw, last->col1_hold_raw, sizeof(pool->dos_tail[n - 1].raw));
-        break;
-      }
-    }
+    units_dos_tail_stash(pool, n - 1, units_last_active(pool));
   }
   units_index_remove(pool, unit);
   unit->active = false;

@@ -2414,7 +2414,7 @@ int main(void) {
       return fail("Cortes AI combat should win");
     }
     /* Dwelling remains after map Brave death; empty-village fallout peels gold. */
-    if (!units_try_native_settlement_fallout_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&upool), .map=(ColonizeWorldMap*)(&cmap), .col1=(ColonizeCol1Save*)(&ccol1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, 0, 4, 5, 5, -1)) {
+    if (!units_try_native_settlement_fallout_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&upool), .map=(ColonizeWorldMap*)(&cmap), .col1=(ColonizeCol1Save*)(&ccol1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, 0, 4, 5, 5, -1, 5, 5)) {
       free(ccol1.tribe);
       map_free(&cmap);
       return fail("Cortes AI fallout should destroy empty dwelling");

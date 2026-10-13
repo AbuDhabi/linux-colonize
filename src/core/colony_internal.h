@@ -22,6 +22,7 @@ extern int colony_building_row_name_count;
 extern ColoniesBuildingRowNameResolver colony_building_row_name_resolver;
 extern ColonizeWorldMap* g_colonies_occupancy_map;
 extern ColonizeCol1Save* g_colonies_col1;
+extern ColonizeUnitPool* g_colonies_units; /* colonies_set_units_context */
 void colonies_mark_settlement_tile(int x, int y, bool on);
 void colonies_col1_rebel_divisor_adjust(ColonizeCol1Save* col1, int x, int y, int delta);
 

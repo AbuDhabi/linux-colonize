@@ -455,6 +455,8 @@ bool units_try_move_w(
         unit->nation_id,
         dest_x,
         dest_y,
+        unit->x,
+        unit->y,
         rng
       );
       village_temp = -1;
@@ -664,6 +666,9 @@ combat_entry_resolved:
     unit->orders = UNITS_ORDER_NONE;
   }
 
+  /* FUN_281f_075e (= FUN_137f_0598), raw 75763: read before the arrival
+   * stamps the destination's layer3 nibble. */
+  const bool dest_rumour = map_dos_0598_rumour_tile(map, dest_x, dest_y);
   const int dest_owner = units_tile_owner_nibble(map, dest_x, dest_y); /* 06dc, raw 75766 */
   const int ox = unit->x;
   const int oy = unit->y;
@@ -712,6 +717,28 @@ combat_entry_resolved:
    * ships still there, first come first served (DOS ship-switch quirk). */
   if (units_is_sea(pool, unit_id)) {
     (void)units_ship_departure_pickup(pool, unit_id, ox, oy);
+  }
+
+  /*
+   * FUN_465b_0000 raw 75788-75791: a European mover (nation < 4) that steps
+   * onto a rumour tile rolls the LCR (FUN_2a1f_0178 -> FUN_65dd_0004) inside
+   * the move, before the colony-enter arm and the 0984 -> 3180 contact scan;
+   * a unit that vanished takes LAB_465b_0bd1 (raw 75792). The human's moves
+   * resolve it in game_loop_orders (popups); this is the AI walk. DOSBox
+   * 1499 -> 1501: a French Soldier walking onto (45,55) found burial mounds.
+   */
+  if (dest_rumour && unit->nation_id >= 0 && unit->nation_id < 4 &&
+      !units_combat_human_involved(g_units_ff_col1, unit->nation_id, -1)) {
+    ColonizeWorld lw = *w;
+    if (!lw.col1) {
+      lw.col1 = (ColonizeCol1Save*)g_units_ff_col1;
+      lw.col1_ok = lw.col1 != NULL;
+    }
+    (void)units_resolve_lcr_rumour_w(&lw, unit_id, -1);
+    unit = units_get(pool, unit_id);
+    if (!unit || !unit->active) {
+      return true;
+    }
   }
 
   /*

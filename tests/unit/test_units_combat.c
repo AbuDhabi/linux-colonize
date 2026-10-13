@@ -793,6 +793,56 @@ done:
 }
 
 /*
+ * FUN_5fef_1b0e raw 101144-101184: a European win over a village's phantom
+ * defender rolls the convert-join even when the village survives, and the
+ * Convert joins on the ATTACKER's tile (DOSBox 1519 -> 1521: French Dragoon
+ * at (45,53) beat village (45,54), population 7 -> 6, Convert at (45,53)).
+ */
+static int unit_village_win_convert_on_attacker_tile(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  char names_path[512];
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!dos_compat_normalize_asset_path("COLONIZE", "NAMES.TXT", names_path, sizeof(names_path)) ||
+      !assets_msg_load_file(&names, names_path) || !units_load_types(&pool, &names)) {
+    fprintf(stderr, "convert: NAMES.TXT / unit types\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  assets_msg_free(&names);
+  ColonizeCol1Tribe tribe;
+  memset(&tribe, 0, sizeof(tribe));
+  tribe.x = 3;
+  tribe.y = 3;
+  tribe.nation_id = 4;
+  tribe.population = 5;
+  tribe.mission = (uint8_t)(2u | COL1_TRIBE_MISSION_JESUIT_BIT); /* threshold 12 */
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  memset(col1.head.founding_father, 0xff, sizeof(col1.head.founding_father));
+  col1.head.tribe_count = 1;
+  col1.tribe = &tribe;
+  const int temp = units_spawn_allow_stack(&pool, units_kind_type_index(&pool, UNITS_KIND_BRAVE), 3, 3);
+  units_get(&pool, temp)->nation_id = 4;
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 100); /* first range(0,12) = 365 % 13 = 1 */
+  units_finish_village_temp_defender(&pool, &col1, NULL, temp, 1, 2, 3, 3, 2, 3, &rng);
+  int converts = 0;
+  for (int i = 0; i < units_slot_end(&pool); ++i) {
+    const ColonizeUnit* u = &pool.units[i];
+    converts += u->active && u->profession == UNITS_JOB_CONVERT && u->x == 2 && u->y == 3 &&
+                u->nation_id == 2;
+  }
+  if (tribe.population != 4 || converts != 1) {
+    fprintf(stderr, "convert: want population 4 and one Convert on the attacker tile (%d, %d)\n",
+            tribe.population, converts);
+    return 1;
+  }
+  return 0;
+}
+
+/*
  * Razing a village (FUN_5fef_1b0e dwelling arm → FUN_4d56_00e0), bugs.md
  * #550-#552:
  *  - 00e0 raw 81307: only settlement bit 0x02 is cleared; a real road stays,
@@ -888,7 +938,7 @@ static int unit_village_raze_tail(void) {
   int rc = 0;
 
   /* Raze village 0 (own plain mission). */
-  if (!units_try_native_settlement_fallout_w(&w, 0, 4, 3, 3, 500)) {
+  if (!units_try_native_settlement_fallout_w(&w, 0, 4, 3, 3, 500, 3, 3)) {
     fprintf(stderr, "raze: village 0 not destroyed\n");
     rc = 1;
   }
@@ -932,8 +982,8 @@ static int unit_village_raze_tail(void) {
         rc = 1;
       }
       /* Raze village 1 (rival Jesuit mission; now index 0) and 2 (own Jesuit). */
-      if (rc == 0 && (!units_try_native_settlement_fallout_w(&w, 0, 4, 6, 6, 500) ||
-                      !units_try_native_settlement_fallout_w(&w, 0, 4, 1, 6, 500))) {
+      if (rc == 0 && (!units_try_native_settlement_fallout_w(&w, 0, 4, 6, 6, 500, 6, 6) ||
+                      !units_try_native_settlement_fallout_w(&w, 0, 4, 1, 6, 500, 1, 6))) {
         fprintf(stderr, "raze: villages 1/2 not destroyed\n");
         rc = 1;
       }
@@ -1962,6 +2012,10 @@ int main(void) {
     return 1;
   }
   if (unit_village_raze_tail() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_village_win_convert_on_attacker_tile() != 0) {
     diag_shutdown();
     return 1;
   }

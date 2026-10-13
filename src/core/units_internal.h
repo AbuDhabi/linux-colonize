@@ -105,6 +105,10 @@ int units_apply_land_loss_outcome( ColonizeUnitPool* pool, int loser_id, int win
 int units_apply_naval_loss_outcome( ColonizeUnitPool* pool, int loser_id, int winner_id, int loser_str, int winner_str, int show_popups, const ColonizeCol1Save* col1, ColonizeDosRng* rng );
 void units_combat_enqueue_tok( AiPopupTag tag, const char* section, int nation_a, int nation_b, int payload, const PopupMsgTokens* tok, const char* fallback );
 int units_combat_human_involved(const ColonizeCol1Save* col1, int nat_a, int nat_b);
+/* dos_tail[index] = `last`'s record bytes (what 0824's compaction leaves in
+ * the vacated slot), and the pool's last active unit in slot order. */
+void units_dos_tail_stash(ColonizeUnitPool* pool, int index, const ColonizeUnit* last);
+const ColonizeUnit* units_last_active(const ColonizeUnitPool* pool);
 bool units_combat_is_visible(const ColonizeUnitPool* pool, int a_id, int b_id);
 void units_combat_music_sting(void);
 const char* units_combat_nation_label(const ColonizeCol1Save* col1, int nation_id);
@@ -112,7 +116,7 @@ const char* units_combat_nation_label_plural(const ColonizeCol1Save* col1, int n
 void units_combat_outcome_popups( const ColonizeUnitPool* pool, const ColonizeUnit* win, const ColonizeUnit* lose, int atk_wins, int atk_nation, int def_nation, int is_naval, int ambush, const ColonizeCol1Save* col1 );
 int units_domain_blocker_at( const ColonizeUnitPool* pool, int x, int y, int mover_id, int mover_nation );
 int units_drake_scale_strength( const ColonizeUnitPool* pool, const ColonizeUnit* unit, int strength, const ColonizeCol1Save* col1 );
-void units_finish_village_temp_defender( ColonizeUnitPool* pool, ColonizeCol1Save* col1, ColonizeWorldMap* map, int temp_id, int attacker_won, int attacker_nation, int village_x, int village_y, ColonizeDosRng* rng );
+void units_finish_village_temp_defender( ColonizeUnitPool* pool, ColonizeCol1Save* col1, ColonizeWorldMap* map, int temp_id, int attacker_won, int attacker_nation, int village_x, int village_y, int attacker_x, int attacker_y, ColonizeDosRng* rng );
 const char* units_home_port_name(const ColonizeCol1Save* col1, int nation_id);
 void units_indian_attack_alarm_vent( const ColonizeCol1Save* col1, int atk_nation, int def_nation, int delta );
 int units_indian_attack_alarm_vent_amount( const ColonizeCol1Save* col1, int def_nation, int base, int difficulty_shift );

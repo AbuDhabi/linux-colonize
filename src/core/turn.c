@@ -150,6 +150,7 @@ void turn_refresh_moves_for_nation_w(
   /* FF combat context for units_try_move (Washington / Drake / Revere). */
   units_set_ff_col1(col1);
   colonies_set_col1_context((ColonizeCol1Save*)col1);
+  colonies_set_units_context(pool);
   units_set_occupancy_map(map);
   pool->spawn_colonies = w->colonies;
   colonies_set_occupancy_map(map);

@@ -620,6 +620,8 @@ void colonies_set_occupancy_map(ColonizeWorldMap* map);
 bool colonies_capture(ColonizeColonyPool* pool, int colony_id, int new_nation_id);
 /* capture-tail Col1 context (see docs/colony.md#colonies_set_col1_context) */
 void colonies_set_col1_context(ColonizeCol1Save* col1);
+/* units whose +0x314a binding a colony delete clears (raw 58190-58200) */
+void colonies_set_units_context(ColonizeUnitPool* units);
 /* Owner swap + DOS side effects; *plunder_gold (may be NULL) = treasury share moved. */
 bool colonies_capture_ex(
   ColonizeColonyPool* pool, int colony_id, int new_nation_id, int* plunder_gold
