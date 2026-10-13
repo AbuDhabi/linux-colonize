@@ -333,6 +333,14 @@ Archived to [archive/idle_campaign_fixed_2026-10-10.md](archive/idle_campaign_fi
   read the new population (fresh 1572 three-turn: 5 tories, not 4, so the
   Statesman beat the Blacksmith instead of tying it).
 
+- FUN_465b_0000 raw 75577-75578: when the destination is foreign (bVar4,
+  which an undefended foreign colony sets through its settlement owner), an
+  AI or native mover with under 3 thirds left exhausts (LAB_465b_01ce,
+  FUN_281f_0934) and stops. The port rolled the partial-MP gamble (with a
+  reseed) and could walk into the colony; its combat-path copy of the gate
+  also left the MP unspent. Fresh 1592 three-turn: the draw streams now
+  match 50 draws instead of 19. Test: `case_465b_low_mp_foreign_colony_exhausts`.
+
 ## Two-turn from-load targets (2026-10-13)
 
 A fresh target covers one turn after a load. Two turns in one DOSBox session
@@ -346,7 +354,9 @@ copy taken later can already hold the next save.
   27, which differs between two DOS runs too.
 - Three-turn targets (`mkfresh3`): 1511, 1534, 1542, 1572 and 1582 are byte
   exact for all three turns. 1526, 1552 and 1562 diverge first on native
-  Braves (DOS-unrepeatable).
+  Braves (DOS-unrepeatable). 1592's third turn is not repeatable in DOS
+  either: two runs disagree on the draw stream right after the French
+  attacks near (24,6).
 - DOS is not fully repeatable here: two identical 1591 runs differed in one
   colony's `garrison_quota`. Treat a single-field mismatch as noise until a
   second run reproduces it.

@@ -384,6 +384,9 @@ bool units_try_move_w(
           units_despawn(pool, village_temp);
           village_temp = -1;
         }
+        /* 465b raw 75577-75578 reaches this first: LAB_465b_01ce exhausts
+         * (FUN_281f_0934) before leaving through LAB_0bd1. */
+        units_mp_exhaust(pool, unit);
         g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
         return false;
       }
@@ -579,6 +582,27 @@ combat_entry_resolved:
   const int remaining = units_remaining_mp(pool, unit_id);
   const int max_mp = units_max_mp(pool, unit_id);
   const bool full_mp = remaining >= max_mp;
+
+  /*
+   * FUN_465b_0000 raw 75577-75578: bVar4 is set by a foreign SETTLEMENT owner
+   * too (06be, raw 75467), so an undefended foreign colony counts. An AI or
+   * native mover with under 3 thirds left goes to LAB_465b_01ce: exhaust
+   * (FUN_281f_0934) and stop, before any partial-MP roll. Fresh 1592
+   * three-turn: a French Dragoon at 0 MP beside empty Dutch Curacao.
+   */
+  if (reason == COLONIZE_ENTER_OK && colonies && g_units_ff_col1 &&
+      remaining < UNITS_MP_PER_TILE) {
+    const ColonizeColony* fcol = colonies_get(colonies, colonies_id_at(colonies, dest_x, dest_y));
+    const bool ai_controlled =
+      unit->nation_id > 3 ||
+      (unit->nation_id >= 0 && unit->nation_id <= 3 &&
+       g_units_ff_col1->player[unit->nation_id].control != 0);
+    if (fcol && fcol->active && fcol->nation_id != unit->nation_id && ai_controlled) {
+      units_mp_exhaust(pool, unit);
+      g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
+      return false;
+    }
+  }
 
   bool allow = false;
   if (reason == COLONIZE_ENTER_COMBAT_LAND || reason == COLONIZE_ENTER_COMBAT_NAVAL) {
