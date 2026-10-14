@@ -99,25 +99,12 @@ dropped 2026-09-14 (duplication audit TT-14). Run it explicitly:
 cmake --build build/debug --target golden_ai_joint
 ```
 
-The VR_SEED.EXE seed-100 idle campaign has a separate, parked full-save gate:
-`golden_idle_campaign`. Its 13 CTest cases cover all 77 adjacent-year pairs in
-`original_saves/1492-1600-seed-100`; missing years split the runs, and the
-isolated saves at 1519, 1521, and 1531 have no transition to check. Each case
-loads the first save of its run, skips the human turn, advances headlessly, and
-compares every byte of the resulting save with the next DOS yearly autosave.
-The target is excluded from the default build and all cases are disabled in
-CTest until between-turn behavior has been aligned. To build and run one case
-manually from the repo root:
-
-```
-cmake --build build/debug --target golden_idle_campaign
-./build/debug/golden_idle_campaign 1492 1499
-```
-
-Status, the DOS autosave timing it models and open leads: [docs/idle_campaign.md](../docs/idle_campaign.md).
-Set `GOLDEN_IDLE_DUMP=/tmp/idle_actual.sav` to write the first mismatching
-simulated save for inspection with `sav_json`. The comparison stops at that
-turn, so later years are never treated as bridged across a mismatch.
+The VR_SEED.EXE seed-100 idle campaign gate, CTest `golden_idle_continuous`, plays
+`year_1492.sav` continuously through 1599 and compares every archived yearly autosave
+in `original_saves/1492-1600-seed-100` byte for byte. It ignores the human's
+first-turn UI words, the port extension tail and the DOS-only residue years
+1505/1506. Run and debug it, and see what is ignored and why, in
+[docs/idle_campaign.md](../docs/idle_campaign.md).
 `GOLDEN_IDLE_KEEP_GOING=1` keeps simulating past mismatches (the dump then holds
 the last year), for comparing against multi-turn from-load DOSBox runs, and plays
 through years the archive lacks. A `%d` in `GOLDEN_IDLE_DUMP` takes the year, so
