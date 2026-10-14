@@ -27,6 +27,7 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/map.h"
+#include "core/turn.h"
 #include "core/units.h"
 
 typedef struct {
@@ -52,6 +53,8 @@ typedef struct {
 } GoldenFixture;
 
 bool golden_open(const char* path_in, const char* path_exp, uint32_t rng_seed, GoldenFixture* fx);
+/* The headless turn context golden_turn hands turn_end (no popup queue). */
+void golden_ctx(GoldenFixture* fx, ColonizeTurnContext* ctx);
 bool golden_turn(GoldenFixture* fx);
 void golden_close(GoldenFixture* fx);
 

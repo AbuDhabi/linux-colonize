@@ -77,9 +77,7 @@ bool golden_open(const char* path_in, const char* path_exp, uint32_t rng_seed, G
   return true;
 }
 
-bool golden_turn(GoldenFixture* fx) {
-  char err[256];
-
+void golden_ctx(GoldenFixture* fx, ColonizeTurnContext* out) {
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));
   ctx.turn_number = &fx->turn_number;
@@ -95,7 +93,14 @@ bool golden_turn(GoldenFixture* fx) {
   ctx.col1_ok = true;
   ctx.rng = &fx->rng;
   ctx.rng_seed = fx->seed;
+  *out = ctx;
+}
 
+bool golden_turn(GoldenFixture* fx) {
+  char err[256];
+
+  ColonizeTurnContext ctx;
+  golden_ctx(fx, &ctx);
   turn_end(&ctx);
   /* Headless: no UI touches View/Move Pieces, so DS:0x5390 rides through
    * from the loaded save (capture below). */
