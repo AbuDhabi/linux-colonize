@@ -362,8 +362,7 @@ static int sp_02(void) {
    * (confirmed 2026-08-20 scoping pass) — every other scenario in this
    * file still runs with the audience gate closed, unaffected.
    */
-  /* Audience block: keep SoL below declare gate and WoI clear — try_declare
-   * runs after every ai_king_nation_turn peacetime slice. */
+  /* Audience block: keep SoL below declare gate and WoI clear. */
   col1.colony[0].rebel_dividend = 40;
   col1.colony[0].rebel_divisor = 100;
   col1.head.game_options.woi = 0;
@@ -610,80 +609,73 @@ static int sp_06(void) {
 static int sp_07(void) {
   {
     /*
-     * No-popups auto path (FUN_38fd_3dc8's tea-party choice has no
-     * documented AI/auto answer — this port's own invented stand-in,
-     * see ai_king_tax_event's header): a real hike that crosses
-     * AI_KING_BOYCOTT_TAX_MIN with SoL/bells over threshold reverts
-     * itself and boycotts the single tonnage-walk cargo, same turn,
-     * no ai_popups needed. rebel=101, tax=20, SoL=45 (below declare gate),
-     * turn=44, seed=1 -> hike delta +4 (tax 20->24), then the
-     * tonnage-weighted dump-goods walk (bugs.md
-     * #903: DOS-LITERAL FUN_38fd_3dc8 raw 64146-64159 weights by
-     * labs(nation.trade.tons[c])*100, NOT by the Europe bid). The fixture
-     * deliberately puts the fat Europe bid on Tobacco and the only traded
-     * tonnage on Sugar: the pick must follow the tonnage.
+     * rebel=101, tax=20, SoL=45 (below declare gate), turn=44, seed=1 ->
+     * a hike. With a popup queue the @TAXOPTIONS party
+     * names the tonnage-walk cargo (bugs.md #903: DOS-LITERAL FUN_38fd_3dc8
+     * raw 64146-64159 weights by labs(nation.trade.tons[c])*100, NOT by the
+     * Europe bid): the fixture puts the fat Europe bid on Tobacco and the
+     * only traded tonnage on Sugar. Headless (no queue) the idle player's
+     * first option, Accept, stands (independence-seed-100 000002).
      */
-    turn = 44;
-    col1.head.game_options.woi = 0;
-    ai_king_latch_set(&col1, 0, 0);
-    ai_king_latch_set(&col1, 5, 0);
-    col1.head.rebel_sentiment_report = 101;
-    col1.nation[0].tax_rate = 20;
-    europe.tax_percent = 20;
-    col1.nation[0].gold = 0;
-    col1.colony[0].rebel_dividend = 45;
-    col1.colony[0].rebel_divisor = 100;
-    col1.nation[0].liberty_bells_pool = 0;
-    col1.nation[0].boycott_bitmap = 0;
-    europe.cargo_count = COLONIZE_CARGO_COUNT;
-    for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-      europe.cargo[c].bid = 1;
-    }
-    europe.cargo[COLONIZE_CARGO_TOBACCO].bid = 500;
-    ctx.europe = &europe;
-    /*
-     * bugs.md: the selection walk only sees cargos a colony actually holds — you
-     * cannot dump 0 tons in protest — so stock the two the pick may name.
-     */
-    memset(c->stock, 0, sizeof(c->stock));
-    c->stock[COLONIZE_CARGO_TOBACCO] = 120;
-    c->stock[COLONIZE_CARGO_SUGAR] = 30;
-    /* local_7a[]: Sugar is the first stocked cargo that drains the signed
-     * total to zero, so the DOS walk selects it. */
-    memset(col1.nation[0].trade.tons, 0, sizeof(col1.nation[0].trade.tons));
-    col1.nation[0].trade.tons[COLONIZE_CARGO_SUGAR] = 7;
     ColonizeDosRng tea_rng;
-    dos_rng_seed(&tea_rng, 1u);
-    ctx.rng = &tea_rng;
-    status[0] = '\0';
-    ai_king_nation_turn(&ctx);
-    ctx.rng = NULL;
-    if (col1.nation[0].tax_rate != 20) {
-      fprintf(stderr, "unit_ai_king: auto-teaparty tax_rate=%u (want reverted to 20)\n",
-              col1.nation[0].tax_rate);
-      return fail("no-popups auto path should revert the hike (tea party)");
-    }
-    if ((col1.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_SUGAR)) == 0) {
-      fprintf(stderr, "unit_ai_king: auto-teaparty boycott=0x%x (want Sugar bit)\n",
-              (unsigned)col1.nation[0].boycott_bitmap);
-      return fail("tea-party walk must weight by trade.tons, not the Europe bid");
-    }
-    /* Exactly one cargo bit — the single DOS-walk pick, not a fixed
-     * Sugar-first two-cargo boycott (that shape is retired). */
-    int bits = 0;
-    for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-      if (col1.nation[0].boycott_bitmap & (1u << c)) {
-        bits++;
+    for (int headless = 0; headless < 2; ++headless) {
+      turn = 44;
+      col1.head.game_options.woi = 0;
+      ai_king_latch_set(&col1, 0, 0);
+      ai_king_latch_set(&col1, 5, 0);
+      col1.head.rebel_sentiment_report = 101;
+      col1.nation[0].tax_rate = 20;
+      europe.tax_percent = 20;
+      col1.nation[0].gold = 0;
+      col1.colony[0].rebel_dividend = 45;
+      col1.colony[0].rebel_divisor = 100;
+      col1.nation[0].liberty_bells_pool = 0;
+      col1.nation[0].boycott_bitmap = 0;
+      europe.cargo_count = COLONIZE_CARGO_COUNT;
+      for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+        europe.cargo[c].bid = 1;
       }
-    }
-    if (bits != 1) {
-      fprintf(stderr, "unit_ai_king: auto-teaparty boycott_bitmap=0x%x bits=%d\n",
-              (unsigned)col1.nation[0].boycott_bitmap, bits);
-      return fail("no-popups auto path should boycott exactly one cargo");
-    }
-    if (!strstr(status, "tea party") || !strstr(status, "20")) {
-      fprintf(stderr, "unit_ai_king: auto-teaparty status: '%s'\n", status);
-      return fail("no-popups auto path tea-party status should mention the reverted rate");
+      europe.cargo[COLONIZE_CARGO_TOBACCO].bid = 500;
+      ctx.europe = &europe;
+      /*
+       * bugs.md: the selection walk only sees cargos a colony actually holds — you
+       * cannot dump 0 tons in protest — so stock the two the pick may name.
+       */
+      memset(c->stock, 0, sizeof(c->stock));
+      c->stock[COLONIZE_CARGO_TOBACCO] = 120;
+      c->stock[COLONIZE_CARGO_SUGAR] = 30;
+      /* local_7a[]: Sugar is the first stocked cargo that drains the signed
+       * total to zero, so the DOS walk selects it. */
+      memset(col1.nation[0].trade.tons, 0, sizeof(col1.nation[0].trade.tons));
+      col1.nation[0].trade.tons[COLONIZE_CARGO_SUGAR] = 7;
+      dos_rng_seed(&tea_rng, 1u);
+      ctx.rng = &tea_rng;
+      status[0] = '\0';
+      AiPopupState tea_pop;
+      ai_popup_init(&tea_pop);
+      ctx.ai_popups = headless ? NULL : &tea_pop;
+      ai_king_nation_turn(&ctx);
+      ctx.ai_popups = NULL;
+      ctx.rng = NULL;
+      if (headless) {
+        if (col1.nation[0].tax_rate <= 20 || col1.nation[0].boycott_bitmap != 0) {
+          fprintf(stderr, "unit_ai_king: headless tax_rate=%u boycott=0x%x (want >20, 0)\n",
+                  col1.nation[0].tax_rate, (unsigned)col1.nation[0].boycott_bitmap);
+          return fail("no-popups audience should accept the hike (first option)");
+        }
+      } else {
+        int applied = 0;
+        int cargo = -1;
+        for (int i = 0; i < tea_pop.queue_count; ++i) {
+          if (tea_pop.queue[i].tag == AI_POPUP_TAG_KING_AUDIENCE) {
+            ai_king_teaparty_payload_parts(tea_pop.queue[i].payload, &applied, &cargo);
+          }
+        }
+        if (cargo != COLONIZE_CARGO_SUGAR) {
+          fprintf(stderr, "unit_ai_king: tea-party cargo=%d (want Sugar)\n", cargo);
+          return fail("tea-party walk must weight by trade.tons, not the Europe bid");
+        }
+      }
     }
 
     /* Empty warehouses → nothing to throw in the sea, so the hike just stands. */
@@ -909,7 +901,7 @@ static int sp_11(void) {
 
 /* declare: latches, no rename, 1a26/0108 diplo */
 static int sp_12(void) {
-  /* Declare path: autumn skips tax; SoL≥50 only (no bells gate). Wave runs same turn. */
+  /* Menu declare: autumn skips tax; SoL≥50 only (no bells gate). Wave runs same turn. */
   year = 1600;
   autumn = 1;
   col1.colony[0].rebel_dividend = 60;
@@ -936,6 +928,8 @@ static int sp_12(void) {
   snprintf(col1.player[0].country_name, sizeof(col1.player[0].country_name), "England");
   snprintf(europe.nation_name, sizeof(europe.nation_name), "England");
 
+  /* DOS declares only from the menu (FUN_43f7_2564 has no per-turn caller). */
+  ai_king_menu_declare_independence(&ctx);
   ai_king_nation_turn(&ctx);
   if (ai_king_latch_get(&col1, 0) == 0) {
     return fail("declare should set WoI flag market_demand_pool_raw[0]");

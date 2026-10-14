@@ -1187,7 +1187,29 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx) {
 }
 
 /* ===== Nation turn driver & popup result dispatch (ai_king_nation_turn .. ai_king_apply_popup_result) ===== */
+/*
+ * FUN_38fd_5e52 tail for the human (raw 68614): `if (0b7a() == 0) 0c84();`
+ * — the 5be8 tax roll, then @KINGNEWWAR only when no audience was held.
+ * 5e52 opens the nation's 00f2, before the colony loop, so a hike prices
+ * this turn's Custom House sales (independence-seed-100 000002).
+ */
+void ai_king_human_5e52_tail(ColonizeTurnContext* ctx) {
+  if (!ctx || ai_king_independence_declared(ctx->col1_ok ? ctx->col1 : NULL)) {
+    return;
+  }
+  const int popups_before = ctx->ai_popups ? ctx->ai_popups->queue_count : 0;
+  ai_king_tax_event(ctx);
+  if (!ctx->ai_popups || ctx->ai_popups->queue_count == popups_before) {
+    (void)ai_king_new_war_event(ctx);
+  }
+}
+
 void ai_king_nation_turn(ColonizeTurnContext* ctx) {
+  ai_king_human_5e52_tail(ctx);
+  ai_king_nation_turn_2424(ctx);
+}
+
+void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
   if (!ctx) {
     return;
   }
@@ -1217,12 +1239,7 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
      * purse stipend + threshold @KINGBUY pool buy (real 1d42; the tax
      * audience below is the separate 38fd_5be8 machinery). */
     ai_king_1d42_royal_purse(ctx);
-    const int popups_before = ctx->ai_popups ? ctx->ai_popups->queue_count : 0;
-    ai_king_tax_event(ctx);
-    /* 38fd Europe-EOT king slot: @KINGNEWWAR only when the tax event stayed quiet. */
-    if (!ctx->ai_popups || ctx->ai_popups->queue_count == popups_before) {
-      (void)ai_king_new_war_event(ctx);
-    }
+    /* Tax roll and @KINGNEWWAR: ai_king_human_5e52_tail, earlier in 00f2. */
     /* FUN_3844_00f2 tail: @KINGFRIGATE every 8th peacetime turn. */
     ai_king_frigate_offer(ctx, ctx->human_nation);
     /*
@@ -1353,11 +1370,11 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
     /*
      * Thin pre-declare SoL chrome:
      * SoL AI_KING_RESTLESS_SOL_MIN..(DECLARE_MIN-1) → restless status line
-     * before the auto-declare gate. market_demand_pool_raw consistency: do not set WoI[0] /
+     * below the declare threshold. market_demand_pool_raw consistency: do not set WoI[0] /
      * congress[5] here (declare only). Optional tax mention when tax_rate
      * already in the refuse band (≥20) — reads existing tax_rate; no invented
      * tax formula. Do not clobber thin 38fd_5be8 tax audience / hike status
-     * from 1d42 (ai_popup CHOICE when queue attached). (2564 in try_declare.)
+     * from 1d42 (ai_popup CHOICE when queue attached). (2564 is menu-only.)
      */
     if (sol >= AI_KING_RESTLESS_SOL_MIN && sol < AI_KING_DECLARE_SOL_MIN && ctx->status &&
         ctx->status_size) {
@@ -1379,7 +1396,6 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
         /* Restless: status only (no invented wood OK). */
       }
     }
-    ai_king_try_declare(ctx);
   }
 
   if (ai_king_independence_declared(ctx->col1_ok ? ctx->col1 : NULL)) {

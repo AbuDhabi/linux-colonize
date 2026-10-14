@@ -1586,21 +1586,26 @@ bool units_brewster_apply_popup_ex_w(
   const ColonizeWorld* w,
   AiPopupState* popups
 ) {
-  EuropeScreen* europe = w->europe;
-  ColonizeUnitPool* units = w->units;
-  ColonizeDosRng* rng = w->rng;
-
   if (!popups || popups->result_tag != AI_POPUP_TAG_BREWSTER_PICK) {
     return false;
   }
-  if (!europe || popups->result_cancelled) {
+  if (!w->europe || popups->result_cancelled) {
     return true; /* 4884: local_58 < 0 → nothing moves, crosses kept */
   }
   const int slot = popups->result_choice_id;
   if (slot < 0 || slot >= EUROPE_POOL_SIZE) {
     return true;
   }
-  const int human = popups->result_nation_a;
+  return units_brewster_apply_slot_w(w, popups->result_nation_a, slot);
+}
+
+bool units_brewster_apply_slot_w(const ColonizeWorld* w, int human, int slot) {
+  EuropeScreen* europe = w->europe;
+  ColonizeUnitPool* units = w->units;
+  ColonizeDosRng* rng = w->rng;
+  if (!europe || slot < 0 || slot >= EUROPE_POOL_SIZE) {
+    return true;
+  }
   /* FUN_38fd_4884 raw 64765-64768: crosses are zeroed, then the 0718 create
    * (its type roll, then FUN_1427_06b4). A refusal at the unit limit stops
    * there: no dock colonist, no pool refill (@TOOMANYUNITS). */

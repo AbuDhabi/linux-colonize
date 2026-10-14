@@ -756,20 +756,9 @@ void ai_king_tax_hike_apply(
     /* Queue full — fall through to auto resolve. */
   }
 
-  /*
-   * Auto path (no popups attached): DOS's tea-party choice is inherently
-   * player-interactive — there is no documented AI/auto answer. Stand-in
-   * heuristic (invented, not a decode): tea-party when the hike pushes tax
-   * to a high band and SoL/liberty bells suggest the colonies would balk.
-   */
-  const int sol = ai_king_sol_percent(ctx, human);
-  const int auto_teaparty =
-      (proposed >= AI_KING_BOYCOTT_TAX_MIN) &&
-      (sol >= AI_KING_BOYCOTT_SOL_MIN || nat->liberty_bells_pool >= AI_KING_BOYCOTT_BELLS_MIN);
-  if (auto_teaparty) {
-    ai_king_tax_teaparty(ctx, human, picked);
-    return;
-  }
+  /* Headless (no popup queue): nobody answers 3dc8, and an idle player's
+   * Space takes the first option, Accept (independence-seed-100 000002:
+   * DOS 60 -> 62 %). The old SoL/bells tea-party heuristic was invented. */
   ai_king_tax_commit(ctx, human, delta);
   if (ctx->status && ctx->status_size) {
     snprintf(ctx->status, ctx->status_size,
@@ -1208,10 +1197,11 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
  * `ai_king_independence_declared` already short-circuits that case above.)
  */
 /*
- * Shared @DECLARE Never/Yes confirm body — called once `sol` is already
- * known ≥ AI_KING_DECLARE_SOL_MIN, from both the automatic per-turn check
- * (ai_king_try_declare) and the menu-invoked path
- * (ai_king_menu_declare_independence).
+ * @DECLARE Never/Yes confirm body — called once `sol` is already known
+ * ≥ AI_KING_DECLARE_SOL_MIN from the menu-invoked path
+ * (ai_king_menu_declare_independence). DOS FUN_43f7_2564 has no per-turn
+ * call site: nothing declares on its own at the SoL threshold, headless
+ * or not (independence-seed-100 campaign, DOSBox load of START_SAVE).
  */
 static void ai_king_show_declare_choice(ColonizeTurnContext* ctx, int human, int sol) {
   if (ai_king_human_popups(ctx)) {
@@ -1256,48 +1246,11 @@ static void ai_king_show_declare_choice(ColonizeTurnContext* ctx, int human, int
   ai_king_do_declare(ctx, human);
 }
 
-void ai_king_try_declare(ColonizeTurnContext* ctx) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1) {
-    return;
-  }
-  const int human = ctx->human_nation;
-  if (human < 0 || human >= 4) {
-    return;
-  }
-  if (ai_king_independence_declared(ctx->col1)) {
-    return;
-  }
-  const int sol = ai_king_sol_percent(ctx, human);
-  if (sol < AI_KING_DECLARE_SOL_MIN) {
-    return;
-  }
-  /*
-   * bugs.md: DOS never spawns the Never/Yes @DECLARE confirm on its own at a
-   * SoL threshold. FUN_43f7_2564 has no call site in the decompile at all —
-   * it is reached only from the MENU.TXT @GAME "DECLARE INDEPENDENCE" command
-   * (ai_king_menu_declare_independence). Firing it per turn produced a
-   * persistent popup at SoL 50 that the original does not have. Keep the
-   * SoL≥min auto-declare only for the headless/AI path (no popup queue), where
-   * there is nobody to answer a CHOICE.
-   */
-  if (ai_king_human_popups(ctx)) {
-    return;
-  }
-  ai_king_show_declare_choice(ctx, human, sol);
-}
-
 /*
  * Menu-invoked DECLARE INDEPENDENCE (MENU.TXT @GAME item, MAP_MENU_ACTION_
- * DECLARE_INDEPENDENCE). DOS FUN_43f7_2564 reached from this same menu
- * command at any SoL, not just once auto-eligible — the per-turn
- * ai_king_try_declare check above only ever calls in once already ≥
- * AI_KING_DECLARE_SOL_MIN, so the sol<min branch (GAME.TXT @TOOTORY) was
- * unreachable there. This entry point makes it reachable: below the
+ * DECLARE_INDEPENDENCE), the only way into DOS FUN_43f7_2564. Below the
  * threshold, show @TOOTORY (Congress won't back a rebellion yet) as a
- * plain OK notice; at/above threshold, show the same Never/Yes @DECLARE
- * confirm ai_king_try_declare would auto-fire on its next turn — so
- * declining "Not yet" from the auto-popup can be revisited here on demand
- * instead of only ever re-asked wholesale next turn.
+ * plain OK notice; at/above threshold, the Never/Yes @DECLARE confirm.
  */
 void ai_king_menu_declare_independence(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {

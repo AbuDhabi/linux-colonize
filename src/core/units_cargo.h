@@ -197,6 +197,9 @@ bool units_brewster_apply_popup_ex_w(
   const ColonizeWorld* w,
   AiPopupState* popups
 );
+/* The 4884 apply for pool `slot`, without a popup (headless: the idle
+ * player's Space takes the first option). */
+bool units_brewster_apply_slot_w(const ColonizeWorld* w, int human, int slot);
 bool units_fountain_youth_apply_popup(
   EuropeScreen* europe, AiPopupState* popups, const ColonizeMsgCatalog* game_txt
 );

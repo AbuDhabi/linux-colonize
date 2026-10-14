@@ -112,15 +112,17 @@ through years the archive lacks. A `%d` in `GOLDEN_IDLE_DUMP` takes the year, so
 `GOLDEN_IDLE_FROM=path.sav` starts from that save instead of `year_FIRST.sav`.
 
 The same binary with a leading `independence` argument runs the second campaign,
-`original_saves/independence-seed-100` (Dutch every-turn autosaves `000001`..`000020`,
-1680-1690, see its readme.md). Arguments are save numbers, and the `%d` in dumps is
+`original_saves/independence-seed-100` (Dutch every-turn autosaves `000001`..`000020`
+after loading `START_SAVE.SAV` = save 0, 1680-1690, see its readme.md). Arguments are
+save numbers, and the `%d` in dumps is
 the save number. Before simulating toward save 3, the harness declares independence
 through `ai_king_menu_declare_independence`. With no popup queue that confirms, as the
 player's second option did. It plays through turns missing from the archive (turn 288).
-CTest `golden_idle_independence` is disabled until the run is aligned:
+CTest `golden_idle_independence` is disabled until the run is aligned; status and
+quirks in [docs/idle_independence.md](../docs/idle_independence.md):
 
 ```
-GOLDEN_IDLE_KEEP_GOING=1 GOLDEN_IDLE_DUMP=/tmp/x/sim_%d.sav ./build/debug/golden_idle_campaign independence 1 20
+GOLDEN_IDLE_KEEP_GOING=1 GOLDEN_IDLE_DUMP=/tmp/x/sim_%d.sav ./build/debug/golden_idle_campaign independence 0 20
 ```
 
 Most executables expect **repo root** as cwd (`WORKING_DIRECTORY` in CMake).

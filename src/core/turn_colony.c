@@ -394,8 +394,35 @@ static void turn_ai_colony_bell_step(void* user, ColonizeColony* colony) {
   step->nat->liberty_bells_pool = (uint16_t)(pool > 65535u ? 65535u : pool);
   /* FUN_364b_0688 raw 57231 calls FUN_4345_0a22 before this colony's
    * production; it checks the election even when this colony made no bells. */
-  if (step->control == 1) {
+  if (step->control != 2) {
     (void)founding_fathers_try_elect(step->ctx, step->nation);
+  }
+}
+
+/*
+ * The human's colony EOT. Same FUN_364b_0688 per-colony bell step as the AI
+ * (raw 57231: 0a22 accrues this colony's bells and tests the election before
+ * the colony produces), so an election at an early colony leaves the later
+ * colonies' bells in the pool and re-opens the nomination
+ * (independence-seed-100 000002: pool 182, next father 1). The Europe
+ * screen mirrors the human's bell words.
+ */
+void turn_run_human_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
+  const int n = ctx ? ctx->human_nation : -1;
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || n < 0 || n >= 4 ||
+      ctx->col1->head.game_options.woi) {
+    turn_run_colony_eot(ctx, out);
+    return;
+  }
+  ColonizeCol1Nation* nat = &ctx->col1->nation[n];
+  AiNationColonyBellStep bell_step = {
+    .ctx = ctx, .nat = nat, .nation = n, .control = ctx->col1->player[n].control, .crosses = 0
+  };
+  nat->liberty_bells_last_turn = 0;
+  turn_run_colony_eot_with(ctx, out, turn_ai_colony_bell_step, &bell_step);
+  if (ctx->europe) {
+    ctx->europe->liberty_bells_pool = nat->liberty_bells_pool;
+    ctx->europe->liberty_bells_last_turn = nat->liberty_bells_last_turn;
   }
 }
 
@@ -471,6 +498,9 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
   turn_count_bells_and_crosses_for_nation(
     ctx->colonies, ctx->human_nation, ctx->col1_ok ? ctx->col1 : NULL, &bells, &crosses
   );
+  const bool human_bells_per_colony = ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 &&
+                                      ctx->human_nation < 4 &&
+                                      !ctx->col1->head.game_options.woi;
 
   if (ctx->europe) {
     if (ctx->europe->needed_crosses == 0) {
@@ -482,8 +512,10 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
      * AFTER that tick (FUN_3844_00f2 raw 58375 vs 58386 — see below).
      * Cite: Phase M + 5e52; TURN1–7 goldens.
      */
-    ctx->europe->liberty_bells_last_turn = (uint16_t)(bells > 65535 ? 65535 : bells);
-    {
+    /* Peacetime with a save: the bells land per colony in
+     * turn_run_human_colony_eot instead (0a22 inside 364b_0688). */
+    if (!human_bells_per_colony) {
+      ctx->europe->liberty_bells_last_turn = (uint16_t)(bells > 65535 ? 65535 : bells);
       unsigned total = (unsigned)ctx->europe->liberty_bells_pool + (unsigned)bells;
       if (total > 65535u) {
         total = 65535u;
@@ -507,7 +539,16 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
     if (imm == 2) {
       /* Brewster: player picks from the pool (@RECRUITCHOOSE); applied via
        * units_brewster_apply_popup in game_loop, crosses kept until then. */
-      units_brewster_enqueue_pick(ctx->europe, ctx->ai_popups, ctx->messages, ctx->human_nation);
+      if (ctx->ai_popups) {
+        units_brewster_enqueue_pick(ctx->europe, ctx->ai_popups, ctx->messages, ctx->human_nation);
+      } else {
+        /* Headless: DOS 4884 resolves the pick inside 5e52, before the colony
+         * tick; an idle player's Space takes the first option. */
+        (void)units_brewster_apply_slot_w(
+          &(ColonizeWorld){.units = ctx->units, .rng = ctx->rng, .europe = ctx->europe},
+          ctx->human_nation, 0
+        );
+      }
       if (ctx->status && ctx->status_size > 0) {
         snprintf(ctx->status, ctx->status_size, "Religious unrest: choose an immigrant.");
       }
@@ -623,7 +664,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
        * elect here.
        */
       nat->liberty_bells_last_turn = (uint16_t)(nb > 65535 ? 65535 : nb);
-      for (int ci = 0; ci < ncol && ci < COLONIZE_COLONIES_MAX; ++ci) {
+      for (int ci = 0; !human_bells_per_colony && ci < ncol && ci < COLONIZE_COLONIES_MAX; ++ci) {
         if (s_colony_bells[ci] <= 0) {
           continue;
         }

@@ -2788,7 +2788,6 @@ bool col1_bridge_capture_w(
          * moves).
          */
         const ColonizeUnitType* ut = units_type(units, src->type_index);
-        const bool transport = ut && ut->cargo > 0;
         if (src->nation_id >= 0 && src->nation_id <= 3) {
           /* Symmetric with the import above (col1_bridge_unit_max_mp): read
            * Magellan off `save`, not the units module's optional FF global. */
@@ -2802,12 +2801,6 @@ bool col1_bridge_capture_w(
             const int left = src->moves > 0 ? src->moves
                              : (src->aboard_moves >= 0 ? src->aboard_moves : max_mp);
             spent = max_mp > left ? max_mp - left : 0;
-          } else if (
-            transport && src->orders == UNITS_ORDER_AI_MOVE && src->goto_x == src->x &&
-            src->goto_y == src->y
-          ) {
-            /* Station-keep tip (TURN5 FR 52,43): COL1 moves spent = 0. */
-            spent = 0;
           } else if (src->moves <= 0) {
             /*
              * Transports follow exactly the same ladder as land units. The

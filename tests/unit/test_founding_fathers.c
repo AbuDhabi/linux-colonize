@@ -9,6 +9,7 @@
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/reports.h"
+#include "core/turn_internal.h"
 #include "core/map.h"
 #include "core/ai_king.h"
 #include "core/turn.h"
@@ -1907,6 +1908,8 @@ int main(void) {
     pnat->liberty_bells_pool = 0;
     pnat->current_crosses = 0;
     turn_run_nation_ticks(&pctx, NULL);
+    /* Peacetime bells land per colony in the human's colony EOT (0a22). */
+    turn_run_human_colony_eot(&pctx, NULL);
     /* Jefferson+Paine: 12 bells; Penn: 11 church crosses + the 584a idle +2
      * (dock latch is up but no immigrant waits, so the tick stays positive)
      * — see the per-worker Penn fold note above crosses_penn. */
