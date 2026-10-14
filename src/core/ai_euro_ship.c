@@ -1818,6 +1818,20 @@ void ai_euro_20e6_ship_cargo_counts(
 }
 
 /*
+ * DS:0x95f2[cid] as 20e6 reads it: the byte FUN_4962_0018 left at this
+ * nation's slot start (turn.c, raw 58390), not a live recount. 1590: the
+ * Dutch Dragoon landed from hull 39 fortifies at (26,6); DOS's frozen byte
+ * has no bit 8 yet, so the hull's unload mask stays 0 and its 4e2d far-roam
+ * roll draws. Fixtures without a census fall back to the live recount.
+ */
+static int ai_euro_20e6_presence_95f2(const ColonizeTurnContext* ctx, int nation, int cid) {
+  if (ctx->col1_ok && ctx->col1 && cid >= 0 && cid < 16) {
+    return ctx->col1->stuff.continent_presence_flags[cid];
+  }
+  return ai_contact_continent_presence_4962(ctx, nation, cid);
+}
+
+/*
  * FUN_521d_20e6 LAB_3558 land-adjacent unload mask (local_9c, raw ~1766-1884
  * of move_scoring_20e6_full.md; euro_ocean_scoring.c section map). Walks the
  * 8 tiles around the ship; each qualifying land tile recomputes the mask from
@@ -1833,7 +1847,7 @@ void ai_euro_20e6_ship_cargo_counts(
  *    berth boarding scan), no longer a colony-flag count.
  *  - a654 per-unit goal id for the goal fold: nation-level FOUND/MIL_EXPAND
  *    goal existence (see the fold comment in the body).
- *  - presence bit 0x08 of −0x6a0e: live via ai_contact_continent_presence_4962.
+ *  - presence bit 0x08 of −0x6a0e: the frozen census byte (ai_euro_20e6_presence_95f2).
  *  - DS:0x1740 recall latch (5bfb full-recall event): no OpenCol producer — 0.
  */
 /*
@@ -2151,7 +2165,7 @@ int ai_euro_20e6_unload_mask_snapshot(
       /* Raw 89539-89541: `if (-0x6a0e[cont] & 8) local_9c |= 0x10` — this
        * nation has a fortified combat unit outside any colony on the
        * continent (FUN_4962_0018 writer raw 78167-78180, bugs.md #1062). */
-      if (ai_contact_continent_presence_4962(ctx, nation, cid) & 8) {
+      if (ai_euro_20e6_presence_95f2(ctx, nation, cid) & 8) {
         mask |= 0x10;
       }
     }
@@ -2382,7 +2396,7 @@ int ai_euro_20e6_colony_sail_pick(
        * "writer undecoded" comment with no term at all. Bit 8 is masked off
        * here — it reaches this scorer only through war_cont_count.
        */
-      score += (ai_contact_continent_presence_4962(ctx, nation, cid) & 7) * 8;
+      score += (ai_euro_20e6_presence_95f2(ctx, nation, cid) & 7) * 8;
       /* Raw 89660-89662, verbatim shape: `if (a89c != 0 && 1 < mil)`. */
       if (war_cont_count != 0 && mil > 1) {
         score += war_cont_count * mil * -8;
