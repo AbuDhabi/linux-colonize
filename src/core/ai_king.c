@@ -878,8 +878,8 @@ int ai_king_colony_sol_at(const ColonizeTurnContext* ctx, int nation_id, int x, 
  * live price data, not a war flag, and is nonzero almost every game. A save
  * never touched by ai_king_set_independence (i.e. every save that didn't
  * come out of this port's own turn_end) would misreport WoI as declared.
- * Set only on declare (ai_king_try_declare / ai_king_set_independence) when
- * SoL≥AI_KING_DECLARE_SOL_MIN — never by restless chrome.
+ * Set only on declare (ai_king_menu_declare_independence /
+ * ai_king_set_independence) when SoL≥AI_KING_DECLARE_SOL_MIN — never by restless chrome.
  */
 int ai_king_independence_declared(const ColonizeCol1Save* col1) {
   if (!col1) {

@@ -686,6 +686,18 @@ static void ensure_next_candidate(ColonizeTurnContext* ctx, int nation_id) {
   for (int type = 0; type < 5; ++type) {
     rolled[type] = ff_pick_weighted_of_type(col1, nation_id, type, ctx->rng);
   }
+  if (nation_id == ctx->human_nation) {
+    /* Headless human: the debate lists the rolls in category order and an
+     * idle player's Space takes the first row (independence-seed-100
+     * 000002: father 1). */
+    for (int t = 0; t < 5; ++t) {
+      if (rolled[t] >= 0) {
+        nat->next_founding_father = (int16_t)rolled[t];
+        return;
+      }
+    }
+    return;
+  }
   const int type = ff_pick_strongest_category(col1, nation_id);
   if (type >= 0 && type < 5 && rolled[type] >= 0) {
     nat->next_founding_father = (int16_t)rolled[type];

@@ -163,7 +163,12 @@ static inline void ai_king_latch_clear(ColonizeCol1Save* col1) {
   pad[1] = 0;
 }
 
+/* Both halves below, in 00f2 order (tests; the turn processor calls them apart). */
 void ai_king_nation_turn(ColonizeTurnContext* ctx);
+/* FUN_38fd_5e52 tail for the human: tax roll, else @KINGNEWWAR. */
+void ai_king_human_5e52_tail(ColonizeTurnContext* ctx);
+/* FUN_43f7_2424 (00f2 tail, after the colony loop). */
+void ai_king_nation_turn_2424(ColonizeTurnContext* ctx);
 
 /*
  * D1: the crown slot's DOS king beat (FUN_43f7_2424 → 2022 — wave spawn,

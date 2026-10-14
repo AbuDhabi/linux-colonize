@@ -1592,6 +1592,8 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
    * scan (DOS would re-act it until the sticky clear).
    */
   const int dos_loop = !(getenv("AI_6D8E_DOS_LOOP") && getenv("AI_6D8E_DOS_LOOP")[0] == '0');
+  static unsigned char stalled[COLONIZE_UNITS_MAX];
+  memset(stalled, 0, sizeof stalled);
   int any_acted;
   int guard = 0;
   do {
@@ -1664,7 +1666,10 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
         if (!progressed) {
           /* Port-only spin guard: DOS re-acts until MP 0 (or the sticky
            * clear). Treat a no-progress unit as exhausted for this scan so
-           * the wave moves on to the next id instead of ending the pass. */
+           * the wave moves on to the next id instead of ending the pass.
+           * DOS ends that spin with the >0x14 sticky clear (FUN_281f_0934),
+           * which exhausts the MP: marked here, exhausted after the waves. */
+          stalled[u->id >= 0 && u->id < COLONIZE_UNITS_MAX ? u->id : 0] = 1;
           break;
         }
         wave_acted = 1;
@@ -1692,6 +1697,16 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
     }
     ++guard;
   } while (any_acted && guard < 64);
+  /* A unit DOS spun to the sticky clear saves fully spent (independence-
+   * seed-100 000002: the human at slot 3 autosaves after the AI slots act,
+   * so their spent bytes survive the day top). Applied after the waves so
+   * the port's re-scan order is unchanged. */
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+    ColonizeUnit* u = &ctx->units->units[i];
+    if (u->active && u->id >= 0 && u->id < COLONIZE_UNITS_MAX && stalled[u->id] && u->moves > 0) {
+      units_mp_exhaust_unit(ctx->units, u->id);
+    }
+  }
 }
 
 void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {

@@ -8,9 +8,11 @@
  *
  * With a leading "independence" argument it runs the Dutch every-turn
  * autosaves in original_saves/independence-seed-100 instead (save numbers
- * 1..20, 1680-1690). The player declares independence between saves 2 and 3
- * (menu GAME > DECLARE INDEPENDENCE, second option) and otherwise idles the
- * same way. Its CTest case is disabled until that run is aligned.
+ * 0..20, 1680-1690; 0 = START_SAVE.SAV, the manual save the player loaded).
+ * The player declares independence between saves 2 and 3 (menu GAME >
+ * DECLARE INDEPENDENCE, second option) and otherwise idles the same way.
+ * Its CTest case is disabled until that run is aligned
+ * (docs/idle_independence.md).
  */
 #include <stdint.h>
 #include <stdio.h>
@@ -26,16 +28,18 @@
  * campaign) or by save number (every-turn campaign). */
 typedef struct {
   const char* path_fmt;
+  const char* start_path; /* save index `min`, when named differently; NULL = path_fmt */
   int min, max;
   int per_turn;      /* save index counts turns, not years */
   int declare_save;  /* the human declares independence on the turn before this save; 0 = never */
 } IdleCampaign;
 
 static const IdleCampaign k_yearly = {
-  "original_saves/1492-1600-seed-100/year_%d.sav", 1492, 1599, 0, 0,
+  "original_saves/1492-1600-seed-100/year_%d.sav", NULL, 1492, 1599, 0, 0,
 };
 static const IdleCampaign k_independence = {
-  "original_saves/independence-seed-100/%06d.SAV", 1, 20, 1, 3,
+  "original_saves/independence-seed-100/%06d.SAV",
+  "original_saves/independence-seed-100/START_SAVE.SAV", 0, 20, 1, 3,
 };
 
 static int read_bytes(const char* path, uint8_t** data, size_t* size) {
@@ -158,7 +162,11 @@ static int parse_year(const IdleCampaign* c, const char* text, int* year) {
 }
 
 static void save_path(const IdleCampaign* c, char* path, size_t size, int year) {
-  snprintf(path, size, c->path_fmt, year);
+  if (year == c->min && c->start_path) {
+    snprintf(path, size, "%s", c->start_path);
+  } else {
+    snprintf(path, size, c->path_fmt, year);
+  }
 }
 
 int main(int argc, char** argv) {

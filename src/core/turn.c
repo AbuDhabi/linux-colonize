@@ -772,9 +772,10 @@ COLONIZE_INTERNAL void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTur
         );
       }
       turn_run_nation_ticks(ctx, &proc->result);
+      ai_king_human_5e52_tail(ctx);
       turn_prod_only_nation = ctx->human_nation;
       turn_prod_only_set = true;
-      turn_run_colony_eot(ctx, &proc->result);
+      turn_run_human_colony_eot(ctx, &proc->result);
       /*
        * FUN_3844_00f2 census AFTER the colony-EOT loop (viceroy_unpacked.c
        * :58390 → FUN_291f_0a74 → FUN_4962_0018): refresh the human colonies'
@@ -802,7 +803,7 @@ COLONIZE_INTERNAL void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTur
 COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
       proc->show_indicator = false;
       turn_set_active_nation(ctx, ctx->human_nation);
-      ai_king_nation_turn(ctx);
+      ai_king_nation_turn_2424(ctx);
       turn_run_year_end_chrome(ctx, &proc->result);
       /*
        * FUN_38fd_0058 runs as the first act of each nation's own 5e52 (after

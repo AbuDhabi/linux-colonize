@@ -140,11 +140,11 @@ class Dbg:
         from PIL import ImageStat
         return ImageStat.Stat(im.crop(box)).mean[0]
 
-    def _highlight(self, im, x0, y0, dy, n):
+    def _highlight(self, im, x0, y0, dy, n, w=10):
         """Index of the one dark (highlighted) row, or None. Menus draw the
         selection as a dark bar: ~38-39 against 46-95 for the other rows
         (wood grain behind the load list makes the others noisy)."""
-        m = [self._mean(im, (x0, y0 + k * dy - 2, x0 + 10, y0 + k * dy + 2)) for k in range(n)]
+        m = [self._mean(im, (x0, y0 + k * dy - 2, x0 + w, y0 + k * dy + 2)) for k in range(n)]
         lo = sorted(m)
         return m.index(lo[0]) if lo[0] < 42 and lo[1] - lo[0] >= 6 else None
 
@@ -164,9 +164,12 @@ class Dbg:
 
     def list_row(self, im):
         """Load-game list (10 slots) selection, or None."""
-        if not self._matches(im, 'list_header.png', 118, 132):
-            return None
-        return self._highlight(im, 505, 156, 12, 10)
+        # The list shifts a few pixels with the window border, and long save
+        # names run text over x=505: sample the bar's left margin instead.
+        for hx in range(115, 122):
+            if self._matches(im, 'list_header.png', hx, 132):
+                return self._highlight(im, hx + 3, 156, 12, 10, w=4)
+        return None
 
     def on_map(self, im):
         return self._matches(im, 'map_menubar.png', 0, 0, thr=8)

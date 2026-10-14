@@ -65,16 +65,8 @@ int ai_king_10f0_spawn_unit(ColonizeTurnContext* ctx, int human, int k, int x, i
 #define AI_KING_WARN3_PCT_MIN 80
 #define AI_KING_LOSING3_PCT 90
 
-/*
- * Auto-path (no ai_popups attached) tea-party stand-in thresholds. DOS's
- * Accept/tea-party choice is inherently player-interactive (a single
- * FUN_291f_0182 dialog inside FUN_38fd_3dc8, no NPC/auto answer exists) —
- * this heuristic is invented for the no-UI auto path only, unrelated to
- * the real 38fd_5be8 delta formula it now follows. See ai_king_tax_event.
- */
+/* Tax band the restless-SoL status line mentions (port chrome, not DOS). */
 #define AI_KING_BOYCOTT_TAX_MIN 20
-#define AI_KING_BOYCOTT_SOL_MIN 30
-#define AI_KING_BOYCOTT_BELLS_MIN 80
 /* Village-goods cargo pick is FUN_38fd_3dc8's roulette (stock×price weight)
  * over non-boycotted, Europe-bid-eligible cargos — use
  * ai_king_pick_dump_goods_cargo; do not invent a fixed Sugar/Tobacco pick.
@@ -227,7 +219,6 @@ void ai_king_teaparty_party_name(
 );
 int ai_king_teaparty_payload(int applied, int cargo);
 void ai_king_teaparty_payload_parts(int payload, int* out_applied, int* out_cargo);
-void ai_king_try_declare(ColonizeTurnContext* ctx);
 int ai_king_weakest_port(ColonizeTurnContext* ctx, int nation_id, int* out_x, int* out_y);
 void ai_king_write_rival_nation_slots(ColonizeCol1Save* col1, int human);
 
