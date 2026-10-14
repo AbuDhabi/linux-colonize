@@ -272,10 +272,10 @@ int ai_native_step_first_contact(
     if (ai_021a_trace_enabled()) {
       fprintf(stderr, "AI_021A_VISITROLL n=%d xy=(%d,%d) e=%d\n", nation_id, u->x, u->y, e);
     }
-    if (!ai_contact_visit_step_roll(s_ai_native_ctx, nation_id, e, u->id)) {
+    const int mood = ai_contact_visit_step_roll(s_ai_native_ctx, nation_id, e, u->id);
+    if (!mood) {
       continue;
     }
-    done[e] = 1;
     /*
      * bugs.md #824: DOS resolves the WHOLE encounter here, in the 465b move
      * tail (0984 -> 3180 -> 022e), not in a later per-nation sweep. The mood
@@ -298,6 +298,22 @@ int ai_native_step_first_contact(
       const ColonizeColony* ec = ecid >= 0 ? colonies_get(ai_s_native_colonies, ecid) : NULL;
       colony_here = ec && ec->active && ec->nation_id == e;
     }
+    /*
+     * 022e with neither a colony (local_4c) nor a Wagon Train head (local_42,
+     * type 0x0c) on the encounter tile returns local_1a 0 (raw 96989 and the
+     * LAB_5bfb_0def fall-out), so 3180 leaves aiStack_20[e] open and the next
+     * tile of e turns its head and rolls again. DOSBox 1591: a Brave at
+     * (25,6) faces both French Dragoons at (25,7) and (24,7). The !bVar6
+     * fall-out also clears the home village's attitude word toward e
+     * (LAB_5bfb_0def tail, after @INDIANCOMMENT).
+     */
+    if (!colony_here && !(o && o->type_index == 0x0c)) {
+      if (mood == 1 && u->home_tribe_id < (int)col1->head.tribe_count && col1->tribe) {
+        col1_tribe_attitude_set(&col1->tribe[u->home_tribe_id], e, 0);
+      }
+      continue;
+    }
+    done[e] = 1;
     /* DOS 3180's aiStack_20 is local to this encounter scan, not the
      * whole nation turn. Fresh 1553: Braves 15 and 25 each give Quebec
      * six Tobacco through 022e:0b0a. `done[e]` above is the scan latch. */

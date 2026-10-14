@@ -381,8 +381,9 @@ GOLDEN_IDLE_KEEP_GOING=1 GOLDEN_IDLE_DUMP=/tmp/x/sim_%d.sav golden_idle_campaign
 JSON-diff each `sim_Y` against `year_Y`. Four leaves are always the human's
 first-turn UI (`map_mode`, `tut2.nr1`, `stuff.x/y`).
 
-Status: every year through 1589 matches except small residues (below:
-1505/1506); 1591-1599 are within 11-32 leaves.
+Status: every archived year matches except 1505/1506 (below); the rest
+differ only in the human's first-turn UI words (and from 1595 the port-only
+extension block).
 
 Fixed by this run:
 - AI moves roll Lost City Rumours in the move (FUN_465b_0000 raw
@@ -485,13 +486,20 @@ Fixed by this run:
   water skips an occupied tile whose owner nibble is not its nation. Neutral
   here.
 
+- Brave encounter latch (FUN_5bfb_3180 / 022e): an already-met visit
+  returns `local_1a` 0 unless the encounter tile holds a colony or a Wagon
+  Train, so 3180 leaves the nation open and the next tile of that nation
+  also turns its head and rolls. The port latched on every mood roll. 1591:
+  a Brave at (25,6) faces both French Dragoons at (25,7) and (24,7) (index
+  50 facing 5). The hostile `local_10` abort also returns 0, and the !bVar6
+  fall-out clears the home village's attitude word toward that nation.
+  Continuous 1591-1599 drop from 10-27 leaves to the UI baseline; archived
+  sweep neutral.
+  Trace method for overlay routines that the game calls more than once:
+  `--patch-cc` plus EMS/XMS/UMB off in dbx.conf, or the overlay is
+  re-cached without the trap and later calls are missed.
+
 Open:
-- 1591 (11 leaves; port from-load equals DOS from-load except the same 7):
-  French Dragoon (1591 index 50) landed at (24,7) from Merchantman 45 has
-  DOS facing 5, port 0 (port writes no facing on this path); Braves 31 and
-  34; two `mask_hex` cells. Scratch DOS traces: `dt_wander.py` (needs
-  `--patch-cc 0x4e2d6` and EMS/XMS off, `dtrun4.sh`, or the overlay is
-  re-cached without the trap and later turns are missed), `dt_w2.py`.
 - 1505/1506: ship 4's facing, Brave 26's step and unit 5's goto differ.
   Port from-load 1504 equals DOS from-load, and port continuous differs from
   the archive the same way, so DOS carries something unsaved here that the

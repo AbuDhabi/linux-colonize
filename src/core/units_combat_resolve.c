@@ -1241,10 +1241,9 @@ void units_ship_slow_scan_w(
  *   Euro x Indian: FUN_5bfb_022e returns 1 on first contact (MET clear);
  *     already met with a Euro mover it exits 0 at overlay 0x48c-0x49c
  *     (neighbour head not type 0x0c).
- * ponytail: an already-met Brave mover runs 022e's visit gates (raw
- * 96735-96760) before returning; taken as 1, the same one-encounter-per-
- * nation rule ai_native_step_first_contact applies. Wire the real 022e
- * result here if a two-neighbour Brave case ever diverges.
+ * An already-met Brave mover's real 022e result (0 unless the tile holds a
+ * colony or Wagon Train) lives in ai_native_step_first_contact, which runs
+ * right after this scan and turns the remaining heads itself.
  */
 static int units_3180_contact_latch(const ColonizeCol1Save* col1, int mover_nation, int owner) {
   if (mover_nation >= 4 && owner >= 4) {
