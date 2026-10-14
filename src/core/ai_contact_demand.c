@@ -1476,7 +1476,9 @@ int ai_contact_visit_demand_allowed(
  * step (465b commit tail): raw 96745-96760. The mood rolls happen right
  * there, on the shared stream, before the tribe's next Brave acts — the
  * post-pulse gift/demand passes then consume the published verdict instead
- * of rolling again. Returns 1 when a roll sequence ran.
+ * of rolling again. Returns 0 when 022e exits before the mood (alarm gate,
+ * or the hostile local_10 roll: LAB_5bfb_1005 with local_1a 0), else
+ * 1 + bVar6.
  */
 int ai_contact_visit_step_roll(ColonizeTurnContext* ctx, int nation_id, int e, int brave_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe || !ctx->rng || nation_id < 4 ||
@@ -1499,7 +1501,7 @@ int ai_contact_visit_step_roll(ColonizeTurnContext* ctx, int nation_id, int e, i
   if (local_10) {
     if (dos_rng_range(ctx->rng, 1, 0x80) < word - 0x80) {
       ai_contact_visit_mood_publish(ctx, nation_id, e, brave_id, 0);
-      return 1; /* LAB_5bfb_1005 */
+      return 0; /* LAB_5bfb_1005 */
     }
   }
   const int roll = dos_rng_range(ctx->rng, 1, 0x148);
@@ -1514,7 +1516,7 @@ int ai_contact_visit_step_roll(ColonizeTurnContext* ctx, int nation_id, int e, i
     ind->contact_state[e] = 2;
   }
   ai_contact_visit_mood_publish(ctx, nation_id, e, brave_id, bvar6);
-  return 1;
+  return 1 + bvar6;
 }
 
 /*
