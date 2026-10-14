@@ -13,6 +13,7 @@
 #include "core/ai_king_internal.h"
 #include "core/ai_popup.h"
 #include "core/col1_save.h"
+#include "core/col1_stuff_census.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/units.h"
@@ -356,6 +357,14 @@ static int case_530_unload_mask_scan_and_order(void) {
     goto done;
   }
   fort->orders = UNITS_ORDER_FORTIFY;
+  if (ai_euro_20e6_unload_mask(&ctx, ship, nation) != 0) {
+    fprintf(stderr, "#1062: 20e6 reads the slot-start census, not a live recount\n");
+    goto done;
+  }
+  {
+    const ColonizeWorld cw = {.units = &units, .colonies = &colonies, .map = &map, .col1 = &col1, .col1_ok = true};
+    col1_stuff_census_4962_w(&cw, &col1.stuff, nation);
+  }
   if (ai_euro_20e6_unload_mask(&ctx, ship, nation) != 0x10) {
     fprintf(stderr, "#1062: fortified own field unit must allow military unload\n");
     goto done;

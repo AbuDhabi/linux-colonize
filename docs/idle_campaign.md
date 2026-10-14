@@ -382,8 +382,7 @@ JSON-diff each `sim_Y` against `year_Y`. Four leaves are always the human's
 first-turn UI (`map_mode`, `tut2.nr1`, `stuff.x/y`).
 
 Status: every year through 1589 matches except small residues (below:
-1505/1506);
-1591 is the first real split.
+1505/1506); 1591-1599 are within 11-32 leaves.
 
 Fixed by this run:
 - AI moves roll Lost City Rumours in the move (FUN_465b_0000 raw
@@ -474,16 +473,25 @@ Fixed by this run:
   order (latest arrival first), not boarding order. 1590: Dutch hull 39
   chained 39 -> 46 -> 44 lands Dragoon 44.
 
+- FUN_521d_20e6 reads DS:0x95f2 (`-0x6a0e`, `stuff.continent_presence_flags`)
+  as FUN_4962_0018 left it at the nation's slot start (raw 89539-89541 bit 8
+  unload term, raw 89654 war-cargo `& 7` term), not a live recount. 1590:
+  Dutch hull 39 lands Dragoon 44 at (26,6), which fortifies; the port's live
+  bit 8 kept the unload mask at 0x10, so the hull skipped the 4e2d far-roam
+  roll (`rng(0,0x10)`) and every later Dutch draw was one off. DOSBox trace
+  (20e6 entry + 5805 scores + RNG BP) showed the extra draw at hull entry.
+  Continuous 1591 40 -> 11 leaves, 1599 1479 -> 32. Test: #1062 subcase.
+- Wander scorer gate (raw 88684, before any draw): a land unit standing on
+  water skips an occupied tile whose owner nibble is not its nation. Neutral
+  here.
+
 Open:
-- 1591: Dutch hull 39 sails to (28,6) instead of (24,8) after landing its
-  Dragoon; Braves 31 and 34 differ. Reproduced from load (DOSBox 1589 ->
-  1591 twice: only Brave 22 varies between DOS runs). A DOS RNG-draw trace
-  (scratch `dt_rng.py`, BP 1541:0e04) matches the port draw for draw
-  through the hull's whole 1590 wander, except 152e/reseed draws the BP
-  misses; DOS then draws 6 more in the Dutch slot. So the 4d2e direction
-  scores differ on non-random terms (facing, far-probe fog/unseen, colony
-  terms) with identical random draws. Next: BP at the 20e6 commit (OVL14
-  58a9, [bp-0x74] dir / [bp-0xe0] best) for hull 39 in 1590.
+- 1591 (11 leaves; port from-load equals DOS from-load except the same 7):
+  French Dragoon (1591 index 50) landed at (24,7) from Merchantman 45 has
+  DOS facing 5, port 0 (port writes no facing on this path); Braves 31 and
+  34; two `mask_hex` cells. Scratch DOS traces: `dt_wander.py` (needs
+  `--patch-cc 0x4e2d6` and EMS/XMS off, `dtrun4.sh`, or the overlay is
+  re-cached without the trap and later turns are missed), `dt_w2.py`.
 - 1505/1506: ship 4's facing, Brave 26's step and unit 5's goto differ.
   Port from-load 1504 equals DOS from-load, and port continuous differs from
   the archive the same way, so DOS carries something unsaved here that the

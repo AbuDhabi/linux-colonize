@@ -2095,6 +2095,12 @@ int ai_euro_20e6_wander_step(
        * tiles carry no claim, so the hull on the tile is the owner. */
       owner = hu->nation_id;
     }
+    /* raw 88684 (asm gate before any draw): a land unit standing on water
+     * (aboard, local_90) skips an occupied tile whose owner nibble is not
+     * its own nation: `local_90 == 0 || local_34 || 07e0 < 0 || local_10 == nation`. */
+    if (unit_on_water && !s->is_ship && here >= 0 && owner != nation) {
+      continue;
+    }
     int score = 0;
     const int dest_river = map_tile_has_river(ctx->map, nx, ny) ? 1 : 0;
     const int dest_road = map_tile_has_road(ctx->map, nx, ny) ? 1 : 0;
