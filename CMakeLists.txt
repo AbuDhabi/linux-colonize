@@ -1003,6 +1003,13 @@ add_test(NAME golden_idle_continuous
   COMMAND golden_idle_campaign 1492 1599
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 set_tests_properties(golden_idle_continuous PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1")
+# Same harness, Dutch every-turn autosaves 1680-1690 with a declaration of
+# independence between saves 2 and 3. Disabled until aligned.
+add_test(NAME golden_idle_independence
+  COMMAND golden_idle_campaign independence 1 20
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(golden_idle_independence PROPERTIES
+  ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1" DISABLED TRUE)
 # T2 early gate: full Euro dispatcher (TURN1→7). The AI_EURO_EARLY_FIXTURE bisect fixture was deleted 2026-09-14.
 
 # Renamed from golden_ai_* 2026-09-14 (duplication audit TT-13): both generate

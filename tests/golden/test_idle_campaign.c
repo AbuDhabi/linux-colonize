@@ -5,16 +5,38 @@
  * must match DOS after every turn, except the fields compare_save ignores.
  * CTest runs it continuously from year_1492 to year_1599
  * (GOLDEN_IDLE_KEEP_GOING); docs/idle_campaign.md has the status.
+ *
+ * With a leading "independence" argument it runs the Dutch every-turn
+ * autosaves in original_saves/independence-seed-100 instead (save numbers
+ * 1..20, 1680-1690). The player declares independence between saves 2 and 3
+ * (menu GAME > DECLARE INDEPENDENCE, second option) and otherwise idles the
+ * same way. Its CTest case is disabled until that run is aligned.
  */
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/ai_king.h"
 #include "tests/common/golden_fixture.h"
 
-#define SAVE_DIR "original_saves/1492-1600-seed-100"
 #define VR_SEED 100u
+
+/* One uninterrupted DOS autosave series. Saves are named by year (yearly
+ * campaign) or by save number (every-turn campaign). */
+typedef struct {
+  const char* path_fmt;
+  int min, max;
+  int per_turn;      /* save index counts turns, not years */
+  int declare_save;  /* the human declares independence on the turn before this save; 0 = never */
+} IdleCampaign;
+
+static const IdleCampaign k_yearly = {
+  "original_saves/1492-1600-seed-100/year_%d.sav", 1492, 1599, 0, 0,
+};
+static const IdleCampaign k_independence = {
+  "original_saves/independence-seed-100/%06d.SAV", 1, 20, 1, 3,
+};
 
 static int read_bytes(const char* path, uint8_t** data, size_t* size) {
   FILE* f = fopen(path, "rb");
@@ -46,8 +68,8 @@ fail:
  * reach (docs/idle_campaign.md "1505/1506"): simulated through, not compared.
  * The continuous run matches again from 1508.
  */
-static int known_residue_year(int year) {
-  return year == 1505 || year == 1506;
+static int known_residue_year(const IdleCampaign* c, int year) {
+  return c == &k_yearly && (year == 1505 || year == 1506);
 }
 
 /*
@@ -127,28 +149,36 @@ done:
   return ok;
 }
 
-static int parse_year(const char* text, int* year) {
+static int parse_year(const IdleCampaign* c, const char* text, int* year) {
   char* end;
   long value = strtol(text, &end, 10);
-  if (*text == '\0' || *end != '\0' || value < 1492 || value > 1599) return 0;
+  if (*text == '\0' || *end != '\0' || value < c->min || value > c->max) return 0;
   *year = (int)value;
   return 1;
 }
 
-static void save_path(char* path, size_t size, int year) {
-  snprintf(path, size, SAVE_DIR "/year_%d.sav", year);
+static void save_path(const IdleCampaign* c, char* path, size_t size, int year) {
+  snprintf(path, size, c->path_fmt, year);
 }
 
 int main(int argc, char** argv) {
+  const IdleCampaign* c = &k_yearly;
+  if (argc == 4 && strcmp(argv[1], "independence") == 0) {
+    c = &k_independence;
+    --argc;
+    ++argv;
+  }
   int first, last;
-  if (argc != 3 || !parse_year(argv[1], &first) ||
-      !parse_year(argv[2], &last) || first >= last) {
-    fprintf(stderr, "usage: %s FIRST_YEAR LAST_YEAR (one contiguous saved run)\n", argv[0]);
+  if (argc != 3 || !parse_year(c, argv[1], &first) ||
+      !parse_year(c, argv[2], &last) || first >= last) {
+    fprintf(stderr,
+            "usage: %s [independence] FIRST LAST (one contiguous saved run;"
+            " years, or save numbers for independence)\n", argv[0]);
     return 2;
   }
 
   char from[512], expected[128];
-  save_path(from, sizeof(from), first);
+  save_path(c, from, sizeof(from), first);
   /* GOLDEN_IDLE_FROM: start from this save instead of year_FIRST.sav (e.g. a
    * DOSBox from-load autosave). */
   const char* from_env = getenv("GOLDEN_IDLE_FROM");
@@ -160,7 +190,7 @@ int main(int argc, char** argv) {
     return 1;
   }
   int ok = 1;
-  if (fx.orig.head.year != first) {
+  if (!c->per_turn && fx.orig.head.year != first) {
     fprintf(stderr, "save filename/calendar mismatch near %d\n", first);
     ok = 0;
   }
@@ -170,7 +200,7 @@ int main(int argc, char** argv) {
   const char* keep = getenv("GOLDEN_IDLE_KEEP_GOING");
   const int keep_going = keep && *keep;
   for (int year = first + 1; (ok || keep_going) && year <= last; ++year) {
-    save_path(expected, sizeof(expected), year);
+    save_path(c, expected, sizeof(expected), year);
     int have = 1;
     {
       char err[256];
@@ -187,20 +217,40 @@ int main(int argc, char** argv) {
         }
       }
     }
-    if (have && fx.expect.head.year != year) {
-      fprintf(stderr, "%s records year %u\n", expected, fx.expect.head.year);
+    /* Every-turn saves skip a turn now and then (000020 follows turn 287
+     * with 289): play through the gap with the same idle human. */
+    const int steps = c->per_turn && have ? (int)fx.expect.head.turn - (int)fx.start.head.turn : 1;
+    if (have && (c->per_turn ? steps < 1 || steps > 4 : fx.expect.head.year != year)) {
+      fprintf(stderr, "%s records year %u turn %u\n", expected, fx.expect.head.year,
+              fx.expect.head.turn);
       ok = 0;
       break;
     }
-    /* The skipped human turn: FUN_2b5a_3b68 opens Move Pieces with
-     * DS:0x5392 = 0xffff (raw 46833) and the idle player ends it there. */
-    fx.units.selected_id = -1;
-    if (!golden_turn(&fx)) {
+    if (year == c->declare_save) {
+      /* Headless (no popup queue): the @DECLARE choice confirms, as the
+       * player's second option did. */
+      ColonizeTurnContext ctx;
+      golden_ctx(&fx, &ctx);
+      ai_king_menu_declare_independence(&ctx);
+      if (!ai_king_independence_declared(&fx.start)) {
+        fprintf(stderr, "declare independence before %d failed\n", year);
+        ok = 0;
+        break;
+      }
+    }
+    int stepped = 1;
+    for (int step = 0; stepped && step < steps; ++step) {
+      /* The skipped human turn: FUN_2b5a_3b68 opens Move Pieces with
+       * DS:0x5392 = 0xffff (raw 46833) and the idle player ends it there. */
+      fx.units.selected_id = -1;
+      stepped = golden_turn(&fx);
+      col1_bridge_stamp_autosave_head(&fx.start);
+    }
+    if (!stepped) {
       ok = 0;
       break;
     }
-    col1_bridge_stamp_autosave_head(&fx.start);
-    if (!have || known_residue_year(year)) {
+    if (!have || known_residue_year(c, year)) {
       compare_save(&fx.start, NULL, NULL, year);
       continue;
     }
