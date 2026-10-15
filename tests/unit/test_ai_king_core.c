@@ -1015,6 +1015,7 @@ static int sp_13(void) {
    * ashore in the save right after the declaring turn).
    */
   ai_king_ref_pre_euro_beat(&ctx);
+  ai_king_human_2022_beat(&ctx); /* 1eca mobilization turn */
   ai_king_nation_turn(&ctx);
   /* Seed then drain: residual +1 regular may leave pools non-zero; require spawn. */
   if (count_nation(&units, 1) < 1) {
@@ -1158,6 +1159,7 @@ static int sp_14(void) {
       was_active[i] = units.units[i].active;
     }
     ai_king_ref_pre_euro_beat(&ctx);
+    ai_king_human_2022_beat(&ctx);
     ai_king_nation_turn(&ctx);
     const int human_spawned = count_nation(&units, 0) - human_before;
     if (human_spawned != 7) {
@@ -1233,6 +1235,7 @@ static int sp_15(void) {
   {
     const int human_before = count_nation(&units, 0);
     ai_king_ref_pre_euro_beat(&ctx);
+    ai_king_human_2022_beat(&ctx);
     ai_king_nation_turn(&ctx);
     const int human_spawned = count_nation(&units, 0) - human_before;
     if (human_spawned != 2 || col1.head.backup_force[0] != 0) {
@@ -1295,6 +1298,7 @@ static int sp_16(void) {
     {
       const int art_before = count_nation_land(&units, 1);
       ai_king_ref_pre_euro_beat(&ctx);
+      ai_king_human_2022_beat(&ctx);
       if (col1.head.expeditionary_force[2] != 1 || col1.head.expeditionary_force[3] != 2) {
         fprintf(stderr, "unit_ai_king: pools after MoW-empty beat %u/%u/%u/%u\n",
                 (unsigned)col1.head.expeditionary_force[0], (unsigned)col1.head.expeditionary_force[1],
@@ -1322,6 +1326,7 @@ static int sp_16(void) {
         }
       }
       ai_king_ref_pre_euro_beat(&ctx);
+      ai_king_human_2022_beat(&ctx);
       int art_units_after = 0;
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
         const ColonizeUnit* u = &units.units[i];
@@ -1511,6 +1516,7 @@ static int sp_18(void) {
    * subtest exercises the mobilization body itself. */
   col1.nation[0].nation_flags = (uint8_t)(col1.nation[0].nation_flags & ~0x08u);
   ai_king_ref_pre_euro_beat(&ctx);
+  ai_king_human_2022_beat(&ctx);
   ai_king_nation_turn(&ctx);
   {
     const ColonizeUnit* su = units_get_const(&units, sid);
@@ -1592,6 +1598,7 @@ static int sp_19(void) {
     su->orders = UNITS_ORDER_FORTIFIED;
   }
   ai_king_ref_pre_euro_beat(&ctx);
+  ai_king_human_2022_beat(&ctx);
   ai_king_nation_turn(&ctx);
   {
     const ColonizeUnit* su = units_get_const(&units, sid2);
@@ -1631,7 +1638,7 @@ static int sp_20(void) {
    * the cap formula `min(pop>>1, pop*(sol-50)/50)` always floors to 1
    * regardless of population (the second term is always 0 at sol==50), so
    * only the *first* eligible unit found on the tile promotes this turn —
-   * the Soldier here, scanned before the Dragoon; the Dragoon is left for a
+   * the Soldier here, the newer arrival; the Dragoon is left for a
    * later turn. Cont. Army abbrev already-promoted stays (raw type check
    * only matches base Soldier/Dragoon type ids).
    */
@@ -1658,8 +1665,10 @@ static int sp_20(void) {
     snprintf(army_name_save, sizeof(army_name_save), "%s", units.types[ty_cont_army].name);
     snprintf(units.types[ty_cont_army].name, sizeof(units.types[ty_cont_army].name),
              "Cont. Army");
-    const int sid50 = units_spawn_allow_stack(&units, ty_soldier, 5, 5);
+    /* 1eca walks the tile chain newest arrival first (07e0/02e4): the
+     * Soldier arrives after the Dragoon so it is reached first. */
     const int did50 = units_spawn_allow_stack(&units, ty_dragoon, 5, 5);
+    const int sid50 = units_spawn_allow_stack(&units, ty_soldier, 5, 5);
     const int ca50 = units_spawn_allow_stack(&units, ty_cont_army, 5, 5);
     if (sid50 < 0 || did50 < 0 || ca50 < 0) {
       snprintf(units.types[ty_cont_army].name, sizeof(units.types[ty_cont_army].name), "%s",
@@ -1688,6 +1697,7 @@ static int sp_20(void) {
     /* bugs.md #250: re-arm the once-only mobilization for this subtest. */
     col1.nation[0].nation_flags = (uint8_t)(col1.nation[0].nation_flags & ~0x08u);
     ai_king_ref_pre_euro_beat(&ctx);
+    ai_king_human_2022_beat(&ctx);
     ai_king_nation_turn(&ctx);
     {
       const ColonizeUnit* su = units_get_const(&units, sid50);
@@ -1797,6 +1807,7 @@ static int sp_21(void) {
   /* bugs.md #250: re-arm the once-only mobilization for this subtest. */
   col1.nation[0].nation_flags = (uint8_t)(col1.nation[0].nation_flags & ~0x08u);
   ai_king_ref_pre_euro_beat(&ctx);
+  ai_king_human_2022_beat(&ctx);
   ai_king_nation_turn(&ctx);
   {
     const ColonizeUnit* hi = units_get_const(&units, sid_hi);
@@ -1872,6 +1883,7 @@ static int sp_22(void) {
     }
     status[0] = '\0';
     ai_king_ref_pre_euro_beat(&ctx);
+    ai_king_human_2022_beat(&ctx);
     ai_king_nation_turn(&ctx);
     {
       const ColonizeUnit* ca = units_get_const(&units, ca_id);
@@ -1910,6 +1922,7 @@ static int sp_22(void) {
       ca->goto_y = 14;
       ca->moves = 2 * UNITS_MP_PER_TILE;
       ai_king_ref_pre_euro_beat(&ctx);
+      ai_king_human_2022_beat(&ctx);
       ai_king_nation_turn(&ctx);
       ca = units_get(&units, ca_id);
       if (!ca || !ca->active) {
@@ -1975,6 +1988,7 @@ static int sp_23(void) {
       const int land_before = count_nation_land(&units, 1);
       status[0] = '\0';
       ai_king_ref_pre_euro_beat(&ctx);
+      ai_king_human_2022_beat(&ctx);
       const int sea_spawned = count_nation_sea(&units, 1) - sea_before;
       const int landed = count_nation_land(&units, 1) - land_before;
       if (sea_spawned != 1 || col1.head.expeditionary_force[2] != 1) {
@@ -2038,6 +2052,7 @@ static int sp_24(void) {
       }
     }
     ai_king_ref_pre_euro_beat(&ctx);
+    ai_king_human_2022_beat(&ctx);
     if (count_nation_sea(&units, 1) != 1) {
       return fail("0982 mix beat should spawn the Man-O-War");
     }
@@ -2103,6 +2118,7 @@ static int sp_25(void) {
     }
     const int land_before = count_nation_land(&units, 1);
     ai_king_ref_pre_euro_beat(&ctx);
+    ai_king_human_2022_beat(&ctx);
     const int landed = count_nation_land(&units, 1) - land_before;
     const int drg_used = 2 - (int)col1.head.expeditionary_force[1];
     const int reg_used = 4 - (int)col1.head.expeditionary_force[0];
@@ -2538,6 +2554,7 @@ static int sp_29(void) {
       status[0] = '\0';
       ai_popup_clear(&pop);
       ai_king_ref_pre_euro_beat(&ctx);
+      ai_king_human_2022_beat(&ctx);
       ai_king_nation_turn(&ctx);
       int found_invasion = 0;
       for (int i = 0; i < pop.queue_count; ++i) {
@@ -2611,6 +2628,7 @@ static int sp_30(void) {
     const int merc_units_before = count_nation(&units, 0);
     const uint32_t merc_gold_before = col1.nation[0].gold;
     ai_king_ref_pre_euro_beat(&ctx);
+    ai_king_human_2022_beat(&ctx);
     ai_king_nation_turn(&ctx);
     if (col1.nation[0].gold != merc_gold_before) {
       return fail("ai_popups merc must defer spend until Hire apply");
@@ -2697,6 +2715,7 @@ static int sp_30(void) {
       ai_popup_clear(&pop);
       const uint32_t decline_gold_before = col1.nation[0].gold;
       ai_king_ref_pre_euro_beat(&ctx);
+      ai_king_human_2022_beat(&ctx);
       ai_king_nation_turn(&ctx);
       /* Counted after the turn: 10f0 may land the human's own intervention
        * troops during it; only the Decline apply must add nothing. */
@@ -2847,6 +2866,7 @@ static int sp_31(void) {
       col1.nation[0].nation_flags = (uint8_t)(col1.nation[0].nation_flags | 0x08u);
       ai_popup_clear(&pop);
       ai_king_ref_pre_euro_beat(&ctx);
+      ai_king_human_2022_beat(&ctx);
       {
         int landed = 0;
         int announced_again = 0;
@@ -3076,6 +3096,7 @@ static int sp_34(void) {
     col1.head.backup_force[2] = 1;
     col1.nation[0].nation_flags = (uint8_t)(col1.nation[0].nation_flags | 0x08u);
     ai_king_ref_pre_euro_beat(&ctx);
+    ai_king_human_2022_beat(&ctx);
     if (count_nation(&units, 0) <= intervene_before) {
       return fail("free drain should spawn the foreign intervention force");
     }

@@ -774,6 +774,31 @@ int units_tile_head_id_at(const ColonizeUnitPool* pool, int x, int y) {
   return head_id;
 }
 
+int units_tile_chain_next_id(const ColonizeUnitPool* pool, int unit_id) {
+  const ColonizeUnit* cur = units_get_const(pool, unit_id);
+  if (!cur || !units_is_on_map(cur)) {
+    return -1;
+  }
+  /* Chain order = units_tile_head_id_at's: newest arrival first, lower slot first on a tie. */
+  const int cur_slot = (int)(cur - pool->units);
+  int best = -1;
+  for (int i = 0; i < units_slot_end(pool); ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (!units_is_on_map(u) || u->x != cur->x || u->y != cur->y) {
+      continue;
+    }
+    const bool after = u->tile_stack_order < cur->tile_stack_order ||
+                       (u->tile_stack_order == cur->tile_stack_order && i > cur_slot);
+    if (!after) {
+      continue;
+    }
+    if (best < 0 || u->tile_stack_order > pool->units[best].tile_stack_order) {
+      best = i;
+    }
+  }
+  return best >= 0 ? pool->units[best].id : -1;
+}
+
 ColonizeUnit* units_get(ColonizeUnitPool* pool, int unit_id) {
   return (ColonizeUnit*)units_get_const(pool, unit_id);
 }

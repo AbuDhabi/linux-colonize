@@ -833,6 +833,16 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
    * now reads each type's full DOS allowance, which otherwise changes a
    * native path and Fort Orange's synthetic field yield. */
   fx.units.types[UNITS_KIND_MTD_BRAVE].movement = 1;
+  /* The Arawak Brave at (41,57) steps next to a Dutch colony this turn. Its
+   * visit rolls 022e's human-only arrival-sound draw (rng(0,8)), which moves
+   * the unreproduced native stream into a Tobacco gift DOS did not give.
+   * Native gifts are not production: drop the visitor. */
+  for (int ui = 0; ui < units_slot_end(&fx.units); ++ui) {
+    ColonizeUnit* u = &fx.units.units[ui];
+    if (u->active && u->nation_id == 6 && u->x == 41 && u->y == 57) {
+      units_despawn(&fx.units, u->id);
+    }
+  }
   if (!golden_turn(&fx)) {
     golden_close(&fx);
     return 1;

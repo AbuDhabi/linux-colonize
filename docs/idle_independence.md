@@ -81,6 +81,18 @@ before pressing the final Enter. Each change then stops with the writer's CS:IP,
 locals can be read at that stop. Keyboard polls stop at F000 or 130B. This gave clean per-tick
 timelines for Plymouth and Jamestown.
 
+2->3 replays from load too: `load_slot(0)` on 000002, then Alt-G (`keys((0,0x22))`), Down x6
+(DECLARE INDEPENDENCE), Enter, Down, Enter, then Space as usual. The autosave is byte-identical to
+000003. RNG: `BP 1541:0E04` (rand) stops on every draw; the state dword is at 0x28ee in the
+routine's DS, and the range wrapper's `(lo, hi)` sit at stack words 7 and 8. Arm it only for the
+slot of interest (`BPM` on DS:0x5394) and compare with the port's `DOS_RNG_TRACE`.
+
+Unit creation: `BPM` on the unit count DS:0x539c stops inside FUN_1427_06b4 (CS 0c4b) before the
+new record is written, so its bytes are a deleted unit's leftovers. Read the record at the next
+keyboard poll, and expect later deletes to shift indices. The caller's frame is `[BP]` of the
+stop; overlay returns show as the RTLink stub 1931:1554, so identify the caller by its args and
+locals (Ghidra `local_N` sits at BP-(N-2)). Walk BP with `d.word(..., signed=False)`.
+
 `python3 tools/dosbox_trace.py` needs `/usr/bin/python3` (the conda `python3` on PATH has no
 `pexpect`). `load_slot` works on this save list since the 2026-10-14 `list_row` fix (the list
 header sits a few pixels off, and long save names cover the old highlight sample). Loop: Space
@@ -177,23 +189,41 @@ every 200 polls until `COLONY09.SAV` changes, then copy it.
 - Harness: the port's WoI latches live in the human's DOS-dead `unknown23_pad`; `compare_save`
   copies DOS's bytes there before comparing.
 
-State 2026-10-15 (continuous from START_SAVE): save 1 10 field diffs, save 2: 45, save 3: 98,
-save 4: 204, save 5: 811, save 10: 1490, save 20: 1933. Save 3 rose from 60 when the dock
-colonist was deleted: DOS's new Convert (below) now has no port counterpart, so indices shift.
+- 022e rolls FUN_281f_04d4(0, 8) (arrival sound) when a Brave visits a human colony, right
+  after the mood rolls and before the beg/gift/convert arms. The port skipped it, so the
+  @INDIANSCONVERT roll (Jesuit mission: need 6) missed where DOS hit. DOSBox 3->4: Brave 21
+  (village 27) visits Pernambuco (colony 17 at (38,54)) and 022e's frame holds local_6 = 6,
+  local_4c = 17. The "Convert at (38,54)" in saves 3+ is that gift (the unit's +6 byte is the
+  home colony, not a tribe). `golden_colony_prod01` drops the Arawak visitor at (41,57); its
+  native stream is not reproduced and the extra draw turns it into a Tobacco gift.
+
+- 0982's "crown troops already next to the target" discount tests the nation of a STALE
+  `local_4c` (the 07e0 head of the last colony scored, then wherever the previous 02e4 walk
+  stopped; unit -1 reads DS:0x312b = 0 = the crown here), not the neighbour's own head. The port
+  had "fixed" that and discounted every crown unit, so wave 2 (3->4) landed 3 units instead of 6.
+  It now matches DOS (pools 45/16/6/12, same six units on the same tiles).
+
+- 022e's beg-food block (5bfb:0683, `rng(1,100)` when the village is short of food and the
+  colony holds more than 0x4a food) has no `contact_state` latch; only the demand half
+  (LAB_5bfb_0def) does. The port skipped it after an earlier gift that turn, so the next
+  @INDIANSCONVERT roll took the wrong draw. With this and the arrival-sound draw, the Arawak
+  turn of 2->3 makes the same 88 draws (values and ranges) as DOS, and Pernambuco gets its
+  Convert.
+
+- Continental mobilization (1eca) walks the colony tile chain from the latest arrival (07e0/02e4,
+  new `units_tile_chain_next_id`), not slot order. 2022's non-crown branch (mobilization, 10f0
+  drain, merc offer) runs from the human's own 00f2 right after its census (2424 is called for
+  the human slot too, raw 58390/58392), not at the crown's beat; the census now counts the
+  pre-mobilization types like DOS.
+
+State 2026-10-15 (continuous from START_SAVE): save 1 10 field diffs, save 2: 45, save 3: 30,
+save 4: 43, save 5: 762, save 10: 1370, save 20: 1858.
 
 ## Open
 
 - **START_SAVE -> 000001** (10 diffs). Roanoke (13) and St. Eustatius (19, French) 5952 job
   placement (28c8): DOS keeps St. Eustatius' slot 3 as Statesman (the port moves it to fishing,
   which also costs France 3 bells in save 2); Roanoke swaps trapper/lumberjack. `viewport_y`.
-- **A Convert appears at (38,54) each turn from 000002 on.** Dutch, profession 27, origin 17,
-  on the tile of the Dutch Veteran Soldier/Continental next to an Arawak Brave at (39,53).
-  DOSBox (BPM on the unit count DS:0x539c, from 000003): created by FUN_1427_06b4 while
-  DS:0x5394 = 0 (the crown's slot), just before the REF wave. Neither port creation site
-  (022e mission visit, 1b0e subjugation join) fires; tribe 17 has no mission. Find the caller.
-- **Continental Army muster picks different units** (types 7/4 swapped at indices 60/73/83 vs
-  76/79/84 in save 3); the census `unit_type_counts` is also taken at a different time.
-- **Second REF wave (000003 -> 000004)** is missing in the port.
 - **REF unit vis bits.** The crown's landed units save vis 8 (target only) in DOS; the port adds
   the crown's own bit (and France's on one unit).
 - **French galleon passengers on lane arrival (000001 -> 000002).** Lane 229 chain 75, 74, 147,

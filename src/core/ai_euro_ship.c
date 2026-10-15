@@ -575,11 +575,11 @@ int ai_euro_20e6_wagon_village_errand(
     wagon->moves = 0; /* 4528 return-code 1 MP forfeit */
     return 1;
   }
-  if (units_orders_follow_goto(wagon->orders) && wagon->goto_x == t->x &&
-      wagon->goto_y == t->y) {
-    return 1;
-  }
-  ai_euro_set_goto(wagon, UNITS_ORDER_AI_MOVE, (int)t->x, (int)t->y);
+  /* OVL14 0x46a2-0x46be: bind the village (0a4c), then `jmp 0x27f5` with
+   * DX = '4' -> 20c6: plan 0x34, orders 0x0b, goal = the village tile
+   * (DOSBox independence-seed-100 3->4: Bahia's captured wagon). */
+  wagon->col1_ai_plan = 0x34;
+  ai_euro_set_goto(wagon, AI_EURO_ACT_GOAL, (int)t->x, (int)t->y);
   return 1;
 }
 
@@ -1439,16 +1439,13 @@ int ai_euro_try_ship_trade_haul_snapshot(
      * ship to LAB_457e's arms (HS cadence / Europe export / explore band),
      * exactly where the dispatcher chain sends a declined ship here.
      *
-     * Hull test (bVar17, raw ~1284-1306): DOS's base term is `type != 0x12`
-     * (Man-O-War), narrowed further for Privateer (0x10) and Frigate (0x11) by
-     * globals this project has not resolved — see
-     * ai_euro_4393_work_queue_haul_pick's header, "DEAD END". Those narrowings
-     * can only REMOVE warships from the queue, so when the band gate above was
-     * widened to DOS's raw-1691 hull test (2026-09-18) the peel kept the
-     * pre-existing cargo-hull list rather than guess at the unresolved half.
+     * The hull test is the pick's own (OVL14 0x43ab-0x43d1: 0x0d <= type <=
+     * 0x12 and bVar20 || bVar7). A Man-O-War with an odd array index or the
+     * nation's only Man-O-War passes on bVar7 and takes military slots
+     * (DOSBox independence-seed-100 4->5: the crown's new MoW 109 heads for
+     * Bahia with plan '5' instead of hunting the Dutch Galleon).
      */
-    if (!ai_euro_is_cargo_ship_name(ai_euro_unit_kind(ctx->units, ship)) ||
-        !ai_euro_4393_work_queue_haul_pick(
+    if (!ai_euro_4393_work_queue_haul_pick(
           ctx, nation_id, ship->x, ship->y, ship, &cx, &cy
         )) {
       return 0;

@@ -1480,7 +1480,9 @@ int ai_contact_visit_demand_allowed(
  * or the hostile local_10 roll: LAB_5bfb_1005 with local_1a 0), else
  * 1 + bVar6.
  */
-int ai_contact_visit_step_roll(ColonizeTurnContext* ctx, int nation_id, int e, int brave_id) {
+int ai_contact_visit_step_roll(
+  ColonizeTurnContext* ctx, int nation_id, int e, int brave_id, int colony_here
+) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe || !ctx->rng || nation_id < 4 ||
       nation_id > 11 || e < 0 || e > 3) {
     return 0;
@@ -1514,6 +1516,11 @@ int ai_contact_visit_step_roll(ColonizeTurnContext* ctx, int nation_id, int e, i
   if (bvar6 && alarm > 0x31) {
     bvar6 = 0;
     ind->contact_state[e] = 2;
+  }
+  /* FUN_5bfb_022e, after the FUN_281f_09ba slide: a human's colony visit rolls
+   * FUN_281f_04d4(0, 8) for the arrival sound, before 2a1f_0434. */
+  if (colony_here && ai_contact_euro_is_human(ctx, e)) {
+    (void)dos_rng_range(ctx->rng, 0, 8);
   }
   ai_contact_visit_mood_publish(ctx, nation_id, e, brave_id, bvar6);
   return 1 + bvar6;
@@ -1762,22 +1769,14 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
       continue;
     }
     /*
-     * DOS's demand half is latched off once this pair has resolved a generous
-     * visit *this turn*: `if (contact_state != 2 && (colony || wagon))` guards
-     * LAB_5bfb_0def, and state 1 (a past demand) symmetrically disables the
-     * gift arm (`local_10`).
-     *
-     * The latch is per-turn, NOT permanent: the Indian mid-pass zeroes all 32
-     * contact_state entries at the top of every turn (DOS FUN_4d56_1b3a,
-     * viceroy 81704-81707, `word[(i*0x27 + j)*2 + 0x5b04] = 0`, ported as
-     * ai_indian_midpass_clear_tables() in ai.c). So each tribe/Euro pair
-     * resolves at most one gift-or-beg visit per turn, then is eligible again
-     * next turn — which is why DOS villages keep visiting instead of going
-     * permanently quiet.
+     * No contact_state latch here. `contact_state != 2` guards only the
+     * demand half (LAB_5bfb_0def); the beg block at 5bfb:0683 tests the food
+     * delta and the colony's food alone. DOSBox independence-seed-100 2->3:
+     * an Arawak gift sets the latch, and the next Arawak visit (Pernambuco)
+     * still draws rng(1,100) here before its @INDIANSCONVERT roll. The latch
+     * is cleared every turn by the Indian mid-pass (FUN_4d56_1b3a,
+     * ai_indian_midpass_clear_tables).
      */
-    if (ind->contact_state[e] == 2) {
-      continue;
-    }
     int best_ci = -1;
     int visit_brave_id = -1;
     int visit_home_tribe = -1;

@@ -178,6 +178,8 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx);
  * No-op until independence is declared.
  */
 void ai_king_ref_pre_euro_beat(ColonizeTurnContext* ctx);
+/* 2022's non-crown branch (mobilization, 10f0 drain, merc offer): the human's 00f2, after its census. */
+void ai_king_human_2022_beat(ColonizeTurnContext* ctx);
 
 /*
  * FUN_521d_20e6 ship-band tail (raw 89717-89720 + FUN_48d3_015e): during
