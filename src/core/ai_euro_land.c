@@ -3785,6 +3785,23 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
       }
     }
     /*
+     * OVL14 0x4a0f-0x4a4e (raw 90095-90097), after the Missionary arm and
+     * before the explorer block: a Scout or Pioneer on a stance-0 continent
+     * whose nearest own colony (uStack_62) is on this continent walks home,
+     * plan 'N' (MOV DX,0x4e; JMP 27f5). Standing in it, the LAB_5a78 tail
+     * exhausts it (independence-seed-100 000001: two new Spanish Scouts stay
+     * in Havana with plan 'N', order 0).
+     */
+    if (!force_wander && (s.dos_type == UNITS_KIND_SCOUT || s.dos_type == UNITS_KIND_PIONEER) &&
+        s.stance == 0 && s.home_cid == s.cid && s.home_colony >= 0) {
+      const ColonizeColony* home = colonies_get(ctx->colonies, s.home_colony);
+      if (home && home->active) {
+        u->col1_ai_plan = 0x4e; /* 'N' */
+        ai_euro_set_goto(u, AI_EURO_ACT_GOAL, home->x, home->y);
+        return 0;
+      }
+    }
+    /*
      * Raw 1600-1611 hop countdown, DOS shape: +0x3155 != 0 → decrement and
      * SKIP the ring scan (the flow drops straight to the LAB_4b2c hop arm,
      * which re-commits the latched slot's target); +0x3155 == 0 → reset the
@@ -3868,8 +3885,13 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
   /* LAB_2e3a -> 27f5 -> FUN_521d_20c6: bind, then let 5b66 walk. */
   if (is_roam) {
     u->col1_ai_plan = 0x32; /* 2e40: MOV DX,0032 before calling 20c6 */
+    ai_euro_set_goto(u, AI_EURO_ACT_GOAL, gx, gy);
+    return 0;
   }
-  ai_euro_set_goto(u, AI_EURO_ACT_GOAL, gx, gy);
+  /* The re-bind keeps the act state: a 0x0c unit on its step tile stays
+   * 0x0c, and 5b66's 479b walk clears it to 0 (DOSBox independence-seed-100
+   * START_SAVE: French Dragoon 54 re-acts with order 0 and wanders on). */
+  ai_euro_set_goto(u, u->orders, gx, gy);
   return 0;
 }
 

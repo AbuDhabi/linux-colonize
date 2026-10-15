@@ -1407,6 +1407,14 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
           }
         }
       }
+      /* Tail end, OVL14 0x5b13-0x5b54: a unit whose goal is its own tile
+       * (act_state 0x0b) is exhausted (FUN_281f_0934), so 5b66's goal walk
+       * clears the order without a re-act (independence-seed-100 000001:
+       * Port Royal's surplus recall of Artillery 114 saves orders 0, spent
+       * 3). Ships take this in ai_euro_20e6_ship_tail_5a78. */
+      if (u->orders == AI_EURO_ACT_GOAL && u->goto_x == u->x && u->goto_y == u->y) {
+        units_mp_exhaust_unit(ctx->units, u->id);
+      }
       /*
        * FUN_521d_5b66 switch case 7 (bugs.md #683). 5b66 calls 20e6 at raw
        * 90551, 20e6 returns 0 (raw 90445) and 5b66 then dispatches on the
@@ -1602,7 +1610,7 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
       int wave_acted = 0;
       for (int i = units_slot_end(ctx->units) - 1; i >= 0 && !(dos_loop && wave_acted); --i) {
         ColonizeUnit* u = &ctx->units->units[i];
-        if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
+        if (!u->active || u->nation_id != nation_id) {
           continue;
         }
         const int is_ship = ai_euro_is_ship_type(ctx->units, u->id);
@@ -1618,6 +1626,25 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
          * hull on a Europe lane (x >= 128) is never acted (independence-
          * seed-100 000001: the Spanish lane Merchantman saves spent 0). */
         if (u->moves <= 0 || u->x >= 128) {
+          continue;
+        }
+        /* 13b0 has no aboard test: DOS acts a passenger on a map tile (no
+         * bit7, or artillery). Its act does nothing but spend the MP, and it
+         * still counts as the wave's act (independence-seed-100 START_SAVE:
+         * French sentried Dragoon 144 in a hold takes pass 1's wave-1 slot,
+         * so Artillery 114 reaches the Port Royal surplus recall before
+         * Dragoon 142). */
+        if (u->aboard_ship_id >= 0) {
+          if ((u->col1_flags15 & 0x80u) != 0 &&
+              !combat_type_is_artillery(units_type(ctx->units, u->type_index))) {
+            continue;
+          }
+          u->moves = 0;
+          u->aboard_moves = 0;
+          wave_acted = 1;
+          if (wave == 1 || !dos_loop) {
+            any_acted = 1;
+          }
           continue;
         }
 
@@ -1708,15 +1735,6 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
     ColonizeUnit* u = &ctx->units->units[i];
     if (u->active && u->id >= 0 && u->id < COLONIZE_UNITS_MAX && stalled[u->id] && u->moves > 0) {
       units_mp_exhaust_unit(ctx->units, u->id);
-    }
-    /* 13b0 has no aboard test either: DOS acts a passenger on a map tile,
-     * the act does nothing and the sticky clear exhausts it (000001: AI
-     * Dragoons in a hold save spent 12). The port never acts passengers. */
-    if (u->active && u->nation_id == nation_id && u->aboard_ship_id >= 0 && u->x < 128 &&
-        ((u->col1_flags15 & 0x80u) == 0 ||
-         combat_type_is_artillery(units_type(ctx->units, u->type_index)))) {
-      u->moves = 0;
-      u->aboard_moves = 0;
     }
   }
 }

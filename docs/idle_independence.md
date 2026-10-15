@@ -64,6 +64,14 @@ overlay is re-cached and later calls are missed. OVL14 (20e6/0a60): patch 0x4e2d
 [bp-0x26] score). France's primary goal table is DS:0x98b0 + nation*0x100 (64 x {x, y, code,
 prio}). Unit indices shift mid-turn (compaction), so identify units by xy and type.
 
+Overlay-trap traps (2026-10-15): the patched overlay can be reloaded at a CS the script has already
+seen. Handle every stop at `off+1` with `trap_overlay`, whatever the CS. A script that skipped
+seen CSes let the INT 3 run on: the game silently corrupted (garbage gold, COLONY08 rewritten
+in the scratch copy, no further traps). A run with OVL15 (5952, `--patch-cc 0x53b7e`) died on
+the second reload with RTLink "Fatal error evm012 ... vectored call to page 0005h"; breakpoints
+left on the old CS are the likely cause. Delete them (`BPDEL *`, then re-set) when a new CS
+traps. One-hit traces (first 5952 call per colony, first French act) are reliable.
+
 `python3 tools/dosbox_trace.py` needs `/usr/bin/python3` (the conda `python3` on PATH has no
 `pexpect`). `load_slot` works on this save list since the 2026-10-14 `list_row` fix (the list
 header sits a few pixels off, and long save names cover the old highlight sample). Loop: Space
@@ -112,16 +120,34 @@ every 200 polls until `COLONY09.SAV` changes, then copy it.
 - 465b overspend: European runtime MP may go negative. The save exports spent = max - moves, so
   spent > max survives (Dragoons at 15/18).
 
-State 2026-10-14 (continuous from START_SAVE): save 1 105 field diffs, all French/Spanish AI unit
-choices plus colony jobs. Save 2: 492, save 5: 860, save 20: 2036. The human side of save 1
-matches.
+- 6d8e wave scan acts AI passengers on a map tile in place (2026-10-15). 13b0 has no aboard
+  test, so a sentried Dragoon in a hold takes a wave slot: its act only spends MP, but it ends
+  the wave like any act. DOSBox 20e6 order for France: Artillery 137 (wave 0), passenger 144
+  (wave 1), then Artillery 114 (wave 0), which takes Port Royal's one-shot surplus recall
+  (bit 0x04, quota 3). Before this, Dragoon 142 got there first.
+- LAB_5a78 tail end (OVL14 0x5b13): any unit whose act state is 0x0b at its own goal tile is
+  exhausted (FUN_281f_0934), not only hulls. 5b66's 479b walk then clears the order to 0.
+- The 20e6 land "re-bind own goal" path keeps the act state. A 0x0c unit on its step tile stays
+  0x0c, and 479b clears it to 0. The port used to rewrite it to 0x0b.
+
+- 20e6 'N' arm (OVL14 0x4a0f-0x4a4e): a Scout or Pioneer on a stance-0 continent whose nearest
+  own colony is on the same continent walks home with plan 'N'. Fixed the Spanish Scouts and,
+  through the RNG, galleon 76.
+
+State 2026-10-15 (continuous from START_SAVE): save 1 35 field diffs, all French units match;
+the rest is Spain. Save 2: 77, save 5: 822, save 20: 2027. The human
+side of save 1 matches.
 
 ## Open
 
-- **START_SAVE -> 000001 AI tail.** French units around St. Eustatius (10,56) (units 114,
-  140-142), Spanish galleon 76 (DOS goto (38,50), port (15,16)), Spanish scouts 162/164 (DOS plan
-  'N' orders 0, port wander), Spanish colonies 2/8/13 jobs and Jamestown's build. Trace the
-  first French unit to diverge (highest index acts first).
+- **START_SAVE -> 000001 Spain** (35 diffs left). Ship 92 wander, colony 2 build
+  (`building_in_production` 255 vs 42), colony 13 / French colony 19 jobs, Spain bells 132 vs 138,
+  `treaty_timer[3]` 1 vs 4. On the resumed slot DOS calls 20e6 for no Spanish unit (all spent).
+- **Colony 8 (40,13) Scout.** DOS ends with a Seasoned Scout (profession 22) on the tile and
+  slot 2 working job 13; the port absorbs the Scout and re-ejects the same Free Colonist
+  (profession 28). DOSBox: at the first Spanish 5952 call for this colony the Scout is already a
+  colonist (pop 12, slot 11 job 13, profession 28) and horses are 172, so something before 5952
+  (Spain's resumed-slot EOT?) absorbed it. Next: trap the second tick (the trace above crashed).
 - **French galleon unload (000001 -> 000002; seen before the fixes above, recheck).** In DOS a French hull drops its Dragoons at (3,55)
   (they save sentried, spent 12) and sails off with plan `'4'` (0x34 colony sail) toward (22,49).
   The port's hull, placed at (1,53) from lane 229, wanders on 4d2e without unloading.
