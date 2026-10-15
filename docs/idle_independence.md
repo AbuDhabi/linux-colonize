@@ -221,14 +221,20 @@ every 200 polls until `COLONY09.SAV` changes, then copy it.
   the human slot too, raw 58390/58392), not at the crown's beat; the census now counts the
   pre-mobilization types like DOS.
 
-State 2026-10-15 (continuous from START_SAVE): save 1 10 field diffs, save 2: 45, save 3: 30,
+State 2026-10-15 (continuous from START_SAVE): save 1 9 simulation diffs, save 2: 45, save 3: 30,
 save 4: 43, save 5: 762, save 10: 1370, save 20: 1858.
 
 ## Open
 
 - **START_SAVE -> 000001** (9 simulation diffs). Roanoke (13) and St. Eustatius (19, French) 5952 job
   placement (28c8): DOS keeps St. Eustatius' slot 3 as Statesman (the port moves it to fishing,
-  which also costs France 3 bells in save 2); Roanoke swaps trapper/lumberjack.
+  which also costs France 3 bells in save 2); Roanoke swaps trapper/lumberjack.  Port candidate
+  trace narrows Roanoke: slot 5's unrestricted pass elects Tobacco on a 4-yield plot, trips the
+  plentiful-food `<5` bad-winner exit, then the forced-lumber arm seats that same free colonist;
+  DOS instead finishes with the original Trapper in slot 5 and Lumberjack in slot 8.  The raw
+  terrain/yield result is not the difference (the Trapper's saved south Grassland plot really
+  has zero fur yield); the remaining discrepancy is placement control/ledger residue around
+  LAB_178f -> LAB_17a9, not a missing terrain yield.
 - **French galleon passengers on lane arrival (000001 -> 000002).** Lane 229 chain 75, 74, 147,
   151, 158, 159, 58, 90, 82, 109. DOS ends with galleon 109 carrying the six Dragoons and galleon
   58 carrying Artillery 147 + Colonist 151, so 58 colony-sails ('4') to (22,49). The port gives
