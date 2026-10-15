@@ -550,9 +550,14 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
       }
     } else if (u->nation_id >= 0 && u->nation_id < 4) {
       /* Foreign branch: spotted hostile ship → CONTACT goal prio 3.
-       * Frigates only count once independence is declared (DS:0x5382 bit0). */
+       * Frigates only count once independence is declared (DS:0x5382 bit0).
+       * "Spotted" is the foreign unit's own visibility nibble, raw
+       * `(0x10 << nation) & unit+0x3147`, not the map's seen layer
+       * (independence-seed-100 START_SAVE: the Dutch privateer at (53,56)
+       * sits on a tile France has seen but carries only the Dutch bit, so
+       * DOS posts no goal there; DOSBox goal-table dump). */
       if (is_ship_t && (dos_type != UNITS_KIND_FRIGATE || woi) &&
-          map_tile_seen_by(ctx->map, u->x, u->y, nation_id) && ctx->col1_ok &&
+          ((u->col1_vis_mask >> nation_id) & 1u) != 0 && ctx->col1_ok &&
           ctx->col1) {
         const uint8_t d = ai_diplo_read(ctx->col1, nation_id, u->nation_id);
         if ((d & (AI_DIPLO_MET | AI_DIPLO_PEACE)) == AI_DIPLO_MET ||

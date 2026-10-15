@@ -32,14 +32,17 @@ typedef struct {
   int min, max;
   int per_turn;      /* save index counts turns, not years */
   int declare_save;  /* the human declares independence on the turn before this save; 0 = never */
+  int resume_slot;   /* start save loaded in-game: the old day runs on from this slot; -1 = none */
 } IdleCampaign;
 
 static const IdleCampaign k_yearly = {
-  "original_saves/1492-1600-seed-100/year_%d.sav", NULL, 1492, 1599, 0, 0,
+  "original_saves/1492-1600-seed-100/year_%d.sav", NULL, 1492, 1599, 0, 0, -1,
 };
 static const IdleCampaign k_independence = {
   "original_saves/independence-seed-100/%06d.SAV",
-  "original_saves/independence-seed-100/START_SAVE.SAV", 0, 20, 1, 3,
+  /* START_SAVE was loaded from the in-game menu of a French (slot 1) game:
+   * the running day finishes from slot 2 (docs/idle_independence.md). */
+  "original_saves/independence-seed-100/START_SAVE.SAV", 0, 20, 1, 3, 2,
 };
 
 static int read_bytes(const char* path, uint8_t** data, size_t* size) {
@@ -247,6 +250,11 @@ int main(int argc, char** argv) {
       }
     }
     int stepped = 1;
+    if (year == first + 1 && first == c->min && c->resume_slot >= 0 &&
+        !(from_env && *from_env)) {
+      fx.units.selected_id = -1;
+      stepped = golden_turn_from_slot(&fx, c->resume_slot);
+    }
     for (int step = 0; stepped && step < steps; ++step) {
       /* The skipped human turn: FUN_2b5a_3b68 opens Move Pieces with
        * DS:0x5392 = 0xffff (raw 46833) and the idle player ends it there. */

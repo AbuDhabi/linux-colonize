@@ -114,8 +114,9 @@ through years the archive lacks. A `%d` in `GOLDEN_IDLE_DUMP` takes the year, so
 The same binary with a leading `independence` argument runs the second campaign,
 `original_saves/independence-seed-100` (Dutch every-turn autosaves `000001`..`000020`
 after loading `START_SAVE.SAV` = save 0, 1680-1690, see its readme.md). Arguments are
-save numbers, and the `%d` in dumps is
-the save number. Before simulating toward save 3, the harness declares independence
+save numbers, and the `%d` in dumps is the save number. START_SAVE was loaded from a
+running French game's menu, so the harness first finishes that day from slot 2
+(`turn_end_from_slot`). Before simulating toward save 3, the harness declares independence
 through `ai_king_menu_declare_independence`. With no popup queue that confirms, as the
 player's second option did. It plays through turns missing from the archive (turn 288).
 CTest `golden_idle_independence` is disabled until the run is aligned; status and

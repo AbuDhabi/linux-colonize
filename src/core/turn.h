@@ -154,6 +154,9 @@ void turn_format_date(uint16_t year, uint16_t autumn, char* out, size_t out_size
 
 /* Full end-of-turn pipeline (human finished orders). Synchronous; for tests. */
 ColonizeTurnResult turn_end(ColonizeTurnContext* ctx);
+/* The rest of a DOS day from Euro slot `slot` through the human's EOT (an
+ * in-game load resumes the running year loop there). */
+ColonizeTurnResult turn_end_from_slot(ColonizeTurnContext* ctx, int slot);
 
 /* Interactive EOT: start then call turn_processor_advance once per frame. */
 void turn_processor_start(ColonizeTurnProcessor* proc);

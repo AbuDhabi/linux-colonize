@@ -578,6 +578,8 @@ static int unit_war_transport_threatened_colony(void) {
   foe_ship->nation_id = foe;
   foe_ship->orders = 0;
   foe_ship->moves = 0;
+  /* 0a60 reads the foe unit's own vis nibble (0x10 << nation), not the map. */
+  foe_ship->col1_vis_mask |= (uint8_t)(1u << nation);
 
   ColonizeCol1Save col1;
   col1_save_init(&col1);
@@ -753,6 +755,8 @@ static int unit_mow_war_transport_threatened(void) {
   foe_ship->nation_id = foe;
   foe_ship->orders = 0;
   foe_ship->moves = 0;
+  /* 0a60 reads the foe unit's own vis nibble (0x10 << nation), not the map. */
+  foe_ship->col1_vis_mask |= (uint8_t)(1u << nation);
 
   ColonizeCol1Save col1;
   col1_save_init(&col1);
@@ -907,6 +911,8 @@ static int unit_frigate_war_transport_threatened(void) {
   foe_ship->nation_id = foe;
   foe_ship->orders = 0;
   foe_ship->moves = 0;
+  /* 0a60 reads the foe unit's own vis nibble (0x10 << nation), not the map. */
+  foe_ship->col1_vis_mask |= (uint8_t)(1u << nation);
 
   ColonizeCol1Save col1;
   col1_save_init(&col1);

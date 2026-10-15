@@ -1613,8 +1613,11 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
         if (!in_wave) {
           continue;
         }
-        /* DOS raw ~93240-93245: the unconditional FUN_281f_097a has-MP gate. */
-        if (u->moves <= 0) {
+        /* DOS raw ~93240-93245: the unconditional FUN_281f_097a has-MP gate.
+         * Its FUN_1427_13b0 body also wants `(signed char)+0x3144 >= 0`: a
+         * hull on a Europe lane (x >= 128) is never acted (independence-
+         * seed-100 000001: the Spanish lane Merchantman saves spent 0). */
+        if (u->moves <= 0 || u->x >= 128) {
           continue;
         }
 
@@ -1705,6 +1708,15 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
     ColonizeUnit* u = &ctx->units->units[i];
     if (u->active && u->id >= 0 && u->id < COLONIZE_UNITS_MAX && stalled[u->id] && u->moves > 0) {
       units_mp_exhaust_unit(ctx->units, u->id);
+    }
+    /* 13b0 has no aboard test either: DOS acts a passenger on a map tile,
+     * the act does nothing and the sticky clear exhausts it (000001: AI
+     * Dragoons in a hold save spent 12). The port never acts passengers. */
+    if (u->active && u->nation_id == nation_id && u->aboard_ship_id >= 0 && u->x < 128 &&
+        ((u->col1_flags15 & 0x80u) == 0 ||
+         combat_type_is_artillery(units_type(ctx->units, u->type_index)))) {
+      u->moves = 0;
+      u->aboard_moves = 0;
     }
   }
 }
