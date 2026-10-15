@@ -2768,14 +2768,17 @@ bool col1_bridge_capture_w(
       dst->nation_id = (uint8_t)(src->nation_id & 0xF);
       {
         /* DOS fog draw: (0x10<<viewer) & vis_mask. Live mask (reveal marks,
-         * move resets); Euro owner bit always present on MAP units. Europe
-         * sentinel units (x/y >= 200) carry vis 0 in every original DOS
-         * save (french-campaign survey 2026-09-03) — no owner bit there. */
+         * move resets). Ordinary Euro map units carry their owner bit, but
+         * FUN_43f7_0982 stamps freshly landed REF units with the target bit
+         * only (raw 74142/74210); do not synthesize the crown bit on export.
+         * Europe sentinel units (x/y >= 200) carry vis 0 in every original
+         * DOS save (french-campaign survey 2026-09-03). */
         const int nat = src->nation_id & 0xF;
+        const bool crown = nat >= 0 && nat < 4 && save->player[nat].control == 2;
         uint8_t vis = (uint8_t)(src->col1_vis_mask & 0x0Fu);
         if (src->x >= 200 || src->y >= 200) {
           vis = 0;
-        } else if (nat >= 0 && nat < 4) {
+        } else if (nat >= 0 && nat < 4 && !crown) {
           vis = (uint8_t)(vis | (1u << (nat & 3)));
         }
         dst->vis_mask = vis;

@@ -188,6 +188,11 @@ every 200 polls until `COLONY09.SAV` changes, then copy it.
   and +0x16 only), and latches the WoI hint one-shot (0x5382 bit 0x04) headless too.
 - Harness: the port's WoI latches live in the human's DOS-dead `unknown23_pad`; `compare_save`
   copies DOS's bytes there before comparing.
+- Harness: cursor and viewport coordinates are UI-only state.  The comparison now normalizes
+  both pairs; the earlier first-save `viewport_y` mismatch was not simulation drift.
+- Save bridge: crown-controlled map units retain the literal visibility mask written by 0982.
+  Unlike ordinary Euro units, export does not synthesize their owner bit; the first landed REF
+  wave therefore saves DOS's target-only mask (8 for this Dutch game).
 
 - 022e rolls FUN_281f_04d4(0, 8) (arrival sound) when a Brave visits a human colony, right
   after the mood rolls and before the beg/gift/convert arms. The port skipped it, so the
@@ -221,11 +226,9 @@ save 4: 43, save 5: 762, save 10: 1370, save 20: 1858.
 
 ## Open
 
-- **START_SAVE -> 000001** (10 diffs). Roanoke (13) and St. Eustatius (19, French) 5952 job
+- **START_SAVE -> 000001** (9 simulation diffs). Roanoke (13) and St. Eustatius (19, French) 5952 job
   placement (28c8): DOS keeps St. Eustatius' slot 3 as Statesman (the port moves it to fishing,
-  which also costs France 3 bells in save 2); Roanoke swaps trapper/lumberjack. `viewport_y`.
-- **REF unit vis bits.** The crown's landed units save vis 8 (target only) in DOS; the port adds
-  the crown's own bit (and France's on one unit).
+  which also costs France 3 bells in save 2); Roanoke swaps trapper/lumberjack.
 - **French galleon passengers on lane arrival (000001 -> 000002).** Lane 229 chain 75, 74, 147,
   151, 158, 159, 58, 90, 82, 109. DOS ends with galleon 109 carrying the six Dragoons and galleon
   58 carrying Artillery 147 + Colonist 151, so 58 colony-sails ('4') to (22,49). The port gives

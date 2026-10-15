@@ -97,6 +97,8 @@ static int compare_save(
   const uint16_t keep_map_mode = got->head.map_mode;
   const ColonizeCol1Tut2 keep_tut2 = got->head.tut2;
   const uint16_t keep_x = got->stuff.x, keep_y = got->stuff.y;
+  const uint16_t keep_viewport_x = got->stuff.viewport_x;
+  const uint16_t keep_viewport_y = got->stuff.viewport_y;
   uint8_t keep_pad[4][sizeof(got->nation[0].unknown23_pad)];
   for (int n = 0; n < 4; ++n) {
     memcpy(keep_pad[n], got->nation[n].unknown23_pad, sizeof(keep_pad[n]));
@@ -106,6 +108,8 @@ static int compare_save(
     got->head.tut2 = expect->head.tut2;
     got->stuff.x = expect->stuff.x;
     got->stuff.y = expect->stuff.y;
+    got->stuff.viewport_x = expect->stuff.viewport_x;
+    got->stuff.viewport_y = expect->stuff.viewport_y;
     for (int n = 0; n < 4; ++n) {
       memcpy(got->nation[n].unknown23_pad, expect->nation[n].unknown23_pad, sizeof(keep_pad[n]));
     }
@@ -115,6 +119,8 @@ static int compare_save(
   got->head.tut2 = keep_tut2;
   got->stuff.x = keep_x;
   got->stuff.y = keep_y;
+  got->stuff.viewport_x = keep_viewport_x;
+  got->stuff.viewport_y = keep_viewport_y;
   for (int n = 0; n < 4; ++n) {
     memcpy(got->nation[n].unknown23_pad, keep_pad[n], sizeof(keep_pad[n]));
   }
