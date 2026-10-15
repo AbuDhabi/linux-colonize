@@ -810,6 +810,8 @@ COLONIZE_INTERNAL void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTur
       if (ctx->col1_ok && ctx->col1) {
         const ColonizeWorld cw = world_from_turn_ctx(ctx);
         col1_stuff_census_4962_w(&cw, &ctx->col1->stuff, ctx->human_nation);
+        /* 00f2 tail FUN_291f_0a66 -> FUN_43f7_2424 (raw 58392) -> 2022. */
+        ai_king_human_2022_beat(ctx);
       }
       /* bugs.md #434: the human's FF election lands here — start of the
        * player's turn, with the production chrome — not in SETUP. */

@@ -1098,6 +1098,26 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
     }
   }
   /*
+   * DOS-LITERAL FUN_43f7_1a26 raw 74818-74827: right after the WoI bit, every
+   * tile of the seen layer (FUN_281f_0736(0, 0)) is ANDed with ~crown (the
+   * slot INDEX, not its bit; a no-op for crown 0) and gets the crown's seen
+   * bit wherever the human's is set. The REF inherits the rebels' map
+   * (independence-seed-100 000003: all 3487 Dutch-seen tiles carry England's
+   * bit, 800 before the declaration), which its pathfinder then reads.
+   */
+  if (ctx->map && ctx->map->seen) {
+    const uint8_t keep = (uint8_t)~crown_fold;
+    const uint8_t human_bit = (uint8_t)(0x10u << human);
+    const uint8_t crown_bit = (uint8_t)(0x10u << crown_fold);
+    const size_t n_tiles = (size_t)ctx->map->width * (size_t)ctx->map->height;
+    for (size_t t = 0; t < n_tiles; ++t) {
+      ctx->map->seen[t] &= keep;
+      if (ctx->map->seen[t] & human_bit) {
+        ctx->map->seen[t] |= crown_bit;
+      }
+    }
+  }
+  /*
    * FUN_43f7_1a26 tail (43f7:1c07..1c1b): every human unit's MP is spent via
    * FUN_281f_0934 (unit_exhaust_mp) — "This will end our turn" (@DECLARE).
    */

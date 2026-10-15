@@ -250,7 +250,7 @@ static int case_874_drain_and_merc_offer_exclusive(void) {
   col1.nation[0].nation_flags = (uint8_t)(col1.nation[0].nation_flags | 0x08u);
   col1.nation[0].gold = 5000000u;
 
-  ai_king_ref_pre_euro_beat(&ctx);
+  ai_king_human_2022_beat(&ctx);
 
   if (col1.head.backup_force[2] != 0) {
     fprintf(stderr, "unit_regress_ai_tables: #874 drain did not fire (backup_force[2]=%u)\n",

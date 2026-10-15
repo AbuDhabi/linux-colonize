@@ -272,7 +272,16 @@ int ai_native_step_first_contact(
     if (ai_021a_trace_enabled()) {
       fprintf(stderr, "AI_021A_VISITROLL n=%d xy=(%d,%d) e=%d\n", nation_id, u->x, u->y, e);
     }
-    const int mood = ai_contact_visit_step_roll(s_ai_native_ctx, nation_id, e, u->id);
+    /* 022e binds local_4c = FUN_281f_07be(encounter tile): the beg-food
+     * block and the gift half (raw 96989 `if (local_4c < 0) goto
+     * LAB_5bfb_1005`) both need a colony there; a bare unit gets neither. */
+    int colony_here = 0;
+    if (ai_s_native_colonies) {
+      const int ecid = colonies_id_at(ai_s_native_colonies, nx, ny);
+      const ColonizeColony* ec = ecid >= 0 ? colonies_get(ai_s_native_colonies, ecid) : NULL;
+      colony_here = ec && ec->active && ec->nation_id == e;
+    }
+    const int mood = ai_contact_visit_step_roll(s_ai_native_ctx, nation_id, e, u->id, colony_here);
     if (!mood) {
       continue;
     }
@@ -289,15 +298,6 @@ int ai_native_step_first_contact(
      * with the call site that needed them. `aiStack_20[nation]` keeps it to
      * one resolved encounter per nation per pass.
      */
-    /* 022e binds local_4c = FUN_281f_07be(encounter tile): the beg-food
-     * block and the gift half (raw 96989 `if (local_4c < 0) goto
-     * LAB_5bfb_1005`) both need a colony there; a bare unit gets neither. */
-    int colony_here = 0;
-    if (ai_s_native_colonies) {
-      const int ecid = colonies_id_at(ai_s_native_colonies, nx, ny);
-      const ColonizeColony* ec = ecid >= 0 ? colonies_get(ai_s_native_colonies, ecid) : NULL;
-      colony_here = ec && ec->active && ec->nation_id == e;
-    }
     /*
      * 022e with neither a colony (local_4c) nor a Wagon Train head (local_42,
      * type 0x0c) on the encounter tile returns local_1a 0 (raw 96989 and the

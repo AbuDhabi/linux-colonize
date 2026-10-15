@@ -748,6 +748,7 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
   int score[AI_KING_0982_MAX_TARGETS];
   int cidx[AI_KING_0982_MAX_TARGETS];
   int n = 0;
+  int l4c = -1; /* DOS local_4c: 07e0 of the last scored colony tile */
   for (int i = 0; i < COLONIZE_COLONIES_MAX && n < AI_KING_0982_MAX_TARGETS; ++i) {
     const ColonizeColony* c = &ctx->colonies->colonies[i];
     if (!c->active || c->nation_id != human) {
@@ -767,6 +768,7 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
     score[n] = sc;
     cidx[n] = i;
     n++;
+    l4c = units_tile_head_id_at(ctx->units, c->x, c->y);
   }
   for (int a = 1; a < n; ++a) {
     for (int b = a; b > 0 && score[b] < score[b - 1]; --b) {
@@ -785,26 +787,28 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
         continue;
       }
       /*
-       * DOS-LITERAL FUN_43f7_0982 raw 74033-74041: `local_4c = 07e0(tile)`
-       * (FIRST unit of the stack), then the nation nibble of THAT unit alone
-       * is compared with the crown (`0x53d2`); if it matches, 02e4 walks the
-       * whole chain and every unit with a non-zero attack byte decrements the
-       * need. The port used to re-test each unit's nation (bugs.md #878c).
+       * DOS-LITERAL FUN_43f7_0982 raw 74033-74041: the crown test reads the
+       * nation nibble of the STALE local_4c, not of this tile's stack: first
+       * the 07e0 head of the last colony scored above, later wherever the
+       * previous walk stopped. A walk that runs off the chain leaves -1, and
+       * unit -1's nibble is DS:0x312b, which held 0 in DOSBox (save 3). Only
+       * a passing test re-reads 07e0 here and walks the chain (02e4), each
+       * unit with a non-zero attack byte decrementing the need. DOSBox
+       * independence-seed-100 3->4: the second wave lands six units next to
+       * the first wave's four tiles.
        */
-      const int top = units_id_at(ctx->units, nx, ny);
-      const ColonizeUnit* tu = top >= 0 ? units_get_const(ctx->units, top) : NULL;
-      if (!tu || tu->nation_id != crown) {
+      const ColonizeUnit* su = l4c >= 0 ? units_get_const(ctx->units, l4c) : NULL;
+      if ((su ? su->nation_id : 0) != crown) {
         continue;
       }
-      for (int k = 0; k < units_slot_end(ctx->units) && g > 0; ++k) {
-        const ColonizeUnit* u = &ctx->units->units[k];
-        if (!u->active || u->x != nx || u->y != ny || !units_is_on_map(u)) {
-          continue;
-        }
-        const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
+      l4c = units_tile_head_id_at(ctx->units, nx, ny);
+      while (l4c >= 0 && g > 0) {
+        const ColonizeUnit* u = units_get_const(ctx->units, l4c);
+        const ColonizeUnitType* t = u ? units_type(ctx->units, u->type_index) : NULL;
         if (t && t->attack > 0) {
           g--;
         }
+        l4c = units_tile_chain_next_id(ctx->units, l4c);
       }
     }
     garrison[i] = g;

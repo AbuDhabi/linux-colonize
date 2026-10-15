@@ -459,12 +459,13 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
          * "Continental Army status" for a Dragoon->Continental Cavalry
          * promote. Only %STRING1 (the PRE-promote type, "Dragoons") varies.
          * Do not retarget the text: the mechanic is already correct. */
-        for (int i = 0; i < units_slot_end(ctx->units) && cap > 0; ++i) {
-          ColonizeUnit* u = &ctx->units->units[i];
-          if (!u->active || u->nation_id != human) {
-            continue;
-          }
-          if (u->x != (int)c->x || u->y != (int)c->y) {
+        /* DOS walks the colony tile's chain from the latest arrival (07e0,
+         * then 02e4) until the cap runs out; slot order promoted different
+         * units when the cap was short (independence-seed-100 save 3). */
+        for (int uid = units_tile_head_id_at(ctx->units, (int)c->x, (int)c->y);
+             uid >= 0 && cap > 0; uid = units_tile_chain_next_id(ctx->units, uid)) {
+          ColonizeUnit* u = units_get(ctx->units, uid);
+          if (!u || !u->active || u->nation_id != human) {
             continue;
           }
           /*
@@ -593,10 +594,9 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
 /*
  * The DOS king beat for the crown slot, run from turn.c's EURO step for
  * that slot BEFORE ai_euro_nation_turn (per-slot order raw 6394/6407:
- * 3844_00f2 → 43f7_2424 → 2022, then the 6d8e thunk). 2022 is a pure
- * spawner/bookkeeper — wave landing (0982/06a6), Continental mobilization
- * (1eca), intervention (10f0) and merc roll, ref_present maintenance; it
- * never moves a unit. Movement follows in the ordinary euro turn.
+ * 3844_00f2 → 43f7_2424 → 2022, then the 6d8e thunk). 2022's crown branch
+ * is the wave landing (0982/06a6); it never moves a unit. Movement follows
+ * in the ordinary euro turn.
  */
 void ai_king_ref_pre_euro_beat(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 ||
@@ -604,6 +604,19 @@ void ai_king_ref_pre_euro_beat(ColonizeTurnContext* ctx) {
     return;
   }
   ai_king_ref_wave(ctx);
+}
+
+/*
+ * 2022's non-crown branch: 2424 (raw 75156) also calls 2022 for the human
+ * slot (`param_1 == *0x5398`), from the human's own 00f2 right after the
+ * census (raw 58390 4962, raw 58392 2424). Continental mobilization (1eca,
+ * once), then each later turn the 10f0 drain or the merc offer.
+ */
+void ai_king_human_2022_beat(ColonizeTurnContext* ctx) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 ||
+      !ai_king_independence_declared(ctx->col1)) {
+    return;
+  }
   ai_king_war_act(ctx);
 }
 

@@ -293,6 +293,8 @@ void units_tile_stack_sink(ColonizeUnitPool* pool, int unit_id);
 void units_tile_stack_sort_at(ColonizeUnitPool* pool, int x, int y);
 /* DOS FUN_281f_07e0: return the latest-arrival unit at (x,y), if any. */
 int units_tile_head_id_at(const ColonizeUnitPool* pool, int x, int y);
+/* DOS FUN_281f_02e4: the next (older) unit in unit_id's tile chain, -1 at the end. */
+int units_tile_chain_next_id(const ColonizeUnitPool* pool, int unit_id);
 /* DOS FUN_1427_10be + FUN_1427_040c on a ship still at its old tile: re-sort
  * that tile (04d6), then relink hull and passengers on top. `sort_group` adds
  * the mover's 0644 pass, which puts the hull under its passengers. */

@@ -191,6 +191,7 @@ static int test_king_noncombat_never_attacks(void) {
 
   for (int t = 0; t < 4; ++t) {
     ai_king_ref_pre_euro_beat(&ctx);
+    ai_king_human_2022_beat(&ctx);
     ai_king_nation_turn(&ctx);
     ColonizeUnit* w = units_get(&units, wagon);
     ColonizeUnit* r = units_get(&units, rebel);

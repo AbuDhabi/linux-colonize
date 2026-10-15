@@ -272,6 +272,14 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
     if (!u->active) {
       return AI_EURO_ACT_RETURN;
     }
+    /* Same as the treasure/missionary band: a course 20e6 bound this act is
+     * walked by FUN_479b_0972 (5b66 cases 0x0b/0x0c), not by the land
+     * scorer below (DOSBox independence-seed-100 3->4: Bahia's captured
+     * wagon follows the roads round to its village goal). */
+    if (wagon_hauled && (u->orders == AI_EURO_ACT_GOAL || u->orders == AI_EURO_ACT_STEP)) {
+      ai_euro_goal_walk_479b(ctx, u);
+      return AI_EURO_ACT_RETURN;
+    }
   }
 
   a->scout_explored = scout_explored;

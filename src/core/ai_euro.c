@@ -1467,6 +1467,16 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   const ColonizeUnitKind dispatch_kind = ai_euro_unit_kind(ctx->units, u);
   const int deferred_band = ai_euro_is_treasure_name(dispatch_kind) ||
     ai_euro_is_missionary_name(dispatch_kind) || ai_euro_type_is_wagon_name(dispatch_kind);
+  /* 5b66's head for these bands too (OVL14 0x5b6d-0x5b92): a unit that has
+   * already spent MP on a 0x0b course skips 20e6 when its DS:0x523d bit 0 is
+   * clear (true for Treasure, Missionary and Wagon Train) and goes straight
+   * to the 479b walk, so the band does not re-pick its goal mid-turn
+   * (DOSBox independence-seed-100 3->4: Bahia's captured wagon keeps its
+   * village goal for the whole walk). */
+  if (deferred_band && u->orders == AI_EURO_ACT_GOAL && !fresh_allotment) {
+    ai_euro_goal_walk_479b(ctx, u);
+    return;
+  }
   /* These types bypassed the scoring gate above because their 20e6 bands
    * live in ai_euro_act_land; every other land unit stops here. */
   if (!deferred_band) {

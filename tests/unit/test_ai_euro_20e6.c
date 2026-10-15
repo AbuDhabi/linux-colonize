@@ -1873,7 +1873,9 @@ static int unit_wagon_load_matrix_starts_village_errand(void) {
     fixture_free(&f);
     return fail("matrix should load the whole Ore surplus");
   }
-  if (w->orders != UNITS_ORDER_AI_MOVE || w->goto_x != 12 || w->goto_y != 12) {
+  /* OVL14 0x46be -> 27f5 -> 20c6: plan '4', course 0x0b toward the village. */
+  if (w->orders != UNITS_ORDER_AI_SAIL || w->col1_ai_plan != 0x34 || w->goto_x != 12 ||
+      w->goto_y != 12) {
     fprintf(stderr, "orders=%d goto=(%d,%d)\n", w->orders, w->goto_x, w->goto_y);
     f.col1.tribe = NULL;
     fixture_free(&f);
