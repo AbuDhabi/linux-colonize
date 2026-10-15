@@ -345,11 +345,9 @@ static int case_europe_park_refresh(void) {
     return 1;
   }
 
-  turn_refresh_moves_for_nation_w(
-    &(ColonizeWorld){.units = &fx_units, .colonies = NULL, .map = NULL, .col1 = NULL,
-                     .col1_ok = false},
-    1, NULL, NULL
-  );
+  /* The day top refills every unit (raw 6355-6357); the per-nation refresh
+   * grants nothing (an in-game load resumes slots without a day top). */
+  turn_clear_mp_spent_all_nations(&fx_units);
 
   uh = units_get(&fx_units, hull);
   up = units_get(&fx_units, pax);

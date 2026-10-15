@@ -167,8 +167,6 @@ void turn_refresh_moves_for_nation_w(
   units_set_native_fallout_context(
     col1 ? (ColonizeCol1Save*)col1 : NULL, map, -1
   );
-  const bool magellan =
-    col1 && founding_fathers_nation_has(col1, nation_id, FF_FERDINAND_MAGELLAN);
   for (int i = 0; i < units_slot_end(pool); ++i) {
     ColonizeUnit* u = &pool->units[i];
     if (!u->active || u->nation_id != nation_id) {
@@ -178,51 +176,18 @@ void turn_refresh_moves_for_nation_w(
      * every nation at the day top (raw 6355-6357), which is
      * turn_clear_mp_spent_all_nations called from TURN_PROC_SETUP
      * (bugs.md #713, #423). */
-    /* Fortify completes overnight → Fortified; stay asleep until woken.
-     * Human only: DOS's 5->6 step (FUN_479b_0b6c: orders 6 + exhaust) is
-     * not on the AI path — FUN_521d_20e6 acts an AI unit on orders 0/5/6
-     * alike (DOSBox 1513: a French soldier on orders 5 wandered out and
-     * attacked an adjacent Brave). */
-    if (u->orders == UNITS_ORDER_FORTIFY &&
-        (!col1 || nation_id > 3 || col1->player[nation_id].control == 0)) {
-      u->orders = UNITS_ORDER_FORTIFIED;
-      u->moves = 0;
-      continue;
-    }
-    /* Pioneer clear/plow/road: the refresh gives back the allotment and
-     * NOTHING else. bugs.md #626: DOS does not run the work bodies here —
-     * the lasting-order dispatcher FUN_2b5a_3ae6 (raw 46414) runs them from
-     * the human map loop (raw 46873) when the unit comes up in the
-     * activation rotation (game_select_next_unit_awaiting_orders), so the
-     * @CLEARCUT / @USEDUPTOOLS text arrives one unit at a time instead of in
-     * a burst at turn start, and an AI unit parked on order 8/9 is never
-     * advanced at all. DOS clears moves_spent for EVERY unit at the day top
-     * (viceroy 6357); only the work body's FUN_281f_0934 spends it
-     * (76761 / 76889). */
-    if (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD) {
-      u->moves = units_max_mp(pool, u->id);
-      continue;
-    }
-    /* Sentry / Fortified get the full allotment like every other unit: DOS
-     * clears the spent byte for every unit at the day top (raw 6355-6357) and
-     * keeps parked units out of the rotation by order byte, not MP
-     * (FUN_1427_1410 raw 8804, turn_select_next_unit; bugs.md #715, #953). */
-    const ColonizeUnitType* type = units_type(pool, u->type_index);
-    if (type) {
-      /*
-       * Natives: COL1 moves = DOS spent thirds; day loop clears spent to 0
-       * (decomp ~6357). Brave max allotment is 3 thirds.
-       * Europeans: remaining MP = @UNIT movement (+ Magellan sea +1).
-       */
-      if (nation_id >= 4) {
-        u->moves = 0;
-      } else {
-        u->moves = units_type_max_mp(type);
-        if (magellan && units_is_sea(pool, u->id)) {
-          u->moves += UNITS_MP_PER_TILE;
-        }
-      }
-    }
+    /* No overnight Fortify -> Fortified: DOS promotes order 5 when the unit
+     * comes up in the human's rotation (3ae6 -> FUN_479b_0b6c,
+     * game_select_next_unit_awaiting_orders). FUN_521d_20e6 acts an AI unit
+     * on orders 0/5/6 alike (DOSBox 1513). */
+    /* No MP grant here. DOS refills MP only at the day top (+0x3149 = 0 for
+     * every unit, raw 6355-6357: turn_clear_mp_spent_all_nations). A slot
+     * entered without a day top (in-game load resuming the year loop,
+     * turn_end_from_slot) keeps last day's spend: independence-seed-100
+     * START_SAVE, Spain already acted on day 268 and does almost nothing on
+     * the resumed slot. Pioneer work bodies run from the activation
+     * rotation (bugs.md #626), Sentry / Fortified keep their allotment
+     * (#715). */
   }
 }
 
@@ -978,6 +943,38 @@ ColonizeTurnResult turn_end(ColonizeTurnContext* ctx) {
   }
   ColonizeTurnProcessor proc;
   turn_processor_start(&proc);
+  while (turn_processor_advance(&proc, ctx)) {
+  }
+  return proc.result;
+}
+
+/*
+ * The rest of a DOS day, entered mid-loop. FUN_130d_0290 clears the
+ * load-resume byte DS:0x829 at the end of every slot iteration but keeps its
+ * slot counter, so a game loaded from the in-game menu while another game's
+ * human (slot k) was moving finishes THAT day from slot k+1 at full strength:
+ * nation EOT and act for each later slot, the new human's EOT, then the
+ * calendar. No day top, no Indian pass. (independence-seed-100: START_SAVE
+ * loaded from a French 1599 game, so Spain and the Dutch tick twice before
+ * 000001; DOSBox replay byte-identical.) Slots below `slot` do not run;
+ * slots above the human are not modelled (the human ends this partial day).
+ */
+ColonizeTurnResult turn_end_from_slot(ColonizeTurnContext* ctx, int slot) {
+  ColonizeTurnResult empty;
+  memset(&empty, 0, sizeof(empty));
+  if (!ctx || !ctx->turn_number || !ctx->game_year || !ctx->game_autumn) {
+    return empty;
+  }
+  ColonizeTurnProcessor proc;
+  turn_processor_start(&proc);
+  const int h = turn_human_slot(ctx);
+  const int next = turn_next_euro_ai(ctx, slot < 0 ? 0 : slot);
+  if (next >= 0 && (h < 0 || next < h)) {
+    proc.nation_cursor = next;
+    proc.step = TURN_PROC_EURO;
+  } else {
+    proc.step = TURN_PROC_FINISH;
+  }
   while (turn_processor_advance(&proc, ctx)) {
   }
   return proc.result;

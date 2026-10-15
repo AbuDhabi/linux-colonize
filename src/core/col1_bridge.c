@@ -2831,7 +2831,7 @@ bool col1_bridge_capture_w(
              * unit on save+reload (smell #75). Sentry/Fortified keep their
              * real MP overnight (bugs.md #715), so a zero is always a spend.
              */
-            spent = max_mp;
+            spent = max_mp - src->moves; /* < 0 = DOS overspend past the allotment */
           } else if (src->moves < max_mp) {
             spent = max_mp - src->moves;
           }
@@ -2847,23 +2847,14 @@ bool col1_bridge_capture_w(
       } else {
         dst->orders = UNITS_ORDER_NONE;
       }
-      /*
-       * Goto: idle on-map ships must use goto==xy (COLONY00). Human starter
-       * cleared ORDER_GOTO but left landfall in goto — DOS peeled the caravel
-       * out of transport_chain on select/move. Do not rewrite land/Brave goto
-       * (TURN AI goldens keep landfall after unload). Europe keeps landfall.
-       */
+      /* Goto: the stored +0x314d/e bytes, whatever the orders. DOS leaves them
+       * alone on an idle transport (independence-seed-100 000001: Dutch
+       * Merchantman on orders 0 keeps goto (50,51) one tile off; the old
+       * "idle ship goto == xy" export rewrote it). */
       {
-        const ColonizeUnitType* ut_goto = units_type(units, src->type_index);
-        const bool transport = ut_goto && ut_goto->cargo > 0;
-        const bool follow = units_orders_follow_goto(src->orders);
-        const bool in_europe = col1_coord_is_europe((uint8_t)src->x, (uint8_t)src->y);
         const bool goto_none = src->goto_x == UNITS_GOTO_NONE || src->goto_y == UNITS_GOTO_NONE ||
                                src->goto_x < 0 || src->goto_y < 0;
-        if (transport && !follow && !in_europe) {
-          dst->goto_x = dst->x;
-          dst->goto_y = dst->y;
-        } else if (goto_none) {
+        if (goto_none) {
           dst->goto_x = 0;
           dst->goto_y = 0;
         } else {

@@ -821,7 +821,8 @@ bool game_select_next_unit_awaiting_orders(ColonizeGameState* game) {
    * (jump table 2b5a:3b58, index orders-2; 8 -> FUN_479b_01a6 clear/plow,
    * 9 -> FUN_479b_0526 road). The select routine FUN_2b5a_1... (raw 42296-
    * 42300) classes orders {5,6,8,9} as "lasting" — the unit still becomes
-   * the active one, it just never waits for player input — so a pioneer
+   * the active one, it just never waits for player input (order 5 is
+   * promoted to Fortified there, below) — so a pioneer
    * with order 8/9 is ticked exactly when its turn in the ascending-id
    * rotation comes up, not in a burst at turn start.
    *
@@ -857,6 +858,15 @@ bool game_select_next_unit_awaiting_orders(ColonizeGameState* game) {
       if (u->moves > 0 && !units_orders_skip_turn(u)) {
         return true;
       }
+      continue;
+    }
+    if (u->orders == UNITS_ORDER_FORTIFY) {
+      /* 3ae6 order 5 -> FUN_479b_0b6c (raw 77146-77153): Fortified + spend
+       * the allotment, when the unit comes up — not overnight. A View-mode
+       * player never cycles, so Fortify stays 5 across turns
+       * (independence-seed-100 START_SAVE -> 000001). */
+      u->orders = UNITS_ORDER_FORTIFIED;
+      units_mp_exhaust_unit(&game->units, u->id);
       continue;
     }
     if (units_orders_skip_turn(u)) {

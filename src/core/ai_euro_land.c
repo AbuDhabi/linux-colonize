@@ -1988,6 +1988,9 @@ static int ai_euro_20e6_attack_term(
    * arm instead, where DOS clamps `odds < 1` up to 1 before the ×4 bonus.
    * Both were dropped by the first pass; restored verbatim.
    */
+  if (getenv("AI_4D2E_TRACE")) {
+    fprintf(stderr, "[52aa] u%d (%d,%d) base %d a %d d %d odds %d\n", u->id, nx, ny, base, a, d, odds);
+  }
   const int dos_ship = (s->dos_type >= 0xd && s->dos_type <= 0x12);
   if (odds < 0xc && !dos_ship) {
     *score -= 999;

@@ -56,6 +56,8 @@ bool golden_open(const char* path_in, const char* path_exp, uint32_t rng_seed, G
 /* The headless turn context golden_turn hands turn_end (no popup queue). */
 void golden_ctx(GoldenFixture* fx, ColonizeTurnContext* ctx);
 bool golden_turn(GoldenFixture* fx);
+/* slot >= 0: only the rest of the day from that Euro slot (turn_end_from_slot). */
+bool golden_turn_from_slot(GoldenFixture* fx, int slot);
 void golden_close(GoldenFixture* fx);
 
 #endif /* COLONIZE_TESTS_COMMON_GOLDEN_FIXTURE_H */

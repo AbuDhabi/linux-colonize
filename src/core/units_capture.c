@@ -791,9 +791,13 @@ void units_mp_charge(const ColonizeUnitPool* pool, ColonizeUnit* u, int cost) {
       u->moves = max_mp;
     }
   } else {
+    /* FUN_465b_0000 adds the full step cost to the spent byte even past the
+     * allotment (a won overspend roll), so remaining MP may go negative and
+     * the save shows spent > max (independence-seed-100 000001: Dragoons
+     * at spent 15/18). The byte saturates at 255. */
     u->moves -= cost;
-    if (u->moves < 0) {
-      u->moves = 0;
+    if (u->moves < max_mp - 255) {
+      u->moves = max_mp - 255;
     }
   }
 }

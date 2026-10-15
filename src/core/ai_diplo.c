@@ -2,7 +2,7 @@
 
 /*
  * Sections:
- *  - War embargo/fatigue/upkeep bookkeeping & privateer spawn (~line 138)
+ *  - War embargo/fatigue/upkeep bookkeeping (~line 138)
  *  - Indian diplomacy status bits, hostility sync, capital surrender & matrix tick (~line 418)
  *  - Diplomacy byte accessors, war/peace declarations & sound hook (~line 630)
  *  - Border garrison wake, 153e stack probes & worthiness scoring (~line 1159)
@@ -86,8 +86,6 @@
  * per-turn charge has no DOS trace and compounds over a long war (conventions
  * "No per-turn drip effects without a DOS trace"). The human status-line chrome
  * that hung off it went with it. */
-/* PARKED accuracy debt: null-units treasury stand-in only; do not change rate. */
-#define AI_DIPLO_PRIVATEER_PRIZE_GOLD 8u
 #define AI_DIPLO_WAR_FOOD_EMBARGO_BIT (1u << COLONIZE_CARGO_FOOD)
 #define AI_DIPLO_WAR_EMBARGO_CARGO_BIT (1u << COLONIZE_CARGO_FURS)
 #define AI_DIPLO_WAR_TOBACCO_EMBARGO_BIT (1u << COLONIZE_CARGO_TOBACCO)
@@ -128,7 +126,7 @@
 #define AI_DIPLO_STICKY_AT_WAR 1u
 #define AI_DIPLO_STICKY_DEEP 2u
 
-/* ===================== War embargo/fatigue/upkeep bookkeeping & privateer spawn (ai_diplo_war_embargo_lift_if_peace .. ai_diplo_war_privateer_prize) ===================== */
+/* ===================== War embargo/fatigue/upkeep bookkeeping & privateer spawn (ai_diplo_war_embargo_lift_if_peace) ===================== */
 static uint8_t* ai_diplo_timer_byte(ColonizeCol1Save* col1, int nation, int peer);
 static uint16_t ai_diplo_wartime_boycott_mask(void);
 static void ai_diplo_popup_ok(
@@ -167,228 +165,6 @@ static void ai_diplo_war_embargo_lift_if_peace(ColonizeCol1Save* col1, int natio
     ColonizeCol1Nation* nat = &col1->nation[n];
     nat->boycott_bitmap = (uint16_t)(nat->boycott_bitmap & (uint16_t)~lift);
   }
-}
-
-/*
- * Hunt-ready spawn: New World water so ai_euro naval war hunt can aim
- * (!ai_euro_in_europe). Europe dock (x|y>=200) is intentional last resort -
- * hunt waits for Europe->HS teleport. Cite: euro_unit_act §2b Privateer hunt.
- */
-static int ai_diplo_privateer_spawn_hunt_ready(
-  const ColonizeTurnContext* ctx,
-  int x,
-  int y
-) {
-  if (AI_DIPLO_IN_EUROPE(x, y)) {
-    return 0;
-  }
-  if (ctx && ctx->map && !map_tile_is_water(ctx->map, x, y)) {
-    return 0;
-  }
-  return 1;
-}
-
-/*
- * Find water near own coastal colony, else stack on own New World sea unit,
- * else Europe dock. Skip Europe-dock / non-water stacks so euro hunt can use
- * the ship same tick when coast water exists.
- * Source: FF Jones coastal-water helper; Europe purchase Privateer; fandom
- * Drake / Privateer commerce raid (euro_unit_act §2b).
- */
-static int ai_diplo_find_privateer_spawn(
-  const ColonizeTurnContext* ctx,
-  int nation_id,
-  int* out_x,
-  int* out_y
-) {
-
-  if (!ctx || !out_x || !out_y || nation_id < 0 || nation_id >= 4) {
-    return 0;
-  }
-  if (ctx->map && ctx->colonies) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* col = &ctx->colonies->colonies[i];
-      if (!col->active || col->nation_id != nation_id) {
-        continue;
-      }
-      if (!map_tile_is_coastal(ctx->map, col->x, col->y)) {
-        continue;
-      }
-      for (int d = 0; d < 8; ++d) {
-        const int nx = col->x + MAP_DIR8_DX[d];
-        const int ny = col->y + MAP_DIR8_DY[d];
-        if (map_tile_is_water(ctx->map, nx, ny) &&
-            ai_diplo_privateer_spawn_hunt_ready(ctx, nx, ny)) {
-          *out_x = nx;
-          *out_y = ny;
-          return 1;
-        }
-      }
-    }
-  }
-  if (ctx->units) {
-    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-      const ColonizeUnit* u = &ctx->units->units[i];
-      if (!u->active || u->nation_id != nation_id || !units_is_on_map(u)) {
-        continue;
-      }
-      if (!units_is_sea(ctx->units, u->id)) {
-        continue;
-      }
-      /* Skip Europe-dock stacks - not hunt-ready until HS teleport. */
-      if (!ai_diplo_privateer_spawn_hunt_ready(ctx, u->x, u->y)) {
-        continue;
-      }
-      *out_x = u->x;
-      *out_y = u->y;
-      return 1;
-    }
-  }
-  /* No hunt-ready coast / ship: commission from Europe dock (off-map). */
-  *out_x = AI_DIPLO_EUROPE_X;
-  *out_y = AI_DIPLO_EUROPE_Y;
-  return 1;
-}
-
-/* Session state: the OpenCol wartime-Privateer stand-in's per-peer latch. It
- * used to squat on nation +0x49, which DOS uses as the musket-lot bank. */
-static uint8_t s_privateer_spawn_mask[4];
-
-uint8_t ai_diplo_privateer_spawn_mask(int nation_id) {
-  return (nation_id >= 0 && nation_id < 4) ? s_privateer_spawn_mask[nation_id] : 0;
-}
-
-static int ai_diplo_privateer_spawn_armed(
-  const ColonizeCol1Save* col1,
-  int nation_id,
-  int peer
-) {
-  if (!col1 || nation_id < 0 || nation_id >= 4 || peer < 0 || peer >= 4) {
-    return 0;
-  }
-  return (s_privateer_spawn_mask[nation_id] &
-          (uint8_t)(1u << peer)) != 0;
-}
-
-static void ai_diplo_privateer_spawn_set(
-  ColonizeCol1Save* col1,
-  int nation_id,
-  int peer
-) {
-  if (!col1 || nation_id < 0 || nation_id >= 4 || peer < 0 || peer >= 4) {
-    return;
-  }
-  s_privateer_spawn_mask[nation_id] =
-    (uint8_t)(s_privateer_spawn_mask[nation_id] |
-              (uint8_t)(1u << peer));
-}
-
-static void ai_diplo_privateer_spawn_clear(
-  ColonizeCol1Save* col1,
-  int nation_id,
-  int peer
-) {
-  if (!col1 || nation_id < 0 || nation_id >= 4 || peer < 0 || peer >= 4) {
-    return;
-  }
-  s_privateer_spawn_mask[nation_id] =
-    (uint8_t)(s_privateer_spawn_mask[nation_id] &
-              (uint8_t)~(1u << peer));
-}
-
-/*
- * Wartime Privateer unit spawn (once per war peer via the session peer latch).
- * units_find_type("Privateer") + units_spawn_allow_stack near coast / Europe.
- * No-op if type missing, units null, already commissioned, or spawn fails.
- * Returns 1 on successful spawn. Source: Europe Privateer purchase; fandom
- * Drake Privateer combat; euro_unit_act §2b commerce raid.
- * Accuracy: this is the real wartime Privateer path when ctx->units is set;
- * cargo-raid loot stays with ai_euro naval combat (FUN_5fef hold plunder not
- * wired here) — do not invent a diplo gold rate.
- */
-static int ai_diplo_war_privateer_spawn(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  int peer
-) {
-  if (!ctx || !ctx->col1 || !ctx->units || nation_id < 0 || nation_id >= 4 ||
-      peer < 0 || peer >= 4 || nation_id == peer) {
-    return 0;
-  }
-  if (ai_diplo_privateer_spawn_armed(ctx->col1, nation_id, peer)) {
-    return 0;
-  }
-  const int ty = units_kind_type_index(ctx->units, UNITS_KIND_PRIVATEER);
-  if (ty < 0) {
-    return 0;
-  }
-  int sx = 0;
-  int sy = 0;
-  if (!ai_diplo_find_privateer_spawn(ctx, nation_id, &sx, &sy)) {
-    return 0;
-  }
-  /*
-   * Read-only hunt-ready check (ai_euro naval war hunt needs !in_europe +
-   * water). If finder returned a bad New World tile, refuse rather than arm
-   * the peer latch on a land/invalid spawn. Europe dock (not hunt-ready) is OK.
-   */
-  if (!AI_DIPLO_IN_EUROPE(sx, sy) &&
-      !ai_diplo_privateer_spawn_hunt_ready(ctx, sx, sy)) {
-    return 0;
-  }
-  if (!units_spawn_room(ctx->units, nation_id)) {
-    return 0;
-  }
-  const int sid = units_spawn_allow_stack(ctx->units, ty, sx, sy);
-  if (sid < 0) {
-    return 0;
-  }
-  ColonizeUnit* ship = units_get(ctx->units, sid);
-  if (ship) {
-    units_set_nation(ship, nation_id);
-    ship->orders = UNITS_ORDER_AI_SAIL;
-    /* Station-keep goto (self): Privateer hunt always re-aims in ai_euro. */
-    ship->goto_x = sx;
-    ship->goto_y = sy;
-  }
-  ai_diplo_privateer_spawn_set(ctx->col1, nation_id, peer);
-  return 1;
-}
-
-/*
- * PARKED accuracy debt — thin wartime Privateer treasury stand-in (8g).
- * Intended effect: cargo-raid hold plunder (FUN_5fef_016c / naval combat loot)
- * when a Privateer captures goods; no diplo hold-plunder API is wired, so this
- * richer→poorer 8g transfer is only used when ctx->units is null (no spawn path).
- * Do NOT invent a different gold rate. With units present, euro_balance uses
- * spawn-only + ai_euro hunt/combat instead. Source: Europe Privateer; fandom
- * Drake; euro_unit_act §2b; FUNCTION_CATALOG FUN_5fef_016c.
- */
-static int ai_diplo_war_privateer_prize(ColonizeCol1Save* col1, int nation_id, int peer) {
-  if (!col1 || nation_id < 0 || nation_id >= 4 || peer < 0 || peer >= 4 || nation_id == peer) {
-    return 0;
-  }
-  /* Either side can be the human (peer sweeps every Euro nation), so both
-   * halves move through the one door — audit G3. */
-  const uint32_t self_gold = europe_nation_gold(NULL, col1, nation_id);
-  const uint32_t other_gold = europe_nation_gold(NULL, col1, peer);
-  int donor;
-  int prize;
-  if (self_gold > other_gold) {
-    donor = nation_id;
-    prize = peer;
-  } else if (other_gold > self_gold) {
-    donor = peer;
-    prize = nation_id;
-  } else {
-    return 0;
-  }
-  if (europe_nation_gold(NULL, col1, donor) < AI_DIPLO_PRIVATEER_PRIZE_GOLD) {
-    return 0;
-  }
-  europe_nation_gold_add(NULL, col1, donor, -(long)AI_DIPLO_PRIVATEER_PRIZE_GOLD);
-  europe_nation_gold_add(NULL, col1, prize, (long)AI_DIPLO_PRIVATEER_PRIZE_GOLD);
-  return 1;
 }
 
 /* ===================== Indian diplomacy status bits, hostility sync, capital surrender & matrix tick (ai_diplo_indian_read .. ai_diplo_indian_matrix_tick) ===================== */
@@ -1014,11 +790,6 @@ void ai_diplo_make_peace(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   ai_diplo_clear_both(col1, nation_a, nation_b, AI_DIPLO_WAR);
   ai_diplo_or_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET));
   ai_diplo_war_embargo_lift_if_peace(col1, nation_a, nation_b);
-  /* Clear once-per-war Privateer commission bits both dirs (next war may respawn). */
-  if (was_war) {
-    ai_diplo_privateer_spawn_clear(col1, nation_a, nation_b);
-    ai_diplo_privateer_spawn_clear(col1, nation_b, nation_a);
-  }
   /*
    * Re-sync the sticky Indian-hostility byte on either side that was flagged
    * at-war. The "peace feeler" heal that used to precede each sync was retired
@@ -3254,27 +3025,10 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
        * being at war (bugs.md #965, see the AI_DIPLO_WAR_UPKEEP_GOLD
        * retirement note at the top of this file).
        */
-      /*
-       * Wartime Privateer: spawn-only when ctx->units is set (session peer latch;
-       * hunt-ready coast / New World sea stack / Europe dock). ai_euro naval
-       * hunt + units_resolve_naval_combat hold plunder (units_plunder_ship_holds)
-       * owns cargo-raid outcomes — no diplo gold fiction.
-       * PARKED null-units only: thin 8g richer→poorer treasury stand-in
-       * (AI_DIPLO_PRIVATEER_PRIZE_GOLD) when no units pool for spawn/combat.
-       * Human chrome: commission / "Privateer prize from %s" (null-units only).
-       * Source: Europe Privateer; fandom Drake; euro_unit_act §2b; FUN_5fef_016c.
-       */
-      if (ctx->units) {
-        if (ai_diplo_war_privateer_spawn(ctx, nation_id, peer)) {
-          /* Status only — no DOS GAME.TXT dialog for wartime Privateer spawn. */
-          ai_diplo_status_human_pair(
-            ctx, nation_id, peer, "Privateer commissioned against %s"
-          );
-        }
-      } else if (ai_diplo_war_privateer_prize(ctx->col1, nation_id, peer)) {
-        /* Status only — no GAME.TXT Privateer prize dialog. */
-        ai_diplo_status_human_pair(ctx, nation_id, peer, "Privateer prize from %s");
-      }
+      /* No wartime Privateer here. The free per-war Privateer spawn (and its
+       * null-units 8-gold "prize" fallback) cited the manual and fandom only;
+       * DOS has no such call. Independence-seed-100 START_SAVE: France at war
+       * with the Dutch got a Privateer at (35,33) that DOS never creates. */
       continue;
     }
 

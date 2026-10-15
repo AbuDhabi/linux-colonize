@@ -1294,10 +1294,11 @@ static int case_terrain_mp_improvements(void) {
       return 1;
     }
     pu->moves = 1 * UNITS_MP_PER_TILE; /* pioneer max is 1 — full allotment */
-    if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&tmap), .rng=(ColonizeDosRng*)(NULL)}, pid, fx, fy) || pu->moves != 0) {
+    if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&tmap), .rng=(ColonizeDosRng*)(NULL)}, pid, fx, fy) || pu->moves != -3) {
+      /* 465b adds the whole cost (6) to spent: 3 past the allotment. */
       fprintf(
         stderr,
-        "phase7 full-MP forest enter should succeed and exhaust (moves=%d)\n",
+        "phase7 full-MP forest enter should succeed and overspend to -3 (moves=%d)\n",
         pu->moves
       );
       map_free(&tmap);
@@ -1332,14 +1333,15 @@ static int case_terrain_mp_improvements(void) {
       return 1;
     }
 
-    /* DOS FUN_465b: range(1,cost) <= remaining; cost always charged. */
+    /* DOS FUN_465b: range(1,cost) <= remaining; the whole cost is always
+     * added to spent, past the allotment (moves -3), win or lose. */
     {
       ColonizeDosRng rng;
       dos_rng_seed(&rng, 1u); /* first range(1,2) → 1 → success */
       const int ox = pu_partial->x;
       const int oy = pu_partial->y;
       if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&tmap), .rng=(ColonizeDosRng*)(&rng)}, pid_partial, fx, fy) ||
-          pu_partial->x != fx || pu_partial->y != fy || pu_partial->moves != 0) {
+          pu_partial->x != fx || pu_partial->y != fy || pu_partial->moves != -3) {
         fprintf(
           stderr,
           "phase7 RNG success should enter forest (pos=%d,%d moves=%d)\n",
@@ -1358,7 +1360,7 @@ static int case_terrain_mp_improvements(void) {
       pu_partial->moves = 1 * UNITS_MP_PER_TILE;
       dos_rng_seed(&rng, 5006u); /* first range(1,2) → 2 → fail */
       if (units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&tmap), .rng=(ColonizeDosRng*)(&rng)}, pid_partial, fx, fy) ||
-          pu_partial->x != ox || pu_partial->y != oy || pu_partial->moves != 0) {
+          pu_partial->x != ox || pu_partial->y != oy || pu_partial->moves != -3) {
         fprintf(
           stderr,
           "phase7 RNG fail should stay and exhaust (pos=%d,%d moves=%d)\n",
