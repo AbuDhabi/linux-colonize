@@ -1507,7 +1507,7 @@ static void ai_euro_5952_ai_flags(
  * observable: one extra absorbed Soldier can force the colony's +0x8d
  * preference back onto Muskets.
  */
-static int ai_euro_5952_tile_stack(
+COLONIZE_INTERNAL int ai_euro_5952_tile_stack(
   const ColonizeTurnContext* ctx, const ColonizeColony* c, int* ids, int max
 ) {
   int n = 0;

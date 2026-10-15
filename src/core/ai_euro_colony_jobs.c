@@ -2051,6 +2051,11 @@ static int ai_euro_5952_job_class(int job) {
  * DOS-LITERAL FUN_5952_035e build-decision cascade, asm 5952:21d4-5952:274b.
  * Runs at the tail of the AI colony tick, once per own colony.
  */
+/* Per colony: 1 + the ring plot BP-0xa4/-0xac point at when the cascade runs
+ * (0 = the colony tile). Written by the tick right after the improvement arm,
+ * consumed by the cascade. */
+static int s_5952_arty_plot[COLONIZE_COLONIES_MAX];
+
 void ai_euro_5952_build_cascade(
   ColonizeTurnContext* ctx, ColonizeColony* col
 ) {
@@ -2144,6 +2149,32 @@ void ai_euro_5952_build_cascade(
     }
   }
   int arty_on_tile = 0; /* iStack_92, asm 5952:2642 */
+  {
+    /* asm 2632-265b: 07e0/02e4 walk the stack at BP-0xa4/-0xac, a stale ring
+     * tile (s_5952_arty_plot), and count every type-0x0b unit on it, any
+     * owner (DOSBox independence-seed-100: Jamestown's walk lands on (50,22),
+     * counts 0 and builds Artillery while three Artillery sit in the colony). */
+    int ax = col->x;
+    int ay = col->y;
+    int plot = -1;
+    if (col->id >= 0 && col->id < COLONIZE_COLONIES_MAX) {
+      plot = s_5952_arty_plot[col->id] - 1;
+      s_5952_arty_plot[col->id] = 0;
+    }
+    int pdx = 0;
+    int pdy = 0;
+    if (plot >= 0 && colonies_field_tile_delta(plot, &pdx, &pdy)) {
+      ax += pdx;
+      ay += pdy;
+    }
+    for (int i = 0; ctx->units && i < units_slot_end(ctx->units); ++i) {
+      const ColonizeUnit* u = &ctx->units->units[i];
+      if (u->active && units_is_on_map(u) && u->x == ax && u->y == ay &&
+          ai_euro_20e6_dos_type(ctx->units, u) == 0x0b) {
+        ++arty_on_tile;
+      }
+    }
+  }
   if (ctx->units) {
     for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
@@ -2154,9 +2185,6 @@ void ai_euro_5952_build_cascade(
         continue;
       }
       const int dtype = ai_euro_20e6_dos_type(ctx->units, u);
-      if (dtype == 0x0b) {
-        ++arty_on_tile;
-      }
       if (dtype >= 0x0d && dtype <= 0x12) {
         continue; /* ships are not colony slots */
       }
@@ -2585,11 +2613,10 @@ COLONIZE_INTERNAL int ai_euro_5952_train_pick(
  * instructions earlier. DOS therefore charges the AI @JOB[slot]'s price, not
  * @JOB[target]'s — kept DOS-literal (bugs.md #571).
  *
- * Port deviations, both documented rather than modelled: DOS's candidate
- * walk in ARM 1 runs to `pop + DS:0x8d72`, i.e. past the colonists into the
- * units parked on the colony tile, and DOS's aiStack_68 census is the
- * snapshot taken before the tick's absorption loop. The port walks the
- * colony roster only and recomputes the census here.
+ * ARM 1's candidate walk runs to `pop + DS:0x8d72`, past the colonists into
+ * the units parked on the colony tile (modelled). Port deviation, documented
+ * rather than modelled: DOS's aiStack_68 census is the snapshot taken before
+ * the tick's absorption loop; the port recomputes it here.
  */
 COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
   ColonizeTurnContext* ctx, ColonizeColony* col, int n
@@ -2699,14 +2726,42 @@ COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
       }
       cand[n_cand++] = s;
     }
+    /* The walk runs to `pop + DS:0x8d72`: slots past the roster are the units
+     * on the colony tile (FUN_15eb_0e52 = unit +0x315b, FUN_15eb_0e18 = the
+     * type's default @JOB). Encoded as -1 - unit id. DOSBox independence-
+     * seed-100: the Scout Spain's colony at (40,13) ejects this tick is the
+     * one elected, and leaves as a Seasoned Scout. */
+    {
+      int ids[COLONIZE_UNITS_MAX];
+      const int nt = ai_euro_5952_tile_stack(ctx, col, ids, COLONIZE_UNITS_MAX);
+      for (int k = 0; k < nt && n_cand < 0x19; ++k) {
+        const ColonizeUnit* u = units_get_const(ctx->units, ids[k]);
+        if (!u) {
+          continue;
+        }
+        const int prof = u->profession;
+        const int occ = units_type_default_job(ai_euro_20e6_dos_type(ctx->units, u));
+        if ((!ai_euro_5952_job_is_expert(prof) || (prof != occ && occ != 0x13)) &&
+            prof != COLONIZE_PROF_CONVERT) {
+          cand[n_cand++] = -1 - u->id;
+        }
+      }
+    }
     if (n_cand != 0) {
       const int pick = cand[dos_rng_range(ctx->rng, 0, n_cand - 1)];
+      ColonizeUnit* pu = pick < 0 ? units_get(ctx->units, -1 - pick) : NULL;
       int elected = target;
       if (elected < 0) {
-        elected = ai_euro_5952_occupation(pool, col, pick);
+        elected = pu ? units_type_default_job(ai_euro_20e6_dos_type(ctx->units, pu))
+                     : ai_euro_5952_occupation(pool, col, pick);
       }
       if (elected >= 0) {
-        col->colonists[pick].profession = elected;
+        if (pu) {
+          /* FUN_15eb_0e8c: a unit's Dragoon job is stored as Soldier. */
+          pu->profession = elected == UNITS_JOB_DRAGOON ? UNITS_JOB_SOLDIER : elected;
+        } else {
+          col->colonists[pick].profession = elected;
+        }
       }
       col->improve_timer = 0;
     }
@@ -2781,7 +2836,9 @@ COLONIZE_INTERNAL void ai_euro_5952_seed_horses(
 
 /* FUN_5952_035e tile-improvement arm (raw 94402-94551, bugs.md #612) — the
  * body lives beside the 20e6 terrain/ring tables it shares. */
-void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* col, int* local_1b0);
+void ai_euro_5952_improve_best_plot(
+  ColonizeTurnContext* ctx, ColonizeColony* col, int* local_1b0, int* out_best_plot
+);
 /* FUN_5952_035e raw 94370-94400 — the 20-tool purchase (#640) and the
  * `turn % 7 == 0` inter-colony road-connect arm (#641); both run immediately
  * before the improve arm. */
@@ -2862,7 +2919,16 @@ static void ai_euro_colony_tick_run(
     /* local_1b0: colony+0x1a until the improvement arm's neighbour scan
      * overwrites it (raw 93981 / 94482). */
     int local_1b0 = col->nation_id;
-    ai_euro_5952_improve_best_plot(ctx, col, &local_1b0);
+    int improve_plot = -1;
+    ai_euro_5952_improve_best_plot(ctx, col, &local_1b0, &improve_plot);
+    /* BP-0xa4/-0xac after the improvement arm: its best plot (asm 13c3), else
+     * the last ring plot both scan loops wrote (asm 092a / 1250). The build
+     * cascade counts Artillery on that tile (asm 2632), not on the colony. */
+    if (col->id >= 0 && col->id < COLONIZE_COLONIES_MAX) {
+      const int ring = colonies_work_plot_count(ctx->colonies, col);
+      s_5952_arty_plot[col->id] =
+        1 + (improve_plot >= 0 ? improve_plot : (ring > 0 ? colonies_field_scan_order(ring - 1) : -1));
+    }
     if (getenv("AI_28C8_TRACE")) {
       fprintf(stderr, "[5952 local_1b0] colony %d nation %d -> %d\n", col->id, col->nation_id,
               local_1b0);

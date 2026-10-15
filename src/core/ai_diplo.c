@@ -1515,6 +1515,7 @@ typedef struct Ai153eTalk {
   int want_src;    /* raw iStack_88: colony on the encounter tile (the human's) */
   int want_dst;    /* raw iStack_64: target's nearest colony (the receiver) */
   int last_talk_turn[4][4];
+  int pending; /* stage the last queued talk popup answers (0 = an OK) */
 } Ai153eTalk;
 static Ai153eTalk s_talk;
 
@@ -1691,6 +1692,7 @@ static void ai_talk_ok(
 ) {
   char body[AI_POPUP_BODY_LEN];
   ai_talk_body(ctx, tag, tok, fallback, body, sizeof(body));
+  s_talk.pending = 0;
   (void)ai_popup_enqueue_ok_ctx(
     ctx->ai_popups, AI_POPUP_TAG_DIPLO_TALK, s_talk.self, s_talk.target, 0,
     NULL, body
@@ -1722,6 +1724,7 @@ static void ai_talk_choice(
     labels[i] = filled[i];
     ids[i] = i + 1;
   }
+  s_talk.pending = stage;
   (void)ai_popup_enqueue_choice_ctx(
     ctx->ai_popups, AI_POPUP_TAG_DIPLO_TALK, s_talk.self, s_talk.target, stage,
     NULL, body, labels, ids, count
@@ -2082,6 +2085,7 @@ static AiTalkStepStatus ai_talk_stage_ally_pick(
    * GAME.TXT section carries it and its numeric id is unresolved, so the list
    * stands alone rather than under typed English.
    */
+  s_talk.pending = AI_TALK_ST_ALLY_PICK;
   (void)ai_popup_enqueue_choice_ctx(
     ctx->ai_popups, AI_POPUP_TAG_DIPLO_TALK, h, t, AI_TALK_ST_ALLY_PICK,
     NULL, "", labels, picks, n
@@ -2564,7 +2568,7 @@ int ai_diplo_153e_encounter_forced(ColonizeTurnContext* ctx, int human, int targ
 static int ai_diplo_153e_encounter_gated(
   ColonizeTurnContext* ctx, int human, int target, int unit_id, int forced_gate
 ) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->ai_popups || !ctx->units || !ctx->map ||
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units || !ctx->map ||
       !ctx->colonies || human < 0 || human > 3 || target < 0 || target > 3 || human == target ||
       human != ctx->human_nation) {
     return 0;
@@ -2579,6 +2583,13 @@ static int ai_diplo_153e_encounter_gated(
   Ai153eWorthinessScore w =
     ai_diplo_153e_worthiness_score(ctx, human, target, unit_id, forced_gate);
   if (!w.handled) {
+    /* A closed gate (met, stamp under 16 turns old) jumps to LAB_34de, the
+     * shared exit, which still re-arms the treaty cooldown when at peace
+     * (DOSBox independence-seed-100: Spain's timer toward the Dutch reads 4
+     * after every turn while the stamp stays 264). */
+    if (!col1->head.game_options.woi) {
+      ai_diplo_153e_finish_timer(ctx, human, target);
+    }
     return 0;
   }
   s_talk.last_talk_turn[human][target] = (int)col1->head.turn + 1;
@@ -2766,6 +2777,12 @@ static int ai_diplo_153e_encounter_gated(
   ai_talk_ok(ctx, hello, &tok, "");
   k->stage = AI_TALK_ST_THIRD;
   ai_talk_advance(ctx);
+  /* Headless (no popup queue): the idle player answers every audience
+   * popup with its first option, as DOS's Space does (independence-seed-100:
+   * Spain's treaty timer toward the Dutch is re-set to 4 each turn). */
+  for (int guard = 0; !ctx->ai_popups && k->active && guard < 32; ++guard) {
+    ai_talk_resume(ctx, k->pending, 1);
+  }
   /* FUN_5bfb_3180 :98530: a nonzero 153e return stamps MET (0x20) both
    * directions (switchD_2000:da9f::caseD_10(a, b, 0x20)) — the greeting
    * above read the pre-stamp value for FIRST/AHOY. */

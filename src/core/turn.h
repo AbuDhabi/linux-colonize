@@ -289,6 +289,14 @@ bool turn_select_next_unit(ColonizeUnitPool* pool, int human_nation);
  * ever the inner step of this loop.
  */
 bool turn_select_next_unit_awaiting_orders(ColonizeUnitPool* pool, int human_nation);
+/* FUN_2b5a_3ae6 lasting-order step for the unit the rotation made active;
+ * true when it waits for the player. */
+bool turn_rotation_lasting_step_w(
+  const ColonizeWorld* w, ColonizeUnit* u, AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+);
+/* Headless idle human turn: cycle every unit, Space on each that waits. */
+void turn_idle_human_rotation_w(const ColonizeWorld* w, int human_nation);
 
 /* Read Col1 end_of_turn / autosave option bits (false if no save). */
 bool turn_option_end_of_turn(const ColonizeCol1Save* col1, bool col1_ok);

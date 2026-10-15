@@ -2080,8 +2080,8 @@ static int case_colonies_core(void) {
         /* floor(12/6)=2 → mod=-2 */
         CHECK(colony_prod_sol_bonus(&col1, c) == -2, "Tory floor −2 pop12 sol0 Viceroy");
 
-        col1.player[c->nation_id].control = 1; /* AI → thresh 10 always */
-        CHECK(colony_prod_sol_bonus(&col1, c) == -1, "Tory floor AI thresh 10 at Viceroy");
+        col1.player[c->nation_id].control = 1; /* AI: Tory count zeroed (1d4c 15eb:1dbf) */
+        CHECK(colony_prod_sol_bonus(&col1, c) == 0, "AI Tory count zeroed");
 
         /*
          * bugs.md: the floor is unbounded — DOS clamps the finished yield at 0,

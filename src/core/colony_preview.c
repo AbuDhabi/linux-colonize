@@ -99,11 +99,13 @@ void colony_preview_compute_w(
   /* FUN_364b_0688 Phase B: AI Euro food += difficulty>>1 — same subsidy
    * turn.c applies before consumption (golden_colony_preview01 caught every
    * AI colony's preview one food short of the actual tick without it). */
+  int ai_food_subsidy = 0;
   if (col1 && colony->nation_id >= 0 && colony->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
       col1->player[colony->nation_id].control != 0) {
     int diff = (int)col1->head.difficulty;
     diff = diff < 0 ? 0 : (diff > 4 ? 4 : diff);
-    out->goods[COLONIZE_CARGO_FOOD] += diff >> 1;
+    ai_food_subsidy = diff >> 1;
+    out->goods[COLONIZE_CARGO_FOOD] += ai_food_subsidy;
   }
 
   out->food_produced = out->goods[COLONIZE_CARGO_FOOD];
@@ -128,7 +130,7 @@ void colony_preview_compute_w(
     const ColonyProdHorseBreed breed = colony_prod_horse_breed(
       colony->stock[COLONIZE_CARGO_HORSES],
       pop,
-      out->food_produced,
+      out->food_produced - ai_food_subsidy, /* 1f72 reads the Phase A gross */
       warehouse_cap,
       has_stable
     );

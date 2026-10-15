@@ -81,9 +81,11 @@ static int known_residue_year(const IdleCampaign* c, int year) {
 
 /*
  * Ignored when comparing: the human's first-turn UI state, which the headless
- * harness never plays (View mode, tutorial flags, map focus tile), and the
- * port-only COLNXEXT tail past the DOS sections. They are copied from the DOS
- * save into the serialized copy only; the simulated state keeps its own.
+ * harness never plays (View mode, tutorial flags, map focus tile), the
+ * port-only COLNXEXT tail past the DOS sections, and the port's WoI latches
+ * kept in the human's DOS-dead nation bytes (ai_king_latch_pad,
+ * unknown23_pad). They are copied from the DOS save into the serialized copy
+ * only; the simulated state keeps its own.
  */
 static int compare_save(
   ColonizeCol1Save* got, const ColonizeCol1Save* expect, const char* expected_path, int year
@@ -95,17 +97,27 @@ static int compare_save(
   const uint16_t keep_map_mode = got->head.map_mode;
   const ColonizeCol1Tut2 keep_tut2 = got->head.tut2;
   const uint16_t keep_x = got->stuff.x, keep_y = got->stuff.y;
+  uint8_t keep_pad[4][sizeof(got->nation[0].unknown23_pad)];
+  for (int n = 0; n < 4; ++n) {
+    memcpy(keep_pad[n], got->nation[n].unknown23_pad, sizeof(keep_pad[n]));
+  }
   if (expect) {
     got->head.map_mode = expect->head.map_mode;
     got->head.tut2 = expect->head.tut2;
     got->stuff.x = expect->stuff.x;
     got->stuff.y = expect->stuff.y;
+    for (int n = 0; n < 4; ++n) {
+      memcpy(got->nation[n].unknown23_pad, expect->nation[n].unknown23_pad, sizeof(keep_pad[n]));
+    }
   }
   const int written = col1_save_write_memory(got, &actual, &actual_size, err, sizeof(err));
   got->head.map_mode = keep_map_mode;
   got->head.tut2 = keep_tut2;
   got->stuff.x = keep_x;
   got->stuff.y = keep_y;
+  for (int n = 0; n < 4; ++n) {
+    memcpy(got->nation[n].unknown23_pad, keep_pad[n], sizeof(keep_pad[n]));
+  }
   if (!written) {
     fprintf(stderr, "serialize %d: %s\n", year, err);
     goto done;
@@ -258,6 +270,14 @@ int main(int argc, char** argv) {
     for (int step = 0; stepped && step < steps; ++step) {
       /* The skipped human turn: FUN_2b5a_3b68 opens Move Pieces with
        * DS:0x5392 = 0xffff (raw 46833) and the idle player ends it there. */
+      {
+        /* The idle player's rotation: lasting orders run as each unit comes
+         * up, Space spends the rest (turn_idle_human_rotation_w). */
+        ColonizeTurnContext rctx;
+        golden_ctx(&fx, &rctx);
+        const ColonizeWorld rw = world_from_turn_ctx(&rctx);
+        turn_idle_human_rotation_w(&rw, fx.br.human_nation);
+      }
       fx.units.selected_id = -1;
       stepped = golden_turn(&fx);
       col1_bridge_stamp_autosave_head(&fx.start);

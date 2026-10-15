@@ -287,17 +287,24 @@ COLONIZE_INTERNAL int ai_king_0982_garrison_score(const ColonizeTurnContext* ctx
   return g < 1 ? 1 : g;
 }
 
-/* 08bc stack query stand-in: Σ defense (004a mode 0 ×8 >> 4) of units at (x,y). */
+/* DOS-LITERAL FUN_281f_08bc(07e0(x, y), 10) = FUN_1427_0d38 mode 10
+ * (1427:0e16): count the stack's non-ship units whose @UNIT attack byte
+ * (DS:0x5236) is above 1. DOSBox independence-seed-100: Bahia's two
+ * Artillery and a Wagon Train count 2, so the first REF wave lands there. */
 COLONIZE_INTERNAL int ai_king_0982_tile_strength(const ColonizeTurnContext* ctx, int x, int y) {
-  const ColonizeCombatStrengthCtx cs = combat_strength_ctx_from_turn(ctx);
-  int s = 0;
+  int n = 0;
   for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
-    if (u->active && u->x == x && u->y == y && units_is_on_map(u)) {
-      s += combat_unit_base_x8(&cs, u->id, 0, NULL) >> 4;
+    if (!u->active || u->x != x || u->y != y || !units_is_on_map(u) ||
+        units_is_sea(ctx->units, u->id)) {
+      continue;
+    }
+    const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
+    if (t && t->attack > 1) {
+      ++n;
     }
   }
-  return s;
+  return n;
 }
 
 /*
@@ -616,128 +623,107 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
   }
   /* Per-wave cap = DS:0x5333 (MoW holds, 6) already applied by the caller
    * (raw 74091-74094); floor 3 above is raw 74162-74164. bugs.md #661. */
-  int used_d = 0;
-  int used_a = 0;
-  /* Candidate land tiles around the ship, weakest stack first. */
-  int cx[8];
-  int cy[8];
-  int cs[8];
-  int nc = 0;
-  for (int e = 0; e < 8; ++e) {
-    const int nx = lx + MAP_DIR8_DX[e];
-    const int ny = ly + MAP_DIR8_DY[e];
-    if (map_tile_is_water(ctx->map, nx, ny) ||
-        map_tile_has_city(ctx->map, nx, ny) ||
-        (ctx->colonies && colonies_id_at(ctx->colonies, nx, ny) >= 0) ||
-        abs(nx - c->x) > 1 || abs(ny - c->y) > 1 ||
-        map_continent_id_at(ctx->map, nx, ny) != continent) {
-      continue;
-    }
-    cx[nc] = nx;
-    cy[nc] = ny;
-    cs[nc] = ai_king_0982_tile_strength(ctx, nx, ny);
-    nc++;
-  }
-  for (int a = 1; a < nc; ++a) {
-    for (int b = a; b > 0 && cs[b] < cs[b - 1]; --b) {
-      int t = cs[b]; cs[b] = cs[b - 1]; cs[b - 1] = t;
-      t = cx[b]; cx[b] = cx[b - 1]; cx[b - 1] = t;
-      t = cy[b]; cy[b] = cy[b - 1]; cy[b - 1] = t;
-    }
-  }
+  int used_d = 0; /* local_c */
+  int used_a = 0; /* local_2e */
   /*
-   * bugs.md (REF_bugs.SAV): if ANY candidate tile is empty, the
-   * landing uses only the empty tiles — seizing the player's units
-   * is the blockade-runner case, legal only when every adjacent
-   * tile is held. Empty tiles sort first anyway (strength 0), so
-   * restrict "usable" to them when one exists.
+   * DOS-LITERAL FUN_43f7_0982 raw 74163-74266. Sweep the ship tile's eight
+   * neighbours (land, no settlement, next to the colony, colony continent):
+   *   - a crown-held tile (FUN_281f_06dc == crown) takes the next unit:
+   *     Cavalry while under the cap, then Artillery, else a Regular;
+   *   - any other tile: the first sweep only records the smallest stack
+   *     (08bc mode 2); the second sweep seizes (00a8) every tile at that
+   *     minimum with a Regular.
+   * Sweeps repeat (from the first kind) while anything lands. DOSBox
+   * independence-seed-100: four Regulars seize the empty tiles round
+   * Bahia, then the Cavalry and the Artillery follow on them.
    */
-  /*
-   * bugs.md: "safe" = no HUMAN stack on the tile — empty, or held
-   * by an earlier crown landing (stacking with its own army is
-   * fine; the previous fix treated the old beachhead as occupied
-   * and pushed the next wave onto the player's units). Partition:
-   * when ANY safe tile exists, land ONLY on safe tiles; the
-   * seize-what-stands-there landing remains solely for a full
-   * blockade.
-   */
-  int usable = 0;
-  {
-    int sx2[8];
-    int sy2[8];
-    int ss2[8];
-    int ns = 0;
-    /* raw 74190: `FUN_281f_06dc(x,y) == DS:0x53d2` (layer3 owner nibble =
-     * crown) lands at once and re-sweeps while it lands, so crown-held
-     * tiles take every unit while one exists; an empty tile (nibble 0xf)
-     * only enters through the min-strength pass (bugs.md #878 lead).
-     * pass 0 = crown-held, pass 1 = empty. */
-    for (int pass = 0; pass < 2 && ns == 0; ++pass) {
-      for (int t = 0; t < nc; ++t) {
-        const int occ = units_id_at(ctx->units, cx[t], cy[t]);
-        const ColonizeUnit* ou = occ >= 0 ? units_get_const(ctx->units, occ) : NULL;
-        if (pass == 0 ? (ou && ou->nation_id == crown) : !ou) {
-          sx2[ns] = cx[t];
-          sy2[ns] = cy[t];
-          ss2[ns] = cs[t];
-          ns++;
+  for (;;) {
+    int pass_b = 0;      /* local_14 */
+    int any_other = 0;   /* local_20 */
+    int min_stack = 99;  /* local_24 */
+    for (;;) {           /* LAB_43f7_10c5 */
+      if (need <= 0) {
+        return;
+      }
+      int landed_any = 0; /* local_2c */
+      for (int e = 0; e < 8; ++e) {
+        const int nx = lx + MAP_DIR8_DX[e];
+        const int ny = ly + MAP_DIR8_DY[e];
+        if (map_tile_is_water(ctx->map, nx, ny) || map_tile_has_city(ctx->map, nx, ny) ||
+            (ctx->colonies && colonies_id_at(ctx->colonies, nx, ny) >= 0) ||
+            abs(nx - c->x) > 1 || abs(ny - c->y) > 1 ||
+            map_continent_id_at(ctx->map, nx, ny) != continent || need <= 0) {
+          continue;
         }
+        const int top = units_id_at(ctx->units, nx, ny);
+        const ColonizeUnit* tu = top >= 0 ? units_get_const(ctx->units, top) : NULL;
+        int k = 0;
+        int seize = 0;
+        if (tu && tu->nation_id == crown) {
+          if (used_d < cap && force[1] > 0) {
+            used_d++;
+            k = 1;
+          } else if (used_a < cap && force[3] > 0) {
+            used_a++;
+            k = 3;
+          }
+        } else {
+          int stack = 0;
+          for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+            const ColonizeUnit* u = &ctx->units->units[i];
+            if (u->active && u->x == nx && u->y == ny && units_is_on_map(u)) {
+              ++stack;
+            }
+          }
+          if (!pass_b) {
+            if (stack < min_stack) {
+              any_other = 1;
+              min_stack = stack;
+            }
+            continue;
+          }
+          if (stack > min_stack) {
+            continue;
+          }
+          seize = 1;
+        }
+        if (force[k] == 0) {
+          continue;
+        }
+        /* Spawn on the ship's tile and slide ashore (ai_king_place_slide). */
+        const int uid = ai_king_0982_spawn_pool_unit(ctx, crown, k, lx, ly);
+        if (uid < 0) {
+          return; /* raw: local_80[0] = 0; break */
+        }
+        if (seize) {
+          ai_king_0982_purge_tile(ctx, crown, nx, ny); /* thunk 2a1f_00a8 */
+        }
+        ai_king_place_slide(ctx, uid, nx, ny);
+        {
+          ColonizeUnit* lu = units_get(ctx->units, uid);
+          if (lu) {
+            lu->moves = 0; /* FUN_281f_0934: landing consumes the turn */
+            /* DOS-LITERAL raw 74210: caseD_1 = FUN_1427_0992(unit, param_1)
+             * sets the target nation's vis bit only (bugs.md #878 lead). */
+            lu->col1_vis_mask |= (uint8_t)(1u << c->nation_id);
+          }
+        }
+        /* DOS-LITERAL raw 74217-74219: `FUN_281f_09ba(colony.x - 2,
+         * colony.y - 2, 5, 5, 1)`, centred on the TARGET COLONY (#878b). */
+        map_reveal_radius(ctx->map, c->x, c->y, crown, 2);
+        force[k]--;
+        need--;
+        landed_any = 1;
+      }
+      if (landed_any) {
+        break; /* `while (local_2c != 0)`: back to the top, kinds reset */
+      }
+      if (!any_other || pass_b) {
+        need = 0;
+      } else {
+        pass_b = 1;
       }
     }
-    if (ns > 0) {
-      for (int t = 0; t < ns; ++t) {
-        cx[t] = sx2[t];
-        cy[t] = sy2[t];
-        cs[t] = ss2[t];
-      }
-      usable = ns;
-    } else {
-      /* Full blockade: DOS lands on every tile no stronger than the
-       * weakest, seizing what stands there. */
-      while (usable < nc && cs[usable] <= cs[0]) {
-        usable++;
-      }
-      for (int t = 0; t < usable; ++t) {
-        ai_king_0982_purge_tile(ctx, crown, cx[t], cy[t]);
-      }
-    }
-  }
-  int slot = 0;
-  while (need > 0 && usable > 0) {
-    int k;
-    if (used_d < cap && force[1] > 0) {
-      k = 1;
-      used_d++;
-    } else if (used_a < cap && force[3] > 0) {
-      k = 3;
-      used_a++;
-    } else if (force[0] > 0) {
-      k = 0;
-    } else {
-      break;
-    }
-    /* Spawn on the ship's tile and slide ashore (ai_king_place_slide). */
-    const int uid = ai_king_0982_spawn_pool_unit(ctx, crown, k, lx, ly);
-    if (uid < 0) {
-      break;
-    }
-    ai_king_place_slide(ctx, uid, cx[slot], cy[slot]);
-    {
-      ColonizeUnit* lu = units_get(ctx->units, uid);
-      if (lu) {
-        lu->moves = 0; /* landing consumes the turn */
-        /* DOS-LITERAL raw 74210: caseD_1 = FUN_1427_0992(unit, param_1) sets
-         * the target nation's vis bit only (bugs.md #878 lead). */
-        lu->col1_vis_mask |= (uint8_t)(1u << c->nation_id);
-      }
-    }
-    /* DOS-LITERAL FUN_43f7_0982 raw 74217-74219:
-     * `FUN_281f_09ba(colony.x - 2, colony.y - 2, 5, 5, 1)` — the 5x5 box is
-     * centred on the TARGET COLONY, not on each landing tile (bugs.md #878b). */
-    map_reveal_radius(ctx->map, c->x, c->y, crown, 2);
-    force[k]--;
-    need--;
-    slot = (slot + 1) % usable;
   }
 }
 

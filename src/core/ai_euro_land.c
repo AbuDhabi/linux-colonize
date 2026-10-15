@@ -229,7 +229,12 @@ static int ai_euro_5952_plot_job(const ColonizeColony* col, int plot) {
  *       gold, halved otherwise. `value -= penalty`.
  *   best wins, `>=` (DOS seeds `local_16e = 0xffff` = -1 as a signed 16-bit).
  */
-void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* col, int* local_1b0) {
+void ai_euro_5952_improve_best_plot(
+  ColonizeTurnContext* ctx, ColonizeColony* col, int* local_1b0, int* out_best_plot
+) {
+  if (out_best_plot) {
+    *out_best_plot = -1;
+  }
   if (!ctx || !ctx->map || !ctx->colonies || !col || !col->active) {
     return;
   }
@@ -329,6 +334,9 @@ void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* co
       best = value;
       best_plot = ti;
     }
+  }
+  if (out_best_plot) {
+    *out_best_plot = best_plot; /* local_34; 13ba re-aims BP-0xa4/-0xac at it */
   }
   if (best_plot < 0) {
     return;

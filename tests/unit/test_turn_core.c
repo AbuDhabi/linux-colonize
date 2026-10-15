@@ -1951,7 +1951,7 @@ static int case_ai_field_sol_zeroed(void) {
   memset(&col, 0, sizeof(col));
   col.active = true;
   col.nation_id = 1;
-  col.population = 15; /* tories=(15*100+50)/100=15; thresh=10 -> mod=-1 */
+  col.population = 15; /* tories=15, but an AI Tory count is zeroed */
 
   ColonizeCol1Save col1;
   memset(&col1, 0, sizeof(col1));
@@ -1959,10 +1959,11 @@ static int case_ai_field_sol_zeroed(void) {
 
   const int building_mod = colony_prod_sol_bonus(&col1, &col);
   const int field_mod = colony_prod_sol_bonus_field(&col1, &col);
-  if (building_mod != -1 || field_mod != 0) {
+  /* FUN_15eb_1d4c 15eb:1dbf-1dd7 zeroes the AI Tory count like 18ec. */
+  if (building_mod != 0 || field_mod != 0) {
     fprintf(
       stderr,
-      "AI field-vs-building SoL mod want building=-1 field=0 got building=%d field=%d\n",
+      "AI field-vs-building SoL mod want building=0 field=0 got building=%d field=%d\n",
       building_mod,
       field_mod
     );
@@ -3791,7 +3792,8 @@ static int case_tory_penalty_bells(void) {
   ai->colonists[0].active = true;
   ai->colonists[0].building_type = 0;
   ai->colonists[0].profession = COLONIZE_PROF_STATESMAN;
-  /* tories=(15*100+50)/100=15; thresh=10 (AI, fixed); mod=-1. Both fields
+  /* tories=(15*100+50)/100=15; thresh=10 (human-controlled at difficulty 0;
+   * an AI Tory count is zeroed, FUN_15eb_1d4c 15eb:1dbf); mod=-1. Both fields
    * carry 15: the pop fallback is colonist_count-first port-wide
    * (colony_prod_sol_bonus), and DOS has one population byte, so a fixture
    * that set only `population` had two different pops inside one bells
@@ -3803,7 +3805,7 @@ static int case_tory_penalty_bells(void) {
   ColonizeCol1Save col1;
   memset(&col1, 0, sizeof(col1));
   col1.player[0].control = 0;
-  col1.player[1].control = 1;
+  col1.player[1].control = 0;
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
     col1.head.founding_father[i] = -1;
   }
@@ -3844,10 +3846,10 @@ static int case_tory_penalty_bells(void) {
  * bugs.md #938b: FUN_15eb_1f72 raw 11327 AI bells subsidy `bells +=
  * (pop+3)/5` is gated on `FF 0x12 held && (nation>=4 || 0x543f!=0)` — BOTH
  * FF_SIMON_BOLIVAR ownership and the AI-control byte, not the AI-control
- * byte alone. Same fixture as case_tory_penalty_bells (nation 1, pop 15,
- * one Statesman, Tory mod -1: base composes to 5 as proven there) but with
- * Bolivar granted to nation 1 — the subsidy (pop+3)/5 = 3 must now show up,
- * for 8 total. Mutation check: reverting the turn_production.c fix (i.e.
+ * byte alone. Fixture like case_tory_penalty_bells (nation 1, pop 15, one
+ * Statesman) but AI-controlled (Tory count zeroed: base 7) with Bolivar
+ * granted to nation 1 — the subsidy (pop+3)/5 = 3 must now show up, for 10
+ * total. Mutation check: reverting the turn_production.c fix (i.e.
  * gating solely on nation_is_ai) makes case_tory_penalty_bells's "want 5"
  * fail instead, since the ungated subsidy would still fire there without
  * Bolivar — so that case alone already catches a revert; this case instead
@@ -3898,10 +3900,11 @@ static int case_ai_bells_subsidy_needs_bolivar(void) {
   ctx.col1_ok = true;
 
   tick_all_nations(&ctx, NULL);
-  if (col1.nation[1].liberty_bells_pool != 8) {
+  /* AI: Tory count zeroed (mod 0), so 3*2 + 1 + subsidy 3 = 10. */
+  if (col1.nation[1].liberty_bells_pool != 10) {
     fprintf(
       stderr,
-      "AI subsidy with Bolivar want 8 got %u\n",
+      "AI subsidy with Bolivar want 10 got %u\n",
       (unsigned)col1.nation[1].liberty_bells_pool
     );
     return 1;

@@ -354,7 +354,8 @@ int reports_colony_rebel_pct(const ColonizeCol1Colony* c) {
   if (!c || c->rebel_divisor == 0) {
     return 0;
   }
-  return (int)((c->rebel_dividend * 100u) / c->rebel_divisor);
+  const int pct = (int)((c->rebel_dividend * 100u) / c->rebel_divisor);
+  return pct > 100 ? 100 : pct; /* FUN_15eb_0274 caps; a removal can leave dividend > divisor */
 }
 
 /* Cross counter (native 320×200 coords; golden religious.png). The bar box

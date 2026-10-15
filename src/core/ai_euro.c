@@ -440,14 +440,17 @@ static void ai_euro_3180_euro_side(ColonizeTurnContext* ctx, ColonizeUnit* u, in
    * unit — which is what arms the @WANTSTUFF demand phase (the
    * human-move path in game_loop passes the human's unit, so the demand
    * gate `unit[param_4].owner == target` fails there, as in DOS).
-   * No-ops without ctx->ai_popups (headless/golden harness) and the
-   * encounter dedupes once per pair per turn.
+   * Headless (no popup queue) the idle player answers with first options;
+   * the encounter dedupes once per pair per turn.
    */
   /* bugs.md #545: DOS runs the Euro branch only with the mover's tile
    * AND the neighbour tile both land (FUN_281f_0768 == 0, raw 98614) —
    * an AI ship at sea beside a coastal colony opens nothing. */
-  if (progressed && u->active && units_is_on_map(u) && ctx->human_nation >= 0 &&
-      ctx->human_nation <= 3 && nation_id != ctx->human_nation && ctx->ai_popups &&
+  /* 465b calls 3180 only after a step (raw 75797): a unit parked beside the
+   * human opens nothing (independence-seed-100: the French Soldier next to
+   * Recife leaves France's treaty timer at 0). */
+  if (moved && u->active && units_is_on_map(u) && ctx->human_nation >= 0 &&
+      ctx->human_nation <= 3 && nation_id != ctx->human_nation &&
       ctx->map && !map_tile_is_water(ctx->map, u->x, u->y)) {
     int near_human = 0;
     for (int ady = -1; ady <= 1 && !near_human; ++ady) {

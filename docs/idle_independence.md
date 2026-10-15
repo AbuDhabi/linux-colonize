@@ -70,7 +70,16 @@ seen CSes let the INT 3 run on: the game silently corrupted (garbage gold, COLON
 in the scratch copy, no further traps). A run with OVL15 (5952, `--patch-cc 0x53b7e`) died on
 the second reload with RTLink "Fatal error evm012 ... vectored call to page 0005h"; breakpoints
 left on the old CS are the likely cause. Delete them (`BPDEL *`, then re-set) when a new CS
-traps. One-hit traces (first 5952 call per colony, first French act) are reliable.
+traps. One-hit traces (first 5952 call per colony, first French act) are reliable. The
+in-game load's final Enter needs some `step()` polls to take effect, and the resumed Spanish slot
+runs during them, so arm `BPINT 3` before that Enter or the patched INT 3 runs unhandled.
+
+Prefer data breakpoints for this chain (no code patch, no overlay trouble): game DS is 0x237e,
+colony record i is at DS:0x5d46 + i*0xca, unit i at DS:0x3144 + i*0x1c. Set `BPM` on the bytes of
+interest (pop +0x1f, food +0x9a, horses +0xaa, flags +0x1b, build +0x94, rebel pair +0xc2/+0xc6)
+before pressing the final Enter. Each change then stops with the writer's CS:IP, and `SS:BP`
+locals can be read at that stop. Keyboard polls stop at F000 or 130B. This gave clean per-tick
+timelines for Plymouth and Jamestown.
 
 `python3 tools/dosbox_trace.py` needs `/usr/bin/python3` (the conda `python3` on PATH has no
 `pexpect`). `load_slot` works on this save list since the 2026-10-14 `list_row` fix (the list
@@ -134,23 +143,63 @@ every 200 polls until `COLONY09.SAV` changes, then copy it.
   own colony is on the same continent walks home with plan 'N'. Fixed the Spanish Scouts and,
   through the RNG, galleon 76.
 
-State 2026-10-15 (continuous from START_SAVE): save 1 35 field diffs, all French units match;
-the rest is Spain. Save 2: 77, save 5: 822, save 20: 2027. The human
-side of save 1 matches.
+- 5952 "improve" election (ARM 1, asm 0x274b) walks `pop + DS:0x8d72`, so units on the colony
+  tile are candidates (profession = unit byte, occupation = type default job). Plymouth's
+  ejected Scout is elected and leaves as a Seasoned Scout.
+- Idle human rotation in the harness (`turn_idle_human_rotation_w`): each turn the idle player's
+  units come up; Fortify becomes Fortified (3ae6 -> 0b6c) and Space spends the rest. Save 1 still
+  shows 5 because the autosave precedes that turn's rotation.
+- Horse breeding reads the Phase A gross food (DS:0x8dc8), without the AI food subsidy
+  (`difficulty>>1`, Phase B). Plymouth: 8dc8 = 46, food +47 - 24 - 11.
+- AI colonies have no Tory production penalty: FUN_15eb_1d4c 15eb:1dbf-1dd7 zeroes the Tory count
+  for an AI nation, like FUN_15eb_18ec does for fields. Plymouth (pop 12, 17% SoL) makes 19 bells
+  with three Elder Statesmen in DOS (13 in the old port).
+- 5952 build cascade: the on-tile Artillery count (asm 2632) walks the stack at BP-0xa4/-0xac,
+  which the improvement arm leaves on its best plot (asm 13c3) or on the last scanned ring plot.
+  It counts any owner's Artillery there. Jamestown's walk lands on (50,22), counts 0 and builds
+  Artillery (project 42) instead of clearing the build slot.
+
+- Colonist removal moves only the rebel divisor (raw 10279); the port's dividend clamp is gone
+  (Jamestown saves 1479/1439).
+- 153e audience: the closed-gate exit (LAB_34de) still re-arms the treaty cooldown at peace;
+  headless, the idle player answers each audience popup with its first option; the 3180 AI
+  limb fires only after a real step (465b), not for a unit parked beside the human.
+- War of Independence: the headless declare runs the Congress Confirm path (declare + wave
+  latch burn), so the REF lands at the crown slot right after the declaring turn. 0982's
+  colony score uses 08bc mode 10 (1427:0e16: non-ship units with attack > 1), not a strength
+  sum, and the disembark follows DOS's sweeps (seize least-stacked tiles with Regulars, then
+  Cavalry/Artillery on crown-held tiles). Save 3's REF (Man-O-War, 4 Regulars, Cavalry,
+  Artillery at Bahia) matches.
+
+- The declaration deletes the human's off-map units (FUN_43f7_0188 over the unit pool and the
+  Europe dock list, not only the harbor lanes), keeps `next_founding_father` (1a26 clears +0xc
+  and +0x16 only), and latches the WoI hint one-shot (0x5382 bit 0x04) headless too.
+- Harness: the port's WoI latches live in the human's DOS-dead `unknown23_pad`; `compare_save`
+  copies DOS's bytes there before comparing.
+
+State 2026-10-15 (continuous from START_SAVE): save 1 10 field diffs, save 2: 45, save 3: 98,
+save 4: 204, save 5: 811, save 10: 1490, save 20: 1933. Save 3 rose from 60 when the dock
+colonist was deleted: DOS's new Convert (below) now has no port counterpart, so indices shift.
 
 ## Open
 
-- **START_SAVE -> 000001 Spain** (35 diffs left). Ship 92 wander, colony 2 build
-  (`building_in_production` 255 vs 42), colony 13 / French colony 19 jobs, Spain bells 132 vs 138,
-  `treaty_timer[3]` 1 vs 4. On the resumed slot DOS calls 20e6 for no Spanish unit (all spent).
-- **Colony 8 (40,13) Scout.** DOS ends with a Seasoned Scout (profession 22) on the tile and
-  slot 2 working job 13; the port absorbs the Scout and re-ejects the same Free Colonist
-  (profession 28). DOSBox: at the first Spanish 5952 call for this colony the Scout is already a
-  colonist (pop 12, slot 11 job 13, profession 28) and horses are 172, so something before 5952
-  (Spain's resumed-slot EOT?) absorbed it. Next: trap the second tick (the trace above crashed).
-- **French galleon unload (000001 -> 000002; seen before the fixes above, recheck).** In DOS a French hull drops its Dragoons at (3,55)
-  (they save sentried, spent 12) and sails off with plan `'4'` (0x34 colony sail) toward (22,49).
-  The port's hull, placed at (1,53) from lane 229, wanders on 4d2e without unloading.
-- France and Spain each buy an extra Privateer in the port (Spain gold 0 vs 1908).
-- Spain: Jamestown `building_in_production` 255 vs 42; Roanoke and St. Eustatius tile jobs differ.
+- **START_SAVE -> 000001** (10 diffs). Roanoke (13) and St. Eustatius (19, French) 5952 job
+  placement (28c8): DOS keeps St. Eustatius' slot 3 as Statesman (the port moves it to fishing,
+  which also costs France 3 bells in save 2); Roanoke swaps trapper/lumberjack. `viewport_y`.
+- **A Convert appears at (38,54) each turn from 000002 on.** Dutch, profession 27, origin 17,
+  on the tile of the Dutch Veteran Soldier/Continental next to an Arawak Brave at (39,53).
+  DOSBox (BPM on the unit count DS:0x539c, from 000003): created by FUN_1427_06b4 while
+  DS:0x5394 = 0 (the crown's slot), just before the REF wave. Neither port creation site
+  (022e mission visit, 1b0e subjugation join) fires; tribe 17 has no mission. Find the caller.
+- **Continental Army muster picks different units** (types 7/4 swapped at indices 60/73/83 vs
+  76/79/84 in save 3); the census `unit_type_counts` is also taken at a different time.
+- **Second REF wave (000003 -> 000004)** is missing in the port.
+- **REF unit vis bits.** The crown's landed units save vis 8 (target only) in DOS; the port adds
+  the crown's own bit (and France's on one unit).
+- **French galleon passengers on lane arrival (000001 -> 000002).** Lane 229 chain 75, 74, 147,
+  151, 158, 159, 58, 90, 82, 109. DOS ends with galleon 109 carrying the six Dragoons and galleon
+  58 carrying Artillery 147 + Colonist 151, so 58 colony-sails ('4') to (22,49). The port gives
+  58 two Dragoons; it wanders. The 10be walk order/predicate needs a trace (BPM on the units' +8
+  order byte).
+- France and Spain each buy an extra Privateer in the port (Spain gold 0 vs 1908); recheck.
 - Wartime bells still accrue up front (`turn_run_nation_ticks`), not per colony.
