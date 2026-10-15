@@ -713,10 +713,11 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
           hint_nation = n;
         }
       }
+      /* Headless (no popup queue) the one-shot still latches: the idle
+       * player OKs both notices (independence-seed-100 000003 sets 0x04). */
       if (!ctx->col1->head.game_options.ref_present &&
           !ctx->col1->head.game_options.woi_crosses_event &&
-          hint_nation >= 0 &&
-          ctx->ai_popups) {
+          hint_nation >= 0) {
         const int ally = (int)ctx->col1->head.rival_nation_slot_1;
         const char* ally_name = "";
         /* bugs.md #252 rule: PARENT country ("France"), never the new-world

@@ -1183,9 +1183,9 @@ void colonies_col1_rebel_divisor_adjust(ColonizeCol1Save* col1, int x, int y, in
     } else {
       c->rebel_divisor = (uint32_t)((int64_t)c->rebel_divisor + delta);
     }
-    if (c->rebel_dividend > c->rebel_divisor) {
-      c->rebel_dividend = c->rebel_divisor;
-    }
+    /* No dividend clamp here: raw 10279 only moves the divisor, so a removal
+     * can leave the dividend above it until the next Phase C (DOSBox
+     * independence-seed-100: Jamestown saves 1479/1439). Readers cap SoL. */
     break;
   }
 }

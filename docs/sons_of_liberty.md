@@ -171,7 +171,7 @@ with SoL: the port maps `0x40` as **coastal**.
 | Gate | Effect | Port |
 |------|--------|------|
 | Colony SoL ≥ 50% / ≥ 100% | Production +1 / +2 (via sol latches in full DOS mod) | **Wired** (`colony_prod_sol_bonus`) |
-| Tory count vs `10−diff` | `−⌊tories / thresh⌋` on production | **Wired** (same helper; AI thresh 10) |
+| Tory count vs `10−diff` | `−⌊tories / thresh⌋` on production | **Wired** (same helper; AI Tory count zeroed, FUN_15eb_1d4c 15eb:1dbf) |
 | Nation SoL ≥ 50% | May declare independence | **Structural Wired** (SoL only; `FUN_43f7_2564`) |
 | Nation SoL 40..49 | Restless chrome | **Wired** thin |
 | Tax ≥20 and (SoL≥30 or bells≥80) | Tax refuse / boycott path | **Wired** structural |

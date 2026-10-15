@@ -279,7 +279,9 @@ extern uint32_t ai_euro_s_20e6_type_cache_valid;
 void ai_euro_20e6_refresh_type_cache(const ColonizeUnitPool* units);
 extern const int8_t ai_euro_k_20e6_ring20_dx[20];
 extern const int8_t ai_euro_k_20e6_ring20_dy[20];
-void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* col, int* local_1b0);
+void ai_euro_5952_improve_best_plot(
+  ColonizeTurnContext* ctx, ColonizeColony* col, int* local_1b0, int* out_best_plot
+);
 void ai_euro_5952_tools_supply_and_connect(
   ColonizeTurnContext* ctx, ColonizeColony* col
 );
@@ -492,6 +494,11 @@ COLONIZE_INTERNAL void ai_euro_5952_set_ring1_threat(int colony_id, int ring1);
  * [BP+0xff62] (bugs.md #586): non-zero means the cascade started Docks for
  * that colony this tick, which suppresses ARM 2's expert purchase.
  */
+/* DS:0x8d72 list (FUN_15eb_09c0): non-ship units on the colony tile, latest
+ * arrival first. Returns the count; ids gets unit ids. */
+COLONIZE_INTERNAL int ai_euro_5952_tile_stack(
+  const ColonizeTurnContext* ctx, const ColonizeColony* c, int* ids, int max
+);
 COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
   ColonizeTurnContext* ctx, ColonizeColony* col, int n
 );

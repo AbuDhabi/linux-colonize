@@ -135,8 +135,8 @@ int colony_prod_manufacturing_input_row(
 int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* colony);
 
 /*
- * DOS net production mod per unit (craft/hammers/bells/crosses — NOT field
- * yields, which use colony_prod_sol_bonus_field instead, see below):
+ * DOS net production mod per unit (craft/hammers/bells/crosses/fields; an
+ * AI or withdrawn nation's Tory count is zero, FUN_15eb_1d4c 15eb:1dbf):
  *   tories = (pop * (100 - sol%) + 50) / 100
  *   thresh = human ? (10 - difficulty) : 10
  *   mod    = -floor(tories / thresh) + max(sol latches, live SoL ≥50/≥100)
@@ -144,14 +144,7 @@ int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* 
  */
 int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* colony);
 
-/*
- * Field-yield variant of colony_prod_sol_bonus: returns 0 outright for
- * AI-controlled colonies instead of computing a reduced-but-nonzero value —
- * FUN_15eb_18ec zeroes the whole SoL/Tory term for AI, unlike
- * FUN_15eb_1d4c (manufacturing/bells/crosses/hammers), which only changes
- * the threshold. Use this for field/area yields; use colony_prod_sol_bonus
- * for everything else. See manufacturing_worker_calc_1d4c.md.
- */
+/* FUN_15eb_18ec field-yield term: same as colony_prod_sol_bonus. */
 int colony_prod_sol_bonus_field(const ColonizeCol1Save* col1, const ColonizeColony* colony);
 
 /*

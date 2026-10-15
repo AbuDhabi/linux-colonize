@@ -1008,17 +1008,12 @@ static int sp_13(void) {
     return fail("declare turn must not land the wave (one-turn wait)");
   }
   /*
-   * D1 2026-09-07g: the wave beat moved out of ai_king_nation_turn into
-   * ai_king_ref_pre_euro_beat, which the crown slot runs at its EURO step. The
-   * declaration itself still happens in the king slice, so the wait latch is
-   * consumed by the FIRST pre-euro beat after it — that beat lands nothing
-   * either; the wave follows on the next one.
+   * The wave beat is ai_king_ref_pre_euro_beat, run by the crown slot at its
+   * EURO step. The declaration (headless Confirm, like the popup handler)
+   * already burned the one-turn latch, so the crown's first beat after the
+   * declaration turn lands the wave (DOSBox independence-seed-100: the REF is
+   * ashore in the save right after the declaring turn).
    */
-  ai_king_ref_pre_euro_beat(&ctx);
-  ai_king_nation_turn(&ctx);
-  if (count_nation(&units, 1) >= 1) {
-    return fail("wait beat after the declaration must not land the wave");
-  }
   ai_king_ref_pre_euro_beat(&ctx);
   ai_king_nation_turn(&ctx);
   /* Seed then drain: residual +1 regular may leave pools non-zero; require spawn. */

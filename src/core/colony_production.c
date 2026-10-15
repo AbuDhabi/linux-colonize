@@ -328,7 +328,7 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
     pop = 0;
   }
   /* Round half-up Tory share (decomp ~11880). */
-  const int tories = (pop * (100 - sol) + 50) / 100;
+  int tories = (pop * (100 - sol) + 50) / 100;
 
   int thresh = 10;
   if (col1 && colony->nation_id >= 0 &&
@@ -355,6 +355,12 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
        * floor(12/6)=2 — both land on -2, hiding the bug).
        */
       thresh = 10 - diff;
+    } else {
+      /* FUN_15eb_1d4c 15eb:1dbf-1dd7 and FUN_15eb_18ec raw 11874-11882: an
+       * AI or withdrawn nation's Tory count is zeroed; only the latch steps
+       * below apply (DOSBox independence-seed-100: Spain's Plymouth, pop 12
+       * at 17% SoL, makes 19 bells with three Elder Statesmen, not 13). */
+      tories = 0;
     }
   }
   /*
@@ -385,43 +391,8 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
 }
 
 int colony_prod_sol_bonus_field(const ColonizeCol1Save* col1, const ColonizeColony* colony) {
-  /*
-   * FUN_15eb_18ec (~11869-11878, field yields) zeroes the Tory count
-   * (latch bonuses still apply) for AI-controlled colonies, gated by the same
-   * nation-status table `FUN_15eb_1d4c` (manufacturing/bells/crosses/
-   * hammers) only uses to pick a threshold (10 vs 10-difficulty), never to
-   * zero the term. That's a real difference between field and building
-   * production, not a duplicate of colony_prod_sol_bonus — hence a
-   * separate function, used only by field-yield call sites.
-   *
-   * Confidence: this exact "nation<4 && per-nation table byte==0" gate was
-   * independently observed with the same shape in three separate DOS
-   * functions this session (1d4c's threshold pick, 18ec's zero-out here,
-   * and 1f72's flag-0x12 bells term) — strong, cross-validated, but the
-   * table byte's meaning ("is this nation human-controlled") is still a
-   * hypothesis, not proven from a source that states it directly. See
-   * manufacturing_worker_calc_1d4c.md.
-   */
-  if (!colony) {
-    return 0;
-  }
-  if (col1 && colony->nation_id >= 0 &&
-      colony->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
-      col1->player[colony->nation_id].control != 0) {
-    /* DOS-LITERAL FUN_15eb_18ec raw 11874-11882: `if (nation > 3 ||
-     * table[nation*0x34+0x543f] != 0) local_e = 0;` zeroes only the TORY
-     * count; the two latch adds (+0x1c bit 0x04 -> +1, bit 0x02 -> +1)
-     * follow unconditionally, so an AI colony still gets the SoL 50% /
-     * 100% field bonus (bugs.md #939: the port returned 0 here). */
-    int mod = 0;
-    if ((colony->colony_flags & COLONIZE_COLONY_FLAG_SOL_50) != 0) {
-      mod += 1;
-    }
-    if ((colony->colony_flags & COLONIZE_COLONY_FLAG_SOL_100) != 0) {
-      mod += 1;
-    }
-    return mod;
-  }
+  /* FUN_15eb_18ec (field yields) and FUN_15eb_1d4c (buildings) share one
+   * term, AI Tory zero included. */
   return colony_prod_sol_bonus(col1, colony);
 }
 

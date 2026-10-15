@@ -281,8 +281,11 @@ local_e = -(v_08 / class_gate_divisor)
 ```
 
 `class_gate_divisor` is `10`, or `10 - byte[0x53a6]` when a per-nation
-`0x543f`-table row reads 0 — matching the port's `thresh = 10 - difficulty`
-(human-controlled) vs. fixed `10` (AI) split exactly; `byte[0x53a6]` is
+`0x543f`-table row reads 0 (human-controlled). **Correction 2026-10-15:** a
+second test at 15eb:1dbf-1dd7 sets `v_08 = 0` when the row is nonzero (AI) or
+nation >= 4, so an AI colony has no Tory term at all, only the latch steps
+(DOSBox independence-seed-100: Spain's Plymouth, pop 12 at 17% SoL, makes 19
+bells with three Elder Statesmen); `byte[0x53a6]` is
 almost certainly the difficulty setting. **This is byte-for-byte the same
 formula as `colony_prod_sol_bonus()`** — confirmed, not provisional.
 

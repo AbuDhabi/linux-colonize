@@ -266,6 +266,64 @@ bool turn_select_next_unit_awaiting_orders(ColonizeUnitPool* pool, int human_nat
   return found;
 }
 
+/*
+ * FUN_2b5a_3ae6 lasting-order arm for the unit the rotation just made active
+ * (jump table 2b5a:3b58, index orders-2). Orders 8/9 run one pioneer work
+ * body (FUN_479b_01a6 / FUN_479b_0526); order 5 becomes Fortified and spends
+ * the allotment (FUN_479b_0b6c, raw 77146-77153). Returns true when the unit
+ * waits for the player.
+ */
+bool turn_rotation_lasting_step_w(
+  const ColonizeWorld* w, ColonizeUnit* u, AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+) {
+  if (!w || !w->units || !u) {
+    return false;
+  }
+  if (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD) {
+    (void)units_pioneer_work_tick_w(w, u->id, NULL, 0, ai_popups, messages);
+    /* FUN_479b_01a6 raw 76753 / FUN_479b_0526 raw 76886: an aborted body
+     * clears the order and returns BEFORE FUN_281f_0934 spends the
+     * allotment, so the unit drops straight back into the player's hands
+     * with its full moves. A body that ran (in progress or finished)
+     * spent them, so the rotation just moves on. */
+    return u->moves > 0 && !units_orders_skip_turn(u);
+  }
+  if (u->orders == UNITS_ORDER_FORTIFY) {
+    u->orders = UNITS_ORDER_FORTIFIED;
+    units_mp_exhaust_unit(w->units, u->id);
+    return false;
+  }
+  return !units_orders_skip_turn(u);
+}
+
+/*
+ * The idle player's human turn: the rotation brings every unit up in turn,
+ * lasting orders run, and Space (No Orders) spends each unit that waits.
+ * independence-seed-100 000001 -> 000002: the Dutch Fortify ships save as
+ * Fortified.
+ */
+void turn_idle_human_rotation_w(const ColonizeWorld* w, int human_nation) {
+  if (!w || !w->units) {
+    return;
+  }
+  ColonizeUnitPool* pool = w->units;
+  pool->selected_id = -1;
+  for (int guard = 0; guard < COLONIZE_UNITS_MAX * 2; ++guard) {
+    if (!turn_select_next_unit(pool, human_nation)) {
+      break;
+    }
+    ColonizeUnit* u = units_get(pool, pool->selected_id);
+    if (!u) {
+      break;
+    }
+    if (turn_rotation_lasting_step_w(w, u, NULL, NULL)) {
+      u->moves = 0; /* Space */
+    }
+  }
+  pool->selected_id = -1;
+}
+
 /* ===================== End-of-turn/autosave option gates & report readiness checks (turn_option_end_of_turn .. turn_report_ok_inefficient) ===================== */
 bool turn_option_end_of_turn(const ColonizeCol1Save* col1, bool col1_ok) {
   return col1_ok && col1 && col1->head.game_options.end_of_turn != 0;

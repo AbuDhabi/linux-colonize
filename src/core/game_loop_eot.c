@@ -841,38 +841,14 @@ bool game_select_next_unit_awaiting_orders(ColonizeGameState* game) {
     if (!u) {
       return false;
     }
-    if (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD) {
-      (void)units_pioneer_work_tick_w(
-        &(ColonizeWorld){
-          .units = &game->units,
-          .colonies = game->colonies_ok ? &game->colonies : NULL,
-          .map = &game->world_map
-        },
-        u->id, NULL, 0, &game->ai_popups, &game->messages
-      );
-      /* FUN_479b_01a6 raw 76753 / FUN_479b_0526 raw 76886: an aborted body
-       * clears the order and returns BEFORE FUN_281f_0934 spends the
-       * allotment, so the unit drops straight back into the player's hands
-       * with its full moves. A body that ran (in progress or finished)
-       * spent them, so the rotation just moves on. */
-      if (u->moves > 0 && !units_orders_skip_turn(u)) {
-        return true;
-      }
-      continue;
+    const ColonizeWorld w = {
+      .units = &game->units,
+      .colonies = game->colonies_ok ? &game->colonies : NULL,
+      .map = &game->world_map
+    };
+    if (turn_rotation_lasting_step_w(&w, u, &game->ai_popups, &game->messages)) {
+      return true;
     }
-    if (u->orders == UNITS_ORDER_FORTIFY) {
-      /* 3ae6 order 5 -> FUN_479b_0b6c (raw 77146-77153): Fortified + spend
-       * the allotment, when the unit comes up — not overnight. A View-mode
-       * player never cycles, so Fortify stays 5 across turns
-       * (independence-seed-100 START_SAVE -> 000001). */
-      u->orders = UNITS_ORDER_FORTIFIED;
-      units_mp_exhaust_unit(&game->units, u->id);
-      continue;
-    }
-    if (units_orders_skip_turn(u)) {
-      continue;
-    }
-    return true;
   }
   return false;
 }

@@ -1003,7 +1003,8 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    * foreign intervention instead.
    */
   founding_fathers_consume_woi_bell_pool(ctx, human);
-  ctx->col1->nation[human].next_founding_father = -1;
+  /* next_founding_father (+0x12) stays: 1a26 clears +0xc and +0x16 only
+   * (independence-seed-100 000003..000020 keep the Dutch nominee 1). */
   for (int n = 0; n < 4; ++n) {
     if (n == human) {
       continue;
@@ -1082,6 +1083,19 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
       *counts[li] = 0;
     }
     ctx->europe->selected_harbor = -1;
+    ctx->europe->dock_count = 0; /* the dock colonists go with them (0188) */
+  }
+  /* The same 0188 sweep over the unit pool: a human unit whose coordinates
+   * fail FUN_281f_0302 (dock and lane sentinels) is destroyed
+   * (independence-seed-100: the colonist waiting on the Dutch dock is gone
+   * in 000003). */
+  if (ctx->units && ctx->map) {
+    for (int i = units_slot_end(ctx->units) - 1; i >= 0; --i) {
+      const ColonizeUnit* u = &ctx->units->units[i];
+      if (u->active && u->nation_id == human && !map_coords_inset(ctx->map, u->x, u->y)) {
+        (void)units_despawn(ctx->units, u->id);
+      }
+    }
   }
   /*
    * FUN_43f7_1a26 tail (43f7:1c07..1c1b): every human unit's MP is spent via
@@ -1243,7 +1257,12 @@ static void ai_king_show_declare_choice(ColonizeTurnContext* ctx, int human, int
     }
     /* Queue full — fall through to auto declare. */
   }
+  /* No popup (headless) or a full queue: the Confirm answer, exactly as the
+   * AI_POPUP_TAG_KING_CONGRESS handler applies it (declare, then the wave
+   * call that burns the one-turn latch). DOSBox independence-seed-100: the
+   * REF lands at the crown slot right after the declaration turn. */
   ai_king_do_declare(ctx, human);
+  ai_king_ref_wave(ctx);
 }
 
 /*

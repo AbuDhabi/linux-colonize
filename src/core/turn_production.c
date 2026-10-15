@@ -897,10 +897,13 @@ void turn_produce_one_colony(
     const bool horse_has_stable = colonies_has_building_row(pool, colony, COLONY_BUILDING_STABLE);
     const int horse_warehouse_cap =
       colonies_warehouse_capacity(pool, colony, COLONIZE_CARGO_HORSES);
+    /* FUN_15eb_1f72 reads the Phase A gross DS:0x8dc8; the AI food subsidy
+     * is Phase B's (DOSBox independence-seed-100: Plymouth 8dc8 = 46 while
+     * its food grows by 47 - 24 - 11). */
     const ColonyProdHorseBreed breed = colony_prod_horse_breed(
       colony->stock[COLONIZE_CARGO_HORSES],
       pop,
-      field_food,
+      field_food - ai_food_subsidy,
       horse_warehouse_cap,
       horse_has_stable
     );
