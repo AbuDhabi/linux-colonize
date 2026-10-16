@@ -26,7 +26,8 @@ python3 tools/dosbox_trace.py stop $W
   VICEROY.EXE, and installs the save as COLONY00.SAV. Each `--patch-cc`
   turns one EXE file byte into INT 3 (see "Overlay code"). It also writes
   `$W/dbx.conf`.
-- `start` launches a nested X server (`Xephyr :57`), DOSBox-X inside it, and
+- `start` launches a nested X server (`Xephyr :57`; set e.g. `DOSBOX_TRACE_DISPLAY=:59` on every
+  command of a second, concurrent session), DOSBox-X inside it, and
   a controller that keeps the debugger session open. PIDs go to
   `$W/pids.json`.
 - `send` runs a Python file inside the controller. Available names: `d`

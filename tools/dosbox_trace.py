@@ -24,7 +24,7 @@ import time
 import traceback
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DISPLAY = ':57'
+DISPLAY = os.environ.get('DOSBOX_TRACE_DISPLAY', ':57')  # a second session needs its own
 
 CONF = """[sdl]
 output=surface

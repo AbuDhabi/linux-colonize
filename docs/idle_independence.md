@@ -330,10 +330,54 @@ With these, the crown's 4->5 slot makes the same 112 draws as a continuous DOSBo
 - 3844_00f2's drydock tick (raw 58331-58344) counts +0x315a up the same day; the port's
   "skip the damage turn" grace tick was invented (bugs.md note) and is gone.
 
-State 2026-10-16 (continuous from START_SAVE): 0 -> 1 -> 2 -> 3 -> 4 byte-identical; saves 5-8:
-19, 37, 106, 942 field diffs. Save 5 residue: crown Man-O-War goal binding (DOS's crown goal table
-holds CONTACT goals the port lacks, e.g. (42,52), (50,53), (44,55), (38,31); trace pending), crown
-gold +40 / Tools ledger +36, crown liberty_bells_last_turn (DOS 0), two Indian bytes.
+- 0a60's CONTACT lurk skip `(head + turn) % 4` adds the colony tile's head unit's record INDEX
+  (`units_dos_index` of `units_tile_head_id_at`), not the port id of the first slot. This fixed
+  the crown's goal table (DOSBox dumps of DS:0x98b0) and the Man-O-War binding.
+- 2154's colony cover test FUN_281f_0302 = FUN_137f_000a, the 1-tile-inset interior test
+  (crown wagon's Ore / Furs bids 12 / 4; purchase 335).
+- 022e's refused beg halves its alarm add when the visit's calm roll bVar5 passed.
+- During the war the human slot's 3844_00f2 `+0xe = 0` (raw 58382) lands on the crown's record
+  (DS:0x84fc still points there): the crown's liberty_bells_last_turn reads 0 at every autosave.
+- Wall-clock music picks in the archive: 5->6 needs reseeds before draws 256 and 353 (the crown
+  wagon's 2820 and a Man-O-War's act), 6->7 one near 361 (searches with `pick2.py`-style
+  brute force). The archive's 5 also carries +36 Tools gross (gold 797) that a DOSBox
+  continuous replay does not (761): realisation-dependent, unexplained.
+
+### DOSBox reference run (deterministic target past 000004)
+
+The archive is one wall-clock realisation (music picks), and from 000005 on it carries effects a
+DOSBox continuous replay does not reproduce (000005: crown +36 Tools gross; 000006: Bahia's
+Blacksmith/Gunsmith pair). So the deterministic target is a recorded DOSBox run: load 000003,
+idle with Space, and per day keep the autosave plus every music pick's draw index. BP
+1541:0E04 counts draws; BP 0AC3:0138 / 0AC3:0250 (FUN_129f_00f6's two FUN_19ef_002c calls)
+bracket a pick, whose own draws are not counted. The port with `GOLDEN_IDLE_PICKS` built from
+those indices must equal each DOSBox autosave. Status 2026-10-16: equal through save 5
+(picks 4:318,331; 5:121,255; both sides 368 draws in 4->5).
+
+Status 2026-10-16 evening: equal through save 6 (381 draws both sides). A second realisation
+(DOSBox continuous, picks 4:324,331; 5:137,254; 6:77,253,321) also matches through save 5 and
+matches through save 6 too. Fixes that got here:
+
+- Coastal battery FUN_364b_03f6 runs at the top of each colony's EOT (0688 raw 57227, thunk
+  291f_09ce), in the owner's slot, not at turn setup: the Dutch fort fires (rand(1,386), stack
+  word 0x0b7c = unit 105 * 0x1c) on the crown Man-O-War that parked beside it this turn.
+- Ship-slow (FUN_5bfb_3180, viceroy_overlays.asm:151448/151576/151586) ADDs the drain to the
+  spent byte: Fortress +0x32 keeps the overspend (the Man-O-War, max 15, saves spent 56).
+- An AI stepping into an undefended foreign colony is 465b's bVar4 arm: the 07fe vis OR runs on
+  the pre-combat chain, 1b0e advances by 0948 relink (no 13f1_02f8 reveal), then LAB_0bd1 clears
+  orders and bumps +0x315a. A Brave's attack arm also takes the 07fe vis OR.
+- 4962's ship probe walks the 11x11 box y-major and each tile chain (head not own nation); the
+  order matters because 0906 reuses the shared flood grid when the goal key is unchanged.
+- 20e6's attack pick held for want of MP (raw 89033-89039, `local_76 = 8`) keeps `local_ce`
+  set, so the stay skips the `local_ce == 0` park arms (0x47 / 0x42 / 0x65 / 0x46) and writes
+  '9'. This closed the second realisation's save-6 leftover.
+- Loading an autosave in DOS does not reproduce the continuous run (save 5 loaded: 355 draws vs
+  381), so traces of a given interval need a continuous run from 000003.
+
+State 2026-10-16 late (continuous from START_SAVE): 0 -> 1 -> 2 -> 3 -> 4 byte-identical; vs the
+DOSBox continuous replay save 5 differs only in tribe 5's horse_herds (DOS 4cc6_00f2 called with
+euro 8 spills into the next Indian record; tracing the caller). With picks 6:256,353 / 7:361:
+saves 5-7: 3, 15, ~74 field diffs vs the archive.
 
 ## Open
 

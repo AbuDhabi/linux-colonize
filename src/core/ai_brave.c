@@ -569,6 +569,10 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
         dos_rng_seed(rng, ai_turn_seed(s_ai_native_ctx)); /* 04ca, no roll */
       }
       if (left >= 3) {
+        /* LAB_465b_0673 raw 75661-75664: 07fe ORs 0826(dest, own nation)
+         * into the Brave's chain before 0a14 (DOSBox independence 4->5: a
+         * Brave attacking toward Dutch land gains the Dutch bit). */
+        units_465b_0673_vis_or(units, map, u, nx, ny);
         const int foe = units_best_defender_at(units, col1, nx, ny, u->id, u->id);
         ColonizeUnit* f = foe >= 0 ? units_get(units, foe) : NULL;
         if (f && f->active && f->nation_id >= 0 && f->nation_id <= 3 &&

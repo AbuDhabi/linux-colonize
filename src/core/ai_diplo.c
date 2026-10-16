@@ -3234,6 +3234,29 @@ void ai_diplo_indian_alarm_delta(
   ai_diplo_indian_tension_tier_update(col1, indian_nation, euro_nation, old_v, v, delta);
 }
 
+void ai_diplo_indian_alarm_word_raw(ColonizeCol1Save* col1, int indian_nation, int index, int delta) {
+  const int tribe = indian_nation - 4;
+  if (!col1 || tribe < 0 || tribe >= 8 || index < 0) {
+    return;
+  }
+  const size_t off = offsetof(ColonizeCol1Indian, alarm_by_player) +
+                     ((size_t)tribe * 0x27u + (size_t)index) * 2u;
+  if (off + 2 > sizeof(col1->indian)) {
+    return; /* past the Indian records: not modelled */
+  }
+  uint8_t* p = (uint8_t*)col1->indian + off;
+  int v = (int16_t)(p[0] | p[1] << 8);
+  v += delta;
+  if (v < 0) {
+    v = 0;
+  }
+  if (v > 100) {
+    v = 100;
+  }
+  p[0] = (uint8_t)(v & 0xff);
+  p[1] = (uint8_t)((v >> 8) & 0xff);
+}
+
 void ai_diplo_indian_relation_delta(
   ColonizeCol1Save* col1,
   int indian_nation,

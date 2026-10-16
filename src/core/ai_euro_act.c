@@ -839,7 +839,9 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
     ai_euro_try_attack(ctx, u, u->x + MAP_DIR8_DX[dir], u->y + MAP_DIR8_DY[dir]);
     return 1; /* the attack spent the hull: no 479b dispatch clears its step */
   }
-  if (ai_euro_20e6_park_arms_4d2e(ctx, u, &s)) {
+  /* The park arms sit inside `local_ce == 0` (raw 88983); an attack pick
+   * held for want of MP stays with '9'. */
+  if (!attack && ai_euro_20e6_park_arms_4d2e(ctx, u, &s)) {
     ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);
     return 0;
   }

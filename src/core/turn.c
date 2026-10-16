@@ -586,8 +586,8 @@ COLONIZE_INTERNAL void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurn
       proc->result.advanced = true;
       /* No colony EOT here: each AI nation runs its own in its slot
        * (turn_run_ai_nation_eot), the human at the top of TURN_PROC_FINISH. */
-      /* FUN_364b_03f6 coastal Fort/Fortress fire after production. */
-      (void)turn_run_coastal_fort_fire(ctx);
+      /* FUN_364b_03f6 coastal fire runs per colony at the top of its EOT
+       * (turn_run_colony_production_with_w), not here. */
       /*
        * DOS FUN_364b_0688 Phase A: bells + Congress (291f_09f8 → 4345_0a22)
        * run in the colony-EOT PROLOGUE, so an FF nomination/election dialog

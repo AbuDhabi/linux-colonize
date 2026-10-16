@@ -708,15 +708,16 @@ static int unit_naval_ambush(void) {
     fprintf(stderr, "ship-slow: fort left %d\n", own->moves);
     return fail("ship-slow: Fort must cost exactly 2 thirds");
   }
-  col->has_building[2] = true; /* Fortress: dead stop */
+  col->has_building[2] = true; /* Fortress: spent += 0x32, overspend kept */
   own->moves = full;
   {
     ColonizeWorld w_ = fx_world(&units, &colonies, &map, NULL, &rng, NULL);
     units_ship_slow_scan_w(&w_, own_id);
   }
-  if (own->moves != 0) {
+  if (own->moves != full - 50) {
     fx_map_free(&map);
-    return fail("ship-slow: Fortress must exhaust the ship");
+    fprintf(stderr, "ship-slow: fortress left %d\n", own->moves);
+    return fail("ship-slow: Fortress must add 50 to the spent byte");
   }
 
   units_set_native_fallout_context(NULL, NULL, -1);

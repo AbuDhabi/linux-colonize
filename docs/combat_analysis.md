@@ -157,7 +157,7 @@ even when the live multiplier comes from `local_1a` arithmetic above.
 |---|---|
 | Gate | mover is a ship with MP left; pair not at PEACE (`0a38 & 0x40` clear) **or** mover is a Privateer. A Privateer therefore slows and is slowed regardless of relations |
 | A. Warship | adjacent foreign ship on a **water** tile (a docked ship is on land → branch B). Per ship in that stack: drain by the **neighbour's** type — Privateer 4, Frigate 6, Man-O-War 8 thirds, other hulls nothing. Roll `1..(P_self + P_foe + 2)` with `P = 312e` = max MP thirds + 3, ×2 Privateer, +3 Galleon, −4 per hold in use, floor 1. roll < P_self → no slow, `@SHIPRUN` if either side human; roll == P_self → half drain; else full. `@SHIPSLOW` (0x1a51) when the mover is human. Stops once the mover is out of MP |
-| B. Fort | adjacent foreign colony: Fortress → +50 spent (dead stop), Fort → +2 thirds, Stockade nothing. No roll. `@SHIPSLOW` (0x1a5a) with the building name when the mover is human |
+| B. Fort | adjacent foreign colony: Fortress → +50 on the spent byte (a dead stop; the overspend is kept, so a Man-O-War at spent 6 saves 56), Fort → +2 thirds, Stockade nothing. No roll. `@SHIPSLOW` (0x1a5a) with the building name when the mover is human |
 | Not | fort fire (below) — that is an end-of-turn temp-attacker combat and never touches MP |
 | Test | `test_ai_euro_war_*.c` (split 2026-09-23) `unit_naval_ambush` (drain 0/4/8 sweep, PEACE, Privateer, Stockade/Fort/Fortress) |
 
@@ -174,7 +174,7 @@ The pre-2026-09-16 port had only an AI-only end-of-act "naval ambush" keyed on t
 | Fort wins | bugs.md #249 — the same outcomes as a naval fight: holds lost, then the DOS `0352` damage-vs-sink roll with the fort's strength standing in for the winner's guns column. Damaged → `col1_flags15` bit7, `moves=0`, `repair_pending=2`, relocate to the nearest own Drydock colony with the DOS repair timer doubled (non-ship winner), `@SHIPDAMAGE`; a WoI human with no repair port sinks instead. Undamaged → sink, `@SHIPSUNK`, no plunder |
 | Fort loses | bugs.md #249 — **nothing happens**: DOS undoes the temp attacker and the ship sails on. The old `moves=0` ship-slow here was invented; the real MP drain is the separate per-step `FUN_5bfb_3180` branch, see "Ship-slow" below |
 | Repair | `units_tick_drydock_repair` clears combat bit7 for finished ships on own Drydock colony (EOT after ship-build tick); human `@REFIT` ai_popup OK |
-| Turn | `turn_run_coastal_fort_fire` after colony production |
+| Turn | `units_coastal_fort_fire_colony_w` at the top of each colony's EOT |
 | AI | none: the invented flee step / -800 ocean penalty were deleted (bugs.md #1033); DOS fears a battery only in the LAB_4d2e wander (goods aboard) |
 
 Deep DOS notes: [`coastal_fort_fire.md`](../original_sources_annotated/turn/coastal_fort_fire.md).
@@ -255,7 +255,7 @@ spawn + fort VGA chrome.
 | Resolve / promote / demote / plunder / fort fire | [`units.c`](../src/core/units.c) |
 | Enter trigger | [`units.c`](../src/core/units.c) `units_try_move` — [move_enter.md](move_enter.md) |
 | Euro / king / raid callers | [`ai_euro.c`](../src/core/ai_euro.c), [`ai_king.c`](../src/core/ai_king.c), [`ai_contact.c`](../src/core/ai_contact.c) |
-| EOT fort pulse | [`turn.c`](../src/core/turn.c) `turn_run_coastal_fort_fire` |
+| EOT fort pulse | [`turn_production.c`](../src/core/turn_production.c) `turn_run_colony_production_with_w` → `units_coastal_fort_fire_colony_w` |
 
 ### Tests
 

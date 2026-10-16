@@ -1144,10 +1144,9 @@ void units_ship_slow_scan_w(
           }
           continue;
         }
-        u->moves -= drain;
-        if (u->moves < 0) {
-          u->moves = 0;
-        }
+        /* viceroy_overlays.asm:151448 (FUN_5bfb_3180): `ADD [unit+0x3149],
+         * drain` on the spent byte, so the overspend is kept (branch B). */
+        units_mp_charge(pool, u, drain);
         if (diag_info_enabled()) {
           diag_info("SHIPSLOW unit %d by %s (%d) drain %d -> %d", unit_id, fname, f->id, drain, u->moves);
         }
@@ -1178,10 +1177,11 @@ void units_ship_slow_scan_w(
           : "";
       }
       if (drain > 0) {
-        u->moves -= drain;
-        if (u->moves < 0) {
-          u->moves = 0;
-        }
+        /* DOS-LITERAL viceroy_overlays.asm:151576 / 151586: `ADD [unit+0x3149], 0x32`
+         * (Fortress) / `, 0x2` (Fort) on the spent byte, no clamp — DOSBox
+         * independence 5->6: the crown Man-O-War (max 15) reaches New
+         * Amsterdam at spent 6 and saves 56. */
+        units_mp_charge(pool, u, drain);
         if (diag_info_enabled()) {
           diag_info("SHIPSLOW unit %d by %s %s drain %d -> %d", unit_id, col->name, bname, drain, u->moves);
         }
@@ -1340,8 +1340,9 @@ void units_sentry_wake_scan(
   }
 }
 
-int units_coastal_fort_fire_pulse_w(
+static int units_coastal_fort_fire_impl(
   const ColonizeWorld* w,
+  int only_colony_id,
   int human_nation,
   char* status,
   size_t status_size
@@ -1358,7 +1359,7 @@ int units_coastal_fort_fire_pulse_w(
   int sunk = 0;
   for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
     const ColonizeColony* col = &colonies->colonies[ci];
-    if (!col->active) {
+    if (!col->active || (only_colony_id >= 0 && col->id != only_colony_id)) {
       continue;
     }
     const int atk = units_coastal_fort_attack_strength(colonies, col, units);
@@ -1414,8 +1415,7 @@ int units_coastal_fort_fire_pulse_w(
         const ColonizeUnit* before = units_get(units, targets[t]);
         const int ship_nation = before ? before->nation_id : -1;
         const int human_chrome =
-          status && status_size > 0 &&
-          (col->nation_id == human_nation || ship_nation == human_nation);
+          col->nation_id == human_nation || ship_nation == human_nation;
         if (human_chrome) {
           /* GAME.TXT @FORTFIRE: "{%STRING0} at {%STRING1} opens fire on
            * {%STRING2 %STRING3}!" — announced whenever the fort/fortress
@@ -1452,7 +1452,7 @@ int units_coastal_fort_fire_pulse_w(
         }
         if (units_fort_vs_ship(units, atk, col->nation_id, targets[t], rng, col1, fort_label)) {
           sunk++;
-          if (human_chrome) {
+          if (human_chrome && status && status_size > 0) {
             snprintf(status, status_size, "Coastal fort sank a ship.");
           }
         }
@@ -1465,6 +1465,18 @@ int units_coastal_fort_fire_pulse_w(
     }
   }
   return sunk;
+}
+
+int units_coastal_fort_fire_pulse_w(
+  const ColonizeWorld* w, int human_nation, char* status, size_t status_size
+) {
+  return units_coastal_fort_fire_impl(w, -1, human_nation, status, status_size);
+}
+
+int units_coastal_fort_fire_colony_w(
+  const ColonizeWorld* w, int colony_id, int human_nation, char* status, size_t status_size
+) {
+  return colony_id < 0 ? 0 : units_coastal_fort_fire_impl(w, colony_id, human_nation, status, status_size);
 }
 
 
