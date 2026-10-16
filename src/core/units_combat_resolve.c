@@ -700,11 +700,8 @@ bool units_resolve_naval_combat_ff_w(
     const int def_y = def->y;
     const int def_nation = def->nation_id;
     const int atk_nation = atk->nation_id;
-    const int def_alive = units_apply_naval_loss_outcome(
-      pool, defender_id, attacker_id, eng.def_strength, eng.atk_strength, 1, col1, rng
-    );
-    /* DOS 0ec0 sweep: every stackmate on the loser tile takes its own loss. */
-    units_sweep_naval_stack_after_loss(
+    /* DOS 0ec0: every unit on the loser tile, in chain order, takes its own loss. */
+    const int def_alive = units_sweep_naval_stack_after_loss(
       pool, def_x, def_y, def_nation, attacker_id, defender_id, col1, rng
     );
     {
@@ -755,11 +752,8 @@ bool units_resolve_naval_combat_ff_w(
     const int atk_x = atk->x;
     const int atk_y = atk->y;
     const int atk_nation = atk->nation_id;
-    (void)units_apply_naval_loss_outcome(
-      pool, attacker_id, defender_id, eng.atk_strength, eng.def_strength, 1, col1, rng
-    );
-    /* DOS 0ec0 sweep on the attacker's own tile stack, unconditional. */
-    units_sweep_naval_stack_after_loss(
+    /* DOS 0ec0 on the attacker's own tile stack, in chain order. */
+    (void)units_sweep_naval_stack_after_loss(
       pool, atk_x, atk_y, atk_nation, defender_id, attacker_id, col1, rng
     );
   }

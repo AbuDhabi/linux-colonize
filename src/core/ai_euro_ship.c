@@ -570,7 +570,18 @@ int ai_euro_20e6_wagon_village_errand(
        * ai_contact_trade.c, so the clear sits at the call site instead, but
        * under the same gate. */
       ai_euro_s_20e6_wagon_errand[wagon->id] = 0;
+      /* The trade is the 479b step onto the village: the wagon faces it,
+       * and 465b's LAB_0bd1 exit clears the orders and bumps +0x315a
+       * (DOSBox independence 4->5: the crown wagon saves orders 0,
+       * +0x315a 1, facing SE). */
+      for (int d = 0; d < 8; ++d) {
+        if (wagon->x + MAP_DIR8_DX[d] == (int)t->x && wagon->y + MAP_DIR8_DY[d] == (int)t->y) {
+          wagon->last_dir = (int8_t)d;
+        }
+      }
+      const int units_before = units_active_count(ctx->units);
       (void)ai_contact_ai_wagon_village_trade(ctx, ind, nation_id, wagon->id);
+      units_465b_0bd1_tail(ctx->units, wagon->id, units_before, false);
     }
     wagon->moves = 0; /* 4528 return-code 1 MP forfeit */
     return 1;
@@ -2031,12 +2042,40 @@ int ai_euro_20e6_unload_mask_snapshot(
   /* FUN_521d_20e6 raw 89412-89444: these DOS locals survive unloading.
    * The colony-sail gate and score must not re-count a partly unloaded hull. */
   if (counts) {
+    /* raw 89411-89413: 0920 (FUN_1427_10be) moves the hull and what it
+     * boards to (-2,-2), so `08bc(ship, 2) - 1` counts the hull's own load,
+     * never another ship on the tile (a hull is size 99 and never boards).
+     * DOSBox independence 4->5: two crown Man-O-Wars share (44,68) and
+     * neither takes the colony-sail pick. */
+    const ColonizeUnitType* st = units_type(ctx->units, ship->type_index);
+    int room = (st ? st->cargo : 0) - units_holds_used(ctx->units, ship->id);
     int stack_count = 0;
     for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
-      stack_count += u->active && u->x == ship->x && u->y == ship->y;
+      if (u->active && u->id != ship->id && u->aboard_ship_id == ship->id) {
+        const ColonizeUnitType* ut = units_type(ctx->units, u->type_index);
+        room -= ut ? ut->space : 0;
+        stack_count++;
+      }
     }
-    counts->stack_other = stack_count > 0 ? stack_count - 1 : 0;
+    /* 10be's walk of the rest of the tile: a Sentry unit, or any unit on a
+     * water tile, boards while its size fits the room left. */
+    const bool water = map_tile_is_water(ctx->map, ship->x, ship->y) ||
+                       map_tile_is_high_seas(ctx->map, ship->x, ship->y);
+    for (int id = units_tile_head_id_at(ctx->units, ship->x, ship->y); id >= 0;
+         id = units_tile_chain_next_id(ctx->units, id)) {
+      const ColonizeUnit* u = units_get_const(ctx->units, id);
+      if (!u || id == ship->id || u->aboard_ship_id >= 0) {
+        continue;
+      }
+      const ColonizeUnitType* ut = units_type(ctx->units, u->type_index);
+      const int size = ut ? ut->space : 99;
+      if ((u->orders == UNITS_ORDER_SENTRY || water) && size <= room) {
+        room -= size;
+        stack_count++;
+      }
+    }
+    counts->stack_other = stack_count;
     counts->pioneers = pioneers;
     counts->pioneers_before_fold = pioneers_before_fold;
     counts->military = mil;

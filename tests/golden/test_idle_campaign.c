@@ -260,6 +260,12 @@ int main(int argc, char** argv) {
        * player's second option did. */
       ColonizeTurnContext ctx;
       golden_ctx(&fx, &ctx);
+      /* The turn's first unit comes up (FUN_1427_08ea) before the player
+       * opens the menu; the declaration then spends every unit. */
+      fx.units.selected_id = -1;
+      if (turn_select_next_unit(&fx.units, fx.br.human_nation)) {
+        turn_idle_human_activate(&fx.units, units_get(&fx.units, fx.units.selected_id));
+      }
       ai_king_menu_declare_independence(&ctx);
       if (!ai_king_independence_declared(&fx.start)) {
         fprintf(stderr, "declare independence before %d failed\n", year);

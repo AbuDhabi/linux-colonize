@@ -324,6 +324,7 @@ typedef struct Ai20e6Unit {
   int year;
   int woi;
 } Ai20e6Unit;
+int ai_euro_20e6_park_arms_4d2e(ColonizeTurnContext* ctx, ColonizeUnit* u, const Ai20e6Unit* s);
 void ai_euro_20e6_prologue(ColonizeTurnContext* ctx, const ColonizeUnit* u, int nation, Ai20e6Unit* s);
 int ai_euro_20e6_own_colonies_on(const ColonizeTurnContext* ctx, int nation, int cid);
 int ai_euro_10ec_land_units_on(const ColonizeTurnContext* ctx, int nation, int cid);

@@ -828,10 +828,20 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
             u->x, u->y, u->moves, dir, attack);
   }
   if (dir >= 0 && dir < 8 && attack) {
+    /* LAB_589e commits the step at the foe's tile (orders 0x0c, goto there)
+     * and the step is the attack, so a hull that advances stands on its goal
+     * and walks no further (DOSBox independence 4->5: the Man-O-War saves
+     * orders 0x0c at (51,52) and draws nothing after the fight). */
     u->last_dir = dir;
+    u->orders = AI_EURO_ACT_STEP;
+    u->goto_x = u->x + MAP_DIR8_DX[dir];
+    u->goto_y = u->y + MAP_DIR8_DY[dir];
     ai_euro_try_attack(ctx, u, u->x + MAP_DIR8_DX[dir], u->y + MAP_DIR8_DY[dir]);
-    u = units_get(ctx->units, id);
-    return !u || !u->active;
+    return 1; /* the attack spent the hull: no 479b dispatch clears its step */
+  }
+  if (ai_euro_20e6_park_arms_4d2e(ctx, u, &s)) {
+    ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);
+    return 0;
   }
   u->col1_ai_plan = 0x39; /* '9' — raw 89040 fallthrough */
   /* LAB_589e commit. */
@@ -878,11 +888,24 @@ static int ai_euro_4528_ai_village_entry(ColonizeTurnContext* ctx, ColonizeUnit*
     }
   }
   const int type = u->type_index;
-  if (tribe_index < 0 || type == 1 || type == 4 || type == 0x0b || type == 0x0c) {
+  if (tribe_index < 0 || type == 1 || type == 4 || type == 0x0b) {
     return 0;
   }
   const int e = u->nation_id;
   const int id = u->id;
+  if (type == 0x0c) {
+    /* 4528 code 1: the wagon's step onto the village is the 2820 trade;
+     * the caller's LAB_0bd1 tail follows (DOSBox independence 5->6: the
+     * crown wagon from Bahia walks to the village and trades in one act). */
+    const int ind = (int)ctx->col1->tribe[tribe_index].nation_id;
+    ai_euro_s_20e6_wagon_errand[id] = 0;
+    (void)ai_contact_ai_wagon_village_trade(ctx, ind, e, id);
+    ColonizeUnit* wg = units_get(ctx->units, id);
+    if (wg && wg->active) {
+      wg->moves = 0; /* FUN_1000_8b24 */
+    }
+    return 1;
+  }
   if (type == 5) {
     (void)ai_contact_ai_scout_visit_village(ctx, e, tribe_index, id);
   } else if (type == 3) {

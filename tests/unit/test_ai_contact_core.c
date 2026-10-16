@@ -6538,8 +6538,8 @@ static int sp_50(void) {
     if (ind->tons[bought] != 200) {
       return fail("2e92: tribe tons should drop by qty");
     }
-    if (ind->alarm_by_player[1] <= alarm_b) {
-      return fail("2e92: purchase raises alarm by price/25+1 (FUN_4cc6_00f2 positive delta)");
+    if (ind->alarm_by_player[1] > alarm_b) {
+      return fail("2e92: purchase lowers alarm by rand(0, price/25+1) (OVL13 0x3458 neg ax)");
     }
     /* Full holds: no purchase. */
     for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {

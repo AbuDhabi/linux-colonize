@@ -529,8 +529,12 @@ bool units_try_move_w(
      * spent either way (DOS 1b0e FUN_281f_0934, same charge as the loss
      * branch).
      */
-    if (reason == COLONIZE_ENTER_COMBAT_LAND &&
-        (!colonies || colonies_id_at(colonies, dest_x, dest_y) < 0)) {
+    /* A colony is taken only by beating its militia phantom (the no-foe arm
+     * below, 1b0e bVar28); beating a real defender standing in it leaves the
+     * attacker outside like anywhere else (DOSBox independence 5->6: the
+     * crown Cavalry beats Quebec's Artillery and stays, a Regular then beats
+     * the militia and takes the town). */
+    if (reason == COLONIZE_ENTER_COMBAT_LAND) {
       units_mp_exhaust(pool, unit);
       if (unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
           unit->orders == UNITS_ORDER_FORTIFIED) {

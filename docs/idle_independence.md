@@ -44,6 +44,12 @@ Harness: `golden_idle_campaign independence FIRST LAST` (save numbers 0..20), se
 - **From 000001 on, the archive is DOS-repeatable.** A DOSBox load of 000001 plus one idle turn is
   byte-identical to 000002 (2026-10-14). So from-load state is enough there, unlike the 1492
   campaign.
+- **From 000004 on, load replays diverge.** 0a60's work-queue military arm reads the stance table
+  DS:0x9870 (-0x6790, nation*16 + continent) left by the previous turn's 0a60; it is not in the
+  save, so a fresh load reads zeros. Continuous DOSBox 000003 -> 000005 (load 000003, two idle
+  turns) gives a save 5 equal to the archive except crown gold (761 vs 797); a load of 000004 plus
+  one turn does not (its new Man-O-War takes Bahia's work slot and sails south instead of
+  attacking the Dutch Galleon). Trace from save 3 (or earlier) and run through.
 - **Brewster pick at the first turn.** The Dutch cross their crosses threshold (354 >= 316) in the
   START_SAVE turn. With Brewster, DOS shows @RECRUITCHOOSE (the player recalls Free Colonist,
   a specialist, Free Colonist). Both the archive and the DOSBox replay recruit a Free Colonist
@@ -221,8 +227,75 @@ every 200 polls until `COLONY09.SAV` changes, then copy it.
   the human slot too, raw 58390/58392), not at the crown's beat; the census now counts the
   pre-mobilization types like DOS.
 
-State 2026-10-15 (continuous from START_SAVE): save 1 9 simulation diffs, save 2: 45, save 3: 30,
-save 4: 43, save 5: 762, save 10: 1370, save 20: 1858.
+- At declaration (FUN_43f7_1a26) every seen byte drops the crown bit, then takes it wherever the
+  human's bit is set. The port's declare now does the same.
+
+- The 20e6 wagon village errand sets plan 0x34 and an AI goal (`ai_euro_set_goto` with the goal
+  order), not a plain AI move. 5b66's head walks a deferred band unit that already holds a goal
+  order (479b, one pathfinder step) without re-entering 20e6, and a wagon that just hauled walks
+  its goal the same way.
+
+- The 4393 work-queue gate has no hull prefilter: a Man-O-War passes on bVar7 (odd unit index, or
+  the nation's only one), then takes only slots whose record +5 (military) is set.
+
+- 022e's AI answer to @INDIANBEGFOOD (asm 0x5717e) is `nation == 2 ? refuse : give`. Spain always
+  refuses; the port gave food for every AI nation (Roanoke lost 37 food in 4->5).
+
+- FUN_1427_08ea (a unit becoming active) relinks it to the top of its tile. At the 2->3 turn
+  start the Merchantman at (51,52) comes up above the Fortified Galleon, and the declaration
+  then spends every unit, so save 3 keeps it there. The idle rotation now relinks each unit it
+  brings up, and the harness activates the first unit before declaring.
+
+- A naval loss is 0ec0: every unit on the loser tile, in chain order from the head, takes its
+  own 0352 (the primary loser at its chain position). 0352 removes a sunk hull from the census
+  at once (cargo total, type count, armed count; raw 99570-99579), so the Merchantman sinking
+  first leaves the Dutch fleet short and forces the Galleon to survive damaged (4->5).
+
+- 0982 creates landed REF units at (-2,-2) and slides them ashore with 0948 (relink only), so
+  they carry only the target nation's vis bit. The port's slide re-stamped the whole tile stack
+  with the move-vis reset.
+
+- 2820 (village trade) reseeds the global stream (04ca, DS:0x83a6) and draws from it; the port
+  used an invented per-nation stream.
+
+- 2820's buy settle (OVL13 asm 0x343d-0x3462) passes `-rand(0, price/25+1)` to 0d6c: a
+  purchase lowers the tribe's alarm by the roll. The decompile read it as `+price/25+1`
+  (bugs.md #804's note is wrong). The buy price's bid term reads the 0x9e78 table after 0ed0
+  sorted it in place, i.e. the bought cargo's own bid.
+
+- A ship's attack is the 465b step into the foe's tile: the attacker is spent in full and a
+  winning hull advances into the tile 0ec0 emptied. A damaged loser keeps its spent byte and
+  takes the nation's return-from-Europe tile as its goto (raw 99618).
+
+- 20e6's `local_a8` (stack_other) counts what 10be boards onto the hull (aboard units, then
+  Sentry or water-tile units that fit), not every unit on the tile: two Man-O-Wars sharing a
+  tile do not take the colony-sail pick.
+
+- The wagon's village trade is the step onto the village: it faces the village and 465b's
+  LAB_0bd1 exit clears its orders and bumps +0x315a.
+
+With these, the crown's 4->5 slot makes the same 112 draws as a continuous DOSBox run.
+
+- The music track pick (resident seg 0ac3 in DOSBox, DS:0x9a pool) shares the gameplay LCG: it
+  srands from DS:0x83a8 (100 under VR_SEED), draws `rand(0,4)`/`rand(0,8)` and the tune index,
+  and leaves the stream reseeded. It runs when the sound pump acts (track end or pool change),
+  so its place in the AI turn depends on wall-clock time: two continuous DOSBox replays of 5->6
+  reseed at different draws (after the Cavalry fight in one, after the old Man-O-War's act in
+  the other). The archive is one such realisation; DOSBox's own continuous 3->5 replay already
+  differs from it in crown gold (761 vs 797) for this reason. Exact archive equality past the
+  first pick that lands inside an AI turn is not reachable deterministically; compare draw
+  streams up to the next `state == 100` reseed instead.
+
+- 20e6's LAB_4d2e tail parks an armed hull (flag bit0) or land fighter (bit2) on its own goal
+  tile when outside a colony and alone (plan 'B' / 'e', raw 88987-89009); the port had read
+  these as pioneer codes. 6d8e drains a unit while its act changes its orders, so a step that
+  only clears on arrival does not end the drain. 1b0e's probe on an undefended colony draws the
+  militia pick and scores the phantom; beating a real defender standing in a colony never takes
+  it (only beating the militia does). An AI wagon stepping onto a village trades (4528 code 1).
+
+State 2026-10-15 late (continuous from START_SAVE): saves 1-8: 9, 33, 23, 15, 38, 52, 121, 957
+diffs. The crown's 4->5 slot matches DOS draw for draw; 5->6 matches through the first music
+reseed.
 
 ## Open
 

@@ -1512,9 +1512,9 @@ int units_apply_land_loss_outcome(
  * Frigate, so it simply does not fire. DOS's `param_2 < 0` force-damage arm
  * belongs to the 0f14 raid, which never reaches this helper.
  *
- * Census note: DOS also decrements DS:0x9414/0x924c/0x9424 on the sink path
- * (raw 99570-99579); the port rebuilds the whole census from the live pool
- * (col1_stuff_census.c), so that write-back is not transcribed.
+ * Census note: DOS decrements DS:0x9414/0x924c/0x9424 on the sink path
+ * (raw 99570-99579); units_apply_naval_loss_outcome does the same right after
+ * this gate.
  */
 /* DS:0x53d2 = head.crown_nation_id, the slot the succession merger vacated
  * (same rule as ai_king_crown_nation_col1; spelled locally so the slim
@@ -1840,9 +1840,14 @@ void units_ship_enter_repair(
   int winner_nation
 ) {
   const ColonizeUnitType* lt = units_type(pool, lose->type_index);
-  lose->col1_flags15 |= 0x80u;
-  lose->moves = 0;
+  lose->col1_flags15 |= 0x80u; /* the damaged bit holds it; DOS leaves +0x3149 alone */
   lose->orders = UNITS_ORDER_NONE; /* DOS zeroes +0x314c */
+  /* DOS-LITERAL FUN_5fef_0352 raw 99618-99619: +0x314d/e = the loser nation's
+   * return-from-Europe tile (nation record +0x32/+0x33). */
+  if (col1 && lose->nation_id >= 0 && lose->nation_id < 4) {
+    lose->goto_x = (int)col1->nation[lose->nation_id].return_from_europe_x;
+    lose->goto_y = (int)col1->nation[lose->nation_id].return_from_europe_y;
+  }
   lose->repair_pending = 2; /* 2 = damaged this turn; see the repair tick */
   {
     /* DOS-LITERAL FUN_5fef_0352 raw 99622-99631: BOTH sides of the repair
@@ -2059,6 +2064,19 @@ int units_apply_naval_loss_outcome(
   /* bugs.md #867: DOS raw 99527-99570 layers the fleet-pool / crown-MoW gate
    * on top of that roll. */
   damaged = units_naval_damage_gate(pool, col1, lose, wt, win->nation_id, damaged);
+  /* DOS-LITERAL FUN_5fef_0352 raw 99570-99579: a sunk hull leaves the census
+   * at once (cargo total, type count, armed count). A later hull of the same
+   * 0ec0 walk reads the reduced totals in its own gate. */
+  if (!damaged && wguns > 0 && col1 && lt && lose->nation_id >= 0 && lose->nation_id < 4 &&
+      lose->type_index >= 0 && lose->type_index < 19) {
+    ColonizeCol1Stuff* st = &((ColonizeCol1Save*)col1)->stuff;
+    const int n = lose->nation_id;
+    st->ship_cargo_totals[n] = (uint8_t)(st->ship_cargo_totals[n] - lt->cargo);
+    st->unit_type_counts[n][lose->type_index]--;
+    if (lt->attack != 0) {
+      st->armed_ship_counts[n]--;
+    }
+  }
   /*
    * bugs.md #254: WoI human with no drydock port has no friendly Europe either
    * — the ship goes down instead of limping anywhere (DOS 85139).
@@ -2231,14 +2249,19 @@ int units_naval_evade_power(const ColonizeUnitPool* pool, int unit_id) {
 }
 
 /*
- * DOS 0ec0 on a naval loss: walk the loser's tile stack and apply 0352 to
- * every unit — each ship rolls its own plunder + damage-vs-sink; anything
- * else standing there is destroyed (a ship winner can neither capture nor
- * demote in 0352, so land stackmates fall through to despawn). DOS naval
- * fights never occur on colony tiles, so a colony tile is left untouched
- * (a port garrison must not drown because a ship lost offshore).
+ * DOS 0ec0 on a naval loss (raw 99708-99729): walk the loser's tile chain from
+ * its head (07e0, newest arrival first; the next link is taken before each
+ * call) and apply 0352 to every unit, the primary loser included at its own
+ * chain position — each ship rolls its own plunder + damage-vs-sink, so an
+ * earlier sinking's census decrement can save a later hull (DOSBox
+ * independence 4->5: the Merchantman rolls first and sinks, then the Galleon
+ * is forced damaged). Anything else standing there is destroyed (a ship
+ * winner can neither capture nor demote in 0352, so land stackmates fall
+ * through to despawn). DOS naval fights never occur on colony tiles, so there
+ * only the primary loser is handled (a port garrison must not drown because a
+ * ship lost offshore). Returns whether the primary loser survived (damaged).
  */
-void units_sweep_naval_stack_after_loss(
+int units_sweep_naval_stack_after_loss(
   ColonizeUnitPool* pool,
   int x,
   int y,
@@ -2249,27 +2272,32 @@ void units_sweep_naval_stack_after_loss(
   ColonizeDosRng* rng
 ) {
   if (!pool || loser_nation < 0) {
-    return;
-  }
-  if (g_units_combat_colonies && colonies_id_at(g_units_combat_colonies, x, y) >= 0) {
-    return;
+    return 0;
   }
   ColonizeUnit* win = units_get(pool, winner_id);
   if (!win || !win->active) {
-    return;
+    return 0;
   }
-  int slot_3 = 0;
-  for (ColonizeUnit* u = units_next_on_tile(pool, x, y, &slot_3); u != NULL;
-       u = units_next_on_tile(pool, x, y, &slot_3)) {
-    if (u->nation_id != loser_nation || u->id == winner_id || u->id == primary_loser_id) {
-      continue;
-    }
-    if (units_is_sea(pool, u->id)) {
-      (void)units_apply_naval_loss_outcome(pool, u->id, winner_id, 0, 0, 1, col1, rng);
-    } else {
-      (void)units_despawn(pool, u->id);
-    }
+  if (g_units_combat_colonies && colonies_id_at(g_units_combat_colonies, x, y) >= 0) {
+    return units_apply_naval_loss_outcome(pool, primary_loser_id, winner_id, 0, 0, 1, col1, rng);
   }
+  int primary_alive = 0;
+  for (int id = units_tile_head_id_at(pool, x, y); id >= 0;) {
+    const int next = units_tile_chain_next_id(pool, id);
+    const ColonizeUnit* u = units_get_const(pool, id);
+    if (u && u->nation_id == loser_nation && id != winner_id) {
+      if (units_is_sea(pool, id)) {
+        const int alive = units_apply_naval_loss_outcome(pool, id, winner_id, 0, 0, 1, col1, rng);
+        if (id == primary_loser_id) {
+          primary_alive = alive;
+        }
+      } else {
+        (void)units_despawn(pool, id);
+      }
+    }
+    id = next;
+  }
+  return primary_alive;
 }
 
 /*

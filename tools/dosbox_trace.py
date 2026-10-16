@@ -36,6 +36,9 @@ core=normal
 cycles=max
 [midi]
 mididevice=none
+[dos]
+hard drive data rate limit=0
+floppy drive data rate limit=0
 [log]
 logfile={work}/dosbox.log
 [autoexec]
@@ -206,7 +209,7 @@ class Dbg:
             for _ in range(5):
                 self.keys('down')
                 try:
-                    cur = self.until(moved, tries=15)
+                    cur = self.until(moved, every=3, tries=100)
                     break
                 except RuntimeError:
                     continue

@@ -1916,8 +1916,10 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
         }
       }
     } else {
-      /* AI Euro: auto-accept, handing over the same half a human would. */
-      ai_contact_apply_beg_food(ctx, ind, nation_id, e, best_ci, home_index, 1);
+      /* DOS-LITERAL FUN_5bfb_022e raw 0x5717e: an AI Euro answers
+       * `nation == 2 ? 1 (refuse) : 2 (give)`, so Spain always refuses and the
+       * others hand over the same half a human would. */
+      ai_contact_apply_beg_food(ctx, ind, nation_id, e, best_ci, home_index, e != 2);
     }
     return 1; /* one beg-for-food event per Indian nation per turn */
   }

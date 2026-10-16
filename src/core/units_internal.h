@@ -132,7 +132,7 @@ int units_ship_damage_vs_sink( ColonizeDosRng* rng, int winner_guns, int loser_h
 int units_naval_damage_gate( const ColonizeUnitPool* pool, const ColonizeCol1Save* col1, const ColonizeUnit* lose, const ColonizeUnitType* wt, int winner_nation, int damaged );
 void units_ship_enter_repair( ColonizeUnitPool* pool, ColonizeUnit* lose, int wstr, const ColonizeColony* home, const ColonizeCol1Save* col1, int human, int winner_nation );
 void units_ship_lose_holds(ColonizeUnitPool* pool, int ship_id);
-void units_sweep_naval_stack_after_loss( ColonizeUnitPool* pool, int x, int y, int loser_nation, int winner_id, int primary_loser_id, const ColonizeCol1Save* col1, ColonizeDosRng* rng );
+int units_sweep_naval_stack_after_loss( ColonizeUnitPool* pool, int x, int y, int loser_nation, int winner_id, int primary_loser_id, const ColonizeCol1Save* col1, ColonizeDosRng* rng );
 void units_sweep_stack_after_loss( ColonizeUnitPool* pool, int x, int y, int loser_nation, int winner_id, int primary_loser_id, const ColonizeCol1Save* col1 );
 int units_tribe_nation_at(const ColonizeCol1Save* col1, int x, int y);
 
