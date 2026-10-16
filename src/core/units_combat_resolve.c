@@ -878,11 +878,33 @@ bool units_fort_vs_ship(
   if (!dt) {
     return false;
   }
-  int defense = dt->defense;
+  /*
+   * DOS-LITERAL FUN_5fef_1b0e on 03f6's temporary attacker (raw 100455-100466):
+   * FUN_157e_004a scales both sides x8, the attack takes
+   * ((DS:0x8d04 + 4) * atk >> 2) * 3 >> 1 (0x8d04 = 0: a ship's mode-0 call
+   * stashes no terrain), and a human side loses (difficulty - 4). DOSBox
+   * independence 5->6: Fortress + 1 Artillery (16) vs the crown Man-O-War
+   * (24) rolls rand(1, 194 + 192).
+   */
+  ColonizeCombatStrengthCtx sctx = units_combat_strength_ctx(col1);
+  sctx.units = pool;
+  int atk = ((4 * (attack_str * 8)) >> 2) * 3 >> 1;
+  int defense = combat_unit_base_x8(&sctx, defender_id, 0, NULL);
+  if (col1) {
+    const int adj = (int)col1->head.difficulty - 4;
+    if (fort_nation >= 0 && fort_nation <= 3 && col1->player[fort_nation].control == 0) {
+      atk -= adj;
+    }
+    if (def->nation_id >= 0 && def->nation_id <= 3 && col1->player[def->nation_id].control == 0) {
+      defense -= adj;
+    }
+  }
+  if (atk < 0) {
+    atk = 0;
+  }
   if (defense < 0) {
     defense = 0;
   }
-  defense = units_drake_scale_strength(pool, def, defense, col1);
   /* bugs.md #261: DOS engages through the real resolver (temp attacker →
    * FUN_5fef_1b0e), so a fort firing on a human-visible ship shows the
    * Combat Analysis dialog before the roll, same as any naval fight. */
@@ -892,13 +914,10 @@ bool units_fort_vs_ship(
     eng.attacker_id = -1;
     eng.defender_id = defender_id;
     eng.is_naval = true;
-    eng.atk_strength = attack_str;
+    eng.atk_strength = atk;
     eng.def_strength = defense;
     eng.atk_flags.base_combat = attack_str;
     eng.def_flags.base_combat = dt->defense > 0 ? dt->defense : 0;
-    if (defense > eng.def_flags.base_combat) {
-      eng.def_flags.flags_hi |= COMBAT_FLAG_DRAKE;
-    }
     /* NAMES.TXT @BUILDING tier 1 ("Fort"): only caller always passes its own
      * fort_label, this is the defensive default for a NULL/empty one. */
     snprintf(
@@ -907,14 +926,13 @@ bool units_fort_vs_ship(
     );
     units_combat_maybe_present_analysis(col1, &eng, fort_nation, def->nation_id);
   }
-  /* attack_str >= 1 (gated above) and defense >= 0, so total >= 1 always. */
-  const int total = attack_str + defense;
+  const int total = atk + defense;
   bool atk_wins = false;
-  if (!rng) {
-    atk_wins = attack_str >= defense;
+  if (!rng || total <= 0) {
+    atk_wins = atk >= defense;
   } else {
     const int roll = dos_rng_range(rng, 1, total);
-    atk_wins = roll <= attack_str;
+    atk_wins = roll <= atk; /* 1b0e bVar8 = roll <= local_92 */
   }
   if (atk_wins) {
     /*
@@ -1120,9 +1138,13 @@ void units_ship_slow_scan_w(
        * port used to skip stackmates of a different nation than the tile's
        * top unit.
        */
-      for (int i = 0; i < units_slot_end(pool) && u->moves > 0; ++i) {
-        const ColonizeUnit* f = &pool->units[i];
-        if (!f->active || f->x != nx || f->y != ny || !units_is_sea(pool, f->id)) {
+      /* Chain order from the 07e0 head (newest arrival), as DOS walks it
+       * (DOSBox independence 6->7: the Dutch Frigate rolls before the
+       * Privateer that reached the tile first). */
+      for (int fid = units_tile_head_id_at(pool, nx, ny); fid >= 0 && u->moves > 0;
+           fid = units_tile_chain_next_id(pool, fid)) {
+        const ColonizeUnit* f = units_get_const(pool, fid);
+        if (!f || !f->active || !units_is_sea(pool, f->id)) {
           continue;
         }
         const char* fname = units_display_name(pool, f);

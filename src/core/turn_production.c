@@ -786,7 +786,6 @@ void turn_produce_one_colony(
   for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
     craft_net[c] = colony->stock[c] - craft_stock_pre[c];
   }
-  (void)craft_gross;
   /* Composed here (Phase A), banked at Phase L — DOS `0b50(0x10)`. Every
    * tick: the old "Autumn freeze" gate (bugs.md #466) rested on a real-DOS
    * Spring→Autumn pair in which no colony staffed a carpenter at all. */
@@ -969,9 +968,16 @@ void turn_produce_one_colony(
    * (WoI tax skip + nation gold).
    */
   if (europe) {
+    /* FUN_364b_0636 raw 57131-57141: an AI Custom House keeps its Ore while
+     * the colony has an Armory or this tick made tools / muskets (the gross
+     * ledger DS:0x8de4 / 0x8de6). DOSBox independence 6->7: crown Bahia
+     * keeps 100 Ore. */
+    const bool ch_ore_denied =
+      colonies_has_building_row(pool, colony, COLONY_BUILDING_ARMORY) ||
+      craft_gross[COLONIZE_CARGO_TOOLS] != 0 || craft_gross[COLONIZE_CARGO_MUSKETS] != 0;
     EuropeCustomHouseSale ch_sales[COLONIZE_CARGO_COUNT];
     int ch_sale_count = 0;
-    const int ch_total = europe_custom_house_autosell_ex_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(pool), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL), .europe=(EuropeScreen*)(europe)}, colony, human_nation, ch_sales, COLONIZE_CARGO_COUNT, &ch_sale_count);
+    const int ch_total = europe_custom_house_autosell_ex_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(pool), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL), .europe=(EuropeScreen*)(europe)}, colony, human_nation, ch_sales, COLONIZE_CARGO_COUNT, &ch_sale_count, ch_ore_denied);
     for (int si = 0; si < ch_sale_count; ++si) {
       if (ch_sales[si].cargo >= 0 && ch_sales[si].cargo < COLONIZE_CARGO_COUNT) {
         ch_sold[ch_sales[si].cargo] += ch_sales[si].amount;

@@ -988,7 +988,11 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   if (!moved) {
     u = units_get(ctx->units, id);
     if (u) {
-      u->moves = 0; /* blocked step: the port has no DOS retry; end the act */
+      /* blocked step: the port has no DOS retry; end the act. Only clamp, so
+       * a kept overspend (a beaten attacker's entry 0934) survives. */
+      if (u->moves > 0) {
+        u->moves = 0;
+      }
     }
     return;
   }

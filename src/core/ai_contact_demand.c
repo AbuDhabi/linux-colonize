@@ -1926,7 +1926,12 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
        * binds to the VISITING Brave's own village (smell #74), so the visit
        * record has to survive the popup round-trip. */
       const int payload = (best_ci & 0xffff) | ((home_index + 1) << 16);
-      if (ai_popup_enqueue_choice_ctx(
+      if (!ctx->ai_popups) {
+        /* Headless: the idle player's Space takes the first row, decline
+         * (DOSBox independence 6->7: the refused beg raises the tribe's
+         * alarm word and the village's friction). */
+        ai_contact_apply_beg_food(ctx, ind, nation_id, e, best_ci, home_index, 0);
+      } else if (ai_popup_enqueue_choice_ctx(
             ctx->ai_popups, AI_POPUP_TAG_CONTACT_BEGFOOD, e, nation_id, payload, NULL, body,
             labels, ids, 2
           )) {

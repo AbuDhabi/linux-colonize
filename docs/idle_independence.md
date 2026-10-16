@@ -356,7 +356,10 @@ those indices must equal each DOSBox autosave. Status 2026-10-16: equal through 
 
 Status 2026-10-16 evening: equal through save 6 (381 draws both sides). A second realisation
 (DOSBox continuous, picks 4:324,331; 5:137,254; 6:77,253,321) also matches through save 5 and
-matches through save 6 too. Fixes that got here:
+matches through save 6 too. A third (picks 4:330; 5:137,254; 6:101,269,314,341; 7:0,238,392)
+matches DOS exactly through save 7. The first reference run still differs at save 7 (DOS 408
+draws vs port 393; its recorded pick at 352 lands wrong), so a draw-traced run of a later
+realisation is the way to find that event. Fixes that got here:
 
 - Coastal battery FUN_364b_03f6 runs at the top of each colony's EOT (0688 raw 57227, thunk
   291f_09ce), in the owner's slot, not at turn setup: the Dutch fort fires (rand(1,386), stack
@@ -371,6 +374,23 @@ matches through save 6 too. Fixes that got here:
 - 20e6's attack pick held for want of MP (raw 89033-89039, `local_76 = 8`) keeps `local_ce`
   set, so the stay skips the `local_ce == 0` park arms (0x47 / 0x42 / 0x65 / 0x46) and writes
   '9'. This closed the second realisation's save-6 leftover.
+- A beaten attacker keeps 1b0e's entry 0934 spent (its pre-combat allotment) through a
+  demotion: a crown Cavalry beaten to Regulars saves spent 12. The 479b blocked-step "end the
+  act" only clamps remaining MP to 0, so the overspend survives.
+- Ship-slow branch A walks the neighbour tile's chain from the 07e0 head (newest first).
+- The coastal battery is resolved by 1b0e on the temp attacker: x8 strengths, attack x3/2,
+  human side minus (difficulty - 4) (Fortress + 1 Artillery vs Man-O-War: rand(1, 194 + 192)).
+- FUN_364b_0636's Ore arm: an AI Custom House keeps Ore with an Armory or when the tick made
+  tools / muskets (DS:0x8de4 / 0x8de6). Crown Bahia keeps its 100 Ore.
+- The crown wagon's adjacent-village trade is 27f5's commit ('4', goal = village) then the 479b
+  step, so plan '4' survives 0a60's '?' placeholder.
+- Headless, the human's @INDIANBEGFOOD takes the first row (decline), like the idle DOS
+  player's Space. The refusal's alarm word is FUN_4cc6_00f2(tribe, param_2 = the Indian
+  nation) and spills into the next Indian record (tribe 2, index 6 = tribe 3's +4/+5; DOSBox
+  BPM on DS:0x5bc4 caught the store at 4cc6:0170).
+- Archive: 4->5 keeps a 2-byte crown-gold residue for every pick pair (not a pick effect; use
+  GOLDEN_IDLE_RESYNC=5); 5->6 best picks stay 256,353 (12 bytes: Bahia's 14/15 jobs follow
+  the resynced gold). Pick searches are cheap now (0.3 s a run; `pairsearch.py`, 8 threads).
 - Loading an autosave in DOS does not reproduce the continuous run (save 5 loaded: 355 draws vs
   381), so traces of a given interval need a continuous run from 000003.
 

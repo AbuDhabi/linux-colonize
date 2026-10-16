@@ -2773,7 +2773,10 @@ bool col1_bridge_capture_w(
          * FUN_43f7_0982 stamps freshly landed REF units with the target bit
          * only (raw 74142/74210); do not synthesize the crown bit on export.
          * Europe sentinel units (x/y >= 200) carry vis 0 in every original
-         * DOS save (french-campaign survey 2026-09-03). */
+         * DOS save (french-campaign survey 2026-09-03) — except a damaged
+         * hull FUN_5fef_0352 parked there (bit7 set): the relocation leaves
+         * its mask alone (DOSBox independence 6->7: the crown Man-O-War at
+         * 236,236 saves vis 9). */
         const int nat = src->nation_id & 0xF;
         /* The crown is the withdrawn slot until the declaration; after it DOS
          * sets that slot's control to 1 (AI) and withdraws the others
@@ -2785,7 +2788,9 @@ bool col1_bridge_capture_w(
              : save->player[nat].control == 2);
         uint8_t vis = (uint8_t)(src->col1_vis_mask & 0x0Fu);
         if (src->x >= 200 || src->y >= 200) {
-          vis = 0;
+          if ((src->col1_flags15 & 0x80u) == 0) {
+            vis = 0;
+          }
         } else if (nat >= 0 && nat < 4 && !crown) {
           vis = (uint8_t)(vis | (1u << (nat & 3)));
         }
