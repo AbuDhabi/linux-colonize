@@ -790,35 +790,47 @@ static void ai_euro_colony_ship_probe_4962(
   /* Raw 78259: +0x1b &= 0xfc — only the blockade pair is cleared here. */
   c->ai_flags = (uint8_t)(c->ai_flags & (uint8_t)~(COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP |
                                                     COLONIZE_COLONY_AI_NEARBY_FRIGATE));
-  if (ctx->units) {
-    for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
-      const ColonizeUnit* u = &ctx->units->units[ui];
-      if (!u->active || u->nation_id == nation_id || u->aboard_ship_id >= 0) {
+  /* Raw 78260-78268: 11x11 box, y outer / x inner, interior tiles only
+   * (FUN_281f_0302 = FUN_137f_000a); a tile whose chain HEAD is not this
+   * nation's is walked whole (07e0 then 02e4). The order matters: 0906
+   * reuses the shared flood grid when its goal key is unchanged (DOSBox
+   * independence 4->5: Recife's probe must flood the Man-O-War at 39,69
+   * before the one at 43,70). */
+  for (int dy = -5; ctx->units && ctx->map && dy < 6; ++dy) {
+    for (int dx = -5; dx < 6; ++dx) {
+      const int tx = c->x + dx;
+      const int ty = c->y + dy;
+      if (!map_coords_inset(ctx->map, tx, ty)) {
         continue;
       }
-      /* Raw 78260-78263: 11×11 box, both axes −5..+5. */
-      if (abs(u->x - c->x) > 5 || abs(u->y - c->y) > 5) {
+      int uid = units_tile_head_id_at(ctx->units, tx, ty);
+      const ColonizeUnit* head = uid >= 0 ? units_get_const(ctx->units, uid) : NULL;
+      if (!head || head->nation_id == nation_id) {
         continue;
       }
-      const int t = ai_euro_20e6_dos_type(ctx->units, u);
-      if (t < 0x0d || t > 0x12) {
-        continue; /* raw 78269-78270: ship roster only */
-      }
-      if (ai_euro_20e6_type_combat(t) == 0) {
-        continue; /* raw 78271: 0x5236 combat byte must be non-zero */
-      }
-      /* Raw 78274-78275: FUN_6662_0906 sea flood, count only cost 0..5
-       * ("short navigable route" — filters land-blocked ships). */
-      const int cost = ctx->map
-        ? units_short_sea_route_cost(ctx->units, ctx->map, u->x, u->y, c->x, c->y)
-        : -1;
-      if (cost < 0 || cost > 5) {
-        continue;
-      }
-      if (t == 0x11) {
-        c->ai_flags |= COLONIZE_COLONY_AI_NEARBY_FRIGATE; /* raw 78276-78282 */
-      } else {
-        c->ai_flags |= COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP;
+      for (; uid >= 0; uid = units_tile_chain_next_id(ctx->units, uid)) {
+        const ColonizeUnit* u = units_get_const(ctx->units, uid);
+        if (!u || !u->active) {
+          continue;
+        }
+        const int t = ai_euro_20e6_dos_type(ctx->units, u);
+        if (t < 0x0d || t > 0x12) {
+          continue; /* raw 78269-78270: ship roster only */
+        }
+        if (ai_euro_20e6_type_combat(t) == 0) {
+          continue; /* raw 78271: 0x5236 combat byte must be non-zero */
+        }
+        /* Raw 78274-78275: FUN_6662_0906 sea flood, count only cost 0..5
+         * ("short navigable route" — filters land-blocked ships). */
+        const int cost = units_short_sea_route_cost(ctx->units, ctx->map, u->x, u->y, c->x, c->y);
+        if (cost < 0 || cost > 5) {
+          continue;
+        }
+        if (t == 0x11) {
+          c->ai_flags |= COLONIZE_COLONY_AI_NEARBY_FRIGATE; /* raw 78276-78282 */
+        } else {
+          c->ai_flags |= COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP;
+        }
       }
     }
   }

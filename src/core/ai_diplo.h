@@ -285,6 +285,11 @@ void ai_diplo_indian_alarm_delta(
   int euro_nation,
   int delta
 );
+/* FUN_4cc6_00f2 with a non-European "euro" index: the clamped word add lands
+ * in the flat table DS:0x5b1c + (tribe*0x27 + index)*2, i.e. wherever that
+ * word falls in the Indian records (alarm_by_player = words 35..38 of each
+ * 0x4e-byte record). No halving (France / Pocahontas test euro 0..3). */
+void ai_diplo_indian_alarm_word_raw(ColonizeCol1Save* col1, int indian_nation, int index, int delta);
 
 /*
  * OpenCol-side "relation" view of the same store: relation = 100 - alarm

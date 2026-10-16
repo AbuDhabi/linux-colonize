@@ -202,10 +202,13 @@ int units_best_defender_at(
       tile_domain = units_is_sea(pool, attacker_id) ? 1 : 0;
     }
   }
-  int slot_1 = 0;
-  for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &slot_1); u != NULL;
-       u = units_next_on_tile_const(pool, x, y, &slot_1)) {
-    if (u->id == except_id || u->id == attacker_id) {
+  /* DOS walks the tile chain from its head (07e0 / 02e4: newest first), so
+   * the `>=` tie goes to the oldest equal candidate (independence 5->6: two
+   * fortified Artillery at (42,64), DOS damages the older). */
+  for (int cid = units_tile_head_id_at(pool, x, y); cid >= 0;
+       cid = units_tile_chain_next_id(pool, cid)) {
+    const ColonizeUnit* u = units_get_const(pool, cid);
+    if (!u || u->id == except_id || u->id == attacker_id) {
       continue;
     }
     if (atk_nat >= 0 && u->nation_id == atk_nat) {

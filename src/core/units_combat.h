@@ -277,6 +277,11 @@ int units_coastal_fort_fire_pulse_w(
   char* status,
   size_t status_size
 );
+/* FUN_364b_03f6 for ONE colony: DOS fires it at the top of that colony's
+ * EOT (FUN_364b_0688 raw 57227, thunk 291f_09ce), in the owner's slot. */
+int units_coastal_fort_fire_colony_w(
+  const ColonizeWorld* w, int colony_id, int human_nation, char* status, size_t status_size
+);
 
 /* After units_try_move: 0 none, 1 attacker won, -1 attacker lost. */
 int units_last_combat_outcome(void);

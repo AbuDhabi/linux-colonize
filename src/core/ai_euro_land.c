@@ -2439,8 +2439,10 @@ int ai_euro_20e6_wander_step(
    * the remainder directly.
    */
   if (best_attack && best_dir != 8 && u->moves < UNITS_MP_PER_TILE) {
+    /* local_ce stays set: the stay still skips the `local_ce == 0` park
+     * arms and writes '9' (DOSBox independence 5->6: a crown Regular spent
+     * beside St. Louis saves plan '9', not the 0x46 border park). */
     best_dir = 8;
-    best_attack = 0;
   }
   if (out_attack) {
     *out_attack = best_attack;

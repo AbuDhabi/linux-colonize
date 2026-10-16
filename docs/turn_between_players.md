@@ -52,7 +52,7 @@ Either EURO leg falls straight through to the next step when no slot qualifies.
 |------|-------|----------------|
 | Calendar | `turn_advance_calendar` (`@TIMECHANGE`) | `FUN_130d_0290` year/autumn tick (runs **after** nation pass in DOS) |
 | Colony production (**AI nations only**) | `turn_run_colony_production` (`s_prod_skip_nation` = human) | `FUN_364b_0688` via `291f_0950` inside `3844_00f2` (per nation in DOS) |
-| Coastal fort fire | `turn_run_coastal_fort_fire` | `FUN_364b_03f6` |
+| Coastal fort fire | `units_coastal_fort_fire_colony_w` (per colony, top of its EOT) | `FUN_364b_03f6` |
 | Nation ticks | `turn_run_nation_ticks` (bells / crosses / FF) | Europe EOT / census pieces of `3844_00f2` + FF helpers |
 
 ### `TURN_PROC_EURO` (indicator on; one AI Euro nation per frame)
@@ -163,7 +163,7 @@ Major thunks (catalog):
 | Human already done | `2b5a_3b68` inside `130d` | (prior frame) | Reshape — intentional |
 | SETUP calendar | `130d` post-nation tick | `turn_advance_calendar` | **Done** (`@TIMECHANGE`) |
 | SETUP production | `364b_0688` in `00f2` | `turn_run_colony_production` | **Partial** — birth/starve **Done**; AI dump-sell **Done** thin; education F–G+no-students **Done** thin; K craft+raw+`5384` gates **Done** thin; map [`colony_eot_production.md`](../original_sources_annotated/turn/colony_eot_production.md) |
-| SETUP fort fire | `364b_03f6` | `turn_run_coastal_fort_fire` | **Done** |
+| Colony-EOT fort fire | `364b_03f6` (from `364b_0688` raw 57227) | `units_coastal_fort_fire_colony_w` | **Done** |
 | SETUP nation ticks | Europe/census crumbs | `turn_run_nation_ticks` | **Partial** — human+AI bells/crosses accrue; [`europe_nation_eot.md`](../original_sources_annotated/turn/europe_nation_eot.md), [`census_tally.md`](../original_sources_annotated/turn/census_tally.md), [`nation_ticks_bells_ff.md`](../original_sources_annotated/turn/nation_ticks_bells_ff.md) |
 | EURO lone Convert | `3844_0004` | `units_tick_convert_outside_colony` | **Done** — type 0 + @JOB 27, in bounds, no settlement on tile, stack < 2; +0x16 > 8 despawns, human owner gets `@DEADCONVERTS` (0xee2 mode 4). No DOS site expires a Treasure train (bugs.md #725) |
 | EURO ship-build ready | `00f2` unit walk | `units_tick_ship_build_ready` | **Partial** — progress/clear construction bit7 + threshold=`defense`/`0x5235` **Done** thin; dialog chrome PARKED |

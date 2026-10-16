@@ -11,6 +11,7 @@
 #include <stdlib.h>
 
 #include "core/ai.h"
+#include "core/units_combat.h"
 #include "core/ai_diplo.h"
 #include "core/ai_euro.h"
 #include "core/ai_king.h"
@@ -2176,6 +2177,11 @@ void turn_run_colony_production_with_w(
        * job-less colonist (stale saves, non-UI admit paths) into work
        * before producing, so the head count always matches the workers. */
       colonies_auto_assign_idle(pool, pool->colonies[i].id);
+      /* FUN_364b_0688 raw 57227: thunk_FUN_291f_09ce = FUN_364b_03f6, the
+       * coastal battery, opens each colony's EOT — after the earlier slots'
+       * moves (DOSBox independence 5->6: the Dutch fort fires on the crown
+       * Man-O-War that parked beside it this turn). */
+      (void)units_coastal_fort_fire_colony_w(w, pool->colonies[i].id, human_nation, NULL, 0);
       /* FUN_364b_0688 raw 57228: FUN_281f_0c72 -> FUN_15eb_26e4 claim stamp,
        * then raw 57229: FUN_281f_0c22 -> FUN_15eb_3930 before the colony
        * produces (bugs.md #1080). */

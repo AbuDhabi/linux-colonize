@@ -148,7 +148,7 @@ static int compare_save(
             expected_path, actual_size, expected_size);
   }
 dump:
-  if (!ok) {
+  if (!ok || getenv("GOLDEN_IDLE_DUMP_ALL")) {
     /* A "%d" in GOLDEN_IDLE_DUMP takes the year (one file per KEEP_GOING turn). */
     const char* dump_env = getenv("GOLDEN_IDLE_DUMP");
     char dump[512];
@@ -322,6 +322,27 @@ int main(int argc, char** argv) {
     if (!stepped) {
       ok = 0;
       break;
+    }
+    /* GOLDEN_IDLE_RESYNC="5": after the run into that save, take the AI
+     * nations' gold and trade ledgers from the archive. For realisation
+     * residue a DOSBox replay does not reproduce (independence 000005: the
+     * crown's +36 Tools gross), so the later saves can still be compared. */
+    {
+      const char* rs = getenv("GOLDEN_IDLE_RESYNC");
+      for (const char* q = rs; have && q && *q;) {
+        char* end;
+        const long sv = strtol(q, &end, 10);
+        if (end == q) break;
+        if (sv == year) {
+          for (int n = 0; n < 4; ++n) {
+            if (n == (int)fx.br.human_nation) continue;
+            fx.start.nation[n].gold = fx.expect.nation[n].gold;
+            memcpy(fx.start.nation[n].trade.gold, fx.expect.nation[n].trade.gold,
+                   sizeof(fx.start.nation[n].trade.gold));
+          }
+        }
+        q = *end ? end + 1 : end;
+      }
     }
     if (!have || known_residue_year(c, year)) {
       compare_save(&fx.start, NULL, NULL, year);

@@ -43,7 +43,7 @@
  * DOSBox 1596: a Dutch hull leaving Vlissingen left France's bit on the
  * colonist behind it.
  */
-static void units_465b_0673_vis_or(
+void units_465b_0673_vis_or(
   ColonizeUnitPool* pool, const ColonizeWorldMap* map, ColonizeUnit* unit, int dest_x, int dest_y
 ) {
   if (!map || unit->nation_id < 0 || unit->nation_id == g_units_combat_human_nation) {
@@ -135,6 +135,7 @@ bool units_try_move_w(
    * calc reads live remaining, so charging first would erase the fatigue.
    */
   bool combat_attack_entry = false;
+  bool foreign_colony_entry = false; /* bVar4 settlement arm, see the Revere call */
   if (g_units_ff_col1 && unit->nation_id >= 0 && unit->nation_id <= 3) {
     village_nation = units_tribe_nation_at(g_units_ff_col1, dest_x, dest_y);
     if (village_nation >= 4) {
@@ -554,6 +555,23 @@ bool units_try_move_w(
       village_temp = -1;
     }
     if (colonies) {
+      /* FUN_465b_0000 raw 75467-75482: bVar4 reads the SETTLEMENT owner
+       * first, so an AI walking into an undefended foreign colony takes the
+       * bVar4 arm: LAB_465b_0673's 07fe vis OR (raw 75661-75664) runs on
+       * the PRE-combat chain, then FUN_291f_0a14 (= FUN_5fef_1b0e, whose
+       * winner advance is a 0948 relink, no 13f1_02f8 reveal), then
+       * `goto LAB_465b_0bd1` with bVar5 still false: orders clear and
+       * +0x315a bumps. DOSBox independence 5->6: the crown Regular taking
+       * Quebec keeps orders 0, counter 1, and the Artillery behind it never
+       * gains the crown bit. */
+      if (unit->nation_id != g_units_combat_human_nation) {
+        const ColonizeColony* fc =
+          colonies_get(colonies, colonies_id_at(colonies, dest_x, dest_y));
+        foreign_colony_entry = fc && fc->active && fc->nation_id != unit->nation_id;
+        if (foreign_colony_entry) {
+          units_465b_0673_vis_or(pool, map, unit, dest_x, dest_y);
+        }
+      }
       /* Paul Revere: empty foreign colony tile → auto-arm from muskets + fight.
        * Cite: PEDIA / docs/fandom_col1994.md Paul Revere. */
       if (!units_revere_defend_colony_tile(
@@ -660,7 +678,7 @@ combat_entry_resolved:
     g_units_465b_settled = true; /* raw 75825-75830: the gamble lost */
     return false;
   }
-  if (!combat_attack_entry) {
+  if (!combat_attack_entry && !foreign_colony_entry) {
     units_465b_0673_vis_or(pool, map, unit, dest_x, dest_y);
   }
 
@@ -721,7 +739,9 @@ combat_entry_resolved:
    * paths, so every intermediate tile of an AI multi-step move went unstamped
    * (bugs.md #530 S4).
    */
-  (void)units_reveal_sight_w(w, unit);
+  if (!foreign_colony_entry) {
+    (void)units_reveal_sight_w(w, unit);
+  }
 
   /*
    * FUN_465b_0000 raw 75788-75791: a European mover (nation < 4) that steps
@@ -873,7 +893,7 @@ combat_entry_resolved:
       unit->y
     );
   }
-  g_units_465b_settled = !combat_attack_entry && reason != COLONIZE_ENTER_COMBAT_LAND &&
+  g_units_465b_settled = !combat_attack_entry && !foreign_colony_entry && reason != COLONIZE_ENTER_COMBAT_LAND &&
                          reason != COLONIZE_ENTER_COMBAT_NAVAL;
   return true;
 }

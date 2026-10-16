@@ -193,13 +193,6 @@ void turn_run_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
   turn_run_colony_eot_with(ctx, out, NULL, NULL);
 }
 
-int turn_run_coastal_fort_fire(ColonizeTurnContext* ctx) {
-  if (!ctx || !ctx->units || !ctx->colonies || !ctx->map) {
-    return 0;
-  }
-  return units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL), .rng=(ColonizeDosRng*)(ctx->rng)}, ctx->human_nation, ctx->status, ctx->status_size);
-}
-
 void turn_colony_free_production(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,

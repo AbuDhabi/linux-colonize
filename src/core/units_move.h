@@ -128,6 +128,10 @@ extern bool g_units_465b_settled;
  * that resets it and exhausts the unit.
  */
 void units_465b_0bd1_tail(ColonizeUnitPool* pool, int unit_id, int units_before, bool human);
+/* FUN_465b_0000 LAB_465b_0673 07fe vis OR of 0826(dest, own nation) (non-human movers). */
+void units_465b_0673_vis_or(
+  ColonizeUnitPool* pool, const ColonizeWorldMap* map, ColonizeUnit* unit, int dest_x, int dest_y
+);
 int units_active_count(const ColonizeUnitPool* pool);
 
 /*

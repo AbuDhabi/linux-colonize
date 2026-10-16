@@ -1664,7 +1664,12 @@ void ai_contact_apply_beg_food(
         d >>= 1;
       }
     }
-    ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, -d);
+    /* DOS-LITERAL raw 87707: `FUN_281f_0d6c(tribe, param_2, local_8)` passes
+     * 022e's param_2 (the begging Indian nation), not param_1 (the European):
+     * the add lands in the flat alarm table past the tribe's own row
+     * (independence 4->5: Spain refuses at Roanoke, tribe 5's horse herds
+     * byte gains 1 and Spain's alarm stays). */
+    ai_diplo_indian_alarm_word_raw(ctx->col1, nation_id, nation_id, d);
     if (ctx->status && ctx->status_size) {
       snprintf(
         ctx->status, ctx->status_size, "We turn the %s away empty-handed.",

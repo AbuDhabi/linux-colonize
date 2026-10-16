@@ -78,7 +78,6 @@ void turn_produce_one_colony(
 /* --- owned by turn_colony.c --- */
 void turn_run_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
 void turn_run_human_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
-int turn_run_coastal_fort_fire(ColonizeTurnContext* ctx);
 void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation);
 bool turn_euro_nation_is_ref(const ColonizeTurnContext* ctx, int n);
 

@@ -5560,6 +5560,7 @@ static int sp_44(void) {
     col1.indian[0].alarm_by_player[0] = 50; /* relation 50 */
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     const uint8_t rel_before_decline = ai_diplo_indian_relation(&col1, 4 + (0), 0);
+    const uint16_t spill_before = (uint16_t)(col1.indian[1].capitol_x | col1.indian[1].capitol_y << 8);
 
     ai_popup_clear(&pop);
     pop.has_result = true;
@@ -5576,8 +5577,14 @@ static int sp_44(void) {
     if (col1.tribe[0].alarm[0].friction != 30) {
       return fail("BEGFOOD decline should scale the settlement alarm word by 1.5");
     }
-    if (ai_diplo_indian_relation(&col1, 4 + (0), 0) >= rel_before_decline) {
-      return fail("BEGFOOD decline should worsen relations");
+    /* DOS 022e's refusal adds to "euro" param_2 (the Indian nation itself):
+     * the European's alarm stays, the word past the tribe's row moves. */
+    if (ai_diplo_indian_relation(&col1, 4 + (0), 0) != rel_before_decline) {
+      return fail("BEGFOOD decline must leave the European's alarm (DOS param_2 slip)");
+    }
+    if ((uint16_t)(col1.indian[1].capitol_x | col1.indian[1].capitol_y << 8) <= spill_before &&
+        spill_before < 100) {
+      return fail("BEGFOOD decline adds into the flat alarm table at index 4");
     }
     fprintf(stderr, "unit_ai_contact: BEGFOOD accept/decline ok\n");
     /* Drop the adjacency Brave so later fixtures see no stray unit. */
