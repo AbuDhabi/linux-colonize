@@ -190,8 +190,17 @@ static int colonies_capture_col1_effects(
    * Foreign Affairs report (PEACE bit only) keeps printing "at peace".
    */
   ai_diplo_clear_both(col1, old_nation, new_nation, AI_DIPLO_PEACE);
-  if ((ai_diplo_read(col1, old_nation, new_nation) & AI_DIPLO_WAR) == 0) {
-    ai_diplo_or_both(col1, old_nation, new_nation, AI_DIPLO_WAR);
+  /* DOS-LITERAL FUN_5fef_1b0e (OVL17 asm 0x2f17-0x2f43, ndisasm file
+   * 0x5de88): a one-sided toggle, captor's row tested. WAR set there is
+   * CLEARED there; else the loser's row gains WAR (DOSBox BPM, independence
+   * 3->4: the crown takes a Dutch colony and its 0x22 toward the Dutch
+   * becomes 0x20). */
+  const uint8_t won = ai_diplo_read(col1, new_nation, old_nation);
+  if ((won & AI_DIPLO_WAR) != 0) {
+    ai_diplo_write(col1, new_nation, old_nation, (uint8_t)(won & ~AI_DIPLO_WAR));
+  } else {
+    ai_diplo_write(col1, old_nation, new_nation,
+                   (uint8_t)(ai_diplo_read(col1, old_nation, new_nation) | AI_DIPLO_WAR));
   }
   return plunder;
 }

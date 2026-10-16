@@ -841,7 +841,8 @@ static void ai_euro_0a60_foreign_colony_producers(
        * empty, matching DOS's miss value through the same arithmetic. */
       int lurk_skip = 0;
       {
-        const int uid_at = units_id_at(ctx->units, c->x, c->y);
+        /* DOS adds the head unit's record INDEX, not the port id. */
+        const int uid_at = units_dos_index(ctx->units, units_tile_head_id_at(ctx->units, c->x, c->y));
         if ((uid_at + turn) % 4 == 0) {
           Ai0a60StackCounts lsc;
           ai_euro_0a60_stack_counts(ctx->units, c->x, c->y, &lsc);

@@ -595,6 +595,18 @@ void units_founder_loot(
   }
 }
 
+int units_dos_index(const ColonizeUnitPool* pool, int unit_id) {
+  const ColonizeUnit* u = units_get_const(pool, unit_id);
+  if (!u) {
+    return -1;
+  }
+  int rank = 0;
+  for (const ColonizeUnit* o = pool->units; o < u; ++o) {
+    rank += o->active ? 1 : 0;
+  }
+  return rank;
+}
+
 int units_id_at(const ColonizeUnitPool* pool, int x, int y) {
   int slot = 0;
   const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &slot);

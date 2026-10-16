@@ -869,8 +869,11 @@ int ai_contact_meet_economics_2154(
           const int rel_y = ty - c->y + ly;
           const int abs_x = rel_x - 2;
           const int abs_y = rel_y - 2;
-          if (abs_x < 0 || abs_y < 0 || abs_x >= ctx->map->width ||
-              abs_y >= ctx->map->height) {
+          /* FUN_281f_0302 = FUN_137f_000a: the interior test, 1 <= x <
+           * width-1 and 1 <= y < height-1 (independence 4->5: the crown
+           * wagon's Ore / Furs bids 12 / 4). */
+          if (abs_x < 1 || abs_y < 1 || abs_x >= ctx->map->width - 1 ||
+              abs_y >= ctx->map->height - 1) {
             continue;
           }
           if (rel_x < 0 || rel_x > 4 || rel_y < 0 || rel_y > 4) {
@@ -1037,11 +1040,11 @@ int ai_contact_meet_economics_2154(
     (tribe_slot >= 0 && (unsigned)tribe_slot < COLONIZE_COL1_INDIAN_COUNT)
       ? (int)ctx->col1->stuff.tribe_village_counts[tribe_slot]
       : 0;
-  const int diff = (int)ctx->col1->head.difficulty;
-  int diff_div = diff;
-  if (diff_div < 1) {
-    diff_div = 1;
-  }
+  /* The silver bid's divisor is the same DS:0x962a village count (raw
+   * 81844-81846: `(b - 1 & ~-(b == 0)) + 1`, i.e. max(b, 1)), not the
+   * difficulty (DOSBox 2026-10-16, independence 2->3: the gift to San Juan
+   * reads silver bid 20). */
+  const int diff_div = villages > 0 ? villages : 1;
 
   out->bid[0] = (int16_t)(((tech + pop1) * local_6e) / (7 - tech));
   out->ask[0] = (int16_t)((pop1 * pop1 * 4) >> (1 < tech ? 1 : 0));
@@ -1468,6 +1471,9 @@ int ai_contact_visit_demand_allowed(
   const int bvar5 = (over * 4 + word) <= roll;
   const int bvar6 = (local_10 == 0) && bvar5;
   ai_contact_visit_mood_publish(ctx, nation_id, e, brave_id, bvar6);
+  if (nation_id >= 4 && nation_id <= 11 && e >= 0 && e <= 3) {
+    ai_contact_s_visit_mood[nation_id - 4][e].bvar5 = bvar5;
+  }
   return bvar6 ? 0 : 1;
 }
 
@@ -1523,6 +1529,9 @@ int ai_contact_visit_step_roll(
     (void)dos_rng_range(ctx->rng, 0, 8);
   }
   ai_contact_visit_mood_publish(ctx, nation_id, e, brave_id, bvar6);
+  if (nation_id >= 4 && nation_id <= 11 && e >= 0 && e <= 3) {
+    ai_contact_s_visit_mood[nation_id - 4][e].bvar5 = bvar5;
+  }
   return 1 + bvar6;
 }
 
@@ -1635,9 +1644,9 @@ void ai_contact_apply_beg_food(
      * no food at all --- the tribe begs, it does not raid. What it does is
      * multiply the settlement's alarm word by 1.5 (`w += w >> 1`) and add
      * `((difficulty + 1) >> 1) + 1` to the nation alarm, doubled off a
-     * capital. (DOS also halves that add when the upstream "calm enough"
-     * roll passed; that roll is part of the demand/threat selector this
-     * port drives differently, so it is not modelled here.)
+     * capital, then halved when the visit's calm roll bVar5 passed
+     * (raw 87700-87706; independence 4->5: Spain turns a beg away at
+     * Roanoke and the alarm does not move).
      */
     if (target_tribe) {
       const int w = col1_tribe_attitude(target_tribe, e);
@@ -1646,6 +1655,14 @@ void ai_contact_apply_beg_food(
     int d = (((int)ctx->col1->head.difficulty + 1) >> 1) + 1;
     if (capital) {
       d *= 2;
+    }
+    {
+      const AiContactVisitMood* pm =
+        (nation_id >= 4 && nation_id <= 11) ? &ai_contact_s_visit_mood[nation_id - 4][e] : NULL;
+      const int turn = ctx->turn_number ? (int)*ctx->turn_number : -1;
+      if (pm && pm->valid && pm->turn == turn && pm->bvar5) {
+        d >>= 1;
+      }
     }
     ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, -d);
     if (ctx->status && ctx->status_size) {

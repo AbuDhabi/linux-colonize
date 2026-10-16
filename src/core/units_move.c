@@ -678,6 +678,12 @@ combat_entry_resolved:
   const int oy = unit->y;
   /* FUN_281f_0916 = FUN_1427_12f6, 08e4 = 0644, 0948 = 040c (raw 75697-75768). */
   const bool ship = units_is_sea(pool, unit_id);
+  /* Departure pickup (FUN_1427_10be) on the old tile, before 040c moves the
+   * group: sentried units there and riders of other own hulls (DOS
+   * ship-switch quirk). */
+  if (ship) {
+    (void)units_ship_departure_pickup(pool, unit_id, ox, oy);
+  }
   /* FUN_281f_07e0 + 08e4 sorts the destination's existing chain for
    * ships too (FUN_465b_0000 raw 75709-75710), before 0948 relinks arrival. */
   units_tile_stack_sort_at(pool, dest_x, dest_y);
@@ -716,12 +722,6 @@ combat_entry_resolved:
    * (bugs.md #530 S4).
    */
   (void)units_reveal_sight_w(w, unit);
-
-  /* Departure pickup: sentried units on the tile AND passengers of other own
-   * ships still there, first come first served (DOS ship-switch quirk). */
-  if (units_is_sea(pool, unit_id)) {
-    (void)units_ship_departure_pickup(pool, unit_id, ox, oy);
-  }
 
   /*
    * FUN_465b_0000 raw 75788-75791: a European mover (nation < 4) that steps

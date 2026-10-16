@@ -20,6 +20,19 @@ uint16_t dos_rng_next(ColonizeDosRng* rng);
  * recorded by ai_nation_reseed; -1 until then (no reseed). */
 void dos_rng_set_83a6(int32_t seed);
 void dos_rng_reseed_83a6(ColonizeDosRng* rng);
+/* The music pick (FUN_129f_00f6, asm 129f:0138 / 129f:0250) brackets its
+ * draws with FUN_19ef_002c = srand(BIOS tick & 0x7fff) on the one game LCG,
+ * so each pick leaves the gameplay stream at srand(tick) at a wall-clock
+ * moment. dos_rng_tick_reseed queues that reseed for the next draw (an
+ * explicit dos_rng_seed first cancels it). Tick word -1 = wall clock; a fixed
+ * campaign seed fixes it (VR_SEED reads DS:0x83a8 = 100). */
+void dos_rng_set_tick_word(int32_t word);
+void dos_rng_tick_reseed(void);
+/* Golden harness: replay recorded picks. Resets the draw counter; a pick lands
+ * just before draw draw_index[i] (0-based from this call). The array must
+ * outlive the run; n = 0 clears. */
+void dos_rng_schedule_tick_reseeds(const unsigned long* draw_index, int n);
+unsigned long dos_rng_draw_count(void);
 /* Inclusive range [lo, hi], matching FUN_19ef_0032. */
 int dos_rng_range(ColonizeDosRng* rng, int lo, int hi);
 

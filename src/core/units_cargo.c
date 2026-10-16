@@ -486,24 +486,16 @@ static bool units_remove_from_cargo(ColonizeUnit* ship, int pax_id) {
  * many of the tile's loaded units as it has room for, in chain order —
  * exactly like ships picking sentries off a colony square, first come,
  * first served. The rest stay with the remaining ship(s). The port keeps an
- * explicit aboard_ship_id, so the departure pass walks one ascending-id
- * sweep over BOTH groups: sentried land units standing on the departure
- * tile, and passengers riding other own ships still standing there. Each
- * pickup is charged the rider's @UNIT size column, so a Treasure only ever
- * hops to a hull with six free holds (FUN_4720_00e0).
+ * explicit aboard_ship_id, so the walk below covers the hull's own riders,
+ * sentried land units on the tile and riders of other own hulls there.
  */
-/* 10be links each boarder at the temp tile behind the last, and the 040c
- * group move then reverses the chain: the first boarder ends nearest the
- * hull (cargo_ids' last slot), later ones farther out (lower slots). */
-static void units_cargo_last_to_front(ColonizeUnit* ship) {
-  if (!ship || ship->cargo_count < 2) {
-    return;
+/* FUN_1427_04d6 mode 0 rank of a rider: Treasure, then @UNIT size 6..1. */
+static int units_pickup_rank_04d6(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
+  if (u->type_index == UNITS_KIND_TREASURE) {
+    return 7;
   }
-  const int id = ship->cargo_ids[ship->cargo_count - 1];
-  for (int i = ship->cargo_count - 1; i > 0; --i) {
-    ship->cargo_ids[i] = ship->cargo_ids[i - 1];
-  }
-  ship->cargo_ids[0] = id;
+  const ColonizeUnitType* t = units_type(pool, u->type_index);
+  return t && t->space >= 1 && t->space <= 6 ? t->space : 0;
 }
 
 int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int y) {
@@ -511,26 +503,33 @@ int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int 
   if (!pool || !ship || !units_is_sea(pool, ship_id)) {
     return 0;
   }
-  int taken = 0;
   /* "Move to front" (bugs.md): the flagged unit is first in line. */
   int order[COLONIZE_UNITS_MAX];
   int on = 0;
-  if (pool->board_first_slot >= 0 && pool->board_first_slot < COLONIZE_UNITS_MAX) {
-    order[on++] = pool->board_first_slot;
+  const int first = pool->board_first_slot;
+  if (first >= 0 && first < COLONIZE_UNITS_MAX) {
+    order[on++] = first;
   }
   /*
-   * FUN_1427_10be walks the old tile's chain from its `next` end (005c ->
-   * 0002) along `prev` (004a): latest arrival first, and a hull is followed
-   * by its own passengers nearest-first (cargo_ids walked backwards).
-   * DOSBox 1574: a Caravel leaving a tile holding another Caravel with two
-   * Dragoons took the nearer one. Slot order took the other.
+   * DOS-LITERAL FUN_1427_10be raw 8606-8680. 04d6 sorts the tile (hulls on
+   * top, then Treasure, then @UNIT size 6..1, each bucket in chain order),
+   * the hull goes to the -2 chain with a budget of @UNIT cargo minus
+   * +0x3150, and the walk from the head boards every rider that fits.
+   * Riders are not "aboard" anything in DOS, so the walk takes the hull's
+   * own passengers again in chain order and may leave some for the next
+   * hull (independence-seed-100 1->2: at (1,53) Galleon 109 keeps four
+   * Dragoons, takes 58's two, and leaves its Artillery and Colonist; DOSBox
+   * BPM trace 2026-10-16). Chain order: latest arrival first, a hull
+   * followed by its passengers nearest-first.
    */
   {
     int tile[COLONIZE_UNITS_MAX];
     int tn = 0;
     for (int i = 0; i < units_slot_end(pool); ++i) {
       const ColonizeUnit* t = &pool->units[i];
-      if (t->active && t->aboard_ship_id < 0 && t->x == x && t->y == y && t->id != ship_id) {
+      /* The hull itself may already carry its next xy. */
+      if (t->active && t->aboard_ship_id < 0 &&
+          ((t->x == x && t->y == y) || t->id == ship_id)) {
         tile[tn++] = i;
       }
     }
@@ -543,29 +542,44 @@ int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int 
       }
       tile[b + 1] = v;
     }
+    const int from = on;
     for (int k = 0; k < tn && on < COLONIZE_UNITS_MAX; ++k) {
       const ColonizeUnit* t = &pool->units[tile[k]];
-      if (tile[k] != pool->board_first_slot) {
+      if (!units_is_sea(pool, t->id) && tile[k] != first) {
         order[on++] = tile[k];
       }
       for (int c = t->cargo_count - 1; c >= 0 && on < COLONIZE_UNITS_MAX; --c) {
         const ColonizeUnit* p = units_get_const(pool, t->cargo_ids[c]);
         const int ps = p ? (int)(p - pool->units) : -1;
-        if (ps >= 0 && ps != pool->board_first_slot) {
+        if (ps >= 0 && ps != first) {
           order[on++] = ps;
         }
       }
     }
-  }
-  for (int oi = 0; oi < on; ++oi) {
-    const int i = order[oi];
-    if (units_ship_free_passenger_slots(pool, ship_id) <= 0 ||
-        ship->cargo_count >= COLONIZE_UNIT_CARGO_MAX) {
-      break;
+    for (int a = from + 1; a < on; ++a) { /* 04d6 buckets, stable */
+      const int v = order[a];
+      const int r = units_pickup_rank_04d6(pool, &pool->units[v]);
+      int b = a - 1;
+      while (b >= from && units_pickup_rank_04d6(pool, &pool->units[order[b]]) < r) {
+        order[b + 1] = order[b];
+        b--;
+      }
+      order[b + 1] = v;
     }
-    ColonizeUnit* u = &pool->units[i];
-    if (!u->active || u->id == ship_id || units_is_sea(pool, u->id) ||
-        u->nation_id != ship->nation_id || u->aboard_ship_id == ship_id) {
+  }
+  int goods = 0;
+  const int holds = units_goods_hold_count(pool, ship_id);
+  for (int i = 0; i < holds && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+    if (units_unit_hold_amount(ship, i) > 0) {
+      goods++;
+    }
+  }
+  int room = units_ship_capacity(pool, ship_id) - goods;
+  int chosen[COLONIZE_UNIT_CARGO_MAX];
+  int nc = 0;
+  for (int oi = 0; oi < on && nc < COLONIZE_UNIT_CARGO_MAX; ++oi) {
+    ColonizeUnit* u = &pool->units[order[oi]];
+    if (!u->active || units_is_sea(pool, u->id) || u->nation_id != ship->nation_id) {
       continue;
     }
     /*
@@ -576,41 +590,92 @@ int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int 
      */
     const ColonizeUnitType* ut = units_type(pool, u->type_index);
     const int need = (ut && ut->space > 0) ? ut->space : 1;
-    if (need >= 99 || units_ship_free_passenger_slots(pool, ship_id) < need) {
+    if (need >= 99 || need > room) {
+      continue;
+    }
+    if (u->aboard_ship_id == ship_id) {
+      /* Own rider: back on the walk like any other. */
+    } else if (u->aboard_ship_id >= 0) {
+      /* Riding another own ship still on the tile. Only a sentried passenger
+       * transfers; an awake (player-activated) one stays with its ship. */
+      const ColonizeUnit* host = units_get_const(pool, u->aboard_ship_id);
+      if (u->orders != UNITS_ORDER_SENTRY || !host || host->x != x || host->y != y) {
+        continue;
+      }
+    } else if (!units_is_on_map(u) || u->x != x || u->y != y ||
+               u->orders != UNITS_ORDER_SENTRY) {
+      continue; /* sentried land unit standing on the tile */
+    }
+    room -= need;
+    chosen[nc++] = u->id;
+  }
+  /* Own riders the walk left behind wait for the next hull on the tile
+   * (its own 10be takes them), or stand on a land tile. */
+  for (int c = ship->cargo_count - 1; c >= 0; --c) {
+    const int pid = ship->cargo_ids[c];
+    bool kept = false;
+    for (int k = 0; k < nc; ++k) {
+      kept = kept || chosen[k] == pid;
+    }
+    ColonizeUnit* pax = units_get(pool, pid);
+    if (kept || !pax) {
+      continue;
+    }
+    ColonizeUnit* other = NULL;
+    for (int i = 0; i < units_slot_end(pool) && !other; ++i) {
+      ColonizeUnit* o = &pool->units[i];
+      if (o->active && o->id != ship_id && o->aboard_ship_id < 0 && o->x == x && o->y == y &&
+          o->nation_id == ship->nation_id && units_is_sea(pool, o->id) &&
+          o->cargo_count < COLONIZE_UNIT_CARGO_MAX) {
+        other = o;
+      }
+    }
+    if (!other && !units_is_on_map(ship)) {
+      continue; /* nowhere to stand: keep it */
+    }
+    (void)units_remove_from_cargo(ship, pid);
+    if (other) {
+      pax->aboard_ship_id = other->id;
+      other->cargo_ids[other->cargo_count++] = pid;
+    } else {
+      pax->aboard_ship_id = -1;
+      if (pax->aboard_moves >= 0) {
+        pax->moves = pax->aboard_moves;
+      }
+    }
+  }
+  int taken = 0;
+  for (int k = 0; k < nc; ++k) {
+    ColonizeUnit* u = units_get(pool, chosen[k]);
+    if (u->aboard_ship_id == ship_id) {
       continue;
     }
     if (u->aboard_ship_id >= 0) {
-      /* Riding another own ship that is still on the departure tile. Only a
-       * sentried passenger transfers — DOS's pickup takes sentries, and an
-       * awake (player-activated) passenger stays with its own ship. */
-      if (u->orders != UNITS_ORDER_SENTRY) {
-        continue;
-      }
       ColonizeUnit* host = units_get(pool, u->aboard_ship_id);
-      /* FUN_1427_10be also runs on the off-map Europe arrival lane: the
-       * first hull leaving a shared lane can take another hull's sentried
-       * passenger. Tile equality is the gate there too. */
-      if (!host || host->x != x || host->y != y) {
-        continue;
-      }
-      if (!units_remove_from_cargo(host, u->id)) {
+      if (!host || !units_remove_from_cargo(host, u->id)) {
         continue;
       }
       u->aboard_ship_id = ship_id;
       u->x = ship->x;
       u->y = ship->y;
       ship->cargo_ids[ship->cargo_count++] = u->id;
-      units_cargo_last_to_front(ship);
-      taken++;
-    } else {
-      /* Sentried land unit standing on the tile (colony / ocean stack). */
-      if (!units_is_on_map(u) || u->x != x || u->y != y ||
-          u->orders != UNITS_ORDER_SENTRY) {
-        continue;
-      }
-      if (units_board_stacked(pool, u->id, ship_id)) {
-        units_cargo_last_to_front(ship);
-        taken++;
+    } else if (!units_board_stacked_restore(pool, u->id, ship_id)) {
+      continue;
+    }
+    taken++;
+  }
+  /* 10be links each boarder at the temp tile behind the last, and the 040c
+   * group move then reverses the chain: the first boarder ends nearest the
+   * hull (cargo_ids' last slot), later ones farther out (lower slots). */
+  int n = 0;
+  for (int k = nc - 1; k >= 0; --k) {
+    for (int c = 0; c < ship->cargo_count; ++c) {
+      if (ship->cargo_ids[c] == chosen[k]) {
+        const int t = ship->cargo_ids[n];
+        ship->cargo_ids[n] = ship->cargo_ids[c];
+        ship->cargo_ids[c] = t;
+        n++;
+        break;
       }
     }
   }

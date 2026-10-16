@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/dos_rng.h"
 #include "core/game_loop.h"
 #include "core/savegame.h"
 #include "core/screen_geom.h"
@@ -197,6 +198,9 @@ int main(int argc, char** argv) {
     .debug_logs = settings_get()->debug_logs,
     .debug_logs_set = true
   };
+  if (game_cfg.rng_seed_set) {
+    dos_rng_set_tick_word((int32_t)(game_cfg.rng_seed & 0x7fffu)); /* VR_SEED fixed tick */
+  }
 
   ColonizeGameState* game = game_create(&game_cfg);
   if (!game) {

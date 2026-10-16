@@ -20,6 +20,7 @@
 #include <string.h>
 
 #include "core/ai_king.h"
+#include "core/dos_rng.h"
 #include "tests/common/golden_fixture.h"
 
 #define VR_SEED 100u
@@ -218,6 +219,7 @@ int main(int argc, char** argv) {
     golden_close(&fx);
     return 1;
   }
+  dos_rng_set_tick_word(VR_SEED); /* VR_SEED's music-pick tick */
   int ok = 1;
   if (!c->per_turn && fx.orig.head.year != first) {
     fprintf(stderr, "save filename/calendar mismatch near %d\n", first);
@@ -273,6 +275,27 @@ int main(int argc, char** argv) {
         break;
       }
     }
+    /* GOLDEN_IDLE_PICKS="5:120,900;6:42": music picks (dos_rng.h) recorded
+     * for the run into save 5 / 6, as draw indices from that run's start. */
+    unsigned long picks[16];
+    int npicks = 0;
+    {
+      const char* pe = getenv("GOLDEN_IDLE_PICKS");
+      while (pe && *pe) {
+        char* end;
+        const long sv = strtol(pe, &end, 10);
+        if (*end != ':') break;
+        pe = end + 1;
+        while (*pe && *pe != ';') {
+          const unsigned long ix = strtoul(pe, &end, 10);
+          if (end == pe) break;
+          if (sv == year && npicks < 16) picks[npicks++] = ix;
+          pe = *end == ',' ? end + 1 : end;
+        }
+        if (*pe == ';') ++pe;
+      }
+    }
+    dos_rng_schedule_tick_reseeds(picks, npicks);
     int stepped = 1;
     if (year == first + 1 && first == c->min && c->resume_slot >= 0 &&
         !(from_env && *from_env)) {
@@ -294,6 +317,8 @@ int main(int argc, char** argv) {
       stepped = golden_turn(&fx);
       col1_bridge_stamp_autosave_head(&fx.start);
     }
+    fprintf(stderr, "save %d: %lu draws\n", year, dos_rng_draw_count());
+    dos_rng_schedule_tick_reseeds(NULL, 0);
     if (!stepped) {
       ok = 0;
       break;

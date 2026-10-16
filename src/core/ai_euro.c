@@ -1681,6 +1681,8 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
           s_sticky_count = 0;
         }
 
+        if (getenv("PICKCTX"))
+          fprintf(stderr, "ACT n%d u%d t%d @%d,%d draw %lu\n", nation_id, u->id, u->type_index, u->x, u->y, dos_rng_draw_count());
         ai_euro_unit_act(ctx, u, nation_id);
 
         /* An act that only clears an arrived step (479b at its goal) is still
