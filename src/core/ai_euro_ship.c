@@ -579,6 +579,11 @@ int ai_euro_20e6_wagon_village_errand(
           wagon->last_dir = (int8_t)d;
         }
       }
+      /* The step is 27f5's commit first: plan '4', goal = the village (the
+       * DOSBox 6->7 crown wagon keeps '4' over 0a60's '?'). */
+      wagon->col1_ai_plan = 0x34;
+      wagon->goto_x = (int)t->x;
+      wagon->goto_y = (int)t->y;
       const int units_before = units_active_count(ctx->units);
       (void)ai_contact_ai_wagon_village_trade(ctx, ind, nation_id, wagon->id);
       units_465b_0bd1_tail(ctx->units, wagon->id, units_before, false);

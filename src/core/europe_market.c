@@ -306,8 +306,9 @@ static int europe_custom_house_cargo_eligible(int cargo_type) {
    * Lumber deny term is real, but it never applied to the human's Custom
    * House — which is why the real-DOS saves sold lumber. This function is
    * now the AI-only 0636 gate: deny Food/Lumber/Horses/Tools/Muskets; Ore
-   * has an extra deny arm (building 3 present or DS:0x8de4/0x8de6 set)
-   * that is not modelled here — Ore stays allowed.
+   * has an extra deny arm (Armory = building row 3, or the tick's gross
+   * DS:0x8de4 tools / 0x8de6 muskets nonzero) that the Custom House caller
+   * passes in as `ai_ore_denied`; the export-sail caller still allows Ore.
    */
   if (cargo_type == COLONIZE_CARGO_FOOD || cargo_type == COLONIZE_CARGO_LUMBER ||
       cargo_type == COLONIZE_CARGO_HORSES || cargo_type == COLONIZE_CARGO_TOOLS ||
@@ -351,7 +352,8 @@ int europe_custom_house_autosell_ex_w(
   int human_nation,
   EuropeCustomHouseSale* out,
   int out_max,
-  int* out_count
+  int* out_count,
+  bool ai_ore_denied
 ) {
   EuropeScreen* eu = w->europe;
   ColonizeColonyPool* pool = w->colonies;
@@ -407,8 +409,9 @@ int europe_custom_house_autosell_ex_w(
       if (!europe_custom_house_bit_enabled(colony->custom_house_bits, c)) {
         continue;
       }
-    } else if (!europe_custom_house_cargo_eligible(c)) {
-      continue;
+    } else if (!europe_custom_house_cargo_eligible(c) ||
+               (c == COLONIZE_CARGO_ORE && ai_ore_denied)) {
+      continue; /* FUN_364b_0636; Ore arm raw 57131-57141 */
     }
     /* FUN_364b_0688: if (99 < stock) sell stock - 50 (leave 50 in warehouse). */
     if (colony->stock[c] <= 99) {
@@ -525,7 +528,7 @@ int europe_custom_house_autosell_w(
   ColonizeColonyPool* pool = w->colonies;
   ColonizeCol1Save* col1 = w->col1;
 
-  return europe_custom_house_autosell_ex_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(pool), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL), .europe=(EuropeScreen*)(eu)}, colony, human_nation, NULL, 0, NULL);
+  return europe_custom_house_autosell_ex_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(pool), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL), .europe=(EuropeScreen*)(eu)}, colony, human_nation, NULL, 0, NULL, false);
 }
 
 

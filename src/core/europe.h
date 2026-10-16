@@ -829,7 +829,8 @@ int europe_custom_house_autosell_ex_w(
   int human_nation,
   EuropeCustomHouseSale* out,
   int out_max,
-  int* out_count
+  int* out_count,
+  bool ai_ore_denied
 );
 
 /* europe_ai_colony_dump_sell_w -- see docs/europe.md#europe_ai_colony_dump_sell_w */

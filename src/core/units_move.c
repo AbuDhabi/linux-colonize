@@ -402,6 +402,8 @@ bool units_try_move_w(
     if (phantom_defender) {
       combat_set_auto_defender(true);
     }
+    /* 1b0e's entry 0934 sets spent = the PRE-combat type's allotment. */
+    const int attack_pre_max = units_max_mp(pool, unit_id);
     if (reason == COLONIZE_ENTER_COMBAT_NAVAL) {
       won = units_resolve_naval_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(g_units_ff_col1), .col1_ok=((g_units_ff_col1) != NULL), .rng=(ColonizeDosRng*)(rng)}, unit_id, foe);
     } else {
@@ -478,7 +480,12 @@ bool units_try_move_w(
     if (!won) {
       ColonizeUnit* atk_mp = units_get(pool, unit_id);
       if (atk_mp && atk_mp->active) {
-        units_mp_exhaust(pool, atk_mp);
+        /* The spent byte keeps the entry 0934's value through a demotion
+         * (DOSBox independence 5->6: a crown Cavalry beaten to Regulars
+         * saves spent 12, its Cavalry allotment). */
+        atk_mp->moves = atk_mp->nation_id >= 4
+          ? attack_pre_max
+          : units_max_mp(pool, unit_id) - attack_pre_max;
       }
       return false;
     }
