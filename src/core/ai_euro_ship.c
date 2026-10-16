@@ -2006,6 +2006,13 @@ int ai_euro_20e6_unload_mask_snapshot(
    * surviving mark.
    */
   ai_euro_20e6_clear_stale_board_marks(ctx, nation, ship);
+  /* On open water 10be's arm 2 boards every land member of the tile in
+   * 04d6 chain order, so a hull sharing the tile with another re-takes
+   * riders by that order, not by the port's aboard links (DOSBox
+   * 2026-10-16, independence 1->2: French Galleons 58/109 at (1,53)). */
+  if (map_tile_is_water(ctx->map, ship->x, ship->y)) {
+    (void)units_ship_departure_pickup(ctx->units, ship->id, ship->x, ship->y);
+  }
   (void)ai_euro_20e6_transport_assemble(ctx, nation, ship);
   /* asm 0x3693: FUN_1000_8b38 (040c) relinks the -2 chain on the ship's own tile. */
   units_tile_stack_ship_relink(ctx->units, ship->id, false);

@@ -276,15 +276,25 @@ every 200 polls until `COLONY09.SAV` changes, then copy it.
 
 With these, the crown's 4->5 slot makes the same 112 draws as a continuous DOSBox run.
 
-- The music track pick (resident seg 0ac3 in DOSBox, DS:0x9a pool) shares the gameplay LCG: it
-  srands from DS:0x83a8 (100 under VR_SEED), draws `rand(0,4)`/`rand(0,8)` and the tune index,
-  and leaves the stream reseeded. It runs when the sound pump acts (track end or pool change),
-  so its place in the AI turn depends on wall-clock time: two continuous DOSBox replays of 5->6
-  reseed at different draws (after the Cavalry fight in one, after the old Man-O-War's act in
-  the other). The archive is one such realisation; DOSBox's own continuous 3->5 replay already
-  differs from it in crown gold (761 vs 797) for this reason. Exact archive equality past the
-  first pick that lands inside an AI turn is not reachable deterministically; compare draw
-  streams up to the next `state == 100` reseed instead.
+- The music pick (FUN_129f_00f6) brackets its draws with FUN_19ef_002c = srand(BIOS tick &
+  0x7fff) (asm 129f:0138 / 129f:0250) on the one game LCG; VR_SEED's tick reads DS:0x83a8 = 100.
+  So a pick leaves the gameplay stream at srand(100) at a wall-clock moment (track end). Port:
+  `dos_rng_tick_reseed` (called by the sound pump) queues that reseed for the next draw; an
+  explicit reseed cancels it. Harness: `GOLDEN_IDLE_PICKS="5:334;6:12,90"` replays picks as draw
+  indices from the start of that save's run (it prints `save N: D draws`). A brute-force search
+  (one pick per position, saves 1-5, 2026-10-16) moved no save by more than 3 bytes, so the
+  residues there are deterministic. Search again when a save's residue looks like a shifted
+  draw stream.
+
+- 28c8's forest -10 (raw 13119-13122) reads `local_32` ([bp-0x30]), written only by the
+  food-emergency arm (asm 15eb:2ae7). Outside an emergency it is stack residue. DOSBox (BP at
+  e0f:28c8 and e0f:2e9e, word SS:SP-0x32 at entry): inside 5952 it is 0x23ec after a 0c04 ledger
+  refresh and 0x12 after a 0c36 set-job (178f unseat, indoor trial loop), so the -10 hits only
+  then. Port: `s_28c8_l32`. This fixed Roanoke (Fur 6 beats Tobacco 4). The indoor arm's field
+  commit is a fresh mode -1 call (not the -2 probe's result), and it stamps no owner (year_1567).
+- The Euro rank table DS:0x917c is not saved. After the in-game load, DOS clears DS:0x829 at the
+  end of the resumed slot, so the next day top refreshes it; `turn_end_from_slot` now clears the
+  port's resume flag. France's St. Eustatius used zero ranks and lost its Statesman.
 
 - 20e6's LAB_4d2e tail parks an armed hull (flag bit0) or land fighter (bit2) on its own goal
   tile when outside a colony and alone (plan 'B' / 'e', raw 88987-89009); the port had read
@@ -293,25 +303,39 @@ With these, the crown's 4->5 slot makes the same 112 draws as a continuous DOSBo
   militia pick and scores the phantom; beating a real defender standing in a colony never takes
   it (only beating the militia does). An AI wagon stepping onto a village trades (4528 code 1).
 
-State 2026-10-15 late (continuous from START_SAVE): saves 1-8: 9, 33, 23, 15, 38, 52, 121, 957
-diffs. The crown's 4->5 slot matches DOS draw for draw; 5->6 matches through the first music
-reseed.
+- 10be re-walks the tile (DOSBox BPM trace on the lane units, 2026-10-16): riders are not
+  "aboard" in DOS, so the acting hull's 10be (both the departure and the 20e6 LAB_3558 call at
+  asm 0x3609) boards land units in 04d6 order (hulls, then Treasure, then size 6..1, each in
+  chain order, a hull followed by its riders nearest-first) into an empty hold, its own riders
+  included. A shared open-water tile can therefore swap riders between hulls: at (1,53) French
+  Galleon 109 kept four Dragoons, took 58's two and left its Artillery and Colonist to 58.
+  `units_ship_departure_pickup` does this walk; the mover now calls it before the 040c relink.
+- 20e6's explore-fatigue bump (+0x3154) tests iStack_14 (FUN_521d_0600), not iStack_6a; the
+  labor-loop re-entry scans with iStack_6a forced on (`Ai20e6Unit.prio14`).
+- FUN_3844_0442 (rival independence bands etc.) runs right after the calendar step, before the
+  day top (raw 6459-6461), i.e. after the human's autosave; the port ran it in the KING step.
+
+- The REF hull is created on the map (095c at x,y), and its 0948 -> 07a0 -> 13f1_02f8 reveal
+  stamps the crown on the landing colony and its units (DOSBox BPM on Bahia's
+  visible_to_euro[0]). The landed troops are created off-map and reveal nothing.
+- After the declaration DOS sets the crown slot's `control` to 1 and withdraws the others, so the
+  save export's "crown" test (skip the synthesized owner vis bit) now names the King's slot.
+- 2154's silver bid divides by max(DS:0x962a[tribe], 1) (village count, as the horse bid),
+  not the difficulty (DOSBox: San Juan's gift reads silver bid 20).
+
+- FUN_5fef_1b0e's capture tail (OVL17 asm 0x2f17-0x2f43) toggles one row: if the captor's
+  row toward the loser has WAR it is cleared, else the loser's row gains WAR (DOSBox BPM: the
+  crown takes a Dutch colony and its 0x22 becomes 0x20). FUN_465b_0000 opens a war only out of
+  a treaty bit (raw 75567-75593); an attack with no PEACE either way leaves the bytes alone.
+- 3844_00f2's drydock tick (raw 58331-58344) counts +0x315a up the same day; the port's
+  "skip the damage turn" grace tick was invented (bugs.md note) and is gone.
+
+State 2026-10-16 (continuous from START_SAVE): 0 -> 1 -> 2 -> 3 -> 4 byte-identical; saves 5-8:
+19, 37, 106, 942 field diffs. Save 5 residue: crown Man-O-War goal binding (DOS's crown goal table
+holds CONTACT goals the port lacks, e.g. (42,52), (50,53), (44,55), (38,31); trace pending), crown
+gold +40 / Tools ledger +36, crown liberty_bells_last_turn (DOS 0), two Indian bytes.
 
 ## Open
 
-- **START_SAVE -> 000001** (9 simulation diffs). Roanoke (13) and St. Eustatius (19, French) 5952 job
-  placement (28c8): DOS keeps St. Eustatius' slot 3 as Statesman (the port moves it to fishing,
-  which also costs France 3 bells in save 2); Roanoke swaps trapper/lumberjack.  Port candidate
-  trace narrows Roanoke: slot 5's unrestricted pass elects Tobacco on a 4-yield plot, trips the
-  plentiful-food `<5` bad-winner exit, then the forced-lumber arm seats that same free colonist;
-  DOS instead finishes with the original Trapper in slot 5 and Lumberjack in slot 8.  The raw
-  terrain/yield result is not the difference (the Trapper's saved south Grassland plot really
-  has zero fur yield); the remaining discrepancy is placement control/ledger residue around
-  LAB_178f -> LAB_17a9, not a missing terrain yield.
-- **French galleon passengers on lane arrival (000001 -> 000002).** Lane 229 chain 75, 74, 147,
-  151, 158, 159, 58, 90, 82, 109. DOS ends with galleon 109 carrying the six Dragoons and galleon
-  58 carrying Artillery 147 + Colonist 151, so 58 colony-sails ('4') to (22,49). The port gives
-  58 two Dragoons; it wanders. The 10be walk order/predicate needs a trace (BPM on the units' +8
-  order byte).
 - France and Spain each buy an extra Privateer in the port (Spain gold 0 vs 1908); recheck.
 - Wartime bells still accrue up front (`turn_run_nation_ticks`), not per colony.

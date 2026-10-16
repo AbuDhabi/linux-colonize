@@ -1267,9 +1267,11 @@ static void ai_euro_20e6_explorer_flag(ColonizeTurnContext* ctx, ColonizeUnit* u
       s->home_colony >= 0 && s->home_dist <= 8 && s->home_cid == s->cid) {
     ai_euro_20e6_origin_set(u, s->home_colony);
   }
-  /* FUN_521d_0600 composite priority must be non-zero (iStack_14). */
+  /* FUN_521d_0600 composite priority (iStack_14, 20e6 prologue), computed for
+   * every unit; iStack_6a needs it non-zero. */
+  s->prio14 = ai_goals_composite_unit_priority_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL)}, s->nation, u->x, u->y, t, u->profession, s->turn, colonies_count_for_nation(ctx->colonies, s->nation));
   if (ex) {
-    const int prio = ai_goals_composite_unit_priority_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL)}, s->nation, u->x, u->y, t, u->profession, s->turn, colonies_count_for_nation(ctx->colonies, s->nation));
+    const int prio = s->prio14;
     if (prio == 0) {
       ex = 0;
     }
@@ -1633,7 +1635,10 @@ static int ai_euro_land_explore_scan_target(
    * local_12 = −0x6168[cid]*8 + that counter. Both terms live now
    * (s_euro_rival_strength writer / ai_euro_s_20e6_explore_fatigue).
    */
-  if (s.explorer && ai_euro_20e6_hold_scratch(u)[0] < 0x7f) {
+  /* The bump tests iStack_14, not iStack_6a: the labor-loop re-entry
+   * (force_explorer) scans without it (independence 1->2, Spanish
+   * colonist at (49,25)). */
+  if (s.prio14 != 0 && ai_euro_20e6_hold_scratch(u)[0] < 0x7f) {
     ai_euro_20e6_hold_scratch(u)[0]++;
   }
   const int local_12 = ai_euro_20e6_local12(ctx, u, nation_id, s.cid);
@@ -4120,13 +4125,23 @@ void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int t
        * a party, since this specific path is never a negotiated/expected
        * declaration.
        */
-      ai_diplo_declare_war_ctx(ctx, u->nation_id, f->nation_id);
-      /* Declare refused (Franklin no-op): no warless attack. */
-      if (!ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id) &&
-          !units_type_is_privateer(units_type(ctx->units, u->type_index))) {
-        return;
+      /* DOS-LITERAL FUN_465b_0000 raw 75567-75593: the war band runs only out
+       * of a treaty (0x40 either way). Without one the attack goes ahead
+       * and no relation bit changes (independence 4->5: after its capture
+       * toggle cleared WAR toward the Dutch, the crown's Man-O-War attacks
+       * and its row stays 0x20). */
+      const bool treaty =
+        ((ai_diplo_read(ctx->col1, u->nation_id, f->nation_id) |
+          ai_diplo_read(ctx->col1, f->nation_id, u->nation_id)) & AI_DIPLO_PEACE) != 0;
+      if (treaty) {
+        ai_diplo_declare_war_ctx(ctx, u->nation_id, f->nation_id);
+        /* Declare refused (Franklin no-op): no warless attack. */
+        if (!ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id) &&
+            !units_type_is_privateer(units_type(ctx->units, u->type_index))) {
+          return;
+        }
       }
-      if (ctx->human_nation >= 0 && ctx->human_nation < 4 &&
+      if (treaty && ctx->human_nation >= 0 && ctx->human_nation < 4 &&
           (u->nation_id == ctx->human_nation || f->nation_id == ctx->human_nation) &&
           ctx->status && ctx->status_size > 0) {
         PopupMsgTokens tok = {0};

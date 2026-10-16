@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "core/bytes.h"
+#include "core/dos_rng.h"
 #include "core/gsound_vm.h"
 #include "core/strutil.h"
 #include "platform/diagnostics.h"
@@ -801,11 +802,9 @@ static int sound_tune_to_id(int tune) {
  * DOS draws the tune with FUN_19ef_0032(lo, hi) — the ordinary game RNG
  * (FUN_1d1d_0e04) — but brackets the whole pick with FUN_19ef_002c
  * (asm 129f:0138 and 129f:0250), which ignores its argument and reseeds from
- * the BIOS tick (FUN_19ef_0008 -> FUN_1c0c_0012 -> srand). So the music pick
- * is deliberately wall-clock random and neither reads nor perturbs a
- * reproducible game stream: routing it through dos_rng would be *less*
- * faithful, not more, besides running the sim RNG from the audio thread.
- * A private LCG is the right stand-in (smell_audit_2026-09-09 #102).
+ * the BIOS tick (FUN_19ef_0008 -> FUN_1c0c_0012 -> srand). The tune is
+ * wall-clock random (private LCG here), but the trailing reseed leaves the one
+ * game LCG at srand(tick): sound_pump queues it via dos_rng_tick_reseed.
  */
 static uint32_t sound_pick_rand(uint32_t n) {
   g_sound.pick_rng = g_sound.pick_rng * 1103515245u + 12345u;
@@ -918,6 +917,7 @@ static void sound_pump_unlocked(void) {
       return;
     }
     id = sound_pick_next_tune_id();
+    dos_rng_tick_reseed(); /* asm 129f:0250 FUN_19ef_002c */
   }
   g_sound.current_id = id;
   sound_dispatch_gated_unlocked(id);

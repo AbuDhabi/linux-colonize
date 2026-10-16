@@ -37,6 +37,8 @@ comparing golden output.
 | `AI_5952_INDOOR` | `src/core/ai_euro.c` (`ai_euro_5952_indoor_pass_enabled`) | **behaviour** | `=0` disables the DOS-literal `FUN_5952_035e` indoor-workplace pass (raw 94784-94860) in the AI colony tick and restores the pre-2026-09-17 "leftovers" field stand-in | on (DOS pass) |
 | `AI_5952_BUILD_TRACE` | `src/core/ai_euro.c` (`ai_euro_5952_set_unit_project`) | trace | `=1` prints every UNIT project the `FUN_5952_035e` construction cascade picks (Wagon Train / Galleon / Privateer / Frigate / Artillery) with its raw code | off |
 | `AI_28C8_TRACE` | `src/core/ai_euro_colony_jobs.c` (`ai_euro_28c8_score_full`) | trace | `=1` prints every 28c8 job search (colony, slot, restriction, winning job/plot, yield, score) and the 5952 indoor election (per-job scores, field score, winner, local_1b0 rank byte) | off |
+| `AI_28C8_CAND` | `src/core/ai_euro_colony_jobs.c` (`ai_euro_28c8_score_full`) | trace | `=1` prints every scored 28c8 candidate (plot, job, yield, score, modelled local_32 residue) | off |
+| `PICKCTX` | `src/core/ai_euro.c` (`ai_euro_dispatcher_turn_unit_waves`) | trace | `=1` prints each Euro unit act with the DOS RNG draw count of the current golden run (`dos_rng_draw_count`), for placing music-pick reseeds | off |
 | `WOI_DEBUG` | `tests/golden/test_woi_ref01.c:172` | test-only | Prints per-turn WoI status line during `golden_woi_ref01` | off |
 
 `diag_init` also reads `HOME` / `XDG_DATA_HOME` (`src/platform/diagnostics.c:181-182`)

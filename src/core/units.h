@@ -308,6 +308,8 @@ void units_set_nation(ColonizeUnit* unit, int nation_id);
 
 bool units_despawn(ColonizeUnitPool* pool, int unit_id);
 int units_id_at(const ColonizeUnitPool* pool, int x, int y);
+/* The unit's DOS record index (rank among active slots, the save order), -1 if none. */
+int units_dos_index(const ColonizeUnitPool* pool, int unit_id);
 /* First on-map unit at (x,y) that is neither except_unit_id nor
  * except_nation_id — i.e. "is this tile still contested". Colony-capture
  * call sites must check this before flipping ownership: a won combat only

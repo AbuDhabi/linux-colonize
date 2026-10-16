@@ -411,6 +411,13 @@ void turn_run_human_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out
   const int n = ctx ? ctx->human_nation : -1;
   if (!ctx || !ctx->col1_ok || !ctx->col1 || n < 0 || n >= 4 ||
       ctx->col1->head.game_options.woi) {
+    if (ctx && ctx->col1_ok && ctx->col1 && n >= 0 && n < 4) {
+      /* FUN_3844_00f2 raw 58382 `*(DS:0x84fc + 0xe) = 0` runs in the human
+       * slot while DS:0x84fc still holds the crown's record during the war
+       * (DOSBox BPM, independence 4->5: written from the Dutch slot), so the
+       * crown's last-turn bells read 0 at every autosave. */
+      ctx->col1->nation[ai_king_crown_nation_col1(ctx->col1, n)].liberty_bells_last_turn = 0;
+    }
     turn_run_colony_eot(ctx, out);
     return;
   }

@@ -320,6 +320,7 @@ typedef struct Ai20e6Unit {
   int act_state;  /* unit+0x314c == ColonizeUnit.orders */
   int order_code; /* unit+0x314b */
   int explorer;   /* iStack_6a */
+  int prio14;     /* iStack_14 = FUN_521d_0600 */
   int turn;
   int year;
   int woi;

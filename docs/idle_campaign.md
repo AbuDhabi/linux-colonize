@@ -44,6 +44,7 @@ The run takes about 1.5 s. `%d` takes the year, and the dumps are written only f
 mismatch or are missing from the archive. Diff field by field with a recursive JSON diff
 (show `*_hex` blobs as differing byte offsets); byte offsets alone are useless.
 `GOLDEN_IDLE_FROM=<save>` starts from another save, for example a DOSBox from-load autosave.
+`GOLDEN_IDLE_PICKS="6:353;7:361"` replays wall-clock music-pick reseeds (srand(tick) on the game LCG) before those draw indices of the run into saves 6 and 7 (dos_rng.h; docs/idle_independence.md).
 Without `GOLDEN_IDLE_KEEP_GOING` the run stops at the first mismatch or missing year.
 
 Single-year transitions (`golden_idle_campaign Y Y+1` from the archived Y) are not a gate. The

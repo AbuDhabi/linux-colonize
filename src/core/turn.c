@@ -561,6 +561,10 @@ static void turn_advance_day(ColonizeTurnProcessor* proc, ColonizeTurnContext* c
     ctx->col1->head.year = *ctx->game_year;
     ctx->col1->head.autumn = *ctx->game_autumn;
   }
+  /* raw 6459-6461: FUN_281f_061e = FUN_3844_0442 follows the calendar step
+   * every day, before the next day top, so it reads the human's autosaved
+   * state (independence 1->2: Spain's rebel band stays 44). */
+  turn_run_year_end_chrome(ctx, &proc->result);
 }
 
 COLONIZE_INTERNAL void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
@@ -846,7 +850,6 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
       proc->show_indicator = false;
       turn_set_active_nation(ctx, ctx->human_nation);
       ai_king_nation_turn_2424(ctx);
-      turn_run_year_end_chrome(ctx, &proc->result);
       /*
        * FUN_38fd_0058 runs as the first act of each nation's own 5e52 (after
        * the reseed, before immigration): AI slots in turn_run_ai_nation_eot,
@@ -1054,6 +1057,8 @@ ColonizeTurnResult turn_end_from_slot(ColonizeTurnContext* ctx, int slot) {
   }
   while (turn_processor_advance(&proc, ctx)) {
   }
+  /* DS:0x829 is clear by now, so the next day top runs 00f8 (rank refresh). */
+  turn_rank_resume_loaded = false;
   return proc.result;
 }
 

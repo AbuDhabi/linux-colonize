@@ -133,6 +133,7 @@ typedef struct AiContactMeetEcon2154 {
 typedef struct AiContactVisitMood {
   int valid;
   int bvar6;
+  int bvar5; /* FUN_5bfb_022e bVar5, the calm roll (raw 87617) */
   /*
    * FUN_5bfb_022e `bVar7` (viceroy_unpacked_2.c raw 87687): set ONLY by the
    * food-BEG-taken arm (`local_c == 2`), which also forces bVar6 true, so the

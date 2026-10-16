@@ -1010,18 +1010,12 @@ int units_tick_ship_build_ready(
       continue;
     }
     /*
-     * bugs.md ("Ships damaged don't get a timeout. They should. It is AT
-     * LEAST one turn."): the turn a ship is damaged is not a repair turn.
-     * A Caravel victor presets remaining = 2 and a ship parked on a colony
-     * tile counts +2, so without this the whole repair landed inside the
-     * same end-of-turn the combat happened in and the player never saw a
-     * damaged ship. repair_pending 2 = damaged this turn; the first tick
-     * downgrades it to 1 and counts nothing.
+     * DOS-LITERAL FUN_3844_00f2 raw 58331-58344: no grace tick. A hull the
+     * AI damages before this nation's EOT counts the same day (independence
+     * 4->5: the crown damages the Dutch Galleon, which docks at 2). The
+     * player's "at least one turn" follows from the order: the human's own
+     * fights come after its EOT, so their first tick is the next turn.
      */
-    if (u->repair_pending > 1) {
-      u->repair_pending = 1;
-      continue;
-    }
     if (u->col1_counter16 < 255) {
       u->col1_counter16++;
     }

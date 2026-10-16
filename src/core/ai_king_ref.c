@@ -940,6 +940,14 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
         /* DOS-LITERAL raw 74142: caseD_1 = FUN_1427_0992(hull, param_1), the
          * target nation's vis bit only (bugs.md #878 lead). */
         ship->col1_vis_mask |= (uint8_t)(1u << w->human);
+        /* 095c places the hull on the map, and its 0948 -> 07a0 -> 13f1_02f8
+         * reveal stamps the crown on what the hull sees (DOSBox BPM on
+         * Bahia's visible_to_euro[0], independence 2->3: written from
+         * c15:035e under c4b:07ff while the hull's own nibble is still 0). */
+        {
+          const ColonizeWorld rw = world_from_turn_ctx(ctx);
+          (void)units_reveal_sight_w(&rw, ship);
+        }
         landed = true;
         exhaust = false;
         /* @INVASION (thin 1528 announce; VGA chrome PARKED). */

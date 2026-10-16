@@ -505,6 +505,7 @@ colonize_add_test(NAME smoke_pick_music
     src/core/pick_music.c
     src/core/popup.c
     src/core/sound.c
+    src/core/dos_rng.c
     src/core/gsound_vm.c
     src/core/fb.c
     src/core/font.c
@@ -1107,6 +1108,7 @@ colonize_add_test(NAME smoke_sound
   SOURCES
     tests/smoke/test_sound.c
     src/core/sound.c
+    src/core/dos_rng.c
     src/core/gsound_vm.c
     src/platform/diagnostics.c
     src/core/strutil.c

@@ -240,6 +240,29 @@ static void ai_euro_28c8_env(
  * one of the −1 / −2 modes: the search is then confined to that one field
  * job. `in_ai_tick` is DS:0x35e (1 inside FUN_5952_035e).
  */
+/*
+ * FUN_15eb_28c8 local_32 ([bp-0x30], asm 15eb:2ae7 the only write) is the
+ * terrain class the food-emergency arm reads; the non-emergency tail's forest
+ * -10 (raw 13119-13122) reads the same word, so outside an emergency it sees
+ * stack residue. Inside FUN_5952_035e every 28c8 call sits at one depth and
+ * the word is whatever the caller's previous thunk left there (DOSBox
+ * 2026-10-16, START_SAVE -> 000001, all Spanish colonies): 0x23ec after a
+ * FUN_281f_0c04 ledger refresh, 0x12 after a FUN_281f_0c36 set-job (the 178f
+ * unseat, the indoor arm's trial loop). s_28c8_l32 carries it while the tick
+ * runs; AI_28C8_L32_OFF elsewhere (other callers keep the candidate-terrain
+ * rule below).
+ */
+#define AI_28C8_L32_OFF (-1)
+#define AI_28C8_L32_LEDGER 0x23ec
+#define AI_28C8_L32_SETJOB 0x12
+static int s_28c8_l32 = AI_28C8_L32_OFF;
+
+static void ai_euro_28c8_l32_mark(int v) {
+  if (s_28c8_l32 != AI_28C8_L32_OFF) {
+    s_28c8_l32 = v;
+  }
+}
+
 static int ai_euro_28c8_score_full(
   const ColonizeTurnContext* ctx,
   const ColonizeColony* col,
@@ -383,6 +406,7 @@ static int ai_euro_28c8_score_full(
             }
             score <<= 5;
             if (score != 0) {
+              ai_euro_28c8_l32_mark(terr); /* asm 15eb:2ae7 */
               int pen = map_dos_terr_labor_penalty_byte(terr);
               if (forest && lumber_idle) {
                 pen += 0x18;
@@ -482,17 +506,21 @@ static int ai_euro_28c8_score_full(
             m = 0;
           }
           score = (m + w4) * score;
-          /* DOS local_32 is written only in the food-emergency arm above.
-           * In an AI tick that arm is off, so this non-emergency tail reads
-           * stale stack data rather than the candidate's terrain. The
-           * 1546→1547 indoor probe leaves it outside the forest interval;
-           * testing the candidate terrain here wrongly deducts 10 from Fur
-           * and elects a Farmer. Keep human scoring's existing terrain rule
-           * until its stack residue has a separate trace. */
-          if (cargo != COLONIZE_CARGO_LUMBER && !in_ai_tick && forest && lumber_idle) {
-            score -= 10; /* raw 13124-13130 */
+          /* DOS local_32 is written only in the food-emergency arm above, so
+           * this tail reads stack residue (s_28c8_l32). Outside the 5952 tick
+           * the residue is untraced; human scoring keeps the candidate-terrain
+           * rule there. */
+          const bool l32_forest = s_28c8_l32 != AI_28C8_L32_OFF
+                                    ? s_28c8_l32 > 7 && s_28c8_l32 < 0x18
+                                    : !in_ai_tick && forest;
+          if (cargo != COLONIZE_CARGO_LUMBER && l32_forest && lumber_idle) {
+            score -= 10; /* raw 13119-13122 */
           }
         }
+      }
+      if (getenv("AI_28C8_CAND")) {
+        fprintf(stderr, "  cand col %d slot %d tile %d job %d yld %d score %d l32 %d\n", col->id,
+                colonist_slot, ti, job, raw_yield, score, s_28c8_l32);
       }
       if (score > out_best->score) {
         out_best->score = score;
@@ -500,7 +528,11 @@ static int ai_euro_28c8_score_full(
         out_best->tile = ti;
         out_best->yield = raw_yield;
         const size_t plot_i = (size_t)ty * (size_t)ctx->map->width + (size_t)tx;
-        if (restrict_job >= -1 && current_job < 0 && ctx->map->layer2 && ctx->map->layer3 &&
+        /* Fitted (1492 campaign): DOS 06d2 itself skips the stamp while the
+         * trial flag DS:0x34d is set. The 5952 indoor arm's mode -1 re-score
+         * (DS:0x35e = 1) stamps nothing (year_1567). */
+        if (restrict_job >= -1 && current_job < 0 && (!in_ai_tick || restrict_job >= 0) &&
+            ctx->map->layer2 && ctx->map->layer3 &&
             (ctx->map->layer2[plot_i] & 0x03u) == 0 &&
             ((ctx->map->layer2[plot_i] & MAP_LAYER2_PURCHASED) != 0 ||
              (ctx->map->layer3[plot_i] >> 4) < 4)) {
@@ -1340,9 +1372,17 @@ static void ai_euro_5952_indoor_pass(
     if (field_score < best) {
       commit_job = best_job; /* raw 94858 `if (*0x8dc0 < best)` */
     } else {
-      /* raw 94861 `FUN_1000_8d5e(slot, 0xffff)` — mode −1 commits the plot. */
-      if (probe_ok && probe.yield != 0 &&
-          colonies_assign_field_w(&world, col->id, s, probe.tile, probe.job)) {
+      /* raw 94861 `FUN_1000_8d5e(slot, 0xffff)` — mode −1 re-scores and
+       * commits the plot. The trial loop's last FUN_281f_0c36 left 0x12 in
+       * 28c8's local_32, so this search can elect a different plot than the
+       * −2 probe (DOSBox 2026-10-16). */
+      ai_euro_28c8_l32_mark(AI_28C8_L32_SETJOB);
+      AiEuro28c8JobCandidate pick;
+      const int pick_ok =
+        ai_euro_28c8_score(ctx, col, s, col->colonists[s].profession, &pick);
+      ai_euro_28c8_l32_mark(AI_28C8_L32_LEDGER); /* the slot's closing FUN_281f_0c04 */
+      if (pick_ok && pick.yield != 0 &&
+          colonies_assign_field_w(&world, col->id, s, pick.tile, pick.job)) {
         placed[s] = true;
         continue;
       }
@@ -1380,6 +1420,7 @@ static void ai_euro_5952_indoor_pass(
     if (workplace >= 0 && colonies_assign_workplace(pool, col->id, s, workplace)) {
       placed[s] = true;
     }
+    ai_euro_28c8_l32_mark(AI_28C8_L32_LEDGER); /* the slot's closing FUN_281f_0c04 */
   }
 }
 
@@ -1519,6 +1560,7 @@ static bool ai_euro_5952_forced_lumberjack(
         any = true; /* iStack_8c = 1, raw 94676 */
         /* FUN_281f_0c04 — the refresh that ends the loop. */
         ai_euro_5952_ledgers(&world, pool, col, col1, gross, demand);
+        ai_euro_28c8_l32_mark(AI_28C8_L32_LEDGER);
       }
     }
   }
@@ -1715,6 +1757,7 @@ COLONIZE_INTERNAL void ai_euro_5952_178f_unseat(
   }
   col->colonists[s].field_job = -1;
   col->colonists[s].building_type = -1;
+  ai_euro_28c8_l32_mark(AI_28C8_L32_SETJOB); /* 0c36(slot, 0x12) */
 }
 
 /* ===== FUN_5952_035e construction-project cascade (asm 5952:21d4-5952:2747) ===== */
@@ -2991,6 +3034,7 @@ static void ai_euro_colony_tick_run(
     const int food_stock = col->stock[COLONIZE_CARGO_FOOD];
     /* DOS `goto LAB_5952_178f`: ends the whole placement section, not a pass. */
     bool section_done = false;
+    s_28c8_l32 = AI_28C8_L32_LEDGER; /* FUN_281f_0c04 after the unseat-all loop */
 
     /* local_80/local_1e/local_7e — see ai_euro_5952_placement_gate (bugs.md
      * #1028) just above this function. */
@@ -3061,6 +3105,7 @@ static void ai_euro_colony_tick_run(
           food_have += best.yield;
         }
       }
+      ai_euro_28c8_l32_mark(AI_28C8_L32_LEDGER); /* FUN_281f_0c04 */
     }
 
     /* Pass 2 ×2 — everyone else, best job wins; raw 94613-94614 stop. */
@@ -3125,6 +3170,7 @@ static void ai_euro_colony_tick_run(
             food_have += best.yield;
           }
         }
+        ai_euro_28c8_l32_mark(AI_28C8_L32_LEDGER); /* FUN_281f_0c04 */
       }
     }
 
@@ -3258,6 +3304,7 @@ static void ai_euro_colony_tick_run(
         if (colonies_assign_field_w(&world, col->id, s, best.tile, best.job)) {
           placed[s] = true;
         }
+        ai_euro_28c8_l32_mark(AI_28C8_L32_LEDGER); /* FUN_281f_0c04 */
       }
     }
 
@@ -3342,6 +3389,7 @@ static void ai_euro_colony_tick_run(
       ai_euro_5952_seed_horses(ctx, col);
     }
   }
+  s_28c8_l32 = AI_28C8_L32_OFF;
 }
 
 /* Placement-stage seam for isolated 28c8/5952 tests: skips the counters,

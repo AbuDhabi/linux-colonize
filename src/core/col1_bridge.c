@@ -1,3 +1,4 @@
+#include "core/ai_king.h"
 #include "core/col1_bridge.h"
 
 #include <stdio.h>
@@ -2774,7 +2775,14 @@ bool col1_bridge_capture_w(
          * Europe sentinel units (x/y >= 200) carry vis 0 in every original
          * DOS save (french-campaign survey 2026-09-03). */
         const int nat = src->nation_id & 0xF;
-        const bool crown = nat >= 0 && nat < 4 && save->player[nat].control == 2;
+        /* The crown is the withdrawn slot until the declaration; after it DOS
+         * sets that slot's control to 1 (AI) and withdraws the others
+         * (independence-seed-100 000003), so name it by the King's slot. */
+        const bool crown =
+          nat >= 0 && nat < 4 &&
+          (ai_king_independence_declared(save)
+             ? nat == ai_king_crown_nation_col1(save, (int)save->head.human_player)
+             : save->player[nat].control == 2);
         uint8_t vis = (uint8_t)(src->col1_vis_mask & 0x0Fu);
         if (src->x >= 200 || src->y >= 200) {
           vis = 0;
