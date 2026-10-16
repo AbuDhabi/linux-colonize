@@ -298,6 +298,22 @@ bool turn_rotation_lasting_step_w(
 }
 
 /*
+ * FUN_1427_08ea, the unit becoming active: relink to the top of its own tile
+ * (0362 to the same x/y) and DS:0x5392 = unit. DOSBox independence 2->3: the
+ * Merchantman activated at the turn start ends above the Fortified Galleon,
+ * and the declaration then spends every unit, so it stays there.
+ */
+void turn_idle_human_activate(ColonizeUnitPool* pool, ColonizeUnit* u) {
+  if (!pool || !u) {
+    return;
+  }
+  pool->selected_id = u->id;
+  if (u->aboard_ship_id < 0 && units_is_on_map(u)) {
+    units_tile_stack_arrive(pool, u->id);
+  }
+}
+
+/*
  * The idle player's human turn: the rotation brings every unit up in turn,
  * lasting orders run, and Space (No Orders) spends each unit that waits.
  * independence-seed-100 000001 -> 000002: the Dutch Fortify ships save as
@@ -317,6 +333,7 @@ void turn_idle_human_rotation_w(const ColonizeWorld* w, int human_nation) {
     if (!u) {
       break;
     }
+    turn_idle_human_activate(pool, u);
     if (turn_rotation_lasting_step_w(w, u, NULL, NULL)) {
       u->moves = 0; /* Space */
     }

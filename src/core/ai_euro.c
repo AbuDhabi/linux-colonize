@@ -1668,6 +1668,7 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
         const int before_moves = u->moves;
         const int before_x = u->x;
         const int before_y = u->y;
+        const int before_orders = u->orders;
         /* Raw 93247-93257: same id as DS:0x2d12 -> ++DS:0x2d14; past 0x14
          * FUN_281f_0934 exhausts MP (the act still runs) so the has-MP test
          * ends this unit's drain. 0x2d14 resets only on a new unit id. */
@@ -1682,8 +1683,12 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
 
         ai_euro_unit_act(ctx, u, nation_id);
 
+        /* An act that only clears an arrived step (479b at its goal) is still
+         * progress: DOS drains the unit on (independence 5->6: the crown's
+         * Man-O-War arrives, clears its step, then parks in one drain). */
         const int progressed =
-          !u->active || u->moves < before_moves || u->x != before_x || u->y != before_y;
+          !u->active || u->moves < before_moves || u->x != before_x || u->y != before_y ||
+          u->orders != before_orders;
         ai_euro_3180_euro_side(ctx, u, nation_id, progressed,
                                u->x != before_x || u->y != before_y);
         /*

@@ -296,6 +296,8 @@ bool turn_rotation_lasting_step_w(
   const ColonizeMsgCatalog* messages
 );
 /* Headless idle human turn: cycle every unit, Space on each that waits. */
+/* FUN_1427_08ea: make `u` the active unit, relinked to the top of its tile. */
+void turn_idle_human_activate(ColonizeUnitPool* pool, ColonizeUnit* u);
 void turn_idle_human_rotation_w(const ColonizeWorld* w, int human_nation);
 
 /* Read Col1 end_of_turn / autosave option bits (false if no save). */

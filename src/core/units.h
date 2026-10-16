@@ -31,6 +31,8 @@ void units_set_occupancy_map(ColonizeWorldMap* map);
 void units_occupancy_rebuild(ColonizeUnitPool* pool);
 /* Presence bit refresh for the two tiles of a direct x/y write (DOS UNITFLAG clear+set). */
 void units_occupancy_notify_moved(ColonizeUnitPool* pool, int old_x, int old_y, int new_x, int new_y);
+/* FUN_1427_0362 (unlink + 02ca link): tile owner refresh only, no vis-mask writes. */
+void units_occupancy_notify_placed(ColonizeUnitPool* pool, int old_x, int old_y, int new_x, int new_y);
 
 /* Optional post-win native settlement fallout context (see docs/units.md#units_set_native_fallout_context). */
 void units_set_native_fallout_context(

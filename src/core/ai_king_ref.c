@@ -594,7 +594,9 @@ static void ai_king_place_slide(ColonizeTurnContext* ctx, int uid, int x, int y)
   if (lu->aboard_ship_id < 0 && units_is_on_map(lu)) {
     units_tile_stack_arrive(ctx->units, lu->id);
   }
-  units_occupancy_notify_moved(ctx->units, ox, oy, x, y);
+  /* 0948 = FUN_1427_0362: relink only, so no unit's vis mask changes (DOSBox
+   * independence save 3: landed Regulars keep 0x80, without the crown bit). */
+  units_occupancy_notify_placed(ctx->units, ox, oy, x, y);
   units_move_watch_notify(ctx->units, ctx->map, ctx->colonies, uid, ox, oy);
 }
 
@@ -703,9 +705,12 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
           ColonizeUnit* lu = units_get(ctx->units, uid);
           if (lu) {
             lu->moves = 0; /* FUN_281f_0934: landing consumes the turn */
-            /* DOS-LITERAL raw 74210: caseD_1 = FUN_1427_0992(unit, param_1)
-             * sets the target nation's vis bit only (bugs.md #878 lead). */
-            lu->col1_vis_mask |= (uint8_t)(1u << c->nation_id);
+            /* DOS-LITERAL raw 74206-74210: 095c creates the unit at (-2,-2),
+             * off the map, so 13f1_02f8 reveals nothing and the crown's own
+             * bit is never set; caseD_1 = FUN_1427_0992(unit, param_1) then
+             * sets the target nation's vis bit only (bugs.md #878 lead).
+             * DOSBox independence save 3: the landed Regulars read 0x80. */
+            lu->col1_vis_mask = (uint8_t)(1u << c->nation_id);
           }
         }
         /* DOS-LITERAL raw 74217-74219: `FUN_281f_09ba(colony.x - 2,

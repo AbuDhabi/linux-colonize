@@ -40,6 +40,9 @@
 #include "core/reports.h"
 #include "core/reports_names.h"
 #include "core/units.h"
+#include "core/units_combat.h"
+#include "core/combat_analysis.h"
+#include "core/units_internal.h"
 
 #include <limits.h>
 #include <stdio.h>
@@ -1889,12 +1892,42 @@ static int ai_euro_20e6_attack_term(
     const int vn = ai_euro_village_nation_at(ctx->col1_ok ? ctx->col1 : NULL, nx, ny);
     const int tmp = (vn >= 4 && !s->is_ship && ctx->col1_ok && ctx->col1)
       ? units_spawn_village_temp_defender(ctx->units, ctx->col1, nx, ny, vn, u->id) : -1;
-    if (tmp >= 0) {
+    /* FUN_5fef_1b0e probe mode on an undefended Euro colony (raw
+     * 100419-100429): the colonist pick `rand(0, colony +0x1f - 1)` is drawn
+     * and the militia phantom (Revere-armed when the town holds the
+     * muskets) stands in for the roll, then evaporates. DOSBox independence
+     * 5->6: a crown Regular beside empty Quebec draws (0,4) while scoring. */
+    const ColonizeColony* ecol = NULL;
+    if (tmp < 0 && !s->is_ship && ctx->colonies && ctx->col1_ok && ctx->col1) {
+      const int ecid = colonies_id_at(ctx->colonies, nx, ny);
+      ecol = ecid >= 0 ? colonies_get(ctx->colonies, ecid) : NULL;
+      if (ecol && (!ecol->active || ecol->nation_id < 0 || ecol->nation_id > 3 ||
+                   ecol->nation_id == u->nation_id || ecol->colonist_count <= 0)) {
+        ecol = NULL;
+      }
+    }
+    int ctmp = -1;
+    if (ecol) {
+      if (ctx->rng) {
+        (void)dos_rng_range(ctx->rng, 0, ecol->colonist_count - 1);
+      }
+      const bool revere = founding_fathers_revere_should_auto_arm(
+        ctx->col1, ecol->nation_id, false, ecol->stock[COLONIZE_CARGO_MUSKETS]
+      );
+      ctmp = units_spawn_colony_temp_defender(ctx->units, ecol, revere);
+    }
+    if (tmp >= 0 || ctmp >= 0) {
       ColonizeCombatEngageResult er;
       memset(&er, 0, sizeof(er));
-      combat_land_engage(&sctx, u->id, tmp, &er);
+      if (ctmp >= 0) {
+        combat_set_auto_defender(true);
+      }
+      combat_land_engage(&sctx, u->id, tmp >= 0 ? tmp : ctmp, &er);
+      if (ctmp >= 0) {
+        combat_set_auto_defender(false);
+      }
       base = (er.atk_strength << 3) / (er.def_strength + 1);
-      units_despawn(ctx->units, tmp);
+      units_despawn(ctx->units, tmp >= 0 ? tmp : ctmp);
     } else {
       base = (combat_unit_base_x8(&sctx, u->id, 1, NULL) << 3) / 1;
     }
@@ -2716,6 +2749,40 @@ int ai_euro_20e6_treasure_cash_in(
   return 1; /* DOS destroys the unit whatever the value byte held */
 }
 
+/* raw 88987-89009: the 0x42 / 0x65 park arms of the LAB_4d2e tail (no
+ * attack scored, no surplus-garrison hold). A type with @UNIT flag bit0 (the
+ * armed hulls) or bit2 (the land fighters) that is outside a colony
+ * (local_2e != 0), stands on its own goal tile (FUN_521d_0116: code 0 for
+ * bit0, code 2 for bit2, best prio 1..4) and has no stackmate (08bc mode 2
+ * < 2) parks there: plan 'B' / 'e', LAB_5899. DOSBox independence 5->6: the
+ * crown's new Man-O-War reaches its goal (50,53) and saves 'B', orders 5.
+ * Returns 1 when the unit parked. */
+int ai_euro_20e6_park_arms_4d2e(ColonizeTurnContext* ctx, ColonizeUnit* u, const Ai20e6Unit* s) {
+  if (s->home_dist == 0) {
+    return 0;
+  }
+  const int flags = ai_euro_20e6_type_flags(s->dos_type);
+  int stack = 0;
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+    const ColonizeUnit* o = &ctx->units->units[i];
+    stack += o->active && units_is_on_map(o) && o->x == u->x && o->y == u->y;
+  }
+  for (int arm = 0; arm < 2; ++arm) {
+    const int bit = arm == 0 ? 1 : 4;
+    const int code = arm == 0 ? 0 : 2;
+    if ((flags & bit) == 0) {
+      continue;
+    }
+    const int prio = ai_goals_max_primary_prio(u->nation_id, u->x, u->y, code);
+    if (prio != 0 && prio < 5 && stack < 2) {
+      u->col1_ai_plan = arm == 0 ? 0x42 : 0x65;
+      ai_euro_20e6_stay_tail_589e(u);
+      return 1;
+    }
+  }
+  return 0;
+}
+
 /*
  * DOS-LITERAL FUN_521d_20e6 Missionary arm (type 3, recovered C md:2366-2399,
  * OVL14 0x4860-0x49f2): over every settlement on the unit's landmass,
@@ -3452,6 +3519,9 @@ static int ai_euro_20e6_4d2e_tail(
     ai_euro_20e6_stay_tail_589e(u); /* LAB_5899 local_76 = 8 -> LAB_589e */
     return 0;
   }
+  if (!wander_attack && !force_wander && ai_euro_20e6_park_arms_4d2e(ctx, u, s)) {
+    return 0;
+  }
   if (!wander_attack && !force_wander &&
       ai_euro_20e6_border_park_arm(ctx, u, s, wander_saw_foe)) {
     u->col1_ai_plan = 0x46; /* +0x314b */
@@ -4091,11 +4161,18 @@ void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int t
     }
   }
   if (units_is_sea(ctx->units, u->id)) {
-    units_resolve_naval_combat(ctx->units, u->id, foe, ctx->rng);
-    /* Land combat spends MP via try_move into the tile; ships cannot enter
-     * foe tiles — spend remaining MP after naval resolve (structural). */
-    if (u->active) {
-      u->moves = 0;
+    /* The attack is the 465b step into the foe's tile: 1b0e resolves it, the
+     * attacker is spent in full, and a winning hull advances into the tile the
+     * 0ec0 walk emptied (DOSBox independence 4->5: the crown's new Man-O-War
+     * ends on (51,52) after sinking the Merchantman and driving the Galleon
+     * to dock). */
+    ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, ctx->rng, NULL);
+    w_.rng_reseed = ai_turn_seed(ctx); /* FUN_465b_0000 raw 75649 */
+    w_.rng_reseed_set = true;
+    (void)units_try_move_w(&w_, u->id, tx, ty);
+    u = units_get(ctx->units, u->id);
+    if (u && u->active) {
+      units_mp_exhaust_unit(ctx->units, u->id);
     }
   } else if (units_resolve_land_combat(ctx->units, u->id, foe, ctx->rng)) {
     {

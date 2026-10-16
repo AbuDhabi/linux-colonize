@@ -1134,6 +1134,18 @@ void units_occupancy_notify_moved(ColonizeUnitPool* pool, int old_x, int old_y, 
   }
 }
 
+void units_occupancy_notify_placed(ColonizeUnitPool* pool, int old_x, int old_y, int new_x, int new_y) {
+  if (!pool || !units_occupancy_map) {
+    return;
+  }
+  if (old_x >= 0 && old_y >= 0 && old_x < 200 && old_y < 200) {
+    units_occupancy_refresh_tile(pool, old_x, old_y, -1);
+  }
+  if (new_x >= 0 && new_y >= 0 && new_x < 200 && new_y < 200) {
+    units_occupancy_refresh_tile(pool, new_x, new_y, -1);
+  }
+}
+
 void units_occupancy_rebuild(ColonizeUnitPool* pool) {
   ColonizeWorldMap* map = units_occupancy_map;
   if (!pool || !map || !map->layer2) {

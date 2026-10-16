@@ -14,6 +14,7 @@
 #include "core/internal.h"
 #include "core/ai_contact.h"
 #include "core/ai_contact_internal.h"
+#include "core/ai_internal.h"
 
 #include "core/ai.h"
 #include "core/ai_diplo.h"
@@ -1497,14 +1498,14 @@ static int ai_contact_2e92_settle(
   }
   ind->tons[cargo & 15] = (int16_t)(ind->tons[cargo & 15] - qty);
   ai_contact_2e92_give_goods(ctx, unit, cargo, qty);
-  /* DOS-LITERAL (2820 doc 408-409): the draw happens and its result
-   * (`iStack_c4`) is never read again — only the un-rolled `price/25 + 1`
-   * reaches FUN_1000_8f5c. Keeping the draw keeps the LCG stream in step
-   * (bugs.md #804). */
-  if (rng) {
-    (void)dos_rng_range(rng, 0, price / 0x19 + 1);
-  }
-  ai_contact_alarm_delta_00f2(ctx, nation_id, e, price / 0x19 + 1);
+  /* DOS-LITERAL OVL13 asm 0x343d-0x3462: `roll = rand(0, price/25 + 1)`,
+   * stored to [bp-0xc2], then `neg ax` and 0d6c(tribe, euro, -roll, 0). The
+   * decompile's "un-rolled price/25 + 1" reading (2820 doc 408-409, bugs.md
+   * #804) dropped the `neg ax` and the register reuse. DOSBox independence
+   * 4->5: the crown wagon's buy draws 11 of (0,14) and the Arawak alarm goes
+   * 22 -> 11. */
+  const int roll = rng ? dos_rng_range(rng, 0, price / 0x19 + 1) : 0;
+  ai_contact_alarm_delta_00f2(ctx, nation_id, e, -roll);
   return 1;
 }
 
@@ -1789,9 +1790,13 @@ static void ai_contact_2820_buy_phase(
   const int best = ai_contact_2e92_ai_pick(ctx, s, e, n);
   s->buy_cargo = goods[best];
   s->buy_slot = slots[best];
-  /* `uStack_62 += bid[iStack_86] * -4` — bid indexed by the SORTED SLOT. */
+  /* `uStack_62 -= DS:[0x9e78 + 2*slot] * 4` (OVL13 asm 0x329a-0x32a7) reads
+   * the bid table AFTER FUN_291f_0ed0 sorted it in place together with the
+   * cargo index, so the word at the sorted slot is that cargo's own bid.
+   * ai_contact_2820_sort leaves s->bid in cargo order, hence bid[cargo].
+   * DOSBox independence 4->5: the crown wagon's Furs bid 3 -> (0,14). */
   const int price = ai_contact_2e92_price(
-    ctx, ind, nation_id, e, goods[best], (int)s->bid[slots[best]], s->buy_qty, &s->rng
+    ctx, ind, nation_id, e, goods[best], (int)s->bid[goods[best] & 15], s->buy_qty, &s->rng
   );
   if (!ai_contact_2e92_settle(
         ctx, ind, t, nation_id, e, unit, goods[best], price, s->buy_qty, &s->rng
@@ -1881,7 +1886,7 @@ void ai_contact_apply_buywhich(
     }
   }
   const int price =
-    ai_contact_2e92_price(ctx, ind, nation_id, e, cargo, (int)s->bid[s->buy_slot], s->buy_qty, &s->rng);
+    ai_contact_2e92_price(ctx, ind, nation_id, e, cargo, (int)s->bid[cargo & 15], s->buy_qty, &s->rng);
   s->price = price;
   ai_contact_enqueue_buy0(ctx, nation_id, e, unit, cargo, price, s->buy_qty, 0);
 }
@@ -1918,8 +1923,9 @@ void ai_contact_apply_buy0(
     ai_contact_local_rng(ctx, nation_id, &local);
   }
   if (choice == 2) {
-    /* bid[SORTED SLOT] — `iStack_82 = RNG(0, bid[iStack_86]/25 + 8)`. */
-    const int bid = have_state ? (int)s->bid[s->buy_slot & 15] : 0;
+    /* `iStack_82 = RNG(0, bid[iStack_86]/25 + 8)` on the in-place sorted
+     * table: the slot's word is the bought cargo's own bid. */
+    const int bid = have_state ? (int)s->bid[s->buy_cargo & 15] : 0;
     int alarm_delta = 0;
     const int again = ai_contact_2e92_haggle((int)ctx->col1->head.difficulty, bid, rng, &price, &alarm_delta);
     if (alarm_delta) {
@@ -2097,7 +2103,17 @@ static int ai_contact_2820_begin_slot(
   if (!ai_contact_2820_prepare(ctx, nation_id, unit, s)) {
     return 0;
   }
-  ai_contact_local_rng(ctx, nation_id, &s->rng);
+  /* DOS-LITERAL FUN_4d56_2820 raw 68: `FUN_281f_04ca(DS:0x83a6)` reseeds the
+   * GLOBAL stream before the haggle, and every draw below is that stream
+   * (DOSBox independence 4->5: the crown wagon's sell price draws 365). The
+   * session keeps its own copy across a human's popups; an AI trade runs
+   * through here at once and hands the stream back below. */
+  if (ctx->rng) {
+    dos_rng_seed(ctx->rng, ai_turn_seed(ctx));
+    s->rng = *ctx->rng;
+  } else {
+    ai_contact_local_rng(ctx, nation_id, &s->rng);
+  }
   s->active = 1;
   s->nation_id = nation_id;
   s->unit_id = unit->id;
@@ -2111,6 +2127,9 @@ static int ai_contact_2820_begin_slot(
     s->cargo = unit->hold_goods_type[pick_slot];
     s->qty = unit->hold_goods_amount[pick_slot];
     ai_contact_2820_dispatch(ctx, ind, nation_id, e, unit, s);
+    if (!human && ctx->rng) {
+      *ctx->rng = s->rng;
+    }
     return 1;
   }
   if (holds > 1) {
@@ -2177,6 +2196,9 @@ static int ai_contact_2820_begin_slot(
     }
   }
   ai_contact_2820_dispatch(ctx, ind, nation_id, e, unit, s);
+  if (!human && ctx->rng) {
+    *ctx->rng = s->rng;
+  }
   return 1;
 }
 
