@@ -288,6 +288,14 @@ bool units_try_move_w(
         combat_attack_entry = true;
         goto combat_entry_resolved;
       }
+      /* Same bVar4 arm as the empty-colony entry below: vis OR on the
+       * pre-combat chain, 0948 advance with the mask kept, no reveal
+       * (DOSBox independence 8->9: the crown Regular taking Fort Nassau
+       * keeps vis 9). */
+      if (unit->nation_id != g_units_combat_human_nation) {
+        foreign_colony_entry = true;
+        units_465b_0673_vis_or(pool, map, unit, dest_x, dest_y);
+      }
       if (!units_revere_defend_colony_tile(
             pool, (ColonizeColonyPool*)colonies, unit_id, dest_x, dest_y, rng
           )) {
@@ -732,7 +740,10 @@ combat_entry_resolved:
   }
   units_occupancy_refresh_tile(pool, ox, oy, unit_id);
   units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
-  units_vis_mask_after_move(pool, map, unit_id, dest_x, dest_y, dest_owner);
+  if (!foreign_colony_entry) {
+    /* 1b0e's capture advance is a 0948 relink: the mask rides along. */
+    units_vis_mask_after_move(pool, map, unit_id, dest_x, dest_y, dest_owner);
+  }
   /*
    * DOS-LITERAL FUN_465b_0000 raw 75712 / 75813: `FUN_281f_07a0(0x281f)` (the
    * far thunk to FUN_13f1_02f8) sits in the mover, unconditionally, right after

@@ -802,6 +802,11 @@ COLONIZE_INTERNAL void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTur
        */
       turn_set_active_nation(ctx, ctx->human_nation);
       proc->show_indicator = true;
+      /* 00f2's unit loop (raw 58324-58360: 281f_07a0 reveal per unit) runs
+       * before its 5e52 and colony loop, so a colonist who dies in the colony
+       * EOT stays in the human's own snapshot (DOSBox independence 8->9: New
+       * Amsterdam's visible_to_euro[3] reads 18 at pop 17). */
+      turn_reveal_fog_for_nation(ctx, ctx->human_nation);
       /* The human's own 5e52 (raw 58375) opens its 00f2 here, after the day
        * top, with the same timer-word reseed every slot's 5e52 does. */
       if (ctx->col1_ok && ctx->col1 && !ctx->col1->head.game_options.woi) {
@@ -891,7 +896,6 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
        */
       ai_king_peacetime_merc_offer(ctx);
       turn_set_active_nation(ctx, ctx->human_nation);
-      turn_reveal_fog_for_nation(ctx, ctx->human_nation);
       turn_refresh_moves_for_nation_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, ctx->human_nation, ctx->ai_popups, ctx->messages);
       if (ctx->human_nation >= 0 && ctx->human_nation < 4) {
         /* FUN_3844_0004 (bugs.md #725): human owner — FUN_281f_0652(0xee2, 4)

@@ -1877,6 +1877,26 @@ static int ai_euro_20e6_attack_term(
     return 0;
   }
   ColonizeCombatStrengthCtx sctx = combat_strength_ctx_from_turn(ctx);
+  /* FUN_5fef_0000's soft tier is off on a colony tile: colonists standing
+   * there are no defender, so the probe takes the militia arm below
+   * (DOSBox independence 8->9: a crown Regular beside Fort Nassau draws the
+   * rand(0, 12) colonist pick). */
+  if (foe_id >= 0 && !s->is_ship && ctx->colonies) {
+    const ColonizeUnit* fu = units_get_const(ctx->units, foe_id);
+    const ColonizeColony* fc = colonies_get(ctx->colonies, colonies_id_at(ctx->colonies, nx, ny));
+    if (fu && fc && fc->active && !units_is_combat_role(ctx->units, fu)) {
+      bool armed = false;
+      for (int i = 0; i < units_slot_end(ctx->units) && !armed; ++i) {
+        const ColonizeUnit* o = &ctx->units->units[i];
+        armed = o->active && o->aboard_ship_id < 0 && o->x == nx && o->y == ny &&
+                o->nation_id != u->nation_id && !units_is_sea(ctx->units, o->id) &&
+                units_is_combat_role(ctx->units, o);
+      }
+      if (!armed) {
+        foe_id = -1;
+      }
+    }
+  }
   /* base = 1b0e probe: (atk << 3) / (def + 1). No foe on the tile → a bare
    * settlement/empty tile: defence strength 0 (DOS spawns a temp defender there;
    * kept as the previous stand-in). */
@@ -1884,6 +1904,16 @@ static int ai_euro_20e6_attack_term(
   if (foe_id >= 0) {
     ColonizeCombatEngageResult er;
     memset(&er, 0, sizeof(er));
+    /* The probe fights 2a1f_0458's pick (FUN_5fef_0000), the tile's best
+     * defender, not whichever unit tops the stack (DOSBox independence 8->9:
+     * a crown Artillery facing New Amsterdam's garrison scores no attack). */
+    {
+      const int best =
+        units_best_defender_at(ctx->units, ctx->col1_ok ? ctx->col1 : NULL, nx, ny, u->id, u->id);
+      if (best >= 0) {
+        foe_id = best;
+      }
+    }
     if (s->is_ship) {
       combat_naval_engage(&sctx, u->id, foe_id, &er);
     } else {
@@ -1942,11 +1972,20 @@ static int ai_euro_20e6_attack_term(
   int col9_sum = 0;
   int stack = 0;
   if (foe_id >= 0) {
-    /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
+    /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id.
+     * Riders count: DOS keeps them in the tile chain (DOSBox independence
+     * 7->8: two Artillery aboard at a Dutch Frigate's tile make the crown
+     * Man-O-War's stack 4 and its odds too poor to attack). */
     for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* o = &ctx->units->units[i];
-      if (!o->active || o->aboard_ship_id >= 0 || o->x != nx || o->y != ny) {
+      if (!o->active || o->x != nx || o->y != ny) {
         continue;
+      }
+      if (o->aboard_ship_id >= 0) {
+        const ColonizeUnit* hull = units_get_const(ctx->units, o->aboard_ship_id);
+        if (!hull || hull->x != nx || hull->y != ny) {
+          continue;
+        }
       }
       col9_sum += ai_euro_20e6_unit_col9(ctx->units, o);
       stack++;
@@ -3092,12 +3131,14 @@ int ai_euro_20e6_wagon_origin_walk(
     ori = s.home_colony;
   }
   const ColonizeColony* home = colonies_get(ctx->colonies, ori);
-  if (!home || !home->active || home->nation_id != nation_id) {
+  if (!home || !home->active) {
     /* bugs.md #814: DOS keeps the dangling +0x314a and walks to the stale
      * colony record (raw 89960-89964: `uVar14 = +0x314a` → LAB_521d_4701 →
      * LAB_521d_4567) — it never unbinds. The port cannot dereference a dead
      * slot, so it claims the beat and leaves the binding alone; the colony
-     * tick rebinds. Do NOT reintroduce an `origin_set(u, -1)` here. */
+     * tick rebinds. Do NOT reintroduce an `origin_set(u, -1)` here. A live
+     * record owned by someone else is walked to like any other (DOSBox
+     * independence 7->8: a captured Dutch wagon heads for New Amsterdam). */
     return 1;
   }
   /* bugs.md #814: no `x == home->x && y == home->y` arm in DOS — the
