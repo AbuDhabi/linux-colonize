@@ -546,6 +546,23 @@ void units_vis_mask_after_move(
       pax->col1_vis_mask = mask;
     }
   }
+  /* 07d6 (owner nibble) and 084e -> 0ce6 (each watching nation) both go
+   * through FUN_1427_09ac, which walks the whole destination chain: every
+   * unit already on the tile takes those bits too (DOSBox independence
+   * 10->11: a crown wagon relinked at Bahia ORs the Dutch bit into the
+   * Cavalry standing there). */
+  uint8_t stack = units_vis_mask_for_tile(map, x, y, -1);
+  if (dest_owner >= 0 && dest_owner < 4) {
+    stack = (uint8_t)(stack | (1u << dest_owner));
+  }
+  if (stack) {
+    for (int i = 0; i < units_slot_end(pool); ++i) {
+      ColonizeUnit* o = &pool->units[i];
+      if (o->active && o->x == x && o->y == y) {
+        o->col1_vis_mask |= stack;
+      }
+    }
+  }
 }
 
 int units_count_sea_for_nation(const ColonizeUnitPool* pool, int nation_id) {
@@ -580,7 +597,13 @@ void units_founder_loot(
   if (unit) {
     /* Trust carried gear fields. Do not invent 100 tools from the type name —
      * that hid FUN_479b_0158 wear (depleted pioneers looked fully stocked). */
-    tools = unit->tools > 0 ? unit->tools : 0;
+    /* DOS FUN_15eb_1068 banks the +0x3159 byte only for the Pioneer role
+     * (FUN_15eb_0d8e goods list); on a Colonist it is a leftover residue
+     * (DOSBox independence 9->10: the captured Dutch colonist holding 20
+     * joins Port au Prince and the warehouse keeps 20 tools). */
+    tools = unit->tools > 0 &&
+                units_type_kind(units_type(pool, unit->type_index)) == UNITS_KIND_PIONEER
+              ? unit->tools : 0;
     muskets = unit->muskets > 0 ? unit->muskets : 0;
     horses = unit->horses > 0 ? unit->horses : 0;
   }

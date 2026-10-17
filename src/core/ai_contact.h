@@ -179,6 +179,11 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id);
  */
 int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id);
 
+/* FUN_5bfb_022e is one (Brave, European) encounter: while set (>= 0), the beg
+ * and gift halves below serve only that European. -1 = every European (the
+ * unit tests' standalone calls). */
+void ai_contact_set_visit_euro(int euro_nation);
+
 /*
  * FUN_5bfb_022e generous half of the same already-met visit
  * (@INDIANGIVEFOOD / @INDIANGIVESTUFF) — the most common peaceful Indian

@@ -320,9 +320,12 @@ int ai_native_step_first_contact(
     if (colony_here) {
       /* 5bfb:0683 tests the food-beg arm before the 096c gift arm even for a
        * generous visit. A conceded beg falls through to 096c itself. */
+      /* 022e(param_1 = e): this encounter's European only. */
+      ai_contact_set_visit_euro(e);
       if (!ai_contact_try_village_beg_food(s_ai_native_ctx, nation_id)) {
         ai_contact_try_village_gifts(s_ai_native_ctx, nation_id);
       }
+      ai_contact_set_visit_euro(-1);
     }
   }
   return fired;

@@ -140,6 +140,30 @@ int units_best_defender_at(
   const int atk_nat = atk ? atk->nation_id : -1;
   ColonizeCombatStrengthCtx sctx = units_combat_strength_ctx(col1);
   sctx.units = pool;
+  /*
+   * DOS FUN_5fef_0000's param_3 is NOT the attacker. Its one caller, 1b0e
+   * (OVL17 asm 0x1baa-0x1bc1), pushes the attacker's NATION nibble for
+   * FUN_281f_07e0, keeps it on the stack, then pushes 07e0's unit and
+   * near-calls the picker: param_3 = the nation number. The picker reads it
+   * as a unit index, so 09dc/015e score every candidate against unit RECORD
+   * #nation and the artillery arm tests that record's nation nibble.
+   * Unit #0..#3 is usually a native (independence 9->10: record 0 = a Brave,
+   * so the colony Artillery x2 fires for an English attacker and New
+   * Amsterdam's damaged Artillery outranks two fortified Cont. Cav.).
+   */
+  int pick_foe_id = attacker_id;
+  int pick_foe_nat = atk_nat;
+  if (atk_nat >= 0) {
+    int rank = atk_nat & 0xf;
+    for (int i = 0; i < units_slot_end(pool); ++i) {
+      const ColonizeUnit* o = &pool->units[i];
+      if (o->active && rank-- == 0) {
+        pick_foe_id = o->id;
+        pick_foe_nat = o->nation_id;
+        break;
+      }
+    }
+  }
 
   /*
    * bugs.md #677 (Colonist audit): DOS FUN_5fef_0000 (OVL17 asm 0x0091-0x0166)
@@ -227,7 +251,7 @@ int units_best_defender_at(
       continue;
     }
     const int base = combat_unit_base_x8(&sctx, u->id, 0, NULL);
-    const int eng = combat_engagement_strength(&sctx, u->id, attacker_id, NULL);
+    const int eng = combat_engagement_strength(&sctx, u->id, pick_foe_id, NULL);
     /* asm 0x00dd-0x00e5: MOV AH,AL ; SUB AL,AL ; SUB AX,SI ; ADD AX,0xff */
     int score = (int)(((unsigned)eng & 0xffu) << 8) - base + 0xff;
     const ColonizeUnitType* t = units_type(pool, u->type_index);
@@ -238,7 +262,7 @@ int units_best_defender_at(
      * strength clauses use, so a native village counts as open ground here:
      *
      *   type 0x0b and a Euro colony on the tile → x2, but only against a
-     *   native attacker (asm reads the ATTACKER's nation nibble < 4 → skip);
+     *   "native attacker" (asm reads unit record #param_3, see above, < 4 → skip);
      *   type 0x0b anywhere else, unless the artillery is Fortify/Fortified
      *   → score >>= 3, so a gun in the open never outranks the dragoons
      *   standing next to it.
@@ -251,7 +275,7 @@ int units_best_defender_at(
       const int on_colony = g_units_combat_colonies &&
                             colonies_id_at(g_units_combat_colonies, x, y) >= 0;
       if (on_colony) {
-        if (atk_nat > 3) {
+        if (pick_foe_nat > 3) {
           score *= 2;
         }
       } else if (u->orders != UNITS_ORDER_FORTIFY && u->orders != UNITS_ORDER_FORTIFIED) {
@@ -1370,12 +1394,15 @@ int units_apply_land_loss_outcome(
      * bugs.md #637: tools too. DOS FUN_5fef_0352 raw 99344-99347 captures
      * loser types {0 Colonists, 0x0a Treasure, 0x0c Wagon}; type 2 Pioneers
      * is absent there and absent from the demote ladder (raw 99437-99447),
-     * so a losing Pioneer is destroyed. Latent in-port (tools only ride the
-     * Pioneers type today); guards imported/hand-edited saves.
+     * so a losing Pioneer is destroyed. That is a TYPE test: the Pioneer is
+     * type 2 here too. A type-0 Colonist's +0x3159 tools byte is a residue
+     * DOS keeps (a demoted Pioneer's leftover) and 0352 never reads it
+     * (DOSBox independence 9->10: both Dutch colonists on Port au Prince,
+     * one holding tools 20, change hands with the colony).
      */
     const int is_colonist =
       units_type_is_colonist(lt) && !is_treasure && !is_wagon &&
-      lose->horses <= 0 && lose->muskets <= 0 && lose->tools <= 0;
+      lose->horses <= 0 && lose->muskets <= 0;
     if (is_treasure) {
       /*
        * DOS-LITERAL FUN_5fef_0352 raw 99392-99413 (bugs.md #660): a beaten

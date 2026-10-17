@@ -394,6 +394,47 @@ realisation is the way to find that event. Fixes that got here:
 - Loading an autosave in DOS does not reproduce the continuous run (save 5 loaded: 355 draws vs
   381), so traces of a given interval need a continuous run from 000003.
 
+Status 2026-10-17: the tr8 realisation (picks in `dt16/out/tr8.txt`) matches DOS exactly
+through save 10. Fixes for 9 -> 10 and 10 -> 11:
+
+- FUN_5fef_0000's param_3 is the attacker's NATION, not the attacker: 1b0e (OVL17 asm
+  0x1baa-0x1bc1) pushes the nation nibble for 07e0, keeps it on the stack and near-calls the
+  picker with 07e0's unit. So 015e scores every candidate against unit RECORD #nation, and the
+  artillery arm tests that record's nation nibble. Record 0 is a Brave here, so New Amsterdam's
+  damaged Artillery (x2) outranks two fortified Cont. Cav. against an English attacker.
+- The crown MoW sail-home despawned any crown hull standing on a High Seas tile; only an 'E'
+  hull crosses (479b), and it crosses into the Europe lane (x = 244 + nation, voyage roll
+  rand(1,100)) instead of leaving the unit array. The lane count (DS:0x9456) is 'E' hulls plus
+  the 240/244 x-sentinels, not hulls that merely stand on High Seas. 007a writes no MP: the
+  hull keeps its spent byte on the lane.
+- A 20e6 ship attack still writes '9' and goes through 465b's LAB_0bd1 tail (orders 0,
+  +0x315a + 1) when the fight removed no unit.
+- 0352 captures a type-0 Colonist whatever its +0x3159 tools byte holds, and 15eb_1068 banks
+  that byte only for the Pioneer role (a joining Colonist's residue stays out of the warehouse).
+- 20e6's road term is `FUN_281f_0754(x, y) & 10`: a settlement tile (0x02) counts as a road
+  (0x08) for the unit's tile and the destination. An English Scout beside Fort Nassau steps
+  back onto the colony tile for the +1.
+- The dispatcher's inner drain is the same 097a / 13b0 has-MP test, x >= 0 included: a hull
+  that crossed into the Europe lane mid-drain is not acted again.
+- A refused beg (`local_c == 1`) clears contact_state 2 for that European.
+- Vis bits: 465b's `if (local_1c) FUN_281f_07d6(unit, DS:0x5396)` ORs the human's bit into
+  the mover's whole origin chain when the human sees the move; 07d6 and 084e/0ce6 both go
+  through FUN_1427_09ac, which walks the whole destination chain.
+- An AI beating a colony's militia takes the town in the same step: 465b's LAB_01ce stop (AI
+  with under 3 thirds at a foreign colony) runs BEFORE the bVar4 fight, and 1b0e's winner then
+  advances whatever MP the fight left (tr9 6 -> 7: the crown Cavalry takes St. Louis).
+- 022e is one (Brave, European) encounter: its beg and gift halves serve only that European
+  (`ai_contact_set_visit_euro`). The port's beg loop also begged from a second European whose
+  colony stood beside the same Brave (tr9 8 -> 9: an extra rand(1,100)).
+- A crown hull already sailing home ('E', order 0x0b, MP spent) re-enters 20e6 only beside a
+  foreigner, and 5b66 first takes it back out of DS:0x9456, so its own sail-home test passes
+  again (re-course, no draws). The lane count never includes the acting hull.
+- tr9 (dt19, a second continuous DOSBox run from 000003 that also logs the acting unit's record
+  per draw) is the reference past tr8's save 11.
+- DOSBox method for these: load the DOS autosave of interval K-1 (`setup --save`) and log
+  each draw with the acting unit (DS:0x2d12) record. The RNG differs from the continuous run,
+  but a unit's route and its facing / orders writes (BPM on the record) are usually the same.
+
 State 2026-10-16 late (continuous from START_SAVE): 0 -> 1 -> 2 -> 3 -> 4 byte-identical; vs the
 DOSBox continuous replay save 5 differs only in tribe 5's horse_herds (DOS 4cc6_00f2 called with
 euro 8 spills into the next Indian record; tracing the caller). With picks 6:256,353 / 7:361:

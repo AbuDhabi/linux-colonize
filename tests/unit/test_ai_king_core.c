@@ -1368,7 +1368,7 @@ static int sp_17(void) {
    * one crown-owned arm: the FUN_521d_20e6 ship-band tail
    * (viceroy_unpacked.c:89717-89720). With the MoW pool spent (force[2]==0),
    * land pools still stocked, the hull empty and alone on its tile, the crown
-   * Man-O-War sails for the High Seas (FUN_48d3_015e) and leaves the map — and
+   * Man-O-War sails for the High Seas (FUN_48d3_015e) into the Europe lane — and
    * NO pool is credited on the way out (0982's own refill gate is what puts the
    * next hull in the water). ai_king_mow_sail_home_20e6 stayed public and is
    * called from the euro ship band now, so this block drives it directly.
@@ -1409,7 +1409,8 @@ static int sp_17(void) {
       return fail("empty crown MoW should take the 20e6 sail-home arm");
     }
     mow = units_get(&units, mow_id);
-    if (mow && mow->active) {
+    /* FUN_479b_0972 crosses it into the eastbound lane (244+nation). */
+    if (mow && mow->active && mow->x != 244 + 1) {
       fprintf(stderr, "unit_ai_king: MoW still on map at (%d,%d) orders=%d\n", mow->x,
               mow->y, mow->orders);
       return fail("empty crown MoW should sail home once force[2] is spent");
