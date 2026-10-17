@@ -487,3 +487,8 @@ saves 5-7: 3, 15, ~74 field diffs vs the archive.
   (50,47) gets bit 3, New Amsterdam pop_on_map[3] = 13). The port reveals map tiles only.
 - Facing of the 10f0 land units: DOS 0, port 6/1 (dos_tail stale-record bytes differ).
 - tr9 save 11: chain order at (53,56) after the MoW loses (Frigate moved to the head).
+- Tile-chain order in a colony during the idle human rotation (tr9 13 -> 14, New Amsterdam).
+  DOSBox (save 13 loaded, BPM on the ships' +0x315e) shows each activated land unit moving to
+  the end of the chain, then the in-port ships (31, 34, 40) being relinked off the tile
+  (x = -3) and back after it, at 1427:02fc (runtime 0c4b:02fc). The port appends only the
+  activated unit, so the ships end up behind the landed troops. Caller not yet identified.
