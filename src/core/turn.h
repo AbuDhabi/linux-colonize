@@ -78,6 +78,12 @@ typedef struct ColonizeTurnContext {
    */
 } ColonizeTurnContext;
 
+/* DS:0x8542 as FUN_43f7_1528's colony walk left it (the last colony), set by
+ * ai_king_1528_announce inside the ticking colony's 0a22. The rest of that
+ * colony's FUN_364b_0688 applies to this record (turn_produce_one_colony).
+ * turn_colony.c clears it at each colony's 0688 entry and after the loop. */
+extern ColonizeColony* g_turn_1528_colony;
+
 /*
  * View of the world pointers a turn context already carries (see world.h).
  * Field-for-field copy; no allocation, no ownership. Use it to call sim

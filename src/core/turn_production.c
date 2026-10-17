@@ -538,6 +538,7 @@ void turn_produce_one_colony(
     return;
   }
   /* FUN_364b_0688: clear cargo_produced_mask (+0x90) at production start. */
+  const uint16_t mask_before_a = colony->cargo_produced_mask;
   colony->cargo_produced_mask = 0;
   /* bugs.md #397: europe->status is shared across the whole colony loop, so
    * "status empty" as the Phase K crumb gate let ANY earlier colony's
@@ -862,14 +863,33 @@ void turn_produce_one_colony(
    * :57692) with C/D and F/G/H already done. The I/J block now sits below
    * education, at its DOS position.
    */
+  /* FUN_43f7_1528 rebind (see g_turn_1528_colony): everything 0688 does
+   * after the 0a22 call (raw 57231) works on *(DS:0x8542), so C/D and the
+   * application below land in that record, fed by this colony's Phase A
+   * composition (bells local_ba, the per-cargo net, the 0x8e5a shortfall,
+   * hammers, depletion units). The composition inputs read past this point
+   * (horses, lumber clip) stay on `colony` until the Phase B switch below. */
+  ColonizeColony* const app =
+    (g_turn_1528_colony && g_turn_1528_colony != colony && col1) ? g_turn_1528_colony : colony;
+  const int nation_a = colony->nation_id; /* uVar7, raw 57225 */
+  const int food_start_a = stock_before[COLONIZE_CARGO_FOOD];
   {
-    const int sol_before = colony_prod_sol_percent(col1, colony);
-    const uint8_t flags_before = colony->colony_flags;
-    colony_prod_tick_rebel_accumulators(pool, colony, col1);
-    const int sol_after = colony_prod_sol_percent(col1, colony);
-    colony_prod_refresh_sol_flags(colony, col1);
+    /* Phase C feeds this colony's composed bells (local_ba) to app. */
+    const uint32_t app_stamp = app->prod_compose_stamp;
+    const int app_bells = app->prod_bells_phase_a;
+    app->prod_compose_stamp = colony->prod_compose_stamp;
+    app->prod_bells_phase_a = colony->prod_bells_phase_a;
+    const int sol_before = colony_prod_sol_percent(col1, app);
+    const uint8_t flags_before = app->colony_flags;
+    colony_prod_tick_rebel_accumulators(pool, app, col1);
+    if (app != colony) {
+      app->prod_compose_stamp = app_stamp;
+      app->prod_bells_phase_a = app_bells;
+    }
+    const int sol_after = colony_prod_sol_percent(col1, app);
+    colony_prod_refresh_sol_flags(app, col1);
     turn_emit_sol_phase_d_chrome(
-      colony,
+      app,
       col1,
       europe,
       human_nation,
@@ -880,7 +900,7 @@ void turn_produce_one_colony(
       messages
     );
     turn_emit_inefficient_gov_chrome(
-      colony, col1, europe, human_nation, sol_after, ai_popups, messages
+      app, col1, europe, human_nation, sol_after, ai_popups, messages
     );
   }
 
@@ -968,6 +988,18 @@ void turn_produce_one_colony(
    * had already shipped (bugs.md #1023). Needs europe bids; col1 optional
    * (WoI tax skip + nation gold).
    */
+  if (app != colony) {
+    /* Phase B (raw 57238-57253) adds the composed net to app's stock, clamped
+     * at 0; this colony's record gets nothing (its stock and +0x90 stay as
+     * they entered). aiStack_ae / local_6c snapshot app's entry stock. */
+    for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+      colony->stock[c] = stock_before[c];
+      stock_before[c] = app->stock[c];
+      app->stock[c] = clamp_int(app->stock[c] + delta->goods[c], 0, 65535);
+    }
+    colony->cargo_produced_mask = mask_before_a;
+    colony = app;
+  }
   if (europe) {
     /* FUN_364b_0636 raw 57131-57141: an AI Custom House keeps its Ore while
      * the colony has an Armory or this tick made tools / muskets (the gross
@@ -1255,9 +1287,7 @@ void turn_produce_one_colony(
        * 0 — the nation may not already own an expert of that job anywhere —
        * and a success bumps it in place. See turn_prof_census. */
       const int census_n =
-        (colony->nation_id >= 0 && colony->nation_id < (int)COLONIZE_COL1_NATION_COUNT)
-          ? colony->nation_id
-          : 0;
+        (nation_a >= 0 && nation_a < (int)COLONIZE_COL1_NATION_COUNT) ? nation_a : 0;
       if (turn_prof_census[census_n][c->field_job] != 0) {
         continue;
       }
@@ -1316,7 +1346,7 @@ void turn_produce_one_colony(
      * latch killed a colony producing exactly what it eats at 0 stores
      * (commons 2 food vs pop 1 eating 2 — net zero, DOS-fine forever).
      */
-    colony->food_shortfall_latch = (need - food_at_start - field_food > 0) ? 1u : 0u;
+    colony->food_shortfall_latch = (need - food_start_a - field_food > 0) ? 1u : 0u;
 
     /*
      * FUN_364b_0688 phase I — birth: food ≥ 200 → Free Colonist in colony;
@@ -1338,12 +1368,13 @@ void turn_produce_one_colony(
          * (no fallback into the colony); @NEWCOLONIST still follows. */
         const int ct = units_kind_type_index(turn_birth_units, UNITS_KIND_COLONIST);
         born_on_tile = ct >= 0;
-        if (ct >= 0 && units_spawn_room(turn_birth_units, colony->nation_id)) {
+        /* raw 57618: FUN_281f_095c(0, uVar7, x, y) -- the ticking nation. */
+        if (ct >= 0 && units_spawn_room(turn_birth_units, nation_a)) {
           const int nid =
             units_spawn_allow_stack(turn_birth_units, ct, colony->x, colony->y);
           ColonizeUnit* nu = units_get(turn_birth_units, nid);
           if (nu) {
-            units_set_nation(nu, colony->nation_id);
+            units_set_nation(nu, nation_a);
             nu->orders = UNITS_ORDER_NONE;
           }
         }
@@ -1397,12 +1428,12 @@ void turn_produce_one_colony(
     /* DS:0x8e5a (raw 57623-57625): a non-human colony's shortfall below 3 is
      * forgiven. Only a non-zero shortfall takes the else branch (raw 57638),
      * which reseeds (FUN_281f_04ca(DS:0x83a6)) before the mercy roll. */
-    int short_8e5a = need - food_at_start - field_food;
+    int short_8e5a = need - food_start_a - field_food; /* Phase A composition */
     if (short_8e5a < 0) {
       short_8e5a = 0;
     }
-    if (short_8e5a < 3 && (colony->nation_id > 3 ||
-                           (col1 && col1->player[colony->nation_id].control != 0))) {
+    if (short_8e5a < 3 && (nation_a > 3 ||
+                           (col1 && col1->player[nation_a].control != 0))) {
       short_8e5a = 0;
     }
     int starve_mercy = 0;

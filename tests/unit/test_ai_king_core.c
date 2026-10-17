@@ -1323,6 +1323,11 @@ static int sp_16(void) {
         }
         if (u->active && u->nation_id == 1) {
           units.units[i].moves = 0;
+          /* DOS 02ca stamps the layer3 owner nibble on link; 0982's
+           * crown-held test (06dc) reads it, the fixture never relinks. */
+          if (units_is_on_map(u) && !units_is_sea(&units, u->id)) {
+            map.layer3[u->y * 16 + u->x] = (uint8_t)((1 << 4) | 1);
+          }
         }
       }
       ai_king_ref_pre_euro_beat(&ctx);
@@ -3335,6 +3340,7 @@ static int case_0982_land_crown_tile_first(void) {
     return fail("0982_crown_first: spawn");
   }
   units_set_nation(held, crown);
+  m.layer3[4 * 8 + 4] = (uint8_t)((crown << 4) | 1); /* 02ca owner-nibble stamp */
   ColonizeColony col;
   memset(&col, 0, sizeof(col));
   col.x = 5;

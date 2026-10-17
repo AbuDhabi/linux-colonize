@@ -1455,10 +1455,25 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         }
         return;
       }
-      if (gate_r) {
+      if (gate_r && u->orders != UNITS_ORDER_BUILD_ROAD) {
         return;
       }
     }
+  }
+
+  /*
+   * FUN_521d_5b66 switch cases 8 / 9 (euro_unit_act.md): after 20e6 returns
+   * 0 (its LAB_5a78 tail already run above) the act_state byte dispatches
+   * `case 8: FUN_479b_01a6` clear/plow, `case 9: FUN_479b_0526` road. 20e6's
+   * road arm stamps 9 then lands here the same call; on later turns 20e6
+   * bails at entry for act_state 9 (raw 89327) and 5b66 still ticks the body.
+   * On a road/settlement tile 0526 just clears +0x314c (tr9 save 20: the
+   * crown Pioneer in captured Fort Orange saves orders 0, plan 'R').
+   */
+  if (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD) {
+    const ColonizeWorld pw = world_from_turn_ctx(ctx);
+    (void)units_pioneer_work_tick_w(&pw, u->id, NULL, 0, ctx->ai_popups, ctx->messages);
+    return;
   }
 
   /*

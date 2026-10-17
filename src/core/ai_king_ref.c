@@ -633,7 +633,7 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
   /*
    * DOS-LITERAL FUN_43f7_0982 raw 74163-74266. Sweep the ship tile's eight
    * neighbours (land, no settlement, next to the colony, colony continent):
-   *   - a crown-held tile (FUN_281f_06dc == crown) takes the next unit:
+   *   - a crown-held tile (FUN_281f_06dc owner nibble == crown) takes the next unit:
    *     Cavalry while under the cap, then Artillery, else a Regular;
    *   - any other tile: the first sweep only records the smallest stack
    *     (08bc mode 2); the second sweep seizes (00a8) every tile at that
@@ -660,11 +660,13 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
             map_continent_id_at(ctx->map, nx, ny) != continent || need <= 0) {
           continue;
         }
-        const int top = units_id_at(ctx->units, nx, ny);
-        const ColonizeUnit* tu = top >= 0 ? units_get_const(ctx->units, top) : NULL;
         int k = 0;
         int seize = 0;
-        if (tu && tu->nation_id == crown) {
+        /* DOS-LITERAL raw 74190: 06dc = FUN_137f_0200, the layer3 owner
+         * nibble, not the top unit's nation. 023a never clears the nibble
+         * when a tile empties, so a stale crown nibble counts as crown-held
+         * (tr9 18->19: the Artillery lands alone on empty (44,61)). */
+        if (units_tile_owner_nibble(ctx->map, nx, ny) == crown) {
           if (used_d < cap && force[1] > 0) {
             used_d++;
             k = 1;
@@ -716,9 +718,10 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
             lu->col1_vis_mask = (uint8_t)(1u << c->nation_id);
           }
         }
-        /* DOS-LITERAL raw 74217-74219: `FUN_281f_09ba(colony.x - 2,
-         * colony.y - 2, 5, 5, 1)`, centred on the TARGET COLONY (#878b). */
-        map_reveal_radius(ctx->map, c->x, c->y, crown, 2);
+        /* raw 74217-74219 `FUN_281f_09ba(colony.x - 2, colony.y - 2, 5, 5,
+         * 1)` = FUN_6b7e_0004, a viewport + minimap repaint of the 5x5 (clip
+         * 6afa_0052, compose 6ba1_0d6c, unit blit 6b22_04bc, minimap
+         * 6a9f_0360): it writes no fog, vis or colony byte. Nothing to port. */
         force[k]--;
         need--;
         landed_any = 1;
@@ -1226,7 +1229,7 @@ static const char* ai_king_1528_announce_colony(const ColonizeTurnContext* ctx, 
  * tile beside the target colony, then land troops capped as DOS does —
  * Cont. Cav. ≤ 2 (pool [1]), Artillery ≤ 2 (pool [3]), Cont. Army = 6 minus
  * those (pool [0]) — each further capped by its pool, unloaded at the colony,
- * with a 5×5 reveal.
+ * the hull revealing around itself (06b4 -> 13f1_02f8).
  *
  * Intervene nation: the saved rival slot (rival_nation_slot_1) when valid,
  * else the Euro with most colonies (tie-break land-unit force).
@@ -1273,6 +1276,16 @@ static void ai_king_1528_announce(ColonizeTurnContext* ctx, int human) {
   }
   const int ally1 = ai_king_intervention_nation_slot(ctx, human, 0); /* DS:0x53d4 */
   ai_king_latch_set(ctx->col1, AI_KING_INTERVENE_ANNOUNCED_BYTE, 1); /* 74496 */
+  /* raw 74474-74475: the colony walk binds DS:0x8542 to every colony in turn
+   * and leaves it on the last one; the caller's 0688 keeps applying there. */
+  if (ctx->colonies) {
+    for (int i = COLONIZE_COLONIES_MAX - 1; i >= 0; --i) {
+      if (ctx->colonies->colonies[i].active) {
+        g_turn_1528_colony = &ctx->colonies->colonies[i];
+        break;
+      }
+    }
+  }
 
   /* bugs.md #252: the declaration names the PARENT countries (1528 passes
    * both nations through FUN_291f_0ac8's country-name form). */
@@ -1504,7 +1517,7 @@ void ai_king_10f0_land(
    * on the best water tile next to the colony (pool 0x53e6 −1), then the
    * land troops: Cont. Cav. ≤ 2 (0x53e4), Artillery ≤ 2 (0x53e8), Cont.
    * Army = 6 − those (0x53e2), each capped by its pool; +0x15 = Veteran;
-   * unloaded at the colony (`0948`); 5×5 reveal around the colony.
+   * unloaded at the colony (`0948`); 5×5 repaint (`09ba`) per landing.
    */
   if (!ai_king_10f0_pick_spawn(ctx, human, hx, hy, &sx, &sy)) {
     return; /* DOS: no scored tile → nothing lands this turn */
@@ -1519,9 +1532,19 @@ void ai_king_10f0_land(
   if (mow < 0) {
     return;
   }
+  /* 095c = FUN_1427_06b4 creates the hull ON (sx, sy); its tail
+   * FUN_13f1_02f8 reveals around it for DS:0x5398, stamping the human's bit
+   * on every unit in sight and re-snapshotting the colony's +0xba pop
+   * (tr9 13: a Brave at (50,47) gets bit 3, New Amsterdam pop_on_map[3]
+   * takes the post-drop 13). The land troops are created at (-2,-2) and
+   * reveal nothing. */
+  {
+    const ColonizeWorld rw = world_from_turn_ctx(ctx);
+    (void)units_reveal_sight_w(&rw, units_get_const(ctx->units, mow));
+  }
   /* raw 74386 `FUN_281f_0e08(x, y, 0)` -> FUN_1984_029e is a camera centre on
    * the hull's tile (DS:0x17c/0x17e), not a reveal; the only reveal is the
-   * 5x5 `09ba` per landed unit below (bugs.md #878 lead). Camera unported. */
+   * hull's 06b4 sight reveal above (bugs.md #878 lead). Camera unported. */
   int landings = 1;
   static const int pool_k[3] = {0, 1, 3};
   /*
@@ -1571,9 +1594,7 @@ void ai_king_10f0_land(
   ai_king_10f0_disembark(
     ctx, human, paid, backup, pool_k, want, hx, hy, sx, sy
   );
-  if (ctx->map) {
-    map_reveal_radius(ctx->map, hx, hy, human, 2);
-  }
+  /* The per-unit 09ba after each landing (raw 74442) is a repaint only. */
   /*
    * DOS 74450-74452: `if ((param_1 != 0) && (-1 < local_1c))
    * FUN_281f_0808(local_1c);` — the paid hire's Man-O-War is the seller's

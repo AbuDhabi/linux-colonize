@@ -1,7 +1,8 @@
 # Independence idle campaign (`golden_idle_independence`)
 
-STATUS: alignment in progress (started 2026-10-14). CTest `golden_idle_independence` is
-DISABLED. Sister campaign (done): [idle_campaign.md](idle_campaign.md), whose method and
+STATUS: aligned to the tr9 DOSBox reference run through save 20 (2026-10-17); CTest
+`golden_idle_tr9` guards it (`golden_idle_campaign tr9 0 20`, picks read from the trace).
+CTest `golden_idle_independence` (the wall-clock archive) stays DISABLED. Sister campaign (done): [idle_campaign.md](idle_campaign.md), whose method and
 DOSBox recipe apply here too.
 
 ## Fixtures
@@ -471,6 +472,75 @@ through save 10. Fixes for 9 -> 10 and 10 -> 11:
   each draw with the acting unit (DS:0x2d12) record. The RNG differs from the continuous run,
   but a unit's route and its facing / orders writes (BPM on the record) are usually the same.
 
+The tr9 run (trace, per-interval DOS saves 4..20, the trace script) is kept in
+`original_saves/independence-seed-100/tr9/` (readme there); compare with
+`/usr/bin/python3 tools/trcmp.py original_saves/independence-seed-100/tr9/tr9.txt K [show]`.
+
+Status 2026-10-17 afternoon (four parallel agents): tr9 saves 4 -> 18 are byte-identical
+apart from the UI cursor/viewport; save 19 keeps one landing-tile family; interval 20 (two
+DOS turns, 288 + 289, 918 draws) first diverges at draw 76. Fixes:
+
+- FUN_43f7_1528's colony walk leaves DS:0x8542 on the last colony, and the rest of the ticking
+  colony's FUN_364b_0688 (everything after the raw 57231 0a22 call) applies there: Phase B
+  stock += net, the +0x90 mask, C/D (that record's pop and SoL%, fed the ticking colony's
+  bells), education counters, birth/starve, the hammer bank, spoilage and depletion. The
+  ticking colony's record keeps its entry stock and mask (`g_turn_1528_colony`, set by
+  `ai_king_1528_announce`, consumed in `turn_produce_one_colony`). uVar7 (the ticking nation)
+  still drives the AI/human gates, the census and a newborn's owner; the 0x8e5a shortfall is the
+  ticking colony's composition, but the J kill gate reads the rebound colony's entry food.
+  tr9 12 -> 13: San Juan gets Pernambuco's +5 food, +5 cloth and SoL tick. Not ported: the
+  Custom House gate / AI-human branch nation mix, and the compose-time clamps against the
+  rebound stock (tr9 never exercises them).
+- The map sidebar reorders the active unit's tile: FUN_49dd_0424 (raw 78700) calls
+  FUN_281f_07ea(07e0 head) = FUN_1427_04d6(head, 0) on the focus tile after 08ea moved the unit
+  to the top. Hulls (then Treasure, then size 6..1) go to x = -3 and come back above it (DOSBox
+  BPM on the hulls' +0x315e at 1427:02fc, returns 1427:053a / 0636). `turn_idle_human_activate`
+  now runs `units_tile_stack_sort_at` after the move to the top (tr9 13 -> 14: New Amsterdam's
+  ships end up above each activated land unit; the facing diffs of units 40/124 went with it).
+- A ship-vs-ship 0352 opens each plunder pass with FUN_4720_0006(winner, 1, 1) (raw 99499).
+  Its param_3 arm is 08c6 = FUN_1427_03a0 (raw 75888-75890): the winning hull is relinked to
+  the OLDEST end of its tile chain, below sentried riders too, cargo or not (tr9 save 11: the
+  Dutch Frigate that beat the crown MoW at (53,56)). `units_apply_naval_loss_outcome` does it
+  with a static ranker; `units_tile_stack_sink` ranks loose units only, so it could not be used
+  (its other callers, cargo unload and europe_harbor, may be wrong the same way: unchecked).
+- FUN_281f_09ba = FUN_6b7e_0004 is a viewport and minimap repaint of the rect (6afa_0052 clip,
+  6ba1_0d6c compose, 6b22_04bc unit blit, 6a9f_0360 minimap) and writes no state. The port's
+  5x5 `map_reveal_radius` after the 10f0 and 0982 landings is deleted. 10f0's Man-O-War is
+  created on its water tile by 06b4, whose tail 13f1_02f8 reveals around it for DS:0x5398:
+  that stamps the human's bit on the units in sight and re-snapshots the colony's pop_on_map
+  (tr9 13: the Brave at (50,47) gets bit 3, New Amsterdam pop_on_map[3] = the post-drop 13).
+  The land troops start at (-2,-2) and reveal nothing. 06b4 writes no facing byte; the 10f0
+  units' facing already matched (the later facing diffs were the chain-rotation item).
+
+- 0982's landing sweep tests "crown-held" with 06dc = FUN_137f_0200, the layer3 owner nibble
+  (raw 74190), not the top unit's nation. 023a never clears the nibble when a tile empties, so an
+  empty tile a crown unit once held still takes Cavalry/Artillery. tr9 18 -> 19: the REF
+  Artillery lands alone on empty (44,61) (nibble 0) next to the beach-head (44,62); the MoW
+  reveal then gives it the crown vis bit. This also closed interval 20's first draw mismatch:
+  (44,62) is tribe 29's knight-ring offset (-2,-1), so 03f8's pressure term raised the threat
+  score 64 -> 66 and 152e made one extra 00f2 expel roll. With it, all 918 draws of interval
+  20 (DOS turns 288 + 289) match; tr9 saves 4 -> 19 equal apart from the UI cursor.
+
+- FUN_5952_035e's build cascade looks up per-nation data with `local_1b0`, the owner of the
+  improvement arm's last neighbour tile (-1 or a tribe included, unchecked), not the colony's
+  nation (asm 5952:2404 / 2483 `[BX+0x84cb]` with BX = [BP-0x1ae] << 4; raw 95759-95844 for
+  the 0x9424 / 0x9410 / 0x9414 / 0x9298 / 0x924c reads). For -1 the Muskets price byte is
+  DS:0x84bb, which has no writer and is modelled as 0 (as the port already does for
+  DS:0x84b4..bb). tr9 interval 20: crown Bahia skips the Blacksmith's Shop arm, and pop 7 < 8
+  ends at 2747 (slot 255, +0x1d |= 0x80). `ai_euro_5952_build_cascade_1b0` /
+  `ai_euro_5952_ds_byte`; a tribe owner's price row past DS:0x84fb is still a guess (reads 0).
+- tr9 save 20, crown Pioneer 40 in captured Fort Orange: (a) 0352's capture arm flips only the
+  nation nibble (0894 = FUN_1427_0d1e, low nibble of +0x3147), so a colonist taken on a colony
+  tile keeps its old vis mask (11); `units_capture_to_winner` no longer resets it. (b) After
+  20e6's road arm (9/'R'), FUN_521d_5b66 `case 9` runs FUN_479b_0526, which clears orders to 0
+  on a road or settlement tile. `ai_euro_unit_act` now dispatches 5b66 cases 8/9
+  (`units_pioneer_work_tick_w`) after the 5a78 tail, on later turns too, so AI order-9
+  Pioneers really build roads (the port used to park them).
+
+With these, tr9 saves 4 -> 20 are byte-identical apart from the UI cursor/viewport, and every
+draw of intervals 4 -> 20 matches. Harness: `golden_idle_campaign tr9 0 20` (CTest
+`golden_idle_tr9`); `tools/trcmp.py` for the per-interval draw comparison.
+
 State 2026-10-16 late (continuous from START_SAVE): 0 -> 1 -> 2 -> 3 -> 4 byte-identical; vs the
 DOSBox continuous replay save 5 differs only in tribe 5's horse_herds (DOS 4cc6_00f2 called with
 euro 8 spills into the next Indian record; tracing the caller). With picks 6:256,353 / 7:361:
@@ -478,17 +548,10 @@ saves 5-7: 3, 15, ~74 field diffs vs the archive.
 
 ## Open
 
-- France and Spain each buy an extra Privateer in the port (Spain gold 0 vs 1908); recheck.
-- FUN_43f7_1528 DS:0x8542 rebind: the colony ticking when the intervention is announced should
-  apply its composed production (and the rest of 0688) to the LAST colony's record.
-  `turn_produce_one_colony` mixes composition and application, so this needs a split.
-- Visibility after the 10f0 landing: FUN_281f_09ba(colony-2, 5, 5, 1) -> FUN_6b7e_0004 also
-  stamps the human's unit vis bits and colony pop_on_map in the 5x5 (tr9 save 13: a Brave at
-  (50,47) gets bit 3, New Amsterdam pop_on_map[3] = 13). The port reveals map tiles only.
-- Facing of the 10f0 land units: DOS 0, port 6/1 (dos_tail stale-record bytes differ).
-- tr9 save 11: chain order at (53,56) after the MoW loses (Frigate moved to the head).
-- Tile-chain order in a colony during the idle human rotation (tr9 13 -> 14, New Amsterdam).
-  DOSBox (save 13 loaded, BPM on the ships' +0x315e) shows each activated land unit moving to
-  the end of the chain, then the in-port ships (31, 34, 40) being relinked off the tile
-  (x = -3) and back after it, at 1427:02fc (runtime 0c4b:02fc). The port appends only the
-  activated unit, so the ships end up behind the landed troops. Caller not yet identified.
+- Nothing against tr9 through save 20. Next: extend the DOSBox reference run past 1690 (a
+  new continuous run from 000003 with `tr9_trace.py`, or continue from tr9_20 only if a
+  loaded autosave is shown to reproduce the continuous run, which it did not for save 5), and
+  check the 5952 `local_1b0` guesses (DS:0x84bb = 0, tribe owner rows) against a trace that
+  hits them.
+- The archive (000005+) stays a different wall-clock realisation; `golden_idle_independence`
+  remains disabled.

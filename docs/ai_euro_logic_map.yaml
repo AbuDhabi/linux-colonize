@@ -984,21 +984,14 @@ graphs:
       - id: at_war
         kind: decision
         label: At war with this peer?
-      - id: privateer
-        kind: step
-        label: Wartime Privateer spawn (or prize gold when no unit pool)
-        fn: ai_diplo.c:ai_diplo_war_privateer_spawn
-        status: port
-        note: The 8g prize branch is a null-unit-pool stand-in; neither branch is the DOS 10ec/13b0 diplomacy path.
       - id: end
         kind: end
         label: return
     edges:
       - [indian_tick, peer_loop]
       - [peer_loop, at_war]
-      - [at_war, privateer, "yes"]
+      - [at_war, peer_loop, "yes (the invented Privateer spawn was deleted 2026-10-14)"]
       - [at_war, peer_loop, "no"]
-      - [privateer, peer_loop]
       - [peer_loop, end, "done"]
 
   # ---------------------------------------------------------------------

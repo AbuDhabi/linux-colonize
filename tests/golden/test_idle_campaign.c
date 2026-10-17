@@ -11,7 +11,9 @@
  * 0..20, 1680-1690; 0 = START_SAVE.SAV, the manual save the player loaded).
  * The player declares independence between saves 2 and 3 (menu GAME >
  * DECLARE INDEPENDENCE, second option) and otherwise idles the same way.
- * Its CTest case is disabled until that run is aligned
+ * Its CTest case is disabled (the archive is one wall-clock realisation of
+ * the music picks); the "tr9" argument runs the same chain against the
+ * recorded DOSBox reference run, CTest golden_idle_tr9
  * (docs/idle_independence.md).
  */
 #include <stdint.h>
@@ -34,16 +36,26 @@ typedef struct {
   int per_turn;      /* save index counts turns, not years */
   int declare_save;  /* the human declares independence on the turn before this save; 0 = never */
   int resume_slot;   /* start save loaded in-game: the old day runs on from this slot; -1 = none */
+  const char* picks_trace; /* DOSBox draw trace with `PICK save K draw D` lines; NULL = none */
 } IdleCampaign;
 
 static const IdleCampaign k_yearly = {
-  "original_saves/1492-1600-seed-100/year_%d.sav", NULL, 1492, 1599, 0, 0, -1,
+  "original_saves/1492-1600-seed-100/year_%d.sav", NULL, 1492, 1599, 0, 0, -1, NULL,
 };
 static const IdleCampaign k_independence = {
   "original_saves/independence-seed-100/%06d.SAV",
   /* START_SAVE was loaded from the in-game menu of a French (slot 1) game:
    * the running day finishes from slot 2 (docs/idle_independence.md). */
+  "original_saves/independence-seed-100/START_SAVE.SAV", 0, 20, 1, 3, 2, NULL,
+};
+/* The same chain against the tr9 DOSBox reference run (continuous from
+ * 000003, draw-traced; original_saves/independence-seed-100/tr9/readme.md).
+ * Saves 1..3 have no tr9 file and are played through; its music picks come
+ * from the trace. */
+static const IdleCampaign k_tr9 = {
+  "original_saves/independence-seed-100/tr9/tr9_%d.sav",
   "original_saves/independence-seed-100/START_SAVE.SAV", 0, 20, 1, 3, 2,
+  "original_saves/independence-seed-100/tr9/tr9.txt",
 };
 
 static int read_bytes(const char* path, uint8_t** data, size_t* size) {
@@ -197,12 +209,16 @@ int main(int argc, char** argv) {
     c = &k_independence;
     --argc;
     ++argv;
+  } else if (argc == 4 && strcmp(argv[1], "tr9") == 0) {
+    c = &k_tr9;
+    --argc;
+    ++argv;
   }
   int first, last;
   if (argc != 3 || !parse_year(c, argv[1], &first) ||
       !parse_year(c, argv[2], &last) || first >= last) {
     fprintf(stderr,
-            "usage: %s [independence] FIRST LAST (one contiguous saved run;"
+            "usage: %s [independence|tr9] FIRST LAST (one contiguous saved run;"
             " years, or save numbers for independence)\n", argv[0]);
     return 2;
   }
@@ -293,6 +309,19 @@ int main(int argc, char** argv) {
           pe = *end == ',' ? end + 1 : end;
         }
         if (*pe == ';') ++pe;
+      }
+      /* No env spec: the campaign's own trace (`PICK save K draw D`). */
+      FILE* tf = (!pe && c->picks_trace) ? fopen(c->picks_trace, "r") : NULL;
+      if (tf) {
+        char line[160];
+        while (fgets(line, sizeof(line), tf)) {
+          int sv;
+          unsigned long ix;
+          if (sscanf(line, "PICK save %d draw %lu", &sv, &ix) == 2 && sv == year && npicks < 16) {
+            picks[npicks++] = ix;
+          }
+        }
+        fclose(tf);
       }
     }
     dos_rng_schedule_tick_reseeds(picks, npicks);
