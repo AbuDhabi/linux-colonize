@@ -208,11 +208,16 @@ int colonies_work_plot_count(const ColonizeColonyPool* pool, const ColonizeColon
  *   0x08  the colony's own centre tile (unreachable through this entry point,
  *         which only takes the 8 ring slots).
  */
+const ColonizeColony* g_colonies_plot_cache_colony = NULL;
+
 uint8_t colonies_plot_blocked_mask(
   const ColonizeWorld* w,
   const ColonizeColony* col,
   int tile_index
 ) {
+  if (g_colonies_plot_cache_colony && col) {
+    col = g_colonies_plot_cache_colony; /* the DS:0x8df0 cache's own colony */
+  }
   if (!w || !col || !col->active) {
     return 0x10u;
   }

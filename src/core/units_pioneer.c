@@ -92,10 +92,16 @@ static int units_pioneer_work_needed(const ColonizeUnit* u, const ColonizeWorldM
 /*
  * FUN_281f_0614 (= FUN_15eb_0142) nearest-colony search, the one writer of
  * DOS DS:0x8db8: closest active colony of `filter_nation` (any when < 0) by
- * map_dos_dist, first wins on ties; *out_dist gets the winning distance
+ * map_dos_dist, the last (highest index) wins on ties; *out_dist gets the winning distance
  * (the 0x8db8 side effect both Pioneer bodies read back). Cite:
  * move_scoring_land.md "0x8db8 identified".
  */
+/* DS:0x8542 after a Pioneer body's FUN_281f_0614: FUN_15eb_0142 ends with
+ * FUN_15eb_002c(result), so the search leaves the colony binding on its
+ * winner. FUN_5952_035e's phantom arms then charge that record. NULL = the
+ * body made no search. */
+ColonizeColony* g_units_pioneer_0614_colony = NULL;
+
 static ColonizeColony* units_nearest_colony_dos(
   ColonizeColonyPool* colonies,
   int x,
@@ -112,7 +118,7 @@ static ColonizeColony* units_nearest_colony_dos(
         continue;
       }
       const int d = map_dos_dist(c->x - x, c->y - y);
-      if (d < best_d) {
+      if (d <= best_d) { /* raw 9405 `iVar1 <= local_4`: the LAST tie wins */
         best_d = d;
         best = c;
       }
@@ -263,7 +269,7 @@ static bool units_pioneer_wear_tools(ColonizeUnitPool* pool, ColonizeUnit* u) {
       const ColonizeUnitKind want_kind = (u->profession == UNITS_JOB_MISSIONARY) ? UNITS_KIND_MISSIONARY : UNITS_KIND_COLONIST;
       const int tgt = units_kind_type_index(pool, want_kind);
       if (tgt >= 0) {
-        u->type_index = tgt;
+        units_set_type_keep_spent(pool, u, tgt);
       }
     }
     return true;
@@ -400,6 +406,7 @@ bool units_pioneer_work_tick_w(
      */
     if (colonies) {
       ColonizeColony* near_road = units_nearest_colony_dos(colonies, u->x, u->y, -1, NULL);
+      g_units_pioneer_0614_colony = near_road;
       if (near_road && near_road->nation_id == (u->nation_id & 0xf)) {
         int next = (int)near_road->hammers_purchased + 10;
         if (next > 65535) {
@@ -417,6 +424,9 @@ bool units_pioneer_work_tick_w(
     bool clearing = false;
     (void)units_pioneer_tile_can_clear_or_plow(map, u->x, u->y, &clearing);
     if (clearing) {
+      /* FUN_479b_01a6 reads the terrain class (iVar5) before the clear; the
+       * +8 reward byte is the forest's (tr9 1686: Bahia +60, not +20). */
+      const int pre_clear_class = map_dos_terr_class_at(map, u->x, u->y);
       map_tile_clear_forest(map, u->x, u->y);
       const bool demoted = units_pioneer_wear_tools(pool, u);
       /*
@@ -444,13 +454,16 @@ bool units_pioneer_work_tick_w(
       if (colonies) {
         int near_dist = 9999;
         near = units_nearest_colony_dos(colonies, u->x, u->y, u->nation_id, &near_dist);
+        if (near) {
+          g_units_pioneer_0614_colony = near;
+        }
         if (near_dist >= 4) {
           near = NULL;
         }
         if (near) {
           const int lumber_mill = colonies_building_row(colonies, COLONY_BUILDING_LUMBER_MILL);
           const bool has_mill = lumber_mill >= 0 && near->has_building[lumber_mill];
-          int scale = map_dos_terr_lumber_reward_byte(map_dos_terr_class_at(map, u->x, u->y));
+          int scale = map_dos_terr_lumber_reward_byte(pre_clear_class);
           scale += 1; /* layer2(colony tile) & 0x0a — city bit, always set */
           if (!has_mill) {
             scale = 1;

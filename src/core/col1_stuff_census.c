@@ -311,6 +311,15 @@ void col1_stuff_census_4962_w(const ColonizeWorld* w, ColonizeCol1Stuff* stuff, 
                !(colonies && colonies_id_at(colonies, u->x, u->y) >= 0)) {
       stuff->continent_presence_flags[cont] |= 8; /* raw 78167-78180 */
     }
+    /* raw 78193-78197: an unbound unit (+0x314a < 0) binds to the colony on
+     * its tile, FUN_281f_07be -> FUN_15eb_0a76 (tr9 1687: the intervention
+     * force in New Amsterdam saves origin 1). */
+    if (u->col1_origin >= 0x80 && colonies && u->aboard_ship_id < 0 && units_is_on_map(u)) {
+      const int cid = colonies_id_at(colonies, u->x, u->y);
+      if (cid >= 0 && cid < 0x80) {
+        w->units->units[i].col1_origin = (uint8_t)cid;
+      }
+    }
     stuff->all_unit_counts[n]++;
     if (cont >= 0 && cont < 16) {
       stuff->land_unit_counts_by_continent[n * 16 + cont]++;

@@ -434,6 +434,8 @@ static int unit_pioneer_case8_tail(void) {
 
   const int fx = 5;
   const int fy = 6; /* DOS distance 1 from the village at (6,6) */
+  /* The reward byte is the forest's: 01a6 reads the class before clearing. */
+  map.terrain[fy * map.width + fx] = 10; /* mixed forest */
   const int terr_scale = map_dos_terr_lumber_reward_byte(map_dos_terr_class_at(&map, fx, fy));
 
   /* --- arm 1 + 2: colony out of range, then a Lumber Mill colony in range. */

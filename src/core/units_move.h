@@ -96,6 +96,9 @@ bool units_can_enter_w(
 int units_type_max_mp(const ColonizeUnitType* type);
 /* Per-unit max MP in thirds: type base + 3 for ships when the nation has Magellan. */
 int units_max_mp(const ColonizeUnitPool* pool, int unit_id);
+/* DOS writes only the type byte; the spent byte (+0x3149) stays, so the
+ * port's remaining-MP count follows the new type's allotment. */
+void units_set_type_keep_spent(ColonizeUnitPool* pool, ColonizeUnit* u, int type_index);
 /*
  * Movement thirds the unit still has. Euro units store that directly in
  * moves; native units store DOS's spent byte there, so this is the only
@@ -288,6 +291,8 @@ bool units_is_pioneer(const ColonizeUnitPool* pool, int unit_id);
  * First call sets orders + one work-tick; further ticks via
  * units_pioneer_work_tick / turn_refresh.
  */
+/* DS:0x8542 as the last Pioneer body's FUN_281f_0614 left it (units_pioneer.c). */
+extern struct ColonizeColony* g_units_pioneer_0614_colony;
 bool units_pioneer_plow_w(
   const ColonizeWorld* w,
   int unit_id,

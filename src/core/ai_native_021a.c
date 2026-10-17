@@ -487,8 +487,17 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_occupant(struct ai_021a_ctx* c) {
                   break;
                 }
               }
-              /* +0x315c/+0x315e both negative: not in a transport chain. */
-              if (su->aboard_ship_id < 0) {
+              /* +0x315c/+0x315e both negative: no other record in its tile
+               * chain, i.e. the wagon stands alone (tr9 12 -> 13: two English
+               * wagons stacked at (44,67) are linked to each other, so the
+               * Arawak Brave sees no loot and does not attack). */
+              int chained = 0;
+              for (int j = 0; j < units_slot_end(units) && !chained; ++j) {
+                const ColonizeUnit* o = &units->units[j];
+                chained = o->active && o != su && units_is_on_map(o) && o->x == nx &&
+                          o->y == ny;
+              }
+              if (!chained) {
                 score += 10;
                 want = 1;
                 loot = 1; /* 0xaa8: ax=1 -> [bp-0x20] */

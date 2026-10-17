@@ -495,11 +495,11 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
           if (soldier_ty >= 0 && u->type_index == soldier_ty && army >= 0) {
             const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
             promoted_from = ty && ty->name[0] ? ty->name : "";
-            u->type_index = army;
+            units_set_type_keep_spent(ctx->units, u, army);
           } else if (dragoon_ty >= 0 && u->type_index == dragoon_ty && cav >= 0) {
             const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
             promoted_from = ty && ty->name[0] ? ty->name : "";
-            u->type_index = cav;
+            units_set_type_keep_spent(ctx->units, u, cav);
           } else {
             continue;
           }

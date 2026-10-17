@@ -836,8 +836,11 @@ static void ai_contact_live_among_natives_body(
   }
   ColonizeDosRng village_rng;
   const int skill = ai_contact_a618_skill_ex(ctx, nation_id, t, &village_rng);
-  if (!human && ctx->rng) {
-    *ctx->rng = village_rng; /* 86ba reseeded the shared stream */
+  /* OVL13 a618 raw 77781: the skill pick closes with FUN_1000_86ba(DS:0x83a6),
+   * so the 1..1000 slow roll below draws off the turn seed, not the village
+   * stream (tr9 1688: the English colonist at (49,51) is taught slowly). */
+  if (ctx->rng) {
+    dos_rng_seed(ctx->rng, ai_turn_seed(ctx));
   }
   const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
   const int band = ai_relation_quartile(alarm);

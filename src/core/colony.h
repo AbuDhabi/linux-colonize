@@ -564,6 +564,15 @@ uint8_t colonies_plot_blocked_mask(
   const ColonizeColony* col,
   int tile_index
 );
+/* DOS's 5x5 plot caches (DS:0x8df0 blocked bytes, -0x7262 claims) belong to the
+ * colony whose FUN_15eb_268e / 26e4 built them; when FUN_5952_035e goes on
+ * against a rebound DS:0x8542 they still describe that colony. Non-NULL while
+ * the AI tick runs on such a record (ai_euro_colony_tick_run). */
+extern const ColonizeColony* g_colonies_plot_cache_colony;
+/* FUN_281f_0d84 distance (DS:0x8db8): nearest village to (x,y) on `continent`. */
+int colonies_nearest_tribe_dist_on(
+  const ColonizeCol1Save* col1, const ColonizeWorldMap* map, int x, int y, int continent
+);
 
 /* Forward decl — unit helpers need the unit pool without including units.h here. */
 typedef struct ColonizeUnitPool ColonizeUnitPool;

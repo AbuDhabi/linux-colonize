@@ -427,7 +427,11 @@ static void colonies_assign_field_land_reaction(
   }
   const int x = col->x + dx;
   const int y = col->y + dy;
-  const int ti = colonies_indian_claim_tribe_from_w(w, nation, col->x, col->y, x, y);
+  /* The claim is the -0x7262 table entry for this plot offset, built by 26e4
+   * for the colony that owns the cache (see g_colonies_plot_cache_colony). */
+  const ColonizeColony* cc = g_colonies_plot_cache_colony ? g_colonies_plot_cache_colony : col;
+  const int ti =
+    colonies_indian_claim_tribe_from_w(w, nation, cc->x, cc->y, cc->x + dx, cc->y + dy);
   if (ti < 0 || ti >= (int)col1->head.tribe_count) {
     return;
   }
@@ -451,7 +455,10 @@ static void colonies_assign_field_land_reaction(
   }
   /* DS:0x8db8 — colonies_nearest_tribe_on's own map_dos_dist to the village it
    * returned, so recomputing it here reproduces the word DOS reads. */
-  const int dist = map_dos_dist(x - (int)t->x, y - (int)t->y);
+  /* 06d2's own FUN_281f_0d84 on the seated plot (raw 9873) sets 0x8db8. */
+  const int dist =
+    cc == col ? map_dos_dist(x - (int)t->x, y - (int)t->y)
+              : colonies_nearest_tribe_dist_on(col1, map, x, y, map_continent_id_at(map, col->x, col->y));
   const int base = (human ? (int)col1->head.difficulty : 0) + 5;
   int amt = base;
   if (dist < 3) {
