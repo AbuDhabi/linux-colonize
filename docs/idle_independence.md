@@ -346,6 +346,17 @@ With these, the crown's 4->5 slot makes the same 112 draws as a continuous DOSBo
 
 ### DOSBox reference run (deterministic target past 000004)
 
+**Music off makes DOS deterministic (verified 2026-10-17).** The pump FUN_129f_00f6 runs only
+when `DS:0xa2` (Background Music, save `tut2` bit 2) or the pending flag `DS:0x9e` is set, and
+`srand(tick)` sits inside its random-pick arm. `DS:0x9e` is set by FUN_129f_0318 / 02cc only when
+`DS:0xa0` (Event Music, bit 4) is on and `DS:0xa2` off: a pool change then queues exactly one pick.
+DOSBox from 000003, one idle turn: `0xa2 = 0` alone still gave one pick (draw 324, an event cue);
+`0xa2 = 0xa0 = 0` gave 0 picks, 349 draws, and the port with no `GOLDEN_IDLE_PICKS` reproduces
+that autosave with 0 diffs (cursor included). So future reference runs should switch both music
+options off (Sound dialog FUN_2b5a_23ce, or `SM 237e:00a2 00 00` / `SM 237e:00a0 00 00` after
+the load) and need no pick logging; the archive was recorded with all three on.
+
+
 The archive is one wall-clock realisation (music picks), and from 000005 on it carries effects a
 DOSBox continuous replay does not reproduce (000005: crown +36 Tools gross; 000006: Bahia's
 Blacksmith/Gunsmith pair). So the deterministic target is a recorded DOSBox run: load 000003,
