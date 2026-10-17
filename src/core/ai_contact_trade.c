@@ -266,6 +266,9 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
   for (int e = 0; e < 4; ++e) {
+    if (ai_contact_s_visit_euro >= 0 && e != ai_contact_s_visit_euro) {
+      continue;
+    }
     /* DOS `bVar7` (raw 87470 init / 87687 set): this visit's food-beg was
      * conceded, which vetoes gifting food back at LAB_5bfb_096c. bugs.md #863. */
     int bvar7 = 0;

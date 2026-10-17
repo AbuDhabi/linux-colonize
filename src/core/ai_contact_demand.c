@@ -1670,6 +1670,12 @@ void ai_contact_apply_beg_food(
      * (independence 4->5: Spain refuses at Roanoke, tribe 5's horse herds
      * byte gains 1 and Spain's alarm stays). */
     ai_diplo_indian_alarm_word_raw(ctx->col1, nation_id, nation_id, d);
+    /* raw 87708-87710: `if (contact_state[param_1] == 2) contact_state = 0`
+     * (independence 10->11: the Dutch refuse a beg at Vlissingen right after
+     * the same tribe's gift visit, and the gift's stamp is gone). */
+    if (ind && ind->contact_state[e] == 2) {
+      ind->contact_state[e] = 0;
+    }
     if (ctx->status && ctx->status_size) {
       snprintf(
         ctx->status, ctx->status_size, "We turn the %s away empty-handed.",
@@ -1758,6 +1764,12 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
  * when it can spare the food (matches this file's established
  * AI-defaults-generous convention for gift-shaped decisions elsewhere).
  */
+int ai_contact_s_visit_euro = -1;
+
+void ai_contact_set_visit_euro(int euro_nation) {
+  ai_contact_s_visit_euro = euro_nation;
+}
+
 int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->colonies || !ctx->col1->tribe || !ctx->rng) {
     return 0;
@@ -1776,6 +1788,9 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
    * pacing note at the top of this file); there is no turn cooldown.
    */
   for (int e = 0; e < 4; ++e) {
+    if (ai_contact_s_visit_euro >= 0 && e != ai_contact_s_visit_euro) {
+      continue;
+    }
     if (!ind->euro_diplo[e]) {
       continue;
     }

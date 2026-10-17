@@ -70,6 +70,32 @@ void units_465b_0673_vis_or(
   }
 }
 
+/*
+ * FUN_465b_0000 raw 75660-75696: `local_1c` = the human (DS:0x5396) sees this
+ * move — it is the human's own unit, or the mover carries the human's bit
+ * once the 0673 OR above has run (that OR already folds in FUN_281f_0970, the
+ * human watching the destination). Then `FUN_281f_07d6(unit, DS:0x5396)` =
+ * FUN_1427_09ac ORs the human's bit into the mover's whole ORIGIN chain,
+ * before 0916 detaches it (DOSBox independence 10->11: a crown wagon leaving
+ * Bahia marks the Cavalry left behind as seen by the Dutch).
+ */
+static void units_465b_07d6_human_or(ColonizeUnitPool* pool, const ColonizeUnit* unit) {
+  const int human = g_units_combat_human_nation;
+  if (human < 0 || human > 3 || !units_is_on_map(unit)) {
+    return;
+  }
+  const uint8_t bit = (uint8_t)(1u << human);
+  if (unit->nation_id != human && (unit->col1_vis_mask & bit) == 0) {
+    return;
+  }
+  for (int i = 0; i < units_slot_end(pool); ++i) {
+    ColonizeUnit* o = &pool->units[i];
+    if (o->active && o->x == unit->x && o->y == unit->y) {
+      o->col1_vis_mask |= bit;
+    }
+  }
+}
+
 bool units_try_move_w(
   const ColonizeWorld* w,
   int unit_id,
@@ -587,6 +613,15 @@ bool units_try_move_w(
           units_465b_0673_vis_or(pool, map, unit, dest_x, dest_y);
         }
       }
+      /* The LAB_465b_01ce stop below (raw 75577-75578) runs BEFORE the bVar4
+       * fight: an AI with under 3 thirds left never attacks the militia. */
+      if (foreign_colony_entry && g_units_ff_col1 &&
+          units_remaining_mp(pool, unit_id) < UNITS_MP_PER_TILE &&
+          (unit->nation_id > 3 || g_units_ff_col1->player[unit->nation_id].control != 0)) {
+        units_mp_exhaust(pool, unit);
+        g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
+        return false;
+      }
       /* Paul Revere: empty foreign colony tile → auto-arm from muskets + fight.
        * Cite: PEDIA / docs/fandom_col1994.md Paul Revere. */
       if (!units_revere_defend_colony_tile(
@@ -597,6 +632,12 @@ bool units_try_move_w(
       unit = units_get(pool, unit_id);
       if (!unit) {
         return false;
+      }
+      /* A beaten militia: 1b0e's winner advances by 0948 relink whatever MP
+       * the fight left (DOSBox independence 6->7: the crown Cavalry beats St.
+       * Louis's militia and takes the town in the same step). */
+      if (g_units_last_combat > 0) {
+        combat_attack_entry = true;
       }
     }
   }
@@ -629,7 +670,7 @@ combat_entry_resolved:
    * (FUN_281f_0934) and stop, before any partial-MP roll. Fresh 1592
    * three-turn: a French Dragoon at 0 MP beside empty Dutch Curacao.
    */
-  if (reason == COLONIZE_ENTER_OK && colonies && g_units_ff_col1 &&
+  if (reason == COLONIZE_ENTER_OK && colonies && g_units_ff_col1 && !combat_attack_entry &&
       remaining < UNITS_MP_PER_TILE) {
     const ColonizeColony* fcol = colonies_get(colonies, colonies_id_at(colonies, dest_x, dest_y));
     const bool ai_controlled =
@@ -644,7 +685,8 @@ combat_entry_resolved:
   }
 
   bool allow = false;
-  if (reason == COLONIZE_ENTER_COMBAT_LAND || reason == COLONIZE_ENTER_COMBAT_NAVAL) {
+  if (reason == COLONIZE_ENTER_COMBAT_LAND || reason == COLONIZE_ENTER_COMBAT_NAVAL ||
+      combat_attack_entry) {
     /*
      * DOS FUN_465b gate (~75643): `(cost <= left) || (spent == 0) ||
      * (04ca(seed), bVar4)` — the third clause is the attack flag itself, so
@@ -695,6 +737,7 @@ combat_entry_resolved:
   }
   if (!combat_attack_entry && !foreign_colony_entry) {
     units_465b_0673_vis_or(pool, map, unit, dest_x, dest_y);
+    units_465b_07d6_human_or(pool, unit);
   }
 
   /* Moving cancels sentry / fortify; Go-To cleared only on arrival elsewhere. */
@@ -888,12 +931,18 @@ combat_entry_resolved:
     units_log_ident(pool, unit_id, who, sizeof(who));
     diag_info("MOVE %s: (%d,%d) -> (%d,%d)", who, ox, oy, unit->x, unit->y);
   }
-  /* FUN_5bfb_3180 naval half: adjacent foreign warship / Fort / Fortress
-   * may eat the mover's remaining MP (see units_ship_slow_scan). */
-  units_ship_slow_scan_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map), .rng=(ColonizeDosRng*)(rng)}, unit_id);
-  /* FUN_5bfb_3180 sentry half: a foreign unit now adjacent wakes that stack's
-   * Sentry units (raw 98628-98646). Runs for every mover, land or sea. */
-  units_sentry_wake_scan(pool, map, colonies, unit_id);
+  /* 465b reaches 0984 -> FUN_5bfb_3180 only on its plain-move tail: the
+   * bVar4 colony entry and a 1b0e winner's advance `goto LAB_465b_0bd1`
+   * first (tr9 10 -> 11: the English Regular taking Vlissingen turns no
+   * neighbour's head). */
+  if (!combat_attack_entry && !foreign_colony_entry) {
+    /* FUN_5bfb_3180 naval half: adjacent foreign warship / Fort / Fortress
+     * may eat the mover's remaining MP (see units_ship_slow_scan). */
+    units_ship_slow_scan_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map), .rng=(ColonizeDosRng*)(rng)}, unit_id);
+    /* FUN_5bfb_3180 sentry half: a foreign unit now adjacent wakes that stack's
+     * Sentry units (raw 98628-98646). Runs for every mover, land or sea. */
+    units_sentry_wake_scan(pool, map, colonies, unit_id);
+  }
   unit = units_get(pool, unit_id);
   /* No named_new_world write here: FUN_4720_049e raw 76126-76135 is the
    * human UI move handler; AI moves (FUN_465b_0000) never set player+0x30

@@ -832,12 +832,20 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
      * and the step is the attack, so a hull that advances stands on its goal
      * and walks no further (DOSBox independence 4->5: the Man-O-War saves
      * orders 0x0c at (51,52) and draws nothing after the fight). */
+    /* The attack pick still falls through raw 89040 ('9') to LAB_589e, and
+     * 465b's LAB_0bd1 tail clears the step and bumps +0x315a when the fight
+     * removed no unit (DOSBox independence 9->10: the crown Man-O-War's
+     * attack on the Dutch Frigate ends with nothing sunk; it saves '9',
+     * orders 0, +0x315a 1). */
+    const int units_before = units_active_count(ctx->units);
+    u->col1_ai_plan = 0x39;
     u->last_dir = dir;
     u->orders = AI_EURO_ACT_STEP;
     u->goto_x = u->x + MAP_DIR8_DX[dir];
     u->goto_y = u->y + MAP_DIR8_DY[dir];
     ai_euro_try_attack(ctx, u, u->x + MAP_DIR8_DX[dir], u->y + MAP_DIR8_DY[dir]);
-    return 1; /* the attack spent the hull: no 479b dispatch clears its step */
+    units_465b_0bd1_tail(ctx->units, id, units_before, false);
+    return 1; /* the attack spent the hull */
   }
   /* The park arms sit inside `local_ce == 0` (raw 88983); an attack pick
    * held for want of MP stays with '9'. */
@@ -980,6 +988,10 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
     const int cost = units_move_cost(ctx->units, id, ctx->map, px, py);
     dos_rng_seed(w.rng, w.rng_reseed);
     (void)dos_rng_range(w.rng, 1, cost > 0 ? cost : 1);
+    /* 465b adds the step cost to the spent byte before the roll decides
+     * (raw 75639-75648), so the lost gamble still saves spent > max (tr9
+     * 11 -> 12: the sticky-cleared Scout saves spent 13). */
+    units_mp_charge(ctx->units, u, cost);
   }
   const bool moved = units_try_move_w(&w, id, px, py);
   if (!g_units_465b_settled) {

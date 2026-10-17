@@ -1246,9 +1246,10 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   if (!ctx || !u || !u->active || u->aboard_ship_id >= 0) {
     return;
   }
-  if (u->moves <= 0) {
-    return;
-  }
+  /* No MP test here: the dispatcher's 097a gate already admitted the unit,
+   * and its sticky clear (>0x14 acts) exhausts MP with "the act still
+   * runs" (tr9 11 -> 12: the English Scout's 22nd shuttle act at Fort Nassau
+   * scores at spent 12 and loses the 465b roll). */
 
   /*
    * FUN_4720_049e notify check (thin, approximate — see the function's own
@@ -1673,9 +1674,13 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
           continue;
         }
 
-        /* DOS inner `while (has_moves)`: drain this unit before the next scan. */
+        /* DOS inner `while (has_moves)`: drain this unit before the next scan.
+         * It is the same 097a / 13b0 test, x >= 0 signed included: a hull
+         * that crossed into the Europe lane mid-drain stops there with its
+         * spent byte (DOSBox independence 10->11: the crown Man-O-War saves
+         * spent 9 at x = 244). */
         int first_act = 1;
-        while (u->active && (first_act || (dos_loop && u->moves > 0))) {
+        while (u->active && (first_act || (dos_loop && u->moves > 0 && u->x < 128))) {
           first_act = 0;
         const int before_moves = u->moves;
         const int before_x = u->x;
@@ -1703,8 +1708,10 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
         const int progressed =
           !u->active || u->moves < before_moves || u->x != before_x || u->y != before_y ||
           u->orders != before_orders;
-        ai_euro_3180_euro_side(ctx, u, nation_id, progressed,
-                               u->x != before_x || u->y != before_y);
+        /* 3180 rides 465b's plain-move tail only (see units_try_move_w):
+         * a colony capture or combat advance leaves through LAB_0bd1. */
+        const int moved_3180 = (u->x != before_x || u->y != before_y) && g_units_465b_settled;
+        ai_euro_3180_euro_side(ctx, u, nation_id, progressed, moved_3180);
         /*
          * FUN_5bfb_3180's Indian-side half runs on the AI mover's own step as
          * well (465b commit tail -> 0984 -> 0192 -> 3180 -> 022e): a land unit
@@ -1715,8 +1722,7 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
          * the human are handled elsewhere (landfall hook / game_loop).
          */
         if (progressed && u->active && units_is_on_map(u) && u->aboard_ship_id < 0 &&
-            !units_is_sea(ctx->units, u->id) &&
-            (u->x != before_x || u->y != before_y)) {
+            !units_is_sea(ctx->units, u->id) && moved_3180) {
           /* 022e's met arm (5bfb:0422) parks the mover's x at its BP-0x2c,
            * the next 20e6's local_ea (SS:e7c4). Fresh 1565: a Spanish
            * Dragoon beside a met tribe border-parks on that 49. */

@@ -1542,8 +1542,10 @@ int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
     }
   }
   /* 007a leaves +0x314b alone: the hull keeps its 'E' on the lane (seed-100
-   * autosaves); ai_euro_europe_lane_ships counts lane OR stamp, once. */
-  ship->moves = 0;
+   * autosaves); ai_euro_europe_lane_ships counts lane OR stamp, once.
+   * No MP write either: the hull keeps its spent byte on the lane (DOSBox
+   * independence 10->11: the crown Man-O-War saves spent 9 at x=244). The
+   * dispatcher never acts a unit at x >= 128. */
   return 1;
 }
 

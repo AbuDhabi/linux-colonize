@@ -937,7 +937,9 @@ void ai_euro_20e6_prologue(ColonizeTurnContext* ctx, const ColonizeUnit* u, int 
   s->stance = (s->cid < 0) ? 5 : ai_euro_continent_stance_at(nation, s->cid);
   s->village_idx = ai_euro_20e6_nearest_village(ctx, u->x, u->y, &s->village_dist);
   s->unit_river = map_tile_has_river(ctx->map, u->x, u->y) ? 1 : 0;
-  s->unit_road = map_tile_has_road(ctx->map, u->x, u->y) ? 1 : 0;
+  /* raw 88544-88545 (md:1189): `FUN_281f_0754(x, y) & 10` — a settlement
+   * (0x02) counts as a road (0x08). */
+  s->unit_road = (ai_mask_fa_flags(ctx->map, u->x, u->y) & 0x0a) ? 1 : 0;
   if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
     s->act_state = u->orders;        /* +0x314c */
     s->order_code = u->col1_ai_plan; /* +0x314b */
@@ -2191,7 +2193,10 @@ int ai_euro_20e6_wander_step(
     }
     int score = 0;
     const int dest_river = map_tile_has_river(ctx->map, nx, ny) ? 1 : 0;
-    const int dest_road = map_tile_has_road(ctx->map, nx, ny) ? 1 : 0;
+    /* `FUN_1000_8944(x, y) & 10` (md:2619): settlement or road. DOSBox
+     * independence 10->11: the English Scout beside Fort Nassau steps back
+     * onto the colony tile for the road's +1. */
+    const int dest_road = (ai_mask_fa_flags(ctx->map, nx, ny) & 0x0a) ? 1 : 0;
     const int cardinal = (d & 1) == 0;
     if (s->dos_type == UNITS_KIND_SCOUT) { /* Scouts */
       score = dos_rng_range(ctx->rng, 1, 8);

@@ -14,6 +14,7 @@
 #include "core/internal.h"
 #include "core/ai_king.h"
 #include "core/ai_king_internal.h"
+#include "core/ai_euro_internal.h"
 #include "core/ai_diplo.h"
 #include "core/sound.h"
 
@@ -200,7 +201,9 @@ int ai_king_new_war_event(ColonizeTurnContext* ctx) {
  * also uses order 11 (UNITS_ORDER_AI_SAIL), and counting those parked the
  * whole REF fleet once its Man-O-War pool ran dry (golden_woi_ref01).
  */
-static int ai_king_crown_ships_in_europe_lane(const ColonizeTurnContext* ctx, int crown) {
+static int ai_king_crown_ships_in_europe_lane(
+  const ColonizeTurnContext* ctx, int crown, int self_id
+) {
   if (!ctx || !ctx->units || !ctx->map) {
     return 0;
   }
@@ -215,13 +218,18 @@ static int ai_king_crown_ships_in_europe_lane(const ColonizeTurnContext* ctx, in
    */
   for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id != crown || u->aboard_ship_id >= 0) {
+    if (!u->active || u->nation_id != crown || u->aboard_ship_id >= 0 || u->id == self_id) {
       continue;
     }
     if (!units_is_sea(ctx->units, u->id)) {
       continue;
     }
-    if (u->col1_ai_plan == 0x45 || map_tile_is_high_seas(ctx->map, u->x, u->y)) {
+    /* The two x-sentinels DOS counts, plus a hull already sent home ('E',
+     * DS:0x9456 bumped at the decision). Standing on a High Seas tile is
+     * not "in the lane": a crown Man-O-War that only passes one keeps
+     * fighting (independence 10->11: the Man-O-War at (54,55) must not
+     * hold back the new one, which sails home). */
+    if (u->col1_ai_plan == 0x45 || u->x == 244 + crown || u->x == 240 + crown) {
       n++;
     }
   }
@@ -285,10 +293,16 @@ int ai_king_mow_sail_home_20e6(ColonizeTurnContext* ctx, ColonizeUnit* u, int cr
   if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1 || !u) {
     return 0;
   }
-  /* Reached the crossing: the hull is home (DOS: into the Europe lane). */
-  if (map_tile_is_high_seas(ctx->map, u->x, u->y)) {
-    (void)units_despawn(ctx->units, u->id);
-    return 1;
+  /* FUN_521d_5b66 head: a hull already on its 'E' course (+0x314c = 0x0b,
+   * MP spent) re-enters 20e6 only beside a foreigner (FUN_1000_8b74), and
+   * then first takes itself back out of DS:0x9456; otherwise 479b walks on.
+   * The census rebuilds DS:0x9456 from the lane sentinels only, so the
+   * acting hull never counts itself (tr9 9 -> 10: the crown Man-O-War
+   * sailing home passes a Dutch hull and draws nothing). */
+  if (u->col1_ai_plan == 0x45 && u->orders == UNITS_ORDER_AI_SAIL &&
+      u->moves < units_max_mp(ctx->units, u->id) &&
+      !ai_euro_20e6_adjacent_foreign_09dc(ctx, u->x, u->y, crown)) {
+    return 0;
   }
   const uint16_t* force = ctx->col1->head.expeditionary_force;
   if (force[2] != 0) {
@@ -297,7 +311,7 @@ int ai_king_mow_sail_home_20e6(ColonizeTurnContext* ctx, ColonizeUnit* u, int cr
   if ((int)force[0] + (int)force[1] + (int)force[3] == 0) {
     return 0; /* DS:0x53da + 0x53dc + 0x53e0 */
   }
-  if (ai_king_crown_ships_in_europe_lane(ctx, crown) != 0) {
+  if (ai_king_crown_ships_in_europe_lane(ctx, crown, u->id) != 0) {
     return 0; /* DS:0x9456[nation] */
   }
   /* iStack_a8 counts the hull's own -2 group (passengers); the caller only
@@ -307,27 +321,12 @@ int ai_king_mow_sail_home_20e6(ColonizeTurnContext* ctx, ColonizeUnit* u, int cr
   if (!units_015e_hs_course(ctx->units, ctx->map, u->x, u->y, crown, &hx, &hy)) {
     return 0;
   }
-  /* Port pursue-goal order (0x0b), DOS act_state `+0x314c = 3/0xb`. */
-  u->orders = UNITS_ORDER_AI_SAIL;
+  /* DOS act_state `+0x314c = 0xb` (pursue +0x314d/e), orders 'E'. 20e6
+   * returns and 5b66 dispatches FUN_479b_0972, which crosses into the
+   * Europe lane (244+nation, voyage roll) on reaching the High Seas goal. */
   u->col1_ai_plan = 0x45; /* +0x314b = 'E' */
-  u->goto_x = hx;
-  u->goto_y = hy;
-  if (u->moves > 0) {
-    const int sdx = (hx > u->x) - (hx < u->x);
-    const int sdy = (hy > u->y) - (hy < u->y);
-    const int nx = u->x + sdx;
-    const int ny = u->y + sdy;
-    if ((sdx != 0 || sdy != 0) && map_tile_is_water(ctx->map, nx, ny) &&
-        units_id_at(ctx->units, nx, ny) < 0) {
-      {
-      ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, ctx->rng, NULL);
-      units_try_move_w(&w_, u->id, nx, ny);
-    }
-    }
-    if (u->active && map_tile_is_high_seas(ctx->map, u->x, u->y)) {
-      (void)units_despawn(ctx->units, u->id);
-    }
-  }
+  ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, hx, hy);
+  ai_euro_goal_walk_479b(ctx, u);
   return 1;
 }
 
