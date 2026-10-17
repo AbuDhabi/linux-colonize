@@ -36,17 +36,18 @@ typedef struct {
   int per_turn;      /* save index counts turns, not years */
   int declare_save;  /* the human declares independence on the turn before this save; 0 = never */
   int resume_slot;   /* start save loaded in-game: the old day runs on from this slot; -1 = none */
+  int resume_runs;   /* how many times that partial day ran (independence: 2, docs/idle_independence.md) */
   const char* picks_trace; /* DOSBox draw trace with `PICK save K draw D` lines; NULL = none */
 } IdleCampaign;
 
 static const IdleCampaign k_yearly = {
-  "original_saves/1492-1600-seed-100/year_%d.sav", NULL, 1492, 1599, 0, 0, -1, NULL,
+  "original_saves/1492-1600-seed-100/year_%d.sav", NULL, 1492, 1599, 0, 0, -1, 0, NULL,
 };
 static const IdleCampaign k_independence = {
   "original_saves/independence-seed-100/%06d.SAV",
   /* START_SAVE was loaded from the in-game menu of a French (slot 1) game:
    * the running day finishes from slot 2 (docs/idle_independence.md). */
-  "original_saves/independence-seed-100/START_SAVE.SAV", 0, 20, 1, 2, 2, NULL,
+  "original_saves/independence-seed-100/START_SAVE.SAV", 0, 72, 1, 2, 2, 2, NULL,
 };
 /* The same chain against the tr9 DOSBox reference run (continuous from
  * 000003, draw-traced; original_saves/independence-seed-100/tr9/readme.md).
@@ -54,7 +55,7 @@ static const IdleCampaign k_independence = {
  * from the trace. */
 static const IdleCampaign k_tr9 = {
   "original_saves/independence-seed-100/tr9/tr9_%d.sav",
-  "original_saves/independence-seed-100/START_SAVE.SAV", 0, 20, 1, 3, 2,
+  "original_saves/independence-seed-100/START_SAVE.SAV", 0, 20, 1, 3, 2, 1,
   "original_saves/independence-seed-100/tr9/tr9.txt",
 };
 
@@ -112,6 +113,8 @@ static int compare_save(
   const uint16_t keep_x = got->stuff.x, keep_y = got->stuff.y;
   const uint16_t keep_viewport_x = got->stuff.viewport_x;
   const uint16_t keep_viewport_y = got->stuff.viewport_y;
+  uint8_t keep_blob[sizeof(got->post_map.save_path_blob)];
+  memcpy(keep_blob, got->post_map.save_path_blob, sizeof(keep_blob));
   uint8_t keep_pad[4][sizeof(got->nation[0].unknown23_pad)];
   for (int n = 0; n < 4; ++n) {
     memcpy(keep_pad[n], got->nation[n].unknown23_pad, sizeof(keep_pad[n]));
@@ -123,6 +126,8 @@ static int compare_save(
     got->stuff.y = expect->stuff.y;
     got->stuff.viewport_x = expect->stuff.viewport_x;
     got->stuff.viewport_y = expect->stuff.viewport_y;
+    /* SS:local_8 of the DOS writer (FUN_75c2_0288): stack residue, not state. */
+    memcpy(got->post_map.save_path_blob, expect->post_map.save_path_blob, sizeof(keep_blob));
     for (int n = 0; n < 4; ++n) {
       memcpy(got->nation[n].unknown23_pad, expect->nation[n].unknown23_pad, sizeof(keep_pad[n]));
     }
@@ -134,6 +139,7 @@ static int compare_save(
   got->stuff.y = keep_y;
   got->stuff.viewport_x = keep_viewport_x;
   got->stuff.viewport_y = keep_viewport_y;
+  memcpy(got->post_map.save_path_blob, keep_blob, sizeof(keep_blob));
   for (int n = 0; n < 4; ++n) {
     memcpy(got->nation[n].unknown23_pad, keep_pad[n], sizeof(keep_pad[n]));
   }
@@ -328,8 +334,10 @@ int main(int argc, char** argv) {
     int stepped = 1;
     if (year == first + 1 && first == c->min && c->resume_slot >= 0 &&
         !(from_env && *from_env)) {
-      fx.units.selected_id = -1;
-      stepped = golden_turn_from_slot(&fx, c->resume_slot);
+      for (int r = 0; stepped && r < c->resume_runs; ++r) {
+        fx.units.selected_id = -1;
+        stepped = golden_turn_from_slot(&fx, c->resume_slot);
+      }
     }
     for (int step = 0; stepped && step < steps; ++step) {
       /* The skipped human turn: FUN_2b5a_3b68 opens Move Pieces with

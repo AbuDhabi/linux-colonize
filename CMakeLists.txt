@@ -1004,10 +1004,10 @@ add_test(NAME golden_idle_continuous
   COMMAND golden_idle_campaign 1492 1599
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 set_tests_properties(golden_idle_continuous PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1")
-# Same harness, Dutch every-turn autosaves 1680-1690 with a declaration of
-# independence between saves 2 and 3. Disabled until aligned.
+# Same harness, Dutch every-turn autosaves 1680-1717 (VR_SOUND.EXE) with a declaration
+# of independence between saves 1 and 2. Disabled until aligned (diverges at save 4).
 add_test(NAME golden_idle_independence
-  COMMAND golden_idle_campaign independence 0 20
+  COMMAND golden_idle_campaign independence 0 72
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 set_tests_properties(golden_idle_independence PROPERTIES
   ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1" DISABLED TRUE)
