@@ -569,6 +569,10 @@ int ai_euro_try_wagon_haul(
        */
       if (c && c->active && c->nation_id == nation_id &&
           ai_euro_20e6_origin_get(wagon) == cid) {
+        /* raw 90247-90250: only a hull's dump clears colony +0x8f (and
+         * unbinds +0x314a); the wagon's leaves the idle counter running
+         * (DOSBox independence 7->8: Bahia reads 4 after a Furs dump). */
+        const uint8_t idle_before = c->cargo_idle_turns;
         for (;;) {
           int hold = -1;
           const int n = units_goods_hold_count(ctx->units, wagon->id);
@@ -586,6 +590,7 @@ int ai_euro_try_wagon_haul(
             break;
           }
         }
+        c->cargo_idle_turns = idle_before;
         /*
          * bugs.md #812 REFUTED 2026-09-23: DOS's load loop is
          * `while (local_d2 != 0 && bVar20)` (raw 90295), and bVar20 for a

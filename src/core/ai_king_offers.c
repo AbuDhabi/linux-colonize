@@ -289,7 +289,8 @@ void ai_king_merc_offer(ColonizeTurnContext* ctx) {
       return;
     }
   }
-  (void)ai_king_do_merc_hire_at(ctx, human, hx, hy, qty_a, extra_flag, price);
+  /* Headless: raw 75053-75056 hires only on choice 2; the idle player's
+   * Space answers row 1, "No thank you" (DOSBox independence 7->8). */
 }
 
 /*

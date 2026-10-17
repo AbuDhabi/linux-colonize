@@ -17,6 +17,7 @@
 #include "core/ai_king.h"
 #include "core/col1_stuff_census.h"
 #include "core/colony_craft.h"
+#include "core/colony_internal.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/dos_rng.h"
@@ -1430,7 +1431,11 @@ void turn_produce_one_colony(
         "%s",
         colony->name[0] ? colony->name : ""
       );
-      const int kill_i = colony->colonist_count - 1;
+      /* DOS-LITERAL raw 57688-57690: the victim is `rand(0, pop - 1)`, drawn
+       * after the popup (DOSBox independence 8->9: New Amsterdam loses its
+       * colonist 0 on rand(0, 17)). */
+      const int kill_i = rng ? dos_rng_range(rng, 0, colony->colonist_count - 1)
+                             : colony->colonist_count - 1;
       for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES_MAX; ++ti) {
         if ((int)colony->tiles[ti] == kill_i) {
           colony->tiles[ti] = (int8_t)-1;
@@ -1447,6 +1452,8 @@ void turn_produce_one_colony(
       );
       colony->colonist_count--;
       colony->population = colony->colonist_count;
+      /* 0a9c = FUN_15eb_0d04, which also takes 100 off the +0xc6 divisor. */
+      colonies_col1_rebel_divisor_adjust(col1, colony->x, colony->y, -100);
       starved_this_tick = 1;
       if (colony->colonist_count <= 0) {
         if (europe && colony->nation_id == human_nation) {

@@ -1044,7 +1044,13 @@ static int units_demote_combat_type(
   const char* old_name = old_ty && old_ty->name[0] ? old_ty->name : "";
   loser->type_index = tgt;
   const ColonizeUnitType* nt = units_type(pool, tgt);
+  /* The type byte is all 0352 writes: +0x3159 (tools) rides along (DOSBox
+   * independence 7->8: a demoted Dutch Dragoon keeps its byte 20). */
+  const int tools_byte = loser->tools;
   units_sync_equip_after_type_change(loser, nt);
+  if (units_type_kind(nt) != UNITS_KIND_PIONEER) {
+    loser->tools = tools_byte;
+  }
   /*
    * DOS-LITERAL FUN_5fef_0352 raw 99433-99464: the demote arm writes the
    * TYPE byte (`+0x3146`) and nothing else — no `+0x314c` orders write, no
@@ -1260,7 +1266,9 @@ int units_apply_land_loss_outcome(
         const int nti = units_kind_type_index(pool, (ColonizeUnitKind)(wk + step));
         if (nti >= 0) {
           win->type_index = nti;
+          const int win_tools = win->tools; /* +0x3159 untouched by `type += step` */
           units_sync_equip_after_type_change(win, units_type(pool, nti));
+          win->tools = win_tools;
           if (step == 2) {
             units_mp_exhaust(pool, win); /* raw 100735-100736: type += 2, then FUN_281f_0934 */
           }
