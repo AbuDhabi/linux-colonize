@@ -2,28 +2,59 @@
 
 STATUS: aligned to the tr9 DOSBox reference run through save 20 (2026-10-17); CTest
 `golden_idle_tr9` guards it (`golden_idle_campaign tr9 0 20`, picks read from the trace).
-CTest `golden_idle_independence` (the wall-clock archive) stays DISABLED. Sister campaign (done): [idle_campaign.md](idle_campaign.md), whose method and
+The archive was re-recorded with VR_SOUND.EXE on 2026-10-17 (72 saves, deterministic, no
+music picks): the port equals saves 1..3 and diverges at save 4 (see "VR_SOUND archive"
+below), so CTest `golden_idle_independence` stays DISABLED until that gap is closed. Sister campaign (done): [idle_campaign.md](idle_campaign.md), whose method and
 DOSBox recipe apply here too.
 
 ## Fixtures
 
-`original_saves/independence-seed-100/` (readme.md there): VR_SEED.EXE, seed 100, Dutch
-human (slot 3, `head.human_player = 3`). England (slot 0) is withdrawn (`control 2`).
+`original_saves/independence-seed-100/` (readme.md there): VR_SOUND.EXE (VR_SEED.EXE before
+2026-10-17), seed 100, Dutch human (slot 3, `head.human_player = 3`). England (slot 0) is
+withdrawn (`control 2`). The tr9 run (`tr9/`) and the quirks below describe the VR_SEED
+archive the tr9 run branched from; the current archive is described in "VR_SOUND archive".
 
 | Save | Turn | Date | Note |
 |---|---|---|---|
 | `PRE_LOAD_FRENCH_1599.SAV` | | Spring 1599 | French game that was running when START_SAVE was loaded in-game (quirk below). Reference only. |
 | `START_SAVE.SAV` | 268 | Spring 1680 | Manual save the player loaded in-game (= `COLONIZE/COLONY08.SAV`, Aug 15). Harness save 0. |
-| `000001`..`000019` | 269..287 | Autumn 1680..Autumn 1689 | Every-turn autosaves (copies of COLONY09). |
-| `000020` | 289 | Autumn 1690 | Turn 288 has no save; the harness plays through it. |
+| `000001`..`000072` | 269..343 | Autumn 1680..Autumn 1717 | Every-turn autosaves (copies of COLONY09). Turns 288, 308 and 328 (Spring 1690/1700/1710) have no save; the harness plays through them. |
 
-The player declares independence during turn 270 (between saves 2 and 3: GAME menu, DECLARE
-INDEPENDENCE, second option). Otherwise the player presses Space: popups take the first option,
-units are skipped.
+The player declares independence during turn 269 (between saves 1 and 2: GAME menu, DECLARE
+INDEPENDENCE, second option; the VR_SEED archive and tr9 declared one turn later, between
+saves 2 and 3). Otherwise the player presses Space: popups take the first option, units are
+skipped.
 
-Harness: `golden_idle_campaign independence FIRST LAST` (save numbers 0..20), see
-[tests/README.md](../tests/README.md). Before simulating toward save 3 it calls
-`ai_king_menu_declare_independence`, which confirms on its own when there is no popup queue.
+Harness: `golden_idle_campaign independence FIRST LAST` (save numbers 0..72), see
+[tests/README.md](../tests/README.md). Before simulating toward `declare_save` (2; tr9: 3) it
+calls `ai_king_menu_declare_independence`, which confirms on its own when there is no popup
+queue.
+
+## VR_SOUND archive (2026-10-17)
+
+Checked the same day: heads are consecutive (turn 269..343, three missing turns above), the
+declaration shows from save 2, and the port reproduces the start of the chain:
+
+- **Save 1 carries one more Spain and Dutch production tick than START_SAVE + one resumed
+  day.** Quebec hammers 44 -> 62 (three ticks of 6), Jamestown food wraps at 200 and its
+  population grows, four colonists have joined colonies; France ticks once. The port matches
+  save 1 only when the slot-2 resume (`turn_end_from_slot(2)`: Spain EOT + act, Dutch EOT)
+  runs TWICE before the normal day (`IdleCampaign.resume_runs = 2`; the tr9 chain keeps 1).
+  Reading: the slot the player loaded (`COLONIZE/COLONY08.SAV`) no longer held START_SAVE but
+  START_SAVE after one such resume, saved at the Dutch Move Pieces of turn 268; the file was
+  overwritten again at 19:58 that day, so this is inferred from the saves, not seen. The
+  save writer's stack residue (`post_map.save_path_blob`, SS:local_8 of FUN_75c2_0288) also
+  changed (88e88672 -> 86e88272) and rides through every later save; `compare_save` now
+  ignores those four bytes like the cursor.
+- With that, saves 1, 2 and 3 are byte-identical to the port (declaration included).
+- **Save 4 diverges** exactly as the VR_SEED archive did against a fresh DOS load of 000003:
+  Bahia (`colonies[14]`, Dutch) slots 5 and 6 are on tiles 5/6 in DOS and indoors (15) in the
+  port, and the crown's Tools gross differs (`nations[0].gold` 797 vs 761, `trade.gold[14]`
+  -354 vs -390). Save 5 adds `indians[2].lands_bought` and a map mask/path byte at 3930.
+  The tr9 reference (DOS loaded at 000003) never showed this, so it is state that a DOS
+  load does not carry (the 0a60 stance table DS:0x9870 is the standing suspect, quirk above)
+  but the continuous archive does. Closing it needs a continuous DOSBox run from the double
+  resume with the draw trace (`dosbox_trace.py setup --exe VR_SOUND.EXE`, no pick logging).
 
 ## Quirks of this save set
 
@@ -573,10 +604,8 @@ saves 5-7: 3, 15, ~74 field diffs vs the archive.
 
 ## Open
 
-- Nothing against tr9 through save 20. Next: extend the DOSBox reference run past 1690 (a
-  new continuous run from 000003 with `tr9_trace.py`, or continue from tr9_20 only if a
-  loaded autosave is shown to reproduce the continuous run, which it did not for save 5), and
-  check the 5952 `local_1b0` guesses (DS:0x84bb = 0, tribe owner rows) against a trace that
-  hits them.
-- The archive (000005+) stays a different wall-clock realisation; `golden_idle_independence`
-  remains disabled.
+- Nothing against tr9 through save 20. The VR_SOUND archive (72 saves, deterministic) is the
+  new target: the port diverges at save 4 (Bahia slots 5/6, crown Tools gross; "VR_SOUND
+  archive" above). Next: a continuous draw-traced DOSBox run from the double resume to find the
+  carried-over state, then `golden_idle_independence 0 72` as the gate; also check the 5952
+  `local_1b0` guesses (DS:0x84bb = 0, tribe owner rows) against a trace that hits them.

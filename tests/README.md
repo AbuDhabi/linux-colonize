@@ -112,13 +112,15 @@ through years the archive lacks. A `%d` in `GOLDEN_IDLE_DUMP` takes the year, so
 `GOLDEN_IDLE_FROM=path.sav` starts from that save instead of `year_FIRST.sav`.
 
 The same binary with a leading `independence` argument runs the second campaign,
-`original_saves/independence-seed-100` (Dutch every-turn autosaves `000001`..`000020`
-after loading `START_SAVE.SAV` = save 0, 1680-1690, see its readme.md). Arguments are
+`original_saves/independence-seed-100` (Dutch every-turn autosaves `000001`..`000072`
+after loading `START_SAVE.SAV` = save 0, 1680-1717, see its readme.md). Arguments are
 save numbers, and the `%d` in dumps is the save number. START_SAVE was loaded from a
 running French game's menu, so the harness first finishes that day from slot 2
-(`turn_end_from_slot`). Before simulating toward save 3, the harness declares independence
-through `ai_king_menu_declare_independence`. With no popup queue that confirms, as the
-player's second option did. It plays through turns missing from the archive (turn 288).
+(`turn_end_from_slot`), twice for this archive (`resume_runs`, docs/idle_independence.md
+"VR_SOUND archive"). Before simulating toward save 2 (tr9: 3), the harness declares
+independence through `ai_king_menu_declare_independence`. With no popup queue that confirms,
+as the player's second option did. It plays through turns missing from the archive
+(turns 288, 308, 328).
 CTest `golden_idle_independence` (the wall-clock archive) is disabled; the live gate is
 `golden_idle_tr9` (`golden_idle_campaign tr9 0 20`): the same chain against the recorded
 DOSBox reference run in `original_saves/independence-seed-100/tr9/`, music picks read from
