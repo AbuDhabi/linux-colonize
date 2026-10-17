@@ -355,6 +355,20 @@ DOSBox from 000003, one idle turn: `0xa2 = 0` alone still gave one pick (draw 32
 that autosave with 0 diffs (cursor included). So future reference runs should switch both music
 options off (Sound dialog FUN_2b5a_23ce, or `SM 237e:00a2 00 00` / `SM 237e:00a0 00 00` after
 the load) and need no pick logging; the archive was recorded with all three on.
+**`VR_SOUND.EXE`** (`tools/make_vr_sound.py`, from VR_SEED): the pump's gate at file 0x4eea is
+`jmp` to its own exit, so FUN_129f_00f6 never runs and never reseeds, with the Sound options left
+as the save has them. Verified: `setup --exe VR_SOUND.EXE --save 000003.SAV`, one idle turn:
+0 picks, 349 draws, autosave = the port's no-pick run (0 diffs). Record future reference runs
+with it (`dosbox_trace.py setup ... --exe VR_SOUND.EXE`); `GOLDEN_IDLE_PICKS` stays for tr9.
+
+Other game-LCG reseeds outside the sim (none wall-clock under VR_SEED, none hit by an idle run):
+the per-slot `srand(DS:0x83a6)` (FUN_281f_04ca, modelled); the colony screen's
+FUN_15eb_1476 `srand(DS:0x917a)` then `srand((colony.y << 8 | colony.x) + DS:0x8d80)` on the
+game LCG when a colony is opened (root asm 0x972e). The port lays the buildings out with a
+private LCG (`colony_screen_assign_slot_positions_ex`) and leaves the game stream alone, so a
+human opening a colony screen diverges from DOS from that point: a known gap, not an idle
+campaign item. The Ghidra body printed for FUN_15eb_0d04 (a tune pick + `srand(0x83a6)`) is a
+decomp collision; 0d04 is the colonist-removal shift (units_capture.c).
 
 
 The archive is one wall-clock realisation (music picks), and from 000005 on it carries effects a
