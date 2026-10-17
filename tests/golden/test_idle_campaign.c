@@ -46,7 +46,7 @@ static const IdleCampaign k_independence = {
   "original_saves/independence-seed-100/%06d.SAV",
   /* START_SAVE was loaded from the in-game menu of a French (slot 1) game:
    * the running day finishes from slot 2 (docs/idle_independence.md). */
-  "original_saves/independence-seed-100/START_SAVE.SAV", 0, 20, 1, 3, 2, NULL,
+  "original_saves/independence-seed-100/START_SAVE.SAV", 0, 20, 1, 2, -1, NULL,
 };
 /* The same chain against the tr9 DOSBox reference run (continuous from
  * 000003, draw-traced; original_saves/independence-seed-100/tr9/readme.md).
