@@ -2885,7 +2885,7 @@ void ai_euro_5952_improve_best_plot(
 /* FUN_5952_035e raw 94370-94400 — the 20-tool purchase (#640) and the
  * `turn % 7 == 0` inter-colony road-connect arm (#641); both run immediately
  * before the improve arm. */
-void ai_euro_5952_tools_supply_and_connect(
+ColonizeColony* ai_euro_5952_tools_supply_and_connect(
   ColonizeTurnContext* ctx, ColonizeColony* col
 );
 
@@ -2930,6 +2930,7 @@ static void ai_euro_colony_tick_run(
   }
   const ColonizeWorld world = world_from_turn_ctx(ctx);
   for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+    g_colonies_plot_cache_colony = NULL;
     ColonizeColony* col = &ctx->colonies->colonies[ci];
     if (!col->active || col->nation_id != nation_id || col->colonist_count <= 0) {
       continue;
@@ -2958,7 +2959,17 @@ static void ai_euro_colony_tick_run(
      * FUN_5952_035e raw 94402-94551 runs immediately BEFORE the colonist idle
      * sweep below (bugs.md #612).
      */
-    ai_euro_5952_tools_supply_and_connect(ctx, col);
+    /* The rest of FUN_5952_035e reads *(DS:0x8542); a road connect leaves it
+     * on the colony nearest the gap tile (FUN_479b_0526's FUN_281f_0614),
+     * so DOS runs this colony's remaining arms (improve, idle sweep, job
+     * passes) on THAT record (tr9 11 -> 12: Bahia's job passes land on St.
+     * Louis, Bahia keeps its statesmen, and the seat beside tribe 29's village
+     * charges 15 alarm). */
+    {
+      ColonizeColony* const ticking = col;
+      col = ai_euro_5952_tools_supply_and_connect(ctx, col);
+      g_colonies_plot_cache_colony = col != ticking ? ticking : NULL;
+    }
     /* local_1b0: colony+0x1a until the improvement arm's neighbour scan
      * overwrites it (raw 93981 / 94482). */
     int local_1b0 = col->nation_id;
@@ -3396,9 +3407,11 @@ static void ai_euro_colony_tick_run(
  * threat seed and build cascade that ai_euro_colony_tick_5952 adds. */
 void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nation_id) {
   ai_euro_colony_tick_run(ctx, nation_id, false);
+  g_colonies_plot_cache_colony = NULL;
 }
 
 /* FUN_5952_035e: the complete per-colony sequence before 5d04 planning. */
 void ai_euro_colony_tick_5952(ColonizeTurnContext* ctx, int nation_id) {
   ai_euro_colony_tick_run(ctx, nation_id, true);
+  g_colonies_plot_cache_colony = NULL;
 }

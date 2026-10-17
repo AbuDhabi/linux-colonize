@@ -734,6 +734,14 @@ static int colonies_indian_land_radius(const ColonizeCol1Save* col1, const Colon
   return tech == 2u ? 2 : 3;
 }
 
+int colonies_nearest_tribe_dist_on(
+  const ColonizeCol1Save* col1, const ColonizeWorldMap* map, int x, int y, int continent
+) {
+  int dist = 9999;
+  (void)colonies_nearest_tribe_on(col1, map, x, y, continent, &dist);
+  return dist;
+}
+
 static int colonies_tile_indian_homeland_on(
   const ColonizeCol1Save* col1,
   const ColonizeWorldMap* map,

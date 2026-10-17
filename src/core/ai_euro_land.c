@@ -445,6 +445,7 @@ void ai_euro_5952_improve_best_plot(
   } else {
     do_plow = 1; /* forest CLEAR shares FUN_479b_01a6 */
   }
+  g_units_pioneer_0614_colony = NULL;
   if (do_plow) {
     worked = units_pioneer_plow_w(&pw, pid, err, sizeof(err), NULL, NULL) ? 1 : 0;
   } else if (do_road) {
@@ -461,13 +462,15 @@ void ai_euro_5952_improve_best_plot(
   }
   units_despawn(ctx->units, pid); /* FUN_291f_0a06 */
   if (worked) {
-    /* raw 94541-94549: colony+0xb6 -= min(stock, 20); colony+0x8c = 0. */
-    int pay = col->stock[COLONIZE_CARGO_TOOLS];
+    /* raw 94541-94549: colony+0xb6 -= min(stock, 20); colony+0x8c = 0 on
+     * DS:0x8542, which the work body's FUN_281f_0614 may have rebound. */
+    ColonizeColony* payer = g_units_pioneer_0614_colony ? g_units_pioneer_0614_colony : col;
+    int pay = payer->stock[COLONIZE_CARGO_TOOLS];
     if (pay > 0x14) {
       pay = 0x14;
     }
-    col->stock[COLONIZE_CARGO_TOOLS] -= pay;
-    col->improve_timer = 0;
+    payer->stock[COLONIZE_CARGO_TOOLS] -= pay;
+    payer->improve_timer = 0;
   }
 }
 
@@ -646,6 +649,7 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
       .units = ctx->units, .colonies = ctx->colonies, .map = ctx->map
     };
     char err[64];
+    g_units_pioneer_0614_colony = NULL;
     const int built = units_pioneer_road_w(&pw, pid, err, sizeof(err), NULL, NULL) ? 1 : 0;
     if (built) {
       /* FUN_479b_0526 completion calls FUN_479b_0158, which subtracts
@@ -686,15 +690,15 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
  *   }
  * Note it is NOT gated on `colony+0x1b & 0x80` the way the improve arm is.
  */
-void ai_euro_5952_tools_supply_and_connect(
+ColonizeColony* ai_euro_5952_tools_supply_and_connect(
   ColonizeTurnContext* ctx, ColonizeColony* col
 ) {
   if (!ctx || !col || !col->active) {
-    return;
+    return col;
   }
   const int nation = col->nation_id;
   if (nation < 0 || nation >= 4) {
-    return;
+    return col;
   }
   const int turn = (ctx->turn_number && *ctx->turn_number) ? (int)*ctx->turn_number : 0;
   int have_tools = col->stock[COLONIZE_CARGO_TOOLS] > 0x13; /* local_16, raw 93978 */
@@ -731,13 +735,20 @@ void ai_euro_5952_tools_supply_and_connect(
     }
   }
   if (have_tools && turn % 7 == 0 && ai_euro_5952_road_connect_0000(ctx, col)) {
-    int pay = col->stock[COLONIZE_CARGO_TOOLS];
+    /* raw 94393-94400 charges *(DS:0x8542): FUN_479b_0526's road completion
+     * rebound it to the colony nearest the gap tile, last index on a tie
+     * (tr9 11 -> 12: Bahia's connect road beside St. Louis empties St.
+     * Louis's tools and timer, and Bahia keeps its 64). */
+    ColonizeColony* payer = g_units_pioneer_0614_colony ? g_units_pioneer_0614_colony : col;
+    int pay = payer->stock[COLONIZE_CARGO_TOOLS];
     if (pay > 0x14) {
       pay = 0x14;
     }
-    col->stock[COLONIZE_CARGO_TOOLS] -= pay;
-    col->improve_timer = 0;
+    payer->stock[COLONIZE_CARGO_TOOLS] -= pay;
+    payer->improve_timer = 0;
+    return payer;
   }
+  return col;
 }
 
 uint8_t ai_euro_s_20e6_explorers[16];
@@ -1425,10 +1436,10 @@ static int ai_euro_20e6_village_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, c
       s->village_dist != 1 || s->is_ship || s->nation < 0 || s->nation > 3) {
     return 0;
   }
-  if (s->village_idx >= AI_20E6_VILLAGE_MAX ||
-      (ai_euro_s_20e6_village_visited[s->village_idx] & (1u << s->nation))) {
+  if (s->village_idx >= AI_20E6_VILLAGE_MAX) {
     return 0;
   }
+  const int latched = (ai_euro_s_20e6_village_visited[s->village_idx] & (1u << s->nation)) != 0;
   ColonizeCol1Tribe* t = &ctx->col1->tribe[s->village_idx];
   if (t->nation_id < 4 || t->nation_id > 11) {
     return 0;
@@ -1442,7 +1453,7 @@ static int ai_euro_20e6_village_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, c
    * LAB_589e commits the step and 465b -> 4528 speaks with the chief (the
    * colonist arm's shape). DOSBox 1531 -> 1532: the Spanish Scout at
    * (47,48) ends with plan 'L', act state 0 and +0x315a = 1. */
-  if (s->dos_type == UNITS_KIND_SCOUT && !t->state.scouted && att == 0) {
+  if (!latched && s->dos_type == UNITS_KIND_SCOUT && !t->state.scouted && att == 0) {
     ai_euro_s_20e6_village_visited[s->village_idx] |= (uint8_t)(1u << s->nation);
     u->col1_ai_plan = 0x4c;
     ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, (int)t->x, (int)t->y);
@@ -1454,7 +1465,7 @@ static int ai_euro_20e6_village_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, c
    * mission. Resolved from the adjacent tile like the two arms around it
    * (entering a village tile is an attack in this port). bugs.md #557.
    */
-  if (s->dos_type == UNITS_KIND_MISSIONARY) {
+  if (!latched && s->dos_type == UNITS_KIND_MISSIONARY) {
     if (ai_contact_ai_missionary_village(ctx, s->nation, s->village_idx, u->id)) {
       ai_euro_s_20e6_village_visited[s->village_idx] |= (uint8_t)(1u << s->nation);
       u->moves = 0;

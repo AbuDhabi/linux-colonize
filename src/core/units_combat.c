@@ -898,7 +898,7 @@ int units_promote_on_win(
     if (tgt < 0) {
       return 0;
     }
-    winner->type_index = tgt;
+    units_set_type_keep_spent(pool, winner, tgt);
     winner->profession = UNITS_JOB_SOLDIER; /* DOS keeps 0x15 */
     popup_tag = "CONTINENTAL";
   } else {
@@ -1066,7 +1066,7 @@ static int units_demote_combat_type(
   }
   const ColonizeUnitType* old_ty = units_type(pool, loser->type_index);
   const char* old_name = old_ty && old_ty->name[0] ? old_ty->name : "";
-  loser->type_index = tgt;
+  units_set_type_keep_spent(pool, loser, tgt);
   const ColonizeUnitType* nt = units_type(pool, tgt);
   /* The type byte is all 0352 writes: +0x3159 (tools) rides along (DOSBox
    * independence 7->8: a demoted Dutch Dragoon keeps its byte 20). */
@@ -1289,7 +1289,7 @@ int units_apply_land_loss_outcome(
       if (step != 0) {
         const int nti = units_kind_type_index(pool, (ColonizeUnitKind)(wk + step));
         if (nti >= 0) {
-          win->type_index = nti;
+          units_set_type_keep_spent(pool, win, nti);
           const int win_tools = win->tools; /* +0x3159 untouched by `type += step` */
           units_sync_equip_after_type_change(win, units_type(pool, nti));
           win->tools = win_tools;

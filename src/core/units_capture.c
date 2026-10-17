@@ -846,6 +846,19 @@ int units_max_mp(const ColonizeUnitPool* pool, int unit_id) {
   return mp;
 }
 
+void units_set_type_keep_spent(ColonizeUnitPool* pool, ColonizeUnit* u, int type_index) {
+  if (!u) {
+    return;
+  }
+  if (u->nation_id >= 4) {
+    u->type_index = type_index; /* natives already keep the spent byte */
+    return;
+  }
+  const int spent = units_max_mp(pool, u->id) - u->moves;
+  u->type_index = type_index;
+  u->moves = units_max_mp(pool, u->id) - spent;
+}
+
 void units_format_mp(int thirds, char* out, size_t out_size) {
   if (!out || out_size == 0) {
     return;

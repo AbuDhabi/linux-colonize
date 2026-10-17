@@ -64,7 +64,10 @@ static int ai_king_10f0_pick_colony(const ColonizeTurnContext* ctx, int human, i
       if (n_cand >= AI_KING_10F0_CANDIDATES) {
         break; /* DOS keeps scanning but the `local_24 < 10` arm never takes */
       }
-      const int pop = (int)c->population;
+      /* +0x1f is live in DOS; the col1 mirror lags the colony pool mid-turn
+       * (tr9 1686: New Amsterdam 14 -> 13 this EOT, roulette 1..56). */
+      const ColonizeColony* live = ctx->colonies ? colonies_find_at_xy(ctx->colonies, c->x, c->y) : NULL;
+      const int pop = live ? live->population : (int)c->population;
       cand[n_cand] = (int)i;
       weight[n_cand] = pop;
       total_pop += pop;
@@ -1119,6 +1122,8 @@ COLONIZE_INTERNAL int ai_king_10f0_spawn_unit(
   ColonizeUnit* u = units_get(ctx->units, uid);
   if (u) {
     units_set_nation(u, human);
+    /* 06b4 zeroes the spent byte: a Magellan hull starts with the +1. */
+    u->moves = units_max_mp(ctx->units, uid);
     if (k != 2) {
       u->profession = UNITS_JOB_SOLDIER; /* DOS unit+0x15 = 0x15 Veteran Soldier */
     }

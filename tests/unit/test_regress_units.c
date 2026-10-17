@@ -331,7 +331,7 @@ static void land_fixture_free(LandFixture* fx) {
 /*
  * bugs.md #646 — DOS-LITERAL FUN_5fef_0352 raw 99433-99464: the demote arm
  * writes only the TYPE byte (+0x3146); no orders/MP write. A Fortified
- * Dragoon beaten to Soldiers must keep Fortified and its MP.
+ * Dragoon beaten to Soldiers must keep Fortified and its spent MP.
  */
 static int case_646_demote_writes_type_only(void) {
   LandFixture fx;
@@ -373,8 +373,10 @@ static int case_646_demote_writes_type_only(void) {
               UNITS_ORDER_FORTIFY);
       rc = 1;
     }
-    if (l->moves != 7) {
-      fprintf(stderr, "case_646: moves=%d want 7 preserved\n", l->moves);
+    /* The spent byte is what DOS keeps: Dragoon 12 - 7 = 5 spent, so the
+     * Soldier (3) is left with -2 (tr9 1687: a beaten Cavalry's Regulars). */
+    if (l->moves != 3 - 5) {
+      fprintf(stderr, "case_646: moves=%d want -2 (spent 5 preserved)\n", l->moves);
       rc = 1;
     }
   }

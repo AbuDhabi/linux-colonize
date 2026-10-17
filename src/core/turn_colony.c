@@ -353,6 +353,80 @@ static void turn_notify_dock_immigrant(
 }
 
 /*
+ * FUN_4345_0a22 wartime branch (raw 73345-73370): bell pool buys the foreign
+ * intervention, not a Father. 0a22 runs once per COLONY (FUN_364b_0688 raw
+ * 57231) for the ticking colony's owner, so the pool is zeroed at the colony
+ * that crosses the threshold and the later colonies' bells refill it
+ * (independence-seed-100 tr9 1686: Dutch 4969 -> 360).
+ */
+static void turn_woi_bell_test(ColonizeTurnContext* ctx, int n, int bells) {
+  /*
+   * bugs.md #231 / DOS FUN_4345_0a22 (viceroy ~73346): once per war,
+   * while the REF has not yet landed (0x5382 bit1 clear) and the bell
+   * pool has started accruing, show @AMBUSHHINT then @CONSIDER —
+   * "%STRING0 is considering intervention ... generate %NUMBER0 liberty
+   * bells". Latch = 0x5382 bit 0x04 (game_options.woi_crosses_event,
+   * confirmed live 2026-08-18 as exactly this dialog's one-shot).
+   */
+  /* DOS-LITERAL raw 73347: `(0x5382 & 6) == 0` — bit 0x02 is the
+   * intervention-ANNOUNCE latch (game_options.ref_present, bugs.md
+   * #865), bit 0x04 the hint one-shot. */
+  /* bugs.md #1057c: 0a22 runs per colony for the OWNING nation, so the
+   * `bells < pool` test (raw 73345-73346) and the 0f66 %NUMBER0 read the
+   * ticking colony's owner, not the human. */
+  const int hint_nation =
+    (unsigned)bells < founding_fathers_bells_pool(ctx->col1, n) ? n : -1;
+  /* Headless (no popup queue) the one-shot still latches: the idle
+   * player OKs both notices (independence-seed-100 000003 sets 0x04). */
+  if (!ctx->col1->head.game_options.ref_present &&
+      !ctx->col1->head.game_options.woi_crosses_event &&
+      hint_nation >= 0) {
+    const int ally = (int)ctx->col1->head.rival_nation_slot_1;
+    const char* ally_name = "";
+    /* bugs.md #252 rule: PARENT country ("France"), never the new-world
+     * colony name player[ally].country_name ("New France"). */
+    if (ally >= 0 && ally < 4) {
+      ally_name = reports_nation_country_name(ally); /* NAMES.TXT @COUNTRY */
+    }
+    popup_chrome_ok(
+      ctx->ai_popups, ctx->messages, "AMBUSHHINT", NULL,
+      ""
+    );
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = ally_name;
+    tok.has_number0 = true;
+    tok.number0 = (int)founding_fathers_bells_needed(ctx->col1, hint_nation);
+    popup_chrome_ok(
+      ctx->ai_popups, ctx->messages, "CONSIDER", &tok,
+      ""
+    );
+    ctx->col1->head.game_options.woi_crosses_event = 1;
+  }
+  {
+    const unsigned pool = founding_fathers_bells_pool(ctx->col1, n);
+    const unsigned needed = founding_fathers_bells_needed(ctx->col1, n);
+    founding_fathers_woi_intervention_chrome(ctx, n, pool, needed);
+    if (pool < needed) {
+      return;
+    }
+    if (ai_king_spend_woi_bell_pool(ctx, n)) {
+      founding_fathers_consume_woi_bell_pool(ctx, n);
+      if (ctx->status && ctx->status_size > 0 && n == ctx->human_nation) {
+        /* bugs.md #538: the bell spend only ANNOUNCES (DOS 0a22 ->
+         * FUN_43f7_1528); the force itself lands from 2022's free drain
+         * on a later turn. */
+        snprintf(
+          ctx->status,
+          ctx->status_size,
+          "Foreign intervention force joins the rebellion!"
+        );
+      }
+    }
+  }
+}
+
+/*
  * One AI nation's FUN_3844_00f2 colony EOT, at the head of its own slot
  * (turn_step_euro) rather than batched before slot 1: 5e52 immigration
  * (raw 58375), then the colony loop 0950 (raw 58384), where each colony's
@@ -387,7 +461,10 @@ static void turn_ai_colony_bell_step(void* user, ColonizeColony* colony) {
   step->nat->liberty_bells_pool = (uint16_t)(pool > 65535u ? 65535u : pool);
   /* FUN_364b_0688 raw 57231 calls FUN_4345_0a22 before this colony's
    * production; it checks the election even when this colony made no bells. */
-  if (step->control != 2) {
+  if (step->control == 2) {
+  } else if (step->ctx->col1->head.game_options.woi) {
+    turn_woi_bell_test(step->ctx, step->nation, bells);
+  } else {
     (void)founding_fathers_try_elect(step->ctx, step->nation);
   }
 }
@@ -402,17 +479,16 @@ static void turn_ai_colony_bell_step(void* user, ColonizeColony* colony) {
  */
 void turn_run_human_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
   const int n = ctx ? ctx->human_nation : -1;
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || n < 0 || n >= 4 ||
-      ctx->col1->head.game_options.woi) {
-    if (ctx && ctx->col1_ok && ctx->col1 && n >= 0 && n < 4) {
-      /* FUN_3844_00f2 raw 58382 `*(DS:0x84fc + 0xe) = 0` runs in the human
-       * slot while DS:0x84fc still holds the crown's record during the war
-       * (DOSBox BPM, independence 4->5: written from the Dutch slot), so the
-       * crown's last-turn bells read 0 at every autosave. */
-      ctx->col1->nation[ai_king_crown_nation_col1(ctx->col1, n)].liberty_bells_last_turn = 0;
-    }
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || n < 0 || n >= 4) {
     turn_run_colony_eot(ctx, out);
     return;
+  }
+  if (ctx->col1->head.game_options.woi) {
+    /* FUN_3844_00f2 raw 58382 `*(DS:0x84fc + 0xe) = 0` runs in the human
+     * slot while DS:0x84fc still holds the crown's record during the war
+     * (DOSBox BPM, independence 4->5: written from the Dutch slot), so the
+     * crown's last-turn bells read 0 at every autosave. */
+    ctx->col1->nation[ai_king_crown_nation_col1(ctx->col1, n)].liberty_bells_last_turn = 0;
   }
   ColonizeCol1Nation* nat = &ctx->col1->nation[n];
   AiNationColonyBellStep bell_step = {
@@ -499,8 +575,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
     ctx->colonies, ctx->human_nation, ctx->col1_ok ? ctx->col1 : NULL, &bells, &crosses
   );
   const bool human_bells_per_colony = ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 &&
-                                      ctx->human_nation < 4 &&
-                                      !ctx->col1->head.game_options.woi;
+                                      ctx->human_nation < 4;
 
   if (ctx->europe) {
     if (ctx->europe->needed_crosses == 0) {
@@ -690,81 +765,6 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       }
     }
 
-    /* FUN_4345_0a22 wartime branch: bell pool → intervention / REF, not FF elect. */
-    if (ctx->col1->head.game_options.woi) {
-      /*
-       * bugs.md #231 / DOS FUN_4345_0a22 (viceroy ~73346): once per war,
-       * while the REF has not yet landed (0x5382 bit1 clear) and the bell
-       * pool has started accruing, show @AMBUSHHINT then @CONSIDER —
-       * "%STRING0 is considering intervention ... generate %NUMBER0 liberty
-       * bells". Latch = 0x5382 bit 0x04 (game_options.woi_crosses_event,
-       * confirmed live 2026-08-18 as exactly this dialog's one-shot).
-       */
-      /* DOS-LITERAL raw 73347: `(0x5382 & 6) == 0` — bit 0x02 is the
-       * intervention-ANNOUNCE latch (game_options.ref_present, bugs.md
-       * #865), bit 0x04 the hint one-shot. */
-      /* bugs.md #1057c: 0a22 runs per colony for the OWNING nation, so the
-       * `bells < pool` test (raw 73345-73346) and the 0f66 %NUMBER0 read
-       * whichever nation's pool is accruing first, not the human's. */
-      int hint_nation = -1;
-      for (int n = 0; n < 4 && hint_nation < 0; ++n) {
-        if (ctx->col1->player[n].control != 2 &&
-            founding_fathers_bells_pool(ctx->col1, n) > 0u) {
-          hint_nation = n;
-        }
-      }
-      /* Headless (no popup queue) the one-shot still latches: the idle
-       * player OKs both notices (independence-seed-100 000003 sets 0x04). */
-      if (!ctx->col1->head.game_options.ref_present &&
-          !ctx->col1->head.game_options.woi_crosses_event &&
-          hint_nation >= 0) {
-        const int ally = (int)ctx->col1->head.rival_nation_slot_1;
-        const char* ally_name = "";
-        /* bugs.md #252 rule: PARENT country ("France"), never the new-world
-         * colony name player[ally].country_name ("New France"). */
-        if (ally >= 0 && ally < 4) {
-          ally_name = reports_nation_country_name(ally); /* NAMES.TXT @COUNTRY */
-        }
-        popup_chrome_ok(
-          ctx->ai_popups, ctx->messages, "AMBUSHHINT", NULL,
-          ""
-        );
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        tok.string0 = ally_name;
-        tok.has_number0 = true;
-        tok.number0 = (int)founding_fathers_bells_needed(ctx->col1, hint_nation);
-        popup_chrome_ok(
-          ctx->ai_popups, ctx->messages, "CONSIDER", &tok,
-          ""
-        );
-        ctx->col1->head.game_options.woi_crosses_event = 1;
-      }
-      for (int n = 0; n < 4; ++n) {
-        if (ctx->col1->player[n].control == 2) {
-          continue;
-        }
-        const unsigned pool = founding_fathers_bells_pool(ctx->col1, n);
-        const unsigned needed = founding_fathers_bells_needed(ctx->col1, n);
-        founding_fathers_woi_intervention_chrome(ctx, n, pool, needed);
-        if (pool < needed) {
-          continue;
-        }
-        if (ai_king_spend_woi_bell_pool(ctx, n)) {
-          founding_fathers_consume_woi_bell_pool(ctx, n);
-          if (ctx->status && ctx->status_size > 0 && n == ctx->human_nation) {
-            /* bugs.md #538: the bell spend only ANNOUNCES (DOS 0a22 ->
-             * FUN_43f7_1528); the force itself lands from 2022's free drain
-             * on a later turn. */
-            snprintf(
-              ctx->status,
-              ctx->status_size,
-              "Foreign intervention force joins the rebellion!"
-            );
-          }
-        }
-      }
-    }
   }
 
   /*

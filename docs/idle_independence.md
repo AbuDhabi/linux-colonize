@@ -429,6 +429,42 @@ through save 10. Fixes for 9 -> 10 and 10 -> 11:
 - A crown hull already sailing home ('E', order 0x0b, MP spent) re-enters 20e6 only beside a
   foreigner, and 5b66 first takes it back out of DS:0x9456, so its own sail-home test passes
   again (re-course, no draws). The lane count never includes the acting hull.
+- 465b's plain-move tail is the only path to 0984 -> FUN_5bfb_3180: a bVar4 colony capture or a
+  1b0e winner's advance skips the sentry wake, ship slow and both encounter halves (a Brave next to
+  a captured Vlissingen keeps its facing).
+- The dispatcher's sticky clear (> 0x14 acts of one unit) exhausts MP but the act still runs:
+  the unit scores, commits and loses 465b's partial-MP roll, and that lost roll still adds the
+  step cost to the spent byte (a shuttling Scout saves spent 13 of 12).
+- FUN_15eb_0142 (nearest colony) keeps the LAST colony on a distance tie, and it leaves
+  DS:0x8542 bound to that colony. FUN_479b_0526's road completion pays its +10 hammers there,
+  and FUN_5952_035e's phantom arms (road connect, plot improve) then charge their 20 tools and
+  timer reset to that record, not to the ticking colony (`g_units_pioneer_0614_colony`).
+- FUN_5952_035e keeps working on *(DS:0x8542) after that rebind: the rest of the ticking
+  colony's arms (improve, idle sweep, job passes) run on the colony nearest the road gap, while
+  the 5x5 plot caches (DS:0x8df0 blocked bytes from FUN_15eb_268e, the -0x7262 claim table from
+  26e4) still describe the ticking colony. tr9 11 -> 12: Bahia's passes land on St. Louis, Bahia
+  keeps its statesmen, and St. Louis's plot over tribe 29's village (free in Bahia's cache) is
+  seated, charged 15 alarm and stamped 0x10 (`g_colonies_plot_cache_colony`).
+- 20e6 colonist 'L' village arm: no port-only "visited" latch on the colonist arm. DOS re-enters
+  every turn while alarm < 0x40 and the village has not taught (+3 & 2 clear).
+- FUN_4345_0a22 runs once per colony in wartime too. The pool is zeroed at the colony that
+  crosses the intervention threshold, and the later colonies refill it (tr9 1686: Dutch 4969 ->
+  360). FUN_43f7_1528 (the announce) walks every colony with FUN_281f_09e6 and leaves DS:0x8542
+  on the last one. The ticking colony's production then lands in that record (San Juan gets
+  Pernambuco's +5 food, +5 cloth and SoL tick). That rebind is NOT ported yet (see Open).
+- FUN_43f7_10f0 roulette weights read the live colony population (+0x1f), not the col1 mirror,
+  which lags mid-turn.
+- A type change keeps the spent byte (`units_set_type_keep_spent`): a Cavalry beaten to Regulars
+  mid-turn has 3 - spent left, not the Cavalry's 12 (tr9 1687 wander re-act).
+- FUN_4962_0018 binds every unbound unit (+0x314a < 0) to the colony on its tile, human
+  included (the intervention force in New Amsterdam saves origin 1).
+- FUN_479b_01a6 reads the terrain class before clearing, so the Lumber Mill reward byte is the
+  forest's (Bahia +60, not +20).
+- a618 (live among the natives) ends the skill pick with FUN_1000_86ba(DS:0x83a6), so the
+  1..1000 slow roll draws off the turn seed, not the village stream.
+- FUN_48d3_0346 (leave Europe) writes no spent byte. A hull on the westbound lane saves what it
+  had.
+- 10f0 spawn: 06b4 zeroes the spent byte, so a Magellan hull starts with the +1.
 - tr9 (dt19, a second continuous DOSBox run from 000003 that also logs the acting unit's record
   per draw) is the reference past tr8's save 11.
 - DOSBox method for these: load the DOS autosave of interval K-1 (`setup --save`) and log
@@ -443,4 +479,11 @@ saves 5-7: 3, 15, ~74 field diffs vs the archive.
 ## Open
 
 - France and Spain each buy an extra Privateer in the port (Spain gold 0 vs 1908); recheck.
-- Wartime bells still accrue up front (`turn_run_nation_ticks`), not per colony.
+- FUN_43f7_1528 DS:0x8542 rebind: the colony ticking when the intervention is announced should
+  apply its composed production (and the rest of 0688) to the LAST colony's record.
+  `turn_produce_one_colony` mixes composition and application, so this needs a split.
+- Visibility after the 10f0 landing: FUN_281f_09ba(colony-2, 5, 5, 1) -> FUN_6b7e_0004 also
+  stamps the human's unit vis bits and colony pop_on_map in the 5x5 (tr9 save 13: a Brave at
+  (50,47) gets bit 3, New Amsterdam pop_on_map[3] = 13). The port reveals map tiles only.
+- Facing of the 10f0 land units: DOS 0, port 6/1 (dos_tail stale-record bytes differ).
+- tr9 save 11: chain order at (53,56) after the MoW loses (Frigate moved to the head).

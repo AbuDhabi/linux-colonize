@@ -1581,8 +1581,9 @@ void ai_euro_ship_leave_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
     ctx->ai_euro_dock_census[n] =
       (uint8_t)(ctx->ai_euro_dock_census[n] - dock_passengers);
   }
+  /* 0346 writes no spent byte: the hull sits on the lane unacted (x >= 128)
+   * with whatever it had (tr9 1688: the crown Man-O-War saves spent 0). */
   ai_euro_lane_move(ctx, ship, 232 + n, 232 + n);
-  ship->moves = 0;
 }
 
 /*

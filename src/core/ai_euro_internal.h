@@ -282,7 +282,7 @@ extern const int8_t ai_euro_k_20e6_ring20_dy[20];
 void ai_euro_5952_improve_best_plot(
   ColonizeTurnContext* ctx, ColonizeColony* col, int* local_1b0, int* out_best_plot
 );
-void ai_euro_5952_tools_supply_and_connect(
+ColonizeColony* ai_euro_5952_tools_supply_and_connect(
   ColonizeTurnContext* ctx, ColonizeColony* col
 );
 extern uint8_t ai_euro_s_20e6_explorers[16];

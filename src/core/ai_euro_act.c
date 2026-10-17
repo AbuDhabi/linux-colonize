@@ -37,6 +37,8 @@
 #include "core/reports.h"
 #include "core/reports_names.h"
 #include "core/units.h"
+#include "core/combat_analysis.h"
+#include "core/units_internal.h"
 
 #include <limits.h>
 #include <stdio.h>
