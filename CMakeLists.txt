@@ -1011,6 +1011,12 @@ add_test(NAME golden_idle_independence
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 set_tests_properties(golden_idle_independence PROPERTIES
   ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1" DISABLED TRUE)
+# The same chain against the tr9 DOSBox reference run (saves 4..20, picks from
+# its trace): the live independence gate (docs/idle_independence.md).
+add_test(NAME golden_idle_tr9
+  COMMAND golden_idle_campaign tr9 0 20
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(golden_idle_tr9 PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1")
 # T2 early gate: full Euro dispatcher (TURN1→7). The AI_EURO_EARLY_FIXTURE bisect fixture was deleted 2026-09-14.
 
 # Renamed from golden_ai_* 2026-09-14 (duplication audit TT-13): both generate

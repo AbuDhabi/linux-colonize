@@ -198,6 +198,10 @@ extern int ai_euro_s_5952_census_nonexpert[COLONIZE_COLONIES_MAX]; /* aiStack_68
 void ai_euro_5952_build_cascade(
   ColonizeTurnContext* ctx, ColonizeColony* col
 );
+/* local_1b0 = the tick's improvement-arm owner (DS index of the per-nation reads). */
+void ai_euro_5952_build_cascade_1b0(
+  ColonizeTurnContext* ctx, ColonizeColony* col, int local_1b0
+);
 void ai_euro_colony_tick_5952(ColonizeTurnContext* ctx, int nation_id);
 void ai_euro_5952_colony_counters(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c

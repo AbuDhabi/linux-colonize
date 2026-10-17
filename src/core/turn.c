@@ -310,6 +310,13 @@ void turn_idle_human_activate(ColonizeUnitPool* pool, ColonizeUnit* u) {
   pool->selected_id = u->id;
   if (u->aboard_ship_id < 0 && units_is_on_map(u)) {
     units_tile_stack_arrive(pool, u->id);
+    /* The sidebar redraw for the new focus tile, FUN_49dd_0424 raw 78700-78701:
+     * FUN_281f_07ea(07e0 head) = FUN_1427_04d6(head, 0) relinks the tile's
+     * hulls (then Treasure, size 6..1) back on top. DOSBox tr9 13->14 (BPM
+     * on the hulls' +0x315e at 1427:02fc, returns 1427:053a / 1427:0636):
+     * after each activated land unit New Amsterdam's ships go to x = -3 and
+     * back above it. */
+    units_tile_stack_sort_at(pool, u->x, u->y);
   }
 }
 

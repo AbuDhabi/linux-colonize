@@ -24,6 +24,7 @@ These require Python 3.
 | `ai_logic_map.py` | Render and validate docs/ai_euro_logic_map.yaml | `python3 tools/ai_logic_map.py <check\|html\|mermaid\|dot\|outline> [MAP] [options]` | Python 3 stdlib only |
 | `build_address_mapping.py` | Build FUN_<seg>_<off> ↔ overlay addressing lookup table | `python3 tools/build_address_mapping.py <canonical_csv> <overlay_csv> <layout_json>` | Python 3 stdlib only; requires Ghidra CSV dumps and rtlink layout |
 | `dosbox_trace.py` | Drive real VICEROY.EXE under the DOSBox-X debugger: private game copy, nested Xephyr display, persistent debugger session, breakpoints/memory/screenshots, unattended save load | `python3 tools/dosbox_trace.py setup\|start\|send\|stop WORK ...` (guide: docs/dos_trace.md) | dosbox-x, Xephyr, ImageMagick, python3 pexpect + PIL; reference crops in `tools/dosbox_trace_ref/` |
+| `trcmp.py` / `jdiff.py` | Port vs a draw-traced DOSBox run: runs `golden_idle_campaign independence 0 K` with the trace's music picks, compares the interval-K draw stream and prints per-save field diffs (DOS, port) from `sav_json` dumps | `/usr/bin/python3 tools/trcmp.py original_saves/independence-seed-100/tr9/tr9.txt K [show]`; `jdiff.py A.json B.json [limit]` | Writes port dumps to `tools/tc/` (ignored); docs/idle_independence.md |
 | `rtlink_overlay_extract.py` | Extract RTLink v2 overlay segments from VICEROY.EXE | `python3 tools/rtlink_overlay_extract.py COLONIZE/VICEROY.EXE OUTDIR` | Python 3 stdlib only; reads VICEROY.EXE, writes segments.json + per-segment .bin files |
 
 ## Shell Scripts (scripts/)

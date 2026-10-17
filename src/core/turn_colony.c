@@ -28,6 +28,7 @@
 #include "core/woodcut.h"
 #include "platform/diagnostics.h"
 
+ColonizeColony* g_turn_1528_colony = NULL;
 
 /*
  * Sections:
@@ -184,6 +185,7 @@ static void turn_run_colony_eot_with(
   /* bugs.md #770: FUN_4962_0606 (raw 78332-78374) counts the nation's map
    * units before its colonists, so the specialty census needs the pool. */
   turn_run_colony_production_with_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL), .rng=(ColonizeDosRng*)(ctx->rng), .europe=(EuropeScreen*)(ctx->europe)}, ctx->human_nation, out, ctx->ai_popups, ctx->messages, before, before_user);
+  g_turn_1528_colony = NULL;
   turn_set_birth_units_pool(NULL);
   turn_run_colony_unit_construction(ctx);
   turn_run_colony_building_completion(ctx);
@@ -448,6 +450,8 @@ typedef struct AiNationColonyBellStep {
 
 static void turn_ai_colony_bell_step(void* user, ColonizeColony* colony) {
   AiNationColonyBellStep* step = user;
+  /* FUN_364b_0688 raw 57224: FUN_281f_09e6 binds DS:0x8542 to this colony. */
+  g_turn_1528_colony = NULL;
   int bells = 0;
   int crosses = 0;
   turn_compose_colony_bells_crosses(

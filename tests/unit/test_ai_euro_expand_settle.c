@@ -495,7 +495,10 @@ static int unit_pioneer_takes_order9(void) {
   int road_orders = 0;
   for (int i = 0; i < 4; ++i) {
     const ColonizeUnit* p = units_get(&units, pids[i]);
-    if (p && p->orders == UNITS_ORDER_BUILD_ROAD && p->col1_ai_plan == 0x52) {
+    /* 5b66 case 9 runs FUN_479b_0526 in the same act: the order either
+     * stands (job in progress) or the road is already laid. */
+    if (p && p->col1_ai_plan == 0x52 &&
+        (p->orders == UNITS_ORDER_BUILD_ROAD || map_tile_has_road(&map, p->x, p->y))) {
       ++road_orders;
     }
   }

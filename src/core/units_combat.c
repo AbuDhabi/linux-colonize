@@ -1153,15 +1153,13 @@ static void units_capture_to_winner(
    * 0894 flips its flag, 0844 links it on the winner's tile (local_12/14 =
    * the winner's x/y). The flag change therefore never restamps the tile the
    * loser left: DOSBox 1594/1595, that tile keeps the Dutch owner nibble. */
-  const int ox = lose->x;
-  const int oy = lose->y;
   units_capture_relocate_to_winner(pool, lose, win);
-  const bool moved = lose->x != ox || lose->y != oy;
+  /* 0894 = FUN_1427_0d1e writes only the +0x3147 nation nibble; the vis
+   * nibble is left as is (the captor tile's stamp after a step, the old
+   * mask on a colony tile: tr9 save 20, Fort Orange's colonist keeps 11). */
   const uint8_t vis = lose->col1_vis_mask;
   units_set_nation(lose, win->nation_id);
-  if (moved) {
-    lose->col1_vis_mask = vis; /* the captor tile's sight stamp */
-  }
+  lose->col1_vis_mask = vis;
   lose->orders = UNITS_ORDER_NONE;
   /*
    * DOS-LITERAL FUN_5fef_0352 raw 99393-99399: the capture arm writes the
@@ -2048,6 +2046,34 @@ int units_ship_damage_vs_sink(
   return dos_rng_range(rng, 1, winner_guns + loser_hull) <= loser_hull;
 }
 
+/* DOS FUN_1427_03a0 on a hull: the oldest end of the PHYSICAL tile chain,
+ * passengers included (units_tile_stack_sink ranks loose units only, so a
+ * hull next to sentried riders would stay above them). */
+static void units_sink_under_tile(ColonizeUnitPool* pool, ColonizeUnit* unit) {
+  uint64_t lo = 0;
+  for (int i = 0; i < units_slot_end(pool); ++i) {
+    const ColonizeUnit* o = &pool->units[i];
+    if (o->active && o != unit && o->x == unit->x && o->y == unit->y && o->tile_stack_order > 0 &&
+        (lo == 0 || o->tile_stack_order < lo)) {
+      lo = o->tile_stack_order;
+    }
+  }
+  if (lo == 0) {
+    return;
+  }
+  if (lo == 1) {
+    for (int i = 0; i < units_slot_end(pool); ++i) {
+      ColonizeUnit* o = &pool->units[i];
+      if (o->active && o != unit && o->x == unit->x && o->y == unit->y && o->tile_stack_order > 0 &&
+          ++o->tile_stack_order >= pool->next_tile_stack_order) {
+        pool->next_tile_stack_order = o->tile_stack_order + 1;
+      }
+    }
+    lo = 2;
+  }
+  unit->tile_stack_order = lo - 1;
+}
+
 int units_apply_naval_loss_outcome(
   ColonizeUnitPool* pool,
   int loser_id,
@@ -2084,6 +2110,11 @@ int units_apply_naval_loss_outcome(
    * and its passengers are lost.
    */
   if (units_is_sea(pool, winner_id) && units_is_sea(pool, loser_id)) {
+    /* DOS-LITERAL FUN_5fef_0352 raw 99499: each plunder pass opens with
+     * FUN_4720_0006(winner, 1, 1), whose param_3 != 0 arm (raw 75888-75890)
+     * is FUN_281f_08c6 = FUN_1427_03a0: the winning hull goes to the oldest
+     * end of its tile chain, cargo or not (tr9 save 11, Frigate at (53,56)). */
+    units_sink_under_tile(pool, win);
     (void)units_plunder_ship_holds(pool, winner_id, loser_id);
   }
   units_ship_lose_holds(pool, loser_id);

@@ -3819,16 +3819,11 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
    * No tile-quality test, no colony ring, no tools test, no plow-before-road
    * rule — those were the invented planner (bugs.md #610).
    *
-   * Who ticks an order-9 AI unit afterwards? **Nobody.** The only callers of
-   * the real work bodies FUN_479b_01a6 / FUN_479b_0526 in the whole image are
-   * the human ORDERS UI (raw 42512 / 42603, FUN_2b5a_123e / _1454) and the two
-   * AI **colony-tick** phantom-unit sites (raw 93669 and raw 94520/94534). An
-   * AI unit that takes order 9 also fails 20e6's own entry gate on every later
-   * call (`act_state != 0/5/6 && act_state < 10 -> LAB_5a78`, raw 89327 in the
-   * prologue), so the write is a *park*, not a work order. The tiles actually
-   * get improved by FUN_5952_035e (ai_euro_5952_improve_best_plot, #612).
-   * Ported literally anyway: it is what takes the unit out of the wander
-   * scorer, which is visible behaviour.
+   * Who ticks an order-9 AI unit afterwards? FUN_521d_5b66's switch: `case 9:
+   * FUN_291f_0216` (= FUN_479b_0526) runs after every 20e6 return 0, the road
+   * arm's included, and on later turns too (20e6's entry gate sends act_state
+   * 9 straight to LAB_5a78, raw 89327). The old "nobody, it is a park" reading
+   * missed that dispatch (ported in ai_euro_unit_act).
    */
   if (!force_wander && s.dos_type == 2 && s.explorer == 0) {
     {
@@ -3864,9 +3859,10 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
       if (allow) {
         u->orders = UNITS_ORDER_BUILD_ROAD; /* +0x314c = 9 */
         u->col1_ai_plan = 0x52;             /* +0x314b = 'R' */
-        /* `goto LAB_521d_5a78`: 20e6 is done with this unit — 1 makes
-         * ai_euro_unit_act return instead of running the goal ladder, which
-         * would immediately re-stamp an AI_MOVE over the order. */
+        /* `goto LAB_521d_5a78` (a no-op for 9), then 20e6 returns 0 and
+         * FUN_521d_5b66 dispatches `case 9` (FUN_479b_0526), wired in
+         * ai_euro_unit_act after the 5a78 tail. 1 keeps the goal ladder off
+         * the order. */
         return 1;
       }
       }

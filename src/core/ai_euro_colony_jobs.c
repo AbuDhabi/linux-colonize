@@ -2099,8 +2099,67 @@ static int ai_euro_5952_job_class(int job) {
  * consumed by the cascade. */
 static int s_5952_arty_plot[COLONIZE_COLONIES_MAX];
 
+/*
+ * The cascade's per-nation reads index DS with local_1b0 (asm 5952:2404
+ * `MOV BX,[BP-0x1ae]; SHL BX,4; MOV AL,[BX+0x84cb]`, raw 95759-95844), not
+ * the colony's nation: after the improvement arm's neighbour scan that is
+ * the owner it last read, -1 or a tribe (4..11) included, unchecked. This
+ * returns the byte at that DS address. Windows: DS:0x84bc price row
+ * (writers store euro_price - 1 clamped at 0), DS:0x924c..0x929b
+ * (unit_type_counts then colony_counts, contiguous) and DS:0x9408..0x942f
+ * (FUN_4962_0018's census, contiguous in DS though not in the save file).
+ * DS:0x84b4..0x84bb has no writer anywhere (see price_row_minus8): 0.
+ * ponytail: other addresses (e.g. a tribe's price row past DS:0x84fb) read
+ * 0; model them if a trace ever lands there.
+ * tr9 interval 20: crown Bahia's local_1b0 is -1, the Muskets byte DS:0x84bb
+ * is 0 < 4, the Blacksmith's Shop arm is skipped and pop 7 < 8 ends at 2747.
+ */
+static int ai_euro_5952_ds_byte(const ColonizeCol1Save* col1, int addr) {
+  if (!col1) {
+    return 0;
+  }
+  const ColonizeCol1Stuff* st = &col1->stuff;
+  if (addr >= 0x84bc && addr < 0x84fc) {
+    const int n = (addr - 0x84bc) >> 4;
+    const int p = (int)col1->nation[n].trade.euro_price[(addr - 0x84bc) & 0xf] - 1;
+    return p > 0 ? p : 0;
+  }
+  if (addr >= 0x924c && addr < 0x9298) {
+    const int o = addr - 0x924c;
+    return st->unit_type_counts[o / 19][o % 19];
+  }
+  if (addr >= 0x9298 && addr < 0x929c) {
+    return st->colony_counts[addr - 0x9298];
+  }
+  const int o = addr - 0x9408;
+  if (o < 0 || o >= 0x28) {
+    return 0;
+  }
+  switch (o >> 2) {
+    case 0: return st->free_colonist_counts[o & 3];
+    case 1: return st->colony_pop_totals[o & 3];
+    case 2: return st->census_pop_proxy[o & 3];
+    case 3: return st->ship_cargo_totals[o & 3];
+    case 4: return st->ship_counts[o & 3];
+    case 5:
+    case 6: {
+      const int w = st->land_combat_strength[(o - 0x14) >> 1];
+      return (o & 1) ? ((w >> 8) & 0xff) : (w & 0xff);
+    }
+    case 7: return st->armed_ship_counts[o & 3];
+    case 8: return st->veteran_teach_threshold[o & 3];
+    default: return st->field_combat_totals[o & 3];
+  }
+}
+
 void ai_euro_5952_build_cascade(
   ColonizeTurnContext* ctx, ColonizeColony* col
+) {
+  ai_euro_5952_build_cascade_1b0(ctx, col, col ? col->nation_id : 0);
+}
+
+void ai_euro_5952_build_cascade_1b0(
+  ColonizeTurnContext* ctx, ColonizeColony* col, int local_1b0
 ) {
   if (!ctx || !ctx->colonies || !ctx->map || !col || !col->active) {
     return;
@@ -2149,8 +2208,8 @@ void ai_euro_5952_build_cascade(
   const int turn = s.col1 ? (int)s.col1->head.turn : 0;
   const int year = s.col1 ? (int)s.col1->head.year : 0;
   const int difficulty = s.col1 ? (int)s.col1->head.difficulty : 4;
-  const int musket_price =
-    s.col1 ? ((int)s.col1->nation[s.nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] - 1) : 0;
+  const int musket_price = ai_euro_5952_ds_byte(s.col1, local_1b0 * 0x10 + 0x84cb);
+  const int armed_1b0 = ai_euro_5952_ds_byte(s.col1, 0x9424 + local_1b0);
   const int ring1 = (col->id >= 0 && col->id < COLONIZE_COLONIES_MAX) ? ai_euro_s_5952_ring1[col->id] : 0;
 
   /* asm 5952:21d4 — iVar12 = colonists working @JOB 0 (Farmer) + 8 (Fisherman). */
@@ -2314,7 +2373,7 @@ void ai_euro_5952_build_cascade(
       int want_custom = (col->ai_flags & 0x03u) != 0;
       if (!want_custom && s.col1) {
         want_custom = ((int)s.col1->stuff.armed_ship_counts[human] - 2) >
-                      (int)s.col1->stuff.armed_ship_counts[s.nation];
+                      armed_1b0;
       }
       if (!want_custom && pop >= 0x0c) {
         want_custom = 1;
@@ -2428,14 +2487,14 @@ void ai_euro_5952_build_cascade(
         return;
       }
       if (has_shipyard && s.col1) {
-        const ColonizeCol1Stuff* st = &s.col1->stuff;
-        if (((int)st->census_pop_proxy[s.nation] >> 1) + (int)st->colony_counts[s.nation] >=
-            (int)st->ship_cargo_totals[s.nation]) {
+        if ((ai_euro_5952_ds_byte(s.col1, 0x9410 + local_1b0) >> 1) +
+              ai_euro_5952_ds_byte(s.col1, 0x9298 + local_1b0) >=
+            ai_euro_5952_ds_byte(s.col1, 0x9414 + local_1b0)) {
           ai_euro_5952_set_unit_project(&s, 0x0f); /* 25f1: Galleon */
           return;
         }
-        const int frigates = (int)st->unit_type_counts[s.nation][0x11];
-        const int armed = (int)st->armed_ship_counts[s.nation];
+        const int frigates = ai_euro_5952_ds_byte(s.col1, 0x924c + local_1b0 * 19 + 0x11);
+        const int armed = armed_1b0;
         if (frigates != 0 || armed == 0) {
           if (armed < 4) {
             ai_euro_5952_set_unit_project(&s, 0x10); /* 260b: Privateer */
@@ -2475,10 +2534,9 @@ void ai_euro_5952_build_cascade(
       return;
     }
     if (has_shipyard && s.col1) {
-      const ColonizeCol1Stuff* st = &s.col1->stuff;
-      const int armed = (int)st->armed_ship_counts[s.nation];
+      const int armed = armed_1b0;
       const int cap = armed < 8 ? armed : 8; /* asm 26e9 SUB/SBB/AND/ADD = min(armed,8) */
-      if ((int)st->unit_type_counts[s.nation][0x0f] < cap) {
+      if (ai_euro_5952_ds_byte(s.col1, 0x924c + local_1b0 * 19 + 0x0f) < cap) {
         ai_euro_5952_set_unit_project(&s, 0x0f); /* Galleon */
         return;
       }
@@ -3328,7 +3386,7 @@ static void ai_euro_colony_tick_run(
       ai_euro_5952_indoor_expert_pass(ctx, col, placed, n);
       ai_euro_5952_indoor_pass(ctx, col, placed, n, local_1b0, local_7c);
       if (whole_tick) {
-        ai_euro_5952_build_cascade(ctx, col);
+        ai_euro_5952_build_cascade_1b0(ctx, col, local_1b0);
       }
       /* DOS raw ~95860-95958, the tick's last two arms (bugs.md #571/#572). */
       ai_euro_5952_specialist_arms(ctx, col, n);
@@ -3393,7 +3451,7 @@ static void ai_euro_colony_tick_run(
       }
     }
     if (whole_tick) {
-      ai_euro_5952_build_cascade(ctx, col);
+      ai_euro_5952_build_cascade_1b0(ctx, col, local_1b0);
     }
     ai_euro_5952_specialist_arms(ctx, col, n);
     if (whole_tick) {

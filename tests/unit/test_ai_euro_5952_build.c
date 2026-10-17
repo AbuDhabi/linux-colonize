@@ -1000,7 +1000,37 @@ static int case_starter_horses_purchase(void) {
   return 0;
 }
 
+/*
+ * asm 5952:2483: the Blacksmith's Shop gate reads the Muskets price byte at
+ * DS:0x84cb + local_1b0*0x10, local_1b0 being the improvement arm's last
+ * neighbour owner. -1 lands on DS:0x84bb (no writer, 0 < 4): the arm is
+ * skipped and pop 7 < 8 ends at 2747 (tr9 interval 20, crown Bahia).
+ */
+static int case_blacksmith_gate_reads_local_1b0(void) {
+  for (int pass = 0; pass < 2; ++pass) {
+    Fx f;
+    if (fx_build(&f, 7) != 0) {
+      return 1;
+    }
+    own_all_before_naval(&f);
+    f.col->has_building[bld(&f, "Blacksmith's Shop")] = false;
+    f.col1.nation[NATION].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 5;
+    f.col->stock[COLONIZE_CARGO_ORE] = 100;
+    ai_euro_5952_build_cascade_1b0(&f.ctx, f.col, pass == 0 ? NATION : -1);
+    const int got = f.col->building_in_production;
+    const int want = pass == 0 ? bld(&f, "Blacksmith's Shop") : -1;
+    const int wants = (f.col->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) != 0;
+    fx_done(&f);
+    if (got != want || wants != pass) {
+      return fail(pass == 0 ? "own nation: Blacksmith's Shop (asm 24a9)"
+                            : "local_1b0 -1: no project, wants-construction latch (asm 2747)");
+    }
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"case_blacksmith_gate_reads_local_1b0", case_blacksmith_gate_reads_local_1b0},
   {"case_starter_horses_purchase", case_starter_horses_purchase},
   {"case_first_pick_is_stockade", case_first_pick_is_stockade},
   {"case_docks_when_ring_worked_out", case_docks_when_ring_worked_out},

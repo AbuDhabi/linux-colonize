@@ -119,8 +119,11 @@ running French game's menu, so the harness first finishes that day from slot 2
 (`turn_end_from_slot`). Before simulating toward save 3, the harness declares independence
 through `ai_king_menu_declare_independence`. With no popup queue that confirms, as the
 player's second option did. It plays through turns missing from the archive (turn 288).
-CTest `golden_idle_independence` is disabled until the run is aligned; status and
-quirks in [docs/idle_independence.md](../docs/idle_independence.md):
+CTest `golden_idle_independence` (the wall-clock archive) is disabled; the live gate is
+`golden_idle_tr9` (`golden_idle_campaign tr9 0 20`): the same chain against the recorded
+DOSBox reference run in `original_saves/independence-seed-100/tr9/`, music picks read from
+its trace. Per-interval draw comparison: `tools/trcmp.py` (readme in that directory). Status
+and quirks in [docs/idle_independence.md](../docs/idle_independence.md):
 
 ```
 GOLDEN_IDLE_KEEP_GOING=1 GOLDEN_IDLE_DUMP=/tmp/x/sim_%d.sav ./build/debug/golden_idle_campaign independence 0 20
