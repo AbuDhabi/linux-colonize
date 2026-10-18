@@ -223,7 +223,7 @@ int turn_rank_euro_nations(
   const ColonizeColonyPool* colonies,
   uint8_t out_rank[4]
 );
-/* Reset the unsaved rank table on load; refresh it on a 153e audience. */
+/* Zero the unsaved rank table on load (fresh process); the next day top refreshes it. */
 void turn_rank_loaded(void);
 void turn_refresh_euro_rank(ColonizeTurnContext* ctx);
 

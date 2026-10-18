@@ -4252,7 +4252,9 @@ void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int t
       units_try_move_w(&w_, u->id, tx, ty);
     }
   }
-  if (u->active && ctx->colonies) {
+  /* A hull lost to its own attack is gone (units_get above returned NULL):
+   * golden ref interval 14, the crown Man-O-War at (51,50). */
+  if (u && u->active && ctx->colonies) {
     const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
     if (cid >= 0) {
       ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);

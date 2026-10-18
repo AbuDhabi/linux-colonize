@@ -790,15 +790,34 @@ static void ai_euro_0a60_foreign_colony_producers(
   ColonizeTurnContext* ctx, int nation_id, const ColonizeWorldMap* map,
   int have_col1, int turn, int difficulty, int human,
   uint8_t col_cnt[4][16], uint8_t land_cnt[4][16], uint8_t skilled_cnt[4][16],
-  uint16_t* io_mask_mil_expand, uint16_t* io_mask_found
+  uint16_t* io_mask_mil_expand, uint16_t* io_mask_found,
+  AiEuroInventory* inv, int urgency
 ) {
   uint16_t mask_mil_expand = *io_mask_mil_expand;
   uint16_t mask_found = *io_mask_found;
 
-  /* Foreign-colony loop (raw 983-1212). */
+  /* ONE colony walk in record order (FUN_521d_0a60 raw 87651 `for local_3e
+   * < DS:0x539e`): an own colony takes the ship-pressure / work-queue /
+   * LABOR / admission arms (raw 87655-87760), any other colony the
+   * foreign-colony producers (raw 983-1212 of the listing). The goal table
+   * keeps posting order within a priority, so the arms must interleave:
+   * DOSBox tr10 turn 275, the crown's LABOR goal for captured St. Louis
+   * (colony 20) sits after the MILITARY goals of colonies 6..12 and before
+   * colony 28's; two separate loops put it first and sent REF regular 97
+   * there instead of to Guadeloupe. */
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id == nation_id || c->nation_id < 0 || c->nation_id > 3) {
+    if (!c->active) {
+      continue;
+    }
+    if (c->nation_id == nation_id) {
+      ColonizeColony* own = &ctx->colonies->colonies[i];
+      ai_euro_colony_goals_colony_labor(ctx, nation_id, own, inv, urgency);
+      ai_euro_colony_goals_colony_work(ctx, nation_id, own);
+      ai_euro_colony_goals_colony_garrison(ctx, nation_id, own);
+      continue;
+    }
+    if (c->nation_id < 0 || c->nation_id > 3) {
       continue;
     }
     const int owner = c->nation_id;
@@ -1092,7 +1111,9 @@ static void ai_euro_0a60_village_producers(
 uint16_t ai_euro_s_0a60_mask_mil[4];
 uint16_t ai_euro_s_0a60_mask_found[4];
 
-static void ai_euro_0a60_settlement_goal_producers(ColonizeTurnContext* ctx, int nation_id) {
+static void ai_euro_0a60_settlement_goal_producers(
+  ColonizeTurnContext* ctx, int nation_id, AiEuroInventory* inv, int urgency
+) {
   if (nation_id < 0 || nation_id >= 4) {
     return;
   }
@@ -1161,7 +1182,7 @@ static void ai_euro_0a60_settlement_goal_producers(ColonizeTurnContext* ctx, int
 
   ai_euro_0a60_foreign_colony_producers(
     ctx, nation_id, map, have_col1, turn, difficulty, human, col_cnt, land_cnt,
-    skilled_cnt, &mask_mil_expand, &mask_found
+    skilled_cnt, &mask_mil_expand, &mask_found, inv, urgency
   );
 
   ai_euro_0a60_village_producers(
@@ -2627,7 +2648,7 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_producers(
   /* Foreign-colony + village producers (raw 983-1276): MILITARY approach,
    * CONTACT lurk ring, and the FOUND/MIL_EXPAND ship-staging goals at
    * open-sea tiles next to foreign colonies / villages. */
-  ai_euro_0a60_settlement_goal_producers(ctx, nation_id);
+  ai_euro_0a60_settlement_goal_producers(ctx, nation_id, inv, urgency);
 
   /* Thin -0x6790 stance nibbles, read by the 0a60 / ship stance gates. */
   ai_euro_refresh_continent_stance(ctx, nation_id);
@@ -2687,21 +2708,11 @@ void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
   ai_euro_0a60_unit_housekeeping(ctx, nation_id);
   const int urgency = inv ? inv->urgency : 0;
 
-  /* D: own colonies — ship-pressure goal, work queue, then the sole LABOR
-   * producer: +0x8e garrison demand (FUN_521d_0a60 raw 87684-87696). */
+  /* D: the colony walk — own colonies' ship-pressure goal, work queue, LABOR
+   * (+0x8e garrison demand, FUN_521d_0a60 raw 87684-87696) and admission
+   * arms, interleaved with the foreign-colony producers in record order
+   * (ai_euro_0a60_foreign_colony_producers). */
   ai_euro_ship_pressure_reset(nation_id); /* FUN_4962_0018 raw 78239-78242 */
-  if (ctx->colonies) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (!c->active || c->nation_id != nation_id) {
-        continue;
-      }
-      ai_euro_colony_goals_colony_labor(ctx, nation_id, c, inv, urgency);
-      ai_euro_colony_goals_colony_work(ctx, nation_id, c);
-      ai_euro_colony_goals_colony_garrison(ctx, nation_id, c);
-    }
-  }
-
   ai_euro_colony_goals_producers(ctx, nation_id, inv, urgency);
 }
 

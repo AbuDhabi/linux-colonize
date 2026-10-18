@@ -36,26 +36,37 @@ typedef struct {
   int per_turn;      /* save index counts turns, not years */
   int declare_save;  /* the human declares independence on the turn before this save; 0 = never */
   int resume_slot;   /* start save loaded in-game: the old day runs on from this slot; -1 = none */
-  int resume_runs;   /* how many times that partial day ran (independence: 2, docs/idle_independence.md) */
   const char* picks_trace; /* DOSBox draw trace with `PICK save K draw D` lines; NULL = none */
 } IdleCampaign;
 
 static const IdleCampaign k_yearly = {
-  "original_saves/1492-1600-seed-100/year_%d.sav", NULL, 1492, 1599, 0, 0, -1, 0, NULL,
+  "original_saves/1492-1600-seed-100/year_%d.sav", NULL, 1492, 1599, 0, 0, -1, NULL,
 };
 static const IdleCampaign k_independence = {
-  "original_saves/independence-seed-100/%06d.SAV",
-  /* START_SAVE was loaded from the in-game menu of a French (slot 1) game:
-   * the running day finishes from slot 2 (docs/idle_independence.md). */
-  "original_saves/independence-seed-100/START_SAVE.SAV", 0, 72, 1, 2, 2, 2, NULL,
+  /* The VR_SOUND archive (2026-10-17) starts at 000001: its 000001 is not
+   * reproducible from START_SAVE (docs/idle_independence.md "VR_SOUND
+   * archive"), so save 1 is the campaign's first save. */
+  "original_saves/independence-seed-100/%06d.SAV", NULL, 1, 72, 1, 2, -1, NULL,
 };
 /* The same chain against the tr9 DOSBox reference run (continuous from
  * 000003, draw-traced; original_saves/independence-seed-100/tr9/readme.md).
  * Saves 1..3 have no tr9 file and are played through; its music picks come
  * from the trace. */
+/* DOSBox from-load reference runs (2026-10-17, VR_SOUND.EXE, recipe in
+ * docs/idle_independence.md "VR_SOUND archive"): tr10 = main-menu load of
+ * 000001, declare, idle; ref = main-menu load of START_SAVE (no resumed
+ * day), idle, declare after save 1. */
+static const IdleCampaign k_tr10 = {
+  "original_saves/independence-seed-100/tr10/tr10_%d.sav",
+  "original_saves/independence-seed-100/000001.SAV", 1, 72, 1, 2, -1, NULL,
+};
+static const IdleCampaign k_ref = {
+  "original_saves/independence-seed-100/ref/ref_%d.sav",
+  "original_saves/independence-seed-100/START_SAVE.SAV", 0, 72, 1, 2, -1, NULL,
+};
 static const IdleCampaign k_tr9 = {
   "original_saves/independence-seed-100/tr9/tr9_%d.sav",
-  "original_saves/independence-seed-100/START_SAVE.SAV", 0, 20, 1, 3, 2, 1,
+  "original_saves/independence-seed-100/START_SAVE.SAV", 0, 20, 1, 3, 2,
   "original_saves/independence-seed-100/tr9/tr9.txt",
 };
 
@@ -211,20 +222,22 @@ static void save_path(const IdleCampaign* c, char* path, size_t size, int year) 
 
 int main(int argc, char** argv) {
   const IdleCampaign* c = &k_yearly;
-  if (argc == 4 && strcmp(argv[1], "independence") == 0) {
-    c = &k_independence;
-    --argc;
-    ++argv;
-  } else if (argc == 4 && strcmp(argv[1], "tr9") == 0) {
-    c = &k_tr9;
-    --argc;
-    ++argv;
+  static const struct { const char* name; const IdleCampaign* c; } k_named[] = {
+    {"independence", &k_independence}, {"tr9", &k_tr9}, {"tr10", &k_tr10}, {"ref", &k_ref},
+  };
+  for (size_t i = 0; argc == 4 && i < sizeof(k_named) / sizeof(k_named[0]); ++i) {
+    if (strcmp(argv[1], k_named[i].name) == 0) {
+      c = k_named[i].c;
+      --argc;
+      ++argv;
+      break;
+    }
   }
   int first, last;
   if (argc != 3 || !parse_year(c, argv[1], &first) ||
       !parse_year(c, argv[2], &last) || first >= last) {
     fprintf(stderr,
-            "usage: %s [independence|tr9] FIRST LAST (one contiguous saved run;"
+            "usage: %s [independence|tr9|tr10|ref] FIRST LAST (one contiguous saved run;"
             " years, or save numbers for independence)\n", argv[0]);
     return 2;
   }
@@ -334,10 +347,8 @@ int main(int argc, char** argv) {
     int stepped = 1;
     if (year == first + 1 && first == c->min && c->resume_slot >= 0 &&
         !(from_env && *from_env)) {
-      for (int r = 0; stepped && r < c->resume_runs; ++r) {
-        fx.units.selected_id = -1;
-        stepped = golden_turn_from_slot(&fx, c->resume_slot);
-      }
+      fx.units.selected_id = -1;
+      stepped = golden_turn_from_slot(&fx, c->resume_slot);
     }
     for (int step = 0; stepped && step < steps; ++step) {
       /* The skipped human turn: FUN_2b5a_3b68 opens Move Pieces with
@@ -354,7 +365,7 @@ int main(int argc, char** argv) {
       stepped = golden_turn(&fx);
       col1_bridge_stamp_autosave_head(&fx.start);
     }
-    fprintf(stderr, "save %d: %lu draws\n", year, dos_rng_draw_count());
+    fprintf(stderr, "save %d: %lu draws rng %08x\n", year, dos_rng_draw_count(), fx.rng.state);
     dos_rng_schedule_tick_reseeds(NULL, 0);
     if (!stepped) {
       ok = 0;
