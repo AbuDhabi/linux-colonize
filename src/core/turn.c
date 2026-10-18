@@ -181,13 +181,9 @@ void turn_refresh_moves_for_nation_w(
      * game_select_next_unit_awaiting_orders). FUN_521d_20e6 acts an AI unit
      * on orders 0/5/6 alike (DOSBox 1513). */
     /* No MP grant here. DOS refills MP only at the day top (+0x3149 = 0 for
-     * every unit, raw 6355-6357: turn_clear_mp_spent_all_nations). A slot
-     * entered without a day top (in-game load resuming the year loop,
-     * turn_end_from_slot) keeps last day's spend: independence-seed-100
-     * START_SAVE, Spain already acted on day 268 and does almost nothing on
-     * the resumed slot. Pioneer work bodies run from the activation
-     * rotation (bugs.md #626), Sentry / Fortified keep their allotment
-     * (#715). */
+     * every unit, raw 6355-6357: turn_clear_mp_spent_all_nations). Pioneer
+     * work bodies run from the activation rotation (bugs.md #626), Sentry /
+     * Fortified keep their allotment (#715). */
   }
 }
 
@@ -1043,38 +1039,6 @@ ColonizeTurnResult turn_end(ColonizeTurnContext* ctx) {
   }
   ColonizeTurnProcessor proc;
   turn_processor_start(&proc);
-  while (turn_processor_advance(&proc, ctx)) {
-  }
-  return proc.result;
-}
-
-/*
- * The rest of a DOS day, entered mid-loop. FUN_130d_0290 clears the
- * load-resume byte DS:0x829 at the end of every slot iteration but keeps its
- * slot counter, so a game loaded from the in-game menu while another game's
- * human (slot k) was moving finishes THAT day from slot k+1 at full strength:
- * nation EOT and act for each later slot, the new human's EOT, then the
- * calendar. No day top, no Indian pass. (independence-seed-100: START_SAVE
- * loaded from a French 1599 game, so Spain and the Dutch tick twice before
- * 000001; DOSBox replay byte-identical.) Slots below `slot` do not run;
- * slots above the human are not modelled (the human ends this partial day).
- */
-ColonizeTurnResult turn_end_from_slot(ColonizeTurnContext* ctx, int slot) {
-  ColonizeTurnResult empty;
-  memset(&empty, 0, sizeof(empty));
-  if (!ctx || !ctx->turn_number || !ctx->game_year || !ctx->game_autumn) {
-    return empty;
-  }
-  ColonizeTurnProcessor proc;
-  turn_processor_start(&proc);
-  const int h = turn_human_slot(ctx);
-  const int next = turn_next_euro_ai(ctx, slot < 0 ? 0 : slot);
-  if (next >= 0 && (h < 0 || next < h)) {
-    proc.nation_cursor = next;
-    proc.step = TURN_PROC_EURO;
-  } else {
-    proc.step = TURN_PROC_FINISH;
-  }
   while (turn_processor_advance(&proc, ctx)) {
   }
   return proc.result;

@@ -415,11 +415,9 @@ greenfield redesign or a mandated `game_loop` rewrite phase.
   regressions. The AI cluster is **fully live** again: `golden_ai_turns` and
   the joint smoke pair (`smoke_ai_mid01` / `smoke_ai_late01`, renamed from
   `golden_ai_*` 2026-09-14) all run in a default `ctest`. The parking
-  that started 2026-08-19 ended 2026-09-05 (port_plan T1.23 / T3.3). The one
-  `DISABLED` test in [`CMakeLists.txt`](../CMakeLists.txt) is
-  `golden_idle_independence` (wall-clock VR_SOUND archive, not reproducible);
-  its live gates are `golden_idle_tr9` / `_ref` / `_tr10`, and the seed-100
-  idle campaign runs as `golden_idle_continuous` ([idle_campaign.md](idle_campaign.md),
+  that started 2026-08-19 ended 2026-09-05 (port_plan T1.23 / T3.3). No test in
+  [`CMakeLists.txt`](../CMakeLists.txt) is `DISABLED`; the two idle campaigns run as
+  `golden_idle_continuous` and `golden_idle_independence` ([idle_campaign.md](idle_campaign.md),
   [idle_independence.md](idle_independence.md)).
   `golden_ai_joint` is a **build-only convenience target** that re-runs the
   AI gates in one shot (`cmake --build build/debug --target golden_ai_joint`):
