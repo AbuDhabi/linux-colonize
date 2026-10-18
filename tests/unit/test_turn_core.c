@@ -3997,9 +3997,13 @@ static int case_euro_power_rank(void) {
     fprintf(stderr, "loaded turn must preserve a rank refresh from an audience\n");
     return 1;
   }
+  /* The refresh sits at the day top (0550, turn_step_indian), not at the
+   * SETUP slice: run the day through. */
   turn_processor_start(&rank_proc);
-  if (!turn_processor_advance(&rank_proc, &rank_ctx) || rank_ctx.euro_power_rank[0] != 3) {
-    fprintf(stderr, "later normal turns must refresh the rank table\n");
+  while (turn_processor_advance(&rank_proc, &rank_ctx)) {
+  }
+  if (rank_ctx.euro_power_rank[0] != 3) {
+    fprintf(stderr, "the day top must refresh the rank table\n");
     return 1;
   }
   turn_reset();

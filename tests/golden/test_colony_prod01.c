@@ -837,9 +837,16 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
    * visit rolls 022e's human-only arrival-sound draw (rng(0,8)), which moves
    * the unreproduced native stream into a Tobacco gift DOS did not give.
    * Native gifts are not production: drop the visitor. */
+  /* Likewise the Brave at (46,63): it attacks St. Louis (two damaged
+   * Artillery behind a Stockade) in the Indian pass, and with the colony's
+   * fortification peels in place (turn_processor_advance now wires
+   * units_set_combat_colonies before the pass) the port's unreproduced
+   * native stream lets it win and run off with 36 Horses the DOS target
+   * kept. A raid is not production: drop the attacker too. */
   for (int ui = 0; ui < units_slot_end(&fx.units); ++ui) {
     ColonizeUnit* u = &fx.units.units[ui];
-    if (u->active && u->nation_id == 6 && u->x == 41 && u->y == 57) {
+    if (u->active && u->nation_id == 6 &&
+        ((u->x == 41 && u->y == 57) || (u->x == 46 && u->y == 63))) {
       units_despawn(&fx.units, u->id);
     }
   }

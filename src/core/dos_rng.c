@@ -100,7 +100,7 @@ int dos_rng_range(ColonizeDosRng* rng, int lo, int hi) {
   }
   /* Inclusive span; hi==lo still advances the LCG (span 1). */
   const int span = hi - lo + 1;
-  if (getenv("RANGEDBG")) { void* bt[6]; int nb = backtrace(bt, 6); fprintf(stderr, "RANGE %d %d draw %lu\n", lo, hi, dos_rng_draw_count()); if (getenv("RANGEBT")) backtrace_symbols_fd(bt + 1, nb - 1, 2); }
+  if (getenv("RANGEDBG")) { void* bt[6]; int nb = backtrace(bt, 6); fprintf(stderr, "RANGE %d %d draw %lu state %08x\n", lo, hi, dos_rng_draw_count(), rng ? rng->state : 0u); if (getenv("RANGEBT")) backtrace_symbols_fd(bt + 1, nb - 1, 2); }
   const uint32_t r = dos_rng_next(rng);
   /* FUN_19ef_0032: (span * r) >> 15 + lo */
   return lo + (int)(((uint32_t)span * r) >> 15);

@@ -880,7 +880,7 @@ void ai_contact_apply_reparations(
 
 /* A unit of `nation_id` that walked up to (x,y) this turn, or NULL. */
 static ColonizeUnit* ai_contact_reparations_visitor(
-  ColonizeTurnContext* ctx, int nation_id, int x, int y
+  ColonizeTurnContext* ctx, int nation_id, int euro, int x, int y
 ) {
   if (!ctx || !ctx->units) {
     return NULL;
@@ -894,7 +894,11 @@ static ColonizeUnit* ai_contact_reparations_visitor(
     if (abs(bu->x - x) > 1 || abs(bu->y - y) > 1) {
       continue;
     }
-    if (!ai_contact_brave_walked_up_to(bu, x, y)) {
+    /* The same selector as the beg arm: the stepping Brave of this 022e
+     * visit, so the demand half consumes the mood roll the step published
+     * (ai_contact_visit_demand_allowed) instead of rolling 1..0x148 again. */
+    if (!ai_contact_brave_walked_up_to(bu, x, y) &&
+        !ai_contact_is_visit_brave(ctx, nation_id, euro, bu)) {
       continue;
     }
     return bu;
@@ -949,6 +953,15 @@ static void ai_contact_reparations_present(
     ai_contact_apply_reparations(ctx, ind, nation_id, e, flavor, ai_accept);
     return;
   }
+  if (!ctx->ai_popups) {
+    /* Headless (no popup queue): the idle player's Space takes the first
+     * printed row — refuse for @INDIANCITY, hand over for @INDIANWAGONS
+     * (ai_contact_actions.c's accept_row). Same policy as the beg-food arm. */
+    ai_contact_apply_reparations(
+      ctx, ind, nation_id, e, flavor, flavor == AI_CONTACT_REPARATIONS_WAGONS
+    );
+    return;
+  }
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, section, tok, fallback, body, sizeof(body));
   char label_buf[2][POPUP_MSG_CHOICE_LEN];
@@ -986,11 +999,16 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
   if (nation_id < 4 || nation_id > 11) {
     return;
   }
-  if (!ctx->ai_popups) {
-    return; /* no presentation context — see the header's TRIGGER note */
-  }
+  /* No popup queue (golden harness): the arm still runs — its cargo scan
+   * draws (Muskets rand(1,4), the half-quantity rand(0,diff+1)) are DOS
+   * draws whatever the presentation (DOSBox tr10 turn 276: a Brave's failed
+   * food beg at crown St. Louis fell through to this scan), and the headless
+   * answer is the first row (ai_contact_reparations_present). */
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
   for (int e = 0; e < 4; ++e) {
+    if (ai_contact_s_visit_euro >= 0 && e != ai_contact_s_visit_euro) {
+      continue; /* 022e runs for the one European this visit walked up to */
+    }
     if (!ind->euro_diplo[e]) {
       continue; /* unmet — first contact runs its own arm */
     }
@@ -1014,7 +1032,7 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
       if (!c->active || c->nation_id != e) {
         continue;
       }
-      ColonizeUnit* v = ai_contact_reparations_visitor(ctx, nation_id, c->x, c->y);
+      ColonizeUnit* v = ai_contact_reparations_visitor(ctx, nation_id, e, c->x, c->y);
       if (!v) {
         continue;
       }
@@ -1043,9 +1061,9 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
         if (stock > 100) {
           stock = 100;
         }
-        if (stock <= 0) {
-          continue;
-        }
+        /* No empty-stock skip: DOS prices every cargo (the Muskets arm's
+         * rand(1,4) is drawn with 0 Muskets too, DOSBox tr10 turn 276) and
+         * an empty cargo simply scores 0, below the strict `>` below. */
         int want = ai_contact_reparations_price(ctx->col1, e, g);
         if (g == COLONIZE_CARGO_HORSES) {
           /* DOS reads +8 (horse_herds) as a SIGNED char here, as the
@@ -1097,10 +1115,27 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
       tok.number0 = best_qty;
       tok.has_number0 = true;
       /*
-       * AI Euro (`local_c = 2` unless the good is Muskets): auto-accept.
-       * The second DOS refusal roll is not modelled — see the header.
+       * AI Euro answer, FUN_5bfb_022e raw 96884-96892: `local_c = 2` (hand
+       * over) unless the good is Muskets, then `FUN_281f_07e0(10)` ->
+       * `FUN_281f_08bc` != 0 refuses: an armed unit (type attack > 1, not a
+       * hull) on the colony tile. DOSBox tr10 turn 276: crown St. Louis,
+       * garrisoned by REF regulars, keeps its 58 Tobacco and the village's
+       * attitude word takes the refusal's +0x80.
        */
-      const int ai_accept = (best_cargo != COLONIZE_CARGO_MUSKETS);
+      int armed_on_tile = 0;
+      for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
+        const ColonizeUnit* gu = &ctx->units->units[ui];
+        if (!gu->active || gu->x != c->x || gu->y != c->y || gu->aboard_ship_id >= 0 ||
+            units_is_sea(ctx->units, gu->id)) {
+          continue;
+        }
+        const ColonizeUnitType* gt = units_type(ctx->units, gu->type_index);
+        if (gt && gt->attack > 1) {
+          armed_on_tile = 1;
+          break;
+        }
+      }
+      const int ai_accept = (best_cargo != COLONIZE_CARGO_MUSKETS) && !armed_on_tile;
       ai_contact_reparations_present(
         ctx, ind, nation_id, e, AI_CONTACT_REPARATIONS_CITY, "INDIANCITY", &tok,
         "",
@@ -1130,7 +1165,7 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
        * narrowed to the Brave's own encounter partner by the visitor test
        * below, which is DOS's `FUN_281f_07e0()` in all reachable states.
        */
-      if (!ai_contact_reparations_visitor(ctx, nation_id, u->x, u->y)) {
+      if (!ai_contact_reparations_visitor(ctx, nation_id, e, u->x, u->y)) {
         continue;
       }
       wag = u;
@@ -1139,7 +1174,7 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
     if (!wag) {
       continue;
     }
-    brave = ai_contact_reparations_visitor(ctx, nation_id, wag->x, wag->y);
+    brave = ai_contact_reparations_visitor(ctx, nation_id, e, wag->x, wag->y);
     const int tribe_index = ai_contact_reparations_home_tribe(ctx, nation_id, brave);
     if (tribe_index < 0) {
       continue;
@@ -1804,7 +1839,18 @@ static void ai_contact_2820_buy_phase(
   if (!ai_contact_2e92_settle(
         ctx, ind, t, nation_id, e, unit, goods[best], price, s->buy_qty, &s->rng
       )) {
-    ai_contact_alarm_delta_00f2(ctx, nation_id, e, 1); /* @NOTENOUGH arm */
+    /* @NOTENOUGH arm. DOS has one stream: the 00f2 expel roll continues the
+     * haggle's draws. The alarm helper rolls on ctx->rng, so hand the
+     * session's copy to it and take it back (DOSBox ref 12->13: the crown
+     * wagon's trade at Bahia's village, draw 388, then the next wagon's
+     * Ore walk-down drew once in DOS and twice here). */
+    if (ctx->rng) {
+      *ctx->rng = s->rng;
+    }
+    ai_contact_alarm_delta_00f2(ctx, nation_id, e, 1);
+    if (ctx->rng) {
+      s->rng = *ctx->rng;
+    }
   }
   s->active = 0;
 }

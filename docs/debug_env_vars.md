@@ -39,6 +39,7 @@ comparing golden output.
 | `AI_28C8_TRACE` | `src/core/ai_euro_colony_jobs.c` (`ai_euro_28c8_score_full`) | trace | `=1` prints every 28c8 job search (colony, slot, restriction, winning job/plot, yield, score) and the 5952 indoor election (per-job scores, field score, winner, local_1b0 rank byte) | off |
 | `AI_28C8_CAND` | `src/core/ai_euro_colony_jobs.c` (`ai_euro_28c8_score_full`) | trace | `=1` prints every scored 28c8 candidate (plot, job, yield, score, modelled local_32 residue) | off |
 | `PICKCTX` | `src/core/ai_euro.c` (`ai_euro_dispatcher_turn_unit_waves`) | trace | `=1` prints each Euro unit act with the DOS RNG draw count of the current golden run (`dos_rng_draw_count`), for placing music-pick reseeds | off |
+| `RANGEDBG` / `RANGEBT` | `src/core/dos_rng.c` (`dos_rng_range`) | trace | `RANGEDBG=1` prints every draw as `RANGE lo hi draw N state S` (N = `dos_rng_draw_count`, S = the LCG state before the draw); `RANGEBT=1` adds a 5-frame backtrace (resolve with `addr2line -f -e build/debug/<bin>`). Consumed by `tools/trcmp.py`. | off |
 | `WOI_DEBUG` | `tests/golden/test_woi_ref01.c:172` | test-only | Prints per-turn WoI status line during `golden_woi_ref01` | off |
 
 `diag_init` also reads `HOME` / `XDG_DATA_HOME` (`src/platform/diagnostics.c:181-182`)

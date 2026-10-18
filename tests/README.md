@@ -121,10 +121,12 @@ running French game's menu, so the harness first finishes that day from slot 2
 independence through `ai_king_menu_declare_independence`. With no popup queue that confirms,
 as the player's second option did. It plays through turns missing from the archive
 (turns 288, 308, 328).
-CTest `golden_idle_independence` (the wall-clock archive) is disabled; the live gate is
-`golden_idle_tr9` (`golden_idle_campaign tr9 0 20`): the same chain against the recorded
+CTest `golden_idle_independence` (the archive) is disabled; the live gates are
+`golden_idle_tr9` (`golden_idle_campaign tr9 0 20`: the VR_SEED chain against the recorded
 DOSBox reference run in `original_saves/independence-seed-100/tr9/`, music picks read from
-its trace. Per-interval draw comparison: `tools/trcmp.py` (readme in that directory). Status
+its trace), `golden_idle_ref` (`ref 0 12`: plain main-menu load of START_SAVE, VR_SOUND.EXE,
+`ref/ref_K.sav`) and `golden_idle_tr10` (`tr10 1 7`: main-menu load of 000001, `tr10/tr10_K.sav`).
+Bump their LAST as the port's reach grows (docs/idle_independence.md "VR_SOUND archive"). Per-interval draw comparison: `tools/trcmp.py` (readme in that directory). Status
 and quirks in [docs/idle_independence.md](../docs/idle_independence.md):
 
 ```

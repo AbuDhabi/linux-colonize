@@ -500,12 +500,13 @@ static void turn_finish_status(ColonizeTurnContext* ctx, const ColonizeTurnResul
 }
 
 /* ===================== Turn processor state machine: setup/euro/indian/finish/king steps & reset (turn_processor_start .. turn_reset) ===================== */
-static bool turn_rank_resume_loaded;
+/* The unsaved DS rank table (DS:0x917c): zero in a fresh process, written
+ * by the day top's 0550 refresh (and 153e audiences). Slots above the human
+ * read what the previous day top left. */
 static uint8_t turn_rank_cached[4];
 
 void turn_rank_loaded(void) {
   memset(turn_rank_cached, 0, sizeof turn_rank_cached);
-  turn_rank_resume_loaded = true;
 }
 
 void turn_refresh_euro_rank(ColonizeTurnContext* ctx) {
@@ -611,16 +612,14 @@ COLONIZE_INTERNAL void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurn
           ctx->ai_popups, AI_POPUP_TAG_FF_CONGRESS, AI_POPUP_TAG_COLONY_EVENT
         );
       }
-      /* 129f year loop raw 6354-6356 skips 00f8 while the load-resume
-       * byte DS:0829 is set. The unsaved rank table starts at zero after
-       * loading; 153e may refresh it before a later nation's colony tick. */
-      if (turn_rank_resume_loaded) {
-        memcpy(ctx->euro_power_rank, turn_rank_cached, sizeof ctx->euro_power_rank);
-        ctx->euro_power_rank_ok = true;
-      } else {
-        turn_refresh_euro_rank(ctx);
-      }
-      turn_rank_resume_loaded = false;
+      /* The slots above the human close the previous day: they read the
+       * rank table its day top wrote (zeros right after a load: a fresh
+       * process, and 130d_0290 raw 6354-6356 skips the day top only until
+       * the loaded slot's iteration ends). The refresh itself sits at the
+       * day top (turn_step_indian). DOSBox START_SAVE plain load 2026-10-17:
+       * a refresh skipped on day 269 moved St. Eustatius's Statesman. */
+      memcpy(ctx->euro_power_rank, turn_rank_cached, sizeof ctx->euro_power_rank);
+      ctx->euro_power_rank_ok = true;
       /*
        * DOS order relative to the human's end-of-turn (see
        * turn_human_slot): Euro slots above the human first, then the
@@ -733,11 +732,13 @@ COLONIZE_INTERNAL void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTur
       proc->show_indicator = true;
       if (n == 4) {
         turn_advance_day(proc, ctx);
-        /* DOS-LITERAL day top, raw 6353-6363 (bugs.md #713): FUN_281f_0550,
-         * then +0x3149 = 0 for every unit of every nation, then 0676 (the
-         * Indian mid-pass) — before nation 0's EOT. The slots above the human
-         * acted at the tail of the previous day, so they read cleared in the
-         * human's autosave (seed-100 idle campaign, every year). */
+        /* DOS-LITERAL day top, raw 6353-6363 (bugs.md #713): FUN_281f_0550
+         * (the 00f8 rank refresh), then +0x3149 = 0 for every unit of every
+         * nation, then 0676 (the Indian mid-pass) — before nation 0's EOT.
+         * The slots above the human acted at the tail of the previous day,
+         * so they read cleared in the human's autosave (seed-100 idle
+         * campaign, every year). */
+        turn_refresh_euro_rank(ctx);
         turn_clear_mp_spent_all_nations(ctx->units);
         /* FUN_4d56_1b3a phase 1 — once, before the eight 1816 calls. */
         ai_indian_midpass_clear_tables(ctx);
@@ -996,6 +997,13 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
   /* bugs.md #463: a damaged hull with no repair port leaves for Europe the
    * instant it loses (FUN_5fef_0352 off-map slot) — units.c needs the screen. */
   units_set_combat_europe(ctx->europe);
+  /* Colony fortification / settlement peels for every combat of the day,
+   * the Indian pass included: it runs before any Euro slot's dispatcher
+   * (ai_euro_dispatcher_turn_reset) or move (units_try_move) sets this, so
+   * on a fresh load the first day's Brave attacks on colonies fought an
+   * unfortified defender (DOSBox START_SAVE plain load, draw 233: St. Louis
+   * Artillery 136 vs 50). */
+  units_set_combat_colonies(ctx->colonies);
   /* LABELS.TXT wording for the status lines composed deep inside production;
    * threaded as a slice-scoped static because turn_run_colony_production's
    * signature is pinned by ~60 test call sites. */
@@ -1068,8 +1076,6 @@ ColonizeTurnResult turn_end_from_slot(ColonizeTurnContext* ctx, int slot) {
   }
   while (turn_processor_advance(&proc, ctx)) {
   }
-  /* DS:0x829 is clear by now, so the next day top runs 00f8 (rank refresh). */
-  turn_rank_resume_loaded = false;
   return proc.result;
 }
 
@@ -1081,7 +1087,6 @@ ColonizeTurnResult turn_end_from_slot(ColonizeTurnContext* ctx, int slot) {
  * units pool pointer must not survive into a different campaign's pool.
  */
 void turn_reset(void) {
-  turn_rank_resume_loaded = false;
   memset(turn_rank_cached, 0, sizeof turn_rank_cached);
   memset(turn_prof_census, 0, sizeof(turn_prof_census));
   turn_birth_units = NULL;

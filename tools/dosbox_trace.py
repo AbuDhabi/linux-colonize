@@ -96,19 +96,25 @@ class Dbg:
         return True
 
     def regs(self, *names):
-        out = self.cmd('EV ' + ' '.join(names), 0.15).split('is:')[-1]
-        m = re.search(r'LOG: ([0-9a-fA-F ]+)', out)
-        return [int(x, 16) for x in m.group(1).split()]
+        # Wait for the LOG line itself (a few ms) instead of a fixed 0.15 s.
+        self.p.send('EV ' + ' '.join(names) + '\r')
+        try:
+            self.p.expect(r'LOG: ([0-9a-fA-F ]+)\r?\n', timeout=2)
+            return [int(x, 16) for x in self.p.match.group(1).split()]
+        except self.pexpect.TIMEOUT:
+            out = self.drain(0.15).split('is:')[-1]
+            m = re.search(r'LOG: ([0-9a-fA-F ]+)', out)
+            return [int(x, 16) for x in m.group(1).split()]
 
     def mem(self, seg, off, n):
         fn = os.path.join(self.work, 'MEMDUMP.BIN')
         if os.path.exists(fn):
             os.remove(fn)
-        self.cmd('MEMDUMPBIN %x:%x %x' % (seg, off, n), 0.2)
-        for _ in range(100):
+        self.cmd('MEMDUMPBIN %x:%x %x' % (seg, off, n), 0.02)
+        for _ in range(500):
             if os.path.exists(fn) and os.path.getsize(fn) >= n:
                 break
-            time.sleep(0.05)
+            time.sleep(0.01)
         return open(fn, 'rb').read()
 
     def word(self, seg, off, signed=True):

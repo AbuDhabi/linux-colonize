@@ -1007,10 +1007,21 @@ set_tests_properties(golden_idle_continuous PROPERTIES ENVIRONMENT "GOLDEN_IDLE_
 # Same harness, Dutch every-turn autosaves 1680-1717 (VR_SOUND.EXE) with a declaration
 # of independence between saves 1 and 2. Disabled until aligned (diverges at save 4).
 add_test(NAME golden_idle_independence
-  COMMAND golden_idle_campaign independence 0 72
+  COMMAND golden_idle_campaign independence 1 72
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 set_tests_properties(golden_idle_independence PROPERTIES
   ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1" DISABLED TRUE)
+# DOSBox from-load references recorded 2026-10-17 (VR_SOUND.EXE, docs/idle_independence.md
+# "VR_SOUND archive"): ref = plain main-menu load of START_SAVE, declare after save 1;
+# tr10 = main-menu load of 000001, declare, idle. Ranges = the port's current reach.
+add_test(NAME golden_idle_ref
+  COMMAND golden_idle_campaign ref 0 12
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(golden_idle_ref PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1")
+add_test(NAME golden_idle_tr10
+  COMMAND golden_idle_campaign tr10 1 7
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(golden_idle_tr10 PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1")
 # The same chain against the tr9 DOSBox reference run (saves 4..20, picks from
 # its trace): the live independence gate (docs/idle_independence.md).
 add_test(NAME golden_idle_tr9

@@ -2,9 +2,9 @@
 
 STATUS: aligned to the tr9 DOSBox reference run through save 20 (2026-10-17); CTest
 `golden_idle_tr9` guards it (`golden_idle_campaign tr9 0 20`, picks read from the trace).
-The archive was re-recorded with VR_SOUND.EXE on 2026-10-17 (72 saves, deterministic, no
-music picks): the port equals saves 1..3 and diverges at save 4 (see "VR_SOUND archive"
-below), so CTest `golden_idle_independence` stays DISABLED until that gap is closed. Sister campaign (done): [idle_campaign.md](idle_campaign.md), whose method and
+The archive was re-recorded with VR_SOUND.EXE on 2026-10-17 (72 saves): reproducible only
+through save 3 (see "VR_SOUND archive" below); CTest `golden_idle_independence` stays DISABLED.
+From-load references tr10 / ref (same section) are the live alignment targets. Sister campaign (done): [idle_campaign.md](idle_campaign.md), whose method and
 DOSBox recipe apply here too.
 
 ## Fixtures
@@ -32,29 +32,96 @@ queue.
 
 ## VR_SOUND archive (2026-10-17)
 
-Checked the same day: heads are consecutive (turn 269..343, three missing turns above), the
-declaration shows from save 2, and the port reproduces the start of the chain:
+The archive was re-recorded with VR_SOUND.EXE (72 saves, Autumn 1680 .. Autumn 1717, declaration
+between saves 1 and 2). Checked the same night; the chain is internally consistent (heads
+consecutive, only turns 288/308/328 missing), but it is NOT reproducible from the committed
+inputs, at two points:
 
-- **Save 1 carries one more Spain and Dutch production tick than START_SAVE + one resumed
-  day.** Quebec hammers 44 -> 62 (three ticks of 6), Jamestown food wraps at 200 and its
-  population grows, four colonists have joined colonies; France ticks once. The port matches
-  save 1 only when the slot-2 resume (`turn_end_from_slot(2)`: Spain EOT + act, Dutch EOT)
-  runs TWICE before the normal day (`IdleCampaign.resume_runs = 2`; the tr9 chain keeps 1).
-  Reading: the slot the player loaded (`COLONIZE/COLONY08.SAV`) no longer held START_SAVE but
-  START_SAVE after one such resume, saved at the Dutch Move Pieces of turn 268; the file was
-  overwritten again at 19:58 that day, so this is inferred from the saves, not seen. The
-  save writer's stack residue (`post_map.save_path_blob`, SS:local_8 of FUN_75c2_0288) also
-  changed (88e88672 -> 86e88272) and rides through every later save; `compare_save` now
-  ignores those four bytes like the cursor.
-- With that, saves 1, 2 and 3 are byte-identical to the port (declaration included).
-- **Save 4 diverges** exactly as the VR_SEED archive did against a fresh DOS load of 000003:
-  Bahia (`colonies[14]`, Dutch) slots 5 and 6 are on tiles 5/6 in DOS and indoors (15) in the
-  port, and the crown's Tools gross differs (`nations[0].gold` 797 vs 761, `trade.gold[14]`
-  -354 vs -390). Save 5 adds `indians[2].lands_bought` and a map mask/path byte at 3930.
-  The tr9 reference (DOS loaded at 000003) never showed this, so it is state that a DOS
-  load does not carry (the 0a60 stance table DS:0x9870 is the standing suspect, quirk above)
-  but the continuous archive does. Closing it needs a continuous DOSBox run from the double
-  resume with the draw trace (`dosbox_trace.py setup --exe VR_SOUND.EXE`, no pick logging).
+- **START_SAVE -> 000001.** The archive's save 1 carries one more Spain and Dutch production
+  tick than START_SAVE plus the resumed French day (Quebec hammers 44 -> 62 = three ticks of 6,
+  Jamestown's food wraps at 200 and its population grows, four colonists joined colonies; France
+  ticks once). DOSBox replays of the described procedure with the committed files (main-menu
+  load of french-campaign COLONY04 or COLONY09, in-game load of slot 8 = START_SAVE, Space)
+  give the OLD archive's 000001 byte-for-byte (two ticks). The port reproduces the new save 1
+  only when `turn_end_from_slot(2)` runs twice before the normal day (an experiment, not a
+  model; the harness no longer does it). What the player's session did differently is unknown.
+  The save writer's stack residue `post_map.save_path_blob` (SS:local_8 of FUN_75c2_0288) also
+  changed (88e88672 -> 86e88272) and rides through every later save; `compare_save` ignores
+  those four bytes like the cursor.
+- **000003 -> 000004.** A DOSBox main-menu load of 000001 (declare, idle) reproduces saves 2
+  and 3 but not 4: crown Bahia (`colonies[14]`, captured in interval 3) puts two colonists on
+  tiles 5/6 in the archive and keeps them indoors (occupation 15) in the from-load run, and the
+  crown's Tools gross differs (`nations[0].gold` 797 vs 761, `trade.gold[14]` -354 vs -390).
+  The port from a load of 000001 gives exactly the DOS from-load result, so this is DOS state
+  the save does not carry (the player's continuous session had it; candidates: the 0a60 stance
+  table DS:0x9870, AI goal tables DS:0x98b0.., whatever the French 1599 game left in memory).
+  The VR_SEED archive had the same signature at save 5 against tr9.
+
+So the archive beyond save 3 is a realisation with hidden state. The reproducible references
+recorded instead (DOSBox, VR_SOUND.EXE, `tools/dosbox_trace.py`; copies under
+`original_saves/independence-seed-100/`):
+
+- `tr10/tr10_K.sav` (K = 2..): main-menu load of 000001, GAME > DECLARE INDEPENDENCE (second
+  option), Space. Harness campaign `tr10` (`golden_idle_campaign tr10 1 LAST`).
+- `ref/ref_K.sav` (K = 1..): main-menu load of START_SAVE (no resumed French day), Space,
+  the declaration after save 1 (during turn 269), Space. Harness campaign `ref`
+  (`golden_idle_campaign ref 0 LAST`). This is the chain a fresh recording should follow:
+  everything in it is reproducible from the committed files.
+
+Harness `independence` (the archive) starts at 000001 (`declare_save` 2, no resume) and is only
+expected to hold through save 3.
+
+Port fixes from the from-load references (2026-10-17/18 night; all under `make test` 98/98,
+`make golden` ok, tr9 still 17/17):
+
+- Golden fixture: `golden_open` wires `units_set_ff_col1`, `units_set_native_fallout_context`
+  and `units_set_combat_colonies` at load like game_loop does. Without them the first day top
+  after a load refilled Dutch ships without Magellan (exported as spent 3), skipped the 0824
+  census decrement (France/Spain `all_unit_counts` stayed 36/23 after the declaration) and
+  fought colony combats unfortified.
+- `turn_processor_advance` sets `units_set_combat_colonies(ctx->colonies)` every slice: the
+  Indian pass runs before any Euro dispatcher/move set it, so a fresh load's first Brave attack
+  on a colony read no stockade and no settlement artillery x2 (ref interval 1, draw 233: St.
+  Louis's damaged Artillery 136 vs 50).
+- Rank table timing: the 0550 refresh runs at the day top (`turn_step_indian`, raw 6353-6363),
+  the SETUP slice hands the slots above the human the previous day top's table, and a load only
+  zeroes the table (fresh process). The old `turn_rank_resume_loaded` skip was wrong: 130d_0290
+  clears DS:0829 at the end of the loaded slot's iteration, before any day top (ref interval 1:
+  St. Eustatius's Statesman left for the fishery without the refresh).
+- 0a60 colony walk: own colonies' ship-pressure / work-queue / LABOR / admission arms and the
+  foreign-colony producers now interleave in ONE record-order walk (raw 87651), so a LABOR goal
+  posts after the MILITARY goals of lower-index colonies (tr10 turn 275: REF regular 97 walked to
+  Guadeloupe, not back to St. Louis).
+- 022e demand half: runs headless too (first row = refuse for @INDIANCITY, hand over for
+  @INDIANWAGONS); the visitor selector matches the beg arm's (so it consumes the step's published
+  mood roll instead of rolling 1..0x148 again); every cargo is priced (the Muskets rand(1,4) is
+  drawn with 0 Muskets); an AI owner refuses when an armed land unit stands on the colony tile
+  (raw 96884-96892, `FUN_281f_08bc`).
+
+- `ai_euro_try_attack`: a hull sunk by its own attack left `u` NULL (crash in ref interval 14).
+- 2820 village trade: the @NOTENOUGH 00f2 expel roll drew from the global RNG while the trade
+  session drew from its copy; it now takes the session's stream (DOSBox ref 12->13 draw 388).
+
+State: ref (plain START load) 0 -> 12 byte-identical; tr10 (000001 load) 1 -> 7 byte-identical
+and every draw of intervals 2..8 matches. Open leads, with the evidence so far:
+- tr10 save 8: a Mounted Brave at (40,52) (goto Fort Orange) picks SE (41,53), its own
+  village, score 204 (199 + roll 5) over W (39,52), a resource tile, 202 (198 + 4); DOS went W
+  then SE (DOSBox watch on record 26: (39,52) facing 6, then (40,53) facing 3). Same draws, so
+  a deterministic term: the own-village +0x14 beacon(s) vs the resource +10 (021a 0xbb6 /
+  0xeba arms). The crown Man-O-War that took (32,55) carries France's vis bit in DOS (Berbice
+  at (30,58) is 3 rows away). New REF record 117 (Artillery, landed at (44,53)) keeps facing
+  pad bit 1 in DOS.
+- ref save 13 (first draw mismatch now at 447 of 525): the crown's delivered Man-O-War at
+  (52,49) (orders 5, plan 'B', empty) is on the Europe dock (236,236) at save 13 in DOS with
+  no draw spent; the port wanders it (five 4d2e draws) and the whole crown navy diverges from
+  there. The port's `ai_king_mow_sail_home_20e6` is skipped by its live lane count (the Europe
+  Man-O-War still at 244,244 at act time), while DOS's `DS:0x9456` comes from the 4962 census
+  of the EOT tail; in DOS that Europe hull had already left for the map by then (save 13 has a
+  fresh orders-0 Man-O-War at (52,49)). Check the 0982/10f0 launch order against the census
+  and whether the crossing docks the hull the same turn. The DS:0x84bc price rows were
+  checked in DOSBox and equal the save's `euro_price - 1` for every nation: no lag, that lead
+  is closed. The 2820 village trade's 00f2 expel roll now continues the trade's own stream
+  (one DOS stream; the port rolled it on the stale global copy).
 
 ## Quirks of this save set
 
@@ -604,8 +671,7 @@ saves 5-7: 3, 15, ~74 field diffs vs the archive.
 
 ## Open
 
-- Nothing against tr9 through save 20. The VR_SOUND archive (72 saves, deterministic) is the
-  new target: the port diverges at save 4 (Bahia slots 5/6, crown Tools gross; "VR_SOUND
-  archive" above). Next: a continuous draw-traced DOSBox run from the double resume to find the
-  carried-over state, then `golden_idle_independence 0 72` as the gate; also check the 5952
-  `local_1b0` guesses (DS:0x84bb = 0, tribe owner rows) against a trace that hits them.
+- Nothing against tr9 through save 20. The VR_SOUND archive is not reproducible past save 3
+  ("VR_SOUND archive" above); the from-load references tr10 / ref are the live targets. Open
+  there: tr10 save 7 (REF regular's goto in Bahia). Also check the 5952 `local_1b0` guesses
+  (DS:0x84bb = 0, tribe owner rows) against a trace that hits them.

@@ -1,6 +1,7 @@
 #include "tests/common/golden_fixture.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "core/ai.h"
@@ -69,6 +70,15 @@ bool golden_open(const char* path_in, const char* path_exp, uint32_t rng_seed, G
    * this at load; without it every mover leaves a stale UNITFLAG behind. */
   units_set_occupancy_map(&fx->map);
   units_occupancy_rebuild(&fx->units);
+  /* The sim hooks game_loop wires at load (game_try_unit_move /
+   * turn_refresh_moves_for_nation_w set them again per slot). Without them
+   * the first day top after a load refills ships without Magellan
+   * (units_max_mp reads g_units_ff_col1) and the 0824 census decrement is
+   * skipped: independence 000001 -> 000002 showed both as from-load-only
+   * diffs. */
+  units_set_ff_col1(&fx->start);
+  units_set_native_fallout_context(&fx->start, &fx->map, -1);
+  units_set_combat_colonies(&fx->colonies);
 
   fx->turn_number = fx->br.turn_number;
   fx->year = fx->br.year;
