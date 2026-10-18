@@ -556,6 +556,23 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
   if (!ctx || !out) {
     return;
   }
+  /* DOS-LITERAL FUN_3844_0442 raw 58458-58463: the chrome opens with the
+   * FUN_4962_0018 census of the crown (DS:0x53d2) under the WoI latch
+   * (DS:0x5382 bit0), then of the human (DS:0x5398). The day top's 00f8 rank
+   * refresh that follows reads the crown's post-day strength from it
+   * (tr10 turn 279: St. Louis's Tools factor doubled on the stale census). */
+  if (ctx->col1_ok && ctx->col1) {
+    const ColonizeWorld cw = world_from_turn_ctx(ctx);
+    if (ctx->col1->head.game_options.woi) {
+      const int crown = ai_king_crown_nation_col1(ctx->col1, ctx->human_nation);
+      if (crown >= 0 && crown < 4) {
+        col1_stuff_census_4962_w(&cw, &ctx->col1->stuff, crown);
+      }
+    }
+    if (ctx->human_nation >= 0 && ctx->human_nation < 4) {
+      col1_stuff_census_4962_w(&cw, &ctx->col1->stuff, ctx->human_nation);
+    }
+  }
   const uint16_t year =
     (ctx->game_year) ? *ctx->game_year
                      : (ctx->col1_ok && ctx->col1) ? ctx->col1->head.year : 0;

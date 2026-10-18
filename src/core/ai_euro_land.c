@@ -3131,7 +3131,13 @@ int ai_euro_20e6_wagon_origin_walk(
       ori = s.home_colony;
     }
     if (ori == s.home_colony) {
-      return 1; /* orders 0x55, LAB_5899 park — beat claimed, no goto */
+      /* raw 2268-2269: +0x314b = 0x55, then LAB_5899 -> 589e (facing 8,
+       * act_state 5/6). Without the sentry the wagon stayed act_state 0 and
+       * every later wave re-ran the load matrix, one rand(0,3) a beat
+       * (DOSBox tr10 12->13: Bahia's wagon draws once, saves orders 5 / 'U'). */
+      u->col1_ai_plan = 0x55;
+      ai_euro_20e6_stay_tail_589e(u);
+      return 1;
     }
   }
   if (ori < 0) {

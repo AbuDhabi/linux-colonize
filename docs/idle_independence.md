@@ -101,9 +101,27 @@ Port fixes from the from-load references (2026-10-17/18 night; all under `make t
 - `ai_euro_try_attack`: a hull sunk by its own attack left `u` NULL (crash in ref interval 14).
 - 2820 village trade: the @NOTENOUGH 00f2 expel roll drew from the global RNG while the trade
   session drew from its copy; it now takes the session's stream (DOSBox ref 12->13 draw 388).
+- 021a adjacent-foreign probe (`ai_021a_adjacent_foreign`, settlement-first mode = FUN_1427_09dc,
+  2026-10-18): DOS skips the land/water medium test when the CENTRE tile is a settlement (the
+  neighbour medium is only read when the centre has none, and a settlement neighbour's medium
+  replaces the sticky centre medium for the following tiles). The port filtered every neighbour
+  by medium, so a crown Man-O-War on the sea beside tribe 23's village at (41,53) never counted:
+  tr10 turn 276, Mounted Brave at (40,52), DOS SE pre-score 196 (= 199 - 3, alarm 41 ->
+  (41-50)>>2) picked W. Found with DOSBox breakpoints at OVL13 0xbb6/0xc0b/0xc82/0xcd4/0xcea/
+  0xd5c/0xeba/0x1158/0x1167 printing `[bp-0x24]` per arm (`--patch-cc 0x46ffa`, trap 0x21a).
+  Closed tr10 saves 8-10 (units 26/25/19/55 routes).
 
-State: ref (plain START load) 0 -> 12 byte-identical; tr10 (000001 load) 1 -> 7 byte-identical
-and every draw of intervals 2..8 matches. Open leads, with the evidence so far:
+State (2026-10-18 evening): ref (plain START load) 0 -> 12 byte-identical; tr10 (000001 load)
+1 -> 10 byte-identical (save 8 keeps two self-healing diffs: units[106].vis_mask 11 vs 9 and
+units[117].facing_pad 1 vs 0, both gone by save 9) and every draw of intervals 2..11 matches.
+Save 11 closed the same night: the year-end chrome FUN_3844_0442 (raw 58458-58463) opens with
+the 4962 census of the crown (DS:0x53d2, under the WoI latch) and of the human, every day, before
+the next day top's 00f8 rank refresh; the port's `turn_run_year_end_chrome` now does the same.
+Without it the crown's rank came from the previous crown EOT census (land 1272 vs DOS 1080 at
+the day top of turn 279), ranked the crown strongest, and St. Louis's 5952 election doubled the
+Tools price factor (rank[human] <= rank[local_1b0]); DOSBox: BPM on DS:0x917c at the refresh,
+OVL15 BPs 0x1ee3/0x2128 (`--patch-cc 0x53b7e`, trap 0x35e) for the per-job scores,
+`[bp-0x1ae]` = local_1b0 (0, as the port). tr10 1 -> 12 byte-identical after it. Open leads, with the evidence so far:
 - tr10 save 8: a Mounted Brave at (40,52) (goto Fort Orange) picks SE (41,53), its own
   village, score 204 (199 + roll 5) over W (39,52), a resource tile, 202 (198 + 4); DOS went W
   then SE (DOSBox watch on record 26: (39,52) facing 6, then (40,53) facing 3). Same draws, so
@@ -670,6 +688,19 @@ euro 8 spills into the next Indian record; tracing the caller). With picks 6:256
 saves 5-7: 3, 15, ~74 field diffs vs the archive.
 
 ## Open
+
+- tr10 interval 13 (2026-10-18 night, port exact through save 12): the crown 'B' Man-O-War at
+  (52,49) attacks the Dutch Man-O-War at (51,48), loses and sinks (draw 410 rand(1,482), 411
+  rand(1,96)); its '9' stackmate (arrived from (54,47) that turn) is left intact in DOS (save 13:
+  orders 0, plan '1'), while the port's attacker-loss branch (`units_combat_resolve.c` ~756,
+  `units_sweep_naval_stack_after_loss` on the attacker's tile) also rolls rand(1,96) for the
+  stackmate and sends it home damaged. Check which 0ec0 call 1b0e makes on an ATTACKER loss
+  (the three `FUN_2a1f_06ec(nation)` sites are the treasure-train popup, not the sweep); the
+  DOS evidence suggests the attacker loses alone. Later in that turn DOS damages the 'B'
+  Man-O-War from (38,67) (save 13 index 83, sailing home) — a second fight the port never has.
+- Wagon park (fixed 2026-10-18): `ai_euro_20e6_wagon_origin_walk`'s park now writes plan 0x55
+  and the LAB_589e sentry (orders 5); before, an unloadable wagon re-ran the load matrix every
+  wave (one rand(0,3) a beat; DOSBox tr10 12->13 Bahia).
 
 - Nothing against tr9 through save 20. The VR_SOUND archive is not reproducible past save 3
   ("VR_SOUND archive" above); the from-load references tr10 / ref are the live targets. Open
