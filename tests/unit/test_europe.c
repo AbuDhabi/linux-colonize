@@ -3063,7 +3063,49 @@ static int case_europe_lanes_past_old_caps(void) {
   return rc;
 }
 
+/* #1090: an untaxed sale still bumps +0x26 (FUN_38fd_23c4). #1113: a ship
+ * purchase into a full harbor lane is refused before the debit. #1096: a
+ * Europe-screen debit restamps the bound record via the live save. */
+static int case_europe_purse_single_door(void) {
+  EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
+  ColonizeCol1Save* col1 = (ColonizeCol1Save*)calloc(1, sizeof(*col1));
+  if (!eu || !col1) {
+    free(eu);
+    free(col1);
+    return 1;
+  }
+  int rc = 0;
+  europe_credit_sale_tax(col1, 1, 300, 300);
+  europe_credit_sale_tax(col1, 1, 100, 60);
+  if (col1->nation[1].royal_money != 40 || col1->nation[1].unknown24_pad[0] != 104 ||
+      col1->nation[1].unknown24_pad[1] != 1) {
+    fprintf(stderr, "credit_sale_tax: royal %d\n", (int)col1->nation[1].royal_money);
+    rc = 1;
+  }
+  eu->bound_nation = 0;
+  eu->gold = 5000;
+  eu->purchase_count = 1;
+  eu->purchase[0].is_ship = true;
+  eu->harbor_ships = EUROPE_HARBOR_MAX;
+  if (europe_purchase_commit(eu, 0, 1000, NULL) || eu->gold != 5000 ||
+      eu->harbor_ships != EUROPE_HARBOR_MAX) {
+    fprintf(stderr, "full harbor purchase: gold %d\n", eu->gold);
+    rc = 1;
+  }
+  europe_set_live_save(col1);
+  europe_cheat_add_gold(eu, -1000);
+  europe_set_live_save(NULL);
+  if (eu->gold != 4000 || col1->nation[0].gold != 4000u) {
+    fprintf(stderr, "restamp: purse %d record %u\n", eu->gold, (unsigned)col1->nation[0].gold);
+    rc = 1;
+  }
+  free(eu);
+  free(col1);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"case_europe_purse_single_door", case_europe_purse_single_door},
     {"case_europe_lanes_past_old_caps", case_europe_lanes_past_old_caps},
     {"case_europe_dock_continental_row", case_europe_dock_continental_row},
     {"case_europe_workflow", case_europe_workflow},

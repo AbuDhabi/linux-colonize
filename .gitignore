@@ -7,6 +7,10 @@ test-saves-play/
 test-saves-col1/
 test-saves-slot-ui/
 test-assets/
+# Regenerated (CRLF, DOS-shaped) by unit_hall_of_fame / smoke_assets / unit_new_game on every run.
+test-assets-hof/
+test-assets-msg/
+test-assets-newgame/
 opencol.log
 dosbox-x-dumps/**/
 *.pyc

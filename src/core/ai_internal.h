@@ -90,16 +90,12 @@ extern int ai_s_lcg_in_pick;
 extern int ai_s_lcg_pick_burns;
 extern uint32_t ai_s_lcg_total_nexts;
 extern const ColonizeColonyPool* ai_s_native_colonies;
-extern const ColonizeCol1Save* ai_s_native_col1;
-extern int ai_s_native_home_dist;
 extern const int k_ai_dir8_dx[9];
 extern const int k_ai_dir8_dy[9];
 
 int ai_021a_settle_owner(const ColonizeWorldMap* map, int x, int y);
 
 int ai_021a_trace_enabled(void);
-
-uint8_t ai_coarse_fog_explore_byte(int x, int y);
 
 uint8_t ai_coarse_fog_tribe_byte(int x, int y);
 
@@ -109,24 +105,10 @@ int ai_continent_id(const ColonizeWorldMap* map, int x, int y);
 
 int ai_dos_terr_class(const ColonizeWorldMap* map, int x, int y);
 
-void ai_find_home_tribe(
-  const ColonizeCol1Save* col1,
-  const ColonizeUnit* u,
-  int* out_x,
-  int* out_y
-);
-
 void ai_grow_villages(ColonizeTurnContext* ctx, int nation_id);
 
 int ai_is_ocean_hs(const ColonizeWorldMap* map, int x, int y);
 
-int ai_lab_54f5_gate(
-  const ColonizeWorldMap* map,
-  const ColonizeUnitPool* units,
-  int dest_x,
-  int dest_y,
-  int nation_id
-);
 
 uint8_t ai_layer2_at(const ColonizeWorldMap* map, int x, int y);
 
@@ -150,15 +132,7 @@ int ai_native_021a_tail(
   int flags
 );
 
-int ai_native_foreign_euro_pull(
-  const ColonizeWorldMap* map, const ColonizeUnitPool* units, int x, int y, int nation_id,
-  int dest_x, int dest_y, int score
-);
 
-int ai_native_foreign_euro_pull_open(
-  const ColonizeWorldMap* map, const ColonizeUnitPool* units, int x, int y, int nation_id,
-  int dest_x, int dest_y, int owner
-);
 
 typedef enum {
   AI_NATIVE_STEP_MORE = 0, /* the Brave may act again (loop continues) */
@@ -175,13 +149,20 @@ AiNativeStepStatus ai_native_brave_step(
   int nation_id,
   bool seed100_init_burns,
   ColonizeUnit* u,
-  int hx,
-  int hy,
-  int tech,
   int max_mp,
   int brave_index,
   int* steps
 );
+/* Test-only ai_diplo.c externs (bugs.md #1106), no production caller. */
+/* Military strength = the DS:0x941c census mirror stuff.land_combat_strength[]
+ * (Σ FUN_281f_09c8(u,1) over land units; combat byte ×8). The invented
+ * attack+defense / pop / gold / rank blend was retired 2026-09-09 (#51). */
+int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id);
+/* True if any of 8 Indian slots is at war (ai_diplo_indian_at_war: WAR bit
+ * or relation < 26). */
+int ai_diplo_indian_any_at_war(const ColonizeCol1Save* col1, int euro_nation);
+/* Force the Indian-hostility session cache (sync re-derives it). */
+void ai_diplo_indian_hostility_set(int euro_nation, uint8_t value);
 #endif
 
 void ai_native_nation_pulse(
@@ -206,16 +187,6 @@ int ai_native_pick_dir_021a(
 
 int ai_owner_nibble(const ColonizeWorldMap* map, int x, int y);
 
-int ai_quiet_fog_explore_ex(
-  const ColonizeWorldMap* map,
-  int score,
-  int unit_x,
-  int unit_y,
-  int dir,
-  int nation_id,
-  int* out_fog_bonus,
-  int* out_neighbor_penalty
-);
 
 uint16_t ai_rng_next_counted(AiRng* rng);
 

@@ -142,15 +142,19 @@ static void unit_stack_row_label(
   }
   char with_word[72];
   if (word) {
-    snprintf(with_word, sizeof(with_word), "%s (%s)", base, word);
+    if (snprintf(with_word, sizeof(with_word), "%s (%s)", base, word) >= (int)sizeof(with_word)) {
+      snprintf(with_word, sizeof(with_word), "%s", base); /* too long: drop the job word */
+    }
   } else {
     snprintf(with_word, sizeof(with_word), "%s", base);
   }
   if (u && u->aboard_ship_id >= 0) {
-    snprintf(
-      out, out_size, "%s (%s)", with_word,
-      u->orders == UNITS_ORDER_SENTRY ? "aboard" : "ready"
-    );
+    if (snprintf(
+          out, out_size, "%s (%s)", with_word,
+          u->orders == UNITS_ORDER_SENTRY ? "aboard" : "ready"
+        ) >= (int)out_size) {
+      snprintf(out, out_size, "%s", with_word); /* too long: drop the suffix */
+    }
   } else {
     snprintf(out, out_size, "%s", with_word);
   }

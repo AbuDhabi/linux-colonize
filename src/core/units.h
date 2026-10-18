@@ -188,6 +188,9 @@ typedef struct ColonizeUnitPool {
    * (-1 = none; DOS reorders its unit chain). Was board_first_id. */
   int board_first_slot;
   int next_id;
+  /* Once next_id reaches COLONIZE_UNITS_MAX, ids are recycled round-robin
+   * from here (units_alloc_id, bugs.md #1094); 0 = start at id 1. */
+  int id_recycle_cursor;
   uint64_t next_tile_stack_order;
   /*
    * Slot bookkeeping, kept by the allocator (units_slot_reset_defaults) and
@@ -279,7 +282,6 @@ void units_set_spawn_gate_hook(ColonizeUnitsSpawnGateFn fn, void* user);
 /* Port divergence (settings.json divergences.unlimited_units): skip the DOS
  * FUN_1427_06b4 limits; only the physical COLONIZE_UNITS_MAX remains. */
 void units_set_unlimited(bool on);
-bool units_unlimited(void);
 /* Called (with the gate hook's user) when units_spawn_room refuses a human
  * nation: the caller shows @TOOMANYUNITS. */
 typedef void (*ColonizeUnitsSpawnRefusedFn)(void* user, int nation);
@@ -409,9 +411,7 @@ bool units_privateer_attack(const ColonizeUnitPool* pool, int mover_id, int foe_
 bool units_type_is_frigate(const ColonizeUnitType* t);
 bool units_type_is_man_o_war(const ColonizeUnitType* t);
 bool units_type_is_ship(const ColonizeUnitType* t);
-bool units_type_is_military(const ColonizeUnitType* t);
 bool units_type_is_mounted(const ColonizeUnitType* t);
-bool units_type_is_native(const ColonizeUnitType* t);
 /* Unit-level missionary test (AC-34 / IN-45) (see docs/units.md#units_is_missionary). */
 bool units_is_missionary(const ColonizeUnitPool* pool, const ColonizeUnit* u);
 

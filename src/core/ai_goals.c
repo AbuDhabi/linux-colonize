@@ -1,4 +1,5 @@
 #include "core/ai_goals.h"
+#include "core/internal.h"
 
 #include "core/ai_diplo.h"
 #include "core/assets.h"
@@ -164,7 +165,7 @@ void ai_goals_upsert_primary(int nation_id, int x, int y, int code, int prio) {
   ai_goals_upsert(s_goals[nation_id].primary, AI_PRIMARY_SLOTS, x, y, code, prio);
 }
 
-void ai_goals_upsert_secondary(int nation_id, int x, int y, int code, int prio) {
+COLONIZE_INTERNAL void ai_goals_upsert_secondary(int nation_id, int x, int y, int code, int prio) {
   if (nation_id < 0 || nation_id >= 4 || code < 0 || code == (int)AI_GOAL_EMPTY) {
     return;
   }
@@ -872,7 +873,7 @@ int ai_goals_pick_founding_tile_ex_w(
 
 /* Test-only accessor (tests/unit/test_ai_goals.c): production refills the
  * scratch through ai_goals_plan_scratch_refresh and reads it in-module. */
-AiNationPlanScratch* ai_goals_plan_scratch(int nation_id) {
+COLONIZE_INTERNAL AiNationPlanScratch* ai_goals_plan_scratch(int nation_id) {
   if (nation_id < 0 || nation_id >= 4) {
     return NULL;
   }
@@ -1203,7 +1204,7 @@ static const uint8_t k_goals_type_flags_523d[23] = {
   0x00, 0xa2, 0x82, 0x82, 0x01, 0x81, 0x81, 0x38, 0x38, 0x38, 0x38
 };
 
-int ai_goals_stack_settler_pick(
+COLONIZE_INTERNAL int ai_goals_stack_settler_pick(
   const ColonizeCol1Unit* units,
   int unit_count,
   int unit_index

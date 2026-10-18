@@ -32,8 +32,10 @@
  * written to leave it at zero (no muskets/horses training, no recruit buy on
  * the nations the later cases use).
  */
+#include "../common/ai_fixture.h"
 #include "core/ai_diplo.h"
 #include "core/ai_euro.h"
+#include "core/ai_euro_internal.h"
 #include "core/ai_goals.h"
 #include "core/ai_popup.h"
 #include "core/col1_save.h"
@@ -49,10 +51,8 @@
 
 #include "../common/test_runner.h"
 
-static int fail(const char* msg) {
-  fprintf(stderr, "unit_ai_euro_5d04_hire: FAIL %s\n", msg);
-  return 1;
-}
+#define TEST_NAME "unit_ai_euro_5d04_hire"
+#include "../common/test_fail.h"
 
 /* The Europe pool tile the AI spawns/keeps dock units on (ai_euro_in_europe:
  * x >= 200 || y >= 200). */
@@ -74,18 +74,8 @@ typedef struct Fixture {
 static int fixture_init(Fixture* f, int nation, int turn, unsigned seed) {
   memset(f, 0, sizeof(*f));
   units_last_hold_amount = 0; /* DS:0x8dc4 is process state: isolate cases */
-  f->map.width = 16;
-  f->map.height = 16;
-  f->map.tile_count = 256;
-  f->map.terrain = calloc(256, 1);
-  f->map.layer2 = calloc(256, 1);
-  f->map.layer3 = calloc(256, 1);
-  f->map.seen = calloc(256, 1);
-  if (!f->map.terrain || !f->map.layer2 || !f->map.layer3 || !f->map.seen) {
+  if (!fx_map_alloc(&f->map, 16, 16, 2, true)) {
     return fail("alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    f->map.terrain[i] = 2; /* plains */
   }
   for (int y = 0; y < 16; ++y) {
     for (int x = 12; x < 16; ++x) {
@@ -166,10 +156,7 @@ static int fixture_init(Fixture* f, int nation, int turn, unsigned seed) {
 }
 
 static void fixture_free(Fixture* f) {
-  free(f->map.terrain);
-  free(f->map.layer2);
-  free(f->map.layer3);
-  free(f->map.seen);
+  fx_map_free(&f->map);
 }
 
 /*

@@ -301,6 +301,9 @@ endif()
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
   target_compile_options(colonize_sim PRIVATE -Wno-unused-parameter)
   target_compile_options(colonize_ui PRIVATE -Wno-unused-parameter)
+  # Same warning set for every other executable (opencol, tests, tools);
+  # until 2026-10-18 only the two libraries were warned at all (bugs.md #1118).
+  set(COLONIZE_EXE_WARN_FLAGS -Wall -Wextra -Wno-unused-parameter)
 endif()
 
 # ---------------------------------------------------------------------------
@@ -330,6 +333,7 @@ if(SDL2_FOUND)
   target_include_directories(opencol PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
   )
+  target_compile_options(opencol PRIVATE ${COLONIZE_EXE_WARN_FLAGS})
 
   target_link_libraries(opencol PRIVATE
     colonize_core
@@ -410,6 +414,7 @@ function(colonize_add_test)
   endif()
 
   add_executable(${CAT_NAME} ${_sources})
+  target_compile_options(${CAT_NAME} PRIVATE ${COLONIZE_EXE_WARN_FLAGS})
 
   target_include_directories(${CAT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -424,6 +429,11 @@ function(colonize_add_test)
   if(CAT_SLIM)
     list(APPEND _defs COLONIZE_SLIM_TEST=1)
   endif()
+  # Tests that compile src/core files directly (SLIM targets, the sound
+  # smokes) must see the same PUBLIC defines colonize_sim carries
+  # (COLONIZE_TESTING, COLONIZE_DEBUG_MENU, COLONIZE_HAS_TSF...), or the
+  # same .c file builds two different ways (bugs.md #1118).
+  list(APPEND _defs $<TARGET_PROPERTY:colonize_sim,INTERFACE_COMPILE_DEFINITIONS>)
   if(_defs)
     target_compile_definitions(${CAT_NAME} PRIVATE ${_defs})
   endif()
@@ -431,7 +441,9 @@ function(colonize_add_test)
   if(NOT CAT_NO_CTEST)
     add_test(NAME ${CAT_NAME} COMMAND ${CAT_NAME} WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
     # Abort on unit pools filled by hand without units_pool_sync (units.h).
-    set_tests_properties(${CAT_NAME} PROPERTIES ENVIRONMENT "COLONIZE_UNITS_STRICT=1")
+    # Exit 77 = SKIP (no COLONIZE/ assets here); ctest reports "Skipped", not a pass.
+    set_tests_properties(${CAT_NAME} PROPERTIES ENVIRONMENT "COLONIZE_UNITS_STRICT=1"
+                                                SKIP_RETURN_CODE 77)
   endif()
 endfunction()
 
@@ -556,28 +568,28 @@ colonize_add_test(NAME sav_json
 )
 
 colonize_add_test(NAME ai_replay
-  SOURCES tools/ai_replay_main.c
+  SOURCES tools/ai_replay_main.c tests/common/golden_fixture.c
   LIBS colonize_core
   INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
   NO_CTEST
 )
 
 colonize_add_test(NAME render_report
-  SOURCES tools/render_report_main.c tools/render_common.c
+  SOURCES tools/render_report_main.c tools/render_common.c tests/common/golden_fixture.c
   LIBS colonize_core
   INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
   NO_CTEST
 )
 
 colonize_add_test(NAME render_map_panel
-  SOURCES tools/render_map_panel_main.c tools/render_common.c
+  SOURCES tools/render_map_panel_main.c tools/render_common.c tests/common/golden_fixture.c
   LIBS colonize_core
   INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
   NO_CTEST
 )
 
 colonize_add_test(NAME render_colony
-  SOURCES tools/render_colony_main.c tools/render_common.c
+  SOURCES tools/render_colony_main.c tools/render_common.c tests/common/golden_fixture.c
   LIBS colonize_core
   INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
   NO_CTEST
@@ -711,7 +723,7 @@ colonize_add_test(NAME unit_colonies
 )
 
 colonize_add_test(NAME unit_reports
-  SOURCES tests/unit/test_reports.c src/core/col1_save.c ${COLONIZE_SLIM_SOURCES}
+  SOURCES tests/unit/test_reports.c ${COLONIZE_SLIM_SOURCES}
   SLIM
 )
 
@@ -1090,14 +1102,14 @@ colonize_add_test(NAME golden_colony_prod03
 # Joint Euro↔Indian harness (T3 roadmap Phase 0 + Series D/H/K mid+late):
 add_custom_target(golden_ai_joint
   COMMAND ${CMAKE_COMMAND} -E echo "golden_ai_joint: mapgen + turns + contact + diplo + mid01 + late01"
-  COMMAND $<TARGET_FILE:golden_mapgen_seed100>
-  COMMAND $<TARGET_FILE:golden_ai_turns>
-  COMMAND $<TARGET_FILE:unit_ai_contact_core>
-  COMMAND $<TARGET_FILE:unit_ai_contact_meet>
-  COMMAND $<TARGET_FILE:unit_ai_contact_colony>
-  COMMAND $<TARGET_FILE:unit_ai_diplo>
-  COMMAND $<TARGET_FILE:smoke_ai_mid01>
-  COMMAND $<TARGET_FILE:smoke_ai_late01>
+  COMMAND ${CMAKE_COMMAND} -E env COLONIZE_UNITS_STRICT=1 $<TARGET_FILE:golden_mapgen_seed100>
+  COMMAND ${CMAKE_COMMAND} -E env COLONIZE_UNITS_STRICT=1 $<TARGET_FILE:golden_ai_turns>
+  COMMAND ${CMAKE_COMMAND} -E env COLONIZE_UNITS_STRICT=1 $<TARGET_FILE:unit_ai_contact_core>
+  COMMAND ${CMAKE_COMMAND} -E env COLONIZE_UNITS_STRICT=1 $<TARGET_FILE:unit_ai_contact_meet>
+  COMMAND ${CMAKE_COMMAND} -E env COLONIZE_UNITS_STRICT=1 $<TARGET_FILE:unit_ai_contact_colony>
+  COMMAND ${CMAKE_COMMAND} -E env COLONIZE_UNITS_STRICT=1 $<TARGET_FILE:unit_ai_diplo>
+  COMMAND ${CMAKE_COMMAND} -E env COLONIZE_UNITS_STRICT=1 $<TARGET_FILE:smoke_ai_mid01>
+  COMMAND ${CMAKE_COMMAND} -E env COLONIZE_UNITS_STRICT=1 $<TARGET_FILE:smoke_ai_late01>
   DEPENDS golden_mapgen_seed100 golden_ai_turns unit_ai_contact_core unit_ai_contact_meet
           unit_ai_contact_colony unit_ai_diplo smoke_ai_mid01 smoke_ai_late01
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}

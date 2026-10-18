@@ -497,14 +497,14 @@ static int turn_deplete_colony_mines(
     );
     hits++;
     if (europe && colony->nation_id == human_nation) {
-      const char* cname = colony->name[0] ? colony->name : "";
-      snprintf(europe->status, sizeof(europe->status), "Mine depleted near %s.", cname);
+      /* GAME.TXT @DEPLETION; catalog miss = "" (bugs.md #1099). */
+      char body[AI_POPUP_BODY_LEN];
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = colony->name;
+      popup_msg_fill(messages, "DEPLETION", &tok, "", body, sizeof(body));
+      snprintf(europe->status, sizeof(europe->status), "%s", body);
       if (ai_popups) {
-        char body[AI_POPUP_BODY_LEN];
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        tok.string0 = cname;
-        popup_msg_fill(messages, "DEPLETION", &tok, europe->status, body, sizeof(body));
         ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
       }
     }
@@ -1034,7 +1034,7 @@ void turn_produce_one_colony(
         const char* cargo_name =
           (sale->cargo >= 0 && sale->cargo < europe->cargo_count)
             ? europe->cargo[sale->cargo].name
-            : "goods";
+            : reports_cargo_name(sale->cargo); /* NAMES @CARGO row; miss "" (#1100) */
         char line[AI_POPUP_BAR_MSG_LEN];
         int n = snprintf(
           line,
@@ -1695,13 +1695,9 @@ void turn_produce_one_colony(
         memset(&tok, 0, sizeof(tok));
         tok.string0 = colony->name[0] ? colony->name : "";
         tok.string1 = bt->name[0] ? bt->name : "";
-        char afb[120];
-        snprintf(
-          afb, sizeof(afb), "%s already built.",
-          bt->name[0] ? bt->name : ""
-        );
-        /* Popup only — DOS does not replace the Phase K status line here. */
-        popup_msg_fill(messages, "ALREADYHAVE", &tok, afb, body, sizeof(body));
+        /* Popup only — DOS does not replace the Phase K status line here.
+         * GAME.TXT @ALREADYHAVE; catalog miss = "" (bugs.md #1100). */
+        popup_msg_fill(messages, "ALREADYHAVE", &tok, "", body, sizeof(body));
         ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
       }
     }

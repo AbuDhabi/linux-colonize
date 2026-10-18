@@ -138,9 +138,7 @@ static void fx_begin(void) {
 /* Teardown: the original narrative's own frees, made re-runnable. */
 static void fx_close(void) {
   assets_msg_free(&game_txt);
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   map.terrain = NULL;
   map.layer2 = NULL;
   map.layer3 = NULL;
@@ -180,13 +178,7 @@ static int sp_00(void) {
   col1.colony[0].rebel_divisor = 100;
 
   memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 0, false)) {
     return fail("alloc map");
   }
   for (int i = 0; i < 256; ++i) {
@@ -864,6 +856,13 @@ static int sp_10(void) {
       return fail("decile notify should cache report/10 into sol_pct_last_notified");
     }
     col1.stuff.census_pop_proxy[0] = 0; /* close the decile gate for later blocks */
+    /* bugs.md #1098: the notify's claim on the status line lasts one 2424 —
+     * next turn's restless line replaces the stale notify. */
+    ai_king_nation_turn(&ctx);
+    if (strstr(status, "Congress notes") || !strstr(status, "45")) {
+      fprintf(stderr, "unit_ai_king: next-turn restless status: '%s'\n", status);
+      return fail("stale decile notify must yield to the next turn's restless line");
+    }
   }
   return 0;
 }

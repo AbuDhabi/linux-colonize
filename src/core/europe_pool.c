@@ -5,7 +5,6 @@
  */
 
 #include "core/europe.h"
-#include "core/europe_art.h"
 #include "core/europe_internal.h"
 
 #include <limits.h>
@@ -26,7 +25,6 @@
 #include "platform/diagnostics.h"
 #include "core/ss.h"
 #include "core/strutil.h"
-#include "core/ui_button.h"
 #include "core/units.h"
 #include "platform/platform.h"
 

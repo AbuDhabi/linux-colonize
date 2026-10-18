@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../common/ai_fixture.h"
 #include "core/map.h"
 #include "platform/diagnostics.h"
 
@@ -504,16 +505,7 @@ static int case_plow_road_overlay(void) {
    * cases above. */
   ColonizeWorldMap plow_map;
   memset(&plow_map, 0, sizeof(plow_map));
-  plow_map.width = 4;
-  plow_map.height = 4;
-  plow_map.tile_count = 16;
-  plow_map.terrain = calloc(16, 1);
-  plow_map.layer2 = calloc(16, 1);
-  plow_map.layer3 = calloc(16, 1);
-  plow_map.improve = calloc(16, 1);
-  plow_map.seen = calloc(16, 1);
-  if (!plow_map.terrain || !plow_map.layer2 || !plow_map.layer3 || !plow_map.improve ||
-      !plow_map.seen) {
+  if (!fx_map_alloc(&plow_map, 4, 4, 0, true)) {
     fprintf(stderr, "plow overlay alloc failed\n");
     map_free(&plow_map);
     return 1;
@@ -754,15 +746,7 @@ static int case_lumber_reward_column(void) {
 static int case_plow_layer_order(void) {
   ColonizeWorldMap m;
   memset(&m, 0, sizeof(m));
-  m.width = 4;
-  m.height = 4;
-  m.tile_count = 16;
-  m.terrain = calloc(16, 1);
-  m.layer2 = calloc(16, 1);
-  m.layer3 = calloc(16, 1);
-  m.improve = calloc(16, 1);
-  m.seen = calloc(16, 1);
-  if (!m.terrain || !m.layer2 || !m.layer3 || !m.improve || !m.seen) {
+  if (!fx_map_alloc(&m, 4, 4, 0, true)) {
     map_free(&m);
     return 1;
   }
@@ -827,15 +811,7 @@ static int case_plow_layer_order(void) {
    * tile must list 149 once, below the resource icon. */
   ColonizeWorldMap r;
   memset(&r, 0, sizeof(r));
-  r.width = 40;
-  r.height = 40;
-  r.tile_count = 1600;
-  r.terrain = calloc(1600, 1);
-  r.layer2 = calloc(1600, 1);
-  r.layer3 = calloc(1600, 1);
-  r.improve = calloc(1600, 1);
-  r.seen = calloc(1600, 1);
-  if (!r.terrain || !r.layer2 || !r.layer3 || !r.improve || !r.seen) {
+  if (!fx_map_alloc(&r, 40, 40, 0, true)) {
     map_free(&r);
     return 1;
   }

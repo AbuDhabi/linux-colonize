@@ -116,11 +116,6 @@ typedef struct Ai5d04HireScratch {
 
 int ai_euro_env_flag(const char* name, int dflt);
 extern int ai_euro_s_5952_census_vet_soldier[COLONIZE_COLONIES_MAX];
-extern uint8_t ai_euro_s_deferred_found[COLONIZE_UNITS_MAX];
-extern uint8_t ai_euro_s_unloaded_this_turn[COLONIZE_UNITS_MAX];
-extern uint8_t ai_euro_s_founded_colony_turn[COLONIZE_COLONIES_MAX];
-extern uint32_t ai_euro_s_violate_last_turn[COLONIZE_UNITS_MAX];
-extern uint8_t ai_euro_s_euro_roam_wander[COLONIZE_UNITS_MAX];
 void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int nation_id);
 int ai_euro_rival_strength_at(int nation_id, int continent_id);
 int ai_euro_continent_stance_at(int nation_id, int continent_id);
@@ -155,7 +150,6 @@ typedef struct AiEuroShipPressure {
 } AiEuroShipPressure;
 extern AiEuroShipPressure ai_euro_s_ship_pressure[4];
 void ai_euro_ship_pressure_reset(int nation_id);
-int ai_euro_colony_food_short(const ColonizeColony* c);
 int ai_euro_colony_wanted_size(
   const ColonizeColonyPool* pool,
   const ColonizeColony* c
@@ -164,10 +158,6 @@ void ai_euro_refresh_colony_ai_flags(
   ColonizeTurnContext* ctx,
   int nation_id,
   ColonizeColony* c
-);
-int ai_euro_colony_wants_construction_labor(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* c
 );
 int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id);
 int ai_euro_is_military_name(ColonizeUnitKind k);
@@ -194,6 +184,7 @@ void ai_euro_5952_ledgers(
 );
 extern int ai_euro_s_5952_ring1[COLONIZE_COLONIES_MAX];
 extern int ai_euro_s_5952_docks_started[COLONIZE_COLONIES_MAX];
+extern int ai_euro_s_5952_arty_plot[COLONIZE_COLONIES_MAX];
 extern int ai_euro_s_5952_census_nonexpert[COLONIZE_COLONIES_MAX]; /* aiStack_68[0x13] */
 /* local_1b0 = the tick's improvement-arm owner (DS index of the per-nation reads). */
 void ai_euro_5952_build_cascade_for_owner(
@@ -208,7 +199,6 @@ void ai_euro_5952_colony_prelude(
 );
 void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy);
 int ai_euro_is_ship_type(const ColonizeUnitPool* units, int unit_id);
-int ai_euro_tiles_near(int ax, int ay, int bx, int by);
 int ai_euro_unit_hold_has_capacity(const ColonizeUnitPool* units, const ColonizeUnit* w);
 int ai_euro_unit_hold_has_cargo_type(
   const ColonizeUnitPool* units,
@@ -356,7 +346,6 @@ int ai_euro_20e6_457e_type_gate(
 int ai_euro_20e6_type_gate_no_manowar(
   const ColonizeTurnContext* ctx, const ColonizeUnit* u, int dos_type
 );
-int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 int ai_euro_20e6_457e_hs_cadence_snapshot(
   ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id, int stack_other, int delivery_type
 );
@@ -388,7 +377,6 @@ void ai_euro_5952_indoor_expert_pass(
 void ai_euro_5952_178f_unseat(
   const ColonizeWorld* world, ColonizeColony* col, int s, const AiEuro28c8JobCandidate* best
 );
-void ai_euro_try_violate_notify(ColonizeTurnContext* ctx, ColonizeUnit* u);
 void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int ty);
 int ai_euro_is_cargo_ship_name(ColonizeUnitKind kind);
 int ai_euro_20e6_load_pick(
@@ -476,7 +464,6 @@ int ai_euro_28c8_probe(
   const ColonizeTurnContext* ctx, const ColonizeColony* col, int slot,
   AiEuro28c8JobCandidate* best
 );
-int ai_euro_5952_indoor_pass_enabled(void);
 
 /* FUN_5952_035e construction-project cascade (bugs.md #483). */
 COLONIZE_INTERNAL void ai_euro_5952_build_cascade(
@@ -546,6 +533,14 @@ AiEuroActStatus ai_euro_act_land_treasure(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_act_ctx* a);
+/* Test-only externs (bugs.md #1106), no production caller. */
+int ai_euro_5d04_dos_type_code(const ColonizeUnitPool* pool, int type_index);
+/* Live-tally wrapper of ai_euro_20e6_457e_hs_cadence_snapshot. */
+int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
+/* Test-only ai_goals.c externs (bugs.md #1106). */
+void ai_goals_upsert_secondary(int nation_id, int x, int y, int code, int prio);
+AiNationPlanScratch* ai_goals_plan_scratch(int nation_id);
+int ai_goals_stack_settler_pick(const ColonizeCol1Unit* units, int unit_count, int unit_index);
 #endif /* COLONIZE_TESTING */
 
 #endif /* COLONIZE_CORE_AI_EURO_INTERNAL_H */

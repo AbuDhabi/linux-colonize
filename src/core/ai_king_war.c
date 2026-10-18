@@ -127,18 +127,8 @@ int ai_king_new_war_event(ColonizeTurnContext* ctx) {
     tok.has_number0 = true;
     tok.number1 = count;
     tok.has_number1 = true;
-    char fallback[AI_POPUP_BODY_LEN];
-    snprintf(
-      fallback,
-      sizeof(fallback),
-      "The Crown has declared war on the %s and cancelled your peace. It sends %d$ and %d "
-      "Veteran Soldier units.",
-      peer_name,
-      gold,
-      count
-    );
     char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(ctx->messages, "KINGNEWWAR", &tok, fallback, body, sizeof(body));
+    popup_msg_fill(ctx->messages, "KINGNEWWAR", &tok, "", body, sizeof(body));
     if (ai_popup_enqueue_ok_ctx(
           ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human, peer, gold, NULL, body
         )) {
@@ -694,7 +684,7 @@ int ai_king_human_colonies(const ColonizeTurnContext* ctx, int human) {
  */
 static const char* ai_king_richest_colony_name(const ColonizeTurnContext* ctx, int human) {
   if (!ctx || !ctx->colonies || human < 0) {
-    return "the colonies";
+    return "";
   }
   const ColonizeColony* best = NULL;
   int best_pop = -1;
@@ -711,7 +701,7 @@ static const char* ai_king_richest_colony_name(const ColonizeTurnContext* ctx, i
   if (best && best->name[0] != '\0') {
     return best->name;
   }
-  return "the colonies";
+  return "";
 }
 
 /*
@@ -799,7 +789,7 @@ static void ai_king_enqueue_throne_audience(
     return;
   }
   const char* motherland =
-    (human >= 0 && human <= 3) ? reports_nation_country_name(human) : "the Crown";
+    (human >= 0 && human <= 3) ? reports_nation_country_name(human) : "";
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   char body[AI_POPUP_BODY_LEN];
@@ -1001,7 +991,7 @@ static AiKingWoiEndStatus ai_king_woi_end_win(struct ai_king_woi_end_ctx* w) {
     ctx->col1->head.game_options.independence_chrome = 1;
     ctx->col1->head.show_entire_map = 1;
     const char* country =
-      (pl->country_name[0] != '\0') ? pl->country_name : "the colonies";
+      (pl->country_name[0] != '\0') ? pl->country_name : "";
     char body[AI_POPUP_BODY_LEN];
     /* DOS 3844_0442 win order: victory tune pool (FUN_129f_0318(3)), the
      * @WINNING announcement, THEN the @KINGLOSE throne audience (bugs.md #258
@@ -1128,7 +1118,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx) {
   const int pop_pct = ai_king_woi_pop_share_pct(ctx, human, crown);
   const ColonizeCol1Player* pl = &ctx->col1->player[human];
   const char* country =
-    (pl->country_name[0] != '\0') ? pl->country_name : "the colonies";
+    (pl->country_name[0] != '\0') ? pl->country_name : "";
   const char* leader = (pl->name[0] != '\0') ? pl->name : "";
   /*
    * Mid-war warn selector — DOS FUN_3844_0442 builds the warn tag the same
@@ -1205,18 +1195,40 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx) {
  * 5e52 opens the nation's 00f2, before the colony loop, so a hike prices
  * this turn's Custom House sales (independence-seed-100 000002).
  */
+/*
+ * bugs.md #1098: which status buffer a King tax-audience line (5e52 tax event
+ * or its answered popup) or the 2424 decile SoL notify last claimed. The
+ * port's restless-SoL line in 2424 leaves a claimed status alone and drops
+ * the claim. A static, not a ctx field: the ctx is rebuilt every frame and
+ * the audience answer lands between the FINISH (5e52) and KING (2424) steps.
+ */
+static const char* s_king_status_claim;
+
+static void ai_king_claim_status(const ColonizeTurnContext* ctx) {
+  if (ctx->status && ctx->status_size) {
+    s_king_status_claim = ctx->status;
+  }
+}
+
 void ai_king_human_5e52_tail(ColonizeTurnContext* ctx) {
   if (!ctx || ai_king_independence_declared(ctx->col1_ok ? ctx->col1 : NULL)) {
     return;
   }
   const int popups_before = ctx->ai_popups ? ctx->ai_popups->queue_count : 0;
+  char status_before[AI_POPUP_BODY_LEN] = "";
+  if (ctx->status && ctx->status_size) {
+    snprintf(status_before, sizeof(status_before), "%s", ctx->status);
+  }
   ai_king_tax_event(ctx);
+  if (ctx->status && ctx->status_size && strcmp(status_before, ctx->status) != 0) {
+    ai_king_claim_status(ctx); /* the tax audience wrote the status line */
+  }
   if (!ctx->ai_popups || ctx->ai_popups->queue_count == popups_before) {
     (void)ai_king_new_war_event(ctx);
   }
 }
 
-void ai_king_nation_turn(ColonizeTurnContext* ctx) {
+COLONIZE_INTERNAL void ai_king_nation_turn(ColonizeTurnContext* ctx) {
   ai_king_human_5e52_tail(ctx);
   ai_king_nation_turn_2424(ctx);
 }
@@ -1361,6 +1373,7 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
                    : "Congress notes falling Sons of Liberty (%d%%).",
             sol
           );
+          ai_king_claim_status(ctx);
         }
         if (ai_king_human_popups(ctx)) {
           PopupMsgTokens tok;
@@ -1388,13 +1401,11 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
      * tax formula. Do not clobber thin 38fd_5be8 tax audience / hike status
      * from 1d42 (ai_popup CHOICE when queue attached). (2564 is menu-only.)
      */
+    const bool keep_claimed = ctx->status && s_king_status_claim == ctx->status;
+    s_king_status_claim = NULL;
     if (sol >= AI_KING_RESTLESS_SOL_MIN && sol < AI_KING_DECLARE_SOL_MIN && ctx->status &&
         ctx->status_size) {
-      const int keep_tax_audience =
-          strstr(ctx->status, "refuse") || strstr(ctx->status, "Audience") ||
-          strstr(ctx->status, "raises taxes") || strstr(ctx->status, "Tax stays") ||
-          strstr(ctx->status, "Congress notes"); /* decile SoL notify above; don't clobber */
-      if (!keep_tax_audience) {
+      if (!keep_claimed) {
         const uint8_t tax =
             (ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 && ctx->human_nation < 4)
                 ? ctx->col1->nation[ctx->human_nation].tax_rate
@@ -1520,14 +1531,17 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
                      "Audience: taxes raised to %u%%.",
                      ctx->col1->nation[human].tax_rate);
           }
+          ai_king_claim_status(ctx);
         } else if (popup->result_choice_id == AI_KING_CHOICE_REFUSE) {
           ai_king_tax_teaparty(ctx, human, cargo);
+          ai_king_claim_status(ctx);
         }
       }
       break;
     case AI_POPUP_TAG_KING_DUMP_GOODS:
       /* Dump-goods modal: choice_id is cargo index to OR into boycott_bitmap. */
       ai_king_apply_dump_goods_choice(ctx, human, popup->result_choice_id);
+      ai_king_claim_status(ctx);
       break;
     case AI_POPUP_TAG_KING_MERC:
       /* FUN_43f7_2022 rebel branch: Hire → spend the rolled price, spawn at
@@ -1572,7 +1586,8 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
     case AI_POPUP_TAG_KING_FRIGATE:
       /* FUN_3844_00f2 tail: Yes → Frigate sails from Europe + 3dc8(KINGTAX, 10). */
       if (popup->result_choice_id == AI_KING_CHOICE_ACCEPT) {
-        ai_king_frigate_accept(ctx, human);
+        ai_king_frigate_accept(ctx, human); /* + 3dc8 audience line */
+        ai_king_claim_status(ctx);
       } else if (ctx->status && ctx->status_size) {
         snprintf(ctx->status, ctx->status_size, "The Crown's frigate is declined.");
       }

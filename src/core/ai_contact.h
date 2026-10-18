@@ -59,9 +59,6 @@ typedef enum AiRaidKind {
   AI_RAID_GOLD = 4     /* @RAIDGOLD   0x1bb1 — treasury */
 } AiRaidKind;
 
-/* Last colony-raid loot kind applied (for smoke / diagnostics). */
-int ai_contact_last_raid_kind(void);
-
 /*
  * FUN_4d56_1816 §2 War of Independence tribe defection — thin port. See
  * indian_woi_defect_1816.md.
@@ -167,9 +164,6 @@ int ai_contact_unit_counts_as_field(
   const ColonizeUnit* u
 );
 
-/* FUN_5bfb_022e meet / auto-trade (status + AI popup CHOICE/OK when queued). */
-void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id);
-
 /*
  * FUN_5bfb_022e already-met Brave/Euro adjacency accept/refuse
  * (@INDIANBEGFOOD) — village begs a well-stocked colony for food; human
@@ -238,36 +232,14 @@ int ai_contact_visit_step_roll(ColonizeTurnContext* ctx, int nation_id, int e, i
  * indian_incite_417e.md. Pass 0/0 when not applicable (e.g. ship contact).
  * Returns 1 if a CHOICE was enqueued.
  *
- * Kept as an argument-defaulting shim for the unit tests (audit AC-24): game
- * code always calls the _unit_at form below, which carries the acting unit
- * and the specific settlement record. Same for ai_contact_try_village_meet_unit
- * and ai_contact_try_ship_village.
- */
-int ai_contact_try_village_meet(
-  ColonizeTurnContext* ctx,
-  int euro_nation,
-  int indian_nation,
-  int is_missionary,
-  int is_capital
-);
-
-/*
- * Same, with the acting unit: the menu rows follow DOS's per-unit gating
+ * The argument-defaulting shims ai_contact_try_village_meet / _unit and
+ * ai_contact_try_ship_village are test-only (audit AC-24, bugs.md #1106) and
+ * live in ai_contact_internal.h: game code always calls the _unit_at form.
+ * With the acting unit, the menu rows follow DOS's per-unit gating
  * (wagon/ship → Trade or Enter Hostile; Scout → Speak With Chief; Missionary
  * → Establish Mission / Denounce Heresy + Incite; colonist → Live Among;
- * armed → Demand Tribute / Attack Village). unit_id -1 = legacy rows.
- */
-int ai_contact_try_village_meet_unit(
-  ColonizeTurnContext* ctx,
-  int euro_nation,
-  int indian_nation,
-  int is_missionary,
-  int is_capital,
-  int unit_id
-);
-
-/*
- * Same, naming the settlement record being entered (index into col1->tribe).
+ * armed → Demand Tribute / Attack Village); unit_id -1 = legacy rows.
+ * tribe_index names the settlement record being entered (index into col1->tribe).
  * The row gating that depends on the village itself — Establish Mission vs.
  * Denounce Heresy — then always describes that village. tribe_index -1 falls
  * back to "a village of this tribe adjacent to the unit".
@@ -346,16 +318,6 @@ int ai_contact_2820_sell_haggle(int difficulty, int ask, int qty, ColonizeDosRng
 /* @BUY0 haggle arm (pure). Returns 1 = re-ask at *io_price, 0 = tribe refuses. Exposed for tests. */
 int ai_contact_2e92_haggle(int difficulty, int bid, ColonizeDosRng* rng, int* io_price, int* out_alarm_delta);
 
-/* FUN_4d56_2820 LAB_002e92 AI branch — empty-handed AI unit buys the tribe's
- * own goods (see ai_contact.c). Exposed for tests. Returns 1 on purchase. */
-int ai_contact_auto_buy_2e92(
-  ColonizeTurnContext* ctx,
-  ColonizeCol1Indian* ind,
-  int nation_id,
-  int e,
-  ColonizeUnit* unit
-);
-
 /* FUN_4d56_417e Mode 2 — AI Missionary at a village incites the tribe against
  * the human (see ai_contact.c header). Exposed for tests. */
 int ai_contact_ai_incite_human(
@@ -384,7 +346,6 @@ void ai_contact_village_open_hostilities(
  * 50..74 → wary status then thin village Meet; else thin village Meet.
  * Ship does not enter the tile. Returns 1 if (x,y) is a village and handled.
  */
-int ai_contact_try_ship_village(ColonizeTurnContext* ctx, int euro_nation, int x, int y);
 int ai_contact_try_ship_village_unit(
   ColonizeTurnContext* ctx,
   int euro_nation,
@@ -415,21 +376,20 @@ void ai_contact_alarm_delta_00f2_w(const ColonizeWorld* w, int nation_id, int eu
 /* Tribe display name for Indian nation ids 4..11. */
 const char* ai_contact_tribe_name(int nation_id);
 
-/* FUN_4d56_4528 / 5fef_0f14 raid outcomes. */
-void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id);
-
 /*
  * FUN_5fef_1b0e's colony-raid handoff (raw viceroy_unpacked.c:101142,
  * `thunk_FUN_2a1f_06c8` → `FUN_5fef_0f14`). A native attacker that LOSES a
  * fight while the defender stands on a European colony tile does not simply
  * die in DOS: 1b0e's alarm/tension block is skipped entirely and the WHOLE
  * raid resolver runs instead — loot roll, its own alarm delta and its own
- * DS:0x54f6 tension clear (raw 100034). Nothing of 0f14 is skipped on this
- * limb; only its entry arguments differ from the raid pulse's.
+ * DS:0x54f6 tension clear (raw 100034). This is 0f14's ONLY caller; it
+ * also draws 0f14's human-victim cues/@RAID* dialog and @RAIDWREAK bulletin
+ * when `w` carries ai_popups/messages (bugs.md #1093).
  *
  * `forced` is DOS's `param_4` (1b0e's `local_ca`), which bypasses the walls
  * check at the head of 0f14 so the repelled party still loots.
  * `home_tribe_id` is the raider's `+0x314a` origin (the DS:0x54f6 row key).
+ * `human_nation` = the human Euro (0..3), or -1 to read DS:0x543f control.
  * Returns the AiRaidKind applied (AI_RAID_NOTHING = 0 when nothing happened).
  */
 int ai_contact_colony_raid_repelled_w(
@@ -438,7 +398,8 @@ int ai_contact_colony_raid_repelled_w(
   int euro_nation,
   int colony_id,
   int home_tribe_id,
-  int forced
+  int forced,
+  int human_nation
 );
 
 /* Apply human choice from map AI popup (welcome / meet / teach / gift|demand). */

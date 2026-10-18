@@ -17,10 +17,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int fail(const char* msg) {
-  fprintf(stderr, "unit_regress_trade_raid: FAIL %s\n", msg);
-  return 1;
-}
+#define TEST_NAME "unit_regress_trade_raid"
+#include "../common/test_fail.h"
 
 /*
  * #830 — ai_contact_apply_raid_loot AI_RAID_STORES arm (FUN_5fef_0f14 raw

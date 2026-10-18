@@ -223,7 +223,7 @@ static int ai_king_audience_roll(
       str_copy_trunc(flavor.string2, sizeof(flavor.string2),
                      col1->player[human].country_name[0]
                        ? col1->player[human].country_name
-                       : "the colonies");
+                       : "");
       flavor.has_string2 = true;
     }
   } else {
@@ -861,7 +861,7 @@ void ai_king_succession(ColonizeTurnContext* ctx) {
     const char* ceder = reports_nation_country_name(merged);
     const char* domain = col1->player[merged].country_name[0]
                            ? col1->player[merged].country_name
-                           : "its colonies";
+                           : "";
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = ceder;
@@ -881,7 +881,7 @@ void ai_king_succession(ColonizeTurnContext* ctx) {
     const char* ceder = reports_nation_country_name(merged);
     const char* domain = col1->player[merged].country_name[0]
                            ? col1->player[merged].country_name
-                           : "its colonies";
+                           : "";
     const char* heir_adj = reports_nation_adjective_display_name(heir);
     const char* merged_adj = reports_nation_adjective_display_name(merged);
     PopupMsgTokens status_tok;
@@ -1163,7 +1163,7 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
     const char* leader =
       (human >= 0 && human < 4 && ctx->col1->player[human].name[0] != '\0')
         ? ctx->col1->player[human].name
-        : "Washington";
+        : "";
     PopupMsgTokens letter_tok;
     memset(&letter_tok, 0, sizeof(letter_tok));
     letter_tok.string0 = leader;
@@ -1242,7 +1242,7 @@ static void ai_king_show_declare_choice(ColonizeTurnContext* ctx, int human, int
     /* bugs.md #235: %STRING0 is the Crown nation ("England"), never the
      * player's new-world country_name ("New England"). NAMES.TXT @COUNTRY. */
     const char* motherland =
-      (human >= 0 && human <= 3) ? reports_nation_country_name(human) : "the Crown";
+      (human >= 0 && human <= 3) ? reports_nation_country_name(human) : "";
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = motherland;

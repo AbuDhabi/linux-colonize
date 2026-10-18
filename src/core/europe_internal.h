@@ -70,9 +70,6 @@ int europe_purse_nation(const EuropeScreen* eu);
 void europe_purse_move(
   EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, long delta
 );
-void europe_credit_sale_tax(
-  struct ColonizeCol1Save* col1, int nation, int gross, int net
-);
 extern void (*g_europe_sound_play)(int id);
 extern void (*g_europe_set_bgm)(int pool);
 extern struct ColonizeCol1Save* g_europe_live_save;

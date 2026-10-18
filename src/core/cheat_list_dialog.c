@@ -465,6 +465,9 @@ static int cheat_list_option_at_y(const CheatListDialog* dlg, int mouse_y) {
 }
 
 static void cheat_list_cancel(CheatListDialog* dlg) {
+  if (!dlg) {
+    return;
+  }
   dlg->has_result = false;
   cheat_list_close(dlg);
 }

@@ -12,6 +12,7 @@
 
 #include <string.h>
 
+#include "core/colony_production.h"
 #include "core/founding_fathers.h"
 #include "core/turn.h"
 
@@ -655,27 +656,10 @@ static int combat_colony_sol_at(
   if (!c) {
     return -1;
   }
-  /* Inline colony_prod_sol_percent to avoid linking colony_production into smokes. */
-  if (ctx->col1->colony) {
-    for (uint16_t i = 0; i < ctx->col1->head.colony_count; ++i) {
-      const ColonizeCol1Colony* cc = &ctx->col1->colony[i];
-      if ((int)cc->x != c->x || (int)cc->y != c->y) {
-        continue;
-      }
-      /* FUN_15eb_0274 guard: divisor <= 0 leaves local_c at 0. */
-      int sol = 0;
-      if (cc->rebel_divisor != 0) {
-        sol = (int)((cc->rebel_dividend * 100u) / cc->rebel_divisor);
-      }
-      if (sol < 0) {
-        sol = 0;
-      }
-      sol += founding_fathers_bolivar_sol_bonus(ctx->col1, c->nation_id);
-      if (sol > 100) {
-        sol = 100;
-      }
-      return sol;
-    }
+  /* The record must exist (-1 = port-side desync, see above); the ratio and
+   * Bolivar math is the shared FUN_15eb_0274 port (bugs.md #1089). */
+  if (ctx->col1->colony && col1_colony_at_xy(ctx->col1, -1, c->x, c->y)) {
+    return colony_prod_sol_percent(ctx->col1, c);
   }
   return -1;
 }

@@ -114,7 +114,7 @@ static bool decode_sprite(
       snprintf(err, err_size, "oom sprite fab buffer");
       return false;
     }
-    char fab_err[256];
+    char fab_err[192];
     if (!fab_decompress(src, src_len, decoded, header->length, fab_err, sizeof(fab_err))) {
       free(decoded);
       snprintf(err, err_size, "sprite FAB failed: %s", fab_err);

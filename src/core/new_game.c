@@ -53,25 +53,8 @@ static const NewGameRect k_customiz_rects[4][3] = {
   {{238, 16, 72, 48}, {238, 76, 72, 48}, {238, 135, 72, 48}},
 };
 
-static const char* k_difficul_levels[5] = {
-  "", "", "", "", ""
-};
 /* FUN_733a_0512 local_5a: Discoverer..Viceroy palette indices. */
 static const uint8_t k_difficul_colors[5] = {10, 9, 14, 13, 12};
-static const char* k_nation_bonuses[4] = {
-  "", "", "", ""
-};
-/* LABELS.TXT @MISC row 161 — the parens are the port's
- * own chrome (new_game_format_finished adds them when the text has none). */
-static const char* k_finished_label = "";
-static const char* k_customiz_title = "";
-static const char* k_customiz_cats[4] = {"", "", "", ""};
-static const char* k_customiz_vals[4][3] = {
-  {"", "", ""},
-  {"", "", ""},
-  {"", "", ""},
-  {"", "", ""},
-};
 
 /*
  * The wizard's country / home-port / difficulty labels all come from the one
@@ -524,7 +507,7 @@ static void new_game_enter_customize(NewGameWizard* ng) {
   ng->customize_focus = 0;
   new_game_ensure_customiz(ng);
   new_game_clear_list(ng);
-  snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "%s", k_customiz_title);
+  ng->prompt_lines[0][0] = '\0';
   ng->prompt_line_count = 1;
 }
 
@@ -884,10 +867,10 @@ static const char* new_game_misc_label(
 }
 
 static const char* new_game_finished_text(const NewGameWizard* ng) {
-  return new_game_misc_label(ng, 17, k_finished_label);
+  return new_game_misc_label(ng, 17, "");
 }
 
-/* Resolve CUSTOMIZE labels from @MISC starting at "Land Mass"; else English fallbacks. */
+/* Resolve CUSTOMIZE labels from @MISC starting at "Land Mass"; a miss is "". */
 static void new_game_customiz_labels(
   const NewGameWizard* ng,
   const char** out_cats,
@@ -895,12 +878,12 @@ static void new_game_customiz_labels(
   const char** out_title
 ) {
   for (int c = 0; c < 4; ++c) {
-    out_cats[c] = k_customiz_cats[c];
+    out_cats[c] = "";
     for (int r = 0; r < 3; ++r) {
-      out_vals[c * 3 + r] = k_customiz_vals[c][r];
+      out_vals[c * 3 + r] = "";
     }
   }
-  *out_title = k_customiz_title;
+  *out_title = "";
   if (!ng || !ng->labels_txt) {
     return;
   }
@@ -1612,7 +1595,7 @@ static void new_game_render_region_pick(
         fb,
         &rects[ng->selection],
         top,
-        new_game_misc_label(ng, 21 + ng->selection, k_difficul_levels[ng->selection]),
+        new_game_misc_label(ng, 21 + ng->selection, ""),
         k_difficul_colors[ng->selection]
       );
     }
@@ -1657,7 +1640,7 @@ static void new_game_render_region_pick(
         fb,
         &rects[ng->selection],
         top,
-        new_game_misc_label(ng, 29 + ng->selection, k_nation_bonuses[ng->selection]),
+        new_game_misc_label(ng, 29 + ng->selection, ""),
         nation_ink
       );
     }
@@ -1684,7 +1667,7 @@ static void new_game_render_customize(
 
   const char* cats[4];
   const char* vals[12];
-  const char* title = k_customiz_title;
+  const char* title = "";
   new_game_customiz_labels(ng, cats, vals, &title);
 
   const ColonizeFont* tiny = ng->tiny_font ? ng->tiny_font : ng->ui_font;

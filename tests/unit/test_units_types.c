@@ -1,4 +1,5 @@
 #include "test_units_common.h"
+#include "../common/test_runner.h"
 
 /*
  * bugs.md: equipping an existing unit keeps its tier. A Continental Army given
@@ -17,7 +18,6 @@ static int unit_continental_equip_tier(void) {
     return 1;
   }
   ColonizeUnitPool pool;
-  memset(&pool, 0, sizeof(pool));
   memset(&pool, 0, sizeof(pool));
   if (!units_load_types(&pool, &names)) {
     fprintf(stderr, "cont_equip: units_load_types failed\n");
@@ -97,7 +97,6 @@ static int unit_display_name_free_colonist(void) {
   }
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
-  memset(&pool, 0, sizeof(pool));
   if (!units_load_types(&pool, &names)) {
     fprintf(stderr, "display_name: units_load_types failed\n");
     assets_msg_free(&names);
@@ -173,13 +172,7 @@ static int unit_kind_without_name_resolver(void) {
   {
     ColonizeWorldMap map;
     memset(&map, 0, sizeof(map));
-    map.width = 16;
-    map.height = 16;
-    map.tile_count = 256;
-    map.terrain = calloc(256, 1);
-    map.layer2 = calloc(256, 1);
-    map.layer3 = calloc(256, 1);
-    if (!map.terrain || !map.layer2 || !map.layer3) {
+    if (!fx_map_alloc(&map, 16, 16, 0, false)) {
       fprintf(stderr, "kind#581: map alloc\n");
       test_name_kinds_reinstall();
       return 1;
@@ -251,9 +244,7 @@ static int unit_kind_without_name_resolver(void) {
     }
     units_set_native_fallout_context(NULL, NULL, -1);
     units_set_occupancy_map(NULL);
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
   }
   if (rc != 0) {
     test_name_kinds_reinstall();
@@ -339,20 +330,9 @@ static void audit_type(
 static int unit_smell_audit_2026_09_09(void) {
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 8;
-  map.height = 8;
-  map.tile_count = 64;
-  map.terrain = calloc(64, 1);
-  map.layer2 = calloc(64, 1);
-  map.layer3 = calloc(64, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+  if (!fx_map_alloc(&map, 8, 8, 2, false)) {
+    fx_map_free(&map);
     return 1;
-  }
-  for (int i = 0; i < 64; ++i) {
-    map.terrain[i] = 2; /* plains — every tile is land */
   }
   units_set_occupancy_map(&map);
 
@@ -389,7 +369,7 @@ static int unit_smell_audit_2026_09_09(void) {
       ColonizeDosRng rng;
       /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
        * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
-      dos_rng_seed(&rng, (unsigned)(seed * 9973 + 4271));
+      dos_rng_seed(&rng, (unsigned)seed * 9973u + 4271u);
       if (units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, aid, did)) {
         fprintf(stderr,
                 "audit#8: seed %d — plain Brave beat HUMAN Artillery on a shuffled roster\n",
@@ -560,7 +540,7 @@ static int unit_smell_audit_2026_09_09(void) {
       ColonizeDosRng rng;
       /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
        * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
-      dos_rng_seed(&rng, (unsigned)(seed * 9973 + 4271));
+      dos_rng_seed(&rng, (unsigned)seed * 9973u + 4271u);
       if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, atk, def)) {
         lost = 1;
       }
@@ -621,7 +601,7 @@ static int unit_smell_audit_2026_09_09(void) {
       units_set_nation(units_get(&pool, atk), 0);
       units_set_nation(units_get(&pool, def), 1);
       ColonizeDosRng rng;
-      dos_rng_seed(&rng, (unsigned)(seed * 9973 + 4271));
+      dos_rng_seed(&rng, (unsigned)seed * 9973u + 4271u);
       if (units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, atk, def)) {
         won = 1;
       }
@@ -732,9 +712,7 @@ static int unit_smell_audit_2026_09_09(void) {
 
   units_set_occupancy_map(NULL);
   units_set_ff_col1(NULL);
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   return rc;
 }
 
@@ -1079,34 +1057,13 @@ static int unit_cap_bits_column12(void) {
   }
   return rc;
 }
-int main(void) {
-  diag_init(0, NULL);
-  if (unit_cap_bits_column12() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_smell_audit_2026_09_09() != 0) {
-    return 1;
-  }
-  if (unit_continental_equip_tier() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_display_name_free_colonist() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_kind_without_name_resolver() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_promote_convert_rng_598() != 0) {
-    return 1;
-  }
-  if (unit_promote_and_label_504() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  diag_shutdown();
-  return 0;
-}
+static const TestCase k_cases[] = {
+  {"unit_cap_bits_column12", unit_cap_bits_column12},
+  {"unit_smell_audit_2026_09_09", unit_smell_audit_2026_09_09},
+  {"unit_continental_equip_tier", unit_continental_equip_tier},
+  {"unit_display_name_free_colonist", unit_display_name_free_colonist},
+  {"unit_kind_without_name_resolver", unit_kind_without_name_resolver},
+  {"unit_promote_convert_rng_598", unit_promote_convert_rng_598},
+  {"unit_promote_and_label_504", unit_promote_and_label_504},
+};
+TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

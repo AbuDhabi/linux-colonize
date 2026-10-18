@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include "../common/test_runner.h"
 #include <string.h>
 
 #include "core/ai.h"
@@ -42,6 +43,12 @@ static int find_unit(
 }
 
 int main(void) {
+  {
+    const int gate = tr_single_flow_gate("mapgen_seed100");
+    if (gate >= 0) {
+      return gate;
+    }
+  }
   char err[256];
 
   /* --- DOS RNG entry + customize axes (hypothesis 1: params then reseed) --- */

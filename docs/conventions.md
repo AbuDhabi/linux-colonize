@@ -157,7 +157,7 @@ form carries the same rule.
 | **Popup art palettes: merge, never remap.** A sheet that owns a DAC block the host screen leaves black (`SCORE<nn>.SS` over `WOODPAN2.PIK` is the only such pair) gets its entries merged via `ai_popup_art_palette_merge`. Sheets that paint where hosts paint (PARCH/WOODTILE/BUILDING/ICONS) are **remapped**, one copy per destination palette. | `crown-europe-batch-2026-09-04`, `sweep3-sixth-wave-batch20` |
 | **No weak fallbacks in `colonize_core` files.** `__attribute__((weak))` definitions satisfy the reference, so the linker never pulls the real archive member — `unit_ai_diplo` ran stubbed AI for months. Cross-module stubs live in `src/core/ai_contact_link_stubs.c`, compiled **only** by the SLIM targets (see its file header + `COLONIZE_SLIM_SOURCES` in `CMakeLists.txt`). | `sweep3-fifth-wave-batch20` |
 | **Slim targets** (`grep -n SLIM CMakeLists.txt`: the six `unit_units_*` slices, `unit_combat_strength`, `unit_colonies`, `unit_colony_yield`, `unit_reports`) do not link `colonize_core`. Adding a call to a symbol outside `COLONIZE_SLIM_SOURCES` breaks all of them at link time. They are declared with `colonize_add_test(... SLIM)` in `CMakeLists.txt`, which appends `src/core/ai_contact_link_stubs.c` and defines `COLONIZE_SLIM_TEST=1`; the stubs file `#error`s in any other target. | `duplication-audit-2026-09-14` |
-| **MP on native units** routes through `units_mp_charge` / `units_mp_exhaust` (`units_capture.c`): Euro units store thirds remaining, Braves store thirds **spent** (max 3). | `smell-batch1-2026-09-08` |
+| **MP on native units** routes through `units_mp_charge` / `units_mp_exhaust` (`units_capture.c`): Euro units store thirds remaining, Braves store thirds **spent** (>= max = exhausted; an overspend is kept, byte-saturated at 255: FUN_465b_0000 raw 75640). | `smell-batch1-2026-09-08` |
 | **No per-turn "drip" effects without a DOS trace.** Indian alarm has exactly two DOS growers: the per-turn `FUN_4d56_152e` threat accumulator, and the discrete land-work charge in `FUN_0000_6582` (the shared colony `tiles[]` writer — `colonies_assign_field_w`, bugs.md #1002), which is the one that moves early-game alarm. Discrete-event bumps are safe; recurring drips compound into order-of-magnitude divergence. | `alarm-fandom-drips-retired`, `land-work-alarm-2026-09-30` |
 | **Don't re-merge "kept split on DOS grounds"** rows from `docs/archive/duplication_audit_2026-09-14.md`; use the shared helpers listed in its Resolution table. | `duplication-round2-2026-09-15` |
 | **Never store port-only state in a `head.unknown*` field** without checking `save_format_map.md` for its real DOS meaning (`market_demand_pool_raw` is the market pool and is rewritten every EOT). | `woi-headless-sim-and-market_demand_pool_raw` |
@@ -314,10 +314,11 @@ cmake --build build/debug --target golden_ai_joint         # when AI or turn ord
   memory `ai-ship-wiggle-fix`.
 - Debug switches are catalogued in **[debug_env_vars.md](debug_env_vars.md)**
   (note which ones *change behaviour*). Quick picks: `DOS_RNG_TRACE`,
-  `AI_SCORE_AT="n:x:y"`, `COLONIZE_TEST_ONLY=<case>` (only binaries built on
-  `tests/common/test_runner.h`'s `TEST_MAIN`; ~25 test files keep a
-  hand-written `main` and ignore it — `make test T=... CASE=...` then runs
-  everything), `AI_SHIP_TRACE=1`, `AI_SET_GOTO_TRACE=1`. `debug.logs` is a
+  `AI_SCORE_AT="n:x:y"`, `COLONIZE_TEST_ONLY=<case>` (every test binary
+  honours it: `TEST_MAIN` binaries take a case name, single-flow drivers go
+  through `tr_single_flow_gate` and accept only their flow name;
+  `COLONIZE_TEST_LIST=1` prints the names; an unknown name exits 1 with
+  "matched no case"), `AI_SHIP_TRACE=1`, `AI_SET_GOTO_TRACE=1`. `debug.logs` is a
   `settings.json` / DEBUG-menu toggle, not an env var (categories table in
   `docs/settings.md`; context stamped by `diag_set_context` / `game_track_screen`).
 - Finally: annotate the `bugs.md` row. Status meanings there —

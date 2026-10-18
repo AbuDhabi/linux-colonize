@@ -241,34 +241,22 @@ int ai_diplo_at_war(const ColonizeCol1Save* col1, int nation_a, int nation_b);
 int ai_diplo_at_war_with_any(const ColonizeCol1Save* col1, int nation);
 /* First declare: thin 153e sting + war-hit. Franklin pair → no-op (fandom NW peace). */
 void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b);
+/* Test fixture helper: clear WAR both ways, set PEACE|MET (no production
+ * caller; DOS treaties are signed by FUN_5bfb_13b0). */
 void ai_diplo_make_peace(ColonizeCol1Save* col1, int nation_a, int nation_b);
 
-/* Thin 102a/1092 status chrome (Contact/King pattern): call existing
- * declare/make_peace then write ctx->status when human is involved; also
- * enqueue AI OK popup when ctx->ai_popups is set (FUN_15b3 / 5bfb). AI
- * callers keep using declare_war / make_peace without status.
- * FA 3f41 full UI PARKED. OpenCol-only alliance machinery retired T2.4. */
+/* declare_war + ctx->status (@DECLAREWAR) and an OK popup when the human is a
+ * party (FUN_15b3 / 5bfb). FA 3f41 full UI PARKED. */
 void ai_diplo_set_sound_hook(void (*play_fn)(int id));
 void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
 
-/* Player-facing nation name (Col1 country_name if set, else "rival"). */
+/* NAMES.TXT @NATIONALITY adjective (WoI-aware); else Col1 country_name; else "". */
 const char* ai_diplo_rival_name(const ColonizeCol1Save* col1, int nation);
-void ai_diplo_make_peace_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
-
-/* Military strength = the DS:0x941c census mirror stuff.land_combat_strength[]
- * (Σ FUN_281f_09c8(u,1) over land units; combat byte ×8). Same quantity every
- * other strength comparison in the port reads. The invented attack+defense /
- * pop / gold / rank blend it used to compute was retired 2026-09-09 (#51). */
-int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id);
 
 /* 6d8e step 4: decrement per-rival treaty timer bytes (before planning);
  * also thin peaceful Indian relation drift when not at Euro war. */
 void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id);
 
-/* OpenCol balance pass: Indian matrix sync and a port-only wartime Privateer
- * path. DOS war worthiness (10ec) and treaty sign/cancel (13b0) run from their
- * own encounter/attack paths; DOS has no per-turn Euro peace roll. */
-void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id);
 /* FUN_5bfb_13b0 from an AI mover's 3180 land encounter with another AI. */
 void ai_diplo_13b0_encounter(ColonizeTurnContext* ctx, int mover, int other);
 
@@ -321,22 +309,18 @@ uint8_t ai_diplo_indian_read(const ColonizeCol1Save* col1, int euro_nation, int 
  * #57; the live constant has been 26 since the 153e band was ported.) */
 int ai_diplo_indian_at_war(const ColonizeCol1Save* col1, int euro_nation, int indian_idx);
 
-/* True if any of 8 Indian slots is at war (see ai_diplo_indian_at_war: WAR bit
- * or relation < 26). Contact/diplo helper. */
-int ai_diplo_indian_any_at_war(const ColonizeCol1Save* col1, int euro_nation);
-
 /* Read the OpenCol Indian-hostility sticky (nation record +0x4b, unknown26[11],
  * the one byte of that block DOS never touches): 0 clear, 1 at-war, 2 very-low
  * deepen. Moved off +0x48 2026-09-09 (smell #52) — that byte is the DOS
  * FUN_4d56_4528 grace/waiver counter.
- * sticky==2 → peace feeler self-gates off (matrix + make_peace) + refuses new
- * treaties this balance + human "Natives remain hostile." status. */
+ * No production reader since bugs.md #1104 (matrix tick / make_peace /
+ * declare_war_ctx chrome deleted); kept in sync for tests. */
 uint8_t ai_diplo_indian_hostility_sticky(const ColonizeCol1Save* col1, int euro_nation);
 
 /* Sync sticky from relation matrix (set/clear/deepen). Call after relation hits. */
 void ai_diplo_indian_hostility_sync(ColonizeCol1Save* col1, int euro_nation);
-/* Tests: force the session cache (sync re-derives it). */
-void ai_diplo_indian_hostility_set(int euro_nation, uint8_t value);
+/* New game / load (via ai_euro_reset): clear the sticky cache (bugs.md #1103). */
+void ai_diplo_reset(void);
 
 /*
  * Fandom capital-destroy surrender: reset alarm/friction toward euro, set

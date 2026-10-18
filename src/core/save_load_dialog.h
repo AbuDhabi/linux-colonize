@@ -60,13 +60,15 @@ void save_load_close(SaveLoadDialog* dlg);
 /*
  * Probe save_dir and open the picker. Returns false on invalid args.
  * messages = GAME.TXT catalog for the @SAVEGAME/@LOADGAME title + @width
- * (NULL → built-in fallbacks). font = popup font for the DOS leader-name
+ * (NULL → built-in fallbacks). data_dir = COLONIZE/ for the DS:0x20ee
+ * "(EMPTY)" label (NULL → ""). font = popup font for the DOS leader-name
  * pixel trim (NULL → no trim).
  */
 bool save_load_open(
   SaveLoadDialog* dlg,
   SaveLoadMode mode,
   const char* save_dir,
+  const char* data_dir,
   const ColonizeMsgCatalog* messages,
   const ColonizeFont* font
 );

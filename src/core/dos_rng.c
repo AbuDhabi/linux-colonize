@@ -1,11 +1,13 @@
-#include <execinfo.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "core/dos_rng.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+
+#if defined(__GLIBC__) && !defined(_WIN32)
+#include <execinfo.h>
+#define DOS_RNG_HAVE_BACKTRACE 1
+#endif
 
 /* DOS_RNG_TRACE=1: log every draw with a running index (T1.23 stream audits). */
 static int dos_rng_trace_enabled(void) {
@@ -18,6 +20,14 @@ static int dos_rng_trace_enabled(void) {
 }
 
 static unsigned long s_dos_rng_draws;
+
+/* RANGEDBG / RANGEBT (docs/debug_env_vars.md): set = on, read once. */
+static int dos_rng_env_cached(const char* name, int* cache) {
+  if (*cache < 0) {
+    *cache = getenv(name) ? 1 : 0;
+  }
+  return *cache;
+}
 
 static int32_t s_dos_rng_83a6 = -1;
 
@@ -100,7 +110,18 @@ int dos_rng_range(ColonizeDosRng* rng, int lo, int hi) {
   }
   /* Inclusive span; hi==lo still advances the LCG (span 1). */
   const int span = hi - lo + 1;
-  if (getenv("RANGEDBG")) { void* bt[6]; int nb = backtrace(bt, 6); fprintf(stderr, "RANGE %d %d draw %lu state %08x\n", lo, hi, dos_rng_draw_count(), rng ? rng->state : 0u); if (getenv("RANGEBT")) backtrace_symbols_fd(bt + 1, nb - 1, 2); }
+  static int s_rangedbg = -1;
+  if (dos_rng_env_cached("RANGEDBG", &s_rangedbg)) {
+    fprintf(stderr, "RANGE %d %d draw %lu state %08x\n", lo, hi, dos_rng_draw_count(), rng->state);
+#ifdef DOS_RNG_HAVE_BACKTRACE
+    static int s_rangebt = -1;
+    if (dos_rng_env_cached("RANGEBT", &s_rangebt)) {
+      void* bt[6];
+      const int nb = backtrace(bt, 6);
+      backtrace_symbols_fd(bt + 1, nb - 1, 2);
+    }
+#endif
+  }
   const uint32_t r = dos_rng_next(rng);
   /* FUN_19ef_0032: (span * r) >> 15 + lo */
   return lo + (int)(((uint32_t)span * r) >> 15);

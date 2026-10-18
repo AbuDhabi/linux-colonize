@@ -108,6 +108,7 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   ai_contact_reset();
   ai_euro_reset();
   ai_native_reset();
+  ai_coarse_fog_reset(); /* bugs.md #1103: DS:0x9faa outlives the old world */
   turn_reset();
   units_reset_state(); /* goto anti-backtrack shadow, indexed by reused unit_id */
   /* A legacy port save can already exceed DOS's 300-record global limit.
@@ -534,12 +535,8 @@ static void game_build_exploits(ColonizeGameState* game, const ColonizeScoreBrea
       h[strcspn(h, "\r\n")] = '\0';
       ex->header_count++;
     }
-  } else {
-    snprintf(ex->header[0], sizeof(ex->header[0]), "COLONIZATION RATING: %d%%", sc->rating);
-    ex->header[1][0] = '\0';
-    ex->header[2][0] = '\0';
-    ex->header_count = 3;
   }
+  /* Catalog miss: no header (memset above), never a typed copy of @EXPLOITS. */
 
   const ColonizeMsgSection* rows = assets_msg_find(&game->messages, "SCORE");
   const int want = sc->exploits_tier + 1;

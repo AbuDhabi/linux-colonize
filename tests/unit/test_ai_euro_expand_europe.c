@@ -36,17 +36,8 @@ static int unit_treasure_coast(void) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("treasure alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1; /* plains */
   }
   /* Ocean adjacent west of coastal colony at (4,4). */
   map.terrain[4 * 16 + 3] = 25; /* water at (3,4) */
@@ -554,17 +545,8 @@ static int unit_privateer_europe_loot_sail(void) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 25, false)) {
     return fail("priv-loot-sail alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 25; /* ocean */
   }
   for (int y = 0; y < 16; ++y) {
     map.terrain[y * 16 + 14] = 26; /* T_HIGH_SEAS */

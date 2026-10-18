@@ -6,7 +6,6 @@
  */
 
 #include "core/europe.h"
-#include "core/europe_art.h"
 #include "core/europe_internal.h"
 
 #include <limits.h>
@@ -27,7 +26,6 @@
 #include "platform/diagnostics.h"
 #include "core/ss.h"
 #include "core/strutil.h"
-#include "core/ui_button.h"
 #include "core/units.h"
 #include "platform/platform.h"
 
@@ -142,7 +140,7 @@ bool europe_recruit_from_pool_ex(EuropeScreen* eu, int pool_index, ColonizeDosRn
      */
     return false;
   }
-  eu->gold -= eu->recruit_passage;
+  europe_purse_move(eu, g_europe_live_save, europe_purse_nation(eu), -eu->recruit_passage);
   EuropeDockImmigrant* slot = europe_dock_insert_front(eu);
   snprintf(slot->name, sizeof(slot->name), "%s", eu->pool[pool_index].name);
   slot->profession = eu->pool[pool_index].profession;
@@ -296,7 +294,7 @@ bool europe_train_ex(EuropeScreen* eu, int train_index, ColonizeDosRng* rng) {
      * bugs.md #893. */
     return false;
   }
-  eu->gold -= t->cost;
+  europe_purse_move(eu, g_europe_live_save, europe_purse_nation(eu), -t->cost);
   EuropeDockImmigrant* slot = europe_dock_insert_front(eu);
   snprintf(slot->name, sizeof(slot->name), "%s", t->expert_name);
   slot->profession = t->job_index;
@@ -360,7 +358,15 @@ bool europe_purchase_open_confirm(EuropeScreen* eu, int purchase_index) {
    * = row 0 = Yes; row 1 = No). europe_menu_confirm_ex special-cases
    * purchase_confirming ahead of its generic sel==0 cancel path. */
   eu->menu_selection = 0;
-  snprintf(eu->status, sizeof(eu->status), "Purchase %s for %d$?", p->name, cost);
+  {
+    /* GAME.TXT @REALLYBUY: %STRING0 = unit name, %NUMBER0 = price. */
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = p->name;
+    tok.number0 = cost;
+    tok.has_number0 = true;
+    popup_msg_fill(eu->messages, "REALLYBUY", &tok, "", eu->status, sizeof(eu->status));
+  }
   diag_info("EUROPE purchase confirm %s for %d$ (gold=%d)", p->name, cost, eu->gold);
   return true;
 }
@@ -377,7 +383,10 @@ bool europe_purchase_commit(
   char pname[sizeof(p->name)];
   memcpy(pname, p->name, sizeof(pname));
   if (p->is_ship) {
-    eu->gold -= cost;
+    if (eu->harbor_ships >= EUROPE_HARBOR_MAX) {
+      return false; /* bugs.md #1113: same cap europe_harbor.c's pushes check */
+    }
+    europe_purse_move(eu, g_europe_live_save, europe_purse_nation(eu), -cost);
     EuropeHarborShip* slot = &eu->harbor[eu->harbor_ships++];
     europe_clear_ship(slot);
     slot->type_index = -1; /* resolved by name in game_loop / caller */
@@ -387,7 +396,7 @@ bool europe_purchase_commit(
     diag_info("EUROPE purchased ship %s for %d$ (gold=%d)", pname, cost, eu->gold);
     return true;
   }
-  eu->gold -= cost;
+  europe_purse_move(eu, g_europe_live_save, europe_purse_nation(eu), -cost);
   EuropeDockImmigrant* slot = europe_dock_insert_front(eu);
   snprintf(slot->name, sizeof(slot->name), "%s", pname);
   slot->profession = -1;
@@ -627,7 +636,7 @@ static void europe_retype_dock_mirror_unit(
   int fallback = -1;
   for (int i = 0; i < units_slot_end(units); ++i) {
     ColonizeUnit* u = &units->units[i];
-    if (!u->active || u->nation_id != nation_id || u->x != 236 || u->y != 236 ||
+    if (!u->active || u->nation_id != nation_id || u->x != EUROPE_PARK_XY || u->y != EUROPE_PARK_XY ||
         u->aboard_ship_id >= 0 || units_is_sea(units, u->id)) {
       continue;
     }
@@ -665,7 +674,7 @@ int europe_spawn_dock_mirror_unit(
   if (ti < 0) {
     ti = units_kind_type_index(units, UNITS_KIND_COLONIST);
   }
-  const int id = units_spawn_allow_stack(units, ti >= 0 ? ti : 0, 236, 236);
+  const int id = units_spawn_allow_stack(units, ti >= 0 ? ti : 0, EUROPE_PARK_XY, EUROPE_PARK_XY);
   ColonizeUnit* u = units_get(units, id);
   if (!u) {
     return -1;
@@ -689,7 +698,7 @@ void europe_remove_dock_mirror_unit(ColonizeUnitPool* units, int nation_id, int 
   int fallback = -1;
   for (int i = 0; i < units_slot_end(units); ++i) {
     const ColonizeUnit* u = &units->units[i];
-    if (!u->active || u->nation_id != nation_id || u->x != 236 || u->y != 236 ||
+    if (!u->active || u->nation_id != nation_id || u->x != EUROPE_PARK_XY || u->y != EUROPE_PARK_XY ||
         u->aboard_ship_id >= 0 || units_is_sea(units, u->id)) {
       continue;
     }

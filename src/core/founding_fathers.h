@@ -129,7 +129,7 @@ int founding_fathers_bolivar_sol_bonus(const ColonizeCol1Save* col1, int nation)
  * King's European wars no longer affect New World relations; Europeans in the
  * New World always offer peace in negotiations.
  * Ownership: founding_fathers_nation_has (per-nation bitmask). Wired from ai_diplo
- * euro_balance / declare_war (war-hit side effects).
+ * declare_war (war-hit side effects; the euro_balance pass was deleted 2026-10-18, bugs.md #1104).
  */
 bool founding_fathers_franklin_keeps_nw_peace(const ColonizeCol1Save* col1, int nation);
 

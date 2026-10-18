@@ -23,6 +23,7 @@
  * See original_sources_annotated/ai/move_scoring_20e6_full.md for the raw
  * line numbers cited in each case.
  */
+#include "../common/ai_fixture.h"
 #include "core/ai_diplo.h"
 #include "core/ai_euro.h"
 #include "core/ai_euro_internal.h"
@@ -42,10 +43,8 @@
 
 #include "../common/test_runner.h"
 
-static int fail(const char* msg) {
-  fprintf(stderr, "unit_ai_euro_20e6_ports: FAIL %s\n", msg);
-  return 1;
-}
+#define TEST_NAME "unit_ai_euro_20e6_ports"
+#include "../common/test_fail.h"
 
 typedef struct Fixture {
   ColonizeWorldMap map;
@@ -69,18 +68,8 @@ static int fixture_init(Fixture* f, int nation) {
   memset(f, 0, sizeof(*f));
   ai_euro_reset();
   ai_goals_reset();
-  f->map.width = 16;
-  f->map.height = 16;
-  f->map.tile_count = 256;
-  f->map.terrain = calloc(256, 1);
-  f->map.layer2 = calloc(256, 1);
-  f->map.layer3 = calloc(256, 1);
-  f->map.seen = calloc(256, 1);
-  if (!f->map.terrain || !f->map.layer2 || !f->map.layer3 || !f->map.seen) {
+  if (!fx_map_alloc(&f->map, 16, 16, 2, true)) {
     return fail("alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    f->map.terrain[i] = 2; /* plains */
   }
   units_reset(&f->units);
   f->units.type_count = 5;
@@ -151,10 +140,7 @@ static int fixture_init(Fixture* f, int nation) {
 }
 
 static void fixture_free(Fixture* f) {
-  free(f->map.terrain);
-  free(f->map.layer2);
-  free(f->map.layer3);
-  free(f->map.seen);
+  fx_map_free(&f->map);
 }
 
 /* Own coastal colony at (11,4) with the east side of the map as ocean. */

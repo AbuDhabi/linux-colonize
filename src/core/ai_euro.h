@@ -113,11 +113,11 @@ int ai_euro_colony_needs_colonists_5952(
 
 /*
  * The 5d04 hire chain's DOS @UNIT view of an OpenCol unit type (NAMES.TXT
- * @UNIT file order; 0xff = unknown), and the DS:0x5238 hull-space column for
+ * @UNIT file order; 0xff = unknown; test-only ai_euro_5d04_dos_type_code in
+ * ai_euro_internal.h), and the DS:0x5238 hull-space column for
  * a DOS @UNIT code. Exposed for tests — both are name-based, because the
  * chain runs on fixture pools whose indices are not DOS indices.
  */
-int ai_euro_5d04_dos_type_code(const ColonizeUnitPool* pool, int type_index);
 int ai_euro_5d04_dos_type_space(const ColonizeUnitPool* pool, int dos_code);
 
 /*

@@ -93,7 +93,6 @@ static int unit_dock_orders_menu(void) {
   }
   ColonizeUnitPool units;
   memset(&units, 0, sizeof(units));
-  memset(&units, 0, sizeof(units));
   if (!units_load_types(&units, &names)) {
     fprintf(stderr, "dock_orders: units_load_types failed\n");
     assets_msg_free(&names);
@@ -292,7 +291,6 @@ static int unit_multi_units_pane_roster(void) {
     return 1;
   }
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
   memset(&units, 0, sizeof(units));
   if (!units_load_types(&units, &names)) {
     fprintf(stderr, "multi_units: units_load_types failed\n");
@@ -722,7 +720,6 @@ static int case_colony_screen_render_workflow(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
   memset(&units, 0, sizeof(units));
   if (!units_load_types(&units, &names)) {
     fprintf(stderr, "units_load_types failed\n");
@@ -1399,7 +1396,7 @@ static int case_colony_screen_render_workflow(void) {
     ColonizeColony* col = colonies_get_mut(&pool, cid);
     const int food_job = 0; /* Food Gathering is job 0 in yield table */
     if (!col || col->colonist_count < 1 ||
-        !colonies_assign_field(&pool, cid, 0, 0, food_job)) {
+        !colonies_assign_field_w(&(ColonizeWorld){.colonies = &pool}, cid, 0, 0, food_job)) {
       fprintf(stderr, "failed to assign field colonist for area overlay test\n");
       if (font_ok) {
         ff_free(&font);
@@ -1447,7 +1444,7 @@ static int case_colony_screen_render_workflow(void) {
         return 1;
       }
       map.terrain[(col->y + dy) * map.width + (col->x + dx)] = 25; /* ocean */
-      if (!colonies_assign_field(&pool, cid, 0, tile_i, COLONIZE_JOB_FISHERMAN)) {
+      if (!colonies_assign_field_w(&(ColonizeWorld){.colonies = &pool}, cid, 0, tile_i, COLONIZE_JOB_FISHERMAN)) {
         fprintf(stderr, "failed to assign fisherman for food_fish preview\n");
         if (font_ok) {
           ff_free(&font);
@@ -1488,7 +1485,7 @@ static int case_colony_screen_render_workflow(void) {
       /* Restore farmer on land for subsequent area overlay pixel checks. */
       col->has_building[docks] = false;
       map.terrain[(col->y + dy) * map.width + (col->x + dx)] = 2; /* plains */
-      if (!colonies_assign_field(&pool, cid, 0, 0, food_job)) {
+      if (!colonies_assign_field_w(&(ColonizeWorld){.colonies = &pool}, cid, 0, 0, food_job)) {
         fprintf(stderr, "failed to restore farmer after fisherman preview\n");
         if (font_ok) {
           ff_free(&font);

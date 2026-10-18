@@ -264,7 +264,6 @@ static int unit_eot_fog_reveal(void) {
   }
   ColonizeUnitPool units;
   memset(&units, 0, sizeof(units));
-  memset(&units, 0, sizeof(units));
   units_reset(&units);
   units_set_occupancy_map(NULL);
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");

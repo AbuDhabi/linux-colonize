@@ -742,7 +742,7 @@ static void ai_indian_152e_village_growth(
   }
 }
 
-/* ===================== Village growth tick, tile/owner helpers & native pull scoring (ai_grow_villages .. ai_native_foreign_euro_pull) ===================== */
+/* ===================== Village growth tick, tile/owner helpers & native pull scoring (ai_grow_villages .. ai_s_native_colonies) ===================== */
 void ai_grow_villages(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
     return;
@@ -789,39 +789,6 @@ int ai_owner_nibble(const ColonizeWorldMap* map, int x, int y) {
   return hi == 0x0f ? -1 : hi;
 }
 
-/* DOS unit+0x06 (314a): home tribe index; fall back to nearest same-nation. */
-void ai_find_home_tribe(
-  const ColonizeCol1Save* col1,
-  const ColonizeUnit* u,
-  int* out_x,
-  int* out_y
-) {
-  *out_x = u ? u->x : 0;
-  *out_y = u ? u->y : 0;
-  if (!col1 || !col1->tribe || !u) {
-    return;
-  }
-  if (u->home_tribe_id >= 0 && u->home_tribe_id < (int)col1->head.tribe_count) {
-    const ColonizeCol1Tribe* t = &col1->tribe[u->home_tribe_id];
-    *out_x = (int)t->x;
-    *out_y = (int)t->y;
-    return;
-  }
-  int best = 0x7fff;
-  for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
-    const ColonizeCol1Tribe* t = &col1->tribe[i];
-    if ((int)t->nation_id != u->nation_id) {
-      continue;
-    }
-    const int d = map_dos_dist(u->x - (int)t->x, u->y - (int)t->y);
-    if (d < best) {
-      best = d;
-      *out_x = (int)t->x;
-      *out_y = (int)t->y;
-    }
-  }
-}
-
 /* terr_cost table + class: map_dos_terr_cost_byte / map_dos_terr_class_at. */
 
 int ai_dos_terr_class(const ColonizeWorldMap* map, int x, int y) {
@@ -844,195 +811,15 @@ int ai_unit_index_on_tile(const ColonizeUnitPool* units, int x, int y) {
   return -1;
 }
 
-int ai_lab_54f5_gate(
-  const ColonizeWorldMap* map,
-  const ColonizeUnitPool* units,
-  int dest_x,
-  int dest_y,
-  int nation_id
-) {
-  const int own = ai_owner_nibble(map, dest_x, dest_y);
-  if (own == nation_id) {
-    return 1;
-  }
-  /* map_tile_tribe_or_presence takes plain bounds (DOS FUN_281f_0682); the
-   * ai.c copy this replaced gated on FUN_137f_000a inset, so keep that here. */
-  if (ai_unit_index_on_tile(units, dest_x, dest_y) < 0 &&
-      (!map_coords_inset(map, dest_x, dest_y) ||
-       map_tile_tribe_or_presence(map, dest_x, dest_y) < 0)) {
-    return 1;
-  }
-  return 0;
-}
-
-int ai_quiet_fog_explore_ex(
-  const ColonizeWorldMap* map,
-  int score,
-  int unit_x,
-  int unit_y,
-  int dir,
-  int nation_id,
-  int* out_fog_bonus,
-  int* out_neighbor_penalty
-) {
-  int fog_bonus = 0;
-  int neighbor_penalty = 0;
-  const int far_x = unit_x + k_ai_dir8_dx[dir] * 4;
-  const int far_y = unit_y + k_ai_dir8_dy[dir] * 4;
-  if (!ai_is_ocean_hs(map, far_x, far_y) && map_coords_inset(map, far_x, far_y) &&
-      ai_coarse_fog_unseen(far_x, far_y)) {
-    score += 8;
-    fog_bonus = 8;
-  }
-  for (int n = 0; n < 8; ++n) {
-    const int nx = far_x + k_ai_dir8_dx[n];
-    const int ny = far_y + k_ai_dir8_dy[n];
-    if (!map_coords_inset(map, nx, ny)) {
-      continue;
-    }
-    (void)nation_id;
-    if (map_tile_owner_or_presence(map, nx, ny) >= 0) {
-      score -= 2;
-      neighbor_penalty -= 2;
-    }
-  }
-  if (out_fog_bonus) {
-    *out_fog_bonus = fog_bonus;
-  }
-  if (out_neighbor_penalty) {
-    *out_neighbor_penalty = neighbor_penalty;
-  }
-  return score;
-}
-
 /*
  * Native-turn module statics. The col1/colonies pointers come from the
  * nation-turn entry (module statics — the picker's signature is shared with
  * the fixture path). The old LAB_521d_52aa "attack pull" scorer that used to
  * sit here is gone; its Euro-mover arm lives in ai_euro_land.c (LAB_52aa
- * attack term), and quiet Braves reject foreign-owned tiles (see
- * ai_native_foreign_euro_pull_open below).
+ * attack term). Seed-100 TURN2->3 golden (Aztec Brave at (47,15) next to an
+ * unmet Dutch unit at (47,14)): DOS does NOT pull a quiet Brave toward a
+ * foreign Euro tile; quiet Braves reject foreign-owned tiles.
  */
 const ColonizeColonyPool* ai_s_native_colonies = NULL;
-const ColonizeCol1Save* ai_s_native_col1 = NULL;
-int ai_s_native_home_dist = 0; /* DS:0x8db8 for the unit being scored */
-
-int ai_native_foreign_euro_pull_open(
-  const ColonizeWorldMap* map, const ColonizeUnitPool* units, int x, int y, int nation_id,
-  int dest_x, int dest_y, int owner
-) {
-  if (owner < 0 || owner > 3 || owner == nation_id || !ai_s_native_col1) {
-    return 0;
-  }
-  /*
-   * 2026-08-27, later: seed-100 TURN2->3 golden (Aztec Brave at (47,15) next
-   * to an unmet Dutch unit at (47,14)) shows DOS does NOT pull a quiet Brave
-   * toward a foreign Euro tile — the arm belongs to the Euro land path of
-   * 20e6, and the Brave quiet arm rejects foreign-owned tiles as the port
-   * always did. Keep the arm for Euro movers only.
-   */
-  if (nation_id >= 4) {
-    return 0;
-  }
-  const ColonizeCol1Save* col1 = ai_s_native_col1;
-  const int mover = ai_unit_index_on_tile(units, x, y);
-  const int dest_unit = ai_unit_index_on_tile(units, dest_x, dest_y);
-  const int mover_type = mover >= 0 ? units->units[mover].type_index : -1;
-  const int dest_type = dest_unit >= 0 ? units->units[dest_unit].type_index : -1;
-  int at_peace = 0;
-  if (nation_id >= 4 && nation_id <= 11) {
-    at_peace = (col1->indian[nation_id - 4].euro_diplo[owner] & COL1_INDIAN_PEACE_BIT) != 0;
-  } else if (nation_id >= 0 && nation_id < 4) {
-    at_peace = (col1->nation[nation_id].euro_relation[owner] & 0x40) != 0;
-  }
-  if (at_peace && mover_type != 0x10 && dest_type != 0x10) {
-    return 0;
-  }
-  if (col1->head.game_options.woi && owner != (int)col1->head.human_player) {
-    return 0;
-  }
-  (void)map;
-  return 1;
-}
-
-int ai_native_foreign_euro_pull(
-  const ColonizeWorldMap* map, const ColonizeUnitPool* units, int x, int y, int nation_id,
-  int dest_x, int dest_y, int score
-) {
-  const int mover = ai_unit_index_on_tile(units, x, y);
-  if (mover < 0) {
-    return score;
-  }
-  const ColonizeUnit* u = &units->units[mover];
-  const ColonizeUnitType* t = units_type(units, u->type_index);
-  if (!t || t->attack == 0) {
-    return score;
-  }
-  ColonizeCombatStrengthCtx sctx;
-  sctx.units = units;
-  sctx.map = map;
-  sctx.colonies = ai_s_native_colonies;
-  sctx.col1 = ai_s_native_col1;
-  /* FUN_5fef_1b0e vs the tile: engage the stack there when it has one, else
-   * the open-field attacker formula ((stash 0 + 4) * base >> 2) * 3 >> 1. */
-  int strength;
-  const int dest_unit = ai_unit_index_on_tile(units, dest_x, dest_y);
-  if (dest_unit >= 0) {
-    ColonizeCombatEngageResult r;
-    memset(&r, 0, sizeof(r));
-    combat_land_engage(&sctx, mover, dest_unit, &r);
-    strength = r.atk_strength;
-  } else {
-    strength = ((4 * combat_unit_base_x8(&sctx, mover, 1, NULL)) >> 2) * 3 >> 1;
-  }
-  int stack_cost = 0;
-  int stack_military = 0;
-  for (int i = 0; i < units_slot_end(units); ++i) {
-    const ColonizeUnit* o = &units->units[i];
-    if (!o->active || o->aboard_ship_id >= 0 || o->x != x || o->y != y) {
-      continue;
-    }
-    const ColonizeUnitType* ot = units_type(units, o->type_index);
-    stack_cost += ot ? ot->cost : 0;
-    if (o->type_index == UNITS_KIND_SOLDIER || o->type_index == UNITS_KIND_DRAGOON ||
-        (o->type_index >= 6 && o->type_index <= 9)) {
-      stack_military++;
-    }
-  }
-  if (stack_military < 1) {
-    stack_military = 1;
-  }
-  int divisor = t->cost;
-  if (divisor < 1) {
-    divisor = 1;
-  }
-  int attack_strength_score = ((stack_cost + 1) / stack_military) * strength / divisor;
-  int bonus = 0;
-  if (ai_s_native_colonies && colonies_id_at(ai_s_native_colonies, dest_x, dest_y) >= 0) {
-    attack_strength_score *= 3;
-    bonus = 1;
-  }
-  if (map_coords_inset(map, dest_x, dest_y) && (ai_layer2_at(map, dest_x, dest_y) & 2u) != 0) {
-    attack_strength_score <<= 1;
-    bonus = 1;
-  }
-  if (u->type_index == UNITS_KIND_ARTILLERY && !bonus) {
-    attack_strength_score = 0;
-  }
-  if (ai_s_native_col1 && nation_id == (int)ai_s_native_col1->head.crown_nation_id && !bonus &&
-      ai_s_native_home_dist == 0) {
-    attack_strength_score >>= 1;
-  }
-  if (attack_strength_score > 999 || attack_strength_score < 0) {
-    attack_strength_score = 1000;
-  }
-  if (attack_strength_score < 0xc && (u->type_index < 0xd || u->type_index > 0x12)) {
-    return score - 999;
-  }
-  if (attack_strength_score < 1) {
-    attack_strength_score = 1;
-  }
-  return score + attack_strength_score * 4;
-}
 
 /* Sentinel for a direction the ASM scorer rejected outright (was `continue;`). */

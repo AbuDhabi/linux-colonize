@@ -1,4 +1,5 @@
 #include "test_units_common.h"
+#include "../common/test_runner.h"
 
 static int g_refit_sound_id;
 static int g_refit_sound_calls;
@@ -129,7 +130,6 @@ static int unit_refit_drydock(void) {
   }
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
-  memset(&pool, 0, sizeof(pool));
   if (!units_load_types(&pool, &names)) {
     fprintf(stderr, "refit: units_load_types failed\n");
     assets_msg_free(&names);
@@ -235,7 +235,6 @@ static int unit_warehouse_full(void) {
   }
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
-  memset(&pool, 0, sizeof(pool));
   if (!units_load_types(&pool, &names)) {
     fprintf(stderr, "whfull: units_load_types failed\n");
     assets_msg_free(&names);
@@ -336,7 +335,6 @@ static int unit_warehouse_full(void) {
  */
 static int unit_sea_lane_entry(void) {
   ColonizeUnitPool pool;
-  memset(&pool, 0, sizeof(pool));
   memset(&pool, 0, sizeof(pool));
   pool.type_count = 1;
   snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Caravel");
@@ -774,7 +772,6 @@ static int unit_king_galleon_offer(void) {
   }
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
-  memset(&pool, 0, sizeof(pool));
   if (!units_load_types(&pool, &names)) {
     fprintf(stderr, "galleon: units_load_types failed\n");
     assets_msg_free(&names);
@@ -942,43 +939,15 @@ fail:
   assets_msg_free(&names);
   return 1;
 }
-int main(void) {
-  diag_init(0, NULL);
-  if (unit_europe_transfer_at_dos_cap() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_king_galleon_offer() != 0) {
-    return 1;
-  }
-  if (unit_refit_drydock() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_warehouse_full() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_sea_lane_entry() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_amphibious_landfirst() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_own_colony_dock_ignores_squatter() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_europe_arrival_reveals() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_spawn_room_dos_gates() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  diag_shutdown();
-  return 0;
-}
+static const TestCase k_cases[] = {
+  {"unit_europe_transfer_at_dos_cap", unit_europe_transfer_at_dos_cap},
+  {"unit_king_galleon_offer", unit_king_galleon_offer},
+  {"unit_refit_drydock", unit_refit_drydock},
+  {"unit_warehouse_full", unit_warehouse_full},
+  {"unit_sea_lane_entry", unit_sea_lane_entry},
+  {"unit_amphibious_landfirst", unit_amphibious_landfirst},
+  {"unit_own_colony_dock_ignores_squatter", unit_own_colony_dock_ignores_squatter},
+  {"unit_europe_arrival_reveals", unit_europe_arrival_reveals},
+  {"unit_spawn_room_dos_gates", unit_spawn_room_dos_gates},
+};
+TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

@@ -24,17 +24,8 @@ static int case_revolution_lose2_no_colonies(void) {
     colonies_set_occupancy_map(NULL);
     ColonizeWorldMap emap;
     memset(&emap, 0, sizeof(emap));
-    emap.width = 16;
-    emap.height = 16;
-    emap.tile_count = 256;
-    emap.terrain = calloc(256, 1);
-    emap.layer2 = calloc(256, 1);
-    emap.layer3 = calloc(256, 1);
-    if (!emap.terrain || !emap.layer2 || !emap.layer3) {
+    if (!fx_map_alloc(&emap, 16, 16, 1, false)) {
       return fail("rev-lose2 alloc");
-    }
-    for (int i = 0; i < 256; ++i) {
-      emap.terrain[i] = 1;
     }
 
     ColonizeUnitPool eu;
@@ -45,9 +36,7 @@ static int case_revolution_lose2_no_colonies(void) {
     ColonizeMsgCatalog game_txt;
     memset(&game_txt, 0, sizeof(game_txt));
     if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("rev-lose2: GAME.TXT load failed");
     }
     AiPopupState pop;
@@ -75,17 +64,13 @@ static int case_revolution_lose2_no_colonies(void) {
       fprintf(stderr, "unit_ai_king: rev-lose2 endgame=%d status='%s'\n",
               ai_king_latch_get(&end, 4), estatus);
       assets_msg_free(&game_txt);
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("WoI + REF + no colonies should latch revolution lost");
     }
     if (!strstr(estatus, "control all colonies")) {
       fprintf(stderr, "unit_ai_king: rev-lose2 status: '%s'\n", estatus);
       assets_msg_free(&game_txt);
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("rev-lose2 should set @LOSING2 status");
     }
     {
@@ -101,16 +86,12 @@ static int case_revolution_lose2_no_colonies(void) {
       }
       if (!found) {
         assets_msg_free(&game_txt);
-        free(emap.terrain);
-        free(emap.layer2);
-        free(emap.layer3);
+        fx_map_free(&emap);
         return fail("rev-lose2 should enqueue @LOSING2 INFO OK");
       }
     }
     assets_msg_free(&game_txt);
-    free(emap.terrain);
-    free(emap.layer2);
-    free(emap.layer3);
+    fx_map_free(&emap);
     fprintf(stderr, "unit_ai_king: revolution lose2 (no colonies) ok\n");
   return 0;
 }
@@ -137,17 +118,8 @@ static int case_revolution_lose1_no_ports(void) {
     colonies_set_occupancy_map(NULL);
     ColonizeWorldMap emap;
     memset(&emap, 0, sizeof(emap));
-    emap.width = 16;
-    emap.height = 16;
-    emap.tile_count = 256;
-    emap.terrain = calloc(256, 1);
-    emap.layer2 = calloc(256, 1);
-    emap.layer3 = calloc(256, 1);
-    if (!emap.terrain || !emap.layer2 || !emap.layer3) {
+    if (!fx_map_alloc(&emap, 16, 16, 1, false)) {
       return fail("rev-lose1 alloc");
-    }
-    for (int i = 0; i < 256; ++i) {
-      emap.terrain[i] = 1; /* all land — inland colony is non-coastal */
     }
     {
       ColonizeColony* c = &cp.colonies[0];
@@ -167,9 +139,7 @@ static int case_revolution_lose1_no_ports(void) {
     ColonizeMsgCatalog game_txt;
     memset(&game_txt, 0, sizeof(game_txt));
     if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("rev-lose1: GAME.TXT load failed");
     }
     AiPopupState pop;
@@ -197,17 +167,13 @@ static int case_revolution_lose1_no_ports(void) {
       fprintf(stderr, "unit_ai_king: rev-lose1 endgame=%d status='%s'\n",
               ai_king_latch_get(&end, 4), estatus);
       assets_msg_free(&game_txt);
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("WoI + REF + inland-only should latch revolution lost via ports");
     }
     if (!strstr(estatus, "control all ports") && !strstr(estatus, "ports in")) {
       fprintf(stderr, "unit_ai_king: rev-lose1 status: '%s'\n", estatus);
       assets_msg_free(&game_txt);
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("rev-lose1 should set @LOSING1 status");
     }
     {
@@ -223,16 +189,12 @@ static int case_revolution_lose1_no_ports(void) {
       }
       if (!found) {
         assets_msg_free(&game_txt);
-        free(emap.terrain);
-        free(emap.layer2);
-        free(emap.layer3);
+        fx_map_free(&emap);
         return fail("rev-lose1 should enqueue @LOSING1 INFO OK");
       }
     }
     assets_msg_free(&game_txt);
-    free(emap.terrain);
-    free(emap.layer2);
-    free(emap.layer3);
+    fx_map_free(&emap);
     fprintf(stderr, "unit_ai_king: revolution lose1 (no ports, inland left) ok\n");
   return 0;
 }
@@ -261,17 +223,8 @@ static int case_revolution_warn_one_colony(void) {
     colonies_set_occupancy_map(NULL);
     ColonizeWorldMap emap;
     memset(&emap, 0, sizeof(emap));
-    emap.width = 16;
-    emap.height = 16;
-    emap.tile_count = 256;
-    emap.terrain = calloc(256, 1);
-    emap.layer2 = calloc(256, 1);
-    emap.layer3 = calloc(256, 1);
-    if (!emap.terrain || !emap.layer2 || !emap.layer3) {
+    if (!fx_map_alloc(&emap, 16, 16, 25, false)) {
       return fail("warn1 alloc");
-    }
-    for (int i = 0; i < 256; ++i) {
-      emap.terrain[i] = 25; /* ocean */
     }
     emap.terrain[5 + 5 * 16] = 1;
     emap.terrain[6 + 5 * 16] = 25; /* coast neighbor for (5,5) */
@@ -310,9 +263,7 @@ static int case_revolution_warn_one_colony(void) {
     ColonizeMsgCatalog game_txt;
     memset(&game_txt, 0, sizeof(game_txt));
     if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("warn1: GAME.TXT load failed");
     }
     AiPopupState pop;
@@ -340,31 +291,23 @@ static int case_revolution_warn_one_colony(void) {
       fprintf(stderr, "unit_ai_king: warn1 endgame=%d status='%s'\n",
               ai_king_latch_get(&end, 4), estatus);
       assets_msg_free(&game_txt);
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("warn1 must not latch endgame");
     }
     if (ai_king_latch_get(&end, 6) != 0) {
       assets_msg_free(&game_txt);
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("colonies<3 outranks ports<3: market_demand_pool_raw[6] must stay clear");
     }
     if (ai_king_latch_get(&end, 7) != 1) {
       assets_msg_free(&game_txt);
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("warn2 should set market_demand_pool_raw[7] episode latch");
     }
     if (!strstr(estatus, "all but 1") || !strstr(estatus, "lose the war")) {
       fprintf(stderr, "unit_ai_king: warn2 status: '%s'\n", estatus);
       assets_msg_free(&game_txt);
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("warn2 should set @WARN2 status");
     }
     {
@@ -387,16 +330,12 @@ static int case_revolution_warn_one_colony(void) {
       }
       if (!found_col) {
         assets_msg_free(&game_txt);
-        free(emap.terrain);
-        free(emap.layer2);
-        free(emap.layer3);
+        fx_map_free(&emap);
         return fail("warn2 should enqueue @WARN2 INFO OK");
       }
       if (found_port) {
         assets_msg_free(&game_txt);
-        free(emap.terrain);
-        free(emap.layer2);
-        free(emap.layer3);
+        fx_map_free(&emap);
         return fail("DOS shows one @WARN%d per turn: @WARN1 must not join @WARN2");
       }
     }
@@ -408,9 +347,7 @@ static int case_revolution_warn_one_colony(void) {
       ai_king_nation_turn(&ectx);
       if (ai_king_latch_get(&end, 7) != 1) {
         assets_msg_free(&game_txt);
-        free(emap.terrain);
-        free(emap.layer2);
-        free(emap.layer3);
+        fx_map_free(&emap);
         return fail("warn latch should remain while one colony left");
       }
       int rewarn = 0;
@@ -423,9 +360,7 @@ static int case_revolution_warn_one_colony(void) {
       }
       if (rewarn) {
         assets_msg_free(&game_txt);
-        free(emap.terrain);
-        free(emap.layer2);
-        free(emap.layer3);
+        fx_map_free(&emap);
         return fail("warn2 must not re-enqueue while latched");
       }
     }
@@ -452,9 +387,7 @@ static int case_revolution_warn_one_colony(void) {
       ai_king_nation_turn(&ectx);
       if (ai_king_latch_get(&end, 6) != 0 || ai_king_latch_get(&end, 7) != 0) {
         assets_msg_free(&game_txt);
-        free(emap.terrain);
-        free(emap.layer2);
-        free(emap.layer3);
+        fx_map_free(&emap);
         return fail("warn latches should clear when ports/colonies>1");
       }
       c2->active = false;
@@ -465,9 +398,7 @@ static int case_revolution_warn_one_colony(void) {
       ai_king_nation_turn(&ectx);
       if (ai_king_latch_get(&end, 7) != 1) {
         assets_msg_free(&game_txt);
-        free(emap.terrain);
-        free(emap.layer2);
-        free(emap.layer3);
+        fx_map_free(&emap);
         return fail("warn should re-latch after reclaim then drop to one");
       }
       int found_port = 0;
@@ -487,17 +418,13 @@ static int case_revolution_warn_one_colony(void) {
       }
       if (!found_col || found_port) {
         assets_msg_free(&game_txt);
-        free(emap.terrain);
-        free(emap.layer2);
-        free(emap.layer3);
+        fx_map_free(&emap);
         return fail("@WARN2 alone should re-enqueue after the reclaim episode");
       }
     }
 
     assets_msg_free(&game_txt);
-    free(emap.terrain);
-    free(emap.layer2);
-    free(emap.layer3);
+    fx_map_free(&emap);
     fprintf(stderr, "unit_ai_king: revolution warn selector (one colony) ok\n");
   return 0;
 }
@@ -525,17 +452,8 @@ static int case_revolution_warn3_pop_share(void) {
     colonies_set_occupancy_map(NULL);
     ColonizeWorldMap emap;
     memset(&emap, 0, sizeof(emap));
-    emap.width = 16;
-    emap.height = 16;
-    emap.tile_count = 256;
-    emap.terrain = calloc(256, 1);
-    emap.layer2 = calloc(256, 1);
-    emap.layer3 = calloc(256, 1);
-    if (!emap.terrain || !emap.layer2 || !emap.layer3) {
+    if (!fx_map_alloc(&emap, 16, 16, 25, false)) {
       return fail("warn3 alloc");
-    }
-    for (int i = 0; i < 256; ++i) {
-      emap.terrain[i] = 25;
     }
     /*
      * THREE human coastal colonies (the colonies<3 test is the last write in
@@ -604,9 +522,7 @@ static int case_revolution_warn3_pop_share(void) {
     ColonizeMsgCatalog game_txt;
     memset(&game_txt, 0, sizeof(game_txt));
     if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("warn3: GAME.TXT load failed");
     }
     AiPopupState pop;
@@ -632,16 +548,12 @@ static int case_revolution_warn3_pop_share(void) {
     ai_king_nation_turn(&ectx);
     if (ai_king_latch_get(&end, 4) != 0) {
       assets_msg_free(&game_txt);
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("warn3 must not latch endgame");
     }
     if (ai_king_latch_get(&end, 10) != 1) {
       assets_msg_free(&game_txt);
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("warn3 should set market_demand_pool_raw[10] episode latch");
     }
     {
@@ -657,9 +569,7 @@ static int case_revolution_warn3_pop_share(void) {
       }
       if (!found) {
         assets_msg_free(&game_txt);
-        free(emap.terrain);
-        free(emap.layer2);
-        free(emap.layer3);
+        fx_map_free(&emap);
         return fail("warn3 should enqueue @WARN3 INFO OK");
       }
     }
@@ -678,9 +588,7 @@ static int case_revolution_warn3_pop_share(void) {
       }
       if (re) {
         assets_msg_free(&game_txt);
-        free(emap.terrain);
-        free(emap.layer2);
-        free(emap.layer3);
+        fx_map_free(&emap);
         return fail("warn3 must not re-enqueue while latched");
       }
     }
@@ -690,9 +598,7 @@ static int case_revolution_warn3_pop_share(void) {
     ai_king_nation_turn(&ectx);
     if (ai_king_latch_get(&end, 10) != 0) {
       assets_msg_free(&game_txt);
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("warn3 latch should clear when pop share <80%");
     }
     cp.colonies[3].population = 232; /* crown back to 85% under the DOS +1 formula */
@@ -701,9 +607,7 @@ static int case_revolution_warn3_pop_share(void) {
     ai_king_nation_turn(&ectx);
     if (ai_king_latch_get(&end, 10) != 1) {
       assets_msg_free(&game_txt);
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("warn3 should re-latch after share returns to 80–89%");
     }
     {
@@ -718,16 +622,12 @@ static int case_revolution_warn3_pop_share(void) {
       }
       if (!found) {
         assets_msg_free(&game_txt);
-        free(emap.terrain);
-        free(emap.layer2);
-        free(emap.layer3);
+        fx_map_free(&emap);
         return fail("warn3 should re-enqueue after reclaim episode");
       }
     }
     assets_msg_free(&game_txt);
-    free(emap.terrain);
-    free(emap.layer2);
-    free(emap.layer3);
+    fx_map_free(&emap);
     fprintf(stderr, "unit_ai_king: revolution warn3 (pop share) ok\n");
   return 0;
 }
@@ -754,17 +654,8 @@ static int case_revolution_lose3_pop_share(void) {
     colonies_set_occupancy_map(NULL);
     ColonizeWorldMap emap;
     memset(&emap, 0, sizeof(emap));
-    emap.width = 16;
-    emap.height = 16;
-    emap.tile_count = 256;
-    emap.terrain = calloc(256, 1);
-    emap.layer2 = calloc(256, 1);
-    emap.layer3 = calloc(256, 1);
-    if (!emap.terrain || !emap.layer2 || !emap.layer3) {
+    if (!fx_map_alloc(&emap, 16, 16, 25, false)) {
       return fail("lose3 alloc");
-    }
-    for (int i = 0; i < 256; ++i) {
-      emap.terrain[i] = 25;
     }
     emap.terrain[5 + 5 * 16] = 1;
     emap.terrain[6 + 5 * 16] = 25;
@@ -807,9 +698,7 @@ static int case_revolution_lose3_pop_share(void) {
     ColonizeMsgCatalog game_txt;
     memset(&game_txt, 0, sizeof(game_txt));
     if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("lose3: GAME.TXT load failed");
     }
     AiPopupState pop;
@@ -837,17 +726,13 @@ static int case_revolution_lose3_pop_share(void) {
       fprintf(stderr, "unit_ai_king: lose3 endgame=%d status='%s'\n",
               ai_king_latch_get(&end, 4), estatus);
       assets_msg_free(&game_txt);
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("crown pop ≥90% should latch revolution lost via @LOSING3");
     }
     if (!strstr(estatus, "over 90%") && !strstr(estatus, "90% of")) {
       fprintf(stderr, "unit_ai_king: lose3 status: '%s'\n", estatus);
       assets_msg_free(&game_txt);
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("lose3 should set @LOSING3 status");
     }
     {
@@ -863,16 +748,12 @@ static int case_revolution_lose3_pop_share(void) {
       }
       if (!found) {
         assets_msg_free(&game_txt);
-        free(emap.terrain);
-        free(emap.layer2);
-        free(emap.layer3);
+        fx_map_free(&emap);
         return fail("lose3 should enqueue @LOSING3 INFO OK");
       }
     }
     assets_msg_free(&game_txt);
-    free(emap.terrain);
-    free(emap.layer2);
-    free(emap.layer3);
+    fx_map_free(&emap);
     fprintf(stderr, "unit_ai_king: revolution lose3 (pop share) ok\n");
   return 0;
 }
@@ -896,17 +777,8 @@ static int case_revolution_win_1850(void) {
     colonies_set_occupancy_map(NULL);
     ColonizeWorldMap emap;
     memset(&emap, 0, sizeof(emap));
-    emap.width = 16;
-    emap.height = 16;
-    emap.tile_count = 256;
-    emap.terrain = calloc(256, 1);
-    emap.layer2 = calloc(256, 1);
-    emap.layer3 = calloc(256, 1);
-    if (!emap.terrain) {
+    if (!fx_map_alloc(&emap, 16, 16, 25, false)) {
       return fail("rev-win alloc");
-    }
-    for (int i = 0; i < 256; ++i) {
-      emap.terrain[i] = 25; /* ocean */
     }
     emap.terrain[5 + 5 * 16] = 1;
     emap.terrain[6 + 5 * 16] = 25; /* coast neighbor */
@@ -930,9 +802,7 @@ static int case_revolution_win_1850(void) {
     ColonizeMsgCatalog game_txt;
     memset(&game_txt, 0, sizeof(game_txt));
     if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("rev-win: GAME.TXT load failed");
     }
     AiPopupState pop;
@@ -960,9 +830,7 @@ static int case_revolution_win_1850(void) {
       fprintf(stderr, "unit_ai_king: rev-win endgame=%d status='%s'\n",
               ai_king_latch_get(&end, 4), estatus);
       assets_msg_free(&game_txt);
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("WoI + 1850 + no crown units should latch revolution won");
     }
     if (!strstr(estatus, "Expeditionary Force annihilated") &&
@@ -970,9 +838,7 @@ static int case_revolution_win_1850(void) {
         !strstr(estatus, "annihilated")) {
       fprintf(stderr, "unit_ai_king: rev-win status: '%s'\n", estatus);
       assets_msg_free(&game_txt);
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("rev-win should set @WINNING status");
     }
     {
@@ -989,9 +855,7 @@ static int case_revolution_win_1850(void) {
       }
       if (!found) {
         assets_msg_free(&game_txt);
-        free(emap.terrain);
-        free(emap.layer2);
-        free(emap.layer3);
+        fx_map_free(&emap);
         return fail("rev-win should enqueue @WINNING INFO OK");
       }
     }
@@ -1010,9 +874,7 @@ static int case_revolution_win_1850(void) {
           if (pop.queue[i].payload != 1 ||
               !strstr(pop.queue[i].body, "go your own way")) {
             assets_msg_free(&game_txt);
-            free(emap.terrain);
-            free(emap.layer2);
-            free(emap.layer3);
+            fx_map_free(&emap);
             return fail("rev-win throne audience should carry @KINGLOSE, payload 1");
           }
         }
@@ -1021,16 +883,12 @@ static int case_revolution_win_1850(void) {
         fprintf(stderr, "unit_ai_king: rev-win order win_at=%d throne_at=%d\n", win_at,
                 throne_at);
         assets_msg_free(&game_txt);
-        free(emap.terrain);
-        free(emap.layer2);
-        free(emap.layer3);
+        fx_map_free(&emap);
         return fail("rev-win: @WINNING must precede the @KINGLOSE throne audience");
       }
     }
     assets_msg_free(&game_txt);
-    free(emap.terrain);
-    free(emap.layer2);
-    free(emap.layer3);
+    fx_map_free(&emap);
     fprintf(stderr, "unit_ai_king: revolution win (1850) ok\n");
   return 0;
 }
@@ -1057,17 +915,8 @@ static int case_revolution_retiring2_1850_stalemate(void) {
     colonies_set_occupancy_map(NULL);
     ColonizeWorldMap emap;
     memset(&emap, 0, sizeof(emap));
-    emap.width = 16;
-    emap.height = 16;
-    emap.tile_count = 256;
-    emap.terrain = calloc(256, 1);
-    emap.layer2 = calloc(256, 1);
-    emap.layer3 = calloc(256, 1);
-    if (!emap.terrain || !emap.layer2 || !emap.layer3) {
+    if (!fx_map_alloc(&emap, 16, 16, 25, false)) {
       return fail("retiring2 alloc");
-    }
-    for (int i = 0; i < 256; ++i) {
-      emap.terrain[i] = 25;
     }
     emap.terrain[5 + 5 * 16] = 1;
     emap.terrain[6 + 5 * 16] = 25;
@@ -1102,9 +951,7 @@ static int case_revolution_retiring2_1850_stalemate(void) {
     ColonizeMsgCatalog game_txt;
     memset(&game_txt, 0, sizeof(game_txt));
     if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("retiring2: GAME.TXT load failed");
     }
     AiPopupState pop;
@@ -1132,24 +979,18 @@ static int case_revolution_retiring2_1850_stalemate(void) {
       fprintf(stderr, "unit_ai_king: retiring2 endgame=%d status='%s'\n",
               ai_king_latch_get(&end, 4), estatus);
       assets_msg_free(&game_txt);
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("1850 + crown alive should latch revolution lost via @RETIRING2");
     }
     if (ai_king_latch_get(&end, 1) != 0) {
       assets_msg_free(&game_txt);
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("@RETIRING2 should clear REF-present");
     }
     if (!strstr(estatus, "sues for peace") && !strstr(estatus, "War-weary")) {
       fprintf(stderr, "unit_ai_king: retiring2 status: '%s'\n", estatus);
       assets_msg_free(&game_txt);
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("1850 stalemate should set @RETIRING2 status");
     }
     {
@@ -1166,16 +1007,12 @@ static int case_revolution_retiring2_1850_stalemate(void) {
       }
       if (!found) {
         assets_msg_free(&game_txt);
-        free(emap.terrain);
-        free(emap.layer2);
-        free(emap.layer3);
+        fx_map_free(&emap);
         return fail("1850 stalemate should enqueue @RETIRING2 INFO OK");
       }
     }
     assets_msg_free(&game_txt);
-    free(emap.terrain);
-    free(emap.layer2);
-    free(emap.layer3);
+    fx_map_free(&emap);
     fprintf(stderr, "unit_ai_king: revolution retiring2 (1850 stalemate) ok\n");
   return 0;
 }
@@ -1425,17 +1262,8 @@ static int case_wartime_soonretiring1_1840(void) {
     colonies_set_occupancy_map(NULL);
     ColonizeWorldMap emap;
     memset(&emap, 0, sizeof(emap));
-    emap.width = 16;
-    emap.height = 16;
-    emap.tile_count = 256;
-    emap.terrain = calloc(256, 1);
-    emap.layer2 = calloc(256, 1);
-    emap.layer3 = calloc(256, 1);
-    if (!emap.terrain || !emap.layer2 || !emap.layer3) {
+    if (!fx_map_alloc(&emap, 16, 16, 25, false)) {
       return fail("soon1 alloc");
-    }
-    for (int i = 0; i < 256; ++i) {
-      emap.terrain[i] = 25;
     }
     emap.terrain[5 + 5 * 16] = 1;
     emap.terrain[6 + 5 * 16] = 25;
@@ -1467,9 +1295,7 @@ static int case_wartime_soonretiring1_1840(void) {
     ColonizeMsgCatalog game_txt;
     memset(&game_txt, 0, sizeof(game_txt));
     if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("soon1: GAME.TXT load failed");
     }
     AiPopupState pop;
@@ -1495,17 +1321,13 @@ static int case_wartime_soonretiring1_1840(void) {
     ai_king_nation_turn(&ectx);
     if (ai_king_latch_get(&end, 9) != 1) {
       assets_msg_free(&game_txt);
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("1840 WoI should set market_demand_pool_raw[9] @SOONRETIRING1 latch");
     }
     if (!strstr(estatus, "weary of this long war") && !strstr(estatus, "1850")) {
       fprintf(stderr, "unit_ai_king: soon1 status: '%s'\n", estatus);
       assets_msg_free(&game_txt);
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("1840 should set @SOONRETIRING1 status");
     }
     {
@@ -1520,9 +1342,7 @@ static int case_wartime_soonretiring1_1840(void) {
       }
       if (!found) {
         assets_msg_free(&game_txt);
-        free(emap.terrain);
-        free(emap.layer2);
-        free(emap.layer3);
+        fx_map_free(&emap);
         return fail("1840 should enqueue @SOONRETIRING1 INFO OK");
       }
     }
@@ -1540,16 +1360,12 @@ static int case_wartime_soonretiring1_1840(void) {
       }
       if (re) {
         assets_msg_free(&game_txt);
-        free(emap.terrain);
-        free(emap.layer2);
-        free(emap.layer3);
+        fx_map_free(&emap);
         return fail("@SOONRETIRING1 must not re-enqueue while latched");
       }
     }
     assets_msg_free(&game_txt);
-    free(emap.terrain);
-    free(emap.layer2);
-    free(emap.layer3);
+    fx_map_free(&emap);
     fprintf(stderr, "unit_ai_king: wartime @SOONRETIRING1 (1840) ok\n");
   return 0;
 }

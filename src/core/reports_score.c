@@ -508,12 +508,14 @@ void reports_render_score(
       (human >= 0 && human < (int)COLONIZE_COL1_NATION_COUNT && col1->player[human].name[0])
         ? col1->player[human].name
         : "";
+    char of_the[32];
     snprintf(
       line,
       line_sz,
-      "%s %s of the %s:  %s %d",
+      "%s %s %s %s:  %s %d",
       diff_name,
       leader,
+      reports_misc_word(19, "", of_the, sizeof(of_the)), /* LABELS @MISC 19 */
       nation_adj,
       reports_season_name(col1->head.autumn), /* NAMES.TXT @SEASONS rows 0/1 */
       sc.year
@@ -681,9 +683,11 @@ void reports_render_score(
     colors[n_lines++] = REPORTS_SCORE_GREEN_COLOR;
   }
   if (col1->head.game_options.ref_present && col1->nation[human].liberty_bells_pool >= 100) {
-    /* DOS label is a runtime pointer (DS:0x97e4) outside the @MISC table;
-     * text unresolved statically. */
-    snprintf(lines[n_lines], sizeof(lines[0]), "Liberty Bells:  +%d", sc.bells_pts);
+    /* DOS label is the runtime pointer DS:0x97e4 — the NAMES.TXT @CARGO name
+     * table (DS:0x97de = row 15 Muskets, docs/combat_analysis.md; 2-byte
+     * stride) at row 18, "Liberty Bells". */
+    const char* bells = reports_names_field("CARGO", 18, 0);
+    snprintf(lines[n_lines], sizeof(lines[0]), "%s:  +%d", bells ? bells : "", sc.bells_pts);
     colors[n_lines++] = REPORTS_SCORE_GREEN_COLOR;
   }
   if (sc.independence_achieved) {

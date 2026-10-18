@@ -89,7 +89,7 @@ static int ai_dos_move_spent(
  * max MP = 3 for a Brave). Both TURN2->3 rows had an unmet Euro land unit
  * adjacent to the dest tile (France soldier at (50,38); Spain units at
  * (47,53)/(47,54)) — Euro phase runs BEFORE the Indian phase (dump_1816 /
- * vr_2a02_v3). Ported in ai_contact_indian_meet_trade's first-meet arm; the
+ * vr_2a02_v3). Ported in ai_native_step_first_contact (below); the
  * AI_EMPIRICISM-only Brave end-state overlay tables that stood in for it were
  * deleted 2026-09-14 with the rest of the empirical picker. */
 
@@ -175,11 +175,8 @@ static bool ai_init_sched_apply(AiRng* rng, int nation_id, int brave_index) {
  * The four 021a/§8 deltas above the pulse loop (per-attempt act counter +
  * 0x14 cap, full-byte facing write incl. stay=8, homeless despawn, in-field
  * arm/mount on stay) were WIRED 2026-09-08 — see the inline citations in
- * ai_native_nation_pulse. Two deliberate port guards, documented inline:
- * the stay/move orders latch only touches NONE/FORTIFY/FORTIFIED (DOS
- * escorts leave 021a via the raid dispatch, never the wander tail, so the
- * OpenCol FOLLOW/GOTO machinery must survive the latch), and a Brave upgraded
- * to a mounted type keeps this pulse's starting max MP until the next turn
+ * ai_native_nation_pulse. One deliberate port guard, documented inline: a
+ * Brave upgraded to a mounted type keeps this pulse's starting max MP until the next turn
  * refresh (DOS re-reads 090c per act).
  */
 /* Pre-pulse Brave tiles for this turn — see ai_native_brave_turn_origin. */
@@ -379,7 +376,7 @@ COLONIZE_INTERNAL int ai_465b_dest_owner(
  */
 COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
   ColonizeUnitPool* units, ColonizeWorldMap* map, ColonizeCol1Save* col1, AiRng* rng,
-  int nation_id, bool seed100_init_burns, ColonizeUnit* u, int hx, int hy, int tech,
+  int nation_id, bool seed100_init_burns, ColonizeUnit* u,
   int max_mp, int brave_index, int* steps
 ) {
   /* FUN_281f_097a / 1427_13b0: act while moves_spent < this type's max MP.
@@ -396,7 +393,7 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
    */
   u->col1_counter16++;
   if (u->col1_counter16 > 0x14) {
-    u->moves = max_mp;
+    units_mp_exhaust(units, u);
     u->col1_counter16 = 0;
     return AI_NATIVE_STEP_STOP;
   }
@@ -435,8 +432,6 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
   if (seed100_init_burns && *steps == 0) {
     (void)ai_init_sched_apply(rng, nation_id, brave_index);
   }
-  ai_s_native_home_dist = map_dos_dist(u->x - hx, u->y - hy); /* DS:0x8db8 */
-  (void)tech;
   Ai021aResult pick;
   int dir = ai_native_pick_dir(rng, map, units, col1, u, nation_id, last_dir, &pick);
   /* 021a:11b9 facing = the PICK, then 11c3..126e: a stay pick latches
@@ -454,26 +449,15 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
      */
     u->last_dir = 8;
     /*
-     * 021a:11cd orders latch: stay -> 5 (FORTIFY), repeat stay -> 6
-     * (FORTIFIED) — the DOS byte values equal the port enum. DOS stomps
-     * any orders byte; the port latches only over NONE/FORTIFY/FORTIFIED
-     * so the OpenCol-side FOLLOW/GOTO escort machinery survives (DOS
-     * escorts exit 021a through the raid dispatch, never this tail).
-     *
-     * bugs.md #826 asked whether a Brave can ever hold an OpenCol-only order,
-     * i.e. whether the guard can go and the latch become unconditional as
-     * at 021a:11cd/1272. It cannot: `ai_contact_raid.c` (:1809) hands an
-     * idle Brave UNITS_ORDER_FOLLOW through units_follow_unit in the §9
-     * escort peel, and that order persists into the next turn's §8 pulse.
-     * An unconditional latch would overwrite it with FORTIFY on the first
-     * stay. The guard stays; this is a recorded port adaptation, not an
-     * oversight. The same reasoning covers the three clear sites below.
+     * DOS-LITERAL 021a:11cd-11ea orders latch (ndisasm OVL13): orders 5 or 6
+     * -> 6 (FORTIFIED), anything else -> 5 (FORTIFY); the DOS byte values
+     * equal the port enum. Unconditional since bugs.md #1093 deleted the
+     * invented escort pass, the only source of an OpenCol-only Brave order
+     * (FOLLOW) the old #826 guard protected.
      */
-    if (u->orders == UNITS_ORDER_NONE || u->orders == UNITS_ORDER_FORTIFY ||
-        u->orders == UNITS_ORDER_FORTIFIED) {
-      u->orders = (u->orders == UNITS_ORDER_NONE) ? UNITS_ORDER_FORTIFY
-                                                  : UNITS_ORDER_FORTIFIED;
-    }
+    u->orders = (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED)
+                  ? UNITS_ORDER_FORTIFIED
+                  : UNITS_ORDER_FORTIFY;
     /*
      * 021a:11ef..126c in-field arm/mount, gated on standing on a
      * settlement tile owned by this nation (FUN_281f_06be
@@ -501,9 +485,7 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
     }
   } else {
     u->last_dir = dir; /* 021a:11b9 */
-    if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
-      u->orders = UNITS_ORDER_NONE; /* 021a:126e (port guard as above) */
-    }
+    u->orders = UNITS_ORDER_NONE; /* DOS-LITERAL 021a:126e-1272 */
   }
   if (col1) {
     const int picked = dir;
@@ -520,7 +502,7 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
   if (dir < 0 || dir > 7) {
     /* The stay arm can upgrade a Brave in its own village. DOS exhausts it
      * through 0934 after that upgrade, reading the new type's maximum MP. */
-    u->moves = units_max_mp(units, u->id);
+    units_mp_exhaust(units, u);
     return AI_NATIVE_STEP_STOP;
   }
   const int nx = u->x + k_ai_dir8_dx[dir];
@@ -549,8 +531,7 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
    * bugs.md #822: the >= 3-thirds limb is DOS's attack. The port routes it
    * into the same resolver every other 1b0e call site uses
    * (units_resolve_land_combat -> units_resolve_land_combat_ff_w), picking
-   * the defender with FUN_5fef_0000 (units_best_defender_at) exactly as the
-   * §9 ambush arm does. That resolver also carries 1b0e's colony limb: a
+   * the defender with FUN_5fef_0000 (units_best_defender_at). That resolver also carries 1b0e's colony limb: a
    * Brave beaten on a colony tile reaches the raid handoff units.c
    * self-registers from ai_contact_raid.c (ColonizeUnitsRaidRepelledFn), so
    * a colony target and a lone field unit both go through one path, as in
@@ -702,12 +683,12 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
       ((ai_layer2_at(map, nx, ny) & 2u) != 0 && ai_owner_nibble(map, nx, ny) >= 0 &&
        ai_owner_nibble(map, nx, ny) < 4);
     if (!from_euro_set && !to_euro_set) {
-      u->moves = max_mp;
+      units_mp_exhaust(units, u); /* 090c = FUN_1427_065a, the live max */
     }
   }
   ai_set_owner_nibble_move(map, nx, ny, nation_id);
   if (!seed100_init_burns && ai_native_step_first_contact(units, map, col1, u, nation_id)) {
-    u->moves = max_mp; /* LAB_5bfb_1005: FUN_281f_0934 on the Indian mover */
+    units_mp_exhaust(units, u); /* LAB_5bfb_1005: FUN_281f_0934 on the Indian mover */
     (*steps)++;
     return AI_NATIVE_STEP_STOP;
   }
@@ -788,8 +769,11 @@ void ai_native_nation_pulse(
    * Remember every Brave's pre-pulse tile — see ai_native_brave_turn_origin
    * in ai.h for why the §9 contact arms need it. Stamped fresh for this
    * nation's units on every pulse, and §9 runs immediately after this pulse
-   * for the same nation, so a reader never sees another nation's turn.
+   * for the same nation, so a reader never sees another nation's turn —
+   * hence drop every older stamp first: a Brave born after this pulse may
+   * carry a recycled unit id (bugs.md #1094) and must read "not pulsed".
    */
+  memset(s_brave_origin_ok, 0, sizeof(s_brave_origin_ok));
   for (int i = 0; i < units_slot_end(units); ++i) {
     ColonizeUnit* u = &units->units[i];
     if (!u->active || u->nation_id != nation_id) {
@@ -807,18 +791,11 @@ void ai_native_nation_pulse(
     if (units_is_sea(units, u->id)) {
       continue;
     }
-    int hx = u->x;
-    int hy = u->y;
-    ai_find_home_tribe(col1, u, &hx, &hy);
-    int tech = 0;
-    if (col1 && nation_id >= 4 && nation_id <= 11) {
-      tech = (int)col1->indian[nation_id - 4].tech;
-    }
     int steps = 0;
     const int max_mp = units_max_mp(units, u->id); /* FUN_281f_090c, per Brave type */
     for (;;) {
       if (ai_native_brave_step(
-            units, map, col1, rng, nation_id, seed100_init_burns, u, hx, hy, tech,
+            units, map, col1, rng, nation_id, seed100_init_burns, u,
             max_mp, brave_index, &steps
           ) == AI_NATIVE_STEP_STOP) {
         break;
@@ -979,9 +956,15 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
     ai_s_seed100_midturn_turn = (int)*ctx->turn_number;
   }
 
+  /* The 1b0e loser limb's 0f14 handoff (ai_contact_raid.c registers it from a
+   * constructor). This reference also keeps ai_contact_raid.o in every
+   * binary that runs the native pulse: the deleted raid pass used to be its
+   * only caller, and without it the static-archive link silently dropped
+   * the hook (golden_idle_continuous diverged at 1501, bugs.md #1093). */
+  units_set_colony_raid_repelled(ai_contact_colony_raid_repelled_w);
+
   /* §7–8 quiet 14fe act loop. */
   ai_s_native_colonies = ctx->colonies;
-  ai_s_native_col1 = ctx->col1_ok ? ctx->col1 : NULL;
   s_ai_native_ctx = ctx;
   ai_native_nation_pulse(
     ctx->units, ctx->map, ctx->col1_ok ? ctx->col1 : NULL, rng, nation_id, false
@@ -1001,9 +984,10 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
    * (@INDIANBEGFOOD / tribute).
    * bugs.md #824 (2026-09-23): both halves now run from the Brave's own step
    * (ai_native_step_first_contact above), which is where DOS's 022e runs.
-   * Nothing is left to do post-pulse.
+   * Nothing is left to do post-pulse. (The old post-pulse raid/escort pass,
+   * ai_contact_indian_raids, had no DOS site and was deleted, bugs.md #1093:
+   * FUN_4d56_1816 ends with the per-unit act loop.)
    */
-  ai_contact_indian_raids(ctx, nation_id);
 }
 
 /*

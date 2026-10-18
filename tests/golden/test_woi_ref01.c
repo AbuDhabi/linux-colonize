@@ -15,6 +15,7 @@
  * on the relocated king latch bytes, not the market words) is set within 40.
  */
 #include <stdio.h>
+#include "../common/test_runner.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -55,6 +56,12 @@ static int count_type(const ColonizeUnitPool* units, int nation, const char* typ
 }
 
 int main(void) {
+  {
+    const int gate = tr_single_flow_gate("woi_ref01");
+    if (gate >= 0) {
+      return gate;
+    }
+  }
   const char* path = "original_saves/colony-prod-tests/COLONY00-dutch2-t0.SAV";
   char err[256];
   ColonizeCol1Save save;

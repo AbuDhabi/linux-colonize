@@ -1055,6 +1055,8 @@ void turn_reset(void) {
   memset(turn_rank_cached, 0, sizeof turn_rank_cached);
   memset(turn_prof_census, 0, sizeof(turn_prof_census));
   turn_birth_units = NULL;
+  turn_labels = NULL;
+  g_turn_1528_last_walked_colony = NULL;
   turn_prod_only_nation = -1;
   turn_prod_only_set = false;
   turn_prod_skip_nation = -1;

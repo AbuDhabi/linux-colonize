@@ -18,10 +18,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int fail(const char* msg) {
-  fprintf(stderr, "unit_regress_production: FAIL %s\n", msg);
-  return 1;
-}
+#define TEST_NAME "unit_regress_production"
+#include "../common/test_fail.h"
 
 /*
  * #935 — colony_prod_tick_rebel_accumulators (FUN_364b_0688 Phase C, raw

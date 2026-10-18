@@ -43,10 +43,8 @@
 #define MAP_W 16
 #define MAP_H 16
 
-static int fail(const char* msg) {
-  fprintf(stderr, "unit_ai_euro_28c8_job_score: FAIL %s\n", msg);
-  return 1;
-}
+#define TEST_NAME "unit_ai_euro_28c8_job_score"
+#include "../common/test_fail.h"
 
 static void map_init(ColonizeWorldMap* map, uint8_t* terrain, uint8_t* layer2, uint8_t* layer3) {
   memset(map, 0, sizeof(*map));

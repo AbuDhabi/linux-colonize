@@ -3,22 +3,15 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/cinematic.h"
 #include "core/ff.h"
 #include "core/unit_chrome.h"
 #include "platform/platform.h"
+#include "tests/common/golden_fixture.h"
 
 bool render_load_sheet(const char* data_dir, const char* name, ColonizeSpriteSheet* out) {
-  char path[512];
-  char err[256];
   memset(out, 0, sizeof(*out));
-  if (!dos_compat_normalize_asset_path(data_dir, name, path, sizeof(path))) {
-    return false;
-  }
-  if (!ss_load(path, out, err, sizeof(err))) {
-    fprintf(stderr, "ss_load %s warning: %s\n", name, err);
-    return false;
-  }
-  return true;
+  return cinematic_load_sheet(data_dir, name, out, "render");
 }
 
 bool render_load_font(const char* data_dir, const char* name, ColonizeFont* out) {
@@ -60,21 +53,13 @@ bool render_load_save(const char* data_dir, const char* save_path, RenderSaveBun
   }
   out->labels_ok = render_load_msg(data_dir, "LABELS.TXT", &out->labels);
 
-  colonies_init(&out->colonies);
-  units_load_types(&out->units, &out->names);
-  colonies_load_buildings(&out->colonies, &out->names);
   unit_chrome_load_orders(&out->names);
-
-  if (!europe_load(&out->europe, data_dir, err, sizeof(err))) {
-    fprintf(stderr, "europe_load failed: %s\n", err);
-    return false;
-  }
-  /* Same pre-bridge reset game_apply_col1_save() does in game_loop.c. */
-  out->europe.harbor_ships = 0;
-  out->europe.dock_count = 0;
-
-  if (!col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&out->units), .colonies=(ColonizeColonyPool*)(&out->colonies), .map=(ColonizeWorldMap*)(&out->map), .col1=(ColonizeCol1Save*)(&out->save), .col1_ok=true, .europe=(EuropeScreen*)(&out->europe)}, &out->bridge, err, sizeof(err))) {
-    fprintf(stderr, "col1_bridge_apply failed: %s\n", err);
+  const SavLoad sl = {
+    .save = &out->save, .names = &out->names, .data_dir = data_dir, .units = &out->units,
+    .colonies = &out->colonies, .map = &out->map, .europe = &out->europe, .br = &out->bridge,
+  };
+  if (!sav_load_into_pools(&sl, err, sizeof(err))) {
+    fprintf(stderr, "save load failed: %s\n", err);
     return false;
   }
   return true;

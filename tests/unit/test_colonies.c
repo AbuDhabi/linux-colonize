@@ -1176,7 +1176,7 @@ static int case_colonies_core(void) {
   CHECK(!colonies_assign_workplace(&pool, cid, 0, stockade), "cannot assign to unbuilt Stockade");
 
   CHECK(
-    colonies_assign_field(&pool, cid, 0, 0, COLONIZE_JOB_FARMER),
+    colonies_assign_field_w(&(ColonizeWorld){.colonies = &pool}, cid, 0, 0, COLONIZE_JOB_FARMER),
     "assign founder to North field as Farmer"
   );
   CHECK(colonies_get(&pool, cid)->tiles[0] == 0, "tiles[0] is founder");
@@ -1193,7 +1193,6 @@ static int case_colonies_core(void) {
   /* Admit outside unit → colonist; eject colonist → outside unit. */
   {
     ColonizeUnitPool units;
-    memset(&units, 0, sizeof(units));
     memset(&units, 0, sizeof(units));
     CHECK(units_load_types(&units, &names), "load unit types for admit/eject");
     const int free_col = units_find_type(&units, "Colonists");
@@ -3189,7 +3188,7 @@ static int unit_work_plot_ring_593(void) {
   /* @JOB 8 = Expert Fisherman (the field job and the expert share the row). */
   c->colonists[0].profession = COLONIZE_JOB_FISHERMAN;
   CHECK(
-    colonies_assign_field(&pool, c->id, 0, slot_0_m2, COLONIZE_JOB_FISHERMAN),
+    colonies_assign_field_w(&(ColonizeWorld){.colonies = &pool}, c->id, 0, slot_0_m2, COLONIZE_JOB_FISHERMAN),
     "#593: a tier-4 colony can seat a colonist on slot 8"
   );
   int food = 0;
@@ -3211,7 +3210,7 @@ static int unit_work_plot_ring_593(void) {
   c->has_building[row10] = false;
   c->has_building[row11] = false;
   CHECK(
-    !colonies_assign_field(&pool, c->id, 0, slot_0_m2, COLONIZE_JOB_FISHERMAN),
+    !colonies_assign_field_w(&(ColonizeWorld){.colonies = &pool}, c->id, 0, slot_0_m2, COLONIZE_JOB_FISHERMAN),
     "#593: a tier-2 colony cannot seat outside its ring"
   );
 
@@ -3316,14 +3315,20 @@ static int case_colony_delete_appends_next(void) {
       }
     }
   }
+  if (n != 3) {
+    fprintf(stderr, "colony delete: wanted 3 colonies, founded %d\n", n);
+    return 1;
+  }
   ColonizeUnitPool units;
   memset(&units, 0, sizeof(units));
+  units_reset(&units);
   units.units[0].active = true;
+  units.units[0].id = 1;
   units.units[0].nation_id = 0;
   units.units[0].col1_origin = (uint8_t)ids[1];
-  units.slot_end = 1;
+  units_pool_sync(&units);
   colonies_set_units_context(&units);
-  int rc = n != 3 || !colonies_abandon(&pool, ids[1]);
+  int rc = !colonies_abandon(&pool, ids[1]);
   colonies_set_units_context(NULL);
   int fx = -1, fy = -1;
   for (int y = 40; y < (int)map.height - 2 && fx < 0; y += 3) {
@@ -3348,6 +3353,41 @@ static int case_colony_delete_appends_next(void) {
   }
   map_free(&map);
   return rc;
+}
+
+/*
+ * bugs.md #1108: buildability is keyed on the @BUILDING row, not the name. A
+ * catalog miss on the owned lower tier (blank Stockade name) must not read as
+ * "Stockade not owned" and hide the Fort.
+ */
+static int unit_buildable_blank_name_tier(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  pool.building_types[0].name[0] = '\0';
+  pool.building_types[0].row_plus1 = COLONY_BUILDING_STOCKADE + 1;
+  pool.building_types[0].hammers = 64;
+  snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "Fort");
+  pool.building_types[1].row_plus1 = COLONY_BUILDING_FORT + 1;
+  pool.building_types[1].hammers = 120;
+  pool.building_type_count = 2;
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->active = true;
+  c->population = 4;
+  c->building_in_production = -1;
+  c->has_building[0] = true;
+  pool.colony_count = 1;
+  /* Unit projects (wagon, ...) follow the @BUILDING rows; only the first
+   * entry is a building here. */
+  int ids[16];
+  const int n = colonies_list_buildable(&pool, 0, ids, 16, NULL);
+  if (n < 1 || ids[0] != 1) {
+    fprintf(stderr, "blank-name Stockade owned: want Fort buildable, got n=%d first=%d\n", n,
+            n > 0 ? ids[0] : -1);
+    return 1;
+  }
+  return 0;
 }
 
 static const TestCase k_cases[] = {
@@ -3375,5 +3415,6 @@ static const TestCase k_cases[] = {
     {"unit_plot_blocked_mask", unit_plot_blocked_mask},
     {"unit_work_plot_ring_593", unit_work_plot_ring_593},
     {"unit_settlement_count_and_name_peek", unit_settlement_count_and_name_peek},
+    {"unit_buildable_blank_name_tier", unit_buildable_blank_name_tier},
 };
 TEST_MAIN(k_cases)

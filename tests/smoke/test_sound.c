@@ -1,4 +1,5 @@
 #include <math.h>
+#include "../common/test_runner.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,6 +9,12 @@
 #include "platform/diagnostics.h"
 
 int main(void) {
+  {
+    const int gate = tr_single_flow_gate("sound");
+    if (gate >= 0) {
+      return gate;
+    }
+  }
   diag_init(0, NULL);
 
   if (!sound_init("./COLONIZE", true)) {

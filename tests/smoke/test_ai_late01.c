@@ -8,6 +8,7 @@
  * friction) and hunt-side (≥1 Euro military with useful goto / Brave spent).
  */
 #include "core/ai_diplo.h"
+#include "../common/test_runner.h"
 #include "core/assets.h"
 #include "core/col1_bridge.h"
 #include "core/col1_save.h"
@@ -294,6 +295,12 @@ static int run_late01_turn(ColonizeCol1Save* pre_snap) {
 }
 
 int main(void) {
+  {
+    const int gate = tr_single_flow_gate("ai_late01");
+    if (gate >= 0) {
+      return gate;
+    }
+  }
   char err[256];
 
   if (write_late01_from_mid02() != 0) {

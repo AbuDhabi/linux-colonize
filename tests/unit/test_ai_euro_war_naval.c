@@ -13,17 +13,8 @@ static int unit_naval_war_hunt(void) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 25, false)) {
     return fail("naval alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 25; /* ocean */
   }
 
   ColonizeUnitPool units;
@@ -152,17 +143,8 @@ static int unit_privateer_war_hunt(void) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 25, false)) {
     return fail("privateer alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 25; /* ocean */
   }
 
   ColonizeUnitPool units;
@@ -282,13 +264,7 @@ static int unit_privateer_station_keep_hunt(void) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 0, false)) {
     return fail("priv-sk alloc map");
   }
   for (int i = 0; i < 256; ++i) {
@@ -400,13 +376,7 @@ static int unit_naval_multistep_sail(void) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 0, false)) {
     return fail("naval-ms alloc map");
   }
   /*
@@ -553,17 +523,8 @@ static int unit_naval_ambush(void) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 25, false)) {
     return fail("ship-slow alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 25; /* ocean */
   }
 
   ColonizeUnitPool units;

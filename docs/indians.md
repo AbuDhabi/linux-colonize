@@ -118,11 +118,10 @@ the truth is the 15-entry JMPF stub table at `4d56:4c22..4c6c`,
   use-after-free in `14fe` and the port STOPs the Brave instead; the
   unconditional `facing` write including the stay value 8 (`021a:11b9` →
   `+0x314f`) — `ai_brave.c:508` (`last_dir` is the full signed byte, saved as
-  facing + facing_pad; bugs.md #846, #1046); the `orders` cower latch 5→6 on stay, 0 on move
-  (`021a:11cd`/`126e`) — `ai_brave.c:517`, latched only over
-  `NONE/FORTIFY/FORTIFIED` because the port's §9 raid escort can leave a
-  Brave holding the OpenCol-only `FOLLOW` order (`ai_contact_raid.c:1809`,
-  bugs.md #826); and the **in-field arm/mount upgrade**
+  facing + facing_pad; bugs.md #846, #1046); the `orders` cower latch on stay (5 or 6 → 6, anything else → 5) and
+  0 on move (`021a:11cd-11ea`/`1272`) — `ai_brave.c`, unconditional since
+  bugs.md #1093 deleted the raid escort that was the only source of an
+  OpenCol-only Brave order (the old #826 guard); and the **in-field arm/mount upgrade**
   (`021a:11ef..126c`) — `ai_brave.c:531`. The upgrade: a Brave that stays on its own
   tribe's tile gets type `0x13`/`0x15` → +1 when `indian+7` muskets > 0 (musket
   spent on `rng_range(0, difficulty) == 0`) and += 2 when `indian+0x0a`

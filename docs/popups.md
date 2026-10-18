@@ -311,7 +311,10 @@ combat_analysis → name_entry → howmuch → cheat_list → **ai_popups** →
 trade_screen → unit_stack (opening/closing screens gate before all of these).
 Letters typed in name/howmuch do not switch views. Every arm in this chain is
 also a `GAME_MODAL_LIST` member, so `game_modal_open()` sees it structurally —
-new modals only need to join that macro list (`game_loop.c`).
+new modals only need to join that macro list (`game_loop.c`). The open map
+pull-down (`map_menu.open_index >= 0`) is the one blocker outside the list:
+`game_modal_open` tests it after the list (bugs.md #1091) while its input
+still reaches `game_update_map_menu_bar`.
 
 **Blocking invariant (2026-09-01):** every modal blocks all simulation,
 including mid-EOT — `game_update`'s EOT branch presents queued popups/woodcuts

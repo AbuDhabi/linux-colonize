@@ -77,7 +77,11 @@ static int ai_popup_chain_key(AiPopupTag tag, int nation_a, int nation_b) {
 
 /* Enqueue (no-op if full or st NULL). Returns false if dropped. */
 static bool ai_popup_enqueue(AiPopupState* st, const AiPopupRequest* req) {
-  if (!st || !req) {
+  if (!st) {
+    return false;
+  }
+  st->last_enqueue_ok = false;
+  if (!req) {
     return false;
   }
   if (st->queue_count >= AI_POPUP_QUEUE_MAX) {
@@ -93,6 +97,7 @@ static bool ai_popup_enqueue(AiPopupState* st, const AiPopupRequest* req) {
       ai_popup_chain_key(req->tag, req->nation_a, req->nation_b);
   }
   st->queue_count++;
+  st->last_enqueue_ok = true;
   if (diag_info_enabled()) {
     diag_info(
       "POPUP queued tag=%s kind=%s choices=%d queue=%d",
@@ -300,6 +305,9 @@ bool ai_popup_enqueue_choice_ctx(
 ) {
   AiPopupRequest req;
   if (!choice_labels || choice_count <= 0 || choice_count > AI_POPUP_CHOICE_MAX) {
+    if (st) {
+      st->last_enqueue_ok = false;
+    }
     return false;
   }
   ai_popup_fill_base(
@@ -772,6 +780,9 @@ bool ai_popup_try_present_next_urgent(AiPopupState* st) {
 
 static bool ai_popup_present_index(AiPopupState* st, int pick) {
   st->current = st->queue[pick];
+  if (pick == st->queue_count - 1) {
+    st->last_enqueue_ok = false;
+  }
   for (int i = pick + 1; i < st->queue_count; ++i) {
     st->queue[i - 1] = st->queue[i];
   }
@@ -864,7 +875,7 @@ int ai_popup_portrait_tier_from_alarm(int alarm) {
 void ai_popup_set_last_portrait(AiPopupState* st, int tribe, int tier) {
   /* tribe 8 = the King (DS:0x1f5c = 8 → KING.SS/KING2.SS animated flair);
    * the old > 7 guard silently dropped the tax-audience King portrait. */
-  if (!st || st->queue_count <= 0 || tribe > 8) {
+  if (!st || !st->last_enqueue_ok || st->queue_count <= 0 || tribe > 8) {
     return;
   }
   AiPopupRequest* req = &st->queue[st->queue_count - 1];
@@ -878,21 +889,21 @@ void ai_popup_set_last_portrait(AiPopupState* st, int tribe, int tier) {
  * index (MSS0..5, MYR0..3).
  */
 static void ai_popup_set_last_graphic(AiPopupState* st, int* field, int value, int max_value) {
-  if (!st || st->queue_count <= 0 || value > max_value) {
+  if (value > max_value) {
     return;
   }
   *field = value < 0 ? -1 : value;
 }
 
 void ai_popup_set_last_graphic_mss(AiPopupState* st, int mss) {
-  if (!st || st->queue_count <= 0) {
+  if (!st || !st->last_enqueue_ok || st->queue_count <= 0) {
     return;
   }
   ai_popup_set_last_graphic(st, &st->queue[st->queue_count - 1].graphic_mss, mss, 5);
 }
 
 void ai_popup_set_last_graphic_myr(AiPopupState* st, int nation) {
-  if (!st || st->queue_count <= 0) {
+  if (!st || !st->last_enqueue_ok || st->queue_count <= 0) {
     return;
   }
   ai_popup_set_last_graphic(st, &st->queue[st->queue_count - 1].graphic_myr, nation, 3);

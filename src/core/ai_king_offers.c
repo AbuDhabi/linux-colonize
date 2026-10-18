@@ -35,14 +35,16 @@
 
 /* ===== Mercenary hire offers (ai_king_merc_payload .. ai_king_merc_offer) ===== */
 static int ai_king_merc_payload(int hx, int hy, int regular_count, int artillery_or_cavalry_roll, int price) {
-  return ((hx & 0x3f) << 26) | ((hy & 0x3f) << 20) | ((regular_count & 0xf) << 16) |
-         ((artillery_or_cavalry_roll & 1) << 15) | (price & 0x7fff);
+  /* Packed unsigned: hx >= 32 sets bit 31, which overflows a signed shift. */
+  return (int)(((uint32_t)(hx & 0x3f) << 26) | ((uint32_t)(hy & 0x3f) << 20) |
+               ((uint32_t)(regular_count & 0xf) << 16) |
+               ((uint32_t)(artillery_or_cavalry_roll & 1) << 15) | (uint32_t)(price & 0x7fff));
 }
 
 void ai_king_merc_payload_parts(int payload, int* out_hx, int* out_hy, int* out_regular_count,
                                        int* out_artillery_or_cavalry_roll, int* out_price) {
   if (out_hx) {
-    *out_hx = (payload >> 26) & 0x3f;
+    *out_hx = (int)(((uint32_t)payload >> 26) & 0x3fu);
   }
   if (out_hy) {
     *out_hy = (payload >> 20) & 0x3f;

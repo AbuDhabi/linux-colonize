@@ -21,6 +21,10 @@
 #include "core/units.h"
 #include "core/world.h"
 
+/* Planes are calloc'd: layer3 stays 0, which reads as "owner 0, continent 0",
+ * i.e. every ocean tile is a LAKE (low nibble != 1). A test that cares must
+ * stamp layer3 itself (0xf0 = unowned land, 1 for open ocean). A failed alloc
+ * frees whatever it got and returns false with *map zeroed. */
 static inline bool fx_map_alloc(
   ColonizeWorldMap* map, int w, int h, int terrain_fill, bool with_seen
 ) {
@@ -37,6 +41,7 @@ static inline bool fx_map_alloc(
   }
   if (!map->terrain || !map->layer2 || !map->layer3 || !map->improve ||
       (with_seen && !map->seen)) {
+    map_free(map);
     return false;
   }
   for (int i = 0; i < w * h; ++i) {
@@ -46,16 +51,7 @@ static inline bool fx_map_alloc(
 }
 
 static inline void fx_map_free(ColonizeWorldMap* map) {
-  free(map->terrain);
-  free(map->layer2);
-  free(map->layer3);
-  free(map->seen);
-  free(map->improve);
-  map->terrain = NULL;
-  map->layer2 = NULL;
-  map->layer3 = NULL;
-  map->seen = NULL;
-  map->improve = NULL;
+  map_free(map);
 }
 
 static inline void fx_units_init(ColonizeUnitPool* units) {

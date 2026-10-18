@@ -9,7 +9,11 @@ typedef struct {
   char* err;
   size_t err_size;
   bool failed;
+  int depth;
 } Parser;
+
+/* Nesting cap for arrays/objects: bounds parse recursion on hostile input. */
+#define JSON_MAX_DEPTH 64
 
 static void perr(Parser* ps, const char* msg) {
   if (ps->failed) {
@@ -115,13 +119,16 @@ static char* parse_raw_string(Parser* ps) {
           return NULL;
       }
     } else {
+      /* Raw bytes pass through untouched: strings are opaque byte strings
+       * (CP437 names, UTF-8 paths) and json_write_escaped_string emits them
+       * raw, so re-encoding here would double-encode on every round trip. */
       cp = c;
       ps->p++;
     }
-    /* Re-encode as UTF-8 (cp may be >127 from \u, or a raw byte already). */
+    /* Only \u escapes are encoded as UTF-8. */
     unsigned char enc[4];
     size_t enc_len;
-    if (cp < 0x80) {
+    if (cp < 0x80 || c != '\\') {
       enc[0] = (unsigned char)cp;
       enc_len = 1;
     } else if (cp < 0x800) {
@@ -346,11 +353,22 @@ static JsonValue* parse_object(Parser* ps) {
   return v;
 }
 
+static JsonValue* parse_nested(Parser* ps, JsonValue* (*fn)(Parser*)) {
+  if (ps->depth >= JSON_MAX_DEPTH) {
+    perr(ps, "nesting too deep");
+    return NULL;
+  }
+  ps->depth++;
+  JsonValue* v = fn(ps);
+  ps->depth--;
+  return v;
+}
+
 static JsonValue* parse_value(Parser* ps) {
   skip_ws(ps);
   switch (*ps->p) {
-    case '{': return parse_object(ps);
-    case '[': return parse_array(ps);
+    case '{': return parse_nested(ps, parse_object);
+    case '[': return parse_nested(ps, parse_array);
     case '"': return parse_string(ps);
     case 't':
       if (strncmp(ps->p, "true", 4) == 0) {
@@ -443,6 +461,10 @@ bool json_get_i64(const JsonValue* obj, const char* key, int64_t* out) {
   if (!v || v->type != JV_NUM) {
     return false;
   }
+  /* NaN and out-of-range doubles are UB to cast: treat as absent. */
+  if (!(v->num >= -9223372036854775808.0 && v->num < 9223372036854775808.0)) {
+    return false;
+  }
   *out = (int64_t)v->num;
   return true;
 }
@@ -450,6 +472,9 @@ bool json_get_i64(const JsonValue* obj, const char* key, int64_t* out) {
 bool json_get_u64(const JsonValue* obj, const char* key, uint64_t* out) {
   JsonValue* v = json_obj_get(obj, key);
   if (!v || v->type != JV_NUM) {
+    return false;
+  }
+  if (!(v->num > -1.0 && v->num < 18446744073709551616.0)) {
     return false;
   }
   *out = (uint64_t)v->num;

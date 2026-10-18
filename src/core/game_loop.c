@@ -144,6 +144,9 @@
  * A NULL name means the modal blocks but does not rename the screen:
  * ai_popups draws over whatever screen raised it and that screen keeps the
  * log context.
+ *
+ * The map pull-down (map_menu.open_index >= 0) also blocks but is not listed:
+ * game_modal_open tests it after the list (bugs.md #1091).
  */
 #define GAME_MODAL_LIST(X)                                                                        \
   X(opening, "intro")                                                                             \
@@ -1168,53 +1171,6 @@ char game_key_letter(ColonizeKey key) {
     default: return 0;
   }
 }
-
-void set_status(ColonizeGameState* game, const char* prefix, const char* detail);
-bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid, bool land_resolved);
-void game_request_noport_found_confirm(ColonizeGameState* game, int uid);
-bool game_try_found_colony_at_cursor(ColonizeGameState* game);
-void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext* ctx);
-void game_apply_ai_popup_result(ColonizeGameState* game);
-void game_open_report(ColonizeGameState* game, ColonizeReportId id);
-/* Defined further down in this file; the dialog wiring that used to sit
- * here moved to game_dialogs.c. */
-bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y);
-void game_after_unit_action(ColonizeGameState* game);
-bool game_select_next_unit_awaiting_orders(ColonizeGameState* game);
-void activate_menu_selection(ColonizeGameState* game);
-void game_wait_next_unit(ColonizeGameState* game);
-bool game_turn_flow_allowed(const ColonizeGameState* game);
-bool game_defer_turn_flow(ColonizeGameState* game);
-void game_open_retire_score(ColonizeGameState* game);
-void game_begin_win_closing_or_score(ColonizeGameState* game);
-void game_trade_open_editor(ColonizeGameState* game, int route);
-void game_trade_open_dest_picker(ColonizeGameState* game, int stop_i);
-void game_trade_open_cargo_picker(ColonizeGameState* game, int stop_i, bool is_load);
-void game_trade_open_stop_picker(ColonizeGameState* game, int route, int preselect);
-void game_trade_wizard_open_dest(ColonizeGameState* game, int number);
-void game_trade_wizard_open_name(ColonizeGameState* game);
-void game_apply_trade_dest(ColonizeGameState* game, int id);
-void game_apply_goto_port(ColonizeGameState* game, int id);
-void game_trade_default_name(ColonizeGameState* game, int first_dest_colony_id, char* out, size_t out_size);
-const char* game_trade_europe_label(const ColonizeGameState* game);
-int game_trade_route_aim_stop(ColonizeGameState* game, ColonizeUnit* u, int stop_i);
-void game_europe_service_trade_harbor(ColonizeGameState* game);
-bool game_commit_sea_lane_step(ColonizeGameState* game, int sid, int dest_x, int dest_y);
-bool game_ship_sail_to_europe(ColonizeGameState* game, int sid);
-void game_set_view_center(ColonizeGameState* game, int x, int y);
-void game_enter_colony(ColonizeGameState* game, int cid);
-void game_apply_save_load_result(ColonizeGameState* game);
-void game_apply_cheat_list_result(ColonizeGameState* game);
-void game_select_unit(ColonizeGameState* game, int unit_id);
-void game_click_activate_unit(ColonizeGameState* game, int unit_id);
-void game_reveal_sight_for_unit(ColonizeGameState* game, const ColonizeUnit* u);
-bool game_load_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
-bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
-void game_europe_sail_harbor(ColonizeGameState* game, int hidx);
-void game_europe_open_buy_prompt(ColonizeGameState* game);
-void game_europe_open_buy_prompt_for(ColonizeGameState* game, int hidx, int cargo);
-int begin_menu_option_at_xy(const BeginMenuLayout* layout, int mx, int my);
-void game_colony_finish_eject(ColonizeGameState* game, int colonist_index, int role);
 
 /* ===================== Begin menu, full-screen render & public accessor API (begin_menu_font .. game_unit_info) ===================== */
 
@@ -2467,7 +2423,7 @@ static void window_log_compose(
     } else {
       gap = false;
       if (hilite[i]) {
-        snprintf(braced, sizeof(braced), "{%s}", words[i]);
+        snprintf(braced, sizeof(braced), "{%.39s}", words[i]);
         piece = braced;
       } else {
         piece = words[i];
@@ -3072,7 +3028,13 @@ bool game_modal_open(const ColonizeGameState* game) {
   }
   GAME_MODAL_LIST(GAME_MODAL_OPEN_ARM)
 #undef GAME_MODAL_OPEN_ARM
-  return false;
+  /* bugs.md #1091: an open map pull-down. DOS runs it as a blocking loop, so
+   * goto pacing, the unit/turn hand-off and every deferred service stop while
+   * it is down. Not a GAME_MODAL_LIST member (no `.open` field, and its input
+   * is not routed through game_handle_modal_input: game_update_map_menu_bar
+   * still services it), so it is tested here, after the list. An unloaded
+   * bar never draws or takes input (and a memset-zero state reads index 0). */
+  return game->map_menu.loaded && game->map_menu.open_index >= 0;
 }
 
 bool game_ai_popup_pending(const ColonizeGameState* game) {

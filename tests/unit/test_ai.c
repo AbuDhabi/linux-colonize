@@ -1110,7 +1110,6 @@ static int run_village_threat_alarm(void) {
 
   ColonizeUnitPool units;
   memset(&units, 0, sizeof(units));
-  memset(&units, 0, sizeof(units));
   units_reset(&units);
   units_set_occupancy_map(NULL);
   units_load_types(&units, &names);
@@ -1497,6 +1496,29 @@ static int run_152e_mission_nibble_out_of_domain(void) {
   return 0;
 }
 
+/* bugs.md #1103: ai_coarse_fog_reset wipes the DS:0x9faa plane that the 0a60
+ * restamp (and mapgen) leave behind, as ai_init_new_game / load need. */
+static int case_coarse_fog_reset(void) {
+  static ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units.units[0].active = true;
+  units.units[0].id = units.next_id++;
+  units.units[0].x = 8;
+  units.units[0].y = 8;
+  units_pool_sync(&units);
+  ai_coarse_fog_euro_restamp(&units, NULL, 0);
+  if (ai_coarse_fog_explore_unseen(8, 8)) {
+    fprintf(stderr, "coarse fog restamp did not mark (8,8)\n");
+    return 1;
+  }
+  ai_coarse_fog_reset();
+  if (!ai_coarse_fog_explore_unseen(8, 8)) {
+    fprintf(stderr, "ai_coarse_fog_reset left (8,8) stamped\n");
+    return 1;
+  }
+  return 0;
+}
+
 static int case_new_world(void) {
   diag_init(0, NULL);
   return run_init_and_turns("COLONIZE", false, 0, "NEW_WORLD");
@@ -1510,6 +1532,7 @@ static int case_america(void) {
 static const TestCase k_cases[] = {
     {"case_new_world", case_new_world},
     {"case_america", case_america},
+    {"coarse_fog_reset", case_coarse_fog_reset},
     {"run_village_threat_alarm", run_village_threat_alarm},
     {"run_152e_mission_attitude_word", run_152e_mission_attitude_word},
     {"run_152e_alarm_escalation", run_152e_alarm_escalation},

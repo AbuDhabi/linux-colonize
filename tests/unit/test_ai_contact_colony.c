@@ -560,7 +560,7 @@ static int test_beg_conceded_falls_into_gift_863(void) {
   c->stock[COLONIZE_CARGO_FOOD] = 20;
   if (!ai_contact_try_village_gifts(&ctx, 4) ||
       c->stock[COLONIZE_CARGO_FOOD] != 0x4b ||
-      !ai_contact_brave_visited_this_turn(&ctx, 4, second_id)) {
+      ai_contact_s_visit_brave_id[0] != second_id) {
     return fail("second generous visit must gift with its own Brave binding");
   }
 

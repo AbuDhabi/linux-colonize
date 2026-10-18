@@ -35,6 +35,9 @@ void ai_king_0982_land_troops(
 void ai_king_0982_invasion(struct ai_king_0982_ctx* w);
 /* FUN_43f7_0082 unit pick + spawn for the 10f0 intervention (bugs.md #505). */
 int ai_king_10f0_spawn_unit(ColonizeTurnContext* ctx, int human, int pool_index, int x, int y);
+/* ai_king_human_5e52_tail + ai_king_nation_turn_2424 in 00f2 order (test-only,
+ * bugs.md #1106; the turn processor calls the halves apart). */
+void ai_king_nation_turn(ColonizeTurnContext* ctx);
 #endif /* COLONIZE_TESTING */
 
 

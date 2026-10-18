@@ -7,7 +7,7 @@
  * shared between them are declared in ai_euro_internal.h.
  *
  * Sections:
- *   Includes, file-scope DOS latches (stance, landfall, roam/route, violate stamps)
+ *   Includes, file-scope DOS latches (stance, landfall, roam/route)
  *   FUN_521d_0a60 continent stance + rival-strength tables (ai_euro_refresh_continent_stance)
  *   Landfall / ocean-tip helpers (3558 first leg + empty cruise, 06ae first colony)
  *   Ship unload-site helpers, unit-kind predicates, fortify quota, founding-tile pick
@@ -55,17 +55,6 @@ int ai_euro_env_flag(const char* name, int dflt) {
 /* Sticky anti-spin stand-ins for DS:0x2d12 / DS:0x2d14. */
 static int s_sticky_unit = -1;
 static int s_sticky_count = 0;
-/* First-colony: unit stepped onto found this dispatcher_turn — defer found. */
-uint8_t ai_euro_s_deferred_found[COLONIZE_UNITS_MAX];
-/*
- * Unit disembarked from a ship during this dispatcher call. DOS: landing
- * consumes the whole move allowance (TURN2→3 English Soldier lands at (50,38)
- * with moves 0 / orders 0 and does not act again that turn). Guards the
- * first-colony walk's SENTRY wake from re-arming a same-turn landing.
- */
-uint8_t ai_euro_s_unloaded_this_turn[COLONIZE_UNITS_MAX];
-/* Colony ids founded this dispatcher_turn — keep auto-Stockade bip one turn. */
-uint8_t ai_euro_s_founded_colony_turn[COLONIZE_COLONIES_MAX];
 /*
  * Thin −0x6790 nation×continent stance ∈ {0,3,4,6}:
  * 0 none / 3 expand / 4 military / 6 develop. Filled from live colony tallies.
@@ -84,24 +73,6 @@ static uint8_t s_euro_continent_stance[4][16];
  * changing tested behavior.
  */
 static uint8_t s_euro_rival_strength[4][16];
-/*
- * Per-unit turn stamp of the last @VIOLATE fire (FUN_4720_049e, thin
- * approximation) — own addition, not DOS-derived, to avoid repeat-spamming
- * the notify every act call for units that just sit adjacent to each
- * other. Cite: euro_unit_act.md "2026-08-15, later pass".
- */
-uint32_t ai_euro_s_violate_last_turn[COLONIZE_UNITS_MAX];
-/*
- * DOS `unit+0x314c==5` ("idle roam / re-evaluate next call", see FUN_521d_20e6's
- * epilogue commit block, move_scoring_20e6_full.md line ~2213-2275) — marks a
- * goto set by this port's own idle-wander branch (explore-scan / fallback-west
- * in ai_euro_move_scoring_gate), as opposed to a goal-directed AI_MOVE goto
- * (found-tile pursuit, war hunt, wagon delivery, ship staging) set elsewhere.
- * DOS clears roam state and forces a re-decide the moment a foreign unit whose
- * nation has been MET is adjacent; only roam gotos are eligible for that abort
- * (see the check near the top of ai_euro_unit_act).
- */
-uint8_t ai_euro_s_euro_roam_wander[COLONIZE_UNITS_MAX];
 
 void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy);
 void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int ty);
@@ -110,7 +81,6 @@ void ai_euro_20e6_ship_cargo_counts(
   int* pioneers, int* mil, int* scouts, int* milvet, int* civ
 );
 int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id);
-void ai_euro_try_violate_notify(ColonizeTurnContext* ctx, ColonizeUnit* u);
 
 /*
  * Real FUN_521d_0a60 deep G-table formula (was a thin have-vs-target
@@ -537,9 +507,6 @@ int ai_euro_unload_pax_at(
    * unloads overload `orders` for this, so only those set the flag. */
   pax->ai_landfall_wait = (orders == UNITS_ORDER_SENTRY);
   pax->moves = 0;
-  if (pax->id >= 0 && pax->id < COLONIZE_UNITS_MAX) {
-    ai_euro_s_unloaded_this_turn[pax->id] = 1;
-  }
   /* FUN_465b_0000 raw 75763/75788-75791: a Euro unit stepping onto a rumour
    * tile rolls the LCR (FUN_2a1f_0178 -> FUN_65dd_0004) inside the move,
    * before the contact scan; a vanished unit skips the rest of the move. */
@@ -614,21 +581,6 @@ void ai_euro_ship_pressure_reset(int nation_id) {
     memset(&ai_euro_s_ship_pressure[nation_id], 0, sizeof(ai_euro_s_ship_pressure[nation_id]));
   }
 }
-/*
- * "This colony is eating into its stores" — stock below one turn's
- * consumption (TURN_FOOD_PER_COLONIST = 2 per head). Used to ride in
- * colony_flags bit3 until that bit went back to being DOS's
- * inefficient-government latch; the AI only ever wanted the reading, never
- * the storage.
- */
-int ai_euro_colony_food_short(const ColonizeColony* c) {
-  if (!c) {
-    return 0;
-  }
-  const int pop = c->colonist_count > 0 ? c->colonist_count : c->population;
-  return c->stock[COLONIZE_CARGO_FOOD] < pop * 2;
-}
-
 /*
  * FUN_15eb_0470 (`FUN_1000_8e4e` / `FUN_281f_0c5e`): the colony's work-radius
  * TIER, `min(FUN_15eb_039e(10), 2) + 2` → nominally 2..4
@@ -1022,7 +974,7 @@ void ai_euro_refresh_colony_ai_flags(
    * is DOS's inefficient-government latch (FUN_364b_0688 phase D), which the
    * per-turn colony tick owns. This pass used to overwrite it with a
    * food-vs-need reading, which both clobbered the latch and had no DOS
-   * basis; ai_euro_colony_food_short below is the food test the AI wanted.
+   * basis.
    */
   /*
    * Bit 0x10 (COLONIZE_COLONY_FLAG_SMALL_AI, col1_save.h `small_colony_ai`)
@@ -1093,21 +1045,6 @@ void ai_euro_refresh_colony_ai_flags(
       map_tile_is_open_sea_adjacent(ctx->map, c->x, c->y)) {
     c->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
   }
-}
-
-/*
- * Col1 +0x1d bit7 (COLONIZE_BUILD_AI_WANTS_CONSTRUCTION), set by the
- * FUN_5952_035e build cascade or carried by a save. bugs.md #1034a: the
- * invented building-name list (Stockade/Warehouse/Lumber Mill/Drydock/...)
- * that also returned true here was gated off alone 2026-10-02, moved no
- * golden step and only its own two unit tests; deleted.
- */
-int ai_euro_colony_wants_construction_labor(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* c
-) {
-  return pool && c && c->active &&
-         (c->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) != 0;
 }
 
 /*
@@ -1252,18 +1189,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * runs" (tr9 11 -> 12: the English Scout's 22nd shuttle act at Fort Nassau
    * scores at spent 12 and loses the 465b roll). */
 
-  /*
-   * FUN_4720_049e notify check (thin, approximate — see the function's own
-   * header). Fires once near the top of the act, matching DOS's own
-   * move-driver-completion timing as closely as this port's architecture
-   * allows. (The Privateer-sighting relation bit that also stood here moved
-   * to its real DOS home on 2026-09-23 — FUN_465b_0000's move-into-foreign
-   * arm, ai_euro_465b_privateer_sighting, called from units_try_move_w.)
-   */
   const int is_ship = ai_euro_is_ship_type(ctx->units, u->id);
-  if (!is_ship) {
-    ai_euro_try_violate_notify(ctx, u);
-  }
 
   int is_goto = units_orders_follow_goto(u->orders);
 
@@ -1540,14 +1466,10 @@ static void ai_euro_dispatcher_turn_reset(ColonizeTurnContext* ctx) {
   /* 0. Sticky clear */
   s_sticky_unit = -1;
   s_sticky_count = 0;
-  memset(ai_euro_s_deferred_found, 0, sizeof(ai_euro_s_deferred_found));
-  memset(ai_euro_s_unloaded_this_turn, 0, sizeof(ai_euro_s_unloaded_this_turn));
-  memset(ai_euro_s_founded_colony_turn, 0, sizeof(ai_euro_s_founded_colony_turn));
   /*
    * 0a60 goal-consumption shadow state: reset every call rather than kept
    * across turns like DOS's real unit+0x314b/c/d/e bytes — same "recompute
-   * fresh within the turn" simplification ai_euro_s_deferred_found/
-   * ai_euro_s_founded_colony_turn above already use, and it's fully repopulated by
+   * fresh within the turn" simplification, and it's fully repopulated by
    * ai_euro_0a60_goal_orders_structural below before ai_euro_unit_act reads
    * it back later this same call. Avoids stale cross-scenario garbage
    * (distinct unit pools/tests reusing small unit ids) driving a unit into
@@ -1559,11 +1481,13 @@ static void ai_euro_dispatcher_turn_reset(ColonizeTurnContext* ctx) {
   /* FUN_521d_0a60 entry: memset(0xa13c,0,16) — per-continent explorer count
    * read by FUN_521d_20e6's explorer cap (ai_euro_s_20e6_explorers). */
   memset(ai_euro_s_20e6_explorers, 0, sizeof(ai_euro_s_20e6_explorers));
-  /* Village-errand latch hygiene: DOS's +0x3158 dies with its unit record;
-   * the session latch must not survive a despawn into a reused unit id.
-   * NOT a slot walk on purpose (audit second-wave Leads 2, 2026-09-10): these
-   * latch arrays are keyed by unit ID everywhere they are read, so this loop
-   * walks the addressable ID SPACE and clears the entries no live unit owns.
+  /* Dead-id latch hygiene: DOS's +0x3158 dies with its unit record, and the
+   * port-side per-id latches must not survive a despawn into a reused id.
+   * Ids DO recur: past COLONIZE_UNITS_MAX the allocator recycles free ids
+   * round-robin (units.c units_alloc_id, bugs.md #1094), so a freed id comes
+   * back only after this clear has run many times. NOT a slot walk on purpose
+   * (audit second-wave Leads 2, 2026-09-10): the arrays are keyed by unit ID,
+   * so walk the ID SPACE and clear the entries no live unit owns.
    * `units_get_const(pool, i) == NULL` is exactly "no live unit has id i". */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     if (units_get_const(ctx->units, i) != NULL) {
@@ -1597,14 +1521,9 @@ static void ai_euro_dispatcher_turn_plan(ColonizeTurnContext* ctx, int nation_id
    * ai_euro_unit_act below. See the function's header comment for scope. */
   ai_euro_0a60_goal_orders_structural(ctx, nation_id);
 
-  /* Opportunistic balance after plan (separate from timer slot). Not for
-   * the WoI crown slot: the privateer spawn / Indian matrix effects remain
-   * OpenCol-shaped. The unsupported war-fatigue peace roll was removed after
-   * confirming that DOS 10ec is a predicate and 13b0 skips active wars. */
-  if (!(ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi &&
-        nation_id == (int)ctx->col1->head.crown_nation_id)) {
-    ai_diplo_euro_balance(ctx, nation_id);
-  }
+  /* (The OpenCol "Euro diplomacy balance" pass that stood here,
+   * ai_diplo_euro_balance, was deleted 2026-10-18, bugs.md #1104: its last
+   * arm, the Indian matrix tick, had no DOS counterpart.) */
 
   /* (The nation-turn "Expected→Harbor treasure cash" sweep that stood here was
    * deleted 2026-09-23, bugs.md #746: DOS's AI treasure cash-in is the
@@ -1831,16 +1750,13 @@ void ai_euro_reset(void) {
   s_sticky_count = 0;
   memset(ai_euro_s_5952_ring1, 0, sizeof(ai_euro_s_5952_ring1));
   memset(ai_euro_s_5952_docks_started, 0, sizeof(ai_euro_s_5952_docks_started));
+  memset(ai_euro_s_5952_arty_plot, 0, sizeof(ai_euro_s_5952_arty_plot)); /* bugs.md #1103 */
+  ai_diplo_reset(); /* bugs.md #1103: Indian-hostility sticky cache */
   memset(ai_euro_s_5952_census_nonexpert, 0, sizeof(ai_euro_s_5952_census_nonexpert));
   memset(ai_euro_s_5952_census_vet_soldier, 0, sizeof(ai_euro_s_5952_census_vet_soldier));
-  memset(ai_euro_s_deferred_found, 0, sizeof(ai_euro_s_deferred_found));
-  memset(ai_euro_s_unloaded_this_turn, 0, sizeof(ai_euro_s_unloaded_this_turn));
   ai_euro_s_20e6_type_cache_valid = 0; /* bugs.md #655: refreshed next dispatcher_turn */
-  memset(ai_euro_s_founded_colony_turn, 0, sizeof(ai_euro_s_founded_colony_turn));
   memset(s_euro_continent_stance, 0, sizeof(s_euro_continent_stance));
   memset(s_euro_rival_strength, 0, sizeof(s_euro_rival_strength));
-  memset(ai_euro_s_violate_last_turn, 0, sizeof(ai_euro_s_violate_last_turn));
-  memset(ai_euro_s_euro_roam_wander, 0, sizeof(ai_euro_s_euro_roam_wander));
   memset(ai_euro_s_ship_pressure, 0, sizeof(ai_euro_s_ship_pressure));
   /* Save-backed latch: goes through its own accessor, not a raw memset. */
   ai_euro_wagon_errand_clear_all();

@@ -7,6 +7,7 @@
 #include "core/popup.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "core/savegame.h"
 #include "core/strutil.h"
 #include "core/ui_button.h"
@@ -48,13 +49,17 @@ static void save_load_format_label(
   char* out,
   size_t out_sz,
   const ColonizeSaveSlotInfo* info,
-  const ColonizeFont* font
+  const ColonizeFont* font,
+  const char* data_dir
 ) {
   if (!out || out_sz == 0) {
     return;
   }
   if (!info || !info->occupied) {
-    str_copy_trunc(out, out_sz, "(EMPTY)");
+    /* DS:0x20ee "(EMPTY)", read from the EXE; miss = "" (bugs.md #1100). */
+    if (!reports_ds_string(data_dir, 0x20ee, out, out_sz)) {
+      out[0] = '\0';
+    }
     return;
   }
   const char* diff = reports_difficulty_title(info->difficulty <= 4 ? info->difficulty : 4);
@@ -83,6 +88,7 @@ bool save_load_open(
   SaveLoadDialog* dlg,
   SaveLoadMode mode,
   const char* save_dir,
+  const char* data_dir,
   const ColonizeMsgCatalog* messages,
   const ColonizeFont* font
 ) {
@@ -123,7 +129,7 @@ bool save_load_open(
     }
     dlg->slot_ids[idx] = slot;
     dlg->slot_occupied[idx] = info.occupied;
-    save_load_format_label(dlg->options[idx], sizeof(dlg->options[idx]), &info, font);
+    save_load_format_label(dlg->options[idx], sizeof(dlg->options[idx]), &info, font, data_dir);
     if (mode == SAVE_LOAD_MODE_LOAD) {
       if (info.occupied && first_usable < 0) {
         first_usable = idx;

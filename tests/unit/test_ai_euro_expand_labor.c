@@ -234,13 +234,7 @@ static int unit_colony_ai_flags_pioneer_clear(void) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 0, false)) {
     return fail("pioneer-clear alloc map");
   }
   /* Plains (pedia 2, Farmer food 4) everywhere — the control ring. */
@@ -367,13 +361,7 @@ static int unit_0a60_work_military_ai_plan_gate(void) {
 
     ColonizeWorldMap map;
     memset(&map, 0, sizeof(map));
-    map.width = 16;
-    map.height = 16;
-    map.tile_count = 256;
-    map.terrain = calloc(256, 1);
-    map.layer2 = calloc(256, 1);
-    map.layer3 = calloc(256, 1);
-    if (!map.terrain || !map.layer2 || !map.layer3) {
+    if (!fx_map_alloc(&map, 16, 16, 0, false)) {
       return fail("0a60 ai_plan alloc map");
     }
     for (int i = 0; i < 256; ++i) {
@@ -491,13 +479,7 @@ static int unit_colony_ai_flags_mow_colony_alt(void) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 0, false)) {
     return fail("ai-flags alloc map");
   }
   for (int i = 0; i < 256; ++i) {
@@ -615,13 +597,7 @@ static int unit_human_census_ship_pressure_refresh(void) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 0, false)) {
     return fail("human census alloc map");
   }
   for (int i = 0; i < 256; ++i) {

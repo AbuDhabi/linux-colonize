@@ -212,19 +212,6 @@ int colony_prod_manufacturing_output_row(
   return out > 0 ? out : 0;
 }
 
-int colony_prod_manufacturing_output(
-  const char* building_name,
-  int profession,
-  int craft_profession,
-  int sol_bonus
-) {
-  if (!building_name) {
-    return 0;
-  }
-  return colony_prod_manufacturing_output_row(
-    colonies_building_name_row(building_name), profession, craft_profession, sol_bonus
-  );
-}
 
 int colony_prod_manufacturing_input_row(
   int building_row,
@@ -262,53 +249,23 @@ int colony_prod_manufacturing_input_row(
   return colony_prod_tier_input_for_output(tier, out);
 }
 
-int colony_prod_manufacturing_input(
-  const char* building_name,
-  int profession,
-  int craft_profession,
-  int sol_bonus
-) {
-  if (!building_name) {
-    return 0;
-  }
-  return colony_prod_manufacturing_input_row(
-    colonies_building_name_row(building_name), profession, craft_profession, sol_bonus
-  );
-}
 
 int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* colony) {
   if (!colony) {
     return 0;
   }
-  int sol = 0;
-  bool have = false;
-  if (col1 && col1->colony) {
-    for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
-      const ColonizeCol1Colony* c = &col1->colony[i];
-      if ((int)c->x != colony->x || (int)c->y != colony->y) {
-        continue;
-      }
-      if (c->rebel_divisor == 0) {
-        break;
-      }
-      sol = (int)((c->rebel_dividend * 100u) / c->rebel_divisor);
-      have = true;
-      break;
-    }
-  }
   /*
-   * bugs.md ("new colony showed SoL 100%, next turn 5%"): there used to be a
-   * `liberty_bells_total / 4` stand-in here for a colony with no usable rebel
-   * pair. That number is the NATION aggregate (FUN_43f7_0004), not a colony
-   * figure, and the case it actually hit was a colony founded this turn — its
-   * COL1 record is only minted by the next col1_bridge export, so an
-   * established nation's bell total read straight out as 100% until the first
-   * end of turn replaced it with the real ratio. DOS's FUN_15eb_0274 has no
-   * fallback: no pair means nothing has accumulated, which is 0. The same
-   * sibling readers (reports.c, combat_strength.c, ai_king.c) already do this.
+   * FUN_15eb_0274 (raw 9471-9501): local_c = 0; dividend*100/divisor only when
+   * divisor > 0; the Bolivar 0x14 is added to local_c regardless (bugs.md
+   * #1089). No matching record reads like DOS's fresh 0/0 record: a colony
+   * founded this turn gets its COL1 record only at the next col1_bridge export
+   * (the old nation `liberty_bells_total / 4` stand-in here read 100% for it).
    */
-  if (!have) {
-    return 0;
+  int sol = 0;
+  const ColonizeCol1Colony* c =
+    col1 && col1->colony ? col1_colony_at_xy(col1, -1, colony->x, colony->y) : NULL;
+  if (c && c->rebel_divisor != 0) {
+    sol = (int)((c->rebel_dividend * 100u) / c->rebel_divisor);
   }
   if (sol < 0) {
     sol = 0;
@@ -331,9 +288,8 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
    * and then mirror `population = colonist_count`; col1_bridge re-derives
    * `population` from it on both import and export). `population` is only a
    * mirror, and is the field that goes stale in synthetic/partial records.
-   * Same precedence at every pop-fallback site in the port (colony_preview.c,
-   * colony_screen.c, europe.c, ai.c, ai_euro.c, turn.c). */
-  int pop = colony->colonist_count > 0 ? colony->colonist_count : colony->population;
+   * colonies_headcount (colony.h) is that precedence. */
+  int pop = colonies_headcount(colony);
   if (pop < 0) {
     pop = 0;
   }
@@ -483,7 +439,7 @@ void colony_prod_tick_rebel_accumulators(
   }
 
   /* Same colonist_count-first precedence as colony_prod_sol_bonus. */
-  int pop = colony->colonist_count > 0 ? colony->colonist_count : colony->population;
+  int pop = colonies_headcount(colony);
   if (pop < 0) {
     pop = 0;
   }
@@ -621,21 +577,6 @@ int colony_prod_crosses_worker_row(
   );
 }
 
-int colony_prod_crosses_worker(
-  const char* building_name,
-  int profession,
-  int sol_bonus,
-  bool colony_has_cathedral,
-  bool nation_has_penn
-) {
-  if (!building_name) {
-    return 0;
-  }
-  return colony_prod_crosses_worker_row(
-    colonies_building_name_row(building_name), profession, sol_bonus, colony_has_cathedral,
-    nation_has_penn
-  );
-}
 
 int colony_prod_bells_worker_row(int building_row, int profession, int sol_bonus) {
   if (colonies_building_row_chain(building_row) != COLONIES_CHAIN_TOWN_HALL) {
@@ -652,14 +593,6 @@ int colony_prod_bells_worker_row(int building_row, int profession, int sol_bonus
   return base > 0 ? base : 0;
 }
 
-int colony_prod_bells_worker(const char* building_name, int profession, int sol_bonus) {
-  if (!building_name) {
-    return 0;
-  }
-  return colony_prod_bells_worker_row(
-    colonies_building_name_row(building_name), profession, sol_bonus
-  );
-}
 
 int colony_prod_hammers_worker_row(
   int building_row,
@@ -678,19 +611,6 @@ int colony_prod_hammers_worker_row(
   );
 }
 
-int colony_prod_hammers_worker(
-  const char* building_name,
-  int profession,
-  int sol_bonus,
-  bool colony_has_lumber_mill
-) {
-  if (!building_name) {
-    return 0;
-  }
-  return colony_prod_hammers_worker_row(
-    colonies_building_name_row(building_name), profession, sol_bonus, colony_has_lumber_mill
-  );
-}
 
 /* Passive crosses when Church (+1) or Cathedral (+1) is built — same passive
  * either way, confirmed via FUN_15eb_1f72 (not manual-sourced +2/+3). See
@@ -852,7 +772,7 @@ int colony_prod_colony_bells_ff(
    * same primitive as colony_prod_sol_bonus_field). See
    * nation_crosses_bells_1f72.md item 4. */
   if (nation_is_ai) {
-    int pop = colony->colonist_count > 0 ? colony->colonist_count : colony->population;
+    int pop = colonies_headcount(colony);
     if (pop < 0) {
       pop = 0;
     }

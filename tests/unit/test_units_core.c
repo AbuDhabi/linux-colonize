@@ -1,4 +1,5 @@
 #include "test_units_common.h"
+#include "core/units_internal.h"
 
 #include "../common/test_runner.h"
 
@@ -58,7 +59,6 @@ static int fx_open(void) {
     return 1;
   }
 
-  memset(&pool, 0, sizeof(pool));
   memset(&pool, 0, sizeof(pool));
   if (!units_load_types(&pool, &names)) {
     fprintf(stderr, "units_load_types failed\n");
@@ -514,7 +514,6 @@ static int case_starter_discoverer_french(void) {
   }
     ColonizeUnitPool fr;
     memset(&fr, 0, sizeof(fr));
-    memset(&fr, 0, sizeof(fr));
     fr.type_count = pool.type_count;
     memcpy(fr.types, pool.types, sizeof(pool.types));
     const int fid = units_spawn_euro_starter_fleet(&fr, 1, 0, true, ship->x + 1, ship->y, 40, 10);
@@ -613,7 +612,6 @@ static int case_starter_conquistador_dutch(void) {
     return 1;
   }
     ColonizeUnitPool hard;
-    memset(&hard, 0, sizeof(hard));
     memset(&hard, 0, sizeof(hard));
     hard.type_count = pool.type_count;
     memcpy(hard.types, pool.types, sizeof(pool.types));
@@ -1429,7 +1427,7 @@ static int case_terrain_mp_improvements(void) {
       return 1;
     }
     map_tile_set_road(&tmap, px, py, false);
-    char pmsg[64];
+    char pmsg[64] = {0};
     pu3->moves = 1 * UNITS_MP_PER_TILE;
     /*
      * Plains road: real DS:0x2f78 threshold byte + 2 (5 turns for
@@ -2302,7 +2300,7 @@ static int case_naval_hold_plunder(void) {
           w->nation_id = 0;
           l->nation_id = 1;
             (void)units_load_goods(&pool, lid, COLONIZE_CARGO_SUGAR, 40);
-            const bool won = units_resolve_naval_combat(&pool, wid, lid, NULL);
+            const bool won = units_resolve_naval_combat_ff_w(&(ColonizeWorld){.units = &pool}, wid, lid);
           w = units_get(&pool, wid);
           l = units_get(&pool, lid);
           if (won) {
@@ -3624,10 +3622,7 @@ static int case_lcr_clear_desoto(void) {
     lmap.layer3 = calloc(n, 1);
     lmap.seen = calloc(n, 1);
     if (!lmap.terrain || !lmap.layer2 || !lmap.layer3 || !lmap.seen) {
-      free(lmap.terrain);
-      free(lmap.layer2);
-      free(lmap.layer3);
-      free(lmap.seen);
+      fx_map_free(&lmap);
       fprintf(stderr, "LCR mini-map alloc failed\n");
       return 1;
     }
@@ -3715,7 +3710,7 @@ static int case_lcr_case_matrix(void) {
      * call so this stays correct regardless of the exact RNG call shape. */
     ColonizeCol1Save c5col1;
     memset(&c5col1, 0, sizeof(c5col1));
-    for (int i = 0; i < COLONIZE_COL1_FF_COUNT; ++i) {
+    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
       c5col1.head.founding_father[i] = -1;
     }
     const int case5_ti = units_find_type(&pool, "Colonists");
@@ -3835,7 +3830,7 @@ static int case_lcr_case5_latch(void) {
     for (int pass = 0; pass < 2; ++pass) {
       ColonizeCol1Save pcol1;
       memset(&pcol1, 0, sizeof(pcol1));
-      for (int i = 0; i < COLONIZE_COL1_FF_COUNT; ++i) {
+      for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
         pcol1.head.founding_father[i] = -1;
       }
       if (pass == 1) {
@@ -3922,7 +3917,7 @@ static int case_lcr_outcome_dispatch(void) {
     /* founding_father[]==0 would misread as "nation 0 elected FF 0" (the
      * real sentinel is -1 = unrecruited) and force every trial down the de
      * Soto positive-only branch. */
-    for (int i = 0; i < COLONIZE_COL1_FF_COUNT; ++i) {
+    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
       dcol1.head.founding_father[i] = -1;
     }
     /* FUN_65dd_0004:103597 downgrades Vanishes to Nothing for a nation
@@ -4047,7 +4042,7 @@ static int case_lcr_fountain_ai(void) {
     }
     ColonizeCol1Save acol1;
     memset(&acol1, 0, sizeof(acol1));
-    for (int i = 0; i < COLONIZE_COL1_FF_COUNT; ++i) {
+    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
       acol1.head.founding_father[i] = -1; /* zeroed FF[] = "nation 0 has FF 0" */
     }
     acol1.player[0].control = 0; /* human */
@@ -4158,7 +4153,7 @@ static int case_lcr_burial_trespass(void) {
     for (int met = 0; met < 2; ++met) {
       ColonizeCol1Save tcol1;
       memset(&tcol1, 0, sizeof(tcol1));
-      for (int i = 0; i < COLONIZE_COL1_FF_COUNT; ++i) {
+      for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
         tcol1.head.founding_father[i] = -1;
       }
       tcol1.stuff.census_pop_proxy[0] = 20;
@@ -4820,17 +4815,9 @@ static int case_combat_terrain_stash(void) {
   }
       ColonizeWorldMap tmap;
       memset(&tmap, 0, sizeof(tmap));
-      tmap.width = 16;
-      tmap.height = 16;
-      tmap.terrain = calloc(256, 1);
-      tmap.layer2 = calloc(256, 1);
-      tmap.layer3 = calloc(256, 1);
-      if (!tmap.terrain || !tmap.layer2 || !tmap.layer3) {
+      if (!fx_map_alloc(&tmap, 16, 16, 8, false)) {
         fprintf(stderr, "terrain-stash map alloc failed\n");
         return 1;
-      }
-      for (int i = 0; i < 256; ++i) {
-        tmap.terrain[i] = 8; /* forest class → found_score 2 */
       }
       ColonizeCol1Save c1;
       memset(&c1, 0, sizeof(c1));
@@ -4840,9 +4827,7 @@ static int case_combat_terrain_stash(void) {
       const int sol = units_find_type(&pool, "Soldiers");
       if (sol < 0) {
         fprintf(stderr, "terrain-stash Soldiers missing\n");
-        free(tmap.terrain);
-        free(tmap.layer2);
-        free(tmap.layer3);
+        fx_map_free(&tmap);
         return 1;
       }
       pool.types[sol].attack = 2;
@@ -4973,9 +4958,7 @@ static int case_combat_terrain_stash(void) {
         units_despawn(&pool, did);
       }
 
-      free(tmap.terrain);
-      free(tmap.layer2);
-      free(tmap.layer3);
+      fx_map_free(&tmap);
       fprintf(stderr, "unit_units: terrain stash ambush ok\n");
   combat_phase2_close();
   return 0;
@@ -6443,13 +6426,7 @@ static int case_combat_capture_water_destroy(void) {
   }
       ColonizeWorldMap wmap;
       memset(&wmap, 0, sizeof(wmap));
-      wmap.width = 16;
-      wmap.height = 16;
-      wmap.tile_count = 256;
-      wmap.terrain = calloc(256, 1);
-      wmap.layer2 = calloc(256, 1);
-      wmap.layer3 = calloc(256, 1);
-      if (!wmap.terrain || !wmap.layer2 || !wmap.layer3) {
+      if (!fx_map_alloc(&wmap, 16, 16, 0, false)) {
         fprintf(stderr, "#663 map alloc\n");
         return 1;
       }
@@ -6483,9 +6460,7 @@ static int case_combat_capture_water_destroy(void) {
       }
       units_set_occupancy_map(NULL);
       (void)units_despawn(&pool, aid);
-      free(wmap.terrain);
-      free(wmap.layer2);
-      free(wmap.layer3);
+      fx_map_free(&wmap);
       fprintf(stderr, "unit_units: #663 water capture gate ok\n");
   combat_phase2_close();
   return 0;
@@ -7312,6 +7287,62 @@ static int case_landfall_spent_gate(void) {
    * P7.2 Fountain of Youth = 8× FUN_38fd_4884(1,0): a 3-way @RECRUIT CHOICE
    * per pick, free passage, no recruit-count bump, chained until 8 landed.
    */
+/*
+ * bugs.md #1094: unit ids index COLONIZE_UNITS_MAX-wide side arrays, so the
+ * allocator must keep them below it for the pool's lifetime: monotonic up to
+ * the cap, then round-robin over free ids (never one a live unit holds).
+ */
+static int case_unit_ids_recycle_below_max(void) {
+  static ColonizeUnitPool p;
+  memset(&p, 0, sizeof(p));
+  units_set_occupancy_map(NULL);
+  units_reset_state();
+  units_reset(&p);
+  p.type_count = 1;
+  snprintf(p.types[0].name, sizeof(p.types[0].name), "Soldier");
+  p.types[0].movement = 1;
+  p.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  const int keep = units_spawn_allow_stack(&p, 0, 1, 1);
+  if (keep != 1) {
+    fprintf(stderr, "unit_ids_recycle: first id %d\n", keep);
+    return 1;
+  }
+  int prev = -1;
+  for (int n = 0; n < COLONIZE_UNITS_MAX + 1000; ++n) {
+    const int id = units_spawn_allow_stack(&p, 0, 1, 1);
+    if (id < 1 || id >= COLONIZE_UNITS_MAX || id == keep || id == prev) {
+      fprintf(stderr, "unit_ids_recycle: spawn %d got id %d (prev %d)\n", n, id, prev);
+      return 1;
+    }
+    const ColonizeUnit* u = units_get_const(&p, id);
+    if (!u || u->id != id || !units_despawn(&p, id) || units_get_const(&p, id) != NULL) {
+      fprintf(stderr, "unit_ids_recycle: id %d lookup/despawn\n", id);
+      return 1;
+    }
+    prev = id;
+  }
+  /* bugs.md #1097: one MP rule — the spent byte keeps an overspend (raw
+   * 75640 `ADD [unit+0x3149], cost`), natives included. */
+  ColonizeUnit* brave = units_get(&p, keep);
+  brave->nation_id = 4;
+  brave->moves = 2;
+  units_mp_charge(&p, brave, 9);
+  if (brave->moves != 11) {
+    fprintf(stderr, "native charge: spent %d want 11\n", brave->moves);
+    return 1;
+  }
+  units_mp_exhaust(&p, brave);
+  if (brave->moves != units_max_mp(&p, keep)) {
+    return 1;
+  }
+  units_pool_sync(&p);
+  if (p.unit_count != 1 || !units_get_const(&p, keep) || p.next_id != COLONIZE_UNITS_MAX) {
+    fprintf(stderr, "unit_ids_recycle: pool count %d next_id %d\n", p.unit_count, p.next_id);
+    return 1;
+  }
+  return 0;
+}
+
 static int case_fountain_of_youth(void) {
   if (fx_open() != 0 || fx_stage2() != 0) {
     return 1;
@@ -7473,5 +7504,6 @@ static const TestCase k_cases[] = {
   {"goto_into_village", case_goto_into_village},
   {"landfall_spent_gate", case_landfall_spent_gate},
   {"fountain_of_youth", case_fountain_of_youth},
+  {"unit_ids_recycle_below_max", case_unit_ids_recycle_below_max},
 };
 TEST_MAIN(k_cases)

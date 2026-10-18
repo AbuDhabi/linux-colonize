@@ -55,7 +55,7 @@ static bool build_join_visible(
   }
   for (int i = 0; i < bar->menus[oi].item_count; ++i) {
     const MapMenuItem* it = &bar->menus[oi].items[i];
-    if (it->action == action) {
+    if ((int)it->action == action) {
       return it->visible;
     }
   }

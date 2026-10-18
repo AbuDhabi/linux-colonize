@@ -668,7 +668,7 @@ void game_trade_open_dest_picker(ColonizeGameState* game, int stop_i) {
   }
   if (sea && count < CHEAT_LIST_MAX_OPTIONS - 1) {
     /* Europe row: "<Port> (Europe)" — FUN_647e_01c6's nation port entry. */
-    snprintf(bufs[count], sizeof(bufs[count]), "%s (Europe)", game_trade_europe_label(game));
+    snprintf(bufs[count], sizeof(bufs[count]), "%.38s (Europe)", game_trade_europe_label(game));
     labels[count] = bufs[count];
     ids[count] = 999;
     count++;
@@ -1117,7 +1117,7 @@ void game_open_save_load(ColonizeGameState* game, SaveLoadMode mode) {
   const ColonizeFont* popup_font =
     game->intro_font_ok ? &game->intro_font
     : (game->menu_font_ok ? &game->menu_font : NULL);
-  if (!save_load_open(&game->save_load, mode, dir, &game->messages, popup_font)) {
+  if (!save_load_open(&game->save_load, mode, dir, game->resolved_data_dir, &game->messages, popup_font)) {
     set_status(game, mode == SAVE_LOAD_MODE_SAVE ? "Save unavailable" : "Load unavailable", NULL);
   }
 }

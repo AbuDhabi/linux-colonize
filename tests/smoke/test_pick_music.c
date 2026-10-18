@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include "../common/test_runner.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -16,6 +17,12 @@ static int fail(const char* msg) {
 }
 
 int main(void) {
+  {
+    const int gate = tr_single_flow_gate("pick_music");
+    if (gate >= 0) {
+      return gate;
+    }
+  }
   diag_init(0, NULL);
 
   ColonizeMsgCatalog game_txt;

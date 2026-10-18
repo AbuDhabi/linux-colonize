@@ -58,15 +58,8 @@ typedef enum ColonyProdTier {
  * "UI: settlement badges vs Production tab"). Clamped to >= 0 (DOS does the
  * same at its shared epilogue).
  */
-int colony_prod_manufacturing_output(
-  const char* building_name,
-  int profession,
-  int craft_profession,
-  int sol_bonus
-);
-/* Row-identified core (no-DOS-text-in-binary: identity is the @BUILDING
- * row). `building_name` above is a thin wrapper via colonies_building_name_row
- * kept for callers (ai_euro.c) that only have a catalog name in hand. */
+/* Row-identified (no-DOS-text-in-binary: identity is the @BUILDING row;
+ * the name-taking wrappers were deleted 2026-10-18, bugs.md #1108). */
 int colony_prod_manufacturing_output_row(
   int building_row,
   int profession,
@@ -87,12 +80,6 @@ int colony_prod_manufacturing_output_row(
  * colony total once. Use colony_prod_chain_input_for_total_output above
  * (bugs.md #851). This entry point is for single-worker display/AI scoring.
  */
-int colony_prod_manufacturing_input(
-  const char* building_name,
-  int profession,
-  int craft_profession,
-  int sol_bonus
-);
 /*
  * Colony-total raw-good requirement for one chain's SUMMED finished-good
  * output. This is DOS's shape: FUN_15eb_0bd4 raw 10168-10172 takes the
@@ -128,10 +115,9 @@ int colony_prod_manufacturing_input_row(
 
 /*
  * Colony SoL % for display / production (capped 0..100).
- * Col1 rebel_dividend*100/rebel_divisor at the colony tile. No matching record
- * or a zero divisor means nothing has accumulated: returns 0 (no fallback, as
- * DOS FUN_15eb_0274). FUN_15eb_0274: +20 while Bolivar held and colony nation
- * is human.
+ * FUN_15eb_0274: Col1 rebel_dividend*100/rebel_divisor at the colony tile
+ * (0 for a zero divisor or no record yet), then +20 while Bolivar is held and
+ * the colony nation is human, whatever the ratio.
  */
 int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* colony);
 
@@ -188,14 +174,6 @@ void colony_prod_tick_rebel_accumulators(
  * intentionally show the un-modified base rate (settlement badges). See
  * manufacturing_worker_calc_1d4c.md.
  */
-int colony_prod_crosses_worker(
-  const char* building_name,
-  int profession,
-  int sol_bonus,
-  bool colony_has_cathedral,
-  bool nation_has_penn
-);
-/* Row-identified core; see colony_prod_manufacturing_output_row. */
 int colony_prod_crosses_worker_row(
   int building_row,
   int profession,
@@ -210,19 +188,10 @@ int colony_prod_crosses_worker_row(
  * callers that intentionally show the un-modified base rate (settlement
  * badges).
  */
-int colony_prod_bells_worker(const char* building_name, int profession, int sol_bonus);
-/* Row-identified core; see colony_prod_manufacturing_output_row. */
 int colony_prod_bells_worker_row(int building_row, int profession, int sol_bonus);
 
-/* Same shape as colony_prod_crosses_worker (Carpenter body) —
+/* Same shape as colony_prod_crosses_worker_row (Carpenter body) —
  * `colony_has_lumber_mill` is colony-wide, not this worker's own building. */
-int colony_prod_hammers_worker(
-  const char* building_name,
-  int profession,
-  int sol_bonus,
-  bool colony_has_lumber_mill
-);
-/* Row-identified core; see colony_prod_manufacturing_output_row. */
 int colony_prod_hammers_worker_row(
   int building_row,
   int profession,

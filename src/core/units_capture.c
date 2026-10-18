@@ -784,17 +784,19 @@ void units_mp_charge(const ColonizeUnitPool* pool, ColonizeUnit* u, int cost) {
   if (!u || cost <= 0) {
     return;
   }
-  const int max_mp = units_max_mp(pool, u->id);
+  /* One rule for both storages (bugs.md #1097): FUN_465b_0000 raw 75640
+   * `ADD [unit+0x3149], cost` adds the full step cost to the spent byte even
+   * past the allotment (a won overspend roll), so the save shows spent > max
+   * (independence-seed-100 000001: Dragoons at spent 15/18; seed-100 TURN2
+   * Brave rows at spent 9). The byte saturates at 255. Natives keep spent
+   * (ai_brave.c's inline `spent + cost` writes are the same rule). */
   if (u->nation_id >= 4) {
     u->moves += cost;
-    if (u->moves > max_mp) {
-      u->moves = max_mp;
+    if (u->moves > 255) {
+      u->moves = 255;
     }
   } else {
-    /* FUN_465b_0000 adds the full step cost to the spent byte even past the
-     * allotment (a won overspend roll), so remaining MP may go negative and
-     * the save shows spent > max (independence-seed-100 000001: Dragoons
-     * at spent 15/18). The byte saturates at 255. */
+    const int max_mp = units_max_mp(pool, u->id);
     u->moves -= cost;
     if (u->moves < max_mp - 255) {
       u->moves = max_mp - 255;
@@ -896,23 +898,6 @@ int units_move_cost(
     return map_move_cost_at(map, dest_x, dest_y) * UNITS_MP_PER_TILE;
   }
   return map_move_spent_thirds(map, u->x, u->y, dest_x, dest_y);
-}
-
-bool units_can_afford_move_cost(const ColonizeUnitPool* pool, int unit_id, int cost) {
-  const ColonizeUnit* unit = units_get_const(pool, unit_id);
-  const int remaining = units_remaining_mp(pool, unit_id);
-  if (!unit || !unit->active || remaining <= 0) {
-    return false;
-  }
-  if (cost <= remaining) {
-    return true;
-  }
-  /* Full allotment remaining (DOS: spent MP byte == 0) → always allow. */
-  if (remaining >= units_max_mp(pool, unit_id)) {
-    return true;
-  }
-  /* Partial overspend needs an RNG roll in units_try_move — not guaranteed. */
-  return false;
 }
 
 /* Standing military defender on a colony tile (PEDIA Revere "standing soldiers"). */

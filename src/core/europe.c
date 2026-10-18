@@ -5,7 +5,6 @@
  */
 
 #include "core/europe.h"
-#include "core/europe_art.h"
 #include "core/europe_internal.h"
 
 #include <limits.h>
@@ -26,7 +25,6 @@
 #include "platform/diagnostics.h"
 #include "core/ss.h"
 #include "core/strutil.h"
-#include "core/ui_button.h"
 #include "core/units.h"
 #include "platform/platform.h"
 
@@ -60,17 +58,6 @@ struct ColonizeCol1Save* g_europe_live_save = NULL;
 AiPopupState* g_europe_popups = NULL;
 
 /* ===================== Purse/rng plumbing, ship cargo helpers & dock-push utilities (europe_purse_nation .. europe_disembark_passengers_to_dock) ===================== */
-int europe_purse_nation(const EuropeScreen* eu);
-void europe_purse_move(
-  EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, long delta
-);
-#include "platform/platform.h"
-
-void europe_refresh_recruit_passage(EuropeScreen* eu);
-/* One treasury, both stores — see the block above europe_cargo_boycotted_ex. */
-void europe_purse_move(
-  EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, long delta
-);
 
 /*
  * Recruit-pool randomness. DOS `FUN_38fd_46d4` uses TWO sources and the
@@ -751,7 +738,10 @@ int europe_sell_proceeds(const EuropeScreen* eu, int cargo_type, int amount) {
  *
  * `gross` is the pre-tax sale value, `net` what europe_sell_proceeds paid out;
  * the difference is exactly what was withheld (same rounding, no second
- * division). No-op without a save record or on an untaxed (net == gross) sale.
+ * division). No-op without a save record. Both adds are unconditional, as in
+ * FUN_38fd_23c4 raw 60562-60570 (an untaxed sale still bumps +0x26; bugs.md
+ * #1090). Single implementation for every sale/cash-in arm: harbor/transport
+ * sells, Custom House, treasure cash-in, King's galleon (units.c).
  */
 void europe_credit_sale_tax(
   struct ColonizeCol1Save* col1, int nation, int gross, int net
@@ -759,15 +749,10 @@ void europe_credit_sale_tax(
   if (!col1 || nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
     return;
   }
-  const int tax_paid = gross - net;
-  if (tax_paid <= 0) {
-    return;
-  }
   ColonizeCol1Nation* nat = &col1->nation[nation];
-  nat->royal_money += tax_paid;
+  nat->royal_money += gross - net;
   /* nation +0x26 write-only cumulative net-income counter (unknown24_pad,
-   * int32 LE) — same write the Custom House arm and treasure cash-in make;
-   * harbor/transport sells were the odd one out (bugs.md #1021). */
+   * int32 LE) += net (bugs.md #1021). */
   uint32_t cum = (uint32_t)nat->unknown24_pad[0] | ((uint32_t)nat->unknown24_pad[1] << 8) |
                  ((uint32_t)nat->unknown24_pad[2] << 16) |
                  ((uint32_t)nat->unknown24_pad[3] << 24);

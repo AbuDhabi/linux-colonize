@@ -560,18 +560,6 @@ bool colonies_assign_field_w(
   return true;
 }
 
-bool colonies_assign_field(
-  ColonizeColonyPool* pool,
-  int colony_id,
-  int colonist_index,
-  int tile_index,
-  int field_job
-) {
-  return colonies_assign_field_w(
-    &(ColonizeWorld){.colonies = pool}, colony_id, colonist_index, tile_index, field_job
-  );
-}
-
 bool colonies_clear_field(ColonizeColonyPool* pool, int colony_id, int tile_index) {
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
   if (!col) {

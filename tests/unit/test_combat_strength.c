@@ -6,7 +6,9 @@
  */
 #include "core/col1_save.h"
 #include "core/colony.h"
+#include "core/colony_production.h"
 #include "core/combat_strength.h"
+#include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/units.h"
 
@@ -15,10 +17,8 @@
 #include <stdio.h>
 #include <string.h>
 
-static int fail(const char* msg) {
-  fprintf(stderr, "unit_combat_strength: FAIL %s\n", msg);
-  return 1;
-}
+#define TEST_NAME "unit_combat_strength"
+#include "../common/test_fail.h"
 
 /* Minimal @UNIT table: 0 Soldier (land), 1 Frigate (sea). */
 static void seed_types(ColonizeUnitPool* pool) {
@@ -354,11 +354,42 @@ static int test_woi_crown_ship_bombards_colony(void) {
   return 0;
 }
 
+/*
+ * bugs.md #1089: FUN_15eb_0274 (raw 9471-9501) adds the Bolivar 0x14 to
+ * local_c even when the divisor guard left it 0. colony_prod_sol_percent is
+ * the shared port (combat_colony_sol_at routes through it).
+ */
+static int test_sol_zero_divisor_keeps_bolivar(void) {
+  ColonizeColony colony;
+  memset(&colony, 0, sizeof(colony));
+  colony.x = 4;
+  colony.y = 4;
+  colony.nation_id = 0;
+  ColonizeCol1Colony rec;
+  memset(&rec, 0, sizeof(rec));
+  rec.x = 4;
+  rec.y = 4; /* rebel_dividend = rebel_divisor = 0 */
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.colony = &rec;
+  col1.head.colony_count = 1;
+  col1.player[0].control = 0; /* human */
+  col1.nation[0].founding_fathers[FF_SIMON_BOLIVAR / 8] |=
+    (uint8_t)(1u << (FF_SIMON_BOLIVAR % 8));
+  const int sol = colony_prod_sol_percent(&col1, &colony);
+  if (sol != 20) {
+    fprintf(stderr, "sol %d want 20\n", sol);
+    return fail("divisor 0 + Bolivar must read 0 + 0x14 (#1089)");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"test_missing_foe_keeps_terrain", test_missing_foe_keeps_terrain},
   {"test_woi_sol_needs_a_colony_record", test_woi_sol_needs_a_colony_record},
   {"test_fatigue_applies_at_sea", test_fatigue_applies_at_sea},
   {"test_woi_crown_ship_bombards_colony", test_woi_crown_ship_bombards_colony},
+  {"test_sol_zero_divisor_keeps_bolivar", test_sol_zero_divisor_keeps_bolivar},
 };
 
 TEST_MAIN(k_cases)

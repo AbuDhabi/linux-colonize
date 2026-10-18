@@ -1,21 +1,19 @@
 /* Smoke: bilateral 15b3 diplo bytes, declare-war leaves gold/tax alone
  * (the −100/+1 "sting" was retired 2026-09-09, smell #47),
- * Euro war does not boycott Europe cargos or seed a fatigue timer / peace roll,
- * make_peace + full wartime mask lift + peace feeler restore
- * (sticky==1; sticky==2 refuses treaties), no-war-upkeep regression (#965),
- * privateer prize + human status + prize stops after peace, treaty timer
- * decrement, Indian drift/feeler status/sticky pressure,
+ * Euro war does not boycott Europe cargos or seed a fatigue timer,
+ * peace does not lift a boycott (bugs.md #1104), treaty timer
+ * decrement, no Indian drift,
  * Sugar/Tobacco/Tools + first newly boycotted cargo status +
- * Indian war-hit status chrome + war −5 relation floor + Peace concluded +
- * R14 full wartime mask declare/peace smoke +
- * Marathon3 R1 Benjamin Franklin NW peace gate (declare no-op / euro_balance
- * skip war pressure / at-war always offer peace) + R2 spawn-only Privateer
+ * R14 full wartime mask declare smoke +
+ * Marathon3 R1 Benjamin Franklin NW peace gate (declare no-op) + R2 spawn-only Privateer
  * (PARK 8g prize when units set) + Franklin Peace concluded human chrome +
  * R4 Franklin at-war skips the PARK prize (gold unchanged) +
  * Marathon4 R1 Privateer commission is status-only (no INFO OK popup).
  * (OpenCol-only Euro×Euro alliance machinery + its tests retired T2.4
  * 2026-09-06 — DOS has no Euro×Euro alliances.) */
+#include "../common/ai_fixture.h"
 #include "core/ai_diplo.h"
+#include "core/ai_internal.h"
 #include "core/ai_popup.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
@@ -81,37 +79,8 @@ static const char* diplo_pair_text(const char* section, int nation_a, int nation
   return out;
 }
 
-static int fail(const char* msg) {
-  fprintf(stderr, "unit_ai_diplo: FAIL %s\n", msg);
-  return 1;
-}
-
-/*
- * Sweep-3 D2: ai_diplo_military_score is a live Σ combat_unit_base_x8 over
- * the nation's active land units (one Soldier, attack 2 → 16), no longer the
- * stuff.land_combat_strength mirror. Fixtures that state a strength balance
- * do it with real units now. Returns 0 on success.
- */
-static int test_pool_soldiers(ColonizeUnitPool* p, int nation0_count, int nation1_count) {
-  memset(p, 0, sizeof(*p));
-  units_reset(p);
-  units_set_occupancy_map(NULL);
-  p->type_count = 1;
-  snprintf(p->types[0].name, sizeof(p->types[0].name), "Soldier");
-  p->types[0].attack = 2;
-  p->types[0].defense = 2;
-  p->types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-  for (int i = 0; i < nation0_count + nation1_count; ++i) {
-    const int id = units_spawn(p, 0, 1 + i, 1);
-    if (id < 0) {
-      return 1;
-    }
-    /* units_spawn returns the unit ID (ids start at 1), not the slot index. */
-    units_get(p, id)->nation_id = i < nation0_count ? 0 : 1;
-  }
-  return 0;
-}
-
+#define TEST_NAME "unit_ai_diplo"
+#include "../common/test_fail.h"
 
 static int case_declare_peace_narrative(void) {
   ColonizeCol1Save col1;
@@ -229,12 +198,13 @@ static int case_declare_peace_narrative(void) {
     return fail("re-declare_war must not boycott Europe cargos");
   }
 
-  /* make_peace: clear WAR both ways, set PEACE, lift all wartime boycotts
-   * (AI_DIPLO_SMOKE_WARTIME_MASK) when no Euro wars remain. No gold cost.
-   * Nation 0 still only at war with 1 here. */
+  /* make_peace (fixture helper): clear WAR both ways, set PEACE. No gold
+   * cost, and bugs.md #1104: it must not touch boycott_bitmap — DOS has no
+   * peace writer of nation+0x20, so a tea-party boycott survives peace. */
   {
     const uint16_t gold0 = col1.nation[0].gold;
     const uint16_t gold1 = col1.nation[1].gold;
+    col1.nation[0].boycott_bitmap = (uint16_t)(1u << COLONIZE_CARGO_TOOLS);
     ai_diplo_make_peace(&col1, 0, 1);
     if (ai_diplo_at_war(&col1, 0, 1) || ai_diplo_at_war(&col1, 1, 0)) {
       return fail("make_peace should clear WAR both ways");
@@ -243,82 +213,21 @@ static int case_declare_peace_narrative(void) {
         (ai_diplo_read(&col1, 1, 0) & AI_DIPLO_PEACE) == 0) {
       return fail("make_peace should set PEACE both ways");
     }
-    /* R11: bitmap clear of full wartime mask (all 16 @CARGO bits incl. Cotton). */
-    if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0 ||
-        (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
-      return fail("make_peace should clear all wartime boycott bits when no Euro wars remain");
+    if (col1.nation[0].boycott_bitmap != (uint16_t)(1u << COLONIZE_CARGO_TOOLS)) {
+      return fail("make_peace must not lift a boycott (bugs.md #1104)");
     }
+    col1.nation[0].boycott_bitmap = 0;
     if (col1.nation[0].gold != gold0 || col1.nation[1].gold != gold1) {
       return fail("make_peace should not change gold (no cost)");
     }
   }
 
-  /* Re-war for the euro_balance tests below. */
+  /* Re-war for the treaty-timer tests below. */
   ai_diplo_declare_war(&col1, 0, 1);
   if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0 ||
       (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
     return fail("re-war after make_peace must not boycott Europe cargos");
   }
-
-  /*
-   * bugs.md #965 regression: DOS charges nothing for merely being at war.
-   * The invented 5 gold/turn "war upkeep" drain and its human status line
-   * were retired 2026-09-28, so euro_balance must leave both treasuries
-   * exactly as it found them. Peer gold is kept equal so the (null-units)
-   * privateer prize cannot fire and mask a drain; Indian relations are
-   * raised so harassment does not mix into the asserts.
-   */
-  {
-    ColonizeDosRng rng_up;
-    dos_rng_seed(&rng_up, 1);
-    uint32_t turn_up = 1;
-    char status_up[128];
-    status_up[0] = '\0';
-    ColonizeTurnContext ctx_up;
-    memset(&ctx_up, 0, sizeof(ctx_up));
-    ctx_up.messages = test_game_txt();
-    ctx_up.col1 = &col1;
-    ctx_up.col1_ok = true;
-    ctx_up.rng = &rng_up;
-    ctx_up.turn_number = &turn_up;
-    ctx_up.human_nation = 0;
-    ctx_up.status = status_up;
-    ctx_up.status_size = sizeof(status_up);
-    for (int i = 0; i < 8; ++i) {
-      col1.indian[i].alarm_by_player[0] = 0; /* relation 100 */
-      col1.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-    }
-    col1.nation[0].gold = 40;
-    col1.nation[1].gold = 40;
-    ai_diplo_euro_balance(&ctx_up, 0);
-    if (col1.nation[0].gold != 40 || col1.nation[1].gold != 40) {
-      fprintf(stderr, "unit_ai_diplo: at-war gold %u/%u (want 40/40)\n",
-              (unsigned)col1.nation[0].gold, (unsigned)col1.nation[1].gold);
-      return fail("euro_balance must not drain gold for being at war");
-    }
-    if (strstr(status_up, "War upkeep") != NULL) {
-      fprintf(stderr, "unit_ai_diplo: upkeep status '%s'\n", status_up);
-      return fail("retired war-upkeep status must not be written");
-    }
-    if (col1.nation[2].gold != 500) {
-      return fail("euro_balance must not touch a peaceful peer treasury");
-    }
-    /*
-     * Smell #56 lives on as a boundary case: the retired drain snapshotted
-     * gold into a uint16, so a treasury of exactly 65536 read 0. Nothing may
-     * move at that boundary now either.
-     */
-    col1.nation[0].gold = 65536u;
-    col1.nation[1].gold = 65536u;
-    status_up[0] = '\0';
-    ai_diplo_euro_balance(&ctx_up, 0);
-    if (col1.nation[0].gold != 65536u || col1.nation[1].gold != 65536u) {
-      return fail("euro_balance must not drain a 16-bit-boundary treasury");
-    }
-    col1.nation[0].gold = 0;
-    col1.nation[1].gold = 0;
-  }
-
 
   /* 6d8e step 4: treaty timer decrement (the OpenCol-only ally expiry-break arm
    * was retired with the alliance machinery, T2.4 2026-09-06). */
@@ -390,168 +299,6 @@ static int case_declare_peace_narrative(void) {
     }
   }
 
-  /*
-   * Unpark #5: peace feeler — once per euro_balance, Euro at peace with peers,
-   * mid/high Indian slots (≥50, <96) heal +2 toward content floor 96
-   * (seed-100 TURN3 meet baseline). Hostile slots (<50) untouched; Euro×Euro
-   * war skips feeler.
-   */
-  {
-    ColonizeDosRng rng_f;
-    dos_rng_seed(&rng_f, 6);
-    uint32_t turn_f = 6;
-    ColonizeTurnContext ctx_f;
-    memset(&ctx_f, 0, sizeof(ctx_f));
-    ctx_f.messages = test_game_txt();
-    ctx_f.col1 = &col1;
-    ctx_f.col1_ok = true;
-    ctx_f.rng = &rng_f;
-    ctx_f.turn_number = &turn_f;
-    /* Ensure nation 3 has no Euro wars (declare 2-3 may still be live). */
-    ai_diplo_make_peace(&col1, 2, 3);
-    for (int i = 0; i < 8; ++i) {
-      col1.indian[i].alarm_by_player[3] = 10; /* relation 90 */
-      col1.indian[i].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
-    }
-    col1.indian[0].alarm_by_player[3] = 80; /* DOS bands: relation 40 */ /* at-war slot: no feeler */
-    col1.indian[0].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
-    col1.indian[1].alarm_by_player[3] = 5; /* relation 95 */ /* near floor: clamp to 96 */
-    col1.indian[1].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
-    col1.indian[2].alarm_by_player[3] = 4; /* relation 96 */ /* already at floor */
-    col1.indian[2].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
-    ai_diplo_indian_hostility_set(3, 1);
-    col1.nation[3].gold = 50; /* native war must cost nothing (#49) */
-    ai_diplo_euro_balance(&ctx_f, 3);
-    if (ai_diplo_indian_relation(&col1, 4 + (0), 3) != 20) {
-      return fail("peace feeler must not heal indian_at_war slots");
-    }
-    /* 2026-08-27: feeler heal retired (no DOS counterpart) — slots unchanged. */
-    if (ai_diplo_indian_relation(&col1, 4 + (1), 3) != 95) {
-      return fail("retired feeler must not touch near-floor slot");
-    }
-    if (ai_diplo_indian_relation(&col1, 4 + (2), 3) != 96) {
-      return fail("retired feeler must leave floor slot");
-    }
-    if (ai_diplo_indian_relation(&col1, 4 + (3), 3) != 90) {
-      return fail("retired feeler must not heal mid slots");
-    }
-    if (ai_diplo_indian_hostility_sticky(&col1, 3) != 1) {
-      return fail("feeler tick should keep sticky while slot0 still at war");
-    }
-    if (col1.nation[3].gold != 50) {
-      return fail("feeler tick with an at-war tribe must not drain gold (#49)");
-    }
-    /* Clear last hostile slot → sticky clears; no further harassment. */
-    col1.indian[0].alarm_by_player[3] = 20; /* relation 80 */
-    col1.indian[0].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
-    col1.nation[3].gold = 50;
-    ai_diplo_euro_balance(&ctx_f, 3);
-    if (ai_diplo_indian_relation(&col1, 4 + (0), 3) != 80) {
-      return fail("retired feeler must not heal recovered slot");
-    }
-    if (ai_diplo_indian_hostility_sticky(&col1, 3) != 0) {
-      return fail("sticky should clear after feeler when no at-war slots");
-    }
-    if (col1.nation[3].gold != 50) {
-      return fail("no treasury movement when sticky clears either (#49)");
-    }
-    /* Euro×Euro war: feeler skipped (relations unchanged). */
-    col1.nation[2].gold = 200;
-    col1.nation[3].gold = 200;
-    for (int i = 0; i < 8; ++i) {
-      col1.indian[i].alarm_by_player[3] = 10; /* relation 90 */
-      col1.indian[i].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
-    }
-    ai_diplo_declare_war(&col1, 2, 3);
-    /* declare −5 → 85; sticky sync from hit */
-    const uint8_t after_war = ai_diplo_indian_relation(&col1, 4 + (3), 3);
-    ai_diplo_euro_balance(&ctx_f, 3);
-    if (ai_diplo_indian_relation(&col1, 4 + (3), 3) != after_war) {
-      return fail("peace feeler must skip while Euro at war with peers");
-    }
-    ai_diplo_make_peace(&col1, 2, 3);
-
-    /*
-     * R7/R9: make_peace restores Indian feeler when sticky was at-war (==1) —
-     * nudge once via existing feeler path after WAR clear. sticky==2 refuses.
-     */
-    col1.nation[2].gold = 200;
-    col1.nation[3].gold = 200;
-    for (int i = 0; i < 8; ++i) {
-      col1.indian[i].alarm_by_player[3] = 10; /* relation 90 */
-      col1.indian[i].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
-    }
-    /* Slot0 rel 45 (< 50) → sticky at-war (==1) once the matrix tick syncs.
-     * 2026-09-03: the declare-war Indian hit is retired — relations are
-     * untouched by the declaration itself. */
-    col1.indian[0].alarm_by_player[3] = 78; /* DOS bands: relation 45 */
-    col1.indian[0].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
-    ai_diplo_declare_war(&col1, 2, 3);
-    if (ai_diplo_indian_relation(&col1, 4 + (3), 3) != 90) {
-      return fail("declare_war must not move Indian relations (war hit retired)");
-    }
-    ai_diplo_euro_balance(&ctx_f, 3); /* matrix tick syncs sticky from slots */
-    if (ai_diplo_indian_hostility_sticky(&col1, 3) != 1) {
-      return fail("peace-restore setup: sticky should be at-war (==1) after sync");
-    }
-    ai_diplo_make_peace(&col1, 2, 3);
-    /* Feeler retired: mid slot stays 90; sub-50 slot untouched; sticky stays. */
-    if (ai_diplo_indian_relation(&col1, 4 + (3), 3) != 90) {
-      return fail("make_peace must not move Indian alarm (feeler retired)");
-    }
-    if (ai_diplo_indian_relation(&col1, 4 + (0), 3) != 22) {
-      return fail("make_peace feeler must not heal sub-50 slots");
-    }
-    /* Idempotent: already peaceful + sticky elevated must not re-nudge. */
-    ai_diplo_make_peace(&col1, 2, 3);
-    if (ai_diplo_indian_relation(&col1, 4 + (3), 3) != 90) {
-      return fail("make_peace feeler nudge must not re-fire when already peaceful");
-    }
-    /* Sticky clear: no feeler nudge on peace. */
-    for (int i = 0; i < 8; ++i) {
-      col1.indian[i].alarm_by_player[3] = 10; /* relation 90 */
-      col1.indian[i].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
-    }
-    ai_diplo_indian_hostility_set(3, 0);
-    ai_diplo_declare_war(&col1, 2, 3);
-    /* All mid after −5 → sticky clear; force sticky clear + mid 80. */
-    for (int i = 0; i < 8; ++i) {
-      col1.indian[i].alarm_by_player[3] = 20; /* relation 80 */
-      col1.indian[i].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
-    }
-    ai_diplo_indian_hostility_set(3, 0);
-    ai_diplo_make_peace(&col1, 2, 3);
-    if (ai_diplo_indian_relation(&col1, 4 + (3), 3) != 80) {
-      return fail("make_peace must not feeler-nudge when sticky was clear");
-    }
-    /* R9: sticky==2 refuses make_peace feeler restore (self-gated). */
-    for (int i = 0; i < 8; ++i) {
-      col1.indian[i].alarm_by_player[3] = 10; /* relation 90 */
-      col1.indian[i].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
-    }
-    col1.indian[0].alarm_by_player[3] = 100; /* relation 0 — very-low → sticky deep */
-    col1.indian[0].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
-    ai_diplo_declare_war(&col1, 2, 3);
-    ai_diplo_euro_balance(&ctx_f, 3); /* sync sticky from matrix (war hit retired) */
-    if (ai_diplo_indian_hostility_sticky(&col1, 3) != 2) {
-      return fail("sticky2 make_peace setup should deepen sticky to 2");
-    }
-    if (ai_diplo_indian_relation(&col1, 4 + (3), 3) != 90) {
-      return fail("sticky2 make_peace setup: mid should stay 90 (war hit retired)");
-    }
-    ai_diplo_make_peace(&col1, 2, 3);
-    if (ai_diplo_indian_relation(&col1, 4 + (3), 3) != 90) {
-      return fail("make_peace must not feeler-nudge when sticky==2");
-    }
-    if (ai_diplo_indian_relation(&col1, 4 + (0), 3) != 0) {
-      return fail("sticky2 make_peace must leave very-low slot untouched");
-    }
-  }
-
-  /*
-   * Unpark #5: human status chrome when Indian sticky rises/clears.
-   */
-
   /* A second, unrelated pair: declare still leaves tax_rate and gold alone
    * (smell #47 retirement; this used to be the +1-bump "cap at 75" probe). */
   col1.nation[2].gold = 200;
@@ -590,64 +337,6 @@ static int case_declare_peace_narrative(void) {
    * R11 (rewritten 2026-09-03): the war Indian hit is retired — declare_war
    * leaves every Indian slot untouched, met or unmet.
    */
-  return 0;
-}
-
-static int case_indian_sticky_status_chrome(void) {
-    ColonizeCol1Save st;
-    col1_save_init(&st);
-    memset(st.nation, 0, sizeof(st.nation));
-    for (int i = 0; i < 4; ++i) {
-      st.player[i].control = 0;
-    }
-    char status[128];
-    status[0] = '\0';
-    ColonizeDosRng rng_st;
-    dos_rng_seed(&rng_st, 7);
-    uint32_t turn_st = 7;
-    ColonizeTurnContext ctx_st;
-    memset(&ctx_st, 0, sizeof(ctx_st));
-    ctx_st.messages = test_game_txt();
-    ctx_st.col1 = &st;
-    ctx_st.col1_ok = true;
-    ctx_st.rng = &rng_st;
-    ctx_st.turn_number = &turn_st;
-    ctx_st.human_nation = 0;
-    ctx_st.status = status;
-    ctx_st.status_size = sizeof(status);
-    for (int i = 0; i < 8; ++i) {
-      st.indian[i].alarm_by_player[0] = 80; /* DOS bands: relation 40 */
-      st.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-    }
-    ai_diplo_indian_hostility_set(0, 0);
-    st.nation[0].gold = 30;
-    ai_diplo_euro_balance(&ctx_st, 0);
-    if (strcmp(status, "Natives grow hostile.") != 0) {
-      fprintf(stderr, "unit_ai_diplo: indian sticky status '%s'\n", status);
-      return fail("euro_balance should status when sticky rises for human");
-    }
-    /* Clear hostility → improve status. */
-    for (int i = 0; i < 8; ++i) {
-      st.indian[i].alarm_by_player[0] = 20; /* relation 80 */
-      st.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-    }
-    status[0] = '\0';
-    ai_diplo_euro_balance(&ctx_st, 0);
-    if (strcmp(status, "Native tensions ease.") != 0) {
-      fprintf(stderr, "unit_ai_diplo: indian clear status '%s'\n", status);
-      return fail("euro_balance should status when sticky clears for human");
-    }
-    /* AI nation tick must not overwrite human status. */
-    snprintf(status, sizeof(status), "keep");
-    for (int i = 0; i < 8; ++i) {
-      st.indian[i].alarm_by_player[1] = 90; /* DOS bands: relation 30 */
-      st.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
-    }
-    ai_diplo_indian_hostility_set(1, 0);
-    ai_diplo_euro_balance(&ctx_st, 1);
-    if (strcmp(status, "keep") != 0) {
-      return fail("indian sticky status must only write for human nation");
-    }
   return 0;
 }
 
@@ -715,13 +404,6 @@ static int case_trade_deepen_military_score(void) {
       free(tw.colony);
       return fail("colony-gap declare must leave the poorer side's gold alone");
     }
-    ai_diplo_make_peace(&tw, 0, 1);
-    if ((tw.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_TOOLS)) != 0 ||
-        (tw.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_FURS)) != 0 ||
-        (tw.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_TOBACCO)) != 0) {
-      free(tw.colony);
-      return fail("make_peace should lift Furs+Tobacco+Tools embargo");
-    }
     free(tw.colony);
 
     ColonizeUnitPool units;
@@ -742,8 +424,8 @@ static int case_trade_deepen_military_score(void) {
     if (sid < 0 || ship < 0) {
       return fail("military score spawn");
     }
-    units.units[sid].nation_id = 0;
-    units.units[ship].nation_id = 0;
+    units_get(&units, sid)->nation_id = 0;
+    units_get(&units, ship)->nation_id = 0;
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
     colonies_set_occupancy_map(NULL);
@@ -843,18 +525,10 @@ static int case_war_peace_status_chrome(void) {
       return fail("re-declare_war_ctx should not rewrite status");
     }
 
-    ai_diplo_make_peace_ctx(&ctx_st, 0, 1);
-    if (ai_diplo_at_war(&st, 0, 1)) {
-      return fail("make_peace_ctx should clear WAR");
-    }
-    if (strcmp(status, diplo_pair_text("SIGNTREATY", 0, 1)) != 0) {
-      fprintf(stderr, "unit_ai_diplo: peace status '%s'\n", status);
-      return fail("make_peace_ctx should use @SIGNTREATY when no Tools embargo");
-    }
+    ai_diplo_make_peace(&st, 0, 1);
 
     /* R12: Sugar/Tobacco/Tools already set → name first newly boycotted cargo
-     * (Food idx 0) instead of the war line. Keep Indians peaceful so sticky
-     * does not steal status. Source: @CARGO / NAMES.TXT; FA UI PARKED. */
+     * (Food idx 0) instead of the war line. Source: @CARGO / NAMES.TXT; FA UI PARKED. */
     st.player[2].country_name[0] = '\0';
     st.nation[0].gold = 200;
     st.nation[2].gold = 200;
@@ -862,7 +536,6 @@ static int case_war_peace_status_chrome(void) {
       st.indian[i].alarm_by_player[0] = 0; /* relation 100 */
       st.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    ai_diplo_indian_hostility_set(0, 0);
     st.nation[0].boycott_bitmap =
       (uint16_t)(AI_DIPLO_SMOKE_SUGAR_BIT | AI_DIPLO_SMOKE_TOBACCO_BIT |
                  AI_DIPLO_SMOKE_TOOLS_BIT);
@@ -884,7 +557,6 @@ static int case_war_peace_status_chrome(void) {
       st.indian[i].alarm_by_player[0] = 0; /* relation 100 */
       st.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    ai_diplo_indian_hostility_set(0, 0);
     st.nation[0].boycott_bitmap = (uint16_t)AI_DIPLO_SMOKE_WARTIME_MASK;
     status[0] = '\0';
     ai_diplo_declare_war_ctx(&ctx_st, 0, 2);
@@ -903,7 +575,6 @@ static int case_war_peace_status_chrome(void) {
       st.indian[i].alarm_by_player[0] = 0; /* relation 100 */
       st.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    ai_diplo_indian_hostility_set(0, 0);
     st.nation[0].boycott_bitmap = (uint16_t)AI_DIPLO_SMOKE_WARTIME_MASK;
     snprintf(st.player[0].country_name, sizeof(st.player[0].country_name), "Spain");
     snprintf(st.player[2].country_name, sizeof(st.player[2].country_name), "Holland");
@@ -931,10 +602,7 @@ static int case_war_peace_status_chrome(void) {
      * confirmed 2026-08-14 (COLONIZE/GAME.TXT), user-confirmed live mechanic
      * (see src/core/ai_euro.c ai_euro_try_attack). Direct primitive check
      * since ai_euro_try_attack itself is static and its dispatcher-turn
-     * context is entangled with ai_diplo_euro_balance's own opportunistic
-     * declare_war_ctx (which can fire earlier in the same turn and win the
-     * @DECLAREWAR-vs-@SNEAK race) — too flaky for an end-to-end assertion,
-     * so this pins the exact fallback text and the real GAME.TXT rendering
+     * context is too entangled for an end-to-end assertion, so this pins the exact fallback text and the real GAME.TXT rendering
      * that ai_euro.c's popup_msg_fill call produces. */
     {
       char sneak_buf[256];
@@ -974,7 +642,6 @@ static int case_war_peace_status_chrome(void) {
       st.indian[i].alarm_by_player[0] = 70; /* relation 30 */
       st.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    ai_diplo_indian_hostility_set(0, 0);
     st.nation[0].boycott_bitmap = (uint16_t)AI_DIPLO_SMOKE_WARTIME_MASK;
     st.nation[0].gold = 200;
     st.nation[2].gold = 200;
@@ -1006,53 +673,19 @@ static int case_war_peace_status_chrome(void) {
   return 0;
 }
 
-static int case_sticky_pressure_relation_read(void) {
+static int case_indian_relation_read(void) {
     ColonizeCol1Save sp;
     col1_save_init(&sp);
     memset(sp.nation, 0, sizeof(sp.nation));
     for (int i = 0; i < 4; ++i) {
       sp.player[i].control = 0;
     }
-    char status[128];
-    status[0] = '\0';
-    ColonizeDosRng rng_sp;
-    dos_rng_seed(&rng_sp, 11);
-    uint32_t turn_sp = 11;
-    ColonizeTurnContext ctx_sp;
-    memset(&ctx_sp, 0, sizeof(ctx_sp));
-    ctx_sp.messages = test_game_txt();
-    ctx_sp.col1 = &sp;
-    ctx_sp.col1_ok = true;
-    ctx_sp.rng = &rng_sp;
-    ctx_sp.turn_number = &turn_sp;
-    ctx_sp.human_nation = 0;
-    ctx_sp.status = status;
-    ctx_sp.status_size = sizeof(status);
-
-    /* Deep sticky: slot0 very-low; mid slots would be feeler-eligible if not blocked. */
-    sp.indian[0].alarm_by_player[0] = 90; /* DOS bands: relation 30 */
+    sp.indian[0].alarm_by_player[0] = 90; /* DOS bands: relation 10 */
     sp.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     for (int i = 1; i < 8; ++i) {
       sp.indian[i].alarm_by_player[0] = 20; /* relation 80 */
       sp.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    ai_diplo_indian_hostility_set(0, 2);
-    sp.nation[0].gold = 40;
-    ai_diplo_euro_balance(&ctx_sp, 0);
-    if (ai_diplo_indian_relation(&sp, 4 + (1), 0) != 80) {
-      return fail("sticky==2 should block peace feeler heal on mid slots");
-    }
-    if (ai_diplo_indian_hostility_sticky(&sp, 0) != 2) {
-      return fail("sticky==2 should remain deep after matrix tick");
-    }
-    if (strcmp(status, "Natives remain hostile.") != 0) {
-      fprintf(stderr, "unit_ai_diplo: remain status '%s'\n", status);
-      return fail("sticky==2 should status Natives remain hostile");
-    }
-    if (sp.nation[0].gold != 40) {
-      return fail("sticky==2 tick must not drain gold either (#49)");
-    }
-
     /* indian_relation getter mirrors relation_by_indian / delta indexing. */
     if (ai_diplo_indian_relation(&sp, 4, 0) != 10 ||
         ai_diplo_indian_relation(&sp, 5, 0) != 80) {
@@ -1063,35 +696,6 @@ static int case_sticky_pressure_relation_read(void) {
       return fail("ai_diplo_indian_relation should return 0 for out-of-range indian");
     }
 
-    /* make_peace lifts wartime boycott mask when no Euro wars remain. */
-    ColonizeCol1Save em;
-    col1_save_init(&em);
-    memset(em.nation, 0, sizeof(em.nation));
-    for (int i = 0; i < 4; ++i) {
-      em.player[i].control = 0;
-    }
-    em.head.colony_count = 3;
-    em.colony = calloc(3, sizeof(ColonizeCol1Colony));
-    if (!em.colony) {
-      return fail("embargo make_peace alloc");
-    }
-    em.colony[0].nation_id = 0;
-    em.colony[1].nation_id = 0;
-    em.colony[2].nation_id = 0;
-    em.nation[0].gold = 200;
-    em.nation[1].gold = 200;
-    ai_diplo_declare_war(&em, 0, 1);
-    if ((em.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
-      free(em.colony);
-      return fail("colony-gap war must not boycott Europe cargos");
-    }
-    ai_diplo_make_peace(&em, 0, 1);
-    if ((em.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0 ||
-        (em.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
-      free(em.colony);
-      return fail("make_peace should lift full wartime boycott mask when no Euro wars remain");
-    }
-    free(em.colony);
   return 0;
 }
 
@@ -1103,58 +707,14 @@ static int case_r2_no_fatigue_tools(void) {
     wf.player[i].control = 0;
     wf.player[i].country_name[0] = '\0';
   }
-  ColonizeUnitPool units_wf;
-  if (test_pool_soldiers(&units_wf, 1, 1)) {
-    return fail("war-balance soldier setup");
-  }
   wf.nation[0].gold = 600;
-  wf.nation[1].gold = 600; /* suppress the unrelated null-units prize path */
+  wf.nation[1].gold = 600;
   ai_diplo_declare_war(&wf, 0, 1);
   if (wf.nation[0].unknown26[1] != 0 || wf.nation[1].unknown26[0] != 0) {
     return fail("declare_war must not seed a war-fatigue treaty timer");
   }
 
-  ColonizeDosRng rng_wf;
-  dos_rng_seed(&rng_wf, 42);
-  const uint32_t before = rng_wf.state;
-  uint32_t turn_wf = 1;
-  char status_wf[128] = "";
-  ColonizeTurnContext ctx_wf;
-  memset(&ctx_wf, 0, sizeof(ctx_wf));
-  ctx_wf.messages = test_game_txt();
-  ctx_wf.col1 = &wf;
-  ctx_wf.col1_ok = true;
-  ctx_wf.units = &units_wf;
-  ctx_wf.rng = &rng_wf;
-  ctx_wf.turn_number = &turn_wf;
-  ctx_wf.human_nation = 0;
-  ctx_wf.status = status_wf;
-  ctx_wf.status_size = sizeof(status_wf);
-  for (int i = 0; i < 4; ++i) {
-    ai_diplo_indian_hostility_set(i, 0);
-  }
-  for (int n = 0; n < 20; ++n) {
-    ai_diplo_euro_balance(&ctx_wf, 0);
-    ai_diplo_euro_balance(&ctx_wf, 1);
-  }
-  if (!ai_diplo_at_war(&wf, 0, 1) || !ai_diplo_at_war(&wf, 1, 0)) {
-    return fail("Euro balance must not make peace during an active war");
-  }
-  if (rng_wf.state != before) {
-    return fail("Euro balance must not draw a war-fatigue peace roll");
-  }
-  if (wf.nation[0].unknown26[1] != 0 || wf.nation[1].unknown26[0] != 0) {
-    return fail("Euro balance must not create war-fatigue treaty timers");
-  }
-
-  /* The explicit make-peace path still emits DOS's treaty text for either side. */
-  ai_diplo_make_peace_ctx(&ctx_wf, 1, 0);
-  if (strcmp(status_wf, diplo_pair_text("SIGNTREATY", 1, 0)) != 0) {
-    fprintf(stderr, "unit_ai_diplo: Peace concluded status '%s'\n", status_wf);
-    return fail("make_peace_ctx should status @SIGNTREATY when Tools already clear");
-  }
-
-    /* Tools embargo human status set/lift (colony gap ≥2). */
+    /* Human declare with a colony gap: still no Tools boycott. */
     ColonizeCol1Save ts;
     col1_save_init(&ts);
     memset(ts.nation, 0, sizeof(ts.nation));
@@ -1193,16 +753,7 @@ static int case_r2_no_fatigue_tools(void) {
       free(ts.colony);
       return fail("declare_war_ctx should use war line (no wartime boycott)");
     }
-    ai_diplo_make_peace_ctx(&ctx_ts, 0, 1);
-    if ((ts.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_TOOLS_BIT) != 0) {
-      free(ts.colony);
-      return fail("make_peace_ctx should leave Tools bit clear");
-    }
-    if (strcmp(status, diplo_pair_text("SIGNTREATY", 0, 1)) != 0) {
-      fprintf(stderr, "unit_ai_diplo: Tools lift status '%s'\n", status);
-      free(ts.colony);
-      return fail("make_peace_ctx should status @SIGNTREATY when Tools never set");
-    }
+    ai_diplo_make_peace(&ts, 0, 1);
     /* AI-only Tools war: no status overwrite. */
     snprintf(status, sizeof(status), "keep");
     ts.nation[1].gold = 400;
@@ -1237,10 +788,9 @@ static int case_r3_r4_sugar_rum_cigars_boycott(void) {
       r3.indian[i].alarm_by_player[1] = 0; /* relation 100 */
       r3.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
     }
-    /* Deep sticky: very-low slot keeps sticky==2 across matrix tick. */
-    r3.indian[0].alarm_by_player[0] = 90; /* DOS bands: relation 30 */
+    /* A very hostile tribe toward nation 0. */
+    r3.indian[0].alarm_by_player[0] = 90; /* DOS bands: relation 10 */
     r3.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-    ai_diplo_indian_hostility_set(0, 2);
     char status[128];
     status[0] = '\0';
     ColonizeDosRng rng_r3;
@@ -1273,38 +823,35 @@ static int case_r3_r4_sugar_rum_cigars_boycott(void) {
     ctx_r3.human_nation = 0;
     ctx_r3.status = status;
     ctx_r3.status_size = sizeof(status);
-    /* A deep port-side Indian "sticky" does NOT block the 13b0 tick: DOS
-     * 153e sends an AI self straight to 13b0 (raw 97406-97411). DOSBox 1557:
+    /* Indian hostility does NOT block the 13b0 tick: DOS 153e sends an AI
+     * self straight to 13b0 (raw 97406-97411). DOSBox 1557:
      * Spain and France signed on first contact. */
     int signed_deep = 0;
     for (int n = 0; n < 6 && !signed_deep; ++n) {
       r3.nation[0].gold = 600;
       r3.nation[1].gold = 600;
-      r3.indian[0].alarm_by_player[0] = 90; /* DOS bands: relation 30 */
+      r3.indian[0].alarm_by_player[0] = 90; /* DOS bands: relation 10 */
       r3.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-      ai_diplo_euro_balance(&ctx_r3, 0);
       ai_diplo_13b0_encounter(&ctx_r3, 0, 1); /* the 3180 encounter */
       signed_deep = (r3.nation[0].euro_relation[1] & AI_DIPLO_PEACE) != 0;
       turn_r3++;
     }
-    if (!signed_deep || ai_diplo_indian_hostility_sticky(&r3, 0) != 2) {
-      return fail("deep sticky must not refuse the 13b0 treaty (raw 97406)");
+    if (!signed_deep) {
+      return fail("Indian hostility must not refuse the 13b0 treaty (raw 97406)");
     }
     r3.nation[0].euro_relation[1] = 0;
     r3.nation[1].euro_relation[0] = 0;
-    /* Clear sticky → treaty may sign under same near-parity RNG. */
+    /* Peaceful tribes: treaty signs under the same near-parity RNG. */
     for (int i = 0; i < 8; ++i) {
       r3.indian[i].alarm_by_player[0] = 0; /* relation 100 */
       r3.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    ai_diplo_indian_hostility_set(0, 0);
     /* FUN_5bfb_13b0 (2026-08-27): not war-worthy (turn <= 39) and no PEACE →
      * @SIGNTREATY sets PEACE both ways within the (a+turn+b)%3 cadence. */
     int treaty = 0;
     for (int n = 0; n < 6; ++n) {
       r3.nation[0].gold = 600;
       r3.nation[1].gold = 600;
-      ai_diplo_euro_balance(&ctx_r3, 0);
       ai_diplo_13b0_encounter(&ctx_r3, 0, 1); /* the 3180 encounter */
       if ((r3.nation[0].euro_relation[1] & AI_DIPLO_PEACE) &&
           (r3.nation[1].euro_relation[0] & AI_DIPLO_PEACE)) {
@@ -1314,7 +861,7 @@ static int case_r3_r4_sugar_rum_cigars_boycott(void) {
       turn_r3++;
     }
     if (!treaty) {
-      return fail("without sticky==2, 13b0 should sign a peace treaty");
+      return fail("13b0 should sign a peace treaty");
     }
 
     /* 153e's exit refreshes the other nation's timer even when 13b0's
@@ -1334,7 +881,8 @@ static int case_r3_r4_sugar_rum_cigars_boycott(void) {
       return fail("audience exit must use mover Franklin and preserve mover timer");
     }
 
-    /* Sugar embargo: set on declare, lift on peace (same bit1 as king refuse). */
+    /* A king (tea-party) Sugar boycott survives both war and peace: neither
+     * DOS path writes nation+0x20 (bugs.md #1104). */
     ColonizeCol1Save sg;
     col1_save_init(&sg);
     memset(sg.nation, 0, sizeof(sg.nation));
@@ -1357,15 +905,14 @@ static int case_r3_r4_sugar_rum_cigars_boycott(void) {
       return fail("declare_war must not OR extra wartime cargos");
     }
     ai_diplo_make_peace(&sg, 0, 1);
-    if ((sg.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_SUGAR_BIT) != 0 ||
-        (sg.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_SUGAR_BIT) != 0) {
-      return fail("make_peace should lift Sugar boycott when no Euro wars remain");
+    if ((sg.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_SUGAR_BIT) == 0) {
+      return fail("peace must not lift a king Sugar boycott (bugs.md #1104)");
     }
     if (ai_diplo_at_war_with_any(&sg, 0) || ai_diplo_at_war(&sg, 0, 1)) {
       return fail("after peace, at_war / at_war_with_any should be clear");
     }
 
-    /* R4/R11: Rum+Cigars+Cotton wartime boycott set on declare, lift on peace. */
+    /* R4/R11: no Rum+Cigars+Cotton wartime boycott on declare. */
     ColonizeCol1Save rc;
     col1_save_init(&rc);
     memset(rc.nation, 0, sizeof(rc.nation));
@@ -1378,11 +925,6 @@ static int case_r3_r4_sugar_rum_cigars_boycott(void) {
     if ((rc.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0 ||
         (rc.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
       return fail("declare_war must not OR Rum/Cigars/Cotton boycott bits");
-    }
-    ai_diplo_make_peace(&rc, 0, 1);
-    if ((rc.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0 ||
-        (rc.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
-      return fail("make_peace should lift full wartime mask (Rum+Cigars+Cotton+…)");
     }
 
     /* Human declare uses @DECLAREWAR; no wartime Tools boycott. */
@@ -1431,13 +973,6 @@ static int case_r6_ore_silver_boycott(void) {
         (os.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
       return fail("declare_war must not OR Ore/Silver boycott bits");
     }
-    ai_diplo_make_peace(&os, 0, 1);
-    if ((os.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_ORE_BIT) != 0 ||
-        (os.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_ORE_BIT) != 0 ||
-        (os.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_SILVER_BIT) != 0 ||
-        (os.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_SILVER_BIT) != 0) {
-      return fail("make_peace should lift Ore+Silver boycott when no Euro wars remain");
-    }
   return 0;
 }
 
@@ -1454,65 +989,6 @@ static int case_r8_lumber_boycott_privateer(void) {
     if ((r8.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_LUMBER_BIT) != 0 ||
         (r8.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_LUMBER_BIT) != 0) {
       return fail("declare_war must not OR Lumber boycott bit");
-    }
-    ai_diplo_make_peace(&r8, 0, 1);
-    if ((r8.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_LUMBER_BIT) != 0 ||
-        (r8.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_LUMBER_BIT) != 0) {
-      return fail("make_peace should lift Lumber boycott when no Euro wars remain");
-    }
-
-
-    /* Feeler mid-band heal → human "Native relations improve." (sticky clear). */
-    {
-      ColonizeCol1Save fl;
-      col1_save_init(&fl);
-      memset(fl.nation, 0, sizeof(fl.nation));
-      for (int i = 0; i < 4; ++i) {
-        fl.player[i].control = 0;
-      }
-      for (int i = 0; i < 8; ++i) {
-        fl.indian[i].alarm_by_player[0] = 0; /* relation 100 */
-        fl.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-      }
-      fl.indian[1].alarm_by_player[0] = 20; /* relation 80 */ /* mid-band feeler-eligible */
-      fl.indian[1].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-      ai_diplo_indian_hostility_set(0, 0);
-      fl.nation[0].gold = 40;
-      char status_fl[128];
-      status_fl[0] = '\0';
-      ColonizeDosRng rng_fl;
-      dos_rng_seed(&rng_fl, 12);
-      uint32_t turn_fl = 12;
-      ColonizeTurnContext ctx_fl;
-      memset(&ctx_fl, 0, sizeof(ctx_fl));
-      ctx_fl.messages = test_game_txt();
-      ctx_fl.col1 = &fl;
-      ctx_fl.col1_ok = true;
-      ctx_fl.rng = &rng_fl;
-      ctx_fl.turn_number = &turn_fl;
-      ctx_fl.human_nation = 0;
-      ctx_fl.status = status_fl;
-      ctx_fl.status_size = sizeof(status_fl);
-      ai_diplo_euro_balance(&ctx_fl, 0);
-      if (ai_diplo_indian_relation(&fl, 4 + (1), 0) != 80) {
-        return fail("R8: retired feeler must not move mid-band relation");
-      }
-      if (ai_diplo_indian_hostility_sticky(&fl, 0) != 0) {
-        return fail("R8 feeler status setup should keep sticky clear");
-      }
-      if (status_fl[0] != '\0') {
-        fprintf(stderr, "unit_ai_diplo: feeler status '%s'\n", status_fl);
-        return fail("retired feeler must not write a status line");
-      }
-      /* AI-only: no status. */
-      snprintf(status_fl, sizeof(status_fl), "keep");
-      fl.indian[1].alarm_by_player[0] = 20; /* relation 80 */
-      fl.indian[1].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-      ctx_fl.human_nation = 2;
-      ai_diplo_euro_balance(&ctx_fl, 0);
-      if (strcmp(status_fl, "keep") != 0) {
-        return fail("feeler status must not write for AI-only nation");
-      }
     }
   return 0;
 }
@@ -1540,15 +1016,6 @@ static int case_r9_horses_muskets_boycott(void) {
     if ((r9.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_MUSKETS_BIT) != 0 ||
         (r9.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_MUSKETS_BIT) != 0) {
       return fail("declare_war must not OR Muskets boycott bit");
-    }
-    ai_diplo_make_peace(&r9, 0, 1);
-    if ((r9.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_HORSES_BIT) != 0 ||
-        (r9.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_HORSES_BIT) != 0) {
-      return fail("make_peace should lift Horses boycott when no Euro wars remain");
-    }
-    if ((r9.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_MUSKETS_BIT) != 0 ||
-        (r9.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_MUSKETS_BIT) != 0) {
-      return fail("make_peace should lift Muskets boycott when no Euro wars remain");
     }
 
   return 0;
@@ -1603,19 +1070,12 @@ static int case_declare_war_popup_unpark(void) {
       return fail("popup smoke: re-declare must not enqueue again");
     }
 
-    /* Peace → @SIGNTREATY OK (PEACE tag; Tools embargo never set). */
-    ai_diplo_make_peace_ctx(&ctx_pop, 0, 1);
-    if (popups.queue_count != 2) {
-      return fail("popup smoke: make_peace_ctx should enqueue OK");
-    }
-    if (popups.queue[1].tag != AI_POPUP_TAG_DIPLO_PEACE) {
-      return fail("popup smoke: peace treaty should tag DIPLO_PEACE");
-    }
 
     /*
      * R2: war OK both directions (human-as-a / human-as-b) once each;
-     * re-declare must not spam. Peace offer CHOICE AI→human + Accept apply.
-     * Cite: FUN_15b3 / FUN_5bfb; FA 3f41 full UI PARKED.
+     * re-declare must not spam. A DIPLO_PEACE result carries no action: DOS
+     * treaty notices are OK-only, the old Accept/Refuse handler was dead
+     * (bugs.md #1104). Cite: FUN_15b3 / FUN_5bfb; FA 3f41 full UI PARKED.
      */
     {
       ColonizeCol1Save w2;
@@ -1668,8 +1128,7 @@ static int case_declare_war_popup_unpark(void) {
         w2.indian[i].alarm_by_player[1] = 0; /* relation 100 */
         w2.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
       }
-      ai_diplo_indian_hostility_set(0, 0);
-      /* human-as-b */
+        /* human-as-b */
       ai_diplo_declare_war_ctx(&ctx_w2, 1, 0);
       if (pop_w2.queue_count != 1) {
         return fail("R2 war: human-as-b should enqueue one OK");
@@ -1679,7 +1138,7 @@ static int case_declare_war_popup_unpark(void) {
         return fail("R2 war: re-declare human-as-b must not spam");
       }
 
-      /* Peace CHOICE: AI actor offers to human peer; Accept → make_peace. */
+      /* A DIPLO_PEACE choice result must not make peace any more. */
       ai_popup_clear(&pop_w2);
       status_w2[0] = '\0';
       {
@@ -1713,249 +1172,13 @@ static int case_declare_war_popup_unpark(void) {
         }
       }
       ai_diplo_apply_popup_result(&ctx_w2, &pop_w2);
-      if (ai_diplo_at_war(&w2, 0, 1)) {
-        return fail("R2 peace: Accept should make_peace");
-      }
-      ai_popup_consume_result(&pop_w2);
-
-      /* Refuse leaves WAR. */
-      ai_diplo_declare_war(&w2, 0, 1);
-      ai_popup_clear(&pop_w2);
-      {
-        const char* labels[] = {"Accept", "Refuse"};
-        const int ids[] = {1, 2};
-        (void)ai_popup_enqueue_choice_ctx(
-          &pop_w2,
-          AI_POPUP_TAG_DIPLO_PEACE,
-          1,
-          0,
-          0,
-          "Peace",
-          "France offers peace.",
-          labels,
-          ids,
-          2
-        );
-      }
-      ai_popup_try_present_next(&pop_w2);
-      {
-        ColonizeInputState in;
-        memset(&in, 0, sizeof(in));
-        in.last_key = COLONIZE_KEY_DOWN; /* Refuse selection */
-        (void)ai_popup_handle_input(&pop_w2, &in);
-        in.last_key = COLONIZE_KEY_ENTER;
-        if (!ai_popup_handle_input(&pop_w2, &in) || !pop_w2.has_result) {
-          return fail("R2 peace: Refuse should produce result");
-        }
-      }
-      if (pop_w2.result_choice_id != 2) {
-        return fail("R2 peace: Refuse choice_id should be 2");
-      }
-      ai_diplo_apply_popup_result(&ctx_w2, &pop_w2);
       if (!ai_diplo_at_war(&w2, 0, 1)) {
-        return fail("R2 peace: Refuse must leave WAR");
-      }
-      if (strcmp(status_w2, "Peace refused with French") != 0) {
-        fprintf(stderr, "unit_ai_diplo: peace refuse status '%s'\n", status_w2);
-        return fail("R2 peace: Refuse should status Peace refused");
-      }
-      /* Refuse follow-up INFO OK demoted (invented; FA UI PARKED). */
-      if (pop_w2.queue_count != 0) {
-        return fail("M2R5 peace Refuse: must not enqueue invented follow-up OK");
+        return fail("R2 peace: a DIPLO_PEACE result must not make peace (bugs.md #1104)");
       }
       ai_popup_consume_result(&pop_w2);
-
     }
   return 0;
 }
-
-static int case_marathon2_ai_declare_choice(void) {
-    ColonizeCol1Save w3;
-    col1_save_init(&w3);
-    memset(w3.nation, 0, sizeof(w3.nation));
-    for (int i = 0; i < 4; ++i) {
-      w3.player[i].control = 0;
-      w3.player[i].country_name[0] = '\0';
-    }
-    snprintf(w3.player[1].country_name, sizeof(w3.player[1].country_name), "France");
-    w3.nation[0].gold = 200;
-    w3.nation[1].gold = 200;
-    for (int i = 0; i < 8; ++i) {
-      w3.indian[i].alarm_by_player[0] = 0; /* relation 100 */
-      w3.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-      w3.indian[i].alarm_by_player[1] = 0; /* relation 100 */
-      w3.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
-    }
-    char status_w3[128];
-    status_w3[0] = '\0';
-    AiPopupState pop_w3;
-    ai_popup_init(&pop_w3);
-    ColonizeTurnContext ctx_w3;
-    memset(&ctx_w3, 0, sizeof(ctx_w3));
-    ctx_w3.messages = test_game_txt();
-    ctx_w3.col1 = &w3;
-    ctx_w3.col1_ok = true;
-    ctx_w3.human_nation = 0;
-    ctx_w3.status = status_w3;
-    ctx_w3.status_size = sizeof(status_w3);
-    ctx_w3.ai_popups = &pop_w3;
-
-    {
-      const char* labels[] = {"Accept", "Refuse"};
-      const int ids[] = {1, 2};
-      if (!ai_popup_enqueue_choice_ctx(
-            &pop_w3,
-            AI_POPUP_TAG_DIPLO_WAR,
-            1,
-            0,
-            0,
-            "War",
-            "France declares war!",
-            labels,
-            ids,
-            2
-          )) {
-        return fail("M2R3 war: enqueue CHOICE");
-      }
-    }
-    if (ai_diplo_at_war(&w3, 0, 1)) {
-      return fail("M2R3 war: must not be at war before Accept");
-    }
-    ai_popup_try_present_next(&pop_w3);
-    {
-      ColonizeInputState in;
-      memset(&in, 0, sizeof(in));
-      in.last_key = COLONIZE_KEY_ENTER; /* Accept */
-      if (!ai_popup_handle_input(&pop_w3, &in) || !pop_w3.has_result) {
-        return fail("M2R3 war: Accept should produce result");
-      }
-    }
-    ai_diplo_apply_popup_result(&ctx_w3, &pop_w3);
-    if (!ai_diplo_at_war(&w3, 0, 1)) {
-      return fail("M2R3 war: Accept should declare_war");
-    }
-    ai_popup_consume_result(&pop_w3);
-
-    /* Refuse leaves peace. */
-    ai_diplo_make_peace(&w3, 0, 1);
-    ai_popup_clear(&pop_w3);
-    status_w3[0] = '\0';
-    w3.nation[0].gold = 200;
-    w3.nation[1].gold = 200;
-    for (int i = 0; i < 8; ++i) {
-      w3.indian[i].alarm_by_player[0] = 0; /* relation 100 */
-      w3.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-      w3.indian[i].alarm_by_player[1] = 0; /* relation 100 */
-      w3.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
-    }
-    ai_diplo_indian_hostility_set(0, 0);
-    ai_diplo_indian_hostility_set(1, 0);
-    {
-      const char* labels[] = {"Accept", "Refuse"};
-      const int ids[] = {1, 2};
-      (void)ai_popup_enqueue_choice_ctx(
-        &pop_w3,
-        AI_POPUP_TAG_DIPLO_WAR,
-        1,
-        0,
-        0,
-        "War",
-        "France declares war!",
-        labels,
-        ids,
-        2
-      );
-    }
-    ai_popup_try_present_next(&pop_w3);
-    {
-      ColonizeInputState in;
-      memset(&in, 0, sizeof(in));
-      in.last_key = COLONIZE_KEY_DOWN; /* Refuse selection */
-      (void)ai_popup_handle_input(&pop_w3, &in);
-      in.last_key = COLONIZE_KEY_ENTER;
-      if (!ai_popup_handle_input(&pop_w3, &in) || !pop_w3.has_result) {
-        return fail("M2R3 war: Refuse should produce result");
-      }
-    }
-    if (pop_w3.result_choice_id != 2) {
-      return fail("M2R3 war: Refuse choice_id should be 2");
-    }
-    ai_diplo_apply_popup_result(&ctx_w3, &pop_w3);
-    if (ai_diplo_at_war(&w3, 0, 1)) {
-      return fail("M2R3 war: Refuse must leave peace");
-    }
-    if (strcmp(status_w3, "War refused with French") != 0) {
-      fprintf(stderr, "unit_ai_diplo: war refuse status '%s'\n", status_w3);
-      return fail("M2R3 war: Refuse should status War refused");
-    }
-    /* Refuse follow-up INFO OK demoted (invented; FA UI PARKED). */
-    if (pop_w3.queue_count != 0) {
-      return fail("M2R6 war Refuse: must not enqueue invented follow-up OK");
-    }
-  return 0;
-}
-
-static int case_marathon2_sticky_deepen_popup(void) {
-    ColonizeCol1Save ns;
-    col1_save_init(&ns);
-    memset(ns.nation, 0, sizeof(ns.nation));
-    for (int i = 0; i < 4; ++i) {
-      ns.player[i].control = 0;
-    }
-    ns.indian[0].alarm_by_player[0] = 90; /* DOS bands: relation 30 */ /* very-low → deepen */
-    ns.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-    for (int i = 1; i < 8; ++i) {
-      ns.indian[i].alarm_by_player[0] = 20; /* relation 80 */
-      ns.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-    }
-    ai_diplo_indian_hostility_set(0, 1); /* at-war sticky → deepen to 2 on sync */
-    ns.nation[0].gold = 40;
-    char status_ns[128];
-    status_ns[0] = '\0';
-    AiPopupState pop_ns;
-    ai_popup_init(&pop_ns);
-    ColonizeDosRng rng_ns;
-    dos_rng_seed(&rng_ns, 13);
-    uint32_t turn_ns = 13;
-    ColonizeTurnContext ctx_ns;
-    memset(&ctx_ns, 0, sizeof(ctx_ns));
-    ctx_ns.messages = test_game_txt();
-    ctx_ns.col1 = &ns;
-    ctx_ns.col1_ok = true;
-    ctx_ns.rng = &rng_ns;
-    ctx_ns.turn_number = &turn_ns;
-    ctx_ns.human_nation = 0;
-    ctx_ns.status = status_ns;
-    ctx_ns.status_size = sizeof(status_ns);
-    ctx_ns.ai_popups = &pop_ns;
-    ai_diplo_euro_balance(&ctx_ns, 0);
-    if (ai_diplo_indian_hostility_sticky(&ns, 0) != 2) {
-      return fail("M2R6 sticky deepen: sync should deepen sticky to 2");
-    }
-    if (strcmp(status_ns, "Natives remain hostile.") != 0) {
-      fprintf(stderr, "unit_ai_diplo: sticky deepen status '%s'\n", status_ns);
-      return fail("M2R6 sticky deepen: should status Natives remain hostile");
-    }
-    if (pop_ns.queue_count < 1) {
-      return fail("M2R6 sticky deepen: should enqueue native status OK");
-    }
-    {
-      int found = 0;
-      for (int i = 0; i < pop_ns.queue_count; ++i) {
-        if (pop_ns.queue[i].tag == AI_POPUP_TAG_INFO &&
-            pop_ns.queue[i].kind == AI_POPUP_KIND_OK &&
-            strcmp(pop_ns.queue[i].body, "Natives remain hostile.") == 0) {
-          found = 1;
-          break;
-        }
-      }
-      if (!found) {
-        return fail("M2R6 sticky deepen: INFO OK body must be Natives remain hostile");
-      }
-    }
-  return 0;
-}
-
 static int case_marathon3_franklin_peace_gate(void) {
     ColonizeCol1Save fr;
     col1_save_init(&fr);
@@ -2139,13 +1362,7 @@ static int case_indian_grudge_tension_clamp(void) {
 static int case_153e_phase1_border_probe(void) {
     ColonizeWorldMap wmap;
     memset(&wmap, 0, sizeof(wmap));
-    wmap.width = 16;
-    wmap.height = 16;
-    wmap.tile_count = 256;
-    wmap.terrain = calloc(256, 1);
-    wmap.layer2 = calloc(256, 1);
-    wmap.layer3 = calloc(256, 1);
-    if (!wmap.terrain || !wmap.layer2 || !wmap.layer3) {
+    if (!fx_map_alloc(&wmap, 16, 16, 0, false)) {
       return fail("153e alloc map");
     }
     for (int i = 0; i < 256; ++i) {
@@ -2213,9 +1430,7 @@ static int case_153e_phase1_border_probe(void) {
     wctx.colonies = &wcol;
     wctx.human_nation = 0;
     const Ai153eWorthinessScore ws = ai_diplo_153e_worthiness_score(&wctx, 0, 1, -1, 1);
-    free(wmap.terrain);
-    free(wmap.layer2);
-    free(wmap.layer3);
+    fx_map_free(&wmap);
     if (!ws.handled) {
       return fail("153e: forced gate should run phase 1");
     }
@@ -2240,13 +1455,7 @@ static int case_153e_phase1_border_probe(void) {
 static int case_153e_phases_2_4_encounter(void) {
     ColonizeWorldMap emap;
     memset(&emap, 0, sizeof(emap));
-    emap.width = 16;
-    emap.height = 16;
-    emap.tile_count = 256;
-    emap.terrain = calloc(256, 1);
-    emap.layer2 = calloc(256, 1);
-    emap.layer3 = calloc(256, 1);
-    if (!emap.terrain || !emap.layer2 || !emap.layer3) {
+    if (!fx_map_alloc(&emap, 16, 16, 0, false)) {
       return fail("153e talk alloc map");
     }
     for (int i = 0; i < 256; ++i) {
@@ -2304,16 +1513,12 @@ static int case_153e_phases_2_4_encounter(void) {
     const int started = ai_diplo_153e_encounter(&ectx, 0, 1, pa->id);
     if (!started || epop.queue_count < 2) {
       fprintf(stderr, "unit_ai_diplo: 153e talk started=%d queued=%d\n", started, epop.queue_count);
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("153e talk: unmet adjacent AI Euro must open the greeting + partition CHOICE");
     }
     if (epop.queue[0].tag != AI_POPUP_TAG_DIPLO_TALK || epop.queue[0].kind != AI_POPUP_KIND_OK ||
         epop.queue[1].kind != AI_POPUP_KIND_CHOICE) {
-      free(emap.terrain);
-      free(emap.layer2);
-      free(emap.layer3);
+      fx_map_free(&emap);
       return fail("153e talk: expected greeting OK then a CHOICE");
     }
     /* bugs.md #545: @HELLOFIRST tokens are DOS raw :97696-97704 — %STRING0
@@ -2343,9 +1548,7 @@ static int case_153e_phases_2_4_encounter(void) {
       }
       if (!strstr(flat, "Tsterson") || !strstr(flat, "France") || !kings || !strstr(flat, kings)) {
         fprintf(stderr, "unit_ai_diplo: greeting body='%s'\n", flat);
-        free(emap.terrain);
-        free(emap.layer2);
-        free(emap.layer3);
+        fx_map_free(&emap);
         return fail("153e greeting: DOS HELLOFIRST tokens (leader, target country, GREATKINGS)");
       }
     }
@@ -2395,9 +1598,7 @@ static int case_153e_phases_2_4_encounter(void) {
       ai_diplo_apply_popup_result(&ectx, &epop);
       epop.has_result = false;
     }
-    free(emap.terrain);
-    free(emap.layer2);
-    free(emap.layer3);
+    fx_map_free(&emap);
     if (!peace_ok) {
       return fail("153e talk: accepting the partition treaty must sign PEACE both ways");
     }
@@ -2416,13 +1617,7 @@ static int case_153e_phases_2_4_encounter(void) {
 static int case_153e_wantstuff_demand(void) {
     ColonizeWorldMap qmap;
     memset(&qmap, 0, sizeof(qmap));
-    qmap.width = 16;
-    qmap.height = 16;
-    qmap.tile_count = 256;
-    qmap.terrain = calloc(256, 1);
-    qmap.layer2 = calloc(256, 1);
-    qmap.layer3 = calloc(256, 1);
-    if (!qmap.terrain || !qmap.layer2 || !qmap.layer3) {
+    if (!fx_map_alloc(&qmap, 16, 16, 0, false)) {
       return fail("153e wantstuff alloc map");
     }
     for (int i = 0; i < 256; ++i) {
@@ -2501,9 +1696,7 @@ static int case_153e_wantstuff_demand(void) {
     qctx.ai_popups = &qpop;
     qctx.rng = &qrng;
     const int started = ai_diplo_153e_encounter(&qctx, 0, 1, pai->id);
-    free(qmap.terrain);
-    free(qmap.layer2);
-    free(qmap.layer3);
+    fx_map_free(&qmap);
     if (!started) {
       return fail("153e wantstuff: AI unit next to human colony must open the talk");
     }
@@ -2556,13 +1749,7 @@ static int case_153e_wantstuff_demand(void) {
 static int case_153e_worthy_cascade(void) {
     ColonizeWorldMap rmap;
     memset(&rmap, 0, sizeof(rmap));
-    rmap.width = 16;
-    rmap.height = 16;
-    rmap.tile_count = 256;
-    rmap.terrain = calloc(256, 1);
-    rmap.layer2 = calloc(256, 1);
-    rmap.layer3 = calloc(256, 1);
-    if (!rmap.terrain || !rmap.layer2 || !rmap.layer3) {
+    if (!fx_map_alloc(&rmap, 16, 16, 0, false)) {
       return fail("153e rid alloc map");
     }
     for (int i = 0; i < 256; ++i) {
@@ -2643,9 +1830,7 @@ static int case_153e_worthy_cascade(void) {
     int saw_rid = 0;
     int saw_warmanly_run1 = 0;
     if (!ai_diplo_153e_encounter(&rctx, 0, 1, rai->id)) {
-      free(rmap.terrain);
-      free(rmap.layer2);
-      free(rmap.layer3);
+      fx_map_free(&rmap);
       return fail("153e rid: the encounter must open");
     }
     for (int guard = 0; guard < 16 && rpop.queue_count > 0; ++guard) {
@@ -2672,21 +1857,15 @@ static int case_153e_worthy_cascade(void) {
       rpop.has_result = false;
     }
     if (!saw_rid) {
-      free(rmap.terrain);
-      free(rmap.layer2);
-      free(rmap.layer3);
+      fx_map_free(&rmap);
       return fail("153e worthy cascade: a worthy AI with no tribute dialog must issue @RID");
     }
     if (saw_warmanly_run1) {
-      free(rmap.terrain);
-      free(rmap.layer2);
-      free(rmap.layer3);
+      fx_map_free(&rmap);
       return fail("153e worthy cascade: @WARMANLY must not fire without the 999 tribute latch");
     }
     if ((r.nation[0].euro_relation[1] & AI_DIPLO_PEACE) != 0) {
-      free(rmap.terrain);
-      free(rmap.layer2);
-      free(rmap.layer3);
+      fx_map_free(&rmap);
       return fail("153e worthy cascade: the @RID ultimatum leg must not sign peace");
     }
 
@@ -2698,9 +1877,7 @@ static int case_153e_worthy_cascade(void) {
     int saw_warmanly = 0;
     int saw_rid_run2 = 0;
     if (!ai_diplo_153e_encounter(&rctx, 0, 1, rai->id)) {
-      free(rmap.terrain);
-      free(rmap.layer2);
-      free(rmap.layer3);
+      fx_map_free(&rmap);
       return fail("153e warmanly: the second encounter must open on a later turn");
     }
     for (int guard = 0; guard < 16 && rpop.queue_count > 0; ++guard) {
@@ -2729,9 +1906,7 @@ static int case_153e_worthy_cascade(void) {
       ai_diplo_apply_popup_result(&rctx, &rpop);
       rpop.has_result = false;
     }
-    free(rmap.terrain);
-    free(rmap.layer2);
-    free(rmap.layer3);
+    fx_map_free(&rmap);
     if (!saw_tribute) {
       return fail("153e warmanly: an affordable tribute demand must be shown first");
     }
@@ -2909,19 +2084,16 @@ static const TestCase k_cases[] = {
     {"case_relation_writes_preserve_player_bytes", case_relation_writes_preserve_player_bytes},
     {"case_153e_talk_tokens_474", case_153e_talk_tokens_474},
     {"case_declare_peace_narrative", case_declare_peace_narrative},
-    {"case_indian_sticky_status_chrome", case_indian_sticky_status_chrome},
     {"case_r11_no_indian_war_hit", case_r11_no_indian_war_hit},
     {"case_trade_deepen_military_score", case_trade_deepen_military_score},
     {"case_war_peace_status_chrome", case_war_peace_status_chrome},
-    {"case_sticky_pressure_relation_read", case_sticky_pressure_relation_read},
+    {"case_indian_relation_read", case_indian_relation_read},
     {"case_r2_no_fatigue_tools", case_r2_no_fatigue_tools},
     {"case_r3_r4_sugar_rum_cigars_boycott", case_r3_r4_sugar_rum_cigars_boycott},
     {"case_r6_ore_silver_boycott", case_r6_ore_silver_boycott},
     {"case_r8_lumber_boycott_privateer", case_r8_lumber_boycott_privateer},
     {"case_r9_horses_muskets_boycott", case_r9_horses_muskets_boycott},
     {"case_declare_war_popup_unpark", case_declare_war_popup_unpark},
-    {"case_marathon2_ai_declare_choice", case_marathon2_ai_declare_choice},
-    {"case_marathon2_sticky_deepen_popup", case_marathon2_sticky_deepen_popup},
     {"case_marathon3_franklin_peace_gate", case_marathon3_franklin_peace_gate},
     {"case_indian_grudge_tension_clamp", case_indian_grudge_tension_clamp},
     {"case_153e_phase1_border_probe", case_153e_phase1_border_probe},

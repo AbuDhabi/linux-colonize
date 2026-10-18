@@ -850,7 +850,6 @@ static void ai_contact_live_among_natives_body(
   tok.string0 = tribe;
   tok.string1 = ai_contact_job_name(skill);
   const char* section = NULL;
-  const char* fb = NULL;
 
   if (band > 1 && alarm >= 0x4b) {
     /* DOS's high-alarm village arm consumes the visit without teaching. */
@@ -863,10 +862,8 @@ static void ai_contact_live_among_natives_body(
       return; /* met, no peace → DOS returns before the popup */
     }
     section = "LEARNMAD";
-    fb = "";
   } else if (ai_contact_is_petty_criminal(ctx->units, u)) {
     section = "LEARNCRIMINAL";
-    fb = "";
   } else {
     const int is_convert = u->profession == COLONIZE_PROF_CONVERT;
     /* Profession byte, not the display name (see is_petty_criminal). */
@@ -883,10 +880,8 @@ static void ai_contact_live_among_natives_body(
         !is_indentured) {
       tok.string1 = ai_contact_learner_skill_name(ctx->units, u);
       section = "LEARNMASTER";
-      fb = "";
     } else if (t->state.learned && !t->state.capital) {
       section = "LEARNALREADY";
-      fb = "";
     } else {
       int slow = 0;
       if (band > 0) {
@@ -897,7 +892,6 @@ static void ai_contact_live_among_natives_body(
       }
       if (slow) {
         section = "LEARNSLOW";
-        fb = "";
       } else if (human && ctx->ai_popups) {
         village_trade_intel_note_skill(e, t->x, t->y, skill);
         char body[AI_POPUP_BODY_LEN];
@@ -932,14 +926,8 @@ static void ai_contact_live_among_natives_body(
       }
     }
   }
-  char fbs[AI_POPUP_BODY_LEN];
-  if (strstr(fb, "%s")) {
-    snprintf(fbs, sizeof(fbs), fb, strcmp(section, "LEARNMASTER") == 0 ? tok.string1 : tribe);
-  } else {
-    snprintf(fbs, sizeof(fbs), "%s", fb);
-  }
   char body[AI_POPUP_BODY_LEN];
-  popup_msg_fill(ctx->messages, section, &tok, fbs, body, sizeof(body));
+  popup_msg_fill(ctx->messages, section, &tok, "", body, sizeof(body));
   ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", body);
 }
 
@@ -2022,7 +2010,6 @@ static void ai_contact_apply_popup_result_menu(
       ai_contact_gift_or_demand(ctx, ind, nation_id, e, other, near_x, near_y);
     } else if (alarm >= 55) {
       /* No adjacent Euro unit — still show alarmed refuse chrome. */
-      ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_DEMAND, "", "demands");
     }
     break;
   }

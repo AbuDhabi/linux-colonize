@@ -1,4 +1,5 @@
 #include "test_units_common.h"
+#include "../common/test_runner.h"
 
 
 /*
@@ -19,7 +20,6 @@ static int unit_fog_vis_mask_and_snapshot(void) {
     map.layer3[i] = 0xf1;  /* unowned, continent 1 */
   }
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
   memset(&units, 0, sizeof(units));
   units_reset(&units);
   units_set_occupancy_map(NULL);
@@ -108,7 +108,6 @@ static int unit_fog_vis_mask_and_snapshot(void) {
    */
   {
     ColonizeUnitPool cpool;
-    memset(&cpool, 0, sizeof(cpool));
     memset(&cpool, 0, sizeof(cpool));
     units_reset(&cpool);
     units_set_occupancy_map(NULL);
@@ -264,7 +263,6 @@ static int unit_fog_vis_mask_and_snapshot(void) {
  */
 static int unit_flood_river_pair_step(void) {
   ColonizeUnitPool pool;
-  memset(&pool, 0, sizeof(pool));
   memset(&pool, 0, sizeof(pool));
   pool.type_count = 1;
   snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Pioneers");
@@ -570,7 +568,6 @@ static int unit_goto_dos_tails(void) {
 static int unit_wake_passenger_can_land(void) {
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
-  memset(&pool, 0, sizeof(pool));
   pool.type_count = 2;
   snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Caravel");
   pool.types[0].movement = 4;
@@ -661,7 +658,6 @@ static int unit_wake_passenger_can_land(void) {
  */
 static int unit_stack_one_click_wakes_and_selects(void) {
   ColonizeUnitPool pool;
-  memset(&pool, 0, sizeof(pool));
   memset(&pool, 0, sizeof(pool));
   pool.type_count = 2;
   snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Caravel");
@@ -1105,48 +1101,17 @@ static int unit_board_restore_bounded(void) {
   return 0;
 }
 
-int main(void) {
-  diag_init(0, NULL);
-  if (unit_far_flood_keeps_probe_type() != 0) {
-    return 1;
-  }
-  if (unit_board_restore_bounded() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_ai_move_marks_new_world() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_mp_entry_gating_713_724() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_flood_river_pair_step() != 0) {
-    return 1;
-  }
-  if (unit_goto_dos_tails() != 0) {
-    return 1;
-  }
-  if (unit_ship_pressure_0906_cost() != 0) {
-    return 1;
-  }
-  if (unit_wake_passenger_can_land() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_stack_one_click_wakes_and_selects() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_fog_vis_mask_and_snapshot() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_colony_enter_hull_stack_gate_791_792() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  diag_shutdown();
-  return 0;
-}
+static const TestCase k_cases[] = {
+  {"unit_far_flood_keeps_probe_type", unit_far_flood_keeps_probe_type},
+  {"unit_board_restore_bounded", unit_board_restore_bounded},
+  {"unit_ai_move_marks_new_world", unit_ai_move_marks_new_world},
+  {"unit_mp_entry_gating_713_724", unit_mp_entry_gating_713_724},
+  {"unit_flood_river_pair_step", unit_flood_river_pair_step},
+  {"unit_goto_dos_tails", unit_goto_dos_tails},
+  {"unit_ship_pressure_0906_cost", unit_ship_pressure_0906_cost},
+  {"unit_wake_passenger_can_land", unit_wake_passenger_can_land},
+  {"unit_stack_one_click_wakes_and_selects", unit_stack_one_click_wakes_and_selects},
+  {"unit_fog_vis_mask_and_snapshot", unit_fog_vis_mask_and_snapshot},
+  {"unit_colony_enter_hull_stack_gate_791_792", unit_colony_enter_hull_stack_gate_791_792},
+};
+TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

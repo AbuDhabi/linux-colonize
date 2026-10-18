@@ -893,10 +893,9 @@ static int case_production_rules_manufacturing(void) {
     assets_msg_free(&names);
     return 1;
   }
-  const char* dname = pool.building_types[distiller].name;
-  if (colony_prod_manufacturing_output(dname, COLONIZE_PROF_CONVERT, COLONIZE_PROF_DISTILLER, 0) != 1 ||
-      colony_prod_manufacturing_output(dname, COLONIZE_PROF_BLACKSMITH, COLONIZE_PROF_DISTILLER, 0) != 3 ||
-      colony_prod_manufacturing_output(dname, COLONIZE_PROF_DISTILLER, COLONIZE_PROF_DISTILLER, 0) != 6) {
+  if (colony_prod_manufacturing_output_row(distiller, COLONIZE_PROF_CONVERT, COLONIZE_PROF_DISTILLER, 0) != 1 ||
+      colony_prod_manufacturing_output_row(distiller, COLONIZE_PROF_BLACKSMITH, COLONIZE_PROF_DISTILLER, 0) != 3 ||
+      colony_prod_manufacturing_output_row(distiller, COLONIZE_PROF_DISTILLER, COLONIZE_PROF_DISTILLER, 0) != 6) {
     fprintf(stderr, "manufacturing class/skill rules failed\n");
     assets_msg_free(&names);
     return 1;
@@ -916,13 +915,12 @@ static int case_production_rules_manufacturing(void) {
       assets_msg_free(&names);
       return 1;
     }
-    const char* iname = pool.building_types[iron_works].name;
     /* Free colonist (tag=3), factory tier, sol_bonus=2 (the real maximum —
      * the old ">=2 clamps to 2, +1 truncates to 0" step is gone; DOS folds
      * local_e directly): v = 3+2=5; shop/factory re-add tag: 5+3=8;
      * factory ×1.5 floor: 8+4=12. */
     const int unskilled =
-      colony_prod_manufacturing_output(iname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 2);
+      colony_prod_manufacturing_output_row(iron_works, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 2);
     if (unskilled != 12) {
       fprintf(stderr, "factory sol-fold unskilled want 12 got %d\n", unskilled);
       assets_msg_free(&names);
@@ -930,7 +928,7 @@ static int case_production_rules_manufacturing(void) {
     }
     /* Skilled (Blacksmith in Iron Works): whole running total doubles: 12*2=24. */
     const int skilled =
-      colony_prod_manufacturing_output(iname, COLONIZE_PROF_BLACKSMITH, COLONIZE_PROF_BLACKSMITH, 2);
+      colony_prod_manufacturing_output_row(iron_works, COLONIZE_PROF_BLACKSMITH, COLONIZE_PROF_BLACKSMITH, 2);
     if (skilled != 24) {
       fprintf(stderr, "factory sol-fold skilled want 24 got %d\n", skilled);
       assets_msg_free(&names);
@@ -951,14 +949,14 @@ static int case_production_rules_manufacturing(void) {
      * `sol_bonus=0`-forced reading would have given 6, not 8).
      */
     const int factory_out_sol2 =
-      colony_prod_manufacturing_output(iname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 2);
+      colony_prod_manufacturing_output_row(iron_works, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 2);
     if (factory_out_sol2 != 12) {
       fprintf(stderr, "factory output sol=2 want 12 got %d\n", factory_out_sol2);
       assets_msg_free(&names);
       return 1;
     }
     const int factory_in_sol2 =
-      colony_prod_manufacturing_input(iname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 2);
+      colony_prod_manufacturing_input_row(iron_works, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 2);
     if (factory_in_sol2 != 8) {
       fprintf(stderr, "factory input sol=2 want 8 got %d\n", factory_in_sol2);
       assets_msg_free(&names);
@@ -968,7 +966,7 @@ static int case_production_rules_manufacturing(void) {
      * bugs.md #851 rounding fix; both anchors are even multiples of 3, which
      * is why the old (out*6+8)/9 round-up survived them. */
     const int factory_in_base =
-      colony_prod_manufacturing_input(iname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 0);
+      colony_prod_manufacturing_input_row(iron_works, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 0);
     if (factory_in_base != 6) {
       fprintf(stderr, "factory input base want 6 got %d\n", factory_in_base);
       assets_msg_free(&names);
@@ -977,7 +975,7 @@ static int case_production_rules_manufacturing(void) {
     /* Tory penalty (negative sol_bonus) must reduce output, not get
      * clamped away — house tier, criminal (tag=1), sol_bonus=-5 clamps to 0. */
     const int penalized =
-      colony_prod_manufacturing_output(dname, COLONIZE_PROF_CRIMINAL, COLONIZE_PROF_DISTILLER, -5);
+      colony_prod_manufacturing_output_row(distiller, COLONIZE_PROF_CRIMINAL, COLONIZE_PROF_DISTILLER, -5);
     if (penalized != 0) {
       fprintf(stderr, "Tory-penalty clamp want 0 got %d\n", penalized);
       assets_msg_free(&names);
@@ -985,7 +983,7 @@ static int case_production_rules_manufacturing(void) {
     }
     /* Same penalty, free colonist (tag=3): 3-5=-2 clamps to 0 too. */
     const int penalized2 =
-      colony_prod_manufacturing_output(dname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_DISTILLER, -5);
+      colony_prod_manufacturing_output_row(distiller, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_DISTILLER, -5);
     if (penalized2 != 0) {
       fprintf(stderr, "Tory-penalty clamp (free) want 0 got %d\n", penalized2);
       assets_msg_free(&names);
@@ -993,7 +991,7 @@ static int case_production_rules_manufacturing(void) {
     }
     /* A smaller penalty that doesn't clamp: free colonist, house tier, sol=-1 -> 3-1=2. */
     const int penalized3 =
-      colony_prod_manufacturing_output(dname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_DISTILLER, -1);
+      colony_prod_manufacturing_output_row(distiller, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_DISTILLER, -1);
     if (penalized3 != 2) {
       fprintf(stderr, "Tory-penalty (unclamped) want 2 got %d\n", penalized3);
       assets_msg_free(&names);
@@ -1004,14 +1002,14 @@ static int case_production_rules_manufacturing(void) {
      * nation-tick machinery above. Skilled: (tag+sol)*2; unskilled: tag+sol
      * only, no doubling. */
     const int bells_skilled =
-      colony_prod_bells_worker("Town Hall", COLONIZE_PROF_STATESMAN, 2);
+      colony_prod_bells_worker_row(COLONY_BUILDING_TOWN_HALL, COLONIZE_PROF_STATESMAN, 2);
     if (bells_skilled != 10) { /* (3+2)*2 */
       fprintf(stderr, "bells_worker skilled sol-fold want 10 got %d\n", bells_skilled);
       assets_msg_free(&names);
       return 1;
     }
     const int bells_unskilled =
-      colony_prod_bells_worker("Town Hall", COLONIZE_PROF_FREE_COLONIST, 2);
+      colony_prod_bells_worker_row(COLONY_BUILDING_TOWN_HALL, COLONIZE_PROF_FREE_COLONIST, 2);
     if (bells_unskilled != 5) { /* 3+2, not doubled */
       fprintf(stderr, "bells_worker unskilled sol-fold want 5 got %d\n", bells_unskilled);
       assets_msg_free(&names);
@@ -1027,7 +1025,7 @@ static int case_production_rules_manufacturing(void) {
      * upgrade, which is exactly the case being tested here.
      */
     const int crosses_unskilled_cathedral =
-      colony_prod_crosses_worker("Cathedral", COLONIZE_PROF_FREE_COLONIST, 2, true, false);
+      colony_prod_crosses_worker_row(COLONY_BUILDING_CATHEDRAL, COLONIZE_PROF_FREE_COLONIST, 2, true, false);
     if (crosses_unskilled_cathedral != 10) { /* (3+2)*2, not the old 6+2=8 */
       fprintf(
         stderr,
@@ -1038,7 +1036,7 @@ static int case_production_rules_manufacturing(void) {
       return 1;
     }
     const int crosses_skilled_cathedral =
-      colony_prod_crosses_worker("Cathedral", COLONIZE_PROF_PREACHER, 2, true, false);
+      colony_prod_crosses_worker_row(COLONY_BUILDING_CATHEDRAL, COLONIZE_PROF_PREACHER, 2, true, false);
     if (crosses_skilled_cathedral != 16) { /* (6+2)*2, not the old 6*2+2=14 */
       fprintf(
         stderr,
@@ -1048,14 +1046,8 @@ static int case_production_rules_manufacturing(void) {
       assets_msg_free(&names);
       return 1;
     }
-    const int hammers_unskilled =
-      colony_prod_hammers_worker("Carpenter's Shop", UNITS_JOB_NONE, 0, false);
-    const int hammers_skilled =
-      colony_prod_hammers_worker("Carpenter's Shop", COLONIZE_PROF_CARPENTER, 0, false);
-    const int hammers_unskilled_sol =
-      colony_prod_hammers_worker("Carpenter's Shop", UNITS_JOB_NONE, 2, false);
     const int hammers_unskilled_mill =
-      colony_prod_hammers_worker("Lumber Mill", UNITS_JOB_NONE, 2, true);
+      colony_prod_hammers_worker_row(COLONY_BUILDING_LUMBER_MILL, UNITS_JOB_NONE, 2, true);
     if (hammers_unskilled_mill != 10) { /* (3+2)*2, not the old 6+2=8 */
       fprintf(
         stderr,
@@ -1066,7 +1058,7 @@ static int case_production_rules_manufacturing(void) {
       return 1;
     }
     const int hammers_skilled_mill =
-      colony_prod_hammers_worker("Lumber Mill", COLONIZE_PROF_CARPENTER, 2, true);
+      colony_prod_hammers_worker_row(COLONY_BUILDING_LUMBER_MILL, COLONIZE_PROF_CARPENTER, 2, true);
     if (hammers_skilled_mill != 16) { /* (6+2)*2, not the old 6*2+2=14 */
       fprintf(
         stderr,
@@ -1086,7 +1078,7 @@ static int case_production_rules_manufacturing(void) {
      * all — it can only be right if the stacking happens right here.
      */
     const int crosses_unskilled_cathedral_penn =
-      colony_prod_crosses_worker("Cathedral", COLONIZE_PROF_FREE_COLONIST, 0, true, true);
+      colony_prod_crosses_worker_row(COLONY_BUILDING_CATHEDRAL, COLONIZE_PROF_FREE_COLONIST, 0, true, true);
     if (crosses_unskilled_cathedral_penn != 9) { /* (3*2)+((3*2)>>1) = 6+3 */
       fprintf(
         stderr,
@@ -1097,7 +1089,7 @@ static int case_production_rules_manufacturing(void) {
       return 1;
     }
     const int crosses_skilled_cathedral_penn =
-      colony_prod_crosses_worker("Cathedral", COLONIZE_PROF_PREACHER, 0, true, true);
+      colony_prod_crosses_worker_row(COLONY_BUILDING_CATHEDRAL, COLONIZE_PROF_PREACHER, 0, true, true);
     if (crosses_skilled_cathedral_penn != 18) { /* (6*2)+((6*2)>>1) = 12+6 */
       fprintf(
         stderr,
@@ -1198,7 +1190,7 @@ static int case_field_lumberjack(void) {
   }
   const int cid = colonies_found(&pool, &map, cx, cy, 0, 0, UNITS_JOB_NONE, 0, 0, 0);
   ColonizeColony* col = colonies_get_mut(&pool, cid);
-  if (!col || !colonies_assign_field(&pool, cid, 0, ftile, COLONIZE_JOB_LUMBERJACK)) {
+  if (!col || !colonies_assign_field_w(&(ColonizeWorld){.colonies = &pool}, cid, 0, ftile, COLONIZE_JOB_LUMBERJACK)) {
     fprintf(stderr, "assign lumberjack failed at (%d,%d) tile %d\n", fx, fy, ftile);
     assets_msg_free(&names);
     map_free(&map);
@@ -1320,7 +1312,7 @@ static int case_hudson_fur_preview(void) {
   }
   const int cid = colonies_found(&pool, &map, cx, cy, 0, 0, UNITS_JOB_NONE, 0, 0, 0);
   ColonizeColony* col = colonies_get_mut(&pool, cid);
-  if (!col || !colonies_assign_field(&pool, cid, 0, ftile, COLONIZE_JOB_FUR_TRAPPER)) {
+  if (!col || !colonies_assign_field_w(&(ColonizeWorld){.colonies = &pool}, cid, 0, ftile, COLONIZE_JOB_FUR_TRAPPER)) {
     fprintf(stderr, "assign fur trapper failed at (%d,%d) tile %d\n", fx, fy, ftile);
     assets_msg_free(&names);
     map_free(&map);
@@ -1745,7 +1737,7 @@ static int case_fisherman_needs_docks(void) {
   }
   const int cid = colonies_found(&pool, &map, cx, cy, 0, 0, UNITS_JOB_NONE, 0, 0, 0);
   ColonizeColony* col = colonies_get_mut(&pool, cid);
-  if (!col || !colonies_assign_field(&pool, cid, 0, ftile, COLONIZE_JOB_FISHERMAN)) {
+  if (!col || !colonies_assign_field_w(&(ColonizeWorld){.colonies = &pool}, cid, 0, ftile, COLONIZE_JOB_FISHERMAN)) {
     fprintf(stderr, "assign fisherman failed at (%d,%d) tile %d\n", fx, fy, ftile);
     assets_msg_free(&names);
     map_free(&map);
@@ -2185,7 +2177,7 @@ static int case_depletion_counter(void) {
   }
   const int cid = colonies_found(&pool, &map, cx, cy, 0, 0, UNITS_JOB_NONE, 0, 0, 0);
   ColonizeColony* col = colonies_get_mut(&pool, cid);
-  if (!col || !colonies_assign_field(&pool, cid, 0, ftile, COLONIZE_JOB_ORE_MINER)) {
+  if (!col || !colonies_assign_field_w(&(ColonizeWorld){.colonies = &pool}, cid, 0, ftile, COLONIZE_JOB_ORE_MINER)) {
     fprintf(stderr, "depletion: assign ore miner failed\n");
     assets_msg_free(&names);
     map_free(&map);
@@ -4014,6 +4006,21 @@ static int case_euro_power_rank(void) {
   return 0;
 }
 
+/* bugs.md #1103: turn_reset drops the LABELS catalog pointer and the
+ * FUN_43f7_1528 last-walked colony, both of which index the outgoing world. */
+static int case_turn_reset_pointers(void) {
+  static ColonizeMsgCatalog labels;
+  static ColonizeColony col;
+  turn_labels = &labels;
+  g_turn_1528_last_walked_colony = &col;
+  turn_reset();
+  if (turn_labels || g_turn_1528_last_walked_colony) {
+    fprintf(stderr, "turn_reset left turn_labels/1528 colony set\n");
+    return 1;
+  }
+  return 0;
+}
+
 /*
  * FUN_364b_0688 F–G: an Expert Farmer working the Schoolhouse graduates a
  * Free Colonist into a Farmer after 4 turns_in_job.
@@ -4327,7 +4334,6 @@ static int case_ai_euro_crosses(void) {
   fx_begin();
   ColonizeUnitPool units;
   memset(&units, 0, sizeof(units));
-  memset(&units, 0, sizeof(units));
   units_reset(&units);
   units_set_occupancy_map(NULL);
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
@@ -4513,7 +4519,6 @@ static int case_immigration_pressure(void) {
   pool.colony_count = 1;
   ColonizeUnitPool units;
   memset(&units, 0, sizeof(units));
-  memset(&units, 0, sizeof(units));
   units_reset(&units);
   units_set_occupancy_map(NULL);
   europe_tick_immigration_pressure_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0);
@@ -4606,7 +4611,7 @@ static int case_immigration_pressure(void) {
     pops.result_tag = AI_POPUP_TAG_BREWSTER_PICK;
     pops.result_nation_a = 0;
     pops.result_cancelled = true;
-    if (!units_brewster_apply_popup(&eu, &pops, &units) || eu.dock_count != 0 ||
+    if (!units_brewster_apply_popup_ex_w(&(ColonizeWorld){.units = &units, .europe = &eu}, &pops) || eu.dock_count != 0 ||
         eu.current_crosses != after_tick) {
       fprintf(stderr, "brewster cancel must keep crosses/dock\n");
       return 1;
@@ -4624,7 +4629,7 @@ static int case_immigration_pressure(void) {
     snprintf(want, sizeof(want), "%s", eu.pool[2].name);
     pops.result_cancelled = false;
     pops.result_choice_id = 2;
-    if (!units_brewster_apply_popup(&eu, &pops, &units) || eu.dock_count != 1 ||
+    if (!units_brewster_apply_popup_ex_w(&(ColonizeWorld){.units = &units, .europe = &eu}, &pops) || eu.dock_count != 1 ||
         eu.current_crosses != 0 || strcmp(eu.dock[0].name, want) != 0) {
       fprintf(stderr, "brewster pick apply: dock=%d crosses=%u '%s' want '%s'\n",
               eu.dock_count, (unsigned)eu.current_crosses, eu.dock[0].name, want);
@@ -4650,7 +4655,6 @@ static int case_immigration_pressure(void) {
 static int case_no_free_ship_spawn(void) {
   fx_begin();
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
   memset(&units, 0, sizeof(units));
   units_reset(&units);
   units_set_occupancy_map(NULL);
@@ -5390,7 +5394,6 @@ static int case_census_profession_tally(void) {
 
   ColonizeUnitPool units;
   memset(&units, 0, sizeof(units));
-  memset(&units, 0, sizeof(units));
   units_reset(&units);
   units_set_occupancy_map(NULL);
   units.type_count = 14;
@@ -5458,7 +5461,6 @@ static int case_census_live_peel(void) {
   pool.colony_count = 1;
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
   memset(&units, 0, sizeof(units));
   units_reset(&units);
   units_set_occupancy_map(NULL);
@@ -5706,7 +5708,6 @@ static int case_spoilage_spoil3(void) {
 static int case_ship_build_ready(void) {
   fx_begin();
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
   memset(&units, 0, sizeof(units));
   units_reset(&units);
   units_set_occupancy_map(NULL);
@@ -6317,8 +6318,7 @@ static int case_phase_k_build_advisory(void) {
   turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
   if ((col->colony_flags & COLONIZE_COLONY_FLAG_BUILD_COMPLETE) == 0 ||
       pops.queue_count != 1 ||
-      (strstr(pops.queue[0].body, "Printing Press") == NULL &&
-       strstr(pops.queue[0].body, "already built") == NULL)) {
+      strstr(pops.queue[0].body, "Printing Press") == NULL) {
     fprintf(stderr, "ALREADYHAVE threshold wants flag+popup flags=%02x q=%d body='%s'\n",
             col->colony_flags, pops.queue_count,
             pops.queue_count > 0 ? pops.queue[0].body : "");
@@ -6545,6 +6545,7 @@ static const TestCase k_cases[] = {
   {"ai_field_sol_zeroed", case_ai_field_sol_zeroed},
   {"custom_house_autosell", case_custom_house_autosell},
   {"depletion_counter", case_depletion_counter},
+  {"turn_reset_pointers", case_turn_reset_pointers},
   {"colony_birth", case_colony_birth},
   {"phase_b_ai_food", case_phase_b_ai_food},
   {"phase_c_rebel_tick", case_phase_c_rebel_tick},

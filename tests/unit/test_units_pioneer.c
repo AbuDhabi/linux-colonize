@@ -1,4 +1,5 @@
 #include "test_units_common.h"
+#include "../common/test_runner.h"
 
 
 /* Helper: clear-forest grants lumber + @CLEARCUT (avoids main stack pressure). */
@@ -10,7 +11,6 @@ static int unit_clearcut_lumber(void) {
     return 1;
   }
   ColonizeUnitPool pool;
-  memset(&pool, 0, sizeof(pool));
   memset(&pool, 0, sizeof(pool));
   if (!units_load_types(&pool, &names)) {
     fprintf(stderr, "clearcut: units_load_types failed\n");
@@ -169,7 +169,6 @@ static int unit_useduptools(void) {
     return 1;
   }
   ColonizeUnitPool pool;
-  memset(&pool, 0, sizeof(pool));
   memset(&pool, 0, sizeof(pool));
   if (!units_load_types(&pool, &names)) {
     fprintf(stderr, "usedup: units_load_types failed\n");
@@ -367,7 +366,6 @@ static int unit_pioneer_case8_tail(void) {
     return 1;
   }
   ColonizeUnitPool pool;
-  memset(&pool, 0, sizeof(pool));
   memset(&pool, 0, sizeof(pool));
   if (!units_load_types(&pool, &names)) {
     fprintf(stderr, "case8: units_load_types failed\n");
@@ -762,7 +760,6 @@ static int unit_pioneer_order_gates(void) {
   }
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
-  memset(&pool, 0, sizeof(pool));
   if (!units_load_types(&pool, &names)) {
     fprintf(stderr, "ordgate: units_load_types failed\n");
     assets_msg_free(&names);
@@ -927,28 +924,11 @@ static int unit_pioneer_order_gates(void) {
   fprintf(stderr, "unit_units: pioneer order-gate popups ok\n");
   return 0;
 }
-int main(void) {
-  diag_init(0, NULL);
-  if (unit_clearcut_lumber() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_useduptools() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_pioneer_order_gates() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_pioneer_dos_gates_2026_09_22() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_pioneer_case8_tail() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  diag_shutdown();
-  return 0;
-}
+static const TestCase k_cases[] = {
+  {"unit_clearcut_lumber", unit_clearcut_lumber},
+  {"unit_useduptools", unit_useduptools},
+  {"unit_pioneer_order_gates", unit_pioneer_order_gates},
+  {"unit_pioneer_dos_gates_2026_09_22", unit_pioneer_dos_gates_2026_09_22},
+  {"unit_pioneer_case8_tail", unit_pioneer_case8_tail},
+};
+TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

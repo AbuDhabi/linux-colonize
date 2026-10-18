@@ -13,6 +13,10 @@
 #define GS_DS_PARA 0x0322
 #define GS_DS_BASE ((uint32_t)GS_DS_PARA * 16u)
 #define GS_DS_SIZE 0x8300u /* image tail (0x8082) + BSS voice blocks */
+/* The ds[] buffer spans the whole 64 KiB real-mode segment (+1 guard byte for
+ * a 16-bit access at 0xFFFF): every DS offset the sequencer reads from the
+ * image is a uint16_t, so a malformed GSOUND.COL can never index past it. */
+#define GS_DS_SEG_SIZE 0x10001u
 
 #define GS_TABLE_SYS 0x2A5C
 #define GS_TABLE_BGM 0x2A6E
@@ -77,7 +81,7 @@ static const uint16_t k_voice_by_channel[10] = {
 struct GsoundVm {
   const uint8_t* img;
   size_t img_size;
-  uint8_t ds[GS_DS_SIZE];
+  uint8_t ds[GS_DS_SEG_SIZE];
   GsoundMidiFn midi;
   void* midi_user;
   GsoundSfxFn sfx;

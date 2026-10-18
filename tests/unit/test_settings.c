@@ -2,7 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../common/test_runner.h"
 #include "core/col1_save_layout.h"
+#include "core/json_min.h"
 #include "core/screen_geom.h"
 #include "core/settings.h"
 #include "core/window_log.h"
@@ -66,7 +68,8 @@ static void test_roundtrip(void) {
   out.debug_logs = true;
   out.skip_intro = false;
   out.unlimited_units = true;
-  snprintf(out.data_dir, sizeof(out.data_dir), "/tmp/col-data");
+  /* Raw CP437 0x8e + UTF-8 e-acute: bytes must survive save/load unchanged (#1086). */
+  snprintf(out.data_dir, sizeof(out.data_dir), "/tmp/col-data\x8e\xc3\xa9");
   snprintf(out.save_dir, sizeof(out.save_dir), "/tmp/col-saves");
   snprintf(out.soundfont, sizeof(out.soundfont), "/tmp/My \"Bank\".sf2");
   snprintf(out.midi_backend, sizeof(out.midi_backend), "tsf");
@@ -77,6 +80,33 @@ static void test_roundtrip(void) {
   ColonizeSettings back;
   check(settings_load_file(k_path, &back, err, sizeof(err)), "load file");
   check(memcmp(&out, &back, sizeof(out)) == 0, "round-trip is exact");
+}
+
+/* #1086: depth cap, \u escapes still decode to UTF-8, bad numbers read as absent. */
+static void test_json_min_edges(void) {
+  char deep[201];
+  memset(deep, '[', 100);
+  memset(deep + 100, ']', 100);
+  deep[200] = '\0';
+  char ok[129];
+  memset(ok, '[', 64);
+  memset(ok + 64, ']', 64);
+  ok[128] = '\0';
+  JsonValue* v = json_parse(ok, NULL, 0);
+  check(v != NULL, "json depth 64 parses");
+  json_free(v);
+  check(json_parse(deep, NULL, 0) == NULL, "json depth 100 rejected");
+
+  v = json_parse("{\"s\":\"\\u00e9\", \"big\":1e300, \"neg\":-5, \"n\":42}", NULL, 0);
+  check(v != NULL, "json edge doc parses");
+  const char* str = json_get_str(v, "s");
+  check(str && strcmp(str, "\xc3\xa9") == 0, "\\u00e9 decodes to UTF-8");
+  int64_t i = 7;
+  uint64_t u = 7;
+  check(!json_get_i64(v, "big", &i) && i == 7, "out-of-range i64 is absent");
+  check(!json_get_u64(v, "neg", &u) && u == 7, "negative u64 is absent");
+  check(json_get_i64(v, "n", &i) && i == 42, "in-range i64 reads");
+  json_free(v);
 }
 
 /* window_log_lines clamps into 0..WINDOW_LOG_MAX_LINES, and the ring keeps the
@@ -333,24 +363,38 @@ static void test_init_keeps_corrupt_file(void) {
   check(strncmp(kept, "{ nope", 6) == 0, "corrupt file left untouched");
 }
 
-int main(void) {
-  test_missing_file_defaults();
-  test_roundtrip();
-  test_window_log();
-  test_partial_file();
-  test_invalid_launch_keys_keep_defaults();
-  test_seed_null_omitted_and_zero();
-  test_bad_file_is_an_error();
-  test_head_bridge_preserves_state();
-  /* Keep the settings_init cases last: they latch the process-wide state. */
-  test_init_creates_file();
-  test_init_keeps_corrupt_file();
-  remove(k_path);
-
-  if (g_failures != 0) {
-    fprintf(stderr, "test_settings: %d failure(s)\n", g_failures);
-    return 1;
+/* Void cases report through check(); a case fails if it added a failure. */
+#define CASE_(fn) \
+  static int tc_##fn(void) { \
+    const int before = g_failures; \
+    fn(); \
+    return g_failures != before; \
   }
-  printf("test_settings: ok\n");
-  return 0;
-}
+CASE_(test_missing_file_defaults)
+CASE_(test_roundtrip)
+CASE_(test_json_min_edges)
+CASE_(test_window_log)
+CASE_(test_partial_file)
+CASE_(test_invalid_launch_keys_keep_defaults)
+CASE_(test_seed_null_omitted_and_zero)
+CASE_(test_bad_file_is_an_error)
+CASE_(test_head_bridge_preserves_state)
+CASE_(test_init_creates_file)
+CASE_(test_init_keeps_corrupt_file)
+#undef CASE_
+
+static const TestCase k_cases[] = {
+  {"test_missing_file_defaults", tc_test_missing_file_defaults},
+  {"test_roundtrip", tc_test_roundtrip},
+  {"test_json_min_edges", tc_test_json_min_edges},
+  {"test_window_log", tc_test_window_log},
+  {"test_partial_file", tc_test_partial_file},
+  {"test_invalid_launch_keys_keep_defaults", tc_test_invalid_launch_keys_keep_defaults},
+  {"test_seed_null_omitted_and_zero", tc_test_seed_null_omitted_and_zero},
+  {"test_bad_file_is_an_error", tc_test_bad_file_is_an_error},
+  {"test_head_bridge_preserves_state", tc_test_head_bridge_preserves_state},
+  /* Keep the settings_init cases last: they latch the process-wide state. */
+  {"test_init_creates_file", tc_test_init_creates_file},
+  {"test_init_keeps_corrupt_file", tc_test_init_keeps_corrupt_file},
+};
+TEST_MAIN_WRAPPED(k_cases, (void)0, remove(k_path))

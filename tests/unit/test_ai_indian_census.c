@@ -20,6 +20,7 @@
  * Also covers §6a goods decay and §6c horse breeding.
  */
 #include <stdio.h>
+#include "../common/test_runner.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -39,10 +40,8 @@
 #include "core/turn.h"
 #include "core/units.h"
 
-static int fail(const char* msg) {
-  fprintf(stderr, "unit_ai_indian_census: FAIL %s\n", msg);
-  return 1;
-}
+#define TEST_NAME "unit_ai_indian_census"
+#include "../common/test_fail.h"
 
 /* layer3 high nibble = tile owner (FUN_137f_0200 / FUN_137f_0228). */
 static void set_owner(ColonizeWorldMap* map, int x, int y, int nation) {
@@ -544,6 +543,12 @@ static int test_brave_replacement_cycle(void) {
 }
 
 int main(void) {
+  {
+    const int gate = tr_single_flow_gate("ai_indian_census");
+    if (gate >= 0) {
+      return gate;
+    }
+  }
   char err[256];
   ColonizeCol1Save save;
   col1_save_init(&save);

@@ -14,6 +14,7 @@
  * approximate — compared separately below with a loose bound).
  */
 #include <stdio.h>
+#include "../common/test_runner.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -188,16 +189,16 @@ static int run_fixture(const char* path) {
   return 0;
 }
 
-int main(void) {
-  static const char* k_fixtures[] = {
-    "original_saves/colony-prod-tests/COLONY00_no-transports.SAV",
-    "original_saves/colony-prod-tests/COLONY00-dutch2-t0.SAV",
-  };
-  for (unsigned i = 0; i < sizeof(k_fixtures) / sizeof(k_fixtures[0]); ++i) {
-    const int rc = run_fixture(k_fixtures[i]);
-    if (rc != 0) {
-      return rc;
-    }
-  }
-  return 0;
+static int case_no_transports(void) {
+  return run_fixture("original_saves/colony-prod-tests/COLONY00_no-transports.SAV");
 }
+
+static int case_dutch2_t0(void) {
+  return run_fixture("original_saves/colony-prod-tests/COLONY00-dutch2-t0.SAV");
+}
+
+static const TestCase k_cases[] = {
+  {"no_transports", case_no_transports},
+  {"dutch2_t0", case_dutch2_t0},
+};
+TEST_MAIN(k_cases)

@@ -2110,9 +2110,9 @@ static void ai_euro_colony_threat_seed_5952(
   }
   int walls = 0; /* FUN_281f_0ab0(0): Stockade→Fort→Fortress chain count */
   if (ctx->colonies) {
-    /* Chain names come from the live @BUILDING rows 0-2 (theme D). */
+    /* @BUILDING rows 0-2 (Stockade/Fort/Fortress), keyed on the row. */
     for (int i = 0; i < 3; ++i) {
-      const int b = colonies_find_building(ctx->colonies, reports_fort_tier_name(i));
+      const int b = colonies_building_row(ctx->colonies, (ColonizeBuildingRow)(COLONY_BUILDING_STOCKADE + i));
       if (b >= 0 && b < COLONIZE_BUILDING_TYPES_MAX && c->has_building[b]) {
         walls++;
       }
