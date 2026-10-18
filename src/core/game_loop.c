@@ -169,7 +169,8 @@
  * order or a production line says where it happened. Modal chrome wins over
  * the screen under it, matching the input gate in game_update.
  */
-/* LABELS.TXT @MISC row, or the built-in English when no catalog is loaded. */
+/* LABELS.TXT @MISC row; `fallback` is returned when no catalog is loaded
+ * (callers pass "": wording comes from the catalogs only, no built-in table). */
 const char* game_labels_misc_or(int row, const char* fallback) {
   const char* live = reports_labels_field("MISC", row);
   return live ? live : fallback;

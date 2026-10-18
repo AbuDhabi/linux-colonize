@@ -29,7 +29,7 @@ see [docs/conventions.md](docs/conventions.md); for debug env vars and
 The port-only preference file `settings.json` lives next to the executable
 (see [docs/settings.md](docs/settings.md)).
 
-## Bulid requirements
+## Build requirements
 
 - CMake ≥ 3.20
 - SDL2 (required for the game binary)

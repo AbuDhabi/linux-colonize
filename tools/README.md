@@ -26,6 +26,9 @@ These require Python 3.
 | `dosbox_trace.py` | Drive real VICEROY.EXE under the DOSBox-X debugger: private game copy, nested Xephyr display, persistent debugger session, breakpoints/memory/screenshots, unattended save load | `python3 tools/dosbox_trace.py setup\|start\|send\|stop WORK ...` (guide: docs/dos_trace.md) | dosbox-x, Xephyr, ImageMagick, python3 pexpect + PIL; reference crops in `tools/dosbox_trace_ref/` |
 | `trcmp.py` / `jdiff.py` | Port vs a draw-traced DOSBox run: runs `golden_idle_campaign independence 0 K` with the trace's music picks, compares the interval-K draw stream and prints per-save field diffs (DOS, port) from `sav_json` dumps | `/usr/bin/python3 tools/trcmp.py original_saves/independence-seed-100/tr9/tr9.txt K [show]`; `jdiff.py A.json B.json [limit]` | Writes port dumps to `tools/tc/` (ignored); docs/idle_independence.md |
 | `rtlink_overlay_extract.py` | Extract RTLink v2 overlay segments from VICEROY.EXE | `python3 tools/rtlink_overlay_extract.py COLONIZE/VICEROY.EXE OUTDIR` | Python 3 stdlib only; reads VICEROY.EXE, writes segments.json + per-segment .bin files |
+| `make_vr_sound.py` | Build `COLONIZE/VR_SOUND.EXE` from `VR_SEED.EXE`: the seed-locked build plus a no-op music pump, so a DOS reference run stays deterministic whatever the Sound options say (docs/dos_trace.md, docs/idle_independence.md) | `python3 tools/make_vr_sound.py` | Python 3 stdlib only; reads/writes under `COLONIZE/` |
+
+Data files: `address_mapping.csv` (canonical `FUN_` name ↔ overlay address, consumed by `decomp_fn.py`; built by `build_address_mapping.py`), `viceroy_v2_output_layout.json` (per-segment file-offset layout of the RTLink v2 flattening, one of `build_address_mapping.py`'s inputs — docs/rtlink_decode_v2_gap.md), `dosbox_trace_ref/` (screen crops `dosbox_trace.py` matches against), `tc/` (gitignored `trcmp.py` dumps).
 
 ## Shell Scripts (scripts/)
 
@@ -81,4 +84,6 @@ These scripts are **read-only** (do not modify or save the Ghidra program) unles
 
 ## Python dependencies
 
-All Python tools use the Python 3 standard library only.
+Standard library only, except `dosbox_trace.py` (`pexpect`, `PIL`; plus
+dosbox-x, Xephyr and ImageMagick on the system) and `trcmp.py` / `jdiff.py`,
+which need the built `golden_idle_campaign` and `sav_json` binaries.

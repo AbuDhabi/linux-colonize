@@ -69,7 +69,7 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
    *
    * Ships never contact (DOS ocean_or_high_seas gate on move-meet; natives
    * do not hail vessels). Human gift/refuse/trade chrome is NOT fired from
-   * this pulse — original player dialogs are village enter / 2820 (PARKED).
+   * this pulse — original player dialogs are village enter / 2820 (ported: ai_contact_trade.c).
    * Cite: FUN_5bfb_022e first-contact exit; indian_contact.md §0.
    */
   for (int i = 0; i < units_slot_end(ctx->units); ++i) {
@@ -259,7 +259,7 @@ static int ai_contact_raid_pred_row(int row) {
  * (unit_index_on_tile) on the raided colony's own tile, abort unless
  * `FUN_281f_088a` (stack_has_ship) says a ship is in that stack, then walk
  * down with `FUN_281f_02e4` until the unit's type byte is 0xd..0x12 (the six
- * ship types, docs/indians.md:449). DOS filters on type only — any hull in
+ * ship types, docs/indian_alarm.md (ship → village)). DOS filters on type only — any hull in
  * the port is fair game. Returns the unit id, or −1 when the port is empty
  * (DOS's `goto LAB_5fef_123a`, which collapses the raid to kind 0).
  */
@@ -583,7 +583,8 @@ COLONIZE_INTERNAL int ai_contact_raid_gate_target(
      *
      * The band values below (40 gate / 55 ambush / 70 approach / 80 hot) stay
      * as they were: they belong to this pass, which is an acknowledged thin
-     * stand-in for the PARKED `FUN_4d56_2820` decision matrix, and inventing
+     * stand-in for the `FUN_4d56_2820` decision matrix (village trade, ported in
+     * ai_contact_trade.c), and inventing
      * new thresholds to replace invented thresholds buys nothing. What is fixed
      * here is only the cross-village coupling.
      */
@@ -659,7 +660,7 @@ static void ai_contact_unit_goto_xy(const ColonizeUnit* u, int* out_x, int* out_
  * raid gate Euro is known, prefer lead whose goto is closer to that Euro's
  * colony; weight 2× at ≥55, 3× at ≥80. Deep dir picker is FUN_4d56_021a (the
  * routine 14fe dispatches to, 4d56:021a..14fd — Ghidra never decompiled it);
- * still PARKED, see ai.c's ai_native_nation_pulse header for the decoded map.
+ * ported in ai_native_021a.c; ai_brave.c's ai_native_nation_pulse header has the decoded map.
  * Cite: units_follow_unit; indian_raid_outcomes.md §1; Series N.
  */
 static int ai_contact_escort_pick_lead(
@@ -1667,7 +1668,8 @@ COLONIZE_INTERNAL void ai_contact_raid_resolve_on_tile(
   /*
    * High-friction successful raid → escalate Indian×Euro hostility
    * (4cc6_00f2 via ai_diplo). If treaty/peace still held → clear peace
-   * bit (@INDIANWAR). Full 4528/2820 dialog PARKED.
+   * bit (@INDIANWAR). 4528/2820 are ported (ai_contact_actions.c /
+   * ai_contact_trade.c); dialog VGA chrome PARKED.
    */
   const int had_peace =
     ai_contact_indian_has_peace(ctx->col1, nation_id, target_euro);
@@ -1797,7 +1799,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
    *
    * FUN_4d56_2820 (~1.4k; thunk 2a1f_044c) is the meet/raid decision matrix
    * DOS reaches before settlement enter. Its trade half is ported elsewhere
-   * in this file (`ai_contact_2820_begin`, 2026-08-29 rewrite) and the AI
+   * (ai_contact_trade.c, `ai_contact_2820_begin`, 2026-08-29 rewrite) and the AI
    * pulse reaches it through `ai_contact_auto_trade` — do NOT re-port the
    * body here; this post-pulse path keeps the thin @RAID* / combat arms. Human `4528` `@ACTIONS` arm is ported (P8.8); `4528` VGA meet
    * chrome and the alarmed act-pick mid-body remain PARKED.
@@ -1840,7 +1842,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
      * Alarmed unit-act escort (outside quiet 14fe): idle Brave may
      * units_follow_unit a same-nation lead already AI_MOVE/GOTO. Lead pick
      * prefers goto toward raid-gate Euro colony; when max alarm≥55 the same
-     * peel is the alarmed branch (deep dir picker FUN_4d56_021a still PARKED).
+     * peel is the alarmed branch (deep dir picker FUN_4d56_021a is ported in ai_native_021a.c).
      * Quiet seed-100 pulse unchanged. Cite: units_follow_unit;
      * indian_raid_outcomes.md §1.
      */

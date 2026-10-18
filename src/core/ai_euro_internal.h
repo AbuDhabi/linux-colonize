@@ -195,9 +195,6 @@ void ai_euro_5952_ledgers(
 extern int ai_euro_s_5952_ring1[COLONIZE_COLONIES_MAX];
 extern int ai_euro_s_5952_docks_started[COLONIZE_COLONIES_MAX];
 extern int ai_euro_s_5952_census_nonexpert[COLONIZE_COLONIES_MAX]; /* aiStack_68[0x13] */
-void ai_euro_5952_build_cascade(
-  ColonizeTurnContext* ctx, ColonizeColony* col
-);
 /* local_1b0 = the tick's improvement-arm owner (DS index of the per-nation reads). */
 void ai_euro_5952_build_cascade_1b0(
   ColonizeTurnContext* ctx, ColonizeColony* col, int local_1b0
@@ -208,9 +205,6 @@ void ai_euro_5952_colony_counters(
 );
 void ai_euro_5952_colony_prelude(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c
-);
-void ai_euro_colony_tick_28c8_reassign(
-  ColonizeTurnContext* ctx, int nation_id
 );
 void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy);
 int ai_euro_is_ship_type(const ColonizeUnitPool* units, int unit_id);
@@ -383,7 +377,6 @@ int ai_euro_europe_lane_ships(const ColonizeUnitPool* units, int nation_id);
 int ai_euro_20e6_3fa6_sail_home(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 int ai_euro_20e6_missionary_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 int ai_euro_20e6_europe_dock_demand(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
-void ai_euro_20e6_stay_tail_589e(ColonizeUnit* u);
 int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 /* FUN_5952_035e indoor-expert pass (OVL15 0x1cb2-0x1e65), ahead of the scored
  * indoor pass: seats unplaced indoor experts in their own job. */
@@ -459,7 +452,6 @@ int ai_euro_20e6_colony_sail_pick(
   ColonizeTurnContext* ctx, const ColonizeUnit* ship, int nation, int mil, int pioneers_b4,
   int urgency, int* out_x, int* out_y
 );
-int ai_euro_5952_equip_pick(const ColonizeColony* c, int target);
 void ai_euro_act_land(struct ai_euro_act_ctx* a);
 void ai_euro_act_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u);
@@ -554,7 +546,6 @@ AiEuroActStatus ai_euro_act_land_treasure(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_act_ctx* a);
-void ai_euro_act_land(struct ai_euro_act_ctx* a);
 #endif /* COLONIZE_TESTING */
 
 #endif /* COLONIZE_CORE_AI_EURO_INTERNAL_H */

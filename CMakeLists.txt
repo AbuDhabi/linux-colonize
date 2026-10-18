@@ -608,11 +608,11 @@ colonize_add_test(NAME unit_map_panel
   LIBS colonize_core
 )
 
-# Shared source list for the four "slim" unit tests (duplication audit
+# Shared source list for the "slim" unit tests (duplication audit
 # TT-16). They deliberately do NOT link colonize_core: they compile
 # src/core/ai_contact_link_stubs.c (added automatically by the SLIM flag on
 # colonize_add_test) instead of the real ai_contact/ai_euro/ai_king, and an
-# archive would shadow those weak stubs. Each target adds its own test file
+# archive would shadow those (strong) stubs. Each target adds its own test file
 # plus the one extra source it needs.
 set(COLONIZE_SLIM_SOURCES
   src/core/units.c
@@ -1049,8 +1049,8 @@ colonize_add_test(NAME smoke_ai_late01
 # golden_ai_joint) was parked 2026-08-19 while the AI transcription was
 # still structural. 2026-08-27 brought the joint pair back as regression
 # gates, 2026-09-05 (T1.23, all six TURN steps green) golden_ai_turns and
-# golden_ai_joint. Nothing here is DISABLED any more; there is no
-# set_tests_properties call.
+# golden_ai_joint. Nothing in this cluster is DISABLED (the only DISABLED test
+# is golden_idle_independence, above).
 
 # Colony production golden vs real-DOS-run saves (COLONY00/01_no-transports.SAV):
 colonize_add_test(NAME golden_colony_prod01
@@ -1117,7 +1117,7 @@ add_custom_target(golden_ai_joint
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   COMMENT "Joint Euro↔Indian AI golden gate (shared-surface)"
 )
-# No add_test() here (duplication audit TT-14): all six COMMANDs above are
+# No add_test() here (duplication audit TT-14): every COMMAND above is
 # already registered as their own ctest tests, so registering the target too
 # ran every one of them twice per `ctest`. Build it by hand when you want the
 # joint gate in one shot: cmake --build <dir> --target golden_ai_joint

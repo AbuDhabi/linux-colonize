@@ -18,7 +18,7 @@ interop beat "improvements" — see docs/project_goals.md.
 make test          # configure (if needed) + build preset debug + ctest --preset debug
 make golden        # build + run golden_ai_joint (not in ctest; run when AI/turn code changed)
 make build         # build only
-make test T=unit_ff [CASE=name]   # one test target (cheapest; prefer over full ctest)
+make test T=unit_ff [CASE=name]   # one test target (cheapest; prefer over full ctest; CASE= only works for TEST_MAIN binaries)
 ./build/debug/opencol --data-dir COLONIZE
 ```
 
@@ -40,7 +40,7 @@ cross-build artefacts; never build or test there. Tests expect repo root as cwd.
 | Tools and scripts | tools/README.md |
 
 Docs are authoritative over auto-memory notes. Historical audit dumps live in
-docs/archive/ (indexed by docs/archive/README.md) and docs/smell_audit_*.md; they are
+docs/archive/ (indexed by docs/archive/README.md) and docs/code_audit_*.md; they are
 not specs. Never read an archive file to browse or "get context" — open one only
 with a lookup key (bug `#` id, FUN_ name, audit item), grep it, read the hit's
 lines only (docs/conventions.md "Don't read archives willy-nilly").

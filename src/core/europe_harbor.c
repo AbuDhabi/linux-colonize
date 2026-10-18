@@ -1711,7 +1711,7 @@ int europe_nation_immigration_tick_w(const ColonizeWorld* w, int nation_id) {
   if (brewster) {
     /* 4884 tail order (64763-64775): zero +0x2e, create the unit, and only
      * then refill the emptied slot. 5e52's own branch refills first (68581
-     * before 68585), so the two paths differ in draw order — DOS-literal. */
+     * before 68585), so the two paths differ in draw order — DOS-LITERAL. */
     nat->current_crosses = 0;
     const int id = europe_nation_harbor_spawn(w, nation_id, profession);
     if (id < 0) {

@@ -1029,7 +1029,8 @@ void ai_euro_refresh_colony_ai_flags(
    * is NOT written here. There are exactly TWO DOS references to +0x1c bit
    * 0x10: the read-and-clear hand-off at raw 94143-94146 (`(+0x1c & 0x10) &&
    * pop < 0x20 -> +0x1b |= 0x10; +0x1c &= 0xef`), ported in
-   * ai_euro_colony_threat_seed_5952 and consumed at :10076; and a writer
+   * ai_euro_colony_threat_seed_5952 and consumed by the 5952 colony tick
+   * (ai_euro_colony_jobs.c); and a writer
    * deeper in the SAME function, raw 95845-95847 (`pop < 10 -> +0x1c |=
    * 0x10`), which sits inside FUN_5952_035e's expansion arm behind a chain of
    * 2a1f_05b4 probability gates and is NOT ported. So the bit is set by a

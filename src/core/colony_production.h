@@ -128,9 +128,10 @@ int colony_prod_manufacturing_input_row(
 
 /*
  * Colony SoL % for display / production (capped 0..100).
- * Prefer Col1 rebel_dividend/divisor at colony tile; else nation
- * liberty_bells_total/4 (FUN_43f7_0004-shaped stand-in when rebel fields empty).
- * FUN_15eb_0274: +20 while Bolivar held and colony nation is human.
+ * Col1 rebel_dividend*100/rebel_divisor at the colony tile. No matching record
+ * or a zero divisor means nothing has accumulated: returns 0 (no fallback, as
+ * DOS FUN_15eb_0274). FUN_15eb_0274: +20 while Bolivar held and colony nation
+ * is human.
  */
 int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* colony);
 

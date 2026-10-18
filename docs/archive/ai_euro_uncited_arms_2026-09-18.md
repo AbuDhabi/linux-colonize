@@ -1,6 +1,6 @@
 # ai_euro.c manual-only citation hits — triage list
 
-STATUS: open triage list; second wave resolved 2026-09-18, plus the 2026-09-18f
+STATUS: archived 2026-10-18 — superseded by the 2026-10-02 fidelity audit (bugs.md #1034, CLOSED) and the 2026-10-18 code audit (bugs.md #1105 dead code); line numbers are pre-2026-09-23 split `ai_euro.c`. Was: open triage list; second wave resolved 2026-09-18, plus the 2026-09-18f
 5b66/goal-walk pass (bugs.md #525/#526) — see the two "Resolved" sections.
 2026-09-22: the adjacent-attack stand-in pair discussed below is deleted
 (bugs.md #521 FIXED — `0x5239` is the @UNIT cost column, not a zero column).

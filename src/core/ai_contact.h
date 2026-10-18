@@ -23,7 +23,7 @@
  * (PEDIA @FATHER24 elect + ownership tick). Sepulveda convert-join:
  * founding_fathers_sepulveda_convert_join_bonus + FUN_5fef_31ea peel in
  * units_try_native_settlement_fallout (mission-owned tribe conquer).
- * Full 2820/4528 stay PARKED. Thin Brave escort (units_follow_unit) and
+ * 2820/4528 are ported (ai_contact_trade.c / ai_contact_actions.c); VGA chrome PARKED. Thin Brave escort (units_follow_unit) and
  * @RAIDBURN colonies_destroy_building + building-name status: Done thin.
  *
  * Human chrome: status lines + AI popup enqueue (OK / first-contact WELCOME
@@ -230,7 +230,7 @@ int ai_contact_visit_step_roll(ColonizeTurnContext* ctx, int nation_id, int e, i
 /*
  * Village-enter Meet CHOICE (already-met human Euro on tribe tile). Enqueues
  * Trade/Gift/Demand/Teach/Leave. First-contact still uses WELCOME only.
- * Cite: indian_contact.md village Meet CHOICE; FUN_5bfb_022e. Deep 2820 PARKED.
+ * Cite: indian_contact.md village Meet CHOICE; FUN_5bfb_022e. 2820 is ported (ai_contact_trade.c).
  * `is_missionary`/`is_capital`: the acting unit's/visited village's real
  * status, captured by the caller at trigger time (each already has the
  * specific unit and ColonizeCol1Tribe record) and carried through the Meet

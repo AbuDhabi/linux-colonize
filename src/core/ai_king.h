@@ -15,7 +15,7 @@
 
 /* King latch ids (storage: real 0x5382 bits for WoI / REF-present; the
  * human nation's DOS-dead unknown23_pad[] for the port-only latches —
- * see ai_king_latch_get in ai_king.c). */
+ * see ai_king_latch_get below). */
 #define AI_KING_WOI_BYTE 0
 /* Port-only: "a crown unit/colony is currently in the New World". DOS has NO
  * such flag — DS:0x5382 bit 0x02 is the intervention ANNOUNCE latch (see

@@ -1,3 +1,5 @@
+> STATUS: historical snapshots, archived 2026-10-18; not a spec.
+
 # Indians: Port Status
 
 Development snapshots tracking native-nation / Indian-contact porting progress.

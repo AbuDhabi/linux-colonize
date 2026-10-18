@@ -6,7 +6,6 @@
  * Sections:
  *  - Unit movement, orders & basic order commands (units_try_move .. units_order_trade_route)
  *  - Pillage/disband/wake, goto/follow flood-fill & greedy pathfinding (units_dump_cargo_overboard .. units_greedy_next_step)
- *  - /* ======================================================================
  *  - Coarse-grid route caching & goto step advancement (units_coarse_domain_tile .. units_advance_goto)
  */
 

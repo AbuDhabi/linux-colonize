@@ -6,7 +6,7 @@
 
 Nine-area Opus sweep (units/combat, game_loop/turn, ai_euro, native/king AI, colony core,
 save/bridge, Europe/reports/FF, map/UI/popup, assets/sound/platform — the last never swept
-before). Successor to docs/smell_audit_2026-09-09.md (closed); each section deduped against
+before). Successor to docs/archive/smell_audit_2026-09-09.md (closed); each section deduped against
 it by substance. Much of the signal is defects created or left behind by the fix waves that
 closed the prior audit. Confidence H/M/L.
 
@@ -26,7 +26,7 @@ Totals: A9 B8 C9 D24 E8 F7 G10 H7 I13 = 95 findings.
 # Sweep 3 — Area A: units / combat
 
 Files: src/core/units.c, combat_strength.c, combat_analysis.c, unit_stack.c, unit_chrome.c (+ headers).
-Line numbers as of HEAD 9e1a38f. Deduped against docs/smell_audit_2026-09-09.md section A (#1-#14) by substance.
+Line numbers as of HEAD 9e1a38f. Deduped against docs/archive/smell_audit_2026-09-09.md section A (#1-#14) by substance.
 Emphasis on the 2026-09-08/09 fix waves (commits f6cdcd0, 73a0ac3, ff6ab75, 4b605b6, a31100e, aa8b818, 9e1a38f).
 
 1. units.c:1930-1957 — `units_domain_blocker_at` is the last copy of the FUN_5fef_0000 domain gate still testing the ATTACKER's own ship-ness, after the sibling was rewritten to the target-TILE water test. `units_best_defender_at:2033-2048` now derives `tile_domain` from `map_tile_is_water/high_seas(x,y)` (prior-audit #13 fix) and `units_enter_probe:6545` uses the destination tile too, but `units_domain_blocker_at` still computes `mover_sea = units_is_sea(pool, mover_id)` and skips candidates by that — while its own comment (:1918-1924) cites the same raw 99190-99196 and states the rule as "the attacker's *tile* water test". The two answers diverge in exactly the case the rewrite was about: a warship attacking out of a colony berth (sea unit on a land tile). It is not cosmetic — it gates the colony walk-in at :6233 (`units_try_capture_foreign_colony`) and the post-win entry at :7363, so best_defender can pick a land garrison, the fight resolves, and then the blocker check sees only hulls (or vice versa) and refuses/allows the wrong entry. Confirmed the tile reading is the right one: in FUN_5fef_1b0e the defender pick is `local_c8 = thunk_FUN_2a1f_0458(FUN_281f_07e0(...))` (viceroy_unpacked.c:100353-100354) and 07e0 = `unit_index_on_tile` (FUNCTION_CATALOG.md:1380) over the same param_2/param_3 the settlement probes at :100385/:100387 use. H
@@ -123,7 +123,7 @@ Emphasis on the 2026-09-08/09 fix waves (commits f6cdcd0, 73a0ac3, ff6ab75, 4b60
 
 # Sweep 3 — B. game_loop.c / turn.c (read-only audit, HEAD 9e1a38f)
 
-Deduped against docs/smell_audit_2026-09-09.md section B (#15–#30) and the #60/#62/#63
+Deduped against docs/archive/smell_audit_2026-09-09.md section B (#15–#30) and the #60/#62/#63
 production entries — all of those verified fixed in-tree and not re-filed. Findings below
 are new, most of them introduced by the fix waves that closed those entries.
 
@@ -294,7 +294,7 @@ Method: `git diff b4cc8b1~1..HEAD -- src/core/ai_euro.c` (995+/175− across the
 commits) read in full, then grep-driven cross-checks of the new code against
 `original_sources_decompiled/viceroy_unpacked.c`, `original_sources_annotated/ai/colony_tick_5952_035e.md`,
 `COLONIZE/NAMES.TXT`, `colony.h`, `units.h`, `docs/save_format_map.md`.
-Deduped against `docs/smell_audit_2026-09-09.md` §C (#31-#44) — every finding below is
+Deduped against `docs/archive/smell_audit_2026-09-09.md` §C (#31-#44) — every finding below is
 **new signal created by, or left behind by, those fixes**, not a re-file.
 
 Spot-checks that came back CLEAN (worth recording so nobody re-does them):
@@ -360,7 +360,7 @@ Not filed, checked and judged fine: the 28c8 `plenty`/`section_done` port (raw 9
 # Section D — Native / King AI (ai_contact.c, ai_diplo.c, ai_king.c, ai_popup.c)
 
 Sweep 3, 2026-09-10, HEAD 9e1a38f. Read-only. Deduped against
-docs/smell_audit_2026-09-09.md section D (#44-#59) by substance.
+docs/archive/smell_audit_2026-09-09.md section D (#44-#59) by substance.
 
 1. src/core/ai_king.c:571-580 — `ai_king_seed_backup_force_1a26` applies FUN_43f7_1a26's halving constants to the already-incremented pool instead of to DOS's pre-store accumulator, so all four foreign-intervention pools come out too big; evidence (verified directly in original_sources_decompiled/viceroy_unpacked.c:74769-74783): DOS is `iVar4 = pop/10 − diff; *0x53e2 = iVar4+8; … *0x53e2 = (iVar4+9)/2` — the halved value is `(pre+9)/2`, not `(stored+9)/2`. The port sets `pool0 = base+8` and then `pool0 = (pool0+9)/2 = (base+17)/2`, i.e. **+4 Regulars**; identically `pool1 = (iVar9+3)/2` vs DOS `(iVar9+2)/2` (+0/+1 Cont. Cav.), `pool3 = (iVar8+7)/2` vs `(iVar8+4)/2` (+1/+2 Artillery), `pool2 = (iVar7+local_4+7)/2` vs `(iVar7+local_4+4)/2` (+1/+2 Man-O-War). The inflated `pool2` then widens the `pool2*2` and `pool2*6` clamps below and the `backup_force[2]` gate that drives `ai_king_merc_offer`. The header's "confirmed byte-for-byte against viceroy_unpacked.c:74765-74795" claim is false. Confidence H.
    **RESOLVED 2026-09-10 — halvings now run off the pre-store accumulators.** Re-read the raw block line by line: 74769 `iVar4 = pop/10 - diff`, 74770 `*0x53e2 = iVar4 + 8`, 74771 `iVar7 = (4-diff)>>1`, 74772 `iVar9 = ((field_combat+1)>>4) + iVar7`, 74773 `*0x53e4 = iVar9 + 1`, 74774 `iVar8 = iVar7 + ((land_strength+1)>>5)`, 74775 `*0x53e8 = iVar8 + 3`, 74776 `*0x53e6 = iVar7 + local_4 + 3`, then 74777-74784 halve `iVar4/iVar9/iVar8/(iVar7+local_4)` with +9/+2/+4/+4 and overwrite all four addresses. The four `+8/+1/+3/+3` stores are dead: nothing between 74770 and 74784 reads 0x53e2…0x53e8, so the increment never reaches the halving. ai_king.c:580-588 now keeps `iVar4`/`iVar7`/`iVar9`/`iVar8` as named accumulators and computes `pool0 = (iVar4+9)/2`, `pool1 = (iVar9+2)/2`, `pool3 = (iVar8+4)/2`, `pool2 = (iVar7+local_4+4)/2` directly, with a comment citing 74769-74784. The clamp cascade below (`pool2*2` caps on pool3/pool1, then `pool2*6 - pool3 - pool1` on pool0, raw 74785-74799) was re-verified against the raw and left as-is — it already matched, it was only being fed inflated inputs. The false "confirmed byte-for-byte" wording in the function header is replaced with the accurate claim (formula-to-address mapping read off 74765-74799, unit types off 74424).
@@ -482,7 +482,7 @@ docs/smell_audit_2026-09-09.md section D (#44-#59) by substance.
 
 # Sweep 3 — E. Colony production cluster (colony.c, colony_production.c, colony_yield.c, colony_craft.c, colony_preview.c, ai.c, ai_goals.c, col1_stuff_census.c, colony.h)
 
-Deduped against docs/smell_audit_2026-09-09.md §E (60-71) and §D (44-46,55) by substance. Items below are new, several of them introduced by the recent Phase-A / Hudson / warehouse-capacity waves.
+Deduped against docs/archive/smell_audit_2026-09-09.md §E (60-71) and §D (44-46,55) by substance. Items below are new, several of them introduced by the recent Phase-A / Hudson / warehouse-capacity waves.
 
 1. **colony_production.c:449 (+ turn.c:956/1054 vs :1160) — DOS Phase I/J run BEFORE Phase C/D in the port, so the rebel accumulators and the SoL latch see a roster the DOS ones never see, and `colony_prod_tick_rebel_accumulators` re-derives bells instead of consuming the Phase-A stamp created for exactly this purpose.** `colony_eot_production.md`'s phase table is explicit: C = 57349-57414, D = 57415-57485, F/G/H = 57502-57614, **I birth = 57615**, **J starve-kill = 57623-57695**. turn.c's order is I (birth, :956-1008) → J (starve-kill, :1030-1085) → C/D (`colony_prod_tick_rebel_accumulators` + `colony_prod_refresh_sol_flags`, :1160/:1162) → F/G/H (:1215+). Consequences, all live: `cc->rebel_divisor += pop*2` uses the post-birth/post-starve head count; the bells the accumulator computes at :450 come from the post-I/J colonist array; and `colony_prod_sol_bonus` (tories = pop·(100−sol)) is likewise evaluated on the mutated roster. Worse, the function recomputes bells from scratch (`colony_prod_colony_bells_ff` at :450) while `colony->prod_bells_phase_a` already holds the Phase-A number stamped at turn.c:881 — the very "One number, two consumers" invariant this function's own header (colony_production.c:434-448, citing viceroy 57230/57231/57392) asserts. Fix is two-part: move the I/J block below F/G/H, and have the accumulator prefer `prod_bells_phase_a` when `prod_compose_stamp` matches, exactly as `turn_run_nation_ticks` already does. Confidence H (phase order is documented in-repo; only the magnitude of the numeric effect is uncertain — a birth/starve tick is needed to see it).
    **RESOLVED 2026-09-10 - I/J moved below F/G/H; accumulator now consumes the Phase A stamp.**
@@ -594,7 +594,7 @@ Deduped against docs/smell_audit_2026-09-09.md §E (60-71) and §D (44-46,55) by
 
 Files audited: `src/core/col1_bridge.c`, `col1_save.c`, `col1_save.h`, `col1_post_map.c`,
 `savegame.c`, `save_load_dialog.c` (+ docs/savegame.md, docs/save_format_map.md).
-Deduped against docs/smell_audit_2026-09-09.md §F (#72-#82): all eleven are fixed in
+Deduped against docs/archive/smell_audit_2026-09-09.md §F (#72-#82): all eleven are fixed in
 the tree (bounds on both route decoders, `holds_occupied` on all three cargo paths,
 shared `col1_save_human_nation_from`, suppress-bit prose, head-stamp trio, building RMW,
 probe head validation) — none re-filed. The findings below are new; #1/#4 are seams the
@@ -775,7 +775,7 @@ trade-stop load@+3 / unload@+6).
 # Smell audit sweep 3 — G. Europe / trade / reports / FF (2026-09-10, HEAD 9e1a38f)
 
 Files audited: `src/core/europe.c`, `reports.c`, `trade_screen.c`, `founding_fathers.c`,
-`ff.c`, `new_game.c` (+ headers). Deduped against `docs/smell_audit_2026-09-09.md` §G —
+`ff.c`, `new_game.c` (+ headers). Deduped against `docs/archive/smell_audit_2026-09-09.md` §G —
 #83, #85, #86, #87, #88, #90, #91, #92 all verified fixed in the tree and are NOT re-filed.
 `ff.c` is a MADS font loader only (89 lines, nothing game-mechanical) — clean.
 `trade_screen.c` re-checked end to end against its own DOS cites (0f2c strip x, 1064 column
@@ -960,7 +960,7 @@ bounds, 09da grid, nibble encode/decode pairing): clean, no finding.
 
 # Sweep 3 — H: map / UI / popup (map.c, map_gen.c, map_menu.c, map_panel.c, popup.c, popup_msg.c, pedia.c, colony_screen.c, woodcut.c, declaration.c)
 
-Deduped against docs/smell_audit_2026-09-09.md §H (#95–#106) by substance: those are all fixed and I re-verified the fixes at their new sites (caret rule, fog ocean-rescan, dest-halving, rumour +1 bias, tribe chrome sentinel, `pedia == 27`, dead PHYS0 bases, dead `case WOODCUT_A_NEW_WORLD`, popup `run[256]`). Nothing below repeats one.
+Deduped against docs/archive/smell_audit_2026-09-09.md §H (#95–#106) by substance: those are all fixed and I re-verified the fixes at their new sites (caret rule, fog ocean-rescan, dest-halving, rumour +1 bias, tribe chrome sentinel, `pedia == 27`, dead PHYS0 bases, dead `case WOODCUT_A_NEW_WORLD`, popup `run[256]`). Nothing below repeats one.
 
 1. **src/core/map_panel.c:1726 and :1527 — the fog-view sentinel that #100 fixed inside `map_panel_draw_tribe_chrome` still leaks into the rest of `map_panel_render`.** The parameter is *named* `human_nation` but game_loop.c:16087 passes `game_fog_nation(game)`, which is −1 under Complete Map and a *foreign* nation under SETVIEW (game_loop.c:3375-3386). Every fog use (:1288/:1302/:1317/:1335/:1436) treats −1 correctly, but two non-fog uses do not: `const bool own_stack = top && top->nation_id == human_nation;` (:1726) makes the player's **own** stack read as foreign — the sidebar collapses it to one "<Nationality> <Type>" row instead of the own-stack listing — and `map_panel_euro_country(..., human_nation)` (:1527, helper at :475) then never returns the player's custom country name for their own colonies. `map_panel_draw_tribe_chrome` (:601-608) resolves the sentinel back through `head.curr_nation_map_view` / `head.human_player` exactly because of #100; the same resolve is missing here. Confirm by opening Complete Map (or SETVIEW to another nation) and clicking one of your own multi-unit stacks. **M-H**
 

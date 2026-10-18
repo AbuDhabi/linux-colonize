@@ -36,51 +36,6 @@
  *  - Euro nation turn dispatch
  */
 
-#include "core/internal.h"
-#include "core/ai.h"
-#include "core/combat_strength.h"
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <strings.h>
-
-#include "core/ai_contact.h"
-#include "core/ai_diplo.h"
-#include "core/ai_euro.h"
-#include "core/founding_fathers.h"
-#include "core/ai_goals.h"
-#include "core/ai_king.h"
-#include "core/col1_bridge.h"
-#include "core/colony.h"
-#include "core/colony_production.h"
-#include "core/ai_internal.h"
-#include "core/dos_rng.h"
-#include "core/europe.h"
-#include "core/map_gen.h"
-#include "core/new_game.h"
-#include "core/strutil.h"
-#include "core/turn.h"
-#include "platform/diagnostics.h"
-#include "platform/platform.h"
-
-/*
- * Sections:
- *  - Startup RNG seeding (~line 33)
- *  - Coarse fog-of-war tracking (~line 95)
- *  - Diagnostics/audit gates & RNG range utils (~line 187)
- *  - New-game world setup: nation identity, col1 template, landfall, fleet & tribe placement (~line 300)
- *  - Game init entry & human-nation id fixups (~line 1138)
- *  - Euro nation turn dispatch (~line 1309)
- *  - Indian village worth, brave spawn, mission & threat scoring (~line 1417)
- *  - Village growth tick, tile/owner helpers & native pull scoring (~line 2084)
- *  - Native direction-scoring ASM port (~line 2485)
- *  - 021a direction-scorer structural port (tile/occupant/terrain/angry/score) (~line 2864)
- *  - Native pick-dir dispatch, move-spent accounting & init schedule (~line 3966)
- *  - First contact, brave-turn origin & brave step/order execution (~line 4195)
- *  - Nation pulse, indian nation turn, kill-nation & reset (~line 4640)
- */
-
 /*
  * FUN_38fd_6024 (viceroy_unpacked.c ~68666-68677): human starting treasury
  * by difficulty — Discoverer 1000, Explorer 300, Conquistador+ 0. AI nations

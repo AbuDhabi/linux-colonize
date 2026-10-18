@@ -97,7 +97,7 @@ T1.23 / T3.3).
 re-runs `golden_mapgen_seed100`, `golden_ai_turns` (plus the proven #530 DOS
 TURN2→3 through TURN6→7 transitions), the three `unit_ai_contact_*` slices,
 `unit_ai_diplo`, `smoke_ai_mid01` and `smoke_ai_late01` in one shot. Registering
-it as a test made a plain `ctest` run all six twice, so the `add_test()` was
+it as a test made a plain `ctest` run all eight twice, so the `add_test()` was
 dropped 2026-09-14 (duplication audit TT-14). Run it explicitly:
 
 ```
@@ -200,7 +200,7 @@ missing a reset call in the test's own fixture setup, not production bugs):
 `tests/unit/test_ai_euro_20e6.c`'s `fixture_init` was missing
 `ai_goals_reset()` (ai_goals.c's per-nation `s_goals`/`s_work`/`s_inv`/
 `s_plan` statics leaked between cases sharing nation 1), and
-`tests/unit/test_ai_euro_expand.c`'s `unit_0a60_work_military_ai_plan_gate`
+`tests/unit/test_ai_euro_expand_labor.c`'s `unit_0a60_work_military_ai_plan_gate`
 hand-built its fixture instead of going through `tests/common/ai_fixture.h`'s
 `fx_units_init()`, so it skipped `ai_euro_reset()`/`ai_native_reset()`/
 `turn_reset()`/`units_reset_state()`/`units_set_occupancy_map(NULL)`.

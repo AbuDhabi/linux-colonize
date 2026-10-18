@@ -1,5 +1,16 @@
 #include "core/map_gen.h"
 
+/*
+ * Procedural map generator (DOS land/terrain/river/forest passes) and start picks.
+ *
+ * Sections:
+ *  - Params, land mask walks & blob placement (map_gen_params_random .. cleanup_diagonal_land)
+ *  - Latitude terrain, rivers, arctic/high-seas painting & border finalize (latitude_terrain .. map_gen_finalize_border_and_forest)
+ *  - Climate/humidity, mountain & forest passes, terrain paint (climate_humidity_pass .. paint_terrain)
+ *  - map_generate driver, Euro landfalls, continent labelling (map_generate .. map_gen_assign_continents)
+ *  - Start-position picks & Euro landfall lookup (is_coastal_land .. map_gen_euro_landfall)
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -1,7 +1,7 @@
 /*
- * Strong link stubs for the four slim unit-test targets (unit_units,
- * unit_combat_strength, unit_colonies, unit_reports) that compile ai_diplo.c
- * without ai_contact.c / ai_euro.c. ONLY those targets may list this file.
+ * Strong link stubs for the SLIM unit-test targets (`colonize_add_test(... SLIM)`
+ * in CMakeLists.txt) that compile ai_diplo.c without ai_contact.c / ai_euro.c.
+ * ONLY those targets may list this file.
  *
  * These used to be __attribute__((weak)) definitions inside ai_diplo.c.
  * That was a trap (2026-09-10, audit #15 fallout): in a static-archive link

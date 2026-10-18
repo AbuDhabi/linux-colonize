@@ -1,5 +1,15 @@
 #include "core/combat_strength.h"
 
+/*
+ * Combat strength: engagement strength, side flags, 1b0e handicaps & engage.
+ *
+ * Sections:
+ *  - Combat ctx from turn context, auto-defender switch, side flags (combat_strength_ctx_from_turn .. combat_side_flags_clear)
+ *  - Unit base strength x8, colony-local bonuses, WOI/REF/crown predicates (combat_unit_base_x8 .. combat_unit_on_colony)
+ *  - Engagement strength, toughness & unit-type role predicates (combat_engagement_strength .. combat_unit_is_combat_role)
+ *  - Bombard icon, colony SoL, 1b0e peels, handicap resolve & land/naval engage (combat_bombard_row_icon .. combat_naval_engage)
+ */
+
 #include <string.h>
 
 #include "core/founding_fathers.h"

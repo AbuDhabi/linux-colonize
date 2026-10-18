@@ -23,10 +23,11 @@ python3 tools/dosbox_trace.py stop $W
 
 - `setup` copies `COLONIZE/` to `$W/C`, renames the chosen EXE (default
   `VR_SEED.EXE`, the seed-locked build the seed-100 goldens came from) to
-  `VR_SOUND.EXE` (`tools/make_vr_sound.py`) is VR_SEED plus a no-op music pump: no
+  VICEROY.EXE, and installs the save as COLONY00.SAV. `VR_SOUND.EXE`
+  (`tools/make_vr_sound.py`) is VR_SEED plus a no-op music pump: no
   wall-clock `srand(tick)` on the game LCG, so a DOS run is deterministic whatever the
-  Sound options say. Use `--exe VR_SOUND.EXE` for reference runs (docs/idle_independence.md).
-  VICEROY.EXE, and installs the save as COLONY00.SAV. Each `--patch-cc`
+  Sound options say; use `--exe VR_SOUND.EXE` for reference runs (docs/idle_independence.md).
+  Each `--patch-cc`
   turns one EXE file byte into INT 3 (see "Overlay code"). It also writes
   `$W/dbx.conf`.
 - `start` launches a nested X server (`Xephyr :57`; set e.g. `DOSBOX_TRACE_DISPLAY=:59` on every
@@ -107,6 +108,16 @@ firing:
 - Screen-state detectors in `Dbg` (`menu_row`, `list_row`, `on_map`) compare
   reference crops in `tools/dosbox_trace_ref/` (window coordinates) and find
   the dark highlight bar. Add a crop there when you automate a new screen.
+
+## Debugger console quirks
+
+- The full DOSBox-X command list is `docs/dosbox-x-debugger-commands.txt`;
+  some commands are unavailable in this build.
+- F10 never reaches the debugger (the terminal eats it); F11 does.
+- The code view shows partial instructions: only the bytes in view are
+  disassembled, so the first and last line can be wrong.
+- The Output pane carries noise; memory breakpoints report there as
+  `DEBUG: Memory breakpoint : seg:off - old -> new`.
 
 ## Launch traps
 

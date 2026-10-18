@@ -17,7 +17,7 @@ the verification loop. It does **not** own feature status — that stays in the
 | `DAT_<seg>_<off>`, `LAB_*`, `caseD_*` | Global/static data, labels, switch-case stubs. Switch bodies often survive only as `caseD_*` thunks — see the `caseD_10` trick below. |
 | `DS:0xNNNN` | A DOS data-segment address. Globals are catalogued in `original_sources_annotated/include/viceroy_globals.h` and `docs/viceroy_tables.md`. |
 | **DS→EXE rule** | A *static* DS string or table lives at **`COLONIZE/VICEROY.EXE` file offset `121248 + addr`**. Works only for static strings; runtime pointer slots (`0x2dxx`, `0x9xxx`) hold load-time pointers and read as garbage — identify those by table stride instead. (memory: `mysteries-sweep-2026-08-27`, `sidebar-49dd-0424-port`) |
-| **`raw NNNNN`** | A line number in `original_sources_decompiled/viceroy_unpacked.c`. The normal citation unit in code comments (~470 uses in `src/core`). |
+| **`raw NNNNN`** | A line number in `original_sources_decompiled/viceroy_unpacked.c`. The normal citation unit in code comments (~1900 uses in `src/core`, 2026-10-18). |
 | **`FUN_1000_X` rule** | `FUN_1000_XXXX` resident stubs are thunks for `FUN_281f_(XXXX − 0x81f0)`; `FUNCTION_CATALOG.md` then names the real body. (memory: `ai-20e6-structural-land-port`) |
 | `tools/address_mapping.csv` | canonical_name → canonical_address → overlay/offset map. Check it (plus `viceroy_globals.h`, `dosbox-x-dumps/*`) before filing anything as "needs a live capture". |
 | **Overlays / RTLink** | VICEROY is RTLink-overlaid. A `CALLF <loader>; JMPF 0x0000:XXXX` is an **unpatched placeholder**, not content — resolve via `tools/rtlink_overlay_extract.py` + `tools/GhidraImportOverlays.java`, never by tail-following. (port_plan "Method notes") |
@@ -62,7 +62,7 @@ the verification loop. It does **not** own feature status — that stays in the
   **id**; always go through `units_get(pool, id)` / `units_get_const`. A loop
   `for (i...) units_get(pool, i)` is the recurring **id-walk bug** — it silently
   drops ids ≥ pool size and can mutate the wrong unit. ~50 of these have been
-  fixed; assume more exist in `ai_euro.c`.
+  fixed; assume more exist in the `ai_euro_*` files.
 - 1-based vs 0-based known spots: **ICONS.SS sprite ids are 1-based**;
   PHYS0 blit indices are 1-based; LABELS/NAMES section line indices are 0-based
   over non-blank, non-`;` lines.
@@ -88,8 +88,9 @@ the verification loop. It does **not** own feature status — that stays in the
   `best_score = 99`, the tons ledger adding the cargo *index*, and the mode-6
   double-count of vet-professioned types.
 - **Comment citation style**: name the DOS function and the raw line, e.g.
-  `/* FUN_465b_0000 (~75692): ... */` or `raw 100381-100383`. ~2900 `FUN_*`
-  citations and ~470 `raw NNNNN` citations exist in `src/core` — match them.
+  `/* FUN_465b_0000 (~75692): ... */` or `raw 100381-100383`. ~5100 `FUN_*`
+  citation lines and ~1900 `raw NNNNN` citations exist in `src/core`
+  (2026-10-18) — match them.
 - **Per-call-site parameters are not global rules.** `FUN_4cc6_0356`'s continent
   filter is read at the colony tile for one caller and at the unit tile for
   another; porting one call site's choice as the function's semantics is what
@@ -101,7 +102,7 @@ the verification loop. It does **not** own feature status — that stays in the
 - **Big-function rule: extract stages into static functions with a status enum**
   (e.g. `AiEuroActStatus { CONTINUE, RETURN }`); no function > ~400 lines. Split
   by **gameplay concern**, not arbitrary line count. All stage functions take a
-  shared context struct (`ai_euro_act_ctx`, `game_update_ctx`, etc.). Pattern:
+  shared context struct (`ai_euro_act_ctx`, `ai_021a_ctx`, etc.). Pattern:
   `FUN_` with complex control flow → dispatcher over `ai_euro_act_*` stages with
   `ai_euro_reset()` lifecycle hook for stateful iterators. (2026-09-16)
 - **Ctx write-back trap (split DOS functions).** DOS locals that survive across
@@ -112,17 +113,21 @@ the verification loop. It does **not** own feature status — that stays in the
   local: add the field to the ctx, alias it, and write it back on every exit of
   that stage; a missed write-back is a silent divergence that only a golden
   catches. Stage order = DOS order; the dispatcher is the asm reading order.
-  Every function over 300 lines was split 2026-09-16 except `gsound_vm.c`
-  `voice_tick` (driver emulator, verbatim).
+  The 2026-09-16 split pass took the AI and game-loop giants apart, but nine
+  functions still exceed 400 lines (`turn_produce_one_colony`,
+  `col1_bridge_capture_w` / `_apply_w`, `units_try_move_w`,
+  `map_panel_render_w`, `colony_screen_hit_test`, `ai_euro_colony_tick_run`,
+  `ai_euro_5952_build_cascade_1b0`, `ai_popup_render`) — bugs.md #1107.
+  `gsound_vm.c` `voice_tick` is exempt (driver emulator, verbatim).
 - **Internal-header test seam.** A stage function from the big-function-rule
   split stays `static` in production but is reachable from tests via
   `<module>_internal.h` + `core/internal.h`'s `COLONIZE_INTERNAL` macro
   (`static` normally, external linkage when `COLONIZE_TESTING` is defined).
-  The macro is defined once on the shared `colonize_core` target in
-  `CMakeLists.txt` — colonize_core is built exactly once and linked by every
-  test binary, so there is no separate "test build" to scope the define to;
-  applying it to the one target only widens symbol visibility; it changes no
-  function body or call site. A module's `<module>_internal.h` moves the
+  `COLONIZE_TESTING=1` is a PUBLIC compile definition on `colonize_sim` in
+  `CMakeLists.txt`, inherited by `colonize_ui` and every consumer — the
+  archives are built exactly once and linked by every test binary, so there is
+  no separate "test build" to scope the define to; it only widens symbol
+  visibility and changes no function body or call site. A module's `<module>_internal.h` moves the
   stage's ctx struct / status enum out of the `.c` file (needed unconditionally,
   so a test can build one) and declares the stage prototypes gated behind
   `#ifdef COLONIZE_TESTING` (not needed by production, which never calls them
@@ -150,9 +155,9 @@ form carries the same rule.
 | **Single treasury accessor**: one purse per nation behind `europe_nation_gold` / `europe_nation_gold_add` (`europe.h`). Human = live `eu->gold`, others = the col1 record. `europe_gold_stamp_record` is the absolute copy; never assign. | `sweep3-third10-fix-wave` |
 | **Every AI-side borrow of the shared `EuropeScreen` needs save/restore** gated on `nation_id != ctx->human_nation` — otherwise AI gold/tax leaks into the human's record at the next capture. | `crown-europe-batch-2026-09-04` |
 | **Popup art palettes: merge, never remap.** A sheet that owns a DAC block the host screen leaves black (`SCORE<nn>.SS` over `WOODPAN2.PIK` is the only such pair) gets its entries merged via `ai_popup_art_palette_merge`. Sheets that paint where hosts paint (PARCH/WOODTILE/BUILDING/ICONS) are **remapped**, one copy per destination palette. | `crown-europe-batch-2026-09-04`, `sweep3-sixth-wave-batch20` |
-| **No weak fallbacks in `colonize_core` files.** `__attribute__((weak))` definitions satisfy the reference, so the linker never pulls the real archive member — `unit_ai_diplo` ran stubbed AI for months. Cross-module stubs live in `src/core/ai_contact_link_stubs.c`, compiled **only** by the four slim targets (see its file header + `COLONIZE_SLIM_SOURCES` in `CMakeLists.txt`). | `sweep3-fifth-wave-batch20` |
-| **Slim targets**: `unit_units_*` (6 slices), `unit_combat_strength`, `unit_colonies`, `unit_reports` do not link `colonize_core`. Adding a call to a symbol outside `COLONIZE_SLIM_SOURCES` breaks all four at link time. They are declared with `colonize_add_test(... SLIM)` in `CMakeLists.txt`, which appends `src/core/ai_contact_link_stubs.c` and defines `COLONIZE_SLIM_TEST=1`; the stubs file `#error`s in any other target. | `duplication-audit-2026-09-14` |
-| **MP on native units** routes through `units_mp_charge` / `units_mp_exhaust` (`units.c`): Euro units store thirds remaining, Braves store thirds **spent** (max 3). | `smell-batch1-2026-09-08` |
+| **No weak fallbacks in `colonize_core` files.** `__attribute__((weak))` definitions satisfy the reference, so the linker never pulls the real archive member — `unit_ai_diplo` ran stubbed AI for months. Cross-module stubs live in `src/core/ai_contact_link_stubs.c`, compiled **only** by the SLIM targets (see its file header + `COLONIZE_SLIM_SOURCES` in `CMakeLists.txt`). | `sweep3-fifth-wave-batch20` |
+| **Slim targets** (`grep -n SLIM CMakeLists.txt`: the six `unit_units_*` slices, `unit_combat_strength`, `unit_colonies`, `unit_colony_yield`, `unit_reports`) do not link `colonize_core`. Adding a call to a symbol outside `COLONIZE_SLIM_SOURCES` breaks all of them at link time. They are declared with `colonize_add_test(... SLIM)` in `CMakeLists.txt`, which appends `src/core/ai_contact_link_stubs.c` and defines `COLONIZE_SLIM_TEST=1`; the stubs file `#error`s in any other target. | `duplication-audit-2026-09-14` |
+| **MP on native units** routes through `units_mp_charge` / `units_mp_exhaust` (`units_capture.c`): Euro units store thirds remaining, Braves store thirds **spent** (max 3). | `smell-batch1-2026-09-08` |
 | **No per-turn "drip" effects without a DOS trace.** Indian alarm has exactly two DOS growers: the per-turn `FUN_4d56_152e` threat accumulator, and the discrete land-work charge in `FUN_0000_6582` (the shared colony `tiles[]` writer — `colonies_assign_field_w`, bugs.md #1002), which is the one that moves early-game alarm. Discrete-event bumps are safe; recurring drips compound into order-of-magnitude divergence. | `alarm-fandom-drips-retired`, `land-work-alarm-2026-09-30` |
 | **Don't re-merge "kept split on DOS grounds"** rows from `docs/archive/duplication_audit_2026-09-14.md`; use the shared helpers listed in its Resolution table. | `duplication-round2-2026-09-15` |
 | **Never store port-only state in a `head.unknown*` field** without checking `save_format_map.md` for its real DOS meaning (`market_demand_pool_raw` is the market pool and is rewritten every EOT). | `woi-headless-sim-and-market_demand_pool_raw` |
@@ -309,8 +314,10 @@ cmake --build build/debug --target golden_ai_joint         # when AI or turn ord
   memory `ai-ship-wiggle-fix`.
 - Debug switches are catalogued in **[debug_env_vars.md](debug_env_vars.md)**
   (note which ones *change behaviour*). Quick picks: `DOS_RNG_TRACE`,
-  `AI_SCORE_AT="n:x:y"`, `COLONIZE_TEST_ONLY=<case>` (any test binary),
-  `AI_SHIP_TRACE=1`, `AI_SET_GOTO_TRACE=1`. `debug.logs` is a
+  `AI_SCORE_AT="n:x:y"`, `COLONIZE_TEST_ONLY=<case>` (only binaries built on
+  `tests/common/test_runner.h`'s `TEST_MAIN`; ~25 test files keep a
+  hand-written `main` and ignore it — `make test T=... CASE=...` then runs
+  everything), `AI_SHIP_TRACE=1`, `AI_SET_GOTO_TRACE=1`. `debug.logs` is a
   `settings.json` / DEBUG-menu toggle, not an env var (categories table in
   `docs/settings.md`; context stamped by `diag_set_context` / `game_track_screen`).
 - Finally: annotate the `bugs.md` row. Status meanings there —
@@ -362,7 +369,8 @@ cmake --build build/debug --target golden_ai_joint         # when AI or turn ord
   `sed -n 'A,Bp'`). Never open one to browse for work, to "get context", or to
   check whether something was done already; `bugs.md`, `port_plan.md` and the
   owning feature doc answer that. A grep miss means the answer is elsewhere.
-  Same rule for `docs/smell_audit_*.md`. Living docs win any conflict.
+  Same rule for an open audit dump still in `docs/` (`code_audit_*.md`).
+  Living docs win any conflict.
 - **Doc-length policy**: past roughly 800 lines a doc gets split or its closed
   history archived under `docs/archive/` with a status header. Audit dumps
   (`smell_audit_*`, `duplication_audit_*`) live in `docs/` while open and move

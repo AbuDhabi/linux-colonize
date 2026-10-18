@@ -191,7 +191,7 @@ user-observed DOS, reverses #648). Other rows drop the tier. See units.c.
 
 DOS @UNIT type codes (COLONIZE/NAMES.TXT @UNIT row order, which is what DOS
 stores in unit +0x3146 and what every `type < 0xb` / `type == 0x12` range
-test in the decompile means; ai_euro.c:11742 ai_euro_20e6_dos_type carries
+test in the decompile means; `ai_euro_20e6_dos_type` (ai_euro.c) carries
 the same table). An OpenCol pool index is NOT a DOS code — synthetic fixtures
 place types at arbitrary slots — so the mapping goes through the @UNIT name.
 

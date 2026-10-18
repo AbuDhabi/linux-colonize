@@ -48,9 +48,9 @@ Each session peels **one** thin layer of ignorance. Do not mix layers.
 
 ## Catalog peel status and roadmap
 
-**What to peel next** (stable ranked queue — do not re-sort ad hoc):
-[`docs/catalog_peel_ranking.md`](../docs/catalog_peel_ranking.md).
-Update that file when a batch finishes.
+**What to peel next:** the VICEROY light catalog is closed (Layers A-C below);
+the old `docs/catalog_peel_ranking.md` queue was retired with it. Layer D
+extracts happen on demand when a port slice needs one.
 
 **Layer A (VICEROY) is closed** for segment tagging — all 166 segments labeled.
 Live counts are in [`MODULE_MAP.md`](MODULE_MAP.md) **Progress**.
@@ -66,7 +66,8 @@ Live counts are in [`MODULE_MAP.md`](MODULE_MAP.md) **Progress**.
 **MAPEDIT is parked** (no new Layer A labels on this track).
 
 Catalog confidence is **not** the same as AI port status in
-[`docs/ai_transcription.md`](../docs/ai_transcription.md) — a function can be
+[`docs/port_plan.md`](../docs/port_plan.md) (which absorbed `ai_transcription.md`
+2026-09-05) — a function can be
 light-labeled `inferred` in the catalog while still **unknown** for a 1:1 port.
 
 Purpose one-liners are **not** Layer A. **VICEROY Layer B purposes are closed**
@@ -107,8 +108,8 @@ deep extracts.
    - **Done:** `2a1f` mapgen megaseg thunk bulk (195 — purpose-closed).
    - **Done:** platform megasegs `1d1d`+`210d` (182 — purpose-closed).
    - **Done:** unpark `205f`/`1d1c` (3 — VGA A000 addr + DS:0x26f0 table).
-   - **Next:** see [catalog peel ranking](../docs/catalog_peel_ranking.md)
-     (VICEROY Layer B closed; MAPEDIT parked / Layer D on demand).
+   - **Next:** none queued (VICEROY Layer B closed; MAPEDIT parked / Layer D
+     on demand).
 3. **Layer C** — one-hop from known entries.
    - **Done:** `FUN_4d56_1816` (10 callees); `FUN_521d_6d8e` (23 `521d` bodies +
      26 `2a1f` act thunks + 16 helpers).
@@ -134,12 +135,12 @@ deep extracts.
    - **Done:** `2a1f` mapgen megaseg thunks (195) via Layer B address shards.
    - **Done:** platform megasegs `1d1d`+`210d` (182) via Layer B address shards.
    - **Done:** unpark `205f`/`1d1c` (3).
-   - **Next:** [catalog peel ranking](../docs/catalog_peel_ranking.md) —
-     VICEROY light catalog closed; MAPEDIT parked / Layer D on demand.
+   - **Next:** none queued — VICEROY light catalog closed; MAPEDIT parked /
+     Layer D on demand.
 4. **Layer D** — selective deep extracts when a port needs them (same bar as
    `ai/`).
 
-AI port roadmap stays in [`docs/ai_transcription.md`](../docs/ai_transcription.md);
+AI port roadmap stays in [`docs/port_plan.md`](../docs/port_plan.md) (Deferred AI track);
 the catalog only mirrors light-label status.
 
 ## Layout
@@ -226,7 +227,7 @@ the catalog only mirrors light-label status.
   `0578`→`0342`, `050c`→`0a60`, `0488`→`5b66`); goal helpers in `euro_goals.c`;
   sectioned `0a60`; thin maps for `5b66` + Euro/ocean `20e6`/`06ae`. Full
   `5d04` (T3.1) and the land `20e6` arms (T1.18) ported 2026-08-27; `5b66`,
-  the deep −0x6790 combat core and ocean/T3 bodies still PARKED. See `docs/ai_transcription.md` Unparked queue.
+  the deep −0x6790 combat core and ocean/T3 bodies still PARKED. See `docs/port_plan.md` Deferred AI track (history in `docs/archive/port_plan_deferred_ai_track.md`).
 - **Between-turns Layer D:** `turn/year_loop.c` (`130d_0290`),
   `turn/nation_eot.c` (`3844_00f2`/`0004`), `turn/year_end_chrome.c` (`0442`),
   thin map `turn/between_turns.md`. Bridge doc:

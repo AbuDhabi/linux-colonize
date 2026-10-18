@@ -122,7 +122,7 @@ static int reports_naval_goods_icon(int cargo_type, int amount) {
  * Europe-side ships still come from `europe`'s harbor/expected/bound lists
  * below; DOS reads them as ordinary unit records on the sentinel Atlantic
  * lanes, which `col1_bridge_apply` consumes into EuropeScreen instead
- * (bugs.md #974).
+ * (docs/known_divergences.md #974).
  *
  * Returns the row count (<= max_rows). Shared by page_count and render so
  * pagination always matches what's actually drawn.

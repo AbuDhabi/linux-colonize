@@ -378,7 +378,7 @@ list, not from the inventory.
   pairs back them): `ai_euro_try_post_found_coast_cruise` (TURN4-7 ship XY)
   and the land adjacent-attack pair — see the open item below.
   Remaining manual-only citations are triaged in
-  `docs/ai_euro_uncited_arms_2026-09-18.md`.
+  `docs/archive/ai_euro_uncited_arms_2026-09-18.md`.
 - [x] **AI goal walking made DOS-shaped** — 2026-09-18f (bugs.md #525/#526).
   `FUN_521d_5b66` was decoded off its own 198 bytes in
   `viceroy_overlays.asm` (OVL14 0x5b66-0x5c37); Ghidra's 1800-line body at

@@ -168,7 +168,7 @@ The pre-2026-09-16 port had only an AI-only end-of-act "naval ambush" keyed on t
 | Piece | API |
 |-------|-----|
 | Strength | `units_coastal_fort_attack_strength` = `4 * tier * (1 + arty)`; Fort tier1, Fortress tier2 |
-| Pulse | `units_coastal_fort_fire_pulse` — all Fort/Fortress colonies, 8 ocean dirs |
+| Pulse | `units_coastal_fort_fire_pulse_w` — all Fort/Fortress colonies, 8 ocean dirs |
 | Hostile | at war (Euro/Indian) **or** Privateer |
 | Resolve | `units_fort_vs_ship`: fort atk vs ship defense (Drake scales Privateer); Combat Analysis is presented first when a human is involved (bugs.md #261), then `roll(1, atk+def) <= atk` |
 | Fort wins | bugs.md #249 — the same outcomes as a naval fight: holds lost, then the DOS `0352` damage-vs-sink roll with the fort's strength standing in for the winner's guns column. Damaged → `col1_flags15` bit7, `moves=0`, `repair_pending=2`, relocate to the nearest own Drydock colony with the DOS repair timer doubled (non-ship winner), `@SHIPDAMAGE`; a WoI human with no repair port sinks instead. Undamaged → sink, `@SHIPSUNK`, no plunder |
@@ -241,7 +241,7 @@ spawn + fort VGA chrome.
 |-----|-------|
 | Village raid / settlement deep `2820` + VGA | `ai_contact.c`, [move_enter.md](move_enter.md), [indians.md](indians.md) |
 | Deep Euro combat −0x6790 — **still open**; the explore ring and the rest of the `20e6` land arms shipped 2026-08-27 (`port_plan.md` T1.18), so only the combat core is left here | `ai_euro.c` / [move_scoring_land.md](../original_sources_annotated/ai/move_scoring_land.md) |
-| Fort-fire temp unit + camera / VGA chrome | `units_coastal_fort_fire_pulse` |
+| Fort-fire temp unit + camera / VGA chrome | `units_coastal_fort_fire_pulse_w` |
 | VGA-identical combat chrome | — |
 
 ---

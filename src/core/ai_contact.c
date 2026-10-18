@@ -286,10 +286,6 @@ const char* ai_contact_tribe_name(int nation_id) {
   return reports_tribe_singular_name(idx);
 }
 
-/* FUN_5bfb_0182: peace/treaty bit on indian.euro_diplo[euro] (COL1_INDIAN_PEACE_BIT). */
-
-/* FUN_5bfb_022e Yes/No (local_c). */
-
 /* @NATIONALITY (English/French/Spanish/Dutch), WoI-aware: singular =
  * FUN_281f_09a4 ("Rebel"/"Tory"), plural = FUN_281f_0a1a ("Rebels"/"Tories").
  * col1 NULL = plain adjective. */

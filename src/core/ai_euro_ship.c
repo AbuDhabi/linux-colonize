@@ -698,9 +698,9 @@ int ai_euro_20e6_wagon_village_errand(
  *
  * OpenCol tile substitution: DOS ships berth ON the colony tile, so 10be's own
  * tile stack already holds the marked land units. This port berths ships on
- * adjacent water (`ai_euro_tiles_near`, same substitution the arrival block
- * and the 06e load block make), so the sweep covers the ship's tile plus any
- * adjacent own-colony tile.
+ * adjacent water, so the sweep covers the ship's tile plus a loose unit
+ * standing on an own-colony tile the ship also sits on (exact tile compares,
+ * as in the arrival block and the 06e load block).
  */
 /*
  * Raw 2991-2997 (asm 0x30a7-0x30d5) stale board-mark clear, shared by the
@@ -1038,9 +1038,8 @@ static int ai_euro_20e6_ship_berth_arrival(
     if (!cand->active || cand->nation_id != nation_id) {
       continue;
     }
-    /* iStack_2e == 0: standing at own colony uStack_62. Ships berth on
-     * adjacent water in this port, so near, not colonies_id_at — the same
-     * substitution the 06e load block already used. */
+    /* iStack_2e == 0: standing at own colony uStack_62. Exact ship-tile
+     * == colony-tile compare, the same test the 06e load block uses. */
     if ((ship->x != cand->x || ship->y != cand->y)) {
       continue;
     }
@@ -1348,7 +1347,7 @@ int ai_euro_try_ship_trade_haul_snapshot(
    * stood in for the dump precondition by simply refusing to score a
    * part-loaded hull (DOS state the matrix never sees, because DOS empties it
    * first).
-   * Ships berth on adjacent water, so ai_euro_tiles_near, not colonies_id_at.
+   * Berth test is an exact ship-tile == colony-tile compare (see the loop).
    */
   if (berthed_at < 0 && has_cap &&
       ai_euro_hauler_free_holds(ctx->units, ship) ==

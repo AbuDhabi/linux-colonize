@@ -1253,7 +1253,7 @@ int ai_goals_stack_settler_pick(
  *     nation's alarm toward that Euro (ai_diplo_indian_alarm, HIGH =
  *     HOSTILE). `0x4a < alarm` — strictly greater than 74.
  *   DS:0x54f6 = the settlement record's own attitude[euro] word
- *     (ColonizeCol1Tribe.alarm[euro], col1_tribe_attitude — docs/indians.md
+ *     (ColonizeCol1Tribe.alarm[euro], col1_tribe_attitude — docs/indian_alarm.md
  *     "third layer"), keyed by the *tile unit's* home settlement id (DOS
  *     unit +0x06 / DS:0x314a = ColonizeUnit.home_tribe_id) x the acting Euro
  *     nation. `0x7f < attitude` — over 127, signed.

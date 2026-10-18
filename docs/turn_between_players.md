@@ -152,7 +152,7 @@ Major thunks (catalog):
 | `291f_0cbc` | `38fd_0058` | Market dynamics | same |
 | `291f_0a74` / `0a9e` | `4962_0018` / `0606` | Census / profession tally | [`census_tally.md`](../original_sources_annotated/turn/census_tally.md) |
 | `291f_0a82` | `48d3_06ba` | Europe-exit / tax treasures | [`europe_exit_landfall.md`](../original_sources_annotated/turn/europe_exit_landfall.md) |
-| `291f_0a58` | `3844_0004` | Treasure tick | nation_eot.c |
+| `291f_0a58` | `3844_0004` | Treasure tick | [`nation_eot.c`](../original_sources_annotated/turn/nation_eot.c) |
 
 ---
 
@@ -168,7 +168,7 @@ Major thunks (catalog):
 | EURO lone Convert | `3844_0004` | `units_tick_convert_outside_colony` | **Done** — type 0 + @JOB 27, in bounds, no settlement on tile, stack < 2; +0x16 > 8 despawns, human owner gets `@DEADCONVERTS` (0xee2 mode 4). No DOS site expires a Treasure train (bugs.md #725) |
 | EURO ship-build ready | `00f2` unit walk | `units_tick_ship_build_ready` | **Partial** — progress/clear construction bit7 + threshold=`defense`/`0x5235` **Done** thin; dialog chrome PARKED |
 | EURO Drydock repair | colony EOT | `units_tick_drydock_repair` | **Done** — clears combat-damage bit7 on finished ships at own Drydock; `@REFIT` chrome Done thin; after ship-build tick |
-| EURO fog reveal | `281f_07a0` in `00f2` | `turn_reveal_fog_for_nation` | **Done** — every Euro nation's unit walk (human at KING, AI at its EURO step), full `13f1_0158` side effects via `units_reveal_sight`; colony radius-2 invention removed (DOS reveals ±5 only at founding) |
+| EURO fog reveal | `281f_07a0` in `00f2` | `turn_reveal_fog_for_nation` | **Done** — every Euro nation's unit walk (human at KING, AI at its EURO step), full `13f1_0158` side effects via `units_reveal_sight_w`; colony radius-2 invention removed (DOS reveals ±5 only at founding) |
 | EURO AI | `521d_6d8e` after `00f2` | `ai_euro_nation_turn` | **Partial structural** (T2 early; deep `20e6` mapped/PARKED) |
 | INDIAN | `4d56_1b3a` mid-pass → `1816(slot)` ×8 | `ai_indian_nation_turn` | **Partial structural** — [`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md); Euro rank `5bfb_00f8` **Done** thin |
 | KING king | `43f7_2424` in `00f2` | `ai_king_nation_turn` | **Partial structural** |
