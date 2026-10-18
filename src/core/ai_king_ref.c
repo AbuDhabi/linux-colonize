@@ -215,7 +215,7 @@ static bool ai_king_10f0_pick_spawn(const ColonizeTurnContext* ctx, int human, i
   for (int d = 0; d < 8; ++d) {
     const int tx = cx + k_raster8_dx[d];
     const int ty = cy + k_raster8_dy[d];
-    if (ctx->map && (int)(map_get_layer3(ctx->map, tx, ty) & 0x0fu) != 1) {
+    if (ctx->map && (int)(map_get_layer3(ctx->map, tx, ty) & MAP_L3_CONTINENT_MASK) != 1) {
       continue;
     }
     const int sc = ai_king_10f0_score_tile(ctx, human, cx, cy, tx, ty);
@@ -1042,7 +1042,6 @@ void ai_king_ref_wave(ColonizeTurnContext* ctx) {
     w.crown = crown;
     w.human = human;
     w.force = force;
-    w.total = total;
     w.exhaust = exhaust;
     w.landed = landed;
     ai_king_0982_invasion(&w);

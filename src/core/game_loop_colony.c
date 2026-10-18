@@ -44,7 +44,7 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/fb.h"
-#include "core/ff.h"
+#include "core/font_file.h"
 #include "core/font.h"
 #include "core/founding_fathers.h"
 #include "core/howmuch_dialog.h"
@@ -160,10 +160,7 @@ void game_enter_colony(ColonizeGameState* game, int cid) {
    * FUN_2f2b_2c92 (raw 49278) opens with FUN_281f_0c22 -> FUN_15eb_3930:
    * workers on enemy-blocked plots are evicted (bugs.md #1080). */
   {
-    const ColonizeWorld w = world_make(
-      game->units_ok ? &game->units : NULL, &game->colonies,
-      game->world_map_ok ? &game->world_map : NULL, &game->col1, game->col1_ok, NULL, NULL
-    );
+    const ColonizeWorld w = game_world(game);
     colonies_26e4_claim_stamp(&w, colonies_get(&game->colonies, cid));
     colonies_recompute_plots_w(&w, cid);
   }
@@ -277,7 +274,8 @@ void game_join_colony_order(ColonizeGameState* game) {
   if (col->colonist_count >= COLONIZE_COLONY_POP_MAX) {
     return; /* overlays.c:10252-10255 bails without a word */
   }
-  const int ci = colonies_admit_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL)}, cid, sid);
+  const ColonizeWorld w = game_world(game);
+  const int ci = colonies_admit_unit_w(&w, cid, sid);
   if (ci < 0) {
     return;
   }
@@ -304,7 +302,8 @@ static int game_colony_selected_colonist(ColonizeGameState* game) {
   if (csv->selected_outside_unit < 0 || !game->units_ok) {
     return -1;
   }
-  const int ci = colonies_admit_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL)}, game->colony_view_id, csv->selected_outside_unit);
+  const ColonizeWorld w = game_world(game);
+  const int ci = colonies_admit_unit_w(&w, game->colony_view_id, csv->selected_outside_unit);
   if (ci < 0) {
     return -1;
   }
@@ -714,11 +713,7 @@ static bool game_colony_assign_field(
   int tile_index,
   int field_job
 ) {
-  const ColonizeWorld w = world_make(
-    game->units_ok ? &game->units : NULL, &game->colonies,
-    game->world_map_ok ? &game->world_map : NULL, &game->col1, game->col1_ok, NULL,
-    &game->europe
-  );
+  const ColonizeWorld w = game_world(game);
   return colonies_assign_field_w(&w, game->colony_view_id, colonist_index, tile_index, field_job);
 }
 
@@ -741,10 +736,7 @@ static void game_colony_indian_land_status(
   if (!colonies_field_tile_delta(tile_index, &dx, &dy)) {
     return;
   }
-  const ColonizeWorld w = world_make(
-    game->units_ok ? &game->units : NULL, &game->colonies, &game->world_map, &game->col1,
-    game->col1_ok, NULL, NULL
-  );
+  const ColonizeWorld w = game_world(game);
   const int ti = colonies_indian_claim_tribe_from_w(
     &w, colony->nation_id, colony->x, colony->y, colony->x + dx, colony->y + dy
   );
@@ -755,6 +747,28 @@ static void game_colony_indian_land_status(
     game->status, sizeof(game->status), "The %s resent the use of their land.",
     ai_contact_tribe_name((int)game->col1.tribe[ti].nation_id)
   );
+}
+
+/*
+ * Fisherman on a dockless colony: DOS raises GAME.TXT @NODOCKS in the assign
+ * path (2f3e) below both the tile click (3fa6) and the jobs popup (348c), so
+ * one gate serves both callers (bugs.md #1111). Returns true when it refused;
+ * the caller publishes game->status to the colony screen.
+ */
+static bool game_colony_refuse_nodocks(
+  ColonizeGameState* game, const ColonizeColony* colony, int job
+) {
+  if (job != COLONIZE_JOB_FISHERMAN || colony_yield_colony_has_docks(&game->colonies, colony)) {
+    return false;
+  }
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(&game->messages, "NODOCKS", NULL, "", body, sizeof(body));
+  ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+  /* Player-raised from inside the colony screen: present on the spot, or the
+   * colony_zoom_popup_hold keeps it queued until the screen closes (#916). */
+  game_colony_present_now(game, AI_POPUP_TAG_INFO);
+  set_status(game, "No docks", NULL);
+  return true;
 }
 
 /*
@@ -783,10 +797,7 @@ void game_colony_area_tile_drop(
    * the port does the same. bugs.md #579.
    */
   {
-    const ColonizeWorld w = world_make(
-      game->units_ok ? &game->units : NULL, &game->colonies,
-      game->world_map_ok ? &game->world_map : NULL, &game->col1, game->col1_ok, NULL, NULL
-    );
+    const ColonizeWorld w = game_world(game);
     if (colonies_plot_blocked_mask(&w, colony, tile_index) != 0) {
       return;
     }
@@ -840,18 +851,7 @@ void game_colony_area_tile_drop(
     colony_screen_set_status(csv, game->status);
     return;
   }
-  if (job == COLONIZE_JOB_FISHERMAN && !colony_yield_colony_has_docks(&game->colonies, colony)) {
-    char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(
-      &game->messages, "NODOCKS", NULL,
-      "",
-      body, sizeof(body)
-    );
-    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
-    /* Player-raised from inside the colony screen: present on the spot, or the
-     * colony_zoom_popup_hold keeps it queued until the screen closes (#916). */
-    game_colony_present_now(game, AI_POPUP_TAG_INFO);
-    set_status(game, "No docks", NULL);
+  if (game_colony_refuse_nodocks(game, colony, job)) {
     colony_screen_set_status(csv, game->status);
     return;
   }
@@ -996,17 +996,8 @@ void game_colony_commit_job(ColonizeGameState* game, ColonizeColony* colony, int
     colony_screen_close_jobs(csv);
     return;
   }
-  if (job == COLONIZE_JOB_FISHERMAN && !colony_yield_colony_has_docks(&game->colonies, colony)) {
-    /* DOS: picking Fisherman without Docks raises @NODOCKS. */
-    char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(
-      &game->messages, "NODOCKS", NULL,
-      "",
-      body, sizeof(body)
-    );
-    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
-    game_colony_present_now(game, AI_POPUP_TAG_INFO);
-    set_status(game, "No docks", NULL);
+  if (game_colony_refuse_nodocks(game, colony, job)) {
+    /* status already set */
   } else if (ci < 0) {
     set_status(game, "Select a colonist first", NULL);
   } else if (game_colony_assign_field(game, ci, csv->jobs_tile_index, job)) {
@@ -1346,7 +1337,8 @@ bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my, bool shift) 
          * (same prompt as the keyboard path). */
         game_europe_open_buy_prompt_for(game, hidx, drag->index);
       } else if (hidx >= 0) {
-        europe_buy_cargo_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true, .europe=(EuropeScreen*)(eu)}, game->human_nation, hidx, drag->index, drag->amount > 0 ? drag->amount : 100);
+        const ColonizeWorld w = game_world(game);
+        europe_buy_cargo_w(&w, game->human_nation, hidx, drag->index, drag->amount > 0 ? drag->amount : 100);
         game_europe_drain_price_events(game);
       } else {
         snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");

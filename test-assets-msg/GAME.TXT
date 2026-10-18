@@ -1,6 +1,0 @@
-; comment
-@BEGINMENU
-@width=160
-@options
-Menu Option New
-Menu Option Load

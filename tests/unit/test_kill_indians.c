@@ -11,7 +11,7 @@
 #include "../common/test_runner.h"
 
 /*
- * Smoke: col1_kill_indian_nation removes villages + units for one native
+ * Smoke: ai_kill_indian_nation_w removes villages + units for one native
  * nation. Single narrative case: fixture build -> one call -> many checks
  * on its combined effect, so it stays one case rather than being split.
  */
@@ -73,7 +73,7 @@ static int case_kill_indian_nation(void) {
   u1->home_tribe_id = 1;
 
   ColonizeWorld w = world_make(&units, NULL, &map, &col1, true, NULL, NULL);
-  const int removed = col1_kill_indian_nation_w(&w, 4);
+  const int removed = ai_kill_indian_nation_w(&w, 4);
   if (removed != 2) {
     fprintf(stderr, "expected 2 villages removed, got %d\n", removed);
     free(map.layer3);

@@ -400,7 +400,9 @@ int ai_goals_colony_balance_flags_w(
 ) {
   const ColonizeWorldMap* map = w->map;
   const ColonizeColonyPool* colonies = w->colonies;
-  const ColonizeCol1Save* col1 = w->col1;
+  /* Gated on col1_ok like every other col1 reader (bugs.md #1110: three
+   * ctx callers used to pass the save ungated). */
+  const ColonizeCol1Save* col1 = w->col1_ok ? w->col1 : NULL;
 
   if (!col1 || continent_id < 0 || continent_id > 15) {
     return 0;
@@ -773,7 +775,7 @@ int ai_goals_pick_founding_tile_ex_w(
     if (score_extras) {
       /* Decomp: 0492(nation, continent_of_candidate) once per empty neighbor. */
       const int cand_cid = map_continent_id_at(map, nx, ny);
-      const int bal = ai_goals_colony_balance_flags_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, nation_id, cand_cid);
+      const int bal = ai_goals_colony_balance_flags_w(w, nation_id, cand_cid);
       for (int nd = 0; nd < 8; ++nd) {
         const int hx = nx + k_dir8_dx[nd];
         const int hy = ny + k_dir8_dy[nd];
@@ -1149,7 +1151,6 @@ int ai_goals_composite_unit_priority_w(
 ) {
   const ColonizeWorldMap* map = w->map;
   const ColonizeColonyPool* colonies = w->colonies;
-  const ColonizeCol1Save* col1 = w->col1;
 
   if (!map) {
     return 0;
@@ -1159,7 +1160,7 @@ int ai_goals_composite_unit_priority_w(
     map, colonies, nation_id, unit_x, unit_y, unit_type, unit_profession,
     continent, turn, total_colony_count
   );
-  const int balance = ai_goals_colony_balance_flags_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, nation_id, continent);
+  const int balance = ai_goals_colony_balance_flags_w(w, nation_id, continent);
   const int urgency = ai_goals_founding_expansion_urgency(nation_id, total_colony_count);
   int total = desirability + balance + urgency;
   if (total < 0) {
@@ -1244,9 +1245,9 @@ COLONIZE_INTERNAL int ai_goals_stack_settler_pick(
  * iVar5, param_4, local_10)`) is:
  *   param_1 = acting Euro nation      -> nation_id
  *   param_2 = the adjacent tile's owner id (0..3 Euro, >=4 Indian nation)
- *                                     -> profession (DOS's overload)
- *   param_3 = 0906's own param_4 flag -> has_context
- *   param_4 = unit index on that tile -> unit_index (-1 for Euro owners
+ *                                     -> owner
+ *   param_3 = 0906's own param_4 flag -> profession (the caller's)
+ *   param_4 = unit on that tile       -> unit_id (-1 for Euro owners
  *             and for the settlement probe)
  *
  * The two reads, both wired 2026-09-08 (previously PARKED as 0):
@@ -1260,7 +1261,7 @@ COLONIZE_INTERNAL int ai_goals_stack_settler_pick(
  *     nation. `0x7f < attitude` — over 127, signed.
  *
  * So: an adjacent native only raises a contact claim when the nation is
- * already hostile OR that particular village carries a grudge. `has_context`
+ * already hostile OR that particular village carries a grudge. `profession`
  * 0 rejects outright — that is the 20e6 explorer-flag probe, which is why no
  * tribe has ever raised a claim there.
  */
@@ -1268,22 +1269,22 @@ int ai_goals_filter_profession_by_distance_wealth(
   const ColonizeCol1Save* col1,
   const struct ColonizeUnitPool* units,
   int nation_id,
+  int owner,
   int profession,
-  int has_context,
-  int unit_index
+  int unit_id
 ) {
-  if (profession > 3) {
-    if (!has_context) {
+  if (owner > 3) {
+    if (!profession) {
       return -1;
     }
-    /* FUN_281f_030c(profession - 4, nation) — accessor takes 4..11 raw. */
+    /* FUN_281f_030c(owner - 4, nation) — accessor takes 4..11 raw. */
     const int alarm = (col1 && nation_id >= 0 && nation_id < 4)
-      ? ai_diplo_indian_alarm(col1, profession, nation_id)
+      ? ai_diplo_indian_alarm(col1, owner, nation_id)
       : 0;
     int gate = alarm > 0x4a;
-    if (!gate && unit_index >= 0 && units && col1 && col1->tribe &&
+    if (!gate && unit_id >= 0 && units && col1 && col1->tribe &&
         nation_id >= 0 && nation_id < 4) {
-      const ColonizeUnit* tu = units_get_const(units, unit_index);
+      const ColonizeUnit* tu = units_get_const(units, unit_id);
       const int home = tu ? tu->home_tribe_id : -1;
       if (home >= 0 && home < (int)col1->head.tribe_count) {
         /*
@@ -1307,7 +1308,7 @@ int ai_goals_filter_profession_by_distance_wealth(
       return -1;
     }
   }
-  return profession;
+  return owner;
 }
 
 /*

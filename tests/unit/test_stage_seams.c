@@ -14,7 +14,7 @@
 #include "core/ai_internal.h"
 #include "core/col1_save.h"
 #include "core/game_dialogs.h"
-#include "core/ff.h"
+#include "core/font_file.h"
 #include "core/colony_screen.h"
 #include "core/game_loop_internal.h"
 #include "core/popup.h"
@@ -231,7 +231,7 @@ static int test_window_log_fit_line(void) {
   ColonizeFont font;
   memset(&font, 0, sizeof(font));
   char err[128];
-  if (!ff_load("COLONIZE/FONTTINY.FF", &font, err, sizeof(err))) {
+  if (!font_file_load("COLONIZE/FONTTINY.FF", &font, err, sizeof(err))) {
     fprintf(stderr, "SKIP popup_wrap_seam: COLONIZE/FONTTINY.FF not present\n");
     return TR_SKIP; /* no data dir in this checkout — the seam is still compiled */
   }
@@ -309,8 +309,8 @@ static int test_window_log_fit_line(void) {
       fprintf(stderr, "  row %d: \"%s\"\n", i, wrapped[i]);
       rc = fail("wrapped row wider than the strip");
     }
-    strncat(joined, wrapped[i], sizeof(joined) - strlen(joined) - 1);
-    strncat(joined, " ", sizeof(joined) - strlen(joined) - 1);
+    const size_t used = strlen(joined);
+    snprintf(joined + used, sizeof(joined) - used, "%s ", wrapped[i]);
   }
   if (strstr(joined, "...") != NULL) {
     fprintf(stderr, "  got \"%s\"\n", joined);
@@ -326,7 +326,7 @@ static int test_window_log_fit_line(void) {
     rc = fail("single-row wrap must elide and keep the ending");
   }
 
-  ff_free(&font);
+  font_file_free(&font);
   return rc;
 }
 
@@ -1231,6 +1231,41 @@ static int test_map_pulldown_is_modal(void) {
   return rc;
 }
 
+/* bugs.md #1110: game_world builds the one live view; a pool whose load flag
+ * is false is NULL, col1_ok follows the game, human_nation is filled. */
+static int test_game_world_view(void) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game) {
+    return 1;
+  }
+  game->human_nation = 2;
+  game->units_ok = true;
+  game->ai_rng_seed = 100;
+  ColonizeWorld w = game_world(game);
+  int rc = 0;
+  if (w.units != &game->units || w.map || w.col1 || w.col1_ok || w.europe ||
+      w.colonies != &game->colonies || w.rng != &game->move_rng || !w.rng_reseed_set ||
+      w.rng_reseed != 100 || w.human_nation != 2 || w.ai_popups) {
+    fprintf(stderr, "game_world: unloaded pools must be NULL\n");
+    rc = 1;
+  }
+  game->col1_ok = true;
+  game->world_map_ok = true;
+  game->europe_ok = true;
+  w = game_world(game);
+  if (w.col1 != &game->col1 || !w.col1_ok || w.map != &game->world_map ||
+      w.europe != &game->europe) {
+    fprintf(stderr, "game_world: loaded pools must be set\n");
+    rc = 1;
+  }
+  if (world_make(NULL, NULL, NULL, NULL, false, NULL, NULL).human_nation != -1) {
+    fprintf(stderr, "world_make: human_nation must default to -1\n");
+    rc = 1;
+  }
+  free(game);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"test_map_pulldown_is_modal", test_map_pulldown_is_modal},
     {"test_turn_year_end_rival_rebels", test_turn_year_end_rival_rebels},
@@ -1251,6 +1286,7 @@ static const TestCase k_cases[] = {
     {"test_ai_euro_5952_equip_scout", test_ai_euro_5952_equip_scout},
     {"test_ai_euro_5952_equip_pioneer", test_ai_euro_5952_equip_pioneer},
     {"test_colony_shift_pick_moves_highlight", test_colony_shift_pick_moves_highlight},
+    {"test_game_world_view", test_game_world_view},
 };
 
 TEST_MAIN(k_cases)

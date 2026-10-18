@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/fb.h"
 #include "core/font.h"
 #include "core/ss.h"
 #include "core/unit_chrome.h"
@@ -165,17 +166,7 @@ void colonies_render_on_map(
       );
     } else {
       /* Icons missing: tiny cyan marker so colonies stay findable. */
-      for (int row = py; row < py + 2 && row < framebuffer->height; ++row) {
-        if (row < 0) {
-          continue;
-        }
-        for (int col = px; col < px + 2 && col < framebuffer->width; ++col) {
-          if (col < 0) {
-            continue;
-          }
-          framebuffer->pixels[row * framebuffer->width + col] = 11;
-        }
-      }
+      fb_fill_rect(framebuffer, px, py, 2, 2, 11);
     }
 
     /*

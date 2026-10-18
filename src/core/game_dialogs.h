@@ -46,7 +46,7 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/fb.h"
-#include "core/ff.h"
+#include "core/font_file.h"
 #include "core/font.h"
 #include "core/founding_fathers.h"
 #include "core/howmuch_dialog.h"

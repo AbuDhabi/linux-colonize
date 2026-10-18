@@ -577,23 +577,6 @@ static ColonizeUnit* ai_euro_5d04_cb_unit(int idx) {
   return &ai_euro_s_5d04_ctx->units->units[idx];
 }
 /*
- * DOS unit+0x3146 @UNIT code for an OpenCol type, by kind (fixtures use small
- * synthetic pools, so pool indices are not DOS indices). 0xff = unknown.
- *
- * Audit AE-4: this file carried two name→@UNIT tables. This one used to
- * collapse every sea hull to Caravel 0xd / Privateer 0x10; DOS does no such
- * thing — +0x3146 always holds the real @UNIT row (COLONIZE/NAMES.TXT rows
- * 13 Caravel .. 18 Man-O-War), and the collapse was a port shortcut. Neither
- * live consumer can see the difference (the Pioneer test at the recruit loop
- * compares against 2, and the DS:0x5238 hull-space read resolves ship codes
- * to no pool row either way), so the full table is adopted. Both tables are
- * now units_type_dos_code, whose kind ids ARE the @UNIT row numbers.
- */
-static int ai_euro_5d04_dos_type_of(const ColonizeUnitPool* pool, int type_index) {
-  const int code = units_type_dos_code(units_type(pool, type_index));
-  return code >= 0 ? code : 0xff;
-}
-/*
  * DOS @UNIT code → OpenCol pool type. Codes 0..5 are the Europe dock table
  * (europe_dock_unit_type_index_ex with the singular fallbacks this path
  * needs, audit AE-18); 0xb = Artillery, which the dock table does not
@@ -601,8 +584,7 @@ static int ai_euro_5d04_dos_type_of(const ColonizeUnitPool* pool, int type_index
  */
 int ai_euro_5d04_port_type_for(const ColonizeUnitPool* pool, int dos_code) {
   if (dos_code == UNITS_KIND_ARTILLERY) {
-    const int t = units_kind_type_index(pool, UNITS_KIND_ARTILLERY);
-    return t >= 0 ? t : units_kind_type_index(pool, UNITS_KIND_ARTILLERY);
+    return units_kind_type_index(pool, UNITS_KIND_ARTILLERY);
   }
   return europe_dock_unit_type_index_ex(pool, dos_code, true);
 }
@@ -617,11 +599,12 @@ int ai_euro_5d04_dos_type_space(const ColonizeUnitPool* pool, int dos_code) {
   return t ? t->space : 1;
 }
 COLONIZE_INTERNAL int ai_euro_5d04_dos_type_code(const ColonizeUnitPool* pool, int type_index) {
-  return ai_euro_5d04_dos_type_of(pool, type_index);
+  const ColonizeUnit u = {.type_index = type_index};
+  return ai_euro_20e6_dos_type(pool, &u);
 }
 static int ai_euro_5d04_cb_unit_dispatch_byte(int idx) {
   const ColonizeUnit* u = ai_euro_5d04_cb_unit(idx);
-  return u ? ai_euro_5d04_dos_type_of(ai_euro_s_5d04_ctx->units, u->type_index) : -1;
+  return u ? ai_euro_20e6_dos_type(ai_euro_s_5d04_ctx->units, u) : -1;
 }
 static void ai_euro_5d04_cb_set_unit_dispatch_byte(int idx, int value) {
   ColonizeUnit* u = ai_euro_5d04_cb_unit(idx);
@@ -816,7 +799,7 @@ static int ai_euro_5d04_cb_colony_demand_query(int head, int mode) {
     if (!u || u->aboard_ship_id >= 0) {
       continue;
     }
-    const int t = ai_euro_5d04_dos_type_of(ai_euro_s_5d04_ctx->units, u->type_index);
+    const int t = ai_euro_20e6_dos_type(ai_euro_s_5d04_ctx->units, u);
     if (mode == 4) {
       n += (t == 1 || t == 4 || (t >= 6 && t <= 9)) ? 1 : 0;
     } else if (mode == 0xc) {
@@ -942,18 +925,12 @@ static void ai_euro_5d04_cb_unit_exhaust(int idx) {
    * archived 1538 keeps 42 -> 46 -> hull). */
   int order[COLONIZE_UNITS_MAX];
   int n = 0;
-  for (int i = ai_euro_5d04_cb_list_iter_first(0); i >= 0; i = ai_euro_5d04_cb_list_iter_next(i)) {
-    order[n++] = i;
-  }
-  for (int a = 1; a < n; ++a) { /* tile_stack_order descending */
-    const int v = order[a];
-    int b = a - 1;
-    while (b >= 0 && ai_euro_5d04_cb_unit(order[b])->tile_stack_order <
-                       ai_euro_5d04_cb_unit(v)->tile_stack_order) {
-      order[b + 1] = order[b];
-      b--;
+  for (int id = units_tile_head_id_at(ctx->units, ship->x, ship->y); id >= 0;
+       id = units_tile_chain_next_id(ctx->units, id)) {
+    const int slot = (int)(units_get_const(ctx->units, id) - ctx->units->units);
+    if (ai_euro_5d04_cb_in_europe_list(slot)) {
+      order[n++] = slot;
     }
-    order[b + 1] = v;
   }
   int pick[COLONIZE_UNITS_MAX];
   int np = 0;
@@ -1091,7 +1068,7 @@ static void ai_euro_5d04_cb_colony_needs(int nation_id, int8_t out[16]) {
       if (!u->active || u->nation_id != nation_id) {
         continue;
       }
-      const int dt = ai_euro_5d04_dos_type_of(ctx->units, u->type_index);
+      const int dt = ai_euro_20e6_dos_type(ctx->units, u);
       if (dt > 0xc && dt < 0x13) {
         const int nh = units_holds_used(ctx->units, u->id);
         for (int h = 0; h < nh && h < COLONIZE_UNIT_CARGO_MAX; ++h) {

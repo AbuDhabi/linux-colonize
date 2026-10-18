@@ -126,7 +126,6 @@ bool game_save_dialog_open(const ColonizeGameState* game);
 bool game_turn_busy(const ColonizeGameState* game);
 uint32_t game_turn_number(const ColonizeGameState* game);
 int game_colony_count(const ColonizeGameState* game);
-bool game_colony_pos(const ColonizeGameState* game, int index, int* x, int* y);
 int game_selected_unit(const ColonizeGameState* game);
 /* False when id is not an active unit. is_sea/moves/x/y may be NULL. */
 bool game_unit_info(

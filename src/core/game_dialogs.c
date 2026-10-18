@@ -415,10 +415,10 @@ static bool game_found_finalize(ColonizeGameState* game, int uid, const char* ch
   units_founder_loot(&game->units, uid, &tools, &muskets, &horses);
 
   const int hn = game->human_nation;
-  ColonizeCol1Save* col1 = game->col1_ok ? &game->col1 : NULL;
   uint32_t* gold = NULL;
 
-  const int cid = colonies_found_with_indian_land_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, gold, cx, cy, hn, type_index, profession, tools, muskets, horses);
+  const ColonizeWorld w = game_world(game);
+  const int cid = colonies_found_with_indian_land_w(&w, gold, cx, cy, hn, type_index, profession, tools, muskets, horses);
   if (cid < 0) {
     set_status(game, "Cannot found colony here", NULL);
     return false;
@@ -431,7 +431,7 @@ static bool game_found_finalize(ColonizeGameState* game, int uid, const char* ch
   if (game->col1_ok && hn >= 0 && hn < 4) {
     game->col1.player[hn].founded_colonies = (uint8_t)game->colonies.name_next[hn];
   }
-  colonies_reveal_founded_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL)}, cid); /* FUN_364b_1dd6 Coronado */
+  colonies_reveal_founded_w(&w, cid); /* FUN_364b_1dd6 Coronado */
   ColonizeColony* col = colonies_get_mut(&game->colonies, cid);
   /* raw 77024: the human arm writes the answered buffer over the default. */
   if (col && chosen_name && chosen_name[0]) {
@@ -1854,8 +1854,7 @@ bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInputState* 
     const ColonizeFont* pm_font = pick_music_font(
       &game->pick_music,
       game->colony_font_ok ? &game->colony_font : NULL,
-      game->intro_font_ok ? &game->intro_font
-                          : (game->menu_font_ok ? &game->menu_font : NULL)
+      game_popup_font(game)
     );
     pick_music_handle_input(
       &game->pick_music, &game->messages, input, pm_font, game->status, sizeof(game->status)
@@ -2143,7 +2142,8 @@ static void game_apply_howmuch_result(ColonizeGameState* game) {
     if (!game->in_europe || eu->selected_harbor < 0) {
       return;
     }
-    europe_buy_cargo_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true, .europe=(EuropeScreen*)(eu)}, game->human_nation, eu->selected_harbor, cargo, amt);
+    const ColonizeWorld w = game_world(game);
+    europe_buy_cargo_w(&w, game->human_nation, eu->selected_harbor, cargo, amt);
         game_europe_drain_price_events(game);
   } else if (kind == HOWMUCH_KIND_SELL) {
     EuropeScreen* eu = &game->europe;
@@ -2268,8 +2268,9 @@ static bool game_apply_popup_voyage(ColonizeGameState* game) {
       if (ship && units_is_sea(&game->units, ship_id) && choice == 1) {
         /* DOS 4720: prefer cargo with moves; sentry cargo still eligible. */
         const int pax_id = units_first_landfall_cargo(&game->units, ship_id);
+        const ColonizeWorld w = game_world(game);
         if (pax_id >= 0 &&
-            units_unload_passenger_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, ship_id, pax_id, dest_x, dest_y)) {
+            units_unload_passenger_w(&w, ship_id, pax_id, dest_x, dest_y)) {
           /* bugs.md: landfall costs the SHIP nothing — the passengers move,
            * not the ship. The old 1 MP "coastal order" charge on the ship
            * was invented. The passenger's landfall step, however, consumes
@@ -2399,10 +2400,11 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
         char msg[96];
         msg[0] = '\0';
         game->units.selected_id = uid;
+        const ColonizeWorld w = game_world(game);
         const bool ok =
           kind == GAME_INDIAN_LAND_FOREST
-            ? units_pioneer_plow_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, uid, msg, sizeof(msg), &game->ai_popups, &game->messages)
-            : units_pioneer_road_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, uid, msg, sizeof(msg), &game->ai_popups, &game->messages);
+            ? units_pioneer_plow_w(&w, uid, msg, sizeof(msg), &game->ai_popups, &game->messages)
+            : units_pioneer_road_w(&w, uid, msg, sizeof(msg), &game->ai_popups, &game->messages);
         if (!ok) {
           set_status(game, msg[0] ? msg : "Cannot work here", NULL);
         } else {
@@ -2576,9 +2578,7 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
     ai_popup_consume_result(&game->ai_popups);
     if (choice < 3 && game->foreign_trade_unit == unit_id &&
         game->foreign_trade_colony == cid && game->foreign_trade_hold == hold) {
-      ColonizeWorld w = world_make(
-        &game->units, &game->colonies, &game->world_map, &game->col1, game->col1_ok, NULL, NULL
-      );
+      const ColonizeWorld w = game_world(game);
       (void)colonies_foreign_trade_apply(
         &w, cid, unit_id, hold, &game->foreign_trade_deal, choice == 1
       );
@@ -2728,20 +2728,15 @@ static bool game_apply_popup_combat_and_gifts(ColonizeGameState* game) {
   return true;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_BREWSTER_PICK) {
-    (void)units_brewster_apply_popup_ex_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(game->units_ok ? &game->units : NULL), .rng=(ColonizeDosRng*)(&game->move_rng), .europe=(EuropeScreen*)(game->europe_ok ? &game->europe : NULL)}, &game->ai_popups);
+    const ColonizeWorld w = game_world(game);
+    (void)units_brewster_apply_popup_ex_w(&w, &game->ai_popups);
     ai_popup_consume_result(&game->ai_popups);
   return true;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_LCR_BURIAL) {
+    const ColonizeWorld w = game_world(game);
     (void)units_lcr_burial_apply_popup_w(
-      &(ColonizeWorld){
-        .units = game->units_ok ? &game->units : NULL,
-        .map = &game->world_map,
-        .col1 = game->col1_ok ? &game->col1 : NULL,
-        .col1_ok = game->col1_ok,
-        .rng = &game->move_rng,
-        .europe = game->europe_ok ? &game->europe : NULL
-      },
+      &w,
       &game->ai_popups, game->human_nation
     );
     ai_popup_consume_result(&game->ai_popups);
@@ -2757,7 +2752,8 @@ static bool game_apply_popup_combat_and_gifts(ColonizeGameState* game) {
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_KING_GALLEON) {
     if (game->col1_ok && game->units_ok) {
-      (void)units_king_galleon_apply_popup_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true, .europe=(EuropeScreen*)(game->europe_ok ? &game->europe : NULL)}, &game->ai_popups, &game->messages);
+      const ColonizeWorld w = game_world(game);
+      (void)units_king_galleon_apply_popup_w(&w, &game->ai_popups, &game->messages);
     }
     ai_popup_consume_result(&game->ai_popups);
   return true;
@@ -2811,9 +2807,10 @@ static bool game_apply_popup_village_attack(ColonizeGameState* game) {
       units_set_occupancy_map(&game->world_map);
       colonies_set_occupancy_map(&game->world_map);
       units_set_combat_colonies(&game->colonies);
-      units_set_native_fallout_context(game->col1_ok ? &game->col1 : NULL, &game->world_map, -1);
+      units_set_native_fallout_context(game->col1_ok ? &game->col1 : NULL, &game->world_map);
       game->units.selected_id = unit_id;
-      if (units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .rng=(ColonizeDosRng*)(&game->move_rng), .rng_reseed=game->ai_rng_seed, .rng_reseed_set=true}, unit_id, dest_x, dest_y)) {
+      const ColonizeWorld w = game_world(game);
+      if (units_try_move_w(&w, unit_id, dest_x, dest_y)) {
         snprintf(game->status, sizeof(game->status), "Village attacked (%d,%d)", dest_x, dest_y);
         game_after_unit_action(game);
       } else if (units_last_combat_outcome() < 0) {

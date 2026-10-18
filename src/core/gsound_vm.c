@@ -942,10 +942,6 @@ int gsound_vm_sfx_table(const GsoundVm* vm, size_t coldig_size, uint32_t* offs, 
   return n;
 }
 
-int gsound_vm_sfx_rate(int sfx_index) {
-  return sfx_index < 5 ? 11025 : 19050;
-}
-
 void gsound_vm_reset_channels(GsoundVm* vm) {
   if (vm) {
     for (int ch = 9; ch >= 0; --ch) {
@@ -1047,4 +1043,8 @@ uint32_t gsound_vm_loop_tick(const GsoundVm* vm) {
 
 int gsound_vm_unsupported_count(const GsoundVm* vm) {
   return vm ? vm->unsupported : 0;
+}
+
+int gsound_vm_sfx_rate(int sfx_index) {
+  return sfx_index < 5 ? 11025 : 19050;
 }

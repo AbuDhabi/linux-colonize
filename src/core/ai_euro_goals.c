@@ -536,7 +536,8 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
           u->orders = UNITS_ORDER_NONE;
         }
         int side = 0;
-        if (ai_goals_probe_adjacent_contact_claim_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, ux, uy, nation_id, 1, &side) >= 0) {
+        const ColonizeWorld pw = world_from_turn_ctx(ctx);
+        if (ai_goals_probe_adjacent_contact_claim_w(&pw, ux, uy, nation_id, 1, &side) >= 0) {
           u->orders = AI_EURO_ACT_ADJACENT; /* on-site at a contact claim: no new goal */
         }
         const int on_water = map_tile_is_water(ctx->map, ux, uy) ||
@@ -766,7 +767,7 @@ static int ai_euro_0a60_open_sea(const ColonizeWorldMap* map, int x, int y) {
   if (!map_tile_is_water(map, x, y) && !map_tile_is_high_seas(map, x, y)) {
     return 0;
   }
-  return (map_get_layer3(map, x, y) & 0x0fu) == 1;
+  return (map_get_layer3(map, x, y) & MAP_L3_CONTINENT_MASK) == 1;
 }
 
 /* FUN_1000_8872 tile_owner_or_presence: layer2 bit0 + layer3 owner nibble. */
@@ -778,7 +779,7 @@ static int ai_euro_0a60_tile_owner_or_presence(const ColonizeWorldMap* map, int 
   if ((map->layer2[y * map->width + x] & 1u) == 0) {
     return -1;
   }
-  const int hi = (int)((map_get_layer3(map, x, y) >> 4) & 0x0fu);
+  const int hi = (int)((map_get_layer3(map, x, y) >> MAP_L3_OWNER_SHIFT) & MAP_L3_OWNER_MASK);
   return hi == 0x0f ? -1 : hi;
 }
 
@@ -1537,27 +1538,14 @@ COLONIZE_INTERNAL int ai_euro_5952_tile_stack(
     return 0;
   }
   /* DS:0x8d72 (FUN_15eb_09c0 raw 10014-10034) — the same predicate
-   * ai_euro_5952_labor_demand counts `outside` with. Slot walk: `i` is an
-   * array index, not a unit id. */
-  for (int i = 0; i < units_slot_end(ctx->units) && n < max; ++i) {
-    const ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->aboard_ship_id >= 0 || u->x != c->x || u->y != c->y) {
-      continue;
+   * ai_euro_5952_labor_demand counts `outside` with. 15eb_09c0/0924
+   * enumerate 1427_005c + 004a's physical chain, starting at the latest
+   * arrival, rather than the unit array order. */
+  for (int id = units_tile_head_id_at(ctx->units, c->x, c->y); id >= 0 && n < max;
+       id = units_tile_chain_next_id(ctx->units, id)) {
+    if (units_type_has_profession_slot(ai_euro_20e6_dos_type(ctx->units, units_get_const(ctx->units, id)))) {
+      ids[n++] = id;
     }
-    if (!units_type_has_profession_slot(ai_euro_20e6_dos_type(ctx->units, u))) {
-      continue;
-    }
-    /* 15eb_09c0/0924 enumerate 1427_005c + 004a's physical chain,
-     * starting at the latest arrival, rather than the unit array order. */
-    int pos = n;
-    while (pos > 0) {
-      const ColonizeUnit* prev = units_get_const(ctx->units, ids[pos - 1]);
-      if (!prev || prev->tile_stack_order >= u->tile_stack_order) break;
-      ids[pos] = ids[pos - 1];
-      --pos;
-    }
-    ids[pos] = u->id;
-    ++n;
   }
   return n;
 }
@@ -2589,16 +2577,9 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_garrison(
      * latest arrival first, rather than the unit storage array. */
     ColonizeUnit* stack[COLONIZE_UNITS_MAX];
     int stack_n = 0;
-    for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
-      ColonizeUnit* gu = &ctx->units->units[ui];
-      if (!units_is_on_map(gu) || gu->x != c->x || gu->y != c->y) continue;
-      int pos = stack_n;
-      while (pos > 0 && stack[pos - 1]->tile_stack_order < gu->tile_stack_order) {
-        stack[pos] = stack[pos - 1];
-        --pos;
-      }
-      stack[pos] = gu;
-      ++stack_n;
+    for (int id = units_tile_head_id_at(ctx->units, c->x, c->y); id >= 0;
+         id = units_tile_chain_next_id(ctx->units, id)) {
+      stack[stack_n++] = units_get(ctx->units, id);
     }
     /* Five admission passes in DOS preference order. */
     static const int k_adm_type[5] = {0x0b, 0x01, 0x01, 0x04, 0x04};
@@ -2886,7 +2867,8 @@ int ai_euro_score_move(
     if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
       continue;
     }
-    if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, u->type_index, nx, ny, u->id)) {
+    const ColonizeWorld ew = world_from_turn_ctx(ctx);
+    if (!units_can_enter_w(&ew, u->type_index, nx, ny, u->id)) {
       /*
        * FUN_465b_0000 resolves a step onto an occupied tile against the
        * tile's BEST DEFENDER (FUN_5fef_0000), never the head of the stack.

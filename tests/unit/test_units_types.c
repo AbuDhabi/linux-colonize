@@ -219,7 +219,7 @@ static int unit_kind_without_name_resolver(void) {
     for (int i = 0; i < 4; ++i) {
       col1.player[i].control = 1; /* nobody human: no popups */
     }
-    units_set_native_fallout_context(&col1, &map, -1);
+    units_set_native_fallout_context(&col1, &map);
     units_set_combat_popups(NULL, NULL);
 
     const int full = 8 * UNITS_MP_PER_TILE;
@@ -242,7 +242,7 @@ static int unit_kind_without_name_resolver(void) {
               "kind#581: Privateer next to a Frigate never slowed (@SHIPSLOW arm dead)\n");
       rc = 1;
     }
-    units_set_native_fallout_context(NULL, NULL, -1);
+    units_set_native_fallout_context(NULL, NULL);
     units_set_occupancy_map(NULL);
     fx_map_free(&map);
   }

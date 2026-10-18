@@ -136,7 +136,7 @@ bool woodcut_open(ColonizeWoodcutScreen* w, const char* data_dir, int id) {
     char path[512];
     char err[256];
     if (dos_compat_normalize_asset_path(data_dir, "FONT-NP.FF", path, sizeof(path)) &&
-        ff_load(path, &font, err, sizeof(err))) {
+        font_file_load(path, &font, err, sizeof(err))) {
       font_ok = true;
     } else {
       diag_warn("Woodcut: FONT-NP.FF missing");
@@ -172,7 +172,7 @@ bool woodcut_open(ColonizeWoodcutScreen* w, const char* data_dir, int id) {
     ss_free(&plate);
   }
   if (font_ok) {
-    ff_free(&font);
+    font_file_free(&font);
   }
 
   w->id = id;

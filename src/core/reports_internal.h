@@ -235,7 +235,6 @@ void reports_render_score(
   int human,
   const ColonizeColonyPool* colonies,
   const EuropeScreen* europe,
-  uint32_t turn_number,
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,
   char* line,

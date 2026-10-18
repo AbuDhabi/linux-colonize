@@ -13,7 +13,7 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/fb.h"
-#include "core/ff.h"
+#include "core/font_file.h"
 #include "core/founding_fathers.h"
 #include "core/map_menu.h"
 #include "core/map_panel.h"
@@ -251,8 +251,6 @@ void colony_screen_refresh_preview_w(
   const ColonizeColony* colony
 ) {
   const ColonizeColonyPool* pool = w->colonies;
-  const ColonizeWorldMap* map = w->map;
-  const ColonizeCol1Save* col1 = w->col1;
 
   if (!view) {
     return;
@@ -261,7 +259,7 @@ void colony_screen_refresh_preview_w(
     view->preview_valid = false;
     return;
   }
-  colony_preview_compute_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(pool), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, colony, &view->preview);
+  colony_preview_compute_w(w, colony, &view->preview);
   view->preview_valid = true;
 }
 
@@ -885,7 +883,7 @@ bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err,
   char font_path[512];
   char font_err[256];
   if (dos_compat_normalize_asset_path(data_dir, "FONTINTR.FF", font_path, sizeof(font_path)) &&
-      ff_load(font_path, &view->dialog_font, font_err, sizeof(font_err))) {
+      font_file_load(font_path, &view->dialog_font, font_err, sizeof(font_err))) {
     view->dialog_font_ok = true;
   } else {
     diag_warn("Colony screen: FONTINTR.FF unavailable — popups keep the screen font");
@@ -917,7 +915,7 @@ void colony_screen_free(ColonyScreenView* view) {
   ss_free(&view->icons);
   pik_free(&view->bottom_panel);
   if (view->dialog_font_ok) {
-    ff_free(&view->dialog_font);
+    font_file_free(&view->dialog_font);
   }
   memset(view, 0, sizeof(*view));
 }

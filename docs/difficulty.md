@@ -146,7 +146,7 @@ The tax event has **no first year and no season**. It is a turn-counter gate,
 ported from `FUN_38fd_5be8` (`viceroy_unpacked.c:68420`, caller `FUN_38fd_5e52`
 at `:68539`) in [`ai_king_audience_roll`](../src/core/ai_king.c); the delta is
 applied by `FUN_38fd_3dc8` (`ai_king_audience_apply_delta` /
-`ai_king_tax_commit`). Called every peacetime turn from `ai_king_nation_turn`
+`ai_king_tax_commit`). Called every peacetime turn from `ai_king_nation_turn_2424` (+ `ai_king_human_5e52_tail`; `ai_king_nation_turn` is a test-only wrapper)
 (`FUN_43f7_2424` peacetime arm) for the human slot only; `1d42` is a full no-op
 once the WoI is declared, and so is the audience with it.
 

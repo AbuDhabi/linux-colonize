@@ -1008,17 +1008,16 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
  * skipping 00e0's per-village horse fold / village-count decrement / @EXTINCT
  * popup (those live in col1_destroy_tribe_at).
  */
-int col1_kill_indian_nation_w(
+int ai_kill_indian_nation_w(
   const ColonizeWorld* w,
   int nation_id
 ) {
+  if (!w || nation_id < 4 || nation_id > 11) {
+    return 0;
+  }
   ColonizeCol1Save* col1 = w->col1;
   ColonizeUnitPool* units = w->units;
   ColonizeWorldMap* map = w->map;
-
-  if (nation_id < 4 || nation_id > 11) {
-    return 0;
-  }
 
   /* Despawn all units of this nation (iterate carefully — despawn mutates pool). */
   if (units) {

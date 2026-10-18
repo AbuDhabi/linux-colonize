@@ -105,7 +105,8 @@ int main(int argc, char** argv) {
   ColonizeFramebuffer8 fb;
   render_fb_init(&fb, pixels);
 
-  reports_render_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&rs.units), .colonies=(ColonizeColonyPool*)(&rs.colonies), .map=(ColonizeWorldMap*)(&rs.map), .col1=(ColonizeCol1Save*)(&rs.save), .col1_ok=true, .europe=(EuropeScreen*)(&rs.europe)}, &view, (ColonizeReportId)report_id, congress_page2, labor_detail_job, economic_page, colony_page, naval_page, human, 0, 0, 0, font_ok ? &font : NULL, &fb);
+  const ColonizeWorld rw = world_make(&rs.units, &rs.colonies, &rs.map, &rs.save, true, NULL, &rs.europe);
+  reports_render_w(&rw, &view, (ColonizeReportId)report_id, congress_page2, labor_detail_job, economic_page, colony_page, naval_page, human, 0, 0, 0, font_ok ? &font : NULL, &fb);
 
   /* Palette is per-background, not global — Congress page 1 uniquely uses
    * its own REPORT3.PIK palette (see reports.h / game_loop.c's palette

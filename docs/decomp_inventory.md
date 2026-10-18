@@ -394,7 +394,7 @@ Ordered pipeline recovered for the port:
    restoring `FUN_1427_02ca`'s native rumour-tile owner exception (#849).
    (`FUN_4d56_1816` / quiet `20e6`); meet/trade/raids via `ai_contact_*` (structural;
    human `4528` `@ACTIONS` **Done** P8.8; deep `2820` haggle PARKED).
-7. **King** — partial structural (`ai_king_nation_turn`: tax / declare / REF / war; R6;
+7. **King** — partial structural (`ai_king_nation_turn_2424` (+ `ai_king_human_5e52_tail`; `ai_king_nation_turn` is a test-only wrapper): tax / declare / REF / war; R6;
    audience/confirm/merc via `ai_popup`)
 8. **Refresh human MP** + select next unit with moves (“Continue turn.”)
 

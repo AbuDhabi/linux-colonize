@@ -565,7 +565,7 @@ static int unit_naval_ambush(void) {
   for (int i = 0; i < 4; ++i) {
     col1.player[i].control = 1; /* nobody human: no popups needed */
   }
-  units_set_native_fallout_context(&col1, &map, -1);
+  units_set_native_fallout_context(&col1, &map);
   units_set_combat_popups(NULL, NULL);
 
   ColonizeDosRng rng;
@@ -681,7 +681,7 @@ static int unit_naval_ambush(void) {
     return fail("ship-slow: Fortress must add 50 to the spent byte");
   }
 
-  units_set_native_fallout_context(NULL, NULL, -1);
+  units_set_native_fallout_context(NULL, NULL);
   fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: ship-slow (3180 naval half) ok\n");
   return 0;

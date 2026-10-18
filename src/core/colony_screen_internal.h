@@ -16,6 +16,7 @@
  */
 
 #include "core/colony_screen.h"
+#include "core/internal.h"
 
 /* ===================== Shared sprite ids, box sizes & category ids ===================== */
 
@@ -318,4 +319,35 @@ void colony_screen_render_minimap(
   ColonizeFramebuffer8* framebuffer
 );
 bool colony_screen_unit_on_fence(const ColonizeUnitPool* units, const ColonizeUnit* u);
+/* ===================== Hit-test stages (colony_screen_popups.c, bugs.md #1107) ===================== */
+
+/* colony_screen_hit_test is a dispatcher over these stages in hit-priority
+ * order; each returns true when it owns the click (ctx->hit is the answer,
+ * which may still be COLONY_HIT_NONE for a modal popup's dead frame). */
+typedef struct ColonyScreenHitCtx {
+  const ColonyScreenView* view;
+  const ColonizeColonyPool* pool;
+  const ColonizeColony* colony;
+  const ColonizeUnitPool* units;
+  int mx;
+  int my;
+  int slot_x[32]; /* colony_screen_assign_slot_positions_ex, by category */
+  int slot_y[32];
+  int slot_of_cat[32];
+  ColonyScreenHitResult hit;
+} ColonyScreenHitCtx;
+
+#ifdef COLONIZE_TESTING
+COLONIZE_INTERNAL bool colony_screen_hit_modal_dialogs(ColonyScreenHitCtx* a);
+COLONIZE_INTERNAL bool colony_screen_hit_construction_popup(ColonyScreenHitCtx* a);
+COLONIZE_INTERNAL bool colony_screen_hit_chrome(ColonyScreenHitCtx* a);
+COLONIZE_INTERNAL bool colony_screen_hit_multifunction(ColonyScreenHitCtx* a);
+COLONIZE_INTERNAL bool colony_screen_hit_transports(ColonyScreenHitCtx* a);
+COLONIZE_INTERNAL bool colony_screen_hit_fence(ColonyScreenHitCtx* a);
+COLONIZE_INTERNAL bool colony_screen_hit_building_workers(ColonyScreenHitCtx* a);
+COLONIZE_INTERNAL bool colony_screen_hit_area_tiles(ColonyScreenHitCtx* a);
+COLONIZE_INTERNAL bool colony_screen_hit_people(ColonyScreenHitCtx* a);
+COLONIZE_INTERNAL bool colony_screen_hit_buildings(ColonyScreenHitCtx* a);
+#endif
+
 #endif /* COLONIZE_CORE_COLONY_SCREEN_INTERNAL_H */

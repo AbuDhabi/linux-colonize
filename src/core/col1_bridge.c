@@ -1,5 +1,6 @@
 #include "core/ai_king.h"
 #include "core/col1_bridge.h"
+#include "core/col1_bridge_internal.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,15 +23,15 @@
 
 /*
  * Sections:
- *  - Cargo nibble, terrain/tile-mask & Europe coord helpers (~line 21)
- *  - Trade-route cursor & Europe dock/job helpers (~line 111)
- *  - Colony building & building-chain bit encode/decode (~line 234)
- *  - Unit-type/ship-root mapping & runtime template init (~line 461)
- *  - Map occupancy/density sync & unit MP helpers (~line 547)
- *  - COL1 -> runtime apply (save import) (~line 778)
- *  - Unit list sanitize for DOS export (~line 1867)
- *  - Runtime -> COL1 capture (save export) (~line 2000)
- *  - New-world discovery & adjacent-tribe contact (~line 3225)
+ *  - Cargo nibble, terrain/tile-mask & Europe coord helpers (~line 37)
+ *  - Trade-route cursor & Europe dock/job helpers (~line 169)
+ *  - Colony building & building-chain bit encode/decode (~line 294)
+ *  - Unit-type/ship-root mapping & runtime template init (~line 491)
+ *  - Map occupancy/density sync & unit MP helpers (~line 672)
+ *  - COL1 -> runtime apply (save import): 11 stages + dispatcher (~line 910)
+ *  - Unit list sanitize for DOS export (~line 2276)
+ *  - Runtime -> COL1 capture (save export): 12 stages + dispatcher (~line 2429)
+ *  - New-world discovery & adjacent-tribe contact (~line 3853)
  */
 
 /* ===================== Cargo nibble, terrain/tile-mask & Europe coord helpers (col1_unit_set_cargo_item .. col1_coord_is_europe) ===================== */
@@ -59,6 +60,15 @@ static int col1_mask_is_water_mp(uint8_t mp_terrain) {
       snprintf((err), (err_size), __VA_ARGS__); \
     }                                           \
     return false;                               \
+  } while (0)
+
+/* COL1_FAIL for a Col1StageStatus stage (col1_bridge_internal.h). */
+#define COL1_STAGE_FAIL(err, err_size, ...)     \
+  do {                                          \
+    if ((err) && (err_size) > 0) {              \
+      snprintf((err), (err_size), __VA_ARGS__); \
+    }                                           \
+    return COL1_STAGE_ABORT;                    \
   } while (0)
 
 /*
@@ -743,13 +753,11 @@ static void col1_bridge_sync_map_occupancy(
       if (u->nation_id >= 0 && u->nation_id < 4 && u->x >= 0 && u->y >= 0 && u->x < width &&
           u->y < height) {
         const size_t ti = (size_t)u->y * (size_t)width + (size_t)u->x;
-        const uint8_t hi = (uint8_t)(((unsigned)u->nation_id & 0x0fu) << 4);
+        const uint8_t hi = (uint8_t)(((unsigned)u->nation_id & MAP_L3_OWNER_MASK) << MAP_L3_OWNER_SHIFT);
         if (save && save->map.path && ti < tile_count) {
-          save->map.path[ti] = (uint8_t)((save->map.path[ti] & 0x0fu) | hi);
+          save->map.path[ti] = (uint8_t)((save->map.path[ti] & MAP_L3_CONTINENT_MASK) | hi);
         }
-        if (map && map->layer3 && ti < map->tile_count) {
-          map->layer3[ti] = (uint8_t)((map->layer3[ti] & 0x0fu) | hi);
-        }
+        map_set_owner_nibble(map, (int)u->x, (int)u->y, u->nation_id);
       }
     }
   }
@@ -782,13 +790,11 @@ static void col1_bridge_sync_map_occupancy(
        */
       if (tr->x < width && tr->y < height) {
         const size_t ti = (size_t)tr->y * (size_t)width + (size_t)tr->x;
-        const uint8_t hi = (uint8_t)(((unsigned)tr->nation_id & 0x0fu) << 4);
+        const uint8_t hi = (uint8_t)(((unsigned)tr->nation_id & MAP_L3_OWNER_MASK) << MAP_L3_OWNER_SHIFT);
         if (save && save->map.path && ti < tile_count) {
-          save->map.path[ti] = (uint8_t)((save->map.path[ti] & 0x0fu) | hi);
+          save->map.path[ti] = (uint8_t)((save->map.path[ti] & MAP_L3_CONTINENT_MASK) | hi);
         }
-        if (map && map->layer3 && ti < map->tile_count) {
-          map->layer3[ti] = (uint8_t)((map->layer3[ti] & 0x0fu) | hi);
-        }
+        map_set_owner_nibble(map, (int)tr->x, (int)tr->y, tr->nation_id);
       }
     }
   }
@@ -901,29 +907,30 @@ static int col1_bridge_unit_max_mp(
   return total;
 }
 
-/* ===================== COL1 -> runtime apply (save import) (col1_bridge_apply_w) ===================== */
-bool col1_bridge_apply_w(
-  const ColonizeWorld* w,
-  ColonizeCol1BridgeResult* out,
-  char* err,
-  size_t err_size
-) {
-  const ColonizeCol1Save* save = w->col1;
-  ColonizeWorldMap* map = w->map;
-  ColonizeUnitPool* units = w->units;
-  ColonizeColonyPool* colonies = w->colonies;
-  EuropeScreen* europe = w->europe;
+/* ===================== COL1 -> runtime apply (save import) (col1_bridge_apply_head .. col1_bridge_apply_w) ===================== */
+/* bugs.md #1107: col1_bridge_apply_w is a dispatcher over the record-family
+ * stages below (file order = the original body order). Cross-stage locals live
+ * in Col1ApplyCtx (col1_bridge_internal.h). */
 
+/* Head: argument/size checks, hostility re-sync, result header, map_alloc. */
+COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_head(Col1ApplyCtx* ctx) {
+  const ColonizeCol1Save* save = ctx->save;
+  ColonizeWorldMap* map = ctx->map;
+  ColonizeUnitPool* units = ctx->units;
+  ColonizeColonyPool* colonies = ctx->colonies;
+  char* err = ctx->err;
+  const size_t err_size = ctx->err_size;
+  ColonizeCol1BridgeResult* local = &ctx->local;
   if (!save || !map || !units || !colonies) {
-    COL1_FAIL(err, err_size, "col1_bridge_apply bad args");
+    COL1_STAGE_FAIL(err, err_size, "col1_bridge_apply bad args");
   }
   if (save->head.map_size_x == 0 || save->head.map_size_y == 0 ||
       save->head.map_size_x > 255 || save->head.map_size_y > 255) {
-    COL1_FAIL(err, err_size, "unsupported map size %ux%u", save->head.map_size_x, save->head.map_size_y);
+    COL1_STAGE_FAIL(err, err_size, "unsupported map size %ux%u", save->head.map_size_x, save->head.map_size_y);
   }
   if (!save->map.tile || save->map.tile_count !=
                            (size_t)save->head.map_size_x * (size_t)save->head.map_size_y) {
-    COL1_FAIL(err, err_size, "save map layers incomplete");
+    COL1_STAGE_FAIL(err, err_size, "save map layers incomplete");
   }
   /* The port's Indian-hostility sticky cache is session state, not saved:
    * re-derive it from the loaded alarm matrix. */
@@ -931,12 +938,11 @@ bool col1_bridge_apply_w(
     ai_diplo_indian_hostility_sync((ColonizeCol1Save*)save, e);
   }
 
-  ColonizeCol1BridgeResult local;
-  memset(&local, 0, sizeof(local));
-  local.year = save->head.year;
-  local.autumn = save->head.autumn;
-  local.turn_number = save->head.turn;
-  local.human_nation = col1_find_human_nation(save);
+  memset(local, 0, sizeof(*local));
+  local->year = save->head.year;
+  local->autumn = save->head.autumn;
+  local->turn_number = save->head.turn;
+  local->human_nation = col1_find_human_nation(save);
   /*
    * Two separate DS word pairs, imported to their own runtime fields:
    * stuff.x/y (DS:0x8540/0x853e) is the focus tile the map cursor sits on,
@@ -946,10 +952,10 @@ bool col1_bridge_apply_w(
    * wherever the camera happened to be (smell audit #79). A blank template
    * carries 0/0 for the camera: fall back to the focus tile there.
    */
-  local.cursor_x = (int)save->stuff.x;
-  local.cursor_y = (int)save->stuff.y;
-  local.view_x = save->stuff.viewport_x ? (int)save->stuff.viewport_x : local.cursor_x;
-  local.view_y = save->stuff.viewport_y ? (int)save->stuff.viewport_y : local.cursor_y;
+  local->cursor_x = (int)save->stuff.x;
+  local->cursor_y = (int)save->stuff.y;
+  local->view_x = save->stuff.viewport_x ? (int)save->stuff.viewport_x : local->cursor_x;
+  local->view_y = save->stuff.viewport_y ? (int)save->stuff.viewport_y : local->cursor_y;
 
   if (!map_alloc(
         map,
@@ -958,8 +964,15 @@ bool col1_bridge_apply_w(
         err,
         err_size
       )) {
-    return false;
+    return COL1_STAGE_ABORT;
   }
+  return COL1_STAGE_OK;
+}
+
+/* Map planes: tile/mask/path -> terrain/improve/layer2/layer3, seen. */
+COLONIZE_INTERNAL void col1_bridge_apply_map_planes(Col1ApplyCtx* ctx) {
+  const ColonizeCol1Save* save = ctx->save;
+  ColonizeWorldMap* map = ctx->map;
   /*
    * post_map.prime_resource_seed (FUN_684c_08c0 mapgen) drives special-
    * resource + rumour placement (map_resource_type_at_ex /
@@ -1037,7 +1050,14 @@ bool col1_bridge_apply_w(
   } else {
     map_reveal_all(map, -1);
   }
+}
 
+/* Colonies: name-counter reset, then records + colonists + buildings + stock. */
+COLONIZE_INTERNAL void col1_bridge_apply_colonies(Col1ApplyCtx* ctx) {
+  const ColonizeCol1Save* save = ctx->save;
+  ColonizeUnitPool* units = ctx->units;
+  ColonizeColonyPool* colonies = ctx->colonies;
+  ColonizeCol1BridgeResult* local = &ctx->local;
   /* Colonies — soft-reset actives, keep name/building catalogs. */
   {
     int name_count[4];
@@ -1309,9 +1329,16 @@ bool col1_bridge_apply_w(
     }
     dst->population = dst->colonist_count;
     colonies->colony_count++;
-    local.imported_colonies++;
+    local->imported_colonies++;
   }
+}
 
+/* Units: pool reset + id/consumed maps (ctx-owned until the active-unit stage frees them). */
+COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units_reset(Col1ApplyCtx* ctx) {
+  const ColonizeCol1Save* save = ctx->save;
+  ColonizeUnitPool* units = ctx->units;
+  char* err = ctx->err;
+  const size_t err_size = ctx->err_size;
   /* Units */
   units_reset(units);
   /* The errand latch is keyed by runtime unit id; a load rebuilds the pool
@@ -1322,7 +1349,7 @@ bool col1_bridge_apply_w(
   if (save->head.unit_count > 0) {
     id_by_index = calloc((size_t)save->head.unit_count, sizeof(int));
     if (!id_by_index) {
-      COL1_FAIL(err, err_size, "oom unit index map");
+      COL1_STAGE_FAIL(err, err_size, "oom unit index map");
     }
     for (int i = 0; i < (int)save->head.unit_count; ++i) {
       id_by_index[i] = -1;
@@ -1339,11 +1366,24 @@ bool col1_bridge_apply_w(
     consumed = calloc((size_t)save->head.unit_count, sizeof(bool));
     if (!consumed) {
       free(id_by_index);
-      COL1_FAIL(err, err_size, "oom unit consumed map");
+      COL1_STAGE_FAIL(err, err_size, "oom unit consumed map");
     }
   }
-  if (europe && local.human_nation >= 0) {
-    const uint8_t n = (uint8_t)local.human_nation;
+  ctx->id_by_index = id_by_index; /* ctx write-back */
+  ctx->consumed = consumed;
+  return COL1_STAGE_OK;
+}
+
+/* Human Bound/Expected (and legacy harbor) lane ships + chained passengers. */
+COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
+  const ColonizeCol1Save* save = ctx->save;
+  ColonizeWorldMap* map = ctx->map;
+  ColonizeUnitPool* units = ctx->units;
+  EuropeScreen* europe = ctx->europe;
+  ColonizeCol1BridgeResult* local = &ctx->local;
+  bool* consumed = ctx->consumed;
+  if (europe && local->human_nation >= 0) {
+    const uint8_t n = (uint8_t)local->human_nation;
     /*
      * 228+n is the last westbound Atlantic lane, not the Europe port: the DOS
      * chain is 232+n -> 228+n -> 224+n (FUN_48d3_06ba's two
@@ -1489,19 +1529,30 @@ bool col1_bridge_apply_w(
       }
       col1_bridge_europe_ship_route_load(save, src, slot);
       consumed[i] = true;
-      local.skipped_europe_units++;
+      local->skipped_europe_units++;
     }
   }
+}
 
+/* Unit records: Europe harbor/dock mirrors, map units, cargo/holds; tile stack order. */
+COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
+  const ColonizeCol1Save* save = ctx->save;
+  ColonizeUnitPool* units = ctx->units;
+  EuropeScreen* europe = ctx->europe;
+  char* err = ctx->err;
+  const size_t err_size = ctx->err_size;
+  ColonizeCol1BridgeResult* local = &ctx->local;
+  int* id_by_index = ctx->id_by_index;
+  bool* consumed = ctx->consumed;
   for (int i = 0; i < (int)save->head.unit_count; ++i) {
     const ColonizeCol1Unit* src = &save->unit[i];
     if (consumed && consumed[i]) {
       continue;
     }
     if (col1_coord_is_europe(src->x, src->y)) {
-      local.skipped_europe_units++;
+      local->skipped_europe_units++;
       /* Human ships stay in Europe harbor UI; AI fleets stay as live Europe units. */
-      if (europe && (src->nation_id == (uint8_t)local.human_nation) &&
+      if (europe && (src->nation_id == (uint8_t)local->human_nation) &&
           src->type >= 13 && src->type <= 18) {
         const int ti = col1_unit_type_to_runtime(units, src->type);
         const ColonizeUnitType* ut = units_type(units, ti);
@@ -1548,7 +1599,7 @@ bool col1_bridge_apply_w(
        * onto the dock (what the Europe screen actually renders), not a
        * spawned off-map unit (invisible there; the old behavior). AI Europe
        * land units/fleets still spawn as live off-map units, unchanged. */
-      if (europe && src->nation_id == (uint8_t)local.human_nation) {
+      if (europe && src->nation_id == (uint8_t)local->human_nation) {
         const char* name = col1_bridge_europe_dock_job_name(europe, (int)src->profession);
         /*
          * Honour the push's answer. EUROPE_DOCK_MAX (1024) exceeds the unit cap, so
@@ -1790,15 +1841,26 @@ bool col1_bridge_apply_w(
       u->col1_origin = src->origin;
     }
     id_by_index[i] = id;
-    local.imported_units++;
+    local->imported_units++;
   }
 
   if (!col1_restore_tile_stack_order(save, units, id_by_index)) {
     free(id_by_index);
     free(consumed);
-    COL1_FAIL(err, err_size, "oom tile stack order");
+    COL1_STAGE_FAIL(err, err_size, "oom tile stack order");
   }
+  return COL1_STAGE_OK;
+}
 
+/* Board passengers via transport chain (chain order). */
+COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_boarding(Col1ApplyCtx* ctx) {
+  const ColonizeCol1Save* save = ctx->save;
+  ColonizeWorldMap* map = ctx->map;
+  ColonizeUnitPool* units = ctx->units;
+  char* err = ctx->err;
+  const size_t err_size = ctx->err_size;
+  int* id_by_index = ctx->id_by_index;
+  bool* consumed = ctx->consumed;
   /* Board passengers via transport chain.
    *
    * col1_find_ship_root walks transport_chain prev/next looking for any sea
@@ -1830,7 +1892,7 @@ bool col1_bridge_apply_w(
   if (!depth) {
     free(id_by_index);
     free(consumed);
-    COL1_FAIL(err, err_size, "oom chain depth");
+    COL1_STAGE_FAIL(err, err_size, "oom chain depth");
   }
   for (int i = 0; i < nunits; ++i) {
     int cur = save->unit[i].transport_chain.next_unit_idx;
@@ -1873,7 +1935,7 @@ bool col1_bridge_apply_w(
     free(depth);
     free(id_by_index);
     free(consumed);
-    COL1_FAIL(err, err_size, "oom board order");
+    COL1_STAGE_FAIL(err, err_size, "oom board order");
   }
   for (int d = max_depth; d >= 1; --d) {
     for (int i = 0; i < nunits; ++i) {
@@ -1941,7 +2003,15 @@ bool col1_bridge_apply_w(
   }
   free(board_order);
   free(depth);
+  return COL1_STAGE_OK;
+}
 
+/* Active unit (DS:0x5392); frees the ctx id/consumed maps. */
+COLONIZE_INTERNAL void col1_bridge_apply_active_unit(Col1ApplyCtx* ctx) {
+  const ColonizeCol1Save* save = ctx->save;
+  ColonizeUnitPool* units = ctx->units;
+  int* id_by_index = ctx->id_by_index;
+  bool* consumed = ctx->consumed;
   /*
    * Active unit (DS:0x5392) — and the idle state DOS restores with it.
    *
@@ -1988,10 +2058,19 @@ bool col1_bridge_apply_w(
   }
   free(id_by_index);
   free(consumed);
+  ctx->id_by_index = NULL; /* ctx write-back: freed above */
+  ctx->consumed = NULL;
+}
 
+/* Europe / nation mirror: gold, tax, crosses, recruit pool, market. */
+COLONIZE_INTERNAL void col1_bridge_apply_europe_nation(Col1ApplyCtx* ctx) {
+  const ColonizeCol1Save* save = ctx->save;
+  ColonizeWorldMap* map = ctx->map;
+  EuropeScreen* europe = ctx->europe;
+  ColonizeCol1BridgeResult* local = &ctx->local;
   /* Europe / nation */
   if (europe) {
-    const ColonizeCol1Nation* nat = &save->nation[local.human_nation];
+    const ColonizeCol1Nation* nat = &save->nation[local->human_nation];
     /* FUN_48d3_007a landfall stamp → Bound ships without an exit tile. */
     if (!europe->last_exit_valid && (nat->return_from_europe_x || nat->return_from_europe_y) &&
         nat->return_from_europe_x < 200 && nat->return_from_europe_y < 200) {
@@ -2035,7 +2114,7 @@ bool col1_bridge_apply_w(
     europe->crosses_immigrant_seen = (nat->nation_flags & 0x40u) != 0;
     /* Bind the nation first: the legacy re-seed below reads eu->bound_nation
      * for the DOS Spain slot-0 override (europe_seed_pool / LAB_38fd_6161). */
-    europe_set_nation(europe, local.human_nation, NULL);
+    europe_set_nation(europe, local->human_nation, NULL);
     /*
      * Restore the recruit pool from nation+2..+4 rather than leaving the
      * fresh-campaign seed europe_reset_campaign laid down (which, being run
@@ -2066,7 +2145,7 @@ bool col1_bridge_apply_w(
        * Petty Criminals / Indentured Servants again. */
       europe_apply_brewster(
         europe,
-        founding_fathers_nation_has(save, local.human_nation, FF_WILLIAM_BREWSTER) ? 1 : 0
+        founding_fathers_nation_has(save, local->human_nation, FF_WILLIAM_BREWSTER) ? 1 : 0
       );
     }
     for (int i = 0; i < europe->cargo_count && i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
@@ -2081,23 +2160,36 @@ bool col1_bridge_apply_w(
       }
     }
   }
+}
 
-  if (local.cursor_x < 0 || local.cursor_x >= map->width) {
-    local.cursor_x = map->width / 2;
+/* Cursor/view clamp + live layer2 occupancy re-sync. */
+COLONIZE_INTERNAL void col1_bridge_apply_view_occupancy(Col1ApplyCtx* ctx) {
+  const ColonizeCol1Save* save = ctx->save;
+  ColonizeWorldMap* map = ctx->map;
+  ColonizeUnitPool* units = ctx->units;
+  ColonizeColonyPool* colonies = ctx->colonies;
+  ColonizeCol1BridgeResult* local = &ctx->local;
+  if (local->cursor_x < 0 || local->cursor_x >= map->width) {
+    local->cursor_x = map->width / 2;
   }
-  if (local.cursor_y < 0 || local.cursor_y >= map->height) {
-    local.cursor_y = map->height / 2;
+  if (local->cursor_y < 0 || local->cursor_y >= map->height) {
+    local->cursor_y = map->height / 2;
   }
-  if (local.view_x < 0 || local.view_x >= map->width) {
-    local.view_x = local.cursor_x;
+  if (local->view_x < 0 || local->view_x >= map->width) {
+    local->view_x = local->cursor_x;
   }
-  if (local.view_y < 0 || local.view_y >= map->height) {
-    local.view_y = local.cursor_y;
+  if (local->view_y < 0 || local->view_y >= map->height) {
+    local->view_y = local->cursor_y;
   }
 
   /* Align live layer2 occupancy with imported pools (tribes from save). */
   col1_bridge_sync_map_occupancy(NULL, map, units, colonies, save);
+}
 
+/* Port extension chunks: VTIN village intel, BQUE build queues. */
+COLONIZE_INTERNAL void col1_bridge_apply_ext_chunks(Col1ApplyCtx* ctx) {
+  const ColonizeCol1Save* save = ctx->save;
+  ColonizeColonyPool* colonies = ctx->colonies;
   /* Village trade/skill sidebar rows: restored from the port extension block,
    * or cleared when the save has none (a DOS original, or one DOS re-saved). */
   {
@@ -2120,19 +2212,53 @@ bool col1_bridge_apply_w(
     }
     colonies_build_queue_deserialize(colonies, q, q_size);
   }
+}
+
+bool col1_bridge_apply_w(
+  const ColonizeWorld* w,
+  ColonizeCol1BridgeResult* out,
+  char* err,
+  size_t err_size
+) {
+  Col1ApplyCtx ctx = {
+    .save = w->col1,
+    .map = w->map,
+    .units = w->units,
+    .colonies = w->colonies,
+    .europe = w->europe,
+    .err = err,
+    .err_size = err_size,
+  };
+  if (col1_bridge_apply_head(&ctx) != COL1_STAGE_OK) {
+    return false;
+  }
+  col1_bridge_apply_map_planes(&ctx);
+  col1_bridge_apply_colonies(&ctx);
+  if (col1_bridge_apply_units_reset(&ctx) != COL1_STAGE_OK) {
+    return false;
+  }
+  col1_bridge_apply_europe_lanes(&ctx);
+  if (col1_bridge_apply_units(&ctx) != COL1_STAGE_OK ||
+      col1_bridge_apply_boarding(&ctx) != COL1_STAGE_OK) {
+    return false;
+  }
+  col1_bridge_apply_active_unit(&ctx);
+  col1_bridge_apply_europe_nation(&ctx);
+  col1_bridge_apply_view_occupancy(&ctx);
+  col1_bridge_apply_ext_chunks(&ctx);
 
   if (out) {
-    *out = local;
+    *out = ctx.local;
   }
   turn_rank_loaded();
   diag_info(
     "col1_bridge_apply: turn=%u year=%u nation=%d units=%d colonies=%d europe_skip=%d",
-    local.turn_number,
-    local.year,
-    local.human_nation,
-    local.imported_units,
-    local.imported_colonies,
-    local.skipped_europe_units
+    ctx.local.turn_number,
+    ctx.local.year,
+    ctx.local.human_nation,
+    ctx.local.imported_units,
+    ctx.local.imported_colonies,
+    ctx.local.skipped_europe_units
   );
   if (err && err_size) {
     err[0] = '\0';
@@ -2252,7 +2378,11 @@ static void col1_bridge_sanitize_units_for_dos(
           if (colonies && colonies_id_at(colonies, nx, ny) >= 0) {
             continue;
           }
-          if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, land->type_index, nx, ny, land->id)) {
+          const ColonizeWorld ew = world_make(
+            (ColonizeUnitPool*)units, (ColonizeColonyPool*)colonies, (ColonizeWorldMap*)map,
+            NULL, false, NULL, NULL
+          );
+          if (!units_can_enter_w(&ew, land->type_index, nx, ny, land->id)) {
             continue;
           }
           dest_x = nx;
@@ -2300,36 +2430,35 @@ void col1_bridge_stamp_autosave_head(ColonizeCol1Save* save) {
   save->head.no_unit_selected = 0;
 }
 
-/* ===================== Runtime -> COL1 capture (save export) (col1_bridge_capture_w) ===================== */
-bool col1_bridge_capture_w(
-  const ColonizeWorld* w,
-  uint16_t year,
-  uint16_t autumn,
-  uint32_t turn_number,
-  int human_nation,
-  int cursor_x,
-  int cursor_y,
-  int view_x,
-  int view_y,
-  int active_unit_id,
-  bool view_pieces_mode,
-  char* err,
-  size_t err_size
-) {
-  ColonizeCol1Save* save = w->col1;
-  const ColonizeWorldMap* map = w->map;
-  ColonizeUnitPool* units = w->units;
-  const ColonizeColonyPool* colonies = w->colonies;
-  const EuropeScreen* europe = w->europe;
+/* ===================== Runtime -> COL1 capture (save export) (col1_bridge_capture_head .. col1_bridge_capture_w) ===================== */
+/* bugs.md #1107: col1_bridge_capture_w is a dispatcher over the record-family
+ * stages below (file order = the original body order). Cross-stage locals live
+ * in Col1CaptureCtx (col1_bridge_internal.h). */
 
+/* Head: argument checks, DOS hygiene sanitize, head/stuff/player words. */
+COLONIZE_INTERNAL Col1StageStatus col1_bridge_capture_head(Col1CaptureCtx* ctx) {
+  ColonizeCol1Save* save = ctx->save;
+  const ColonizeWorldMap* map = ctx->map;
+  ColonizeUnitPool* units = ctx->units;
+  const ColonizeColonyPool* colonies = ctx->colonies;
+  char* err = ctx->err;
+  const size_t err_size = ctx->err_size;
+  const uint16_t year = ctx->year;
+  const uint16_t autumn = ctx->autumn;
+  const uint32_t turn_number = ctx->turn_number;
+  int human_nation = ctx->human_nation;
+  const int cursor_x = ctx->cursor_x;
+  const int cursor_y = ctx->cursor_y;
+  const int view_x = ctx->view_x;
+  const int view_y = ctx->view_y;
   if (!save || !map || !units || !colonies) {
-    COL1_FAIL(err, err_size, "col1_bridge_capture bad args");
+    COL1_STAGE_FAIL(err, err_size, "col1_bridge_capture bad args");
   }
   if (!save->owned || !save->map.tile) {
-    COL1_FAIL(err, err_size, "save has no allocated sections");
+    COL1_STAGE_FAIL(err, err_size, "save has no allocated sections");
   }
   if (map->width != save->head.map_size_x || map->height != save->head.map_size_y) {
-    COL1_FAIL(
+    COL1_STAGE_FAIL(
       err,
       err_size,
       "map size mismatch live=%ux%u save=%ux%u",
@@ -2342,6 +2471,7 @@ bool col1_bridge_capture_w(
   if (human_nation < 0 || human_nation >= (int)COLONIZE_COL1_NATION_COUNT) {
     human_nation = 0;
   }
+  ctx->human_nation = human_nation; /* ctx write-back */
 
   col1_bridge_sanitize_units_for_dos(units, map, colonies, save);
 
@@ -2414,7 +2544,13 @@ bool col1_bridge_capture_w(
   if (save->head.game_options.woi && save->head.crown_nation_id < 0) {
     save->head.crown_nation_id = (int16_t)(human_nation == 0 ? 1 : 0);
   }
+  return COL1_STAGE_OK;
+}
 
+/* Map planes: terrain/mask/path/seen, blank post_map connectivity. */
+COLONIZE_INTERNAL void col1_bridge_capture_map_planes(Col1CaptureCtx* ctx) {
+  ColonizeCol1Save* save = ctx->save;
+  const ColonizeWorldMap* map = ctx->map;
   for (size_t i = 0; i < save->map.tile_count; ++i) {
     save->map.tile[i] = col1_mp_terrain_to_tile(map->terrain[i]);
     if (save->map.mask && map->improve) {
@@ -2447,7 +2583,13 @@ bool col1_bridge_capture_w(
   if (col1_post_map_is_blank(&save->post_map)) {
     col1_post_map_rebuild_connectivity(&save->post_map, map);
   }
+}
 
+/* Human nation economy from the Europe screen (market mirror, recruit pool). */
+COLONIZE_INTERNAL void col1_bridge_capture_nation_europe(Col1CaptureCtx* ctx) {
+  ColonizeCol1Save* save = ctx->save;
+  const EuropeScreen* europe = ctx->europe;
+  const int human_nation = ctx->human_nation;
   /*
    * Nations / indian: live Col1 snapshot already holds AI diplo/contact blobs.
    * Refresh human economy from Europe UI; leave other nations' bytes intact.
@@ -2498,1031 +2640,1110 @@ bool col1_bridge_capture_w(
       nat->trade.nr[i] = europe->trade_nr[i];
     }
   }
+}
 
+/* Colonies: rebuild the record list from live colonies (Col1-only fields kept by xy). */
+COLONIZE_INTERNAL Col1StageStatus col1_bridge_capture_colonies(Col1CaptureCtx* ctx) {
+  ColonizeCol1Save* save = ctx->save;
+  const ColonizeColonyPool* colonies = ctx->colonies;
+  char* err = ctx->err;
+  const size_t err_size = ctx->err_size;
   /* Rebuild colony list from live colonies; preserve Col1-only fields by xy. */
-  {
-    const ColonizeCol1Colony* old_colony = save->colony;
-    const uint16_t old_count = save->head.colony_count;
-    uint16_t n = (uint16_t)colonies->colony_count;
-    if (n > COLONIZE_COLONIES_MAX) {
-      n = COLONIZE_COLONIES_MAX;
+  const ColonizeCol1Colony* old_colony = save->colony;
+  const uint16_t old_count = save->head.colony_count;
+  uint16_t n = (uint16_t)colonies->colony_count;
+  if (n > COLONIZE_COLONIES_MAX) {
+    n = COLONIZE_COLONIES_MAX;
+  }
+  ColonizeCol1Colony* neu = NULL;
+  if (n > 0) {
+    neu = calloc(n, sizeof(ColonizeCol1Colony));
+    if (!neu) {
+      COL1_STAGE_FAIL(err, err_size, "oom colonies export");
     }
-    ColonizeCol1Colony* neu = NULL;
-    if (n > 0) {
-      neu = calloc(n, sizeof(ColonizeCol1Colony));
-      if (!neu) {
-        COL1_FAIL(err, err_size, "oom colonies export");
+  }
+  int written = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX && written < (int)n; ++i) {
+    const ColonizeColony* src = &colonies->colonies[i];
+    if (!src->active) {
+      continue;
+    }
+    ColonizeCol1Colony* dst = &neu[written++];
+    memset(dst, 0, sizeof(*dst));
+    bool matched_old = false;
+    if (old_colony) {
+      for (uint16_t oi = 0; oi < old_count; ++oi) {
+        if (old_colony[oi].x == (uint8_t)src->x && old_colony[oi].y == (uint8_t)src->y) {
+          *dst = old_colony[oi];
+          matched_old = true;
+          break;
+        }
       }
     }
-    int written = 0;
-    for (int i = 0; i < COLONIZE_COLONIES_MAX && written < (int)n; ++i) {
-      const ColonizeColony* src = &colonies->colonies[i];
-      if (!src->active) {
+    if (!matched_old) {
+      /* DOS FUN_364b_1ba8 founding: divisor seeded to 100 (dividend 0) so a
+       * brand-new colony's SoL% doesn't instantly saturate off one turn of
+       * bells vs a tiny pop*2 divisor. */
+      dst->rebel_divisor = 100;
+    }
+    dst->x = (uint8_t)src->x;
+    dst->y = (uint8_t)src->y;
+    /* 24-byte COL1 slot: bound by the DESTINATION (src->name is the wider
+     * live buffer). No re-pad: a new record is already zeroed, and a matched
+     * old one keeps DOS's stale bytes past the NUL (golden_idle_independence
+     * compares them byte-exact). */
+    str_copy_trunc(dst->name, sizeof(dst->name), src->name);
+    dst->nation_id = (uint8_t)src->nation_id;
+    dst->population = (uint8_t)(src->colonist_count > 32 ? 32 : src->colonist_count);
+    dst->hammers = (uint16_t)(src->hammers < 0 ? 0 : (src->hammers > 65535 ? 65535 : src->hammers));
+    /* Mirror of the import-side fix above: raw COL1 code == @BUILDING
+     * file-order index directly, none is 0xFF. See col1_bridge_apply's
+     * comment on this same field for the golden evidence. */
+    if (src->building_in_production < 0) {
+      dst->building_in_production = 0xFF;
+    } else {
+      dst->building_in_production = (uint8_t)src->building_in_production;
+    }
+    for (int p = 0; p < (int)COLONIZE_COL1_COLONY_POP_MAX; ++p) {
+      dst->profession[p] = src->col1_tail_profession[p];
+      dst->occupation[p] = src->col1_tail_occupation[p];
+    }
+    for (int p = 0; p < dst->population; ++p) {
+      const ColonizeColonist* c = &src->colonists[p];
+      int prof = c->profession;
+      if (prof < 0) {
+        prof = UNITS_JOB_NONE;
+      }
+      dst->profession[p] = (uint8_t)prof;
+      dst->occupation[p] = (uint8_t)colonies_colonist_occupation_job(colonies, c);
+    }
+    /*
+     * Colonist order = the runtime order. DOS insert-sorts by occupation
+     * only when a colonist is ADDED and never re-sorts on a job change, so
+     * real saves carry unsorted arrays (french COLONY00 Jamestown is
+     * [13,0,12,6,4]; seed-100 1515's Dutch colony is [0,6,4] after an AI
+     * join). The canonical full sort this export used to apply moved
+     * workers DOS leaves in place. col1_new_index stays the identity map
+     * the per-colonist blocks below index through.
+     */
+    int col1_new_index[COLONIZE_COL1_COLONY_POP_MAX];
+    for (int k = 0; k < (int)COLONIZE_COL1_COLONY_POP_MAX; ++k) {
+      col1_new_index[k] = k;
+    }
+    /*
+     * +0x60 nibbles = the per-colonist education counter, permuted with
+     * the canonical colonist reorder exactly as DOS does it (raw
+     * 47225/47241 stash 0d1c per colonist and write 0a7e back at the new
+     * slot). The writer FUN_15eb_0cbc clamps at 15 (raw 10231-10233), so
+     * the counter saturates rather than wrapping — an AI colony reads 0
+     * because its colonists were just seated, a long-lived human colony
+     * reads 15.
+     */
+    {
+      uint8_t nib[COLONIZE_COL1_COLONY_POP_MAX];
+      /* DOS updates the live roster only; past pop, FUN_15eb_0d04 leaves
+       * the last departed colonist's counter (fresh 1592 Cayenne slot 1;
+       * 1529 Isabella slot 2 = 1, ticked before the colonist left). */
+      for (int p = 0; p < (int)COLONIZE_COL1_COLONY_POP_MAX; ++p) {
+        nib[p] = src->col1_tail_turns[p];
+      }
+      for (int p = 0; p < dst->population && p < (int)COLONIZE_COL1_COLONY_POP_MAX; ++p) {
+        /* col1_new_index maps old colonist index -> canonical position. */
+        uint8_t v = src->colonists[p].turns_in_job;
+        if (v > 0x0fu) {
+          v = 0x0fu; /* FUN_15eb_0cbc clamp, raw 10231-10233 */
+        }
+        nib[col1_new_index[p]] = v;
+      }
+      for (int s = 0; s < 16; ++s) {
+        dst->specialty[s].even = nib[s * 2];
+        dst->specialty[s].odd = nib[s * 2 + 1];
+      }
+    }
+    for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+      int s = src->stock[c];
+      if (s < 0) {
+        s = 0;
+      }
+      if (s > 65535) {
+        s = 65535;
+      }
+      dst->stock[c] = (uint16_t)s;
+    }
+    for (int ti = 0; ti < (int)COLONIZE_COL1_COLONY_TILES; ++ti) {
+      dst->tiles[ti] = (int8_t)-1; /* DOS empty = 0xff */
+    }
+    for (int rti = 0; rti < COLONIZE_COLONY_FIELD_TILES_MAX; ++rti) {
+      const int who = (int)src->tiles[rti];
+      const int cti = col1_tile_index_from_runtime(rti);
+      if (who < 0 || who >= dst->population) {
+        /* Outer slots keep whatever the save carried, even when it names no
+         * colonist of this colony (byte-exact interop, bugs.md #593). */
+        if (rti >= COLONIZE_COLONY_FIELD_TILES && who >= 0) {
+          dst->tiles[cti] = (int8_t)who;
+        }
         continue;
       }
-      ColonizeCol1Colony* dst = &neu[written++];
-      memset(dst, 0, sizeof(*dst));
-      bool matched_old = false;
-      if (old_colony) {
-        for (uint16_t oi = 0; oi < old_count; ++oi) {
-          if (old_colony[oi].x == (uint8_t)src->x && old_colony[oi].y == (uint8_t)src->y) {
-            *dst = old_colony[oi];
-            matched_old = true;
-            break;
-          }
-        }
-      }
-      if (!matched_old) {
-        /* DOS FUN_364b_1ba8 founding: divisor seeded to 100 (dividend 0) so a
-         * brand-new colony's SoL% doesn't instantly saturate off one turn of
-         * bells vs a tiny pop*2 divisor. */
-        dst->rebel_divisor = 100;
-      }
-      dst->x = (uint8_t)src->x;
-      dst->y = (uint8_t)src->y;
-      /* 24-byte COL1 slot: bound by the DESTINATION (src->name is the wider
-       * live buffer). No re-pad: a new record is already zeroed, and a matched
-       * old one keeps DOS's stale bytes past the NUL (golden_idle_independence
-       * compares them byte-exact). */
-      str_copy_trunc(dst->name, sizeof(dst->name), src->name);
-      dst->nation_id = (uint8_t)src->nation_id;
-      dst->population = (uint8_t)(src->colonist_count > 32 ? 32 : src->colonist_count);
-      dst->hammers = (uint16_t)(src->hammers < 0 ? 0 : (src->hammers > 65535 ? 65535 : src->hammers));
-      /* Mirror of the import-side fix above: raw COL1 code == @BUILDING
-       * file-order index directly, none is 0xFF. See col1_bridge_apply's
-       * comment on this same field for the golden evidence. */
-      if (src->building_in_production < 0) {
-        dst->building_in_production = 0xFF;
-      } else {
-        dst->building_in_production = (uint8_t)src->building_in_production;
-      }
-      for (int p = 0; p < (int)COLONIZE_COL1_COLONY_POP_MAX; ++p) {
-        dst->profession[p] = src->col1_tail_profession[p];
-        dst->occupation[p] = src->col1_tail_occupation[p];
-      }
-      for (int p = 0; p < dst->population; ++p) {
-        const ColonizeColonist* c = &src->colonists[p];
-        int prof = c->profession;
-        if (prof < 0) {
-          prof = UNITS_JOB_NONE;
-        }
-        dst->profession[p] = (uint8_t)prof;
-        dst->occupation[p] = (uint8_t)colonies_colonist_occupation_job(colonies, c);
-      }
-      /*
-       * Colonist order = the runtime order. DOS insert-sorts by occupation
-       * only when a colonist is ADDED and never re-sorts on a job change, so
-       * real saves carry unsorted arrays (french COLONY00 Jamestown is
-       * [13,0,12,6,4]; seed-100 1515's Dutch colony is [0,6,4] after an AI
-       * join). The canonical full sort this export used to apply moved
-       * workers DOS leaves in place. col1_new_index stays the identity map
-       * the per-colonist blocks below index through.
-       */
-      int col1_new_index[COLONIZE_COL1_COLONY_POP_MAX];
-      for (int k = 0; k < (int)COLONIZE_COL1_COLONY_POP_MAX; ++k) {
-        col1_new_index[k] = k;
-      }
-      /*
-       * +0x60 nibbles = the per-colonist education counter, permuted with
-       * the canonical colonist reorder exactly as DOS does it (raw
-       * 47225/47241 stash 0d1c per colonist and write 0a7e back at the new
-       * slot). The writer FUN_15eb_0cbc clamps at 15 (raw 10231-10233), so
-       * the counter saturates rather than wrapping — an AI colony reads 0
-       * because its colonists were just seated, a long-lived human colony
-       * reads 15.
-       */
-      {
-        uint8_t nib[COLONIZE_COL1_COLONY_POP_MAX];
-        /* DOS updates the live roster only; past pop, FUN_15eb_0d04 leaves
-         * the last departed colonist's counter (fresh 1592 Cayenne slot 1;
-         * 1529 Isabella slot 2 = 1, ticked before the colonist left). */
-        for (int p = 0; p < (int)COLONIZE_COL1_COLONY_POP_MAX; ++p) {
-          nib[p] = src->col1_tail_turns[p];
-        }
-        for (int p = 0; p < dst->population && p < (int)COLONIZE_COL1_COLONY_POP_MAX; ++p) {
-          /* col1_new_index maps old colonist index -> canonical position. */
-          uint8_t v = src->colonists[p].turns_in_job;
-          if (v > 0x0fu) {
-            v = 0x0fu; /* FUN_15eb_0cbc clamp, raw 10231-10233 */
-          }
-          nib[col1_new_index[p]] = v;
-        }
-        for (int s = 0; s < 16; ++s) {
-          dst->specialty[s].even = nib[s * 2];
-          dst->specialty[s].odd = nib[s * 2 + 1];
-        }
-      }
-      for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-        int s = src->stock[c];
-        if (s < 0) {
-          s = 0;
-        }
-        if (s > 65535) {
-          s = 65535;
-        }
-        dst->stock[c] = (uint16_t)s;
-      }
-      for (int ti = 0; ti < (int)COLONIZE_COL1_COLONY_TILES; ++ti) {
-        dst->tiles[ti] = (int8_t)-1; /* DOS empty = 0xff */
-      }
-      for (int rti = 0; rti < COLONIZE_COLONY_FIELD_TILES_MAX; ++rti) {
-        const int who = (int)src->tiles[rti];
-        const int cti = col1_tile_index_from_runtime(rti);
-        if (who < 0 || who >= dst->population) {
-          /* Outer slots keep whatever the save carried, even when it names no
-           * colonist of this colony (byte-exact interop, bugs.md #593). */
-          if (rti >= COLONIZE_COLONY_FIELD_TILES && who >= 0) {
-            dst->tiles[cti] = (int8_t)who;
-          }
-          continue;
-        }
-        /* Remap through the DOS-canonical colonist ordering above. */
-        dst->tiles[cti] = (int8_t)col1_new_index[who];
-      }
-      col1_encode_colony_buildings(colonies, src, &dst->buildings);
-      /*
-       * +0x95 / +0x96 are DOS level COUNTERS (FUN_364b_0114 INCs one per
-       * completed tier, so 0..2) and are the ONLY record of the upper tier:
-       * DOS gives Warehouse Expansion and Capitol Expansion no bit in the
-       * packed building word (see col1_apply_colony_buildings). Derive the
-       * counter from what the colony owns, keep whichever is higher, clamp.
-       */
-      {
-        uint8_t wh = 0;
-        uint8_t cap = 0;
-        {
-          static const ColonizeBuildingRow k_wh[] = {
-            COLONY_BUILDING_WAREHOUSE, COLONY_BUILDING_WAREHOUSE_EXPANSION
-          };
-          static const ColonizeBuildingRow k_cp[] = {
-            COLONY_BUILDING_CAPITOL, COLONY_BUILDING_CAPITOL_EXPANSION
-          };
-          for (int t = 0; t < 2; ++t) {
-            const int wi = colonies_building_row(colonies, k_wh[t]);
-            if (wi >= 0 && wi < COLONIZE_BUILDING_TYPES_MAX && src->has_building[wi]) {
-              wh = (uint8_t)(t + 1);
-            }
-            const int ci = colonies_building_row(colonies, k_cp[t]);
-            if (ci >= 0 && ci < COLONIZE_BUILDING_TYPES_MAX && src->has_building[ci]) {
-              cap = (uint8_t)(t + 1);
-            }
-          }
-        }
-        dst->warehouse_level = src->warehouse_level > wh ? src->warehouse_level : wh;
-        dst->capitol_level = src->capitol_level > cap ? src->capitol_level : cap;
-        if (dst->warehouse_level > 2u) {
-          dst->warehouse_level = 2u; /* heal saves written before this fix */
-        }
-        if (dst->capitol_level > 2u) {
-          dst->capitol_level = 2u;
-        }
-      }
-      memcpy(dst->visible_to_euro, src->pop_on_map, sizeof(dst->visible_to_euro));
-      memcpy(dst->fortification_on_map, src->fort_on_map, sizeof(dst->fortification_on_map));
-      if (src->nation_id >= 0 && src->nation_id < 4 && dst->visible_to_euro[src->nation_id] == 0) {
-        dst->visible_to_euro[src->nation_id] = 1; /* FUN_13f1_00a6 seed for the owner */
-      }
-      {
-        uint16_t bits = src->custom_house_bits;
-        memcpy(&dst->custom_house, &bits, sizeof(bits));
-      }
-      dst->labor_shortage = src->labor_shortage;
-      dst->garrison_quota = src->garrison_quota;
-      dst->specialty_cargo = src->specialty_cargo;
-      dst->cargo_idle_turns = src->cargo_idle_turns;
-      dst->improve_timer = src->improve_timer;
-      dst->build_ai_flags = src->build_ai_flags;
-      {
-        uint8_t af = src->ai_flags;
-        memcpy(&dst->ai_flags, &af, sizeof(af));
-      }
-      {
-        uint8_t cf = src->colony_flags;
-        memcpy(&dst->flags, &cf, sizeof(cf));
-      }
-      dst->cargo_produced_mask = src->cargo_produced_mask;
-      dst->hammers_purchased = src->hammers_purchased;
-      dst->depletion_counter = src->depletion_counter;
+      /* Remap through the DOS-canonical colonist ordering above. */
+      dst->tiles[cti] = (int8_t)col1_new_index[who];
     }
-    free(save->colony);
-    save->colony = neu;
-    save->head.colony_count = (uint16_t)written;
+    col1_encode_colony_buildings(colonies, src, &dst->buildings);
+    /*
+     * +0x95 / +0x96 are DOS level COUNTERS (FUN_364b_0114 INCs one per
+     * completed tier, so 0..2) and are the ONLY record of the upper tier:
+     * DOS gives Warehouse Expansion and Capitol Expansion no bit in the
+     * packed building word (see col1_apply_colony_buildings). Derive the
+     * counter from what the colony owns, keep whichever is higher, clamp.
+     */
+    {
+      uint8_t wh = 0;
+      uint8_t cap = 0;
+      {
+        static const ColonizeBuildingRow k_wh[] = {
+          COLONY_BUILDING_WAREHOUSE, COLONY_BUILDING_WAREHOUSE_EXPANSION
+        };
+        static const ColonizeBuildingRow k_cp[] = {
+          COLONY_BUILDING_CAPITOL, COLONY_BUILDING_CAPITOL_EXPANSION
+        };
+        for (int t = 0; t < 2; ++t) {
+          const int wi = colonies_building_row(colonies, k_wh[t]);
+          if (wi >= 0 && wi < COLONIZE_BUILDING_TYPES_MAX && src->has_building[wi]) {
+            wh = (uint8_t)(t + 1);
+          }
+          const int ci = colonies_building_row(colonies, k_cp[t]);
+          if (ci >= 0 && ci < COLONIZE_BUILDING_TYPES_MAX && src->has_building[ci]) {
+            cap = (uint8_t)(t + 1);
+          }
+        }
+      }
+      dst->warehouse_level = src->warehouse_level > wh ? src->warehouse_level : wh;
+      dst->capitol_level = src->capitol_level > cap ? src->capitol_level : cap;
+      if (dst->warehouse_level > 2u) {
+        dst->warehouse_level = 2u; /* heal saves written before this fix */
+      }
+      if (dst->capitol_level > 2u) {
+        dst->capitol_level = 2u;
+      }
+    }
+    memcpy(dst->visible_to_euro, src->pop_on_map, sizeof(dst->visible_to_euro));
+    memcpy(dst->fortification_on_map, src->fort_on_map, sizeof(dst->fortification_on_map));
+    if (src->nation_id >= 0 && src->nation_id < 4 && dst->visible_to_euro[src->nation_id] == 0) {
+      dst->visible_to_euro[src->nation_id] = 1; /* FUN_13f1_00a6 seed for the owner */
+    }
+    {
+      uint16_t bits = src->custom_house_bits;
+      memcpy(&dst->custom_house, &bits, sizeof(bits));
+    }
+    dst->labor_shortage = src->labor_shortage;
+    dst->garrison_quota = src->garrison_quota;
+    dst->specialty_cargo = src->specialty_cargo;
+    dst->cargo_idle_turns = src->cargo_idle_turns;
+    dst->improve_timer = src->improve_timer;
+    dst->build_ai_flags = src->build_ai_flags;
+    {
+      uint8_t af = src->ai_flags;
+      memcpy(&dst->ai_flags, &af, sizeof(af));
+    }
+    {
+      uint8_t cf = src->colony_flags;
+      memcpy(&dst->flags, &cf, sizeof(cf));
+    }
+    dst->cargo_produced_mask = src->cargo_produced_mask;
+    dst->hammers_purchased = src->hammers_purchased;
+    dst->depletion_counter = src->depletion_counter;
+  }
+  free(save->colony);
+  save->colony = neu;
+  save->head.colony_count = (uint16_t)written;
+  return COL1_STAGE_OK;
+}
+
+/* Units: size + allocate the record array, stack-order and id remap tables. */
+COLONIZE_INTERNAL Col1StageStatus col1_bridge_capture_units_alloc(Col1CaptureCtx* ctx) {
+  ColonizeUnitPool* units = ctx->units;
+  const EuropeScreen* europe = ctx->europe;
+  char* err = ctx->err;
+  const size_t err_size = ctx->err_size;
+  /* Rebuild units from live pool (includes natives only if still in pool). */
+  int live = 0;
+  for (int i = 0; i < units_slot_end(units); ++i) {
+    if (units->units[i].active) {
+      live++;
+    }
+  }
+  /* Human Europe-screen ships (harbor / Expected / Bound) live only in the
+   * EuropeScreen lists, not the pool — reserve room to write them back. */
+  const int europe_ships =
+    europe ? (europe->harbor_ships + europe->expected_ships + europe->bound_ships) : 0;
+  /* Dock immigrants whose mirror unit was never spawned are written back
+   * from the dock array itself (see the reconciliation below) — reserve a
+   * full dock's worth of records for them. */
+  const int europe_dockers = europe ? europe->dock_count : 0;
+  const int capacity = live + europe_ships * (1 + EUROPE_SHIP_CARGO_MAX) + europe_dockers;
+  ColonizeCol1Unit* neu = NULL;
+  uint64_t* stack_order_by_col1 = NULL;
+  if (capacity > 0) {
+    neu = calloc((size_t)capacity, sizeof(ColonizeCol1Unit));
+    if (!neu) {
+      COL1_STAGE_FAIL(err, err_size, "oom units export");
+    }
+    stack_order_by_col1 = calloc((size_t)capacity, sizeof(uint64_t));
+    if (!stack_order_by_col1) {
+      free(neu);
+      COL1_STAGE_FAIL(err, err_size, "oom unit stack order export");
+    }
+  }
+  int* runtime_to_col1 = calloc((size_t)(units->next_id + 1), sizeof(int));
+  if (!runtime_to_col1) {
+    free(stack_order_by_col1);
+    free(neu);
+    COL1_STAGE_FAIL(err, err_size, "oom unit remap");
+  }
+  for (int i = 0; i <= units->next_id; ++i) {
+    runtime_to_col1[i] = -1;
   }
 
-  /* Rebuild units from live pool (includes natives only if still in pool). */
-  {
-    int live = 0;
-    for (int i = 0; i < units_slot_end(units); ++i) {
-      if (units->units[i].active) {
-        live++;
-      }
-    }
-    /* Human Europe-screen ships (harbor / Expected / Bound) live only in the
-     * EuropeScreen lists, not the pool — reserve room to write them back. */
-    const int europe_ships =
-      europe ? (europe->harbor_ships + europe->expected_ships + europe->bound_ships) : 0;
-    /* Dock immigrants whose mirror unit was never spawned are written back
-     * from the dock array itself (see the reconciliation below) — reserve a
-     * full dock's worth of records for them. */
-    const int europe_dockers = europe ? europe->dock_count : 0;
-    const int capacity = live + europe_ships * (1 + EUROPE_SHIP_CARGO_MAX) + europe_dockers;
-    ColonizeCol1Unit* neu = NULL;
-    uint64_t* stack_order_by_col1 = NULL;
-    if (capacity > 0) {
-      neu = calloc((size_t)capacity, sizeof(ColonizeCol1Unit));
-      if (!neu) {
-        COL1_FAIL(err, err_size, "oom units export");
-      }
-      stack_order_by_col1 = calloc((size_t)capacity, sizeof(uint64_t));
-      if (!stack_order_by_col1) {
-        free(neu);
-        COL1_FAIL(err, err_size, "oom unit stack order export");
-      }
-    }
-    int* runtime_to_col1 = calloc((size_t)(units->next_id + 1), sizeof(int));
-    if (!runtime_to_col1) {
-      free(stack_order_by_col1);
-      free(neu);
-      COL1_FAIL(err, err_size, "oom unit remap");
-    }
-    for (int i = 0; i <= units->next_id; ++i) {
-      runtime_to_col1[i] = -1;
-    }
+  ctx->capacity = capacity; /* ctx write-back */
+  ctx->neu = neu;
+  ctx->stack_order_by_col1 = stack_order_by_col1;
+  ctx->runtime_to_col1 = runtime_to_col1;
+  return COL1_STAGE_OK;
+}
 
-    int written = 0;
-    /* DOS "no active unit" = 0xffff (dutch-campaign COLONY09 / french
-     * COLONY08 originals, saved in View mode). 0 claimed unit 0 active. */
-    int active_col1 = -1;
+/* Units: one record per live pool unit (moves, orders, goto, cargo/holds, origin). */
+COLONIZE_INTERNAL void col1_bridge_capture_unit_records(Col1CaptureCtx* ctx) {
+  ColonizeCol1Save* save = ctx->save;
+  ColonizeUnitPool* units = ctx->units;
+  const ColonizeColonyPool* colonies = ctx->colonies;
+  const int active_unit_id = ctx->active_unit_id;
+  ColonizeCol1Unit* neu = ctx->neu;
+  uint64_t* stack_order_by_col1 = ctx->stack_order_by_col1;
+  int* runtime_to_col1 = ctx->runtime_to_col1;
+  int written = 0;
+  /* DOS "no active unit" = 0xffff (dutch-campaign COLONY09 / french
+   * COLONY08 originals, saved in View mode). 0 claimed unit 0 active. */
+  int active_col1 = -1;
+  for (int i = 0; i < units_slot_end(units); ++i) {
+    const ColonizeUnit* src = &units->units[i];
+    if (!src->active) {
+      continue;
+    }
+    ColonizeCol1Unit* dst = &neu[written];
+    memset(dst, 0, sizeof(*dst));
+    dst->x = (uint8_t)src->x;
+    dst->y = (uint8_t)src->y;
+    /* Port-internal dock mirrors live at literal (236,236); the DOS dock
+     * lane is per-nation 236+n (french-campaign originals carry 237). */
+    if (src->x == EUROPE_PARK_XY && src->y == EUROPE_PARK_XY && (src->nation_id & 0xF) < 4) {
+      dst->x = (uint8_t)(EUROPE_PARK_XY + (src->nation_id & 3));
+      dst->y = dst->x;
+    }
+    dst->type = (uint8_t)(src->type_index < 0 ? 0 : src->type_index);
+    dst->nation_id = (uint8_t)(src->nation_id & 0xF);
+    {
+      /* DOS fog draw: (0x10<<viewer) & vis_mask. Live mask (reveal marks,
+       * move resets). Ordinary Euro map units carry their owner bit, but
+       * FUN_43f7_0982 stamps freshly landed REF units with the target bit
+       * only (raw 74142/74210); do not synthesize the crown bit on export.
+       * Europe sentinel units (x/y >= 200) carry vis 0 in every original
+       * DOS save (french-campaign survey 2026-09-03) — except a damaged
+       * hull FUN_5fef_0352 parked there (bit7 set): the relocation leaves
+       * its mask alone (DOSBox independence 6->7: the crown Man-O-War at
+       * 236,236 saves vis 9). */
+      const int nat = src->nation_id & 0xF;
+      /* The crown is the withdrawn slot until the declaration; after it DOS
+       * sets that slot's control to 1 (AI) and withdraws the others
+       * (independence-seed-100 000003), so name it by the King's slot. */
+      const bool crown =
+        nat >= 0 && nat < 4 &&
+        (ai_king_independence_declared(save)
+           ? nat == ai_king_crown_nation_col1(save, (int)save->head.human_player)
+           : save->player[nat].control == 2);
+      uint8_t vis = (uint8_t)(src->col1_vis_mask & 0x0Fu);
+      if (src->x >= 200 || src->y >= 200) {
+        if ((src->col1_flags15 & 0x80u) == 0) {
+          vis = 0;
+        }
+      } else if (nat >= 0 && nat < 4 && !crown) {
+        vis = (uint8_t)(vis | (1u << (nat & 3)));
+      }
+      dst->vis_mask = vis;
+    }
+    {
+      /*
+       * Col1 +0x05 = moves_spent in thirds. Euro units export
+       * max_mp - moves (units aboard a ship always 0, like COLONY00);
+       * natives export the literal byte (Brave engine keeps DOS spent in
+       * moves).
+       */
+      const ColonizeUnitType* ut = units_type(units, src->type_index);
+      if (src->nation_id >= 0 && src->nation_id <= 3) {
+        /* Symmetric with the import above (col1_bridge_unit_max_mp): read
+         * Magellan off `save`, not the units module's optional FF global. */
+        const int max_mp = col1_bridge_unit_max_mp(ut, src->nation_id, save);
+        int spent = 0;
+        if (src->aboard_ship_id >= 0) {
+          /* A passenger's byte is whatever it carried aboard: DOS never
+           * rewrites +0x3149 in the hold (bugs.md #544). A live `moves`
+           * means it was woken aboard; the park zero means aboard_moves
+           * (-1 = nothing spent). */
+          const int left = src->moves > 0 ? src->moves
+                           : (src->aboard_moves >= 0 ? src->aboard_moves : max_mp);
+          spent = max_mp > left ? max_mp - left : 0;
+        } else if (src->moves <= 0) {
+          /*
+           * Transports follow exactly the same ladder as land units. The
+           * arm that used to sit above this one — "any transport whose
+           * orders are not goto/sail exports 0" — made everything below
+           * unreachable for ships and wagons, so a ship the player had
+           * moved two of its four tiles saved as spent 0 and reloaded with
+           * a full turn. It cited COLONY00's idle Merchantman, but nothing
+           * in the record distinguishes idle from spent, and DOS does not
+           * blank the byte: across the 47 original saves, 104 of the 254
+           * on-map Euro transports carrying non-goto orders have a nonzero
+           * spent byte (COLONY00-original unit 2, the very Merchantman,
+           * carries 18; dutch-campaign COLONY01 unit 35 Caravel 15, unit 36
+           * Wagon Train 6). AI ships never tripped it because their orders
+           * are 11/12, which is why the TURN goldens stayed quiet.
+           * Smell audit 2026-09-10 F1.
+           */
+          /*
+           * Exhausted: the whole allotment is gone, so the spent byte is
+           * the allotment. DOS clears spent only at the TOP of a calendar
+           * tick (year_loop mid-pass, DS:0x3149 loop) — NOT when a nation's
+           * day ends: every human-side original save carries live spent
+           * bytes for the AI nations that already acted this tick
+           * (valid-lategame COLONY02 nation 1: 11 Dragoons at 12 thirds =
+           * their full 4-tile allotment; dutch2-t0 nations 0/1 likewise,
+           * with 13..19 where DOS's overspend ADD ran past max). Exporting
+           * 0 here refunded a full turn of movement to every exhausted land
+           * unit on save+reload (smell #75). Sentry/Fortified keep their
+           * real MP overnight (bugs.md #715), so a zero is always a spend.
+           */
+          spent = max_mp - src->moves; /* < 0 = DOS overspend past the allotment */
+        } else if (src->moves < max_mp) {
+          spent = max_mp - src->moves;
+        }
+        dst->moves = (uint8_t)(spent < 0 ? 0 : (spent > 255 ? 255 : spent));
+      } else {
+        dst->moves = (uint8_t)(src->moves < 0 ? 0 : src->moves);
+      }
+    }
+    if (src->aboard_ship_id >= 0) {
+      dst->orders = UNITS_ORDER_SENTRY; /* sentry if aboard */
+    } else if (src->orders != UNITS_ORDER_NONE) {
+      dst->orders = (uint8_t)src->orders;
+    } else {
+      dst->orders = UNITS_ORDER_NONE;
+    }
+    /* Goto: the stored +0x314d/e bytes, whatever the orders. DOS leaves them
+     * alone on an idle transport (independence-seed-100 000001: Dutch
+     * Merchantman on orders 0 keeps goto (50,51) one tile off; the old
+     * "idle ship goto == xy" export rewrote it). */
+    {
+      const bool goto_none = src->goto_x == UNITS_GOTO_NONE || src->goto_y == UNITS_GOTO_NONE ||
+                             src->goto_x < 0 || src->goto_y < 0;
+      if (goto_none) {
+        dst->goto_x = 0;
+        dst->goto_y = 0;
+      } else {
+        dst->goto_x = (uint8_t)src->goto_x;
+        dst->goto_y = (uint8_t)src->goto_y;
+      }
+    }
+    {
+      /* FUN_1427_06b4: transports (cargo>0) always profession 0. */
+      const ColonizeUnitType* ut = units_type(units, src->type_index);
+      if (ut && ut->cargo > 0) {
+        dst->profession = 0;
+      } else {
+        dst->profession = (uint8_t)(src->profession < 0 ? UNITS_JOB_NONE : src->profession);
+      }
+      /*
+       * A unit running a trade route (orders 2) has no profession, so DOS
+       * reuses this very byte (unit +0x17, DS:0x315b) as the route cursor:
+       * FUN_1427_0f64/0f74 own the low nibble (trade_route[] slot 0..11)
+       * and FUN_1427_0f8e/0fa0 the high nibble (stop index), which is what
+       * FUN_479b_0bd0 reads to bind DS:0x9e14/0x9e18 before servicing a
+       * stop. The port keeps the pair unpacked at runtime (follow_unit_id =
+       * slot, col1_counter16 = stop); without this the slot was never written
+       * to the file at all, so every reload dropped the wagon/ship off its
+       * route and it just sat in the activation queue (bugs.md
+       * trade_route_wagon.SAV).
+       */
+      if (dst->orders == (uint8_t)UNITS_ORDER_TRADE_ROUTE) {
+        const bool unit_sea = ut && ut->domain == COLONIZE_UNIT_DOMAIN_SEA;
+        if (col1_bridge_trade_cursor_valid(save, src->follow_unit_id, unit_sea)) {
+          const int stop =
+            col1_bridge_trade_cursor_stop(save, src->follow_unit_id, src->col1_counter16);
+          dst->profession = (uint8_t)(((stop & 0xf) << 4) | (src->follow_unit_id & 0xf));
+        } else {
+          /* Symmetry with apply: a cursor the decoder would reject must not
+           * be written with orders 2 behind it, or the automation is dropped
+           * at load time instead of at save time. DOS never reaches this
+           * state (FUN_647e_1486 clears order 2 off units whose route is
+           * deleted), so writing the idle unit is the DOS-consistent
+           * outcome, and it is exactly what apply would have produced. */
+          dst->orders = UNITS_ORDER_NONE;
+        }
+      }
+    }
+    dst->col1_counter16 =
+      (uint8_t)(src->col1_counter16 < 0 ? 0 : (src->col1_counter16 > 255 ? 255 : src->col1_counter16));
+    /* Unpack col1_flags15's raw byte into the 8 named single-bit fields
+     * (was one unknown15_lo:7 blob; see col1_save.h). */
+    dst->unknown15_bit0 = (src->col1_flags15 & 0x01u) != 0 ? 1u : 0u;
+    dst->roam_reeval_pending = (src->col1_flags15 & 0x02u) != 0 ? 1u : 0u;
+    dst->stack_has_founders_or_military = (src->col1_flags15 & 0x04u) != 0 ? 1u : 0u;
+    dst->stack_has_military = (src->col1_flags15 & 0x08u) != 0 ? 1u : 0u;
+    dst->wander_dest_chosen = (src->col1_flags15 & 0x10u) != 0 ? 1u : 0u;
+    dst->garrison_request_pending = (src->col1_flags15 & 0x20u) != 0 ? 1u : 0u;
+    dst->bound_in_transit = (src->col1_flags15 & 0x40u) != 0 ? 1u : 0u;
+    dst->ship_damaged = (src->col1_flags15 & 0x80u) != 0 ? 1u : 0u;
+    /* Natives: origin = home tribe index / 0xff. Euro units: home colony
+     * index (COL1 +0x06, the byte 20e6's haul band and colony tick bind) —
+     * col1_origin is now live AI state (spawn inits it to 0xff, the load
+     * matrix / 457e walk / colony tick write it), so export it verbatim. */
+    if ((src->nation_id & 0xF) < 4) {
+      /* col1_origin holds the colony id; DOS stores the array index, and a
+       * deleted colony compacts the array (raw 58156-58200). */
+      dst->origin = src->col1_origin;
+      if (colonies && src->col1_origin < 0x80) {
+        int idx = 0;
+        int found = -1;
+        for (int ci = 0; ci < COLONIZE_COLONIES_MAX && found < 0; ++ci) {
+          const ColonizeColony* c = &colonies->colonies[ci];
+          if (!c->active) {
+            continue;
+          }
+          if (c->id == (int)src->col1_origin) {
+            found = idx;
+          }
+          idx++;
+        }
+        dst->origin = found >= 0 ? (uint8_t)found : 0xff;
+      }
+    } else {
+      dst->origin =
+        (uint8_t)(src->home_tribe_id < 0 || src->home_tribe_id > 255 ? 0xff
+                                                                    : (src->home_tribe_id & 0xff));
+    }
+    dst->ai_plan =
+      src->col1_ai_plan != 0 ? src->col1_ai_plan : COL1_UNIT_UNKNOWN16_HI_DEFAULT;
+    /* Full signed DOS facing byte unit+0x314f (-1 none, 8 stay; bugs.md #1046). */
+    dst->facing = (uint8_t)src->last_dir & 7u;
+    dst->facing_pad = (uint8_t)((uint8_t)src->last_dir >> 3);
+    memset(dst->cargo_hold, 0, sizeof(dst->cargo_hold));
+    if (src->col1_hold_raw_valid) {
+      /*
+       * Restore the raw DOS +0x0c..+0x15 bytes stashed at apply (units.h).
+       * DOS repurposes this region on land units (french-campaign
+       * originals 2026-09-03: braves carry a per-settlement counter in
+       * hold[2]; the 196/216/236 family lives in hold[5] on land units
+       * and ships alike), and keeps stale goods bytes beyond
+       * holds_occupied. Live goods below overwrite only the slots the
+       * port actually models.
+       */
+      memcpy(&dst->holds_occupied, src->col1_hold_raw, sizeof(src->col1_hold_raw));
+    }
+    const ColonizeUnitType* cap_type = units_type(units, src->type_index);
+    const bool carries_goods = cap_type && cap_type->cargo > 0;
+    {
+      /* Pack goods into nibble fields + amounts. Passengers are not goods. */
+      int gi = 0;
+      for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX && gi < 6; ++h) {
+        const int amt = src->hold_goods_amount[h];
+        if (amt <= 0 || amt >= 255) {
+          continue;
+        }
+        int t = src->hold_goods_type[h];
+        if (t < 0) {
+          t = 0;
+        }
+        if (t > 15) {
+          t = 15;
+        }
+        dst->cargo_hold[gi] = (uint8_t)amt;
+        col1_unit_set_cargo_item(dst, gi, t);
+        gi++;
+      }
+      /* Empty-hold sentinel: DOS starters carry 255 on Euro units only —
+       * original braves store 0 (or their live counter) in hold[2]. */
+      if (gi == 0 && !src->col1_hold_raw_valid && src->nation_id < 4) {
+        dst->cargo_hold[2] = 255; /* COL1 empty-hold sentinel seen in starters */
+      }
+      /*
+       * Goods only — passengers live in transport_chain (not hold slots).
+       * bugs.md #844: when the port modelled no goods (gi == 0) and a raw
+       * +0xc..+0x15 block was stashed at apply, leave the just-restored
+       * raw holds_occupied byte alone instead of stamping 0 over it —
+       * DOS repurposes +0xc on native units (hold[2] per-settlement
+       * counter neighbours it) and the port has no model for that byte.
+       */
+      if (gi > 0 || !src->col1_hold_raw_valid) {
+        dst->holds_occupied = (uint8_t)gi;
+      }
+      /*
+       * campaign4 trade-route regression: a carrier that emptied since
+       * apply kept the stale holds_occupied the raw restore re-emitted, so
+       * the next load handed it phantom goods. The count is the runtime's;
+       * the slot bytes past it stay as restored — DOS's own remover
+       * (FUN_15eb_317c) shifts the slots down and decrements +0x3150
+       * without clearing anything, so stale amounts past the count are
+       * DOS's normal state (seed-100 idle campaign: an empty Merchantman
+       * keeps the starter 255 in hold[2]). Every reader gates on the count.
+       */
+      if (carries_goods && src->col1_hold_raw_valid) {
+        dst->holds_occupied = (uint8_t)gi;
+      }
+    }
+    /* DOS pioneer tools = cargo_hold[5] (FUN_479b_0158). Keep actual count.
+     * A stashed hold[5] > 100 is the repurposed DOS byte, never tools —
+     * leave the restored raw value alone. Transports (wagons) never carry
+     * tools; their raw hold[5] also stays. */
+    /* bugs.md #787: the cargo-carrier test here must be the @UNIT cargo
+     * column, not units_is_transport — that predicate also demands the unit
+     * be on the map, so an off-map (aboard / in-Europe) Wagon Train fell
+     * into the pioneer-tools arm and could zero its raw hold[5]. */
+    if (!units_is_sea(units, src->id) && !carries_goods) {
+      const uint8_t raw5 = src->col1_hold_raw_valid ? src->col1_hold_raw[9] : 0u;
+      if (raw5 <= 100u) {
+        if (src->tools > 0) {
+          dst->cargo_hold[5] = (uint8_t)(src->tools <= 100 ? src->tools : 100);
+        } else if (src->col1_hold_raw_valid) {
+          dst->cargo_hold[5] = 0; /* tools fully consumed in the port */
+        }
+      }
+    } else if (src->tools > 0 && src->aboard_ship_id >= 0 && dst->cargo_hold[5] == 0) {
+      dst->cargo_hold[5] = (uint8_t)(src->tools <= 100 ? src->tools : 100);
+    }
+    /*
+     * Wagon village-errand latch back into DOS +0x3158 = record +0x14 =
+     * cargo_hold[4] (see the apply side and ai_euro.h for the address
+     * arithmetic). Type-gated exactly as DOS gates it: only 0x0c. A Wagon
+     * Train has 2 holds, so slot 4 is never reached by the goods packing
+     * above; the restored raw byte it overwrites is this same latch, which
+     * apply seeded verbatim, so an untouched DOS wagon round-trips
+     * byte-identically.
+     */
+    if (dst->type == 0x0c) {
+      dst->cargo_hold[4] = (uint8_t)ai_euro_wagon_errand_get(src->id);
+    }
+    dst->transport_chain.next_unit_idx = -1;
+    dst->transport_chain.prev_unit_idx = -1;
+    runtime_to_col1[src->id] = written;
+    stack_order_by_col1[written] = src->tile_stack_order;
+    if (src->id == active_unit_id) {
+      active_col1 = written;
+    }
+    written++;
+  }
+  ctx->written = written; /* ctx write-back */
+  ctx->active_col1 = active_col1;
+}
+
+/* Units: passenger, Europe-hull, loose-land and tile-stack transport chains. */
+COLONIZE_INTERNAL void col1_bridge_capture_unit_chains(Col1CaptureCtx* ctx) {
+  ColonizeUnitPool* units = ctx->units;
+  ColonizeCol1Unit* neu = ctx->neu;
+  uint64_t* stack_order_by_col1 = ctx->stack_order_by_col1;
+  int* runtime_to_col1 = ctx->runtime_to_col1;
+  const int written = ctx->written;
+  /* Wire passenger → ship chains (pax0→pax1→…→ship). */
+  for (int i = 0; i < units_slot_end(units); ++i) {
+    const ColonizeUnit* ship = &units->units[i];
+    if (!ship->active || ship->cargo_count <= 0) {
+      continue;
+    }
+    const int ship_ci = (ship->id >= 0 && ship->id <= units->next_id) ? runtime_to_col1[ship->id]
+                                                                      : -1;
+    if (ship_ci < 0) {
+      continue;
+    }
+    int last = -1;
+    for (int c = 0; c < ship->cargo_count; ++c) {
+      const int pid = ship->cargo_ids[c];
+      if (pid < 0 || pid > units->next_id) {
+        continue;
+      }
+      const int pci = runtime_to_col1[pid];
+      if (pci < 0) {
+        continue;
+      }
+      if (last >= 0) {
+        neu[last].transport_chain.next_unit_idx = (int16_t)pci;
+        neu[pci].transport_chain.prev_unit_idx = (int16_t)last;
+      } else {
+        neu[pci].transport_chain.prev_unit_idx = -1;
+      }
+      last = pci;
+    }
+    if (last >= 0) {
+      neu[last].transport_chain.next_unit_idx = (int16_t)ship_ci;
+      neu[ship_ci].transport_chain.prev_unit_idx = (int16_t)last;
+      neu[ship_ci].transport_chain.next_unit_idx = -1;
+    }
+  }
+
+  /* FUN_1427_02ca / 005c also link ships sharing a Europe sentinel tile.
+   * Passenger chains above end at their hull; join those hulls in physical
+   * arrival order, keeping each passenger chain intact. 1533->1534 has two
+   * Spanish hulls at (234,234), with a colonist preceding the first one.
+   * Fresh 1585 retains an existing 40->4 chain after both hulls move from
+   * (246,246) to (242,242), rather than sorting it by record index. */
+  for (int i = 0; i < written; ++i) {
+    if (neu[i].x < 200 || neu[i].y < 200 || neu[i].type < 13 || neu[i].type > 18) {
+      continue;
+    }
+    bool first = true;
+    for (int j = 0; j < i; ++j) {
+      if (neu[j].type >= 13 && neu[j].type <= 18 && neu[j].x == neu[i].x &&
+          neu[j].y == neu[i].y && neu[j].nation_id == neu[i].nation_id) {
+        first = false;
+        break;
+      }
+    }
+    if (!first) {
+      continue;
+    }
+    int hull[COLONIZE_UNITS_MAX];
+    int hn = 0;
+    for (int j = i; j < written && hn < COLONIZE_UNITS_MAX; ++j) {
+      if (neu[j].type < 13 || neu[j].type > 18 || neu[j].x != neu[i].x ||
+          neu[j].y != neu[i].y || neu[j].nation_id != neu[i].nation_id) {
+        continue;
+      }
+      int at = hn;
+      while (at > 0 && stack_order_by_col1[hull[at - 1]] > stack_order_by_col1[j]) {
+        hull[at] = hull[at - 1];
+        --at;
+      }
+      hull[at] = j;
+      ++hn;
+    }
+    for (int h = 0; h + 1 < hn; ++h) {
+      int root = hull[h + 1];
+      for (int guard = 0; guard < written && neu[root].transport_chain.prev_unit_idx >= 0;
+           ++guard) {
+        root = neu[root].transport_chain.prev_unit_idx;
+      }
+      neu[hull[h]].transport_chain.next_unit_idx = (int16_t)root;
+      neu[root].transport_chain.prev_unit_idx = (int16_t)hull[h];
+    }
+  }
+
+  /* DOS also chains loose land units sharing a nation's Europe sentinel
+   * tile. A fresh 1545→1546 load links Spanish soldiers 43→46 at (238,238)
+   * even though neither is aboard a ship. Passenger and hull chains above
+   * already own their members, so only link still-unattached land records.
+   * FUN_1427_02ca links each arrival on top (old top +0x315c = new), so
+   * next runs oldest to newest by arrival (DOSBox 1545: 02ca links the new
+   * Dragoon 46 onto 43). */
+  for (int i = 0; i < written; ++i) {
+    if (neu[i].x < 200 || neu[i].y < 200 || neu[i].type >= 13 ||
+        neu[i].transport_chain.prev_unit_idx >= 0 ||
+        neu[i].transport_chain.next_unit_idx >= 0) {
+      continue;
+    }
+    int group[COLONIZE_UNITS_MAX];
+    int gn = 0;
+    for (int j = i; j < written && gn < COLONIZE_UNITS_MAX; ++j) {
+      if (neu[j].type >= 13 || neu[j].x != neu[i].x || neu[j].y != neu[i].y ||
+          neu[j].nation_id != neu[i].nation_id ||
+          neu[j].transport_chain.prev_unit_idx >= 0 ||
+          neu[j].transport_chain.next_unit_idx >= 0) {
+        continue;
+      }
+      int at = gn;
+      while (at > 0 && stack_order_by_col1[group[at - 1]] > stack_order_by_col1[j]) {
+        group[at] = group[at - 1];
+        --at;
+      }
+      group[at] = j;
+      ++gn;
+    }
+    for (int k = 0; k + 1 < gn; ++k) {
+      neu[group[k]].transport_chain.next_unit_idx = (int16_t)group[k + 1];
+      neu[group[k + 1]].transport_chain.prev_unit_idx = (int16_t)group[k];
+    }
+  }
+
+  /*
+   * bugs.md interop: DOS tile stacks ARE this chain. FUN_1427_02ca appends
+   * arrivals to +0x315c/+0x315e; FUN_1427_0002 follows +0x315c to the tail,
+   * which FUN_281f_07e0 returns as the tile head. Keep runtime arrival
+   * order when exporting so save/load preserves the head in mixed stacks.
+   * Europe-sentinel records (x >= 200) keep their dedicated lane chains.
+   */
+  {
+    bool* chained = calloc((size_t)(written > 0 ? written : 1), sizeof(bool));
+    if (chained) {
+      for (int i = 0; i < written; ++i) {
+        if (chained[i] || neu[i].x >= 200 || neu[i].y >= 200) {
+          continue;
+        }
+        int group[COLONIZE_UNITS_MAX];
+        int gn = 0;
+        for (int j = i; j < written; ++j) {
+          if (chained[j] || neu[j].x != neu[i].x || neu[j].y != neu[i].y) {
+            continue;
+          }
+          if (gn >= COLONIZE_UNITS_MAX) {
+            break;
+          }
+          /* Stable insertion sort; zero-order hand-built records retain
+           * their record order, while live arrivals follow the DOS tail. */
+          int at = gn;
+          while (at > 0 && stack_order_by_col1[group[at - 1]] > stack_order_by_col1[j]) {
+            group[at] = group[at - 1];
+            --at;
+          }
+          group[at] = j;
+          ++gn;
+        }
+        for (int g = 0; g < gn; ++g) {
+          chained[group[g]] = true;
+          neu[group[g]].transport_chain.prev_unit_idx =
+            (int16_t)(g > 0 ? group[g - 1] : -1);
+          neu[group[g]].transport_chain.next_unit_idx =
+            (int16_t)(g + 1 < gn ? group[g + 1] : -1);
+        }
+      }
+      free(chained);
+    }
+  }
+}
+
+/* Units: Europe dock rows with no mirror unit. */
+COLONIZE_INTERNAL void col1_bridge_capture_dock_rows(Col1CaptureCtx* ctx) {
+  ColonizeUnitPool* units = ctx->units;
+  const EuropeScreen* europe = ctx->europe;
+  const int human_nation = ctx->human_nation;
+  const int capacity = ctx->capacity;
+  ColonizeCol1Unit* neu = ctx->neu;
+  int written = ctx->written;
+  /*
+   * Europe dock rows that have no mirror unit behind them.
+   *
+   * col1_bridge_apply's rule (see the import path) is that every dock
+   * immigrant also exists in the pool as a unit parked at (236,236),
+   * because capture only walks the pool. Only three paths honour it:
+   * turn.c's crosses immigrant, units.c's Brewster pick and the import
+   * itself. Every other way a colonist reaches the dock pushes a row and
+   * nothing else — Recruit (paid and free), Train, Purchase, the harbor
+   * 0718 spawn, europe_disembark_passengers_to_dock (every passenger a
+   * ship brings home, whose pool unit units_despawn_ship_with_cargo has
+   * just destroyed), the King's mercenary Veteran Soldiers and a unit sent
+   * home by ai_diplo. Nothing then recorded those immigrants in the file,
+   * so a save/load deleted them outright.
+   *
+   * Rather than chase the producers, reconcile here: claim one dock row for
+   * every human mirror the pool walk above already exported (by profession
+   * first, so an armed or trained immigrant matches its own row), then
+   * write the unclaimed rows out as records of their own in the same dock
+   * lane the mirrors use. Import re-creates both halves, so the next save
+   * finds them in the pool and this loop goes quiet.
+   * Smell audit 2026-09-10 F2.
+   */
+  if (europe && human_nation >= 0 && human_nation < 4 && europe->dock_count > 0) {
+    const uint8_t n = (uint8_t)human_nation;
+    const int rows =
+      europe->dock_count < EUROPE_DOCK_MAX ? europe->dock_count : EUROPE_DOCK_MAX;
+    bool claimed[EUROPE_DOCK_MAX];
+    for (int r = 0; r < EUROPE_DOCK_MAX; ++r) {
+      claimed[r] = false;
+    }
     for (int i = 0; i < units_slot_end(units); ++i) {
-      const ColonizeUnit* src = &units->units[i];
-      if (!src->active) {
+      const ColonizeUnit* u = &units->units[i];
+      /* The same shape europe_remove_dock_mirror_unit matches on. */
+      if (!u->active || (u->nation_id & 0xF) != human_nation || u->x != EUROPE_PARK_XY || u->y != EUROPE_PARK_XY ||
+          u->aboard_ship_id >= 0 || units_is_sea(units, u->id)) {
+        continue;
+      }
+      int pick = -1;
+      for (int r = 0; r < rows && pick < 0; ++r) {
+        if (!claimed[r] && europe->dock[r].present &&
+            europe->dock[r].profession == u->profession) {
+          pick = r;
+        }
+      }
+      for (int r = 0; r < rows && pick < 0; ++r) {
+        if (!claimed[r] && europe->dock[r].present) {
+          pick = r;
+        }
+      }
+      if (pick >= 0) {
+        claimed[pick] = true;
+      }
+    }
+    for (int r = 0; r < rows; ++r) {
+      if (claimed[r] || !europe->dock[r].present || written >= capacity) {
+        continue;
+      }
+      const EuropeDockImmigrant* row = &europe->dock[r];
+      int ti = europe_dock_unit_type_index(units, row->dos_type);
+      if (ti < 0) {
+        ti = units_kind_type_index(units, UNITS_KIND_COLONIST);
+      }
+      if (ti < 0) {
         continue;
       }
       ColonizeCol1Unit* dst = &neu[written];
       memset(dst, 0, sizeof(*dst));
-      dst->x = (uint8_t)src->x;
-      dst->y = (uint8_t)src->y;
-      /* Port-internal dock mirrors live at literal (236,236); the DOS dock
-       * lane is per-nation 236+n (french-campaign originals carry 237). */
-      if (src->x == EUROPE_PARK_XY && src->y == EUROPE_PARK_XY && (src->nation_id & 0xF) < 4) {
-        dst->x = (uint8_t)(EUROPE_PARK_XY + (src->nation_id & 3));
-        dst->y = dst->x;
-      }
-      dst->type = (uint8_t)(src->type_index < 0 ? 0 : src->type_index);
-      dst->nation_id = (uint8_t)(src->nation_id & 0xF);
-      {
-        /* DOS fog draw: (0x10<<viewer) & vis_mask. Live mask (reveal marks,
-         * move resets). Ordinary Euro map units carry their owner bit, but
-         * FUN_43f7_0982 stamps freshly landed REF units with the target bit
-         * only (raw 74142/74210); do not synthesize the crown bit on export.
-         * Europe sentinel units (x/y >= 200) carry vis 0 in every original
-         * DOS save (french-campaign survey 2026-09-03) — except a damaged
-         * hull FUN_5fef_0352 parked there (bit7 set): the relocation leaves
-         * its mask alone (DOSBox independence 6->7: the crown Man-O-War at
-         * 236,236 saves vis 9). */
-        const int nat = src->nation_id & 0xF;
-        /* The crown is the withdrawn slot until the declaration; after it DOS
-         * sets that slot's control to 1 (AI) and withdraws the others
-         * (independence-seed-100 000003), so name it by the King's slot. */
-        const bool crown =
-          nat >= 0 && nat < 4 &&
-          (ai_king_independence_declared(save)
-             ? nat == ai_king_crown_nation_col1(save, (int)save->head.human_player)
-             : save->player[nat].control == 2);
-        uint8_t vis = (uint8_t)(src->col1_vis_mask & 0x0Fu);
-        if (src->x >= 200 || src->y >= 200) {
-          if ((src->col1_flags15 & 0x80u) == 0) {
-            vis = 0;
-          }
-        } else if (nat >= 0 && nat < 4 && !crown) {
-          vis = (uint8_t)(vis | (1u << (nat & 3)));
-        }
-        dst->vis_mask = vis;
-      }
-      {
-        /*
-         * Col1 +0x05 = moves_spent in thirds. Euro units export
-         * max_mp - moves (units aboard a ship always 0, like COLONY00);
-         * natives export the literal byte (Brave engine keeps DOS spent in
-         * moves).
-         */
-        const ColonizeUnitType* ut = units_type(units, src->type_index);
-        if (src->nation_id >= 0 && src->nation_id <= 3) {
-          /* Symmetric with the import above (col1_bridge_unit_max_mp): read
-           * Magellan off `save`, not the units module's optional FF global. */
-          const int max_mp = col1_bridge_unit_max_mp(ut, src->nation_id, save);
-          int spent = 0;
-          if (src->aboard_ship_id >= 0) {
-            /* A passenger's byte is whatever it carried aboard: DOS never
-             * rewrites +0x3149 in the hold (bugs.md #544). A live `moves`
-             * means it was woken aboard; the park zero means aboard_moves
-             * (-1 = nothing spent). */
-            const int left = src->moves > 0 ? src->moves
-                             : (src->aboard_moves >= 0 ? src->aboard_moves : max_mp);
-            spent = max_mp > left ? max_mp - left : 0;
-          } else if (src->moves <= 0) {
-            /*
-             * Transports follow exactly the same ladder as land units. The
-             * arm that used to sit above this one — "any transport whose
-             * orders are not goto/sail exports 0" — made everything below
-             * unreachable for ships and wagons, so a ship the player had
-             * moved two of its four tiles saved as spent 0 and reloaded with
-             * a full turn. It cited COLONY00's idle Merchantman, but nothing
-             * in the record distinguishes idle from spent, and DOS does not
-             * blank the byte: across the 47 original saves, 104 of the 254
-             * on-map Euro transports carrying non-goto orders have a nonzero
-             * spent byte (COLONY00-original unit 2, the very Merchantman,
-             * carries 18; dutch-campaign COLONY01 unit 35 Caravel 15, unit 36
-             * Wagon Train 6). AI ships never tripped it because their orders
-             * are 11/12, which is why the TURN goldens stayed quiet.
-             * Smell audit 2026-09-10 F1.
-             */
-            /*
-             * Exhausted: the whole allotment is gone, so the spent byte is
-             * the allotment. DOS clears spent only at the TOP of a calendar
-             * tick (year_loop mid-pass, DS:0x3149 loop) — NOT when a nation's
-             * day ends: every human-side original save carries live spent
-             * bytes for the AI nations that already acted this tick
-             * (valid-lategame COLONY02 nation 1: 11 Dragoons at 12 thirds =
-             * their full 4-tile allotment; dutch2-t0 nations 0/1 likewise,
-             * with 13..19 where DOS's overspend ADD ran past max). Exporting
-             * 0 here refunded a full turn of movement to every exhausted land
-             * unit on save+reload (smell #75). Sentry/Fortified keep their
-             * real MP overnight (bugs.md #715), so a zero is always a spend.
-             */
-            spent = max_mp - src->moves; /* < 0 = DOS overspend past the allotment */
-          } else if (src->moves < max_mp) {
-            spent = max_mp - src->moves;
-          }
-          dst->moves = (uint8_t)(spent < 0 ? 0 : (spent > 255 ? 255 : spent));
-        } else {
-          dst->moves = (uint8_t)(src->moves < 0 ? 0 : src->moves);
-        }
-      }
-      if (src->aboard_ship_id >= 0) {
-        dst->orders = UNITS_ORDER_SENTRY; /* sentry if aboard */
-      } else if (src->orders != UNITS_ORDER_NONE) {
-        dst->orders = (uint8_t)src->orders;
-      } else {
-        dst->orders = UNITS_ORDER_NONE;
-      }
-      /* Goto: the stored +0x314d/e bytes, whatever the orders. DOS leaves them
-       * alone on an idle transport (independence-seed-100 000001: Dutch
-       * Merchantman on orders 0 keeps goto (50,51) one tile off; the old
-       * "idle ship goto == xy" export rewrote it). */
-      {
-        const bool goto_none = src->goto_x == UNITS_GOTO_NONE || src->goto_y == UNITS_GOTO_NONE ||
-                               src->goto_x < 0 || src->goto_y < 0;
-        if (goto_none) {
-          dst->goto_x = 0;
-          dst->goto_y = 0;
-        } else {
-          dst->goto_x = (uint8_t)src->goto_x;
-          dst->goto_y = (uint8_t)src->goto_y;
-        }
-      }
-      {
-        /* FUN_1427_06b4: transports (cargo>0) always profession 0. */
-        const ColonizeUnitType* ut = units_type(units, src->type_index);
-        if (ut && ut->cargo > 0) {
-          dst->profession = 0;
-        } else {
-          dst->profession = (uint8_t)(src->profession < 0 ? UNITS_JOB_NONE : src->profession);
-        }
-        /*
-         * A unit running a trade route (orders 2) has no profession, so DOS
-         * reuses this very byte (unit +0x17, DS:0x315b) as the route cursor:
-         * FUN_1427_0f64/0f74 own the low nibble (trade_route[] slot 0..11)
-         * and FUN_1427_0f8e/0fa0 the high nibble (stop index), which is what
-         * FUN_479b_0bd0 reads to bind DS:0x9e14/0x9e18 before servicing a
-         * stop. The port keeps the pair unpacked at runtime (follow_unit_id =
-         * slot, col1_counter16 = stop); without this the slot was never written
-         * to the file at all, so every reload dropped the wagon/ship off its
-         * route and it just sat in the activation queue (bugs.md
-         * trade_route_wagon.SAV).
-         */
-        if (dst->orders == (uint8_t)UNITS_ORDER_TRADE_ROUTE) {
-          const bool unit_sea = ut && ut->domain == COLONIZE_UNIT_DOMAIN_SEA;
-          if (col1_bridge_trade_cursor_valid(save, src->follow_unit_id, unit_sea)) {
-            const int stop =
-              col1_bridge_trade_cursor_stop(save, src->follow_unit_id, src->col1_counter16);
-            dst->profession = (uint8_t)(((stop & 0xf) << 4) | (src->follow_unit_id & 0xf));
-          } else {
-            /* Symmetry with apply: a cursor the decoder would reject must not
-             * be written with orders 2 behind it, or the automation is dropped
-             * at load time instead of at save time. DOS never reaches this
-             * state (FUN_647e_1486 clears order 2 off units whose route is
-             * deleted), so writing the idle unit is the DOS-consistent
-             * outcome, and it is exactly what apply would have produced. */
-            dst->orders = UNITS_ORDER_NONE;
-          }
-        }
-      }
-      dst->col1_counter16 =
-        (uint8_t)(src->col1_counter16 < 0 ? 0 : (src->col1_counter16 > 255 ? 255 : src->col1_counter16));
-      /* Unpack col1_flags15's raw byte into the 8 named single-bit fields
-       * (was one unknown15_lo:7 blob; see col1_save.h). */
-      dst->unknown15_bit0 = (src->col1_flags15 & 0x01u) != 0 ? 1u : 0u;
-      dst->roam_reeval_pending = (src->col1_flags15 & 0x02u) != 0 ? 1u : 0u;
-      dst->stack_has_founders_or_military = (src->col1_flags15 & 0x04u) != 0 ? 1u : 0u;
-      dst->stack_has_military = (src->col1_flags15 & 0x08u) != 0 ? 1u : 0u;
-      dst->wander_dest_chosen = (src->col1_flags15 & 0x10u) != 0 ? 1u : 0u;
-      dst->garrison_request_pending = (src->col1_flags15 & 0x20u) != 0 ? 1u : 0u;
-      dst->bound_in_transit = (src->col1_flags15 & 0x40u) != 0 ? 1u : 0u;
-      dst->ship_damaged = (src->col1_flags15 & 0x80u) != 0 ? 1u : 0u;
-      /* Natives: origin = home tribe index / 0xff. Euro units: home colony
-       * index (COL1 +0x06, the byte 20e6's haul band and colony tick bind) —
-       * col1_origin is now live AI state (spawn inits it to 0xff, the load
-       * matrix / 457e walk / colony tick write it), so export it verbatim. */
-      if ((src->nation_id & 0xF) < 4) {
-        /* col1_origin holds the colony id; DOS stores the array index, and a
-         * deleted colony compacts the array (raw 58156-58200). */
-        dst->origin = src->col1_origin;
-        if (colonies && src->col1_origin < 0x80) {
-          int idx = 0;
-          int found = -1;
-          for (int ci = 0; ci < COLONIZE_COLONIES_MAX && found < 0; ++ci) {
-            const ColonizeColony* c = &colonies->colonies[ci];
-            if (!c->active) {
-              continue;
-            }
-            if (c->id == (int)src->col1_origin) {
-              found = idx;
-            }
-            idx++;
-          }
-          dst->origin = found >= 0 ? (uint8_t)found : 0xff;
-        }
-      } else {
-        dst->origin =
-          (uint8_t)(src->home_tribe_id < 0 || src->home_tribe_id > 255 ? 0xff
-                                                                      : (src->home_tribe_id & 0xff));
-      }
-      dst->ai_plan =
-        src->col1_ai_plan != 0 ? src->col1_ai_plan : COL1_UNIT_UNKNOWN16_HI_DEFAULT;
-      /* Full signed DOS facing byte unit+0x314f (-1 none, 8 stay; bugs.md #1046). */
-      dst->facing = (uint8_t)src->last_dir & 7u;
-      dst->facing_pad = (uint8_t)((uint8_t)src->last_dir >> 3);
-      memset(dst->cargo_hold, 0, sizeof(dst->cargo_hold));
-      if (src->col1_hold_raw_valid) {
-        /*
-         * Restore the raw DOS +0x0c..+0x15 bytes stashed at apply (units.h).
-         * DOS repurposes this region on land units (french-campaign
-         * originals 2026-09-03: braves carry a per-settlement counter in
-         * hold[2]; the 196/216/236 family lives in hold[5] on land units
-         * and ships alike), and keeps stale goods bytes beyond
-         * holds_occupied. Live goods below overwrite only the slots the
-         * port actually models.
-         */
-        memcpy(&dst->holds_occupied, src->col1_hold_raw, sizeof(src->col1_hold_raw));
-      }
-      const ColonizeUnitType* cap_type = units_type(units, src->type_index);
-      const bool carries_goods = cap_type && cap_type->cargo > 0;
-      {
-        /* Pack goods into nibble fields + amounts. Passengers are not goods. */
-        int gi = 0;
-        for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX && gi < 6; ++h) {
-          const int amt = src->hold_goods_amount[h];
-          if (amt <= 0 || amt >= 255) {
-            continue;
-          }
-          int t = src->hold_goods_type[h];
-          if (t < 0) {
-            t = 0;
-          }
-          if (t > 15) {
-            t = 15;
-          }
-          dst->cargo_hold[gi] = (uint8_t)amt;
-          col1_unit_set_cargo_item(dst, gi, t);
-          gi++;
-        }
-        /* Empty-hold sentinel: DOS starters carry 255 on Euro units only —
-         * original braves store 0 (or their live counter) in hold[2]. */
-        if (gi == 0 && !src->col1_hold_raw_valid && src->nation_id < 4) {
-          dst->cargo_hold[2] = 255; /* COL1 empty-hold sentinel seen in starters */
-        }
-        /*
-         * Goods only — passengers live in transport_chain (not hold slots).
-         * bugs.md #844: when the port modelled no goods (gi == 0) and a raw
-         * +0xc..+0x15 block was stashed at apply, leave the just-restored
-         * raw holds_occupied byte alone instead of stamping 0 over it —
-         * DOS repurposes +0xc on native units (hold[2] per-settlement
-         * counter neighbours it) and the port has no model for that byte.
-         */
-        if (gi > 0 || !src->col1_hold_raw_valid) {
-          dst->holds_occupied = (uint8_t)gi;
-        }
-        /*
-         * campaign4 trade-route regression: a carrier that emptied since
-         * apply kept the stale holds_occupied the raw restore re-emitted, so
-         * the next load handed it phantom goods. The count is the runtime's;
-         * the slot bytes past it stay as restored — DOS's own remover
-         * (FUN_15eb_317c) shifts the slots down and decrements +0x3150
-         * without clearing anything, so stale amounts past the count are
-         * DOS's normal state (seed-100 idle campaign: an empty Merchantman
-         * keeps the starter 255 in hold[2]). Every reader gates on the count.
-         */
-        if (carries_goods && src->col1_hold_raw_valid) {
-          dst->holds_occupied = (uint8_t)gi;
-        }
-      }
-      /* DOS pioneer tools = cargo_hold[5] (FUN_479b_0158). Keep actual count.
-       * A stashed hold[5] > 100 is the repurposed DOS byte, never tools —
-       * leave the restored raw value alone. Transports (wagons) never carry
-       * tools; their raw hold[5] also stays. */
-      /* bugs.md #787: the cargo-carrier test here must be the @UNIT cargo
-       * column, not units_is_transport — that predicate also demands the unit
-       * be on the map, so an off-map (aboard / in-Europe) Wagon Train fell
-       * into the pioneer-tools arm and could zero its raw hold[5]. */
-      if (!units_is_sea(units, src->id) && !carries_goods) {
-        const uint8_t raw5 = src->col1_hold_raw_valid ? src->col1_hold_raw[9] : 0u;
-        if (raw5 <= 100u) {
-          if (src->tools > 0) {
-            dst->cargo_hold[5] = (uint8_t)(src->tools <= 100 ? src->tools : 100);
-          } else if (src->col1_hold_raw_valid) {
-            dst->cargo_hold[5] = 0; /* tools fully consumed in the port */
-          }
-        }
-      } else if (src->tools > 0 && src->aboard_ship_id >= 0 && dst->cargo_hold[5] == 0) {
-        dst->cargo_hold[5] = (uint8_t)(src->tools <= 100 ? src->tools : 100);
-      }
-      /*
-       * Wagon village-errand latch back into DOS +0x3158 = record +0x14 =
-       * cargo_hold[4] (see the apply side and ai_euro.h for the address
-       * arithmetic). Type-gated exactly as DOS gates it: only 0x0c. A Wagon
-       * Train has 2 holds, so slot 4 is never reached by the goods packing
-       * above; the restored raw byte it overwrites is this same latch, which
-       * apply seeded verbatim, so an untouched DOS wagon round-trips
-       * byte-identically.
-       */
-      if (dst->type == 0x0c) {
-        dst->cargo_hold[4] = (uint8_t)ai_euro_wagon_errand_get(src->id);
-      }
-      dst->transport_chain.next_unit_idx = -1;
+      /* Same lane and byte shape the French originals carry on their dock
+       * colonists (COLONY02 units 121-156 at 237,237: orders 1, origin
+       * 0xff, ai_plan 0x58, goto 0, spent 0). */
+      dst->x = (uint8_t)(EUROPE_PARK_XY + n);
+      dst->y = dst->x;
+      dst->type = (uint8_t)ti;
+      dst->nation_id = n;
+      dst->vis_mask = 0; /* Europe sentinel units carry vis 0 in DOS saves */
+      dst->ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
+      dst->origin = 0xff; /* home-colony byte can't survive the Europe screen */
+      dst->orders = UNITS_ORDER_SENTRY; /* dock immigrants sentry — DOS +0x314c = 1 */
+      dst->profession = (uint8_t)(row->profession < 0 ? UNITS_JOB_NONE : row->profession);
       dst->transport_chain.prev_unit_idx = -1;
-      runtime_to_col1[src->id] = written;
-      stack_order_by_col1[written] = src->tile_stack_order;
-      if (src->id == active_unit_id) {
-        active_col1 = written;
-      }
+      dst->transport_chain.next_unit_idx = -1;
       written++;
     }
+  }
+  ctx->written = written; /* ctx write-back */
+}
 
-    /* Wire passenger → ship chains (pax0→pax1→…→ship). */
-    for (int i = 0; i < units_slot_end(units); ++i) {
-      const ColonizeUnit* ship = &units->units[i];
-      if (!ship->active || ship->cargo_count <= 0) {
-        continue;
-      }
-      const int ship_ci = (ship->id >= 0 && ship->id <= units->next_id) ? runtime_to_col1[ship->id]
-                                                                        : -1;
-      if (ship_ci < 0) {
-        continue;
-      }
-      int last = -1;
-      for (int c = 0; c < ship->cargo_count; ++c) {
-        const int pid = ship->cargo_ids[c];
-        if (pid < 0 || pid > units->next_id) {
+/* Units: human Europe-screen ships (harbor/Bound/Expected lanes) + passengers. */
+COLONIZE_INTERNAL void col1_bridge_capture_europe_lanes(Col1CaptureCtx* ctx) {
+  ColonizeCol1Save* save = ctx->save;
+  ColonizeUnitPool* units = ctx->units;
+  const EuropeScreen* europe = ctx->europe;
+  const int human_nation = ctx->human_nation;
+  const int capacity = ctx->capacity;
+  ColonizeCol1Unit* neu = ctx->neu;
+  int written = ctx->written;
+  /*
+   * Human Europe-screen ships. DOS keeps them as unit records at the
+   * nation's Europe sentinel diagonal (FUN_48d3_007a / 0346 / 03d0):
+   *   236+n  in port (harbor) — FUN_48d3_03d0 never walks this lane, and it
+   *          is where genuine COLONY02 dock colonists sit (237,237)
+   *   228+n  sailing to the New World (Bound), goto = landfall; the last
+   *          westbound lane (232+n -> 228+n -> 224+n -> placed by 048e), and
+   *          where FUN_75c2_235c puts the new-game fleet with counter 0
+   *   244+n  sailing to Europe (Expected), goto = the exit tile
+   * with `col1_counter16` (+0x16) = voyage turns left and passengers chained
+   * pax0→pax1→…→ship, sharing x/y/goto/turns. Harbor passengers were
+   * already disembarked to the docks on arrival (their (236,236) mirror
+   * units are in the pool), so only Expected/Bound carry cargo here.
+   */
+  if (europe && human_nation >= 0 && human_nation < 4) {
+    const uint8_t n = (uint8_t)human_nation;
+    const struct {
+      const EuropeHarborShip* list;
+      int count;
+      uint8_t xy;
+    } lanes[3] = {
+      {europe->harbor, europe->harbor_ships, (uint8_t)(EUROPE_PARK_XY + n)},
+      {europe->bound, europe->bound_ships, (uint8_t)(228 + n)},
+      {europe->expected, europe->expected_ships, (uint8_t)(244 + n)},
+    };
+    for (int li = 0; li < 3; ++li) {
+      for (int si = 0; si < lanes[li].count; ++si) {
+        const EuropeHarborShip* ship = &lanes[li].list[si];
+        int ship_ti = ship->type_index;
+        if (ship_ti < 0) {
+          ship_ti = units_find_type(units, ship->name);
+        }
+        if (ship_ti < 0 || written + 1 + ship->cargo_count > capacity) {
           continue;
         }
-        const int pci = runtime_to_col1[pid];
-        if (pci < 0) {
-          continue;
-        }
-        if (last >= 0) {
-          neu[last].transport_chain.next_unit_idx = (int16_t)pci;
-          neu[pci].transport_chain.prev_unit_idx = (int16_t)last;
-        } else {
-          neu[pci].transport_chain.prev_unit_idx = -1;
-        }
-        last = pci;
-      }
-      if (last >= 0) {
-        neu[last].transport_chain.next_unit_idx = (int16_t)ship_ci;
-        neu[ship_ci].transport_chain.prev_unit_idx = (int16_t)last;
-        neu[ship_ci].transport_chain.next_unit_idx = -1;
-      }
-    }
-
-    /* FUN_1427_02ca / 005c also link ships sharing a Europe sentinel tile.
-     * Passenger chains above end at their hull; join those hulls in physical
-     * arrival order, keeping each passenger chain intact. 1533->1534 has two
-     * Spanish hulls at (234,234), with a colonist preceding the first one.
-     * Fresh 1585 retains an existing 40->4 chain after both hulls move from
-     * (246,246) to (242,242), rather than sorting it by record index. */
-    for (int i = 0; i < written; ++i) {
-      if (neu[i].x < 200 || neu[i].y < 200 || neu[i].type < 13 || neu[i].type > 18) {
-        continue;
-      }
-      bool first = true;
-      for (int j = 0; j < i; ++j) {
-        if (neu[j].type >= 13 && neu[j].type <= 18 && neu[j].x == neu[i].x &&
-            neu[j].y == neu[i].y && neu[j].nation_id == neu[i].nation_id) {
-          first = false;
-          break;
-        }
-      }
-      if (!first) {
-        continue;
-      }
-      int hull[COLONIZE_UNITS_MAX];
-      int hn = 0;
-      for (int j = i; j < written && hn < COLONIZE_UNITS_MAX; ++j) {
-        if (neu[j].type < 13 || neu[j].type > 18 || neu[j].x != neu[i].x ||
-            neu[j].y != neu[i].y || neu[j].nation_id != neu[i].nation_id) {
-          continue;
-        }
-        int at = hn;
-        while (at > 0 && stack_order_by_col1[hull[at - 1]] > stack_order_by_col1[j]) {
-          hull[at] = hull[at - 1];
-          --at;
-        }
-        hull[at] = j;
-        ++hn;
-      }
-      for (int h = 0; h + 1 < hn; ++h) {
-        int root = hull[h + 1];
-        for (int guard = 0; guard < written && neu[root].transport_chain.prev_unit_idx >= 0;
-             ++guard) {
-          root = neu[root].transport_chain.prev_unit_idx;
-        }
-        neu[hull[h]].transport_chain.next_unit_idx = (int16_t)root;
-        neu[root].transport_chain.prev_unit_idx = (int16_t)hull[h];
-      }
-    }
-
-    /* DOS also chains loose land units sharing a nation's Europe sentinel
-     * tile. A fresh 1545→1546 load links Spanish soldiers 43→46 at (238,238)
-     * even though neither is aboard a ship. Passenger and hull chains above
-     * already own their members, so only link still-unattached land records.
-     * FUN_1427_02ca links each arrival on top (old top +0x315c = new), so
-     * next runs oldest to newest by arrival (DOSBox 1545: 02ca links the new
-     * Dragoon 46 onto 43). */
-    for (int i = 0; i < written; ++i) {
-      if (neu[i].x < 200 || neu[i].y < 200 || neu[i].type >= 13 ||
-          neu[i].transport_chain.prev_unit_idx >= 0 ||
-          neu[i].transport_chain.next_unit_idx >= 0) {
-        continue;
-      }
-      int group[COLONIZE_UNITS_MAX];
-      int gn = 0;
-      for (int j = i; j < written && gn < COLONIZE_UNITS_MAX; ++j) {
-        if (neu[j].type >= 13 || neu[j].x != neu[i].x || neu[j].y != neu[i].y ||
-            neu[j].nation_id != neu[i].nation_id ||
-            neu[j].transport_chain.prev_unit_idx >= 0 ||
-            neu[j].transport_chain.next_unit_idx >= 0) {
-          continue;
-        }
-        int at = gn;
-        while (at > 0 && stack_order_by_col1[group[at - 1]] > stack_order_by_col1[j]) {
-          group[at] = group[at - 1];
-          --at;
-        }
-        group[at] = j;
-        ++gn;
-      }
-      for (int k = 0; k + 1 < gn; ++k) {
-        neu[group[k]].transport_chain.next_unit_idx = (int16_t)group[k + 1];
-        neu[group[k + 1]].transport_chain.prev_unit_idx = (int16_t)group[k];
-      }
-    }
-
-    /*
-     * bugs.md interop: DOS tile stacks ARE this chain. FUN_1427_02ca appends
-     * arrivals to +0x315c/+0x315e; FUN_1427_0002 follows +0x315c to the tail,
-     * which FUN_281f_07e0 returns as the tile head. Keep runtime arrival
-     * order when exporting so save/load preserves the head in mixed stacks.
-     * Europe-sentinel records (x >= 200) keep their dedicated lane chains.
-     */
-    {
-      bool* chained = calloc((size_t)(written > 0 ? written : 1), sizeof(bool));
-      if (chained) {
-        for (int i = 0; i < written; ++i) {
-          if (chained[i] || neu[i].x >= 200 || neu[i].y >= 200) {
+        const bool in_port = lanes[li].xy == (uint8_t)(EUROPE_PARK_XY + n);
+        const uint8_t gx = (uint8_t)(in_port ? 0 : ship->exit_x);
+        const uint8_t gy = (uint8_t)(in_port ? 0 : ship->exit_y);
+        const uint8_t turns = (uint8_t)(in_port ? 0 : (ship->turns_left < 0 ? 0 : ship->turns_left));
+        /*
+         * Trade-route cursor across the Atlantic. DOS keeps a route-running
+         * ship on its route while it is in a Europe lane: FUN_48d3_015e
+         * (heading out to the sea lane) and FUN_48d3_007a (landfall) both
+         * rewrite the orders byte only `if (unit+0x08 != 2)`, so orders 2
+         * survives the crossing, and with it the route cursor DOS packs in
+         * the profession byte (+0x17 / DS:0x315b — FUN_1427_0f64 low nibble
+         * = trade_route[] slot, FUN_1427_0f8e high nibble = stop) that
+         * FUN_479b_0bd0 reads to service the Europe stop (dest 999). The
+         * map-unit export does the same packing; without it here, saving
+         * while the ship was mid-Atlantic (or docked in the harbor) dropped
+         * the automation on reload.
+         */
+        const int route_slot = ship->trade_route_plus1 - 1;
+        /* Same rule as the map encoder and both decoders — a lane ship is a
+         * ship, so the route has to be a sea route. */
+        const bool on_route =
+          col1_bridge_trade_cursor_valid(save, route_slot, /*unit_is_sea=*/true);
+        const int route_stop =
+          col1_bridge_trade_cursor_stop(save, route_slot, ship->trade_stop);
+        int last = -1;
+        for (int c = 0; c < ship->cargo_count && c < EUROPE_SHIP_CARGO_MAX; ++c) {
+          int pti = ship->cargo_types[c];
+          if (pti == -2) {
+            pti = units_kind_type_index(units, UNITS_KIND_ARTILLERY);
+          }
+          if (pti < 0) {
             continue;
           }
-          int group[COLONIZE_UNITS_MAX];
-          int gn = 0;
-          for (int j = i; j < written; ++j) {
-            if (chained[j] || neu[j].x != neu[i].x || neu[j].y != neu[i].y) {
-              continue;
+          ColonizeCol1Unit* px = &neu[written];
+          memset(px, 0, sizeof(*px));
+          px->x = lanes[li].xy;
+          px->y = lanes[li].xy;
+          px->type = (uint8_t)pti;
+          px->nation_id = n;
+          px->vis_mask = 0; /* Europe sentinel units carry vis 0 in DOS saves */
+          px->ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
+          px->origin = 0xff;
+          px->orders = UNITS_ORDER_SENTRY; /* sentry aboard */
+          px->goto_x = gx;
+          px->goto_y = gy;
+          px->col1_counter16 = turns;
+          {
+            const ColonizeUnitType* put = units_type(units, pti);
+            const bool treasure = put && units_type_kind(put) == UNITS_KIND_TREASURE;
+            const int prof = ship->cargo_professions[c];
+            if (treasure) {
+              const int gold = ship->cargo_treasure_gold[c];
+              px->profession = (uint8_t)(gold > 0 ? (gold / 100 > 255 ? 255 : gold / 100) : 0);
+            } else {
+              /* bugs.md #902: DOS +0x315b holds 0x1c (UNITS_JOB_NONE) for
+               * a body with no skill, not @JOB 0 (Expert Farmer).
+               * cargo_professions[] defaults to -1 whenever a ship is
+               * pushed without a profession array; siblings at :2722 and
+               * :3040 already use UNITS_JOB_NONE. */
+              px->profession = (uint8_t)(prof < 0 ? UNITS_JOB_NONE : prof);
             }
-            if (gn >= COLONIZE_UNITS_MAX) {
-              break;
-            }
-            /* Stable insertion sort; zero-order hand-built records retain
-             * their record order, while live arrivals follow the DOS tail. */
-            int at = gn;
-            while (at > 0 && stack_order_by_col1[group[at - 1]] > stack_order_by_col1[j]) {
-              group[at] = group[at - 1];
-              --at;
-            }
-            group[at] = j;
-            ++gn;
           }
-          for (int g = 0; g < gn; ++g) {
-            chained[group[g]] = true;
-            neu[group[g]].transport_chain.prev_unit_idx =
-              (int16_t)(g > 0 ? group[g - 1] : -1);
-            neu[group[g]].transport_chain.next_unit_idx =
-              (int16_t)(g + 1 < gn ? group[g + 1] : -1);
+          px->transport_chain.prev_unit_idx = (int16_t)last;
+          px->transport_chain.next_unit_idx = -1;
+          if (last >= 0) {
+            neu[last].transport_chain.next_unit_idx = (int16_t)written;
           }
-        }
-        free(chained);
-      }
-    }
-
-    /*
-     * Europe dock rows that have no mirror unit behind them.
-     *
-     * col1_bridge_apply's rule (see the import path) is that every dock
-     * immigrant also exists in the pool as a unit parked at (236,236),
-     * because capture only walks the pool. Only three paths honour it:
-     * turn.c's crosses immigrant, units.c's Brewster pick and the import
-     * itself. Every other way a colonist reaches the dock pushes a row and
-     * nothing else — Recruit (paid and free), Train, Purchase, the harbor
-     * 0718 spawn, europe_disembark_passengers_to_dock (every passenger a
-     * ship brings home, whose pool unit units_despawn_ship_with_cargo has
-     * just destroyed), the King's mercenary Veteran Soldiers and a unit sent
-     * home by ai_diplo. Nothing then recorded those immigrants in the file,
-     * so a save/load deleted them outright.
-     *
-     * Rather than chase the producers, reconcile here: claim one dock row for
-     * every human mirror the pool walk above already exported (by profession
-     * first, so an armed or trained immigrant matches its own row), then
-     * write the unclaimed rows out as records of their own in the same dock
-     * lane the mirrors use. Import re-creates both halves, so the next save
-     * finds them in the pool and this loop goes quiet.
-     * Smell audit 2026-09-10 F2.
-     */
-    if (europe && human_nation >= 0 && human_nation < 4 && europe->dock_count > 0) {
-      const uint8_t n = (uint8_t)human_nation;
-      const int rows =
-        europe->dock_count < EUROPE_DOCK_MAX ? europe->dock_count : EUROPE_DOCK_MAX;
-      bool claimed[EUROPE_DOCK_MAX];
-      for (int r = 0; r < EUROPE_DOCK_MAX; ++r) {
-        claimed[r] = false;
-      }
-      for (int i = 0; i < units_slot_end(units); ++i) {
-        const ColonizeUnit* u = &units->units[i];
-        /* The same shape europe_remove_dock_mirror_unit matches on. */
-        if (!u->active || (u->nation_id & 0xF) != human_nation || u->x != EUROPE_PARK_XY || u->y != EUROPE_PARK_XY ||
-            u->aboard_ship_id >= 0 || units_is_sea(units, u->id)) {
-          continue;
-        }
-        int pick = -1;
-        for (int r = 0; r < rows && pick < 0; ++r) {
-          if (!claimed[r] && europe->dock[r].present &&
-              europe->dock[r].profession == u->profession) {
-            pick = r;
-          }
-        }
-        for (int r = 0; r < rows && pick < 0; ++r) {
-          if (!claimed[r] && europe->dock[r].present) {
-            pick = r;
-          }
-        }
-        if (pick >= 0) {
-          claimed[pick] = true;
-        }
-      }
-      for (int r = 0; r < rows; ++r) {
-        if (claimed[r] || !europe->dock[r].present || written >= capacity) {
-          continue;
-        }
-        const EuropeDockImmigrant* row = &europe->dock[r];
-        int ti = europe_dock_unit_type_index(units, row->dos_type);
-        if (ti < 0) {
-          ti = units_kind_type_index(units, UNITS_KIND_COLONIST);
-        }
-        if (ti < 0) {
-          continue;
+          last = written;
+          written++;
         }
         ColonizeCol1Unit* dst = &neu[written];
         memset(dst, 0, sizeof(*dst));
-        /* Same lane and byte shape the French originals carry on their dock
-         * colonists (COLONY02 units 121-156 at 237,237: orders 1, origin
-         * 0xff, ai_plan 0x58, goto 0, spent 0). */
-        dst->x = (uint8_t)(EUROPE_PARK_XY + n);
-        dst->y = dst->x;
-        dst->type = (uint8_t)ti;
+        dst->x = lanes[li].xy;
+        dst->y = lanes[li].xy;
+        dst->type = (uint8_t)ship_ti;
         dst->nation_id = n;
         dst->vis_mask = 0; /* Europe sentinel units carry vis 0 in DOS saves */
         dst->ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
         dst->origin = 0xff; /* home-colony byte can't survive the Europe screen */
-        dst->orders = UNITS_ORDER_SENTRY; /* dock immigrants sentry — DOS +0x314c = 1 */
-        dst->profession = (uint8_t)(row->profession < 0 ? UNITS_JOB_NONE : row->profession);
-        dst->transport_chain.prev_unit_idx = -1;
+        dst->orders = on_route ? (uint8_t)UNITS_ORDER_TRADE_ROUTE : 0;
+        if (on_route) {
+          dst->profession = (uint8_t)(((route_stop & 0xf) << 4) | (route_slot & 0xf));
+        }
+        dst->goto_x = gx;
+        dst->goto_y = gy;
+        dst->col1_counter16 = turns;
+        {
+          int gi = 0;
+          for (int h = 0; h < EUROPE_SHIP_CARGO_MAX && gi < 6; ++h) {
+            const int amt = ship->hold_goods_amount[h];
+            int t = ship->hold_goods_type[h];
+            if (amt <= 0) {
+              continue;
+            }
+            if (t < 0) {
+              t = 0;
+            }
+            if (t > 15) {
+              t = 15;
+            }
+            dst->cargo_hold[gi] = (uint8_t)(amt > 255 ? 255 : amt);
+            col1_unit_set_cargo_item(dst, gi, t);
+            gi++;
+          }
+          dst->holds_occupied = (uint8_t)gi;
+        }
+        dst->transport_chain.prev_unit_idx = (int16_t)last;
         dst->transport_chain.next_unit_idx = -1;
+        if (last >= 0) {
+          neu[last].transport_chain.next_unit_idx = (int16_t)written;
+        }
         written++;
       }
     }
-
-    /*
-     * Human Europe-screen ships. DOS keeps them as unit records at the
-     * nation's Europe sentinel diagonal (FUN_48d3_007a / 0346 / 03d0):
-     *   236+n  in port (harbor) — FUN_48d3_03d0 never walks this lane, and it
-     *          is where genuine COLONY02 dock colonists sit (237,237)
-     *   228+n  sailing to the New World (Bound), goto = landfall; the last
-     *          westbound lane (232+n -> 228+n -> 224+n -> placed by 048e), and
-     *          where FUN_75c2_235c puts the new-game fleet with counter 0
-     *   244+n  sailing to Europe (Expected), goto = the exit tile
-     * with `col1_counter16` (+0x16) = voyage turns left and passengers chained
-     * pax0→pax1→…→ship, sharing x/y/goto/turns. Harbor passengers were
-     * already disembarked to the docks on arrival (their (236,236) mirror
-     * units are in the pool), so only Expected/Bound carry cargo here.
-     */
-    if (europe && human_nation >= 0 && human_nation < 4) {
-      const uint8_t n = (uint8_t)human_nation;
-      const struct {
-        const EuropeHarborShip* list;
-        int count;
-        uint8_t xy;
-      } lanes[3] = {
-        {europe->harbor, europe->harbor_ships, (uint8_t)(EUROPE_PARK_XY + n)},
-        {europe->bound, europe->bound_ships, (uint8_t)(228 + n)},
-        {europe->expected, europe->expected_ships, (uint8_t)(244 + n)},
-      };
-      for (int li = 0; li < 3; ++li) {
-        for (int si = 0; si < lanes[li].count; ++si) {
-          const EuropeHarborShip* ship = &lanes[li].list[si];
-          int ship_ti = ship->type_index;
-          if (ship_ti < 0) {
-            ship_ti = units_find_type(units, ship->name);
-          }
-          if (ship_ti < 0 || written + 1 + ship->cargo_count > capacity) {
-            continue;
-          }
-          const bool in_port = lanes[li].xy == (uint8_t)(EUROPE_PARK_XY + n);
-          const uint8_t gx = (uint8_t)(in_port ? 0 : ship->exit_x);
-          const uint8_t gy = (uint8_t)(in_port ? 0 : ship->exit_y);
-          const uint8_t turns = (uint8_t)(in_port ? 0 : (ship->turns_left < 0 ? 0 : ship->turns_left));
-          /*
-           * Trade-route cursor across the Atlantic. DOS keeps a route-running
-           * ship on its route while it is in a Europe lane: FUN_48d3_015e
-           * (heading out to the sea lane) and FUN_48d3_007a (landfall) both
-           * rewrite the orders byte only `if (unit+0x08 != 2)`, so orders 2
-           * survives the crossing, and with it the route cursor DOS packs in
-           * the profession byte (+0x17 / DS:0x315b — FUN_1427_0f64 low nibble
-           * = trade_route[] slot, FUN_1427_0f8e high nibble = stop) that
-           * FUN_479b_0bd0 reads to service the Europe stop (dest 999). The
-           * map-unit export does the same packing; without it here, saving
-           * while the ship was mid-Atlantic (or docked in the harbor) dropped
-           * the automation on reload.
-           */
-          const int route_slot = ship->trade_route_plus1 - 1;
-          /* Same rule as the map encoder and both decoders — a lane ship is a
-           * ship, so the route has to be a sea route. */
-          const bool on_route =
-            col1_bridge_trade_cursor_valid(save, route_slot, /*unit_is_sea=*/true);
-          const int route_stop =
-            col1_bridge_trade_cursor_stop(save, route_slot, ship->trade_stop);
-          int last = -1;
-          for (int c = 0; c < ship->cargo_count && c < EUROPE_SHIP_CARGO_MAX; ++c) {
-            int pti = ship->cargo_types[c];
-            if (pti == -2) {
-              pti = units_kind_type_index(units, UNITS_KIND_ARTILLERY);
-            }
-            if (pti < 0) {
-              continue;
-            }
-            ColonizeCol1Unit* px = &neu[written];
-            memset(px, 0, sizeof(*px));
-            px->x = lanes[li].xy;
-            px->y = lanes[li].xy;
-            px->type = (uint8_t)pti;
-            px->nation_id = n;
-            px->vis_mask = 0; /* Europe sentinel units carry vis 0 in DOS saves */
-            px->ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
-            px->origin = 0xff;
-            px->orders = UNITS_ORDER_SENTRY; /* sentry aboard */
-            px->goto_x = gx;
-            px->goto_y = gy;
-            px->col1_counter16 = turns;
-            {
-              const ColonizeUnitType* put = units_type(units, pti);
-              const bool treasure = put && units_type_kind(put) == UNITS_KIND_TREASURE;
-              const int prof = ship->cargo_professions[c];
-              if (treasure) {
-                const int gold = ship->cargo_treasure_gold[c];
-                px->profession = (uint8_t)(gold > 0 ? (gold / 100 > 255 ? 255 : gold / 100) : 0);
-              } else {
-                /* bugs.md #902: DOS +0x315b holds 0x1c (UNITS_JOB_NONE) for
-                 * a body with no skill, not @JOB 0 (Expert Farmer).
-                 * cargo_professions[] defaults to -1 whenever a ship is
-                 * pushed without a profession array; siblings at :2722 and
-                 * :3040 already use UNITS_JOB_NONE. */
-                px->profession = (uint8_t)(prof < 0 ? UNITS_JOB_NONE : prof);
-              }
-            }
-            px->transport_chain.prev_unit_idx = (int16_t)last;
-            px->transport_chain.next_unit_idx = -1;
-            if (last >= 0) {
-              neu[last].transport_chain.next_unit_idx = (int16_t)written;
-            }
-            last = written;
-            written++;
-          }
-          ColonizeCol1Unit* dst = &neu[written];
-          memset(dst, 0, sizeof(*dst));
-          dst->x = lanes[li].xy;
-          dst->y = lanes[li].xy;
-          dst->type = (uint8_t)ship_ti;
-          dst->nation_id = n;
-          dst->vis_mask = 0; /* Europe sentinel units carry vis 0 in DOS saves */
-          dst->ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
-          dst->origin = 0xff; /* home-colony byte can't survive the Europe screen */
-          dst->orders = on_route ? (uint8_t)UNITS_ORDER_TRADE_ROUTE : 0;
-          if (on_route) {
-            dst->profession = (uint8_t)(((route_stop & 0xf) << 4) | (route_slot & 0xf));
-          }
-          dst->goto_x = gx;
-          dst->goto_y = gy;
-          dst->col1_counter16 = turns;
-          {
-            int gi = 0;
-            for (int h = 0; h < EUROPE_SHIP_CARGO_MAX && gi < 6; ++h) {
-              const int amt = ship->hold_goods_amount[h];
-              int t = ship->hold_goods_type[h];
-              if (amt <= 0) {
-                continue;
-              }
-              if (t < 0) {
-                t = 0;
-              }
-              if (t > 15) {
-                t = 15;
-              }
-              dst->cargo_hold[gi] = (uint8_t)(amt > 255 ? 255 : amt);
-              col1_unit_set_cargo_item(dst, gi, t);
-              gi++;
-            }
-            dst->holds_occupied = (uint8_t)gi;
-          }
-          dst->transport_chain.prev_unit_idx = (int16_t)last;
-          dst->transport_chain.next_unit_idx = -1;
-          if (last >= 0) {
-            neu[last].transport_chain.next_unit_idx = (int16_t)written;
-          }
-          written++;
-        }
-      }
-      /* FUN_48d3_007a stamps the sail-to-Europe exit as the return landfall. */
-      if (europe->last_exit_valid) {
-        save->nation[n].return_from_europe_x = (uint8_t)europe->last_exit_x;
-        save->nation[n].return_from_europe_y = (uint8_t)europe->last_exit_y;
-      }
+    /* FUN_48d3_007a stamps the sail-to-Europe exit as the return landfall. */
+    if (europe->last_exit_valid) {
+      save->nation[n].return_from_europe_x = (uint8_t)europe->last_exit_x;
+      save->nation[n].return_from_europe_y = (uint8_t)europe->last_exit_y;
     }
-
-    free(save->unit);
-    save->unit = neu;
-    save->head.unit_count = (uint16_t)written;
-    /*
-     * DS:0x5392 active unit, and the two idle-state words DOS keeps near it.
-     * FUN_2b5a (viceroy_unpacked.c 42308-42317, and its twin at 45449-45458):
-     *   if (0x5392 < 0) { 0x53c6 = 1; if (0x97b0 && !(0x5383 & 8)) 0x53c4 = 0; }
-     *   else            { 0x5390 = 0; 0x53c6 = 0; }
-     * — picking a live unit forces Move Pieces and clears no_unit_selected.
-     *
-     * map_mode is NOT a function of the selection, though: the View Pieces
-     * command (raw 42112) is a bare `0x5390 = 1` that leaves 0x5392 alone, so
-     * "View Pieces with a unit still active" is a real DOS state. Deriving it
-     * from `has_active_unit` (the smell #78 stamp) therefore threw the mode
-     * away on every save and broke the round-trip of the DOS fixtures that
-     * carry it. It is now the live UI word — game_loop's `view_pieces_mode`,
-     * which game_apply_col1_save seeds straight from head.map_mode.
-     *
-     * Fixture tally, all 60 size-valid saves under original_saves/ (head is a
-     * packed image: map_mode @32, active_unit @34, turn_loop_running @82,
-     * map_modal_active @84, no_unit_selected @86):
-     *   - 50 saves with a real active unit: no_unit_selected 0 in every one,
-     *     map_mode 0 in 48 and map_mode **1** in two — original_saves/COLONY01
-     *     (mode 1, active 0x0000) and french-campaign/COLONY09 (mode 1, active
-     *     0x0050), the pair that pins the paragraph above.
-     *   - 7 saves with active_unit 0xffff (dutch COLONY01/08/09/10, french
-     *     COLONY01/03/08): map_mode 1 in all 7; no_unit_selected 1 in three
-     *     (dutch01, french01, french03) and 0 in four (dutch08/09/10,
-     *     french08).
-     * The nus split is DOS's pump phase, not a rule: 42309 raises it on the
-     * idle pass and FUN_2b5a_3752 (raw 46159) then drops map_modal_active,
-     * after which the input loop's `if (0x829 == '\0') 0x53c6 = 0` (raw 6346)
-     * clears it — so (nus 1, modal 1) and (nus 0, modal 0) are the same state
-     * one pass apart. The pair (nus 1, modal 0) appears in no DOS save, and
-     * neither does (nus 0, modal 1) with active_unit 0xffff. Since this
-     * capture must stamp map_modal_active = 1 for DOS interop (see the
-     * turn_loop_running block above), (nus 1, modal 1) is the only coherent
-     * idle state left, and that is what is kept — the "disagrees with the
-     * other saves" lead is a mis-framing: those saves also carry modal 0.
-     */
-    const bool has_active_unit = active_col1 >= 0;
-    save->head.active_unit = has_active_unit ? (uint16_t)active_col1 : 0xffffu;
-    save->head.map_mode = view_pieces_mode ? 1u : 0u;
-    save->head.no_unit_selected = has_active_unit ? 0u : 1u;
-    free(stack_order_by_col1);
-    free(runtime_to_col1);
   }
+  ctx->written = written; /* ctx write-back */
+}
 
+/* Units: install the record array; active unit / map_mode / no_unit_selected. */
+COLONIZE_INTERNAL void col1_bridge_capture_units_commit(Col1CaptureCtx* ctx) {
+  ColonizeCol1Save* save = ctx->save;
+  const bool view_pieces_mode = ctx->view_pieces_mode;
+  ColonizeCol1Unit* neu = ctx->neu;
+  uint64_t* stack_order_by_col1 = ctx->stack_order_by_col1;
+  int* runtime_to_col1 = ctx->runtime_to_col1;
+  const int written = ctx->written;
+  const int active_col1 = ctx->active_col1;
+  free(save->unit);
+  save->unit = neu;
+  save->head.unit_count = (uint16_t)written;
+  /*
+   * DS:0x5392 active unit, and the two idle-state words DOS keeps near it.
+   * FUN_2b5a (viceroy_unpacked.c 42308-42317, and its twin at 45449-45458):
+   *   if (0x5392 < 0) { 0x53c6 = 1; if (0x97b0 && !(0x5383 & 8)) 0x53c4 = 0; }
+   *   else            { 0x5390 = 0; 0x53c6 = 0; }
+   * — picking a live unit forces Move Pieces and clears no_unit_selected.
+   *
+   * map_mode is NOT a function of the selection, though: the View Pieces
+   * command (raw 42112) is a bare `0x5390 = 1` that leaves 0x5392 alone, so
+   * "View Pieces with a unit still active" is a real DOS state. Deriving it
+   * from `has_active_unit` (the smell #78 stamp) therefore threw the mode
+   * away on every save and broke the round-trip of the DOS fixtures that
+   * carry it. It is now the live UI word — game_loop's `view_pieces_mode`,
+   * which game_apply_col1_save seeds straight from head.map_mode.
+   *
+   * Fixture tally, all 60 size-valid saves under original_saves/ (head is a
+   * packed image: map_mode @32, active_unit @34, turn_loop_running @82,
+   * map_modal_active @84, no_unit_selected @86):
+   *   - 50 saves with a real active unit: no_unit_selected 0 in every one,
+   *     map_mode 0 in 48 and map_mode **1** in two — original_saves/COLONY01
+   *     (mode 1, active 0x0000) and french-campaign/COLONY09 (mode 1, active
+   *     0x0050), the pair that pins the paragraph above.
+   *   - 7 saves with active_unit 0xffff (dutch COLONY01/08/09/10, french
+   *     COLONY01/03/08): map_mode 1 in all 7; no_unit_selected 1 in three
+   *     (dutch01, french01, french03) and 0 in four (dutch08/09/10,
+   *     french08).
+   * The nus split is DOS's pump phase, not a rule: 42309 raises it on the
+   * idle pass and FUN_2b5a_3752 (raw 46159) then drops map_modal_active,
+   * after which the input loop's `if (0x829 == '\0') 0x53c6 = 0` (raw 6346)
+   * clears it — so (nus 1, modal 1) and (nus 0, modal 0) are the same state
+   * one pass apart. The pair (nus 1, modal 0) appears in no DOS save, and
+   * neither does (nus 0, modal 1) with active_unit 0xffff. Since this
+   * capture must stamp map_modal_active = 1 for DOS interop (see the
+   * turn_loop_running block above), (nus 1, modal 1) is the only coherent
+   * idle state left, and that is what is kept — the "disagrees with the
+   * other saves" lead is a mis-framing: those saves also carry modal 0.
+   */
+  const bool has_active_unit = active_col1 >= 0;
+  save->head.active_unit = has_active_unit ? (uint16_t)active_col1 : 0xffffu;
+  save->head.map_mode = view_pieces_mode ? 1u : 0u;
+  save->head.no_unit_selected = has_active_unit ? 0u : 1u;
+  free(stack_order_by_col1);
+  free(runtime_to_col1);
+  ctx->neu = NULL; /* ctx write-back: owned by save->unit / freed */
+  ctx->stack_order_by_col1 = NULL;
+  ctx->runtime_to_col1 = NULL;
+}
+
+/* Occupancy/density masks, blank census, new-world discovery. */
+COLONIZE_INTERNAL void col1_bridge_capture_occupancy(Col1CaptureCtx* ctx) {
+  ColonizeCol1Save* save = ctx->save;
+  const ColonizeWorldMap* map = ctx->map;
+  ColonizeUnitPool* units = ctx->units;
+  const ColonizeColonyPool* colonies = ctx->colonies;
+  const int human_nation = ctx->human_nation;
   /*
    * DOS UNITFLAG/COLONYFLAG: mask has_unit/has_city must match pools. Rebuild
    * from live units/colonies + tribe villages (not stale layer2 spawn bits).
@@ -3533,12 +3754,22 @@ bool col1_bridge_capture_w(
 
   /* Blank-template census only — never freshen mid-campaign lag. */
   if (col1_stuff_census_window_is_blank(&save->stuff)) {
-    col1_stuff_census_fill_blank_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .colonies=(ColonizeColonyPool*)(colonies), .col1=(ColonizeCol1Save*)(save), .col1_ok=((save) != NULL)}, &save->stuff);
+    const ColonizeWorld cw = world_make(
+      (ColonizeUnitPool*)units, (ColonizeColonyPool*)colonies, NULL, save, save != NULL, NULL, NULL
+    );
+    col1_stuff_census_fill_blank_w(&cw, &save->stuff);
   }
 
   /* Mid-campaign: do not leave discovery unset for DOS woodcut re-fire. */
   col1_bridge_sync_new_world_discovery(save, map, human_nation);
+}
 
+/* Port extension chunks: VTIN village intel, BQUE build queues. */
+COLONIZE_INTERNAL Col1StageStatus col1_bridge_capture_ext_chunks(Col1CaptureCtx* ctx) {
+  ColonizeCol1Save* save = ctx->save;
+  const ColonizeColonyPool* colonies = ctx->colonies;
+  char* err = ctx->err;
+  const size_t err_size = ctx->err_size;
   /*
    * Port-only sidebar knowledge (village trade/skill rows) into the extension
    * block past the last DOS section. DOS never sees it; re-saving in DOS
@@ -3550,7 +3781,7 @@ bool col1_bridge_capture_w(
     const bool put_ok = col1_save_ext_put(save, COLONIZE_COL1_EXT_TAG_VILLAGE_TRADE_INTEL, intel, intel_size);
     free(intel);
     if (!put_ok) {
-      COL1_FAIL(err, err_size, "oom village intel ext chunk");
+      COL1_STAGE_FAIL(err, err_size, "oom village intel ext chunk");
     }
   }
 
@@ -3560,8 +3791,63 @@ bool col1_bridge_capture_w(
     const bool put_ok = col1_save_ext_put(save, COLONIZE_COL1_EXT_TAG_BUILD_QUEUE, q, q_size);
     free(q);
     if (!put_ok) {
-      COL1_FAIL(err, err_size, "oom build queue ext chunk");
+      COL1_STAGE_FAIL(err, err_size, "oom build queue ext chunk");
     }
+  }
+  return COL1_STAGE_OK;
+}
+
+bool col1_bridge_capture_w(
+  const ColonizeWorld* w,
+  uint16_t year,
+  uint16_t autumn,
+  uint32_t turn_number,
+  int human_nation,
+  int cursor_x,
+  int cursor_y,
+  int view_x,
+  int view_y,
+  int active_unit_id,
+  bool view_pieces_mode,
+  char* err,
+  size_t err_size
+) {
+  Col1CaptureCtx ctx = {
+    .save = w->col1,
+    .map = w->map,
+    .units = w->units,
+    .colonies = w->colonies,
+    .europe = w->europe,
+    .err = err,
+    .err_size = err_size,
+    .year = year,
+    .autumn = autumn,
+    .turn_number = turn_number,
+    .human_nation = human_nation,
+    .cursor_x = cursor_x,
+    .cursor_y = cursor_y,
+    .view_x = view_x,
+    .view_y = view_y,
+    .active_unit_id = active_unit_id,
+    .view_pieces_mode = view_pieces_mode,
+  };
+  if (col1_bridge_capture_head(&ctx) != COL1_STAGE_OK) {
+    return false;
+  }
+  col1_bridge_capture_map_planes(&ctx);
+  col1_bridge_capture_nation_europe(&ctx);
+  if (col1_bridge_capture_colonies(&ctx) != COL1_STAGE_OK ||
+      col1_bridge_capture_units_alloc(&ctx) != COL1_STAGE_OK) {
+    return false;
+  }
+  col1_bridge_capture_unit_records(&ctx);
+  col1_bridge_capture_unit_chains(&ctx);
+  col1_bridge_capture_dock_rows(&ctx);
+  col1_bridge_capture_europe_lanes(&ctx);
+  col1_bridge_capture_units_commit(&ctx);
+  col1_bridge_capture_occupancy(&ctx);
+  if (col1_bridge_capture_ext_chunks(&ctx) != COL1_STAGE_OK) {
+    return false;
   }
 
   if (err && err_size) {

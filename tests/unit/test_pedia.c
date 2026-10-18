@@ -3,7 +3,7 @@
 
 #include "../common/test_catalogs.h"
 #include "core/assets.h"
-#include "core/ff.h"
+#include "core/font_file.h"
 #include "core/font.h"
 #include "core/pedia.h"
 #include "core/pik.h"
@@ -345,7 +345,7 @@ static int case_list_render_and_hits(void) {
   ColonizeFont font;
   memset(&font, 0, sizeof(font));
   char ff_err[128];
-  const bool font_ok = ff_load("COLONIZE/FONTTINY.FF", &font, ff_err, sizeof(ff_err));
+  const bool font_ok = font_file_load("COLONIZE/FONTTINY.FF", &font, ff_err, sizeof(ff_err));
   const ColonizeFont* f = font_ok ? &font : NULL;
 
   int rc = 0;
@@ -386,7 +386,7 @@ done:
     pik_free(&wood);
   }
   if (font_ok) {
-    ff_free(&font);
+    font_file_free(&font);
   }
   return rc;
 }

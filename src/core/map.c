@@ -684,7 +684,7 @@ bool map_dos_0598_rumour_tile(const ColonizeWorldMap* map, int x, int y) {
   if (idx == 0x19 || idx == 0x1a || idx == 0x18) {
     return false;
   }
-  const int nib = (int)((map_get_layer3(map, x, y) >> 4) & 0x0fu);
+  const int nib = (int)((map_get_layer3(map, x, y) >> MAP_L3_OWNER_SHIFT) & MAP_L3_OWNER_MASK);
   if (nib != 0x0f) {
     return false;
   }
@@ -1161,7 +1161,7 @@ int map_continent_id_at(const ColonizeWorldMap* map, int x, int y) {
   if (map_tile_is_water(map, x, y) || map_tile_is_high_seas(map, x, y)) {
     return -1;
   }
-  return (int)(map_get_layer3(map, x, y) & 0x0fu);
+  return (int)(map_get_layer3(map, x, y) & MAP_L3_CONTINENT_MASK);
 }
 
 /*
@@ -1185,7 +1185,7 @@ bool map_tile_is_lake(const ColonizeWorldMap* map, int x, int y) {
   if (map_pedia_terrain_index_at(map, x, y) != 25) {
     return false;
   }
-  return (int)(map_get_layer3(map, x, y) & 0x0fu) != 1;
+  return (int)(map_get_layer3(map, x, y) & MAP_L3_CONTINENT_MASK) != 1;
 }
 
 /*
@@ -1239,7 +1239,7 @@ bool map_tile_is_open_sea_adjacent(const ColonizeWorldMap* map, int x, int y) {
     if (!map_is_ocean_index(map_decode_terrain_index(map_get_terrain(map, nx, ny)))) {
       continue;
     }
-    int region = (int)(map_get_layer3(map, nx, ny) & 0x0fu);
+    int region = (int)(map_get_layer3(map, nx, ny) & MAP_L3_CONTINENT_MASK);
     if (region == 0) {
       region = 0x10; /* raw 9365: region 0 sorts last */
     }
@@ -1259,7 +1259,7 @@ int map_tile_owner_or_presence(const ColonizeWorldMap* map, int x, int y) {
   if ((l2 & MAP_OCCUPANCY_HAS_UNIT) == 0) {
     return -1;
   }
-  const int hi = (int)((map_get_layer3(map, x, y) >> 4) & 0x0fu);
+  const int hi = (int)((map_get_layer3(map, x, y) >> MAP_L3_OWNER_SHIFT) & MAP_L3_OWNER_MASK);
   return hi == 0x0f ? -1 : hi;
 }
 
@@ -1271,7 +1271,7 @@ int map_tile_tribe_or_presence(const ColonizeWorldMap* map, int x, int y) {
   if ((l2 & (MAP_OCCUPANCY_HAS_CITY | MAP_OCCUPANCY_HAS_UNIT)) == 0) {
     return -1;
   }
-  const int hi = (int)((map_get_layer3(map, x, y) >> 4) & 0x0fu);
+  const int hi = (int)((map_get_layer3(map, x, y) >> MAP_L3_OWNER_SHIFT) & MAP_L3_OWNER_MASK);
   return hi == 0x0f ? -1 : hi;
 }
 

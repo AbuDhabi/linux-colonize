@@ -87,7 +87,7 @@ void combat_side_flags_clear(ColonizeCombatSideFlags* f) {
  *
  * Matched by name, not by pool index, because an OpenCol pool index is not a DOS
  * @UNIT id (synthetic test fixtures place Soldier/Dragoon at arbitrary slots);
- * that is the same mapping idiom as ai_euro.c's ai_euro_5d04_dos_type_of.
+ * that is the same mapping idiom as ai_euro_land.c's ai_euro_20e6_dos_type.
  * On the stock roster "Soldier"/"Dragoon" hit exactly types 1 and 4.
  *
  * units_type_kind() is that same @UNIT-row classifier, most-specific first, so

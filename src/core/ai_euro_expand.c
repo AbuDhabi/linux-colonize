@@ -670,7 +670,8 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
     units_mp_exhaust_unit(ctx->units, founder->id); /* FUN_281f_0934 */
   }
   if (cid >= 0) {
-    colonies_reveal_founded_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, cid); /* FUN_364b_1dd6 Coronado */
+    const ColonizeWorld rw = world_from_turn_ctx(ctx);
+    colonies_reveal_founded_w(&rw, cid); /* FUN_364b_1dd6 Coronado */
     units_despawn(ctx->units, founder->id);
     if (ctx->col1_ok && ctx->col1 && nation_id >= 0 && nation_id < 4) {
       /* FUN_479b_0000 bumps only while names remain; the pool counter caps it. */

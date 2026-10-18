@@ -255,13 +255,7 @@ void ai_euro_5952_improve_best_plot(
   if (turn % 7 == 0) {
     return; /* raw 94403: that turn belongs to the road-connect helper */
   }
-  const ColonizeWorld w = (ColonizeWorld){
-    .units = ctx->units,
-    .colonies = ctx->colonies,
-    .map = ctx->map,
-    .col1 = ctx->col1_ok ? ctx->col1 : NULL,
-    .col1_ok = (ctx->col1_ok && ctx->col1) != 0
-  };
+  const ColonizeWorld w = world_from_turn_ctx(ctx);
   const int wants_clear = (col->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR) != 0;
   const int colony_cid = map_continent_id_at(ctx->map, col->x, col->y);
   const int presence = ai_contact_continent_presence_4962(ctx, nation, colony_cid);
@@ -422,9 +416,11 @@ void ai_euro_5952_improve_best_plot(
   units_set_nation(ph, nation); /* 06b4 stamps the visitor nibble (FUN_1427_02ca) */
   ph->tools = UNITS_EQUIP_TOOLS_STEP;
   ph->col1_counter16 = 99; /* +0x315a = 99 */
-  const ColonizeWorld pw = (ColonizeWorld){
-    .units = ctx->units, .colonies = ctx->colonies, .map = ctx->map
-  };
+  /* rng stays NULL as before (bugs.md #1110): the work tick's native-land
+   * charge would otherwise arm the FUN_4cc6_00f2 mission-expel roll on the
+   * AI stream, which this slot never drew from. */
+  ColonizeWorld pw = world_from_turn_ctx(ctx);
+  pw.rng = NULL;
   char err[64];
   int worked = 0;
   const int road_bits = ai_euro_5952_tile_road_or_settlement(ctx->map, tx, ty);
@@ -552,14 +548,7 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
   if (own_here <= 1) {
     return 0;
   }
-  const ColonizeWorld w = (ColonizeWorld){
-    .units = ctx->units,
-    .colonies = ctx->colonies,
-    .map = ctx->map,
-    .rng = ctx->rng,
-    .col1 = ctx->col1_ok ? ctx->col1 : NULL,
-    .col1_ok = (ctx->col1_ok && ctx->col1) != 0
-  };
+  const ColonizeWorld w = world_from_turn_ctx(ctx);
   const int step_cap = (int)ctx->map->width + (int)ctx->map->height;
   for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
     ColonizeColony* other = &ctx->colonies->colonies[ci];
@@ -645,9 +634,8 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
     units_set_nation(ph, nation);
     ph->tools = UNITS_EQUIP_TOOLS_STEP; /* units_is_pioneer gate, see #612 */
     ph->col1_counter16 = 99;            /* +0x315a = 99 */
-    const ColonizeWorld pw = (ColonizeWorld){
-      .units = ctx->units, .colonies = ctx->colonies, .map = ctx->map
-    };
+    ColonizeWorld pw = world_from_turn_ctx(ctx);
+    pw.rng = NULL; /* as in the plow/road slot above: no 00f2 expel roll */
     char err[64];
     g_units_pioneer_0614_colony = NULL;
     const int built = units_pioneer_road_w(&pw, pid, err, sizeof(err), NULL, NULL) ? 1 : 0;
@@ -788,7 +776,7 @@ static int ai_euro_20e6_unit_col9(const ColonizeUnitPool* units, const ColonizeU
 }
 
 int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUnit* u) {
-  const ColonizeUnitType* t = units ? units_type(units, u->type_index) : NULL;
+  const ColonizeUnitType* t = (units && u) ? units_type(units, u->type_index) : NULL;
   if (!t) {
     return -1;
   }
@@ -1218,7 +1206,8 @@ static int ai_euro_20e6_stack_combat_0b(ColonizeTurnContext* ctx, int x, int y) 
 /* FUN_OVL14_L0000__0072d6 → FUN_521d_0906 probe, ≥0 = adjacent foreign claim. */
 static int ai_euro_20e6_probe_adjacent(const ColonizeTurnContext* ctx, int x, int y, int nation) {
   int side = -1;
-  return ai_goals_probe_adjacent_contact_claim_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, x, y, nation, 0, &side);
+  const ColonizeWorld pw = world_from_turn_ctx(ctx);
+  return ai_goals_probe_adjacent_contact_claim_w(&pw, x, y, nation, 0, &side);
 }
 
 /*
@@ -1239,7 +1228,8 @@ static void ai_euro_20e6_explorer_flag(ColonizeTurnContext* ctx, ColonizeUnit* u
         map_dos_dist(u->x - u->goto_x, u->y - u->goto_y) > 12) {
       ex = 1; /* goal (+0x314d/e) more than 12 tiles away */
     }
-    if (ai_goals_colony_balance_flags_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL)}, s->nation, s->cid) > 2) {
+    const ColonizeWorld bw = world_from_turn_ctx(ctx);
+    if (ai_goals_colony_balance_flags_w(&bw, s->nation, s->cid) > 2) {
       ex = 1;
     }
     if (ai_euro_20e6_probe_adjacent(ctx, u->x, u->y, s->nation) >= 0) {
@@ -1282,7 +1272,8 @@ static void ai_euro_20e6_explorer_flag(ColonizeTurnContext* ctx, ColonizeUnit* u
   }
   /* FUN_521d_0600 composite priority (iStack_14, 20e6 prologue), computed for
    * every unit; iStack_6a needs it non-zero. */
-  s->prio14 = ai_goals_composite_unit_priority_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL)}, s->nation, u->x, u->y, t, u->profession, s->turn, colonies_count_for_nation(ctx->colonies, s->nation));
+  const ColonizeWorld cw = world_from_turn_ctx(ctx);
+  s->prio14 = ai_goals_composite_unit_priority_w(&cw, s->nation, u->x, u->y, t, u->profession, s->turn, colonies_count_for_nation(ctx->colonies, s->nation));
   if (ex) {
     const int prio = s->prio14;
     if (prio == 0) {
@@ -2434,16 +2425,12 @@ int ai_euro_20e6_wander_step(
     if (fog_enable) {
       const int fx = u->x + MAP_DIR8_DX[d] * 4;
       const int fy = u->y + MAP_DIR8_DY[d] * 4;
-      if (s->is_ship) {
-        /* raw 88837-88840: the real DS:0x9faa coarse plane, restamped with
-         * this nation's units and colonies at its 0a60 entry. */
-        if (map_coords_inset(ctx->map, fx, fy) && !map_tile_is_water(ctx->map, fx, fy) &&
-            ai_coarse_fog_explore_unseen(fx, fy)) {
-          score += 8;
-        }
-      } else if (map_coords_inset(ctx->map, fx, fy) && !map_tile_is_water(ctx->map, fx, fy) &&
+      /* raw 88834-88841, one arm for ships and land units: the real DS:0x9faa
+       * coarse plane, restamped with this nation's units and colonies at its
+       * 0a60 entry (DOSBox 1503: soldier d0/d4 +8). */
+      if (map_coords_inset(ctx->map, fx, fy) && !map_tile_is_water(ctx->map, fx, fy) &&
           ai_coarse_fog_explore_unseen(fx, fy)) {
-        score += 8; /* DS:0x9faa coarse cell empty (DOSBox 1503: soldier d0/d4 +8) */
+        score += 8;
       }
       /* raw 88842-88844: a ship in the eastern half leans west (dirs SW/W/NW). */
       if (s->is_ship && d >= 5 && d <= 7 && u->x > (int)ctx->map->width / 2) {
@@ -3335,6 +3322,25 @@ int ai_euro_20e6_type_gate_no_manowar(
   return ai_euro_20e6_457e_type_gate(ctx, u, dos_type);
 }
 
+/* Shared entry of the two 3fa6 sail-home triggers below: the 20e6 prologue,
+ * then the ship band (@UNIT 0x0d..0x12) with order byte local_6 (iStack_6)
+ * not 't' / 'i' (raw 88418-88422). 0 = the trigger does not fire. */
+static int ai_euro_20e6_ship_band_entry(
+  ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id, Ai20e6Unit* s
+) {
+  if (!ctx || !ctx->units || !ctx->map || !u || !u->active) {
+    return 0;
+  }
+  if (u->id < 0 || u->id >= COLONIZE_UNITS_MAX) {
+    return 0;
+  }
+  ai_euro_20e6_prologue(ctx, u, nation_id, s);
+  if (s->dos_type < 0xd || s->dos_type > 0x12) {
+    return 0;
+  }
+  return s->order_code != 't' && s->order_code != 'i';
+}
+
 COLONIZE_INTERNAL int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
   int tally[COLONIZE_CARGO_COUNT];
   const int delivery_type = ai_euro_20e6_delivery_tallies(ctx, u, tally);
@@ -3346,19 +3352,9 @@ COLONIZE_INTERNAL int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, Col
 int ai_euro_20e6_457e_hs_cadence_snapshot(
   ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id, int stack_other, int delivery_type
 ) {
-  if (!ctx || !ctx->units || !ctx->map || !u || !u->active) {
-    return 0;
-  }
-  if (u->id < 0 || u->id >= COLONIZE_UNITS_MAX) {
-    return 0;
-  }
   Ai20e6Unit s;
-  ai_euro_20e6_prologue(ctx, u, nation_id, &s);
-  if (s.dos_type < 0xd || s.dos_type > 0x12) {
+  if (!ai_euro_20e6_ship_band_entry(ctx, u, nation_id, &s)) {
     return 0;
-  }
-  if (s.order_code == 't' || s.order_code == 'i') {
-    return 0; /* iStack_6 */
   }
   /* DOS local_a8/local_44 survive unloading and the delivery sell tail. */
   if (stack_other != 0 || delivery_type >= 0) return 0;
@@ -3484,19 +3480,9 @@ int ai_euro_20e6_3fa6_sail_home(ColonizeTurnContext* ctx, ColonizeUnit* u, int n
  * whose queue was growing had no signal at all (bugs.md #954).
  */
 int ai_euro_20e6_europe_dock_demand(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
-  if (!ctx || !ctx->units || !ctx->map || !u || !u->active) {
-    return 0;
-  }
-  if (u->id < 0 || u->id >= COLONIZE_UNITS_MAX) {
-    return 0;
-  }
   Ai20e6Unit s;
-  ai_euro_20e6_prologue(ctx, u, nation_id, &s);
-  if (s.dos_type < 0xd || s.dos_type > 0x12) {
+  if (!ai_euro_20e6_ship_band_entry(ctx, u, nation_id, &s)) {
     return 0;
-  }
-  if (s.order_code == 't' || s.order_code == 'i') {
-    return 0; /* local_6 */
   }
   if (u->cargo_count != 0) {
     return 0; /* local_a8 = stack-1 */

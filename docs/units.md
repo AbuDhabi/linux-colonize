@@ -49,9 +49,9 @@ King's mercenaries stop at the first refusal.
 
 Optional post-win native settlement fallout context for
 units_resolve_land_combat_ff (FUN_5fef_31ea-shaped). When col1/map are non-NULL
-and attacker beats defender nation>=4, units_try_native_settlement_fallout runs.
-conquest_gold: caller-known treasure amount, or -1 → Cortes peels FUN_5fef_31ea
-amount via combat rng (non-Cortes still skips). Pass NULL map to disable.
+and attacker beats defender nation>=4, units_try_native_settlement_fallout runs
+(the treasure amount is its own argument; the old conquest_gold parameter was
+never read and is gone, bugs.md #1105). Pass NULL map to disable.
 
 ## units_set_combat_europe
 

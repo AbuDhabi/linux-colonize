@@ -20,6 +20,9 @@ static void test_timeline(void) {
   OpeningSeries rows[OPENING_SERIES_MAX];
   int end_frame = 0;
   const int n = opening_parse_timeline("COLONIZE", rows, OPENING_SERIES_MAX, &end_frame);
+  int miss_end = -1;
+  check(opening_parse_timeline("no-such-dir", rows, OPENING_SERIES_MAX, &miss_end) == 0 && miss_end == 0,
+        "missing TXT: no series, end frame 0 (no compiled-in copy)");
   check(n == 11, "@OPENING has 11 series");
   check(end_frame == 891, "end marker is frame 891");
   if (n < 11) {

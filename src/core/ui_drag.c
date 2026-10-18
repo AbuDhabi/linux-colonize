@@ -40,6 +40,28 @@ void ui_drag_begin(
   drag->cursor_dirty = true;
 }
 
+/*
+ * CURSOR.SS registration marks: both cursor frames carry a stray index 0x09
+ * (light blue) at the top-right and bottom-left corners of the 17x17 frame -
+ * a sheet-authoring artifact, not art (a scan of every COLONIZE .SS finds the
+ * pair in CURSOR.SS alone, and no other 0x09 pixel in either frame). One
+ * helper for the plain pointer and the drag/Go-To pointer (bugs.md #373,
+ * #1111).
+ */
+static void ui_drag_clear_registration_marks(uint8_t* px, int w, int h) {
+  if (w < 2 || h < 2) {
+    return;
+  }
+  uint8_t* const tr = &px[(size_t)(w - 1)];
+  uint8_t* const bl = &px[(size_t)(h - 1) * (size_t)w];
+  if (*tr == 0x09u) {
+    *tr = COLONIZE_SS_TRANSPARENT;
+  }
+  if (*bl == 0x09u) {
+    *bl = COLONIZE_SS_TRANSPARENT;
+  }
+}
+
 /* Copy a sprite into the drag cursor buffer (clamped to UI_DRAG_CURSOR_MAX). */
 static bool ui_drag_set_cursor_sprite(UiDragSession* drag, const ColonizeSprite* sp) {
   if (!drag || !sp || !sp->pixels || sp->width <= 0 || sp->height <= 0) {
@@ -54,24 +76,7 @@ static bool ui_drag_set_cursor_sprite(UiDragSession* drag, const ColonizeSprite*
       (size_t)w
     );
   }
-  /*
-   * CURSOR.SS registration marks: both cursor frames carry a stray index
-   * 0x09 (light blue) at the top-right and bottom-left corners of the 17x17
-   * frame - a sheet-authoring artifact, not art (a scan of every COLONIZE
-   * .SS finds the pair in CURSOR.SS alone). ui_drag_install_arrow already
-   * dropped them for the plain pointer; the Go-To pointer (sprite 1) is
-   * built through here, which is why it kept them (bugs.md #373).
-   */
-  if (w >= 2 && h >= 2) {
-    uint8_t* const tr = &drag->cursor_pixels[(size_t)(w - 1)];
-    uint8_t* const bl = &drag->cursor_pixels[(size_t)(h - 1) * (size_t)w];
-    if (*tr == 0x09u) {
-      *tr = COLONIZE_SS_TRANSPARENT;
-    }
-    if (*bl == 0x09u) {
-      *bl = COLONIZE_SS_TRANSPARENT;
-    }
-  }
+  ui_drag_clear_registration_marks(drag->cursor_pixels, w, h);
   drag->cursor_w = w;
   drag->cursor_h = h;
   drag->hotspot_x = w / 2;
@@ -110,11 +115,7 @@ static bool ui_drag_install_arrow(
     return false;
   }
   memcpy(masked, sp->pixels, n);
-  for (size_t i = 0; i < n; ++i) {
-    if (masked[i] == 0x09u) {
-      masked[i] = COLONIZE_SS_TRANSPARENT;
-    }
-  }
+  ui_drag_clear_registration_marks(masked, sp->width, sp->height);
   const bool ok = platform_set_mouse_cursor_indexed(
     platform, masked, sp->width, sp->height, 1, 0, palette
   );

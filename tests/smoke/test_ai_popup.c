@@ -1,7 +1,12 @@
 #include "core/ai_popup.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
+#include "core/font_file.h"
+#include "core/ss.h"
+#include "platform/platform.h"
 
 #include "../common/test_runner.h"
 
@@ -174,6 +179,160 @@ static int case_chrome_tags(void) {
   return 0;
 }
 
+/*
+ * bugs.md #1107: ai_popup_render over a spread of layouts (plain, widened by
+ * a long row, left/right chief portrait, span clamp, King flair frames,
+ * MSS/MYR modes, overlong body, no font). Asserts something was drawn; with
+ * AI_POPUP_DUMP_DIR set it also writes one PGM (indices + st geometry in the
+ * header comment) per layout, so a refactor can be cmp'd against a baseline.
+ */
+static int render_one(
+  const char* tag, const AiPopupRequest* req, uint32_t now_ms, int selection,
+  const ColonizeFont* font, const ColonizeSpriteSheet* wood, AiPopupState* st
+) {
+  static uint8_t pixels[320 * 200];
+  memset(pixels, 0x11, sizeof(pixels));
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  st->current = *req;
+  st->open = true;
+  st->selection = selection;
+  ai_popup_set_now_ms(now_ms);
+  ai_popup_render(st, font, wood, NULL, 1, 2, 3, &fb);
+  int drawn = 0;
+  for (size_t i = 0; i < sizeof(pixels); ++i) {
+    drawn += pixels[i] != 0x11;
+  }
+  if (!drawn) {
+    return fail(tag);
+  }
+  const char* dir = getenv("AI_POPUP_DUMP_DIR");
+  if (dir && dir[0]) {
+    char path[600];
+    snprintf(path, sizeof(path), "%s/%s.pgm", dir, tag);
+    FILE* f = fopen(path, "wb");
+    if (!f) {
+      return fail("dump open");
+    }
+    fprintf(f, "P5\n# %d %d %d %d %d %d %d %d\n320 200\n255\n", st->dialog_x,
+            st->dialog_y, st->dialog_w, st->dialog_h, st->line_h, st->list_y0,
+            st->king_anim_frame, (int)st->king_anim_next_ms);
+    fwrite(pixels, 1, sizeof(pixels), f);
+    fclose(f);
+  }
+  return 0;
+}
+
+static int case_render_layouts(void) {
+  static AiPopupState st;
+  static ColonizeFont font;
+  static ColonizeSpriteSheet wood;
+  char err[128];
+  const bool font_ok = font_file_load("COLONIZE/FONTTINY.FF", &font, err, sizeof(err));
+  const bool wood_ok = ss_load("COLONIZE/WOODTILE.SS", &wood, err, sizeof(err));
+  ai_popup_set_portrait_source("COLONIZE");
+  const ColonizeFont* f = font_ok ? &font : NULL;
+  const ColonizeSpriteSheet* w = wood_ok ? &wood : NULL;
+
+  AiPopupRequest base;
+  memset(&base, 0, sizeof(base));
+  base.portrait_tribe = -1;
+  base.graphic_mss = -1;
+  base.graphic_myr = -1;
+  snprintf(base.title, sizeof(base.title), "Foreign Affairs");
+  snprintf(base.body, sizeof(base.body),
+           "The quick brown fox jumps over the lazy dog many times over.\n"
+           "^^Centred line\nLast line.");
+  base.choice_count = 3;
+  snprintf(base.choices[0], sizeof(base.choices[0]), "Accept");
+  snprintf(base.choices[1], sizeof(base.choices[1]), "Refuse");
+  snprintf(base.choices[2], sizeof(base.choices[2]), "Ask later");
+
+  int rc = 0;
+  ai_popup_init(&st);
+  rc |= render_one("plain", &base, 0, 1, f, w, &st);
+
+  AiPopupRequest r = base;
+  r.width = 120;
+  snprintf(r.choices[2], sizeof(r.choices[2]),
+           "A very long option row that widens the frame past width");
+  ai_popup_init(&st);
+  rc |= render_one("widened", &r, 0, 2, f, w, &st);
+
+  r = base;
+  r.title[0] = '\0';
+  r.choice_count = 0;
+  ai_popup_init(&st);
+  rc |= render_one("info", &r, 0, 0, f, w, &st);
+
+  const int tribes[] = {0, 1, 3, 4, 7};
+  for (int i = 0; i < 5; ++i) {
+    char tag[32];
+    r = base;
+    r.portrait_tribe = tribes[i];
+    r.portrait_tier = i % 4;
+    snprintf(tag, sizeof(tag), "chief%d", tribes[i]);
+    ai_popup_init(&st);
+    rc |= render_one(tag, &r, 0, 0, f, w, &st);
+  }
+  r = base;
+  r.portrait_tribe = 2;
+  r.portrait_tier = 3;
+  r.width = 290;
+  ai_popup_init(&st);
+  rc |= render_one("chief_clamp", &r, 0, 1, f, w, &st);
+
+  r = base;
+  r.portrait_tribe = 8;
+  ai_popup_init(&st);
+  const uint32_t times[] = {1000, 4000, 4950, 5200, 5400, 9000};
+  for (int i = 0; i < 6; ++i) {
+    char tag[32];
+    snprintf(tag, sizeof(tag), "king%d", i);
+    rc |= render_one(tag, &r, times[i], 0, f, w, &st);
+  }
+
+  for (int m = 0; m < 6; ++m) {
+    char tag[32];
+    r = base;
+    r.graphic_mss = m;
+    snprintf(tag, sizeof(tag), "mss%d", m);
+    ai_popup_init(&st);
+    rc |= render_one(tag, &r, 0, 0, f, w, &st);
+  }
+  for (int m = 0; m < 4; ++m) {
+    char tag[32];
+    r = base;
+    r.graphic_myr = m;
+    r.width = m == 3 ? 300 : 0;
+    snprintf(tag, sizeof(tag), "myr%d", m);
+    ai_popup_init(&st);
+    rc |= render_one(tag, &r, 0, 0, f, w, &st);
+  }
+
+  r = base;
+  r.body[0] = '\0';
+  for (int i = 0; i < 30; ++i) {
+    strncat(r.body, "Line of filler text here.\n", sizeof(r.body) - strlen(r.body) - 1);
+  }
+  ai_popup_init(&st);
+  rc |= render_one("overlong", &r, 0, 2, f, w, &st);
+  r.graphic_mss = 0;
+  ai_popup_init(&st);
+  rc |= render_one("overlong_mss", &r, 0, 2, f, w, &st);
+
+  ai_popup_init(&st);
+  rc |= render_one("nofont", &base, 0, 1, NULL, NULL, &st);
+
+  ai_popup_set_portrait_source(NULL);
+  if (wood_ok) {
+    ss_free(&wood);
+  }
+  if (font_ok) {
+    font_file_free(&font);
+  }
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"case_fresh_idle", case_fresh_idle},
     {"case_enqueue_and_present_info", case_enqueue_and_present_info},
@@ -182,6 +341,7 @@ static const TestCase k_cases[] = {
     {"case_queue_overflow", case_queue_overflow},
     {"case_chrome_tags", case_chrome_tags},
     {"case_set_last_after_dropped_enqueue", case_set_last_after_dropped_enqueue},
+    {"case_render_layouts", case_render_layouts},
 };
 
 TEST_MAIN(k_cases)

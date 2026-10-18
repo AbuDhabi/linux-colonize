@@ -81,7 +81,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Partial overspend | Human: `rng`; AI Brave pulse often commits |
 | Go-To | Every step goes through FUN_465b_0000 (`units_try_move_w`), gamble included (game_loop_update.c `game_pacer_goto_step`) |
 | Village Meet | Human popup; AI auto-Accept |
-| Naval combat | Shared `units_resolve_naval_combat*`; human move now probes combat |
+| Naval combat | Shared `units_resolve_naval_combat_ff_w`; human move now probes combat |
 | Fog | Does **not** block enter (reveal after move) — intentional for port |
 
 ---

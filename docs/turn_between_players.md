@@ -88,7 +88,7 @@ when the king runs (bugs.md #394/404/407).
 
 | Step | OpenCol | DOS |
 |------|-------|-----|
-| King / REF | `TURN_PROC_KING` step in `turn.c` → `ai_king_nation_turn` | `FUN_43f7_2424` via `291f_0a66` **inside** `3844_00f2` |
+| King / REF | `TURN_PROC_KING` step in `turn.c` → `ai_king_nation_turn_2424` (+ `ai_king_human_5e52_tail`; `ai_king_nation_turn` is a test-only wrapper) | `FUN_43f7_2424` via `291f_0a66` **inside** `3844_00f2` |
 | Year-end chrome | `turn_run_year_end_chrome` | `FUN_3844_0442` section B (thin) |
 | Europe market | `europe_tick_market_prices` + one `@PRICEUP`/`@PRICEDOWN` OK dialog per cargo that crossed | `FUN_38fd_0058` (sibling of nation EOT `38fd_5e52`), phase 4 |
 | Human fog + MP refresh | `turn_reveal_fog_for_nation` + `turn_refresh_moves_for_nation` | Human refresh at act entry |
@@ -171,7 +171,7 @@ Major thunks (catalog):
 | EURO fog reveal | `281f_07a0` in `00f2` | `turn_reveal_fog_for_nation` | **Done** — every Euro nation's unit walk (human at KING, AI at its EURO step), full `13f1_0158` side effects via `units_reveal_sight_w`; colony radius-2 invention removed (DOS reveals ±5 only at founding) |
 | EURO AI | `521d_6d8e` after `00f2` | `ai_euro_nation_turn` | **Partial structural** (T2 early; deep `20e6` mapped/PARKED) |
 | INDIAN | `4d56_1b3a` mid-pass → `1816(slot)` ×8 | `ai_indian_nation_turn` | **Partial structural** — [`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md); Euro rank `5bfb_00f8` **Done** thin |
-| KING king | `43f7_2424` in `00f2` | `ai_king_nation_turn` | **Partial structural** |
+| KING king | `43f7_2424` in `00f2` | `ai_king_nation_turn_2424` (+ `ai_king_human_5e52_tail`; `ai_king_nation_turn` is a test-only wrapper) | **Partial structural** |
 | KING market | `38fd_0058` / `5e52` family | `europe_tick_market_prices` | **Partial** — attrition + colony→`price_group` half + phases 2–3 pressure **Done** thin |
 | KING human refresh | return to Move Pieces | MP + select next | **Done** |
 | KING autosave | `130d_0172` | autosave flags | **Done** |

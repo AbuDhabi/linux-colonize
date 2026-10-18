@@ -79,7 +79,8 @@ int main(int argc, char** argv) {
 
   colony_screen_refresh_transports(&view, &rs.units, colony);
   colony_screen_refresh_outside(&view, &rs.units, colony);
-  colony_screen_refresh_preview_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&rs.colonies), .map=(ColonizeWorldMap*)(&rs.map), .col1=(ColonizeCol1Save*)(&rs.save), .col1_ok=true}, &view, colony);
+  const ColonizeWorld rw = world_make(&rs.units, &rs.colonies, &rs.map, &rs.save, true, NULL, NULL);
+  colony_screen_refresh_preview_w(&rw, &view, colony);
 
   ColonizeSpriteSheet terrain;
   const bool terrain_ok = render_load_sheet(data_dir, "TERRAIN.SS", &terrain);
@@ -96,7 +97,7 @@ int main(int argc, char** argv) {
   ColonizeFramebuffer8 fb;
   render_fb_init(&fb, pixels);
 
-  colony_screen_render_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&rs.units), .colonies=(ColonizeColonyPool*)(&rs.colonies), .map=(ColonizeWorldMap*)(&rs.map), .col1=(ColonizeCol1Save*)(&rs.save), .col1_ok=true}, &view, colony, terrain_ok ? &terrain : NULL, phys0_ok ? &phys0 : NULL, rs.bridge.year, rs.bridge.autumn, (int)nat->gold, font_ok ? &font : NULL, debug_rects, NULL, /* LABELS.TXT not loaded here; fallback text is byte-identical to the live text */
+  colony_screen_render_w(&rw, &view, colony, terrain_ok ? &terrain : NULL, phys0_ok ? &phys0 : NULL, rs.bridge.year, rs.bridge.autumn, (int)nat->gold, font_ok ? &font : NULL, debug_rects, NULL, /* LABELS.TXT not loaded here; fallback text is byte-identical to the live text */
     &fb);
 
   ColonizePalette pal = (ColonizePalette){0};

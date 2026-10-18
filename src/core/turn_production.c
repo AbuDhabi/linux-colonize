@@ -53,7 +53,7 @@ static void turn_emit_inefficient_gov_chrome(
   /* DS:0xa897 — dialogs only for the human's own colonies. */
   const bool chrome = (colony->nation_id == human_nation) && europe != NULL;
   /* colonist_count-first fallback, port-wide (see colony_prod_sol_bonus). */
-  int pop = colony->colonist_count > 0 ? colony->colonist_count : colony->population;
+  int pop = colonies_headcount(colony);
   if (pop < 0) {
     pop = 0;
   }
@@ -513,32 +513,108 @@ static int turn_deplete_colony_mines(
 }
 
 /* ===================== Per-colony production tick (turn_produce_one_colony) ===================== */
-void turn_produce_one_colony(
-  ColonizeColonyPool* pool,
-  ColonizeColony* colony,
+/*
+ * FUN_364b_0688 Phase A field composition (FUN_15eb_18ec): town commons plus
+ * every worked plot, composed without touching the colony. The EOT tick
+ * (turn_produce_one_colony) applies it to stock; colony_preview.c shows it on
+ * the Production tab. One body, so the preview cannot drift from the tick
+ * (bugs.md #1111: the preview used to re-run its own copy of this loop).
+ */
+void turn_compose_colony_fields(
+  const ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
-  ColonizeCol1Save* col1,
-  EuropeScreen* europe,
-  int human_nation,
-  ColonizeTurnResult* out,
-  ColonizeColonyProdDelta* delta,
-  AiPopupState* ai_popups,
-  const ColonizeMsgCatalog* messages,
-  ColonizeDosRng* rng
+  const ColonizeCol1Save* col1,
+  const ColonizeColony* colony,
+  TurnColonyFieldYield* out
 ) {
-  /* The delta doubles as this tick's per-cargo net ledger (the DOS
-   * FUN_281f_0b50 scratch), which the cargo_produced_mask below needs even
-   * when the caller wants no delta back. */
-  ColonizeColonyProdDelta local_delta;
-  if (!delta) {
-    delta = &local_delta;
-  }
-  memset(delta, 0, sizeof(*delta));
-  if (!pool || !colony || !colony->active) {
+  memset(out, 0, sizeof(*out));
+  if (!map || !colony) {
     return;
   }
+  ColonizeTownCommonsYield tc;
+  colony_yield_town_commons(
+    map, colony->x, colony->y, colony->colony_flags,
+    col1 ? (int)col1->head.difficulty : 4, &tc
+  );
+  if (tc.food > 0) {
+    out->commons_food = tc.food;
+  }
+  if (tc.secondary_amount > 0 && tc.secondary_cargo >= 0 &&
+      tc.secondary_cargo < COLONIZE_CARGO_COUNT) {
+    out->gross[tc.secondary_cargo] += tc.secondary_amount;
+  }
+
+  /* Docks (or Drydock/Shipyard) gates Fisherman yield — FUN_15eb_18ec
+   * ~11925-11939; coastal placement alone is not enough. One scan shared
+   * with colony_screen.c / game_loop.c. */
+  const bool has_docks = colony_yield_colony_has_docks(pool, colony);
+  /* DOS net SoL/Tory mod (sons_of_liberty.md). Field-specific variant:
+   * zeroed outright for AI colonies, unlike manufacturing/bells/crosses/
+   * hammers — see colony_prod_sol_bonus_field. Folded into
+   * colony_yield_for_worker directly (2026-08-15): DOS applies a *positive*
+   * mod before expert doubling (so it gets swept up by an expert's
+   * ×2/road-river-unit-doubling, not added flat after — player-confirmed,
+   * see colony_yield.c's colony_yield_pipeline comment); a negative mod
+   * (Tory penalty) still lands at the very end. */
+  const int sol_b_field = colony_prod_sol_bonus_field(col1, colony);
+  /* Henry Hudson (@FF 8) doubles Fur Trapper output INSIDE the pipeline,
+   * at DOS's own spot (FUN_15eb_18ec 11970-11973) — see colony_yield.c
+   * (smell audit #60). */
+  const bool has_hudson =
+    col1 && founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON);
+  ColonizeWorkedTileIter wit;
+  ColonizeWorkedTile w;
+  colony_yield_worked_tiles_begin(&wit, colony);
+  while (colony_yield_worked_tiles_next(&wit, &w)) {
+    const ColonizeColonist* c = w.colonist;
+    const int yld = colony_yield_for_worker(
+      map,
+      colony->x + w.dx,
+      colony->y + w.dy,
+      c->field_job,
+      c->profession,
+      has_docks,
+      sol_b_field,
+      colony->colony_flags,
+      has_hudson
+    );
+    const int cargo = colony_yield_job_cargo(c->field_job);
+    /*
+     * Col1 +0x97 depletion units — FUN_15eb_18ec raw 11913-11923 (DS
+     * 0xa896): Minerals(6)+Ore Miner -> +1, Minerals(6)+Silver Miner -> +2,
+     * Silver Deposit(12)+Silver Miner -> +1. DOS tallies this from
+     * (resource, job) alone as it walks the 5x5 field loop, BEFORE the
+     * silver collapse / improvement stack / negative-SoL tail that can
+     * drive `yld` to <= 0 for this same plot — a worked deposit still
+     * depletes even on a yield-0 turn (bugs.md #894). Hoisted above the
+     * `yld <= 0` gate below; nothing else in this block may move.
+     */
+    if (cargo >= 0 && cargo < COLONIZE_CARGO_COUNT) {
+      const int res = map_resource_type_for_yield(map, colony->x + w.dx, colony->y + w.dy);
+      if (res == 6 && cargo == COLONIZE_CARGO_ORE) {
+        out->depletion_units += 1;
+      } else if (res == 6 && cargo == COLONIZE_CARGO_SILVER) {
+        out->depletion_units += 2;
+      } else if (res == 12 && cargo == COLONIZE_CARGO_SILVER) {
+        out->depletion_units += 1;
+      }
+    }
+    if (yld <= 0 || cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
+      continue;
+    }
+    out->gross[cargo] += yld;
+    if (c->field_job == COLONIZE_JOB_FISHERMAN) {
+      out->fish += yld;
+    }
+  }
+}
+
+/* Entry snapshot: +0x90 mask, status strip, stock, population. */
+COLONIZE_INTERNAL TurnProduceStatus turn_produce_begin(TurnProduceCtx* pc) {
+  ColonizeColony* const colony = pc->colony;
+  EuropeScreen* const europe = pc->europe;
   /* FUN_364b_0688: clear cargo_produced_mask (+0x90) at production start. */
-  const uint16_t mask_before_a = colony->cargo_produced_mask;
+  pc->mask_before_a = colony->cargo_produced_mask;
   colony->cargo_produced_mask = 0;
   /* bugs.md #397: europe->status is shared across the whole colony loop, so
    * "status empty" as the Phase K crumb gate let ANY earlier colony's
@@ -547,149 +623,54 @@ void turn_produce_one_colony(
    * strip at THIS colony's entry: the crumb yields only to a message this
    * same colony wrote this tick (its own food/birth chrome outranks it),
    * never to another colony's leftovers. */
-  char status_at_entry[sizeof(europe->status)];
-  status_at_entry[0] = '\0';
+  pc->status_at_entry[0] = '\0';
   if (europe) {
-    snprintf(status_at_entry, sizeof(status_at_entry), "%s", europe->status);
+    snprintf(pc->status_at_entry, sizeof(pc->status_at_entry), "%s", europe->status);
   }
-  int stock_before[COLONIZE_CARGO_COUNT];
   for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-    stock_before[c] = colony->stock[c];
+    pc->stock_before[c] = colony->stock[c];
   }
   /* Phase I birth food (200) and Phase B Custom House sales, kept apart from
    * the delta so the produced-mask below can see the Phase B net exactly. */
-  int birth_food_debit = 0;
-  int ai_food_subsidy = 0;
-  int ch_sold[COLONIZE_CARGO_COUNT];
-  memset(ch_sold, 0, sizeof(ch_sold));
-  const int pop = colony->colonist_count > 0 ? colony->colonist_count : colony->population;
-  if (pop <= 0) {
-    return;
+  pc->birth_food_debit = 0;
+  pc->ai_food_subsidy = 0;
+  memset(pc->ch_sold, 0, sizeof(pc->ch_sold));
+  pc->pop = colonies_headcount(colony);
+  if (pc->pop <= 0) {
+    return TURN_PRODUCE_RETURN;
   }
+  return TURN_PRODUCE_CONTINUE;
+}
 
-  int field_food = 0;
-  /* DOS 0xa896: ore/silver deposit "depletion units" tallied in FUN_15eb_18ec,
-   * rolled down in the FUN_364b_0688 epilogue (see bottom of this function). */
-  int depl_n = 0;
-  int field_lumber = 0;
-  int field_ore = 0;
-  /* bugs.md (403 follow-up): this turn's field production per cargo — a
-   * "has run out of X" crumb must stay quiet while X is still being
-   * produced, even insufficiently (same rule the lumber crumb already
-   * applied via field_lumber). */
-  int field_prod[COLONIZE_CARGO_COUNT];
-  memset(field_prod, 0, sizeof(field_prod));
-
-  /* Town commons (center tile) + area-view field workers. */
-  const bool has_hudson =
-    col1 && founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON);
-  if (map) {
-    ColonizeTownCommonsYield tc;
-    colony_yield_town_commons(
-      map, colony->x, colony->y, colony->colony_flags,
-      col1 ? (int)col1->head.difficulty : 4, &tc
-    );
-    if (tc.food > 0) {
-      colony->stock[COLONIZE_CARGO_FOOD] =
-        clamp_int(colony->stock[COLONIZE_CARGO_FOOD] + tc.food, 0, 65535);
-      field_food += tc.food;
-      if (delta) {
-        delta->goods[COLONIZE_CARGO_FOOD] += tc.food;
-      }
-    }
-    if (tc.secondary_amount > 0 && tc.secondary_cargo >= 0 &&
-        tc.secondary_cargo < COLONIZE_CARGO_COUNT) {
-      colony->stock[tc.secondary_cargo] =
-        clamp_int(colony->stock[tc.secondary_cargo] + tc.secondary_amount, 0, 65535);
-      if (delta) {
-        delta->goods[tc.secondary_cargo] += tc.secondary_amount;
-      }
-      field_prod[tc.secondary_cargo] += tc.secondary_amount;
-      if (tc.secondary_cargo == COLONIZE_CARGO_LUMBER) {
-        field_lumber += tc.secondary_amount;
-      } else if (tc.secondary_cargo == COLONIZE_CARGO_ORE) {
-        field_ore += tc.secondary_amount;
-      }
-    }
-
-    /* Docks (or Drydock/Shipyard) gates Fisherman yield — FUN_15eb_18ec
-     * ~11925-11939; coastal placement alone is not enough. One scan shared
-     * with colony_preview.c / colony_screen.c / game_loop.c. */
-    const bool has_docks = colony_yield_colony_has_docks(pool, colony);
-    ColonizeWorkedTileIter wit;
-    ColonizeWorkedTile w;
-    colony_yield_worked_tiles_begin(&wit, colony);
-    while (colony_yield_worked_tiles_next(&wit, &w)) {
-      const ColonizeColonist* c = w.colonist;
-      const int dx = w.dx;
-      const int dy = w.dy;
-      /* DOS net SoL/Tory mod (sons_of_liberty.md). Field-specific variant:
-       * zeroed outright for AI colonies, unlike manufacturing/bells/crosses/
-       * hammers — see colony_prod_sol_bonus_field. Folded into
-       * colony_yield_for_worker directly now (2026-08-15): DOS applies a
-       * *positive* mod before expert doubling (so it gets swept up by an
-       * expert's ×2/road-river-unit-doubling, not added flat after —
-       * player-confirmed, see colony_yield.c's colony_yield_pipeline
-       * comment); a negative mod (Tory penalty) still lands at the very
-       * end, same net position as this function's old external add. */
-      const int sol_b_field = colony_prod_sol_bonus_field(col1, colony);
-      /* Henry Hudson (@FF 8) doubles Fur Trapper output INSIDE the pipeline,
-       * at DOS's own spot (FUN_15eb_18ec 11970-11973) — see colony_yield.c.
-       * It used to be a `*= 2` here, after Convert +1 and after the Tory
-       * subtraction, which is a different number (smell audit #60). */
-      const int yld = colony_yield_for_worker(
-        map,
-        colony->x + dx,
-        colony->y + dy,
-        c->field_job,
-        c->profession,
-        has_docks,
-        sol_b_field,
-        colony->colony_flags,
-        has_hudson
-      );
-      const int cargo = colony_yield_job_cargo(c->field_job);
-      /*
-       * Col1 +0x97 depletion units — FUN_15eb_18ec raw 11913-11923 (DS
-       * 0xa896): Minerals(6)+Ore Miner -> +1, Minerals(6)+Silver Miner -> +2,
-       * Silver Deposit(12)+Silver Miner -> +1. DOS tallies this from
-       * (resource, job) alone as it walks the 5x5 field loop, BEFORE the
-       * silver collapse / improvement stack / negative-SoL tail that can
-       * drive `yld` to <= 0 for this same plot — a worked deposit still
-       * depletes even on a yield-0 turn (bugs.md #894). Hoisted above the
-       * `yld <= 0` gate below; nothing else in this block may move.
-       */
-      if (cargo >= 0 && cargo < COLONIZE_CARGO_COUNT) {
-        const int res = map_resource_type_for_yield(map, colony->x + dx, colony->y + dy);
-        int units = 0;
-        if (res == 6 && cargo == COLONIZE_CARGO_ORE) {
-          units = 1;
-        } else if (res == 6 && cargo == COLONIZE_CARGO_SILVER) {
-          units = 2;
-        } else if (res == 12 && cargo == COLONIZE_CARGO_SILVER) {
-          units = 1;
-        }
-        depl_n += units;
-      }
-      if (yld <= 0) {
-        continue;
-      }
-      int add = yld;
-      if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
-        continue;
-      }
-      colony->stock[cargo] = clamp_int(colony->stock[cargo] + add, 0, 65535);
-      if (delta) {
-        delta->goods[cargo] += add;
-      }
-      field_prod[cargo] += add;
-      if (cargo == COLONIZE_CARGO_FOOD) {
-        field_food += add;
-      } else if (cargo == COLONIZE_CARGO_LUMBER) {
-        field_lumber += add;
-      } else if (cargo == COLONIZE_CARGO_ORE) {
-        field_ore += add;
-      }
+/* Phase A: compose fields, craft, hammers, bells/crosses (one snapshot). */
+COLONIZE_INTERNAL void turn_produce_compose(TurnProduceCtx* pc) {
+  ColonizeColonyPool* const pool = pc->pool;
+  ColonizeColony* const colony = pc->colony;
+  const ColonizeWorldMap* const map = pc->map;
+  ColonizeCol1Save* const col1 = pc->col1;
+  ColonizeColonyProdDelta* const delta = pc->delta;
+  int* const craft_unmet_cap = pc->craft_unmet_cap;
+  int* const craft_unmet_gross = pc->craft_unmet_gross;
+  int* const craft_gross = pc->craft_gross;
+  int* const craft_net = pc->craft_net;
+  /* Town commons (center tile) + area-view field workers: the shared Phase A
+   * field composition (turn_compose_colony_fields, also the Production tab's
+   * preview). DOS 0xa896: ore/silver deposit "depletion units" tallied in
+   * FUN_15eb_18ec, rolled down in the FUN_364b_0688 epilogue (see bottom of
+   * this function). */
+  TurnColonyFieldYield fy;
+  turn_compose_colony_fields(pool, map, col1, colony, &fy);
+  pc->depl_n = fy.depletion_units;
+  pc->field_food = fy.commons_food + fy.gross[COLONIZE_CARGO_FOOD];
+  if (fy.commons_food > 0) {
+    colony->stock[COLONIZE_CARGO_FOOD] =
+      clamp_int(colony->stock[COLONIZE_CARGO_FOOD] + fy.commons_food, 0, 65535);
+    delta->goods[COLONIZE_CARGO_FOOD] += fy.commons_food;
+  }
+  for (int cargo = 0; cargo < COLONIZE_CARGO_COUNT; ++cargo) {
+    if (fy.gross[cargo] > 0) {
+      colony->stock[cargo] = clamp_int(colony->stock[cargo] + fy.gross[cargo], 0, 65535);
+      delta->goods[cargo] += fy.gross[cargo];
     }
   }
 
@@ -729,6 +710,7 @@ void turn_produce_one_colony(
    * below.
    */
   const int sol_b_phase_a = colony_prod_sol_bonus(col1, colony);
+  pc->sol_b_phase_a = sol_b_phase_a;
   /*
    * DOS-LITERAL FUN_364b_0688 Phase B raw 57241-57243: the per-cargo net is
    * `FUN_281f_0b50(cargo)` (gross - demand - unmet[input]) only for the
@@ -741,6 +723,7 @@ void turn_produce_one_colony(
     col1 != NULL && colony->nation_id >= 0 &&
     (colony->nation_id >= (int)COLONIZE_COL1_NATION_COUNT ||
      col1->player[colony->nation_id].control != 0);
+  pc->colony_ai_controlled = colony_ai_controlled;
   /*
    * Phase K (bugs.md #899/#911) probes two DOS scratch words per craft pair,
    * not the raw good's stock (FUN_364b_0688 raw 57696-57728):
@@ -767,8 +750,6 @@ void turn_produce_one_colony(
    *                       consumption out of tools (the @ORE arm compares
    *                       net muskets against net tools).
    */
-  int craft_unmet_cap[COLONIZE_CARGO_COUNT];
-  int craft_unmet_gross[COLONIZE_CARGO_COUNT];
   {
     ColonizeColony craft_scratch = *colony;
     colony_craft_preview(
@@ -780,11 +761,9 @@ void turn_produce_one_colony(
   for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
     craft_stock_pre[c] = colony->stock[c];
   }
-  int craft_gross[COLONIZE_CARGO_COUNT];
   colony_craft_one_colony_ex(
     pool, colony, delta, sol_b_phase_a, colony_ai_controlled, craft_gross
   );
-  int craft_net[COLONIZE_CARGO_COUNT];
   for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
     craft_net[c] = colony->stock[c] - craft_stock_pre[c];
   }
@@ -792,6 +771,7 @@ void turn_produce_one_colony(
    * tick: the old "Autumn freeze" gate (bugs.md #466) rested on a real-DOS
    * Spring→Autumn pair in which no colony staffed a carpenter at all. */
   const int hammers_phase_a = colony_prod_colony_hammers(pool, colony, sol_b_phase_a, NULL);
+  pc->hammers_phase_a = hammers_phase_a;
   /* Bells + crosses composed here too (DOS `0b50(0x12)` / Phase M), stamped
    * for turn_run_nation_ticks — which for AI nations runs after this tick
    * and would otherwise re-tally them off the already-updated SoL latch and
@@ -805,7 +785,17 @@ void turn_produce_one_colony(
     );
     colony->prod_compose_stamp = (uint32_t)col1->head.turn + 1u;
   }
+}
 
+/* Phase B: AI food subsidy, colonists eat. */
+COLONIZE_INTERNAL void turn_produce_food(TurnProduceCtx* pc) {
+  ColonizeColony* const colony = pc->colony;
+  ColonizeCol1Save* const col1 = pc->col1;
+  EuropeScreen* const europe = pc->europe;
+  const int human_nation = pc->human_nation;
+  ColonizeTurnResult* const out = pc->out;
+  ColonizeColonyProdDelta* const delta = pc->delta;
+  const int pop = pc->pop;
   /*
    * FUN_364b_0688 Phase B: AI Euro food += difficulty>>1 (DS 0x53a6).
    * Cite: colony_eot_production.md; difficulty.md.
@@ -824,8 +814,8 @@ void turn_produce_one_colony(
     if (ai_food > 0) {
       colony->stock[COLONIZE_CARGO_FOOD] =
         clamp_int(colony->stock[COLONIZE_CARGO_FOOD] + ai_food, 0, 65535);
-      field_food += ai_food;
-      ai_food_subsidy = ai_food;
+      pc->field_food += ai_food;
+      pc->ai_food_subsidy = ai_food;
       if (delta) {
         delta->goods[COLONIZE_CARGO_FOOD] += ai_food;
       }
@@ -833,12 +823,13 @@ void turn_produce_one_colony(
   }
 
   const int consumed = pop * TURN_FOOD_PER_COLONIST;
+  pc->consumed = consumed;
   colony->stock[COLONIZE_CARGO_FOOD] =
     clamp_int(colony->stock[COLONIZE_CARGO_FOOD] - consumed, 0, 65535);
   if (delta) {
     delta->goods[COLONIZE_CARGO_FOOD] -= consumed;
   }
-  if (field_food < consumed && out) {
+  if (pc->field_food < consumed && out) {
     out->food_shortages++;
     if (europe && colony->nation_id == human_nation && turn_report_ok_food(col1)) {
       if (colony->name[0]) {
@@ -848,6 +839,18 @@ void turn_produce_one_colony(
       }
     }
   }
+}
+
+/* Phases C / D: rebel accumulators, SoL latch, SoL / gov chrome. */
+COLONIZE_INTERNAL void turn_produce_sol(TurnProduceCtx* pc) {
+  ColonizeColonyPool* const pool = pc->pool;
+  ColonizeColony* const colony = pc->colony;
+  ColonizeCol1Save* const col1 = pc->col1;
+  EuropeScreen* const europe = pc->europe;
+  const int human_nation = pc->human_nation;
+  AiPopupState* const ai_popups = pc->ai_popups;
+  const ColonizeMsgCatalog* const messages = pc->messages;
+  int* const stock_before = pc->stock_before;
   /*
    * ---- Phases C / D — rebel accumulators + SoL latch ----
    *
@@ -871,8 +874,9 @@ void turn_produce_one_colony(
    * (horses, lumber clip) stay on `colony` until the Phase B switch below. */
   ColonizeColony* const app =
     (g_turn_1528_last_walked_colony && g_turn_1528_last_walked_colony != colony && col1) ? g_turn_1528_last_walked_colony : colony;
-  const int colony_nation_id = colony->nation_id; /* uVar7, raw 57225 */
-  const int food_stock_before = stock_before[COLONIZE_CARGO_FOOD];
+  pc->app = app;
+  pc->colony_nation_id = colony->nation_id; /* uVar7, raw 57225 */
+  pc->food_stock_before = stock_before[COLONIZE_CARGO_FOOD];
   {
     /* Phase C feeds this colony's composed bells (local_ba) to app. */
     const uint32_t app_stamp = app->prod_compose_stamp;
@@ -903,7 +907,19 @@ void turn_produce_one_colony(
       app, col1, europe, human_nation, sol_after, ai_popups, messages
     );
   }
+}
 
+/* Phase B horse breeding (FUN_15eb_1f72 tail). */
+COLONIZE_INTERNAL void turn_produce_horses(TurnProduceCtx* pc) {
+  ColonizeColonyPool* const pool = pc->pool;
+  ColonizeColony* const colony = pc->colony;
+  EuropeScreen* const europe = pc->europe;
+  const int human_nation = pc->human_nation;
+  ColonizeColonyProdDelta* const delta = pc->delta;
+  const bool colony_ai_controlled = pc->colony_ai_controlled;
+  const int pop = pc->pop;
+  const int field_food = pc->field_food;
+  const int ai_food_subsidy = pc->ai_food_subsidy;
   /*
    * Horse breeding — FUN_15eb_1f72 tail, DOS-confirmed 2026-08-26 against
    * real DOS ground truth (golden_colony_prod01/02, 13/13 Dutch colonies
@@ -954,7 +970,12 @@ void turn_produce_one_colony(
       }
     }
   }
+}
 
+COLONIZE_INTERNAL void turn_produce_lumber(TurnProduceCtx* pc) {
+  ColonizeColony* const colony = pc->colony;
+  ColonizeColonyProdDelta* const delta = pc->delta;
+  const int hammers_phase_a = pc->hammers_phase_a;
   /*
    * DOS-LITERAL FUN_364b_0688 Phase B lumber debit (raw 57238-57253; the
    * demand word comes from `FUN_15eb_0b96(5, DS:0x8de8)`, raw 12684): the
@@ -965,6 +986,7 @@ void turn_produce_one_colony(
    * (bugs.md #1023).
    */
   const int lumber_before_hammers = colony->stock[COLONIZE_CARGO_LUMBER];
+  pc->lumber_before_hammers = lumber_before_hammers;
   int hammers_paid = hammers_phase_a > 0 ? hammers_phase_a : 0;
   if (hammers_paid > lumber_before_hammers) {
     hammers_paid = lumber_before_hammers;
@@ -975,7 +997,23 @@ void turn_produce_one_colony(
       delta->goods[COLONIZE_CARGO_LUMBER] -= hammers_paid;
     }
   }
+  pc->hammers_paid = hammers_paid;
+}
 
+/* Phase B application switch to the 1528 record + Custom House sales. */
+COLONIZE_INTERNAL void turn_produce_custom_house(TurnProduceCtx* pc) {
+  ColonizeColonyPool* const pool = pc->pool;
+  ColonizeColony* colony = pc->colony;
+  ColonizeCol1Save* const col1 = pc->col1;
+  EuropeScreen* const europe = pc->europe;
+  const int human_nation = pc->human_nation;
+  ColonizeColonyProdDelta* const delta = pc->delta;
+  AiPopupState* const ai_popups = pc->ai_popups;
+  ColonizeColony* const app = pc->app;
+  const uint16_t mask_before_a = pc->mask_before_a;
+  int* const stock_before = pc->stock_before;
+  int* const ch_sold = pc->ch_sold;
+  int* const craft_gross = pc->craft_gross;
   /*
    * Custom House auto-sell — DOS runs it INSIDE the Phase B cargo loop
    * (raw 57257-57330), so it sits here, after every composed cargo has been
@@ -999,6 +1037,7 @@ void turn_produce_one_colony(
     }
     colony->cargo_produced_mask = mask_before_a;
     colony = app;
+    pc->colony = colony;
   }
   if (europe) {
     /* FUN_364b_0636 raw 57131-57141: an AI Custom House keeps its Ore while
@@ -1010,7 +1049,8 @@ void turn_produce_one_colony(
       craft_gross[COLONIZE_CARGO_TOOLS] != 0 || craft_gross[COLONIZE_CARGO_MUSKETS] != 0;
     EuropeCustomHouseSale ch_sales[COLONIZE_CARGO_COUNT];
     int ch_sale_count = 0;
-    const int ch_total = europe_custom_house_autosell_ex_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(pool), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL), .europe=(EuropeScreen*)(europe)}, colony, human_nation, ch_sales, COLONIZE_CARGO_COUNT, &ch_sale_count, ch_ore_denied);
+    const ColonizeWorld cw = world_make(NULL, pool, NULL, col1, col1 != NULL, NULL, europe);
+    const int ch_total = europe_custom_house_autosell_ex_w(&cw, colony, human_nation, ch_sales, COLONIZE_CARGO_COUNT, &ch_sale_count, ch_ore_denied);
     for (int si = 0; si < ch_sale_count; ++si) {
       if (ch_sales[si].cargo >= 0 && ch_sales[si].cargo < COLONIZE_CARGO_COUNT) {
         ch_sold[ch_sales[si].cargo] += ch_sales[si].amount;
@@ -1063,7 +1103,18 @@ void turn_produce_one_colony(
       }
     }
   }
+}
 
+/* Phases F / G: school graduation (run only with a pool). */
+COLONIZE_INTERNAL void turn_produce_education(TurnProduceCtx* pc) {
+  ColonizeColonyPool* const pool = pc->pool;
+  ColonizeColony* const colony = pc->colony;
+  ColonizeCol1Save* const col1 = pc->col1;
+  EuropeScreen* const europe = pc->europe;
+  const int human_nation = pc->human_nation;
+  AiPopupState* const ai_popups = pc->ai_popups;
+  const ColonizeMsgCatalog* const messages = pc->messages;
+  ColonizeDosRng* const rng = pc->rng;
   /*
    * FUN_364b_0688 phases F–G: Schoolhouse/College/University education.
    * Cite: viceroy_unpacked.c ~57502-57589; GAME.TXT @TRAINFAIL /
@@ -1115,209 +1166,233 @@ void turn_produce_one_colony(
    * any school building" (tier > 0), never "seated in a building of the
    * required tier", is the faithful reading.
    */
-  if (pool) {
-    enum { EDU_MAX_TEACHERS = 3 };
-    int teach_prof[EDU_MAX_TEACHERS];
-    int students[COLONIZE_COLONY_POP_MAX];
-    int n_teach = 0;
-    int n_stud = 0;
-    for (int ci = 0; ci < colony->colonist_count; ++ci) {
-      ColonizeColonist* c = &colony->colonists[ci];
-      if (!c->active) {
-        continue;
-      }
-      /* DOS 0d1c/0a7e (raw 57505-57538): the +0x60 counter ticks for every
-       * colonist; the writer FUN_15eb_0cbc clamps at 15 (raw 10231-10233),
-       * so it saturates there instead of running on. */
-      if (c->turns_in_job < 15) {
-        c->turns_in_job++;
-      }
-      const int prof = c->profession;
-      /* Student whitelist is exactly {0x1a,0x19,0x1c,0x13} (FUN_364b_0688 raw
-       * 57510); no `prof < 0` arm in DOS. */
-      if (prof == COLONIZE_PROF_FREE_COLONIST || prof == UNITS_JOB_COLONIST ||
-          prof == COLONIZE_PROF_INDENTURED || prof == COLONIZE_PROF_CRIMINAL) {
-        if (n_stud < (int)(sizeof(students) / sizeof(students[0]))) {
-          students[n_stud++] = ci;
-        }
-        continue; /* level-4 professions never teach; lists are disjoint */
-      }
-      if (n_teach >= EDU_MAX_TEACHERS || c->building_type < 0 ||
-          c->building_type >= pool->building_type_count ||
-          colonies_school_building_tier(pool, c->building_type) <= 0) {
-        continue;
-      }
-      const int level = colonies_job_school_tier(prof);
-      if (level < 1 || level > 3) {
-        continue;
-      }
-      const int need = (level == 1) ? 4 : (level == 2) ? 6 : 8;
-      if ((int)c->turns_in_job < need) {
-        continue;
-      }
-      teach_prof[n_teach++] = prof;
-      /* DOS zeroes the counter the moment the teacher qualifies, whether or
-       * not a student is available for him this turn. */
-      c->turns_in_job = 0;
+  enum { EDU_MAX_TEACHERS = 3 };
+  int teach_prof[EDU_MAX_TEACHERS];
+  int students[COLONIZE_COLONY_POP_MAX];
+  int n_teach = 0;
+  int n_stud = 0;
+  for (int ci = 0; ci < colony->colonist_count; ++ci) {
+    ColonizeColonist* c = &colony->colonists[ci];
+    if (!c->active) {
+      continue;
     }
-    for (int t = 0; t < n_teach; ++t) {
-      const bool tell =
-        europe && colony->nation_id == human_nation && turn_report_ok_trained(col1);
-      const char* cname = colony->name[0] ? colony->name : "";
-      char body[AI_POPUP_BODY_LEN];
-      char fallback[224];
-      PopupMsgTokens tok;
-      if (n_stud == 0) {
-        /* DOS 0xde7 @TRAINFAIL, then out of the graduation loop entirely. */
-        if (tell) {
-          snprintf(europe->status, sizeof(europe->status), "No students to teach.");
-          if (ai_popups) {
-            fallback[0] = '\0';
-            memset(&tok, 0, sizeof(tok));
-            tok.string0 = cname;
-            popup_msg_fill(messages, "TRAINFAIL", &tok, fallback, body, sizeof(body));
-            ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
-          }
-        }
-        break;
+    /* DOS 0d1c/0a7e (raw 57505-57538): the +0x60 counter ticks for every
+     * colonist; the writer FUN_15eb_0cbc clamps at 15 (raw 10231-10233),
+     * so it saturates there instead of running on. */
+    if (c->turns_in_job < 15) {
+      c->turns_in_job++;
+    }
+    const int prof = c->profession;
+    /* Student whitelist is exactly {0x1a,0x19,0x1c,0x13} (FUN_364b_0688 raw
+     * 57510); no `prof < 0` arm in DOS. */
+    if (prof == COLONIZE_PROF_FREE_COLONIST || prof == UNITS_JOB_COLONIST ||
+        prof == COLONIZE_PROF_INDENTURED || prof == COLONIZE_PROF_CRIMINAL) {
+      if (n_stud < (int)(sizeof(students) / sizeof(students[0]))) {
+        students[n_stud++] = ci;
       }
-      const int pick = rng ? dos_rng_range(rng, 0, n_stud - 1) : n_stud - 1;
-      ColonizeColonist* student = &colony->colonists[students[pick]];
-      const int prev_prof = student->profession;
-      const char* skill_name = colonies_profession_name(teach_prof[t]);
-      const char* chrome_sec;
-      enum { GRAD_SPECIALTY = 0, GRAD_CRIMINAL, GRAD_INDENTURED } grad = GRAD_SPECIALTY;
-      if (prev_prof == COLONIZE_PROF_CRIMINAL) {
-        /* DOS 0x1a -> 0x19, popup 0xdf1. */
-        student->profession = COLONIZE_PROF_INDENTURED;
-        chrome_sec = "TRAINCRIMINAL";
-        grad = GRAD_CRIMINAL;
-        fallback[0] = '\0';
-      } else if (prev_prof == COLONIZE_PROF_INDENTURED) {
-        /* DOS 0x19 -> 0x1c, popup 0xdff. */
-        student->profession = COLONIZE_PROF_FREE_COLONIST;
-        chrome_sec = "TRAININDENTURED";
-        grad = GRAD_INDENTURED;
-        fallback[0] = '\0';
-      } else {
-        /* DOS 0cae(student, aiStack_7e[t]) + 0438(1, jobtable[prof].name),
-         * popup 0xe0f. */
-        student->profession = teach_prof[t];
-        chrome_sec = "TRAINPROFESSION";
-        fallback[0] = '\0';
-      }
-      /* bugs.md #565: DOS's graduation loop (raw 57540-57588) calls 0cae /
-       * the ladder writers on the student and never 0a7e — the student keeps
-       * his accumulated +0x60 counter, so a fresh graduate whose counter is
-       * already >= his own school need can start teaching immediately. */
-      for (int k = pick; k < n_stud - 1; ++k) {
-        students[k] = students[k + 1];
-      }
-      n_stud--;
+      continue; /* level-4 professions never teach; lists are disjoint */
+    }
+    if (n_teach >= EDU_MAX_TEACHERS || c->building_type < 0 ||
+        c->building_type >= pool->building_type_count ||
+        colonies_school_building_tier(pool, c->building_type) <= 0) {
+      continue;
+    }
+    const int level = colonies_job_school_tier(prof);
+    if (level < 1 || level > 3) {
+      continue;
+    }
+    const int need = (level == 1) ? 4 : (level == 2) ? 6 : 8;
+    if ((int)c->turns_in_job < need) {
+      continue;
+    }
+    teach_prof[n_teach++] = prof;
+    /* DOS zeroes the counter the moment the teacher qualifies, whether or
+     * not a student is available for him this turn. */
+    c->turns_in_job = 0;
+  }
+  for (int t = 0; t < n_teach; ++t) {
+    const bool tell =
+      europe && colony->nation_id == human_nation && turn_report_ok_trained(col1);
+    const char* cname = colony->name[0] ? colony->name : "";
+    char body[AI_POPUP_BODY_LEN];
+    char fallback[224];
+    PopupMsgTokens tok;
+    if (n_stud == 0) {
+      /* DOS 0xde7 @TRAINFAIL, then out of the graduation loop entirely. */
       if (tell) {
-        if (grad == GRAD_CRIMINAL) {
-          snprintf(europe->status, sizeof(europe->status), "Criminal educated.");
-        } else if (grad == GRAD_INDENTURED) {
-          snprintf(europe->status, sizeof(europe->status), "Indentured educated.");
-        } else {
-          snprintf(europe->status, sizeof(europe->status), "%s trained.", skill_name);
-        }
+        snprintf(europe->status, sizeof(europe->status), "No students to teach.");
         if (ai_popups) {
+          fallback[0] = '\0';
+          memset(&tok, 0, sizeof(tok));
+          tok.string0 = cname;
+          popup_msg_fill(messages, "TRAINFAIL", &tok, fallback, body, sizeof(body));
+          ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+        }
+      }
+      break;
+    }
+    const int pick = rng ? dos_rng_range(rng, 0, n_stud - 1) : n_stud - 1;
+    ColonizeColonist* student = &colony->colonists[students[pick]];
+    const int prev_prof = student->profession;
+    const char* skill_name = colonies_profession_name(teach_prof[t]);
+    const char* chrome_sec;
+    enum { GRAD_SPECIALTY = 0, GRAD_CRIMINAL, GRAD_INDENTURED } grad = GRAD_SPECIALTY;
+    if (prev_prof == COLONIZE_PROF_CRIMINAL) {
+      /* DOS 0x1a -> 0x19, popup 0xdf1. */
+      student->profession = COLONIZE_PROF_INDENTURED;
+      chrome_sec = "TRAINCRIMINAL";
+      grad = GRAD_CRIMINAL;
+      fallback[0] = '\0';
+    } else if (prev_prof == COLONIZE_PROF_INDENTURED) {
+      /* DOS 0x19 -> 0x1c, popup 0xdff. */
+      student->profession = COLONIZE_PROF_FREE_COLONIST;
+      chrome_sec = "TRAININDENTURED";
+      grad = GRAD_INDENTURED;
+      fallback[0] = '\0';
+    } else {
+      /* DOS 0cae(student, aiStack_7e[t]) + 0438(1, jobtable[prof].name),
+       * popup 0xe0f. */
+      student->profession = teach_prof[t];
+      chrome_sec = "TRAINPROFESSION";
+      fallback[0] = '\0';
+    }
+    /* bugs.md #565: DOS's graduation loop (raw 57540-57588) calls 0cae /
+     * the ladder writers on the student and never 0a7e — the student keeps
+     * his accumulated +0x60 counter, so a fresh graduate whose counter is
+     * already >= his own school need can start teaching immediately. */
+    for (int k = pick; k < n_stud - 1; ++k) {
+      students[k] = students[k + 1];
+    }
+    n_stud--;
+    if (tell) {
+      if (grad == GRAD_CRIMINAL) {
+        snprintf(europe->status, sizeof(europe->status), "Criminal educated.");
+      } else if (grad == GRAD_INDENTURED) {
+        snprintf(europe->status, sizeof(europe->status), "Indentured educated.");
+      } else {
+        snprintf(europe->status, sizeof(europe->status), "%s trained.", skill_name);
+      }
+      if (ai_popups) {
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = cname;
+        tok.string1 = skill_name;
+        popup_msg_fill(messages, chrome_sec, &tok, fallback, body, sizeof(body));
+        ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+      }
+    }
+  }
+}
+
+/* Phase H: on-the-job field skill discovery. */
+COLONIZE_INTERNAL void turn_produce_discover(TurnProduceCtx* pc) {
+  ColonizeColony* const colony = pc->colony;
+  ColonizeCol1Save* const col1 = pc->col1;
+  EuropeScreen* const europe = pc->europe;
+  const int human_nation = pc->human_nation;
+  AiPopupState* const ai_popups = pc->ai_popups;
+  const ColonizeMsgCatalog* const messages = pc->messages;
+  ColonizeDosRng* const rng = pc->rng;
+  const int colony_nation_id = pc->colony_nation_id;
+  /*
+   * Phase H — random field skill discover (DOS FUN_364b_0688 ~57590-57614,
+   * see colony_eot_production.md Deep H). Raw bytes: skip profession 0x1b
+   * (Convert); else roll dos_rng_range(0, N) where N is 99 (base — Free
+   * Colonist / unset), 199 (0x19 Indentured Servant), or 299 (0x1a Petty
+   * Criminal, the two ifs are sequential, not else-if, so Criminal takes
+   * base+200); success on 0 → gain the field profession. Previously this
+   * only fired for Free Colonist and used an ad hoc non-DOS PRNG instead
+   * of the shared `rng` this function already threads through for the
+   * starve-mercy roll a few lines up — fixed to use dos_rng_range(rng, ...)
+   * like DOS's own FUN_281f_04d4 call, and to extend the class-scaled odds
+   * to Indentured/Criminal (Convert stays excluded — not Free/Indentured/
+   * Criminal). The DOS gate is `0 < occupation && occupation < 5` (raw
+   * 57595) on `FUN_281f_0c0e` = the colonist's OCCUPATION (work slot),
+   * ported as `field_job`: jobs 1..4 (@JOB 1 Sugar, 2 Tobacco, 3 Cotton,
+   * 4 Fur Trapper) only, so a colonist farming (job 0) can NEVER become an
+   * Expert Farmer on the job. (`FUN_281f_0c54` = specialty, the value the
+   * class-scaled odds and the Convert/expert exclusions read; the
+   * FUNCTION_CATALOG.md labels for 0c0e/0c54 are swapped.) The remaining
+   * gate is the per-nation specialty census — see turn_prof_census.
+   */
+  for (int ci = 0; ci < colony->colonist_count; ++ci) {
+    ColonizeColonist* c = &colony->colonists[ci];
+    if (!c->active) {
+      continue;
+    }
+    /* No RNG supplied (e.g. a caller that wants deterministic production
+     * with no stochastic side effects) -> skip rather than let
+     * dos_rng_range(NULL, 0, N)'s "always returns lo" convention read as
+     * a guaranteed hit. */
+    if (!rng) {
+      continue;
+    }
+    int discover_denom = 99;
+    if (c->profession == COLONIZE_PROF_INDENTURED) {
+      discover_denom = 199;
+    } else if (c->profession == COLONIZE_PROF_CRIMINAL) {
+      discover_denom = 299;
+    } else if (c->profession != COLONIZE_PROF_FREE_COLONIST &&
+               c->profession != UNITS_JOB_COLONIST /* @JOB 19 free alias */ &&
+               c->profession != UNITS_JOB_NONE /* DOS 0x1c, raw 9300-9303 */) {
+      /* raw 57594: FUN_281f_0c9a(specialty) == 0 -> FUN_15eb_0002 (raw
+       * 9298-9306) is 0 only for {0x1c,0x13,0x19,0x1a,0x1b}; Convert (0x1b)
+       * is excluded one line earlier (bugs.md #772). */
+      continue;
+    }
+    /* raw 57595: `0 < local_c2 && local_c2 < 5` — Farmer (job 0) never
+     * learns on the job, and only the four cash-crop field jobs 1..4 do. */
+    if (c->field_job < 1 || c->field_job > COLONIZE_JOB_FUR_TRAPPER) {
+      continue;
+    }
+    /* raw 57596/57605: the specialty-census byte at -0x6bd0 + job must be
+     * 0 — the nation may not already own an expert of that job anywhere —
+     * and a success bumps it in place. See turn_prof_census. */
+    const int census_n =
+      (colony_nation_id >= 0 && colony_nation_id < (int)COLONIZE_COL1_NATION_COUNT) ? colony_nation_id : 0;
+    if (turn_prof_census[census_n][c->field_job] != 0) {
+      continue;
+    }
+    if (dos_rng_range(rng, 0, discover_denom) == 0) {
+      turn_prof_census[census_n][c->field_job]++;
+      /* raw 57606-57607: FUN_281f_0cae -> FUN_15eb_0e8c writes only the
+       * profession byte; the +0x60 education nibble is untouched (bugs.md
+       * #771, sibling of #565). DOS raises @TRAINPROFESSION only, no status
+       * line, and a catalog miss is the empty string. */
+      c->profession = c->field_job;
+      if (europe && colony->nation_id == human_nation && turn_report_ok_trained(col1)) {
+        if (ai_popups) {
+          const char* cname = colony->name;
+          const char* skill_name = colony_yield_job_name(c->field_job);
+          if (!skill_name) {
+            skill_name = "";
+          }
+          char body[AI_POPUP_BODY_LEN];
+          PopupMsgTokens tok;
           memset(&tok, 0, sizeof(tok));
           tok.string0 = cname;
           tok.string1 = skill_name;
-          popup_msg_fill(messages, chrome_sec, &tok, fallback, body, sizeof(body));
+          popup_msg_fill(messages, "TRAINPROFESSION", &tok, "", body, sizeof(body));
           ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
         }
       }
     }
-
-    /*
-     * Phase H — random field skill discover (DOS FUN_364b_0688 ~57590-57614,
-     * see colony_eot_production.md Deep H). Raw bytes: skip profession 0x1b
-     * (Convert); else roll dos_rng_range(0, N) where N is 99 (base — Free
-     * Colonist / unset), 199 (0x19 Indentured Servant), or 299 (0x1a Petty
-     * Criminal, the two ifs are sequential, not else-if, so Criminal takes
-     * base+200); success on 0 → gain the field profession. Previously this
-     * only fired for Free Colonist and used an ad hoc non-DOS PRNG instead
-     * of the shared `rng` this function already threads through for the
-     * starve-mercy roll a few lines up — fixed to use dos_rng_range(rng, ...)
-     * like DOS's own FUN_281f_04d4 call, and to extend the class-scaled odds
-     * to Indentured/Criminal (Convert stays excluded — not Free/Indentured/
-     * Criminal). The DOS gate is `0 < occupation && occupation < 5` (raw
-     * 57595) on `FUN_281f_0c0e` = the colonist's OCCUPATION (work slot),
-     * ported as `field_job`: jobs 1..4 (@JOB 1 Sugar, 2 Tobacco, 3 Cotton,
-     * 4 Fur Trapper) only, so a colonist farming (job 0) can NEVER become an
-     * Expert Farmer on the job. (`FUN_281f_0c54` = specialty, the value the
-     * class-scaled odds and the Convert/expert exclusions read; the
-     * FUNCTION_CATALOG.md labels for 0c0e/0c54 are swapped.) The remaining
-     * gate is the per-nation specialty census — see turn_prof_census.
-     */
-    for (int ci = 0; ci < colony->colonist_count; ++ci) {
-      ColonizeColonist* c = &colony->colonists[ci];
-      if (!c->active) {
-        continue;
-      }
-      /* No RNG supplied (e.g. a caller that wants deterministic production
-       * with no stochastic side effects) -> skip rather than let
-       * dos_rng_range(NULL, 0, N)'s "always returns lo" convention read as
-       * a guaranteed hit. */
-      if (!rng) {
-        continue;
-      }
-      int discover_denom = 99;
-      if (c->profession == COLONIZE_PROF_INDENTURED) {
-        discover_denom = 199;
-      } else if (c->profession == COLONIZE_PROF_CRIMINAL) {
-        discover_denom = 299;
-      } else if (c->profession != COLONIZE_PROF_FREE_COLONIST &&
-                 c->profession != UNITS_JOB_COLONIST /* @JOB 19 free alias */ &&
-                 c->profession != UNITS_JOB_NONE /* DOS 0x1c, raw 9300-9303 */) {
-        /* raw 57594: FUN_281f_0c9a(specialty) == 0 -> FUN_15eb_0002 (raw
-         * 9298-9306) is 0 only for {0x1c,0x13,0x19,0x1a,0x1b}; Convert (0x1b)
-         * is excluded one line earlier (bugs.md #772). */
-        continue;
-      }
-      /* raw 57595: `0 < local_c2 && local_c2 < 5` — Farmer (job 0) never
-       * learns on the job, and only the four cash-crop field jobs 1..4 do. */
-      if (c->field_job < 1 || c->field_job > COLONIZE_JOB_FUR_TRAPPER) {
-        continue;
-      }
-      /* raw 57596/57605: the specialty-census byte at -0x6bd0 + job must be
-       * 0 — the nation may not already own an expert of that job anywhere —
-       * and a success bumps it in place. See turn_prof_census. */
-      const int census_n =
-        (colony_nation_id >= 0 && colony_nation_id < (int)COLONIZE_COL1_NATION_COUNT) ? colony_nation_id : 0;
-      if (turn_prof_census[census_n][c->field_job] != 0) {
-        continue;
-      }
-      if (dos_rng_range(rng, 0, discover_denom) == 0) {
-        turn_prof_census[census_n][c->field_job]++;
-        /* raw 57606-57607: FUN_281f_0cae -> FUN_15eb_0e8c writes only the
-         * profession byte; the +0x60 education nibble is untouched (bugs.md
-         * #771, sibling of #565). DOS raises @TRAINPROFESSION only, no status
-         * line, and a catalog miss is the empty string. */
-        c->profession = c->field_job;
-        if (europe && colony->nation_id == human_nation && turn_report_ok_trained(col1)) {
-          if (ai_popups) {
-            const char* cname = colony->name;
-            const char* skill_name = colony_yield_job_name(c->field_job);
-            if (!skill_name) {
-              skill_name = "";
-            }
-            char body[AI_POPUP_BODY_LEN];
-            PopupMsgTokens tok;
-            memset(&tok, 0, sizeof(tok));
-            tok.string0 = cname;
-            tok.string1 = skill_name;
-            popup_msg_fill(messages, "TRAINPROFESSION", &tok, "", body, sizeof(body));
-            ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
-          }
-        }
-      }
-    }
   }
+}
 
+/* Phase I: starvation latch + birth. */
+COLONIZE_INTERNAL void turn_produce_birth(TurnProduceCtx* pc) {
+  ColonizeColonyPool* const pool = pc->pool;
+  ColonizeColony* const colony = pc->colony;
+  ColonizeCol1Save* const col1 = pc->col1;
+  EuropeScreen* const europe = pc->europe;
+  const int human_nation = pc->human_nation;
+  ColonizeColonyProdDelta* const delta = pc->delta;
+  AiPopupState* const ai_popups = pc->ai_popups;
+  const ColonizeMsgCatalog* const messages = pc->messages;
+  const int pop = pc->pop;
+  const int colony_nation_id = pc->colony_nation_id;
+  const int food_stock_before = pc->food_stock_before;
+  const int field_food = pc->field_food;
   /*
    * ---- Phases I / J — birth and starve-kill ----
    *
@@ -1334,256 +1409,288 @@ void turn_produce_one_colony(
    * at turn start (local_6c==0 / local_12e); pop==kills → @VANISH + abandon.
    * Easy-difficulty no-kill mercy ported below. Cite: ~57623–57694.
    */
-  {
-    const int need = pop * TURN_FOOD_PER_COLONIST;
-    const int food_at_start = stock_before[COLONIZE_CARGO_FOOD];
-    const int was_starving = colony->food_shortfall_latch != 0;
-    int starved_this_tick = 0;
-    /*
-     * bugs.md (port_orange_starves.SAV): DOS's starve trigger is DS:0x8e5a =
-     * max(0, consumption − stock-at-start − production) — the colony must
-     * actually have gone NEGATIVE this turn. The old `stock_after < need`
-     * latch killed a colony producing exactly what it eats at 0 stores
-     * (commons 2 food vs pop 1 eating 2 — net zero, DOS-fine forever).
-     */
-    colony->food_shortfall_latch = (need - food_stock_before - field_food > 0) ? 1u : 0u;
+  const int need = pop * TURN_FOOD_PER_COLONIST;
+  pc->was_starving = colony->food_shortfall_latch != 0;
+  /*
+   * bugs.md (port_orange_starves.SAV): DOS's starve trigger is DS:0x8e5a =
+   * max(0, consumption − stock-at-start − production) — the colony must
+   * actually have gone NEGATIVE this turn. The old `stock_after < need`
+   * latch killed a colony producing exactly what it eats at 0 stores
+   * (commons 2 food vs pop 1 eating 2 — net zero, DOS-fine forever).
+   */
+  colony->food_shortfall_latch = (need - food_stock_before - field_food > 0) ? 1u : 0u;
 
-    /*
-     * FUN_364b_0688 phase I — birth: food ≥ 200 → Free Colonist in colony;
-     * subtract 200 food (docs/building_production.md; decomp ~57615–57622).
-     */
-    if (colony->stock[COLONIZE_CARGO_FOOD] >= 200 &&
-        colony->colonist_count < COLONIZE_COLONY_POP_MAX) {
-      colony->stock[COLONIZE_CARGO_FOOD] =
-        clamp_int(colony->stock[COLONIZE_CARGO_FOOD] - 200, 0, 65535);
-      if (delta) {
-        delta->goods[COLONIZE_CARGO_FOOD] -= 200;
-      }
-      birth_food_debit = 200;
-      bool born_on_tile = false;
-      if (turn_birth_units) {
-        /* bugs.md: the newborn stands on the colony tile awaiting orders.
-         * DOS raw 57617-57619: food is debited before FUN_281f_095c, so a
-         * birth refused at the unit limit loses the 200 food and the colonist
-         * (no fallback into the colony); @NEWCOLONIST still follows. */
-        const int ct = units_kind_type_index(turn_birth_units, UNITS_KIND_COLONIST);
-        born_on_tile = ct >= 0;
-        /* raw 57618: FUN_281f_095c(0, uVar7, x, y) -- the ticking nation. */
-        if (ct >= 0 && units_spawn_room(turn_birth_units, colony_nation_id)) {
-          const int nid =
-            units_spawn_allow_stack(turn_birth_units, ct, colony->x, colony->y);
-          ColonizeUnit* nu = units_get(turn_birth_units, nid);
-          if (nu) {
-            units_set_nation(nu, colony_nation_id);
-            nu->orders = UNITS_ORDER_NONE;
-          }
-        }
-      }
-      if (!born_on_tile) {
-        ColonizeColonist* newborn = &colony->colonists[colony->colonist_count];
-        memset(newborn, 0, sizeof(*newborn));
-        newborn->active = true;
-        newborn->unit_type_index = 0;
-        newborn->profession = UNITS_JOB_COLONIST; /* Free Colonists */
-        newborn->building_type = -1;
-        newborn->field_job = -1;
-        colony->colonist_count++;
-        colony->population = colony->colonist_count;
-        /* DOS FUN_15eb admit body (raw ~11312): birth that admits straight
-         * into the colony (no map-tile fallback) shares the same pop>2 +
-         * peacetime + FF 9 Stockade grant as a walked-in Join. When
-         * turn_birth_units is set the newborn lands on the map tile
-         * instead (see units_spawn_allow_stack above) and never enters
-         * colonist_count here, so the admit-path check in colony.c already
-         * covers it there. */
-        (void)founding_fathers_la_salle_check(pool, col1, colony->nation_id);
-      }
-      if (europe && colony->nation_id == human_nation) {
-        /* DOS 0xe2f @NEWCOLONIST. Cite: colony_eot_production.md Phase I. */
-        if (colony->name[0]) {
-          snprintf(europe->status, sizeof(europe->status), "Birth in %s.", colony->name);
-        } else {
-          snprintf(europe->status, sizeof(europe->status), "Colony birth.");
-        }
-        if (ai_popups) {
-          char body[AI_POPUP_BODY_LEN];
-          PopupMsgTokens tok;
-          memset(&tok, 0, sizeof(tok));
-          tok.string0 = colony->name[0] ? colony->name : "";
-          popup_msg_fill(
-            messages, "NEWCOLONIST", &tok, europe->status, body, sizeof(body)
-          );
-          ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+  /*
+   * FUN_364b_0688 phase I — birth: food ≥ 200 → Free Colonist in colony;
+   * subtract 200 food (docs/building_production.md; decomp ~57615–57622).
+   */
+  if (colony->stock[COLONIZE_CARGO_FOOD] >= 200 &&
+      colony->colonist_count < COLONIZE_COLONY_POP_MAX) {
+    colony->stock[COLONIZE_CARGO_FOOD] =
+      clamp_int(colony->stock[COLONIZE_CARGO_FOOD] - 200, 0, 65535);
+    if (delta) {
+      delta->goods[COLONIZE_CARGO_FOOD] -= 200;
+    }
+    pc->birth_food_debit = 200;
+    bool born_on_tile = false;
+    if (turn_birth_units) {
+      /* bugs.md: the newborn stands on the colony tile awaiting orders.
+       * DOS raw 57617-57619: food is debited before FUN_281f_095c, so a
+       * birth refused at the unit limit loses the 200 food and the colonist
+       * (no fallback into the colony); @NEWCOLONIST still follows. */
+      const int ct = units_kind_type_index(turn_birth_units, UNITS_KIND_COLONIST);
+      born_on_tile = ct >= 0;
+      /* raw 57618: FUN_281f_095c(0, uVar7, x, y) -- the ticking nation. */
+      if (ct >= 0 && units_spawn_room(turn_birth_units, colony_nation_id)) {
+        const int nid =
+          units_spawn_allow_stack(turn_birth_units, ct, colony->x, colony->y);
+        ColonizeUnit* nu = units_get(turn_birth_units, nid);
+        if (nu) {
+          units_set_nation(nu, colony_nation_id);
+          nu->orders = UNITS_ORDER_NONE;
         }
       }
     }
-
-    /*
-     * Easy-difficulty no-kill mercy (FUN_364b_0688, decomp ~57641-57647):
-     * on Discoverer/Explorer (difficulty < 2), the kill below never fires
-     * before year 1520; from 1520 on it's a `dos_rng_range(0, 2-difficulty)`
-     * roll, nonzero cancels (2/3 odds at Discoverer, 1/2 at Explorer). NULL
-     * col1/rng safely fall through to the plain kill (old behavior).
-     */
-    /* DS:0x8e5a (raw 57623-57625): a non-human colony's shortfall below 3 is
-     * forgiven. Only a non-zero shortfall takes the else branch (raw 57638),
-     * which reseeds (FUN_281f_04ca(DS:0x83a6)) before the mercy roll. */
-    int food_shortfall_8e5a = need - food_stock_before - field_food; /* Phase A composition */
-    if (food_shortfall_8e5a < 0) {
-      food_shortfall_8e5a = 0;
-    }
-    if (food_shortfall_8e5a < 3 && (colony_nation_id > 3 ||
-                           (col1 && col1->player[colony_nation_id].control != 0))) {
-      food_shortfall_8e5a = 0;
-    }
-    int starve_mercy = 0;
-    if (food_shortfall_8e5a != 0) {
-      dos_rng_reseed_83a6(rng);
-      if (col1 && col1->head.difficulty < 2) {
-        if (col1->head.year < 1520) {
-          starve_mercy = 1;
-        } else if (dos_rng_range(rng, 0, 2 - col1->head.difficulty) != 0) {
-          starve_mercy = 1;
-        }
-      }
-    }
-
-    /*
-     * Phase J — starve-kill when still short and started the turn at 0 food.
-     * Last colonist → @VANISH + colonies_abandon (DOS 0xe47 / thunk 0254).
-     */
-    if (food_shortfall_8e5a != 0 && food_at_start == 0 &&
-        colony->colonist_count > 0 && !starve_mercy) {
-      const int colony_id = colony->id;
-      char vanish_name[COLONIZE_COLONY_NAME_MAX];
-      snprintf(
-        vanish_name,
-        sizeof(vanish_name),
-        "%s",
-        colony->name[0] ? colony->name : ""
-      );
-      /* DOS-LITERAL raw 57688-57690: the victim is `rand(0, pop - 1)`, drawn
-       * after the popup (DOSBox independence 8->9: New Amsterdam loses its
-       * colonist 0 on rand(0, 17)). */
-      const int kill_i = rng ? dos_rng_range(rng, 0, colony->colonist_count - 1)
-                             : colony->colonist_count - 1;
-      for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES_MAX; ++ti) {
-        if ((int)colony->tiles[ti] == kill_i) {
-          colony->tiles[ti] = (int8_t)-1;
-        } else if ((int)colony->tiles[ti] > kill_i) {
-          colony->tiles[ti] = (int8_t)((int)colony->tiles[ti] - 1);
-        }
-      }
-      colonies_colonist_tail_stash(pool, colony);
-      for (int i = kill_i; i < colony->colonist_count - 1; ++i) {
-        colony->colonists[i] = colony->colonists[i + 1];
-      }
-      memset(
-        &colony->colonists[colony->colonist_count - 1], 0, sizeof(colony->colonists[0])
-      );
-      colony->colonist_count--;
+    if (!born_on_tile) {
+      ColonizeColonist* newborn = &colony->colonists[colony->colonist_count];
+      memset(newborn, 0, sizeof(*newborn));
+      newborn->active = true;
+      newborn->unit_type_index = 0;
+      newborn->profession = UNITS_JOB_COLONIST; /* Free Colonists */
+      newborn->building_type = -1;
+      newborn->field_job = -1;
+      colony->colonist_count++;
       colony->population = colony->colonist_count;
-      /* 0a9c = FUN_15eb_0d04, which also takes 100 off the +0xc6 divisor. */
-      colonies_col1_rebel_divisor_adjust(col1, colony->x, colony->y, -100);
-      starved_this_tick = 1;
-      if (colony->colonist_count <= 0) {
-        if (europe && colony->nation_id == human_nation) {
-          snprintf(
-            europe->status,
-            sizeof(europe->status),
-            "Colony %s vanished.",
-            vanish_name
-          );
-          if (ai_popups) {
-            PopupMsgTokens tok;
-            memset(&tok, 0, sizeof(tok));
-            tok.string0 = vanish_name;
-            popup_chrome_ok(ai_popups, messages, "VANISH", &tok, europe->status);
-          }
-        }
-        (void)colonies_abandon(pool, colony_id);
-        return;
+      /* DOS FUN_15eb admit body (raw ~11312): birth that admits straight
+       * into the colony (no map-tile fallback) shares the same pop>2 +
+       * peacetime + FF 9 Stockade grant as a walked-in Join. When
+       * turn_birth_units is set the newborn lands on the map tile
+       * instead (see units_spawn_allow_stack above) and never enters
+       * colonist_count here, so the admit-path check in colony.c already
+       * covers it there. */
+      (void)founding_fathers_la_salle_check(pool, col1, colony->nation_id);
+    }
+    if (europe && colony->nation_id == human_nation) {
+      /* DOS 0xe2f @NEWCOLONIST. Cite: colony_eot_production.md Phase I. */
+      if (colony->name[0]) {
+        snprintf(europe->status, sizeof(europe->status), "Birth in %s.", colony->name);
+      } else {
+        snprintf(europe->status, sizeof(europe->status), "Colony birth.");
       }
-      if (europe && colony->nation_id == human_nation) {
-        if (colony->name[0]) {
-          snprintf(europe->status, sizeof(europe->status), "Starvation in %s.", colony->name);
-        } else {
-          snprintf(europe->status, sizeof(europe->status), "Colonist starved.");
-        }
-        if (ai_popups) {
-          const char* sec = (col1 && col1->head.autumn) ? "STARVE2" : "STARVE1";
-          char body[AI_POPUP_BODY_LEN];
-          PopupMsgTokens tok;
-          memset(&tok, 0, sizeof(tok));
-          tok.string0 = colony->name[0] ? colony->name : "";
-          popup_msg_fill(messages, sec, &tok, "", body, sizeof(body));
-          ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
-        }
+      if (ai_popups) {
+        char body[AI_POPUP_BODY_LEN];
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = colony->name[0] ? colony->name : "";
+        popup_msg_fill(
+          messages, "NEWCOLONIST", &tok, europe->status, body, sizeof(body)
+        );
+        ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
       }
     }
+  }
+}
 
-    /*
-     * First starvation latch (stock < need, not yet killing): @FOOD1 / @FOOD2.
-     * Else DOS 0xe5e @FOODLOW when eating into stores:
-     *   8e5a==0 (stock covers this turn) and 8e32!=0 (production < consumption)
-     *   and post-eat stock < 8e32×4. Cite: FUN_15eb_0b52; ~57626–57636.
-     * Surplus production (8e32==0) never warns — even if stock is modest.
-     */
-    if (!starved_this_tick && need > 0 && europe &&
-        colony->nation_id == human_nation && turn_report_ok_food(col1)) {
-      const int stock = colony->stock[COLONIZE_CARGO_FOOD];
-      const int food_shortfall = consumed - field_food; /* DOS 8e32 when >0 */
-      /*
-       * bugs.md #5: DOS's literal FOOD1/FOOD2 latch fires on stock<need
-       * alone, even at food_shortfall<=0 (production covers or beats
-       * consumption) — a colony merely flatlining at 0 net-zero food would
-       * re-trigger "depleted" every turn. Require actively losing food
-       * (shortfall>0) to match FOODLOW's own "surplus never warns" rule
-       * below and stop the false-positive nag.
-       *
-       * bugs.md #292: "depleted" additionally requires the stores to be
-       * EXACTLY 0 — merely dipping below next turn's need reads as "low",
-       * handled by the FOODLOW branch below.
-       */
-      if (stock == 0 && food_shortfall > 0 && !was_starving) {
-        if (colony->name[0]) {
-          snprintf(
-            europe->status, sizeof(europe->status), "Food depleted in %s.", colony->name
-          );
-        } else {
-          snprintf(europe->status, sizeof(europe->status), "Food stores depleted.");
-        }
-        if (ai_popups) {
-          const char* sec = (col1 && col1->head.autumn) ? "FOOD2" : "FOOD1";
-          char body[AI_POPUP_BODY_LEN];
-          PopupMsgTokens tok;
-          memset(&tok, 0, sizeof(tok));
-          tok.string0 = colony->name[0] ? colony->name : "";
-          popup_msg_fill(messages, sec, &tok, "", body, sizeof(body));
-          ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
-        }
-      } else if (
-        stock > 0 && food_shortfall > 0 && stock < food_shortfall * 4
-      ) {
-        if (colony->name[0]) {
-          snprintf(europe->status, sizeof(europe->status), "Food low in %s.", colony->name);
-        } else {
-          snprintf(europe->status, sizeof(europe->status), "Food stores low.");
-        }
-        if (ai_popups) {
-          char body[AI_POPUP_BODY_LEN];
-          PopupMsgTokens tok;
-          memset(&tok, 0, sizeof(tok));
-          tok.string0 = colony->name[0] ? colony->name : "";
-          tok.number0 = stock;
-          tok.has_number0 = true;
-          popup_msg_fill(messages, "FOODLOW", &tok, "", body, sizeof(body));
-          ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
-        }
+/* Phase J: starve-kill (may abandon the colony) + food warnings. */
+COLONIZE_INTERNAL TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc) {
+  ColonizeColonyPool* const pool = pc->pool;
+  ColonizeColony* const colony = pc->colony;
+  ColonizeCol1Save* const col1 = pc->col1;
+  EuropeScreen* const europe = pc->europe;
+  const int human_nation = pc->human_nation;
+  AiPopupState* const ai_popups = pc->ai_popups;
+  const ColonizeMsgCatalog* const messages = pc->messages;
+  ColonizeDosRng* const rng = pc->rng;
+  const int pop = pc->pop;
+  const int colony_nation_id = pc->colony_nation_id;
+  const int food_stock_before = pc->food_stock_before;
+  const int consumed = pc->consumed;
+  const int field_food = pc->field_food;
+  const int was_starving = pc->was_starving;
+  int* const stock_before = pc->stock_before;
+  const int need = pop * TURN_FOOD_PER_COLONIST;
+  const int food_at_start = stock_before[COLONIZE_CARGO_FOOD];
+  int starved_this_tick = 0;
+  /*
+   * Easy-difficulty no-kill mercy (FUN_364b_0688, decomp ~57641-57647):
+   * on Discoverer/Explorer (difficulty < 2), the kill below never fires
+   * before year 1520; from 1520 on it's a `dos_rng_range(0, 2-difficulty)`
+   * roll, nonzero cancels (2/3 odds at Discoverer, 1/2 at Explorer). NULL
+   * col1/rng safely fall through to the plain kill (old behavior).
+   */
+  /* DS:0x8e5a (raw 57623-57625): a non-human colony's shortfall below 3 is
+   * forgiven. Only a non-zero shortfall takes the else branch (raw 57638),
+   * which reseeds (FUN_281f_04ca(DS:0x83a6)) before the mercy roll. */
+  int food_shortfall_8e5a = need - food_stock_before - field_food; /* Phase A composition */
+  if (food_shortfall_8e5a < 0) {
+    food_shortfall_8e5a = 0;
+  }
+  if (food_shortfall_8e5a < 3 && (colony_nation_id > 3 ||
+                         (col1 && col1->player[colony_nation_id].control != 0))) {
+    food_shortfall_8e5a = 0;
+  }
+  int starve_mercy = 0;
+  if (food_shortfall_8e5a != 0) {
+    dos_rng_reseed_83a6(rng);
+    if (col1 && col1->head.difficulty < 2) {
+      if (col1->head.year < 1520) {
+        starve_mercy = 1;
+      } else if (dos_rng_range(rng, 0, 2 - col1->head.difficulty) != 0) {
+        starve_mercy = 1;
       }
     }
   }
 
+  /*
+   * Phase J — starve-kill when still short and started the turn at 0 food.
+   * Last colonist → @VANISH + colonies_abandon (DOS 0xe47 / thunk 0254).
+   */
+  if (food_shortfall_8e5a != 0 && food_at_start == 0 &&
+      colony->colonist_count > 0 && !starve_mercy) {
+    const int colony_id = colony->id;
+    char vanish_name[COLONIZE_COLONY_NAME_MAX];
+    snprintf(
+      vanish_name,
+      sizeof(vanish_name),
+      "%s",
+      colony->name[0] ? colony->name : ""
+    );
+    /* DOS-LITERAL raw 57688-57690: the victim is `rand(0, pop - 1)`, drawn
+     * after the popup (DOSBox independence 8->9: New Amsterdam loses its
+     * colonist 0 on rand(0, 17)). */
+    const int kill_i = rng ? dos_rng_range(rng, 0, colony->colonist_count - 1)
+                           : colony->colonist_count - 1;
+    for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES_MAX; ++ti) {
+      if ((int)colony->tiles[ti] == kill_i) {
+        colony->tiles[ti] = (int8_t)-1;
+      } else if ((int)colony->tiles[ti] > kill_i) {
+        colony->tiles[ti] = (int8_t)((int)colony->tiles[ti] - 1);
+      }
+    }
+    colonies_colonist_tail_stash(pool, colony);
+    for (int i = kill_i; i < colony->colonist_count - 1; ++i) {
+      colony->colonists[i] = colony->colonists[i + 1];
+    }
+    memset(
+      &colony->colonists[colony->colonist_count - 1], 0, sizeof(colony->colonists[0])
+    );
+    colony->colonist_count--;
+    colony->population = colony->colonist_count;
+    /* 0a9c = FUN_15eb_0d04, which also takes 100 off the +0xc6 divisor. */
+    colonies_col1_rebel_divisor_adjust(col1, colony->x, colony->y, -100);
+    starved_this_tick = 1;
+    if (colony->colonist_count <= 0) {
+      if (europe && colony->nation_id == human_nation) {
+        snprintf(
+          europe->status,
+          sizeof(europe->status),
+          "Colony %s vanished.",
+          vanish_name
+        );
+        if (ai_popups) {
+          PopupMsgTokens tok;
+          memset(&tok, 0, sizeof(tok));
+          tok.string0 = vanish_name;
+          popup_chrome_ok(ai_popups, messages, "VANISH", &tok, europe->status);
+        }
+      }
+      (void)colonies_abandon(pool, colony_id);
+      return TURN_PRODUCE_RETURN;
+    }
+    if (europe && colony->nation_id == human_nation) {
+      if (colony->name[0]) {
+        snprintf(europe->status, sizeof(europe->status), "Starvation in %s.", colony->name);
+      } else {
+        snprintf(europe->status, sizeof(europe->status), "Colonist starved.");
+      }
+      if (ai_popups) {
+        const char* sec = (col1 && col1->head.autumn) ? "STARVE2" : "STARVE1";
+        char body[AI_POPUP_BODY_LEN];
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = colony->name[0] ? colony->name : "";
+        popup_msg_fill(messages, sec, &tok, "", body, sizeof(body));
+        ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+      }
+    }
+  }
+
+  /*
+   * First starvation latch (stock < need, not yet killing): @FOOD1 / @FOOD2.
+   * Else DOS 0xe5e @FOODLOW when eating into stores:
+   *   8e5a==0 (stock covers this turn) and 8e32!=0 (production < consumption)
+   *   and post-eat stock < 8e32×4. Cite: FUN_15eb_0b52; ~57626–57636.
+   * Surplus production (8e32==0) never warns — even if stock is modest.
+   */
+  if (!starved_this_tick && need > 0 && europe &&
+      colony->nation_id == human_nation && turn_report_ok_food(col1)) {
+    const int stock = colony->stock[COLONIZE_CARGO_FOOD];
+    const int food_shortfall = consumed - field_food; /* DOS 8e32 when >0 */
+    /*
+     * bugs.md #5: DOS's literal FOOD1/FOOD2 latch fires on stock<need
+     * alone, even at food_shortfall<=0 (production covers or beats
+     * consumption) — a colony merely flatlining at 0 net-zero food would
+     * re-trigger "depleted" every turn. Require actively losing food
+     * (shortfall>0) to match FOODLOW's own "surplus never warns" rule
+     * below and stop the false-positive nag.
+     *
+     * bugs.md #292: "depleted" additionally requires the stores to be
+     * EXACTLY 0 — merely dipping below next turn's need reads as "low",
+     * handled by the FOODLOW branch below.
+     */
+    if (stock == 0 && food_shortfall > 0 && !was_starving) {
+      if (colony->name[0]) {
+        snprintf(
+          europe->status, sizeof(europe->status), "Food depleted in %s.", colony->name
+        );
+      } else {
+        snprintf(europe->status, sizeof(europe->status), "Food stores depleted.");
+      }
+      if (ai_popups) {
+        const char* sec = (col1 && col1->head.autumn) ? "FOOD2" : "FOOD1";
+        char body[AI_POPUP_BODY_LEN];
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = colony->name[0] ? colony->name : "";
+        popup_msg_fill(messages, sec, &tok, "", body, sizeof(body));
+        ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+      }
+    } else if (
+      stock > 0 && food_shortfall > 0 && stock < food_shortfall * 4
+    ) {
+      if (colony->name[0]) {
+        snprintf(europe->status, sizeof(europe->status), "Food low in %s.", colony->name);
+      } else {
+        snprintf(europe->status, sizeof(europe->status), "Food stores low.");
+      }
+      if (ai_popups) {
+        char body[AI_POPUP_BODY_LEN];
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = colony->name[0] ? colony->name : "";
+        tok.number0 = stock;
+        tok.has_number0 = true;
+        popup_msg_fill(messages, "FOODLOW", &tok, "", body, sizeof(body));
+        ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+      }
+    }
+  }
+  return TURN_PRODUCE_CONTINUE;
+}
+
+/* Phase L: bank hammers, complete / already-have, tools check. */
+COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
+  ColonizeColonyPool* const pool = pc->pool;
+  ColonizeColony* const colony = pc->colony;
+  ColonizeCol1Save* const col1 = pc->col1;
+  EuropeScreen* const europe = pc->europe;
+  const int human_nation = pc->human_nation;
+  ColonizeTurnResult* const out = pc->out;
+  ColonizeColonyProdDelta* const delta = pc->delta;
+  AiPopupState* const ai_popups = pc->ai_popups;
+  const ColonizeMsgCatalog* const messages = pc->messages;
+  const int hammers_phase_a = pc->hammers_phase_a;
+  const int hammers_paid = pc->hammers_paid;
   /*
    * Carpenter hammers: convert lumber toward current project (or bank if
    * none). sol_b folds into each Carpenter worker individually, inside
@@ -1709,7 +1816,22 @@ void turn_produce_one_colony(
    * unit projects as well as buildings (bugs.md #537).
    */
   turn_emit_needtools_notice(pool, colony, col1, europe, human_nation, ai_popups, messages);
+}
 
+/* Phase K: "ran out of X" demand crumbs. */
+COLONIZE_INTERNAL void turn_produce_crumbs(TurnProduceCtx* pc) {
+  ColonizeColony* const colony = pc->colony;
+  ColonizeCol1Save* const col1 = pc->col1;
+  EuropeScreen* const europe = pc->europe;
+  const int human_nation = pc->human_nation;
+  AiPopupState* const ai_popups = pc->ai_popups;
+  const ColonizeMsgCatalog* const messages = pc->messages;
+  const char* const status_at_entry = pc->status_at_entry;
+  const int hammers_phase_a = pc->hammers_phase_a;
+  const int lumber_before_hammers = pc->lumber_before_hammers;
+  int* const craft_unmet_cap = pc->craft_unmet_cap;
+  int* const craft_unmet_gross = pc->craft_unmet_gross;
+  int* const craft_net = pc->craft_net;
   /* Phase K demand crumbs (hammers/tools already above): raw / craft empty. */
   if (colony->nation_id == human_nation && europe &&
       strcmp(europe->status, status_at_entry) == 0 && turn_report_ok_raw(col1)) {
@@ -1843,7 +1965,17 @@ void turn_produce_one_colony(
       }
     }
   }
+}
 
+/* Phase B produced mask (+0x90) and the produced-colony count. */
+COLONIZE_INTERNAL void turn_produce_produced_mask(TurnProduceCtx* pc) {
+  ColonizeColony* const colony = pc->colony;
+  ColonizeTurnResult* const out = pc->out;
+  ColonizeColonyProdDelta* const delta = pc->delta;
+  const int field_food = pc->field_food;
+  const int ai_food_subsidy = pc->ai_food_subsidy;
+  const int birth_food_debit = pc->birth_food_debit;
+  int* const ch_sold = pc->ch_sold;
   if (out) {
     out->colonies_produced++;
   }
@@ -1876,10 +2008,22 @@ void turn_produce_one_colony(
       colony->cargo_produced_mask |= (uint16_t)(1u << c);
     }
   }
+}
 
+/* Phases O / P: AI dump-sell, warehouse spoilage. */
+COLONIZE_INTERNAL void turn_produce_spoilage(TurnProduceCtx* pc) {
+  ColonizeColonyPool* const pool = pc->pool;
+  ColonizeColony* const colony = pc->colony;
+  ColonizeCol1Save* const col1 = pc->col1;
+  EuropeScreen* const europe = pc->europe;
+  const int human_nation = pc->human_nation;
+  AiPopupState* const ai_popups = pc->ai_popups;
+  const ColonizeMsgCatalog* const messages = pc->messages;
+  int* const stock_before = pc->stock_before;
   if (europe) {
     /* Phase O: AI dump-sell surplus for gold before spoilage clamp. */
-    (void)europe_ai_colony_dump_sell_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(pool), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL), .europe=(EuropeScreen*)(europe)}, colony, human_nation);
+    const ColonizeWorld sw = world_make(NULL, pool, NULL, col1, col1 != NULL, NULL, europe);
+    (void)europe_ai_colony_dump_sell_w(&sw, colony, human_nation);
   }
   /* Spoilage after Custom House / AI dump-sell (wiki Custom House before spoilage). */
   {
@@ -1970,70 +2114,93 @@ void turn_produce_one_colony(
         ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
       }
     }
+  }
+}
 
-    /*
-     * Phase P century tip: stock crosses a 100s boundary upward → @CARGOREADY*.
-     * At exact warehouse cap → CARGOREADY1 (tip) / CARGOREADY2 (expanded).
-     *
-     * DOS runs this as its own `if` after the spoil block, once per crossing
-     * cargo, for as long as the "report new cargos available" option is on —
-     * it is not an alternative to spoilage, and it does not latch. The
-     * once-per-campaign latch DS:0x5387 bit1 (head.tut3.nr6) belongs to the
-     * separate @TUTORIAL6 "move a ship in and sell it" hint, emitted below.
-     * Food (cargo 0) never triggers it. Cite: viceroy ~57893–57930.
-     */
-    if (europe && colony->nation_id == human_nation && turn_report_ok_new_cargo(col1)) {
-      for (int c = 1; c < COLONIZE_CARGO_COUNT; ++c) {
-        const int before = stock_before[c];
-        const int after = colony->stock[c];
-        if (after < 100 || before / 100 >= after / 100) {
-          continue;
-        }
-        const int cap = colonies_warehouse_capacity(pool, colony, c);
-        const char* cargo_name = NULL;
-        if (c < europe->cargo_count && europe->cargo[c].name[0]) {
-          cargo_name = europe->cargo[c].name;
-        }
-        snprintf(
-          europe->status,
-          sizeof(europe->status),
-          "New cargo of %s ready at %s.",
-          cargo_name ? cargo_name : "",
-          colony->name[0] ? colony->name : ""
-        );
-        if (!ai_popups) {
-          continue;
-        }
-        const char* sec = "CARGOREADY0";
-        if (cap > 0 && after == cap) {
-          sec = (colony->warehouse_level > 1u) ? "CARGOREADY2" : "CARGOREADY1";
-        }
-        char body[AI_POPUP_BODY_LEN];
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        tok.string0 = colony->name[0] ? colony->name : "";
-        tok.string1 = cargo_name ? cargo_name : "";
-        tok.number0 = cap > 0 ? cap : after;
-        tok.has_number0 = true;
-        popup_msg_fill(messages, sec, &tok, "", body, sizeof(body));
-        ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+/* Phase P: new-cargo-ready chrome + @TUTORIAL6. */
+COLONIZE_INTERNAL void turn_produce_cargo_ready(TurnProduceCtx* pc) {
+  ColonizeColonyPool* const pool = pc->pool;
+  ColonizeColony* const colony = pc->colony;
+  ColonizeCol1Save* const col1 = pc->col1;
+  EuropeScreen* const europe = pc->europe;
+  const int human_nation = pc->human_nation;
+  AiPopupState* const ai_popups = pc->ai_popups;
+  const ColonizeMsgCatalog* const messages = pc->messages;
+  int* const stock_before = pc->stock_before;
+  /*
+   * Phase P century tip: stock crosses a 100s boundary upward → @CARGOREADY*.
+   * At exact warehouse cap → CARGOREADY1 (tip) / CARGOREADY2 (expanded).
+   *
+   * DOS runs this as its own `if` after the spoil block, once per crossing
+   * cargo, for as long as the "report new cargos available" option is on —
+   * it is not an alternative to spoilage, and it does not latch. The
+   * once-per-campaign latch DS:0x5387 bit1 (head.tut3.nr6) belongs to the
+   * separate @TUTORIAL6 "move a ship in and sell it" hint, emitted below.
+   * Food (cargo 0) never triggers it. Cite: viceroy ~57893–57930.
+   */
+  if (europe && colony->nation_id == human_nation && turn_report_ok_new_cargo(col1)) {
+    for (int c = 1; c < COLONIZE_CARGO_COUNT; ++c) {
+      const int before = stock_before[c];
+      const int after = colony->stock[c];
+      if (after < 100 || before / 100 >= after / 100) {
+        continue;
+      }
+      const int cap = colonies_warehouse_capacity(pool, colony, c);
+      const char* cargo_name = NULL;
+      if (c < europe->cargo_count && europe->cargo[c].name[0]) {
+        cargo_name = europe->cargo[c].name;
+      }
+      snprintf(
+        europe->status,
+        sizeof(europe->status),
+        "New cargo of %s ready at %s.",
+        cargo_name ? cargo_name : "",
+        colony->name[0] ? colony->name : ""
+      );
+      if (!ai_popups) {
+        continue;
+      }
+      const char* sec = "CARGOREADY0";
+      if (cap > 0 && after == cap) {
+        sec = (colony->warehouse_level > 1u) ? "CARGOREADY2" : "CARGOREADY1";
+      }
+      char body[AI_POPUP_BODY_LEN];
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = colony->name[0] ? colony->name : "";
+      tok.string1 = cargo_name ? cargo_name : "";
+      tok.number0 = cap > 0 ? cap : after;
+      tok.has_number0 = true;
+      popup_msg_fill(messages, sec, &tok, "", body, sizeof(body));
+      ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
 
-        /* @TUTORIAL6, once per campaign (DS:0x5387 bit1). */
-        if (col1 && !col1->head.tut3.nr6) {
-          col1->head.tut3.nr6 = 1;
-          PopupMsgTokens ttok;
-          memset(&ttok, 0, sizeof(ttok));
-          ttok.number0 = after;
-          ttok.has_number0 = true;
-          ttok.string0 = cargo_name ? cargo_name : "";
-          ttok.string1 = colony->name[0] ? colony->name : "";
-          ttok.string2 = europe->nation_name[0] ? europe->nation_name : "";
-          popup_chrome_ok(ai_popups, messages, "TUTORIAL6", &ttok, europe->status);
-        }
+      /* @TUTORIAL6, once per campaign (DS:0x5387 bit1). */
+      if (col1 && !col1->head.tut3.nr6) {
+        col1->head.tut3.nr6 = 1;
+        PopupMsgTokens ttok;
+        memset(&ttok, 0, sizeof(ttok));
+        ttok.number0 = after;
+        ttok.has_number0 = true;
+        ttok.string0 = cargo_name ? cargo_name : "";
+        ttok.string1 = colony->name[0] ? colony->name : "";
+        ttok.string2 = europe->nation_name[0] ? europe->nation_name : "";
+        popup_chrome_ok(ai_popups, messages, "TUTORIAL6", &ttok, europe->status);
       }
     }
   }
+}
 
+/* Phase Q: deposit depletion roll-down. */
+COLONIZE_INTERNAL void turn_produce_depletion(TurnProduceCtx* pc) {
+  ColonizeColony* const colony = pc->colony;
+  const ColonizeWorldMap* const map = pc->map;
+  ColonizeCol1Save* const col1 = pc->col1;
+  EuropeScreen* const europe = pc->europe;
+  const int human_nation = pc->human_nation;
+  AiPopupState* const ai_popups = pc->ai_popups;
+  const ColonizeMsgCatalog* const messages = pc->messages;
+  ColonizeDosRng* const rng = pc->rng;
+  const int depl_n = pc->depl_n;
   /*
    * FUN_364b_0688 ~57932 (Deep Q): per depletion unit, `rng(0, diff+1) != 0`
    * bumps Col1 +0x97; wrap past 50 calls thunk_FUN_291f_0988 ->
@@ -2065,6 +2232,68 @@ void turn_produce_one_colony(
       }
     }
   }
+}
+
+void turn_produce_one_colony(
+  ColonizeColonyPool* pool,
+  ColonizeColony* colony,
+  const ColonizeWorldMap* map,
+  ColonizeCol1Save* col1,
+  EuropeScreen* europe,
+  int human_nation,
+  ColonizeTurnResult* out,
+  ColonizeColonyProdDelta* delta,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages,
+  ColonizeDosRng* rng
+) {
+  /* Stage order = FUN_364b_0688's DOS order (bugs.md #1107 split). */
+  TurnProduceCtx ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  /* The delta doubles as this tick's per-cargo net ledger (the DOS
+   * FUN_281f_0b50 scratch), which the cargo_produced_mask below needs even
+   * when the caller wants no delta back. */
+  if (!delta) {
+    delta = &ctx.local_delta;
+  }
+  memset(delta, 0, sizeof(*delta));
+  if (!pool || !colony || !colony->active) {
+    return;
+  }
+  ctx.pool = pool;
+  ctx.colony = colony;
+  ctx.map = map;
+  ctx.col1 = col1;
+  ctx.europe = europe;
+  ctx.human_nation = human_nation;
+  ctx.out = out;
+  ctx.delta = delta;
+  ctx.ai_popups = ai_popups;
+  ctx.messages = messages;
+  ctx.rng = rng;
+  if (turn_produce_begin(&ctx) == TURN_PRODUCE_RETURN) {
+    return;
+  }
+  turn_produce_compose(&ctx);
+  turn_produce_food(&ctx);
+  turn_produce_sol(&ctx);
+  turn_produce_horses(&ctx);
+  turn_produce_lumber(&ctx);
+  turn_produce_custom_house(&ctx);
+  if (pool) {
+    turn_produce_education(&ctx);
+    turn_produce_discover(&ctx);
+  }
+  turn_produce_birth(&ctx);
+  if (turn_produce_starve(&ctx) == TURN_PRODUCE_RETURN) {
+    return;
+  }
+  turn_produce_hammers(&ctx);
+  turn_produce_crumbs(&ctx);
+  turn_produce_produced_mask(&ctx);
+  turn_produce_spoilage(&ctx);
+  turn_produce_cargo_ready(&ctx);
+  turn_produce_depletion(&ctx);
 }
 
 /*
@@ -2135,7 +2364,7 @@ static void turn_log_colony_production(
     colony->name[0] ? colony->name : "colony",
     colony->id,
     colony->nation_id,
-    colony->colonist_count > 0 ? colony->colonist_count : colony->population,
+    colonies_headcount(colony),
     colony_prod_sol_percent(col1, colony),
     colony->stock[COLONIZE_CARGO_FOOD] - stock_before[COLONIZE_CARGO_FOOD],
     colony->hammers - hammers_before,

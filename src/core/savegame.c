@@ -203,9 +203,6 @@ bool savegame_probe_col1_slot(
       break;
     }
   }
-  if (out->leader_name[0] == '\0') {
-    out->leader_name[0] = '\0';
-  }
   out->year = head.year;
   out->autumn = head.autumn;
   out->turn = head.turn;

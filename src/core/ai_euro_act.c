@@ -156,7 +156,11 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act
    * Cite: units_resolve_lcr_rumour; Colonization.pdf Lost City Rumours.
    */
   if (ctx->map && map_tile_has_rumour(ctx->map, u->x, u->y)) {
-    if (units_resolve_lcr_rumour_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL), .rng=(ColonizeDosRng*)(ctx->rng), .europe=(EuropeScreen*)(NULL)}, u->id, -1)) {
+    /* europe stays NULL as before: an AI LCR credits the save, never the
+     * human-bound EuropeScreen (gold / Fountain of Youth recruit pool). */
+    ColonizeWorld lw = world_from_turn_ctx(ctx);
+    lw.europe = NULL;
+    if (units_resolve_lcr_rumour_w(&lw, u->id, -1)) {
       scout_explored = 1;
     }
     /* Vanish / hostile-burial outcomes may have despawned the scout. */

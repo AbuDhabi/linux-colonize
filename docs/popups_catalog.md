@@ -392,7 +392,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@TORYMAJORITY` | Done thin | EOT Phase D ai_popup OK; VGA PARKED |
 | `@SONSUP` | Done thin | EOT Phase D decade chrome ai_popup OK; VGA PARKED |
 | `@SONSDOWN` | Done thin | EOT Phase D decade chrome ai_popup OK; VGA PARKED |
-| `@REBELUP` | Done | `ai_king_nation_turn` (`ai_king_war.c`) decile SoL notify (FUN_43f7_2424 tail, 0x53d8 dedup) — rising, SoL<50, `ai_popup_enqueue_ok_ctx` |
+| `@REBELUP` | Done | `ai_king_nation_turn_2424` (+ `ai_king_human_5e52_tail`; `ai_king_nation_turn` is a test-only wrapper) (`ai_king_war.c`) decile SoL notify (FUN_43f7_2424 tail, 0x53d8 dedup) — rising, SoL<50, `ai_popup_enqueue_ok_ctx` |
 | `@REBELUP50` | Done | same 2424 tail, rising branch with SoL≥50 |
 | `@REBELDOWN` | Done | same 2424 tail, falling branch (report > (last+4)/10 hysteresis) |
 | `@REFIT` | Done thin | Drydock repair ai_popup OK (`@REFIT`); VGA PARKED |
@@ -469,8 +469,8 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@INDIANWARPATH2` | Done | the pay confirm DOS shows after the target pick (`ai_contact_enqueue_incite_confirm`, tag 0x16c1): real body + `Pay`/`Never mind.` rows; `@NOCONTACT` before the quote, `@UNFORTUNATE` / `@ALREADYSMITE` after it 2026-09-16. Was merged into the menu labels |
 | `@INDIANWARFARE` | Done | Incite announcement at `FUN_4d56_417e` LAB_4499 (tag 0x16e9) — real GAME.TXT body via `popup_msg_fill`, fires for both the human incite and the AI missionary auto-incite. Confirmed 2026-09-16 |
 | `@LOSENOCOLONIES` | Done thin | Section B zero-colony defeat OK + `ENDGAME_LOST` latch (`turn_run_year_end_chrome`) |
-| `@SOONRETIRING0` | Done thin | peacetime Spring 1790 — `ai_king_nation_turn` (`market_demand_pool_raw[8]`) |
-| `@SOONRETIRING1` | Done thin | wartime 1840 — `ai_king_nation_turn` (`market_demand_pool_raw[9]`) |
+| `@SOONRETIRING0` | Done thin | peacetime Spring 1790 — `ai_king_nation_turn_2424` (+ `ai_king_human_5e52_tail`; `ai_king_nation_turn` is a test-only wrapper) (`market_demand_pool_raw[8]`) |
+| `@SOONRETIRING1` | Done thin | wartime 1840 — `ai_king_nation_turn_2424` (+ `ai_king_human_5e52_tail`; `ai_king_nation_turn` is a test-only wrapper) (`market_demand_pool_raw[9]`) |
 | `@RETIRING` | Done thin | peacetime `@SCORED` That's all → `ai_king_apply_popup_result` |
 | `@RETIRING2` | Done thin | WoI year≥1850 + crown alive — `ai_king_check_revolution_end` |
 | `@HOWTOWIN` | Done thin | after declare — `ai_king_do_declare` INFO (invent WoI-begins demoted) |

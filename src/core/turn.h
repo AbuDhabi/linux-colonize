@@ -102,6 +102,7 @@ static inline ColonizeWorld world_from_turn_ctx(const ColonizeTurnContext* ctx) 
   w.europe = ctx->europe;
   w.ai_popups = ctx->ai_popups;
   w.messages = ctx->messages;
+  w.human_nation = ctx->human_nation;
   return w;
 }
 

@@ -1029,7 +1029,76 @@ static int case_blacksmith_gate_reads_local_1b0(void) {
   return 0;
 }
 
+/*
+ * bugs.md #1107 stage seam: the split cascade's head stage (asm 22da-2314),
+ * driven after its setup/census/pressure stages exactly as the dispatcher
+ * does. Same fixture as case_first_pick_is_stockade: RETURN on Stockade.
+ */
+static int case_seam_cascade_head_stage(void) {
+  Fx f;
+  if (fx_build(&f, 3) != 0) {
+    return 1;
+  }
+  AiEuro5952Cascade s;
+  memset(&s, 0, sizeof s);
+  s.ctx = &f.ctx;
+  s.pool = &f.colonies;
+  s.col = f.col;
+  s.col1 = &f.col1;
+  s.nation = NATION;
+  s.improvement_owner = NATION;
+  ai_euro_5952_cascade_setup(&s);
+  ai_euro_5952_cascade_census(&s);
+  ai_euro_5952_cascade_pressure(&s);
+  const AiEuro5952CascadeStatus st = ai_euro_5952_cascade_head(&s);
+  const int got = f.col->building_in_production;
+  const int want = bld(&f, "Stockade");
+  fx_done(&f);
+  if (st != AI_EURO_5952_CASCADE_RETURN || got != want) {
+    return fail("cascade head stage: RETURN on Stockade (asm 22ec)");
+  }
+  return 0;
+}
+
+/*
+ * bugs.md #1107 stage seam: the colony tick's unseat-all stage (raw
+ * 94551-94564) snapshots every job, idles every colonist (building workers
+ * too) and seeds placed[] from the inactive slots only.
+ */
+static int case_seam_colony_tick_unseat_all(void) {
+  Fx f;
+  if (fx_build(&f, 3) != 0) {
+    return 1;
+  }
+  memset(f.col->tiles, -1, sizeof f.col->tiles);
+  for (int i = 0; i < 3; ++i) {
+    f.col->colonists[i].active = i != 2;
+    f.col->colonists[i].field_job = COLONIZE_JOB_FARMER + i;
+    f.col->colonists[i].building_type = 4;
+  }
+  AiEuroColonyTick t;
+  memset(&t, 0, sizeof t);
+  t.ctx = &f.ctx;
+  t.world = world_from_turn_ctx(&f.ctx);
+  t.nation_id = NATION;
+  t.col = f.col;
+  ai_euro_colony_tick_unseat_all(&t);
+  int bad = t.n != 3;
+  for (int i = 0; i < 3 && !bad; ++i) {
+    bad = t.prev_job[i] != COLONIZE_JOB_FARMER + i || t.placed[i] != (i == 2) ||
+          f.col->colonists[i].field_job != (i == 2 ? COLONIZE_JOB_FARMER + 2 : -1) ||
+          f.col->colonists[i].building_type != (i == 2 ? 4 : -1);
+  }
+  fx_done(&f);
+  if (bad) {
+    return fail("unseat-all stage: active colonists idled, inactive slot placed");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"case_seam_cascade_head_stage", case_seam_cascade_head_stage},
+  {"case_seam_colony_tick_unseat_all", case_seam_colony_tick_unseat_all},
   {"case_blacksmith_gate_reads_local_1b0", case_blacksmith_gate_reads_local_1b0},
   {"case_starter_horses_purchase", case_starter_horses_purchase},
   {"case_first_pick_is_stockade", case_first_pick_is_stockade},

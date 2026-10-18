@@ -282,6 +282,5 @@ void ai_contact_set_status(ColonizeTurnContext* ctx, const char* msg);
 void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id);
 void ai_contact_visit_mood_clear(int nation_id, int e);
 void ai_contact_visit_mood_publish( const ColonizeTurnContext* ctx, int nation_id, int e, int brave_id, int generous_visit );
-void ai_contact_visit_mood_beg_conceded(const ColonizeTurnContext* ctx, int nation_id, int e);
 
 #endif /* COLONIZE_CORE_AI_CONTACT_INTERNAL_H */

@@ -451,7 +451,7 @@ static int test_brave_replacement_cycle(void) {
     fprintf(stderr, "bridge apply: %s\n", err);
     return 1;
   }
-  units_set_native_fallout_context(&save, &map, 0);
+  units_set_native_fallout_context(&save, &map);
 
   /* Pick any live Brave with a home village. */
   int victim = -1;
@@ -535,7 +535,7 @@ static int test_brave_replacement_cycle(void) {
     return fail("#837: 152e must spend 0x32 horse_breeding on the mount step");
   }
 
-  units_set_native_fallout_context(NULL, NULL, 0);
+  units_set_native_fallout_context(NULL, NULL);
   map_free(&map);
   assets_msg_free(&names);
   col1_save_free(&save);

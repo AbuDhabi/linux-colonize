@@ -17,7 +17,6 @@ struct ai_king_0982_ctx {
   int crown;
   int human;
   uint16_t* force;
-  int total;
   bool exhaust;
   bool landed;
 };

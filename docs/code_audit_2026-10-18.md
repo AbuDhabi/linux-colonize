@@ -1,7 +1,9 @@
 # General code audit — 2026-10-18
 
-> **STATUS: open audit dump (findings filed as bugs.md #1086-#1122); not an authoritative
-> spec; each row is a lead to investigate, not a verified fact.** Line numbers as of commit 9fcf9dec.
+> **STATUS: audit dump, mostly closed (findings filed as bugs.md #1086-#1122; 2026-10-18
+> fix wave moved all but #1107 remainder / #1110 sim side / #1112 / #1122 ff.c rename to
+> docs/archive/bugs_fixed_pending.md); not an authoritative spec; each row is a lead, not a
+> verified fact.** Line numbers as of commit 9fcf9dec and stale after the fix wave.
 
 Eight parallel Opus 5.5 sweeps over the whole tree: A compiler warnings + cppcheck, B Euro AI,
 C native/contact/king/diplo AI, D units/combat/turn/colony, E game loop/europe/col1/map/json,

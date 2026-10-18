@@ -412,7 +412,8 @@ void units_finish_village_temp_defender(
    * Cite: *(tribe+4) check before DEC; FUN_291f_0248 destroy; 31ea fallout.
    */
   if (tribe->population < 2) {
-    (void)units_try_native_settlement_fallout_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL), .rng=(ColonizeDosRng*)(rng)}, attacker_nation, indian_nation, village_x, village_y, -1, attacker_x, attacker_y);
+    const ColonizeWorld fw = world_make(pool, NULL, map, col1, col1 != NULL, rng, NULL);
+    (void)units_try_native_settlement_fallout_w(&fw, attacker_nation, indian_nation, village_x, village_y, -1, attacker_x, attacker_y);
   } else {
     tribe->population--;
     units_village_convert_roll(pool, col1, rng, attacker_nation, indian_nation, tribe->mission,
@@ -3687,7 +3688,11 @@ bool units_resolve_lcr_rumour_w(
     founding_fathers_de_soto_lcr_always_positive(col1, nation);
   /* Sight around the explorer: the per-move FUN_13f1_02f8 radius (de Soto's
    * extended sight lives in units_sight_radius, not in the LCR tail). */
-  (void)units_reveal_sight_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, u);
+  /* colonies stays NULL as before: with a pool the reveal would also take
+   * colony fog snapshots (units_reveal_tile_effects), which this LCR sight
+   * never did. */
+  const ColonizeWorld sw = world_make(pool, NULL, map, col1, col1 != NULL, NULL, NULL);
+  (void)units_reveal_sight_w(&sw, u);
 
   /*
    * Explorer skill tier (decomp local_36, viceroy:103450-103458): Scout
@@ -4047,7 +4052,7 @@ void units_reset_hooks(void) {
   units_set_combat_europe(NULL);
   units_set_combat_colonies(NULL);
   units_set_combat_human_nation(-1);
-  units_set_native_fallout_context(NULL, NULL, -1);
+  units_set_native_fallout_context(NULL, NULL);
   combat_analysis_set_presenter(NULL, NULL);
 }
 

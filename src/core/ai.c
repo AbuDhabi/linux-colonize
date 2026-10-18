@@ -163,18 +163,13 @@ void ai_coarse_fog_euro_restamp(
   }
 }
 
-/* +8 path: explore-index byte == 0. */
-int ai_coarse_fog_unseen(int x, int y) {
+/* Public read of the +8 far-probe test (FUN_521d_20e6 raw 88837): explore-index byte == 0. */
+int ai_coarse_fog_explore_unseen(int x, int y) {
   const int ix = ai_coarse_fog_explore_index(x, y);
   if (ix < 0 || ix >= AI_COARSE_FOG_SIZE) {
     return 0;
   }
   return s_ai_coarse_fog[ix] == 0;
-}
-
-/* Public read of the +8 far-probe test (FUN_521d_20e6 raw 88837). */
-int ai_coarse_fog_explore_unseen(int x, int y) {
-  return ai_coarse_fog_unseen(x, y);
 }
 
 /* FUN_521d_20e6 raw 88877: ring-hop accepts unit-only stamps, rejects bits 1/2. */

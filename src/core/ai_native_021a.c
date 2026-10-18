@@ -1214,8 +1214,11 @@ int ai_native_021a_tail(
           u->goto_y = col->y;
           int sx = 0;
           int sy = 0;
-          const bool ok =
-            units_next_goto_step_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .colonies=(ColonizeColonyPool*)(ai_s_native_colonies), .map=(ColonizeWorldMap*)(map), .rng=(ColonizeDosRng*)(rng)}, u->id, &sx, &sy);
+          const ColonizeWorld gw = world_make(
+            units, (ColonizeColonyPool*)ai_s_native_colonies, (ColonizeWorldMap*)map,
+            NULL, false, rng, NULL
+          );
+          const bool ok = units_next_goto_step_w(&gw, u->id, &sx, &sy);
           u->goto_x = save_gx;
           u->goto_y = save_gy;
           if (ok) {

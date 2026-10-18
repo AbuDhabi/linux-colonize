@@ -367,10 +367,10 @@ void ai_contact_alarm_delta_00f2(
  * the whole of FUN_4cc6_00f2 -- so those sites used to pin a pair at alarm
  * 100 forever and never burn a mission, while DOS rolls on every charge that
  * lands on 100. "Human" goes through ai_contact_euro_is_human like the ctx
- * form (bugs.md #1122); a ColonizeWorld carries no human_nation override, so
- * that is the DS:0x543f control byte. No status line to write, so the
- * @INDIANBURN notice goes straight to the popup queue when the world carries
- * one (NULL queue = mechanics only, as before).
+ * form (bugs.md #1122), with the world's human_nation as the override; a
+ * headless view (-1) falls back to the DS:0x543f control byte. No status
+ * line to write, so the @INDIANBURN notice goes straight to the popup queue
+ * when the world carries one (NULL queue = mechanics only, as before).
  */
 void ai_contact_alarm_delta_00f2_w(
   const ColonizeWorld* w, int nation_id, int euro, int delta
@@ -383,7 +383,7 @@ void ai_contact_alarm_delta_00f2_w(
   memset(&hctx, 0, sizeof(hctx));
   hctx.col1 = w->col1;
   hctx.col1_ok = true;
-  hctx.human_nation = -1;
+  hctx.human_nation = w->human_nation;
   const int human = ai_contact_euro_is_human(&hctx, euro);
   if (!ai_contact_00f2_expel(w->col1, w->rng, nation_id, euro, human) || !human) {
     return;

@@ -154,7 +154,6 @@ void name_entry_render(
   const int ix = g.frame.inner_x;
   const int iw = g.frame.inner_w;
   int ty = g.text_y + 2;
-  popup_draw_text_shadowed(font, framebuffer, ix + pad, ty, "", text_color);
   ty += line_h + TEXT_EDIT_FRAME_PAD;
   dlg->field_font = font;
   dlg->field_x = ix + pad;

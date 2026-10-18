@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 #include "core/assets.h"
-#include "core/ff.h"
+#include "core/font_file.h"
 #include "core/font.h"
 #include "core/map_gen.h"
 #include "core/pik.h"

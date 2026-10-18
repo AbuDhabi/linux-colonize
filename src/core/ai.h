@@ -119,7 +119,7 @@ int ai_indian_village_threat_w(
  * clear map owner nibbles on village tiles, reset indian[N-4] slot.
  * Returns number of villages removed (0 if none / invalid).
  */
-int col1_kill_indian_nation_w(
+int ai_kill_indian_nation_w(
   const ColonizeWorld* w,
   int nation_id
 );

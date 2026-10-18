@@ -307,15 +307,16 @@ int ai_goals_composite_unit_priority_w(
 /*
  * FUN_521d_0896 — the Indian **hostility gate** (name kept for catalog /
  * SYMBOL_MAP continuity; "filter_profession_by_distance_wealth" was an
- * inferred label and both halves of it are wrong). `profession` here is
- * DOS's overloaded "owner id" (0..3 nation, >=4 Indian nation id) — for
- * owner ids 0..3 the >3 gate never fires so the value passes through
- * unchanged (see FUN_521d_0906).
+ * inferred label and both halves of it are wrong). `owner` is the adjacent
+ * tile's owner id (0..3 nation, >=4 Indian nation id) — for owner ids 0..3
+ * the >3 gate never fires so the value passes through unchanged (see
+ * FUN_521d_0906). `profession` is the caller's own flag (0906 param_4; 0
+ * rejects every Indian owner), `unit_id` the tile's top unit or -1.
  *
  * Both Indian-range reads wired 2026-09-08 (decomp 87319-87340):
  *   alarm  = FUN_281f_030c(owner - 4, nation)  = ai_diplo_indian_alarm
  *   gate   = alarm > 0x4a
- *   if (unit_index >= 0 && DS:0x54f6[unit.home_tribe_id][nation] > 0x7f)
+ *   if (unit_id >= 0 && DS:0x54f6[unit.home_tribe_id][nation] > 0x7f)
  *            gate = true
  *   return gate ? owner : -1
  * i.e. an adjacent native raises a contact claim only when that nation is
@@ -327,9 +328,9 @@ int ai_goals_filter_profession_by_distance_wealth(
   const ColonizeCol1Save* col1,
   const struct ColonizeUnitPool* units,
   int nation_id,
+  int owner,
   int profession,
-  int has_context,
-  int unit_index
+  int unit_id
 );
 
 /*

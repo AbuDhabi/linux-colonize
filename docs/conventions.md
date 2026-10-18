@@ -113,11 +113,12 @@ the verification loop. It does **not** own feature status — that stays in the
   local: add the field to the ctx, alias it, and write it back on every exit of
   that stage; a missed write-back is a silent divergence that only a golden
   catches. Stage order = DOS order; the dispatcher is the asm reading order.
-  The 2026-09-16 split pass took the AI and game-loop giants apart, but nine
-  functions still exceed 400 lines (`turn_produce_one_colony`,
-  `col1_bridge_capture_w` / `_apply_w`, `units_try_move_w`,
-  `map_panel_render_w`, `colony_screen_hit_test`, `ai_euro_colony_tick_run`,
-  `ai_euro_5952_build_cascade_for_owner`, `ai_popup_render`) — bugs.md #1107.
+  The 2026-09-16 split pass took the AI and game-loop giants apart; the
+  2026-10-18 pass (bugs.md #1107) split the rest into ctx + stage functions
+  (`turn_produce_one_colony`, `units_try_move_w`, `colony_screen_hit_test`,
+  `ai_euro_colony_tick_run`, `ai_euro_5952_build_cascade_for_owner`,
+  `ai_popup_render`, `col1_bridge_capture_w` / `_apply_w`,
+  `map_panel_render_w`); check `bugs.md #1107` for any still pending.
   `gsound_vm.c` `voice_tick` is exempt (driver emulator, verbatim).
 - **Internal-header test seam.** A stage function from the big-function-rule
   split stays `static` in production but is reachable from tests via
@@ -133,8 +134,10 @@ the verification loop. It does **not** own feature status — that stays in the
   `#ifdef COLONIZE_TESTING` (not needed by production, which never calls them
   across a translation unit). See `src/core/ai_euro_internal.h`,
   `ai_contact_internal.h`, `ai_king_internal.h`, `ai_internal.h`,
-  `turn_internal.h`, `game_loop_internal.h` and
-  `tests/unit/test_stage_seams.c`. (2026-09-16)
+  `turn_internal.h`, `game_loop_internal.h`, `units_internal.h`,
+  `col1_bridge_internal.h`, `map_panel_internal.h`,
+  `colony_screen_internal.h` and `tests/unit/test_stage_seams.c`.
+  (2026-09-16, extended 2026-10-18)
 
 ### No MicroProse text in the binary
 

@@ -273,6 +273,9 @@ ColonizeColony* ai_euro_5952_tools_supply_and_connect(
 extern uint8_t ai_euro_s_20e6_explorers[16];
 /* DOS unit+0x3154..+0x3156 (fatigue, hop countdown, hop slot) in the raw hold bytes. */
 uint8_t* ai_euro_20e6_hold_scratch(ColonizeUnit* u);
+/* The one DOS unit+0x3146 @UNIT code resolver (NAMES.TXT @UNIT row; ships
+ * 0x0d..0x12). Miss (no type row, unresolved kind) = -1, which falls outside
+ * every code range its callers test. */
 int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUnit* u);
 /* @UNIT DEFENSE column (bugs.md #651) — exposed for test_regress_ai_tables.c. */
 int ai_euro_20e6_unit_col5(const ColonizeUnitPool* pool, int dos_type);
@@ -444,6 +447,76 @@ void ai_euro_act_land(struct ai_euro_act_ctx* a);
 void ai_euro_act_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u);
 
+/*
+ * FUN_5952_035e build-decision cascade ctx (asm 5952:21d4-5952:274b), split
+ * into ai_euro_5952_cascade_* stages (bugs.md #1107). Fields below
+ * `improvement_owner` are the DOS locals the stages share.
+ */
+typedef struct AiEuro5952Cascade {
+  ColonizeTurnContext* ctx;
+  ColonizeColonyPool* pool;
+  ColonizeColony* col;
+  const ColonizeCol1Save* col1;
+  int nation;
+  int buildable[COLONIZE_BUILDING_TYPES_MAX];
+  int n_buildable;
+  int improvement_owner; /* DOS local_1b0 */
+  int gross[AI_EURO_5952_LEDGER_SLOTS];  /* DS:0x8dc8 */
+  int demand[AI_EURO_5952_LEDGER_SLOTS]; /* DS:0x8e0a */
+  int pop;
+  int human;
+  int turn;
+  int year;
+  int difficulty;
+  int musket_price;           /* DS:0x84cb + local_1b0*0x10 */
+  int armed_count_for_nation; /* DS:0x9424 + local_1b0 */
+  int ring1;
+  int food_workers;           /* iVar12 */
+  int prof_count[28];
+  int experts;
+  int tier_max;
+  int arty_on_tile;           /* iStack_92 */
+  int hungry;                 /* iStack_a0 */
+  int ring;                   /* uStack_a2 */
+  int ring_nonland;           /* iStack_142 */
+  int factory;                /* iStack_2c */
+  bool has_shipyard;
+} AiEuro5952Cascade;
+
+/* NEXT = fall into the next stage; WANTS = DOS's jump to 2747 (set the
+ * wants-construction latch); RETURN = a project was picked. */
+typedef enum AiEuro5952CascadeStatus {
+  AI_EURO_5952_CASCADE_NEXT,
+  AI_EURO_5952_CASCADE_RETURN,
+  AI_EURO_5952_CASCADE_WANTS
+} AiEuro5952CascadeStatus;
+
+/*
+ * FUN_5952_035e colony-tick ctx for one colony, split into
+ * ai_euro_colony_tick_* stages (bugs.md #1107). `col` is *(DS:0x8542): the
+ * road-connect arm may move it to another colony record.
+ */
+typedef struct AiEuroColonyTick {
+  ColonizeTurnContext* ctx;
+  ColonizeWorld world;
+  int nation_id;
+  bool whole_tick;
+  ColonizeColony* col;
+  int tory_weight;       /* local_7c */
+  int improvement_owner; /* local_1b0 */
+  int n;
+  int prev_job[COLONIZE_COLONY_POP_MAX];
+  bool placed[COLONIZE_COLONY_POP_MAX];
+  bool fishable;
+  int food_have;
+  int food_need;
+  int food_stock;        /* colony+0x9a */
+  bool section_done;     /* goto LAB_5952_178f */
+  bool under_populated;  /* local_80 */
+  bool horses_have_room; /* local_1e */
+  bool placement_open;   /* local_7e */
+} AiEuroColonyTick;
+
 #ifdef COLONIZE_TESTING
 void ai_euro_colony_goals_colony_labor(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c,
@@ -541,6 +614,24 @@ int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
 void ai_goals_upsert_secondary(int nation_id, int x, int y, int code, int prio);
 AiNationPlanScratch* ai_goals_plan_scratch(int nation_id);
 int ai_goals_stack_settler_pick(const ColonizeCol1Unit* units, int unit_count, int unit_index);
+/* bugs.md #1106: test-only entry points (no production caller). */
+int ai_euro_28c8_colonist_job_score_structural(
+  const ColonizeTurnContext* ctx, int colony_id, int colonist_slot,
+  AiEuro28c8JobCandidate* out_best
+);
+/* bugs.md #1107 stage seams: FUN_5952_035e build cascade + colony tick. */
+void ai_euro_5952_cascade_setup(AiEuro5952Cascade* s);
+void ai_euro_5952_cascade_census(AiEuro5952Cascade* s);
+void ai_euro_5952_cascade_pressure(AiEuro5952Cascade* s);
+AiEuro5952CascadeStatus ai_euro_5952_cascade_head(AiEuro5952Cascade* s);
+AiEuro5952CascadeStatus ai_euro_5952_cascade_town(AiEuro5952Cascade* s);
+AiEuro5952CascadeStatus ai_euro_5952_cascade_military(AiEuro5952Cascade* s);
+AiEuro5952CascadeStatus ai_euro_5952_cascade_chain_upgrades(AiEuro5952Cascade* s);
+void ai_euro_colony_tick_open(AiEuroColonyTick* t);
+void ai_euro_colony_tick_unseat_all(AiEuroColonyTick* t);
+void ai_euro_colony_tick_food_pass(AiEuroColonyTick* t);
+void ai_euro_colony_tick_pass2(AiEuroColonyTick* t);
+void ai_euro_colony_tick_specialist_restore(AiEuroColonyTick* t);
 #endif /* COLONIZE_TESTING */
 
 #endif /* COLONIZE_CORE_AI_EURO_INTERNAL_H */

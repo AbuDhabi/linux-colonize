@@ -51,13 +51,13 @@ int closing_parse_timeline(
   int* out_end_frame
 ) {
   if (out_end_frame) {
-    *out_end_frame = 390;
+    *out_end_frame = 0; /* no end row in the TXT = 0, never a typed copy */
   }
   if (!out || out_max <= 0) {
     return 0;
   }
   return cinematic_parse_timeline(
-    data_dir, "CLOSING.TXT", "CLOSING", 390, out_max, closing_store_row, out, out_end_frame
+    data_dir, "CLOSING.TXT", "CLOSING", 0, out_max, closing_store_row, out, out_end_frame
   );
 }
 
@@ -204,23 +204,12 @@ bool closing_open(ClosingCinematic* c, const char* data_dir) {
   }
 
   c->series_count = closing_parse_timeline(data_dir, c->series, CLOSING_SERIES_MAX, &c->end_frame);
-  if (c->series_count <= 0) {
-    /* Shipped CLOSING.TXT @CLOSING, used when the catalog is missing. */
-    static const ClosingSeries kDefault[] = {
-      {4, 1, -1, 0, 0},
-      {6, 1, -1, 0, 0},
-      {5, 1, -1, 0, 100},
-      {0, 1, -1, 0, 16},
-      {1, 1, -1, 0, 0},
-      {2, 1, -1, 0, 0},
-      {3, 1, -1, 0, 0},
-    };
-    memcpy(c->series, kDefault, sizeof(kDefault));
-    c->series_count = (int)(sizeof(kDefault) / sizeof(kDefault[0]));
-    c->end_frame = 390;
-  }
-  if (c->end_frame < 1) {
-    c->end_frame = 390;
+  /* The timeline is CLOSING.TXT @CLOSING data (end frame = its -1 row);
+   * no compiled-in copy. */
+  if (c->series_count <= 0 || c->end_frame < 1) {
+    diag_warn("Closing cinematic: no @CLOSING timeline in CLOSING.TXT.");
+    closing_close(c);
+    return false;
   }
 
   memcpy(c->canvas, c->background, sizeof(c->canvas));

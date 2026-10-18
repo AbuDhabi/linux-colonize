@@ -1,3 +1,0 @@
-@GAME
-~GAME
-  Menu Option Exit

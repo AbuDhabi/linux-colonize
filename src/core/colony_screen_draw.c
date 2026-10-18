@@ -13,7 +13,7 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/fb.h"
-#include "core/ff.h"
+#include "core/font_file.h"
 #include "core/founding_fathers.h"
 #include "core/map_menu.h"
 #include "core/map_panel.h"
@@ -80,12 +80,8 @@ void colony_screen_fill_top_bar_wood(
 }
 
 void colony_screen_draw_hline(ColonizeFramebuffer8* framebuffer, int y, int color) {
-  if (!framebuffer || !framebuffer->pixels || y < 0 || y >= framebuffer->height) {
-    return;
-  }
-  uint8_t c = (uint8_t)color;
-  for (int x = 0; x < framebuffer->width; ++x) {
-    framebuffer->pixels[y * framebuffer->width + x] = c;
+  if (framebuffer) {
+    fb_hline(framebuffer, y, 0, framebuffer->width - 1, (uint8_t)color);
   }
 }
 
@@ -96,24 +92,7 @@ void colony_screen_draw_vline(
   int y1,
   int color
 ) {
-  if (!framebuffer || !framebuffer->pixels || x < 0 || x >= framebuffer->width) {
-    return;
-  }
-  if (y0 > y1) {
-    const int t = y0;
-    y0 = y1;
-    y1 = t;
-  }
-  if (y0 < 0) {
-    y0 = 0;
-  }
-  if (y1 >= framebuffer->height) {
-    y1 = framebuffer->height - 1;
-  }
-  uint8_t c = (uint8_t)color;
-  for (int y = y0; y <= y1; ++y) {
-    framebuffer->pixels[y * framebuffer->width + x] = c;
-  }
+  fb_vline(framebuffer, x, y0, y1, (uint8_t)color);
 }
 
 void colony_screen_draw_top_bar(
@@ -159,13 +138,7 @@ void colony_screen_draw_selection_box(
   int h,
   uint8_t color
 ) {
-  if (!framebuffer || w <= 0 || h <= 0) {
-    return;
-  }
-  fb_fill_rect(framebuffer, x, y, w, 1, color);
-  fb_fill_rect(framebuffer, x, y + h - 1, w, 1, color);
-  fb_fill_rect(framebuffer, x, y, 1, h, color);
-  fb_fill_rect(framebuffer, x + w - 1, y, 1, h, color);
+  fb_rect_outline(framebuffer, x, y, w, h, color, color);
 }
 
 /* Tight green box around an ICONS.SS sprite at (x,y), 1px margin. */
@@ -798,7 +771,8 @@ void colony_screen_draw_area_overlays(
             continue; /* worked tile — DOS clears the claim slot */
           }
         }
-        if (colonies_indian_claim_tribe_from_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(pool), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, colony->nation_id, colony->x, colony->y, colony->x + dx, colony->y + dy) < 0) {
+        const ColonizeWorld cw = world_make(NULL, (ColonizeColonyPool*)pool, (ColonizeWorldMap*)map, (ColonizeCol1Save*)col1, col1 != NULL, NULL, NULL);
+        if (colonies_indian_claim_tribe_from_w(&cw, colony->nation_id, colony->x, colony->y, colony->x + dx, colony->y + dy) < 0) {
           continue;
         }
         const int tx = origin_x + (dx + half) * tile;

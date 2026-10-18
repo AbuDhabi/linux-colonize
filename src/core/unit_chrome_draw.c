@@ -380,24 +380,11 @@ void unit_chrome_blit(
 /* Moved out of turn.c 2026-09-16 (sim/UI split): the only framebuffer
  * painter the EOT processor owned. Pure move. */
 void turn_draw_owner_indicator(ColonizeFramebuffer8* framebuffer, int nation_id) {
-  if (!framebuffer || !framebuffer->pixels || framebuffer->width <= 0 || framebuffer->height <= 0) {
-    return;
-  }
   const uint8_t color = unit_chrome_nation_color(nation_id);
   /* DOS constants are bottom-right of a 320x200 screen; the port's sidebar is
    * flush right and grows downwards, so keep the same inset from the logical
    * screen's bottom-right corner. */
   const int x0 = screen_geom_w() - (SCREEN_BASE_W - TURN_OWNER_INDICATOR_X);
   const int y0 = screen_geom_h() - (SCREEN_BASE_H - TURN_OWNER_INDICATOR_Y);
-  for (int y = y0; y < y0 + TURN_OWNER_INDICATOR_H; ++y) {
-    if (y < 0 || y >= framebuffer->height) {
-      continue;
-    }
-    for (int x = x0; x < x0 + TURN_OWNER_INDICATOR_W; ++x) {
-      if (x < 0 || x >= framebuffer->width) {
-        continue;
-      }
-      framebuffer->pixels[y * framebuffer->width + x] = color;
-    }
-  }
+  fb_fill_rect(framebuffer, x0, y0, TURN_OWNER_INDICATOR_W, TURN_OWNER_INDICATOR_H, color);
 }

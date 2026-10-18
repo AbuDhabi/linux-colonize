@@ -43,7 +43,7 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/fb.h"
-#include "core/ff.h"
+#include "core/font_file.h"
 #include "core/font.h"
 #include "core/founding_fathers.h"
 #include "core/howmuch_dialog.h"
@@ -135,7 +135,8 @@ static void game_apply_kill_indians(ColonizeGameState* game, int nation_id, cons
       }
     }
   }
-  const int removed = col1_kill_indian_nation_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(game->units_ok ? &game->units : NULL), .map=(ColonizeWorldMap*)(game->world_map_ok ? &game->world_map : NULL), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true}, nation_id);
+  const ColonizeWorld w = game_world(game);
+  const int removed = ai_kill_indian_nation_w(&w, nation_id);
   if (removed <= 0 && unit_n <= 0) {
     set_status(game, "No Indians of that tribe", label);
   } else if (label && label[0]) {
@@ -1114,9 +1115,7 @@ void game_open_save_load(ColonizeGameState* game, SaveLoadMode mode) {
     return;
   }
   const char* dir = game->config.save_dir ? game->config.save_dir : savegame_default_dir();
-  const ColonizeFont* popup_font =
-    game->intro_font_ok ? &game->intro_font
-    : (game->menu_font_ok ? &game->menu_font : NULL);
+  const ColonizeFont* popup_font = game_popup_font(game);
   if (!save_load_open(&game->save_load, mode, dir, game->resolved_data_dir, &game->messages, popup_font)) {
     set_status(game, mode == SAVE_LOAD_MODE_SAVE ? "Save unavailable" : "Load unavailable", NULL);
   }

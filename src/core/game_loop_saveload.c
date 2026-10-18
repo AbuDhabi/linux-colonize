@@ -43,7 +43,7 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/fb.h"
-#include "core/ff.h"
+#include "core/font_file.h"
 #include "core/font.h"
 #include "core/founding_fathers.h"
 #include "core/howmuch_dialog.h"
@@ -115,7 +115,16 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
    * Restore every saved record first; the live spawn reservation resumes
    * immediately afterward for new runtime-pool units. */
   units_set_spawn_gate_hook(NULL, NULL);
-  const bool applied = col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(loaded), .col1_ok=((loaded) != NULL), .europe=(EuropeScreen*)(&game->europe)}, &result, err, err_size);
+  /* Not game_world (#1110): the target is the incoming save and the pools it
+   * is about to fill, whose load flags (world_map_ok, col1_ok) are not set
+   * until the apply succeeds. */
+  const bool applied = col1_bridge_apply_w(
+    &(ColonizeWorld){
+      .units = &game->units, .colonies = &game->colonies, .map = &game->world_map,
+      .col1 = loaded, .col1_ok = loaded != NULL, .europe = &game->europe,
+      .human_nation = -1},
+    &result, err, err_size
+  );
   game_register_europe_spawn_reservation(game);
   if (!applied) {
     return false;
@@ -176,9 +185,10 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
 
   col1_save_free(&game->col1);
   game->col1 = *loaded;
-  ai_repair_nation_landfalls(&(ColonizeWorld){.units=&game->units, .colonies=&game->colonies, .map=&game->world_map, .col1=&game->col1, .col1_ok=true});
-  memset(loaded, 0, sizeof(*loaded));
   game->col1_ok = true;
+  const ColonizeWorld w = game_world(game);
+  ai_repair_nation_landfalls(&w);
+  memset(loaded, 0, sizeof(*loaded));
   /* DS:0x8d80 (post_map.boot_timer) seeds every colony's building layout
    * (FUN_2f2b_0434); the save carries it, so hand it over. bugs.md #578. */
   colony_screen_set_layout_seed(&game->colony_screen, game->col1.post_map.boot_timer);
@@ -383,7 +393,8 @@ static bool game_capture_col1(ColonizeGameState* game, char* err, size_t err_siz
       game->game_year = 1492;
     }
   }
-  if (!col1_bridge_capture_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true, .europe=(EuropeScreen*)(&game->europe)}, game->game_year, game->game_autumn, game->turn_number, game->human_nation, game->map_cursor_x, game->map_cursor_y, game->map_view_x, game->map_view_y, game->units.selected_id, game->view_pieces_mode, err, err_size)) {
+  const ColonizeWorld w = game_world(game);
+  if (!col1_bridge_capture_w(&w, game->game_year, game->game_autumn, game->turn_number, game->human_nation, game->map_cursor_x, game->map_cursor_y, game->map_view_x, game->map_view_y, game->units.selected_id, game->view_pieces_mode, err, err_size)) {
     return false;
   }
   return true;
@@ -598,7 +609,8 @@ void game_retire_after_score(ColonizeGameState* game) {
     return;
   }
   ColonizeScoreBreakdown sc;
-  reports_compute_score_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&game->colonies), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true, .europe=(EuropeScreen*)(&game->europe)}, &sc, game->human_nation);
+  const ColonizeWorld w = game_world(game);
+  reports_compute_score_w(&w, &sc, game->human_nation);
   /* DOS LAB_3844_0b4a / main-loop 0x104 block: 0x5382 |= 0x10 once the score
    * chain has run — "scoring complete" (also gates the WON auto-retire). */
   game->col1.head.game_options.calendar_latch = 1;

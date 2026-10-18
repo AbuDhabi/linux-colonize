@@ -6,7 +6,7 @@
 
 .PHONY: build test golden release clean
 
-# One test target: `make test T=unit_ff` (builds only that target, runs it from
+# One test target: `make test T=unit_font_file` (builds only that target, runs it from
 # repo root; add CASE=<name> to run a single case via COLONIZE_TEST_ONLY).
 
 build:

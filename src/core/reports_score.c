@@ -486,15 +486,14 @@ void reports_render_score(
   int human,
   const ColonizeColonyPool* colonies,
   const EuropeScreen* europe,
-  uint32_t turn_number,
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,
   char* line,
   size_t line_sz
 ) {
-  (void)turn_number;
   ColonizeScoreBreakdown sc;
-  reports_compute_score_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(colonies), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL), .europe=(EuropeScreen*)(europe)}, &sc, human);
+  const ColonizeWorld sw = world_make(NULL, (ColonizeColonyPool*)colonies, NULL, (ColonizeCol1Save*)col1, col1 != NULL, NULL, (EuropeScreen*)europe);
+  reports_compute_score_w(&sw, &sc, human);
 
   const ColonizeFont* body_font = (view && view->title_font_ok) ? &view->title_font : font;
 
@@ -521,7 +520,7 @@ void reports_render_score(
       sc.year
     );
   } else {
-    snprintf(line, line_sz, "Turn %u", (unsigned)turn_number);
+    line[0] = '\0'; /* no save record: no header (no typed English, bugs.md #1122) */
   }
   if (body_font) {
     const int w = font_text_width(body_font, line);

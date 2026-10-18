@@ -132,7 +132,7 @@ static void new_game_free_assets(NewGameWizard* ng) {
     ng->nation_art_ok = false;
   }
   if (ng->fontking_ok) {
-    ff_free(&ng->fontking);
+    font_file_free(&ng->fontking);
     ng->fontking_ok = false;
   }
   if (ng->endking_ok) {
@@ -240,7 +240,7 @@ static void new_game_ensure_king(NewGameWizard* ng) {
     char path[512];
     char err[256];
     if (dos_compat_normalize_asset_path(ng->data_dir, "FONTKING.FF", path, sizeof(path)) &&
-        ff_load(path, &ng->fontking, err, sizeof(err))) {
+        font_file_load(path, &ng->fontking, err, sizeof(err))) {
       ng->fontking_ok = true;
     } else {
       diag_warn("new_game: FONTKING.FF missing");
@@ -2145,7 +2145,7 @@ void new_game_render_throne_audience(
     char path[512];
     char err[256];
     if (dos_compat_normalize_asset_path(ng->data_dir, "FONTKING.FF", path, sizeof(path)) &&
-        ff_load(path, &ng->fontking, err, sizeof(err))) {
+        font_file_load(path, &ng->fontking, err, sizeof(err))) {
       ng->fontking_ok = true;
     }
   }

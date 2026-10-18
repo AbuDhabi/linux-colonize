@@ -43,7 +43,7 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/fb.h"
-#include "core/ff.h"
+#include "core/font_file.h"
 #include "core/font.h"
 #include "core/founding_fathers.h"
 #include "core/howmuch_dialog.h"
@@ -153,8 +153,7 @@ static bool game_service_bar_message(ColonizeGameState* game, const ColonizeInpu
    * strip — and let that screen have the frame; the queue is picked up again
    * when the map is back.
    */
-  if (game_screen_owns_display(game) || game->woodcut.open || game->ai_popups.open ||
-      game_modal_open(game)) {
+  if (game_screen_owns_display(game) || game_modal_open(game)) {
     map_menu_set_message(&game->map_menu, NULL, 0);
     return false;
   }
@@ -381,9 +380,7 @@ static bool game_key_pioneer_order(ColonizeGameState* game, GamePioneerOrderFn f
     return false;
   }
   char msg[96];
-  ColonizeWorld w = world_make(
-    &game->units, &game->colonies, &game->world_map, NULL, false, NULL, NULL
-  );
+  const ColonizeWorld w = game_world(game);
   fn(&w, sid, msg, sizeof(msg), &game->ai_popups, &game->messages);
   set_status(game, msg, NULL);
   return true;
@@ -471,9 +468,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
    * rather than `game_modal_open`, which drives `game_handle_modal_input`.
    */
   if (new_game_active(&game->new_game)) {
-    game->new_game.ui_font = game->intro_font_ok ? &game->intro_font
-      : (game->colony_font_ok ? &game->colony_font
-                              : (game->menu_font_ok ? &game->menu_font : NULL));
+    game->new_game.ui_font = game_popup_font(game);
     game->new_game.tiny_font = game->colony_font_ok ? &game->colony_font
       : (game->menu_font_ok ? &game->menu_font : game->new_game.ui_font);
     game->new_game.lore_font = game->new_game.ui_font;
@@ -721,7 +716,8 @@ static GameUpdateStep game_pacer_goto_step(
    * cleared BEFORE dispatching — otherwise the pacer would re-fire the
    * @ACTIONS menu on every frame the unit sat next to the village.
    */
-  if (units_goto_dest_is_village_entry_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, active->id)) {
+  const ColonizeWorld w = game_world(game);
+  if (units_goto_dest_is_village_entry_w(&w, active->id)) {
     const int aid = active->id;
     const int gx = active->goto_x;
     const int gy = active->goto_y;
@@ -832,7 +828,8 @@ static GameUpdateStep game_pacer_goto_step(
       units_is_sea(&game->units, active_id) && game->europe_ok &&
       active->goto_x < UNITS_GOTO_NONE && active->goto_y < UNITS_GOTO_NONE &&
       map_tile_is_high_seas(&game->world_map, goto_dest_x, goto_dest_y);
-    const bool stepped = units_advance_goto_one_step_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .rng=(ColonizeDosRng*)(&game->move_rng), .rng_reseed=game->ai_rng_seed, .rng_reseed_set=true}, active_id);
+    const ColonizeWorld w = game_world(game);
+    const bool stepped = units_advance_goto_one_step_w(&w, active_id);
     ColonizeUnit* again = units_get(&game->units, active_id);
     const bool sailed_for_europe =
       goto_ship_to_lane && again && again->active && units_is_on_map(again) &&
@@ -1115,7 +1112,8 @@ COLONIZE_INTERNAL GameUpdateStep game_update_report_screen(ColonizeGameState* ga
       /* Naval report is a single paginated ship/passenger table — same
        * OK/Esc/Enter page-advance shape as Economic/Colony above. */
       if (game->report_id == COLONIZE_REPORT_NAVAL) {
-        const int page_count = reports_naval_page_count_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(game->units_ok ? &game->units : NULL), .colonies=(ColonizeColonyPool*)(&game->colonies), .europe=(EuropeScreen*)(game->europe_ok ? &game->europe : NULL)}, game->human_nation);
+        const ColonizeWorld w = game_world(game);
+        const int page_count = reports_naval_page_count_w(&w, game->human_nation);
         if (game->naval_page + 1 < page_count) {
           game->naval_page++;
           return GAME_UPDATE_RETURN_TRUE;
@@ -2148,7 +2146,8 @@ static GameUpdateStep game_europe_screen_keys(
       return GAME_UPDATE_RETURN_TRUE;
     }
     if (ch == '+' && eu->selected_harbor >= 0) {
-      europe_buy_cargo_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true, .europe=(EuropeScreen*)(eu)}, game->human_nation, eu->selected_harbor, eu->selected_market, 1);
+      const ColonizeWorld w = game_world(game);
+      europe_buy_cargo_w(&w, game->human_nation, eu->selected_harbor, eu->selected_market, 1);
       game_europe_drain_price_events(game);
       return GAME_UPDATE_RETURN_TRUE;
     }

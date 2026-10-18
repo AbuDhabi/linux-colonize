@@ -8,6 +8,7 @@
 #include "core/map.h"
 #include "core/map_menu.h"
 #include "core/map_panel.h"
+#include "core/map_panel_internal.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
 #include "core/ss.h"
@@ -1034,6 +1035,43 @@ static int case_repair_badge_digit(void) {
   return rc;
 }
 
+/* bugs.md #1107 seam: the header stage starts the text cursor at 0x33 or two
+ * px under the minimap rule, whichever is lower, then advances it by the date
+ * and Gold/Tax lines plus a half-line gap. */
+static int case_header_stage_seam(void) {
+  if (ensure_shared() != 0) {
+    return 1;
+  }
+  uint8_t* pixels = (uint8_t*)calloc(320 * 200, 1);
+  if (!pixels) {
+    return fail("oom");
+  }
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  const int starts[2][2] = {{0x20, 0x33}, {0x40, 0x42}}; /* section_bottom, first row */
+  int rc = 0;
+  for (int i = 0; i < 2; ++i) {
+    MapPanelRenderCtx c = {
+      .labels = &g_labels,
+      .game_year = 1492,
+      .gold = 1000,
+      .tax_percent = 0,
+      .framebuffer = &fb,
+      .section_bottom = starts[i][0],
+      .text_x = MAP_PANEL_X + 4,
+      .line_h = 8,
+      .y_limit = 198,
+    };
+    map_panel_render_header(&c);
+    const int want = starts[i][1] + 2 * 8 + 4;
+    if (c.text_y != want) {
+      fprintf(stderr, "header stage %d: text_y %d, want %d\n", i, c.text_y, want);
+      rc = 1;
+    }
+  }
+  free(pixels);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"panel_geometry_constants", case_panel_geometry_constants},
   {"panel_geometry_resized", case_panel_geometry_resized},
@@ -1049,6 +1087,7 @@ static const TestCase k_cases[] = {
   {"stack_detail_expert_prefix", case_stack_detail_expert_prefix},
   {"treasure_word_and_zero_tools", case_treasure_word_and_zero_tools},
   {"repair_badge_digit", case_repair_badge_digit},
+  {"header_stage_seam", case_header_stage_seam},
 };
 
 TEST_MAIN(k_cases)

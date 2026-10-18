@@ -2,7 +2,7 @@
 #include <string.h>
 
 #include "core/assets.h"
-#include "core/ff.h"
+#include "core/font_file.h"
 #include "core/font.h"
 #include "core/colony.h"
 #include "core/map_menu.h"
@@ -359,7 +359,7 @@ static int case_render_title_position(void) {
   ColonizeFont font;
   memset(&font, 0, sizeof(font));
   char err[128];
-  const bool font_ok = ff_load("COLONIZE/FONTSMAL.FF", &font, err, sizeof(err));
+  const bool font_ok = font_file_load("COLONIZE/FONTSMAL.FF", &font, err, sizeof(err));
   const ColonizeFont* f = font_ok ? &font : NULL;
 
   uint8_t pixels[320 * 200];
@@ -369,7 +369,7 @@ static int case_render_title_position(void) {
   if (bar->menus[game_i].title_x != 12) {
     fprintf(stderr, "GAME title_x expected 12, got %d\n", bar->menus[game_i].title_x);
     if (font_ok) {
-      ff_free(&font);
+      font_file_free(&font);
     }
     fixture_free(&fx);
     return 1;
@@ -388,7 +388,7 @@ static int case_render_title_position(void) {
       bar->menus[pedia_i].title_x
     );
     if (font_ok) {
-      ff_free(&font);
+      font_file_free(&font);
     }
     fixture_free(&fx);
     return 1;
@@ -396,14 +396,14 @@ static int case_render_title_position(void) {
   if (pixels[2] == 0 && pixels[320 * 2 + 10] == 0) {
     fprintf(stderr, "menu bar render produced empty pixels\n");
     if (font_ok) {
-      ff_free(&font);
+      font_file_free(&font);
     }
     fixture_free(&fx);
     return 1;
   }
 
   if (font_ok) {
-    ff_free(&font);
+    font_file_free(&font);
   }
   fixture_free(&fx);
   return 0;
@@ -421,7 +421,7 @@ static int case_cheat_visible_toggle(void) {
   ColonizeFont font;
   memset(&font, 0, sizeof(font));
   char err[128];
-  const bool font_ok = ff_load("COLONIZE/FONTSMAL.FF", &font, err, sizeof(err));
+  const bool font_ok = font_file_load("COLONIZE/FONTSMAL.FF", &font, err, sizeof(err));
   const ColonizeFont* f = font_ok ? &font : NULL;
 
   uint8_t pixels[320 * 200];
@@ -437,7 +437,7 @@ static int case_cheat_visible_toggle(void) {
   if (!bar->menus[cup_i].visible || !bar->cheat_visible) {
     fprintf(stderr, "map_menu_set_cheat_visible(true) failed\n");
     if (font_ok) {
-      ff_free(&font);
+      font_file_free(&font);
     }
     fixture_free(&fx);
     return 1;
@@ -450,7 +450,7 @@ static int case_cheat_visible_toggle(void) {
       bar->menus[debug_i].title_x
     );
     if (font_ok) {
-      ff_free(&font);
+      font_file_free(&font);
     }
     fixture_free(&fx);
     return 1;
@@ -462,7 +462,7 @@ static int case_cheat_visible_toggle(void) {
   if (!bar->cheat_visible || !bar->menus[cup_i].visible) {
     fprintf(stderr, "map_menu_set_cheat_visible(true) failed\n");
     if (font_ok) {
-      ff_free(&font);
+      font_file_free(&font);
     }
     fixture_free(&fx);
     return 1;
@@ -471,7 +471,7 @@ static int case_cheat_visible_toggle(void) {
 #endif
 
   if (font_ok) {
-    ff_free(&font);
+    font_file_free(&font);
   }
   fixture_free(&fx);
   return 0;
@@ -493,7 +493,7 @@ static int case_click_open_and_save(void) {
   ColonizeFont font;
   memset(&font, 0, sizeof(font));
   char err[128];
-  const bool font_ok = ff_load("COLONIZE/FONTSMAL.FF", &font, err, sizeof(err));
+  const bool font_ok = font_file_load("COLONIZE/FONTSMAL.FF", &font, err, sizeof(err));
   const ColonizeFont* f = font_ok ? &font : NULL;
 
   uint8_t pixels[320 * 200];
@@ -510,7 +510,7 @@ static int case_click_open_and_save(void) {
   if (action != MAP_MENU_ACTION_NONE || bar->open_index != game_i) {
     fprintf(stderr, "expected GAME menu to open (action=%d open=%d)\n", (int)action, bar->open_index);
     if (font_ok) {
-      ff_free(&font);
+      font_file_free(&font);
     }
     fixture_free(&fx);
     return 1;
@@ -526,7 +526,7 @@ static int case_click_open_and_save(void) {
     if (pixels[gap_y * 320 + dx + 4] == 0) {
       fprintf(stderr, "expected 1px non-black gap between bar rule and dropdown\n");
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       fixture_free(&fx);
       return 1;
@@ -534,7 +534,7 @@ static int case_click_open_and_save(void) {
     if (pixels[drop_y * 320 + dx + 4] != 0) {
       fprintf(stderr, "expected black dropdown top border, got %u\n", pixels[drop_y * 320 + dx + 4]);
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       fixture_free(&fx);
       return 1;
@@ -552,7 +552,7 @@ static int case_click_open_and_save(void) {
   if (save_index < 0) {
     fprintf(stderr, "Save Game item missing\n");
     if (font_ok) {
-      ff_free(&font);
+      font_file_free(&font);
     }
     fixture_free(&fx);
     return 1;
@@ -576,14 +576,14 @@ static int case_click_open_and_save(void) {
       bar->open_index
     );
     if (font_ok) {
-      ff_free(&font);
+      font_file_free(&font);
     }
     fixture_free(&fx);
     return 1;
   }
 
   if (font_ok) {
-    ff_free(&font);
+    font_file_free(&font);
   }
   fixture_free(&fx);
   return 0;
@@ -600,7 +600,7 @@ static int case_hidden_cheat_click_blocked(void) {
   ColonizeFont font;
   memset(&font, 0, sizeof(font));
   char err[128];
-  const bool font_ok = ff_load("COLONIZE/FONTSMAL.FF", &font, err, sizeof(err));
+  const bool font_ok = font_file_load("COLONIZE/FONTSMAL.FF", &font, err, sizeof(err));
   const ColonizeFont* f = font_ok ? &font : NULL;
 
   ColonizeInputState input;
@@ -615,7 +615,7 @@ static int case_hidden_cheat_click_blocked(void) {
   if (bar->open_index == cup_i) {
     fprintf(stderr, "hidden CHEAT title should not open\n");
     if (font_ok) {
-      ff_free(&font);
+      font_file_free(&font);
     }
     fixture_free(&fx);
     return 1;
@@ -623,7 +623,7 @@ static int case_hidden_cheat_click_blocked(void) {
   (void)action;
 
   if (font_ok) {
-    ff_free(&font);
+    font_file_free(&font);
   }
   fixture_free(&fx);
   return 0;

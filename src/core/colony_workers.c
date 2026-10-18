@@ -1247,13 +1247,9 @@ int colonies_eject_colonist(
   ColonizeUnit* nu = units_get(units, uid);
   if (nu && g_colonies_occupancy_map) {
     units_set_nation(nu, col->nation_id);
-    const ColonizeWorld rw = {
-      .map = g_colonies_occupancy_map,
-      .units = units,
-      .colonies = pool,
-      .col1 = g_colonies_col1,
-      .col1_ok = g_colonies_col1 != NULL,
-    };
+    const ColonizeWorld rw = world_make(
+      units, pool, g_colonies_occupancy_map, g_colonies_col1, g_colonies_col1 != NULL, NULL, NULL
+    );
     (void)units_reveal_sight_w(&rw, nu);
   }
 

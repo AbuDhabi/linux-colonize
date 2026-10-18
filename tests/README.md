@@ -139,10 +139,10 @@ Build and run one target directly from repo root (binaries land under
 `ctest`):
 
 ```
-cmake --build --preset debug --target unit_ff && ./build/debug/unit_ff
+cmake --build --preset debug --target unit_font_file && ./build/debug/unit_font_file
 ```
 
-Swap `unit_ff` for any target name (`smoke_play`, `golden_mapgen_seed100`,
+Swap `unit_font_file` for any target name (`smoke_play`, `golden_mapgen_seed100`,
 ...). `golden_ai_joint` is the one exception: it's a build-only convenience
 target, not a `ctest` test (see above), so it must be run explicitly:
 `cmake --build build/debug --target golden_ai_joint`.

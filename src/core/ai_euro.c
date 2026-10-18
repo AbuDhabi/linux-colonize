@@ -7,7 +7,7 @@
  * shared between them are declared in ai_euro_internal.h.
  *
  * Sections:
- *   Includes, file-scope DOS latches (stance, landfall, roam/route)
+ *   Includes, file-scope DOS latches (sticky, stance, rival strength)
  *   FUN_521d_0a60 continent stance + rival-strength tables (ai_euro_refresh_continent_stance)
  *   Landfall / ocean-tip helpers (3558 first leg + empty cruise, 06ae first colony)
  *   Ship unload-site helpers, unit-kind predicates, fortify quota, founding-tile pick
@@ -489,7 +489,8 @@ int ai_euro_unload_pax_at(
   if (!ctx || !ctx->units || !ship || !pax) {
     return 0;
   }
-  if (!units_unload_passenger_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, ship->id, pax->id, dest_x, dest_y)) {
+  const ColonizeWorld uw = world_from_turn_ctx(ctx);
+  if (!units_unload_passenger_w(&uw, ship->id, pax->id, dest_x, dest_y)) {
     return 0;
   }
   pax = units_get(ctx->units, pax->id);
@@ -511,7 +512,11 @@ int ai_euro_unload_pax_at(
    * tile rolls the LCR (FUN_2a1f_0178 -> FUN_65dd_0004) inside the move,
    * before the contact scan; a vanished unit skips the rest of the move. */
   if (ctx->map && map_tile_has_rumour(ctx->map, pax->x, pax->y)) {
-    (void)units_resolve_lcr_rumour_w(&(ColonizeWorld){.units=ctx->units, .map=ctx->map, .col1=ctx->col1_ok ? ctx->col1 : NULL, .col1_ok=ctx->col1_ok, .rng=ctx->rng}, pax->id, -1);
+    /* europe stays NULL as before: an AI LCR credits the save, never the
+     * human-bound EuropeScreen (gold / Fountain of Youth recruit pool). */
+    ColonizeWorld lw = world_from_turn_ctx(ctx);
+    lw.europe = NULL;
+    (void)units_resolve_lcr_rumour_w(&lw, pax->id, -1);
     pax = units_get(ctx->units, pax->id);
     if (!pax || !pax->active) {
       return 1;
@@ -789,7 +794,7 @@ static void ai_euro_colony_ship_probe_4962(
   /* Raw 78291-78299: per-colony fold into the nation ship-pressure tallies. */
   if (nation_id >= 0 && nation_id < 4) {
     AiEuroShipPressure* sp = &ai_euro_s_ship_pressure[nation_id];
-    const int pop = c->colonist_count > 0 ? c->colonist_count : c->population;
+    const int pop = colonies_headcount(c);
     if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_FRIGATE) != 0) {
       if (sp->frigate_colonies < 255) {
         sp->frigate_colonies++;
@@ -1051,7 +1056,7 @@ void ai_euro_refresh_colony_ai_flags(
  * bugs.md #483: the nineteen-row `ai_euro_prefer_*` table and the craft
  * house/shop/factory pass that used to live here were name-keyed inventions.
  * DOS has exactly one AI construction picker — the FUN_5952_035e cascade,
- * ported as ai_euro_5952_build_cascade below (its craft-chain arm is
+ * ported as ai_euro_5952_build_cascade_for_owner (ai_euro_colony_jobs.c) (its craft-chain arm is
  * FUN_5952_0280 + FUN_1000_8d90 at asm 5952:268e). Deleted 2026-09-17.
  */
 
@@ -1514,7 +1519,7 @@ static void ai_euro_dispatcher_turn_plan(ColonizeTurnContext* ctx, int nation_id
    * clear_pre_stockade_build_queue passes stood here; each gated off alone
    * 2026-10-02 moved no golden bip/hammers and no ctest; deleted. */
   ai_euro_colony_goals(ctx, nation_id);
-  /* bugs.md #483: DOS's one construction picker (ai_euro_5952_build_cascade)
+  /* bugs.md #483: DOS's one construction picker (ai_euro_5952_build_cascade_for_owner)
    * runs inside the 5952 colony tick at the top of the nation turn. */
   /* FUN_521d_0a60 goal-consumption tail (structural port) — stamps each idle
    * unit's next goal into its own +0x314b/c/d/e; consumed by

@@ -13,7 +13,8 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/fb.h"
-#include "core/ff.h"
+#include "core/internal.h"
+#include "core/font_file.h"
 #include "core/founding_fathers.h"
 #include "core/map_menu.h"
 #include "core/map_panel.h"
@@ -31,7 +32,7 @@
 /*
  * Sections:
  *  - Popup rendering: construction/jobs/custom house/eject/dock/message (colony_screen_open_dialog_frame .. colony_screen_draw_message_popup) (~line 37)
- *  - Hit testing & top-level render entry point (colony_screen_hit_test .. colony_screen_render_w) (~line 584)
+ *  - Hit testing & top-level render entry point (colony_screen_hit_test .. colony_screen_render_w) (~line 644)
  */
 
 /* ===================== Popup rendering: construction/jobs/custom house/eject/dock/message (colony_screen_open_dialog_frame .. colony_screen_draw_message_popup) ===================== */
@@ -642,113 +643,98 @@ static void colony_screen_draw_message_popup(
 
 /* ===================== Hit testing & top-level render entry point (colony_screen_hit_test .. colony_screen_render_w) ===================== */
 
-ColonyScreenHitResult colony_screen_hit_test(
-  const ColonyScreenView* view,
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony,
-  const ColonizeUnitPool* units,
-  int mx,
-  int my
-) {
-  ColonyScreenHitResult hit;
-  hit.kind = COLONY_HIT_NONE;
-  hit.index = -1;
-  if (!view || !colony) {
-    return hit;
-  }
-
-  /* Shared with both building-related hit checks below — must match
-   * colony_screen_blit_buildings' own call so click regions never drift
-   * from what's drawn (same per-colony-deterministic assignment).
-   * slot_of_cat[] is the DS:0x266 SLOT each category landed in: DOS scans
-   * slots, not categories (see the building loop at the end of this
-   * function). */
-  int slot_x[32];
-  int slot_y[32];
-  int slot_of_cat[32];
-  colony_screen_assign_slot_positions_ex(
-    pool, colony, slot_x, slot_y, slot_of_cat, colony_screen_layout_seed(view)
-  );
-
+/* Modal list popups: message box, custom house, jobs, eject, dock orders.
+ * Each one swallows every click while open (outside = dismiss). */
+COLONIZE_INTERNAL bool colony_screen_hit_modal_dialogs(ColonyScreenHitCtx* a) {
+  const ColonyScreenView* view = a->view;
+  const int mx = a->mx;
+  const int my = a->my;
   if (view->message_kind != COLONY_MSG_NONE) {
     const int rows = (view->message_kind == COLONY_MSG_CONFIRM) ? 2 : 1;
     int idx = -1;
     if (!colony_screen_dialog_row_hit(&view->message_rect, rows, mx, my, &idx)) {
-      hit.kind = COLONY_HIT_MESSAGE_OUTSIDE;
-      return hit;
+      a->hit.kind = COLONY_HIT_MESSAGE_OUTSIDE;
+      return true;
     }
     if (idx >= 0) {
       if (view->message_kind == COLONY_MSG_OK) {
-        hit.kind = COLONY_HIT_MESSAGE_OK;
+        a->hit.kind = COLONY_HIT_MESSAGE_OK;
       } else if (idx == 0) {
-        hit.kind = COLONY_HIT_MESSAGE_YES;
+        a->hit.kind = COLONY_HIT_MESSAGE_YES;
       } else {
-        hit.kind = COLONY_HIT_MESSAGE_NO;
+        a->hit.kind = COLONY_HIT_MESSAGE_NO;
       }
     }
-    return hit;
+    return true;
   }
 
   if (view->custom_house_open) {
     int idx = -1;
     if (!colony_screen_dialog_row_hit(&view->custom_house_rect, view->custom_house_count, mx, my, &idx)) {
-      hit.kind = COLONY_HIT_CUSTOM_HOUSE_OUTSIDE;
-      return hit;
+      a->hit.kind = COLONY_HIT_CUSTOM_HOUSE_OUTSIDE;
+      return true;
     }
     if (idx >= 0) {
-      hit.kind = COLONY_HIT_CUSTOM_HOUSE_ROW;
-      hit.index = idx;
+      a->hit.kind = COLONY_HIT_CUSTOM_HOUSE_ROW;
+      a->hit.index = idx;
     }
-    return hit;
+    return true;
   }
 
   if (view->jobs_open) {
     int idx = -1;
     if (!colony_screen_dialog_row_hit(&view->jobs_rect, view->job_count, mx, my, &idx)) {
-      hit.kind = COLONY_HIT_JOBS_OUTSIDE;
-      return hit;
+      a->hit.kind = COLONY_HIT_JOBS_OUTSIDE;
+      return true;
     }
     if (idx >= 0) {
-      hit.kind = COLONY_HIT_JOBS_ROW;
-      hit.index = idx;
+      a->hit.kind = COLONY_HIT_JOBS_ROW;
+      a->hit.index = idx;
     }
-    return hit;
+    return true;
   }
 
   if (view->eject_open) {
     int idx = -1;
     if (!colony_screen_dialog_row_hit(&view->eject_rect, view->eject_role_count, mx, my, &idx)) {
-      hit.kind = COLONY_HIT_EJECT_OUTSIDE;
-      return hit;
+      a->hit.kind = COLONY_HIT_EJECT_OUTSIDE;
+      return true;
     }
     if (idx >= 0) {
-      hit.kind = COLONY_HIT_EJECT_ROW;
-      hit.index = idx;
+      a->hit.kind = COLONY_HIT_EJECT_ROW;
+      a->hit.index = idx;
     }
-    return hit;
+    return true;
   }
 
   if (view->dock_orders_open) {
     int idx = -1;
     if (!colony_screen_dialog_row_hit(&view->dock_orders_rect, view->dock_orders_count, mx, my, &idx)) {
-      hit.kind = COLONY_HIT_DOCK_ORDERS_OUTSIDE;
-      return hit;
+      a->hit.kind = COLONY_HIT_DOCK_ORDERS_OUTSIDE;
+      return true;
     }
     if (idx >= 0) {
-      hit.kind = COLONY_HIT_DOCK_ORDERS_ROW;
-      hit.index = idx;
+      a->hit.kind = COLONY_HIT_DOCK_ORDERS_ROW;
+      a->hit.index = idx;
     }
-    return hit;
+    return true;
   }
+  return false;
+}
 
+/* Construction popup (paged list with the More... row). */
+COLONIZE_INTERNAL bool colony_screen_hit_construction_popup(ColonyScreenHitCtx* a) {
+  const ColonyScreenView* view = a->view;
+  const int mx = a->mx;
+  const int my = a->my;
   if (view->construction_open) {
     /* Construction keeps its own row math below: paging adds the More...
      * row, so the row index is not a plain popup_row_at_y (audit CO-7). */
     if (!ui_rect_hit(
           view->construction_rect.x, view->construction_rect.y,
           view->construction_rect.w, view->construction_rect.h, mx, my)) {
-      hit.kind = COLONY_HIT_CONSTRUCTION_OUTSIDE;
-      return hit;
+      a->hit.kind = COLONY_HIT_CONSTRUCTION_OUTSIDE;
+      return true;
     }
     if (view->construction_rect.line_h > 0 && my >= view->construction_rect.list_y0) {
       const int row_in_page = (my - view->construction_rect.list_y0) / view->construction_rect.line_h;
@@ -762,36 +748,44 @@ ColonyScreenHitResult colony_screen_hit_test(
       const int pages = per > 0 ? (rows + per - 1) / per : 1;
       if (row_in_page >= 0 && pages > 1 && row_in_page == n_slice) {
         /* The More... row (bugs.md #436). */
-        hit.kind = COLONY_HIT_CONSTRUCTION_MORE;
-        hit.index = -1;
-        return hit;
+        a->hit.kind = COLONY_HIT_CONSTRUCTION_MORE;
+        a->hit.index = -1;
+        return true;
       }
       const int idx = start + row_in_page;
       if (row_in_page >= 0 && row_in_page < n_slice && idx >= 0 && idx < rows) {
         if (idx == 0) {
-          hit.kind = COLONY_HIT_CONSTRUCTION_CLEAR;
-          hit.index = -1;
+          a->hit.kind = COLONY_HIT_CONSTRUCTION_CLEAR;
+          a->hit.index = -1;
         } else {
-          hit.kind = COLONY_HIT_CONSTRUCTION_ROW;
-          hit.index = idx - 1;
+          a->hit.kind = COLONY_HIT_CONSTRUCTION_ROW;
+          a->hit.index = idx - 1;
         }
-        return hit;
+        return true;
       }
     }
-    return hit;
+    return true;
   }
+  return false;
+}
 
+/* Screen chrome: title bar, exit button, warehouse cargo strip, transport holds. */
+COLONIZE_INTERNAL bool colony_screen_hit_chrome(ColonyScreenHitCtx* a) {
+  const ColonyScreenView* view = a->view;
+  const ColonizeUnitPool* units = a->units;
+  const int mx = a->mx;
+  const int my = a->my;
   /* Title bar: thunk_FUN_1000_98bc rect (0,0,0x140,7) = zone 10, the rename
    * click (thunk_FUN_1000_9898). */
   if (mx >= 0 && mx < COLONY_SCREEN_WIDTH && my >= 0 && my < 7) {
-    hit.kind = COLONY_HIT_TITLE;
-    return hit;
+    a->hit.kind = COLONY_HIT_TITLE;
+    return true;
   }
 
   if (mx >= COLONY_EXIT_X && mx < COLONY_SCREEN_WIDTH &&
       my >= COLONY_EXIT_Y && my < COLONY_SCREEN_HEIGHT) {
-    hit.kind = COLONY_HIT_EXIT;
-    return hit;
+    a->hit.kind = COLONY_HIT_EXIT;
+    return true;
   }
 
   /* Warehouse cargo strip (load into selected transport). */
@@ -799,9 +793,9 @@ ColonyScreenHitResult colony_screen_hit_test(
     if (mx >= COLONY_CARGO_SLOT_X0) {
       const int idx = (mx - COLONY_CARGO_SLOT_X0) / COLONY_CARGO_PITCH;
       if (idx >= 0 && idx < COLONIZE_CARGO_COUNT) {
-        hit.kind = COLONY_HIT_CARGO_SLOT;
-        hit.index = idx;
-        return hit;
+        a->hit.kind = COLONY_HIT_CARGO_SLOT;
+        a->hit.index = idx;
+        return true;
       }
     }
   }
@@ -816,21 +810,30 @@ ColonyScreenHitResult colony_screen_hit_test(
        * (player-reported: drop boxes too strict). Matches EUROPE_HIT_HOLD. */
       const int idx = (mx - COLONY_HOLD_X) / COLONY_HOLD_PITCH;
       if (idx >= 0 && idx < holds) {
-        hit.kind = COLONY_HIT_HOLD;
-        hit.index = idx;
-        return hit;
+        a->hit.kind = COLONY_HIT_HOLD;
+        a->hit.index = idx;
+        return true;
       }
     }
   }
+  return false;
+}
 
+/* Multifunction panel: mode buttons, Units-tab icons, pane / BUY+CHANGE. */
+COLONIZE_INTERNAL bool colony_screen_hit_multifunction(ColonyScreenHitCtx* a) {
+  const ColonyScreenView* view = a->view;
+  const ColonizeColony* colony = a->colony;
+  const ColonizeUnitPool* units = a->units;
+  const int mx = a->mx;
+  const int my = a->my;
   /* Multifunction mode buttons. */
   if (mx >= COLONY_MULTI_BTN_X && mx < COLONY_MULTI_BTN_X + COLONY_MULTI_BTN_W &&
       my >= COLONY_PANEL_CONTENT_Y && my < COLONY_PANEL_CONTENT_Y + 48) {
     const int idx = (my - COLONY_PANEL_CONTENT_Y) / 16;
     if (idx >= 0 && idx < 3) {
-      hit.kind = COLONY_HIT_MULTI_BTN;
-      hit.index = idx;
-      return hit;
+      a->hit.kind = COLONY_HIT_MULTI_BTN;
+      a->hit.index = idx;
+      return true;
     }
   }
 
@@ -851,9 +854,9 @@ ColonyScreenHitResult colony_screen_hit_test(
     for (int i = 0; i < slot_count; ++i) {
       if (mx >= slots[i].x && mx < slots[i].x + slots[i].w && my >= slots[i].y &&
           my < slots[i].y + slots[i].h) {
-        hit.kind = COLONY_HIT_MULTI_UNIT_ICON;
-        hit.index = slots[i].unit_id;
-        return hit;
+        a->hit.kind = COLONY_HIT_MULTI_UNIT_ICON;
+        a->hit.index = slots[i].unit_id;
+        return true;
       }
     }
   }
@@ -867,21 +870,28 @@ ColonyScreenHitResult colony_screen_hit_test(
         my >= COLONY_PANEL_CONTENT_Y + 6 && my < COLONY_PANEL_CONTENT_Y + 22) {
       const int mid = COLONY_MULTI_X + COLONY_MULTI_W / 2;
       if (mx >= mid) {
-        hit.kind = COLONY_HIT_MULTI_CHANGE;
-        return hit;
+        a->hit.kind = COLONY_HIT_MULTI_CHANGE;
+        return true;
       }
       /* FUN_2f2b_5fc6: the BUY button only hit-tests when +0x94 >= 0 (no
        * project, e.g. a captured AI colony's 0xFF, has no BUY; bugs.md #548). */
       if (colony->building_in_production >= 0) {
-        hit.kind = COLONY_HIT_MULTI_BUY;
-        return hit;
+        a->hit.kind = COLONY_HIT_MULTI_BUY;
+        return true;
       }
     }
-    hit.kind = COLONY_HIT_MULTI_PANE;
-    hit.index = (int)view->multi_mode;
-    return hit;
+    a->hit.kind = COLONY_HIT_MULTI_PANE;
+    a->hit.index = (int)view->multi_mode;
+    return true;
   }
+  return false;
+}
 
+/* Docked transport icons. */
+COLONIZE_INTERNAL bool colony_screen_hit_transports(ColonyScreenHitCtx* a) {
+  const ColonyScreenView* view = a->view;
+  const int mx = a->mx;
+  const int my = a->my;
   /* Docked transport icons. */
   if (view->docked_transport_count > 0 && my >= COLONY_TRANSPORT_ICON_Y &&
       my < COLONY_TRANSPORT_ICON_Y + 16 && mx >= COLONY_TRANSPORT_X &&
@@ -907,12 +917,24 @@ ColonyScreenHitResult colony_screen_hit_test(
       }
     }
     if (idx >= 0 && idx < view->docked_transport_count) {
-      hit.kind = COLONY_HIT_TRANSPORT;
-      hit.index = idx;
-      return hit;
+      a->hit.kind = COLONY_HIT_TRANSPORT;
+      a->hit.index = idx;
+      return true;
     }
   }
+  return false;
+}
 
+/* Fortification strip: outside units and the empty fence (eject target). */
+COLONIZE_INTERNAL bool colony_screen_hit_fence(ColonyScreenHitCtx* a) {
+  const ColonyScreenView* view = a->view;
+  const ColonizeColonyPool* pool = a->pool;
+  const ColonizeColony* colony = a->colony;
+  const ColonizeUnitPool* units = a->units;
+  const int mx = a->mx;
+  const int my = a->my;
+  const int* slot_x = a->slot_x;
+  const int* slot_y = a->slot_y;
   /* Outside units on fortification strip (Note 1; per-icon selectable). */
   if (view->outside_unit_count > 0 && units && view->icons_ok) {
     int fence_x, fence_y, fence_w, fence_h;
@@ -951,16 +973,16 @@ ColonyScreenHitResult colony_screen_hit_test(
         colony_screen_outside_icon_metrics(view, units, view->outside_unit_ids[map_i[i]], &iw, &ih);
         const int uy = fence_y + (fence_h - ih) / 2;
         if (mx >= xs[i] && my >= uy && mx < xs[i] + iw && my < uy + ih) {
-          hit.kind = COLONY_HIT_OUTSIDE_UNIT;
-          hit.index = map_i[i];
-          return hit;
+          a->hit.kind = COLONY_HIT_OUTSIDE_UNIT;
+          a->hit.index = map_i[i];
+          return true;
         }
       }
     }
     /* Empty fortification strip (eject target when a colony colonist is selected). */
     if (mx >= fence_x && my >= fence_y && mx < fence_x + fence_w && my < fence_y + fence_h) {
-      hit.kind = COLONY_HIT_FENCE;
-      return hit;
+      a->hit.kind = COLONY_HIT_FENCE;
+      return true;
     }
   } else if (view->buildings_ok) {
     /* No outside units: still allow fence clicks for eject. */
@@ -969,11 +991,23 @@ ColonyScreenHitResult colony_screen_hit_test(
       view, pool, colony, slot_x, slot_y, &fence_x, &fence_y, &fence_w, &fence_h
     );
     if (mx >= fence_x && my >= fence_y && mx < fence_x + fence_w && my < fence_y + fence_h) {
-      hit.kind = COLONY_HIT_FENCE;
-      return hit;
+      a->hit.kind = COLONY_HIT_FENCE;
+      return true;
     }
   }
+  return false;
+}
 
+/* Building worker strips (before whole-building hit). */
+COLONIZE_INTERNAL bool colony_screen_hit_building_workers(ColonyScreenHitCtx* a) {
+  const ColonyScreenView* view = a->view;
+  const ColonizeColonyPool* pool = a->pool;
+  const ColonizeColony* colony = a->colony;
+  const ColonizeUnitPool* units = a->units;
+  const int mx = a->mx;
+  const int my = a->my;
+  const int* slot_x = a->slot_x;
+  const int* slot_y = a->slot_y;
   /* Building workers (Note 1 strip) — before whole-building hit. */
   if (pool && view->buildings_ok && units && mx >= COLONY_VIEWPORT_X &&
       mx < COLONY_VIEWPORT_X + COLONY_VIEWPORT_W && my >= COLONY_VIEWPORT_Y &&
@@ -1019,39 +1053,52 @@ ColonyScreenHitResult colony_screen_hit_test(
         }
         const int iy = strip_y + (strip_h - ih) / 2;
         if (mx >= xs[wi] && my >= iy && mx < xs[wi] + iw && my < iy + ih) {
-          hit.kind = COLONY_HIT_PEOPLE_COLONIST;
-          hit.index = worker_ci[wi];
-          return hit;
+          a->hit.kind = COLONY_HIT_PEOPLE_COLONIST;
+          a->hit.index = worker_ci[wi];
+          return true;
         }
       }
     }
   }
+  return false;
+}
 
+/* Area-view minimap tiles. */
+COLONIZE_INTERNAL bool colony_screen_hit_area_tiles(ColonyScreenHitCtx* a) {
+  const int mx = a->mx;
+  const int my = a->my;
   /* Area-view tiles (surround only; center is not assignable). */
-  {
-    int origin_x = 0;
-    int origin_y = 0;
-    colony_screen_minimap_origin(&origin_x, &origin_y);
-    const int grid_px = COLONY_MINIMAP_GRID * COLONY_MINIMAP_TILE;
-    if (mx >= origin_x && my >= origin_y && mx < origin_x + grid_px && my < origin_y + grid_px) {
-      const int col = (mx - origin_x) / COLONY_MINIMAP_TILE;
-      const int row = (my - origin_y) / COLONY_MINIMAP_TILE;
-      const int half = COLONY_MINIMAP_GRID / 2;
-      const int dx = col - half;
-      const int dy = row - half;
-      const int ti = colonies_field_tile_index(dx, dy);
-      if (ti >= 0) {
-        hit.kind = COLONY_HIT_AREA_TILE;
-        hit.index = ti;
-        return hit;
-      }
-      /* Centre tile (not assignable): DOS's click-to-toggle-numbers spot
-       * (2f2b:609e flips DS:0x336 and refreshes; bugs.md). */
-      hit.kind = COLONY_HIT_AREA_INTERIOR;
-      return hit;
+  int origin_x = 0;
+  int origin_y = 0;
+  colony_screen_minimap_origin(&origin_x, &origin_y);
+  const int grid_px = COLONY_MINIMAP_GRID * COLONY_MINIMAP_TILE;
+  if (mx >= origin_x && my >= origin_y && mx < origin_x + grid_px && my < origin_y + grid_px) {
+    const int col = (mx - origin_x) / COLONY_MINIMAP_TILE;
+    const int row = (my - origin_y) / COLONY_MINIMAP_TILE;
+    const int half = COLONY_MINIMAP_GRID / 2;
+    const int dx = col - half;
+    const int dy = row - half;
+    const int ti = colonies_field_tile_index(dx, dy);
+    if (ti >= 0) {
+      a->hit.kind = COLONY_HIT_AREA_TILE;
+      a->hit.index = ti;
+      return true;
     }
+    /* Centre tile (not assignable): DOS's click-to-toggle-numbers spot
+     * (2f2b:609e flips DS:0x336 and refreshes; bugs.md). */
+    a->hit.kind = COLONY_HIT_AREA_INTERIOR;
+    return true;
   }
+  return false;
+}
 
+/* People band. */
+COLONIZE_INTERNAL bool colony_screen_hit_people(ColonyScreenHitCtx* a) {
+  const ColonyScreenView* view = a->view;
+  const ColonizeColony* colony = a->colony;
+  const ColonizeUnitPool* units = a->units;
+  const int mx = a->mx;
+  const int my = a->my;
   /* People-view: shares colony_screen_people_layout with the draw. */
   if (colony && my >= COLONY_PANEL_CONTENT_Y + 16 && my < COLONY_PANEL_CONTENT_Y + 32 &&
       mx >= COLONY_PEOPLE_X && mx < COLONY_PEOPLE_X + COLONY_PEOPLE_W) {
@@ -1064,27 +1111,39 @@ ColonyScreenHitResult colony_screen_hit_test(
     for (int i = n - 1; i >= 0; --i) {
       if (mx >= ent[i].px && mx < ent[i].px + ent[i].iw) {
         if (ent[i].sel_colonist >= 0) {
-          hit.kind = COLONY_HIT_PEOPLE_COLONIST;
-          hit.index = ent[i].sel_colonist;
+          a->hit.kind = COLONY_HIT_PEOPLE_COLONIST;
+          a->hit.index = ent[i].sel_colonist;
         } else {
-          hit.kind = COLONY_HIT_OUTSIDE_UNIT;
+          a->hit.kind = COLONY_HIT_OUTSIDE_UNIT;
           /* callers expect the outside ARRAY index */
-          hit.index = -1;
+          a->hit.index = -1;
           for (int oi = 0; oi < view->outside_unit_count; ++oi) {
             if (view->outside_unit_ids[oi] == ent[i].sel_unit) {
-              hit.index = oi;
+              a->hit.index = oi;
               break;
             }
           }
-          if (hit.index < 0) {
+          if (a->hit.index < 0) {
             continue;
           }
         }
-        return hit;
+        return true;
       }
     }
   }
+  return false;
+}
 
+/* Whole-building click: DOS FUN_2f2b_44d4 slot scan. */
+COLONIZE_INTERNAL bool colony_screen_hit_buildings(ColonyScreenHitCtx* a) {
+  const ColonyScreenView* view = a->view;
+  const ColonizeColonyPool* pool = a->pool;
+  const ColonizeColony* colony = a->colony;
+  const int mx = a->mx;
+  const int my = a->my;
+  const int* slot_x = a->slot_x;
+  const int* slot_y = a->slot_y;
+  const int* slot_of_cat = a->slot_of_cat;
   if (pool && view->buildings_ok && mx >= COLONY_VIEWPORT_X &&
       mx < COLONY_VIEWPORT_X + COLONY_VIEWPORT_W && my >= COLONY_VIEWPORT_Y &&
       my < COLONY_BOTTOM_SEPARATOR_Y) {
@@ -1155,14 +1214,64 @@ ColonyScreenHitResult colony_screen_hit_test(
             my >= by + colony_screen_class_box[cls][1]) {
           break;
         }
-        hit.kind = COLONY_HIT_BUILDING;
-        hit.index = built;
-        return hit;
+        a->hit.kind = COLONY_HIT_BUILDING;
+        a->hit.index = built;
+        return true;
       }
     }
   }
+  return false;
+}
 
-  return hit;
+ColonyScreenHitResult colony_screen_hit_test(
+  const ColonyScreenView* view,
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const ColonizeUnitPool* units,
+  int mx,
+  int my
+) {
+  ColonyScreenHitCtx a;
+  a.hit.kind = COLONY_HIT_NONE;
+  a.hit.index = -1;
+  if (!view || !colony) {
+    return a.hit;
+  }
+  a.view = view;
+  a.pool = pool;
+  a.colony = colony;
+  a.units = units;
+  a.mx = mx;
+  a.my = my;
+
+  /* Shared with both building-related hit checks below — must match
+   * colony_screen_blit_buildings' own call so click regions never drift
+   * from what's drawn (same per-colony-deterministic assignment).
+   * slot_of_cat[] is the DS:0x266 SLOT each category landed in: DOS scans
+   * slots, not categories (see colony_screen_hit_buildings). */
+  colony_screen_assign_slot_positions_ex(
+    pool, colony, a.slot_x, a.slot_y, a.slot_of_cat, colony_screen_layout_seed(view)
+  );
+
+  /* Hit priority = stage order; the first stage returning true owns the click. */
+  static bool (*const stages[])(ColonyScreenHitCtx*) = {
+    colony_screen_hit_modal_dialogs,
+    colony_screen_hit_construction_popup,
+    colony_screen_hit_chrome,
+    colony_screen_hit_multifunction,
+    colony_screen_hit_transports,
+    colony_screen_hit_fence,
+    colony_screen_hit_building_workers,
+    colony_screen_hit_area_tiles,
+    colony_screen_hit_people,
+    colony_screen_hit_buildings,
+  };
+  for (size_t i = 0; i < sizeof(stages) / sizeof(stages[0]); ++i) {
+    if (stages[i](&a)) {
+      break;
+    }
+  }
+  return a.hit;
 }
 
 void colony_screen_render_w(
@@ -1198,7 +1307,7 @@ void colony_screen_render_w(
     colony_screen_refresh_outside(view, units, colony);
   }
   if (view && pool && colony) {
-    colony_screen_refresh_preview_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(pool), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, view, colony);
+    colony_screen_refresh_preview_w(w, view, colony);
   }
 
   colony_screen_fill_top_bar_wood(view, framebuffer);
