@@ -84,6 +84,8 @@ static void fx_begin(void) {
   units_set_occupancy_map(NULL);
   units_reset_state();
   colonies_set_occupancy_map(NULL);
+  colonies_set_col1_context(NULL);
+  colonies_set_units_context(NULL);
   turn_reset();
 }
 
@@ -3972,6 +3974,7 @@ static int case_euro_power_rank(void) {
     return 1;
   }
   ColonizeUnitPool rank_units;
+  memset(&rank_units, 0, sizeof(rank_units));
   units_reset(&rank_units);
   uint32_t rank_turn = 106;
   uint16_t rank_year = 1598, rank_autumn = 0;

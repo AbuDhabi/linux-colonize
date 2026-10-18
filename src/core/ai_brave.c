@@ -987,6 +987,7 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
     ctx->units, ctx->map, ctx->col1_ok ? ctx->col1 : NULL, rng, nation_id, false
   );
   s_ai_native_ctx = NULL;
+  ai_s_native_colonies = NULL; /* only read inside the pulse; do not outlive ctx */
 
   ai_s_seed100_midturn_turn = 0;
 

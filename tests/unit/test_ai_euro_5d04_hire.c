@@ -876,6 +876,7 @@ static int dos_type_table_is_names_txt_unit_order(void) {
   const int rows = (int)(sizeof(k_rows) / sizeof(k_rows[0]));
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
   units.type_count = rows;
   for (int i = 0; i < rows; ++i) {
@@ -911,6 +912,7 @@ static int dos_type_table_is_names_txt_unit_order(void) {
  */
 static int hull_budget_space_uses_translated_type(void) {
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
   units.type_count = 6;
   static const char* const k_names[6] = {"Free Colonist", "Dragoon", "Soldier",

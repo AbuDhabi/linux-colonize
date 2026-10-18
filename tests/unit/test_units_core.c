@@ -7375,6 +7375,7 @@ static int case_fountain_of_youth(void) {
 
 static int case_ship_arrival_sorts_existing_passenger_chain(void) {
   ColonizeUnitPool p;
+  memset(&p, 0, sizeof(p));
   units_reset_state();
   units_reset(&p);
   units_set_occupancy_map(NULL);

@@ -372,26 +372,30 @@ bool europe_purchase_commit(
     return false;
   }
   const EuropePurchaseOption* p = &eu->purchase[purchase_index];
+  /* Local copy: p->name, the harbor/dock slot names and eu->status all live
+   * inside the one EuropeScreen object, which trips -Wrestrict on snprintf. */
+  char pname[sizeof(p->name)];
+  memcpy(pname, p->name, sizeof(pname));
   if (p->is_ship) {
     eu->gold -= cost;
     EuropeHarborShip* slot = &eu->harbor[eu->harbor_ships++];
     europe_clear_ship(slot);
     slot->type_index = -1; /* resolved by name in game_loop / caller */
-    snprintf(slot->name, sizeof(slot->name), "%s", p->name);
+    snprintf(slot->name, sizeof(slot->name), "%s", pname);
     europe_refresh_harbor_selection(eu);
-    snprintf(eu->status, sizeof(eu->status), "Purchased %s (-%d$).", p->name, cost);
-    diag_info("EUROPE purchased ship %s for %d$ (gold=%d)", p->name, cost, eu->gold);
+    snprintf(eu->status, sizeof(eu->status), "Purchased %s (-%d$).", pname, cost);
+    diag_info("EUROPE purchased ship %s for %d$ (gold=%d)", pname, cost, eu->gold);
     return true;
   }
   eu->gold -= cost;
   EuropeDockImmigrant* slot = europe_dock_insert_front(eu);
-  snprintf(slot->name, sizeof(slot->name), "%s", p->name);
+  snprintf(slot->name, sizeof(slot->name), "%s", pname);
   slot->profession = -1;
   slot->present = true;
   slot->sentry = true;
   slot->dos_type = europe_dock_type_roll(eu, slot->name, slot->profession, rng);
-  snprintf(eu->status, sizeof(eu->status), "Purchased %s (-%d$).", p->name, cost);
-  diag_info("EUROPE purchased %s for %d$ (gold=%d)", p->name, cost, eu->gold);
+  snprintf(eu->status, sizeof(eu->status), "Purchased %s (-%d$).", pname, cost);
+  diag_info("EUROPE purchased %s for %d$ (gold=%d)", pname, cost, eu->gold);
   return true;
 }
 

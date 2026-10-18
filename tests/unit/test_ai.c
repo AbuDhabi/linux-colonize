@@ -446,6 +446,8 @@ static int run_init_and_turns(
   ColonizeCol1Save col1;
   col1_save_init(&col1);
   bool col1_ok = false;
+  colonies_set_col1_context(NULL); /* a previous case left its stack col1 registered */
+  colonies_set_units_context(NULL);
   EuropeScreen europe;
   memset(&europe, 0, sizeof(europe));
   /* Real @CARGO table: AI Europe trades price off it (bugs.md #1049). */
@@ -1118,6 +1120,8 @@ static int run_village_threat_alarm(void) {
 
   ColonizeCol1Save col1;
   memset(&col1, 0, sizeof(col1));
+  colonies_set_col1_context(NULL);
+  colonies_set_units_context(NULL);
   /*
    * 2026-09-06d: `head.founding_father[]` must read "unclaimed" (-1), the way
    * col1_save_init leaves it — a memset-0 head says nation 0 owns all 25
