@@ -780,10 +780,14 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
       if (!u || !u->active) {
         return 1;
       }
-      if (haul == 2 || u->orders != oo || u->goto_x != ox || u->goto_y != oy || u->moves <= 0) {
-        ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);
-        return 0;
-      }
+      /* Every nonzero result is a DOS exit to 5a78: the berth park
+       * (LAB_5899), the dock demand, and the 27f5 -> 20c6 bind, which
+       * leaves through `goto LAB_5a78` even when the queue tip is the hull's
+       * current goal (ref 12 -> 13: the crown Man-O-War re-picks St. Louis
+       * beside a Dutch hull and must not fall to 4d2e). */
+      (void)oo; (void)ox; (void)oy;
+      ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);
+      return 0;
     }
   }
   /* LAB_457e: a tasked hull leaves 20e6 here. */

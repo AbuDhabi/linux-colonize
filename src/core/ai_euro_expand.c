@@ -272,14 +272,8 @@ int ai_euro_20e6_ship_hold_budget(
  * specialty tie-break (+32 when the hauler already carries the target
  * colony's specialty cargo).
  *
- * Also OpenCol-only, and required by the tail: DOS runs `20e6` once per unit
- * per turn, so a hauler claims at most one slot per tick. This port's
- * dispatcher re-enters `ai_euro_unit_act` for a unit that still has moves,
- * which without a latch let the *second* entry claim a *second* slot and
- * re-aim the wagon at a worse colony (caught by
- * `unit_specialty_flag_a_haul_match`). `s_4393_claim_*` replays the first
- * claim of the tick instead of re-scoring — one claim per unit per turn,
- * exactly DOS's cadence.
+ * No per-tick claim latch: DOS re-runs this scan on every 20e6 entry of the
+ * same unit and may consume a second slot (DOSBox ref 12 -> 13).
  */
 /*
  * DOS unit byte +0x314a = `ColonizeCol1Unit.origin` (record +0x06) — the
@@ -302,9 +296,6 @@ void ai_euro_20e6_origin_set(ColonizeUnit* u, int colony_id) {
   }
 }
 
-uint32_t ai_euro_s_4393_claim_turn[COLONIZE_UNITS_MAX];
-int ai_euro_s_4393_claim_colony[COLONIZE_UNITS_MAX];
-int ai_euro_s_4393_claim_valid[COLONIZE_UNITS_MAX];
 
 int ai_euro_4393_work_queue_haul_pick(
   ColonizeTurnContext* ctx,
@@ -318,9 +309,6 @@ int ai_euro_4393_work_queue_haul_pick(
   if (!ctx || !ctx->colonies || !out_x || !out_y || nation_id < 0 || nation_id >= 4) {
     return 0;
   }
-  const uint32_t turn = ctx->turn_number ? *ctx->turn_number : 0u;
-  const int hid =
-    (hauler && hauler->id >= 0 && hauler->id < COLONIZE_UNITS_MAX) ? hauler->id : -1;
   /*
    * DOS `unit+0x314a` — the colony this hauler is bound to, now the real
    * persistent `col1_origin` byte (2026-09-07): the ship arrival dump clears
@@ -329,23 +317,9 @@ int ai_euro_4393_work_queue_haul_pick(
    * writer keeping the byte fresh).
    */
   const int bound_colony = ai_euro_20e6_origin_get(hauler);
-  /* Replay this tick's already-made claim instead of consuming a second slot. */
-  if (hid >= 0 && ai_euro_s_4393_claim_valid[hid] && ai_euro_s_4393_claim_turn[hid] == turn) {
-    const ColonizeColony* held = colonies_get(ctx->colonies, ai_euro_s_4393_claim_colony[hid]);
-    /*
-     * The replay is subject to the same `+0x314a` rule as the scan: a hauler
-     * that has LOADED at the claimed colony since the claim was made is now
-     * bound to it, and DOS would have skipped that slot. Without this the
-     * replay re-aims a wagon at the colony it just filled up from.
-     */
-    if (held && held->active && held->nation_id == nation_id &&
-        held->id != bound_colony) {
-      *out_x = held->x;
-      *out_y = held->y;
-      return 1;
-    }
-    return 0;
-  }
+  /* No claim replay: DOS re-runs this scan on every 20e6 entry and consumes
+   * a second slot (DOSBox ref 12 -> 13: the crown Man-O-War bound St. Louis,
+   * re-entered beside a Dutch hull at (51,52) and bound Bahia). */
   const int hauler_type = hauler ? ai_euro_20e6_dos_type(ctx->units, hauler) : -1;
   /*
    * DOS-LITERAL FUN_521d_20e6 raw 89877-89878 — the LAB_521d_4393 entry gate:
@@ -360,6 +334,7 @@ int ai_euro_4393_work_queue_haul_pick(
   if (hauler_type < 0x0d || hauler_type > 0x12) {
     return 0;
   }
+  if (getenv("AI_SHIP_TRACE")) { fprintf(stderr, "[4393] unit %d (%d,%d) civ %d gate %d bound %d\n", hauler ? hauler->id : -1, from_x, from_y, civilian_hull, ai_euro_20e6_457e_type_gate(ctx, hauler, hauler_type), bound_colony); for (int i = 0; i < AI_WORK_SLOTS; ++i) { const AiWorkSlot* w = ai_goals_work(i); if (w && w->id >= 0) fprintf(stderr, "[4393]   slot %d colony %d score %d loads %d mil %d\n", i, w->id, w->score, w->loads, w->military); } }
   if (!civilian_hull && !ai_euro_20e6_457e_type_gate(ctx, hauler, hauler_type)) {
     return 0; /* bVar7 */
   }
@@ -412,11 +387,6 @@ int ai_euro_4393_work_queue_haul_pick(
   }
   /* DOS queue-decrement tail (raw ~2226-2242). */
   ai_goals_work_consume(best_slot, ai_euro_hauler_free_holds(ctx->units, hauler));
-  if (hid >= 0) {
-    ai_euro_s_4393_claim_turn[hid] = turn;
-    ai_euro_s_4393_claim_colony[hid] = best_colony;
-    ai_euro_s_4393_claim_valid[hid] = 1;
-  }
   *out_x = bx;
   *out_y = by;
   return 1;

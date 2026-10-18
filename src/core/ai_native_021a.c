@@ -585,6 +585,7 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_terrain(struct ai_021a_ctx* c) {
 
   /* 0xbb6: own village tile — musket / horse upgrade beacon. */
   int upg = 0;
+  if (dump && settle == nation_id && ind) fprintf(stderr, "AI_021A d=%d beacon muskets=%d breeding=%d maxmp=%d type=%d\n", d, (int)(int8_t)ind->muskets, (int)ind->horse_breeding, units_max_mp(units, u->id), (int)u->type_index);
   if (settle == nation_id && ind) {
     if ((int8_t)ind->muskets > 0 &&
         (u->type_index == UNITS_KIND_BRAVE ||

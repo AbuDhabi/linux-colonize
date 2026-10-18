@@ -2496,7 +2496,11 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_work(
         wbvar5 = 1;
       }
       if (have >= 0) {
-        const int price = nat ? (int)nat->trade.euro_price[slot] : 0;
+        /* Raw :87666 weight = DS:0x84bc[nation*0x10 + cargo], the price-row
+         * byte every writer stores as euro_price - 1 clamped at 0 (DOSBox
+         * ref 12 -> 13: Vlissingen 4076 = the port's 4960 minus one per
+         * counted unit). */
+        const int price = nat && nat->trade.euro_price[slot] > 1 ? (int)nat->trade.euro_price[slot] - 1 : 0;
         wscore += (long)price * have;
         wloads += loads_here;
       }
@@ -2695,11 +2699,6 @@ void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
    * ai_euro_5d04_nation_planning_structural. */
   AiEuroInventory* inv = ai_goals_inventory(nation_id);
   ai_goals_clear_work_queue();
-  /* Per-tick scratch, like the queue itself: DOS `clear_work_queue` sits at
-   * exactly this point and every hauler claim below it is a fresh one. */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    ai_euro_s_4393_claim_valid[i] = 0;
-  }
 
   /* A: urgency seed; FUN_1d1d_0dae(0x9faa,0,0x10e) coarse-plane wipe + restamp. */
   ai_coarse_fog_euro_restamp(ctx->units, ctx->colonies, nation_id);

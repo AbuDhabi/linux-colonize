@@ -1841,9 +1841,6 @@ void ai_euro_reset(void) {
   memset(ai_euro_s_violate_last_turn, 0, sizeof(ai_euro_s_violate_last_turn));
   memset(ai_euro_s_euro_roam_wander, 0, sizeof(ai_euro_s_euro_roam_wander));
   memset(ai_euro_s_ship_pressure, 0, sizeof(ai_euro_s_ship_pressure));
-  memset(ai_euro_s_4393_claim_turn, 0, sizeof(ai_euro_s_4393_claim_turn));
-  memset(ai_euro_s_4393_claim_colony, 0, sizeof(ai_euro_s_4393_claim_colony));
-  memset(ai_euro_s_4393_claim_valid, 0, sizeof(ai_euro_s_4393_claim_valid));
   /* Save-backed latch: goes through its own accessor, not a raw memset. */
   ai_euro_wagon_errand_clear_all();
   memset(ai_euro_s_0a60_work_registered, 0, sizeof(ai_euro_s_0a60_work_registered));
