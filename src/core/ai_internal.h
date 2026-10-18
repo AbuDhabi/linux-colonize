@@ -213,8 +213,8 @@ int ai_quiet_fog_explore_ex(
   int unit_y,
   int dir,
   int nation_id,
-  int* out_p8,
-  int* out_m2
+  int* out_fog_bonus,
+  int* out_neighbor_penalty
 );
 
 uint16_t ai_rng_next_counted(AiRng* rng);

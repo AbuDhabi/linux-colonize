@@ -27,14 +27,14 @@ int ai_king_0982_garrison_score(const ColonizeTurnContext* ctx, const ColonizeCo
 int ai_king_0982_tile_strength(const ColonizeTurnContext* ctx, int x, int y);
 void ai_king_0982_purge_tile(ColonizeTurnContext* ctx, int crown, int x, int y);
 int ai_king_0982_crown_mow_alive(const ColonizeTurnContext* ctx, int crown);
-int ai_king_0982_spawn_pool_unit(ColonizeTurnContext* ctx, int crown, int k, int x, int y);
+int ai_king_0982_spawn_pool_unit(ColonizeTurnContext* ctx, int crown, int pool_index, int x, int y);
 void ai_king_0982_land_troops(
   ColonizeTurnContext* ctx, int crown, uint16_t* force, const ColonizeColony* c,
   int continent, int garrison_raw, int need, int lx, int ly
 );
 void ai_king_0982_invasion(struct ai_king_0982_ctx* w);
 /* FUN_43f7_0082 unit pick + spawn for the 10f0 intervention (bugs.md #505). */
-int ai_king_10f0_spawn_unit(ColonizeTurnContext* ctx, int human, int k, int x, int y);
+int ai_king_10f0_spawn_unit(ColonizeTurnContext* ctx, int human, int pool_index, int x, int y);
 #endif /* COLONIZE_TESTING */
 
 
@@ -153,7 +153,7 @@ void ai_king_apply_dump_goods_choice(ColonizeTurnContext* ctx, int human, int ca
 int ai_king_colony_sol_at(const ColonizeTurnContext* ctx, int nation_id, int x, int y);
 void ai_king_do_declare(ColonizeTurnContext* ctx, int human);
 int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, int hy,
-                                   int qty_a, int extra_flag, int price);
+                                   int regular_count, int artillery_or_cavalry_roll, int price);
 int ai_king_do_merc_peace_hire(
   ColonizeTurnContext* ctx, int human, int regular, int artillery, int price
 );
@@ -181,8 +181,8 @@ int ai_king_intervention_nation_slot(
 );
 int ai_king_is_mow(const ColonizeUnitPool* units, const ColonizeUnit* u);
 void ai_king_merc_offer(ColonizeTurnContext* ctx);
-void ai_king_merc_payload_parts(int payload, int* out_hx, int* out_hy, int* out_qty_a,
-                                       int* out_extra_flag, int* out_price);
+void ai_king_merc_payload_parts(int payload, int* out_hx, int* out_hy, int* out_regular_count,
+                                       int* out_artillery_or_cavalry_roll, int* out_price);
 void ai_king_merc_peace_payload_parts(
   int payload, int* out_regular, int* out_artillery, int* out_price
 );

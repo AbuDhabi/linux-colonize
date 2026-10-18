@@ -1195,7 +1195,7 @@ void game_trade_wizard_open_dest(ColonizeGameState* game, int number);
 void game_trade_wizard_open_name(ColonizeGameState* game);
 void game_apply_trade_dest(ColonizeGameState* game, int id);
 void game_apply_goto_port(ColonizeGameState* game, int id);
-void game_trade_default_name(ColonizeGameState* game, int dest1, char* out, size_t out_size);
+void game_trade_default_name(ColonizeGameState* game, int first_dest_colony_id, char* out, size_t out_size);
 const char* game_trade_europe_label(const ColonizeGameState* game);
 int game_trade_route_aim_stop(ColonizeGameState* game, ColonizeUnit* u, int stop_i);
 void game_europe_service_trade_harbor(ColonizeGameState* game);
@@ -1866,13 +1866,13 @@ COLONIZE_INTERNAL void game_render_map_composite(
               );
               /* FUN_6ba1_0938 unseen tail: seen neighbours dither their
                * terrain onto the fog tile (mask 104+q + fill into holes). */
-              const int fog_n2 = game_fog_nation(game);
-              const int redges = map_fog_reveal_edge_count(&game->world_map, mx, my, fog_n2);
+              const int fog_nation_id = game_fog_nation(game);
+              const int redges = map_fog_reveal_edge_count(&game->world_map, mx, my, fog_nation_id);
               for (int ei = 0; ei < redges; ++ei) {
                 const int mask =
-                  map_fog_reveal_edge_mask_sprite_at(&game->world_map, mx, my, fog_n2, ei);
+                  map_fog_reveal_edge_mask_sprite_at(&game->world_map, mx, my, fog_nation_id, ei);
                 const int fill =
-                  map_fog_reveal_edge_fill_sprite_at(&game->world_map, mx, my, fog_n2, ei);
+                  map_fog_reveal_edge_fill_sprite_at(&game->world_map, mx, my, fog_nation_id, ei);
                 if (mask >= 0) {
                   blit_map_sprite(
                     &game->phys0, mask, framebuffer, sx, sy, tile_w, tile_h, map_origin_x,

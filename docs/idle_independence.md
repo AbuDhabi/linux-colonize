@@ -607,7 +607,7 @@ DOS turns, 288 + 289, 918 draws) first diverges at draw 76. Fixes:
   colony's FUN_364b_0688 (everything after the raw 57231 0a22 call) applies there: Phase B
   stock += net, the +0x90 mask, C/D (that record's pop and SoL%, fed the ticking colony's
   bells), education counters, birth/starve, the hammer bank, spoilage and depletion. The
-  ticking colony's record keeps its entry stock and mask (`g_turn_1528_colony`, set by
+  ticking colony's record keeps its entry stock and mask (`g_turn_1528_last_walked_colony`, set by
   `ai_king_1528_announce`, consumed in `turn_produce_one_colony`). uVar7 (the ticking nation)
   still drives the AI/human gates, the census and a newborn's owner; the 0x8e5a shortfall is the
   ticking colony's composition, but the J kill gate reads the rebound colony's entry food.
@@ -650,7 +650,7 @@ DOS turns, 288 + 289, 918 draws) first diverges at draw 76. Fixes:
   the 0x9424 / 0x9410 / 0x9414 / 0x9298 / 0x924c reads). For -1 the Muskets price byte is
   DS:0x84bb, which has no writer and is modelled as 0 (as the port already does for
   DS:0x84b4..bb). tr9 interval 20: crown Bahia skips the Blacksmith's Shop arm, and pop 7 < 8
-  ends at 2747 (slot 255, +0x1d |= 0x80). `ai_euro_5952_build_cascade_1b0` /
+  ends at 2747 (slot 255, +0x1d |= 0x80). `ai_euro_5952_build_cascade_for_owner` /
   `ai_euro_5952_ds_byte`; a tribe owner's price row past DS:0x84fb is still a guess (reads 0).
 - tr9 save 20, crown Pioneer 40 in captured Fort Orange: (a) 0352's capture arm flips only the
   nation nibble (0894 = FUN_1427_0d1e, low nibble of +0x3147), so a colonist taken on a colony

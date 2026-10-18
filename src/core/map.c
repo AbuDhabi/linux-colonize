@@ -585,7 +585,7 @@ static int map_resource_type_at_ex(
    * caller passes in, not something read from the asm. */
   const int dos_x = x;
   const int dos_y = y;
-  const int local_a = (int)(terrain_byte & 0x1fu);
+  const int terrain_class_bits = (int)(terrain_byte & 0x1fu);
   /* Forest range is the full 8-23 (both `local_a<16` and `local_a>=16`
    * forest halves — pedia 16-23 fold to the same 8 forest types via &7
    * elsewhere) — asm checks `(local_a<8||local_a>0xf) && (local_a<0x10||
@@ -593,10 +593,10 @@ static int map_resource_type_at_ex(
    * 8-15 OR 0x10-0x17 combined, not just 8-15. Previously only checked
    * 8-15, so pedia 16-23 tiles hashed to the wrong resource cell and
    * silently dropped their resource/rumour half the time. */
-  const int local_4 = (local_a >= 8 && local_a <= 23) ? 1 : 0;
-  const int uVar2 = (dos_x & 3) * 4 + (dos_y & 3);
-  const int uVar3 =
-    ((((dos_y >> 2) * 3 + (dos_x >> 2)) - local_4) + (int)(map_resource_seed(map) & 0xff)) & 0xf;
+  const int forest_hash_adjust = (terrain_class_bits >= 8 && terrain_class_bits <= 23) ? 1 : 0;
+  const int tile_hash_cell = (dos_x & 3) * 4 + (dos_y & 3); /* DOS uVar2 */
+  const int seed_hash_cell = /* DOS uVar3 */
+    ((((dos_y >> 2) * 3 + (dos_x >> 2)) - forest_hash_adjust) + (int)(map_resource_seed(map) & 0xff)) & 0xf;
   /* Coordinate hash gate — asm-exact, and unconditional. Player-confirmed
    * 2026-08-18 (colony_prod02's New Holland): this used to be gated on
    * `!ignore_settlement || settlement-bit-clear`, so a `_for_yield` call
@@ -608,7 +608,7 @@ static int map_resource_type_at_ex(
    * above, `!ignore_settlement && settlement -> -1`); this hash check is a
    * separate concern (FUN_12ab_0458 has no settlement logic in it at all)
    * and must always run. */
-  if (uVar3 != uVar2 && (uVar3 ^ 10) != uVar2) {
+  if (seed_hash_cell != tile_hash_cell && (seed_hash_cell ^ 10) != tile_hash_cell) {
     return -1;
   }
 

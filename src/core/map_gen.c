@@ -127,7 +127,7 @@ static void stamp_one(uint8_t* mask, int w, int h, int x, int y) {
 }
 
 /* FUN_684c_009c — archipelago / normal wander (diagonal steps). */
-static void walk_009c(
+static void walk_009c_diagonal_wander(
   uint8_t* mask,
   int w,
   int h,
@@ -148,7 +148,7 @@ static void walk_009c(
 }
 
 /* FUN_684c_0116 — continents: wander + random diagonal thicken. */
-static void walk_0116(
+static void walk_0116_continent_thicken(
   uint8_t* mask,
   int w,
   int h,
@@ -181,7 +181,7 @@ static void walk_0116(
 }
 
 /* FUN_684c_021c — short cardinal wander (extra-mass param_1!=0 path). */
-static void walk_021c(
+static void walk_021c_cardinal_short(
   uint8_t* mask,
   int w,
   int h,
@@ -235,18 +235,18 @@ static void place_blob(
 
   if (param_extra == 0) {
     if (params->land_form < 2) {
-      walk_009c(temp, w, h, rng, m, x, y);
+      walk_009c_diagonal_wander(temp, w, h, rng, m, x, y);
     } else {
-      walk_0116(temp, w, h, rng, m, x, y);
+      walk_0116_continent_thicken(temp, w, h, rng, m, x, y);
     }
   } else {
     const int r = dos_rng_range(rng, 1, 10);
-    walk_021c(temp, w, h, rng, m, x, y);
+    walk_021c_cardinal_short(temp, w, h, rng, m, x, y);
     if (r > 6) {
-      walk_021c(temp, w, h, rng, m, x, y);
+      walk_021c_cardinal_short(temp, w, h, rng, m, x, y);
     }
     if (r > 7) {
-      walk_021c(temp, w, h, rng, m, x, y);
+      walk_021c_cardinal_short(temp, w, h, rng, m, x, y);
     }
   }
 

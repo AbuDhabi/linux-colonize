@@ -1479,18 +1479,18 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
 /* FUN_43f7_2424 raw 75174: nation +0x19 = this nation's SoL, written from
  * the 00f2 tail FUN_291f_0a66 (raw 58392) of the nation's own slot — after
  * its colony loop, before its units move. Peacetime only (caller's gate). */
-void ai_king_cache_nation_sol(ColonizeTurnContext* ctx, int n) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || n < 0 || n >= 4) {
+void ai_king_cache_nation_sol(ColonizeTurnContext* ctx, int nation) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || nation < 0 || nation >= 4) {
     return;
   }
-  int sol = ai_king_sol_percent(ctx, n);
+  int sol = ai_king_sol_percent(ctx, nation);
   if (sol < 0) {
     sol = 0;
   }
   if (sol > 100) {
     sol = 100;
   }
-  ctx->col1->nation[n].rebel_sentiment = (uint8_t)sol;
+  ctx->col1->nation[nation].rebel_sentiment = (uint8_t)sol;
 }
 
 void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup) {
@@ -1536,11 +1536,11 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
       if (popup->result_choice_id == AI_KING_CHOICE_HIRE) {
         int hx = 0;
         int hy = 0;
-        int qty_a = 0;
-        int extra_flag = 0;
+        int regular_count = 0;
+        int artillery_or_cavalry_roll = 0;
         int price = 0;
-        ai_king_merc_payload_parts(popup->result_payload, &hx, &hy, &qty_a, &extra_flag, &price);
-        if (!ai_king_do_merc_hire_at(ctx, human, hx, hy, qty_a, extra_flag, price) &&
+        ai_king_merc_payload_parts(popup->result_payload, &hx, &hy, &regular_count, &artillery_or_cavalry_roll, &price);
+        if (!ai_king_do_merc_hire_at(ctx, human, hx, hy, regular_count, artillery_or_cavalry_roll, price) &&
             ctx->status && ctx->status_size) {
           snprintf(ctx->status, ctx->status_size, "Cannot afford mercenaries.");
         }

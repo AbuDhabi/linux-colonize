@@ -1802,17 +1802,17 @@ static AiTalkStepStatus ai_talk_stage_third(
   /* raw :97662: `(-1 < iStack_ca) && (uStack_9e == 0)` — the crown-armed
    * marker suppresses the third-party demand too. */
   if (k->third >= 0 && !k->crown_armed && ai_talk_met(ctx, h, k->third)) {
-    PopupMsgTokens t3 = *tok;
-    t3.string0 = ai_talk_name(ctx, k->third);
+    PopupMsgTokens third_party_tokens = *tok;
+    third_party_tokens.string0 = ai_talk_name(ctx, k->third);
     /* GAME.TXT @MEEKNESS: row 0 = "request", row 1 = "demand". */
-    t3.string1 = k->third >= 4
+    third_party_tokens.string1 = k->third >= 4
       ? ai_talk_name(ctx, k->third)
       : assets_msg_line_or(ctx->messages, "MEEKNESS", k->manly ? 1 : 0, "");
     static const char* const lab_a[2] = {"", ""};
     if (k->third < 4) {
-      ai_talk_choice(ctx, "APOSTATES", &t3, "", lab_a, 2, AI_TALK_ST_THIRD);
+      ai_talk_choice(ctx, "APOSTATES", &third_party_tokens, "", lab_a, 2, AI_TALK_ST_THIRD);
     } else {
-      ai_talk_choice(ctx, "HEATHEN", &t3, "", lab_a, 2, AI_TALK_ST_THIRD);
+      ai_talk_choice(ctx, "HEATHEN", &third_party_tokens, "", lab_a, 2, AI_TALK_ST_THIRD);
     }
     return AI_TALK_STEP_RETURN;
   }
@@ -2383,15 +2383,15 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
         }
       } else if (choice == 3) {
         /* tribute demand by the human (raw :98360-98395) */
-        int g = k->dominance;
+        int tribute_gold = k->dominance; /* hundreds until the *= 100 below */
         if (ai_talk_franklin(ctx, h) && ai_talk_rng(ctx, 0, 2) == 0) {
-          g++;
+          tribute_gold++;
         }
         const int cap = (int)(europe_nation_gold(ctx->europe, col1, t) / 100u);
-        if (g < 0) g = 0;
-        if (g > cap) g = cap;
-        g *= 100;
-        if (g <= 0) {
+        if (tribute_gold < 0) tribute_gold = 0;
+        if (tribute_gold > cap) tribute_gold = cap;
+        tribute_gold *= 100;
+        if (tribute_gold <= 0) {
           if (!k->worthy_end) {
             ai_talk_ok(ctx, "THREATS", &tok, "");
           } else {
@@ -2400,10 +2400,10 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
           }
         } else {
           PopupMsgTokens tg = tok;
-          tg.number0 = g;
+          tg.number0 = tribute_gold;
           tg.has_number0 = true;
           ai_talk_ok(ctx, "GIFTS", &tg, "");
-          ai_talk_gold(ctx, t, h, g);
+          ai_talk_gold(ctx, t, h, tribute_gold);
         }
       } else if (choice == 4) {
         /* Military Assistance pick (raw :98330-98333, 5bfb:2d59): shows

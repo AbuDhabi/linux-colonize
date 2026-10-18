@@ -297,9 +297,9 @@ void units_seize_noncombat_at(
     return;
   }
   const int win_nat = win->nation_id;
-  int slot_4 = 0;
-  for (ColonizeUnit* u = units_next_on_tile(pool, x, y, &slot_4); u != NULL;
-       u = units_next_on_tile(pool, x, y, &slot_4)) {
+  int tile_cursor = 0;
+  for (ColonizeUnit* u = units_next_on_tile(pool, x, y, &tile_cursor); u != NULL;
+       u = units_next_on_tile(pool, x, y, &tile_cursor)) {
     if (u->id == winner_id || u->nation_id == win_nat) {
       continue;
     }
@@ -454,9 +454,9 @@ ColonizeEnterReason units_enter_probe_w(
    */
   if (mover && !sea && land && map_tile_is_water(map, mover->x, mover->y)) {
     int occupant_owner = -1;
-    int slot_a = 0;
-    for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &slot_a); u != NULL;
-         u = units_next_on_tile_const(pool, x, y, &slot_a)) {
+    int tile_cursor = 0;
+    for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &tile_cursor); u != NULL;
+         u = units_next_on_tile_const(pool, x, y, &tile_cursor)) {
       if (u->id == mover_id || u->aboard_ship_id >= 0) {
         continue;
       }
@@ -521,9 +521,9 @@ ColonizeEnterReason units_enter_probe_w(
   int foe = -1;
   if (!own_colony_dock && !village_ship) {
     int foe_mismatch = -1;
-    int slot_d = 0;
-    for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &slot_d); u != NULL;
-         u = units_next_on_tile_const(pool, x, y, &slot_d)) {
+    int tile_cursor = 0;
+    for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &tile_cursor); u != NULL;
+         u = units_next_on_tile_const(pool, x, y, &tile_cursor)) {
       if (u->id == mover_id) {
         continue;
       }
@@ -939,9 +939,9 @@ static bool units_colony_has_soldier_on_tile(
   if (!pool || colony_nation < 0) {
     return false;
   }
-  int slot_c = 0;
-  for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &slot_c); u != NULL;
-       u = units_next_on_tile_const(pool, x, y, &slot_c)) {
+  int tile_cursor = 0;
+  for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &tile_cursor); u != NULL;
+       u = units_next_on_tile_const(pool, x, y, &tile_cursor)) {
     if (u->nation_id != colony_nation) {
       continue;
     }

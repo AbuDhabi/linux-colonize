@@ -1016,7 +1016,7 @@ static int case_blacksmith_gate_reads_local_1b0(void) {
     f.col->has_building[bld(&f, "Blacksmith's Shop")] = false;
     f.col1.nation[NATION].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 5;
     f.col->stock[COLONIZE_CARGO_ORE] = 100;
-    ai_euro_5952_build_cascade_1b0(&f.ctx, f.col, pass == 0 ? NATION : -1);
+    ai_euro_5952_build_cascade_for_owner(&f.ctx, f.col, pass == 0 ? NATION : -1);
     const int got = f.col->building_in_production;
     const int want = pass == 0 ? bld(&f, "Blacksmith's Shop") : -1;
     const int wants = (f.col->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) != 0;

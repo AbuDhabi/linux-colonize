@@ -185,15 +185,15 @@ static void units_raw_hold_remove(ColonizeUnit* u, int slot) {
   }
   for (int i = 0; i < n; ++i) {
     const int t = u->hold_goods_type[i];
-    const int sh = (i & 1) ? 4 : 0;
-    r[1 + i / 2] = (uint8_t)((r[1 + i / 2] & ~(0xf << sh)) | ((t & 0xf) << sh));
+    const int nibble_shift = (i & 1) ? 4 : 0;
+    r[1 + i / 2] = (uint8_t)((r[1 + i / 2] & ~(0xf << nibble_shift)) | ((t & 0xf) << nibble_shift));
     r[4 + i] = (uint8_t)u->hold_goods_amount[i];
   }
   for (int i = slot; i < n - 1; ++i) {
-    const int sa = (i & 1) ? 4 : 0;
-    const int sb = ((i + 1) & 1) ? 4 : 0;
-    const int t = (r[1 + (i + 1) / 2] >> sb) & 0xf;
-    r[1 + i / 2] = (uint8_t)((r[1 + i / 2] & ~(0xf << sa)) | (t << sa));
+    const int dst_nibble_shift = (i & 1) ? 4 : 0;
+    const int src_nibble_shift = ((i + 1) & 1) ? 4 : 0;
+    const int t = (r[1 + (i + 1) / 2] >> src_nibble_shift) & 0xf;
+    r[1 + i / 2] = (uint8_t)((r[1 + i / 2] & ~(0xf << dst_nibble_shift)) | (t << dst_nibble_shift));
     r[4 + i] = r[4 + i + 1];
   }
   r[0] = (uint8_t)(n - 1);
@@ -1688,9 +1688,9 @@ int units_top_on_map_tile(
       return selected_visible ? sel->id : -1;
     }
   }
-  int slot_5 = 0;
-  for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &slot_5); u != NULL;
-       u = units_next_on_tile_const(pool, x, y, &slot_5)) {
+  int selected_scan_cursor = 0;
+  for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &selected_scan_cursor); u != NULL;
+       u = units_next_on_tile_const(pool, x, y, &selected_scan_cursor)) {
     if (u->id != pool->selected_id) {
       continue;
     }
@@ -1701,9 +1701,9 @@ int units_top_on_map_tile(
   }
   int top = -1;
   int top_id = -1;
-  int slot_6 = 0;
-  for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &slot_6); u != NULL;
-       u = units_next_on_tile_const(pool, x, y, &slot_6)) {
+  int top_scan_cursor = 0;
+  for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &top_scan_cursor); u != NULL;
+       u = units_next_on_tile_const(pool, x, y, &top_scan_cursor)) {
     if (on_colony) {
       continue;
     }

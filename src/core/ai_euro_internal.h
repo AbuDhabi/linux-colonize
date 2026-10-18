@@ -63,7 +63,7 @@ typedef struct AiEuro5952Want {
   int owner_nation;                     /* colony +0x1a */
   int human_nation;                     /* DS:0x5398 */
   unsigned char wealth_rank[4];         /* DS:0x917c, 0 = richest */
-  unsigned char rank_1b0;               /* byte[local_1b0 + 0x917c]: the owner's
+  unsigned char owner_wealth_rank;         /* byte[local_1b0 + 0x917c]: the owner's
                                            rank unless the improvement scan
                                            overwrote local_1b0 */
   int year;                             /* DS:0x538a */
@@ -80,7 +80,7 @@ typedef struct AiEuro5952Want {
 } AiEuro5952Want;
 
 COLONIZE_INTERNAL unsigned char ai_euro_5952_rank_byte(
-  const ColonizeCol1Save* col1, const unsigned char rank[4], int local_1b0);
+  const ColonizeCol1Save* col1, const unsigned char rank[4], int owner_index);
 COLONIZE_INTERNAL int ai_euro_5952_want_weight(const AiEuro5952Want* w, int job, int out_cargo);
 COLONIZE_INTERNAL int ai_euro_5952_fallback_job(
   int has_church, int lumber_surplus, int preacher_count
@@ -177,12 +177,12 @@ int ai_euro_is_treasure_name(ColonizeUnitKind kind);
 
 bool ai_euro_5952_job_is_expert(int job);
 /* local_80/local_1e/local_7e placement-section gate (raw 94570-94584,
- * bugs.md #1028): local_7e is the return value; out_local_80 and
- * out_local_1e hand back the two sub-gates the food pass and pass-2 loops
+ * bugs.md #1028): local_7e is the return value; out_under_populated and
+ * out_horses_have_room hand back the two sub-gates the food pass and pass-2 loops
  * also need. */
 bool ai_euro_5952_placement_gate(
   const ColonizeColonyPool* pool, const ColonizeColony* col,
-  bool* out_local_80, bool* out_local_1e
+  bool* out_under_populated, bool* out_horses_have_room
 );
 void ai_euro_5952_ledgers(
   const ColonizeWorld* world,
@@ -196,8 +196,8 @@ extern int ai_euro_s_5952_ring1[COLONIZE_COLONIES_MAX];
 extern int ai_euro_s_5952_docks_started[COLONIZE_COLONIES_MAX];
 extern int ai_euro_s_5952_census_nonexpert[COLONIZE_COLONIES_MAX]; /* aiStack_68[0x13] */
 /* local_1b0 = the tick's improvement-arm owner (DS index of the per-nation reads). */
-void ai_euro_5952_build_cascade_1b0(
-  ColonizeTurnContext* ctx, ColonizeColony* col, int local_1b0
+void ai_euro_5952_build_cascade_for_owner(
+  ColonizeTurnContext* ctx, ColonizeColony* col, int improvement_owner
 );
 void ai_euro_colony_tick_5952(ColonizeTurnContext* ctx, int nation_id);
 void ai_euro_5952_colony_counters(
@@ -275,7 +275,7 @@ void ai_euro_20e6_refresh_type_cache(const ColonizeUnitPool* units);
 extern const int8_t ai_euro_k_20e6_ring20_dx[20];
 extern const int8_t ai_euro_k_20e6_ring20_dy[20];
 void ai_euro_5952_improve_best_plot(
-  ColonizeTurnContext* ctx, ColonizeColony* col, int* local_1b0, int* out_best_plot
+  ColonizeTurnContext* ctx, ColonizeColony* col, int* out_improvement_owner, int* out_best_plot
 );
 ColonizeColony* ai_euro_5952_tools_supply_and_connect(
   ColonizeTurnContext* ctx, ColonizeColony* col
@@ -353,7 +353,7 @@ int ai_euro_20e6_457e_type_gate(
   const ColonizeTurnContext* ctx, const ColonizeUnit* u, int dos_type
 );
 /* bVar20 seed (raw 88556-88573); see ai_euro_land.c. */
-int ai_euro_20e6_bvar20_seed(
+int ai_euro_20e6_type_gate_no_manowar(
   const ColonizeTurnContext* ctx, const ColonizeUnit* u, int dos_type
 );
 int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
@@ -432,7 +432,7 @@ void ai_euro_20e6_goal_fold(
   int found_probe,
   int* pioneers,
   int* civ,
-  int* carry80
+  int* promoted_civilian_carry
 );
 typedef struct AiEuroShipBandCounts {
   int stack_other;

@@ -128,53 +128,53 @@ int colony_yield_terrain_class_base(int terr_class, int field_job) {
 #define COLONY_YIELD_RESOURCE_DOUBLE (-1)
 
 static int colony_yield_resource_effect(int resource, int field_job) {
-  int v = 0;
+  int effect_amount = 0;
   if (resource == 9 && field_job == COLONIZE_JOB_FARMER) {
-    v = 2;
+    effect_amount = 2;
   }
   if (resource == 1 && field_job == COLONIZE_JOB_FARMER) {
-    v += 2;
+    effect_amount += 2;
   }
   if (resource == 2 && field_job == COLONIZE_JOB_FARMER) {
-    v += 2;
+    effect_amount += 2;
   }
   if (resource == 9 && field_job == COLONIZE_JOB_FUR_TRAPPER) {
-    v += 2;
+    effect_amount += 2;
   }
   if (resource == 8 && field_job == COLONIZE_JOB_FUR_TRAPPER) {
     /* +3, not +2 — FUN_15eb_17fa asm: `(param_1 == 8) && (param_2 == 4)`
      * adds 3 (viceroy_unpacked.c 11736-11738); caught 2026-09-03 while
      * re-reading the table against the farming saves. */
-    v += 3;
+    effect_amount += 3;
   }
   if (resource == 3 && field_job == COLONIZE_JOB_COTTON_PLANTER) {
-    v = COLONY_YIELD_RESOURCE_DOUBLE;
+    effect_amount = COLONY_YIELD_RESOURCE_DOUBLE;
   }
   if (resource == 4 && field_job == COLONIZE_JOB_TOBACCO_PLANTER) {
-    v = COLONY_YIELD_RESOURCE_DOUBLE;
+    effect_amount = COLONY_YIELD_RESOURCE_DOUBLE;
   }
   if (resource == 5 && field_job == COLONIZE_JOB_SUGAR_PLANTER) {
-    v = COLONY_YIELD_RESOURCE_DOUBLE;
+    effect_amount = COLONY_YIELD_RESOURCE_DOUBLE;
   }
   if (resource == 10 && field_job == COLONIZE_JOB_LUMBERJACK) {
-    v += 2;
+    effect_amount += 2;
   }
   if (resource == 6 && field_job == COLONIZE_JOB_ORE_MINER) {
-    v += 3;
+    effect_amount += 3;
   }
   if (resource == 13 && field_job == COLONIZE_JOB_ORE_MINER) {
-    v += 2;
+    effect_amount += 2;
   }
   if (resource == 6 && field_job == COLONIZE_JOB_SILVER_MINER) {
-    v += 1;
+    effect_amount += 1;
   }
   if (resource == 12 && field_job == COLONIZE_JOB_SILVER_MINER) {
-    v += 2;
+    effect_amount += 2;
   }
   if (resource == 7 && field_job == COLONIZE_JOB_FISHERMAN) {
-    v += 3;
+    effect_amount += 3;
   }
-  return v;
+  return effect_amount;
 }
 
 /*
@@ -550,25 +550,25 @@ static int colony_yield_pipeline(
    * per-anchor: ore/fur/lumber road & river cases decompose identically).
    */
   if (yield > 0 && !suppress_improvements) {
-    const int u =
+    const int improvement_step =
       ((expert && field_job != COLONIZE_JOB_FARMER && field_job != COLONIZE_JOB_FISHERMAN) ||
        field_job == COLONIZE_JOB_LUMBERJACK)
         ? 2
         : 1;
     int add = 0;
     if (field_job == COLONIZE_JOB_FARMER) {
-      add = u;
+      add = improvement_step;
     }
     if (field_job > COLONIZE_JOB_COTTON_PLANTER && map_tile_has_road(map, x, y)) {
-      add += u;
+      add += improvement_step;
     }
     if (field_job <= COLONIZE_JOB_COTTON_PLANTER && map_tile_is_plowed(map, x, y)) {
-      add += u;
+      add += improvement_step;
     }
     if (map_tile_has_river(map, x, y)) {
-      add += u;
-      if (map_tile_has_major_river(map, x, y) && add == u) {
-        add += u;
+      add += improvement_step;
+      if (map_tile_has_major_river(map, x, y) && add == improvement_step) {
+        add += improvement_step;
       }
     }
     yield += add;
@@ -645,12 +645,12 @@ bool colony_yield_worked_tiles_next(ColonizeWorkedTileIter* it, ColonizeWorkedTi
    * so walking the full array is the same set DOS's 0x329 count walks. */
   while (it->next_tile < COLONIZE_COLONY_FIELD_TILES_MAX) {
     const int ti = it->next_tile++;
-    const int who = (int)colony->tiles[ti];
-    if (who < 0 || who >= colony->colonist_count) {
+    const int worked_colonist_index = (int)colony->tiles[ti];
+    if (worked_colonist_index < 0 || worked_colonist_index >= colony->colonist_count) {
       continue;
     }
-    if (who < 32) {
-      if (it->seen & (1u << who)) {
+    if (worked_colonist_index < 32) {
+      if (it->seen & (1u << worked_colonist_index)) {
         continue;
       }
       /* The dedupe mark is set for every in-range colonist the tiles[] walk
@@ -658,14 +658,14 @@ bool colony_yield_worked_tiles_next(ColonizeWorkedTileIter* it, ColonizeWorkedTi
        * hand-written copies did with their worked_colonist[32] array. A
        * colonist listed on two field tiles is therefore skipped on the
        * second even when the first was rejected. */
-      it->seen |= 1u << who;
+      it->seen |= 1u << worked_colonist_index;
     }
-    const ColonizeColonist* c = &colony->colonists[who];
+    const ColonizeColonist* c = &colony->colonists[worked_colonist_index];
     if (!c->active || c->field_job < 0) {
       continue;
     }
     out->tile_index = ti;
-    out->colonist_index = who;
+    out->colonist_index = worked_colonist_index;
     out->colonist = c;
     /* colonies_field_tile_delta's table (colony.c) is MAP_DIR8 — N, NE, E,
      * SE, S, SW, W, NW — for slots 0..7, and the DS:0xc8/0xde outer plots for

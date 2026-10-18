@@ -826,11 +826,11 @@ void game_trade_wizard_open_dest(ColonizeGameState* game, int number) {
  */
 void game_trade_default_name(
   ColonizeGameState* game,
-  int dest1,
+  int first_dest_colony_id,
   char* out,
   size_t out_size
 ) {
-  const ColonizeColony* c = colonies_get(&game->colonies, dest1);
+  const ColonizeColony* c = colonies_get(&game->colonies, first_dest_colony_id);
   const char* cname = (c && c->name[0]) ? c->name : "";
   const char* word = "";
   char word_buf[COLONIZE_MSG_LINE_LEN];
@@ -881,9 +881,9 @@ void game_trade_default_name(
  * @TRADETYPE (sea/land CHOICE, DOS choice 1 = Sea); landlocked → land route,
  * straight to the @TRADENAME prompt.
  */
-static void game_trade_wizard_after_dest1(ColonizeGameState* game, int dest1) {
-  game->trade_create_dest1 = dest1;
-  const ColonizeColony* c = colonies_get(&game->colonies, dest1);
+static void game_trade_wizard_after_dest1(ColonizeGameState* game, int first_dest_colony_id) {
+  game->trade_create_dest1 = first_dest_colony_id;
+  const ColonizeColony* c = colonies_get(&game->colonies, first_dest_colony_id);
   const bool coastal =
     c && game->world_map_ok && map_tile_is_coastal(&game->world_map, c->x, c->y);
   if (!coastal) {

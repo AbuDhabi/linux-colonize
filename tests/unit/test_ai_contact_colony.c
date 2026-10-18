@@ -505,7 +505,7 @@ static int test_beg_conceded_falls_into_gift_863(void) {
   ai_contact_apply_beg_food(&ctx, &col1.indian[0], 4, 0, 0, 0, 1);
 
   const AiContactVisitMood* m = &ai_contact_s_visit_mood[0][0];
-  if (!m->valid || !m->bvar7 || !m->bvar6) {
+  if (!m->valid || !m->beg_conceded || !m->generous_visit) {
     col1_save_free(&col1);
     return fail("#863: a conceded beg must publish bVar7 and force bVar6");
   }

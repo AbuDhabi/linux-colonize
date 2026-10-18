@@ -926,7 +926,7 @@ static int ai_euro_20e6_load_holds(
   /* DOS-LITERAL FUN_521d_20e6 raw 90295: `while (local_d2 != 0 && bVar20)` —
    * bVar20 is the prologue seed (raw 88556-88573): a Man-O-War never loads
    * goods, a Frigate / Privateer only under the seed's narrowings. bugs.md #818. */
-  if (!ai_euro_20e6_bvar20_seed(ctx, ship, ai_euro_20e6_dos_type(ctx->units, ship))) {
+  if (!ai_euro_20e6_type_gate_no_manowar(ctx, ship, ai_euro_20e6_dos_type(ctx->units, ship))) {
     return 0;
   }
   while (free_holds > 0) {
@@ -1947,10 +1947,10 @@ void ai_euro_20e6_goal_fold(
   int found_probe,
   int* pioneers,
   int* civ,
-  int* carry80
+  int* promoted_civilian_carry /* DOS iStack_80 */
 ) {
-  if (carry80) {
-    *carry80 = 0;
+  if (promoted_civilian_carry) {
+    *promoted_civilian_carry = 0;
   }
   const ColonizeUnit* rep = ai_euro_20e6_stack_settler(ctx, ship);
   if (!rep) {
@@ -1982,8 +1982,8 @@ void ai_euro_20e6_goal_fold(
     }
     return;
   }
-  if (carry80) {
-    *carry80 = *civ;
+  if (promoted_civilian_carry) {
+    *promoted_civilian_carry = *civ;
   }
   *pioneers += *civ;
   *civ = 0;
@@ -2039,8 +2039,8 @@ int ai_euro_20e6_unload_mask_snapshot(
   const int home_colony = ai_euro_20e6_nearest_colony(ctx, ship->x, ship->y, nation, -1, &home_dist);
   int any_dist = 0;
   (void)ai_euro_20e6_nearest_colony(ctx, ship->x, ship->y, -1, -1, &any_dist);
-  const int probe7 = ai_goals_max_primary_prio(nation, ship->x, ship->y, AI_GOAL_MIL_EXPAND);
-  const int probe1 = ai_goals_max_primary_prio(nation, ship->x, ship->y, AI_GOAL_FOUND);
+  const int mil_expand_prio = ai_goals_max_primary_prio(nation, ship->x, ship->y, AI_GOAL_MIL_EXPAND);
+  const int found_prio = ai_goals_max_primary_prio(nation, ship->x, ship->y, AI_GOAL_FOUND);
   /*
    * Raw 1746-1762 goal fold, both branches live since 2026-09-06e — see
    * ai_euro_20e6_goal_fold. Positive urgency promotes plain civilians into
@@ -2050,9 +2050,9 @@ int ai_euro_20e6_unload_mask_snapshot(
    * second wave raise 0x40 — it resolves the "# Pioneers vs flag-count
    * founders" conflict noted in the 2026-09-06 pass.
    */
-  int carry80 = 0; /* iStack_80 */
+  int promoted_civilian_carry = 0; /* iStack_80 */
   const int pioneers_before_fold = pioneers;
-  ai_euro_20e6_goal_fold(ctx, ship, nation, probe1, &pioneers, &civ, &carry80);
+  ai_euro_20e6_goal_fold(ctx, ship, nation, found_prio, &pioneers, &civ, &promoted_civilian_carry);
   /* FUN_521d_20e6 raw 89412-89444: these DOS locals survive unloading.
    * The colony-sail gate and score must not re-count a partly unloaded hull. */
   if (counts) {
@@ -2158,7 +2158,7 @@ int ai_euro_20e6_unload_mask_snapshot(
       if (own_units == 0) {
         mask |= 0x40;
       }
-      int ok98 = 1;
+      int home_cluster_in_range = 1;
       if (home_colony >= 0 && cid >= 0) {
         const ColonizeColony* hc = colonies_get(ctx->colonies, home_colony);
         if (hc && map_continent_id_at(ctx->map, hc->x, hc->y) == cid) {
@@ -2167,23 +2167,23 @@ int ai_euro_20e6_unload_mask_snapshot(
             mask &= ~0x40; /* too close to an existing cluster */
           }
           if (home_dist > 0xb) {
-            ok98 = 0;
+            home_cluster_in_range = 0;
           }
         }
       }
-      if (ok98 && open_cont != 0 && (turn >> 4) < own_cols * 4 + own_units && urgency < 0x14) {
+      if (home_cluster_in_range && open_cont != 0 && (turn >> 4) < own_cols * 4 + own_units && urgency < 0x14) {
         mask &= ~0x40;
       }
       /* Raw 1825: iStack_80 (promoted-civilian carry from the goal fold) ∧
        * per-continent explorer count −0x5ec4[cid] > 1 → clear 0x40: enough
        * explorers already ashore here, keep the promoted civilians aboard. */
-      if (carry80 != 0 && cid >= 0 && cid < 16 && ai_euro_s_20e6_explorers[cid] > 1) {
+      if (promoted_civilian_carry != 0 && cid >= 0 && cid < 16 && ai_euro_s_20e6_explorers[cid] > 1) {
         mask &= ~0x40;
       }
-      if (probe7 != 0) {
+      if (mil_expand_prio != 0) {
         mask |= 0x40;
       }
-      if (probe1 != 0) {
+      if (found_prio != 0) {
         mask |= 0x40;
       }
       if (ai_euro_20e6_goal_on_continent(nation, cid, 0)) {
@@ -2220,7 +2220,7 @@ int ai_euro_20e6_unload_mask_snapshot(
       }
     }
     if (mil != 0) {
-      if (probe7 != 0 || probe1 != 0) {
+      if (mil_expand_prio != 0 || found_prio != 0) {
         mask |= 0x10;
       }
       if (ai_euro_20e6_goal_on_continent(nation, cid, 1)) {

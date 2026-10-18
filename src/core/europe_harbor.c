@@ -870,21 +870,21 @@ static void europe_market_nr_add(const EuropeMarketTick* t, int cargo, int delta
 static void europe_market_phase1(const EuropeMarketTick* t, long ledger[16]) {
   struct ColonizeCol1Save* col1 = t->col1;
   for (int c = 0; c < 16; ++c) {
-    long s = 0;
+    long demand_ledger_sum = 0;
     if (col1) {
-      s = (long)(int16_t)col1->head.market_demand_pool[c];
+      demand_ledger_sum = (long)(int16_t)col1->head.market_demand_pool[c];
       for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
         const int32_t v = col1->nation[n].trade.tons2[c];
         if (v > 0) {
-          s += (long)v;
+          demand_ledger_sum += (long)v;
         }
       }
       if (t->mode == 0 && t->nation == 0) {
-        const long decayed = (long)(int16_t)col1->head.market_demand_pool[c] - (s >> 7);
+        const long decayed = (long)(int16_t)col1->head.market_demand_pool[c] - (demand_ledger_sum >> 7);
         col1->head.market_demand_pool[c] = (uint16_t)(int16_t)decayed;
       }
     }
-    ledger[c] = s;
+    ledger[c] = demand_ledger_sum;
   }
 }
 
@@ -917,11 +917,11 @@ static void europe_market_phase2(const EuropeMarketTick* t, const long ledger[16
     if (t->only_cargo >= 0 && c != t->only_cargo) {
       continue;
     }
-    long L = ledger[c];
-    if (L <= 0) {
-      L = 1;
+    long demand_ledger = ledger[c];
+    if (demand_ledger <= 0) {
+      demand_ledger = 1;
     }
-    const long ratio = (sum * 3) / L;
+    const long ratio = (sum * 3) / demand_ledger;
     const EuropeCargoQuote* q = &t->eu->cargo[c];
     if (t->mode == 0) {
       const int sign = europe_market_bid_sign(t->bid[c], ratio);

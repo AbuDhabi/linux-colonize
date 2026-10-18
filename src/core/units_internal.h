@@ -137,7 +137,7 @@ void units_sweep_stack_after_loss( ColonizeUnitPool* pool, int x, int y, int los
 int units_tribe_nation_at(const ColonizeCol1Save* col1, int x, int y);
 
 /* --- owned by units_combat_resolve.c --- */
-bool units_at_war_for_move(int a, int b);
+bool units_at_war_for_move(int nation_a, int nation_b);
 void units_capture_claim_ring(ColonizeWorldMap* map, int x, int y, int new_owner);
 int units_colony_plunder_stock_sum(const ColonizeColony* col);
 bool units_fort_vs_ship( ColonizeUnitPool* pool, int attack_str, int fort_nation, int defender_id, ColonizeDosRng* rng, const ColonizeCol1Save* col1, const char* atk_label );

@@ -289,11 +289,11 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_tile(struct ai_021a_ctx* c) {
   }
   int occ = 0;
   {
-    int t = presence >= 0 ? presence : settle;
-    if (t == nation_id) {
-      t = -1;
+    int occupant_nation = presence >= 0 ? presence : settle;
+    if (occupant_nation == nation_id) {
+      occupant_nation = -1;
     }
-    if (t >= 0) {
+    if (occupant_nation >= 0) {
       flags |= 2;
       occ = 1;
     }
@@ -307,7 +307,7 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_tile(struct ai_021a_ctx* c) {
       if (ax == x && ay == y) {
         continue;
       }
-      int val = 100;
+      int visit_weight = 100;
       int e = ai_021a_settle_owner(map, ax, ay);
       if (e < 0) {
         /* 021a:07dc calls FUN_281f_07e0: read the terminal tile-chain
@@ -324,14 +324,14 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_tile(struct ai_021a_ctx* c) {
           continue;
         }
         e = au->nation_id;
-        val >>= 1;
+        visit_weight >>= 1;
       }
       if (e < 0 || e >= 4) {
         continue;
       }
-      val += ai_diplo_indian_alarm(col1, nation_id, e) >> 1;
-      if (val >= visit_val) {
-        visit_val = val;
+      visit_weight += ai_diplo_indian_alarm(col1, nation_id, e) >> 1;
+      if (visit_weight >= visit_val) {
+        visit_val = visit_weight;
         visit_nation = e;
       }
     }
@@ -656,17 +656,17 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_terrain(struct ai_021a_ctx* c) {
   if (home_reach >= 0) {
     const int hd = map_dos_dist(nx - vx, ny - vy);
     if (hd > 2) {
-      int t = hd * 3;
+      int home_tether_penalty = hd * 3;
       if (angry) {
-        t >>= 1;
+        home_tether_penalty >>= 1;
       }
       if (ai_021a_type_armed(u->type_index)) {
-        t >>= 1;
+        home_tether_penalty >>= 1;
       }
       if (ai_021a_type_mounted(u->type_index)) {
-        t >>= 2;
+        home_tether_penalty >>= 2;
       }
-      score -= t;
+      score -= home_tether_penalty;
     }
   }
   /* 0xd5c: FUN_1427_09dc adjacent foreign at dest */
