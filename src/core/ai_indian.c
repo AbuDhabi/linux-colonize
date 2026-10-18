@@ -420,7 +420,7 @@ int ai_indian_village_threat_w(
     }
     buildings = (buildings * mul) / (div > 0 ? div : 1);
 
-    const int pop = c->colonist_count > 0 ? c->colonist_count : c->population;
+    const int pop = colonies_headcount(c);
     const int capped_pop = pop > 6 ? 6 : pop;
     int cap_term = pop >> 1;
     if (tribe_tech < cap_term) {
@@ -488,7 +488,8 @@ static int ai_indian_152e_best_threat_nation(
   if (!ctx || !ctx->col1_ok) {
     return -1;
   }
-  return ai_indian_village_threat_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL)}, ctx->human_nation, tribe_index, out_score);
+  const ColonizeWorld tw = world_from_turn_ctx(ctx);
+  return ai_indian_village_threat_w(&tw, ctx->human_nation, tribe_index, out_score);
 }
 
 /*

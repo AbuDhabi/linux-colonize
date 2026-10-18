@@ -13,7 +13,7 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/fb.h"
-#include "core/ff.h"
+#include "core/font_file.h"
 #include "core/founding_fathers.h"
 #include "core/map_menu.h"
 #include "core/map_panel.h"
@@ -131,7 +131,7 @@ void colony_screen_draw_people(
   }
   const int sol = colony_screen_sol_percent(col1, colony);
   const int tory = 100 - sol;
-  const int pop = colony->colonist_count > 0 ? colony->colonist_count : colony->population;
+  const int pop = colonies_headcount(colony);
   const int sol_count = (pop > 0) ? ((pop * sol + 50) / 100) : 0;
   const int tory_count = pop > sol_count ? (pop - sol_count) : 0;
   const int sol_y = COLONY_PANEL_CONTENT_Y + 1;
@@ -675,7 +675,12 @@ void colony_screen_draw_multifunction(
         bc.text = 15;
         bc.hotkey = 14;
         if (view->frame_ok && view->frame.has_palette) {
-          /* Remap Europe-style blues into the colony frame palette. */
+          /* Remap Europe-style blues into the colony frame palette. These
+           * RGB targets are port-chosen (no DOS source). DOS FUN_2f2b_208c
+           * (viceroy_unpacked.c:48726, called from FUN_2f2b_21da) draws the
+           * BUY/CHANGE edges with literal indices 0x30 / 0x39, text 0x0f
+           * (pressed: edges swapped, text 0, fill 0x0f). In WOODPANL.PIK
+           * these RGBs land on 0x3d / 0x32, not that pair: open lead. */
           const ColonizePalette* pal = &view->frame.palette;
           bc.dark = assets_palette_nearest_rgb(pal, 20, 40, 120);
           bc.light = assets_palette_nearest_rgb(pal, 180, 200, 255);

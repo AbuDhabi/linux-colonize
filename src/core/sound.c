@@ -540,14 +540,14 @@ static SoundSong* sound_decoded_song(int id) {
       return NULL;
     }
   }
-  song->id = id;
-  song->event_count = 0;
-  song->duration_ticks = 0;
-
+  /* Not cached on failure: the next request retries (bugs.md #1122). */
   GsoundVm* vm = gsound_vm_create(g_sound.gsound_img, g_sound.gsound_img_size);
   if (!vm) {
     return NULL;
   }
+  song->id = id;
+  song->event_count = 0;
+  song->duration_ticks = 0;
   gsound_vm_set_midi(vm, sound_decode_cb, song);
   gsound_vm_play(vm, id);
   while (song->duration_ticks < SOUND_MAX_TRACK_TICKS && song->event_count < SOUND_MAX_EVENTS) {

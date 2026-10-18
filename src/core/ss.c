@@ -92,10 +92,7 @@ static bool decode_sprite(
     snprintf(err, err_size, "decode_sprite bad args");
     return false;
   }
-  if (header->width == 0 || header->height == 0) {
-    memset(out_pixels, 0, 1);
-    return true;
-  }
+  /* Zero-sized sprites never get here: the only caller skips them. */
   if (header->start_offset + compressed_size > encoded_size) {
     snprintf(err, err_size, "sprite data out of bounds (off=%u comp=%zu sec=%zu)",
       header->start_offset, compressed_size, encoded_size);

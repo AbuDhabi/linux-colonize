@@ -152,7 +152,8 @@ int main(int argc, char** argv) {
   const ColonizePalette* pal_ptr =
     (terrain_ok && terrain.has_palette) ? &terrain.palette : NULL;
 
-  map_panel_render_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&rs.units), .colonies=(ColonizeColonyPool*)(&rs.colonies), .map=(ColonizeWorldMap*)(&rs.map), .col1=(ColonizeCol1Save*)(&rs.save), .col1_ok=true}, &panel, icons_ok ? &icons : NULL, font_ok ? &font : NULL, &rs.names, rs.labels_ok ? &rs.labels : NULL, view_x, view_y, MAP_VIEW_TILE_COLS, MAP_VIEW_TILE_ROWS, tile_x, tile_y, selected, human, rs.bridge.year, rs.bridge.autumn, (int)rs.save.nation[human].gold, (int)rs.save.nation[human].tax_rate, rs.save.player[human].country_name, pal_ptr, selected < 0, true, &fb);
+  const ColonizeWorld rw = world_make(&rs.units, &rs.colonies, &rs.map, &rs.save, true, NULL, NULL);
+  map_panel_render_w(&rw, &panel, icons_ok ? &icons : NULL, font_ok ? &font : NULL, &rs.names, rs.labels_ok ? &rs.labels : NULL, view_x, view_y, MAP_VIEW_TILE_COLS, MAP_VIEW_TILE_ROWS, tile_x, tile_y, selected, human, rs.bridge.year, rs.bridge.autumn, (int)rs.save.nation[human].gold, (int)rs.save.nation[human].tax_rate, rs.save.player[human].country_name, pal_ptr, selected < 0, true, &fb);
 
   ColonizePalette pal = (ColonizePalette){0};
   if (pal_ptr) {

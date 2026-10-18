@@ -1030,7 +1030,7 @@ int main(void) {
     /* The refresh above bound deep_col1 as the colony/unit col1 context;
      * colonies_found mints records into it, so drop it with the scope. */
     colonies_set_col1_context(NULL);
-    units_set_native_fallout_context(NULL, NULL, -1);
+    units_set_native_fallout_context(NULL, NULL);
   }
 
   /* --- AI Euro nation elect (control==1). --- */
@@ -2397,7 +2397,7 @@ int main(void) {
     ColonizeDosRng rng;
     dos_rng_seed(&rng, 7);
     turn_refresh_moves_for_nation_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&upool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&cmap), .col1=(ColonizeCol1Save*)(&ccol1), .col1_ok=true}, 0, NULL, NULL);
-    units_set_native_fallout_context(&ccol1, &cmap, -1);
+    units_set_native_fallout_context(&ccol1, &cmap);
     if (!units_resolve_land_combat(&upool, sid, bid, &rng)) {
       free(ccol1.tribe);
       map_free(&cmap);

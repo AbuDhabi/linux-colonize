@@ -586,7 +586,7 @@ int ai_euro_28c8_probe(
   return ai_euro_28c8_score_job(ctx, col, slot, col->colonists[slot].profession, -2, best);
 }
 
-int ai_euro_28c8_colonist_job_score_structural(
+COLONIZE_INTERNAL int ai_euro_28c8_colonist_job_score_structural(
   const ColonizeTurnContext* ctx,
   int colony_id,
   int colonist_slot,
@@ -1875,7 +1875,7 @@ COLONIZE_INTERNAL void ai_euro_5952_set_ring1_threat(int colony_id, int ring1) {
  * (`local_a0`) — when its FUN_OVL15_002a6e(6) commit returns 0, so ARM 2 (buy
  * an expert, raw 95918 `if (local_a0 != 0)`) cannot fire on the turn Docks is
  * started. The Stockade arm at 0x22ec has no such store. The port splits the
- * one DOS body into ai_euro_5952_build_cascade (the plan step) and
+ * one DOS body into ai_euro_5952_build_cascade_for_owner (the plan step) and
  * ai_euro_5952_specialist_arms (the colony tick), which run in that DOS order,
  * so the store is carried across as this per-colony latch (bugs.md #586).
  */
@@ -1967,16 +1967,7 @@ static const AiEuro5952Bld k_5952_bld[0x2a] = {
   {true, 0x27}, {true, 0x28},
 };
 
-typedef struct AiEuro5952Cascade {
-  ColonizeTurnContext* ctx;
-  ColonizeColonyPool* pool;
-  ColonizeColony* col;
-  const ColonizeCol1Save* col1;
-  int nation;
-  int buildable[COLONIZE_BUILDING_TYPES_MAX];
-  int n_buildable;
-} AiEuro5952Cascade;
-
+/* AiEuro5952Cascade (the cascade ctx) lives in ai_euro_internal.h. */
 static int ai_euro_5952_bld_index(const ColonizeColonyPool* pool, int dos_id) {
   if (dos_id < 0 || dos_id >= 0x2a || !k_5952_bld[dos_id].has_row) {
     return -1;
@@ -2146,70 +2137,62 @@ static int ai_euro_5952_ds_byte(const ColonizeCol1Save* col1, int addr) {
   }
 }
 
-void ai_euro_5952_build_cascade(
+COLONIZE_INTERNAL void ai_euro_5952_build_cascade(
   ColonizeTurnContext* ctx, ColonizeColony* col
 ) {
   ai_euro_5952_build_cascade_for_owner(ctx, col, col ? col->nation_id : 0);
 }
 
-void ai_euro_5952_build_cascade_for_owner(
-  ColonizeTurnContext* ctx, ColonizeColony* col, int improvement_owner /* DOS local_1b0 */
-) {
-  if (!ctx || !ctx->colonies || !ctx->map || !col || !col->active) {
-    return;
-  }
-  /* Fresh per tick, like DOS's stack-local [BP+0xff62] (bugs.md #586). */
-  if (col->id >= 0 && col->id < COLONIZE_COLONIES_MAX) {
-    ai_euro_s_5952_docks_started[col->id] = 0;
-  }
-  if (ctx->colonies->building_type_count <= 0) {
-    /* Port-side guard, not a DOS gate: a real game always carries the 42
-     * @BUILDING rows, so DOS never runs this cascade with nothing to build.
-     * Slim unit fixtures do, and every try() would dead-end straight into the
-     * `+0x1d |= 0x80` wants-construction latch. */
-    return;
-  }
-  AiEuro5952Cascade s;
-  memset(&s, 0, sizeof s);
-  s.ctx = ctx;
-  s.pool = ctx->colonies;
-  s.col = col;
-  s.col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
-  s.nation = (col->nation_id >= 0 && col->nation_id < 4) ? col->nation_id : 0;
+/*
+ * Cascade stages (bugs.md #1107 big-function split). Stage order = asm order;
+ * every DOS local that spans stages lives in AiEuro5952Cascade
+ * (ai_euro_internal.h) and is written there before the stage returns.
+ */
+
+/* Buildable list, the two DS ledgers and the per-nation reads. */
+COLONIZE_INTERNAL void ai_euro_5952_cascade_setup(AiEuro5952Cascade* s) {
+  ColonizeTurnContext* ctx = s->ctx;
+  ColonizeColony* col = s->col;
+  const int improvement_owner = s->improvement_owner;
 
   ColoniesBuildableOpts opts;
   memset(&opts, 0, sizeof opts);
   opts.map = ctx->map;
-  opts.col1 = s.col1;
-  if (s.col1) {
-    opts.has_adam_smith = founding_fathers_nation_has(s.col1, s.nation, FF_ADAM_SMITH);
+  opts.col1 = s->col1;
+  if (s->col1) {
+    opts.has_adam_smith = founding_fathers_nation_has(s->col1, s->nation, FF_ADAM_SMITH);
     opts.has_peter_stuyvesant =
-      founding_fathers_nation_has(s.col1, s.nation, FF_PETER_STUYVESANT);
+      founding_fathers_nation_has(s->col1, s->nation, FF_PETER_STUYVESANT);
   }
-  s.n_buildable = colonies_list_buildable(
-    s.pool, col->id, s.buildable, COLONIZE_BUILDING_TYPES_MAX, &opts
+  s->n_buildable = colonies_list_buildable(
+    s->pool, col->id, s->buildable, COLONIZE_BUILDING_TYPES_MAX, &opts
   );
 
-  int gross[AI_EURO_5952_LEDGER_SLOTS];
-  int demand[AI_EURO_5952_LEDGER_SLOTS];
   {
     const ColonizeWorld world = world_from_turn_ctx(ctx);
-    ai_euro_5952_ledgers(&world, s.pool, col, s.col1, gross, demand);
+    ai_euro_5952_ledgers(&world, s->pool, col, s->col1, s->gross, s->demand);
   }
 
-  const int pop = col->population;
-  const int human = (ctx->human_nation >= 0 && ctx->human_nation < 4) ? ctx->human_nation : 0;
-  const int turn = s.col1 ? (int)s.col1->head.turn : 0;
-  const int year = s.col1 ? (int)s.col1->head.year : 0;
-  const int difficulty = s.col1 ? (int)s.col1->head.difficulty : 4;
-  const int musket_price = ai_euro_5952_ds_byte(s.col1, improvement_owner * 0x10 + 0x84cb);
-  const int armed_count_for_nation = ai_euro_5952_ds_byte(s.col1, 0x9424 + improvement_owner);
-  const int ring1 = (col->id >= 0 && col->id < COLONIZE_COLONIES_MAX) ? ai_euro_s_5952_ring1[col->id] : 0;
+  s->pop = col->population;
+  s->human = (ctx->human_nation >= 0 && ctx->human_nation < 4) ? ctx->human_nation : 0;
+  s->turn = s->col1 ? (int)s->col1->head.turn : 0;
+  s->year = s->col1 ? (int)s->col1->head.year : 0;
+  s->difficulty = s->col1 ? (int)s->col1->head.difficulty : 4;
+  s->musket_price = ai_euro_5952_ds_byte(s->col1, improvement_owner * 0x10 + 0x84cb);
+  s->armed_count_for_nation = ai_euro_5952_ds_byte(s->col1, 0x9424 + improvement_owner);
+  s->ring1 = (col->id >= 0 && col->id < COLONIZE_COLONIES_MAX) ? ai_euro_s_5952_ring1[col->id] : 0;
+}
+
+/* asm 5952:21d4-5952:2294: food workers, the latch clear, experts + tiers,
+ * and the Artillery count on the stale ring tile. */
+COLONIZE_INTERNAL void ai_euro_5952_cascade_census(AiEuro5952Cascade* s) {
+  ColonizeTurnContext* ctx = s->ctx;
+  ColonizeColony* col = s->col;
 
   /* asm 5952:21d4 — iVar12 = colonists working @JOB 0 (Farmer) + 8 (Fisherman). */
   int food_workers = 0;
-  int prof_count[28];
-  memset(prof_count, 0, sizeof prof_count);
+  int* prof_count = s->prof_count;
+  memset(s->prof_count, 0, sizeof s->prof_count);
   for (int i = 0; i < col->colonist_count && i < COLONIZE_COLONY_POP_MAX; ++i) {
     const ColonizeColonist* c = &col->colonists[i];
     if (!c->active) {
@@ -2293,6 +2276,21 @@ void ai_euro_5952_build_cascade_for_owner(
       }
     }
   }
+  s->food_workers = food_workers;
+  s->experts = experts;
+  s->tier_max = tier_max;
+  s->arty_on_tile = arty_on_tile;
+}
+
+/* asm 5952:2296-5952:22b8 + the ring / craft-chain / Shipyard reads the
+ * cascade's gates test. */
+COLONIZE_INTERNAL void ai_euro_5952_cascade_pressure(AiEuro5952Cascade* s) {
+  ColonizeTurnContext* ctx = s->ctx;
+  ColonizeColony* col = s->col;
+  const int pop = s->pop;
+  const int food_workers = s->food_workers;
+  const int* gross = s->gross;
+  const int* demand = s->demand;
 
   /* asm 5952:2296-5952:22b8 — iStack_a0, the food-pressure latch. */
   int hungry = 0;
@@ -2324,244 +2322,329 @@ void ai_euro_5952_build_cascade_for_owner(
   /* iStack_2c, asm 5952:2583 — some craft chain is complete (three tiers). */
   int factory = 0;
   for (int i = 5; i >= 0; --i) {
-    if (ai_euro_5952_chain_owned(s.pool, col, k_5952_craft[i].chain, NULL, NULL) == 3) {
+    if (ai_euro_5952_chain_owned(s->pool, col, k_5952_craft[i].chain, NULL, NULL) == 3) {
       factory = 1;
     }
   }
 
-  const int shipyard = ai_euro_5952_bld_index(s.pool, 0x08);
-  const bool has_shipyard =
+  const int shipyard = ai_euro_5952_bld_index(s->pool, 0x08);
+  s->has_shipyard =
     shipyard >= 0 && shipyard < COLONIZE_BUILDING_TYPES_MAX && col->has_building[shipyard];
+  s->hungry = hungry;
+  s->ring = ring;
+  s->ring_nonland = ring_nonland;
+  s->factory = factory;
+}
 
-  /* --- the cascade proper ------------------------------------------------ */
+/* --- the cascade proper ------------------------------------------------ */
 
-  if ((ring - ring_nonland) <= pop || (ring_nonland != 0 && hungry != 0)) {
-    if (ai_euro_5952_try_build(&s, 0x06) == 0) { /* asm 22da: Docks */
+/* asm 22da-2314: Docks, Stockade, Stable; pop < 4 ends at 2747. */
+COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_head(AiEuro5952Cascade* s) {
+  ColonizeColony* col = s->col;
+  const int pop = s->pop;
+
+  if ((s->ring - s->ring_nonland) <= pop || (s->ring_nonland != 0 && s->hungry != 0)) {
+    if (ai_euro_5952_try_build(s, 0x06) == 0) { /* asm 22da: Docks */
       /* asm 0x22e6 `MOV [BP+0xff62],AX` with AX == 0 — the committed Docks
        * arm clears the tick's train_flag, suppressing ARM 2 this turn. */
       if (col->id >= 0 && col->id < COLONIZE_COLONIES_MAX) {
         ai_euro_s_5952_docks_started[col->id] = 1;
       }
-      return;
+      return AI_EURO_5952_CASCADE_RETURN;
     }
   }
-  if (ai_euro_5952_try_build(&s, 0x00) == 0) { /* 22ec: Stockade */
-    return;
+  if (ai_euro_5952_try_build(s, 0x00) == 0) { /* 22ec: Stockade */
+    return AI_EURO_5952_CASCADE_RETURN;
   }
   if (col->stock[COLONIZE_CARGO_HORSES] >= 2) {
-    if (ai_euro_5952_try_build(&s, 0x11) == 0) { /* 22f9: Stable */
-      return;
+    if (ai_euro_5952_try_build(s, 0x11) == 0) { /* 22f9: Stable */
+      return AI_EURO_5952_CASCADE_RETURN;
     }
   }
   if (pop < 4) {
-    goto wants;
+    return AI_EURO_5952_CASCADE_WANTS;
+  }
+  return AI_EURO_5952_CASCADE_NEXT;
+}
+
+/* asm 2316-2577: the town band, Warehouse Expansion through Fortress (Wagon
+ * Train unit project at 2385); pop < 8 ends at 2747. */
+COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_town(AiEuro5952Cascade* s) {
+  ColonizeTurnContext* ctx = s->ctx;
+  ColonizeColony* col = s->col;
+  const int pop = s->pop;
+  const int experts = s->experts;
+  const int tier_max = s->tier_max;
+  const int musket_price = s->musket_price;
+  const int* gross = s->gross;
+  const int* prof_count = s->prof_count;
+
+  const int wl_want = pop / 6; /* iStack_16c */
+  if (col->warehouse_level < (unsigned)wl_want && col->warehouse_level == 0) {
+    if (ai_euro_5952_try_build(s, 0x10) == 0) { /* 231f: Warehouse Expansion */
+      return AI_EURO_5952_CASCADE_RETURN;
+    }
+  }
+  if (pop >= 6) {
+    int want_custom = (col->ai_flags & 0x03u) != 0;
+    if (!want_custom && s->col1) {
+      want_custom = ((int)s->col1->stuff.armed_ship_counts[s->human] - 2) >
+                    s->armed_count_for_nation;
+    }
+    if (!want_custom && pop >= 0x0c) {
+      want_custom = 1;
+    }
+    if (want_custom && ai_euro_5952_try_build(s, 0x12) == 0) { /* 2347: Custom House */
+      return AI_EURO_5952_CASCADE_RETURN;
+    }
+  }
+
+  /* 2385 — the Wagon Train unit project. */
+  if (!(col->colony_flags & COLONIZE_COLONY_FLAG_WAGON_TRAIN) && s->year < 0x640) {
+    const int cont = map_continent_id_at(ctx->map, col->x, col->y);
+    const int presence =
+      cont >= 0 ? ai_contact_continent_presence_4962(ctx, s->nation, cont) : 0;
+    if ((presence & 1) != 0 && s->ring1 == 0) {
+      int vd = 0;
+      const int vi = ai_euro_20e6_nearest_village(ctx, col->x, col->y, &vd);
+      int alarm = 0;
+      if (vi >= 0 && s->col1 && s->col1->tribe) {
+        alarm = ai_diplo_indian_alarm(s->col1, (int)s->col1->tribe[vi].nation_id, s->nation);
+      }
+      if (alarm < 0x32) {
+        ai_euro_5952_set_unit_project(s, 0x0c);
+        return AI_EURO_5952_CASCADE_RETURN;
+      }
+    }
+  }
+
+  if (tier_max >= 1 && (pop + experts) >= 4) {
+    if (ai_euro_5952_try_build(s, 0x0c) == 0) { /* 23d0: Schoolhouse */
+      return AI_EURO_5952_CASCADE_RETURN;
+    }
+  }
+  if (pop < 6) { /* 23f6 */
+    col->build_ai_flags =
+      (uint8_t)(col->build_ai_flags | COLONIZE_BUILD_AI_WANTS_CONSTRUCTION);
   }
   {
-    const int wl_want = pop / 6; /* iStack_16c */
-    if (col->warehouse_level < (unsigned)wl_want && col->warehouse_level == 0) {
-      if (ai_euro_5952_try_build(&s, 0x10) == 0) { /* 231f: Warehouse Expansion */
-        return;
-      }
-    }
-    if (pop >= 6) {
-      int want_custom = (col->ai_flags & 0x03u) != 0;
-      if (!want_custom && s.col1) {
-        want_custom = ((int)s.col1->stuff.armed_ship_counts[human] - 2) >
-                      armed_count_for_nation;
-      }
-      if (!want_custom && pop >= 0x0c) {
-        want_custom = 1;
-      }
-      if (want_custom && ai_euro_5952_try_build(&s, 0x12) == 0) { /* 2347: Custom House */
-        return;
-      }
-    }
-
-    /* 2385 — the Wagon Train unit project. */
-    if (!(col->colony_flags & COLONIZE_COLONY_FLAG_WAGON_TRAIN) && year < 0x640) {
-      const int cont = map_continent_id_at(ctx->map, col->x, col->y);
-      const int presence =
-        cont >= 0 ? ai_contact_continent_presence_4962(ctx, s.nation, cont) : 0;
-      if ((presence & 1) != 0 && ring1 == 0) {
-        int vd = 0;
-        const int vi = ai_euro_20e6_nearest_village(ctx, col->x, col->y, &vd);
-        int alarm = 0;
-        if (vi >= 0 && s.col1 && s.col1->tribe) {
-          alarm = ai_diplo_indian_alarm(s.col1, (int)s.col1->tribe[vi].nation_id, s.nation);
-        }
-        if (alarm < 0x32) {
-          ai_euro_5952_set_unit_project(&s, 0x0c);
-          return;
-        }
-      }
-    }
-
-    if (tier_max >= 1 && (pop + experts) >= 4) {
-      if (ai_euro_5952_try_build(&s, 0x0c) == 0) { /* 23d0: Schoolhouse */
-        return;
-      }
-    }
-    if (pop < 6) { /* 23f6 */
-      col->build_ai_flags =
-        (uint8_t)(col->build_ai_flags | COLONIZE_BUILD_AI_WANTS_CONSTRUCTION);
-    }
-    {
-      /* 2404: Armory — musket price / turn band, or a Master Gunsmith. */
-      int want_armory = 0;
-      if ((musket_price + (difficulty >> 1)) >= 4 || turn > 0x50) {
-        if (pop >= 6 &&
-            (col->stock[COLONIZE_CARGO_TOOLS] >= 0x28 || gross[COLONIZE_CARGO_TOOLS] != 0)) {
-          want_armory = 1;
-        }
-      }
-      if (!want_armory && prof_count[COLONIZE_PROF_GUNSMITH] != 0) {
+    /* 2404: Armory — musket price / turn band, or a Master Gunsmith. */
+    int want_armory = 0;
+    if ((musket_price + (s->difficulty >> 1)) >= 4 || s->turn > 0x50) {
+      if (pop >= 6 &&
+          (col->stock[COLONIZE_CARGO_TOOLS] >= 0x28 || gross[COLONIZE_CARGO_TOOLS] != 0)) {
         want_armory = 1;
       }
-      if (want_armory && ai_euro_5952_try_build(&s, 0x03) == 0) {
-        return;
-      }
     }
-    if (prof_count[COLONIZE_PROF_PREACHER] != 0) {
-      if (ai_euro_5952_try_build(&s, 0x25) == 0) { /* 2453: Church */
-        return;
-      }
+    if (!want_armory && prof_count[COLONIZE_PROF_GUNSMITH] != 0) {
+      want_armory = 1;
     }
-    if (ai_euro_5952_try_build(&s, 0x24) == 0) { /* 2467: Lumber Mill */
-      return;
+    if (want_armory && ai_euro_5952_try_build(s, 0x03) == 0) {
+      return AI_EURO_5952_CASCADE_RETURN;
     }
-    if (ai_euro_5952_try_build(&s, 0x01) == 0) { /* 2475: Fort */
-      return;
+  }
+  if (prof_count[COLONIZE_PROF_PREACHER] != 0) {
+    if (ai_euro_5952_try_build(s, 0x25) == 0) { /* 2453: Church */
+      return AI_EURO_5952_CASCADE_RETURN;
     }
-    if (musket_price >= 4 && pop >= 4 &&
-        (col->stock[COLONIZE_CARGO_ORE] >= 0x28 || gross[COLONIZE_CARGO_ORE] != 0)) {
-      if (ai_euro_5952_try_build(&s, 0x28) == 0) { /* 24a9: Blacksmith's Shop */
-        return;
-      }
+  }
+  if (ai_euro_5952_try_build(s, 0x24) == 0) { /* 2467: Lumber Mill */
+    return AI_EURO_5952_CASCADE_RETURN;
+  }
+  if (ai_euro_5952_try_build(s, 0x01) == 0) { /* 2475: Fort */
+    return AI_EURO_5952_CASCADE_RETURN;
+  }
+  if (musket_price >= 4 && pop >= 4 &&
+      (col->stock[COLONIZE_CARGO_ORE] >= 0x28 || gross[COLONIZE_CARGO_ORE] != 0)) {
+    if (ai_euro_5952_try_build(s, 0x28) == 0) { /* 24a9: Blacksmith's Shop */
+      return AI_EURO_5952_CASCADE_RETURN;
     }
-    if (col->warehouse_level < (unsigned)wl_want) {
-      if (ai_euro_5952_try_build(&s, 0x10) == 0) { /* 24b7 */
-        return;
-      }
+  }
+  if (col->warehouse_level < (unsigned)wl_want) {
+    if (ai_euro_5952_try_build(s, 0x10) == 0) { /* 24b7 */
+      return AI_EURO_5952_CASCADE_RETURN;
     }
-    if (gross[AI_EURO_5952_BELLS] >= 0x18) {
-      if (ai_euro_5952_try_build(&s, 0x14) == 0) { /* 24d3: Newspaper */
-        return;
-      }
+  }
+  if (gross[AI_EURO_5952_BELLS] >= 0x18) {
+    if (ai_euro_5952_try_build(s, 0x14) == 0) { /* 24d3: Newspaper */
+      return AI_EURO_5952_CASCADE_RETURN;
     }
-    if (gross[AI_EURO_5952_BELLS] >= 4) {
-      if (ai_euro_5952_try_build(&s, 0x14) == 0) { /* 24e8 */
-        return;
-      }
+  }
+  if (gross[AI_EURO_5952_BELLS] >= 4) {
+    if (ai_euro_5952_try_build(s, 0x14) == 0) { /* 24e8 */
+      return AI_EURO_5952_CASCADE_RETURN;
     }
-    if (tier_max >= 2 && (pop + experts) >= 0x0a) {
-      if (ai_euro_5952_try_build(&s, 0x0d) == 0) { /* 24fd: College */
-        return;
-      }
+  }
+  if (tier_max >= 2 && (pop + experts) >= 0x0a) {
+    if (ai_euro_5952_try_build(s, 0x0d) == 0) { /* 24fd: College */
+      return AI_EURO_5952_CASCADE_RETURN;
     }
-    if (pop < 8) {
-      goto wants;
+  }
+  if (pop < 8) {
+    return AI_EURO_5952_CASCADE_WANTS;
+  }
+  if (tier_max >= 3 && (pop + experts) >= 0x10) {
+    if (ai_euro_5952_try_build(s, 0x0e) == 0) { /* 2530: University */
+      return AI_EURO_5952_CASCADE_RETURN;
     }
-    if (tier_max >= 3 && (pop + experts) >= 0x10) {
-      if (ai_euro_5952_try_build(&s, 0x0e) == 0) { /* 2530: University */
-        return;
-      }
+  }
+  if (ai_euro_5952_try_build(s, 0x25) == 0) { /* 2552: Church again */
+    return AI_EURO_5952_CASCADE_RETURN;
+  }
+  if (pop >= 0x0a) {
+    if (ai_euro_5952_try_build(s, 0x02) == 0) { /* 2560: Fortress */
+      return AI_EURO_5952_CASCADE_RETURN;
     }
-    if (ai_euro_5952_try_build(&s, 0x25) == 0) { /* 2552: Church again */
-      return;
-    }
-    if (pop >= 0x0a) {
-      if (ai_euro_5952_try_build(&s, 0x02) == 0) { /* 2560: Fortress */
-        return;
-      }
-    }
+  }
+  return AI_EURO_5952_CASCADE_NEXT;
+}
 
-    /* 25a3 — the naval band: a finished craft chain plus a coastal colony. */
-    if (factory != 0 && (col->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) != 0) {
-      if (ai_euro_5952_try_build(&s, 0x08) == 0) { /* 25b9: Shipyard */
-        return;
-      }
-      if (has_shipyard && s.col1) {
-        if ((ai_euro_5952_ds_byte(s.col1, 0x9410 + improvement_owner) >> 1) +
-              ai_euro_5952_ds_byte(s.col1, 0x9298 + improvement_owner) >=
-            ai_euro_5952_ds_byte(s.col1, 0x9414 + improvement_owner)) {
-          ai_euro_5952_set_unit_project(&s, 0x0f); /* 25f1: Galleon */
-          return;
-        }
-        const int frigates = ai_euro_5952_ds_byte(s.col1, 0x924c + improvement_owner * 19 + 0x11);
-        const int armed = armed_count_for_nation;
-        if (frigates != 0 || armed == 0) {
-          if (armed < 4) {
-            ai_euro_5952_set_unit_project(&s, 0x10); /* 260b: Privateer */
-            return;
-          }
-        }
-        if (frigates < 1) {
-          ai_euro_5952_set_unit_project(&s, 0x11); /* 2626: Frigate */
-          return;
-        }
-      }
-    }
+/* asm 25a3-268c: the naval band, then the factory Armory / Artillery pick.
+ * NEXT = DOS's jump to the chain-upgrade walk at 268e. */
+COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_military(AiEuro5952Cascade* s) {
+  ColonizeColony* col = s->col;
+  const int factory = s->factory;
+  const int improvement_owner = s->improvement_owner;
 
-    /* 262c */
-    if (factory == 0 || (arty_on_tile != 0 && col->labor_shortage != 0)) {
-      goto chain_upgrades;
+  /* 25a3 — the naval band: a finished craft chain plus a coastal colony. */
+  if (factory != 0 && (col->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) != 0) {
+    if (ai_euro_5952_try_build(s, 0x08) == 0) { /* 25b9: Shipyard */
+      return AI_EURO_5952_CASCADE_RETURN;
     }
-    if (col->stock[COLONIZE_CARGO_TOOLS] != 0) { /* 2670 */
-      if (ai_euro_5952_try_build(&s, 0x03) == 0) {
-        return;
+    if (s->has_shipyard && s->col1) {
+      if ((ai_euro_5952_ds_byte(s->col1, 0x9410 + improvement_owner) >> 1) +
+            ai_euro_5952_ds_byte(s->col1, 0x9298 + improvement_owner) >=
+          ai_euro_5952_ds_byte(s->col1, 0x9414 + improvement_owner)) {
+        ai_euro_5952_set_unit_project(s, 0x0f); /* 25f1: Galleon */
+        return AI_EURO_5952_CASCADE_RETURN;
       }
-    }
-    ai_euro_5952_set_unit_project(&s, 0x0b); /* 2689: Artillery */
-    return;
-
-  chain_upgrades:
-    /* 268e — walk the six craft chains, highest row first, and upgrade any
-     * whose tier is short of what its input supply justifies. */
-    for (int i = 5; i >= 0; --i) {
-      if (ai_euro_5952_chain_short(&s, gross, i) != 0) {
-        if (ai_euro_5952_try_build(&s, ai_euro_5952_chain_top(i)) == 0) {
-          return;
+      const int frigates = ai_euro_5952_ds_byte(s->col1, 0x924c + improvement_owner * 19 + 0x11);
+      const int armed = s->armed_count_for_nation;
+      if (frigates != 0 || armed == 0) {
+        if (armed < 4) {
+          ai_euro_5952_set_unit_project(s, 0x10); /* 260b: Privateer */
+          return AI_EURO_5952_CASCADE_RETURN;
         }
       }
-    }
-    if (ai_euro_5952_try_build(&s, 0x26) == 0) { /* 26c4: Cathedral */
-      return;
-    }
-    if (has_shipyard && s.col1) {
-      const int armed = armed_count_for_nation;
-      const int cap = armed < 8 ? armed : 8; /* asm 26e9 SUB/SBB/AND/ADD = min(armed,8) */
-      if (ai_euro_5952_ds_byte(s.col1, 0x924c + improvement_owner * 19 + 0x0f) < cap) {
-        ai_euro_5952_set_unit_project(&s, 0x0f); /* Galleon */
-        return;
-      }
-      if (armed < 8) {
-        ai_euro_5952_set_unit_project(&s, 0x11); /* Frigate */
-        return;
+      if (frigates < 1) {
+        ai_euro_5952_set_unit_project(s, 0x11); /* 2626: Frigate */
+        return AI_EURO_5952_CASCADE_RETURN;
       }
     }
-    if (pop < 0x0a) { /* 270d — the SMALL_AI writer */
-      col->colony_flags = (uint8_t)(col->colony_flags | COLONIZE_COLONY_FLAG_SMALL_AI);
-    }
-    if (arty_on_tile >= 3) { /* 273e */
-      col->building_in_production = -1;
-      goto wants;
-    }
-    if (ai_euro_5952_try_build(&s, 0x03) == 0) { /* 2724: Armory */
-      return;
-    }
-    if (gross[COLONIZE_CARGO_MUSKETS] == 0) { /* DS:0x8de6 */
-      ai_euro_5952_set_unit_project(&s, 0x0b); /* Artillery */
-      return;
-    }
-    if (ai_euro_5952_try_build(&s, 0x05) == 0) { /* 2737: Arsenal */
-      return;
-    }
-    ai_euro_5952_set_unit_project(&s, 0x0b); /* Artillery */
-    return;
   }
 
-wants:
-  /* 2747 */
+  /* 262c */
+  if (factory == 0 || (s->arty_on_tile != 0 && col->labor_shortage != 0)) {
+    return AI_EURO_5952_CASCADE_NEXT; /* chain_upgrades */
+  }
+  if (col->stock[COLONIZE_CARGO_TOOLS] != 0) { /* 2670 */
+    if (ai_euro_5952_try_build(s, 0x03) == 0) {
+      return AI_EURO_5952_CASCADE_RETURN;
+    }
+  }
+  ai_euro_5952_set_unit_project(s, 0x0b); /* 2689: Artillery */
+  return AI_EURO_5952_CASCADE_RETURN;
+}
+
+/* asm 268e-2745: craft-chain upgrades, Cathedral, the late fleet, SMALL_AI,
+ * Armory / Arsenal / Artillery. Never NEXT. */
+COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_chain_upgrades(
+  AiEuro5952Cascade* s
+) {
+  ColonizeColony* col = s->col;
+  const int pop = s->pop;
+  const int arty_on_tile = s->arty_on_tile;
+  const int improvement_owner = s->improvement_owner;
+  const int* gross = s->gross;
+
+  /* 268e — walk the six craft chains, highest row first, and upgrade any
+   * whose tier is short of what its input supply justifies. */
+  for (int i = 5; i >= 0; --i) {
+    if (ai_euro_5952_chain_short(s, gross, i) != 0) {
+      if (ai_euro_5952_try_build(s, ai_euro_5952_chain_top(i)) == 0) {
+        return AI_EURO_5952_CASCADE_RETURN;
+      }
+    }
+  }
+  if (ai_euro_5952_try_build(s, 0x26) == 0) { /* 26c4: Cathedral */
+    return AI_EURO_5952_CASCADE_RETURN;
+  }
+  if (s->has_shipyard && s->col1) {
+    const int armed = s->armed_count_for_nation;
+    const int cap = armed < 8 ? armed : 8; /* asm 26e9 SUB/SBB/AND/ADD = min(armed,8) */
+    if (ai_euro_5952_ds_byte(s->col1, 0x924c + improvement_owner * 19 + 0x0f) < cap) {
+      ai_euro_5952_set_unit_project(s, 0x0f); /* Galleon */
+      return AI_EURO_5952_CASCADE_RETURN;
+    }
+    if (armed < 8) {
+      ai_euro_5952_set_unit_project(s, 0x11); /* Frigate */
+      return AI_EURO_5952_CASCADE_RETURN;
+    }
+  }
+  if (pop < 0x0a) { /* 270d — the SMALL_AI writer */
+    col->colony_flags = (uint8_t)(col->colony_flags | COLONIZE_COLONY_FLAG_SMALL_AI);
+  }
+  if (arty_on_tile >= 3) { /* 273e */
+    col->building_in_production = -1;
+    return AI_EURO_5952_CASCADE_WANTS;
+  }
+  if (ai_euro_5952_try_build(s, 0x03) == 0) { /* 2724: Armory */
+    return AI_EURO_5952_CASCADE_RETURN;
+  }
+  if (gross[COLONIZE_CARGO_MUSKETS] == 0) { /* DS:0x8de6 */
+    ai_euro_5952_set_unit_project(s, 0x0b); /* Artillery */
+    return AI_EURO_5952_CASCADE_RETURN;
+  }
+  if (ai_euro_5952_try_build(s, 0x05) == 0) { /* 2737: Arsenal */
+    return AI_EURO_5952_CASCADE_RETURN;
+  }
+  ai_euro_5952_set_unit_project(s, 0x0b); /* Artillery */
+  return AI_EURO_5952_CASCADE_RETURN;
+}
+
+void ai_euro_5952_build_cascade_for_owner(
+  ColonizeTurnContext* ctx, ColonizeColony* col, int improvement_owner /* DOS local_1b0 */
+) {
+  if (!ctx || !ctx->colonies || !ctx->map || !col || !col->active) {
+    return;
+  }
+  /* Fresh per tick, like DOS's stack-local [BP+0xff62] (bugs.md #586). */
+  if (col->id >= 0 && col->id < COLONIZE_COLONIES_MAX) {
+    ai_euro_s_5952_docks_started[col->id] = 0;
+  }
+  if (ctx->colonies->building_type_count <= 0) {
+    /* Port-side guard, not a DOS gate: a real game always carries the 42
+     * @BUILDING rows, so DOS never runs this cascade with nothing to build.
+     * Slim unit fixtures do, and every try() would dead-end straight into the
+     * `+0x1d |= 0x80` wants-construction latch. */
+    return;
+  }
+  AiEuro5952Cascade s;
+  memset(&s, 0, sizeof s);
+  s.ctx = ctx;
+  s.pool = ctx->colonies;
+  s.col = col;
+  s.col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
+  s.nation = (col->nation_id >= 0 && col->nation_id < 4) ? col->nation_id : 0;
+  s.improvement_owner = improvement_owner;
+
+  ai_euro_5952_cascade_setup(&s);
+  ai_euro_5952_cascade_census(&s);
+  ai_euro_5952_cascade_pressure(&s);
+  AiEuro5952CascadeStatus st = ai_euro_5952_cascade_head(&s);
+  if (st == AI_EURO_5952_CASCADE_NEXT) {
+    st = ai_euro_5952_cascade_town(&s);
+  }
+  if (st == AI_EURO_5952_CASCADE_NEXT) {
+    st = ai_euro_5952_cascade_military(&s);
+  }
+  if (st == AI_EURO_5952_CASCADE_NEXT) {
+    st = ai_euro_5952_cascade_chain_upgrades(&s);
+  }
+  if (st != AI_EURO_5952_CASCADE_WANTS) {
+    return;
+  }
+  /* wants: 2747 */
   col->build_ai_flags =
     (uint8_t)(col->build_ai_flags | COLONIZE_BUILD_AI_WANTS_CONSTRUCTION);
 }
@@ -2974,268 +3057,457 @@ bool ai_euro_5952_placement_gate(
   return under_populated || horses_have_room;
 }
 
+/*
+ * Colony-tick stages (bugs.md #1107 big-function split), one colony each, in
+ * FUN_5952_035e order. Locals that span stages live in AiEuroColonyTick
+ * (ai_euro_internal.h); stages write them through `t`, never via a copy.
+ */
+
+/* Tory weight, the whole-tick prologue, the tools / road-connect arm (which
+ * may move t->col) and the improvement arm (local_1b0, the Artillery plot). */
+COLONIZE_INTERNAL void ai_euro_colony_tick_open(AiEuroColonyTick* t) {
+  ColonizeTurnContext* ctx = t->ctx;
+  const ColonizeWorld world = t->world;
+  const int nation_id = t->nation_id;
+  ColonizeColony* col = t->col;
+
+  /* local_7c, raw 93994-93996: tories = (pop*(100-SoL%)+50)/100, zeroed
+   * under WoI (DS:0x5382 bit0). Taken here, before the prelude absorbs units
+   * (raw 94097+): fresh 1572 two-turn, a Soldier joining Isabella left DOS's
+   * statesman weight on the pre-join population. */
+  const ColonizeCol1Save* col1_7c = ctx->col1_ok ? ctx->col1 : NULL;
+  t->tory_weight =
+    (col1_7c && ai_king_independence_declared(col1_7c))
+      ? 0 : (col->population * (100 - colony_prod_sol_percent(col1_7c, col)) + 50) / 100;
+  if (t->whole_tick) {
+    /* FUN_5952_035e raw 93943 (OVL15 0x39f, DOSBox-confirmed): the tick
+     * opens with memset(colony+0x8a, 0, 2), so AI colonies carry no
+     * Custom House export bits past their first tick. */
+    col->custom_house_bits = 0;
+    /* FUN_5952_035e raw 93958: 281f_0c72 -> FUN_15eb_26e4 claim stamp, then
+     * raw 93961: FUN_281f_0c22 -> FUN_15eb_3930 (bugs.md #1080). */
+    colonies_26e4_claim_stamp(&world, col);
+    colonies_recompute_plots_w(&world, col->id);
+    ai_euro_5952_colony_counters(ctx, nation_id, col);
+    ai_euro_5952_colony_prelude(ctx, nation_id, col);
+  }
+  /*
+   * FUN_5952_035e raw 94402-94551 runs immediately BEFORE the colonist idle
+   * sweep below (bugs.md #612).
+   */
+  /* The rest of FUN_5952_035e reads *(DS:0x8542); a road connect leaves it
+   * on the colony nearest the gap tile (FUN_479b_0526's FUN_281f_0614),
+   * so DOS runs this colony's remaining arms (improve, idle sweep, job
+   * passes) on THAT record (tr9 11 -> 12: Bahia's job passes land on St.
+   * Louis, Bahia keeps its statesmen, and the seat beside tribe 29's village
+   * charges 15 alarm). */
+  {
+    ColonizeColony* const ticking = col;
+    col = ai_euro_5952_tools_supply_and_connect(ctx, col);
+    g_colonies_plot_cache_colony = col != ticking ? ticking : NULL;
+  }
+  t->col = col;
+  /* local_1b0: colony+0x1a until the improvement arm's neighbour scan
+   * overwrites it (raw 93981 / 94482). */
+  int improvement_owner = col->nation_id;
+  int improve_plot = -1;
+  ai_euro_5952_improve_best_plot(ctx, col, &improvement_owner, &improve_plot);
+  t->improvement_owner = improvement_owner;
+  /* BP-0xa4/-0xac after the improvement arm: its best plot (asm 13c3), else
+   * the last ring plot both scan loops wrote (asm 092a / 1250). The build
+   * cascade counts Artillery on that tile (asm 2632), not on the colony. */
+  if (col->id >= 0 && col->id < COLONIZE_COLONIES_MAX) {
+    const int ring = colonies_work_plot_count(ctx->colonies, col);
+    ai_euro_s_5952_arty_plot[col->id] =
+      1 + (improve_plot >= 0 ? improve_plot : (ring > 0 ? colonies_field_scan_order(ring - 1) : -1));
+  }
+  if (getenv("AI_28C8_TRACE")) {
+    fprintf(stderr, "[5952 local_1b0] colony %d nation %d -> %d\n", col->id, col->nation_id,
+            improvement_owner);
+  }
+}
+
+/* raw 94551-94564: snapshot every colonist's job, then idle them all. */
+COLONIZE_INTERNAL void ai_euro_colony_tick_unseat_all(AiEuroColonyTick* t) {
+  ColonizeTurnContext* ctx = t->ctx;
+  ColonizeColony* col = t->col;
+  int* prev_job = t->prev_job;
+  bool* placed = t->placed;
+  t->n = col->colonist_count < COLONIZE_COLONY_POP_MAX ? col->colonist_count
+                                                       : COLONIZE_COLONY_POP_MAX;
+  const int n = t->n;
+  for (int s = 0; s < n; ++s) {
+    const ColonizeColonist* c = &col->colonists[s];
+    prev_job[s] = c->field_job;
+    /*
+     * DOS-LITERAL FUN_5952_035e raw 94551-94564 (clean body
+     * colony_tick_5952_035e.md:1030-1043): the tick idles EVERY colonist
+     * before the food pass —
+     *   for (slot) { prof[slot] = 8e44(slot); placed[slot] = 0;
+     *                8c6e(slot,0); 8e26(slot,0x12); }
+     *   memset(colony+0x70, 0xff, 0x14);
+     * `8e26(slot, 0x12)` is FUN_15eb_1068 with the idle sentinel job and
+     * carries no "indoor workers are exempt" test, and the plot memset
+     * wipes all 20 tile bytes. Building workers are therefore unseated
+     * too, and the indoor pass at raw 94784 (ai_euro_5952_indoor_pass)
+     * re-elects an indoor job for everyone the field passes left over —
+     * so nobody is lost. The port used to seed
+     * `placed[s] = ... || c->building_type >= 0`, which had no DOS
+     * counterpart and meant a starving AI colony could never pull a
+     * Statesman or a stuck Expert Farmer out of a building onto a food
+     * tile (bugs.md #569).
+     */
+    placed[s] = !c->active;
+  }
+  /* The 26e4 claim table is rebuilt every tick, so "worked before the wipe"
+   * only spans this tick: drop earlier ticks' bits before taking the new
+   * snapshot. */
+  col->plot_was_worked_mask = 0;
+  for (int s = 0; s < n; ++s) {
+    if (placed[s]) {
+      continue;
+    }
+    const int ti = colonies_colonist_tile(col, s);
+    if (ti >= 0) {
+      colonies_clear_field(ctx->colonies, col->id, ti);
+    }
+    col->colonists[s].field_job = -1;
+    col->colonists[s].building_type = -1; /* raw 94557 `8e26(slot, 0x12)` */
+  }
+}
+
+/* Food bookkeeping, the local_80/local_1e/local_7e gate and pass 1, the FOOD
+ * pass (raw 94570-94597). */
+COLONIZE_INTERNAL void ai_euro_colony_tick_food_pass(AiEuroColonyTick* t) {
+  ColonizeTurnContext* ctx = t->ctx;
+  const ColonizeWorld world = t->world;
+  ColonizeColony* col = t->col;
+  const int n = t->n;
+  const int* prev_job = t->prev_job;
+  bool* placed = t->placed;
+
+  t->fishable = colony_yield_colony_has_docks(ctx->colonies, col);
+  const bool fishable = t->fishable;
+  t->food_have = 0;
+  {
+    ColonizeTownCommonsYield tc;
+    colony_yield_town_commons(
+      ctx->map, col->x, col->y, col->colony_flags,
+      ctx->col1_ok && ctx->col1 ? (int)ctx->col1->head.difficulty : 4, &tc
+    );
+    t->food_have = tc.food > 0 ? tc.food : 0;
+  }
+  t->food_need = col->population * 2;
+  /* colony+0x9a — the food stock the DS:0x8e32 comparison is made against. */
+  t->food_stock = col->stock[COLONIZE_CARGO_FOOD];
+  const int food_stock = t->food_stock;
+  /* DOS `goto LAB_5952_178f`: ends the whole placement section, not a pass. */
+  t->section_done = false;
+  s_28c8_l32 = AI_28C8_L32_LEDGER; /* FUN_281f_0c04 after the unseat-all loop */
+
+  /* local_80/local_1e/local_7e — see ai_euro_5952_placement_gate (bugs.md
+   * #1028) just above ai_euro_colony_tick_run. */
+  t->under_populated = false;
+  t->horses_have_room = false;
+  t->placement_open = ai_euro_5952_placement_gate(ctx->colonies, col, &t->under_populated, &t->horses_have_room);
+  const bool placement_open = t->placement_open;
+
+  /*
+   * Pass 1 — the FOOD pass. DOS-LITERAL raw 94592-94594
+   * (colony_tick_5952_035e.md:1071-1075):
+   *   if (placed[slot] == 0 &&
+   *       (prof[slot] == 0 ||
+   *        (prof[slot] == 8 && FUN_1000_8bec(0x181f, 6) != 0)) &&
+   *       FUN_1000_8d5e(0x181f, slot, prof[slot]) == 0)
+   * `aiStack_12e[]` is filled from FUN_1000_8e44 (colony +0x40+slot), i.e.
+   * the colonist's PROFESSION, not his previous field job — so only an
+   * Expert Farmer (@JOB 0), or an Expert Fisherman (@JOB 8) in a colony
+   * with Docks (@BUILDING 6), enters this pass, and the 28c8 call is
+   * RESTRICTED to that job (third argument = the profession, not 0xffff),
+   * so a food-pass slot can only ever land on a food plot. The port gated
+   * on `prev_job[]` and called the unrestricted search (bugs.md #567).
+   */
+  const ColonizeCol1Save* col1_5952 = ctx->col1_ok ? ctx->col1 : NULL;
+  for (int s = 0; s < n && (placement_open || food_stock < 0x4b); ++s) {
+    /*
+     * DOS-LITERAL raw 94593-94594: the food-pass loop's own continuation
+     * test, re-read every iteration — `local_80 || DS:0x8dc8<=DS:0x8e0a ||
+     * local_1e` (DS:0x8dc8/0e0a are the gross/demand ledgers, refreshed
+     * after every assignment; slot 0 = FOOD, bugs.md #1028).
+     */
+    int gross_80[AI_EURO_5952_LEDGER_SLOTS];
+    int demand_80[AI_EURO_5952_LEDGER_SLOTS];
+    ai_euro_5952_ledgers(&world, ctx->colonies, col, col1_5952, gross_80, demand_80);
+    if (!(t->under_populated || t->horses_have_room ||
+          gross_80[COLONIZE_CARGO_FOOD] <= demand_80[COLONIZE_CARGO_FOOD])) {
+      break;
+    }
+    if (placed[s]) {
+      continue;
+    }
+    const int food_prof = col->colonists[s].profession;
+    const bool was_food = food_prof == COLONIZE_PROF_FARMER ||
+                          (food_prof == COLONIZE_PROF_FISHERMAN && fishable);
+    if (!was_food) {
+      continue;
+    }
+    AiEuro28c8JobCandidate best;
+    col->colonists[s].field_job = prev_job[s]; /* sticky ×2 on the old job */
+    /* DS:0x35e is still 0 here: raw 94628 sets it at LAB_17a9, after pass 2. */
+    const int ok = ai_euro_28c8_score_full(ctx, col, s, food_prof, food_prof, 0, &best);
+    col->colonists[s].field_job = -1;
+    /* DOS-LITERAL raw 94592-94597: the DS:0x8dbe (best yield) stop is INSIDE
+     * the `FUN_281f_0b6e(...) == 0` arm. A non-zero 28c8 return (no positive
+     * plot) is not a stop at all — DOS just falls through to `local_ac++`
+     * and tries the next colonist; only a handled call whose best yield is
+     * under 3 ends the whole placement section (bugs.md #585). */
+    if (!ok) {
+      continue;
+    }
+    if (best.yield < 3) {
+      ai_euro_5952_178f_unseat(&world, col, s, &best);
+      t->section_done = true; /* raw 94596 */
+      break;
+    }
+    if (colonies_assign_field_w(&world, col->id, s, best.tile, best.job)) {
+      placed[s] = true;
+      if (best.job == COLONIZE_JOB_FARMER || best.job == COLONIZE_JOB_FISHERMAN) {
+        t->food_have += best.yield;
+      }
+    }
+    ai_euro_28c8_l32_mark(AI_28C8_L32_LEDGER); /* FUN_281f_0c04 */
+  }
+}
+
+/* Pass 2 ×2 — everyone else, best job wins; raw 94613-94614 stop. */
+COLONIZE_INTERNAL void ai_euro_colony_tick_pass2(AiEuroColonyTick* t) {
+  ColonizeTurnContext* ctx = t->ctx;
+  const ColonizeWorld world = t->world;
+  ColonizeColony* col = t->col;
+  const int n = t->n;
+  const int* prev_job = t->prev_job;
+  bool* placed = t->placed;
+  const int food_need = t->food_need;
+  const int food_stock = t->food_stock;
+  const bool placement_open = t->placement_open;
+
+  for (int pass = 0; !t->section_done && pass < 2 && (placement_open || food_stock < 0x4b);
+       ++pass) {
+    for (int s = 0; s < n; ++s) {
+      /*
+       * local_84, recomputed per slot (raw 94608). DS:0x8e32 is the
+       * shortfall of this turn's food production against consumption, so it
+       * shrinks as this section places farmers — hence the running
+       * food_have, which pass 1 already maintains and pass 2 now keeps up.
+       */
+      const int shortfall = food_need > t->food_have ? food_need - t->food_have : 0;
+      const bool plenty = (shortfall * 0x10) < food_stock;
+      /*
+       * DOS-LITERAL raw 94607-94608: this sub-pass's loop continuation
+       * test — `(DS:0x8e32 != 0 && +0x9a <= DS:0x8e32*0x10) || local_7e`,
+       * i.e. `(shortfall != 0 && !plenty) || local_7e` (bugs.md #1028).
+       */
+      if (!((shortfall != 0 && !plenty) || placement_open)) {
+        break;
+      }
+      if (placed[s]) {
+        continue;
+      }
+      /*
+       * DOS-LITERAL raw 94600-94604 (md:1088-1092) — the admission test the
+       * port was missing entirely (bugs.md #568):
+       *   iVar11 = FUN_1000_8e8a(0x181f, prof[slot]);   // is_expert
+       *   if (((iVar11 == 0) || (local_84 == 0 && pass != 0)) &&
+       *       ((local_84 == 0) || (pass != 0 || prof[slot] == 0x1b)) && ...)
+       * With food plentiful (`local_84`), the FIRST sub-pass admits only
+       * Indian Converts (@JOB 0x1b) and experts are barred from it
+       * altogether; experts enter on the second sub-pass and only when food
+       * is NOT plentiful.
+       */
+      const int prof2 = col->colonists[s].profession;
+      const bool expert2 = ai_euro_5952_job_is_expert(prof2);
+      if (!((!expert2 || (!plenty && pass != 0)) &&
+            (!plenty || (pass != 0 || prof2 == COLONIZE_PROF_CONVERT)))) {
+        continue;
+      }
+      AiEuro28c8JobCandidate best;
+      col->colonists[s].field_job = prev_job[s];
+      /* DS:0x35e still 0 (DOSBox 1495->1496: 0 here, 1 from LAB_17a9 on). */
+      const int ok =
+        ai_euro_28c8_score_full(ctx, col, s, col->colonists[s].profession, -1, 0, &best);
+      col->colonists[s].field_job = -1;
+      /* raw 94612-94614, same shape as pass 1: an unhandled 28c8 only skips
+       * this colonist (bugs.md #585). */
+      if (!ok) {
+        continue;
+      }
+      if (best.yield < 3 || (plenty && best.yield < 5)) {
+        ai_euro_5952_178f_unseat(&world, col, s, &best);
+        t->section_done = true; /* raw 94614 */
+        break;
+      }
+      if (colonies_assign_field_w(&world, col->id, s, best.tile, best.job)) {
+        placed[s] = true;
+        if (best.job == COLONIZE_JOB_FARMER || best.job == COLONIZE_JOB_FISHERMAN) {
+          t->food_have += best.yield;
+        }
+      }
+      ai_euro_28c8_l32_mark(AI_28C8_L32_LEDGER); /* FUN_281f_0c04 */
+    }
+  }
+}
+
+/*
+ * DOS raw 94751 (colony_tick_5952_035e.md:1163-1185) — the field-
+ * specialist restore pass, the last placement arm before the tick's
+ * building passes. It runs whether or not the two passes above tripped
+ * their `goto LAB_5952_178f`: that goto lands on LAB_17a9, and this loop
+ * is downstream of it.
+ *
+ *   for slot in 0..pop-1, if unplaced:
+ *     if (is_expert(prof) && prof < 9 && prof != 0 && prof != 8) {
+ *       if (prof == 5) {                      // Expert Lumberjack
+ *         if (local_14 == 0) local_14 = 1;    // the first one is free
+ *         else if (!(+0x1b & 0x20) && DS:0x8e64 == 0) continue;
+ *       }
+ *       if (colony[0x9a + prof*2] <= local_36) assign(slot, job = prof);
+ *     }
+ *
+ * @JOB 0 (Expert Farmer) and 8 (Expert Fisherman) are excluded because
+ * the food pass above already had first refusal on them. `is_expert` is
+ * FUN_281f_0c9a → FUN_15eb_0002 (viceroy 9298-9307): false for @JOB
+ * 0x13 and 0x19..0x1c, true otherwise — so for @JOB 1..7 the profession
+ * index doubles as both the field job and the cargo slot.
+ *
+ * `local_36` is FUN_1000_8f2a → FUN_281f_0d3a → FUN_15eb_0a50, i.e.
+ * colonies_warehouse_capacity — one number for all goods, not per-cargo.
+ *
+ * `local_14` is seeded 1 when the colony does NOT want construction
+ * (md:1069, `if ((+0x1d & 0x80) == 0) local_14 = 1;`), so a construction
+ * colony admits its first Lumberjack unconditionally and a
+ * non-construction one does not. Beyond the first, DOS demands either
+ * COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR (+0x1b bit 0x20) or a live
+ * lumber shortfall. This is that bit's FIRST OpenCol reader — colony.h
+ * called it write-only, because all four of DOS's readers (raw 94422,
+ * 94454, 94499, 94751) sit in unported passes and this is the first one
+ * to land.
+ *
+ * DS:0x8e64 is the unmet-after-stock slot for cargo 5 in the
+ * FUN_15eb_1f72 ledger array whose base colony_craft.c already names
+ * (DS:0x8e5a + 5*2); FUN_15eb_0b52 records those rows as
+ * `stock + production < demand`, which is what is recomputed here —
+ * DOS refreshes the array through FUN_1000_8df4 after every assign, so
+ * it is this colony's live number, not last turn's.
+ */
+COLONIZE_INTERNAL void ai_euro_colony_tick_specialist_restore(AiEuroColonyTick* t) {
+  ColonizeTurnContext* ctx = t->ctx;
+  const ColonizeWorld world = t->world;
+  ColonizeColony* col = t->col;
+  const int n = t->n;
+  const int* prev_job = t->prev_job;
+  bool* placed = t->placed;
+
+  const int wh_cap =
+    colonies_warehouse_capacity(ctx->colonies, col, COLONIZE_CARGO_LUMBER);
+  int lumber_use = 0;
+  (void)colony_prod_colony_hammers(ctx->colonies, col, 0, &lumber_use);
+  int lumber_prod = 0;
+  const int ring_lumber = colonies_work_plot_count(ctx->colonies, col);
+  for (int ti = 0; ti < ring_lumber; ++ti) {
+    const int occ = col->tiles[ti];
+    if (occ < 0 || occ >= n) {
+      continue;
+    }
+    if (col->colonists[occ].field_job != COLONIZE_JOB_LUMBERJACK) {
+      continue;
+    }
+    int dx = 0;
+    int dy = 0;
+    if (!colonies_field_tile_delta(ti, &dx, &dy)) {
+      continue;
+    }
+    /* DOS recomputes the ledger through FUN_15eb_18ec, i.e. with the
+     * seated colonist's own profession, so an Expert Lumberjack's
+     * doubling is inside this number. colony_yield_for_tile has no worker
+     * context and under-counted it. */
+    lumber_prod += colony_yield_for_worker(
+      ctx->map, col->x + dx, col->y + dy, COLONIZE_JOB_LUMBERJACK,
+      col->colonists[occ].profession,
+      colony_yield_colony_has_docks(ctx->colonies, col),
+      colony_prod_sol_bonus_field(ctx->col1_ok ? ctx->col1 : NULL, col),
+      col->colony_flags,
+      ctx->col1_ok && ctx->col1 &&
+        founding_fathers_nation_has(ctx->col1, col->nation_id, FF_HENRY_HUDSON)
+    );
+  }
+  const int lumber_unmet =
+    lumber_use > col->stock[COLONIZE_CARGO_LUMBER] + lumber_prod ? 1 : 0;
+  int lumber_seen =
+    (col->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) != 0 ? 0 : 1;
+  for (int s = 0; s < n; ++s) {
+    if (placed[s]) {
+      continue;
+    }
+    const int prof = col->colonists[s].profession;
+    if (!ai_euro_5952_job_is_expert(prof)) {
+      continue;
+    }
+    /* DOS reads a byte, so its `< 9` cannot go negative; the port's
+     * profession is an int and an unset one is −1. */
+    if (prof < 0 || prof >= COLONIZE_FIELD_JOB_COUNT ||
+        prof == COLONIZE_JOB_FARMER || prof == COLONIZE_JOB_FISHERMAN) {
+      continue;
+    }
+    if (prof == COLONIZE_JOB_LUMBERJACK) {
+      if (lumber_seen == 0) {
+        lumber_seen = 1;
+      } else if ((col->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR) == 0 &&
+                 lumber_unmet == 0) {
+        continue;
+      }
+    }
+    if (col->stock[prof] > wh_cap) {
+      continue;
+    }
+    AiEuro28c8JobCandidate best;
+    col->colonists[s].field_job = prev_job[s];
+    const int ok = ai_euro_28c8_score_job(ctx, col, s, prof, prof, &best);
+    col->colonists[s].field_job = -1;
+    if (!ok) {
+      continue;
+    }
+    if (colonies_assign_field_w(&world, col->id, s, best.tile, best.job)) {
+      placed[s] = true;
+    }
+    ai_euro_28c8_l32_mark(AI_28C8_L32_LEDGER); /* FUN_281f_0c04 */
+  }
+}
+
 static void ai_euro_colony_tick_run(
   ColonizeTurnContext* ctx, int nation_id, bool whole_tick
 ) {
   if (!ctx || !ctx->colonies || !ctx->map || nation_id == ctx->human_nation) {
     return;
   }
-  const ColonizeWorld world = world_from_turn_ctx(ctx);
+  AiEuroColonyTick t;
+  memset(&t, 0, sizeof t);
+  t.ctx = ctx;
+  t.world = world_from_turn_ctx(ctx);
+  t.nation_id = nation_id;
+  t.whole_tick = whole_tick;
   for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
     g_colonies_plot_cache_colony = NULL;
     ColonizeColony* col = &ctx->colonies->colonies[ci];
     if (!col->active || col->nation_id != nation_id || col->colonist_count <= 0) {
       continue;
     }
-    /* local_7c, raw 93994-93996: tories = (pop*(100-SoL%)+50)/100, zeroed
-     * under WoI (DS:0x5382 bit0). Taken here, before the prelude absorbs units
-     * (raw 94097+): fresh 1572 two-turn, a Soldier joining Isabella left DOS's
-     * statesman weight on the pre-join population. */
-    const ColonizeCol1Save* col1_7c = ctx->col1_ok ? ctx->col1 : NULL;
-    const int tory_weight =
-      (col1_7c && ai_king_independence_declared(col1_7c))
-        ? 0 : (col->population * (100 - colony_prod_sol_percent(col1_7c, col)) + 50) / 100;
-    if (whole_tick) {
-      /* FUN_5952_035e raw 93943 (OVL15 0x39f, DOSBox-confirmed): the tick
-       * opens with memset(colony+0x8a, 0, 2), so AI colonies carry no
-       * Custom House export bits past their first tick. */
-      col->custom_house_bits = 0;
-      /* FUN_5952_035e raw 93958: 281f_0c72 -> FUN_15eb_26e4 claim stamp, then
-       * raw 93961: FUN_281f_0c22 -> FUN_15eb_3930 (bugs.md #1080). */
-      colonies_26e4_claim_stamp(&world, col);
-      colonies_recompute_plots_w(&world, col->id);
-      ai_euro_5952_colony_counters(ctx, nation_id, col);
-      ai_euro_5952_colony_prelude(ctx, nation_id, col);
-    }
-    /*
-     * FUN_5952_035e raw 94402-94551 runs immediately BEFORE the colonist idle
-     * sweep below (bugs.md #612).
-     */
-    /* The rest of FUN_5952_035e reads *(DS:0x8542); a road connect leaves it
-     * on the colony nearest the gap tile (FUN_479b_0526's FUN_281f_0614),
-     * so DOS runs this colony's remaining arms (improve, idle sweep, job
-     * passes) on THAT record (tr9 11 -> 12: Bahia's job passes land on St.
-     * Louis, Bahia keeps its statesmen, and the seat beside tribe 29's village
-     * charges 15 alarm). */
-    {
-      ColonizeColony* const ticking = col;
-      col = ai_euro_5952_tools_supply_and_connect(ctx, col);
-      g_colonies_plot_cache_colony = col != ticking ? ticking : NULL;
-    }
-    /* local_1b0: colony+0x1a until the improvement arm's neighbour scan
-     * overwrites it (raw 93981 / 94482). */
-    int improvement_owner = col->nation_id;
-    int improve_plot = -1;
-    ai_euro_5952_improve_best_plot(ctx, col, &improvement_owner, &improve_plot);
-    /* BP-0xa4/-0xac after the improvement arm: its best plot (asm 13c3), else
-     * the last ring plot both scan loops wrote (asm 092a / 1250). The build
-     * cascade counts Artillery on that tile (asm 2632), not on the colony. */
-    if (col->id >= 0 && col->id < COLONIZE_COLONIES_MAX) {
-      const int ring = colonies_work_plot_count(ctx->colonies, col);
-      ai_euro_s_5952_arty_plot[col->id] =
-        1 + (improve_plot >= 0 ? improve_plot : (ring > 0 ? colonies_field_scan_order(ring - 1) : -1));
-    }
-    if (getenv("AI_28C8_TRACE")) {
-      fprintf(stderr, "[5952 local_1b0] colony %d nation %d -> %d\n", col->id, col->nation_id,
-              improvement_owner);
-    }
-    int prev_job[COLONIZE_COLONY_POP_MAX];
-    bool placed[COLONIZE_COLONY_POP_MAX];
-    const int n = col->colonist_count < COLONIZE_COLONY_POP_MAX ? col->colonist_count
-                                                                : COLONIZE_COLONY_POP_MAX;
-    for (int s = 0; s < n; ++s) {
-      const ColonizeColonist* c = &col->colonists[s];
-      prev_job[s] = c->field_job;
-      /*
-       * DOS-LITERAL FUN_5952_035e raw 94551-94564 (clean body
-       * colony_tick_5952_035e.md:1030-1043): the tick idles EVERY colonist
-       * before the food pass —
-       *   for (slot) { prof[slot] = 8e44(slot); placed[slot] = 0;
-       *                8c6e(slot,0); 8e26(slot,0x12); }
-       *   memset(colony+0x70, 0xff, 0x14);
-       * `8e26(slot, 0x12)` is FUN_15eb_1068 with the idle sentinel job and
-       * carries no "indoor workers are exempt" test, and the plot memset
-       * wipes all 20 tile bytes. Building workers are therefore unseated
-       * too, and the indoor pass at raw 94784 (ai_euro_5952_indoor_pass)
-       * re-elects an indoor job for everyone the field passes left over —
-       * so nobody is lost. The port used to seed
-       * `placed[s] = ... || c->building_type >= 0`, which had no DOS
-       * counterpart and meant a starving AI colony could never pull a
-       * Statesman or a stuck Expert Farmer out of a building onto a food
-       * tile (bugs.md #569).
-       */
-      placed[s] = !c->active;
-    }
-    /* The 26e4 claim table is rebuilt every tick, so "worked before the wipe"
-     * only spans this tick: drop earlier ticks' bits before taking the new
-     * snapshot. */
-    col->plot_was_worked_mask = 0;
-    for (int s = 0; s < n; ++s) {
-      if (placed[s]) {
-        continue;
-      }
-      const int ti = colonies_colonist_tile(col, s);
-      if (ti >= 0) {
-        colonies_clear_field(ctx->colonies, col->id, ti);
-      }
-      col->colonists[s].field_job = -1;
-      col->colonists[s].building_type = -1; /* raw 94557 `8e26(slot, 0x12)` */
-    }
-
-    const bool fishable = colony_yield_colony_has_docks(ctx->colonies, col);
-    int food_have = 0;
-    {
-      ColonizeTownCommonsYield tc;
-      colony_yield_town_commons(
-        ctx->map, col->x, col->y, col->colony_flags,
-        ctx->col1_ok && ctx->col1 ? (int)ctx->col1->head.difficulty : 4, &tc
-      );
-      food_have = tc.food > 0 ? tc.food : 0;
-    }
-    const int food_need = col->population * 2;
-    /* colony+0x9a — the food stock the DS:0x8e32 comparison is made against. */
-    const int food_stock = col->stock[COLONIZE_CARGO_FOOD];
-    /* DOS `goto LAB_5952_178f`: ends the whole placement section, not a pass. */
-    bool section_done = false;
-    s_28c8_l32 = AI_28C8_L32_LEDGER; /* FUN_281f_0c04 after the unseat-all loop */
-
-    /* local_80/local_1e/local_7e — see ai_euro_5952_placement_gate (bugs.md
-     * #1028) just above this function. */
-    bool under_populated = false;
-    bool horses_have_room = false;
-    const bool placement_open = ai_euro_5952_placement_gate(ctx->colonies, col, &under_populated, &horses_have_room);
-
-    /*
-     * Pass 1 — the FOOD pass. DOS-LITERAL raw 94592-94594
-     * (colony_tick_5952_035e.md:1071-1075):
-     *   if (placed[slot] == 0 &&
-     *       (prof[slot] == 0 ||
-     *        (prof[slot] == 8 && FUN_1000_8bec(0x181f, 6) != 0)) &&
-     *       FUN_1000_8d5e(0x181f, slot, prof[slot]) == 0)
-     * `aiStack_12e[]` is filled from FUN_1000_8e44 (colony +0x40+slot), i.e.
-     * the colonist's PROFESSION, not his previous field job — so only an
-     * Expert Farmer (@JOB 0), or an Expert Fisherman (@JOB 8) in a colony
-     * with Docks (@BUILDING 6), enters this pass, and the 28c8 call is
-     * RESTRICTED to that job (third argument = the profession, not 0xffff),
-     * so a food-pass slot can only ever land on a food plot. The port gated
-     * on `prev_job[]` and called the unrestricted search (bugs.md #567).
-     */
-    const ColonizeCol1Save* col1_5952 = ctx->col1_ok ? ctx->col1 : NULL;
-    for (int s = 0; s < n && (placement_open || food_stock < 0x4b); ++s) {
-      /*
-       * DOS-LITERAL raw 94593-94594: the food-pass loop's own continuation
-       * test, re-read every iteration — `local_80 || DS:0x8dc8<=DS:0x8e0a ||
-       * local_1e` (DS:0x8dc8/0e0a are the gross/demand ledgers, refreshed
-       * after every assignment; slot 0 = FOOD, bugs.md #1028).
-       */
-      int gross_80[AI_EURO_5952_LEDGER_SLOTS];
-      int demand_80[AI_EURO_5952_LEDGER_SLOTS];
-      ai_euro_5952_ledgers(&world, ctx->colonies, col, col1_5952, gross_80, demand_80);
-      if (!(under_populated || horses_have_room ||
-            gross_80[COLONIZE_CARGO_FOOD] <= demand_80[COLONIZE_CARGO_FOOD])) {
-        break;
-      }
-      if (placed[s]) {
-        continue;
-      }
-      const int food_prof = col->colonists[s].profession;
-      const bool was_food = food_prof == COLONIZE_PROF_FARMER ||
-                            (food_prof == COLONIZE_PROF_FISHERMAN && fishable);
-      if (!was_food) {
-        continue;
-      }
-      AiEuro28c8JobCandidate best;
-      col->colonists[s].field_job = prev_job[s]; /* sticky ×2 on the old job */
-      /* DS:0x35e is still 0 here: raw 94628 sets it at LAB_17a9, after pass 2. */
-      const int ok = ai_euro_28c8_score_full(ctx, col, s, food_prof, food_prof, 0, &best);
-      col->colonists[s].field_job = -1;
-      /* DOS-LITERAL raw 94592-94597: the DS:0x8dbe (best yield) stop is INSIDE
-       * the `FUN_281f_0b6e(...) == 0` arm. A non-zero 28c8 return (no positive
-       * plot) is not a stop at all — DOS just falls through to `local_ac++`
-       * and tries the next colonist; only a handled call whose best yield is
-       * under 3 ends the whole placement section (bugs.md #585). */
-      if (!ok) {
-        continue;
-      }
-      if (best.yield < 3) {
-        ai_euro_5952_178f_unseat(&world, col, s, &best);
-        section_done = true; /* raw 94596 */
-        break;
-      }
-      if (colonies_assign_field_w(&world, col->id, s, best.tile, best.job)) {
-        placed[s] = true;
-        if (best.job == COLONIZE_JOB_FARMER || best.job == COLONIZE_JOB_FISHERMAN) {
-          food_have += best.yield;
-        }
-      }
-      ai_euro_28c8_l32_mark(AI_28C8_L32_LEDGER); /* FUN_281f_0c04 */
-    }
-
-    /* Pass 2 ×2 — everyone else, best job wins; raw 94613-94614 stop. */
-    for (int pass = 0; !section_done && pass < 2 && (placement_open || food_stock < 0x4b);
-         ++pass) {
-      for (int s = 0; s < n; ++s) {
-        /*
-         * local_84, recomputed per slot (raw 94608). DS:0x8e32 is the
-         * shortfall of this turn's food production against consumption, so it
-         * shrinks as this section places farmers — hence the running
-         * food_have, which pass 1 already maintains and pass 2 now keeps up.
-         */
-        const int shortfall = food_need > food_have ? food_need - food_have : 0;
-        const bool plenty = (shortfall * 0x10) < food_stock;
-        /*
-         * DOS-LITERAL raw 94607-94608: this sub-pass's loop continuation
-         * test — `(DS:0x8e32 != 0 && +0x9a <= DS:0x8e32*0x10) || local_7e`,
-         * i.e. `(shortfall != 0 && !plenty) || local_7e` (bugs.md #1028).
-         */
-        if (!((shortfall != 0 && !plenty) || placement_open)) {
-          break;
-        }
-        if (placed[s]) {
-          continue;
-        }
-        /*
-         * DOS-LITERAL raw 94600-94604 (md:1088-1092) — the admission test the
-         * port was missing entirely (bugs.md #568):
-         *   iVar11 = FUN_1000_8e8a(0x181f, prof[slot]);   // is_expert
-         *   if (((iVar11 == 0) || (local_84 == 0 && pass != 0)) &&
-         *       ((local_84 == 0) || (pass != 0 || prof[slot] == 0x1b)) && ...)
-         * With food plentiful (`local_84`), the FIRST sub-pass admits only
-         * Indian Converts (@JOB 0x1b) and experts are barred from it
-         * altogether; experts enter on the second sub-pass and only when food
-         * is NOT plentiful.
-         */
-        const int prof2 = col->colonists[s].profession;
-        const bool expert2 = ai_euro_5952_job_is_expert(prof2);
-        if (!((!expert2 || (!plenty && pass != 0)) &&
-              (!plenty || (pass != 0 || prof2 == COLONIZE_PROF_CONVERT)))) {
-          continue;
-        }
-        AiEuro28c8JobCandidate best;
-        col->colonists[s].field_job = prev_job[s];
-        /* DS:0x35e still 0 (DOSBox 1495->1496: 0 here, 1 from LAB_17a9 on). */
-        const int ok =
-          ai_euro_28c8_score_full(ctx, col, s, col->colonists[s].profession, -1, 0, &best);
-        col->colonists[s].field_job = -1;
-        /* raw 94612-94614, same shape as pass 1: an unhandled 28c8 only skips
-         * this colonist (bugs.md #585). */
-        if (!ok) {
-          continue;
-        }
-        if (best.yield < 3 || (plenty && best.yield < 5)) {
-          ai_euro_5952_178f_unseat(&world, col, s, &best);
-          section_done = true; /* raw 94614 */
-          break;
-        }
-        if (colonies_assign_field_w(&world, col->id, s, best.tile, best.job)) {
-          placed[s] = true;
-          if (best.job == COLONIZE_JOB_FARMER || best.job == COLONIZE_JOB_FISHERMAN) {
-            food_have += best.yield;
-          }
-        }
-        ai_euro_28c8_l32_mark(AI_28C8_L32_LEDGER); /* FUN_281f_0c04 */
-      }
-    }
+    t.col = col;
+    ai_euro_colony_tick_open(&t);
+    ai_euro_colony_tick_unseat_all(&t);
+    ai_euro_colony_tick_food_pass(&t);
+    ai_euro_colony_tick_pass2(&t);
+    col = t.col;
+    const int n = t.n;
 
     /*
      * DOS raw 94690-94740 — the carpenter-staffing arm, inside the same
@@ -3243,141 +3515,25 @@ static void ai_euro_colony_tick_run(
      */
     if ((col->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) == 0) {
       /* raw 94659-94679 then 94680-94689, both ahead of the carpenter arm. */
-      const bool lumber_placed = ai_euro_5952_forced_lumberjack(ctx, col, placed, n);
+      const bool lumber_placed = ai_euro_5952_forced_lumberjack(ctx, col, t.placed, n);
       ai_euro_5952_lumber_purchase(
         ctx->europe, (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL, col,
         /* DS:0x538e — the port's turn counter is ctx->turn_number. */
         ctx->turn_number ? (int)*ctx->turn_number : 0, lumber_placed
       );
-      ai_euro_5952_carpenter_arm(ctx, col, placed, n);
+      ai_euro_5952_carpenter_arm(ctx, col, t.placed, n);
     }
 
-    /*
-     * DOS raw 94751 (colony_tick_5952_035e.md:1163-1185) — the field-
-     * specialist restore pass, the last placement arm before the tick's
-     * building passes. It runs whether or not the two passes above tripped
-     * their `goto LAB_5952_178f`: that goto lands on LAB_17a9, and this loop
-     * is downstream of it.
-     *
-     *   for slot in 0..pop-1, if unplaced:
-     *     if (is_expert(prof) && prof < 9 && prof != 0 && prof != 8) {
-     *       if (prof == 5) {                      // Expert Lumberjack
-     *         if (local_14 == 0) local_14 = 1;    // the first one is free
-     *         else if (!(+0x1b & 0x20) && DS:0x8e64 == 0) continue;
-     *       }
-     *       if (colony[0x9a + prof*2] <= local_36) assign(slot, job = prof);
-     *     }
-     *
-     * @JOB 0 (Expert Farmer) and 8 (Expert Fisherman) are excluded because
-     * the food pass above already had first refusal on them. `is_expert` is
-     * FUN_281f_0c9a → FUN_15eb_0002 (viceroy 9298-9307): false for @JOB
-     * 0x13 and 0x19..0x1c, true otherwise — so for @JOB 1..7 the profession
-     * index doubles as both the field job and the cargo slot.
-     *
-     * `local_36` is FUN_1000_8f2a → FUN_281f_0d3a → FUN_15eb_0a50, i.e.
-     * colonies_warehouse_capacity — one number for all goods, not per-cargo.
-     *
-     * `local_14` is seeded 1 when the colony does NOT want construction
-     * (md:1069, `if ((+0x1d & 0x80) == 0) local_14 = 1;`), so a construction
-     * colony admits its first Lumberjack unconditionally and a
-     * non-construction one does not. Beyond the first, DOS demands either
-     * COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR (+0x1b bit 0x20) or a live
-     * lumber shortfall. This is that bit's FIRST OpenCol reader — colony.h
-     * called it write-only, because all four of DOS's readers (raw 94422,
-     * 94454, 94499, 94751) sit in unported passes and this is the first one
-     * to land.
-     *
-     * DS:0x8e64 is the unmet-after-stock slot for cargo 5 in the
-     * FUN_15eb_1f72 ledger array whose base colony_craft.c already names
-     * (DS:0x8e5a + 5*2); FUN_15eb_0b52 records those rows as
-     * `stock + production < demand`, which is what is recomputed here —
-     * DOS refreshes the array through FUN_1000_8df4 after every assign, so
-     * it is this colony's live number, not last turn's.
-     */
-    {
-      const int wh_cap =
-        colonies_warehouse_capacity(ctx->colonies, col, COLONIZE_CARGO_LUMBER);
-      int lumber_use = 0;
-      (void)colony_prod_colony_hammers(ctx->colonies, col, 0, &lumber_use);
-      int lumber_prod = 0;
-      const int ring_lumber = colonies_work_plot_count(ctx->colonies, col);
-      for (int ti = 0; ti < ring_lumber; ++ti) {
-        const int occ = col->tiles[ti];
-        if (occ < 0 || occ >= n) {
-          continue;
-        }
-        if (col->colonists[occ].field_job != COLONIZE_JOB_LUMBERJACK) {
-          continue;
-        }
-        int dx = 0;
-        int dy = 0;
-        if (!colonies_field_tile_delta(ti, &dx, &dy)) {
-          continue;
-        }
-        /* DOS recomputes the ledger through FUN_15eb_18ec, i.e. with the
-         * seated colonist's own profession, so an Expert Lumberjack's
-         * doubling is inside this number. colony_yield_for_tile has no worker
-         * context and under-counted it. */
-        lumber_prod += colony_yield_for_worker(
-          ctx->map, col->x + dx, col->y + dy, COLONIZE_JOB_LUMBERJACK,
-          col->colonists[occ].profession,
-          colony_yield_colony_has_docks(ctx->colonies, col),
-          colony_prod_sol_bonus_field(ctx->col1_ok ? ctx->col1 : NULL, col),
-          col->colony_flags,
-          ctx->col1_ok && ctx->col1 &&
-            founding_fathers_nation_has(ctx->col1, col->nation_id, FF_HENRY_HUDSON)
-        );
-      }
-      const int lumber_unmet =
-        lumber_use > col->stock[COLONIZE_CARGO_LUMBER] + lumber_prod ? 1 : 0;
-      int lumber_seen =
-        (col->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) != 0 ? 0 : 1;
-      for (int s = 0; s < n; ++s) {
-        if (placed[s]) {
-          continue;
-        }
-        const int prof = col->colonists[s].profession;
-        if (!ai_euro_5952_job_is_expert(prof)) {
-          continue;
-        }
-        /* DOS reads a byte, so its `< 9` cannot go negative; the port's
-         * profession is an int and an unset one is −1. */
-        if (prof < 0 || prof >= COLONIZE_FIELD_JOB_COUNT ||
-            prof == COLONIZE_JOB_FARMER || prof == COLONIZE_JOB_FISHERMAN) {
-          continue;
-        }
-        if (prof == COLONIZE_JOB_LUMBERJACK) {
-          if (lumber_seen == 0) {
-            lumber_seen = 1;
-          } else if ((col->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR) == 0 &&
-                     lumber_unmet == 0) {
-            continue;
-          }
-        }
-        if (col->stock[prof] > wh_cap) {
-          continue;
-        }
-        AiEuro28c8JobCandidate best;
-        col->colonists[s].field_job = prev_job[s];
-        const int ok = ai_euro_28c8_score_job(ctx, col, s, prof, prof, &best);
-        col->colonists[s].field_job = -1;
-        if (!ok) {
-          continue;
-        }
-        if (colonies_assign_field_w(&world, col->id, s, best.tile, best.job)) {
-          placed[s] = true;
-        }
-        ai_euro_28c8_l32_mark(AI_28C8_L32_LEDGER); /* FUN_281f_0c04 */
-      }
-    }
+    /* DOS raw 94751 — see ai_euro_colony_tick_specialist_restore. */
+    ai_euro_colony_tick_specialist_restore(&t);
 
     /* DOS's own next arm is the indoor-workplace pass (raw 94784+). The
      * LAB_5952_17a9 leftovers election before it (raw 94627-94658) is dead
      * code in DOS (see ai_euro_5952_lumberjack_pick) and is not ported. */
-    ai_euro_5952_indoor_expert_pass(ctx, col, placed, n);
-    ai_euro_5952_indoor_pass(ctx, col, placed, n, improvement_owner, tory_weight);
+    ai_euro_5952_indoor_expert_pass(ctx, col, t.placed, n);
+    ai_euro_5952_indoor_pass(ctx, col, t.placed, n, t.improvement_owner, t.tory_weight);
     if (whole_tick) {
-      ai_euro_5952_build_cascade_for_owner(ctx, col, improvement_owner);
+      ai_euro_5952_build_cascade_for_owner(ctx, col, t.improvement_owner);
     }
     /* DOS raw ~95860-95958, the tick's last two arms (bugs.md #571/#572). */
     ai_euro_5952_specialist_arms(ctx, col, n);
@@ -3390,7 +3546,7 @@ static void ai_euro_colony_tick_run(
 
 /* Placement-stage seam for isolated 28c8/5952 tests: skips the counters,
  * threat seed and build cascade that ai_euro_colony_tick_5952 adds. */
-void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nation_id) {
+COLONIZE_INTERNAL void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nation_id) {
   ai_euro_colony_tick_run(ctx, nation_id, false);
   g_colonies_plot_cache_colony = NULL;
 }

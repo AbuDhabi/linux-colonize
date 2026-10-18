@@ -7,7 +7,7 @@
 #include "core/colony_screen_internal.h"
 #include "core/colony_production.h"
 #include "core/cheat_list_dialog.h"
-#include "core/ff.h"
+#include "core/font_file.h"
 #include "core/map.h"
 #include "core/popup_msg.h"
 #include "core/ss.h"
@@ -514,7 +514,7 @@ static int unit_building_hover_label(void) {
   }
   ColonizeFont font;
   memset(&font, 0, sizeof(font));
-  if (!ff_load("COLONIZE/FONTTINY.FF", &font, err, sizeof(err))) {
+  if (!font_file_load("COLONIZE/FONTTINY.FF", &font, err, sizeof(err))) {
     fprintf(stderr, "hover_label: FONTTINY load failed: %s\n", err);
     colony_screen_free(&view);
     assets_msg_free(&names);
@@ -571,7 +571,7 @@ static int unit_building_hover_label(void) {
   }
 
   colony_screen_free(&view);
-  ff_free(&font);
+  font_file_free(&font);
   assets_msg_free(&names);
   if (rc == 0) {
     fprintf(stderr, "unit_colony_screen: building hover label ok\n");
@@ -802,7 +802,7 @@ static int case_colony_screen_render_workflow(void) {
   /* Need a font so cargo amounts are drawn into the strip. */
   ColonizeFont font;
   memset(&font, 0, sizeof(font));
-  const bool font_ok = ff_load("COLONIZE/FONTTINY.FF", &font, err, sizeof(err));
+  const bool font_ok = font_file_load("COLONIZE/FONTTINY.FF", &font, err, sizeof(err));
 
   uint8_t pixels[320 * 200];
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
@@ -1266,7 +1266,7 @@ static int case_colony_screen_render_workflow(void) {
       pixels[(mini_y1 - 1) * 320 + (mini_x1 - 1)] == 0) {
     fprintf(stderr, "minimap corners look empty (expected centered 3x3)\n");
     if (font_ok) {
-      ff_free(&font);
+      font_file_free(&font);
     }
     if (phys0_ok) {
       ss_free(&phys0);
@@ -1293,7 +1293,7 @@ static int case_colony_screen_render_workflow(void) {
     if (!icon_pixel) {
       fprintf(stderr, "expected Food cargo icon in first COLONY.PIK slot\n");
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -1320,7 +1320,7 @@ static int case_colony_screen_render_workflow(void) {
     }
     if (font_ok && !amount_pixel) {
       fprintf(stderr, "expected Food amount digits under cargo icon\n");
-      ff_free(&font);
+      font_file_free(&font);
       if (phys0_ok) {
         ss_free(&phys0);
       }
@@ -1345,7 +1345,7 @@ static int case_colony_screen_render_workflow(void) {
     if (!tools_icon) {
       fprintf(stderr, "expected Tools cargo icon in slot 14\n");
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -1378,7 +1378,7 @@ static int case_colony_screen_render_workflow(void) {
     if (!settle_px) {
       fprintf(stderr, "expected settlement icon pixels on center area tile\n");
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -1399,7 +1399,7 @@ static int case_colony_screen_render_workflow(void) {
         !colonies_assign_field_w(&(ColonizeWorld){.colonies = &pool}, cid, 0, 0, food_job)) {
       fprintf(stderr, "failed to assign field colonist for area overlay test\n");
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -1432,7 +1432,7 @@ static int case_colony_screen_render_workflow(void) {
       if (tile_i < 0) {
         fprintf(stderr, "no on-map field tile for fisherman preview\n");
         if (font_ok) {
-          ff_free(&font);
+          font_file_free(&font);
         }
         if (phys0_ok) {
           ss_free(&phys0);
@@ -1447,7 +1447,7 @@ static int case_colony_screen_render_workflow(void) {
       if (!colonies_assign_field_w(&(ColonizeWorld){.colonies = &pool}, cid, 0, tile_i, COLONIZE_JOB_FISHERMAN)) {
         fprintf(stderr, "failed to assign fisherman for food_fish preview\n");
         if (font_ok) {
-          ff_free(&font);
+          font_file_free(&font);
         }
         if (phys0_ok) {
           ss_free(&phys0);
@@ -1471,7 +1471,7 @@ static int case_colony_screen_render_workflow(void) {
           prev.goods[COLONIZE_CARGO_FOOD]
         );
         if (font_ok) {
-          ff_free(&font);
+          font_file_free(&font);
         }
         if (phys0_ok) {
           ss_free(&phys0);
@@ -1488,7 +1488,7 @@ static int case_colony_screen_render_workflow(void) {
       if (!colonies_assign_field_w(&(ColonizeWorld){.colonies = &pool}, cid, 0, 0, food_job)) {
         fprintf(stderr, "failed to restore farmer after fisherman preview\n");
         if (font_ok) {
-          ff_free(&font);
+          font_file_free(&font);
         }
         if (phys0_ok) {
           ss_free(&phys0);
@@ -1534,7 +1534,7 @@ static int case_colony_screen_render_workflow(void) {
     if (!unit_px) {
       fprintf(stderr, "expected field colonist/unit pixels on north area tile\n");
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -1574,7 +1574,7 @@ static int case_colony_screen_render_workflow(void) {
       if (dup_slot < 0) {
         fprintf(stderr, "no free on-map field slot for the badge dedupe check\n");
         if (font_ok) {
-          ff_free(&font);
+          font_file_free(&font);
         }
         if (phys0_ok) {
           ss_free(&phys0);
@@ -1613,7 +1613,7 @@ static int case_colony_screen_render_workflow(void) {
           dup_slot
         );
         if (font_ok) {
-          ff_free(&font);
+          font_file_free(&font);
         }
         if (phys0_ok) {
           ss_free(&phys0);
@@ -1640,7 +1640,7 @@ static int case_colony_screen_render_workflow(void) {
     if (!people_px) {
       fprintf(stderr, "expected people-view colonist strip pixels\n");
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -1697,7 +1697,7 @@ static int case_colony_screen_render_workflow(void) {
         prod_rows_with_px
       );
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -1738,7 +1738,7 @@ static int case_colony_screen_render_workflow(void) {
         prod_sum
       );
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -1757,7 +1757,7 @@ static int case_colony_screen_render_workflow(void) {
     if (mhit.kind != COLONY_HIT_MULTI_BTN || mhit.index != 0) {
       fprintf(stderr, "expected multi btn 0 hit got kind=%d idx=%d\n", (int)mhit.kind, mhit.index);
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -1774,7 +1774,7 @@ static int case_colony_screen_render_workflow(void) {
   if (strcmp(view.status, "test status") != 0) {
     fprintf(stderr, "set_status failed\n");
     if (font_ok) {
-      ff_free(&font);
+      font_file_free(&font);
     }
     if (phys0_ok) {
       ss_free(&phys0);
@@ -1801,7 +1801,7 @@ static int case_colony_screen_render_workflow(void) {
     if (hit.kind != COLONY_HIT_PEOPLE_COLONIST || hit.index != 0) {
       fprintf(stderr, "expected people colonist hit got kind=%d idx=%d\n", (int)hit.kind, hit.index);
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -1835,7 +1835,7 @@ static int case_colony_screen_render_workflow(void) {
         carpenter
       );
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -1867,7 +1867,7 @@ static int case_colony_screen_render_workflow(void) {
           hit.index
         );
         if (font_ok) {
-          ff_free(&font);
+          font_file_free(&font);
         }
         if (phys0_ok) {
           ss_free(&phys0);
@@ -1892,7 +1892,7 @@ static int case_colony_screen_render_workflow(void) {
     if (hit.kind != COLONY_HIT_MULTI_CHANGE) {
       fprintf(stderr, "expected construction CHANGE hit got kind=%d\n", (int)hit.kind);
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -1928,7 +1928,7 @@ static int case_colony_screen_render_workflow(void) {
     if (hit.kind != COLONY_HIT_EXIT) {
       fprintf(stderr, "expected exit hit got kind=%d\n", (int)hit.kind);
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -1947,7 +1947,7 @@ static int case_colony_screen_render_workflow(void) {
     if (!view.construction_open || view.buildable_count <= 0) {
       fprintf(stderr, "construction popup failed to open/list\n");
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -1969,7 +1969,7 @@ static int case_colony_screen_render_workflow(void) {
     if (hit.kind != COLONY_HIT_CONSTRUCTION_CLEAR) {
       fprintf(stderr, "expected construction clear hit got kind=%d\n", (int)hit.kind);
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -1990,7 +1990,7 @@ static int case_colony_screen_render_workflow(void) {
         hit.index
       );
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2005,7 +2005,7 @@ static int case_colony_screen_render_workflow(void) {
     if (hit.kind != COLONY_HIT_CONSTRUCTION_ROW || hit.index != 1) {
       fprintf(stderr, "expected construction row 1 got kind=%d idx=%d\n", (int)hit.kind, hit.index);
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2020,7 +2020,7 @@ static int case_colony_screen_render_workflow(void) {
     if (hit.kind != COLONY_HIT_CONSTRUCTION_OUTSIDE) {
       fprintf(stderr, "expected construction outside hit got kind=%d\n", (int)hit.kind);
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2041,7 +2041,7 @@ static int case_colony_screen_render_workflow(void) {
     if (!col || caravel < 0) {
       fprintf(stderr, "missing colony or Caravel for transfer test\n");
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2057,7 +2057,7 @@ static int case_colony_screen_render_workflow(void) {
     if (!ship || !units_is_transport(&units, ship_id)) {
       fprintf(stderr, "failed to dock Caravel transport id=%d\n", ship_id);
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2075,7 +2075,7 @@ static int case_colony_screen_render_workflow(void) {
     if (cap0 != 100) {
       fprintf(stderr, "expected base sugar capacity 100 got %d\n", cap0);
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2093,7 +2093,7 @@ static int case_colony_screen_render_workflow(void) {
     if (food_cap != cap0) {
       fprintf(stderr, "expected food capacity %d got %d\n", cap0, food_cap);
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2115,7 +2115,7 @@ static int case_colony_screen_render_workflow(void) {
         col->stock[COLONIZE_CARGO_SUGAR]
       );
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2129,7 +2129,7 @@ static int case_colony_screen_render_workflow(void) {
     if (ship->hold_goods_amount[0] != 100 || ship->hold_goods_type[0] != COLONIZE_CARGO_SUGAR) {
       fprintf(stderr, "hold not filled after load\n");
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2155,7 +2155,7 @@ static int case_colony_screen_render_workflow(void) {
         col->stock[COLONIZE_CARGO_SUGAR]
       );
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2170,7 +2170,7 @@ static int case_colony_screen_render_workflow(void) {
     if (ship->hold_goods_amount[0] != 0) {
       fprintf(stderr, "expected empty hold after over-capacity unload got %d\n", ship->hold_goods_amount[0]);
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2189,7 +2189,7 @@ static int case_colony_screen_render_workflow(void) {
     if (cap_wh != 200) {
       fprintf(stderr, "expected Warehouse capacity 200 got %d\n", cap_wh);
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2217,7 +2217,7 @@ static int case_colony_screen_render_workflow(void) {
         ship->hold_goods_amount[0]
       );
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2233,7 +2233,7 @@ static int case_colony_screen_render_workflow(void) {
     if (best != COLONIZE_CARGO_SUGAR) {
       fprintf(stderr, "best load cargo expected sugar got %d\n", best);
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2256,7 +2256,7 @@ static int case_colony_screen_render_workflow(void) {
         ship_id
       );
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2284,7 +2284,7 @@ static int case_colony_screen_render_workflow(void) {
         thit.index
       );
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2303,7 +2303,7 @@ static int case_colony_screen_render_workflow(void) {
         stderr, "expected transport hit got kind=%d idx=%d\n", (int)thit.kind, thit.index
       );
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2321,7 +2321,7 @@ static int case_colony_screen_render_workflow(void) {
     if (thit.kind != COLONY_HIT_HOLD || thit.index != 0) {
       fprintf(stderr, "expected hold hit got kind=%d idx=%d\n", (int)thit.kind, thit.index);
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2341,7 +2341,7 @@ static int case_colony_screen_render_workflow(void) {
     if (!col || fort < 0) {
       fprintf(stderr, "missing colony or Fort for buy test\n");
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2360,7 +2360,7 @@ static int case_colony_screen_render_workflow(void) {
     if (!fbt || fbt->tools_cost <= 0 || fbt->hammers <= 20) {
       fprintf(stderr, "Fort should need tools and many hammers\n");
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2376,7 +2376,7 @@ static int case_colony_screen_render_workflow(void) {
     if (colonies_try_complete_building(&pool, cid)) {
       fprintf(stderr, "Fort completed without tools\n");
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2394,7 +2394,7 @@ static int case_colony_screen_render_workflow(void) {
         col->stock[COLONIZE_CARGO_TOOLS] != 0 || col->building_in_production != fort) {
       fprintf(stderr, "Fort tools completion failed\n");
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2412,7 +2412,7 @@ static int case_colony_screen_render_workflow(void) {
     if (whe < 0 || wh < 0) {
       fprintf(stderr, "Warehouse buildings missing\n");
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2441,7 +2441,7 @@ static int case_colony_screen_render_workflow(void) {
         colonies_construction_gold_cost(&pool, col, /*difficulty=*/0)
       );
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2478,7 +2478,7 @@ static int case_colony_screen_render_workflow(void) {
         expect_cost
       );
       if (font_ok) {
-        ff_free(&font);
+        font_file_free(&font);
       }
       if (phys0_ok) {
         ss_free(&phys0);
@@ -2510,7 +2510,7 @@ static int case_colony_screen_render_workflow(void) {
     margin_x
   );
   if (font_ok) {
-    ff_free(&font);
+    font_file_free(&font);
   }
   if (phys0_ok) {
     ss_free(&phys0);
@@ -2896,6 +2896,42 @@ static int unit_plot_eviction_1080(void) {
   return rc;
 }
 
+/* bugs.md #1107 seam: colony_screen_hit_test's stages called directly. An
+ * open message box swallows a click outside its frame (OUTSIDE = dismiss);
+ * with it closed the modal stage declines and the chrome stage claims the
+ * title bar. */
+static int unit_hit_test_stage_seam(void) {
+  static ColonyScreenView view;
+  static ColonizeColony colony;
+  memset(&view, 0, sizeof(view));
+  memset(&colony, 0, sizeof(colony));
+  ColonyScreenHitCtx a;
+  memset(&a, 0, sizeof(a));
+  a.view = &view;
+  a.colony = &colony;
+  a.hit.kind = COLONY_HIT_NONE;
+  a.hit.index = -1;
+  a.mx = 5;
+  a.my = 3;
+  view.message_kind = COLONY_MSG_OK;
+  view.message_rect.x = 100;
+  view.message_rect.y = 100;
+  view.message_rect.w = 50;
+  view.message_rect.h = 30;
+  if (!colony_screen_hit_modal_dialogs(&a) || a.hit.kind != COLONY_HIT_MESSAGE_OUTSIDE) {
+    fprintf(stderr, "hit seam: open message box did not swallow the click\n");
+    return 1;
+  }
+  view.message_kind = COLONY_MSG_NONE;
+  a.hit.kind = COLONY_HIT_NONE;
+  if (colony_screen_hit_modal_dialogs(&a) || !colony_screen_hit_chrome(&a) ||
+      a.hit.kind != COLONY_HIT_TITLE) {
+    fprintf(stderr, "hit seam: title bar not claimed by the chrome stage\n");
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"unit_plot_eviction_1080", unit_plot_eviction_1080},
     {"unit_buyme1_tokens", unit_buyme1_tokens},
@@ -2909,6 +2945,7 @@ static const TestCase k_cases[] = {
     {"unit_warehouse_confirm_and_hold_append", unit_warehouse_confirm_and_hold_append},
     {"unit_building_hover_label", unit_building_hover_label},
     {"case_colony_screen_render_workflow", case_colony_screen_render_workflow},
+    {"unit_hit_test_stage_seam", unit_hit_test_stage_seam},
 };
 
 TEST_MAIN(k_cases)

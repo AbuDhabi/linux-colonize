@@ -1,5 +1,6 @@
 #include "test_units_common.h"
 #include "../common/test_runner.h"
+#include "core/units_internal.h"
 
 
 /*
@@ -1101,6 +1102,61 @@ static int unit_board_restore_bounded(void) {
   return 0;
 }
 
+/* bugs.md #1107 seam: units_try_move_w's stages are callable on a hand-built
+ * units_move_ctx (COLONIZE_TESTING). validate = the port pre-checks, denied =
+ * the no-fight probe aborts. */
+static int unit_move_stage_seam_1107(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 1;
+  pool.types[0].movement = 1;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "seam_1107: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  const int id = units_spawn_allow_stack(&pool, 0, 3, 3);
+  ColonizeUnit* u = units_get(&pool, id);
+  const ColonizeWorld w = {.units = &pool, .map = &map};
+  units_move_ctx c = {
+    .w = &w, .pool = &pool, .map = &map, .unit_id = id, .dest_x = 4, .dest_y = 3,
+    .village_temp = -1, .village_nation = -1, .foe = -1,
+  };
+  int rc = 0;
+  u->moves = 0;
+  if (units_move_validate(&c) != UNITS_MOVE_RETURN_FALSE ||
+      g_units_last_enter_reason != COLONIZE_ENTER_NO_MP) {
+    fprintf(stderr, "seam_1107: no-MP unit must stop at validate with NO_MP\n");
+    rc = 1;
+  }
+  u->moves = UNITS_MP_PER_TILE;
+  c.dest_x = 5; /* two tiles away */
+  if (units_move_validate(&c) != UNITS_MOVE_RETURN_FALSE) {
+    fprintf(stderr, "seam_1107: non-adjacent dest must stop at validate\n");
+    rc = 1;
+  }
+  c.dest_x = 4;
+  if (units_move_validate(&c) != UNITS_MOVE_CONTINUE || c.unit != u) {
+    fprintf(stderr, "seam_1107: adjacent move must pass validate and bind c.unit\n");
+    rc = 1;
+  }
+  c.reason = COLONIZE_ENTER_LANDFALL;
+  if (units_move_denied(&c) != UNITS_MOVE_RETURN_FALSE) {
+    fprintf(stderr, "seam_1107: LANDFALL must abort at denied\n");
+    rc = 1;
+  }
+  c.reason = COLONIZE_ENTER_OK;
+  if (units_move_denied(&c) != UNITS_MOVE_CONTINUE) {
+    fprintf(stderr, "seam_1107: OK must pass denied\n");
+    rc = 1;
+  }
+  map_free(&map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"unit_far_flood_keeps_probe_type", unit_far_flood_keeps_probe_type},
   {"unit_board_restore_bounded", unit_board_restore_bounded},
@@ -1113,5 +1169,6 @@ static const TestCase k_cases[] = {
   {"unit_stack_one_click_wakes_and_selects", unit_stack_one_click_wakes_and_selects},
   {"unit_fog_vis_mask_and_snapshot", unit_fog_vis_mask_and_snapshot},
   {"unit_colony_enter_hull_stack_gate_791_792", unit_colony_enter_hull_stack_gate_791_792},
+  {"unit_move_stage_seam_1107", unit_move_stage_seam_1107},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

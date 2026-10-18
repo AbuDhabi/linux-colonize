@@ -413,7 +413,7 @@ static int unit_pioneer_case8_tail(void) {
   col1.tribe[0].x = 6;
   col1.tribe[0].y = 6;
   col1.indian[0].tech = 0; /* tech tier 1 -> homeland radius 1 */
-  units_set_native_fallout_context(&col1, &map, -1);
+  units_set_native_fallout_context(&col1, &map);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
@@ -587,7 +587,7 @@ static int unit_pioneer_case8_tail(void) {
   rc = 0;
   fprintf(stderr, "unit_units: 5b66 case-8 lumber radius + tribal-land tail ok\n");
 done:
-  units_set_native_fallout_context(NULL, NULL, -1);
+  units_set_native_fallout_context(NULL, NULL);
   free(col1.tribe);
   map_free(&map);
   assets_msg_free(&names);

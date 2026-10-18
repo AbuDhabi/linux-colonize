@@ -1219,15 +1219,9 @@ void units_occupancy_refresh_tile(ColonizeUnitPool* pool, int x, int y, int exce
   }
 }
 
-void units_set_native_fallout_context(
-  ColonizeCol1Save* col1,
-  ColonizeWorldMap* map,
-  int conquest_gold
-) {
+void units_set_native_fallout_context(ColonizeCol1Save* col1, ColonizeWorldMap* map) {
   g_units_fallout_col1 = col1;
   g_units_fallout_map = map;
-  (void)conquest_gold; /* bugs.md #1105: never read; the treasure amount rides
-                        * units_try_native_settlement_fallout_w's own argument */
 }
 
 void units_set_combat_colonies(const ColonizeColonyPool* colonies) {

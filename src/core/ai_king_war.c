@@ -1233,6 +1233,32 @@ COLONIZE_INTERNAL void ai_king_nation_turn(ColonizeTurnContext* ctx) {
   ai_king_nation_turn_2424(ctx);
 }
 
+/*
+ * @SOONRETIRING0 (1790, peacetime) / @SOONRETIRING1 (1840, wartime): one
+ * emitter (raw 58618-58628). %STRING0 = the difficulty title (raw 58622
+ * `FUN_281f_0438(0, *(0x53a6 * 2 - 0x7c6c))`, the same splice @RETIRING2
+ * makes at raw 58643), %STRING1 = the leader. The 1840 body reads only
+ * %STRING1, but DOS fills both slots. Latches its byte.
+ */
+static void ai_king_emit_soon_retiring(ColonizeTurnContext* ctx, int variant) {
+  const int human = ctx->human_nation;
+  const char* leader =
+    (human >= 0 && human < 4 && ctx->col1->player[human].name[0] != '\0')
+      ? ctx->col1->player[human].name
+      : "";
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  const int diff = (int)ctx->col1->head.difficulty;
+  tok.string0 = reports_difficulty_title((diff >= 0 && diff < 5) ? diff : 4);
+  tok.string1 = leader;
+  ai_king_emit_ok(
+    ctx, variant ? "SOONRETIRING1" : "SOONRETIRING0", &tok, "", AI_POPUP_TAG_INFO, human,
+    ai_king_crown_nation_col1(ctx->col1, human),
+    variant ? AI_KING_SOONRETIRE1_YEAR : AI_KING_SOONRETIRE0_YEAR, 0, NULL, 0
+  );
+  ai_king_latch_set(ctx->col1, variant ? AI_KING_SOONRETIRE1_BYTE : AI_KING_SOONRETIRE0_BYTE, 1);
+}
+
 void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
   if (!ctx) {
     return;
@@ -1275,25 +1301,7 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
         ai_king_latch_get(ctx->col1, AI_KING_SOONRETIRE0_BYTE) == 0 &&
         (int)ctx->col1->head.year == AI_KING_SOONRETIRE0_YEAR &&
         !(ctx->game_autumn && *ctx->game_autumn != 0)) {
-      const int human = ctx->human_nation;
-      const char* leader =
-        (human >= 0 && human < 4 && ctx->col1->player[human].name[0] != '\0')
-          ? ctx->col1->player[human].name
-          : "";
-      PopupMsgTokens tok;
-      memset(&tok, 0, sizeof(tok));
-      /* raw 58622 `FUN_281f_0438(0, *(0x53a6 * 2 - 0x7c6c))`: %STRING0 is the
-       * DIFFICULTY title, not a fixed "Viceroy" — the same splice @RETIRING2
-       * makes at raw 58643 (0x53a6 = the difficulty byte). */
-      const int diff = (int)ctx->col1->head.difficulty;
-      tok.string0 = reports_difficulty_title((diff >= 0 && diff < 5) ? diff : 4);
-      tok.string1 = leader;
-      ai_king_emit_ok(
-        ctx, "SOONRETIRING0", &tok, "", AI_POPUP_TAG_INFO, human,
-        ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
-        AI_KING_SOONRETIRE0_YEAR, 0, NULL, 0
-      );
-      ai_king_latch_set(ctx->col1, AI_KING_SOONRETIRE0_BYTE, 1);
+      ai_king_emit_soon_retiring(ctx, 0);
     }
     /*
      * Peacetime calendar end (manual pp.10–12 / 1800–1850): without WoI,
@@ -1430,27 +1438,7 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
         ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) == AI_KING_ENDGAME_NONE &&
         ai_king_latch_get(ctx->col1, AI_KING_SOONRETIRE1_BYTE) == 0 &&
         (int)ctx->col1->head.year == AI_KING_SOONRETIRE1_YEAR) {
-      const int human = ctx->human_nation;
-      const char* leader =
-        (human >= 0 && human < 4 && ctx->col1->player[human].name[0] != '\0')
-          ? ctx->col1->player[human].name
-          : "";
-      PopupMsgTokens tok;
-      memset(&tok, 0, sizeof(tok));
-      /* Same emitter as @SOONRETIRING0 (raw 58618-58628): %STRING0 is the
-       * difficulty title, %STRING1 the leader. The 1840 body reads only
-       * %STRING1, but DOS fills both slots. */
-      {
-        const int diff = (int)ctx->col1->head.difficulty;
-        tok.string0 = reports_difficulty_title((diff >= 0 && diff < 5) ? diff : 4);
-      }
-      tok.string1 = leader;
-      ai_king_emit_ok(
-        ctx, "SOONRETIRING1", &tok, "", AI_POPUP_TAG_INFO, human,
-        ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
-        AI_KING_SOONRETIRE1_YEAR, 0, NULL, 0
-      );
-      ai_king_latch_set(ctx->col1, AI_KING_SOONRETIRE1_BYTE, 1);
+      ai_king_emit_soon_retiring(ctx, 1);
     }
     /*
      * D1 (2026-09-07g): the wave + war bookkeeping moved to

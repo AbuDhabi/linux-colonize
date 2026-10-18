@@ -53,13 +53,13 @@ int opening_parse_timeline(
   int* out_end_frame
 ) {
   if (out_end_frame) {
-    *out_end_frame = 891;
+    *out_end_frame = 0; /* no end row in the TXT = 0, never a typed copy */
   }
   if (!out || out_max <= 0) {
     return 0;
   }
   return cinematic_parse_timeline(
-    data_dir, "OPENING.TXT", "OPENING", 891, out_max, opening_store_row, out, out_end_frame
+    data_dir, "OPENING.TXT", "OPENING", 0, out_max, opening_store_row, out, out_end_frame
   );
 }
 
@@ -511,26 +511,12 @@ bool opening_open(OpeningCinematic* o, const char* data_dir) {
   }
 
   o->series_count = opening_parse_timeline(data_dir, o->series, OPENING_SERIES_MAX, &o->end_frame);
-  if (o->series_count <= 0) {
-    static const OpeningSeries kDefault[] = {
-      {0, 78, 1, 640},
-      {0, 97, 1, 640},
-      {1, 40, 0, 640},
-      {2, 200, 2, 320},
-      {3, 248, 1, 320},
-      {4, 255, 1, 320},
-      {5, 485, 1, 320},
-      {6, 502, 3, 320},
-      {9, 701, 0, 0},
-      {7, 720, 0, 0},
-      {8, 767, 0, 0},
-    };
-    memcpy(o->series, kDefault, sizeof(kDefault));
-    o->series_count = (int)(sizeof(kDefault) / sizeof(kDefault[0]));
-    o->end_frame = 891;
-  }
-  if (o->end_frame < 1) {
-    o->end_frame = 891;
+  /* The timeline is OPENING.TXT data (end frame = its end row); no
+   * compiled-in copy. */
+  if (o->series_count <= 0 || o->end_frame < 1) {
+    diag_warn("Opening cinematic: no timeline in OPENING.TXT.");
+    opening_close(o);
+    return false;
   }
   o->credit_count = opening_parse_credits(data_dir, o->credit_rows, OPENING_CREDIT_MAX);
   o->path_count = opening_parse_path(data_dir, o->path_x, o->path_y, OPENING_PATH_MAX);

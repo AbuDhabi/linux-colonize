@@ -359,8 +359,10 @@ flowchart TD
 
 ### Meet menu (already met)
 
-Village tile / synthetic apply: Trade / Gift / Demand / Teach / Leave
-(`ai_contact_try_village_meet`). The greeting body is the `@VILLAGE*` band
+Village tile entry: Trade / Gift / Demand / Teach / Leave
+(`ai_contact_try_village_meet_unit_at`, from `game_loop_orders.c`; the
+`ai_contact_try_village_meet` / `_unit` argument-defaulting forms are
+test-only seams). The greeting body is the `@VILLAGE*` band
 section picked from alarm (`VILLAGEHAPPY/SAVAGE/MEDIUM/BAD/WAR`, built in DOS
 from the DS `"VILLAGE"` stem + suffix). `@INDIANHELLO1` / `HELLO2` are **dead
 GAME.TXT**: 2026-09-16 scan of `VICEROY.EXE` DS finds no `INDIANHELLO` tag

@@ -1367,9 +1367,9 @@ int colonies_found(
    * the founder seated on occupation 0 and no plot yet. DOSBox 1586->1587:
    * founding Cayenne (40,21) restamped (41,20) from France to tribe 6. */
   if (g_colonies_col1 && g_colonies_occupancy_map) {
-    const ColonizeWorld w = {
-      .colonies = pool, .map = g_colonies_occupancy_map, .col1 = g_colonies_col1, .col1_ok = true
-    };
+    const ColonizeWorld w = world_make(
+      NULL, pool, g_colonies_occupancy_map, g_colonies_col1, true, NULL, NULL
+    );
     colonies_26e4_claim_stamp(&w, slot);
   }
 

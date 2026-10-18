@@ -464,7 +464,7 @@ Used by contact / mission / raid gates ([indian_contact.md](../original_sources_
 
 | Band | Typical use |
 |------|-------------|
-| **&lt; 40** | Cool: gift / teach / friction decay |
+| **&lt; 40** | Cool: gift / teach (no friction decay: the port's old meet-pulse `friction--` had no DOS writer, deleted bugs.md #1106) |
 | **40–54** | Mid: demand/payoff; hard-bargain trade (~45–49); teach refused |
 | **≥ 55** | Refuse trade / gifts / convert |
 | **≥ 80** | (Mission burn `FUN_4cc6_0000` is NOT this band: it needs alarm == 100 AND the at-peace bit `0a38 & 0x40`, then `rng(0,10) <= difficulty+1`, raw 80900-80912) |

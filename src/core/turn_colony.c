@@ -182,7 +182,8 @@ static void turn_run_colony_eot_with(
   turn_set_birth_units_pool(ctx->units);
   /* bugs.md #770: FUN_4962_0606 (raw 78332-78374) counts the nation's map
    * units before its colonists, so the specialty census needs the pool. */
-  turn_run_colony_production_with_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL), .rng=(ColonizeDosRng*)(ctx->rng), .europe=(EuropeScreen*)(ctx->europe)}, ctx->human_nation, out, ctx->ai_popups, ctx->messages, before, before_user);
+  const ColonizeWorld pw = world_from_turn_ctx(ctx);
+  turn_run_colony_production_with_w(&pw, ctx->human_nation, out, ctx->ai_popups, ctx->messages, before, before_user);
   g_turn_1528_last_walked_colony = NULL;
   turn_set_birth_units_pool(NULL);
   turn_run_colony_unit_construction(ctx);
@@ -611,20 +612,17 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       ctx->europe->pool_force_expert = ((turn & 3u) == 0u);
     }
     const bool immigrant_seen_before = ctx->europe && ctx->europe->crosses_immigrant_seen;
-    const int imm = woi_now ? 0
-                            : europe_tick_immigration_pressure_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL), .rng=(ColonizeDosRng*)(ctx->rng), .europe=(EuropeScreen*)(ctx->europe)}, ctx->human_nation);
+    const ColonizeWorld iw = world_from_turn_ctx(ctx);
+    const int imm = woi_now ? 0 : europe_tick_immigration_pressure_w(&iw, ctx->human_nation);
     if (imm == 2) {
       /* Brewster: player picks from the pool (@RECRUITCHOOSE); applied via
-       * units_brewster_apply_popup in game_loop, crosses kept until then. */
+       * units_brewster_apply_popup_ex_w in game_loop, crosses kept until then. */
       if (ctx->ai_popups) {
         units_brewster_enqueue_pick(ctx->europe, ctx->ai_popups, ctx->messages, ctx->human_nation);
       } else {
         /* Headless: DOS 4884 resolves the pick inside 5e52, before the colony
          * tick; an idle player's Space takes the first option. */
-        (void)units_brewster_apply_slot_w(
-          &(ColonizeWorld){.units = ctx->units, .rng = ctx->rng, .europe = ctx->europe},
-          ctx->human_nation, 0
-        );
+        (void)units_brewster_apply_slot_w(&iw, ctx->human_nation, 0);
       }
       if (ctx->status && ctx->status_size > 0) {
         snprintf(ctx->status, ctx->status_size, "Religious unrest: choose an immigrant.");
@@ -806,7 +804,7 @@ int turn_rank_euro_nations(
           continue;
         }
         colonies_n++;
-        pop += c->colonist_count > 0 ? c->colonist_count : c->population;
+        pop += colonies_headcount(c);
       }
     }
     int gold100 = 0;

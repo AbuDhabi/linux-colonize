@@ -1210,9 +1210,8 @@ static void apply_effect(
       break;
     case FF_FRANCIS_DRAKE:
       /* PEDIA/wiki: Privateer combat strength +50%.
-       * Ownership bit; multiplier in units_resolve_naval_combat_ff (*3/2).
-       * AI/king path: units_resolve_naval_combat passes g_units_ff_col1
-       * (units_set_ff_col1 from turn_refresh_moves_for_nation). */
+       * Ownership bit; multiplier in combat_unit_base_x8 (*3/2); callers
+       * pass col1 in the world. */
       break;
     case FF_JOHN_PAUL_JONES:
       /* Manual/wiki: free Frigate. No gold fallback. */

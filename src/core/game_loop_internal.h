@@ -16,6 +16,32 @@
 #include "core/world.h"
 #include "core/window_log.h"
 
+/*
+ * The live game's ColonizeWorld view (bugs.md #1110): every game_loop_* /
+ * game_dialogs sim call builds its world here instead of a hand-written
+ * literal. A pool whose load flag is false is NULL (units_ok, world_map_ok,
+ * col1_ok, europe_ok); the colony pool is embedded storage and always set.
+ * rng is the human move stream with the FUN_465b reseed word (raw 75649).
+ * ai_popups / messages stay NULL: callees that show dialogs take the queue
+ * as their own argument.
+ */
+static inline ColonizeWorld game_world(ColonizeGameState* game) {
+  ColonizeWorld w = world_make(
+    game->units_ok ? &game->units : NULL, &game->colonies,
+    game->world_map_ok ? &game->world_map : NULL, game->col1_ok ? &game->col1 : NULL,
+    game->col1_ok, &game->move_rng, game->europe_ok ? &game->europe : NULL
+  );
+  w.rng_reseed = game->ai_rng_seed;
+  w.rng_reseed_set = true;
+  w.human_nation = game->human_nation;
+  return w;
+}
+
+/* Render paths hold a const game; their callees only read the pools. */
+static inline ColonizeWorld game_world_const(const ColonizeGameState* game) {
+  return game_world((ColonizeGameState*)game);
+}
+
 typedef enum GameMoveStep {
   GAME_MOVE_CONTINUE = 0,  /* fall through to the next stage of game_try_unit_move */
   GAME_MOVE_RETURN_TRUE,   /* game_try_unit_move returns true immediately */
@@ -56,17 +82,12 @@ COLONIZE_INTERNAL void game_move_watch(
   int to_x,
   int to_y
 );
-void game_render_modal_overlays(
-  const ColonizeGameState* game, const ColonizeFont* last_resort,
-  ColonizeFramebuffer8* framebuffer
-);
+void game_render_modal_overlays(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer);
 GameMoveStep game_move_passenger_unload(
-  ColonizeGameState* game, ColonizeUnit* selected, int sid, const ColonizeColonyPool* colonies,
-  int dest_x, int dest_y
+  ColonizeGameState* game, ColonizeUnit* selected, int sid, int dest_x, int dest_y
 );
 GameMoveStep game_move_sea_unit(
-  ColonizeGameState* game, ColonizeUnit* selected, int sid, const ColonizeColonyPool* colonies,
-  int dest_x, int dest_y
+  ColonizeGameState* game, ColonizeUnit* selected, int sid, int dest_x, int dest_y
 );
 GameMoveStep game_move_native_prompts(
   ColonizeGameState* game, ColonizeUnit* selected, int sid, int dest_x, int dest_y
@@ -75,8 +96,7 @@ GameMoveStep game_move_colony_prompts(
   ColonizeGameState* game, ColonizeUnit* selected, int sid, int dest_x, int dest_y
 );
 GameMoveStep game_move_commit(
-  ColonizeGameState* game, ColonizeUnit* selected, int sid, const ColonizeColonyPool* colonies,
-  int dest_x, int dest_y
+  ColonizeGameState* game, ColonizeUnit* selected, int sid, int dest_x, int dest_y
 );
 GameUpdateStep game_update_services(
   ColonizeGameState* game, const ColonizeInputState* input, uint32_t dt_ms
@@ -303,6 +323,7 @@ void game_order_return_europe(ColonizeGameState* game);
 void game_order_unload(ColonizeGameState* game);
 int game_owned_unit_at(const ColonizeGameState* game, int x, int y);
 const ColonizeFont* game_pedia_font(const ColonizeGameState* game);
+const ColonizeFont* game_popup_font(const ColonizeGameState* game);
 uint32_t game_pick_rng_seed(const ColonizeGameState* game, uint32_t fallback);
 void game_refresh_orders_menu(ColonizeGameState* game);
 void game_retire_after_score(ColonizeGameState* game);

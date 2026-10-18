@@ -204,7 +204,7 @@ static void units_pioneer_native_land_tail(
   }
   /* g_units_fallout_col1 is the save the rest of this body already works on;
    * the world only supplies the rng and the @INDIANBURN sink. */
-  ColonizeWorld aw = w ? *w : (ColonizeWorld){0};
+  ColonizeWorld aw = w ? *w : world_make(NULL, NULL, NULL, NULL, false, NULL, NULL);
   aw.col1 = col1;
   aw.col1_ok = true;
   aw.ai_popups = ai_popups;
@@ -590,7 +590,6 @@ bool units_pioneer_plow_w(
 ) {
   ColonizeUnitPool* pool = w->units;
   ColonizeWorldMap* map = w->map;
-  ColonizeColonyPool* colonies = w->colonies;
 
   ColonizeUnit* u = units_pioneer_begin_order(
     pool, unit_id, map, UNITS_ORDER_CLEAR_PLOW, err, err_size, ai_popups, messages
@@ -630,7 +629,7 @@ bool units_pioneer_plow_w(
       );
     }
   }
-  return units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, unit_id, err, err_size, ai_popups, messages);
+  return units_pioneer_work_tick_w(w, unit_id, err, err_size, ai_popups, messages);
 }
 
 bool units_pioneer_road_w(
@@ -677,7 +676,7 @@ bool units_pioneer_road_w(
       diag_info("ORDER %s: build road tile (%d,%d) tools=%d", who, u->x, u->y, u->tools);
     }
   }
-  return units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, unit_id, err, err_size, ai_popups, messages);
+  return units_pioneer_work_tick_w(w, unit_id, err, err_size, ai_popups, messages);
 }
 
 bool units_adjacent(int ax, int ay, int bx, int by) {

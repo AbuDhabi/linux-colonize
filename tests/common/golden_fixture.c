@@ -112,7 +112,7 @@ bool golden_open(const char* path_in, const char* path_exp, uint32_t rng_seed, G
    * skipped: independence 000001 -> 000002 showed both as from-load-only
    * diffs. */
   units_set_ff_col1(&fx->start);
-  units_set_native_fallout_context(&fx->start, &fx->map, -1);
+  units_set_native_fallout_context(&fx->start, &fx->map);
   units_set_combat_colonies(&fx->colonies);
 
   fx->turn_number = fx->br.turn_number;

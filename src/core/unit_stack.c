@@ -62,36 +62,6 @@ bool unit_stack_try_open(
 }
 
 /*
- * bugs.md #654: @JOB column 0 (singular — "Soldier", not "Soldiers"), the
- * table FUN_2b5a_1b5a raw 42749 reads (-0x715e + profession*8). units.c's
- * units_job_field does the identical parse but is static (its own comment
- * says it used to have a copy here "to dodge a link edge"); re-add that
- * small local copy rather than exporting a units.c symbol this agent does
- * not own.
- */
-static const char* unit_stack_job_field0(const ColonizeMsgCatalog* names, int profession) {
-  const ColonizeMsgSection* sec = names ? assets_msg_find(names, "JOB") : NULL;
-  if (!sec || profession < 0 || profession >= sec->line_count) {
-    return NULL;
-  }
-  const char* p = sec->lines[profession];
-  while (*p == ' ' || *p == '\t') {
-    ++p;
-  }
-  static char buf[40];
-  size_t n = 0;
-  while (p[n] && p[n] != ',' && n + 1 < sizeof(buf)) {
-    buf[n] = p[n];
-    ++n;
-  }
-  while (n > 0 && (buf[n - 1] == ' ' || buf[n - 1] == '\t')) {
-    --n;
-  }
-  buf[n] = '\0';
-  return buf[0] ? buf : NULL;
-}
-
-/*
  * bugs.md #654: FUN_2b5a_1b5a raw 42738-42755 — the parenthetical word after
  * a stack row's name. Gate: DS:0x30e[type] >= 0 (units_type_has_profession_slot).
  * Then profession == DS:0x30e[type] (the type's own default role, e.g. Soldier
@@ -111,7 +81,14 @@ static const char* unit_stack_row_paren_word(
   if (profession == UNITS_JOB_NONE) {
     return reports_misc_display_word(3, "");
   }
-  return unit_stack_job_field0(names, profession);
+  /* bugs.md #654: @JOB column 0 (singular — "Soldier", not "Soldiers"), the
+   * table FUN_2b5a_1b5a raw 42749 reads (-0x715e + profession*8); split by
+   * assets_msg_row_field (the local copy went with bugs.md #1109). */
+  static char buf[40];
+  if (!assets_msg_row_field(names, "JOB", profession, 0, buf, sizeof(buf)) || !buf[0]) {
+    return NULL;
+  }
+  return buf;
 }
 
 /* bugs.md #654: one row's full label ("Dutch Dragoons (Soldier)") — DOS

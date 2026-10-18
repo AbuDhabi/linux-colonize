@@ -1835,7 +1835,7 @@ static int unit_reset_hooks_clears_wiring(void) {
   units_set_combat_europe(&europe);
   units_set_combat_colonies(&colonies);
   units_set_combat_human_nation(1);
-  units_set_native_fallout_context(&col1, &map, 50);
+  units_set_native_fallout_context(&col1, &map);
   combat_analysis_set_presenter(reset_test_presenter, NULL);
   units_reset_hooks();
   s_reset_hook_calls = 0;

@@ -1379,7 +1379,7 @@ void ai_contact_visit_mood_publish(
  * This publishes that pair for ai_contact_try_village_gifts to read.
  * bugs.md #863.
  */
-void ai_contact_visit_mood_beg_conceded(const ColonizeTurnContext* ctx, int nation_id, int e) {
+static void ai_contact_visit_mood_beg_conceded(const ColonizeTurnContext* ctx, int nation_id, int e) {
   if (nation_id < 4 || nation_id > 11 || e < 0 || e > 3) {
     return;
   }

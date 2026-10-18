@@ -1,5 +1,5 @@
-#ifndef COLONIZE_FF_H
-#define COLONIZE_FF_H
+#ifndef COLONIZE_FONT_FILE_H
+#define COLONIZE_FONT_FILE_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -14,7 +14,7 @@ typedef struct ColonizeFont {
   size_t section_size;
 } ColonizeFont;
 
-bool ff_load(const char* path, ColonizeFont* out_font, char* err, size_t err_size);
-void ff_free(ColonizeFont* font);
+bool font_file_load(const char* path, ColonizeFont* out_font, char* err, size_t err_size);
+void font_file_free(ColonizeFont* font);
 
 #endif

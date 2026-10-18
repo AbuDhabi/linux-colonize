@@ -45,7 +45,9 @@ bool units_resolve_land_combat(
    * Cite: PEDIA/wiki George Washington; docs/fandom_col1994.md; FF elect
    * comment in founding_fathers.c (FF_GEORGE_WASHINGTON).
    */
-  return units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .col1=(ColonizeCol1Save*)(g_units_ff_col1), .col1_ok=((g_units_ff_col1) != NULL), .rng=(ColonizeDosRng*)(rng)}, attacker_id, defender_id);
+  ColonizeCol1Save* const col1 = units_world_col1(NULL);
+  const ColonizeWorld w = world_make(pool, NULL, NULL, col1, col1 != NULL, rng, NULL);
+  return units_resolve_land_combat_ff_w(&w, attacker_id, defender_id);
 }
 
 /*
@@ -1524,7 +1526,9 @@ bool units_is_combat_role(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
   return t && t->attack > 0;
 }
 
-static bool units_at_war_for_move_target(int nation_a, int nation_b, const ColonizeUnit* target) {
+static bool units_at_war_for_move_target(
+  const ColonizeCol1Save* col1, int nation_a, int nation_b, const ColonizeUnit* target
+) {
   if (nation_a < 0 || nation_b < 0 || nation_a == nation_b) {
     return false;
   }
@@ -1539,21 +1543,21 @@ static bool units_at_war_for_move_target(int nation_a, int nation_b, const Colon
    * always fightable (the @WHACKINDIANS confirm gates the human side).
    */
   if (nation_a >= 4 && nation_a <= 11 && nation_b >= 0 && nation_b <= 3) {
-    if (!g_units_ff_col1) {
+    if (!col1) {
       return true;
     }
     (void)target;
-    if (ai_diplo_indian_at_war(g_units_ff_col1, nation_b, nation_a - 4)) {
+    if (ai_diplo_indian_at_war(col1, nation_b, nation_a - 4)) {
       return true;
     }
-    const ColonizeCol1Indian* ind = &g_units_ff_col1->indian[nation_a - 4];
+    const ColonizeCol1Indian* ind = &col1->indian[nation_a - 4];
     return (int)ind->alarm_by_player[nation_b] >= 0x4b;
   }
   /* Euro mover vs native, or native vs native: always fightable. */
   if (nation_a >= 4 || nation_b >= 4) {
     return true;
   }
-  if (!g_units_ff_col1) {
+  if (!col1) {
     return true; /* tests / no diplo: allow combat */
   }
   /*
@@ -1566,17 +1570,17 @@ static bool units_at_war_for_move_target(int nation_a, int nation_b, const Colon
    * stands; the human mover keeps the at-war test because game_loop's
    * confirm chain (declare-then-move) runs before the probe.
    */
-  if (ai_diplo_at_war(g_units_ff_col1, nation_a, nation_b)) {
+  if (ai_diplo_at_war(col1, nation_a, nation_b)) {
     return true;
   }
   if (nation_a == g_units_combat_human_nation) {
     return false;
   }
-  return (ai_diplo_read(g_units_ff_col1, nation_a, nation_b) & AI_DIPLO_PEACE) == 0;
+  return (ai_diplo_read(col1, nation_a, nation_b) & AI_DIPLO_PEACE) == 0;
 }
 
-bool units_at_war_for_move(int nation_a, int nation_b) {
-  return units_at_war_for_move_target(nation_a, nation_b, NULL);
+bool units_at_war_for_move(const ColonizeCol1Save* col1, int nation_a, int nation_b) {
+  return units_at_war_for_move_target(col1, nation_a, nation_b, NULL);
 }
 
 /*
@@ -1587,16 +1591,18 @@ bool units_at_war_for_move(int nation_a, int nation_b) {
  * demand could never be answered with an attack. A native mover with a home
  * village holding such a grudge fights the offender.
  */
-bool units_native_village_grudge(const ColonizeUnit* mover, int euro_nation) {
-  if (!mover || !g_units_ff_col1 || !g_units_ff_col1->tribe || euro_nation < 0 ||
+bool units_native_village_grudge(
+  const ColonizeCol1Save* col1, const ColonizeUnit* mover, int euro_nation
+) {
+  if (!mover || !col1 || !col1->tribe || euro_nation < 0 ||
       euro_nation > 3) {
     return false;
   }
   const int home = mover->home_tribe_id;
-  if (home < 0 || home >= (int)g_units_ff_col1->head.tribe_count) {
+  if (home < 0 || home >= (int)col1->head.tribe_count) {
     return false;
   }
-  return col1_tribe_attitude(&g_units_ff_col1->tribe[home], euro_nation) > 0x7f;
+  return col1_tribe_attitude(&col1->tribe[home], euro_nation) > 0x7f;
 }
 
 bool units_village_squat_illegal(

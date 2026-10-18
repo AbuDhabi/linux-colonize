@@ -6517,6 +6517,65 @@ static int case_armory_flat_input(void) {
   return 0;
 }
 
+/* bugs.md #1107 seam: turn_produce_one_colony's entry stage snapshots the
+ * colony into the ctx and stops the tick on an empty roster. */
+static int case_produce_seam_begin(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->cargo_produced_mask = 0x0005u;
+  col->stock[COLONIZE_CARGO_ORE] = 42;
+  TurnProduceCtx pc;
+  memset(&pc, 0, sizeof(pc));
+  pc.pool = &pool;
+  pc.colony = col;
+  pc.delta = &pc.local_delta;
+  if (turn_produce_begin(&pc) != TURN_PRODUCE_RETURN) {
+    fprintf(stderr, "seam begin: empty colony must stop the tick\n");
+    return 1;
+  }
+  col->colonists[0].active = true;
+  col->colonists[0].profession = UNITS_JOB_COLONIST;
+  col->colonist_count = 1;
+  col->population = 1;
+  col->cargo_produced_mask = 0x0005u;
+  if (turn_produce_begin(&pc) != TURN_PRODUCE_CONTINUE || pc.pop != 1 ||
+      pc.mask_before_a != 0x0005u || col->cargo_produced_mask != 0 ||
+      pc.stock_before[COLONIZE_CARGO_ORE] != 42) {
+    fprintf(stderr, "seam begin: pop %d mask_before %#x mask %#x ore %d\n", pc.pop,
+            (unsigned)pc.mask_before_a, (unsigned)col->cargo_produced_mask,
+            pc.stock_before[COLONIZE_CARGO_ORE]);
+    return 1;
+  }
+  return 0;
+}
+
+/* bugs.md #1107 seam: the Phase B lumber stage clips the composed hammers to
+ * lumber on hand and writes the paid count + pre-debit stock back to the ctx
+ * for Phase L (hammers) and Phase K (crumbs). */
+static int case_produce_seam_lumber(void) {
+  ColonizeColony col;
+  memset(&col, 0, sizeof(col));
+  col.stock[COLONIZE_CARGO_LUMBER] = 5;
+  TurnProduceCtx pc;
+  memset(&pc, 0, sizeof(pc));
+  pc.colony = &col;
+  pc.delta = &pc.local_delta;
+  pc.hammers_phase_a = 8;
+  turn_produce_lumber(&pc);
+  if (pc.hammers_paid != 5 || pc.lumber_before_hammers != 5 ||
+      col.stock[COLONIZE_CARGO_LUMBER] != 0 ||
+      pc.local_delta.goods[COLONIZE_CARGO_LUMBER] != -5) {
+    fprintf(stderr, "seam lumber: paid %d before %d stock %d delta %d\n", pc.hammers_paid,
+            pc.lumber_before_hammers, col.stock[COLONIZE_CARGO_LUMBER],
+            pc.local_delta.goods[COLONIZE_CARGO_LUMBER]);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"calendar", case_calendar},
   {"free_production", case_free_production},
@@ -6586,5 +6645,7 @@ static const TestCase k_cases[] = {
   {"spoilage_spoil3", case_spoilage_spoil3},
   {"ship_build_ready", case_ship_build_ready},
   {"phase_k_build_advisory", case_phase_k_build_advisory},
+  {"produce_seam_begin", case_produce_seam_begin},
+  {"produce_seam_lumber", case_produce_seam_lumber},
 };
 TEST_MAIN(k_cases)

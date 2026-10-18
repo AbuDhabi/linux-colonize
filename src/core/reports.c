@@ -59,7 +59,7 @@ void reports_free(ColonizeReportsView* view) {
   for (int i = 0; i < COLONIZE_REPORT_ICONS_DEST_COUNT; ++i) {
     ss_free(&view->icons[i]);
   }
-  ff_free(&view->title_font);
+  font_file_free(&view->title_font);
   pik_free(&view->congress_page1_bg);
   pik_free(&view->exploits_bg);
   memset(view, 0, sizeof(*view));
@@ -131,7 +131,7 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
   char font_path[512];
   char font_err[256];
   if (dos_compat_normalize_asset_path(data_dir, "FONTTINY.FF", font_path, sizeof(font_path)) &&
-      ff_load(font_path, &view->title_font, font_err, sizeof(font_err))) {
+      font_file_load(font_path, &view->title_font, font_err, sizeof(font_err))) {
     view->title_font_ok = true;
     /* FONTINTR is deliberately NOT loaded here: the whole 3f41 report overlay
      * touches only the FONTTINY font pointer (DS:0x89e) — see
@@ -581,17 +581,7 @@ void reports_draw_dos_icon_bar(
     const int tw = font_text_width(font, num);
     const int plate_x = start_x + 2;
     const int plate_y = y + 2;
-    for (int yy = plate_y; yy < plate_y + 7; ++yy) {
-      if (yy < 0 || yy >= fb->height) {
-        continue;
-      }
-      for (int xx = plate_x; xx < plate_x + tw + 1; ++xx) {
-        if (xx < 0 || xx >= fb->width) {
-          continue;
-        }
-        fb->pixels[yy * fb->width + xx] = 0;
-      }
-    }
+    fb_fill_rect(fb, plate_x, plate_y, tw + 1, 7, 0);
     font_draw_text(font, fb, plate_x + 1, plate_y + 1, num, 15);
   }
 }
@@ -810,7 +800,6 @@ void reports_render_w(
         human,
         colonies,
         europe,
-        turn_number,
         font,
         framebuffer,
         line,

@@ -75,6 +75,14 @@ extern void* g_units_dissolve_user;
 extern ColonizeCol1Save* g_units_fallout_col1;
 extern ColonizeWorldMap* g_units_fallout_map;
 extern const ColonizeCol1Save* g_units_ff_col1;
+/* bugs.md #1112: the save a _w body reads -- the world's when it carries a
+ * loaded one, else the g_units_ff_col1 turn context (views built without
+ * col1: game_loop_orders, the AI sea attack, bare fixtures). The global is
+ * const; the 465b body writes alarm / diplo bytes into it, hence this one
+ * cast instead of one per call site. */
+static inline ColonizeCol1Save* units_world_col1(const ColonizeWorld* w) {
+  return (w && w->col1 && w->col1_ok) ? w->col1 : (ColonizeCol1Save*)g_units_ff_col1;
+}
 extern int g_units_last_combat;
 extern ColonizeEnterReason g_units_last_enter_reason;
 extern ColonizeUnitsMoveWatchFn g_units_move_watch;
@@ -136,11 +144,14 @@ void units_sweep_stack_after_loss( ColonizeUnitPool* pool, int x, int y, int los
 int units_tribe_nation_at(const ColonizeCol1Save* col1, int x, int y);
 
 /* --- owned by units_combat_resolve.c --- */
-bool units_at_war_for_move(int nation_a, int nation_b);
+/* col1: the caller's units_world_col1 (bugs.md #1112). */
+bool units_at_war_for_move(const ColonizeCol1Save* col1, int nation_a, int nation_b);
 void units_capture_claim_ring(ColonizeWorldMap* map, int x, int y, int new_owner);
 int units_colony_plunder_stock_sum(const ColonizeColony* col);
 bool units_fort_vs_ship( ColonizeUnitPool* pool, int attack_str, int fort_nation, int defender_id, ColonizeDosRng* rng, const ColonizeCol1Save* col1, const char* atk_label );
-bool units_native_village_grudge(const ColonizeUnit* mover, int euro_nation);
+bool units_native_village_grudge(
+  const ColonizeCol1Save* col1, const ColonizeUnit* mover, int euro_nation
+);
 void units_sentry_wake_scan( ColonizeUnitPool* pool, const ColonizeWorldMap* map, const ColonizeColonyPool* colonies, int unit_id );
 bool units_village_squat_illegal( const ColonizeUnitPool* pool, const ColonizeUnitType* type, const ColonizeUnit* mover, const ColonizeWorldMap* map, int x, int y, int mover_nation, const ColonizeColonyPool* colonies );
 
@@ -152,6 +163,54 @@ void units_try_capture_foreign_colony_at( ColonizeUnitPool* pool, ColonizeColony
 
 /* --- owned by units_move.c --- */
 const char* units_order_name(int orders);
+
+/* units_try_move_w = FUN_465b_0000 stage split (bugs.md #1107). Stages run in
+ * DOS order; each returns CONTINUE or the dispatcher's return value. */
+typedef enum UnitsMoveStatus {
+  UNITS_MOVE_CONTINUE = 0,
+  UNITS_MOVE_RETURN_FALSE,
+  UNITS_MOVE_RETURN_TRUE,
+} UnitsMoveStatus;
+
+/* Every local that crosses stages. Stages write the mutable fields through
+ * the ctx directly, so an early return has nothing to write back. */
+typedef struct units_move_ctx {
+  const ColonizeWorld* w;
+  ColonizeUnitPool* pool;
+  ColonizeWorldMap* map;
+  ColonizeColonyPool* colonies;
+  ColonizeDosRng* rng;
+  ColonizeCol1Save* col1; /* w->col1 when loaded, else g_units_ff_col1 */
+  int unit_id;
+  int dest_x;
+  int dest_y;
+  ColonizeUnit* unit;         /* re-fetched after combat / Revere / LCR */
+  ColonizeEnterReason reason; /* units_enter_probe_w result */
+  int village_temp;           /* 1b0e local_8a temporary Brave id, -1 none */
+  int village_nation;         /* tribe nation at dest, -1 none */
+  int foe;                    /* units_best_defender_at, -1 none */
+  bool combat_attack_entry;   /* attack full-exhaust charge at the step gate */
+  bool foreign_colony_entry;  /* 465b bVar4 settlement arm */
+  bool dest_rumour;           /* FUN_281f_075e read before arrival */
+  int ox;                     /* origin tile, captured at the step commit */
+  int oy;
+} units_move_ctx;
+
+#ifdef COLONIZE_TESTING
+COLONIZE_INTERNAL UnitsMoveStatus units_move_validate(units_move_ctx* c);
+COLONIZE_INTERNAL UnitsMoveStatus units_move_probe(units_move_ctx* c);
+COLONIZE_INTERNAL UnitsMoveStatus units_move_board(units_move_ctx* c);
+COLONIZE_INTERNAL UnitsMoveStatus units_move_denied(units_move_ctx* c);
+COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_no_foe(units_move_ctx* c);
+COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_pre(units_move_ctx* c);
+COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_resolve(units_move_ctx* c);
+COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_entry(units_move_ctx* c);
+COLONIZE_INTERNAL UnitsMoveStatus units_move_step_gate(units_move_ctx* c);
+COLONIZE_INTERNAL UnitsMoveStatus units_move_commit_step(units_move_ctx* c);
+COLONIZE_INTERNAL UnitsMoveStatus units_move_rumour(units_move_ctx* c);
+COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_arrival(units_move_ctx* c);
+COLONIZE_INTERNAL UnitsMoveStatus units_move_finish(units_move_ctx* c);
+#endif
 
 /* --- owned by units_pioneer.c --- */
 bool units_adjacent(int ax, int ay, int bx, int by);

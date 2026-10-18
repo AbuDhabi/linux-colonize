@@ -1148,7 +1148,8 @@ static int ai_euro_20e6_ship_berth_arrival(
     const int cid = ctx->map ? map_continent_id_at(ctx->map, c->x, c->y) : -1;
     const int stance = ai_euro_continent_stance_at(nation_id, cid);
     const int turn = (ctx->turn_number && *ctx->turn_number) ? (int)*ctx->turn_number : 0;
-    const int ship_prio = ai_goals_composite_unit_priority_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, nation_id, ship->x, ship->y, arrival_dos_type, ship->profession, turn, colonies_count_for_nation(ctx->colonies, nation_id));
+    const ColonizeWorld pw = world_from_turn_ctx(ctx);
+    const int ship_prio = ai_goals_composite_unit_priority_w(&pw, nation_id, ship->x, ship->y, arrival_dos_type, ship->profession, turn, colonies_count_for_nation(ctx->colonies, nation_id));
     for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
       if (ai_euro_s_0a60_work_registered[nation_id] >= 0x19) {
         break;
@@ -1643,21 +1644,15 @@ void ai_euro_europe_lane_tick(ColonizeTurnContext* ctx, int nation_id) {
     /* 03d0 walks the lane chain from its latest arrival down (07e0/02e4). */
     int walk[COLONIZE_UNITS_MAX];
     int nw = 0;
-    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-      const ColonizeUnit* u = &ctx->units->units[i];
-      if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0 ||
-          u->x != from || u->y != from || u->col1_counter16 != 0) {
-        continue;
+    for (int id = units_tile_head_id_at(ctx->units, from, from); id >= 0;
+         id = units_tile_chain_next_id(ctx->units, id)) {
+      const ColonizeUnit* u = units_get_const(ctx->units, id);
+      if (u->nation_id == nation_id && u->col1_counter16 == 0) {
+        walk[nw++] = id;
       }
-      int at = nw++;
-      while (at > 0 && ctx->units->units[walk[at - 1]].tile_stack_order < u->tile_stack_order) {
-        walk[at] = walk[at - 1];
-        --at;
-      }
-      walk[at] = i;
     }
     for (int k = 0; k < nw; ++k) {
-      ColonizeUnit* u = &ctx->units->units[walk[k]];
+      ColonizeUnit* u = units_get(ctx->units, walk[k]);
       ai_euro_lane_move(ctx, u, hops[h][1] + nation_id, hops[h][1] + nation_id);
       if (hops[h][1] == 236) {
         units_lane_dock_arrival(ctx->units, u->id);
@@ -2152,7 +2147,8 @@ int ai_euro_20e6_unload_mask_snapshot(
      * `cmp type,2` — DOS founds with Pioneers; the flag-count reading that
      * admitted plain Colonists here is retired). */
     if (pioneers != 0) {
-      if (ai_goals_colony_balance_flags_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL)}, nation, cid) > 0) {
+      const ColonizeWorld bw = world_from_turn_ctx(ctx);
+      if (ai_goals_colony_balance_flags_w(&bw, nation, cid) > 0) {
         mask |= 0x40;
       }
       if (own_units == 0) {
@@ -2269,7 +2265,8 @@ int ai_euro_20e6_unload_by_mask(
     int dir8 = 0;
     /* Walk the tile chain from its top (latest arrival) down: tile order,
      * not boarding order. Continuous 1589: Dutch hull 39 carries Dragoons
-     * 46 and 44 chained 39 -> 46 -> 44, and DOS lands 44. */
+     * 46 and 44 chained 39 -> 46 -> 44, and DOS lands 44. Passengers are
+     * off the tile walk (units_is_on_map), so the hold is sorted here. */
     int walk[COLONIZE_UNIT_CARGO_MAX];
     int nw = 0;
     for (int s = ship->cargo_count - 1; s >= 0; --s) {
@@ -2299,10 +2296,7 @@ int ai_euro_20e6_unload_by_mask(
       if (t >= 0xd && t <= 0x12) {
         continue;
       }
-      const ColonizeWorld w06 = {
-        .units = ctx->units, .colonies = ctx->colonies, .map = ctx->map,
-        .col1 = ctx->col1_ok ? ctx->col1 : NULL, .col1_ok = ctx->col1_ok && ctx->col1 != NULL
-      };
+      const ColonizeWorld w06 = world_from_turn_ctx(ctx);
       int lx = 0;
       int ly = 0;
       if (!ai_goals_pick_founding_tile_ex_w(
@@ -2339,7 +2333,7 @@ int ai_euro_20e6_unload_by_mask(
  * the holds column, which flattened every land type to 0 (Dragoon scored
  * (0-10)*2 = -20 instead of (3-10)*2 = -14) and under-read every warship.
  * Read from the loaded @UNIT catalog rather than a hardcoded table: the
- * kind id IS the @UNIT row (see ai_euro_5d04_dos_type_of).
+ * kind id IS the @UNIT row (see ai_euro_20e6_dos_type).
  */
 int ai_euro_20e6_unit_col5(const ColonizeUnitPool* pool, int dos_type) {
   const int ti = pool ? units_kind_type_index(pool, (ColonizeUnitKind)dos_type) : -1;

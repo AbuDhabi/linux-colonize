@@ -1340,7 +1340,7 @@ int europe_compute_immigration_score_w(
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &colonies->colonies[i];
       if (c->active && c->nation_id == nation_id) {
-        pop += c->colonist_count > 0 ? c->colonist_count : c->population;
+        pop += colonies_headcount(c);
       }
     }
   }
@@ -1390,7 +1390,6 @@ int europe_tick_immigration_pressure_w(
   int nation_id
 ) {
   EuropeScreen* eu = w->europe;
-  const ColonizeColonyPool* colonies = w->colonies;
   const ColonizeUnitPool* units = w->units;
   const ColonizeCol1Save* col1 = w->col1;
   ColonizeDosRng* rng = w->rng;
@@ -1423,7 +1422,7 @@ int europe_tick_immigration_pressure_w(
       (uint8_t)(w->col1->nation[nation_id].nation_flags & 0xdfu);
   }
 
-  const int score = europe_compute_immigration_score_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .colonies=(ColonizeColonyPool*)(colonies), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, nation_id);
+  const int score = europe_compute_immigration_score_w(w, nation_id);
   int need = score;
   if (need < 0) {
     need = 0;

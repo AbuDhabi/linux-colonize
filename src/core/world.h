@@ -59,31 +59,35 @@ typedef struct ColonizeWorld {
    * (tests / headless callers keep the plain stream). bugs.md #842. */
   uint32_t rng_reseed;
   bool rng_reseed_set;
+  /* The human's nation (0..3), so _w forms can test "is human" without a
+   * turn context (bugs.md #1122). -1 = unknown / headless (world_make,
+   * fx_world). game_world fills it; a designated-initialiser view leaves 0. */
+  int human_nation;
 } ColonizeWorld;
 
 /*
  * Build a view from loose pointers (call sites that have no turn context:
- * game_dialogs, tests, UI screens). Casts away const on the read-only pools —
- * the view is shared by const and non-const users alike and callees keep the
- * constness they always had on their own locals.
+ * tests, UI screens). The pools are mutable: a caller holding only const
+ * pools casts at its own call site, where the reason is visible.
  */
 static inline ColonizeWorld world_make(
-  const ColonizeUnitPool* units,
-  const ColonizeColonyPool* colonies,
-  const ColonizeWorldMap* map,
-  const ColonizeCol1Save* col1,
+  ColonizeUnitPool* units,
+  ColonizeColonyPool* colonies,
+  ColonizeWorldMap* map,
+  ColonizeCol1Save* col1,
   bool col1_ok,
-  const ColonizeDosRng* rng,
-  const EuropeScreen* europe
+  ColonizeDosRng* rng,
+  EuropeScreen* europe
 ) {
   ColonizeWorld w = {0};
-  w.units = (ColonizeUnitPool*)units;
-  w.colonies = (ColonizeColonyPool*)colonies;
-  w.map = (ColonizeWorldMap*)map;
-  w.col1 = (ColonizeCol1Save*)col1;
+  w.units = units;
+  w.colonies = colonies;
+  w.map = map;
+  w.col1 = col1;
   w.col1_ok = col1_ok;
-  w.rng = (ColonizeDosRng*)rng;
-  w.europe = (EuropeScreen*)europe;
+  w.rng = rng;
+  w.europe = europe;
+  w.human_nation = -1;
   return w;
 }
 

@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 
+#include "core/assets.h"
 #include "core/fb.h"
 #include "core/font.h"
 #include "core/map_menu.h"
@@ -20,22 +21,6 @@ void popup_colors_from_ui(ColonizePopupColors* out) {
   out->mid = COLONIZE_COL_BORDER0;
   out->light = COLONIZE_COL_BORDER1;
   out->dark = COLONIZE_COL_BORDER2;
-}
-
-static uint8_t popup_nearest_rgb(const ColonizePalette* pal, int r, int g, int b) {
-  long best = 1L << 30;
-  int best_i = 0;
-  for (int i = 0; i < 256; ++i) {
-    const long dr = (long)pal->rgb[i][0] - r;
-    const long dg = (long)pal->rgb[i][1] - g;
-    const long db = (long)pal->rgb[i][2] - b;
-    const long d = dr * dr + dg * dg + db * db;
-    if (d < best) {
-      best = d;
-      best_i = i;
-    }
-  }
-  return (uint8_t)best_i;
 }
 
 void popup_colors_remap(
@@ -53,19 +38,19 @@ void popup_colors_remap(
   const uint8_t mid = colors->mid;
   const uint8_t light = colors->light;
   const uint8_t dark = colors->dark;
-  colors->mid = popup_nearest_rgb(
+  colors->mid = assets_palette_nearest_rgb(
     target_palette,
     source_palette->rgb[mid][0],
     source_palette->rgb[mid][1],
     source_palette->rgb[mid][2]
   );
-  colors->light = popup_nearest_rgb(
+  colors->light = assets_palette_nearest_rgb(
     target_palette,
     source_palette->rgb[light][0],
     source_palette->rgb[light][1],
     source_palette->rgb[light][2]
   );
-  colors->dark = popup_nearest_rgb(
+  colors->dark = assets_palette_nearest_rgb(
     target_palette,
     source_palette->rgb[dark][0],
     source_palette->rgb[dark][1],

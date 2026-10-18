@@ -159,15 +159,21 @@ static int ai_king_merc_offer_pending(const AiPopupState* st) {
   return st->open && st->current.tag == AI_POPUP_TAG_KING_MERC;
 }
 
-/* @MERCENARIES body + token-filled choice rows; returns the choice count. */
-static int ai_king_merc_fill_dialog(
+/* @MERCENARIES body + token-filled choice rows -> the Decline / Hire labels
+ * (GAME.TXT "No thank you." / "Pay {%NUMBER0$}."; "" on a catalog miss). */
+static void ai_king_merc_fill_dialog(
   ColonizeTurnContext* ctx,
-  const PopupMsgTokens* tok,
-  const char* fallback,
+  PopupMsgTokens* tok,
+  const char* merc_list,
+  int price,
   char* body,
-  char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN]
+  char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN],
+  const char* labels[2]
 ) {
-  popup_msg_fill(ctx->messages, "MERCENARIES", tok, fallback, body, AI_POPUP_BODY_LEN);
+  tok->string1 = merc_list;
+  tok->number0 = price;
+  tok->has_number0 = true;
+  popup_msg_fill(ctx->messages, "MERCENARIES", tok, "", body, AI_POPUP_BODY_LEN);
   const ColonizeMsgSection* sec = assets_msg_find(ctx->messages, "MERCENARIES");
   const int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
   for (int i = 0; i < nch; ++i) {
@@ -175,7 +181,8 @@ static int ai_king_merc_fill_dialog(
     popup_msg_apply_tokens(filled, sizeof(filled), choice_buf[i], tok);
     str_copy_trunc(choice_buf[i], sizeof(choice_buf[i]), filled);
   }
-  return nch;
+  labels[0] = nch >= 2 ? choice_buf[0] : "";
+  labels[1] = nch >= 2 ? choice_buf[1] : "";
 }
 
 void ai_king_merc_offer(ColonizeTurnContext* ctx) {
@@ -264,22 +271,11 @@ void ai_king_merc_offer(ColonizeTurnContext* ctx) {
         ai_king_merc_unit_name(ctx->units, artillery_or_cavalry_roll == 0 ? UNITS_KIND_ARTILLERY : UNITS_KIND_CAVALRY)
       );
     }
-    tok.string1 = merc_list;
-    tok.number0 = price;
-    tok.has_number0 = true;
     char body[AI_POPUP_BODY_LEN];
     char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
-    const int nch = ai_king_merc_fill_dialog(ctx, &tok, "", body, choice_buf);
-    /* GAME.TXT: No thank you. / Pay $ — map to Decline / Hire. */
     const char* labels[2];
+    ai_king_merc_fill_dialog(ctx, &tok, merc_list, price, body, choice_buf, labels);
     const int ids[] = {AI_KING_CHOICE_DECLINE, AI_KING_CHOICE_HIRE};
-    if (nch >= 2) {
-      labels[0] = choice_buf[0];
-      labels[1] = choice_buf[1];
-    } else {
-      labels[0] = "";
-      labels[1] = "";
-    }
     if (ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_MERC, human,
                                     ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
                                     ai_king_merc_payload(hx, hy, regular_count, artillery_or_cavalry_roll, price), NULL,
@@ -656,22 +652,12 @@ void ai_king_peacetime_merc_offer(ColonizeTurnContext* ctx) {
   memset(&tok, 0, sizeof(tok));
   const char* seller_name = reports_nation_country_name(seller);
   tok.string0 = seller_name;
-  tok.string1 = merc_list;
-  tok.number0 = price;
-  tok.has_number0 = true;
   char body[AI_POPUP_BODY_LEN];
   char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
-  const int nch = ai_king_merc_fill_dialog(ctx, &tok, "", body, choice_buf);
-  /* GAME.TXT: No thank you. / Pay {%NUMBER0$}. — DOS choice 2 = Pay. */
   const char* labels[2];
+  ai_king_merc_fill_dialog(ctx, &tok, merc_list, price, body, choice_buf, labels);
+  /* DOS choice 2 = Pay. */
   const int ids[] = {AI_KING_CHOICE_DECLINE, AI_KING_CHOICE_HIRE};
-  if (nch >= 2) {
-    labels[0] = choice_buf[0];
-    labels[1] = choice_buf[1];
-  } else {
-    labels[0] = "";
-    labels[1] = "";
-  }
   if (ai_popup_enqueue_choice_ctx(
         ctx->ai_popups, AI_POPUP_TAG_KING_MERC_PEACE, human, seller,
         ai_king_merc_peace_payload(regular, artillery, price), NULL, body, labels, ids, 2

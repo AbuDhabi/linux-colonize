@@ -25,8 +25,6 @@ void turn_refresh_euro_rank(ColonizeTurnContext* ctx) {
   if (ctx) ctx->euro_power_rank_ok = false;
 }
 
-void turn_rank_loaded(void) {}
-
 /* Slim targets have no tribe table. */
 const char* ai_contact_tribe_name(int nation_id) {
   (void)nation_id;

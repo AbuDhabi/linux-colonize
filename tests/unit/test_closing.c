@@ -53,6 +53,9 @@ static void test_timeline(void) {
   ClosingSeries rows[CLOSING_SERIES_MAX];
   int end_frame = 0;
   const int n = closing_parse_timeline("COLONIZE", rows, CLOSING_SERIES_MAX, &end_frame);
+  int miss_end = -1;
+  check(closing_parse_timeline("no-such-dir", rows, CLOSING_SERIES_MAX, &miss_end) == 0 && miss_end == 0,
+        "missing TXT: no series, end frame 0 (no compiled-in copy)");
   check(n == 7, "@CLOSING has 7 series");
   check(end_frame == 390, "end marker is frame 390");
   if (n < 7) {

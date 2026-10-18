@@ -2523,7 +2523,7 @@ static int case_native_settlement_conquer(void) {
 
     ColonizeDosRng crng;
     dos_rng_seed(&crng, 42);
-    units_set_native_fallout_context(&col1, &tmap, -1);
+    units_set_native_fallout_context(&col1, &tmap);
     if (col1.nation[0].villages_burned != 0) {
       free(tmap.layer3);
       free(col1.tribe);
@@ -2646,7 +2646,7 @@ static int case_native_settlement_conquer(void) {
     soldier = units_get(&pool, sid2);
     brave->nation_id = 4;
     soldier->nation_id = 0;
-    units_set_native_fallout_context(&col1, &tmap, 500);
+    units_set_native_fallout_context(&col1, &tmap);
     if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, sid2, bid2)) {
       free(tmap.layer3);
       free(col1.tribe);
@@ -2694,7 +2694,7 @@ static int case_native_settlement_conquer(void) {
       return 1;
     }
     units_despawn(&pool, treasure_id);
-    units_set_native_fallout_context(NULL, NULL, -1);
+    units_set_native_fallout_context(NULL, NULL);
 
     /*
      * bugs.md #381: conquest treasure is NOT Cortes-gated. Strip Cortes and burn
@@ -2817,7 +2817,7 @@ static int case_convert_join(void) {
 
     ColonizeDosRng crng;
     dos_rng_seed(&crng, 1);
-    units_set_native_fallout_context(&col1, &tmap, -1);
+    units_set_native_fallout_context(&col1, &tmap);
     if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&crng)}, sid, bid)) {
       free(tmap.layer3);
       free(col1.tribe);
@@ -2882,7 +2882,7 @@ static int case_convert_join(void) {
       }
     }
 
-    units_set_native_fallout_context(NULL, NULL, -1);
+    units_set_native_fallout_context(NULL, NULL);
     free(tmap.layer3);
     free(col1.tribe);
     fprintf(stderr, "unit_units: Sepulveda convert-join ok\n");
@@ -5479,7 +5479,7 @@ static int case_combat_village_attack_pop_drain(void) {
 
       units_set_ff_col1(&c1);
       units_set_combat_human_nation(0);
-      units_set_native_fallout_context(&c1, &map, -1);
+      units_set_native_fallout_context(&c1, &map);
       units_set_occupancy_map(&map);
 
       /*
@@ -5597,7 +5597,7 @@ static int case_combat_village_attack_pop_drain(void) {
       (void)units_despawn(&pool, aid);
       units_set_ff_col1(NULL);
       units_set_combat_human_nation(-1);
-      units_set_native_fallout_context(NULL, NULL, -1);
+      units_set_native_fallout_context(NULL, NULL);
       free(c1.tribe);
       fprintf(stderr, "unit_units: village temp Brave + pop drain ok\n");
   combat_phase2_close();
@@ -6362,7 +6362,7 @@ static int case_combat_treasure_capture(void) {
       ai_popup_clear(&pops);
       units_set_combat_popups(&pops, NULL);
       units_set_occupancy_map(NULL);
-      units_set_native_fallout_context(NULL, NULL, 0);
+      units_set_native_fallout_context(NULL, NULL);
       ColonizeCol1Save c1;
       memset(&c1, 0, sizeof(c1));
       c1.player[0].control = 0;

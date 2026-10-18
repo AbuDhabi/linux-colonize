@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include "core/cinematic.h"
-#include "core/ff.h"
+#include "core/font_file.h"
 #include "core/unit_chrome.h"
 #include "platform/platform.h"
 #include "tests/common/golden_fixture.h"
@@ -21,8 +21,8 @@ bool render_load_font(const char* data_dir, const char* name, ColonizeFont* out)
   if (!dos_compat_normalize_asset_path(data_dir, name, path, sizeof(path))) {
     return false;
   }
-  if (!ff_load(path, out, err, sizeof(err))) {
-    fprintf(stderr, "ff_load warning: %s\n", err);
+  if (!font_file_load(path, out, err, sizeof(err))) {
+    fprintf(stderr, "font_file_load warning: %s\n", err);
     return false;
   }
   return true;

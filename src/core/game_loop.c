@@ -87,7 +87,7 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/fb.h"
-#include "core/ff.h"
+#include "core/font_file.h"
 #include "core/font.h"
 #include "core/founding_fathers.h"
 #include "core/howmuch_dialog.h"
@@ -410,6 +410,27 @@ static const ColonizeFont* game_chrome_font(const ColonizeGameState* game) {
 }
 
 /*
+ * Generic dialog font (bugs.md #1111: this chain was written out ~15 times
+ * with the colony/menu order drifting). DOS's default dialog font slot is
+ * FONTINTR (begin_menu_font, europe_menu_font, game_render_modal_overlays), so
+ * intro_font is the only DOS-faithful answer; the rest only matters when
+ * FONTINTR.FF failed to load. FONTSMAL (menu_font) is the closer stand-in
+ * than the FONTTINY HUD font (game_render_modal_overlays, audit GL-13).
+ */
+const ColonizeFont* game_popup_font(const ColonizeGameState* game) {
+  if (!game) {
+    return NULL;
+  }
+  if (game->intro_font_ok) {
+    return &game->intro_font;
+  }
+  if (game->menu_font_ok) {
+    return &game->menu_font;
+  }
+  return game->colony_font_ok ? &game->colony_font : NULL;
+}
+
+/*
  * bugs.md: the animated piece (move slide / combat lunge) is blitted onto the
  * finished 320x200 frame, while the standing piece is drawn into the offscreen
  * map composite that `game_render` then copies into the 240x192 viewport. The
@@ -714,7 +735,11 @@ COLONIZE_INTERNAL void game_move_watch(
   int to_x,
   int to_y
 ) {
-  ColonizeWorld w_ = world_make(pool, colonies, map, NULL, false, NULL, NULL);
+  /* The watch typedef hands const pools; game_move_watch_w only reads. */
+  ColonizeWorld w_ = world_make(
+    (ColonizeUnitPool*)pool, (ColonizeColonyPool*)colonies, (ColonizeWorldMap*)map, NULL,
+    false, NULL, NULL
+  );
   game_move_watch_w(&w_, user, unit_id, from_x, from_y, to_x, to_y);
 }
 
@@ -1188,16 +1213,7 @@ static const ColonizeFont* begin_menu_font(const ColonizeGameState* game) {
   if (game->menu_smallfont && game->colony_font_ok) {
     return &game->colony_font;
   }
-  if (game->intro_font_ok) {
-    return &game->intro_font;
-  }
-  if (game->colony_font_ok) {
-    return &game->colony_font;
-  }
-  if (game->menu_font_ok) {
-    return &game->menu_font;
-  }
-  return NULL;
+  return game_popup_font(game);
 }
 
 /* Same geometry as render — used for mouse hit-testing. */
@@ -1387,8 +1403,8 @@ static bool game_map_blink_running(const ColonizeGameState* game) {
   if (turn_processor_active(&game->turn_proc)) {
     return false;
   }
-  if (game_modal_open(game) || ai_popup_busy(&game->ai_popups) || game->woodcut.open ||
-      game->closing.open) {
+  /* woodcut / closing are GAME_MODAL_LIST members (bugs.md #1122). */
+  if (game_modal_open(game) || ai_popup_busy(&game->ai_popups)) {
     return false;
   }
   return true;
@@ -1545,11 +1561,7 @@ COLONIZE_INTERNAL bool game_render_screen(
     if (game->ai_popups.open) {
       ColonizePopupColors popup_cols;
       popup_colors_from_ui(&popup_cols);
-      const ColonizeFont* popup_font = game->intro_font_ok ? &game->intro_font
-                                        : (game->menu_font_ok ? &game->menu_font
-                                                               : (game->colony_font_ok
-                                                                    ? &game->colony_font
-                                                                    : NULL));
+      const ColonizeFont* popup_font = game_popup_font(game);
       const ColonizeSpriteSheet* wood =
         game->europe_ok && game->europe.wood_tile_ok ? &game->europe.wood_tile : NULL;
       ai_popup_render(
@@ -1568,7 +1580,8 @@ COLONIZE_INTERNAL bool game_render_screen(
 
   if (game->in_report) {
     const ColonizeFont* font = game->menu_font_ok ? &game->menu_font : NULL;
-    reports_render_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(game->units_ok ? &game->units : NULL), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(game->world_map_ok ? &game->world_map : NULL), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL), .europe=(EuropeScreen*)(game->europe_ok ? &game->europe : NULL)}, game->reports_ok ? &game->reports : NULL, game->report_id, game->congress_page2, game->labor_detail_job, game->economic_page, game->colony_page, game->naval_page, game->human_nation, game->map_cursor_x, game->map_cursor_y, game->turn_number, font, framebuffer);
+    const ColonizeWorld w = game_world_const(game);
+    reports_render_w(&w, game->reports_ok ? &game->reports : NULL, game->report_id, game->congress_page2, game->labor_detail_job, game->economic_page, game->colony_page, game->naval_page, game->human_nation, game->map_cursor_x, game->map_cursor_y, game->turn_number, font, framebuffer);
     return true;
   }
 
@@ -1614,11 +1627,7 @@ COLONIZE_INTERNAL bool game_render_screen(
     if (game->ai_popups.open) {
       ColonizePopupColors popup_cols;
       popup_colors_from_ui(&popup_cols);
-      const ColonizeFont* popup_font = game->intro_font_ok ? &game->intro_font
-                                        : (game->menu_font_ok ? &game->menu_font
-                                                               : (game->colony_font_ok
-                                                                    ? &game->colony_font
-                                                                    : NULL));
+      const ColonizeFont* popup_font = game_popup_font(game);
       /* Player-reported: wrong colors — this framebuffer is about to be
        * expanded through the colony screen's own palette (render_colony
        * sets it below), not the map's. The map branch's wood tile
@@ -1659,9 +1668,7 @@ COLONIZE_INTERNAL bool game_render_screen(
     popup_colors_from_ui(&popup_cols);
     /* Hit-test layout is updated during render. */
     NewGameWizard* ng = (NewGameWizard*)&game->new_game;
-    ng->ui_font = game->intro_font_ok ? &game->intro_font
-      : (game->colony_font_ok ? &game->colony_font
-                              : (game->menu_font_ok ? &game->menu_font : NULL));
+    ng->ui_font = game_popup_font(game);
     ng->tiny_font = game->colony_font_ok ? &game->colony_font
       : (game->menu_font_ok ? &game->menu_font : ng->ui_font);
     ng->lore_font = ng->ui_font;
@@ -1730,9 +1737,7 @@ COLONIZE_INTERNAL bool game_render_screen(
     }
     game_render_begin_menu(game, framebuffer);
     if (game->save_load.open || game->ai_popups.open) {
-      const ColonizeFont* font = game->intro_font_ok ? &game->intro_font :
-                                 (game->colony_font_ok ? &game->colony_font :
-                                  (game->menu_font_ok ? &game->menu_font : NULL));
+      const ColonizeFont* font = game_popup_font(game);
       const ColonizeSpriteSheet* wood =
         game->menu_opentile_ok ? &game->menu_opentile :
         ((game->map_panel_ok && game->map_panel.wood_ok) ? &game->map_panel.wood_tile : NULL);
@@ -1948,7 +1953,8 @@ COLONIZE_INTERNAL void game_render_map_composite(
   }
 
   if (game->terrain_peel_phase == 0 && game->col1_ok && game->unit_icons_ok) {
-    map_panel_render_tribes_on_map_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(game->units_ok ? &game->units : NULL), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(game->world_map_ok ? &game->world_map : NULL), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true}, &game->unit_icons, framebuffer, view_x, view_y, view_cols, view_rows, tile_w, tile_h, map_origin_x, map_origin_y, game_fog_nation(game), game->map_palette_ok ? &game->map_palette : NULL);
+    const ColonizeWorld w = game_world_const(game);
+    map_panel_render_tribes_on_map_w(&w, &game->unit_icons, framebuffer, view_x, view_y, view_cols, view_rows, tile_w, tile_h, map_origin_x, map_origin_y, game_fog_nation(game), game->map_palette_ok ? &game->map_palette : NULL);
   }
 
   if (game->terrain_peel_phase == 0 && game->units_ok && game->unit_icons_ok) {
@@ -2126,7 +2132,8 @@ COLONIZE_INTERNAL void game_render_map_panel(
   if (game->map_panel_ok) {
     const ColonizeFont* panel_font = game->colony_font_ok ? &game->colony_font :
                                      (game->menu_font_ok ? &game->menu_font : NULL);
-    map_panel_render_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(game->units_ok ? &game->units : NULL), .colonies=(ColonizeColonyPool*)(game->colonies_ok || game->colonies.colony_count > 0 ? &game->colonies : NULL), .map=(ColonizeWorldMap*)(game->world_map_ok ? &game->world_map : NULL), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL)}, &game->map_panel, game->unit_icons_ok ? &game->unit_icons : NULL, panel_font, game->names_ok ? &game->names : NULL, game->labels_ok ? &game->labels : NULL, view_x, view_y, view_cols, view_rows, game->map_cursor_x, game->map_cursor_y, game->units.selected_id, game_fog_nation(game), game->game_year, game->game_autumn, game->europe.gold, game->europe.tax_percent, game->europe.nation_name, game->map_palette_ok ? &game->map_palette : NULL, game_end_turn_prompt_active(game), !game_map_blink_running(game) || (game->elapsed_ms / 250u) % 2u == 0u, framebuffer);
+    const ColonizeWorld w = game_world_const(game);
+    map_panel_render_w(&w, &game->map_panel, game->unit_icons_ok ? &game->unit_icons : NULL, panel_font, game->names_ok ? &game->names : NULL, game->labels_ok ? &game->labels : NULL, view_x, view_y, view_cols, view_rows, game->map_cursor_x, game->map_cursor_y, game->units.selected_id, game_fog_nation(game), game->game_year, game->game_autumn, game->europe.gold, game->europe.tax_percent, game->europe.nation_name, game->map_palette_ok ? &game->map_palette : NULL, game_end_turn_prompt_active(game), !game_map_blink_running(game) || (game->elapsed_ms / 250u) % 2u == 0u, framebuffer);
   }
 }
 
@@ -2143,9 +2150,7 @@ COLONIZE_INTERNAL void game_render_map_dialogs(
     if (game->trade_screen.open) {
       ColonizePopupColors popup_cols;
       popup_colors_from_ui(&popup_cols);
-      const ColonizeFont* popup_font =
-        game->intro_font_ok ? &game->intro_font
-        : (game->menu_font_ok ? &game->menu_font : hud_font);
+      const ColonizeFont* popup_font = game_popup_font(game);
       trade_screen_render(
         &game->trade_screen,
         game->col1_ok ? &game->col1 : NULL,
@@ -2168,8 +2173,7 @@ COLONIZE_INTERNAL void game_render_map_dialogs(
         pick_music_font(
           &game->pick_music,
           game->colony_font_ok ? &game->colony_font : NULL,
-          game->intro_font_ok ? &game->intro_font
-                              : (game->menu_font_ok ? &game->menu_font : NULL)
+          game_popup_font(game)
         ),
         wood,
         &popup_cols,
@@ -2182,9 +2186,7 @@ COLONIZE_INTERNAL void game_render_map_dialogs(
       ColonizePopupColors popup_cols;
       popup_colors_from_ui(&popup_cols);
       /* DOS uses the FONTINTR dialog font here, not the FONTTINY HUD one. */
-      const ColonizeFont* popup_font =
-        game->intro_font_ok ? &game->intro_font
-        : (game->menu_font_ok ? &game->menu_font : hud_font);
+      const ColonizeFont* popup_font = game_popup_font(game);
       save_load_render(
         (SaveLoadDialog*)&game->save_load,
         popup_font,
@@ -2211,9 +2213,7 @@ COLONIZE_INTERNAL void game_render_map_dialogs(
     if (game->options_dlg.open) {
       ColonizePopupColors popup_cols;
       popup_colors_from_ui(&popup_cols);
-      const ColonizeFont* popup_font =
-        game->intro_font_ok ? &game->intro_font
-        : (game->menu_font_ok ? &game->menu_font : hud_font);
+      const ColonizeFont* popup_font = game_popup_font(game);
       options_dialog_render(
         (OptionsDialog*)&game->options_dlg,
         popup_font,
@@ -2252,14 +2252,12 @@ COLONIZE_INTERNAL void game_render_map_dialogs(
         framebuffer
       );
     }
-    game_render_modal_overlays(game, hud_font, framebuffer);
+    game_render_modal_overlays(game, framebuffer);
     if (game->ai_popups.open) {
       ColonizePopupColors popup_cols;
       popup_colors_from_ui(&popup_cols);
       /* Map dialogs use FONTINTR (nation-explanation size), not FONTTINY HUD. */
-      const ColonizeFont* popup_font =
-        game->intro_font_ok ? &game->intro_font
-        : (game->menu_font_ok ? &game->menu_font : hud_font);
+      const ColonizeFont* popup_font = game_popup_font(game);
       ai_popup_render(
         (AiPopupState*)&game->ai_popups,
         popup_font,
@@ -3062,33 +3060,6 @@ uint32_t game_turn_number(const ColonizeGameState* game) {
 
 int game_colony_count(const ColonizeGameState* game) {
   return (game && game->colonies_ok) ? game->colonies.colony_count : 0;
-}
-
-/* `index` counts LIVE colonies (the same population game_colony_count reports).
- * colonies_abandon zeroes its slot in place and recounts, so the pool holds
- * holes and a raw slot index would both skip dead slots and miss a live tail. */
-bool game_colony_pos(const ColonizeGameState* game, int index, int* x, int* y) {
-  if (!game || !game->colonies_ok || index < 0) {
-    return false;
-  }
-  int seen = 0;
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    const ColonizeColony* col = &game->colonies.colonies[i];
-    if (!col->active) {
-      continue;
-    }
-    if (seen++ != index) {
-      continue;
-    }
-    if (x) {
-      *x = col->x;
-    }
-    if (y) {
-      *y = col->y;
-    }
-    return true;
-  }
-  return false;
 }
 
 int game_selected_unit(const ColonizeGameState* game) {

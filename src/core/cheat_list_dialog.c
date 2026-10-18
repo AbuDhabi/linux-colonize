@@ -83,6 +83,54 @@ bool cheat_list_catalog_rows(
   return true;
 }
 
+/*
+ * Shared DEBUG.TXT list-section parser for @SETVIEW / @SETHUMAN (bugs.md #1111:
+ * the two copies drifted on @width= and the overflow id). First text line is
+ * the prompt, the rest are rows; row i gets ids[i], and any row past the
+ * table keeps the last row's id (the "no special view" / "none" choice).
+ */
+static bool cheat_list_fill_from_section(
+  CheatListDialog* dlg, const ColonizeMsgSection* section, const int* ids, int id_count
+) {
+  for (int i = 0; i < section->line_count; ++i) {
+    const char* line = section->lines[i];
+    if (!line || line[0] == '\0') {
+      continue;
+    }
+    if (cheat_list_is_directive(line)) {
+      if (strncmp(line, "@width=", 7) == 0) {
+        dlg->width = atoi(line + 7);
+        if (dlg->width < 80) {
+          dlg->width = 80;
+        }
+        if (dlg->width > 320) {
+          dlg->width = 320;
+        }
+      }
+      continue;
+    }
+    if (dlg->prompt[0] == '\0') {
+      str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), line);
+      continue;
+    }
+    if (dlg->option_count >= CHEAT_LIST_MAX_OPTIONS) {
+      break;
+    }
+    str_copy_trunc(
+      dlg->options[dlg->option_count], sizeof(dlg->options[dlg->option_count]), line
+    );
+    const int idx = dlg->option_count;
+    dlg->option_ids[idx] = ids[idx < id_count ? idx : id_count - 1];
+    dlg->option_count++;
+  }
+  if (dlg->option_count <= 0) {
+    cheat_list_close(dlg);
+    return false;
+  }
+  dlg->open = true;
+  return true;
+}
+
 bool cheat_list_open_setview(CheatListDialog* dlg, const ColonizeMsgCatalog* debug_txt) {
   if (!dlg) {
     return false;
@@ -116,48 +164,7 @@ bool cheat_list_open_setview(CheatListDialog* dlg, const ColonizeMsgCatalog* deb
     return true;
   }
 
-  for (int i = 0; i < section->line_count; ++i) {
-    const char* line = section->lines[i];
-    if (!line || line[0] == '\0') {
-      continue;
-    }
-    if (cheat_list_is_directive(line)) {
-      if (strncmp(line, "@width=", 7) == 0) {
-        dlg->width = atoi(line + 7);
-        if (dlg->width < 80) {
-          dlg->width = 80;
-        }
-        if (dlg->width > 320) {
-          dlg->width = 320;
-        }
-      }
-      continue;
-    }
-    if (dlg->prompt[0] == '\0') {
-      str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), line);
-      continue;
-    }
-    if (dlg->option_count >= CHEAT_LIST_MAX_OPTIONS) {
-      break;
-    }
-    str_copy_trunc(
-      dlg->options[dlg->option_count], sizeof(dlg->options[dlg->option_count]), line
-    );
-    const int idx = dlg->option_count;
-    if (idx < 6) {
-      dlg->option_ids[idx] = k_fallback_ids[idx];
-    } else {
-      dlg->option_ids[idx] = -2;
-    }
-    dlg->option_count++;
-  }
-
-  if (dlg->option_count <= 0) {
-    cheat_list_close(dlg);
-    return false;
-  }
-  dlg->open = true;
-  return true;
+  return cheat_list_fill_from_section(dlg, section, k_fallback_ids, 6);
 }
 
 bool cheat_list_open_kill_indians(CheatListDialog* dlg, const ColonizeMsgCatalog* names) {
@@ -337,34 +344,7 @@ bool cheat_list_open_set_human(CheatListDialog* dlg, const ColonizeMsgCatalog* d
     return true;
   }
 
-  for (int i = 0; i < section->line_count; ++i) {
-    const char* line = section->lines[i];
-    if (!line || line[0] == '\0') {
-      continue;
-    }
-    if (cheat_list_is_directive(line)) {
-      continue;
-    }
-    if (dlg->prompt[0] == '\0') {
-      str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), line);
-      continue;
-    }
-    if (dlg->option_count >= CHEAT_LIST_MAX_OPTIONS) {
-      break;
-    }
-    str_copy_trunc(
-      dlg->options[dlg->option_count], sizeof(dlg->options[dlg->option_count]), line
-    );
-    const int idx = dlg->option_count;
-    dlg->option_ids[idx] = idx < 5 ? k_fallback_ids[idx] : -1;
-    dlg->option_count++;
-  }
-  if (dlg->option_count <= 0) {
-    cheat_list_close(dlg);
-    return false;
-  }
-  dlg->open = true;
-  return true;
+  return cheat_list_fill_from_section(dlg, section, k_fallback_ids, 5);
 }
 
 /* Strip a single leading '~' hotkey-underline marker (MENU.TXT/DEBUG.TXT convention). */

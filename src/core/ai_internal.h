@@ -99,7 +99,6 @@ int ai_021a_trace_enabled(void);
 
 uint8_t ai_coarse_fog_tribe_byte(int x, int y);
 
-int ai_coarse_fog_unseen(int x, int y);
 
 int ai_continent_id(const ColonizeWorldMap* map, int x, int y);
 

@@ -149,7 +149,7 @@ add_library(colonize_sim STATIC
   src/core/popup_msg.c
   src/core/assets.c
   src/core/strutil.c
-  src/core/ff.c
+  src/core/font_file.c
   src/core/madspack.c
   src/core/sound.c
   src/core/gsound_vm.c
@@ -686,7 +686,7 @@ set(COLONIZE_SLIM_SOURCES
   src/core/assets.c
   src/core/fb.c
   src/core/font.c
-  src/core/ff.c
+  src/core/font_file.c
   src/core/ss.c
   src/core/madspack.c
   src/data/viceroy_tables.c
@@ -747,10 +747,10 @@ foreach(_test_turn_slice core school colony)
   )
 endforeach()
 
-colonize_add_test(NAME unit_ff
+colonize_add_test(NAME unit_font_file
   SOURCES
-    tests/unit/test_ff.c
-    src/core/ff.c
+    tests/unit/test_font_file.c
+    src/core/font_file.c
     src/core/fb.c
     src/core/font.c
     src/core/madspack.c
@@ -766,7 +766,7 @@ colonize_add_test(NAME unit_woodcut
     src/core/ss.c
     src/core/fb.c
     src/core/font.c
-    src/core/ff.c
+    src/core/font_file.c
     src/core/madspack.c
     src/core/assets.c
     src/platform/diagnostics.c

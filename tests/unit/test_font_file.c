@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "core/ff.h"
+#include "core/font_file.h"
 #include "core/font.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
@@ -57,7 +57,7 @@ static int case_fontsmal(void) {
 
   ColonizeFont font;
   char err[256];
-  if (!ff_load("COLONIZE/FONTSMAL.FF", &font, err, sizeof(err))) {
+  if (!font_file_load("COLONIZE/FONTSMAL.FF", &font, err, sizeof(err))) {
     fprintf(stderr, "ff load failed: %s\n", err);
     diag_shutdown();
     return 1;
@@ -71,24 +71,24 @@ static int case_fontsmal(void) {
 
   if (font.char_widths['A'] == 0 || font.char_offsets['A'] >= font.section_size) {
     fprintf(stderr, "invalid glyph A metadata\n");
-    ff_free(&font);
+    font_file_free(&font);
     diag_shutdown();
     return 1;
   }
 
   if (font.char_widths['/'] != 0) {
     fprintf(stderr, "expected FONTSMAL '/' width 0, got %u\n", font.char_widths['/']);
-    ff_free(&font);
+    font_file_free(&font);
     diag_shutdown();
     return 1;
   }
   if (!assert_slash_widens(&font, "FONTSMAL")) {
-    ff_free(&font);
+    font_file_free(&font);
     diag_shutdown();
     return 1;
   }
 
-  ff_free(&font);
+  font_file_free(&font);
   diag_shutdown();
   return 0;
 }
@@ -98,23 +98,23 @@ static int case_fonttiny(void) {
 
   ColonizeFont font;
   char err[256];
-  if (!ff_load("COLONIZE/FONTTINY.FF", &font, err, sizeof(err))) {
+  if (!font_file_load("COLONIZE/FONTTINY.FF", &font, err, sizeof(err))) {
     fprintf(stderr, "FONTTINY load failed: %s\n", err);
     diag_shutdown();
     return 1;
   }
   if (font.char_widths['/'] == 0) {
     fprintf(stderr, "expected FONTTINY '/' glyph\n");
-    ff_free(&font);
+    font_file_free(&font);
     diag_shutdown();
     return 1;
   }
   if (!assert_slash_widens(&font, "FONTTINY")) {
-    ff_free(&font);
+    font_file_free(&font);
     diag_shutdown();
     return 1;
   }
-  ff_free(&font);
+  font_file_free(&font);
 
   diag_shutdown();
   return 0;

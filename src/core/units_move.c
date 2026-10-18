@@ -95,182 +95,194 @@ static void units_465b_07d6_human_or(ColonizeUnitPool* pool, const ColonizeUnit*
   }
 }
 
-bool units_try_move_w(
-  const ColonizeWorld* w,
-  int unit_id,
-  int dest_x,
-  int dest_y
-) {
-  ColonizeUnitPool* pool = w->units;
-  const ColonizeWorldMap* map = w->map;
-  const ColonizeColonyPool* colonies = w->colonies;
-  ColonizeDosRng* rng = w->rng;
+/* ===== units_try_move_w = FUN_465b_0000 move/enter dispatcher (bugs.md #1107) =====
+ * Split by gameplay concern in DOS order; units_move_ctx (units_internal.h)
+ * holds every local that crosses stages. Stages write the mutable fields
+ * (unit, village_temp, combat_attack_entry, foreign_colony_entry, ...)
+ * through the ctx directly, so there is no alias to write back on an early
+ * return. Immutable inputs are aliased per stage for readability.
+ * ===================================================================== */
+
+/* Port pre-checks (not 465b exits): unit exists, on the map, has MP, and the
+ * destination is one of the 8 neighbours. */
+COLONIZE_INTERNAL UnitsMoveStatus units_move_validate(units_move_ctx* c) {
+  ColonizeUnitPool* const pool = c->pool;
+  const int unit_id = c->unit_id;
+  const int dest_x = c->dest_x;
+  const int dest_y = c->dest_y;
 
   g_units_last_combat = 0;
   g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED;
   g_units_465b_settled = true; /* the port's pre-checks are not 465b exits */
-  ColonizeUnit* unit = units_get(pool, unit_id);
-  if (!unit || !map) {
-    return false;
+  c->unit = units_get(pool, unit_id);
+  ColonizeUnit* const unit = c->unit;
+  if (!unit || !c->map) {
+    return UNITS_MOVE_RETURN_FALSE;
   }
   if (unit->aboard_ship_id >= 0) {
-    return false;
+    return UNITS_MOVE_RETURN_FALSE;
   }
   if (units_remaining_mp(pool, unit_id) <= 0) {
     g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
-    return false;
+    return UNITS_MOVE_RETURN_FALSE;
   }
   if (unit->x == dest_x && unit->y == dest_y) {
-    return false;
+    return UNITS_MOVE_RETURN_FALSE;
   }
   const int dx = dest_x - unit->x;
   const int dy = dest_y - unit->y;
   if (dx < -1 || dx > 1 || dy < -1 || dy > 1 || (dx == 0 && dy == 0)) {
-    return false;
+    return UNITS_MOVE_RETURN_FALSE;
   }
 
   /* Fortification defense uses defender's colony tile (set before combat). */
-  units_set_combat_colonies(colonies);
+  units_set_combat_colonies(c->colonies);
   g_units_indian_combat_vent_done = false;
+  return UNITS_MOVE_CONTINUE;
+}
+
+/* Village temp defender + the 465b enter probe. */
+COLONIZE_INTERNAL UnitsMoveStatus units_move_probe(units_move_ctx* c) {
+  ColonizeUnitPool* const pool = c->pool;
+  ColonizeCol1Save* const col1 = c->col1;
+  ColonizeUnit* const unit = c->unit;
+  const int dest_x = c->dest_x;
+  const int dest_y = c->dest_y;
 
   /*
    * Village Attack empty tile (FUN_5fef_1b0e): spawn a temporary Brave from
    * dwelling stocks — do not drag nearby map Braves. Cite: 1b0e local_8a arm.
    */
-  int village_temp = -1;
-  int village_nation = -1;
-  /*
-   * DOS attack MP model (re-derived 2026-09-10, seventh-wave pass; the old
-   * "(step cost + 3) surcharge, ship-slow survives it" model was wrong):
-   *   - FUN_5fef_1b0e entry does `spent += 3` for an attack
-   *     (viceroy_unpacked.c:100341-100343) but then unconditionally calls
-   *     FUN_281f_0934 under the same attack flag (100381-100383), and 0934 →
-   *     FUN_1427_155e writes `spent = FUN_1427_065a(unit)` — the FULL max
-   *     allotment (viceroy_unpacked.c:8880-8888). The +3 is a dead store;
-   *     the real charge is a full exhaust, before the roll, win or lose,
-   *     ships included. There is no ship-slow: a Frigate that attacks is
-   *     done for the turn exactly like a Soldier.
-   *   - FUN_465b charges its per-tile step cost only on NON-attack moves:
-   *     `if (!bVar4) spent += local_40` (viceroy_unpacked.c:75639-75640),
-   *     and the shore-crossing exhaust sits inside the same `!bVar4` block —
-   *     an attacker pays neither (it is already exhausted by 1b0e).
-   * The fatigue penalty and its Combat Analysis rows read the ENTRY
-   * remaining (uVar15 is captured at 100339-100340, before the mutations),
-   * which is why the port keeps charging after the resolve: the strength
-   * calc reads live remaining, so charging first would erase the fatigue.
-   */
-  bool combat_attack_entry = false;
-  bool foreign_colony_entry = false; /* bVar4 settlement arm, see the Revere call */
-  if (g_units_ff_col1 && unit->nation_id >= 0 && unit->nation_id <= 3) {
-    village_nation = units_tribe_nation_at(g_units_ff_col1, dest_x, dest_y);
-    if (village_nation >= 4) {
-      village_temp = units_spawn_village_temp_defender(
-        pool, g_units_ff_col1, dest_x, dest_y, village_nation, unit_id
+  if (col1 && unit->nation_id >= 0 && unit->nation_id <= 3) {
+    c->village_nation = units_tribe_nation_at(col1, dest_x, dest_y);
+    if (c->village_nation >= 4) {
+      c->village_temp = units_spawn_village_temp_defender(
+        pool, col1, dest_x, dest_y, c->village_nation, c->unit_id
       );
     }
   }
 
-  const ColonizeEnterReason reason =
-    units_enter_probe_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, unit->type_index, dest_x, dest_y, unit_id);
-  g_units_last_enter_reason = reason;
+  c->reason = units_enter_probe_w(
+    c->w,
+    unit->type_index,
+    dest_x,
+    dest_y,
+    c->unit_id
+  );
+  g_units_last_enter_reason = c->reason;
   g_units_465b_settled = false; /* 465b body from here: bVar5 = false (raw 75449) */
+  return UNITS_MOVE_CONTINUE;
+}
 
-  if (reason == COLONIZE_ENTER_BOARD) {
-    if (village_temp >= 0) {
-      units_despawn(pool, village_temp);
-      village_temp = -1;
-    }
-    const ColonizeUnitType* mover_ty = units_type(pool, unit->type_index);
-    const int board_need = (mover_ty && mover_ty->space > 0) ? mover_ty->space : 1;
-    const int ship_id =
-      units_find_boardable_ship(pool, dest_x, dest_y, unit->nation_id, board_need);
-    if (ship_id < 0) {
-      g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED_DOMAIN;
-      return false;
-    }
-    /*
-     * DOS-LITERAL FUN_465b_0000 (bugs.md #714): DOS has no boarding branch.
-     * Walking onto an ocean tile that carries an own ship is the ordinary
-     * step, so it runs LAB_465b_05ca's cost/allow gate exactly like a land
-     * step (raw 75638-75651):
-     *   cVar7 = spent; spent += local_40;   // local_40 = terr*3, ocean = 3
-     *   ... shore-cross exhaust (also inside `if (!bVar4)`) ...
-     *   if (local_40 <= iVar13 || cVar7 == '\0' || (04ca(0x83a6), bVar4)) commit;
-     *   else roll = range(1, local_40) and commit only if roll <= iVar13.
-     * The port used to require nothing but `remaining > 0`, so a unit with a
-     * sliver of MP always got aboard for free. The charge is applied ahead of
-     * the gate in DOS, so a refused board still burns the step — and the
-     * whole allotment when the step crossed the waterline.
-     */
-    {
-      const int board_cost = units_move_cost(pool, unit_id, map, dest_x, dest_y);
-      const int board_left = units_remaining_mp(pool, unit_id);
-      const bool board_full = board_left >= units_max_mp(pool, unit_id);
-      bool board_allow = board_cost <= board_left || board_full;
-      if (!board_allow && rng) {
-        board_allow = dos_rng_range(rng, 1, board_cost > 0 ? board_cost : 1) <= board_left;
-      }
-      if (!board_allow) {
-        units_mp_charge(pool, unit, board_cost);
-        if (units_move_crosses_shore(map, colonies, unit->x, unit->y, dest_x, dest_y)) {
-          units_mp_exhaust(pool, unit);
-        }
-        g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
-        return false;
-      }
-    }
-    if (unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
-        unit->orders == UNITS_ORDER_FORTIFIED) {
-      unit->orders = UNITS_ORDER_NONE;
-    }
-    const int ox = unit->x;
-    const int oy = unit->y;
-    if (!units_board(pool, unit_id, ship_id)) {
-      g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED;
-      return false;
-    }
-    /*
-     * DOS 465b_05ca: walking aboard from open shore CROSSES the waterline
-     * with no colony on either end, so moves_spent is forced to max_mp — the
-     * passenger is done for the turn and FUN_4720_015c will not offer it
-     * landfall (spent < max_mp test, viceroy_unpacked.c:76014-76017).
-     * units_board zeroes moves as a park flag, which cannot tell that
-     * spend apart from a fresh in-port load; mark it explicitly.
-     * bugs.md #423.
-     *
-     * Shore-crossing is the ONLY reachable spend here: this function bails out
-     * with COLONIZE_ENTER_NO_MP above (`units_remaining_mp(...) <= 0`) before
-     * any boarding can happen, so a unit that had already burnt its allotment
-     * never reaches the board branch at all. The old "was the pre-boarding
-     * zero a park or a real spend?" discriminator was therefore dead and is
-     * gone (smell audit 2026-09-10 A4); if the MP gate above is ever relaxed
-     * to let a spent unit board, that half of the rule has to come back here.
-     */
-    {
-      ColonizeUnit* boarded = units_get(pool, unit_id);
-      if (boarded && units_move_crosses_shore(map, colonies, ox, oy, dest_x, dest_y)) {
-        boarded->mp_spent_turn = 1;
-        boarded->aboard_moves = 0;
-      } else if (boarded && boarded->aboard_moves > 0) {
-        /* Boarding from a colony tile is an ordinary step: 465b's ADD charges
-         * the water tile's cost to the spent byte the passenger then carries
-         * (bugs.md #544). Spent at or past max = no landfall this turn. */
-        int cost = map_move_spent_thirds(map, ox, oy, dest_x, dest_y);
-        if (cost < 1) {
-          cost = 1;
-        }
-        boarded->aboard_moves = boarded->aboard_moves > cost ? boarded->aboard_moves - cost : 0;
-        if (boarded->aboard_moves == 0) {
-          boarded->mp_spent_turn = 1;
-        }
-      }
-    }
-    units_occupancy_refresh_tile(pool, ox, oy, unit_id);
-    units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
-    g_units_last_enter_reason = COLONIZE_ENTER_BOARD;
-    return true;
+/* COLONIZE_ENTER_BOARD: land unit steps onto an own ship's ocean tile. */
+COLONIZE_INTERNAL UnitsMoveStatus units_move_board(units_move_ctx* c) {
+  ColonizeUnitPool* const pool = c->pool;
+  const ColonizeWorldMap* const map = c->map;
+  const ColonizeColonyPool* const colonies = c->colonies;
+  ColonizeDosRng* const rng = c->rng;
+  ColonizeUnit* const unit = c->unit;
+  const int unit_id = c->unit_id;
+  const int dest_x = c->dest_x;
+  const int dest_y = c->dest_y;
+
+  if (c->village_temp >= 0) {
+    units_despawn(pool, c->village_temp);
+    c->village_temp = -1;
   }
+  const ColonizeUnitType* mover_ty = units_type(pool, unit->type_index);
+  const int board_need = (mover_ty && mover_ty->space > 0) ? mover_ty->space : 1;
+  const int ship_id =
+    units_find_boardable_ship(pool, dest_x, dest_y, unit->nation_id, board_need);
+  if (ship_id < 0) {
+    g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED_DOMAIN;
+    return UNITS_MOVE_RETURN_FALSE;
+  }
+  /*
+   * DOS-LITERAL FUN_465b_0000 (bugs.md #714): DOS has no boarding branch.
+   * Walking onto an ocean tile that carries an own ship is the ordinary
+   * step, so it runs LAB_465b_05ca's cost/allow gate exactly like a land
+   * step (raw 75638-75651):
+   *   cVar7 = spent; spent += local_40;   // local_40 = terr*3, ocean = 3
+   *   ... shore-cross exhaust (also inside `if (!bVar4)`) ...
+   *   if (local_40 <= iVar13 || cVar7 == '\0' || (04ca(0x83a6), bVar4)) commit;
+   *   else roll = range(1, local_40) and commit only if roll <= iVar13.
+   * The port used to require nothing but `remaining > 0`, so a unit with a
+   * sliver of MP always got aboard for free. The charge is applied ahead of
+   * the gate in DOS, so a refused board still burns the step — and the
+   * whole allotment when the step crossed the waterline.
+   */
+  {
+    const int board_cost = units_move_cost(pool, unit_id, map, dest_x, dest_y);
+    const int board_left = units_remaining_mp(pool, unit_id);
+    const bool board_full = board_left >= units_max_mp(pool, unit_id);
+    bool board_allow = board_cost <= board_left || board_full;
+    if (!board_allow && rng) {
+      board_allow = dos_rng_range(rng, 1, board_cost > 0 ? board_cost : 1) <= board_left;
+    }
+    if (!board_allow) {
+      units_mp_charge(pool, unit, board_cost);
+      if (units_move_crosses_shore(map, colonies, unit->x, unit->y, dest_x, dest_y)) {
+        units_mp_exhaust(pool, unit);
+      }
+      g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
+      return UNITS_MOVE_RETURN_FALSE;
+    }
+  }
+  if (unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
+      unit->orders == UNITS_ORDER_FORTIFIED) {
+    unit->orders = UNITS_ORDER_NONE;
+  }
+  const int ox = unit->x;
+  const int oy = unit->y;
+  if (!units_board(pool, unit_id, ship_id)) {
+    g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED;
+    return UNITS_MOVE_RETURN_FALSE;
+  }
+  /*
+   * DOS 465b_05ca: walking aboard from open shore CROSSES the waterline
+   * with no colony on either end, so moves_spent is forced to max_mp — the
+   * passenger is done for the turn and FUN_4720_015c will not offer it
+   * landfall (spent < max_mp test, viceroy_unpacked.c:76014-76017).
+   * units_board zeroes moves as a park flag, which cannot tell that
+   * spend apart from a fresh in-port load; mark it explicitly.
+   * bugs.md #423.
+   *
+   * Shore-crossing is the ONLY reachable spend here: this function bails out
+   * with COLONIZE_ENTER_NO_MP above (`units_remaining_mp(...) <= 0`) before
+   * any boarding can happen, so a unit that had already burnt its allotment
+   * never reaches the board branch at all. The old "was the pre-boarding
+   * zero a park or a real spend?" discriminator was therefore dead and is
+   * gone (smell audit 2026-09-10 A4); if the MP gate above is ever relaxed
+   * to let a spent unit board, that half of the rule has to come back here.
+   */
+  {
+    ColonizeUnit* boarded = units_get(pool, unit_id);
+    if (boarded && units_move_crosses_shore(map, colonies, ox, oy, dest_x, dest_y)) {
+      boarded->mp_spent_turn = 1;
+      boarded->aboard_moves = 0;
+    } else if (boarded && boarded->aboard_moves > 0) {
+      /* Boarding from a colony tile is an ordinary step: 465b's ADD charges
+       * the water tile's cost to the spent byte the passenger then carries
+       * (bugs.md #544). Spent at or past max = no landfall this turn. */
+      int cost = map_move_spent_thirds(map, ox, oy, dest_x, dest_y);
+      if (cost < 1) {
+        cost = 1;
+      }
+      boarded->aboard_moves = boarded->aboard_moves > cost ? boarded->aboard_moves - cost : 0;
+      if (boarded->aboard_moves == 0) {
+        boarded->mp_spent_turn = 1;
+      }
+    }
+  }
+  units_occupancy_refresh_tile(pool, ox, oy, unit_id);
+  units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
+  g_units_last_enter_reason = COLONIZE_ENTER_BOARD;
+  return UNITS_MOVE_RETURN_TRUE;
+}
 
+/* Probe reasons that abort the move with no fight and no charge. */
+COLONIZE_INTERNAL UnitsMoveStatus units_move_denied(units_move_ctx* c) {
+  const ColonizeEnterReason reason = c->reason;
   if (reason == COLONIZE_ENTER_BOUNCE_FOREIGN || reason == COLONIZE_ENTER_BOUNCE_PEACE ||
       reason == COLONIZE_ENTER_BLOCKED_DOMAIN || reason == COLONIZE_ENTER_BLOCKED_EDGE ||
       reason == COLONIZE_ENTER_EDGE_SAIL || /* bugs.md #717: reason 4 aborts */
@@ -278,382 +290,441 @@ bool units_try_move_w(
       reason == COLONIZE_ENTER_LANDFALL || reason == COLONIZE_ENTER_VILLAGE_SHIP ||
       reason == COLONIZE_ENTER_NO_MP || reason == COLONIZE_ENTER_BLOCKED ||
       reason == COLONIZE_ENTER_LAKE_BLOCKED || reason == COLONIZE_ENTER_LANDFIRST) {
-    if (village_temp >= 0) {
-      units_despawn(pool, village_temp);
+    if (c->village_temp >= 0) {
+      units_despawn(c->pool, c->village_temp);
     }
-    return false;
+    return UNITS_MOVE_RETURN_FALSE;
   }
+  return UNITS_MOVE_CONTINUE;
+}
 
-  if (reason == COLONIZE_ENTER_COMBAT_LAND || reason == COLONIZE_ENTER_COMBAT_NAVAL) {
-    const int foe = units_best_defender_at(
-      pool, g_units_ff_col1, dest_x, dest_y, unit_id, unit_id
-    );
-    if (foe < 0) {
-      if (village_temp >= 0) {
-        units_despawn(pool, village_temp);
-        village_temp = -1;
-      }
-      /*
-       * Foreign colony tile with no armed map defender: only non-combat
-       * bystanders stand there (the picker's soft tier is off on colony
-       * tiles). DOS fights the colony itself — Paul Revere auto-arm or the
-       * civilian militia stand-in — and then seizes whoever remains on
-       * entry, rather than dueling a bystanding colonist one by one.
-       */
-      const int nc_cid = colonies ? colonies_id_at(colonies, dest_x, dest_y) : -1;
-      const ColonizeColony* nc = nc_cid >= 0 ? colonies_get(colonies, nc_cid) : NULL;
-      if (reason != COLONIZE_ENTER_COMBAT_LAND || !nc || !nc->active ||
-          units_is_sea(pool, unit_id)) {
-        return false;
-      }
-      if (nc->nation_id == unit->nation_id) {
-        /* Own colony squatted by foreign civilians (an old capture left them
-         * put): seize them on entry, no militia fight against your own town. */
-        units_seize_noncombat_at(pool, unit_id, dest_x, dest_y, g_units_ff_col1);
-        combat_attack_entry = true;
-        goto combat_entry_resolved;
-      }
-      /* Same bVar4 arm as the empty-colony entry below: vis OR on the
-       * pre-combat chain, 0948 advance with the mask kept, no reveal
-       * (DOSBox independence 8->9: the crown Regular taking Fort Nassau
-       * keeps vis 9). */
-      if (unit->nation_id != g_units_combat_human_nation) {
-        foreign_colony_entry = true;
-        units_465b_0673_vis_or(pool, map, unit, dest_x, dest_y);
-      }
-      if (!units_revere_defend_colony_tile(
-            pool, (ColonizeColonyPool*)colonies, unit_id, dest_x, dest_y, rng
-          )) {
-        return false;
-      }
-      unit = units_get(pool, unit_id);
-      if (!unit) {
-        return false;
-      }
-      units_seize_noncombat_at(pool, unit_id, dest_x, dest_y, g_units_ff_col1);
-      combat_attack_entry = true;
-      goto combat_entry_resolved;
+/* Combat reason but no armed map defender: fight the colony itself.
+ * CONTINUE = proceed to the shared step gate (old `goto combat_entry_resolved`). */
+COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_no_foe(units_move_ctx* c) {
+  ColonizeUnitPool* const pool = c->pool;
+  ColonizeColonyPool* const colonies = c->colonies;
+  ColonizeCol1Save* const col1 = c->col1;
+  const int unit_id = c->unit_id;
+  const int dest_x = c->dest_x;
+  const int dest_y = c->dest_y;
+
+  if (c->village_temp >= 0) {
+    units_despawn(pool, c->village_temp);
+    c->village_temp = -1;
+  }
+  /*
+   * Foreign colony tile with no armed map defender: only non-combat
+   * bystanders stand there (the picker's soft tier is off on colony
+   * tiles). DOS fights the colony itself — Paul Revere auto-arm or the
+   * civilian militia stand-in — and then seizes whoever remains on
+   * entry, rather than dueling a bystanding colonist one by one.
+   */
+  const int nc_cid = colonies ? colonies_id_at(colonies, dest_x, dest_y) : -1;
+  const ColonizeColony* nc = nc_cid >= 0 ? colonies_get(colonies, nc_cid) : NULL;
+  if (c->reason != COLONIZE_ENTER_COMBAT_LAND || !nc || !nc->active ||
+      units_is_sea(pool, unit_id)) {
+    return UNITS_MOVE_RETURN_FALSE;
+  }
+  if (nc->nation_id == c->unit->nation_id) {
+    /* Own colony squatted by foreign civilians (an old capture left them
+     * put): seize them on entry, no militia fight against your own town. */
+    units_seize_noncombat_at(pool, unit_id, dest_x, dest_y, col1);
+    c->combat_attack_entry = true;
+    return UNITS_MOVE_CONTINUE;
+  }
+  /* Same bVar4 arm as the empty-colony entry below: vis OR on the
+   * pre-combat chain, 0948 advance with the mask kept, no reveal
+   * (DOSBox independence 8->9: the crown Regular taking Fort Nassau
+   * keeps vis 9). */
+  if (c->unit->nation_id != g_units_combat_human_nation) {
+    c->foreign_colony_entry = true;
+    units_465b_0673_vis_or(pool, c->map, c->unit, dest_x, dest_y);
+  }
+  if (!units_revere_defend_colony_tile(pool, colonies, unit_id, dest_x, dest_y, c->rng)) {
+    return UNITS_MOVE_RETURN_FALSE;
+  }
+  c->unit = units_get(pool, unit_id);
+  if (!c->unit) {
+    return UNITS_MOVE_RETURN_FALSE;
+  }
+  units_seize_noncombat_at(pool, unit_id, dest_x, dest_y, col1);
+  c->combat_attack_entry = true;
+  return UNITS_MOVE_CONTINUE;
+}
+
+/* 465b entry head before the attack resolves: diplo attack bit, Privateer
+ * sighting, Indian trespass alarm, vis OR, AI low-MP refusal. */
+COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_pre(units_move_ctx* c) {
+  ColonizeUnitPool* const pool = c->pool;
+  ColonizeCol1Save* const col1 = c->col1;
+  ColonizeUnit* const unit = c->unit;
+  const int unit_id = c->unit_id;
+  const int dest_x = c->dest_x;
+  const int dest_y = c->dest_y;
+  const int foe = c->foe;
+
+  /* FUN_465b_0000 raw 75486-75490 -> FUN_4d56_4528 AI arm (OVL13 0x463c-
+   * 0x4708, 0x4bc0): a non-human Euro Soldier / Dragoon / Artillery (type
+   * 1 / 4 / 0x0b) entering a village takes switch code 9, which ORs the
+   * attack bit 4 into both diplo rows before the attack resolves. */
+  if (col1 && unit->nation_id >= 0 && unit->nation_id <= 3 &&
+      col1->player[unit->nation_id].control != 0 &&
+      (unit->type_index == 1 || unit->type_index == 4 || unit->type_index == 0x0b)) {
+    const int vn = units_tribe_nation_at(col1, dest_x, dest_y);
+    if (vn >= 4) {
+      ai_diplo_or_both(col1, unit->nation_id, vn, COL1_INDIAN_ATTACK_CONFIRMED_BIT);
     }
-    /* FUN_465b_0000 raw 75486-75490 -> FUN_4d56_4528 AI arm (OVL13 0x463c-
-     * 0x4708, 0x4bc0): a non-human Euro Soldier / Dragoon / Artillery (type
-     * 1 / 4 / 0x0b) entering a village takes switch code 9, which ORs the
-     * attack bit 4 into both diplo rows before the attack resolves. */
-    if (g_units_ff_col1 && unit->nation_id >= 0 && unit->nation_id <= 3 &&
-        g_units_ff_col1->player[unit->nation_id].control != 0 &&
-        (unit->type_index == 1 || unit->type_index == 4 || unit->type_index == 0x0b)) {
-      const int vn = units_tribe_nation_at(g_units_ff_col1, dest_x, dest_y);
-      if (vn >= 4) {
-        ai_diplo_or_both(
-          (ColonizeCol1Save*)g_units_ff_col1, unit->nation_id, vn, COL1_INDIAN_ATTACK_CONFIRMED_BIT
-        );
-      }
-    }
-    /* FUN_465b_0000 raw 75527-75545: Privateer-sighting relation bit,
-     * written before the attack resolves (same 465b entry head as the
-     * Indian alarm slam below). */
-    ai_euro_465b_privateer_sighting(
-      (ColonizeCol1Save*)g_units_ff_col1, pool, rng, unit_id, foe
-    );
-    /*
-     * FUN_465b_0000 (viceroy_unpacked.c:75600-75626): a Euro unit moving onto
-     * a tile held by an Indian occupant slams tribe alarm by (difficulty+5),
-     * doubled on a village tile — where the village record's
-     * alarm[nation].attacks byte is also bumped — and sextupled on a capital
-     * (the *6 replaces the *2). Written before the combat resolves; the only
-     * writer of that attacks byte (move_scoring_20e6_full.md 2026-09-06e §3
-     * refuted the "visit counter" reading). Peaceful village entries never
-     * reach this arm — FUN_4d56_4528 consumes them first.
-     */
-    if (reason == COLONIZE_ENTER_COMBAT_LAND && g_units_ff_col1 &&
-        unit->nation_id >= 0 && unit->nation_id <= 3) {
-      const ColonizeUnit* fu = units_get(pool, foe);
-      const int foe_nation = fu ? fu->nation_id : -1;
-      if (foe_nation >= 4 && foe_nation <= 11) {
-        const int base = (int)g_units_ff_col1->head.difficulty + 5;
-        int delta = base;
-        if (g_units_ff_col1->tribe) {
-          for (uint16_t ti = 0; ti < g_units_ff_col1->head.tribe_count; ++ti) {
-            ColonizeCol1Tribe* vt = &g_units_ff_col1->tribe[ti];
-            if ((int)vt->x != dest_x || (int)vt->y != dest_y) {
-              continue;
-            }
-            delta = base * 2;
-            vt->alarm[unit->nation_id].attacks++;
-            if (vt->state.capital) {
-              delta = base * 6;
-            }
-            break;
+  }
+  /* FUN_465b_0000 raw 75527-75545: Privateer-sighting relation bit,
+   * written before the attack resolves (same 465b entry head as the
+   * Indian alarm slam below). */
+  ai_euro_465b_privateer_sighting(col1, pool, c->rng, unit_id, foe);
+  /*
+   * FUN_465b_0000 (viceroy_unpacked.c:75600-75626): a Euro unit moving onto
+   * a tile held by an Indian occupant slams tribe alarm by (difficulty+5),
+   * doubled on a village tile — where the village record's
+   * alarm[nation].attacks byte is also bumped — and sextupled on a capital
+   * (the *6 replaces the *2). Written before the combat resolves; the only
+   * writer of that attacks byte (move_scoring_20e6_full.md 2026-09-06e §3
+   * refuted the "visit counter" reading). Peaceful village entries never
+   * reach this arm — FUN_4d56_4528 consumes them first.
+   */
+  if (c->reason == COLONIZE_ENTER_COMBAT_LAND && col1 &&
+      unit->nation_id >= 0 && unit->nation_id <= 3) {
+    const ColonizeUnit* fu = units_get(pool, foe);
+    const int foe_nation = fu ? fu->nation_id : -1;
+    if (foe_nation >= 4 && foe_nation <= 11) {
+      const int base = (int)col1->head.difficulty + 5;
+      int delta = base;
+      if (col1->tribe) {
+        for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+          ColonizeCol1Tribe* vt = &col1->tribe[ti];
+          if ((int)vt->x != dest_x || (int)vt->y != dest_y) {
+            continue;
           }
-        }
-        /* Full FUN_4cc6_00f2 (bugs.md #1004): the trespass slam is a
-         * positive delta, so it can land on alarm 100 and owes DOS's
-         * mission-burn roll. g_units_ff_col1 is the same save w->col1
-         * points at; the world form carries the rng and popup queue. */
-        ColonizeWorld aw = *w;
-        aw.col1 = (ColonizeCol1Save*)g_units_ff_col1;
-        aw.col1_ok = true;
-        ai_contact_alarm_delta_00f2_w(&aw, foe_nation, unit->nation_id, delta);
-      }
-    }
-    /*
-     * DOS FUN_5fef_1b0e entry gate (viceroy_unpacked.c:100359-100372): with
-     * fewer than 3 thirds remaining an attack is refused outright for every
-     * non-interactive nation — natives/crown (`3 < uVar16` return) and any
-     * Euro slot whose control byte is set (`0x543f[nation] != 0` return).
-     * Only the interactive human reaches the @HALF tired-attack CHOICE
-     * (game_loop asks it before calling here, so a confirmed human attack
-     * arrives with the same low MP and proceeds). The 465b alarm slam above
-     * already ran — DOS orders it the same way (75600-75626 precede the
-     * 0a14 → 1b0e call at 75692). Gated on col1 being wired so bare unit
-     * fixtures keep their attacks.
-     */
-    units_465b_0673_vis_or(pool, map, unit, dest_x, dest_y);
-    if (g_units_ff_col1 && units_remaining_mp(pool, unit_id) < UNITS_MP_PER_TILE) {
-      const bool ai_controlled =
-        unit->nation_id > 3 ||
-        (unit->nation_id >= 0 && unit->nation_id <= 3 &&
-         g_units_ff_col1->player[unit->nation_id].control != 0);
-      if (ai_controlled) {
-        if (village_temp >= 0) {
-          units_despawn(pool, village_temp);
-          village_temp = -1;
-        }
-        /* 465b raw 75577-75578 reaches this first: LAB_465b_01ce exhausts
-         * (FUN_281f_0934) before leaving through LAB_0bd1. */
-        units_mp_exhaust(pool, unit);
-        g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
-        return false;
-      }
-    }
-    bool won = false;
-    /* DOS bVar28 is set by BOTH auto-spawn arms of 1b0e — the colony militia
-     * (units_revere_defend_colony_tile) and this empty-dwelling Brave. The
-     * beginner-shield peel that reads it also demands a colony and a European
-     * defender, so a village fight can never trip it; the latch is raised here
-     * anyway because that is what the byte means. */
-    const bool phantom_defender = (village_temp >= 0 && foe == village_temp);
-    if (phantom_defender) {
-      combat_set_auto_defender(true);
-    }
-    /* 1b0e's entry 0934 sets spent = the PRE-combat type's allotment. */
-    const int attack_pre_max = units_max_mp(pool, unit_id);
-    if (reason == COLONIZE_ENTER_COMBAT_NAVAL) {
-      won = units_resolve_naval_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(g_units_ff_col1), .col1_ok=((g_units_ff_col1) != NULL), .rng=(ColonizeDosRng*)(rng)}, unit_id, foe);
-    } else {
-      won = units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(g_units_ff_col1), .col1_ok=((g_units_ff_col1) != NULL), .rng=(ColonizeDosRng*)(rng)}, unit_id, foe);
-    }
-    if (phantom_defender) {
-      combat_set_auto_defender(false);
-    }
-    if (won && units_combat_is_visible(pool, unit_id, foe)) {
-      int win_sound = UNITS_SFX_COMBAT_WON;
-      if (village_temp >= 0 && g_units_ff_col1 && g_units_ff_col1->tribe) {
-        /* FUN_5fef_1b0e 5fef:26f6-271a: a village with population > 1
-         * loses one person and emits 0x48; the final loss emits 0x4a. */
-        for (uint16_t ti = 0; ti < g_units_ff_col1->head.tribe_count; ++ti) {
-          const ColonizeCol1Tribe* tribe = &g_units_ff_col1->tribe[ti];
-          if ((int)tribe->x == dest_x && (int)tribe->y == dest_y && tribe->population > 1) {
-            win_sound = 0x48;
-            break;
+          delta = base * 2;
+          vt->alarm[unit->nation_id].attacks++;
+          if (vt->state.capital) {
+            delta = base * 6;
           }
+          break;
         }
       }
-      if (phantom_defender && colonies) {
-        const int cid = colonies_id_at(colonies, dest_x, dest_y);
-        const ColonizeColony* cc = cid >= 0 ? colonies_get(colonies, cid) : NULL;
-        if (cc && cc->nation_id >= 0 && cc->nation_id < 4) {
-          win_sound = 0x4b;
-        }
+      /* Full FUN_4cc6_00f2 (bugs.md #1004): the trespass slam is a
+       * positive delta, so it can land on alarm 100 and owes DOS's
+       * mission-burn roll. The world form carries the rng and popup
+       * queue; col1 is the ctx save (w->col1 or the g_units_ff_col1
+       * fallback, see units_try_move_w). */
+      ColonizeWorld aw = *c->w;
+      aw.col1 = col1;
+      aw.col1_ok = true;
+      ai_contact_alarm_delta_00f2_w(&aw, foe_nation, unit->nation_id, delta);
+    }
+  }
+  /*
+   * DOS FUN_5fef_1b0e entry gate (viceroy_unpacked.c:100359-100372): with
+   * fewer than 3 thirds remaining an attack is refused outright for every
+   * non-interactive nation — natives/crown (`3 < uVar16` return) and any
+   * Euro slot whose control byte is set (`0x543f[nation] != 0` return).
+   * Only the interactive human reaches the @HALF tired-attack CHOICE
+   * (game_loop asks it before calling here, so a confirmed human attack
+   * arrives with the same low MP and proceeds). The 465b alarm slam above
+   * already ran — DOS orders it the same way (75600-75626 precede the
+   * 0a14 → 1b0e call at 75692). Gated on col1 being wired so bare unit
+   * fixtures keep their attacks.
+   */
+  units_465b_0673_vis_or(pool, c->map, unit, dest_x, dest_y);
+  if (col1 && units_remaining_mp(pool, unit_id) < UNITS_MP_PER_TILE) {
+    const bool ai_controlled =
+      unit->nation_id > 3 ||
+      (unit->nation_id >= 0 && unit->nation_id <= 3 &&
+       col1->player[unit->nation_id].control != 0);
+    if (ai_controlled) {
+      if (c->village_temp >= 0) {
+        units_despawn(pool, c->village_temp);
+        c->village_temp = -1;
       }
-      units_play_event_sound(win_sound);
-      /* FUN_5fef_1b0e 5fef:2546 + 28b0: an Indian attacker (nation >= 4)
-       * beating a colony's defender sets local_6 when population > 1 OR the
-       * defender was not the temporary militia (`!bVar28`), then pushes
-       * 0x45. Keep DOS's 0x44 ship-attacker selector even though normal
-       * native unit data cannot reach it. The earlier 0x4b is separate: it is the temporary
-       * defender / European colony capture cue (`bVar12`). */
-      if (unit->nation_id >= 4 && colonies) {
-        const int cid = colonies_id_at(colonies, dest_x, dest_y);
-        const ColonizeColony* cc = cid >= 0 ? colonies_get(colonies, cid) : NULL;
-        if (cc && (cc->population > 1 || !phantom_defender)) {
-          units_play_event_sound(units_is_sea(pool, unit_id) ? 0x44 : 0x45);
-        }
-      }
-    }
-    if (village_temp >= 0 && foe == village_temp) {
-      ColonizeCol1Save* mut = (ColonizeCol1Save*)g_units_ff_col1;
-      units_finish_village_temp_defender(
-        pool,
-        mut,
-        g_units_fallout_map ? g_units_fallout_map : (ColonizeWorldMap*)map,
-        village_temp,
-        won ? 1 : 0,
-        unit->nation_id,
-        dest_x,
-        dest_y,
-        unit->x,
-        unit->y,
-        rng
-      );
-      village_temp = -1;
-    } else if (village_temp >= 0) {
-      units_despawn(pool, village_temp);
-      village_temp = -1;
-    }
-    /*
-     * DOS: an attacker is FULLY exhausted for the turn, win or lose, ships
-     * included — FUN_281f_0934 (spent = max allotment via FUN_1427_155e) runs
-     * at 1b0e entry under the attack flag (viceroy_unpacked.c:100381-100383),
-     * and 465b's step cost is skipped on attacks (75639-75640). See the model
-     * comment above `combat_attack_entry`. Every outcome of the same attack
-     * pays this same full exhaust: the loss return just below, the ordinary
-     * land-win stay-put branch, the native raid-stay-put branch, and the
-     * walk-in/advance path via `combat_attack_entry`.
-     */
-    if (!won) {
-      ColonizeUnit* atk_mp = units_get(pool, unit_id);
-      if (atk_mp && atk_mp->active) {
-        /* The spent byte keeps the entry 0934's value through a demotion
-         * (DOSBox independence 5->6: a crown Cavalry beaten to Regulars
-         * saves spent 12, its Cavalry allotment). */
-        atk_mp->moves = atk_mp->nation_id >= 4
-          ? attack_pre_max
-          : units_max_mp(pool, unit_id) - attack_pre_max;
-      }
-      return false;
-    }
-    unit = units_get(pool, unit_id);
-    if (!unit) {
-      return false;
-    }
-    /*
-     * Native village raid: fight from the adjacent tile and stay there (DOS
-     * FUN_4d56_4528 contact). The attack exhausts the full allotment (1b0e's
-     * FUN_281f_0934, viceroy_unpacked.c:100381-100383 — the same charge as
-     * every other outcome of the same attack; 465b's step cost is attack-
-     * skipped, 75639-75640). Do not enter the dwelling tile.
-     */
-    if (village_nation >= 4 && unit->nation_id >= 0 && unit->nation_id <= 3) {
-      /*
-       * No overspend gamble here (smell audit 2026-09-09 #5). The DOS gate is
-       * FUN_465b ~75643: `(cost <= left) || (spent == 0) || (04ca(seed),
-       * bVar4)` — the third clause IS the attack flag, so an attack is never
-       * denied by the MP roll; the sibling site below (the shared step-cost
-       * gate) already spells that out and cites it. Rolling it here was doubly
-       * wrong: the raid had already resolved and drained the dwelling, so the
-       * denial refused an entry whose effects were permanent, and the draw
-       * itself shifted the RNG stream for every later native raid.
-       */
+      /* 465b raw 75577-75578 reaches this first: LAB_465b_01ce exhausts
+       * (FUN_281f_0934) before leaving through LAB_0bd1. */
       units_mp_exhaust(pool, unit);
-      if (unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
-          unit->orders == UNITS_ORDER_FORTIFIED) {
-        unit->orders = UNITS_ORDER_NONE;
-      }
-      g_units_last_enter_reason = COLONIZE_ENTER_OK;
-      return true;
+      g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
+      return UNITS_MOVE_RETURN_FALSE;
     }
-    /* After win, dest must be clear of foreigners for enter — of the mover's
-     * own domain only (units_domain_blocker_at). DOS's walk-in is gated on
-     * FUN_5fef_0000 having run out of defenders, and that picker never sees
-     * the other domain, so a hull in a fallen port does not bar the town. */
-    if (units_domain_blocker_at(pool, dest_x, dest_y, unit_id, unit->nation_id) >= 0) {
-      /* The attack still cost the full allotment (1b0e's FUN_281f_0934 at
-       * entry, raw 100381-100383) — a naval winner whose advance is barred by
-       * the rest of the enemy stack must not keep its moves. */
-      units_mp_exhaust(pool, unit);
-      return false;
-    }
-    /*
-     * bugs.md #243: a land attacker does NOT advance into the vacated tile.
-     * Only ships (naval combat) and the attack that captures a colony enter;
-     * everywhere else the winner stays put — the full attack exhaust is
-     * spent either way (DOS 1b0e FUN_281f_0934, same charge as the loss
-     * branch).
-     */
-    /* A colony is taken only by beating its militia phantom (the no-foe arm
-     * below, 1b0e bVar28); beating a real defender standing in it leaves the
-     * attacker outside like anywhere else (DOSBox independence 5->6: the
-     * crown Cavalry beats Quebec's Artillery and stays, a Regular then beats
-     * the militia and takes the town). */
-    if (reason == COLONIZE_ENTER_COMBAT_LAND) {
-      units_mp_exhaust(pool, unit);
-      if (unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
-          unit->orders == UNITS_ORDER_FORTIFIED) {
-        unit->orders = UNITS_ORDER_NONE;
-      }
-      g_units_last_enter_reason = COLONIZE_ENTER_OK;
-      return true;
-    }
-    /* Advancing attacker (naval win, colony capture): the full exhaust is
-     * applied at the shared charge site below via `combat_attack_entry` —
-     * DOS charged it at 1b0e entry and 465b then skips both the step cost
-     * and the shore exhaust on the attack flag (75639-75640). */
-    combat_attack_entry = true;
+  }
+  return UNITS_MOVE_CONTINUE;
+}
+
+/* FUN_5fef_1b0e: resolve the fight, cues, village temp fallout, and the
+ * attacker's stay-put / advance outcome. */
+COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_resolve(units_move_ctx* c) {
+  ColonizeUnitPool* const pool = c->pool;
+  ColonizeWorldMap* const map = c->map;
+  const ColonizeColonyPool* const colonies = c->colonies;
+  ColonizeDosRng* const rng = c->rng;
+  ColonizeCol1Save* const col1 = c->col1;
+  const int unit_id = c->unit_id;
+  const int dest_x = c->dest_x;
+  const int dest_y = c->dest_y;
+  const int foe = c->foe;
+  const ColonizeEnterReason reason = c->reason;
+
+  bool won = false;
+  /* DOS bVar28 is set by BOTH auto-spawn arms of 1b0e — the colony militia
+   * (units_revere_defend_colony_tile) and this empty-dwelling Brave. The
+   * beginner-shield peel that reads it also demands a colony and a European
+   * defender, so a village fight can never trip it; the latch is raised here
+   * anyway because that is what the byte means. */
+  const bool phantom_defender = (c->village_temp >= 0 && foe == c->village_temp);
+  if (phantom_defender) {
+    combat_set_auto_defender(true);
+  }
+  /* 1b0e's entry 0934 sets spent = the PRE-combat type's allotment. */
+  const int attack_pre_max = units_max_mp(pool, unit_id);
+  ColonizeWorld cw = *c->w; /* rng == c->rng; col1 may be the ctx fallback */
+  cw.col1 = col1;
+  cw.col1_ok = col1 != NULL;
+  if (reason == COLONIZE_ENTER_COMBAT_NAVAL) {
+    won = units_resolve_naval_combat_ff_w(&cw, unit_id, foe);
   } else {
-    if (village_temp >= 0) {
-      units_despawn(pool, village_temp);
-      village_temp = -1;
-    }
-    if (colonies) {
-      /* FUN_465b_0000 raw 75467-75482: bVar4 reads the SETTLEMENT owner
-       * first, so an AI walking into an undefended foreign colony takes the
-       * bVar4 arm: LAB_465b_0673's 07fe vis OR (raw 75661-75664) runs on
-       * the PRE-combat chain, then FUN_291f_0a14 (= FUN_5fef_1b0e, whose
-       * winner advance is a 0948 relink, no 13f1_02f8 reveal), then
-       * `goto LAB_465b_0bd1` with bVar5 still false: orders clear and
-       * +0x315a bumps. DOSBox independence 5->6: the crown Regular taking
-       * Quebec keeps orders 0, counter 1, and the Artillery behind it never
-       * gains the crown bit. */
-      if (unit->nation_id != g_units_combat_human_nation) {
-        const ColonizeColony* fc =
-          colonies_get(colonies, colonies_id_at(colonies, dest_x, dest_y));
-        foreign_colony_entry = fc && fc->active && fc->nation_id != unit->nation_id;
-        if (foreign_colony_entry) {
-          units_465b_0673_vis_or(pool, map, unit, dest_x, dest_y);
+    won = units_resolve_land_combat_ff_w(&cw, unit_id, foe);
+  }
+  if (phantom_defender) {
+    combat_set_auto_defender(false);
+  }
+  if (won && units_combat_is_visible(pool, unit_id, foe)) {
+    int win_sound = UNITS_SFX_COMBAT_WON;
+    if (c->village_temp >= 0 && col1 && col1->tribe) {
+      /* FUN_5fef_1b0e 5fef:26f6-271a: a village with population > 1
+       * loses one person and emits 0x48; the final loss emits 0x4a. */
+      for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+        const ColonizeCol1Tribe* tribe = &col1->tribe[ti];
+        if ((int)tribe->x == dest_x && (int)tribe->y == dest_y && tribe->population > 1) {
+          win_sound = 0x48;
+          break;
         }
       }
-      /* The LAB_465b_01ce stop below (raw 75577-75578) runs BEFORE the bVar4
-       * fight: an AI with under 3 thirds left never attacks the militia. */
-      if (foreign_colony_entry && g_units_ff_col1 &&
-          units_remaining_mp(pool, unit_id) < UNITS_MP_PER_TILE &&
-          (unit->nation_id > 3 || g_units_ff_col1->player[unit->nation_id].control != 0)) {
-        units_mp_exhaust(pool, unit);
-        g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
-        return false;
+    }
+    if (phantom_defender && colonies) {
+      const int cid = colonies_id_at(colonies, dest_x, dest_y);
+      const ColonizeColony* cc = cid >= 0 ? colonies_get(colonies, cid) : NULL;
+      if (cc && cc->nation_id >= 0 && cc->nation_id < 4) {
+        win_sound = 0x4b;
       }
-      /* Paul Revere: empty foreign colony tile → auto-arm from muskets + fight.
-       * Cite: PEDIA / docs/fandom_col1994.md Paul Revere. */
-      if (!units_revere_defend_colony_tile(
-            pool, (ColonizeColonyPool*)colonies, unit_id, dest_x, dest_y, rng
-          )) {
-        return false;
-      }
-      unit = units_get(pool, unit_id);
-      if (!unit) {
-        return false;
-      }
-      /* A beaten militia: 1b0e's winner advances by 0948 relink whatever MP
-       * the fight left (DOSBox independence 6->7: the crown Cavalry beats St.
-       * Louis's militia and takes the town in the same step). */
-      if (g_units_last_combat > 0) {
-        combat_attack_entry = true;
+    }
+    units_play_event_sound(win_sound);
+    /* FUN_5fef_1b0e 5fef:2546 + 28b0: an Indian attacker (nation >= 4)
+     * beating a colony's defender sets local_6 when population > 1 OR the
+     * defender was not the temporary militia (`!bVar28`), then pushes
+     * 0x45. Keep DOS's 0x44 ship-attacker selector even though normal
+     * native unit data cannot reach it. The earlier 0x4b is separate: it is the temporary
+     * defender / European colony capture cue (`bVar12`). */
+    if (c->unit->nation_id >= 4 && colonies) {
+      const int cid = colonies_id_at(colonies, dest_x, dest_y);
+      const ColonizeColony* cc = cid >= 0 ? colonies_get(colonies, cid) : NULL;
+      if (cc && (cc->population > 1 || !phantom_defender)) {
+        units_play_event_sound(units_is_sea(pool, unit_id) ? 0x44 : 0x45);
       }
     }
   }
+  if (c->village_temp >= 0 && foe == c->village_temp) {
+    units_finish_village_temp_defender(
+      pool,
+      col1,
+      g_units_fallout_map ? g_units_fallout_map : map,
+      c->village_temp,
+      won ? 1 : 0,
+      c->unit->nation_id,
+      dest_x,
+      dest_y,
+      c->unit->x,
+      c->unit->y,
+      rng
+    );
+    c->village_temp = -1;
+  } else if (c->village_temp >= 0) {
+    units_despawn(pool, c->village_temp);
+    c->village_temp = -1;
+  }
+  /*
+   * DOS: an attacker is FULLY exhausted for the turn, win or lose, ships
+   * included — FUN_281f_0934 (spent = max allotment via FUN_1427_155e) runs
+   * at 1b0e entry under the attack flag (viceroy_unpacked.c:100381-100383),
+   * and 465b's step cost is skipped on attacks (75639-75640). See the model
+   * comment above `combat_attack_entry`. Every outcome of the same attack
+   * pays this same full exhaust: the loss return just below, the ordinary
+   * land-win stay-put branch, the native raid-stay-put branch, and the
+   * walk-in/advance path via `combat_attack_entry`.
+   */
+  if (!won) {
+    ColonizeUnit* atk_mp = units_get(pool, unit_id);
+    if (atk_mp && atk_mp->active) {
+      /* The spent byte keeps the entry 0934's value through a demotion
+       * (DOSBox independence 5->6: a crown Cavalry beaten to Regulars
+       * saves spent 12, its Cavalry allotment). */
+      atk_mp->moves = atk_mp->nation_id >= 4
+        ? attack_pre_max
+        : units_max_mp(pool, unit_id) - attack_pre_max;
+    }
+    return UNITS_MOVE_RETURN_FALSE;
+  }
+  c->unit = units_get(pool, unit_id);
+  ColonizeUnit* const unit = c->unit;
+  if (!unit) {
+    return UNITS_MOVE_RETURN_FALSE;
+  }
+  /*
+   * Native village raid: fight from the adjacent tile and stay there (DOS
+   * FUN_4d56_4528 contact). The attack exhausts the full allotment (1b0e's
+   * FUN_281f_0934, viceroy_unpacked.c:100381-100383 — the same charge as
+   * every other outcome of the same attack; 465b's step cost is attack-
+   * skipped, 75639-75640). Do not enter the dwelling tile.
+   */
+  if (c->village_nation >= 4 && unit->nation_id >= 0 && unit->nation_id <= 3) {
+    /*
+     * No overspend gamble here (smell audit 2026-09-09 #5). The DOS gate is
+     * FUN_465b ~75643: `(cost <= left) || (spent == 0) || (04ca(seed),
+     * bVar4)` — the third clause IS the attack flag, so an attack is never
+     * denied by the MP roll; the sibling site below (the shared step-cost
+     * gate) already spells that out and cites it. Rolling it here was doubly
+     * wrong: the raid had already resolved and drained the dwelling, so the
+     * denial refused an entry whose effects were permanent, and the draw
+     * itself shifted the RNG stream for every later native raid.
+     */
+    units_mp_exhaust(pool, unit);
+    if (unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
+        unit->orders == UNITS_ORDER_FORTIFIED) {
+      unit->orders = UNITS_ORDER_NONE;
+    }
+    g_units_last_enter_reason = COLONIZE_ENTER_OK;
+    return UNITS_MOVE_RETURN_TRUE;
+  }
+  /* After win, dest must be clear of foreigners for enter — of the mover's
+   * own domain only (units_domain_blocker_at). DOS's walk-in is gated on
+   * FUN_5fef_0000 having run out of defenders, and that picker never sees
+   * the other domain, so a hull in a fallen port does not bar the town. */
+  if (units_domain_blocker_at(pool, dest_x, dest_y, unit_id, unit->nation_id) >= 0) {
+    /* The attack still cost the full allotment (1b0e's FUN_281f_0934 at
+     * entry, raw 100381-100383) — a naval winner whose advance is barred by
+     * the rest of the enemy stack must not keep its moves. */
+    units_mp_exhaust(pool, unit);
+    return UNITS_MOVE_RETURN_FALSE;
+  }
+  /*
+   * bugs.md #243: a land attacker does NOT advance into the vacated tile.
+   * Only ships (naval combat) and the attack that captures a colony enter;
+   * everywhere else the winner stays put — the full attack exhaust is
+   * spent either way (DOS 1b0e FUN_281f_0934, same charge as the loss
+   * branch).
+   */
+  /* A colony is taken only by beating its militia phantom (the no-foe arm
+   * below, 1b0e bVar28); beating a real defender standing in it leaves the
+   * attacker outside like anywhere else (DOSBox independence 5->6: the
+   * crown Cavalry beats Quebec's Artillery and stays, a Regular then beats
+   * the militia and takes the town). */
+  if (reason == COLONIZE_ENTER_COMBAT_LAND) {
+    units_mp_exhaust(pool, unit);
+    if (unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
+        unit->orders == UNITS_ORDER_FORTIFIED) {
+      unit->orders = UNITS_ORDER_NONE;
+    }
+    g_units_last_enter_reason = COLONIZE_ENTER_OK;
+    return UNITS_MOVE_RETURN_TRUE;
+  }
+  /* Advancing attacker (naval win, colony capture): the full exhaust is
+   * applied at the shared charge site below via `combat_attack_entry` —
+   * DOS charged it at 1b0e entry and 465b then skips both the step cost
+   * and the shore exhaust on the attack flag (75639-75640). */
+  c->combat_attack_entry = true;
+  return UNITS_MOVE_CONTINUE;
+}
 
-combat_entry_resolved:
+/* Non-combat reason (OK / DOCK): an undefended foreign colony takes the
+ * bVar4 settlement arm (Revere / militia fight). */
+COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_entry(units_move_ctx* c) {
+  ColonizeUnitPool* const pool = c->pool;
+  ColonizeColonyPool* const colonies = c->colonies;
+  const int unit_id = c->unit_id;
+  const int dest_x = c->dest_x;
+  const int dest_y = c->dest_y;
+
+  if (c->village_temp >= 0) {
+    units_despawn(pool, c->village_temp);
+    c->village_temp = -1;
+  }
+  if (!colonies) {
+    return UNITS_MOVE_CONTINUE;
+  }
+  /* FUN_465b_0000 raw 75467-75482: bVar4 reads the SETTLEMENT owner
+   * first, so an AI walking into an undefended foreign colony takes the
+   * bVar4 arm: LAB_465b_0673's 07fe vis OR (raw 75661-75664) runs on
+   * the PRE-combat chain, then FUN_291f_0a14 (= FUN_5fef_1b0e, whose
+   * winner advance is a 0948 relink, no 13f1_02f8 reveal), then
+   * `goto LAB_465b_0bd1` with bVar5 still false: orders clear and
+   * +0x315a bumps. DOSBox independence 5->6: the crown Regular taking
+   * Quebec keeps orders 0, counter 1, and the Artillery behind it never
+   * gains the crown bit. */
+  if (c->unit->nation_id != g_units_combat_human_nation) {
+    const ColonizeColony* fc =
+      colonies_get(colonies, colonies_id_at(colonies, dest_x, dest_y));
+    c->foreign_colony_entry = fc && fc->active && fc->nation_id != c->unit->nation_id;
+    if (c->foreign_colony_entry) {
+      units_465b_0673_vis_or(pool, c->map, c->unit, dest_x, dest_y);
+    }
+  }
+  /* The LAB_465b_01ce stop below (raw 75577-75578) runs BEFORE the bVar4
+   * fight: an AI with under 3 thirds left never attacks the militia. */
+  if (c->foreign_colony_entry && c->col1 &&
+      units_remaining_mp(pool, unit_id) < UNITS_MP_PER_TILE &&
+      (c->unit->nation_id > 3 || c->col1->player[c->unit->nation_id].control != 0)) {
+    units_mp_exhaust(pool, c->unit);
+    g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
+    return UNITS_MOVE_RETURN_FALSE;
+  }
+  /* Paul Revere: empty foreign colony tile → auto-arm from muskets + fight.
+   * Cite: PEDIA / docs/fandom_col1994.md Paul Revere. */
+  if (!units_revere_defend_colony_tile(pool, colonies, unit_id, dest_x, dest_y, c->rng)) {
+    return UNITS_MOVE_RETURN_FALSE;
+  }
+  c->unit = units_get(pool, unit_id);
+  if (!c->unit) {
+    return UNITS_MOVE_RETURN_FALSE;
+  }
+  /* A beaten militia: 1b0e's winner advances by 0948 relink whatever MP
+   * the fight left (DOSBox independence 6->7: the crown Cavalry beats St.
+   * Louis's militia and takes the town in the same step). */
+  if (g_units_last_combat > 0) {
+    c->combat_attack_entry = true;
+  }
+  return UNITS_MOVE_CONTINUE;
+}
+
+/* LAB_465b_05ca cost / allow gate and the MP charge (old label
+ * combat_entry_resolved). */
+COLONIZE_INTERNAL UnitsMoveStatus units_move_step_gate(units_move_ctx* c) {
+  ColonizeUnitPool* const pool = c->pool;
+  ColonizeWorldMap* const map = c->map;
+  ColonizeColonyPool* const colonies = c->colonies;
+  ColonizeDosRng* const rng = c->rng;
+  ColonizeCol1Save* const col1 = c->col1;
+  ColonizeUnit* const unit = c->unit;
+  const int unit_id = c->unit_id;
+  const int dest_x = c->dest_x;
+  const int dest_y = c->dest_y;
+  const ColonizeEnterReason reason = c->reason;
+
   /* Dock / OK: domain enterability already confirmed by probe. */
   if (reason != COLONIZE_ENTER_OK && reason != COLONIZE_ENTER_DOCK &&
       reason != COLONIZE_ENTER_COMBAT_LAND && reason != COLONIZE_ENTER_COMBAT_NAVAL) {
-    return false;
+    return UNITS_MOVE_RETURN_FALSE;
   }
-  if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, unit->type_index, dest_x, dest_y, unit_id)) {
+  const ColonizeWorld* const pw = c->w;
+  if (!units_can_enter_w(pw, unit->type_index, dest_x, dest_y, unit_id)) {
     /* Combat cleared foe — re-probe should be OK/DOCK now. */
     const ColonizeEnterReason after =
-      units_enter_probe_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, unit->type_index, dest_x, dest_y, unit_id);
+      units_enter_probe_w(pw, unit->type_index, dest_x, dest_y, unit_id);
     g_units_last_enter_reason = after;
     if (after != COLONIZE_ENTER_OK && after != COLONIZE_ENTER_DOCK) {
-      return false;
+      return UNITS_MOVE_RETURN_FALSE;
     }
   }
 
@@ -669,23 +740,23 @@ combat_entry_resolved:
    * (FUN_281f_0934) and stop, before any partial-MP roll. Fresh 1592
    * three-turn: a French Dragoon at 0 MP beside empty Dutch Curacao.
    */
-  if (reason == COLONIZE_ENTER_OK && colonies && g_units_ff_col1 && !combat_attack_entry &&
+  if (reason == COLONIZE_ENTER_OK && colonies && col1 && !c->combat_attack_entry &&
       remaining < UNITS_MP_PER_TILE) {
     const ColonizeColony* fcol = colonies_get(colonies, colonies_id_at(colonies, dest_x, dest_y));
     const bool ai_controlled =
       unit->nation_id > 3 ||
       (unit->nation_id >= 0 && unit->nation_id <= 3 &&
-       g_units_ff_col1->player[unit->nation_id].control != 0);
+       col1->player[unit->nation_id].control != 0);
     if (fcol && fcol->active && fcol->nation_id != unit->nation_id && ai_controlled) {
       units_mp_exhaust(pool, unit);
       g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
-      return false;
+      return UNITS_MOVE_RETURN_FALSE;
     }
   }
 
   bool allow = false;
   if (reason == COLONIZE_ENTER_COMBAT_LAND || reason == COLONIZE_ENTER_COMBAT_NAVAL ||
-      combat_attack_entry) {
+      c->combat_attack_entry) {
     /*
      * DOS FUN_465b gate (~75643): `(cost <= left) || (spent == 0) ||
      * (04ca(seed), bVar4)` — the third clause is the attack flag itself, so
@@ -703,13 +774,13 @@ combat_entry_resolved:
      * from the timer word before the `else` roll at raw 75825-75827
      * (`FUN_281f_04d4(1, cost) <= remaining`). Same chokepoint the Brave
      * path uses (ai_brave.c, ai_turn_seed). bugs.md #842. */
-    if (w->rng_reseed_set) {
-      dos_rng_seed(rng, w->rng_reseed);
+    if (c->w->rng_reseed_set) {
+      dos_rng_seed(rng, c->w->rng_reseed);
     }
     const int roll = dos_rng_range(rng, 1, cost > 0 ? cost : 1);
     allow = roll <= remaining;
   } else {
-    return false;
+    return UNITS_MOVE_RETURN_FALSE;
   }
 
   /*
@@ -722,7 +793,7 @@ combat_entry_resolved:
    *     allow/deny gate — including failed partial-overspend rolls — and
    *     crossing the shoreline outside a colony spends the lot.
    */
-  if (combat_attack_entry) {
+  if (c->combat_attack_entry) {
     units_mp_exhaust(pool, unit);
   } else {
     units_mp_charge(pool, unit, cost);
@@ -732,9 +803,22 @@ combat_entry_resolved:
   }
   if (!allow) {
     g_units_465b_settled = true; /* raw 75825-75830: the gamble lost */
-    return false;
+    return UNITS_MOVE_RETURN_FALSE;
   }
-  if (!combat_attack_entry && !foreign_colony_entry) {
+  return UNITS_MOVE_CONTINUE;
+}
+
+/* The step itself: vis ORs, order clear, stack relink (0916/08e4/0948),
+ * occupancy, vis mask and the per-step reveal. */
+COLONIZE_INTERNAL UnitsMoveStatus units_move_commit_step(units_move_ctx* c) {
+  ColonizeUnitPool* const pool = c->pool;
+  const ColonizeWorldMap* const map = c->map;
+  ColonizeUnit* const unit = c->unit;
+  const int unit_id = c->unit_id;
+  const int dest_x = c->dest_x;
+  const int dest_y = c->dest_y;
+
+  if (!c->combat_attack_entry && !c->foreign_colony_entry) {
     units_465b_0673_vis_or(pool, map, unit, dest_x, dest_y);
     units_465b_07d6_human_or(pool, unit);
   }
@@ -747,10 +831,12 @@ combat_entry_resolved:
 
   /* FUN_281f_075e (= FUN_137f_0598), raw 75763: read before the arrival
    * stamps the destination's layer3 nibble. */
-  const bool dest_rumour = map_dos_0598_rumour_tile(map, dest_x, dest_y);
+  c->dest_rumour = map_dos_0598_rumour_tile(map, dest_x, dest_y);
   const int dest_owner = units_tile_owner_nibble(map, dest_x, dest_y); /* 06dc, raw 75766 */
-  const int ox = unit->x;
-  const int oy = unit->y;
+  c->ox = unit->x;
+  c->oy = unit->y;
+  const int ox = c->ox;
+  const int oy = c->oy;
   /* FUN_281f_0916 = FUN_1427_12f6, 08e4 = 0644, 0948 = 040c (raw 75697-75768). */
   const bool ship = units_is_sea(pool, unit_id);
   /* Departure pickup (FUN_1427_10be) on the old tile, before 040c moves the
@@ -782,7 +868,7 @@ combat_entry_resolved:
   }
   units_occupancy_refresh_tile(pool, ox, oy, unit_id);
   units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
-  if (!foreign_colony_entry) {
+  if (!c->foreign_colony_entry) {
     /* 1b0e's capture advance is a 0948 relink: the mask rides along. */
     units_vis_mask_after_move(pool, map, unit_id, dest_x, dest_y, dest_owner);
   }
@@ -799,10 +885,14 @@ combat_entry_resolved:
    * paths, so every intermediate tile of an AI multi-step move went unstamped
    * (bugs.md #530 S4).
    */
-  if (!foreign_colony_entry) {
-    (void)units_reveal_sight_w(w, unit);
+  if (!c->foreign_colony_entry) {
+    (void)units_reveal_sight_w(c->w, unit);
   }
+  return UNITS_MOVE_CONTINUE;
+}
 
+/* In-move Lost City Rumour for a non-human Euro mover. */
+COLONIZE_INTERNAL UnitsMoveStatus units_move_rumour(units_move_ctx* c) {
   /*
    * FUN_465b_0000 raw 75788-75791: a European mover (nation < 4) that steps
    * onto a rumour tile rolls the LCR (FUN_2a1f_0178 -> FUN_65dd_0004) inside
@@ -811,19 +901,31 @@ combat_entry_resolved:
    * resolve it in game_loop_orders (popups); this is the AI walk. DOSBox
    * 1499 -> 1501: a French Soldier walking onto (45,55) found burial mounds.
    */
-  if (dest_rumour && unit->nation_id >= 0 && unit->nation_id < 4 &&
-      !units_combat_human_involved(g_units_ff_col1, unit->nation_id, -1)) {
-    ColonizeWorld lw = *w;
+  if (c->dest_rumour && c->unit->nation_id >= 0 && c->unit->nation_id < 4 &&
+      !units_combat_human_involved(c->col1, c->unit->nation_id, -1)) {
+    ColonizeWorld lw = *c->w;
     if (!lw.col1) {
-      lw.col1 = (ColonizeCol1Save*)g_units_ff_col1;
+      lw.col1 = c->col1; /* == g_units_ff_col1 here (w->col1 was NULL) */
       lw.col1_ok = lw.col1 != NULL;
     }
-    (void)units_resolve_lcr_rumour_w(&lw, unit_id, -1);
-    unit = units_get(pool, unit_id);
-    if (!unit || !unit->active) {
-      return true;
+    (void)units_resolve_lcr_rumour_w(&lw, c->unit_id, -1);
+    c->unit = units_get(c->pool, c->unit_id);
+    if (!c->unit || !c->unit->active) {
+      return UNITS_MOVE_RETURN_TRUE;
     }
   }
+  return UNITS_MOVE_CONTINUE;
+}
+
+/* FUN_465b_0bd1 colony-enter arm: hull/wagon exhaust, +0x315a reset, sentry
+ * wake, and docking puts passengers ashore. */
+COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_arrival(units_move_ctx* c) {
+  ColonizeUnitPool* const pool = c->pool;
+  const ColonizeColonyPool* const colonies = c->colonies;
+  ColonizeUnit* const unit = c->unit;
+  const int unit_id = c->unit_id;
+  const int dest_x = c->dest_x;
+  const int dest_y = c->dest_y;
 
   /*
    * DOS-LITERAL FUN_465b_0bd1 raw 75721: `FUN_281f_088a(unit) != 0 ||
@@ -842,8 +944,8 @@ combat_entry_resolved:
   bool hull_in_origin_stack = units_is_sea(pool, unit_id);
   if (!hull_in_origin_stack) {
     int slot = 0;
-    for (ColonizeUnit* other = units_next_on_tile(pool, ox, oy, &slot); other != NULL;
-         other = units_next_on_tile(pool, ox, oy, &slot)) {
+    for (ColonizeUnit* other = units_next_on_tile(pool, c->ox, c->oy, &slot); other != NULL;
+         other = units_next_on_tile(pool, c->ox, c->oy, &slot)) {
       if (units_is_sea(pool, other->id)) {
         hull_in_origin_stack = true;
         break;
@@ -854,73 +956,84 @@ combat_entry_resolved:
   const bool mover_is_wagon = mover_type && units_type_is_wagon(mover_type);
   const bool colony_enter_gate = hull_in_origin_stack || mover_is_wagon;
 
-  if (colonies && colonies_id_at(colonies, dest_x, dest_y) >= 0) {
-    if (colony_enter_gate) {
-      units_mp_exhaust(pool, unit);
-      /* DOS raw 75731-75740: bugs.md #792 — +0x315a = 0 on arrival, then
-       * wake (clear Sentry orders on) every unit on the destination stack.
-       *
-       * Runtime trade routes unpack DOS's separate +0x315b profession-byte
-       * cursor into col1_counter16 (see col1_bridge.c). Preserve that cursor:
-       * otherwise arrival changes the stop to 0 before route service, so the
-       * colony check fails and a wagon loops between ports without cargo. */
-      if (unit->orders != UNITS_ORDER_TRADE_ROUTE) {
-        unit->col1_counter16 = 0;
-      }
-      int dslot = 0;
-      for (ColonizeUnit* stacked = units_next_on_tile(pool, dest_x, dest_y, &dslot);
-           stacked != NULL;
-           stacked = units_next_on_tile(pool, dest_x, dest_y, &dslot)) {
-        if (stacked->orders == UNITS_ORDER_SENTRY) {
-          stacked->orders = UNITS_ORDER_NONE;
-        }
+  if (!colonies || colonies_id_at(colonies, dest_x, dest_y) < 0) {
+    return UNITS_MOVE_CONTINUE;
+  }
+  if (colony_enter_gate) {
+    units_mp_exhaust(pool, unit);
+    /* DOS raw 75731-75740: bugs.md #792 — +0x315a = 0 on arrival, then
+     * wake (clear Sentry orders on) every unit on the destination stack.
+     *
+     * Runtime trade routes unpack DOS's separate +0x315b profession-byte
+     * cursor into col1_counter16 (see col1_bridge.c). Preserve that cursor:
+     * otherwise arrival changes the stop to 0 before route service, so the
+     * colony check fails and a wagon loops between ports without cargo. */
+    if (unit->orders != UNITS_ORDER_TRADE_ROUTE) {
+      unit->col1_counter16 = 0;
+    }
+    int dslot = 0;
+    for (ColonizeUnit* stacked = units_next_on_tile(pool, dest_x, dest_y, &dslot);
+         stacked != NULL;
+         stacked = units_next_on_tile(pool, dest_x, dest_y, &dslot)) {
+      if (stacked->orders == UNITS_ORDER_SENTRY) {
+        stacked->orders = UNITS_ORDER_NONE;
       }
     }
-    /*
-     * bugs.md: docking puts everyone ashore. A unit inside a colony is in the
-     * colony, not in a hold — whether it sails again is decided when a ship
-     * next leaves, and the sentried units on the tile board it then (the
-     * auto-board above). They land with no orders and their allotment intact,
-     * so an arrival can still walk on the turn it lands.
-     *
-     * Deliberately NOT gated on units_is_transport any more: that predicate
-     * exists for the wagon/ship MP-forfeit rule above and answers "does this
-     * hull have goods holds", which is a different question from "is anyone
-     * riding in it". A ship carrying passengers puts them ashore on docking
-     * whatever its hold count says (bugs.md: "does not always happen").
-     */
-    if (units_is_sea(pool, unit_id) && unit->cargo_count > 0) {
-      /* Own colonies only: a De Witt trade dock at a *foreign* colony
-       * (COLONIZE_ENTER_DOCK via the foreign-colony-trade branch) must not
-       * put passengers ashore in someone else's town. */
-      const ColonizeColony* dock_col =
-        colonies_get(colonies, colonies_id_at(colonies, dest_x, dest_y));
-      if (dock_col && dock_col->active && dock_col->nation_id == unit->nation_id) {
-        int pax_ids[COLONIZE_UNIT_CARGO_MAX];
-        const int npax = unit->cargo_count < COLONIZE_UNIT_CARGO_MAX ? unit->cargo_count
-                                                                     : COLONIZE_UNIT_CARGO_MAX;
+  }
+  /*
+   * bugs.md: docking puts everyone ashore. A unit inside a colony is in the
+   * colony, not in a hold — whether it sails again is decided when a ship
+   * next leaves, and the sentried units on the tile board it then (the
+   * auto-board above). They land with no orders and their allotment intact,
+   * so an arrival can still walk on the turn it lands.
+   *
+   * Deliberately NOT gated on units_is_transport any more: that predicate
+   * exists for the wagon/ship MP-forfeit rule above and answers "does this
+   * hull have goods holds", which is a different question from "is anyone
+   * riding in it". A ship carrying passengers puts them ashore on docking
+   * whatever its hold count says (bugs.md: "does not always happen").
+   */
+  if (units_is_sea(pool, unit_id) && unit->cargo_count > 0) {
+    /* Own colonies only: a De Witt trade dock at a *foreign* colony
+     * (COLONIZE_ENTER_DOCK via the foreign-colony-trade branch) must not
+     * put passengers ashore in someone else's town. */
+    const ColonizeColony* dock_col =
+      colonies_get(colonies, colonies_id_at(colonies, dest_x, dest_y));
+    if (dock_col && dock_col->active && dock_col->nation_id == unit->nation_id) {
+      int pax_ids[COLONIZE_UNIT_CARGO_MAX];
+      const int npax = unit->cargo_count < COLONIZE_UNIT_CARGO_MAX ? unit->cargo_count
+                                                                   : COLONIZE_UNIT_CARGO_MAX;
+      for (int i = 0; i < npax; ++i) {
+        pax_ids[i] = unit->cargo_ids[i];
+      }
+      (void)units_disembark_all(pool, unit_id, dest_x, dest_y);
+      units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
+      /* AI hull: its unload exhausts each passenger (FUN_281f_0934; DOSBox
+       * 1511: the French missionary landed with orders 0 and spent 6, and
+       * acted only next turn). The human keeps the restore above. */
+      if (!units_combat_human_involved(c->col1, unit->nation_id, -1)) {
         for (int i = 0; i < npax; ++i) {
-          pax_ids[i] = unit->cargo_ids[i];
-        }
-        (void)units_disembark_all(pool, unit_id, dest_x, dest_y);
-        units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
-        /* AI hull: its unload exhausts each passenger (FUN_281f_0934; DOSBox
-         * 1511: the French missionary landed with orders 0 and spent 6, and
-         * acted only next turn). The human keeps the restore above. */
-        if (!units_combat_human_involved(g_units_ff_col1, unit->nation_id, -1)) {
-          for (int i = 0; i < npax; ++i) {
-            ColonizeUnit* pax = units_get(pool, pax_ids[i]);
-            if (pax && pax->active && pax->aboard_ship_id < 0) {
-              units_mp_exhaust(pool, pax);
-            }
+          ColonizeUnit* pax = units_get(pool, pax_ids[i]);
+          if (pax && pax->active && pax->aboard_ship_id < 0) {
+            units_mp_exhaust(pool, pax);
           }
         }
       }
     }
   }
+  return UNITS_MOVE_CONTINUE;
+}
+
+/* Capture, result reason, 0984 -> FUN_5bfb_3180 scans, move watch, bVar5. */
+COLONIZE_INTERNAL UnitsMoveStatus units_move_finish(units_move_ctx* c) {
+  ColonizeUnitPool* const pool = c->pool;
+  ColonizeWorldMap* const map = c->map;
+  ColonizeColonyPool* const colonies = c->colonies;
+  const int unit_id = c->unit_id;
+  const ColonizeEnterReason reason = c->reason;
 
   if (colonies) {
-    units_try_capture_foreign_colony(pool, (ColonizeColonyPool*)colonies, unit_id);
+    units_try_capture_foreign_colony(pool, colonies, unit_id);
   }
 
   g_units_last_enter_reason =
@@ -928,40 +1041,129 @@ combat_entry_resolved:
   if (diag_info_enabled()) {
     char who[96];
     units_log_ident(pool, unit_id, who, sizeof(who));
-    diag_info("MOVE %s: (%d,%d) -> (%d,%d)", who, ox, oy, unit->x, unit->y);
+    diag_info("MOVE %s: (%d,%d) -> (%d,%d)", who, c->ox, c->oy, c->unit->x, c->unit->y);
   }
   /* 465b reaches 0984 -> FUN_5bfb_3180 only on its plain-move tail: the
    * bVar4 colony entry and a 1b0e winner's advance `goto LAB_465b_0bd1`
    * first (tr9 10 -> 11: the English Regular taking Vlissingen turns no
    * neighbour's head). */
-  if (!combat_attack_entry && !foreign_colony_entry) {
+  if (!c->combat_attack_entry && !c->foreign_colony_entry) {
     /* FUN_5bfb_3180 naval half: adjacent foreign warship / Fort / Fortress
      * may eat the mover's remaining MP (see units_ship_slow_scan). */
-    units_ship_slow_scan_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map), .rng=(ColonizeDosRng*)(rng)}, unit_id);
+    units_ship_slow_scan_w(c->w, unit_id);
     /* FUN_5bfb_3180 sentry half: a foreign unit now adjacent wakes that stack's
      * Sentry units (raw 98628-98646). Runs for every mover, land or sea. */
     units_sentry_wake_scan(pool, map, colonies, unit_id);
   }
-  unit = units_get(pool, unit_id);
+  c->unit = units_get(pool, unit_id);
   /* No named_new_world write here: FUN_4720_049e raw 76126-76135 is the
    * human UI move handler; AI moves (FUN_465b_0000) never set player+0x30
    * bit 0x80 (bugs.md #1057a, reversed by the seed-100 idle campaign). */
-  if (g_units_move_watch && units_is_on_map(unit)) {
+  if (g_units_move_watch && units_is_on_map(c->unit)) {
     g_units_move_watch(
       g_units_move_watch_user,
       pool,
       map,
       colonies,
       unit_id,
-      ox,
-      oy,
-      unit->x,
-      unit->y
+      c->ox,
+      c->oy,
+      c->unit->x,
+      c->unit->y
     );
   }
-  g_units_465b_settled = !combat_attack_entry && !foreign_colony_entry && reason != COLONIZE_ENTER_COMBAT_LAND &&
+  g_units_465b_settled = !c->combat_attack_entry && !c->foreign_colony_entry &&
+                         reason != COLONIZE_ENTER_COMBAT_LAND &&
                          reason != COLONIZE_ENTER_COMBAT_NAVAL;
-  return true;
+  return UNITS_MOVE_RETURN_TRUE;
+}
+
+bool units_try_move_w(
+  const ColonizeWorld* w,
+  int unit_id,
+  int dest_x,
+  int dest_y
+) {
+  /*
+   * DOS attack MP model (re-derived 2026-09-10, seventh-wave pass; the old
+   * "(step cost + 3) surcharge, ship-slow survives it" model was wrong):
+   *   - FUN_5fef_1b0e entry does `spent += 3` for an attack
+   *     (viceroy_unpacked.c:100341-100343) but then unconditionally calls
+   *     FUN_281f_0934 under the same attack flag (100381-100383), and 0934 →
+   *     FUN_1427_155e writes `spent = FUN_1427_065a(unit)` — the FULL max
+   *     allotment (viceroy_unpacked.c:8880-8888). The +3 is a dead store;
+   *     the real charge is a full exhaust, before the roll, win or lose,
+   *     ships included. There is no ship-slow: a Frigate that attacks is
+   *     done for the turn exactly like a Soldier.
+   *   - FUN_465b charges its per-tile step cost only on NON-attack moves:
+   *     `if (!bVar4) spent += local_40` (viceroy_unpacked.c:75639-75640),
+   *     and the shore-crossing exhaust sits inside the same `!bVar4` block —
+   *     an attacker pays neither (it is already exhausted by 1b0e).
+   * The fatigue penalty and its Combat Analysis rows read the ENTRY
+   * remaining (uVar15 is captured at 100339-100340, before the mutations),
+   * which is why the port keeps charging after the resolve: the strength
+   * calc reads live remaining, so charging first would erase the fatigue.
+   * `combat_attack_entry` carries that full-exhaust charge to the step gate;
+   * `foreign_colony_entry` is the bVar4 settlement arm (see the Revere call).
+   *
+   * col1: units_world_col1 -- the caller's world save, else the
+   * g_units_ff_col1 turn context (bugs.md #1112).
+   */
+  units_move_ctx c = {
+    .w = w,
+    .pool = w->units,
+    .map = w->map,
+    .colonies = w->colonies,
+    .rng = w->rng,
+    .col1 = units_world_col1(w),
+    .unit_id = unit_id,
+    .dest_x = dest_x,
+    .dest_y = dest_y,
+    .village_temp = -1,
+    .village_nation = -1,
+    .foe = -1,
+  };
+  UnitsMoveStatus st = units_move_validate(&c);
+  if (st == UNITS_MOVE_CONTINUE) {
+    st = units_move_probe(&c);
+  }
+  if (st == UNITS_MOVE_CONTINUE && c.reason == COLONIZE_ENTER_BOARD) {
+    st = units_move_board(&c);
+  }
+  if (st == UNITS_MOVE_CONTINUE) {
+    st = units_move_denied(&c);
+  }
+  if (st == UNITS_MOVE_CONTINUE) {
+    if (c.reason == COLONIZE_ENTER_COMBAT_LAND || c.reason == COLONIZE_ENTER_COMBAT_NAVAL) {
+      c.foe = units_best_defender_at(c.pool, c.col1, dest_x, dest_y, unit_id, unit_id);
+      if (c.foe < 0) {
+        st = units_move_combat_no_foe(&c);
+      } else {
+        st = units_move_combat_pre(&c);
+        if (st == UNITS_MOVE_CONTINUE) {
+          st = units_move_combat_resolve(&c);
+        }
+      }
+    } else {
+      st = units_move_colony_entry(&c);
+    }
+  }
+  if (st == UNITS_MOVE_CONTINUE) {
+    st = units_move_step_gate(&c);
+  }
+  if (st == UNITS_MOVE_CONTINUE) {
+    st = units_move_commit_step(&c);
+  }
+  if (st == UNITS_MOVE_CONTINUE) {
+    st = units_move_rumour(&c);
+  }
+  if (st == UNITS_MOVE_CONTINUE) {
+    st = units_move_colony_arrival(&c);
+  }
+  if (st == UNITS_MOVE_CONTINUE) {
+    st = units_move_finish(&c);
+  }
+  return st == UNITS_MOVE_RETURN_TRUE;
 }
 
 bool g_units_465b_settled = false;
@@ -1425,7 +1627,7 @@ bool units_set_goto_w(
    * sight, same as DOS).
    */
   if (map_tile_seen_by(map, dest_x, dest_y, u->nation_id) &&
-      !units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, u->type_index, dest_x, dest_y, unit_id)) {
+      !units_can_enter_w(w, u->type_index, dest_x, dest_y, unit_id)) {
     /*
      * bugs.md: a Go To aimed at an Indian village is a legal order — the
      * unit travels there and the village-enter handling fires on arrival
@@ -1616,7 +1818,9 @@ static int units_flood_edge(
  * Returns -1 = reject, else the additive penalty (0 or 8). owner < 0 (the
  * DS:0x1dd6 = -1 callers: 0906, road-connect, AI_MOVE goto) has no terms.
  */
-static int units_flood_owner_term(const ColonizeWorldMap* map, int owner, int nx, int ny) {
+static int units_flood_owner_term(
+  const ColonizeWorldMap* map, const ColonizeCol1Save* col1, int owner, int nx, int ny
+) {
   if (owner < 0) {
     return 0;
   }
@@ -1629,12 +1833,12 @@ static int units_flood_owner_term(const ColonizeWorldMap* map, int owner, int nx
    * at peace with. DOS indexes the relation table with the caller's nation
    * unguarded; for a tribe that reads outside the 4-entry Euro table, which
    * the port cannot reproduce, so the term is Euro-only. */
-  if (owner <= 3 && g_units_ff_col1 && map->improve &&
+  if (owner <= 3 && col1 && map->improve &&
       map->improve[(size_t)ny * (size_t)map->width + (size_t)nx] != 0) {
     const int peer = (int)((map_get_layer3(map, nx, ny) >> 4) & 0x0fu);
     /* DOS 88d6: euro_relation & 0x40 = PEACE (bit map re-derived 2026-08-27). */
     if (peer >= 0 && peer <= 3 && peer != owner &&
-        (g_units_ff_col1->nation[owner].euro_relation[peer] & AI_DIPLO_PEACE) != 0) {
+        (col1->nation[owner].euro_relation[peer] & AI_DIPLO_PEACE) != 0) {
       /* `3 < owner || DS:0x543f[owner] != 0` (AI) rejects; the human pays +8. */
       if (owner != g_units_combat_human_nation) {
         return -1;
@@ -1690,7 +1894,26 @@ typedef struct UnitsFloodReq {
   int cap;          /* BX: DS:0xa370 seed */
   bool uniform;     /* DS:0x1dd4 */
   int mover_id;     /* port-only units_can_enter_w filter; -1 = none */
+  const ColonizeCol1Save* col1; /* owner-term peace read (units_world_col1) */
 } UnitsFloodReq;
+
+/* units_can_enter_w for the flood / BFS / greedy statics, which hold loose
+ * const pools (units_can_enter_w reads units / colonies / map only). */
+static bool units_flood_can_enter(
+  const ColonizeUnitPool* pool,
+  const ColonizeColonyPool* colonies,
+  const ColonizeWorldMap* map,
+  int type_index,
+  int x,
+  int y,
+  int mover_id
+) {
+  const ColonizeWorld ew = world_make(
+    (ColonizeUnitPool*)pool, (ColonizeColonyPool*)colonies, (ColonizeWorldMap*)map,
+    NULL, false, NULL, NULL
+  );
+  return units_can_enter_w(&ew, type_index, x, y, mover_id);
+}
 
 /* FUN_281f_0696 (FUN_137f_0358): a Euro colony (settlement owner <= 3). */
 static bool units_flood_euro_colony_at(const ColonizeWorldMap* map, int x, int y) {
@@ -1746,7 +1969,7 @@ static bool units_flood_cand_ok(
   /* Port-only: a goto mover also has to pass the live move rules. */
   const ColonizeUnit* mover = units_get_const(pool, r->mover_id);
   if (mover &&
-      !units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, mover->type_index, nx, ny, r->mover_id)) {
+      !units_flood_can_enter(pool, colonies, map, mover->type_index, nx, ny, r->mover_id)) {
     return false;
   }
   return true;
@@ -1812,7 +2035,7 @@ static int units_flood_00f2(
         if (!units_flood_cand_ok(pool, map, colonies, r, g->key_x, g->key_y, nx, ny)) {
           continue;
         }
-        const int term = units_flood_owner_term(map, r->owner, nx, ny);
+        const int term = units_flood_owner_term(map, r->col1, r->owner, nx, ny);
         if (term < 0) {
           continue;
         }
@@ -1839,7 +2062,7 @@ static int units_flood_00f2(
       if (!units_flood_cand_ok(pool, map, colonies, r, g->key_x, g->key_y, nx, ny)) {
         continue;
       }
-      const int term = units_flood_owner_term(map, r->owner, nx, ny);
+      const int term = units_flood_owner_term(map, r->col1, r->owner, nx, ny);
       if (term < 0) {
         continue;
       }
@@ -1936,7 +2159,7 @@ int units_flood_step_dir(
     .sea = units_type(w->units, type_index) != NULL &&
            units_type(w->units, type_index)->domain == COLONIZE_UNIT_DOMAIN_SEA,
     .owner = owner, .cap = cap, .uniform = uniform,
-    .mover_id = -1
+    .mover_id = -1, .col1 = units_world_col1(w)
   };
   return units_flood_00f2(w->units, w->map, w->colonies, &r, NULL);
 }
@@ -1945,6 +2168,7 @@ int units_flood_step_dir(
  * DS:0x1dd6 as FUN_479b_0972 left it (-1 for AI_MOVE, bugs.md #1041). */
 static bool units_flood_next_step(
   const ColonizeUnitPool* pool,
+  const ColonizeCol1Save* col1,
   int unit_id,
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
@@ -1963,7 +2187,7 @@ static bool units_flood_next_step(
     .type_index = s_flood_type_index, .low_move = s_flood_low_move,
     .sea = units_unit_is_sea(pool, u),
     .owner = u->orders == UNITS_ORDER_AI_MOVE ? -1 : u->nation_id,
-    .cap = cap, .uniform = false, .mover_id = unit_id
+    .cap = cap, .uniform = false, .mover_id = unit_id, .col1 = col1
   };
   const int d = units_flood_00f2(pool, map, colonies, &r, NULL);
   if (d < 0) {
@@ -2050,7 +2274,7 @@ static bool units_bfs_next_step(
         if (visited[ni]) {
           continue;
         }
-        if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, u->type_index, nx, ny, unit_id)) {
+        if (!units_flood_can_enter(pool, colonies, map, u->type_index, nx, ny, unit_id)) {
           continue;
         }
         visited[ni] = 1;
@@ -2254,7 +2478,7 @@ static bool units_greedy_next_step(
         if (!units_greedy_owner_ok(u, map, colonies, nx, ny, goal_x, goal_y)) {
           continue;
         }
-        if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, u->type_index, nx, ny, unit_id)) {
+        if (!units_flood_can_enter(pool, colonies, map, u->type_index, nx, ny, unit_id)) {
           continue;
         }
         /* bugs.md #700: no MP pre-filter (see the head of this loop's tier). */
@@ -2331,7 +2555,7 @@ static bool units_greedy_next_step(
       if (wig_occ >= 0 && u->nation_id >= 0 && wig_occ != u->nation_id) {
         continue;
       }
-      if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, u->type_index, nx, ny, unit_id)) {
+      if (!units_flood_can_enter(pool, colonies, map, u->type_index, nx, ny, unit_id)) {
         continue;
       }
       /* bugs.md #700: the reroll (raw 104724-104731) tests 06d2 / 0768 /
@@ -2748,7 +2972,7 @@ static bool units_goto_director(
   if (near_tier) {
     if (out_flood) *out_flood = true;
     /* raw 104578-104580: BX = 0x3e7. */
-    if (units_flood_next_step(pool, unit_id, map, colonies, gx, gy, 0x3e7, out_x, out_y)) {
+    if (units_flood_next_step(pool, units_world_col1(w), unit_id, map, colonies, gx, gy, 0x3e7, out_x, out_y)) {
       return true;
     }
     near_missed = true;
@@ -2789,7 +3013,7 @@ static bool units_goto_director(
       scored_x = tx;
       scored_y = ty;
       /* raw 104595 / 104600: BX = 0x3e6. */
-      bool hit = units_flood_next_step(pool, unit_id, map, colonies, tx, ty, 0x3e6, out_x, out_y);
+      bool hit = units_flood_next_step(pool, units_world_col1(w), unit_id, map, colonies, tx, ty, 0x3e6, out_x, out_y);
       if (!hit && ucx >= 0) {
         int fx = ucx * 4 + 1;
         int fy = ucy * 4 + 1;
@@ -2799,7 +3023,7 @@ static bool units_goto_director(
         scored_x = fx;
         scored_y = fy;
         if (fx != u->x || fy != u->y) {
-          hit = units_flood_next_step(pool, unit_id, map, colonies, fx, fy, 0x3e6, out_x, out_y);
+          hit = units_flood_next_step(pool, units_world_col1(w), unit_id, map, colonies, fx, fy, 0x3e6, out_x, out_y);
         }
       }
       if (hit) {
@@ -2929,7 +3153,7 @@ bool units_advance_goto_one_step_w(
     const int missionary = units_type_is_missionary(mt);
     const int occ = units_id_at(pool, nx, ny);
     const ColonizeUnit* of = occ >= 0 ? units_get_const(pool, occ) : NULL;
-    const int village = units_tribe_nation_at(g_units_ff_col1, nx, ny);
+    const int village = units_tribe_nation_at(units_world_col1(w), nx, ny);
     const int step_is_dest = (nx == gx && ny == gy);
     /* Smell #105: an EMPTY foreign colony tile is an attack too (DOS 465b
      * sets the attack flag from the settlement owner alone, viceroy

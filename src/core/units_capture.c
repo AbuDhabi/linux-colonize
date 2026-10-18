@@ -57,6 +57,9 @@ void units_try_capture_foreign_colony_at(
   int cx,
   int cy
 ) {
+  /* No world reaches this body (ai_brave / combat-resolve callers): the
+   * injected g_units_ff_col1 turn context, mutable view (bugs.md #1112). */
+  ColonizeCol1Save* const col1 = units_world_col1(NULL);
   ColonizeUnit* u = units_get(pool, unit_id);
   if (!u || !colonies || units_is_sea(pool, unit_id)) {
     return;
@@ -110,7 +113,7 @@ void units_try_capture_foreign_colony_at(
         col->colonist_count--;
       }
       col->population--;
-      colonies_col1_rebel_divisor_adjust((ColonizeCol1Save*)g_units_ff_col1, col->x, col->y, -100);
+      colonies_col1_rebel_divisor_adjust(col1, col->x, col->y, -100);
       s_militia_colonist_pick = -1;
       /*
        * DOS FUN_5fef_1b0e colony arm (viceroy_unpacked_2.c ~91930): the
@@ -121,13 +124,13 @@ void units_try_capture_foreign_colony_at(
       {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
-        tok.string0 = units_combat_nation_label(g_units_ff_col1, u->nation_id);
-        tok.string1 = units_combat_nation_label(g_units_ff_col1, snap.nation_id);
+        tok.string0 = units_combat_nation_label(col1, u->nation_id);
+        tok.string1 = units_combat_nation_label(col1, snap.nation_id);
         tok.string2 = reports_job_short_name(UNITS_JOB_NONE);
         tok.string3 = snap.name;
         const int victim_human =
-          (g_units_ff_col1 && snap.nation_id >= 0 && snap.nation_id <= 3 &&
-           g_units_ff_col1->player[snap.nation_id].control == 0) ||
+          (col1 && snap.nation_id >= 0 && snap.nation_id <= 3 &&
+           col1->player[snap.nation_id].control == 0) ||
           (g_units_combat_human_nation >= 0 &&
            snap.nation_id == g_units_combat_human_nation);
         if (victim_human) {
@@ -156,21 +159,21 @@ void units_try_capture_foreign_colony_at(
        * (colony survived). Raw 101040 clears the raider's DS:0x54f6 row and
        * raw 101059-101064 vents `difficulty − 10` of alarm.
        */
-      units_indian_tension_clear(g_units_ff_col1, u->home_tribe_id, snap.nation_id);
+      units_indian_tension_clear(col1, u->home_tribe_id, snap.nation_id);
       if (!g_units_indian_combat_vent_done) {
         units_indian_attack_alarm_vent(
-          g_units_ff_col1,
+          col1,
           u->nation_id,
           snap.nation_id,
-          units_indian_attack_alarm_vent_amount(g_units_ff_col1, snap.nation_id, 10, 0)
+          units_indian_attack_alarm_vent_amount(col1, snap.nation_id, 10, 0)
         );
       }
       return;
     }
     /* Raw 100700-100706: the burning tribe takes one horse herd if the
      * colony held horses (+0xaa) and one musket lot if it held muskets (+0xb8). */
-    if (g_units_ff_col1 && u->nation_id >= 4 && u->nation_id <= 11) {
-      ColonizeCol1Indian* ind = &((ColonizeCol1Save*)g_units_ff_col1)->indian[u->nation_id - 4];
+    if (col1 && u->nation_id >= 4 && u->nation_id <= 11) {
+      ColonizeCol1Indian* ind = &col1->indian[u->nation_id - 4];
       if (col->stock[COLONIZE_CARGO_HORSES] != 0) {
         ind->horse_herds++;
       }
@@ -185,24 +188,24 @@ void units_try_capture_foreign_colony_at(
      * a human bystander instead gets @INDIANBURNCOLONY2 ("Spies report…").
      */
     {
-      const char* burner = units_combat_nation_label(g_units_ff_col1, u->nation_id);
+      const char* burner = units_combat_nation_label(col1, u->nation_id);
       const int victim_human =
-        (g_units_ff_col1 && snap.nation_id >= 0 && snap.nation_id <= 3 &&
-         g_units_ff_col1->player[snap.nation_id].control == 0) ||
+        (col1 && snap.nation_id >= 0 && snap.nation_id <= 3 &&
+         col1->player[snap.nation_id].control == 0) ||
         (g_units_combat_human_nation >= 0 && snap.nation_id == g_units_combat_human_nation);
-      if (victim_human && g_units_ff_col1) {
-        (void)woodcut_fire((ColonizeCol1Save*)g_units_ff_col1, WOODCUT_COLONY_BURNING);
+      if (victim_human && col1) {
+        (void)woodcut_fire(col1, WOODCUT_COLONY_BURNING);
       }
-      units_combat_notify_colony_burned(g_units_ff_col1, snap.name, snap.nation_id, burner);
+      units_combat_notify_colony_burned(col1, snap.name, snap.nation_id, burner);
       units_combat_notify_colony_burned_foreign(
-        g_units_ff_col1, snap.name, snap.nation_id, burner
+        col1, snap.name, snap.nation_id, burner
       );
     }
     /* Same limb with `local_c != 0` (the colony is gone): raw 101086 sets
      * `local_a6 = 0xffce` — a flat −50, with no difficulty term. */
-    units_indian_tension_clear(g_units_ff_col1, u->home_tribe_id, snap.nation_id);
+    units_indian_tension_clear(col1, u->home_tribe_id, snap.nation_id);
     if (!g_units_indian_combat_vent_done) {
-      units_indian_attack_alarm_vent(g_units_ff_col1, u->nation_id, snap.nation_id, -50);
+      units_indian_attack_alarm_vent(col1, u->nation_id, snap.nation_id, -50);
     }
     return;
   }
@@ -216,10 +219,10 @@ void units_try_capture_foreign_colony_at(
   (void)old_nat;
   /* DOS @CAPTURED %NUMBER0 is the treasury share (FUN_5fef_1b0e tail), not
    * a warehouse sum — the sum stays only as the no-save fallback. */
-  if (g_units_ff_col1) {
+  if (col1) {
     plunder = share;
   }
-  units_combat_notify_colony_captured(g_units_ff_col1, &snap, u->nation_id, plunder);
+  units_combat_notify_colony_captured(col1, &snap, u->nation_id, plunder);
   /* Raw 100937-100948: the prize claims the ring around it for its new owner. */
   units_capture_claim_ring(units_occupancy_map, cx, cy, u->nation_id);
   /*
@@ -230,8 +233,8 @@ void units_try_capture_foreign_colony_at(
    * order — the units simply belong to the prize and the 0a60 garrison
    * quotas keep them there.
    */
-  if (g_units_ff_col1 && g_units_ff_col1->head.game_options.woi &&
-      u->nation_id == (int)g_units_ff_col1->head.crown_nation_id && cid >= 0 &&
+  if (col1 && col1->head.game_options.woi &&
+      u->nation_id == (int)col1->head.crown_nation_id && cid >= 0 &&
       cid <= 0x7f) {
     for (int i = 0; i < units_slot_end(pool); ++i) {
       ColonizeUnit* n = &pool->units[i];
@@ -250,11 +253,10 @@ void units_try_capture_foreign_colony_at(
    * recaptures after declaring — gate is `0x5382 & 1` (woi) only, not
    * ref_present (bugs.md #662) — latch DS:0x5386 bit0 (tut2.howtowin).
    * bugs.md #236: it does NOT fire at the declaration. */
-  if (g_units_ff_col1 && g_units_ff_col1->head.game_options.woi &&
+  if (col1 && col1->head.game_options.woi &&
       u->nation_id == g_units_combat_human_nation &&
-      !g_units_ff_col1->head.tut2.howtowin) {
-    ColonizeCol1Save* mut = (ColonizeCol1Save*)g_units_ff_col1;
-    mut->head.tut2.howtowin = 1;
+      !col1->head.tut2.howtowin) {
+    col1->head.tut2.howtowin = 1;
     units_combat_enqueue_tok(
       AI_POPUP_TAG_INFO, "HOWTOWIN", u->nation_id, -1, 0, NULL,
       "");
@@ -275,7 +277,7 @@ void units_try_capture_foreign_colony_at(
    * calls are inert there.
    */
   if (g_units_combat_popups && u->nation_id >= 0 && u->nation_id <= 3 && cid >= 0 &&
-      ((g_units_ff_col1 && g_units_ff_col1->player[u->nation_id].control == 0) ||
+      ((col1 && col1->player[u->nation_id].control == 0) ||
        (g_units_combat_human_nation >= 0 && u->nation_id == g_units_combat_human_nation))) {
     units_combat_pump_popups();
     ai_popup_colony_zoom_elect(g_units_combat_popups, cid);
@@ -553,7 +555,7 @@ ColonizeEnterReason units_enter_probe_w(
       /* 465b raw 75528-75529: a Privateer on either side of the entry skips
        * the relation band entirely — it is fair game at peace and it preys at
        * peace, no war needed (units_privateer_attack). */
-      if (mover && !units_at_war_for_move(mover_nation, foe_nation) &&
+      if (mover && !units_at_war_for_move(units_world_col1(w), mover_nation, foe_nation) &&
           !units_privateer_attack(pool, mover->id, foe)) {
         g_units_last_enter_reason = COLONIZE_ENTER_BOUNCE_PEACE;
       } else if (mover && !units_is_combat_role(pool, mover)) {
@@ -598,8 +600,8 @@ ColonizeEnterReason units_enter_probe_w(
      * for a Treasure/Artillery/Wagon on the candidate tile, already ported at
      * ai.c:3520. */
     const bool grudge = mover_nation >= 4 && foe_nation >= 0 && foe_nation <= 3 &&
-      units_native_village_grudge(mover, foe_nation);
-    if (!grudge && !units_at_war_for_move(mover_nation, foe_nation)) {
+      units_native_village_grudge(units_world_col1(w), mover, foe_nation);
+    if (!grudge && !units_at_war_for_move(units_world_col1(w), mover_nation, foe_nation)) {
       g_units_last_enter_reason = COLONIZE_ENTER_BOUNCE_PEACE;
       return g_units_last_enter_reason;
     }
@@ -739,12 +741,8 @@ bool units_can_enter_w(
   int y,
   int mover_id
 ) {
-  const ColonizeUnitPool* pool = w->units;
-  const ColonizeWorldMap* map = w->map;
-  const ColonizeColonyPool* colonies = w->colonies;
-
   const ColonizeEnterReason r =
-    units_enter_probe_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, type_index, x, y, mover_id);
+    units_enter_probe_w(w, type_index, x, y, mover_id);
   return r == COLONIZE_ENTER_OK || r == COLONIZE_ENTER_DOCK;
 }
 
@@ -1040,7 +1038,9 @@ bool units_revere_defend_colony_tile(
   int dest_y,
   ColonizeDosRng* rng
 ) {
-  if (!pool || !colonies || !g_units_ff_col1) {
+  /* No world reaches this body: the injected turn context (bugs.md #1112). */
+  ColonizeCol1Save* const col1 = units_world_col1(NULL);
+  if (!pool || !colonies || !col1) {
     return true;
   }
   ColonizeUnit* atk = units_get(pool, attacker_id);
@@ -1058,7 +1058,7 @@ bool units_revere_defend_colony_tile(
   const bool has_soldier =
     units_colony_has_soldier_on_tile(pool, dest_x, dest_y, col->nation_id);
   const bool revere_armed = founding_fathers_revere_should_auto_arm(
-    g_units_ff_col1, col->nation_id, has_soldier, col->stock[COLONIZE_CARGO_MUSKETS]
+    col1, col->nation_id, has_soldier, col->stock[COLONIZE_CARGO_MUSKETS]
   );
   /* raw 100419: local_b0 = FUN_281f_04d4(0, colony +0x1f - 1), the colonist
    * the militia stands in for and a native win with pop > 1 kills. */
@@ -1097,7 +1097,10 @@ bool units_revere_defend_colony_tile(
   }
   g_units_colony_autodefender = true;
   combat_set_auto_defender(true);
-  const bool won = units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .col1=(ColonizeCol1Save*)(g_units_ff_col1), .col1_ok=((g_units_ff_col1) != NULL), .rng=(ColonizeDosRng*)(rng)}, attacker_id, def_id);
+  /* map / colonies NULL as before (the combat body falls back to
+   * g_units_fallout_map for terrain). */
+  const ColonizeWorld rw = world_make(pool, NULL, NULL, col1, true, rng, NULL);
+  const bool won = units_resolve_land_combat_ff_w(&rw, attacker_id, def_id);
   s_militia_colonist_pick = -1;
   combat_set_auto_defender(false);
   g_units_colony_autodefender = false;

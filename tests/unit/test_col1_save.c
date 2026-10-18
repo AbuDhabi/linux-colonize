@@ -6,6 +6,7 @@
 
 #include "core/ai_euro.h"
 #include "core/col1_bridge.h"
+#include "core/col1_bridge_internal.h"
 #include "core/col1_post_map.h"
 #include "core/col1_save.h"
 #include "core/assets.h"
@@ -1283,6 +1284,76 @@ static bool test_europe_lane_ship_chain(char* err, size_t err_size) {
   return ok;
 }
 
+/* bugs.md #1107 seam: col1_bridge_apply_w / capture_w stages called directly
+ * through col1_bridge_internal.h — abort status, ctx-owned maps, write-back. */
+static bool test_bridge_stage_seams(char* err, size_t err_size) {
+  ColonizeCol1Save save;
+  col1_save_init(&save);
+  save.head.map_size_x = 8;
+  save.head.map_size_y = 8;
+  save.head.unit_count = 1;
+  save.head.year = 1555;
+  col1_save_stamp_head(&save.head);
+  if (!col1_save_alloc_sections(&save, err, err_size)) {
+    return false;
+  }
+  memset(save.map.tile, T_OCEAN, save.map.tile_count);
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  bool ok = true;
+
+  /* Apply: head aborts on bad args, then head / units_reset / active_unit. */
+  char stage_err[64] = "";
+  Col1ApplyCtx bad_apply = {.err = stage_err, .err_size = sizeof(stage_err)};
+  if (col1_bridge_apply_head(&bad_apply) != COL1_STAGE_ABORT || stage_err[0] == '\0') {
+    snprintf(err, err_size, "apply_head did not abort on bad args");
+    ok = false;
+  }
+  Col1ApplyCtx a = {.save = &save, .map = &map, .units = &units, .colonies = &colonies,
+                    .err = err, .err_size = err_size};
+  if (ok && (col1_bridge_apply_head(&a) != COL1_STAGE_OK || a.local.year != 1555 ||
+             map.width != 8)) {
+    snprintf(err, err_size, "apply_head year %u map %d", a.local.year, map.width);
+    ok = false;
+  }
+  if (ok && (col1_bridge_apply_units_reset(&a) != COL1_STAGE_OK || !a.id_by_index ||
+             a.id_by_index[0] != -1 || !a.consumed)) {
+    snprintf(err, err_size, "apply_units_reset left no ctx index maps");
+    ok = false;
+  }
+  if (ok) {
+    col1_bridge_apply_active_unit(&a);
+    if (a.id_by_index || a.consumed) {
+      snprintf(err, err_size, "apply_active_unit kept freed maps in ctx");
+      ok = false;
+    }
+  }
+
+  /* Capture: head aborts on bad args, and writes the clamped nation back. */
+  Col1CaptureCtx bad_cap = {.err = stage_err, .err_size = sizeof(stage_err)};
+  if (ok && col1_bridge_capture_head(&bad_cap) != COL1_STAGE_ABORT) {
+    snprintf(err, err_size, "capture_head did not abort on bad args");
+    ok = false;
+  }
+  Col1CaptureCtx c = {.save = &save, .map = &map, .units = &units, .colonies = &colonies,
+                      .err = err, .err_size = err_size, .year = 1556, .human_nation = 9};
+  if (ok && (col1_bridge_capture_head(&c) != COL1_STAGE_OK || c.human_nation != 0 ||
+             save.head.human_player != 0 || save.head.year != 1556)) {
+    snprintf(err, err_size, "capture_head nation %d human_player %u year %u", c.human_nation,
+             save.head.human_player, save.head.year);
+    ok = false;
+  }
+  units_set_occupancy_map(NULL);
+  col1_save_free(&save);
+  map_free(&map);
+  return ok;
+}
+
 static bool test_imported_tile_chain_order(char* err, size_t err_size) {
   ColonizeCol1Save save;
   col1_save_init(&save);
@@ -1469,6 +1540,11 @@ int main(void) {
     fprintf(stderr, "passenger chain order: %s\n", err);
     return 1;
   }
+  if (!test_bridge_stage_seams(err, sizeof(err))) {
+    fprintf(stderr, "bridge stage seams: %s\n", err);
+    return 1;
+  }
+  fprintf(stderr, "Col1 bridge apply/capture stage seams ok\n");
   if (!test_imported_tile_chain_order(err, sizeof(err))) {
     fprintf(stderr, "tile-chain order: %s\n", err);
     return 1;

@@ -61,6 +61,72 @@ void turn_emit_built_chrome(
   const ColonizeColony* colony,
   const char* built_name
 );
+/* Phase A field composition (FUN_15eb_18ec) shared by the EOT tick and
+ * colony_preview.c (bugs.md #1111). gross[] = field workers + town-commons
+ * secondary; town-commons food is kept apart in commons_food. */
+typedef struct TurnColonyFieldYield {
+  int commons_food;
+  int gross[COLONIZE_CARGO_COUNT];
+  int fish;            /* Fisherman share of gross[FOOD] */
+  int depletion_units; /* DS:0xa896 deposit tally (Col1 +0x97) */
+} TurnColonyFieldYield;
+void turn_compose_colony_fields(
+  const ColonizeColonyPool* pool,
+  const ColonizeWorldMap* map,
+  const ColonizeCol1Save* col1,
+  const ColonizeColony* colony,
+  TurnColonyFieldYield* out
+);
+/* turn_produce_one_colony (FUN_364b_0688) stage ctx, bugs.md #1107. Inputs
+ * are fixed for the tick except `colony`, which the Phase B application
+ * switch (turn_produce_custom_house) rebinds to the 1528 record. Every other
+ * field is a DOS local that crosses stages; its writer stage stores it here
+ * before returning, readers take a const copy. */
+typedef enum TurnProduceStatus {
+  TURN_PRODUCE_CONTINUE = 0,
+  TURN_PRODUCE_RETURN /* colony empty or abandoned: stop the tick */
+} TurnProduceStatus;
+typedef struct TurnProduceCtx {
+  ColonizeColonyPool* pool;
+  ColonizeColony* colony;
+  const ColonizeWorldMap* map;
+  ColonizeCol1Save* col1;
+  EuropeScreen* europe;
+  int human_nation;
+  ColonizeTurnResult* out;
+  ColonizeColonyProdDelta* delta;
+  AiPopupState* ai_popups;
+  const ColonizeMsgCatalog* messages;
+  ColonizeDosRng* rng;
+  ColonizeColonyProdDelta local_delta; /* delta when the caller passes NULL */
+  /* begin */
+  uint16_t mask_before_a;
+  char status_at_entry[sizeof(((EuropeScreen*)0)->status)];
+  int stock_before[COLONIZE_CARGO_COUNT]; /* aiStack_ae / local_6c */
+  int pop;
+  /* compose (Phase A) */
+  int depl_n;
+  int field_food;
+  int sol_b_phase_a;
+  bool colony_ai_controlled;
+  int craft_unmet_cap[COLONIZE_CARGO_COUNT];
+  int craft_unmet_gross[COLONIZE_CARGO_COUNT];
+  int craft_gross[COLONIZE_CARGO_COUNT];
+  int craft_net[COLONIZE_CARGO_COUNT];
+  int hammers_phase_a;
+  /* food / sol / lumber / custom_house (Phase B, C/D) */
+  int ai_food_subsidy;
+  int consumed;
+  ColonizeColony* app;
+  int colony_nation_id;
+  int food_stock_before;
+  int lumber_before_hammers;
+  int hammers_paid;
+  int ch_sold[COLONIZE_CARGO_COUNT];
+  /* birth (Phase I) */
+  int birth_food_debit;
+  int was_starving;
+} TurnProduceCtx;
 void turn_produce_one_colony(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
@@ -111,6 +177,24 @@ void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
+/* turn_produce_one_colony stages, DOS order (turn_production.c). */
+TurnProduceStatus turn_produce_begin(TurnProduceCtx* pc);
+void turn_produce_compose(TurnProduceCtx* pc);
+void turn_produce_food(TurnProduceCtx* pc);
+void turn_produce_sol(TurnProduceCtx* pc);
+void turn_produce_horses(TurnProduceCtx* pc);
+void turn_produce_lumber(TurnProduceCtx* pc);
+void turn_produce_custom_house(TurnProduceCtx* pc);
+void turn_produce_education(TurnProduceCtx* pc);
+void turn_produce_discover(TurnProduceCtx* pc);
+void turn_produce_birth(TurnProduceCtx* pc);
+TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc);
+void turn_produce_hammers(TurnProduceCtx* pc);
+void turn_produce_crumbs(TurnProduceCtx* pc);
+void turn_produce_produced_mask(TurnProduceCtx* pc);
+void turn_produce_spoilage(TurnProduceCtx* pc);
+void turn_produce_cargo_ready(TurnProduceCtx* pc);
+void turn_produce_depletion(TurnProduceCtx* pc);
 #endif /* COLONIZE_TESTING */
 
 #endif /* COLONIZE_CORE_TURN_INTERNAL_H */

@@ -1,5 +1,6 @@
 #include "core/ai_popup.h"
 #include "core/assets.h"
+#include "core/cheat_list_dialog.h"
 #include "core/game_loop_internal.h"
 #include "core/howmuch_dialog.h"
 #include "core/name_entry_dialog.h"
@@ -324,6 +325,37 @@ static int case_debug_test_ignores_directives(void) {
   return 0;
 }
 
+/* bugs.md #1111: @SETVIEW and @SETHUMAN share one parser — both honour
+ * @width= and give overflow rows the table's last id (-2 normal view /
+ * -1 no human). */
+static int case_cheat_list_shared_parser(void) {
+  static char view_lines[][COLONIZE_MSG_LINE_LEN] = {
+    "@width=240", "P", "A", "B", "C", "D", "E", "F", "G"
+  };
+  static char human_lines[][COLONIZE_MSG_LINE_LEN] = {
+    "@width=250", "P", "A", "B", "C", "D", "E", "F"
+  };
+  ColonizeMsgSection sections[2];
+  memset(sections, 0, sizeof(sections));
+  snprintf(sections[0].name, sizeof(sections[0].name), "SETVIEW");
+  sections[0].lines = view_lines;
+  sections[0].line_count = 9;
+  snprintf(sections[1].name, sizeof(sections[1].name), "SETHUMAN");
+  sections[1].lines = human_lines;
+  sections[1].line_count = 8;
+  const ColonizeMsgCatalog cat = {.sections = sections, .section_count = 2};
+  CheatListDialog dlg;
+  if (!cheat_list_open_setview(&dlg, &cat) || dlg.width != 240 || dlg.option_count != 7 ||
+      dlg.option_ids[4] != -1 || dlg.option_ids[5] != -2 || dlg.option_ids[6] != -2) {
+    return fail("SETVIEW width / overflow id");
+  }
+  if (!cheat_list_open_set_human(&dlg, &cat) || dlg.width != 250 || dlg.option_count != 6 ||
+      dlg.option_ids[4] != -1 || dlg.option_ids[5] != -1) {
+    return fail("SETHUMAN width / overflow id");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"token_apply", case_token_apply},
     {"howmuch", case_howmuch},
@@ -333,6 +365,7 @@ static const TestCase k_cases[] = {
     {"recruitchoose_width", case_recruitchoose_width},
     {"game_confirmation_catalog_choices", case_game_confirmation_catalog_choices},
     {"debug_test_ignores_directives", case_debug_test_ignores_directives},
+    {"cheat_list_shared_parser", case_cheat_list_shared_parser},
 };
 
 TEST_MAIN(k_cases)

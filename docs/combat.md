@@ -37,7 +37,7 @@ site / FF / difficulty live in [save_format_map.md](save_format_map.md).
 |------|----------|--------------|
 | Human / shared move | `units_enter_probe` → `units_try_move` | Foreign stack → `COMBAT_LAND` / `COMBAT_NAVAL` → best defender → `units_resolve_*_ff` → enter on win → colony capture |
 | Land resolve | `units_resolve_land_combat` / `_ff` | `combat_land_engage` → roll → analysis → outcome |
-| Naval resolve | `units_resolve_naval_combat` / `_ff` | `combat_naval_engage` → roll → analysis → naval outcome |
+| Naval resolve | `units_resolve_naval_combat_ff_w` | `combat_naval_engage` → roll → analysis → naval outcome |
 | Best defender | `units_best_defender_at` (`FUN_5fef_0000`) | Highest `combat_engagement_strength`; skip `attack==0`. Artillery pick-score (2026-09-03, OVL17 asm 0x80–0x11c — the Ghidra `.c` export mangles this block): on a Euro colony tile ×2 vs Indian attacker; off-colony, unless the arty itself is Fortify/Fortified, score `>>= 3` (so arty in the open no longer outranks dragoons). Unarmed fallback tier only on NON-colony tiles; on a colony tile with no armed defender the attack routes to militia/Revere, then entry seizure (`units_seize_noncombat_at`) |
 | Euro AI attack | `ai_euro_try_attack` | Declare war if needed → land/naval resolve; optional `colonies_capture` |
 | King / REF | `ai_king.c` | Land / naval resolve on invasion paths |

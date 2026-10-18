@@ -46,12 +46,7 @@ typedef struct AiEuro28c8JobCandidate {
   int yield; /* winning tile's raw field yield (DOS DS:0x8dbe) */
 } AiEuro28c8JobCandidate;
 
-int ai_euro_28c8_colonist_job_score_structural(
-  const ColonizeTurnContext* ctx,
-  int colony_id,
-  int colonist_slot,
-  AiEuro28c8JobCandidate* out_best
-);
+/* ai_euro_28c8_colonist_job_score_structural: test-only, ai_euro_internal.h. */
 
 /*
  * FUN_15eb_2ea0 (raw 13162-13196) — the plot pass of DOS's colony recompute
@@ -113,7 +108,7 @@ int ai_euro_colony_needs_colonists_5952(
 
 /*
  * The 5d04 hire chain's DOS @UNIT view of an OpenCol unit type (NAMES.TXT
- * @UNIT file order; 0xff = unknown; test-only ai_euro_5d04_dos_type_code in
+ * @UNIT file order; -1 = unknown (ai_euro_20e6_dos_type); test-only ai_euro_5d04_dos_type_code in
  * ai_euro_internal.h), and the DS:0x5238 hull-space column for
  * a DOS @UNIT code. Exposed for tests — both are name-based, because the
  * chain runs on fixture pools whose indices are not DOS indices.

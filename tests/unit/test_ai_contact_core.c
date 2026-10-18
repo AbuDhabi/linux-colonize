@@ -240,7 +240,7 @@ static int sp_00(void) {
   ai_diplo_talk_reset();
   ai_native_reset();
   turn_reset();
-  units_set_native_fallout_context(NULL, NULL, -1);
+  units_set_native_fallout_context(NULL, NULL);
   units_set_occupancy_map(NULL);
   colonies_set_occupancy_map(NULL);
   brave = NULL;
@@ -625,6 +625,36 @@ static int sp_06(void) {
     ctx.status = NULL;
     ctx.status_size = 0;
   }
+  /* The world form takes "is human" from w->human_nation like the ctx form:
+   * a human whose control byte reads AI still gets the @INDIANBURN notice. */
+  {
+    AiPopupState wpop;
+    ai_popup_init(&wpop);
+    ColonizeDosRng wrng;
+    dos_rng_seed(&wrng, 0x4cc6u);
+    ColonizeWorld ww = world_make(NULL, NULL, NULL, &col1, true, &wrng, NULL);
+    ww.ai_popups = &wpop;
+    ww.messages = ctx.messages;
+    ww.human_nation = 0;
+    const uint8_t ctl = col1.player[0].control;
+    const uint8_t mission = col1.tribe[0].mission;
+    col1.player[0].control = 1; /* the save says AI */
+    ind->euro_diplo[0] |= COL1_INDIAN_PEACE_BIT;
+    int fired = 0;
+    for (int tries = 0; tries < 64 && !fired; ++tries) {
+      col1.tribe[0].mission = 0;
+      ind->alarm_by_player[0] = 99;
+      ai_contact_alarm_delta_00f2_w(&ww, 4, 0, 5);
+      fired = col1.tribe[0].mission == 0xff;
+    }
+    col1.player[0].control = ctl;
+    col1.tribe[0].mission = mission;
+    ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~COL1_INDIAN_PEACE_BIT);
+    ind->alarm_by_player[0] = 55;
+    if (!fired || wpop.queue_count == 0) {
+      return fail("00f2_w: world human_nation must drive the @INDIANBURN notice");
+    }
+  }
   return 0;
 }
 
@@ -714,9 +744,9 @@ static int sp_07(void) {
     const uint8_t herds_before = ind->horse_herds;
     /* The tribe tally writes through the native-fallout context (turn.c:123
      * sets it in play). */
-    units_set_native_fallout_context(&col1, ctx.map, -1);
+    units_set_native_fallout_context(&col1, ctx.map);
     (void)units_resolve_land_combat(&units, brave_id, sol2, &amb_rng);
-    units_set_native_fallout_context(NULL, NULL, -1);
+    units_set_native_fallout_context(NULL, NULL);
     if (units_type_kind(units_type(&units, brave->type_index)) !=
         UNITS_KIND_MTD_BRAVE) {
       return fail("ambush WIN2 should step the Brave to Mtd. Braves");

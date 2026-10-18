@@ -644,7 +644,7 @@ static void pedia_list_exit_rect(
 ) {
   /* LABELS.TXT @MISC row 110 — the same live text the row draws, so the
    * hit-rect and the caption can never disagree. */
-  const int tw = font_text_width_skip(font, pedia_label(g_pedia_labels_txt, 110, PEDIA_LIST_EXIT), FONT_SKIP_NONE);
+  const int tw = font_text_width_skip(font, pedia_label(g_pedia_labels_txt, 110, ""), FONT_SKIP_NONE);
   const int line_h = pedia_list_line_h(font);
   if (out_w) {
     *out_w = tw + 4;
@@ -715,13 +715,13 @@ void pedia_list_render(
   /* LABELS.TXT @MISC row 108 (header) / 110 ("(Exit)") — row 108 was already
    * live on the article page (pedia_article_render). */
   font_draw_text(
-    font, framebuffer, 8, 4, pedia_label(g_pedia_labels_txt, 108, PEDIA_LIST_HEADER), PEDIA_COL_HEADER
+    font, framebuffer, 8, 4, pedia_label(g_pedia_labels_txt, 108, ""), PEDIA_COL_HEADER
   );
 
   int ex, ey, ew, eh;
   pedia_list_exit_rect(font, framebuffer->width, &ex, &ey, &ew, &eh);
   font_draw_text(
-    font, framebuffer, ex, ey, pedia_label(g_pedia_labels_txt, 110, PEDIA_LIST_EXIT), PEDIA_COL_LINK
+    font, framebuffer, ex, ey, pedia_label(g_pedia_labels_txt, 110, ""), PEDIA_COL_LINK
   );
 
   const int count = pedia_list_slot_count(category);
@@ -1839,7 +1839,7 @@ void pedia_article_render(
   /* Centered header + "(Name: Category)" title, both hilite (DOS 6cb2). */
   pedia_draw_centered(
     a->font, fb, 5,
-    pedia_label(a->labels, 108, PEDIA_LIST_HEADER),
+    pedia_label(a->labels, 108, ""),
     PEDIA_COL_LINK_HOVER
   );
 

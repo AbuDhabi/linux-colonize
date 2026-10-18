@@ -706,7 +706,7 @@ bool units_unload_passenger_w(
       !units_adjacent(ship->x, ship->y, dest_x, dest_y)) {
     return false;
   }
-  if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, pax->type_index, dest_x, dest_y, pax_id)) {
+  if (!units_can_enter_w(w, pax->type_index, dest_x, dest_y, pax_id)) {
     return false;
   }
   /*
@@ -794,14 +794,12 @@ bool units_unload_w(
   int dest_y
 ) {
   ColonizeUnitPool* pool = w->units;
-  const ColonizeWorldMap* map = w->map;
-  const ColonizeColonyPool* colonies = w->colonies;
 
   ColonizeUnit* ship = units_get(pool, ship_id);
   if (!ship || ship->cargo_count <= 0) {
     return false;
   }
-  return units_unload_passenger_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, ship_id, ship->cargo_ids[0], dest_x, dest_y);
+  return units_unload_passenger_w(w, ship_id, ship->cargo_ids[0], dest_x, dest_y);
 }
 
 /*
@@ -1313,35 +1311,15 @@ static const int16_t k_units_job_icon[UNITS_JOB_NONE + 1] = {
  * One copy for unit_stack.c's row label and map_panel.c's sidebar line, which
  * had the same body twice (the unit_stack one only to dodge a link edge).
  */
-/* `col`-th comma-separated field of the @JOB row for `profession`, or NULL. */
+/* `col`-th comma-separated field of the @JOB row for `profession`, or NULL
+ * (assets_msg_row_field does the split and trim; bugs.md #1109). */
 static const char* units_job_field(
   const ColonizeMsgCatalog* names, int profession, int col
 ) {
-  const ColonizeMsgSection* sec = names ? assets_msg_find(names, "JOB") : NULL;
-  if (!sec || profession < 0 || profession >= sec->line_count) {
+  static char buf[40];
+  if (!assets_msg_row_field(names, "JOB", profession, col, buf, sizeof(buf))) {
     return NULL;
   }
-  const char* p = sec->lines[profession];
-  for (int c = 0; c < col; ++c) {
-    p = strchr(p, ',');
-    if (!p) {
-      return NULL;
-    }
-    ++p;
-  }
-  while (*p == ' ' || *p == '\t') {
-    ++p;
-  }
-  static char buf[40];
-  size_t n = 0;
-  while (p[n] && p[n] != ',' && n + 1 < sizeof(buf)) {
-    buf[n] = p[n];
-    ++n;
-  }
-  while (n > 0 && (buf[n - 1] == ' ' || buf[n - 1] == '\t')) {
-    --n;
-  }
-  buf[n] = '\0';
   return buf[0] ? buf : NULL;
 }
 
@@ -2080,7 +2058,8 @@ bool units_deploy_colonist(
   if (colonist_type < 0) {
     return false;
   }
-  if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(map)}, colonist_type, x, y, -1)) {
+  const ColonizeWorld ew = world_make(pool, NULL, (ColonizeWorldMap*)map, NULL, false, NULL, NULL);
+  if (!units_can_enter_w(&ew, colonist_type, x, y, -1)) {
     return false;
   }
   const int id = units_spawn(pool, colonist_type, x, y);

@@ -44,7 +44,7 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/fb.h"
-#include "core/ff.h"
+#include "core/font_file.h"
 #include "core/font.h"
 #include "core/founding_fathers.h"
 #include "core/howmuch_dialog.h"
@@ -241,7 +241,8 @@ bool game_commit_sea_lane_step(ColonizeGameState* game, int sid, int dest_x, int
   u->orders = UNITS_ORDER_GOTO;
   u->goto_x = dest_x;
   u->goto_y = dest_y;
-  const bool ok = units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .rng=(ColonizeDosRng*)(&game->move_rng), .rng_reseed=game->ai_rng_seed, .rng_reseed_set=true}, sid, dest_x, dest_y);
+  const ColonizeWorld w = game_world(game);
+  const bool ok = units_try_move_w(&w, sid, dest_x, dest_y);
   u = units_get(&game->units, sid);
   if (u) {
     u->orders = prev_orders;
@@ -269,8 +270,7 @@ bool game_commit_sea_lane_step(ColonizeGameState* game, int sid, int dest_x, int
 
 /* Awake passenger aboard a ship stepping onto adjacent land. */
 COLONIZE_INTERNAL GameMoveStep game_move_passenger_unload(
-  ColonizeGameState* game, ColonizeUnit* selected, int sid, const ColonizeColonyPool* colonies,
-  int dest_x, int dest_y
+  ColonizeGameState* game, ColonizeUnit* selected, int sid, int dest_x, int dest_y
 ) {
   /* Awake passenger: walk onto adjacent land → unload. */
   if (selected->aboard_ship_id >= 0) {
@@ -279,7 +279,8 @@ COLONIZE_INTERNAL GameMoveStep game_move_passenger_unload(
       return GAME_MOVE_RETURN_FALSE;
     }
     const int ship_id = selected->aboard_ship_id;
-    if (!units_unload_passenger_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, ship_id, sid, dest_x, dest_y)) {
+    const ColonizeWorld w = game_world(game);
+    if (!units_unload_passenger_w(&w, ship_id, sid, dest_x, dest_y)) {
       /*
        * bugs.md #721: DOS FUN_4720_015c reason 9 (viceroy_unpacked_2.c raw
        * 74720-74728) is a BLOCKING dialog, not a status line — the
@@ -302,8 +303,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_passenger_unload(
 
 /* Ship moves: water steps, colony docking, Europe lanes and naval combat. */
 COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
-  ColonizeGameState* game, ColonizeUnit* selected, int sid, const ColonizeColonyPool* colonies,
-  int dest_x, int dest_y
+  ColonizeGameState* game, ColonizeUnit* selected, int sid, int dest_x, int dest_y
 ) {
   if (units_is_sea(&game->units, sid)) {
     const bool dest_water = map_tile_is_water(&game->world_map, dest_x, dest_y);
@@ -317,9 +317,10 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
      * re-probes and the off-map destination refuses it, which is exactly
      * that abort — so the shared handler below needs no reason split.
      */
+    const ColonizeWorld w = game_world(game);
     const bool edge_sail =
       !dest_water && !dest_land &&
-      units_enter_probe_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, selected->type_index, dest_x, dest_y, sid) == COLONIZE_ENTER_EDGE_SAIL;
+      units_enter_probe_w(&w, selected->type_index, dest_x, dest_y, sid) == COLONIZE_ENTER_EDGE_SAIL;
     /*
      * DOS 4720 reason 5 (FUN_4720_049e case 4, asm 0x3FEA6): an eastward
      * step deeper into the sea lane without a sail order is NOT a hard deny
@@ -330,7 +331,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
      */
     if (edge_sail ||
         (dest_water &&
-        units_enter_probe_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, selected->type_index, dest_x, dest_y, sid) == COLONIZE_ENTER_BLOCKED_HS_SAIL)) {
+        units_enter_probe_w(&w, selected->type_index, dest_x, dest_y, sid) == COLONIZE_ENTER_BLOCKED_HS_SAIL)) {
       /* bugs.md #870 / FUN_479b raw 76477-76484: a crown Man-O-War on the
        * crown's own turn is exempt from the WoI gate and sails as usual. */
       if (game->col1_ok && game->col1.head.game_options.woi &&
@@ -381,7 +382,8 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
       /* units_try_move puts passengers ashore on docking (bugs.md), so count
        * them before the move to report what came off. */
       const int n = selected->cargo_count;
-      if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map), .rng=(ColonizeDosRng*)(&game->move_rng), .rng_reseed=game->ai_rng_seed, .rng_reseed_set=true}, sid, dest_x, dest_y)) {
+      const ColonizeWorld w = game_world(game);
+      if (!units_try_move_w(&w, sid, dest_x, dest_y)) {
         set_status(game, units_enter_reason_status(units_last_enter_reason()), NULL);
         return GAME_MOVE_RETURN_FALSE;
       }
@@ -395,7 +397,8 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
       return GAME_MOVE_RETURN_TRUE;
     }
     if (dest_land && !dest_water) {
-      const ColonizeEnterReason landfall = units_enter_probe_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, selected->type_index, dest_x, dest_y, sid);
+      const ColonizeWorld w = game_world(game);
+      const ColonizeEnterReason landfall = units_enter_probe_w(&w, selected->type_index, dest_x, dest_y, sid);
       /* Native village: FUN_4d56_4528 ship abort — never @LANDFALL. */
       if (landfall == COLONIZE_ENTER_VILLAGE_SHIP) {
         if (game->col1_ok) {
@@ -461,7 +464,8 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
               ids,
               2
             )) {
-          if (!units_unload_passenger_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, sid, pax_ready, dest_x, dest_y)) {
+          const ColonizeWorld w = game_world(game);
+          if (!units_unload_passenger_w(&w, sid, pax_ready, dest_x, dest_y)) {
             set_status(game, "Move blocked", NULL);
             return GAME_MOVE_RETURN_FALSE;
           }
@@ -517,13 +521,6 @@ static const char* game_foreign_trade_leader2(const ColonizeGameState* game, int
   return ai_diplo_rival_name(&game->col1, nation);
 }
 
-static ColonizeWorld game_foreign_trade_world(ColonizeGameState* game) {
-  return world_make(
-    &game->units, &game->colonies, &game->world_map, &game->col1, game->col1_ok,
-    &game->move_rng, NULL
-  );
-}
-
 /* A plain GAME.TXT refusal popup (raw 98924-98936 all land here). */
 static void game_foreign_trade_refuse(
   ColonizeGameState* game, const char* tag, const PopupMsgTokens* tok, const char* fallback
@@ -542,7 +539,7 @@ static void game_foreign_trade_refuse(
 void game_foreign_trade_price_hold(
   ColonizeGameState* game, int unit_id, int colony_id, int hold
 ) {
-  ColonizeWorld w = game_foreign_trade_world(game);
+  const ColonizeWorld w = game_world(game);
   ColonizeForeignTradeDeal deal;
   if (!colonies_foreign_trade_prepare(&w, &game->move_rng, colony_id, unit_id, hold, &deal)) {
     return;
@@ -601,7 +598,7 @@ void game_foreign_trade_price_hold(
 bool game_foreign_trade_open(
   ColonizeGameState* game, int unit_id, int colony_id, int dest_x, int dest_y
 ) {
-  ColonizeWorld w = game_foreign_trade_world(game);
+  const ColonizeWorld w = game_world(game);
   const ColonizeForeignTradeGate gate =
     colonies_foreign_trade_gate(&w, colony_id, unit_id);
   if (gate == COLONIZE_FTRADE_NONE) {
@@ -983,12 +980,12 @@ COLONIZE_INTERNAL GameMoveStep game_move_colony_prompts(
 
 /* The move itself (units_try_move) and its immediate outcomes. */
 COLONIZE_INTERNAL GameMoveStep game_move_commit(
-  ColonizeGameState* game, ColonizeUnit* selected, int sid, const ColonizeColonyPool* colonies,
-  int dest_x, int dest_y
+  ColonizeGameState* game, ColonizeUnit* selected, int sid, int dest_x, int dest_y
 ) {
   {
     const int mp_before = selected->moves;
-    if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map), .rng=(ColonizeDosRng*)(&game->move_rng), .rng_reseed=game->ai_rng_seed, .rng_reseed_set=true}, sid, dest_x, dest_y)) {
+    const ColonizeWorld w = game_world(game);
+    if (!units_try_move_w(&w, sid, dest_x, dest_y)) {
       if (units_last_combat_outcome() < 0) {
         set_status(game, "Combat lost", NULL);
         game_after_unit_action(game);
@@ -1034,17 +1031,15 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
   units_set_occupancy_map(&game->world_map);
   colonies_set_occupancy_map(&game->world_map);
   units_set_native_fallout_context(
-    game->col1_ok ? &game->col1 : NULL, &game->world_map, -1
-  );
-  const ColonizeColonyPool* colonies = &game->colonies;
+    game->col1_ok ? &game->col1 : NULL, &game->world_map);
   GameMoveStep step;
 
-  step = game_move_passenger_unload(game, selected, sid, colonies, dest_x, dest_y);
+  step = game_move_passenger_unload(game, selected, sid, dest_x, dest_y);
   if (step != GAME_MOVE_CONTINUE) {
     return step == GAME_MOVE_RETURN_TRUE;
   }
 
-  step = game_move_sea_unit(game, selected, sid, colonies, dest_x, dest_y);
+  step = game_move_sea_unit(game, selected, sid, dest_x, dest_y);
   if (step != GAME_MOVE_CONTINUE) {
     return step == GAME_MOVE_RETURN_TRUE;
   }
@@ -1059,7 +1054,7 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
     return step == GAME_MOVE_RETURN_TRUE;
   }
 
-  step = game_move_commit(game, selected, sid, colonies, dest_x, dest_y);
+  step = game_move_commit(game, selected, sid, dest_x, dest_y);
   if (step != GAME_MOVE_CONTINUE) {
     return step == GAME_MOVE_RETURN_TRUE;
   }
@@ -1085,7 +1080,8 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
   if (game->col1_ok && selected->active && selected->nation_id == game->human_nation &&
       units_type_is_treasure(units_type(&game->units, selected->type_index))) {
     {
-      (void)units_king_galleon_offer_for_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true, .europe=(EuropeScreen*)(game->europe_ok ? &game->europe : NULL)}, selected->nation_id, selected->id, &game->ai_popups, &game->messages);
+      const ColonizeWorld w = game_world(game);
+      (void)units_king_galleon_offer_for_unit_w(&w, selected->nation_id, selected->id, &game->ai_popups, &game->messages);
     }
   }
   snprintf(game->status, sizeof(game->status), "Moved unit to (%d,%d)", dest_x, dest_y);
@@ -1128,7 +1124,8 @@ int game_issue_goto(ColonizeGameState* game, int uid, int dest_x, int dest_y) {
     game->units.selected_id = uid;
     return game_try_unit_move(game, dest_x, dest_y) ? 1 : -1;
   }
-  return units_set_goto_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, uid, dest_x, dest_y)
+  const ColonizeWorld w = game_world(game);
+  return units_set_goto_w(&w, uid, dest_x, dest_y)
     ? 0
     : -1;
 }
@@ -1143,7 +1140,8 @@ void game_reveal_sight_for_unit(ColonizeGameState* game, const ColonizeUnit* u) 
   if (!game || !u || !game->world_map_ok || !units_is_on_map(u)) {
     return;
   }
-  const bool pacific = units_reveal_sight_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL)}, u);
+  const ColonizeWorld w = game_world(game);
+  const bool pacific = units_reveal_sight_w(&w, u);
   if (!game->col1_ok || u->nation_id != game->human_nation) {
     return;
   }
@@ -1174,7 +1172,8 @@ void game_after_unit_action(ColonizeGameState* game) {
   /* LCR: Scout on rumour clears + rolls a manual outcome (Fountain of Youth,
    * Cibola, treasure, burial mounds, …); de Soto keeps outcomes positive. */
   if (game->world_map_ok && units_is_on_map(u) && map_tile_has_rumour(&game->world_map, u->x, u->y)) {
-    (void)units_resolve_lcr_rumour_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL), .rng=(ColonizeDosRng*)(&game->move_rng), .europe=(EuropeScreen*)(game->europe_ok ? &game->europe : NULL)}, u->id, game->human_nation);
+    const ColonizeWorld w = game_world(game);
+    (void)units_resolve_lcr_rumour_w(&w, u->id, game->human_nation);
   }
   /*
    * First contact / village friction: land units only. Natives do not hail

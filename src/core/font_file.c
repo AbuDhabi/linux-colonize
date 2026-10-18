@@ -1,4 +1,4 @@
-#include "core/ff.h"
+#include "core/font_file.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,9 +10,9 @@
 
 #define FF_HEADER_SIZE (2 + 128 + 256)
 
-bool ff_load(const char* path, ColonizeFont* out_font, char* err, size_t err_size) {
+bool font_file_load(const char* path, ColonizeFont* out_font, char* err, size_t err_size) {
   if (!path || !out_font) {
-    snprintf(err, err_size, "ff_load bad args");
+    snprintf(err, err_size, "font_file_load bad args");
     return false;
   }
   memset(out_font, 0, sizeof(*out_font));
@@ -77,7 +77,7 @@ bool ff_load(const char* path, ColonizeFont* out_font, char* err, size_t err_siz
   return true;
 }
 
-void ff_free(ColonizeFont* font) {
+void font_file_free(ColonizeFont* font) {
   if (!font) {
     return;
   }

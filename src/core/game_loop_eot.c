@@ -43,7 +43,7 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/fb.h"
-#include "core/ff.h"
+#include "core/font_file.h"
 #include "core/font.h"
 #include "core/founding_fathers.h"
 #include "core/howmuch_dialog.h"
@@ -841,11 +841,11 @@ bool game_select_next_unit_awaiting_orders(ColonizeGameState* game) {
     if (!u) {
       return false;
     }
-    const ColonizeWorld w = {
-      .units = &game->units,
-      .colonies = game->colonies_ok ? &game->colonies : NULL,
-      .map = &game->world_map
-    };
+    ColonizeWorld w = game_world(game);
+    w.colonies = game->colonies_ok ? &game->colonies : NULL;
+    /* No rng here (as before #1110): a stream would arm the FUN_4cc6_00f2
+     * mission-burn roll inside the pioneer work tick, a behaviour change. */
+    w.rng = NULL;
     if (turn_rotation_lasting_step_w(&w, u, &game->ai_popups, &game->messages)) {
       return true;
     }
@@ -1215,13 +1215,15 @@ static void game_trade_route_service_stop(ColonizeGameState* game, ColonizeUnit*
         for (int h = 0; h < hold_max; ++h) {
           if (u->hold_goods_amount[h] > 0 && u->hold_goods_amount[h] < 255 &&
               u->hold_goods_type[h] == want) {
-            (void)europe_sell_unit_hold_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true, .europe=(EuropeScreen*)(&game->europe)}, u->id, h);
+            const ColonizeWorld w = game_world(game);
+            (void)europe_sell_unit_hold_w(&w, u->id, h);
           }
         }
       }
       for (int i = 0; i < (int)st->load_count && i < 6; ++i) {
         const int ct = col1_trade_nibble_cargo(st->load_cargo_nibbles, i);
-        (void)europe_buy_unit_cargo_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true, .europe=(EuropeScreen*)(&game->europe)}, u->id, ct, 100);
+        const ColonizeWorld w = game_world(game);
+        (void)europe_buy_unit_cargo_w(&w, u->id, ct, 100);
       }
       game_europe_drain_price_events(game); /* sells/buys now stamp the record themselves (G3) */
     }
@@ -1365,7 +1367,8 @@ void game_europe_service_trade_harbor(ColonizeGameState* game) {
     }
     for (int c = 0; c < (int)st->load_count && c < 6; ++c) {
       const int ct = col1_trade_nibble_cargo(st->load_cargo_nibbles, c);
-      (void)europe_buy_cargo_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true, .europe=(EuropeScreen*)(eu)}, game->human_nation, i, ct, 100);
+      const ColonizeWorld w = game_world(game);
+      (void)europe_buy_cargo_w(&w, game->human_nation, i, ct, 100);
     }
     game_europe_drain_price_events(game); /* sells/buys now stamp the record themselves (G3) */
     const int next = (si + 1) % (int)r->dest_count;
@@ -1445,7 +1448,8 @@ void game_order_unload(ColonizeGameState* game) {
   }
   const ColonizeUnit* ship = units_get_const(&game->units, sid);
   const int pax_id = (ship && ship->cargo_count > 0) ? ship->cargo_ids[0] : -1;
-  if (!units_unload_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, sid, game->map_cursor_x, game->map_cursor_y)) {
+  const ColonizeWorld w = game_world(game);
+  if (!units_unload_w(&w, sid, game->map_cursor_x, game->map_cursor_y)) {
     set_status(game, "Cannot unload (need adjacent free land)", NULL);
     return;
   }
@@ -1822,8 +1826,9 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
           return GAME_MENU_ACTION_DONE;
         }
       }
+      const ColonizeWorld w = game_world(game);
       if (!game->world_map_ok || !game->units_ok ||
-          !units_pioneer_plow_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, sid, msg, sizeof(msg), &game->ai_popups, &game->messages)) {
+          !units_pioneer_plow_w(&w, sid, msg, sizeof(msg), &game->ai_popups, &game->messages)) {
         set_status(game, msg[0] ? msg : "Cannot plow", NULL);
       } else {
         set_status(game, msg, NULL);
@@ -1845,8 +1850,9 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
           return GAME_MENU_ACTION_DONE;
         }
       }
+      const ColonizeWorld w = game_world(game);
       if (!game->world_map_ok || !game->units_ok ||
-          !units_pioneer_road_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, sid, msg, sizeof(msg), &game->ai_popups, &game->messages)) {
+          !units_pioneer_road_w(&w, sid, msg, sizeof(msg), &game->ai_popups, &game->messages)) {
         set_status(game, msg[0] ? msg : "Cannot build road", NULL);
       } else {
         set_status(game, msg, NULL);
@@ -1858,8 +1864,9 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
       const int sid = game->units.selected_id;
       char msg[96];
       msg[0] = '\0';
+      const ColonizeWorld w = game_world(game);
       if (!game->world_map_ok || !game->units_ok ||
-          !units_pillage_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, sid, msg, sizeof(msg))) {
+          !units_pillage_w(&w, sid, msg, sizeof(msg))) {
         set_status(game, msg[0] ? msg : "Cannot pillage", NULL);
       } else {
         set_status(game, msg, NULL);

@@ -153,6 +153,7 @@ typedef struct ColonizeWorld {
   ColonizeUnitPool* units;   ColonizeColonyPool* colonies;
   ColonizeWorldMap* map;     ColonizeCol1Save*   col1;   bool col1_ok;
   ColonizeDosRng*   rng;     EuropeScreen*       europe;
+  /* + ai_popups/messages, rng_reseed(_set), human_nation (-1 = unknown) */
 } ColonizeWorld;
 ```
 
@@ -170,12 +171,13 @@ Rules:
   struct already: `world_from_turn_ctx()` (in `turn.h`) is a field-for-field
   copy, and a migrated body keeps its original spelling through one alias line
   (`ColonizeUnitPool* pool = w->units;`).
-- **Three constructors.** `world_from_turn_ctx(ctx)` for anything holding a
-  turn context; `world_make(...)` for call sites that have only loose pointers
-  (`game_dialogs`, UI screens); `fx_world(...)` in `tests/common/ai_fixture.h`
-  for tests, which pass NULL for the pieces the call under test never reads.
+- **Four constructors.** `world_from_turn_ctx(ctx)` for anything holding a
+  turn context; `game_world(game)` for `game_loop_*` / `game_dialogs`;
+  `world_make(...)` for call sites that have only loose (mutable) pointers;
+  `fx_world(...)` in `tests/common/ai_fixture.h` for tests, which pass NULL for the pieces the call under test never reads.
 - **`col1_ok`** mirrors `ColonizeTurnContext.col1_ok`. `world_make` callers
-  that have no such flag pass `col1 != NULL`; no migrated body reads it yet.
+  that have no such flag pass `col1 != NULL`; colony plots, foreign trade
+  and Europe seeding read it.
 
 **Migration shape (68 signatures, 2026-09-16).** Each converted function keeps
 its body byte-for-byte; the world pointers move out of the parameter list into
@@ -183,12 +185,14 @@ alias locals at the top, and the pre-world signature survives as a `_w`-less
 **compat shim** that builds a `ColonizeWorld` and forwards. Callers therefore
 needed no edits, and no DOS-LITERAL logic moved. The canonical entry point is
 the `_w` one; the shim is scaffolding to be retired call site by call site.
-Inside a chain the callees are `_w` (`units_advance_goto_w` →
-`units_advance_goto_one_step_w` → `units_next_goto_step_w` /
-`units_try_move_w` → `units_can_enter_w`), but several `units_*_w` bodies
-still rebuild a partial `ColonizeWorld` (dropping `col1` / `rng` / `europe`)
-instead of forwarding `w`, and the view is hand-built as a compound literal
-at ~80 call sites — bugs.md #1110.
+The `units_*_w` bodies forward `w` itself to their inner `_w` callees (a few
+keep a member NULL on purpose, commented at the site), and read the save
+through `units_world_col1(w)` (`units_internal.h`): the world's when loaded,
+else the injected `g_units_ff_col1`. Sim callers holding a turn context build
+the view with `world_from_turn_ctx`; loose-pointer callers use `world_make`
+(bugs.md #1110, 2026-10-18). The game side builds every view through `game_world(game)`
+(`game_loop_internal.h`): pools NULL when their load flag is false, the human
+move stream + FUN_465b reseed word, `human_nation` filled.
 
 Migrated modules: `units` (movement/goto/pioneer, combat, cargo, sight),
 `colony`, `europe`, `ai` / `ai_goals` / `ai_contact`, `col1_bridge`,
@@ -223,7 +227,7 @@ Cluster table (not every file). Paths are under `src/core/` unless noted.
 | **Colonies** | `colony*`, `colony_screen` (+ `colony_screen_{draw,buildings,panels,popups}.c`, seams in `colony_screen_internal.h`), `colony_yield`, `colony_production`, `colony_craft`, `colony_preview` | Logic + colony screen. `colony.c` was one 4483-line file until 2026-09-23; it is now five files split along its banners, moved verbatim (`colony.c` map icons/fortification tier + fog queries, pool init + building/name catalogs, founding checks + Indian land purchase, occupancy map + founding + col1 tile bookkeeping; `colony_plots.c` pool accessors, field/plot geometry, DOS plot-blocked mask, colonist tile slots, school tiers, profession labels; `colony_workers.c` school/workplace chrome popups, field/building work assignment, admission/seating/auto-assign, eject/dismiss + gear seizure; `colony_build.c` fortification bonus/abandon/capture, build queue + construction set/complete/buy, building catalog/chains/buildability; `colony_goods.c` warehouse capacity/spoilage, cargo transfer to/from carriers, foreign + Custom-House trade gate + trade-route stops) with the cross-file seams declared in `colony_internal.h`. `colony_screen.c` was one 4796-line file until 2026-09-23; it is likewise now five files split along its banners, moved verbatim (`colony_screen.c` view state + subpanel open/close + PIK load/free; `colony_screen_draw.c` background/chrome primitives, icon strips, area overlays + minimap; `colony_screen_buildings.c` DOS settlement-view layout, building strip, cargo/transport strips; `colony_screen_panels.c` population and multifunction production panels; `colony_screen_popups.c` popup rendering, hit testing, the `colony_screen_render_w` entry point) with the cross-file seams declared in `colony_screen_internal.h` |
 | **Europe / economy** | `europe.c/.h` (+ `europe_pool.c`, `europe_dock.c`, `europe_harbor.c`, `europe_market.c`) | Market, sail, recruit/hire. `europe.c` was one 5436-line file until 2026-09-23; it is now five files split along its banners (`europe.c` purse/rng plumbing, ship-cargo helpers, gold accessors + live-save/popup wiring, `europe_pool.c` purchase table, pool profession rolls, cargo tables + nation/campaign setup, `europe_dock.c` recruit/train/purchase commits, dock unit typing + kits + mirror units, dock arms menu, `europe_harbor.c` embark/disembark + voyage ticking, treasure cashing, price ledger, market/immigration ticks, AI-nation immigration, `europe_market.c` labels, sell/buy commits, Custom House autosell, icon flow + hit-testing + menus + cheats) with the cross-file seams declared in `europe_internal.h`. The single treasury accessor pair (`europe_purse_move` / gold read+add) stays in `europe.c`. |
 | **AI** | `ai` (+ `ai_indian`, `ai_native_021a`, `ai_brave`), `ai_euro` (+ `ai_euro_colony_jobs`, `ai_euro_expand`, `ai_euro_europe`, `ai_euro_goals`, `ai_euro_land`, `ai_euro_ship`, `ai_euro_act`), `ai_contact` (+ `ai_contact_demand`, `ai_contact_trade`, `ai_contact_raid`, `ai_contact_actions`), `ai_diplo`, `ai_king` (+ `ai_king_audience`, `ai_king_ref`, `ai_king_offers`, `ai_king_war`), `ai_goals`, `ai_popup` | Init + nation-turn entry; split planners. The Euro AI was one 21.7k-line `ai_euro.c` until 2026-09-23; it is now eight files (dispatcher / 5952 colony jobs / wagon+found / 5d04 Europe / 0a60+colony goals / 20e6 land / ship band / act stages) with the cross-file seams declared in `ai_euro_internal.h`. `ai_contact.c` got the same treatment the same day: 10.3k lines split along its banners into five files (bookkeeping/welcome/encounter, demand economics, village trade, raids, @ACTIONS menu), seams in `ai_contact_internal.h`. `ai.c` followed on the same day: 5081 lines split along its banners into `ai.c` (startup RNG, coarse fog, diagnostics gates, new-game world setup, game init, Euro nation-turn dispatch), `ai_indian.c` (152e village worth/growth, tile+owner helpers, native pull scoring), `ai_native_021a.c` (the `FUN_4d56_021a` structural scorer) and `ai_brave.c` (pick-dir dispatch, init schedule, first contact, Brave step, nation pulse), seams in `ai_internal.h` (`ai_native_score.c`, the quiet `FUN_4d56_4753` scorer, was deleted 2026-09-23 with the `AI_BRAVE_PICK=20e6` fallback — bugs.md #825). `ai_king.c` likewise: 6.0k lines split along its banners into `ai_king.c` (module prologue, crown/boycott messaging, tea-party enqueue + intervention force, REF force bookkeeping / royal purse / SoL + independence state), `ai_king_audience.c` (audience rolls, tax + tea-party dialogs, succession, Declare Independence), `ai_king_ref.c` (REF landing-site pick, garrison scoring + invasion, landing/announce/disembark), `ai_king_offers.c` (mercenary and frigate offers) and `ai_king_war.c` (war-declaration events, REF war conduct, WoI endgame scoring, nation-turn driver + popup dispatch), seams in `ai_king_internal.h`. |
-| **Save / Col1** | `savegame`, `col1_save` (API) + `col1_save_layout.h` (on-disk), `col1_bridge`, `col1_post_map`, `col1_stuff_census` | DOS `COLONY##.SAV` interop; layout split from API |
+| **Save / Col1** | `savegame`, `col1_save` (API) + `col1_save_layout.h` (on-disk), `col1_bridge` (capture/apply stages, seams in `col1_bridge_internal.h`), `col1_post_map`, `col1_stuff_census` | DOS `COLONY##.SAV` interop; layout split from API |
 | **Settings** | `settings.c/.h`, `json_min.c/.h` | Port-only `settings.json` preference file (see [settings.md](settings.md)) |
 | **Assets / art** | `assets`, `madspack`, `pik`, `ss`, `ff`, `font`, `debug_atlas` | Catalogs + MADSPACK decode |
 | **UI primitives** | `popup`, `popup_msg`, `ui_button`, `ui_drag`, `ui_colors`, `text_edit`, dialogs (`save_load_dialog`, `options_dialog`, `pick_music` + `pick_music_ids.h`, `cheat_list_dialog`, `howmuch_dialog`, `name_entry_dialog`), `cinematic.h` (shared sheet loader for `opening` / `closing` / `declaration` / `woodcut_present`) | Wood/list modals |

@@ -45,7 +45,7 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/fb.h"
-#include "core/ff.h"
+#include "core/font_file.h"
 #include "core/font.h"
 #include "core/founding_fathers.h"
 #include "core/howmuch_dialog.h"
@@ -473,7 +473,8 @@ bool game_europe_menu_confirm(ColonizeGameState* game) {
   }
   EuropeScreen* eu = &game->europe;
   if (eu->menu == EUROPE_MENU_DOCK) {
-    const bool ok = europe_dock_menu_apply_selection_ex_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(game->units_ok ? &game->units : NULL), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL), .europe=(EuropeScreen*)(eu)}, game->human_nation);
+    const ColonizeWorld w = game_world(game);
+    const bool ok = europe_dock_menu_apply_selection_ex_w(&w, game->human_nation);
     if (ok) {
       europe_menu_close(eu);
     }
@@ -549,10 +550,7 @@ static const ColonizeFont* europe_menu_font(const ColonizeGameState* game) {
   if (game->europe.menu == EUROPE_MENU_TRAIN && game->colony_font_ok) {
     return &game->colony_font;
   }
-  if (game->intro_font_ok) {
-    return &game->intro_font;
-  }
-  return game->menu_font_ok ? &game->menu_font : NULL;
+  return game_popup_font(game);
 }
 
 /*
@@ -1102,15 +1100,14 @@ static int europe_harbor_open_holds(const ColonizeUnitPool* units, const EuropeH
  * the map popups use, which is why the map branch's comment calls out "not
  * FONTTINY HUD". intro_font IS FONTINTR, so it is the first choice everywhere;
  * the rest of the chain only matters when FONTINTR failed to load, and the
- * menu font is the closer stand-in than a screen's own FONTTINY. last_resort
- * is the caller's screen font, used when neither loaded.
+ * menu font is the closer stand-in than a screen's own FONTTINY
+ * (game_popup_font).
  *
  * howmuch and name_entry are never open at the same time (each opener closes
  * the other modal), so the draw order between them is not observable.
  */
 COLONIZE_INTERNAL void game_render_modal_overlays(
   const ColonizeGameState* game,
-  const ColonizeFont* last_resort,
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!game->howmuch.open && !game->name_entry.open) {
@@ -1120,9 +1117,7 @@ COLONIZE_INTERNAL void game_render_modal_overlays(
     (game->map_panel_ok && game->map_panel.wood_ok) ? &game->map_panel.wood_tile : NULL;
   ColonizePopupColors popup_cols;
   popup_colors_from_ui(&popup_cols);
-  const ColonizeFont* popup_font = game->intro_font_ok
-    ? &game->intro_font
-    : (game->menu_font_ok ? &game->menu_font : last_resort);
+  const ColonizeFont* popup_font = game_popup_font(game);
   if (game->howmuch.open) {
     howmuch_render(
       (HowmuchDialog*)&game->howmuch, popup_font, wood, &popup_cols, COLONIZE_COL_BASIC,
@@ -1498,7 +1493,7 @@ void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuffer8* f
 
   europe_render_menu_popup(game, framebuffer);
 
-  game_render_modal_overlays(game, font, framebuffer);
+  game_render_modal_overlays(game, framebuffer);
 
   if (!game->europe_ok) {
     font_draw_text(font, framebuffer, 4, 100, "EUROPE.PIK / NAMES.TXT failed to load", 12);
@@ -1516,8 +1511,9 @@ void render_colony_screen(const ColonizeGameState* game, ColonizeFramebuffer8* f
   if (game->colony_screen_ok) {
     ((ColonyScreenView*)&game->colony_screen)->blink_ms = game->elapsed_ms;
   }
-  colony_screen_render_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(game->units_ok ? &game->units : NULL), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(game->world_map_ok ? &game->world_map : NULL), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL)}, game->colony_screen_ok ? (ColonyScreenView*)&game->colony_screen : NULL, colony, game->terrain_ok ? &game->terrain : NULL, game->phys0_ok ? &game->phys0 : NULL, game->game_year, game->game_autumn, game->europe.gold, font, game->debug_building_rects, game->labels_ok ? &game->labels : NULL, framebuffer);
-  game_render_modal_overlays(game, font, framebuffer);
+  const ColonizeWorld w = game_world_const(game);
+  colony_screen_render_w(&w, game->colony_screen_ok ? (ColonyScreenView*)&game->colony_screen : NULL, colony, game->terrain_ok ? &game->terrain : NULL, game->phys0_ok ? &game->phys0 : NULL, game->game_year, game->game_autumn, game->europe.gold, font, game->debug_building_rects, game->labels_ok ? &game->labels : NULL, framebuffer);
+  game_render_modal_overlays(game, framebuffer);
 }
 
 static void fill_fallback_palette(ColonizePalette* palette) {
@@ -1639,7 +1635,7 @@ static bool game_load_ff_asset(
   if (!dos_compat_normalize_asset_path(game->resolved_data_dir, file, path, sizeof(path))) {
     return false;
   }
-  if (!ff_load(path, out, err, sizeof(err))) {
+  if (!font_file_load(path, out, err, sizeof(err))) {
     diag_warn("Failed to load %s: %s", file, err);
     return false;
   }
@@ -2243,9 +2239,9 @@ void game_destroy(ColonizeGameState* game) {
   ss_free(&game->cursor);
   ss_free(&game->unit_icons);
   ss_free(&game->pedia_buildings);
-  ff_free(&game->menu_font);
-  ff_free(&game->intro_font);
-  ff_free(&game->colony_font);
+  font_file_free(&game->menu_font);
+  font_file_free(&game->intro_font);
+  font_file_free(&game->colony_font);
   map_free(&game->world_map);
   col1_save_free(&game->col1);
   assets_msg_free(&game->messages);
@@ -2490,11 +2486,9 @@ void game_commit_new_campaign(ColonizeGameState* game) {
      * nations, then the 16 opening prices, on its own stream reseeded from
      * the campaign seed (DOS DS:0x83a6; bugs.md #1058). Load path keeps the
      * save's bytes. */
+    const ColonizeWorld w = game_world(game);
     europe_seed_campaign_w(
-      &(ColonizeWorld){
-        .col1 = (ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL),
-        .col1_ok = ((game->col1_ok ? &game->col1 : NULL) != NULL),
-        .europe = (EuropeScreen*)(&game->europe)},
+      &w,
       (uint32_t)ai.rng_seed
     );
     /*
@@ -2505,7 +2499,7 @@ void game_commit_new_campaign(ColonizeGameState* game) {
      * rounds only.
      */
     if (game->col1_ok) {
-      const ColonizeWorld mw = {.col1 = &game->col1, .col1_ok = true, .europe = &game->europe};
+      const ColonizeWorld mw = game_world(game);
       if (game->human_nation == 0) {
         europe_tick_market_prices_w(&mw, 0, 0u);
       } else {
@@ -2524,7 +2518,8 @@ void game_commit_new_campaign(ColonizeGameState* game) {
         if (!u->active || u->nation_id != game->human_nation || !units_is_on_map(u)) {
           continue;
         }
-        (void)units_reveal_sight_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL)}, u);
+        const ColonizeWorld w = game_world(game);
+        (void)units_reveal_sight_w(&w, u);
       }
       for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
         const ColonizeColony* c = &game->colonies.colonies[i];

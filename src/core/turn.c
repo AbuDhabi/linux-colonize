@@ -59,7 +59,8 @@ static void turn_reveal_fog_for_nation(ColonizeTurnContext* ctx, int nation_id) 
     if (!u->active || u->nation_id != nation_id || !units_is_on_map(u)) {
       continue;
     }
-    (void)units_reveal_sight_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, u);
+    const ColonizeWorld sw = world_from_turn_ctx(ctx);
+    (void)units_reveal_sight_w(&sw, u);
   }
 }
 
@@ -165,8 +166,7 @@ void turn_refresh_moves_for_nation_w(
   }
   /* Native settlement fallout (FUN_5fef_31ea-shaped). Gold amount unknown. */
   units_set_native_fallout_context(
-    col1 ? (ColonizeCol1Save*)col1 : NULL, map, -1
-  );
+    col1 ? (ColonizeCol1Save*)col1 : NULL, map);
   for (int i = 0; i < units_slot_end(pool); ++i) {
     ColonizeUnit* u = &pool->units[i];
     if (!u->active || u->nation_id != nation_id) {
@@ -648,7 +648,8 @@ COLONIZE_INTERNAL void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnC
         turn_reveal_fog_for_nation(ctx, n);
       }
       if (ctx->units) {
-        turn_refresh_moves_for_nation_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, n, ctx->ai_popups, ctx->messages);
+        const ColonizeWorld rw = world_from_turn_ctx(ctx);
+        turn_refresh_moves_for_nation_w(&rw, n, ctx->ai_popups, ctx->messages);
         if (n >= 0 && n < 4) {
           /* FUN_3844_0004 (bugs.md #725): AI owner — the lone Convert just
            * vanishes, no @DEADCONVERTS popup. */
@@ -745,7 +746,8 @@ COLONIZE_INTERNAL void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTur
         units_occupancy_rebuild(ctx->units);
       }
       if (ctx->units) {
-        turn_refresh_moves_for_nation_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, n, ctx->ai_popups, ctx->messages);
+        const ColonizeWorld rw = world_from_turn_ctx(ctx);
+        turn_refresh_moves_for_nation_w(&rw, n, ctx->ai_popups, ctx->messages);
       }
       /*
        * FUN_4d56_1b3a phase 2 (raw viceroy_unpacked.c:81709-81715):
@@ -901,7 +903,8 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
        */
       ai_king_peacetime_merc_offer(ctx);
       turn_set_active_nation(ctx, ctx->human_nation);
-      turn_refresh_moves_for_nation_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, ctx->human_nation, ctx->ai_popups, ctx->messages);
+      const ColonizeWorld rw = world_from_turn_ctx(ctx);
+      turn_refresh_moves_for_nation_w(&rw, ctx->human_nation, ctx->ai_popups, ctx->messages);
       if (ctx->human_nation >= 0 && ctx->human_nation < 4) {
         /* FUN_3844_0004 (bugs.md #725): human owner — FUN_281f_0652(0xee2, 4)
          * = @DEADCONVERTS, once per Convert lost. */

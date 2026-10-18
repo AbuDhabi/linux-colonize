@@ -376,21 +376,56 @@ void ai_popup_art_palette_merge(AiPopupState* st, ColonizePalette* dst) {
   ai_popup_sheet_palette_merge(ai_popup_art_sheet(&st->current), dst);
 }
 
-void ai_popup_render(
-  AiPopupState* st,
-  const ColonizeFont* font,
-  const ColonizeSpriteSheet* wood_tile,
-  const ColonizePopupColors* colors,
-  uint8_t text_color,
-  uint8_t hilite_color,
-  uint8_t select_color,
-  ColonizeFramebuffer8* framebuffer
-) {
-  if (!st || !st->open || !framebuffer || !framebuffer->pixels) {
-    return;
-  }
+/*
+ * ai_popup_render, split by concern (bugs.md #1107, big-function rule): the
+ * stages below run in the original body's order over this ctx. Each field is
+ * written by exactly one stage and only read after it.
+ */
+typedef struct AiPopupRenderCtx {
+  AiPopupState* st;
+  const AiPopupRequest* req;
+  const ColonizeFont* font;
+  ColonizeFramebuffer8* fb;
+  /* measure */
+  int glyph_h;
+  int line_h;
+  int option_h;
+  int pad_x;
+  int text_max_w;
+  int title_h;
+  int options_h;
+  char wrapped[AI_POPUP_WRAP_MAX][AI_POPUP_BODY_LEN];
+  bool wrapped_center[AI_POPUP_WRAP_MAX];
+  int wrapped_count;
+  int dialog_w;
+  int dialog_h;
+  /* pick_portrait */
+  const ColonizeSpriteSheet* portrait;
+  const ColonizeSpriteSheet* portrait_base;
+  int portrait_frame;
+  int portrait_w;
+  int portrait_h;
+  bool portrait_left;
+  /* pick_graphic */
+  const ColonizeSpriteSheet* graphic;
+  int graphic_w;
+  int graphic_h;
+  /* place */
+  int dialog_x;
+  int dialog_y;
+  int portrait_x;
+  int portrait_y;
+  int graphic_x;
+  int graphic_y;
+  /* frame */
+  int inner_x;
+  int inner_y;
+  int inner_w;
+  int inner_h;
+} AiPopupRenderCtx;
 
-  const AiPopupRequest* req = &st->current;
+/* Stage 1: row pitches, body wrap, dialog size. */
+static void ai_popup_render_measure(AiPopupRenderCtx* c) {
   /*
    * DOS compositor (FUN_6f74_14c6 rects, FUN_6f74_1198 wrap, defaults from
    * FUN_6f74_06d0): the dialog record's content width is @WIDTH (default 80),
@@ -418,29 +453,28 @@ void ai_popup_render(
    * FUN_6f74_0d44 and painted by FUN_6f74_1e14, only ever built when the
    * script parser sees DS:0x2008 set. No ai_popup dialog has such a row.
    */
-  int glyph_h = font ? font->max_height : 6;
-  if (glyph_h == 6) {
-    glyph_h = 5;
+  c->glyph_h = c->font ? c->font->max_height : 6;
+  if (c->glyph_h == 6) {
+    c->glyph_h = 5;
   }
-  const int line_h = glyph_h + 1;
+  c->line_h = c->glyph_h + 1;
   /* FUN_6f74_14c6: option rows advance by glyph_h + box[+0x46] (= 3). */
-  const int option_h = glyph_h + 3;
-  const int pad_x = 2;
-  const int title_gap = req->title[0] ? 2 : 0;
+  c->option_h = c->glyph_h + 3;
+  c->pad_x = 2;
+  const int title_gap = c->req->title[0] ? 2 : 0;
 
-  int content_w = req->width > 0 ? req->width : AI_POPUP_DEFAULT_WIDTH;
-  if (content_w + 6 > framebuffer->width) {
-    content_w = framebuffer->width - 6;
+  int content_w = c->req->width > 0 ? c->req->width : AI_POPUP_DEFAULT_WIDTH;
+  if (content_w + 6 > c->fb->width) {
+    content_w = c->fb->width - 6;
   }
-  const int text_max_w = content_w - 2 * pad_x;
+  c->text_max_w = content_w - 2 * c->pad_x;
 
-  char wrapped[AI_POPUP_WRAP_MAX][AI_POPUP_BODY_LEN];
-  bool wrapped_center[AI_POPUP_WRAP_MAX];
-  memset(wrapped_center, 0, sizeof(wrapped_center));
-  int wrapped_count = 0;
-  if (req->body[0]) {
-    wrapped_count = ai_popup_wrap_body(
-      font, req->body, wrapped, wrapped_center, AI_POPUP_WRAP_MAX, text_max_w
+  memset(c->wrapped_center, 0, sizeof(c->wrapped_center));
+  c->wrapped_count = 0;
+  if (c->req->body[0]) {
+    c->wrapped_count = ai_popup_wrap_body(
+      c->font, c->req->body, c->wrapped, c->wrapped_center, AI_POPUP_WRAP_MAX,
+      c->text_max_w
     );
   }
 
@@ -453,27 +487,30 @@ void ai_popup_render(
    * DOS rows are "<father> (<category> Adviser)", wider than @WHICHFREEDOM's
    * own @width=190.
    */
-  if (font) {
-    for (int i = 0; i < req->choice_count; ++i) {
-      const int w = popup_markup_text_width(font, req->choices[i]) + 2 * pad_x;
+  if (c->font) {
+    for (int i = 0; i < c->req->choice_count; ++i) {
+      const int w = popup_markup_text_width(c->font, c->req->choices[i]) + 2 * c->pad_x;
       if (w > content_w) {
         content_w = w;
       }
     }
-    if (content_w + 6 > framebuffer->width) {
-      content_w = framebuffer->width - 6;
+    if (content_w + 6 > c->fb->width) {
+      content_w = c->fb->width - 6;
     }
   }
-  int dialog_w = content_w + 6;
+  c->dialog_w = content_w + 6;
 
-  const int title_h = req->title[0] ? line_h + title_gap : 0;
-  const int body_h = wrapped_count * line_h;
-  const int options_h = req->choice_count * option_h;
-  int dialog_h = 12 + title_h + body_h + options_h;
-  if (dialog_h > framebuffer->height) {
-    dialog_h = framebuffer->height;
+  c->title_h = c->req->title[0] ? c->line_h + title_gap : 0;
+  const int body_h = c->wrapped_count * c->line_h;
+  c->options_h = c->req->choice_count * c->option_h;
+  c->dialog_h = 12 + c->title_h + body_h + c->options_h;
+  if (c->dialog_h > c->fb->height) {
+    c->dialog_h = c->fb->height;
   }
+}
 
+/* Stage 2: chief / King portrait sheet, flair frame, size, side. */
+static void ai_popup_render_pick_portrait(AiPopupRenderCtx* c) {
   /*
    * Chief portrait (FUN_6f74_14c6 @ DS:0x1f5c ≥ 0, OVL24 0x17a0..0x189c):
    * the sprite stands at the span edge — LEFT for tribes 0/3/5/7 (Inca,
@@ -485,55 +522,58 @@ void ai_popup_render(
    * FUN_15dc_00a2 over FUN_281f_030c = DS:0x5b1c alarm vs DS:0x5398) to
    * byte 5; tribe ≥ 8 takes DS:0x1f72 = "KING" instead.
    */
-  const ColonizeSpriteSheet* portrait =
-    req->portrait_tribe == 8 ? ai_popup_king_sheet()
-                             : ai_popup_portrait_sheet(req->portrait_tribe, req->portrait_tier);
+  c->portrait = c->req->portrait_tribe == 8
+                 ? ai_popup_king_sheet()
+                 : ai_popup_portrait_sheet(c->req->portrait_tribe, c->req->portrait_tier);
   /* KING2 frames are arm overlays; KING.SS is the figure they sit on. */
-  const ColonizeSpriteSheet* portrait_base =
-    (portrait && req->portrait_tribe == 8) ? ai_popup_king_base_sheet() : NULL;
-  if (portrait_base &&
-      (portrait_base->sprite_count <= 0 || !portrait_base->sprites[0].pixels)) {
-    portrait_base = NULL;
+  c->portrait_base =
+    (c->portrait && c->req->portrait_tribe == 8) ? ai_popup_king_base_sheet() : NULL;
+  if (c->portrait_base &&
+      (c->portrait_base->sprite_count <= 0 || !c->portrait_base->sprites[0].pixels)) {
+    c->portrait_base = NULL;
   }
-  int portrait_frame = 0;
-  if (portrait && req->portrait_tribe == 8) {
+  c->portrait_frame = 0;
+  if (c->portrait && c->req->portrait_tribe == 8) {
     /* FUN_6f74_0042 one-shot flair animation: ~3.9 s pause on frame 0,
      * then ~164 ms per frame to the sheet's last (bugs.md). */
-    if (st->king_anim_next_ms == 0) {
-      st->king_anim_frame = 0;
-      st->king_anim_next_ms = g_popup_now_ms + 3900u;
-    } else if (g_popup_now_ms >= st->king_anim_next_ms &&
-               st->king_anim_frame + 1 < portrait->sprite_count) {
-      st->king_anim_frame++;
-      st->king_anim_next_ms = g_popup_now_ms + 164u;
+    if (c->st->king_anim_next_ms == 0) {
+      c->st->king_anim_frame = 0;
+      c->st->king_anim_next_ms = g_popup_now_ms + 3900u;
+    } else if (g_popup_now_ms >= c->st->king_anim_next_ms &&
+               c->st->king_anim_frame + 1 < c->portrait->sprite_count) {
+      c->st->king_anim_frame++;
+      c->st->king_anim_next_ms = g_popup_now_ms + 164u;
     }
-    if (st->king_anim_frame < portrait->sprite_count) {
-      portrait_frame = st->king_anim_frame;
+    if (c->st->king_anim_frame < c->portrait->sprite_count) {
+      c->portrait_frame = c->st->king_anim_frame;
     }
   }
-  int portrait_w = 0;
-  int portrait_h = 0;
-  if (portrait && portrait->sprite_count > portrait_frame &&
-      portrait->sprites[portrait_frame].pixels) {
-    portrait_w = portrait->sprites[portrait_frame].width;
-    portrait_h = portrait->sprites[portrait_frame].height;
+  c->portrait_w = 0;
+  c->portrait_h = 0;
+  if (c->portrait && c->portrait->sprite_count > c->portrait_frame &&
+      c->portrait->sprites[c->portrait_frame].pixels) {
+    c->portrait_w = c->portrait->sprites[c->portrait_frame].width;
+    c->portrait_h = c->portrait->sprites[c->portrait_frame].height;
   } else {
-    portrait = NULL;
-    portrait_base = NULL;
+    c->portrait = NULL;
+    c->portrait_base = NULL;
   }
   /* Both sheets share the 79x161 box; take the larger so neither is clipped. */
-  if (portrait_base) {
-    if (portrait_base->sprites[0].width > portrait_w) {
-      portrait_w = portrait_base->sprites[0].width;
+  if (c->portrait_base) {
+    if (c->portrait_base->sprites[0].width > c->portrait_w) {
+      c->portrait_w = c->portrait_base->sprites[0].width;
     }
-    if (portrait_base->sprites[0].height > portrait_h) {
-      portrait_h = portrait_base->sprites[0].height;
+    if (c->portrait_base->sprites[0].height > c->portrait_h) {
+      c->portrait_h = c->portrait_base->sprites[0].height;
     }
   }
-  const bool portrait_left =
-    portrait && (req->portrait_tribe == 0 || req->portrait_tribe == 3 || req->portrait_tribe == 5 ||
-                 req->portrait_tribe == 7 || req->portrait_tribe == 8);
+  const int tribe = c->req->portrait_tribe;
+  c->portrait_left =
+    c->portrait && (tribe == 0 || tribe == 3 || tribe == 5 || tribe == 7 || tribe == 8);
+}
 
+/* Stage 3: MSS/MYR decoration sheet (only without a portrait). */
+static void ai_popup_render_pick_graphic(AiPopupRenderCtx* c) {
   /*
    * MSS/MYR decoration (FUN_6f74_14c6 @ DS:0x1f5e/0x1f60 ≥ 0): the sprite
    * stands ABOVE the dialog, its bottom overlapping the dialog top by the
@@ -542,29 +582,33 @@ void ai_popup_render(
    * right edge. The pair is vertically centred as a unit; DOS drops the
    * sprite when the combined height reaches 200.
    */
-  const ColonizeSpriteSheet* graphic =
-    portrait ? NULL : ai_popup_graphic_sheet(req->graphic_mss, req->graphic_myr);
-  int graphic_w = 0;
-  int graphic_h = 0;
-  if (graphic && graphic->sprite_count > 0 && graphic->sprites[0].pixels) {
-    graphic_w = graphic->sprites[0].width;
-    graphic_h = graphic->sprites[0].height;
+  c->graphic =
+    c->portrait ? NULL : ai_popup_graphic_sheet(c->req->graphic_mss, c->req->graphic_myr);
+  c->graphic_w = 0;
+  c->graphic_h = 0;
+  if (c->graphic && c->graphic->sprite_count > 0 && c->graphic->sprites[0].pixels) {
+    c->graphic_w = c->graphic->sprites[0].width;
+    c->graphic_h = c->graphic->sprites[0].height;
   } else {
-    graphic = NULL;
+    c->graphic = NULL;
   }
-  if (graphic) {
-    const int ov_y = graphic->place_offset_y > graphic_h ? graphic_h : graphic->place_offset_y;
-    if (graphic_h - ov_y + dialog_h >= framebuffer->height) {
-      graphic = NULL; /* DOS: too tall together → no decoration (flag |0x40). */
+  if (c->graphic) {
+    const int ov_y =
+      c->graphic->place_offset_y > c->graphic_h ? c->graphic_h : c->graphic->place_offset_y;
+    if (c->graphic_h - ov_y + c->dialog_h >= c->fb->height) {
+      c->graphic = NULL; /* DOS: too tall together → no decoration (flag |0x40). */
     }
   }
+}
 
-  int dialog_y = (framebuffer->height - dialog_h) / 2;
-  if (dialog_y + dialog_h > framebuffer->height) {
-    dialog_y = framebuffer->height - dialog_h;
+/* Stage 4: dialog, portrait and decoration positions. */
+static void ai_popup_render_place(AiPopupRenderCtx* c) {
+  c->dialog_y = (c->fb->height - c->dialog_h) / 2;
+  if (c->dialog_y + c->dialog_h > c->fb->height) {
+    c->dialog_y = c->fb->height - c->dialog_h;
   }
-  if (dialog_y < MAP_MENU_BAR_H + 2) {
-    dialog_y = MAP_MENU_BAR_H + 2;
+  if (c->dialog_y < MAP_MENU_BAR_H + 2) {
+    c->dialog_y = MAP_MENU_BAR_H + 2;
   }
 
   /* Frame = the dialog only (DOS +0x10..+0x16). The portrait is a free-
@@ -575,14 +619,9 @@ void ai_popup_render(
    * start (right arm). The frame never widens to take the sprite in; which
    * of the two wins where they touch is the draw order below (DOS
    * FUN_6f74_248e: portrait under the wood, MSS/MYR over it). */
-  const int frame_h = dialog_h;
-  const int frame_w = dialog_w;
-  int frame_y; /* = dialog_y, after the MSS/MYR block may move it */
-  int frame_x;
-  int dialog_x;
-  int portrait_x = 0;
-  int portrait_y = 0;
-  if (portrait) {
+  c->portrait_x = 0;
+  c->portrait_y = 0;
+  if (c->portrait) {
     /*
      * DOS [bp-0x18] starts at −3 (OVL24 0x17bc `mov word [bp-0x18],0xfffd`)
      * and only becomes span_w − 323 when the span is clamped to 0x140
@@ -590,71 +629,75 @@ void ai_popup_render(
      * adds a 3px gutter — it is not a plain overflow term.
      */
     int shift = -3;
-    int span_w = dialog_w + portrait_w + 6;
-    if (span_w > framebuffer->width) {
-      shift = span_w - (framebuffer->width + 3);
-      span_w = framebuffer->width;
+    int span_w = c->dialog_w + c->portrait_w + 6;
+    if (span_w > c->fb->width) {
+      shift = span_w - (c->fb->width + 3);
+      span_w = c->fb->width;
     }
     /* 0x1823/0x1847: `sar ax,1` / `sub ax,0xa0` / `neg ax` = 160 − span_w/2,
      * an arithmetic halve of the span — not a halve of the leftover margin. */
-    const int span_x = framebuffer->width / 2 - (span_w >> 1);
-    if (portrait_left) {
-      portrait_x = span_x;
-      dialog_x = span_x - shift + (portrait_w + 3);
+    const int span_x = c->fb->width / 2 - (span_w >> 1);
+    if (c->portrait_left) {
+      c->portrait_x = span_x;
+      c->dialog_x = span_x - shift + (c->portrait_w + 3);
     } else {
-      dialog_x = span_x;
-      portrait_x = span_x + dialog_w - shift;
+      c->dialog_x = span_x;
+      c->portrait_x = span_x + c->dialog_w - shift;
     }
     /* 0x1867: 100 − (sprite_h + 3)/2. */
-    portrait_y = framebuffer->height / 2 - ((portrait_h + 3) >> 1);
-    if (portrait_y < MAP_MENU_BAR_H) {
-      portrait_y = MAP_MENU_BAR_H;
+    c->portrait_y = c->fb->height / 2 - ((c->portrait_h + 3) >> 1);
+    if (c->portrait_y < MAP_MENU_BAR_H) {
+      c->portrait_y = MAP_MENU_BAR_H;
     }
-    if (portrait_y + portrait_h > framebuffer->height) {
-      portrait_y = framebuffer->height - portrait_h;
+    if (c->portrait_y + c->portrait_h > c->fb->height) {
+      c->portrait_y = c->fb->height - c->portrait_h;
     }
   } else {
-    dialog_x = (framebuffer->width - dialog_w) / 2;
+    c->dialog_x = (c->fb->width - c->dialog_w) / 2;
   }
 
-  int graphic_x = 0;
-  int graphic_y = 0;
-  if (graphic) {
-    const int ov_y = graphic->place_offset_y > graphic_h ? graphic_h : graphic->place_offset_y;
-    const int total_h = graphic_h - ov_y + dialog_h;
-    int top = (framebuffer->height - total_h) / 2;
+  c->graphic_x = 0;
+  c->graphic_y = 0;
+  if (c->graphic) {
+    const int ov_y =
+      c->graphic->place_offset_y > c->graphic_h ? c->graphic_h : c->graphic->place_offset_y;
+    const int total_h = c->graphic_h - ov_y + c->dialog_h;
+    int top = (c->fb->height - total_h) / 2;
     /* Keep the whole assembly below the menu bar. */
     if (top < MAP_MENU_BAR_H) {
       top = MAP_MENU_BAR_H;
     }
-    if (top + total_h > framebuffer->height) {
-      top = framebuffer->height - total_h;
+    if (top + total_h > c->fb->height) {
+      top = c->fb->height - total_h;
     }
-    graphic_y = top;
-    dialog_y = top + graphic_h - ov_y;
-    if (graphic->place_mode == 1) {
+    c->graphic_y = top;
+    c->dialog_y = top + c->graphic_h - ov_y;
+    if (c->graphic->place_mode == 1) {
       /* Centred over the (already centred) dialog. */
-      graphic_x = (framebuffer->width - graphic_w) / 2;
+      c->graphic_x = (c->fb->width - c->graphic_w) / 2;
     } else {
-      int ov_x = graphic->place_offset_x;
-      int total_w = dialog_w + graphic_w - ov_x;
-      if (total_w > framebuffer->width) {
-        ov_x += total_w - framebuffer->width; /* DOS widens the overlap. */
-        total_w = framebuffer->width;
+      int ov_x = c->graphic->place_offset_x;
+      int total_w = c->dialog_w + c->graphic_w - ov_x;
+      if (total_w > c->fb->width) {
+        ov_x += total_w - c->fb->width; /* DOS widens the overlap. */
+        total_w = c->fb->width;
       }
-      const int x0 = (framebuffer->width - total_w) / 2;
-      if (graphic->place_mode == 2) {
-        dialog_x = x0;
-        graphic_x = x0 + dialog_w - ov_x;
+      const int x0 = (c->fb->width - total_w) / 2;
+      if (c->graphic->place_mode == 2) {
+        c->dialog_x = x0;
+        c->graphic_x = x0 + c->dialog_w - ov_x;
       } else {
-        graphic_x = x0;
-        dialog_x = x0 + graphic_w - ov_x;
+        c->graphic_x = x0;
+        c->dialog_x = x0 + c->graphic_w - ov_x;
       }
     }
   }
-  frame_x = dialog_x;
-  frame_y = dialog_y;
+}
 
+/* Stage 5: portrait (under), wood frame, content box, decoration (over). */
+static void ai_popup_render_frame(
+  AiPopupRenderCtx* c, const ColonizeSpriteSheet* wood_tile, const ColonizePopupColors* colors
+) {
   ColonizePopupColors local_colors;
   if (!colors) {
     popup_colors_from_ui(&local_colors);
@@ -675,83 +718,88 @@ void ai_popup_render(
    * the dialog back into the sprite (`shift` above) that painted the
    * portrait on top of wood DOS would have drawn over it.
    */
-  if (portrait_base) {
-    ss_blit_sprite(portrait_base, 0, framebuffer, portrait_x, portrait_y);
+  if (c->portrait_base) {
+    ss_blit_sprite(c->portrait_base, 0, c->fb, c->portrait_x, c->portrait_y);
   }
-  if (portrait) {
-    ss_blit_sprite(portrait, portrait_frame, framebuffer, portrait_x, portrait_y);
+  if (c->portrait) {
+    ss_blit_sprite(c->portrait, c->portrait_frame, c->fb, c->portrait_x, c->portrait_y);
   }
 
-  int inner_x = 0;
-  int inner_y = 0;
-  int inner_w = 0;
-  int inner_h = 0;
+  c->inner_x = 0;
+  c->inner_y = 0;
+  c->inner_w = 0;
+  c->inner_h = 0;
   popup_draw(
-    framebuffer,
-    frame_x,
-    frame_y,
-    frame_w,
-    frame_h,
+    c->fb,
+    c->dialog_x,
+    c->dialog_y,
+    c->dialog_w,
+    c->dialog_h,
     wood_tile,
     colors,
-    &inner_x,
-    &inner_y,
-    &inner_w,
-    &inner_h
+    &c->inner_x,
+    &c->inner_y,
+    &c->inner_w,
+    &c->inner_h
   );
   /* Content box = the dialog part of the frame (text/rows anchor here). */
-  inner_x = dialog_x + POPUP_FRAME_INSET;
-  inner_y = dialog_y + POPUP_FRAME_INSET;
-  inner_w = dialog_w - POPUP_FRAME_INSET * 2;
-  inner_h = dialog_h - POPUP_FRAME_INSET * 2;
+  c->inner_x = c->dialog_x + POPUP_FRAME_INSET;
+  c->inner_y = c->dialog_y + POPUP_FRAME_INSET;
+  c->inner_w = c->dialog_w - POPUP_FRAME_INSET * 2;
+  c->inner_h = c->dialog_h - POPUP_FRAME_INSET * 2;
 
-  st->dialog_x = dialog_x;
-  st->dialog_y = dialog_y;
-  st->dialog_w = dialog_w;
-  st->dialog_h = dialog_h;
+  c->st->dialog_x = c->dialog_x;
+  c->st->dialog_y = c->dialog_y;
+  c->st->dialog_w = c->dialog_w;
+  c->st->dialog_h = c->dialog_h;
   /* Hit-testing walks the OPTION rows, so this is their pitch, not the body's. */
-  st->line_h = option_h;
+  c->st->line_h = c->option_h;
 
-  if (graphic) {
+  if (c->graphic) {
     /* After the frame so the figure's head/shoulders overlap the wood top
      * (DOS 248e's second thunk_2a1f_0ab6 arm, DS:0x1f5c < 0). */
-    ss_blit_sprite(graphic, 0, framebuffer, graphic_x, graphic_y);
+    ss_blit_sprite(c->graphic, 0, c->fb, c->graphic_x, c->graphic_y);
   }
+}
 
+/* Stage 6: title, body lines, option rows + selection bar. */
+static void ai_popup_render_text(
+  AiPopupRenderCtx* c, uint8_t text_color, uint8_t hilite_color, uint8_t select_color
+) {
   /* DOS DS:0x1f62 starts 0 per popup and carries across every line the
    * writer emits — title, body, then the option rows (FUN_6f74_0538). */
   bool emph = false;
-  int text_y = inner_y + 3; /* DOS +0x2c = 3 + 3 */
-  if (req->title[0] && font) {
+  int text_y = c->inner_y + 3; /* DOS +0x2c = 3 + 3 */
+  if (c->req->title[0] && c->font) {
     popup_draw_text_markup(
-      font, framebuffer, inner_x + pad_x, text_y, req->title, text_color,
+      c->font, c->fb, c->inner_x + c->pad_x, text_y, c->req->title, text_color,
       hilite_color, true, true, &emph
     );
-    text_y += title_h;
+    text_y += c->title_h;
   }
 
-  for (int i = 0; i < wrapped_count; ++i) {
-    if (text_y + line_h > inner_y + inner_h - options_h) {
+  for (int i = 0; i < c->wrapped_count; ++i) {
+    if (text_y + c->line_h > c->inner_y + c->inner_h - c->options_h) {
       break;
     }
     /* GAME.TXT '^^' rows centre inside the text column (FUN_6f74_1198). */
-    int line_x = inner_x + pad_x;
-    if (wrapped_center[i]) {
-      const int w = popup_markup_text_width(font, wrapped[i]);
-      if (w < text_max_w) {
-        line_x += (text_max_w - w) / 2;
+    int line_x = c->inner_x + c->pad_x;
+    if (c->wrapped_center[i]) {
+      const int w = popup_markup_text_width(c->font, c->wrapped[i]);
+      if (w < c->text_max_w) {
+        line_x += (c->text_max_w - w) / 2;
       }
     }
     popup_draw_text_markup(
-      font, framebuffer, line_x, text_y, wrapped[i], text_color,
+      c->font, c->fb, line_x, text_y, c->wrapped[i], text_color,
       hilite_color, true, true, &emph
     );
-    text_y += line_h;
+    text_y += c->line_h;
   }
-  st->list_y0 = text_y;
-  for (int i = 0; i < req->choice_count; ++i) {
-    const int row_y = text_y + i * option_h;
-    if (i == st->selection) {
+  c->st->list_y0 = text_y;
+  for (int i = 0; i < c->req->choice_count; ++i) {
+    const int row_y = text_y + i * c->option_h;
+    if (i == c->st->selection) {
       /*
        * FUN_6f74_1b7c selection bar, OVL24 0x1c5b–0x1c9b. Its x is
        * `[bp-0x8] − box[+0x22] − 1` where [bp-0x8] was built at 0x1b86 as
@@ -765,20 +813,48 @@ void ai_popup_render(
        * box[+0x20] is the content width (= inner_w, which is dialog_w − 6).
        */
       ai_popup_fill_row(
-        framebuffer,
-        inner_x + pad_x - 1,
+        c->fb,
+        c->inner_x + c->pad_x - 1,
         row_y - 1,
-        inner_x + pad_x - 1 + (inner_w - 2) - 1,
-        row_y - 1 + (glyph_h + 2) - 1,
+        c->inner_x + c->pad_x - 1 + (c->inner_w - 2) - 1,
+        row_y - 1 + (c->glyph_h + 2) - 1,
         select_color
       );
     }
-    if (font) {
+    if (c->font) {
       popup_draw_text_markup(
-        font, framebuffer, inner_x + pad_x, row_y, req->choices[i], text_color,
+        c->font, c->fb, c->inner_x + c->pad_x, row_y, c->req->choices[i], text_color,
         hilite_color, true, true, &emph
       );
     }
   }
+}
+
+void ai_popup_render(
+  AiPopupState* st,
+  const ColonizeFont* font,
+  const ColonizeSpriteSheet* wood_tile,
+  const ColonizePopupColors* colors,
+  uint8_t text_color,
+  uint8_t hilite_color,
+  uint8_t select_color,
+  ColonizeFramebuffer8* framebuffer
+) {
+  if (!st || !st->open || !framebuffer || !framebuffer->pixels) {
+    return;
+  }
+
+  AiPopupRenderCtx c;
+  memset(&c, 0, sizeof(c));
+  c.st = st;
+  c.req = &st->current;
+  c.font = font;
+  c.fb = framebuffer;
+  ai_popup_render_measure(&c);
+  ai_popup_render_pick_portrait(&c);
+  ai_popup_render_pick_graphic(&c);
+  ai_popup_render_place(&c);
+  ai_popup_render_frame(&c, wood_tile, colors);
+  ai_popup_render_text(&c, text_color, hilite_color, select_color);
 }
 

@@ -514,11 +514,7 @@ int europe_custom_house_autosell_w(
   ColonizeColony* colony,
   int human_nation
 ) {
-  EuropeScreen* eu = w->europe;
-  ColonizeColonyPool* pool = w->colonies;
-  ColonizeCol1Save* col1 = w->col1;
-
-  return europe_custom_house_autosell_ex_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(pool), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL), .europe=(EuropeScreen*)(eu)}, colony, human_nation, NULL, 0, NULL, false);
+  return europe_custom_house_autosell_ex_w(w, colony, human_nation, NULL, 0, NULL, false);
 }
 
 
@@ -1362,7 +1358,8 @@ static bool europe_dock_menu_apply_selection(
   ColonizeUnitPool* units,
   int nation_id
 ) {
-  return europe_dock_menu_apply_selection_ex_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .europe=(EuropeScreen*)(eu)}, nation_id);
+  const ColonizeWorld dw = world_make(units, NULL, NULL, NULL, false, NULL, eu);
+  return europe_dock_menu_apply_selection_ex_w(&dw, nation_id);
 }
 
 bool europe_menu_confirm(EuropeScreen* eu) {

@@ -5,9 +5,8 @@
 #include "core/colony.h"
 #include "core/colony_craft.h"
 #include "core/colony_production.h"
-#include "core/colony_yield.h"
-#include "core/founding_fathers.h"
 #include "core/turn.h"
+#include "core/turn_internal.h"
 
 void colony_preview_compute_w(
   const ColonizeWorld* w,
@@ -26,74 +25,24 @@ void colony_preview_compute_w(
     return;
   }
 
-  const int pop = colony->colonist_count > 0 ? colony->colonist_count : colony->population;
+  const int pop = colonies_headcount(colony);
   const int sol_b = colony_prod_sol_bonus(col1, colony);
-  /* Field yields zero this outright for AI colonies — see
-   * colony_prod_sol_bonus_field / turn.c's field loop. Buildings
-   * (craft/bells/crosses/hammers below) keep the shared sol_b. */
-  const int sol_b_field = colony_prod_sol_bonus_field(col1, colony);
 
-  if (map) {
-    ColonizeTownCommonsYield tc;
-    colony_yield_town_commons(
-      map, colony->x, colony->y, colony->colony_flags,
-      col1 ? (int)col1->head.difficulty : 4, &tc
-    );
-    if (tc.food > 0) {
-      out->goods[COLONIZE_CARGO_FOOD] += tc.food;
+  /* Town commons + worked plots: the tick's own Phase A field composition
+   * (turn_compose_colony_fields), not a copy of it (bugs.md #1111).
+   * field_gross is field-worker + town-commons secondary only (no commons
+   * food) — see its header comment in colony_preview.h. New Amsterdam's
+   * Cotton is entirely a town-commons secondary yield, yet the Production
+   * tab must still pair it with the Weaver's shortfall. */
+  {
+    TurnColonyFieldYield fy;
+    turn_compose_colony_fields(pool, map, col1, colony, &fy);
+    out->goods[COLONIZE_CARGO_FOOD] += fy.commons_food;
+    for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
+      out->goods[i] += fy.gross[i];
+      out->field_gross[i] += fy.gross[i];
     }
-    if (tc.secondary_amount > 0 && tc.secondary_cargo >= 0 &&
-        tc.secondary_cargo < COLONIZE_CARGO_COUNT) {
-      out->goods[tc.secondary_cargo] += tc.secondary_amount;
-      /* Also into field_gross: New Amsterdam's Cotton is entirely a
-       * town-commons secondary yield (no colonist works a cotton tile), yet
-       * the Production tab must still pair it with the Weaver's shortfall
-       * (5 produced / 5 shortfall, player-reported) — the tab's craft-input
-       * side needs a nonzero gross figure to show alongside the shortfall
-       * or the pairing looks like a shortfall out of nowhere. */
-      out->field_gross[tc.secondary_cargo] += tc.secondary_amount;
-    }
-
-    /* Docks (or an upgrade: Drydock/Shipyard) gates Fisherman yield to 0 —
-     * FUN_15eb_18ec:11967-11969. Shared answer, so it cannot drift from
-     * turn.c's check the way the AI scorer's copy did (audit E#2). */
-    const bool has_docks = colony_yield_colony_has_docks(pool, colony);
-
-    ColonizeWorkedTileIter wit;
-    ColonizeWorkedTile w;
-    colony_yield_worked_tiles_begin(&wit, colony);
-    while (colony_yield_worked_tiles_next(&wit, &w)) {
-      const ColonizeColonist* c = w.colonist;
-      /* sol_b_field folds into colony_yield_for_worker directly now
-       * (2026-08-15, player-confirmed order) — must match turn.c's
-       * turn_produce_one_colony exactly, including the same Hudson-after-
-       * SoL-fold ordering note there. */
-      /* Henry Hudson folds into the pipeline itself now (turn.c
-       * turn_produce_one_colony / colony_yield.c, smell audit #60). */
-      int yld = colony_yield_for_worker(
-        map,
-        w.x,
-        w.y,
-        c->field_job,
-        c->profession,
-        has_docks,
-        sol_b_field,
-        colony->colony_flags,
-        col1 && founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)
-      );
-      const int cargo = colony_yield_job_cargo(c->field_job);
-      if (yld > 0 && cargo >= 0 && cargo < COLONIZE_CARGO_COUNT) {
-        out->goods[cargo] += yld;
-        /* Field-worker-only, deliberately excluding the town-commons
-         * auto-yield added above (before this loop runs) — see the header
-         * comment on `field_gross` in colony_preview.h. A plain memcpy of
-         * `goods[]` here would double-count that secondary good. */
-        out->field_gross[cargo] += yld;
-        if (c->field_job == COLONIZE_JOB_FISHERMAN) {
-          out->food_fish += yld;
-        }
-      }
-    }
+    out->food_fish = fy.fish;
   }
 
   /* FUN_364b_0688 Phase B: AI Euro food += difficulty>>1 — same subsidy

@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 #include "core/col1_save.h"
-#include "core/ff.h"
+#include "core/font_file.h"
 #include "core/ss.h"
 #include "platform/platform.h"
 

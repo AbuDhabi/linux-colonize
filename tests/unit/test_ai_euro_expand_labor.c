@@ -204,7 +204,7 @@ static int unit_colony_flags_starvation_labor(void) {
    * colony_flags bit3; that bit is DOS's inefficient-government latch again,
    * so assert the condition the dispatcher actually reads. */
   if (c->stock[COLONIZE_CARGO_FOOD] >=
-      (c->colonist_count > 0 ? c->colonist_count : c->population) * 2) {
+      colonies_headcount(c) * 2) {
     fprintf(stderr, "unit_ai_euro_expand: colony_flags=0x%02x food=%d\n",
             (unsigned)c->colony_flags, c->stock[COLONIZE_CARGO_FOOD]);
     fx_map_free(&map);
