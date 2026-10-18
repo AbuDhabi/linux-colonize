@@ -140,18 +140,24 @@ COLONIZE_INTERNAL int ai_021a_type_mounted(int t) {
 }
 
 /*
- * FUN_1427_0b08 (via 0bce) / FUN_1427_09dc: first adjacent foreign owner on
- * the same medium. 0b08 checks unit presence then settlement per tile (the
- * settlement write wins), stopping after the first tile that found one; 09dc
- * checks settlement first, else presence, stopping at the first hit. Both
- * leave the nation in DS:0x8cfa.
+ * FUN_1427_0b08 (via 0bce) / FUN_1427_09dc: first adjacent foreign owner.
+ * 0b08 checks unit presence then settlement per tile (the settlement write
+ * wins), each on the centre's medium, stopping after the first tile that found
+ * one. 09dc (DOS-LITERAL raw 7927-7968) checks settlement first, else presence,
+ * stopping at the first hit, and its medium test is only skin-deep: when the
+ * centre tile is a settlement the neighbour medium is never read (a ship on
+ * the sea next to a village counts: DOSBox tr10 turn 276, crown Man-O-War at
+ * (42,52) beside the village at (41,53)); otherwise a settlement neighbour's
+ * medium replaces the sticky centre medium for the following tiles. Both leave
+ * the nation in DS:0x8cfa.
  */
 static int s_021a_adj_fx = -1;
 static int s_021a_adj_fy = -1;
 COLONIZE_INTERNAL int ai_021a_adjacent_foreign(
   const ColonizeWorldMap* map, int x, int y, int nation_id, int settlement_first
 ) {
-  const int medium = ai_is_ocean_hs(map, x, y);
+  int medium = ai_is_ocean_hs(map, x, y); /* 09dc local_8 (sticky) */
+  const int centre_settle = settlement_first ? ai_021a_settle_owner(map, x, y) : -1;
   int found = -1;
   s_021a_adj_fx = s_021a_adj_fy = -1;
   for (int d = 0; d < 8 && found < 0; ++d) {
@@ -160,17 +166,25 @@ COLONIZE_INTERNAL int ai_021a_adjacent_foreign(
     if (!map_coords_inset(map, nx, ny)) {
       continue;
     }
-    if (ai_is_ocean_hs(map, nx, ny) != medium) {
-      continue;
-    }
-    const int p = map_tile_owner_or_presence(map, nx, ny);
-    const int s = ai_021a_settle_owner(map, nx, ny);
     if (settlement_first) {
-      const int o = s >= 0 ? s : p;
-      if (o >= 0 && o != nation_id) {
+      /* 09dc: iVar3 = neighbour medium only when the centre has no settlement. */
+      const int nb_medium = centre_settle < 0 ? ai_is_ocean_hs(map, nx, ny) : medium;
+      int o = ai_021a_settle_owner(map, nx, ny);
+      int next_medium = nb_medium;
+      if (o < 0) {
+        o = map_tile_owner_or_presence(map, nx, ny);
+        next_medium = medium;
+      }
+      medium = next_medium;
+      if (o >= 0 && o != nation_id && nb_medium == medium) {
         found = o;
       }
     } else {
+      if (ai_is_ocean_hs(map, nx, ny) != medium) {
+        continue;
+      }
+      const int p = map_tile_owner_or_presence(map, nx, ny);
+      const int s = ai_021a_settle_owner(map, nx, ny);
       if (p >= 0 && p != nation_id) {
         found = p;
       }

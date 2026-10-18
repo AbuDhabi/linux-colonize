@@ -824,6 +824,7 @@ int turn_rank_euro_nations(
       land = (int)col1->stuff.land_combat_strength[n];
     }
     score[n] = gold100 + colonies_n * 2 + pop + land;
+    if (getenv("AI_28C8_TRACE")) fprintf(stderr, "[rank in] n%d gold100 %d cols %d pop %d land %d score %d\n", n, gold100, colonies_n, pop, land, score[n]);
   }
   /* DOS-LITERAL FUN_1cf8_000a raw 18654-18738: unsigned ascending
    * words; move the next descent before the first equal-or-greater score.

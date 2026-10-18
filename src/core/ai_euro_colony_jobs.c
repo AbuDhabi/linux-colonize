@@ -1364,10 +1364,11 @@ static void ai_euro_5952_indoor_pass(
 
     int commit_job = -1;
     if (getenv("AI_28C8_TRACE")) {
-      fprintf(stderr, "[5952 indoor] colony %d slot %d field %d best %d job %d rank_1b0 %d tories %d press %d capitol %d bells %d jefferson %d pop %d\n",
+      fprintf(stderr, "[5952 indoor] colony %d slot %d field %d best %d job %d rank_1b0 %d tories %d press %d capitol %d bells %d jefferson %d pop %d ranks %d,%d,%d,%d human %d turn %d\n",
               col->id, s, field_score, best, best_job, want.owner_wealth_rank, want.tories,
               want.press_chain_count, want.capitol_level, want.gross[AI_EURO_5952_BELLS],
-              want.jefferson, want.population);
+              want.jefferson, want.population, want.wealth_rank[0], want.wealth_rank[1],
+              want.wealth_rank[2], want.wealth_rank[3], want.human_nation, want.turn);
     }
     if (field_score < best) {
       commit_job = best_job; /* raw 94858 `if (*0x8dc0 < best)` */

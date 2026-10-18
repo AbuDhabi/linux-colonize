@@ -516,6 +516,7 @@ void turn_refresh_euro_rank(ColonizeTurnContext* ctx) {
   ) == 0;
   if (ctx->euro_power_rank_ok)
     memcpy(turn_rank_cached, ctx->euro_power_rank, sizeof turn_rank_cached);
+  if (getenv("AI_28C8_TRACE")) fprintf(stderr, "[rank refresh] turn %d ranks %d,%d,%d,%d\n", ctx->col1_ok ? (int)ctx->col1->head.turn : -1, ctx->euro_power_rank[0], ctx->euro_power_rank[1], ctx->euro_power_rank[2], ctx->euro_power_rank[3]);
 }
 void turn_processor_start(ColonizeTurnProcessor* proc) {
   if (!proc) {

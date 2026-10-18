@@ -312,7 +312,12 @@ def cmd_start(a):
     if pids.get('ctl') and _alive(pids['ctl']):
         sys.exit('already running (stop first)')
     if not (pids.get('xephyr') and _alive(pids['xephyr'])):
-        x = subprocess.Popen(['Xephyr', DISPLAY, '-screen', '800x500', '-title', 'dosbox-trace'],
+        # Xvfb is headless (nothing on the user's desktop); Xephyr is the fallback.
+        if shutil.which('Xvfb'):
+            argv = ['Xvfb', DISPLAY, '-screen', '0', '800x500x24']
+        else:
+            argv = ['Xephyr', DISPLAY, '-screen', '800x500', '-title', 'dosbox-trace']
+        x = subprocess.Popen(argv,
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                              start_new_session=True)
         pids['xephyr'] = x.pid

@@ -30,7 +30,7 @@ python3 tools/dosbox_trace.py stop $W
   Each `--patch-cc`
   turns one EXE file byte into INT 3 (see "Overlay code"). It also writes
   `$W/dbx.conf`.
-- `start` launches a nested X server (`Xephyr :57`; set e.g. `DOSBOX_TRACE_DISPLAY=:59` on every
+- `start` launches a virtual X server (`Xvfb :57` when installed, headless; otherwise a nested `Xephyr :57` window; set e.g. `DOSBOX_TRACE_DISPLAY=:59` on every
   command of a second, concurrent session), DOSBox-X inside it, and
   a controller that keeps the debugger session open. PIDs go to
   `$W/pids.json`.

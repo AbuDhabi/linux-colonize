@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include <stdlib.h>
 #include "core/col1_stuff_census.h"
 
 #include <string.h>
@@ -248,6 +250,7 @@ void col1_stuff_census_4962_w(const ColonizeWorld* w, ColonizeCol1Stuff* stuff, 
   const ColonizeCol1Save* col1 = w->col1;
   const ColonizeWorldMap* map = w->map;
   /* raw 78129-78158: this nation's slices, and all sixteen 0x95f2 bytes. */
+  if (getenv("AI_28C8_TRACE")) fprintf(stderr, "[census] n%d (old land %d)\n", n, (int)stuff->land_combat_strength[n]);
   stuff->land_combat_strength[n] = 0;
   stuff->all_unit_counts[n] = 0;
   stuff->colony_counts[n] = 0;
