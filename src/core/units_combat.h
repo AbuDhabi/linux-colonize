@@ -149,7 +149,8 @@ typedef int (*ColonizeUnitsRaidRepelledFn)(
   int euro_nation,
   int colony_id,
   int home_tribe_id,
-  int forced
+  int forced,
+  int human_nation
 );
 void units_set_colony_raid_repelled(ColonizeUnitsRaidRepelledFn fn);
 
@@ -227,19 +228,6 @@ bool units_resolve_naval_combat_ff_w(
   const ColonizeWorld* w,
   int attacker_id,
   int defender_id
-);
-
-/*
- * AI/king wrapper: same as units_resolve_naval_combat_ff with col1 from
- * units_set_ff_col1 (g_units_ff_col1). Callers that always passed NULL missed
- * Drake privateer *3/2; turn_refresh_moves_for_nation sets the global.
- * Cite: PEDIA/wiki Francis Drake; founding_fathers.c FF_FRANCIS_DRAKE.
- */
-bool units_resolve_naval_combat(
-  ColonizeUnitPool* pool,
-  int attacker_id,
-  int defender_id,
-  ColonizeDosRng* rng
 );
 
 /*

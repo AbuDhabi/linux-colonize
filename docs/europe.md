@@ -448,10 +448,12 @@ Stamp the bound nation's record from the purse.
 
 The five Europe actions that hold no save — europe_recruit_from_pool,
 europe_train, europe_purchase, europe_cash_treasure, europe_cheat_add_gold —
-can only move `eu->gold`, so the record lags until something writes through
-again. All five are reachable from the Europe screen only, which is why the
-port already open-coded this stamp at four game_loop sites; this is that
-one write, named, so the invariant has a single home. Everything else must
+move `eu->gold` through europe_purse_move, which restamps the bound nation's
+record whenever a live save is registered (`g_europe_live_save`, bugs.md
+#1096); without one the record lags until something writes through again.
+All five are reachable from the Europe screen only, which is why the port
+already open-coded this stamp at four game_loop sites; this is that one
+write, named, so the invariant has a single home. Everything else must
 use europe_nation_gold_add instead: a stamp is an absolute copy and will
 discard a credit the record took on its own.
 

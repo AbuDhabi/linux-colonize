@@ -683,20 +683,6 @@ bool sound_backend_ok(void) {
   return g_sound.inited && g_sound.backend_ok;
 }
 
-const char* sound_backend_name(void) {
-#if defined(COLONIZE_HAS_FLUIDSYNTH)
-  if (g_sound.fluid_synth) {
-    return "fluidsynth";
-  }
-#endif
-#if COLONIZE_HAS_TSF
-  if (g_sound.tsf_synth) {
-    return "tsf";
-  }
-#endif
-  return "fallback";
-}
-
 void sound_set_options(ColonizeSoundOptions opts) {
   pthread_mutex_lock(&g_sound.lock);
   g_sound.opts = opts;
@@ -1221,16 +1207,6 @@ void sound_render_s16(int16_t* dst, int frames, int channels, int sample_rate) {
 
 int sound_sfx_count(void) {
   return g_sound.inited ? g_sound.sfx_count : 0;
-}
-
-bool sound_sfx_sample(int index, const uint8_t** out_pcm, uint32_t* out_len, int* out_rate) {
-  if (!g_sound.inited || !g_sound.sfx_data || index < 0 || index >= g_sound.sfx_count) {
-    return false;
-  }
-  if (out_pcm) *out_pcm = g_sound.sfx_data + g_sound.sfx_off[index];
-  if (out_len) *out_len = g_sound.sfx_len[index];
-  if (out_rate) *out_rate = gsound_vm_sfx_rate(index);
-  return true;
 }
 
 void sound_play_sfx(int index) {

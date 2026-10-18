@@ -320,8 +320,10 @@ int main(int argc, char** argv) {
   }
 
   game_destroy(game);
-  sound_shutdown();
+  /* Close the SDL audio device (stops the callback) before sound_shutdown
+   * destroys the synth and g_sound.lock the callback takes. */
   platform_destroy(platform);
+  sound_shutdown();
   diag_shutdown();
   return 0;
 }

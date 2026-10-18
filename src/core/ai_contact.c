@@ -85,11 +85,10 @@ int ai_contact_s_last_gold_drained;
  * limb off the war test — `FUN_281f_0768(mover, neighbour)` non-zero takes
  * the hostile limb, zero takes the encounter limb that ends in
  * thunk_FUN_2a1f_066c = FUN_5bfb_022e (gift / beg / demand), latched
- * per-nation in `aiStack_20[nation]`. The port splits those limbs across
- * ai.c §9's arm order, so the SAME Brave could be picked up by the gift arm
- * and then again by the raid pulse in one nation-turn. This latch restores
- * the one-limb rule: a Brave that resolved a peaceful visit is off the table
- * for the raid pulse this turn.
+ * per-nation in `aiStack_20[nation]`. The latch records the Brave that
+ * resolved this turn's peaceful visit (read by the visit-mood binding and
+ * ai_contact_is_visit_brave). Its old raid-pulse reader was deleted with the
+ * pulse (bugs.md #1093).
  */
 int ai_contact_s_visit_brave_id[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
 int ai_contact_s_visit_brave_turn[8];
@@ -106,25 +105,14 @@ void ai_contact_mark_visit_brave(
   ai_contact_s_visit_brave_turn[nation_id - 4] = ctx->turn_number ? (int)*ctx->turn_number : 0;
 }
 
-int ai_contact_brave_visited_this_turn(
-  const ColonizeTurnContext* ctx, int nation_id, int brave_id
-) {
-  if (!ctx || nation_id < 4 || nation_id > 11 || brave_id < 0) {
-    return 0;
-  }
-  const int turn = ctx->turn_number ? (int)*ctx->turn_number : 0;
-  return ai_contact_s_visit_brave_id[nation_id - 4] == brave_id &&
-         ai_contact_s_visit_brave_turn[nation_id - 4] == turn;
-}
-
-int ai_contact_last_raid_kind(void) {
+COLONIZE_INTERNAL int ai_contact_last_raid_kind(void) {
   return ai_contact_s_last_raid_kind;
 }
 
 /* @CARGO display names via the shared NAMES.TXT-backed accessor. */
 const char* ai_contact_cargo_name(int cargo_idx) {
   if (cargo_idx < 0 || cargo_idx >= COLONIZE_CARGO_COUNT) {
-    return "goods";
+    return ""; /* catalog miss = empty (bugs.md #1100) */
   }
   return reports_cargo_display_name(cargo_idx);
 }
@@ -243,26 +231,6 @@ void ai_contact_human_chrome(
 }
 
 /*
- * "The <tribe> refuse <what>." — the refusal chrome twelve call sites in this
- * file spelled out byte for byte (audit AC-3). `what` is the plural noun the
- * DOS status line uses: "gifts", "demands", "conversion".
- */
-void ai_contact_refuse_chrome(
-  ColonizeTurnContext* ctx,
-  int e,
-  int nation_id,
-  AiPopupTag tag,
-  const char* title,
-  const char* what
-) {
-  char refuse_fb[AI_POPUP_BODY_LEN];
-  snprintf(
-    refuse_fb, sizeof(refuse_fb), "The %s refuse %s.", ai_contact_tribe_name(nation_id), what
-  );
-  ai_contact_human_chrome(ctx, e, tag, nation_id, title, refuse_fb);
-}
-
-/*
  * NAMES.TXT catalog for the @VALUES lookup below; every other name table in
  * this file now goes through the reports_* accessors (which parse their own
  * NAMES.TXT copy).
@@ -281,7 +249,7 @@ void ai_contact_bind_names(const ColonizeTurnContext* ctx) {
 const char* ai_contact_tribe_name(int nation_id) {
   const int idx = nation_id - 4;
   if (idx < 0 || idx >= 8) {
-    return "natives";
+    return ""; /* bugs.md #1100 */
   }
   return reports_tribe_singular_name(idx);
 }
@@ -291,14 +259,14 @@ const char* ai_contact_tribe_name(int nation_id) {
  * col1 NULL = plain adjective. */
 const char* ai_contact_euro_name(const ColonizeCol1Save* col1, int euro_nation) {
   if (euro_nation < 0 || euro_nation > 3) {
-    return "Europeans";
+    return ""; /* bugs.md #1100 */
   }
   return reports_nation_adjective_woi(col1, euro_nation);
 }
 
 const char* ai_contact_euro_plural(const ColonizeCol1Save* col1, int euro_nation) {
   if (euro_nation < 0 || euro_nation > 3) {
-    return "Europeans";
+    return ""; /* bugs.md #1100 */
   }
   return reports_nation_plural_woi(col1, euro_nation);
 }
@@ -398,8 +366,9 @@ void ai_contact_alarm_delta_00f2(
  * (bugs.md #1004). DOS has no half writer -- FUN_281f_0d6c is a bare thunk to
  * the whole of FUN_4cc6_00f2 -- so those sites used to pin a pair at alarm
  * 100 forever and never burn a mission, while DOS rolls on every charge that
- * lands on 100. "Human" is the DS:0x543f control byte here; there is no
- * ctx->human_nation override to honour and no status line to write, so the
+ * lands on 100. "Human" goes through ai_contact_euro_is_human like the ctx
+ * form (bugs.md #1122); a ColonizeWorld carries no human_nation override, so
+ * that is the DS:0x543f control byte. No status line to write, so the
  * @INDIANBURN notice goes straight to the popup queue when the world carries
  * one (NULL queue = mechanics only, as before).
  */
@@ -410,8 +379,12 @@ void ai_contact_alarm_delta_00f2_w(
     return;
   }
   ai_diplo_indian_alarm_delta(w->col1, nation_id, euro, delta);
-  const int human =
-    (euro >= 0 && euro <= 3) ? (w->col1->player[euro].control == 0) : 0;
+  ColonizeTurnContext hctx;
+  memset(&hctx, 0, sizeof(hctx));
+  hctx.col1 = w->col1;
+  hctx.col1_ok = true;
+  hctx.human_nation = -1;
+  const int human = ai_contact_euro_is_human(&hctx, euro);
   if (!ai_contact_00f2_expel(w->col1, w->rng, nation_id, euro, human) || !human) {
     return;
   }
@@ -656,7 +629,17 @@ static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nati
   PopupMsgTokens welcome_tok;
   memset(&welcome_tok, 0, sizeof(welcome_tok));
   welcome_tok.string0 = tribe;
-  welcome_tok.string1 = shown == 1 ? "settlement" : "settlements";
+  /* FUN_5bfb_022e raw 96628: %STRING1 = DS:(tech*6 - 0x69ca), the @LEVELS
+   * plural column (Camps/Villages/Cities) by the tribe's +2 tech byte —
+   * always plural, whatever the count (bugs.md #1100). */
+  char levels[32];
+  levels[0] = '\0';
+  if (ctx->col1 && !assets_msg_row_field(
+        ctx->names, "LEVELS", (int)ctx->col1->indian[nation_id - 4].tech, 2,
+        levels, sizeof(levels))) {
+    levels[0] = '\0';
+  }
+  welcome_tok.string1 = levels;
   welcome_tok.number0 = shown;
   welcome_tok.has_number0 = true;
   char fb[AI_POPUP_BODY_LEN];
@@ -915,7 +898,7 @@ static const char* ai_contact_action_label(
   size_t n = 0;
   for (const char* c = src; *c && n + 1 < out_size; ++c) {
     if (c[0] == '%' && c[1] == 'F') {
-      const char* a = rival_adj ? rival_adj : "foreign";
+      const char* a = rival_adj ? rival_adj : ""; /* bugs.md #1100 */
       while (*a && n + 1 < out_size) {
         out[n++] = *a++;
       }
@@ -1148,7 +1131,7 @@ int ai_contact_try_village_meet_unit_at(
   return 1;
 }
 
-int ai_contact_try_village_meet_unit(
+COLONIZE_INTERNAL int ai_contact_try_village_meet_unit(
   ColonizeTurnContext* ctx,
   int euro_nation,
   int indian_nation,
@@ -1160,7 +1143,7 @@ int ai_contact_try_village_meet_unit(
     ctx, euro_nation, indian_nation, is_missionary, is_capital, unit_id, -1);
 }
 
-int ai_contact_try_village_meet(
+COLONIZE_INTERNAL int ai_contact_try_village_meet(
   ColonizeTurnContext* ctx,
   int euro_nation,
   int indian_nation,
@@ -1232,7 +1215,7 @@ int ai_contact_try_whack_confirm(
       euro_nation > 3 || indian_nation < 4 || indian_nation > 11) {
     return 0;
   }
-  if (ctx->col1->player[euro_nation].control != 0) {
+  if (!ai_contact_euro_is_human(ctx, euro_nation)) {
     return 0; /* DOS: 0x543f[nation] == 0 — human only */
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[indian_nation - 4];
@@ -1430,7 +1413,7 @@ int ai_contact_try_tired_attack_confirm(
  * relation≥0x4b or friction≥0x40 → @MADATSHIPS abort; else fall through to
  * village meet. Ship never enters the tile. Cite: indian_settlement_4528.md.
  */
-int ai_contact_try_ship_village(ColonizeTurnContext* ctx, int euro_nation, int x, int y) {
+COLONIZE_INTERNAL int ai_contact_try_ship_village(ColonizeTurnContext* ctx, int euro_nation, int x, int y) {
   return ai_contact_try_ship_village_unit(ctx, euro_nation, x, y, -1);
 }
 

@@ -19,10 +19,6 @@
 #include "core/strutil.h"
 #include "platform/diagnostics.h"
 
-#ifndef MAPGEN_STAGE_DIAG
-#define MAPGEN_STAGE_DIAG 0
-#endif
-
 /* Terrain indices / overlay bits (T_*, F_*) now come from core/map.h. */
 
 typedef ColonizeDosRng MapGenRng;
@@ -434,15 +430,6 @@ static void rivers_pass(
   int attempts = 0;
   int successes = 0;
   const int success_target = (climate + land_mass + 2) * 8;
-#if MAPGEN_STAGE_DIAG
-  int reject_loops = 0;
-  int fail_restore = 0;
-  int ok_connect = 0;
-  int ok_step_riv = 0;
-  int fail_short = 0;
-  int fail_no_conn = 0;
-  int fail_short_conn = 0;
-#endif
 
   while (attempts < 0x200 && successes < success_target) {
     /* FUN_1d1d_0fb2: terrain → 85c0 snapshot. */
@@ -457,15 +444,9 @@ static void rivers_pass(
       tile_snap = snap[idx(x, y, w)];
       /* Reject hills on snapshot, then water on live terrain (0768). */
       if (tile_snap & F_HILL) {
-#if MAPGEN_STAGE_DIAG
-        reject_loops++;
-#endif
         continue;
       }
       if (is_water_tile(terrain[idx(x, y, w)])) {
-#if MAPGEN_STAGE_DIAG
-        reject_loops++;
-#endif
         continue;
       }
       break;
@@ -552,13 +533,6 @@ static void rivers_pass(
     /* Success: connected to water/committed river, or stepped onto committed river. */
     if ((connected || (cur_snap & F_RIVER)) && length > 2) {
       successes++;
-#if MAPGEN_STAGE_DIAG
-      if (connected) {
-        ok_connect++;
-      } else {
-        ok_step_riv++;
-      }
-#endif
 
       if (connected) {
         const int thr = (climate + 6) * 2;
@@ -620,36 +594,9 @@ static void rivers_pass(
     } else {
       /* FUN_1d1d_0fb2: snapshot → terrain. */
       memcpy(terrain, snap, (size_t)n);
-#if MAPGEN_STAGE_DIAG
-      fail_restore++;
-      if (connected && length <= 2) {
-        fail_short_conn++;
-      } else if ((cur_snap & F_RIVER) && length <= 2) {
-        fail_short++;
-      } else {
-        fail_no_conn++;
-      }
-#endif
     }
   }
 
-#if MAPGEN_STAGE_DIAG
-  fprintf(
-    stderr,
-    "RIVERS attempts=%d successes=%d/%d reject_draws≈%d fail=%d "
-    "(short_conn=%d short_step=%d no_conn=%d) ok_conn=%d ok_step=%d\n",
-    attempts,
-    successes,
-    success_target,
-    reject_loops,
-    fail_restore,
-    fail_short_conn,
-    fail_short,
-    fail_no_conn,
-    ok_connect,
-    ok_step_riv
-  );
-#endif
 
   free(snap);
 }
@@ -1363,221 +1310,12 @@ bool map_generate(ColonizeWorldMap* out, const MapGenParams* params, char* err, 
   int open_south = 1;
   generate_land_mask(mask, w, h, rng, &p, &open_south);
   cleanup_diagonal_land(mask, w, h);
-#if MAPGEN_STAGE_DIAG
-  {
-    int m1 = 0, m2 = 0, m3 = 0, land = 0;
-    for (int i = 0; i < n; i++) {
-      if (!mask[i]) {
-        continue;
-      }
-      land++;
-      if (mask[i] == 1) {
-        m1++;
-      } else if (mask[i] == 2) {
-        m2++;
-      } else {
-        m3++;
-      }
-    }
-    fprintf(stderr, "STAGE post-mask land=%d m1=%d m2=%d m3+=%d\n", land, m1, m2, m3);
-  }
-#endif
 
   paint_terrain(out->terrain, mask, w, h, rng, &p);
-#if MAPGEN_STAGE_DIAG
-  {
-    int hist[8] = {0}, hills = 0, mtn = 0, land = 0;
-    for (int i = 0; i < n; ++i) {
-      const uint8_t t = out->terrain[i];
-      const uint8_t b = (uint8_t)(t & 0x1f);
-      if (b >= 24) {
-        continue;
-      }
-      land++;
-      if (b < 8) {
-        hist[b]++;
-      }
-      if (t & F_HILL) {
-        hills++;
-      }
-      if (t & F_MOUNTAIN) {
-        mtn++;
-      }
-    }
-    fprintf(
-      stderr,
-      "STAGE post-lat land=%d hills=%d mtn=%d types=%d,%d,%d,%d,%d,%d,%d,%d rng=%u\n",
-      land,
-      hills,
-      mtn,
-      hist[0],
-      hist[1],
-      hist[2],
-      hist[3],
-      hist[4],
-      hist[5],
-      hist[6],
-      hist[7],
-      (unsigned)rng->state
-    );
-  }
-#endif
   climate_humidity_pass(out->terrain, mask, w, h, rng, p.climate);
-#if MAPGEN_STAGE_DIAG
-  {
-    int hist[8] = {0};
-    for (int i = 0; i < n; ++i) {
-      const uint8_t b = (uint8_t)(out->terrain[i] & 0x1f);
-      if (b < 8) {
-        hist[b]++;
-      }
-    }
-    fprintf(
-      stderr,
-      "STAGE post-clim types=%d,%d,%d,%d,%d,%d,%d,%d rng=%u\n",
-      hist[0],
-      hist[1],
-      hist[2],
-      hist[3],
-      hist[4],
-      hist[5],
-      hist[6],
-      hist[7],
-      (unsigned)rng->state
-    );
-  }
-#endif
   forest_wander_pass(out->terrain, mask, w, h, rng, p.forest_extra);
-#if MAPGEN_STAGE_DIAG
-  {
-    int hist[8] = {0};
-    int m0 = 0, m1 = 0, m2 = 0, m3p = 0, land = 0;
-    for (int i = 0; i < n; ++i) {
-      const uint8_t b = (uint8_t)(out->terrain[i] & 0x1f);
-      if (b < 8) {
-        hist[b]++;
-      }
-      if (!mask[i]) {
-        m0++;
-        continue;
-      }
-      land++;
-      if (mask[i] == 1) {
-        m1++;
-      } else if (mask[i] == 2) {
-        m2++;
-      } else {
-        m3p++;
-      }
-    }
-    fprintf(
-      stderr,
-      "STAGE post-wander types=%d,%d,%d,%d,%d,%d,%d,%d rng=%u\n",
-      hist[0],
-      hist[1],
-      hist[2],
-      hist[3],
-      hist[4],
-      hist[5],
-      hist[6],
-      hist[7],
-      (unsigned)rng->state
-    );
-    fprintf(stderr, "STAGE pre-fbit mask land=%d m1=%d m2=%d m3+=%d ocean_m=%d\n", land, m1, m2, m3p, m0);
-  }
-#endif
   forest_bit_pass(out->terrain, mask, w, h, rng);
-#if MAPGEN_STAGE_DIAG
-  {
-    int forest = 0, hills = 0, mtn = 0;
-    int coast = 0, deep = 0, deep_free = 0;
-    for (int i = 0; i < n; ++i) {
-      const uint8_t b = (uint8_t)(out->terrain[i] & 0x1f);
-      const uint8_t f = (uint8_t)(out->terrain[i] & 0xe0);
-      if (b >= 8 && b <= 23) {
-        forest++;
-      }
-      if (f & F_HILL) {
-        hills++;
-      }
-      if (f & F_MOUNTAIN) {
-        mtn++;
-      }
-    }
-    for (int y = 1; y < h - 1; ++y) {
-      for (int x = 1; x < w - 1; ++x) {
-        const int i = idx(x, y, w);
-        const uint8_t t = out->terrain[i];
-        if (is_water_tile(t) || (t & 0x1f) >= 24) {
-          continue;
-        }
-        int adj_water = 0;
-        for (int c = 0; c < 4; ++c) {
-          if (is_water_tile(out->terrain[idx(x + k_dir4_dx[c], y + k_dir4_dy[c], w)])) {
-            adj_water = 1;
-            break;
-          }
-        }
-        if (adj_water) {
-          coast++;
-        } else {
-          deep++;
-          if (!(t & F_HILL)) {
-            deep_free++;
-          }
-        }
-      }
-    }
-    fprintf(
-      stderr,
-      "STAGE pre-river forest=%d hills=%d mtn=%d coast=%d deep=%d deep_free=%d open_south=%d rng=%u\n",
-      forest,
-      hills,
-      mtn,
-      coast,
-      deep,
-      deep_free,
-      open_south,
-      (unsigned)rng->state
-    );
-  }
-#endif
   rivers_pass(out->terrain, w, h, rng, p.climate, p.land_mass);
-#if MAPGEN_STAGE_DIAG
-  {
-    int forest = 0, hills = 0, mtn = 0, lr = 0, wr = 0;
-    for (int i = 0; i < n; ++i) {
-      const uint8_t b = (uint8_t)(out->terrain[i] & 0x1f);
-      const uint8_t f = (uint8_t)(out->terrain[i] & 0xe0);
-      if (b >= 8 && b <= 23) {
-        forest++;
-      }
-      if (f & F_HILL) {
-        hills++;
-      }
-      if (f & F_MOUNTAIN) {
-        mtn++;
-      }
-      if (f & F_RIVER) {
-        if (b == T_OCEAN || b == T_HIGH_SEAS) {
-          wr++;
-        } else {
-          lr++;
-        }
-      }
-    }
-    fprintf(
-      stderr,
-      "STAGE post-river forest=%d hills=%d mtn=%d lr=%d wr=%d rng=%u\n",
-      forest,
-      hills,
-      mtn,
-      lr,
-      wr,
-      (unsigned)rng->state
-    );
-  }
-#endif
   paint_arctic_and_high_seas(out->terrain, w, h, rng, open_south);
 
   /* FUN_684c_08c0 tail: FUN_67bf_0000 then clear flags + OR 0x20 on ocean. */

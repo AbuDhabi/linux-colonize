@@ -101,7 +101,6 @@ void ai_contact_apply_gift_gold(
    */
   const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
   if (alarm >= 40) {
-    ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_GIFT, "Gift", "gifts");
     return;
   }
   /* audit G3: one treasury per nation — the human's live purse is
@@ -111,7 +110,6 @@ void ai_contact_apply_gift_gold(
    * wrong: a player who had just sold in Europe could not afford a gift his
    * sidebar said he could. */
   if (europe_nation_gold(ctx->europe, ctx->col1, e) < gold_cost) {
-    ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_GIFT, "Gift", "gifts");
     return;
   }
   europe_nation_gold_add(ctx->europe, ctx->col1, e, -(long)gold_cost);
@@ -704,7 +702,6 @@ static int ai_contact_demand_band_ok(
   }
   const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
   if (alarm >= 55 || alarm < 40) {
-    ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_DEMAND, "", "demands");
     return 0;
   }
   return 1;
@@ -732,7 +729,6 @@ int ai_contact_apply_demand_tools(
   } else if (other && other->tools >= 20) {
     other->tools -= 10;
   } else {
-    ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_DEMAND, "", "demands");
     return 0;
   }
   ai_contact_pair_cool(ctx, nation_id, e, 3);
@@ -756,7 +752,6 @@ int ai_contact_apply_demand_gold(
     return 0;
   }
   if (europe_nation_gold(ctx->europe, ctx->col1, e) < 50u) {
-    ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_DEMAND, "", "demands");
     return 0;
   }
   europe_nation_gold_add(ctx->europe, ctx->col1, e, -15L); /* audit G3 */
@@ -1161,7 +1156,6 @@ void ai_contact_gift_or_demand(
     return;
   }
   const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
-  const int human = ai_contact_euro_is_human(ctx, e);
   /*
    * Same ≥55 gate as refuse-talk/teach: alarmed → no gift and no demand
    * payoff (no invented gold penalties). Cite: fandom Alarm — refuse trade.
@@ -1172,26 +1166,6 @@ void ai_contact_gift_or_demand(
    * only decides which refuse sentence prints.
    */
   if (alarm >= 55) {
-    if (human) {
-      int tribe_fr = 0;
-      if (ctx->col1->tribe) {
-        for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-          const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-          if ((int)t->nation_id == nation_id && (int)t->alarm[e].friction > tribe_fr) {
-            tribe_fr = (int)t->alarm[e].friction;
-          }
-        }
-      }
-      const int demand_band = tribe_fr >= 40;
-      ai_contact_refuse_chrome(
-        ctx,
-        e,
-        nation_id,
-        demand_band ? AI_POPUP_TAG_CONTACT_DEMAND : AI_POPUP_TAG_CONTACT_GIFT,
-        "", /* title param is unused by ai_contact_human_chrome */
-        demand_band ? "demands" : "gifts"
-      );
-    }
     return; /* alarmed / very high — raids handle hostility; no invented gold penalty */
   }
 
@@ -1224,7 +1198,6 @@ void ai_contact_gift_or_demand(
   if (alarm < 40) {
     /* Cannot pay −10 gift drain → refuse with status (widgets unparked). */
     if (purse < 10u) {
-      ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_GIFT, "Gift", "gifts");
       return;
     }
     if (purse < 20u) {
@@ -1279,7 +1252,6 @@ void ai_contact_gift_or_demand(
     }
   }
   {
-    ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_DEMAND, "", "demands");
   }
 }
 /* ===================== Visit mood, demand gating & beg-food flow (ai_contact_beg_food_gift .. ai_contact_try_village_beg_food) ===================== */

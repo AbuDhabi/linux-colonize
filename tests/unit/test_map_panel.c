@@ -678,8 +678,8 @@ static int case_tile_stack(void) {
   char names_path[512];
   if (!dos_compat_normalize_asset_path("COLONIZE", "NAMES.TXT", names_path, sizeof(names_path)) ||
       !assets_msg_load_file(&names, names_path)) {
-    /* Matches the original: silently skip if NAMES.TXT can't be located. */
-    return 0;
+    fprintf(stderr, "SKIP: COLONIZE/NAMES.TXT not found\n");
+    return TR_SKIP;
   }
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
@@ -874,7 +874,8 @@ static int case_stack_detail_expert_prefix(void) {
   char names_path[512];
   if (!dos_compat_normalize_asset_path("COLONIZE", "NAMES.TXT", names_path, sizeof(names_path)) ||
       !assets_msg_load_file(&names, names_path)) {
-    return 0;
+    fprintf(stderr, "SKIP: COLONIZE/NAMES.TXT not found\n");
+    return TR_SKIP;
   }
   reports_names_load_catalogs("COLONIZE");
   const char* expert = reports_misc_display_word(4, "");
@@ -935,7 +936,8 @@ static int case_treasure_word_and_zero_tools(void) {
   char names_path[512];
   if (!dos_compat_normalize_asset_path("COLONIZE", "NAMES.TXT", names_path, sizeof(names_path)) ||
       !assets_msg_load_file(&names, names_path)) {
-    return 0;
+    fprintf(stderr, "SKIP: COLONIZE/NAMES.TXT not found\n");
+    return TR_SKIP;
   }
   reports_names_load_catalogs("COLONIZE");
   const char* gold = reports_ctitle_word(1);

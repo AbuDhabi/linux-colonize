@@ -1592,7 +1592,7 @@ bool col1_bridge_apply_w(
           if (tid < 0) {
             tid = units_kind_type_index(units, UNITS_KIND_COLONIST);
           }
-          const int id = units_spawn_allow_stack(units, tid >= 0 ? tid : 0, 236, 236);
+          const int id = units_spawn_allow_stack(units, tid >= 0 ? tid : 0, EUROPE_PARK_XY, EUROPE_PARK_XY);
           ColonizeUnit* mu = units_get(units, id);
           if (mu) {
             units_set_nation(mu, (int)src->nation_id);
@@ -2540,8 +2540,11 @@ bool col1_bridge_capture_w(
       }
       dst->x = (uint8_t)src->x;
       dst->y = (uint8_t)src->y;
-      /* 24-byte save slot, possibly unterminated — see the cname copy above. */
-    str_copy_trunc(dst->name, sizeof(src->name), src->name);
+      /* 24-byte COL1 slot: bound by the DESTINATION (src->name is the wider
+       * live buffer). No re-pad: a new record is already zeroed, and a matched
+       * old one keeps DOS's stale bytes past the NUL (golden_idle_independence
+       * compares them byte-exact). */
+      str_copy_trunc(dst->name, sizeof(dst->name), src->name);
       dst->nation_id = (uint8_t)src->nation_id;
       dst->population = (uint8_t)(src->colonist_count > 32 ? 32 : src->colonist_count);
       dst->hammers = (uint16_t)(src->hammers < 0 ? 0 : (src->hammers > 65535 ? 65535 : src->hammers));
@@ -2761,8 +2764,8 @@ bool col1_bridge_capture_w(
       dst->y = (uint8_t)src->y;
       /* Port-internal dock mirrors live at literal (236,236); the DOS dock
        * lane is per-nation 236+n (french-campaign originals carry 237). */
-      if (src->x == 236 && src->y == 236 && (src->nation_id & 0xF) < 4) {
-        dst->x = (uint8_t)(236 + (src->nation_id & 3));
+      if (src->x == EUROPE_PARK_XY && src->y == EUROPE_PARK_XY && (src->nation_id & 0xF) < 4) {
+        dst->x = (uint8_t)(EUROPE_PARK_XY + (src->nation_id & 3));
         dst->y = dst->x;
       }
       dst->type = (uint8_t)(src->type_index < 0 ? 0 : src->type_index);
@@ -3264,7 +3267,7 @@ bool col1_bridge_capture_w(
       for (int i = 0; i < units_slot_end(units); ++i) {
         const ColonizeUnit* u = &units->units[i];
         /* The same shape europe_remove_dock_mirror_unit matches on. */
-        if (!u->active || (u->nation_id & 0xF) != human_nation || u->x != 236 || u->y != 236 ||
+        if (!u->active || (u->nation_id & 0xF) != human_nation || u->x != EUROPE_PARK_XY || u->y != EUROPE_PARK_XY ||
             u->aboard_ship_id >= 0 || units_is_sea(units, u->id)) {
           continue;
         }
@@ -3301,7 +3304,7 @@ bool col1_bridge_capture_w(
         /* Same lane and byte shape the French originals carry on their dock
          * colonists (COLONY02 units 121-156 at 237,237: orders 1, origin
          * 0xff, ai_plan 0x58, goto 0, spent 0). */
-        dst->x = (uint8_t)(236 + n);
+        dst->x = (uint8_t)(EUROPE_PARK_XY + n);
         dst->y = dst->x;
         dst->type = (uint8_t)ti;
         dst->nation_id = n;
@@ -3337,7 +3340,7 @@ bool col1_bridge_capture_w(
         int count;
         uint8_t xy;
       } lanes[3] = {
-        {europe->harbor, europe->harbor_ships, (uint8_t)(236 + n)},
+        {europe->harbor, europe->harbor_ships, (uint8_t)(EUROPE_PARK_XY + n)},
         {europe->bound, europe->bound_ships, (uint8_t)(228 + n)},
         {europe->expected, europe->expected_ships, (uint8_t)(244 + n)},
       };
@@ -3351,7 +3354,7 @@ bool col1_bridge_capture_w(
           if (ship_ti < 0 || written + 1 + ship->cargo_count > capacity) {
             continue;
           }
-          const bool in_port = lanes[li].xy == (uint8_t)(236 + n);
+          const bool in_port = lanes[li].xy == (uint8_t)(EUROPE_PARK_XY + n);
           const uint8_t gx = (uint8_t)(in_port ? 0 : ship->exit_x);
           const uint8_t gy = (uint8_t)(in_port ? 0 : ship->exit_y);
           const uint8_t turns = (uint8_t)(in_port ? 0 : (ship->turns_left < 0 ? 0 : ship->turns_left));
@@ -3544,15 +3547,21 @@ bool col1_bridge_capture_w(
   {
     size_t intel_size = 0;
     uint8_t* intel = village_trade_intel_serialize(&intel_size);
-    col1_save_ext_put(save, COLONIZE_COL1_EXT_TAG_VILLAGE_TRADE_INTEL, intel, intel_size);
+    const bool put_ok = col1_save_ext_put(save, COLONIZE_COL1_EXT_TAG_VILLAGE_TRADE_INTEL, intel, intel_size);
     free(intel);
+    if (!put_ok) {
+      COL1_FAIL(err, err_size, "oom village intel ext chunk");
+    }
   }
 
   {
     size_t q_size = 0;
     uint8_t* q = colonies_build_queue_serialize(colonies, &q_size);
-    col1_save_ext_put(save, COLONIZE_COL1_EXT_TAG_BUILD_QUEUE, q, q_size);
+    const bool put_ok = col1_save_ext_put(save, COLONIZE_COL1_EXT_TAG_BUILD_QUEUE, q, q_size);
     free(q);
+    if (!put_ok) {
+      COL1_FAIL(err, err_size, "oom build queue ext chunk");
+    }
   }
 
   if (err && err_size) {

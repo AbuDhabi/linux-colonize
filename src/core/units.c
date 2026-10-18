@@ -41,10 +41,6 @@ void units_set_unlimited(bool on) {
   s_unlimited = on;
 }
 
-bool units_unlimited(void) {
-  return s_unlimited;
-}
-
 ColonizeUnit* units_slot_transfer(ColonizeUnitPool* pool) {
   if (!pool) {
     return NULL;
@@ -326,6 +322,7 @@ void units_reset(ColonizeUnitPool* pool) {
   pool->selected_id = -1;
   pool->board_first_slot = -1;
   pool->next_id = 1;
+  pool->id_recycle_cursor = 0;
   pool->next_tile_stack_order = 1;
 }
 
@@ -520,16 +517,8 @@ bool units_type_is_ship(const ColonizeUnitType* t) {
   return units_kind_is_ship(units_type_kind(t));
 }
 
-bool units_type_is_military(const ColonizeUnitType* t) {
-  return units_kind_is_military(units_type_kind(t));
-}
-
 bool units_type_is_mounted(const ColonizeUnitType* t) {
   return units_kind_is_mounted(units_type_kind(t));
-}
-
-bool units_type_is_native(const ColonizeUnitType* t) {
-  return units_kind_is_native(units_type_kind(t));
 }
 
 /*
@@ -628,6 +617,40 @@ int units_spawn(ColonizeUnitPool* pool, int type_index, int x, int y) {
  * aboard_ship_id, because units_set_nation reads it (through units_is_on_map)
  * and the aboard path calls set_nation before the id is known.
  */
+/*
+ * bugs.md #1094: per-unit side arrays (AI latches, the save-backed wagon
+ * errand) are COLONIZE_UNITS_MAX wide and indexed by unit id. Ids stay
+ * monotonic below that (fixtures and goldens see the same ids as ever); once
+ * next_id reaches it, hand out the next id >= 1 no in-use slot holds (same
+ * test as units_map.c units_slot_in_use), rotating from id_recycle_cursor so
+ * a freed id is the LAST one reused: the AI's per-turn clears of dead-id
+ * latches (ai_euro_dispatcher_turn_reset) run many times before it returns.
+ * `slot` is being re-stamped and does not count.
+ * ponytail: O(slot_end) scan per spawn after the wrap; a free-id list if a
+ * profile ever shows it.
+ */
+static int units_alloc_id(ColonizeUnitPool* pool, const ColonizeUnit* slot) {
+  if (pool->next_id < COLONIZE_UNITS_MAX) {
+    return pool->next_id++;
+  }
+  uint8_t held[COLONIZE_UNITS_MAX];
+  memset(held, 0, sizeof(held));
+  for (int i = 0; i < pool->slot_end; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (u != slot && (u->active || u->id > 0) && u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
+      held[u->id] = 1;
+    }
+  }
+  for (int k = 0; k < COLONIZE_UNITS_MAX - 1; ++k) {
+    const int id = 1 + (pool->id_recycle_cursor + k) % (COLONIZE_UNITS_MAX - 1);
+    if (!held[id]) {
+      pool->id_recycle_cursor = id % (COLONIZE_UNITS_MAX - 1);
+      return id;
+    }
+  }
+  return pool->next_id++; /* every id in use: only a completely full pool */
+}
+
 void units_slot_reset_defaults(
   ColonizeUnitPool* pool,
   ColonizeUnit* slot,
@@ -637,7 +660,7 @@ void units_slot_reset_defaults(
   int y
 ) {
   units_index_remove(pool, slot); /* a reused slot may still hold a stale id */
-  slot->id = pool->next_id++;
+  slot->id = units_alloc_id(pool, slot);
   units_index_add(pool, slot);
   slot->type_index = type_index;
   slot->x = x;
@@ -1194,26 +1217,12 @@ static void units_king_galleon_credit(
   const int value = units_king_galleon_treasure_value(treasure);
   const int share = (value * pct) / 100;
   const int net = value - share;
-  ColonizeCol1Nation* nat = &col1->nation[nation_id];
   /* Audit G3: the accessor picks the store by nation — the old unconditional
    * `europe->gold = nat->gold` handed the human's purse an AI's treasury. */
   europe_nation_gold_add(europe, col1, nation_id, (long)(net > 0 ? net : 0));
-  nat->royal_money += share; /* DOS nation+0x22 += Crown share */
-  /* DOS-LITERAL FUN_5fef_1908 raw 100239: the write-only per-nation
-   * accumulator at nation +0x26 (`unknown24_pad`, int32 LE) takes the same
-   * NET the purse got — not the gross and not the fee. Same bump as
-   * FUN_48d3_06ba raw 78012 and the Custom House mirror (europe.c:4198). */
-  {
-    const int credited = net > 0 ? net : 0;
-    uint32_t cum = (uint32_t)nat->unknown24_pad[0] | ((uint32_t)nat->unknown24_pad[1] << 8) |
-                   ((uint32_t)nat->unknown24_pad[2] << 16) |
-                   ((uint32_t)nat->unknown24_pad[3] << 24);
-    cum += (uint32_t)credited;
-    nat->unknown24_pad[0] = (uint8_t)(cum & 0xffu);
-    nat->unknown24_pad[1] = (uint8_t)((cum >> 8) & 0xffu);
-    nat->unknown24_pad[2] = (uint8_t)((cum >> 16) & 0xffu);
-    nat->unknown24_pad[3] = (uint8_t)((cum >> 24) & 0xffu);
-  }
+  /* DOS nation+0x22 += Crown share; DOS-LITERAL FUN_5fef_1908 raw 100239:
+   * +0x26 takes the same NET the purse got (europe_credit_sale_tax). */
+  europe_credit_sale_tax(col1, nation_id, share + (net > 0 ? net : 0), net > 0 ? net : 0);
   if (popups) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
@@ -1568,12 +1577,6 @@ void units_brewster_enqueue_pick(
   );
   /* DOS 4884(0,1) latches DS:0x1f5e = 4 (MSS4 friar) for the Brewster pick. */
   ai_popup_set_last_graphic_mss(popups, 4);
-}
-
-bool units_brewster_apply_popup(
-  EuropeScreen* europe, AiPopupState* popups, ColonizeUnitPool* units
-) {
-  return units_brewster_apply_popup_ex_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(europe)}, popups);
 }
 
 bool units_brewster_apply_popup_ex_w(

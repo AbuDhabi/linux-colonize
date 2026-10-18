@@ -38,6 +38,7 @@
 #include "core/europe.h"
 #include "core/map.h"
 #include "core/turn.h"
+#include "tests/common/golden_fixture.h"
 #include "core/units.h"
 #include "core/units_move.h"
 
@@ -144,50 +145,20 @@ int main(int argc, char** argv) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  if (!units_load_types(&units, &names)) {
-    fprintf(stderr, "ai_replay: units_load_types\n");
-    assets_msg_free(&names);
-    col1_save_free(&save);
-    return 1;
-  }
-
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  if (!colonies_load_buildings(&colonies, &names)) {
-    fprintf(stderr, "ai_replay: colonies_load_buildings\n");
-    assets_msg_free(&names);
-    col1_save_free(&save);
-    return 1;
-  }
-  (void)colonies_load_names(&colonies, "COLONIZE/COLONY.TXT");
-
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
   EuropeScreen europe;
-  memset(&europe, 0, sizeof(europe));
-  europe.cargo_count = 16;
-
   ColonizeCol1BridgeResult br;
-  if (!col1_bridge_apply_w(
-        &(ColonizeWorld){
-          .units = &units,
-          .colonies = &colonies,
-          .map = &map,
-          .col1 = &save,
-          .col1_ok = true,
-          .europe = &europe
-        },
-        &br, err, sizeof(err)
-      )) {
-    fprintf(stderr, "ai_replay: bridge apply: %s\n", err);
+  const SavLoad sl = {
+    .save = &save, .names = &names, .data_dir = NULL, .units = &units,
+    .colonies = &colonies, .map = &map, .europe = &europe, .br = &br,
+  };
+  if (!sav_load_into_pools(&sl, err, sizeof(err))) {
+    fprintf(stderr, "ai_replay: load %s: %s\n", path, err);
     assets_msg_free(&names);
     col1_save_free(&save);
     return 1;
   }
-  ai_goals_repair_site_scores(&map, &names); /* as game_apply_col1_save */
-  ai_repair_nation_landfalls(&(ColonizeWorld){.units = &units, .colonies = &colonies, .map = &map, .col1 = &save, .col1_ok = true});
 
   uint32_t turn_number = br.turn_number;
   uint16_t year = br.year;

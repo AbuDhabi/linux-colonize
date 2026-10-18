@@ -46,10 +46,13 @@ enum {
 
 /* Parse ~ hotkeys from MENU.TXT (space / Shift+D chords, else first ~letter). */
 static void map_menu_parse_hotkey(const char* label_raw, MapMenuItem* item) {
+  if (!item) {
+    return;
+  }
   item->hotkey = 0;
   item->hotkey_shift = false;
   item->hotkey_space = false;
-  if (!label_raw || !item) {
+  if (!label_raw) {
     return;
   }
   if (strstr(label_raw, "~s~p~a~c~e") != NULL || strstr(label_raw, "~S~P~A~C~E") != NULL) {

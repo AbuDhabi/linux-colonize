@@ -74,28 +74,11 @@ void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy) {
     fprintf(stderr, "[goto] unit %d (%d,%d) orders %d -> (%d,%d)\n", u->id, u->x, u->y, orders,
             gx, gy);
   }
-  /*
-   * Every goto write defaults to "not idle-roam" (DOS unit+0x314c != 5) —
-   * ai_euro_move_scoring_gate re-marks its own two roam branches right
-   * after calling this, so a stale roam flag from an earlier turn never
-   * survives onto a goal-directed goto (found-tile, hunt, wagon, ship
-   * staging) set by any other call site. See ai_euro_s_euro_roam_wander.
-   */
-  if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
-    ai_euro_s_euro_roam_wander[u->id] = 0;
-  }
 }
 
 int ai_euro_is_ship_type(const ColonizeUnitPool* units, int unit_id) {
   /* Dispatcher ship wave: sea domain (SHIP_A..C stand-in). */
   return units_is_sea(units, unit_id);
-}
-
-/* Chebyshev adjacency (incl. same tile) for coastal embark checks. */
-int ai_euro_tiles_near(int ax, int ay, int bx, int by) {
-  const int dx = abs(ax - bx);
-  const int dy = abs(ay - by);
-  return dx <= 1 && dy <= 1;
 }
 
 /*
@@ -688,9 +671,6 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
   }
   if (cid >= 0) {
     colonies_reveal_founded_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, cid); /* FUN_364b_1dd6 Coronado */
-    if (cid >= 0 && cid < COLONIZE_COLONIES_MAX) {
-      ai_euro_s_founded_colony_turn[cid] = 1;
-    }
     units_despawn(ctx->units, founder->id);
     if (ctx->col1_ok && ctx->col1 && nation_id >= 0 && nation_id < 4) {
       /* FUN_479b_0000 bumps only while names remain; the pool counter caps it. */
@@ -739,8 +719,8 @@ void ai_euro_5952_colony_counters(
       /* Slot walk (audit second-wave Leads 2, 2026-09-10): the loop variable
        * is an ARRAY index, not a unit id — see the ai_euro_refresh_continent_
        * stance note. */
-      for (int uid = 0; uid < units_slot_end(ctx->units); ++uid) {
-        ColonizeUnit* su = &ctx->units->units[uid];
+      for (int slot = 0; slot < units_slot_end(ctx->units); ++slot) {
+        ColonizeUnit* su = &ctx->units->units[slot];
         if (!su->active || su->nation_id != nation_id || su->aboard_ship_id >= 0) {
           continue;
         }

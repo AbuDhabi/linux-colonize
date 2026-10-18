@@ -74,24 +74,6 @@ static int apply_trade_offer_choice(
 }
 
 /*
- * bugs.md (Iroquois raid loop): a pulse raid now discharges the raiding
- * party, exactly as DOS's only FUN_5fef_0f14 caller does (the attacker is
- * already dead when 1b0e hands off). These fixtures reuse one Brave slot
- * across dozens of raid arms, so revive it after each call instead of
- * respawning at every site.
- */
-#define RUN_INDIAN_RAIDS()                                       \
-  do {                                                           \
-    units_pool_sync(&units);                                    \
-    const ColonizeUnit brave_snap_ = *brave;                     \
-    ai_contact_indian_raids(&ctx, 4);                            \
-    if (brave_snap_.active && !brave->active) {                  \
-      *brave = brave_snap_;                                      \
-      units_pool_sync(&units);                                   \
-    }                                                            \
-  } while (0)
-
-/*
  * The original body was ONE continuous narrative: a single shared fixture
  * (col1/map/units/ctx/pop) built once and then mutated and re-checked across
  * ~60 scenario beats all the way to the teardown. There is no point at which
@@ -158,13 +140,56 @@ static void fx_close(void) {
 }
 
 /*
+ * bugs.md #1093: the invented post-pulse raid pass (ai_contact_indian_raids)
+ * is gone. DOS reaches FUN_5fef_0f14 only from FUN_5fef_1b0e's loser limb,
+ * i.e. ai_contact_colony_raid_repelled_w. The raid blocks below drive that
+ * entry directly for the colony the fixture Brave stands on, with the old
+ * pulse's turn-keyed local stream (so raid_probe_turn_for_kind still works)
+ * and forced = 0 (the walls roll applies). The Brave is not removed: 1b0e
+ * has already killed the attacker by the time it hands off.
+ */
+static void run_colony_raid(void) {
+  units_pool_sync(&units);
+  if (!brave || !brave->active || units_remaining_mp(&units, brave->id) <= 0) {
+    return;
+  }
+  const int cid = colonies_id_at(&colonies, brave->x, brave->y);
+  const ColonizeColony* rc = cid >= 0 ? colonies_get(&colonies, cid) : NULL;
+  if (!rc) {
+    return;
+  }
+  ColonizeDosRng local;
+  ai_contact_local_rng(&ctx, 4, &local);
+  ColonizeWorld w = world_from_turn_ctx(&ctx);
+  w.rng = &local;
+  /* The 1b0e path has no status line; its @RAID* chrome is a popup. Mirror
+   * the newest queued body into ctx.status so the blocks' text checks hold. */
+  static AiPopupState cap;
+  if (!w.ai_popups) {
+    ai_popup_init(&cap);
+    w.ai_popups = &cap;
+  }
+  const int q0 = w.ai_popups->queue_count;
+  (void)ai_contact_colony_raid_repelled_w(
+    &w, 4, rc->nation_id, cid, brave->home_tribe_id, 0, ctx.human_nation
+  );
+  if (ctx.status && ctx.status_size && w.ai_popups->queue_count > q0) {
+    snprintf(
+      ctx.status, ctx.status_size, "%s",
+      w.ai_popups->queue[w.ai_popups->queue_count - 1].body
+    );
+    popup_msg_strip_markup(ctx.status);
+  }
+}
+
+/*
  * bugs.md #827: FUN_5fef_0f14's kind is `rand(1,4)` behind a walls roll, so a
  * fixture can no longer "force" a kind through an alarm band the way the
  * retired OpenCol band-picker allowed. This probe keeps those blocks honest
  * without changing what they exercise: snapshot the whole fixture, replay the
  * pulse over successive turn values (the pulse's local RNG is keyed on the
  * turn) until `want` comes up, restore the snapshot, and leave `turn` on the
- * value that produces it — so the block's own single RUN_INDIAN_RAIDS() lands
+ * value that produces it — so the block's own single run_colony_raid() lands
  * that kind with exactly one pulse worth of side effects, as before.
  */
 static int raid_probe_turn_for_kind(int want, int max_tries) {
@@ -187,7 +212,7 @@ static int raid_probe_turn_for_kind(int want, int max_tries) {
   int found = -1;
   for (int i = 0; i < max_tries && found < 0; ++i) {
     turn = turn0 + (uint32_t)i;
-    RUN_INDIAN_RAIDS();
+    run_colony_raid();
     if (ai_contact_last_raid_kind() == want) {
       found = (int)(turn0 + (uint32_t)i);
     }
@@ -360,7 +385,7 @@ static int sp_02(void) {
   /* War bit clear → FUN_5fef_0f14's alarm tail is not gated out (see below). */
   ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~COL1_INDIAN_WAR_BIT);
   alarm_pre_raid = (int)ind->alarm_by_player[0];
-  RUN_INDIAN_RAIDS();
+  run_colony_raid();
   const int kind = ai_contact_last_raid_kind();
   if (kind < AI_RAID_NOTHING || kind > AI_RAID_GOLD) {
     return fail("raid kind out of range");
@@ -373,7 +398,7 @@ static int sp_02(void) {
     col1.tribe[0].alarm[0].friction = 65;
     brave->moves = 0;
     alarm_pre_raid = (int)ind->alarm_by_player[0];
-    RUN_INDIAN_RAIDS();
+    run_colony_raid();
   }
   if (ai_contact_last_raid_kind() == AI_RAID_NOTHING && c->stock[COLONIZE_CARGO_FOOD] == food0) {
     /*
@@ -442,7 +467,7 @@ static int sp_03(void) {
     brave->y = 5;
     brave->moves = 0;
     const int alarm_war_pre = (int)ind->alarm_by_player[0];
-    RUN_INDIAN_RAIDS();
+    run_colony_raid();
     if ((int)ind->alarm_by_player[0] != alarm_war_pre) {
       return fail("raid alarm tail must be skipped while at war (15b3 bit 1)");
     }
@@ -473,7 +498,7 @@ static int sp_04(void) {
     const int alarm_rep_pre = (int)ind->alarm_by_player[0];
     ColonizeWorld w_rep = world_make(&units, &colonies, &map, &col1, true, &raid_rng, NULL);
     const int kind_rep = ai_contact_colony_raid_repelled_w(
-      &w_rep, 4, 0, c->id, 0, 1
+      &w_rep, 4, 0, c->id, 0, 1, -1
     );
     int expect_rep = 0;
     if (kind_rep == AI_RAID_STORES) {
@@ -502,10 +527,10 @@ static int sp_04(void) {
 static int sp_05(void) {
 
   /*
-   * Raid gate is uniform ≥40 for every Euro nation. The old "Spain ≥35
-   * conquest bias" was invented (and backwards — DOS's nation-2 specials are
-   * all Euro-aggressor-side: 5952_035e war shifts, tribute ×1.5). SP at 35
-   * must NOT gate; SP at 40 must.
+   * (bugs.md #1093) The uniform ≥40 raid-gate check that lived here tested
+   * the deleted invented raid pass; DOS has no such gate (0f14 is reached
+   * only from 1b0e's loser limb). Only the fixture state later beats inherit
+   * is kept.
    */
   {
     ColonizeColony* csp = &colonies.colonies[1];
@@ -535,19 +560,6 @@ static int sp_05(void) {
     /* Raid marker: 0f14's tail zeroes the home village's attitude word for
      * every kind incl. "Nothing" — but only with a valid home_tribe_id. */
     brave->home_tribe_id = 0;
-    RUN_INDIAN_RAIDS();
-    /* Any raid — "Nothing" included — zeroes the attitude word via 0f14's
-     * tail; an untouched word means the gate never opened. */
-    if (col1_tribe_attitude(&col1.tribe[0], 2) != 35) {
-      return fail("SP at 35 must not open the uniform ≥40 raid gate");
-    }
-    ind->alarm_by_player[2] = 40;
-    col1.tribe[0].alarm[2].friction = 40;
-    brave->moves = 0;
-    RUN_INDIAN_RAIDS();
-    if (col1_tribe_attitude(&col1.tribe[0], 2) == 40) {
-      return fail("SP at 40 should open the raid gate (attitude word zeroed)");
-    }
     /* Cleanup SP colony so later arms stay on EN fixtures. */
     csp->active = false;
     ind->alarm_by_player[2] = 0;
@@ -619,9 +631,14 @@ static int sp_06(void) {
 static int sp_07(void) {
 
   /*
-   * Ambush gear seize (@INDIANWIN1): Brave win vs musketed foe → Brave gains
-   * muskets + WIN1 status. Cite: GAME.TXT @INDIANWIN1; indian_raid_outcomes.md.
+   * Gear seize (DOS FUN_5fef_1b0e raw 100730-100744): a Brave that beats a
+   * musketed / mounted foe steps its type. bugs.md #1093: the invented
+   * adjacent-ambush arm (and its @INDIANWIN chrome) that used to start this
+   * fight is gone, so the fight is driven straight through the shared land
+   * resolver every 1b0e call site uses.
    */
+  ColonizeDosRng amb_rng;
+  dos_rng_seed(&amb_rng, 0x1b0eu);
   {
     char st_amb[128];
     st_amb[0] = '\0';
@@ -661,7 +678,7 @@ static int sp_07(void) {
     col1.tribe[0].alarm[0].friction = 55;
     euro->x = 10;
     euro->y = 10;
-    RUN_INDIAN_RAIDS();
+    (void)units_resolve_land_combat(&units, brave_id, sol_id, &amb_rng);
     if (!brave->active) {
       return fail("ambush win should keep Brave alive");
     }
@@ -673,12 +690,6 @@ static int sp_07(void) {
     }
     if (brave->muskets != 0) {
       return fail("ambush WIN1 must not transfer a numeric muskets kit");
-    }
-    if (strstr(st_amb, "Muskets") == NULL ||
-        (strstr(st_amb, "ambush") == NULL && strstr(st_amb, "Ambush") == NULL) ||
-        strstr(st_amb, "Soldier") == NULL) {
-      fprintf(stderr, "unit_ai_contact: ambush-WIN1 status '%s'\n", st_amb);
-      return fail("ambush WIN1 should set Muskets seized status with unit name");
     }
     units_despawn(&units, sol_id);
     /* WIN2 horses arm */
@@ -704,7 +715,7 @@ static int sp_07(void) {
     /* The tribe tally writes through the native-fallout context (turn.c:123
      * sets it in play). */
     units_set_native_fallout_context(&col1, ctx.map, -1);
-    RUN_INDIAN_RAIDS();
+    (void)units_resolve_land_combat(&units, brave_id, sol2, &amb_rng);
     units_set_native_fallout_context(NULL, NULL, -1);
     if (units_type_kind(units_type(&units, brave->type_index)) !=
         UNITS_KIND_MTD_BRAVE) {
@@ -715,10 +726,6 @@ static int sp_07(void) {
     }
     if (ind->horse_herds != (uint8_t)(herds_before + 1)) {
       return fail("ambush WIN2 should tally the tribe horse herd (DS:0x59a6)");
-    }
-    if (strstr(st_amb, "Horses") == NULL) {
-      fprintf(stderr, "unit_ai_contact: ambush-WIN2 status '%s'\n", st_amb);
-      return fail("ambush WIN2 should set Horses seized status");
     }
     units_despawn(&units, sol2);
     snprintf(units.types[2].name, sizeof(units.types[2].name), "Soldier");
@@ -1204,7 +1211,7 @@ static int sp_13(void) {
   const int muskets_ml = c->stock[COLONIZE_CARGO_MUSKETS];
   const int pop_ml = c->population;
   const uint16_t gold_ml = col1.nation[0].gold;
-  RUN_INDIAN_RAIDS();
+  run_colony_raid();
   {
     const int kind_ml = ai_contact_last_raid_kind();
     if (kind_ml == AI_RAID_NOTHING) {
@@ -1302,9 +1309,9 @@ static int sp_14(void) {
     ctx.human_nation = 0;
     /* kind is rand(1,4): reroll until the goods kind comes up (nothing else
      * can succeed here — no ship, no burn target, no gold). */
-    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one pulse. */
+    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
     (void)raid_probe_turn_for_kind(AI_RAID_STORES, 400);
-    RUN_INDIAN_RAIDS();
+    run_colony_raid();
     if (ai_contact_last_raid_kind() != AI_RAID_STORES) {
       return fail("muskets-only warehouse should pick AI_RAID_STORES");
     }
@@ -1361,16 +1368,16 @@ static int sp_14(void) {
     assets_msg_init(&game_txt_raid);
     (void)assets_msg_load_file(&game_txt_raid, "COLONIZE/GAME.TXT");
     ctx.messages = &game_txt_raid;
-    RUN_INDIAN_RAIDS();
+    run_colony_raid();
     /* The previous block's 0f14 vent left alarm just under DOS's at-war band
      * (0x4a), which prepends @INDIANSURPRISE and overruns the 128-byte status
      * buffer this block reads. Pin the at-war state the block intends. */
     ind->alarm_by_player[0] = 76;
     col1.tribe[0].alarm[0].friction = 76;
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_WAR_BIT;
-    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one pulse. */
+    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
     (void)raid_probe_turn_for_kind(AI_RAID_STORES, 400);
-    RUN_INDIAN_RAIDS();
+    run_colony_raid();
     ctx.messages = test_game_txt();
     ctx.names = test_names_txt();
     assets_msg_free(&game_txt_raid);
@@ -1417,9 +1424,9 @@ static int sp_14(void) {
     c->stock[COLONIZE_CARGO_SILVER] = 2;
     const int food_vs = c->stock[COLONIZE_CARGO_FOOD];
     const int sil_vs = c->stock[COLONIZE_CARGO_SILVER];
-    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one pulse. */
+    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
     (void)raid_probe_turn_for_kind(AI_RAID_STORES, 400);
-    RUN_INDIAN_RAIDS();
+    run_colony_raid();
     if (ai_contact_last_raid_kind() != AI_RAID_STORES) {
       return fail("food+silver warehouse should pick AI_RAID_STORES");
     }
@@ -1442,8 +1449,8 @@ static int sp_15(void) {
    * deleted 2026-09-18. FUN_4d56_359c (raw 83481-83505) is the Enter-Hostile-
    * Village wagon outcome (@KILLWAGONS / @MADATWAGONS / @GRUDGEWAGONS), ported
    * as ai_contact_enter_hostile_village; no DOS body harasses Scouts on the
-   * Indian move pulse. A Scout adjacent to an alarmed Brave must now be left
-   * alone by ai_contact_indian_raids.
+   * Indian move pulse. (The pulse that check ran against was deleted with
+   * bugs.md #1093; only the fixture state later beats inherit is kept.)
    */
   units.type_count = 4;
   snprintf(units.types[3].name, sizeof(units.types[3].name), "Scout");
@@ -1466,16 +1473,6 @@ static int sp_15(void) {
     ind->alarm_by_player[0] = 95;
     col1.tribe[0].alarm[0].friction = 95;
     status[0] = 0;
-    const int sx0 = scout->x;
-    const int sy0 = scout->y;
-    RUN_INDIAN_RAIDS();
-    scout = units_get(&units, scout_id);
-    if (!scout || !scout->active) {
-      return fail("#499: raids must not despawn an adjacent Scout");
-    }
-    if (scout->x != sx0 || scout->y != sy0) {
-      return fail("#499: raids must not displace an adjacent Scout");
-    }
     units_despawn(&units, scout_id);
   }
   ind->alarm_by_player[0] = 90;
@@ -1633,7 +1630,7 @@ static int sp_17(void) {
     ctx.status = status;
     ctx.status_size = sizeof(status);
     ctx.human_nation = 0;
-    RUN_INDIAN_RAIDS();
+    run_colony_raid();
     if (c->stock[COLONIZE_CARGO_MUSKETS] != 0) {
       return fail("empty warehouse raid must not invent muskets loot");
     }
@@ -1648,9 +1645,10 @@ static int sp_17(void) {
   }
 
   /*
-   * @INDIANSURPRISE / @INDIANWAR thin: successful loot while not at war →
-   * surprise status; with peace bit + high friction → clear peace + war status.
-   * Cite: GAME.TXT @INDIANSURPRISE / @INDIANWAR; indian_raid_outcomes.md.
+   * bugs.md #1093: a successful raid on a human colony draws only 0f14's own
+   * per-kind @RAID* line — no @INDIANSURPRISE prefix (its DOS site is the
+   * unported 021a human-colony warning) — and 0f14 never touches the peace
+   * bit (the old @INDIANWAR peace-break was pulse chrome).
    */
   {
     char st_sur[128];
@@ -1675,7 +1673,7 @@ static int sp_17(void) {
     snprintf(c->name, sizeof(c->name), "Roanoke");
     memset(c->stock, 0, sizeof(c->stock));
     c->stock[COLONIZE_CARGO_FOOD] = 20;
-    RUN_INDIAN_RAIDS();
+    run_colony_raid();
     if (ai_contact_last_raid_kind() == AI_RAID_NOTHING) {
       /* "Nothing" is a legal 0f14 roll; the raid still marks itself by
        * zeroing the home village's attitude word (the retired attacks++
@@ -1683,10 +1681,10 @@ static int sp_17(void) {
       if (col1_tribe_attitude(&col1.tribe[0], 0) != 0) {
         return fail("surprise raid should loot or leave the 0f14 attitude clear");
       }
-    } else if ((strstr(st_sur, "surprise") == NULL && strstr(st_sur, "denies") == NULL) ||
+    } else if (strstr(st_sur, "surprise") != NULL || strstr(st_sur, "denies") != NULL ||
                strstr(st_sur, "Roanoke") == NULL) {
       fprintf(stderr, "unit_ai_contact: surprise status '%s'\n", st_sur);
-      return fail("non-war successful raid should set @INDIANSURPRISE near colony");
+      return fail("non-war raid should draw only the @RAID* line (no @INDIANSURPRISE)");
     }
 
     st_sur[0] = '\0';
@@ -1708,22 +1706,21 @@ static int sp_17(void) {
       brave->moves = 0;
       brave->x = 5;
       brave->y = 5;
-      RUN_INDIAN_RAIDS();
+      run_colony_raid();
       if (ai_contact_last_raid_kind() != AI_RAID_NOTHING) {
         break;
       }
       turn++; /* the pulse's local RNG is keyed on the turn — advance it */
     }
-    if (ai_contact_indian_has_peace(&col1, 4, 0)) {
-      return fail("high-friction raid should clear peace bit (@INDIANWAR)");
+    if (!ai_contact_indian_has_peace(&col1, 4, 0)) {
+      return fail("0f14 must not clear the peace bit (no DOS @INDIANWAR arm)");
     }
     /*
      * bugs.md #836: the "The %s declare war! Prepare for WAR!" prelude was
      * typed English with no catalog row behind it (@INDIANWAR is dead
      * GAME.TXT text — no DS tag string exists in VICEROY.EXE), so it was
-     * retired 2026-09-23 and there is no "war" wording to look for. The
-     * state change itself is asserted above (the peace bit must be clear);
-     * what remains here is that a successful raid still says SOMETHING.
+     * retired 2026-09-23 and there is no "war" wording to look for. What
+     * remains here is that a successful raid still says SOMETHING.
      */
     if (ai_contact_last_raid_kind() != AI_RAID_NOTHING && st_sur[0] == '\0') {
       fprintf(stderr, "unit_ai_contact: war-raid status '%s'\n", st_sur);
@@ -1995,249 +1992,52 @@ static int sp_20(void) {
   /*
    * (Retired 2026-09-22, bugs.md #557.) A "missionary flee" assertion sat
    * here; the pulse it tested had no DOS site and is deleted.
+   *
+   * bugs.md #1093: the raid-target picks this segment asserted (lower
+   * relation / at-war Euro first, muskets-horses colony first, the #1003
+   * nation-scalar gate) all belonged to the deleted invented raid pass; DOS
+   * reaches 0f14 only from 1b0e's loser limb, on the colony the fight was
+   * at. Only the fixture state later beats inherit is kept.
    */
-
-  /*
-   * Raid prefer high-friction Euro among candidates: equal alarm band, lower
-   * relation wins target (colony of Euro 1 looted, Euro 0 untouched).
-   */
+  euro->x = 12;
+  euro->y = 12;
+  brave->x = 5;
+  brave->y = 5;
+  brave->moves = 0;
+  brave->nation_id = 4;
+  col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
+  col1.indian[0].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
   {
-    for (int i = 0; i < 256; ++i) {
-      map.terrain[i] = 1;
-    }
-    euro->x = 12;
-    euro->y = 12;
-    brave->x = 8;
-    brave->y = 8;
-    brave->moves = 0;
-    brave->nation_id = 4;
-    /* Equal tribe friction; nation-level alarm breaks the tie (single store). */
-    ind->alarm_by_player[0] = 10; /* less hostile (relation 90) */
-    ind->alarm_by_player[1] = 80; /* prefer this target (relation 20) */
-    col1.tribe[0].alarm[0].friction = 50;
-    col1.tribe[0].alarm[1].friction = 50;
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-    col1.indian[0].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
-    ColonizeColony* c0 = &colonies.colonies[0];
     ColonizeColony* c1 = &colonies.colonies[1];
+    c1->id = 1;
+    c1->active = false;
+    c1->nation_id = 0;
+    c1->x = 8;
+    c1->y = 8;
+    c1->population = 3;
+    c1->colonist_count = 3;
+    c1->building_in_production = -1;
+    ColonizeColony* c0 = &colonies.colonies[0];
     c0->id = 0;
     c0->active = true;
     c0->nation_id = 0;
-    c0->x = 8;
-    c0->y = 8; /* same tile as brave — would loot if targeted */
+    c0->x = 5;
+    c0->y = 5;
     c0->population = 3;
     c0->colonist_count = 3;
     c0->building_in_production = -1;
     memset(c0->stock, 0, sizeof(c0->stock));
     c0->stock[COLONIZE_CARGO_FOOD] = 20;
-    c1->id = 1;
-    c1->active = true;
-    c1->nation_id = 1;
-    c1->x = 8;
-    c1->y = 8; /* co-located; only target_euro's colony is considered */
-    c1->population = 3;
-    c1->colonist_count = 3;
-    c1->building_in_production = -1;
-    memset(c1->stock, 0, sizeof(c1->stock));
-    c1->stock[COLONIZE_CARGO_FOOD] = 20;
-    colonies.colony_count = 2;
-    const int food0 = c0->stock[COLONIZE_CARGO_FOOD];
-    const int food1 = c1->stock[COLONIZE_CARGO_FOOD];
-    RUN_INDIAN_RAIDS();
-    if (c1->stock[COLONIZE_CARGO_FOOD] >= food1 && c1->population >= 3 &&
-        col1.tribe[0].alarm[1].attacks == 0) {
-      return fail("raid should prefer lower-relation Euro among equal friction");
-    }
-    if (c0->stock[COLONIZE_CARGO_FOOD] != food0) {
-      return fail("raid should not loot higher-relation Euro when friction tied");
-    }
-    /* Restore single-colony smoke baseline. */
-    c1->active = false;
-    colonies.colony_count = 1;
-    ind->alarm_by_player[1] = 0;
-    col1.tribe[0].alarm[1].friction = 0;
-  }
-
-  /*
-   * Raid prefer at-war Euro even when friction is lower: Euro0 alarm 60 /
-   * relation 80 (not at war); Euro1 alarm 45 / relation 30 (at war <50).
-   * Cite: ai_diplo_indian_at_war; indian_raid_outcomes.md gate.
-   */
-  {
-    euro->x = 12;
-    euro->y = 12;
-    brave->x = 8;
-    brave->y = 8;
-    brave->moves = 0;
-    brave->nation_id = 4;
-    /* Single store: at-war (thin) = nation alarm > 50; tribe friction is separate. */
-    ind->alarm_by_player[0] = 45; /* not at war, higher friction */
-    ind->alarm_by_player[1] = 60; /* at war, lower friction */
-    col1.tribe[0].alarm[0].friction = 60;
-    col1.tribe[0].alarm[1].friction = 45;
-    col1.tribe[0].alarm[0].attacks = 0;
-    col1.tribe[0].alarm[1].attacks = 0;
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-    col1.indian[0].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
-    ColonizeColony* c0 = &colonies.colonies[0];
-    ColonizeColony* c1 = &colonies.colonies[1];
-    c0->active = true;
-    c0->nation_id = 0;
-    c0->x = 8;
-    c0->y = 8;
-    c0->population = 3;
-    c0->colonist_count = 3;
-    memset(c0->stock, 0, sizeof(c0->stock));
-    c0->stock[COLONIZE_CARGO_FOOD] = 20;
-    c1->active = true;
-    c1->nation_id = 1;
-    c1->x = 8;
-    c1->y = 8;
-    c1->population = 3;
-    c1->colonist_count = 3;
-    memset(c1->stock, 0, sizeof(c1->stock));
-    c1->stock[COLONIZE_CARGO_FOOD] = 20;
-    colonies.colony_count = 2;
-    const int food0w = c0->stock[COLONIZE_CARGO_FOOD];
-    const int food1w = c1->stock[COLONIZE_CARGO_FOOD];
-    RUN_INDIAN_RAIDS();
-    if (c1->stock[COLONIZE_CARGO_FOOD] >= food1w && c1->population >= 3 &&
-        col1.tribe[0].alarm[1].attacks == 0) {
-      return fail("raid should prefer at-war Euro over higher-friction peer");
-    }
-    if (c0->stock[COLONIZE_CARGO_FOOD] != food0w) {
-      return fail("raid should not loot non-war Euro when at-war peer exists");
-    }
-    c1->active = false;
-    colonies.colony_count = 1;
-    ind->alarm_by_player[1] = 0;
-    col1.tribe[0].alarm[1].friction = 0;
-  }
-
-  /*
-   * Raid prefer colony with muskets/horses at equal distance: secondary military
-   * loot thresholds (muskets≥5 / horses≥1). Cite: indian_raid_outcomes.md.
-   */
-  {
-    for (int i = 0; i < 256; ++i) {
-      map.terrain[i] = 1;
-    }
-    euro->x = 12;
-    euro->y = 12;
-    brave->x = 8;
-    brave->y = 8;
-    brave->moves = 0;
-    brave->nation_id = 4;
-    ind->alarm_by_player[0] = 65;
-    col1.tribe[0].alarm[0].friction = 65;
-    col1.tribe[0].alarm[0].attacks = 0;
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 40; alarm pinned above) */ /* at-war band */
-    ColonizeColony* c_food = &colonies.colonies[0];
-    ColonizeColony* c_mil = &colonies.colonies[1];
-    c_food->id = 0;
-    c_food->active = true;
-    c_food->nation_id = 0;
-    c_food->x = 8;
-    c_food->y = 8; /* same tile / equal dist */
-    c_food->population = 3;
-    c_food->colonist_count = 3;
-    c_food->building_in_production = -1;
-    memset(c_food->stock, 0, sizeof(c_food->stock));
-    c_food->stock[COLONIZE_CARGO_FOOD] = 20;
-    c_mil->id = 1;
-    c_mil->active = true;
-    c_mil->nation_id = 0; /* same Euro; prefer military stock */
-    c_mil->x = 8;
-    c_mil->y = 8;
-    c_mil->population = 3;
-    c_mil->colonist_count = 3;
-    c_mil->building_in_production = -1;
-    memset(c_mil->stock, 0, sizeof(c_mil->stock));
-    c_mil->stock[COLONIZE_CARGO_FOOD] = 20;
-    c_mil->stock[COLONIZE_CARGO_MUSKETS] = 15;
-    c_mil->stock[COLONIZE_CARGO_HORSES] = 3;
-    colonies.colony_count = 2;
-    const int food_plain = c_food->stock[COLONIZE_CARGO_FOOD];
-    const int musk_mil = c_mil->stock[COLONIZE_CARGO_MUSKETS];
-    RUN_INDIAN_RAIDS();
-    if (c_mil->stock[COLONIZE_CARGO_MUSKETS] >= musk_mil &&
-        c_mil->stock[COLONIZE_CARGO_FOOD] >= 20 &&
-        col1.tribe[0].alarm[0].attacks == 0) {
-      return fail("raid should prefer equal-distance colony with muskets/horses");
-    }
-    if (c_food->stock[COLONIZE_CARGO_FOOD] != food_plain) {
-      return fail("raid should not loot non-military colony when mil peer tied");
-    }
-    c_mil->active = false;
     colonies.colony_count = 1;
   }
-
-  /*
-   * bugs.md #1003 — the raid gate reads the NATION scalar and nothing else.
-   * This case used to assert the opposite: that a village friction word of 85
-   * "still raises the gate" past a cold `alarm_by_player`, with mission
-   * villages excused below 80. DOS couples the two layers nowhere
-   * (`FUN_4d56_4528` gates on `FUN_281f_030c` vs 0x4b and never reads
-   * DS:0x54f6; the word's only DOS gate readers key on the acting Brave's own
-   * home village), and the coupling let one angry village license ambushes by
-   * Braves homed in calm ones. Now pinned the other way round: a hot village
-   * word does NOT raid while the nation is cold, and the nation scalar alone
-   * does.
-   */
-  {
-    for (int i = 0; i < 256; ++i) {
-      map.terrain[i] = 1;
-    }
-    euro->x = 12;
-    euro->y = 12;
-    brave->x = 5;
-    brave->y = 5;
-    brave->moves = 0;
-    brave->nation_id = 4;
-    ind->alarm_by_player[0] = 10; /* nation cold: below the 40 gate */
-    col1.tribe[0].nation_id = 4;
-    col1.tribe[0].mission = 0; /* mission present */
-    col1.tribe[0].alarm[0].friction = 55;
-    col1.tribe[0].alarm[0].attacks = 0;
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met; alarm 10 pinned above */
-    ColonizeColony* c_ms = &colonies.colonies[0];
-    c_ms->active = true;
-    c_ms->nation_id = 0;
-    c_ms->x = 5;
-    c_ms->y = 5;
-    c_ms->population = 3;
-    c_ms->colonist_count = 3;
-    c_ms->building_in_production = -1;
-    memset(c_ms->stock, 0, sizeof(c_ms->stock));
-    c_ms->stock[COLONIZE_CARGO_FOOD] = 20;
-    colonies.colony_count = 1;
-    const int food_ms = c_ms->stock[COLONIZE_CARGO_FOOD];
-    RUN_INDIAN_RAIDS();
-    if (c_ms->stock[COLONIZE_CARGO_FOOD] != food_ms ||
-        col1.tribe[0].alarm[0].attacks != 0) {
-      return fail("#1003: village friction 55 must not raid while the nation is cold");
-    }
-    /* Burn-band village word, nation still cold: also no raid now. */
-    col1.tribe[0].alarm[0].friction = 85;
-    col1.tribe[0].mission = 0xff; /* no mission either — the word alone must not gate */
-    brave->moves = 0;
-    RUN_INDIAN_RAIDS();
-    if (c_ms->stock[COLONIZE_CARGO_FOOD] != food_ms ||
-        col1.tribe[0].alarm[0].attacks != 0) {
-      return fail("#1003: village friction 85 must not raid while the nation is cold");
-    }
-    /* The nation scalar alone does gate it: cold word, hot nation. */
-    col1.tribe[0].alarm[0].friction = 0;
-    ind->alarm_by_player[0] = 85;
-    brave->moves = 0;
-    RUN_INDIAN_RAIDS();
-    if (c_ms->stock[COLONIZE_CARGO_FOOD] == food_ms &&
-        col1.tribe[0].alarm[0].attacks == 0) {
-      return fail("#1003: a hot nation scalar must still raid with a cold village word");
-    }
-    ind->alarm_by_player[0] = 10;
-    col1.tribe[0].mission = 0xff;
-  }
+  ind->alarm_by_player[0] = 10;
+  ind->alarm_by_player[1] = 0;
+  col1.tribe[0].nation_id = 4;
+  col1.tribe[0].mission = 0xff;
+  col1.tribe[0].alarm[0].friction = 0;
+  col1.tribe[0].alarm[0].attacks = 0;
+  col1.tribe[0].alarm[1].friction = 0;
+  col1.tribe[0].alarm[1].attacks = 0;
   return 0;
 }
 
@@ -2302,6 +2102,12 @@ static int sp_21(void) {
 static int sp_22(void) {
 
   /*
+   * bugs.md #1093: the colony-approach picks this segment asserted (tools /
+   * silver / alarm-band preferences, Series Q) belonged to the deleted
+   * invented raid pass. Only the fixture setup later beats inherit is kept.
+   */
+
+  /*
    * Raid prefer colony with tools≥10 at equal distance (no military stock):
    * secondary high-friction tools drain. Cite: indian_raid_outcomes.md.
    */
@@ -2352,22 +2158,6 @@ static int sp_22(void) {
      * colony an earlier sub-test left active or it can win the pick. */
     for (int ci = 2; ci < COLONIZE_COLONIES_MAX; ++ci) {
       colonies.colonies[ci].active = false;
-    }
-    const int food_plain = c_plain->stock[COLONIZE_CARGO_FOOD];
-    const int tools_pref = c_tools->stock[COLONIZE_CARGO_TOOLS];
-    /*
-     * The colony APPROACH pick is what this asserts. The loot kind is now
-     * DOS's rand(1,4) behind a walls roll (bugs.md #827), so a pulse may
-     * legitimately come back @RAIDNOTHING or never reach this pair at all —
-     * the claim under test is only that when loot DOES land here, it lands
-     * on the tools colony, never on the bare one.
-     */
-    RUN_INDIAN_RAIDS();
-    if (c_plain->stock[COLONIZE_CARGO_FOOD] != food_plain) {
-      return fail("raid should prefer equal-distance colony with tools>=10");
-    }
-    if (c_plain->stock[COLONIZE_CARGO_FOOD] != food_plain) {
-      return fail("raid should not loot non-tools colony when tools peer tied");
     }
     c_tools->active = false;
     colonies.colony_count = 1;
@@ -2422,23 +2212,6 @@ static int sp_22(void) {
     c_silver->stock[COLONIZE_CARGO_FOOD] = 20;
     c_silver->stock[COLONIZE_CARGO_SILVER] = 8; /* wealth prefer */
     colonies.colony_count = 2;
-    const int food_plain = c_plain->stock[COLONIZE_CARGO_FOOD];
-    const int silver_pref = c_silver->stock[COLONIZE_CARGO_SILVER];
-    /*
-     * Approach pick only (see the tools peer above): the loot kind is DOS's
-     * rand(1,4) behind a walls roll, and an 8-unit silver pile is under the
-     * 10 floor of 0f14's cargo retry loop (raw 99832) so it can never be the
-     * stolen cargo. What must hold is that the BARE colony is not the one
-     * raided.
-     */
-    (void)silver_pref;
-    RUN_INDIAN_RAIDS();
-    if (c_plain->stock[COLONIZE_CARGO_FOOD] != food_plain) {
-      return fail("raid should prefer equal-distance colony with silver wealth");
-    }
-    if (c_plain->stock[COLONIZE_CARGO_FOOD] != food_plain) {
-      return fail("raid should not loot plain colony when silver peer tied");
-    }
     c_silver->active = false;
     colonies.colony_count = 1;
   }
@@ -2492,19 +2265,6 @@ static int sp_22(void) {
     c_silver->stock[COLONIZE_CARGO_FOOD] = 20;
     c_silver->stock[COLONIZE_CARGO_SILVER] = 8;
     colonies.colony_count = 2;
-    const int tools_pref = c_tools->stock[COLONIZE_CARGO_TOOLS];
-    const int silver_pref = c_silver->stock[COLONIZE_CARGO_SILVER];
-    /* Approach pick only: which CARGO the tools colony loses is DOS's roll
-     * over every pile >= 10 (raw 99819-99833), so tools is not guaranteed —
-     * what must hold is that the silver peer is left alone. */
-    (void)tools_pref;
-    RUN_INDIAN_RAIDS();
-    if (c_silver->stock[COLONIZE_CARGO_FOOD] != 20) {
-      return fail("alarm 55 should prefer tools colony over silver peer");
-    }
-    if (c_silver->stock[COLONIZE_CARGO_SILVER] != silver_pref) {
-      return fail("alarm 55 should not loot silver when tools peer tied");
-    }
     /* Reset and hot alarm≥80 → silver before tools. */
     c_tools->stock[COLONIZE_CARGO_TOOLS] = 12;
     c_tools->stock[COLONIZE_CARGO_FOOD] = 20;
@@ -2515,14 +2275,6 @@ static int sp_22(void) {
     brave->orders = UNITS_ORDER_NONE;
     ind->alarm_by_player[0] = 80;
     col1.tribe[0].alarm[0].friction = 80;
-    /* Approach pick only; an 8-unit silver pile is under 0f14's 10 floor and
-     * can never be the stolen cargo, so the assertion is on the peer. */
-    (void)silver_pref;
-    RUN_INDIAN_RAIDS();
-    if (c_tools->stock[COLONIZE_CARGO_TOOLS] != 12 ||
-        c_tools->stock[COLONIZE_CARGO_FOOD] != 20) {
-      return fail("alarm≥80 should prefer silver wealth over tools peer");
-    }
     c_silver->active = false;
     colonies.colony_count = 1;
     ind->alarm_by_player[0] = 0;
@@ -2603,10 +2355,10 @@ static int sp_23(void) {
     /* bugs.md #827: the kind is DOS's rand(1,4) behind a walls roll, so the
      * BURN arm is reached by rerolling the pulse, not by an alarm band. */
     ctx.human_nation = 0;
-    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one pulse. */
+    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
     (void)raid_probe_turn_for_kind(AI_RAID_BURN, 400);
     status[0] = '\0'; /* the probe pulses wrote their own lines */
-    RUN_INDIAN_RAIDS();
+    run_colony_raid();
     if (ai_contact_last_raid_kind() != AI_RAID_BURN) {
       fprintf(
         stderr,
@@ -2707,10 +2459,10 @@ static int sp_23(void) {
     units_set_combat_popups(&pop_fbrn, &game_txt_fbrn);
     /* bugs.md #827: the kind is DOS's rand(1,4) behind a walls roll, so the
      * BURN arm is reached by rerolling the pulse, not by an alarm band. */
-    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one pulse. */
+    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
     (void)raid_probe_turn_for_kind(AI_RAID_BURN, 400);
     status[0] = '\0'; /* the probe pulses wrote their own lines */
-    RUN_INDIAN_RAIDS();
+    run_colony_raid();
     units_set_combat_popups(NULL, NULL);
     units_set_combat_human_nation(-1);
     ctx.ai_popups = NULL;
@@ -2731,11 +2483,11 @@ static int sp_23(void) {
       fprintf(stderr, "unit_ai_contact: bystander status '%s'\n", status);
       return fail("bystander raid should fire the @RAIDWREAK bulletin (#829)");
     }
-    /* bugs.md #281: the raid pulse only LOOTS — a pop-1 colony survives a
+    /* bugs.md #281: the raid only LOOTS — a pop-1 colony survives a
      * BURN raid with its owner intact (destruction lives on the combat
      * path, and only when the last colonist falls there). */
     if (!c_fbrn->active || c_fbrn->nation_id != 1) {
-      return fail("raid pulse must not destroy or capture a pop-1 colony (bugs.md #281)");
+      return fail("raid must not destroy or capture a pop-1 colony (bugs.md #281)");
     }
     for (int qi = 0; qi < pop_fbrn.queue_count; ++qi) {
       /* "Spies report" is @RAIDWREAK's own opening (raw 99897) and is
@@ -2744,7 +2496,7 @@ static int sp_23(void) {
           strstr(pop_fbrn.queue[qi].body, "march into") != NULL) {
         fprintf(stderr, "unit_ai_contact: raid abandon popup leaked: '%s'\n",
                 pop_fbrn.queue[qi].body);
-        return fail("raid pulse must not emit abandon/capture chrome (bugs.md #281)");
+        return fail("raid must not emit abandon/capture chrome (bugs.md #281)");
       }
     }
     /* Restore neutral baseline for nation 1 so later blocks (which only
@@ -2805,10 +2557,10 @@ static int sp_23(void) {
     colonies.colony_count = 1;
     /* bugs.md #827: the kind is DOS's rand(1,4) behind a walls roll, so the
      * BURN arm is reached by rerolling the pulse, not by an alarm band. */
-    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one pulse. */
+    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
     (void)raid_probe_turn_for_kind(AI_RAID_BURN, 400);
     status[0] = '\0'; /* the probe pulses wrote their own lines */
-    RUN_INDIAN_RAIDS();
+    run_colony_raid();
     if (ai_contact_last_raid_kind() != AI_RAID_BURN) {
       fprintf(stderr, "unit_ai_contact: burn-building kind=%d\n",
               ai_contact_last_raid_kind());
@@ -2834,10 +2586,10 @@ static int sp_23(void) {
       c_bd->population = 1;
       c_bd->active = true;
       /* Reroll for the BURN kind (rand(1,4), bugs.md #827). */
-      /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one pulse. */
+      /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
       (void)raid_probe_turn_for_kind(AI_RAID_BURN, 400);
       status_burn_bd[0] = '\0';
-      RUN_INDIAN_RAIDS();
+      run_colony_raid();
       if (ai_contact_last_raid_kind() != AI_RAID_BURN || c_bd->has_building[1]) {
         return fail("BURN status probe needs building destroy");
       }
@@ -2857,8 +2609,9 @@ static int sp_23(void) {
 static int sp_24(void) {
 
   /*
-   * Thin Brave escort (14fe): idle Brave units_follow_unit a same-nation
-   * Brave already on AI_MOVE. Cite: units_follow_unit; ai_contact raids escort.
+   * bugs.md #1093: the escort FOLLOW peel (MD 3/4/5, weights 1/2/3) this
+   * segment asserted was invented (Series N / fandom only) and is deleted
+   * with the raid pass. Only the fixture setup later beats inherit is kept.
    */
   {
     for (int i = 0; i < 256; ++i) {
@@ -2893,33 +2646,13 @@ static int sp_24(void) {
     brave->moves = 0;
     brave->orders = UNITS_ORDER_NONE;
     brave->follow_unit_id = -1;
-    const int bx0 = brave->x;
-    const int by0 = brave->y;
-    RUN_INDIAN_RAIDS();
     brave = units_get(&units, brave_id);
-    if (!brave || !brave->active) {
-      return fail("escort follower must remain active");
-    }
-    if (brave->orders != UNITS_ORDER_FOLLOW || brave->follow_unit_id != lead_id) {
-      fprintf(stderr, "unit_ai_contact: escort orders=%d follow=%d\n", brave->orders,
-              brave->follow_unit_id);
-      return fail("idle Brave should FOLLOW lead with AI_MOVE");
-    }
-    /* MD was 3 — advance_follow should step closer (not hold-adjacent). */
-    if (brave->x == bx0 && brave->y == by0) {
-      return fail("FOLLOW escort should advance one step toward lead");
-    }
     /* Cleanup lead for later probes. */
     units_despawn(&units, lead_id);
     brave->orders = UNITS_ORDER_NONE;
     brave->follow_unit_id = -1;
   }
 
-  /*
-   * Escort deepen: when raid gate Euro known, prefer lead whose goto is closer
-   * to that Euro's colony over nearer lead heading away. Cite: units_follow_unit;
-   * indian_raid_outcomes.md §1.
-   */
   {
     for (int i = 0; i < 256; ++i) {
       map.terrain[i] = 1;
@@ -2966,14 +2699,7 @@ static int sp_24(void) {
     far_lead->orders = UNITS_ORDER_AI_MOVE;
     far_lead->goto_x = 12;
     far_lead->goto_y = 5; /* toward raid-gate Euro colony */
-    RUN_INDIAN_RAIDS();
     brave = units_get(&units, brave_id);
-    if (!brave || brave->orders != UNITS_ORDER_FOLLOW ||
-        brave->follow_unit_id != far_id) {
-      fprintf(stderr, "unit_ai_contact: escort deepen follow=%d (want %d)\n",
-              brave ? brave->follow_unit_id : -1, far_id);
-      return fail("escort should prefer goto toward raid-gate Euro colony");
-    }
     units_despawn(&units, near_id);
     units_despawn(&units, far_id);
     brave->orders = UNITS_ORDER_NONE;
@@ -3003,14 +2729,7 @@ static int sp_24(void) {
     far_lead->orders = UNITS_ORDER_AI_MOVE;
     far_lead->goto_x = 12;
     far_lead->goto_y = 5;
-    RUN_INDIAN_RAIDS();
     brave = units_get(&units, brave_id);
-    if (!brave || brave->orders != UNITS_ORDER_FOLLOW ||
-        brave->follow_unit_id != near2) {
-      fprintf(stderr, "unit_ai_contact: escort fallback follow=%d (want %d)\n",
-              brave ? brave->follow_unit_id : -1, near2);
-      return fail("escort without gate should pick nearest lead");
-    }
     units_despawn(&units, near2);
     units_despawn(&units, far2);
     brave->orders = UNITS_ORDER_NONE;
@@ -3042,21 +2761,11 @@ static int sp_24(void) {
     md4_lead->orders = UNITS_ORDER_AI_MOVE;
     md4_lead->goto_x = 12;
     md4_lead->goto_y = 5;
-    RUN_INDIAN_RAIDS();
     brave = units_get(&units, brave_id);
-    if (!brave || brave->orders != UNITS_ORDER_FOLLOW || brave->follow_unit_id != md4) {
-      fprintf(stderr, "unit_ai_contact: alarmed MD4 follow=%d\n",
-              brave ? brave->follow_unit_id : -1);
-      return fail("alarm≥55 escort should reach lead at MD=4");
-    }
     units_despawn(&units, md4);
     brave->orders = UNITS_ORDER_NONE;
     brave->follow_unit_id = -1;
 
-    /*
-     * Series N: alarm≥80 escort MD≤5 (alarm 55 still caps at 4).
-     * Cite: ai_contact_escort_pick_lead hot deepen.
-     */
     ind->alarm_by_player[0] = 55;
     col1.tribe[0].alarm[0].friction = 55;
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 40; alarm pinned above) */
@@ -3079,22 +2788,12 @@ static int sp_24(void) {
     md5_lead->orders = UNITS_ORDER_AI_MOVE;
     md5_lead->goto_x = 12;
     md5_lead->goto_y = 5;
-    RUN_INDIAN_RAIDS();
     brave = units_get(&units, brave_id);
-    if (brave && brave->orders == UNITS_ORDER_FOLLOW && brave->follow_unit_id == md5) {
-      return fail("alarm 55 escort must not reach lead at MD=5");
-    }
     brave->orders = UNITS_ORDER_NONE;
     brave->follow_unit_id = -1;
     ind->alarm_by_player[0] = 80;
     col1.tribe[0].alarm[0].friction = 80;
-    RUN_INDIAN_RAIDS();
     brave = units_get(&units, brave_id);
-    if (!brave || brave->orders != UNITS_ORDER_FOLLOW || brave->follow_unit_id != md5) {
-      fprintf(stderr, "unit_ai_contact: hot MD5 follow=%d\n",
-              brave ? brave->follow_unit_id : -1);
-      return fail("alarm≥80 escort should reach lead at MD=5");
-    }
     units_despawn(&units, md5);
     brave->orders = UNITS_ORDER_NONE;
     brave->follow_unit_id = -1;
@@ -3156,9 +2855,9 @@ static int sp_25(void) {
     colonies.colony_count = 1;
     /* bugs.md #827: the kind is rand(1,4) behind a walls roll, so reroll the
      * pulse (advancing the turn its local RNG is keyed on) until loot lands. */
-    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one pulse. */
+    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
     (void)raid_probe_turn_for_kind(AI_RAID_STORES, 400);
-    RUN_INDIAN_RAIDS();
+    run_colony_raid();
     const int raid_kind = ai_contact_last_raid_kind();
     if (raid_kind == AI_RAID_NOTHING) {
       return fail("raid friction escalate needs successful loot kind");
@@ -3231,7 +2930,7 @@ static int sp_25(void) {
         c_fr->population = 3;
         ind->alarm_by_player[0] = 90;
         col1.tribe[0].alarm[0].friction = 90;
-        RUN_INDIAN_RAIDS();
+        run_colony_raid();
         const int k = ai_contact_last_raid_kind();
         if (k < AI_RAID_NOTHING || k > AI_RAID_GOLD) {
           return fail("raid kind must be one of DOS local_6 0..4");
@@ -4745,8 +4444,9 @@ static int sp_36(void) {
     }
 
     /*
-     * Demand CHOICE refuse when alarmed (≥55) → CONTACT_DEMAND OK
-     * "Natives refuse demands."; no tools/gold drain (no amount CHOICE).
+     * Demand CHOICE refuse when alarmed (≥55): no tools/gold drain (no amount
+     * CHOICE). The old typed "The <tribe> refuse demands." OK popup had no
+     * catalog row and is gone (bugs.md #1100), so the refusal is silent.
      * Cite: FUN_5bfb_102a / fandom Alarm; indian_contact.md demand refuse.
      */
     {
@@ -4801,14 +4501,9 @@ static int sp_36(void) {
       if (c->stock[COLONIZE_CARGO_TOOLS] != tools_r || eurod->tools != utools_r) {
         return fail("Demand refuse CHOICE should not take tools");
       }
-      if (pop.queue_count < 1 ||
-          pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK ||
-          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_DEMAND) {
-        return fail("Demand refuse should enqueue CONTACT_DEMAND OK");
-      }
-      if (strstr(st_pop, "refuse") == NULL || strstr(st_pop, "demand") == NULL) {
-        fprintf(stderr, "unit_ai_contact: demand-refuse OK status '%s'\n", st_pop);
-        return fail("Demand refuse should set refuse-demands status");
+      if (strstr(st_pop, "refuse") != NULL) {
+        fprintf(stderr, "unit_ai_contact: demand-refuse status '%s'\n", st_pop);
+        return fail("Demand refuse must not print typed English (#1100)");
       }
     }
   return 0;
@@ -6243,6 +5938,7 @@ static int sp_48(void) {
     wctx.col1 = &col1;
     wctx.col1_ok = true;
     wctx.ai_popups = &wp;
+    wctx.human_nation = -1; /* memset 0 would pin Euro 0 as human (#1122) */
     col1.player[0].control = 0;
     ind->alarm_by_player[0] = 20;
     ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~COL1_INDIAN_ATTACK_CONFIRMED_BIT);
@@ -7463,7 +7159,6 @@ static int case_meet_first_contact(void) { return fx_run(1); }
 static int case_raid_colony_loot(void) { return fx_run(2); }
 static int case_raid_alarm_tail_war_gate(void) { return fx_run(3); }
 static int case_raid_repelled_limb(void) { return fx_run(4); }
-static int case_raid_gate_uniform_40(void) { return fx_run(5); }
 static int case_mission_expel_00f2(void) { return fx_run(6); }
 static int case_ambush_gear_seize(void) { return fx_run(7); }
 static int case_prelude_no_encroach_drift(void) { return fx_run(8); }
@@ -7473,16 +7168,12 @@ static int case_gift_generous_capital(void) { return fx_run(11); }
 static int case_gift_refuse_first_meet_status(void) { return fx_run(12); }
 static int case_raid_multi_loot(void) { return fx_run(13); }
 static int case_raid_stores_arms(void) { return fx_run(14); }
-static int case_scout_not_harassed(void) { return fx_run(15); }
 static int case_alarmed_no_chrome_no_teach(void) { return fx_run(16); }
 static int case_raid_status_nothing_surprise_war(void) { return fx_run(17); }
 static int case_demand_arms(void) { return fx_run(18); }
 static int case_very_low_relation_no_gift(void) { return fx_run(19); }
-static int case_raid_target_pick_friction_war(void) { return fx_run(20); }
 static int case_prelude_clamp_only(void) { return fx_run(21); }
-static int case_raid_target_pick_tools_gold(void) { return fx_run(22); }
 static int case_raid_burn_arms(void) { return fx_run(23); }
-static int case_brave_escort_follow(void) { return fx_run(24); }
 static int case_raid_escalate_pocahontas(void) { return fx_run(25); }
 static int case_popup_welcome_accept(void) { return fx_run(26); }
 static int case_popup_ship_no_welcome(void) { return fx_run(27); }
@@ -7524,7 +7215,6 @@ static const TestCase k_cases[] = {
   {"raid_colony_loot", case_raid_colony_loot},
   {"raid_alarm_tail_war_gate", case_raid_alarm_tail_war_gate},
   {"raid_repelled_limb", case_raid_repelled_limb},
-  {"raid_gate_uniform_40", case_raid_gate_uniform_40},
   {"mission_expel_00f2", case_mission_expel_00f2},
   {"ambush_gear_seize", case_ambush_gear_seize},
   {"prelude_no_encroach_drift", case_prelude_no_encroach_drift},
@@ -7534,16 +7224,12 @@ static const TestCase k_cases[] = {
   {"gift_refuse_first_meet_status", case_gift_refuse_first_meet_status},
   {"raid_multi_loot", case_raid_multi_loot},
   {"raid_stores_arms", case_raid_stores_arms},
-  {"scout_not_harassed", case_scout_not_harassed},
   {"alarmed_no_chrome_no_teach", case_alarmed_no_chrome_no_teach},
   {"raid_status_nothing_surprise_war", case_raid_status_nothing_surprise_war},
   {"demand_arms", case_demand_arms},
   {"very_low_relation_no_gift", case_very_low_relation_no_gift},
-  {"raid_target_pick_friction_war", case_raid_target_pick_friction_war},
   {"prelude_clamp_only", case_prelude_clamp_only},
-  {"raid_target_pick_tools_gold", case_raid_target_pick_tools_gold},
   {"raid_burn_arms", case_raid_burn_arms},
-  {"brave_escort_follow", case_brave_escort_follow},
   {"raid_escalate_pocahontas", case_raid_escalate_pocahontas},
   {"popup_welcome_accept", case_popup_welcome_accept},
   {"popup_ship_no_welcome", case_popup_ship_no_welcome},

@@ -243,11 +243,14 @@ Returns true when the core ring touched a Pacific-strip water tile
 ## units_reset_hooks
 
 Test-fixture hygiene: process-global callback hooks (move/combat watch,
-dissolve, raid-repelled, popup pump, bgm, tax-change) persist across
-units_reset(pool) since they aren't per-pool state. Call this to put them
-all back to their unregistered (NULL) initial values, e.g. at the top of a
-shared test fixture's setup, so one test's registrations can't leak into
-the next.
+dissolve, popup pump, bgm, tax-change, spawn gate / spawn refused) and the
+injected combat context (combat popups, GAME.TXT, Europe, colonies, human
+nation, native fallout col1/map, conquest gold, the combat-analysis
+presenter) persist across units_reset(pool) since they aren't per-pool
+state. Call this to put them all back to their unregistered (NULL / -1)
+initial values, e.g. at the top of a shared test fixture's setup, so one
+test's registrations can't leak into the next (bugs.md #1103). The
+raid-repelled hook is deliberately kept: it is wired once at startup.
 
 ## units_reset_state
 

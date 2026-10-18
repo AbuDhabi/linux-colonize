@@ -1,5 +1,7 @@
 /* Smoke: liberty-bell threshold elects FF with manual/wiki-aligned effects. */
+#include "../common/ai_fixture.h"
 #include "core/ai_diplo.h"
+#include "../common/test_runner.h"
 #include "core/col1_bridge.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
@@ -19,10 +21,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int fail(const char* msg) {
-  fprintf(stderr, "unit_founding_fathers: FAIL %s\n", msg);
-  return 1;
-}
+#define TEST_NAME "unit_founding_fathers"
+#include "../common/test_fail.h"
 
 static void ff_tick(ColonizeTurnContext* ctx) {
   /* bugs.md #933: nation+0xc (liberty_bells_pool) IS the pool — no seeding. */
@@ -70,6 +70,12 @@ static bool ff_build_minimal_col1_blob(ColonizeCol1Save* save, char* err, size_t
 }
 
 int main(void) {
+  {
+    const int gate = tr_single_flow_gate("founding_fathers");
+    if (gate >= 0) {
+      return gate;
+    }
+  }
   founding_fathers_reset();
   {
     ColonizeCol1Save curve;
@@ -1440,8 +1446,9 @@ int main(void) {
       (void)no_drake;
     }
 
-    /* Drake via AI wrapper: units_resolve_naval_combat uses g_units_ff_col1.
-     * Same prove as spawn A: equal Privateers, defender nation owns Drake →
+    /* Drake with the defender owning it (bugs.md #1106: the
+     * units_resolve_naval_combat g_units_ff_col1 wrapper is gone; callers
+     * pass col1 in the world). Same prove as spawn A: equal Privateers, defender nation owns Drake →
      * def 8*3/2=12 > atk 8 → attacker loses (PEDIA/wiki +50%). */
     {
       const int atk = units_spawn_allow_stack(&upool, 4, 13, 1);
@@ -1455,14 +1462,10 @@ int main(void) {
       d->nation_id = 0; /* has Drake → def 12 */
       /* bugs.md: with the naval attacker's +50% the equal-Privateer matchup
        * is a deterministic tie (atk 12 vs Drake def 12) and >= gives it to
-       * the attacker; the wrapper still routes g_units_ff_col1 (proved by
-       * the strength comparison in spawn A above). */
-      units_set_ff_col1(&ccol1);
-      if (!units_resolve_naval_combat(&upool, atk, def, NULL)) {
-        units_set_ff_col1(NULL);
-        return fail("Drake wrapper: deterministic tie goes to attacker");
+       * the attacker (strengths proved in spawn A above). */
+      if (!units_resolve_naval_combat_ff_w(&(ColonizeWorld){.units = &upool, .col1 = &ccol1, .col1_ok = true}, atk, def)) {
+        return fail("Drake defender: deterministic tie goes to attacker");
       }
-      units_set_ff_col1(NULL);
       /* Same guns == hull coin flip as spawn A: no-RNG ties damage. */
       const ColonizeUnit* d_after = units_get(&upool, def);
       if (!d_after || (d_after->col1_flags15 & 0x80u) == 0 || !units_get(&upool, atk)) {
@@ -1862,7 +1865,6 @@ int main(void) {
 
     /* Keep 584a needed above Penn's 13 so the meter is not cleared by a spawn. */
     ColonizeUnitPool punits;
-    memset(&punits, 0, sizeof(punits));
     memset(&punits, 0, sizeof(punits));
     units_reset(&punits);
     units_set_occupancy_map(NULL);
@@ -2286,13 +2288,7 @@ int main(void) {
     /* de Soto LCR resolve wired: clear rumour + reveal (no invented gold). */
     ColonizeWorldMap lmap;
     memset(&lmap, 0, sizeof(lmap));
-    lmap.width = 20;
-    lmap.height = 20;
-    lmap.terrain = calloc(400, 1);
-    lmap.layer2 = calloc(400, 1);
-    lmap.layer3 = calloc(400, 1);
-    lmap.seen = calloc(400, 1);
-    if (!lmap.terrain || !lmap.layer2 || !lmap.layer3 || !lmap.seen) {
+    if (!fx_map_alloc(&lmap, 20, 20, 0, true)) {
       map_free(&lmap);
       return fail("de Soto LCR map alloc");
     }
@@ -2359,19 +2355,10 @@ int main(void) {
 
     ColonizeWorldMap cmap;
     memset(&cmap, 0, sizeof(cmap));
-    cmap.width = 16;
-    cmap.height = 16;
-    cmap.tile_count = 256;
-    cmap.terrain = calloc(256, 1);
-    cmap.layer2 = calloc(256, 1);
-    cmap.layer3 = calloc(256, 1);
-    if (!cmap.terrain || !cmap.layer2 || !cmap.layer3) {
+    if (!fx_map_alloc(&cmap, 16, 16, 1, false)) {
       free(ccol1.tribe);
       map_free(&cmap);
       return fail("Cortes AI map alloc");
-    }
-    for (int i = 0; i < 256; ++i) {
-      cmap.terrain[i] = 1;
     }
     cmap.layer3[5 * 16 + 5] = (uint8_t)((4u << 4) | 1u);
 

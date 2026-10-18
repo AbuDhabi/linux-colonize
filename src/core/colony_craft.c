@@ -76,24 +76,6 @@ const ColonizeCraftRecipe* colony_craft_recipe_for_building_row(int building_row
   return NULL;
 }
 
-const ColonizeCraftRecipe* colony_craft_recipe_for_building(const char* building_name) {
-  if (!building_name || !building_name[0]) {
-    return NULL;
-  }
-  return colony_craft_recipe_for_building_row(colonies_building_name_row(building_name));
-}
-
-int colony_craft_recipe_count(void) {
-  return (int)(sizeof(k_recipes) / sizeof(k_recipes[0]));
-}
-
-const ColonizeCraftRecipe* colony_craft_recipe_at(int index) {
-  if (index < 0 || index >= colony_craft_recipe_count()) {
-    return NULL;
-  }
-  return &k_recipes[index];
-}
-
 static void colony_craft_pair_totals(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,

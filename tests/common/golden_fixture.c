@@ -5,10 +5,63 @@
 #include <string.h>
 
 #include "core/ai.h"
+#include "core/ai_contact.h"
 #include "core/ai_euro.h"
+#include "core/ai_goals.h"
+#include "core/founding_fathers.h"
 #include "core/europe_art.h"
 #include "core/turn.h"
 #include "core/units.h"
+
+bool sav_load_into_pools(const SavLoad* sl, char* err, size_t err_size) {
+  /* Module statics that index the outgoing world go first, in
+   * game_apply_col1_save's order (game_loop_saveload.c). */
+  ai_goals_reset();
+  founding_fathers_reset();
+  ai_contact_reset();
+  ai_euro_reset();
+  ai_native_reset();
+  ai_coarse_fog_reset();
+  turn_reset();
+  units_reset_hooks();
+  units_reset_state();
+  units_set_occupancy_map(NULL);
+  colonies_set_occupancy_map(NULL);
+
+  memset(sl->units, 0, sizeof(*sl->units));
+  units_reset(sl->units);
+  colonies_init(sl->colonies);
+  memset(sl->map, 0, sizeof(*sl->map));
+  memset(sl->europe, 0, sizeof(*sl->europe));
+  sl->europe->cargo_count = 16;
+
+  if (!units_load_types(sl->units, sl->names)) {
+    snprintf(err, err_size, "units_load_types failed");
+    return false;
+  }
+  if (!colonies_load_buildings(sl->colonies, sl->names)) {
+    snprintf(err, err_size, "colonies_load_buildings failed");
+    return false;
+  }
+  if (sl->data_dir) {
+    if (!europe_load(sl->europe, sl->data_dir, err, err_size)) {
+      return false;
+    }
+  } else if (!europe_load_tables(sl->europe, sl->names)) {
+    snprintf(err, err_size, "europe_load_tables failed");
+    return false;
+  }
+  (void)colonies_load_names(sl->colonies, "COLONIZE/COLONY.TXT");
+  sl->europe->harbor_ships = 0;
+  sl->europe->dock_count = 0;
+
+  if (!col1_bridge_apply_w(&(ColonizeWorld){.units = sl->units, .colonies = sl->colonies, .map = sl->map, .col1 = sl->save, .col1_ok = true, .europe = sl->europe}, sl->br, err, err_size)) {
+    return false;
+  }
+  ai_goals_repair_site_scores(sl->map, sl->names);
+  ai_repair_nation_landfalls(&(ColonizeWorld){.units = sl->units, .colonies = sl->colonies, .map = sl->map, .col1 = sl->save, .col1_ok = true});
+  return true;
+}
 
 bool golden_open(const char* path_in, const char* path_exp, uint32_t rng_seed, GoldenFixture* fx) {
   char err[256];
@@ -18,15 +71,7 @@ bool golden_open(const char* path_in, const char* path_exp, uint32_t rng_seed, G
   col1_save_init(&fx->start);
   col1_save_init(&fx->expect);
   col1_save_init(&fx->orig);
-  colonies_init(&fx->colonies);
-  units_reset(&fx->units);
-  units_reset_hooks();
-  units_reset_state();
-  ai_euro_reset();
-  ai_native_reset();
-  turn_reset();
   assets_msg_init(&fx->names);
-  fx->europe.cargo_count = 16;
 
   if (!col1_save_read_file(path_in, &fx->start, err, sizeof(err))) {
     fprintf(stderr, "read %s: %s\n", path_in, err);
@@ -47,22 +92,12 @@ bool golden_open(const char* path_in, const char* path_exp, uint32_t rng_seed, G
   }
   fx->names_loaded = true;
 
-  if (!units_load_types(&fx->units, &fx->names)) {
-    fprintf(stderr, "units_load_types failed\n");
-    return false;
-  }
-  if (!colonies_load_buildings(&fx->colonies, &fx->names)) {
-    fprintf(stderr, "colonies_load_buildings failed\n");
-    return false;
-  }
-  if (!europe_load_tables(&fx->europe, &fx->names)) {
-    fprintf(stderr, "europe_load_tables failed\n");
-    return false;
-  }
-  (void)colonies_load_names(&fx->colonies, "COLONIZE/COLONY.TXT");
-
-  if (!col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&fx->units), .colonies=(ColonizeColonyPool*)(&fx->colonies), .map=(ColonizeWorldMap*)(&fx->map), .col1=(ColonizeCol1Save*)(&fx->start), .col1_ok=true, .europe=(EuropeScreen*)(&fx->europe)}, &fx->br, err, sizeof(err))) {
-    fprintf(stderr, "bridge apply %s: %s\n", path_in, err);
+  const SavLoad sl = {
+    .save = &fx->start, .names = &fx->names, .data_dir = NULL, .units = &fx->units,
+    .colonies = &fx->colonies, .map = &fx->map, .europe = &fx->europe, .br = &fx->br,
+  };
+  if (!sav_load_into_pools(&sl, err, sizeof(err))) {
+    fprintf(stderr, "load %s: %s\n", path_in, err);
     return false;
   }
   fx->bridged = true;

@@ -165,7 +165,6 @@ static void ai_euro_5d04_treasury_bump(ColonizeTurnContext* ctx, int nation_id) 
   if (!ctx || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
     return;
   }
-  ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
   const ColonizeCol1Head* head = &ctx->col1->head;
   const int colony_count = ctx->col1->stuff.colony_counts[nation_id];
 
@@ -182,7 +181,8 @@ static void ai_euro_5d04_treasury_bump(ColonizeTurnContext* ctx, int nation_id) 
   } else if (head->difficulty == 4) {
     scaled_treasury_bonus <<= 1; /* *2 */
   }
-  nat->gold += (uint32_t)(scaled_treasury_bonus * 4);
+  /* bugs.md #1096: through the one-treasury accessor (record for an AI). */
+  europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, (long)scaled_treasury_bonus * 4);
 }
 
 static int nat_gold_ge(const ColonizeTurnContext* ctx, int nation_id, uint32_t threshold) {
@@ -193,9 +193,11 @@ static int nat_gold_ge(const ColonizeTurnContext* ctx, int nation_id, uint32_t t
  * (a per-flag "catch-up" clamp). Real mechanism, inert while
  * `ai_euro_5d04_ph_gold_floor` returns 0. */
 static void ai_euro_5d04_apply_gold_floor(ColonizeTurnContext* ctx, int nation_id, uint32_t floor) {
-  ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
-  if (nat->gold < floor) {
-    nat->gold = floor;
+  /* Absolute raise as a delta through the accessor (bugs.md #1096): lands
+   * exactly on `floor`, never discards a credit the other store took. */
+  const uint32_t cur = europe_nation_gold(ctx->europe, ctx->col1, nation_id);
+  if (cur < floor) {
+    europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, (long)floor - (long)cur);
   }
 }
 
@@ -614,7 +616,7 @@ int ai_euro_5d04_dos_type_space(const ColonizeUnitPool* pool, int dos_code) {
   const ColonizeUnitType* t = lt >= 0 ? units_type(pool, lt) : NULL;
   return t ? t->space : 1;
 }
-int ai_euro_5d04_dos_type_code(const ColonizeUnitPool* pool, int type_index) {
+COLONIZE_INTERNAL int ai_euro_5d04_dos_type_code(const ColonizeUnitPool* pool, int type_index) {
   return ai_euro_5d04_dos_type_of(pool, type_index);
 }
 static int ai_euro_5d04_cb_unit_dispatch_byte(int idx) {
@@ -902,7 +904,6 @@ static int ai_euro_5d04_cb_sell_hold0(int idx) {
   if (amount <= 0 || cargo < 0) {
     return 0;
   }
-  ColonizeCol1Nation* nat = &ctx->col1->nation[ai_euro_s_5d04_nation];
   /* 0a2e → 1dfa: pools + trade.tons + trade.tons2 + tax-adjusted trade.gold.
    * Needs the shared EuropeScreen; headless (no eu) the ledger is skipped, the
    * treasury half below is col1-only and always applies (same shape as
@@ -915,7 +916,7 @@ static int ai_euro_5d04_cb_sell_hold0(int idx) {
   /* 1f0c's return → 0aba: the UNTAXED gross, price = euro_price−1. */
   const int gained = ai_euro_5d04_cb_sell_price(cargo) * amount;
   if (gained > 0) {
-    nat->gold += (uint32_t)gained;
+    europe_nation_gold_add(ctx->europe, ctx->col1, ai_euro_s_5d04_nation, gained);
     ai_euro_5d04_cb_sync_gold();
   }
   /* FUN_281f_0aec leaves the removed amount in DS:0x8dc4. The departing
@@ -1006,9 +1007,9 @@ static void ai_euro_5d04_cb_apply_bump(int idx, int cargo, int qty) {
   if (qty > 100) {
     qty = 100;
   }
-  ColonizeCol1Nation* nat = &ctx->col1->nation[ai_euro_s_5d04_nation];
   const uint32_t cost = (uint32_t)(ai_euro_5d04_cb_price(cargo) * qty);
-  nat->gold = nat->gold > cost ? nat->gold - cost : 0u;
+  /* treasury clamps at 0 (FUN_15eb_0556) — the accessor's own floor. */
+  europe_nation_gold_add(ctx->europe, ctx->col1, ai_euro_s_5d04_nation, -(long)cost);
   ai_euro_5d04_cb_sync_gold();
   ai_euro_5d04_cb_market_volume(cargo, qty, 1);
   (void)units_load_goods(ctx->units, u->id, cargo, qty);
@@ -1265,7 +1266,7 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
                   } else {
                     nat->musket_bank_lots--;
                   }
-                  nat->gold -= musket_stock_cost;
+                  europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -(long)musket_stock_cost);
                   ai_euro_5d04_cb_set_unit_dispatch_byte(idx, 1);
                   if (ai_euro_5d04_cb_profession_gate(ai_euro_5d04_cb_unit_profession(idx)) != 0) {
                     int swapped = 0x1c;
@@ -1293,7 +1294,7 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
                     horse_stock_cost = 0;
                   }
                   if (nat->gold >= horse_stock_cost) {
-                    nat->gold -= horse_stock_cost;
+                    europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -(long)horse_stock_cost);
                     ai_euro_5d04_cb_set_unit_dispatch_byte(idx, 4);
                     if (col1_nation_bank_4a(nat) < 0x32) {
                       /* raw 92729-92733: DOS only calls FUN_291f_0c14(8,0x32)
@@ -1327,7 +1328,7 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
                      dos_rng_range(ctx->rng, 0, 4) == 0)) {
                   const uint32_t cost = (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_TOOLS) * 100);
                   if (nat->gold >= cost) {
-                    nat->gold -= cost;
+                    europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -(long)cost);
                     ai_euro_5d04_cb_set_pool_counter(0xe, 100);
                     ai_euro_5d04_cb_set_unit_dispatch_byte(idx, 2);
                     tools_hire_mask = hire_mask;
@@ -1428,7 +1429,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
       }
       if (nat->gold >= adj && ai_euro_5d04_cb_goal_trigger(0xb, nation_id, nation_id - 0x14, nation_id - 0x14) >= 0) {
         demand_remaining--;
-        nat->gold -= adj;
+        europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -(long)adj);
       }
     }
     int bought_this_iteration = 0; /* DOS bVar8_2 */
@@ -1484,7 +1485,9 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
             ai_euro_5d04_cb_set_unit_profession(cand, swapped);
           }
         }
-        nat->gold -= recruit_price;
+        /* int32 view: a tools/musket rebate can take the uint32 price below
+         * 0, and DOS's 32-bit subtract then credits (wraps) instead. */
+        europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -(long)(int32_t)recruit_price);
         if (nat->musket_bank_lots == 0) {
           ai_euro_5d04_cb_set_pool_counter(0xf, 0x32);
         } else {
@@ -1507,7 +1510,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
           horse_stock_cost = 0;
         }
         if (nat->gold >= horse_stock_cost) {
-          nat->gold -= horse_stock_cost;
+          europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -(long)horse_stock_cost);
         }
         ai_euro_5d04_cb_set_unit_dispatch_byte(cand, 4);
         if (col1_nation_bank_4a(nat) < 0x32) {
@@ -1749,7 +1752,7 @@ static void ai_euro_5d04_hire_ladder_tail(
     }
     const long recruit_swap_price = scaled + base; /* DOS local_38 */
     if (nat->gold >= (uint32_t)(recruit_swap_price + reserve)) {
-      nat->gold -= (uint32_t)recruit_swap_price;
+      europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -recruit_swap_price);
       const int slot = dos_rng_range(ctx->rng, 0, 2); /* nat->recruit[3] */
       const int candidate = ai_euro_5d04_cb_dock_pop_candidate(nat->recruit[slot]);
       if (candidate >= 0) {

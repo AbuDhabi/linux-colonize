@@ -188,11 +188,8 @@ void units_brewster_enqueue_pick(
   EuropeScreen* europe, AiPopupState* popups, const ColonizeMsgCatalog* game_txt, int human
 );
 /* The `_ex` forms carry the game rng into the 4884 tail's pool refill, whose
- * `46d4` tier rolls DOS takes off the shared stream; the plain forms pass
- * NULL (fixture shorthand). Smell audit 2026-09-10 G5. */
-bool units_brewster_apply_popup(
-  EuropeScreen* europe, AiPopupState* popups, ColonizeUnitPool* units
-);
+ * `46d4` tier rolls DOS takes off the shared stream (w->rng NULL = fixture
+ * shorthand). Smell audit 2026-09-10 G5. */
 bool units_brewster_apply_popup_ex_w(
   const ColonizeWorld* w,
   AiPopupState* popups
@@ -316,30 +313,6 @@ bool units_cargo_can_landfall(const ColonizeUnitPool* pool, int unit_id);
  * the move outright instead of raising @LANDFALL).
  */
 int units_first_landfall_cargo(const ColonizeUnitPool* pool, int ship_id);
-/*
- * Pick an adjacent land tile the ship's passengers can enter (8-neighbour).
- * Prefers tiles nearer to (prefer_x, prefer_y) when prefer coords are valid;
- * pass prefer_x < 0 to ignore. Returns false if none.
- */
-bool units_pick_landfall_tile_w(
-  const ColonizeWorld* w,
-  int ship_id,
-  int prefer_x,
-  int prefer_y,
-  int* out_x,
-  int* out_y
-);
-/*
- * Unload every passenger onto dest (must be enterable land adjacent/same).
- * Wakes sentry cargo. Does not change pool->selected_id. Returns count unloaded.
- * AI beachhead helper — human @LANDFALL Make Landfall unloads one unit only.
- */
-int units_landfall_unload_all_w(
-  const ColonizeWorld* w,
-  int ship_id,
-  int dest_x,
-  int dest_y
-);
 /* DOS FUN_48d3_03d0 dock hop: sink the hull, then put its passengers on the
  * Europe dock tile, nearest first, each under the last. */
 void units_lane_dock_arrival(ColonizeUnitPool* pool, int ship_id);

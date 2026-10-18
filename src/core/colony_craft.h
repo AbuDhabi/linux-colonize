@@ -32,14 +32,6 @@ typedef struct ColonizeCraftRecipe {
 /* Recipe whose chain owns @BUILDING row `building_row`, or NULL. */
 const ColonizeCraftRecipe* colony_craft_recipe_for_building_row(int building_row);
 
-/* Name-taking wrapper (colonies_building_name_row lookup) — kept for
- * callers outside colony_craft.c/.h that only have a catalog name in hand
- * (e.g. ai_euro.c's per-worker want pass). Prefer the _row form. */
-const ColonizeCraftRecipe* colony_craft_recipe_for_building(const char* building_name);
-
-/* Raw table access, for callers that need to walk every chain. */
-int colony_craft_recipe_count(void);
-const ColonizeCraftRecipe* colony_craft_recipe_at(int index);
 
 /*
  * Settlement manufacturing: workplace colonists convert warehouse raw → goods.

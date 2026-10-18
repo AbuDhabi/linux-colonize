@@ -18,6 +18,11 @@
 #define EUROPE_DOCK_MAX 1024 /* > the 300-unit DOS cap; see docs/europe.md */
 #define EUROPE_CLASS_MAX 8
 #define EUROPE_HARBOR_MAX 1024 /* per lane; > the 300-unit DOS cap */
+/* Europe park tile: DOS parks nation n's dock/harbor units at the byte
+ * (n - 0x14) = EUROPE_PARK_XY + n in both coordinates (FUN_38fd_0718 raw
+ * 59133); the port's own dock mirror units sit at the nation-0 value
+ * (EUROPE_PARK_XY, EUROPE_PARK_XY). bugs.md #1111. */
+#define EUROPE_PARK_XY 236
 #define EUROPE_SHIP_CARGO_MAX 6 /* matches COLONIZE_UNIT_CARGO_MAX */
 #define EUROPE_POOL_SIZE 3
 #define EUROPE_TRAIN_MAX 24
@@ -658,6 +663,12 @@ uint32_t europe_nation_gold(
 );
 void europe_nation_gold_add(
   EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, long delta
+);
+
+/* Crown cut of a sale/cash-in: nation+0x22 += gross-net, +0x26 += net
+ * (FUN_38fd_23c4 raw 60562-60570). The one implementation; see europe.c. */
+void europe_credit_sale_tax(
+  struct ColonizeCol1Save* col1, int nation, int gross, int net
 );
 
 /* europe_set_live_screen -- see docs/europe.md#europe_set_live_screen */

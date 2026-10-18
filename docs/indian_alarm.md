@@ -48,7 +48,6 @@ Coolers:
 | **Buy** the plot instead of taking it | `FUN_0000_6582` non-human arm | 0 — no charge at all |
 | Gift of gold (022e auto-gift only) | **port stand-in, NO DOS BODY** | -2 (10 gold) / -3 (20 gold), through the same `ai_contact_pair_cool` as the demand arms (bugs.md #1007). The cited `FUN_5bfb_102a` (`viceroy_unpacked.c:97105-97125`) is a plural/singular TEXT FORMATTER with no gold or alarm arithmetic — citation dropped. `@ACTIONS` has no gift row and nothing ever enqueued `AI_CONTACT_CHOICE_GIFT`, so the **player-driven** gift action (its amount CHOICE, its three typed English labels and the -5/-1 Small band) was invented and dead, and was deleted 2026-10-01; what remains is the Indian-initiated `FUN_5bfb_022e` visit arm reached through `ai_contact_gift_or_demand` (bugs.md #1006) |
 | Concede a tools / gold demand | **port stand-in, NO DOS BODY** | flat -3, now spent through `ai_contact_pair_cool` -> `ai_contact_alarm_delta_00f2` (so it clears the attack-confirmed bit, clears the war bit below 0x4b, and runs the 5-point tier clamp) and writing **no** village word: DOS's coolers either zero ONE village's whole word (the acting Brave's home, which these arms never hold) or spend through 0d6c, and no DOS site decays every village of a nation. The **amount** is still invented — there is no DOS demand-payoff body at all (bugs.md #1007) |
-| Peaceful village visit | `ai_contact_indian_raids` | village friction -1, only while alarm < 40 |
 | Any resolved native-vs-Euro land fight, or a raid | `FUN_5fef_1b0e` / `FUN_5fef_0f14` | that village's whole word -> 0 |
 | Raze their capital | `FUN_5fef_1b0e` | alarm clamped down to 15; every village word of the nation zeroed |
 | Elect Pocahontas | FF 0x10 | alarm -> 0 with every tribe, and all future increases halved |
@@ -71,27 +70,30 @@ mission villages below friction 80, and handed that one scalar to every Brave �
 so a single angry village licensed ambushes by Braves homed in calm ones
 (bugs.md #1003, a real campaign4 case: Arawak nation alarm 0, one un-missioned
 village at friction 83, the attacking Braves all homed in the player's own
-mission villages). Removed; the gate is the nation number.
+mission villages). The whole gate went with the raid pass in bugs.md #1093
+(below).
 
 The village word still matters, and diverges sharply from the nation number,
 because the two have very different dampers: the nation scalar is fed through
 the `euro_relation_accum` +/-8 spill and the France / Pocahontas halving, while
 the village word takes `threat + alarm/5` raw every turn (`FUN_4d56_152e`, a
 bare int16 add) with relief only from a mission on that same village, gifts,
-conceded demands, an adjacent-Brave visit (-1, and only while nation alarm < 40)
-or a fight. An un-missioned village next to developed colonies therefore climbs
+conceded demands or a fight. An un-missioned village next to developed colonies therefore climbs
 more or less forever while the nation scalar stays low. Note also that the 152e
 scorer is **geometric, not topological** — `map_dos_dist < 7`, no pathfinding
 and no landmass-shape term — so a village an impassable walk away still accrues
 from colonies that are close as the crow flies.
 
-Bands on the nation scalar (this pass's own stand-in values, not decomp-derived;
-the older "DOS's real matrix `FUN_4d56_2820` is PARKED" gloss was wrong on both
-counts — 2820 is the village TRADE haggle matrix and it is ported, see below —
-so no DOS producer for these bands has been identified at all): **>= 40** the nation picks that European as
-its raid target at all; **>= 55** arms the adjacent-unit ambush arm
-(@INDIANWIN0/1/2, "{tribe} ambush {nation} {unit} near {place}!"); **>= 80**
-"hot" — `md_max` 8 instead of 6 and `hot_wealth` on.
+**Deleted 2026-10-18 (bugs.md #1093): the post-pulse raid pass
+`ai_contact_indian_raids`.** It ran after the ported 021a/465b pulse with
+invented nation-scalar bands (>= 40 raid target, >= 55 adjacent ambush with
+its own @INDIANWIN chrome, >= 70 march on a colony, >= 80 "hot"), an invented
+escort FOLLOW peel (MD 3/4/5, weights 1/2/3) and its own entry into
+`FUN_5fef_0f14`. DOS has no such pass: `FUN_4d56_1816` ends with the per-unit
+act loop, a Brave's only attack is 021a -> 465b -> `FUN_5fef_1b0e`, and 0f14's
+one caller is 1b0e's loser limb (raw 101142), ported as
+`ai_contact_colony_raid_repelled_w`. That entry now also draws 0f14's
+human-victim cues and @RAID* dialog and the @RAIDWREAK bulletin.
 
 Note on the discharge: a resolved fight zeroes the word of the **attacking
 Brave's home** village (`unit +0x314a`), not necessarily the village that is
@@ -262,7 +264,7 @@ tile's owner id, `param_3` = 0906's own flag, `param_4` = the unit index on
 that tile (`-1` for Euro owners and for the settlement probe). The tension
 row key is the *tile unit's* `+0x06` home settlement id (`DS:0x314a`,
 `ColonizeUnit.home_tribe_id`), not the Indian nation — same key
-`ai_contact_indian_raids` and `units.c` write with. The "stride 9" is the
+`ai_contact_colony_raid_repelled_w` and `units.c` write with. The "stride 9" is the
 settlement-record stride, so the cell is `col1->tribe[home].alarm[nation]`
 read as one signed word (`col1_tribe_attitude`).
 
@@ -321,9 +323,8 @@ ported from the same loop: the `iStack_22` ring-1 counter and the
 **Second write site wired 2026-08-24, made live 2026-09-08 — raid discharges
 the attitude word.** `FUN_5fef_0f14` (colony raid loot) unconditionally zeroes
 the raiding tribe's word toward the raided Euro nation right before it
-returns, for every loot kind (including "Nothing"). Both entries into that
-resolver do it — the raid pulse in `ai_contact_indian_raids` and
-`ai_contact_colony_raid_repelled_w` — via
+returns, for every loot kind (including "Nothing"). Its one entry,
+`ai_contact_colony_raid_repelled_w`, does it via
 `col1_tribe_attitude_set(&col1->tribe[home_tribe_id], target_euro, 0)` after
 `ai_contact_apply_raid_loot`. DOS stores 0 into the **whole word**, so a raid
 wipes the village's `friction` *and* its `attacks` count toward that European.
@@ -409,10 +410,9 @@ the tribe is at war with that European. `FUN_281f_0d6c` = `FUN_4cc6_00f2` =
 `ai_diplo_indian_alarm_delta` (the France/Pocahontas halving inside it is
 positive-delta-only, so these pass through raw).
 
-Ported as `ai_contact_raid_alarm_tail` (`ai_contact.c`), called from **both**
-entries into the resolver — the raid pulse in `ai_contact_indian_raids` and
-`ai_contact_colony_raid_repelled_w` — immediately before each site's DS:0x54f6
-clear, as DOS orders them. The pulse's old *positive* fandom bump
+Ported as `ai_contact_raid_alarm_tail` (`ai_contact_raid.c`), called from
+`ai_contact_colony_raid_repelled_w` immediately before the DS:0x54f6 clear, as
+DOS orders them. The old raid pulse's *positive* fandom bump
 (`kind_delta` +4/+12/+16/+8 via `ai_contact_alarm_bump_amount`) is retired
 under the same rule as the three fandom alarm drips (bugs.md #289): DOS grows
 Indian alarm only through the `FUN_4d56_152e` accumulator.
@@ -466,8 +466,8 @@ Used by contact / mission / raid gates ([indian_contact.md](../original_sources_
 |------|-------------|
 | **&lt; 40** | Cool: gift / teach / friction decay |
 | **40–54** | Mid: demand/payoff; hard-bargain trade (~45–49); teach refused |
-| **≥ 55** | Refuse trade / gifts / convert; raid gate (non-mission villages) |
-| **≥ 80** | Burn/raid band; stronger escort. (Mission burn `FUN_4cc6_0000` is NOT this band: it needs alarm == 100 AND the at-peace bit `0a38 & 0x40`, then `rng(0,10) <= difficulty+1`, raw 80900-80912) |
+| **≥ 55** | Refuse trade / gifts / convert |
+| **≥ 80** | (Mission burn `FUN_4cc6_0000` is NOT this band: it needs alarm == 100 AND the at-peace bit `0a38 & 0x40`, then `rng(0,10) <= difficulty+1`, raw 80900-80912) |
 | **≥ 75** | Speak With Chief kill band — `thunk_FUN_1000_a60c` (overlays.c 77494-77654) gates the whole friendly switch on `alarm < 0x4b`; at or above it, and on a failed `alarm >> 2 < rng(0, seasoned ? 140 : 100)` roll below it, the outcome is **deterministic** `@CHIEFKILL` unless the nation owns FF 6 Coronado (`@CHIEFBORED`). The old "≥ 90 / 95 scout displace, ~¼ RNG kill" figures were never in DOS — corrected 2026-09-27. |
 
 First-contact **reject** floors alarm/friction into the **≥80** band

@@ -5,6 +5,7 @@
  * the user's session. Runs from the source dir (WORKING_DIRECTORY).
  */
 #include <stdbool.h>
+#include "../common/test_runner.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -228,12 +229,18 @@ static bool run(void) {
 }
 
 int main(void) {
+  {
+    const int gate = tr_single_flow_gate("play_smoke");
+    if (gate >= 0) {
+      return gate;
+    }
+  }
   const char* data_dir = "./COLONIZE";
   const char* save_dir = "./test-saves-play";
   struct stat st;
   if (stat(data_dir, &st) != 0) {
-    printf("smoke_play skipped: %s not present\n", data_dir);
-    return 0;
+    printf("SKIP smoke_play: %s not present\n", data_dir);
+    return TR_SKIP;
   }
   mkdir(save_dir, 0755);
   char path[512];

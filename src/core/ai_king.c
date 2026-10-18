@@ -381,7 +381,7 @@ static int ai_king_intervention_nation(const ColonizeTurnContext* ctx, int human
       return slot;
     }
   }
-  const int crown = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human_nation);
+  const int crown = ai_king_crown_nation_col1(ctx && ctx->col1_ok ? ctx->col1 : NULL, human_nation);
   int best = -1;
   int best_colonies = -1;
   int best_force = -1;

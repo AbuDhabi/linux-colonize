@@ -1,5 +1,6 @@
 /* Smoke: ai_goals upsert/promote/work-16 match annotated euro_goals semantics. */
 #include "core/ai_goals.h"
+#include "core/ai_euro_internal.h"
 
 #include "core/col1_save.h"
 #include "core/units.h"
@@ -11,10 +12,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int fail(const char* msg) {
-  fprintf(stderr, "unit_ai_goals: FAIL %s\n", msg);
-  return 1;
-}
+#define TEST_NAME "unit_ai_goals"
+#include "../common/test_fail.h"
 
 static int case_upsert_priority_promote(void) {
   ai_goals_reset();
@@ -282,7 +281,7 @@ static int case_indian_hostility_gate(void) {
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
   pool.units[0].active = true;
-  pool.units[0].id = 0;
+  pool.units[0].id = 1;
   pool.units[0].home_tribe_id = 1; /* village 1 of the tribe array */
   units_pool_sync(&pool);
 
@@ -294,16 +293,16 @@ static int case_indian_hostility_gate(void) {
     return fail("0896: Euro owner id must pass through untouched");
   }
   /* has_context 0 (the 20e6 explorer probe) rejects every native. */
-  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 0, 0) != -1) {
+  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 0, 1) != -1) {
     return fail("0896: has_context 0 must reject a native outright");
   }
   /* Cool nation, zero tension -> no claim. */
-  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 0) != -1) {
+  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 1) != -1) {
     return fail("0896: cool nation with zero tension must not claim");
   }
   /* Alarm arm: DOS compares `0x4a < alarm`, so 74 is still cool. */
   gt.indian[1].alarm_by_player[me] = 74;
-  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 0) != -1) {
+  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 1) != -1) {
     return fail("0896: alarm 0x4a must not open the gate (strict >)");
   }
   gt.indian[1].alarm_by_player[me] = 75;
@@ -314,18 +313,18 @@ static int case_indian_hostility_gate(void) {
   /* Tension arm, alarm back to cool: DOS compares `0x7f < tension`. */
   gt.indian[1].alarm_by_player[me] = 0;
   col1_tribe_attitude_set(&tribes[1], me, 0x7f); /* friction 0x7f, 0 attacks */
-  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 0) != -1) {
+  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 1) != -1) {
     return fail("0896: tension 0x7f must not open the gate (strict >)");
   }
   col1_tribe_attitude_set(&tribes[1], me, 0x80);
-  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 0) != them) {
+  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 1) != them) {
     return fail("0896: tension 0x80 must open the gate");
   }
   /* One recorded trespass (attacks = 1, friction 0) is the same word 0x100
    * and opens the gate on its own — the high byte counts. */
   tribes[1].alarm[me].friction = 0;
   tribes[1].alarm[me].attacks = 1;
-  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 0) != them) {
+  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 1) != them) {
     return fail("0896: one attack (word 0x100) must open the gate");
   }
   col1_tribe_attitude_set(&tribes[1], me, 0x80);
@@ -334,11 +333,11 @@ static int case_indian_hostility_gate(void) {
     return fail("0896: tension is only read through the tile unit (unit_index >= 0)");
   }
   /* ...and by the acting nation: another Euro's column stays shut. */
-  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, 1, them, 1, 0) != -1) {
+  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, 1, them, 1, 1) != -1) {
     return fail("0896: tension slot is per acting Euro nation");
   }
   /* No col1 = the pre-2026-09-08 parked behaviour (both reads answer 0). */
-  if (ai_goals_filter_profession_by_distance_wealth(NULL, &pool, me, them, 1, 0) != -1) {
+  if (ai_goals_filter_profession_by_distance_wealth(NULL, &pool, me, them, 1, 1) != -1) {
     return fail("0896: NULL col1 must fall back to the parked identity");
   }
   return 0;

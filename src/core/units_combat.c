@@ -2176,12 +2176,9 @@ int units_apply_naval_loss_outcome(
     tok.string1 = lt ? lt->name : "";
     tok.string2 = units_combat_nation_label(col1, win->nation_id);
     tok.string3 = wt ? wt->name : "";
-    char fb[AI_POPUP_BODY_LEN];
-    snprintf(
-      fb, sizeof(fb), "%s %s sunk by %s %s!", tok.string0, tok.string1, tok.string2, tok.string3
-    );
+    /* GAME.TXT @SHIPSUNK; catalog miss = "" (bugs.md #1099). */
     units_combat_enqueue_tok(
-      AI_POPUP_TAG_COMBAT_SHIP, "SHIPSUNK", win->nation_id, lose->nation_id, 0, &tok, fb
+      AI_POPUP_TAG_COMBAT_SHIP, "SHIPSUNK", win->nation_id, lose->nation_id, 0, &tok, ""
     );
     units_play_event_sound(0x57); /* UNITS_SFX_SHIP_SUNK: FUN_5fef_0352 (COLDIG 16 sinking) */
   }
@@ -2391,7 +2388,7 @@ void units_indian_tension_clear(
 /*
  * FUN_5fef_1b0e's own DS:0x54f6 discharge, the first of its two sites
  * (viceroy_unpacked.c:101039-101041) — the same clear FUN_5fef_0f14 does on
- * the raid path (ai_contact_indian_raids, docs/indians.md).
+ * the 1b0e colony-raid handoff (ai_contact_colony_raid_repelled_w).
  *
  * DOS arm: `if (3 < attacker_nation && defender_nation < 4)` — a native
  * attacker against a European defender — then
@@ -2607,26 +2604,6 @@ void units_combat_outcome_popups(
      * entry-seizure path (FUN_43f7_0512, ported in ai_king.c), never as a
      * combat-win follow-up. A damaged/destroyed loser is not "captured". */
   }
-}
-
-/* PEDIA Francis Drake: privateer combat strengths +50% → multiply by 3/2. */
-int units_drake_scale_strength(
-  const ColonizeUnitPool* pool,
-  const ColonizeUnit* unit,
-  int strength,
-  const ColonizeCol1Save* col1
-) {
-  if (!pool || !unit || !col1 || strength <= 0) {
-    return strength;
-  }
-  const ColonizeUnitType* t = units_type(pool, unit->type_index);
-  if (!units_type_is_privateer(t)) {
-    return strength;
-  }
-  if (!founding_fathers_nation_has(col1, unit->nation_id, FF_FRANCIS_DRAKE)) {
-    return strength;
-  }
-  return (strength * 3) / 2;
 }
 
 static int units_count_nation_on_tile(
@@ -4062,6 +4039,16 @@ void units_reset_hooks(void) {
   g_units_tax_change_user = NULL;
   g_units_combat_sound_play = NULL;
   g_units_combat_sound_active_id = NULL;
+  /* bugs.md #1103: the remaining session wiring, through each owner's setter
+   * (initial values: NULL, human nation -1). */
+  units_set_spawn_gate_hook(NULL, NULL);
+  units_set_spawn_refused_hook(NULL);
+  units_set_combat_popups(NULL, NULL);
+  units_set_combat_europe(NULL);
+  units_set_combat_colonies(NULL);
+  units_set_combat_human_nation(-1);
+  units_set_native_fallout_context(NULL, NULL, -1);
+  combat_analysis_set_presenter(NULL, NULL);
 }
 
 /*

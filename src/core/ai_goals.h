@@ -110,7 +110,6 @@ void ai_goals_repair_site_scores(ColonizeWorldMap* map, const struct ColonizeMsg
 int ai_goals_resource_site_byte(const struct ColonizeMsgCatalog* names, int resource);
 void ai_goals_promote_secondary_to_primary(int nation_id);
 void ai_goals_upsert_primary(int nation_id, int x, int y, int code, int prio);
-void ai_goals_upsert_secondary(int nation_id, int x, int y, int code, int prio);
 void ai_goals_clear_work_queue(void);
 void ai_goals_upsert_work(int id, int score, uint8_t loads, uint8_t military);
 /*
@@ -227,8 +226,7 @@ typedef struct AiNationPlanScratch {
   int last_colony_founded_turn;  /* DS nation*0x13c-0x77b2; 0 = never founded, matches DOS's zero-init */
 } AiNationPlanScratch;
 
-/* Test-only: production uses ai_goals_plan_scratch_refresh below. */
-AiNationPlanScratch* ai_goals_plan_scratch(int nation_id);
+/* (Test-only accessor ai_goals_plan_scratch: ai_euro_internal.h.) */
 
 /*
  * FUN_521d_6d8e prelude + the FUN_4962_0018 census tables it reads: refill
@@ -303,13 +301,8 @@ int ai_goals_composite_unit_priority_w(
  * so the first of equal types wins. -1 when the chain holds none, which is
  * the meaningful "no settler aboard" gate 20e6's cargo goal fold reads.
  */
-/* Test-only export (tests/unit/test_ai_goals.c); no production caller since
+/* Test-only (declared in ai_euro_internal.h); no production caller since
  * 20e6's cargo goal fold inlined the walk. */
-int ai_goals_stack_settler_pick(
-  const ColonizeCol1Unit* units,
-  int unit_count,
-  int unit_index
-);
 
 /*
  * FUN_521d_0896 — the Indian **hostility gate** (name kept for catalog /

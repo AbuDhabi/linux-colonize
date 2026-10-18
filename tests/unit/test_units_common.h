@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "../common/test_catalogs.h"
+#include "../common/ai_fixture.h"
 #include "core/assets.h"
 #include "core/colony.h"
 #include "core/colony_production.h"

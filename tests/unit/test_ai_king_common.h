@@ -54,6 +54,7 @@
  * from the euro ship band.
  */
 #include "../common/test_catalogs.h"
+#include "../common/ai_fixture.h"
 #include "core/ai_king.h"
 #include "core/ai_king_internal.h"
 #include "core/ai_diplo.h"
@@ -72,9 +73,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int fail(const char* msg) {
-  fprintf(stderr, "unit_ai_king: FAIL %s\n", msg);
-  return 1;
-}
+#define TEST_NAME "unit_ai_king"
+#include "../common/test_fail.h"
 
 #endif /* COLONIZE_TEST_AI_KING_COMMON_H */

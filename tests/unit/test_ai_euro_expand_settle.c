@@ -28,18 +28,8 @@ static int unit_improve_timer_pioneer_gate(void) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  map.improve = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3 || !map.improve) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("improve-timer alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
@@ -214,17 +204,8 @@ static int unit_indian_land_found(void) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("indian-land alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1; /* desert land */
   }
 
   ColonizeCol1Tribe tribe;

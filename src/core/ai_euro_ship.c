@@ -383,7 +383,7 @@ static int ai_euro_20e6_delivery_sell_tail(
       );
     }
     const int32_t v = (int32_t)ai_euro_ship_price_84bc(ctx, nation, g) * (int32_t)qty;
-    nat->gold += (uint32_t)v;
+    europe_nation_gold_add(ctx->europe, ctx->col1, nation, v); /* bugs.md #1096 */
     nat->trade.gold[g] += v;
     nat->trade.tons[g] += (int32_t)qty;
     total += (int)v;

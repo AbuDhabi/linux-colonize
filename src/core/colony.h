@@ -205,6 +205,12 @@ typedef struct ColonizeColony {
   uint8_t col1_tail_turns[COLONIZE_COLONY_POP_MAX];
 } ColonizeColony;
 
+/* Live headcount: the colonists[] roster, or the `population` mirror when the
+ * roster is empty (synthetic/partial records, where the mirror is all there is). */
+static inline int colonies_headcount(const ColonizeColony* colony) {
+  return colony->colonist_count > 0 ? colony->colonist_count : colony->population;
+}
+
 #define COLONIZE_BUILD_AI_WANTS_CONSTRUCTION 0x80u
 /* census phase 3 armed-ship/frigate detection (see docs/colony.md#colonize_colony_ai_nearby_armed_ship-_frigate) */
 #define COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP 0x01u
@@ -530,13 +536,6 @@ void colonies_emit_school_faculty_chrome(
  */
 bool colonies_assign_field_w(
   const ColonizeWorld* w,
-  int colony_id,
-  int colonist_index,
-  int tile_index,
-  int field_job
-);
-bool colonies_assign_field(
-  ColonizeColonyPool* pool,
   int colony_id,
   int colonist_index,
   int tile_index,
@@ -1024,21 +1023,6 @@ enum {
 };
 
 const char* const* colonies_building_chain(int chain);
-int colonies_building_chain_length(int chain);
-
-/* Exact-name / substring "does this colony own such a building" (audit
- * CO-17: turn.c, colony_screen.c and colony_preview.c each had a private
- * spelling of one of these two). */
-bool colonies_has_building_named(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* col,
-  const char* name
-);
-bool colonies_has_building_name_contains(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* col,
-  const char* needle
-);
 
 /* True when the colony owns a Church or a Cathedral (audit GL-10 — the
  * game_loop copy was a verbatim duplicate of this file-local test). */

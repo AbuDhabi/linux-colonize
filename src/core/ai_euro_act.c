@@ -913,7 +913,7 @@ static int ai_euro_4528_ai_village_entry(ColonizeTurnContext* ctx, ColonizeUnit*
      * the caller's LAB_0bd1 tail follows (DOSBox independence 5->6: the
      * crown wagon from Bahia walks to the village and trades in one act). */
     const int ind = (int)ctx->col1->tribe[tribe_index].nation_id;
-    ai_euro_s_20e6_wagon_errand[id] = 0;
+    ai_euro_wagon_errand_set(id, 0); /* bounded (bugs.md #1094) */
     (void)ai_contact_ai_wagon_village_trade(ctx, ind, e, id);
     ColonizeUnit* wg = units_get(ctx->units, id);
     if (wg && wg->active) {

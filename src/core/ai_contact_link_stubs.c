@@ -30,7 +30,7 @@ void turn_rank_loaded(void) {}
 /* Slim targets have no tribe table. */
 const char* ai_contact_tribe_name(int nation_id) {
   (void)nation_id;
-  return "natives";
+  return "";
 }
 
 /* Bare clamped delta; the 00f2 escalation tail (mission expel / @INDIANBURN)

@@ -1,7 +1,7 @@
 /*
  * P11.4: token substitution audit. Walks every GAME.TXT @SECTION this port
  * actually references via popup_msg_fill (a literal ALL-CAPS string in
- * src/core/*.c that also names a real @SECTION — built by intersecting a
+ * src/core/{*}.c that also names a real @SECTION — built by intersecting a
  * grep of both, see docs/port_plan.md P11.4), fills each with a fixture
  * PopupMsgTokens (every STRING0-4/COUNTRY/NUMBER0-2 slot populated with a
  * distinct sentinel), and asserts:
@@ -26,12 +26,10 @@
 
 #include "../common/test_runner.h"
 
-static int fail(const char* msg) {
-  fprintf(stderr, "unit_popup_msg: FAIL %s\n", msg);
-  return 1;
-}
+#define TEST_NAME "unit_popup_msg"
+#include "../common/test_fail.h"
 
-/* Built 2026-08-26: grep -oE '"[A-Z][A-Z0-9_]{2,}"' src/core/*.c (dedup)
+/* Built 2026-08-26: grep -oE '"[A-Z][A-Z0-9_]{2,}"' src/core/{*}.c (dedup)
  * intersected with grep -oE '^@[A-Z][A-Z0-9_]*' COLONIZE/GAME.TXT (dedup). */
 static const char* const k_used_sections[] = {
   "ABANDON",       "ABANDON2",      "ALREADYHAVE",   "AMERICA",       "BEGINMENU",

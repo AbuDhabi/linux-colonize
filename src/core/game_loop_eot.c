@@ -975,45 +975,34 @@ void game_hof_load(ColonizeGameState* game) {
     }
     ColonizeHofEntry entry;
     memset(&entry, 0, sizeof(entry));
-    char leader[NEW_GAME_LEADER_NAME_MAX];
-    char nation[sizeof(entry.nation)];
-    leader[0] = '\0';
-    nation[0] = '\0';
+    /* score|leader|nation|year|difficulty|rating|declared|achieved|nation_id.
+     * Split on '|' by hand: sscanf's %[^|] fails on an EMPTY leader/nation
+     * field, which used to drop every field after it. Missing trailing fields
+     * (older files) take the defaults below. */
+    char* field[9];
+    int nf = 0;
+    for (char* p = line; nf < 9;) {
+      field[nf++] = p;
+      char* bar = strchr(p, '|');
+      if (!bar) {
+        break;
+      }
+      *bar = '\0';
+      p = bar + 1;
+    }
     int score = 0;
-    int year = 0;
-    int difficulty = 0;
-    int rating = 0;
-    int declared = 0;
-    int achieved = 0;
-    int nation_id = -1;
-    int parsed = sscanf(
-      line,
-      "%d|%31[^|]|%23[^|]|%d|%d|%d|%d|%d|%d",
-      &score,
-      leader,
-      nation,
-      &year,
-      &difficulty,
-      &rating,
-      &declared,
-      &achieved,
-      &nation_id
-    );
-    if (parsed < 1 && sscanf(line, "%d", &score) != 1) {
+    if (sscanf(field[0], "%d", &score) != 1 || score == 0) {
       continue; /* malformed line */
     }
-    if (score == 0) {
-      continue;
-    }
     entry.score = score;
-    snprintf(entry.leader, sizeof(entry.leader), "%s", parsed >= 2 ? leader : "");
-    snprintf(entry.nation, sizeof(entry.nation), "%s", parsed >= 3 ? nation : "");
-    entry.year = parsed >= 4 ? year : 0;
-    entry.difficulty = parsed >= 5 ? difficulty : 0;
-    entry.rating = parsed >= 6 ? rating : reports_score_rating(score, entry.difficulty, NULL);
-    entry.declared = parsed >= 7 && declared != 0;
-    entry.achieved = parsed >= 8 && achieved != 0;
-    entry.nation_id = parsed >= 9 ? nation_id : -1;
+    snprintf(entry.leader, sizeof(entry.leader), "%s", nf > 1 ? field[1] : "");
+    snprintf(entry.nation, sizeof(entry.nation), "%s", nf > 2 ? field[2] : "");
+    entry.year = nf > 3 ? atoi(field[3]) : 0;
+    entry.difficulty = nf > 4 ? atoi(field[4]) : 0;
+    entry.rating = nf > 5 ? atoi(field[5]) : reports_score_rating(score, entry.difficulty, NULL);
+    entry.declared = nf > 6 && atoi(field[6]) != 0;
+    entry.achieved = nf > 7 && atoi(field[7]) != 0;
+    entry.nation_id = nf > 8 ? atoi(field[8]) : -1;
     game_hof_insert(game, &entry);
   }
   fclose(f);
@@ -1025,14 +1014,20 @@ void game_hof_save(const ColonizeGameState* game) {
   }
   char path[640];
   game_hof_path(game, path, sizeof(path));
-  FILE* f = fopen(path, "w");
+  /* Write a sibling temp file and rename it over the old table, so a failed
+   * write never truncates the existing Hall of Fame. */
+  char tmp[sizeof(path) + 8];
+  snprintf(tmp, sizeof(tmp), "%s.tmp", path);
+  FILE* f = fopen(tmp, "w");
   if (!f) {
+    diag_warn("hof: cannot open %s for write", tmp);
     return;
   }
   int count = game->hof_count > COLONIZE_HOF_MAX ? COLONIZE_HOF_MAX : game->hof_count;
-  for (int i = 0; i < count; ++i) {
+  bool ok = true;
+  for (int i = 0; i < count && ok; ++i) {
     const ColonizeHofEntry* e = &game->hof_entries[i];
-    fprintf(
+    ok = fprintf(
       f,
       "%d|%s|%s|%d|%d|%d|%d|%d|%d\n",
       e->score,
@@ -1044,9 +1039,21 @@ void game_hof_save(const ColonizeGameState* game) {
       e->declared ? 1 : 0,
       e->achieved ? 1 : 0,
       e->nation_id
-    );
+    ) >= 0;
   }
-  fclose(f);
+  ok = ok && ferror(f) == 0;
+  if (fclose(f) != 0 || !ok) {
+    diag_warn("hof: write failed for %s", tmp);
+    remove(tmp);
+    return;
+  }
+#ifdef _WIN32
+  remove(path); /* MSVCRT rename() does not replace (see col1_save_write_file) */
+#endif
+  if (rename(tmp, path) != 0) {
+    diag_warn("hof: cannot replace %s", path);
+    remove(tmp);
+  }
 }
 
 /*
@@ -1527,9 +1534,12 @@ static void game_open_goto_port_picker(ColonizeGameState* game, int uid) {
  * command), else order 3 (Go To) aimed at the colony's tile.
  */
 void game_apply_goto_port(ColonizeGameState* game, int id) {
+  if (!game) {
+    return;
+  }
   const int uid = game->goto_port_pending_unit;
   game->goto_port_pending_unit = -1;
-  if (!game || uid < 0 || !game->units_ok) {
+  if (uid < 0 || !game->units_ok) {
     return;
   }
   if (id == 999) {
@@ -1750,7 +1760,7 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
         game->view_pieces_mode = false;
         const ColonizeUnit* u = units_get_const(&game->units, at);
         const ColonizeUnitType* ut = u ? units_type(&game->units, u->type_index) : NULL;
-        snprintf(game->status, sizeof(game->status), "Activated %s", ut ? ut->name : "unit");
+        snprintf(game->status, sizeof(game->status), "Activated %s", ut ? ut->name : "");
       }
       return GAME_MENU_ACTION_DONE;
     }

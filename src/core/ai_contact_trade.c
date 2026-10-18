@@ -1688,8 +1688,8 @@ static void ai_contact_enqueue_buy0(
   const int ids[3] = {1, 2, 0};
   if (ai_popup_enqueue_choice_ctx(
         ctx->ai_popups, AI_POPUP_TAG_CONTACT_BUY0, e, nation_id,
-        (unit->id & 0xffff) | (cargo << 16) |
-          ((price > 0x7ff ? 0x7ff : price) << 20) | (round > 0 ? (1 << 31) : 0),
+        (int)((uint32_t)(unit->id & 0xffff) | ((uint32_t)(cargo & 0xf) << 16) |
+              ((uint32_t)(price > 0x7ff ? 0x7ff : price) << 20) | (round > 0 ? 0x80000000u : 0u)),
         NULL, body, labels, ids, 3
       )) {
     /* 2820 +1297: `FUN_291f_019c(…, BP-0xbe, *(0x8d52))` — @BUY0/@BUY1 carry
@@ -1864,7 +1864,7 @@ static void ai_contact_2820_buy_phase(
  * drive the LAB_002e92 pick + price + settle arithmetic directly, with qty 100
  * (ships 25).
  */
-int ai_contact_auto_buy_2e92(
+COLONIZE_INTERNAL int ai_contact_auto_buy_2e92(
   ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit
 ) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || !unit || e < 0 || e > 3) {
@@ -1946,10 +1946,11 @@ void ai_contact_apply_buy0(
   if (!ctx || !ctx->units || e < 0 || e > 3) {
     return;
   }
-  const int unit_id = payload & 0xffff;
-  const int cargo = (payload >> 16) & 0xf;
-  int price = (payload >> 20) & 0x7ff; /* 11 bits: 0..2047 */
-  const int round = (payload >> 31) & 1;
+  const uint32_t bits = (uint32_t)payload; /* bit 31 = round: decode unsigned */
+  const int unit_id = (int)(bits & 0xffffu);
+  const int cargo = (int)((bits >> 16) & 0xfu);
+  int price = (int)((bits >> 20) & 0x7ffu); /* 11 bits: 0..2047 */
+  const int round = (int)(bits >> 31);
   AiContact2820* s = &ai_contact_s_2820[e];
   const int have_state = s->active && s->nation_id == nation_id && s->buy_cargo == cargo;
   if (have_state) {

@@ -11,7 +11,7 @@
  *   20e6 village + labor arms, land explore scan, attack term
  *   20e6 wander step, border park, ship far-roam, ring hop
  *   20e6 treasure cash-in, 47b9 dead end, wagon origin walk, 457e HS cadence
- *   ai_euro_move_scoring_gate, @VIOLATE notify, ai_euro_try_attack
+ *   ai_euro_move_scoring_gate, ai_euro_try_attack
  */
 
 #include "core/internal.h"
@@ -3117,7 +3117,7 @@ int ai_euro_20e6_wagon_origin_walk(
   if (s.order_code == 't' || s.order_code == 'i') {
     return 0; /* iStack_6 (raw 2250): tasked unit skips the band */
   }
-  if (ai_euro_s_20e6_wagon_errand[u->id]) {
+  if (ai_euro_wagon_errand_get(u->id)) {
     return 0; /* +0x3158 != 0 — the errand walker owns this wagon */
   }
   const int destroy_trace = getenv("AI_20E6_DEADEND_TRACE") != NULL;
@@ -3335,7 +3335,7 @@ int ai_euro_20e6_type_gate_no_manowar(
   return ai_euro_20e6_457e_type_gate(ctx, u, dos_type);
 }
 
-int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
+COLONIZE_INTERNAL int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
   int tally[COLONIZE_CARGO_COUNT];
   const int delivery_type = ai_euro_20e6_delivery_tallies(ctx, u, tally);
   return ai_euro_20e6_457e_hs_cadence_snapshot(
@@ -3612,9 +3612,6 @@ static int ai_euro_20e6_4d2e_tail(
     return 0;
   }
   ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, nx, ny);
-  if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
-    ai_euro_s_euro_roam_wander[u->id] = 1; /* unit+0x314c==5 idle-roam (wander step) */
-  }
   return 0;
 }
 
@@ -4039,96 +4036,6 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
   return 0;
 }
 
-/*
- * FUN_4720_049e territorial notify (thin, approximate — 2026-08-15 find,
- * likely `@VIOLATE` trigger, "Zero code refs; trigger function not found"
- * per `popups.md` until now). DOS: land unit ends its move adjacent to a
- * foreign Euro unit whose nation it has met (both directions,
- * `FUN_1000_8c28 & 0x40` — corrected from an earlier "PEACE flag" misread,
- * this is `AI_DIPLO_MET`) and not at war, fires a dialog naming both
- * nations. GAME.TXT: "{%STRING0} violate {%STRING1} territory near
- * {%STRING2}! Colonists are outraged!"
- *
- * Approximated, not byte-exact — see euro_unit_act.md for the full trace:
- * - Exact catalog id (0x13cb vs 0x13d7) and violator/owner slot order were
- *   never confirmed; assumed here the acting (moving) unit's nation is the
- *   violator (%STRING0) and the encountered unit's nation is the owner
- *   (%STRING1) — the plain-English reading of the tag name.
- * - %STRING2 (place) has no explicit arg-set call in the DOS body found
- *   (likely auto-filled by the dialog engine from context); approximated
- *   here as the nearest colony's name.
- * - DOS's exact ship/land-terrain gate and re-fire suppression weren't
- *   fully traced; approximated with a land-unit-only trigger and a flat
- *   per-unit cooldown (own addition, not DOS-derived) to avoid repeat
- *   spam for units that just sit adjacent to each other.
- */
-void ai_euro_try_violate_notify(ColonizeTurnContext* ctx, ColonizeUnit* u) {
-  if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || !u || !u->active ||
-      units_is_sea(ctx->units, u->id) || u->nation_id < 0 || u->nation_id >= 4) {
-    return;
-  }
-  if (!ctx->messages || !ctx->status || ctx->status_size <= 0) {
-    return; /* structural notify only, matches @SNEAK precedent */
-  }
-  const uint32_t turn = (ctx->turn_number && *ctx->turn_number) ? *ctx->turn_number : 0;
-  if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX && ai_euro_s_violate_last_turn[u->id] != 0 &&
-      turn >= ai_euro_s_violate_last_turn[u->id] && turn - ai_euro_s_violate_last_turn[u->id] < 10) {
-    return;
-  }
-  for (int d = 0; d < 8; ++d) {
-    const int nx = u->x + MAP_DIR8_DX[d];
-    const int ny = u->y + MAP_DIR8_DY[d];
-    const int foe = units_id_at(ctx->units, nx, ny);
-    if (foe < 0 || units_is_sea(ctx->units, foe)) {
-      continue;
-    }
-    const ColonizeUnit* f = units_get_const(ctx->units, foe);
-    if (!f || f->nation_id == u->nation_id || f->nation_id < 0 || f->nation_id >= 4) {
-      continue;
-    }
-    if (!(ai_diplo_read(ctx->col1, u->nation_id, f->nation_id) & AI_DIPLO_MET) ||
-        !(ai_diplo_read(ctx->col1, f->nation_id, u->nation_id) & AI_DIPLO_MET)) {
-      continue;
-    }
-    if (ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
-      continue;
-    }
-    if (ctx->human_nation < 0 || ctx->human_nation >= 4 ||
-        (u->nation_id != ctx->human_nation && f->nation_id != ctx->human_nation)) {
-      continue; /* structural notify only fires with a human party */
-    }
-    const char* place = NULL;
-    int best_d = -1;
-    if (ctx->colonies) {
-      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-        const ColonizeColony* c = &ctx->colonies->colonies[i];
-        if (!c->active) {
-          continue;
-        }
-        const int dd = abs(c->x - u->x) + abs(c->y - u->y);
-        if (best_d < 0 || dd < best_d) {
-          best_d = dd;
-          place = c->name;
-        }
-      }
-    }
-    PopupMsgTokens tok = {0};
-    tok.string0 = ai_diplo_rival_name(ctx->col1, u->nation_id);
-    tok.string1 = ai_diplo_rival_name(ctx->col1, f->nation_id);
-    tok.string2 = (place && place[0]) ? place : "the frontier";
-    popup_msg_fill(
-      ctx->messages, "VIOLATE", &tok,
-      "",
-      ctx->status, ctx->status_size
-    );
-    popup_msg_strip_markup(ctx->status); /* status line: no {} coloring */
-    if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
-      ai_euro_s_violate_last_turn[u->id] = turn ? turn : 1;
-    }
-    return;
-  }
-}
-
 void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int ty) {
   if (!ctx || !ctx->units || !u) {
     return;
@@ -4236,6 +4143,7 @@ void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int t
       }
     }
   }
+  const int attacker_id = u->id;
   if (units_is_sea(ctx->units, u->id)) {
     /* The attack is the 465b step into the foe's tile: 1b0e resolves it, the
      * attacker is spent in full, and a winning hull advances into the tile the
@@ -4258,8 +4166,10 @@ void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int t
       units_try_move_w(&w_, u->id, tx, ty);
     }
   }
-  /* A hull lost to its own attack is gone (units_get above returned NULL):
-   * golden ref interval 14, the crown Man-O-War at (51,50). */
+  /* Refetch: the combat or the advance may have freed or moved the attacker
+   * (bugs.md #1122). A unit lost to its own attack is gone (NULL): golden ref
+   * interval 14, the crown Man-O-War at (51,50). */
+  u = units_get(ctx->units, attacker_id);
   if (u && u->active && ctx->colonies) {
     const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
     if (cid >= 0) {

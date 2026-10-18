@@ -1142,13 +1142,8 @@ static void colonies_col1_forget_record_at(ColonizeCol1Save* col1, int x, int y,
   if (!col1) {
     return;
   }
-  ColonizeCol1Colony* c = NULL;
-  for (uint16_t i = 0; col1->colony && i < col1->head.colony_count; ++i) {
-    if ((int)col1->colony[i].x == x && (int)col1->colony[i].y == y) {
-      c = &col1->colony[i];
-      break;
-    }
-  }
+  ColonizeCol1Colony* c =
+    col1->colony ? (ColonizeCol1Colony*)col1_colony_at_xy(col1, -1, x, y) : NULL;
   if (!c) {
     if (col1->head.colony_count >= COLONIZE_COLONIES_MAX) {
       return;
@@ -1181,21 +1176,18 @@ void colonies_col1_rebel_divisor_adjust(ColonizeCol1Save* col1, int x, int y, in
   if (!col1 || !col1->colony) {
     return;
   }
-  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
-    ColonizeCol1Colony* c = &col1->colony[i];
-    if ((int)c->x != x || (int)c->y != y) {
-      continue;
-    }
-    if (delta < 0 && c->rebel_divisor < (uint32_t)(-delta)) {
-      c->rebel_divisor = 0;
-    } else {
-      c->rebel_divisor = (uint32_t)((int64_t)c->rebel_divisor + delta);
-    }
-    /* No dividend clamp here: raw 10279 only moves the divisor, so a removal
-     * can leave the dividend above it until the next Phase C (DOSBox
-     * independence-seed-100: Jamestown saves 1479/1439). Readers cap SoL. */
-    break;
+  ColonizeCol1Colony* c = (ColonizeCol1Colony*)col1_colony_at_xy(col1, -1, x, y);
+  if (!c) {
+    return;
   }
+  if (delta < 0 && c->rebel_divisor < (uint32_t)(-delta)) {
+    c->rebel_divisor = 0;
+  } else {
+    c->rebel_divisor = (uint32_t)((int64_t)c->rebel_divisor + delta);
+  }
+  /* No dividend clamp here: raw 10279 only moves the divisor, so a removal
+   * can leave the dividend above it until the next Phase C (DOSBox
+   * independence-seed-100: Jamestown saves 1479/1439). Readers cap SoL. */
 }
 
 int colonies_found(

@@ -114,9 +114,6 @@ int ai_indian_village_threat_w(
   int* out_score
 );
 
-/* King / tax / REF / independence phase (TURN_PROC_KING slice). */
-void ai_king_nation_turn(ColonizeTurnContext* ctx);
-
 /*
  * Cheat: Kill Indians — despawn all units of nation_id (4..11), remove villages,
  * clear map owner nibbles on village tiles, reset indian[N-4] slot.
@@ -146,6 +143,9 @@ int ai_native_first_contact_this_turn(int nation_id, int euro_nation);
  * per-unit brave-origin/first-contact/seed-100/lcg statics.
  */
 void ai_native_reset(void);
+
+/* New-game / load hook: zero the DS:0x9faa coarse plane (bugs.md #1103). */
+void ai_coarse_fog_reset(void);
 
 /* FUN_281f_04ca: reseed the shared RNG from the DOS timer word (per-slot entry points). */
 void ai_nation_reseed(ColonizeTurnContext* ctx);

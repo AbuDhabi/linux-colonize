@@ -291,6 +291,9 @@ typedef struct AiPopupRequest {
 typedef struct AiPopupState {
   AiPopupRequest queue[AI_POPUP_QUEUE_MAX];
   int queue_count;
+  /* bugs.md #1117: the most recent enqueue landed as queue[queue_count-1];
+   * ai_popup_set_last_* are no-ops while false. */
+  bool last_enqueue_ok;
 
   bool open;
   AiPopupRequest current;

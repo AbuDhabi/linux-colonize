@@ -6,7 +6,7 @@
 #
 # Usage: tools/check_save_interop.sh [build-dir]
 #   build-dir defaults to the "debug" preset tree (build/debug), then
-#   build/release, then a plain build/ if one was configured by hand.
+#   build/release. A bare build/ tree is never used (stale-tree trap).
 
 set -euo pipefail
 
@@ -17,7 +17,7 @@ if [[ $# -ge 1 ]]; then
   build_dir="$1"
 else
   build_dir=""
-  for candidate in "$repo_root/build/debug" "$repo_root/build/release" "$repo_root/build"; do
+  for candidate in "$repo_root/build/debug" "$repo_root/build/release"; do
     if [[ -f "$candidate/CMakeCache.txt" ]]; then
       build_dir="$candidate"
       break

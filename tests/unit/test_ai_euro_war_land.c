@@ -1,6 +1,7 @@
 /* Slice of the former tests/unit/test_ai_euro_war.c (split by feature 2026-09-23):
  * land hunts, adjacent-combat chain and defender preference ladder. */
 #include "test_ai_euro_war_common.h"
+#include "core/ai_internal.h"
 
 /*
  * Indian×Euro war: Soldier hunts toward capital tribe over nearer non-capital.

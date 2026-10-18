@@ -73,13 +73,6 @@ uint32_t ai_turn_seed(const ColonizeTurnContext* ctx) {
   return ctx->rng_seed ? ctx->rng_seed : 100u;
 }
 
-static const char* k_new_country[4] = {
-  "", "", "", ""
-};
-static const char* k_default_leaders[4] = {
-  "", "", "", ""
-};
-
 /* TRIBE.TXT section → Col1 nation_id (4..11) via @TRIBES order. */
 static const struct {
   const char* section;
@@ -104,8 +97,9 @@ static const struct {
 #define AI_COARSE_FOG_SIZE 0x10e
 static uint8_t s_ai_coarse_fog[AI_COARSE_FOG_SIZE];
 
-/* ===================== Coarse fog-of-war tracking (ai_coarse_fog_clear .. ai_coarse_fog_tribe_byte) ===================== */
-static void ai_coarse_fog_clear(void) {
+/* ===================== Coarse fog-of-war tracking (ai_coarse_fog_reset .. ai_coarse_fog_tribe_byte) ===================== */
+/* See ai.h. Also the wipe at mapgen (FUN_1d1d_0dae) and each 0a60 entry. */
+void ai_coarse_fog_reset(void) {
   memset(s_ai_coarse_fog, 0, sizeof(s_ai_coarse_fog));
 }
 
@@ -139,7 +133,7 @@ static void ai_coarse_fog_mark_tribe(int x, int y) {
 void ai_coarse_fog_euro_restamp(
   const ColonizeUnitPool* units, const ColonizeColonyPool* colonies, int nation_id
 ) {
-  ai_coarse_fog_clear();
+  ai_coarse_fog_reset();
   if (units) {
     for (int i = 0; i < units_slot_end(units); ++i) {
       const ColonizeUnit* u = &units->units[i];
@@ -190,14 +184,6 @@ int ai_coarse_fog_ring_hop_open(int x, int y) {
     return 0;
   }
   return (s_ai_coarse_fog[ix] & 6) == 0;
-}
-
-uint8_t ai_coarse_fog_explore_byte(int x, int y) {
-  const int ix = ai_coarse_fog_explore_index(x, y);
-  if (ix < 0 || ix >= AI_COARSE_FOG_SIZE) {
-    return 0xff;
-  }
-  return s_ai_coarse_fog[ix];
 }
 
 uint8_t ai_coarse_fog_tribe_byte(int x, int y) {
@@ -297,12 +283,12 @@ static void ai_set_nation_identity(
   str_copy_trunc(
     save->player[nation].name,
     sizeof(save->player[nation].name),
-    leader && leader[0] ? leader : k_default_leaders[nation]
+    leader ? leader : ""
   );
   str_copy_trunc(
     save->player[nation].country_name,
     sizeof(save->player[nation].country_name),
-    country && country[0] ? country : k_new_country[nation]
+    country ? country : ""
   );
 }
 
@@ -321,11 +307,10 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
 
   const int human = p->human_nation;
   for (int i = 0; i < (int)COLONIZE_COL1_NATION_COUNT; ++i) {
-    const char* leader = (i == human) ? p->leader_name : k_default_leaders[i];
-    /* NAMES.TXT @COLONYNAME rows 0-3 (New England/France/Spain/Netherlands);
-       k_new_country[] is the fallback when the names catalog is absent. */
+    const char* leader = (i == human) ? p->leader_name : "";
+    /* NAMES.TXT @COLONYNAME rows 0-3; a catalog miss is "". */
     const char* country_name =
-      assets_msg_line_or(p->names, "COLONYNAME", i, k_new_country[i]);
+      assets_msg_line_or(p->names, "COLONYNAME", i, "");
     ai_set_nation_identity(p->col1, i, i == human ? 0 : 1, leader, country_name);
     p->col1->head.nation_relation[i] = -1;
     p->col1->nation[i].gold = (i == human) ? ai_starting_gold(p->difficulty) : 0u;
@@ -876,7 +861,7 @@ static bool ai_place_tribes_from_txt(
   int cur_nation = -1;
   bool first_of_nation[8];
   memset(first_of_nation, 1, sizeof(first_of_nation));
-  ai_coarse_fog_clear();
+  ai_coarse_fog_reset();
 
   while (fgets(line, sizeof(line), f)) {
     char* s = line;
@@ -953,7 +938,7 @@ static bool ai_place_tribes_procedural(
   }
 
   /* Shared DOS plane (FUN_1d1d_0dae @ DS:0x9faa); /5 tribe index. */
-  ai_coarse_fog_clear();
+  ai_coarse_fog_reset();
   uint8_t nation_tribe_count[8];
   memset(nation_tribe_count, 0, sizeof(nation_tribe_count));
 
@@ -1214,6 +1199,7 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
   ai_contact_reset(); /* pending reparations offer + per-tribe cooldowns (#58) */
   ai_euro_reset();
   ai_native_reset();
+  ai_coarse_fog_reset(); /* bugs.md #1103: DS:0x9faa outlives the old world */
   turn_reset();
   units_reset_state(); /* goto anti-backtrack shadow, indexed by reused unit_id */
 
@@ -1227,7 +1213,7 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
   } else {
     for (int i = 0; i < units_slot_end(params->units); ++i) {
       if (params->units->units[i].active) {
-        params->units->units[i].nation_id = 0;
+        units_set_nation(&params->units->units[i], 0);
       }
     }
   }

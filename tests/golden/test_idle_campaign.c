@@ -14,6 +14,7 @@
  * golden_idle_independence; docs/idle_independence.md.
  */
 #include <stdint.h>
+#include "../common/test_runner.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -189,6 +190,12 @@ static void save_path(const IdleCampaign* c, char* path, size_t size, int year) 
 }
 
 int main(int argc, char** argv) {
+  {
+    const int gate = tr_single_flow_gate("idle_campaign");
+    if (gate >= 0) {
+      return gate;
+    }
+  }
   const IdleCampaign* c = &k_yearly;
   if (argc == 4 && strcmp(argv[1], "independence") == 0) {
     c = &k_independence;

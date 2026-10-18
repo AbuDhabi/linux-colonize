@@ -2773,7 +2773,8 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_menu_bar(ColonizeGameState* gam
      * ~F~0~8 Show Strategy, ~F~0~9 Show Colony Sites, ~F~1~0 Test Routine.
      * Sound Test / Memory Check have no @CUP hotkey (menu-only).
      */
-    if (input->last_key >= COLONIZE_KEY_F1 && input->last_key <= COLONIZE_KEY_F10) {
+    if (game->map_menu.open_index < 0 &&
+        input->last_key >= COLONIZE_KEY_F1 && input->last_key <= COLONIZE_KEY_F10) {
       if (input->shift_held && game->map_menu.cheat_visible) {
         switch (input->last_key) {
           case COLONIZE_KEY_F1:
@@ -2873,6 +2874,11 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_menu_bar(ColonizeGameState* gam
 
     if (input->mouse_left_clicked && (click_on_menu_ui || menu_was_open)) {
       /* Menu open/close consumed the click. */
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if (menu_was_open) {
+      /* bugs.md #1091: plain ORDERS/VIEW hotkeys and map clicks never reach
+       * the map behind an open pull-down. */
       return GAME_UPDATE_RETURN_TRUE;
     }
 
@@ -3257,6 +3263,15 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   if (game->turn_flow_deferred && game_turn_flow_allowed(game)) {
     game->turn_flow_deferred = false;
     game_wait_next_unit(game);
+  }
+
+  /*
+   * bugs.md #1091: an open map pull-down is DOS's blocking menu loop. Only
+   * the menu itself (click, Esc, Alt-letter title switch) gets the frame;
+   * no map / report / screen hotkey may act behind it.
+   */
+  if (game->map_menu.loaded && game->map_menu.open_index >= 0) {
+    return game_update_map_menu_bar(game, input) != GAME_UPDATE_RETURN_FALSE;
   }
 
   if (input->last_key == COLONIZE_KEY_Q) {

@@ -120,7 +120,7 @@ static int case_save_dialog_lists_leader(void) {
   }
 
   SaveLoadDialog dlg;
-  if (!save_load_open(&dlg, SAVE_LOAD_MODE_SAVE, k_dir, NULL, NULL)) {
+  if (!save_load_open(&dlg, SAVE_LOAD_MODE_SAVE, k_dir, "COLONIZE", NULL, NULL)) {
     fprintf(stderr, "save open failed\n");
     return 1;
   }
@@ -141,7 +141,7 @@ static int case_load_dialog_slot_count(void) {
     return 1;
   }
   SaveLoadDialog dlg;
-  if (!save_load_open(&dlg, SAVE_LOAD_MODE_LOAD, k_dir, NULL, NULL)) {
+  if (!save_load_open(&dlg, SAVE_LOAD_MODE_LOAD, k_dir, "COLONIZE", NULL, NULL)) {
     fprintf(stderr, "load open failed\n");
     return 1;
   }
@@ -159,7 +159,7 @@ static int case_load_confirms_occupied_slot(void) {
     return 1;
   }
   SaveLoadDialog dlg;
-  if (!save_load_open(&dlg, SAVE_LOAD_MODE_LOAD, k_dir, NULL, NULL)) {
+  if (!save_load_open(&dlg, SAVE_LOAD_MODE_LOAD, k_dir, "COLONIZE", NULL, NULL)) {
     fprintf(stderr, "load open failed\n");
     return 1;
   }
@@ -183,7 +183,7 @@ static int case_load_rejects_empty_slot(void) {
   }
   /* Empty slot must not confirm in Load mode. */
   SaveLoadDialog dlg;
-  if (!save_load_open(&dlg, SAVE_LOAD_MODE_LOAD, k_dir, NULL, NULL)) {
+  if (!save_load_open(&dlg, SAVE_LOAD_MODE_LOAD, k_dir, "COLONIZE", NULL, NULL)) {
     fprintf(stderr, "load reopen failed\n");
     return 1;
   }

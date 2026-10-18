@@ -694,18 +694,18 @@ static int ai_euro_5952_job_chain(int job) {
 
 /*
  * FUN_281f_0ab0 -> FUN_15eb_039e "count owned buildings along parent chain".
- * Returns the count and, through `out_name` / `out_index`, the highest tier
+ * Returns the count and, through `out_row` / `out_index`, the highest tier
  * this colony actually owns (the workplace a colonist would be put into).
  */
 static int ai_euro_5952_chain_owned(
   const ColonizeColonyPool* pool,
   const ColonizeColony* col,
   int chain,
-  const char** out_name,
+  int* out_row,
   int* out_index
 ) {
-  if (out_name) {
-    *out_name = NULL;
+  if (out_row) {
+    *out_row = -1;
   }
   if (out_index) {
     *out_index = -1;
@@ -713,19 +713,19 @@ static int ai_euro_5952_chain_owned(
   if (!pool || !col || chain < 0) {
     return 0;
   }
-  const char* const* names = colonies_building_chain(chain);
-  if (!names) {
+  const int* rows = colonies_building_chain_rows(chain);
+  if (!rows) {
     return 0;
   }
   int count = 0;
-  for (int i = 0; names[i]; ++i) {
-    const int idx = colonies_find_building(pool, names[i]);
+  for (int i = 0; i < 4 && rows[i] >= 0; ++i) {
+    const int idx = colonies_building_row(pool, (ColonizeBuildingRow)rows[i]);
     if (idx < 0 || idx >= COLONIZE_BUILDING_TYPES_MAX || !col->has_building[idx]) {
       continue;
     }
     ++count;
-    if (out_name) {
-      *out_name = names[i];
+    if (out_row) {
+      *out_row = rows[i];
     }
     if (out_index) {
       *out_index = idx;
@@ -747,11 +747,11 @@ static bool ai_euro_5952_job_available(
   if (chain < 0) {
     return false;
   }
-  const char* const* names = colonies_building_chain(chain);
-  if (!names || !names[0]) {
+  const int* rows = colonies_building_chain_rows(chain);
+  if (!rows || rows[0] < 0) {
     return false;
   }
-  const int base = colonies_find_building(pool, names[0]);
+  const int base = colonies_building_row(pool, (ColonizeBuildingRow)rows[0]);
   if (base < 0 || base >= COLONIZE_BUILDING_TYPES_MAX) {
     return false;
   }
@@ -778,8 +778,8 @@ static int ai_euro_5952_producible(
     *out_cargo = -1;
   }
   const int chain = ai_euro_5952_job_chain(job);
-  const char* name = NULL;
-  if (ai_euro_5952_chain_owned(pool, col, chain, &name, NULL) <= 0 || !name) {
+  int row = -1;
+  if (ai_euro_5952_chain_owned(pool, col, chain, &row, NULL) <= 0 || row < 0) {
     return 0;
   }
   const int prof = col->colonists[slot].profession;
@@ -790,7 +790,7 @@ static int ai_euro_5952_producible(
         *out_cargo = AI_EURO_5952_HAMMERS;
       }
       const bool mill = colonies_has_building_row(pool, col, COLONY_BUILDING_LUMBER_MILL);
-      return colony_prod_hammers_worker(name, prof, sol_bonus, mill);
+      return colony_prod_hammers_worker_row(row, prof, sol_bonus, mill);
     }
     case COLONIZE_PROF_PREACHER: {
       if (out_cargo) {
@@ -798,23 +798,23 @@ static int ai_euro_5952_producible(
       }
       const bool cathedral = colonies_has_building_row(pool, col, COLONY_BUILDING_CATHEDRAL);
       const bool penn = founding_fathers_nation_has(col1, col->nation_id, FF_WILLIAM_PENN);
-      return colony_prod_crosses_worker(name, prof, sol_bonus, cathedral, penn);
+      return colony_prod_crosses_worker_row(row, prof, sol_bonus, cathedral, penn);
     }
     case COLONIZE_PROF_STATESMAN:
       if (out_cargo) {
         *out_cargo = AI_EURO_5952_BELLS;
       }
-      return colony_prod_bells_worker(name, prof, sol_bonus);
+      return colony_prod_bells_worker_row(row, prof, sol_bonus);
     default: break;
   }
-  const ColonizeCraftRecipe* r = colony_craft_recipe_for_building(name);
+  const ColonizeCraftRecipe* r = colony_craft_recipe_for_building_row(row);
   if (!r) {
     return 0;
   }
   if (out_cargo) {
     *out_cargo = r->out_cargo;
   }
-  return colony_prod_manufacturing_output(name, prof, r->craft_profession, sol_bonus);
+  return colony_prod_manufacturing_output_row(row, prof, r->craft_profession, sol_bonus);
 }
 
 /*
@@ -951,16 +951,6 @@ COLONIZE_INTERNAL int ai_euro_5952_job_score(
 }
 
 /*
- * FUN_5952_035e indoor pass — env switch. Default ON; AI_5952_INDOOR=0
- * restores the pre-2026-09-17 stand-ins (the leftovers field arm). Documented
- * in docs/debug_env_vars.md.
- */
-COLONIZE_INTERNAL int ai_euro_5952_indoor_pass_enabled(void) {
-  const char* v = getenv("AI_5952_INDOOR");
-  return !(v && v[0] == '0');
-}
-
-/*
  * raw 94864-94872 (asm 5952:2139-5952:2174) — the fallback a slot takes when
  * it lost the election to its own field plot AND the plot commit found
  * nothing (DS:0x8dbe == 0): Carpenter, unless the colony owns a Church
@@ -1057,15 +1047,15 @@ void ai_euro_5952_ledgers(
         c->building_type >= COLONIZE_BUILDING_TYPES_MAX) {
       continue;
     }
-    const char* name = pool->building_types[c->building_type].name;
-    const ColonizeCraftRecipe* r = name ? colony_craft_recipe_for_building(name) : NULL;
+    const int row = colonies_building_type_row(pool, c->building_type);
+    const ColonizeCraftRecipe* r = colony_craft_recipe_for_building_row(row);
     if (!r) {
       continue;
     }
     gross[r->out_cargo] +=
-      colony_prod_manufacturing_output(name, c->profession, r->craft_profession, sol_bonus);
+      colony_prod_manufacturing_output_row(row, c->profession, r->craft_profession, sol_bonus);
     demand[r->in_cargo] +=
-      colony_prod_manufacturing_input(name, c->profession, r->craft_profession, sol_bonus);
+      colony_prod_manufacturing_input_row(row, c->profession, r->craft_profession, sol_bonus);
   }
 
   /* FUN_15eb_1f72 tail: the UNCAPPED herd potential lands in the horse gross
@@ -1145,9 +1135,9 @@ COLONIZE_INTERNAL void ai_euro_5952_indoor_expert_pass(
   int placed_count[COLONIZE_PROF_TEACHER + 1];
   memset(placed_count, 0, sizeof placed_count);
   for (int job = COLONIZE_PROF_DISTILLER; job <= COLONIZE_PROF_STATESMAN; ++job) {
-    const char* const* names = colonies_building_chain(ai_euro_5952_job_chain(job));
-    for (int i = 0; names && names[i]; ++i) {
-      const int idx = colonies_find_building(pool, names[i]);
+    const int* rows = colonies_building_chain_rows(ai_euro_5952_job_chain(job));
+    for (int i = 0; rows && i < 4 && rows[i] >= 0; ++i) {
+      const int idx = colonies_building_row(pool, (ColonizeBuildingRow)rows[i]);
       if (idx >= 0) {
         placed_count[job] += colonies_building_worker_count(col, idx);
       }
@@ -1249,9 +1239,9 @@ static void ai_euro_5952_indoor_pass(
   int placed_count[COLONIZE_PROF_TEACHER + 1];
   memset(placed_count, 0, sizeof placed_count);
   for (int job = COLONIZE_PROF_DISTILLER; job <= COLONIZE_PROF_STATESMAN; ++job) {
-    const char* const* names = colonies_building_chain(ai_euro_5952_job_chain(job));
-    for (int i = 0; names && names[i]; ++i) {
-      const int idx = colonies_find_building(pool, names[i]);
+    const int* rows = colonies_building_chain_rows(ai_euro_5952_job_chain(job));
+    for (int i = 0; rows && i < 4 && rows[i] >= 0; ++i) {
+      const int idx = colonies_building_row(pool, (ColonizeBuildingRow)rows[i]);
       if (idx >= 0) {
         placed_count[job] += colonies_building_worker_count(col, idx);
       }
@@ -1513,8 +1503,11 @@ COLONIZE_INTERNAL void ai_euro_5952_lumber_purchase(
  *
  * `iStack_8c` is seeded 0 at raw 94257 and has exactly two writers: this arm
  * (raw 94676) and the LAB_5952_17a9 leftovers election at raw 94657 — which
- * the port has already proved dead (its `1 < DS:0x8dbe` threshold can never
- * hold after a mode −2 probe; see the AI_5952_INDOOR=0 stand-in's comment).
+ * is dead code: every probe is `FUN_1000_8d5e(..., slot, 0xfffe)` (mode −2),
+ * and 28c8's tail (viceroy_unpacked.c 13144-13146, asm 15eb:2e4a) restores
+ * the prior job and stores yield 0 into DS:0x8dbe whenever `param_2 < -1`,
+ * so the arm's `1 < DS:0x8dbe` threshold (asm 158989 `CMP [0x8dbe],0x2`)
+ * never holds and its commit (raw 94650) is unreachable.
  * So on entry it is always 0, and the flag's only live role is the gate on
  * the purchase arm below it, which this function returns.
  *
@@ -2062,10 +2055,10 @@ static int ai_euro_5952_chain_short(
 /* FUN_1000_8d90 -> FUN_15eb_0410: deepest tier of the chain rooted at `row`. */
 static int ai_euro_5952_chain_top(int chain_row) {
   const int chain = k_5952_craft[chain_row].chain;
-  const char* const* names = colonies_building_chain(chain);
+  const int* rows = colonies_building_chain_rows(chain);
   int last = k_5952_craft[chain_row].root;
   int n = 0;
-  while (names && names[n]) {
+  while (rows && n < 4 && rows[n] >= 0) {
     ++n;
   }
   /* The DOS ids of a chain are consecutive (see k_5952_bld), so the deepest
@@ -2098,7 +2091,7 @@ static int ai_euro_5952_job_class(int job) {
 /* Per colony: 1 + the ring plot BP-0xa4/-0xac point at when the cascade runs
  * (0 = the colony tile). Written by the tick right after the improvement arm,
  * consumed by the cascade. */
-static int s_5952_arty_plot[COLONIZE_COLONIES_MAX];
+int ai_euro_s_5952_arty_plot[COLONIZE_COLONIES_MAX];
 
 /*
  * The cascade's per-nation reads index DS with local_1b0 (asm 5952:2404
@@ -2254,15 +2247,15 @@ void ai_euro_5952_build_cascade_for_owner(
   int arty_on_tile = 0; /* iStack_92, asm 5952:2642 */
   {
     /* asm 2632-265b: 07e0/02e4 walk the stack at BP-0xa4/-0xac, a stale ring
-     * tile (s_5952_arty_plot), and count every type-0x0b unit on it, any
+     * tile (ai_euro_s_5952_arty_plot), and count every type-0x0b unit on it, any
      * owner (DOSBox independence-seed-100: Jamestown's walk lands on (50,22),
      * counts 0 and builds Artillery while three Artillery sit in the colony). */
     int ax = col->x;
     int ay = col->y;
     int plot = -1;
     if (col->id >= 0 && col->id < COLONIZE_COLONIES_MAX) {
-      plot = s_5952_arty_plot[col->id] - 1;
-      s_5952_arty_plot[col->id] = 0;
+      plot = ai_euro_s_5952_arty_plot[col->id] - 1;
+      ai_euro_s_5952_arty_plot[col->id] = 0;
     }
     int pdx = 0;
     int pdy = 0;
@@ -2613,9 +2606,9 @@ static int ai_euro_5952_occupation(
     return -1;
   }
   for (int job = COLONIZE_PROF_DISTILLER; job <= COLONIZE_PROF_STATESMAN; ++job) {
-    const char* const* names = colonies_building_chain(ai_euro_5952_job_chain(job));
-    for (int i = 0; names && names[i]; ++i) {
-      if (colonies_find_building(pool, names[i]) == c->building_type) {
+    const int* rows = colonies_building_chain_rows(ai_euro_5952_job_chain(job));
+    for (int i = 0; rows && i < 4 && rows[i] >= 0; ++i) {
+      if (colonies_building_row(pool, (ColonizeBuildingRow)rows[i]) == c->building_type) {
         return job;
       }
     }
@@ -3039,7 +3032,7 @@ static void ai_euro_colony_tick_run(
      * cascade counts Artillery on that tile (asm 2632), not on the colony. */
     if (col->id >= 0 && col->id < COLONIZE_COLONIES_MAX) {
       const int ring = colonies_work_plot_count(ctx->colonies, col);
-      s_5952_arty_plot[col->id] =
+      ai_euro_s_5952_arty_plot[col->id] =
         1 + (improve_plot >= 0 ? improve_plot : (ring > 0 ? colonies_field_scan_order(ring - 1) : -1));
     }
     if (getenv("AI_28C8_TRACE")) {
@@ -3378,82 +3371,15 @@ static void ai_euro_colony_tick_run(
       }
     }
 
-    /*
-     * DOS's own next arm is the indoor-workplace pass (raw 94784+), ported as
-     * ai_euro_5952_indoor_pass. AI_5952_INDOOR=0 falls back to the pre-port
-     * "leftovers" field stand-in below (docs/debug_env_vars.md).
-     */
-    if (ai_euro_5952_indoor_pass_enabled()) {
-      ai_euro_5952_indoor_expert_pass(ctx, col, placed, n);
-      ai_euro_5952_indoor_pass(ctx, col, placed, n, improvement_owner, tory_weight);
-      if (whole_tick) {
-        ai_euro_5952_build_cascade_for_owner(ctx, col, improvement_owner);
-      }
-      /* DOS raw ~95860-95958, the tick's last two arms (bugs.md #571/#572). */
-      ai_euro_5952_specialist_arms(ctx, col, n);
-      if (whole_tick) {
-        ai_euro_5952_seed_horses(ctx, col);
-      }
-      continue;
-    }
-
-    /*
-     * Leftovers — the pre-2026-09-17 stand-in, kept only behind
-     * AI_5952_INDOOR=0. DELIBERATE, DOCUMENTED DEVIATION (smell audit #42).
-     *
-     * The DOS arm is raw 94627-94658 (LAB_5952_17a9), and it is dead code:
-     *   - it is a single-winner election, not a per-slot assignment: it probes
-     *     every unplaced slot, keeps one best by the DS:0x8dc0 key
-     *     (score<<2, +1 expert-gate, +2 prior job == DS:0x8dc2) and commits
-     *     only that one (raw 94650);
-     *   - every probe is `FUN_1000_8d5e(..., slot, 0xfffe)` — mode −2 — and
-     *     28c8's tail (viceroy_unpacked.c 13144-13146, asm 15eb:2e4a)
-     *     restores the prior job and stores yield 0 into DS:0x8dbe whenever
-     *     `param_2 < -1`. The arm's own threshold is `1 < DS:0x8dbe`
-     *     (asm 158989 `CMP [0x8dbe],0x2`), so it can never hold and the
-     *     commit is unreachable. DOS's leftovers end the section with NO
-     *     field plot (the whole 0x70..0x83 array was memset 0xff at raw
-     *     94561) and are picked up by the BUILDING pass at raw 94784+.
-     *
-     * That building pass is not ported, so deleting this arm outright would
-     * leave those colonists idle — strictly worse than DOS, which employs
-     * them indoors. The arm therefore stays as the port's stand-in for the
-     * building pass, with the two defects the audit named fixed:
-     *   - it no longer claims to "keep what they had" while assigning a
-     *     freshly scored tile (it does score-and-assign, and says so);
-     *   - it now carries the DOS arm's OWN yield floor, `yield >= 2` — the
-     *     two real passes above stop at `< 3` (raw 94596 / 94613), this arm
-     *     compares against 2. It used to assign on any positive yield, which
-     *     force-filled 1-yield tiles.
-     * Still not modelled: the single-winner election, the DS:0x8dc0
-     * priority key and the raw 94629-94631 population/capacity gate.
-     *
-     * 2026-09-09: the arm no longer skips slots whose previous job was −1.
-     * DOS's own election has no such filter (raw 94635 gates on "unplaced"
-     * alone; a matching prior job is worth +2 on the DS:0x8dc0 key, it is not
-     * an entry requirement), and the filter only stopped mattering while the
-     * `yield < 3` stop was a per-pass `break`. Now that the stop is DOS's
-     * whole-section `goto` and carries the `local_84 && yield < 5` half, a
-     * colonist who arrived this turn (prev_job −1) routinely reaches this arm
-     * — and in DOS he would be picked up by the BUILDING pass at raw 94784+,
-     * which is exactly what this stand-in is here to cover. Keeping the
-     * filter left freshly admitted colonists idle for good.
-     */
-    for (int s = 0; s < n; ++s) {
-      if (placed[s]) {
-        continue;
-      }
-      AiEuro28c8JobCandidate best;
-      col->colonists[s].field_job = prev_job[s];
-      const int ok = ai_euro_28c8_score(ctx, col, s, col->colonists[s].profession, &best);
-      col->colonists[s].field_job = -1;
-      if (ok && best.yield >= 2) {
-        (void)colonies_assign_field_w(&world, col->id, s, best.tile, best.job);
-      }
-    }
+    /* DOS's own next arm is the indoor-workplace pass (raw 94784+). The
+     * LAB_5952_17a9 leftovers election before it (raw 94627-94658) is dead
+     * code in DOS (see ai_euro_5952_lumberjack_pick) and is not ported. */
+    ai_euro_5952_indoor_expert_pass(ctx, col, placed, n);
+    ai_euro_5952_indoor_pass(ctx, col, placed, n, improvement_owner, tory_weight);
     if (whole_tick) {
       ai_euro_5952_build_cascade_for_owner(ctx, col, improvement_owner);
     }
+    /* DOS raw ~95860-95958, the tick's last two arms (bugs.md #571/#572). */
     ai_euro_5952_specialist_arms(ctx, col, n);
     if (whole_tick) {
       ai_euro_5952_seed_horses(ctx, col);

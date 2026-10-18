@@ -4,6 +4,7 @@
 #define _POSIX_C_SOURCE 200809L
 #endif
 #include "../common/test_catalogs.h"
+#include "../common/ai_fixture.h"
 #include "core/ai.h"
 #include "core/ai_diplo.h"
 #include "core/ai_euro.h"
@@ -24,10 +25,8 @@
 
 #include "../common/test_runner.h"
 
-static int fail(const char* msg) {
-  fprintf(stderr, "unit_ai_euro_20e6: FAIL %s\n", msg);
-  return 1;
-}
+#define TEST_NAME "unit_ai_euro_20e6"
+#include "../common/test_fail.h"
 
 typedef struct Fixture {
   ColonizeWorldMap map;
@@ -57,18 +56,8 @@ static int fixture_init(Fixture* f, int nation) {
    * do NOT touch ai_goals.c's statics; ai_goals_reset() is the one call
    * that does. */
   ai_goals_reset();
-  f->map.width = 16;
-  f->map.height = 16;
-  f->map.tile_count = 256;
-  f->map.terrain = calloc(256, 1);
-  f->map.layer2 = calloc(256, 1);
-  f->map.layer3 = calloc(256, 1);
-  f->map.seen = calloc(256, 1);
-  if (!f->map.terrain || !f->map.layer2 || !f->map.layer3 || !f->map.seen) {
+  if (!fx_map_alloc(&f->map, 16, 16, 2, true)) {
     return fail("alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    f->map.terrain[i] = 2; /* plains */
   }
   units_reset(&f->units);
   f->units.type_count = 4;
@@ -118,10 +107,7 @@ static int fixture_init(Fixture* f, int nation) {
 }
 
 static void fixture_free(Fixture* f) {
-  free(f->map.terrain);
-  free(f->map.layer2);
-  free(f->map.layer3);
-  free(f->map.seen);
+  fx_map_free(&f->map);
 }
 
 /* Truthful census ship count for fixtures whose nation owns a ship (the
@@ -389,18 +375,8 @@ static int unit_ring_hop_commits_far_goto(void) {
   }
   /* Rebuild as 32x32 all-plains. */
   fixture_free(&f);
-  f.map.width = 32;
-  f.map.height = 32;
-  f.map.tile_count = 32 * 32;
-  f.map.terrain = calloc(32 * 32, 1);
-  f.map.layer2 = calloc(32 * 32, 1);
-  f.map.layer3 = calloc(32 * 32, 1);
-  f.map.seen = calloc(32 * 32, 1);
-  if (!f.map.terrain || !f.map.layer2 || !f.map.layer3 || !f.map.seen) {
+  if (!fx_map_alloc(&f.map, 32, 32, 2, true)) {
     return fail("alloc big map");
-  }
-  for (int i = 0; i < 32 * 32; ++i) {
-    f.map.terrain[i] = 2; /* plains */
   }
   const int sid = units_spawn(&f.units, 1, 16, 16);
   ColonizeUnit* s = units_get(&f.units, sid);
@@ -510,18 +486,8 @@ static int unit_explorer_clears_explore_goal_on_its_tile(void) {
   }
   /* Rebuild as 32x32 all-plains, exactly as the ring-hop scenario. */
   fixture_free(&f);
-  f.map.width = 32;
-  f.map.height = 32;
-  f.map.tile_count = 32 * 32;
-  f.map.terrain = calloc(32 * 32, 1);
-  f.map.layer2 = calloc(32 * 32, 1);
-  f.map.layer3 = calloc(32 * 32, 1);
-  f.map.seen = calloc(32 * 32, 1);
-  if (!f.map.terrain || !f.map.layer2 || !f.map.layer3 || !f.map.seen) {
+  if (!fx_map_alloc(&f.map, 32, 32, 2, true)) {
     return fail("alloc big map (explore goal)");
-  }
-  for (int i = 0; i < 32 * 32; ++i) {
-    f.map.terrain[i] = 2; /* plains */
   }
   const int sid = units_spawn(&f.units, 1, 16, 16);
   ColonizeUnit* s = units_get(&f.units, sid);

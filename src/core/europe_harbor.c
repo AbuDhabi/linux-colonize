@@ -7,7 +7,6 @@
  */
 
 #include "core/europe.h"
-#include "core/europe_art.h"
 #include "core/europe_internal.h"
 
 #include <limits.h>
@@ -28,7 +27,6 @@
 #include "platform/diagnostics.h"
 #include "core/ss.h"
 #include "core/strutil.h"
-#include "core/ui_button.h"
 #include "core/units.h"
 #include "platform/platform.h"
 
@@ -536,7 +534,6 @@ int europe_cash_treasure(EuropeScreen* eu, int treasure_value) {
     tax = 50;
   }
   const int credited = (treasure_value * (100 - tax)) / 100;
-  const int crown_fee = treasure_value - credited;
   /*
    * FUN_48d3_06ba raw 78005-78018, all three against the current player's
    * record (DS:0x5394): gold (+0x2a) += net, +0x26 += the SAME net (the
@@ -546,18 +543,7 @@ int europe_cash_treasure(EuropeScreen* eu, int treasure_value) {
   const int purse_nation = europe_purse_nation(eu);
   struct ColonizeCol1Save* col1 = g_europe_live_save;
   europe_purse_move(eu, col1, purse_nation, credited);
-  if (col1 && purse_nation >= 0 && purse_nation < (int)COLONIZE_COL1_NATION_COUNT) {
-    ColonizeCol1Nation* nat = &col1->nation[purse_nation];
-    nat->royal_money += (int32_t)crown_fee;
-    uint32_t cum = (uint32_t)nat->unknown24_pad[0] | ((uint32_t)nat->unknown24_pad[1] << 8) |
-                   ((uint32_t)nat->unknown24_pad[2] << 16) |
-                   ((uint32_t)nat->unknown24_pad[3] << 24);
-    cum += (uint32_t)credited;
-    nat->unknown24_pad[0] = (uint8_t)(cum & 0xffu);
-    nat->unknown24_pad[1] = (uint8_t)((cum >> 8) & 0xffu);
-    nat->unknown24_pad[2] = (uint8_t)((cum >> 16) & 0xffu);
-    nat->unknown24_pad[3] = (uint8_t)((cum >> 24) & 0xffu);
-  }
+  europe_credit_sale_tax(col1, purse_nation, treasure_value, credited);
   /* GAME.TXT @LOOTCASH, composed live via eu->messages (europe_set_messages). */
   /* %STRING0 = FUN_281f_09a4(unit owner) raw 78005: the @NATIONALITY
    * adjective ("Rebel" under the WoI), not the country name. */
@@ -1598,7 +1584,7 @@ int europe_nation_harbor_spawn(const ColonizeWorld* w, int nation_id, int profes
   if (!units_spawn_room(w->units, nation_id)) {
     return -1;
   }
-  const int id = units_spawn_allow_stack(w->units, lt, 236 + nation_id, 236 + nation_id);
+  const int id = units_spawn_allow_stack(w->units, lt, EUROPE_PARK_XY + nation_id, EUROPE_PARK_XY + nation_id);
   if (id < 0) {
     return -1;
   }
@@ -1640,7 +1626,7 @@ static int europe_nation_crosses_delta(const ColonizeWorld* w, int nation_id) {
     if (!u->active || u->nation_id != nation_id) {
       continue;
     }
-    if (u->x != 236 + nation_id) {
+    if (u->x != EUROPE_PARK_XY + nation_id) {
       continue; /* raw 68270: (byte)(n - x) == 0x14, the dock only (not the lanes) */
     }
     if (!units_type_has_profession_slot(u->type_index)) {

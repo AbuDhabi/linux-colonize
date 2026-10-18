@@ -1,13 +1,12 @@
 /*
- * Indian contact — loot scoring, raid execution, scout displacement & colony war tick
+ * Indian contact — meet trade and the FUN_5fef_0f14 colony raid resolver
  *
  * Split out of ai_contact.c (2026-09-23) verbatim; shared symbols are
  * declared in ai_contact_internal.h. See ai_contact.c for the module
  * prologue and the DOS provenance notes.
  *
  * Sections:
- *   Colony stores/loot scoring, raid-kind selection & raid execution helpers
- *   Raid execution, colony-tile scout displacement, field/war census & colony war-tick
+ *   Raid-kind selection, loot, alarm tail, 1b0e handoff & human-victim chrome
  */
 
 #include "core/internal.h"
@@ -17,7 +16,6 @@
 #include "core/ai.h"
 #include "core/ai_diplo.h"
 #include "core/sound.h"
-#include "core/woodcut.h"
 #include "core/ai_king.h"
 #include "core/assets.h"
 #include "core/colony.h"
@@ -51,10 +49,16 @@ int ai_contact_s_raid_cargo = -1;  /* DOS local_20 */
 static int ai_contact_s_raid_burn_row = -1;  /* DOS local_a (@BUILDING row 0..0x29) */
 static long ai_contact_s_raid_gold = 0;   /* DOS local_12/local_10 */
 
-/* ===================== Colony stores/loot scoring, raid-kind selection & raid execution helpers (ai_contact_indian_meet_trade .. ai_contact_raid_chrome_row) ===================== */
+/* ===================== Raid-kind selection, loot, alarm tail, 1b0e handoff & human-victim chrome (ai_contact_indian_meet_trade .. ai_contact_raid_human_chrome) ===================== */
 
 
-void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
+/*
+ * TEST-ONLY driver (bugs.md #1106): no production caller. The live Brave
+ * contact path is ai_native_step_first_contact (ai_brave.c, FUN_465b move
+ * tail -> FUN_5bfb_3180 -> 022e); this adjacency sweep stays only so the
+ * contact tests can drive the first-welcome / auto-trade / gift arms.
+ */
+COLONIZE_INTERNAL void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || nation_id < 4 || nation_id > 11) {
     return;
   }
@@ -104,23 +108,9 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
       }
       if (!ind->euro_diplo[e]) {
         (void)ai_contact_try_first_welcome(ctx, e, nation_id);
-        if (ctx->col1->tribe) {
-          for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-            ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-            if ((int)t->nation_id != nation_id ||
-                map_chebyshev(t->x, t->y, brave->x, brave->y) > 3) {
-              continue;
-            }
-            /* Peaceful meet: slight friction decay on tribe alarm. */
-            if (ind->alarm_by_player[e] < 40 && t->alarm[e].friction > 0 &&
-                t->alarm[e].friction < 40) {
-              t->alarm[e].friction--;
-            }
-            /* bugs.md: first contact never gifts a mission — a mission exists
-             * only where a Missionary was actually sent (@ACTIONS row 3). */
-            break;
-          }
-        }
+        /* bugs.md #1106: the "peaceful meet" village friction-- that stood
+         * here had no DOS writer (FUN_5bfb_022e / 0182 never decrement the
+         * tribe alarm word); deleted 2026-10-18. */
         /*
          * FUN_5bfb_022e tail (LAB_5bfb_1005): a first-contact ceremony ends
          * the Indian-side unit's turn — spent := max MP (0934 → 1427_155e;
@@ -129,7 +119,7 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
          * this chain from 465b's own commit tail (0984 → 0192 → 3180 → 022e)
          * when the Brave's step lands adjacent to an unmet Euro land unit.
          */
-        brave->moves = units_max_mp(ctx->units, brave->id);
+        units_mp_exhaust_unit(ctx->units, brave->id);
         continue; /* DOS first-contact arm ends; no gift/trade this pulse */
       }
 
@@ -190,39 +180,6 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
    */
 }
 
-/* True if warehouse holds military loot secondary can drain (muskets/horses). */
-static int ai_contact_colony_has_military_loot(const ColonizeColony* c) {
-  if (!c) {
-    return 0;
-  }
-  return c->stock[COLONIZE_CARGO_MUSKETS] >= 5 || c->stock[COLONIZE_CARGO_HORSES] >= 1;
-}
-
-/* True if warehouse holds enough tools for high-friction secondary −1 drain. */
-static int ai_contact_colony_has_tools_loot(const ColonizeColony* c) {
-  if (!c) {
-    return 0;
-  }
-  return c->stock[COLONIZE_CARGO_TOOLS] >= 10;
-}
-
-/*
- * Colony wealth score for GOLD-band approach tie-break: silver stock (colony
- * precious-metal cargo; nation treasury GOLD drains separately). Cite:
- * indian_raid_outcomes.md colony approach; @RAIDGOLD / FUN_5fef_0f14.
- */
-static int ai_contact_colony_gold_wealth(const ColonizeColony* c) {
-  if (!c) {
-    return 0;
-  }
-  return c->stock[COLONIZE_CARGO_SILVER];
-}
-
-/*
- * True if BURN loot arm can fire: construction clear, lumber stock, or a
- * non-Town-Hall built building (colonies_destroy_building). Cite: @RAIDBURN;
- * indian_raid_outcomes.md.
- */
 /*
  * FUN_281f_0a88 → FUN_15eb_14aa (raw 11444-11455): walk a @BUILDING row's
  * parent column up to its chain root. The port models the parent column as
@@ -353,7 +310,7 @@ static int ai_contact_raid_roll_stores_cargo(
  * This replaces an OpenCol stand-in that picked by alarm band (>=85/70/60/55/50)
  * with a rand(0,99) and then demoted on YEAR thresholds 1500/1520 that exist
  * nowhere in the decomp (bugs.md #827). The alarm scalar has no role at this
- * head in DOS at all; the raid pulse's own targeting is where friction bites.
+ * head in DOS at all.
  */
 COLONIZE_INTERNAL AiRaidKind ai_contact_pick_raid_kind(
   ColonizeTurnContext* ctx,
@@ -535,190 +492,6 @@ COLONIZE_INTERNAL AiRaidKind ai_contact_pick_raid_kind(
     }
   }
   return kind;
-}
-
-/*
- * Raid gate Euro: highest friction among met candidates (uniform ≥40),
- * prefer at-war, tie-break lower relation. Cite: indian_raid_outcomes.md §1
- * gate. No per-nation term — see the band comment below (smell #76).
- */
-COLONIZE_INTERNAL int ai_contact_raid_gate_target(
-  ColonizeTurnContext* ctx,
-  ColonizeCol1Indian* ind,
-  int nation_id,
-  int* out_euro,
-  int* out_alarm
-) {
-  int target_euro = -1;
-  int max_alarm = 0;
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || nation_id < 4 || nation_id > 11) {
-    if (out_euro) {
-      *out_euro = -1;
-    }
-    if (out_alarm) {
-      *out_alarm = 0;
-    }
-    return 0;
-  }
-  int best_rel = 256;
-  int best_at_war = 0;
-  const int indian_idx = nation_id - 4;
-  for (int e = 0; e < 4; ++e) {
-    /*
-     * bugs.md #1003: the NATION scalar only. This used to take
-     * `max(alarm_by_player[e], worst village friction of the nation)`, with a
-     * clause that skipped mission villages below friction 80 — and then handed
-     * that one number to every Brave of the nation, so a single angry village
-     * licensed ambushes by Braves homed in villages that were perfectly calm.
-     *
-     * DOS does not couple the two layers anywhere. `FUN_4d56_4528` reads
-     * `FUN_281f_030c(bound tribe slot, euro)` — the `alarm_by_player` read —
-     * and compares it against 0x4b; it never touches DS:0x54f6. Across all
-     * three decompiled exports the only DOS *gate* reads of that word are
-     * `FUN_5bfb_022e` raw 87333 (`0x7f < word`, demand-vs-gift arm) and
-     * `FUN_4962_0018` raw 94967 (`word < 0x80`, AI garrison-quota threat seed),
-     * and both key on `unit +0x314a` — the acting Brave's own home village,
-     * never a nation-wide maximum. Everything else there is a write or the
-     * FUN_4d56_152e read-modify-write.
-     *
-     * The band values below (40 gate / 55 ambush / 70 approach / 80 hot) stay
-     * as they were: they belong to this pass, which is an acknowledged thin
-     * stand-in for the `FUN_4d56_2820` decision matrix (village trade, ported in
-     * ai_contact_trade.c), and inventing
-     * new thresholds to replace invented thresholds buys nothing. What is fixed
-     * here is only the cross-village coupling.
-     */
-    const int alarm = (int)ind->alarm_by_player[e];
-    /*
-     * Uniform gate, no per-nation term. Smell #76 (2026-09-09): the old
-     * "Spain (2) gates at 35" special was invented AND backwards. DOS's only
-     * euro-nation-2 specials in the native-hostility machinery all sit on the
-     * *Euro aggressor* side, never on native targeting: the Demand-Tribute
-     * contest scales the Euro's own strength for Spanish (indian_actions_menu.md
-     * thunk_FUN_1000_a5f4, `e == 2: x1.5`), and FUN_5952_035e's war-decision
-     * block doubles Spain's own attack weights (viceroy 94172-94186:
-     * `local_1b0 == 2` turns `<<1`/`<<2` into `<<2`/`<<3` and waives the
-     * relation >= 0x19 check). docs/fandom_col1994.md's "Spanish pushed toward
-     * conquest" is that same Euro-side bias — nothing makes natives raid Spain
-     * sooner. Gate band stays 40, matching every other friction band in
-     * indian_contact.md (peaceful < 40, capture >= 70, burn >= 80).
-     */
-    if (alarm < 40) {
-      continue;
-    }
-    const int at_war = ai_diplo_indian_at_war(ctx->col1, e, indian_idx);
-    const int rel = (int)ai_diplo_indian_relation(ctx->col1, nation_id, e);
-    if (at_war > best_at_war ||
-        (at_war == best_at_war &&
-         (alarm > max_alarm || (alarm == max_alarm && rel < best_rel)))) {
-      best_at_war = at_war;
-      max_alarm = alarm;
-      best_rel = rel;
-      target_euro = e;
-    }
-  }
-  if (out_euro) {
-    *out_euro = target_euro;
-  }
-  if (out_alarm) {
-    *out_alarm = max_alarm;
-  }
-  return target_euro >= 0;
-}
-
-/* Chebyshev distance from (x,y) to nearest active colony of Euro `e`. */
-static int ai_contact_nearest_euro_colony_dist(
-  ColonizeTurnContext* ctx,
-  int euro,
-  int x,
-  int y
-) {
-  if (!ctx || euro < 0 || euro > 3) {
-    return 99;
-  }
-  int best = 99;
-  (void)ai_contact_nearest_colony(ctx, euro, x, y, -1, -1, 99, &best);
-  return best;
-}
-
-static void ai_contact_unit_goto_xy(const ColonizeUnit* u, int* out_x, int* out_y) {
-  if (!u || !out_x || !out_y) {
-    return;
-  }
-  if (units_orders_follow_goto(u->orders)) {
-    *out_x = u->goto_x;
-    *out_y = u->goto_y;
-  } else {
-    *out_x = u->x;
-    *out_y = u->y;
-  }
-}
-
-/*
- * Alarmed / mid-raid Brave escort lead pick (outside quiet 14fe).
- * Same-nation AI_MOVE/GOTO within MD≤3 (≤4 when alarm≥55; ≤5 when ≥80). When
- * raid gate Euro is known, prefer lead whose goto is closer to that Euro's
- * colony; weight 2× at ≥55, 3× at ≥80. Deep dir picker is FUN_4d56_021a (the
- * routine 14fe dispatches to, 4d56:021a..14fd — Ghidra never decompiled it);
- * ported in ai_native_021a.c; ai_brave.c's ai_native_nation_pulse header has the decoded map.
- * Cite: units_follow_unit; indian_raid_outcomes.md §1; Series N.
- */
-static int ai_contact_escort_pick_lead(
-  ColonizeTurnContext* ctx,
-  ColonizeCol1Indian* ind,
-  int nation_id,
-  int follower_id,
-  const ColonizeUnit* follower
-) {
-  if (!ctx || !ctx->units || !follower) {
-    return -1;
-  }
-  int gate_euro = -1;
-  int gate_alarm = 0;
-  (void)ai_contact_raid_gate_target(ctx, ind, nation_id, &gate_euro, &gate_alarm);
-  /* Peace MD≤3; alarmed≥55 → MD≤4 + 2×; hot≥80 → MD≤5 + 3× (Series N). */
-  const int hot = gate_alarm >= 80;
-  const int alarmed = gate_alarm >= 55;
-  const int md_max = hot ? 5 : (alarmed ? 4 : 3);
-  const int colony_w = hot ? 3 : (alarmed ? 2 : 1);
-
-  int lead = -1;
-  int best_md = 99;
-  int best_target_d = 99;
-  for (int j = 0; j < units_slot_end(ctx->units); ++j) {
-    const ColonizeUnit* o = &ctx->units->units[j];
-    if (!o->active || o->id == follower_id || o->nation_id != nation_id) {
-      continue;
-    }
-    if (units_is_sea(ctx->units, o->id)) {
-      continue;
-    }
-    if (!units_orders_follow_goto(o->orders)) {
-      continue;
-    }
-    const int md = abs(o->x - follower->x) + abs(o->y - follower->y);
-    if (md <= 0 || md > md_max) {
-      continue;
-    }
-    int ax = o->x;
-    int ay = o->y;
-    ai_contact_unit_goto_xy(o, &ax, &ay);
-    const int target_d =
-      gate_euro >= 0 ? ai_contact_nearest_euro_colony_dist(ctx, gate_euro, ax, ay) : 99;
-    if (gate_euro >= 0) {
-      const int score_t = target_d * colony_w;
-      const int best_t = best_target_d * colony_w;
-      if (score_t < best_t || (score_t == best_t && md < best_md)) {
-        best_target_d = target_d;
-        best_md = md;
-        lead = o->id;
-      }
-    } else if (md < best_md) {
-      best_md = md;
-      lead = o->id;
-    }
-  }
-  return lead;
 }
 
 /*
@@ -1034,13 +807,19 @@ __attribute__((constructor)) static void ai_contact_register_raid_repelled(void)
   units_set_colony_raid_repelled(ai_contact_colony_raid_repelled_w);
 }
 
+static void ai_contact_raid_human_chrome(
+  ColonizeTurnContext* ctx, const ColonizeColony* c, int nation_id, int target_euro,
+  AiRaidKind kind
+);
+
 int ai_contact_colony_raid_repelled_w(
   const ColonizeWorld* w,
   int indian_nation,
   int euro_nation,
   int colony_id,
   int home_tribe_id,
-  int forced
+  int forced,
+  int human_nation
 ) {
   ColonizeCol1Save* col1 = w->col1;
   ColonizeColonyPool* colonies = w->colonies;
@@ -1060,7 +839,8 @@ int ai_contact_colony_raid_repelled_w(
    * DOS reaches 0f14 here through the shared globals the combat resolver
    * already bound (FUN_281f_0a42 nation / FUN_281f_09e6 colony), so the only
    * context 0f14 itself needs is the colony, the pools, the LCG and the turn
-   * word. Build the same shape the raid pulse hands the loot core.
+   * word, plus the popup queue / catalog / human nation for its human-victim
+   * chrome and @RAIDWREAK bulletin.
    */
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));
@@ -1070,7 +850,10 @@ int ai_contact_colony_raid_repelled_w(
   ctx.col1 = col1;
   ctx.col1_ok = true;
   ctx.rng = rng;
-  ctx.human_nation = -1;
+  ctx.europe = w->europe;
+  ctx.ai_popups = w->ai_popups;
+  ctx.messages = w->messages;
+  ctx.human_nation = human_nation;
   /* 0f14's early-game grace reads DS:0x538e on this path too (raw 99791). */
   uint32_t turn = col1->head.turn;
   ctx.turn_number = &turn;
@@ -1082,12 +865,12 @@ int ai_contact_colony_raid_repelled_w(
     ai_contact_pick_raid_kind(&ctx, c, indian_nation, euro_nation, rng, forced);
   ai_contact_apply_raid_loot(&ctx, c, indian_nation, euro_nation, kind);
   ai_contact_raid_wreak_bulletin(&ctx, c, indian_nation, euro_nation, kind);
+  ai_contact_raid_human_chrome(&ctx, c, indian_nation, euro_nation, kind);
 
   /*
    * FUN_5fef_0f14's alarm tail (raw 100033), wired 2026-09-08 — negative
-   * per-kind delta behind the war gate, identical to the raid pulse's entry
-   * into the same resolver. DOS runs it just BEFORE the DS:0x54f6 clear
-   * below, so keep this ordering.
+   * per-kind delta behind the war gate. DOS runs it just BEFORE the
+   * DS:0x54f6 clear below, so keep this ordering.
    */
   ai_contact_raid_alarm_tail(&ctx, indian_nation, euro_nation, kind);
 
@@ -1105,75 +888,37 @@ int ai_contact_colony_raid_repelled_w(
 }
 
 /*
- * A Brave carrying its own village's refused-demand grudge (attitude word
- * > 0x7f, LAB_5bfb_0ff2) must not be diverted into the escort/follow arm —
- * it is here to answer the refusal. Same row FUN_521d_0906 reads.
- */
-static int ai_contact_brave_home_grudge(
-  const ColonizeTurnContext* ctx, const ColonizeUnit* brave
-) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe || !brave) {
-    return 0;
-  }
-  if (brave->home_tribe_id < 0 ||
-      brave->home_tribe_id >= (int)ctx->col1->head.tribe_count) {
-    return 0;
-  }
-  const ColonizeCol1Tribe* t = &ctx->col1->tribe[brave->home_tribe_id];
-  for (int e = 0; e < 4; ++e) {
-    if (col1_tribe_attitude(t, e) > 0x7f) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
-/*
- * Per-kind raid chrome for a HUMAN victim (audit AC-27): nine arms that each
- * spelled out the same shape — optional token field, then
- * either the GAME.TXT tag (when the colony has a name) or a thin line.
- * DOS always fires the per-kind tag for a human victim (0x1b94 @RAIDSTORES /
- * 0x1b9f @RAIDBURN / 0x1ba8 @RAIDSHIP / 0x1bb1 @RAIDGOLD / 0x1bba
- * @RAIDNOTHING, raw 99909-100020); @RAIDWREAK and the generic tail have no
- * DOS tag here and stay thin.
- *
- * `thin_colony` takes (tribe, colony name), `thin_bare` takes (tribe).
+ * Per-kind raid chrome for a HUMAN victim (audit AC-27). DOS fires the
+ * per-kind tag (0x1b94 @RAIDSTORES / 0x1b9f @RAIDBURN / 0x1ba8 @RAIDSHIP /
+ * 0x1bb1 @RAIDGOLD / 0x1bba @RAIDNOTHING, raw 99909-100020). `section` is the
+ * only wording; a miss draws nothing (bugs.md #836).
  * `popup_without_colony` is the @RAIDBURN quirk: a named burned building
  * carries the line on its own, so the tag fires even for an unnamed colony.
  */
-
-
-/*
- * `section` is the GAME.TXT body — the ONLY wording involved. The thin_* slots
- * used to carry typed English notices for the cases DOS's dialog cannot cover
- * (no colony name to substitute, a burn with no named building); bugs.md #836
- * retired them under CLAUDE.md's "miss = empty string, never a typed fallback"
- * rule, so an unnamed colony now simply draws no raid line.
- */
 static const AiRaidChrome k_raid_chrome[] = {
   /* @RAIDNOTHING; sound 0x5b = raid repelled (gunfight). */
-  {AI_RAID_NOTHING, "RAIDNOTHING", "", NULL, NULL, 0x5b, -1, AI_RAID_TOK_NONE, 0},
+  {AI_RAID_NOTHING, "RAIDNOTHING", "", 0x5b, -1, AI_RAID_TOK_NONE, 0},
   /* @RAIDSHIP; DOS plays both 0x4b and 0x4d, in that order. */
-  {AI_RAID_SHIP, "RAIDSHIP", "", NULL, NULL, 0x4b, 0x4d, AI_RAID_TOK_SHIP, 0},
+  {AI_RAID_SHIP, "RAIDSHIP", "", 0x4b, 0x4d, AI_RAID_TOK_SHIP, 0},
   /* @RAIDGOLD; 0x4e = treasury gold stolen. */
-  {AI_RAID_GOLD, "RAIDGOLD", "", NULL, NULL, 0x4e, -1, AI_RAID_TOK_GOLD, 0},
+  {AI_RAID_GOLD, "RAIDGOLD", "", 0x4e, -1, AI_RAID_TOK_GOLD, 0},
   /* @RAIDSTORES; 0x4f = loot goods. */
-  {AI_RAID_STORES, "RAIDSTORES", "", NULL, NULL, 0x4f, -1,
+  {AI_RAID_STORES, "RAIDSTORES", "", 0x4f, -1,
    AI_RAID_TOK_STORES, 0}
   /* @RAIDBURN thin/named rows live below (they depend on the burned building). */
 };
 
 /* @RAIDBURN, with the destroyed building named. */
 static const AiRaidChrome k_raid_chrome_burn_named = {
-  AI_RAID_BURN, "RAIDBURN", "", NULL, NULL, 0x53, -1, AI_RAID_TOK_BURN, 1
+  AI_RAID_BURN, "RAIDBURN", "", 0x53, -1, AI_RAID_TOK_BURN, 1
 };
-/* Burn with no named building: port notice. */
+/* Burn with no named building: cues only. */
 static const AiRaidChrome k_raid_chrome_burn_thin = {
-  AI_RAID_BURN, NULL, NULL, NULL, NULL, 0x53, -1, AI_RAID_TOK_NONE, 0
+  AI_RAID_BURN, NULL, NULL, 0x53, -1, AI_RAID_TOK_NONE, 0
 };
 /* Generic successful raid chrome when no kind-specific line applies. */
 static const AiRaidChrome k_raid_chrome_generic = {
-  AI_RAID_NOTHING, NULL, NULL, NULL, NULL, -1, -1, AI_RAID_TOK_NONE, 0
+  AI_RAID_NOTHING, NULL, NULL, -1, -1, AI_RAID_TOK_NONE, 0
 };
 
 COLONIZE_INTERNAL const AiRaidChrome* ai_contact_raid_chrome_row(AiRaidKind kind, int have_burn_building) {
@@ -1187,692 +932,78 @@ COLONIZE_INTERNAL const AiRaidChrome* ai_contact_raid_chrome_row(AiRaidKind kind
   }
   return &k_raid_chrome_generic;
 }
-/* ===================== Raid execution, colony-tile scout displacement, field/war census & colony war-tick (ai_contact_raid_ambush_chrome .. ai_contact_a618_skill) ===================== */
-
 
 /*
- * @INDIANWIN0/1/2 / @INDIANLOSE ambush chrome for a human victim of the
- * adjacent-unit arm. Extracted verbatim from ai_contact_indian_raids.
+ * DOS-LITERAL FUN_5fef_0f14 human-victim chrome (raw 99901-100020): the
+ * colony-tune / 0x32 cue, then the per-kind cue(s) and the per-kind @RAID*
+ * dialog, all gated on `uVar5 < 4 && control[uVar5] == 0`. Reached from the
+ * 1b0e loser limb (ai_contact_colony_raid_repelled_w). The woodcut is 1b0e's
+ * own (5fef:22a9, units_combat_resolve.c), not 0f14's.
+ *
+ * No @INDIANSURPRISE prefix: its DOS site is the 021a human-colony warning
+ * (OVL13 thunk_FUN_1000_a5c4, overlays.c 76958-76970), listed under
+ * "Not ported" in ai_native_021a.c.
  */
-COLONIZE_INTERNAL void ai_contact_raid_ambush_chrome(
-  ColonizeTurnContext* ctx, int nation_id, int target_euro, int brave_won,
-  int seized_muskets, int seized_horses, const char* foe_unit_name,
-  const char* foe_nation_label, const char* place, int foe_type
-) {
-  /*
-   * GAME.TXT @INDIANWIN0/1/2 / @INDIANLOSE:
-   * WIN:  {%STRING0} ambush {%STRING1 %STRING2} near %STRING3!
-   *       (+ Muskets/Horses seized by %STRING4 braves! for WIN1/2)
-   * LOSE: {%STRING1 %STRING2} %STRING4 {%STRING0} near %STRING3!
-   */
-  if (ai_contact_euro_is_human(ctx, target_euro)) {
-    PopupMsgTokens tok;
-    memset(&tok, 0, sizeof(tok));
-    const char* tribe = ai_contact_tribe_name(nation_id);
-    tok.string0 = tribe;
-    tok.string1 = foe_nation_label;
-    tok.string2 = foe_unit_name;
-    tok.string3 = place;
-    tok.string4 = tribe;
-    const char* sec = "INDIANLOSE";
-    char fb[AI_POPUP_BODY_LEN];
-    if (brave_won) {
-      if (seized_muskets) {
-        sec = "INDIANWIN1";
-        fb[0] = '\0';
-      } else if (seized_horses) {
-        sec = "INDIANWIN2";
-        fb[0] = '\0';
-      } else {
-        sec = "INDIANWIN0";
-        fb[0] = '\0';
-      }
-    } else {
-      /* LABELS defeat/defeats — unit subjects type_index ≥7 use "defeats". */
-      tok.string4 = reports_misc_display_word(
-        (foe_type >= 0 && foe_type < 7) ? 73 : 74, ""
-      );
-      snprintf(
-        fb,
-        sizeof(fb),
-        "%s %s %s %s near %s!",
-        foe_nation_label,
-        foe_unit_name,
-        tok.string4,
-        tribe,
-        place
-      );
-    }
-    char ambush_body[AI_POPUP_BODY_LEN];
-    if (ctx->messages) {
-      popup_msg_fill(ctx->messages, sec, &tok, fb, ambush_body, sizeof(ambush_body));
-    } else {
-      snprintf(ambush_body, sizeof(ambush_body), "%s", fb);
-    }
-    ai_contact_human_chrome(
-      ctx,
-      target_euro,
-      AI_POPUP_TAG_COMBAT_AMBUSH,
-      nation_id,
-      "",
-      ambush_body
-    );
-  }
-}
-
-#include "core/ai_contact_internal.h" /* AiRaidStatus, struct ai_contact_raid_ctx */
-
-/*
- * Stage 2: adjacent unit combat (FUN_4d56_4528 arm 2). Extracted verbatim
- * from ai_contact_indian_raids; sets a->attacked for the colony stage.
- */
-COLONIZE_INTERNAL void ai_contact_raid_stage_combat(struct ai_contact_raid_ctx* a) {
-  ColonizeTurnContext* const ctx = a->ctx;
-  ColonizeUnit* brave = a->brave;
-  ColonizeDosRng* const rng = a->rng;
-  const int nation_id = a->nation_id;
-  const int target_euro = a->target_euro;
-  const int max_alarm = a->max_alarm;
-
-  /* 2. Adjacent unit combat. */
-  int attacked = 0;
-  for (int d = 0; d < 8 && !attacked; ++d) {
-    const int nx = brave->x + MAP_DIR8_DX[d];
-    const int ny = brave->y + MAP_DIR8_DY[d];
-    /*
-     * bugs.md: units_id_at picked the first unit in POOL ORDER, so a raid
-     * could duel an unarmed colonist while a soldier stood on the same
-     * tile. Use the DOS best-defender walk (FUN_5fef_0000) like every
-     * other combat entry; on a civilian-only colony tile it returns -1
-     * and the raid skips (colony raids go through their own path).
-     */
-    const int foe = units_best_defender_at(
-      ctx->units, ctx->col1, nx, ny, brave->id, brave->id
-    );
-    if (foe < 0) {
-      continue;
-    }
-    ColonizeUnit* f = units_get(ctx->units, foe);
-    if (!f || f->nation_id != target_euro || units_is_sea(ctx->units, foe)) {
-      continue;
-    }
-    /*
-     * bugs.md: Indians should be more chill — the ambush arm only fires
-     * in the provocation band (alarm ≥ 55, the same cut the war-declare
-     * escalation uses) or at open war, not at the ≥40 raid-gate band.
-     * No DOS site exists for a Treasure-Train bypass of this gate, so it
-     * applies uniformly regardless of defender type (#748).
-     */
-    if (max_alarm < 55 &&
-        !ai_diplo_indian_at_war(ctx->col1, target_euro, nation_id - 4)) {
-      continue;
-    }
-    /* Snapshot before combat despawn (the loser is gone by the chrome call). */
-    const int foe_x = f->x;
-    const int foe_y = f->y;
-    const int foe_type = f->type_index;
-    char foe_unit_name[48];
-    {
-      const ColonizeUnitType* ft = units_type(ctx->units, foe_type);
-      snprintf(
-        foe_unit_name,
-        sizeof(foe_unit_name),
-        "%s",
-        /* #836: no typed fallback — a NAMES miss renders empty (CLAUDE.md). */
-        ft && ft->name[0] ? ft->name : ""
-      );
-    }
-    /* FUN_5fef_1b0e raw 100800: %STRING1 = FUN_281f_09a4(defender), the
-     * @NATIONALITY adjective ("Rebel" under the WoI), not the country name. */
-    const char* foe_nation_label =
-      (target_euro >= 0 && target_euro <= 3) ? reports_nation_adjective_woi(ctx->col1, target_euro) : "";
-    /* LABELS.TXT @MISC row 17 = "Wilderness"; reports_misc_display_word is
-       the shared sim-side live lookup (reports_names.c), fallback kept. */
-    const char* place = reports_misc_display_word(17, "");
-    if (ctx->colonies) {
-      int best_d = 99;
-      for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
-        const ColonizeColony* c = &ctx->colonies->colonies[ci];
-        if (!c->active || c->nation_id != target_euro || !c->name[0]) {
-          continue;
-        }
-        const int d = map_chebyshev(foe_x, foe_y, c->x, c->y);
-        if (d < best_d) {
-          best_d = d;
-          place = c->name;
-        }
-      }
-    }
-    /*
-     * This arm draws its own @INDIANWIN0/1/2 / @INDIANLOSE below (with the
-     * muskets/horses seizure lines DOS builds by appending '1'/'2' to tag
-     * 0x1ca9, FUN_1d1d_07e4). Silence the generic native-attacker chrome in
-     * units_combat_outcome_popups for the duration, or the same fight
-     * reports twice.
-     */
-    units_set_native_combat_chrome_owned(1);
-    units_clear_native_gear_step();
-    const int brave_won =
-      units_resolve_land_combat(ctx->units, brave->id, foe, rng) ? 1 : 0;
-    units_set_native_combat_chrome_owned(0);
-    /*
-     * bugs.md #645: the gear seizure itself is DOS FUN_5fef_1b0e raw
-     * 100730-100744 and now lives in the land-loss outcome path
-     * (units_apply_land_loss_outcome), where it steps the brave's TYPE and
-     * tallies the tribe record — the numeric muskets/horses transfer that
-     * used to sit here was an invention, and it only ever ran in this AI raid
-     * arm, so a human Dragoon losing to a Brave never mounted it. All that is
-     * left here is the chrome pick: `bVar13` -> @INDIANWIN1 (armed step),
-     * `bVar14` -> @INDIANWIN2 (mounted step), raw 101088-101095.
-     */
-    int seized_muskets = 0;
-    int seized_horses = 0;
-    units_last_native_gear_step(&seized_muskets, &seized_horses);
-    if (brave_won) {
-      {
-        ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, rng, NULL);
-        units_try_move_w(&w_, brave->id, nx, ny);
-      }
-    }
-    /*
-     * GAME.TXT @INDIANWIN0/1/2 / @INDIANLOSE:
-     * WIN:  {%STRING0} ambush {%STRING1 %STRING2} near %STRING3!
-     *       (+ Muskets/Horses seized by %STRING4 braves! for WIN1/2)
-     * LOSE: {%STRING1 %STRING2} %STRING4 {%STRING0} near %STRING3!
-     */
-  ai_contact_raid_ambush_chrome(
-    ctx, nation_id, target_euro, brave_won, seized_muskets, seized_horses,
-    foe_unit_name, foe_nation_label, place, foe_type
-  );
-    /*
-     * (Retired 2026-09-08, smell #65.) A +2 alarm bump (Pocahontas-halved)
-     * plus attacks++ across every tribe of the nation sat here — the last
-     * retired-drip-class caller. DOS's post-ambush effects live inside the
-     * combat resolve itself (negative vent + attitude zero); the attacks
-     * byte's only DOS writer is the 465b trespass arm.
-     */
-    attacked = 1;
-  }
-  a->attacked = attacked;
-}
-
-/*
- * Stage 3 pick: nearest raidable colony of the gated Euro. Extracted
- * verbatim from ai_contact_indian_raids.
- */
-COLONIZE_INTERNAL int ai_contact_raid_pick_colony(struct ai_contact_raid_ctx* a) {
-  ColonizeTurnContext* const ctx = a->ctx;
-  const ColonizeUnit* const brave = a->brave;
-  const int target_euro = a->target_euro;
-  const int max_alarm = a->max_alarm;
-
-  int best_cid = -1;
-  int best_d = 99;
-  int best_mil = 0;
-  int best_tools = 0;
-  int best_gold = 0;
-  /* Alarm≥80: MD≤8 + gold-before-tools at equal dist (Series Q). */
-  const int md_max = (max_alarm >= 80) ? 8 : 6;
-  const int hot_wealth = (max_alarm >= 80);
-  for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
-    ColonizeColony* c = &ctx->colonies->colonies[ci];
-    if (!c->active || c->nation_id != target_euro) {
-      continue;
-    }
-    const int d = map_chebyshev(brave->x, brave->y, c->x, c->y);
-    if (d > md_max) {
-      continue;
-    }
-    /*
-     * Prefer closer; at equal distance prefer muskets/horses (military
-     * secondary). Peace/mid: tools≥10 then silver wealth. Hot alarm≥80:
-     * silver wealth before tools (GOLD-band). Cite:
-     * indian_raid_outcomes.md multi-loot / colony approach; @RAIDGOLD;
-     * Series Q.
-     */
-    const int mil = ai_contact_colony_has_military_loot(c);
-    const int tools = ai_contact_colony_has_tools_loot(c);
-    const int gold_w = ai_contact_colony_gold_wealth(c);
-    int better = 0;
-    if (d < best_d) {
-      better = 1;
-    } else if (d == best_d && mil && !best_mil) {
-      better = 1;
-    } else if (d == best_d && mil == best_mil) {
-      if (hot_wealth) {
-        if (gold_w > best_gold ||
-            (gold_w == best_gold && tools && !best_tools)) {
-          better = 1;
-        }
-      } else if ((tools && !best_tools) ||
-                 (tools == best_tools && gold_w > best_gold)) {
-        better = 1;
-      }
-    }
-    if (better) {
-      best_d = d;
-      best_cid = c->id;
-      best_mil = mil;
-      best_tools = tools;
-      best_gold = gold_w;
-    }
-  }
-  return best_cid;
-}
-
-/*
- * @RAID* / @INDIANWAR / @INDIANSURPRISE chrome for a human raid victim.
- * Extracted verbatim from ai_contact_indian_raids.
- */
-COLONIZE_INTERNAL void ai_contact_raid_human_chrome(
+static void ai_contact_raid_human_chrome(
   ColonizeTurnContext* ctx, const ColonizeColony* c, int nation_id, int target_euro,
-  AiRaidKind kind, int max_alarm, int had_peace, int eff_at_war
+  AiRaidKind kind
 ) {
-  if (ai_contact_euro_is_human(ctx, target_euro)) {
-    /*
-     * FUN_5fef 5fef:22a9 — a native attacker (nation ≥ 4) on a human
-     * Euro defender fires woodcut 13; the burn arms below fire
-     * woodcut 11 (5fef:2b6c / 5fef:305b, both COLONY BURNING — id 12
-     * COLONY DESTROYED has no DOS call site).
-     */
-    (void)woodcut_fire(ctx->col1, WOODCUT_INDIAN_RAID);
-    char raid_line[AI_POPUP_BODY_LEN];
-    const char* raid_body = NULL;
-    const char* tribe = ai_contact_tribe_name(nation_id);
-    PopupMsgTokens raid_tok;
-    memset(&raid_tok, 0, sizeof(raid_tok));
-    raid_tok.string0 = tribe;
-    raid_tok.string1 = c->name[0] ? c->name : NULL;
-    const AiRaidChrome* row =
-      ai_contact_raid_chrome_row(kind, ai_contact_s_last_burn_building[0] != '\0');
-    /* DOS-LITERAL FUN_5fef_0f14 raw 99901-99908: for a human victim,
-     * kind 0 restores the colony tune pool through FUN_281f_0498(2);
-     * every loot kind queues track 0x32 through FUN_281f_048e. */
-    if (kind == AI_RAID_NOTHING) {
-      sound_set_bgm(2);
-    } else {
-      sound_play(0x32);
-    }
-    switch (row->tok) {
-      case AI_RAID_TOK_SHIP:
-        raid_tok.string2 = ai_contact_s_last_ship_type[0] ? ai_contact_s_last_ship_type : "";
-        break;
-      case AI_RAID_TOK_STORES:
-        raid_tok.string2 = ai_contact_s_last_stores_cargo[0] ? ai_contact_s_last_stores_cargo : "";
-        break;
-      case AI_RAID_TOK_BURN:
-        raid_tok.string2 = ai_contact_s_last_burn_building;
-        break;
-      case AI_RAID_TOK_GOLD:
-        raid_tok.number0 = ai_contact_s_last_gold_drained;
-        raid_tok.has_number0 = true;
-        break;
-      case AI_RAID_TOK_NONE:
-      default:
-        break;
-    }
-    /*
-     * DOS FUN_5fef_0f14 keys these cues only to the resolved raid kind and a
-     * human victim (raw asm 154640, 154763, 154801-154803, 154847, 154869).
-     * Popup text availability is unrelated; in particular the ship arm is
-     * deliberately a two-cue sequence, 0x4b then 0x4d.
-     */
-    if (row->sound >= 0) {
-      sound_play(row->sound);
-    }
-    if (row->sound2 >= 0) {
-      sound_play(row->sound2);
-    }
-    if (row->section && (c->name[0] || row->popup_without_colony)) {
-      popup_msg_fill(
-        ctx->messages, row->section, &raid_tok, row->popup_fallback,
-        raid_line, sizeof(raid_line)
-      );
-    } else if (row->thin_colony && c->name[0]) {
-      snprintf(raid_line, sizeof(raid_line), row->thin_colony, tribe, c->name);
-    } else if (row->thin_bare) {
-      snprintf(raid_line, sizeof(raid_line), row->thin_bare, tribe);
-    } else {
-      raid_line[0] = '\0'; /* #836: no typed fallback */
-    }
-    raid_body = raid_line[0] ? raid_line : NULL;
-    /*
-     * bugs.md: the @INDIANWAR / @INDIANSURPRISE lines used to sit as
-     * two arms INSIDE this chain, so any raid by a tribe that was not
-     * yet at war printed only "their chief denies involvement" and
-     * the player never learned what had been stolen or burned — the
-     * loot was applied silently. DOS FUN_5fef_0f14 has no such arm:
-     * it always fires the per-kind tag for a human victim (0x1b94
-     * @RAIDSTORES / 0x1b9f @RAIDBURN / 0x1ba8 @RAIDSHIP / 0x1bb1
-     * @RAIDGOLD / 0x1bba @RAIDNOTHING, raw 99909-100020). The war /
-     * deniability sentence is OpenCol chrome, so it now rides IN FRONT
-     * of the DOS line instead of replacing it.
-     */
-    char raid_full[AI_POPUP_BODY_LEN];
-    if (raid_body && kind != AI_RAID_NOTHING) {
-      const char* pre = NULL;
-      char pre_buf[224];
-      if (had_peace && max_alarm >= 55) {
-        /*
-         * OpenCol war notice. It used to be labelled "@INDIANWAR thin",
-         * but @INDIANWAR is dead GAME.TXT text: no NUL-terminated
-         * "INDIANWAR" tag string exists anywhere in VICEROY.EXE's DS
-         * (only "INDIANWARPATH"/"INDIANWARPATH2"/"INDIANWARFARE"), so
-         * DOS can never ask the dialog engine for that section
-         * (2026-09-16). The sentence stays as port chrome, no longer
-         * claiming to be a GAME.TXT body.
-         */
-        /*
-         * (Retired 2026-09-23, bugs.md #836.) "The %s declare war! Prepare
-         * for WAR!" was typed English with no catalog row behind it —
-         * @INDIANWAR is dead GAME.TXT text (no DS tag string in VICEROY.EXE),
-         * so there is nothing to read and the line renders empty.
-         */
-        pre_buf[0] = '\0';
-        pre = NULL;
-      } else if (!eff_at_war) {
-        /*
-         * @INDIANSURPRISE (0x14dc) — real GAME.TXT body, filled with
-         * DOS's own three slots (tribe, the colony the raid happened
-         * near, tribe again) as the OVL13 brave-move site loads them
-         * (viceroy_overlays.c 76958-76970). A raid while NOT at war is
-         * deniable (indian_raid_outcomes.md §8).
-         */
-        PopupMsgTokens stok;
-        memset(&stok, 0, sizeof(stok));
-        stok.string0 = tribe;
-        stok.string1 = c->name[0] ? c->name : "";
-        stok.string2 = tribe;
-        popup_msg_fill(
-          ctx->messages, "INDIANSURPRISE", &stok, "", pre_buf, sizeof(pre_buf)
-        );
-        pre = pre_buf;
-      }
-      if (pre) {
-        /* Explicit tail bound: `pre` (<=223) + the two spaces always fit,
-         * so only a pathologically long body is clipped. */
-        const int raid_pre_len = (int)strlen(pre);
-        int raid_room = (int)sizeof(raid_full) - raid_pre_len - 3;
-        if (raid_room < 0) {
-          raid_room = 0;
-        }
-        snprintf(
-          raid_full, sizeof(raid_full), "%s  %.*s", pre, raid_room, raid_body
-        );
-        raid_body = raid_full;
-      }
-    }
-    ai_contact_human_chrome(
-      ctx,
-      target_euro,
-      AI_POPUP_TAG_CONTACT_RAID,
-      nation_id,
-      "Raid",
-      raid_body
+  if (!ai_contact_euro_is_human(ctx, target_euro)) {
+    return;
+  }
+  char raid_line[AI_POPUP_BODY_LEN];
+  PopupMsgTokens raid_tok;
+  memset(&raid_tok, 0, sizeof(raid_tok));
+  raid_tok.string0 = ai_contact_tribe_name(nation_id);
+  raid_tok.string1 = c->name[0] ? c->name : NULL;
+  const AiRaidChrome* row =
+    ai_contact_raid_chrome_row(kind, ai_contact_s_last_burn_building[0] != '\0');
+  /* raw 99901-99908: kind 0 restores the colony tune pool through
+   * FUN_281f_0498(2); every loot kind queues track 0x32 through FUN_281f_048e. */
+  if (kind == AI_RAID_NOTHING) {
+    sound_set_bgm(2);
+  } else {
+    sound_play(0x32);
+  }
+  switch (row->tok) {
+    case AI_RAID_TOK_SHIP:
+      raid_tok.string2 = ai_contact_s_last_ship_type;
+      break;
+    case AI_RAID_TOK_STORES:
+      raid_tok.string2 = ai_contact_s_last_stores_cargo;
+      break;
+    case AI_RAID_TOK_BURN:
+      raid_tok.string2 = ai_contact_s_last_burn_building;
+      break;
+    case AI_RAID_TOK_GOLD:
+      raid_tok.number0 = ai_contact_s_last_gold_drained;
+      raid_tok.has_number0 = true;
+      break;
+    case AI_RAID_TOK_NONE:
+    default:
+      break;
+  }
+  /*
+   * DOS keys these cues only to the resolved raid kind and a human victim
+   * (raw asm 154640, 154763, 154801-154803, 154847, 154869). Popup text
+   * availability is unrelated; the ship arm is a two-cue sequence, 0x4b
+   * then 0x4d.
+   */
+  if (row->sound >= 0) {
+    sound_play(row->sound);
+  }
+  if (row->sound2 >= 0) {
+    sound_play(row->sound2);
+  }
+  raid_line[0] = '\0'; /* #836: no typed fallback */
+  if (row->section && (c->name[0] || row->popup_without_colony)) {
+    popup_msg_fill(
+      ctx->messages, row->section, &raid_tok, row->popup_fallback,
+      raid_line, sizeof(raid_line)
     );
   }
-}
-
-/*
- * Stages 4-5: on-tile loot resolve (FUN_5fef_0f14) + its alarm tail and the
- * raider discharge. Extracted verbatim from ai_contact_indian_raids.
- */
-COLONIZE_INTERNAL void ai_contact_raid_resolve_on_tile(
-  struct ai_contact_raid_ctx* a, ColonizeColony* c
-) {
-  ColonizeTurnContext* const ctx = a->ctx;
-  ColonizeUnit* const brave = a->brave;
-  ColonizeDosRng* const rng = a->rng;
-  const int nation_id = a->nation_id;
-  const int target_euro = a->target_euro;
-  const int max_alarm = a->max_alarm;
-
-  const AiRaidKind kind =
-    ai_contact_pick_raid_kind(ctx, c, nation_id, target_euro, rng, 0);
-  ai_contact_apply_raid_loot(ctx, c, nation_id, target_euro, kind);
-  ai_contact_raid_wreak_bulletin(ctx, c, nation_id, target_euro, kind);
-  /* 0f14's alarm tail + DS:0x54f6 word-zero run at the resolver's
-   * very END in DOS (raw 100033-100034) — after all the popup/side-art
-   * chrome — so they sit below the status block here, not at this
-   * spot (moving them up made the attacks snapshot read an
-   * already-cleared word once the phantom array was retired). */
-  /*
-   * bugs.md #281: the raid pulse never takes or destroys a colony —
-   * DOS FUN_5fef_0f14 only loots. Colony destruction lives on the
-   * real combat path (units_try_capture_foreign_colony's Indian arm:
-   * kill one colonist, burn only when the last falls), and Indians
-   * NEVER capture (the old colonies_capture here flipped ownership
-   * to the tribe — "Sioux march into Amsterdam"). The three
-   * `abandoned`/@BURNED/@BURNED3 arms this rule left behind a
-   * permanently-false flag in front of were deleted 2026-09-14
-   * (audit AC-37); the live @BURNED chrome is in units.c's
-   * capture/fallout path.
-   */
-  /* (Retired 2026-09-08.) An OpenCol-only per-tribe attacks++ counter
-   * sat here backing the "only the FIRST attack is deniable" chrome
-   * (bugs.md). DOS has no such counter on this path: the attacks
-   * byte is the attitude-word high byte, bumped only by the 465b
-   * trespass arm and zeroed by 0f14's own tail every raid — so it
-   * can never carry "raided before" across raids. The DOS
-   * discriminator is the at-war state alone (indian_raid_outcomes.md
-   * §8: plain raid line when already at war, @INDIANSURPRISE when
-   * not; at-war = 153e's alarm > 0x4a, or the diplo WAR bit). */
-  /*
-   * (Retired 2026-09-08.) A fandom-derived POSITIVE kind bump used to
-   * sit here — "raids raise tension", deltas +4/+12/+16/+8 with DOS's
-   * signs flipped and DOS's kind 3 mis-assigned to SCALP. DOS 0f14
-   * does the exact opposite: see ai_contact_raid_alarm_tail above,
-   * now called right after the loot. Same retirement rule as the
-   * three fandom alarm drips (bugs.md #289).
-   */
-  /*
-   * High-friction successful raid → escalate Indian×Euro hostility
-   * (4cc6_00f2 via ai_diplo). If treaty/peace still held → clear peace
-   * bit (@INDIANWAR). 4528/2820 are ported (ai_contact_actions.c /
-   * ai_contact_trade.c); dialog VGA chrome PARKED.
-   */
-  const int had_peace =
-    ai_contact_indian_has_peace(ctx->col1, nation_id, target_euro);
-  const int was_at_war =
-    ai_diplo_indian_at_war(ctx->col1, target_euro, nation_id - 4);
-  /* DOS 153e at-war band: alarm > 0x4a counts as war for the raid
-   * chrome even when the WAR bit / relation view lag behind (test
-   * fixtures and fresh saves often carry alarm only). */
-  const int eff_at_war = was_at_war || max_alarm > 0x4a;
-  if (kind != AI_RAID_NOTHING && max_alarm >= 55) {
-    /* No alarm push here: DOS 0f14's only alarm write is the tail
-     * above, and it is negative. The peace-bit clear / hostility sync
-     * are OpenCol chrome for the @INDIANWAR line below and must not add
-     * a second alarm store (the old −3/−5 relation push, and the
-     * fandom kind bump that replaced it, both did). */
-    if (had_peace) {
-      ai_contact_clear_peace(ctx->col1, nation_id, target_euro);
-    }
-    ai_diplo_indian_hostility_sync(ctx->col1, target_euro);
-  }
-  /*
-   * Thin raid outcome status for human target (full @RAID* dialog PARKED).
-   * @RAIDNOTHING (GAME.TXT): "raiding party wiped out" — empty warehouse /
-   * no lootable stock also lands here (no invented cargo). Cite:
-   * COLONIZE/GAME.TXT @RAIDNOTHING; indian_raid_outcomes.md.
-   * @INDIANWAR when peace broken; @INDIANSURPRISE when not yet at war.
-   */
-  ai_contact_raid_human_chrome(
-    ctx, c, nation_id, target_euro, kind, max_alarm, had_peace, eff_at_war
+  ai_contact_human_chrome(
+    ctx, target_euro, AI_POPUP_TAG_CONTACT_RAID, nation_id, "",
+    raid_line[0] ? raid_line : NULL
   );
-  /*
-   * FUN_5fef_0f14's tail, in DOS order (after every chrome draw):
-   * raw 100033 — NEGATIVE per-kind alarm delta behind the
-   * NOT-at-war gate (`15b3_0004 & 2` set skips the call), see
-   * ai_contact_raid_alarm_tail; then raw 100034 — the unconditional
-   * DS:0x54f6 word-zero: `(origin*9 + euro)*2 + 0x54f6` = the home
-   * settlement record's attitude[euro] word = tribe.alarm[euro],
-   * BOTH bytes, for EVERY kind including "Nothing" — the act of
-   * raiding itself discharges the village's accumulated grudge.
-   */
-  ai_contact_raid_alarm_tail(ctx, nation_id, target_euro, kind);
-  if (
-    ctx->col1->tribe && brave->home_tribe_id >= 0 &&
-    (uint16_t)brave->home_tribe_id < ctx->col1->head.tribe_count
-  ) {
-    col1_tribe_attitude_set(
-      &ctx->col1->tribe[brave->home_tribe_id], target_euro, 0
-    );
-  }
-  /*
-   * bugs.md: the raiding party does not survive its raid. DOS's only
-   * call site for FUN_5fef_0f14 is FUN_5fef_1b0e's loser limb (raw
-   * 101142): the native attacker has ALREADY been destroyed by the
-   * combat resolve before the raid resolver runs — @RAIDNOTHING even
-   * says so in as many words ("raiding party wiped out"). The port's
-   * pulse reaches 0f14 without a combat, so it has to discharge the
-   * raider itself; without this the Brave stayed parked on the colony
-   * tile and re-raided it every single turn, forever, at no risk.
-   */
-  units_despawn(ctx->units, brave->id);
-}
-
-/*
- * Stage 3-5 driver: colony approach / loot / capture band.
- */
-COLONIZE_INTERNAL AiRaidStatus ai_contact_raid_stage_colony(struct ai_contact_raid_ctx* a) {
-  ColonizeTurnContext* const ctx = a->ctx;
-  ColonizeUnit* brave = a->brave;
-  ColonizeDosRng* const rng = a->rng;
-  const int attacked = a->attacked;
-  const int max_alarm = a->max_alarm;
-
-  /* 3–5. Colony approach / loot / capture. */
-  if (!attacked && ctx->colonies && brave->active) {
-    const int best_cid = ai_contact_raid_pick_colony(a);
-    if (best_cid >= 0) {
-      ColonizeColony* c = colonies_get_mut(ctx->colonies, best_cid);
-      if (!c) {
-        return AI_RAID_NEXT_BRAVE;
-      }
-      if (brave->x == c->x && brave->y == c->y) {
-        ai_contact_raid_resolve_on_tile(a, c);
-        return AI_RAID_NEXT_BRAVE;
-      } else if (max_alarm >= 70) {
-        /*
-         * Approach march only in high-friction capture band (≥70). Mid gate
-         * 40..69 keeps on-tile loot/combat but must not walk Braves — seed-100
-         * TURN4→5 is already at-war for some tribes; approach broke the golden.
-         * Cite: indian_raid_outcomes.md; golden_ai_turns.
-         */
-        int sdx = (c->x > brave->x) - (c->x < brave->x);
-        int sdy = (c->y > brave->y) - (c->y < brave->y);
-        {
-          ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, rng, NULL);
-          units_try_move_w(&w_, brave->id, brave->x + sdx, brave->y + sdy);
-        }
-      }
-    }
-  }
-  return AI_RAID_CONTINUE;
-}
-
-void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1) {
-    return;
-  }
-  if (nation_id < 4 || nation_id > 11 || !ctx->col1->tribe) {
-    return;
-  }
-  ai_contact_bind_names(ctx);
-  ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
-  ColonizeDosRng local;
-  ai_contact_local_rng(ctx, nation_id, &local);
-  ColonizeDosRng* rng = ctx->rng ? ctx->rng : &local;
-  /* Prefer isolated RNG for loot picks so pulse stream stays untouched if shared. */
-  rng = &local;
-
-  /*
-   * FUN_4d56_4528 / 5fef_0f14-shaped arms (thin):
-   *  1 gate → 2 adjacent combat → 3 colony approach → 4 @RAID* loot →
-   *  5 capture. (The old "stage 6 scout 359c displace/despawn" arm was
-   *  deleted 2026-09-18, bugs.md #499: FUN_4d56_359c is not an anti-Scout
-   *  sweep at all — raw 83481-83505 is the Enter-Hostile-Village wagon
-   *  outcome (@KILLWAGONS / @MADATWAGONS / @GRUDGEWAGONS), already ported as
-   *  ai_contact_enter_hostile_village. The arm's alarm 90/95 gates, 1/4 kill
-   *  roll and display-name Scout match had no DOS source.)
-   *
-   * FUN_4d56_2820 (~1.4k; thunk 2a1f_044c) is the meet/raid decision matrix
-   * DOS reaches before settlement enter. Its trade half is ported elsewhere
-   * (ai_contact_trade.c, `ai_contact_2820_begin`, 2026-08-29 rewrite) and the AI
-   * pulse reaches it through `ai_contact_auto_trade` — do NOT re-port the
-   * body here; this post-pulse path keeps the thin @RAID* / combat arms. Human `4528` `@ACTIONS` arm is ported (P8.8); `4528` VGA meet
-   * chrome and the alarmed act-pick mid-body remain PARKED.
-   * OpenCol stays on thin @RAID* / combat + equal-dist mil/tools/silver
-   * approach. Widgets Done structural (ai_popup); VGA PARKED. Mid-friction prefers non-mission
-   * villages (below). Cite: indian_raid_outcomes.md §10; indian_contact.md
-   * PORT DEBT; docs/port_plan.md FUN_4d56_2820; Marathon2 R6 PARK.
-   */
-  struct ai_contact_raid_ctx a;
-  memset(&a, 0, sizeof(a));
-  a.ctx = ctx;
-  a.ind = ind;
-  a.rng = rng;
-  a.nation_id = nation_id;
-  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-    ColonizeUnit* brave = &ctx->units->units[i];
-    /* Natives keep the DOS SPENT byte in moves — gate on remaining MP
-     * via the accessor, not the raw byte (audit: raw read skipped FRESH
-     * braves and admitted exhausted ones). */
-    if (!brave->active || brave->nation_id != nation_id ||
-        units_remaining_mp(ctx->units, brave->id) <= 0) {
-      continue;
-    }
-    if (units_is_sea(ctx->units, brave->id)) {
-      continue;
-    }
-    /* One limb per Brave per turn — a Brave that already resolved the
-     * peaceful 5bfb_022e visit (gift / convert / beg) this turn does not also
-     * raid. See the ai_contact_s_visit_brave_id note at the top of this file. */
-    if (ai_contact_brave_visited_this_turn(ctx, nation_id, brave->id)) {
-      continue;
-    }
-
-    /*
-     * 1. Gate: among Euros with friction/alarm ≥40, prefer Indian×Euro at-war
-     * (ai_diplo_indian_at_war / relation <50); then highest friction; tie-break
-     * lower ai_diplo_indian_relation (very-low <40 hostility).
-     * Cite: indian_raid_outcomes.md gate; FUN_4d56_4528 thin; fandom Alarm.
-     *
-     * Alarmed unit-act escort (outside quiet 14fe): idle Brave may
-     * units_follow_unit a same-nation lead already AI_MOVE/GOTO. Lead pick
-     * prefers goto toward raid-gate Euro colony; when max alarm≥55 the same
-     * peel is the alarmed branch (deep dir picker FUN_4d56_021a is ported in ai_native_021a.c).
-     * Quiet seed-100 pulse unchanged. Cite: units_follow_unit;
-     * indian_raid_outcomes.md §1.
-     */
-    if (brave->orders == UNITS_ORDER_NONE &&
-        !ai_contact_brave_home_grudge(ctx, brave) &&
-        units_remaining_mp(ctx->units, brave->id) > 0) {
-      const int lead =
-        ai_contact_escort_pick_lead(ctx, ind, nation_id, brave->id, brave);
-      if (lead >= 0 && units_follow_unit(ctx->units, brave->id, lead)) {
-        (void)units_advance_follow_one_step_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .rng=(ColonizeDosRng*)(ctx->rng)}, brave->id);
-        continue;
-      }
-    }
-    if (brave->orders == UNITS_ORDER_FOLLOW) {
-      (void)units_advance_follow_one_step_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .rng=(ColonizeDosRng*)(ctx->rng)}, brave->id);
-      continue;
-    }
-    int target_euro = -1;
-    int max_alarm = 0;
-    if (!ai_contact_raid_gate_target(ctx, ind, nation_id, &target_euro, &max_alarm)) {
-      continue;
-    }
-
-    a.brave = brave;
-    a.target_euro = target_euro;
-    a.max_alarm = max_alarm;
-    a.attacked = 0;
-    ai_contact_raid_stage_combat(&a);
-    if (ai_contact_raid_stage_colony(&a) == AI_RAID_NEXT_BRAVE) {
-      continue;
-    }
-  }
 }

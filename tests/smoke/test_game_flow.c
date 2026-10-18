@@ -1,10 +1,17 @@
 #include <stdio.h>
+#include "../common/test_runner.h"
 
 #include "core/game_loop.h"
 
 #include "tests/common/test_assets.h"
 
 int main(void) {
+  {
+    const int gate = tr_single_flow_gate("game_flow");
+    if (gate >= 0) {
+      return gate;
+    }
+  }
   const char* data_dir = "./test-assets";
   const char* save_dir = "./test-saves-flow";
   if (!test_assets_create(data_dir, 0)) {

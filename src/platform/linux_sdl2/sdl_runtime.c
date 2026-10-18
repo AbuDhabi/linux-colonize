@@ -512,9 +512,15 @@ bool platform_poll_input(ColonizePlatform* platform, ColonizeInputState* out_inp
           }
         }
         break;
-      case SDL_KEYDOWN:
-        out_input->last_key = map_key(event.key.keysym.sym);
+      case SDL_KEYDOWN: {
+        /* An unmapped key (Shift etc.) must not erase a mapped one from the
+         * same poll. */
+        const ColonizeKey k = map_key(event.key.keysym.sym);
+        if (k != COLONIZE_KEY_NONE) {
+          out_input->last_key = k;
+        }
         break;
+      }
       case SDL_WINDOWEVENT:
         /*
          * bugs.md: after alt-tabbing away mid-press (or releasing the button
@@ -538,8 +544,10 @@ bool platform_poll_input(ColonizePlatform* platform, ColonizeInputState* out_inp
         }
         break;
       case SDL_TEXTINPUT:
-        if (event.text.text[0] && out_input->text_input_len + 1 < COLONIZE_TEXT_INPUT_MAX) {
-          /* Take first byte of each text event (ASCII names). */
+        /* ASCII only: every consumer (text_edit, hotkeys) is 7-bit, and the
+         * lead byte of a multibyte UTF-8 char would insert garbage. */
+        if (event.text.text[0] && (unsigned char)event.text.text[0] < 0x80 &&
+            out_input->text_input_len + 1 < COLONIZE_TEXT_INPUT_MAX) {
           out_input->text_input[out_input->text_input_len++] = event.text.text[0];
           out_input->text_input[out_input->text_input_len] = '\0';
         }
@@ -566,10 +574,10 @@ void platform_set_mouse_cursor_default(ColonizePlatform* platform) {
   if (platform->default_cursor) {
     SDL_SetCursor(platform->default_cursor);
   } else {
-    SDL_Cursor* arrow = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
-    if (arrow) {
-      SDL_SetCursor(arrow);
-      /* Leak one system cursor if default was null — rare. */
+    /* Create once and keep it as the default (SDL_Quit frees cursors). */
+    platform->default_cursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
+    if (platform->default_cursor) {
+      SDL_SetCursor(platform->default_cursor);
     }
   }
   platform->game_cursor_active = false;

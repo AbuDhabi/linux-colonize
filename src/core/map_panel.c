@@ -834,8 +834,11 @@ static bool map_panel_type_detail_mode(
     if (stack) {
       const char* expert =
         (u->profession == UNITS_JOB_PIONEER) ? reports_misc_display_word(4, "") : "";
+      if (!expert) {
+        expert = "";
+      }
       snprintf(
-        out, out_size, "%s%s%d %s", expert, (expert && expert[0]) ? " " : "", u->tools,
+        out, out_size, "%s%s%d %s", expert, expert[0] ? " " : "", u->tools,
         map_panel_cargo_name(names, COLONIZE_CARGO_TOOLS)
       );
     } else {

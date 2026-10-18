@@ -8,59 +8,6 @@
  */
 
 /*
- * Series L negative: preset sticky=2 with unmet Indian relations → euro_balance
- * hostility_sync clears sticky (stance mil nibble / unload gate closes). Live
- * very-low relation (sticky positive smoke) is required for peacetime unload.
- * Cite: ai_diplo_indian_hostility_sync; Series L.
- */
-static int unit_unload_stance0_no_sticky(void) {
-  const int nation = 1;
-
-  ColonizeCol1Save col1;
-  col1_save_init(&col1);
-  memset(col1.nation, 0, sizeof(col1.nation));
-  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
-  for (int i = 0; i < 4; ++i) {
-    col1.player[i].control = 0;
-    col1.player[i].diplomacy = 0;
-  }
-  ai_diplo_indian_hostility_set(nation, 2);
-
-  ColonizeWorldMap map;
-  if (!fx_map_alloc(&map, 8, 8, 1, false)) {
-    return fail("zunload alloc map");
-  }
-
-  ColonizeUnitPool units;
-  fx_units_init(&units);
-  ColonizeColonyPool colonies;
-  fx_colonies_init(&colonies);
-
-  ai_goals_reset();
-  uint32_t turn = 12;
-  ColonizeTurnContext ctx;
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.turn_number = &turn;
-  ctx.units = &units;
-  ctx.colonies = &colonies;
-  ctx.map = &map;
-  ctx.col1 = &col1;
-  ctx.col1_ok = true;
-  ctx.rng_seed = 9;
-
-  ai_euro_dispatcher_turn(&ctx, nation);
-
-  if (ai_diplo_indian_hostility_sticky(&col1, nation) != 0) {
-    fx_map_free(&map);
-    return fail("unmet relations should clear sticky (stance0 / mil path closed)");
-  }
-
-  fx_map_free(&map);
-  fprintf(stderr, "unit_ai_euro_war: stance0 sticky-clear skip mil path ok\n");
-  return 0;
-}
-
-/*
  * Threatened-port unload: Regular-only cargo → unload Regular. Cite: king_ref
  * MoW Regular-prefer; euro_unit_act §2b2.
  */
@@ -503,17 +450,8 @@ static int unit_war_transport_threatened_colony(void) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 25, false)) {
     return fail("wtrans alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 25; /* ocean */
   }
   /* Land colony at (4,4); coastal via water neighbours. */
   map.terrain[4 * 16 + 4] = 1;
@@ -680,17 +618,8 @@ static int unit_mow_war_transport_threatened(void) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 25, false)) {
     return fail("mowtrans alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 25; /* ocean */
   }
   /* Land colony at (4,4); coastal via water neighbours. */
   map.terrain[4 * 16 + 4] = 1;
@@ -836,17 +765,8 @@ static int unit_frigate_war_transport_threatened(void) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 25, false)) {
     return fail("frigtrans alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 25; /* ocean */
   }
   /* Land colony at (4,4); coastal via water neighbours. */
   map.terrain[4 * 16 + 4] = 1;
@@ -1047,7 +967,6 @@ static int unit_unload_runs_3180_ai_encounter(void) {
 
 static const TestCase k_cases[] = {
     {"unit_unload_runs_3180_ai_encounter", unit_unload_runs_3180_ai_encounter},
-    {"unit_unload_stance0_no_sticky", unit_unload_stance0_no_sticky},
     {"unit_unload_regular_threatened", unit_unload_regular_threatened},
     {"unit_unload_continental_army_threatened", unit_unload_continental_army_threatened},
     {"unit_unload_continental_cavalry_threatened", unit_unload_continental_cavalry_threatened},

@@ -115,7 +115,6 @@ const char* units_combat_nation_label(const ColonizeCol1Save* col1, int nation_i
 const char* units_combat_nation_label_plural(const ColonizeCol1Save* col1, int nation_id);
 void units_combat_outcome_popups( const ColonizeUnitPool* pool, const ColonizeUnit* win, const ColonizeUnit* lose, int atk_wins, int atk_nation, int def_nation, int is_naval, int ambush, const ColonizeCol1Save* col1 );
 int units_domain_blocker_at( const ColonizeUnitPool* pool, int x, int y, int mover_id, int mover_nation );
-int units_drake_scale_strength( const ColonizeUnitPool* pool, const ColonizeUnit* unit, int strength, const ColonizeCol1Save* col1 );
 void units_finish_village_temp_defender( ColonizeUnitPool* pool, ColonizeCol1Save* col1, ColonizeWorldMap* map, int temp_id, int attacker_won, int attacker_nation, int village_x, int village_y, int attacker_x, int attacker_y, ColonizeDosRng* rng );
 const char* units_home_port_name(const ColonizeCol1Save* col1, int nation_id);
 void units_indian_attack_alarm_vent( const ColonizeCol1Save* col1, int atk_nation, int def_nation, int delta );
@@ -146,7 +145,6 @@ void units_sentry_wake_scan( ColonizeUnitPool* pool, const ColonizeWorldMap* map
 bool units_village_squat_illegal( const ColonizeUnitPool* pool, const ColonizeUnitType* type, const ColonizeUnit* mover, const ColonizeWorldMap* map, int x, int y, int mover_nation, const ColonizeColonyPool* colonies );
 
 /* --- owned by units_capture.c --- */
-bool units_can_afford_move_cost(const ColonizeUnitPool* pool, int unit_id, int cost);
 bool units_revere_defend_colony_tile( ColonizeUnitPool* pool, ColonizeColonyPool* colonies, int attacker_id, int dest_x, int dest_y, ColonizeDosRng* rng );
 int units_spawn_colony_temp_defender( ColonizeUnitPool* pool, const ColonizeColony* col, bool revere_armed );
 void units_try_capture_foreign_colony( ColonizeUnitPool* pool, ColonizeColonyPool* colonies, int unit_id );

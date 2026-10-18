@@ -506,10 +506,10 @@ static int case_530_native_step_wakes_landfall(void) {
       f->moves = 0;
     }
     ColonizeDosRng rng;
-    dos_rng_seed(&rng, (uint32_t)(seed * 12345 + 7));
+    dos_rng_seed(&rng, (uint32_t)seed * 12345u + 7u);
     int steps = 0;
     (void)ai_native_brave_step(&units, &map, &col1, &rng, 4, false, b,
-                              5, 5, 0, 3, 0, &steps);
+                              3, 0, &steps);
     int rc = 0;
     if (b->active && (b->x != 5 || b->y != 5)) {
       saw_move = 1;

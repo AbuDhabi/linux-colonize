@@ -9,6 +9,7 @@
  * calendar advanced and both sides still carry Euro+Brave units.
  */
 #include "core/ai_diplo.h"
+#include "../common/test_runner.h"
 #include "core/assets.h"
 #include "core/col1_bridge.h"
 #include "core/col1_save.h"
@@ -194,6 +195,12 @@ static int run_mid01_to_mid02(void) {
 }
 
 int main(void) {
+  {
+    const int gate = tr_single_flow_gate("ai_mid01");
+    if (gate >= 0) {
+      return gate;
+    }
+  }
   char err[256];
 
   if (write_mid01_from_turn7() != 0) {

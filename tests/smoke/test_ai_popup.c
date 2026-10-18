@@ -120,6 +120,32 @@ static int case_queue_overflow(void) {
   return 0;
 }
 
+/* bugs.md #1117: a dropped enqueue must not let set_last_* patch the
+ * previous (unrelated) request. */
+static int case_set_last_after_dropped_enqueue(void) {
+  static AiPopupState st;
+  ai_popup_init(&st);
+  for (int i = 0; i < AI_POPUP_QUEUE_MAX; ++i) {
+    if (!ai_popup_enqueue_ok(&st, AI_POPUP_TAG_INFO, NULL, "x")) {
+      return fail("fill queue");
+    }
+  }
+  AiPopupRequest before = st.queue[AI_POPUP_QUEUE_MAX - 1];
+  if (ai_popup_enqueue_ok(&st, AI_POPUP_TAG_INFO, NULL, "overflow")) {
+    return fail("overflow should fail");
+  }
+  ai_popup_set_last_portrait(&st, 3, 2);
+  ai_popup_set_last_graphic_mss(&st, 1);
+  ai_popup_set_last_graphic_myr(&st, 1);
+  const AiPopupRequest* last = &st.queue[AI_POPUP_QUEUE_MAX - 1];
+  if (last->portrait_tribe != before.portrait_tribe ||
+      last->portrait_tier != before.portrait_tier ||
+      last->graphic_mss != before.graphic_mss || last->graphic_myr != before.graphic_myr) {
+    return fail("set_last_* patched the last real entry after a dropped enqueue");
+  }
+  return 0;
+}
+
 /* Presentation tags: FA / King letter / Congress FF (chrome only). */
 static int case_chrome_tags(void) {
   AiPopupState st;
@@ -155,6 +181,7 @@ static const TestCase k_cases[] = {
     {"case_choice_flow", case_choice_flow},
     {"case_queue_overflow", case_queue_overflow},
     {"case_chrome_tags", case_chrome_tags},
+    {"case_set_last_after_dropped_enqueue", case_set_last_after_dropped_enqueue},
 };
 
 TEST_MAIN(k_cases)

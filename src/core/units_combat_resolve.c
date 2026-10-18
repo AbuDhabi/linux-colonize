@@ -510,15 +510,19 @@ bool units_resolve_land_combat_ff_w(
             (ColonizeCol1Save*)col1,
             col1 != NULL,
             rng,
-            NULL
+            g_units_combat_europe
           );
+          /* 0f14's human-victim chrome + @RAIDWREAK need the queue (#1093). */
+          raid_w.ai_popups = g_units_combat_popups;
+          raid_w.messages = g_units_combat_game_txt;
           (void)g_units_raid_repelled(
             &raid_w,
             atk_nation,
             def_nation,
             raid_cid,
             lose_snap.home_tribe_id,
-            forced
+            forced,
+            g_units_combat_human_nation
           );
         }
       }
@@ -578,21 +582,6 @@ int units_plunder_ship_holds(ColonizeUnitPool* pool, int winner_id, int loser_id
     }
   }
   return moved;
-}
-
-bool units_resolve_naval_combat(
-  ColonizeUnitPool* pool,
-  int attacker_id,
-  int defender_id,
-  ColonizeDosRng* rng
-) {
-  /*
-   * Use g_units_ff_col1 so AI/king callers (ai_euro / ai_king naval attack)
-   * get Drake privateer *3/2 when turn_refresh_moves_for_nation →
-   * units_set_ff_col1 has run. Cite: PEDIA/wiki Francis Drake (+50%);
-   * founding_fathers.c FF_FRANCIS_DRAKE (*3/2).
-   */
-  return units_resolve_naval_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .col1=(ColonizeCol1Save*)(g_units_ff_col1), .col1_ok=((g_units_ff_col1) != NULL), .rng=(ColonizeDosRng*)(rng)}, attacker_id, defender_id);
 }
 
 bool units_resolve_naval_combat_ff_w(
@@ -674,13 +663,9 @@ bool units_resolve_naval_combat_ff_w(
         tok.string1 = dt->name[0] ? dt->name : "";
         tok.string2 = units_combat_nation_label(col1, atk->nation_id);
         tok.string3 = at->name[0] ? at->name : "";
-        char fb[AI_POPUP_BODY_LEN];
-        snprintf(
-          fb, sizeof(fb), "%s %s evades %s %s.",
-          tok.string0, tok.string1, tok.string2, tok.string3
-        );
+        /* GAME.TXT @EVASIVE only; a catalog miss is "" (bugs.md #1099). */
         units_combat_enqueue_tok(
-          AI_POPUP_TAG_COMBAT_SHIP, "EVASIVE", def->nation_id, atk->nation_id, 0, &tok, fb
+          AI_POPUP_TAG_COMBAT_SHIP, "EVASIVE", def->nation_id, atk->nation_id, 0, &tok, ""
         );
       }
       units_combat_pump_popups();

@@ -30,6 +30,27 @@
 #include "core/turn.h"
 #include "core/units.h"
 
+/* The one "bring a read .SAV up into live pools" sequence, shared by
+ * golden_open, tools/ai_replay_main.c and tools/render_common.c (bugs.md
+ * #1120: three drifting copies of game_apply_col1_save). It follows that
+ * function's order: module-static resets, fresh pools + catalogs, europe
+ * tables, col1_bridge_apply_w, then the two post-bridge repairs. `save` is
+ * already read and `names` loaded (NAMES.TXT). `units`, `colonies`, `map`
+ * and `europe` are zeroed/rebuilt here. With `data_dir` the full europe_load
+ * runs (renderers want the art); NULL runs europe_load_tables(names) only. */
+typedef struct {
+  ColonizeCol1Save* save;
+  const ColonizeMsgCatalog* names;
+  const char* data_dir;
+  ColonizeUnitPool* units;
+  ColonizeColonyPool* colonies;
+  ColonizeWorldMap* map;
+  EuropeScreen* europe;
+  ColonizeCol1BridgeResult* br;
+} SavLoad;
+
+bool sav_load_into_pools(const SavLoad* sl, char* err, size_t err_size);
+
 typedef struct {
   /* start: bridged in, then turn_end()+capture write the post-turn state
    * back into it. expect: the real-DOS post-turn save. orig: an untouched

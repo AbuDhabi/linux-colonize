@@ -1,4 +1,5 @@
 #include "test_units_common.h"
+#include "../common/test_runner.h"
 #include "core/units_internal.h"
 
 
@@ -218,7 +219,6 @@ static int unit_event_sfx_active_id_mock(void) {
 static int unit_combat_sfx_visibility(void) {
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
-  memset(&pool, 0, sizeof(pool));
   pool.type_count = 2;
   snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Soldiers");
   pool.types[0].attack = 99;
@@ -391,7 +391,6 @@ static int unit_combat_sfx_visibility(void) {
 static int unit_combat_music_sting(void) {
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
-  memset(&pool, 0, sizeof(pool));
   pool.type_count = 2;
   snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Soldiers");
   pool.types[0].attack = 99; /* attacker always wins: loser stays put, not despawned */
@@ -469,21 +468,11 @@ static int unit_combat_music_sting(void) {
 static int unit_native_tile_attack_alarm(void) {
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 8;
-  map.height = 8;
-  map.tile_count = 64;
-  map.terrain = calloc(64, 1);
-  map.layer2 = calloc(64, 1);
-  map.layer3 = calloc(64, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 8, 8, 2, false)) {
     return 1;
-  }
-  for (int i = 0; i < 64; ++i) {
-    map.terrain[i] = 2; /* plains */
   }
 
   ColonizeUnitPool pool;
-  memset(&pool, 0, sizeof(pool));
   memset(&pool, 0, sizeof(pool));
   pool.type_count = 2;
   snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Soldiers");
@@ -575,9 +564,7 @@ static int unit_native_tile_attack_alarm(void) {
 
   units_set_ff_col1(NULL);
   col1.tribe = NULL;
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   if (rc == 0) {
     fprintf(stderr, "unit_units: native tile attack alarm (465b) ok\n");
   }
@@ -597,13 +584,7 @@ static int unit_capture_ring_and_alarm_vent(void) {
   int rc = 0;
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 8;
-  map.height = 8;
-  map.tile_count = 64;
-  map.terrain = calloc(64, 1);
-  map.layer2 = calloc(64, 1);
-  map.layer3 = calloc(64, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 8, 8, 0, false)) {
     return 1;
   }
   for (int i = 0; i < 64; ++i) {
@@ -784,9 +765,7 @@ done:
   units_set_occupancy_map(NULL);
   colonies_set_occupancy_map(NULL);
   units_set_combat_colonies(NULL);
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   if (rc == 0) {
     fprintf(stderr, "unit_units: capture ring + 1b0e alarm vent ok\n");
   }
@@ -881,19 +860,12 @@ static int unit_village_raze_tail(void) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 10;
-  map.height = 10;
-  map.tile_count = 100;
-  map.terrain = calloc(100, 1);
-  map.layer2 = calloc(100, 1);
-  map.layer3 = calloc(100, 1);
-  map.improve = calloc(100, 1);
+  if (!fx_map_alloc(&map, 10, 10, 0, false)) {
+    return 1;
+  }
   ColonizeCol1Tribe* tribes = calloc(3, sizeof(ColonizeCol1Tribe));
   if (!map.terrain || !map.layer2 || !map.layer3 || !map.improve || !tribes) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.improve);
+    fx_map_free(&map);
     free(tribes);
     return 1;
   }
@@ -1010,10 +982,7 @@ static int unit_village_raze_tail(void) {
   }
 
   units_set_occupancy_map(NULL);
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
-  free(map.improve);
+  fx_map_free(&map);
   free(tribes);
   if (rc == 0) {
     fprintf(stderr, "unit_units: village raze tail (#550-#552) ok\n");
@@ -1062,16 +1031,8 @@ static int unit_artillery_loss_water_gate(void) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 8;
-  map.height = 8;
-  map.tile_count = 64;
-  map.terrain = calloc(64, 1);
-  map.layer2 = calloc(64, 1);
-  map.layer3 = calloc(64, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+  if (!fx_map_alloc(&map, 8, 8, 0, false)) {
+    fx_map_free(&map);
     return 1;
   }
   for (int i = 0; i < 64; ++i) {
@@ -1159,9 +1120,7 @@ static int unit_artillery_loss_water_gate(void) {
 
   units_set_occupancy_map(NULL);
   units_set_ff_col1(NULL);
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   if (rc == 0) {
     fprintf(stderr, "unit_units: artillery loss water/hull gate (#756/#757) ok\n");
   }
@@ -1194,20 +1153,9 @@ static int unit_brave_vs_human_artillery_autoloss(void) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 8;
-  map.height = 8;
-  map.tile_count = 64;
-  map.terrain = calloc(64, 1);
-  map.layer2 = calloc(64, 1);
-  map.layer3 = calloc(64, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+  if (!fx_map_alloc(&map, 8, 8, 2, false)) {
+    fx_map_free(&map);
     return 1;
-  }
-  for (int i = 0; i < 64; ++i) {
-    map.terrain[i] = 2; /* plains */
   }
   units_set_occupancy_map(&map);
 
@@ -1237,7 +1185,7 @@ static int unit_brave_vs_human_artillery_autoloss(void) {
       ColonizeDosRng rng;
       /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
        * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
-      dos_rng_seed(&rng, (unsigned)(seed * 9973 + 4271));
+      dos_rng_seed(&rng, (unsigned)seed * 9973u + 4271u);
       if (units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, aid, did)) {
         fprintf(stderr, "brave_arty: seed %d — Brave beat HUMAN Artillery\n", seed);
         rc = 1;
@@ -1259,7 +1207,7 @@ static int unit_brave_vs_human_artillery_autoloss(void) {
       ColonizeDosRng rng;
       /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
        * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
-      dos_rng_seed(&rng, (unsigned)(seed * 9973 + 4271));
+      dos_rng_seed(&rng, (unsigned)seed * 9973u + 4271u);
       if (units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, aid, did)) {
         ++ai_def_wins;
       }
@@ -1287,7 +1235,7 @@ static int unit_brave_vs_human_artillery_autoloss(void) {
       ColonizeDosRng rng;
       /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
        * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
-      dos_rng_seed(&rng, (unsigned)(seed * 9973 + 4271));
+      dos_rng_seed(&rng, (unsigned)seed * 9973u + 4271u);
       if (units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, aid, did)) {
         ++armed_wins;
       }
@@ -1303,9 +1251,7 @@ static int unit_brave_vs_human_artillery_autoloss(void) {
   units_set_combat_human_nation(-1);
   units_set_ff_col1(NULL);
   units_set_occupancy_map(NULL);
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   if (rc == 0) {
     fprintf(stderr, "unit_units: Brave vs human Artillery auto-loss (1b0e) ok\n");
   }
@@ -1385,20 +1331,9 @@ static int unit_1b0e_resolve_handicaps(void) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 8;
-  map.height = 8;
-  map.tile_count = 64;
-  map.terrain = calloc(64, 1);
-  map.layer2 = calloc(64, 1);
-  map.layer3 = calloc(64, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+  if (!fx_map_alloc(&map, 8, 8, 2, false)) {
+    fx_map_free(&map);
     return 1;
-  }
-  for (int i = 0; i < 64; ++i) {
-    map.terrain[i] = 2; /* plains */
   }
   units_set_occupancy_map(&map);
 
@@ -1448,9 +1383,7 @@ static int unit_1b0e_resolve_handicaps(void) {
       d_human_off < 0 || d_ai_off < 0) {
     fprintf(stderr, "1b0e-handicap: spawn failed\n");
     units_set_occupancy_map(NULL);
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return 1;
   }
   units_get(&pool, a_ai)->nation_id = 1;
@@ -1625,9 +1558,7 @@ static int unit_1b0e_resolve_handicaps(void) {
   }
 
   units_set_occupancy_map(NULL);
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   if (rc == 0) {
     fprintf(stderr, "unit_units: 1b0e resolve handicaps ok\n");
   }
@@ -1674,20 +1605,9 @@ static int unit_1b0e_defender_bonus_live(void) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 8;
-  map.height = 8;
-  map.tile_count = 64;
-  map.terrain = calloc(64, 1);
-  map.layer2 = calloc(64, 1);
-  map.layer3 = calloc(64, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+  if (!fx_map_alloc(&map, 8, 8, 2, false)) {
+    fx_map_free(&map);
     return 1;
-  }
-  for (int i = 0; i < 64; ++i) {
-    map.terrain[i] = 2; /* plains */
   }
   units_set_occupancy_map(&map);
 
@@ -1762,7 +1682,7 @@ static int unit_1b0e_defender_bonus_live(void) {
         ColonizeDosRng rng;
         /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
        * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
-      dos_rng_seed(&rng, (unsigned)(seed * 9973 + 4271));
+      dos_rng_seed(&rng, (unsigned)seed * 9973u + 4271u);
         won[i] = is_naval ? units_resolve_naval_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, aid, did)
                           : units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, aid, did);
         wins[i] += won[i] ? 1 : 0;
@@ -1800,9 +1720,7 @@ static int unit_1b0e_defender_bonus_live(void) {
   units_set_ff_col1(NULL);
   units_set_combat_colonies(NULL);
   units_set_occupancy_map(NULL);
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   if (rc == 0) {
     fprintf(stderr, "unit_units: 1b0e colony-tail defence bonus reaches the roll ok\n");
   }
@@ -1870,6 +1788,71 @@ static int unit_royal_loss_tax_cut(void) {
  * Naval win against a STACK: DOS's 0ec0 sweep hands every stackmate on the
  * loser tile to 0352, so a won fight must leave none of them untouched.
  */
+/* bugs.md #1103: units_reset_hooks also drops the spawn gate/refused hooks,
+ * the combat popup/Europe/colony/human-nation/fallout wiring and the Combat
+ * Analysis presenter, so no session pointer outlives the world it named. */
+static int s_reset_hook_calls;
+
+static void reset_test_gate(void* user, int nation, int* external, bool* human, int* census) {
+  (void)user;
+  (void)nation;
+  (void)external;
+  (void)human;
+  (void)census;
+  s_reset_hook_calls++;
+}
+
+static void reset_test_refused(void* user, int nation) {
+  (void)user;
+  (void)nation;
+  s_reset_hook_calls++;
+}
+
+static void reset_test_presenter(const ColonizeCombatEngagement* eng, void* user) {
+  (void)eng;
+  (void)user;
+  s_reset_hook_calls++;
+}
+
+static int unit_reset_hooks_clears_wiring(void) {
+  static ColonizeUnitPool pool;
+  static ColonizeCol1Save col1;
+  static ColonizeColonyPool colonies;
+  static AiPopupState popups;
+  static ColonizeMsgCatalog txt;
+  static EuropeScreen europe;
+  ColonizeWorldMap map;
+  memset(&pool, 0, sizeof(pool));
+  memset(&map, 0, sizeof(map));
+  for (int i = 0; i < COLONIZE_UNITS_DOS_MAX; ++i) {
+    pool.units[i].active = true;
+    pool.units[i].id = pool.next_id++;
+  }
+  units_pool_sync(&pool);
+  units_set_spawn_gate_hook(reset_test_gate, &pool);
+  units_set_spawn_refused_hook(reset_test_refused);
+  units_set_combat_popups(&popups, &txt);
+  units_set_combat_europe(&europe);
+  units_set_combat_colonies(&colonies);
+  units_set_combat_human_nation(1);
+  units_set_native_fallout_context(&col1, &map, 50);
+  combat_analysis_set_presenter(reset_test_presenter, NULL);
+  units_reset_hooks();
+  s_reset_hook_calls = 0;
+  ColonizeCombatEngagement eng;
+  memset(&eng, 0, sizeof(eng));
+  combat_analysis_present_if_hooked(&eng);
+  const bool room = units_spawn_room(&pool, 1); /* full pool: refused, no hooks */
+  if (s_reset_hook_calls != 0 || room || g_units_combat_popups || g_units_combat_game_txt ||
+      g_units_combat_europe || g_units_combat_colonies || g_units_combat_human_nation != -1 ||
+      g_units_fallout_col1 || g_units_fallout_map) {
+    fprintf(stderr, "#1103 units_reset_hooks left wiring: calls=%d room=%d\n",
+            s_reset_hook_calls, (int)room);
+    return 1;
+  }
+  return 0;
+}
+
 static int unit_naval_stack_sweep(void) {
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
@@ -1896,18 +1879,9 @@ static int unit_naval_stack_sweep(void) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 8;
-  map.height = 8;
-  map.tile_count = 64;
-  map.terrain = calloc(64, 1);
-  map.layer2 = calloc(64, 1);
-  map.layer3 = calloc(64, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 8, 8, T_OCEAN, false)) {
     free(map.terrain); free(map.layer2); free(map.layer3);
     return 1;
-  }
-  for (int i = 0; i < 64; ++i) {
-    map.terrain[i] = T_OCEAN;
   }
   units_set_occupancy_map(&map);
   units_set_combat_colonies(NULL);
@@ -1978,60 +1952,20 @@ static int unit_naval_stack_sweep(void) {
   return rc;
 }
 
-int main(void) {
-  diag_init(0, NULL);
-  if (unit_royal_loss_tax_cut() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_combat_music_sting() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_fort_fire_dissolve_and_europe() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_combat_sfx_visibility() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_native_tile_attack_alarm() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_capture_ring_and_alarm_vent() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_brave_vs_human_artillery_autoloss() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_artillery_loss_water_gate() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_village_raze_tail() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_village_win_convert_on_attacker_tile() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_1b0e_resolve_handicaps() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_1b0e_defender_bonus_live() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_naval_stack_sweep() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  diag_shutdown();
-  return 0;
-}
+static const TestCase k_cases[] = {
+  {"unit_royal_loss_tax_cut", unit_royal_loss_tax_cut},
+  {"unit_combat_music_sting", unit_combat_music_sting},
+  {"unit_fort_fire_dissolve_and_europe", unit_fort_fire_dissolve_and_europe},
+  {"unit_combat_sfx_visibility", unit_combat_sfx_visibility},
+  {"unit_native_tile_attack_alarm", unit_native_tile_attack_alarm},
+  {"unit_capture_ring_and_alarm_vent", unit_capture_ring_and_alarm_vent},
+  {"unit_brave_vs_human_artillery_autoloss", unit_brave_vs_human_artillery_autoloss},
+  {"unit_artillery_loss_water_gate", unit_artillery_loss_water_gate},
+  {"unit_village_raze_tail", unit_village_raze_tail},
+  {"unit_village_win_convert_on_attacker_tile", unit_village_win_convert_on_attacker_tile},
+  {"unit_1b0e_resolve_handicaps", unit_1b0e_resolve_handicaps},
+  {"unit_1b0e_defender_bonus_live", unit_1b0e_defender_bonus_live},
+  {"unit_naval_stack_sweep", unit_naval_stack_sweep},
+  {"unit_reset_hooks_clears_wiring", unit_reset_hooks_clears_wiring},
+};
+TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

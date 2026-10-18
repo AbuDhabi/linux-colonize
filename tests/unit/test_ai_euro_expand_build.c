@@ -489,17 +489,8 @@ static int unit_peace_construction_stockade(void) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("peace-stockade alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1; /* plains */
   }
   /* Landlocked: FUN_5952_035e's cascade (asm 22da) puts a coastal colony whose
    * placement leaves it food-heavy on Docks before Stockade, and

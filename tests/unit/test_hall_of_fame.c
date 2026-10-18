@@ -9,6 +9,7 @@
 #endif
 
 #include "core/game_loop.h"
+#include "core/game_loop_internal.h"
 
 #include "tests/common/test_assets.h"
 #include "../common/test_runner.h"
@@ -264,11 +265,44 @@ static int case_overflow_cap(void) {
   return 0;
 }
 
+/* 5. #1115: an EMPTY leader field must not drop the fields after it, and the
+ * row survives a game_hof_save (temp file + rename) -> reload round trip. */
+static int case_empty_leader_round_trip(void) {
+  if (setup() != 0) return 1;
+  if (!test_assets_write_text_file(k_hof_path, "900||Dutch|1710|2|55|1|0|3\n")) {
+    fprintf(stderr, "failed to seed empty-leader HOF.TXT\n");
+    return 1;
+  }
+  ColonizeGameConfig cfg = {.data_dir = k_data_dir, .save_dir = k_save_dir};
+  for (int pass = 0; pass < 2; ++pass) {
+    ColonizeGameState* game = game_create(&cfg);
+    if (!game) {
+      fprintf(stderr, "game_create failed (empty leader pass %d)\n", pass);
+      return 1;
+    }
+    ColonizeHofEntryView e;
+    if (game_hof_count(game) != 1 || !game_hof_entry(game, 0, &e) || e.score != 900 ||
+        e.leader[0] != '\0' || strcmp(e.nation, "Dutch") != 0 || e.year != 1710 ||
+        e.difficulty != 2 || e.rating != 55 || !e.declared || e.achieved) {
+      fprintf(stderr, "empty-leader row mangled on pass %d\n", pass);
+      game_destroy(game);
+      return 1;
+    }
+    if (pass == 0) {
+      game_hof_save(game);
+    }
+    game_destroy(game);
+  }
+  remove(k_hof_path);
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"empty_table", case_empty_table},
     {"legacy_format", case_legacy_format},
     {"ranked_rerank_and_screen", case_ranked_rerank_and_screen},
     {"overflow_cap", case_overflow_cap},
+    {"empty_leader_round_trip", case_empty_leader_round_trip},
 };
 
 TEST_MAIN(k_cases)

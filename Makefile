@@ -17,7 +17,7 @@ test:
 ifdef T
 	@if [ ! -d build/debug ]; then cmake --preset debug; fi
 	cmake --build --preset debug --target $(T)
-	$(if $(CASE),COLONIZE_TEST_ONLY=$(CASE)) ./build/debug/$(T)
+	COLONIZE_UNITS_STRICT=1 $(if $(CASE),COLONIZE_TEST_ONLY=$(CASE)) ./build/debug/$(T)
 else
 	$(MAKE) build
 	ctest --preset debug

@@ -24,9 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int fail(const char* msg) {
-  fprintf(stderr, "unit_ai_contact: FAIL %s\n", msg);
-  return 1;
-}
+#define TEST_NAME "unit_ai_contact"
+#include "../common/test_fail.h"
 
 #endif /* COLONIZE_TEST_AI_CONTACT_COMMON_H */

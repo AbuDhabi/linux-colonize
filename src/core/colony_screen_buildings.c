@@ -234,7 +234,7 @@ void colony_screen_assign_slot_positions_ex(
   }
 }
 
-/* colonies_has_building_named's answer plus the building-type index, which
+/* The owned answer plus the building-type index, which
  * the slot renderer needs as a BUILDING.SS sprite id (audit CO-17: the bool
  * uses now call the colony.h helper; this spelling stays only for the id). */
 static int colony_screen_find_built(

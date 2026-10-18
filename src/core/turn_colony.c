@@ -98,17 +98,15 @@ static void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
       continue;
     }
     /*
-     * FUN_364b_0114 raw 56938: ++unit_type_counts[nation][unit_index]
-     * (DS:0x924c, stride 0x13) on every spawn. Without it two wagons finished
-     * in the same EOT both pass the cap, which reads the census window the
-     * EOT refresh only rewrites later.
+     * DOS-LITERAL FUN_364b_0114 raw 56938: ++unit_type_counts[nation][unit_index]
+     * (DS:0x924c, stride 0x13) on every spawn, a plain byte add with no
+     * saturation (same as the unguarded -- at FUN_5fef_0352 raw 99570).
+     * Without it two wagons finished in the same EOT both pass the cap, which
+     * reads the census window the EOT refresh only rewrites later.
      */
     if (ctx->col1_ok && ctx->col1 && uidx >= 0 && uidx < 19 && col->nation_id >= 0 &&
         col->nation_id < 4) {
-      uint8_t* slot = &ctx->col1->stuff.unit_type_counts[col->nation_id][uidx];
-      if (*slot < 0xffu) {
-        *slot = (uint8_t)(*slot + 1u);
-      }
+      ctx->col1->stuff.unit_type_counts[col->nation_id][uidx]++;
     }
     if (ctx->europe && col->nation_id == ctx->human_nation) {
       snprintf(ctx->europe->status, sizeof(ctx->europe->status), "%s completed.", name);

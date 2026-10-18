@@ -1,17 +1,18 @@
 #include "core/ai_diplo.h"
+#include "core/internal.h"
 
 /*
  * Sections:
- *  - War embargo/fatigue/upkeep bookkeeping (~line 138)
- *  - Indian diplomacy status bits, hostility sync, capital surrender & matrix tick (~line 418)
- *  - Diplomacy byte accessors, war/peace declarations & sound hook (~line 630)
- *  - Border garrison wake, 153e stack probes & worthiness scoring (~line 1159)
- *  - AI talk session helpers: names, gold, rng, unit recall & choice UI (~line 1849)
- *  - AI talk stage machine: peace offer, tribute, worthiness, alliance (~line 2031)
- *  - Leader traits & 153e encounter gating (~line 2775)
- *  - Treaty timers, military scoring & Euro relation balance tick (~line 3054)
- *  - Indian tension tier, alarm delta & relation accessors (~line 3477)
- *  - Talk reset, popup result application & privateer sighting (~line 3608)
+ *  - Forward declarations & retired war-friction notes (~line 114)
+ *  - Indian diplomacy status bits, hostility sync, capital surrender (~line 130)
+ *  - Diplomacy byte accessors, war/peace declarations & sound hook (~line 300)
+ *  - Border garrison wake, 153e stack probes & worthiness scoring (~line 643)
+ *  - AI talk session helpers: names, gold, rng, unit recall & choice UI (~line 1336)
+ *  - AI talk stage machine: peace offer, tribute, worthiness, alliance (~line 1529)
+ *  - Leader traits & 153e encounter gating (~line 2290)
+ *  - Treaty timers, military scoring & 13b0 encounter (~line 2585)
+ *  - Indian tension tier, alarm delta & relation accessors (~line 2879)
+ *  - Talk reset, popup result application & privateer sighting (~line 3036)
  */
 
 #include "core/ai_contact.h"
@@ -56,8 +57,8 @@
  * unknown26 indices; every site now names the col1_save.h union member) —
  * docs/archive/smell_audit_2026-09-09.md #22. */
 /* Off-map Europe tile (turn / ai_euro Europe gate x|y >= 200). */
-#define AI_DIPLO_EUROPE_X 236
-#define AI_DIPLO_EUROPE_Y 236
+#define AI_DIPLO_EUROPE_X EUROPE_PARK_XY
+#define AI_DIPLO_EUROPE_Y EUROPE_PARK_XY
 /* Same gate as ai_euro_in_europe — naval war hunt skips Europe until HS. */
 #define AI_DIPLO_IN_EUROPE(x, y) ((x) >= 200 || (y) >= 200)
 
@@ -70,8 +71,9 @@
  * FA gift, break trust) retired T2.4 2026-09-06.
  * Euro×Euro war does NOT boycott Europe cargos (DOS tea-party / king refuse
  * only). An invented wartime all-16-bit embargo was removed after
- * all_boycotted.SAV (1516, tax 0, boycott_bitmap 0xFFFF). Peace still
- * lifts leftover wartime bits on poisoned saves. The full per-rival 153e
+ * all_boycotted.SAV (1516, tax 0, boycott_bitmap 0xFFFF); the peace-side
+ * lift of those bits went with it (bugs.md #1104: DOS has no peace writer of
+ * nation+0x20 — FUN_5bfb_13b0 touches only the treaty timer). The full per-rival 153e
  * audience is LIVE (ai_diplo_153e_encounter below, 2026-09-06 close-out). */
 
 /* Retired: AI_DIPLO_WAR_GOLD_STING/TAX_BUMP/TAX_CAP. A war declare charges
@@ -86,22 +88,6 @@
  * per-turn charge has no DOS trace and compounds over a long war (conventions
  * "No per-turn drip effects without a DOS trace"). The human status-line chrome
  * that hung off it went with it. */
-#define AI_DIPLO_WAR_FOOD_EMBARGO_BIT (1u << COLONIZE_CARGO_FOOD)
-#define AI_DIPLO_WAR_EMBARGO_CARGO_BIT (1u << COLONIZE_CARGO_FURS)
-#define AI_DIPLO_WAR_TOBACCO_EMBARGO_BIT (1u << COLONIZE_CARGO_TOBACCO)
-#define AI_DIPLO_WAR_SUGAR_EMBARGO_BIT (1u << COLONIZE_CARGO_SUGAR)
-#define AI_DIPLO_WAR_COTTON_EMBARGO_BIT (1u << COLONIZE_CARGO_COTTON)
-#define AI_DIPLO_WAR_LUMBER_EMBARGO_BIT (1u << COLONIZE_CARGO_LUMBER)
-#define AI_DIPLO_WAR_HORSES_EMBARGO_BIT (1u << COLONIZE_CARGO_HORSES)
-#define AI_DIPLO_WAR_RUM_EMBARGO_BIT (1u << COLONIZE_CARGO_RUM)
-#define AI_DIPLO_WAR_CIGARS_EMBARGO_BIT (1u << COLONIZE_CARGO_CIGARS)
-#define AI_DIPLO_WAR_CLOTH_EMBARGO_BIT (1u << COLONIZE_CARGO_CLOTH)
-#define AI_DIPLO_WAR_COATS_EMBARGO_BIT (1u << COLONIZE_CARGO_COATS)
-#define AI_DIPLO_WAR_ORE_EMBARGO_BIT (1u << COLONIZE_CARGO_ORE)
-#define AI_DIPLO_WAR_SILVER_EMBARGO_BIT (1u << COLONIZE_CARGO_SILVER)
-#define AI_DIPLO_WAR_TRADE_GOODS_EMBARGO_BIT (1u << COLONIZE_CARGO_TRADE_GOODS)
-#define AI_DIPLO_WAR_TOOLS_EMBARGO_BIT (1u << COLONIZE_CARGO_TOOLS)
-#define AI_DIPLO_WAR_MUSKETS_EMBARGO_BIT (1u << COLONIZE_CARGO_MUSKETS)
 /* Retired: AI_DIPLO_WAR_TRADE_STING/WAR_COLONY_GAP. A sweep of all 103 gold
  * writes (`n * 0x13c + -0x77ce`) finds no constant-valued treasury decrement
  * anywhere in the game. docs/archive/smell_audit_2026-09-09.md follow-up A. */
@@ -126,9 +112,8 @@
 #define AI_DIPLO_STICKY_AT_WAR 1u
 #define AI_DIPLO_STICKY_DEEP 2u
 
-/* ===================== War embargo/fatigue/upkeep bookkeeping & privateer spawn (ai_diplo_war_embargo_lift_if_peace) ===================== */
+/* ===================== Forward declarations & retired war-friction notes ===================== */
 static uint8_t* ai_diplo_timer_byte(ColonizeCol1Save* col1, int nation, int peer);
-static uint16_t ai_diplo_wartime_boycott_mask(void);
 static void ai_diplo_popup_ok(
   ColonizeTurnContext* ctx,
   AiPopupTag tag,
@@ -143,31 +128,7 @@ static void ai_diplo_popup_ok(
  * Trap the tax bump carried: it wrote nation.tax_rate raw, bypassing
  * ai_king_audience_apply_delta and its europe->tax_percent mirror. */
 
-/*
- * Lift leftover wartime @CARGO embargo bits when a nation has no remaining
- * Euro×Euro wars. Declare no longer sets these (DOS tea-party only); this
- * still repairs poisoned 0xFFFF saves on peace. Raw PEACE writes do not lift.
- */
-static void ai_diplo_war_embargo_lift_if_peace(ColonizeCol1Save* col1, int nation_a, int nation_b) {
-  if (!col1) {
-    return;
-  }
-  /* One definition of the 16-bit mask — see ai_diplo_wartime_boycott_mask. */
-  const uint16_t lift = ai_diplo_wartime_boycott_mask();
-  for (int i = 0; i < 2; ++i) {
-    const int n = (i == 0) ? nation_a : nation_b;
-    if (n < 0 || n >= 4) {
-      continue;
-    }
-    if (ai_diplo_at_war_with_any(col1, n)) {
-      continue;
-    }
-    ColonizeCol1Nation* nat = &col1->nation[n];
-    nat->boycott_bitmap = (uint16_t)(nat->boycott_bitmap & (uint16_t)~lift);
-  }
-}
-
-/* ===================== Indian diplomacy status bits, hostility sync, capital surrender & matrix tick (ai_diplo_indian_read .. ai_diplo_indian_matrix_tick) ===================== */
+/* ===================== Indian diplomacy status bits, hostility sync, capital surrender (ai_diplo_indian_read .. ai_diplo_indian_capital_surrender) ===================== */
 uint8_t ai_diplo_indian_read(const ColonizeCol1Save* col1, int euro_nation, int indian_idx) {
   if (!col1 || euro_nation < 0 || euro_nation >= 4 || indian_idx < 0 || indian_idx >= 8) {
     return 0;
@@ -191,7 +152,7 @@ int ai_diplo_indian_at_war(const ColonizeCol1Save* col1, int euro_nation, int in
   return r < AI_DIPLO_INDIAN_AT_WAR_REL;
 }
 
-int ai_diplo_indian_any_at_war(const ColonizeCol1Save* col1, int euro_nation) {
+COLONIZE_INTERNAL int ai_diplo_indian_any_at_war(const ColonizeCol1Save* col1, int euro_nation) {
   if (!col1 || euro_nation < 0 || euro_nation >= 4) {
     return 0;
   }
@@ -213,7 +174,11 @@ uint8_t ai_diplo_indian_hostility_sticky(const ColonizeCol1Save* col1, int euro_
   return s_indian_hostility_sticky[euro_nation];
 }
 
-void ai_diplo_indian_hostility_set(int euro_nation, uint8_t value) {
+void ai_diplo_reset(void) {
+  memset(s_indian_hostility_sticky, 0, sizeof(s_indian_hostility_sticky));
+}
+
+COLONIZE_INTERNAL void ai_diplo_indian_hostility_set(int euro_nation, uint8_t value) {
   if (euro_nation >= 0 && euro_nation < 4) {
     s_indian_hostility_sticky[euro_nation] = value;
   }
@@ -337,59 +302,7 @@ void ai_diplo_indian_capital_surrender(
   ai_diplo_indian_hostility_sync(col1, euro_nation);
 }
 
-/*
- * euro_balance Indian matrix arm: sticky sync + human status chrome on
- * rise / clear / deep (102a/1092 widgets PARKED).
- *
- * The peace-feeler half of this tick, and the "Native relations improve."
- * chrome arm it fed, were deleted 2026-09-10 (audit #21). Both had been
- * unreachable since the peace feeler was retired to `return 0`
- * on 2026-08-27 (DOS has no per-turn Indian alarm decay — see there): the
- * `feeler_healed` flag could never be set, so the fourth chrome arm never
- * fired, and the `prev_sticky != DEEP` guard wrapped a call with no effect.
- */
-static void ai_diplo_indian_matrix_tick(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
-    return;
-  }
-  ColonizeCol1Save* col1 = ctx->col1;
-  const uint8_t prev_sticky = ai_diplo_indian_hostility_sticky(col1, nation_id);
-  ai_diplo_indian_hostility_sync(col1, nation_id);
-
-  const uint8_t sticky = ai_diplo_indian_hostility_sticky(col1, nation_id);
-  int native_chrome = 0;
-  if (ctx->human_nation == nation_id && ctx->status && ctx->status_size > 0) {
-    if (prev_sticky == AI_DIPLO_STICKY_CLEAR && sticky != AI_DIPLO_STICKY_CLEAR) {
-      /* Thin Contact/King status stand-in; full native-hostility dialog PARKED. */
-      snprintf(ctx->status, ctx->status_size, "Natives grow hostile.");
-      native_chrome = 1;
-    } else if (prev_sticky != AI_DIPLO_STICKY_CLEAR && sticky == AI_DIPLO_STICKY_CLEAR) {
-      /* Source: fandom / manual improve-relations feel after sticky clears
-       * (peace feeler / drift). Thin 102a/1092; FA UI PARKED. */
-      snprintf(ctx->status, ctx->status_size, "Native tensions ease.");
-      native_chrome = 1;
-    } else if (sticky == AI_DIPLO_STICKY_DEEP) {
-      /* Structural pressure chrome while deep sticky persists. */
-      snprintf(ctx->status, ctx->status_size, "Natives remain hostile.");
-      native_chrome = 1;
-    }
-  }
-  /* FUN_15b3 Indian hostility chrome → OK popup (INFO); status kept. */
-  if (native_chrome) {
-    ai_diplo_popup_ok(
-      ctx, AI_POPUP_TAG_INFO, nation_id, -1, ctx->status
-    );
-  }
-
-  /*
-   * The −2g/turn "harassment" drain that closed this function was retired
-   * 2026-09-09 (smell #49). It charged every Euro at war with any tribe, the
-   * human included, and had no DOS counterpart at all — see the
-   * AI_DIPLO_INDIAN_HARASS_GOLD note on the constants block.
-   */
-}
-
-/* ===================== Diplomacy byte accessors, war/peace declarations & sound hook (ai_diplo_timer_byte .. ai_diplo_make_peace_ctx) ===================== */
+/* ===================== Diplomacy byte accessors, war/peace declarations & sound hook (ai_diplo_timer_byte .. ai_diplo_make_peace) ===================== */
 static uint8_t* ai_diplo_timer_byte(ColonizeCol1Save* col1, int nation, int peer) {
   if (!col1 || nation < 0 || nation >= 4 || peer < 0 || peer >= 4 || nation == peer) {
     return NULL;
@@ -578,7 +491,6 @@ void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
    * here. */
 }
 
-/* Rival label for thin status: player.country_name or "rival". */
 /*
  * bugs.md #468: DOS fills every diplomacy %STRING with FUN_281f_09a4 →
  * FUN_15b3_01e0, the NAMES.TXT @NATIONALITY adjective ("Dutch", "Spanish";
@@ -587,7 +499,7 @@ void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
  */
 const char* ai_diplo_rival_name(const ColonizeCol1Save* col1, int nation) {
   if (nation < 0 || nation >= 4) {
-    return "rival";
+    return "";
   }
   const char* adj = reports_nation_adjective_woi(col1, nation);
   if (adj && adj[0] != '\0') {
@@ -596,7 +508,7 @@ const char* ai_diplo_rival_name(const ColonizeCol1Save* col1, int nation) {
   if (col1 && col1->player[nation].country_name[0] != '\0') {
     return col1->player[nation].country_name;
   }
-  return "rival";
+  return ""; /* catalog miss: empty, never typed text (bugs.md #1100) */
 }
 
 /* True when human_nation is a or b (human-facing chrome / popup gate). */
@@ -614,8 +526,7 @@ static int ai_diplo_involves_human(const ColonizeTurnContext* ctx, int nation_a,
 /*
  * Also enqueue map AI OK popup (FUN_15b3 / 5bfb 102a/1092 stand-in) when
  * ctx->ai_popups is set. Status line stays; full VGA dialog PARKED.
- * War re-declare uses !already (no spam); do not gate OK on tag+pair —
- * war boycott OK and peace Tools-lift OK share DIPLO_BOYCOTT.
+ * War re-declare uses !already (no spam).
  */
 /*
  * No title: ai_popup draws req->title as an extra heading line above the body
@@ -644,39 +555,9 @@ static void ai_diplo_popup_ok(
 }
 
 /*
- * Thin 102a/1092 status when human is a party (Contact/King ctx->status pattern).
- * Full multi-line dialog widgets PARKED.
- */
-static void ai_diplo_status_human_pair(
-  ColonizeTurnContext* ctx,
-  int nation_a,
-  int nation_b,
-  const char* fmt
-) {
-  if (!ctx || !ctx->col1 || !ctx->status || ctx->status_size == 0 || !fmt) {
-    return;
-  }
-  const int human = ctx->human_nation;
-  if (human < 0 || human >= 4) {
-    return;
-  }
-  int rival = -1;
-  if (nation_a == human) {
-    rival = nation_b;
-  } else if (nation_b == human) {
-    rival = nation_a;
-  } else {
-    return;
-  }
-  snprintf(ctx->status, ctx->status_size, fmt, ai_diplo_rival_name(ctx->col1, rival));
-}
-
-/*
  * @DECLAREWAR base line ("The {%STRING0} and {%STRING1} are now at war.") —
- * authentic GAME.TXT text for the war-declared OK popup body. Boycott/
- * hostility chrome in ai_diplo_declare_war_ctx may override this default
- * with a more specific status line when applicable (thin 102a/1092 stand-in;
- * full FA 3f41 dialog remains PARKED).
+ * authentic GAME.TXT text for the war-declared OK popup body (full FA 3f41
+ * dialog remains PARKED).
  */
 static void ai_diplo_status_pair_line(
   ColonizeTurnContext* ctx,
@@ -702,29 +583,6 @@ static void ai_diplo_status_declare_war(ColonizeTurnContext* ctx, int nation_a, 
   ai_diplo_status_pair_line(ctx, nation_a, nation_b, "DECLAREWAR", "");
 }
 
-/*
- * @SIGNTREATY base line ("The {%STRING0} and {%STRING1} have signed a peace
- * treaty.") — authentic GAME.TXT text for the peace-concluded OK popup body.
- * Tools-embargo-lift chrome in ai_diplo_make_peace_ctx may override this
- * default with the more specific line when applicable (thin 102a/1092
- * stand-in; full FA 3f41 dialog remains PARKED).
- */
-static void ai_diplo_status_sign_treaty(ColonizeTurnContext* ctx, int nation_a, int nation_b) {
-  ai_diplo_status_pair_line(ctx, nation_a, nation_b, "SIGNTREATY", "");
-}
-
-/* Full wartime 16-bit embargo mask (lift leftover bits; declare no longer sets). */
-static uint16_t ai_diplo_wartime_boycott_mask(void) {
-  return (uint16_t)(AI_DIPLO_WAR_FOOD_EMBARGO_BIT | AI_DIPLO_WAR_EMBARGO_CARGO_BIT |
-                    AI_DIPLO_WAR_TOBACCO_EMBARGO_BIT | AI_DIPLO_WAR_SUGAR_EMBARGO_BIT |
-                    AI_DIPLO_WAR_COTTON_EMBARGO_BIT | AI_DIPLO_WAR_LUMBER_EMBARGO_BIT |
-                    AI_DIPLO_WAR_HORSES_EMBARGO_BIT | AI_DIPLO_WAR_RUM_EMBARGO_BIT |
-                    AI_DIPLO_WAR_CIGARS_EMBARGO_BIT | AI_DIPLO_WAR_CLOTH_EMBARGO_BIT |
-                    AI_DIPLO_WAR_COATS_EMBARGO_BIT | AI_DIPLO_WAR_ORE_EMBARGO_BIT |
-                    AI_DIPLO_WAR_SILVER_EMBARGO_BIT | AI_DIPLO_WAR_TRADE_GOODS_EMBARGO_BIT |
-                    AI_DIPLO_WAR_TOOLS_EMBARGO_BIT | AI_DIPLO_WAR_MUSKETS_EMBARGO_BIT);
-}
-
 /* Sound hook (unit tests build ai_diplo.c without sound.c). */
 static void (*g_ai_diplo_sound_play)(int id) = NULL;
 void ai_diplo_set_sound_hook(void (*play_fn)(int id)) {
@@ -737,10 +595,6 @@ void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation
   }
   const int already = ai_diplo_at_war(ctx->col1, nation_a, nation_b);
   const int human = ctx->human_nation;
-  uint8_t sticky_before = AI_DIPLO_STICKY_CLEAR;
-  if (human >= 0 && human < 4) {
-    sticky_before = ai_diplo_indian_hostility_sticky(ctx->col1, human);
-  }
   ai_diplo_declare_war(ctx->col1, nation_a, nation_b);
   /* Franklin may no-op declare — only chrome when WAR actually stuck. */
   const int now_war = ai_diplo_at_war(ctx->col1, nation_a, nation_b);
@@ -753,91 +607,30 @@ void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation
     ai_diplo_status_declare_war(ctx, nation_a, nation_b);
     /*
      * The OK popup is the real @DECLAREWAR body (FUN_15b3 / 5bfb). The old
-     * "<cargo> boycott imposed." overrides were dead (declaring war no longer
-     * sets embargo bits) and the "Natives grow hostile." line is port chrome,
-     * so it stays on the status line only and never replaces the DOS text.
+     * "<cargo> boycott imposed." and "Natives grow hostile." overrides were
+     * port chrome and are gone (bugs.md #1104).
      */
     if (human >= 0 && human < 4 && (nation_a == human || nation_b == human) &&
         ctx->status && ctx->status_size > 0) {
       ai_diplo_popup_ok(ctx, AI_POPUP_TAG_DIPLO_WAR, nation_a, nation_b, ctx->status);
-      const uint8_t sticky_after = ai_diplo_indian_hostility_sticky(ctx->col1, human);
-      if (sticky_before == AI_DIPLO_STICKY_CLEAR && sticky_after != AI_DIPLO_STICKY_CLEAR) {
-        snprintf(ctx->status, ctx->status_size, "Natives grow hostile.");
-      }
     }
   }
 }
 
 /*
- * Thin make-peace (not full 153e peace dialog / 102a/1092):
- * clear WAR both ways, set PEACE|MET, lift all 16 wartime @CARGO boycotts
- * (Food+…+Cotton+…+Tools+Muskets) if no Euro wars remain (shared lift helper).
- * No gold cost (war sting/upkeep already drained treasury). When sticky was
- * at-war (==1) on either side, nudge Indian peace feeler once after WAR clear
- * (existing feeler path; restores improve-relations that Euro war blocked).
- * sticky==2 still refuses feeler (self-gated). Full 153e PARKED. Privateer
- * prize + once-per-war spawn bit are WAR-gated — peace stops prize and clears
- * Privateer spawn peer bits so the next war may commission again.
+ * Test fixture helper: clear WAR both ways, set PEACE|MET. No production
+ * caller — every DOS treaty is signed by FUN_5bfb_13b0
+ * (ai_diplo_13b0_treaty_tick). The old boycott lift, sticky re-sync and
+ * @SIGNTREATY/"Tools embargo lifted." chrome had no DOS counterpart and were
+ * deleted (bugs.md #1104).
  */
 void ai_diplo_make_peace(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   if (!col1 || nation_a < 0 || nation_a >= 4 || nation_b < 0 || nation_b >= 4 ||
       nation_a == nation_b) {
     return;
   }
-  const int was_war = ai_diplo_at_war(col1, nation_a, nation_b);
-  const uint8_t sticky_a = ai_diplo_indian_hostility_sticky(col1, nation_a);
-  const uint8_t sticky_b = ai_diplo_indian_hostility_sticky(col1, nation_b);
   ai_diplo_clear_both(col1, nation_a, nation_b, AI_DIPLO_WAR);
   ai_diplo_or_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET));
-  ai_diplo_war_embargo_lift_if_peace(col1, nation_a, nation_b);
-  /*
-   * Re-sync the sticky Indian-hostility byte on either side that was flagged
-   * at-war. The "peace feeler" heal that used to precede each sync was retired
-   * to a no-op on 2026-08-27 (DOS has no per-turn Indian relation decay) and
-   * the stub was deleted 2026-09-14; the syncs are the load-bearing half.
-   */
-  if (was_war) {
-    if (sticky_a == AI_DIPLO_STICKY_AT_WAR) {
-      ai_diplo_indian_hostility_sync(col1, nation_a);
-    }
-    if (sticky_b == AI_DIPLO_STICKY_AT_WAR) {
-      ai_diplo_indian_hostility_sync(col1, nation_b);
-    }
-  }
-}
-
-void ai_diplo_make_peace_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b) {
-  if (!ctx || !ctx->col1) {
-    return;
-  }
-  const int was_war = ai_diplo_at_war(ctx->col1, nation_a, nation_b);
-  const int human = ctx->human_nation;
-  uint16_t tools_before = 0;
-  if (human >= 0 && human < 4) {
-    tools_before =
-      (uint16_t)(ctx->col1->nation[human].boycott_bitmap & AI_DIPLO_WAR_TOOLS_EMBARGO_BIT);
-  }
-  ai_diplo_make_peace(ctx->col1, nation_a, nation_b);
-  if (was_war) {
-    ai_diplo_status_sign_treaty(ctx, nation_a, nation_b);
-    /*
-     * Tools embargo lift chrome when human had Tools bit and peace cleared it
-     * (no remaining Euro wars). Prefer Tools line over peace when applicable.
-     * Also enqueue AI OK popup (FUN_15b3 / 5bfb 102a/1092); status kept.
-     */
-    if (human >= 0 && human < 4 && (nation_a == human || nation_b == human)) {
-      const uint16_t tools_after =
-        (uint16_t)(ctx->col1->nation[human].boycott_bitmap & AI_DIPLO_WAR_TOOLS_EMBARGO_BIT);
-      /* The OK popup is the real @SIGNTREATY body; the Tools-lift line is
-       * port chrome and stays on the status line only. */
-      if (ctx->status && ctx->status[0] != '\0') {
-        ai_diplo_popup_ok(ctx, AI_POPUP_TAG_DIPLO_PEACE, nation_a, nation_b, ctx->status);
-      }
-      if (tools_before != 0 && tools_after == 0 && ctx->status && ctx->status_size > 0) {
-        snprintf(ctx->status, ctx->status_size, "Tools embargo lifted.");
-      }
-    }
-  }
 }
 
 /*
@@ -1027,9 +820,11 @@ int ai_diplo_00f8_top_ranked_nation(const ColonizeCol1Save* col1) {
   int idx[4] = {0, 1, 2, 3};
   long score[4];
   for (int n = 0; n < 4; ++n) {
-    const ColonizeCol1Nation* nat = &col1->nation[n];
-    score[n] = (long)(nat->gold / 100u) + (long)col1->stuff.colony_counts[n] * 2 +
-               (long)col1->stuff.census_pop_proxy[n] + (long)col1->stuff.land_combat_strength[n];
+    /* Live purse for the human (eu->gold via the registered live screen),
+     * record for the rest — bugs.md #1095. */
+    score[n] = (long)(europe_nation_gold(NULL, col1, n) / 100u) +
+               (long)col1->stuff.colony_counts[n] * 2 + (long)col1->stuff.census_pop_proxy[n] +
+               (long)col1->stuff.land_combat_strength[n];
   }
   for (int i = 1; i < 4; ++i) { /* insertion sort, stable */
     const int v = idx[i];
@@ -1243,7 +1038,6 @@ Ai153eWorthinessScore ai_diplo_153e_worthiness_score(
     return out; /* DS:0x5382 bit0 */
   }
 
-  const ColonizeCol1Nation* nat_self = &col1->nation[self];
   const ColonizeCol1Nation* nat_target = &col1->nation[target];
   const int difficulty = col1->head.difficulty;
   const int turn = col1->head.turn;
@@ -1428,7 +1222,7 @@ Ai153eWorthinessScore ai_diplo_153e_worthiness_score(
    * when the score exceeds the treasury but not twice it, and the treasury
    * holds at least 300, round the score down to the treasury in 50s. */
   {
-    const long gold = (long)nat_self->gold;
+    const long gold = (long)europe_nation_gold(ctx->europe, col1, self); /* live purse, #1095 */
     if (gold < (long)combat_delta_sum) {
       if ((long)combat_delta_sum <= gold * 2 && gold >= 300) {
         combat_delta_sum = (int)((gold / 50) * 50);
@@ -2790,7 +2584,7 @@ static int ai_diplo_153e_encounter_gated(
   return 1;
 }
 
-/* ===================== Treaty timers, military scoring & Euro relation balance tick (ai_diplo_treaty_timers .. ai_diplo_euro_balance) ===================== */
+/* ===================== Treaty timers, military scoring & 13b0 encounter (ai_diplo_treaty_timers .. ai_diplo_13b0_encounter) ===================== */
 void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
     return;
@@ -2871,7 +2665,7 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
  * into a word that wraps at 16 bits rather than saturating like the two byte
  * rows beside it.
  */
-int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id) {
+COLONIZE_INTERNAL int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
     return 0;
   }
@@ -3022,49 +2816,12 @@ static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
   }
 }
 
-void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
-    return;
-  }
-  /* DOS has no per-turn Euro peace roll. FUN_5bfb_10ec is a war-worthiness
-   * predicate; FUN_5bfb_13b0 signs or cancels treaties on an encounter and
-   * skips active wars. This pass retains the port's at-war Privateer path and
-   * the Indian matrix tick. */
-  ai_diplo_indian_matrix_tick(ctx, nation_id);
-  for (int peer = 0; peer < 4; ++peer) {
-    if (peer == nation_id || ctx->col1->player[peer].control == 2) {
-      continue;
-    }
-    const uint8_t bits = ai_diplo_read(ctx->col1, nation_id, peer);
-
-    if (bits & AI_DIPLO_WAR) {
-      /*
-       * No per-turn war upkeep drain here: DOS charges nothing for simply
-       * being at war (bugs.md #965, see the AI_DIPLO_WAR_UPKEEP_GOLD
-       * retirement note at the top of this file).
-       */
-      /* No wartime Privateer here. The free per-war Privateer spawn (and its
-       * null-units 8-gold "prize" fallback) cited the manual and fandom only;
-       * DOS has no such call. Independence-seed-100 START_SAVE: France at war
-       * with the Dutch got a Privateer at (35,33) that DOS never creates. */
-      continue;
-    }
-
-    /* The OpenCol-only standing-alliance arms (FA gift / ally-aid / longevity /
-     * imbalance break CHOICE) were retired with the Euro×Euro alliance
-     * machinery (T2.4 2026-09-06) — DOS has no Euro×Euro alliances; 13b0 is
-     * treaty sign/cancel only. */
-
-    /* No "10ec war eligibility" roll here: the self >> other bands and the
-     * rand(1, 20) were invented, and DOSBox shows no such draw in a nation's
-     * plan stage (1534->1535: Spain's next draw is its first 4d2e roll).
-     * DOS's own war test is ai_euro_10ec_war_worthy, reached through 13b0. */
-
-    /* FUN_5bfb_13b0 is not a balance step: DOS reaches it only from 3180's
-     * land encounter (ai_diplo_13b0_encounter). Running it here on any
-     * adjacency met the Dutch through an arrival placement (DOSBox 1504). */
-  }
-}
+/* ai_diplo_euro_balance (the per-turn "Euro diplomacy balance" pass) is gone:
+ * every arm it carried was port invention — war-fatigue peace roll, free
+ * wartime Privateer, war upkeep drain, 10ec eligibility roll, standing
+ * alliances, and last the Indian matrix tick with its "Natives grow hostile."
+ * INFO popups (bugs.md #965, #1104). DOS's Euro treaty work is 6d8e's treaty
+ * timers (ai_diplo_treaty_timers) and 13b0 on an encounter (below). */
 
 /* FUN_5bfb_3180 -> 153e with an AI self (raw 97406) -> 13b0. */
 void ai_diplo_13b0_encounter(ColonizeTurnContext* ctx, int mover, int other) {
@@ -3301,49 +3058,16 @@ void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* p
     }
     return;
   }
-  /* DOS treaty notices are OK popups. Legacy choice results can still be
-   * applied if a caller supplies them; the balance pass no longer offers
-   * war-fatigue peace choices. */
+  /* DOS treaty notices (DIPLO_WAR / DIPLO_PEACE / DIPLO_BREAK) are OK popups:
+   * no action on dismiss. The old choice_id 1/2 accept/refuse handlers for
+   * DIPLO_WAR / DIPLO_PEACE were unreachable and carried invented "... refused
+   * with %s" lines (bugs.md #1104). */
   if (popup->result_tag == AI_POPUP_TAG_DIPLO_TALK) {
     if (popup->result_choice_id > 0) {
       ai_talk_resume(ctx, popup->result_payload, popup->result_choice_id);
     }
     return;
   }
-  if (popup->result_tag == AI_POPUP_TAG_DIPLO_PEACE) {
-    if (popup->result_choice_id == 1) {
-      ai_diplo_make_peace_ctx(ctx, popup->result_nation_a, popup->result_nation_b);
-    } else if (popup->result_choice_id == 2) {
-      if (ctx->status && ctx->status_size > 0) {
-        ai_diplo_status_human_pair(
-          ctx,
-          popup->result_nation_a,
-          popup->result_nation_b,
-          "Peace refused with %s"
-        );
-        /* Status only — refuse follow-up INFO OK was invented (FA UI PARKED). */
-      }
-    }
-    return;
-  }
-  if (popup->result_tag == AI_POPUP_TAG_DIPLO_WAR) {
-    if (popup->result_choice_id == 1) {
-      ai_diplo_declare_war_ctx(ctx, popup->result_nation_a, popup->result_nation_b);
-    } else if (popup->result_choice_id == 2) {
-      if (ctx->status && ctx->status_size > 0) {
-        ai_diplo_status_human_pair(
-          ctx,
-          popup->result_nation_a,
-          popup->result_nation_b,
-          "War refused with %s"
-        );
-        /* Status only — refuse follow-up INFO OK was invented (FA UI PARKED). */
-      }
-    }
-    return;
-  }
-  /* DIPLO_BREAK arrives only as the 13b0 treaty-cancel OK (choice_id 0) —
-   * no action on dismiss. */
 }
 
 /* Lives here (not ai_euro.c) so the SLIM unit targets that compile ai_diplo.c

@@ -559,9 +559,10 @@ static void ff_debate_row_label(int idx, char* out, size_t out_size) {
     out[0] = '\0';
     return;
   }
-  char name[48];
-  char category[32];
-  char adviser[32];
+  /* Piece buffers sized so the composed row (<= 62 bytes) always fits a 64-byte choice slot. */
+  char name[32];
+  char category[16];
+  char adviser[12];
   snprintf(name, sizeof(name), "%s", reports_ff_display_name(idx));
   snprintf(category, sizeof(category), "%s", reports_ff_category_display_name(k_ff_type[idx]));
   snprintf(adviser, sizeof(adviser), "%s", reports_misc_display_word(103, ""));
@@ -1257,7 +1258,7 @@ static void apply_effect(
        * all — the elect-time make_peace sweep was a fandom-sourced
        * invention and is removed. Ongoing: ownership gate via
        * founding_fathers_franklin_keeps_nw_peace → ai_diplo declare /
-       * euro_balance / war-hit (no gold fiction). FA 3f41 UI PARKED. */
+       * war-hit (no gold fiction; euro_balance deleted 2026-10-18, #1104). FA 3f41 UI PARKED. */
       break;
     case FF_WILLIAM_BREWSTER:
       /* PEDIA @FATHER20: no criminals/servants on docks + recruit pool.

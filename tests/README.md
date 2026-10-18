@@ -182,6 +182,17 @@ either keeps its own `main`, or wraps each void case
 before; }`) so it still fits the table; not every file in `tests/` uses this
 harness.
 
+Variants: `TEST_MAIN_WRAPPED(cases, setup, teardown)` runs statements around
+the whole table (e.g. `diag_init(0, NULL)` / `diag_shutdown()`). Single-flow
+drivers that keep a hand-written `main()` (`unit_col1_save`,
+`unit_founding_fathers`, `unit_ai_indian_census`, the long smokes and
+goldens) call `tr_single_flow_gate("<name>")` first, so `COLONIZE_TEST_LIST=1`
+prints their one flow name and `COLONIZE_TEST_ONLY=<other>` fails with the
+runner's "matched no case" error instead of silently running everything. A
+case that cannot run here (no `COLONIZE/` assets) returns `TR_SKIP` (77); the
+runner prints `SKIP <name>` and, when every case that ran skipped, exits 77,
+which `colonize_add_test` maps to a ctest "Skipped" (`SKIP_RETURN_CODE`).
+
 **Hunting order dependencies**: for a converted binary, run it with
 `COLONIZE_TEST_REVERSE=1`, a few `COLONIZE_TEST_SHUFFLE=<seed>` values, and
 each case alone via `COLONIZE_TEST_ONLY` (enumerate names with

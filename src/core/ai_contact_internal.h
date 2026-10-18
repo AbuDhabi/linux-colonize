@@ -2,9 +2,8 @@
 #define COLONIZE_CORE_AI_CONTACT_INTERNAL_H
 
 /*
- * Stage seams for ai_contact.c's ai_contact_indian_raids pass
- * (ai_contact_raid_*). See core/internal.h for the COLONIZE_INTERNAL /
- * COLONIZE_TESTING pattern this follows.
+ * Test seams for the FUN_5fef_0f14 raid resolver (ai_contact_raid_*). See
+ * core/internal.h for the COLONIZE_INTERNAL / COLONIZE_TESTING pattern.
  */
 
 #include "core/ai_contact.h"
@@ -13,40 +12,36 @@
 #include "core/internal.h"
 #include "core/turn.h"
 
-typedef enum {
-  AI_RAID_CONTINUE = 0,  /* stage fell through — run the next one */
-  AI_RAID_NEXT_BRAVE = 1 /* stage ended this Brave (was a bare `continue;`) */
-} AiRaidStatus;
-
-/* Per-Brave state shared between the stages of one ai_contact_indian_raids pass. */
-struct ai_contact_raid_ctx {
-  ColonizeTurnContext* ctx;
-  ColonizeCol1Indian* ind;
-  ColonizeDosRng* rng;
-  int nation_id;
-  ColonizeUnit* brave; /* re-read after any call that can free/replace it */
-  int target_euro;
-  int max_alarm;
-  int attacked;
-};
-
 #ifdef COLONIZE_TESTING
 int ai_contact_raid_port_ship(ColonizeTurnContext* ctx, const ColonizeColony* c);
 AiRaidKind ai_contact_pick_raid_kind(
   ColonizeTurnContext* ctx, ColonizeColony* c, int indian_nation, int target_euro,
   ColonizeDosRng* rng, int forced
 );
-int ai_contact_raid_gate_target(
-  ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id,
-  int* out_euro, int* out_alarm
-);
 int ai_contact_raid_alarm_delta(AiRaidKind kind);
 void ai_contact_raid_alarm_tail(
   ColonizeTurnContext* ctx, int indian_nation, int euro, AiRaidKind kind
 );
-void ai_contact_raid_stage_combat(struct ai_contact_raid_ctx* a);
-int ai_contact_raid_pick_colony(struct ai_contact_raid_ctx* a);
-AiRaidStatus ai_contact_raid_stage_colony(struct ai_contact_raid_ctx* a);
+/* Test-only externs (bugs.md #1106): no production caller. */
+/* Last colony-raid loot kind applied. */
+int ai_contact_last_raid_kind(void);
+/* Adjacency sweep over the nation's Braves (ai_contact_raid.c header). */
+void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id);
+/* Argument-defaulting shims of ai_contact_try_village_meet_unit_at /
+ * ai_contact_try_ship_village_unit (unit_id / tribe_index -1). */
+int ai_contact_try_village_meet(
+  ColonizeTurnContext* ctx, int euro_nation, int indian_nation, int is_missionary, int is_capital
+);
+int ai_contact_try_village_meet_unit(
+  ColonizeTurnContext* ctx, int euro_nation, int indian_nation, int is_missionary,
+  int is_capital, int unit_id
+);
+int ai_contact_try_ship_village(ColonizeTurnContext* ctx, int euro_nation, int x, int y);
+/* FUN_4d56_2820 LAB_002e92 AI branch with no preceding sale (no DOS
+ * equivalent, bugs.md #798); drives the pick + price + settle arithmetic. */
+int ai_contact_auto_buy_2e92(
+  ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit
+);
 #endif /* COLONIZE_TESTING */
 
 /* ===== Cross-file seams of the ai_contact.c split (2026-09-23) =====
@@ -196,10 +191,8 @@ typedef enum AiRaidTokKind {
 
 typedef struct AiRaidChrome {
   AiRaidKind kind;
-  const char* section;       /* GAME.TXT tag, NULL = thin line only */
+  const char* section;       /* GAME.TXT tag, NULL = cues only */
   const char* popup_fallback;
-  const char* thin_colony;   /* NULL = always use thin_bare */
-  const char* thin_bare;
   int sound;                 /* first DOS cue, -1 = silent */
   int sound2;                /* optional second DOS cue, -1 = none */
   AiRaidTokKind tok;
@@ -252,7 +245,6 @@ int ai_contact_a618_skill(ColonizeTurnContext* ctx, int nation_id, const Coloniz
 int ai_contact_apply_demand_gold( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e );
 int ai_contact_apply_demand_tools( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* other, int near_x, int near_y );
 int ai_contact_auto_trade( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit );
-int ai_contact_brave_visited_this_turn( const ColonizeTurnContext* ctx, int nation_id, int brave_id );
 int ai_contact_brave_walked_up_to(const ColonizeUnit* brave, int cx, int cy);
 int ai_contact_is_visit_brave( const ColonizeTurnContext* ctx, int nation_id, int e, const ColonizeUnit* brave );
 int ai_contact_enqueue_demand_amount_choice( ColonizeTurnContext* ctx, int e, int nation_id, ColonizeUnit* other, int near_x, int near_y );
@@ -286,7 +278,6 @@ void ai_contact_human_chrome( ColonizeTurnContext* ctx, int e, AiPopupTag tag, i
 void ai_contact_live_among_natives( ColonizeTurnContext* ctx, int e, int nation_id, ColonizeUnit* u, ColonizeCol1Tribe* t );
 void ai_contact_local_rng(ColonizeTurnContext* ctx, int nation_id, ColonizeDosRng* out);
 void ai_contact_mark_visit_brave( const ColonizeTurnContext* ctx, int nation_id, int brave_id );
-void ai_contact_refuse_chrome( ColonizeTurnContext* ctx, int e, int nation_id, AiPopupTag tag, const char* title, const char* what );
 void ai_contact_set_status(ColonizeTurnContext* ctx, const char* msg);
 void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id);
 void ai_contact_visit_mood_clear(int nation_id, int e);

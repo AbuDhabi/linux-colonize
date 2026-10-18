@@ -267,9 +267,9 @@ chrome only (P11/D4).
   **ported 2026-09-04** (`units_move_crosses_shore`, `units_move.c`; applied
   on the land and ship move paths). Partial-MP gamble **verified ported
   2026-09-08** (`units_try_move_w`, `units_move.c`: range(1,cost) ≤ remaining,
-  spent==0 free step, attack never denied; `units_can_afford_move_cost` is a
-  pathfinder pre-filter with no DOS equivalent — its deny is deliberate, a
-  roll there would burn extra LCG draws). The DOS "NULL-rng" is
+  spent==0 free step, attack never denied; the port-only
+  `units_can_afford_move_cost` pre-filter had no caller and was deleted
+  2026-10-18, bugs.md #1105). The DOS "NULL-rng" is
   `FUN_281f_04ca` = Borland `randomize()` (srand from BIOS tick 0040:006C)
   fired before the foreign clause whenever the cheap clauses fail — a
   wall-clock reseed, non-reproducible even in DOS; intentionally NOT ported

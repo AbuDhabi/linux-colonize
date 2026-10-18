@@ -355,6 +355,9 @@ void assets_msg_free(ColonizeMsgCatalog* catalog) {
 }
 
 static ColonizeMsgSection* msg_add_section(ColonizeMsgCatalog* catalog, const char* name) {
+  if (strlen(name) >= sizeof(((ColonizeMsgSection*)0)->name)) {
+    return NULL; /* tag too long for the name field: reject the catalog, never truncate */
+  }
   if (catalog->section_count >= catalog->section_capacity) {
     int next = catalog->section_capacity == 0 ? 32 : catalog->section_capacity * 2;
     ColonizeMsgSection* resized = realloc(catalog->sections, (size_t)next * sizeof(*resized));
@@ -366,7 +369,7 @@ static ColonizeMsgSection* msg_add_section(ColonizeMsgCatalog* catalog, const ch
   }
   ColonizeMsgSection* section = &catalog->sections[catalog->section_count++];
   memset(section, 0, sizeof(*section));
-  snprintf(section->name, sizeof(section->name), "%s", name);
+  memcpy(section->name, name, strlen(name) + 1);
   /* PEDIA.TXT has a few tags with trailing spaces (e.g. "@JOB12 "). */
   size_t n = strlen(section->name);
   while (n > 0 && (section->name[n - 1] == ' ' || section->name[n - 1] == '\t')) {

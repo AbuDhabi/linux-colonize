@@ -42,7 +42,7 @@ sources:
   - src/core/ai_euro_ship.c         # ship band + unload/settle
   - src/core/ai_euro_act.c          # ai_euro_act_* stages
   - src/core/ai_goals.c      # goal tables (FUN_521d_0000..0906)
-  - src/core/ai_diplo.c      # treaty timers, euro_balance, 13b0, 153e
+  - src/core/ai_diplo.c      # treaty timers, 13b0, 153e
   - src/core/ai_king.c       # crown beats reached from the Euro turn
   - src/core/turn.c          # TURN_PROC_EURO slice
   - docs/port_plan.md        # "Deferred AI track" status stub
@@ -182,16 +182,6 @@ graphs:
         label: Goal consumption — assign each idle unit a primary goal
         sub: goal_orders
         fn: ai_euro_goals.c:ai_euro_0a60_goal_orders_structural
-      - id: is_crown
-        kind: decision
-        label: WoI crown slot?
-      - id: balance
-        kind: sub
-        label: Euro diplomacy balance (OpenCol war effects)
-        sub: diplo_balance
-        fn: ai_diplo.c:ai_diplo_euro_balance
-        status: port
-        note: OpenCol-shaped pass; 10ec and 13b0 run through separate DOS encounter/attack paths.
       - id: unit_loop
         kind: loop
         label: "do { wave 0: Treasure/Artillery/Wagon; wave 1: all; ids high→low; first unit with MP drained, rescan } while wave 1 progressed && guard<64"
@@ -242,10 +232,7 @@ graphs:
       - [planning, promote]
       - [promote, goals]
       - [goals, goal_orders]
-      - [goal_orders, is_crown]
-      - [is_crown, balance, "no"]
-      - [is_crown, unit_loop, "yes"]
-      - [balance, unit_loop]
+      - [goal_orders, unit_loop]
       - [unit_loop, skip]
       - [skip, unit_loop, "yes: next unit"]
       - [skip, no_mp, "no"]
@@ -558,12 +545,6 @@ graphs:
       - id: no_mp
         kind: decision
         label: moves <= 0?
-      - id: notify
-        kind: step
-        label: Territorial notify (the treasure "tension bump" that shared this step was refuted 2026-09-23, bugs.md #747 — it is FUN_465b_0000's Privateer-sighting bit, now ai_euro_465b_privateer_sighting, fired from the move handler)
-        fn: ai_euro_land.c:ai_euro_try_violate_notify
-        dos: FUN_4720_049e
-        status: thin
       - id: roam_abort
         kind: step
         label: Roam-abort — act_state 5 cleared when a peaceful nation's colony is adjacent
@@ -618,8 +599,7 @@ graphs:
       - [guard, end, "yes"]
       - [guard, no_mp, "no"]
       - [no_mp, end, "yes"]
-      - [no_mp, notify, "no"]
-      - [notify, roam_abort]
+      - [no_mp, roam_abort, "no"]
       - [roam_abort, mow_home]
       - [mow_home, end, "sailed"]
       - [mow_home, ship, "no"]
@@ -967,34 +947,6 @@ graphs:
       - [score, ret1, "no step"]
 
   # ---------------------------------------------------------------------
-  - id: diplo_balance
-    title: Euro diplomacy balance — ai_diplo_euro_balance (OpenCol effects)
-    entry: indian_tick
-    nodes:
-      - id: indian_tick
-        kind: step
-        label: Indian relation matrix tick
-        fn: ai_diplo.c:ai_diplo_indian_matrix_tick
-        status: port
-      - id: peer_loop
-        kind: loop
-        label: Each Euro peer (skip self and control==2 slots)
-        fn: ai_diplo.c:ai_diplo_euro_balance
-        status: port
-      - id: at_war
-        kind: decision
-        label: At war with this peer?
-      - id: end
-        kind: end
-        label: return
-    edges:
-      - [indian_tick, peer_loop]
-      - [peer_loop, at_war]
-      - [at_war, peer_loop, "yes (the invented Privateer spawn was deleted 2026-10-14)"]
-      - [at_war, peer_loop, "no"]
-      - [peer_loop, end, "done"]
-
-  # ---------------------------------------------------------------------
   - id: colony_tick
     title: Colony tick — ai_euro_colony_tick_5952 (whole FUN_5952_035e body)
     entry: loop
@@ -1049,7 +1001,7 @@ graphs:
         fn: ai_euro_colony_jobs.c:ai_euro_5952_indoor_pass
         dos: FUN_5952_035e raw 94784-94860, asm 5952:1ef7-5952:2193
         status: dos
-        note: "Fresh 1598 confirms zero wealth ranks during the loaded turn until 153e refreshes 00f8; a premature setup fill incorrectly halves Statesman weight. Per unplaced slot: 28c8 mode -2 probe (DS:0x8dc0/0x8dbe) for the best plot, restoring the job without claiming a plot (raw 13142-13144), then score every available indoor job 9..0x11 as (producible*8+5)*want_weight (ai_euro_5952_want_weight / ai_euro_5952_job_score; producible = ai_euro_5952_producible, the 15eb:1f44 dispatcher over colony_production.c's ported 1d4c bodies). Indoor winner beats the plot score -> assign the workplace; else commit the plot; else ai_euro_5952_fallback_job (Carpenter, or Preacher on Church + lumber surplus + <3 preachers). AI_5952_INDOOR=0 restores the pre-2026-09-17 leftovers field stand-in."
+        note: "Fresh 1598 confirms zero wealth ranks during the loaded turn until 153e refreshes 00f8; a premature setup fill incorrectly halves Statesman weight. Per unplaced slot: 28c8 mode -2 probe (DS:0x8dc0/0x8dbe) for the best plot, restoring the job without claiming a plot (raw 13142-13144), then score every available indoor job 9..0x11 as (producible*8+5)*want_weight (ai_euro_5952_want_weight / ai_euro_5952_job_score; producible = ai_euro_5952_producible, the 15eb:1f44 dispatcher over colony_production.c's ported 1d4c bodies). Indoor winner beats the plot score -> assign the workplace; else commit the plot; else ai_euro_5952_fallback_job (Carpenter, or Preacher on Church + lumber surplus + <3 preachers)."
       - id: idle
         kind: step
         label: Idle EVERY colonist (incl. building workers) + memset the 20 plot bytes — raw 94551-94564

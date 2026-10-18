@@ -1,4 +1,5 @@
 #include <stddef.h>
+#include "../common/test_runner.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1427,6 +1428,12 @@ static bool test_imported_tile_chain_order(char* err, size_t err_size) {
 }
 
 int main(void) {
+  {
+    const int gate = tr_single_flow_gate("col1_save");
+    if (gate >= 0) {
+      return gate;
+    }
+  }
   diag_init(0, NULL);
 
   char err[256];
@@ -2012,6 +2019,9 @@ int main(void) {
     for (int i = 0; i < 12; ++i) {
       col->tiles[COLONIZE_COLONY_FIELD_TILES + i] = (int8_t)(0x20 + i);
     }
+    /* #1087: a name longer than the 24-byte COL1 slot (live buffer is 28)
+     * must be cut at 23 chars + NUL, never spill into the next fields. */
+    snprintf(col->name, sizeof(col->name), "%s", "ABCDEFGHIJKLMNOPQRSTUVWXYZ0");
 
     ColonizeCol1Save save;
     col1_save_init(&save); /* template init frees first; stack garbage crashed it */
@@ -2056,6 +2066,13 @@ int main(void) {
         (unsigned)save.colony[0].buildings.warehouse,
         (unsigned)save.colony[0].profession[0]
       );
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (memcmp(save.colony[0].name, "ABCDEFGHIJKLMNOPQRSTUVW", 24) != 0) {
+      fprintf(stderr, "colony name capture not cut at the 24-byte COL1 slot\n");
       col1_save_free(&save);
       map_free(&map);
       assets_msg_free(&names);
@@ -3447,8 +3464,8 @@ int main(void) {
     int rc = 0;
     const ColonizeUnit* w2 = NULL;
     const ColonizeUnit* sv2 = NULL;
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* u = units_get_const(&units2, i);
+    for (int i = 0; i < units_slot_end(&units2); ++i) {
+      const ColonizeUnit* u = &units2.units[i];
       if (!u || !u->active) {
         continue;
       }
@@ -3605,8 +3622,8 @@ int main(void) {
     }
     int rc = 0;
     int wid = -1;
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* u = units_get_const(&units2, i);
+    for (int i = 0; i < units_slot_end(&units2); ++i) {
+      const ColonizeUnit* u = &units2.units[i];
       if (u && u->active && u->hold_goods_amount[0] == 70) {
         wid = u->id;
         break;
@@ -3862,8 +3879,8 @@ int main(void) {
     }
     int rc = 0;
     int seen = 0;
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* u = units_get_const(&units2, i);
+    for (int i = 0; i < units_slot_end(&units2); ++i) {
+      const ColonizeUnit* u = &units2.units[i];
       if (!u || !u->active || u->y != stray_y) {
         continue;
       }
@@ -4314,8 +4331,8 @@ int main(void) {
     const ColonizeUnit* we2 = NULL;
     const ColonizeUnit* wp2 = NULL;
     const ColonizeUnit* sh2 = NULL;
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* u = units_get_const(&units2, i);
+    for (int i = 0; i < units_slot_end(&units2); ++i) {
+      const ColonizeUnit* u = &units2.units[i];
       if (!u || !u->active) {
         continue;
       }
@@ -4551,8 +4568,8 @@ int main(void) {
       const int max_mp = cases[c].type == 4 ? dragoon_mp : colonist_mp;
       const int want_left = max_mp - cases[c].want_spent;
       const ColonizeUnit* u = NULL;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        const ColonizeUnit* cand = units_get_const(&units2, i);
+      for (int i = 0; i < units_slot_end(&units2); ++i) {
+        const ColonizeUnit* cand = &units2.units[i];
         if (cand && cand->active && cand->x == cases[c].x && cand->y == 20) {
           u = cand;
           break;

@@ -884,7 +884,6 @@ ColonizeEnterReason g_units_last_enter_reason = COLONIZE_ENTER_OK;
 const ColonizeCol1Save* g_units_ff_col1 = NULL;
 ColonizeCol1Save* g_units_fallout_col1 = NULL;
 ColonizeWorldMap* g_units_fallout_map = NULL;
-static int g_units_conquest_gold = -1;
 const ColonizeColonyPool* g_units_combat_colonies = NULL;
 int g_units_combat_human_nation = -1;
 AiPopupState* g_units_combat_popups = NULL;
@@ -1227,7 +1226,8 @@ void units_set_native_fallout_context(
 ) {
   g_units_fallout_col1 = col1;
   g_units_fallout_map = map;
-  g_units_conquest_gold = conquest_gold;
+  (void)conquest_gold; /* bugs.md #1105: never read; the treasure amount rides
+                        * units_try_native_settlement_fallout_w's own argument */
 }
 
 void units_set_combat_colonies(const ColonizeColonyPool* colonies) {

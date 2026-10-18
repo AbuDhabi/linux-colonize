@@ -5,7 +5,6 @@
  */
 
 #include "core/europe.h"
-#include "core/europe_art.h"
 #include "core/europe_internal.h"
 
 #include <limits.h>
@@ -469,17 +468,8 @@ int europe_custom_house_autosell_ex_w(
        * is gone with it.
        */
       europe_nation_gold_add(eu, col1, nation, gained);
-      /* nation +0x22 (royal_money) += tax paid; +0x26 write-only cumulative
-       * net trade income (unknown24_pad, int32 LE). */
-      nat->royal_money += tax_paid;
-      uint32_t cum = (uint32_t)nat->unknown24_pad[0] | ((uint32_t)nat->unknown24_pad[1] << 8) |
-                     ((uint32_t)nat->unknown24_pad[2] << 16) |
-                     ((uint32_t)nat->unknown24_pad[3] << 24);
-      cum += (uint32_t)gained;
-      nat->unknown24_pad[0] = (uint8_t)(cum & 0xffu);
-      nat->unknown24_pad[1] = (uint8_t)((cum >> 8) & 0xffu);
-      nat->unknown24_pad[2] = (uint8_t)((cum >> 16) & 0xffu);
-      nat->unknown24_pad[3] = (uint8_t)((cum >> 24) & 0xffu);
+      /* nation +0x22 (royal_money) += tax paid; +0x26 += net. */
+      europe_credit_sale_tax(col1, nation, gross, gained);
     }
     diag_info(
       "EUROPE customs %s sold %d %s: bid=%d tax=%d%% paid=%d proceeds=%d (nation=%d%s)",
@@ -649,7 +639,10 @@ int europe_ai_colony_dump_sell_w(
        */
       nat->trade.tons[c] += (int32_t)c;
       nat->trade.gold[c] += (int32_t)gained;
-      nat->gold += (uint32_t)gained;
+      /* DOS +0x2a add (raw 57841-57845) is an unclamped 32-bit add; the
+       * accessor saturates at UINT32_MAX instead of wrapping — unreachable
+       * for a real treasury. bugs.md #1096. */
+      europe_nation_gold_add(eu, col1, nation, gained);
     }
   }
   if (total > 0) {
@@ -1454,10 +1447,7 @@ void europe_cheat_add_gold(EuropeScreen* eu, int amount) {
   if (!eu) {
     return;
   }
-  eu->gold += amount;
-  if (eu->gold < 0) {
-    eu->gold = 0;
-  }
+  europe_purse_move(eu, g_europe_live_save, europe_purse_nation(eu), amount);
   snprintf(eu->status, sizeof(eu->status), "Treasury now %d$.", eu->gold);
 }
 

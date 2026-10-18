@@ -72,7 +72,6 @@ void sound_set_soundfont(const char* path);
 /* Synth pick (settings.json sound_options.midi_backend): "fluidsynth", "tsf",
  * or empty/NULL = auto (fluidsynth first, tsf fallback). Call before sound_init. */
 void sound_set_midi_backend(const char* name);
-const char* sound_backend_name(void); /* "fluidsynth" / "tsf" / "fallback" */
 
 void sound_set_options(ColonizeSoundOptions opts);
 ColonizeSoundOptions sound_get_options(void);
@@ -135,8 +134,6 @@ void sound_play_sfx(int index);
 /* Drop the playing sample and the 16-slot ring. Event MIDI on 7/8 fades;
  * BGM voices are left alone (CLOSING.EXE teardown of digital SFX). */
 void sound_stop_sfx(void);
-/* Raw unsigned 8-bit PCM of one sample (pointer valid until sound_shutdown). */
-bool sound_sfx_sample(int index, const uint8_t** out_pcm, uint32_t* out_len, int* out_rate);
 
 /* Test helpers: song count recovered from GSOUND.COL; decode one song to events. */
 int sound_gsound_song_count(void);

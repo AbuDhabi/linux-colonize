@@ -112,7 +112,7 @@ int ai_021a_settle_owner(const ColonizeWorldMap* map, int x, int y) {
   return ai_owner_nibble(map, x, y);
 }
 
-COLONIZE_INTERNAL int ai_021a_colony_at(const ColonizeColonyPool* colonies, int x, int y) {
+static int ai_021a_colony_at(const ColonizeColonyPool* colonies, int x, int y) {
   /* FUN_15eb_0a76: colony index at tile (pool order == COL1 order). */
   if (!colonies) {
     return -1;
@@ -126,16 +126,16 @@ COLONIZE_INTERNAL int ai_021a_colony_at(const ColonizeColonyPool* colonies, int 
   return -1;
 }
 
-COLONIZE_INTERNAL int ai_021a_type_attack(const ColonizeUnitPool* units, int type_index) {
+static int ai_021a_type_attack(const ColonizeUnitPool* units, int type_index) {
   const ColonizeUnitType* t = units_type(units, type_index);
   return t ? t->attack : 0;
 }
 
 /* FUN_1427_0fec / 0fc0 — armed / mounted type sets. */
-COLONIZE_INTERNAL int ai_021a_type_armed(int t) {
+static int ai_021a_type_armed(int t) {
   return t == 1 || t == 4 || t == 0xb || t == 0x14 || t == 0x16;
 }
-COLONIZE_INTERNAL int ai_021a_type_mounted(int t) {
+static int ai_021a_type_mounted(int t) {
   return t == 4 || t == 5 || t == 0x15 || t == 0x16;
 }
 
@@ -153,7 +153,7 @@ COLONIZE_INTERNAL int ai_021a_type_mounted(int t) {
  */
 static int s_021a_adj_fx = -1;
 static int s_021a_adj_fy = -1;
-COLONIZE_INTERNAL int ai_021a_adjacent_foreign(
+static int ai_021a_adjacent_foreign(
   const ColonizeWorldMap* map, int x, int y, int nation_id, int settlement_first
 ) {
   int medium = ai_is_ocean_hs(map, x, y); /* 09dc local_8 (sticky) */
@@ -200,7 +200,7 @@ COLONIZE_INTERNAL int ai_021a_adjacent_foreign(
   return found;
 }
 
-COLONIZE_INTERNAL int ai_021a_visit_turn(const ColonizeUnit* u) {
+static int ai_021a_visit_turn(const ColonizeUnit* u) {
   if (!u->col1_hold_raw_valid) {
     return 0;
   }
@@ -214,7 +214,7 @@ COLONIZE_INTERNAL void ai_021a_set_visit_turn(ColonizeUnit* u, int turn) {
 }
 
 /* FUN_15dc_00a2 alarm tier: <25 0, <50 1, <75 2, else 3. */
-COLONIZE_INTERNAL int ai_021a_alarm_tier(int alarm) {
+static int ai_021a_alarm_tier(int alarm) {
   if (alarm < 0x19) return 0;
   if (alarm < 0x32) return 1;
   if (alarm < 0x4b) return 2;

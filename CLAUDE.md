@@ -18,7 +18,7 @@ interop beat "improvements" — see docs/project_goals.md.
 make test          # configure (if needed) + build preset debug + ctest --preset debug
 make golden        # build + run golden_ai_joint (not in ctest; run when AI/turn code changed)
 make build         # build only
-make test T=unit_ff [CASE=name]   # one test target (cheapest; prefer over full ctest; CASE= only works for TEST_MAIN binaries)
+make test T=unit_ff [CASE=name]   # one test target (cheapest; prefer over full ctest; CASE= works for every binary: TEST_MAIN binaries take a case name, single-flow drivers take their flow name; COLONIZE_TEST_LIST=1 prints it)
 ./build/debug/opencol --data-dir COLONIZE
 ```
 

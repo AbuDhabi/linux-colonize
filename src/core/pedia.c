@@ -556,9 +556,6 @@ bool pedia_page(
       }
       break;
     }
-    case PEDIA_CAT_TERRAIN:
-      snprintf(fallback, sizeof(fallback), "#%d", index);
-      break;
     default:
       break;
   }
@@ -894,17 +891,13 @@ static int pedia_names_int(
 static void pedia_cargo_display_name(
   const ColonizeMsgCatalog* names, int cargo, char* out, size_t out_size
 ) {
-  if (!assets_msg_row_field(names, "CARGO", cargo, 0, out, out_size)) {
-    snprintf(out, out_size, "#%d", cargo);
-  }
+  (void)assets_msg_row_field(names, "CARGO", cargo, 0, out, out_size); /* miss = "" */
 }
 
 static void pedia_job_display_name(
   const ColonizeMsgCatalog* names, int job, char* out, size_t out_size
 ) {
-  if (!assets_msg_row_field(names, "JOB", job, 0, out, out_size)) {
-    snprintf(out, out_size, "Skill %d", job);
-  }
+  (void)assets_msg_row_field(names, "JOB", job, 0, out, out_size); /* miss = "" */
 }
 
 static void pedia_job_expert_name(
@@ -938,9 +931,6 @@ static void pedia_terrain_display_name(
     snprintf(out + len, out_size > len ? out_size - len : 0, " %s", forest);
   } else if (idx >= 24 && idx <= 28) {
     assets_msg_row_field(names, "OTHER", idx - 24, 0, out, out_size);
-  }
-  if (!out[0]) {
-    snprintf(out, out_size, "#%d", idx);
   }
 }
 

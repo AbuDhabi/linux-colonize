@@ -966,6 +966,13 @@ bool col1_save_read_file(const char* path, ColonizeCol1Save* out, char* err, siz
       } else {
         col1_save_unspill_units(out);
       }
+    } else {
+      /* The tail may carry UNXT units past 300: dropping it silently would
+       * lose units, so a failed read fails the load. */
+      ok = false;
+      if (err && err_size > 0) {
+        snprintf(err, err_size, "cannot read %zu-byte extension tail of %s", tail, path);
+      }
     }
     free(tail_buf);
   }

@@ -9,6 +9,8 @@
 #include "core/strutil.h"
 #include "platform/diagnostics.h"
 
+#define MADSPACK_SECTION_MAX (16u * 1024u * 1024u) /* 16 MiB sanity cap per section */
+
 typedef struct FabBitReader {
   const uint8_t* src;
   size_t src_size;
@@ -224,7 +226,16 @@ bool madspack_load(const char* path, MadspackFile* out_file, char* err, size_t e
     const uint8_t* payload = raw + data_pos;
     data_pos += sections[i].compressed_size;
 
-    uint8_t* out = malloc(sections[i].uncompressed_size);
+    /* The size is an untrusted header u32: shipped sections are full-screen
+     * images (< 64 KiB), so anything over 16 MiB is a malformed file, not oom. */
+    if (sections[i].uncompressed_size > MADSPACK_SECTION_MAX) {
+      snprintf(err, err_size, "section %u size %u over %u-byte cap in %s", i,
+               (unsigned)sections[i].uncompressed_size, (unsigned)MADSPACK_SECTION_MAX, path);
+      goto fail;
+    }
+    /* +0 bytes is a legal empty section: allocate at least 1 so malloc(0)
+     * returning NULL is not misreported as oom. */
+    uint8_t* out = malloc(sections[i].uncompressed_size ? sections[i].uncompressed_size : 1u);
     if (!out) {
       snprintf(err, err_size, "oom section %u in %s", i, path);
       goto fail;

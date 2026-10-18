@@ -24,12 +24,11 @@
 #include "../common/test_runner.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-static int fail(const char* msg) {
-  fprintf(stderr, "unit_stage_seams: FAIL %s\n", msg);
-  return 1;
-}
+#define TEST_NAME "unit_stage_seams"
+#include "../common/test_fail.h"
 
 /* turn_year_end_rival_rebels: pure function of (rebel_sentiment, census_pop_proxy). */
 static int test_turn_year_end_rival_rebels(void) {
@@ -233,7 +232,8 @@ static int test_window_log_fit_line(void) {
   memset(&font, 0, sizeof(font));
   char err[128];
   if (!ff_load("COLONIZE/FONTTINY.FF", &font, err, sizeof(err))) {
-    return 0; /* no data dir in this checkout — the seam is still compiled */
+    fprintf(stderr, "SKIP popup_wrap_seam: COLONIZE/FONTTINY.FF not present\n");
+    return TR_SKIP; /* no data dir in this checkout — the seam is still compiled */
   }
 
   const char* text =
@@ -1055,7 +1055,7 @@ static int test_ai_brave_field_attack(void) {
     int steps = 0;
     (void)ai_native_brave_step(
       &units, &map, &col1, &rng, /*nation_id=*/4, /*seed100_init_burns=*/false, b,
-      /*hx=*/5, /*hy=*/5, /*tech=*/0, /*max_mp=*/3, /*brave_index=*/0, &steps
+      /*max_mp=*/3, /*brave_index=*/0, &steps
     );
     int after = 0;
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
@@ -1179,7 +1179,60 @@ static int test_colony_shift_pick_moves_highlight(void) {
   return rc;
 }
 
+/* bugs.md #1091: an open map pull-down is modal (DOS runs it as a blocking
+ * loop), so game_modal_open is true and the unit/turn hand-off defers. */
+static int test_map_pulldown_is_modal(void) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game) {
+    return 1;
+  }
+  int rc = 0;
+  game->map_menu.loaded = true;
+  game->map_menu.open_index = -1;
+  if (game_modal_open(game) || !game_turn_flow_allowed(game)) {
+    fprintf(stderr, "closed pull-down must not block\n");
+    rc = 1;
+  }
+  game->map_menu.open_index = 2;
+  if (!game_modal_open(game) || game_turn_flow_allowed(game) ||
+      !game_defer_turn_flow(game) || !game->turn_flow_deferred) {
+    fprintf(stderr, "open pull-down must block and defer turn flow\n");
+    rc = 1;
+  }
+  /* Map / screen hotkeys pressed behind the open pull-down do nothing. */
+  game->map_menu.menu_count = 3;
+  game->map_menu.menus[2].visible = true;
+  game->turn_flow_deferred = false;
+  const ColonizeKey keys[] = {COLONIZE_KEY_Q, COLONIZE_KEY_E, COLONIZE_KEY_TILDE,
+                              COLONIZE_KEY_P, COLONIZE_KEY_F1, COLONIZE_KEY_RIGHT};
+  for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); ++i) {
+    ColonizeInputState input;
+    memset(&input, 0, sizeof(input));
+    input.last_key = keys[i];
+    (void)game_update(game, &input, 16);
+    if (game->map_menu.open_index != 2 || ai_popup_busy(&game->ai_popups) ||
+        game->in_europe || game->in_debug_atlas || game->in_pedia || game->in_report) {
+      fprintf(stderr, "hotkey %zu reached the map behind the pull-down\n", i);
+      rc = 1;
+    }
+  }
+  /* Esc still closes the menu itself. */
+  {
+    ColonizeInputState input;
+    memset(&input, 0, sizeof(input));
+    input.last_key = COLONIZE_KEY_ESCAPE;
+    (void)game_update(game, &input, 16);
+    if (game->map_menu.open_index != -1) {
+      fprintf(stderr, "Esc did not close the pull-down\n");
+      rc = 1;
+    }
+  }
+  free(game);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"test_map_pulldown_is_modal", test_map_pulldown_is_modal},
     {"test_turn_year_end_rival_rebels", test_turn_year_end_rival_rebels},
     {"test_ai_contact_raid_alarm_delta", test_ai_contact_raid_alarm_delta},
     {"test_ai_contact_raid_sound_rows", test_ai_contact_raid_sound_rows},

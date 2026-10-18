@@ -1268,9 +1268,7 @@ void game_request_buy_construction_confirm(ColonizeGameState* game) {
     atok.string0 = colony->name[0] ? colony->name : "";
     atok.string1 = bname;
     char abody[AI_POPUP_BODY_LEN];
-    char afb[160];
-    snprintf(afb, sizeof(afb), "%s has already built a %s!", atok.string0, bname);
-    popup_msg_fill(&game->messages, "ALREADYHAVE", &atok, afb, abody, sizeof(abody));
+    popup_msg_fill(&game->messages, "ALREADYHAVE", &atok, "", abody, sizeof(abody));
     ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, abody);
     game_colony_present_now(game, AI_POPUP_TAG_INFO);
     return;
@@ -2643,10 +2641,9 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
        * it. Success opens a view of the colony; failure loses the scouts
        * (@LOSTOURSCOUTS) and the colony stables gain their 100 horses. */
       int fort_chain = 0;
-      /* @BUILDING rows 0-2 via the NAMES.TXT accessor, not a private table
-       * (audit theme D / GL row "fort names"). */
+      /* @BUILDING rows 0-2 (Stockade/Fort/Fortress), keyed on the row. */
       for (int f = 0; f < 3; ++f) {
-        const int bi = colonies_find_building(&game->colonies, reports_fort_tier_name(f));
+        const int bi = colonies_building_row(&game->colonies, (ColonizeBuildingRow)(COLONY_BUILDING_STOCKADE + f));
         if (bi >= 0 && bi < COLONIZE_BUILDING_TYPES_MAX && col->has_building[bi]) {
           fort_chain++;
         }

@@ -4,7 +4,7 @@
  * Sections:
  *  - Fortification bonus, abandon & colony capture (colonies_has_fortification .. colonies_capture)
  *  - Build queue: unit build info, wagon caps & construction set/complete/buy (colonies_unit_build_info .. colonies_buy_construction)
- *  - Building catalog, chains & buildability rules (colonies_has_building_named .. colonies_list_buildable)
+ *  - Building catalog, chains & buildability rules (colonies_building_chain_rows .. colonies_list_buildable)
  */
 
 #include <stdio.h>
@@ -147,13 +147,10 @@ static int colonies_capture_col1_effects(
     (uint8_t)(col1->stuff.colony_pop_totals[new_nation] + pop > 255
                 ? 255
                 : col1->stuff.colony_pop_totals[new_nation] + pop);
-  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
-    ColonizeCol1Colony* c = &col1->colony[i];
-    if ((int)c->x == col->x && (int)c->y == col->y) {
-      c->nation_id = (uint8_t)new_nation;
-      c->rebel_dividend = (uint32_t)(((uint64_t)c->rebel_dividend * 2u) / 3u);
-      break;
-    }
+  ColonizeCol1Colony* captured = (ColonizeCol1Colony*)col1_colony_at_xy(col1, -1, col->x, col->y);
+  if (captured) {
+    captured->nation_id = (uint8_t)new_nation;
+    captured->rebel_dividend = (uint32_t)(((uint64_t)captured->rebel_dividend * 2u) / 3u);
   }
   int plunder = 0;
   if (!woi) {
@@ -553,9 +550,11 @@ bool colonies_destroy_building(ColonizeColonyPool* pool, int colony_id, int buil
   if (!col->has_building[building_type]) {
     return false;
   }
-  const ColonizeBuildingType* bt = &pool->building_types[building_type];
-  /* Town Hall is the colony core — never burn/remove via raid destroy. */
-  if (bt && colonies_building_name_row(bt->name) == COLONY_BUILDING_TOWN_HALL) {
+  /* Town Hall (any of its three rows) is the colony core — never burn/remove
+   * via raid destroy. */
+  const int destroyed_row = colonies_building_type_row(pool, building_type);
+  if (destroyed_row == COLONY_BUILDING_TOWN_HALL || destroyed_row == COLONY_BUILDING_TOWN_HALL_2 ||
+      destroyed_row == COLONY_BUILDING_TOWN_HALL_3) {
     return false;
   }
   col->has_building[building_type] = false;
@@ -669,6 +668,7 @@ bool colonies_try_complete_building_ex(
   if (!bt || bt->hammers <= 0 || col->hammers < bt->hammers) {
     return false;
   }
+  const int bid_row = colonies_building_type_row(pool, bid);
   /* Already own the selected project (a later call the same turn it
    * completed would otherwise re-fire; the selection itself is never
    * cleared below, matching DOS — see that comment). Treat as nothing to
@@ -679,8 +679,7 @@ bool colonies_try_complete_building_ex(
   }
   /* FUN_364b_0114 raw 56906-56910: Warehouse Expansion with +0x95 already
    * > 1 completes nothing (the human caller shows @NOMOREWAREHOUSE). */
-  if (colonies_building_name_row(bt->name) == COLONY_BUILDING_WAREHOUSE_EXPANSION &&
-      col->warehouse_level > 1u) {
+  if (bid_row == COLONY_BUILDING_WAREHOUSE_EXPANSION && col->warehouse_level > 1u) {
     return false;
   }
   if (bt->tools_cost > 0 && col->stock[COLONIZE_CARGO_TOOLS] < bt->tools_cost) {
@@ -704,17 +703,13 @@ bool colonies_try_complete_building_ex(
   }
   /* Col1 +0x95/+0x96: FUN_364b_0114 raw 56912-56923 INCs the warehouse /
    * capitol level on either tier's completion. */
-  if (bt->name[0] != '\0') {
-    if (colonies_building_name_row(bt->name) == COLONY_BUILDING_WAREHOUSE ||
-        colonies_building_name_row(bt->name) == COLONY_BUILDING_WAREHOUSE_EXPANSION) {
-      col->warehouse_level++;
-    } else if (colonies_building_name_row(bt->name) == COLONY_BUILDING_CAPITOL ||
-               colonies_building_name_row(bt->name) == COLONY_BUILDING_CAPITOL_EXPANSION) {
-      col->capitol_level++;
-    }
-    /* No Custom House default here: +0x8a's only writers are FUN_364b_1ba8
-     * (founding), the human dialog (raw 51126) and the AI tick's clear. */
+  if (bid_row == COLONY_BUILDING_WAREHOUSE || bid_row == COLONY_BUILDING_WAREHOUSE_EXPANSION) {
+    col->warehouse_level++;
+  } else if (bid_row == COLONY_BUILDING_CAPITOL || bid_row == COLONY_BUILDING_CAPITOL_EXPANSION) {
+    col->capitol_level++;
   }
+  /* No Custom House default here: +0x8a's only writers are FUN_364b_1ba8
+   * (founding), the human dialog (raw 51126) and the AI tick's clear. */
   col->hammers = 0;
   /*
    * bugs.md: an upgrade takes its workers with it — DOS has no per-building
@@ -725,7 +720,7 @@ bool colonies_try_complete_building_ex(
   {
     /* A worked chain = every chain with a crew (see colonies_building_workable):
      * the crew of any lower tier follows the upgrade. */
-    const int fam = colonies_building_row_chain(colonies_building_type_row(pool, bid));
+    const int fam = colonies_building_row_chain(bid_row);
     if (fam >= 0 && colonies_building_workable(pool, bid)) {
       for (int p = 0; p < col->colonist_count; ++p) {
         ColonizeColonist* c = &col->colonists[p];
@@ -914,39 +909,7 @@ bool colonies_buy_construction(
   return colonies_buy_construction_impl(pool, colony_id, g_colonies_col1, difficulty, gold);
 }
 
-/* ===================== Building catalog, chains & buildability rules (colonies_has_building_named .. colonies_list_buildable) ===================== */
-bool colonies_has_building_named(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* col,
-  const char* name
-) {
-  if (!pool || !col || !name) {
-    return false;
-  }
-  const int idx = colonies_find_building(pool, name);
-  return idx >= 0 && idx < COLONIZE_BUILDING_TYPES_MAX && col->has_building[idx];
-}
-
-bool colonies_has_building_name_contains(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* col,
-  const char* needle
-) {
-  if (!pool || !col || !needle) {
-    return false;
-  }
-  for (int i = 0; i < pool->building_type_count && i < COLONIZE_BUILDING_TYPES_MAX; ++i) {
-    if (!col->has_building[i]) {
-      continue;
-    }
-    const char* bn = pool->building_types[i].name;
-    if (bn && strstr(bn, needle) != NULL) {
-      return true;
-    }
-  }
-  return false;
-}
-
+/* ===================== Building catalog, chains & buildability rules (colonies_building_chain_rows .. colonies_list_buildable) ===================== */
 /*
  * ---------------------------------------------------------------------
  * The building upgrade chains (audit CO-13 / IN-24).
@@ -1055,39 +1018,6 @@ const char* const* colonies_building_chain(int chain) {
   return names[chain];
 }
 
-int colonies_building_chain_length(int chain) {
-  const char* const* c = colonies_building_chain(chain);
-  int n = 0;
-  while (c && c[n]) {
-    ++n;
-  }
-  return n;
-}
-
-/*
- * Standard tier gate for a chain position: the tier below it is owned (or
- * this is the first tier) and no tier from this one up is. Every chain arm
- * of colonies_building_is_buildable below is this rule plus at most a
- * Founding-Father / coastal side condition.
- */
-static bool colonies_chain_tier_open(
-  const ColonizeColonyPool* pool, const ColonizeColony* col, int chain, int tier
-) {
-  const char* const* names = colonies_building_chain(chain);
-  if (!names || tier < 0 || !names[tier]) {
-    return false;
-  }
-  if (tier > 0 && !colonies_has_building_named(pool, col, names[tier - 1])) {
-    return false;
-  }
-  for (int i = tier; names[i]; ++i) {
-    if (colonies_has_building_named(pool, col, names[i])) {
-      return false;
-    }
-  }
-  return true;
-}
-
 /* True if this type is currently a legal construction project for the colony. */
 static bool colonies_building_is_buildable(
   const ColonizeColonyPool* pool,
@@ -1109,162 +1039,89 @@ static bool colonies_building_is_buildable(
     return false;
   }
 
-  const char* n = bt->name;
-  const bool adam = opts && opts->has_adam_smith;
-  const bool stuy = opts && opts->has_peter_stuyvesant;
-  const bool coastal =
-    opts && opts->map && map_tile_is_coastal(opts->map, col->x, col->y);
-
-  /* Duplicate Town Hall rows in NAMES.TXT — never list once any Town Hall exists. */
-  if (colonies_building_name_row(n) == COLONY_BUILDING_TOWN_HALL) {
-    return false;
+  const int row = colonies_building_type_row(pool, type_index);
+  switch (row) {
+    /* The three Town Hall rows (NAMES.TXT spells all three "Town Hall"):
+     * never listed — the colony is founded with one. */
+    case COLONY_BUILDING_TOWN_HALL:
+    case COLONY_BUILDING_TOWN_HALL_2:
+    case COLONY_BUILDING_TOWN_HALL_3:
+    /*
+     * Cut construction rows. DOS's own "can this colony build it" gate
+     * (FUN_15eb_3650) hard-zeroes three @BUILDING file indices no matter what
+     * the colony has: 0x0a and 0x0b (the two unfinished Town Hall upgrades —
+     * PEDIA.TXT calls 0x0b "COLONIAL ASSEMBLY") and 0x1e (Capitol). 0x1f
+     * (Capitol Expansion) is not zeroed there but is unreachable anyway: its
+     * prerequisite is the Capitol, which can never be owned. NAMES.TXT still
+     * carries all four rows and PEDIA.TXT keeps title-only stubs for them, but
+     * no DOS colony can ever start one — the port used to offer Capitol /
+     * Capitol Expansion in the construction picker.
+     */
+    case COLONY_BUILDING_CAPITOL:
+    case COLONY_BUILDING_CAPITOL_EXPANSION:
+      return false;
+    /* Rows DOS lets you build regardless of what sits above them in the
+     * chain: the six starter houses and the Warehouse. Warehouse tier 0
+     * ignores the Expansion above it (an Expansion without its Warehouse is
+     * unreachable anyway — col1_bridge derives tier 1 from warehouse_level,
+     * which implies tier 0). */
+    case COLONY_BUILDING_WAREHOUSE:
+    case COLONY_BUILDING_WEAVERS_HOUSE:
+    case COLONY_BUILDING_TOBACCONISTS_HOUSE:
+    case COLONY_BUILDING_RUM_DISTILLERS_HOUSE:
+    case COLONY_BUILDING_FUR_TRADERS_HOUSE:
+    case COLONY_BUILDING_BLACKSMITHS_HOUSE:
+    case COLONY_BUILDING_STABLE:
+      return !colonies_has_building_row(pool, col, (ColonizeBuildingRow)row);
+    /* Factory tiers need Adam Smith. */
+    case COLONY_BUILDING_ARSENAL:
+    case COLONY_BUILDING_TEXTILE_MILL:
+    case COLONY_BUILDING_CIGAR_FACTORY:
+    case COLONY_BUILDING_RUM_FACTORY:
+    case COLONY_BUILDING_FUR_FACTORY:
+    case COLONY_BUILDING_IRON_WORKS:
+      if (!(opts && opts->has_adam_smith)) {
+        return false;
+      }
+      break;
+    /* Port chain: coastal only. */
+    case COLONY_BUILDING_DOCKS:
+    case COLONY_BUILDING_DRYDOCK:
+    case COLONY_BUILDING_SHIPYARD:
+      if (!(opts && opts->map && map_tile_is_coastal(opts->map, col->x, col->y))) {
+        return false;
+      }
+      break;
+    case COLONY_BUILDING_CUSTOM_HOUSE:
+      if (!(opts && opts->has_peter_stuyvesant)) {
+        return false;
+      }
+      break;
+    default:
+      break;
   }
 
   /*
-   * Cut construction rows. DOS's own "can this colony build it" gate
-   * (FUN_15eb_3650) hard-zeroes three @BUILDING file indices no matter what
-   * the colony has: 0x0a and 0x0b (the two unfinished Town Hall upgrades —
-   * PEDIA.TXT calls 0x0b "COLONIAL ASSEMBLY") and 0x1e (Capitol). 0x1f
-   * (Capitol Expansion) is not zeroed there but is unreachable anyway: its
-   * prerequisite is the Capitol, which can never be owned. NAMES.TXT still
-   * carries all four rows and PEDIA.TXT keeps title-only stubs for them, but
-   * no DOS colony can ever start one — the port used to offer Capitol /
-   * Capitol Expansion in the construction picker.
+   * Chain tiers (audit CO-13), keyed on the @BUILDING row table
+   * (colonies_building_chain_rows): the tier below is owned (or this is the
+   * first tier) and nothing from this tier up is.
    */
-  if (colonies_building_name_row(n) == COLONY_BUILDING_CAPITOL || colonies_building_name_row(n) == COLONY_BUILDING_CAPITOL_EXPANSION) {
+  const int* rows = colonies_building_chain_rows(colonies_building_row_chain(row));
+  if (!rows) {
+    return true; /* Unknown row: allow if unmet and not owned (forward-compatible). */
+  }
+  int tier = 0;
+  while (rows[tier] != row) {
+    ++tier;
+  }
+  if (tier > 0 && !colonies_has_building_row(pool, col, (ColonizeBuildingRow)rows[tier - 1])) {
     return false;
   }
-
-  /*
-   * Chain tiers (audit CO-13): "the tier below is owned and nothing from
-   * this tier up is" is colonies_chain_tier_open; the only per-row extras
-   * are Adam Smith on every factory tier and coastal on the port chain.
-   * Spelled out arm-by-arm below this block are the rows that are NOT that
-   * rule (the Warehouse and the six starter houses, which DOS lets you
-   * build regardless of what sits above them in the chain).
-   */
-  if (colonies_building_name_row(n) == COLONY_BUILDING_STOCKADE) {
-    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_FORTIFICATION, 0);
+  for (int i = tier; i < 4 && rows[i] >= 0; ++i) {
+    if (colonies_has_building_row(pool, col, (ColonizeBuildingRow)rows[i])) {
+      return false;
+    }
   }
-  if (colonies_building_name_row(n) == COLONY_BUILDING_FORT) {
-    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_FORTIFICATION, 1);
-  }
-  if (colonies_building_name_row(n) == COLONY_BUILDING_FORTRESS) {
-    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_FORTIFICATION, 2);
-  }
-
-  /* Military production chain. */
-  if (colonies_building_name_row(n) == COLONY_BUILDING_ARMORY) {
-    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_ARMORY, 0);
-  }
-  if (colonies_building_name_row(n) == COLONY_BUILDING_MAGAZINE) {
-    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_ARMORY, 1);
-  }
-  if (colonies_building_name_row(n) == COLONY_BUILDING_ARSENAL) {
-    return adam && colonies_chain_tier_open(pool, col, COLONIES_CHAIN_ARMORY, 2);
-  }
-
-  /* Port chain (coastal only). */
-  if (colonies_building_name_row(n) == COLONY_BUILDING_DOCKS) {
-    return coastal && colonies_chain_tier_open(pool, col, COLONIES_CHAIN_DOCKS, 0);
-  }
-  if (colonies_building_name_row(n) == COLONY_BUILDING_DRYDOCK) {
-    return coastal && colonies_chain_tier_open(pool, col, COLONIES_CHAIN_DOCKS, 1);
-  }
-  if (colonies_building_name_row(n) == COLONY_BUILDING_SHIPYARD) {
-    return coastal && colonies_chain_tier_open(pool, col, COLONIES_CHAIN_DOCKS, 2);
-  }
-
-  /* Education chain. */
-  if (colonies_building_name_row(n) == COLONY_BUILDING_SCHOOLHOUSE) {
-    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_SCHOOL, 0);
-  }
-  if (colonies_building_name_row(n) == COLONY_BUILDING_COLLEGE) {
-    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_SCHOOL, 1);
-  }
-  if (colonies_building_name_row(n) == COLONY_BUILDING_UNIVERSITY) {
-    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_SCHOOL, 2);
-  }
-
-  /* Warehouse tier 0 is deliberately NOT colonies_chain_tier_open: DOS gates
-   * it on the Warehouse alone and ignores the Expansion above it (an
-   * Expansion without its Warehouse is unreachable anyway — col1_bridge
-   * derives tier 1 from warehouse_level, which implies tier 0). */
-  if (colonies_building_name_row(n) == COLONY_BUILDING_WAREHOUSE) {
-    return !colonies_has_building_row(pool, col, COLONY_BUILDING_WAREHOUSE);
-  }
-  if (colonies_building_name_row(n) == COLONY_BUILDING_WAREHOUSE_EXPANSION) {
-    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_WAREHOUSE, 1);
-  }
-
-  if (colonies_building_name_row(n) == COLONY_BUILDING_CUSTOM_HOUSE) {
-    return stuy && colonies_chain_tier_open(pool, col, COLONIES_CHAIN_CUSTOM_HOUSE, 0);
-  }
-
-  if (colonies_building_name_row(n) == COLONY_BUILDING_PRINTING_PRESS) {
-    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_PRESS, 0);
-  }
-  if (colonies_building_name_row(n) == COLONY_BUILDING_NEWSPAPER) {
-    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_PRESS, 1);
-  }
-
-  if (colonies_building_name_row(n) == COLONY_BUILDING_WEAVERS_SHOP) {
-    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_WEAVER, 1);
-  }
-  if (colonies_building_name_row(n) == COLONY_BUILDING_TEXTILE_MILL) {
-    return adam && colonies_chain_tier_open(pool, col, COLONIES_CHAIN_WEAVER, 2);
-  }
-
-  if (colonies_building_name_row(n) == COLONY_BUILDING_TOBACCONISTS_SHOP) {
-    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_TOBACCONIST, 1);
-  }
-  if (colonies_building_name_row(n) == COLONY_BUILDING_CIGAR_FACTORY) {
-    return adam && colonies_chain_tier_open(pool, col, COLONIES_CHAIN_TOBACCONIST, 2);
-  }
-
-  if (colonies_building_name_row(n) == COLONY_BUILDING_RUM_DISTILLERY) {
-    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_RUM, 1);
-  }
-  if (colonies_building_name_row(n) == COLONY_BUILDING_RUM_FACTORY) {
-    return adam && colonies_chain_tier_open(pool, col, COLONIES_CHAIN_RUM, 2);
-  }
-
-  if (colonies_building_name_row(n) == COLONY_BUILDING_FUR_TRADING_POST) {
-    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_FUR, 1);
-  }
-  if (colonies_building_name_row(n) == COLONY_BUILDING_FUR_FACTORY) {
-    return adam && colonies_chain_tier_open(pool, col, COLONIES_CHAIN_FUR, 2);
-  }
-
-  if (colonies_building_name_row(n) == COLONY_BUILDING_CARPENTERS_SHOP) {
-    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_CARPENTER, 0);
-  }
-  if (colonies_building_name_row(n) == COLONY_BUILDING_LUMBER_MILL) {
-    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_CARPENTER, 1);
-  }
-
-  if (colonies_building_name_row(n) == COLONY_BUILDING_CHURCH) {
-    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_CHURCH, 0);
-  }
-  if (colonies_building_name_row(n) == COLONY_BUILDING_CATHEDRAL) {
-    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_CHURCH, 1);
-  }
-
-  if (colonies_building_name_row(n) == COLONY_BUILDING_BLACKSMITHS_SHOP) {
-    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_BLACKSMITH, 1);
-  }
-  if (colonies_building_name_row(n) == COLONY_BUILDING_IRON_WORKS) {
-    return adam && colonies_chain_tier_open(pool, col, COLONIES_CHAIN_BLACKSMITH, 2);
-  }
-
-  /* Starter houses and other leaf buildings: available if not already owned. */
-  if (colonies_building_name_row(n) == COLONY_BUILDING_WEAVERS_HOUSE || colonies_building_name_row(n) == COLONY_BUILDING_TOBACCONISTS_HOUSE ||
-      colonies_building_name_row(n) == COLONY_BUILDING_RUM_DISTILLERS_HOUSE || colonies_building_name_row(n) == COLONY_BUILDING_FUR_TRADERS_HOUSE ||
-      colonies_building_name_row(n) == COLONY_BUILDING_BLACKSMITHS_HOUSE || colonies_building_name_row(n) == COLONY_BUILDING_STABLE) {
-    return !colonies_has_building_named(pool, col, n);
-  }
-
-  /* Unknown name: allow if unmet and not owned (forward-compatible). */
   return true;
 }
 
