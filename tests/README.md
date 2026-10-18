@@ -83,9 +83,8 @@ its two dutch2 exclusions are bugs.md #1085). Every exclusion a golden makes
 must name its reason in the test and, if it hides an unresolved DOS
 difference, hold a bugs.md row.
 
-**AI gates are all live (since 2026-09-05).** The only `DISABLED` test in
-`CMakeLists.txt` is `golden_idle_independence` (the wall-clock VR_SOUND archive;
-its live gates are `golden_idle_tr9/ref/tr10` below). The cluster was parked 2026-08-19 while the AI
+**AI gates are all live (since 2026-09-05).** No test in `CMakeLists.txt` is
+`DISABLED`. The cluster was parked 2026-08-19 while the AI
 transcription was still structural; `smoke_ai_mid01` / `smoke_ai_late01`
 (renamed from `golden_ai_*` 2026-09-14, because they generate their own
 fixture and assert self-consistency rather than a DOS-derived expectation)
@@ -117,25 +116,18 @@ through years the archive lacks. A `%d` in `GOLDEN_IDLE_DUMP` takes the year, so
 `GOLDEN_IDLE_FROM=path.sav` starts from that save instead of `year_FIRST.sav`.
 
 The same binary with a leading `independence` argument runs the second campaign,
-`original_saves/independence-seed-100` (Dutch every-turn autosaves `000001`..`000072`
-after loading `START_SAVE.SAV` = save 0, 1680-1717, see its readme.md). Arguments are
-save numbers, and the `%d` in dumps is the save number. START_SAVE was loaded from a
-running French game's menu, so the harness first finishes that day from slot 2
-(`turn_end_from_slot`), twice for this archive (`resume_runs`, docs/idle_independence.md
-"VR_SOUND archive"). Before simulating toward save 2 (tr9: 3), the harness declares
-independence through `ai_king_menu_declare_independence`. With no popup queue that confirms,
-as the player's second option did. It plays through turns missing from the archive
-(turns 288, 308, 328).
-CTest `golden_idle_independence` (the archive) is disabled; the live gates are
-`golden_idle_tr9` (`golden_idle_campaign tr9 0 20`: the VR_SEED chain against the recorded
-DOSBox reference run in `original_saves/independence-seed-100/tr9/`, music picks read from
-its trace), `golden_idle_ref` (`ref 0 12`: plain main-menu load of START_SAVE, VR_SOUND.EXE,
-`ref/ref_K.sav`) and `golden_idle_tr10` (`tr10 1 7`: main-menu load of 000001, `tr10/tr10_K.sav`).
-Bump their LAST as the port's reach grows (docs/idle_independence.md "VR_SOUND archive"). Per-interval draw comparison: `tools/trcmp.py` (readme in that directory). Status
-and quirks in [docs/idle_independence.md](../docs/idle_independence.md):
+`original_saves/independence-seed-100` (Dutch every-turn autosaves `000001`..`000021`,
+1680-1690, VR_SOUND.EXE, see its readme.md). Arguments are save numbers, and the `%d` in
+dumps is the save number. The player loaded 000001 from the main menu and declared
+independence during that turn; before simulating toward save 2 the harness declares through
+`ai_king_menu_declare_independence` (with no popup queue that confirms, as the player's second
+option did). It plays through turns missing from the archive (turn 288).
+CTest `golden_idle_independence` runs `independence 1 7` (the port's reach; bump LAST as it
+grows). Per-interval draw comparison against a DOSBox trace: `tools/trcmp.py`. Status and
+quirks in [docs/idle_independence.md](../docs/idle_independence.md):
 
 ```
-GOLDEN_IDLE_KEEP_GOING=1 GOLDEN_IDLE_DUMP=/tmp/x/sim_%d.sav ./build/debug/golden_idle_campaign independence 0 20
+GOLDEN_IDLE_KEEP_GOING=1 GOLDEN_IDLE_DUMP=/tmp/x/sim_%d.sav ./build/debug/golden_idle_campaign independence 1 21
 ```
 
 Most executables expect **repo root** as cwd (`WORKING_DIRECTORY` in CMake).

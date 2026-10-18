@@ -1008,30 +1008,13 @@ add_test(NAME golden_idle_continuous
   COMMAND golden_idle_campaign 1492 1599
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 set_tests_properties(golden_idle_continuous PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1")
-# Same harness, Dutch every-turn autosaves 1680-1717 (VR_SOUND.EXE) with a declaration
-# of independence between saves 1 and 2. Disabled until aligned (diverges at save 4).
+# Same harness, Dutch every-turn autosaves 1680-1690 (VR_SOUND.EXE, re-recorded
+# 2026-10-18: main-menu load of 000001, declaration during that turn, then idle).
+# LAST = the port's current reach (docs/idle_independence.md); bump it as it grows.
 add_test(NAME golden_idle_independence
-  COMMAND golden_idle_campaign independence 1 72
+  COMMAND golden_idle_campaign independence 1 7
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-set_tests_properties(golden_idle_independence PROPERTIES
-  ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1" DISABLED TRUE)
-# DOSBox from-load references recorded 2026-10-17 (VR_SOUND.EXE, docs/idle_independence.md
-# "VR_SOUND archive"): ref = plain main-menu load of START_SAVE, declare after save 1;
-# tr10 = main-menu load of 000001, declare, idle. Ranges = the port's current reach.
-add_test(NAME golden_idle_ref
-  COMMAND golden_idle_campaign ref 0 12
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-set_tests_properties(golden_idle_ref PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1")
-add_test(NAME golden_idle_tr10
-  COMMAND golden_idle_campaign tr10 1 7
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-set_tests_properties(golden_idle_tr10 PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1")
-# The same chain against the tr9 DOSBox reference run (saves 4..20, picks from
-# its trace): the live independence gate (docs/idle_independence.md).
-add_test(NAME golden_idle_tr9
-  COMMAND golden_idle_campaign tr9 0 20
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-set_tests_properties(golden_idle_tr9 PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1")
+set_tests_properties(golden_idle_independence PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1")
 # T2 early gate: full Euro dispatcher (TURN1→7). The AI_EURO_EARLY_FIXTURE bisect fixture was deleted 2026-09-14.
 
 # Renamed from golden_ai_* 2026-09-14 (duplication audit TT-13): both generate
@@ -1053,8 +1036,7 @@ colonize_add_test(NAME smoke_ai_late01
 # golden_ai_joint) was parked 2026-08-19 while the AI transcription was
 # still structural. 2026-08-27 brought the joint pair back as regression
 # gates, 2026-09-05 (T1.23, all six TURN steps green) golden_ai_turns and
-# golden_ai_joint. Nothing in this cluster is DISABLED (the only DISABLED test
-# is golden_idle_independence, above).
+# golden_ai_joint. Nothing is DISABLED.
 
 # Colony production golden vs real-DOS-run saves (COLONY00/01_no-transports.SAV):
 colonize_add_test(NAME golden_colony_prod01

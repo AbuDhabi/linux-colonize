@@ -15,7 +15,7 @@ and the deferred AI track is **substantially complete** — D1 closed
 original thresholds), D2 bodies (`2820`/`2154`/`4528`) Done at logic level,
 D3 golden gates all live plus the two idle campaigns (`golden_idle_continuous`
 1492-1599 byte-exact, [idle_campaign.md](idle_campaign.md); independence
-`golden_idle_tr9` / `_ref` / `_tr10`, [idle_independence.md](idle_independence.md)).
+`golden_idle_independence`, [idle_independence.md](idle_independence.md)).
 What remains AI-side is the short **residual punch list** in the Deferred AI
 track section, not a track. The only remaining *phases* are D4 (pixel chrome)
 and D5 (music timbre). Open work is the `bugs.md` queue — currently the

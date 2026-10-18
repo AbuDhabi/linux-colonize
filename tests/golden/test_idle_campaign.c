@@ -8,13 +8,10 @@
  *
  * With a leading "independence" argument it runs the Dutch every-turn
  * autosaves in original_saves/independence-seed-100 instead (save numbers
- * 0..20, 1680-1690; 0 = START_SAVE.SAV, the manual save the player loaded).
- * The player declares independence between saves 2 and 3 (menu GAME >
- * DECLARE INDEPENDENCE, second option) and otherwise idles the same way.
- * Its CTest case is disabled (the archive is one wall-clock realisation of
- * the music picks); the "tr9" argument runs the same chain against the
- * recorded DOSBox reference run, CTest golden_idle_tr9
- * (docs/idle_independence.md).
+ * 1..21, 1680-1690, VR_SOUND.EXE: no music picks). The player loaded 000001
+ * from the main menu, declared independence (menu GAME > DECLARE
+ * INDEPENDENCE, second option) and otherwise idles the same way. CTest
+ * golden_idle_independence; docs/idle_independence.md.
  */
 #include <stdint.h>
 #include <stdio.h>
@@ -31,43 +28,18 @@
  * campaign) or by save number (every-turn campaign). */
 typedef struct {
   const char* path_fmt;
-  const char* start_path; /* save index `min`, when named differently; NULL = path_fmt */
   int min, max;
   int per_turn;      /* save index counts turns, not years */
   int declare_save;  /* the human declares independence on the turn before this save; 0 = never */
-  int resume_slot;   /* start save loaded in-game: the old day runs on from this slot; -1 = none */
-  const char* picks_trace; /* DOSBox draw trace with `PICK save K draw D` lines; NULL = none */
 } IdleCampaign;
 
 static const IdleCampaign k_yearly = {
-  "original_saves/1492-1600-seed-100/year_%d.sav", NULL, 1492, 1599, 0, 0, -1, NULL,
+  "original_saves/1492-1600-seed-100/year_%d.sav", 1492, 1599, 0, 0,
 };
+/* Re-recorded 2026-10-18 (VR_SOUND.EXE): main-menu load of 000001, declare
+ * independence during that turn (between saves 1 and 2), Space. */
 static const IdleCampaign k_independence = {
-  /* The VR_SOUND archive (2026-10-17) starts at 000001: its 000001 is not
-   * reproducible from START_SAVE (docs/idle_independence.md "VR_SOUND
-   * archive"), so save 1 is the campaign's first save. */
-  "original_saves/independence-seed-100/%06d.SAV", NULL, 1, 72, 1, 2, -1, NULL,
-};
-/* The same chain against the tr9 DOSBox reference run (continuous from
- * 000003, draw-traced; original_saves/independence-seed-100/tr9/readme.md).
- * Saves 1..3 have no tr9 file and are played through; its music picks come
- * from the trace. */
-/* DOSBox from-load reference runs (2026-10-17, VR_SOUND.EXE, recipe in
- * docs/idle_independence.md "VR_SOUND archive"): tr10 = main-menu load of
- * 000001, declare, idle; ref = main-menu load of START_SAVE (no resumed
- * day), idle, declare after save 1. */
-static const IdleCampaign k_tr10 = {
-  "original_saves/independence-seed-100/tr10/tr10_%d.sav",
-  "original_saves/independence-seed-100/000001.SAV", 1, 72, 1, 2, -1, NULL,
-};
-static const IdleCampaign k_ref = {
-  "original_saves/independence-seed-100/ref/ref_%d.sav",
-  "original_saves/independence-seed-100/START_SAVE.SAV", 0, 72, 1, 2, -1, NULL,
-};
-static const IdleCampaign k_tr9 = {
-  "original_saves/independence-seed-100/tr9/tr9_%d.sav",
-  "original_saves/independence-seed-100/START_SAVE.SAV", 0, 20, 1, 3, 2,
-  "original_saves/independence-seed-100/tr9/tr9.txt",
+  "original_saves/independence-seed-100/%06d.SAV", 1, 21, 1, 2,
 };
 
 static int read_bytes(const char* path, uint8_t** data, size_t* size) {
@@ -213,31 +185,21 @@ static int parse_year(const IdleCampaign* c, const char* text, int* year) {
 }
 
 static void save_path(const IdleCampaign* c, char* path, size_t size, int year) {
-  if (year == c->min && c->start_path) {
-    snprintf(path, size, "%s", c->start_path);
-  } else {
-    snprintf(path, size, c->path_fmt, year);
-  }
+  snprintf(path, size, c->path_fmt, year);
 }
 
 int main(int argc, char** argv) {
   const IdleCampaign* c = &k_yearly;
-  static const struct { const char* name; const IdleCampaign* c; } k_named[] = {
-    {"independence", &k_independence}, {"tr9", &k_tr9}, {"tr10", &k_tr10}, {"ref", &k_ref},
-  };
-  for (size_t i = 0; argc == 4 && i < sizeof(k_named) / sizeof(k_named[0]); ++i) {
-    if (strcmp(argv[1], k_named[i].name) == 0) {
-      c = k_named[i].c;
-      --argc;
-      ++argv;
-      break;
-    }
+  if (argc == 4 && strcmp(argv[1], "independence") == 0) {
+    c = &k_independence;
+    --argc;
+    ++argv;
   }
   int first, last;
   if (argc != 3 || !parse_year(c, argv[1], &first) ||
       !parse_year(c, argv[2], &last) || first >= last) {
     fprintf(stderr,
-            "usage: %s [independence|tr9|tr10|ref] FIRST LAST (one contiguous saved run;"
+            "usage: %s [independence] FIRST LAST (one contiguous saved run;"
             " years, or save numbers for independence)\n", argv[0]);
     return 2;
   }
@@ -310,46 +272,7 @@ int main(int argc, char** argv) {
         break;
       }
     }
-    /* GOLDEN_IDLE_PICKS="5:120,900;6:42": music picks (dos_rng.h) recorded
-     * for the run into save 5 / 6, as draw indices from that run's start. */
-    unsigned long picks[16];
-    int npicks = 0;
-    {
-      const char* pe = getenv("GOLDEN_IDLE_PICKS");
-      while (pe && *pe) {
-        char* end;
-        const long sv = strtol(pe, &end, 10);
-        if (*end != ':') break;
-        pe = end + 1;
-        while (*pe && *pe != ';') {
-          const unsigned long ix = strtoul(pe, &end, 10);
-          if (end == pe) break;
-          if (sv == year && npicks < 16) picks[npicks++] = ix;
-          pe = *end == ',' ? end + 1 : end;
-        }
-        if (*pe == ';') ++pe;
-      }
-      /* No env spec: the campaign's own trace (`PICK save K draw D`). */
-      FILE* tf = (!pe && c->picks_trace) ? fopen(c->picks_trace, "r") : NULL;
-      if (tf) {
-        char line[160];
-        while (fgets(line, sizeof(line), tf)) {
-          int sv;
-          unsigned long ix;
-          if (sscanf(line, "PICK save %d draw %lu", &sv, &ix) == 2 && sv == year && npicks < 16) {
-            picks[npicks++] = ix;
-          }
-        }
-        fclose(tf);
-      }
-    }
-    dos_rng_schedule_tick_reseeds(picks, npicks);
     int stepped = 1;
-    if (year == first + 1 && first == c->min && c->resume_slot >= 0 &&
-        !(from_env && *from_env)) {
-      fx.units.selected_id = -1;
-      stepped = golden_turn_from_slot(&fx, c->resume_slot);
-    }
     for (int step = 0; stepped && step < steps; ++step) {
       /* The skipped human turn: FUN_2b5a_3b68 opens Move Pieces with
        * DS:0x5392 = 0xffff (raw 46833) and the idle player ends it there. */
@@ -366,31 +289,9 @@ int main(int argc, char** argv) {
       col1_bridge_stamp_autosave_head(&fx.start);
     }
     fprintf(stderr, "save %d: %lu draws rng %08x\n", year, dos_rng_draw_count(), fx.rng.state);
-    dos_rng_schedule_tick_reseeds(NULL, 0);
     if (!stepped) {
       ok = 0;
       break;
-    }
-    /* GOLDEN_IDLE_RESYNC="5": after the run into that save, take the AI
-     * nations' gold and trade ledgers from the archive. For realisation
-     * residue a DOSBox replay does not reproduce (independence 000005: the
-     * crown's +36 Tools gross), so the later saves can still be compared. */
-    {
-      const char* rs = getenv("GOLDEN_IDLE_RESYNC");
-      for (const char* q = rs; have && q && *q;) {
-        char* end;
-        const long sv = strtol(q, &end, 10);
-        if (end == q) break;
-        if (sv == year) {
-          for (int n = 0; n < 4; ++n) {
-            if (n == (int)fx.br.human_nation) continue;
-            fx.start.nation[n].gold = fx.expect.nation[n].gold;
-            memcpy(fx.start.nation[n].trade.gold, fx.expect.nation[n].trade.gold,
-                   sizeof(fx.start.nation[n].trade.gold));
-          }
-        }
-        q = *end ? end + 1 : end;
-      }
     }
     if (!have || known_residue_year(c, year)) {
       compare_save(&fx.start, NULL, NULL, year);

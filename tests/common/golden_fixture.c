@@ -107,19 +107,11 @@ void golden_ctx(GoldenFixture* fx, ColonizeTurnContext* out) {
 }
 
 bool golden_turn(GoldenFixture* fx) {
-  return golden_turn_from_slot(fx, -1);
-}
-
-bool golden_turn_from_slot(GoldenFixture* fx, int slot) {
   char err[256];
 
   ColonizeTurnContext ctx;
   golden_ctx(fx, &ctx);
-  if (slot < 0) {
-    turn_end(&ctx);
-  } else {
-    turn_end_from_slot(&ctx, slot);
-  }
+  turn_end(&ctx);
   /* Headless: no UI touches View/Move Pieces, so DS:0x5390 rides through
    * from the loaded save (capture below). */
 
