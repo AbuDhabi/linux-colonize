@@ -227,9 +227,6 @@ int ai_euro_20e6_ship_hold_budget(
 );
 int ai_euro_20e6_origin_get(const ColonizeUnit* u);
 void ai_euro_20e6_origin_set(ColonizeUnit* u, int colony_id);
-extern uint32_t ai_euro_s_4393_claim_turn[COLONIZE_UNITS_MAX];
-extern int ai_euro_s_4393_claim_colony[COLONIZE_UNITS_MAX];
-extern int ai_euro_s_4393_claim_valid[COLONIZE_UNITS_MAX];
 int ai_euro_4393_work_queue_haul_pick(
   ColonizeTurnContext* ctx,
   int nation_id,
