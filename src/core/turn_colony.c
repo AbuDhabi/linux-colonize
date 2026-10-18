@@ -28,7 +28,7 @@
 #include "core/woodcut.h"
 #include "platform/diagnostics.h"
 
-ColonizeColony* g_turn_1528_colony = NULL;
+ColonizeColony* g_turn_1528_last_walked_colony = NULL;
 
 /*
  * Sections:
@@ -185,7 +185,7 @@ static void turn_run_colony_eot_with(
   /* bugs.md #770: FUN_4962_0606 (raw 78332-78374) counts the nation's map
    * units before its colonists, so the specialty census needs the pool. */
   turn_run_colony_production_with_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL), .rng=(ColonizeDosRng*)(ctx->rng), .europe=(EuropeScreen*)(ctx->europe)}, ctx->human_nation, out, ctx->ai_popups, ctx->messages, before, before_user);
-  g_turn_1528_colony = NULL;
+  g_turn_1528_last_walked_colony = NULL;
   turn_set_birth_units_pool(NULL);
   turn_run_colony_unit_construction(ctx);
   turn_run_colony_building_completion(ctx);
@@ -248,14 +248,14 @@ static int turn_count_bells_and_crosses_for_nation_ex(
     if (!c->active || c->nation_id != nation_id) {
       continue;
     }
-    int b = 0;
-    int x = 0;
+    int colony_bells = 0;
+    int colony_crosses = 0;
     if (this_turn_stamp != 0u && c->prod_compose_stamp == this_turn_stamp) {
       /* DOS "one number, two consumers": reuse exactly what this colony's
        * own Phase A composed (smell audit #62) instead of re-tallying after
        * its Phase C/D SoL update and its F/G/H/J roster edits. */
-      b = c->prod_bells_phase_a;
-      x = c->prod_crosses_phase_a;
+      colony_bells = c->prod_bells_phase_a;
+      colony_crosses = c->prod_crosses_phase_a;
     } else {
       /* No compose this turn (human colonies tick later, in
        * TURN_PROC_FINISH; direct callers may have no col1) — a live read
@@ -265,13 +265,13 @@ static int turn_count_bells_and_crosses_for_nation_ex(
        * FUN_15eb_1d4c's Statesman/Preacher bodies — see
        * manufacturing_worker_calc_1d4c.md). */
       turn_compose_colony_bells_crosses(
-        pool, c, col1, colony_prod_sol_bonus(col1, c), &b, &x
+        pool, c, col1, colony_prod_sol_bonus(col1, c), &colony_bells, &colony_crosses
       );
     }
-    bells += b;
-    crosses += x;
+    bells += colony_bells;
+    crosses += colony_crosses;
     if (out_colony_bells && ncol < COLONIZE_COLONIES_MAX) {
-      out_colony_bells[ncol] = b;
+      out_colony_bells[ncol] = colony_bells;
     }
     ++ncol;
   }
@@ -451,7 +451,7 @@ typedef struct AiNationColonyBellStep {
 static void turn_ai_colony_bell_step(void* user, ColonizeColony* colony) {
   AiNationColonyBellStep* step = user;
   /* FUN_364b_0688 raw 57224: FUN_281f_09e6 binds DS:0x8542 to this colony. */
-  g_turn_1528_colony = NULL;
+  g_turn_1528_last_walked_colony = NULL;
   int bells = 0;
   int crosses = 0;
   turn_compose_colony_bells_crosses(

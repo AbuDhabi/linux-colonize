@@ -58,7 +58,7 @@ Clean: no strcpy/strcat/sprintf/gets/alloca; allocs checked; fopen/fclose balanc
 | MED | DOS text | ai_euro_land.c:4106 | @VIOLATE fallback "the frontier" typed English |
 | MED | invented constant | ai_euro_land.c:4068-4070; ai_euro.c:88-93 | @VIOLATE 10-turn per-unit cooldown + nearest colony of any nation, "own addition"; no known_divergences entry |
 | MED | gold rule | ai_euro_europe.c:185,198,918,1011,1268,1296,1330,1431,1487,1510,1751; ai_euro_ship.c:386 | direct col1->nation[n].gold read/write incl. nat->gold = floor (:198), clamp :1011 |
-| MED | length | ai_euro_colony_jobs.c:2983-3462, 2161-2573; ai_popup_render.c:379-783 | ai_euro_colony_tick_run 480, ai_euro_5952_build_cascade_1b0 413, ai_popup_render 405; ai_euro_move_scoring_gate land.c:3643 391 |
+| MED | length | ai_euro_colony_jobs.c:2983-3462, 2161-2573; ai_popup_render.c:379-783 | ai_euro_colony_tick_run 480, ai_euro_5952_build_cascade_for_owner 413, ai_popup_render 405; ai_euro_move_scoring_gate land.c:3643 391 |
 | MED | reset hygiene | ai.c:150 | s_ai_coarse_fog (DS:0x9faa) not reset by any lifecycle hook; carries across games in session |
 | LOW | reset | ai_euro_colony_jobs.c:2100 | s_5952_arty_plot not in ai_euro_reset (written :3041, consumed :2263) |
 | LOW | stale/wasted | ai_euro.c:1560-1571 | loop over 4096 ids clearing wagon-errand "for reused id"; ids never reused |
@@ -121,7 +121,7 @@ Clean: no id-walk, gold writes via accessor, EuropeScreen borrows gated, alarm d
 | MED | global vs ctx | units_map.c:884; units_move.c:165-348,394,442-444,485,819; units_capture.c:113-219,256 | g_units_ff_col1 92 refs; _w functions ignore w->col1; ~14 const-cast writes through it |
 | MED | world plumbing | units_move.c:175,651,654,941,1429; units_pioneer.c:633,680; units_cargo.c:709,894,954; units_capture.c:747 | _w functions rebuild partial (ColonizeWorld){units,colonies,map} dropping col1/rng/europe; architecture.md:186-188 claims pass-through |
 | MED | reset coverage | units_combat.c:4045-4065 | units_reset_hooks misses s_spawn_gate_fn/_user, s_spawn_refused_fn (units.c:35-37); g_units_combat_popups/_europe/_game_txt/_colonies/_human_nation (units_map.c:888-892); g_units_fallout_col1/_map (:885-886); g_combat_analysis_presenter (combat_analysis.c:13) |
-| LOW | reset | turn_production.c:247; turn.c:1010,1089-1097 | turn_labels never cleared; g_turn_1528_colony (turn_colony.c:31) not in turn_reset |
+| LOW | reset | turn_production.c:247; turn.c:1010,1089-1097 | turn_labels never cleared; g_turn_1528_last_walked_colony (turn_colony.c:31) not in turn_reset |
 | LOW | dead exports | units_cargo.c:855 units_pick_landfall_tile_w, :922 units_landfall_unload_all_w; units_combat.c:2613 units_drake_scale_strength; units_capture.c:901 units_can_afford_move_cost; colony_build.c:930 colonies_has_building_name_contains, :1058 colonies_building_chain_length; colony_craft.c:90 colony_craft_recipe_at; units.c:44 units_unlimited, :523/:531 units_type_is_military/_native | 11 dead; founding_fathers.md:136, move_enter.md:82, port_plan.md:267 cite two as live |
 | LOW | diag-only | units_move.c:1980-2090,2776-2784 | units_bfs_next_step only UNITS_FAR_BFS=1; debug_env_vars.md:22 cites units.c:9804 stale |
 | MED | name-keyed | colony_build.c:1092-1269,1073-1089,918-928 | colonies_building_is_buildable 40x colonies_building_name_row strcmp; colonies_building_type_row/colonies_has_building_row exist (colony.c:367,357); miss "" feeds has_building_named("") |
@@ -208,7 +208,7 @@ INFO: modal coverage complete; parsers/fb clipping clean; tsf.h only CRLF diff; 
 
 | Sev | Area | file:line | Finding | Evidence |
 |---|---|---|---|---|
-| HIGH | docs claim | docs/conventions.md:131-132 | ">300 lines split" claim false; 8 functions >400: turn_produce_one_colony turn_production.c:516 (~1550), col1_bridge_capture_w col1_bridge.c:2305 (~1250), col1_bridge_apply_w col1_bridge.c:905 (~1230), units_try_move_w units_move.c:~99 (~860), map_panel.c:~1230 (~650), colony_screen_hit_test (~515), ai_euro_colony_tick_run ai_euro_colony_jobs.c:2983 (~480), ai_euro_5952_build_cascade_1b0 :2163 (~410); 9 more 300-400 | brace scan |
+| HIGH | docs claim | docs/conventions.md:131-132 | ">300 lines split" claim false; 8 functions >400: turn_produce_one_colony turn_production.c:516 (~1550), col1_bridge_capture_w col1_bridge.c:2305 (~1250), col1_bridge_apply_w col1_bridge.c:905 (~1230), units_try_move_w units_move.c:~99 (~860), map_panel.c:~1230 (~650), colony_screen_hit_test (~515), ai_euro_colony_tick_run ai_euro_colony_jobs.c:2983 (~480), ai_euro_5952_build_cascade_for_owner :2163 (~410); 9 more 300-400 | brace scan |
 | HIGH | fixture id-vs-slot | tests/unit/test_ai_diplo.c:745-746 | units.units[sid].nation_id = 0; units.units[ship] — slot write by id | |
 | HIGH | CRLF | CMakePresets.json; tools/address_mapping.csv; data/soundfonts/COPYRIGHT.Roland_SC-55 | i/crlf in index | git ls-files --eol |
 | MED | build | CMakePresets.json:2-6 | schema version 6 needs CMake 3.25; min declared 3.20 | |

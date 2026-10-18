@@ -823,25 +823,25 @@ static const signed char k_pedia_terrain_resource[PEDIA_TERRAIN_COUNT] = {
  */
 #define PEDIA_RES_DOUBLE (-1)
 static int pedia_resource_effect(int resource, int job) {
-  int v = 0;
-  if (resource == 9 && job == COLONIZE_PROF_FARMER) v = 2;
-  if (resource == 1 && job == COLONIZE_PROF_FARMER) v += 2;
-  if (resource == 2 && job == COLONIZE_PROF_FARMER) v += 2;
-  if (resource == 9 && job == COLONIZE_PROF_FUR_TRAPPER) v += 2;
+  int yield_bonus = 0;
+  if (resource == 9 && job == COLONIZE_PROF_FARMER) yield_bonus = 2;
+  if (resource == 1 && job == COLONIZE_PROF_FARMER) yield_bonus += 2;
+  if (resource == 2 && job == COLONIZE_PROF_FARMER) yield_bonus += 2;
+  if (resource == 9 && job == COLONIZE_PROF_FUR_TRAPPER) yield_bonus += 2;
   /* Beaver + Fur Trapper is +3, not +2 — FUN_15eb_17fa raw 11736-11738
    * (`(param_1 == 8) && (param_2 == 4)` -> local_4 + 3), same as
    * colony_yield.c's copy. bugs.md #855. */
-  if (resource == 8 && job == COLONIZE_PROF_FUR_TRAPPER) v += 3;
-  if (resource == 3 && job == COLONIZE_PROF_COTTON_PLANTER) v = PEDIA_RES_DOUBLE;
-  if (resource == 4 && job == COLONIZE_PROF_TOBACCO_PLANTER) v = PEDIA_RES_DOUBLE;
-  if (resource == 5 && job == COLONIZE_PROF_SUGAR_PLANTER) v = PEDIA_RES_DOUBLE;
-  if (resource == 10 && job == COLONIZE_PROF_LUMBERJACK) v += 2;
-  if (resource == 6 && job == COLONIZE_PROF_ORE_MINER) v += 3;
-  if (resource == 13 && job == COLONIZE_PROF_ORE_MINER) v += 2;
-  if (resource == 6 && job == COLONIZE_PROF_SILVER_MINER) v += 1;
-  if (resource == 12 && job == COLONIZE_PROF_SILVER_MINER) v += 2;
-  if (resource == 7 && job == COLONIZE_PROF_FISHERMAN) v += 3;
-  return v;
+  if (resource == 8 && job == COLONIZE_PROF_FUR_TRAPPER) yield_bonus += 3;
+  if (resource == 3 && job == COLONIZE_PROF_COTTON_PLANTER) yield_bonus = PEDIA_RES_DOUBLE;
+  if (resource == 4 && job == COLONIZE_PROF_TOBACCO_PLANTER) yield_bonus = PEDIA_RES_DOUBLE;
+  if (resource == 5 && job == COLONIZE_PROF_SUGAR_PLANTER) yield_bonus = PEDIA_RES_DOUBLE;
+  if (resource == 10 && job == COLONIZE_PROF_LUMBERJACK) yield_bonus += 2;
+  if (resource == 6 && job == COLONIZE_PROF_ORE_MINER) yield_bonus += 3;
+  if (resource == 13 && job == COLONIZE_PROF_ORE_MINER) yield_bonus += 2;
+  if (resource == 6 && job == COLONIZE_PROF_SILVER_MINER) yield_bonus += 1;
+  if (resource == 12 && job == COLONIZE_PROF_SILVER_MINER) yield_bonus += 2;
+  if (resource == 7 && job == COLONIZE_PROF_FISHERMAN) yield_bonus += 3;
+  return yield_bonus;
 }
 
 /* LABELS.TXT @MISC line, with literal fallback (DOS DS:0x2dba pointer table). */
@@ -1273,26 +1273,26 @@ static void pedia_cargo_row(
 
 /* FUN_6cb2_05ce cargo article content; returns body y. */
 static int pedia_article_cargo(
-  const PediaArticleAssets* a, ColonizeFramebuffer8* fb, int c, int y
+  const PediaArticleAssets* a, ColonizeFramebuffer8* fb, int cargo_id, int y
 ) {
   int rows_cargo[3];
   int rows_job[3];
   int n = 0;
-  if (c == COLONIZE_CARGO_FOOD) {
+  if (cargo_id == COLONIZE_CARGO_FOOD) {
     rows_cargo[0] = 0;
     rows_job[0] = 0;
     rows_cargo[1] = -1;
     rows_job[1] = -1;
     n = 2;
-  } else if (c == COLONIZE_CARGO_HORSES || c == COLONIZE_CARGO_TRADE_GOODS) {
-    rows_cargo[0] = c;
+  } else if (cargo_id == COLONIZE_CARGO_HORSES || cargo_id == COLONIZE_CARGO_TRADE_GOODS) {
+    rows_cargo[0] = cargo_id;
     rows_job[0] = -1;
     n = 1;
-  } else if (c == COLONIZE_CARGO_SILVER) {
+  } else if (cargo_id == COLONIZE_CARGO_SILVER) {
     rows_cargo[0] = COLONIZE_CARGO_SILVER;
     rows_job[0] = COLONIZE_CARGO_SILVER;
     n = 1;
-  } else if (c == COLONIZE_CARGO_ORE || c == COLONIZE_CARGO_TOOLS || c == COLONIZE_CARGO_MUSKETS) {
+  } else if (cargo_id == COLONIZE_CARGO_ORE || cargo_id == COLONIZE_CARGO_TOOLS || cargo_id == COLONIZE_CARGO_MUSKETS) {
     rows_cargo[0] = COLONIZE_CARGO_ORE;
     rows_job[0] = COLONIZE_CARGO_ORE;
     rows_cargo[1] = COLONIZE_CARGO_TOOLS;
@@ -1300,23 +1300,23 @@ static int pedia_article_cargo(
     rows_cargo[2] = COLONIZE_CARGO_MUSKETS;
     rows_job[2] = COLONIZE_CARGO_MUSKETS;
     n = 3;
-  } else if (c == COLONIZE_CARGO_LUMBER) {
+  } else if (cargo_id == COLONIZE_CARGO_LUMBER) {
     rows_cargo[0] = COLONIZE_CARGO_LUMBER;
     rows_job[0] = COLONIZE_CARGO_LUMBER;
     rows_cargo[1] = COLONIZE_CARGO_COUNT;
     rows_job[1] = 13;
     n = 2;
-  } else if (c < COLONIZE_CARGO_HORSES) {
-    rows_cargo[0] = c;
-    rows_job[0] = c;
-    rows_cargo[1] = c + 8;
-    rows_job[1] = c + 8;
+  } else if (cargo_id < COLONIZE_CARGO_HORSES) {
+    rows_cargo[0] = cargo_id;
+    rows_job[0] = cargo_id;
+    rows_cargo[1] = cargo_id + 8;
+    rows_job[1] = cargo_id + 8;
     n = 2;
   } else {
-    rows_cargo[0] = c - 8;
-    rows_job[0] = c - 8;
-    rows_cargo[1] = c;
-    rows_job[1] = c;
+    rows_cargo[0] = cargo_id - 8;
+    rows_job[0] = cargo_id - 8;
+    rows_cargo[1] = cargo_id;
+    rows_job[1] = cargo_id;
     n = 2;
   }
   for (int i = 0; i < n; ++i) {
@@ -1357,21 +1357,21 @@ static void pedia_unit_figure(
 
 /* FUN_6cb2_07e6 unit article content; returns body y. */
 static int pedia_article_unit(
-  const PediaArticleAssets* a, ColonizeFramebuffer8* fb, int t, int y
+  const PediaArticleAssets* a, ColonizeFramebuffer8* fb, int unit_type_index, int y
 ) {
   const int fh = a->font ? a->font->max_height : 6;
   (void)fh;
   int x = 8;
 
-  const int icon_1based = pedia_names_int(a->names, "UNIT", t, 1);
-  const int movement = pedia_names_int(a->names, "UNIT", t, 2);
-  const int attack = pedia_names_int(a->names, "UNIT", t, 3);
-  const int combat = pedia_names_int(a->names, "UNIT", t, 4);
-  const int cargo = pedia_names_int(a->names, "UNIT", t, 5);
+  const int icon_1based = pedia_names_int(a->names, "UNIT", unit_type_index, 1);
+  const int movement = pedia_names_int(a->names, "UNIT", unit_type_index, 2);
+  const int attack = pedia_names_int(a->names, "UNIT", unit_type_index, 3);
+  const int combat = pedia_names_int(a->names, "UNIT", unit_type_index, 4);
+  const int cargo = pedia_names_int(a->names, "UNIT", unit_type_index, 5);
   const int plain_icon = icon_1based > 0 ? icon_1based - 1 : -1;
 
   char name[64];
-  assets_msg_row_field(a->names, "UNIT", t, 0, name, sizeof(name));
+  assets_msg_row_field(a->names, "UNIT", unit_type_index, 0, name, sizeof(name));
 
   /* Default expert profession per type (DOS FUN_281f_0b78 / DS:0x30e). */
   static const signed char k_default_job[6] = {19, 21, 20, 24, 23, 22};
@@ -1380,7 +1380,7 @@ static int pedia_article_unit(
   static const int k_expert_pose[6] = {100, 102, 101, 77, 104, 103};
 
   int expert_job = -1;
-  if (t == 0) {
+  if (unit_type_index == 0) {
     /* Colonists: every profession figure, 17 per row (DOS order). */
     pedia_unit_figure(a, fb, units_job_icon_sprite(28), 0, x, y, false);
     x = 26;
@@ -1403,19 +1403,19 @@ static int pedia_article_unit(
         y += 20;
       }
     }
-  } else if (t >= 1 && t <= 5) {
-    expert_job = k_default_job[t];
-    pedia_unit_figure(a, fb, k_plain_pose[t], t, 8, y, false);
-    pedia_unit_figure(a, fb, k_expert_pose[t], t, 26, y, false);
+  } else if (unit_type_index >= 1 && unit_type_index <= 5) {
+    expert_job = k_default_job[unit_type_index];
+    pedia_unit_figure(a, fb, k_plain_pose[unit_type_index], unit_type_index, 8, y, false);
+    pedia_unit_figure(a, fb, k_expert_pose[unit_type_index], unit_type_index, 26, y, false);
     x = 44;
   } else {
-    pedia_unit_figure(a, fb, plain_icon, t, 8, y, false);
+    pedia_unit_figure(a, fb, plain_icon, unit_type_index, 8, y, false);
     x = 26;
-    if (t == 11) {
+    if (unit_type_index == 11) {
       /* Artillery: damaged variant beside it (DOS raw 110538-110542,
        * FUN_112b_0060 bit7 -> icon 0x42 = UNITS_ICON_DAMAGED_ARTILLERY,
        * redrawn with the damaged corner badge via FUN_112b_01ba). */
-      pedia_unit_figure(a, fb, UNITS_ICON_DAMAGED_ARTILLERY, t, 26, y, true);
+      pedia_unit_figure(a, fb, UNITS_ICON_DAMAGED_ARTILLERY, unit_type_index, 26, y, true);
       x = 44;
     }
   }
@@ -1428,7 +1428,7 @@ static int pedia_article_unit(
     snprintf(
       line, sizeof(line), "%s (%s %s)", name, pedia_label(a->labels, 106, ""), expert
     );
-  } else if (t == 11) {
+  } else if (unit_type_index == 11) {
     snprintf(
       line,
       sizeof(line),
@@ -1449,7 +1449,7 @@ static int pedia_article_unit(
   size_t used = (size_t)snprintf(
     stats, sizeof(stats), "%s: %d", pedia_label(a->labels, 179, ""), combat
   );
-  if (t == 11) {
+  if (unit_type_index == 11) {
     used += (size_t)snprintf(
       stats + used,
       sizeof(stats) - used,
@@ -1460,7 +1460,7 @@ static int pedia_article_unit(
       attack - combat,
       pedia_label(a->labels, 201, "")
     );
-  } else if (t == 1 || t == 4) {
+  } else if (unit_type_index == 1 || unit_type_index == 4) {
     used += (size_t)snprintf(
       stats + used,
       sizeof(stats) - used,
@@ -1673,15 +1673,15 @@ static int pedia_article_job(
   }
   const int top = y;
 
-  int h1 = 0;
+  int chain_sprite_height = 0;
   if (chain >= 0 && a->buildings && chain < a->buildings->sprite_count) {
-    h1 = a->buildings->sprites[chain].height;
+    chain_sprite_height = a->buildings->sprites[chain].height;
   }
-  int dy1 = (chain >= 0) ? h1 / 2 - 7 : 0;
-  if (dy1 < 0) {
-    dy1 = 0;
+  int icon_y_offset = (chain >= 0) ? chain_sprite_height / 2 - 7 : 0;
+  if (icon_y_offset < 0) {
+    icon_y_offset = 0;
   }
-  const int icon_y = top + dy1;
+  const int icon_y = top + icon_y_offset;
 
   pedia_blit(a->icons, pedia_job_icon_sprite(job), fb, 10, icon_y);
   char expert[64];
@@ -1747,13 +1747,13 @@ static int pedia_article_job(
 
 /* FUN_6cb2_1ba8 building article content; returns body y. */
 static int pedia_article_building(
-  const PediaArticleAssets* a, ColonizeFramebuffer8* fb, int b, int y
+  const PediaArticleAssets* a, ColonizeFramebuffer8* fb, int building_id, int y
 ) {
   const int top = y;
   int w = 0;
   int h = 24;
-  if (b != 16 && b != 31) {
-    int disp = (b == 17) ? 46 : b; /* Stable uses dedicated art */
+  if (building_id != 16 && building_id != 31) {
+    int disp = (building_id == 17) ? 46 : building_id; /* Stable uses dedicated art */
     if (a->buildings && disp < a->buildings->sprite_count) {
       pedia_blit(a->buildings, disp, fb, 10, top);
       w = a->buildings->sprites[disp].width;
@@ -1769,11 +1769,11 @@ static int pedia_article_building(
   const int icon_y = top + dy;
 
   char bname[64];
-  assets_msg_row_field(a->names, "BUILDING", b, 0, bname, sizeof(bname));
+  assets_msg_row_field(a->names, "BUILDING", building_id, 0, bname, sizeof(bname));
   font_draw_text(a->font, fb, 10 + w + 3, icon_y + 6, bname, PEDIA_COL_LINK_HOVER);
   int x = 10 + w + 3 + font_text_width_skip(a->font, bname, FONT_SKIP_NONE) + 24;
 
-  int job = (b >= 0 && b < PEDIA_BUILDING_COUNT) ? k_pedia_building_job[b] : -1;
+  int job = (building_id >= 0 && building_id < PEDIA_BUILDING_COUNT) ? k_pedia_building_job[building_id] : -1;
   if (job == COLONIZE_PROF_TEACHER || job == UNITS_JOB_SOLDIER) {
     job = -1; /* Teacher / Soldier rows are not shown (DOS 1ba8) */
   }
@@ -1805,7 +1805,7 @@ static int pedia_article_building(
   }
 
   y = top + h + 12;
-  const int prereq = (b >= 0 && b < PEDIA_BUILDING_COUNT) ? k_pedia_building_prereq[b] : -1;
+  const int prereq = (building_id >= 0 && building_id < PEDIA_BUILDING_COUNT) ? k_pedia_building_prereq[building_id] : -1;
   if (prereq >= 0) {
     char pname[64];
     char buf[128];

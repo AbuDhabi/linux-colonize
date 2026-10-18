@@ -799,13 +799,13 @@ int units_coastal_fort_attack_strength(
     return 0;
   }
   int arty = 0;
-  int slot_a = 0;
+  int tile_cursor = 0;
   /* DOS-LITERAL raw 57053-57057: the chain walk counts EVERY unit on the tile
    * with type byte 0x0b; there is no nation test and no damaged-bit test. The
    * port-side `u->nation_id != colony->nation_id` filter was removed
    * 2026-09-23 (bugs.md #764). */
-  for (const ColonizeUnit* u = units_next_on_tile_const(units, colony->x, colony->y, &slot_a);
-       u != NULL; u = units_next_on_tile_const(units, colony->x, colony->y, &slot_a)) {
+  for (const ColonizeUnit* u = units_next_on_tile_const(units, colony->x, colony->y, &tile_cursor);
+       u != NULL; u = units_next_on_tile_const(units, colony->x, colony->y, &tile_cursor)) {
     const ColonizeUnitType* t = units_type(units, u->type_index);
     if (!t) {
       continue;
@@ -1420,20 +1420,20 @@ static int units_coastal_fort_fire_impl(
        * of them, so a fleet took one salvo per hull per turn.
        */
       int targets[1];
-      int n_tg = 0;
-      int slot_b = 0;
-      for (const ColonizeUnit* u = units_next_on_tile_const(units, nx, ny, &slot_b); u != NULL;
-           u = units_next_on_tile_const(units, nx, ny, &slot_b)) {
+      int target_count = 0;
+      int tile_cursor = 0;
+      for (const ColonizeUnit* u = units_next_on_tile_const(units, nx, ny, &tile_cursor); u != NULL;
+           u = units_next_on_tile_const(units, nx, ny, &tile_cursor)) {
         if (!units_is_sea(units, u->id)) {
           continue;
         }
         const ColonizeUnitType* st = units_type(units, u->type_index);
         if (units_fort_fire_is_hostile(col1, col->nation_id, u, st)) {
-          targets[n_tg++] = u->id;
+          targets[target_count++] = u->id;
         }
         break; /* first ship in the stack, hostile or not */
       }
-      for (int t = 0; t < n_tg; ++t) {
+      for (int t = 0; t < target_count; ++t) {
         const ColonizeUnit* before = units_get(units, targets[t]);
         const int ship_nation = before ? before->nation_id : -1;
         const int human_chrome =
@@ -1539,8 +1539,8 @@ bool units_is_combat_role(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
   return t && t->attack > 0;
 }
 
-static bool units_at_war_for_move_target(int a, int b, const ColonizeUnit* target) {
-  if (a < 0 || b < 0 || a == b) {
+static bool units_at_war_for_move_target(int nation_a, int nation_b, const ColonizeUnit* target) {
+  if (nation_a < 0 || nation_b < 0 || nation_a == nation_b) {
     return false;
   }
   /*
@@ -1553,19 +1553,19 @@ static bool units_at_war_for_move_target(int a, int b, const ColonizeUnit* targe
    * native stays
    * always fightable (the @WHACKINDIANS confirm gates the human side).
    */
-  if (a >= 4 && a <= 11 && b >= 0 && b <= 3) {
+  if (nation_a >= 4 && nation_a <= 11 && nation_b >= 0 && nation_b <= 3) {
     if (!g_units_ff_col1) {
       return true;
     }
     (void)target;
-    if (ai_diplo_indian_at_war(g_units_ff_col1, b, a - 4)) {
+    if (ai_diplo_indian_at_war(g_units_ff_col1, nation_b, nation_a - 4)) {
       return true;
     }
-    const ColonizeCol1Indian* ind = &g_units_ff_col1->indian[a - 4];
-    return (int)ind->alarm_by_player[b] >= 0x4b;
+    const ColonizeCol1Indian* ind = &g_units_ff_col1->indian[nation_a - 4];
+    return (int)ind->alarm_by_player[nation_b] >= 0x4b;
   }
   /* Euro mover vs native, or native vs native: always fightable. */
-  if (a >= 4 || b >= 4) {
+  if (nation_a >= 4 || nation_b >= 4) {
     return true;
   }
   if (!g_units_ff_col1) {
@@ -1581,17 +1581,17 @@ static bool units_at_war_for_move_target(int a, int b, const ColonizeUnit* targe
    * stands; the human mover keeps the at-war test because game_loop's
    * confirm chain (declare-then-move) runs before the probe.
    */
-  if (ai_diplo_at_war(g_units_ff_col1, a, b)) {
+  if (ai_diplo_at_war(g_units_ff_col1, nation_a, nation_b)) {
     return true;
   }
-  if (a == g_units_combat_human_nation) {
+  if (nation_a == g_units_combat_human_nation) {
     return false;
   }
-  return (ai_diplo_read(g_units_ff_col1, a, b) & AI_DIPLO_PEACE) == 0;
+  return (ai_diplo_read(g_units_ff_col1, nation_a, nation_b) & AI_DIPLO_PEACE) == 0;
 }
 
-bool units_at_war_for_move(int a, int b) {
-  return units_at_war_for_move_target(a, b, NULL);
+bool units_at_war_for_move(int nation_a, int nation_b) {
+  return units_at_war_for_move_target(nation_a, nation_b, NULL);
 }
 
 /*

@@ -117,7 +117,7 @@ the verification loop. It does **not** own feature status — that stays in the
   functions still exceed 400 lines (`turn_produce_one_colony`,
   `col1_bridge_capture_w` / `_apply_w`, `units_try_move_w`,
   `map_panel_render_w`, `colony_screen_hit_test`, `ai_euro_colony_tick_run`,
-  `ai_euro_5952_build_cascade_1b0`, `ai_popup_render`) — bugs.md #1107.
+  `ai_euro_5952_build_cascade_for_owner`, `ai_popup_render`) — bugs.md #1107.
   `gsound_vm.c` `voice_tick` is exempt (driver emulator, verbatim).
 - **Internal-header test seam.** A stage function from the big-function-rule
   split stays `static` in production but is reachable from tests via

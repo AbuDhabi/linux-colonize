@@ -911,19 +911,19 @@ int ai_contact_meet_economics_2154(
   }
 
   /* Phase 2–3: tribe ±2 terr_class buckets (skip covered local cells). */
-  int local_a0 = 0;
-  int local_9e = 0;
-  int local_9c = 0;
-  int local_5e = 0;
-  int local_74 = 0;
-  int local_5a = 0;
-  int local_6a = 0;
-  int local_6e = 0;
-  int local_58 = 0;
-  int local_7a = 0;
-  int local_68 = 0;
-  int local_7e = 0;
-  int local_66 = 0;
+  int mountain_tile_count = 0; /* DOS local_a0 */
+  int forest_band = 0; /* DOS local_9e */
+  int hill_tile_count = 0; /* DOS local_9c */
+  int forest_low_band_count = 0; /* DOS local_5e */
+  int forest_high_band_count = 0; /* DOS local_74 */
+  int cold_terrain_score = 0; /* DOS local_5a */
+  int arid_terrain_score = 0; /* DOS local_6a */
+  int food_score = 0; /* DOS local_6e */
+  int sugar_score = 0; /* DOS local_58 */
+  int ocean_food_accum = 0; /* DOS local_7a */
+  int cotton_score = 0; /* DOS local_68 */
+  int tobacco_score = 0; /* DOS local_7e */
+  int ore_land_bonus = 0; /* DOS local_66 */
 
   for (int y = ty - 2; y <= ty + 2; ++y) {
     for (int x = tx - 2; x <= tx + 2; ++x) {
@@ -940,84 +940,84 @@ int ai_contact_meet_economics_2154(
       }
       const int terr = map_dos_terr_class_at(ctx->map, x, y) & 31;
       if (terr == 0x1b) {
-        local_a0++;
+        mountain_tile_count++;
       }
       if (terr == 0x1c) {
-        local_9c++;
+        hill_tile_count++;
       }
       if (terr == 0x18) {
-        local_5a += 4;
+        cold_terrain_score += 4;
       }
       if (!(((terr < 8) || (terr > 15)) && ((terr < 16) || (terr > 23)))) {
         /* Forest bands 8..15 / 16..23. */
-        local_6e++;
+        food_score++;
         if (terr >= 8 && terr <= 15) {
-          local_9e = terr - 8;
+          forest_band = terr - 8;
         }
         if (terr >= 16 && terr <= 23) {
-          local_9e = terr - 16;
+          forest_band = terr - 16;
         }
-        if (local_9e < 3) {
-          local_5e++;
-          local_5a += 2;
+        if (forest_band < 3) {
+          forest_low_band_count++;
+          cold_terrain_score += 2;
         } else {
-          local_74++;
-          local_6a++;
-          if (local_9e == 5) {
-            local_58 += 2;
+          forest_high_band_count++;
+          arid_terrain_score++;
+          if (forest_band == 5) {
+            sugar_score += 2;
           }
-          if (local_9e == 4) {
-            local_7e += 2;
+          if (forest_band == 4) {
+            tobacco_score += 2;
           }
-          if (local_9e == 3) {
-            local_68 += 2;
+          if (forest_band == 3) {
+            cotton_score += 2;
           }
         }
       } else if (terr == 0x19 || terr == 0x1a) {
-        local_7a += (int)ind->tech + 1;
-        while (local_7a > 2) {
-          local_7a -= 3;
-          local_6e += 2;
+        ocean_food_accum += (int)ind->tech + 1;
+        while (ocean_food_accum > 2) {
+          ocean_food_accum -= 3;
+          food_score += 2;
         }
       } else if (terr < 8) {
         if (terr == 5) {
-          local_58 += 4;
+          sugar_score += 4;
         }
         if (terr == 7) {
-          local_58 += 2;
+          sugar_score += 2;
         }
         if (terr == 4) {
-          local_7e += 4;
+          tobacco_score += 4;
         }
         if (terr == 6) {
-          local_7e += 2;
+          tobacco_score += 2;
         }
         if (terr == 3) {
-          local_68 += 4;
+          cotton_score += 4;
         }
         if (terr == 0) {
-          local_66 += 2;
+          ore_land_bonus += 2;
         }
         if (terr == 2) {
-          local_68 += 1;
-          local_6e += 2;
+          cotton_score += 1;
+          food_score += 2;
         }
         if (terr < 2) {
           if (terr == 1) {
-            local_6a += 4;
+            arid_terrain_score += 4;
           } else if (terr == 0) {
-            local_5a += 3;
+            cold_terrain_score += 3;
           }
         } else if (terr < 6) {
-          local_6e += 3;
+          food_score += 3;
           if ((terr & 4) != 0) {
-            local_6a += 2;
+            arid_terrain_score += 2;
           } else {
-            local_5a += 2;
+            cold_terrain_score += 2;
           }
         } else {
-          local_66 += 1;
-          local_6e += 2;
+          ore_land_bonus += 1;
+          food_score += 2;
         }
       }
     }
@@ -1046,43 +1046,43 @@ int ai_contact_meet_economics_2154(
    * reads silver bid 20). */
   const int diff_div = villages > 0 ? villages : 1;
 
-  out->bid[0] = (int16_t)(((tech + pop1) * local_6e) / (7 - tech));
+  out->bid[0] = (int16_t)(((tech + pop1) * food_score) / (7 - tech));
   out->ask[0] = (int16_t)((pop1 * pop1 * 4) >> (1 < tech ? 1 : 0));
   if (tech != 0) {
     if (tech > 1) {
       out->bid[7] = (int16_t)((int)ind->hill_silver_bid_bonus / diff_div);
-      int a0_shift = local_a0 << 2;
+      int a0_shift = mountain_tile_count << 2;
       if (tech > 2) {
-        a0_shift = local_a0 << 3;
+        a0_shift = mountain_tile_count << 3;
       }
       out->bid[7] = (int16_t)((int)out->bid[7] + a0_shift);
     }
     if (ind->tech != 0) {
       out->bid[6] =
-        (int16_t)((int)out->bid[6] + local_9c * 2 + local_a0 + local_66);
+        (int16_t)((int)out->bid[6] + hill_tile_count * 2 + mountain_tile_count + ore_land_bonus);
     }
   }
   out->bid[4] =
-    (int16_t)((int)out->bid[4] + (local_5e * 2 + (local_74 >> 1)) / (tech + 1));
+    (int16_t)((int)out->bid[4] + (forest_low_band_count * 2 + (forest_high_band_count >> 1)) / (tech + 1));
   out->bid[12] =
     (int16_t)ai_contact_2154_signed_quarter_double(((int)out->bid[4] + tech) * 2);
-  out->bid[2] = (int16_t)((int)out->bid[2] + local_7e);
-  out->bid[1] = (int16_t)((int)out->bid[1] + local_58);
+  out->bid[2] = (int16_t)((int)out->bid[2] + tobacco_score);
+  out->bid[1] = (int16_t)((int)out->bid[1] + sugar_score);
   out->ask[11] =
-    (int16_t)((tech + pop1) * pop1 + (local_6a >> 1) + local_5a);
-  out->bid[3] = (int16_t)((int)out->bid[3] + local_68);
+    (int16_t)((tech + pop1) * pop1 + (arid_terrain_score >> 1) + cold_terrain_score);
+  out->bid[3] = (int16_t)((int)out->bid[3] + cotton_score);
   {
     const int b11 = ai_contact_2154_signed_quarter_double((tech + (int)out->bid[3]) * 2);
     out->bid[11] = (int16_t)b11;
-    out->ask[3] = (int16_t)(b11 + local_6a);
+    out->ask[3] = (int16_t)(b11 + arid_terrain_score);
   }
-  out->ask[2] = (int16_t)((6 - tech) * pop1 + local_5a * 2 + 5);
+  out->ask[2] = (int16_t)((6 - tech) * pop1 + cold_terrain_score * 2 + 5);
   out->ask[10] = (int16_t)(((pop1 * 2 - tech) + 7) * 2);
-  out->ask[12] = (int16_t)(local_5a * 8 + (int)out->bid[4]);
-  out->ask[9] = (int16_t)(((tech * 2 + pop1) * 2 + local_6a) * 2);
+  out->ask[12] = (int16_t)(cold_terrain_score * 8 + (int)out->bid[4]);
+  out->ask[9] = (int16_t)(((tech * 2 + pop1) * 2 + arid_terrain_score) * 2);
   out->ask[13] = (int16_t)((tech + 2) * (pop + 4) + 8);
   {
-    const int sh = ((local_5a >> 1) + 1) & 31;
+    const int sh = ((cold_terrain_score >> 1) + 1) & 31;
     out->ask[14] = (int16_t)((tech * pop1) << sh);
   }
   /* raw 81880 / 81883: both stock bytes are read as `*(char *)` (signed). */
@@ -1380,15 +1380,15 @@ AiContactVisitMood ai_contact_s_visit_mood[8][4];
 
 /* The verdict belongs to ONE encounter: same turn, same visiting Brave. */
 void ai_contact_visit_mood_publish(
-  const ColonizeTurnContext* ctx, int nation_id, int e, int brave_id, int bvar6
+  const ColonizeTurnContext* ctx, int nation_id, int e, int brave_id, int generous_visit
 ) {
   if (nation_id < 4 || nation_id > 11 || e < 0 || e > 3) {
     return;
   }
   AiContactVisitMood* m = &ai_contact_s_visit_mood[nation_id - 4][e];
   m->valid = 1;
-  m->bvar6 = bvar6;
-  m->bvar7 = 0; /* raw 87470: `bVar7 = false;` at 022e entry, once per visit */
+  m->generous_visit = generous_visit;
+  m->beg_conceded = 0; /* raw 87470: `bVar7 = false;` at 022e entry, once per visit */
   m->turn = (ctx && ctx->turn_number) ? (int)*ctx->turn_number : -1;
   m->brave_id = brave_id;
 }
@@ -1421,8 +1421,8 @@ void ai_contact_visit_mood_beg_conceded(const ColonizeTurnContext* ctx, int nati
     m->brave_id = ai_contact_s_visit_brave_id[nation_id - 4];
     m->turn = turn;
   }
-  m->bvar6 = 1;
-  m->bvar7 = 1;
+  m->generous_visit = 1;
+  m->beg_conceded = 1;
 }
 
 void ai_contact_visit_mood_clear(int nation_id, int e) {
@@ -1450,15 +1450,15 @@ int ai_contact_visit_demand_allowed(
     const AiContactVisitMood* m = &ai_contact_s_visit_mood[nation_id - 4][e];
     const int turn = (ctx && ctx->turn_number) ? (int)*ctx->turn_number : -1;
     if (m->valid && m->turn == turn && m->brave_id == brave_id) {
-      return m->bvar6 ? 0 : 1;
+      return m->generous_visit ? 0 : 1;
     }
   }
   if (!ctx || !ctx->rng || !ind || !t) {
     return 0;
   }
   const int word = col1_tribe_attitude(t, e);
-  const int local_10 = (word > 0x7f) || (ind->contact_state[e] == 1);
-  if (local_10) {
+  const int hostile_latch = (word > 0x7f) || (ind->contact_state[e] == 1); /* DOS local_10 */
+  if (hostile_latch) {
     if (dos_rng_range(ctx->rng, 1, 0x80) < word - 0x80) {
       return 0; /* goto LAB_5bfb_1005 — no visit at all */
     }
@@ -1468,13 +1468,13 @@ int ai_contact_visit_demand_allowed(
   if (over < 0) {
     over = 0;
   }
-  const int bvar5 = (over * 4 + word) <= roll;
-  const int bvar6 = (local_10 == 0) && bvar5;
-  ai_contact_visit_mood_publish(ctx, nation_id, e, brave_id, bvar6);
+  const int calm_roll_ok = (over * 4 + word) <= roll; /* DOS bVar5 */
+  const int generous_visit = (hostile_latch == 0) && calm_roll_ok; /* DOS bVar6 */
+  ai_contact_visit_mood_publish(ctx, nation_id, e, brave_id, generous_visit);
   if (nation_id >= 4 && nation_id <= 11 && e >= 0 && e <= 3) {
-    ai_contact_s_visit_mood[nation_id - 4][e].bvar5 = bvar5;
+    ai_contact_s_visit_mood[nation_id - 4][e].calm_roll_ok = calm_roll_ok;
   }
-  return bvar6 ? 0 : 1;
+  return generous_visit ? 0 : 1;
 }
 
 /*
@@ -1505,8 +1505,8 @@ int ai_contact_visit_step_roll(
     return 0; /* raw 96752: no peaceful visit at all */
   }
   const int word = col1_tribe_attitude(t, e);
-  const int local_10 = (word > 0x7f) || (ind->contact_state[e] == 1);
-  if (local_10) {
+  const int hostile_latch = (word > 0x7f) || (ind->contact_state[e] == 1); /* DOS local_10 */
+  if (hostile_latch) {
     if (dos_rng_range(ctx->rng, 1, 0x80) < word - 0x80) {
       ai_contact_visit_mood_publish(ctx, nation_id, e, brave_id, 0);
       return 0; /* LAB_5bfb_1005 */
@@ -1517,10 +1517,10 @@ int ai_contact_visit_step_roll(
   if (over < 0) {
     over = 0;
   }
-  const int bvar5 = (over * 4 + word) <= roll;
-  int bvar6 = (local_10 == 0) && bvar5;
-  if (bvar6 && alarm > 0x31) {
-    bvar6 = 0;
+  const int calm_roll_ok = (over * 4 + word) <= roll; /* DOS bVar5 */
+  int generous_visit = (hostile_latch == 0) && calm_roll_ok; /* DOS bVar6 */
+  if (generous_visit && alarm > 0x31) {
+    generous_visit = 0;
     ind->contact_state[e] = 2;
   }
   /* FUN_5bfb_022e, after the FUN_281f_09ba slide: a human's colony visit rolls
@@ -1528,11 +1528,11 @@ int ai_contact_visit_step_roll(
   if (colony_here && ai_contact_euro_is_human(ctx, e)) {
     (void)dos_rng_range(ctx->rng, 0, 8);
   }
-  ai_contact_visit_mood_publish(ctx, nation_id, e, brave_id, bvar6);
+  ai_contact_visit_mood_publish(ctx, nation_id, e, brave_id, generous_visit);
   if (nation_id >= 4 && nation_id <= 11 && e >= 0 && e <= 3) {
-    ai_contact_s_visit_mood[nation_id - 4][e].bvar5 = bvar5;
+    ai_contact_s_visit_mood[nation_id - 4][e].calm_roll_ok = calm_roll_ok;
   }
-  return 1 + bvar6;
+  return 1 + generous_visit;
 }
 
 /*
@@ -1627,7 +1627,7 @@ void ai_contact_apply_beg_food(
       const AiContactVisitMood* pm =
         (nation_id >= 4 && nation_id <= 11) ? &ai_contact_s_visit_mood[nation_id - 4][e] : NULL;
       const int turn = ctx->turn_number ? (int)*ctx->turn_number : -1;
-      const int was_generous = pm && pm->valid && pm->turn == turn && pm->bvar6;
+      const int was_generous = pm && pm->valid && pm->turn == turn && pm->generous_visit;
       if (!was_generous && ctx->rng &&
           dos_rng_range(ctx->rng, 0, (int)ctx->col1->head.difficulty) != 0) {
         return; /* raw 87692: goto LAB_5bfb_1005 -- visit over */
@@ -1660,7 +1660,7 @@ void ai_contact_apply_beg_food(
       const AiContactVisitMood* pm =
         (nation_id >= 4 && nation_id <= 11) ? &ai_contact_s_visit_mood[nation_id - 4][e] : NULL;
       const int turn = ctx->turn_number ? (int)*ctx->turn_number : -1;
-      if (pm && pm->valid && pm->turn == turn && pm->bvar5) {
+      if (pm && pm->valid && pm->turn == turn && pm->calm_roll_ok) {
         d >>= 1;
       }
     }
@@ -2460,11 +2460,11 @@ static void ai_contact_indian_census_4962_06b6(ColonizeTurnContext* ctx, int nat
     if (!u->active || u->nation_id != nation_id) {
       continue;
     }
-    const int v = combat_unit_base_x8(&sctx, u->id, 1, NULL);
-    if (v <= 0) {
+    const int unit_strength_x8 = combat_unit_base_x8(&sctx, u->id, 1, NULL);
+    if (unit_strength_x8 <= 0) {
       continue;
     }
-    int sum = (int)st->tribe_data_9184[slot] + v;
+    int sum = (int)st->tribe_data_9184[slot] + unit_strength_x8;
     st->tribe_data_9184[slot] = (uint8_t)(sum > 255 ? 255 : sum);
     if (!units_is_on_map(u)) {
       continue; /* FUN_1427_0f0e on an off-map unit returns no continent. */
@@ -2473,8 +2473,8 @@ static void ai_contact_indian_census_4962_06b6(ColonizeTurnContext* ctx, int nat
     if (cont < 0 || cont >= 16) {
       continue;
     }
-    int cs = (int)st->tribe_dwellings_91cc[slot * 16 + cont] + v;
-    st->tribe_dwellings_91cc[slot * 16 + cont] = (uint8_t)(cs > 255 ? 255 : cs);
+    int continent_strength_sum = (int)st->tribe_dwellings_91cc[slot * 16 + cont] + unit_strength_x8;
+    st->tribe_dwellings_91cc[slot * 16 + cont] = (uint8_t)(continent_strength_sum > 255 ? 255 : continent_strength_sum);
   }
 }
 
@@ -2557,12 +2557,12 @@ void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id) {
     const int herds = (int)(int8_t)breeding_ind->horse_herds;
     if (herds != 0) {
       const int slot = nation_id - 4;
-      int hb = (int)breeding_ind->horse_breeding + herds;
+      int breeding_total = (int)breeding_ind->horse_breeding + herds;
       const int cap = ((int)ctx->col1->stuff.tribe_population_totals[slot] + 0x19) * 2;
-      if (hb > cap) {
-        hb = cap;
+      if (breeding_total > cap) {
+        breeding_total = cap;
       }
-      breeding_ind->horse_breeding = (uint16_t)hb;
+      breeding_ind->horse_breeding = (uint16_t)breeding_total;
     }
   }
 }

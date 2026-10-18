@@ -536,14 +536,14 @@ bool colonies_assign_field_w(
   {
     int pdx = 0;
     int pdy = 0;
-    ColonizeWorldMap* pm = (ColonizeWorldMap*)w->map;
-    if (pm && pm->layer2 && colonies_field_tile_delta(tile_index, &pdx, &pdy)) {
-      const int px = col->x + pdx;
-      const int py = col->y + pdy;
-      if (map_coords_inset(pm, px, py)) {
-        const size_t pi = (size_t)py * (size_t)pm->width + (size_t)px;
-        if ((pm->layer2[pi] & (MAP_OCCUPANCY_HAS_UNIT | MAP_OCCUPANCY_HAS_CITY)) == 0) {
-          map_set_owner_nibble(pm, px, py, col->nation_id);
+    ColonizeWorldMap* plot_map = (ColonizeWorldMap*)w->map;
+    if (plot_map && plot_map->layer2 && colonies_field_tile_delta(tile_index, &pdx, &pdy)) {
+      const int plot_x = col->x + pdx;
+      const int plot_y = col->y + pdy;
+      if (map_coords_inset(plot_map, plot_x, plot_y)) {
+        const size_t plot_tile_index = (size_t)plot_y * (size_t)plot_map->width + (size_t)plot_x;
+        if ((plot_map->layer2[plot_tile_index] & (MAP_OCCUPANCY_HAS_UNIT | MAP_OCCUPANCY_HAS_CITY)) == 0) {
+          map_set_owner_nibble(plot_map, plot_x, plot_y, col->nation_id);
         }
       }
     }
@@ -580,19 +580,19 @@ bool colonies_clear_field(ColonizeColonyPool* pool, int colony_id, int tile_inde
   if (tile_index < 0 || tile_index >= COLONIZE_COLONY_FIELD_TILES_MAX) {
     return false;
   }
-  const int who = (int)col->tiles[tile_index];
-  if (who >= 0 && tile_index < 32) {
+  const int worked_colonist_index = (int)col->tiles[tile_index];
+  if (worked_colonist_index >= 0 && tile_index < 32) {
     /* Carry "was worked" past the wipe — FUN_15eb_26e4's claim table predates
      * the AI placement section's plot memset. See
      * colonies_assign_field_land_reaction. */
     col->plot_was_worked_mask |= 1u << tile_index;
   }
   col->tiles[tile_index] = -1;
-  if (who >= 0 && who < col->colonist_count) {
-    col->colonists[who].field_job = -1;
+  if (worked_colonist_index >= 0 && worked_colonist_index < col->colonist_count) {
+    col->colonists[worked_colonist_index].field_job = -1;
     diag_info(
       "COLONY %s: colonist #%d off field tile %d",
-      col->name[0] ? col->name : "colony", who, tile_index
+      col->name[0] ? col->name : "colony", worked_colonist_index, tile_index
     );
   }
   return true;
@@ -653,9 +653,9 @@ static int colonies_admit_unit_seat_w(
    */
   const int profession =
     (unit->profession == UNITS_JOB_DRAGOON) ? UNITS_JOB_SOLDIER : unit->profession;
-  int work_type = units_kind_type_index(units, UNITS_KIND_COLONIST);
-  if (work_type < 0) {
-    work_type = unit->type_index;
+  int colonist_type_index = units_kind_type_index(units, UNITS_KIND_COLONIST);
+  if (colonist_type_index < 0) {
+    colonist_type_index = unit->type_index;
   }
   int tools = 0;
   int muskets = 0;
@@ -676,7 +676,7 @@ static int colonies_admit_unit_seat_w(
   ColonizeColonist* c = &col->colonists[col->colonist_count];
   memset(c, 0, sizeof(*c));
   c->active = true;
-  c->unit_type_index = work_type;
+  c->unit_type_index = colonist_type_index;
   c->profession = profession;
   c->building_type = -1;
   c->field_job = -1;
@@ -1285,11 +1285,11 @@ int colonies_eject_colonist(
     memset(&col->colonists[col->colonist_count], 0, sizeof(col->colonists[0]));
   }
   for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-    const int who = (int)col->tiles[t];
-    if (who == colonist_index) {
+    const int worked_colonist_index = (int)col->tiles[t];
+    if (worked_colonist_index == colonist_index) {
       col->tiles[t] = -1;
-    } else if (who > colonist_index) {
-      col->tiles[t] = (int8_t)(who - 1);
+    } else if (worked_colonist_index > colonist_index) {
+      col->tiles[t] = (int8_t)(worked_colonist_index - 1);
     }
   }
 

@@ -30,7 +30,7 @@ static void want_init(AiEuro5952Want* w) {
    * Tools/Muskets `rank[human] <= rank[owner]` doubling DOES fire. */
   w->wealth_rank[0] = 2;
   w->wealth_rank[1] = 2;
-  w->rank_1b0 = 2; /* local_1b0 = the owner */
+  w->owner_wealth_rank = 2; /* local_1b0 = the owner */
 }
 
 /* ---- price arm (out < 0x10), asm 5952:1e72 --------------------------- */
@@ -334,9 +334,9 @@ static int case_rank_byte_unchecked_index(void) {
   AiEuro5952Want w;
   want_init(&w);
   w.wealth_rank[0] = 2;
-  w.rank_1b0 = 0; /* rank[human] > byte => statesman doubles */
+  w.owner_wealth_rank = 0; /* rank[human] > byte => statesman doubles */
   const int doubled = ai_euro_5952_want_weight(&w, COLONIZE_PROF_STATESMAN, AI_EURO_5952_BELLS);
-  w.rank_1b0 = 2;
+  w.owner_wealth_rank = 2;
   const int plain = ai_euro_5952_want_weight(&w, COLONIZE_PROF_STATESMAN, AI_EURO_5952_BELLS);
   if (doubled != 2 * plain) {
     return fail("rank byte: a clobbered local_1b0 must drive the statesman doubling");

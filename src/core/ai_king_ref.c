@@ -363,7 +363,7 @@ COLONIZE_INTERNAL int ai_king_0982_crown_mow_alive(const ColonizeTurnContext* ct
 }
 
 /* 0982 pool index → NAMES type (43f7_0082 crown class map). */
-COLONIZE_INTERNAL int ai_king_0982_spawn_pool_unit(ColonizeTurnContext* ctx, int crown, int k, int x, int y) {
+COLONIZE_INTERNAL int ai_king_0982_spawn_pool_unit(ColonizeTurnContext* ctx, int crown, int pool_index, int x, int y) {
   /* bugs.md: the REF fields Regulars and CAVALRY (@UNIT 8) — not colonial
    * Dragoons; pool[1] is the Cavalry pool. */
   /* @UNIT rows, not names: 6 Regulars / 8 Cavalry / 18 Man-O-War / 11
@@ -374,9 +374,9 @@ COLONIZE_INTERNAL int ai_king_0982_spawn_pool_unit(ColonizeTurnContext* ctx, int
   static const ColonizeUnitKind alts[4] = {
     UNITS_KIND_SOLDIER, UNITS_KIND_DRAGOON, UNITS_KIND_GALLEON, UNITS_KIND_ARTILLERY
   };
-  int ty = units_kind_type_index(ctx->units, kinds[k]);
+  int ty = units_kind_type_index(ctx->units, kinds[pool_index]);
   if (ty < 0) {
-    ty = units_kind_type_index(ctx->units, alts[k]);
+    ty = units_kind_type_index(ctx->units, alts[pool_index]);
   }
   if (ty < 0 || !units_spawn_room(ctx->units, crown)) {
     return -1;
@@ -628,8 +628,8 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
   }
   /* Per-wave cap = DS:0x5333 (MoW holds, 6) already applied by the caller
    * (raw 74091-74094); floor 3 above is raw 74162-74164. bugs.md #661. */
-  int used_d = 0; /* local_c */
-  int used_a = 0; /* local_2e */
+  int dragoons_landed = 0; /* local_c */
+  int artillery_landed = 0; /* local_2e */
   /*
    * DOS-LITERAL FUN_43f7_0982 raw 74163-74266. Sweep the ship tile's eight
    * neighbours (land, no settlement, next to the colony, colony continent):
@@ -643,7 +643,7 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
    * Bahia, then the Cavalry and the Artillery follow on them.
    */
   for (;;) {
-    int pass_b = 0;      /* local_14 */
+    int seize_pass = 0;      /* local_14 */
     int any_other = 0;   /* local_20 */
     int min_stack = 99;  /* local_24 */
     for (;;) {           /* LAB_43f7_10c5 */
@@ -667,11 +667,11 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
          * when a tile empties, so a stale crown nibble counts as crown-held
          * (tr9 18->19: the Artillery lands alone on empty (44,61)). */
         if (units_tile_owner_nibble(ctx->map, nx, ny) == crown) {
-          if (used_d < cap && force[1] > 0) {
-            used_d++;
+          if (dragoons_landed < cap && force[1] > 0) {
+            dragoons_landed++;
             k = 1;
-          } else if (used_a < cap && force[3] > 0) {
-            used_a++;
+          } else if (artillery_landed < cap && force[3] > 0) {
+            artillery_landed++;
             k = 3;
           }
         } else {
@@ -682,7 +682,7 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
               ++stack;
             }
           }
-          if (!pass_b) {
+          if (!seize_pass) {
             if (stack < min_stack) {
               any_other = 1;
               min_stack = stack;
@@ -729,10 +729,10 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
       if (landed_any) {
         break; /* `while (local_2c != 0)`: back to the top, kinds reset */
       }
-      if (!any_other || pass_b) {
+      if (!any_other || seize_pass) {
         need = 0;
       } else {
-        pass_b = 1;
+        seize_pass = 1;
       }
     }
   }
@@ -759,7 +759,7 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
   int score[AI_KING_0982_MAX_TARGETS];
   int cidx[AI_KING_0982_MAX_TARGETS];
   int n = 0;
-  int l4c = -1; /* DOS local_4c: 07e0 of the last scored colony tile */
+  int last_tile_head_id = -1; /* DOS local_4c: 07e0 of the last scored colony tile */
   for (int i = 0; i < COLONIZE_COLONIES_MAX && n < AI_KING_0982_MAX_TARGETS; ++i) {
     const ColonizeColony* c = &ctx->colonies->colonies[i];
     if (!c->active || c->nation_id != human) {
@@ -779,7 +779,7 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
     score[n] = sc;
     cidx[n] = i;
     n++;
-    l4c = units_tile_head_id_at(ctx->units, c->x, c->y);
+    last_tile_head_id = units_tile_head_id_at(ctx->units, c->x, c->y);
   }
   for (int a = 1; a < n; ++a) {
     for (int b = a; b > 0 && score[b] < score[b - 1]; --b) {
@@ -808,18 +808,18 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
        * independence-seed-100 3->4: the second wave lands six units next to
        * the first wave's four tiles.
        */
-      const ColonizeUnit* su = l4c >= 0 ? units_get_const(ctx->units, l4c) : NULL;
+      const ColonizeUnit* su = last_tile_head_id >= 0 ? units_get_const(ctx->units, last_tile_head_id) : NULL;
       if ((su ? su->nation_id : 0) != crown) {
         continue;
       }
-      l4c = units_tile_head_id_at(ctx->units, nx, ny);
-      while (l4c >= 0 && g > 0) {
-        const ColonizeUnit* u = units_get_const(ctx->units, l4c);
+      last_tile_head_id = units_tile_head_id_at(ctx->units, nx, ny);
+      while (last_tile_head_id >= 0 && g > 0) {
+        const ColonizeUnit* u = units_get_const(ctx->units, last_tile_head_id);
         const ColonizeUnitType* t = u ? units_type(ctx->units, u->type_index) : NULL;
         if (t && t->attack > 0) {
           g--;
         }
-        l4c = units_tile_chain_next_id(ctx->units, l4c);
+        last_tile_head_id = units_tile_chain_next_id(ctx->units, last_tile_head_id);
       }
     }
     garrison[i] = g;
@@ -846,12 +846,12 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
       if ((int)force[1] + (int)force[3] <= (int)force[0]) {
         cap = 1;
       }
-      const int cd = (int)force[1] < cap ? (int)force[1] : cap;
-      const int ca = (int)force[3] < cap ? (int)force[3] : cap;
+      const int dragoon_take = (int)force[1] < cap ? (int)force[1] : cap;
+      const int artillery_take = (int)force[3] < cap ? (int)force[3] : cap;
       if (pass != 0 && g > max_landing) {
         g = max_landing;
       }
-      if (pass < 2 && (int)force[0] + cd + ca < g) {
+      if (pass < 2 && (int)force[0] + dragoon_take + artillery_take < g) {
         continue;
       }
       pick = i;
@@ -1080,7 +1080,7 @@ void ai_king_ref_wave(ColonizeTurnContext* ctx) {
  */
 /* ===== REF landing, announce & disembark (ai_king_10f0_spawn_unit .. ai_king_spend_woi_bell_pool) ===== */
 COLONIZE_INTERNAL int ai_king_10f0_spawn_unit(
-  ColonizeTurnContext* ctx, int human, int k, int x, int y
+  ColonizeTurnContext* ctx, int human, int pool_index, int x, int y
 ) {
   static const int names[4][4] = {
     {UNITS_KIND_CONT_ARMY, UNITS_KIND_REGULAR, UNITS_KIND_SOLDIER, -1},
@@ -1095,16 +1095,16 @@ COLONIZE_INTERNAL int ai_king_10f0_spawn_unit(
    * ignored `human` entirely and handed Continentals to REF/AI nations
    * (bugs.md #505). */
   static const ColonizeUnitKind crown_kinds[2] = {UNITS_KIND_REGULAR, UNITS_KIND_CAVALRY};
-  if (!ctx || !ctx->units || k < 0 || k > 3) {
+  if (!ctx || !ctx->units || pool_index < 0 || pool_index > 3) {
     return -1;
   }
   int ty = -1;
-  if (k < 2) {
+  if (pool_index < 2) {
     const int not_player =
       (human < 0 || human > 3 ||
        (ctx->col1_ok && ctx->col1 && ctx->col1->player[human].control != 0));
     if (not_player) {
-      ty = units_kind_type_index(ctx->units, crown_kinds[k]);
+      ty = units_kind_type_index(ctx->units, crown_kinds[pool_index]);
       if (ty < 0) {
         return -1;
       }
@@ -1112,8 +1112,8 @@ COLONIZE_INTERNAL int ai_king_10f0_spawn_unit(
       ty = units_kind_type_index(ctx->units, UNITS_KIND_DRAGOON);
     }
   }
-  for (int i = 0; i < 4 && ty < 0 && names[k][i] >= 0; ++i) {
-    ty = units_kind_type_index(ctx->units, (ColonizeUnitKind)names[k][i]);
+  for (int i = 0; i < 4 && ty < 0 && names[pool_index][i] >= 0; ++i) {
+    ty = units_kind_type_index(ctx->units, (ColonizeUnitKind)names[pool_index][i]);
   }
   if (ty < 0 || !units_spawn_room(ctx->units, human)) {
     return -1;
@@ -1127,7 +1127,7 @@ COLONIZE_INTERNAL int ai_king_10f0_spawn_unit(
     units_set_nation(u, human);
     /* 06b4 zeroes the spent byte: a Magellan hull starts with the +1. */
     u->moves = units_max_mp(ctx->units, uid);
-    if (k != 2) {
+    if (pool_index != 2) {
       u->profession = UNITS_JOB_SOLDIER; /* DOS unit+0x15 = 0x15 Veteran Soldier */
     }
     u->orders = UNITS_ORDER_NONE; /* player-controlled: no AI orders */
@@ -1281,7 +1281,7 @@ static void ai_king_1528_announce(ColonizeTurnContext* ctx, int human) {
   if (ctx->colonies) {
     for (int i = COLONIZE_COLONIES_MAX - 1; i >= 0; --i) {
       if (ctx->colonies->colonies[i].active) {
-        g_turn_1528_colony = &ctx->colonies->colonies[i];
+        g_turn_1528_last_walked_colony = &ctx->colonies->colonies[i];
         break;
       }
     }

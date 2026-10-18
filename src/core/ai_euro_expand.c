@@ -326,16 +326,16 @@ int ai_euro_4393_work_queue_haul_pick(
    * `0xc < type && type < 0x13 && (bVar20 || bVar7)` (the `local_a8 == 0 &&
    * local_6 == 0` half of the same `if` is the caller's passenger/order state,
    * still unmodelled here — bugs.md #818). bVar20 is now the real seed
-   * (ai_euro_20e6_bvar20_seed) instead of the bare `type != 0x12` stand-in, so
+   * (ai_euro_20e6_type_gate_no_manowar) instead of the bare `type != 0x12` stand-in, so
    * a Man-O-War no longer scores a colony haul unless bVar7's re-allow arm
    * fires. bugs.md #877, #818.
    */
-  const int civilian_hull = ai_euro_20e6_bvar20_seed(ctx, hauler, hauler_type); /* bVar20 */
+  const int hull_gate_seed = ai_euro_20e6_type_gate_no_manowar(ctx, hauler, hauler_type); /* bVar20 */
   if (hauler_type < 0x0d || hauler_type > 0x12) {
     return 0;
   }
-  if (getenv("AI_SHIP_TRACE")) { fprintf(stderr, "[4393] unit %d (%d,%d) civ %d gate %d bound %d\n", hauler ? hauler->id : -1, from_x, from_y, civilian_hull, ai_euro_20e6_457e_type_gate(ctx, hauler, hauler_type), bound_colony); for (int i = 0; i < AI_WORK_SLOTS; ++i) { const AiWorkSlot* w = ai_goals_work(i); if (w && w->id >= 0) fprintf(stderr, "[4393]   slot %d colony %d score %d loads %d mil %d\n", i, w->id, w->score, w->loads, w->military); } }
-  if (!civilian_hull && !ai_euro_20e6_457e_type_gate(ctx, hauler, hauler_type)) {
+  if (getenv("AI_SHIP_TRACE")) { fprintf(stderr, "[4393] unit %d (%d,%d) civ %d gate %d bound %d\n", hauler ? hauler->id : -1, from_x, from_y, hull_gate_seed, ai_euro_20e6_457e_type_gate(ctx, hauler, hauler_type), bound_colony); for (int i = 0; i < AI_WORK_SLOTS; ++i) { const AiWorkSlot* w = ai_goals_work(i); if (w && w->id >= 0) fprintf(stderr, "[4393]   slot %d colony %d score %d loads %d mil %d\n", i, w->id, w->score, w->loads, w->military); } }
+  if (!hull_gate_seed && !ai_euro_20e6_457e_type_gate(ctx, hauler, hauler_type)) {
     return 0; /* bVar7 */
   }
   int best_score = -1; /* DOS iStack_e2 = -1; `>=` so later ties win */
@@ -374,7 +374,7 @@ int ai_euro_4393_work_queue_haul_pick(
      * `bVar20 || *(char *)(local_50 * 6 + -0x5f1f) != 0` — a hull bVar20
      * rejects may only take slots the colony flagged military (work record
      * +5 = AiWorkSlot.military). bugs.md #877. */
-    if (score >= best_score && (civilian_hull || w->military != 0)) {
+    if (score >= best_score && (hull_gate_seed || w->military != 0)) {
       best_score = score;
       best_slot = i;
       best_colony = (int)w->id;

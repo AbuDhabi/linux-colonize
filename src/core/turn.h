@@ -82,7 +82,7 @@ typedef struct ColonizeTurnContext {
  * ai_king_1528_announce inside the ticking colony's 0a22. The rest of that
  * colony's FUN_364b_0688 applies to this record (turn_produce_one_colony).
  * turn_colony.c clears it at each colony's 0688 entry and after the loop. */
-extern ColonizeColony* g_turn_1528_colony;
+extern ColonizeColony* g_turn_1528_last_walked_colony;
 
 /*
  * View of the world pointers a turn context already carries (see world.h).

@@ -390,11 +390,11 @@ COLONIZE_INTERNAL AiRaidKind ai_contact_pick_raid_kind(
       }
     }
     dos_rng_reseed_83a6(rng); /* raw 99773: FUN_281f_04ca(DS:0x83a6) */
-    int r = dos_rng_range(rng, 0, 12) - 1;
+    int defense_roll = dos_rng_range(rng, 0, 12) - 1;
     if (victim_human) {
-      r += difficulty - 2;
+      defense_roll += difficulty - 2;
     }
-    if (r < walls * 3 + 1 && !forced) {
+    if (defense_roll < walls * 3 + 1 && !forced) {
       return AI_RAID_NOTHING;
     }
   }
@@ -407,17 +407,17 @@ COLONIZE_INTERNAL AiRaidKind ai_contact_pick_raid_kind(
    * is the turn counter (the 1b0e handoff passes the save's turn).
    */
   if (ctx->turn_number) {
-    const int t = (difficulty - 2) * -0x28;
+    const int early_raid_cutoff_turn = (difficulty - 2) * -0x28;
     const int turn = (int)*ctx->turn_number;
-    if (turn <= t && turn != t && difficulty < 2 &&
+    if (turn <= early_raid_cutoff_turn && turn != early_raid_cutoff_turn && difficulty < 2 &&
         (kind == AI_RAID_BURN || kind == AI_RAID_SHIP)) {
       kind = AI_RAID_NOTHING;
     }
   }
   /* raw 99796-99807 */
   if (kind == AI_RAID_BURN) {
-    const int b = victim_human ? difficulty : 1;
-    if (b + 2 < dos_rng_range(rng, 0, 8)) {
+    const int burn_difficulty_shift = victim_human ? difficulty : 1;
+    if (burn_difficulty_shift + 2 < dos_rng_range(rng, 0, 8)) {
       kind = AI_RAID_STORES;
     }
     if (ai_contact_raid_09fc(ctx, c, COLONY_BUILDING_FORT)) {

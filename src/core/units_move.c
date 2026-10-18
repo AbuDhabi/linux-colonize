@@ -1781,7 +1781,7 @@ static int units_flood_00f2(
   const bool mover_in = mlx >= 0 && mly >= 0 && mlx < UNITS_FLOOD_W && mly < UNITS_FLOOD_W;
   /* DOS reads whatever DS byte sits at grid[mover] when the mover is outside
    * the 16x16 block; the port reads 0 (rebuild). */
-  int a370 = 0;
+  int flood_cost_at_mover = 0;  /* DS:0xa370 */
   if (g->map != map || g->key_x != r->goal_x || g->key_y != r->goal_y || !mover_in ||
       g->cost[mlx][mly] == 0) {
     g->map = map;
@@ -1793,17 +1793,17 @@ static int units_flood_00f2(
     g->qx[0] = (uint8_t)r->goal_x;
     g->qy[0] = (uint8_t)r->goal_y;
     g->cost[r->goal_x - ox][r->goal_y - oy] = 1;
-    a370 = r->cap;
+    flood_cost_at_mover = r->cap;
     do {
       const int cx = g->qx[head & 0xff];
       const int cy = g->qy[head & 0xff];
       ++head;
       const int e = g->cost[cx - ox][cy - oy];
-      if (e > a370) {
+      if (e > flood_cost_at_mover) {
         continue;
       }
       if (cx == r->mover_x && cy == r->mover_y) {
-        a370 = e;
+        flood_cost_at_mover = e;
         continue;
       }
       for (int d = 0; d < 8; ++d) {
@@ -1829,7 +1829,7 @@ static int units_flood_00f2(
   }
 
   int best = -1;
-  if (a370 < r->cap) {
+  if (flood_cost_at_mover < r->cap) {
     const int unit_cost = g->cost[mlx][mly];
     int best_score = 99;
     int best_tie = 99;
@@ -1863,7 +1863,7 @@ static int units_flood_00f2(
     }
   }
   if (out_cost) {
-    *out_cost = a370;
+    *out_cost = flood_cost_at_mover;
   }
   return best;
 }

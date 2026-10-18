@@ -233,7 +233,7 @@ static int ai_euro_5952_plot_job(const ColonizeColony* col, int plot) {
  *   best wins, `>=` (DOS seeds `local_16e = 0xffff` = -1 as a signed 16-bit).
  */
 void ai_euro_5952_improve_best_plot(
-  ColonizeTurnContext* ctx, ColonizeColony* col, int* local_1b0, int* out_best_plot
+  ColonizeTurnContext* ctx, ColonizeColony* col, int* out_improvement_owner, int* out_best_plot
 ) {
   if (out_best_plot) {
     *out_best_plot = -1;
@@ -366,8 +366,8 @@ void ai_euro_5952_improve_best_plot(
     );
     /* raw 94482 stores 06d2 into local_1b0, the colony-nation local the
      * later job election still reads (raw 94821, asm 5952:2047). */
-    if (local_1b0) {
-      *local_1b0 = owner;
+    if (out_improvement_owner) {
+      *out_improvement_owner = owner;
     }
     if (owner >= 0 && owner < 4 && owner == ctx->human_nation) {
       allow = 0; /* DS:0x543f[owner] == 0, the human-controlled seat */
@@ -1066,9 +1066,9 @@ int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b) {
   if ((col1->nation[a].euro_relation[b] & (AI_DIPLO_PEACE | AI_DIPLO_MET)) != AI_DIPLO_MET) {
     rivals++;
   }
-  int local_4 = 0; /* any shared continent */
-  int local_8 = 0; /* a's defense value where both present */
-  int local_6 = 1; /* b's (units + defense)/2 + 1 */
+  int any_shared_continent = 0; /* any shared continent */
+  int a_defense_sum = 0; /* a's defense value where both present */
+  int b_strength_sum_plus_one = 1; /* b's (units + defense)/2 + 1 */
   /* Raw 97183-97200 reads the FUN_4962_0018 census tables (-0x6b1a
    * colonies, -0x6b5a land units, -0x6a8e combat value, nation*0x10 +
    * continent), frozen since the last census, not live recounts. Continuous
@@ -1084,15 +1084,15 @@ int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b) {
     }
     const int b_units = st->land_unit_counts_by_continent[b * 16 + cid];
     if (a_def != 0 && b_units != 0) {
-      local_8 += a_def;
-      local_6 += (b_units + b_def) >> 1;
-      local_4 = 1;
+      a_defense_sum += a_def;
+      b_strength_sum_plus_one += (b_units + b_def) >> 1;
+      any_shared_continent = 1;
     }
   }
   /* −0x6a9a[a*3] — the leader's belligerence column, resolved 2026-09-06d
    * (NAMES.TXT @LEADERNAME field 1; see ai_diplo_leader_trait). */
   const int belligerence = ai_diplo_leader_trait(ctx, a, 0);
-  if ((rivals - belligerence) + 4 <= (local_8 << 2) / local_6 || local_4 == 0) {
+  if ((rivals - belligerence) + 4 <= (a_defense_sum << 2) / b_strength_sum_plus_one || any_shared_continent == 0) {
     return 1;
   }
   return 0;
@@ -1117,7 +1117,7 @@ int ai_euro_20e6_foreign_colony_on(const ColonizeTurnContext* ctx, int nation, i
  * colony pop vs capped ≤4 rival land units — written for real in
  * ai_euro_refresh_continent_stance, read back here at DOS position).
  */
-static int ai_euro_20e6_local12(const ColonizeTurnContext* ctx, const ColonizeUnit* u, int nation, int cid) {
+static int ai_euro_20e6_rival_strength_fatigue(const ColonizeTurnContext* ctx, const ColonizeUnit* u, int nation, int cid) {
   (void)ctx;
   const int fat = u->col1_hold_raw_valid ? (int)u->col1_hold_raw[4] : 0;
   return ai_euro_rival_strength_at(nation, cid) * 8 + fat;
@@ -1654,12 +1654,12 @@ static int ai_euro_land_explore_scan_target(
   if (s.prio14 != 0 && ai_euro_20e6_hold_scratch(u)[0] < 0x7f) {
     ai_euro_20e6_hold_scratch(u)[0]++;
   }
-  const int local_12 = ai_euro_20e6_local12(ctx, u, nation_id, s.cid);
+  const int rival_strength_fatigue = ai_euro_20e6_rival_strength_fatigue(ctx, u, nation_id, s.cid); /* DOS local_12 */
   int radius = 3;
-  if (local_12 > 0x1f) {
+  if (rival_strength_fatigue > 0x1f) {
     radius = 2;
   }
-  if (local_12 > 0x3f) {
+  if (rival_strength_fatigue > 0x3f) {
     radius = 1;
   }
   const int own_here = ai_euro_20e6_own_colonies_on(ctx, nation_id, s.cid);
@@ -1721,9 +1721,9 @@ static int ai_euro_land_explore_scan_target(
             if (cd == 2) {
               score -= 0x14;
             }
-            const int a2 = own_here ? 7 : 5;
-            if (cd < a2) {
-              score += -(a2 - cd) * (a2 - cd);
+            const int ring_distance_min = own_here ? 7 : 5;
+            if (cd < ring_distance_min) {
+              score += -(ring_distance_min - cd) * (ring_distance_min - cd);
             }
           }
         }
@@ -1788,7 +1788,7 @@ static int ai_euro_land_explore_scan_target(
             if (nation_id == 2) {
               pen >>= 2;
             }
-            if (local_12 > 0x28) {
+            if (rival_strength_fatigue > 0x28) {
               pen >>= 1;
             }
             pen -= ai_euro_20e6_combat_value_on(ctx, nation_id, vcid);
@@ -1805,7 +1805,7 @@ static int ai_euro_land_explore_scan_target(
           if (s.dos_type == UNITS_KIND_COLONIST) {
             score <<= 1;
           }
-          score += local_12 >> tier;
+          score += rival_strength_fatigue >> tier;
           if (explore_goal != 0) {
             score += 0x10;
           }
@@ -1938,7 +1938,7 @@ static int ai_euro_20e6_attack_term(
      * temporary Brave (FUN_291f_0a20) even when only scoring, and the odds
      * run against it; it is removed again at the probe's end. */
     const int vn = ai_euro_village_nation_at(ctx->col1_ok ? ctx->col1 : NULL, nx, ny);
-    const int tmp = (vn >= 4 && !s->is_ship && ctx->col1_ok && ctx->col1)
+    const int village_temp_defender_id = (vn >= 4 && !s->is_ship && ctx->col1_ok && ctx->col1)
       ? units_spawn_village_temp_defender(ctx->units, ctx->col1, nx, ny, vn, u->id) : -1;
     /* FUN_5fef_1b0e probe mode on an undefended Euro colony (raw
      * 100419-100429): the colonist pick `rand(0, colony +0x1f - 1)` is drawn
@@ -1946,7 +1946,7 @@ static int ai_euro_20e6_attack_term(
      * muskets) stands in for the roll, then evaporates. DOSBox independence
      * 5->6: a crown Regular beside empty Quebec draws (0,4) while scoring. */
     const ColonizeColony* ecol = NULL;
-    if (tmp < 0 && !s->is_ship && ctx->colonies && ctx->col1_ok && ctx->col1) {
+    if (village_temp_defender_id < 0 && !s->is_ship && ctx->colonies && ctx->col1_ok && ctx->col1) {
       const int ecid = colonies_id_at(ctx->colonies, nx, ny);
       ecol = ecid >= 0 ? colonies_get(ctx->colonies, ecid) : NULL;
       if (ecol && (!ecol->active || ecol->nation_id < 0 || ecol->nation_id > 3 ||
@@ -1954,7 +1954,7 @@ static int ai_euro_20e6_attack_term(
         ecol = NULL;
       }
     }
-    int ctmp = -1;
+    int colony_phantom_defender_id = -1;
     if (ecol) {
       if (ctx->rng) {
         (void)dos_rng_range(ctx->rng, 0, ecol->colonist_count - 1);
@@ -1962,20 +1962,20 @@ static int ai_euro_20e6_attack_term(
       const bool revere = founding_fathers_revere_should_auto_arm(
         ctx->col1, ecol->nation_id, false, ecol->stock[COLONIZE_CARGO_MUSKETS]
       );
-      ctmp = units_spawn_colony_temp_defender(ctx->units, ecol, revere);
+      colony_phantom_defender_id = units_spawn_colony_temp_defender(ctx->units, ecol, revere);
     }
-    if (tmp >= 0 || ctmp >= 0) {
+    if (village_temp_defender_id >= 0 || colony_phantom_defender_id >= 0) {
       ColonizeCombatEngageResult er;
       memset(&er, 0, sizeof(er));
-      if (ctmp >= 0) {
+      if (colony_phantom_defender_id >= 0) {
         combat_set_auto_defender(true);
       }
-      combat_land_engage(&sctx, u->id, tmp >= 0 ? tmp : ctmp, &er);
-      if (ctmp >= 0) {
+      combat_land_engage(&sctx, u->id, village_temp_defender_id >= 0 ? village_temp_defender_id : colony_phantom_defender_id, &er);
+      if (colony_phantom_defender_id >= 0) {
         combat_set_auto_defender(false);
       }
       base = (er.atk_strength << 3) / (er.def_strength + 1);
-      units_despawn(ctx->units, tmp >= 0 ? tmp : ctmp);
+      units_despawn(ctx->units, village_temp_defender_id >= 0 ? village_temp_defender_id : colony_phantom_defender_id);
     } else {
       base = (combat_unit_base_x8(&sctx, u->id, 1, NULL) << 3) / 1;
     }
@@ -3320,7 +3320,7 @@ int ai_euro_20e6_457e_type_gate(
  * (raw 88619-88628, incl. the WoI clear) — that value is modelled by the
  * wander scorer's fog_enable in ai_euro_20e6_wander_step. bugs.md #818.
  */
-int ai_euro_20e6_bvar20_seed(
+int ai_euro_20e6_type_gate_no_manowar(
   const ColonizeTurnContext* ctx, const ColonizeUnit* u, int dos_type
 ) {
   if (dos_type == UNITS_KIND_MAN_O_WAR) {

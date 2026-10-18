@@ -529,11 +529,11 @@ void ai_king_seed_backup_force_1a26(ColonizeTurnContext* ctx, int human) {
    *     stride 0x13 = Privateer + Frigate counts — the ally's warships).
    */
   const ColonizeCol1Stuff* stuff = &ctx->col1->stuff;
-  const int local_4 =
+  const int ally_warship_count =
     (int)stuff->unit_type_counts[ally][16] + (int)stuff->unit_type_counts[ally][17];
-  const int n6bf0 = (int)stuff->census_pop_proxy[ally];
-  const int n6bd4 = (int)stuff->field_combat_totals[ally];
-  const int n6be4 = (int)stuff->land_combat_strength[ally];
+  const int ally_census_pop = (int)stuff->census_pop_proxy[ally];
+  const int ally_field_combat_units = (int)stuff->field_combat_totals[ally];
+  const int ally_land_strength = (int)stuff->land_combat_strength[ally];
 
   /*
    * DOS halves the PRE-store accumulators, not the stored pool (raw
@@ -543,15 +543,15 @@ void ai_king_seed_backup_force_1a26(ColonizeTurnContext* ctx, int human) {
    * folding them into the halving inflates every pool (pool0 by +4 Regulars,
    * and a fatter pool2 widens the x2/x6 clamps below and the merc-offer gate).
    */
-  const int iVar4 = (n6bf0 / 10) - diff;         /* 0x53e2 accumulator */
-  const int iVar7 = (4 - diff) / 2;
-  const int iVar9 = ((n6bd4 + 1) >> 4) + iVar7;  /* 0x53e4 accumulator */
-  const int iVar8 = iVar7 + ((n6be4 + 1) >> 5);  /* 0x53e8 accumulator */
+  const int regular_pool_accum = (ally_census_pop / 10) - diff;         /* 0x53e2 accumulator */
+  const int half_difficulty_bias = (4 - diff) / 2;  /* DOS iVar7 */
+  const int dragoon_pool_accum = ((ally_field_combat_units + 1) >> 4) + half_difficulty_bias;  /* DOS iVar9; 0x53e4 accumulator */
+  const int artillery_pool_accum = half_difficulty_bias + ((ally_land_strength + 1) >> 5);  /* DOS iVar8; 0x53e8 accumulator */
 
-  int pool0 = (iVar4 + 9) / 2;
-  int pool1 = (iVar9 + 2) / 2;
-  int pool3 = (iVar8 + 4) / 2;
-  int pool2 = (iVar7 + local_4 + 4) / 2;
+  int pool0 = (regular_pool_accum + 9) / 2;
+  int pool1 = (dragoon_pool_accum + 2) / 2;
+  int pool3 = (artillery_pool_accum + 4) / 2;
+  int pool2 = (half_difficulty_bias + ally_warship_count + 4) / 2;
 
   const int cap2x = pool2 * 2;
   if (pool3 > cap2x) {

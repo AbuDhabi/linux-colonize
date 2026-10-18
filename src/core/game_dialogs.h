@@ -502,7 +502,7 @@ bool game_ship_sail_to_europe(ColonizeGameState* game, int sid);
 void game_track_screen(ColonizeGameState* game);
 void game_trade_default_name(
   ColonizeGameState* game,
-  int dest1,
+  int first_dest_colony_id,
   char* out,
   size_t out_size
 );

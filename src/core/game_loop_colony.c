@@ -1604,21 +1604,21 @@ void game_colony_unload_all_cargo(ColonizeGameState* game, int unit_id) {
     if (!tu) {
       break;
     }
-    int hold = -1;
+    int first_loaded_hold = -1;
     for (int i = 0; i < holds && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
       if (tu->hold_goods_amount[i] > 0 && tu->hold_goods_amount[i] < 255) {
-        hold = i;
+        first_loaded_hold = i;
         break;
       }
     }
-    if (hold < 0) {
+    if (first_loaded_hold < 0) {
       break; /* holds_occupied == 0 */
     }
     /* Bit 20 = "this ask came from Unload all cargo": answer 2 resumes here. */
-    if (game_colony_unload_ask(game, unit_id, hold, 0, 1 << 20)) {
+    if (game_colony_unload_ask(game, unit_id, first_loaded_hold, 0, 1 << 20)) {
       return;
     }
-    const int moved = game_colony_unload_hold_commit(game, unit_id, hold, 0, NULL);
+    const int moved = game_colony_unload_hold_commit(game, unit_id, first_loaded_hold, 0, NULL);
     if (moved <= 0) {
       break; /* non-zero return: stop the whole loop */
     }

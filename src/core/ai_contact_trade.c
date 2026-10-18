@@ -271,7 +271,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
     }
     /* DOS `bVar7` (raw 87470 init / 87687 set): this visit's food-beg was
      * conceded, which vetoes gifting food back at LAB_5bfb_096c. bugs.md #863. */
-    int bvar7 = 0;
+    int beg_conceded = 0;
     /* One encounter, one mood verdict — drop last turn's. */
     {
       const AiContactVisitMood* pm = &ai_contact_s_visit_mood[nation_id - 4][e];
@@ -352,10 +352,10 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
       const int turn = ctx->turn_number ? (int)*ctx->turn_number : -1;
       /* bugs.md #863: a conceded beg re-enters this arm after the fact
        * (ai_contact_apply_beg_food), where the record carries bVar7 and may
-       * predate this Brave selection -- accept it on bvar7 alone. */
-      if (m->valid && m->turn == turn && (m->brave_id == brave->id || m->bvar7)) {
-        bvar7 = m->bvar7;
-        if (!m->bvar6) {
+       * predate this Brave selection -- accept it on beg_conceded alone. */
+      if (m->valid && m->turn == turn && (m->brave_id == brave->id || m->beg_conceded)) {
+        beg_conceded = m->beg_conceded;
+        if (!m->generous_visit) {
           continue;
         }
         goto gifts_generous;
@@ -478,7 +478,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
      * colony is under 26 food, AND this visit did not already TAKE food off
      * the colony in the beg arm (bVar7 -- bugs.md #863).
      */
-    if (!bvar7 && (int)econ.bid[0] > (int)econ.ask[0] &&
+    if (!beg_conceded && (int)econ.bid[0] > (int)econ.ask[0] &&
         c->stock[COLONIZE_CARGO_FOOD] <= 0x19) {
       /* @INDIANGIVEFOOD: village food surplus, colony starving → top to 75. */
       const int qty = 0x4b - c->stock[COLONIZE_CARGO_FOOD];
@@ -1287,14 +1287,14 @@ int ai_contact_2820_sell_price(
   if (cargo == COLONIZE_CARGO_TOOLS) {
     base += 1;
   }
-  int tier2 = ai_relation_quartile(alarm) << 1;
+  int alarm_penalty = ai_relation_quartile(alarm) << 1;
   if (cargo == COLONIZE_CARGO_MUSKETS || cargo == COLONIZE_CARGO_HORSES) {
-    tier2 = 0;
+    alarm_penalty = 0;
   }
   if (ask > 19) {
-    tier2 >>= 1;
+    alarm_penalty >>= 1;
   }
-  int raw = ((base - difficulty) - tier2 + r + 4) * 2 * ask;
+  int raw = ((base - difficulty) - alarm_penalty + r + 4) * 2 * ask;
   if (raw < 0) {
     raw = 0;
   }
@@ -1302,14 +1302,14 @@ int ai_contact_2820_sell_price(
   if (price < 1) {
     price = 1;
   }
-  const int iVar8 = (ask - tier2) + 4;
-  int value_idx = iVar8 / 10;
+  const int ask_margin = (ask - alarm_penalty) + 4; /* DOS iVar8 */
+  int value_idx = ask_margin / 10;
   if (value_idx > 3) {
     value_idx = 3;
   }
-  s->c4 = dos_rng_range(rng, 0, 1) + (iVar8 >> 2);
-  s->fair = (ask + 1) * 4 + price;
-  s->tier2 = tier2;
+  s->haggle_patience = dos_rng_range(rng, 0, 1) + (ask_margin >> 2);
+  s->fair_price = (ask + 1) * 4 + price;
+  s->alarm_penalty = alarm_penalty;
   s->value_idx = value_idx;
   s->price = price;
   return price;
@@ -1351,8 +1351,8 @@ static void ai_contact_2820_sell_settle(
   if (t) {
     t->sticky_trade_good = 0xff;
   }
-  if (s->c4 > 0) {
-    ai_contact_alarm_delta_00f2(ctx, nation_id, e, -2 * s->c4);
+  if (s->haggle_patience > 0) {
+    ai_contact_alarm_delta_00f2(ctx, nation_id, e, -2 * s->haggle_patience);
     ai_contact_2820_friction_sub(t, e, qty, qty);
   }
   /*
@@ -1405,9 +1405,9 @@ static void ai_contact_2820_gift_settle(
     const int slot = (ctx && ctx->units && unit) ? (int)(unit - ctx->units->units) : -1;
     t->last_bought = (slot == 0xf || slot == 8) ? 0xffu : (uint8_t)cargo;
   }
-  if (s->c4 >= 0) {
-    s->c4++;
-    ai_contact_alarm_delta_00f2(ctx, nation_id, e, -4 * s->c4);
+  if (s->haggle_patience >= 0) {
+    s->haggle_patience++;
+    ai_contact_alarm_delta_00f2(ctx, nation_id, e, -4 * s->haggle_patience);
     ai_contact_2820_friction_sub(t, e, 2 * qty, qty);
   }
   if (cargo == COLONIZE_CARGO_MUSKETS) {
@@ -2037,7 +2037,7 @@ static int ai_contact_enqueue_trade_offer_round(
   tok.string1 = ai_contact_cargo_name(s->cargo);
   tok.number0 = s->price;
   tok.has_number0 = true;
-  tok.number1 = s->fair;
+  tok.number1 = s->fair_price;
   tok.has_number1 = true;
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, s->round == 0 ? "TRADE0" : "TRADE1", &tok, "", body, sizeof(body));
@@ -2377,8 +2377,8 @@ void ai_contact_apply_trade_offer(
   }
   if (choice == AI_CONTACT_TRADE_OFFER_HAGGLE) {
     if (ai_contact_2820_sell_haggle(
-          (int)ctx->col1->head.difficulty, (int)s->ask[s->cargo], s->qty, &s->rng, &s->c4,
-          &s->price, &s->fair
+          (int)ctx->col1->head.difficulty, (int)s->ask[s->cargo], s->qty, &s->rng, &s->haggle_patience,
+          &s->price, &s->fair_price
         )) {
       s->round++;
       (void)ai_contact_enqueue_trade_offer_round(ctx, nation_id, e, s);
@@ -2388,7 +2388,7 @@ void ai_contact_apply_trade_offer(
     if (t) {
       t->sticky_trade_good = (uint8_t)s->cargo;
     }
-    ai_contact_alarm_delta_00f2(ctx, nation_id, e, (s->tier2 >> 1) + 1);
+    ai_contact_alarm_delta_00f2(ctx, nation_id, e, (s->alarm_penalty >> 1) + 1);
     s->active = 0;
     /* 2820 doc 607-610: tribe+7 and the alarm bump are ungated; only the
      * @BADHAGGLE0 dialog sits behind `8c28(...) & 0x40` (bugs.md #805). */

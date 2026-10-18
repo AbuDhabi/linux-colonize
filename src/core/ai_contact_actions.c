@@ -1441,30 +1441,30 @@ static void ai_contact_denounce_heresy(
       if ((int)v->nation_id != nation_id) {
         continue;
       }
-      int c = 0;
+      int village_pull = 0;
       int sc = 0;
-      const int n = ai_contact_4cc6_03f8(ctx, nation_id, v, &sc);
-      if (n == foreign) {
+      const int leaning_nation = ai_contact_4cc6_03f8(ctx, nation_id, v, &sc);
+      if (leaning_nation == foreign) {
         pro_me += sc;
-      } else if (n == e) {
+      } else if (leaning_nation == e) {
         mine += sc;
       } else {
-        c = sc;
+        village_pull = sc;
       }
       if (v->mission == COL1_TRIBE_MISSION_NONE) {
         continue;
       }
-      c += (int)v->population;
+      village_pull += (int)v->population;
       if (v->mission & COL1_TRIBE_MISSION_JESUIT_BIT) {
-        c *= 2;
+        village_pull *= 2;
       }
       if (v->state.capital) {
-        c <<= 1;
+        village_pull <<= 1;
       }
       if ((int)(v->mission & COL1_TRIBE_MISSION_NATION_MASK) == e) {
-        mine += c;
+        mine += village_pull;
       } else {
-        pro_me += c;
+        pro_me += village_pull;
       }
     }
   }

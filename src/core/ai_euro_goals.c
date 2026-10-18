@@ -978,30 +978,30 @@ static void ai_euro_0a60_foreign_colony_producers(
       have_col1 ? (int)ctx->col1->post_map.continent_tally_b[cont] : 0;
     const int total_cols = (int)col_cnt[0][cont] + (int)col_cnt[1][cont] +
                            (int)col_cnt[2][cont] + (int)col_cnt[3][cont];
-    int e = outmatched ? 3 : 2;
-    int v = e;
+    int priority_base = outmatched ? 3 : 2;
+    int v = priority_base;
     if (owner == human) {
-      v = e + 1;
+      v = priority_base + 1;
       if (total_cols == (int)col_cnt[owner][cont]) {
         if (tally > 0xf) {
-          v = e + 2;
+          v = priority_base + 2;
         }
-        e = v;
-        v = e;
+        priority_base = v;
+        v = priority_base;
         if (tally > 0x3f) {
-          v = e + 1;
+          v = priority_base + 1;
         }
       }
     }
-    e = v;
+    priority_base = v;
     if (tally < total_cols * 0x10) {
-      e -= 1;
+      priority_base -= 1;
     }
     if ((d & (AI_DIPLO_MET | AI_DIPLO_PEACE)) == AI_DIPLO_MET) {
-      e += 1; /* met, no peace treaty */
+      priority_base += 1; /* met, no peace treaty */
     }
     if (turn < 0x96) {
-      e <<= 1;
+      priority_base <<= 1;
     }
     /* Weakly-defended target cancels the staging goal (raw 1197-1203). */
     const int defenders =
@@ -1012,7 +1012,7 @@ static void ai_euro_0a60_foreign_colony_producers(
     }
     if (outmatched || absent) {
       ai_goals_upsert_primary(
-        nation_id, bx, by, outmatched ? AI_GOAL_MIL_EXPAND : AI_GOAL_FOUND, e
+        nation_id, bx, by, outmatched ? AI_GOAL_MIL_EXPAND : AI_GOAL_FOUND, priority_base
       );
     }
   }
@@ -1705,8 +1705,8 @@ static void ai_euro_5952_equip_arm(
   if (equip_pop < 2) {
     return;
   }
-  int local_8e = UNITS_JOB_COLONIST; /* raw 94276: local_8e = 0x13 */
-  int local_136 = 0;
+  int equip_target_job = UNITS_JOB_COLONIST; /* raw 94276: local_8e = 0x13 */
+  int have_equip_target = 0; /* DOS local_136 */
   /*
    * Scout target, raw 94277-94285 (md:644-654), DOS-LITERAL:
    *   if (0x65 < +0xaa) {                       // stock[horses] > 101
@@ -1734,8 +1734,8 @@ static void ai_euro_5952_equip_arm(
       skip_scout = 1; /* goto LAB_OVL15_L0000__000de5 */
     }
     if (!skip_scout && (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) == 0) {
-      local_8e = UNITS_JOB_SCOUT;
-      local_136 = 1;
+      equip_target_job = UNITS_JOB_SCOUT;
+      have_equip_target = 1;
     }
   }
   /*
@@ -1746,10 +1746,10 @@ static void ai_euro_5952_equip_arm(
    * turn, which is DOS; the unit-act hosting drew it only when a Pioneer
    * happened to stand on the tile.
    */
-  int local_90 = 0;
+  int wants_pioneer_roll = 0; /* DOS local_90 */
   if (stance == 0 && equip_pop > 10 && dos_rng_range(ctx->rng, 0, 3) == 0 &&
       (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) == 0) {
-    local_90 = 1;
+    wants_pioneer_roll = 1;
   }
   /*
    * Pioneer target, raw 94300-94303 (md:664-668), DOS-LITERAL:
@@ -1788,28 +1788,28 @@ static void ai_euro_5952_equip_arm(
         ? (int)ctx->col1->stuff.unit_type_counts[nation_id][2]
         : 0;
     const int total_colonies = ctx->colonies ? ctx->colonies->colony_count : 0;
-    if (local_90 && pioneers_afield == 0 &&
+    if (wants_pioneer_roll && pioneers_afield == 0 &&
         ai_goals_founding_expansion_urgency(nation_id, total_colonies) != 0 &&
         c->stock[COLONIZE_CARGO_TOOLS] > 0x13) {
-      local_8e = UNITS_JOB_PIONEER;
-      local_136 = 1;
+      equip_target_job = UNITS_JOB_PIONEER;
+      have_equip_target = 1;
     }
   }
   /* raw 94304-94306: `((+0x1b & 0x48) != 0 || local_90 != 0) && 0x31 < +0xb8` */
   const int equip_demand =
     (c->ai_flags &
      (COLONIZE_COLONY_AI_NEEDS_GARRISON | COLONIZE_COLONY_AI_SHORT_DEFENDERS)) != 0 ||
-    local_90;
+    wants_pioneer_roll;
   if (equip_demand && c->stock[COLONIZE_CARGO_MUSKETS] > 0x31) {
     /* raw 94307-94312: local_8e = 0x15, upgraded to 0x17 on horses > 0x33. */
-    local_8e = c->stock[COLONIZE_CARGO_HORSES] > 0x33 ? UNITS_JOB_DRAGOON : UNITS_JOB_SOLDIER;
-    local_136 = 1;
+    equip_target_job = c->stock[COLONIZE_CARGO_HORSES] > 0x33 ? UNITS_JOB_DRAGOON : UNITS_JOB_SOLDIER;
+    have_equip_target = 1;
   }
-  if (!local_136) { /* raw 94313: `if (local_136 != 0)` guards the picker */
+  if (!have_equip_target) { /* raw 94313: `if (local_136 != 0)` guards the picker */
     return;
   }
   /* raw 94314-94317: local_1b4 = local_8e, with 0x17 mapped to 0x15. */
-  const int target = (local_8e == UNITS_JOB_DRAGOON) ? UNITS_JOB_SOLDIER : local_8e;
+  const int target = (equip_target_job == UNITS_JOB_DRAGOON) ? UNITS_JOB_SOLDIER : equip_target_job;
   const int pick = ai_euro_5952_equip_pick(c, target);
   if (pick < 0) {
     return;
@@ -1836,13 +1836,13 @@ static void ai_euro_5952_equip_arm(
    * off the stock (raw 11318-11329). local_8e, not local_1b4 — the Dragoon
    * remap is for the SCORER only. */
   int eject_role = COLONIZE_EJECT_COLONIST;
-  if (local_8e == UNITS_JOB_PIONEER) {
+  if (equip_target_job == UNITS_JOB_PIONEER) {
     eject_role = COLONIZE_EJECT_PIONEER;
-  } else if (local_8e == UNITS_JOB_SOLDIER) {
+  } else if (equip_target_job == UNITS_JOB_SOLDIER) {
     eject_role = COLONIZE_EJECT_SOLDIER;
-  } else if (local_8e == UNITS_JOB_SCOUT) {
+  } else if (equip_target_job == UNITS_JOB_SCOUT) {
     eject_role = COLONIZE_EJECT_SCOUT;
-  } else if (local_8e == UNITS_JOB_DRAGOON) {
+  } else if (equip_target_job == UNITS_JOB_DRAGOON) {
     eject_role = COLONIZE_EJECT_DRAGOON;
   }
   (void)colonies_eject_colonist(ctx->colonies, c->id, pick, ctx->units, eject_role);
@@ -1940,7 +1940,7 @@ static void ai_euro_5952_build_pref_0306(
     );
   }
   /* md:764-765: uStack_96 is latched HERE, between arms 1 and 2. */
-  const int local_96 = (c->specialty_cargo == (uint8_t)COLONIZE_CARGO_MUSKETS);
+  const int specialty_is_muskets = (c->specialty_cargo == (uint8_t)COLONIZE_CARGO_MUSKETS); /* DOS local_96 */
   /* arm 2 — Trade Goods, md:766-773 */
   {
     int price = 0;
@@ -1977,7 +1977,7 @@ static void ai_euro_5952_build_pref_0306(
       ((int)c->labor_shortage != 1 || rich || spec == COLONIZE_CARGO_TOOLS) &&
       ((c->ai_flags & COLONIZE_COLONY_AI_SHORT_DEFENDERS) == 0 || rich ||
        spec == COLONIZE_CARGO_TOOLS) &&
-      (local_96 == 0 || spec != COLONIZE_CARGO_MUSKETS);
+      (specialty_is_muskets == 0 || spec != COLONIZE_CARGO_MUSKETS);
     colonies_specialty_cargo_update(
       ctx->colonies, c, COLONIZE_CARGO_MUSKETS, !quiet,
       gross[COLONIZE_CARGO_MUSKETS] != 0

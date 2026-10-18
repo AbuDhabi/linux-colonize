@@ -863,16 +863,16 @@ void turn_produce_one_colony(
    * :57692) with C/D and F/G/H already done. The I/J block now sits below
    * education, at its DOS position.
    */
-  /* FUN_43f7_1528 rebind (see g_turn_1528_colony): everything 0688 does
+  /* FUN_43f7_1528 rebind (see g_turn_1528_last_walked_colony): everything 0688 does
    * after the 0a22 call (raw 57231) works on *(DS:0x8542), so C/D and the
    * application below land in that record, fed by this colony's Phase A
    * composition (bells local_ba, the per-cargo net, the 0x8e5a shortfall,
    * hammers, depletion units). The composition inputs read past this point
    * (horses, lumber clip) stay on `colony` until the Phase B switch below. */
   ColonizeColony* const app =
-    (g_turn_1528_colony && g_turn_1528_colony != colony && col1) ? g_turn_1528_colony : colony;
-  const int nation_a = colony->nation_id; /* uVar7, raw 57225 */
-  const int food_start_a = stock_before[COLONIZE_CARGO_FOOD];
+    (g_turn_1528_last_walked_colony && g_turn_1528_last_walked_colony != colony && col1) ? g_turn_1528_last_walked_colony : colony;
+  const int colony_nation_id = colony->nation_id; /* uVar7, raw 57225 */
+  const int food_stock_before = stock_before[COLONIZE_CARGO_FOOD];
   {
     /* Phase C feeds this colony's composed bells (local_ba) to app. */
     const uint32_t app_stamp = app->prod_compose_stamp;
@@ -1287,7 +1287,7 @@ void turn_produce_one_colony(
        * 0 — the nation may not already own an expert of that job anywhere —
        * and a success bumps it in place. See turn_prof_census. */
       const int census_n =
-        (nation_a >= 0 && nation_a < (int)COLONIZE_COL1_NATION_COUNT) ? nation_a : 0;
+        (colony_nation_id >= 0 && colony_nation_id < (int)COLONIZE_COL1_NATION_COUNT) ? colony_nation_id : 0;
       if (turn_prof_census[census_n][c->field_job] != 0) {
         continue;
       }
@@ -1346,7 +1346,7 @@ void turn_produce_one_colony(
      * latch killed a colony producing exactly what it eats at 0 stores
      * (commons 2 food vs pop 1 eating 2 — net zero, DOS-fine forever).
      */
-    colony->food_shortfall_latch = (need - food_start_a - field_food > 0) ? 1u : 0u;
+    colony->food_shortfall_latch = (need - food_stock_before - field_food > 0) ? 1u : 0u;
 
     /*
      * FUN_364b_0688 phase I — birth: food ≥ 200 → Free Colonist in colony;
@@ -1369,12 +1369,12 @@ void turn_produce_one_colony(
         const int ct = units_kind_type_index(turn_birth_units, UNITS_KIND_COLONIST);
         born_on_tile = ct >= 0;
         /* raw 57618: FUN_281f_095c(0, uVar7, x, y) -- the ticking nation. */
-        if (ct >= 0 && units_spawn_room(turn_birth_units, nation_a)) {
+        if (ct >= 0 && units_spawn_room(turn_birth_units, colony_nation_id)) {
           const int nid =
             units_spawn_allow_stack(turn_birth_units, ct, colony->x, colony->y);
           ColonizeUnit* nu = units_get(turn_birth_units, nid);
           if (nu) {
-            units_set_nation(nu, nation_a);
+            units_set_nation(nu, colony_nation_id);
             nu->orders = UNITS_ORDER_NONE;
           }
         }
@@ -1428,16 +1428,16 @@ void turn_produce_one_colony(
     /* DS:0x8e5a (raw 57623-57625): a non-human colony's shortfall below 3 is
      * forgiven. Only a non-zero shortfall takes the else branch (raw 57638),
      * which reseeds (FUN_281f_04ca(DS:0x83a6)) before the mercy roll. */
-    int short_8e5a = need - food_start_a - field_food; /* Phase A composition */
-    if (short_8e5a < 0) {
-      short_8e5a = 0;
+    int food_shortfall_8e5a = need - food_stock_before - field_food; /* Phase A composition */
+    if (food_shortfall_8e5a < 0) {
+      food_shortfall_8e5a = 0;
     }
-    if (short_8e5a < 3 && (nation_a > 3 ||
-                           (col1 && col1->player[nation_a].control != 0))) {
-      short_8e5a = 0;
+    if (food_shortfall_8e5a < 3 && (colony_nation_id > 3 ||
+                           (col1 && col1->player[colony_nation_id].control != 0))) {
+      food_shortfall_8e5a = 0;
     }
     int starve_mercy = 0;
-    if (short_8e5a != 0) {
+    if (food_shortfall_8e5a != 0) {
       dos_rng_reseed_83a6(rng);
       if (col1 && col1->head.difficulty < 2) {
         if (col1->head.year < 1520) {
@@ -1452,7 +1452,7 @@ void turn_produce_one_colony(
      * Phase J — starve-kill when still short and started the turn at 0 food.
      * Last colonist → @VANISH + colonies_abandon (DOS 0xe47 / thunk 0254).
      */
-    if (short_8e5a != 0 && food_at_start == 0 &&
+    if (food_shortfall_8e5a != 0 && food_at_start == 0 &&
         colony->colonist_count > 0 && !starve_mercy) {
       const int colony_id = colony->id;
       char vanish_name[COLONIZE_COLONY_NAME_MAX];

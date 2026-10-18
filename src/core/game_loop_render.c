@@ -1056,11 +1056,11 @@ static void europe_render_menu_popup(
   }
 
   {
-    const char* f1 = reports_misc_display_word(189, "");
-    const int fw = font_text_width(font, f1);
+    const char* footer_word = reports_misc_display_word(189, "");
+    const int fw = font_text_width(font, footer_word);
     europe_menu_draw_shadowed(
       font, framebuffer, inner_x + inner_w - pad - fw,
-      lay.list_y0 + rows * line_h, f1, 10
+      lay.list_y0 + rows * line_h, footer_word, 10
     );
   }
 

@@ -990,11 +990,11 @@ static int reports_indian_build_rows(
      */
     {
       const int alarm = ai_diplo_indian_alarm(col1, nation_id, human);
-      int q = alarm >= 75 ? 3 : alarm >= 50 ? 2 : alarm >= 25 ? 1 : 0;
+      int alarm_tier = alarm >= 75 ? 3 : alarm >= 50 ? 2 : alarm >= 25 ? 1 : 0;
       if (ind->extinct) {
-        q = 3; /* [0x8d4e+3] & 0x80 forces the top tier */
+        alarm_tier = 3; /* [0x8d4e+3] & 0x80 forces the top tier */
       }
-      r->icon_sprite = REPORTS_INDIAN_ICON_SPRITE + q;
+      r->icon_sprite = REPORTS_INDIAN_ICON_SPRITE + alarm_tier;
     }
     r->extinct = ind->extinct ? 1 : 0;
   }

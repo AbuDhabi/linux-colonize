@@ -169,20 +169,20 @@ static void ai_euro_5d04_treasury_bump(ColonizeTurnContext* ctx, int nation_id) 
   const ColonizeCol1Head* head = &ctx->col1->head;
   const int colony_count = ctx->col1->stuff.colony_counts[nation_id];
 
-  int local_12 = colony_count + ((int)head->year - 1500) / 50;
+  int era_colony_score = colony_count + ((int)head->year - 1500) / 50;
   if ((int)head->turn < 20) {
-    local_12 = 0;
+    era_colony_score = 0;
   }
   if ((int)head->year > 0x6a3) { /* 1699 */
-    local_12 <<= 1;
+    era_colony_score <<= 1;
   }
-  int local_2e = (int)head->difficulty * local_12;
+  int scaled_treasury_bonus = (int)head->difficulty * era_colony_score;
   if (head->difficulty == 3) {
-    local_2e = (local_2e >> 1) + local_2e; /* *1.5 */
+    scaled_treasury_bonus = (scaled_treasury_bonus >> 1) + scaled_treasury_bonus; /* *1.5 */
   } else if (head->difficulty == 4) {
-    local_2e <<= 1; /* *2 */
+    scaled_treasury_bonus <<= 1; /* *2 */
   }
-  nat->gold += (uint32_t)(local_2e * 4);
+  nat->gold += (uint32_t)(scaled_treasury_bonus * 4);
 }
 
 static int nat_gold_ge(const ColonizeTurnContext* ctx, int nation_id, uint32_t threshold) {
@@ -255,16 +255,16 @@ static Ai5d04PlanningFlags ai_euro_5d04_compute_flags(
   /* local_3c: avg (over the other 3 nations) of unit_type_counts[.][16] +
    * unit_type_counts[.][17]*4, >>2 (raw divides by 4 regardless of the
    * 3-term sum — kept literal). Zeroed under WoI. */
-  int local_3c = 0;
+  int rival_navy_strength = 0;
   for (int n = 0; n < 4; ++n) {
     if (n == nation_id) {
       continue;
     }
-    local_3c += stuff->unit_type_counts[n][16] + stuff->unit_type_counts[n][17] * 4;
+    rival_navy_strength += stuff->unit_type_counts[n][16] + stuff->unit_type_counts[n][17] * 4;
   }
-  local_3c >>= 2;
+  rival_navy_strength >>= 2;
   if (woi) {
-    local_3c = 0;
+    rival_navy_strength = 0;
   }
 
   const int col_half = stuff->colony_counts[nation_id] >> 1;
@@ -278,7 +278,7 @@ static Ai5d04PlanningFlags ai_euro_5d04_compute_flags(
   f.frigate_threatened = 0;
   if (!((ai_euro_5d04_ph_naval_threat_crumb_n(0xa89b, nation_id) == 0 &&
          ai_euro_5d04_ph_naval_threat_crumb_n(0xa89a, nation_id) == 0) ||
-        local_3c == 0)) {
+        rival_navy_strength == 0)) {
     int reach_weak_check = 0;
     if (ai_euro_5d04_ph_naval_threat_crumb_n(0xa89b, nation_id) < col_half &&
         ai_euro_5d04_ph_naval_threat_crumb_n(0x9e52, nation_id) < pop_half) {
@@ -302,7 +302,7 @@ static Ai5d04PlanningFlags ai_euro_5d04_compute_flags(
   f.privateer_threatened = 0;
   if (((ai_euro_5d04_ph_naval_threat_crumb_n(0xa89a, nation_id) != 0 ||
         ai_euro_5d04_ph_naval_threat_crumb_n(0xa89b, nation_id) != 0)) &&
-      local_3c != 0 && !f.frigate_threatened) {
+      rival_navy_strength != 0 && !f.frigate_threatened) {
     int reach = 0;
     if (ai_euro_5d04_ph_naval_threat_crumb_n(0xa89a, nation_id) < col_half &&
         ai_euro_5d04_ph_naval_threat_crumb_n(0x9e54, nation_id) < pop_half) {
@@ -1058,7 +1058,7 @@ static void ai_euro_5d04_cb_colony_needs(int nation_id, int8_t out[16]) {
    * goods 8 and tools for empty stocks; every own hull (0xd..0x12) takes one
    * off per occupied hold's cargo, every Pioneer one off tools.
    * Muskets = 0xa0db, tools = 0xa0da. */
-  int cnt[16] = {0};
+  int cargo_need_count[16] = {0};
   ColonizeTurnContext* ctx = ai_euro_s_5d04_ctx;
   if (ctx && ctx->colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
@@ -1068,19 +1068,19 @@ static void ai_euro_5d04_cb_colony_needs(int nation_id, int8_t out[16]) {
       }
       const int spec = (int8_t)c->specialty_cargo;
       if (spec >= 0 && spec < 16) {
-        cnt[spec]++;
+        cargo_need_count[spec]++;
       }
       if (spec == COLONIZE_CARGO_MUSKETS) {
-        cnt[COLONIZE_CARGO_MUSKETS]++;
+        cargo_need_count[COLONIZE_CARGO_MUSKETS]++;
       }
       if (c->stock[COLONIZE_CARGO_MUSKETS] == 0) {
-        cnt[COLONIZE_CARGO_MUSKETS]++;
+        cargo_need_count[COLONIZE_CARGO_MUSKETS]++;
       }
       if (c->stock[8] == 0) {
-        cnt[8]++;
+        cargo_need_count[8]++;
       }
       if (c->stock[COLONIZE_CARGO_TOOLS] == 0) {
-        cnt[COLONIZE_CARGO_TOOLS]++;
+        cargo_need_count[COLONIZE_CARGO_TOOLS]++;
       }
     }
   }
@@ -1096,17 +1096,17 @@ static void ai_euro_5d04_cb_colony_needs(int nation_id, int8_t out[16]) {
         for (int h = 0; h < nh && h < COLONIZE_UNIT_CARGO_MAX; ++h) {
           const int g = u->hold_goods_type[h];
           if (g >= 0 && g < 16) {
-            cnt[g]--;
+            cargo_need_count[g]--;
           }
         }
       }
       if (dt == 2) {
-        cnt[COLONIZE_CARGO_TOOLS]--;
+        cargo_need_count[COLONIZE_CARGO_TOOLS]--;
       }
     }
   }
   for (int g = 0; g < 16; ++g) {
-    out[g] = (int8_t)cnt[g]; /* DOS byte cells wrap */
+    out[g] = (int8_t)cargo_need_count[g]; /* DOS byte cells wrap */
   }
 }
 
@@ -1177,17 +1177,17 @@ typedef struct Ai5d04HireTail {
   int turn;
   int difficulty;
   int woi;
-  int local_16;
-  int local_34;
-  int local_8;
+  int dock_head_idx; /* DOS local_16 */
+  int dock_artillery; /* DOS local_34 */
+  int hire_mask; /* DOS local_8 */
   int has_any_colony;
   int unit_flag_bit5;
   int every_third_turn;
   int expand_signal;
-  int local_28;
-  int bVar9;
-  int bVar10;
-  int local_24;
+  int tools_hire_mask; /* DOS local_28 */
+  int hired_this_pass; /* DOS bVar9 */
+  int tools_trained_this_pass; /* DOS bVar10 */
+  int colony_demand_total; /* DOS local_24 */
 } Ai5d04HireTail;
 
 static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
@@ -1202,12 +1202,12 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
   const int has_any_colony = t->has_any_colony;
   const int unit_flag_bit5 = t->unit_flag_bit5;
   const int every_third_turn = t->every_third_turn;
-  int local_8 = t->local_8;
-  int local_28 = t->local_28;
-  int bVar10 = t->bVar10;
+  int hire_mask = t->hire_mask;
+  int tools_hire_mask = t->tools_hire_mask;
+  int tools_trained_this_pass = t->tools_trained_this_pass;
 
   /* raw 86122-86306: two-pass candidate loop (local_3a = 0, 1). */
-  for (int local_3a = 0; local_3a < 2; ++local_3a) {
+  for (int candidate_pass = 0; candidate_pass < 2; ++candidate_pass) { /* DOS local_3a */
     int idx = ai_euro_5d04_cb_list_iter_first(-1);
     while (idx >= 0) {
       int next_idx = idx;
@@ -1217,21 +1217,21 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
           const int gate = ai_euro_5d04_cb_profession_gate(ai_euro_5d04_cb_unit_profession(idx));
           int run_body = 0;
           if (gate == 0) {
-            if (local_3a == 0) {
+            if (candidate_pass == 0) {
               run_body = 1;
             }
-          } else if (local_3a != 0) {
+          } else if (candidate_pass != 0) {
             run_body = 1;
           }
           if (run_body) {
             if (ai_euro_5d04_cb_unit_dispatch_byte(idx) == 2) {
-              local_28 |= local_8;
+              tools_hire_mask |= hire_mask;
             }
             int handled = 0;
             if (ai_euro_5d04_cb_unit_dispatch_byte(idx) == 0 &&
                 (!has_any_colony || (!unit_flag_bit5 && !every_third_turn))) {
               const int gate2 = ai_euro_5d04_cb_profession_gate(ai_euro_5d04_cb_unit_profession(idx));
-              const int local_c = gate2 != 0;
+              const int profession_gated = gate2 != 0; /* DOS local_c */
               /* raw 92658-92671. Two ways into the muskets training arm
                * (LAB_521d_6454):
                *   0xa0db <= 0  → only the LAB_521d_642a body;
@@ -1244,28 +1244,28 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
               int try_642a = 0;
               if (hs->a0cc[COLONIZE_CARGO_MUSKETS] <= 0) {
                 try_642a = 1;
-              } else if (dos_rng_range(ctx->rng, 0, local_c + 1) == 0) {
+              } else if (dos_rng_range(ctx->rng, 0, profession_gated + 1) == 0) {
                 try_train = 1;
               } else {
                 try_642a = 1;
               }
-              if (try_642a && local_8 != 0 &&
-                  dos_rng_range(ctx->rng, 0, local_c + 2) == 0 && turn > 99) {
+              if (try_642a && hire_mask != 0 &&
+                  dos_rng_range(ctx->rng, 0, profession_gated + 2) == 0 && turn > 99) {
                 try_train = 1;
               }
               if (try_train) {
                 /* LAB_521d_6454: tools-side training. */
-                uint32_t local_1a = (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_MUSKETS) * 50);
+                uint32_t musket_stock_cost = (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_MUSKETS) * 50); /* DOS local_1a */
                 if (nat->musket_bank_lots != 0) {
-                  local_1a = 0;
+                  musket_stock_cost = 0;
                 }
-                if (nat->gold >= local_1a && !f->cargo_short) {
+                if (nat->gold >= musket_stock_cost && !f->cargo_short) {
                   if (nat->musket_bank_lots == 0) {
                     ai_euro_5d04_cb_set_pool_counter(0xf, 0x32);
                   } else {
                     nat->musket_bank_lots--;
                   }
-                  nat->gold -= local_1a;
+                  nat->gold -= musket_stock_cost;
                   ai_euro_5d04_cb_set_unit_dispatch_byte(idx, 1);
                   if (ai_euro_5d04_cb_profession_gate(ai_euro_5d04_cb_unit_profession(idx)) != 0) {
                     int swapped = 0x1c;
@@ -1278,8 +1278,8 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
                     }
                     ai_euro_5d04_cb_set_unit_profession(idx, swapped);
                   }
-                  local_8 = 0;
-                  bVar10 = 1;
+                  hire_mask = 0;
+                  tools_trained_this_pass = 1;
                   hs->a0cc[COLONIZE_CARGO_MUSKETS]--;
                   if (f->has_college &&
                       dos_rng_range(
@@ -1288,12 +1288,12 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
                       ) <= stuff->veteran_teach_threshold[nation_id]) {
                     ai_euro_5d04_cb_set_unit_profession(idx, 0x15); /* Veteran Soldier */
                   }
-                  uint32_t local_1a2 = (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_HORSES) * 50);
+                  uint32_t horse_stock_cost = (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_HORSES) * 50); /* DOS local_1a2 */
                   if (col1_nation_bank_4a(nat) > 0x31) {
-                    local_1a2 = 0;
+                    horse_stock_cost = 0;
                   }
-                  if (nat->gold >= local_1a2) {
-                    nat->gold -= local_1a2;
+                  if (nat->gold >= horse_stock_cost) {
+                    nat->gold -= horse_stock_cost;
                     ai_euro_5d04_cb_set_unit_dispatch_byte(idx, 4);
                     if (col1_nation_bank_4a(nat) < 0x32) {
                       /* raw 92729-92733: DOS only calls FUN_291f_0c14(8,0x32)
@@ -1307,9 +1307,9 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
                 }
               }
               if (!handled && ai_euro_5d04_cb_unit_dispatch_byte(idx) == 0 &&
-                  local_8 - (int)stuff->unit_type_counts[nation_id][2] > 0 &&
+                  hire_mask - (int)stuff->unit_type_counts[nation_id][2] > 0 &&
                   dos_rng_range(ctx->rng, 0, 2) == 0 &&
-                  local_28 == 0) {
+                  tools_hire_mask == 0) {
                 /* Tools-side (Pioneer) training, raw 92742-92783.
                  * raw 92745-92748: past turn 99 the arm is skipped whenever
                  * RNG(0,2) <= the nation's own Pioneer count
@@ -1330,9 +1330,9 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
                     nat->gold -= cost;
                     ai_euro_5d04_cb_set_pool_counter(0xe, 100);
                     ai_euro_5d04_cb_set_unit_dispatch_byte(idx, 2);
-                    local_28 = local_8;
-                    local_8 = 0;
-                    bVar10 = 1;
+                    tools_hire_mask = hire_mask;
+                    hire_mask = 0;
+                    tools_trained_this_pass = 1;
                     hs->a0cc[COLONIZE_CARGO_TOOLS]--;
                     handled = 1;
                   }
@@ -1371,9 +1371,9 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
     }
   }
 
-  t->local_8 = local_8;
-  t->local_28 = local_28;
-  t->bVar10 = bVar10;
+  t->hire_mask = hire_mask;
+  t->tools_hire_mask = tools_hire_mask;
+  t->tools_trained_this_pass = tools_trained_this_pass;
 }
 
 static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
@@ -1385,27 +1385,27 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
   const int turn = t->turn;
   const int difficulty = t->difficulty;
   const int woi = t->woi;
-  const int local_16 = t->local_16;
-  const int local_34 = t->local_34;
+  const int dock_head_idx = t->dock_head_idx;
+  const int dock_artillery = t->dock_artillery;
   const int has_any_colony = t->has_any_colony;
   const int unit_flag_bit5 = t->unit_flag_bit5;
   const int every_third_turn = t->every_third_turn;
-  int bVar9 = t->bVar9;
+  int hired_this_pass = t->hired_this_pass;
 
   /* raw 86307-86479: colony demand vs. purchase loop. `local_24` is read
    * by the final loop below regardless of whether this block runs (the
    * raw decompile shows the same cross-block read — DOS quirk, mirrored
    * here with an explicit 0 default rather than leaving it
    * uninitialized). */
-  int local_24 = 0;
-  int local_22 = ai_euro_5d04_cb_colony_demand_query(local_16, 4);
+  int colony_demand_total = 0;
+  int colony_demand_base = ai_euro_5d04_cb_colony_demand_query(dock_head_idx, 4); /* DOS local_22 */
   if (woi) {
-    local_22 += ai_euro_5d04_cb_colony_demand_query(local_16, 0xc);
+    colony_demand_base += ai_euro_5d04_cb_colony_demand_query(dock_head_idx, 0xc);
   }
-  if (local_22 != 0 && !f->cargo_short &&
+  if (colony_demand_base != 0 && !f->cargo_short &&
       (!has_any_colony || (!unit_flag_bit5 && !every_third_turn && !woi))) {
-    local_24 = ai_euro_5d04_cb_colony_demand_query(local_16, 0xe);
-    int local_42 = local_24 - local_22;
+    colony_demand_total = ai_euro_5d04_cb_colony_demand_query(dock_head_idx, 0xe);
+    int demand_remaining = colony_demand_total - colony_demand_base; /* DOS local_42 */
     if (turn > 0x50) {
       /* OVL14 0x67be-0x67f7: +0x49 (lots) and +0x4a (raw), not +0x48. */
       while ((uint32_t)(nat->musket_bank_lots + 1) < (uint32_t)col1_nation_bank_4a(nat) / 50) {
@@ -1417,7 +1417,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
         col1_nation_bank_4a_set(nat, (uint16_t)(col1_nation_bank_4a(nat) + 50));
       }
     }
-    if (local_34 == 0 && local_24 > 5) {
+    if (dock_artillery == 0 && colony_demand_total > 5) {
       uint32_t adj = 0;
       if (turn > 0x27) {
         adj = (uint32_t)((difficulty - 10) * -100);
@@ -1427,28 +1427,28 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
         adj = 0;
       }
       if (nat->gold >= adj && ai_euro_5d04_cb_goal_trigger(0xb, nation_id, nation_id - 0x14, nation_id - 0x14) >= 0) {
-        local_42--;
+        demand_remaining--;
         nat->gold -= adj;
       }
     }
-    int bVar8_2 = 0;
+    int bought_this_iteration = 0; /* DOS bVar8_2 */
     int buy_guard = 0;
     do {
       if (++buy_guard > 64) {
         break;
       }
-      bVar8_2 = 0;
+      bought_this_iteration = 0;
       const int base2 = (((int)nat->recruit_count + 7) * 2 - (difficulty & 0xfe)) * 10;
       const long extra =
         ((long)base2 * (long)nat->current_crosses) / (-1L - (long)nat->needed_crosses);
-      uint32_t local_38b = (uint32_t)(base2 + extra);
+      uint32_t recruit_price = (uint32_t)(base2 + extra); /* DOS local_38b */
       if (nat->musket_bank_lots == 0) {
-        local_38b += (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_MUSKETS) * 50);
+        recruit_price += (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_MUSKETS) * 50);
       }
       if (turn > 99) {
-        local_38b += (uint32_t)((int)(difficulty * (int)local_38b * 10) / -100);
+        recruit_price += (uint32_t)((int)(difficulty * (int)recruit_price * 10) / -100);
       }
-      if (nat->gold >= local_38b) {
+      if (nat->gold >= recruit_price) {
         const int slot = dos_rng_range(ctx->rng, 0, 2);
         const int cand = ai_euro_5d04_cb_dock_pop_candidate(nat->recruit[slot]);
         if (cand < 0) {
@@ -1469,7 +1469,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
         } else if (cdisp == 5) {
           ai_euro_5d04_cb_set_unit_dispatch_byte(cand, 4);
         }
-        local_38b += (uint32_t)extra_cost;
+        recruit_price += (uint32_t)extra_cost;
         if (ai_euro_5d04_cb_unit_dispatch_byte(cand) != 4) {
           ai_euro_5d04_cb_set_unit_dispatch_byte(cand, 1);
           if (ai_euro_5d04_cb_profession_gate(ai_euro_5d04_cb_unit_profession(cand)) != 0) {
@@ -1484,7 +1484,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
             ai_euro_5d04_cb_set_unit_profession(cand, swapped);
           }
         }
-        nat->gold -= local_38b;
+        nat->gold -= recruit_price;
         if (nat->musket_bank_lots == 0) {
           ai_euro_5d04_cb_set_pool_counter(0xf, 0x32);
         } else {
@@ -1499,15 +1499,15 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
             ai_euro_5d04_cb_set_unit_profession(cand, 0x15);
           }
         }
-        uint32_t local_1a3 = (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_HORSES) * 50);
+        uint32_t horse_stock_cost = (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_HORSES) * 50); /* DOS local_1a3 */
         if (turn > 99) {
-          local_1a3 += (uint32_t)((int)(difficulty * (int)local_1a3 * 10) / -100);
+          horse_stock_cost += (uint32_t)((int)(difficulty * (int)horse_stock_cost * 10) / -100);
         }
         if (col1_nation_bank_4a(nat) > 0x31) {
-          local_1a3 = 0;
+          horse_stock_cost = 0;
         }
-        if (nat->gold >= local_1a3) {
-          nat->gold -= local_1a3;
+        if (nat->gold >= horse_stock_cost) {
+          nat->gold -= horse_stock_cost;
         }
         ai_euro_5d04_cb_set_unit_dispatch_byte(cand, 4);
         if (col1_nation_bank_4a(nat) < 0x32) {
@@ -1516,23 +1516,23 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
           col1_nation_bank_4a_set(nat, (uint16_t)(col1_nation_bank_4a(nat) - 0x32));
         }
         (void)ai_euro_5d04_refill_pool_slot(slot); /* FUN_38fd_46d4 */
-        bVar9 = 1;
-        bVar8_2 = 1;
+        hired_this_pass = 1;
+        bought_this_iteration = 1;
         /* DS:0x5238[type] is indexed by the DOS @UNIT code, not by an OpenCol
          * pool index — translate as every other consumer of the dispatch
          * byte does (fixed 2026-09-09; the raw index only happened to agree
          * on a NAMES-ordered pool). */
-        local_42 -= ai_euro_5d04_dos_type_space(ctx->units,
+        demand_remaining -= ai_euro_5d04_dos_type_space(ctx->units,
                                                 ai_euro_5d04_cb_unit_dispatch_byte(cand));
       }
-      if (!bVar8_2 || local_42 < 1) {
+      if (!bought_this_iteration || demand_remaining < 1) {
         break;
       }
     } while (1);
   }
 
-  t->bVar9 = bVar9;
-  t->local_24 = local_24;
+  t->hired_this_pass = hired_this_pass;
+  t->colony_demand_total = colony_demand_total;
 }
 
 static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
@@ -1543,10 +1543,10 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
   const int turn = t->turn;
   const int has_any_colony = t->has_any_colony;
   const int expand_signal = t->expand_signal;
-  const int local_24 = t->local_24;
-  const int local_28 = t->local_28;
-  int bVar9 = t->bVar9;
-  const int bVar10 = t->bVar10;
+  const int colony_demand_total = t->colony_demand_total;
+  const int tools_hire_mask = t->tools_hire_mask;
+  int hired_this_pass = t->hired_this_pass;
+  const int tools_trained_this_pass = t->tools_trained_this_pass;
 
   /* raw 92983-93070: the departing-ship loop — sell/bank the hold, then
    * top the hull up with the cargo its colonies most want.
@@ -1556,7 +1556,7 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
    * clear before the ship buys 100 of it, so the more colonists are
    * queued on the dock, the pickier the ship gets about goods. */
   const int seed46 = ai_euro_5d04_cb_europe_land_units(nation_id);
-  int local_46 = seed46 + ((turn & 1) != 0);
+  int cargo_demand_bar = seed46 + ((turn & 1) != 0); /* DOS local_46 */
   /* raw 93036/93050 `local_40 + -0x5f34` = DS:0xa0cc[16], the per-cargo
    * demand table 6d8e rebuilds just before calling 5d04 — the same cells
    * the hire arms decrement as 0xa0db / 0xa0da (muskets / tools). */
@@ -1615,8 +1615,8 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
             }
           }
         }
-        if (bVar9 && units_ship_capacity(ctx->units, ship2->id) == local_24) {
-          bVar9 = 0;
+        if (hired_this_pass && units_ship_capacity(ctx->units, ship2->id) == colony_demand_total) {
+          hired_this_pass = 0;
           matched = 1;
           ai_euro_5d04_cb_unit_exhaust(idx2);
           next2 = idx2;
@@ -1633,8 +1633,8 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
             if (cap == used || f->cargo_short || !has_any_colony) {
               break;
             }
-            if ((local_46 <= (int)cargo_demand[p] || expand_signal) &&
-                ((!bVar10 && local_28 == 0) || (cap - used > 2 || expand_signal))) {
+            if ((cargo_demand_bar <= (int)cargo_demand[p] || expand_signal) &&
+                ((!tools_trained_this_pass && tools_hire_mask == 0) || (cap - used > 2 || expand_signal))) {
               /* raw 93041-93046 (bug #1029): gold gate is price * DS:0x8dc4,
                * the last hold removal anywhere (DOSBox 1591: a French unload
                * left 100, so the Dutch hull with a boycotted hold bought
@@ -1655,7 +1655,7 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
     }
   } while (matched);
 
-  t->bVar9 = bVar9;
+  t->hired_this_pass = hired_this_pass;
 }
 
 /*
@@ -1689,26 +1689,26 @@ static void ai_euro_5d04_hire_ladder_tail(
 
   /* Raw 92569-92578: no Artillery on the Europe dock + colonies needing
    * muskets → buy one (purchase table entry 0, 500 gold), re-query. */
-  int local_16 = ai_euro_5d04_cb_list_iter_first(0x0c);
-  int local_34 = ai_euro_5d04_cb_artillery_on_dock(local_16);
-  if (local_34 == 0 && !woi && hs->a0cc[COLONIZE_CARGO_MUSKETS] > 0 &&
+  int dock_head_idx = ai_euro_5d04_cb_list_iter_first(0x0c);
+  int dock_artillery = ai_euro_5d04_cb_artillery_on_dock(dock_head_idx);
+  if (dock_artillery == 0 && !woi && hs->a0cc[COLONIZE_CARGO_MUSKETS] > 0 &&
       dos_rng_range(ctx->rng, 0, 3) == 0 && !f->cargo_short &&
       stuff->ship_cargo_totals[nation_id] > 4) {
     (void)ai_euro_5d04_propose_ship_buy(ctx, nation_id, 0);
-    local_16 = ai_euro_5d04_cb_list_iter_first(0x0c);
-    local_34 = ai_euro_5d04_cb_artillery_on_dock(local_16);
+    dock_head_idx = ai_euro_5d04_cb_list_iter_first(0x0c);
+    dock_artillery = ai_euro_5d04_cb_artillery_on_dock(dock_head_idx);
   }
 
   /* raw 86076-86084: local_8 = per-nation hire-mask; bVar8 = any unit in
    * the 0xc list whose dispatch byte falls outside the ship range. */
-  int local_8 = ai_euro_5d04_cb_nation_hire_mask(nation_id);
-  int bVar8 = 0;
+  int hire_mask = ai_euro_5d04_cb_nation_hire_mask(nation_id);
+  int dock_has_non_ship_unit = 0; /* DOS bVar8 */
   {
-    int idx = local_16;
+    int idx = dock_head_idx;
     while (idx >= 0) {
       const int dispatch = ai_euro_5d04_cb_unit_dispatch_byte(idx);
       if (dispatch < 0xd || dispatch > 0x12) {
-        bVar8 = 1;
+        dock_has_non_ship_unit = 1;
       }
       idx = ai_euro_5d04_cb_list_iter_next(idx);
     }
@@ -1731,7 +1731,7 @@ static void ai_euro_5d04_hire_ladder_tail(
 
   /* raw 92592-92625: gold-spend recruit-slot swap (Europe recruit price
    * falls with accumulated crosses: base + base*crosses/(-1-needed)). */
-  if (!woi && !bVar8 && !f->cargo_short &&
+  if (!woi && !dock_has_non_ship_unit && !f->cargo_short &&
       (!has_any_colony ||
        (!unit_flag_bit5 && !every_third_turn &&
         (stuff->colony_counts[nation_id] >> 1) <=
@@ -1746,21 +1746,21 @@ static void ai_euro_5d04_hire_ladder_tail(
     if (reserve < 0) {
       reserve = 0;
     }
-    const long local_38 = scaled + base;
-    if (nat->gold >= (uint32_t)(local_38 + reserve)) {
-      nat->gold -= (uint32_t)local_38;
+    const long recruit_swap_price = scaled + base; /* DOS local_38 */
+    if (nat->gold >= (uint32_t)(recruit_swap_price + reserve)) {
+      nat->gold -= (uint32_t)recruit_swap_price;
       const int slot = dos_rng_range(ctx->rng, 0, 2); /* nat->recruit[3] */
       const int candidate = ai_euro_5d04_cb_dock_pop_candidate(nat->recruit[slot]);
       if (candidate >= 0) {
         (void)ai_euro_5d04_refill_pool_slot(slot); /* FUN_38fd_46d4 */
-        local_16 = candidate;
+        dock_head_idx = candidate;
       }
     }
   }
 
-  int local_28 = 0;
-  int bVar9 = 0;   /* "a hire/train happened this pass" */
-  int bVar10 = 0;  /* "tools-side training happened" */
+  int tools_hire_mask = 0;
+  int hired_this_pass = 0;   /* "a hire/train happened this pass" */
+  int tools_trained_this_pass = 0;  /* "tools-side training happened" */
 
   Ai5d04HireTail tail = {
     .ctx = ctx,
@@ -1772,17 +1772,17 @@ static void ai_euro_5d04_hire_ladder_tail(
     .turn = turn,
     .difficulty = difficulty,
     .woi = woi,
-    .local_16 = local_16,
-    .local_34 = local_34,
-    .local_8 = local_8,
+    .dock_head_idx = dock_head_idx,
+    .dock_artillery = dock_artillery,
+    .hire_mask = hire_mask,
     .has_any_colony = has_any_colony,
     .unit_flag_bit5 = unit_flag_bit5,
     .every_third_turn = every_third_turn,
     .expand_signal = expand_signal,
-    .local_28 = local_28,
-    .bVar9 = bVar9,
-    .bVar10 = bVar10,
-    .local_24 = 0
+    .tools_hire_mask = tools_hire_mask,
+    .hired_this_pass = hired_this_pass,
+    .tools_trained_this_pass = tools_trained_this_pass,
+    .colony_demand_total = 0
   };
   ai_euro_5d04_hire_tail_candidates(&tail);
   ai_euro_5d04_hire_tail_colony_demand(&tail);

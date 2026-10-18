@@ -589,18 +589,18 @@ static void ai_indian_152e_village_growth(
    * per-settlement regardless, so satellites' RNG draws are untouched.
    */
   {
-    int local_16 = 0;
+    int growth_mode = 0; /* DOS local_16 */
     if ((int)t->population < ai_indian_152e_worth_cap(ctx, t)) {
-      local_16 = 2;
+      growth_mode = 2;
     }
     if (t->state.needs_colonist) {
-      local_16 = 1;
+      growth_mode = 1;
     }
-    if (local_16 != 0) {
+    if (growth_mode != 0) {
       const int acc = (int)t->growth_accum + (int)t->population;
       if (acc > AI_VILLAGE_GROWTH_THRESHOLD) {
         t->growth_accum = 0;
-        if (local_16 == 2) {
+        if (growth_mode == 2) {
           t->population++;
         } else {
           /*
@@ -668,15 +668,15 @@ static void ai_indian_152e_village_growth(
      * the inline and warns about euro_relation_accum[]. */
     if (mission_nation >= 0 && mission_nation < (int)COLONIZE_COL1_NATION_COUNT) {
       const bool jesuit = (t->mission & COL1_TRIBE_MISSION_JESUIT_BIT) != 0;
-      int local_8 = (jesuit ? 4 : 1) << (capital_mult ? 1 : 0);
+      int mission_relief = (jesuit ? 4 : 1) << (capital_mult ? 1 : 0); /* DOS local_8 */
       if (ai_indian_152e_ff_bit(ctx, mission_nation, 0x18)) {
-        local_8 <<= 1;
+        mission_relief <<= 1;
       }
       if (ai_indian_152e_ff_bit(ctx, mission_nation, 0x17)) {
-        local_8 >>= 1;
+        mission_relief >>= 1;
       }
       ind->euro_relation_accum[mission_nation] =
-        (int8_t)(ind->euro_relation_accum[mission_nation] + local_8);
+        (int8_t)(ind->euro_relation_accum[mission_nation] + mission_relief);
       /*
        * DOS reads/writes settlement+0xa+e*2 as a whole signed int16 here too
        * (raw 81490-81496: `*piVar1 = *piVar1 + local_8 * -3;` then clamp at
@@ -685,18 +685,18 @@ static void ai_indian_152e_village_growth(
        * 255: friction bottomed at 0 while the attacks high byte held the
        * value up. Fixed 2026-09-09 (smell #45).
        */
-      int atti = col1_tribe_attitude(t, mission_nation) + local_8 * -3;
+      int atti = col1_tribe_attitude(t, mission_nation) + mission_relief * -3;
       if (atti < 0) {
         atti = 0;
       }
       col1_tribe_attitude_set(t, mission_nation, atti);
     }
     if (threat_nation >= 0) {
-      int local_c = threat_score << (capital_mult ? 1 : 0);
+      int threat_alarm_gain = threat_score << (capital_mult ? 1 : 0); /* DOS local_c */
       ind->euro_relation_accum[threat_nation] =
-        (int8_t)(ind->euro_relation_accum[threat_nation] - local_c);
+        (int8_t)(ind->euro_relation_accum[threat_nation] - threat_alarm_gain);
       if (threat_nation == mission_nation) {
-        local_c >>= 1;
+        threat_alarm_gain >>= 1;
       }
       const int alarm = ai_diplo_indian_alarm(col1, nation_id, threat_nation);
       /* DOS keeps settlement+0xa+e*2 as an int16 (friction | attacks<<8), so
@@ -705,7 +705,7 @@ static void ai_indian_152e_village_growth(
               ((int)t->alarm[threat_nation].attacks << 8);
       /* raw 81509 is a bare int16 add — it wraps in 16 bits, no saturation;
        * the two store bytes below take the wrapped value. */
-      w = (int)(uint16_t)(unsigned)(w + local_c + alarm / 5);
+      w = (int)(uint16_t)(unsigned)(w + threat_alarm_gain + alarm / 5);
       t->alarm[threat_nation].friction = (uint8_t)(w & 0xff);
       t->alarm[threat_nation].attacks = (uint8_t)((w >> 8) & 0xff);
     }
@@ -872,17 +872,17 @@ int ai_quiet_fog_explore_ex(
   int unit_y,
   int dir,
   int nation_id,
-  int* out_p8,
-  int* out_m2
+  int* out_fog_bonus,
+  int* out_neighbor_penalty
 ) {
-  int p8 = 0;
-  int m2 = 0;
+  int fog_bonus = 0;
+  int neighbor_penalty = 0;
   const int far_x = unit_x + k_ai_dir8_dx[dir] * 4;
   const int far_y = unit_y + k_ai_dir8_dy[dir] * 4;
   if (!ai_is_ocean_hs(map, far_x, far_y) && map_coords_inset(map, far_x, far_y) &&
       ai_coarse_fog_unseen(far_x, far_y)) {
     score += 8;
-    p8 = 8;
+    fog_bonus = 8;
   }
   for (int n = 0; n < 8; ++n) {
     const int nx = far_x + k_ai_dir8_dx[n];
@@ -893,14 +893,14 @@ int ai_quiet_fog_explore_ex(
     (void)nation_id;
     if (map_tile_owner_or_presence(map, nx, ny) >= 0) {
       score -= 2;
-      m2 -= 2;
+      neighbor_penalty -= 2;
     }
   }
-  if (out_p8) {
-    *out_p8 = p8;
+  if (out_fog_bonus) {
+    *out_fog_bonus = fog_bonus;
   }
-  if (out_m2) {
-    *out_m2 = m2;
+  if (out_neighbor_penalty) {
+    *out_neighbor_penalty = neighbor_penalty;
   }
   return score;
 }
@@ -1006,33 +1006,33 @@ int ai_native_foreign_euro_pull(
   if (divisor < 1) {
     divisor = 1;
   }
-  int e8 = ((stack_cost + 1) / stack_military) * strength / divisor;
+  int attack_strength_score = ((stack_cost + 1) / stack_military) * strength / divisor;
   int bonus = 0;
   if (ai_s_native_colonies && colonies_id_at(ai_s_native_colonies, dest_x, dest_y) >= 0) {
-    e8 *= 3;
+    attack_strength_score *= 3;
     bonus = 1;
   }
   if (map_coords_inset(map, dest_x, dest_y) && (ai_layer2_at(map, dest_x, dest_y) & 2u) != 0) {
-    e8 <<= 1;
+    attack_strength_score <<= 1;
     bonus = 1;
   }
   if (u->type_index == UNITS_KIND_ARTILLERY && !bonus) {
-    e8 = 0;
+    attack_strength_score = 0;
   }
   if (ai_s_native_col1 && nation_id == (int)ai_s_native_col1->head.crown_nation_id && !bonus &&
       ai_s_native_home_dist == 0) {
-    e8 >>= 1;
+    attack_strength_score >>= 1;
   }
-  if (e8 > 999 || e8 < 0) {
-    e8 = 1000;
+  if (attack_strength_score > 999 || attack_strength_score < 0) {
+    attack_strength_score = 1000;
   }
-  if (e8 < 0xc && (u->type_index < 0xd || u->type_index > 0x12)) {
+  if (attack_strength_score < 0xc && (u->type_index < 0xd || u->type_index > 0x12)) {
     return score - 999;
   }
-  if (e8 < 1) {
-    e8 = 1;
+  if (attack_strength_score < 1) {
+    attack_strength_score = 1;
   }
-  return score + e8 * 4;
+  return score + attack_strength_score * 4;
 }
 
 /* Sentinel for a direction the ASM scorer rejected outright (was `continue;`). */

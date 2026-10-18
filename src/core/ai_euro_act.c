@@ -712,7 +712,7 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
       ++tile_stack_count;
     }
   }
-  int a8_at_entry = tile_stack_count > 0 ? tile_stack_count - 1 : 0;
+  int tile_stack_others_at_entry = tile_stack_count > 0 ? tile_stack_count - 1 : 0; /* DOS local_a8 */
   int delivery_tally[COLONIZE_CARGO_COUNT];
   const int delivery_at_entry = ai_euro_20e6_delivery_tallies(ctx, u, delivery_tally);
   int roam_military_founders = -1;
@@ -724,14 +724,14 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
     /* LAB_3558 unload mask + loop. The loop exhausts every unloaded
      * passenger and then the hull (FUN_281f_0934), but 20e6 runs on. */
     AiEuroShipBandCounts band = {0};
-    const int mask9c = ai_euro_20e6_unload_mask_snapshot(ctx, u, nation_id, &band);
-    a8_at_entry = band.stack_other;
+    const int entry_unload_mask = ai_euro_20e6_unload_mask_snapshot(ctx, u, nation_id, &band);
+    tile_stack_others_at_entry = band.stack_other;
     roam_military_founders = band.military + band.pioneers;
-    unload_mask = mask9c;
-    if (getenv("AI_SHIP_TRACE") && mask9c) {
-      fprintf(stderr, "[shipdos] unit %d n%d (%d,%d) unload mask 0x%x\n", id, nation_id, u->x, u->y, mask9c);
+    unload_mask = entry_unload_mask;
+    if (getenv("AI_SHIP_TRACE") && entry_unload_mask) {
+      fprintf(stderr, "[shipdos] unit %d n%d (%d,%d) unload mask 0x%x\n", id, nation_id, u->x, u->y, entry_unload_mask);
     }
-    if (mask9c != 0 && ai_euro_20e6_unload_by_mask(ctx, u, nation_id, mask9c) > 0) {
+    if (entry_unload_mask != 0 && ai_euro_20e6_unload_by_mask(ctx, u, nation_id, entry_unload_mask) > 0) {
       u = units_get(ctx->units, id);
       if (!u || !u->active) {
         return 1;
@@ -743,12 +743,12 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
       const int pioneers = band.pioneers;
       const int mil = band.military;
       const int civ = band.civilians;
-      const int a8 = band.stack_other;
+      const int tile_stack_others = band.stack_other;
       const int pioneers_b4 = band.pioneers_before_fold;
       const int urgency = ai_euro_0a60_work_registered(nation_id);
       int cx = 0;
       int cy = 0;
-      if (a8 > 0 && (civ != 0 || ((pioneers != a8 || urgency > 0x18) && mask9c == 0)) &&
+      if (tile_stack_others > 0 && (civ != 0 || ((pioneers != tile_stack_others || urgency > 0x18) && entry_unload_mask == 0)) &&
           ai_euro_20e6_colony_sail_pick(ctx, u, nation_id, mil, pioneers_b4, urgency, &cx, &cy)) {
         u->col1_ai_plan = 0x34; /* -> 27f5 -> 20c6 with DX = '4' (OVL14 0x3f47) */
         ai_euro_set_goto(u, AI_EURO_ACT_GOAL, cx, cy);
@@ -758,7 +758,7 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
     }
     /* FUN_521d_20e6 raw 89725-89728: dock demand precedes goods delivery
      * when the hull has not entered the own-colony berth block. */
-    if (a8_at_entry == 0 && ai_euro_20e6_europe_dock_demand(ctx, u, nation_id)) {
+    if (tile_stack_others_at_entry == 0 && ai_euro_20e6_europe_dock_demand(ctx, u, nation_id)) {
       ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);
       return 0;
     }
@@ -773,7 +773,7 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
     const int oy = u->goto_y;
     const int oo = u->orders;
     const int haul = ai_euro_try_ship_trade_haul_snapshot(
-      ctx, nation_id, u, at_own_colony ? -1 : a8_at_entry
+      ctx, nation_id, u, at_own_colony ? -1 : tile_stack_others_at_entry
     );
     if (haul) {
       u = units_get(ctx->units, id);
@@ -797,9 +797,9 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
   }
   /* LAB_457e reads the entry snapshot local_a8. A hull that disembarked its
    * last passenger in LAB_3558 is still nonempty for this call. */
-  if (a8_at_entry == 0 && ai_euro_20e6_hs_cadence_enabled() &&
+  if (tile_stack_others_at_entry == 0 && ai_euro_20e6_hs_cadence_enabled() &&
       ai_euro_20e6_457e_hs_cadence_snapshot(
-        ctx, u, nation_id, a8_at_entry, delivery_at_entry
+        ctx, u, nation_id, tile_stack_others_at_entry, delivery_at_entry
       )) {
     u = units_get(ctx->units, id);
     if (!u || !u->active) {

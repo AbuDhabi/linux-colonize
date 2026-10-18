@@ -116,7 +116,7 @@ static const ColonizeCol1Tribe* combat_tribe_at(const ColonizeCol1Save* col1, in
   return NULL;
 }
 
-static int combat_colony_local_1a(
+static int combat_colony_fort_strength(
   const ColonizeColonyPool* colonies,
   const ColonizeColony* col,
   ColonizeCombatSideFlags* flags
@@ -142,7 +142,7 @@ static int combat_colony_local_1a(
    * Stockade's 4, which is also why its analysis row had no Fort tier.
    */
   const int tier = (has_stockade ? 1 : 0) + (has_fort ? 1 : 0) + (has_fortress ? 1 : 0);
-  const int local_1a = (tier + 1) * 2;
+  const int fort_strength = (tier + 1) * 2;
   if (flags) {
     flags->flags |= COMBAT_FLAG_COLONY;
     /*
@@ -154,7 +154,7 @@ static int combat_colony_local_1a(
     flags->colony_icon = colonies_settlement_icon(colonies, col);
     flags->colony_nation = col->nation_id;
   }
-  return local_1a;
+  return fort_strength;
 }
 
 int combat_unit_base_x8(
@@ -182,9 +182,9 @@ int combat_unit_base_x8(
     out_flags->flags |= COMBAT_FLAG_MODE_ATK;
   }
 
-  int local_8 = (mode == 0) ? t->defense : t->attack;
-  if (local_8 < 0) {
-    local_8 = 0;
+  int base_combat = (mode == 0) ? t->defense : t->attack;  /* DOS local_8 */
+  if (base_combat < 0) {
+    base_combat = 0;
   }
   /*
    * FUN_157e_004a 8936-8938: type 0x0b + damaged bit7 → −2. DOS tests
@@ -193,16 +193,16 @@ int combat_unit_base_x8(
    */
   if (combat_type_is_artillery(t) &&
       (u->col1_flags15 & 0x80u) != 0) {
-    local_8 -= 2;
-    if (local_8 < 0) {
-      local_8 = 0;
+    base_combat -= 2;
+    if (base_combat < 0) {
+      base_combat = 0;
     }
   }
   if (out_flags) {
-    out_flags->base_combat = local_8;
+    out_flags->base_combat = base_combat;
   }
 
-  int local_4 = local_8 * 8;
+  int strength_x8 = base_combat * 8;  /* DOS local_4 */
 
   /*
    * Veteran peel +50%. DOS-LITERAL FUN_157e_004a raw 8942-8944: the test is
@@ -215,7 +215,7 @@ int combat_unit_base_x8(
    * invented. Sprite/name rules for 0x17 (bugs.md #263/#265/#318) stay.
    */
   if (combat_type_is_soldier_or_dragoon(t) && u->profession == UNITS_JOB_SOLDIER) {
-    local_4 = local_4 + (local_4 >> 1);
+    strength_x8 = strength_x8 + (strength_x8 >> 1);
     if (out_flags) {
       out_flags->flags |= COMBAT_FLAG_VETERAN;
     }
@@ -224,7 +224,7 @@ int combat_unit_base_x8(
   /* Drake Privateer → +50%. */
   if (units_type_is_privateer(t) && ctx->col1 &&
       founding_fathers_nation_has(ctx->col1, u->nation_id, FF_FRANCIS_DRAKE)) {
-    local_4 = local_4 + (local_4 >> 1);
+    strength_x8 = strength_x8 + (strength_x8 >> 1);
     if (out_flags) {
       out_flags->flags_hi |= COMBAT_FLAG_DRAKE;
     }
@@ -245,7 +245,7 @@ int combat_unit_base_x8(
   if (units_is_sea(ctx->units, unit_id)) {
     const int holds = units_holds_used(ctx->units, unit_id);
     if (holds > 0) {
-      local_4 -= holds;
+      strength_x8 -= holds;
       if (out_flags) {
         out_flags->flags |= COMBAT_FLAG_HOLDS;
         out_flags->holds_occupied = holds;
@@ -253,10 +253,10 @@ int combat_unit_base_x8(
     }
   }
 
-  if (local_4 < 0) {
-    local_4 = 0;
+  if (strength_x8 < 0) {
+    strength_x8 = 0;
   }
-  return local_4;
+  return strength_x8;
 }
 
 static int combat_woi_active(const ColonizeCol1Save* col1) {
@@ -340,7 +340,7 @@ int combat_engagement_strength(
   }
 
   const int base = combat_unit_base_x8(ctx, unit_id, 0, out_flags);
-  int local_1a = 0;
+  int defender_bonus_x4 = 0;  /* DOS local_1a */
 
   /*
    * A. Euro colony on the unit's tile — DOS FUN_157e_015e (viceroy_unpacked.c
@@ -362,7 +362,7 @@ int combat_engagement_strength(
     const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
     const ColonizeColony* col = colonies_get(ctx->colonies, cid);
     if (col && col->active && col->nation_id >= 0 && col->nation_id <= 3) {
-      local_1a = combat_colony_local_1a(ctx->colonies, col, out_flags);
+      defender_bonus_x4 = combat_colony_fort_strength(ctx->colonies, col, out_flags);
       goto fortify;
     }
   }
@@ -383,12 +383,12 @@ int combat_engagement_strength(
       if (nation >= 4 && nation <= 11) {
         tech = (int)ctx->col1->indian[nation - 4].tech;
       }
-      local_1a = 2;
+      defender_bonus_x4 = 2;
       if (tech > 1) {
-        local_1a = 4;
+        defender_bonus_x4 = 4;
       }
       if (tribe->state.capital) {
-        local_1a <<= 1;
+        defender_bonus_x4 <<= 1;
       }
       if (out_flags) {
         out_flags->flags |= COMBAT_FLAG_VILLAGE;
@@ -430,7 +430,7 @@ int combat_engagement_strength(
      * pre-WoI (so normal defender terrain). Cite: viceroy 9015–9021.
      */
     if (unit_nat > 3 || (foe_nat < 4 && (!woi || foe_is_ai))) {
-      local_1a = terr_byte;
+      defender_bonus_x4 = terr_byte;
       /* DOS 1b0e: `if (local_1a == 0) 8d02 &= 0x7f` — a 0-value terrain
        * never shows a "+0%" analysis row (bugs.md #399). */
       if (out_flags && terr_byte != 0) {
@@ -489,7 +489,7 @@ int combat_engagement_strength(
     }
 
     if (apply_now) {
-      local_1a = terr_byte;
+      defender_bonus_x4 = terr_byte;
       if (out_flags && terr_byte != 0) { /* bugs.md #399, same 8d02 &= 0x7f rule */
         out_flags->flags |= COMBAT_FLAG_TERRAIN;
         out_flags->terrain_byte = terr_byte;
@@ -517,15 +517,15 @@ fortify:
   /* D. Fortify: orders==6 ONLY (FUN_157e_015e 9045 — Fortify(5) gets nothing
    * until it flips to Fortified), land unit, local_1a < 5 → +2. */
   if (u->orders == UNITS_ORDER_FORTIFIED &&
-      !units_is_sea(ctx->units, unit_id) && local_1a < 5) {
-    local_1a += 2;
+      !units_is_sea(ctx->units, unit_id) && defender_bonus_x4 < 5) {
+    defender_bonus_x4 += 2;
     if (out_flags) {
       out_flags->flags_hi |= 0x20u;
       out_flags->flags |= COMBAT_FLAG_FORTIFY;
     }
   }
 
-  return (int)(((local_1a + 4) * base) >> 2);
+  return (int)(((defender_bonus_x4 + 4) * base) >> 2);
 }
 
 int combat_unit_toughness(

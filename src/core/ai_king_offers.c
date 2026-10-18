@@ -34,24 +34,24 @@
 #include <string.h>
 
 /* ===== Mercenary hire offers (ai_king_merc_payload .. ai_king_merc_offer) ===== */
-static int ai_king_merc_payload(int hx, int hy, int qty_a, int extra_flag, int price) {
-  return ((hx & 0x3f) << 26) | ((hy & 0x3f) << 20) | ((qty_a & 0xf) << 16) |
-         ((extra_flag & 1) << 15) | (price & 0x7fff);
+static int ai_king_merc_payload(int hx, int hy, int regular_count, int artillery_or_cavalry_roll, int price) {
+  return ((hx & 0x3f) << 26) | ((hy & 0x3f) << 20) | ((regular_count & 0xf) << 16) |
+         ((artillery_or_cavalry_roll & 1) << 15) | (price & 0x7fff);
 }
 
-void ai_king_merc_payload_parts(int payload, int* out_hx, int* out_hy, int* out_qty_a,
-                                       int* out_extra_flag, int* out_price) {
+void ai_king_merc_payload_parts(int payload, int* out_hx, int* out_hy, int* out_regular_count,
+                                       int* out_artillery_or_cavalry_roll, int* out_price) {
   if (out_hx) {
     *out_hx = (payload >> 26) & 0x3f;
   }
   if (out_hy) {
     *out_hy = (payload >> 20) & 0x3f;
   }
-  if (out_qty_a) {
-    *out_qty_a = (payload >> 16) & 0xf;
+  if (out_regular_count) {
+    *out_regular_count = (payload >> 16) & 0xf;
   }
-  if (out_extra_flag) {
-    *out_extra_flag = (payload >> 15) & 1;
+  if (out_artillery_or_cavalry_roll) {
+    *out_artillery_or_cavalry_roll = (payload >> 15) & 1;
   }
   if (out_price) {
     *out_price = payload & 0x7fff;
@@ -69,7 +69,7 @@ void ai_king_merc_payload_parts(int payload, int* out_hx, int* out_hy, int* out_
  * roulette, the Man-O-War transport and the FUN_43f7_0082 type map (which
  * for a rebel human at war yields Cont. Army / Cont. Cav., not colonial
  * Regulars). It now hands 10f0 the mercenary counts DOS keeps at DS:0x9e46
- * (−0x61ba): slot 0 = qty_a Regulars-class, and exactly one of slot 1
+ * (−0x61ba): slot 0 = regular_count Regulars-class, and exactly one of slot 1
  * (Cavalry) or slot 3 (Artillery) per the offer-time coin flip.
  *
  * DOS re-derives the landing colony inside 10f0 at accept time; hx/hy from
@@ -78,11 +78,11 @@ void ai_king_merc_payload_parts(int payload, int* out_hx, int* out_hy, int* out_
  * treasury cannot cover the price.
  */
 int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, int hy,
-                                   int qty_a, int extra_flag, int price) {
+                                   int regular_count, int artillery_or_cavalry_roll, int price) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units || human < 0 || human >= 4) {
     return 0;
   }
-  if (qty_a < 1 || price < 0 || hx < 0 || hy < 0) {
+  if (regular_count < 1 || price < 0 || hx < 0 || hy < 0) {
     return 0;
   }
   if (europe_nation_gold(ctx->europe, ctx->col1, human) < (uint32_t)price) {
@@ -93,13 +93,13 @@ int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, int hy,
    * 10f0 call (75052-75059). */
   europe_nation_gold_add(ctx->europe, ctx->col1, human, -(long)price);
   /*
-   * DOS 2022 writes the count array as: 0x9e46 = qty_a; then
+   * DOS 2022 writes the count array as: 0x9e46 = regular_count; then
    * `if (rng(0,1) == 0) *0x9e4c = 1; else *0x9e48 = 1;` — 0x9e4c is slot 3
-   * (Artillery), 0x9e48 slot 1 (Cavalry). extra_flag carries that raw roll.
+   * (Artillery), 0x9e48 slot 1 (Cavalry). artillery_or_cavalry_roll carries that raw roll.
    */
   int merc_counts[4] = {0, 0, 0, 0};
-  merc_counts[0] = qty_a;
-  merc_counts[extra_flag == 0 ? 3 : 1] = 1;
+  merc_counts[0] = regular_count;
+  merc_counts[artillery_or_cavalry_roll == 0 ? 3 : 1] = 1;
   /* Stand-in status first: the landing overwrites it with the @MERCS line
    * when it actually puts troops ashore. */
   if (ctx->status && ctx->status_size) {
@@ -208,10 +208,10 @@ void ai_king_merc_offer(ColonizeTurnContext* ctx) {
     return; /* 1-in-3 chance to even attempt this turn */
   }
   const int difficulty = ctx->col1->head.difficulty;
-  const int qty_a = dos_rng_range(ctx->rng, 2, ((4 - difficulty) >> 1) + 2);
-  const int extra_flag = dos_rng_range(ctx->rng, 0, 1);
-  const int roll2 = dos_rng_range(ctx->rng, 0, 6);
-  const int price = (qty_a + 2) * ((difficulty + 3) * 2 + roll2) * 100;
+  const int regular_count = dos_rng_range(ctx->rng, 2, ((4 - difficulty) >> 1) + 2);
+  const int artillery_or_cavalry_roll = dos_rng_range(ctx->rng, 0, 1);
+  const int price_roll = dos_rng_range(ctx->rng, 0, 6);
+  const int price = (regular_count + 2) * ((difficulty + 3) * 2 + price_roll) * 100;
   if (europe_nation_gold(ctx->europe, ctx->col1, human) < (uint32_t)price) {
     return; /* DOS silently skips the offer when unaffordable — no status/dialog */
   }
@@ -250,7 +250,7 @@ void ai_king_merc_offer(ColonizeTurnContext* ctx) {
      */
     char merc_list[96];
     int list_n = snprintf(
-      merc_list, sizeof(merc_list), "%d %s", qty_a,
+      merc_list, sizeof(merc_list), "%d %s", regular_count,
       ai_king_merc_unit_name(ctx->units, UNITS_KIND_REGULAR)
     );
     if (list_n < 0) {
@@ -259,7 +259,7 @@ void ai_king_merc_offer(ColonizeTurnContext* ctx) {
     if ((size_t)list_n < sizeof(merc_list)) {
       snprintf(
         merc_list + list_n, sizeof(merc_list) - (size_t)list_n, ", %s",
-        ai_king_merc_unit_name(ctx->units, extra_flag == 0 ? UNITS_KIND_ARTILLERY : UNITS_KIND_CAVALRY)
+        ai_king_merc_unit_name(ctx->units, artillery_or_cavalry_roll == 0 ? UNITS_KIND_ARTILLERY : UNITS_KIND_CAVALRY)
       );
     }
     tok.string1 = merc_list;
@@ -280,7 +280,7 @@ void ai_king_merc_offer(ColonizeTurnContext* ctx) {
     }
     if (ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_MERC, human,
                                     ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
-                                    ai_king_merc_payload(hx, hy, qty_a, extra_flag, price), NULL,
+                                    ai_king_merc_payload(hx, hy, regular_count, artillery_or_cavalry_roll, price), NULL,
                                     body, labels, ids, 2)) {
       if (ctx->status && ctx->status_size) {
         snprintf(ctx->status, ctx->status_size,

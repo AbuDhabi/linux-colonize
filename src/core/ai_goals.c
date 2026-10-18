@@ -985,21 +985,21 @@ int ai_goals_founding_expansion_urgency(int nation_id, int total_colony_count) {
     if (divisor == 0) {
       divisor = 1;
     }
-    int local_10 = ((int)p->census_pop - (int)p->colony_count) / divisor;
-    const int uv4 = (int)p->ship_cargo_total >> 1;
-    if (uv4 < local_10) {
-      local_10 = -(((local_10 - uv4 + 1) >> 1) - local_10);
-    } else if (local_10 < uv4) {
-      local_10 = local_10 + ((1 - (local_10 - uv4)) >> 1);
+    int colonist_urgency = ((int)p->census_pop - (int)p->colony_count) / divisor; /* DOS local_10 */
+    const int half_ship_cargo_target = (int)p->ship_cargo_total >> 1;
+    if (half_ship_cargo_target < colonist_urgency) {
+      colonist_urgency = -(((colonist_urgency - half_ship_cargo_target + 1) >> 1) - colonist_urgency);
+    } else if (colonist_urgency < half_ship_cargo_target) {
+      colonist_urgency = colonist_urgency + ((1 - (colonist_urgency - half_ship_cargo_target)) >> 1);
     }
-    const int iv2 = (int)p->leader_trait1 * 3 - 7;
-    const int iv3 = -iv2;
-    const int iv1 = p->avg_colony_pop;
-    if (-iv1 != iv2 && iv1 <= iv3) {
-      local_10 = local_10 + (-1 - (iv3 - iv1)) * (int)p->colony_count;
+    const int trait_offset = (int)p->leader_trait1 * 3 - 7;
+    const int neg_trait_offset = -trait_offset;
+    const int avg_pop = p->avg_colony_pop;
+    if (-avg_pop != trait_offset && avg_pop <= neg_trait_offset) {
+      colonist_urgency = colonist_urgency + (-1 - (neg_trait_offset - avg_pop)) * (int)p->colony_count;
     }
-    if (local_10 >= 0) {
-      return local_10;
+    if (colonist_urgency >= 0) {
+      return colonist_urgency;
     }
   }
   return 0;

@@ -438,13 +438,13 @@ int units_combat_human_involved(const ColonizeCol1Save* col1, int nat_a, int nat
     return g_units_combat_human_nation >= 0 &&
            (nat_a == g_units_combat_human_nation || nat_b == g_units_combat_human_nation);
   }
-  const int a_h =
+  const int nat_a_is_human =
     (nat_a >= 0 && nat_a <= 3 && col1->player[nat_a].control == 0) ||
     (g_units_combat_human_nation >= 0 && nat_a == g_units_combat_human_nation);
-  const int b_h =
+  const int nat_b_is_human =
     (nat_b >= 0 && nat_b <= 3 && col1->player[nat_b].control == 0) ||
     (g_units_combat_human_nation >= 0 && nat_b == g_units_combat_human_nation);
-  return a_h || b_h;
+  return nat_a_is_human || nat_b_is_human;
 }
 
 /* WoI-aware nation word, singular (FUN_281f_09a4 -> FUN_15b3_01e0: "Rebel"
@@ -1672,9 +1672,9 @@ void units_sweep_stack_after_loss(
   if (!win || !win->active) {
     return;
   }
-  int slot_2 = 0;
-  for (ColonizeUnit* u = units_next_on_tile(pool, x, y, &slot_2); u != NULL;
-       u = units_next_on_tile(pool, x, y, &slot_2)) {
+  int tile_cursor = 0;
+  for (ColonizeUnit* u = units_next_on_tile(pool, x, y, &tile_cursor); u != NULL;
+       u = units_next_on_tile(pool, x, y, &tile_cursor)) {
     if (u->nation_id != loser_nation || u->id == winner_id || u->id == primary_loser_id) {
       continue;
     }
@@ -2812,8 +2812,8 @@ int units_conquest_treasure_gold(
   int amount = 0; /* DOS -0xce before ×100 */
   if (tech == 0) {
     const int hi = ((spanish == 0) ? 3 : 0) + 3;
-    const int r0 = dos_rng_range(rng, 0, hi);
-    if (r0 == 0 || rich || cortes) {
+    const int tribute_roll = dos_rng_range(rng, 0, hi);
+    if (tribute_roll == 0 || rich || cortes) {
       amount = dos_rng_range(rng, 2, 4);
     }
     if (rich) {
@@ -2824,8 +2824,8 @@ int units_conquest_treasure_gold(
     }
   } else if (tech == 1) {
     /* -0x62 set from Spanish but roll is always 04d4(0,2). */
-    const int r0 = dos_rng_range(rng, 0, 2);
-    if (r0 == 0 || rich || cortes) {
+    const int tribute_roll = dos_rng_range(rng, 0, 2);
+    if (tribute_roll == 0 || rich || cortes) {
       amount = dos_rng_range(rng, 3, 8);
     }
     if (rich) {
@@ -3364,8 +3364,8 @@ static void units_lcr_roll_outcome(
     if (floor_val > 3) {
       floor_val = 3;
     }
-    const int r9 = dos_rng_range(rng, 1, 9);
-    int raw = (floor_val > r9) ? floor_val : r9;
+    const int roll_1_to_9 = dos_rng_range(rng, 1, 9);
+    int raw = (floor_val > roll_1_to_9) ? floor_val : roll_1_to_9;
     const int gate = dos_rng_range(rng, 1, 100) + skill * 10;
     out->gate = gate;
     out->gold = 0;

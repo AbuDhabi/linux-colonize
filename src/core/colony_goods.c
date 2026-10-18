@@ -684,13 +684,13 @@ int colonies_foreign_trade_prepare(
       }
     }
     const int unit_price = colonies_ftrade_price_byte(col1, owner, c);
-    int val = unit_price * avail;
-    while (val > gross) {
+    int offer_value = unit_price * avail;
+    while (offer_value > gross) {
       avail--;
-      val -= unit_price;
+      offer_value -= unit_price;
     }
-    if (avail > 0 && val > best_val) {
-      best_val = val;
+    if (avail > 0 && offer_value > best_val) {
+      best_val = offer_value;
       best_qty = avail;
       best_cargo = c;
     }
