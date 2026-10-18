@@ -153,6 +153,11 @@ instruction. On one byte it is fine. It found the 3180 facing writer.
   by xy and type, not by save index.
 - Map layers are far pointers, not DS offsets: DS:0x160/0x162 (layer2 off:seg), DS:0x164/0x166
   (layer3, the save's `path`). A `BPM seg:off` on one tile byte finds its writer.
+- Nation records: DS:0x8808, stride 0x13c (+0x2a treasury, +0x4c euro_price[16] bytes,
+  +0x5c trade.nr[16] words, +0x7c gold[16] dwords, +0xbc tons). `BPM` on one word of the
+  human row (Dutch nr[15] = DS:0x8c36) catches 38fd_1dfa / 1d80 / 0058 (resident CS e1bc in
+  that session) in one idle turn; game DS was 0x237e there, read with `regs('DS')` at an
+  INT 16 break.
 - The RNG state (FUN_1d1d_0e04, resident 1541:0e04) is the dword at 0x28ee in the routine's own
   DS (read `DS` at the break), not the game DS.
 - 20e6 wander scorer (OVL14): `--patch-cc 0x4e2d6`, trap offset 0x20e6; at CS:5805 `[bp-0x4e]` is

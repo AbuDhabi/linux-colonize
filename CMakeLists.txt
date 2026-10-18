@@ -1068,10 +1068,11 @@ colonize_add_test(NAME golden_colony_preview01
   LIBS colonize_core
 )
 
-# FUN_38fd_0058 EOT market tick vs two real-DOS turn pairs (port_plan P6.1):
+# Europe market after one full real-DOS turn, two pairs, all four nations (port_plan P6.1):
 colonize_add_test(NAME golden_market_prices01
-  SOURCES tests/golden/test_market_prices01.c
+  SOURCES tests/golden/test_market_prices01.c tests/common/golden_fixture.c
   LIBS colonize_core
+  INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 # War of Independence: REF prosecutes the war on the real Dutch fixture (port_plan P5.1):

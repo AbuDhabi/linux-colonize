@@ -17,7 +17,9 @@ except:
 
 | Ignored | Why |
 |---|---|
-| `head.map_mode`, `head.tut2`, `stuff.x` / `stuff.y` | The human's first-turn UI (View mode, tutorial flag, map focus tile). The headless run never plays the human turn. These differ in every year. |
+| `head.map_mode`, `head.tut2`, `stuff.x` / `stuff.y`, `stuff.viewport_x` / `viewport_y` | The human's first-turn UI (View mode, tutorial flag, map focus tile, viewport). The headless run never plays the human turn. These differ in every year. |
+| `post_map.save_path_blob` | SS:local_8 stack residue of the DOS writer (FUN_75c2_0288), not state. |
+| `nation[n].unknown23_pad` | DOS-dead bytes; the port keeps its WoI latches there (ai_king_latch_pad). |
 | Port `COLNXEXT` tail past the DOS sections | Port-only state (village intel, docs/architecture.md); DOS never writes it. Present from 1595. |
 | Years 1505 and 1506 (whole save) | DOS carried unsaved state here (below). Simulated, not compared; the run matches again from 1508. |
 
