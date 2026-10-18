@@ -164,7 +164,7 @@ static void colony_screen_draw_construction_popup(
     char cost[48];
     /* Port-only QOL build queue: a queued (not current) project shows its
      * 1-based queue position in yellow ahead of the name. */
-    char queue_prefix[8];
+    char queue_prefix[16];
     cost[0] = 0;
     queue_prefix[0] = 0;
     if (more_row) {

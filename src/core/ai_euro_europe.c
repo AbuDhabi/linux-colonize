@@ -1577,7 +1577,8 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
       const ColonizeUnit* ship2 = ai_euro_5d04_cb_unit(idx2);
       const int flags3148 = (ship2 && ship2->col1_flags15 & 0x80) ? 0x80 : 0; /* damaged */
       const int dispatch2 = ai_euro_5d04_cb_unit_dispatch_byte(idx2);
-      if (!departed[idx2] && ((flags3148 & 0x80) == 0 || dispatch2 == 0x0b) &&
+      if (idx2 < COLONIZE_UNITS_MAX && !departed[idx2] &&
+          ((flags3148 & 0x80) == 0 || dispatch2 == 0x0b) &&
           dispatch2 > 0xc && dispatch2 < 0x13) {
         departed[idx2] = 1;
         /* raw 92996: a ship leaving Europe drops its colony binding

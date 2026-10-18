@@ -1389,7 +1389,7 @@ static int units_coastal_fort_fire_impl(
       continue;
     }
     /* bugs.md #261: analysis header for the unit-less attacker. */
-    char fort_label[40];
+    char fort_label[80];
     {
       const int fortress = colonies_building_row(colonies, COLONY_BUILDING_FORTRESS);
       const int is_fortress = fortress >= 0 && fortress < COLONIZE_BUILDING_TYPES_MAX &&

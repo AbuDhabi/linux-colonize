@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.20)
 project(opencol C)
 
+# snprintf is used as a bounded strcpy throughout; its truncation is by design.
+# (Ubuntu gcc turns -Wformat on by default, so this must be global, not per target.)
+add_compile_options(-Wno-format-truncation)
+
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)

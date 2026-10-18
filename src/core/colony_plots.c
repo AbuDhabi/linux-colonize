@@ -297,7 +297,7 @@ uint8_t colonies_plot_blocked_mask(
       const ColonizeUnitType* ut = units_type(w->units, u->type_index);
       bool blocks = (ut && ut->attack > 1); /* type table +0x5236 */
       if (!blocks && pioneer_type >= 0 && u->type_index == pioneer_type &&
-          u->nation_id >= 0 && u->nation_id < 4 && col1 && col1->player &&
+          u->nation_id >= 0 && u->nation_id < 4 && col1 &&
           col1->player[u->nation_id].control == 0) {
         blocks = true; /* raw 12745: DOS type 2, nation < 4, 0x543f == 0 */
       }

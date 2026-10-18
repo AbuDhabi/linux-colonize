@@ -325,7 +325,9 @@ static void test_init_keeps_corrupt_file(void) {
   f = fopen(k_path, "rb");
   check(f != NULL, "corrupt file still there");
   if (f) {
-    (void)fgets(kept, sizeof(kept), f);
+    if (!fgets(kept, sizeof(kept), f)) {
+      kept[0] = 0;
+    }
     fclose(f);
   }
   check(strncmp(kept, "{ nope", 6) == 0, "corrupt file left untouched");

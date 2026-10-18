@@ -100,7 +100,6 @@ int ai_euro_5952_equip_pick(const ColonizeColony* c, int target) {
  * Europe->map exit and its first scored ocean leg.
  */
 COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_europe_exit(struct ai_euro_act_ctx* a) {
-  ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
 
   /* (The Europe/HS treasure cash-in that stood here was deleted 2026-09-23,

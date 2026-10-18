@@ -340,7 +340,6 @@ int ai_euro_4393_work_queue_haul_pick(
   }
   int best_score = -1; /* DOS iStack_e2 = -1; `>=` so later ties win */
   int best_slot = -1;
-  int best_colony = -1;
   int bx = 0;
   int by = 0;
   for (int i = 0; i < AI_WORK_SLOTS; ++i) {
@@ -377,7 +376,6 @@ int ai_euro_4393_work_queue_haul_pick(
     if (score >= best_score && (hull_gate_seed || w->military != 0)) {
       best_score = score;
       best_slot = i;
-      best_colony = (int)w->id;
       bx = c->x;
       by = c->y;
     }

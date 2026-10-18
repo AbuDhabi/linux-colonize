@@ -111,8 +111,9 @@ static void report_codec_roundtrip_diff(const char* path) {
   uint8_t* raw = NULL;
   if (raw_n > 0) {
     raw = malloc((size_t)raw_n);
-    if (raw) {
-      fread(raw, 1, (size_t)raw_n, f);
+    if (raw && fread(raw, 1, (size_t)raw_n, f) != (size_t)raw_n) {
+      free(raw);
+      raw = NULL;
     }
   }
   fclose(f);
@@ -692,7 +693,7 @@ static bool test_port_ext(char* err, size_t err_size) {
   }
 
   const char* path = "./test-saves-col1/COLONY01.SAV";
-  system("mkdir -p ./test-saves-col1");
+  (void)!system("mkdir -p ./test-saves-col1");
   if (!col1_save_write_file(path, &save, err, err_size)) {
     fprintf(stderr, "port_ext: write_file failed: %s\n", err);
     free(intel);
@@ -1505,7 +1506,7 @@ int main(void) {
   const char* path = "./test-saves-col1/COLONY00.SAV";
   {
     /* ensure dir */
-    system("mkdir -p ./test-saves-col1");
+    (void)!system("mkdir -p ./test-saves-col1");
   }
   if (!col1_save_write_file(path, &save, err, sizeof(err))) {
     fprintf(stderr, "write_file failed: %s\n", err);
