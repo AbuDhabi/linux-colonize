@@ -77,10 +77,15 @@ cannot be caught at all (`strings -n 5`), and generic words (`ship`, `units`,
 
 ## Golden
 
-Examples: `golden_mapgen_seed100`, `golden_colony_prod01`/`02`.
+Examples: `golden_mapgen_seed100`, `golden_colony_prod01`/`02`,
+`golden_market_prices01` (full turn, all four nations' ledgers + demand pool;
+its two dutch2 exclusions are bugs.md #1085). Every exclusion a golden makes
+must name its reason in the test and, if it hides an unresolved DOS
+difference, hold a bugs.md row.
 
-**AI gates are all live (since 2026-09-05).** Nothing in `CMakeLists.txt`
-carries a `DISABLED` property. The cluster was parked 2026-08-19 while the AI
+**AI gates are all live (since 2026-09-05).** The only `DISABLED` test in
+`CMakeLists.txt` is `golden_idle_independence` (the wall-clock VR_SOUND archive;
+its live gates are `golden_idle_tr9/ref/tr10` below). The cluster was parked 2026-08-19 while the AI
 transcription was still structural; `smoke_ai_mid01` / `smoke_ai_late01`
 (renamed from `golden_ai_*` 2026-09-14, because they generate their own
 fixture and assert self-consistency rather than a DOS-derived expectation)

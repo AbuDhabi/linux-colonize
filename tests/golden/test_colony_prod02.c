@@ -70,18 +70,8 @@
  * where NAMES.TXT (and Paramaribo's real capture) both say 1/1 — fixed
  * (colony_yield.c).
  *
- * Still open, unrelated to the above:
- * - New Amsterdam, New Holland: horses off by 1 — a food-surplus/2
- *   breeding-rounding cascade; gross food is off by ~1 pre-breed even
- *   though *net* food lands exactly right (the rounding hides it). Both
- *   colonies have an expert Fisherman, but only New Amsterdam's sits on a
- *   Fishery resource and the two are off in OPPOSITE directions, so the
- *   Fisherman yield itself is not the shared cause. The "expert Fisherman
- *   + Fishery -> +4 instead of the table's +3" override this note used to
- *   blame no longer exists — it was deleted from colony_yield_pipeline as
- *   an unverified guess and the discrepancy survived its removal, so it
- *   was never the source. Unresolved live anchor; bugs.md #608.
- * - Curacao, Recife: food off by 1 / several — not investigated.
+ * The horses/food drift the 2026-08-18 note listed here is gone: the test
+ * compares COL1_CMP_ALL and passes (bugs.md #608 CLOSED).
  *
  * One real, unrelated bug *was* found and fixed via this save:
  * `colonies_try_complete_building` used to clear `building_in_production`

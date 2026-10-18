@@ -1,150 +1,104 @@
 /*
- * port_plan P6.1: FUN_38fd_0058 EOT market tick vs two real-DOS turn pairs.
- * Loads the "before" save, runs europe_tick_market_prices once (the human's
- * 5e52 phase-3 call, with nation 0's pool decay folded in), and compares:
- *   - head.market_demand_pool[16] against the "after" save, all 16 slots
- *     (decay = (pool + Σ max(0, nation tons2)) >> 7, only while nation 0 is
- *     not withdrawn — the no-transports pair has nation 0 at control 2 and
- *     its pool is byte-identical across the turn, the dutch2 pair decays);
- *   - the human's trade.nr / euro_price for every cargo that had no sale,
- *     purchase or colony-side feedback that turn (the excluded slots are
- *     listed per pair; their residuals are the still-open 1dfa / 364b_0688
- *     volume + production terms — see docs/port_plan.md P6.1).
- * Derived 2026-08-28 from a python replica of the decompile iterated until it
- * matched both pairs; column roles rise=@CARGO c6, fall=c7, attrition=c8.
+ * port_plan P6.1: the Europe market after one real DOS turn. Each pair is a
+ * DOS save plus the save after one DOS turn with no player moves. The port
+ * plays the whole turn (golden_turn: production, Custom Houses, AI Europe
+ * trade, FUN_38fd_0058 per nation) and then every nation's trade ledger
+ * (nr / euro_price / tons / tons2) and head.market_demand_pool[16] must
+ * match the after-save.
+ *
+ * Until 2026-10-18 this test ran the market tick alone and skipped 4 + 7
+ * human cargos "with residue"; the residue was the colony-side and AI-side
+ * ledger writes the tick-only run never made. Played in full, the
+ * no-transports pair matches on every slot. The dutch2 pair keeps two
+ * exclusions (bugs.md #1085):
+ *   - Horses, all nations: the DOS French AI bought 50 Horses in Europe
+ *     that turn (FUN_4d56_4528 equip arm, 1d80 lands -34 on all four nr
+ *     rows); this fixture has no VR seed, so the port's AI stream does not
+ *     reproduce that decision.
+ *   - Muskets, human row only: DOS -5, port 7. DOSBox BPM trace
+ *     (2026-10-18): the Dutch word is written only by 1dfa (+45, English
+ *     100-musket sale), 1d80 (an AI Europe buy) and 0058 attrition (+6);
+ *     the archive's -12 is an AI buy of ~17 muskets from the player's
+ *     unsaved session. A DOS from-load replay has the French buy 50
+ *     muskets instead of the archive's 50 horses, so neither residue is
+ *     reproducible even in DOS.
  */
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
-#include "core/assets.h"
-#include "core/col1_bridge.h"
-#include "core/col1_save.h"
-#include "core/colony.h"
-#include "core/europe.h"
-#include "core/map.h"
-#include "core/units.h"
+#include "tests/common/golden_fixture.h"
+#include "../common/test_runner.h"
 
 typedef struct PairSpec {
   const char* before;
   const char* after;
-  uint16_t skip_mask; /* human cargos with volume/feedback residue that turn */
+  uint16_t skip_all_mask;   /* cargos excluded on every nation */
+  uint16_t skip_human_mask; /* cargos excluded on the human row only */
 } PairSpec;
 
 static int run_pair(const PairSpec* ps) {
-  char err[256];
-  ColonizeCol1Save a;
-  ColonizeCol1Save b;
-  col1_save_init(&a);
-  col1_save_init(&b);
-  if (!col1_save_read_file(ps->before, &a, err, sizeof(err)) ||
-      !col1_save_read_file(ps->after, &b, err, sizeof(err))) {
-    fprintf(stderr, "read: %s\n", err);
+  GoldenFixture fx;
+  if (!golden_open(ps->before, ps->after, 100u, &fx)) {
+    golden_close(&fx);
     return 1;
   }
-  ColonizeMsgCatalog names;
-  assets_msg_init(&names);
-  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+  if (!golden_turn(&fx)) {
+    golden_close(&fx);
     return 1;
   }
-  ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  if (!units_load_types(&units, &names)) {
-    return 1;
-  }
-  ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  if (!colonies_load_buildings(&colonies, &names)) {
-    return 1;
-  }
-  ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  EuropeScreen europe;
-  if (!europe_load(&europe, "COLONIZE", err, sizeof(err))) {
-    fprintf(stderr, "europe_load: %s\n", err);
-    return 1;
-  }
-  ColonizeCol1BridgeResult br;
-  if (!col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&a), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, &br, err, sizeof(err))) {
-    fprintf(stderr, "bridge: %s\n", err);
-    return 1;
-  }
-  const int human = br.human_nation;
-  /*
-   * One EOT = one FUN_38fd_0058(0, -1) per nation, in nation index order, and
-   * none at all for a withdrawn (control 2) slot — the pool decay rides on
-   * nation 0's pass, so a pair with nation 0 withdrawn leaves the pool alone
-   * (bugs.md #1012). DOS increments the turn before the nation passes run.
-   */
-  const ColonizeWorld mw = {.colonies=(ColonizeColonyPool*)(&colonies), .col1=(ColonizeCol1Save*)(&a), .col1_ok=true, .europe=(EuropeScreen*)(&europe)};
-  for (int n = 0; n < 4; ++n) {
-    if (a.player[n].control == 2) {
-      continue;
-    }
-    if (n == human) {
-      europe_tick_market_prices_w(&mw, n, (uint32_t)a.head.turn + 1u);
-    } else {
-      europe_nation_tick_market_prices_w(&mw, n, (uint32_t)a.head.turn + 1u);
-    }
-  }
-
   int rc = 0;
   for (int c = 0; c < 16; ++c) {
-    if (a.head.market_demand_pool[c] != b.head.market_demand_pool[c]) {
-      fprintf(
-        stderr, "%s: market_demand_pool[%d] want %u got %u\n", ps->before, c,
-        b.head.market_demand_pool[c], a.head.market_demand_pool[c]
-      );
+    if (fx.start.head.market_demand_pool[c] != fx.expect.head.market_demand_pool[c]) {
+      fprintf(stderr, "%s: market_demand_pool[%d] want %u got %u\n", ps->before, c,
+              fx.expect.head.market_demand_pool[c], fx.start.head.market_demand_pool[c]);
       rc = 1;
     }
   }
-  const ColonizeCol1NationTrade* tb = &b.nation[human].trade;
-  for (int c = 0; c < 16; ++c) {
-    if (ps->skip_mask & (1u << c)) {
-      continue;
-    }
-    if (europe.trade_nr[c] != tb->nr[c]) {
-      fprintf(
-        stderr, "%s: human nr[%d] want %d got %d\n", ps->before, c, (int)tb->nr[c],
-        (int)europe.trade_nr[c]
-      );
-      rc = 1;
-    }
-    if (europe.cargo[c].bid != (int)tb->euro_price[c]) {
-      fprintf(
-        stderr, "%s: human bid[%d] want %d got %d\n", ps->before, c, (int)tb->euro_price[c],
-        europe.cargo[c].bid
-      );
-      rc = 1;
+  for (int n = 0; n < 4; ++n) {
+    const ColonizeCol1NationTrade* got = &fx.start.nation[n].trade;
+    const ColonizeCol1NationTrade* want = &fx.expect.nation[n].trade;
+    for (int c = 0; c < 16; ++c) {
+      if (ps->skip_all_mask & (1u << c)) continue;
+      if (n == (int)fx.br.human_nation && (ps->skip_human_mask & (1u << c))) continue;
+      if (got->nr[c] != want->nr[c] || got->euro_price[c] != want->euro_price[c] ||
+          got->tons[c] != want->tons[c] || got->tons2[c] != want->tons2[c]) {
+        fprintf(stderr,
+                "%s: nation %d cargo %d: nr %d/%d price %d/%d tons %d/%d tons2 %d/%d (got/want)\n",
+                ps->before, n, c, (int)got->nr[c], (int)want->nr[c], (int)got->euro_price[c],
+                (int)want->euro_price[c], (int)got->tons[c], (int)want->tons[c],
+                (int)got->tons2[c], (int)want->tons2[c]);
+        rc = 1;
+      }
     }
   }
-  europe_free(&europe);
-  map_free(&map);
-  assets_msg_free(&names);
-  col1_save_free(&a);
-  col1_save_free(&b);
+  golden_close(&fx);
   if (rc == 0) {
     printf("golden_market_prices01: %s ok\n", ps->before);
   }
   return rc;
 }
 
-int main(void) {
-  static const PairSpec pairs[] = {
-    /* dutch2 t169→t170: lumber sold (Custom House), furs/horses/muskets colony-side residue. */
-    {"original_saves/colony-prod-tests/COLONY00-dutch2-t0.SAV",
-     "original_saves/colony-prod-tests/COLONY01-dutch2-t1.SAV",
-     (1u << 4) | (1u << 5) | (1u << 8) | (1u << 15)},
-    /* no-transports t268→t269: cotton + lumber sold (Custom House), sugar/furs/silver/tools/muskets residue. */
-    {"original_saves/colony-prod-tests/COLONY00_no-transports.SAV",
-     "original_saves/colony-prod-tests/COLONY01_no-transports.SAV",
-     (1u << 1) | (1u << 3) | (1u << 4) | (1u << 5) | (1u << 7) | (1u << 14) | (1u << 15)},
+static int case_dutch2(void) {
+  static const PairSpec ps = {
+    "original_saves/colony-prod-tests/COLONY00-dutch2-t0.SAV",
+    "original_saves/colony-prod-tests/COLONY01-dutch2-t1.SAV",
+    1u << 8, 1u << 15,
   };
-  for (unsigned i = 0; i < sizeof(pairs) / sizeof(pairs[0]); ++i) {
-    if (run_pair(&pairs[i]) != 0) {
-      return 1;
-    }
-  }
-  return 0;
+  return run_pair(&ps);
 }
+
+static int case_no_transports(void) {
+  static const PairSpec ps = {
+    "original_saves/colony-prod-tests/COLONY00_no-transports.SAV",
+    "original_saves/colony-prod-tests/COLONY01_no-transports.SAV",
+    0, 0,
+  };
+  return run_pair(&ps);
+}
+
+static const TestCase k_cases[] = {
+  {"dutch2_t169_t170", case_dutch2},
+  {"no_transports_t268_t269", case_no_transports},
+};
+
+TEST_MAIN(k_cases)

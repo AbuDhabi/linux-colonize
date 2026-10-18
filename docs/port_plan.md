@@ -289,6 +289,12 @@ Sail/harbor/market/recruit/train/purchase/equip Done; volume-price
   real popups. `1dfa`/`1d80` sale-volume ledger also exact: difficulty
   term `(difficulty−2)·16·amt/100`, every sale lands on all four nation
   records (Dutch ×2/3). Formulas: `turn/europe_nation_eot.md`.
+  2026-10-18 golden audit: the old test ran the tick alone and skipped
+  4 + 7 human cargos; `golden_market_prices01` now plays the whole turn
+  and compares all four nations' nr/price/tons/tons2 + the pool.
+  no-transports pair exact; dutch2 keeps Horses (DOS French AI 50-horse
+  buy) and the human Muskets row out: DOSBox trace shows both are AI
+  Europe-trade realisation of the player's session, bugs.md #1085.
 - [x] P6.2 [auto] 2026-08-26 — tax raises already real (`38fd_5be8`
   interval gate, favor ladder, 0..75 clamp), `@TEAPARTY`, Fugger +
   pay-arrears `@SOMEBOYCOTT` (**trap:** no `@BOYCOTT*` section exists).
