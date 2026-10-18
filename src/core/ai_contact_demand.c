@@ -1999,7 +1999,7 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
  *    mission/heresy arms per the case-7 priority in the 4528 switch).
  *  - alarmed (≥55 refuse-talk gate) → refuse convert/heresy; no crosses
  *  - mid (40..54) convert: Jesuit-grade only (PEDIA @JOB24 / Brebeuf).
- * Teach/convert widgets Done structural; deep 2820 PARKED.
+ * Teach/convert widgets Done structural; 2820 village trade is ported (ai_contact_trade.c).
  */
 /*
  * FUN_4d56_4528 non-human branch, unit type 3 (Missionary) → case 7 →

@@ -248,7 +248,7 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   behind). 2026-08-29: `moves` is DOS spent thirds for every Euro unit —
   import `moves = max_mp − moves`, export `max_mp − moves`, with
   exhausted land units exporting their full allotment (DOS clears the
-  `DS:0x3149` spent bytes once at the top of a calendar tick — year_loop.c:140 —
+  `DS:0x3149` spent bytes once at the top of a calendar tick — [`year_loop.c`](../original_sources_annotated/turn/year_loop.c):140 —
   never at a nation's day end; DOS mid-turn saves like COLONY02.SAV show acted
   AI land units at full-or-overspent thirds. The earlier "export 0" rule came
   from AI-turn goldens captured after the day ended and refunded MP on reload,

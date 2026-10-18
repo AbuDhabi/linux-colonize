@@ -575,7 +575,7 @@ static ColonizeUnit* ai_euro_5d04_cb_unit(int idx) {
   return &ai_euro_s_5d04_ctx->units->units[idx];
 }
 /*
- * DOS unit+0x3146 @UNIT code for an OpenCol type, by name (fixtures use small
+ * DOS unit+0x3146 @UNIT code for an OpenCol type, by kind (fixtures use small
  * synthetic pools, so pool indices are not DOS indices). 0xff = unknown.
  *
  * Audit AE-4: this file carried two name→@UNIT tables. This one used to

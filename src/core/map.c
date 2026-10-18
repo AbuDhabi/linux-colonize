@@ -1,5 +1,21 @@
 #include "core/map.h"
 
+/*
+ * Terrain decode, coast/river/forest sprite layers, fog, tile queries, move cost.
+ *
+ * Sections:
+ *  - Terrain byte decode & neighbour-mask helpers (mapedit_phys0_index .. river_bit_neighbor)
+ *  - PHYS0 coast/estuary layers & land/water/coastal predicates (mapedit_coast_masks .. map_tile_is_high_seas)
+ *  - Resources & rumours (map_resource_seed .. map_has_rumour_at)
+ *  - Map load/alloc/free, inset coords, visibility reveal & col1 seen sync (map_load_mp .. map_seen_to_col1)
+ *  - Fog-edge sprites (map_fog_edge_fill_for .. map_fog_reveal_edge_count)
+ *  - Terrain/layer3/continent/lake/owner accessors & terrain sprites (map_get_terrain .. map_phys0_forest_sprite_at)
+ *  - Land-transition & PHYS0 overlay layers (map_land_transition_resolve_neighbour .. map_phys0_overlay_offset_at)
+ *  - Rumour clear, owner/occupancy setters, rivers, roads, plow, forest clearing (map_tile_has_rumour .. map_tile_clear_forest)
+ *  - DOS terrain-class byte tables & movement cost (map_dos_terr_cost_byte .. map_move_cost_step)
+ *  - Tile draw-layer command list (map_layer_push .. map_tile_layer_cmds)
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

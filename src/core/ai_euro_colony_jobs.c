@@ -56,7 +56,7 @@ void ai_euro_5952_ledgers(
 );
 
 /*
- * FUN_15eb_28c8 — colonist work-plot scorer, DOS-literal (raw 12908-13158).
+ * FUN_15eb_28c8 — colonist work-plot scorer, DOS-LITERAL (raw 12908-13158).
  * bugs.md #570 (2026-09-22): the previous body was a structural sketch and
  * diverged from the decomp in six ways (no distance term, no food-emergency
  * branch, no cargo-weight branch, labour penalty applied unconditionally and
@@ -2712,7 +2712,7 @@ COLONIZE_INTERNAL int ai_euro_5952_train_pick(
  * `MOV BX,[BP-0x2e]; SHL BX,0x3; MOV AX,[BX+0x8ea8]; CWD`, and [BP-0x2e] is
  * the same word pushed to FUN_1000_8e9e as the slot argument two
  * instructions earlier. DOS therefore charges the AI @JOB[slot]'s price, not
- * @JOB[target]'s — kept DOS-literal (bugs.md #571).
+ * @JOB[target]'s — kept DOS-LITERAL (bugs.md #571).
  *
  * ARM 1's candidate walk runs to `pop + DS:0x8d72`, past the colonists into
  * the units parked on the colony tile (modelled). Port deviation, documented

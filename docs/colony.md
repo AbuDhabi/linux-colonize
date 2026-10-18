@@ -230,7 +230,7 @@ DOS +0x1c bit 0x10 (col1_save.h `small_colony_ai`) — a save-borne one-shot,
 READ-ONLY in the port. Both DOS sites are in FUN_5952_035e: the
 read-and-clear hand-off at raw 94143-94146 (`(+0x1c & 0x10) && pop < 0x20
 -> +0x1b |= 0x10 (NEEDS_COLONISTS); +0x1c &= 0xef`), which is ported in
-ai_euro_colony_threat_seed_5952 and consumed at ai_euro.c:10076, and the
+ai_euro_colony_threat_seed_5952 and consumed in `ai_euro_5952_absorb_equip` (ai_euro_goals.c), and the
 writer at raw 95845-95847 (`pop < 10 -> +0x1c |= 0x10`), which is NOT
 ported — so in the port the bit only ever arrives from a DOS or campaign
 save and is then consumed once. Do not re-add an unconditional `pop < 10`

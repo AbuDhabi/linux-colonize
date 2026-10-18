@@ -6,7 +6,7 @@ FUN_ name, transition or year.
 
 ## Fixed in the 2026-10-10 pass
 
-Archived to [archive/idle_campaign_fixed_2026-10-10.md](archive/idle_campaign_fixed_2026-10-10.md)
+Archived to [idle_campaign_fixed_2026-10-10.md](idle_campaign_fixed_2026-10-10.md)
 (grep it by `FUN_` name or transition; do not read whole).
 
 ## Fixed in the 2026-10-12 pass

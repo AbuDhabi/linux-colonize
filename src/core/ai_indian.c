@@ -906,29 +906,12 @@ int ai_quiet_fog_explore_ex(
 }
 
 /*
- * LAB_521d_52aa — foreign-Euro "attack pull" arm of the quiet dir loop
- * (T1.9, wired 2026-08-27; trace: original_sources_annotated/ai/
- * quiet_brave_scoring.c `quiet_score_colony_pull`). Reached for a candidate
- * tile owned by a Euro nation (owner < 4, != mover) when the mover's Indian
- * side is not at PEACE with that owner (FUN_281f_0a38 & 0x40 on the 23000
- * Indian table = indian[].euro_diplo) — or either unit is a Privateer — and
- * (not WoI, or the owner is the human / not a Euro slot). The mover needs a
- * nonzero @UNIT attack byte (DS:0x5236; Braves = 1).
- *
- *   e8 = ((field0 + 1) / max(1, field2)) * strength / max(1, cost)
- *        field0 = Σ cost over the mover's own stack (1 for a lone Brave),
- *        field2 = # military land {1,4,6,7,8,9} in that stack (0 -> 1),
- *        strength = FUN_5fef_1b0e attack strength vs the tile
- *   *3 if a Euro colony sits there; <<1 if a native village does;
- *   Missionary (0xb) with neither -> 0; crown nation at home (0x8db8==0)
- *   with neither -> >>1; (@UNIT flag 0x10 && G-table stance 4) -> *3 —
- *   the stance table is Euro-only in OpenCol (ai_euro_continent_stance_at
- *   returns 0 for nations >= 4), so that last term never fires for Braves.
- *   clamp: >999 or <0 -> 1000; then score -= 999 when e8 < 12 for a land
- *   unit, else score += max(1, e8) * 4.
- *
- * The col1/colonies pointers come from the nation-turn entry (module
- * statics — the picker's signature is shared with the fixture path).
+ * Native-turn module statics. The col1/colonies pointers come from the
+ * nation-turn entry (module statics — the picker's signature is shared with
+ * the fixture path). The old LAB_521d_52aa "attack pull" scorer that used to
+ * sit here is gone; its Euro-mover arm lives in ai_euro_land.c (LAB_52aa
+ * attack term), and quiet Braves reject foreign-owned tiles (see
+ * ai_native_foreign_euro_pull_open below).
  */
 const ColonizeColonyPool* ai_s_native_colonies = NULL;
 const ColonizeCol1Save* ai_s_native_col1 = NULL;

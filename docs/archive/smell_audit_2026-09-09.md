@@ -3,13 +3,13 @@
 > **STATUS: historical audit dump, fully triaged/closed on 2026-09-09/10;
 > not an authoritative spec; do not treat findings as facts.**
 
-Eight-area Opus sweep (ai_euro, game_loop/turn, units/combat, native/king AI, colony production, save/bridge, Europe/reports, UI/popup/map). Successor to docs/smell_audit_2026-09-08.md (closed); nothing here duplicates that audit. Confidence H/M/L. Line numbers as of commit 313e0c4.
+Eight-area Opus sweep (ai_euro, game_loop/turn, units/combat, native/king AI, colony production, save/bridge, Europe/reports, UI/popup/map). Successor to docs/archive/smell_audit_2026-09-08.md (closed); nothing here duplicates that audit. Confidence H/M/L. Line numbers as of commit 313e0c4.
 
 **Status: CLOSED 2026-09-09/10.** The H / M-H tier and then the M tier were worked off in fix
 waves; the outcome of each wave is in the commits, so most items below carry no inline marker
 even though they were decided (fixed, refuted, or accepted as DOS-literal). Read it as the
 record of what was looked at, not as a work queue — anything still live was re-filed in
-[smell_audit_2026-09-10.md](archive/smell_audit_2026-09-10.md) (third sweep).
+[smell_audit_2026-09-10.md](smell_audit_2026-09-10.md) (third sweep).
 
 ## A. Units / combat (units.c, combat_strength.c, combat_analysis.c, unit_stack.c, unit_chrome.c)
 

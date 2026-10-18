@@ -294,7 +294,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@CCLIM` | Done | customize wizard |
 | `@SHIPSLOW` | Done | `units_ship_slow_scan` (FUN_5bfb_3180 naval half): human mover slowed by adjacent foreign warship (0x1a51) or Fort/Fortress (0x1a5a) |
 | `@SHIPRUN` | Done | `units_ship_slow_scan`: roll beat the adjacent warship, either side human |
-| `@FORTFIRE` | Done | `units_coastal_fort_fire_pulse` (`units_combat_resolve.c`) now enqueues the real OK popup (fort/fortress, colony, ship nation+type tokens) before resolving the fort-vs-ship roll, gated to human involvement |
+| `@FORTFIRE` | Done | `units_coastal_fort_fire_pulse_w` (`units_combat_resolve.c`) now enqueues the real OK popup (fort/fortress, colony, ship nation+type tokens) before resolving the fort-vs-ship roll, gated to human involvement |
 | `@EUROPEARM` | Done | Europe dock / arm chrome |
 | `@EUROPESHIPCLICK` | Done | Europe dock / arm chrome |
 | `@ARMOPTIONS` | Done | Europe dock immigrant click — 12 GAME.TXT rows, DOS `FUN_38fd_37xx` |
@@ -307,7 +307,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@KINGGALLEON3` | Done (structural) | Cortes free-transport arm of the same function; VGA PARKED |
 | `@CASHTREASURE` | Done | `units_king_galleon_credit` (`units.c`, FUN_5fef_1908 else-branch, no King) — OK via `ai_popup_enqueue_ok` |
 | `@USEDUPTOOLS` | Done thin | pioneer tools demotion ai_popup OK; VGA PARKED |
-| `@EVASIVE` | Done | already real (`units.c:~5837` naval evasion via `units_combat_enqueue_tok`) — verified against DOS FUN_5fef_1b0e raw ~100629 |
+| `@EVASIVE` | Done | already real (`units_combat_resolve.c` `units_resolve_naval_combat_ff_w` naval evasion via `units_combat_enqueue_tok`) — verified against DOS FUN_5fef_1b0e raw ~100629 |
 | `@KINGMERCY` | n/a | dead text: no `KINGMERCY` DS string in VICEROY.EXE — the tax-cut-on-REF-loss audience is cut content |
 | `@KINGNEWWAR` | Done (structural) | `FUN_38fd_5930` → `ai_king_new_war_event` (2026-08-27): real gate/roll/grant formula, OK popup with title/name/peer/gold/count tokens; VGA PARKED |
 | `@KINGVICTORY` | Done | `FUN_38fd_5be8` score<100 rung (38fd:5d2d): the tax CUT, `%STRING2` = `@COUNTRIES[king_audience_last_pick-1]` (the crown's current war peer). Rendered through `popup_msg_fill` from `ai_king_tax_hike_apply` (`src/core/ai_king.c`) with `%STRING0`/`%STRING1` = difficulty title + player name, `%NUMBER0` = applied delta, `%NUMBER1` = resulting rate; the raise arm keeps the `@TAXOPTIONS` Kiss/Party rows. 2026-09-16 |
@@ -385,7 +385,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@SMITEEUROPE` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
 | `@UNFORTUNATE` | Done | FUN_5bfb_13b0-family ally-hire affordability check (raw :98368) — `ai_diplo.c` AI_TALK_ST_ALLY_PAY (2026-09-16 verified) |
 | `@MERCENARY` | Done | FUN_5bfb_13b0-family ally-hire success (raw :98386), war-bit set both directions incl. Indian side — `ai_diplo.c` AI_TALK_ST_ALLY_PAY (2026-09-16 verified) |
-| `@SUCCESSION` | Done thin | `FUN_43f7_0218` Treaty of Utrecht announce — `ai_king.c:1609` `popup_msg_fill("SUCCESSION", …)`; VGA PARKED |
+| `@SUCCESSION` | Done thin | `FUN_43f7_0218` Treaty of Utrecht announce — `ai_king_audience.c` `ai_king_succession` `popup_msg_fill("SUCCESSION", …)`; VGA PARKED |
 | `@REBELMAJORITY` | Done thin | EOT Phase D ai_popup OK (`turn_emit_sol_phase_d_chrome`); VGA PARKED |
 | `@REBELUNANIMOUS` | Done thin | EOT Phase D ai_popup OK; VGA PARKED |
 | `@TORYMINORITY` | Done thin | EOT Phase D ai_popup OK; VGA PARKED |
@@ -397,7 +397,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@REBELDOWN` | Done | same 2424 tail, falling branch (report > (last+4)/10 hysteresis) |
 | `@REFIT` | Done thin | Drydock repair ai_popup OK (`@REFIT`); VGA PARKED |
 | `@WELLSEASONED` | Done thin | Indian teach Scout→Seasoned `CONTACT_TEACH` + `@WELLSEASONED` |
-| `@KINGBUY` | Done thin | `FUN_43f7_1d42` peacetime royal-purse buy — `ai_king.c:788` `popup_msg_fill("KINGBUY", …)`, %STRING0 pool name; VGA PARKED |
+| `@KINGBUY` | Done thin | `FUN_43f7_1d42` peacetime royal-purse buy — `ai_king.c` `ai_king_1d42_royal_purse` `popup_msg_fill("KINGBUY", …)`, %STRING0 pool name; VGA PARKED |
 | `@SEIZURE` | Done | `AI_POPUP_TAG_COMBAT_SEIZURE` privateer body |
 | `@SEIZURESEA` | Done | Crown naval → Royal Navy text; Privateer uses custom body |
 | `@SEIZURELAND` | Done | Crown land win vs human → Royal Army text |
@@ -414,8 +414,8 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@PICKMILITARY` | Done | slot / music dialogs |
 | `@PICKINDIAN` | Done | slot / music dialogs |
 | `@UPKEEP` | Missing | production/EOT messages — status or silent; no modal |
-| `@MOBILIZE` | Done thin | `FUN_43f7_1eca` single-unit promote — `ai_king.c:4624` `popup_msg_fill`; VGA PARKED |
-| `@MOBILIZE2` | Done thin | `FUN_43f7_1eca` multi-unit promote — `ai_king.c:4633` `popup_msg_fill`; VGA PARKED |
+| `@MOBILIZE` | Done thin | `FUN_43f7_1eca` single-unit promote — `ai_king_war.c` `ai_king_war_act` `popup_msg_fill`; VGA PARKED |
+| `@MOBILIZE2` | Done thin | `FUN_43f7_1eca` multi-unit promote — `ai_king_war.c` `ai_king_war_act` `popup_msg_fill`; VGA PARKED |
 | `@CANTMOBILIZE` | n/a | `FUN_43f7_1eca` (viceroy_unpacked.c 74910-74968) never emits this tag: the only messages it sends are 0x132d/0x1336 (`@MOBILIZE`/`@MOBILIZE2`) when `local_a != 0`; the `local_a == 0` (no muskets) fall-through is silent in DOS, and no other decompiled function references this section — dead GAME.TXT text, not ported |
 | `@KINGMOBILIZE` | n/a | `FUN_43f7_1d42` wartime arm (0x1320, OVL07:2d8a) is DEAD CODE in the shipped binary — the function's first instruction (`TEST [0x5382],1` / early RETF) makes the whole routine a peacetime-only no-op, so the branch guarding this tag is unreachable; see `ai_king.c:693` comment. Correctly unported |
 | `@EUROPENOTAVAIL` | Done | 2026-09-16: `game_try_enter_europe` (`game_dialogs.c`) now renders the real GAME.TXT body + `AI_POPUP_TAG_INFO` OK popup on WoI-blocked entry, same pattern as `@FOREIGNNOTAVAIL`/`game_open_report`; previously only set a bare status string |
@@ -429,13 +429,13 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@HOWMUCH3` | Done | 2026-09-16: added shift+drag amount prompt for ship-to-ship cargo transfer (`game_loop_colony.c` `UI_DRAG_COLONY_HOLD` handler, new `HOWMUCH_KIND_MOVE` path + `howmuch_move_dst_unit_id`); `game_apply_howmuch_result` now does a real hold-to-hold transfer instead of mis-routing through `game_colony_load_hold` (warehouse load) |
 | `@HOWMUCH4` | Done | Europe buy amount |
 | `@HOWMUCH5` | Done | Europe sell amount |
-| `@AMBUSHHINT` | Done | already real (`turn.c:2583` `popup_chrome_ok("AMBUSHHINT", …)`, paired with `@CONSIDER`) — verified against DOS FUN_4345_0a22; VGA PARKED |
-| `@CONSIDER` | Done thin | `FUN_4345_0a22` wartime bell-pool ambush hint — `turn.c:2593` `popup_chrome_ok("CONSIDER", …)`, one-shot per `woi_crosses_event` latch; VGA PARKED |
-| `@INTERVENTION` | Done thin | `FUN_43f7_1528` ally-declare arm — `ai_king.c:3368` `popup_msg_fill`; VGA PARKED |
-| `@FRIEND` | Done thin | ally-name splice into `@INTERVENTION`/`@INVASION` %STRING2 — `ai_king.c:3306` `assets_msg_find("FRIEND")`; VGA PARKED |
-| `@INTERVENE` | Done thin | `FUN_43f7_1528` ally-landing arm — `ai_king.c:3387` `popup_msg_fill`; VGA PARKED |
-| `@EXPLOITS` | Done thin | `FUN_41f2_0b70` retire Colonization Rating screen — `game_build_exploits` renders the real header (`%NUMBER0`=rating, `%STRING0`=nation) at `game_loop.c:5289`; VGA/SS art shown, HoF-plate chrome thin |
-| `@SCORE` | Done thin | same chain — first `tier+1` `@SCORE` rows split at the comma (category / `%STRING0`=leader surname), `game_loop.c:5324` |
+| `@AMBUSHHINT` | Done | already real (`turn_colony.c` `turn_woi_bell_test` `popup_chrome_ok("AMBUSHHINT", …)`, paired with `@CONSIDER`) — verified against DOS FUN_4345_0a22; VGA PARKED |
+| `@CONSIDER` | Done thin | `FUN_4345_0a22` wartime bell-pool ambush hint — `turn_colony.c` `turn_woi_bell_test` `popup_chrome_ok("CONSIDER", …)`, one-shot per `woi_crosses_event` latch; VGA PARKED |
+| `@INTERVENTION` | Done thin | `FUN_43f7_1528` ally-declare arm — `ai_king_ref.c` `ai_king_1528_announce` `popup_msg_fill`; VGA PARKED |
+| `@FRIEND` | Done thin | ally-name splice into `@INTERVENTION`/`@INVASION` %STRING2 — `ai_king_ref.c` `ai_king_1528_announce` `assets_msg_find("FRIEND")`; VGA PARKED |
+| `@INTERVENE` | Done thin | `FUN_43f7_1528` ally-landing arm — `ai_king_ref.c` `ai_king_10f0_announce` `popup_msg_fill`; VGA PARKED |
+| `@EXPLOITS` | Done thin | `FUN_41f2_0b70` retire Colonization Rating screen — `game_build_exploits` renders the real header (`%NUMBER0`=rating, `%STRING0`=nation) in `game_loop_saveload.c` `game_build_exploits`; VGA/SS art shown, HoF-plate chrome thin |
+| `@SCORE` | Done thin | same chain — first `tier+1` `@SCORE` rows split at the comma (category / `%STRING0`=leader surname), `game_loop_saveload.c` `game_build_exploits` |
 | `@LOSING1` | Done thin | WoI lose all ports — `ai_king_check_revolution_end` |
 | `@WARN1` | Done | WoI ports<3, lowest-priority selector arm — `ai_king_check_revolution_end` (`market_demand_pool_raw[6]`) |
 | `@LOSING2` | Done thin | WoI lose all colonies — `ai_king_check_revolution_end` |
@@ -443,11 +443,11 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@LOSING3` | Done thin | WoI crown pop share ≥90% — `ai_king_check_revolution_end` |
 | `@WARN3` | Done | WoI crown pop share ≥80% (below the 90% `@LOSING3`), outranked by colonies<3 — `market_demand_pool_raw[10]` episode |
 | `@WINNING` | Done | WoI win — `ai_king_check_revolution_end`; precedes the `@KINGLOSE` throne audience then the CLOSING.EXE cinematic; win tune pool 3 |
-| `@OTHERGRANTED` | Done thin | `FUN_3844_0442` §D rival-nation independence (raw 58596-58611, ids `0xf4b`/`0xf3f` NAMES/INDEPENDENT dual-load resolve to the republic rename) — `turn.c:3340` `turn_year_end_rival_popup`; renames the nation and clears war/ally bits toward every other power; VGA PARKED |
-| `@OTHERMIGHT` | Done thin | `FUN_3844_0442` §D rising SoL pressure on a rival (raw 58570-58582, id `0xf5e`) — `turn.c:3322`; hysteresis band ported (`thresh-20`/cache) |
-| `@OTHERLESS` | Done thin | `FUN_3844_0442` §D falling SoL pressure on a rival (raw 58583-58593, id `0xf69`) — `turn.c:3336` |
+| `@OTHERGRANTED` | Done thin | `FUN_3844_0442` §D rival-nation independence (raw 58596-58611, ids `0xf4b`/`0xf3f` NAMES/INDEPENDENT dual-load resolve to the republic rename) — `turn_year_end.c` `turn_year_end_rival_independence` / `turn_year_end_rival_popup`; renames the nation and clears war/ally bits toward every other power; VGA PARKED |
+| `@OTHERMIGHT` | Done thin | `FUN_3844_0442` §D rising SoL pressure on a rival (raw 58570-58582, id `0xf5e`) — `turn_year_end.c` `turn_year_end_rival_independence`; hysteresis band ported (`thresh-20`/cache) |
+| `@OTHERLESS` | Done thin | `FUN_3844_0442` §D falling SoL pressure on a rival (raw 58583-58593, id `0xf69`) — `turn_year_end.c` `turn_year_end_rival_independence` |
 | `@SCORED` | Done thin | peacetime year≥1800 — `AI_POPUP_TAG_KING_SCORED`; That's all opens retire score |
-| `@TORYUPRISING` | Done thin | `FUN_43f7_06a6` — `ai_king.c:2597` `popup_msg_fill("TORYUPRISING", …)` with colony name; VGA PARKED |
+| `@TORYUPRISING` | Done thin | `FUN_43f7_06a6` — `ai_king_ref.c` `ai_king_ref_tory_uprising` `popup_msg_fill("TORYUPRISING", …)` with colony name; VGA PARKED |
 | `@CANNOTATTACK` | Done | `game_report_enter_reason` (`game_loop_orders.c`) — real OK popup on `COLONIZE_ENTER_BOUNCE_FOREIGN` when the mover is land (non-combat land unit attacking) |
 | `@TRADEMERCANTILISM` | Done | `FUN_5f7a_020e` raw 98928-98934 — no Jan de Witt (FF 4); %STRING0 = @GREATLEADER2[owner]. docs/foreign_colony_trade.md |
 | `@TRADEATWAR` | Done | `FUN_5f7a_020e` raw 98924-98927 — no peace treaty with the colony's owner (`FUN_281f_0a38 & 0x40`). docs/foreign_colony_trade.md |
@@ -474,8 +474,8 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@RETIRING` | Done thin | peacetime `@SCORED` That's all → `ai_king_apply_popup_result` |
 | `@RETIRING2` | Done thin | WoI year≥1850 + crown alive — `ai_king_check_revolution_end` |
 | `@HOWTOWIN` | Done thin | after declare — `ai_king_do_declare` INFO (invent WoI-begins demoted) |
-| `@ARTILLERY` | Done | already real (`units.c:3192` `units_combat_enqueue_tok`) — verified against DOS FUN_5fef_016c raw 99475 |
-| `@ARTILLERY2` | Done | already real (`units.c:3205` `units_combat_enqueue_tok`) — verified against DOS FUN_5fef_016c raw 99486 |
+| `@ARTILLERY` | Done | already real (`units_combat.c` `units_apply_land_loss_outcome` `units_combat_enqueue_tok`) — verified against DOS FUN_5fef_016c raw 99475 |
+| `@ARTILLERY2` | Done | already real (`units_combat.c` `units_apply_land_loss_outcome` `units_combat_enqueue_tok`) — verified against DOS FUN_5fef_016c raw 99486 |
 | `@TIMECHANGE` | Done thin | `FUN_130d_0290` calendar-help — `LEA BX,[0x141]` (Ghidra-dropped tag arg, asm-confirmed) then `CALLF FUN_281f_03fe`, fired once at year==1600 && season==0 (the exact turn the calendar splits into Spring/Autumn) — `turn.c` `turn_processor_advance` TURN_PROC_SETUP, `popup_chrome_ok("TIMECHANGE", …)`; no tutorial-hints gate in DOS |
 | `@TEACHCONVERT` | Done | "Live among the natives" with a Convert (`ai_contact_actions.c`) — real GAME.TXT body. Confirmed 2026-09-16 |
 | `@SOMEBOYCOTT` | Done | boycotted market-cell click → `europe_buyback_boycott` (FUN_38fd_2dfe) |

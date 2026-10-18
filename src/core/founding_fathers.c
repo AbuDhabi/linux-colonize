@@ -16,15 +16,20 @@
 #include <string.h>
 
 /*
- * FF election (FUN_4345_0a22 / 0982 / 0342 stand-ins for control flow).
+ * Sections:
+ *  - Reset, bell pool & bells-needed, per-father query predicates (founding_fathers_reset .. revere_should_auto_arm)
+ *  - Candidate availability, century band & weighted category picks (ff_available_to .. ff_pick_strongest_category)
+ *  - WOI bell pool, debate popups & next-candidate bookkeeping (consume_woi_bell_pool .. ensure_next_candidate)
+ *  - Per-father election effects & apply_effect dispatcher (effect_coronado_reveal .. apply_effect)
+ *  - Election commit, popup results & per-turn tick (elect_commit .. tick_human_elect)
+ *
+ * FF election (FUN_4345_0a22 / 0982 / 0342).
  * head.founding_father[i]: -1 unclaimed; 0..3 = owning European nation.
  * nation.founding_fathers[4]: bit i set when nation elected FF i.
  *
  * Effect authority: Colonization.pdf (FF ~pp. 83–94) + docs/fandom_col1994.md.
  * No invented treasury/crosses/tools fiction when the real rule is known.
  */
-
-/* King tax-refuse stand-in byte (ai_king market_demand_pool_raw[2]). */
 
 /*
  * bugs.md #933 — COL1 nation +0xc IS the live FF bell pool.

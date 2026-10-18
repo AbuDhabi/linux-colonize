@@ -577,7 +577,7 @@ still happens and `eng.roll` keeps the value DOS's `iVar23` keeps; only
 `eng.atk_wins` is cleared. The predicate is DOS's *only* write of `local_ca`
 (`100336` zeroes it, `100576` sets it, `101142` reads it), so the same local
 is reused as the raid handoff's `forced`/`param_4` argument to
-`ai_contact_colony_raid_repelled` — that argument used to be re-derived from
+`ai_contact_colony_raid_repelled_w` — that argument used to be re-derived from
 unit *names*, which also matched Armed/Mtd. Braves and so was wider than DOS.
 Type ids are `type_index` = NAMES.TXT `@UNIT` line order (Artillery 11,
 Braves 19), the identity the typed attack-fire sound already relies on. This

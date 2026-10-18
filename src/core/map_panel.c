@@ -1,6 +1,16 @@
 #include "core/map_panel.h"
 #include "core/unit_chrome_draw.h"
 
+/*
+ * Map right sidebar & minimap.
+ *
+ * Sections:
+ *  - Tile rect, load/free, view clamp & minimap rect/click (map_panel_tile_rect .. map_panel_minimap_click)
+ *  - Name/label helpers & tribe tint/chrome on the map (map_panel_section_line .. map_panel_render_tribes_on_map_w)
+ *  - Stack detail text, ranking, collect & cargo icons (map_panel_tile_flag .. map_panel_draw_cargo_icons)
+ *  - Village trade intel, orders text, stack rows & panel render (map_panel_draw_village_trade_intel .. map_panel_render_w)
+ */
+
 #include "core/ai.h"
 
 #include <stdio.h>

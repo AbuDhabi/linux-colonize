@@ -2,8 +2,9 @@
 
 STATUS: audit dump, not a spec. Most flagged rows are resolved in place
 (2026-09-28 sweep: bugs.md #984-990, all Fixed) or explicitly Demoted/PARKED
-by design. One open item remains: "Village-approach warning CHOICE" (below)
-has no matching `GAME.TXT` section and is still unresolved as of 2026-09-28.
+by design. The last open item, the invented "Village-approach warning CHOICE",
+is gone from `src/` (no trace of its bodies as of 2026-10-18; the village arm is
+the `@ACTIONS` dispatch, manual_gap.md "Land / naval attack"). Nothing open.
 
 Cross-check of **currently ported** player-facing modals against
 `COLONIZE/GAME.TXT` / `DEBUG.TXT`. Goal: no invented wood dialogs; bodies and
@@ -59,7 +60,7 @@ choices from data where a real `@SECTION` exists.
 | Denounce Heresy / Establish Mission (menu) | `@HERESY0` / `@HERESY1` / `@MISSION0..3` | Authentic (2026-08-28) | `ai_contact_denounce_heresy` (`a594`), `ai_contact_establish_mission` (`a5dc`); AI convert pulse unchanged |
 | Enter Hostile Village | `@KILLWAGONS` / `@MADATWAGONS` / `@GRUDGEWAGONS` | Authentic (2026-08-28) | `ai_contact_enter_hostile_village` (`a5e8`) then the 2820 trade arm |
 | Encroachment CHOICE | `@INDIANLAND` / `@INDIANFOREST` / `@INDIANROAD` → `@INDIANBRIBE` | Authentic (2026-08-28) | `game_loop.c` `game_request_indian_land_choice` (`AI_POPUP_TAG_INDIAN_LAND`); "offer gold" row dropped when unaffordable (DOS greys it) |
-| Village-approach warning CHOICE ("Leave" / "Attack") | *none* | **Invented** (found 2026-09-20) | The four alarm-tier bodies and both choice rows have no GAME.TXT section — grepping every distinctive phrase ("shout warnings", "bar the path", "blood is shed", "fall back") returns nothing, and the site never calls `popup_msg_fill`. Either find the real DOS chrome or demote it; do not wire an unrelated section to it |
+| Village-approach warning CHOICE ("Leave" / "Attack") | *none* | **Invented** (found 2026-09-20) → **deleted** (absent from `src/` 2026-10-18) | The four alarm-tier bodies and both choice rows have no GAME.TXT section — grepping every distinctive phrase ("shout warnings", "bar the path", "blood is shed", "fall back") returns nothing, and the site never calls `popup_msg_fill`. Either find the real DOS chrome or demote it; do not wire an unrelated section to it |
 | Teach refuse OK | `@LEARNMAD` | Authentic | Both mid (40-54) and hostile (≥55) alarm bands |
 | Teach already-expert OK | `@LEARNMASTER` | Authentic | Refuses without consuming the village's one-shot teach |
 | Teach / convert / raid OK (remainder) | `@LEARNALREADY` / … | Authentic for the menu path (2026-08-28) | `@LEARNALREADY` now shows from the Live Among menu action (DOS: taught && !capital); the AI-only auto pulse still skips silently — see `indian_contact.md` "preserve gift/trade chrome" note; not touched here, a real design tension not an oversight. **`@RAID*` fixed 2026-08-26** (was cited here as MissingWire): 6 of 7 kinds now render the real `GAME.TXT` body via `popup_msg_fill` — see `port_plan.md` P8.4 / `indian_raid_outcomes.md` |

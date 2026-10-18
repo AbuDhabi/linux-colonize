@@ -85,7 +85,7 @@ Port fixes from the from-load references (2026-10-17/18 night; all under `make t
   Louis's damaged Artillery 136 vs 50).
 - Rank table timing: the 0550 refresh runs at the day top (`turn_step_indian`, raw 6353-6363),
   the SETUP slice hands the slots above the human the previous day top's table, and a load only
-  zeroes the table (fresh process). The old `turn_rank_resume_loaded` skip was wrong: 130d_0290
+  zeroes the table (fresh process). The old `turn_rank_resume_loaded` skip (deleted) was wrong: 130d_0290
   clears DS:0829 at the end of the loaded slot's iteration, before any day top (ref interval 1:
   St. Eustatius's Statesman left for the fishery without the refresh).
 - 0a60 colony walk: own colonies' ship-pressure / work-queue / LABOR / admission arms and the

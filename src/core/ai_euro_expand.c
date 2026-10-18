@@ -440,7 +440,8 @@ int16_t ai_euro_s_0a60_work_registered[4];
 /*
  * DS:0x1734[nation] — colonies that registered work-queue work (0a60 bVar5
  * branch bumps it; only the 20e6 berth boarding scan zeroes it).
- * Session-local, not save data; file-local since audit AE-31.
+ * Session-local, not save data; extern (ai_euro_internal.h) so the other
+ * ai_euro_* files and tests can reach it.
  */
 int ai_euro_0a60_work_registered(int nation_id) {
   return (nation_id >= 0 && nation_id < 4) ? (int)ai_euro_s_0a60_work_registered[nation_id] : 0;

@@ -1,5 +1,16 @@
 #include "core/map_menu.h"
 
+/*
+ * Map menu bar: MENU.TXT parsing, DOS item enable/refresh, hotkeys, layout, input, render.
+ *
+ * Sections:
+ *  - Hotkey/title parsing, visible-item index helpers, action classify/enabled (map_menu_parse_hotkey .. map_menu_action_enabled)
+ *  - Init/free, item append, separators & MENU.TXT section load (map_menu_init .. map_menu_set_cheat_visible)
+ *  - DOS Orders-menu refresh, Alt/orders/view hotkeys (map_menu_refresh_orders_dos .. map_menu_view_hotkey)
+ *  - Title/dropdown layout, hit tests & input handling (map_menu_layout_titles .. map_menu_handle_input)
+ *  - Tile-rect screen phase, status message, render & action names (map_menu_tile_rect_screen_phase .. map_menu_action_name)
+ */
+
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>

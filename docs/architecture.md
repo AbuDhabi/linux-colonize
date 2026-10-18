@@ -29,7 +29,7 @@ lives](#where-detail-lives)).
 | Combat mechanics | [combat.md](combat.md), [combat_analysis.md](combat_analysis.md) |
 | Report screens (F2–F10 + HoF) | [reports.md](reports.md), [report_screens.md](report_screens.md) |
 | SoL / independence | [sons_of_liberty.md](sons_of_liberty.md) |
-| Indians | [indians.md](indians.md), [indians_port.md](indians_port.md) |
+| Indians | [indians.md](indians.md), [indian_alarm.md](indian_alarm.md) |
 | Production formulas | [building_production.md](building_production.md), [terrain_yields.md](terrain_yields.md) |
 | Asset formats, graphics, map | [assets.md](assets.md) |
 | Music / sound | [assets_sound.md](assets_sound.md) |
@@ -183,9 +183,12 @@ alias locals at the top, and the pre-world signature survives as a `_w`-less
 **compat shim** that builds a `ColonizeWorld` and forwards. Callers therefore
 needed no edits, and no DOS-LITERAL logic moved. The canonical entry point is
 the `_w` one; the shim is scaffolding to be retired call site by call site.
-Inside a chain the shims are already gone — `units_advance_goto_w` →
+Inside a chain the callees are `_w` (`units_advance_goto_w` →
 `units_advance_goto_one_step_w` → `units_next_goto_step_w` /
-`units_try_move_w` → `units_can_enter_w` passes `w` straight through.
+`units_try_move_w` → `units_can_enter_w`), but several `units_*_w` bodies
+still rebuild a partial `ColonizeWorld` (dropping `col1` / `rng` / `europe`)
+instead of forwarding `w`, and the view is hand-built as a compound literal
+at ~80 call sites — bugs.md #1110.
 
 Migrated modules: `units` (movement/goto/pioneer, combat, cargo, sight),
 `colony`, `europe`, `ai` / `ai_goals` / `ai_contact`, `col1_bridge`,
@@ -223,7 +226,8 @@ Cluster table (not every file). Paths are under `src/core/` unless noted.
 | **Save / Col1** | `savegame`, `col1_save` (API) + `col1_save_layout.h` (on-disk), `col1_bridge`, `col1_post_map`, `col1_stuff_census` | DOS `COLONY##.SAV` interop; layout split from API |
 | **Settings** | `settings.c/.h`, `json_min.c/.h` | Port-only `settings.json` preference file (see [settings.md](settings.md)) |
 | **Assets / art** | `assets`, `madspack`, `pik`, `ss`, `ff`, `font`, `debug_atlas` | Catalogs + MADSPACK decode |
-| **UI primitives** | `popup`, `popup_msg`, `ui_button`, `ui_drag`, `ui_colors`, dialogs (`save_load_dialog`, `options_dialog`, `pick_music`, …) | Wood/list modals |
+| **UI primitives** | `popup`, `popup_msg`, `ui_button`, `ui_drag`, `ui_colors`, `text_edit`, dialogs (`save_load_dialog`, `options_dialog`, `pick_music` + `pick_music_ids.h`, `cheat_list_dialog`, `howmuch_dialog`, `name_entry_dialog`), `cinematic.h` (shared sheet loader for `opening` / `closing` / `declaration` / `woodcut_present`) | Wood/list modals |
+| **Shared misc** | `bytes.h` (LE byte helpers), `window_log` (port-only message-log strip), `village_trade_intel` (port-only VTIN intel, saved in the COLNXEXT tail — [savegame.md](savegame.md)) | Sim-side helpers |
 | **Screens** | `new_game`, `pedia`, `reports` (+ `reports_congress`, `reports_economy`, `reports_military`, `reports_score`), `founding_fathers` | Wizard / advisors / FF. `reports.c` was one 4403-line file until 2026-09-23; it is now five files split along its banners (`reports.c` view lifecycle + asset/id lookups, shared draw primitives, shadowed line helpers and the top-level render dispatch, `reports_congress.c` Religious + Continental Congress + Labor, `reports_economy.c` Economic/Trade + Cargo + Colony, `reports_military.c` Naval/Military + Foreign affairs + Indian, `reports_score.c` score computation + Hall of Fame/Exploits) with the cross-file seams declared in `reports_internal.h`. |
 | **Audio** | `gsound_vm.c/.h`, `sound.c/.h` | Literal `GSOUND.COL` driver emulation + DOS BGM scheduler, `COLDIG.BIN` SFX mixing, FluidSynth when present |
 | **RNG / util** | `dos_rng`, `strutil`, `version.h` | DOS LCG fidelity |
@@ -410,9 +414,13 @@ greenfield redesign or a mandated `game_loop` rewrite phase.
 - Keep headless smoke/unit suites as architecture checks for simulation
   regressions. The AI cluster is **fully live** again: `golden_ai_turns` and
   the joint smoke pair (`smoke_ai_mid01` / `smoke_ai_late01`, renamed from
-  `golden_ai_*` 2026-09-14) all run in a default `ctest`, and no test carries
-  a `DISABLED` property in [`CMakeLists.txt`](../CMakeLists.txt). The parking
-  that started 2026-08-19 ended 2026-09-05 (port_plan T1.23 / T3.3).
+  `golden_ai_*` 2026-09-14) all run in a default `ctest`. The parking
+  that started 2026-08-19 ended 2026-09-05 (port_plan T1.23 / T3.3). The one
+  `DISABLED` test in [`CMakeLists.txt`](../CMakeLists.txt) is
+  `golden_idle_independence` (wall-clock VR_SOUND archive, not reproducible);
+  its live gates are `golden_idle_tr9` / `_ref` / `_tr10`, and the seed-100
+  idle campaign runs as `golden_idle_continuous` ([idle_campaign.md](idle_campaign.md),
+  [idle_independence.md](idle_independence.md)).
   `golden_ai_joint` is a **build-only convenience target** that re-runs the
   AI gates in one shot (`cmake --build build/debug --target golden_ai_joint`):
   `golden_mapgen_seed100`, `golden_ai_turns`, the three

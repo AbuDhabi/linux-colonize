@@ -54,7 +54,7 @@
 
 /* Retired: AI_DIPLO_FLAG_BASE/INDIAN_HOSTILE_STICKY/PRIVATEER_SPAWN_SLOT (raw
  * unknown26 indices; every site now names the col1_save.h union member) —
- * docs/smell_audit_2026-09-09.md #22. */
+ * docs/archive/smell_audit_2026-09-09.md #22. */
 /* Off-map Europe tile (turn / ai_euro Europe gate x|y >= 200). */
 #define AI_DIPLO_EUROPE_X 236
 #define AI_DIPLO_EUROPE_Y 236
@@ -79,7 +79,7 @@
  * (viceroy 64481/64502), and every gold move beside a war-bit write is a
  * TRANSFER (153e paid-@SMITE viceroy 98387-98397; 5fef_1b0e plunder viceroy
  * 100995-101002), never a symmetric drain.
- * docs/smell_audit_2026-09-09.md #47.
+ * docs/archive/smell_audit_2026-09-09.md #47.
  * Retired 2026-09-28 (bugs.md #965): AI_DIPLO_WAR_UPKEEP_GOLD, the 5 gold/turn
  * "thin ongoing 153e friction" drain, was the same invention one step removed —
  * FUN_5bfb_153e's gold moves are one-shot audience outcomes, so a recurring
@@ -104,7 +104,7 @@
 #define AI_DIPLO_WAR_MUSKETS_EMBARGO_BIT (1u << COLONIZE_CARGO_MUSKETS)
 /* Retired: AI_DIPLO_WAR_TRADE_STING/WAR_COLONY_GAP. A sweep of all 103 gold
  * writes (`n * 0x13c + -0x77ce`) finds no constant-valued treasury decrement
- * anywhere in the game. docs/smell_audit_2026-09-09.md follow-up A. */
+ * anywhere in the game. docs/archive/smell_audit_2026-09-09.md follow-up A. */
 /* DOS has no per-turn Euro war-fatigue peace roll. 10ec is only a war-worthiness
  * predicate; 13b0 signs or cancels treaties on an encounter and skips active wars. */
 /* Retired: AI_DIPLO_INDIAN_DRIFT_CAP (no DOS per-turn alarm decay,
@@ -116,7 +116,7 @@
 #define AI_DIPLO_INDIAN_VERY_LOW_REL 16 /* alarm >= 85: sticky deepen band (OpenCol) */
 /* Retired: AI_DIPLO_INDIAN_HARASS_GOLD (invented −2g/turn native-war drain).
  * No native machinery (FUN_4d56_152e, 4cc6_00f2, 5952_035e, 465b_0000) touches
- * a Euro treasury. docs/smell_audit_2026-09-09.md #49. */
+ * a Euro treasury. docs/archive/smell_audit_2026-09-09.md #49. */
 /* Retired: AI_DIPLO_INDIAN_PEACE_MEET (96) / _CONTENT_FLOOR / _FEELER_HEAL.
  * 96 == 0x60 is the MET|PEACE bitfield of the 12x12 15b3 matrix, not a scalar
  * floor; DOS never assigns the byte (surrender idiom FUN_43f7_0108,
@@ -2853,12 +2853,13 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
  * The value is a word, ×8 the DOS combat byte. The AI_DIPLO_STRENGTH_* bands
  * that read this score are unchanged OpenCol constants — see their own note.
  *
- * 2026-09-10: computed LIVE instead of read out of `stuff`. The mirror has no
- * live writer in the port — col1_stuff_census_fill_blank (col1_stuff_census.c)
- * is reached only from col1_bridge_capture, i.e. the save-WRITING path, and
- * only while the census window is still blank — so in an OpenCol-started game the
- * word is 0 until the first (auto)save and frozen at that turn's roster ever
- * after. ai_contact.c's FUN_5952_035e block and its Demand-Tribute roll made
+ * 2026-09-10: computed LIVE instead of read out of `stuff`. The mirror is
+ * refreshed only at each nation's end-of-turn tail (col1_stuff_census_4962_w,
+ * called from turn.c), and col1_stuff_census_fill_blank (col1_stuff_census.c)
+ * only runs from col1_bridge_capture (the save-WRITING path) while the census
+ * window is still blank — so in an OpenCol-started game the word is 0 until
+ * the first end-of-turn / (auto)save and stale between refreshes. A live
+ * recompute never reads the stale value. ai_contact.c's FUN_5952_035e block and its Demand-Tribute roll made
  * the same call for the same reason (ai_contact_land_combat_sum, "the port
  * never refreshes the DS:0x95b2 / 0x91cc mirrors for an OpenCol-started game").
  *

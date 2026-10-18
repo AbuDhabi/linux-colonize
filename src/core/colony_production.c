@@ -1,5 +1,15 @@
 #include "core/colony_production.h"
 
+/*
+ * Colony production math: building tiers, craft/hammer/bell/cross output, SoL.
+ *
+ * Sections:
+ *  - Building tier, chain input/output & manufacturing in/out (colony_prod_building_tier_row .. colony_prod_manufacturing_input)
+ *  - SoL percent/bonus/flags & rebel accumulator tick (colony_prod_sol_percent .. colony_prod_tick_rebel_accumulators)
+ *  - Per-worker crosses/bells/hammers, church passive crosses (colony_prod_crosses_worker_row .. colony_prod_church_passive_crosses_row)
+ *  - Colony totals (crosses/bells/hammers), horse breed & building display output (colony_prod_colony_crosses_ff .. colony_prod_building_display_output_sol)
+ */
+
 #include <string.h>
 
 #include "core/col1_save.h"

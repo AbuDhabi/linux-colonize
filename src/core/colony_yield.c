@@ -1,6 +1,16 @@
 #include "core/colony_yield.h"
 #include "core/reports.h"
 
+/*
+ * Colony tile/worker yields.
+ *
+ * Sections:
+ *  - Job cargo/name, terrain base tables & resource effect (colony_yield_job_cargo .. colony_yield_resource_effect)
+ *  - Ocean/prime/fisherman modifiers & the yield pipeline (colony_yield_ocean_neighbor_count .. colony_yield_pipeline)
+ *  - Docks, worked-tile iterator, per-tile/worker yield API (colony_yield_colony_has_docks .. colony_yield_for_worker)
+ *  - Town commons dual-produce (colony_yield_town_commons_food_base .. colony_yield_town_commons)
+ */
+
 #include <stddef.h>
 #include <string.h>
 

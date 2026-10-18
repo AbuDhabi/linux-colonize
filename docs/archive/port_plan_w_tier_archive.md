@@ -365,7 +365,7 @@ Verification can happen autonomously; the flip is a user decision
 **Method note first:** 6 of 8 items ever filed in `ai_port_plan.md`'s Tier 4
 closed *without* a live session via byte-pattern search of the existing
 `dosbox-x-dumps/*` saves. Search those first; only ask the user after coming
-up empty. Live-debug workflow quirks: [dosbox_debugging.md](../dosbox_debugging.md).
+up empty. Live-debug workflow quirks: [dos_trace.md](../dos_trace.md).
 
 - [x] **W4.1 — `@TOONEAR` threshold via DOSBox repro — moot, 2026-08-24.**
   Was only needed if W1.2's static trace failed; it didn't (see W1.2).

@@ -9,14 +9,17 @@ art and full-fidelity music are **explicitly deferred** (see "Deferred
 phases" below and the "Deferred AI track — detail" section, which absorbed
 the old `ai_port_plan.md` / `ai_transcription.md` queues).
 
-**Current posture (2026-09-08 reassessment):** playability tracks **P1–P11
-are closed**, `bugs.md` has no open rows, and the deferred AI track is
-**substantially complete** — D1 closed 2026-09-07g (crown runs the full Euro
-nation turn, `golden_woi_ref01` green on original thresholds), D2 bodies
-(`2820`/`2154`/`4528`) Done at logic level, D3 golden gates all live
-(60/60). What remains AI-side is the short **residual punch list** in the
-Deferred AI track section, not a track. The only remaining *phases* are
-D4 (pixel chrome) and D5 (music timbre).
+**Current posture (2026-10-18):** playability tracks **P1–P11 are closed**,
+and the deferred AI track is **substantially complete** — D1 closed
+2026-09-07g (crown runs the full Euro nation turn, `golden_woi_ref01` green on
+original thresholds), D2 bodies (`2820`/`2154`/`4528`) Done at logic level,
+D3 golden gates all live plus the two idle campaigns (`golden_idle_continuous`
+1492-1599 byte-exact, [idle_campaign.md](idle_campaign.md); independence
+`golden_idle_tr9` / `_ref` / `_tr10`, [idle_independence.md](idle_independence.md)).
+What remains AI-side is the short **residual punch list** in the Deferred AI
+track section, not a track. The only remaining *phases* are D4 (pixel chrome)
+and D5 (music timbre). Open work is the `bugs.md` queue — currently the
+2026-10-18 code-audit rows #1086-#1122 ([code_audit_2026-10-18.md](code_audit_2026-10-18.md)).
 
 > **Doc merge note (2026-09-05):** `roadmap.md`, `ai_port_plan.md` and
 > `ai_transcription.md` were merged into this file and removed. Their full
@@ -166,7 +169,7 @@ goldens all in (2026-09-03). Remaining mismatches go through
   was stale, `golden_colony_prod01/02` pass.
 - [x] P4.2 [auto] 2026-08-29 — Town Hall L2/L3 outer-ring: user decision,
   runtime stays 8 tiles; the 12 outer bytes preserved opaquely
-  (`col1_outer_tiles`). Evidence: all ~195 real DOS `.SAV` fixtures have
+  (`ColonizeColony.outer`). Evidence: all ~195 real DOS `.SAV` fixtures have
   outer slots `0xff` — DOS never writes them; W3.3 "12/20 tiles" claim
   retracted.
 - [x] P4.3 [auto] 2026-08-26 — education already fully wired incl. 3
@@ -251,7 +254,7 @@ chrome only (P11/D4).
   is **player-controlled** (spawn nation = `DS:0x5398`, the human), not
   ally-tagged; MoW water-tile scorer static after all; troop pools Cont.
   Cav ≤2 / Artillery ≤2 / Cont. Army remainder (OpenCol caps were inverted).
-  `ai_king_foreign_intervene` rewritten.
+  Intervention force rewritten (`ai_king.c`, `ai_king_intervention_nation_slot`).
 - [x] P5.6 [auto] 2026-08-26 — post-declare economy all wired: Europe
   closed, Custom House tax-free, `FUN_43f7_1eca` bell promotions (full
   port), SoL combat support.
@@ -261,9 +264,9 @@ chrome only (P11/D4).
   → 1; tribe destination caps 3), col1 bridge imports/exports spent
   thirds (exhausted land units export 0), map panel shows fractions.
   `golden_ai_turns` byte-identical to baseline. 465b_05ca shore force-to-max
-  **ported 2026-09-04** (`units_move_crosses_shore`, `units.c:6484`; applied
-  at `units.c:6339` land + `9250` ship). Partial-MP gamble **verified ported
-  2026-09-08** (`units_try_move` `units.c:~6940`: range(1,cost) ≤ remaining,
+  **ported 2026-09-04** (`units_move_crosses_shore`, `units_move.c`; applied
+  on the land and ship move paths). Partial-MP gamble **verified ported
+  2026-09-08** (`units_try_move_w`, `units_move.c`: range(1,cost) ≤ remaining,
   spent==0 free step, attack never denied; `units_can_afford_move_cost` is a
   pathfinder pre-filter with no DOS equivalent — its deny is deliberate, a
   roll there would burn extra LCG draws). The DOS "NULL-rng" is
