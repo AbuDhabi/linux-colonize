@@ -147,7 +147,7 @@ static int ai_king_audience_roll(
   }
   const int diff = col1->head.difficulty;
   /* 5be8 raw 68443-68448: `diff - 2` only for a human-controlled nation;
-   * every AI nation gets 0 (bare 18/15/12/9 interval). bugs.md #1053. */
+   * every AI nation gets 0 (bare 18/15/12/9 interval). port_bugs.md #1053. */
   const int crown_adjust = (col1->player[human].control == 0) ? diff - 2 : 0;
   const int interval = interval_base - 2 * crown_adjust;
   if (interval <= 0 || (int)(turn % (uint32_t)interval) != 0) {
@@ -264,7 +264,7 @@ static int ai_king_audience_roll(
 /*
  * Same clamp as ai_king_audience_apply_delta, without writing: the tax
  * audience needs to know what a delta WOULD come to before the player has
- * answered (bugs.md — the raise must not be in the save while the popup that
+ * answered (port_bugs.md — the raise must not be in the save while the popup that
  * proposes it is still on screen).
  */
 static int ai_king_audience_preview_delta(const ColonizeCol1Nation* nat, int delta) {
@@ -328,7 +328,7 @@ static uint16_t ai_king_teaparty_candidate_mask(
    * selection walk if one of those colonies actually holds some of it
    * (`aiStack_cc[local_ac] != 0` gates both the weight sum and the walk):
    * you cannot dump 0 tons in protest, and you cannot dump it inland
-   * (bugs.md #904).
+   * (port_bugs.md #904).
    */
   for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
     weight_buf[c] = 0;
@@ -366,7 +366,7 @@ static uint16_t ai_king_teaparty_candidate_mask(
    * (stack word index = (0x7a - off)/2; the four names are the same stack
    * array Ghidra declared as `uint local_7a[8]`.) Every other cargo, craft
    * goods 9..12 included, keeps the full weight. The port had weighted by the
-   * live Europe bid instead (bugs.md #903).
+   * live Europe bid instead (port_bugs.md #903).
    */
   if (ctx->col1_ok && ctx->col1 && human >= 0 && human < 4) {
     const int32_t* tons = ctx->col1->nation[human].trade.tons;
@@ -405,7 +405,7 @@ void ai_king_tax_teaparty(ColonizeTurnContext* ctx, int human, int cargo) {
   ColonizeCol1Nation* nat = &ctx->col1->nation[human];
   /*
    * No revert to do any more: ai_king_tax_hike_apply defers the raise until
-   * Accept, so refusing simply never commits it (bugs.md). DOS's
+   * Accept, so refusing simply never commits it (port_bugs.md). DOS's
    * apply-then-revert reaches the same rate.
    */
   if (ctx->europe) {
@@ -509,7 +509,7 @@ void ai_king_tax_event(ColonizeTurnContext* ctx) {
 }
 
 /*
- * bugs.md #1053: FUN_38fd_5e52 ends every peacetime nation's EOT with the
+ * port_bugs.md #1053: FUN_38fd_5e52 ends every peacetime nation's EOT with the
  * 5be8 roll (raw 68614, thunk_FUN_291f_0b7a) — no control gate. For an AI
  * nation 3dc8 applies the clamped delta (raw 64170-64180) and skips only the
  * audience / tea-party dialog (`control == 0` gate, raw 64181).
@@ -539,7 +539,7 @@ void ai_king_tax_delta_ai(ColonizeTurnContext* ctx, int nation_id, int delta) {
 /*
  * Write a settled tax delta: rate, the Europe mirror, and the REF-growth
  * approximation. Split out of ai_king_tax_hike_apply so the CHOICE path can
- * defer all three until the player has answered (bugs.md).
+ * defer all three until the player has answered (port_bugs.md).
  */
 void ai_king_tax_commit(ColonizeTurnContext* ctx, int human, int delta) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4 || delta == 0) {
@@ -580,7 +580,7 @@ void ai_king_tax_hike_apply(
     ctx->col1->player[human].name[0] ? ctx->col1->player[human].name : "";
   ColonizeCol1Nation* nat = &ctx->col1->nation[human];
   /*
-   * bugs.md: DOS's 3dc8 applies the delta and then offers keep-vs-revert, so
+   * port_bugs.md: DOS's 3dc8 applies the delta and then offers keep-vs-revert, so
    * the raise is briefly real while the dialog asks about it — the port
    * showed the new rate in Europe/status before the player had answered.
    * The arithmetic outcome of both orderings is identical (accept = raised,
@@ -649,7 +649,7 @@ void ai_king_tax_hike_apply(
    * ABORTS the whole party — the hike simply stands, no second draw with the
    * boycott mask cleared. The port used to re-roll with boycott = 0, which
    * both invented a party DOS never holds and burnt an extra RNG draw
-   * (bugs.md #907).
+   * (port_bugs.md #907).
    */
 
   if (picked < 0) {
@@ -693,7 +693,7 @@ void ai_king_tax_hike_apply(
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     /* DOS 3dc8: NUMBER0 = |applied delta| (FUN_281f_09ae(0, abs(param_2))
-     * after both clamps), not a constant 1 — bugs.md: popup claimed "raise
+     * after both clamps), not a constant 1 — port_bugs.md: popup claimed "raise
      * by 1%" for a 7% hike. */
     tok.number0 = applied;
     tok.has_number0 = true;
@@ -748,7 +748,7 @@ void ai_king_tax_hike_apply(
                                     ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
                                     ai_king_teaparty_payload(applied, picked),
                                     NULL, body, labels, ids, 2)) {
-      /* bugs.md: DOS's 3dc8 dialog sets DS:0x1f5c = 8 — the animated King
+      /* port_bugs.md: DOS's 3dc8 dialog sets DS:0x1f5c = 8 — the animated King
        * flair stands beside the tax audience. */
       ai_popup_set_last_portrait(ctx->ai_popups, 8, 0);
       return; /* effect deferred to ai_king_apply_popup_result */
@@ -780,7 +780,7 @@ void ai_king_tax_hike_apply(
  *     nibbles are remapped (thin: skipped here);
  *   - @SUCCESSION (0x128c) announces the Treaty of Utrecht;
  *   - merged slot control=2, DS:0x53d2 = the vacated slot.
- * THIS is why the King must never inherit a live nation's estate (bugs.md
+ * THIS is why the King must never inherit a live nation's estate (port_bugs.md
  * follow-up: the port's fixed slot borrow handed the King Quebec + 5
  * Caravels that were simply France's).
  */
@@ -910,7 +910,7 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
   }
   /* DOS 1a26: `if (*0x53d2 < 0) 0364` — run the succession merger now if the
    * SoL>49 trigger never fired, so the King borrows an EMPTY slot instead of
-   * inheriting a live nation's colonies and ships (bugs.md follow-up). */
+   * inheriting a live nation's colonies and ships (port_bugs.md follow-up). */
   ai_king_succession(ctx);
   ai_king_set_independence(ctx->col1, 1); /* WoI: market_demand_pool_raw[0] if not already */
   ai_king_write_rival_nation_slots(ctx->col1, human);
@@ -944,13 +944,13 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
   ctx->col1->head.king_audience_streak = (uint8_t)(ctx->col1->head.year / 100);
   ctx->col1->head.king_audience_last_pick = (uint8_t)(ctx->col1->head.year % 100);
   /* DOS-LITERAL FUN_43f7_1a26 raw 74738: `*(*(int*)0x84fc + 0xc) = 0`.
-   * bugs.md #933: +0xc IS the live FF/intervention bell pool, so this also
+   * port_bugs.md #933: +0xc IS the live FF/intervention bell pool, so this also
    * clears the human's Europe mirror — the WoI intervention threshold must
    * be met with bells produced after the declaration, not before it. */
   founding_fathers_reset_bells_pool(ctx, human);
   ai_king_set_ref_present(ctx->col1, 1);
   /*
-   * bugs.md: nothing ever set the WAR bit between the rebel and the
+   * port_bugs.md: nothing ever set the WAR bit between the rebel and the
    * crown's borrowed slot, so a player Frigate (or Man-O-War/Privateer)
    * attacking a REF ship bounced with "At peace — cannot attack". Raw
    * ai_diplo_or_both, not declare_war_ctx: the WoI is its own regime — no
@@ -974,7 +974,7 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
     ai_diplo_or_both(ctx->col1, human, crown_slot, (uint8_t)(AI_DIPLO_WAR | AI_DIPLO_MET));
     ai_diplo_clear_both(ctx->col1, human, crown_slot, (uint8_t)AI_DIPLO_PEACE);
   }
-  /* bugs.md: no landing on the declaration turn itself. */
+  /* port_bugs.md: no landing on the declaration turn itself. */
   ai_king_latch_set(ctx->col1, AI_KING_REF_WAVE_WAIT_BYTE, 1);
   /*
    * FUN_43f7_0108 (eliminate nation), called from FUN_43f7_1a26 for every
@@ -989,7 +989,7 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    */
   const int crown_fold = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human);
   /*
-   * bugs.md #228: DOS 1a26 stores the crown slot in DS:0x53d2 and sets its
+   * port_bugs.md #228: DOS 1a26 stores the crown slot in DS:0x53d2 and sets its
    * control byte to 1 (`*(0x53d2*0x34+0x543f)=1`). The port never wrote
    * head.crown_nation_id, so a save exported mid-WoI reached DOS with
    * 0x53d2 = -1; DOS then picked its own crown — sometimes the very nation
@@ -998,7 +998,7 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    */
   ctx->col1->head.crown_nation_id = (int16_t)crown_fold;
   /*
-   * bugs.md #229: DOS 1a26 zeroes the bell pool (`*(pool+0xc)=0`) — the FF
+   * port_bugs.md #229: DOS 1a26 zeroes the bell pool (`*(pool+0xc)=0`) — the FF
    * election in progress is cancelled and bells start accruing toward the
    * foreign intervention instead.
    */
@@ -1152,7 +1152,7 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    * signing animation (DECOIND.PIK + DEC-UPP/LOW/SQIG.SS) is core/declaration.c.
    * DECLARAT.PIK is an unused leftover — no DOS executable references it.
    */
-  /* bugs.md #239: no "United Colonies" rename — DOS 160a is only the signing
+  /* port_bugs.md #239: no "United Colonies" rename — DOS 160a is only the signing
    * cinematic and never touches country_name. Under the WoI the player
    * faction reads "Rebel"/"Rebels" (@MISC 69/86) via reports_nation_*_woi. */
   if (ctx->status && ctx->status_size) {
@@ -1185,7 +1185,7 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
       NULL,
       letter
     );
-    /* bugs.md #236: @HOWTOWIN does NOT fire at the declaration. DOS shows it
+    /* port_bugs.md #236: @HOWTOWIN does NOT fire at the declaration. DOS shows it
      * once at the first colony the rebel recaptures with the REF present
      * (5fef capture tail, DS:0x5386 bit0 latch) — see
      * units_try_capture_foreign_colony. */
@@ -1239,7 +1239,7 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
  */
 static void ai_king_show_declare_choice(ColonizeTurnContext* ctx, int human, int sol) {
   if (ai_king_human_popups(ctx)) {
-    /* bugs.md #235: %STRING0 is the Crown nation ("England"), never the
+    /* port_bugs.md #235: %STRING0 is the Crown nation ("England"), never the
      * player's new-world country_name ("New England"). NAMES.TXT @COUNTRY. */
     const char* motherland =
       (human >= 0 && human <= 3) ? reports_nation_country_name(human) : "";

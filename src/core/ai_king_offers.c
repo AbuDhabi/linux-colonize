@@ -67,7 +67,7 @@ void ai_king_merc_payload_parts(int payload, int* out_hx, int* out_hy, int* out_
  * 10f0's `param_1` is exactly the paid flag. Ported 2026-09-10 (audit D6):
  * this used to be a second implementation that spawned bare "Regular"/
  * "Dragoon"/"Artillery" at (hx, hy+1) with no terrain test at all — the
- * water-spawn class bugs.md #255 fixed for 06a6 — and skipped the colony
+ * water-spawn class port_bugs.md #255 fixed for 06a6 — and skipped the colony
  * roulette, the Man-O-War transport and the FUN_43f7_0082 type map (which
  * for a rebel human at war yields Cont. Army / Cont. Cav., not colonial
  * Regulars). It now hands 10f0 the mercenary counts DOS keeps at DS:0x9e46
@@ -226,7 +226,7 @@ void ai_king_merc_offer(ColonizeTurnContext* ctx) {
   }
   int hx = 0;
   int hy = 0;
-  /* bugs.md #878g: FUN_43f7_2022's merc body has NO colony pick — the
+  /* port_bugs.md #878g: FUN_43f7_2022's merc body has NO colony pick — the
    * landing colony is chosen by 10f0's own roulette on accept. Keep the
    * weakest-port probe only to fill the port-side hx/hy payload; a failure
    * must not abort the offer after the draws have already been burnt. */
@@ -380,7 +380,7 @@ static int ai_king_frigate_spawn(ColonizeTurnContext* ctx, int nation) {
    * `< 3 hulls` fast crossing for the Crown's gift Frigate.
    */
   /* The x the DOS site pushes is the nation record's +0x32 landfall column
-   * (viceroy_unpacked.asm:93551); bugs.md #1019. */
+   * (viceroy_unpacked.asm:93551); port_bugs.md #1019. */
   const int land_x = (ctx->col1_ok && ctx->col1 && nation >= 0 &&
                       nation < (int)COLONIZE_COL1_NATION_COUNT)
                        ? (int)ctx->col1->nation[nation].return_from_europe_x

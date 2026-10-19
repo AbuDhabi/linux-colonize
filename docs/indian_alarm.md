@@ -17,13 +17,13 @@ bit both ways; landing on exactly 100 while at PEACE rolls
 holds in the nation (@INDIANBURN). Decreases are never scaled.
 
 Map-gen seeds the pair at `rand(0,14) + (human ? difficulty*2 : 0)`
-(`FUN_6a09_0006`, bugs.md #1001). First contact clamps it down to 20.
+(`FUN_6a09_0006`, port_bugs.md #1001). First contact clamps it down to 20.
 
 Raisers, all verified against the decomp 2026-09-30:
 
 | Event | DOS | Delta |
 |---|---|---|
-| Seat a colonist on tribal land | `FUN_0000_6582` | `difficulty + 5`, x2 within village distance 3, **+base again** within 2, x2 on a prime-resource tile. Once per plot (bugs.md #1002) |
+| Seat a colonist on tribal land | `FUN_0000_6582` | `difficulty + 5`, x2 within village distance 3, **+base again** within 2, x2 on a prime-resource tile. Once per plot (port_bugs.md #1002) |
 | Pioneer clear / plow / road on tribal land | `thunk_FUN_1000_96aa` (orders dispatch cases 0xb/0xc) | `(human ? difficulty : 0) + 3`, x2 within 3, +base again within 2; **Peter Minuit (FF 2) exempts entirely**; reason code 1 |
 | Attack a native unit | `FUN_465b_0000` | `difficulty + 5`, x2 on a village tile, **x6** on a capital; also `attacks++` on that village's word |
 | Per-turn encroachment | `FUN_4d56_152e` via `thunk_FUN_1000_a5d0` | +1 per -8 of threat accumulated into `euro_relation_accum` |
@@ -44,10 +44,10 @@ Coolers:
 | Mission goodwill, per mission village per turn | `FUN_4d56_152e` | `(jesuit ? 4 : 1) << capital`, x2 Las Casas, /2 Sepulveda into the purse; **-1 per +8**. Stacked Jesuit missions outrun almost any raiser |
 | Natural cooling roll | `FUN_4d56_152e` | `quartile^2 + 1` draws of `rand(0, 12 - quartile^2)`, each zero = +1 goodwill. ~1/13 per village/turn below alarm 25, ~2.5 at 75+ — **high alarm decays fast, low alarm barely moves** |
 | Concede a goods demand | five `FUN_OVL16_L0040__003b*` arms | `-(price[cargo] * qty * 4) / 100`, proportional to what you hand over |
-| ~~Pay a gold demand~~ | — | **MISATTRIBUTED, corrected 2026-09-30 (bugs.md #1007):** `thunk_FUN_1000_a8b8` (`viceroy_overlays.c:84426-84726`) is the OVERLAY COPY of `FUN_5fef_0f14`, the colony-raid loot resolver — same `rand(0,0x29)` building pick, same `0x8542` colony record, same kind-1..4 arms with `0xfffc/0xfff4/0xfff0/0xfff8`, same `(tribe*9+euro)*2+0x54f6 = 0` tail. So this row duplicated the raid-tail row below and there is **no DOS gold-demand payoff body**. The port's mid-band payoff is a pure stand-in — see the row below |
+| ~~Pay a gold demand~~ | — | **MISATTRIBUTED, corrected 2026-09-30 (port_bugs.md #1007):** `thunk_FUN_1000_a8b8` (`viceroy_overlays.c:84426-84726`) is the OVERLAY COPY of `FUN_5fef_0f14`, the colony-raid loot resolver — same `rand(0,0x29)` building pick, same `0x8542` colony record, same kind-1..4 arms with `0xfffc/0xfff4/0xfff0/0xfff8`, same `(tribe*9+euro)*2+0x54f6 = 0` tail. So this row duplicated the raid-tail row below and there is **no DOS gold-demand payoff body**. The port's mid-band payoff is a pure stand-in — see the row below |
 | **Buy** the plot instead of taking it | `FUN_0000_6582` non-human arm | 0 — no charge at all |
-| Gift of gold (022e auto-gift only) | **port stand-in, NO DOS BODY** | -2 (10 gold) / -3 (20 gold), through the same `ai_contact_pair_cool` as the demand arms (bugs.md #1007). The cited `FUN_5bfb_102a` (`viceroy_unpacked.c:97105-97125`) is a plural/singular TEXT FORMATTER with no gold or alarm arithmetic — citation dropped. `@ACTIONS` has no gift row and nothing ever enqueued `AI_CONTACT_CHOICE_GIFT`, so the **player-driven** gift action (its amount CHOICE, its three typed English labels and the -5/-1 Small band) was invented and dead, and was deleted 2026-10-01; what remains is the Indian-initiated `FUN_5bfb_022e` visit arm reached through `ai_contact_gift_or_demand` (bugs.md #1006) |
-| Concede a tools / gold demand | **port stand-in, NO DOS BODY** | flat -3, now spent through `ai_contact_pair_cool` -> `ai_contact_alarm_delta_00f2` (so it clears the attack-confirmed bit, clears the war bit below 0x4b, and runs the 5-point tier clamp) and writing **no** village word: DOS's coolers either zero ONE village's whole word (the acting Brave's home, which these arms never hold) or spend through 0d6c, and no DOS site decays every village of a nation. The **amount** is still invented — there is no DOS demand-payoff body at all (bugs.md #1007) |
+| Gift of gold (022e auto-gift only) | **port stand-in, NO DOS BODY** | -2 (10 gold) / -3 (20 gold), through the same `ai_contact_pair_cool` as the demand arms (port_bugs.md #1007). The cited `FUN_5bfb_102a` (`viceroy_unpacked.c:97105-97125`) is a plural/singular TEXT FORMATTER with no gold or alarm arithmetic — citation dropped. `@ACTIONS` has no gift row and nothing ever enqueued `AI_CONTACT_CHOICE_GIFT`, so the **player-driven** gift action (its amount CHOICE, its three typed English labels and the -5/-1 Small band) was invented and dead, and was deleted 2026-10-01; what remains is the Indian-initiated `FUN_5bfb_022e` visit arm reached through `ai_contact_gift_or_demand` (port_bugs.md #1006) |
+| Concede a tools / gold demand | **port stand-in, NO DOS BODY** | flat -3, now spent through `ai_contact_pair_cool` -> `ai_contact_alarm_delta_00f2` (so it clears the attack-confirmed bit, clears the war bit below 0x4b, and runs the 5-point tier clamp) and writing **no** village word: DOS's coolers either zero ONE village's whole word (the acting Brave's home, which these arms never hold) or spend through 0d6c, and no DOS site decays every village of a nation. The **amount** is still invented — there is no DOS demand-payoff body at all (port_bugs.md #1007) |
 | Any resolved native-vs-Euro land fight, or a raid | `FUN_5fef_1b0e` / `FUN_5fef_0f14` | that village's whole word -> 0 |
 | Raze their capital | `FUN_5fef_1b0e` | alarm clamped down to 15; every village word of the nation zeroed |
 | Elect Pocahontas | FF 0x10 | alarm -> 0 with every tribe, and all future increases halved |
@@ -68,9 +68,9 @@ Until 2026-09-30 the port coupled the layers: `ai_contact_raid_gate_target`
 took `max(alarm_by_player[e], worst village friction of the nation)`, excused
 mission villages below friction 80, and handed that one scalar to every Brave —
 so a single angry village licensed ambushes by Braves homed in calm ones
-(bugs.md #1003, a real campaign4 case: Arawak nation alarm 0, one un-missioned
+(port_bugs.md #1003, a real campaign4 case: Arawak nation alarm 0, one un-missioned
 village at friction 83, the attacking Braves all homed in the player's own
-mission villages). The whole gate went with the raid pass in bugs.md #1093
+mission villages). The whole gate went with the raid pass in port_bugs.md #1093
 (below).
 
 The village word still matters, and diverges sharply from the nation number,
@@ -84,7 +84,7 @@ scorer is **geometric, not topological** — `map_dos_dist < 7`, no pathfinding
 and no landmass-shape term — so a village an impassable walk away still accrues
 from colonies that are close as the crow flies.
 
-**Deleted 2026-10-18 (bugs.md #1093): the post-pulse raid pass
+**Deleted 2026-10-18 (port_bugs.md #1093): the post-pulse raid pass
 `ai_contact_indian_raids`.** It ran after the ported 021a/465b pulse with
 invented nation-scalar bands (>= 40 raid target, >= 55 adjacent ambush with
 its own @INDIANWIN chrome, >= 70 march on a colony, >= 80 "hot"), an invented
@@ -109,11 +109,11 @@ off another village's grudge with nothing ever discharging it (#1003).
 `ai_contact_gift_or_demand`, the village-menu demand band in
 `ai_contact_actions.c`) now read `ai_diplo_indian_alarm` alone, which is what
 DOS's `FUN_4d56_4528` gates on; one sore village no longer refuses gifts and
-demands nation-wide (bugs.md #1005). (b) First contact no longer zeroes
+demands nation-wide (port_bugs.md #1005). (b) First contact no longer zeroes
 `friction`/`attacks` on every village of the nation — DOS's contact arm
 (`FUN_5bfb_022e` raw 96620-96636) only ORs the MET bit and clamps alarm to 20
 and writes no `0x54f6` word at all, so a pre-contact grudge survives the
-welcome (bugs.md #1008).
+welcome (port_bugs.md #1008).
 
 **The `FUN_4cc6_00f2` escalation tail now fires from every raiser
 (2026-10-01).** The port still splits 00f2 into
@@ -127,7 +127,7 @@ a `ColonizeWorld` but no turn context — the land-work bill
 were calling the bare half writer, so encroachment could pin a pair at alarm
 100 forever and never burn a mission; DOS has no half writer
 (`FUN_281f_0d6c` is a bare thunk to the whole of 00f2) and rolls on every
-charge that lands on 100 (bugs.md #1004). `ColonizeWorld` gained
+charge that lands on 100 (port_bugs.md #1004). `ColonizeWorld` gained
 `ai_popups` / `messages` for this; a `world_make` view leaves them NULL, which
 means mechanics without the dialog. The roll is also skipped outright when the
 world or context carries no RNG stream — `dos_rng_range(NULL)` answers its low
@@ -414,7 +414,7 @@ Ported as `ai_contact_raid_alarm_tail` (`ai_contact_raid.c`), called from
 `ai_contact_colony_raid_repelled_w` immediately before the DS:0x54f6 clear, as
 DOS orders them. The old raid pulse's *positive* fandom bump
 (`kind_delta` +4/+12/+16/+8 via `ai_contact_alarm_bump_amount`) is retired
-under the same rule as the three fandom alarm drips (bugs.md #289): DOS grows
+under the same rule as the three fandom alarm drips (port_bugs.md #289): DOS grows
 Indian alarm only through the `FUN_4d56_152e` accumulator.
 
 **`local_a6` alarm vent — ported 2026-09-08** (raw 101043-101196), applied as
@@ -435,7 +435,7 @@ The capital arm's gate is `local_c != 0 && local_ce != 0` — destroyed **and**
 capital — so a razed NON-capital settlement takes no alarm or relation delta
 at all: DOS falls straight through to `LAB_5fef_362a`. The port's uncited
 `relation_delta(..., -5)` on that outcome (alarm +5) was a copy of a
-neighbouring magnitude and is deleted (bugs.md #1010).
+neighbouring magnitude and is deleted (port_bugs.md #1010).
 
 Note the polarity of the human term: a **higher** difficulty gives back
 *less* alarm relief.
@@ -464,7 +464,7 @@ Used by contact / mission / raid gates ([indian_contact.md](../original_sources_
 
 | Band | Typical use |
 |------|-------------|
-| **&lt; 40** | Cool: gift / teach (no friction decay: the port's old meet-pulse `friction--` had no DOS writer, deleted bugs.md #1106) |
+| **&lt; 40** | Cool: gift / teach (no friction decay: the port's old meet-pulse `friction--` had no DOS writer, deleted port_bugs.md #1106) |
 | **40–54** | Mid: demand/payoff; hard-bargain trade (~45–49); teach refused |
 | **≥ 55** | Refuse trade / gifts / convert |
 | **≥ 80** | (Mission burn `FUN_4cc6_0000` is NOT this band: it needs alarm == 100 AND the at-peace bit `0a38 & 0x40`, then `rng(0,10) <= difficulty+1`, raw 80900-80912) |
@@ -477,16 +477,16 @@ First-contact **reject** floors alarm/friction into the **≥80** band
 
 | Driver | Effect |
 |--------|--------|
-| Encroachment | **RETIRED 2026-09-03** (bugs.md "alarm rises incredibly fast"). The former fandom +2/turn unit/colony bump was not DOS; DOS grows alarm only via the `152e` threat accumulator (colonies within distance 7 + military ring → `euro_relation_accum`, −8 crossing = alarm +1). The friction ±1/turn relation-tick band drift retired with it. |
+| Encroachment | **RETIRED 2026-09-03** (port_bugs.md "alarm rises incredibly fast"). The former fandom +2/turn unit/colony bump was not DOS; DOS grows alarm only via the `152e` threat accumulator (colonies within distance 7 + military ring → `euro_relation_accum`, −8 crossing = alarm +1). The friction ±1/turn relation-tick band drift retired with it. |
 | Units at sea | **Never counted** (verified 2026-09-04). `FUN_4cc6_03f8`'s 20-tile threat ring skips a tile when `FUN_281f_0768` → `FUN_13e4_0074` says terrain class `0x19`/`0x1a` (water), and its stack walk ignores unit types `0xd..0x12` (ships). So combat units riding a ship raise no alarm; `@MADATSHIPS` / `@DONTKNOWSHIPS` are refusal chrome with no alarm bump. `ai_indian_village_threat` already matched (`map_tile_is_water`, `units_is_sea`, and `units_is_on_map` excluding aboard passengers). |
 | French (Euro nation 1) | Half-rate bumps; +1 auto-trade reach |
 | Pocahontas | Half-rate bumps; elect zeros this nation's tribe friction/attacks + `alarm_by_player` |
-| Missions | Establish (`a5dc`) has no alarm gate; alarm only picks the quartile of the `{-25,-15,-10,-5}` delta and the `@MISSION0..3` variant. Burn at alarm 100 + peace bit (see band table). Audit 2026-09-22: bugs.md #557 |
+| Missions | Establish (`a5dc`) has no alarm gate; alarm only picks the quartile of the `{-25,-15,-10,-5}` delta and the `@MISSION0..3` variant. Burn at alarm 100 + peace bit (see band table). Audit 2026-09-22: port_bugs.md #557 |
 | Difficulty prelude | **RETIRED 2026-09-09** (smell #72): the `2+(4-diff)` chance / `5+(4-diff)` bump table was invented and ran off indian record +6, a byte no DOS export touches. `ai_contact_indian_prelude` now only clamps. The difficulty terms that *are* real: `FUN_465b_0000` trespass (`difficulty+5`), `FUN_0000_6582` land work (`difficulty+5`), WoI defect roll `rng(0,(5-difficulty)*2)==0`, map-gen seed `rand(0,14)+difficulty*2` — [difficulty.md](difficulty.md) §Indians |
 
 `@ATTITUDE` labels: Content, Uneasy, Restless, Angry, War (+ `@ATTITUDINAL`
 modifiers Extremely/Very/Rather/Somewhat/Slightly). **Nothing in the port reads
-either catalog** (corrected 2026-09-30, bugs.md #1009): the F9 Indian Adviser
+either catalog** (corrected 2026-09-30, port_bugs.md #1009): the F9 Indian Adviser
 prints the `@LEVELS` tech word and picks the chief portrait `113 + alarm
 quartile` (`reports_indian_build_rows`, DOS-cited `3f41:0522..05d2`), and no
 other screen turns alarm into words. The earlier claim of a "rough
@@ -507,4 +507,4 @@ two-line thunk with no NAMES.TXT connection. So either the display code was cut
 before release, or its base address is computed and never appears as a literal.
 Next step is a live DOSBox-X watchpoint on `DS:0x9348-0x935b`, which is why the
 row now lives in [known_divergences.md](known_divergences.md) instead of
-bugs.md. Do not invent a threshold table.
+port_bugs.md. Do not invent a threshold table.

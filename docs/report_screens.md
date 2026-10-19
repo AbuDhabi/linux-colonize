@@ -124,7 +124,7 @@ reports plumb page state through `reports_render_w()` and the OK hit-test.
   vanishes under a later one's background-colored padding.
 - FF portraits draw from CC-xx.SS sprite anchors
   (`k_ff_portrait_draw_order[]`); a partial 10-of-25 coordinate table was
-  removed (bugs.md Revere/Drake) — do not reintroduce one.
+  removed (port_bugs.md Revere/Drake) — do not reintroduce one.
 
 ## `render_diff.sh` mismatch count is noisy for text
 
@@ -178,7 +178,7 @@ their own row above the ship's. Body font FONTTINY.
 off `naval.png` while reports.md pointed F7 at F6's functions; the real pair
 is `FUN_3f41_20b4` (chrome) + `FUN_3f41_220c` (body). The row geometry
 survived the check unchanged, but the row list, the row labels and the cargo
-icon's x/pitch did not — bugs.md #973. Cargo icons start at x=88, pitch 12.
+icon's x/pitch did not — port_bugs.md #973. Cargo icons start at x=88, pitch 12.
 Rows are unit-array order (ships always, other units only on an Ocean/Sea
 Lane tile); a passenger is not pinned above its ship. What remains is
 [known_divergences.md](known_divergences.md) #974, the Europe-lane rows.

@@ -58,7 +58,7 @@ void units_try_capture_foreign_colony_at(
   int cy
 ) {
   /* No world reaches this body (ai_brave / combat-resolve callers): the
-   * injected g_units_ff_col1 turn context, mutable view (bugs.md #1112). */
+   * injected g_units_ff_col1 turn context, mutable view (port_bugs.md #1112). */
   ColonizeCol1Save* const col1 = units_world_col1(NULL);
   ColonizeUnit* u = units_get(pool, unit_id);
   if (!u || !colonies || units_is_sea(pool, unit_id)) {
@@ -87,7 +87,7 @@ void units_try_capture_foreign_colony_at(
     return;
   }
   /*
-   * bugs.md #281: Indians never conquer — no "march into" @CAPTURED, no
+   * port_bugs.md #281: Indians never conquer — no "march into" @CAPTURED, no
    * ownership flip. DOS (FUN_5fef land-combat colony arm, ~91576): an
    * Indian winner kills ONE colonist while population > 1; only when the
    * LAST colonist falls is the colony burned to the ground
@@ -251,8 +251,8 @@ void units_try_capture_foreign_colony_at(
   /* DOS 5fef capture tail (raw 100913-100920): @HOWTOWIN "glorious victory
    * on the road to freedom" fires ONCE, on the first colony the human
    * recaptures after declaring — gate is `0x5382 & 1` (woi) only, not
-   * ref_present (bugs.md #662) — latch DS:0x5386 bit0 (tut2.howtowin).
-   * bugs.md #236: it does NOT fire at the declaration. */
+   * ref_present (port_bugs.md #662) — latch DS:0x5386 bit0 (tut2.howtowin).
+   * port_bugs.md #236: it does NOT fire at the declaration. */
   if (col1 && col1->head.game_options.woi &&
       u->nation_id == g_units_combat_human_nation &&
       !col1->head.tut2.howtowin) {
@@ -326,7 +326,7 @@ void units_seize_noncombat_at(
      *    here", so the skip stands.)
      *
      *  - Armed colonist BODIES. `attack == 0` is true for a Colonists-type
-     *    unit carrying muskets (bugs.md: how a colony-armed soldier is stored
+     *    unit carrying muskets (port_bugs.md: how a colony-armed soldier is stored
      *    here), which is DOS type 1 "Soldiers", attack 2. Ask the body
      *    question instead. In practice this is belt-and-braces: all three
      *    callers reach this only after units_best_defender_at returned < 0,
@@ -361,11 +361,11 @@ ColonizeEnterReason units_enter_probe_w(
     return g_units_last_enter_reason;
   }
   /* DOS `0x0d <= type <= 0x12` (the @UNIT ship band) — needed by the rim
-   * test below, before the rest of the type reads (bugs.md #717). */
+   * test below, before the rest of the type reads (port_bugs.md #717). */
   const bool sea_probe =
     pool->types[type_index].domain == COLONIZE_UNIT_DOMAIN_SEA;
   /*
-   * bugs.md #429: DOS's in-bounds predicate is FUN_137f_000a
+   * port_bugs.md #429: DOS's in-bounds predicate is FUN_137f_000a
    * (viceroy_unpacked.c:6519-6531) — `x < 1 || y < 1 || map_w-1 <= x ||
    * map_h-1 <= y` is OUT. The playable board is the interior 1..w-2 / 1..h-2;
    * the 1-tile rim exists only as map data. This probe tested the raw array
@@ -384,7 +384,7 @@ ColonizeEnterReason units_enter_probe_w(
   if (x < 0 || y < 0 || x >= map->width || y >= map->height ||
       (rim_meaningful && !map_coords_inset(map, x, y))) {
     /*
-     * DOS-LITERAL FUN_4720_015c head (raw 75960-75977, bugs.md #717). The two
+     * DOS-LITERAL FUN_4720_015c head (raw 75960-75977, port_bugs.md #717). The two
      * axes are NOT the same refusal:
      *   if (y < 1) return 0;                       // silent, no reason word
      *   if (map_h - 1 <= y) return 0;              // silent
@@ -490,7 +490,7 @@ ColonizeEnterReason units_enter_probe_w(
   }
 
   /*
-   * bugs.md #553: a ship stepping into its OWN colony docks. DOS
+   * port_bugs.md #553: a ship stepping into its OWN colony docks. DOS
    * FUN_465b_0000 reads the destination's settlement owner (FUN_281f_06be,
    * raw 75467) and lets only the stack head's nation (FUN_281f_07e0) override
    * it; every DOS path that brings a foreign unit onto a colony tile is an
@@ -508,7 +508,7 @@ ColonizeEnterReason units_enter_probe_w(
    * A ship stepping onto a native village tile is dispatched to
    * FUN_4d56_4528 at 465b raw 75484-75492 — BEFORE 465b ever looks at who
    * stands on the tile — so the Brave that normally sits inside a dwelling
-   * must not turn the step into a silent domain refusal (bugs.md: galleon
+   * must not turn the step into a silent domain refusal (port_bugs.md: galleon
    * cannot trade with an occupied village).
    */
   bool village_ship = false;
@@ -560,7 +560,7 @@ ColonizeEnterReason units_enter_probe_w(
         g_units_last_enter_reason = COLONIZE_ENTER_BOUNCE_PEACE;
       } else if (mover && !units_is_combat_role(pool, mover)) {
         /*
-         * bugs.md: unarmed transports (Caravel/Merchantman/Galleon, attack=0
+         * port_bugs.md: unarmed transports (Caravel/Merchantman/Galleon, attack=0
          * in @UNIT) must not be able to initiate ship combat — GAME.TXT:
          * "Only Privateers and Frigates can attack enemy ships." Bounce
          * instead of fighting; the foreign ship's own attack stat is
@@ -577,7 +577,7 @@ ColonizeEnterReason units_enter_probe_w(
        * FUN_4720_015c raw 75989-76032: reason 9 (@LANDFIRST, 0x1429) is only
        * reachable for a land-type mover standing on water (handled above).
        * A ship (type 0xd..0x12) bumping foreign-held land falls through with
-       * no reason word: silent refusal (bugs.md #486).
+       * no reason word: silent refusal (port_bugs.md #486).
        */
       g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED_DOMAIN;
       return g_units_last_enter_reason;
@@ -617,7 +617,7 @@ ColonizeEnterReason units_enter_probe_w(
      * lane from ordinary ocean is always legal — the port used to test the
      * destination alone, which blocked every first step onto the lane and
      * also made units_set_goto refuse a sea-lane destination outright
-     * (bugs.md: "I can't move a ship onto a sea lane either way").
+     * (port_bugs.md: "I can't move a ship onto a sea lane either way").
      */
     if (mover && map_tile_is_high_seas(map, x, y) &&
         map_tile_is_high_seas(map, mover->x, mover->y) && x > mover->x &&
@@ -706,7 +706,7 @@ ColonizeEnterReason units_enter_probe_w(
     return g_units_last_enter_reason;
   }
   /*
-   * DOS-LITERAL FUN_465b_0000 raw 75510-75516 (bugs.md #720). The
+   * DOS-LITERAL FUN_465b_0000 raw 75510-75516 (port_bugs.md #720). The
    * destination's owner (`local_4`) is read from the SETTLEMENT first —
    * FUN_281f_06be, raw 75467 — and only overwritten by an occupying unit's
    * nation when one stands there (FUN_281f_07e0), so an UNDEFENDED foreign
@@ -782,7 +782,7 @@ void units_mp_charge(const ColonizeUnitPool* pool, ColonizeUnit* u, int cost) {
   if (!u || cost <= 0) {
     return;
   }
-  /* One rule for both storages (bugs.md #1097): FUN_465b_0000 raw 75640
+  /* One rule for both storages (port_bugs.md #1097): FUN_465b_0000 raw 75640
    * `ADD [unit+0x3149], cost` adds the full step cost to the spent byte even
    * past the allotment (a won overspend roll), so the save shows spent > max
    * (independence-seed-100 000001: Dragoons at spent 15/18; seed-100 TURN2
@@ -819,7 +819,7 @@ void units_mp_exhaust(const ColonizeUnitPool* pool, ColonizeUnit* u) {
 /*
  * Public spelling of the same "FUN_281f_0934: spend the whole allotment" act,
  * for callers outside units.c (game_dialogs.c's respect-their-wishes arm,
- * bugs.md #616/#626) that used to re-derive the nation>=4 inversion inline.
+ * port_bugs.md #616/#626) that used to re-derive the nation>=4 inversion inline.
  */
 void units_mp_exhaust_unit(ColonizeUnitPool* pool, int unit_id) {
   units_mp_exhaust(pool, units_get(pool, unit_id));
@@ -907,7 +907,7 @@ static bool units_is_standing_soldier(const ColonizeUnitPool* pool, const Coloni
     return true;
   }
   const ColonizeUnitType* t = units_type(pool, u->type_index);
-  /* bugs.md #581: the @UNIT row class alone. The muskets test above already
+  /* port_bugs.md #581: the @UNIT row class alone. The muskets test above already
    * covers an armed Colonists-type body; the old display-name arm resolved to
    * UNKNOWN in production (no name resolver is installed outside tests). */
   return units_kind_is_military(units_type_kind(t));
@@ -1038,7 +1038,7 @@ bool units_revere_defend_colony_tile(
   int dest_y,
   ColonizeDosRng* rng
 ) {
-  /* No world reaches this body: the injected turn context (bugs.md #1112). */
+  /* No world reaches this body: the injected turn context (port_bugs.md #1112). */
   ColonizeCol1Save* const col1 = units_world_col1(NULL);
   if (!pool || !colonies || !col1) {
     return true;

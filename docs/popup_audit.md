@@ -1,7 +1,7 @@
 # Popup authenticity audit
 
 STATUS: audit dump, not a spec. Most flagged rows are resolved in place
-(2026-09-28 sweep: bugs.md #984-990, all Fixed) or explicitly Demoted/PARKED
+(2026-09-28 sweep: port_bugs.md #984-990, all Fixed) or explicitly Demoted/PARKED
 by design. The last open item, the invented "Village-approach warning CHOICE",
 is gone from `src/` (no trace of its bodies as of 2026-10-18; the village arm is
 the `@ACTIONS` dispatch, manual_gap.md "Land / naval attack"). Nothing open.
@@ -27,7 +27,7 @@ choices from data where a real `@SECTION` exists.
 | Quit / title exit | `game_enqueue_yes_no` | `@DOS` | Authentic | — |
 | Retire | same | `@RETIRE` | Authentic | — |
 | Disband land/ship | same | `@SUREDISBAND` / `@DISBANDSHIP` | Authentic | `@DISBANDSHIP` = cargo-blocked error OK; confirm always `@SUREDISBAND` |
-| Overboard | `game_request_overboard_confirm` | `@OVERBOARD` | Authentic | Hold picker, not a Yes/No (bugs.md #984) |
+| Overboard | `game_request_overboard_confirm` | `@OVERBOARD` | Authentic | Hold picker, not a Yes/No (port_bugs.md #984) |
 | Trade delete | same | `@SUREDELETE` | Authentic | — |
 | Find colony / trade select | `cheat_list` + `popup_msg_fill` | `@FINDCITY` / `@TRADE` | Authentic | — |
 | Howmuch | `howmuch_dialog` | `@HOWMUCH*` | Authentic | — |
@@ -134,13 +134,13 @@ section. 152 popup sites; all but the rows below resolve to a real `@SECTION`.
 
 | Site | Verdict | Row | Fixed |
 |------|---------|-----|-------|
-| Throw Cargo Overboard (`game_dialogs.c`) | **Invented** labels + wrong shape (`@OVERBOARD` is a cargo picker) | bugs.md #984 | Rebuilt as the @TRADEWICH-shaped hold picker (`AI_POPUP_TAG_OVERBOARD_WHICH`); typed labels gone |
-| Foreign-colony attack confirm (`game_loop_orders.c`) | **Invented** body + labels | bugs.md #985 | Deleted — DOS's only gate is FUN_465b_0000 (@HAVETREATY / open hostilities), which already runs on that move; tag 63 retired |
-| Privateer prize notice (`units_combat_resolve.c`) | **Invented** (self-declared port-authored) | bugs.md #986 | Popup dropped; the Royal-Navy arm keeps `@SEIZURESEA` |
-| Raid ship-sunk, no-port arm (`units_combat.c`) | **Invented** wording vs `@SHIPSUNK` | bugs.md #987 | Renders `@SHIPSUNK` with the loser tokens and empty sinker pair; the coastal-fort arm's typed "shore"/"batteries" became the firing nation + empty hull |
-| Diplo ally-pick body (`ai_diplo.c`) | **Invented** body; Accept/Refuse labels PARKED | bugs.md #988 | Body blank until the section/numeric id is found; labels unchanged (parked apply stand-in) |
-| 8 × typed `popup_msg_fill` fallback bodies | Rule violation, dead text | bugs.md #989 | All `""` now, including the `europe->status`-as-fallback chain in `turn_production.c` (`turn_emit_built_chrome` lost the parameter) |
-| Chrome headings/titles | **Invented** although LABELS.TXT rows exist | bugs.md #990 | `@CMISC[1]` "Units Present" for the stack title; `@CTITLE[4]/[5]/[6]` for the build picker heading, clear row and More row; "Leave as" heading and both cheat prompts now draw nothing |
+| Throw Cargo Overboard (`game_dialogs.c`) | **Invented** labels + wrong shape (`@OVERBOARD` is a cargo picker) | port_bugs.md #984 | Rebuilt as the @TRADEWICH-shaped hold picker (`AI_POPUP_TAG_OVERBOARD_WHICH`); typed labels gone |
+| Foreign-colony attack confirm (`game_loop_orders.c`) | **Invented** body + labels | port_bugs.md #985 | Deleted — DOS's only gate is FUN_465b_0000 (@HAVETREATY / open hostilities), which already runs on that move; tag 63 retired |
+| Privateer prize notice (`units_combat_resolve.c`) | **Invented** (self-declared port-authored) | port_bugs.md #986 | Popup dropped; the Royal-Navy arm keeps `@SEIZURESEA` |
+| Raid ship-sunk, no-port arm (`units_combat.c`) | **Invented** wording vs `@SHIPSUNK` | port_bugs.md #987 | Renders `@SHIPSUNK` with the loser tokens and empty sinker pair; the coastal-fort arm's typed "shore"/"batteries" became the firing nation + empty hull |
+| Diplo ally-pick body (`ai_diplo.c`) | **Invented** body; Accept/Refuse labels PARKED | port_bugs.md #988 | Body blank until the section/numeric id is found; labels unchanged (parked apply stand-in) |
+| 8 × typed `popup_msg_fill` fallback bodies | Rule violation, dead text | port_bugs.md #989 | All `""` now, including the `europe->status`-as-fallback chain in `turn_production.c` (`turn_emit_built_chrome` lost the parameter) |
+| Chrome headings/titles | **Invented** although LABELS.TXT rows exist | port_bugs.md #990 | `@CMISC[1]` "Units Present" for the stack title; `@CTITLE[4]/[5]/[6]` for the build picker heading, clear row and More row; "Leave as" heading and both cheat prompts now draw nothing |
 
 Residual, deliberately left: `unit_stack.c` annotates a unit aboard a ship
 with "aboard"/"ready" — typed English, but no catalog row carries either word

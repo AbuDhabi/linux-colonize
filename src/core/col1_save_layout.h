@@ -76,7 +76,7 @@ typedef struct ColonizeCol1GameOptions {
   uint16_t ref_present : 1; /* 0x02 — foreign intervention ANNOUNCED
                                (FUN_43f7_1528 raw 74493, the EXE's only
                                writer; never cleared). The port label
-                               `ref_present` is historical — bugs.md #865. */
+                               `ref_present` is historical — port_bugs.md #865. */
   uint16_t woi_crosses_event : 1; /* 0x04 — confirmed 2026-08-18 live DOSBox-X
                                       capture: fires on the "foreign
                                       intervention force, pending enough
@@ -534,13 +534,13 @@ typedef struct ColonizeCol1Nation {
      DOS game it is stack/heap garbage; no traced code ever reads or writes
      it. See docs/archive/mysteries_catalog.md.
 
-     The 2026-08-22 "FF pool stash marker" repurpose was deleted by bugs.md
+     The 2026-08-22 "FF pool stash marker" repurpose was deleted by port_bugs.md
      #933: the FF pool is +0xc itself, so nothing needs a side channel and
      this byte is left alone again. */
   /* +0xc — the live Founding-Father bell POOL. DOS-LITERAL FUN_4345_0a22:
      raw 73341 `+0xc += bells`, raw 73370 `+0xc = 0` on a successful elect;
      FUN_43f7_1a26 raw 74738 zeroes it at the declaration of independence.
-     It is NOT a lifetime total (bugs.md #933). */
+     It is NOT a lifetime total (port_bugs.md #933). */
   uint16_t liberty_bells_pool;
   /* +0xe — bells produced THIS turn. Zeroed before the per-colony loop
      (FUN_3844_00f2 raw 58382); write-only in DOS (no reader). */
@@ -666,7 +666,7 @@ typedef struct ColonizeCol1Nation {
       /* +0x44/+0x45 — FUN_38fd_46d4's expert-recruit LFSR: state stepped by
        * FUN_3f3f_0006 (poly 0x14), salt added before the `& 0x1f`. Seeded
        * RNG(1,0x20) / RNG(0,0x1f) by FUN_38fd_6024. (Port name was the
-       * unused stand-in diplo_flag[0..1] until bugs.md #1058.) */
+       * unused stand-in diplo_flag[0..1] until port_bugs.md #1058.) */
       uint8_t recruit_lfsr;
       uint8_t recruit_salt;
       /* +0x46 — int16 turn stamp written by FUN_479b_076e (found colony),
@@ -675,7 +675,7 @@ typedef struct ColonizeCol1Nation {
       /* +0x48 — DOS: the FUN_4d56_4528 decrementing grace/waiver counter (see
        * the note above). Bumped by colonies_try_complete_unit_construction
        * (FUN_364b_0114 raw 56943-56946: a non-human colony's completed
-       * Artillery project increments it — bugs.md #766); nothing else in
+       * Artillery project increments it — port_bugs.md #766); nothing else in
        * the port writes it, and nothing yet reads it back (4528's own
        * decrementing consumer is unported). The OpenCol "indian hostility
        * sticky" stand-in used to live on this byte and stomped it every
@@ -705,7 +705,7 @@ typedef struct ColonizeCol1TribeState {
    * FUN_4d56_152e right after a founding-colonist assignment succeeds
    * (settlement_record_8d4a.md). Producer is unit DESTROY FUN_1427_0824
    * raw 7796-7799 (Indian unit with a valid home village dies -> home
-   * village flagged), ported in units_despawn (bugs.md #837, 2026-09-23);
+   * village flagged), ported in units_despawn (port_bugs.md #837, 2026-09-23);
    * 152e then issues one replacement Brave armed from tribe stock. (Was
    * misplaced at bit 0x10 under the name needs_colonist, with bit 0x01
    * labelled "artillery" — nothing read either; fixed 2026-08-28.)

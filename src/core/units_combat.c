@@ -166,7 +166,7 @@ int units_best_defender_at(
   }
 
   /*
-   * bugs.md #677 (Colonist audit): DOS FUN_5fef_0000 (OVL17 asm 0x0091-0x0166)
+   * port_bugs.md #677 (Colonist audit): DOS FUN_5fef_0000 (OVL17 asm 0x0091-0x0166)
    * has ONE ranking, not an armed/unarmed two-tier:
    *   score = ((015e(cand, attacker) & 0xff) << 8) - 004a(cand, 0) + 0xff
    * The attack-byte skip (asm 0x0091-0x00b5) runs only when local_6 != 0 =
@@ -267,7 +267,7 @@ int units_best_defender_at(
      *   → score >>= 3, so a gun in the open never outranks the dragoons
      *   standing next to it.
      *
-     * The port had the x2 with no colony gate and no >>3 at all (bugs.md #328
+     * The port had the x2 with no colony gate and no >>3 at all (port_bugs.md #328
      * described both but only the pick-order rewrite landed), which made
      * open-field artillery the pick against Indians by a factor of 16.
      */
@@ -469,14 +469,14 @@ static const char* units_combat_nation_label_form(
   const ColonizeCol1Save* col1, int nation_id, int plural
 ) {
   if (nation_id >= 0 && nation_id <= 3) {
-    /* bugs.md #202 ("Tory Cavalry", not "Royal") / #239 (no "United
+    /* port_bugs.md #202 ("Tory Cavalry", not "Royal") / #239 (no "United
      * Colonies" rename): the two WoI sides read the LABELS @MISC words. */
     if (col1 && col1->head.game_options.woi) {
       return plural ? reports_nation_plural_woi(col1, nation_id)
                     : reports_nation_adjective_woi(col1, nation_id);
     }
     /*
-     * bugs.md ("New Spain Privateer" should be "Spanish Privateer"): DOS
+     * port_bugs.md ("New Spain Privateer" should be "Spanish Privateer"): DOS
      * substitutes the @NATIONALITY adjective here, not the player's
      * @COLONYNAME. country_name is the new-world colony region and belongs
      * in colony/diplomacy text, never on a unit.
@@ -517,7 +517,7 @@ static const char* units_combat_place_label(
       }
     }
   }
-  /* bugs.md: a fight right outside a town is "near <colony>", not "near
+  /* port_bugs.md: a fight right outside a town is "near <colony>", not "near
    * Wilderness" — pick the closest colony within 3 tiles (Chebyshev). */
   if (g_units_combat_colonies) {
     const ColonizeColony* best = NULL;
@@ -731,19 +731,19 @@ void units_combat_notify_colony_burned_foreign(
 }
 
 /*
- * bugs.md: royal (REF) types never change class. "Regulars"/"Cavalry" are the
+ * port_bugs.md: royal (REF) types never change class. "Regulars"/"Cavalry" are the
  * King's units — a Cavalry winner must not promote into the rebel "Cont. Cav."
  * type (that chain ended with defeated Regulars demoting into capturable
  * Colonists), and defeated Regulars are destroyed, not demoted.
  */
-/* bugs.md #581: the class comes from the @UNIT ROW (kind_plus1), never from
+/* port_bugs.md #581: the class comes from the @UNIT ROW (kind_plus1), never from
  * the English name — units_name_kind has no resolver in production, so the
  * name spelling read UNKNOWN and this guard was dead. */
 /* ===================== Combat outcomes: promote/demote/capture, loss resolution, cargo holds, alarm venting (units_promote_prof_label .. units_indian_attack_alarm_vent) ===================== */
 
 
 /*
- * bugs.md #248 — full FUN_5fef_172c + FUN_5fef_16ea port (combat promotion).
+ * port_bugs.md #248 — full FUN_5fef_172c + FUN_5fef_16ea port (combat promotion).
  * Eligibility: winner is an armed colonial soldier/dragoon body (DOS types
  * 1/4; royal Regulars/Cavalry never promote). Ladder (16ea, by @JOB id):
  *   Petty Criminal → Indentured Servant → Free Colonist (job NONE) →
@@ -803,14 +803,14 @@ int units_promote_on_win(
   }
   const int prof = winner->profession;
   /* DOS-LITERAL FUN_5fef_172c raw 100076: the veteran test is `+0x315b ==
-   * 0x15` only. 0x17 is never written to a unit by DOS (bugs.md #503). */
+   * 0x15` only. 0x17 is never written to a unit by DOS (port_bugs.md #503). */
   const int is_veteran = (prof == UNITS_JOB_SOLDIER);
   int next_prof = -2; /* -2 = ineligible; -1 = Continental type promote */
   if (is_veteran) {
     /* 172c raw 100077-100082: veteran promotes only once independence is
      * declared (DS:0x5382 bit 1) and the mobilization flag is set. DOS reads
      * that flag from `nation[*(int*)0x5398]` — the HUMAN player's record
-     * (`head.human_player`), not the winner's own nation (bugs.md #504). */
+     * (`head.human_player`), not the winner's own nation (port_bugs.md #504). */
     const int mob_nation = col1 ? (int)col1->head.human_player : -1;
     if (!col1 || !col1->head.game_options.woi || mob_nation < 0 || mob_nation > 3 ||
         (col1->nation[mob_nation].nation_flags & 0x08u) == 0) {
@@ -830,7 +830,7 @@ int units_promote_on_win(
      * Washington test and, absent Washington, draws FUN_281f_04d4(1, local_6)
      * off the shared stream. Only then does the ladder FUN_5fef_16ea raw
      * 100040-100059 map 0x1b -> 0x1b, so `iVar3 != iVar2` fails and nothing
-     * is promoted. Outcome is a no-op; the RNG draw is not. (bugs.md #598) */
+     * is promoted. Outcome is a no-op; the RNG draw is not. (port_bugs.md #598) */
     next_prof = UNITS_JOB_CONVERT;
   } else {
     return 0; /* experts / everything else: FUN_15eb_0002 returns 1, early out */
@@ -857,7 +857,7 @@ int units_promote_on_win(
      * with a SIGNED span, so a non-positive span still draws off the shared
      * stream and yields <= lo. dos_rng_range() short-circuits `hi < lo` to lo
      * WITHOUT drawing, so spell the DOS formula out here rather than clamp
-     * pool_n to 1 (that clamp was invented — bugs.md #504).
+     * pool_n to 1 (that clamp was invented — port_bugs.md #504).
      * Arg order confirmed against the asm at the FUN_5fef_1b0e call site
      * (viceroy_unpacked.asm 5fef:284e-2856, cdecl last-arg-first: PUSH
      * local_92 = attacker/loser strength, PUSH local_a8 = winner strength,
@@ -885,7 +885,7 @@ int units_promote_on_win(
     /* DOS-LITERAL FUN_5fef_172c raw 100112-100118: before the Continental type
      * swap DOS re-reads the unit's nation nibble and bails when it is > 3 or
      * the slot is not player-controlled (`(n&0xf)*0x34 + 0x543f != 0`) — REF /
-     * AI-run nations keep their Veteran professions (bugs.md #504). */
+     * AI-run nations keep their Veteran professions (port_bugs.md #504). */
     if (winner->nation_id > 3 ||
         (col1 && col1->player[winner->nation_id].control != 0)) {
       return 0;
@@ -918,7 +918,7 @@ int units_promote_on_win(
       tok.string0 = base;
       fb[0] = '\0';
     } else {
-      /* bugs.md #265: DOS 172c fills @VALOR's STRING1/STRING2 with the OLD
+      /* port_bugs.md #265: DOS 172c fills @VALOR's STRING1/STRING2 with the OLD
        * and NEW profession names (FUN_281f_0c40), not unit display names —
        * a dragoon body's display name hides the profession change, so the
        * popup read "our Dragoons ... promoted from Dragoon to Dragoon". */
@@ -1017,7 +1017,7 @@ static int units_demote_combat_type(
     return 0;
   }
   /*
-   * bugs.md: an armed colonist-TYPE unit (muskets on a Colonists/expert body
+   * port_bugs.md: an armed colonist-TYPE unit (muskets on a Colonists/expert body
    * — how a colonist armed in a colony is stored) demotes by shedding
    * equipment, keeping type AND profession: armed+mounted loses the horses
    * (Dragoon→Soldier), armed loses the muskets (Soldier→Colonist). A
@@ -1027,7 +1027,7 @@ static int units_demote_combat_type(
   {
     const ColonizeUnitType* lt0 = units_type(pool, loser->type_index);
     const int table_target = units_combat_demote_type_index(pool, loser);
-    /* bugs.md #247: the equipment-shed demote is for colonist-BODY units
+    /* port_bugs.md #247: the equipment-shed demote is for colonist-BODY units
      * only. A typed military unit with no table target (Regulars, Armed
      * Braves) is DESTROYED — the old unguarded branch stripped a Regular's
      * muskets and popped "Regulars routed, demoted to Regulars". */
@@ -1042,7 +1042,7 @@ static int units_demote_combat_type(
         loser->muskets = 0;
       }
       /* Same DOS write set as the table arm below (raw 99433-99464): type /
-       * equipment only, orders and MP untouched. bugs.md #646. */
+       * equipment only, orders and MP untouched. port_bugs.md #646. */
       if (human_facing) {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
@@ -1080,14 +1080,14 @@ static int units_demote_combat_type(
    * DOS-LITERAL FUN_5fef_0352 raw 99433-99464: the demote arm writes the
    * TYPE byte (`+0x3146`) and nothing else — no `+0x314c` orders write, no
    * `+0x3149` MP write. The port used to clear both, so a Fortified Dragoon
-   * beaten down to Soldiers lost its Fortified order. bugs.md #646.
+   * beaten down to Soldiers lost its Fortified order. port_bugs.md #646.
    */
   if (human_facing) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = units_combat_nation_label(col1, loser->nation_id);
     tok.string1 = old_name;
-    /* bugs.md #247: name the post-demote unit by DISPLAY name so a veteran
+    /* port_bugs.md #247: name the post-demote unit by DISPLAY name so a veteran
      * stripped to a colonist body reads "Veteran Soldiers", not "Colonists". */
     const char* new_disp = units_display_name(pool, loser);
     tok.string2 = new_disp && new_disp[0] ? new_disp
@@ -1105,7 +1105,7 @@ static int units_demote_combat_type(
 }
 
 /*
- * bugs.md: a captured unit must not stay mixed into the enemy stack it was
+ * port_bugs.md: a captured unit must not stay mixed into the enemy stack it was
  * taken from — it changes allegiance AND moves to the captor's tile. The one
  * exception is a colony tile (colony capture keeps everyone put; the colony
  * flip handles them).
@@ -1166,8 +1166,8 @@ static void units_capture_to_winner(
    * DOS-LITERAL FUN_5fef_0352 raw 99393-99399: the capture arm writes the
    * nation nibble (0812/0894/0844 = occupancy remove / set-nation / add) and
    * `+0x314c = 0`. There is NO `+0x3149` MP write, so the port's `moves = 0`
-   * is dropped (bugs.md #646). The step onto the captor's tile is DOS's own
-   * 0844 link (bugs.md #198, user-observed), colony tiles excepted.
+   * is dropped (port_bugs.md #646). The step onto the captor's tile is DOS's own
+   * 0844 link (port_bugs.md #198, user-observed), colony tiles excepted.
    */
 }
 
@@ -1205,7 +1205,7 @@ int units_apply_land_loss_outcome(
   const int win_can_capture = win_euro && units_is_combat_role(pool, win);
   const int loser_euro = lose->nation_id >= 0 && lose->nation_id <= 3;
 
-  /* ===== Native gear arms (bugs.md #645 / #653) ===== */
+  /* ===== Native gear arms (port_bugs.md #645 / #653) ===== */
   g_units_native_gear_armed = 0;
   g_units_native_gear_mounted = 0;
   {
@@ -1213,7 +1213,7 @@ int units_apply_land_loss_outcome(
     const int on_colony = g_units_combat_colonies &&
                           colonies_id_at(g_units_combat_colonies, lose->x, lose->y) >= 0;
     /*
-     * DOS-LITERAL FUN_5fef_0352 raw 99364-99377 (bugs.md #653): a KILLED
+     * DOS-LITERAL FUN_5fef_0352 raw 99364-99377 (port_bugs.md #653): a KILLED
      * Armed / Mtd. Brave hands its gear back to its own tribe. Gate: loser
      * nation nibble > 3 and (`loser+0x3148 & 0x10` — the wander-dest latch —
      * or `FUN_281f_04d4(0,1)`, a coin flip). Record base is `nation * 0x4e +
@@ -1223,7 +1223,7 @@ int units_apply_land_loss_outcome(
      *   type 0x15 / 0x16 -> horse_breeding += 0x19
      */
     /*
-     * bugs.md #835: DOS's only gate is `3 < uVar15` plus the flag/coin term,
+     * port_bugs.md #835: DOS's only gate is `3 < uVar15` plus the flag/coin term,
      * so the draw happens even with no col1 record bound. Evaluate the gate
      * first and apply the record write only when a record exists, otherwise a
      * headless caller silently skips the RNG draw and shifts the stream.
@@ -1242,7 +1242,7 @@ int units_apply_land_loss_outcome(
       }
     }
     /*
-     * DOS-LITERAL FUN_5fef_1b0e raw 100641-100646 (bugs.md #834): when the
+     * DOS-LITERAL FUN_5fef_1b0e raw 100641-100646 (port_bugs.md #834): when the
      * native attacker wins on a tile carrying a colony (`-1 < iVar18`, the
      * 07be colony lookup) DOS sets `local_6 = 1` AND latches
      * `attacker+0x3148 |= 0x10`. That bit is the guaranteed arm of the 0352
@@ -1255,7 +1255,7 @@ int units_apply_land_loss_outcome(
       win->col1_flags15 = (uint8_t)(win->col1_flags15 | 0x10u);
     }
     /*
-     * DOS-LITERAL FUN_5fef_1b0e raw 100730-100744 (bugs.md #645): a native
+     * DOS-LITERAL FUN_5fef_1b0e raw 100730-100744 (port_bugs.md #645): a native
      * winner takes the beaten Euro unit's GEAR as a type STEP, not as a
      * numeric kit transfer. Gate: attacker nation nibble > 3, defender nibble
      * < 4, a real defender existed and the fight is not a colony raid
@@ -1306,7 +1306,7 @@ int units_apply_land_loss_outcome(
   /*
    * DOS-LITERAL FUN_5fef_0352 raw 99352-99362: `local_2a` = FUN_281f_0768 of
    * the WINNER's tile OR'd with the LOSER's tile (ocean / high seas).
-   * Hoisted above the artillery arm 2026-09-23 (bugs.md #756) — it gates both
+   * Hoisted above the artillery arm 2026-09-23 (port_bugs.md #756) — it gates both
    * that arm and the capture arm below.
    */
   const int on_water =
@@ -1325,10 +1325,10 @@ int units_apply_land_loss_outcome(
    * When the gate fails (a hull won, or either combatant stands on ocean /
    * high seas) the gun falls straight through to the plain despawn tail at
    * raw 99711 — destroyed outright, no damage stage, no @ARTILLERY popup.
-   * (bugs.md #756)
+   * (port_bugs.md #756)
    */
   if (lt && combat_type_is_artillery(lt) && !winner_is_hull && !on_water) {
-    /* bugs.md: these are GAME.TXT @ARTILLERY / @ARTILLERY2, not the ship's
+    /* port_bugs.md: these are GAME.TXT @ARTILLERY / @ARTILLERY2, not the ship's
      * @SHIPDAMAGE — the old reuse produced the "Artillery ... Ship returns
      * to for repairs" mashup. */
     PopupMsgTokens tok;
@@ -1338,7 +1338,7 @@ int units_apply_land_loss_outcome(
     if ((lose->col1_flags15 & 0x80u) == 0) {
       /* DOS-LITERAL FUN_5fef_0352 raw 99475-99482: the 0x1b54 arm writes
        * ONLY bit7 and returns — no spent-byte / orders write. The invented
-       * `lose->moves = 0` was removed 2026-09-23 (bugs.md #757). */
+       * `lose->moves = 0` was removed 2026-09-23 (port_bugs.md #757). */
       lose->col1_flags15 |= 0x80u;
       if (human) {
         units_combat_enqueue_tok(
@@ -1371,7 +1371,7 @@ int units_apply_land_loss_outcome(
    * 0x0c Wagon}). Winner must be Euro with attack>0 — natives destroy,
    * never nation-flip.
    *
-   * DOS-LITERAL FUN_5fef_0352 raw 99381-99383 (bugs.md #663): the capture
+   * DOS-LITERAL FUN_5fef_0352 raw 99381-99383 (port_bugs.md #663): the capture
    * flag is cleared again by
    * `if ((0xc < loser type && loser type < 0x13) || local_2a != 0)
    *    bVar12 = false;`
@@ -1380,17 +1380,17 @@ int units_apply_land_loss_outcome(
    * tile OR'd with the LOSER's tile) is set. A disqualified capture falls
    * through to the demote ladder / destroy below.
    */
-  if (lt && lt->name[0] /* bugs.md #678: 0352 raw 99343-99392 tests loser TYPE only, never its nation */ && win_can_capture && !loser_is_hull && !on_water) {
+  if (lt && lt->name[0] /* port_bugs.md #678: 0352 raw 99343-99392 tests loser TYPE only, never its nation */ && win_can_capture && !loser_is_hull && !on_water) {
     const int is_treasure = units_type_is_treasure(lt);
     const int is_wagon = units_type_is_wagon(lt);
     /*
-     * bugs.md: mounted scouts are DESTROYED, never captured — by anyone.
+     * port_bugs.md: mounted scouts are DESTROYED, never captured — by anyone.
      * DOS captures type 0 Colonists only, and an equipped colonist is a
      * different type there; a Colonists-type unit carrying horses or
      * muskets here (seizure, save import) must not slip into the capture
      * branch on its type name.
      *
-     * bugs.md #637: tools too. DOS FUN_5fef_0352 raw 99344-99347 captures
+     * port_bugs.md #637: tools too. DOS FUN_5fef_0352 raw 99344-99347 captures
      * loser types {0 Colonists, 0x0a Treasure, 0x0c Wagon}; type 2 Pioneers
      * is absent there and absent from the demote ladder (raw 99437-99447),
      * so a losing Pioneer is destroyed. That is a TYPE test: the Pioneer is
@@ -1404,7 +1404,7 @@ int units_apply_land_loss_outcome(
       lose->horses <= 0 && lose->muskets <= 0;
     if (is_treasure) {
       /*
-       * DOS-LITERAL FUN_5fef_0352 raw 99392-99413 (bugs.md #660): a beaten
+       * DOS-LITERAL FUN_5fef_0352 raw 99392-99413 (port_bugs.md #660): a beaten
        * Treasure Train CHANGES HANDS like a Wagon — FUN_281f_0812 (unlink),
        * FUN_281f_0894(unit, winner nation) (nation flip), FUN_281f_0844
        * (re-place), `+0x314c = 0` (orders none) — and pushes tag 0x1b13
@@ -1439,7 +1439,7 @@ int units_apply_land_loss_outcome(
       /* DOS-LITERAL FUN_5fef_0352 raw 99398-99408: the wagon capture arm
        * pushes only @WAGONCAPTURE (0x1b1f). @CARGOCAPTURE (0x1b69) is raised
        * solely by the ship-vs-ship hold-transfer loop (raw 99490-99514), not
-       * here; cargo stays on the captured wagon untouched. bugs.md #790. */
+       * here; cargo stays on the captured wagon untouched. port_bugs.md #790. */
       const int from_nat = lose->nation_id;
       units_capture_to_winner(pool, lose, win);
       if (human) {
@@ -1492,11 +1492,11 @@ int units_apply_land_loss_outcome(
    * `(winner type < 0xd || winner type > 0x12) && local_2a == 0` — i.e. the
    * winner is not a hull and neither tile is water. Beaten by a ship, or
    * fought on water, the loser is DESTROYED. The port called the ladder
-   * unconditionally. bugs.md #647.
+   * unconditionally. port_bugs.md #647.
    */
   {
     /* `winner_is_hull` / `on_water` are the raw 99435-99436 gate hoisted above
-     * (shared with the artillery arm, bugs.md #756). */
+     * (shared with the artillery arm, port_bugs.md #756). */
     if (!winner_is_hull && !on_water &&
         units_demote_combat_type(pool, lose, col1, human)) {
       return 1;
@@ -1512,7 +1512,7 @@ int units_apply_land_loss_outcome(
 /*
  * DOS-LITERAL FUN_5fef_0352 raw 99527-99570 (second, overlay-duplicated copy
  * at raw 113600-113620) — the full damage-vs-sink gate that sits ON TOP of
- * the guns/hull roll units_ship_damage_vs_sink makes. bugs.md #867: the port
+ * the guns/hull roll units_ship_damage_vs_sink makes. port_bugs.md #867: the port
  * had none of it.
  *
  *   uVar15 = loser nation, local_32 = winner nation, local_4 = winner type.
@@ -1740,7 +1740,7 @@ void units_sweep_stack_after_loss(
   }
 }
 
-/* Nearest own colony WITH a Drydock (bugs.md: repair routing). NULL if none. */
+/* Nearest own colony WITH a Drydock (port_bugs.md: repair routing). NULL if none. */
 const ColonizeColony* units_nearest_own_drydock_colony(
   const ColonizeColonyPool* colonies,
   int nation_id,
@@ -1786,7 +1786,7 @@ const ColonizeColony* units_nearest_own_drydock_colony(
  * @SHIPDAMAGE %STRING2 when the loser's nation owns no Drydock colony: DOS
  * FUN_5fef_0352 substitutes the nation's home-port name from DS:-0x7c74 (the
  * crown slot borrowing the human's) — the ship goes to EUROPE, not to the
- * nearest ordinary colony. bugs.md: "Ships damaged don't seem to respect the
+ * nearest ordinary colony. port_bugs.md: "Ships damaged don't seem to respect the
  * need for a drydock or shipyard".
  */
 const char* units_home_port_name(const ColonizeCol1Save* col1, int nation_id) {
@@ -1821,7 +1821,7 @@ const char* units_home_port_name(const ColonizeCol1Save* col1, int nation_id) {
  * Europe harbor's Expected lane with the DOS repair timer as the wait —
  * the ship leaves the map NOW (that is what makes it pixelate away under
  * the combat dissolve) and comes back when the timer is out.
- * Europe is the human's screen only. An AI hull (every nation, bugs.md
+ * Europe is the human's screen only. An AI hull (every nation, port_bugs.md
  * #871: the off-map relocation is not human-only) goes to its Europe dock
  * 236+n (DOS n - 0x14) — the same slot turn_route_damaged_ships holds it in until the
  * repair timer runs out. It used to stay on its tile showing the repair
@@ -1890,7 +1890,7 @@ void units_ship_enter_repair(
     /* DOS-LITERAL FUN_5fef_0352 raw 99622-99631: BOTH sides of the repair
      * bill read the @UNIT 0x5235 (defense) column raw — `local_6 =
      * winner_type*0xe+0x5235` (doubled for a non-ship winner) versus
-     * `bVar10 = loser_type*0xe+0x5235`, with no fallback. bugs.md #878(h):
+     * `bVar10 = loser_type*0xe+0x5235`, with no fallback. port_bugs.md #878(h):
      * the `: 4` default was invented and unreachable — every @UNIT hull row
      * 0x0d..0x12 carries a non-zero defense. */
     const int thresh = lt ? lt->defense : 0;
@@ -1904,7 +1904,7 @@ void units_ship_enter_repair(
     lose->col1_counter16 = (uint8_t)worked;
   }
   /*
-   * bugs.md #462/#463: BOTH arms teleport, on the spot. The decompile drops
+   * port_bugs.md #462/#463: BOTH arms teleport, on the spot. The decompile drops
    * the register args of the FUN_281f_0812 (unlink from tile) /
    * FUN_281f_0844 (place on tile) pair at raw 99643-99644; the asm
    * (5fef:0ceb-5fef:0cf9, ndisasm-literal read) loads them from local_28 /
@@ -2018,7 +2018,7 @@ void units_ship_lose_holds(ColonizeUnitPool* pool, int ship_id) {
  *
  * i.e. a gunless victor can only drive the loser off damaged, never sink it.
  * Both call sites (naval loss, coastal-fort fire — the fort's strength stands
- * in for "guns", bugs.md/DOS 0352 doubling the repair bill for a non-ship
+ * in for "guns", port_bugs.md/DOS 0352 doubling the repair bill for a non-ship
  * winner) go through this one helper so the port cannot break ties two ways.
  *
  * The rng == NULL path is port-only (headless tests / deterministic replays).
@@ -2126,12 +2126,12 @@ int units_apply_naval_loss_outcome(
    * guns column 0) can never sink, only drive off damaged. This replaces
    * the earlier "close fight" heuristic. DOS then layers the raw 99527-99570
    * fleet-pool / crown-Man-O-War gate on the result — units_naval_damage_gate
-   * (bugs.md #867).
+   * (port_bugs.md #867).
    */
   const int wguns = wt ? wt->guns : 0;
   const int lhull = lt ? lt->hull : 0;
   int damaged = units_ship_damage_vs_sink(rng, wguns, lhull);
-  /* bugs.md #867: DOS raw 99527-99570 layers the fleet-pool / crown-MoW gate
+  /* port_bugs.md #867: DOS raw 99527-99570 layers the fleet-pool / crown-MoW gate
    * on top of that roll. */
   damaged = units_naval_damage_gate(pool, col1, lose, wt, win->nation_id, damaged);
   /* DOS-LITERAL FUN_5fef_0352 raw 99570-99579: a sunk hull leaves the census
@@ -2148,7 +2148,7 @@ int units_apply_naval_loss_outcome(
     }
   }
   /*
-   * bugs.md #254: WoI human with no drydock port has no friendly Europe either
+   * port_bugs.md #254: WoI human with no drydock port has no friendly Europe either
    * — the ship goes down instead of limping anywhere (DOS 85139).
    */
   const ColonizeColony* home = NULL;
@@ -2177,13 +2177,13 @@ int units_apply_naval_loss_outcome(
     tok.string1 = lt ? lt->name : "";
     tok.string2 = units_combat_nation_label(col1, win->nation_id);
     tok.string3 = wt ? wt->name : "";
-    /* GAME.TXT @SHIPSUNK; catalog miss = "" (bugs.md #1099). */
+    /* GAME.TXT @SHIPSUNK; catalog miss = "" (port_bugs.md #1099). */
     units_combat_enqueue_tok(
       AI_POPUP_TAG_COMBAT_SHIP, "SHIPSUNK", win->nation_id, lose->nation_id, 0, &tok, ""
     );
     units_play_event_sound(0x57); /* UNITS_SFX_SHIP_SUNK: FUN_5fef_0352 (COLDIG 16 sinking) */
   }
-  /* FUN_5fef_0352 raw 99653-99690: Royal-flagged hull lost → tax cut (bugs.md #659). */
+  /* FUN_5fef_0352 raw 99653-99690: Royal-flagged hull lost → tax cut (port_bugs.md #659). */
   (void)units_royal_loss_tax_cut((ColonizeCol1Save*)col1, pool, lose);
   /* FUN_5fef_0352 5fef:0d6c/0d87: a human loser goes back to the map pool
    * (281f_0498(1)), a human winner gets the Military pool (0498(4)). */
@@ -2251,7 +2251,7 @@ int units_raid_damage_ship(ColonizeUnitPool* pool, int ship_id, const ColonizeCo
        * (loser nation + hull) for every ship loss, this arm included; the
        * sinker pair %STRING2/%STRING3 comes from the winner unit, which this
        * call has none of (param_2 < 0). Empty tokens, never typed English
-       * (bugs.md #987).
+       * (port_bugs.md #987).
        */
       PopupMsgTokens tok;
       memset(&tok, 0, sizeof(tok));
@@ -2280,7 +2280,7 @@ int units_raid_damage_ship(ColonizeUnitPool* pool, int ship_id, const ColonizeCo
 
 /*
  * DOS-LITERAL FUN_5bfb_312e raw 98433-98453 — the ONE naval evasion/slip
- * power. bugs.md #869: the port had two copies that disagreed; this is the
+ * power. port_bugs.md #869: the port had two copies that disagreed; this is the
  * single helper both the naval-evade pre-roll and the ship-slow scan use.
  *
  *   local_4 = FUN_281f_090c(unit) & 0xff;        // MAX MP, in thirds
@@ -2292,9 +2292,9 @@ int units_raid_damage_ship(ColonizeUnitPool* pool, int ship_id, const ColonizeCo
  *
  * Two fidelity points the old copies each got half right:
  *  - 090c is the type's max MP in THIRDS (Man-O-War 18), not the tile count
- *    (`movement`, 6) — bugs.md #869.
+ *    (`movement`, 6) — port_bugs.md #869.
  *  - +0x3150 is the GOODS hold count only, never passengers (`cargo_count`)
- *    — bugs.md #868; see units_unit_hold_amount's header.
+ *    — port_bugs.md #868; see units_unit_hold_amount's header.
  */
 int units_naval_evade_power(const ColonizeUnitPool* pool, int unit_id) {
   const ColonizeUnit* u = units_get_const(pool, unit_id);
@@ -2303,7 +2303,7 @@ int units_naval_evade_power(const ColonizeUnitPool* pool, int unit_id) {
     return 1;
   }
   int p = units_max_mp(pool, unit_id) + 3;
-  /* bugs.md #581: @UNIT row class (kind_plus1), not the display spelling. */
+  /* port_bugs.md #581: @UNIT row class (kind_plus1), not the display spelling. */
   const ColonizeUnitKind k = units_type_kind(t);
   if (k == UNITS_KIND_PRIVATEER) {
     p *= 2;
@@ -2493,7 +2493,7 @@ void units_indian_attack_alarm_vent(
 /* ===================== Outcome popups, native fallout, LCR resolution & combat sound hooks (units_combat_outcome_popups .. units_combat_music_sting) ===================== */
 
 
-/* win/lose are PRE-LOSS snapshots: bugs.md #240 — DOS 1b0e applies the 0352
+/* win/lose are PRE-LOSS snapshots: port_bugs.md #240 — DOS 1b0e applies the 0352
  * loss outcome (demote/damage/capture popups) first and fills @EUROPEWIN /
  * @EUROPELOSE after, so this runs after the loser may already be despawned. */
 void units_combat_outcome_popups(
@@ -2601,7 +2601,7 @@ void units_combat_outcome_popups(
           "");
       }
     }
-    /* bugs.md #238: no @SEIZURELAND here — DOS shows it only from the 0512
+    /* port_bugs.md #238: no @SEIZURELAND here — DOS shows it only from the 0512
      * entry-seizure path (FUN_43f7_0512, ported in ai_king.c), never as a
      * combat-win follow-up. A damaged/destroyed loser is not "captured". */
   }
@@ -2670,7 +2670,7 @@ static int col1_destroy_tribe_at(
    * and nothing else: a real road (0x08) stays, but the village's implied
    * road art (map_tile_has_road_art = road || has_city) goes. The port left
    * the bit set until the next save/load occupancy rebuild, so the razed
-   * site kept drawing a road (bugs.md #550). */
+   * site kept drawing a road (port_bugs.md #550). */
   if (map) {
     map_occupancy_set_layer2(map, x, y, MAP_OCCUPANCY_HAS_CITY, false);
   }
@@ -2692,7 +2692,7 @@ static int col1_destroy_tribe_at(
       }
       /* DOS-LITERAL FUN_4d56_00e0 raw 81310-81319: the whole loop body sits
        * under `if (3 < (*(byte*)(i*0x1c + 0x3147) & 0xf))` — Euro units are
-       * never destroyed and never renumbered here (bugs.md #839). */
+       * never destroyed and never renumbered here (port_bugs.md #839). */
       if (u->nation_id < 4) {
         continue;
       }
@@ -2771,7 +2771,7 @@ int units_conquest_treasure_gold(
    * The band switch reads `*(char *)(*(int *)0x8d4e + 2)` — the razed
    * tribe's Indian record +2 = `tech` (NAMES.TXT @TRIBES column 4: 0
    * Semi-Nomadic .. 3 Civilized), bound by `FUN_281f_0a42(nation - 4)` just
-   * above. It is NOT the game difficulty (bugs.md #549: an Arawak village
+   * above. It is NOT the game difficulty (port_bugs.md #549: an Arawak village
    * at difficulty 2 paid 11000; tech 1 caps a Cortes Spaniard at 1200).
    */
   if (!rng || !col1 || attacker_nation_id < 0 || attacker_nation_id > 3) {
@@ -3032,14 +3032,14 @@ bool units_try_native_settlement_fallout_w(
     return false;
   }
 
-  /* bugs.md #551: the conqueror's own mission comes back as a Missionary on
+  /* port_bugs.md #551: the conqueror's own mission comes back as a Missionary on
    * the razed site (FUN_5fef_1b0e raw 100667-100672, right after 00e0). */
   if (attacker_nation_id >= 0 && attacker_nation_id < 4) {
     (void)units_spawn_mission_return(units, tile_x, tile_y, attacker_nation_id, mission);
   }
 
   /* Subjugated convert-join: DOS order destroy (00e0) -> mission return ->
-   * convert -> treasure (bugs.md #551). */
+   * convert -> treasure (port_bugs.md #551). */
   units_village_convert_roll(units, col1, rng, attacker_nation_id, defender_nation_id, mission,
                              convert_x, convert_y);
 
@@ -3091,7 +3091,7 @@ bool units_try_native_settlement_fallout_w(
           AI_POPUP_TAG_COMBAT_COLONY, "INDIANBOW", attacker_nation_id,
           tribe_nation, 0, &btok, bfb
         );
-        /* bugs.md #942: @INDIANBOW is still a tribe-addressed dialog. DOS
+        /* port_bugs.md #942: @INDIANBOW is still a tribe-addressed dialog. DOS
          * keeps the chief portrait latch set for it just like the contact
          * dialogs; the surrender mechanics had queued the prose without the
          * matching IND{tribe}A{tier}.SS flair. */
@@ -3114,7 +3114,7 @@ bool units_try_native_settlement_fallout_w(
       }
     } else {
       /*
-       * bugs.md #1010: no alarm delta on the ordinary "settlement destroyed,
+       * port_bugs.md #1010: no alarm delta on the ordinary "settlement destroyed,
        * not the capital" outcome. FUN_5fef_1b0e (raw 100251-101310) holds
        * exactly two 0d6c writes: the `local_a6` native-attack vent at 101137
        * (ported as units_indian_attack_alarm_vent) and the capital-fall
@@ -3129,7 +3129,7 @@ bool units_try_native_settlement_fallout_w(
   }
 
   /*
-   * bugs.md #381: treasure is NOT Cortes-gated. FUN_5fef_31ea runs the peel for
+   * port_bugs.md #381: treasure is NOT Cortes-gated. FUN_5fef_31ea runs the peel for
    * every conqueror (viceroy_unpacked.c ~101407-101495) — Cortes (local -6) is
    * only one of the three "or" terms that let the low-difficulty roll pay out
    * (`roll == 0 || rich || cortes`) plus a +50% / +10-per-unit bonus, and at
@@ -3313,7 +3313,7 @@ typedef struct ColonizeLcrRoll {
  *     turns it into 4 (burial mounds) REGARDLESS of the two gates above
  *     (the latch check is last in the block); de Soto never accepts a bare
  *     Vanishes (103614-103616).
- * The case-8 "met" gate is live (bugs.md #497): `FUN_281f_0a38 & 0x20` is
+ * The case-8 "met" gate is live (port_bugs.md #497): `FUN_281f_0a38 & 0x20` is
  * `col1->indian[t-4].euro_diplo[nation] & COL1_INDIAN_MET_BIT`.
  */
 static void units_lcr_roll_outcome(
@@ -3392,7 +3392,7 @@ static void units_lcr_roll_outcome(
          * FUN_281f_095c and bails out of the whole routine when that fails
          * (`if (param_1 < 0) goto LAB_65dd_080a`); DS:0x1dc7 is bumped only on
          * the success path. The port spawns in the dispatch tail below, so the
-         * counter is bumped there too (bugs.md #502). */
+         * counter is bumped there too (port_bugs.md #502). */
         out->treasure_hundreds = (skill + 2) * 10 + dos_rng_range(rng, 1, 20);
       }
     }
@@ -3788,7 +3788,7 @@ bool units_resolve_lcr_rumour_w(
     }
     /*
      * 8 free dock immigrants (8x FUN_291f_0d2c, 103727-103731) after
-     * FUN_281f_0524(8). DOS runs the loop for EVERY nation (bugs.md #496):
+     * FUN_281f_0524(8). DOS runs the loop for EVERY nation (port_bugs.md #496):
      * 103719 `FUN_281f_0582(nation)` binds DS:0x84fc to the explorer's own
      * nation record first, and only the 0x37 tune + the woodcut above sit
      * inside the `local_a != 0` (human) gate.
@@ -3831,7 +3831,7 @@ bool units_resolve_lcr_rumour_w(
        * crosses word untouched (64763 is `param_1 == 0` only) and no +6 recruit
        * bump (64771). Tail order (64767-64774): create the unit, then refill the
        * emptied slot with 46d4(0) off the shared stream — and only on success.
-       * bugs.md #496.
+       * port_bugs.md #496.
        */
       for (int i = 0; i < 8; ++i) {
         const int profession = (int)col1->nation[nation].recruit[1];
@@ -3850,7 +3850,7 @@ bool units_resolve_lcr_rumour_w(
     const int treasure_id = units_spawn_treasure_train(pool, x, y, nation, gold);
     if (treasure_id < 0) {
       /* 103543 `if (param_1 < 0) goto LAB_65dd_080a`: no Treasure, no popup,
-       * and DS:0x1dc7 stays put (bugs.md #502). */
+       * and DS:0x1dc7 stays put (port_bugs.md #502). */
       break;
     }
     s_lcr_cibola_total++; /* 103546: `*(char *)0x1dc7 += 1` after the spawn. */
@@ -3865,7 +3865,7 @@ bool units_resolve_lcr_rumour_w(
     /* Case 9 (103718-103723): spawn unit type 0 (Colonist) on the tile,
      * nation name substituted (FUN_291f_0ac8). NAMES.TXT @COUNTRY — the
      * Crown nation ("England"), NOT the player's new-world country_name
-     * ("New England"): survivors swear allegiance to the nation (bugs.md).
+     * ("New England"): survivors swear allegiance to the nation (port_bugs.md).
      *
      * raw 103591 `*(byte *)0x9cd2 = 0` (asm 65dd: `MOV byte [0x9cd2],0`):
      * DS:0x9cd2 is the base of the popup **%STRING substitution array** —
@@ -3959,7 +3959,7 @@ void units_set_tax_change_hook(ColonizeTaxChangeFn fn, void* user) {
 }
 
 /*
- * DOS-LITERAL FUN_5fef_0352 raw 99653-99690 (asm OVL17 0xdaa-0xea8), bugs.md
+ * DOS-LITERAL FUN_5fef_0352 raw 99653-99690 (asm OVL17 0xdaa-0xea8), port_bugs.md
  * #659. Runs in the destroy tail for ANY loser (the human test below only gates
  * the %STRING/%NUMBER fills, and no popup call follows them: KINGMERCY has no
  * DS string in VICEROY.EXE, so DOS lowers the tax silently):
@@ -4044,7 +4044,7 @@ void units_reset_hooks(void) {
   g_units_tax_change_user = NULL;
   g_units_combat_sound_play = NULL;
   g_units_combat_sound_active_id = NULL;
-  /* bugs.md #1103: the remaining session wiring, through each owner's setter
+  /* port_bugs.md #1103: the remaining session wiring, through each owner's setter
    * (initial values: NULL, human nation -1). */
   units_set_spawn_gate_hook(NULL, NULL);
   units_set_spawn_refused_hook(NULL);
@@ -4081,7 +4081,7 @@ void units_play_event_sound(int id) {
  * while the AI move scorer at 521d:52aa (~88888) passes 0 and resolves the
  * same combat silently. The port played the cannonade for every AI-vs-AI
  * battle resolved during end-of-turn, so cannon fire landed on top of
- * unrelated popups (bugs.md: prices-fall / immigration popups).
+ * unrelated popups (port_bugs.md: prices-fall / immigration popups).
  * No col1 context (unit tests, standalone smokes) → audible, as before.
  */
 bool units_combat_is_visible(const ColonizeUnitPool* pool, int a_id, int b_id) {

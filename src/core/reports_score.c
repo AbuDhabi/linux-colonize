@@ -29,7 +29,7 @@
  * DS:0x30e[type] (FUN_15eb_0902), the one table the whole game uses; the
  * port's hand-written copy of it here had @UNIT 6 (Regulars) → 21 and 8
  * (Cavalry) → 23 where DOS has -1, which promoted the King's army to
- * scoring citizens (bugs.md #574). */
+ * scoring citizens (port_bugs.md #574). */
 /* ===================== Score computation (reports_profession_from_unit_type .. reports_render_score) ===================== */
 static int reports_profession_from_unit_type(int type) {
   return units_type_default_job(type);
@@ -121,7 +121,7 @@ static int reports_count_ff_for_nation(const ColonizeCol1Save* col1, int human) 
  *   in that save gives 180, not the golden's 158.
  */
 /*
- * bugs.md (score_screen.SAV): Score-strip icon for a counted UNIT. DOS
+ * port_bugs.md (score_screen.SAV): Score-strip icon for a counted UNIT. DOS
  * FUN_41f2_0092 draws each unit with its map icon (FUN_281f_02da — type icon
  * incl. equipment, downgraded to the generic 0x4a..0x4e pose when the
  * profession isn't the kit's own expert) and only swaps a GENERIC pose for
@@ -131,7 +131,7 @@ static int reports_count_ff_for_nation(const ColonizeCol1Save* col1, int human) 
  * Icon constants: NAMES @UNIT icon column − 1 (1-based sheet).
  */
 static int reports_score_unit_icon(int type, int prof) {
-  /* bugs.md #656: 0x17 (UNITS_JOB_DRAGOON) is never written by DOS
+  /* port_bugs.md #656: 0x17 (UNITS_JOB_DRAGOON) is never written by DOS
    * (#503/#639); units.c's veteran gates (units_profession_line,
    * units_map_sprite/FUN_112b_0060, the 172c promote test) are 0x15-only,
    * so this sibling display matches them instead of tolerating 0x17. */
@@ -210,7 +210,7 @@ static int reports_score_collect_citizen_jobs(
       continue;
     }
     /*
-     * bugs.md #574 asked for 0x1c units to score +2 here, reading raw
+     * port_bugs.md #574 asked for 0x1c units to score +2 here, reading raw
      * 71188-71198 (`if (prof == 0x1c) +2; else if 0x19/0x1a/0x1b +1; else
      * +4`) as applying to every slot-bearing unit. REFUTED by the DOS
      * capture: original_saves/report-screen-goldens/score.png reads
@@ -520,7 +520,7 @@ void reports_render_score(
       sc.year
     );
   } else {
-    line[0] = '\0'; /* no save record: no header (no typed English, bugs.md #1122) */
+    line[0] = '\0'; /* no save record: no header (no typed English, port_bugs.md #1122) */
   }
   if (body_font) {
     const int w = font_text_width(body_font, line);
@@ -570,7 +570,7 @@ void reports_render_score(
   );
   int icon_end_y = REPORTS_SCORE_ICON_Y;
   {
-    /* bugs.md (score_screen.SAV): strip icons are per-citizen sprites —
+    /* port_bugs.md (score_screen.SAV): strip icons are per-citizen sprites —
      * equipped map art for units (Continentals, veterans with kit), job
      * portraits for colony population. */
     int jobs[REPORTS_SCORE_CITIZENS_MAX];
@@ -878,7 +878,7 @@ void reports_render_hall_of_fame(
 }
 
 void reports_remap_exploits_sheet(const ColonizeReportsView* view, ColonizeSpriteSheet* sheet) {
-  /* bugs.md #402: SCORE<nn>.SS shares WOODPAN2.PIK's low palette block and
+  /* port_bugs.md #402: SCORE<nn>.SS shares WOODPAN2.PIK's low palette block and
    * carries the painting's own colours in the slots WOODPAN2 leaves black —
    * the reserved-DAC-block pattern (crown-europe batch: merge, never remap).
    * The old nearest-colour remap here crushed the painting into the 115
@@ -905,7 +905,7 @@ void reports_render_exploits(
   }
   const ColonizeFont* body_font = (view && view->title_font_ok) ? &view->title_font : font;
   /*
-   * FUN_41f2_0b70 (OVL06 asm 0x3887..0x39d0, bugs.md #402): all inks are
+   * FUN_41f2_0b70 (OVL06 asm 0x3887..0x39d0, port_bugs.md #402): all inks are
    * WOODPAN2.PIK DAC indices — 0xfc (gold 199,162,32) for the @EXPLOITS
    * headers, the named line and the picked-tier row, 0xfe (green 85,150,52)
    * for the other @SCORE rows. Headers centred full-width from y=5; @SCORE
@@ -933,7 +933,7 @@ void reports_render_exploits(
      * ay=138 in every SCORE sheet) through the DOS centring rule
      * (anchor_x - w/2, anchor_y - h + 1) — centre x 104 lines up exactly
      * with the named-line box below (0x22 + 0x8c/2), bottom edge one row
-     * above the named line at y=0x8e (bugs.md: sprite was misaligned vs its
+     * above the named line at y=0x8e (port_bugs.md: sprite was misaligned vs its
      * caption at the old fixed x=100). */
     const ColonizeSprite* sp = &ex->sheet->sprites[0];
     ss_blit_sprite(

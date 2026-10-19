@@ -63,10 +63,10 @@ static int ai_native_pick_dir(
 /* FUN_281f_0754 / mask &0x0a handled by ai_mask_fa_flags above. */
 
 /*
- * bugs.md #847: the Brave step's cost head is the SAME FUN_465b cost head
+ * port_bugs.md #847: the Brave step's cost head is the SAME FUN_465b cost head
  * every other mover uses — terr_cost[class(dest)]*3, both-FA pair -> 1,
  * both-river + cardinal -> 1, tribe/settlement dest capped at 3. It used to
- * be a private copy here that also carried the ">100 -> 1" sentinel bugs.md
+ * be a private copy here that also carried the ">100 -> 1" sentinel port_bugs.md
  * #718 proved was a port invention. Folded onto map_move_spent_thirds
  * (map.c) so the two cannot drift; `dir` is gone because the cardinal test
  * is the axis equality the shared helper already does.
@@ -283,13 +283,13 @@ int ai_native_step_first_contact(
       continue;
     }
     /*
-     * bugs.md #824: DOS resolves the WHOLE encounter here, in the 465b move
+     * port_bugs.md #824: DOS resolves the WHOLE encounter here, in the 465b move
      * tail (0984 -> 3180 -> 022e), not in a later per-nation sweep. The mood
      * roll above is 022e's head (raw 96745-96760); these two arms are its
      * two halves — LAB_5bfb_096c gifts when bVar6, else LAB_5bfb_0def
      * begs/demands. Not exclusive in the beg direction: a CONCEDED beg sets
      * bVar6 and falls through into the gift half of the same visit, which
-     * ai_contact_apply_beg_food re-enters itself (bugs.md #863). They used to run post-pulse from ai.c §9
+     * ai_contact_apply_beg_food re-enters itself (port_bugs.md #863). They used to run post-pulse from ai.c §9
      * off the published verdict, behind a reconstructed "did a Brave walk up
      * this turn" gate and a "no popup queue -> decline" bail; both are gone
      * with the call site that needed them. `aiStack_20[nation]` keeps it to
@@ -402,7 +402,7 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
    * (u+0x314a < 0 or >= DS:0x539a) is destroyed (FUN_281f_0808), not
    * re-homed; 021a returns -1 and 14fe's "step" lands on the freed slot.
    *
-   * DOS-LITERAL deviation (bugs.md #826): DOS returns -1 here and its
+   * DOS-LITERAL deviation (port_bugs.md #826): DOS returns -1 here and its
    * caller FUN_4d56_14fe, which only tests the result against 8, then
    * dereferences the freed unit record — a use-after-free the port does not
    * reproduce. The port STOPs the Brave cleanly instead. This is the one
@@ -445,13 +445,13 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
      * 521d:54f5 skips the facing term for any byte >= 8.
      *
      * 021a:11b9 is a FULL byte store (`byte [BX+0x314f] = chosen dir`);
-     * col1_bridge saves last_dir as that whole byte (bugs.md #846, #1046).
+     * col1_bridge saves last_dir as that whole byte (port_bugs.md #846, #1046).
      */
     u->last_dir = 8;
     /*
      * DOS-LITERAL 021a:11cd-11ea orders latch (ndisasm OVL13): orders 5 or 6
      * -> 6 (FORTIFIED), anything else -> 5 (FORTIFY); the DOS byte values
-     * equal the port enum. Unconditional since bugs.md #1093 deleted the
+     * equal the port enum. Unconditional since port_bugs.md #1093 deleted the
      * invented escort pass, the only source of an OpenCol-only Brave order
      * (FOLLOW) the old #826 guard protected.
      */
@@ -524,11 +524,11 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
    * The port used to commit the 021a pick as a plain step, so a Brave whose
    * pick carried the 0x0a contact/attack flags walked INTO a Euro colony
    * and sat there fortified — and its foreign presence then blocked the
-   * owner's ships from docking (bugs.md #553). The Brave keeps DOS's end
-   * state: in place, exhausted — and, since bugs.md #822, with the attack
+   * owner's ships from docking (port_bugs.md #553). The Brave keeps DOS's end
+   * state: in place, exhausted — and, since port_bugs.md #822, with the attack
    * actually resolved on the >= 3-thirds limb.
    *
-   * bugs.md #822: the >= 3-thirds limb is DOS's attack. The port routes it
+   * port_bugs.md #822: the >= 3-thirds limb is DOS's attack. The port routes it
    * into the same resolver every other 1b0e call site uses
    * (units_resolve_land_combat -> units_resolve_land_combat_ff_w), picking
    * the defender with FUN_5fef_0000 (units_best_defender_at). That resolver also carries 1b0e's colony limb: a
@@ -657,7 +657,7 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
     /* FUN_465b_0000 commit -> FUN_5bfb_3180, raw 98628-98646:
      * native steps also wake adjacent foreign sentries (#530). */
     units_sentry_wake_scan(units, map, ai_s_native_colonies, u->id);
-    /* bugs.md: native steps commit inline instead of going through
+    /* port_bugs.md: native steps commit inline instead of going through
      * units_move_unit, so they never reached the move-watch hook and
      * "Show Indian Moves" jump-cut while Euro AI steps slid. */
     if (g_units_move_watch) {
@@ -771,7 +771,7 @@ void ai_native_nation_pulse(
    * nation's units on every pulse, and §9 runs immediately after this pulse
    * for the same nation, so a reader never sees another nation's turn —
    * hence drop every older stamp first: a Brave born after this pulse may
-   * carry a recycled unit id (bugs.md #1094) and must read "not pulsed".
+   * carry a recycled unit id (port_bugs.md #1094) and must read "not pulsed".
    */
   memset(s_brave_origin_ok, 0, sizeof(s_brave_origin_ok));
   for (int i = 0; i < units_slot_end(units); ++i) {
@@ -960,7 +960,7 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
    * constructor). This reference also keeps ai_contact_raid.o in every
    * binary that runs the native pulse: the deleted raid pass used to be its
    * only caller, and without it the static-archive link silently dropped
-   * the hook (golden_idle_continuous diverged at 1501, bugs.md #1093). */
+   * the hook (golden_idle_continuous diverged at 1501, port_bugs.md #1093). */
   units_set_colony_raid_repelled(ai_contact_colony_raid_repelled_w);
 
   /* §7–8 quiet 14fe act loop. */
@@ -979,13 +979,13 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
    * adjacency first-contact, auto-trade and gift/demand stand-ins gifted
    * gold DOS never paid (DOSBox 1508: Dutch 20 gold, alarm -3). */
   /*
-   * bugs.md 2026-09-04: FUN_5bfb_022e's peaceful visit picks ONE of two
+   * port_bugs.md 2026-09-04: FUN_5bfb_022e's peaceful visit picks ONE of two
    * halves — generous (@INDIANGIVEFOOD/@INDIANGIVESTUFF) or demanding
    * (@INDIANBEGFOOD / tribute).
-   * bugs.md #824 (2026-09-23): both halves now run from the Brave's own step
+   * port_bugs.md #824 (2026-09-23): both halves now run from the Brave's own step
    * (ai_native_step_first_contact above), which is where DOS's 022e runs.
    * Nothing is left to do post-pulse. (The old post-pulse raid/escort pass,
-   * ai_contact_indian_raids, had no DOS site and was deleted, bugs.md #1093:
+   * ai_contact_indian_raids, had no DOS site and was deleted, port_bugs.md #1093:
    * FUN_4d56_1816 ends with the per-unit act loop.)
    */
 }

@@ -138,7 +138,7 @@ static int case_token_substitution(void) {
 }
 
 /*
- * bugs.md (King galleon / Euro diplomacy: "the options are appended in the
+ * port_bugs.md (King galleon / Euro diplomacy: "the options are appended in the
  * text"): DOS FUN_6f74_32a4 is a blank-line state machine — state 1 body,
  * state 2 choices, state 3 done — so no choice row may ever appear in the
  * body. Sweep every section in the shipped GAME.TXT, not just the wired

@@ -5,7 +5,7 @@
 
 /* Helper: Drydock repair emits @REFIT. */
 /*
- * bugs.md #462/#463/#464/#465 — coastal fort fire (FUN_364b_03f6, raw
+ * port_bugs.md #462/#463/#464/#465 — coastal fort fire (FUN_364b_03f6, raw
  * 57016-57113) and the damaged-ship tail of FUN_5fef_0352:
  *
  *   #465  one salvo per neighbour tile, aimed at the FIRST ship in that
@@ -210,7 +210,7 @@ static int unit_event_sfx_active_id_mock(void) {
 }
 
 /*
- * bugs.md: cannon fire landed on top of the prices-fall / immigration popups.
+ * port_bugs.md: cannon fire landed on top of the prices-fall / immigration popups.
  * DOS FUN_5fef_1b0e only plays the fire/win event sounds when its `param_4`
  * visible flag is set — FUN_465b_0000 passes 1 when either side is human
  * (`0x543f == 0`), the AI move scorer at 521d:52aa passes 0. Combat between
@@ -823,7 +823,7 @@ static int unit_village_win_convert_on_attacker_tile(void) {
 }
 
 /*
- * Razing a village (FUN_5fef_1b0e dwelling arm → FUN_4d56_00e0), bugs.md
+ * Razing a village (FUN_5fef_1b0e dwelling arm → FUN_4d56_00e0), port_bugs.md
  * #550-#552:
  *  - 00e0 raw 81307: only settlement bit 0x02 is cleared; a real road stays,
  *    the implied village road art goes (#550).
@@ -997,7 +997,7 @@ static int unit_village_raze_tail(void) {
  * AI-controlled European (control != 0) is NOT covered by the gate.
  */
 /*
- * bugs.md #756 / #757 — FUN_5fef_0352 raw 99435-99436: the artillery
+ * port_bugs.md #756 / #757 — FUN_5fef_0352 raw 99435-99436: the artillery
  * damage-then-destroy ladder runs only when
  *   (winner type < 0xd || winner type > 0x12) && local_2a == 0,
  * local_2a = FUN_281f_0768 (ocean / high seas) of the WINNER's tile OR'd with
@@ -1077,7 +1077,7 @@ static int unit_artillery_loss_water_gate(void) {
         fprintf(stderr, "arty_water: land loss did not set the damaged bit\n");
         rc = 1;
       } else if (a->moves == 0) {
-        /* bugs.md #757 */
+        /* port_bugs.md #757 */
         fprintf(stderr, "arty_water: damage arm zeroed MP (DOS raw 99475-99482 does not)\n");
         rc = 1;
       }
@@ -1184,7 +1184,7 @@ static int unit_brave_vs_human_artillery_autoloss(void) {
       units_get(&pool, did)->nation_id = 0;
       ColonizeDosRng rng;
       /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
-       * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
+       * in port_bugs.md); spread them so the 14-vs-240 roll can actually land. */
       dos_rng_seed(&rng, (unsigned)seed * 9973u + 4271u);
       if (units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, aid, did)) {
         fprintf(stderr, "brave_arty: seed %d — Brave beat HUMAN Artillery\n", seed);
@@ -1206,7 +1206,7 @@ static int unit_brave_vs_human_artillery_autoloss(void) {
       units_get(&pool, did)->nation_id = 1;
       ColonizeDosRng rng;
       /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
-       * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
+       * in port_bugs.md); spread them so the 14-vs-240 roll can actually land. */
       dos_rng_seed(&rng, (unsigned)seed * 9973u + 4271u);
       if (units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, aid, did)) {
         ++ai_def_wins;
@@ -1234,7 +1234,7 @@ static int unit_brave_vs_human_artillery_autoloss(void) {
       units_get(&pool, did)->nation_id = 0;
       ColonizeDosRng rng;
       /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
-       * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
+       * in port_bugs.md); spread them so the 14-vs-240 roll can actually land. */
       dos_rng_seed(&rng, (unsigned)seed * 9973u + 4271u);
       if (units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, aid, did)) {
         ++armed_wins;
@@ -1681,7 +1681,7 @@ static int unit_1b0e_defender_bonus_live(void) {
         units_get(&pool, did)->nation_id = 0;
         ColonizeDosRng rng;
         /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
-       * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
+       * in port_bugs.md); spread them so the 14-vs-240 roll can actually land. */
       dos_rng_seed(&rng, (unsigned)seed * 9973u + 4271u);
         won[i] = is_naval ? units_resolve_naval_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, aid, did)
                           : units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, aid, did);
@@ -1726,7 +1726,7 @@ static int unit_1b0e_defender_bonus_live(void) {
   }
   return rc;
 }
-/* bugs.md #659: FUN_5fef_0352 Royal-flagged hull loss lowers tax_rate via the
+/* port_bugs.md #659: FUN_5fef_0352 Royal-flagged hull loss lowers tax_rate via the
  * DS:0x978d table read one entry late (Caravel 4, Merchantman 6, Galleon 3,
  * Privateer 8, Frigate 0); Artillery is skipped by the `0 < k` test. */
 static int s_tax_hook_nation = -1;
@@ -1788,7 +1788,7 @@ static int unit_royal_loss_tax_cut(void) {
  * Naval win against a STACK: DOS's 0ec0 sweep hands every stackmate on the
  * loser tile to 0352, so a won fight must leave none of them untouched.
  */
-/* bugs.md #1103: units_reset_hooks also drops the spawn gate/refused hooks,
+/* port_bugs.md #1103: units_reset_hooks also drops the spawn gate/refused hooks,
  * the combat popup/Europe/colony/human-nation/fallout wiring and the Combat
  * Analysis presenter, so no session pointer outlives the world it named. */
 static int s_reset_hook_calls;

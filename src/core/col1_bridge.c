@@ -396,7 +396,7 @@ static void col1_apply_colony_buildings(
    * building mask is bit-per-row, FUN_15eb_035e). All 916 colonies in
    * original_saves read exactly 1, because DOS's build menu can never offer
    * rows 10/11 — but a save that does carry them makes DOS work a 12- or
-   * 20-plot ring (colonies_work_plot_count, bugs.md #593), so decode all
+   * 20-plot ring (colonies_work_plot_count, port_bugs.md #593), so decode all
    * three rather than bit 0 alone.
    */
   col1_apply_building_bits(pool, colony, k_col1_town_hall_rows, 3, b->town_hall);
@@ -908,7 +908,7 @@ static int col1_bridge_unit_max_mp(
 }
 
 /* ===================== COL1 -> runtime apply (save import) (col1_bridge_apply_head .. col1_bridge_apply_w) ===================== */
-/* bugs.md #1107: col1_bridge_apply_w is a dispatcher over the record-family
+/* port_bugs.md #1107: col1_bridge_apply_w is a dispatcher over the record-family
  * stages below (file order = the original body order). Cross-stage locals live
  * in Col1ApplyCtx (col1_bridge_internal.h). */
 
@@ -1076,7 +1076,7 @@ COLONIZE_INTERNAL void col1_bridge_apply_colonies(Col1ApplyCtx* ctx) {
     memcpy(colonies->building_types, buildings_backup, sizeof(buildings_backup));
     colonies->building_type_count = building_type_count;
     /*
-     * bugs.md #268: the name counter belongs to the SAVE, not the session —
+     * port_bugs.md #268: the name counter belongs to the SAVE, not the session —
      * loading must reset it, or names keep advancing across reloads. Base
      * it on player.founded_colonies (what the found paths bump); for legacy
      * saves that never tracked the human's counter, fall back to the
@@ -1186,7 +1186,7 @@ COLONIZE_INTERNAL void col1_bridge_apply_colonies(Col1ApplyCtx* ctx) {
      * 8..19 are identity (the runtime array keeps the DS:0xc8/0xde outer
      * order), so the record round-trips verbatim. Whether a slot above 7 is
      * ever worked is the colony's own ring size — see
-     * colonies_work_plot_count / bugs.md #593.
+     * colonies_work_plot_count / port_bugs.md #593.
      */
     for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       dst->tiles[t] = -1;
@@ -1254,7 +1254,7 @@ COLONIZE_INTERNAL void col1_bridge_apply_colonies(Col1ApplyCtx* ctx) {
         chain = COLONIES_CHAIN_CARPENTER;
       } else if (occ == 9) {
         /*
-         * bugs.md #901: DOS FUN_15eb_1068 raw 11244 writes a @JOB id 0..18
+         * port_bugs.md #901: DOS FUN_15eb_1068 raw 11244 writes a @JOB id 0..18
          * only; occupation bytes 27/28/29 are @BUILDING rows from a
          * pre-fix exporter that wrote port building indexes for the rum
          * chain alone, never produced by DOS. The Town-Hall salvage below
@@ -1282,7 +1282,7 @@ COLONIZE_INTERNAL void col1_bridge_apply_colonies(Col1ApplyCtx* ctx) {
       if (chain >= 0) {
         int bi = col1_best_owned_chain_building(colonies, dst, chain);
         /* FUN_15eb_1068 raw 11259-11262 can assign Carpenter occupation
-         * without a Carpenter building bit (bugs.md #922). Keep @JOB 13
+         * without a Carpenter building bit (port_bugs.md #922). Keep @JOB 13
          * through a load even in that damaged/imported colony shape. */
         if (bi < 0 && occ == COLONIZE_PROF_CARPENTER) {
           bi = colonies_building_row(colonies, COLONY_BUILDING_CARPENTERS_SHOP);
@@ -1295,14 +1295,14 @@ COLONIZE_INTERNAL void col1_bridge_apply_colonies(Col1ApplyCtx* ctx) {
         }
       }
       /*
-       * bugs.md (starvation_bug.SAV): salvage — a building occupation that
+       * port_bugs.md (starvation_bug.SAV): salvage — a building occupation that
        * could not be resolved (chain building missing, or a garbage byte
        * from the pre-fix exporter that wrote port building indexes) must
        * not leave the colonist silently idle; put them to work in the Town
        * Hall rather than let the colony starve unnoticed. occ 19 (plain
        * colonist) stays idle on purpose.
        *
-       * bugs.md #930: a KNOWN occupation (chain >= 0, e.g. a real @JOB
+       * port_bugs.md #930: a KNOWN occupation (chain >= 0, e.g. a real @JOB
        * 9..18 whose building is simply missing) is a genuine work-slot
        * request, so it goes through colonies_assign_workplace and still
        * honors @MORETHANTHREE (overlays.c:60486-60496, thunk_FUN_1000_9808)
@@ -1310,7 +1310,7 @@ COLONIZE_INTERNAL void col1_bridge_apply_colonies(Col1ApplyCtx* ctx) {
        * unplaced rather than seating a 4th statesman.
        *
        * An UNRESOLVED occupation byte (chain == -1, e.g. the pre-fix
-       * exporter's port building-row garbage, bugs.md #901) never named a
+       * exporter's port building-row garbage, port_bugs.md #901) never named a
        * real occupation at all, so it keeps the original uncapped,
        * park-anywhere-harmless tolerance — routing garbage through the
        * cap would let it starve out real, resolvable Town Hall workers.
@@ -1614,7 +1614,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
          * The dock entry's job name says nothing about whether this
          * immigrant was armed, equipped or blessed on the dock, but the
          * save's @UNIT type does — carry it over so an @ARMOPTIONS change
-         * survives the round trip (bugs.md). Types outside the six the dock
+         * survives the round trip (port_bugs.md). Types outside the six the dock
          * menu deals in fall back to what the profession implies.
          */
         int dos_type = europe_dock_type_for(name, (int)src->profession);
@@ -1698,7 +1698,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
       }
       u->orders = (int)src->orders;
       /*
-       * Reconstruct the port-only landfall-wait flag (bugs.md #528) on
+       * Reconstruct the port-only landfall-wait flag (port_bugs.md #528) on
        * import: it is not saved (COLNXEXT does not carry it), but any AI
        * land unit read back with orders == SENTRY is, by the very premise
        * of #528, either genuinely parked ashore mid-landfall or the DOS
@@ -1777,7 +1777,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
        * Commodity holds: ships/wagons only. Land pioneers store tools in
        * cargo_hold[5] (DOS unit+0x15) — not a goods slot.
        */
-      /* bugs.md #787: @UNIT cargo column, not units_is_transport (which also
+      /* port_bugs.md #787: @UNIT cargo column, not units_is_transport (which also
        * demands the unit be on the map) — an off-map wagon still has holds. */
       const ColonizeUnitType* hold_type = units_type(units, u->type_index);
       if (units_is_sea(units, id) || (hold_type && hold_type->cargo > 0)) {
@@ -1801,7 +1801,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
          * Tools) that don't exist in the golden capture; both have
          * holds_occupied == 0 in the raw save.
          */
-        /* bugs.md #787: also clamp to the slots this @UNIT row actually owns
+        /* port_bugs.md #787: also clamp to the slots this @UNIT row actually owns
          * (cargo column), so a corrupt record claiming holds_occupied > 2 on
          * a Wagon Train cannot write slots the wagon does not have — they are
          * invisible to units_goods_hold_count but capture would re-emit them. */
@@ -1961,7 +1961,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_boarding(Col1ApplyCtx* ctx) 
     if (!id_by_index || id_by_index[i] < 0) {
       continue;
     }
-    /* Only a SENTRY unit can be a genuine passenger (bugs.md: ships take on
+    /* Only a SENTRY unit can be a genuine passenger (port_bugs.md: ships take on
      * passengers from the sentried units only; DOS stamps orders 1 on every
      * boarded unit and the dutch-reports.SAV manifest confirms it). The
      * earlier skip-list (Fortify/Fortified only) still boarded no-orders or
@@ -1986,7 +1986,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_boarding(Col1ApplyCtx* ctx) 
       continue;
     }
     /*
-     * bugs.md interop: the capture now writes FULL per-tile stacking chains
+     * port_bugs.md interop: the capture now writes FULL per-tile stacking chains
      * (DOS FUN_1427_02ca semantics), so a sentried land unit standing in a
      * colony shares a chain with any docked ship. A land unit is genuinely
      * aboard only on a WATER tile (the port's docking model puts everyone
@@ -2083,14 +2083,14 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_nation(Col1ApplyCtx* ctx) {
     europe->tax_percent = nat->tax_rate;
     europe->difficulty = save->head.difficulty > 8 ? 8 : save->head.difficulty;
     /* 0xFFFF is the fingerprint of the removed Euro-war all-cargo embargo
-     * stand-in (bugs.md all_boycotted.SAV). DOS boycotts are king tea-party,
+     * stand-in (port_bugs.md all_boycotted.SAV). DOS boycotts are king tea-party,
      * one cargo at a time — never all 16 in one event. */
     europe->boycott_bitmap = (nat->boycott_bitmap == 0xFFFFu) ? 0u : nat->boycott_bitmap;
     /* nation+0x1e — Artillery purchase count (FUN_38fd_4b50 price ladder). */
     europe->artillery_bought = (int)nat->artillery_count;
     /*
      * nation+6 — the Recruit passage ladder counter (FUN_38fd_4884 tail,
-     * cap 0xb4). bugs.md: it was never bridged, so game_apply_col1_save's
+     * cap 0xb4). port_bugs.md: it was never bridged, so game_apply_col1_save's
      * europe_reset_campaign dropped it to 0 on every load and the passage
      * price fell back to its opening rung.
      */
@@ -2099,7 +2099,7 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_nation(Col1ApplyCtx* ctx) {
     europe->needed_crosses =
       nat->needed_crosses > 0 ? nat->needed_crosses : TURN_DEFAULT_NEEDED_CROSSES;
     europe->liberty_bells_pool = nat->liberty_bells_pool;
-    /* bugs.md #933: +0xe is genuinely "bells this turn" (FUN_3844_00f2 raw
+    /* port_bugs.md #933: +0xe is genuinely "bells this turn" (FUN_3844_00f2 raw
      * 58382 zeroes it before the colony loop); nothing stashes over it now. */
     europe->liberty_bells_last_turn = nat->liberty_bells_last_turn;
     /* The dialog price is derived state; recompute it now that count,
@@ -2296,7 +2296,7 @@ static void col1_bridge_sanitize_units_for_dos(
      * water tile (an "ocean sentry orphan": a land unit on water that is not
      * aboard anything is already a broken state DOS cannot represent).
      *
-     * bugs.md ("ships take away any non-fortified unit as they even enter a
+     * port_bugs.md ("ships take away any non-fortified unit as they even enter a
      * colony"): this loop used to board every co-located land unit on ANY
      * tile — and it mutates the LIVE pool during save/export
      * (units_board_stacked stamps Sentry, parks MP, sets aboard_ship_id).
@@ -2307,7 +2307,7 @@ static void col1_bridge_sanitize_units_for_dos(
      * (units_board_stacked), not here.
      */
     /*
-     * bugs.md #1059: off-map coords read as water (map_is_water_at), so the
+     * port_bugs.md #1059: off-map coords read as water (map_is_water_at), so the
      * Europe park (200,100), the dock and the sea lanes looked like an ocean
      * orphan. Every save then boarded a nation's whole Europe stack onto
      * whatever own hull sat in Europe — the uncapped restore board took 22
@@ -2431,7 +2431,7 @@ void col1_bridge_stamp_autosave_head(ColonizeCol1Save* save) {
 }
 
 /* ===================== Runtime -> COL1 capture (save export) (col1_bridge_capture_head .. col1_bridge_capture_w) ===================== */
-/* bugs.md #1107: col1_bridge_capture_w is a dispatcher over the record-family
+/* port_bugs.md #1107: col1_bridge_capture_w is a dispatcher over the record-family
  * stages below (file order = the original body order). Cross-stage locals live
  * in Col1CaptureCtx (col1_bridge_internal.h). */
 
@@ -2494,7 +2494,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_capture_head(Col1CaptureCtx* ctx) 
   save->player[human_nation].control = 0;
   /* DOS 0x543f polarity: 0 = human. A stale save (pre-fix template) can carry
    * a second control==0 on nation 0 — DOS then runs England's turn as a HUMAN
-   * (input stop, fog view flips to England; bugs.md #282). Heal: any other
+   * (input stop, fog view flips to England; port_bugs.md #282). Heal: any other
    * Euro slot still at 0 becomes AI (1); withdrawn (2) is preserved. */
   for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
     if (n != human_nation && save->player[n].control == 0) {
@@ -2514,7 +2514,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_capture_head(Col1CaptureCtx* ctx) 
   /* DS:0x53a4 SETVIEW override: DOS's turn loop pins the map view to it when
    * >= 0 (`view = 0x5398; if (0x53a4 >= 0) view = 0x53a4`). The port's old
    * zero-filled head locked DOS onto England's fog after the first EOT
-   * (bugs.md #282, still_foggy.SAV). 0xffff = no override, as every DOS save
+   * (port_bugs.md #282, still_foggy.SAV). 0xffff = no override, as every DOS save
    * carries; heals stale campaigns on re-save. */
   save->head.fixed_nation_map_view = 0xffffu;
   /* DS:0x53a2 show_entire_map: the Complete Map cheat / post-win reveal.
@@ -2527,7 +2527,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_capture_head(Col1CaptureCtx* ctx) 
    * 0/1 (DOS only ever writes those two values). */
   save->head.show_entire_map = (uint16_t)(save->head.show_entire_map != 0 ? 1 : 0);
   /*
-   * bugs.md interop (port_saves/interop pair): DOS's own in-game saves carry
+   * port_bugs.md interop (port_saves/interop pair): DOS's own in-game saves carry
    * DS:0x53c2 turn_loop_running = 1 and DS:0x53c4 map_modal_active = 1. The
    * port wrote 0/0, and DOS's IN-GAME load restores 0x53c2 into its running
    * main loop — the `while` gate reads 0 and DOS falls straight out to the
@@ -2537,7 +2537,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_capture_head(Col1CaptureCtx* ctx) 
    */
   save->head.turn_loop_running = 1;
   save->head.map_modal_active = 1;
-  /* bugs.md #228: a WoI save must carry the crown slot (DS:0x53d2) — with -1
+  /* port_bugs.md #228: a WoI save must carry the crown slot (DS:0x53d2) — with -1
    * DOS picks its own crown at load and can collide with the cached
    * intervention ally (0x53d4), mislabeling the intervention force "Tory".
    * Belt for campaigns declared before ai_king_do_declare stamped it. */
@@ -2606,7 +2606,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_nation_europe(Col1CaptureCtx* ctx) {
      * is the authoritative one — europe->boycott_bitmap is only its mirror —
      * so heal it here too, or a snapshot that never went through the load
      * path's repair writes the removed all-cargo-embargo fingerprint straight
-     * back out to the file (bugs.md all_boycotted.SAV). Never copy the mirror
+     * back out to the file (port_bugs.md all_boycotted.SAV). Never copy the mirror
      * over nation: ai_king tea-party / ai_diplo embargo write the nation word
      * directly and the Europe screen may not have rendered since.
      */
@@ -2778,7 +2778,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_capture_colonies(Col1CaptureCtx* c
       const int cti = col1_tile_index_from_runtime(rti);
       if (who < 0 || who >= dst->population) {
         /* Outer slots keep whatever the save carried, even when it names no
-         * colonist of this colony (byte-exact interop, bugs.md #593). */
+         * colonist of this colony (byte-exact interop, port_bugs.md #593). */
         if (rti >= COLONIZE_COLONY_FIELD_TILES && who >= 0) {
           dst->tiles[cti] = (int8_t)who;
         }
@@ -2984,7 +2984,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_unit_records(Col1CaptureCtx* ctx) {
         int spent = 0;
         if (src->aboard_ship_id >= 0) {
           /* A passenger's byte is whatever it carried aboard: DOS never
-           * rewrites +0x3149 in the hold (bugs.md #544). A live `moves`
+           * rewrites +0x3149 in the hold (port_bugs.md #544). A live `moves`
            * means it was woken aboard; the park zero means aboard_moves
            * (-1 = nothing spent). */
           const int left = src->moves > 0 ? src->moves
@@ -3018,7 +3018,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_unit_records(Col1CaptureCtx* ctx) {
            * with 13..19 where DOS's overspend ADD ran past max). Exporting
            * 0 here refunded a full turn of movement to every exhausted land
            * unit on save+reload (smell #75). Sentry/Fortified keep their
-           * real MP overnight (bugs.md #715), so a zero is always a spend.
+           * real MP overnight (port_bugs.md #715), so a zero is always a spend.
            */
           spent = max_mp - src->moves; /* < 0 = DOS overspend past the allotment */
         } else if (src->moves < max_mp) {
@@ -3068,7 +3068,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_unit_records(Col1CaptureCtx* ctx) {
        * stop. The port keeps the pair unpacked at runtime (follow_unit_id =
        * slot, col1_counter16 = stop); without this the slot was never written
        * to the file at all, so every reload dropped the wagon/ship off its
-       * route and it just sat in the activation queue (bugs.md
+       * route and it just sat in the activation queue (port_bugs.md
        * trade_route_wagon.SAV).
        */
       if (dst->orders == (uint8_t)UNITS_ORDER_TRADE_ROUTE) {
@@ -3130,7 +3130,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_unit_records(Col1CaptureCtx* ctx) {
     }
     dst->ai_plan =
       src->col1_ai_plan != 0 ? src->col1_ai_plan : COL1_UNIT_UNKNOWN16_HI_DEFAULT;
-    /* Full signed DOS facing byte unit+0x314f (-1 none, 8 stay; bugs.md #1046). */
+    /* Full signed DOS facing byte unit+0x314f (-1 none, 8 stay; port_bugs.md #1046). */
     dst->facing = (uint8_t)src->last_dir & 7u;
     dst->facing_pad = (uint8_t)((uint8_t)src->last_dir >> 3);
     memset(dst->cargo_hold, 0, sizeof(dst->cargo_hold));
@@ -3174,7 +3174,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_unit_records(Col1CaptureCtx* ctx) {
       }
       /*
        * Goods only — passengers live in transport_chain (not hold slots).
-       * bugs.md #844: when the port modelled no goods (gi == 0) and a raw
+       * port_bugs.md #844: when the port modelled no goods (gi == 0) and a raw
        * +0xc..+0x15 block was stashed at apply, leave the just-restored
        * raw holds_occupied byte alone instead of stamping 0 over it —
        * DOS repurposes +0xc on native units (hold[2] per-settlement
@@ -3201,7 +3201,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_unit_records(Col1CaptureCtx* ctx) {
      * A stashed hold[5] > 100 is the repurposed DOS byte, never tools —
      * leave the restored raw value alone. Transports (wagons) never carry
      * tools; their raw hold[5] also stays. */
-    /* bugs.md #787: the cargo-carrier test here must be the @UNIT cargo
+    /* port_bugs.md #787: the cargo-carrier test here must be the @UNIT cargo
      * column, not units_is_transport — that predicate also demands the unit
      * be on the map, so an off-map (aboard / in-Europe) Wagon Train fell
      * into the pioneer-tools arm and could zero its raw hold[5]. */
@@ -3369,7 +3369,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_unit_chains(Col1CaptureCtx* ctx) {
   }
 
   /*
-   * bugs.md interop: DOS tile stacks ARE this chain. FUN_1427_02ca appends
+   * port_bugs.md interop: DOS tile stacks ARE this chain. FUN_1427_02ca appends
    * arrivals to +0x315c/+0x315e; FUN_1427_0002 follows +0x315c to the tail,
    * which FUN_281f_07e0 returns as the tile head. Keep runtime arrival
    * order when exporting so save/load preserves the head in mixed stacks.
@@ -3608,7 +3608,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_europe_lanes(Col1CaptureCtx* ctx) {
               const int gold = ship->cargo_treasure_gold[c];
               px->profession = (uint8_t)(gold > 0 ? (gold / 100 > 255 ? 255 : gold / 100) : 0);
             } else {
-              /* bugs.md #902: DOS +0x315b holds 0x1c (UNITS_JOB_NONE) for
+              /* port_bugs.md #902: DOS +0x315b holds 0x1c (UNITS_JOB_NONE) for
                * a body with no skill, not @JOB 0 (Expert Farmer).
                * cargo_professions[] defaults to -1 whenever a ship is
                * pushed without a profession array; siblings at :2722 and
@@ -3929,7 +3929,7 @@ bool col1_contact_adjacent_tribe(
     }
     /*
      * No alarm here. This was the fourth per-step drip of the fandom class
-     * bugs.md #289/297 retired: DOS grows Indian alarm only through the
+     * port_bugs.md #289/297 retired: DOS grows Indian alarm only through the
      * FUN_4d56_152e threat accumulator (plus the discrete bumps — working
      * claimed land, raids, trade, first contact). The DOS move tail that
      * actually runs on this step, FUN_5bfb_3180 (ported as

@@ -1284,7 +1284,7 @@ static bool test_europe_lane_ship_chain(char* err, size_t err_size) {
   return ok;
 }
 
-/* bugs.md #1107 seam: col1_bridge_apply_w / capture_w stages called directly
+/* port_bugs.md #1107 seam: col1_bridge_apply_w / capture_w stages called directly
  * through col1_bridge_internal.h — abort status, ctx-owned maps, write-back. */
 static bool test_bridge_stage_seams(char* err, size_t err_size) {
   ColonizeCol1Save save;
@@ -1712,7 +1712,7 @@ int main(void) {
     {"test-saves-ai/TURN7.SAV", false, false, true},
     /* Pre-fix Dutch port save with stale head human/nation_turn/view = 0;
      * apply must derive human=3 from control and recapture must stamp 3/3/3
-     * (bugs.md fog_and_popup: DOS fogged whole map + instant @PRICEUP). */
+     * (port_bugs.md fog_and_popup: DOS fogged whole map + instant @PRICEUP). */
     {"port_saves/campaign2/fog_and_popup.SAV", false, false, true},
   };
   for (size_t oi = 0; oi < sizeof(k_fixtures) / sizeof(k_fixtures[0]); ++oi) {
@@ -1841,7 +1841,7 @@ int main(void) {
         return 1;
       }
       /*
-       * bugs.md #506: colony +0x60 nibbles are the per-colonist education
+       * port_bugs.md #506: colony +0x60 nibbles are the per-colonist education
        * counter (FUN_15eb_0c7a/0cbc, raw 10202-10240), not a constant 15/0
        * export — a real DOS save must round-trip them. The canonical
        * colonist reorder (raw 47225/47241) permutes the slots with the
@@ -1874,7 +1874,7 @@ int main(void) {
       /* DOS in-game saves carry DS:0x5394/0x5396/0x5398 all == human slot
        * (Dutch goldens: 3/3/3); a stale 0 makes DOS run England's EOT as
        * "human" at load (immediate @PRICEUP) and draw fog for viewer 0
-       * (bugs.md fog_and_popup.SAV). */
+       * (port_bugs.md fog_and_popup.SAV). */
       if (cap.head.human_player != (uint16_t)br.human_nation ||
           cap.head.nation_turn != (uint16_t)br.human_nation ||
           cap.head.curr_nation_map_view != (uint16_t)br.human_nation) {
@@ -1945,7 +1945,7 @@ int main(void) {
        * carries counter 1. Cross-checked against the DOS turn-0 oracles
        * original_saves/mapgen/SEED100.SAV and original_saves/COLONY00.SAV,
        * where the three AI nations sit at 229/230/231 with counter 0 and goto =
-       * their landfall tiles. (bugs.md #489)
+       * their landfall tiles. (port_bugs.md #489)
        */
       if (strstr(fix->path, "lategame-saves/COLONY06.SAV")) {
         if (europe.harbor_ships != 0 || europe.bound_ships != 2) {
@@ -2807,7 +2807,7 @@ int main(void) {
   }
 
   /*
-   * bugs.md regression: capture's DOS-hygiene pass must NOT board land units
+   * port_bugs.md regression: capture's DOS-hygiene pass must NOT board land units
    * that merely share a LAND tile (colony dock / coastal stack) with a ship —
    * it used to force the whole garrison aboard (orders→Sentry, live pool
    * mutated) on every save. Only a land unit stranded on WATER (an orphan
@@ -2859,7 +2859,7 @@ int main(void) {
     /* Land unit stranded on a WATER tile beside a second ship (orphan). */
     const int ship2_id = units_spawn_allow_stack(&units, caravel >= 0 ? caravel : 13, 22, 20);
     const int orphan_id = units_spawn_allow_stack(&units, freeman >= 0 ? freeman : 0, 22, 20);
-    /* bugs.md #1059: a hull and a colonist in the Europe park (200,100) —
+    /* port_bugs.md #1059: a hull and a colonist in the Europe park (200,100) —
      * off-map reads as water, so this used to board the whole dock stack. */
     const int euro_ship_id = units_spawn_allow_stack(&units, caravel >= 0 ? caravel : 13, 200, 100);
     const int euro_land_id = units_spawn_allow_stack(&units, freeman >= 0 ? freeman : 0, 200, 100);
@@ -3320,7 +3320,7 @@ int main(void) {
   }
 
   /*
-   * bugs.md: nation+6 (the Recruit passage ladder counter) was never bridged,
+   * port_bugs.md: nation+6 (the Recruit passage ladder counter) was never bridged,
    * so game_apply_col1_save's europe_reset_campaign dropped it to 0 on every
    * load and the Europe passage price fell back to its opening rung. Round-trip
    * it in both directions, and check apply recomputes the displayed price.
@@ -3396,7 +3396,7 @@ int main(void) {
   }
 
   /*
-   * bugs.md (trade_route_wagon.SAV): a wagon/ship on a trade route came back
+   * port_bugs.md (trade_route_wagon.SAV): a wagon/ship on a trade route came back
    * from a save with no route at all, so game_trade_route_retarget bailed on
    * follow_unit_id == -1 and the unit just sat in the activation queue. DOS
    * keeps the cursor in the profession byte a route-running unit does not
@@ -3468,7 +3468,7 @@ int main(void) {
     sv->orders = UNITS_ORDER_TRADE_ROUTE;
     sv->follow_unit_id = 3; /* route with no stops */
     sv->col1_counter16 = 0;
-    w->last_dir = -1; /* bugs.md #1046: full signed +0x314f byte round-trips */
+    w->last_dir = -1; /* port_bugs.md #1046: full signed +0x314f byte round-trips */
     sv->last_dir = 8;
     const int wagon_x = w->x;
     const int wagon_y = w->y;
@@ -3877,7 +3877,7 @@ int main(void) {
     /* Stamp the raw records: four land units on trade-route orders whose
      * cursor nibble is out of range, and the Galleon parked in the Europe
      * port lane (236 + human nation; 228/232 + n are the westbound Bound
-     * lanes and 240/244 + n the eastbound Expected ones — bugs.md #489) with
+     * lanes and 240/244 + n the eastbound Expected ones — port_bugs.md #489) with
      * one real hold and five stale ones. */
     int stamped = 0;
     bool ship_stamped = false;
@@ -4014,7 +4014,7 @@ int main(void) {
   }
 
   /*
-   * bugs.md #902: a Europe passenger with no assigned profession (the
+   * port_bugs.md #902: a Europe passenger with no assigned profession (the
    * default cargo_professions[] value, -1 — e.g. a founding-father grant
    * pushed without a profession array) must export as UNITS_JOB_NONE
    * (0x1c), the DOS "no skill" sentinel, not @JOB 0 (Expert Farmer).
@@ -4468,7 +4468,7 @@ int main(void) {
    * the human's own unmoved units sit at 0. Exporting 0 for an exhausted
    * land unit refunded a whole turn of movement on save+reload.
    *
-   * Sentry/Fortified keep their real MP overnight (bugs.md #715): an
+   * Sentry/Fortified keep their real MP overnight (port_bugs.md #715): an
    * overnight park exports what it holds, a zero is a spend.
    */
   {
@@ -4995,14 +4995,14 @@ head_stamp_fail:
   }
 
   /*
-   * bugs.md #844/#845 empirical check: load a real brave-bearing Col1 save
+   * port_bugs.md #844/#845 empirical check: load a real brave-bearing Col1 save
    * (dutch-reports.SAV, which has native units with a nonzero +0xc
    * per-settlement counter and +0x15 values in 1..100), round-trip it
    * through apply -> capture with real @UNIT types loaded, and diff every
    * native (nation_id >= 4) unit's holds_occupied (+0xc) and cargo_hold[5]
    * (+0x15) against the original raw bytes. Matched by (x, y, type,
    * nation_id) since capture re-emits records in runtime pool order
-   * (bugs.md D5), not original slot order.
+   * (port_bugs.md D5), not original slot order.
    */
   {
     founding_fathers_reset();
@@ -5135,7 +5135,7 @@ head_stamp_fail:
     map_free(&map);
     assets_msg_free(&names);
     if (mismatches_holds != 0 || mismatches_hold5 != 0 || matched != orig_snap_n) {
-      fprintf(stderr, "brave roundtrip: FAIL — see bugs.md #844/#845\n");
+      fprintf(stderr, "brave roundtrip: FAIL — see port_bugs.md #844/#845\n");
       return 1;
     }
   }

@@ -67,7 +67,7 @@ int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b) {
 /*
  * FUN_15eb_2ea0 needs the 28c8 scorer in ai_euro.c, which the slim targets do
  * not compile. Fall back to DOS's own no-plot outcome (Carpenter) so an
- * admitted colonist is still never left idle (bugs.md #6/#562).
+ * admitted colonist is still never left idle (port_bugs.md #6/#562).
  */
 void ai_euro_28c8_auto_assign_plots(ColonizeTurnContext* ctx, int colony_id, int colonist_slot) {
   ColonizeColony* col = ctx ? colonies_get_mut(ctx->colonies, colony_id) : NULL;

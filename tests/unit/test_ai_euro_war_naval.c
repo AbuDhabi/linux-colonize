@@ -688,7 +688,7 @@ static int unit_naval_ambush(void) {
 }
 
 /*
- * bugs.md #747 — DOS-LITERAL FUN_465b_0000 raw 75527-75545, the
+ * port_bugs.md #747 — DOS-LITERAL FUN_465b_0000 raw 75527-75545, the
  * Privateer-sighting relation bit. Mover type 0x10 is @UNIT row 16 =
  * Privateer (the old port read it as "Treasure", 0x0a, and scanned the 8
  * neighbours after a Treasure's act instead). The bit is

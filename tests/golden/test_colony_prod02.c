@@ -71,7 +71,7 @@
  * (colony_yield.c).
  *
  * The horses/food drift the 2026-08-18 note listed here is gone: the test
- * compares COL1_CMP_ALL and passes (bugs.md #608 CLOSED).
+ * compares COL1_CMP_ALL and passes (port_bugs.md #608 CLOSED).
  *
  * One real, unrelated bug *was* found and fixed via this save:
  * `colonies_try_complete_building` used to clear `building_in_production`

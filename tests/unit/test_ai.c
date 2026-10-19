@@ -450,7 +450,7 @@ static int run_init_and_turns(
   colonies_set_units_context(NULL);
   EuropeScreen europe;
   memset(&europe, 0, sizeof(europe));
-  /* Real @CARGO table: AI Europe trades price off it (bugs.md #1049). */
+  /* Real @CARGO table: AI Europe trades price off it (port_bugs.md #1049). */
   (void)europe_load_tables(&europe, &names);
   europe.gold = 1000;
 
@@ -493,7 +493,7 @@ static int run_init_and_turns(
     assets_msg_free(&names);
     return 1;
   }
-  /* bugs.md: REF must be seeded from the wizard's actual new-game path
+  /* port_bugs.md: REF must be seeded from the wizard's actual new-game path
    * (75c2:360b, diff 0 → [15,5,2,2]), not only from the lazy save template. */
   if (col1.head.expeditionary_force[0] != 15 || col1.head.expeditionary_force[1] != 5 ||
       col1.head.expeditionary_force[2] != 2 || col1.head.expeditionary_force[3] != 2) {
@@ -507,7 +507,7 @@ static int run_init_and_turns(
     assets_msg_free(&names);
     return 1;
   }
-  /* bugs.md #1052/#1058: FUN_38fd_6024 seeds every nation's recruit pool and
+  /* port_bugs.md #1052/#1058: FUN_38fd_6024 seeds every nation's recruit pool and
    * LFSR, not just the human's (diff 0: slot 0 = 0x19, Spain 0x18; slots 1-2
    * expert rolls, never 0x1c). Expert Farmers (0) is a legal roll. */
   for (int n = 0; n < 4; ++n) {
@@ -585,7 +585,7 @@ static int run_init_and_turns(
   }
 
   /*
-   * bugs.md #490: FUN_75c2_235c is path-independent — an AMERICA / TRIBE.TXT
+   * port_bugs.md #490: FUN_75c2_235c is path-independent — an AMERICA / TRIBE.TXT
    * start must look exactly like a generated one: fleet on the westbound
    * sentinel (228+n, 228+n), voyage counter 0, goto = the nation's landfall
    * tile (@SCENARIO raw 121035: AMER2 = (34,20) (39,10) (47,61) (50,33)), and
@@ -793,7 +793,7 @@ static int run_init_and_turns(
   ctx.col1_ok = true;
 
   /*
-   * bugs.md #490: the first EOT is the fleets' Atlantic tick — counter 0 means
+   * port_bugs.md #490: the first EOT is the fleets' Atlantic tick — counter 0 means
    * FUN_48d3_03d0 hands them to FUN_48d3_048e at once, so every AI fleet must
    * leave the 228+n lane and land on the ring around its own landfall tile,
    * whatever the map source. The generated-map fallback pick has no fixed
@@ -1085,7 +1085,7 @@ static int run_init_and_turns(
  * settlement's alarm word for the colony's nation climb; nothing nearby leaves
  * it alone; and the French (nation 1) earn it at half rate.
  *
- * Guards the un-stubbing done for bugs.md "Indian alarm isn't shown" — while
+ * Guards the un-stubbing done for port_bugs.md "Indian alarm isn't shown" — while
  * the threat scan reported "no threat" this word never moved, so no amount of
  * settling or developing ever alarmed anyone.
  */
@@ -1496,7 +1496,7 @@ static int run_152e_mission_nibble_out_of_domain(void) {
   return 0;
 }
 
-/* bugs.md #1103: ai_coarse_fog_reset wipes the DS:0x9faa plane that the 0a60
+/* port_bugs.md #1103: ai_coarse_fog_reset wipes the DS:0x9faa plane that the 0a60
  * restamp (and mapgen) leave behind, as ai_init_new_game / load need. */
 static int case_coarse_fog_reset(void) {
   static ColonizeUnitPool units;

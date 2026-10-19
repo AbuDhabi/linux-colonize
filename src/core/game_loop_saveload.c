@@ -99,7 +99,7 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
    * against col1->tribe[], colony ids and unit ids of a different world.
    * All three are safe here because everything the save owns is rebuilt
    * immediately below: the FF bell pool and the FF bitmasks live in the save
-   * itself (bugs.md #933), AI goals are re-planned each nation
+   * itself (port_bugs.md #933), AI goals are re-planned each nation
    * turn, and the contact cooldowns are turn-number stamps that only mean
    * anything inside one campaign.
    */
@@ -108,7 +108,7 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   ai_contact_reset();
   ai_euro_reset();
   ai_native_reset();
-  ai_coarse_fog_reset(); /* bugs.md #1103: DS:0x9faa outlives the old world */
+  ai_coarse_fog_reset(); /* port_bugs.md #1103: DS:0x9faa outlives the old world */
   turn_reset();
   units_reset_state(); /* goto anti-backtrack shadow, indexed by reused unit_id */
   /* A legacy port save can already exceed DOS's 300-record global limit.
@@ -190,7 +190,7 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   ai_repair_nation_landfalls(&w);
   memset(loaded, 0, sizeof(*loaded));
   /* DS:0x8d80 (post_map.boot_timer) seeds every colony's building layout
-   * (FUN_2f2b_0434); the save carries it, so hand it over. bugs.md #578. */
+   * (FUN_2f2b_0434); the save carries it, so hand it over. port_bugs.md #578. */
   colony_screen_set_layout_seed(&game->colony_screen, game->col1.post_map.boot_timer);
   ai_diplo_talk_reset(); /* the outgoing game's 153e talk died with its popups */
   /* Repair invented wartime all-cargo embargo on the live save (const apply
@@ -203,7 +203,7 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   europe_set_nation(
     &game->europe, result.human_nation, game->names_ok ? &game->names : NULL
   );
-  /* bugs.md: leader identity must follow the save — game init defaults
+  /* port_bugs.md: leader identity must follow the save — game init defaults
    * leader_name to the English "Walter Raleigh" and load never replaced it,
    * so a Dutch campaign's exploits screen / HoF entry / declaration
    * signature all carried the English default. Take the save's own leader
@@ -228,7 +228,7 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
     }
   }
   /*
-   * bugs.md ("French expeditionary force missing on report"): in DOS the
+   * port_bugs.md ("French expeditionary force missing on report"): in DOS the
    * Expeditionary Force exists from turn 1 (new-game seed 75c2:360b) and
    * nothing drains it before the declaration, so every pre-WoI save must
    * hold at least the seed in each pool — whatever the nation. A campaign
@@ -268,7 +268,7 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   }
   sound_set_bgm(1);
   /*
-   * bugs.md: loading played the royal-audience tune. The 0x3e queue in
+   * port_bugs.md: loading played the royal-audience tune. The 0x3e queue in
    * OVL27 sits in the KING-portrait screen (75c2:1dcc pushes DS string
    * "KING1" right before it), not in the load path — the load function's
    * own tail (75c2:2330) queues 0x25, the default main theme.
@@ -365,7 +365,7 @@ static bool game_capture_col1(ColonizeGameState* game, char* err, size_t err_siz
      * 8*diff+15, dragoons 5*(diff+1), man-o-wars 3*diff+2, artillery
      * 6*diff+2 — and grows from tax events. Without it the Continental
      * Congress page 1 force bars stayed empty for a whole new-game
-     * campaign (bugs.md: "English Expeditionary Force ... is empty");
+     * campaign (port_bugs.md: "English Expeditionary Force ... is empty");
      * loaded DOS saves carried theirs, which is why the Dutch golden
      * seemed to be the only nation implemented.
      */
@@ -383,7 +383,7 @@ static bool game_capture_col1(ColonizeGameState* game, char* err, size_t err_siz
     /* DOS samples DS:0x8d80 from the BIOS tick (0040:006C, 18.2 Hz) once per
      * launch (FUN_1c0c_0012 via FUN_75c2_2d46 raw 121990) and saves it in the
      * post-map tail; a new game without one gets the same kind of value
-     * here so its colony layouts differ per game like DOS. bugs.md #578. */
+     * here so its colony layouts differ per game like DOS. port_bugs.md #578. */
     if (game->col1.post_map.boot_timer == 0) {
       game->col1.post_map.boot_timer =
         (uint32_t)(((uint64_t)time(NULL) * 182u / 10u) & 0x00ffffffu);

@@ -150,14 +150,14 @@ void game_select_unit(ColonizeGameState* game, int unit_id) {
   /* FUN_2b5a_0e52: selecting a piece re-reveals around it (281f_07a0). */
   game_reveal_sight_for_unit(game, u);
   /* units_display_name names the unit purely from its @UNIT row / equipment
-   * (bugs.md #591) — it does NOT fold profession into the label, so a
+   * (port_bugs.md #591) — it does NOT fold profession into the label, so a
    * toolless Pioneer-professioned Colonist still reads "Colonists" here.
    * The Naval report's passenger column deliberately reads the profession
-   * instead (bugs.md #605), which is a separate, port-side extension. */
+   * instead (port_bugs.md #605), which is a separate, port-side extension. */
   snprintf(game->status, sizeof(game->status), "Selected %s", units_display_name(&game->units, u));
   /*
    * DOS-LITERAL FUN_2b5a_001e raw 42006-42009 (overlay twin
-   * FUN_OVL02_L0000__000070, overlays.c 55586-55590) — bugs.md #730. Tail of
+   * FUN_OVL02_L0000__000070, overlays.c 55586-55590) — port_bugs.md #730. Tail of
    * the piece-selected hint chain: with DS:0x5380 bit 0x80 clear and the
    * piece being @UNIT type 0 with @JOB 0x1b (Indian Convert), raise
    * FUN_1000_8842(0x912, 4) = @TUTORIAL19 and latch the bit. Once per game;
@@ -282,7 +282,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_passenger_unload(
     const ColonizeWorld w = game_world(game);
     if (!units_unload_passenger_w(&w, ship_id, sid, dest_x, dest_y)) {
       /*
-       * bugs.md #721: DOS FUN_4720_015c reason 9 (viceroy_unpacked_2.c raw
+       * port_bugs.md #721: DOS FUN_4720_015c reason 9 (viceroy_unpacked_2.c raw
        * 74720-74728) is a BLOCKING dialog, not a status line — the
        * FUN_4720_049e jump table at 4720:060a maps it to `push 0x1429` =
        * @LANDFIRST ("Land units cannot enter an enemy occupied square from on
@@ -309,7 +309,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
     const bool dest_water = map_tile_is_water(&game->world_map, dest_x, dest_y);
     const bool dest_land = map_tile_is_land(&game->world_map, dest_x, dest_y);
     /*
-     * DOS 4720 reason 4 (bugs.md #717): a ship pushed off the east/west rim
+     * DOS 4720 reason 4 (port_bugs.md #717): a ship pushed off the east/west rim
      * runs reason 5's own UI body (jump table 4720:060a entries 3 and 4 are
      * the same 0x3FEA6), so it is the SAME @SAILHOME / @EUROPENOTLEAVE
      * question. Only the tail differs (0x3FEEA `cmp [0x9e4e],4` → abort at
@@ -326,13 +326,13 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
      * step deeper into the sea lane without a sail order is NOT a hard deny
      * — it asks @SAILHOME ("Shall we sail for Europe?"). Yes → sail; No →
      * the step commits and the ship remains in these waters (sea lanes are
-     * fully traversable, bugs.md). During the WoI, @EUROPENOTLEAVE info
+     * fully traversable, port_bugs.md). During the WoI, @EUROPENOTLEAVE info
      * fires instead and the step still commits (DS:0x5382 bit0 gate).
      */
     if (edge_sail ||
         (dest_water &&
         units_enter_probe_w(&w, selected->type_index, dest_x, dest_y, sid) == COLONIZE_ENTER_BLOCKED_HS_SAIL)) {
-      /* bugs.md #870 / FUN_479b raw 76477-76484: a crown Man-O-War on the
+      /* port_bugs.md #870 / FUN_479b raw 76477-76484: a crown Man-O-War on the
        * crown's own turn is exempt from the WoI gate and sails as usual. */
       if (game->col1_ok && game->col1.head.game_options.woi &&
           !game_ship_woi_europe_exempt(game, selected)) {
@@ -379,7 +379,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
       return GAME_MOVE_RETURN_TRUE;
     }
     if (dest_land && game_friendly_colony_at(game, dest_x, dest_y)) {
-      /* units_try_move puts passengers ashore on docking (bugs.md), so count
+      /* units_try_move puts passengers ashore on docking (port_bugs.md), so count
        * them before the move to report what came off. */
       const int n = selected->cargo_count;
       const ColonizeWorld w = game_world(game);
@@ -419,7 +419,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
       if (pax_ready < 0) {
         /* DOS FUN_4720_015c writes the landfall reason (2/3) only when some
          * passenger's spent byte is below its max — with none, reason stays 0
-         * and the move is simply refused, no @LANDFALL prompt (bugs.md #423). */
+         * and the move is simply refused, no @LANDFALL prompt (port_bugs.md #423). */
         set_status(
           game,
           selected->cargo_count > 0 ? "No unit aboard has moves left" :
@@ -470,7 +470,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
             return GAME_MOVE_RETURN_FALSE;
           }
           /*
-           * bugs.md #716: landfall costs the SHIP nothing. DOS's reason 2/3
+           * port_bugs.md #716: landfall costs the SHIP nothing. DOS's reason 2/3
            * body (FUN_4720_049e, viceroy_ndisasm.asm 0x3FE30-0x3FE6A) takes
            * the CHOICE, and on "Make Landfall" (ax == 2) only pushes the
            * picked passenger index [0x9e50] into FUN_281f_086c to make it the
@@ -613,7 +613,7 @@ bool game_foreign_trade_open(
     if ((r->tag == AI_POPUP_TAG_FOREIGN_TRADE_WHICH ||
          r->tag == AI_POPUP_TAG_FOREIGN_TRADE_OFFER) &&
         r->nation_a == unit_id) {
-      /* bugs.md #802: no GAME.TXT row and no DOS status-line write here —
+      /* port_bugs.md #802: no GAME.TXT row and no DOS status-line write here —
        * the "Trading" chrome was invented; the popup itself is the feedback. */
       return true;
     }
@@ -751,7 +751,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_native_prompts(
       );
       if (ai_contact_meet_pending_for_unit(&game->ai_popups, sid)) {
         /*
-         * bugs.md #722: no step charge here. FUN_465b_0000 dispatches the
+         * port_bugs.md #722: no step charge here. FUN_465b_0000 dispatches the
          * village tile at raw 75484-75492 — FUN_281f_06f0(dest) >= 0 →
          * FUN_2a1f_016c → FUN_4d56_4528, `goto LAB_465b_0bd1` — which is
          * BEFORE LAB_465b_05ca, the only place local_40 is ever added to
@@ -784,7 +784,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_native_prompts(
     }
   }
   /*
-   * bugs.md #438 / DOS FUN_5f7a_000e: a SCOUT stepping onto a foreign Euro
+   * port_bugs.md #438 / DOS FUN_5f7a_000e: a SCOUT stepping onto a foreign Euro
    * colony gets the @SCOUTCOLONY menu (Meet With Mayor / Infiltrate Colony /
    * Attack Colony / Nothing) instead of a bare attack. The colony_attack_ok
    * latch doubles as the "Attack Colony" pass-through.
@@ -899,13 +899,13 @@ COLONIZE_INTERNAL GameMoveStep game_move_colony_prompts(
   ColonizeGameState* game, ColonizeUnit* selected, int sid, int dest_x, int dest_y
 ) {
   /*
-   * bugs.md #985: there is no separate "confirm the attack on a foreign Euro
+   * port_bugs.md #985: there is no separate "confirm the attack on a foreign Euro
    * colony" dialog. DOS's only gate is FUN_465b_0000 below — @HAVETREATY when
    * a peace treaty is signed, otherwise the attack simply opens hostilities.
-   * The port's own port-authored confirm (bugs.md #437) is gone with it.
+   * The port's own port-authored confirm (port_bugs.md #437) is gone with it.
    */
   /*
-   * FUN_465b_0000 Euro peer at peace (bugs.md): DOS never refuses the attack —
+   * FUN_465b_0000 Euro peer at peace (port_bugs.md): DOS never refuses the attack —
    * a signed treaty asks @HAVETREATY first, no treaty just opens hostilities.
    * Covers a foreign unit on the tile and an (even undefended) foreign colony.
    */
@@ -940,7 +940,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_colony_prompts(
   /*
    * FUN_5fef_1b0e @HALF: the attacker has less than one whole movement point
    * left and would fight at remaining/3 strength — DOS asks before committing
-   * (bugs.md). Last of the pre-move confirms so the treaty / whack questions
+   * (port_bugs.md). Last of the pre-move confirms so the treaty / whack questions
    * are settled first, exactly the order 1b0e runs them in.
    */
   if (game->col1_ok && combat_unit_is_combat_role(&game->units, sid)) {
@@ -953,7 +953,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_colony_prompts(
       const int cid = colonies_id_at(&game->colonies, dest_x, dest_y);
       const ColonizeColony* col = colonies_get(&game->colonies, cid);
       attacking = col && col->active && col->nation_id != selected->nation_id;
-      /* bugs.md #940: an empty village grows its temporary Brave only inside
+      /* port_bugs.md #940: an empty village grows its temporary Brave only inside
        * units_try_move_w, after this pre-move @HALF gate. Treat the village
        * record itself as the defender so a 1/3 or 2/3 strength attack still
        * asks for confirmation. */
@@ -1061,7 +1061,7 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
 
   if (selected->type_index >= 0 && selected->type_index < game->units.type_count &&
       units_type_kind(&game->units.types[selected->type_index]) == UNITS_KIND_WAGON) {
-    /* bugs.md #440: the wheels (COLDIG 12, event 0x52) roll only when the
+    /* port_bugs.md #440: the wheels (COLDIG 12, event 0x52) roll only when the
      * wagon ARRIVES at a colony, not on every overland step. */
     const int arrive_cid = colonies_id_at(&game->colonies, selected->x, selected->y);
     const ColonizeColony* arrive_col = colonies_get(&game->colonies, arrive_cid);
@@ -1158,7 +1158,7 @@ void game_after_unit_action(ColonizeGameState* game) {
   if (!game || !game->units_ok) {
     return;
   }
-  /* bugs.md #285: any unit action ends the manual-pan hold — from here the
+  /* port_bugs.md #285: any unit action ends the manual-pan hold — from here the
    * view follows the acting unit again. */
   game->view_pan_hold_unit = -1;
   ColonizeUnit* u = units_get(&game->units, game->units.selected_id);
@@ -1239,7 +1239,7 @@ void game_after_unit_action(ColonizeGameState* game) {
    * local_36 / raw 98614) — a ship berthed in a colony qualifies (that is
    * the @HELLOAHOY case), a ship at sea never does. Euro target + WoI clear
    * (DS:0x5382 bit0) -> FUN_5bfb_153e via thunk_FUN_2a1f_05fc; a nonzero
-   * return stamps MET (0x20) both ways (bugs.md #545).
+   * return stamps MET (0x20) both ways (port_bugs.md #545).
    */
   if (game->col1_ok && game->world_map_ok && u->nation_id >= 0 && u->nation_id <= 3 &&
       units_is_on_map(u) && !game->col1.head.game_options.woi &&

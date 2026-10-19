@@ -135,7 +135,7 @@ static const int k_dos_class_placeholder[COLONY_DOS_CLASS_COUNT] = {
  * BIOS tick at 0040:006C when the game boots (FUN_1c0c_0012 via
  * FUN_75c2_2d46 raw 121990) and SAVES it in the post-map tail @608
  * (FUN_2a1f_0c9c raw 120106 / 0cb4 raw 120429) = post_map.boot_timer, so a
- * save does reproduce its layouts (bugs.md #564/#578). The live game hands
+ * save does reproduce its layouts (port_bugs.md #564/#578). The live game hands
  * that field in through colony_screen_set_layout_seed; this fallback is only
  * for callers without a save (tests, tools) and is not arbitrary: 25281 =
  * 844481 mod 32768, the boot_timer of the screenshot saves
@@ -375,7 +375,7 @@ static int colony_screen_category_sprite(
 }
 
 /*
- * bugs.md #536: DOS-LITERAL anchor for the fortification's outside-unit
+ * port_bugs.md #536: DOS-LITERAL anchor for the fortification's outside-unit
  * strip. FUN_2f2b_14d4 (raw 48255) calls the strip drawer
  * thunk_FUN_291f_0564 -> FUN_2f2b_11b2 (raw 47883) with
  * x = *(char*)(param_4+0x23c) + slot_x, y = *(char*)(param_4+0x242) +
@@ -874,7 +874,7 @@ void colony_screen_blit_buildings(
          * 5 (what actually got made) where DOS shows 10 (what the worker
          * can make, cotton permitting) — the shortfall itself already shows
          * separately on the Production tab. */
-        /* bugs.md (carpentry.SAV): the badge is the crew's POTENTIAL with
+        /* port_bugs.md (carpentry.SAV): the badge is the crew's POTENTIAL with
          * the SoL bonus folded in — never this tick's input-clamped actual.
          * The hammers preview override is gone for the same reason: with
          * lumber at 0 it read 0 (and silently dropped the SoL bonus). */
@@ -1066,7 +1066,7 @@ void colony_screen_draw_cargo_strip(
       snprintf(amount, sizeof(amount), "%d", colony->stock[i]);
       const int tw = font_text_width_skip(font, amount, FONT_SKIP_NONE);
       const int tx = slot_x + (COLONY_CARGO_SLOT_W - tw) / 2;
-      /* bugs.md: stock past warehouse capacity draws in the alert colour —
+      /* port_bugs.md: stock past warehouse capacity draws in the alert colour —
        * the excess spoils next turn (over-capacity unloads are allowed).
        * FUN_2f2b_28d6 (viceroy_unpacked.c 49118-49123) wraps that test in
        * `if (local_80 != 0)`: Food is never drawn as over-capacity, because
@@ -1102,7 +1102,7 @@ void colony_screen_draw_transports(
   if (!view || !units || !framebuffer) {
     return;
   }
-  /* bugs.md: >4 transports overflowed the box — shrink the pitch so the
+  /* port_bugs.md: >4 transports overflowed the box — shrink the pitch so the
    * last icon still ends inside (same squeeze the worker strips use). */
   int tr_pitch = COLONY_TRANSPORT_PITCH;
   if (view->docked_transport_count > 1) {
@@ -1123,7 +1123,7 @@ void colony_screen_draw_transports(
     const int x = COLONY_TRANSPORT_X + 4 + i * tr_pitch;
     const int y = COLONY_TRANSPORT_ICON_Y;
     /*
-     * bugs.md #705's repair countdown is not map-only: DOS carries the same
+     * port_bugs.md #705's repair countdown is not map-only: DOS carries the same
      * badge arm (FUN_112b_01ba raw 2148-2172) inline in its other unit-icon
      * sites, so a hull sitting out its repair in port shows the digit here
      * too. `halve` is DOS's interior-tile test FUN_137f_000a, and a colony
@@ -1192,7 +1192,7 @@ void colony_screen_draw_transports(
         }
       }
       /*
-       * bugs.md: only goods ever appear in a docked transport's holds. A unit
+       * port_bugs.md: only goods ever appear in a docked transport's holds. A unit
        * in a colony is *in the colony*, standing on the dock — whether it will
        * sail with a ship is not settled until the ship actually leaves, at
        * which point the sentried units on the tile board it

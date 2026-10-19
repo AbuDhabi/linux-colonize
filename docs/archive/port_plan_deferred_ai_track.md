@@ -159,13 +159,13 @@ list, not from the inventory.
   before the field-specialist restore pass. Resolutions: `iStack_4e` is the
   frame slot one word past Ghidra's `local_4e` label, i.e. `aiStack_68[0x0d]`
   — the by-profession Master Carpenter census, not an uninitialised local;
-  `FUN_281f_0cae(slot, 0x1c)` is the profession writer (bugs.md #431), so a
+  `FUN_281f_0cae(slot, 0x1c)` is the profession writer (port_bugs.md #431), so a
   chosen Servant/Criminal becomes a Free Colonist; the RNG is
   `FUN_281f_04d4(0, 0x10 - DS:0x53a6)`. Golden
   impact zero (traced: the arm is reached on every AI colony, and every
   golden colony fails the lumber gate). `make test` 66/66, `make golden` green.
 - [x] **`5952_035e` construction-project cascade (asm `5952:21d4`-`5952:274b`)
-  — LANDED 2026-09-17, bugs.md #483.** `ai_euro_5952_build_cascade` in
+  — LANDED 2026-09-17, port_bugs.md #483.** `ai_euro_5952_build_cascade` in
   `ai_euro.c` (seam in `ai_euro_internal.h`, 12 cases in
   `tests/unit/test_ai_euro_5952_build.c`, trace `AI_5952_BUILD_TRACE=1`).
   DOS has exactly ONE AI construction picker and it ends in five **unit**
@@ -353,7 +353,7 @@ list, not from the inventory.
     raised to 12 (= wanted_size 8 + 2×tier 2) so the tick cannot swallow the
     berth passenger before the ship acts. `make test` 67/67, `make golden`
     green, `golden_ai_turns` 6/6.
-- [x] **Invented AI unit-act arms swept** — 2026-09-18 (bugs.md #512-#520,
+- [x] **Invented AI unit-act arms swept** — 2026-09-18 (port_bugs.md #512-#520,
   out of the Veteran Soldier audit). Fifteen `ai_euro.c` arms whose only
   citation was Colonization.pdf / fandom / "Skills Chart" were traced against
   the decomp and deleted: soldier ship-boarding + Artillery siege hunt (DOS
@@ -379,7 +379,7 @@ list, not from the inventory.
   and the land adjacent-attack pair — see the open item below.
   Remaining manual-only citations are triaged in
   `docs/archive/ai_euro_uncited_arms_2026-09-18.md`.
-- [x] **AI goal walking made DOS-shaped** — 2026-09-18f (bugs.md #525/#526).
+- [x] **AI goal walking made DOS-shaped** — 2026-09-18f (port_bugs.md #525/#526).
   `FUN_521d_5b66` was decoded off its own 198 bytes in
   `viceroy_overlays.asm` (OVL14 0x5b66-0x5c37); Ghidra's 1800-line body at
   raw 90446 is inlined corruption and must not be read. Head: bail to `20e6`
@@ -395,10 +395,10 @@ list, not from the inventory.
   real save fields (`col1_flags15`, `col1_ai_plan`, `orders`, `goto_x`,
   `goto_y`) and the port's `@ORDERS` constants already are DOS's act states.
   Three divergences were measured and **kept**, each having cost a golden when
-  tried DOS-literal — they are bugs.md #527 (0a60 binds land only, for want of
+  tried DOS-literal — they are port_bugs.md #527 (0a60 binds land only, for want of
   ship-side goal producers), #528 (turn-top clear ported for `>= 10` only,
   because SENTRY overloads `orders` with the landfall latch) and #529.
-- [ ] **Land assault volume vs a 2+-defender colony** (bugs.md #521, open;
+- [ ] **Land assault volume vs a 2+-defender colony** (port_bugs.md #521, open;
   needs a **[live]** DOSBox-X trace). `+0x314c` is now fully decoded — value
   **10** has exactly one writer in the game, `FUN_521d_0a60` raw 87567, and
   means "a foreign unit or settlement stands on one of my 8 neighbours";
@@ -414,12 +414,12 @@ list, not from the inventory.
   defended colony is unidentified and cannot be settled statically.** Until
   then `ai_euro_land_best_adjacent_foe` / `ai_euro_land_try_adjacent_attack`
   stay as a marked stand-in; without them `golden_woi_ref01` leaves one colony
-  standing. **Settled 2026-09-22 (bugs.md #521):** the col9 reading was off
+  standing. **Settled 2026-09-22 (port_bugs.md #521):** the col9 reading was off
   by one column — `0x5239` is the `@UNIT` *cost* column (loader raw
   121115-121135), non-zero for every land type; with it the 4d2e term assaults
   stacked colonies and the stand-in pair is deleted (`golden_woi_ref01` all 7
   colonies fall t17 with no stand-in). The port's land arms were additionally **unreachable** until
-  2026-09-18e (bugs.md #522): three uncited early returns and an
+  2026-09-18e (port_bugs.md #522): three uncited early returns and an
   unconditional nearest-FOUND course ate all 460 gate calls in the WoI run.
   Porting raw 88584-88612 (own-colony garrison arm), raw 90210-90219 (the
   pre-`LAB_4d2e` gate — act_state 0/5/6/10 reach the scorer unconditionally,
@@ -825,7 +825,7 @@ function headers.
 | Mid `0a60` / `5d04` / `5b66` | Structural (2026-09-06) / **fully live 2026-09-07d-e** (stale "partial" corrected 2026-09-07f: the invented ~765-line OpenCol hire matrix is deleted, `ai_euro_5d04_hire_ladder_tail` = raw 92568-93070 is the only Europe hire economy — `ai_euro.c:7610`, called `:8141`, retirement note `:8156`) / **Done as a dispatcher** — not T3 |
 | `2154` / `2820` bodies | **Done**; `4528` **Done logic** (2026-09-06 audit; all 9 human arms + AI arms 1/3/4/5/6/7/9 live — stale "thin/partial" corrected 2026-09-07f), VGA meet chrome open (T5.1) — not T3 |
 | Alarmed Indian unit-act | Escort peel + smoke; `021a` four deltas wired 2026-09-08 (col1_counter16 bump, facing, homeless despawn, in-field arm/mount) — not T3 |
-| King / REF | **Done 2026-09-06** (all `43f7_*` symbols ported; short documented-divergence list in king_ref.md; WoI battle path battle-hardened via bugs.md batches) |
+| King / REF | **Done 2026-09-06** (all `43f7_*` symbols ported; short documented-divergence list in king_ref.md; WoI battle path battle-hardened via port_bugs.md batches) |
 | Mid / late joint goldens | live gates — `smoke_ai_mid01`/`late01` (renamed from `golden_ai_*` 2026-09-14, TT-13) and `golden_ai_turns` are ctest tests; `golden_ai_joint` is a build-only convenience target that re-runs the six (its duplicate `add_test` was dropped 2026-09-14, TT-14). No `DISABLED` property anywhere in `CMakeLists.txt` |
 
 ### Evidence, gates and tests

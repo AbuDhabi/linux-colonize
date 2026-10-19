@@ -939,7 +939,7 @@ static void read_nation(const JsonValue* o, ColonizeCol1Nation* nt) {
   if (json_get_u64(o, "recruit_count", &u)) nt->recruit_count = (uint8_t)u;
   read_arr_u8(o, "founding_fathers", nt->founding_fathers, 4);
   if (json_get_u64(o, "unknown21_pad", &u)) nt->unknown21_pad = (uint8_t)u;
-  /* bugs.md #933: field renamed liberty_bells_total -> liberty_bells_pool
+  /* port_bugs.md #933: field renamed liberty_bells_total -> liberty_bells_pool
      (DOS nation+0xc is the live FF bell pool, FUN_4345_0a22 raw 73341/73370).
      Old key kept as a read fallback for JSON written before the rename. */
   if (json_get_u64(o, "liberty_bells_pool", &u)) nt->liberty_bells_pool = (uint16_t)u;

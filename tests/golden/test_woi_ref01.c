@@ -134,7 +134,7 @@ int main(void) {
   ctx.names = &names;
   const int human = br.human_nation;
   int crown = ai_king_crown_nation(human); /* refreshed after declare — the
-    succession merger (bugs.md follow-up) may vacate a different slot */
+    succession merger (port_bugs.md follow-up) may vacate a different slot */
 
   /* Market pool words must not be the king's scratch space any more. */
   uint16_t market_before[16];
@@ -154,7 +154,7 @@ int main(void) {
   }
   crown = ai_king_crown_nation_col1(&save, human);
   /* Succession invariant: the King borrows an EMPTY slot — no inherited
-   * colonies (bugs.md follow-up: Quebec must not become Tory for free). */
+   * colonies (port_bugs.md follow-up: Quebec must not become Tory for free). */
   if (count_colonies(&colonies, crown) != 0) {
     fprintf(stderr, "crown slot %d inherited %d colonies at declare\n", crown,
             count_colonies(&colonies, crown));

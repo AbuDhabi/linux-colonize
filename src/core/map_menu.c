@@ -36,7 +36,7 @@ enum {
   MAP_MENU_COL_RULE_ITEM = COLONIZE_COL_BASIC, /* green item divider (PEDIA ---) */
   MAP_MENU_COL_ITEM = COLONIZE_COL_BASIC,
   MAP_MENU_COL_ITEM_DISABLED = COLONIZE_COL_GREY,
-  /* bugs.md: was literal index 1 (blue under the map palette); @COLORS
+  /* port_bugs.md: was literal index 1 (blue under the map palette); @COLORS
    * "select" (light brown selection fill) is the right semantic color. */
   MAP_MENU_COL_HOVER = COLONIZE_COL_SELECT
 };
@@ -663,7 +663,7 @@ static void map_menu_refresh_orders_dos(
         case MAP_MENU_ACTION_SENTRY:
           it->enabled = false;
           break;
-        /* bugs.md #693: FUN_2b5a_0902 greys Build (0x310) at raw 42124 and
+        /* port_bugs.md #693: FUN_2b5a_0902 greys Build (0x310) at raw 42124 and
          * then HIDES it at raw 42127 — the hide wins, so View Pieces shows no
          * Build Colony row at all. */
         case MAP_MENU_ACTION_BUILD_COLONY:
@@ -734,7 +734,7 @@ static void map_menu_refresh_orders_dos(
    * DOS local_c via FUN_281f_0b78 = FUN_15eb_0902 (raw 42188-42196,
    * 9939-9944): `DS:0x30e[type] >= 0` — the unit has a profession slot.
    * Regulars / Cavalry / Treasure / Artillery (-1) hide Build and Join;
-   * Cont. Army / Cont. Cav. (21 / 23) keep them. bugs.md #667.
+   * Cont. Army / Cont. Cav. (21 / 23) keep them. port_bugs.md #667.
    */
   const bool can_found_unit = units_type_has_profession_slot(u->type_index);
   const int cid_here =
@@ -760,7 +760,7 @@ static void map_menu_refresh_orders_dos(
   for (int i = 0; i < orders->item_count; ++i) {
     MapMenuItem* it = &orders->items[i];
     /*
-     * DOS-LITERAL FUN_2b5a_0b34 raw 42199-42211 (bugs.md #686 / #692):
+     * DOS-LITERAL FUN_2b5a_0b34 raw 42199-42211 (port_bugs.md #686 / #692):
      * `FUN_281f_07be(x,y)` resolves ANY Euro colony on the tile (not just an
      * own one). Colony present -> hide Build (0x310), Join (0x311) stays
      * visible and enabled; no colony -> hide Join, and the ONLY grey on
@@ -871,7 +871,7 @@ static void map_menu_refresh_orders_dos(
   }
 
   /*
-   * bugs.md #694: Activate (0x300) is never greyed or hidden. Neither
+   * port_bugs.md #694: Activate (0x300) is never greyed or hidden. Neither
    * FUN_2b5a_0b34 (a unit is selected) nor FUN_2b5a_0902 (View Pieces) names
    * 0x300 in any of its FUN_291f_0146 / FUN_291f_013a lists, so the row stays
    * live even with no unit under the cursor. The port used to gate it on
@@ -1401,7 +1401,7 @@ void map_menu_render(
       continue;
     }
     if (i == bar->hover_item && open->items[i].enabled) {
-      /* bugs.md: hover fill sat 1px too low vs. its label row. */
+      /* port_bugs.md: hover fill sat 1px too low vs. its label row. */
       fb_fill_rect(framebuffer, dx + 1, iy - 1, dw - 2, item_h, MAP_MENU_COL_HOVER);
     }
     const uint8_t color =

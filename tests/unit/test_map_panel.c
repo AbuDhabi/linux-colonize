@@ -212,7 +212,7 @@ static int case_minimap_rect_and_origin(void) {
       return 1;
     }
     /*
-     * bugs.md #429: the AMER2 west-coast sea lane IS column 1 (high seas,
+     * port_bugs.md #429: the AMER2 west-coast sea lane IS column 1 (high seas,
      * rows 33..70) and the east lane runs to column 56 — both must fall
      * inside the playable board and inside the scrolled-to-the-edge viewport.
      * DOS draws exactly columns 1..56 (FUN_6ba1_000c clamps the view origin to
@@ -553,7 +553,7 @@ static int case_village_chrome(void) {
   const int complete_map_chrome_ok = memcmp(xpx, cpx, sizeof(cpx)) == 0;
 
   /*
-   * bugs.md #364: the Dutch shade is DS:0x848 index 13, which is ICONS.SS-
+   * port_bugs.md #364: the Dutch shade is DS:0x848 index 13, which is ICONS.SS-
    * native orange (255,113,0) but plain EGA magenta in every other
    * palette. Given the active palette, the cross must land on whatever
    * index actually holds that orange — here a deliberately relocated slot
@@ -613,7 +613,7 @@ static int case_village_chrome(void) {
     return fail("village mission cross geometry wrong (should be a cross, not a bang)");
   }
   if (!dutch_cross_ok) {
-    return fail("Dutch mission cross not palette-adapted (bugs.md #364: pink, not orange)");
+    return fail("Dutch mission cross not palette-adapted (port_bugs.md #364: pink, not orange)");
   }
   if (!complete_map_chrome_ok) {
     return fail("Complete Map (fog nation -1) dropped village alarm/mission chrome");
@@ -864,7 +864,7 @@ static int case_village_trade_intel(void) {
 }
 
 /*
- * bugs.md #630: FUN_49dd_0424 raw 79185-79196 prefixes the stack row's tools
+ * port_bugs.md #630: FUN_49dd_0424 raw 79185-79196 prefixes the stack row's tools
  * detail with LABELS @MISC row 4 ("Expert") when the profession byte is 0x14
  * (Hardy Pioneer), and spells it without the parentheses the selected-unit
  * block (raw 78897-78918) uses.
@@ -926,7 +926,7 @@ static int case_stack_detail_expert_prefix(void) {
 }
 
 /*
- * bugs.md #642 / #643: the Treasure detail word comes from LABELS @CTITLE row
+ * port_bugs.md #642 / #643: the Treasure detail word comes from LABELS @CTITLE row
  * 1 (the DOS DS:0x93a0 slot, FUN_49dd_0424 raw 78911 / 79210), and the type-2
  * tools row is gated on the @UNIT type alone (raw 78896), so a 0-tools
  * Pioneers body still prints its tools line.
@@ -986,7 +986,7 @@ static int case_treasure_word_and_zero_tools(void) {
 }
 
 /*
- * bugs.md #705 — FUN_112b_01ba raw 2148-2172. A damaged unit whose type is
+ * port_bugs.md #705 — FUN_112b_01ba raw 2148-2172. A damaged unit whose type is
  * not 0x0b shows `@UNIT[type].0x5235 - unit[+0x315a]` as the badge instead of
  * the @ORDERS letter, halved (rounding up) when FUN_137f_000a says the unit
  * stands on an interior map tile, and '+' from 10 up.
@@ -1035,7 +1035,7 @@ static int case_repair_badge_digit(void) {
   return rc;
 }
 
-/* bugs.md #1107 seam: the header stage starts the text cursor at 0x33 or two
+/* port_bugs.md #1107 seam: the header stage starts the text cursor at 0x33 or two
  * px under the minimap rule, whichever is lower, then advances it by the date
  * and Gold/Tax lines plus a half-line gap. */
 static int case_header_stage_seam(void) {

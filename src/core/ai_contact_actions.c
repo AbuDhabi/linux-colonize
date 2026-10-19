@@ -105,7 +105,7 @@ static const char* ai_contact_job_expert_name(const ColonizeTurnContext* ctx, in
   if (job == UNITS_JOB_SCOUT) {
     return reports_job_display_name(job);
   }
-  return ""; /* catalog miss = empty string (bugs.md #775) */
+  return ""; /* catalog miss = empty string (port_bugs.md #775) */
 }
 
 /* NAMES.TXT @JOB column 0 (DS:0x8ea2 + job*8): "Farmer" … / "Scout". */
@@ -115,7 +115,7 @@ static const char* ai_contact_job_name(int job) {
   }
   /* Every other @JOB id by its NAMES.TXT row: villages also teach factory
    * skills (Fur Trader 12, Weaver 11, Tobacconist 10), which used to fall
-   * through to a typed "colonist" (bugs.md #547). Empty on a miss. */
+   * through to a typed "colonist" (port_bugs.md #547). Empty on a miss. */
   return reports_job_short_name(job);
 }
 
@@ -627,7 +627,7 @@ void ai_contact_colony_tick_war_5952(ColonizeTurnContext* ctx, int nation_id, in
  * Seasoned Scout (0x16). Farmer(0) → Fisherman(8) when rand(1,20) < ocean
  * tiles in the 20-ring. DOS reseeds the RNG from the village position
  * (FUN_1000_86ba(y*256+x + DS:0x8d80)) so the answer is stable per village
- * per game; DS:0x8d80 = post_map.boot_timer (saved/restored, bugs.md #564).
+ * per game; DS:0x8d80 = post_map.boot_timer (saved/restored, port_bugs.md #564).
  */
 static int ai_contact_a618_skill_ex(
   ColonizeTurnContext* ctx, int nation_id, const ColonizeCol1Tribe* t, ColonizeDosRng* out_rng
@@ -655,7 +655,7 @@ static int ai_contact_a618_skill_ex(
     /* No economics record to build DS:0x9e78 from: fall back to the one
      * skill DOS's own weight table makes the default, @JOB 0 Expert Farmer
      * (highest weight at tech >= 2). The old fallback was a hand-written
-     * tribe/cargo table with no DOS counterpart — bugs.md #573. */
+     * tribe/cargo table with no DOS counterpart — port_bugs.md #573. */
     memset(w, 0, sizeof(w));
     w[0] = 1;
   }
@@ -688,7 +688,7 @@ static int ai_contact_a618_skill_ex(
    * _DAT_0000_046c) AND it is written to / restored from the save file
    * (post_map tail @608: FUN_2a1f_0c9c write, FUN_2a1f_0cb4 read at raw
    * 120429), so it is a stable per-game value: post_map.boot_timer.
-   * bugs.md #564.
+   * port_bugs.md #564.
    */
   dos_rng_seed(&rng,
                (uint32_t)((int)t->y * 256 + (int)t->x) + ctx->col1->post_map.boot_timer);
@@ -709,7 +709,7 @@ static int ai_contact_a618_skill_ex(
     skill = UNITS_JOB_SCOUT; /* 0x16 */
   }
   /*
-   * bugs.md #601 — deliberate divergence, documented not "fixed". DOS
+   * port_bugs.md #601 — deliberate divergence, documented not "fixed". DOS
    * `thunk_FUN_1000_a618` (viceroy_overlays.c:77768-77780) walks the same
    * 20-plot ring and calls `FUN_281f_0768` on raw village x+-2 / y+-2 with NO
    * bounds test: at the map edge it reads whatever byte sits past the row and
@@ -810,7 +810,7 @@ static void ai_contact_live_among_natives_body(
   const int human = ai_contact_euro_is_human(ctx, e);
   /*
    * DOS-LITERAL thunk_FUN_1000_a618 head (overlays.c 77693-77718, asm
-   * OVL13:0x3650-0x36ab) — bugs.md #729. For a human-controlled actor
+   * OVL13:0x3650-0x36ab) — port_bugs.md #729. For a human-controlled actor
    * (param_3 < 4 && DS:0x543f+param_3*0x34 == 0) the village visit opens its
    * own tune on a 1-in-4 roll: FUN_1000_86c4(0,3) == 0 plays FUN_1000_8688(5)
    * (Natives), plus 7 when DS:0x8d52 == 0 (Inca) and 6 when it == 1 (Aztec) —
@@ -956,7 +956,7 @@ static void ai_contact_speak_with_chief(
   ColonizeDosRng local;
   ColonizeDosRng* rng = ai_contact_action_rng(ctx, nation_id, &local);
   ColonizeCol1Save* col1 = ctx->col1;
-  /* bugs.md #491: no music/RNG draw here. thunk_FUN_1000_a60c (overlay 13,
+  /* port_bugs.md #491: no music/RNG draw here. thunk_FUN_1000_a60c (overlay 13,
    * OVL13:0x3a00..) opens straight on FUN_1000_84fc(alarm) — the village tune
    * pool is switched once by the FUN_4d56_4528 menu head (alarm >= 0x32), which
    * this file already does in ai_contact_enqueue_village_meet. */
@@ -1045,7 +1045,7 @@ static void ai_contact_speak_with_chief(
               /* OVL13:0x003c2b `PUSH 1 / CALLF FUN_1000_900c` between
                * @CHIEFGUIDES and @WELLSEASONED is FUN_281f_0e1c →
                * FUN_6b7e_00c0, the map-viewport repaint — not a sound cue
-               * (bugs.md #502). The port repaints every frame; nothing to do. */
+               * (port_bugs.md #502). The port repaints every frame; nothing to do. */
               popup_msg_fill(ctx->messages, "WELLSEASONED", NULL, "", body, sizeof(body));
               ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
             }
@@ -1065,7 +1065,7 @@ static void ai_contact_speak_with_chief(
               popup_msg_fill(ctx->messages, "CHIEFGIFT", &tok, fb, body, sizeof(body));
               ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
             }
-            /* bugs.md: the human's live treasury is EuropeScreen.gold; the
+            /* port_bugs.md: the human's live treasury is EuropeScreen.gold; the
              * accessor picks the store by nation (audit G3). */
             europe_nation_gold_add(ctx->europe, col1, e, (long)gold);
             return;
@@ -1102,7 +1102,7 @@ static void ai_contact_speak_with_chief(
     if (human) {
       /* OVL13:0x003dc9 `MOV AX,0x55 / CALLF FUN_1000_86b0` (= FUN_281f_04c0 →
        * FUN_12d8_000e, the sound dispatcher) fires only on the human branch,
-       * immediately before @CHIEFKILL (DS:0x1668). bugs.md #502. */
+       * immediately before @CHIEFKILL (DS:0x1668). port_bugs.md #502. */
       sound_play(0x55);
     }
     fb[0] = '\0';
@@ -1302,7 +1302,7 @@ static int ai_contact_4cc6_03f8(
          * FIRST unit of the tile chain only; the sum then walks the whole chain
          * with no per-unit nation re-test — only the 0xd..0x12 hull-range test
          * (units_is_sea) and attack > 1. Port-side nation re-filter removed
-         * 2026-09-23 (bugs.md #768); differs only on a mixed-nation stack. */
+         * 2026-09-23 (port_bugs.md #768); differs only on a mixed-nation stack. */
         if (units_is_sea(ctx->units, u->id)) {
           continue;
         }
@@ -1652,7 +1652,7 @@ int ai_contact_ai_missionary_village(
    * FUN_4d56_417e raw 83579-83580: the -1500 incite discount tests the
    * acting unit's PROFESSION byte (+0x315b == 0x18 = Jesuit Missionary),
    * not its @UNIT type — a blessed non-Jesuit colonist pays full price.
-   * bugs.md #587.
+   * port_bugs.md #587.
    */
   if (ai_contact_ai_incite_human(
         ctx, ind, t, nation_id, e, u->profession == UNITS_JOB_MISSIONARY
@@ -1769,7 +1769,7 @@ static AiContactPopupStatus ai_contact_apply_popup_result_tags(
    * CONTACT_GIFT is OK-chrome only — the refuse notice and the 022e auto-gift
    * notice. There is no gift row in NAMES.TXT @ACTIONS and no DOS body for a
    * player-driven gift amount, so the Small/Large/Generous CHOICE this used to
-   * answer was invented and unreachable (bugs.md #1006). Acknowledging the tag
+   * answer was invented and unreachable (port_bugs.md #1006). Acknowledging the tag
    * keeps the chrome result ending the beat instead of falling through.
    */
   if (popup->result_tag == AI_POPUP_TAG_CONTACT_GIFT) {
@@ -1932,7 +1932,7 @@ static void ai_contact_apply_popup_result_menu(
   }
 
   /*
-   * bugs.md 2026-09-04 (user-observed DOS, then confirmed in the ASM): a unit
+   * port_bugs.md 2026-09-04 (user-observed DOS, then confirmed in the ASM): a unit
    * that interacts with an Indian village — scout, armed unit, colonist
    * alike — forfeits its remaining movement for the turn.
    *
@@ -1965,7 +1965,7 @@ static void ai_contact_apply_popup_result_menu(
     /*
      * DOS OVL13 0x4bd2 (`DEC AX; CMP AX,8; JA default`): choice 10 falls to
      * the switch default, which shows nothing — only the MP forfeit above
-     * runs. bugs.md #799.
+     * runs. port_bugs.md #799.
      */
     break;
   case AI_CONTACT_CHOICE_ENTER_HOSTILE:
@@ -1977,7 +1977,7 @@ static void ai_contact_apply_popup_result_menu(
   case AI_CONTACT_CHOICE_TRADE:
     /* FUN_4d56_2820 shell (ai_contact_2820_begin): tables, hold pick, sell loop, buy loop. */
     /* A failed begin (no adjacent unit / econ build fails) returns through
-     * LAB_003582 with no popup at all — bugs.md #960. */
+     * LAB_003582 with no popup at all — port_bugs.md #960. */
     if (other) {
       (void)ai_contact_2820_begin(ctx, ind, nation_id, e, other);
     }
@@ -1994,7 +1994,7 @@ static void ai_contact_apply_popup_result_menu(
      * (CONTACT_DEMAND; no amount CHOICE / no drain). Cite:
      * indian_contact.md demand amount widget / alarmed refuse.
      */
-    /* bugs.md #1005: nation alarm scalar (FUN_281f_030c), which is what
+    /* port_bugs.md #1005: nation alarm scalar (FUN_281f_030c), which is what
      * DOS's FUN_4d56_4528 demand entry gates on — not a max() over the
      * tribes' DS:0x54f6 attitude words. */
     const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
@@ -2016,7 +2016,7 @@ static void ai_contact_apply_popup_result_menu(
   case AI_CONTACT_CHOICE_TEACH:
     /* "Live Among The Natives" — thunk_FUN_1000_a618 on the acting unit. */
     /* No acting unit / village => not a real DOS pick; nothing happens
-     * (bugs.md #573 retired the invented adjacency pulse that used to run
+     * (port_bugs.md #573 retired the invented adjacency pulse that used to run
      * here). */
     if (menu_unit && menu_village) {
       ai_contact_live_among_natives(ctx, e, nation_id, menu_unit, menu_village);

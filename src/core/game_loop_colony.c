@@ -158,7 +158,7 @@ void game_enter_colony(ColonizeGameState* game, int cid) {
   game->colony_view_id = cid;
   /* FUN_2f2b_6cd4 raw 56009: FUN_281f_0c72 -> FUN_15eb_26e4 claim stamp; then
    * FUN_2f2b_2c92 (raw 49278) opens with FUN_281f_0c22 -> FUN_15eb_3930:
-   * workers on enemy-blocked plots are evicted (bugs.md #1080). */
+   * workers on enemy-blocked plots are evicted (port_bugs.md #1080). */
   {
     const ColonizeWorld w = game_world(game);
     colonies_26e4_claim_stamp(&w, colonies_get(&game->colonies, cid));
@@ -170,7 +170,7 @@ void game_enter_colony(ColonizeGameState* game, int cid) {
    * (COLDIG 13 hammering + cheering) is NOT played on every open — DOS
    * gates it on DS:0x34a >= 0, the building that just finished
    * construction, and plays it with that building's reveal animation
-   * (bugs.md: "celebratory SFX should not be played every time the colony
+   * (port_bugs.md: "celebratory SFX should not be played every time the colony
    * UI is opened"). Founding keeps its own 0x54 (FUN_479b_076e).
    */
   int reveal_bid = -1;
@@ -228,7 +228,7 @@ void game_enter_colony_at_cursor(ColonizeGameState* game) {
 }
 
 /*
- * bugs.md #6 / #562: a colonist admitted via 'B' must go to work at once.
+ * port_bugs.md #6 / #562: a colonist admitted via 'B' must go to work at once.
  * DOS's join path is FUN_15eb_3930 -> FUN_15eb_2ea0 -> FUN_15eb_28c8: the
  * newcomer takes the best-scoring work plot, and only when nothing scores does
  * he become a Carpenter. The old Town-Hall-first seating here had no DOS
@@ -240,7 +240,7 @@ static void game_auto_assign_new_colonist(ColonizeGameState* game, int colony_id
 
 /*
  * ORDERS Join Colony — DOS-LITERAL FUN_2b5a Build/Join handler join branch,
- * asm 0x227b2-0x227d9 (bugs.md #688 / #689 / #690):
+ * asm 0x227b2-0x227d9 (port_bugs.md #688 / #689 / #690):
  *   - @NOCOLONIESEITHER (asm 0x2256d) gates the SHARED handler, so it blocks
  *     Join exactly as it blocks Build;
  *   - `cmp [colony*0xca + 0x5d60],[0x5394]` — a colony owned by anyone else
@@ -411,7 +411,7 @@ bool game_colony_request_eject(
     const ColonizeMsgSection* sec = assets_msg_find(&game->messages, section);
     const int nch = popup_msg_choices(sec, choices, AI_POPUP_CHOICE_MAX);
     /*
-     * bugs.md: the confirm used to be a colony-screen-local box — single
+     * port_bugs.md: the confirm used to be a colony-screen-local box — single
      * unwrapped line in the colony font, no @width, no MSS figure, so the
      * three-line @ABANDON body ran out of the frame. DOS shows it through
      * the ordinary 6f74 dialog compositor (FUN_281f_0652), so route it
@@ -593,7 +593,7 @@ void game_colony_drag_begin_outside(ColonizeGameState* game, int unit_id) {
  * It is the church chord, not a generic "assigned" click — everything else,
  * field work and every other building, is silent. The port played it on all
  * three assign paths, which is why a Town Hall and a silver mine both sounded
- * like a church (bugs.md). Field jobs are @JOB 0..8, so they never qualify;
+ * like a church (port_bugs.md). Field jobs are @JOB 0..8, so they never qualify;
  * only Church/Cathedral work does.
  */
 #define GAME_ASSIGN_CHORD 0x8024
@@ -620,7 +620,7 @@ static void game_colony_assign_building_sound(
 /*
  * Shared refusal chrome for a colonies_assign_workplace() that said no —
  * a click on the building itself and an indoor row of the jobs menu
- * (bugs.md #900) must answer with the same popup, in the same DOS validator
+ * (port_bugs.md #900) must answer with the same popup, in the same DOS validator
  * order (thunk_FUN_1000_9808).
  */
 static void game_colony_workplace_refusal(
@@ -631,7 +631,7 @@ static void game_colony_workplace_refusal(
       (col && ci >= 0 && ci < col->colonist_count) ? &col->colonists[ci] : NULL;
     /* Mirror of colonies_assign_workplace's DOS validator order
      * (thunk_FUN_1000_9808): occupation caps first, then the school ones,
-     * all keyed on the school tier the colony OWNS. bugs.md #580/#589/#590. */
+     * all keyed on the school tier the colony OWNS. port_bugs.md #580/#589/#590. */
     const int occupation = colonies_building_occupation(&game->colonies, building_index);
     const int school_tier = colonies_school_owned_tier(&game->colonies, col);
     const bool teaching = (occupation == COLONIES_JOB_TEACHER);
@@ -674,7 +674,7 @@ void game_colony_assign_building_drop(ColonizeGameState* game, int building_inde
   if (building_index < 0) {
     set_status(game, "Build it first", NULL);
   } else if (!colonies_building_workable(&game->colonies, building_index)) {
-    /* bugs.md: refuse BEFORE resolving the colonist — the resolver admits an
+    /* port_bugs.md: refuse BEFORE resolving the colonist — the resolver admits an
      * outside unit into the colony as a side effect, and a failing drop onto
      * e.g. the Printing Press was consuming it as an invisible unassigned
      * colonist ("vanishes the colonist"). */
@@ -719,7 +719,7 @@ static bool game_colony_assign_field(
 
 /*
  * Status-line chrome only — the alarm itself is charged inside
- * colonies_assign_field_w. DOS shows no dialog at all here (bugs.md #284); the
+ * colonies_assign_field_w. DOS shows no dialog at all here (port_bugs.md #284); the
  * port keeps this line so the player learns why the tribe soured. Read-only, so
  * running it after the assign cannot double-charge.
  */
@@ -752,7 +752,7 @@ static void game_colony_indian_land_status(
 /*
  * Fisherman on a dockless colony: DOS raises GAME.TXT @NODOCKS in the assign
  * path (2f3e) below both the tile click (3fa6) and the jobs popup (348c), so
- * one gate serves both callers (bugs.md #1111). Returns true when it refused;
+ * one gate serves both callers (port_bugs.md #1111). Returns true when it refused;
  * the caller publishes game->status to the colony screen.
  */
 static bool game_colony_refuse_nodocks(
@@ -772,7 +772,7 @@ static bool game_colony_refuse_nodocks(
 }
 
 /*
- * DOS FUN_2f2b_3fa6, the area-view tile click (bugs.md):
+ * DOS FUN_2f2b_3fa6, the area-view tile click (port_bugs.md):
  *  - tile worked by the selected colonist  → the field-jobs popup (348c);
  *  - tile worked by someone else           → just select that colonist;
  *  - empty tile → assign the selected colonist immediately with a default
@@ -794,7 +794,7 @@ void game_colony_area_tile_drop(
    * `if (DS:0x8df0[y][x] == 0)` — the whole click body, including the
    * select-other-colonist and jobs-popup branches, runs only on an unblocked
    * plot. A blocked plot is silently ignored (no popup, no status line), so
-   * the port does the same. bugs.md #579.
+   * the port does the same. port_bugs.md #579.
    */
   {
     const ColonizeWorld w = game_world(game);
@@ -824,7 +824,7 @@ void game_colony_area_tile_drop(
   colonies_field_tile_delta(tile_index, &dx, &dy);
   const bool water =
     cmap && map_tile_is_water((ColonizeWorldMap*)cmap, colony->x + dx, colony->y + dy);
-  /* bugs.md #944: admitting a fence unit temporarily runs 28c8 and gives it
+  /* port_bugs.md #944: admitting a fence unit temporarily runs 28c8 and gives it
    * some other plot's job. That transient choice must not be preserved when
    * the same drag explicitly targets this tile. DOS sees the outside unit's
    * non-field occupation here, so it derives Farmer/Fisherman from the tile. */
@@ -832,7 +832,7 @@ void game_colony_area_tile_drop(
     job = water ? COLONIZE_JOB_FISHERMAN : COLONIZE_JOB_FARMER;
   }
   if (job >= COLONIZE_FIELD_JOB_COUNT && job <= COLONIES_JOB_TEACHER) {
-    /* bugs.md #900: an indoor row from the jobs menu is a workplace pick, not
+    /* port_bugs.md #900: an indoor row from the jobs menu is a workplace pick, not
      * a field pick. Route it through colonies_assign_workplace so the DOS
      * seating validator (thunk_FUN_1000_9808: faculty cap, @NEEDCOLLEGE /
      * @NEEDUNIVERSITY, @MORETHANTHREE) runs exactly as it does for a click on
@@ -1098,7 +1098,7 @@ bool game_colony_drag_drop(
     if (hit.kind == COLONY_HIT_TRANSPORT && hit.index >= 0 &&
         hit.index < csv->docked_transport_count &&
         csv->docked_transport_ids[hit.index] != csv->transport_unit_id) {
-      /* bugs.md #432: hold → another docked transport's sprite moves the
+      /* port_bugs.md #432: hold → another docked transport's sprite moves the
        * cargo ship-to-ship (if the target has a free hold), never through
        * the warehouse. */
       const int dst = csv->docked_transport_ids[hit.index];
@@ -1258,7 +1258,7 @@ int game_voyage_turns_for(ColonizeGameState* game, int ships, int new_world_x) {
   const bool magellan = game->col1_ok && hn >= 0 && hn < 4 &&
     founding_fathers_nation_has(&game->col1, hn, FF_FERDINAND_MAGELLAN);
   /* new_world_x = the map column the crossing starts from or returns to; DOS
-   * burns one extra draw below 3 (bugs.md #1019). */
+   * burns one extra draw below 3 (port_bugs.md #1019). */
   return europe_voyage_turns_roll(&game->move_rng, magellan, ships, new_world_x);
 }
 
@@ -1286,14 +1286,14 @@ void game_europe_sail_harbor(ColonizeGameState* game, int hidx) {
   europe_set_sail_from_harbor(
     eu, hidx, game_voyage_turns(game, hs->exit_x), &game->units, game->human_nation
   );
-  /* bugs.md: sailing the LAST docked ship closes the European Status back
+  /* port_bugs.md: sailing the LAST docked ship closes the European Status back
    * to the map — nothing is left to manage there. */
   if (eu->harbor_ships <= 0 && game->in_europe) {
     game->in_europe = false;
   }
 }
 
-/* bugs.md: DOS confirms before leaving port — GAME.TXT @SAILAWAY ("Shall we
+/* port_bugs.md: DOS confirms before leaving port — GAME.TXT @SAILAWAY ("Shall we
  * set sail for the New World?" Yes/No). Every sail entry point asks first. */
 void game_europe_request_sail(ColonizeGameState* game, int hidx) {
   EuropeScreen* eu = &game->europe;
@@ -1442,7 +1442,7 @@ static int game_colony_list_outside_roles(
   if (!colony || !unit || !out_roles || out_max <= 0) {
     return 0;
   }
-  /* bugs.md #972 (reverses #649): FUN_15eb_3454's >= 0x13 arm (raw 13583)
+  /* port_bugs.md #972 (reverses #649): FUN_15eb_3454's >= 0x13 arm (raw 13583)
    * does read DS:0x8542 warehouse stock alone, but its CALLER has already put
    * the standing body's own gear there. FUN_2f2b_348c raw 50553-50569, before
    * the row loop at raw 50576, takes the body's current @JOB
@@ -1524,7 +1524,7 @@ bool game_colony_apply_outside_role(
   case COLONIZE_EJECT_SOLDIER:
   case COLONIZE_EJECT_SCOUT:
   case COLONIZE_EJECT_DRAGOON:
-    /* bugs.md #356: the Pioneer takes whole 20-tool steps capped at 100,
+    /* port_bugs.md #356: the Pioneer takes whole 20-tool steps capped at 100,
      * the same rule colonies_eject_colonist uses — this path used to insist
      * on the full 100 and refused a Pioneer the menu beside it had just
      * offered. The shared helper owns the rule (FUN_15eb_1068, see
@@ -1559,7 +1559,7 @@ bool game_colony_apply_outside_role(
   u->tools = tools_take;
   u->muskets = muskets_take;
   u->horses = horses_take;
-  /* bugs.md #650: FUN_2f2b_348c's tail (raw 50674) calls FUN_15eb_1068
+  /* port_bugs.md #650: FUN_2f2b_348c's tail (raw 50674) calls FUN_15eb_1068
    * unconditionally for the picked row, and FUN_15eb_1068's case 1 body
    * (raw 11276) always calls FUN_1427_155e (raw 8880-8887, moves-spent :=
    * full allotment) — there is no "did anything change" test in DOS. Picking
@@ -1578,7 +1578,7 @@ bool game_colony_apply_outside_role(
  *     if (thunk_FUN_1000_9784(unit, goods) != 0) break;   // refused
  *   }
  *
- * bugs.md #785: the old body walked holds 0..n-1 unconditionally and could
+ * port_bugs.md #785: the old body walked holds 0..n-1 unconditionally and could
  * not stop, so a declined @WAREHOUSEFULL on one hold still emptied the rest.
  * DOS always takes the first occupied hold (it compacts as it unloads) and
  * ends the whole loop the moment one unload returns non-zero — which is what
@@ -1646,7 +1646,7 @@ void game_colony_unload_all_cargo(ColonizeGameState* game, int unit_id) {
  * the next unit awaiting orders.
  */
 /*
- * bugs.md #691. FUN_2b5a_1112's head (viceroy_unpacked.c raw 42389-42411):
+ * port_bugs.md #691. FUN_2b5a_1112's head (viceroy_unpacked.c raw 42389-42411):
  * before writing order 5 a LAND unit (`type < 0x0d || type > 0x12`) walks the
  * 8 neighbour tiles in DS:0xb4/0xbe order and stops at the first one that is
  * on the map (FUN_281f_0302), not water (FUN_281f_0768), carries a European
@@ -1753,7 +1753,7 @@ void game_colony_apply_dock_order(
       csv->transport_unit_id = uid;
       set_status(game, "Transport selected", NULL);
     } else {
-      /* bugs.md: on a land/military unit "Move to front" was a no-op —
+      /* port_bugs.md: on a land/military unit "Move to front" was a no-op —
        * it now heads the queue: first pick for a departing ship and the
        * Units-pane selection.
        *

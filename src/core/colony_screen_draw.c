@@ -125,7 +125,7 @@ void colony_screen_draw_top_bar(
   snprintf(line, sizeof(line), "%s.  %s, %u.  Gold: %d$", name, season, year, gold);
   const int w = font_text_width(font, line);
   const int x = (COLONY_SCREEN_WIDTH - w) / 2;
-  /* bugs.md #1: golden (new_amsterdam_production.png) ink top edge
+  /* port_bugs.md #1: golden (new_amsterdam_production.png) ink top edge
    * measures native y=1, not 2 — title sat 1px too low. */
   font_draw_text(font, framebuffer, x, 1, line, COLONIZE_COL_BASIC);
 }
@@ -269,7 +269,7 @@ void colony_screen_draw_outlined_number(
  *
  * The row is packed shoulder to shoulder — one sprite width per step — and
  * the whole block centred on the host rect, rather than spread across its
- * full width. bugs.md: "Colonists working buildings in colony UI stand too
+ * full width. port_bugs.md: "Colonists working buildings in colony UI stand too
  * far apart. If the building is wide enough, have them stand centered
  * horizontally on the building, right next to each other as per their sprite
  * widths. If the building is too narrow for that, squeeze them as needed."
@@ -434,7 +434,7 @@ void colony_screen_draw_resource_count_pair(
   const int iw = sp->width;
   const int ih = sp->height;
   const int iy = y + (h - ih) / 2;
-  /* Where the icon run begins — the number anchors to it (bugs.md: a lone
+  /* Where the icon run begins — the number anchors to it (port_bugs.md: a lone
    * centred icon left its number stranded in the cell's corner). */
   int cluster_x = x;
   if (amount == 1) {
@@ -455,7 +455,7 @@ void colony_screen_draw_resource_count_pair(
     }
   }
   /*
-   * DOS FUN_1097_0174 number rule (bugs.md): the count label appears when
+   * DOS FUN_1097_0174 number rule (port_bugs.md): the count label appears when
    * the game-wide numbers toggle (DS:0x336, `show_production_numbers`) is
    * on, OR when the icons packed into an uncountable smear — DOS's
    * `step == 1 && count > 1` override, the "subitizable" cut: 5 corn icons
@@ -478,7 +478,7 @@ void colony_screen_draw_resource_count_pair(
   if (show_number && font) {
     char num[12];
     snprintf(num, sizeof(num), "%d", amount);
-    /* On the first icon's own position — both axes (bugs.md: it sat at the
+    /* On the first icon's own position — both axes (port_bugs.md: it sat at the
      * cell's top edge while the icons centred themselves lower). */
     colony_screen_draw_outlined_number(
       font, framebuffer, cluster_x + 1, iy, num, number_color
@@ -710,7 +710,7 @@ void colony_screen_draw_area_overlays(
         false
       );
     } else if (cargo >= 0) {
-      /* bugs.md: a worker whose job produces nothing here (farmer on sea /
+      /* port_bugs.md: a worker whose job produces nothing here (farmer on sea /
        * mountain, dockless fisherman, …) shows the job's normal produce
        * icon with the red slashed-circle (ICONS.SS #64) superimposed —
        * not an empty tile. Same raw 47750-47751 fish-icon swap as above. */
@@ -752,7 +752,7 @@ void colony_screen_draw_area_overlays(
   }
 
   /*
-   * bugs.md #284 / DOS FUN_15eb_26e4: unworked tiles still claimed as Indian
+   * port_bugs.md #284 / DOS FUN_15eb_26e4: unworked tiles still claimed as Indian
    * land (MET tribe radius, land unbought, no Peter Minuit) carry a totem
    * pole marker — ICONS.SS #108 (8x16 red totem pole), bottom-centred with
    * the standard 2px shadow like other on-tile figures.

@@ -1055,7 +1055,7 @@ static int case_names_survive_missing_report_art(void) {
 
 /*
  * F2's cheat-only line reads its template out of the shipped VICEROY.EXE
- * rather than compiling MicroProse wording in (bugs.md #977). Check the
+ * rather than compiling MicroProse wording in (port_bugs.md #977). Check the
  * reader and, above all, the hand-rolled substitution: the template comes
  * from a file and must never reach printf, so anything that is not exactly
  * two "%d" markers has to be refused.

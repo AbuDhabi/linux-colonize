@@ -572,7 +572,7 @@ static int case_plow_road_overlay(void) {
     return 1;
   }
   /*
-   * bugs.md: a settlement tile carries road art (DOS FA mask 0x0a). Put a
+   * port_bugs.md: a settlement tile carries road art (DOS FA mask 0x0a). Put a
    * colony at (1,1), diagonally NE of (0,2): (0,2) must gain that stub, and
    * the colony tile itself must render as a road tile.
    */
@@ -601,7 +601,7 @@ static int case_plow_road_overlay(void) {
 }
 
 static int case_fog_edges(void) {
-  /* bugs.md fog edges: VICEROY FUN_6ba1_06e0 mask+fill pairs across the
+  /* port_bugs.md fog edges: VICEROY FUN_6ba1_06e0 mask+fill pairs across the
    * seen/unseen boundary. 5x5 board: plains everywhere, ocean at (3,2);
    * only (2,2) seen by nation 0. Uses its own local map (mutated in
    * place), independent of g_map. */
@@ -703,7 +703,7 @@ static int case_fog_edges(void) {
 }
 
 /*
- * bugs.md #613: the Pioneer clear/plow lumber reward reads DS:0x2f80 =
+ * port_bugs.md #613: the Pioneer clear/plow lumber reward reads DS:0x2f80 =
  * terrain record +0x0a = NAMES.TXT yield column 5 (Lumberjack), not the +0x8
  * Cotton column it used to read.
  */
@@ -738,7 +738,7 @@ static int case_lumber_reward_column(void) {
 }
 
 /*
- * bugs.md #622: FUN_6ba1_0938 raw 109621-109665 blits the plow art right after
+ * port_bugs.md #622: FUN_6ba1_0938 raw 109621-109665 blits the plow art right after
  * the forest canopy, before the hill/river/resource/rumour overlays. A plowed
  * river tile must therefore list PHYS0 149 BEFORE its river overlay, with no
  * second copy of any overlay above it (the old #396 resource re-blit).

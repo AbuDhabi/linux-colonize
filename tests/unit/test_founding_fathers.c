@@ -25,9 +25,9 @@
 #include "../common/test_fail.h"
 
 static void ff_tick(ColonizeTurnContext* ctx) {
-  /* bugs.md #933: nation+0xc (liberty_bells_pool) IS the pool — no seeding. */
+  /* port_bugs.md #933: nation+0xc (liberty_bells_pool) IS the pool — no seeding. */
   founding_fathers_tick(ctx);
-  /* bugs.md #434: human election moved to TURN_PROC_FINISH's own call. */
+  /* port_bugs.md #434: human election moved to TURN_PROC_FINISH's own call. */
   founding_fathers_tick_human_elect(ctx);
 }
 
@@ -178,7 +178,7 @@ int main(void) {
     return fail("status line missing");
   }
   /* DOS-LITERAL FUN_4345_0a22 raw 73370: the pool word is zeroed on elect
-     (surplus over the threshold is discarded), bugs.md #933. */
+     (surplus over the threshold is discarded), port_bugs.md #933. */
   if (nat->liberty_bells_pool != 0) {
     return fail("FF elect must zero the bell pool (nation+0xc)");
   }
@@ -291,7 +291,7 @@ int main(void) {
     }
   }
 
-  /* bugs.md #1057e: a headless run with no human still elects AI Fathers. */
+  /* port_bugs.md #1057e: a headless run with no human still elects AI Fathers. */
   {
     ColonizeCol1Save hcol1;
     col1_save_init(&hcol1);
@@ -313,7 +313,7 @@ int main(void) {
     }
   }
 
-  /* bugs.md #728: FUN_4345_0342 case 0x14 rewrites only the three recruit
+  /* port_bugs.md #728: FUN_4345_0342 case 0x14 rewrites only the three recruit
    * slots — colonists already on the docks stay Indentured / Criminal. */
   {
     EuropeScreen eu_dock;
@@ -813,7 +813,7 @@ int main(void) {
       map_free(&map);
       return fail("deep Jones should not gold-fallback");
     }
-    /* bugs.md #467: DOS FUN_4345_0342 case 0xe spawns the Frigate in the
+    /* port_bugs.md #467: DOS FUN_4345_0342 case 0xe spawns the Frigate in the
      * nation's Europe slot — the human's ship docks in the Europe harbor,
      * nothing appears on the map. */
     if (units.unit_count != units_before || europe.harbor_ships != harbor_before + 1) {
@@ -1245,7 +1245,7 @@ int main(void) {
       }
       aw = units_get(&upool, aid);
       /* DOS 5fef_172c: veteran status is the PROFESSION (0x15); the unit
-       * type never changes on a veteran promote (bugs.md #248). */
+       * type never changes on a veteran promote (port_bugs.md #248). */
       if (!aw || aw->type_index != 0) {
         return fail("Washington veteran promote must not swap the unit type");
       }
@@ -1372,7 +1372,7 @@ int main(void) {
       ColonizeUnit* d1 = units_get(&upool, def1);
       a1->nation_id = 1; /* no Drake */
       d1->nation_id = 0; /* has Drake → def 8*3/2=12 */
-      /* bugs.md: attackers now get +50% at sea too, so equal Privateers tie
+      /* port_bugs.md: attackers now get +50% at sea too, so equal Privateers tie
        * (Drake ×3/2 def vs attack ×3/2) and the deterministic >= rule gives
        * the ATTACKER the tie. Prove Drake's defender bonus on the strengths
        * instead of the outcome. */
@@ -1446,7 +1446,7 @@ int main(void) {
       (void)no_drake;
     }
 
-    /* Drake with the defender owning it (bugs.md #1106: the
+    /* Drake with the defender owning it (port_bugs.md #1106: the
      * units_resolve_naval_combat g_units_ff_col1 wrapper is gone; callers
      * pass col1 in the world). Same prove as spawn A: equal Privateers, defender nation owns Drake →
      * def 8*3/2=12 > atk 8 → attacker loses (PEDIA/wiki +50%). */
@@ -1460,7 +1460,7 @@ int main(void) {
       ColonizeUnit* d = units_get(&upool, def);
       a->nation_id = 1; /* no Drake */
       d->nation_id = 0; /* has Drake → def 12 */
-      /* bugs.md: with the naval attacker's +50% the equal-Privateer matchup
+      /* port_bugs.md: with the naval attacker's +50% the equal-Privateer matchup
        * is a deterministic tie (atk 12 vs Drake def 12) and >= gives it to
        * the attacker (strengths proved in spawn A above). */
       if (!units_resolve_naval_combat_ff_w(&(ColonizeWorld){.units = &upool, .col1 = &ccol1, .col1_ok = true}, atk, def)) {
@@ -1672,7 +1672,7 @@ int main(void) {
     }
   }
 
-  /* Mountain founding rejection. bugs.md #685: Arctic is NOT rejected — the
+  /* Mountain founding rejection. port_bugs.md #685: Arctic is NOT rejected — the
    * DOS Build handler's only terrain test is `FUN_281f_078c(x,y) == 0x1b`
    * (asm 0x22620-0x22632, @TOOMOUNTAIN); the old pedia-24 arm was invented. */
   {
@@ -1778,7 +1778,7 @@ int main(void) {
       return fail("AI bells subsidy");
     }
     /*
-     * bugs.md #926 (order): FUN_15eb_1f72 raw 12621-12641 adds the AI subsidy
+     * port_bugs.md #926 (order): FUN_15eb_1f72 raw 12621-12641 adds the AI subsidy
      * AFTER Jefferson and Paine, so it is never multiplied by them.
      * worker 6 + passive 1 = 7; Jefferson 7*150/100 = 10; subsidy (2+3)/5 = 1
      * -> 11. The old port order ((6+1+1) * 150/100 = 12) is the bug.
@@ -1788,7 +1788,7 @@ int main(void) {
       return fail("AI subsidy must be added after Jefferson (#926)");
     }
     /*
-     * bugs.md #927: raw 12619's `+= 1` is bare — no Town Hall building test.
+     * port_bugs.md #927: raw 12619's `+= 1` is bare — no Town Hall building test.
      * An unbuilt/burnt Town Hall still earns the passive bell (and an AI
      * nation still gets its subsidy).
      */
@@ -1946,7 +1946,7 @@ int main(void) {
     mcol1.tribe = &tribe;
     mcol1.head.tribe_count = 1;
     memset(&mcol1.indian[0], 0, sizeof(mcol1.indian[0]));
-    /* bugs.md #710: FUN_4cc6_07c2 raw 81213 subtracts max(-(census-10)>>1, 0);
+    /* port_bugs.md #710: FUN_4cc6_07c2 raw 81213 subtracts max(-(census-10)>>1, 0);
      * census 10 → no discount, so the baseline below stays 162. */
     mcol1.stuff.census_pop_proxy[0] = 10;
 
@@ -2131,7 +2131,7 @@ int main(void) {
     lu_named->profession = COLONIZE_PROF_CONVERT;
 
     /*
-     * bugs.md #880: a Convert waiting on the Europe dock must assimilate too.
+     * port_bugs.md #880: a Convert waiting on the Europe dock must assimilate too.
      * DOS FUN_4345_0342 case 0x18 (raw 73123-73151) walks every unit record,
      * Europe-located ones included. Dock entry + its (236,236) mirror unit
      * both carry the dock's @JOB, so both must land on the port's dock
@@ -2511,7 +2511,7 @@ int main(void) {
   }
 
   /*
-   * bugs.md ("fewer than one Founding Father per category"): Fathers are NOT
+   * port_bugs.md ("fewer than one Founding Father per category"): Fathers are NOT
    * globally exclusive. DOS's eligibility test (FUN_0000_9810 via
    * FUN_281f_07b4) reads only the ASKING nation's own +7..+0xa bitfield;
    * head.founding_father[] is a first-claimer record, never a lock. An AI
@@ -2560,7 +2560,7 @@ int main(void) {
     fprintf(stderr, "unit_founding_fathers: FF pool is per-nation ok\n");
   }
 
-  /* bugs.md: the debate is persistent — escaping re-presents it at once with
+  /* port_bugs.md: the debate is persistent — escaping re-presents it at once with
    * the SAME candidates, and a next-turn tick keeps them too (no reroll). */
   {
     ColonizeCol1Save dcol1;
@@ -2635,7 +2635,7 @@ int main(void) {
 
   {
     /*
-     * bugs.md #933: nation+0xc IS the FF bell pool.
+     * port_bugs.md #933: nation+0xc IS the FF bell pool.
      *  - a DOS save's +0xc loads as the pool verbatim (no reconstruction),
      *  - +0xe stays this turn's production and survives a round trip,
      *  - the pool is zeroed on elect (FUN_4345_0a22 raw 73370),

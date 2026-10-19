@@ -355,7 +355,7 @@ static int test_woi_crown_ship_bombards_colony(void) {
 }
 
 /*
- * bugs.md #1089: FUN_15eb_0274 (raw 9471-9501) adds the Bolivar 0x14 to
+ * port_bugs.md #1089: FUN_15eb_0274 (raw 9471-9501) adds the Bolivar 0x14 to
  * local_c even when the divisor guard left it 0. colony_prod_sol_percent is
  * the shared port (combat_colony_sol_at routes through it).
  */

@@ -1,5 +1,5 @@
 /*
- * FUN_5952_035e colonist-placement section gate (raw 94570-94584, bugs.md
+ * FUN_5952_035e colonist-placement section gate (raw 94570-94584, port_bugs.md
  * #1028): local_80 = pop < ring*2, local_1e = (stock[HORSES] >= 2 &&
  * warehouse_capacity > stock[HORSES]), local_7e = local_80 || local_1e.
  * ai_euro_5952_placement_gate() is the extracted DOS-literal body; this
@@ -33,7 +33,7 @@ static int case_fed_colony_gate_closed(void) {
   bool local_1e = true;
   const bool local_7e = ai_euro_5952_placement_gate(&pool, &col, &local_80, &local_1e);
   if (local_80 || local_1e || local_7e) {
-    return fail("pop>=ring*2 and horses<2 should close the gate (bugs.md #1028)");
+    return fail("pop>=ring*2 and horses<2 should close the gate (port_bugs.md #1028)");
   }
   return 0;
 }

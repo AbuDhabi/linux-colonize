@@ -22,7 +22,7 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id);
 void ai_euro_census_ship_pressure_refresh(ColonizeTurnContext* ctx, int nation_id);
 
 /*
- * FUN_48d3_06ba head: tick this AI nation's Europe sailing lanes (bugs.md
+ * FUN_48d3_06ba head: tick this AI nation's Europe sailing lanes (port_bugs.md
  * #1056). Runs at the end of the nation's FUN_3844_00f2, before its
  * FUN_521d_6d8e turn. See ai_euro_ship.c.
  */
@@ -54,7 +54,7 @@ typedef struct AiEuro28c8JobCandidate {
  * worker on the best-scored work plot (FUN_15eb_28c8), falling back to
  * Carpenter. Runs for HUMAN colonies too. `colonist_slot` >= 0 restricts it to
  * one colonist (the join path); -1 walks the roster.
- * colonies_seat_new_colonist is the sim-side entry point (bugs.md #562).
+ * colonies_seat_new_colonist is the sim-side entry point (port_bugs.md #562).
  */
 void ai_euro_28c8_auto_assign_plots(ColonizeTurnContext* ctx, int colony_id, int colonist_slot);
 

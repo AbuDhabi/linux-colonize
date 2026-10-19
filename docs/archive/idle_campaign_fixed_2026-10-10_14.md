@@ -392,7 +392,7 @@ Fixed by this run:
   not war-worthy and 13b0 signs a treaty
   (0x60, timers 1/12). FUN_5bfb_10ec also reads the frozen census tables
   (-0x6b1a/-0x6b5a/-0x6a8e) rather than live recounts.
-- AI Pioneers bought in Europe keep a stale tools byte (bugs.md #636, the
+- AI Pioneers bought in Europe keep a stale tools byte (port_bugs.md #636, the
   old deliberate substitution is reverted): FUN_521d_5d04 raw 92770-92783
   writes only the type, FUN_2b5a_0b08 lets any type-2 unit work, and
   FUN_479b_0158's byte `-= 0x14` wraps 0 to 236. `units_is_pioneer` is now

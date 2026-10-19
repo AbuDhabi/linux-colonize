@@ -90,7 +90,7 @@ static int unit_century_cargoready(void) {
     return 1;
   }
   /*
-   * bugs.md: every 100-unit crossing announces itself again — the latch only
+   * port_bugs.md: every 100-unit crossing announces itself again — the latch only
    * silences the one-off @TUTORIAL6 hint, not @CARGOREADY* itself.
    */
   col->stock[COLONIZE_CARGO_SUGAR] = 50;
@@ -156,7 +156,7 @@ static int unit_century_cargoready(void) {
 }
 
 /*
- * bugs.md #466: "hammer capacity > lumber income, lumber fell one turn then
+ * port_bugs.md #466: "hammer capacity > lumber income, lumber fell one turn then
  * returned to maximum the next". Every tick banks hammers and debits lumber
  * 1:1, in every season — the Spring/Autumn calendar is display only (the
  * old Autumn-freeze gate rested on a real-DOS pair with no carpenter staffed
@@ -559,7 +559,7 @@ static int unit_needtools(void) {
 }
 
 /*
- * bugs.md #626: the per-nation move refresh restores the allotment and does
+ * port_bugs.md #626: the per-nation move refresh restores the allotment and does
  * NOT run the pioneer work bodies. DOS runs them from the lasting-order
  * dispatcher FUN_2b5a_3ae6 (raw 46414) when the unit comes up in the human
  * activation rotation (raw 46873) -- so a human pioneer is ticked once per
@@ -632,7 +632,7 @@ static int refresh_does_not_tick_pioneer_work(void) {
 
   int rc = 0;
   /*
-   * bugs.md #713: the moves-spent byte is cleared by a single DOS day-top
+   * port_bugs.md #713: the moves-spent byte is cleared by a single DOS day-top
    * pass over EVERY unit of EVERY nation (FUN_4d56_1b3a raw 6355-6357), not
    * by the per-nation refresh. The refresh must leave it alone; the day-top
    * helper must clear both nations at once.

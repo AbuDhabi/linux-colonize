@@ -14,7 +14,7 @@ docs/idle_campaign.md is the living status. Grep by FUN_ name or transition.
   ticks use each slot's own turn).
 - AI landers reveal on landing (465b_0000 07a0); first contact stamps `contact_state = 2`
   (raw 96669); the invented WELCOME land grant (purchased bit) is deleted; AI moves no longer
-  set `named_new_world` (bugs.md #1057a reversed: 049e is the human UI mover).
+  set `named_new_world` (port_bugs.md #1057a reversed: 049e is the human UI mover).
 - `FUN_4962_0018` ported per nation (`col1_stuff_census_4962_w`), called at each nation's 00f2;
   `FUN_1427_0824` / `FUN_364b_1ba8` / colony delete keep `all_unit_counts` / `colony_counts`
   live in between.

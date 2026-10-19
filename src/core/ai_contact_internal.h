@@ -22,7 +22,7 @@ int ai_contact_raid_alarm_delta(AiRaidKind kind);
 void ai_contact_raid_alarm_tail(
   ColonizeTurnContext* ctx, int indian_nation, int euro, AiRaidKind kind
 );
-/* Test-only externs (bugs.md #1106): no production caller. */
+/* Test-only externs (port_bugs.md #1106): no production caller. */
 /* Last colony-raid loot kind applied. */
 int ai_contact_last_raid_kind(void);
 /* Adjacency sweep over the nation's Braves (ai_contact_raid.c header). */
@@ -38,7 +38,7 @@ int ai_contact_try_village_meet_unit(
 );
 int ai_contact_try_ship_village(ColonizeTurnContext* ctx, int euro_nation, int x, int y);
 /* FUN_4d56_2820 LAB_002e92 AI branch with no preceding sale (no DOS
- * equivalent, bugs.md #798); drives the pick + price + settle arithmetic. */
+ * equivalent, port_bugs.md #798); drives the pick + price + settle arithmetic. */
 int ai_contact_auto_buy_2e92(
   ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit
 );
@@ -65,7 +65,7 @@ int ai_contact_auto_buy_2e92(
 enum {
   AI_CONTACT_CHOICE_TRADE = 1,
   /* 2 was AI_CONTACT_CHOICE_GIFT — no @ACTIONS gift row, no DOS body, nothing
-   * ever emitted it (bugs.md #1006). Ids stay pinned; 2 is simply unused. */
+   * ever emitted it (port_bugs.md #1006). Ids stay pinned; 2 is simply unused. */
   AI_CONTACT_CHOICE_DEMAND = 3,
   AI_CONTACT_CHOICE_TEACH = 4,
   AI_CONTACT_CHOICE_LEAVE = 5,
@@ -117,7 +117,7 @@ typedef struct AiContactUnitClass {
   int is_scout;
   int is_missionary;
   int attack;
-  int can_live_among; /* FUN_1000_8d68 >= 0 && attack < 2 && !scout (bugs.md #726) */
+  int can_live_among; /* FUN_1000_8d68 >= 0 && attack < 2 && !scout (port_bugs.md #726) */
 } AiContactUnitClass;
 
 typedef struct AiContactMeetEcon2154 {
@@ -134,7 +134,7 @@ typedef struct AiContactVisitMood {
    * food-BEG-taken arm (`local_c == 2`), which also forces bVar6 true, so the
    * conceded beg falls through into the gift half of the SAME visit. The gift
    * fork at LAB_5bfb_096c (raw 87903) reads it as a veto on gifting food back
-   * (bugs.md #863).
+   * (port_bugs.md #863).
    */
   int beg_conceded;
   int turn;
@@ -162,7 +162,7 @@ typedef struct AiContact2820 {
   int buy_slot; /* aiStack_d6[iStack_5e]: the BID-SORTED SLOT of buy_cargo.
                  * DOS indexes `bid[]` (DS:0x9e78, a per-cargo table) with this
                  * slot in both the price and the haggle-ceiling terms — a DOS
-                 * quirk, reproduced deliberately (bugs.md #795). */
+                 * quirk, reproduced deliberately (port_bugs.md #795). */
   int buy_qty;
   ColonizeDosRng rng;
 } AiContact2820;

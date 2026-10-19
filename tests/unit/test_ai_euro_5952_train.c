@@ -1,6 +1,6 @@
 /*
  * FUN_5952_035e "train an expert in this colony" pick, raw 95926-95944
- * (asm viceroy_overlays.asm OVL15 0x2940-0x29c7; bugs.md #571). The arm
+ * (asm viceroy_overlays.asm OVL15 0x2940-0x29c7; port_bugs.md #571). The arm
  * scans the roster for the LAST non-expert, non-Convert colonist and buys
  * him an Expert Fisherman (when the colony has no Fisherman and owns Docks)
  * else an Expert Farmer (when it has no Farmer); 0x1c means "buy nothing".
@@ -95,7 +95,7 @@ static int case_no_candidate_and_no_need(void) {
 }
 
 /*
- * bugs.md #600 — DOS reads a profession BYTE, so FUN_15eb_0002 never sees the
+ * port_bugs.md #600 — DOS reads a profession BYTE, so FUN_15eb_0002 never sees the
  * port's -1 "profession not set" sentinel. Treating -1 as an expert made the
  * pick skip such a colonist, and a roster of nothing but unset colonists left
  * `last` at -1 (the arm then bought nothing). -1 is a non-expert candidate.

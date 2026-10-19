@@ -22,7 +22,7 @@ bool units_resolve_lcr_rumour_w(
 );
 
 /*
- * FUN_65dd_0004 case 4 split (bugs.md #956): the burial-mounds payout block
+ * FUN_65dd_0004 case 4 split (port_bugs.md #956): the burial-mounds payout block
  * (103653-103715) and the @LOSTCITY4 Search / Stay-clear CHOICE that gates it
  * (65dd:04eb `local_3c`). The resolver is what DOS runs on row 1; the apply
  * hook consumes the popup result (row 2 / Esc = nothing rolled at all).
@@ -60,7 +60,7 @@ int units_spawn_treasure_train(
 );
 
 /*
- * FUN_3844_0004 (raw 58268) EOT tick — bugs.md #725. A lone Indian Convert
+ * FUN_3844_0004 (raw 58268) EOT tick — port_bugs.md #725. A lone Indian Convert
  * (@UNIT type 0 + @JOB 27) standing in the open, with no settlement on its
  * tile and nothing else in its stack, ages unit +0x16 (col1_counter16) and is
  * removed once that byte exceeds 8. Returns the number removed; the caller
@@ -121,7 +121,7 @@ int units_king_galleon_share_pct(const ColonizeCol1Save* col1, int nation_id);
  * — COL1 record +0x17 (`profession`), written by every spawn site as gold/100
  * (FUN_65dd_0004 raw 103543/103686, FUN_5fef_31ea raw 101489) and read that
  * way by FUN_48d3_06ba raw 77986 and FUN_521d_20e6. There is only this one
- * representation (bugs.md #736 retired the port's LE16 hold mirror).
+ * representation (port_bugs.md #736 retired the port's LE16 hold mirror).
  */
 int units_treasure_value_gold(const ColonizeUnit* treasure);
 
@@ -304,7 +304,7 @@ bool units_unload_passenger_w(
  * DOS FUN_4720_015c landfall eligibility: the passenger's spent byte must be
  * BELOW its max MP. An aboard sentry parked at moves 0 still qualifies
  * (DOS spent == 0); one that burnt its allotment this turn (mp_spent_turn)
- * does not — it stays on the ship (bugs.md #423).
+ * does not — it stays on the ship (port_bugs.md #423).
  */
 bool units_cargo_can_landfall(const ColonizeUnitPool* pool, int unit_id);
 /*

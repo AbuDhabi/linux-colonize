@@ -313,7 +313,7 @@ static int test_prelude_alarm_band(void) {
 }
 
 /*
- * bugs.md #557 — the AI missionary acts only at a village, through
+ * port_bugs.md #557 — the AI missionary acts only at a village, through
  * FUN_4d56_4528's non-human unit-type switch caseD_3: no incite gate met and
  * no mission on the village → case 3 Establish Mission (thunk_FUN_1000_a5dc),
  * which sets tribe.mission to the acting nation and consumes the unit. A
@@ -397,7 +397,7 @@ static int test_ai_missionary_village_arm(void) {
 }
 
 /*
- * bugs.md #863 — FUN_5bfb_022e raw 87687-87698: a food beg the colony
+ * port_bugs.md #863 — FUN_5bfb_022e raw 87687-87698: a food beg the colony
  * CONCEDES sets bVar7 and forces bVar6 true, so the visit falls through into
  * the gift half (LAB_5bfb_096c) in the same encounter; the gift fork at raw
  * 87903 then reads bVar7 as a third term
@@ -572,10 +572,10 @@ static int test_beg_conceded_falls_into_gift_863(void) {
 }
 
 /*
- * bugs.md #803 — FUN_4d56_2820 tests the acting unit's ARRAY INDEX into the
+ * port_bugs.md #803 — FUN_4d56_2820 tests the acting unit's ARRAY INDEX into the
  * 300-slot unit pool (`param_2 == 0xf || param_2 == 8`, 2820 doc line 551),
  * not the traded cargo. Ported via the same pool-slot-index proxy as
- * bugs.md #878(a) (ai_euro_land.c): `unit - ctx->units->units`. Drive one
+ * port_bugs.md #878(a) (ai_euro_land.c): `unit - ctx->units->units`. Drive one
  * human sale through the accept path (LAB_002bbc) with the trading unit at
  * pool slot 8, and again at slot 9, and confirm only slot 8 blanks
  * tribe.last_bought to 0xff instead of the sold cargo.

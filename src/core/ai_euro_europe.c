@@ -181,7 +181,7 @@ static void ai_euro_5d04_treasury_bump(ColonizeTurnContext* ctx, int nation_id) 
   } else if (head->difficulty == 4) {
     scaled_treasury_bonus <<= 1; /* *2 */
   }
-  /* bugs.md #1096: through the one-treasury accessor (record for an AI). */
+  /* port_bugs.md #1096: through the one-treasury accessor (record for an AI). */
   europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, (long)scaled_treasury_bonus * 4);
 }
 
@@ -193,7 +193,7 @@ static int nat_gold_ge(const ColonizeTurnContext* ctx, int nation_id, uint32_t t
  * (a per-flag "catch-up" clamp). Real mechanism, inert while
  * `ai_euro_5d04_ph_gold_floor` returns 0. */
 static void ai_euro_5d04_apply_gold_floor(ColonizeTurnContext* ctx, int nation_id, uint32_t floor) {
-  /* Absolute raise as a delta through the accessor (bugs.md #1096): lands
+  /* Absolute raise as a delta through the accessor (port_bugs.md #1096): lands
    * exactly on `floor`, never discards a credit the other store took. */
   const uint32_t cur = europe_nation_gold(ctx->europe, ctx->col1, nation_id);
   if (cur < floor) {
@@ -446,7 +446,7 @@ static int ai_euro_5d04_propose_ship_buy(
     u->goto_y = (int)nat->return_from_europe_y;
   }
   /* One treasury per nation (europe.h): the accessor picks the store by
-   * nation, so never assign one gold store from the other (bugs.md #970). */
+   * nation, so never assign one gold store from the other (port_bugs.md #970). */
   europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -(long)price);
   return 1;
 }
@@ -526,7 +526,7 @@ static int ai_euro_5d04_ship_buy_ladder(
  *                          Vet. Soldier 1-in-(diff+5) becomes a Dragoon,
  *                          Pioneer gets 100 tools) / FUN_38fd_46d4 next
  *                          recruit profession (europe_roll_pool_profession:
- *                          +0x44/+0x45 LFSR + remap, bugs.md #1058).
+ *                          +0x44/+0x45 LFSR + remap, port_bugs.md #1058).
  *   FUN_291f_0c3e / 09ea   Europe buy price of a cargo (nation market).
  *   FUN_291f_0c14 / 0a2e   market buy / sell volume bookkeeping.
  *   FUN_281f_08bc(head,4/0xc/0xe)  FUN_1427_0d38 stack queries: 4 = land
@@ -554,7 +554,7 @@ static int ai_euro_5d04_cb_in_europe_list(int idx) {
   }
   const ColonizeUnit* u = &ai_euro_s_5d04_ctx->units->units[idx];
   /* The list is the dock tile only (236+n); hulls crossing on a lane are
-   * not in Europe yet (bugs.md #1056). */
+   * not in Europe yet (port_bugs.md #1056). */
   return u->active && u->nation_id == ai_euro_s_5d04_nation &&
          ai_euro_at_europe_dock(u->nation_id, u->x, u->y);
 }
@@ -697,7 +697,7 @@ static int ai_euro_5d04_cb_dock_pop_candidate(int profession) {
   u->moves = 0;
   /* raw 59133 `*(undefined1 *)(iVar2 + 0x314c) = 1`: FUN_38fd_0718 parks the
    * fresh recruit SENTRY in the harbour (+0x314c = the orders byte; europe.c
-   * does the same for the human harbour spawn). bugs.md #509. */
+   * does the same for the human harbour spawn). port_bugs.md #509. */
   u->orders = UNITS_ORDER_SENTRY;
   u->profession = profession;
   if (type == 2) {
@@ -732,7 +732,7 @@ static int ai_euro_5d04_cb_dock_pop_candidate(int profession) {
  * writes `nation.recruit[slot]` itself, including the DOS draw order
  * (FUN_281f_04d4(1,15) / (1,10) / (1,8) off the shared game stream,
  * raw 64632/64636/64640) and the AI difficulty substitution of 1
- * (raw 64627-64633). bugs.md #510.
+ * (raw 64627-64633). port_bugs.md #510.
  */
 static int ai_euro_5d04_refill_pool_slot(int slot) {
   ColonizeTurnContext* ctx = ai_euro_s_5d04_ctx;
@@ -742,7 +742,7 @@ static int ai_euro_5d04_refill_pool_slot(int slot) {
   return europe_nation_refill_pool_slot(ctx->col1, ai_euro_s_5d04_nation, slot, false, ctx->rng);
 }
 /* Europe SELL / BUY quotes: FUN_291f_09ea / 0c3e -> FUN_38fd_0040 / 0016 on
- * the bound record, i.e. THIS nation's own track (bugs.md #1049). */
+ * the bound record, i.e. THIS nation's own track (port_bugs.md #1049). */
 static int ai_euro_5d04_cb_sell_price(int cargo) {
   ColonizeTurnContext* ctx = ai_euro_s_5d04_ctx;
   if (!ctx || !ctx->col1 || cargo < 0 || cargo >= (int)COLONIZE_COL1_CARGO_TYPES) {
@@ -760,7 +760,7 @@ static int ai_euro_5d04_cb_price(int cargo) {
 static void ai_euro_5d04_cb_sync_gold(void) {
   ColonizeTurnContext* ctx = ai_euro_s_5d04_ctx;
   if (ctx && ctx->europe && ctx->col1 && ai_euro_s_5d04_nation == ctx->human_nation) {
-    /* bugs.md #970: go through the one accessor that picks the store by
+    /* port_bugs.md #970: go through the one accessor that picks the store by
      * nation rather than assigning one gold store from the other. */
     const long want = (long)ctx->col1->nation[ai_euro_s_5d04_nation].gold;
     const long have = (long)europe_nation_gold(ctx->europe, ctx->col1, ai_euro_s_5d04_nation);
@@ -771,7 +771,7 @@ static void ai_euro_5d04_cb_sync_gold(void) {
 }
 /* 291f_0c14 = FUN_38fd_1d80 (buy) / 291f_0a2e = FUN_38fd_1dfa (sell) for
  * every nation: ledgers + all four pressure words, no FUN_38fd_0058 step
- * (1ebc/1f0c never call it). bugs.md #1048. */
+ * (1ebc/1f0c never call it). port_bugs.md #1048. */
 static void ai_euro_5d04_cb_market_volume(int cargo, int qty, int is_buy) {
   ColonizeTurnContext* ctx = ai_euro_s_5d04_ctx;
   if (ctx && ctx->europe) {
@@ -1607,7 +1607,7 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
             const ColonizeUnit* sh = ai_euro_5d04_cb_unit(idx2);
             const int cap = units_ship_capacity(ctx->units, sh->id);
             /* Goods-only, as every +0x3150 read at raw 93020-93039 is
-             * (bugs.md #530 side lead; same finding as #527): a passenger
+             * (port_bugs.md #530 side lead; same finding as #527): a passenger
              * never occupies a DOS hold, so a transport carrying colonists
              * still buys cargo here. */
             const int used = ai_euro_0a60_goods_holds_used(ctx->units, sh);
@@ -1880,7 +1880,7 @@ void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
  * *effect* (nation x continent stance) via a from-scratch recompute, just
  * not FUN_521d_0a60's literal write path.
  *
- * DOS unit AI bytes +0x3148/+0x314b/c/d/e — RESOLVED 2026-09-18, bugs.md
+ * DOS unit AI bytes +0x3148/+0x314b/c/d/e — RESOLVED 2026-09-18, port_bugs.md
  * #525. They are not port-only scratch and need no shadow array: the Col1
  * unit record is 0x1c bytes based at DS:0x3144, and its field order (see
  * col1_save_layout.h `ColonizeCol1Unit`) is

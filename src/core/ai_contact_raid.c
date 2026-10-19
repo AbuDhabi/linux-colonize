@@ -53,7 +53,7 @@ static long ai_contact_s_raid_gold = 0;   /* DOS local_12/local_10 */
 
 
 /*
- * TEST-ONLY driver (bugs.md #1106): no production caller. The live Brave
+ * TEST-ONLY driver (port_bugs.md #1106): no production caller. The live Brave
  * contact path is ai_native_step_first_contact (ai_brave.c, FUN_465b move
  * tail -> FUN_5bfb_3180 -> 022e); this adjacency sweep stays only so the
  * contact tests can drive the first-welcome / auto-trade / gift arms.
@@ -108,7 +108,7 @@ COLONIZE_INTERNAL void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, in
       }
       if (!ind->euro_diplo[e]) {
         (void)ai_contact_try_first_welcome(ctx, e, nation_id);
-        /* bugs.md #1106: the "peaceful meet" village friction-- that stood
+        /* port_bugs.md #1106: the "peaceful meet" village friction-- that stood
          * here had no DOS writer (FUN_5bfb_022e / 0182 never decrement the
          * tribe alarm word); deleted 2026-10-18. */
         /*
@@ -156,7 +156,7 @@ COLONIZE_INTERNAL void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, in
     }
   }
 
-  /* 2b. (Retired 2026-09-22, bugs.md #557.) An invented AI missionary
+  /* 2b. (Retired 2026-09-22, port_bugs.md #557.) An invented AI missionary
    * adjacency pulse (establish/heresy 50-50/crosses/alarm decay) and its
    * flee sibling lived here. DOS has no Indian-turn missionary pulse: an
    * AI missionary acts only when it reaches a village, through the
@@ -170,7 +170,7 @@ COLONIZE_INTERNAL void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, in
    */
 
   /*
-   * bugs.md 2026-09-04: the passive teach pulse is retired from the Indian
+   * port_bugs.md 2026-09-04: the passive teach pulse is retired from the Indian
    * move path. DOS FUN_5bfb_022e (the Brave-side contact this pulse ports)
    * contains no teach arm at all — teaching happens only through the
    * deliberate "Live Among The Natives" @ACTIONS row (thunk_FUN_1000_a618).
@@ -243,7 +243,7 @@ COLONIZE_INTERNAL int ai_contact_raid_port_ship(ColonizeTurnContext* ctx, const 
  * 281f:09fc → FUN_1000_8bec). Its argument is a BUILDING ROW, not a cargo —
  * 0f14's kind-2 arm passes rows up to 0x29 to the same call. Rows 0/1/2 are
  * Stockade / Fort / Fortress, so 0f14's demote chain is fortification-gated.
- * (bugs.md #827 lead L3, settled 2026-09-23.)
+ * (port_bugs.md #827 lead L3, settled 2026-09-23.)
  */
 static int ai_contact_raid_09fc(
   const ColonizeTurnContext* ctx, const ColonizeColony* c, ColonizeBuildingRow row
@@ -265,7 +265,7 @@ static int ai_contact_raid_09fc(
  * oddities are kept: on the FIRST try a horseless tribe steals horses instead
  * of a >0x34 pile on a coin flip, and a muskets roll burns a dummy rand(0,200)
  * that nothing reads (it only shifts the LCG for every later draw this turn).
- * Returns the cargo index, or -1 for "give up" (bugs.md #832).
+ * Returns the cargo index, or -1 for "give up" (port_bugs.md #832).
  */
 static int ai_contact_raid_roll_stores_cargo(
   ColonizeTurnContext* ctx, const ColonizeColony* c, int indian_nation, ColonizeDosRng* rng
@@ -301,7 +301,7 @@ static int ai_contact_raid_roll_stores_cargo(
  * Kind space is DOS's `local_6`: 0 nothing, 1 goods, 2 building, 3 ship,
  * 4 gold — AiRaidKind carries exactly those values. There is no fifth kind:
  * DOS never kills a colonist here and never wrecks food/tools/construction
- * as a kind of its own (bugs.md #828 / #829).
+ * as a kind of its own (port_bugs.md #828 / #829).
  *
  * `forced` = 0f14's param_4 (FUN_5fef_1b0e's repelled-at-a-colony handoff):
  * it bypasses only the walls VERDICT — DOS still draws the walls roll
@@ -309,7 +309,7 @@ static int ai_contact_raid_roll_stores_cargo(
  *
  * This replaces an OpenCol stand-in that picked by alarm band (>=85/70/60/55/50)
  * with a rand(0,99) and then demoted on YEAR thresholds 1500/1520 that exist
- * nowhere in the decomp (bugs.md #827). The alarm scalar has no role at this
+ * nowhere in the decomp (port_bugs.md #827). The alarm scalar has no role at this
  * head in DOS at all.
  */
 COLONIZE_INTERNAL AiRaidKind ai_contact_pick_raid_kind(
@@ -418,7 +418,7 @@ COLONIZE_INTERNAL AiRaidKind ai_contact_pick_raid_kind(
      * still owns (raw 99856-99863). Church 0x25 / Cathedral 0x26 are legal
      * targets and a Cathedral walks down to the Church it sits on, which is
      * what the port's "first built non-Town-Hall building" stand-in got wrong
-     * (bugs.md #924).
+     * (port_bugs.md #924).
      */
     const int proj = c->building_in_production;
     const int proj_is_building = (proj >= 0 && proj < 0x2a) ? 1 : 0;
@@ -506,7 +506,7 @@ COLONIZE_INTERNAL AiRaidKind ai_contact_pick_raid_kind(
  * 1..4) whose victim colony is NOT human-controlled — it is the human's news
  * bulletin about someone else's misfortune, and it loots nothing. The port
  * used to model 0x1b8a as a loot kind that drained food/tools and cancelled
- * construction (bugs.md #829).
+ * construction (port_bugs.md #829).
  */
 static void ai_contact_raid_wreak_bulletin(
   ColonizeTurnContext* ctx, const ColonizeColony* c, int indian_nation,
@@ -569,11 +569,11 @@ void ai_contact_apply_raid_loot(
      * DOS-LITERAL FUN_5fef_0f14 raw 99913-99947. The cargo is the one the
      * picker's retry loop rolled (DOS `local_20`); the amount is a ROLL over
      * the upper half of the pile, not the flat min(half,10) the port used to
-     * take — a 200-stock warehouse loses 10..100 (bugs.md #830):
+     * take — a 200-stock warehouse loses 10..100 (port_bugs.md #830):
      *   h = stock >> 1; lo = min(h, 10); amt = rand(lo, h);
      *   amt = min(amt, stock); if (amt < 1) amt = 1;
      * and the stolen horses/muskets then feed the RAIDING TRIBE's record
-     * (raw 99939-99947, bugs.md #831) — the same fields 0352's gear return
+     * (raw 99939-99947, port_bugs.md #831) — the same fields 0352's gear return
      * writes.
      */
     const int cargo = ai_contact_s_raid_cargo;
@@ -612,7 +612,7 @@ void ai_contact_apply_raid_loot(
      * was rolled by the picker (`local_a`); this arm only applies it. DOS has
      * NO "clear the current project" and NO "eat lumber" step here (that is
      * the kind-1 goods arm, raw 99908-99947) — both were invented and are
-     * deleted (bugs.md #924).
+     * deleted (port_bugs.md #924).
      *   row 0x0f (Warehouse): colony+0x95 (warehouse_level) DEC; the building
      *     bit only clears when the counter reaches 0, otherwise the popup
      *     names the Warehouse Expansion (DS:0x9042).
@@ -710,7 +710,7 @@ void ai_contact_apply_raid_loot(
   }
 
   /*
-   * (Retired 2026-09-23, bugs.md #833.) `ai_contact_raid_secondary_loot` ran
+   * (Retired 2026-09-23, port_bugs.md #833.) `ai_contact_raid_secondary_loot` ran
    * after every non-NOTHING kind and drained −5 muskets / −1 horse from the
    * warehouse or from a unit's gear on the tile, plus −1 tools at alarm >= 80.
    * FUN_5fef_0f14 mutates exactly ONE thing per raid — one cargo, one
@@ -722,7 +722,7 @@ void ai_contact_apply_raid_loot(
  * FUN_5fef_0f14's alarm tail (raw viceroy_unpacked.c:99944-100033) — ported
  * 2026-09-08, replacing the fandom-derived POSITIVE "raids raise tension"
  * bump the raid pulse used to apply here (same retirement as the three
- * fandom alarm drips, bugs.md #289: DOS grows Indian alarm only through the
+ * fandom alarm drips, port_bugs.md #289: DOS grows Indian alarm only through the
  * FUN_4d56_152e accumulator).
  *
  * Each of 0f14's four loot arms ends with the SAME two lines — a war gate
@@ -760,7 +760,7 @@ void ai_contact_apply_raid_loot(
  *
  * AiRaidKind now carries DOS's own `local_6` values, so this is a straight
  * 1:1 table (the port's invented SCALP/WREAK kinds, which used to share the
- * −16 and −12 rows, were deleted 2026-09-23: bugs.md #828/#829).
+ * −16 and −12 rows, were deleted 2026-09-23: port_bugs.md #828/#829).
  */
 COLONIZE_INTERNAL int ai_contact_raid_alarm_delta(AiRaidKind kind) {
   switch (kind) {
@@ -860,7 +860,7 @@ int ai_contact_colony_raid_repelled_w(
 
   /* The village-friction maximum this used to build here was dead on arrival:
    * ai_contact_pick_raid_kind takes no alarm argument and derives its own.
-   * Deleted with the rest of the cross-village coupling (bugs.md #1003). */
+   * Deleted with the rest of the cross-village coupling (port_bugs.md #1003). */
   const AiRaidKind kind =
     ai_contact_pick_raid_kind(&ctx, c, indian_nation, euro_nation, rng, forced);
   ai_contact_apply_raid_loot(&ctx, c, indian_nation, euro_nation, kind);
@@ -891,7 +891,7 @@ int ai_contact_colony_raid_repelled_w(
  * Per-kind raid chrome for a HUMAN victim (audit AC-27). DOS fires the
  * per-kind tag (0x1b94 @RAIDSTORES / 0x1b9f @RAIDBURN / 0x1ba8 @RAIDSHIP /
  * 0x1bb1 @RAIDGOLD / 0x1bba @RAIDNOTHING, raw 99909-100020). `section` is the
- * only wording; a miss draws nothing (bugs.md #836).
+ * only wording; a miss draws nothing (port_bugs.md #836).
  * `popup_without_colony` is the @RAIDBURN quirk: a named burned building
  * carries the line on its own, so the tag fires even for an unnamed colony.
  */

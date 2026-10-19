@@ -146,7 +146,7 @@
  * log context.
  *
  * The map pull-down (map_menu.open_index >= 0) also blocks but is not listed:
- * game_modal_open tests it after the list (bugs.md #1091).
+ * game_modal_open tests it after the list (port_bugs.md #1091).
  */
 #define GAME_MODAL_LIST(X)                                                                        \
   X(opening, "intro")                                                                             \
@@ -361,7 +361,7 @@ static void game_combat_analysis_present(const ColonizeCombatEngagement* eng, vo
 void game_set_view_center(ColonizeGameState* game, int x, int y);
 
 /*
- * bugs.md: "Show Foreign/Indian Moves" gate — DOS FUN_465b (raw ~75660)
+ * port_bugs.md: "Show Foreign/Indian Moves" gate — DOS FUN_465b (raw ~75660)
  * animates a rival step only when show_entire_map (DS:0x53a2) is set or the
  * mover's vis-mask carries the human bit after FUN_281f_0826(x,y): the
  * destination lies inside the human's colony claim (layer3 owner nibble) or
@@ -393,7 +393,7 @@ void game_map_zoom_view_size(int zoom, int* out_cols, int* out_rows);
 
 /*
  * HUD / unit-chrome font (FONTTINY, DS:0x89e) — the one the stationary map
- * draw hands unit_chrome. bugs.md: the move slide and the combat bump passed
+ * draw hands unit_chrome. port_bugs.md: the move slide and the combat bump passed
  * NULL here, so font_text_width fell back to its 6px cell (a wider box than
  * the tiny font's own '-' or 'S') and font_draw_text drew no letter at all —
  * a moving piece wore visibly different chrome from the same piece standing
@@ -410,7 +410,7 @@ static const ColonizeFont* game_chrome_font(const ColonizeGameState* game) {
 }
 
 /*
- * Generic dialog font (bugs.md #1111: this chain was written out ~15 times
+ * Generic dialog font (port_bugs.md #1111: this chain was written out ~15 times
  * with the colony/menu order drifting). DOS's default dialog font slot is
  * FONTINTR (begin_menu_font, europe_menu_font, game_render_modal_overlays), so
  * intro_font is the only DOS-faithful answer; the rest only matters when
@@ -431,7 +431,7 @@ const ColonizeFont* game_popup_font(const ColonizeGameState* game) {
 }
 
 /*
- * bugs.md: the animated piece (move slide / combat lunge) is blitted onto the
+ * port_bugs.md: the animated piece (move slide / combat lunge) is blitted onto the
  * finished 320x200 frame, while the standing piece is drawn into the offscreen
  * map composite that `game_render` then copies into the 240x192 viewport. The
  * standing draw is therefore clipped at the viewport edge and the animated one
@@ -582,7 +582,7 @@ COLONIZE_INTERNAL void game_move_watch_w(
     }
     game_set_view_center(game, to_x, to_y);
   } else {
-    /* bugs.md: scripted own-nation moves — the allied intervention force's
+    /* port_bugs.md: scripted own-nation moves — the allied intervention force's
      * disembark slides — can originate entirely off-screen, where the slide
      * plays invisibly (a player-driven unit is by definition on screen, so
      * this recentre never fires for ordinary moves). */
@@ -611,7 +611,7 @@ COLONIZE_INTERNAL void game_move_watch_w(
   const bool fast = game->col1.head.game_options.fast_piece_slide != 0;
 
   /*
-   * bugs.md: the sprite must visibly travel from the old tile to the new one
+   * port_bugs.md: the sprite must visibly travel from the old tile to the new one
    * — for the player's own units too (a jump-cut reads as "no animation").
    * Zoom 0 only (16px tiles); the unit is hidden from the base frame and a
    * chrome'd copy is blitted along the interpolated pixel path at an
@@ -638,7 +638,7 @@ COLONIZE_INTERNAL void game_move_watch_w(
       ColonizeUnit* mu = units_get(&game->units, unit_id);
       if (mu) {
         /*
-         * bugs.md #365: the sliding piece wears the SAME chrome it wears
+         * port_bugs.md #365: the sliding piece wears the SAME chrome it wears
          * standing still. DOS animates the move by calling FUN_112b_01ba once
          * per pixel step with no extra arguments — every decision inside it
          * (the stack tab from the unit's own chain, the damaged-Artillery
@@ -655,7 +655,7 @@ COLONIZE_INTERNAL void game_move_watch_w(
          * (+0x3148 bit7), not "aboard a ship". */
         const bool slide_damaged = (mu->col1_flags15 & 0x80u) != 0;
         /*
-         * bugs.md: and it must be read BEFORE `mu->active` is cleared below.
+         * port_bugs.md: and it must be read BEFORE `mu->active` is cleared below.
          * `units_display_type_index` goes through `units_get_const`, which
          * only matches active units, so calling it inside the loop returned
          * -1 and `unit_chrome_corner_for_type` fell through to its default
@@ -673,7 +673,7 @@ COLONIZE_INTERNAL void game_move_watch_w(
         const int y0 = MAP_MENU_BAR_H + fyl * 16;
         const int x1 = txl * 16;
         const int y1 = MAP_MENU_BAR_H + tyl * 16;
-        /* bugs.md: doubled once more ("can barely register they moved"). */
+        /* port_bugs.md: doubled once more ("can barely register they moved"). */
         const int steps = fast ? 2 : 4;
         const uint32_t delay_ms = fast ? 60u : 80u;
         const bool was_active = mu->active;
@@ -692,11 +692,11 @@ COLONIZE_INTERNAL void game_move_watch_w(
             slide_dtype,
             unit->nation_id,
             /* Same chrome the unit wears standing still: real order letter,
-             * not a forced '-' (bugs.md). */
+             * not a forced '-' (port_bugs.md). */
             unit->orders,
             slide_stacked,
             slide_damaged,
-            /* bugs.md: NULL here fell back to the raw ICONS.SS fill index,
+            /* port_bugs.md: NULL here fell back to the raw ICONS.SS fill index,
              * which the game palette repurposes (Dutch orange → pink while
              * moving). Use the frame's real palette like the static draw. */
             &pal
@@ -746,7 +746,7 @@ COLONIZE_INTERNAL void game_move_watch(
 
 
 /*
- * bugs.md: combat "bump" — the attacker's sprite travels toward the defender
+ * port_bugs.md: combat "bump" — the attacker's sprite travels toward the defender
  * before the engagement resolves, the way DOS animates an attack, so
  * back-to-back events stay perceptible. Zoom 0 only (other tiers decimate
  * sprites); needs a live platform (headless callers present nothing).
@@ -757,7 +757,7 @@ COLONIZE_INTERNAL void game_move_watch(
  * target, and the tail then redraws it at its own tile (param_4/param_5) in
  * a single 01ba call — the way home is never animated. The port's k_bump
  * table stepped out to +5/+9 and then back to +4, so the lunge read as a
- * there-and-back wobble that stopped short of the defender (bugs.md).
+ * there-and-back wobble that stopped short of the defender (port_bugs.md).
  */
 void game_map_zoom_view_size(int zoom, int* out_cols, int* out_rows);
 
@@ -809,12 +809,12 @@ void game_combat_watch(
     return;
   }
   ColonizePalette pal;
-  /* bugs.md #241: the lunge must draw ON TOP of everything and not fight its
+  /* port_bugs.md #241: the lunge must draw ON TOP of everything and not fight its
    * own static sprite — hide the attacker from the base frame (as the move
    * slide does) and blit the chrome'd copy after game_render. */
   ColonizeUnit* mu = units_get((ColonizeUnitPool*)pool, attacker_id);
   const bool was_active = mu ? mu->active : false;
-  /* bugs.md #365: same chrome standing or lunging — see game_move_watch. */
+  /* port_bugs.md #365: same chrome standing or lunging — see game_move_watch. */
   const bool bump_stacked = units_map_stack_chrome(pool, attacker_id);
   const bool bump_damaged = (atk->col1_flags15 & 0x80u) != 0;
   /* Read the chrome corner before the piece is hidden — see game_move_watch:
@@ -838,13 +838,13 @@ void game_combat_watch(
       atk->orders, /* as above: the lunging piece keeps its own letter */
       bump_stacked,
       bump_damaged,
-      /* bugs.md: same palette rule as the move slide — raw index went pink. */
+      /* port_bugs.md: same palette rule as the move slide — raw index went pink. */
       &pal
     );
     if (!platform_present(game->platform, &fb, &pal)) {
       break;
     }
-    /* bugs.md: 3x slower with fast piece slide on, 6x slower without. */
+    /* port_bugs.md: 3x slower with fast piece slide on, 6x slower without. */
     platform_sleep_ms(
       game->col1_ok && game->col1.head.game_options.fast_piece_slide ? 90u : 270u
     );
@@ -893,7 +893,7 @@ void game_combat_dissolve(void* user, int phase) {
   }
   ColonizePalette pal;
   /*
-   * bugs.md #533: freeze the map blink (DS:0x929c) across BOTH frames. The
+   * port_bugs.md #533: freeze the map blink (DS:0x929c) across BOTH frames. The
    * outcome enqueues popups between phase 0 and phase 1, which flips
    * game_map_blink_running() and with it the active unit's blink phase — the
    * selected unit owns its tile outright (units_top_on_map_tile), so the
@@ -1052,7 +1052,7 @@ void game_congress_reveal_new_father(ColonizeGameState* game, int ff_index) {
 }
 
 /*
- * bugs.md: every combat concludes in isolation. After a combat resolves,
+ * port_bugs.md: every combat concludes in isolation. After a combat resolves,
  * present and answer its queued popups RIGHT NOW in a nested modal loop —
  * the way DOS's blocking dialogs pace the King's turn — instead of hoarding
  * "X defeats Y" until every combat has ceased. Combat Analysis already runs
@@ -1084,7 +1084,7 @@ void game_combat_popup_pump(void* user) {
     }
     if (!game->ai_popups.open && !game->ai_popups.has_result) {
       /*
-       * bugs.md: this loop must always be able to make progress, or it is a
+       * port_bugs.md: this loop must always be able to make progress, or it is a
        * livelock — nothing on screen, the same frame redrawn forever, and the
        * OS window-close button (input.quit_requested) the only way out. That
        * is what the REF landing froze on, and what made "several popups in
@@ -1096,7 +1096,7 @@ void game_combat_popup_pump(void* user) {
        *
        * A popup raised from inside a nested blocking pump is already outside
        * that per-colony ordering (in DOS it IS the blocking call), so let it
-       * through the hold — but only NON-colony-event popups (bugs.md #398:
+       * through the hold — but only NON-colony-event popups (port_bugs.md #398:
        * the old blanket hold-drop presented another colony's zoom CHOICE
        * mid-batch). Only if that still cannot present is there nothing to do
        * but leave.
@@ -1123,7 +1123,7 @@ void game_combat_popup_pump(void* user) {
   pumping = false;
 }
 
-/* bugs.md #659: keep the human's Europe tax mirror in step with a Col1
+/* port_bugs.md #659: keep the human's Europe tax mirror in step with a Col1
  * nation.tax_rate write made from the combat layer (col1_bridge captures the
  * mirror back over the record, so a record-only write would be lost). */
 static void game_tax_change_mirror(void* user, int nation_id, int new_tax) {
@@ -1382,7 +1382,7 @@ COLONIZE_INTERNAL void game_render_begin_menu(
  * Custom House sale line (or any other DS:0x2d54 line) is dwelling, and
  * likewise while end-of-turn processing or a dialog owns the frame, DOS
  * shows a still map. The port drove all three blinks straight off
- * elapsed_ms, so units went on flashing under the sale lines (bugs.md).
+ * elapsed_ms, so units went on flashing under the sale lines (port_bugs.md).
  *
  * Frozen phase is "on" here: the unit/cursor stays drawn rather than
  * vanishing for the hold.
@@ -1391,7 +1391,7 @@ static bool game_map_blink_running(const ColonizeGameState* game) {
   if (!game) {
     return false;
   }
-  /* bugs.md #533: fizzle in progress — both dissolve frames must agree. */
+  /* port_bugs.md #533: fizzle in progress — both dissolve frames must agree. */
   if (game->combat_dissolve_freeze) {
     return false;
   }
@@ -1403,7 +1403,7 @@ static bool game_map_blink_running(const ColonizeGameState* game) {
   if (turn_processor_active(&game->turn_proc)) {
     return false;
   }
-  /* woodcut / closing are GAME_MODAL_LIST members (bugs.md #1122). */
+  /* woodcut / closing are GAME_MODAL_LIST members (port_bugs.md #1122). */
   if (game_modal_open(game) || ai_popup_busy(&game->ai_popups)) {
     return false;
   }
@@ -1502,7 +1502,7 @@ COLONIZE_INTERNAL void game_render_select_palette(
    * An open popup's King / chief / MSS / MYR sheet carries its own entries for
    * the DAC block every screen palette above leaves black; lend them now so the
    * art blits with DOS's colours instead of a nearest-colour approximation
-   * (bugs.md: the tax-audience King flair).
+   * (port_bugs.md: the tax-audience King flair).
    */
   ai_popup_art_palette_merge((AiPopupState*)&game->ai_popups, palette);
 
@@ -1513,7 +1513,7 @@ COLONIZE_INTERNAL void game_render_select_palette(
     ai_popup_sheet_palette_merge(europe_menu_decoration(game), palette);
   }
 
-  /* bugs.md #402: SCORE<nn>.SS carries the exploits painting's colours in the
+  /* port_bugs.md #402: SCORE<nn>.SS carries the exploits painting's colours in the
    * DAC slots WOODPAN2.PIK leaves black — same reserved-block rule as the
    * popup art sheets (merge, never remap). */
   if (game->in_exploits && game->exploits_sheet_ok && game->exploits_sheet.has_palette) {
@@ -1551,7 +1551,7 @@ COLONIZE_INTERNAL bool game_render_screen(
   if (game->in_europe) {
     render_europe_screen(game, framebuffer);
     /*
-     * bugs.md: an open AI popup was never DRAWN over the European Status —
+     * port_bugs.md: an open AI popup was never DRAWN over the European Status —
      * but it still swallowed every input (game_handle_modal_input gates on
      * ai_popups.open). Arrival events queue popups in the same end-turn
      * that auto-opens Europe on ship arrival, so the screen froze until
@@ -1741,7 +1741,7 @@ COLONIZE_INTERNAL bool game_render_screen(
       const ColonizeSpriteSheet* wood =
         game->menu_opentile_ok ? &game->menu_opentile :
         ((game->map_panel_ok && game->map_panel.wood_ok) ? &game->map_panel.wood_tile : NULL);
-      /* bugs.md: OPENMENU.PIK embeds its own palette — the WOODPANL @COLORS
+      /* port_bugs.md: OPENMENU.PIK embeds its own palette — the WOODPANL @COLORS
        * indices land on light yellow / wrong greens here. Use the RGB-
        * remapped title-menu set (menu_popup_colors / menu_col_*), same as
        * the begin menu itself. */
@@ -1816,7 +1816,7 @@ COLONIZE_INTERNAL void game_render_map_composite(
           }
           if (!map_tile_seen_by(&game->world_map, mx, my, game_fog_nation(game))) {
             /*
-             * bugs.md: DOS fog of war is a textured blue, not black. The
+             * port_bugs.md: DOS fog of war is a textured blue, not black. The
              * unseen branch of DOS FUN_6ba1_0938 (asm 6ba1:09a2) blits
              * sprite 0x95 (1-based) = PHYS0 #148 — a 16x16 noise fill of
              * palette 60..62, one shade darker than the ocean's 58..60.
@@ -1893,7 +1893,7 @@ COLONIZE_INTERNAL void game_render_map_composite(
           /* Fog transitional edges toward unseen: PHYS0 104-107 mask, then —
            * as DOS FUN_6ba1_06e0 always does — the unseen neighbour's own
            * terrain filled into the mask's colour-0 holes, so the boundary
-           * dithers instead of staying black (bugs.md). */
+           * dithers instead of staying black (port_bugs.md). */
           {
             const int fog_n = game_fog_nation(game);
             const int edges = map_fog_edge_count(&game->world_map, mx, my, fog_n);
@@ -3026,7 +3026,7 @@ bool game_modal_open(const ColonizeGameState* game) {
   }
   GAME_MODAL_LIST(GAME_MODAL_OPEN_ARM)
 #undef GAME_MODAL_OPEN_ARM
-  /* bugs.md #1091: an open map pull-down. DOS runs it as a blocking loop, so
+  /* port_bugs.md #1091: an open map pull-down. DOS runs it as a blocking loop, so
    * goto pacing, the unit/turn hand-off and every deferred service stop while
    * it is down. Not a GAME_MODAL_LIST member (no `.open` field, and its input
    * is not routed through game_handle_modal_input: game_update_map_menu_bar

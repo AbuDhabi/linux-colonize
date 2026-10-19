@@ -394,7 +394,7 @@ static int colony_yield_pipeline(
      * if ((local_1a == 7) && ((int)local_26 < 1)) local_12 = 0;` — resource row
      * 7 (Fishery) pays nothing when the running yield is below 1. Unreachable
      * in practice (ocean base 3, distance modifier floors at -2), recorded so
-     * it is not re-derived (bugs.md #594). DOS tests local_26 *after* the
+     * it is not re-derived (port_bugs.md #594). DOS tests local_26 *after* the
      * expert Farmer/Fisherman fold, which only ever raises it, so testing the
      * pre-multiplier `yield` here cannot differ on any reachable input. */
     if (res == 7 && yield < 1) {
@@ -641,7 +641,7 @@ bool colony_yield_worked_tiles_next(ColonizeWorkedTileIter* it, ColonizeWorkedTi
     return false;
   }
   const ColonizeColony* colony = it->colony;
-  /* All 20 slots: only the colony's own ring is ever seated (bugs.md #593),
+  /* All 20 slots: only the colony's own ring is ever seated (port_bugs.md #593),
    * so walking the full array is the same set DOS's 0x329 count walks. */
   while (it->next_tile < COLONIZE_COLONY_FIELD_TILES_MAX) {
     const int ti = it->next_tile++;
@@ -669,7 +669,7 @@ bool colony_yield_worked_tiles_next(ColonizeWorkedTileIter* it, ColonizeWorkedTi
     out->colonist = c;
     /* colonies_field_tile_delta's table (colony.c) is MAP_DIR8 — N, NE, E,
      * SE, S, SW, W, NW — for slots 0..7, and the DS:0xc8/0xde outer plots for
-     * 8..19 (bugs.md #593). Mirrored here so colony_yield.c keeps linking
+     * 8..19 (port_bugs.md #593). Mirrored here so colony_yield.c keeps linking
      * without colony.c (unit_colony_yield links it alone). */
     if (ti < 8) {
       out->dx = MAP_DIR8_DX[ti];
@@ -694,7 +694,7 @@ bool colony_yield_worked_tiles_next(ColonizeWorkedTileIter* it, ColonizeWorkedTi
  * which pass colony_yield_colony_has_docks. The only remaining callers are
  * tests that score a bare map with no colony record (tests/unit/test_turn.c,
  * test_units.c, test_colony_yield.c, test_ai_euro_28c8_job_score.c), where a
- * Fisherman tile is meant to be scored as if Docks existed (bugs.md #609).
+ * Fisherman tile is meant to be scored as if Docks existed (port_bugs.md #609).
  */
 int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_job) {
   return colony_yield_pipeline(map, x, y, field_job, -1, 0, true, 0, false);
@@ -764,7 +764,7 @@ static int colony_yield_town_commons_food_base(int pedia) {
     return 2;
   }
   /* FUN_15eb_1f72 raw 12506-12518: every class not named above (incl.
-   * 0x19/0x1a water) takes the else arm = 3 (bugs.md #773). */
+   * 0x19/0x1a water) takes the else arm = 3 (port_bugs.md #773). */
   return 3;
 }
 

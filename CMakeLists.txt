@@ -302,7 +302,7 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
   target_compile_options(colonize_sim PRIVATE -Wno-unused-parameter)
   target_compile_options(colonize_ui PRIVATE -Wno-unused-parameter)
   # Same warning set for every other executable (opencol, tests, tools);
-  # until 2026-10-18 only the two libraries were warned at all (bugs.md #1118).
+  # until 2026-10-18 only the two libraries were warned at all (port_bugs.md #1118).
   set(COLONIZE_EXE_WARN_FLAGS -Wall -Wextra -Wno-unused-parameter)
 endif()
 
@@ -432,7 +432,7 @@ function(colonize_add_test)
   # Tests that compile src/core files directly (SLIM targets, the sound
   # smokes) must see the same PUBLIC defines colonize_sim carries
   # (COLONIZE_TESTING, COLONIZE_DEBUG_MENU, COLONIZE_HAS_TSF...), or the
-  # same .c file builds two different ways (bugs.md #1118).
+  # same .c file builds two different ways (port_bugs.md #1118).
   list(APPEND _defs $<TARGET_PROPERTY:colonize_sim,INTERFACE_COMPILE_DEFINITIONS>)
   if(_defs)
     target_compile_definitions(${CAT_NAME} PRIVATE ${_defs})
@@ -874,7 +874,7 @@ foreach(_test_ai_contact_slice core meet colony)
   )
 endforeach()
 
-# Regression guards for FIXED bugs.md rows that had no test (gap audit
+# Regression guards for FIXED port_bugs.md rows that had no test (gap audit
 # 2026-09-26): tests/unit/test_regress_*.c. One slice per subject area so
 # agents/authors do not collide; cases are named case_<bugid>_<what>.
 foreach(_test_regress_slice units ai_tables production trade_raid save)

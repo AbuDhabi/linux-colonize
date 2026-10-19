@@ -122,7 +122,7 @@ bool game_europe_blocked_by_woi(const ColonizeGameState* game) {
   return game && game->col1_ok && ai_king_independence_declared(&game->col1);
 }
 
-/* bugs.md #225: player sell/buy that crossed a price threshold — show the
+/* port_bugs.md #225: player sell/buy that crossed a price threshold — show the
  * @PRICEUP/@PRICEDOWN dialog immediately (same format as the EOT market
  * tick's) and clear the event list. */
 void game_europe_drain_price_events(ColonizeGameState* game) {
@@ -152,7 +152,7 @@ void game_europe_drain_price_events(ColonizeGameState* game) {
 }
 
 /*
- * Europe status line (bugs.md #376). DOS composes the sale line into the same
+ * Europe status line (port_bugs.md #376). DOS composes the sale line into the same
  * DS:0x2d54 buffer the map strip uses and arms it with FUN_38fd_19d8(1, 0x78,
  * 0), then repaints the European Status screen — the line replaces the top
  * strip's normal content for its dwell. Nothing blocks: the Europe screen
@@ -213,7 +213,7 @@ bool game_try_enter_europe(ColonizeGameState* game) {
 }
 
 /*
- * @WAREHOUSEFULL as an OK-only INFO box. bugs.md #784: no unload path uses
+ * @WAREHOUSEFULL as an OK-only INFO box. port_bugs.md #784: no unload path uses
  * this any more — DOS asks the 2-way confirm BEFORE the transfer
  * (game_colony_unload_ask). Kept for the chrome's token layout and its test.
  */
@@ -373,7 +373,7 @@ bool game_request_indian_land_choice(
 }
 
 /*
- * DOS-LITERAL FUN_2b5a Build/Join handler, asm 0x2256D-0x22583 (bugs.md
+ * DOS-LITERAL FUN_2b5a Build/Join handler, asm 0x2256D-0x22583 (port_bugs.md
  * #688): `test byte [0x5382],0x1` sits at the very top of the SHARED handler,
  * before the colony-on-tile split, and raises @NOCOLONIESEITHER as a real
  * popup (FUN_281f_0652(0x98a, MSS 1)) — so it blocks Join as well as Build.
@@ -391,7 +391,7 @@ bool game_woi_blocks_colony_orders(ColonizeGameState* game) {
 }
 
 /*
- * DOS FUN_479b_076e tail, raw 77005-77045 (bugs.md #682): consume the unit
+ * DOS FUN_479b_076e tail, raw 77005-77045 (port_bugs.md #682): consume the unit
  * (FUN_281f_0934), create the colony (FUN_291f_09b2), stamp the name and
  * FUN_281f_0608 into the colony screen. Only ever reached once the @COLONY
  * name prompt has been ACCEPTED — a cancel at raw 77000 returns without
@@ -425,7 +425,7 @@ static bool game_found_finalize(ColonizeGameState* game, int uid, const char* ch
   }
 
   units_despawn(&game->units, uid);
-  /* bugs.md #268: DOS tracks names-consumed per nation in the SAVE (the AI
+  /* port_bugs.md #268: DOS tracks names-consumed per nation in the SAVE (the AI
    * paths already bump player.founded_colonies); the human path didn't, so
    * a reload re-derived nothing and the session counter drifted. */
   if (game->col1_ok && hn >= 0 && hn < 4) {
@@ -452,7 +452,7 @@ static bool game_found_finalize(ColonizeGameState* game, int uid, const char* ch
   game->found_open_colony_id = -1;
   if (!game->in_colony) {
     /*
-     * bugs.md #682: FUN_479b_076e's tail (viceroy_unpacked.c raw 77043-77048)
+     * port_bugs.md #682: FUN_479b_076e's tail (viceroy_unpacked.c raw 77043-77048)
      * is FUN_281f_04c0 (redraw the map) → FUN_281f_0524(2) (the "Building a
      * Colony" woodcut, a BLOCKING screen in DOS) → FUN_281f_0608 (the colony
      * screen). Opening the colony screen in the same breath as arming the
@@ -528,7 +528,7 @@ bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid, bool land_re
    * silent auto-pay are gone with it.
    */
   /*
-   * bugs.md #682: the name prompt is the LAST gate. Everything that touches
+   * port_bugs.md #682: the name prompt is the LAST gate. Everything that touches
    * the world (unit consume, colony create, sound, woodcut, first-worker
    * placement) lives in game_found_finalize and runs only on accept.
    */
@@ -537,7 +537,7 @@ bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid, bool land_re
 }
 
 /*
- * DOS-LITERAL FUN_2b5a Build handler, asm 0x22636-0x226d7 (bugs.md #684):
+ * DOS-LITERAL FUN_2b5a Build handler, asm 0x22636-0x226d7 (port_bugs.md #684):
  * the 9-tile site survey that feeds @TUTNOSPACES / @TUTNOLUMBER. Offsets are
  * the DS:0xb4 / DS:0xbe tables (VICEROY.EXE 121248+0xb4 / +0xbe) -- the 8
  * neighbours, then the site itself.
@@ -590,7 +590,7 @@ static void game_found_site_survey(
  * is below 4 and @TUTNOLUMBER when no scanned tile is forested. Each is a
  * 2-choice popup whose second row ("Build colony anyway") is the only answer
  * that continues; anything else drops the order (asm jumps to 0x27e5).
- * bugs.md #684 / #687.
+ * port_bugs.md #684 / #687.
  */
 #define GAME_FOUND_STAGE_NOPORT 0
 #define GAME_FOUND_STAGE_NOSPACES 1
@@ -660,7 +660,7 @@ void game_request_noport_found_confirm(ColonizeGameState* game, int uid) {
 
 /*
  * Human FOUND (B key / Orders → Build Colony), in DOS's own order
- * (FUN_2b5a Build handler, asm 0x22542-0x227b0 — bugs.md #687):
+ * (FUN_2b5a Build handler, asm 0x22542-0x227b0 — port_bugs.md #687):
  * @NOCOLONIESEITHER → @TOOMANYCOLONIES → @SEACOLONY → @TOONEAR →
  * @TOOMOUNTAIN → 9-tile scan (@TOONEARBUILD) → @NOPORT → @TUTNOSPACES →
  * @TUTNOLUMBER → name prompt → found.
@@ -669,11 +669,11 @@ bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
   if (!game || !game->world_map_ok) {
     return false;
   }
-  if (game_woi_blocks_colony_orders(game)) { /* asm 0x2256d, bugs.md #688 */
+  if (game_woi_blocks_colony_orders(game)) { /* asm 0x2256d, port_bugs.md #688 */
     return false;
   }
   /*
-   * DOS-LITERAL FUN_2b5a Build handler, asm 0x22584-0x225ad (bugs.md #681):
+   * DOS-LITERAL FUN_2b5a Build handler, asm 0x22584-0x225ad (port_bugs.md #681):
    * `cmp word [0x539e],0x30` (48 colonies in the game) and
    * `cmp byte [nation+0x9298],0x26` (38 settlements for this nation); over
    * either cap, and only when there is no colony on the tile (the Join
@@ -1054,7 +1054,7 @@ static void game_apply_map_confirm(ColonizeGameState* game) {
       break;
     case GAME_MAP_CONFIRM_FOUND_INLAND:
       /* payload = uid | stage<<16; resume the DOS confirm chain after the
-       * stage that was just answered "build anyway". bugs.md #684. */
+       * stage that was just answered "build anyway". port_bugs.md #684. */
       game_found_confirm_chain(game, payload & 0xffff, ((payload >> 16) & 0xff) + 1);
       break;
     case GAME_MAP_CONFIRM_EUROPE_SAIL:
@@ -1129,7 +1129,7 @@ static void game_do_buy_construction(ColonizeGameState* game, int colony_id) {
   }
   ColonizeColony* colony = colonies_get_mut(&game->colonies, colony_id);
   ColonyScreenView* csv = &game->colony_screen;
-  /* FUN_2f2b_5fc6: no project (+0x94 < 0) = no BUY at all (bugs.md #548). */
+  /* FUN_2f2b_5fc6: no project (+0x94 < 0) = no BUY at all (port_bugs.md #548). */
   if (!colony || colony->building_in_production < 0) {
     return;
   }
@@ -1166,7 +1166,7 @@ static void game_do_buy_construction(ColonizeGameState* game, int colony_id) {
 }
 
 /*
- * bugs.md: a dialog the player raised from inside the colony screen must open
+ * port_bugs.md: a dialog the player raised from inside the colony screen must open
  * on the spot. game_update's queue pump is suppressed while
  * colony_zoom_popup_hold is set (the EOT batch must not interrupt a colony
  * the player elected to zoom into), so a BUY / NODOCKS popup enqueued in a
@@ -1247,7 +1247,7 @@ void game_request_buy_construction_confirm(ColonizeGameState* game) {
   }
   ColonizeColony* colony = colonies_get_mut(&game->colonies, game->colony_view_id);
   ColonyScreenView* csv = &game->colony_screen;
-  /* FUN_2f2b_5fc6: no project (+0x94 < 0) = no BUY at all (bugs.md #548). */
+  /* FUN_2f2b_5fc6: no project (+0x94 < 0) = no BUY at all (port_bugs.md #548). */
   if (!colony || colony->building_in_production < 0) {
     return;
   }
@@ -1258,7 +1258,7 @@ void game_request_buy_construction_confirm(ColonizeGameState* game) {
     colonies_unit_build_info(colony->building_in_production, &uname, NULL, NULL);
   }
   const char* bname = (bt && bt->name[0]) ? bt->name : (uname ? uname : "");
-  /* bugs.md: a project the colony already owns can't be bought or completed —
+  /* port_bugs.md: a project the colony already owns can't be bought or completed —
    * say so (@ALREADYHAVE) instead of quoting a meaningless price and letting
    * "Complete it" do nothing. */
   if (bt && colony->building_in_production < COLONIZE_BUILDING_TYPES_MAX &&
@@ -1329,7 +1329,7 @@ void game_request_buy_construction_confirm(ColonizeGameState* game) {
 /*
  * @OVERBOARD (GAME.TXT:2975) asks WHICH cargo goes over the side and carries no
  * choice rows, so the rows are the ship's occupied goods holds — the
- * @TRADEWHICH picker shape (bugs.md #984, was an invented Yes/No that dumped
+ * @TRADEWHICH picker shape (port_bugs.md #984, was an invented Yes/No that dumped
  * hold 0).
  */
 void game_request_overboard_confirm(ColonizeGameState* game) {
@@ -1609,7 +1609,7 @@ static void game_apply_name_entry_result(ColonizeGameState* game) {
     return;
   }
   /*
-   * bugs.md #682: the founding prompt answered. Accept -> run DOS's
+   * port_bugs.md #682: the founding prompt answered. Accept -> run DOS's
    * FUN_479b_076e tail; cancel (FUN_291f_0120 != 0, raw 77000) -> the unit
    * and the map are left exactly as they were.
    */
@@ -1907,7 +1907,7 @@ bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInputState* 
   }
   if (game->ai_popups.open) {
     /*
-     * bugs.md: F1 on the Congress debate CHOICE opens the highlighted
+     * port_bugs.md: F1 on the Congress debate CHOICE opens the highlighted
      * father's Colonizopedia entry; closing that page comes straight back
      * to the popup (the persistent slate re-presents it — no reroll).
      */
@@ -1933,7 +1933,7 @@ bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInputState* 
         if (ff_index >= 0 && ff_index < PEDIA_FATHER_COUNT) {
           /* Cancel the open dialog — apply's cancelled branch re-enqueues
            * the identical slate, which re-presents once the pedia closes.
-           * bugs.md #368: the re-enqueue lands at the BACK of the queue, so
+           * port_bugs.md #368: the re-enqueue lands at the BACK of the queue, so
            * without this the article handed the screen to whatever else was
            * waiting instead of back to the debate. Reading a candidate's
            * entry must not cost the player their place in the vote. */
@@ -1998,7 +1998,7 @@ void game_colony_load_hold(ColonizeGameState* game, int unit_id, int cargo, int 
  * aggregate total over every hold, not a line per hold.
  */
 /*
- * bugs.md #784: the goods actually move. Never called before the
+ * port_bugs.md #784: the goods actually move. Never called before the
  * @WAREHOUSEFULL gate below (or its answer) has cleared the way — DOS asks
  * first and leaves the hold alone on anything but answer 2, it never unloads
  * and then reports.
@@ -2012,7 +2012,7 @@ int game_colony_unload_hold_commit(
 ) {
   bool full = false;
   /* amount 0 is the ordinary click/key/"Unload all" path: empty the whole
-   * hold. Only @HOWMUCH2 supplies a positive partial amount (bugs.md #948). */
+   * hold. Only @HOWMUCH2 supplies a positive partial amount (port_bugs.md #948). */
   const int moved = amount > 0
     ? colonies_transfer_from_unit_amount(
         &game->colonies, game->colony_view_id, &game->units, unit_id, hold, amount, &full
@@ -2029,7 +2029,7 @@ int game_colony_unload_hold_commit(
 }
 
 /*
- * bugs.md #784. thunk_FUN_1000_9784 (viceroy_overlays.c 59355-59367) asks
+ * port_bugs.md #784. thunk_FUN_1000_9784 (viceroy_overlays.c 59355-59367) asks
  * @WAREHOUSEFULL as a 2-way CONFIRM *before* touching the hold and returns 1
  * (nothing moved) on any answer but 2. Returns true when the confirm is now
  * on the queue and the caller must stop; the answer is applied in
@@ -2092,7 +2092,7 @@ static void game_apply_howmuch_result(ColonizeGameState* game) {
   const int cargo = game->howmuch.result_cargo;
   const HowmuchKind kind = game->howmuch.result_kind;
   if (kind == HOWMUCH_KIND_MOVE) {
-    /* @HOWMUCH3: ship-to-ship transfer of a chosen amount (bugs.md #432
+    /* @HOWMUCH3: ship-to-ship transfer of a chosen amount (port_bugs.md #432
      * pattern), never through the warehouse. */
     const int src = game->colony_screen.transport_unit_id;
     const int dst = game->howmuch_move_dst_unit_id;
@@ -2126,7 +2126,7 @@ static void game_apply_howmuch_result(ColonizeGameState* game) {
     if (!game->in_colony || csv->transport_unit_id < 0) {
       return;
     }
-    /* bugs.md #784: DOS's amount prompt (thunk_FUN_1000_9784 param_3 arm)
+    /* port_bugs.md #784: DOS's amount prompt (thunk_FUN_1000_9784 param_3 arm)
      * runs BEFORE the @WAREHOUSEFULL gate, and the gate still blocks the
      * transfer on any answer but 2. */
     const int hold = game->howmuch.result_payload;
@@ -2217,7 +2217,7 @@ static bool game_apply_popup_map_and_colony(ColonizeGameState* game) {
   return true;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_COLONY_WAREHOUSE) {
-    /* bugs.md #784: thunk_FUN_1000_9784 `if (iVar3 != 2) return 1;` — only
+    /* port_bugs.md #784: thunk_FUN_1000_9784 `if (iVar3 != 2) return 1;` — only
      * row 2 ("Unload the %STRING1 anyway.") lets the goods ashore; row 1
      * ("Never mind."), Esc and right-click leave the hold untouched. */
     const bool go = !game->ai_popups.result_cancelled && game->ai_popups.result_choice_id == 2;
@@ -2271,7 +2271,7 @@ static bool game_apply_popup_voyage(ColonizeGameState* game) {
         const ColonizeWorld w = game_world(game);
         if (pax_id >= 0 &&
             units_unload_passenger_w(&w, ship_id, pax_id, dest_x, dest_y)) {
-          /* bugs.md: landfall costs the SHIP nothing — the passengers move,
+          /* port_bugs.md: landfall costs the SHIP nothing — the passengers move,
            * not the ship. The old 1 MP "coastal order" charge on the ship
            * was invented. The passenger's landfall step, however, consumes
            * its WHOLE turn, not just the shore terrain cost. */
@@ -2305,7 +2305,7 @@ static bool game_apply_popup_voyage(ColonizeGameState* game) {
     if (!cancelled && ship && ship->active && units_is_sea(&game->units, ship_id)) {
       if (choice == 1) {
         /*
-         * bugs.md #717: "Yes" sails, full stop. FUN_4720_049e's shared
+         * port_bugs.md #717: "Yes" sails, full stop. FUN_4720_049e's shared
          * reason-4/5 UI body (ndisasm 0x3FECE-0x3FEE9) is
          * `cmp word [bp-0xc],1; jnz 0xfeea; call 0x191f:0x208;
          *  push word [0x5392]; call 0x181f:0xdf4; retf` — the crossing is
@@ -2361,7 +2361,7 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
       ColonizeUnit* pu = units_get(&game->units, uid);
       if (pu && pu->active) {
         pu->orders = UNITS_ORDER_NONE;
-        /* FUN_281f_0934 = "spend the full allotment" (bugs.md #626: one
+        /* FUN_281f_0934 = "spend the full allotment" (port_bugs.md #626: one
          * shared spelling, units_mp_exhaust_unit, instead of re-deriving the
          * Euro/native `moves` inversion here). */
         units_mp_exhaust_unit(&game->units, uid);
@@ -2465,7 +2465,7 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
         ai_diplo_declare_war_ctx(&ctx, u->nation_id, target_nation);
         game->units.selected_id = unit_id;
         ai_popup_consume_result(&game->ai_popups);
-        /* bugs.md #437: the colony confirm (if any) was already answered
+        /* port_bugs.md #437: the colony confirm (if any) was already answered
          * before this treaty prompt — don't ask twice on the retry. */
         game->colony_attack_ok_unit = unit_id;
         game->colony_attack_ok_payload = dest_x | (dest_y << 8);
@@ -2485,7 +2485,7 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
   return true;
   }
   /*
-   * bugs.md #691 — FUN_2b5a_1112 raw 42405-42411. @HAVETREATY answer 2
+   * port_bugs.md #691 — FUN_2b5a_1112 raw 42405-42411. @HAVETREATY answer 2
    * ("Break Treaty") sets the war bit and clears 0x40 (FUN_281f_0a10), THEN
    * falls into the fortify tail; any other answer returns with no order
    * written at all.
@@ -2542,7 +2542,7 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
     (void)europe_buyback_boycott(eu, &game->col1, game->human_nation, cargo_type);
   return true;
   }
-  /* @OVERBOARD hold pick (bugs.md #984): id 99 / cancel = keep the cargo. */
+  /* @OVERBOARD hold pick (port_bugs.md #984): id 99 / cancel = keep the cargo. */
   if (game->ai_popups.result_tag == AI_POPUP_TAG_OVERBOARD_WHICH) {
     const int unit_id = game->ai_popups.result_nation_a;
     const int choice = game->ai_popups.result_cancelled ? 99 : game->ai_popups.result_choice_id;
@@ -2584,7 +2584,7 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
       );
     }
     game->foreign_trade_unit = -1;
-    /* bugs.md #802: FUN_5f7a_020e arms no status-line channel when the deal
+    /* port_bugs.md #802: FUN_5f7a_020e arms no status-line channel when the deal
      * closes (the DS:0x2d54 slot is untouched) and GAME.TXT has no row for
      * one — "Trade concluded" was invented English in the binary. */
     return true;
@@ -2603,7 +2603,7 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
   return true;
     }
     /*
-     * bugs.md #453/460: every outcome that ends the move — Meet (000e returns
+     * port_bugs.md #453/460: every outcome that ends the move — Meet (000e returns
      * true), Nothing (local_8 == 4, returns true) and a successful Infiltrate —
      * makes FUN_5f7a_0662 call FUN_281f_0934 (spent = full allotment), and
      * 465b stops the step. Without the spend and with the Go To still armed,
@@ -2857,7 +2857,7 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
     /* @SCORED "That's all." → open retire score (same path as Retire menu). */
     game_open_retire_score(game);
   }
-  /* bugs.md: the war-end announcements. Payload 2 (@RETIRING2 and legacy
+  /* port_bugs.md: the war-end announcements. Payload 2 (@RETIRING2 and legacy
    * loss popups with no audience behind them) retires straight away; payload
    * 1 (@WINNING) and 4 (@LOSINGn) have the KING_THRONE audience queued next,
    * and the retire score waits for its dismissal (DOS 3844_0442 order:
@@ -2903,7 +2903,7 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
   ai_diplo_apply_popup_result(&ctx, &game->ai_popups);
   founding_fathers_apply_popup_result(&ctx, &game->ai_popups);
   /*
-   * bugs.md: a Founding Father joining Congress is a three-beat sequence —
+   * port_bugs.md: a Founding Father joining Congress is a three-beat sequence —
    * the arrival announcement, then the Continental Congress report's second
    * page (the hall photo), then his Colonizopedia entry. The announce OK
    * carries the elected index in result_nation_b (founding_fathers.c);

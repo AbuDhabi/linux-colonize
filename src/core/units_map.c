@@ -324,7 +324,7 @@ bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
     }
   }
   /*
-   * DOS-LITERAL FUN_1427_0824 raw 7796-7799 (bugs.md #837): unit DESTROY is
+   * DOS-LITERAL FUN_1427_0824 raw 7796-7799 (port_bugs.md #837): unit DESTROY is
    * the producer of the settlement "needs first colonist" bit —
    *   if ((3 < (unit+0x3147 & 0xf)) && (-1 < (char)unit+0x314a))
    *     *(byte*)(unit+0x314a * 0x12 + 0x54ef) |= 1;
@@ -931,7 +931,7 @@ void units_dissolve_notify(int phase) {
 }
 
 /*
- * bugs.md: every combat concludes in isolation — the popups it queued are
+ * port_bugs.md: every combat concludes in isolation — the popups it queued are
  * presented (and answered) before the NEXT combat runs, instead of being
  * hoarded until the whole AI slice ends. The hook is a nested modal loop in
  * game_loop (headless callers leave it unset).
@@ -951,7 +951,7 @@ void units_combat_pump_popups(void) {
 }
 
 /* Public pump for non-combat callers that must block on queued popups before
- * animating (bugs.md #237: REF landing popup precedes the disembark slides). */
+ * animating (port_bugs.md #237: REF landing popup precedes the disembark slides). */
 void units_pump_combat_popups(void) {
   units_combat_pump_popups();
 }
@@ -1030,7 +1030,7 @@ bool units_defender_is_dos_scratch_row(void) {
 /*
  * FUN_5fef_1b0e `bVar13` / `bVar14` (raw 100733 / 100741, read at raw
  * 101088-101095 to append '1' / '2' to the @INDIANWIN tag): the native gear
- * step that just fired, for the chrome owner. bugs.md #645.
+ * step that just fired, for the chrome owner. port_bugs.md #645.
  */
 int g_units_native_gear_armed = 0;
 int g_units_native_gear_mounted = 0;
@@ -1257,7 +1257,7 @@ const char* units_enter_reason_status(ColonizeEnterReason reason) {
   case COLONIZE_ENTER_BLOCKED_DOMAIN:
     return "Wrong terrain";
   case COLONIZE_ENTER_BLOCKED_EDGE:
-  case COLONIZE_ENTER_EDGE_SAIL: /* bugs.md #717 */
+  case COLONIZE_ENTER_EDGE_SAIL: /* port_bugs.md #717 */
     return "Map edge";
   case COLONIZE_ENTER_BLOCKED_HS_SAIL:
     return "Need sail order for high seas";

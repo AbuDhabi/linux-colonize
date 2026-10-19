@@ -53,11 +53,11 @@ void colony_craft_one_colony(
  *   ai_controlled  the colony's owner is not the human seat, so Phase B
  *                  composes `gross - demand` WITHOUT the `- unmet[input]`
  *                  term — an AI factory yields full capacity and its input
- *                  stock merely clamps at 0 (bugs.md #898). The control test
+ *                  stock merely clamps at 0 (port_bugs.md #898). The control test
  *                  is the usual `nation >= 4 || DS:0x543f[nation] != 0`.
  *   gross_out      optional; each out_cargo's actual production this tick,
  *                  which is what Phase K's "Need sugar." family of crumbs
- *                  probes (`FUN_281f_0b50(out_cargo) == 0`, bugs.md #899).
+ *                  probes (`FUN_281f_0b50(out_cargo) == 0`, port_bugs.md #899).
  */
 void colony_craft_one_colony_ex(
   ColonizeColonyPool* pool,

@@ -145,7 +145,7 @@ const AiGoalSlot* ai_goals_primary(int nation_id, int slot);
  * -1 when the table holds none. DOS has no per-unit goal-code byte: a
  * goal-bound unit carries only +0x314d/e (the tile) and +0x314b (the order
  * letter), and every consumer that needs the concrete code re-reads the goal
- * table at that tile. bugs.md #525 — replaces the per-unit mirror the
+ * table at that tile. port_bugs.md #525 — replaces the per-unit mirror the
  * retired `s_0a60_pilot_state` shadow used to carry.
  */
 int ai_goals_primary_code_at(int nation_id, int x, int y);

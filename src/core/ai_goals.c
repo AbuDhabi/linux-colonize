@@ -400,7 +400,7 @@ int ai_goals_colony_balance_flags_w(
 ) {
   const ColonizeWorldMap* map = w->map;
   const ColonizeColonyPool* colonies = w->colonies;
-  /* Gated on col1_ok like every other col1 reader (bugs.md #1110: three
+  /* Gated on col1_ok like every other col1 reader (port_bugs.md #1110: three
    * ctx callers used to pass the save ungated). */
   const ColonizeCol1Save* col1 = w->col1_ok ? w->col1 : NULL;
 
@@ -1189,7 +1189,7 @@ int ai_goals_composite_unit_priority_w(
  * an empty transport returns -1. Table values are the same DS:0x523d
  * @UNIT bit-string ai_euro.c's k_20e6_type_flags carries.
  *
- * bugs.md #655: kept hardcoded here, unlike ai_euro.c's live catalog cache
+ * port_bugs.md #655: kept hardcoded here, unlike ai_euro.c's live catalog cache
  * (ColonizeUnitType.cap_bits) - this walker takes a raw ColonizeCol1Unit
  * chain (COLONY.SAV on-disk layout), which carries only a numeric type
  * index, not a ColonizeUnitPool / ColonizeUnitType record, so no catalog

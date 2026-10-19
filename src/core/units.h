@@ -179,13 +179,13 @@ typedef struct ColonizeUnitPool {
   ColonizeUnit units[COLONIZE_UNITS_MAX];
   int unit_count;
   int selected_id;
-  /* bugs.md "Move to front": the unit in this pool SLOT (units[i], NOT a
+  /* port_bugs.md "Move to front": the unit in this pool SLOT (units[i], NOT a
    * unit id) boards departing ships first and heads the colony rosters
    * (-1 = none; DOS reorders its unit chain). Was board_first_id. */
   int board_first_slot;
   int next_id;
   /* Once next_id reaches COLONIZE_UNITS_MAX, ids are recycled round-robin
-   * from here (units_alloc_id, bugs.md #1094); 0 = start at id 1. */
+   * from here (units_alloc_id, port_bugs.md #1094); 0 = start at id 1. */
   int id_recycle_cursor;
   uint64_t next_tile_stack_order;
   /*
@@ -356,7 +356,7 @@ typedef enum ColonizeUnitKind {
 /* Pool slot for a @UNIT row / ColonizeUnitKind (see docs/units.md#units_kind_type_index). */
 int units_kind_type_index(const ColonizeUnitPool* pool, ColonizeUnitKind kind);
 /*
- * bugs.md #659: FUN_5fef_0352 destroy tail (raw 99653-99690) lowers the
+ * port_bugs.md #659: FUN_5fef_0352 destroy tail (raw 99653-99690) lowers the
  * loser nation's tax_rate when a Royal-flagged (+0x3148 bit 0x40) purchased
  * ship goes down. The Col1 record is written directly; the hook lets the game
  * layer mirror the new rate into EuropeScreen.tax_percent for the human.
@@ -580,7 +580,7 @@ bool units_type_has_profession_slot(int type_index);
  * DOS-LITERAL FUN_49dd_0386: the map-panel profession LINE (singular @JOB
  * column 0, with the @MISC "Veteran"/"Expert" overrides). `allow_unskilled`
  * is the DOS param_3: 1 at the selected-unit call site (raw 78892), 0 at the
- * stack-list one (raw 79205). bugs.md #507.
+ * stack-list one (raw 79205). port_bugs.md #507.
  */
 const char* units_profession_line(
   const ColonizeMsgCatalog* names, int type_index, int profession, bool allow_unskilled
@@ -612,7 +612,7 @@ int units_display_type_index(const ColonizeUnitPool* pool, int unit_id);
  * "More units here" tab state for a unit's map chrome: another piece shares its
  * tile, or it is carrying (DOS decides it from the unit's own chain,
  * FUN_1427_0002/004a behind FUN_112b_01ba). Shared so the move slide and combat
- * lunge wear the same chrome as the standing draw (bugs.md #365).
+ * lunge wear the same chrome as the standing draw (port_bugs.md #365).
  */
 bool units_map_stack_chrome(const ColonizeUnitPool* pool, int unit_id);
 

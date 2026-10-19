@@ -185,7 +185,7 @@ bool new_game_scenario_start(
 );
 
 /* Per-nation default leader from NAMES.TXT @LEADERNAME (row = nation), with a
- * hardcoded fallback. bugs.md: a loaded Dutch campaign kept the English
+ * hardcoded fallback. port_bugs.md: a loaded Dutch campaign kept the English
  * default. */
 void new_game_default_leader_name(
   const ColonizeMsgCatalog* names_txt, int nation, char* out, size_t out_size

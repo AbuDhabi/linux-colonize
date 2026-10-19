@@ -2,7 +2,7 @@
  * FUN_15eb_28c8 work-plot scorer fixture
  * (ai_euro_28c8_colonist_job_score_structural, src/core/ai_euro.c).
  *
- * Rewritten 2026-09-22 for bugs.md #570: the scorer is now a term-for-term
+ * Rewritten 2026-09-22 for port_bugs.md #570: the scorer is now a term-for-term
  * port of raw 13012-13130, so this fixture checks the DOS formula, not the
  * old structural sketch (which it used to lock in):
  *
@@ -270,7 +270,7 @@ static int unit_full_matrix_sticky_doubling(void) {
 }
 
 /*
- * bugs.md #562 — the join path. DOS FUN_15eb_3930 -> FUN_15eb_2ea0 ->
+ * port_bugs.md #562 — the join path. DOS FUN_15eb_3930 -> FUN_15eb_2ea0 ->
  * FUN_15eb_28c8 seats a newly admitted colonist on the best-scoring WORK
  * PLOT (fallback Carpenter, raw 13189-13192); the port used to park every
  * joiner in the Town Hall. One Prairie plot next to the colony, so the
@@ -313,7 +313,7 @@ static int unit_join_seats_on_work_plot(void) {
 }
 
 /*
- * bugs.md #582 — the Fisherman's warehouse-room clamp reads cargo slot 8
+ * port_bugs.md #582 — the Fisherman's warehouse-room clamp reads cargo slot 8
  * (HORSES), not FOOD. DOS raw 13000 calls `FUN_15eb_18ec(x,y,&local_24,0)`
  * and the fish->food remap at raw 11983 only fires for param_4 != 0, so
  * local_24 stays 8 and raw 13006 clamps against `colony+0x9a+8*2`.
@@ -346,7 +346,7 @@ static int unit_fisherman_clamps_against_horses(void) {
   colonies_set_occupancy_map(NULL);
   colony_init_common(&colonies.colonies[0], /*nation=*/1, cx, cy);
   /* The 18ec Fisherman gate (raw 11955) is unconditional, so the colony needs
-   * real Docks for a water plot to score at all (bugs.md #609). */
+   * real Docks for a water plot to score at all (port_bugs.md #609). */
   colonies.building_type_count = 1;
   snprintf(
     colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Docks"
@@ -393,7 +393,7 @@ static int unit_fisherman_clamps_against_horses(void) {
 }
 
 /*
- * bugs.md #609 — the 18ec Docks gate (raw 11955) is unconditional, and the
+ * port_bugs.md #609 — the 18ec Docks gate (raw 11955) is unconditional, and the
  * structural entry scores with `profession < 0`. The same all-Ocean ring with
  * the Docks bit cleared must yield nothing at all, i.e. no assignment.
  */
@@ -439,7 +439,7 @@ static int unit_no_docks_scores_no_water_plot(void) {
 }
 
 /*
- * bugs.md #889 — FUN_15eb_28c8 raw ~13073-13085's Ore arm is a comma
+ * port_bugs.md #889 — FUN_15eb_28c8 raw ~13073-13085's Ore arm is a comma
  * expression: `(local_4 = local_4 + 2, byte[DS:0x5398+0x917c] <=
  * byte[nation+0x917c])`. The flat +2 fires whenever `!human && cargo==ORE &&
  * pop>7 && turn>0x4f`; only the two FUN_15eb_039e chain terms (owned tiers of

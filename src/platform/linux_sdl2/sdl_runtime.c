@@ -523,7 +523,7 @@ bool platform_poll_input(ColonizePlatform* platform, ColonizeInputState* out_inp
       }
       case SDL_WINDOWEVENT:
         /*
-         * bugs.md: after alt-tabbing away mid-press (or releasing the button
+         * port_bugs.md: after alt-tabbing away mid-press (or releasing the button
          * outside the window) SDL never delivers the BUTTONUP, so the held
          * flags stayed latched and screens driven by press/release pairs
          * (the European Status drags in particular) ate several clicks

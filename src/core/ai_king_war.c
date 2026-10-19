@@ -172,7 +172,7 @@ int ai_king_new_war_event(ColonizeTurnContext* ctx) {
  * the high seas leaves the map outright (units_despawn, below and in
  * ai_king_mow_sail_home_20e6) instead of parking at an off-map sentinel
  * column, so neither DOS x-sentinel state (240+n docked, 244+n sailing) is
- * literally representable. bugs.md #878e: counting only hulls already
+ * literally representable. port_bugs.md #878e: counting only hulls already
  * standing ON a high-seas tile was over-restrictive — the same function that
  * despawns an arrived hull also runs this gate first, so a hull essentially
  * never survives a turn boundary sitting on a high-seas tile, and the count
@@ -328,7 +328,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
     return;
   }
   /*
-   * bugs.md #865: this is the PORT-ONLY "crown force on the map" latch
+   * port_bugs.md #865: this is the PORT-ONLY "crown force on the map" latch
    * (AI_KING_REF_PRESENT_BYTE, pad bit) — DS:0x5382 bit 0x02 is DOS's
    * intervention-announce latch and is never cleared. Clear the port latch
    * once no crown unit remains in the New World, so wiping a wave re-arms
@@ -362,7 +362,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
     }
   }
   const int human = ctx->human_nation;
-  /* bugs.md #250: DOS 2022 runs the mobilization gate BEFORE any other war
+  /* port_bugs.md #250: DOS 2022 runs the mobilization gate BEFORE any other war
    * beat — the mobilization turn does nothing else (no intervene/merc). The
    * gate block below returns early, so intervene/merc moved after it. */
   const int mobilization_due =
@@ -376,7 +376,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
      *   else                                    10f0(0)   (the free drain)
      * The two never run on the same turn. The port ran the drain first, so a
      * drain that took backup_force[2] 1 -> 0 let the merc offer fire in the
-     * same beat: two landings and four extra RNG draws (bugs.md #874).
+     * same beat: two landings and four extra RNG draws (port_bugs.md #874).
      */
     const int intervened =
       ai_king_latch_get(ctx->col1, AI_KING_INTERVENE_ANNOUNCED_BYTE) != 0;
@@ -409,7 +409,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
    * SoL 40..49 "restless" band is status-text only (below), not a promote
    * band in 1eca.
    */
-  /* bugs.md #250 + DOS FUN_43f7_2022: the 1eca mobilization runs exactly ONCE,
+  /* port_bugs.md #250 + DOS FUN_43f7_2022: the 1eca mobilization runs exactly ONCE,
    * on the first war-act turn after the declaration — gated on nation_flags
    * bit 0x08 (`*(byte*)*[0x84fc] & 8`), set right after, and DOS `return`s so
    * the mobilization turn does nothing else on the war path. */
@@ -441,7 +441,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
         }
         int promoted = 0;
         const char* promoted_from = ""; /* DOS %STRING1 = pre-promote type name */
-        /* bugs.md #534 (REFUTED 2026-09-20): GAME.TXT @MOBILIZE/@MOBILIZE2
+        /* port_bugs.md #534 (REFUTED 2026-09-20): GAME.TXT @MOBILIZE/@MOBILIZE2
          * (COLONIZE/GAME.TXT 2689-2697) name "Continental Army" twice,
          * unconditionally — there is no Dragoon variant tag and no
          * substitution token for the post-promote type, so DOS itself prints
@@ -512,7 +512,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
           }
           popup_msg_strip_markup(ctx->status);
         }
-        /* bugs.md #232: the mustering gets its own dialog per colony —
+        /* port_bugs.md #232: the mustering gets its own dialog per colony —
          * GAME.TXT @MOBILIZE (one unit, %STRING0 colony / %STRING1 type) or
          * @MOBILIZE2 (%NUMBER0 units). */
         if (promoted > 0 && ai_king_human_popups(ctx)) {
@@ -549,7 +549,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
   }
 
   /*
-   * bugs.md: no rebel-side auto-play. The block that used to sit here marched
+   * port_bugs.md: no rebel-side auto-play. The block that used to sit here marched
    * every idle human Cont. Army / Cont. Cav toward the founding capital
    * (AI_MOVE) and fortified two of them on it. That was never DOS: it was
    * sourced from a fandom description of the Continentals plus the REF's own
@@ -994,7 +994,7 @@ static AiKingWoiEndStatus ai_king_woi_end_win(struct ai_king_woi_end_ctx* w) {
       (pl->country_name[0] != '\0') ? pl->country_name : "";
     char body[AI_POPUP_BODY_LEN];
     /* DOS 3844_0442 win order: victory tune pool (FUN_129f_0318(3)), the
-     * @WINNING announcement, THEN the @KINGLOSE throne audience (bugs.md #258
+     * @WINNING announcement, THEN the @KINGLOSE throne audience (port_bugs.md #258
      * — the first pass had the two inverted). */
     if (ai_king_human_popups(ctx)) {
       sound_set_bgm(3);
@@ -1196,7 +1196,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx) {
  * this turn's Custom House sales (independence-seed-100 000002).
  */
 /*
- * bugs.md #1098: which status buffer a King tax-audience line (5e52 tax event
+ * port_bugs.md #1098: which status buffer a King tax-audience line (5e52 tax event
  * or its answered popup) or the 2424 decile SoL notify last claimed. The
  * port's restless-SoL line in 2424 leaves a claimed status alone and drops
  * the claim. A static, not a ctx field: the ctx is rebuilt every frame and
@@ -1455,7 +1455,7 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
     *ctx->active_turn_nation = ctx->human_nation;
   }
   /* 2424 writes both caches only in peacetime (`(0x5382 & 1) == 0`, raw
-   * 75169); during the war they freeze at the declaration value. bugs.md #1055. */
+   * 75169); during the war they freeze at the declaration value. port_bugs.md #1055. */
   if (ctx->col1_ok && ctx->col1 && !ai_king_independence_declared(ctx->col1)) {
     /*
      * FUN_43f7_2424 (43f7:2478..2492): every nation caches its own SoL into
@@ -1464,7 +1464,7 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
      * `[nation*0x13c + 0x8821]`, IMULs it by `census_pop_proxy`, IDIVs by
      * 100). Only the human's copy in DS:0x53d0 was being written here, so
      * `rebel_sentiment` stayed 0 for the whole campaign and the report showed
-     * 0 Rebels / all Tories even at 100% SoL (bugs.md). DOS writes the byte
+     * 0 Rebels / all Tories even at 100% SoL (port_bugs.md). DOS writes the byte
      * for whichever nation it is ticking, human or AI, before the DS:0x53d0
      * human-only half.
      */
@@ -1503,7 +1503,7 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
     case AI_POPUP_TAG_KING_AUDIENCE:
       /*
        * FUN_38fd_3dc8 village-goods choice. The hike is NOT applied yet
-       * (bugs.md: the popup proposes it, the answer settles it). Accept
+       * (port_bugs.md: the popup proposes it, the answer settles it). Accept
        * ("kiss the ring") → commit the delta packed in the payload. Refuse
        * ("tea party") → leave the rate alone and boycott the picked cargo.
        */
@@ -1585,7 +1585,7 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
       if (popup->result_choice_id == AI_KING_CHOICE_CONFIRM) {
         ai_king_do_declare(ctx, human);
         /*
-         * bugs.md #532: NO same-turn Continental muster. DOS reaches 1eca
+         * port_bugs.md #532: NO same-turn Continental muster. DOS reaches 1eca
          * only through FUN_43f7_2022 called with the *human* slot
          * (viceroy_unpacked.c:75002-75006: `param_1 != *0x53d2` arm →
          * `if ((*(byte *)*0x84fc & 8) == 0) { 2a1f_00c4 = 1eca; set bit 8;

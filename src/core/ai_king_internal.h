@@ -32,10 +32,10 @@ void ai_king_0982_land_troops(
   int continent, int garrison_raw, int need, int lx, int ly
 );
 void ai_king_0982_invasion(struct ai_king_0982_ctx* w);
-/* FUN_43f7_0082 unit pick + spawn for the 10f0 intervention (bugs.md #505). */
+/* FUN_43f7_0082 unit pick + spawn for the 10f0 intervention (port_bugs.md #505). */
 int ai_king_10f0_spawn_unit(ColonizeTurnContext* ctx, int human, int pool_index, int x, int y);
 /* ai_king_human_5e52_tail + ai_king_nation_turn_2424 in 00f2 order (test-only,
- * bugs.md #1106; the turn processor calls the halves apart). */
+ * port_bugs.md #1106; the turn processor calls the halves apart). */
 void ai_king_nation_turn(ColonizeTurnContext* ctx);
 #endif /* COLONIZE_TESTING */
 
@@ -147,7 +147,7 @@ typedef struct AiKingAudienceFlavor {
 void ai_king_10f0_land(
   ColonizeTurnContext* ctx, int target, int paid, const int merc_counts[4]
 );
-/* Man-O-War holds column REF per-wave landing cap (bugs.md #661) — exposed
+/* Man-O-War holds column REF per-wave landing cap (port_bugs.md #661) — exposed
  * for test_regress_ai_tables.c. */
 int ai_king_0982_max_landing(const ColonizeTurnContext* ctx);
 void ai_king_1d42_royal_purse(ColonizeTurnContext* ctx);

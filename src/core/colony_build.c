@@ -712,7 +712,7 @@ bool colonies_try_complete_building_ex(
    * (founding), the human dialog (raw 51126) and the AI tick's clear. */
   col->hammers = 0;
   /*
-   * bugs.md: an upgrade takes its workers with it — DOS has no per-building
+   * port_bugs.md: an upgrade takes its workers with it — DOS has no per-building
    * membership at all (occupation is the @JOB; the worker always works the
    * best tier owned), so completing e.g. a Lumber Mill must move the
    * Carpenter's Shop crew over. Same chain families the save bridge maps.
@@ -787,7 +787,7 @@ int colonies_try_complete_unit_construction(
      * DOS-LITERAL FUN_364b_0688 raw 57748-57769: a non-human colony (Euro
      * AI or Crown) is simply handed the tools it needs and the project
      * proceeds; only a human colony is refused (@NEEDTOOLS elsewhere).
-     * bugs.md #755.
+     * port_bugs.md #755.
      */
     const bool human = col1 && col->nation_id >= 0 &&
                         col->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
@@ -819,7 +819,7 @@ int colonies_try_complete_unit_construction(
        * DOS-LITERAL FUN_364b_0114 raw 56943-56946: `if (type == 0xb &&
        * (nation > 3 || player[nation].control != 0)) nation[+0x48]++` — an
        * Artillery completion by a non-human colony (Euro AI or Crown)
-       * bumps the king_grace_counter byte. bugs.md #766.
+       * bumps the king_grace_counter byte. port_bugs.md #766.
        */
       const bool non_human = col1 && (col->nation_id > 3 ||
                                        (col->nation_id >= 0 &&

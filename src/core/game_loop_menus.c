@@ -176,7 +176,7 @@ void game_open_cheat_kill_indians(ColonizeGameState* game) {
  * each entry spawns — the port spells no unit names itself. -1 = resolved by
  * a follow-up stage (Treasure amount, Ship picker, Foreign nation picker).
  * When DEBUG.TXT is missing a row falls back to the spawned kind's NAMES.TXT
- * @UNIT name (bugs.md #543), else "".
+ * @UNIT name (port_bugs.md #543), else "".
  *
  * DOS dispatcher (ndisasm 0x23996-0x23b8c, jump table cs:0x2cba): the menu tag
  * is @CREATE2 once the WoI is declared (`DS:0x5382 & 1`), else @CREATE. Rows
@@ -185,7 +185,7 @@ void game_open_cheat_kill_indians(ColonizeGameState* game) {
  * Regulars (6) / Cavalry (8) owned by the crown slot (DS:0x53d2) after it.
  * @CREATE row 14 "Foreign Unit" only picks the OWNER nation (@FOREIGN, DS
  * `[bp-0x16]`) and loops back to the main list; @CREATE2 has no such row
- * (its @FOREIGN2 arm is unreachable). bugs.md #666.
+ * (its @FOREIGN2 arm is unreachable). port_bugs.md #666.
  */
 static const int k_cheat_create_main_kinds[14] = {
   UNITS_KIND_COLONIST, UNITS_KIND_PIONEER, UNITS_KIND_SOLDIER, UNITS_KIND_MISSIONARY,
@@ -645,7 +645,7 @@ void game_trade_open_dest_picker(ColonizeGameState* game, int stop_i) {
   } else if (game->trade_create_stage == 4) {
     /* Wizard destination 2: the route type is decided by now — a sea route's
      * picker filters to coastal colonies and offers the Europe port row, the
-     * same FUN_647e_01c6 list the editor shows (bugs.md: "Create trade route
+     * same FUN_647e_01c6 list the editor shows (port_bugs.md: "Create trade route
      * (sea route) should include the European port"). */
     sea = game->trade_create_sea != 0;
   }

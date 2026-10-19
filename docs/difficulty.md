@@ -113,7 +113,7 @@ and **0x15 = Soldier → Veteran Soldier** (`@JOB` is 0-based).
 Hardy Pioneer is **French-only** on every difficulty (matches DOS `COLONY00` /
 [savegame.md](savegame.md); not "both experts on easy"). The easy-difficulty
 Veteran Soldier is **human-only** — `bVar1` is the acting nation's own control
-byte, so AI Europeans never get it (bugs.md #488, fixed 2026-09-17; the port had
+byte, so AI Europeans never get it (port_bugs.md #488, fixed 2026-09-17; the port had
 a bare `difficulty <= 1`).
 
 ---
@@ -377,12 +377,12 @@ are `FUN_465b_0000`'s trespass bump (`difficulty + 5`, doubled on a village
 tile, sextupled on a capital) and the WoI defect roll
 `rng(0, (5-difficulty)*2) == 0`.
 
-Corrected 2026-09-30 (bugs.md #1002): the two big *discrete* difficulty-scaled
+Corrected 2026-09-30 (port_bugs.md #1002): the two big *discrete* difficulty-scaled
 alarm charges are `FUN_0000_6582`'s land-work bill (`difficulty + 5`, doubled
 inside village distance 3, plus base again inside 2, doubled on a prime-resource
 tile — `colonies_assign_field_w`) and that same 465b trespass bump. Map-gen also
 seeds `alarm_by_player` at `rand(0,14) + difficulty*2` for the human and
-`rand(0,14)` for each AI (`FUN_6a09_0006`, bugs.md #1001), so a harder game
+`rand(0,14)` for each AI (`FUN_6a09_0006`, port_bugs.md #1001), so a harder game
 starts the player deeper in the hole.
 
 ### Raid demote

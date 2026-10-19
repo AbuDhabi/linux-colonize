@@ -110,7 +110,7 @@ int colonies_building_worker_count(const ColonizeColony* colony, int building_ty
 }
 
 /*
- * bugs.md: only buildings with a real @JOB worker slot accept colonists.
+ * port_bugs.md: only buildings with a real @JOB worker slot accept colonists.
  * Passive/structural buildings (fortifications, docks chain, Warehouse,
  * Stable, Custom House, Printing Press/Newspaper, Capitol) have no crew —
  * assigning there must be refused BEFORE any admit side effect.
@@ -283,7 +283,7 @@ bool colonies_assign_workplace(
    * in its own order. What it validates is an @JOB OCCUPATION, not a building:
    * `iStack_10 = FUN_1000_8dfe(colonist); if (iStack_10 == param_2) return 0`
    * lets a no-op reassignment through before any cap runs.
-   * bugs.md #580 / #589 / #590.
+   * port_bugs.md #580 / #589 / #590.
    */
   const int occupation = colonies_building_occupation(pool, building_type);
   const int cur_occupation =
@@ -361,7 +361,7 @@ bool colonies_toggle_custom_house_cargo(ColonizeColonyPool* pool, int colony_id,
  * DOS-LITERAL FUN_0000_6582 tail (viceroy_overlays.c:8758-8830) — the native
  * land-work reaction. DOS runs it from the SHARED colony tiles[] writer, so it
  * fires for AI colonies and for every re-seat, not only from the human colony
- * screen. bugs.md #284 first ported it onto the two colony-screen call sites in
+ * screen. port_bugs.md #284 first ported it onto the two colony-screen call sites in
  * game_loop_colony.c, which left the seven ai_euro_colony_jobs.c assignment
  * sites silent: the AI encroachment the real DOS seed-100 saves show
  * (TURN1 -> TURN7, three pop-1 colonies, indian[3].alarm[2] 5 -> 34 and
@@ -388,7 +388,7 @@ bool colonies_toggle_custom_house_cargo(ColonizeColonyPool* pool, int colony_id,
  * trial-seat flag (set around its candidate loop): every seat that reaches
  * this port writer is a real one, so it always passes.
  *
- * The full FUN_4cc6_00f2 via its world form (bugs.md #1004): this is the
+ * The full FUN_4cc6_00f2 via its world form (port_bugs.md #1004): this is the
  * dominant early-game alarm raiser, and calling the bare half writer meant a
  * pair pinned at alarm 100 by encroachment never rolled DOS's mission burn.
  */
@@ -489,7 +489,7 @@ bool colonies_assign_field_w(
     return false;
   }
   /* Only the colony's own ring can be seated (DS:0x329[FUN_15eb_0470()],
-   * bugs.md #593) — slots beyond it are outside the work radius. */
+   * port_bugs.md #593) — slots beyond it are outside the work radius. */
   if (tile_index < 0 || tile_index >= colonies_work_plot_count(pool, col)) {
     return false;
   }
@@ -637,7 +637,7 @@ static int colonies_admit_unit_seat_w(
    * colonist's occupation byte through this helper, which folds
    * UNITS_JOB_DRAGOON (0x17) to UNITS_JOB_SOLDIER (0x15) before storing.
    * The join call site is FUN_281f_0cae -> FUN_15eb_0e8c (raw 11308).
-   * bugs.md #658.
+   * port_bugs.md #658.
    */
   const int profession =
     (unit->profession == UNITS_JOB_DRAGOON) ? UNITS_JOB_SOLDIER : unit->profession;
@@ -686,7 +686,7 @@ static int colonies_admit_unit_seat_w(
       col->building_in_production = -1;
     }
   }
-  /* bugs.md #256: every admit path (AI joins, capture, save import) puts the
+  /* port_bugs.md #256: every admit path (AI joins, capture, save import) puts the
    * newcomer to work immediately — DOS has no idle colonists, and an idle
    * one made the head count disagree with the visible workers. */
   if (seat) {
@@ -727,7 +727,7 @@ void colonies_assign_carpenter_fallback(ColonizeColonyPool* pool, int colony_id,
 }
 
 /*
- * bugs.md #562: DOS's join path is FUN_15eb_3930 -> FUN_15eb_2ea0 ->
+ * port_bugs.md #562: DOS's join path is FUN_15eb_3930 -> FUN_15eb_2ea0 ->
  * FUN_15eb_28c8 — the newcomer takes the best-scoring WORK PLOT, and only when
  * nothing scores does he become a Carpenter (`1068(slot, 0xd)`). The port used
  * to seat every joiner in the Town Hall, which has no DOS counterpart at all,
@@ -765,7 +765,7 @@ void colonies_seat_new_colonist(ColonizeColonyPool* pool, int colony_id, int col
  * DOS-LITERAL FUN_15eb_3930 raw 13794-13808: `268e(); 287e(); 2ea0();`, run
  * through FUN_15eb_3956 <- FUN_281f_0c22 (raw 33580) on colony-screen redraw,
  * EOT production (364b_0688), joins (364b_1aec/1b1a), the F6 adviser
- * (3f41_1bec) and the AI colony tick (5952_035e). bugs.md #1080.
+ * (3f41_1bec) and the AI colony tick (5952_035e). port_bugs.md #1080.
  *
  *  268e (raw 12804-12822): cache FUN_15eb_23f2 for the 5x5. The cache flag
  *        DS:0x34c is cleared on colony select (FUN_15eb_002c raw 9334), and
@@ -833,7 +833,7 @@ void colonies_recompute_plots_w(const ColonizeWorld* w, int colony_id) {
  * occupation 0x13 (@JOB row 19, plain "Colonist") is genuinely idle in DOS —
  * FUN_15eb_0e18 returns 19, so FUN_15eb_2ea0's `< 9` gate skips him, and the
  * colony_prod01 DOS capture shows he stays unproductive. The port still needs
- * him visible on the settlement grid (bugs.md #6/#256), so he is parked in a
+ * him visible on the settlement grid (port_bugs.md #6/#256), so he is parked in a
  * building; new joiners go through colonies_seat_new_colonist instead.
  */
 void colonies_auto_assign_idle(ColonizeColonyPool* pool, int colony_id) {
@@ -850,7 +850,7 @@ void colonies_auto_assign_idle(ColonizeColonyPool* pool, int colony_id) {
     if (town_hall >= 0 && colonies_assign_workplace(pool, colony_id, i, town_hall)) {
       continue;
     }
-    /* bugs.md #408: never quietly seat a specialist back at a school. */
+    /* port_bugs.md #408: never quietly seat a specialist back at a school. */
     colonies_assign_carpenter_fallback(pool, colony_id, i);
   }
 }
@@ -908,7 +908,7 @@ int colonies_has_church_or_cathedral(
  * FUN_15eb_35d0's `min(stock, 100, req)` is a different path — the cargo-hold
  * loader, whose `req` is FUN_15eb_3208's free-hold count * 100 (raw 13375) —
  * i.e. loading 100-lots into a ship/wagon, never equipping a colonist.
- * bugs.md #356 (a Pioneer legitimately walks with 20/40/60/80/100) is the
+ * port_bugs.md #356 (a Pioneer legitimately walks with 20/40/60/80/100) is the
  * behaviour this reproduces.
  */
 int colonies_equip_tools_take(int available) {
@@ -955,7 +955,7 @@ int colonies_equip_tools_take(int available) {
  * game_colony_list_outside_roles is a twin of this list and must stay
  * row-for-row identical, greying included. That twin passes the standing
  * body's own gear as add_*: FUN_2f2b_348c raw 50553-50569 adds the body's
- * current-@JOB cargo list into stock before the row loop (bugs.md #972).
+ * current-@JOB cargo list into stock before the row loop (port_bugs.md #972).
  *
  * Earlier cites for the bless row: Colonization.pdf Establishing a Mission /
  * Church; building_production Missionary.
@@ -1223,7 +1223,7 @@ int colonies_eject_colonist(
   if (type_index < 0) {
     type_index = c->unit_type_index;
   }
-  /* bugs.md #556: DOS's colony eject applier (overlays.c:10225-10245) writes
+  /* port_bugs.md #556: DOS's colony eject applier (overlays.c:10225-10245) writes
    * only the TYPE byte from table 0x2f5 and copies the profession byte
    * verbatim — `*(0x315b) = FUN_0000_6d02(param_1)` — for every row, bless
    * included. A blessed Expert Farmer stays an Expert Farmer under type 3.
@@ -1288,7 +1288,7 @@ int colonies_eject_colonist(
     u->tools = tools_take;
     u->muskets = muskets_take;
     u->horses = horses_take;
-    /* bugs.md: a freshly ejected/armed/horsed unit starts with no moves —
+    /* port_bugs.md: a freshly ejected/armed/horsed unit starts with no moves —
      * it acts from next turn's refresh. */
     u->moves = 0;
   }

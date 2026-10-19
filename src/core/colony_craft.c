@@ -56,7 +56,7 @@ static const ColonizeCraftRecipe k_recipes[] = {
   {COLONIES_CHAIN_RUM, COLONIZE_CARGO_SUGAR, COLONIZE_CARGO_RUM, COLONIZE_PROF_DISTILLER},
   /* The muskets pair is the `0b96` ledger row, never `0bd4` — 1:1 tools at
    * Armory/Magazine/Arsenal alike, and no unmet rescale. See
-   * colony_prod_chain_input_is_flat. bugs.md #910. */
+   * colony_prod_chain_input_is_flat. port_bugs.md #910. */
   {COLONIES_CHAIN_ARMORY, COLONIZE_CARGO_TOOLS, COLONIZE_CARGO_MUSKETS, COLONIZE_PROF_GUNSMITH},
 };
 
@@ -114,7 +114,7 @@ static void colony_craft_pair_totals(
      * raw 10168-10172 floor-divides the colony's summed gross for the
      * finished good ONCE. Only the tier is per-building, and a colony holds
      * at most one building per chain, so remember the row and let the caller
-     * derive the requirement from the total (bugs.md #851). */
+     * derive the requirement from the total (port_bugs.md #851). */
     building_row = row;
   }
   if (out_total_out) {
@@ -177,12 +177,12 @@ static bool colony_craft_pairs_next(
     }
     /* One floor divide over the colony total, exactly where DOS does it
      * (FUN_15eb_0bd4 raw 10168-10172): factory tier `(total << 1) / 3`,
-     * lower tiers 1:1. bugs.md #851.
+     * lower tiers 1:1. port_bugs.md #851.
      *
      * Flat-input chains (tools -> muskets) never reach 0bd4 at all —
      * FUN_15eb_1f72 raw 12689 hands the muskets gross straight to
      * FUN_15eb_0b96 as the tools demand — so the helper keeps them 1:1 even
-     * at the Arsenal's factory tier. bugs.md #910. */
+     * at the Arsenal's factory tier. port_bugs.md #910. */
     const int total_in = colony_prod_chain_input_for_total_output(building_row, total_out);
     it->done_pair[rec->in_cargo][rec->out_cargo] = true;
     *out_rec = rec;
@@ -205,7 +205,7 @@ static bool colony_craft_pairs_next(
  * memsets it, while the live tick accumulates into a delta that already
  * holds this colony's field production.
  *
- * `ai_controlled`: the colony's owner is NOT the human seat (bugs.md #898).
+ * `ai_controlled`: the colony's owner is NOT the human seat (port_bugs.md #898).
  */
 static void colony_craft_run(
   const ColonizeColonyPool* pool,
@@ -242,7 +242,7 @@ static void colony_craft_run(
   while (colony_craft_pairs_next(&it, pool, colony, sol_bonus, &rec, &total_out, &total_in)) {
     /* Only the output half gates the row: at the factory tier a gross of 1
      * demands `(1*2)/3 == 0`, and DOS's 0bd4 then records no unmet, so Phase B
-     * nets `G - 0 = 1` and the unit is produced free. bugs.md #913. */
+     * nets `G - 0 = 1` and the unit is produced free. port_bugs.md #913. */
     if (total_out <= 0) {
       continue;
     }
@@ -272,14 +272,14 @@ static void colony_craft_run(
      *
      * Flat-input chains (tools -> muskets) skip 0bd4 entirely and so get
      * neither the discount nor this rescale: D == G and out = G - U, a 1:1
-     * cut. bugs.md #910.
+     * cut. port_bugs.md #910.
      *
      * The port's stock already carries this tick's field yield (added in
      * turn_production.c Phase A before the craft pass), so `avail` is DOS's
-     * `stock + gross_in`. bugs.md #897 — the old proportional rescale
+     * `stock + gross_in`. port_bugs.md #897 — the old proportional rescale
      * `total_out * actual_in / total_in` diverged by 1 at G=9, S=1/3/5.
      *
-     * bugs.md #898: for a colony whose owner is not the human seat, Phase B
+     * port_bugs.md #898: for a colony whose owner is not the human seat, Phase B
      * composes the net as `gross - demand` and deliberately DROPS the
      * `- unmet[input]` term FUN_15eb_0b0c adds for the human (raw 57241-57243,
      * the same `(3 < uVar7) || byte[uVar7*0x34+0x543f] != 0` control gate the

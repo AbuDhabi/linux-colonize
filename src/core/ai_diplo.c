@@ -72,7 +72,7 @@
  * Euro×Euro war does NOT boycott Europe cargos (DOS tea-party / king refuse
  * only). An invented wartime all-16-bit embargo was removed after
  * all_boycotted.SAV (1516, tax 0, boycott_bitmap 0xFFFF); the peace-side
- * lift of those bits went with it (bugs.md #1104: DOS has no peace writer of
+ * lift of those bits went with it (port_bugs.md #1104: DOS has no peace writer of
  * nation+0x20 — FUN_5bfb_13b0 touches only the treaty timer). The full per-rival 153e
  * audience is LIVE (ai_diplo_153e_encounter below, 2026-09-06 close-out). */
 
@@ -82,7 +82,7 @@
  * TRANSFER (153e paid-@SMITE viceroy 98387-98397; 5fef_1b0e plunder viceroy
  * 100995-101002), never a symmetric drain.
  * docs/archive/smell_audit_2026-09-09.md #47.
- * Retired 2026-09-28 (bugs.md #965): AI_DIPLO_WAR_UPKEEP_GOLD, the 5 gold/turn
+ * Retired 2026-09-28 (port_bugs.md #965): AI_DIPLO_WAR_UPKEEP_GOLD, the 5 gold/turn
  * "thin ongoing 153e friction" drain, was the same invention one step removed —
  * FUN_5bfb_153e's gold moves are one-shot audience outcomes, so a recurring
  * per-turn charge has no DOS trace and compounds over a long war (conventions
@@ -474,7 +474,7 @@ int ai_diplo_at_war_with_any(const ColonizeCol1Save* col1, int nation) {
 
 void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   /*
-   * No Franklin gate here (bugs.md #472): DOS tests FF 0x13 at exactly eight
+   * No Franklin gate here (port_bugs.md #472): DOS tests FF 0x13 at exactly eight
    * sites -- the @KINGNEWWAR crown declaration FUN_38fd_5930 (raw 68336,
    * ai_king.c) and seven arms of the FUN_5bfb_153e negotiation (raw 97524-
    * 98422). No attack/declare site (5fef_1b0e, 465b, 684c_08c0, 6cb2_24b8)
@@ -492,7 +492,7 @@ void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
 }
 
 /*
- * bugs.md #468: DOS fills every diplomacy %STRING with FUN_281f_09a4 →
+ * port_bugs.md #468: DOS fills every diplomacy %STRING with FUN_281f_09a4 →
  * FUN_15b3_01e0, the NAMES.TXT @NATIONALITY adjective ("Dutch", "Spanish";
  * independence remap inside) — never the New World country name
  * ("New Netherlands"), which the old spelling here returned.
@@ -508,7 +508,7 @@ const char* ai_diplo_rival_name(const ColonizeCol1Save* col1, int nation) {
   if (col1 && col1->player[nation].country_name[0] != '\0') {
     return col1->player[nation].country_name;
   }
-  return ""; /* catalog miss: empty, never typed text (bugs.md #1100) */
+  return ""; /* catalog miss: empty, never typed text (port_bugs.md #1100) */
 }
 
 /* True when human_nation is a or b (human-facing chrome / popup gate). */
@@ -608,7 +608,7 @@ void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation
     /*
      * The OK popup is the real @DECLAREWAR body (FUN_15b3 / 5bfb). The old
      * "<cargo> boycott imposed." and "Natives grow hostile." overrides were
-     * port chrome and are gone (bugs.md #1104).
+     * port chrome and are gone (port_bugs.md #1104).
      */
     if (human >= 0 && human < 4 && (nation_a == human || nation_b == human) &&
         ctx->status && ctx->status_size > 0) {
@@ -622,7 +622,7 @@ void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation
  * caller — every DOS treaty is signed by FUN_5bfb_13b0
  * (ai_diplo_13b0_treaty_tick). The old boycott lift, sticky re-sync and
  * @SIGNTREATY/"Tools embargo lifted." chrome had no DOS counterpart and were
- * deleted (bugs.md #1104).
+ * deleted (port_bugs.md #1104).
  */
 void ai_diplo_make_peace(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   if (!col1 || nation_a < 0 || nation_a >= 4 || nation_b < 0 || nation_b >= 4 ||
@@ -821,7 +821,7 @@ int ai_diplo_00f8_top_ranked_nation(const ColonizeCol1Save* col1) {
   long score[4];
   for (int n = 0; n < 4; ++n) {
     /* Live purse for the human (eu->gold via the registered live screen),
-     * record for the rest — bugs.md #1095. */
+     * record for the rest — port_bugs.md #1095. */
     score[n] = (long)(europe_nation_gold(NULL, col1, n) / 100u) +
                (long)col1->stuff.colony_counts[n] * 2 + (long)col1->stuff.census_pop_proxy[n] +
                (long)col1->stuff.land_combat_strength[n];
@@ -1562,7 +1562,7 @@ static void ai_talk_peace_offer(ColonizeTurnContext* ctx) {
   Ai153eTalk* k = &s_talk;
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
-  /* bugs.md #474: raw :97987-97992 — %STRING0 = 0618(0, "LEADER2", target)
+  /* port_bugs.md #474: raw :97987-97992 — %STRING0 = 0618(0, "LEADER2", target)
    * = @GREATLEADER2 ("rightfully ours by order of the Queen"), not the
    * nation adjective; %STRING1/2 = 09a4(human) / 09a4(target). */
   const char* leader2 = ai_talk_great_line(ctx, "GREATLEADER2", k->target);
@@ -1677,7 +1677,7 @@ static AiTalkStepStatus ai_talk_stage_wantstuff(
   k->stage = AI_TALK_ST_WORTHY;
   if (k->manly && k->score != 999 && k->want_cargo >= 0 && ctx->colonies) {
     PopupMsgTokens tw = *tok;
-    /* bugs.md #474: raw :97931 — %STRING0 = 0618(0, "LEADER2", target) =
+    /* port_bugs.md #474: raw :97931 — %STRING0 = 0618(0, "LEADER2", target) =
      * @GREATLEADER2 ("rightfully ours by order of the King"). */
     const char* wl2 = ai_talk_great_line(ctx, "GREATLEADER2", t);
     tw.string0 = wl2 ? wl2 : "";
@@ -1706,7 +1706,7 @@ static AiTalkStepStatus ai_talk_stage_worthy(
   /* raw :98047-98062 provoke; then the peace negotiation for !worthy. */
   /* Franklin: DOS tests FF 0x13 on param_2 only (raw 97524 zeroes worthy for
    * the owner, ported in the kernel); the old "either side" peace arm here
-   * was invented (bugs.md #472). */
+   * was invented (port_bugs.md #472). */
   if (k->worthy) {
     /*
      * The three-leg "worthy" cascade, raw :97954-97982 (cross-checked
@@ -1734,7 +1734,7 @@ static AiTalkStepStatus ai_talk_stage_worthy(
      *              0x9e, country_name at 0xb6, DS base 0x5370).
      *              (raw 97702 pushes 1, target*0x34+0x5426). ai_talk_name
      *              would give the @NATIONALITY adjective instead
-     *              (bugs.md #1123), so read the record field directly.
+     *              (port_bugs.md #1123), so read the record field directly.
      */
     const char* leader2 = ai_talk_great_line(ctx, "GREATLEADER2", t);
     PopupMsgTokens tr = *tok;
@@ -1830,7 +1830,7 @@ static AiTalkStepStatus ai_talk_stage_peacemenu(
       PopupMsgTokens tp = *tok;
       tp.string0 = ai_talk_name(ctx, h);
       tp.string1 = ai_talk_name(ctx, t);
-      /* bugs.md #474: raw :98076-98079 — the OLDPEACE* leg (iVar17, set with
+      /* port_bugs.md #474: raw :98076-98079 — the OLDPEACE* leg (iVar17, set with
        * the DS:0x1984 "OLD" prefix at raw :98056) also fills %STRING2 = the
        * difficulty title (`*(0x53a6*2 - 0x7c6c)`) and %STRING3 = the HUMAN's
        * player.name (param_2*0x34 + 0x540e): "their wise leader Viceroy
@@ -1877,7 +1877,7 @@ static AiTalkStepStatus ai_talk_stage_ally_pick(
     return AI_TALK_STEP_CONTINUE;
   }
   /*
-   * bugs.md #988: the prompt line is PARKED with the rest of FA 3f41 — no
+   * port_bugs.md #988: the prompt line is PARKED with the rest of FA 3f41 — no
    * GAME.TXT section carries it and its numeric id is unresolved, so the list
    * stands alone rather than under typed English.
    */
@@ -2108,7 +2108,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
       return;
     case AI_TALK_ST_WORTHY:
       if (choice == 1) {
-        ai_diplo_clear_both(col1, h, t, AI_DIPLO_WAR); /* bugs.md #465: PEACE and the OpenCol WAR bit must not coexist */
+        ai_diplo_clear_both(col1, h, t, AI_DIPLO_WAR); /* port_bugs.md #465: PEACE and the OpenCol WAR bit must not coexist */
         ai_diplo_or_both(col1, h, t, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET));
         col1->head.nation_relation[t] = (int16_t)(col1->head.turn + 0x10);
         k->stage = AI_TALK_ST_PEACEMENU;
@@ -2119,7 +2119,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
       return;
     case AI_TALK_ST_GIVECASH:
       if (choice == 1) {
-        ai_diplo_clear_both(col1, h, t, AI_DIPLO_WAR); /* bugs.md #465 */
+        ai_diplo_clear_both(col1, h, t, AI_DIPLO_WAR); /* port_bugs.md #465 */
         ai_diplo_or_both(col1, h, t, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET));
         ai_talk_gold(ctx, t, h, k->pending_gold);
       } else if (!ai_talk_peace(ctx, h, t)) {
@@ -2538,7 +2538,7 @@ static int ai_diplo_153e_encounter_gated(
 
   /* Greeting (HELLO + FIRST/AHOY/MEEK/MANLY). */
   /*
-   * Greeting tokens, raw :97696-97704 (bugs.md #545):
+   * Greeting tokens, raw :97696-97704 (port_bugs.md #545):
    *   %STRING0 = DS:0x8394[difficulty] title + " " (FUN_281f_0178 appends
    *              DS:0x50) + the human's player.name (param_2*0x34 + 0x540e)
    *   %STRING1 = target player.country_name (param_3*0x34 + 0x5426)
@@ -2560,7 +2560,7 @@ static int ai_diplo_153e_encounter_gated(
   const char* great_kings = ai_talk_great_line(ctx, "GREATKINGS", target);
   const char* great_deeds = ai_talk_great_line(ctx, "GREATDEEDS", target);
   tok.string0 = hello_addressee;
-  tok.string1 = col1->player[target].country_name; /* "New England" (bugs.md #474) */
+  tok.string1 = col1->player[target].country_name; /* "New England" (port_bugs.md #474) */
   tok.string2 = great_kings ? great_kings : "";
   tok.string3 = great_deeds ? great_deeds : "";
   const char* hello = k->manly ? "HELLOMANLY" : "HELLOMEEK";
@@ -2774,7 +2774,7 @@ static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
   if (!worthy) {
     if ((rel_ab & AI_DIPLO_PEACE) == 0) {
       popup_msg_fill(ctx->messages, "SIGNTREATY", &tok, "", body, sizeof(body));
-      ai_diplo_clear_both(col1, a, b, AI_DIPLO_WAR); /* bugs.md #465: a signed treaty ends the war */
+      ai_diplo_clear_both(col1, a, b, AI_DIPLO_WAR); /* port_bugs.md #465: a signed treaty ends the war */
       ai_diplo_or_both(col1, a, b, AI_DIPLO_PEACE);
       ai_diplo_wake_border_garrisons(ctx, a, b);
       ai_diplo_wake_border_garrisons(ctx, b, a);
@@ -2822,7 +2822,7 @@ static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
  * every arm it carried was port invention — war-fatigue peace roll, free
  * wartime Privateer, war upkeep drain, 10ec eligibility roll, standing
  * alliances, and last the Indian matrix tick with its "Natives grow hostile."
- * INFO popups (bugs.md #965, #1104). DOS's Euro treaty work is 6d8e's treaty
+ * INFO popups (port_bugs.md #965, #1104). DOS's Euro treaty work is 6d8e's treaty
  * timers (ai_diplo_treaty_timers) and 13b0 on an encounter (below). */
 
 /* FUN_5bfb_3180 -> 153e with an AI self (raw 97406) -> 13b0. */
@@ -3048,7 +3048,7 @@ void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* p
   }
   if (popup->result_cancelled) {
     /*
-     * bugs.md #462: an Esc on any 153e talk popup left s_talk.active set, so
+     * port_bugs.md #462: an Esc on any 153e talk popup left s_talk.active set, so
      * every later encounter (adjacent step, Meet With Mayor) returned 0
      * without a word until the process restarted. Esc ends the talk the same
      * way the last stage does (DOS FUN_5bfb_153e has no abort path; a
@@ -3063,7 +3063,7 @@ void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* p
   /* DOS treaty notices (DIPLO_WAR / DIPLO_PEACE / DIPLO_BREAK) are OK popups:
    * no action on dismiss. The old choice_id 1/2 accept/refuse handlers for
    * DIPLO_WAR / DIPLO_PEACE were unreachable and carried invented "... refused
-   * with %s" lines (bugs.md #1104). */
+   * with %s" lines (port_bugs.md #1104). */
   if (popup->result_tag == AI_POPUP_TAG_DIPLO_TALK) {
     if (popup->result_choice_id > 0) {
       ai_talk_resume(ctx, popup->result_payload, popup->result_choice_id);
@@ -3078,7 +3078,7 @@ void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* p
  * DOS-LITERAL FUN_465b_0000 raw 75527-75545 — the Privateer-sighting relation
  * bit.
  *
- * Re-verified 2026-09-23 (bugs.md #747). The old reading ("a Treasure Train
+ * Re-verified 2026-09-23 (port_bugs.md #747). The old reading ("a Treasure Train
  * ending its move next to a foreigner") was a misread of the type constant:
  * the band is
  *

@@ -30,7 +30,7 @@
  *   market_demand_pool_raw[] mirror is gone (market_demand_pool_raw[0..5] alias market_demand_pool on DOS
  *   saves, so it was never a safe home).
  * REF-present: port-only pad latch AI_KING_REF_PRESENT_BYTE. (0x5382 bit
- * 0x02 is DOS's intervention-announce latch, bugs.md #865.)
+ * 0x02 is DOS's intervention-announce latch, port_bugs.md #865.)
  * Tax audience (ported 2026-08-19, real formula — see ai_king_audience_roll /
  *   ai_king_audience_apply_delta / ai_king_tax_event): FUN_38fd_5be8 rolls a
  *   signed delta off a turn-interval-gated favor-score ladder (cut, +1, +2,
@@ -52,10 +52,10 @@
  *   is unused for this now (was an invented gate, see king_ref.md).
  * 160a: signing cinematic only (core/declaration.c, armed from game_loop on
  *   the KING_LETTER popup). No country rename — "United Colonies" was a port
- *   invention (bugs.md #239); WoI faction labels are Rebels/Tory via
+ *   invention (port_bugs.md #239); WoI faction labels are Rebels/Tory via
  *   units_combat_nation_label. market_demand_pool_raw[4] endgame latch: 0/1 won/2 lost.
  *   @HOWTOWIN fires at first rebel recapture (units.c), not at declare
- *   (bugs.md #236).
+ *   (port_bugs.md #236).
  * Congress confirm: head.market_demand_pool_raw[5] + thin 2564 (ai_popup CHOICE from
  *   GAME.TXT @DECLARE Never/Yes when ctx->ai_popups; auto-declare when NULL;
  *   same-turn 1528 may overwrite status).
@@ -249,7 +249,7 @@ ColonizeColony* ai_king_teaparty_colony(
     }
     /* DOS-LITERAL FUN_38fd_3dc8 raw 64160-64175: `(colony[+0x1c] & 0x40)` —
      * only COASTAL colonies fill aiStack_a4[], so an inland colony can never
-     * be the named party (bugs.md #904). Same decode as ai_king_ref.c. */
+     * be the named party (port_bugs.md #904). Same decode as ai_king_ref.c. */
     if ((c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) == 0) {
       continue;
     }
@@ -309,7 +309,7 @@ void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int cargo)
      * DOS-LITERAL FUN_38fd_3dc8 raw 64293-64298: the tons dumped go straight
      * into the colony's 32-bit bells accumulator at colony+0xc2
      * (`[idx*0xca + 0x5e08]` low word, `0x5e0a` high) = rebel_dividend. No
-     * clamp there — the EOT tick's own decay/clamp handles it. bugs.md #1014.
+     * clamp there — the EOT tick's own decay/clamp handles it. port_bugs.md #1014.
      */
     if (ctx->col1_ok && ctx->col1 && ctx->col1->colony) {
       for (uint16_t ci = 0; ci < ctx->col1->head.colony_count; ++ci) {
@@ -602,14 +602,14 @@ int ai_king_force_total(const uint16_t force[4]) {
  * after it. Every King landing now goes through 10f0's own colony
  * roulette + water-tile scoring + Man-O-War transport, which is what DOS
  * does; a caller-chosen `(hx, hy+1)` could drop troops in the ocean
- * (bugs.md #255). Do not reintroduce it.
+ * (port_bugs.md #255). Do not reintroduce it.
  */
 
 void ai_king_set_ref_present(ColonizeCol1Save* col1, int on) {
   if (!col1) {
     return;
   }
-  /* bugs.md #865: port-only "crown force in the New World" latch (pad bit).
+  /* port_bugs.md #865: port-only "crown force in the New World" latch (pad bit).
    * It must NOT touch DS:0x5382 bit 0x02, which is the DOS intervention
    * ANNOUNCE latch (FUN_43f7_1528 raw 74493) — see ai_king.h. */
   ai_king_latch_set(col1, AI_KING_REF_PRESENT_BYTE, on ? 1 : 0);
@@ -680,7 +680,7 @@ void ai_king_sync_boycott_refuse(ColonizeCol1Save* col1, int human) {
  * TURN_PROC_SETUP) runs before ai_king_nation_turn (TURN_PROC_KING), so the
  * bump lands last, exactly as 2424's EOT position does in DOS.
  * (The save-time "pool stash" that used to overwrite this word was deleted
- * by bugs.md #933; the bumped value now always reaches disk.)
+ * by port_bugs.md #933; the bumped value now always reaches disk.)
  *
  * (The pre-2026-09-06 stand-in grew pools by tax band on every audience
  * event and set ref_present from a peacetime pool — both invented; removed.)
@@ -711,7 +711,7 @@ void ai_king_1d42_royal_purse(ColonizeTurnContext* ctx) {
   }
   nat->royal_money += growth;
   /*
-   * bugs.md #932 (verified, no change needed): the `< 0x708` early exit is
+   * port_bugs.md #932 (verified, no change needed): the `< 0x708` early exit is
    * DOS's own `if (+0x24 > 0 || (+0x24 >= 0 && +0x22 > 0x707))` gate
    * (FUN_43f7_1d42, viceroy_unpacked.c:74875-74876 / _2.c:73600). Everything
    * below — the force pick, the @KINGBUY announce, the `-0x708` and the
@@ -781,7 +781,7 @@ int ai_king_sol_percent(const ColonizeTurnContext* ctx, int nation_id) {
    * divide the second by the first. No colonies (or a zero pop sum) returns
    * the untouched accumulator, i.e. 0.
    *
-   * NO `liberty_bells_pool / 4` STAND-IN (bugs.md #424, "rival monarchs
+   * NO `liberty_bells_pool / 4` STAND-IN (port_bugs.md #424, "rival monarchs
    * considering granting independence ... in 1530"). That number is not a
    * percentage at all — it is the nation's lifetime bell total, which real
    * DOS saves carry in the MILLIONS (original_saves/valid-lategame-saves/

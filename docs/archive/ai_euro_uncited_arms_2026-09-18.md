@@ -1,13 +1,13 @@
 # ai_euro.c manual-only citation hits — triage list
 
-STATUS: archived 2026-10-18 — superseded by the 2026-10-02 fidelity audit (bugs.md #1034, CLOSED) and the 2026-10-18 code audit (bugs.md #1105 dead code); line numbers are pre-2026-09-23 split `ai_euro.c`. Was: open triage list; second wave resolved 2026-09-18, plus the 2026-09-18f
-5b66/goal-walk pass (bugs.md #525/#526) — see the two "Resolved" sections.
+STATUS: archived 2026-10-18 — superseded by the 2026-10-02 fidelity audit (port_bugs.md #1034, CLOSED) and the 2026-10-18 code audit (port_bugs.md #1105 dead code); line numbers are pre-2026-09-23 split `ai_euro.c`. Was: open triage list; second wave resolved 2026-09-18, plus the 2026-09-18f
+5b66/goal-walk pass (port_bugs.md #525/#526) — see the two "Resolved" sections.
 2026-09-22: the adjacent-attack stand-in pair discussed below is deleted
-(bugs.md #521 FIXED — `0x5239` is the @UNIT cost column, not a zero column).
+(port_bugs.md #521 FIXED — `0x5239` is the @UNIT cost column, not a zero column).
 
 Scope: every `Colonization.pdf` / `manual` / `fandom` / `Skills Chart` /
 `euro_unit_act §` citation left in `src/core/ai_euro.c` after the 2026-09-18
-unit-act wave (bugs.md #512-#519). 36 functions, 55 hits.
+unit-act wave (port_bugs.md #512-#519). 36 functions, 55 hits.
 
 Tags: **arm** = code an act stage calls, decision is manual-cited ·
 **helper** = predicate/target-picker feeding an arm · **note** = comment-only
@@ -19,7 +19,7 @@ Tags: **arm** = code an act stage calls, decision is manual-cited ·
 |---|---|---|
 | `ai_euro_colony_wants_construction_labor` | 1650 | helper |
 | `ai_euro_colony_near_warehouse_cap` | 1683 | helper |
-| ~~`ai_euro_colony_wants_lumberjack_labor`~~ | — | **DELETED 2026-09-23 (bugs.md #890)** — invented Expert-Lumberjack LABOR bind, no DOS body; the real forced-lumberjack arm is FUN_5952_035e raw 94659-94679 in `ai_euro_colony_jobs.c` |
+| ~~`ai_euro_colony_wants_lumberjack_labor`~~ | — | **DELETED 2026-09-23 (port_bugs.md #890)** — invented Expert-Lumberjack LABOR bind, no DOS body; the real forced-lumberjack arm is FUN_5952_035e raw 94659-94679 in `ai_euro_colony_jobs.c` |
 | `ai_euro_is_military_name` | 1919 | note |
 | `ai_euro_unit_is_food_labor` | 4487 | helper |
 | `ai_euro_colony_inventory` | 5728 | helper |
@@ -27,7 +27,7 @@ Tags: **arm** = code an act stage calls, decision is manual-cited ·
 | `ai_euro_act_land_goal_consume` | 19318, 19322, 19329, 19376, 19382, 19390, 19437 | arm (7 hits — Skills-Chart profession→LABOR ladder) |
 | `ai_euro_act_land_goal_dispatch` | 19622, 19683 | note |
 
-## Treasure — **RESOLVED 2026-09-23 (bugs.md #745/#746): deleted, not parked**
+## Treasure — **RESOLVED 2026-09-23 (port_bugs.md #745/#746): deleted, not parked**
 
 Every row below was an OpenCol invention. `FUN_521d_20e6`'s treasure band (raw
 89997-90040) is the only AI treasure code in DOS: cash at ANY own colony
@@ -36,7 +36,7 @@ untaxed → destroy; else walk to the NEAREST own colony on the same landmass
 destroy when the adjacent-claim probe names the human. `FUN_4720_049e` (the AI
 ship cargo pick, raw 76067-76513) has no `+0x3146 == '\n'` term, so an AI
 treasure is never loaded onto a hull, and the King-galleon/Cortes transport
-offer (`FUN_465b_0000` raw 75800) is human-control gated (bugs.md #478).
+offer (`FUN_465b_0000` raw 75800) is human-control gated (port_bugs.md #478).
 
 | Function | Resolution |
 |---|---|
@@ -51,7 +51,7 @@ offer (`FUN_465b_0000` raw 75800) is human-control gated (bugs.md #478).
 | `ai_euro_unload_settle` / passenger picker (Treasure stays aboard) | DELETED |
 | `ai_euro_act_land_treasure` | REWRITTEN as the literal band (arm 1 + `ai_euro_20e6_47b9_dead_end` arms 2/3) |
 
-## Missionary — RESOLVED 2026-09-22 (bugs.md #557): deleted
+## Missionary — RESOLVED 2026-09-22 (port_bugs.md #557): deleted
 
 `ai_euro_missionary_should_flee` / `ai_euro_missionary_no_mission_target` and
 the whole invented AI-missionary-pulse machinery around them were deleted;
@@ -64,8 +64,8 @@ the tree any more.
 | Function | Lines | Tag |
 |---|---|---|
 | `ai_euro_try_wagon_haul` | 5291 | arm |
-| ~~`ai_euro_pioneer_improve_target`~~ | — | DELETED 2026-09-22 (bugs.md #610) |
-| ~~`ai_euro_try_pioneer_improve`~~ | — | DELETED 2026-09-22 (bugs.md #610); replaced by `ai_euro_move_scoring_gate`'s raw 90183-90206 order-9 arm (#611) and `ai_euro_5952_improve_best_plot` (raw 94402-94551, #612) |
+| ~~`ai_euro_pioneer_improve_target`~~ | — | DELETED 2026-09-22 (port_bugs.md #610) |
+| ~~`ai_euro_try_pioneer_improve`~~ | — | DELETED 2026-09-22 (port_bugs.md #610); replaced by `ai_euro_move_scoring_gate`'s raw 90183-90206 order-9 arm (#611) and `ai_euro_5952_improve_best_plot` (raw 94402-94551, #612) |
 | `ai_euro_found_with_unit` | 5502, 5514 | arm (Minuit land-purchase gate) |
 | `ai_euro_act_land_roles` | 19066-19067, 19089 | arm |
 
@@ -73,7 +73,7 @@ the tree any more.
 
 | Function | Lines | Tag |
 |---|---|---|
-| ~~`ai_euro_move_scoring_gate`~~ | ~~13312~~ | **resolved 2026-09-18e** (bugs.md #522) |
+| ~~`ai_euro_move_scoring_gate`~~ | ~~13312~~ | **resolved 2026-09-18e** (port_bugs.md #522) |
 | `ai_euro_foreign_land_threat_near` | 15933-15934 | helper |
 | `ai_euro_land_engage_then_hunt` | 17626 | arm |
 | `ai_euro_act_land_hunt_scout` | 18872, 18890, 18895, 18915, 18917-18918 | arm (6 hits — LCR, wake, board, fortify-defense) |
@@ -101,7 +101,7 @@ the tree any more.
   invented arm was papering over that gap. Both functions now carry a
   stand-in header naming the real fix (make the 4d2e attack term reachable on
   land and/or bind every eligible unit to a 0a60 MILITARY goal instead of one).
-  **2026-09-18b (bugs.md #521), partially closed.** Two genuine DOS
+  **2026-09-18b (port_bugs.md #521), partially closed.** Two genuine DOS
   divergences behind the stall are fixed:
   (1) raw 88883-88885 — the LAB_52aa gate is
   `(0x5382 & 1) == 0 || ((owner < 4 && control[owner] == 0) || owner > 3)`;
@@ -207,7 +207,7 @@ Tests deleted with the arms: `unit_land_war_hunt`,
 `unit_land_adjacent_combat_chain` is kept as the "AI soldier adjacent to an
 enemy at war does attack" demonstration.
 
-## Resolved 2026-09-18f (bugs.md #525 / #526)
+## Resolved 2026-09-18f (port_bugs.md #525 / #526)
 
 - **`FUN_521d_5b66` decoded off its own bytes.** Ghidra's 1800-line
   decompile at raw 90446-92257 is the known corruption; the real function is
@@ -295,12 +295,12 @@ treat the remaining live rows in the tables above as the current open set.
 Highest-value next targets: `ai_euro_act_land_goal_consume` (7 hits, the
 Skills-Chart profession→LABOR ladder), `ai_euro_act_land_hunt_scout` (6 hits),
 `ai_euro_act_land_fortify` (3 arms). ~~and the treasure cluster~~
-**Treasure cluster resolved 2026-09-23 (bugs.md #745/#746) — deleted
+**Treasure cluster resolved 2026-09-23 (port_bugs.md #745/#746) — deleted
 outright; see the Treasure section above.**
 
 ~~Separately: why the gate's land-arms branch is never entered in any golden
 (460 calls → 284 FOUND courses, 176 early returns, 0 land arms).~~
-**Resolved 2026-09-18e (bugs.md #522).** The 460 calls classified as 284
+**Resolved 2026-09-18e (port_bugs.md #522).** The 460 calls classified as 284
 `ai_goals_best_found_tile_near` courses (all nation 2, the crown: 87 at
 act_state 10, 72 at 0x0b, 68 at 5, 57 at 0), 153 ship bails, 22 "military name
 on own colony" and 1 "colony wants construction labor". DOS agrees with none of

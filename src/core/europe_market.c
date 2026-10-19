@@ -158,7 +158,7 @@ static void europe_push_sale_status(EuropeScreen* eu, int cargo_type, int amount
  *      (smell audit #64). A full sale is the amt == held case of the same
  *      rule, so all three callers share it.
  *   5. europe_push_sale_status BEFORE the volume move, so the printed gross
- *      is the bid the sale actually went through at (bugs.md #376).
+ *      is the bid the sale actually went through at (port_bugs.md #376).
  *   6. europe_apply_trade_volume: the 1dfa ledger (tons/tons2/gold) so the
  *      human's own trading feeds the long-run price pool (smell audit #50).
  *
@@ -637,7 +637,7 @@ int europe_ai_colony_dump_sell_w(
       nat->trade.gold[c] += (int32_t)gained;
       /* DOS +0x2a add (raw 57841-57845) is an unclamped 32-bit add; the
        * accessor saturates at UINT32_MAX instead of wrapping — unreachable
-       * for a real treasury. bugs.md #1096. */
+       * for a real treasury. port_bugs.md #1096. */
       europe_nation_gold_add(eu, col1, nation, gained);
     }
   }
@@ -1392,7 +1392,7 @@ bool europe_menu_confirm_ex(EuropeScreen* eu, ColonizeDosRng* rng) {
    * so row 0 is "Yes" and row 1 is "No" — the same order @HAVETREATY and
    * every other GAME.TXT 2-choice popup use. Special-cased ahead of the
    * generic sel==0 cancel below, which would otherwise treat "Yes" as a
-   * cancel. bugs.md #753.
+   * cancel. port_bugs.md #753.
    */
   if (m == EUROPE_MENU_PURCHASE && eu->purchase_confirming) {
     bool ok = true;
@@ -1413,7 +1413,7 @@ bool europe_menu_confirm_ex(EuropeScreen* eu, ColonizeDosRng* rng) {
   if (m == EUROPE_MENU_RECRUIT) {
     const int pool_i = sel - 1;
     if (!europe_recruit_affordable(eu)) {
-      return false; /* greyed row: inert, dialog stays up (bugs.md #588) */
+      return false; /* greyed row: inert, dialog stays up (port_bugs.md #588) */
     }
     const bool ok = europe_recruit_from_pool_ex(eu, pool_i, rng);
     europe_menu_close(eu);
@@ -1421,7 +1421,7 @@ bool europe_menu_confirm_ex(EuropeScreen* eu, ColonizeDosRng* rng) {
   }
   if (m == EUROPE_MENU_TRAIN) {
     if (!europe_train_affordable(eu, sel - 1)) {
-      return false; /* greyed row: inert, dialog stays up (bugs.md #893) */
+      return false; /* greyed row: inert, dialog stays up (port_bugs.md #893) */
     }
     const bool ok = europe_train_ex(eu, sel - 1, rng);
     europe_menu_close(eu);
@@ -1431,7 +1431,7 @@ bool europe_menu_confirm_ex(EuropeScreen* eu, ColonizeDosRng* rng) {
     /* purchase_confirming is handled above, ahead of the generic sel==0
      * cancel. */
     if (!europe_purchase_affordable(eu, sel - 1)) {
-      return false; /* greyed row: inert, dialog stays up (bugs.md #754) */
+      return false; /* greyed row: inert, dialog stays up (port_bugs.md #754) */
     }
     /* Open @REALLYBUY; dialog stays up until Yes/No answers it. */
     return europe_purchase_open_confirm(eu, sel - 1);
@@ -1472,13 +1472,13 @@ int europe_dock_icon_sprite(const ColonizeUnitPool* units, const EuropeDockImmig
     return ut ? ut->icon_sprite : -1;
   }
   /* Armed / equipped / blessed on the dock: show what the immigrant now is,
-   * not the profession portrait it arrived with (bugs.md @ARMOPTIONS).
-   * bugs.md #158/177: the @UNIT icon column carries the EXPERT poses (Hardy
+   * not the profession portrait it arrived with (port_bugs.md @ARMOPTIONS).
+   * port_bugs.md #158/177: the @UNIT icon column carries the EXPERT poses (Hardy
    * Pioneer / Veteran Soldier …) — DOS's map rule overrides those to the
    * base pose unless the unit's own profession matches; the dock follows
    * the same rule, so a Master Blacksmith with tools reads as a plain
    * Pioneer, not a Hardy one. */
-  /* bugs.md #263 (units_map_sprite) superseded by #656: units.c's veteran
+  /* port_bugs.md #263 (units_map_sprite) superseded by #656: units.c's veteran
    * gates (units_profession_line, units_map_sprite/FUN_112b_0060) are
    * 0x15 (UNITS_JOB_SOLDIER) only — DOS never writes 0x17
    * (UNITS_JOB_DRAGOON) to a unit (#503/#639) — so this sibling display
@@ -1495,7 +1495,7 @@ int europe_dock_icon_sprite(const ColonizeUnitPool* units, const EuropeDockImmig
     case EUROPE_DOCK_TYPE_SCOUTS:
       return d->profession == UNITS_JOB_SCOUT ? UNITS_ICON_SEASONED_SCOUT
                                               : UNITS_ICON_SCOUT;
-    /* bugs.md #420: same split for the fifth kit — FUN_112b_0060's
+    /* port_bugs.md #420: same split for the fifth kit — FUN_112b_0060's
      * `type == 3 && profession != 0x18 → 0x4e`. Without this case a
      * shipped-home missionary took the @UNIT icon (the Jesuit) whatever
      * his colonist was. */
@@ -1512,7 +1512,7 @@ int europe_dock_icon_sprite(const ColonizeUnitPool* units, const EuropeDockImmig
       return eut->icon_sprite;
     }
   }
-  /* bugs.md #603: the dock entry's @UNIT row, not a display-name lookup.
+  /* port_bugs.md #603: the dock entry's @UNIT row, not a display-name lookup.
    * Only EUROPE_DOCK_TYPE_COLONISTS (or a row whose icon column is unset)
    * reaches here, so the singular fallback covers hand-built test pools. */
   int ti = europe_dock_unit_type_index_ex(units, d->dos_type, true);
@@ -1538,7 +1538,7 @@ int europe_passenger_icon_sprite(const ColonizeUnitPool* units, int type_index, 
     return units_working_colonist_sprite(units, type_index, profession);
   }
   /*
-   * bugs.md #452: the @UNIT icon of the five kit types is the EXPERT pose
+   * port_bugs.md #452: the @UNIT icon of the five kit types is the EXPERT pose
    * (Hardy Pioneer, Veteran Soldier, ...), so a Master Carpenter given tools
    * sailed out as a Hardy Pioneer. A passenger is the same unit the dock
    * showed a moment earlier: route it through the dock's expert/generic

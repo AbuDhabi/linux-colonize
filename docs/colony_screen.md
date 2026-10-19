@@ -116,7 +116,7 @@ tab's hammers bar (own block). Production-tab badge ink is white (15), not
   Cost = `hammers_deficit × 13` + `tools_deficit × (nation's live Europe
   Tools price + 4)`, **doubled when `colony->hammers == 0`**. The price byte
   is nation record +0x5a; the old `difficulty + 4` approximation is retired
-  (carpenter audit, bugs.md #917) — formula owner is
+  (carpenter audit, port_bugs.md #917) — formula owner is
   [colony.md](colony.md) `colonies_construction_gold_cost`. BUY only tops up
   hammers/tools — completion happens next turn via
   `turn_run_colony_building_completion` (DOS's 5e44 has no completion
@@ -233,7 +233,7 @@ Right-click on a built building opens its Colonizopedia article
 (`PEDIA_CAT_BUILDING`; `@BUILDING` row order *is* the pedia building index)
 and returns to the colony screen on exit, matching the area-view tile's
 right-click terrain article. Unbuilt slots are not hoverable or right-clickable
-— the slot scan runs past them (bugs.md #430).
+— the slot scan runs past them (port_bugs.md #430).
 
 ### Debug: Building Rects
 
@@ -261,7 +261,7 @@ Lessons worth keeping:
 
 ## The real DOS slot tables (recovered and ported 2026-09-04)
 
-Found while porting the Warehouse Expansion badge (bugs.md #377). All static
+Found while porting the Warehouse Expansion badge (port_bugs.md #377). All static
 DS data in `VICEROY.EXE` at file offset `121248 + addr`.
 
 `FUN_2f2b_171c` draws the buildings section: **15 slots**, each at
@@ -354,7 +354,7 @@ free position in that slot's class, retry on collision. Seed =
 `(colony.y << 8) + colony.x + DS:0x8d80`, srand-masked to 15 bits
 (`FUN_15eb_1476`).
 
-### The base seed (it *is* in the save — bugs.md #564)
+### The base seed (it *is* in the save — port_bugs.md #564)
 
 `DS:0x8d80` comes from the BIOS tick at `0040:006C` at program start
 (`FUN_75c2_2d46`), but it is **saved and restored**: post_map tail @608

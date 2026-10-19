@@ -351,7 +351,7 @@ bool options_dialog_handle_input(OptionsDialog* dlg, const ColonizeInputState* i
           dlg->dialog_x, dlg->dialog_y, dlg->dialog_w, dlg->dialog_h, input->mouse_x,
           input->mouse_y
         )) {
-      /* bugs.md: clicking away should commit, like Enter — only Esc/right-
+      /* port_bugs.md: clicking away should commit, like Enter — only Esc/right-
        * click truly discard. */
       options_finish(dlg, false);
       return true;

@@ -29,7 +29,7 @@ void colony_preview_compute_w(
   const int sol_b = colony_prod_sol_bonus(col1, colony);
 
   /* Town commons + worked plots: the tick's own Phase A field composition
-   * (turn_compose_colony_fields), not a copy of it (bugs.md #1111).
+   * (turn_compose_colony_fields), not a copy of it (port_bugs.md #1111).
    * field_gross is field-worker + town-commons secondary only (no commons
    * food) — see its header comment in colony_preview.h. New Amsterdam's
    * Cotton is entirely a town-commons secondary yield, yet the Production
@@ -99,7 +99,7 @@ void colony_preview_compute_w(
       scratch.stock[i] += out->goods[i];
     }
     ColonizeColonyProdDelta craft_delta;
-    /* bugs.md #898: an AI-controlled colony's craft pass ignores the input
+    /* port_bugs.md #898: an AI-controlled colony's craft pass ignores the input
      * shortfall (FUN_364b_0688 raw 57241-57243) — same control gate as the
      * AI food subsidy above, or the preview lands short of the tick. */
     const bool ai_controlled =
@@ -139,7 +139,7 @@ void colony_preview_compute_w(
       {
         int hammers = hammers_add;
         /*
-         * bugs.md (hammers_lumber.SAV): the REAL tick spends this same turn's
+         * port_bugs.md (hammers_lumber.SAV): the REAL tick spends this same turn's
          * Lumberjack output too (its clamp runs after field production lands
          * in stock — turn.c "same-turn production IS spendable"), so the cap
          * here is stock + this tick's field lumber. The old stock-only cap

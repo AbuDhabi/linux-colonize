@@ -22,7 +22,7 @@ static void seed_dos_start_prices(ColonizeCol1Save* col1, int nation) {
 }
 
 /*
- * RETARGETED 2026-09-23 (bugs.md #745). Was "idle Treasure → AI_MOVE toward
+ * RETARGETED 2026-09-23 (port_bugs.md #745). Was "idle Treasure → AI_MOVE toward
  * own COASTAL colony (Colonization.pdf)". DOS-LITERAL FUN_521d_20e6 raw
  * 90016-90017: a Treasure not standing in an own colony walks to
  * `local_62` — the prologue's NEAREST own colony by FUN_281f_037a distance,
@@ -270,7 +270,7 @@ static int unit_ai_treasure_colony_cash(void) {
  * treasure act band cashes an AI Treasure standing in ANY own colony before
  * every other treasure arm (move_scoring_20e6_full.md raw ~2315). The
  * board+sail arm this fixture was written for was deleted outright on
- * 2026-09-23 (bugs.md #746) — DOS has no AI treasure-to-ship site at all.
+ * 2026-09-23 (port_bugs.md #746) — DOS has no AI treasure-to-ship site at all.
  * DOS expectations: treasury += value, unit destroyed, Galleon left empty
  * and un-tasked.
  */
@@ -1110,7 +1110,7 @@ static int unit_manowar_no_goods_load_818(void) {
     return fail("mow-noload should remain active");
   }
   /*
-   * bugs.md #818: the DOS goods-load loop is `while (local_d2 != 0 && bVar20)`
+   * port_bugs.md #818: the DOS goods-load loop is `while (local_d2 != 0 && bVar20)`
    * (raw 90295) and bVar20 is seeded `type != 0x12` (raw 88556): a Man-O-War
    * berthed at its own colony never loads goods, whatever the silver stock.
    */

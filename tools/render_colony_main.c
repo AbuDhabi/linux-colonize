@@ -61,7 +61,7 @@ int main(int argc, char** argv) {
     return 1;
   }
   view.multi_mode = (ColonyMultiMode)multi_mode;
-  /* DS:0x8d80 layout seed = the save's own boot tick (bugs.md #578). */
+  /* DS:0x8d80 layout seed = the save's own boot tick (port_bugs.md #578). */
   colony_screen_set_layout_seed(&view, rs.save.post_map.boot_timer);
 
   const ColonizeColony* colony = NULL;

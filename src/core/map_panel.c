@@ -296,7 +296,7 @@ static void map_panel_terrain_name(
   if (pedia_index >= 8 && pedia_index <= 15 && out[0]) {
     /* FUN_281f_01e6 appends the shared @OTHER_NAMES row 0 suffix after the
      * @FORESTED stem. NAMES stores "Tropical" + "Forest" separately; the
-     * sidebar used to stop after the first half (bugs.md #943). */
+     * sidebar used to stop after the first half (port_bugs.md #943). */
     const char* forest_line = map_panel_section_line(names, "OTHER_NAMES", 0);
     char forest[24];
     assets_msg_csv_field(forest_line ? forest_line : "", 0, forest, sizeof(forest));
@@ -409,7 +409,7 @@ static void map_panel_parenthesized(char* out, size_t out_size, const char* word
 static const uint8_t k_map_panel_nation_color[4] = {12u, 9u, 14u, 13u};
 
 /*
- * bugs.md #364 ("Dutch mission cross is pink"): DS:0x848's indices are
+ * port_bugs.md #364 ("Dutch mission cross is pink"): DS:0x848's indices are
  * ICONS.SS-native, and the map is drawn through TERRAIN.SS's palette, which
  * puts plain EGA magenta back in slots 13 (bright) and 5 (index-8 dark) —
  * the two the Dutch use. Ask unit_chrome for the nearest match to the real
@@ -591,7 +591,7 @@ static void map_panel_draw_tribe_chrome(
     const int owner = (int)(t->mission & COL1_TRIBE_MISSION_NATION_MASK);
     if (owner >= 0 && owner < 4) {
       /* Jesuit = the bright nation shade, plain mission = its dark twin
-       * (DOS's index-8). Palette-adapted: bugs.md #364. */
+       * (DOS's index-8). Palette-adapted: port_bugs.md #364. */
       const uint8_t color = map_panel_nation_shade(
         owner, active_palette, (t->mission & COL1_TRIBE_MISSION_JESUIT_BIT) == 0
       );
@@ -745,7 +745,7 @@ static const char* map_panel_order_label(const ColonizeMsgCatalog* names, int or
 /* @UNIT type indices the panel special-cases (DOS compares 0x3146 literally). */
 #define MAP_PANEL_UNIT_PIONEERS 2
 #define MAP_PANEL_UNIT_TREASURE 10
-/* bugs.md #788: no MAP_PANEL_UNIT_WAGON — FUN_49dd_0424 has no type==0x0c arm;
+/* port_bugs.md #788: no MAP_PANEL_UNIT_WAGON — FUN_49dd_0424 has no type==0x0c arm;
  * the cargo strip is driven by the generic @UNIT cargo column (DS:0x5237). */
 
 
@@ -771,12 +771,12 @@ static int map_panel_draw_line(
  * DOS 16-entry pointer table at DS:0x97f0 the unit line indexes by nibble. */
 static const char* map_panel_nationality(int nation_id) {
   if (nation_id >= 0 && nation_id < 4) {
-    /* bugs.md: crown slot = the REF during the WoI, never the peer name;
+    /* port_bugs.md: crown slot = the REF during the WoI, never the peer name;
      * the adjective is "Tory" ("Tory Cavalry"), not "Royal". */
     if (nation_id == unit_chrome_crown_nation()) {
       return reports_misc_display_word(70, "");
     }
-    /* bugs.md #239: rebel side's units read @MISC row 69 during WoI. */
+    /* port_bugs.md #239: rebel side's units read @MISC row 69 during WoI. */
     if (nation_id == unit_chrome_rebel_nation()) {
       return reports_misc_display_word(69, "");
     }
@@ -786,7 +786,7 @@ static const char* map_panel_nationality(int nation_id) {
 }
 
 /*
- * bugs.md #702: FUN_49dd_0424 prints the @UNIT name of the unit's live TYPE
+ * port_bugs.md #702: FUN_49dd_0424 prints the @UNIT name of the unit's live TYPE
  * byte (`0x5230 + type*0xe`, raw 78859-78861 / 79215-79219). DOS rewrites
  * that byte when a colonist is armed or mounted, so the sidebar says
  * "Dragoons", not the stored base row. The port keeps arming in separate
@@ -820,7 +820,7 @@ static const char* map_panel_cargo_name(const ColonizeMsgCatalog* names, int car
  *    ")" around the text, and no "Expert" word.
  *  - stack row, raw 79185-79196: no parentheses, and when the profession byte
  *    (+0x315b) is 0x14 (Hardy Pioneer) the LABELS @MISC row 4 word at
- *    DS:0x2dc2 ("Expert") is prepended (bugs.md #630).
+ *    DS:0x2dc2 ("Expert") is prepended (port_bugs.md #630).
  */
 static bool map_panel_type_detail_mode(
   const ColonizeUnitPool* units,
@@ -833,7 +833,7 @@ static bool map_panel_type_detail_mode(
   (void)units;
   /* DOS-LITERAL FUN_49dd_0424 raw 78896: the tools row is gated on the @UNIT
    * type byte (+0x3146 == 2) ALONE - a type-2 unit with 0 tools still prints
-   * "0 Tools" (bugs.md #643). */
+   * "0 Tools" (port_bugs.md #643). */
   if (u->type_index == MAP_PANEL_UNIT_PIONEERS) {
     if (stack) {
       const char* expert =
@@ -853,7 +853,7 @@ static bool map_panel_type_detail_mode(
   if (u->type_index == MAP_PANEL_UNIT_TREASURE) {
     /* The word is the LABELS @CTITLE row 1 the DOS slot DS:0x93a0 points at -
      * the same string the sidebar header gold line uses (raw 78727); catalog
-     * miss = "" (bugs.md #642). */
+     * miss = "" (port_bugs.md #642). */
     const char* gold = reports_ctitle_word(1);
     snprintf(
       out, out_size, stack ? "%s %d" : "(%s %d)", gold, units_treasure_value_gold(u)
@@ -1192,7 +1192,7 @@ static void map_panel_draw_stack_row(
    * TWO text rows at the post-icon column - the type detail at local_74 + 4
    * (LAB_49dd_1451) and, unconditionally, the orders string at
    * local_74 + 0x10 - <font height byte at DS:0x89e> (LAB_49dd_1572). The port
-   * drew the orders only when no detail applied (bugs.md #623).
+   * drew the orders only when no detail applied (port_bugs.md #623).
    */
   const int detail_y = *y + 4;
   const int orders_y = *y + 0x10 - (font ? (int)font->max_height : 6);
@@ -1201,7 +1201,7 @@ static void map_panel_draw_stack_row(
 
   /* DOS detail precedence: Pioneers' tools, then profession, then Treasure
    * gold, then a loaded transport's holds, else the @UNIT type name. */
-  /* bugs.md #507: DOS FUN_49dd_0424 stack-list row passes param_3 = 0 (raw 79205). */
+  /* port_bugs.md #507: DOS FUN_49dd_0424 stack-list row passes param_3 = 0 (raw 79205). */
   const char* prof = units_profession_line(names, u->type_index, u->profession, false);
   int goods = 0;
   for (int g = 0; g < COLONIZE_UNIT_CARGO_MAX; ++g) {
@@ -1209,7 +1209,7 @@ static void map_panel_draw_stack_row(
       goods++;
     }
   }
-  if (u->type_index == MAP_PANEL_UNIT_PIONEERS) { /* raw 78896: type-only, bugs.md #643 */
+  if (u->type_index == MAP_PANEL_UNIT_PIONEERS) { /* raw 78896: type-only, port_bugs.md #643 */
     map_panel_type_detail_mode(units, u, names, true, line, sizeof(line));
     font_draw_text(font, fb, x, detail_y, line, MAP_PANEL_COL_EMPHASIS);
   } else if (prof) {
@@ -1411,7 +1411,7 @@ COLONIZE_INTERNAL void map_panel_render_header(MapPanelRenderCtx* c) {
 
     /* @CTITLE row 1 = DS:0x93a0 ("Gold:", shared with the Treasure detail
      * row), row 9 = "Tax:". Read through the one accessor so both sites use
-     * the same catalog row (bugs.md #642). */
+     * the same catalog row (port_bugs.md #642). */
     const char* gold_label = "";
     const char* tax_label = "";
     if (labels) {
@@ -1481,7 +1481,7 @@ COLONIZE_INTERNAL void map_panel_render_selected_block(MapPanelRenderCtx* c) {
   int side_y = icon_y + 2;
   char line[72];
   char mp_text[16];
-  /* bugs.md #703: raw 78817-78824 prints FUN_281f_090c(unit) (the @UNIT
+  /* port_bugs.md #703: raw 78817-78824 prints FUN_281f_090c(unit) (the @UNIT
    * moves allotment in thirds) minus the unit's spent byte +0x3149,
    * clamped at 0 — not the raw field. `->moves` holds REMAINING for Euros
    * but SPENT for natives in this port, so the raw read was inverted for
@@ -1510,7 +1510,7 @@ COLONIZE_INTERNAL void map_panel_render_selected_block(MapPanelRenderCtx* c) {
   );
   map_panel_draw_line(font, framebuffer, text_x, &c->text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
 
-  /* bugs.md #507: DOS selected-unit block passes param_3 = 1 (raw 78892). */
+  /* port_bugs.md #507: DOS selected-unit block passes param_3 = 1 (raw 78892). */
   const char* prof =
     units_profession_line(names, selected->type_index, selected->profession, true);
   if (prof) {
@@ -1764,7 +1764,7 @@ COLONIZE_INTERNAL void map_panel_render_village_row(MapPanelRenderCtx* c) {
       const char* settlement = "";
       /* `col1 && col1->indian[..].tech` was a logical AND — every tribe with
        * a tech above 0 collapsed to 1, so Aztec (2) and Inca (3) drew the
-       * Village icon and read the Village @LEVELS row. bugs.md. */
+       * Village icon and read the Village @LEVELS row. port_bugs.md. */
       int tech = (col1 && tribe->nation_id >= 4 && tribe->nation_id < 12)
                    ? (int)col1->indian[tribe->nation_id - 4].tech
                    : 0;
@@ -2079,7 +2079,7 @@ void map_panel_render_w(
     selected = NULL;
   }
   /*
-   * bugs.md #704: raw 78751-78755. DOS arms the selected-unit block with
+   * port_bugs.md #704: raw 78751-78755. DOS arms the selected-unit block with
    * `local_4 = (*(int*)0x5390 == 0)` and then clears it again when
    * `(unit.nation & 0xf) != *(byte*)0x5396 && *(int*)0x53a2 == 0` — another
    * nation's unit falls through to the plain tile-info block unless the

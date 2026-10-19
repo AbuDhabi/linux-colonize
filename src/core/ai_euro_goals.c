@@ -121,7 +121,7 @@ int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUnit* u);
  * MILITARY(4)/COLONY(5); Colonist and Pioneer (0x40) carry only bit 6
  * (EXPLORE), a code the primary table never holds (ai_goals.h). The
  * previous port keyed on unit *names* and let land settlers chase FOUND.
- * bugs.md #511.
+ * port_bugs.md #511.
  */
 /*
  * Fallback for pools whose types did not come from NAMES.TXT (hand-built test
@@ -211,7 +211,7 @@ static void ai_euro_0a60_continent_presence(
  * unit of `nation_id`, pick the closest/highest-priority matching primary
  * goal slot and write order_code/act_state/goal_x/goal_y — mirrors raw
  * decomp lines 974-1063 control flow and arithmetic 1:1 (see file header
- * comment for what's real vs. placeholder). Since 2026-09-18 (bugs.md #525)
+ * comment for what's real vs. placeholder). Since 2026-09-18 (port_bugs.md #525)
  * it writes the REAL DOS bytes (`u->col1_ai_plan` / `u->orders` /
  * `u->goto_x` / `u->goto_y`) through `ai_euro_set_goto`, so every downstream
  * reader — the 20e6 pre-LAB_4d2e gate included — sees the same course the
@@ -365,7 +365,7 @@ int ai_euro_0a60_goods_holds_used(const ColonizeUnitPool* units, const ColonizeU
  * why DOS's opening ships wander (plan '9', act 0x0c) instead of walking a
  * goal. Counting passengers here (the pre-2026-09-19 reading) made those
  * ships FOUND-eligible and was what kept 0a60's ship binding switched off
- * (bugs.md #527).
+ * (port_bugs.md #527).
  */
 static int ai_euro_0a60_ship_full(const ColonizeUnitPool* units, const ColonizeUnit* u) {
   const int cap = units_ship_capacity(units, u->id);
@@ -499,11 +499,11 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
          * course only survives the nation-turn boundary when its order code
          * is the generic goal-pursue '1'; 't'/'i'/0x45 courses and every
          * one-step 0x0c commit are dropped and re-decided. Live since
-         * 2026-09-18 (bugs.md #525) now that +0x314c is the real `u->orders`
+         * 2026-09-18 (port_bugs.md #525) now that +0x314c is the real `u->orders`
          * byte; against the retired shadow (zeroed every dispatcher turn) the
          * whole test was vacuous.
          *
-         * `== 1 || == 2 || == 3` ported unconditionally (bugs.md #528,
+         * `== 1 || == 2 || == 3` ported unconditionally (port_bugs.md #528,
          * 2026-09-22): those DOS values mean "aboard a ship / in transit /
          * off-map" — on a landed unit, order 1 (SENTRY) is simply the
          * leftover "aboard" value `FUN_1427_10be` wrote at boarding (raw
@@ -632,7 +632,7 @@ void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int nation_id
          * [cont + nation*0x10 - 0x6b5a]; if (A < 3 && (A < 2 ||
          * [cont + nation*0x10 - 0x6b1a] == 0)) goto LAB_521d_1fdf; }`,
          * and LAB_521d_1fdf (raw 88240) is the unit-loop increment. So
-         * this IS the DOS skip, not a port invention (bugs.md #652).
+         * this IS the DOS skip, not a port invention (port_bugs.md #652).
          * -0x6b5a = land units per continent, -0x6b1a = colonies per
          * continent. DOS has no ship guard; types 1/4 are land anyway. */
         continue;
@@ -699,7 +699,7 @@ void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int nation_id
         u->col1_ai_plan = 0x69; /* 'i' */
       }
       /*
-       * bugs.md #525: the commit writes the REAL +0x314c/+0x314d/e now
+       * port_bugs.md #525: the commit writes the REAL +0x314c/+0x314d/e now
        * (act_state 0x0b + the goal tile), so `ai_euro_move_scoring_gate`'s
        * raw 90210-90219 test and `ai_euro_act_land_goal_dispatch` both read
        * the unit's own stored goal instead of a private mirror the rest of
@@ -710,7 +710,7 @@ void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int nation_id
        * just walks the goal, FUN_521d_5b66 raw 90552-90560). Until
        * 2026-09-19 this was land-only: ai_euro_0a60_ship_full counted
        * passengers, so every loaded opening transport looked FOUND-eligible
-       * and got pulled off its landfall (bugs.md #527).
+       * and got pulled off its landfall (port_bugs.md #527).
        */
       ai_euro_set_goto(u, AI_EURO_ACT_GOAL, g->x, g->y);
       if (g->code != AI_GOAL_MILITARY) {
@@ -1808,7 +1808,7 @@ static void ai_euro_5952_equip_arm(
    * picked colonist's — the scorer's loop variable leaks out of the loop.
    */
   /* The leaked variable holds the LAST slot the scorer actually iterated, and
-   * ai_euro_5952_equip_pick stops at COLONIZE_COLONY_POP_MAX — bugs.md #862. */
+   * ai_euro_5952_equip_pick stops at COLONIZE_COLONY_POP_MAX — port_bugs.md #862. */
   int last_slot = equip_pop;
   if (last_slot > COLONIZE_COLONY_POP_MAX) {
     last_slot = COLONIZE_COLONY_POP_MAX;
@@ -2243,7 +2243,7 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_work(
   /*
    * garrison_quota (+0x1e) is now the real FUN_5952_035e threat>>3 seed —
    * see ai_euro_colony_threat_seed_5952 above, run by the 5952 colony tick at the
-   * top of the nation turn (bugs.md #964). The thin latch that used to live here
+   * top of the nation turn (port_bugs.md #964). The thin latch that used to live here
    * ("idle unfortified Soldier/Dragoon on the colony tile and quota == 0
    * → 1, skipped while NEEDS_COLONISTS / LABOR so early towns admit the
    * beachhead soldier") is retired: it had no DOS basis, and its
@@ -2617,7 +2617,7 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_garrison(
  * (FUN_521d_0a60 raw 87776-87787). */
 
 /*
- * (Deleted 2026-10-02, bugs.md #1034(c).) Two goals-phase passes stood here:
+ * (Deleted 2026-10-02, port_bugs.md #1034(c).) Two goals-phase passes stood here:
  * ai_euro_colony_goals_food_emergency (food_short >= 4 -> nearest idle food
  * colonist bound to a hungry colony at MD <= 8, manual cite only) and
  * ai_euro_colony_goals_tribe_seeds (tribe-adjacent FOUND prio 2, MILITARY on
@@ -2638,7 +2638,7 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_producers(
   /* Thin -0x6790 stance nibbles, read by the 0a60 / ship stance gates. */
   ai_euro_refresh_continent_stance(ctx, nation_id);
   /*
-   * (Deleted 2026-10-02, bugs.md #1034(c).) A "G continent stance" ladder
+   * (Deleted 2026-10-02, port_bugs.md #1034(c).) A "G continent stance" ladder
    * stood here: with own >= 2 colonies, at war bumped urgency and upserted MILITARY prio 6/7/8 on the
    * weakest foe colony (stance 3 soft-cap + FOUND), at peace bumped a FOUND
    * goal or sent an idle Scout/soldier to a tribe-adjacent site. The deep
@@ -2647,7 +2647,7 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_producers(
 }
 
 /*
- * bugs.md #707 — RETIRED 2026-09-23. The "H: light bind" arm that stood here
+ * port_bugs.md #707 — RETIRED 2026-09-23. The "H: light bind" arm that stood here
  * scanned every idle on-map land unit of kind Pioneer or Colonist and stamped
  * an AI_MOVE goto at ai_goals_best_found_tile_near. It had no FUN/raw cite and
  * no DOS counterpart:
@@ -2779,7 +2779,7 @@ static int ai_euro_ocean_score_step(
       score += 6; /* HS east-Europe: prefer eastward HS tiles */
     }
     /* (A -800 "under enemy fort fire" penalty stood here; invented with the
-     * deleted flee step, no golden moved without it -- bugs.md #1033.) */
+     * deleted flee step, no golden moved without it -- port_bugs.md #1033.) */
     /* Thin combat: prefer closing on weaker adjacent foe ships. */
     if (at_war) {
       for (int ad = 0; ad < 8; ++ad) {
@@ -2876,7 +2876,7 @@ int ai_euro_score_move(
        * units_is_sea then skipped) hide the land garrison of a defended
        * colony, so an approaching land unit scored the target tile as
        * unreachable and oscillated beside it forever — the REF stall
-       * behind bugs.md #521. Fall back to the raw head for defenderless
+       * behind port_bugs.md #521. Fall back to the raw head for defenderless
        * tiles (lone Treasure / civilians), as units_try_move does.
        */
       int foe = units_best_defender_at(
@@ -2941,7 +2941,7 @@ int ai_euro_score_move(
      * Land combat 20e6 (structured deepen): prefer closing on weaker adjacent war
      * foes.
      *
-     * Deleted 2026-09-23 (bugs.md #759): the "+16 siege approach" additive for a
+     * Deleted 2026-09-23 (port_bugs.md #759): the "+16 siege approach" additive for a
      * foreign colony destination and the "+10 Artillery prefers a fortified port"
      * rider were invented (cited only as `move_scoring_land.md LAB_521d_5183 /
      * 0x46; unpark #4` — no FUN_/raw). DOS's only colony-destination term in the

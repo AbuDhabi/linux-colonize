@@ -58,7 +58,7 @@ uint8_t unit_chrome_nation_color(int nation_id);
  * (-1 = none; set each frame by the game loop while independence is
  * declared). */
 void unit_chrome_set_crown_nation(int nation_id);
-/* bugs.md WoI flags: rebel (human) nation — its colonies fly the American
+/* port_bugs.md WoI flags: rebel (human) nation — its colonies fly the American
  * flag; crown-held colonies fly this nation's original color. Cleared
  * automatically when the crown nation is set to -1. */
 void unit_chrome_set_rebel_nation(int nation_id);
@@ -76,7 +76,7 @@ void unit_chrome_rebel_flag_colors_for_palette(
  * unit_chrome_blit_unit_for_palette: the raw indices are ICONS.SS-native,
  * and every other screen's palette (TERRAIN.SS included) repurposes slots
  * 5/13 back to EGA magenta, which is what made the Dutch map chrome pink
- * (bugs.md #364). Outputs are -1 when active_palette is NULL or nation_id
+ * (port_bugs.md #364). Outputs are -1 when active_palette is NULL or nation_id
  * isn't a 0..3 European; the crown/rebel overrides do NOT apply here.
  */
 void unit_chrome_nation_shades_for_palette(
@@ -98,7 +98,7 @@ int unit_chrome_crown_nation(void);
 UnitChromeCorner unit_chrome_corner_for_type(int dos_unit_type_id, bool damaged);
 
 /*
- * bugs.md #705. FUN_112b_01ba's LAST badge arm (viceroy_unpacked_2.c raw
+ * port_bugs.md #705. FUN_112b_01ba's LAST badge arm (viceroy_unpacked_2.c raw
  * 2148-2172) replaces the @ORDERS letter outright for a DAMAGED unit
  * (+0x3148 bit7) whose type is not 0x0b (Artillery keeps its own y+2 box
  * instead, raw 2109-2111):

@@ -135,7 +135,7 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
     view->title_font_ok = true;
     /* FONTINTR is deliberately NOT loaded here: the whole 3f41 report overlay
      * touches only the FONTTINY font pointer (DS:0x89e) — see
-     * reports_render_indian (bugs.md #428). */
+     * reports_render_indian (port_bugs.md #428). */
   } else {
     diag_warn("Failed to load FONTTINY.FF for reports: %s", font_err);
   }

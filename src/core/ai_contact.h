@@ -48,8 +48,8 @@ void ai_contact_reset(void);
  * DOS-LITERAL FUN_5fef_0f14 `local_6` (raw 99790): the raid resolver rolls
  * rand(1,4) and these ARE its four kinds, so the numbering matches DOS. There
  * is no fifth kind: @RAIDSCALP is dead GAME.TXT text with no DS string in
- * VICEROY.EXE (bugs.md #828), and @RAIDWREAK (0x1b8a) is the third-party
- * "Spies report" bulletin, not a loot kind (raw 99897-99899, bugs.md #829).
+ * VICEROY.EXE (port_bugs.md #828), and @RAIDWREAK (0x1b8a) is the third-party
+ * "Spies report" bulletin, not a loot kind (raw 99897-99899, port_bugs.md #829).
  */
 typedef enum AiRaidKind {
   AI_RAID_NOTHING = 0,
@@ -185,7 +185,7 @@ void ai_contact_set_visit_euro(int euro_nation);
  * caller must NOT also run the demand/beg arm: DOS's `bVar6` picks the gift
  * half over LAB_5bfb_0def. The reverse is not exclusive — a CONCEDED
  * @INDIANBEGFOOD falls through into this gift half in the same visit and
- * re-enters it itself (bugs.md #863); see the definition's header comment.
+ * re-enters it itself (port_bugs.md #863); see the definition's header comment.
  */
 int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id);
 
@@ -233,7 +233,7 @@ int ai_contact_visit_step_roll(ColonizeTurnContext* ctx, int nation_id, int e, i
  * Returns 1 if a CHOICE was enqueued.
  *
  * The argument-defaulting shims ai_contact_try_village_meet / _unit and
- * ai_contact_try_ship_village are test-only (audit AC-24, bugs.md #1106) and
+ * ai_contact_try_ship_village are test-only (audit AC-24, port_bugs.md #1106) and
  * live in ai_contact_internal.h: game code always calls the _unit_at form.
  * With the acting unit, the menu rows follow DOS's per-unit gating
  * (wagon/ship → Trade or Enter Hostile; Scout → Speak With Chief; Missionary
@@ -370,7 +370,7 @@ void ai_contact_alarm_delta_00f2(ColonizeTurnContext* ctx, int nation_id, int eu
  * context (colony land-work bill, pioneer clear/plow/road, 465b trespass).
  * Never call ai_diplo_indian_alarm_delta directly from those sites — DOS has
  * no half writer, and skipping the tail pins a pair at alarm 100 with its
- * missions intact forever (bugs.md #1004).
+ * missions intact forever (port_bugs.md #1004).
  */
 void ai_contact_alarm_delta_00f2_w(const ColonizeWorld* w, int nation_id, int euro, int delta);
 /* Tribe display name for Indian nation ids 4..11. */
@@ -384,7 +384,7 @@ const char* ai_contact_tribe_name(int nation_id);
  * raid resolver runs instead — loot roll, its own alarm delta and its own
  * DS:0x54f6 tension clear (raw 100034). This is 0f14's ONLY caller; it
  * also draws 0f14's human-victim cues/@RAID* dialog and @RAIDWREAK bulletin
- * when `w` carries ai_popups/messages (bugs.md #1093).
+ * when `w` carries ai_popups/messages (port_bugs.md #1093).
  *
  * `forced` is DOS's `param_4` (1b0e's `local_ca`), which bypasses the walls
  * check at the head of 0f14 so the repelled party still loots.

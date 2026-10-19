@@ -1,6 +1,6 @@
 # General code audit — 2026-10-18
 
-> **STATUS: audit dump, mostly closed (findings filed as bugs.md #1086-#1122; 2026-10-18
+> **STATUS: audit dump, mostly closed (findings filed as port_bugs.md #1086-#1122; 2026-10-18
 > fix wave moved all but #1107 remainder / #1110 sim side / #1112 / #1122 ff.c rename to
 > docs/archive/bugs_fixed_pending.md); not an authoritative spec; each row is a lead, not a
 > verified fact.** Line numbers as of commit 9fcf9dec and stale after the fix wave.
@@ -8,7 +8,7 @@
 Eight parallel Opus 5.5 sweeps over the whole tree: A compiler warnings + cppcheck, B Euro AI,
 C native/contact/king/diplo AI, D units/combat/turn/colony, E game loop/europe/col1/map/json,
 F UI/assets/platform, G tests/tools/build/docs, H cross-cutting greps (scripts reproduced the
-grep sweeps; they live in the session scratchpad, not the repo). Each bugs.md row cites
+grep sweeps; they live in the session scratchpad, not the repo). Each port_bugs.md row cites
 `code_audit_2026-10-18 <slice>` for the full evidence table below. Everything an agent
 checked and found clean is listed at the end of each slice; do not re-audit those.
 
@@ -236,13 +236,13 @@ INFO: modal coverage complete; parsers/fb clipping clean; tsf.h only CRLF diff; 
 | LOW | doc placement | docs/smell_audit_2026-09-08.md, 09-09 | STATUS closed but not archived | |
 | LOW | arch inventory | docs/architecture.md | never names cheat_list_dialog, howmuch_dialog, name_entry_dialog, cinematic.h, bytes.h, pick_music_ids.h | |
 | LOW | stale refs | tests/README.md:203; docs/manual_gap.md:91 | cite pre-split test_ai_euro_expand.c; now test_ai_euro_expand_labor.c:361 | |
-| LOW | bugs.md header | bugs.md:3 | "archive holds #1-#952" stale (up to #1085); next free 1086 correct | |
+| LOW | port_bugs.md header | port_bugs.md:3 | "archive holds #1-#952" stale (up to #1085); next free 1086 correct | |
 | LOW | tools README | tools/README.md:81-84 | "stdlib only" false (dosbox_trace.py pexpect, PIL); make_vr_sound.py, viceroy_v2_output_layout.json undocumented; check_save_interop.sh build/ fallback omitted | |
 | LOW | stale tree | tools/check_save_interop.sh:22 | falls back to bare build/ | |
 | LOW | hard paths | tools/trcmp.py:63-64; tests/unit/test_reports.c:1023 | /usr/bin/python3; /tmp/... | |
 | LOW | silent pass | smoke/test_play_smoke.c:235; unit/test_stage_seams.c:236; unit/test_map_panel.c:681 | return 0 when COLONIZE/ absent | |
 | LOW | fixture helper | tests/common/ai_fixture.h:24-44 | fx_map_alloc callocs layer3 (all-lake trap); leaks on partial failure | |
-| LOW | disabled test | CMakeLists.txt:964-969 | golden_idle_independence DISABLED, no bugs.md row | |
+| LOW | disabled test | CMakeLists.txt:964-969 | golden_idle_independence DISABLED, no port_bugs.md row | |
 Clean: no orphan tests, no missing sources, no #if 0, no broken doc links, Makefile targets exist, python paths exist, bugs ids consistent.
 
 ## Slice H
@@ -282,7 +282,7 @@ Every row is grep- or script-proven. Rows marked "verified" were also read in co
 | LOW | Encoding (S10) | src tests tools docs | 0 UTF-8 BOMs and 0 tab-indented lines in src/. Trailing whitespace is in 5 files: tools/address_mapping.csv (2813 lines, all of them CR), docs/turn_between_players.md 3, docs/archive/bugs_closed.md 3, docs/assets.md 1, docs/ai_euro_logic_map.yaml 1. | grep -c | HIGH |
 | LOW | Layering (S11) | colonize_sim files | No sim .c calls or takes the address of a function defined only in a colonize_ui .c. Sim files do include UI-named headers for types: font.h 6, ss.h 10, ui_button.h 6, europe_art.h 5, new_game.h 6, fb.h 1 (unit_chrome.c), unit_chrome_draw.h 1, woodcut_present.h 1, ai_popup_render.h + map_menu.h (ai_popup.c), reports.h 46. That is compile-time coupling only. | s11_layering.py | HIGH |
 | LOW | Weak / ctor (S12) | tests/common/test_name_kinds.c:141-149; ai_contact_raid.c:1032; units_map.c:170 | No weak definitions in src/. tests/common has 4 weak extern references, which become NULL if the archive member is not pulled (the same trap class as the old weak stubs). ai_contact_raid.c registers its raid-repelled hook from `__attribute__((constructor))`, so in any link that does not pull ai_contact_raid.o the hook silently stays unset. | grep `__attribute__((weak\|constructor` | HIGH (that they exist); LOW (impact) |
-| LOW | TODO inventory (S13) | src/, tests/, tools/ | 0 TODO/FIXME/XXX/HACK/TBD markers. src/ cites 530 distinct `bugs.md #NNN` ids: 529 are CLOSED and #974 (reports_military.c:125) appears in none of bugs.md, bugs_fixed_pending.md or bugs_closed.md (it is only mentioned inside #1071's text). | s13_bugrefs.sh | HIGH |
+| LOW | TODO inventory (S13) | src/, tests/, tools/ | 0 TODO/FIXME/XXX/HACK/TBD markers. src/ cites 530 distinct `port_bugs.md #NNN` ids: 529 are CLOSED and #974 (reports_military.c:125) appears in none of port_bugs.md, bugs_fixed_pending.md or bugs_closed.md (it is only mentioned inside #1071's text). | s13_bugrefs.sh | HIGH |
 | LOW | Magic numbers (S14) | gsound_vm.c 32; ai_euro_colony_jobs.c 20; ai_euro_europe.c 19; map_gen.c 7; col1_save.c 6 | 161 hex literals ≥0x100 have no FUN_/raw/DS:/hex/asm citation on the same line or the 2 lines above. Most sit inside cited functions (e.g. ai_contact_trade.c:369 `dos_rng_range(…,1,0x148)`, ai_euro_colony_jobs.c:899 `year < 0x604`, :2127 `addr >= 0x924c`). Informational. | s14_magic.py | LOW |
 | LOW | Header hygiene (S15) | src/**/*.h | All headers have guards and guard names are unique. No .c is included. No struct is defined twice; the 10 repeated `typedef struct X X;` are legal C11 forward declarations. | s15 greps | HIGH |
 | MED | Globals (S16) | units_map.c (23); ai_contact.c 7; ai.c 6; ai_euro.c 6; colony.c 5; turn_production.c 5 | There are 89 file-scope non-static, non-const variables in 26 src/core files. units_map.c holds the combat/fallout context (g_units_combat_colonies, _human_nation, _popups, _game_txt, _europe, g_units_fallout_*), which setters inject instead of ctx. One of these is already dead (g_units_conquest_gold). | s16_globals.py | HIGH (count); MED (should live in ctx) |

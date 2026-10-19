@@ -57,7 +57,7 @@ static ColonyProdTier colony_prod_building_tier_row(int building_row) {
  *     }
  *
  * i.e. 2-in-per-3-out truncating, NOT the old `(output * 6 + 8) / 9`
- * round-half-up (bugs.md #851). Both satisfy the 2026-08-15 player anchor
+ * round-half-up (port_bugs.md #851). Both satisfy the 2026-08-15 player anchor
  * (Textile Mill, out 12 -> 8 cotton) and the Iron Works base anchor
  * (out 9 -> 6); they differ on odd totals, where DOS truncates.
  *
@@ -86,7 +86,7 @@ bool colony_prod_chain_input_is_flat(int chain) {
    * `0bd4(0xe, 0xf)` call anywhere, and the factory discount `(G<<1)/3` (raw
    * 10171) plus the unmet rescale `(U*3)/2` (raw 10175-10180) live only
    * inside 0bd4. So the Armory chain is 1:1 at every tier, Arsenal included.
-   * bugs.md #910.
+   * port_bugs.md #910.
    */
   return chain == COLONIES_CHAIN_ARMORY;
 }
@@ -121,7 +121,7 @@ static bool colony_prod_craft_skill_matches(int profession, int craft_profession
     return true;
   }
   /*
-   * bugs.md #288 family: a legacy "19..27 → skill 9..17" remap lived here,
+   * port_bugs.md #288 family: a legacy "19..27 → skill 9..17" remap lived here,
    * calibrated against golden_colony_prod01's Montreal (12 rum) — but that
    * total is really 3 workers × (class 3 + SoL latch 1); the remap only
    * "fit" because colony_prod_manufacturing_output used to truncate the
@@ -197,7 +197,7 @@ int colony_prod_manufacturing_output_row(
   /* DOS folds local_e (the full signed SoL/Tory term, +1 at the sol_50
    * latch) straight into v — no "+2 or nothing" step. The old truncation
    * here silently ate the +1 and was compensated by the bogus 19..24
-   * skill-match rows below (bugs.md #288 family / golden_colony_prod01:
+   * skill-match rows below (port_bugs.md #288 family / golden_colony_prod01:
    * Montreal's 12 rum is 3 workers x (3+1), not 3+6+3). */
   int out = tag + sol_bonus;
   if (tier == COLONY_PROD_TIER_SHOP || tier == COLONY_PROD_TIER_FACTORY) {
@@ -234,7 +234,7 @@ int colony_prod_manufacturing_input_row(
    * does. See docs/building_production.md factory-input fix-log row.
    *
    * Per-WORKER entry point only: the tick derives its requirement from the
-   * colony total via colony_prod_chain_input_for_total_output (bugs.md
+   * colony total via colony_prod_chain_input_for_total_output (port_bugs.md
    * #851), because DOS does the divide once.
    */
   const int out =
@@ -243,7 +243,7 @@ int colony_prod_manufacturing_input_row(
     return 0;
   }
   if (colony_prod_chain_input_is_flat(colonies_building_row_chain(building_row))) {
-    return out; /* bugs.md #910 — the muskets pair never sees the tier. */
+    return out; /* port_bugs.md #910 — the muskets pair never sees the tier. */
   }
   const ColonyProdTier tier = colony_prod_building_tier_row(building_row);
   return colony_prod_tier_input_for_output(tier, out);
@@ -256,7 +256,7 @@ int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* 
   }
   /*
    * FUN_15eb_0274 (raw 9471-9501): local_c = 0; dividend*100/divisor only when
-   * divisor > 0; the Bolivar 0x14 is added to local_c regardless (bugs.md
+   * divisor > 0; the Bolivar 0x14 is added to local_c regardless (port_bugs.md
    * #1089). No matching record reads like DOS's fresh 0/0 record: a colony
    * founded this turn gets its COL1 record only at the next col1_bridge export
    * (the old nation `liberty_bells_total / 4` stand-in here read 100% for it).
@@ -303,7 +303,7 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
     if (col1->player[colony->nation_id].control == 0) {
       /* DOS-LITERAL FUN_15eb_18ec raw 11868-11872: `local_10 =
        * -(byte[0x53a6] - 10)`, no clamp on the difficulty byte and no floor
-       * on the threshold (bugs.md #936: the port's 0..4 / >=2 clamps were
+       * on the threshold (port_bugs.md #936: the port's 0..4 / >=2 clamps were
        * invented and are gone; a valid difficulty byte is 0..4 anyway). */
       const int diff = (int)col1->head.difficulty;
       /*
@@ -330,7 +330,7 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
     }
   }
   /*
-   * bugs.md ("SoL >50% yet still over the Tory limit"): there is no separate
+   * port_bugs.md ("SoL >50% yet still over the Tory limit"): there is no separate
    * over-the-limit state in DOS. FUN_15eb_18ec builds ONE signed term —
    * -floor(tories/thresh) plus the latch steps — and the two simply add, so a
    * big colony can sit above 50% SoL and still run a net penalty. The floor
@@ -455,7 +455,7 @@ void colony_prod_tick_rebel_accumulators(
       ? (int)col1->nation[nation_id].tax_rate
       : 0;
   /* DOS-LITERAL FUN_15eb_1f72 raw 12634-12641: the AI bells subsidy needs
-   * both the AI-control gate and FF 0x12 (Bolivar) held. bugs.md #938b. */
+   * both the AI-control gate and FF 0x12 (Bolivar) held. port_bugs.md #938b. */
   const bool nation_is_ai = nation_id >= 0 && nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
                              col1->player[nation_id].control != 0 &&
                              founding_fathers_nation_has(col1, nation_id, FF_SIMON_BOLIVAR);
@@ -535,7 +535,7 @@ void colony_prod_tick_rebel_accumulators(
   cc->rebel_divisor -= (cc->rebel_divisor >> 6);
   /* DOS-LITERAL FUN_364b_0688 Phase C raw 57371-57376: `if (divisor <= 0)
    * divisor = 1;` sits between the >>6 decay and the `+= pop*2` add
-   * (bugs.md #935). Keeps a decayed pop-0 record at divisor 1 instead of 0,
+   * (port_bugs.md #935). Keeps a decayed pop-0 record at divisor 1 instead of 0,
    * so colony_prod_sol_percent still has a pair to divide. */
   if (cc->rebel_divisor == 0u) {
     cc->rebel_divisor = 1u;
@@ -672,7 +672,7 @@ int colony_prod_colony_crosses_ff(
     crosses +=
       colony_prod_crosses_worker_row(row, c->profession, sol_bonus, colony_has_cathedral, nation_has_penn);
   }
-  /* bugs.md (player-recalled, matches the asm): the SoL bonus folds in
+  /* port_bugs.md (player-recalled, matches the asm): the SoL bonus folds in
    * per-WORKER only (FUN_15eb_1d4c) — the base/passive composer
    * (FUN_15eb_1f72) never sees it, so an unworked church earns no SoL
    * bonus. The old "attach it to the passives when nobody works" fallback
@@ -710,7 +710,7 @@ int colony_prod_colony_bells_ff(
    *                                              two statements earlier, so
    *                                              this is a no-op (not ported)
    *   038e(0x14) Newspaper -> v <<= 1  else  038e(0x13) Press -> += v >> 1
-   * bugs.md #926/#927: the port used to gate the passive +1 AND the AI
+   * port_bugs.md #926/#927: the port used to gate the passive +1 AND the AI
    * subsidy on has_town_hall, and applied the subsidy before Jefferson/Paine
    * (so an AI nation owning them multiplied it). Both fixed 2026-09-24.
    */
@@ -733,7 +733,7 @@ int colony_prod_colony_bells_ff(
      * below — see the comment there. */
     bells += colony_prod_bells_worker_row(row, c->profession, sol_bonus);
   }
-  /* bugs.md smell #19 (user-confirmed vs DOS): the SoL bonus folds in
+  /* port_bugs.md smell #19 (user-confirmed vs DOS): the SoL bonus folds in
    * per-WORKER only (FUN_15eb_1d4c Statesman body) — the base/passive
    * composer (FUN_15eb_1f72) never sees it, so an unworked Town Hall
    * earns the base bell (plus Press/Newspaper/Jefferson multipliers
@@ -812,7 +812,7 @@ int colony_prod_colony_hammers(
   /* sol_bonus=0 base-rate tally — a staffed-carpenter demand probe for
    * AI 5952 job scoring, not the tick's lumber debit. The live debit is
    * 1:1 with the sol-adjusted hammer count returned below (turn_production.c;
-   * bugs.md #163, hammers_lumber.SAV: 28 hammers ate 28 lumber). See the
+   * port_bugs.md #163, hammers_lumber.SAV: 28 hammers ate 28 lumber). See the
    * out_lumber_use note in colony_production.h before changing either. */
   int lumber_total = 0;
   int hammers_total = 0;
@@ -871,7 +871,7 @@ ColonyProdHorseBreed colony_prod_horse_breed(
 
 /* Full-context worker output: folds in the colony's upgrade multipliers
  * (Lumber Mill x2, Cathedral x2) and Penn (x1.5 crosses) — what the turn tick
- * actually pays (bugs.md: badge read 7 where DOS shows 14). Audit CO-31:
+ * actually pays (port_bugs.md: badge read 7 where DOS shows 14). Audit CO-31:
  * file-local. */
 static int colony_prod_worker_building_output_ctx(
   const ColonizeColonyPool* pool,
@@ -888,7 +888,7 @@ static int colony_prod_worker_building_output_ctx(
   if (row < 0) {
     return 0;
   }
-  /* bugs.md: the badge must fold in the SAME multipliers the turn tick
+  /* port_bugs.md: the badge must fold in the SAME multipliers the turn tick
    * applies — the Lumber Mill x2 (a Master Carpenter reads 14, not 7),
    * the Cathedral x2 and Penn x1.5 for preachers. */
   const bool has_mill =

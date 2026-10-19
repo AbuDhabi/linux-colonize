@@ -132,7 +132,7 @@ static int ai_indian_152e_worth_cap(
  * DESTROY, `FUN_1427_0824` raw 7796-7799, NOT village CREATE
  * (`FUN_4d56_0038` raw 81282 explicitly writes `+3 = 0`); the port sets it in
  * `units_despawn` (units_map.c), so a tribe that loses a Brave re-issues one
- * armed out of its own stock (bugs.md #837).
+ * armed out of its own stock (port_bugs.md #837).
  */
 static int ai_indian_152e_spawn_brave(
   ColonizeTurnContext* ctx,
@@ -576,7 +576,7 @@ static void ai_indian_152e_village_growth(
 
   /*
    * DOS-LITERAL FUN_4d56_152e raw 81404-81440: the `local_16` block runs for
-   * EVERY settlement — there is no capital gate in DOS (bugs.md #838). The
+   * EVERY settlement — there is no capital gate in DOS (port_bugs.md #838). The
    * port carried one from a 2026-08-19 regression fix (golden_ai_turns
    * TURN1->2 tribe[8] pop/acc); it is redundant now that
    * `ai_indian_152e_worth_cap` is ported for real, because a satellite's

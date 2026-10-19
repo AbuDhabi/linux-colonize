@@ -125,7 +125,7 @@ static int case_queue_overflow(void) {
   return 0;
 }
 
-/* bugs.md #1117: a dropped enqueue must not let set_last_* patch the
+/* port_bugs.md #1117: a dropped enqueue must not let set_last_* patch the
  * previous (unrelated) request. */
 static int case_set_last_after_dropped_enqueue(void) {
   static AiPopupState st;
@@ -180,7 +180,7 @@ static int case_chrome_tags(void) {
 }
 
 /*
- * bugs.md #1107: ai_popup_render over a spread of layouts (plain, widened by
+ * port_bugs.md #1107: ai_popup_render over a spread of layouts (plain, widened by
  * a long row, left/right chief portrait, span clamp, King flair frames,
  * MSS/MYR modes, overlong body, no font). Asserts something was drawn; with
  * AI_POPUP_DUMP_DIR set it also writes one PGM (indices + st geometry in the

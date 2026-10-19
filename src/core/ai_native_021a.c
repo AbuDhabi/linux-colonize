@@ -777,7 +777,7 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_angry(struct ai_021a_ctx* c) {
           /*
            * DOS-LITERAL 4d56:0x1036-0x105c — the ANGRY band's own stack
            * scorer is a flat `cmp ax,0xc / ja / jmp [cs:bx+0x1044]` jump
-           * table over @UNIT types 0..0x0c (bugs.md #811, ndisasm of RTLink
+           * table over @UNIT types 0..0x0c (port_bugs.md #811, ndisasm of RTLink
            * overlay segment 13 at origin 0):
            *   0x1044 words: 1024 1030 101e 101e 102a 101e 105e 105e 105e
            *                 105e 1018 1018 1018

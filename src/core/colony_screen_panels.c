@@ -41,7 +41,7 @@ static int colony_screen_sol_percent(const ColonizeCol1Save* col1, const Coloniz
 }
 
 /*
- * bugs.md: one layout for the People band, shared by draw and hit-test —
+ * port_bugs.md: one layout for the People band, shared by draw and hit-test —
  * every active colonist plus every fence unit, packed naturally and
  * squeezed to fit the band when the natural row overflows (the old code
  * hard-stopped at the edge and silently dropped the rest of a big colony).
@@ -158,7 +158,7 @@ void colony_screen_draw_people(
       view, colony, units, ent, (int)(sizeof(ent) / sizeof(ent[0]))
     );
     for (int i = 0; i < n; ++i) {
-      /* bugs.md: the People line-up uses the plain colonist chrome — no
+      /* port_bugs.md: the People line-up uses the plain colonist chrome — no
        * drop shadow. */
       colony_screen_blit_icon(view, ent[i].sprite, framebuffer, ent[i].px, y_people);
       if ((ent[i].sel_colonist >= 0 && view->selected_colonist == ent[i].sel_colonist) ||
@@ -189,7 +189,7 @@ void colony_screen_draw_people(
    * proportional to each column's amount, not a flat 1/n split, with a
    * floor so a small amount like a 2-surplus still reads).
    *
-   * bugs.md: the net counter carries *either* the surplus *or* the shortage —
+   * port_bugs.md: the net counter carries *either* the surplus *or* the shortage —
    * never both, and nothing at all when the colony eats exactly what it grows.
    * A shortage is that counter drawn with the grey food icon and a red number,
    * not the produced-food number turned red: production is what it is, and
@@ -243,7 +243,7 @@ void colony_screen_draw_people(
     }
   }
   /*
-   * bugs.md: the row must never escape the People box. When the floors +
+   * port_bugs.md: the row must never escape the People box. When the floors +
    * bells re-floor leave the total past `avail` (e.g. one huge column plus
    * three floored ones), shave the widest columns back down to the floor
    * until it fits — 4 floored columns (68px) always fit the 102px band, so
@@ -279,7 +279,7 @@ void colony_screen_draw_people(
      * through to a second unconditional emit for the remainder. The port's
      * fish/grain pair is that same split, with COLONY_ICON_FISH (DOS icon id
      * 0x3a, 1-based; sprite index 57, the per-plot badge icon of raw 47750).
-     * bugs.md #607.
+     * port_bugs.md #607.
      */
     const int fish_amt =
       (food_amt > 0) ? (p->food_fish > food_amt ? food_amt : p->food_fish) : 0;
@@ -297,7 +297,7 @@ void colony_screen_draw_people(
       COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_FOOD,
       grain_amt,
       15,
-      false /* bugs.md: People band follows the numbers toggle too */
+      false /* port_bugs.md: People band follows the numbers toggle too */
     );
     meter_x += width[food_weight_idx] + gap;
   }
@@ -370,7 +370,7 @@ static bool colony_screen_prod_cargo_slot(
   const int short_amt = p->shortfall[c];
 
   if (c == COLONIZE_CARGO_LUMBER && short_amt <= 0 && p->hammers_capacity > produced) {
-    /* Player-reported (bugs.md): a carpenter demanding more lumber than
+    /* Player-reported (port_bugs.md): a carpenter demanding more lumber than
      * this tick *produces* is a lumber shortage — even when warehouse
      * stock is still feeding him (production 0, stock > 0), and doubly
      * so when there is no stock either. Same red pairing as the craft
@@ -449,7 +449,7 @@ static bool colony_screen_prod_cargo_slot(
   return false;
 }
 
-/* Hammers' own cell (player-reported, bugs.md): a lumber-starved carpenter
+/* Hammers' own cell (player-reported, port_bugs.md): a lumber-starved carpenter
  * shows the hammers he could not bank as a red number, in the same one-cell
  * pairing the cargo shortfalls use. */
 static bool colony_screen_prod_hammers_slot(const ColonizeColonyPreview* p, ColonyProdSlot* s) {

@@ -158,7 +158,7 @@ const char* europe_pool_job_name(int profession) {
  * UNREACHABLE from Europe — they exist only as colony/Indian training
  * outcomes or promotions:
  *
- *   0x12 Expert Teachers    -> 0x0d Master Carpenters   (bugs.md)
+ *   0x12 Expert Teachers    -> 0x0d Master Carpenters   (port_bugs.md)
  *   0x17 Veteran Dragoons   -> 0x0d Master Carpenters
  *   0x13 Free Colonists     -> 0x16 Seasoned Scouts     (the free-colonist
  *                                    result comes from the tier roll's own
@@ -286,14 +286,14 @@ int europe_roll_pool_profession(
   }
 }
 
-/* bugs.md: Brewster's ban covers the EXISTING pool too — slots rolled
+/* port_bugs.md: Brewster's ban covers the EXISTING pool too — slots rolled
  * before the flag rose still held Petty Criminals / Indentured Servants,
  * so the Recruit list and the docks disagreed with the Brewster pick
  * dialog. DOS FUN_4345_0342 case 0x14 walks the three pool slot bytes
  * (nation*0x13c - 0x77f6, viceroy_unpacked.c 73160-73168) and overwrites
  * 0x19/0x1a (servant/criminal) with 0x1c — job NONE, which FUN_38fd_4884
  * draws as Free Colonists (0x1c→0x13 label swap, 64719 / 68591). A direct
- * substitution, not a reroll (bugs.md #224 kept it idempotent).
+ * substitution, not a reroll (port_bugs.md #224 kept it idempotent).
  *
  * The pool stores DOS's own 0x1c (the seed-100 saves hold 0x1c in recruit
  * slots and never 0x13); europe_pool_job_name gives it the Free Colonists
@@ -514,7 +514,7 @@ void europe_seed_campaign_prices_w(const ColonizeWorld* w, ColonizeDosRng* rng) 
    * raw 68645-68654: the one roll per cargo lands on every nation's record
    * (`cargo + nation*0x13c - 0x77ac` for n = 0..3), not just the screen the
    * human looks at — without this an AI nation prices every cargo at 0 for
-   * the whole campaign (bugs.md #1011).
+   * the whole campaign (port_bugs.md #1011).
    */
   for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
     for (int c = 0; c < eu->cargo_count && c < (int)COLONIZE_COL1_CARGO_TYPES; ++c) {
@@ -528,7 +528,7 @@ void europe_seed_campaign_prices_w(const ColonizeWorld* w, ColonizeDosRng* rng) 
       col1->nation[n].trade.euro_price[c] = (uint8_t)bid;
     }
   }
-  /* raw 68655-68660: then one 0058(1, -1) per nation (bugs.md #1016). */
+  /* raw 68655-68660: then one 0058(1, -1) per nation (port_bugs.md #1016). */
   for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
     europe_market_seed_tail_w(w, n, 0u);
   }
@@ -588,7 +588,7 @@ static void europe_init_pool(EuropeScreen* eu) {
  * tail left), finds the first slot whose key is >= the lifted key, shifts
  * right and drops it in — an ascending sort by cost. So the Train list is
  * ordered cheapest-first, not by @JOB index the way this port had it
- * (bugs.md).
+ * (port_bugs.md).
  *
  * Transcribed rather than replaced with a qsort because the tie order is
  * observable and is this algorithm's own: an element only moves on a strictly
@@ -862,7 +862,7 @@ int europe_voyage_turns_roll(
    * more RNG(0,1) and a Magellan test and throws both away — there is no
    * west-edge voyage penalty in the shipped code, but the draw still leaves
    * the shared stream one step further on, so the port has to burn it too
-   * (bugs.md #1019). param_2 is the New World x of the crossing: the asm
+   * (port_bugs.md #1019). param_2 is the New World x of the crossing: the asm
    * (viceroy_unpacked.asm:93551 / :123097 / :123378) pushes nation +0x32
    * (return_from_europe_x) or unit +0x314d as the second cdecl argument.
    */
@@ -900,7 +900,7 @@ void europe_reset_campaign_nation(EuropeScreen* eu, int nation) {
    * Match the new-game Col1 human seed in original_saves/COLONY00.SAV
    * (nation 0: current 2, needed 9 — one 584a idle tick has already run by the
    * time DOS writes that save); the first EOT overwrites needed via 584a.
-   * bugs.md #1015.
+   * port_bugs.md #1015.
    */
   eu->current_crosses = 2;
   eu->needed_crosses = 9;

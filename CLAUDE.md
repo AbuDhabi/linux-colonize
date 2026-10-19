@@ -31,7 +31,7 @@ cross-build artefacts; never build or test there. Tests expect repo root as cwd.
 |-----------|-----------|
 | Anything | docs/conventions.md (jargon, code rules, fixture traps, evidence hierarchy, verify loop) |
 | Where does code / a doc live, who owns what | docs/architecture.md (Authority table + layer map) |
-| Bug from bugs.md | bugs.md row by `#` id; docs/manual_gap.md for the feature; docs/<feature>.md |
+| Bug from docs/port_bugs.md | docs/port_bugs.md row by `#` id; docs/manual_gap.md for the feature; docs/<feature>.md |
 | Decomp / DOS behaviour question | `python3 tools/decomp_fn.py FUN_ssss_oooo` (one body, cheap), docs/original_index.md, original_sources_annotated/MODULE_MAP.md |
 | Running / tracing the real DOS game | docs/dos_trace.md (`tools/dosbox_trace.py`) |
 | AI (Euro / Indian / King) | docs/port_plan.md, docs/ai_euro_logic_map.yaml (+ tools/ai_logic_map.py check) |
@@ -77,8 +77,8 @@ lines only (docs/conventions.md "Don't read archives willy-nilly").
   run one with `make test T=unit_units_core CASE=<case>`.
 - Concurrent agents: give each a private subdirectory of the scratchpad (shared
   scratchpad files get overwritten) and disjoint source files.
-- bugs.md: rows have permanent `#` ids and a `Status` (OPEN / FIXED / CLOSED / REFUTED).
-  bugs.md holds OPEN rows only. Agents set FIXED (short resolution) and move the row to
+- docs/port_bugs.md: rows have permanent `#` ids and a `Status` (OPEN / FIXED / CLOSED / REFUTED).
+  It holds OPEN rows only (DOS bugs we refuse to reproduce: docs/dos_bugs.md). Agents set FIXED (short resolution) and move the row to
   docs/archive/bugs_fixed_pending.md; the user sets CLOSED and moves it to
   docs/archive/bugs_closed.md. Grep a row by `| NNN |`, never Read the whole archive.
 - Docs over ~800 lines get split or archived. Audit dumps get a `STATUS:` header.

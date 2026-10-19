@@ -140,7 +140,7 @@ static void fx_close(void) {
 }
 
 /*
- * bugs.md #1093: the invented post-pulse raid pass (ai_contact_indian_raids)
+ * port_bugs.md #1093: the invented post-pulse raid pass (ai_contact_indian_raids)
  * is gone. DOS reaches FUN_5fef_0f14 only from FUN_5fef_1b0e's loser limb,
  * i.e. ai_contact_colony_raid_repelled_w. The raid blocks below drive that
  * entry directly for the colony the fixture Brave stands on, with the old
@@ -183,7 +183,7 @@ static void run_colony_raid(void) {
 }
 
 /*
- * bugs.md #827: FUN_5fef_0f14's kind is `rand(1,4)` behind a walls roll, so a
+ * port_bugs.md #827: FUN_5fef_0f14's kind is `rand(1,4)` behind a walls roll, so a
  * fixture can no longer "force" a kind through an alarm band the way the
  * retired OpenCol band-picker allowed. This probe keeps those blocks honest
  * without changing what they exercise: snapshot the whole fixture, replay the
@@ -408,7 +408,7 @@ static int sp_02(void) {
      * land here and mutate nothing. The old assertion demanded a colony
      * change or an `attacks` bump; DOS bumps that byte only from the 465b
      * trespass arm, and the alarm-band picker that made NOTHING rare was
-     * retired with bugs.md #827.
+     * retired with port_bugs.md #827.
      */
   } else if (c->stock[COLONIZE_CARGO_FOOD] >= food0 && c->population >= 3 &&
              ai_contact_last_raid_kind() != AI_RAID_GOLD &&
@@ -527,7 +527,7 @@ static int sp_04(void) {
 static int sp_05(void) {
 
   /*
-   * (bugs.md #1093) The uniform ≥40 raid-gate check that lived here tested
+   * (port_bugs.md #1093) The uniform ≥40 raid-gate check that lived here tested
    * the deleted invented raid pass; DOS has no such gate (0f14 is reached
    * only from 1b0e's loser limb). Only the fixture state later beats inherit
    * is kept.
@@ -595,7 +595,7 @@ static int sp_06(void) {
     ind->euro_diplo[0] |= COL1_INDIAN_PEACE_BIT;
     col1.head.difficulty = 4; /* cap+1 = 5: roll <= 5 of 0..10 */
     ind->alarm_by_player[0] = 99;
-    /* The tail refuses to roll without a stream (bugs.md #1004) — a NULL rng
+    /* The tail refuses to roll without a stream (port_bugs.md #1004) — a NULL rng
      * answers dos_rng_range's low bound and would burn unconditionally. */
     ColonizeDosRng burn_rng;
     dos_rng_seed(&burn_rng, 0x4cc6u);
@@ -662,7 +662,7 @@ static int sp_07(void) {
 
   /*
    * Gear seize (DOS FUN_5fef_1b0e raw 100730-100744): a Brave that beats a
-   * musketed / mounted foe steps its type. bugs.md #1093: the invented
+   * musketed / mounted foe steps its type. port_bugs.md #1093: the invented
    * adjacent-ambush arm (and its @INDIANWIN chrome) that used to start this
    * fight is gone, so the fight is driven straight through the shared land
    * resolver every 1b0e call site uses.
@@ -680,7 +680,7 @@ static int sp_07(void) {
     units.types[2].movement = 1;
     units.types[2].attack = 0;
     units.types[2].defense = 0; /* total=Brave.attack → always Brave win */
-    /* bugs.md #645: the seizure is a TYPE STEP (+1 armed / +2 mounted) on the
+    /* port_bugs.md #645: the seizure is a TYPE STEP (+1 armed / +2 mounted) on the
      * brave, so the @UNIT ladder rows have to exist in the fixture. */
     snprintf(units.types[3].name, sizeof(units.types[3].name), "Armed Braves");
     units.types[3].movement = 1;
@@ -780,7 +780,7 @@ static int sp_07(void) {
 static int sp_08(void) {
 
   /*
-   * Retired 2026-09-03 (bugs.md "alarm rises incredibly fast"): the fandom
+   * Retired 2026-09-03 (port_bugs.md "alarm rises incredibly fast"): the fandom
    * +2/turn unit- and colony-encroachment bumps are gone — DOS grows alarm
    * only via the 152e threat accumulator. Prelude must leave friction /
    * alarm_by_player untouched with a Soldier AND a colony adjacent.
@@ -854,7 +854,7 @@ static int sp_08(void) {
 static int sp_09(void) {
 
   /*
-   * (Retired 2026-09-22, bugs.md #557.) The AI missionary adjacency pulse
+   * (Retired 2026-09-22, port_bugs.md #557.) The AI missionary adjacency pulse
    * asserted here (convert once, 50/50 heresy, crosses++, mid-band Jesuit /
    * Brebeuf gate, alarm −2 decay) was invented; DOS has no Indian-turn
    * missionary arm. The AI missionary now acts only at a village, through
@@ -864,7 +864,7 @@ static int sp_09(void) {
    */
 
   /*
-   * bugs.md 2026-09-04 (bugs 2 and 3): there is NO passive teach pulse.
+   * port_bugs.md 2026-09-04 (bugs 2 and 3): there is NO passive teach pulse.
    * DOS's Brave-side contact FUN_5bfb_022e (viceroy_unpacked_2.c 87455-88030)
    * has no teach arm at all - its arms are first contact, demand/beg-food,
    * gift (@INDIANGIVEFOOD/@INDIANGIVESTUFF), mission convert and raid.
@@ -945,7 +945,7 @@ static int sp_10(void) {
             (unsigned)col1.nation[0].gold);
     return fail("AI gift gold 20..74 should cost Euro 10 gold (Large)");
   }
-  /* bugs.md #1007: the cooler is a 00f2 alarm delta and writes no village
+  /* port_bugs.md #1007: the cooler is a 00f2 alarm delta and writes no village
    * word; the tribe's own attitude byte only moves if 00f2's tier clamp
    * catches it. Assert the pair scalar instead. */
   if (ind->alarm_by_player[0] != 8) {
@@ -1006,7 +1006,7 @@ static int sp_11(void) {
               (unsigned)col1.nation[0].gold);
       return fail("sparse capital + gold≥75 should Generous (−20)");
     }
-    /* bugs.md #1007: cooler writes the pair scalar, not village words. */
+    /* port_bugs.md #1007: cooler writes the pair scalar, not village words. */
     if (ind->alarm_by_player[0] != 7) {
       return fail("Generous AI gift should cool pair alarm by 3");
     }
@@ -1248,10 +1248,10 @@ static int sp_13(void) {
       return fail("high-friction multi-loot raid should not be NOTHING");
     }
     /*
-     * bugs.md #833: FUN_5fef_0f14 mutates exactly ONE thing per raid. The
+     * port_bugs.md #833: FUN_5fef_0f14 mutates exactly ONE thing per raid. The
      * port's `ai_contact_raid_secondary_loot` (−5 muskets / −1 horse / −1
      * tools on top of the primary kind) was deleted 2026-09-23, so at most
-     * ONE cargo may move here, and only on the STORES kind (bugs.md #830:
+     * ONE cargo may move here, and only on the STORES kind (port_bugs.md #830:
      * `h = stock>>1; amt = rand(min(h,10), h)`).
      */
     int cargo_moved = 0;
@@ -1324,7 +1324,7 @@ static int sp_14(void) {
     snprintf(c->name, sizeof(c->name), "Roanoke");
     memset(c->stock, 0, sizeof(c->stock));
     /*
-     * bugs.md #832: FUN_5fef_0f14's cargo pick is a RETRY ROLL that keeps
+     * port_bugs.md #832: FUN_5fef_0f14's cargo pick is a RETRY ROLL that keeps
      * rerolling while the colony holds < 10 of the rolled cargo (raw 99832),
      * so a 3-muskets warehouse is un-lootable in DOS and the old fixture's
      * `= 3` could only ever produce @RAIDNOTHING. 24 muskets: h = 12, lo =
@@ -1339,7 +1339,7 @@ static int sp_14(void) {
     ctx.human_nation = 0;
     /* kind is rand(1,4): reroll until the goods kind comes up (nothing else
      * can succeed here — no ship, no burn target, no gold). */
-    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
+    /* port_bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
     (void)raid_probe_turn_for_kind(AI_RAID_STORES, 400);
     run_colony_raid();
     if (ai_contact_last_raid_kind() != AI_RAID_STORES) {
@@ -1405,7 +1405,7 @@ static int sp_14(void) {
     ind->alarm_by_player[0] = 76;
     col1.tribe[0].alarm[0].friction = 76;
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_WAR_BIT;
-    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
+    /* port_bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
     (void)raid_probe_turn_for_kind(AI_RAID_STORES, 400);
     run_colony_raid();
     ctx.messages = test_game_txt();
@@ -1423,7 +1423,7 @@ static int sp_14(void) {
   }
 
   /*
-   * bugs.md #832: there is no goods-VALUE sort. FUN_5fef_0f14 rolls a cargo
+   * port_bugs.md #832: there is no goods-VALUE sort. FUN_5fef_0f14 rolls a cargo
    * 0..0xf and rerolls while the colony holds < 10 of it (raw 99819-99833),
    * so a 20-food / 2-silver warehouse can only ever lose FOOD — the 2 silver
    * are below the floor and are never even a candidate. This block used to
@@ -1454,7 +1454,7 @@ static int sp_14(void) {
     c->stock[COLONIZE_CARGO_SILVER] = 2;
     const int food_vs = c->stock[COLONIZE_CARGO_FOOD];
     const int sil_vs = c->stock[COLONIZE_CARGO_SILVER];
-    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
+    /* port_bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
     (void)raid_probe_turn_for_kind(AI_RAID_STORES, 400);
     run_colony_raid();
     if (ai_contact_last_raid_kind() != AI_RAID_STORES) {
@@ -1475,12 +1475,12 @@ static int sp_14(void) {
 static int sp_15(void) {
 
   /*
-   * bugs.md #499: the "FUN_4d56_359c anti-Scout displace/kill" raid arm was
+   * port_bugs.md #499: the "FUN_4d56_359c anti-Scout displace/kill" raid arm was
    * deleted 2026-09-18. FUN_4d56_359c (raw 83481-83505) is the Enter-Hostile-
    * Village wagon outcome (@KILLWAGONS / @MADATWAGONS / @GRUDGEWAGONS), ported
    * as ai_contact_enter_hostile_village; no DOS body harasses Scouts on the
    * Indian move pulse. (The pulse that check ran against was deleted with
-   * bugs.md #1093; only the fixture state later beats inherit is kept.)
+   * port_bugs.md #1093; only the fixture state later beats inherit is kept.)
    */
   units.type_count = 4;
   snprintf(units.types[3].name, sizeof(units.types[3].name), "Scout");
@@ -1570,7 +1570,7 @@ static int sp_16(void) {
   }
 
   /*
-   * Alarmed Brave next to a Free Colonist: still no teach, and (bugs.md
+   * Alarmed Brave next to a Free Colonist: still no teach, and (port_bugs.md
    * 2026-09-04 bug 2) no unprompted @LEARNMAD lecture either — the refusal
    * dialogs belong to the deliberate Live-Among-The-Natives action, not to
    * the Indian move pulse, which has no teach arm in DOS at all.
@@ -1675,7 +1675,7 @@ static int sp_17(void) {
   }
 
   /*
-   * bugs.md #1093: a successful raid on a human colony draws only 0f14's own
+   * port_bugs.md #1093: a successful raid on a human colony draws only 0f14's own
    * per-kind @RAID* line — no @INDIANSURPRISE prefix (its DOS site is the
    * unported 021a human-colony warning) — and 0f14 never touches the peace
    * bit (the old @INDIANWAR peace-break was pulse chrome).
@@ -1746,7 +1746,7 @@ static int sp_17(void) {
       return fail("0f14 must not clear the peace bit (no DOS @INDIANWAR arm)");
     }
     /*
-     * bugs.md #836: the "The %s declare war! Prepare for WAR!" prelude was
+     * port_bugs.md #836: the "The %s declare war! Prepare for WAR!" prelude was
      * typed English with no catalog row behind it (@INDIANWAR is dead
      * GAME.TXT text — no DS tag string exists in VICEROY.EXE), so it was
      * retired 2026-09-23 and there is no "war" wording to look for. What
@@ -1835,7 +1835,7 @@ static int sp_18(void) {
     col1.tribe[0].mission = 0xff;
     col1.tribe[0].alarm[0].friction = 45;
     ind->euro_diplo[0] = 1;
-    /* bugs.md #1005: the demand band is the NATION alarm scalar, not a max()
+    /* port_bugs.md #1005: the demand band is the NATION alarm scalar, not a max()
      * over the village attitude words. */
     ind->alarm_by_player[0] = 45;
     col1.nation[0].gold = 5;
@@ -1856,7 +1856,7 @@ static int sp_18(void) {
     if (c->stock[COLONIZE_CARGO_TOOLS] != tools_ok - 10) {
       return fail("demand succeed should take 10 tools from stock ≥20");
     }
-    /* bugs.md #1007: the cooling is a 00f2 alarm delta; no village word of
+    /* port_bugs.md #1007: the cooling is a 00f2 alarm delta; no village word of
      * the nation is touched (the tier clamp may still cap one). */
     if (ind->alarm_by_player[0] != (uint16_t)(al_ok - 3)) {
       return fail("demand succeed should cool pair alarm by 3");
@@ -1899,7 +1899,7 @@ static int sp_18(void) {
     col1.tribe[0].mission = 0xff;
     col1.tribe[0].alarm[0].friction = 45;
     ind->euro_diplo[0] = 1;
-    /* bugs.md #1005: the demand band is the NATION alarm scalar, not a max()
+    /* port_bugs.md #1005: the demand band is the NATION alarm scalar, not a max()
      * over the village attitude words. */
     ind->alarm_by_player[0] = 45;
     col1.nation[0].gold = 50;
@@ -1955,7 +1955,7 @@ static int sp_18(void) {
     brave->nation_id = 4;
     col1.tribe[0].alarm[0].friction = 45;
     ind->euro_diplo[0] = 1;
-    /* bugs.md #1005: the demand band is the NATION alarm scalar, not a max()
+    /* port_bugs.md #1005: the demand band is the NATION alarm scalar, not a max()
      * over the village attitude words. */
     ind->alarm_by_player[0] = 45;
     col1.nation[0].gold = 60;
@@ -2020,10 +2020,10 @@ static int sp_19(void) {
 static int sp_20(void) {
 
   /*
-   * (Retired 2026-09-22, bugs.md #557.) A "missionary flee" assertion sat
+   * (Retired 2026-09-22, port_bugs.md #557.) A "missionary flee" assertion sat
    * here; the pulse it tested had no DOS site and is deleted.
    *
-   * bugs.md #1093: the raid-target picks this segment asserted (lower
+   * port_bugs.md #1093: the raid-target picks this segment asserted (lower
    * relation / at-war Euro first, muskets-horses colony first, the #1003
    * nation-scalar gate) all belonged to the deleted invented raid pass; DOS
    * reaches 0f14 only from 1b0e's loser limb, on the colony the fight was
@@ -2132,7 +2132,7 @@ static int sp_21(void) {
 static int sp_22(void) {
 
   /*
-   * bugs.md #1093: the colony-approach picks this segment asserted (tools /
+   * port_bugs.md #1093: the colony-approach picks this segment asserted (tools /
    * silver / alarm-band preferences, Series Q) belonged to the deleted
    * invented raid pass. Only the fixture setup later beats inherit is kept.
    */
@@ -2362,7 +2362,7 @@ static int sp_23(void) {
     memset(c_burn->stock, 0, sizeof(c_burn->stock));
     c_burn->stock[COLONIZE_CARGO_LUMBER] = 6;
     /*
-     * bugs.md #924: the burn arm has no DOS lumber/construction step — it
+     * port_bugs.md #924: the burn arm has no DOS lumber/construction step — it
      * rolls an owned @BUILDING row and walks the chain DOWN to the lowest
      * owned tier (FUN_5fef_0f14 raw 99832-99863). Church (0x25) / Cathedral
      * (0x26) are legal targets, the Town Hall chain (root 9) never is.
@@ -2382,10 +2382,10 @@ static int sp_23(void) {
     status[0] = '\0';
     ctx.status = status;
     ctx.status_size = sizeof(status);
-    /* bugs.md #827: the kind is DOS's rand(1,4) behind a walls roll, so the
+    /* port_bugs.md #827: the kind is DOS's rand(1,4) behind a walls roll, so the
      * BURN arm is reached by rerolling the pulse, not by an alarm band. */
     ctx.human_nation = 0;
-    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
+    /* port_bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
     (void)raid_probe_turn_for_kind(AI_RAID_BURN, 400);
     status[0] = '\0'; /* the probe pulses wrote their own lines */
     run_colony_raid();
@@ -2398,7 +2398,7 @@ static int sp_23(void) {
       return fail("lumber-only colony at alarm≥60 should pick AI_RAID_BURN");
     }
     if (c_burn->stock[COLONIZE_CARGO_LUMBER] != 6) {
-      return fail("BURN must not touch the lumber pile (bugs.md #924)");
+      return fail("BURN must not touch the lumber pile (port_bugs.md #924)");
     }
     if (!c_burn->has_building[0]) {
       return fail("BURN must never burn the Town Hall chain (0a88 root 9)");
@@ -2464,7 +2464,7 @@ static int sp_23(void) {
     snprintf(c_fbrn->name, sizeof(c_fbrn->name), "Jamestown");
     memset(c_fbrn->stock, 0, sizeof(c_fbrn->stock));
     c_fbrn->stock[COLONIZE_CARGO_LUMBER] = 6;
-    /* bugs.md #924: BURN needs an owned, non-rejected @BUILDING row to roll. */
+    /* port_bugs.md #924: BURN needs an owned, non-rejected @BUILDING row to roll. */
     colonies.building_type_count = 2;
     snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name),
              "Town Hall");
@@ -2487,9 +2487,9 @@ static int sp_23(void) {
     }
     units_set_combat_human_nation(0);
     units_set_combat_popups(&pop_fbrn, &game_txt_fbrn);
-    /* bugs.md #827: the kind is DOS's rand(1,4) behind a walls roll, so the
+    /* port_bugs.md #827: the kind is DOS's rand(1,4) behind a walls roll, so the
      * BURN arm is reached by rerolling the pulse, not by an alarm band. */
-    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
+    /* port_bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
     (void)raid_probe_turn_for_kind(AI_RAID_BURN, 400);
     status[0] = '\0'; /* the probe pulses wrote their own lines */
     run_colony_raid();
@@ -2503,7 +2503,7 @@ static int sp_23(void) {
       return fail("bystander lumber-only colony at alarm≥70 should pick AI_RAID_BURN");
     }
     /*
-     * bugs.md #829 / DOS-LITERAL raw 99897-99899: a successful raid on a
+     * port_bugs.md #829 / DOS-LITERAL raw 99897-99899: a successful raid on a
      * colony that is NOT human-controlled fires @RAIDWREAK (0x1b8a) at the
      * human — "Spies report: {tribe} raiding party wreaks havoc in the
      * {nation} colony of {colony}." The port used to model 0x1b8a as a loot
@@ -2513,11 +2513,11 @@ static int sp_23(void) {
       fprintf(stderr, "unit_ai_contact: bystander status '%s'\n", status);
       return fail("bystander raid should fire the @RAIDWREAK bulletin (#829)");
     }
-    /* bugs.md #281: the raid only LOOTS — a pop-1 colony survives a
+    /* port_bugs.md #281: the raid only LOOTS — a pop-1 colony survives a
      * BURN raid with its owner intact (destruction lives on the combat
      * path, and only when the last colonist falls there). */
     if (!c_fbrn->active || c_fbrn->nation_id != 1) {
-      return fail("raid must not destroy or capture a pop-1 colony (bugs.md #281)");
+      return fail("raid must not destroy or capture a pop-1 colony (port_bugs.md #281)");
     }
     for (int qi = 0; qi < pop_fbrn.queue_count; ++qi) {
       /* "Spies report" is @RAIDWREAK's own opening (raw 99897) and is
@@ -2526,7 +2526,7 @@ static int sp_23(void) {
           strstr(pop_fbrn.queue[qi].body, "march into") != NULL) {
         fprintf(stderr, "unit_ai_contact: raid abandon popup leaked: '%s'\n",
                 pop_fbrn.queue[qi].body);
-        return fail("raid must not emit abandon/capture chrome (bugs.md #281)");
+        return fail("raid must not emit abandon/capture chrome (port_bugs.md #281)");
       }
     }
     /* Restore neutral baseline for nation 1 so later blocks (which only
@@ -2585,9 +2585,9 @@ static int sp_23(void) {
     c_bd->has_building[0] = true;
     c_bd->has_building[1] = true;
     colonies.colony_count = 1;
-    /* bugs.md #827: the kind is DOS's rand(1,4) behind a walls roll, so the
+    /* port_bugs.md #827: the kind is DOS's rand(1,4) behind a walls roll, so the
      * BURN arm is reached by rerolling the pulse, not by an alarm band. */
-    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
+    /* port_bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
     (void)raid_probe_turn_for_kind(AI_RAID_BURN, 400);
     status[0] = '\0'; /* the probe pulses wrote their own lines */
     run_colony_raid();
@@ -2615,8 +2615,8 @@ static int sp_23(void) {
       c_bd->has_building[1] = true;
       c_bd->population = 1;
       c_bd->active = true;
-      /* Reroll for the BURN kind (rand(1,4), bugs.md #827). */
-      /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
+      /* Reroll for the BURN kind (rand(1,4), port_bugs.md #827). */
+      /* port_bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
       (void)raid_probe_turn_for_kind(AI_RAID_BURN, 400);
       status_burn_bd[0] = '\0';
       run_colony_raid();
@@ -2639,7 +2639,7 @@ static int sp_23(void) {
 static int sp_24(void) {
 
   /*
-   * bugs.md #1093: the escort FOLLOW peel (MD 3/4/5, weights 1/2/3) this
+   * port_bugs.md #1093: the escort FOLLOW peel (MD 3/4/5, weights 1/2/3) this
    * segment asserted was invented (Series N / fandom only) and is deleted
    * with the raid pass. Only the fixture setup later beats inherit is kept.
    */
@@ -2883,9 +2883,9 @@ static int sp_25(void) {
     memset(c_fr->stock, 0, sizeof(c_fr->stock));
     c_fr->stock[COLONIZE_CARGO_FOOD] = 20;
     colonies.colony_count = 1;
-    /* bugs.md #827: the kind is rand(1,4) behind a walls roll, so reroll the
+    /* port_bugs.md #827: the kind is rand(1,4) behind a walls roll, so reroll the
      * pulse (advancing the turn its local RNG is keyed on) until loot lands. */
-    /* bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
+    /* port_bugs.md #827: the kind is rand(1,4) — probe for it, then run one raid. */
     (void)raid_probe_turn_for_kind(AI_RAID_STORES, 400);
     run_colony_raid();
     const int raid_kind = ai_contact_last_raid_kind();
@@ -2945,7 +2945,7 @@ static int sp_25(void) {
       c_fr->stock[COLONIZE_CARGO_FOOD] = 20;
       c_fr->stock[COLONIZE_CARGO_TOOLS] = 10;
       /*
-       * bugs.md #827: the year thresholds this block used to assert (1500 /
+       * port_bugs.md #827: the year thresholds this block used to assert (1500 /
        * 1520) exist nowhere in the decomp. FUN_5fef_0f14's grace is a TURN
        * test, `turn <= (difficulty-2)*-0x28 && turn != that`, and it demotes
        * only the building (2) and ship (3) kinds — and only on Discoverer /
@@ -2996,7 +2996,7 @@ static int sp_25(void) {
     c_fr->population = 3;
     c_fr->colonist_count = 3;
     /*
-     * The loot kind is DOS's rand(1,4) behind a walls roll (bugs.md #827), so
+     * The loot kind is DOS's rand(1,4) behind a walls roll (port_bugs.md #827), so
      * drive 0f14's own seam directly with a private LCG until a kind lands —
      * rerunning the whole Indian pulse hundreds of times would also churn the
      * village-visit bookkeeping that later blocks of this narrative rely on.
@@ -3171,7 +3171,7 @@ static int sp_26(void) {
     if (ai_diplo_indian_relation(&col1, 4, 0) < 40) {
       return fail("WELCOME Yes should raise relation above refuse band");
     }
-    /* bugs.md #1008: the contact arm clamps alarm and writes no village
+    /* port_bugs.md #1008: the contact arm clamps alarm and writes no village
      * attitude word at all, so a pre-contact grudge survives the welcome. */
     if (ind->alarm_by_player[0] > 20) {
       return fail("WELCOME Yes should clamp alarm <= 20 (FUN_5bfb :96624)");
@@ -3574,7 +3574,7 @@ static int sp_30(void) {
 
     /*
      * Leave (choice 10, DOS OVL13 0x4bd2 falls to switch default) shows no
-     * popup at all — only the MP forfeit runs. bugs.md #799.
+     * popup at all — only the MP forfeit runs. port_bugs.md #799.
      */
     ai_popup_clear(&pop);
     pop.has_result = true;
@@ -3592,7 +3592,7 @@ static int sp_30(void) {
 
     /*
      * Trade CHOICE with no contacting unit/cargo → the 2820 shell returns
-     * through LAB_003582 with NO popup at all (bugs.md #960; the old
+     * through LAB_003582 with NO popup at all (port_bugs.md #960; the old
      * typed-English "Trade concluded." fallback was an OpenCol invention).
      */
     {
@@ -3996,7 +3996,7 @@ static int sp_33(void) {
       ind->euro_diplo[0] |= COL1_INDIAN_PEACE_BIT;
       col1.tribe[0].alarm[0].friction = 10;
       st_pop[0] = '\0';
-      /* The tail needs a stream (bugs.md #1004). */
+      /* The tail needs a stream (port_bugs.md #1004). */
       ColonizeDosRng burn_rng2;
       dos_rng_seed(&burn_rng2, 0x4cc6u);
       ColonizeDosRng* const burn_rng2_save = ctx.rng;
@@ -4030,7 +4030,7 @@ static int sp_33(void) {
 static int sp_34(void) {
 
     /*
-     * bugs.md #1006: there is no player gift action. NAMES.TXT @ACTIONS has
+     * port_bugs.md #1006: there is no player gift action. NAMES.TXT @ACTIONS has
      * no gift row, nothing emits the old choice id 2, and the invented
      * Small/Large/Generous amount CHOICE is gone. What survives is the 022e
      * auto-gift drain, reached from ai_contact_gift_or_demand.
@@ -4073,7 +4073,7 @@ static int sp_34(void) {
       for (int qi = 0; qi < pop.queue_count; ++qi) {
         if (pop.queue[qi].tag == AI_POPUP_TAG_CONTACT_GIFT &&
             pop.queue[qi].kind == AI_POPUP_KIND_CHOICE) {
-          return fail("no gift amount CHOICE should exist (bugs.md #1006)");
+          return fail("no gift amount CHOICE should exist (port_bugs.md #1006)");
         }
       }
 
@@ -4110,7 +4110,7 @@ static int sp_34(void) {
       }
 
       /*
-       * bugs.md #1005: the gift gate is the nation alarm scalar alone. A
+       * port_bugs.md #1005: the gift gate is the nation alarm scalar alone. A
        * single sour village no longer makes the whole tribe refuse.
        */
       ai_popup_clear(&pop);
@@ -4119,7 +4119,7 @@ static int sp_34(void) {
       col1.tribe[0].alarm[0].friction = 83;
       ai_contact_apply_gift_gold(&ctx, ind, 4, 0, 10u, 2);
       if (col1.nation[0].gold != 30u) {
-        return fail("one sour village must not gate the gift (bugs.md #1005)");
+        return fail("one sour village must not gate the gift (port_bugs.md #1005)");
       }
 
       /*
@@ -4393,7 +4393,7 @@ static int sp_36(void) {
       eurod->nation_id = 0;
       eurod->tools = 5;
       ind->euro_diplo[0] = 1;
-      /* bugs.md #1005: the band is the nation alarm scalar. */
+      /* port_bugs.md #1005: the band is the nation alarm scalar. */
       ind->alarm_by_player[0] = 45;
       col1.tribe[0].alarm[0].friction = 45;
       col1.tribe[0].state.learned = 1;
@@ -4443,7 +4443,7 @@ static int sp_36(void) {
       if (c->stock[COLONIZE_CARGO_TOOLS] != 25) {
         return fail("Demand gold CHOICE should not touch tools");
       }
-      /* bugs.md #1007: pair scalar, not the village word. */
+      /* port_bugs.md #1007: pair scalar, not the village word. */
       if (ind->alarm_by_player[0] != (uint16_t)(al_d - 3)) {
         return fail("Demand gold CHOICE should cool pair alarm by 3");
       }
@@ -4454,7 +4454,7 @@ static int sp_36(void) {
       /* Tools path from amount CHOICE. */
       ai_popup_clear(&pop);
       col1.nation[0].gold = 80;
-      ind->alarm_by_player[0] = 45; /* bugs.md #1005: nation alarm band */
+      ind->alarm_by_player[0] = 45; /* port_bugs.md #1005: nation alarm band */
       col1.tribe[0].alarm[0].friction = 45;
       c->stock[COLONIZE_CARGO_TOOLS] = 25;
       pop.has_result = true;
@@ -4476,7 +4476,7 @@ static int sp_36(void) {
     /*
      * Demand CHOICE refuse when alarmed (≥55): no tools/gold drain (no amount
      * CHOICE). The old typed "The <tribe> refuse demands." OK popup had no
-     * catalog row and is gone (bugs.md #1100), so the refusal is silent.
+     * catalog row and is gone (port_bugs.md #1100), so the refusal is silent.
      * Cite: FUN_5bfb_102a / fandom Alarm; indian_contact.md demand refuse.
      */
     {
@@ -4506,7 +4506,7 @@ static int sp_36(void) {
       col1.tribe[0].state.learned = 1;
       col1.tribe[0].mission = 0xff;
       col1.nation[0].gold = 100;
-      /* bugs.md #1005: the refuse line is the nation alarm scalar, so the
+      /* port_bugs.md #1005: the refuse line is the nation alarm scalar, so the
        * fixture must keep the 60 set above rather than reset it to 20. */
       col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
       c->active = true;
@@ -4542,7 +4542,7 @@ static int sp_36(void) {
 static int sp_37(void) {
 
     /*
-     * bugs.md #573: a TEACH choice whose payload carries no acting unit is
+     * port_bugs.md #573: a TEACH choice whose payload carries no acting unit is
      * not a DOS situation at all — DOS only ever teaches through
      * thunk_FUN_1000_a618 ("Live Among The Natives") on a named unit and a
      * named village. The port used to run an invented village-adjacency
@@ -4601,7 +4601,7 @@ static int sp_37(void) {
 static int sp_38(void) {
 
     /*
-     * bugs.md / FUN_5bfb_022e @INDIANSCONVERT: the human gets Converts when a
+     * port_bugs.md / FUN_5bfb_022e @INDIANSCONVERT: the human gets Converts when a
      * Brave from a settlement holding *our* mission walks up to one of our
      * colonies — an Indian Convert appears in that colony and the popup names
      * it. Adjacency of our own Missionary to a village does nothing.
@@ -4669,7 +4669,7 @@ static int sp_38(void) {
       col1.head.turn = 0; /* once-per-8-turns gift cooldown never blocks */
       st_pop[0] = '\0';
       int converts = 0;
-      /* bugs.md #879: the spawn must go through units_set_nation, which is
+      /* port_bugs.md #879: the spawn must go through units_set_nation, which is
        * the only thing that stamps col1_vis_mask = 1<<nation (units_spawn
        * zeroes it). A raw `convert->nation_id = ...` left the owner unable to
        * see its own convert through the fog. */
@@ -4684,7 +4684,7 @@ static int sp_38(void) {
         (void)ai_contact_try_village_gifts(&ctx, 4);
         for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
           const ColonizeUnit* u = &units.units[ui];
-          /* bugs.md #840 (reverses #561): DOS raw 97009-97013 reads
+          /* port_bugs.md #840 (reverses #561): DOS raw 97009-97013 reads
            * `puVar4 = *(0x8542)` — the COLONY record, the same pointer the
            * @INDIANSCONVERT STRING0 name fill at raw 97002 uses — and calls
            * `FUN_281f_095c(0, puVar4[0x1a], puVar4[0], puVar4[1])`: the
@@ -4858,7 +4858,7 @@ static int sp_41(void) {
 
   /*
    * Series U: Attack Village open hostilities (the invented Attack/Leave raid
-   * warn was deleted, bugs.md #542). Cite: indian_settlement_4528.md.
+   * warn was deleted, port_bugs.md #542). Cite: indian_settlement_4528.md.
    */
   {
     AiPopupState pop;
@@ -4923,7 +4923,7 @@ static int sp_42(void) {
    * Series T: 4528 ship-village relation bands. DOS has exactly two abort
    * arms (@DONTKNOWSHIPS unmet, @MADATSHIPS alarm>=0x4b or friction>=0x40);
    * everything below them falls straight through to the village meet with no
-   * extra message (bugs.md #983). rel 60 → Meet CHOICE only; rel 80 → MADAT;
+   * extra message (port_bugs.md #983). rel 60 → Meet CHOICE only; rel 80 → MADAT;
    * friction>=64 → mad. Cite: indian_settlement_4528.md.
    */
   {
@@ -5166,7 +5166,7 @@ static int sp_44(void) {
   /*
    * @INDIANBEGFOOD accept/decline (FUN_5bfb_022e already-met adjacency —
    * ai_contact_try_village_beg_food / ai_contact_apply_beg_food). Sign
-   * convention re-read off the decompile 2026-08-31 (bugs.md): DOS's
+   * convention re-read off the decompile 2026-08-31 (port_bugs.md): DOS's
    * `local_c == 2` is the "We offer you ..." row, so *accept* is what
    * subtracts `colony->food >> 1` (half, not a quarter), zeroes the
    * settlement's alarm word and walks the nation alarm down; *refuse*
@@ -5193,7 +5193,7 @@ static int sp_44(void) {
     const uint8_t rel_before_accept = ai_diplo_indian_relation(&col1, 4 + (0), 0);
 
     /*
-     * bugs.md: the offer row is "We offer you {%NUMBER0} of our {%NUMBER1
+     * port_bugs.md: the offer row is "We offer you {%NUMBER0} of our {%NUMBER1
      * food}" and used to render 0 for both, then a quarter. Drive the
      * trigger until it fires and check the row names DOS's half-share and
      * the real store.
@@ -5208,7 +5208,7 @@ static int sp_44(void) {
       ColonizeDosRng* saved_rng = ctx.rng;
       ctx.messages = &beg_txt;
       ColonizeDosRng beg_rng;
-      /* bugs.md: a Brave must actually stand next to the colony to beg. */
+      /* port_bugs.md: a Brave must actually stand next to the colony to beg. */
       const int beg_brave = units_spawn_allow_stack(&units, 0,
         colonies.colonies[0].x + 1, colonies.colonies[0].y + 1);
       if (beg_brave >= 0) {
@@ -5361,7 +5361,7 @@ static int sp_45(void) {
     colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 10;
     colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS] = 40;
     /*
-     * Fixture trap (bugs.md #797): the DS:0x84BC weight is the LIVE
+     * Fixture trap (port_bugs.md #797): the DS:0x84BC weight is the LIVE
      * `nation[e].trade.euro_price[cargo] - 1`, not a frozen table, and a
      * zeroed col1 fixture makes every weight 0 — which in DOS means the cargo
      * scan finds nothing and no demand fires at all. Seed Tools at the DOS
@@ -5378,7 +5378,7 @@ static int sp_45(void) {
      * `local_10` (viceroy 96707): 022e only reaches LAB_5bfb_0def when the
      * encounter is NOT the generous half — village word > 0x7f, or this pair
      * already demanded once (contact_state == 1). Without it bVar6 is true at
-     * alarm 50 / word 20 and DOS hands over a gift instead (bugs.md: a
+     * alarm 50 / word 20 and DOS hands over a gift instead (port_bugs.md: a
      * wandering Brave with no grievance must not demand).
      */
     col1.indian[0].contact_state[0] = 1;
@@ -5718,7 +5718,7 @@ static int sp_46(void) {
 static int sp_47(void) {
 
   /*
-   * bugs.md 2026-09-04 (bug 5, "Indians never seem to visit bearing gifts"):
+   * port_bugs.md 2026-09-04 (bug 5, "Indians never seem to visit bearing gifts"):
    * the generous half of FUN_5bfb_022e (@INDIANGIVESTUFF / @INDIANGIVEFOOD)
    * was written but never wired. A Brave standing beside an already-met
    * colony at low alarm must hand goods over and raise a popup for the human.
@@ -5799,7 +5799,7 @@ static int sp_47(void) {
     }
 
     /*
-     * bugs.md #819: the @INDIANGIVESTUFF quantity is
+     * port_bugs.md #819: the @INDIANGIVESTUFF quantity is
      * `100 / (DS:0x84BC[nation*0x10 + cargo] + 1)` (FUN_5bfb_022e raw 87930),
      * and that byte is the LIVE `euro_price[cargo] - 1` of the VISITED
      * colony's owner (colony+0x1a), not a start-of-game capture. Same seed,
@@ -5877,7 +5877,7 @@ static int sp_47(void) {
      * it; the once-per-nation-per-turn cadence is ai.c §9's call structure.
      */
     /*
-     * bugs.md #417 ("Indians came to demand Horses very damn quickly, at zero
+     * port_bugs.md #417 ("Indians came to demand Horses very damn quickly, at zero
      * apparent alarm"). FUN_5bfb_022e is ONE encounter: `bVar6` picks the
      * generous half or the demand half (viceroy_unpacked.c 96723-96731 and
      * the `if (!bVar6)` guard at 96833), never both. At alarm 0 the mood
@@ -6045,7 +6045,7 @@ static int sp_48(void) {
       return fail("at war: no prompt");
     }
     /*
-     * bugs.md #382: asymmetric bytes. The peer is at peace with us, we are not
+     * port_bugs.md #382: asymmetric bytes. The peer is at peace with us, we are not
      * at peace with them — DOS tests the ATTACKER'S own byte
      * (FUN_281f_0a38(attacker, target) & 0x40), the same byte the Foreign
      * Affairs report prints, so no @HAVETREATY prompt may appear here.
@@ -6179,7 +6179,7 @@ static int sp_49(void) {
       return fail("417e Mode 2 requires AI gold >= 1500");
     }
     /*
-     * bugs.md #587 — FUN_4d56_417e raw 83579-83580: the -1500 discount is
+     * port_bugs.md #587 — FUN_4d56_417e raw 83579-83580: the -1500 discount is
      * keyed on the acting unit's PROFESSION byte (+0x315b == 0x18, Jesuit),
      * so a blessed non-Jesuit colonist pays exactly 1500 more.
      */
@@ -6569,7 +6569,7 @@ static int sp_53(void) {
 static int sp_54(void) {
 
     /*
-     * bugs.md #492: the @CHIEFAREA "tales of nearby lands" reveal is
+     * port_bugs.md #492: the @CHIEFAREA "tales of nearby lands" reveal is
      * FUN_13f1_0158-filtered (map_reveal_sight), not a raw 13x13 square: the
      * inner 3x3 is unconditional, every outer tile only when its continent
      * matches the Scout's. Sweep turn seeds until the r == 2 tales arm fires,
@@ -6637,7 +6637,7 @@ static int sp_54(void) {
     }
 
     /*
-     * bugs.md #501: rows must come out in the DOS fixed order (1 Trade,
+     * port_bugs.md #501: rows must come out in the DOS fixed order (1 Trade,
      * 2 Enter Hostile, 3 Mission, 4 Heresy, 5 Live Among, 6 Chief, 7 Incite,
      * 8 Demand, 9 Attack, 10 Cancel). A Soldier (attack 2, met) discriminates:
      * the old builder emitted Attack Village before Demand Tribute.
@@ -6664,7 +6664,7 @@ static int sp_54(void) {
                 q->choice_count > 2 ? q->choice_ids[2] : -1);
         return fail("menu: DOS row order is Demand(8) then Attack(9) then Cancel(10)");
       }
-      /* bugs.md #542: unmet tribe still gets the @ACTIONS menu (OVL13::00493f
+      /* port_bugs.md #542: unmet tribe still gets the @ACTIONS menu (OVL13::00493f
        * jumps past rows 3-8 to the row-9 add) — no invented raid warn. */
       {
         const uint8_t saved_diplo = ind->euro_diplo[0];
@@ -6788,7 +6788,7 @@ static int sp_55(void) {
 
 static int sp_56(void) {
 
-    /* bugs.md #288: an Indentured Servant is a learner like a Free Colonist
+    /* port_bugs.md #288: an Indentured Servant is a learner like a Free Colonist
      * (DOS a618: profession ∈ {0x19, 0x1c} reaches the LEARNSTAY arm) — it
      * must NOT get the @LEARNCRIMINAL "offend us" refusal nor @LEARNMASTER. */
     {
@@ -6833,7 +6833,7 @@ static int sp_56(void) {
       units_despawn(&units, srv_id);
     }
 
-    /* bugs.md #564: the village-teach skill draw seeds from
+    /* port_bugs.md #564: the village-teach skill draw seeds from
      * (village.y*256 + village.x) + DS:0x8d80 (post_map.boot_timer), so the
      * same village on the same map teaches different skills in games with a
      * different boot timer. Guard: the taught profession must not be
@@ -7041,7 +7041,7 @@ static int sp_58(void) {
     }
 
     /*
-     * bugs.md #558 — Denounce Heresy "Jesuit" bonus is a DOS typo.
+     * port_bugs.md #558 — Denounce Heresy "Jesuit" bonus is a DOS typo.
      * thunk_FUN_1000_a594 (viceroy_overlays.asm 126507:
      * IMUL BX,[BP+6],0x1c / CMP byte ptr [BX+0x315b],0x3 / MOV AX,1) tests
      * the denouncer's PROFESSION byte against @JOB row 3 (Cotton Planter),

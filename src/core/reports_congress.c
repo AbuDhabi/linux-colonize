@@ -36,10 +36,10 @@ void reports_render_religious(
   const ColonizeSpriteSheet* icons = reports_icons_for(view, COLONIZE_REPORT_RELIGIOUS);
   /*
    * FONTTINY, like every other report body: the 3f41 overlay only ever loads
-   * the FONTTINY pointer at DS:0x89e and has no second font (bugs.md #428).
+   * the FONTTINY pointer at DS:0x89e and has no second font (port_bugs.md #428).
    * This was the one renderer that kept the dispatcher's font, which is
    * `game->menu_font` = FONTSMAL — so the bar's number overlay and the
-   * cheat-only line below drew in the wrong face (bugs.md #979). It shows
+   * cheat-only line below drew in the wrong face (port_bugs.md #979). It shows
    * only when a number is actually drawn (the DOS numbers toggle, or
    * step == 1 && amount > 1), which is why the golden never caught it.
    */
@@ -66,7 +66,7 @@ void reports_render_religious(
    * DS:0x5383 bit5 (`cheats_enabled`, the Alt-WIN unlock) set, DOS formats
    * DS:0x11a9 ("(%d of %d)") from the same nation+0x2e / nation+0x30 pair and
    * draws it at x=10, y=25, colour 15 — on top of the bar's left end
-   * (bugs.md #977). The template has no `COLONIZE` text catalogs row, so it is read
+   * (port_bugs.md #977). The template has no `COLONIZE` text catalogs row, so it is read
    * out of the shipped EXE rather than typed in (docs/data_vs_hardcoded.md
    * Part D); with no EXE to read, nothing is drawn.
    */
@@ -208,7 +208,7 @@ void reports_render_congress_page1(
         : reports_misc_display_word(3, "")
     );
   } else if (!ref_arrived) {
-    /* bugs.md #229/257: after declaring, FF elections are over — the bell bar
+    /* port_bugs.md #229/257: after declaring, FF elections are over — the bell bar
      * counts toward the foreign intervention instead. DOS's top header is
      * just "<nation> Intervention:" (@MISC 113); "Intervention Force" (@MISC
      * 111) is the header of the soldier lineup row further down. */
@@ -227,7 +227,7 @@ void reports_render_congress_page1(
    * " " "(" <needed - min(pool, needed)> " " <DS:0x2dee> " " <needed> ")".
    * DS:0x50/0x5e/0x60 are the literal " ", "(" and ")"; DS:0x2dee is
    * LABELS.TXT @MISC 26. DOS draws the buffer unconditionally after this, so
-   * the tail shows even when the header itself is empty (bugs.md #978).
+   * the tail shows even when the header itself is empty (port_bugs.md #978).
    */
   if (col1->head.game_options.cheats_enabled) {
     const unsigned pool = founding_fathers_bells_pool(col1, human);
@@ -328,7 +328,7 @@ void reports_render_congress_page1(
     static const int kForceX[4] = {4, 128, 193, 260};
     static const int kForceXEnd = 316;
     /*
-     * bugs.md "REF units squished unnecessarily": DOS draws this row through
+     * port_bugs.md "REF units squished unnecessarily": DOS draws this row through
      * the shared icon-row drawer (FUN_1097_0174 — the 3f41 builder brackets
      * the force line with DS:0x70 = 1), which packs icons at their natural
      * width and only shrinks the step when the run would overflow its cell.
@@ -369,7 +369,7 @@ void reports_render_congress_page1(
   }
 
   /*
-   * bugs.md / DOS 3f41 (viceroy_unpacked.c ~69774): when the foreign-
+   * port_bugs.md / DOS 3f41 (viceroy_unpacked.c ~69774): when the foreign-
    * intervention pool (DS:0x53e2.. = head.backup_force, seeded on declaring
    * independence and drained by bell spending) is non-zero, a second force
    * row appears under the REF lines: "<Ally nationality> Intervention Force"
@@ -377,21 +377,21 @@ void reports_render_congress_page1(
    * fixed layout has 10px here, so the counts are drawn as one text line.
    */
   /*
-   * bugs.md #230 / DOS 3f41 (~69774): when the foreign-intervention pool
+   * port_bugs.md #230 / DOS 3f41 (~69774): when the foreign-intervention pool
    * (DS:0x53e2 = head.backup_force) is non-zero, a second force row appears
    * under the REF lines in the SAME format — icon lineup of regulars,
-   * cavalry, artillery, man-o-wars (bugs.md #264: it gets a full-height band
+   * cavalry, artillery, man-o-wars (port_bugs.md #264: it gets a full-height band
    * and pushes the Founding Fathers block down).
    */
   int pool_sum = 0;
   for (int i = 0; i < 4; ++i) {
     pool_sum += (int)col1->head.backup_force[i];
   }
-  /* bugs.md #264: the intervention row needs its own full band — when it is
+  /* port_bugs.md #264: the intervention row needs its own full band — when it is
    * present, the Founding Fathers header (and list) move down below it
    * instead of sharing the fixed 10px gap and overlapping both neighbors. */
   const int interv_row_y = REPORTS_CONGRESS_FORCE_Y + REPORTS_CONGRESS_FORCE_H + 2;
-  /* bugs.md: the "<Ally> Intervention Force:" header gets its own row, the
+  /* port_bugs.md: the "<Ally> Intervention Force:" header gets its own row, the
    * way the REF's "<Nation> Expeditionary Force:" header does (text at
    * TEXT3_Y, lineup at FORCE_Y) — the lineup then owns the full row width
    * below it instead of starting after the header at x=110. */
@@ -401,7 +401,7 @@ void reports_render_congress_page1(
     : REPORTS_CONGRESS_FF_HEADER_Y;
   {
     if (pool_sum > 0) {
-      /* bugs.md #251: the intervention lineup is Continental Army /
+      /* port_bugs.md #251: the intervention lineup is Continental Army /
        * Continental Cavalry (@UNIT icons 129/130), not Regulars/Cavalry,
        * and it carries its own "<Ally> Intervention Force:" header. */
       static const int kForceIndex2[4] = {0, 1, 3, 2};
@@ -481,7 +481,7 @@ void reports_render_congress_page1(
  * So there is no coordinate table to measure: every father's position is in
  * his own CC-xx.SS. The earlier pass template-matched 10 of them off
  * continental_p2.png and skipped the other 15 as unknown, which is why Paul
- * Revere and Francis Drake never appeared (bugs.md). All 25 now draw, and the
+ * Revere and Francis Drake never appeared (port_bugs.md). All 25 now draw, and the
  * four positions that pass had matched cleanly (De La Salle, Washington,
  * Jefferson, Franklin) come out byte-identical from the anchors.
  */
@@ -589,7 +589,7 @@ static int reports_labor_normalize_job(int job) {
   return job;
 }
 
-/* bugs.md #575: DOS's labor-report unit filter (`FUN_3f41_10d8` ->
+/* port_bugs.md #575: DOS's labor-report unit filter (`FUN_3f41_10d8` ->
  * `FUN_281f_0b28` -> FUN_15eb_0902) is the DS:0x30e[type] >= 0 predicate —
  * "this @UNIT type carries a profession slot" — not a type cut-off. That
  * keeps ships (13-18), Artillery, Wagon Train, Treasure and the King's

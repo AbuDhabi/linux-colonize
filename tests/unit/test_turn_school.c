@@ -3,7 +3,7 @@
 #include "test_turn_common.h"
 
 /*
- * bugs.md #380: a Veteran Soldier teaching in a College turns a Free Colonist
+ * port_bugs.md #380: a Veteran Soldier teaching in a College turns a Free Colonist
  * who is working a FIELD TILE (not sitting in the school) into a Veteran
  * Soldier after 6 turns. The old port needed profession == @JOB 18 for the
  * teacher, required students to be inside the school, and handed out the
@@ -81,7 +81,7 @@ static int unit_train_veteran_soldier(void) {
 }
 
 /*
- * bugs.md #580 tick half: DOS FUN_364b_0688 (raw 57510-57535) caps the
+ * port_bugs.md #580 tick half: DOS FUN_364b_0688 (raw 57510-57535) caps the
  * graduation loop with the bare literal `local_6e < 3` and picks teachers on
  * occupation 0x12 + the level test only -- it never consults the colony's
  * owned school tier. So a Schoolhouse-only colony that somehow seats four
@@ -528,7 +528,7 @@ static int unit_phase_h_trainprofession(void) {
     turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
     if (col->colonists[0].profession == COLONIZE_JOB_COTTON_PLANTER) {
       discovered = 1;
-      /* bugs.md #771: raw 57606-57607 writes only the profession byte; the
+      /* port_bugs.md #771: raw 57606-57607 writes only the profession byte; the
        * education counter survives (3 + this turn's raw 57505 tick = 4). */
       if (col->colonists[0].turns_in_job != 4) {
         fprintf(stderr, "phaseh: turns_in_job reset to %d\n", col->colonists[0].turns_in_job);
@@ -562,7 +562,7 @@ static int unit_phase_h_trainprofession(void) {
   return 0;
 }
 
-/* bugs.md #770: FUN_4962_0606 (raw 78332-78374) counts the nation's MAP
+/* port_bugs.md #770: FUN_4962_0606 (raw 78332-78374) counts the nation's MAP
  * units before its colonists, so a Master Cotton Planter standing outside any
  * colony still closes the on-the-job Cotton Planter roll for the nation. */
 static int unit_phase_h_map_expert_blocks_learn(void) {

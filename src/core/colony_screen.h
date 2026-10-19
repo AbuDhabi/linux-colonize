@@ -92,7 +92,7 @@
 #define COLONY_BUILDING_SLOT_W 48
 #define COLONY_BUILDING_SLOT_H 32
 /* FUN_2f2b_348c's row loop runs @JOB 0..0x18; the port's jobs menu carries
- * rows 0..0x12 (the nine field jobs plus the ten indoor jobs, bugs.md #900)
+ * rows 0..0x12 (the nine field jobs plus the ten indoor jobs, port_bugs.md #900)
  * plus the "Clear Specialty" row. Rows 0x13..0x18 are the leave-as list and
  * live in the eject popup. */
 #define COLONY_JOB_LIST_MAX (COLONIES_JOB_TEACHER + 2)
@@ -113,11 +113,11 @@
 #define COLONY_PANEL_CONTENT_H (COLONY_CARGO_STRIP_Y - COLONY_PANEL_CONTENT_Y - 4)
 
 #define COLONY_TRANSPORT_MAX 8
-/* bugs.md #11: transport icons sat 10px too high; nudged down. */
+/* port_bugs.md #11: transport icons sat 10px too high; nudged down. */
 #define COLONY_TRANSPORT_ICON_Y (COLONY_BOTTOM_PANEL_Y + 18)
 #define COLONY_TRANSPORT_PITCH 18
 /*
- * bugs.md: hold-box geometry measured off COLONY.PIK itself (the panel art
+ * port_bugs.md: hold-box geometry measured off COLONY.PIK itself (the panel art
  * carries six 9x12 box interiors at panel-local x = 13 + i*12, y = 37..48,
  * i.e. screen x = 128 + i*12, y = 165). The old 14px pitch drifted up to
  * 10px right of the painted boxes by the sixth hold.
@@ -129,7 +129,7 @@
 #define COLONY_HOLD_PITCH 12
 
 /* DOS FUN_15eb_09c0 counts the colony tile's units into DS:0x8d72 and clamps
- * at 0x32 (bugs.md #1078). */
+ * at 0x32 (port_bugs.md #1078). */
 #define COLONY_OUTSIDE_MAX 0x32
 
 typedef enum ColonyMultiMode {
@@ -163,7 +163,7 @@ typedef enum ColonyScreenHit {
   COLONY_HIT_CONSTRUCTION_ROW,
   COLONY_HIT_CONSTRUCTION_CLEAR,
   COLONY_HIT_CONSTRUCTION_BUY,
-  COLONY_HIT_CONSTRUCTION_MORE, /* bugs.md #436: DOS More... page row */
+  COLONY_HIT_CONSTRUCTION_MORE, /* port_bugs.md #436: DOS More... page row */
   COLONY_HIT_EXIT,
   COLONY_HIT_CONSTRUCTION_OUTSIDE,
   COLONY_HIT_AREA_TILE,
@@ -305,7 +305,7 @@ typedef struct ColonyScreenView {
   ColonyDialogRect construction_rect;
   int construction_rows_per_col; /* DOS 2f2b_5bd2: 16 rows per PAGE when > 22 rows */
   int construction_col_w;
-  int construction_page; /* bugs.md #436: DOS pages (More...), never columns */
+  int construction_page; /* port_bugs.md #436: DOS pages (More...), never columns */
 
   bool jobs_open;
   int jobs_tile_index;
@@ -372,7 +372,7 @@ typedef struct ColonyScreenView {
 
   /* DS:0x8d80 — the game's BIOS boot tick (post_map.boot_timer, saved in
    * the tail @608), the per-game half of the building-layout seed
-   * (FUN_2f2b_0434). bugs.md #578. Unset = the screenshot goldens' value. */
+   * (FUN_2f2b_0434). port_bugs.md #578. Unset = the screenshot goldens' value. */
   bool layout_seed_set;
   uint32_t layout_seed_base;
 
@@ -409,7 +409,7 @@ void colony_screen_open_construction(
   const ColoniesBuildableOpts* buildable_opts
 );
 void colony_screen_close_construction(ColonyScreenView* view);
-/* bugs.md #436: advance the construction picker's More... page. */
+/* port_bugs.md #436: advance the construction picker's More... page. */
 void colony_screen_construction_next_page(ColonyScreenView* view);
 
 void colony_screen_open_jobs(

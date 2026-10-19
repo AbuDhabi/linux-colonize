@@ -66,7 +66,7 @@ static void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
           hammers_need > 0 && col->hammers >= hammers_need) {
         col->colony_flags =
           (uint8_t)(col->colony_flags | COLONIZE_COLONY_FLAG_BUILD_COMPLETE);
-        /* bugs.md #789 (REFUTED): FUN_364b_0114 does call the popup thunk
+        /* port_bugs.md #789 (REFUTED): FUN_364b_0114 does call the popup thunk
          * unconditionally, but the thunk lands in FUN_364b_0000, whose whole
          * body sits behind `if (*(char*)0xa897 != '\0')` (raw 56839).
          * DS:0xa897 is set by the colony-select routine (raw 9325-9331) only
@@ -180,7 +180,7 @@ static void turn_run_colony_eot_with(
   TurnColonyBeforeProduction before, void* before_user
 ) {
   turn_set_birth_units_pool(ctx->units);
-  /* bugs.md #770: FUN_4962_0606 (raw 78332-78374) counts the nation's map
+  /* port_bugs.md #770: FUN_4962_0606 (raw 78332-78374) counts the nation's map
    * units before its colonists, so the specialty census needs the pool. */
   const ColonizeWorld pw = world_from_turn_ctx(ctx);
   turn_run_colony_production_with_w(&pw, ctx->human_nation, out, ctx->ai_popups, ctx->messages, before, before_user);
@@ -213,7 +213,7 @@ void turn_colony_free_production(
  * out_colony_bells / out_colony_count (both optional) hand back each active
  * colony's bells in DOS colony order: FUN_364b_0688 (raw 57231) calls
  * FUN_4345_0a22 once per COLONY, so the nation tick has to accrue and test
- * per colony, not once on the sum (bugs.md #934).
+ * per colony, not once on the sum (port_bugs.md #934).
  */
 static int turn_count_bells_and_crosses_for_nation_ex(
   const ColonizeColonyPool* pool,
@@ -336,7 +336,7 @@ static void turn_notify_dock_immigrant(
   memset(&tok, 0, sizeof(tok));
   tok.country = ctx->europe->nation_name[0] ? ctx->europe->nation_name : "";
   /* 5e52 raw 68592: %STRING0 = @HOMEPORT name (DS table -0x7c74), not a
-   * literal (bugs.md #673). */
+   * literal (port_bugs.md #673). */
   tok.string0 = ctx->europe->port_city[0] ? ctx->europe->port_city : "";
   tok.string1 = immigrant_name && immigrant_name[0] ? immigrant_name : "";
   char body[AI_POPUP_BODY_LEN];
@@ -362,7 +362,7 @@ static void turn_notify_dock_immigrant(
  */
 static void turn_woi_bell_test(ColonizeTurnContext* ctx, int n, int bells) {
   /*
-   * bugs.md #231 / DOS FUN_4345_0a22 (viceroy ~73346): once per war,
+   * port_bugs.md #231 / DOS FUN_4345_0a22 (viceroy ~73346): once per war,
    * while the REF has not yet landed (0x5382 bit1 clear) and the bell
    * pool has started accruing, show @AMBUSHHINT then @CONSIDER —
    * "%STRING0 is considering intervention ... generate %NUMBER0 liberty
@@ -370,9 +370,9 @@ static void turn_woi_bell_test(ColonizeTurnContext* ctx, int n, int bells) {
    * confirmed live 2026-08-18 as exactly this dialog's one-shot).
    */
   /* DOS-LITERAL raw 73347: `(0x5382 & 6) == 0` — bit 0x02 is the
-   * intervention-ANNOUNCE latch (game_options.ref_present, bugs.md
+   * intervention-ANNOUNCE latch (game_options.ref_present, port_bugs.md
    * #865), bit 0x04 the hint one-shot. */
-  /* bugs.md #1057c: 0a22 runs per colony for the OWNING nation, so the
+  /* port_bugs.md #1057c: 0a22 runs per colony for the OWNING nation, so the
    * `bells < pool` test (raw 73345-73346) and the 0f66 %NUMBER0 read the
    * ticking colony's owner, not the human. */
   const int hint_nation =
@@ -384,7 +384,7 @@ static void turn_woi_bell_test(ColonizeTurnContext* ctx, int n, int bells) {
       hint_nation >= 0) {
     const int ally = (int)ctx->col1->head.rival_nation_slot_1;
     const char* ally_name = "";
-    /* bugs.md #252 rule: PARENT country ("France"), never the new-world
+    /* port_bugs.md #252 rule: PARENT country ("France"), never the new-world
      * colony name player[ally].country_name ("New France"). */
     if (ally >= 0 && ally < 4) {
       ally_name = reports_nation_country_name(ally); /* NAMES.TXT @COUNTRY */
@@ -414,7 +414,7 @@ static void turn_woi_bell_test(ColonizeTurnContext* ctx, int n, int bells) {
     if (ai_king_spend_woi_bell_pool(ctx, n)) {
       founding_fathers_consume_woi_bell_pool(ctx, n);
       if (ctx->status && ctx->status_size > 0 && n == ctx->human_nation) {
-        /* bugs.md #538: the bell spend only ANNOUNCES (DOS 0a22 ->
+        /* port_bugs.md #538: the bell spend only ANNOUNCES (DOS 0a22 ->
          * FUN_43f7_1528); the force itself lands from 2022's free drain
          * on a later turn. */
         snprintf(
@@ -561,7 +561,7 @@ void turn_run_ai_nation_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out, i
     nat->current_crosses = (uint16_t)cur;
   }
   if (control == 1) {
-    /* bugs.md #934: keep electing while the pool clears the new threshold. */
+    /* port_bugs.md #934: keep electing while the pool clears the new threshold. */
     int guard = (int)COLONIZE_COL1_FF_COUNT;
     while (guard-- > 0 && founding_fathers_try_elect(ctx, n)) {
     }
@@ -600,7 +600,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       }
       ctx->europe->liberty_bells_pool = (uint16_t)total;
     }
-    /* bugs.md: no immigration during the War of Independence — Europe is
+    /* port_bugs.md: no immigration during the War of Independence — Europe is
      * closed to the rebels (user-observed DOS; the dock is unreachable
      * anyway once the WoI blocks the European Status). */
     const int woi_now =
@@ -667,7 +667,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       }
     }
     /*
-     * bugs.md #923 / DOS FUN_3844_00f2: the immigration tick FUN_291f_0a90
+     * port_bugs.md #923 / DOS FUN_3844_00f2: the immigration tick FUN_291f_0a90
      * (= FUN_38fd_5e52) runs at raw 58375, BEFORE the per-colony tick
      * FUN_291f_0950 (raw 58386) where nation+0x2e += *0x8dea adds this turn's
      * church crosses. So the threshold test above saw last turn's crosses
@@ -684,7 +684,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
     /* Keep the col1 nation copy live — the Religious report (F1) reads
      * nation[human].current/needed_crosses, which only the save/load
      * bridge used to refresh, so a live campaign showed no crosses at all
-     * (bugs.md). Must stay after the tick so the report sees the post-tick
+     * (port_bugs.md). Must stay after the tick so the report sees the post-tick
      * value. */
     if (ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 && ctx->human_nation < 4) {
       ctx->col1->nation[ctx->human_nation].current_crosses = ctx->europe->current_crosses;
@@ -730,12 +730,12 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
        * DOS-LITERAL FUN_4345_0a22 raw 73341-73342: `+0xc += bells;
        * +0xe += bells;` — +0xc is the live FF bell pool (zeroed on elect,
        * raw 73370) and +0xe is this turn's production (zeroed before the
-       * colony loop, FUN_3844_00f2 raw 58382). bugs.md #933.
+       * colony loop, FUN_3844_00f2 raw 58382). port_bugs.md #933.
        *
-       * bugs.md #934: 0a22 runs once per COLONY (FUN_364b_0688 raw 57231),
+       * port_bugs.md #934: 0a22 runs once per COLONY (FUN_364b_0688 raw 57231),
        * so the elect test is re-run after each colony's bells land — a big
        * empire can cross the threshold twice in one turn. The human's test
-       * stays in TURN_PROC_FINISH (bugs.md #434), so only the AI nations
+       * stays in TURN_PROC_FINISH (port_bugs.md #434), so only the AI nations
        * elect here.
        */
       nat->liberty_bells_last_turn = (uint16_t)(nb > 65535 ? 65535 : nb);
@@ -772,7 +772,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
    * the @KINGFRIGATE event — Crown offers a FRIGATE (+10% tax) when the
    * nation's colonies are threatened by warships — and lives in ai_king.c
    * (ai_king_frigate_*). An earlier duplicate here misread type 0x11 as a
-   * "Merchantman" and spawned a free ship every 8th turn (bugs.md
+   * "Merchantman" and spawned a free ship every 8th turn (port_bugs.md
    * free_merchanman.SAV; player-corrected: a Merchantman is the victim,
    * not the help).
    */
@@ -916,12 +916,12 @@ void turn_tally_professions(
 }
 
 /*
- * bugs.md: damaged ships have a homing system — the nearest OWN colony with
+ * port_bugs.md: damaged ships have a homing system — the nearest OWN colony with
  * a Drydock; a nation with no such colony sends them to Europe when Europe
  * is friendly: the pre-WoI human's ships sail home as an Expected-Soon
  * voyage (that voyage IS the repair timeout — they arrive repaired), and a
  * damaged AI hull (crown or peer) is parked off-map in the Europe park
- * until its repair timer runs out (bugs.md #871). Runs each nation phase, after units_tick_drydock_repair.
+ * until its repair timer runs out (port_bugs.md #871). Runs each nation phase, after units_tick_drydock_repair.
  */
 /* Drydock (DOS colony feature bit 7) or its Shipyard upgrade. */
 static int turn_colony_repairs_ships(const ColonizeColony* c, int drydock, int shipyard) {
@@ -995,7 +995,7 @@ void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
      * a damaged ship through: units_tick_drydock_repair, which runs first,
      * clears bit7 the moment the timer completes, so the Europe fallback
      * below was unreachable and every damaged ship stayed at whatever colony
-     * combat had parked it on (bugs.md).
+     * combat had parked it on (port_bugs.md).
      */
     if (!u->repair_pending) {
       continue; /* construction — build tick owns bit7 */
@@ -1038,7 +1038,7 @@ void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
     }
     if (nation != ctx->human_nation) {
       /*
-       * DOS-LITERAL FUN_5fef_0352 raw 99641-99644 (bugs.md #871): a damaged
+       * DOS-LITERAL FUN_5fef_0352 raw 99641-99644 (port_bugs.md #871): a damaged
        * hull whose owner has no repair port is relocated OFF-MAP for EVERY
        * nation — the colony scan misses (local_20 == 0x3e7) and the
        * FUN_281f_0812 / FUN_281f_0844 unlink/place pair is handed
@@ -1067,7 +1067,7 @@ void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
         ai_euro_sync_aboard_cargo_xy(ctx->units, u);
       }
       /* Every turn, not just the one that parks it: the MP refresh hands the
-       * allotment back to anything in the park now (bugs.md #953), and a
+       * allotment back to anything in the park now (port_bugs.md #953), and a
        * wreck waiting out its repair timer must not sail. */
       u->moves = 0;
       continue;
@@ -1087,7 +1087,7 @@ void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
         ctx->col1_ok && ctx->col1 &&
         founding_fathers_nation_has(ctx->col1, nation, FF_FERDINAND_MAGELLAN);
       const int fleet = turn_voyage_ship_count(ctx, nation);
-      /* bugs.md #1019: the roll's x is the New World side of the crossing. */
+      /* port_bugs.md #1019: the roll's x is the New World side of the crossing. */
       const int turns = europe_voyage_turns_roll(ctx->rng, magellan, fleet, u->x);
       /* Same edge rule as the manual sail-to-Europe path so the ship comes
        * back on the side it left from. */

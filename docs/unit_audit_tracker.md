@@ -4,7 +4,7 @@ STATUS: live tracker. Update when an audit starts or closes.
 
 One audit = one unit type (or expert profession) checked end to end against the
 decomp: human paths, AI arms, Europe/dock handling, combat, colony work, sidebar and
-popup text, save round-trip. Findings go into bugs.md as rows prefixed
+popup text, save round-trip. Findings go into port_bugs.md as rows prefixed
 `<Type> audit:`; this file only records coverage.
 
 Unit types come from `COLONIZE/NAMES.TXT` `@UNIT` (type byte = row); expert
@@ -12,7 +12,7 @@ professions from `@JOB` (profession byte = row). Identify by row, never by name.
 
 ## Done
 
-| Date | Audit | bugs.md rows | Result |
+| Date | Audit | port_bugs.md rows | Result |
 |------|-------|--------------|--------|
 | 2026-09-17 | Ships (Caravel, Merchantman, Galleon, Privateer, Frigate) | #481-490 | all fixed |
 | 2026-09-18 | Scout / Seasoned Scout | #491-502 | 11 fixed, 1 refuted (#500) |

@@ -20,7 +20,7 @@
  * 2026-08-19..2026-09-24: the pool used to live in a nation-indexed side
  * table in founding_fathers.c, stashed into +0xe at save time behind an
  * unknown21_pad marker and reconstructed from a spent-sum heuristic on load.
- * bugs.md #933 deleted all of that: +0xc (`liberty_bells_pool`) is the pool,
+ * port_bugs.md #933 deleted all of that: +0xc (`liberty_bells_pool`) is the pool,
  * added to each turn, zeroed on elect and at the declaration of independence,
  * and +0xe (`liberty_bells_last_turn`) is this turn's bells only. Consumers
  * that want "bells" for SoL fallback / boycott-refusal / score read the pool
@@ -29,7 +29,7 @@
  * founding_fathers_tick: final elect pass of the turn for each AI Euro
  * nation (player.control==1); the human's runs in
  * founding_fathers_tick_human_elect. Both loop while the pool still clears
- * the next threshold (bugs.md #934).
+ * the next threshold (port_bugs.md #934).
  *
  * Effects follow Colonization.pdf + docs/fandom_col1994.md (+ NAMES/decomp).
  * "Rough" means incomplete UI/wiring — not invented gold/crosses stand-ins.
@@ -74,7 +74,7 @@ unsigned founding_fathers_bells_needed(const ColonizeCol1Save* col1, int nation)
  * DOS nation+0xc IS the FF bell pool: `liberty_bells_pool` in the save record.
  * FUN_4345_0a22 raw 73341 adds this turn's bells, raw 73370 zeroes it on a
  * successful elect; FUN_43f7_1a26 raw 74738 zeroes it at the declaration of
- * independence. (bugs.md #933 — the old side table / save-time stash into
+ * independence. (port_bugs.md #933 — the old side table / save-time stash into
  * +0xe / spent-sum reconstruction are gone.)
  */
 unsigned founding_fathers_bells_pool(const ColonizeCol1Save* col1, int nation_id);
@@ -84,7 +84,7 @@ void founding_fathers_reset_bells_pool(ColonizeTurnContext* ctx, int nation_id);
 
 /*
  * One elect attempt for a nation; true when a Founding Father was elected.
- * bugs.md #934: DOS runs FUN_4345_0a22 once per colony (sole call site
+ * port_bugs.md #934: DOS runs FUN_4345_0a22 once per colony (sole call site
  * FUN_364b_0688 raw 57231), so callers loop while this keeps returning true.
  */
 bool founding_fathers_try_elect(ColonizeTurnContext* ctx, int nation_id);
@@ -129,7 +129,7 @@ int founding_fathers_bolivar_sol_bonus(const ColonizeCol1Save* col1, int nation)
  * King's European wars no longer affect New World relations; Europeans in the
  * New World always offer peace in negotiations.
  * Ownership: founding_fathers_nation_has (per-nation bitmask). Wired from ai_diplo
- * declare_war (war-hit side effects; the euro_balance pass was deleted 2026-10-18, bugs.md #1104).
+ * declare_war (war-hit side effects; the euro_balance pass was deleted 2026-10-18, port_bugs.md #1104).
  */
 bool founding_fathers_franklin_keeps_nw_peace(const ColonizeCol1Save* col1, int nation);
 
@@ -227,7 +227,7 @@ bool founding_fathers_revere_should_auto_arm(
 /* Elect at most one FF per eligible nation when the bells threshold is met. */
 void founding_fathers_tick(ColonizeTurnContext* ctx);
 
-/* bugs.md #434: the human's Congress election check, run in TURN_PROC_FINISH
+/* port_bugs.md #434: the human's Congress election check, run in TURN_PROC_FINISH
  * (start of the player's turn) — DOS puts it in the human's own 3844_00f2
  * pass, right before Move Pieces. founding_fathers_tick no longer elects for
  * the human. */

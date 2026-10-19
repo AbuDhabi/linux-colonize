@@ -610,7 +610,7 @@ static int unit_war_transport_threatened_colony(void) {
  * (DS:0x523d bit0 = CONTACT is a warship capability). Nothing in DOS sends
  * it to a threatened own colony instead — the old premise of this test
  * ("prefer threatened coastal colony", cited to a non-decomp note) went with
- * bugs.md #527, when 0a60 started binding ships.
+ * port_bugs.md #527, when 0a60 started binding ships.
  */
 static int unit_mow_war_transport_threatened(void) {
   const int nation = 1;

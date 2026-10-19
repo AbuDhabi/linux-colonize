@@ -104,7 +104,7 @@ static bool game_service_woodcut(ColonizeGameState* game, const ColonizeInputSta
    * ai_contact's first-contact 3/4/5 — used to seize a screen the player was
    * reading. Only `in_menu` was parked before. The pending id stays queued
    * and is picked up when the map is back (popup-blocking invariant,
-   * bugs.md #262). Modals/popups are deliberately NOT in this set: DOS pushes
+   * port_bugs.md #262). Modals/popups are deliberately NOT in this set: DOS pushes
    * the woodcut ahead of the dialog the same event queues behind it.
    */
   const bool screen_over_map =
@@ -132,7 +132,7 @@ static bool game_service_woodcut(ColonizeGameState* game, const ColonizeInputSta
 }
 
 /*
- * DOS status line (bugs.md #369). FUN_1009_00b4 is a BLOCKING call: it holds
+ * DOS status line (port_bugs.md #369). FUN_1009_00b4 is a BLOCKING call: it holds
  * whatever was running until the line's dwell expires or the player presses
  * anything, then clears the strip and lets the next one through. Same shape
  * here — while a line is up, the map's top strip shows it instead of the
@@ -238,7 +238,7 @@ bool game_try_start_intro(ColonizeGameState* game) {
  * idle branch, with different guard sets. The difference is deliberate and both
  * halves survive here:
  *  - the EOT caller only reaches this when no screen is over the map at all
- *    (bugs.md #262 — a colony zoom / Europe / report / pedia freezes the whole
+ *    (port_bugs.md #262 — a colony zoom / Europe / report / pedia freezes the whole
  *    end-of-turn pipeline and control falls through to the idle path so that
  *    screen gets its input), so it passes zoom_blocked_by_screen = false;
  *  - the idle caller DOES present over in_colony / in_europe / in_menu, the
@@ -428,30 +428,30 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
   }
   game_water_cycle_tick(game);
   ai_popup_set_now_ms(game->elapsed_ms); /* King flair animation clock */
-  /* bugs.md: while independence is declared, the Crown's borrowed nation
+  /* port_bugs.md: while independence is declared, the Crown's borrowed nation
    * slot renders WHITE (REF), not the peer's own colour. */
   unit_chrome_set_crown_nation(
     game->col1_ok && ai_king_independence_declared(&game->col1)
       ? ai_king_crown_nation_col1(&game->col1, game->human_nation)
       : -1
   );
-  /* bugs.md: WoI colony flags — rebel colonies fly the American flag, crown
+  /* port_bugs.md: WoI colony flags — rebel colonies fly the American flag, crown
    * captures fly the player's original nation color. */
   unit_chrome_set_rebel_nation(
     game->col1_ok && ai_king_independence_declared(&game->col1) ? game->human_nation : -1
   );
-  /* bugs.md #234: the move/combat watches were only armed during end-of-turn
+  /* port_bugs.md #234: the move/combat watches were only armed during end-of-turn
    * processing, so the PLAYER's own moves fired into a NULL watch and never
    * animated. Arm them every frame; the callbacks guard platform/zoom
    * themselves. (The moving unit's overlay is blitted after game_render, so
-   * it also draws on top of any stack it passes — bugs.md #227.) */
+   * it also draws on top of any stack it passes — port_bugs.md #227.) */
   units_set_move_watch(game_move_watch, game);
   units_set_combat_watch(game_combat_watch, game);
   units_set_combat_dissolve(game_combat_dissolve, game);
   units_set_combat_popup_pump(game_combat_popup_pump, game);
   /* Same "arm it every frame" rule as the watches: founding and abandoning a
    * colony have to keep layer2's settlement bit current wherever they are
-   * reached from (bugs.md — an abandoned colony kept hiding the units left
+   * reached from (port_bugs.md — an abandoned colony kept hiding the units left
    * standing on its square). */
   colonies_set_occupancy_map(game->world_map_ok ? &game->world_map : NULL);
 
@@ -463,7 +463,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
    * pipeline underneath — end-of-turn slices, queued popups, the bar line,
    * a woodcut, the deferred Europe open, the goto pacer and the unit
    * activation cycle — must freeze while a screen is up (the popup-blocking
-   * invariant, bugs.md #262). It is a screen, not a modal, so it joins the
+   * invariant, port_bugs.md #262). It is a screen, not a modal, so it joins the
    * screen tests (`screen_over_map`, `map_visible`, `game_screen_name`)
    * rather than `game_modal_open`, which drives `game_handle_modal_input`.
    */
@@ -500,7 +500,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
    * next slice of processing runs, not hoarded until FINISH. Present it
    * here and freeze the whole pipeline until the player deals with it;
    * only animations (water cycle, flair clocks above) keep running. */
-  /* bugs.md #262: a screen over the map (colony zoom mid-EOT, Europe, a
+  /* port_bugs.md #262: a screen over the map (colony zoom mid-EOT, Europe, a
    * report, the pedia) freezes the WHOLE end-of-turn pipeline — nothing may
    * advance while the player is occupied with it. Fall through so that
    * screen gets its input; the EOT branch resumes when it closes. Queued
@@ -508,7 +508,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
   /* Zoom hold ends when the player really leaves the zoomed colony. A
    * terrain-pedia article opened from its minimap temporarily clears
    * in_colony, but carries the colony id needed to restore that same screen;
-   * keep the queued EOT batch held across that nested detour (bugs.md #950). */
+   * keep the queued EOT batch held across that nested detour (port_bugs.md #950). */
   const bool pedia_returns_to_colony =
     game->in_pedia && game->pedia_return_colony_id >= 0 &&
     colonies_get(&game->colonies, game->pedia_return_colony_id) != NULL;
@@ -551,7 +551,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
   }
 
   /* Present next queued AI popup once the turn processor is idle.
-   * bugs.md: never while the Colonizopedia owns the screen — the pedia
+   * port_bugs.md: never while the Colonizopedia owns the screen — the pedia
    * branch draws no popup, so a queued dialog (the re-presented FF debate
    * behind the F1 detour) opened INVISIBLY and swallowed the keys the
    * player pressed to leave the article, silently answering the debate.
@@ -584,7 +584,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
   }
 
   /*
-   * bugs.md #682: the second half of FUN_479b_076e's tail (raw 77045-77048).
+   * port_bugs.md #682: the second half of FUN_479b_076e's tail (raw 77045-77048).
    * The found flow arms woodcut 2 and then hands the colony id here; DOS's
    * FUN_281f_0524(2) is blocking, so FUN_281f_0608 runs only once the
    * woodcut has been dismissed. Nothing else may own the display either —
@@ -607,7 +607,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
     return GAME_UPDATE_RETURN_TRUE;
   }
 
-  /* bugs.md: an endgame latch must actually END the game. Whatever path
+  /* port_bugs.md: an endgame latch must actually END the game. Whatever path
    * latched it (popup chain, zero-colony crush, a loaded save, the silent
    * turn.c C1 check), once every dialog is answered the retire-score chain
    * runs exactly once: score → (exploits) → Hall of Fame → menu/@SCORED.
@@ -631,7 +631,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
   }
 
   /* Deferred ship-arrival Europe open: once every end-of-turn popup has
-   * been answered (bugs.md — the tax audience must not land ON the
+   * been answered (port_bugs.md — the tax audience must not land ON the
    * European Status; DOS finishes the audiences first). */
   if (game->europe_ok && game->europe.open_on_dock && !game->in_europe && !game->in_menu &&
       !game->in_colony && !game->in_report && !game->in_pedia &&
@@ -655,7 +655,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
       game->ai_popups.current.tag == AI_POPUP_TAG_KING_LETTER) {
     game->declaration_played = true;
     const int human = game->human_nation;
-    /* bugs.md: the signature on the parchment is the LEADER's name (the
+    /* port_bugs.md: the signature on the parchment is the LEADER's name (the
      * John Hancock moment), not the country — which had just been renamed
      * "United Colonies" and truncated to "United Colon" on the line. */
     char default_leader[NEW_GAME_LEADER_NAME_MAX];
@@ -697,19 +697,19 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
 
 /* Turn activation queue: paces the selected unit's queued go-to order. */
 /* The active unit's pending Go To: the village-entry guard, the goto-step
- * pacing clock and the step itself (bugs.md #418 routing). */
+ * pacing clock and the step itself (port_bugs.md #418 routing). */
 static GameUpdateStep game_pacer_goto_step(
   ColonizeGameState* game, ColonizeUnit* active, uint32_t dt_ms
 ) {
   /*
-   * bugs.md #418: a Go To AIMED at an Indian settlement executes its final
+   * port_bugs.md #418: a Go To AIMED at an Indian settlement executes its final
    * step INTO the village. DOS routes every goto step through
    * FUN_465b_0000, so arriving next to the dwelling with the village as
    * the ordered destination raises exactly what an arrow-key step raises
    * (FUN_4d56_4528: woodcut 7 + the NAMES.TXT @ACTIONS menu, or the
    * unmet-tribe warn) — the order was a move command into the village.
    * Earlier this branch stopped one tile short and handed control back
-   * (bugs.md #287), which left the player to repeat the step by hand.
+   * (port_bugs.md #287), which left the player to repeat the step by hand.
    *
    * The order is spent either way: a peaceful meet is conducted from the
    * adjacent tile (the unit never stands ON the village), so the goto is
@@ -756,7 +756,7 @@ static GameUpdateStep game_pacer_goto_step(
       (void)game_try_unit_move(game, gx, gy);
       ColonizeUnit* after = units_get(&game->units, aid);
       /*
-       * bugs.md #469: a refusal that DOS shows as a blocking dialog
+       * port_bugs.md #469: a refusal that DOS shows as a blocking dialog
        * (@CANNOTATTACK / @SHIPCOMBAT / @SHIPLAKE / @LANDFIRST) leaves the
        * INFO popup queued, and the old "no popup pending" guard then kept
        * the Go To armed — the pacer re-fired the same dialog every frame
@@ -778,7 +778,7 @@ static GameUpdateStep game_pacer_goto_step(
           units_clear_orders(&game->units, aid);
         } else {
           /* Refused without a prompt (cost, domain…): park like a
-           * blocked step (bugs.md #363) so the pacer doesn't spin. */
+           * blocked step (port_bugs.md #363) so the pacer doesn't spin. */
           after->moves = 0;
           units_clear_orders(&game->units, aid);
         }
@@ -808,7 +808,7 @@ static GameUpdateStep game_pacer_goto_step(
       }
     }
     /* Sea-lane destination: a ship whose Go To ends on a high-seas tile
-     * sails for Europe when it reaches THAT tile (bugs.md). Manual
+     * sails for Europe when it reaches THAT tile (port_bugs.md). Manual
      * arrow-key steps onto the lane deliberately do NOT — only a queued
      * order does, same as DOS's `0x314c == 2/3` sail intent.
      *
@@ -863,7 +863,7 @@ static GameUpdateStep game_pacer_goto_step(
        * (game_select_tile) instead of leaving a moves-exhausted
        * "ghost" selection this loop would otherwise re-poll forever. */
       /*
-       * bugs.md #363 (trade-routed wagon sat in the control queue and
+       * port_bugs.md #363 (trade-routed wagon sat in the control queue and
        * only moved after the turn ended): a unit whose order is STILL
        * a goto/trade route after a failed step did not arrive — it is
        * blocked (foreign unit or native village on the next tile) or
@@ -938,7 +938,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_unit_pacer(ColonizeGameState* game,
    * movement at all (that's also why dt_ms isn't accumulated below while
    * covered, not just skipped — avoids a catch-up burst of steps the
    * instant the overlay closes). Matches DOS: everything but animations
-   * pauses while a popup is up (bugs.md). AI/native
+   * pauses while a popup is up (port_bugs.md). AI/native
    * units and other European nations' units are untouched here: they
    * resolve their own goto orders exclusively inside turn_processor_
    * advance(), during their own turn (see turn_select_next_unit's own
@@ -972,7 +972,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_unit_pacer(ColonizeGameState* game,
      * garrisoned unit in turn — player-reported alongside the Merchantman
      * destination bug. */
     /*
-     * bugs.md (loaded_soldier_bug.SAV): a passenger woken out of the tile-
+     * port_bugs.md (loaded_soldier_bug.SAV): a passenger woken out of the tile-
      * stack popup is NOT on the map (it rides in the hold), so the
      * on-map-only test above rejected it and the very next frame's cycle
      * below silently grabbed the selection away — the pick "did nothing".
@@ -992,7 +992,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_unit_pacer(ColonizeGameState* game,
         return sub;
       }
     } else if (active_awaiting_player) {
-      /* bugs.md: the unit awaiting orders must be on screen — whatever path
+      /* port_bugs.md: the unit awaiting orders must be on screen — whatever path
        * selected it, recentre once it sits outside the current viewport. */
       int vc = 0;
       int vr = 0;
@@ -1010,7 +1010,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_unit_pacer(ColonizeGameState* game,
         &vy
       );
       if ((active->x < vx || active->y < vy || active->x >= vx + vc || active->y >= vy + vr) &&
-          game->view_pan_hold_unit != active->id /* bugs.md #285 manual pan */) {
+          game->view_pan_hold_unit != active->id /* port_bugs.md #285 manual pan */) {
         game->map_cursor_x = active->x;
         game->map_cursor_y = active->y;
         game_set_view_center(game, active->x, active->y);
@@ -1213,7 +1213,7 @@ static GameUpdateStep game_colony_screen_mouse_click(
       if (hit.index >= 0 && hit.index < csv->outside_unit_count) {
         const int ouid = csv->outside_unit_ids[hit.index];
         if (csv->selected_outside_unit == ouid) {
-          /* bugs.md: clicking the already-selected fence unit opens the
+          /* port_bugs.md: clicking the already-selected fence unit opens the
            * role popup (what should this colonist be doing) — same list
            * the fence drop offers. */
           game_colony_fence_drop(game, colony);
@@ -1790,7 +1790,7 @@ static GameUpdateStep game_colony_screen_cargo_keys(
       turn_colony_free_production(&game->colonies, colony, cmap, &prod, &delta);
       colony_screen_set_delta(csv, &delta);
       {
-        /* bugs.md #905: the tags used to be English cargo names compiled in.
+        /* port_bugs.md #905: the tags used to be English cargo names compiled in.
          * Wording comes only from the catalog — @CARGO via
          * reports_cargo_display_name, empty string on a miss. */
         static const int k_craft[] = {
@@ -1979,7 +1979,7 @@ static GameUpdateStep game_europe_screen_menu_keys(
      * inside the screen closes the menu, and a right-click cancels — the
      * arrangement every other list in this port uses. Without this the
      * branch swallowed the click and Recruit/Purchase/Train were
-     * keyboard-only (bugs.md).
+     * keyboard-only (port_bugs.md).
      */
     if (input->mouse_right_clicked) {
       europe_menu_close(eu);
@@ -2081,12 +2081,12 @@ static GameUpdateStep game_europe_screen_keys(
     return GAME_UPDATE_RETURN_TRUE;
   }
   if (input->last_key == COLONIZE_KEY_U) {
-    /* bugs.md: DOS's U on the European Status unloads (sells) the selected
+    /* port_bugs.md: DOS's U on the European Status unloads (sells) the selected
      * ship's WHOLE cargo, hold by hold — no amount prompt. */
     if (eu->selected_harbor < 0) {
       snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
     } else {
-      /* bugs.md #1013: DOS's own sell-all arm (FUN_38fd_2cac raw 60860-60888)
+      /* port_bugs.md #1013: DOS's own sell-all arm (FUN_38fd_2cac raw 60860-60888)
        * walks hold slots in INDEX order 0..5, skipping an empty or boycotted
        * hold (latching a flag on the latter) and selling the rest.
        * europe_best_sell_hold's ranking is a port-only heuristic with no DOS
@@ -2557,7 +2557,7 @@ static GameUpdateStep game_map_mouse_click(
               &tx,
               &ty
             )) {
-          /* bugs.md #285: a minimap pan while a unit is active must hold,
+          /* port_bugs.md #285: a minimap pan while a unit is active must hold,
            * exactly like a main-map pan — suspend that unit's off-screen
            * auto-recentre until its next action / hand-off. */
           if (game->units_ok && game->units.selected_id >= 0) {
@@ -2570,7 +2570,7 @@ static GameUpdateStep game_map_mouse_click(
            * it dispatches the click anywhere else. */
           game_do_end_turn(game);
         } else if (game->units_ok && game_units_pending_orders(game)) {
-          /* bugs.md: mid-turn (units still in the control queue) a sidebar
+          /* port_bugs.md: mid-turn (units still in the control queue) a sidebar
            * click hands control to the next waiting unit instead of doing
            * nothing. */
           game_wait_next_unit(game);
@@ -2615,7 +2615,7 @@ static GameUpdateStep game_map_mouse_click(
           /* Short click (press and release on the same tile) is not a go-to:
            * it means whatever a plain click on that tile means — open a
            * colony, or make another of our units the active one.
-           * bugs.md: unless the pointer clearly DRAGGED (≥4 logical px)
+           * port_bugs.md: unless the pointer clearly DRAGGED (≥4 logical px)
            * within the tile — that was an intended go-to whose pull didn't
            * cross a tile boundary, and it kept opening the colony under
            * the pointer instead of ordering the ship there. */
@@ -2658,7 +2658,7 @@ static GameUpdateStep game_map_mouse_click(
     }
 
     /*
-     * bugs.md: a click on the map viewport is NEVER an End of Turn
+     * port_bugs.md: a click on the map viewport is NEVER an End of Turn
      * confirmation, even while the prompt blinks — it keeps its normal
      * meaning (open a colony, pick a unit, start a go-to drag). Only the
      * right-hand sidebar click (above) confirms the turn; Enter/Space do too.
@@ -2876,7 +2876,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_menu_bar(ColonizeGameState* gam
       return GAME_UPDATE_RETURN_TRUE;
     }
     if (menu_was_open) {
-      /* bugs.md #1091: plain ORDERS/VIEW hotkeys and map clicks never reach
+      /* port_bugs.md #1091: plain ORDERS/VIEW hotkeys and map clicks never reach
        * the map behind an open pull-down. */
       return GAME_UPDATE_RETURN_TRUE;
     }
@@ -2951,7 +2951,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
      * this plain-key branch ever become reachable. Must NOT reduce to a
      * bare game_wait_next_unit() call: that is W/Wait's semantics (defer
      * without spending moves), not Space's. */
-    /* bugs.md: with the End of Turn prompt flashing (View Pieces, nothing
+    /* port_bugs.md: with the End of Turn prompt flashing (View Pieces, nothing
      * left in the control queue), Space confirms the turn like the sidebar
      * click does in DOS. */
     if (game_end_turn_prompt_active(game)) {
@@ -3000,7 +3000,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
     } else if (at_cursor >= 0) {
       game_select_unit(game, at_cursor);
     } else if (game_end_turn_prompt_active(game)) {
-      /* bugs.md: View Pieces, no own colony/unit on the tile, control queue
+      /* port_bugs.md: View Pieces, no own colony/unit on the tile, control queue
        * empty (End of Turn flashing) — Enter confirms the turn, same as the
        * sidebar click. */
       game_do_end_turn(game);
@@ -3036,7 +3036,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
    * always has: an F with nothing selected is not a refusal to report. */
   if (input->last_key == COLONIZE_KEY_F && game->world_map_ok && game->units_ok) {
     const int uid = game->units.selected_id;
-    /* bugs.md #691: the key twin runs the same @HAVETREATY scan as the rows. */
+    /* port_bugs.md #691: the key twin runs the same @HAVETREATY scan as the rows. */
     if (game_fortify_treaty_confirm(game, uid)) {
       return GAME_UPDATE_RETURN_TRUE;
     }
@@ -3265,7 +3265,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   /*
-   * bugs.md #1091: an open map pull-down is DOS's blocking menu loop. Only
+   * port_bugs.md #1091: an open map pull-down is DOS's blocking menu loop. Only
    * the menu itself (click, Esc, Alt-letter title switch) gets the frame;
    * no map / report / screen hotkey may act behind it.
    */

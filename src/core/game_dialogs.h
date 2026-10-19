@@ -123,7 +123,7 @@ struct ColonizeGameState {
   uint32_t turn_number;
   uint32_t elapsed_ms;
   /*
-   * bugs.md #533: while the combat fizzle (FUN_12d6_0000) is rendering its
+   * port_bugs.md #533: while the combat fizzle (FUN_12d6_0000) is rendering its
    * "before" and "after" frames, the map blink must be frozen in ONE phase
    * for both — otherwise the active (attacking) unit is drawn in one frame
    * and not the other and the LFSR dissolve plays on the winner's own
@@ -146,7 +146,7 @@ struct ColonizeGameState {
    * silently snatch control back the next frame. units.selected_id >= 0
    * always implies Move Pieces regardless of this flag. */
   bool view_pieces_mode;
-  /* bugs.md #285: unit id whose off-screen auto-recentre is suspended
+  /* port_bugs.md #285: unit id whose off-screen auto-recentre is suspended
    * because the player deliberately panned away (map or minimap click)
    * while it was active; -1 = none. Cleared by the unit's next action /
    * the next unit hand-off. */
@@ -156,7 +156,7 @@ struct ColonizeGameState {
    * end-of-turn processor never advance behind one; here dialogs are
    * asynchronous, so a hand-off that lands while a modal is up (or while some
    * other screen owns the display) is parked here and replayed by game_update
-   * once the map is back on screen. See game_turn_flow_allowed (bugs.md:
+   * once the map is back on screen. See game_turn_flow_allowed (port_bugs.md:
    * "The only place that time/turn processing is allowed to proceed is the
    * overland map, and only if there ISN'T an active popup").
    */
@@ -168,7 +168,7 @@ struct ColonizeGameState {
    */
   int found_open_colony_id;
   /*
-   * bugs.md #682: DOS FUN_479b_076e raw 76995-77004 runs the colony-name
+   * port_bugs.md #682: DOS FUN_479b_076e raw 76995-77004 runs the colony-name
    * prompt BEFORE FUN_281f_0934 (consume unit) and FUN_291f_09b2 (create
    * colony) — a cancel aborts the whole founding. The founder's unit id is
    * held here across the async prompt, stored +1 so a zeroed state means
@@ -176,14 +176,14 @@ struct ColonizeGameState {
    */
   int found_pending_unit_plus1;
   /*
-   * bugs.md #403: one-shot latch for the @HALF tired-attack confirm. "Charge!"
+   * port_bugs.md #403: one-shot latch for the @HALF tired-attack confirm. "Charge!"
    * re-enters game_try_unit_move, and unlike WHACK (confirmed bit) or Break
    * Treaty (war opened) nothing in the save marks the answer, so without this
    * the confirm would just re-ask. unit id + (x | y<<8); unit -1 = none.
    */
   int tired_ok_unit;
   int tired_ok_payload;
-  /* bugs.md #437: same one-shot latch shape for the attack-a-colony confirm. */
+  /* port_bugs.md #437: same one-shot latch shape for the attack-a-colony confirm. */
   int colony_attack_ok_unit;
   int colony_attack_ok_payload;
   /*
@@ -298,7 +298,7 @@ struct ColonizeGameState {
   bool reports_ok;
   bool in_report;
   bool report_exits_to_menu; /* Retire: close score → title menu */
-  bool war_end_retired; /* bugs.md: endgame already routed to the retire score */
+  bool war_end_retired; /* port_bugs.md: endgame already routed to the retire score */
   bool war_end_won; /* WoI won: after the Hall of Fame, @SCORED asks continue/exit */
   bool congress_page2; /* Continental Congress is two pages; closing p1 shows p2 */
   /* A new Founding Father's arrival walks the player through Congress page 2
@@ -537,7 +537,7 @@ void game_colony_unload_hold(
   int hold,
   const char* empty_msg
 );
-/* bugs.md #784: the DOS @WAREHOUSEFULL gate (thunk_FUN_1000_9784) and the
+/* port_bugs.md #784: the DOS @WAREHOUSEFULL gate (thunk_FUN_1000_9784) and the
  * transfer it guards, split so "Unload all cargo" can drive them per hold.
  * amount <= 0 or >= the hold means the whole hold. */
 bool game_colony_unload_ask(
@@ -554,10 +554,10 @@ int game_colony_unload_hold_commit(
   int amount,
   const char* empty_msg
 );
-/* DOS thunk_FUN_1000_99b8 case 5 (bugs.md #785). */
+/* DOS thunk_FUN_1000_99b8 case 5 (port_bugs.md #785). */
 void game_colony_unload_all_cargo(ColonizeGameState* game, int unit_id);
 bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid, bool land_resolved);
-/* @NOCOLONIESEITHER at the top of the shared Build/Join handler (bugs.md
+/* @NOCOLONIESEITHER at the top of the shared Build/Join handler (port_bugs.md
  * #688). True = the gate fired and the order is dropped. */
 bool game_woi_blocks_colony_orders(ColonizeGameState* game);
 void game_emit_warehouse_full(

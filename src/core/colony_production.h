@@ -28,7 +28,7 @@ typedef struct ColonizeCol1Save ColonizeCol1Save;
 #define COLONIZE_PROF_PREACHER 16
 #define COLONIZE_PROF_STATESMAN 17
 #define COLONIZE_PROF_TEACHER 18
-/* bugs.md #288 family: these are the DOS @JOB bytes (0x19/0x1a/0x1b/0x1c) —
+/* port_bugs.md #288 family: these are the DOS @JOB bytes (0x19/0x1a/0x1b/0x1c) —
  * the port briefly had 29/30 for servant/criminal, which no real colonist
  * ever carries (unit joins, DOS saves, education all use @JOB), so every
  * class check against them was dead. Note the port also uses 19 (@JOB
@@ -59,7 +59,7 @@ typedef enum ColonyProdTier {
  * same at its shared epilogue).
  */
 /* Row-identified (no-DOS-text-in-binary: identity is the @BUILDING row;
- * the name-taking wrappers were deleted 2026-10-18, bugs.md #1108). */
+ * the name-taking wrappers were deleted 2026-10-18, port_bugs.md #1108). */
 int colony_prod_manufacturing_output_row(
   int building_row,
   int profession,
@@ -78,7 +78,7 @@ int colony_prod_manufacturing_output_row(
  *
  * The production tick must NOT sum this across workers: DOS divides the
  * colony total once. Use colony_prod_chain_input_for_total_output above
- * (bugs.md #851). This entry point is for single-worker display/AI scoring.
+ * (port_bugs.md #851). This entry point is for single-worker display/AI scoring.
  */
 /*
  * Colony-total raw-good requirement for one chain's SUMMED finished-good
@@ -86,7 +86,7 @@ int colony_prod_manufacturing_output_row(
  * colony's gross output word for the finished good and floor-divides it ONCE
  * ((gross << 1) / 3) when the chain holds more than two buildings (factory
  * tier); every lower tier requires the gross 1:1. Summing the per-worker
- * requirement instead over-charges on odd totals (bugs.md #851).
+ * requirement instead over-charges on odd totals (port_bugs.md #851).
  * `building_row` is any staffed building of the chain — a colony holds at most
  * one, so it names the tier.
  */
@@ -96,7 +96,7 @@ int colony_prod_chain_input_for_total_output(int building_row, int total_output)
  * True for the one craft chain DOS emits through FUN_15eb_0b96 instead of
  * FUN_15eb_0bd4 (tools -> muskets, FUN_15eb_1f72 raw 12689): its raw-good
  * demand is the gross output 1:1 at EVERY tier, and its shortfall is never
- * put through the `(U*3)/2` rescale. bugs.md #910.
+ * put through the `(U*3)/2` rescale. port_bugs.md #910.
  */
 bool colony_prod_chain_input_is_flat(int chain);
 
@@ -256,7 +256,7 @@ int colony_prod_colony_crosses_ff(
  * Phase A net hammer word and unmet lumber instead. The REAL tick debits
  * lumber 1:1 against the sol-ADJUSTED hammer count (turn_production.c clips
  * `hammers` to stock, then subtracts it) — user-verified on
- * hammers_lumber.SAV (bugs.md #163: two Master
+ * hammers_lumber.SAV (port_bugs.md #163: two Master
  * Carpenters bank +28 hammers and consume 28 lumber, not the sol-free base).
  * Do not "fix" the debit to follow this probe.
  */
@@ -328,7 +328,7 @@ ColonyProdHorseBreed colony_prod_horse_breed(
  * Settlement-view building strip: Town Hall / Church / Cathedral free output
  * plus assigned workers. Colony-wide base +1 cross is people-meter only.
  */
-/* bugs.md: the settlement badge shows POTENTIAL (unclamped) output and must
+/* port_bugs.md: the settlement badge shows POTENTIAL (unclamped) output and must
  * include the colony's SoL bonus. */
 int colony_prod_building_display_output_sol(
   const ColonizeColonyPool* pool,

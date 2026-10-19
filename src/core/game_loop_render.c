@@ -325,7 +325,7 @@ static void europe_draw_box_border(
 
 /* Two-line header + ship icons inside an Expected/Bound/Loading water box. */
 /*
- * @UNIT type for unit_chrome's orders-box corner (bugs.md #419). Must use the
+ * @UNIT type for unit_chrome's orders-box corner (port_bugs.md #419). Must use the
  * SAME by-name fallback the sprite lookup above uses: europe_purchase() files
  * a freshly bought hull with type_index = -1 ("resolved by name in game_loop /
  * caller"), and feeding that -1 straight to unit_chrome_corner_for_type made
@@ -410,7 +410,7 @@ static void europe_render_transit_box(
       pal
     );
     if (i == selected_index) {
-      /* bugs.md: same fixed 18x18 cell frame as every other unit selection. */
+      /* port_bugs.md: same fixed 18x18 cell frame as every other unit selection. */
       int fx = 0;
       int fy = 0;
       int fw = 0;
@@ -421,13 +421,13 @@ static void europe_render_transit_box(
     europe_icon_flow_advance(&f, sw);
 
     /*
-     * Everyone riding along shows next to their ship — bugs.md: "Colonists
+     * Everyone riding along shows next to their ship — port_bugs.md: "Colonists
      * embarked on ships arriving from or traveling to the new world on the
      * European Status need to be visible alongside ships." They are still
      * cargo, so they get no selection frame of their own — the ship is what
      * the player clicks — but they do carry the Sentry letter: a passenger is
      * a sentried unit (DOS FUN_38fd_0718 stamps orders 1 on every dock unit,
-     * and boarding preserves it), so "no orders" was wrong (bugs.md).
+     * and boarding preserves it), so "no orders" was wrong (port_bugs.md).
      */
     for (int c = 0; c < ships[i].cargo_count && c < EUROPE_SHIP_CARGO_MAX; ++c) {
       const int pax_type = europe_pax_type_index(&game->units, ships[i].cargo_types[c]);
@@ -482,14 +482,14 @@ bool game_europe_menu_confirm(ColonizeGameState* game) {
   }
   /* FUN_38fd_41ce raw 64399-64403: an unaffordable Train row is greyed
    * (FUN_291f_01b6(list, row, 1)) and inert — the dialog stays up and no
-   * "need gold" answer exists in DOS. bugs.md #566. */
+   * "need gold" answer exists in DOS. port_bugs.md #566. */
   if (eu->menu == EUROPE_MENU_TRAIN && eu->menu_selection > 0 &&
       !europe_train_affordable(eu, eu->menu_selection - 1)) {
     return false;
   }
   /* FUN_38fd_4b50 raw 64858-64862: an unaffordable Purchase row is greyed
    * and inert the same way — no "need gold" answer exists in DOS.
-   * bugs.md #754. */
+   * port_bugs.md #754. */
   if (eu->menu == EUROPE_MENU_PURCHASE && !eu->purchase_confirming && eu->menu_selection > 0 &&
       !europe_purchase_affordable(eu, eu->menu_selection - 1)) {
     return false;
@@ -526,7 +526,7 @@ bool game_europe_menu_confirm(ColonizeGameState* game) {
 /*
  * Geometry of the RECRUIT/TRAIN/PURCHASE/DOCK wood popup. Shared by the
  * renderer and the click hit-test so a row the player sees and the row a
- * click lands on cannot drift apart. bugs.md: those three popups were
+ * click lands on cannot drift apart. port_bugs.md: those three popups were
  * keyboard-only because the Europe input path swallowed every click while a
  * menu was open.
  */
@@ -537,7 +537,7 @@ bool game_europe_menu_confirm(ColonizeGameState* game) {
  * startup sets it there (75c2:2306) and the one place that swaps it to
  * FONTTINY (DS:0x89e) puts FONTINTR back straight after. So Recruit, Train,
  * Purchase and the dock-orders menu are FONTINTR, not the FONTSMAL this port
- * was drawing them in (bugs.md). Same getter feeds the layout and the
+ * was drawing them in (port_bugs.md). Same getter feeds the layout and the
  * renderer so the row pitch the hit-test uses is the row pitch drawn.
  */
 static const ColonizeFont* europe_menu_font(const ColonizeGameState* game) {
@@ -545,7 +545,7 @@ static const ColonizeFont* europe_menu_font(const ColonizeGameState* game) {
     return NULL;
   }
   /* GAME.TXT @KINGRECRUIT (the Train dialog) carries @smallfont — DOS swaps
-   * the list dialog to FONTTINY for it (bugs.md: "improper fonts"); the
+   * the list dialog to FONTTINY for it (port_bugs.md: "improper fonts"); the
    * other three stay on FONTINTR, the generic dialog font. */
   if (game->europe.menu == EUROPE_MENU_TRAIN && game->colony_font_ok) {
     return &game->colony_font;
@@ -579,7 +579,7 @@ static const char* europe_menu_section(int menu) {
  */
 static void europe_menu_title_prose(const ColonizeGameState* game, char* buf, size_t n) {
   const EuropeScreen* eu = &game->europe;
-  /* @REALLYBUY confirm (bugs.md #753): "Purchase %STRING0 for %NUMBER0$?" */
+  /* @REALLYBUY confirm (port_bugs.md #753): "Purchase %STRING0 for %NUMBER0$?" */
   if (eu->menu == EUROPE_MENU_PURCHASE && eu->purchase_confirming) {
     const int pi = eu->purchase_confirm_index;
     const char* name = (pi >= 0 && pi < eu->purchase_count) ? eu->purchase[pi].name : "";
@@ -645,7 +645,7 @@ static void europe_menu_title_prose(const ColonizeGameState* game, char* buf, si
 }
 
 /* DOS list-dialog text carries a 1px black drop shadow (recruit/train/
- * purchase screenshots — bugs.md: "shading, mostly"). */
+ * purchase screenshots — port_bugs.md: "shading, mostly"). */
 static void europe_menu_draw_shadowed(
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,
@@ -654,7 +654,7 @@ static void europe_menu_draw_shadowed(
   const char* text,
   uint8_t color
 ) {
-  /* bugs.md #280: thin letters like every other dialog caption. */
+  /* port_bugs.md #280: thin letters like every other dialog caption. */
   font_draw_text_unbold(font, fb, x + 1, y + 1, text, 0);
   font_draw_text_unbold(font, fb, x, y, text, color);
 }
@@ -669,7 +669,7 @@ static void europe_menu_draw_shadowed(
  * height used. {…} spans take the highlight ink and the state carries across
  * words and lines, like DOS's dialog text writer (FUN_6f74_0538); the 1px
  * black drop shadow and the unbold face are the same ones every other
- * FONTINTR caption uses (bugs.md #280).
+ * FONTINTR caption uses (port_bugs.md #280).
  *
  * Audit GL-8: the wrap engine and the brace-run drawer were private copies of
  * popup_wrap_text / popup_draw_text_markup. They are now those two — verified
@@ -790,12 +790,12 @@ static bool europe_menu_layout(
       break;
     case EUROPE_MENU_PURCHASE:
       /* @REALLYBUY confirm swaps the list for its own 2-row Yes/No
-       * (bugs.md #753). */
+       * (port_bugs.md #753). */
       out->rows = eu->purchase_confirming ? 2 : 1 + eu->purchase_count;
       break;
     case EUROPE_MENU_DOCK:
       /* @ARMOPTIONS rows this immigrant actually gets, no "None" header —
-       * DOS's own last row is "No changes." (bugs.md). */
+       * DOS's own last row is "No changes." (port_bugs.md). */
       out->rows = eu->dock_menu_count;
       break;
     default:
@@ -920,7 +920,7 @@ int europe_menu_row_at(const ColonizeGameState* game, int mx, int my) {
  * DS:0x2dba (raw 121284-121287 fills 0xdd slots from the "MISC" tag), i.e.
  * LABELS.TXT @MISC lines 13 "(Cost:" and 14 ")". The port draws the suffix in
  * its own column, so only the parenthesised part is composed here.
- * bugs.md #602.
+ * port_bugs.md #602.
  */
 static void europe_menu_cost_suffix(char* out, size_t cap, int amount) {
   snprintf(out, cap, "%s %d%s",
@@ -1002,7 +1002,7 @@ static void europe_render_menu_popup(
        * disabled outright (europe_build_dock_menu already dropped those). */
       color = eu->dock_menu_greyed[i] ? 8 : 15;
     } else if (eu->menu == EUROPE_MENU_PURCHASE && eu->purchase_confirming) {
-      /* @REALLYBUY Yes/No, GAME.TXT order verbatim (bugs.md #753): row 0
+      /* @REALLYBUY Yes/No, GAME.TXT order verbatim (port_bugs.md #753): row 0
        * "Yes", row 1 "No" (raw 64874 `iVar6 == 1` = row 0). */
       char choice_buf[2][POPUP_MSG_CHOICE_LEN];
       const char* choice_labels[2];
@@ -1184,7 +1184,7 @@ static void render_europe_chrome(
     /*
      * DOS status line owns this strip while one is armed: FUN_38fd_23c4
      * composes the sale into DS:0x2d54 and FUN_1009_02cc paints it INSTEAD of
-     * the strip's normal content, in the arm kind's ink (bugs.md #376).
+     * the strip's normal content, in the arm kind's ink (port_bugs.md #376).
      */
     const char* bar = ai_popup_bar_message(&game->ai_popups);
     const char* text = bar ? bar : line;
@@ -1338,11 +1338,11 @@ static void render_europe_holds_and_dock(
         /*
          * The dock row lays every immigrant out side by side, so no one is
          * ever hidden behind anyone else: the "more units here" tab belongs
-         * to a map stack and is always wrong here (bugs.md). Singular chrome.
+         * to a map stack and is always wrong here (port_bugs.md). Singular chrome.
          */
         const bool stacked = false;
         /* Box corner from the @UNIT display type, same rule the map runs
-         * (bugs.md: the name-first lookup put every armed immigrant's box in
+         * (port_bugs.md: the name-first lookup put every armed immigrant's box in
          * the Colonists corner). */
         int dtype = europe_dock_display_type_index(&game->units, &eu->dock[i]);
         if (dtype < 0) {
@@ -1477,7 +1477,7 @@ void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuffer8* f
        * mirrored back over the healed UI copy on the first frame. */
       const uint16_t nat_boycott = game->col1.nation[game->human_nation].boycott_bitmap;
       eu_mut->boycott_bitmap = (nat_boycott == 0xFFFFu) ? 0u : nat_boycott;
-      /* bugs.md: Brewster bans criminals/servants from the pool the moment
+      /* port_bugs.md: Brewster bans criminals/servants from the pool the moment
        * he is owned — reroll stale slots so Recruit and dock agree with the
        * Brewster pick dialog. */
       europe_apply_brewster(
@@ -2020,7 +2020,7 @@ static void game_create_load_sheets(ColonizeGameState* game) {
   if (game_load_ss_asset(game, "ICONS.SS", &game->unit_icons, "unit icon sheet")) {
     game->unit_icons_ok = true;
     /*
-     * bugs.md #364 (Dutch mission cross pink): the map screen draws
+     * port_bugs.md #364 (Dutch mission cross pink): the map screen draws
      * TERRAIN.SS tiles and ICONS.SS pieces through ONE DAC. The two sheets'
      * own palettes agree everywhere that matters except slots 5 and 13 —
      * TERRAIN leaves them as plain EGA magenta and never uses them (0 pixels
@@ -2078,8 +2078,8 @@ static void game_create_load_screens(ColonizeGameState* game) {
     europe_set_live_screen(&game->europe);
     europe_set_live_save(game->col1_ok ? &game->col1 : NULL);
     europe_set_popup_queue(&game->ai_popups);
-    /* Bound AFTER europe_load: its memset wipes both handles (bugs.md #545).
-     * @CMESSAGE wording for the Europe sale status line (bugs.md #376);
+    /* Bound AFTER europe_load: its memset wipes both handles (port_bugs.md #545).
+     * @CMESSAGE wording for the Europe sale status line (port_bugs.md #376);
      * GAME.TXT for statuses europe.c composes itself (@KISSSORRY etc). */
     europe_set_labels(&game->europe, game->labels_ok ? &game->labels : NULL);
     europe_set_messages(&game->europe, &game->messages);
@@ -2330,7 +2330,7 @@ void game_commit_new_campaign(ColonizeGameState* game) {
       }
     }
     /*
-     * bugs.md #2: map_load_mp marks scenario .MP maps fully explored
+     * port_bugs.md #2: map_load_mp marks scenario .MP maps fully explored
      * (no fog plane in the file) — fine for the pre-game-start default load,
      * but a real Original Americas/AMER2 campaign start must begin fogged
      * like NEW WORLD/CUSTOMIZE (map_generate's map_alloc zero-inits `seen`).
@@ -2339,7 +2339,7 @@ void game_commit_new_campaign(ColonizeGameState* game) {
     if (game->world_map_ok && game->world_map.seen) {
       memset(game->world_map.seen, 0, game->world_map.tile_count);
     }
-    /* bugs.md: DOS runs the FUN_684c_08c0 tail on a loaded map too (HS rings,
+    /* port_bugs.md: DOS runs the FUN_684c_08c0 tail on a loaded map too (HS rings,
      * arctic rows, hill/mountain tiles lose their forest class) — AMER2.MP
      * ships 146 forested hill/mountain tiles that DOS never draws as forest. */
     if (game->world_map_ok && game->world_map.terrain) {
@@ -2484,7 +2484,7 @@ void game_commit_new_campaign(ColonizeGameState* game) {
     game->ai_rng_seed = ai.rng_seed;
     /* FUN_38fd_6024 — new campaign only: recruit LFSR + pools for all four
      * nations, then the 16 opening prices, on its own stream reseeded from
-     * the campaign seed (DOS DS:0x83a6; bugs.md #1058). Load path keeps the
+     * the campaign seed (DOS DS:0x83a6; port_bugs.md #1058). Load path keeps the
      * save's bytes. */
     const ColonizeWorld w = game_world(game);
     europe_seed_campaign_w(
@@ -2495,7 +2495,7 @@ void game_commit_new_campaign(ColonizeGameState* game) {
      * FUN_3844_00f2 opens turn 0 with nation 0's 5e52, whose first act is
      * FUN_38fd_0058(0, -1): that nation's price track plus the one DS:0x53ea
      * pool decay every DOS save carries before its first EOT (SEED100.SAV,
-     * TURN1.SAV; bugs.md #1084). The port's batched EOT tick covers later
+     * TURN1.SAV; port_bugs.md #1084). The port's batched EOT tick covers later
      * rounds only.
      */
     if (game->col1_ok) {
@@ -2509,7 +2509,7 @@ void game_commit_new_campaign(ColonizeGameState* game) {
     /*
      * Reveal around owned units and colonies. Was NEW WORLD/CUSTOMIZE-only in
      * practice — scenario .MP starts (Original Americas/AMER2) used to load
-     * fully explored, so this loop was a no-op there (bugs.md #2, fixed
+     * fully explored, so this loop was a no-op there (port_bugs.md #2, fixed
      * by clearing `seen` after map_load_mp above).
      */
     if (game->world_map_ok) {

@@ -42,7 +42,7 @@ void col1_save_reset_nation_slots(ColonizeCol1Head* head) {
    * original saves carry ff ff ff ff ff ff at head+98..103. Zero-filling
    * them made nation 0 (England) read as the Crown's own slot, which is
    * why the Foreign Affairs report printed "(Withdrawn from New World)"
-   * over an English player's own block (bugs.md). sol_pct_last_notified,
+   * over an English player's own block (port_bugs.md). sol_pct_last_notified,
    * the fourth int16 of the same group, really is 0 in those saves.
    */
   head->crown_nation_id = -1;
@@ -51,7 +51,7 @@ void col1_save_reset_nation_slots(ColonizeCol1Head* head) {
   /* DS:0x53a4 SETVIEW cheat override — DOS's turn loop does
    * `view = human_player; if (0x53a4 >= 0) view = 0x53a4` every pass. All DOS
    * saves carry 0xffff (= none); the template's zero-fill pinned the map view
-   * to England forever (bugs.md #282: Dutch campaign, English fog after EOT). */
+   * to England forever (port_bugs.md #282: Dutch campaign, English fog after EOT). */
   head->fixed_nation_map_view = 0xffffu;
 }
 
@@ -64,7 +64,7 @@ int col1_save_human_nation_from(
   }
   /* Prefer DS:0x5398 when it agrees with the control table — a stale save can
    * carry TWO control==0 slots (pre-fix template left England's), and the
-   * first-zero scan then read a Dutch campaign as England (bugs.md #282).
+   * first-zero scan then read a Dutch campaign as England (port_bugs.md #282).
    * head.human_player alone is not trusted either: older port saves carry a
    * stale 0 there with a correct control table. */
   const int hp = (int)head->human_player;

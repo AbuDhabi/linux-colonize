@@ -52,7 +52,7 @@ That is the *nation* aggregate (`FUN_43f7_0004`), not a colony figure, and the
 case it hit in practice was a colony founded this turn: its COL1 record is only
 minted by the next `col1_bridge` export, so an established nation's bell total
 read out as 100% until the first end of turn replaced it with the real ratio
-(bugs.md: "new colony showed SoL 100%, next turn 5%"). `FUN_15eb_0274` has no
+(port_bugs.md: "new colony showed SoL 100%, next turn 5%"). `FUN_15eb_0274` has no
 fallback - no pair means nothing has accumulated, which is 0, and that is what
 `reports.c` / `combat_strength.c` / `ai_king.c` already returned.
 
@@ -78,14 +78,14 @@ Founding-Father bell pool, not a lifetime total: `FUN_4345_0a22` adds each
 colony's bells to it (raw 73341) and zeroes it on a successful elect (raw
 73370); `FUN_43f7_1a26` zeroes it at the declaration of independence (raw
 74738). `+0xe` (`liberty_bells_last_turn`) is this turn's bells only. See
-[`founding_fathers.md`](founding_fathers.md) and bugs.md #933.
+[`founding_fathers.md`](founding_fathers.md) and port_bugs.md #933.
 
 ### Instant population adjustment (colony screen join / leave)
 
 DOS colony-screen colonist add (viceroy_unpacked.c:11301, the `FUN_15eb_1068`
 caller) does `rebel_divisor += 100` and colonist remove (:10279)
 `rebel_divisor -= 100`, so the displayed SoL% moves the moment population
-changes rather than one EOT later (bugs.md 2026-09-15: "adding a colonist
+changes rather than one EOT later (port_bugs.md 2026-09-15: "adding a colonist
 doesn't recalculate SoL instantly"). Founding seeds 100 (below), so an
 n-colonist colony starts at `divisor ≈ 100·n` before the accumulator takes
 over. **Port:** `colonies_col1_rebel_divisor_adjust` in
@@ -137,7 +137,7 @@ clamped per colony, matching `FUN_281f_0c86`'s per-colony read inside the
 `0004` loop) **then** pop-weighted: `Σ(pop×sol%) / Σ(pop)`; with **no
 fallback** — no colonies (or a zero pop sum) returns the untouched
 accumulator, i.e. 0. The `liberty_bells_total/4` stand-in this line used to
-claim was deleted from `ai_king_sol_percent` (bugs.md #424) and has no
+claim was deleted from `ai_king_sol_percent` (port_bugs.md #424) and has no
 counterpart in `FUN_43f7_0004` (viceroy_unpacked.c raw 73477-73514).
 (Corrected 2026-08-24: this line previously read
 `Σ(dividend×pop)×100/Σ(divisor×pop)`, a different — and wrong — order of

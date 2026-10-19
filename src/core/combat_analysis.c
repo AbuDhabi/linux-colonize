@@ -221,7 +221,7 @@ static void combat_analysis_fill_mods(
     /* LABELS.TXT @MISC row 77 "Attack Bonus". */
     combat_analysis_push_row(rows, count, reports_misc_display_word(77, ""), 50);
   }
-  /* bugs.md #242: DOS 636c bit 0x8000 label ptr DS:0x2e8a = @MISC 104
+  /* port_bugs.md #242: DOS 636c bit 0x8000 label ptr DS:0x2e8a = @MISC 104
    * "Bombard" (the WoI colony-attack support bonus), not "Expeditionary
    * Force" (@MISC 91, the Congress force row). */
   if (flags->flags & COMBAT_FLAG_REF) {
@@ -395,7 +395,7 @@ static void combat_analysis_join_rows(
 /*
  * UN-44: attacker/defender header names, shared by the dialog header and the
  * debug.logs line. DOS 636c reads the NAMES type string via the DS:0x5230
- * table; bugs.md #261 adds the eng->atk_label fallback for the unit-less
+ * table; port_bugs.md #261 adds the eng->atk_label fallback for the unit-less
  * coastal Fort/Fortress battery attacker. `fallback` is what a side with no
  * name gets: "?" in the log, "" (empty header slot) in the dialog.
  */

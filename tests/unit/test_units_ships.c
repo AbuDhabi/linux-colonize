@@ -277,7 +277,7 @@ static int unit_warehouse_full(void) {
 
   bool full = false;
   const int moved = colonies_transfer_from_unit(&colonies, 1, &pool, sid, 0, &full);
-  /* bugs.md: full warehouse no longer blocks — the hold lands anyway and
+  /* port_bugs.md: full warehouse no longer blocks — the hold lands anyway and
    * the flag informs (excess spoils next turn). */
   if (moved != 20 || !full) {
     fprintf(stderr, "whfull: want moved=20 full=1 got moved=%d full=%d\n", moved, (int)full);
@@ -327,7 +327,7 @@ static int unit_warehouse_full(void) {
 }
 
 /*
- * bugs.md: "I can't move a ship onto a sea lane either way." DOS
+ * port_bugs.md: "I can't move a ship onto a sea lane either way." DOS
  * FUN_4720_015c (~76048) only raises reason 5 when the ship is ALREADY on a
  * high-seas tile and steps further east without a Go To / Trade Route order;
  * entering the lane from ordinary ocean is always legal, and a Go To may
@@ -353,7 +353,7 @@ static int unit_sea_lane_entry(void) {
   }
   /* Lanes sit INSIDE the playable board, as on AMER2 (west lane = column 1,
    * east lane = columns 51..56; the outer rim, column 0 / w-1, is plain ocean
-   * a unit may never occupy — DOS FUN_137f_000a, bugs.md #429). */
+   * a unit may never occupy — DOS FUN_137f_000a, port_bugs.md #429). */
   for (int y = 0; y < 8; ++y) {
     map.terrain[y * 8 + 5] = 26; /* high seas / sea lane */
     map.terrain[y * 8 + 6] = 26;
@@ -404,7 +404,7 @@ static int unit_sea_lane_entry(void) {
     rc = 1;
   }
   /*
-   * bugs.md #429: the outer rim is not a playable tile. A ship on the lane may
+   * port_bugs.md #429: the outer rim is not a playable tile. A ship on the lane may
    * not step onto column w-1 (nor column 0 / row 0 / row h-1) — DOS
    * FUN_137f_000a. Before the fix the port only tested the raw array bounds,
    * so a ship could slide off the west sea lane onto column 0, a tile the
@@ -416,7 +416,7 @@ static int unit_sea_lane_entry(void) {
     fprintf(stderr, "sea_lane: step onto the west rim column must be denied\n");
     rc = 1;
   }
-  /* bugs.md #717: the x-axis rim is DOS reason 4 for a SHIP (@SAILHOME with a
+  /* port_bugs.md #717: the x-axis rim is DOS reason 4 for a SHIP (@SAILHOME with a
    * "No" that aborts), not the silent y-axis edge. Expectation updated from
    * COLONIZE_ENTER_BLOCKED_EDGE — the step is still denied either way. */
   if (rc == 0 && units_last_enter_reason() != COLONIZE_ENTER_EDGE_SAIL) {
@@ -429,7 +429,7 @@ static int unit_sea_lane_entry(void) {
     fprintf(stderr, "sea_lane: step onto the north rim row must be denied\n");
     rc = 1;
   }
-  /* bugs.md #717: the y-axis rim returns 0 with no reason word in DOS —
+  /* port_bugs.md #717: the y-axis rim returns 0 with no reason word in DOS —
    * silent BLOCKED_EDGE, never the @SAILHOME question. */
   if (rc == 0 && units_last_enter_reason() != COLONIZE_ENTER_BLOCKED_EDGE) {
     fprintf(stderr, "sea_lane: north rim deny should stay silent EDGE (#717)\n");
@@ -561,7 +561,7 @@ static int unit_amphibious_landfirst(void) {
 }
 
 /*
- * bugs.md #553: "Sailing a ship into a captured colony is impossible." The
+ * port_bugs.md #553: "Sailing a ship into a captured colony is impossible." The
  * live save had a native Brave standing fortified inside the colony (it had
  * walked in before ai_native_brave_step ported the FUN_465b_0000
  * foreign-destination arm), and the probe's foreign-unit scan bounced the
@@ -642,7 +642,7 @@ static int unit_own_colony_dock_ignores_squatter(void) {
 }
 
 /*
- * bugs.md #421: "Newly bought Merchantman sent to the New World spawned in an
+ * port_bugs.md #421: "Newly bought Merchantman sent to the New World spawned in an
  * unexplored sea lane tile, and did not even insta-reveal the fog."
  *
  * DOS FUN_48d3_048e (viceroy_unpacked.c:77810) is the Europe->map placement:

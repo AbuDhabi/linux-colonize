@@ -446,7 +446,7 @@ void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units) {
    * A ship that entered its lane during the turn just ending spends this
    * tick at sea without the counter moving — see EuropeHarborShip's
    * departed_this_turn. Without it an ordinary 1-turn crossing docked on
-   * the very next turn, where DOS needs two End Turns (bugs.md).
+   * the very next turn, where DOS needs two End Turns (port_bugs.md).
    */
   for (int i = 0; i < eu->expected_ships; ++i) {
     if (eu->expected[i].departed_this_turn) {
@@ -495,7 +495,7 @@ void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units) {
       }
     }
     europe_refresh_harbor_selection(eu);
-    /* bugs.md #750: DOS composes the arrival line through the DS:0x2d54 status
+    /* port_bugs.md #750: DOS composes the arrival line through the DS:0x2d54 status
      * API and GAME.TXT has no docked-ship tag, so there is nothing to show. */
     eu->status[0] = '\0';
   }
@@ -538,7 +538,7 @@ int europe_cash_treasure(EuropeScreen* eu, int treasure_value) {
    * FUN_48d3_06ba raw 78005-78018, all three against the current player's
    * record (DS:0x5394): gold (+0x2a) += net, +0x26 += the SAME net (the
    * write-only cumulative counter, int32 LE), royal_money (+0x22) += fee.
-   * bugs.md #740 / #741.
+   * port_bugs.md #740 / #741.
    */
   const int purse_nation = europe_purse_nation(eu);
   struct ColonizeCol1Save* col1 = g_europe_live_save;
@@ -565,7 +565,7 @@ int europe_cash_treasure(EuropeScreen* eu, int treasure_value) {
     /*
      * FUN_48d3_06ba raw 78020: FUN_281f_0652(0x148e, 2) — @LOOTCASH is a
      * MODAL here, not just a status line (the status line is the port's own
-     * chrome and stays). bugs.md #742.
+     * chrome and stays). port_bugs.md #742.
      */
     if (g_europe_popups) {
       char body[AI_POPUP_BODY_LEN];
@@ -602,7 +602,7 @@ int europe_buy_price(const EuropeScreen* eu, int cargo_type) {
 
 /* FUN_38fd_0040 / 0016 read the BOUND record (DS:0x84fc) — the acting
  * nation's own track. The screen holds the human's; any other nation reads
- * its col1 byte. bugs.md #1049. */
+ * its col1 byte. port_bugs.md #1049. */
 int europe_nation_sell_price(
   const EuropeScreen* eu, const struct ColonizeCol1Save* col1, int nation, int cargo_type
 ) {
@@ -717,7 +717,7 @@ void europe_apply_trade_volume(
   const int seller_is_human =
     (seller_nation >= 0 && seller_nation < 4 && seller_nation == human_nation);
   const int raw_term = (amount << shift) + europe_1d44_term(amount, seller_is_human, difficulty);
-  /* DOS walks all four records (bugs.md #1047): the screen's own track lives
+  /* DOS walks all four records (port_bugs.md #1047): the screen's own track lives
    * in eu->trade_nr, the other three in col1->nation[n].trade.nr. The Dutch
    * record (slot 3) takes (term·2)/3 regardless of who sold — SELL side
    * only: FUN_38fd_1dfa's `if (local_a == 3) iVar5 = (iVar3*2)/3` (viceroy
@@ -783,8 +783,8 @@ void europe_apply_trade_volume(
    * then the whole of FUN_38fd_0058(0, cargo) runs — phase 1 (the ledger, and
    * the DS:0x53ea pool decay when the bound record is nation 0), the phase
    * 2/3 nudge for this cargo, and phase 4's threshold step with the attrition
-   * added and taken back out again (raw 58989-58992). bugs.md #1017; the
-   * @PRICEUP/@PRICEDOWN crumb for a player-move price change (bugs.md #225)
+   * added and taken back out again (raw 58989-58992). port_bugs.md #1017; the
+   * @PRICEUP/@PRICEDOWN crumb for a player-move price change (port_bugs.md #225)
    * is queued inside phase 4 like the EOT tick's.
    */
   europe_market_tick_single_cargo(eu, col1, (int)eu->bound_nation, cargo_type);
@@ -811,11 +811,11 @@ void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int
  *   param_1 — 0 = the full tick (phases 1-4, the one 5e52 runs every EOT and
  *             the one 1dfa/1d80 run after a single trade); non-0 = the
  *             FUN_38fd_6024 campaign-seed tail, which runs phase 1 and then
- *             only phase 2's clamp arm (bugs.md #1016).
+ *             only phase 2's clamp arm (port_bugs.md #1016).
  *   param_2 — <0 = every cargo; otherwise the one cargo a single trade moved
  *             (phase 1 still walks all 16, including the pool decay).
  * DOS keeps FOUR independent price tracks — bid at record +0x4c, pressure
- * word at +0x5c — and 5e52 ticks each nation's own (bugs.md #1011/#1012).
+ * word at +0x5c — and 5e52 ticks each nation's own (port_bugs.md #1011/#1012).
  * This file therefore runs the phases over a `bid`/`nr` pair the caller
  * points at either the human's EuropeScreen or a nation's col1 record; the
  * @CARGO columns (low/high/rise/fall/attrition) are a global table and come
@@ -878,7 +878,7 @@ static void europe_market_phase1(const EuropeMarketTick* t, long ledger[16]) {
  * sign(bid − ratio) the way DOS takes it: the FUN_1d1d_0ec6 quotient is
  * truncated to a 16-bit int and subtracted from the signed bid byte in 16
  * bits (raw ~58845 `local_6 - (int)lVar15`, ~58899 `local_52`). Only differs
- * from a plain compare once the ratio passes 32767. bugs.md #1051.
+ * from a plain compare once the ratio passes 32767. port_bugs.md #1051.
  */
 static int europe_market_bid_sign(int bid, long ratio) {
   const int16_t d = (int16_t)(uint16_t)((unsigned)(int8_t)bid - (unsigned)(uint16_t)ratio);
@@ -929,7 +929,7 @@ static void europe_market_phase2(const EuropeMarketTick* t, const long ledger[16
  * Phase 3 (raw 58876-58925, full tick only) — cargos 1..4. The denominator
  * pool is ledger[4]/2 + ledger[1] + ledger[2] + ledger[3] (the loop's own
  * four cargos, with cargo 4 halved exactly as its in-loop L is — DOS reads
- * the stack ledger slots of cargo 4, not cargo 0; bugs.md #1022), and the
+ * the stack ledger slots of cargo 4, not cargo 0; port_bugs.md #1022), and the
  * nudge is ((rise+fall)/2)·sign with no ×100. Cargo 4 also takes the two
  * year biases (+1 before 1700, +1 again before 1600).
  */
@@ -1131,7 +1131,7 @@ static void europe_market_track_store(
  * DOS has ONE store per nation (record +0x4c / +0x5c) and refreshes the
  * DS:0x84bc mirror in every 0058 pass; the port's human track lives in the
  * EuropeScreen, so every write to it goes straight through to the col1 row
- * the rest of the sim reads (bugs.md #1050).
+ * the rest of the sim reads (port_bugs.md #1050).
  */
 static void europe_screen_track_to_col1(const EuropeScreen* eu, struct ColonizeCol1Save* col1) {
   if (!eu || !col1 || eu->bound_nation >= COLONIZE_COL1_NATION_COUNT) {
@@ -1206,7 +1206,7 @@ void europe_tick_market_prices_w(
    * The human's own 5e52 phase-3 call, FUN_38fd_0058(0, 0xffff). Validated
    * 2026-08-28 against two real-DOS turn pairs (golden_market_prices01;
    * python replica iterated until both matched). The other three nations tick
-   * through europe_nation_tick_market_prices_w (bugs.md #1012); DOS runs each
+   * through europe_nation_tick_market_prices_w (port_bugs.md #1012); DOS runs each
    * nation's call inside its own end-of-turn 5e52, and the pool decay belongs
    * to nation 0's pass, so the caller walks the nations in index order.
    * Column roles (NAMES.TXT @CARGO): rise=c6, fall=c7, attrition=c8.
@@ -1282,7 +1282,7 @@ void europe_tick_market_prices_w(
 /*
  * The FUN_38fd_6024 campaign tail (raw 68655-68660): bind each nation and run
  * FUN_38fd_0058(1, -1), which rewrites cargos 9..12 from the (still empty)
- * ledger instead of the roll that just landed. bugs.md #1016.
+ * ledger instead of the roll that just landed. port_bugs.md #1016.
  */
 void europe_market_seed_tail_w(const ColonizeWorld* w, int nation, uint32_t turn) {
   EuropeScreen* eu = w->europe;
@@ -1416,7 +1416,7 @@ int europe_tick_immigration_pressure_w(
   /* DOS-LITERAL FUN_38fd_5e52 raw 68556: the tick clears nation flag bit
    * 0x20 on entry (`*(byte *)*0x84fc &= 0xdf`). The AI twin
    * europe_nation_immigration_tick_w already did this; the human path did
-   * not (bugs.md #923). */
+   * not (port_bugs.md #923). */
   if (w->col1 && nation_id < (int)COLONIZE_COL1_NATION_COUNT) {
     w->col1->nation[nation_id].nation_flags =
       (uint8_t)(w->col1->nation[nation_id].nation_flags & 0xdfu);
@@ -1451,7 +1451,7 @@ int europe_tick_immigration_pressure_w(
       }
       /* 584a raw 68272: only units with FUN_281f_0b78(unit) >= 0 (a
        * default-profession slot) drain; a purchased Artillery row does not
-       * (bugs.md #674; the AI twin below already applied this test). */
+       * (port_bugs.md #674; the AI twin below already applied this test). */
       const int ti = units ? europe_dock_unit_type_index(units, eu->dock[i].dos_type) : -1;
       if (ti >= 0 && !units_type_has_profession_slot(ti)) {
         continue;
@@ -1471,7 +1471,7 @@ int europe_tick_immigration_pressure_w(
   europe_refresh_recruit_passage(eu);
 
   /* Phase 5: needed < current → dock immigrant; clear current. */
-  if ((int)eu->current_crosses > need) { /* 5e52 raw 68563: plain `local_6 < iVar3` (bugs.md #676) */
+  if ((int)eu->current_crosses > need) { /* 5e52 raw 68563: plain `local_6 < iVar3` (port_bugs.md #676) */
     /*
      * 5e52 ~68577: FF 0x14 (Brewster) owned → FUN_38fd_4884(0,1) instead of
      * the random 04d4(0,2) pool pick: the player chooses (@RECRUITCHOOSE),
@@ -1481,7 +1481,7 @@ int europe_tick_immigration_pressure_w(
      */
     if ((col1 && founding_fathers_nation_has(col1, nation_id, FF_WILLIAM_BREWSTER)) ||
         eu->brewster_no_criminals) {
-      europe_apply_brewster(eu, 1); /* bugs.md #224: purge stale slots BEFORE the pick */
+      europe_apply_brewster(eu, 1); /* port_bugs.md #224: purge stale slots BEFORE the pick */
       return 2;
     }
     eu->current_crosses = 0;
@@ -1489,9 +1489,9 @@ int europe_tick_immigration_pressure_w(
     europe_refresh_recruit_passage(eu);
     if (europe_immigrant_from_pool(eu, rng)) {
       /* 5e52 raw 68588/68601: nation_flags |= 0x40 only when the 0b26 spawn
-       * succeeded (bugs.md #675). */
+       * succeeded (port_bugs.md #675). */
       eu->crosses_immigrant_seen = true;
-      /* bugs.md #223: keep open_on_dock — arrivals own it (see above). */
+      /* port_bugs.md #223: keep open_on_dock — arrivals own it (see above). */
       snprintf(eu->status, sizeof(eu->status), "Immigrant arrives in Europe.");
       return 1;
     }

@@ -62,7 +62,7 @@ void turn_emit_built_chrome(
   const char* built_name
 );
 /* Phase A field composition (FUN_15eb_18ec) shared by the EOT tick and
- * colony_preview.c (bugs.md #1111). gross[] = field workers + town-commons
+ * colony_preview.c (port_bugs.md #1111). gross[] = field workers + town-commons
  * secondary; town-commons food is kept apart in commons_food. */
 typedef struct TurnColonyFieldYield {
   int commons_food;
@@ -77,7 +77,7 @@ void turn_compose_colony_fields(
   const ColonizeColony* colony,
   TurnColonyFieldYield* out
 );
-/* turn_produce_one_colony (FUN_364b_0688) stage ctx, bugs.md #1107. Inputs
+/* turn_produce_one_colony (FUN_364b_0688) stage ctx, port_bugs.md #1107. Inputs
  * are fixed for the tick except `colony`, which the Phase B application
  * switch (turn_produce_custom_house) rebinds to the 1528 record. Every other
  * field is a DOS local that crosses stages; its writer stage stores it here

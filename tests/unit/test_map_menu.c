@@ -736,7 +736,7 @@ static int case_orders_gating(void) {
 }
 
 /*
- * bugs.md #686 / #692 — DOS-LITERAL FUN_2b5a_0b34 raw 42199-42211.
+ * port_bugs.md #686 / #692 — DOS-LITERAL FUN_2b5a_0b34 raw 42199-42211.
  * Build (0x310) / Join (0x311) are decided by "is there ANY Euro colony on
  * the tile" plus the single profession-0x1b grey; terrain never enters.
  */
@@ -845,7 +845,7 @@ static int case_build_join_gating(void) {
 }
 
 /*
- * bugs.md #693 / #694 — FUN_2b5a_0902 (View Pieces, no active unit).
+ * port_bugs.md #693 / #694 — FUN_2b5a_0902 (View Pieces, no active unit).
  * #693: Build (0x310) is greyed at raw 42124 and then HIDDEN at raw 42127.
  * #694: Activate (0x300) appears in neither the grey list nor the hide list
  * of 0902 or 0b34, so it stays enabled even with nothing under the cursor.

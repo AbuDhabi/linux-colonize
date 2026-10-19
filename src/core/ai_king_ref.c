@@ -135,7 +135,7 @@ static int ai_king_10f0_score_tile(const ColonizeTurnContext* ctx, int human, in
       !map_tile_is_water(ctx->map, tx, ty)) {
     return -1;
   }
-  /* bugs.md: the ally sails a Man-O-War in — a landlocked lake tile is
+  /* port_bugs.md: the ally sails a Man-O-War in — a landlocked lake tile is
    * unreachable from the ocean, yet pass 2 of the picker accepted any water
    * ("MoW in the lake deposited troops into the lake colony"). */
   if (map_tile_is_lake(ctx->map, tx, ty)) {
@@ -210,7 +210,7 @@ static bool ai_king_10f0_pick_spawn(const ColonizeTurnContext* ctx, int human, i
    * layer3 low nibble, the open-sea region id. The port's two-pass relaxation
    * was dead in pass 0 (map_continent_id_at returns -1 on water) and accepted
    * any non-lake water in pass 1, including a Sea Lane tile with nibble != 1
-   * that DOS rejects (bugs.md #873c).
+   * that DOS rejects (port_bugs.md #873c).
    */
   for (int d = 0; d < 8; ++d) {
     const int tx = cx + k_raster8_dx[d];
@@ -364,7 +364,7 @@ COLONIZE_INTERNAL int ai_king_0982_crown_mow_alive(const ColonizeTurnContext* ct
 
 /* 0982 pool index → NAMES type (43f7_0082 crown class map). */
 COLONIZE_INTERNAL int ai_king_0982_spawn_pool_unit(ColonizeTurnContext* ctx, int crown, int pool_index, int x, int y) {
-  /* bugs.md: the REF fields Regulars and CAVALRY (@UNIT 8) — not colonial
+  /* port_bugs.md: the REF fields Regulars and CAVALRY (@UNIT 8) — not colonial
    * Dragoons; pool[1] is the Cavalry pool. */
   /* @UNIT rows, not names: 6 Regulars / 8 Cavalry / 18 Man-O-War / 11
    * Artillery, with the colonial stand-ins for a pool that lacks a row. */
@@ -401,7 +401,7 @@ COLONIZE_INTERNAL int ai_king_0982_spawn_pool_unit(ColonizeTurnContext* ctx, int
 /* DS:0x5333 = @UNIT row 18 (Man-O-War) + 5 = the HOLDS column (0x5232 +
  * 18*0xe + 5), i.e. 6 with stock NAMES.TXT: one MoW load per wave. Both
  * 0982 clamps (raw 74077-74081 pass>=1, raw 74091-74094 after the pick)
- * read it. User-observed: REF waves are never larger than 6 (bugs.md #661). */
+ * read it. User-observed: REF waves are never larger than 6 (port_bugs.md #661). */
 int ai_king_0982_max_landing(const ColonizeTurnContext* ctx) {
   const int ti = units_kind_type_index(ctx->units, UNITS_KIND_MAN_O_WAR);
   if (ti < 0 || ti >= ctx->units->type_count) {
@@ -446,7 +446,7 @@ int ai_king_0982_max_landing(const ColonizeTurnContext* ctx) {
  */
 static void ai_king_ref_tory_uprising(ColonizeTurnContext* ctx, int crown, int human) {
   /*
-   * bugs.md #255 — full FUN_43f7_06a6 Tory uprising (viceroy_unpacked.c
+   * port_bugs.md #255 — full FUN_43f7_06a6 Tory uprising (viceroy_unpacked.c
    * 73829-73932), replacing the old one-Regular-at-(hx,hy+1) stand-in
    * that could drop Regulars on a WATER tile:
    *   - roll(0, difficulty+1) != 0 to fire at all;
@@ -541,7 +541,7 @@ static void ai_king_ref_tory_uprising(ColonizeTurnContext* ctx, int crown, int h
           units_set_nation(nu, crown);
           /* Order-free like the 0982 wave (DOS creator default 0x58) —
            * the euro act moves them from the next turn on (D1). */
-          /* bugs.md follow-up to 406: uprising irregulars spawn with the
+          /* port_bugs.md follow-up to 406: uprising irregulars spawn with the
            * turn spent — the war-act loop runs this same beat and must not
            * march them into the colony the moment they appear (the crown
            * move pass ran before the king block in DOS). */
@@ -582,7 +582,7 @@ static void ai_king_ref_tory_uprising(ColonizeTurnContext* ctx, int crown, int h
 /*
  * DOS lands a spawned unit with `FUN_281f_02d0` (FUN_112b_0eb6, the slide
  * animation only) then `FUN_281f_0948` (FUN_1427_040c, set x/y): no terrain
- * cost, no MP roll, no move side effects (bugs.md #878 lead; raw 74211-74216,
+ * cost, no MP roll, no move side effects (port_bugs.md #878 lead; raw 74211-74216,
  * 74436-74441). The port fires its move watch for the slide.
  */
 static void ai_king_place_slide(ColonizeTurnContext* ctx, int uid, int x, int y) {
@@ -627,7 +627,7 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
     need = 3;
   }
   /* Per-wave cap = DS:0x5333 (MoW holds, 6) already applied by the caller
-   * (raw 74091-74094); floor 3 above is raw 74162-74164. bugs.md #661. */
+   * (raw 74091-74094); floor 3 above is raw 74162-74164. port_bugs.md #661. */
   int dragoons_landed = 0; /* local_c */
   int artillery_landed = 0; /* local_2e */
   /*
@@ -713,7 +713,7 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
             /* DOS-LITERAL raw 74206-74210: 095c creates the unit at (-2,-2),
              * off the map, so 13f1_02f8 reveals nothing and the crown's own
              * bit is never set; caseD_1 = FUN_1427_0992(unit, param_1) then
-             * sets the target nation's vis bit only (bugs.md #878 lead).
+             * sets the target nation's vis bit only (port_bugs.md #878 lead).
              * DOSBox independence save 3: the landed Regulars read 0x80. */
             lu->col1_vis_mask = (uint8_t)(1u << c->nation_id);
           }
@@ -767,7 +767,7 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
     }
     /* DOS-LITERAL FUN_43f7_0982 raw 74001-74003: `(colony[+0x1c] & 0x40)` —
      * the save-carried coastal bit stamped at founding, not the live
-     * 8-neighbour probe (bugs.md #878c). */
+     * 8-neighbour probe (port_bugs.md #878c). */
     if ((c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) == 0) {
       continue;
     }
@@ -898,7 +898,7 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
          * only when the FIRST stack unit's nation nibble differs from the
          * crown does 02e4 walk the chain, and only a type 0x12 (Man-O-War)
          * forces `local_16 = 1`. Any other foreign hull (a Caravel picket)
-         * leaves the score alone (bugs.md #872).
+         * leaves the score alone (port_bugs.md #872).
          */
         const int occ = units_id_at(ctx->units, wx, wy);
         const ColonizeUnit* ou = occ >= 0 ? units_get_const(ctx->units, occ) : NULL;
@@ -940,11 +940,11 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
          * creator default (+0x314b = 0x58, no orders) stands, exactly as
          * for the land units below. The port's `AI_SAIL` + self-goto made
          * ai_euro_act read it as a committed self-move and zero its MP, so
-         * the hull froze on the landing tile forever (bugs.md #866).
+         * the hull froze on the landing tile forever (port_bugs.md #866).
          */
         ship->col1_counter16 = 0;
         /* DOS-LITERAL raw 74142: caseD_1 = FUN_1427_0992(hull, param_1), the
-         * target nation's vis bit only (bugs.md #878 lead). */
+         * target nation's vis bit only (port_bugs.md #878 lead). */
         ship->col1_vis_mask |= (uint8_t)(1u << w->human);
         /* 095c places the hull on the map, and its 0948 -> 07a0 -> 13f1_02f8
          * reveal stamps the crown on what the hull sees (DOSBox BPM on
@@ -969,7 +969,7 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
           (void)ai_popup_enqueue_ok_ctx(
             ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, crown, 0, NULL, body
           );
-          /* bugs.md #237: the landing popup BLOCKS before the disembark
+          /* port_bugs.md #237: the landing popup BLOCKS before the disembark
            * slides — popup, then animations, then the rest, in sequence. */
           units_pump_combat_popups();
         }
@@ -992,7 +992,7 @@ void ai_king_ref_wave(ColonizeTurnContext* ctx) {
   if (!ai_king_independence_declared(ctx->col1)) {
     return;
   }
-  /* bugs.md: the wave waits one turn after the declaration. */
+  /* port_bugs.md: the wave waits one turn after the declaration. */
   if (ai_king_latch_get(ctx->col1, AI_KING_REF_WAVE_WAIT_BYTE) != 0) {
     ai_king_latch_set(ctx->col1, AI_KING_REF_WAVE_WAIT_BYTE, 0);
     return;
@@ -1092,7 +1092,7 @@ COLONIZE_INTERNAL int ai_king_10f0_spawn_unit(
    * only a control==0 slot reaches the woi term, which yields Cont. Army (9) /
    * Cont. Cav. (7) after the declaration and Dragoons (4) before it. The port
    * ignored `human` entirely and handed Continentals to REF/AI nations
-   * (bugs.md #505). */
+   * (port_bugs.md #505). */
   static const ColonizeUnitKind crown_kinds[2] = {UNITS_KIND_REGULAR, UNITS_KIND_CAVALRY};
   if (!ctx || !ctx->units || pool_index < 0 || pool_index > 3) {
     return -1;
@@ -1217,11 +1217,11 @@ static const char* ai_king_1528_announce_colony(const ColonizeTurnContext* ctx, 
  * (0x53e2/0x53e4/0x53e6/0x53e8), seeded on the declaration by
  * ai_king_seed_backup_force_1a26 — not a stand-in.
  *
- * Gate (no REF-empty condition; see the bugs.md note in the body): the
+ * Gate (no REF-empty condition; see the port_bugs.md note in the body): the
  * per-turn free drain (FUN_43f7_2022 raw 75007) needs the intervention-once
  * latch AI_KING_INTERVENE_ANNOUNCED_BYTE set AND the MoW pool
  * backup_force[2] nonzero. The bell spend does NOT land anything — it only
- * announces (ai_king_1528_announce); bugs.md #538.
+ * announces (ai_king_1528_announce); port_bugs.md #538.
  *
  * Landing (74378-74449): every unit is spawned for the HUMAN nation, so the
  * force is player-controlled. One Man-O-War (pool [2] −1) on the best water
@@ -1262,7 +1262,7 @@ static const char* ai_king_1528_announce_colony(const ColonizeTurnContext* ctx, 
  * once-per-turn FUN_43f7_2022 arm runs on a LATER turn, gated on that same
  * bit plus a nonzero Man-O-War pool (raw 75007).
  *
- * bugs.md #538: the port used to land the whole force straight from the
+ * port_bugs.md #538: the port used to land the whole force straight from the
  * bell spend, so the free drain — whose gate the announce had just opened —
  * landed a second intervention force in the same turn.
  */
@@ -1286,7 +1286,7 @@ static void ai_king_1528_announce(ColonizeTurnContext* ctx, int human) {
     }
   }
 
-  /* bugs.md #252: the declaration names the PARENT countries (1528 passes
+  /* port_bugs.md #252: the declaration names the PARENT countries (1528 passes
    * both nations through FUN_291f_0ac8's country-name form). */
   const char* ally_name =
     (ally1 >= 0 && ally1 < 4) ? reports_nation_adjective_display_name(ally1) : ""; /* #878f: no typed text */
@@ -1337,7 +1337,7 @@ static void ai_king_10f0_announce(
   ColonizeTurnContext* ctx, int human, int ally1, int paid, int landings,
   int hx, int hy, int sx, int sy, const int merc_counts[4], const int want[4]
 ) {
-  /* bugs.md #252: the declaration names the PARENT countries (DOS 1528
+  /* port_bugs.md #252: the declaration names the PARENT countries (DOS 1528
    * passes both nations through FUN_291f_0ac8's country-name form —
    * "France declares war on England"), never the new-world colony names.
    * The arrival line uses the nationality adjective ("French Intervention
@@ -1376,7 +1376,7 @@ static void ai_king_10f0_announce(
     mtok.string1 = ally_name;
     char mbody[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "MERCS", &mtok, "", mbody, sizeof(mbody));
-    /* bugs.md #875: the ARRIVAL tag, not the OFFER's own KING_MERC tag —
+    /* port_bugs.md #875: the ARRIVAL tag, not the OFFER's own KING_MERC tag —
      * ai_king_merc_offer_pending() reads an unread KING_MERC popup as "an
      * offer is still pending" and returns before the 1-in-3 dos_rng_range
      * draw, desyncing the RNG. The free arm below already uses ARRIVAL. */
@@ -1402,8 +1402,8 @@ static void ai_king_10f0_announce(
     );
     sound_set_bgm(3); /* FUN_43f7_10f0 43f7:145b: 281f_0498(3) Independence pool… */
     sound_play(0x3f); /* …then 43f7:1465: intervention tune after @INTERVENE */
-    /* bugs.md #253: the arrival popup BLOCKS before the disembark slides,
-     * same sequencing as the REF landing (bugs.md #237). */
+    /* port_bugs.md #253: the arrival popup BLOCKS before the disembark slides,
+     * same sequencing as the REF landing (port_bugs.md #237). */
     units_pump_combat_popups();
   }
 }
@@ -1418,7 +1418,7 @@ static void ai_king_10f0_disembark(
 ) {
   /* DOS-LITERAL raw 74433-74435: `local_1a = 0; break;` — a refused 095c
    * clears the OUTER loop's condition, so no later pool is tried either
-   * (bugs.md #873d). */
+   * (port_bugs.md #873d). */
   int alive = 1;
   for (int pi = 0; pi < 3 && alive; ++pi) {
     const int k = pool_k[pi];
@@ -1440,7 +1440,7 @@ static void ai_king_10f0_disembark(
         lu->goto_x = UNITS_GOTO_NONE;
         lu->goto_y = UNITS_GOTO_NONE;
         /* raw 74435: caseD_1 = FUN_1427_0992(unit, iVar2), the spawn
-         * nation's own vis bit (bugs.md #878 lead). */
+         * nation's own vis bit (port_bugs.md #878 lead). */
         lu->col1_vis_mask |= (uint8_t)(1u << human);
       }
     }
@@ -1458,7 +1458,7 @@ void ai_king_10f0_land(
   }
   uint16_t* backup = ctx->col1->head.backup_force;
   /*
-   * bugs.md (user: "Foreign intervention isn't happening even though I've
+   * port_bugs.md (user: "Foreign intervention isn't happening even though I've
    * gathered the required bells"): the old gate here returned while the
    * expeditionary pools were nonzero — but DOS has no such condition on
    * EITHER trigger, so intervention could never fire mid-war. The real DOS
@@ -1493,7 +1493,7 @@ void ai_king_10f0_land(
    * scored water tile (`local_54 == 0`) each fall straight out of the body —
    * nothing lands, no pool is decremented, and a paid hire's gold stays
    * spent. The port's weakest-port fallback and "any other colony with
-   * water" rescan were invented (bugs.md #873a/b).
+   * water" rescan were invented (port_bugs.md #873a/b).
    */
   if (ai_king_10f0_pick_colony(ctx, human, &hx, &hy) < 0) {
     return;
@@ -1522,7 +1522,7 @@ void ai_king_10f0_land(
     return; /* DOS: no scored tile → nothing lands this turn */
   }
   /* DOS-LITERAL raw 74378-74380: `if (param_1 == 0) *0x53e6 -= 1` runs
-   * BEFORE `095c`, whatever the spawn answers (bugs.md #873e). The free-drain
+   * BEFORE `095c`, whatever the spawn answers (port_bugs.md #873e). The free-drain
    * gate above already guarantees backup[2] != 0 here. */
   if (!paid) {
     backup[2]--;
@@ -1543,7 +1543,7 @@ void ai_king_10f0_land(
   }
   /* raw 74386 `FUN_281f_0e08(x, y, 0)` -> FUN_1984_029e is a camera centre on
    * the hull's tile (DS:0x17c/0x17e), not a reveal; the only reveal is the
-   * hull's 06b4 sight reveal above (bugs.md #878 lead). Camera unported. */
+   * hull's 06b4 sight reveal above (port_bugs.md #878 lead). Camera unported. */
   int landings = 1;
   static const int pool_k[3] = {0, 1, 3};
   /*
@@ -1586,7 +1586,7 @@ void ai_king_10f0_land(
     );
   }
 
-  /* bugs.md #253: land troops disembark VISIBLY — spawn on the ship's tile
+  /* port_bugs.md #253: land troops disembark VISIBLY — spawn on the ship's tile
    * and slide into the colony (ai_king_place_slide fires the move-watch
    * animation), like the REF landing. Unlike normal disembark rules they
    * arrive ready for action: full moves restored after the step. */
@@ -1633,10 +1633,10 @@ int ai_king_spend_woi_bell_pool(ColonizeTurnContext* ctx, int nation_id) {
   }
   /* DOS 0a22 wartime arm (raw 73366-73369): announce ONLY (FUN_43f7_1528),
    * no landing. The force itself arrives from 2022's once-per-turn free
-   * drain on a later turn. bugs.md #538. No control gate: 0a22 runs for the
+   * drain on a later turn. port_bugs.md #538. No control gate: 0a22 runs for the
    * ticking colony's owner, so an AI nation's pool reaching the threshold
    * announces too; 1528 itself is hardwired to the human (`*0x5398`).
-   * bugs.md #1054. */
+   * port_bugs.md #1054. */
   ai_king_1528_announce(ctx, ctx->human_nation);
   return 1;
 }

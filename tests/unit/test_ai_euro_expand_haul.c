@@ -653,7 +653,7 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
 }
 
 /*
- * DELETED 2026-09-23 (bugs.md #746): unit_treasure_europe_cash asserted the
+ * DELETED 2026-09-23 (port_bugs.md #746): unit_treasure_europe_cash asserted the
  * invented AI "Treasure aboard a ship at Europe → europe_cash_treasure with
  * the Crown cut" arm. No DOS site boards an AI treasure (FUN_4720_049e, the
  * AI ship cargo pick at raw 76067-76513, has no +0x3146 == 0x0a term) and
@@ -1174,7 +1174,7 @@ static int unit_wagon_haul_muskets_short(void) {
 /*
  * Idle Wagon with LUMBER cargo → goto (20c6 orders 0x0b) toward lumber-short colony (tools OK).
  * Cite: euro_unit_act §2d wagon haul lumber; COLONIZE_CARGO_LUMBER (the
- * inv->lumber_short tally this once cited was deleted, bugs.md #891).
+ * inv->lumber_short tally this once cited was deleted, port_bugs.md #891).
  */
 static int unit_wagon_haul_lumber_short(void) {
   const int nation = 1;
@@ -1270,7 +1270,7 @@ static int unit_wagon_haul_lumber_short(void) {
 /*
  * Idle Wagon with ORE cargo → goto (20c6 orders 0x0b) toward ore-short colony (tools OK).
  * Cite: euro_unit_act §2d wagon haul ore; COLONIZE_CARGO_ORE (the
- * inv->ore_short tally this once cited was deleted, bugs.md #891).
+ * inv->ore_short tally this once cited was deleted, port_bugs.md #891).
  */
 static int unit_wagon_haul_ore_short(void) {
   const int nation = 1;
@@ -1949,7 +1949,7 @@ static int unit_ship_food_delivery(void) {
 }
 
 /*
- * bugs.md #877 — LAB_521d_4393 entry gate (raw 89877-89878):
+ * port_bugs.md #877 — LAB_521d_4393 entry gate (raw 89877-89878):
  * `0xc < type && type < 0x13 && (bVar20 || bVar7)`. bVar20 is seeded
  * `type != 0x12` (raw 88556), so a Man-O-War only reaches the colony haul
  * queue through bVar7's re-allow arm (raw 88574-88579: odd pool index, or

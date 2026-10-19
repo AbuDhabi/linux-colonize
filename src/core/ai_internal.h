@@ -152,7 +152,7 @@ AiNativeStepStatus ai_native_brave_step(
   int brave_index,
   int* steps
 );
-/* Test-only ai_diplo.c externs (bugs.md #1106), no production caller. */
+/* Test-only ai_diplo.c externs (port_bugs.md #1106), no production caller. */
 /* Military strength = the DS:0x941c census mirror stuff.land_combat_strength[]
  * (Σ FUN_281f_09c8(u,1) over land units; combat byte ×8). The invented
  * attack+defense / pop / gold / rank blend was retired 2026-09-09 (#51). */

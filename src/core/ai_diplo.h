@@ -98,7 +98,7 @@ static inline int ai_relation_quartile(int v) {
  * (string 0x42).
  *
  * 2026-09-09 collision reconciled (smell #99), citation corrected again
- * 2026-09-23 (bugs.md #747). The follow-up bits were once carried as a
+ * 2026-09-23 (port_bugs.md #747). The follow-up bits were once carried as a
  * OpenCol-only `AI_DIPLO_TREASURE_STRONGER` stand-in; **REFUTED — the write is
  * DOS's own.** The writer is `FUN_465b_0000` (viceroy_unpacked.c:75527-75545),
  * and the acting unit is a **Privateer** (`+0x3146 == 0x10` = @UNIT row 16;
@@ -217,7 +217,7 @@ int ai_diplo_153e_encounter(ColonizeTurnContext* ctx, int human, int target, int
  * Same talk with DOS param_6 = 1: FUN_5f7a_000e's Meet With Mayor pushes 1
  * (asm `PUSH 0x1` ahead of the 6662_0086 direction arg), so the unmet /
  * 16-turn cooldown gate always opens and the port's per-turn pair latch is
- * skipped. bugs.md #453.
+ * skipped. port_bugs.md #453.
  */
 int ai_diplo_153e_encounter_forced(ColonizeTurnContext* ctx, int human, int target, int unit_id);
 
@@ -313,13 +313,13 @@ int ai_diplo_indian_at_war(const ColonizeCol1Save* col1, int euro_nation, int in
  * the one byte of that block DOS never touches): 0 clear, 1 at-war, 2 very-low
  * deepen. Moved off +0x48 2026-09-09 (smell #52) — that byte is the DOS
  * FUN_4d56_4528 grace/waiver counter.
- * No production reader since bugs.md #1104 (matrix tick / make_peace /
+ * No production reader since port_bugs.md #1104 (matrix tick / make_peace /
  * declare_war_ctx chrome deleted); kept in sync for tests. */
 uint8_t ai_diplo_indian_hostility_sticky(const ColonizeCol1Save* col1, int euro_nation);
 
 /* Sync sticky from relation matrix (set/clear/deepen). Call after relation hits. */
 void ai_diplo_indian_hostility_sync(ColonizeCol1Save* col1, int euro_nation);
-/* New game / load (via ai_euro_reset): clear the sticky cache (bugs.md #1103). */
+/* New game / load (via ai_euro_reset): clear the sticky cache (port_bugs.md #1103). */
 void ai_diplo_reset(void);
 
 /*

@@ -600,7 +600,7 @@ static int recruit_swap_follows_colonies_wanting_colonists(void) {
 }
 
 /*
- * bugs.md #509 + #510 — what FUN_38fd_0718 / FUN_38fd_46d4 leave behind when
+ * port_bugs.md #509 + #510 — what FUN_38fd_0718 / FUN_38fd_46d4 leave behind when
  * the 5d04 recruit-slot swap empties a pool slot:
  *   #509: 0718 writes `+0x314c = 1` (raw 59133) — the fresh recruit is parked
  *         SENTRY in the harbour, not with a blank order byte.
@@ -755,7 +755,7 @@ static int pioneer_training_skipped_past_turn_99(void) {
 }
 
 /*
- * bugs.md #555 — past turn 199 the Missionary-training arm is gated by
+ * port_bugs.md #555 — past turn 199 the Missionary-training arm is gated by
  * `FUN_281f_04d4(rng,0,3) == 0` (DOS-LITERAL FUN_521d_5d04 raw 92785-92788:
  * `iVar14 = FUN_281f_04d4(...); if (iVar14 != 0) goto LAB_521d_638a;`), i.e.
  * proceed on a 1-in-4 roll. Before the fix the port tested `!= 0`, proceeding

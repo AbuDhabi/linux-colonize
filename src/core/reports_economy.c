@@ -66,7 +66,7 @@
  *         strcat(suffix, DS:0x2e2c);                  // @MISC 57 = "K"
  *
  * and finally appends the digits, then the suffix. Both decisions are made
- * once per value, so the two columns can disagree (bugs.md #975/#976).
+ * once per value, so the two columns can disagree (port_bugs.md #975/#976).
  */
 static void reports_econ_amount(int32_t v, const char* k_word, char* out, size_t out_sz) {
   const long a = v < 0 ? -(long)v : (long)v;

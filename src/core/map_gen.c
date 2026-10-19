@@ -787,7 +787,7 @@ static void paint_arctic_and_high_seas(
  * forests demote (0x10..0x17 → −8) and a hill/mountain tile drops its
  * forest class (typ & 7). AMER2.MP ships 146 hill/mountain tiles with
  * forest classes; DOS strips them at new-game time, which is why it never
- * shows forest canopy under hills (bugs.md).
+ * shows forest canopy under hills (port_bugs.md).
  */
 void map_gen_finalize_border_and_forest(uint8_t* terrain, int w, int h) {
   if (!terrain || w <= 0 || h <= 0) {

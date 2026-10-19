@@ -136,7 +136,7 @@ bool europe_recruit_from_pool_ex(EuropeScreen* eu, int pool_index, ColonizeDosRn
     /*
      * FUN_38fd_4884 raw 64736-64741: when the nation's 32-bit purse cannot
      * cover the passage DOS greys the row (FUN_291f_01b6(list, row, 1)) and
-     * the pick does nothing — no status line, no popup. bugs.md #588.
+     * the pick does nothing — no status line, no popup. port_bugs.md #588.
      */
     return false;
   }
@@ -163,7 +163,7 @@ bool europe_recruit_from_pool_ex(EuropeScreen* eu, int pool_index, ColonizeDosRn
    * passage clears the crosses meter (nation+0x2e = 0) before the +6
    * counter bumps. Without it the discount term kept the next price pinned
    * near the 100 floor, so buying colonists never walked the price ladder
-   * up (bugs.md: "recruit price isn't increased by recruiting with gold").
+   * up (port_bugs.md: "recruit price isn't increased by recruiting with gold").
    */
   eu->current_crosses = 0;
   eu->immigration_pressure = 0;
@@ -179,7 +179,7 @@ bool europe_recruit_free_from_pool_ex(
   if (!eu || pool_index < 0 || pool_index >= EUROPE_POOL_SIZE) {
     return false;
   }
-  /* bugs.md #1020: DOS slots have no "unfilled" state — an unfilled slot
+  /* port_bugs.md #1020: DOS slots have no "unfilled" state — an unfilled slot
    * just reads back as job 0x1c (Free Colonist), same as
    * europe_immigrant_from_pool's 5e52 read. The port used to roll a
    * pre-step refill to populate the slot before reading it, which burned
@@ -216,9 +216,9 @@ bool europe_brewster_pick_from_pool_ex(
    * recruit-count bump (param_2!=0 skips it). */
   eu->current_crosses = 0;
   eu->immigration_pressure = 0;
-  /* bugs.md #672: no nation_flags 0x40 latch on the Brewster branch — 5e52
+  /* port_bugs.md #672: no nation_flags 0x40 latch on the Brewster branch — 5e52
    * raw 68601 sets it only inside the 07b4(nation,0x14)==0 arm. */
-  /* bugs.md #223: do NOT clear open_on_dock here — that flag belongs to a
+  /* port_bugs.md #223: do NOT clear open_on_dock here — that flag belongs to a
    * ship ARRIVAL (DS:0x14c). A Brewster pick answered after the end of turn
    * was wiping the pending auto-open of the ship that had just docked. */
   europe_refresh_recruit_passage(eu);
@@ -231,7 +231,7 @@ bool europe_immigrant_from_pool(EuropeScreen* eu, ColonizeDosRng* rng) {
     return false;
   }
   /* DOS `5e52` raw 68578: recruit[04d4(0,2)] is used unconditionally — an
-   * unfilled slot reads as job 0x1c and spawns Free Colonists (bugs.md #676;
+   * unfilled slot reads as job 0x1c and spawns Free Colonists (port_bugs.md #676;
    * the old "first filled slot / force-refill slot 0" fallback was invented). */
   int slot = 0;
   if (rng) {
@@ -248,7 +248,7 @@ bool europe_immigrant_from_pool(EuropeScreen* eu, ColonizeDosRng* rng) {
   }
   /* 68583: the slot is refilled with `46d4((turn & 3) == 0)` BEFORE the
    * 0b26/0718 harbor spawn (raw 68585) rolls the Soldier->Dragoon type, all
-   * off the same shared stream (bugs.md #671). The 4884 Recruit-click paths
+   * off the same shared stream (port_bugs.md #671). The 4884 Recruit-click paths
    * really are spawn-then-refill and stay as they are. */
   europe_refill_pool_slot_rng(eu, slot, eu->pool_force_expert, rng);
   EuropeDockImmigrant* d = europe_dock_insert_front(eu);
@@ -266,7 +266,7 @@ bool europe_immigrant_from_pool(EuropeScreen* eu, ColonizeDosRng* rng) {
  * FUN_38fd_41ce raw 64399-64403: the Train dialog compares the nation's
  * 32-bit purse (+0x2a low / +0x2c high) against the @JOB cost and calls
  * FUN_291f_01b6(list, row, 1) — greys the row out — when the purse is
- * short, so an unaffordable expert cannot be picked at all. bugs.md #566.
+ * short, so an unaffordable expert cannot be picked at all. port_bugs.md #566.
  */
 bool europe_recruit_affordable(const EuropeScreen* eu) {
   return eu && eu->gold >= eu->recruit_passage;
@@ -291,7 +291,7 @@ bool europe_train_ex(EuropeScreen* eu, int train_index, ColonizeDosRng* rng) {
   if (eu->gold < t->cost) {
     /* FUN_38fd_41ce raw 64395-64401 greys an unaffordable row
      * (FUN_291f_01b6(list,row,1)); the pick is inert, no status text.
-     * bugs.md #893. */
+     * port_bugs.md #893. */
     return false;
   }
   europe_purse_move(eu, g_europe_live_save, europe_purse_nation(eu), -t->cost);
@@ -323,7 +323,7 @@ bool europe_purchase(EuropeScreen* eu, int purchase_index) {
   return europe_purchase_ex(eu, purchase_index, NULL);
 }
 
-/* bugs.md #754: FUN_38fd_4b50 raw 64858-64862 greys a row the purse cannot
+/* port_bugs.md #754: FUN_38fd_4b50 raw 64858-64862 greys a row the purse cannot
  * cover and the pick does nothing — no status line, no popup. */
 bool europe_purchase_affordable(const EuropeScreen* eu, int purchase_index) {
   if (!eu || purchase_index < 0 || purchase_index >= eu->purchase_count) {
@@ -384,7 +384,7 @@ bool europe_purchase_commit(
   memcpy(pname, p->name, sizeof(pname));
   if (p->is_ship) {
     if (eu->harbor_ships >= EUROPE_HARBOR_MAX) {
-      return false; /* bugs.md #1113: same cap europe_harbor.c's pushes check */
+      return false; /* port_bugs.md #1113: same cap europe_harbor.c's pushes check */
     }
     europe_purse_move(eu, g_europe_live_save, europe_purse_nation(eu), -cost);
     EuropeHarborShip* slot = &eu->harbor[eu->harbor_ships++];
@@ -409,7 +409,7 @@ bool europe_purchase_commit(
 }
 
 /*
- * bugs.md #753: DOS never buys on the spot from the PURCHASE list — it
+ * port_bugs.md #753: DOS never buys on the spot from the PURCHASE list — it
  * fills @REALLYBUY's STRING0/NUMBER0 and asks a 2-choice popup
  * (FUN_281f_0652(0x111f, 2)), only debiting/spawning on choice 1 (Yes).
  * This wrapper stays for direct/legacy callers and tests: it opens the
@@ -471,7 +471,7 @@ int europe_dock_type_for(const char* name, int profession) {
  * COLUMN 0 (the singular "Expert Farmer"): col0 = -0x715e, col1 = -0x715c,
  * col2 = -0x715a (raw 61193, ndisasm 0x00033C65 `push word [bx-0x715e]`;
  * cross-checked by FUN_49dd_0386 raw 78620 and FUN_15eb_3454 raw 13544).
- * bugs.md #613-wave #624: bugs.md #577 had been "fixed" onto the plural on
+ * port_bugs.md #613-wave #624: port_bugs.md #577 had been "fixed" onto the plural on
  * a bad cite — viceroy_overlays.c:61190 is the OVL03 `2f2b` colony site
  * (which really does read -0x715c), not this 3694 Europe dock caption.
  */
@@ -515,7 +515,7 @@ static int europe_dock_type_horses(int dos_type) {
 }
 
 /*
- * bugs.md #669: a dock entry's dos_type is a DOS @UNIT type (== ColonizeUnitKind).
+ * port_bugs.md #669: a dock entry's dos_type is a DOS @UNIT type (== ColonizeUnitKind).
  * The six @ARMOPTIONS rows deal in 0..5; a Continental (7 / 9) disembarked in
  * Europe keeps its own row the way DOS keeps +0x3146 (dock caption
  * FUN_38fd_3694 raw 61183-61197 reads `0x5230 + type*0xe`).
@@ -541,7 +541,7 @@ bool europe_dock_dos_type_is_valid(int dos_type) {
 int europe_dock_unit_type_index_ex(
   const ColonizeUnitPool* units, int dos_type, bool with_singular_fallback
 ) {
-  /* bugs.md #657: EUROPE_DOCK_TYPE_* (0..5) shares its order with
+  /* port_bugs.md #657: EUROPE_DOCK_TYPE_* (0..5) shares its order with
    * ColonizeUnitKind's COLONIST/SOLDIER/PIONEER/MISSIONARY/DRAGOON/SCOUT
    * (0..5) directly — DOS never round-trips through a name here at all, it
    * indexes the @UNIT row table by kind. This used to call
@@ -569,7 +569,7 @@ int europe_dock_unit_type_index(const ColonizeUnitPool* units, int dos_type) {
  * derives from a landed unit's kit. A dock entry's name is a profession
  * ("Veteran Soldiers"), never an @UNIT type, so looking the name up first
  * missed and fell back to Colonists: every armed or mounted immigrant wore
- * the plain bottom-right box, a Veteran Dragoon most visibly (bugs.md).
+ * the plain bottom-right box, a Veteran Dragoon most visibly (port_bugs.md).
  * dos_type is the field the @ARMOPTIONS rows move around and is what
  * europe_dock_sprite already picks the sprite from; Artillery carries no
  * dos_type of its own and is name-flagged there, so it is here too.

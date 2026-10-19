@@ -56,7 +56,7 @@ static void save_load_format_label(
     return;
   }
   if (!info || !info->occupied) {
-    /* DS:0x20ee "(EMPTY)", read from the EXE; miss = "" (bugs.md #1100). */
+    /* DS:0x20ee "(EMPTY)", read from the EXE; miss = "" (port_bugs.md #1100). */
     if (!reports_ds_string(data_dir, 0x20ee, out, out_sz)) {
       out[0] = '\0';
     }
@@ -243,7 +243,7 @@ bool save_load_handle_input(SaveLoadDialog* dlg, const ColonizeInputState* input
     return true;
   }
 
-  /* bugs.md: mousing over a row moves the highlight (only on real movement,
+  /* port_bugs.md: mousing over a row moves the highlight (only on real movement,
    * so it doesn't fight the arrow keys; unloadable rows don't take it). */
   if (input->mouse_x != dlg->hover_mx || input->mouse_y != dlg->hover_my) {
     dlg->hover_mx = input->mouse_x;
