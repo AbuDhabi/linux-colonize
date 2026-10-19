@@ -557,6 +557,12 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
          * into the Brave's chain before 0a14 (DOSBox independence 4->5: a
          * Brave attacking toward Dutch land gains the Dutch bit). */
         units_465b_0673_vis_or(units, map, u, nx, ny);
+        /* Each 0a14 -> 1b0e call picks its own `local_a6` vent row. The
+         * one-shot latch below is otherwise cleared only by units_try_move,
+         * which this path never enters, so a Brave that won a field fight
+         * left it set and the next Brave's undefended-colony win vented
+         * nothing (DOSBox independence 17->18: Fort Nassau, -5 then -10). */
+        g_units_indian_combat_vent_done = false;
         const int foe = units_best_defender_at(units, col1, nx, ny, u->id, u->id);
         ColonizeUnit* f = foe >= 0 ? units_get(units, foe) : NULL;
         if (f && f->active && f->nation_id >= 0 && f->nation_id <= 3 &&

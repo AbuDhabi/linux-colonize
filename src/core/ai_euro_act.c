@@ -257,14 +257,16 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
   const ColonizeUnitKind ukind = a->ukind;
 
   /*
-   * Wagon Train haul (act-level): idle Wagon with hold capacity or TOOLS /
-   * LUMBER / ORE / MUSKETS / HORSES / FOOD → AI_MOVE toward matching short
-   * colony (unload via existing delivery). Cite: euro_unit_act §2d;
-   * Colonization.pdf Wagon Train; 5cf6 food_short.
+   * Wagon Train haul (act-level): the FUN_521d_20e6 wagon band (arrival
+   * dump + load matrix + 457e origin walk). No fortify gate: a parked wagon
+   * sits at act_state 5/6 with +0x314b = 0x55 (the 589e stay tail), and DOS
+   * runs the band again every turn from there (DOSBox independence 13 -> 14:
+   * Bahia's parked wagon draws the load matrix's two rand(0,3) and re-parks
+   * at orders 6); the `!ai_euro_land_is_fortified(u)` gate skipped it for
+   * good after its first park.
    */
   int wagon_hauled = 0;
-  if (!treasure_routed && ai_euro_type_is_wagon_name(ukind) &&
-      !ai_euro_land_is_fortified(u)) {
+  if (!treasure_routed && ai_euro_type_is_wagon_name(ukind)) {
     if (ai_euro_try_wagon_haul(ctx, nation_id, u)) {
       wagon_hauled = 1;
     }
@@ -283,6 +285,15 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
      * wagon follows the roads round to its village goal). */
     if (wagon_hauled && (u->orders == AI_EURO_ACT_GOAL || u->orders == AI_EURO_ACT_STEP)) {
       ai_euro_goal_walk_479b(ctx, u);
+      return AI_EURO_ACT_RETURN;
+    }
+    /* FUN_521d_5b66 raw 90580-90584: once 20e6 has returned, an act_state
+     * outside 7..12 is FUN_281f_0934 (MP exhausted) and the act ends, so a
+     * wagon the band parked (589e: orders 5/6) is not drained again this
+     * turn; next turn's fresh MP re-runs the band (DOSBox independence
+     * 12 -> 13 vs 13 -> 14: Bahia's wagon draws its matrix once a turn). */
+    if (wagon_hauled && u->active && (u->orders < 7 || u->orders > 12)) {
+      units_mp_exhaust_unit(ctx->units, u->id);
       return AI_EURO_ACT_RETURN;
     }
   }

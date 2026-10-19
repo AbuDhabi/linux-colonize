@@ -468,8 +468,9 @@ bool units_resolve_land_combat_ff_w(
      * the survivor is put back at the saved (uVar21, uVar22) by 0948 at raw
      * 100764-100768. The old port sweep here sent a Galleon berthed in
      * Isabella to Seville for repairs after an Artillery sortie lost to a
-     * Scout. (The land resolver has no ship attacker; the naval sweep keeps
-     * its own attacker-loss walk, since 12f6 does not park a hull.)
+     * Scout. (12f6 parks a hull the same way, through FUN_1427_10be at raw
+     * 8650, with its riders relinked behind it; the naval attacker-loss
+     * path below sweeps the attacker and its passengers only.)
      */
     /* DS:0x54f6 discharge, DOS 1b0e site 1 (raw 101039-101041). A native
      * attacker that LOSES at a colony is DOS's raid handoff and is skipped

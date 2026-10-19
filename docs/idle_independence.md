@@ -1,8 +1,8 @@
 # Independence idle campaign (`golden_idle_independence`)
 
 STATUS: archive re-recorded 2026-10-18 (VR_SOUND.EXE, saves 000001..000021, Autumn 1680 ..
-Spring 1691). The port is byte-identical 1 -> 13 except save 8 (two self-healing diffs, see
-Open); the first real divergence is interval 13 -> 14 (2026-10-19). CTest `golden_idle_independence` runs
+Spring 1691). The port is byte-identical 1 -> 21 except save 8 and save 18 (self-healing diffs,
+see Open); the draw streams match the continuous DOS replay on every turn (2026-10-19). CTest `golden_idle_independence` runs
 `golden_idle_campaign independence 1 7`; bump LAST as the reach grows. Sister campaign (done):
 [idle_campaign.md](idle_campaign.md), whose method and DOSBox recipe apply here too.
 
@@ -99,6 +99,23 @@ Enter, Down, Enter, and Space every ~40 polls (200 polls per turn until `COLONY0
 then copy it). RNG: `BP 1541:0E04` (rand) stops on every draw; the state dword is at 0x28ee in
 the routine's DS, and the range wrapper's `(lo, hi)` sit at stack words 7 and 8. Compare with the
 port's `RANGEDBG=1` stream through `tools/trcmp.py`.
+Continuous replay (2026-10-19, `tools/tc/cont_replay.py` + `cont_declare.py`, gitignored copies of
+the session scripts): after `load_slot(0)` and the declaration, `BPDEL *`, `BPINT 16`,
+`BP 1541:0E04`, then loop `run_until_break`: a rand stop logs `D lo hi uN` (plus `colXXXX` =
+[0x8542] and 24 stack words for the turns of interest) to `tr_NN.txt`; every 40 keyboard polls
+and every 20 draws stuff a Space; when `COLONY09.SAV` changes, copy it to `auto_NN.SAV`, compare
+with the archive, and dump the whole game DS (`MEMDUMPBIN 237e:0 10000`) to `ds_NN.bin` (the
+unsaved tables: stance DS:0x9870, goals DS:0x98b0, rank DS:0x917c). ~6 min per idle turn (the
+breaks cost, not the cycles); 1 -> 14 took 1 h 50. Saves 2..14 matched byte for byte (2 bytes
+of save-path string differ). Traps: a Space at EVERY poll keeps the Declaration screen from
+leaving (its key wait flushes the buffer first), and `BPINT 16 0`/`BPINT 16 10` (AH-filtered)
+never stop on that screen, so keep the plain `BPINT 16` pump. Loading a later autosave is NOT
+a reference (stance/goal tables start at zero; the 13 -> 14 entry in Open shows the damage).
+Real caller of a draw: the stack above the range wrapper shows RTLink's return vector
+`1931:1554`, not the caller. At the rand stop set `BP 1931:155D`, run once, and SS:SP then holds
+the caller's runtime CS:IP (overlay CS varies per load); find its bytes in VICEROY.EXE or the
+asm bytes column (`grep c78674ff1600 viceroy_unpacked.asm`) to name the function.
+
 For overlay traps add `[dos] ems=false xms=false umb=false` to `dbx.conf`. Without it the trapped
 overlay is re-cached and later calls are missed. OVL14 (20e6/0a60): patch 0x4e2d6 (20e6) and
 0x4cc50 (0a60), original byte 0xc8. The 4d2e wander score is final at CS:5805 ([bp-0x4e] dir,
@@ -610,22 +627,38 @@ saves 5-7: 3, 15, ~74 field diffs vs the archive.
   attacker and its passengers are swept; stackmate hulls on the origin tile are untouched.
   (`caseD_14` = 0ec0, `thunk_FUN_2a1f_06e0` = 0352, via the 2a1f:06xx resident stubs.) Saves
   12 -> 13 are now byte-identical; the second fight (MoW 83 damaged) followed from the stream.
-- Interval 13 -> 14 (open, 2026-10-19): a from-load DOSBox trace of 000013 (one idle turn,
-  `tools/tc/tr13_from_load.txt`, `D lo hi uN` lines with DS:0x2d12 as `u`) matches the port's
-  RANGEDBG stream for the first 236 draws (human EOT, day top, crown colony ticks). First
-  mismatch: right before the crown's departing-ship voyage roll rand(1,100) (port draw 5708,
-  state 0x64 = the per-slot reseed) DOS draws ONE extra rand(0,3) with `u = -1`. Static
-  candidate: the 6d8e prelude treaty-timer roll (raw 93173-93188, `ai_diplo_treaty_timers`),
-  but nation 0's `euro_relation` bytes in save 13 are 00/60/60/20 (no 0x08 bit) and the port
-  skips the self slot; check what FUN_281f_0a38(nation, peer) really returns (it may not be the
-  raw -0x77c4 byte) and whether the self slot qualifies. After shifting by one the streams
-  agree again until DOS draws two more rand(0,3) with `u = 71` (Dutch Artillery in Guadeloupe
-  (42,64)) right after crown MoW 94's wander draws, which the port lacks. Consequences in the
-  port: the (52,49) crown MoW attack sinks (DOS: damaged), 10f0's intervention roulette
-  rand(1,60) lands at Guadeloupe (DOS: Vlissingen), MoW 78 ends damaged at Guadeloupe's fort
-  (DOS: wanders to (40,59)). DOSBox from-load trace recipe: `setup --exe VR_SOUND.EXE --save
-  000013.SAV`, `load_slot(0)`, `BP 1541:0E04`, lo/hi = stack words 7/8 at the stop, Space every
-  200 polls (slow: ~40 min for the Dutch idle turn; use ~40).
+- Interval 13 -> 14 FIXED 2026-10-19. The from-load DOSBox trace of 000013 was tainted: a load
+  zeroes the stance table DS:0x9870, so 5952's equip arm (raw 94292, `stance == 0 && pop > 10`)
+  drew a rand(0,3) for Fort Nassau that the continuous game (stance 3 from the last 0a60) never
+  draws, and every later outcome shifted. The continuous replay (`tools/tc/cont_replay.py`, below)
+  reproduces every archive save byte for byte (save-path string aside) and its turn-13 stream
+  (`tools/tc/cont_tr_13.txt`) differs from the port at exactly one place: Bahia's parked Wagon
+  Train (orders 5, plan 0x55) draws its 20e6 load-matrix rand(0,3) pair, the port skipped it.
+  DOS: FUN_521d_5b66 calls 20e6 for every act (raw 90552-90560) and then exhausts the MP
+  (FUN_281f_0934) when the act_state is outside 7..12 (raw 90580-90584), so a parked wagon runs
+  the band once per turn. The port's wagon haul sat behind `!ai_euro_land_is_fortified(u)`,
+  which skipped the parked wagon for good; gate removed and the 0934 exhaust added after the
+  band (`ai_euro_act_land_roles`). Saves 14 -> 17 followed byte-identically. The earlier
+  "(52,49) attack sinks / 10f0 roulette / MoW 78" diffs were all downstream of the two draws.
+- Interval 17 -> 18 FIXED 2026-10-19 (two bugs). (1) Native attack vent latch:
+  `g_units_indian_combat_vent_done` was cleared only by `units_try_move`, which a Brave's attack
+  never enters, so after one Brave won a field fight (vent -5) the next Brave's undefended-colony
+  win (Fort Nassau) skipped its -10 vent; alarm stayed 100 and the crown soldier's later attack
+  rolled 00f2's expel rand(0,10). DOS picks one `local_a6` row per 1b0e call; the latch is now
+  cleared at each Brave attack (`ai_native_brave_step`). Found with a restored-load DOS session:
+  load 000017, write the continuous session's DS:0x800..0xa900 back (`tools/tc/restore_trace17.py`),
+  BPM on the alarm word. (2) Phantom colonist: the native colonist-kill path in
+  `units_try_capture_foreign_colony` shifted the colonists down but left the vacated tail slot
+  `active`, so the 5952 ledgers (which walk active slots) kept a dead Weaver's Cotton demand and
+  Fort Orange re-seated its field workers differently.
+- Interval 20 -> 21 FIXED 2026-10-19: `units_raw_hold_remove` (the DOS 317c image shift) counted
+  only the leading run of live holds, and `units_unload_goods_hold` leaves a gap, so a hull dumping
+  four holds shifted the raw image once (port 14,13,8,8 vs DOS 8,8,8,8). It now maps live slots onto
+  the compacted DOS slots.
+- Save 18 (self-healing by save 19): Bahia's tile chain. A Colonist that walks into Bahia sits
+  above the two Wagon Trains in the port, among the colonists in DOS, so DOS re-sorts that tile
+  (04d6) after the arrival somewhere the port does not. Lead: break on 0c4b:04d6 in a
+  restored-load session of 000017 and log sorts on (45,66).
 - The crown's sail-home lane count (`ai_king_mow_sail_home_20e6`, #954 arm: live lane count vs
   DOS's census-derived DS:0x9456 from the EOT tail) was a lead on the deleted ref chain (its
   save 13); untested on this archive.
@@ -633,4 +666,5 @@ saves 5-7: 3, 15, ~74 field diffs vs the archive.
   check against a trace that hits them.
 - Wagon park (fixed 2026-10-18): `ai_euro_20e6_wagon_origin_walk`'s park now writes plan 0x55
   and the LAB_589e sentry (orders 5); before, an unloadable wagon re-ran the load matrix every
-  wave (one rand(0,3) a beat; DOSBox tr10 12->13 Bahia).
+  wave (one rand(0,3) a beat; DOSBox tr10 12->13 Bahia). Superseded 2026-10-19 by the 13 -> 14
+  entry: the band re-runs once per turn and the 5b66 exhaust ends the drain.
