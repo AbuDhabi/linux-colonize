@@ -2983,7 +2983,7 @@ static int unit_ship_work_queue_uses_entry_stack(void) {
       land->y = 3;
     }
     ai_goals_upsert_work(0, 3000, 1, 1);
-    const int result = ai_euro_try_ship_trade_haul_snapshot(&f.ctx, 1, ship, stack_other);
+    const int result = ai_euro_try_ship_trade_haul_snapshot(&f.ctx, 1, ship, stack_other, NULL);
     const int queued = ship->orders == AI_EURO_ACT_GOAL &&
                        ship->goto_x == 8 && ship->goto_y == 4;
     fixture_free(&f);

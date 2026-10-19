@@ -176,7 +176,7 @@ class Dbg:
         """Load-game list (10 slots) selection, or None."""
         # The list shifts a few pixels with the window border, and long save
         # names run text over x=505: sample the bar's left margin instead.
-        for hx in range(115, 122):
+        for hx in range(110, 126):
             if self._matches(im, 'list_header.png', hx, 132):
                 return self._highlight(im, hx + 3, 156, 12, 10, w=4)
         return None

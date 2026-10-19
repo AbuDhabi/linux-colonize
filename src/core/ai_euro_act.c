@@ -728,7 +728,9 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
   }
   int tile_stack_others_at_entry = tile_stack_count > 0 ? tile_stack_count - 1 : 0; /* DOS local_a8 */
   int delivery_tally[COLONIZE_CARGO_COUNT];
-  const int delivery_at_entry = ai_euro_20e6_delivery_tallies(ctx, u, delivery_tally);
+  /* DOS local_44; re-tallied below after an own-berth dump + load (LAB_3558
+   * follows the arrival block, 20e6 raw 90371). */
+  int delivery_at_entry = ai_euro_20e6_delivery_tallies(ctx, u, delivery_tally);
   int roam_military_founders = -1;
   int unload_mask = 0;
   const int at_own_colony = colonies_id_at(ctx->colonies, u->x, u->y) >= 0 &&
@@ -793,7 +795,7 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
     const int oy = u->goto_y;
     const int oo = u->orders;
     const int haul = ai_euro_try_ship_trade_haul_snapshot(
-      ctx, nation_id, u, at_own_colony ? -1 : tile_stack_others_at_entry
+      ctx, nation_id, u, at_own_colony ? -1 : tile_stack_others_at_entry, &delivery_at_entry
     );
     if (haul) {
       u = units_get(ctx->units, id);
@@ -1024,14 +1026,13 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
     units_465b_0bd1_tail(ctx->units, id, units_before, false);
   }
   if (!moved) {
-    u = units_get(ctx->units, id);
-    if (u) {
-      /* blocked step: the port has no DOS retry; end the act. Only clamp, so
-       * a kept overspend (a beaten attacker's entry 0934) survives. */
-      if (u->moves > 0) {
-        u->moves = 0;
-      }
-    }
+    /* A refused step is not an exhaust: 465b's LAB_0bd1 exit (raw 75832-
+     * 75840) only clears +0x314c and bumps +0x315a, and FUN_521d_6d8e's
+     * drain then acts the unit again with its MP intact, so 5b66 runs 20e6
+     * on the courseless unit (America seed-100 save 50: the French Dragoon
+     * refused at Fort Orange re-acts beside it, border-parks 'F' with
+     * facing 8, and 5b66's default arm exhausts it). The old port clamp
+     * (`moves = 0`) ended the act here instead. */
     return;
   }
   u = units_get(ctx->units, id);

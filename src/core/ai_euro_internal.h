@@ -404,8 +404,12 @@ int ai_euro_try_ship_trade_haul(
   int nation_id,
   ColonizeUnit* ship
 );
+/* out_delivery_type (may be NULL): DOS local_44, the delivery tally taken at
+ * LAB_521d_3558 AFTER the own-berth dump + load (the arrival block ends in
+ * `goto LAB_3558`, 20e6 raw 90371); untouched when the band is not entered. */
 int ai_euro_try_ship_trade_haul_snapshot(
-  ColonizeTurnContext* ctx, int nation_id, ColonizeUnit* ship, int stack_other
+  ColonizeTurnContext* ctx, int nation_id, ColonizeUnit* ship, int stack_other,
+  int* out_delivery_type
 );
 int ai_euro_20e6_tasked_ship_berth_arrival(
   ColonizeTurnContext* ctx, int nation_id, ColonizeUnit* ship

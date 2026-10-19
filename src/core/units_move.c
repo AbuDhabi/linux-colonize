@@ -285,6 +285,31 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_board(units_move_ctx* c) {
 /* Probe reasons that abort the move with no fight and no charge. */
 COLONIZE_INTERNAL UnitsMoveStatus units_move_denied(units_move_ctx* c) {
   const ColonizeEnterReason reason = c->reason;
+  /*
+   * FUN_465b_0000 raw 75496-75500 -> FUN_2a1f_015e -> FUN_5f7a_0662: a Euro
+   * mover bumping another Euro nation's colony (FUN_281f_07be >= 0, bVar4)
+   * runs 0662 BEFORE the 01ce / attack-column arms. 0662 sends a Scout to
+   * FUN_5f7a_000e (a computer nation gets local_8 = 3 -> returns 0) and any
+   * type with a cargo column (DS:0x5237 != 0: Wagon Train, every hull) to
+   * FUN_5f7a_020e, which returns 1 for every computer nation (raw 98917-
+   * 98920); a non-zero result spends the whole allotment (raw 99082) and
+   * 465b leaves through LAB_0bd1 (orders cleared, +0x315a bumped). The human
+   * runs the same arms through game_loop_orders. Independence seed-100
+   * 7 -> 8: the crown's captured wagon bumps rebel Bahia once, counter 1,
+   * and is not drained again.
+   */
+  if ((reason == COLONIZE_ENTER_BOUNCE_FOREIGN || reason == COLONIZE_ENTER_BLOCKED) &&
+      c->colonies && c->col1 && c->unit->nation_id >= 0 && c->unit->nation_id <= 3 &&
+      c->col1->player[c->unit->nation_id].control != 0) {
+    const ColonizeColony* fc =
+      colonies_get(c->colonies, colonies_id_at(c->colonies, c->dest_x, c->dest_y));
+    const ColonizeUnitType* ty = units_type(c->pool, c->unit->type_index);
+    if (fc && fc->active && fc->nation_id >= 0 && fc->nation_id <= 3 &&
+        fc->nation_id != c->unit->nation_id && units_goods_hold_count(c->pool, c->unit_id) > 0 &&
+        !(ty && units_type_kind(ty) == UNITS_KIND_SCOUT)) {
+      units_mp_exhaust(c->pool, c->unit); /* FUN_281f_0934, raw 99082 */
+    }
+  }
   if (reason == COLONIZE_ENTER_BOUNCE_FOREIGN || reason == COLONIZE_ENTER_BOUNCE_PEACE ||
       reason == COLONIZE_ENTER_BLOCKED_DOMAIN || reason == COLONIZE_ENTER_BLOCKED_EDGE ||
       reason == COLONIZE_ENTER_EDGE_SAIL || /* port_bugs.md #717: reason 4 aborts */
@@ -2025,8 +2050,10 @@ static int units_flood_00f2(
   /* DOS reads whatever DS byte sits at grid[mover] when the mover is outside
    * the 16x16 block; the port reads 0 (rebuild). */
   int flood_cost_at_mover = 0;  /* DS:0xa370 */
-  if (g->map != map || g->key_x != r->goal_x || g->key_y != r->goal_y || !mover_in ||
-      g->cost[mlx][mly] == 0) {
+  const bool rebuild = g->map != map || g->key_x != r->goal_x || g->key_y != r->goal_y || !mover_in ||
+      g->cost[mlx][mly] == 0;
+  if (getenv("UNITS_FLOOD_TRACE")) fprintf(stderr, "[00f2] mover %d (%d,%d) cap %d owner %d type %d key (%d,%d) goal (%d,%d) grid[mover] %d rebuild %d\n", r->mover_id, r->mover_x, r->mover_y, r->cap, r->owner, r->type_index, g->key_x, g->key_y, r->goal_x, r->goal_y, mover_in ? g->cost[mlx][mly] : -1, rebuild);
+  if (rebuild) {
     g->map = map;
     g->key_x = r->goal_x;
     g->key_y = r->goal_y;
@@ -2092,6 +2119,7 @@ static int units_flood_00f2(
       }
       /* port_bugs.md #700: no MP pre-filter; FUN_465b_0000 owns the overspend. */
       c += units_flood_edge(map, low_move, false, r->mover_x, r->mover_y, nx, ny);
+      if (getenv("UNITS_FLOOD_TRACE")) fprintf(stderr, "[flood] mover %d (%d,%d) goal (%d,%d) d%d cand (%d,%d) grid %d c %d tie %d best %d/%d\n", r->mover_id, r->mover_x, r->mover_y, r->goal_x, r->goal_y, d, nx, ny, g->cost[nx - ox][ny - oy], c, map_dos_dist(r->goal_x - nx, r->goal_y - ny), best_score, best_tie);
       if (c > best_score) {
         continue;
       }
@@ -2501,11 +2529,15 @@ static bool units_greedy_next_step(
       g_units_combat_human_nation >= 0 && u->nation_id == g_units_combat_human_nation;
     const int cheb_cur = units_chebyshev(u->x, u->y, gx, gy);
     const int manh_cur = abs(gx - u->x) + abs(gy - u->y);
-    for (int dy = -1; dy <= 1; ++dy) {
-      for (int dx = -1; dx <= 1; ++dx) {
-        if (dx == 0 && dy == 0) {
-          continue;
-        }
+    /* DOS-LITERAL raw 104652: `for (local_14 = 0; local_14 < 8; ...)` walks
+     * the DS:0xb4/0xbe direction table (N, NE, E, SE, S, SW, W, NW) and a
+     * tie keeps the EARLIER direction (`local_24 < local_3e`). A row-major
+     * dy/dx walk put W before E (America seed-100 save 53: the French
+     * Merchantman beside Quebec stepped W where DOS steps E). */
+    for (int d = 0; d < 8; ++d) {
+      {
+        const int dx = MAP_DIR8_DX[d];
+        const int dy = MAP_DIR8_DY[d];
         const int nx = u->x + dx;
         const int ny = u->y + dy;
         const int cheb_cand = units_chebyshev(nx, ny, gx, gy);
@@ -2566,6 +2598,7 @@ static bool units_greedy_next_step(
       }
     }
   }
+  if (getenv("UNITS_FLOOD_TRACE")) fprintf(stderr, "[greedy] unit %d (%d,%d) aim (%d,%d) goal (%d,%d) best (%d,%d) score %d last_dir %d orders %d plan %c rng %p\n", unit_id, u->x, u->y, gx, gy, goal_x, goal_y, best_x, best_y, best_score, u->last_dir, u->orders, u->col1_ai_plan, (void*)rng);
   if (best_x < 0) {
     return false;
   }
@@ -2921,7 +2954,16 @@ static int units_coarse_waypoint(
     }
   }
   if (best_d < 0) {
-    return 0;
+    /* DOS-LITERAL FUN_6662_0b4e raw 104420-104428: `bVar3` stays false when
+     * no neighbour cell carries a BFS cost (the unit's cell IS the goal's
+     * snapped cell), DS:0xa14e/0xa14c are restored to the goal and the
+     * function still returns local_6 = 1, so 0f74 runs the far flood toward
+     * the goal on the grid the snap probes just built (America seed-100
+     * save 53: the French Merchantman two cells from Quebec takes N on the
+     * owner-free probe grid where the port fell to the scored fallback). */
+    *out_x = gx;
+    *out_y = gy;
+    return 1;
   }
   const int wcx = ucx + MAP_DIR8_DX[best_d];
   const int wcy = ucy + MAP_DIR8_DY[best_d];
@@ -3111,6 +3153,7 @@ bool units_next_goto_step_with_flood_w(
 ) {
   if (out_flood) *out_flood = false;
   const bool ok = units_goto_director(w, unit_id, out_x, out_y, out_flood);
+  if (getenv("UNITS_FLOOD_TRACE")) { const ColonizeUnit* tu = units_get_const(w->units, unit_id); fprintf(stderr, "[goto] unit %d (%d,%d) -> goal (%d,%d) step (%d,%d) ok %d\n", unit_id, tu->x, tu->y, tu->goto_x, tu->goto_y, ok ? *out_x : -1, ok ? *out_y : -1, ok); }
   /*
    * DOS-LITERAL FUN_6662_0f74 raw 104758: `+0x314f = local_1c` on every
    * exit, failures (-1 / 8) included and before the move is tried

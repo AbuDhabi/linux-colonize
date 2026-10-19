@@ -1250,11 +1250,12 @@ int ai_euro_try_ship_trade_haul(
   int nation_id,
   ColonizeUnit* ship
 ) {
-  return ai_euro_try_ship_trade_haul_snapshot(ctx, nation_id, ship, -1);
+  return ai_euro_try_ship_trade_haul_snapshot(ctx, nation_id, ship, -1, NULL);
 }
 
 int ai_euro_try_ship_trade_haul_snapshot(
-  ColonizeTurnContext* ctx, int nation_id, ColonizeUnit* ship, int stack_other
+  ColonizeTurnContext* ctx, int nation_id, ColonizeUnit* ship, int stack_other,
+  int* out_delivery_type
 ) {
   if (!ctx || !ctx->units || !ctx->map || !ctx->colonies || !ship || !ship->active) {
     return 0;
@@ -1386,6 +1387,13 @@ int ai_euro_try_ship_trade_haul_snapshot(
    */
   int tally[COLONIZE_CARGO_COUNT];
   const int max_type = ai_euro_20e6_delivery_tallies(ctx, ship, tally);
+  /* LAB_521d_3558 local_44: tallied on the post-arrival hull (America
+   * seed-100 save 44: the Dutch Merchantman dumps muskets/tools/trade goods
+   * at New Amsterdam, reloads 27 sugar, and the 457e spare-hull arm then sees
+   * local_44 = -1 and sails it home from the berth). */
+  if (out_delivery_type) {
+    *out_delivery_type = max_type;
+  }
   int have_dest = 0;
   if (max_type >= 0) {
     have_dest =
