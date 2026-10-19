@@ -1025,7 +1025,7 @@ set_tests_properties(golden_idle_continuous PROPERTIES ENVIRONMENT "GOLDEN_IDLE_
 # 2026-10-18: main-menu load of 000001, declaration during that turn, then idle).
 # LAST = the port's current reach (docs/idle_independence.md); bump it as it grows.
 add_test(NAME golden_idle_independence
-  COMMAND golden_idle_campaign independence 1 7
+  COMMAND golden_idle_campaign independence 1 21
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 set_tests_properties(golden_idle_independence PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1")
 # Same two runs with a save/reload before every turn (GOLDEN_IDLE_RELOAD): the
@@ -1036,7 +1036,7 @@ add_test(NAME golden_idle_reload
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 set_tests_properties(golden_idle_reload PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1;GOLDEN_IDLE_RELOAD=1")
 add_test(NAME golden_idle_independence_reload
-  COMMAND golden_idle_campaign independence 1 7
+  COMMAND golden_idle_campaign independence 1 21
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 set_tests_properties(golden_idle_independence_reload PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1;GOLDEN_IDLE_RELOAD=1")
 # T2 early gate: full Euro dispatcher (TURN1→7). The AI_EURO_EARLY_FIXTURE bisect fixture was deleted 2026-09-14.
