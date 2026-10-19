@@ -488,6 +488,11 @@ void units_reset_hooks(void);
 
 /* Pathfinder flood-cache reset on New Game / Load (see docs/units.md#units_reset_state). */
 void units_reset_state(void);
+/* The DS:0x1dd2 path-type word, its low-move flag and the FUN_6662_00f2 flood
+ * cache (goal key + 16x16 cost grid) for the RTST chunk (runtime_ext.c). */
+#define UNITS_PATH_STATE_SIZE (4 + 1 + 4 + 4 + 16 * 16)
+void units_path_state_export(uint8_t out[UNITS_PATH_STATE_SIZE]);
+void units_path_state_import(const uint8_t in[UNITS_PATH_STATE_SIZE], const struct ColonizeWorldMap* map);
 
 
 

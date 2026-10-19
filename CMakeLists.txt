@@ -90,6 +90,7 @@ add_library(colonize_sim STATIC
   src/core/units_cargo.c
   src/core/unit_chrome.c
   src/core/village_trade_intel.c
+  src/core/runtime_ext.c
   src/core/colony.c
   src/core/colony_plots.c
   src/core/colony_workers.c
@@ -1027,6 +1028,17 @@ add_test(NAME golden_idle_independence
   COMMAND golden_idle_campaign independence 1 7
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 set_tests_properties(golden_idle_independence PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1")
+# Same two runs with a save/reload before every turn (GOLDEN_IDLE_RELOAD): the
+# RTST port-extension chunk must carry everything a continuous session does
+# (docs/savegame.md "Port extension block", docs/idle_campaign.md).
+add_test(NAME golden_idle_reload
+  COMMAND golden_idle_campaign 1492 1599
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(golden_idle_reload PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1;GOLDEN_IDLE_RELOAD=1")
+add_test(NAME golden_idle_independence_reload
+  COMMAND golden_idle_campaign independence 1 7
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(golden_idle_independence_reload PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1;GOLDEN_IDLE_RELOAD=1")
 # T2 early gate: full Euro dispatcher (TURN1→7). The AI_EURO_EARLY_FIXTURE bisect fixture was deleted 2026-09-14.
 
 # Renamed from golden_ai_* 2026-09-14 (duplication audit TT-13): both generate

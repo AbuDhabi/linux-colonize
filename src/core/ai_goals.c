@@ -3,6 +3,7 @@
 
 #include "core/ai_diplo.h"
 #include "core/assets.h"
+#include "core/bytes.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
 #include "core/map.h"
@@ -46,6 +47,95 @@ static void ai_goals_site_nibble_cache_clear(void) {
   s_nib_w = -1;
   s_nib_h = -1;
   s_nib_present = 0;
+}
+
+static uint8_t* goals_w32(uint8_t* p, uint32_t v) {
+  p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); p[2] = (uint8_t)(v >> 16); p[3] = (uint8_t)(v >> 24);
+  return p + 4;
+}
+static const uint8_t* goals_r32(const uint8_t* p, int* v) {
+  *v = (int)rd_u32_le(p);
+  return p + 4;
+}
+static uint8_t* goals_w16(uint8_t* p, uint32_t v) {
+  p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8);
+  return p + 2;
+}
+static const uint8_t* goals_r16(const uint8_t* p, int16_t* v) {
+  *v = (int16_t)rd_u16_le(p);
+  return p + 2;
+}
+static uint8_t* goals_wslot(uint8_t* p, const AiGoalSlot* g) {
+  p[0] = (uint8_t)g->x; p[1] = (uint8_t)g->y; p[2] = g->code; p[3] = g->prio;
+  return p + 4;
+}
+static const uint8_t* goals_rslot(const uint8_t* p, AiGoalSlot* g) {
+  g->x = (int8_t)p[0]; g->y = (int8_t)p[1]; g->code = p[2]; g->prio = p[3];
+  return p + 4;
+}
+
+void ai_goals_runtime_export(uint8_t out[AI_GOALS_RUNTIME_SIZE]) {
+  uint8_t* p = out;
+  for (int n = 0; n < 4; ++n) {
+    for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) p = goals_wslot(p, &s_goals[n].primary[i]);
+    for (int i = 0; i < AI_SECONDARY_SLOTS; ++i) p = goals_wslot(p, &s_goals[n].secondary[i]);
+  }
+  for (int i = 0; i < AI_WORK_SLOTS; ++i) {
+    p = goals_w16(p, (uint16_t)s_work[i].id);
+    p = goals_w16(p, (uint16_t)s_work[i].score);
+    *p++ = s_work[i].loads;
+    *p++ = s_work[i].military;
+  }
+  for (int n = 0; n < 4; ++n) {
+    const AiEuroInventory* v = &s_inv[n];
+    p = goals_w32(p, (uint32_t)v->tools_short);
+    p = goals_w32(p, (uint32_t)v->muskets_short);
+    p = goals_w32(p, (uint32_t)v->food_short);
+    p = goals_w32(p, (uint32_t)v->colony_count);
+    p = goals_w32(p, (uint32_t)v->urgency);
+  }
+  for (int n = 0; n < 4; ++n) {
+    const AiNationPlanScratch* v = &s_plan[n];
+    *p++ = v->colony_count;
+    *p++ = v->colonies_wanting_colonists;
+    *p++ = v->census_pop;
+    *p++ = v->ship_cargo_total;
+    *p++ = (uint8_t)v->leader_trait1;
+    p = goals_w32(p, (uint32_t)v->avg_colony_pop);
+    p = goals_w32(p, (uint32_t)v->last_colony_founded_turn);
+  }
+}
+
+void ai_goals_runtime_import(const uint8_t in[AI_GOALS_RUNTIME_SIZE]) {
+  const uint8_t* p = in;
+  for (int n = 0; n < 4; ++n) {
+    for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) p = goals_rslot(p, &s_goals[n].primary[i]);
+    for (int i = 0; i < AI_SECONDARY_SLOTS; ++i) p = goals_rslot(p, &s_goals[n].secondary[i]);
+  }
+  for (int i = 0; i < AI_WORK_SLOTS; ++i) {
+    p = goals_r16(p, &s_work[i].id);
+    p = goals_r16(p, &s_work[i].score);
+    s_work[i].loads = *p++;
+    s_work[i].military = *p++;
+  }
+  for (int n = 0; n < 4; ++n) {
+    AiEuroInventory* v = &s_inv[n];
+    p = goals_r32(p, &v->tools_short);
+    p = goals_r32(p, &v->muskets_short);
+    p = goals_r32(p, &v->food_short);
+    p = goals_r32(p, &v->colony_count);
+    p = goals_r32(p, &v->urgency);
+  }
+  for (int n = 0; n < 4; ++n) {
+    AiNationPlanScratch* v = &s_plan[n];
+    v->colony_count = *p++;
+    v->colonies_wanting_colonists = *p++;
+    v->census_pop = *p++;
+    v->ship_cargo_total = *p++;
+    v->leader_trait1 = (int8_t)*p++;
+    p = goals_r32(p, &v->avg_colony_pop);
+    p = goals_r32(p, &v->last_colony_founded_turn);
+  }
 }
 
 void ai_goals_reset(void) {

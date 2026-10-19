@@ -57,6 +57,10 @@ void dos_rng_schedule_tick_reseeds(const unsigned long* draw_index, int n) {
   s_tick_pending = 0;
 }
 
+int32_t dos_rng_get_83a6(void) {
+  return s_dos_rng_83a6;
+}
+
 void dos_rng_set_83a6(int32_t seed) {
   s_dos_rng_83a6 = seed;
 }

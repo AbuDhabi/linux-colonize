@@ -91,6 +91,11 @@ typedef struct AiEuroInventory {
 
 /* New-game / Load hook; also clears the site-nibble probe memo below. */
 void ai_goals_reset(void);
+/* Every DOS-unsaved goal/work/inventory/plan table as one little-endian blob
+ * for the RTST chunk (runtime_ext.c). */
+#define AI_GOALS_RUNTIME_SIZE (4 * (AI_PRIMARY_SLOTS + AI_SECONDARY_SLOTS) * 4 + AI_WORK_SLOTS * 6 + 4 * 5 * 4 + 4 * 13)
+void ai_goals_runtime_export(uint8_t out[AI_GOALS_RUNTIME_SIZE]);
+void ai_goals_runtime_import(const uint8_t in[AI_GOALS_RUNTIME_SIZE]);
 /*
  * FUN_281f_074a → FUN_137f_02f8: low nibble of the DS:0x168 seen-plane byte =
  * the map-gen colony-site score (0..15); high nibble holds the per-nation seen

@@ -85,6 +85,7 @@
 #include "core/opening.h"
 #include "core/declaration.h"
 #include "core/dos_rng.h"
+#include "core/runtime_ext.h"
 #include "core/europe.h"
 #include "core/fb.h"
 #include "core/font_file.h"
@@ -1138,6 +1139,7 @@ void game_bind_combat_analysis(ColonizeGameState* game) {
     return;
   }
   combat_analysis_set_presenter(game_combat_analysis_present, game);
+  runtime_ext_set_rng(&game->move_rng, &game->ai_rng_seed);
   ai_set_native_score_plot(game_native_score_plot, game);
   units_set_combat_human_nation(game->human_nation);
   units_set_combat_music_hooks(sound_play, sound_active_song_id);

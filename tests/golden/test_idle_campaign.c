@@ -234,7 +234,27 @@ int main(int argc, char** argv) {
    * the archive's missing years; GOLDEN_IDLE_DUMP may take a "%d"). */
   const char* keep = getenv("GOLDEN_IDLE_KEEP_GOING");
   const int keep_going = keep && *keep;
+  /* GOLDEN_IDLE_RELOAD: save and reload before every step, as a player who
+   * quits and loads each turn. "1" reseeds the LCG the way game_apply_col1_save
+   * does; "keepseed" keeps the run's seed (isolates the unsaved tables from
+   * the seed pick). */
+  const char* reload_env = getenv("GOLDEN_IDLE_RELOAD");
+  const int reload = reload_env && *reload_env;
+  const int reload_keepseed = reload && strcmp(reload_env, "keepseed") == 0;
   for (int year = first + 1; (ok || keep_going) && year <= last; ++year) {
+    if (reload && year > first + 1) {
+      uint32_t seed = fx.seed;
+      if (!reload_keepseed) {
+        /* game_loop_saveload.c game_apply_col1_save: turn number, or the
+         * seed-100 campaign seed when the save looks like one of its starts. */
+        seed = fx.start.head.turn ? fx.start.head.turn : (fx.start.head.year ? fx.start.head.year : 1u);
+        if (fx.start.head.tribe_count == 34 && fx.start.head.turn <= 6) seed = VR_SEED;
+      }
+      if (!golden_reload(&fx, seed)) {
+        ok = 0;
+        break;
+      }
+    }
     save_path(c, expected, sizeof(expected), year);
     int have = 1;
     {

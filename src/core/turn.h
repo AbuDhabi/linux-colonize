@@ -223,6 +223,9 @@ int turn_rank_euro_nations(
 );
 /* Zero the unsaved rank table on load (fresh process); the next day top refreshes it. */
 void turn_rank_loaded(void);
+/* The cached table itself (RTST chunk, runtime_ext.c). */
+void turn_rank_cache_export(uint8_t out[4]);
+void turn_rank_cache_import(const uint8_t in[4]);
 void turn_refresh_euro_rank(ColonizeTurnContext* ctx);
 
 /*
