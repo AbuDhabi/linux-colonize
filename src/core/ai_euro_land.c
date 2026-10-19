@@ -1203,11 +1203,18 @@ static int ai_euro_20e6_stack_combat_0b(ColonizeTurnContext* ctx, int x, int y) 
   return sum;
 }
 
-/* FUN_OVL14_L0000__0072d6 → FUN_521d_0906 probe, ≥0 = adjacent foreign claim. */
-static int ai_euro_20e6_probe_adjacent(const ColonizeTurnContext* ctx, int x, int y, int nation) {
+/* FUN_OVL14_L0000__0072d6 → FUN_521d_0906 probe, ≥0 = adjacent foreign claim.
+ * `profession` is thunk_FUN_2a1f_047c's last argument: 0 at raw 88498/88527/
+ * 90035 (explorer flag, scout, human-adjacent test), 1 at raw 88620 (LAB_4d2e
+ * bVar20 = the wander far-probe/fog enable and the idle-hull roam gate). With 1
+ * a neighbouring Brave's tribe claim counts (America seed-100 save 28: a
+ * French Dragoon beside two Braves takes no fog terms). */
+static int ai_euro_20e6_probe_adjacent(
+  const ColonizeTurnContext* ctx, int x, int y, int nation, int profession
+) {
   int side = -1;
   const ColonizeWorld pw = world_from_turn_ctx(ctx);
-  return ai_goals_probe_adjacent_contact_claim_w(&pw, x, y, nation, 0, &side);
+  return ai_goals_probe_adjacent_contact_claim_w(&pw, x, y, nation, profession, &side);
 }
 
 /*
@@ -1232,7 +1239,7 @@ static void ai_euro_20e6_explorer_flag(ColonizeTurnContext* ctx, ColonizeUnit* u
     if (ai_goals_colony_balance_flags_w(&bw, s->nation, s->cid) > 2) {
       ex = 1;
     }
-    if (ai_euro_20e6_probe_adjacent(ctx, u->x, u->y, s->nation) >= 0) {
+    if (ai_euro_20e6_probe_adjacent(ctx, u->x, u->y, s->nation, 0) >= 0) {
       ex = 0;
     }
     if (u->profession == UNITS_JOB_SOLDIER) { /* Veteran Soldier */
@@ -1259,7 +1266,7 @@ static void ai_euro_20e6_explorer_flag(ColonizeTurnContext* ctx, ColonizeUnit* u
     if (s->home_dist > 12 && s->any_colony_dist > 2) {
       ex = 1;
     }
-    if (ai_euro_20e6_probe_adjacent(ctx, u->x, u->y, s->nation) >= 0 || s->year > 1650) {
+    if (ai_euro_20e6_probe_adjacent(ctx, u->x, u->y, s->nation, 0) >= 0 || s->year > 1650) {
       ex = 0;
     }
   }
@@ -2128,7 +2135,7 @@ int ai_euro_20e6_wander_step(
   /* uVar14 — far-probe/fog enable: no adjacent claim (probe mode 1) or a
    * non-combat land unit. */
   int fog_enable = 0;
-  if (ai_euro_20e6_probe_adjacent(ctx, u->x, u->y, nation) < 0 || (!s->is_ship && s->combat == 0)) {
+  if (ai_euro_20e6_probe_adjacent(ctx, u->x, u->y, nation, 1) < 0 || (!s->is_ship && s->combat == 0)) {
     fog_enable = 1;
   }
   /* raw 88622-88624: a ship in the War of Independence never idles (bVar20). */
@@ -2587,7 +2594,7 @@ int ai_euro_20e6_ship_far_roam(
   if (!s->is_ship || s->woi || unload_mask != 0 || u->id < 0 || u->id >= COLONIZE_UNITS_MAX) {
     return 0;
   }
-  if (ai_euro_20e6_probe_adjacent(ctx, u->x, u->y, s->nation) >= 0) {
+  if (ai_euro_20e6_probe_adjacent(ctx, u->x, u->y, s->nation, 1) >= 0) {
     return 0; /* bVar20 false */
   }
   if (military_founders < 0) {
@@ -3046,7 +3053,7 @@ int ai_euro_20e6_47b9_dead_end(ColonizeTurnContext* ctx, ColonizeUnit* u, int na
   }
   {
     const int human = (ctx->col1_ok && ctx->col1) ? col1_save_human_nation(ctx->col1) : -1;
-    if (human >= 0 && ai_euro_20e6_probe_adjacent(ctx, u->x, u->y, nation_id) == human) {
+    if (human >= 0 && ai_euro_20e6_probe_adjacent(ctx, u->x, u->y, nation_id, 0) == human) {
       if (destroy_trace) {
         fprintf(stderr, "[47b9] treasure %d n%d (%d,%d) stranded -> destroy\n",
                 u->id, nation_id, u->x, u->y);

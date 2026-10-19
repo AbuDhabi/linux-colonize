@@ -444,6 +444,21 @@ bool units_resolve_land_combat_ff_w(
     const ColonizeUnit win_snap = *def;
     const ColonizeUnit lose_snap = *atk;
     /* port_bugs.md #240: loss outcome popups first, then @EUROPELOSE (DOS order). */
+    /*
+     * DOS 1b0e raw 100753-100758: on an attacker loss (`!bVar8`) the winner's
+     * FUN_5fef_172c promotion roll (thunk_FUN_2a1f_06d4) runs BEFORE the loss
+     * outcome (caseD_14) and the raid handoff (raw 101142) — the reverse of the
+     * attacker-win order above (America seed-100 save 28: promote `1 30`, then
+     * the loss `0 1`, then the raid `0 12`). FUN_5fef_172c's first gate is
+     * `unit type byte == 1 || == 4`; the bVar28 phantom carries the scratch
+     * type 0x17, so it returns before the FUN_281f_04d4 roll and draws nothing.
+     */
+    {
+      ColonizeUnit* winner = units_get(pool, defender_id);
+      if (winner && !units_defender_is_dos_scratch_row()) {
+        (void)units_promote_on_win(pool, winner, col1, eng.def_strength, eng.atk_strength, rng);
+      }
+    }
     g_units_loss_winner_attacked = 0;
     (void)units_apply_land_loss_outcome(pool, attacker_id, defender_id, col1, 1, rng);
     g_units_loss_winner_attacked = 1;
@@ -530,16 +545,6 @@ bool units_resolve_land_combat_ff_w(
         }
       }
     }
-  }
-  def = units_get(pool, defender_id);
-  /*
-   * FUN_5fef_172c's first gate is `unit type byte == 1 || == 4`; the phantom
-   * carries the scratch type 0x17 (and DOS has already deleted its row by
-   * this point anyway), so it returns before the FUN_281f_04d4 promotion
-   * roll — no promote, and no RNG draw to shift the stream.
-   */
-  if (def && !units_defender_is_dos_scratch_row()) {
-    (void)units_promote_on_win(pool, def, col1, eng.def_strength, eng.atk_strength, rng);
   }
   units_mounted_attack_spend_all(pool, attacker_id);
   g_units_last_combat = -1;
