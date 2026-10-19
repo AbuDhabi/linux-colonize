@@ -1586,7 +1586,12 @@ static bool units_at_war_for_move_target(
   if (nation_a == g_units_combat_human_nation) {
     return false;
   }
-  return (ai_diplo_read(col1, nation_a, nation_b) & AI_DIPLO_PEACE) == 0;
+  /* FUN_465b_0000 raw 75553-75557: under a treaty the attack aborts only
+   * while the attacker's encounter cooldown (nation +0x40+peer, the
+   * FUN_5bfb_153e LAB_30de refresh) still runs. The band itself is
+   * ai_diplo_465b_band in the mover's entry head. */
+  return (ai_diplo_read(col1, nation_a, nation_b) & AI_DIPLO_PEACE) == 0 ||
+         col1->nation[nation_a].treaty_timer[nation_b] == 0;
 }
 
 bool units_at_war_for_move(const ColonizeCol1Save* col1, int nation_a, int nation_b) {

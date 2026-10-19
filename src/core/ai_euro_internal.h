@@ -616,6 +616,10 @@ AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_act_ctx* a);
 /* Test-only externs (port_bugs.md #1106), no production caller. */
 int ai_euro_5d04_dos_type_code(const ColonizeUnitPool* pool, int type_index);
+/* 5d04's Europe dock walk (bound to ai_euro_s_5d04_ctx/_nation): slot indices
+ * in DOS tile-chain order, newest arrival first; -1 at the end. */
+int ai_euro_5d04_cb_list_iter_first(int list_id);
+int ai_euro_5d04_cb_list_iter_next(int prev);
 /* Live-tally wrapper of ai_euro_20e6_457e_hs_cadence_snapshot. */
 int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 /* Test-only ai_goals.c externs (port_bugs.md #1106). */

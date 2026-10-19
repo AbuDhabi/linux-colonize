@@ -235,6 +235,9 @@ uint8_t ai_diplo_read(const ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_write(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_t value);
 void ai_diplo_or_both(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_t bits);
 void ai_diplo_clear_both(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_t bits);
+/* FUN_465b_0000 raw 75567-75593, computer attacker: returns 1 when a treaty
+ * (0x40 either way) was broken. */
+int ai_diplo_465b_band(ColonizeCol1Save* col1, int attacker, int defender);
 
 int ai_diplo_at_war(const ColonizeCol1Save* col1, int nation_a, int nation_b);
 /* True if Euro nation is at war with any other Euro (feeler / drift / lift gate). */

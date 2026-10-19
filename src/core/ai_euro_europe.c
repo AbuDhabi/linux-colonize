@@ -558,17 +558,46 @@ static int ai_euro_5d04_cb_in_europe_list(int idx) {
   return u->active && u->nation_id == ai_euro_s_5d04_nation &&
          ai_euro_at_europe_dock(u->nation_id, u->x, u->y);
 }
-static int ai_euro_5d04_cb_list_iter_next(int prev) {
-  for (int i = prev + 1; ai_euro_s_5d04_ctx && ai_euro_s_5d04_ctx->units && i < units_slot_end(ai_euro_s_5d04_ctx->units); ++i) {
-    if (ai_euro_5d04_cb_in_europe_list(i)) {
-      return i;
+/*
+ * The dock list walk is the DOS tile chain, newest first, not slot order:
+ * FUN_281f_07e0 = FUN_1427_005c (lowest index on the tile, then FUN_1427_0002
+ * follows +0x315c to the chain end) and FUN_281f_02e4 = FUN_1427_004a (+0x315e,
+ * the next older unit), raw 92627-92630. Slot order handed the 5d04 retype to
+ * the wrong dock colonist (America seed-100 saves 44, 49, 52, 54). Both walk
+ * from wherever the unit stands now, so a unit the body moved off the dock
+ * ends the walk, as DOS's unlinked record does.
+ */
+static int ai_euro_5d04_cb_dock_slot_from(int id) {
+  const ColonizeUnitPool* pool = ai_euro_s_5d04_ctx->units;
+  for (; id >= 0; id = units_tile_chain_next_id(pool, id)) {
+    const ColonizeUnit* u = units_get_const(pool, id);
+    const int slot = u ? (int)(u - pool->units) : -1;
+    if (slot >= 0 && ai_euro_5d04_cb_in_europe_list(slot)) {
+      return slot;
     }
   }
   return -1;
 }
-static int ai_euro_5d04_cb_list_iter_first(int list_id) {
+COLONIZE_INTERNAL int ai_euro_5d04_cb_list_iter_next(int prev) {
+  if (!ai_euro_s_5d04_ctx || !ai_euro_s_5d04_ctx->units || prev < 0 || prev >= COLONIZE_UNITS_MAX) {
+    return -1;
+  }
+  const ColonizeUnitPool* pool = ai_euro_s_5d04_ctx->units;
+  return ai_euro_5d04_cb_dock_slot_from(units_tile_chain_next_id(pool, pool->units[prev].id));
+}
+COLONIZE_INTERNAL int ai_euro_5d04_cb_list_iter_first(int list_id) {
   (void)list_id;
-  return ai_euro_5d04_cb_list_iter_next(-1);
+  if (!ai_euro_s_5d04_ctx || !ai_euro_s_5d04_ctx->units) {
+    return -1;
+  }
+  /* 005c: the dock tile's chain end (236+n in a real game). */
+  const ColonizeUnitPool* pool = ai_euro_s_5d04_ctx->units;
+  for (int i = 0; i < units_slot_end(pool); ++i) {
+    if (ai_euro_5d04_cb_in_europe_list(i)) {
+      return ai_euro_5d04_cb_dock_slot_from(units_tile_head_id_at(pool, pool->units[i].x, pool->units[i].y));
+    }
+  }
+  return -1;
 }
 static ColonizeUnit* ai_euro_5d04_cb_unit(int idx) {
   if (!ai_euro_s_5d04_ctx || !ai_euro_s_5d04_ctx->units || idx < 0 || idx >= COLONIZE_UNITS_MAX) {

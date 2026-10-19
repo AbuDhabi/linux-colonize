@@ -30,6 +30,7 @@
 #include "core/woodcut.h"
 #include "platform/diagnostics.h"
 #include "core/units_internal.h"
+#include "core/units_cargo.h"
 
 /* ===================== Unit movement, orders & basic order commands (units_try_move .. units_order_trade_route) ===================== */
 
@@ -376,6 +377,37 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_pre(units_move_ctx* c) {
       ai_diplo_or_both(col1, unit->nation_id, vn, COL1_INDIAN_ATTACK_CONFIRMED_BIT);
     }
   }
+  /* FUN_465b_0000 raw 75505-75508: a computer or native mover with fewer
+   * than 3 thirds left goes to LAB_465b_01ce (exhaust, FUN_281f_0934) and
+   * leaves through LAB_0bd1 BEFORE the Privateer bit, the Euro treaty band
+   * and the Indian alarm slam below (America seed-100 save 43: a Dutch
+   * Soldier with 1 third left beside capital (47,47) slammed alarm 80->100).
+   * The FUN_5fef_1b0e entry gate (raw 100359-100372) refuses the same set. */
+  if (col1 && units_remaining_mp(pool, unit_id) < UNITS_MP_PER_TILE) {
+    const bool ai_controlled =
+      unit->nation_id > 3 ||
+      (unit->nation_id >= 0 && unit->nation_id <= 3 &&
+       col1->player[unit->nation_id].control != 0);
+    if (ai_controlled) {
+      if (c->village_temp >= 0) {
+        units_despawn(pool, c->village_temp);
+        c->village_temp = -1;
+      }
+      units_mp_exhaust(pool, unit);
+      g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
+      return UNITS_MOVE_RETURN_FALSE;
+    }
+  }
+  /* FUN_465b_0000 raw 75553-75593: a computer Euro attacker that got past
+   * the cooldown gate (units_at_war_for_move_target) breaks the treaty. */
+  if (col1 && unit->nation_id >= 0 && unit->nation_id <= 3 &&
+      col1->player[unit->nation_id].control != 0) {
+    const ColonizeUnit* tu = units_get_const(pool, foe);
+    if (tu && tu->nation_id >= 0 && tu->nation_id <= 3 && tu->nation_id != unit->nation_id &&
+        !units_privateer_attack(pool, unit_id, foe)) {
+      (void)ai_diplo_465b_band(col1, unit->nation_id, tu->nation_id);
+    }
+  }
   /* FUN_465b_0000 raw 75527-75545: Privateer-sighting relation bit,
    * written before the attack resolves (same 465b entry head as the
    * Indian alarm slam below). */
@@ -435,23 +467,6 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_pre(units_move_ctx* c) {
    * fixtures keep their attacks.
    */
   units_465b_0673_vis_or(pool, c->map, unit, dest_x, dest_y);
-  if (col1 && units_remaining_mp(pool, unit_id) < UNITS_MP_PER_TILE) {
-    const bool ai_controlled =
-      unit->nation_id > 3 ||
-      (unit->nation_id >= 0 && unit->nation_id <= 3 &&
-       col1->player[unit->nation_id].control != 0);
-    if (ai_controlled) {
-      if (c->village_temp >= 0) {
-        units_despawn(pool, c->village_temp);
-        c->village_temp = -1;
-      }
-      /* 465b raw 75577-75578 reaches this first: LAB_465b_01ce exhausts
-       * (FUN_281f_0934) before leaving through LAB_0bd1. */
-      units_mp_exhaust(pool, unit);
-      g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
-      return UNITS_MOVE_RETURN_FALSE;
-    }
-  }
   return UNITS_MOVE_CONTINUE;
 }
 
@@ -2340,6 +2355,7 @@ static int units_goto_last_dir_reverse(const ColonizeUnit* u) {
  * pointer and size, and the world map's land/water layout never changes. */
 void units_reset_state(void) {
   units_flood_cache_invalidate();
+  units_last_hold_amount = 0; /* DS:0x8dc4: not in the save; RTST carries it */
 }
 
 static uint8_t* path_w32(uint8_t* p, uint32_t v) {

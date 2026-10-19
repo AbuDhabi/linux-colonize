@@ -805,12 +805,17 @@ static void ai_euro_0a60_foreign_colony_producers(
    * DOSBox tr10 turn 275, the crown's LABOR goal for captured St. Louis
    * (colony 20) sits after the MILITARY goals of colonies 6..12 and before
    * colony 28's; two separate loops put it first and sent REF regular 97
-   * there instead of to Guadeloupe. */
+   * there instead of to Guadeloupe. `rec` is that record index: DOS compacts
+   * the colony array on a delete (caseD_7 raw 58154-58166), the pool keeps
+   * holes (America seed-100: England's (46,30) abandoned at save 8 left slot 0
+   * empty, so the parity below posted MILITARY goals for the wrong nations). */
+  int rec = -1;
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &ctx->colonies->colonies[i];
     if (!c->active) {
       continue;
     }
+    ++rec;
     if (c->nation_id == nation_id) {
       ColonizeColony* own = &ctx->colonies->colonies[i];
       ai_euro_colony_goals_colony_labor(ctx, nation_id, own, inv, urgency);
@@ -838,7 +843,7 @@ static void ai_euro_0a60_foreign_colony_producers(
        * + population, byte-right). Prio 3 while formally at peace, 5
        * otherwise. */
       if ((int)col_cnt[nation_id][cont] + (int)land_cnt[nation_id][cont] != 0 &&
-          ((i + turn) & 3) != 0) {
+          ((rec + turn) & 3) != 0) { /* raw 87778 */
         const int defenders =
           units_count_at(ctx->units, c->x, c->y) + (int)c->population;
         if (defenders > 6 - turn / 50) {

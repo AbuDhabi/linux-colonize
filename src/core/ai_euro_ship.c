@@ -128,10 +128,10 @@ int ai_euro_20e6_delivery_tallies(
     if (ct > max_type) {
       max_type = ct;
     }
-    tally[ct] += amt;
-    if (tally[ct] > 127) {
-      tally[ct] = 127; /* acStack_c8 is a signed char accumulator */
-    }
+    /* acStack_c8 is a signed char that wraps, `ADD byte [BP+SI-0xc6],AL`
+     * (viceroy_overlays.asm:136273) read back with CBW: two 100-lots of one
+     * cargo tally -56, not a clamped 127 (America seed-100 pairs 105-119). */
+    tally[ct] = (int8_t)(tally[ct] + amt);
   }
   return max_type;
 }

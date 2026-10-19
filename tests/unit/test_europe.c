@@ -2682,13 +2682,15 @@ static int case_europe_workflow(void) {
       ColonizeWorld hw = world_make(&units, NULL, NULL, col1, true, NULL, &eu);
       const int hid = europe_nation_harbor_spawn(&hw, 1, UNITS_JOB_SCOUT);
       const ColonizeUnit* hu = units_get(&units, hid);
+      /* 0718 raw 59133 parks the recruit SENTRY (+0x314c = 1). */
       const bool ok = hu && hu->type_index == scout_ti &&
                       hu->horses == UNITS_EQUIP_HORSES && hu->muskets == 0 &&
-                      hu->profession == UNITS_JOB_SCOUT;
+                      hu->profession == UNITS_JOB_SCOUT && hu->orders == UNITS_ORDER_SENTRY;
       if (!ok) {
         fprintf(
-          stderr, "scout kit: harbor spawn type=%d horses=%d prof=%d\n",
-          hu ? hu->type_index : -1, hu ? hu->horses : -1, hu ? hu->profession : -1
+          stderr, "scout kit: harbor spawn type=%d horses=%d prof=%d orders=%d\n",
+          hu ? hu->type_index : -1, hu ? hu->horses : -1, hu ? hu->profession : -1,
+          hu ? hu->orders : -1
         );
         free(col1);
         assets_msg_free(&names);

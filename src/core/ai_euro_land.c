@@ -397,9 +397,7 @@ void ai_euro_5952_improve_best_plot(
   if (ptype < 0) {
     return;
   }
-  if (!units_spawn_room(ctx->units, nation)) {
-    return;
-  }
+  /* No 06b4 room gate: FUN_478c_002c builds the phantom past the unit cap. */
   const int tail_n = ctx->units->unit_count;
   const int tail_raw = tail_n >= 0 && tail_n < COLONIZE_UNITS_DOS_MAX &&
     ctx->units->dos_tail[tail_n].valid && ctx->units->dos_tail[tail_n].raw_valid;
@@ -616,9 +614,7 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
     if (wtype < 0) {
       return 0;
     }
-    if (!units_spawn_room(ctx->units, nation)) {
-      return 0;
-    }
+    /* No 06b4 room gate: FUN_478c_002c builds the phantom past the unit cap. */
     const int tail_n = ctx->units->unit_count;
     const int tail_raw = tail_n >= 0 && tail_n < COLONIZE_UNITS_DOS_MAX &&
       ctx->units->dos_tail[tail_n].valid && ctx->units->dos_tail[tail_n].raw_valid;
@@ -4062,13 +4058,14 @@ void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int t
      * opens no war. */
     if (!ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
       /*
-       * port_bugs.md #472: the signed-treaty bit 0x40 gates every Euro target
-       * (same DOS rule as the LAB_4d2e attack term, smell #106). The
-       * goal / goto / peace-border-garrison callers reach here without that
-       * check and attacked treaty partners. Privateers fly no flag.
+       * port_bugs.md #472 + FUN_465b_0000 raw 75553-75557: under a treaty the
+       * attack aborts while the attacker's encounter cooldown (nation
+       * +0x40+peer) runs. FUN_5bfb_153e's LAB_30de tail re-arms it to
+       * (6-difficulty)*2 on every contact at peace, so a fresh treaty is
+       * safe; an expired one is not (America seed-100 saves 43/46/56/59).
        */
       if ((ai_diplo_read(ctx->col1, u->nation_id, f->nation_id) & AI_DIPLO_PEACE) != 0 &&
-          !units_type_is_privateer(units_type(ctx->units, u->type_index))) {
+          ctx->col1->nation[u->nation_id].treaty_timer[f->nation_id] != 0) {
         return;
       }
       /*
@@ -4094,14 +4091,9 @@ void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int t
       const bool treaty =
         ((ai_diplo_read(ctx->col1, u->nation_id, f->nation_id) |
           ai_diplo_read(ctx->col1, f->nation_id, u->nation_id)) & AI_DIPLO_PEACE) != 0;
-      if (treaty) {
-        ai_diplo_declare_war_ctx(ctx, u->nation_id, f->nation_id);
-        /* Declare refused (Franklin no-op): no warless attack. */
-        if (!ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id) &&
-            !units_type_is_privateer(units_type(ctx->units, u->type_index))) {
-          return;
-        }
-      }
+      /* The band clears 0x40 both ways and the mover's 0x01; it writes no
+       * WAR bit for a computer attacker (ai_diplo_465b_band). */
+      (void)ai_diplo_465b_band(ctx->col1, u->nation_id, f->nation_id);
       if (treaty && ctx->human_nation >= 0 && ctx->human_nation < 4 &&
           (u->nation_id == ctx->human_nation || f->nation_id == ctx->human_nation) &&
           ctx->status && ctx->status_size > 0) {
