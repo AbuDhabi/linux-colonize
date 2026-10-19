@@ -735,15 +735,19 @@ bool units_resolve_naval_combat_ff_w(
   units_combat_outcome_popups(
     pool, def, atk, 0, atk->nation_id, def->nation_id, 1, 0, col1
   );
-  {
-    const int atk_x = atk->x;
-    const int atk_y = atk->y;
-    const int atk_nation = atk->nation_id;
-    /* DOS 0ec0 on the attacker's own tile stack, in chain order. */
-    (void)units_sweep_naval_stack_after_loss(
-      pool, atk_x, atk_y, atk_nation, defender_id, attacker_id, col1, rng
-    );
-  }
+  /*
+   * DOS 1b0e raw 100759: 0ec0(attacker, defender) walks the chain the
+   * attacker is IN. Before the roll (raw 100568) FUN_281f_0916 = 1427_12f6
+   * ran 1427_10be on the hull, which relinks the hull itself at (-2,-2)
+   * (raw 8650 `FUN_1427_0362(param_1, -2, -2)`) and boards its riders
+   * after it. So the sweep covers the attacker and its passengers only;
+   * stackmate hulls on the origin tile are never touched (independence
+   * 12 -> 13: the crown '9' Man-O-War beside the sinking 'B' stays
+   * intact). Passengers go with units_ship_lose_holds inside 0352.
+   */
+  (void)units_apply_naval_loss_outcome(
+    pool, attacker_id, defender_id, 0, 0, 1, col1, rng
+  );
   g_units_last_combat = -1;
   units_dissolve_notify(1);
   units_combat_pump_popups();

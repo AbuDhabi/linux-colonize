@@ -1,8 +1,8 @@
 # Independence idle campaign (`golden_idle_independence`)
 
 STATUS: archive re-recorded 2026-10-18 (VR_SOUND.EXE, saves 000001..000021, Autumn 1680 ..
-Spring 1691). The port is byte-identical 1 -> 12 except save 8 (two self-healing diffs, see
-Open); the first real divergence is interval 12 -> 13. CTest `golden_idle_independence` runs
+Spring 1691). The port is byte-identical 1 -> 13 except save 8 (two self-healing diffs, see
+Open); the first real divergence is interval 13 -> 14 (2026-10-19). CTest `golden_idle_independence` runs
 `golden_idle_campaign independence 1 7`; bump LAST as the reach grows. Sister campaign (done):
 [idle_campaign.md](idle_campaign.md), whose method and DOSBox recipe apply here too.
 
@@ -604,15 +604,28 @@ saves 5-7: 3, 15, ~74 field diffs vs the archive.
   The crown Man-O-War that took (32,55) carries France's vis bit in DOS (Berbice at (30,58) is
   3 rows away); new REF record 117 (Artillery, landed at (44,53)) keeps facing pad bit 1.
   Closing it lets the CTest range grow past 7.
-- Interval 12 -> 13 (first real divergence, 2026-10-18 night): the crown 'B' Man-O-War at
-  (52,49) attacks the Dutch Man-O-War at (51,48), loses and sinks (draw 410 rand(1,482), 411
-  rand(1,96)); its '9' stackmate (arrived from (54,47) that turn) is left intact in DOS (save 13:
-  orders 0, plan '1'), while the port's attacker-loss branch (`units_combat_resolve.c` ~756,
-  `units_sweep_naval_stack_after_loss` on the attacker's tile) also rolls rand(1,96) for the
-  stackmate and sends it home damaged. Check which 0ec0 call 1b0e makes on an ATTACKER loss
-  (the three `FUN_2a1f_06ec(nation)` sites are the treasure-train popup, not the sweep); the
-  DOS evidence suggests the attacker loses alone. Later in that turn DOS damages the 'B'
-  Man-O-War from (38,67) (save 13 index 83, sailing home) — a second fight the port never has.
+- Interval 12 -> 13 FIXED 2026-10-19: 1b0e's attacker-loss 0ec0 (raw 100759, OVL17 asm
+  0x2851) walks the chain the attacker is IN, and FUN_281f_0916 = 1427_12f6 -> 1427_10be had
+  already relinked the hull at (-2,-2) (raw 8650) with its riders behind it, so only the
+  attacker and its passengers are swept; stackmate hulls on the origin tile are untouched.
+  (`caseD_14` = 0ec0, `thunk_FUN_2a1f_06e0` = 0352, via the 2a1f:06xx resident stubs.) Saves
+  12 -> 13 are now byte-identical; the second fight (MoW 83 damaged) followed from the stream.
+- Interval 13 -> 14 (open, 2026-10-19): a from-load DOSBox trace of 000013 (one idle turn,
+  `tools/tc/tr13_from_load.txt`, `D lo hi uN` lines with DS:0x2d12 as `u`) matches the port's
+  RANGEDBG stream for the first 236 draws (human EOT, day top, crown colony ticks). First
+  mismatch: right before the crown's departing-ship voyage roll rand(1,100) (port draw 5708,
+  state 0x64 = the per-slot reseed) DOS draws ONE extra rand(0,3) with `u = -1`. Static
+  candidate: the 6d8e prelude treaty-timer roll (raw 93173-93188, `ai_diplo_treaty_timers`),
+  but nation 0's `euro_relation` bytes in save 13 are 00/60/60/20 (no 0x08 bit) and the port
+  skips the self slot; check what FUN_281f_0a38(nation, peer) really returns (it may not be the
+  raw -0x77c4 byte) and whether the self slot qualifies. After shifting by one the streams
+  agree again until DOS draws two more rand(0,3) with `u = 71` (Dutch Artillery in Guadeloupe
+  (42,64)) right after crown MoW 94's wander draws, which the port lacks. Consequences in the
+  port: the (52,49) crown MoW attack sinks (DOS: damaged), 10f0's intervention roulette
+  rand(1,60) lands at Guadeloupe (DOS: Vlissingen), MoW 78 ends damaged at Guadeloupe's fort
+  (DOS: wanders to (40,59)). DOSBox from-load trace recipe: `setup --exe VR_SOUND.EXE --save
+  000013.SAV`, `load_slot(0)`, `BP 1541:0E04`, lo/hi = stack words 7/8 at the stop, Space every
+  200 polls (slow: ~40 min for the Dutch idle turn; use ~40).
 - The crown's sail-home lane count (`ai_king_mow_sail_home_20e6`, #954 arm: live lane count vs
   DOS's census-derived DS:0x9456 from the EOT tail) was a lead on the deleted ref chain (its
   save 13); untested on this archive.
