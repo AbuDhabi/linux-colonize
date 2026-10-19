@@ -155,7 +155,8 @@ class Dbg:
         (wood grain behind the load list makes the others noisy)."""
         m = [self._mean(im, (x0, y0 + k * dy - 2, x0 + w, y0 + k * dy + 2)) for k in range(n)]
         lo = sorted(m)
-        return m.index(lo[0]) if lo[0] < 42 and lo[1] - lo[0] >= 6 else None
+        # Exactly one row darker than 42: a fixed gap misfires on dark grain (44 seen).
+        return m.index(lo[0]) if lo[0] < 42 <= lo[1] else None
 
     def _matches(self, im, ref_name, x, y, thr=5):
         """Mean abs difference of a reference crop (tools/dosbox_trace_ref/,

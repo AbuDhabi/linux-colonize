@@ -6,7 +6,7 @@ turn. This is evidence tier 2 in docs/conventions.md "Evidence hierarchy",
 and it is the next step whenever a golden mismatch is a near-tie or an
 "unknown term". Static reading plus another fitted term is not.
 
-Tool: `tools/dosbox_trace.py` (DOSBox-X 2026.07, Xephyr, ImageMagick
+Tool: `tools/dosbox_trace.py` (DOSBox-X 2026.07, Xvfb (Xephyr fallback), ImageMagick
 `import`, python3 `pexpect` and `PIL`, all installed here). Worked example:
 docs/ai_first_colony_trace.md "Brave 021a trace".
 
