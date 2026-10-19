@@ -734,7 +734,13 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
   const int at_own_colony = colonies_id_at(ctx->colonies, u->x, u->y) >= 0 &&
                             ctx->colonies->colonies[colonies_id_at(ctx->colonies, u->x, u->y)]
                                 .nation_id == nation_id;
-  if (!at_own_colony) {
+  if (at_own_colony) {
+    /* At an own berth FUN_281f_0920 (FUN_1427_10be) has parked the hull and its
+     * boarded members at (-2,-2) before 0d38 counts (raw 89412-89413), so
+     * local_a8 is the carrier stack, not the colony's residents (America
+     * seed-100 save 19: an emptied hull takes the 457e sail-home arm). */
+    tile_stack_others_at_entry = u->cargo_count;
+  } else {
     /* LAB_3558 unload mask + loop. The loop exhausts every unloaded
      * passenger and then the hull (FUN_281f_0934), but 20e6 runs on. */
     AiEuroShipBandCounts band = {0};
