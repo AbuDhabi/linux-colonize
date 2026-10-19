@@ -1,7 +1,7 @@
 /* Smoke: bilateral 15b3 diplo bytes, declare-war leaves gold/tax alone
  * (the −100/+1 "sting" was retired 2026-09-09, smell #47),
  * Euro war does not boycott Europe cargos or seed a fatigue timer,
- * peace does not lift a boycott (bugs.md #1104), treaty timer
+ * peace does not lift a boycott (port_bugs.md #1104), treaty timer
  * decrement, no Indian drift,
  * Sugar/Tobacco/Tools + first newly boycotted cargo status +
  * R14 full wartime mask declare smoke +
@@ -199,7 +199,7 @@ static int case_declare_peace_narrative(void) {
   }
 
   /* make_peace (fixture helper): clear WAR both ways, set PEACE. No gold
-   * cost, and bugs.md #1104: it must not touch boycott_bitmap — DOS has no
+   * cost, and port_bugs.md #1104: it must not touch boycott_bitmap — DOS has no
    * peace writer of nation+0x20, so a tea-party boycott survives peace. */
   {
     const uint16_t gold0 = col1.nation[0].gold;
@@ -214,7 +214,7 @@ static int case_declare_peace_narrative(void) {
       return fail("make_peace should set PEACE both ways");
     }
     if (col1.nation[0].boycott_bitmap != (uint16_t)(1u << COLONIZE_CARGO_TOOLS)) {
-      return fail("make_peace must not lift a boycott (bugs.md #1104)");
+      return fail("make_peace must not lift a boycott (port_bugs.md #1104)");
     }
     col1.nation[0].boycott_bitmap = 0;
     if (col1.nation[0].gold != gold0 || col1.nation[1].gold != gold1) {
@@ -882,7 +882,7 @@ static int case_r3_r4_sugar_rum_cigars_boycott(void) {
     }
 
     /* A king (tea-party) Sugar boycott survives both war and peace: neither
-     * DOS path writes nation+0x20 (bugs.md #1104). */
+     * DOS path writes nation+0x20 (port_bugs.md #1104). */
     ColonizeCol1Save sg;
     col1_save_init(&sg);
     memset(sg.nation, 0, sizeof(sg.nation));
@@ -906,7 +906,7 @@ static int case_r3_r4_sugar_rum_cigars_boycott(void) {
     }
     ai_diplo_make_peace(&sg, 0, 1);
     if ((sg.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_SUGAR_BIT) == 0) {
-      return fail("peace must not lift a king Sugar boycott (bugs.md #1104)");
+      return fail("peace must not lift a king Sugar boycott (port_bugs.md #1104)");
     }
     if (ai_diplo_at_war_with_any(&sg, 0) || ai_diplo_at_war(&sg, 0, 1)) {
       return fail("after peace, at_war / at_war_with_any should be clear");
@@ -1075,7 +1075,7 @@ static int case_declare_war_popup_unpark(void) {
      * R2: war OK both directions (human-as-a / human-as-b) once each;
      * re-declare must not spam. A DIPLO_PEACE result carries no action: DOS
      * treaty notices are OK-only, the old Accept/Refuse handler was dead
-     * (bugs.md #1104). Cite: FUN_15b3 / FUN_5bfb; FA 3f41 full UI PARKED.
+     * (port_bugs.md #1104). Cite: FUN_15b3 / FUN_5bfb; FA 3f41 full UI PARKED.
      */
     {
       ColonizeCol1Save w2;
@@ -1173,7 +1173,7 @@ static int case_declare_war_popup_unpark(void) {
       }
       ai_diplo_apply_popup_result(&ctx_w2, &pop_w2);
       if (!ai_diplo_at_war(&w2, 0, 1)) {
-        return fail("R2 peace: a DIPLO_PEACE result must not make peace (bugs.md #1104)");
+        return fail("R2 peace: a DIPLO_PEACE result must not make peace (port_bugs.md #1104)");
       }
       ai_popup_consume_result(&pop_w2);
     }
@@ -1214,7 +1214,7 @@ static int case_marathon3_franklin_peace_gate(void) {
     const uint16_t gold1 = fr.nation[1].gold;
     const uint8_t rel0 = ai_diplo_indian_relation(&fr, 4 + (0), 0);
     ai_diplo_declare_war(&fr, 0, 1);
-    /* bugs.md #472: no DOS declare site reads Franklin -- war sticks. */
+    /* port_bugs.md #472: no DOS declare site reads Franklin -- war sticks. */
     if (!ai_diplo_at_war(&fr, 0, 1)) {
       return fail("M3R1 Franklin: declare_war must stick (no DOS Franklin gate)");
     }
@@ -1228,7 +1228,7 @@ static int case_marathon3_franklin_peace_gate(void) {
       return fail("M3R1 Franklin: declare no-op must skip wartime embargo");
     }
 
-    /* bugs.md #472: the euro_balance Franklin auto-peace / no-pressure arms
+    /* port_bugs.md #472: the euro_balance Franklin auto-peace / no-pressure arms
      * were invented (DOS reads FF 0x13 only in 38fd_5930 + 153e); removed. */
     /* Peer owns Franklin: declare still sticks. */
     ColonizeCol1Save fr2;
@@ -1270,7 +1270,7 @@ static int case_marathon3_franklin_peace_gate(void) {
     if (!ai_diplo_at_war(&fr3, 0, 1)) {
       return fail("M3R1 Franklin elect setup: need WAR before tick");
     }
-    /* bugs.md #933: the pool IS nation+0xc (liberty_bells_pool); nothing to seed. */
+    /* port_bugs.md #933: the pool IS nation+0xc (liberty_bells_pool); nothing to seed. */
     founding_fathers_reset();
     uint32_t turn_e = 1;
     char status_e[128];
@@ -1521,7 +1521,7 @@ static int case_153e_phases_2_4_encounter(void) {
       fx_map_free(&emap);
       return fail("153e talk: expected greeting OK then a CHOICE");
     }
-    /* bugs.md #545: @HELLOFIRST tokens are DOS raw :97696-97704 — %STRING0
+    /* port_bugs.md #545: @HELLOFIRST tokens are DOS raw :97696-97704 — %STRING0
      * = difficulty title + human leader name, %STRING1 = TARGET country,
      * %STRING2/3 = @GREATKINGS/@GREATDEEDS line[target]. Compare against
      * the catalog lines themselves (wrap-normalised). */
@@ -1575,7 +1575,7 @@ static int case_153e_phases_2_4_encounter(void) {
                           (e.nation[1].euro_relation[0] & AI_DIPLO_PEACE);
     const bool stamp_ok = e.head.nation_relation[1] == 30 + 0x10;
     const int second = ai_diplo_153e_encounter(&ectx, 0, 1, pa->id);
-    /* bugs.md #453: FUN_5f7a_000e Meet With Mayor pushes param_6 = 1, so the
+    /* port_bugs.md #453: FUN_5f7a_000e Meet With Mayor pushes param_6 = 1, so the
      * scout's audience opens even inside the cooldown and the same turn. */
     ai_popup_init(&epop);
     const int forced = second ? 0 : ai_diplo_153e_encounter_forced(&ectx, 0, 1, pa->id);
@@ -1924,7 +1924,7 @@ static int case_153e_worthy_cascade(void) {
 }
 
 /*
- * bugs.md #474: 153e talk tokens that used to carry the nation adjective /
+ * port_bugs.md #474: 153e talk tokens that used to carry the nation adjective /
  * the @MEEKNESS word. DOS operands:
  *   @WORTHY %STRING0      = @GREATLEADER2[target]   (raw :97987)
  *   @OLDPEACE* %STRING2/3 = difficulty title / human player.name (raw :98076-98079)

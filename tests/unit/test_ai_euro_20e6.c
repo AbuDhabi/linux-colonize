@@ -226,7 +226,7 @@ static int unit_patrol_returns_to_colony(void) {
 }
 
 /*
- * bugs.md #493: DOS re-enters FUN_521d_20e6 for a unit that already carries
+ * port_bugs.md #493: DOS re-enters FUN_521d_20e6 for a unit that already carries
  * a goto. The gate at raw 90551 is
  *   if (unit+0x3149 == 0 || unit+0x314c != 0x0b) call 20e6
  * — "no MP spent yet this turn" OR "not on a goto" — and 20e6's own early
@@ -284,7 +284,7 @@ static int unit_stale_goto_rescored_at_full_mp(void) {
 }
 
 /*
- * bugs.md #494: the 20e6 type-5 band carries no war term. Its pre-gate (raw
+ * port_bugs.md #494: the 20e6 type-5 band carries no war term. Its pre-gate (raw
  * 88514-88530), patrol 0x56 arm (raw 89047-89059) and village 0x4c arm (raw
  * 89064-89068) read the G-table, continent ids and the village record, never
  * a per-peer relation byte. The port had Scouts in ai_euro_is_land_war_hunter,
@@ -769,7 +769,7 @@ static int unit_empty_ship_hs_cadence(void) {
 
 /*
  * DOS-LITERAL FUN_521d_20e6 raw 89725-89728, the dock-demand sail-home arm
- * (bugs.md #954). An empty hull with no qualifying hold cargo, not goal-tasked
+ * (port_bugs.md #954). An empty hull with no qualifying hold cargo, not goal-tasked
  * and passing the hull-type gate, falls through to LAB_521d_3fa6 when
  * DS:0x945a[n] (own land units waiting on the Europe dock) exceeds
  * DS:0x9456[n] (own hulls already heading home). The fixture deliberately
@@ -1030,7 +1030,7 @@ static int unit_europe_dock_demand_throttled_by_lane(void) {
 }
 
 /*
- * bugs.md #1056: an AI hull crosses on the DOS sentinel lanes, not in one step.
+ * port_bugs.md #1056: an AI hull crosses on the DOS sentinel lanes, not in one step.
  * FUN_48d3_007a parks it on 244+n with FUN_48d3_0002's roll in +0x315a; each
  * FUN_48d3_06ba tick walks 244 -> 240 -> dock, so a roll of T docks after T+1
  * ticks. FUN_48d3_0346 does the same westbound 232 -> 228 -> 224, where the
@@ -2226,7 +2226,7 @@ static int unit_treasure_outside_colony_not_cashed(void) {
     return fail("no treasury credit until the Treasure reaches a colony");
   }
   /* arm 2 (raw 90016-90017): nearest own colony on this landmass -> goto it.
-   * Wired live 2026-09-23 (bugs.md #745); it used to be a documented no-op
+   * Wired live 2026-09-23 (port_bugs.md #745); it used to be a documented no-op
    * with ai_euro_treasure_coast_target moving the unit instead. */
   if (!units_orders_follow_goto(t->orders) || t->goto_x != 4 || t->goto_y != 4) {
     fprintf(stderr, "treasure orders=%d goto=(%d,%d) pos=(%d,%d)\n",
@@ -2333,7 +2333,7 @@ static int park_moved(Fixture* f, int uid) {
 }
 
 /*
- * bugs.md #525/#526 — the unit's own goal binding lives in the REAL DOS
+ * port_bugs.md #525/#526 — the unit's own goal binding lives in the REAL DOS
  * bytes (+0x314b/c/d/e = col1_ai_plan / orders / goto_x / goto_y), and
  * FUN_521d_20e6's pre-LAB_4d2e gate (raw 90210-90219) hands a bound unit
  * whose goal lies elsewhere straight to the goal walk instead of re-scoring
@@ -2609,7 +2609,7 @@ static int unit_border_park_skipped_on_own_colony(void) {
 
 /*
  * FUN_521d_20e6 pre-LAB_4d2e gate (raw 90210-90219) and own-colony garrison
- * arm (raw 88584-88612) — both bugs.md #522.
+ * arm (raw 88584-88612) — both port_bugs.md #522.
  *
  * Shared fixture: a nation-0 colony at (9,8) held by one Soldier, war
  * declared, and an Artillery of nation 1 at (8,8) that already carries a far
@@ -2637,7 +2637,7 @@ static int unit_border_park_skipped_on_own_colony(void) {
  */
 /*
  * (No case here for the LAB_521d_5183 attack-tail hold, raw 89033-89039 /
- * bugs.md #955.) The gate only fires when the WINNING wander candidate is an
+ * port_bugs.md #955.) The gate only fires when the WINNING wander candidate is an
  * attack, and this file's synthetic fixtures cannot produce one: the attack arm
  * rejects any pairing under odds 0x0c outright (raw 88886-88954, score -= 999),
  * and every pairing tried here — Soldier vs Soldier in a foreign colony,
@@ -2720,7 +2720,7 @@ static int unit_gate_adjacent_foe_reaches_scorer(void) {
 }
 
 /*
- * (Deleted 2026-09-23, bugs.md #760.) unit_garrison_hold_blocks_scorer lived
+ * (Deleted 2026-09-23, port_bugs.md #760.) unit_garrison_hold_blocks_scorer lived
  * here, asserting that an Artillery on its own colony garrisons instead of
  * scanning. It passed only because of the invented "Artillery fortify" act arm
  * (which read garrison_quota) and cannot be satisfied through the real DOS

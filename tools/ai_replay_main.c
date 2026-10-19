@@ -9,7 +9,7 @@
  *
  * This is the "headless driver on a real save" method from
  * docs/conventions.md §4, promoted out of the scratch drivers the ship-wiggle
- * and Europe-freeze investigations kept rewriting (bugs.md #953).
+ * and Europe-freeze investigations kept rewriting (port_bugs.md #953).
  *
  * Usage:
  *   ai_replay <save.SAV> [turns] [--units] [--seed N]

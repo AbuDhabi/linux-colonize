@@ -95,7 +95,7 @@ static void units_465b_07d6_human_or(ColonizeUnitPool* pool, const ColonizeUnit*
   }
 }
 
-/* ===== units_try_move_w = FUN_465b_0000 move/enter dispatcher (bugs.md #1107) =====
+/* ===== units_try_move_w = FUN_465b_0000 move/enter dispatcher (port_bugs.md #1107) =====
  * Split by gameplay concern in DOS order; units_move_ctx (units_internal.h)
  * holds every local that crosses stages. Stages write the mutable fields
  * (unit, village_temp, combat_attack_entry, foreign_colony_entry, ...)
@@ -198,7 +198,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_board(units_move_ctx* c) {
     return UNITS_MOVE_RETURN_FALSE;
   }
   /*
-   * DOS-LITERAL FUN_465b_0000 (bugs.md #714): DOS has no boarding branch.
+   * DOS-LITERAL FUN_465b_0000 (port_bugs.md #714): DOS has no boarding branch.
    * Walking onto an ocean tile that carries an own ship is the ordinary
    * step, so it runs LAB_465b_05ca's cost/allow gate exactly like a land
    * step (raw 75638-75651):
@@ -245,7 +245,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_board(units_move_ctx* c) {
    * landfall (spent < max_mp test, viceroy_unpacked.c:76014-76017).
    * units_board zeroes moves as a park flag, which cannot tell that
    * spend apart from a fresh in-port load; mark it explicitly.
-   * bugs.md #423.
+   * port_bugs.md #423.
    *
    * Shore-crossing is the ONLY reachable spend here: this function bails out
    * with COLONIZE_ENTER_NO_MP above (`units_remaining_mp(...) <= 0`) before
@@ -263,7 +263,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_board(units_move_ctx* c) {
     } else if (boarded && boarded->aboard_moves > 0) {
       /* Boarding from a colony tile is an ordinary step: 465b's ADD charges
        * the water tile's cost to the spent byte the passenger then carries
-       * (bugs.md #544). Spent at or past max = no landfall this turn. */
+       * (port_bugs.md #544). Spent at or past max = no landfall this turn. */
       int cost = map_move_spent_thirds(map, ox, oy, dest_x, dest_y);
       if (cost < 1) {
         cost = 1;
@@ -285,7 +285,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_denied(units_move_ctx* c) {
   const ColonizeEnterReason reason = c->reason;
   if (reason == COLONIZE_ENTER_BOUNCE_FOREIGN || reason == COLONIZE_ENTER_BOUNCE_PEACE ||
       reason == COLONIZE_ENTER_BLOCKED_DOMAIN || reason == COLONIZE_ENTER_BLOCKED_EDGE ||
-      reason == COLONIZE_ENTER_EDGE_SAIL || /* bugs.md #717: reason 4 aborts */
+      reason == COLONIZE_ENTER_EDGE_SAIL || /* port_bugs.md #717: reason 4 aborts */
       reason == COLONIZE_ENTER_BLOCKED_HS_SAIL || reason == COLONIZE_ENTER_VILLAGE_ILLEGAL ||
       reason == COLONIZE_ENTER_LANDFALL || reason == COLONIZE_ENTER_VILLAGE_SHIP ||
       reason == COLONIZE_ENTER_NO_MP || reason == COLONIZE_ENTER_BLOCKED ||
@@ -410,7 +410,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_pre(units_move_ctx* c) {
           break;
         }
       }
-      /* Full FUN_4cc6_00f2 (bugs.md #1004): the trespass slam is a
+      /* Full FUN_4cc6_00f2 (port_bugs.md #1004): the trespass slam is a
        * positive delta, so it can land on alarm 100 and owes DOS's
        * mission-burn roll. The world form carries the rng and popup
        * queue; col1 is the ctx save (w->col1 or the g_units_ff_col1
@@ -610,7 +610,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_resolve(units_move_ctx* c) {
     return UNITS_MOVE_RETURN_FALSE;
   }
   /*
-   * bugs.md #243: a land attacker does NOT advance into the vacated tile.
+   * port_bugs.md #243: a land attacker does NOT advance into the vacated tile.
    * Only ships (naval combat) and the attack that captures a colony enter;
    * everywhere else the winner stays put — the full attack exhaust is
    * spent either way (DOS 1b0e FUN_281f_0934, same charge as the loss
@@ -773,7 +773,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_step_gate(units_move_ctx* c) {
     /* DOS FUN_465b raw 75649: `FUN_281f_04ca(DS:0x83a6)` reseeds the LCG
      * from the timer word before the `else` roll at raw 75825-75827
      * (`FUN_281f_04d4(1, cost) <= remaining`). Same chokepoint the Brave
-     * path uses (ai_brave.c, ai_turn_seed). bugs.md #842. */
+     * path uses (ai_brave.c, ai_turn_seed). port_bugs.md #842. */
     if (c->w->rng_reseed_set) {
       dos_rng_seed(rng, c->w->rng_reseed);
     }
@@ -883,7 +883,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_commit_step(units_move_ctx* c) {
    * The port previously revealed only at the turn top
    * (turn.c turn_reveal_fog_for_nation, FUN_3844_00f2) plus the human order
    * paths, so every intermediate tile of an AI multi-step move went unstamped
-   * (bugs.md #530 S4).
+   * (port_bugs.md #530 S4).
    */
   if (!c->foreign_colony_entry) {
     (void)units_reveal_sight_w(c->w, unit);
@@ -935,7 +935,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_arrival(units_move_ctx* c) {
    * stack — evaluated before FUN_281f_0934 relinks it into the destination
    * stack, i.e. it still reads the ORIGIN tile's stack at this point even
    * though x/y already hold the destination — and returns true if ANY unit
-   * there (including the mover itself) is a hull (type 0xd..0x12). bugs.md
+   * there (including the mover itself) is a hull (type 0xd..0x12). port_bugs.md
    * #791: was gated on `units_is_transport(mover)` (self-only, cargo-gated),
    * so a plain land unit leaving a tile that also held a ship kept its MP
    * when it walked into a colony, and a wagon/ship with an empty hold was
@@ -961,7 +961,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_arrival(units_move_ctx* c) {
   }
   if (colony_enter_gate) {
     units_mp_exhaust(pool, unit);
-    /* DOS raw 75731-75740: bugs.md #792 — +0x315a = 0 on arrival, then
+    /* DOS raw 75731-75740: port_bugs.md #792 — +0x315a = 0 on arrival, then
      * wake (clear Sentry orders on) every unit on the destination stack.
      *
      * Runtime trade routes unpack DOS's separate +0x315b profession-byte
@@ -981,7 +981,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_arrival(units_move_ctx* c) {
     }
   }
   /*
-   * bugs.md: docking puts everyone ashore. A unit inside a colony is in the
+   * port_bugs.md: docking puts everyone ashore. A unit inside a colony is in the
    * colony, not in a hold — whether it sails again is decided when a ship
    * next leaves, and the sentried units on the tile board it then (the
    * auto-board above). They land with no orders and their allotment intact,
@@ -991,7 +991,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_arrival(units_move_ctx* c) {
    * exists for the wagon/ship MP-forfeit rule above and answers "does this
    * hull have goods holds", which is a different question from "is anyone
    * riding in it". A ship carrying passengers puts them ashore on docking
-   * whatever its hold count says (bugs.md: "does not always happen").
+   * whatever its hold count says (port_bugs.md: "does not always happen").
    */
   if (units_is_sea(pool, unit_id) && unit->cargo_count > 0) {
     /* Own colonies only: a De Witt trade dock at a *foreign* colony
@@ -1058,7 +1058,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_finish(units_move_ctx* c) {
   c->unit = units_get(pool, unit_id);
   /* No named_new_world write here: FUN_4720_049e raw 76126-76135 is the
    * human UI move handler; AI moves (FUN_465b_0000) never set player+0x30
-   * bit 0x80 (bugs.md #1057a, reversed by the seed-100 idle campaign). */
+   * bit 0x80 (port_bugs.md #1057a, reversed by the seed-100 idle campaign). */
   if (g_units_move_watch && units_is_on_map(c->unit)) {
     g_units_move_watch(
       g_units_move_watch_user,
@@ -1107,7 +1107,7 @@ bool units_try_move_w(
    * `foreign_colony_entry` is the bVar4 settlement arm (see the Revere call).
    *
    * col1: units_world_col1 -- the caller's world save, else the
-   * g_units_ff_col1 turn context (bugs.md #1112).
+   * g_units_ff_col1 turn context (port_bugs.md #1112).
    */
   units_move_ctx c = {
     .w = w,
@@ -1234,7 +1234,7 @@ void units_clear_orders(ColonizeUnitPool* pool, int unit_id) {
  * ai/move_spent.c section 4): after the step cost is added, a move that
  * CROSSES the water/land boundary with no European settlement on either tile
  * sets moves_spent to the unit's maximum — the whole allotment is gone.
- * That is the rule behind bugs.md's "dragoons should have their entire
+ * That is the rule behind port_bugs.md's "dragoons should have their entire
  * movement spent from stepping off a ship onto land": a landfall onto bare
  * coast is exactly this case, and so is boarding a ship from open shore. A
  * colony on either end (a dock) exempts the step, which is why loading and
@@ -1267,7 +1267,7 @@ bool units_orders_skip_turn(const ColonizeUnit* unit) {
     return false;
   }
   /*
-   * bugs.md: FORTIFY (5) belongs here too. It used to be left out on the
+   * port_bugs.md: FORTIFY (5) belongs here too. It used to be left out on the
    * argument that digging in already zeroes the allotment — but the COL1
    * export writes spent 0 for an exhausted land unit (DOS clears the spent
    * bytes at day end), so a unit that fortified this turn reloads with
@@ -1342,7 +1342,7 @@ bool units_set_orders(ColonizeUnitPool* pool, int unit_id, int orders) {
      * type > 0x12` — the six ship types — and that gate guards the
      * *adjacent-foreign-power war prompt* the command runs first, not the
      * order itself. There is no water or harbour condition anywhere in it
-     * (bugs.md). A unit still has to be on the map, not riding in a hold.
+     * (port_bugs.md). A unit still has to be on the map, not riding in a hold.
      */
     if (!units_is_on_map(u)) {
       return false;
@@ -1379,7 +1379,7 @@ bool units_order_fortify(ColonizeUnitPool* pool, int unit_id) {
     return false;
   }
   /*
-   * bugs.md #695: no "already fortified" early-out. FUN_2b5a_1112's tail
+   * port_bugs.md #695: no "already fortified" early-out. FUN_2b5a_1112's tail
    * (viceroy_unpacked.c raw 42418-42421) runs unconditionally — it writes
    * order 5, zeroes +0x315a and calls FUN_281f_0934 (full MP exhaust) even
    * when the unit was already Fortified. Re-issuing Fortify on a dug-in unit
@@ -1509,7 +1509,7 @@ bool units_pillage_w(
   }
 
   /*
-   * bugs.md #631: there is no improvement-destroying pillage in DOS. Every
+   * port_bugs.md #631: there is no improvement-destroying pillage in DOS. Every
    * FUN_281f_068c(x,y,bit,on) call in both exports was enumerated: only
    * `0x10,1` (land purchased, raw 42499 / 42592 / 76688), `4,1` (raw 57001)
    * and `1,0` / `2,0` (occupancy, raw 58157 / 101569-101570). Nothing ever
@@ -1568,9 +1568,9 @@ bool units_wake(ColonizeUnitPool* pool, int unit_id) {
   units_clear_orders(pool, unit_id);
   /*
    * Only a hold passenger's zero is a park: the zero stands for the carried
-   * allotment (bugs.md #544), or, never walked aboard, for an unspent one
-   * (mp_spent_turn; bugs.md #423). Sentry/Fortified ashore keep their real
-   * MP through the night (turn refresh, bugs.md #715), so a same-turn park
+   * allotment (port_bugs.md #544), or, never walked aboard, for an unspent one
+   * (mp_spent_turn; port_bugs.md #423). Sentry/Fortified ashore keep their real
+   * MP through the night (turn refresh, port_bugs.md #715), so a same-turn park
    * wakes with what it had and an overnight one already holds its
    * allotment; the Fortified promotion night spends it (FUN_479b_0b6c,
    * viceroy 77146-77153). DOS's activate handler writes the order byte only
@@ -1582,7 +1582,7 @@ bool units_wake(ColonizeUnitPool* pool, int unit_id) {
     units_mp_restore(pool, u);
   }
   if (prev == UNITS_ORDER_SENTRY || prev == UNITS_ORDER_NONE) {
-    u->ai_landfall_wait = false; /* woken: no longer just parked ashore (bugs.md #528) */
+    u->ai_landfall_wait = false; /* woken: no longer just parked ashore (port_bugs.md #528) */
   }
   if (diag_info_enabled() && prev != UNITS_ORDER_NONE) {
     char who[96];
@@ -1619,7 +1619,7 @@ bool units_set_goto_w(
     return true;
   }
   /*
-   * bugs.md: a Go To onto a fogged square is always legal — the player does
+   * port_bugs.md: a Go To onto a fogged square is always legal — the player does
    * not know what is under the fog, so the destination check must not peek.
    * Only a tile the mover's nation has actually seen gets the enterability
    * test; an unseen one takes the order and the unit finds out en route
@@ -1629,9 +1629,9 @@ bool units_set_goto_w(
   if (map_tile_seen_by(map, dest_x, dest_y, u->nation_id) &&
       !units_can_enter_w(w, u->type_index, dest_x, dest_y, unit_id)) {
     /*
-     * bugs.md: a Go To aimed at an Indian village is a legal order — the
+     * port_bugs.md: a Go To aimed at an Indian village is a legal order — the
      * unit travels there and the village-enter handling fires on arrival
-     * (bugs.md #418: the final step is dispatched as a real move into the
+     * (port_bugs.md #418: the final step is dispatched as a real move into the
      * village, see units_goto_dest_is_village_entry).
      * Everything else that fails the enterability check still refuses.
      */
@@ -1655,7 +1655,7 @@ bool units_set_goto_w(
 
 
 /*
- * bugs.md #418: is this unit's NEXT goto step the final one, onto an Indian
+ * port_bugs.md #418: is this unit's NEXT goto step the final one, onto an Indian
  * settlement it was explicitly ordered to? DOS runs every goto step through
  * FUN_465b_0000, so that step is a move command into the village and must
  * raise FUN_4d56_4528's entry flow (woodcut 7 + the @ACTIONS menu / unmet
@@ -1854,7 +1854,7 @@ static int units_flood_owner_term(
  * goal-8), its queue (DS:-0x5c8e / -0x5b8e) and its goal key (DS:0x2d1a /
  * 0x2d1c). Every 00f2 caller shares it: the goto tiers, FUN_6662_0906 (09ae
  * snap, the 4962 ship-pressure probe) and the 5952 road-connect walk, so a
- * flood for one of them replaces the key the next goto step tests (bugs.md
+ * flood for one of them replaces the key the next goto step tests (port_bugs.md
  * #1045). Costs are bytes and wrap past 255 exactly as DOS stores them.
  */
 typedef struct UnitsFloodGrid {
@@ -1930,7 +1930,7 @@ static bool units_flood_euro_colony_at(const ColonizeWorldMap* map, int x, int y
  * sea, r->sea; sea tiles must be the main ocean, FUN_281f_06b4 == 1) or a Euro
  * colony (FUN_281f_0696) that is the mover's own tile or the grid key;
  * natives (DS:0x1dd2 >= 0x13) also refuse FUN_137f_0598 rumour tiles
- * (bugs.md #1043). The layer3 region nibble is 0 on synthetic maps; that is
+ * (port_bugs.md #1043). The layer3 region nibble is 0 on synthetic maps; that is
  * read as the main ocean, as units_coarse_body_id does.
  */
 static bool units_flood_cand_ok(
@@ -1980,7 +1980,7 @@ static bool units_flood_cand_ok(
  * excluded). A DESTINATION flood: seeded at the goal with cost 1, expanded
  * outward over at most 225 pops; a popped cell above DS:0xa370 is not
  * expanded, and popping the mover's tile lowers DS:0xa370 to its cost. The
- * grid is rebuilt only when the key moved or grid[mover] == 0 (bugs.md #706);
+ * grid is rebuilt only when the key moved or grid[mover] == 0 (port_bugs.md #706);
  * otherwise DS:0xa370 stays 0. The neighbour pick runs when DS:0xa370 < cap:
  * cand cost (+8 term) must be non-zero and below grid[mover]; score adds
  * the mover->cand edge; lowest score wins, a tie only on a strictly smaller
@@ -2070,7 +2070,7 @@ static int units_flood_00f2(
       if (c == 0 || c >= unit_cost) {
         continue;
       }
-      /* bugs.md #700: no MP pre-filter; FUN_465b_0000 owns the overspend. */
+      /* port_bugs.md #700: no MP pre-filter; FUN_465b_0000 owns the overspend. */
       c += units_flood_edge(map, low_move, false, r->mover_x, r->mover_y, nx, ny);
       if (c > best_score) {
         continue;
@@ -2165,7 +2165,7 @@ int units_flood_step_dir(
 }
 
 /* The goto tiers' 00f2 call: FUN_6662_0f74 with the current DS:0x1dd2 and
- * DS:0x1dd6 as FUN_479b_0972 left it (-1 for AI_MOVE, bugs.md #1041). */
+ * DS:0x1dd6 as FUN_479b_0972 left it (-1 for AI_MOVE, port_bugs.md #1041). */
 static bool units_flood_next_step(
   const ColonizeUnitPool* pool,
   const ColonizeCol1Save* col1,
@@ -2299,7 +2299,7 @@ static bool units_bfs_next_step(
     if (prev == start) {
       *out_x = cur % w;
       *out_y = cur / w;
-      /* bugs.md #700: no MP pre-filter (the DOS pathfinder never reads MP;
+      /* port_bugs.md #700: no MP pre-filter (the DOS pathfinder never reads MP;
        * FUN_465b_0000 raw 75643 owns the overspend). */
       ok = true;
     }
@@ -2324,7 +2324,7 @@ static int units_dir8_index(int dx, int dy) {
 
 /*
  * FUN_6662_0f74 anti-backtrack: reverse of unit+0x314f (`last_dir`), the one
- * facing byte shared with the Brave engine and the Euro AI (bugs.md #1046).
+ * facing byte shared with the Brave engine and the Euro AI (port_bugs.md #1046).
  * DOS tests `-1 < byte && (byte ^ 4) == dir`; 8 (stay) never matches a dir.
  */
 static int units_goto_last_dir_reverse(const ColonizeUnit* u) {
@@ -2396,7 +2396,7 @@ static bool units_greedy_next_step(
   /* gx/gy = DS:0xa14e/0xa14c, the tile the last flood aimed at (goal on the
    * near tier, coarse waypoint on the far one) — every distance term uses
    * it. goal_x/goal_y = the unit's real +0x314d/e goal, which only the
-   * 06d2/0696 own-colony escape reads (raw 104690). bugs.md #698. */
+   * 06d2/0696 own-colony escape reads (raw 104690). port_bugs.md #698. */
   int gx,
   int gy,
   int goal_x,
@@ -2412,7 +2412,7 @@ static bool units_greedy_next_step(
   int best_y = -1;
   int best_score = 1 << 30;
   /*
-   * bugs.md #732 (2026-09-23): the invented 5-candidate pre-tier
+   * port_bugs.md #732 (2026-09-23): the invented 5-candidate pre-tier
    * (`octile*10 + step_cost` over the goal-ward directions) that used to
    * run ahead of this loop is gone — it had no DOS counterpart and shadowed
    * the real FUN_6662_0f74 loop below almost every time. golden_ai_turns
@@ -2467,7 +2467,7 @@ static bool units_greedy_next_step(
         const int ny = u->y + dy;
         const int cheb_cand = units_chebyshev(nx, ny, gx, gy);
         const int manh_cand = abs(gx - nx) + abs(gy - ny);
-        /* DOS-LITERAL raw 104677 (bugs.md #1038): `local_28 = (DS:0x543f ==
+        /* DOS-LITERAL raw 104677 (port_bugs.md #1038): `local_28 = (DS:0x543f ==
          * 0)` (asm CMP 1 / SBB / NEG); `JZ` takes every candidate for an AI
          * nation, the human only keeps steps that do not move away. */
         if (is_human_unit && cheb_cand + manh_cand > cheb_cur + manh_cur) {
@@ -2481,9 +2481,9 @@ static bool units_greedy_next_step(
         if (!units_flood_can_enter(pool, colonies, map, u->type_index, nx, ny, unit_id)) {
           continue;
         }
-        /* bugs.md #700: no MP pre-filter (see the head of this loop's tier). */
+        /* port_bugs.md #700: no MP pre-filter (see the head of this loop's tier). */
         /*
-         * DOS-LITERAL FUN_6662_0f74 raw 104676-104690 (bugs.md #699).
+         * DOS-LITERAL FUN_6662_0f74 raw 104676-104690 (port_bugs.md #699).
          * ndisasm re-read of 6662:13d1-1420 (viceroy_unpacked_2.asm), because
          * the Ghidra parenthesisation of this test is misleading:
          *   13d1: (cur & 0x0a) && (FUN_281f_0754(cand) & 0x0a) -> 1
@@ -2533,7 +2533,7 @@ static bool units_greedy_next_step(
    * instead, accepting the first legal one. Cite: euro_unit_act.md T1.8.
    */
   if (units_dir8_index(best_x - u->x, best_y - u->y) == units_goto_last_dir_reverse(u)) {
-    /* DOS-LITERAL raw 104722-104742 (bugs.md #1039): the reverse step is
+    /* DOS-LITERAL raw 104722-104742 (port_bugs.md #1039): the reverse step is
      * always dropped; only `+0x314c == 0x0b && +0x314b != '9'` re-rolls,
      * every other order fails (MP exhausted, goto cleared by the caller). */
     if (rng == NULL || u->orders != UNITS_ORDER_AI_SAIL || u->col1_ai_plan == '9') {
@@ -2558,7 +2558,7 @@ static bool units_greedy_next_step(
       if (!units_flood_can_enter(pool, colonies, map, u->type_index, nx, ny, unit_id)) {
         continue;
       }
-      /* bugs.md #700: the reroll (raw 104724-104731) tests 06d2 / 0768 /
+      /* port_bugs.md #700: the reroll (raw 104724-104731) tests 06d2 / 0768 /
        * 06b4 / 0302 only — never the mover's MP. */
       wig_x = nx;
       wig_y = ny;
@@ -2751,7 +2751,7 @@ static int units_coarse_snap(
   int pick = -1;
   if (g->mask[sea][cx][cy] != 0) {
     /* raw 104236-104239: the own cell also needs the 000000 probe AND the
-     * 0906 relay (cap 0x12) from the probed sample to (x,y). bugs.md #1042. */
+     * 0906 relay (cap 0x12) from the probed sample to (x,y). port_bugs.md #1042. */
     int px = cx * 4 + 1;
     int py = cy * 4 + 1;
     if (units_coarse_probe(map, cx, cy, sea, &px, &py) &&
@@ -2932,10 +2932,10 @@ static bool units_goto_director(
    * partial-MP overspend is decided by units_try_move's own DOS roll, the
    * same as an arrow-key step; the earlier hard afford gate made a one-tile
    * Go To (e.g. onto a lost-city rumour) fail where the arrow key
-   * succeeded (bugs.md). */
+   * succeeded (port_bugs.md). */
   if (units_chebyshev(u->x, u->y, gx, gy) < 2) {
     /*
-     * DOS-LITERAL FUN_6662_0f74 raw 104556-104565 (bugs.md #701): when both
+     * DOS-LITERAL FUN_6662_0f74 raw 104556-104565 (port_bugs.md #701): when both
      * |dx| and |dy| are below 2 the pathfinder returns
      * thunk_FUN_2a1f_059c -> FUN_6662_0086 (raw 103795-103840) and nothing
      * else. 0086 is a pure sign -> dir8 table lookup: it tests no
@@ -2983,7 +2983,7 @@ static bool units_goto_director(
    * scored 8-neighbour fallback takes its deltas from THIS pair, not from
    * the goal (FUN_6662_0f74 raw 104623-104627: `uVar10 = *(int *)0xa14c -
    * uVar7; uVar11 = *(int *)0xa14e - uVar6;`), so on a long trip the greedy
-   * tier steers to the coarse waypoint. bugs.md #698. The near tier writes
+   * tier steers to the coarse waypoint. port_bugs.md #698. The near tier writes
    * the goal into the pair (raw 104581-104582), which is the default here.
    */
   int scored_x = gx;
@@ -3019,7 +3019,7 @@ static bool units_goto_director(
         int fy = ucy * 4 + 1;
         (void)units_coarse_probe(map, ucx, ucy, sea, &fx, &fy);
         /* raw 104596-104598 overwrites DS:0xa14c/0xa14e with the probed
-         * cell centre before the retry flood. bugs.md #698. */
+         * cell centre before the retry flood. port_bugs.md #698. */
         scored_x = fx;
         scored_y = fy;
         if (fx != u->x || fy != u->y) {
@@ -3028,7 +3028,7 @@ static bool units_goto_director(
       }
       if (hit) {
         /*
-         * DOS-LITERAL raw 104605-104620 (bugs.md #1040): the hit is dropped
+         * DOS-LITERAL raw 104605-104620 (port_bugs.md #1040): the hit is dropped
          * only for `+0x3149 != 0 && +0x314c == 0x0b && +0x314b != '9'` and a
          * step that reverses +0x314f; the scored fallback then aims at the
          * real goal (`DS:0xa14e/0xa14c = +0x314d/e`).
@@ -3071,7 +3071,7 @@ bool units_next_goto_step_with_flood_w(
   /*
    * DOS-LITERAL FUN_6662_0f74 raw 104758: `+0x314f = local_1c` on every
    * exit, failures (-1 / 8) included and before the move is tried
-   * (bugs.md #1046).
+   * (port_bugs.md #1046).
    */
   ColonizeUnit* u = w ? units_get(w->units, unit_id) : NULL;
   if (u && u->active && units_orders_follow_goto(u->orders)) {
@@ -3122,7 +3122,7 @@ bool units_advance_goto_one_step_w(
   if (!units_next_goto_step_w(w, unit_id, &nx, &ny)) {
     /*
      * DOS-LITERAL FUN_479b_0972 raw 77066-77072 + FUN_6662_0f74 raw
-     * 104703/104738 (bugs.md #696). A pathfinder miss is terminal in DOS,
+     * 104703/104738 (port_bugs.md #696). A pathfinder miss is terminal in DOS,
      * not a silent no-op: 0f74 itself calls FUN_281f_0934 (spend the whole
      * allotment) on both its failure exits — the "no candidate scored"
      * one (`if (local_1c != 8) goto LAB_6662_1599; FUN_281f_0934(...)`) and
@@ -3167,7 +3167,7 @@ bool units_advance_goto_one_step_w(
       foreign_colony = ccol && ccol->active && ccol->nation_id != u->nation_id;
     }
     /*
-     * bugs.md: a goto must NEVER open combat en route — a scout pathing
+     * port_bugs.md: a goto must NEVER open combat en route — a scout pathing
      * past a Brave was auto-attacking it. Any foreign occupant (or native
      * village) on an intermediate step tile halts the step instead; only
      * the DESTINATION tile may be attacked, and then only by a unit that
@@ -3187,7 +3187,7 @@ bool units_advance_goto_one_step_w(
        * The HUMAN side no longer sees this: game_loop's activation pacer
        * intercepts the adjacent-to-destination frame and hands the final
        * step to game_try_unit_move, which raises the real FUN_4d56_4528
-       * entry flow (woodcut 7 + @ACTIONS menu) — bugs.md #418, superseding
+       * entry flow (woodcut 7 + @ACTIONS menu) — port_bugs.md #418, superseding
        * 293's "stop one tile short". This arm is the AI/headless backstop.
        */
       if (village >= 4) {
@@ -3205,7 +3205,7 @@ bool units_advance_goto_one_step_w(
   u = units_get(pool, unit_id);
   if (u) {
     /*
-     * DOS-LITERAL FUN_479b_0972 raw 77136-77142 (bugs.md #697), the arrival
+     * DOS-LITERAL FUN_479b_0972 raw 77136-77142 (port_bugs.md #697), the arrival
      * tail after a committed step:
      *   if (+0x314c == '\v')  FUN_281f_0934(unit);   // AI_SAIL: MP exhaust
      *   if (+0x314c == '\x02' || +0x314c == '\f') keep the order;

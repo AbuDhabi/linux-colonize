@@ -33,7 +33,7 @@
  *
  * Also prints the founding-fathers bells pool/need to stderr (useful when
  * working on the Congress bells bar). The pool is the save's own nation+0xc
- * word (bugs.md #933) — nothing needs seeding.
+ * word (port_bugs.md #933) — nothing needs seeding.
  */
 
 #include <stdio.h>

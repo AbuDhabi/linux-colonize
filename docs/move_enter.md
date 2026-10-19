@@ -36,12 +36,12 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Land | Road pair (both FA `&0x0a`) | Cost **1** | `map_move_cost_step` both roads → 1; else dest road still halves | Done |
 | Land | River both + cardinal | Cost **1** | Both river + axis → 1; else dest river still halves | Done |
 | Land | Ocean / HS (25/26) | Embark if own ship has room for the boarder's `@UNIT` **size** (`4720_00e0`) | `BOARD` via `units_find_boardable_ship(..., need_space)`; else domain deny | Done |
-| Land **aboard a ship** | Land occupied by another nation | Reason **9** = `@LANDFIRST` — no amphibious assault | `COLONIZE_ENTER_LANDFIRST` (bugs.md #485) | Done |
+| Land **aboard a ship** | Land occupied by another nation | Reason **9** = `@LANDFIRST` — no amphibious assault | `COLONIZE_ENTER_LANDFIRST` (port_bugs.md #485) | Done |
 | Ship | Ocean / HS | OK (`4720`); **already on HS** + eastward without sail order → reason **5** | Same (`units_can_enter`); entering the lane from ocean is always legal, and a Go To may target a lane tile → `game_ship_sail_to_europe` on arrival | Done |
-| Ship | Map edge | x rim → reason **4** (→ @SAILHOME/@EUROPENOTLEAVE body, No = deny); y rim and land units silent (`4720_015c` raw 75960-75980) | `COLONIZE_ENTER_EDGE_SAIL` → @SAILHOME handler; y rim / land = silent `BLOCKED_EDGE` (bugs.md #717) | Done |
-| Ship | Own colony land | Dock (`465b` reads the settlement owner `281f_06be`; a DOS own-colony stack is always own) | `can_enter` + disembark; foreign units squatting on the tile (port leftovers) are ignored (bugs.md #553) | Done |
+| Ship | Map edge | x rim → reason **4** (→ @SAILHOME/@EUROPENOTLEAVE body, No = deny); y rim and land units silent (`4720_015c` raw 75960-75980) | `COLONIZE_ENTER_EDGE_SAIL` → @SAILHOME handler; y rim / land = silent `BLOCKED_EDGE` (port_bugs.md #717) | Done |
+| Ship | Own colony land | Dock (`465b` reads the settlement owner `281f_06be`; a DOS own-colony stack is always own) | `can_enter` + disembark; foreign units squatting on the tile (port leftovers) are ignored (port_bugs.md #553) | Done |
 | Ship / Wagon | Foreign Euro colony | — | Never enters: `FUN_5f7a_0662` → `FUN_5f7a_020e` trades from outside and spends the whole allotment ([foreign_colony_trade.md](foreign_colony_trade.md)) | Done |
-| Ship | Bare land | Landfall UI reasons 2/3 | `@LANDFALL` Stay / Make Landfall (one unit; sentry cargo OK); passenger spends its **whole** allotment (465b_05ca shore crossing, 2026-09-04); ship is neither moved nor charged (`4720_049e`, bugs.md #716) | Done |
+| Ship | Bare land | Landfall UI reasons 2/3 | `@LANDFALL` Stay / Make Landfall (one unit; sentry cargo OK); passenger spends its **whole** allotment (465b_05ca shore crossing, 2026-09-04); ship is neither moved nor charged (`4720_049e`, port_bugs.md #716) | Done |
 | Ship | Native village | `4528` ship abort (`@DONTKNOWSHIPS` / `@MADATSHIPS`) | `VILLAGE_SHIP` + `ai_contact_try_ship_village` | Done |
 
 ---
@@ -120,7 +120,7 @@ ship from open shore. A colony on either end (a dock) exempts the step, which
 is why loading and unloading in port stays cheap; an Indian village does not
 (`FUN_281f_0696` clamps owners above 3 to −1). OpenCol:
 `units_move_crosses_shore`, applied in `units_try_move` and
-`units_unload_passenger` (bugs.md: "dragoons should have their entire movement
+`units_unload_passenger` (port_bugs.md: "dragoons should have their entire movement
 spent from stepping off a ship onto land").
 
 ## Hold charge = `@UNIT` size, and no amphibious assault — 2026-09-17
@@ -137,11 +137,11 @@ return (param_2 <= room)                                          /* candidate's
 
 So a passenger costs its **size** column, not one slot. `@UNIT` sizes: land
 units 1, **Treasure 6**, ships + Wagon Train 99 (the cannot-board sentinel,
-bugs.md #482). With cargo capacities Caravel 2 / Merchantman 4 / Galleon 6 /
+port_bugs.md #482). With cargo capacities Caravel 2 / Merchantman 4 / Galleon 6 /
 Privateer 2 / Frigate 4 / Man-O-War 6, only a Galleon (or a Man-O-War) can
 ever lift a Treasure, and it then has no room for anything else — the
 manual's "treasure needs a Galleon" is that arithmetic, not a type check
-(bugs.md #484). Col1 interop is untouched: `holds_occupied` is goods-only and
+(port_bugs.md #484). Col1 interop is untouched: `holds_occupied` is goods-only and
 riders travel on the aboard link chain, so DOS recomputes the size charges
 itself.
 
@@ -151,9 +151,9 @@ whose `tile_tribe_or_presence` owner is another nation: enemy stack, native
 village, or an empty enemy colony alike. The `FUN_4720_049e` jump table at
 `4720:060a` maps reason 9 to `push 0x1429` = **@LANDFIRST**, "Land units
 cannot enter an enemy occupied square from on board a ship." There is no
-amphibious assault in DOS and no shipboard walk-in capture (bugs.md #485).
+amphibious assault in DOS and no shipboard walk-in capture (port_bugs.md #485).
 The port keeps `@LANDFIRST` on the *ship*-mover direction too as a stand-in;
-DOS refuses that step with no reason word and shows nothing (bugs.md #486).
+DOS refuses that step with no reason word and shows nothing (port_bugs.md #486).
 
 Ship **sight radius** is not a `@UNIT` column either: `FUN_13f1_02f8`
 (`CODE_17:13f1:02f8-0356`) builds it in DI from hardcoded type compares —
@@ -172,7 +172,7 @@ ship's *current* tile is also `0x1a`, the step is eastward
 nor 2 (Trade Route). The port tested the destination alone, so the first
 step from ocean onto the lane was denied, and because `units_set_goto`
 validates with the same probe *before* the order is set, a Go To aimed at a
-lane tile was refused too (bugs.md: "I can't move a ship onto a sea lane
+lane tile was refused too (port_bugs.md: "I can't move a ship onto a sea lane
 either way").
 
 Arrival behaviour: a **Go To** whose destination is a lane tile sails the

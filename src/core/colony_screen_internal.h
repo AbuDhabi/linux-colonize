@@ -319,7 +319,7 @@ void colony_screen_render_minimap(
   ColonizeFramebuffer8* framebuffer
 );
 bool colony_screen_unit_on_fence(const ColonizeUnitPool* units, const ColonizeUnit* u);
-/* ===================== Hit-test stages (colony_screen_popups.c, bugs.md #1107) ===================== */
+/* ===================== Hit-test stages (colony_screen_popups.c, port_bugs.md #1107) ===================== */
 
 /* colony_screen_hit_test is a dispatcher over these stages in hit-priority
  * order; each returns true when it owns the click (ctx->hit is the answer,

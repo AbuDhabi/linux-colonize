@@ -75,7 +75,7 @@ static void col1_stuff_census_tally_units(
      * profession slot, not the unit's own profession byte. Keying it off the
      * byte made a unit's own job decide whether it was a person, which is why
      * the Foreign Affairs population (and so the Rebels/Tories split built on
-     * it) disagreed with the units actually on the board (bugs.md). DOS scans
+     * it) disagreed with the units actually on the board (port_bugs.md). DOS scans
      * the whole unit array, so a passenger sitting in a ship's hold counts
      * exactly like one standing on the map — the loop above already walks
      * every active unit, aboard_ship_id or not.

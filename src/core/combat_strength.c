@@ -212,8 +212,8 @@ int combat_unit_base_x8(
    * profession 0x15; 0x17 (`@JOB` "Veteran Dragoons") is never written to a
    * unit by DOS — no writer of 0x17 to +0x315b exists in either decompiled
    * export, and none of the 60 original/interop `.SAV` fixtures carries a
-   * unit with profession 23 (bugs.md #503). The earlier "0x17 too" peel was
-   * invented. Sprite/name rules for 0x17 (bugs.md #263/#265/#318) stay.
+   * unit with profession 23 (port_bugs.md #503). The earlier "0x17 too" peel was
+   * invented. Sprite/name rules for 0x17 (port_bugs.md #263/#265/#318) stay.
    */
   if (combat_type_is_soldier_or_dragoon(t) && u->profession == UNITS_JOB_SOLDIER) {
     strength_x8 = strength_x8 + (strength_x8 >> 1);
@@ -278,7 +278,7 @@ static int combat_ref_present(const ColonizeCol1Save* col1) {
     return 0;
   }
   /* DOS-LITERAL: DS:0x5382 bit 0x02 (raw 100504) = "foreign intervention
-   * announced" (FUN_43f7_1528 raw 74493), not "REF landed" — bugs.md #865. */
+   * announced" (FUN_43f7_1528 raw 74493), not "REF landed" — port_bugs.md #865. */
   return col1->head.game_options.ref_present != 0;
 }
 
@@ -433,7 +433,7 @@ int combat_engagement_strength(
     if (unit_nat > 3 || (foe_nat < 4 && (!woi || foe_is_ai))) {
       defender_bonus_x4 = terr_byte;
       /* DOS 1b0e: `if (local_1a == 0) 8d02 &= 0x7f` — a 0-value terrain
-       * never shows a "+0%" analysis row (bugs.md #399). */
+       * never shows a "+0%" analysis row (port_bugs.md #399). */
       if (out_flags && terr_byte != 0) {
         out_flags->flags |= COMBAT_FLAG_TERRAIN;
         out_flags->terrain_byte = terr_byte;
@@ -491,7 +491,7 @@ int combat_engagement_strength(
 
     if (apply_now) {
       defender_bonus_x4 = terr_byte;
-      if (out_flags && terr_byte != 0) { /* bugs.md #399, same 8d02 &= 0x7f rule */
+      if (out_flags && terr_byte != 0) { /* port_bugs.md #399, same 8d02 &= 0x7f rule */
         out_flags->flags |= COMBAT_FLAG_TERRAIN;
         out_flags->terrain_byte = terr_byte;
         out_flags->terrain_sprite = map_terrain_sprite_at(ctx->map, u->x, u->y);
@@ -610,7 +610,7 @@ static int combat_bombard_row_icon(const ColonizeCombatStrengthCtx* ctx, int x, 
     }
   }
   /* DS:0x532e / DS:0x52cc = @UNIT rows 18 / 11; resolve by kind, not pool
-   * slot (bugs.md #664). */
+   * slot (port_bugs.md #664). */
   const int type_index = units_kind_type_index(
     ctx->units, coastal ? UNITS_KIND_MAN_O_WAR : UNITS_KIND_ARTILLERY);
   if (type_index < 0 || type_index >= ctx->units->type_count) {
@@ -657,7 +657,7 @@ static int combat_colony_sol_at(
     return -1;
   }
   /* The record must exist (-1 = port-side desync, see above); the ratio and
-   * Bolivar math is the shared FUN_15eb_0274 port (bugs.md #1089). */
+   * Bolivar math is the shared FUN_15eb_0274 port (port_bugs.md #1089). */
   if (ctx->col1->colony && col1_colony_at_xy(ctx->col1, -1, c->x, c->y)) {
     return colony_prod_sol_percent(ctx->col1, c);
   }
@@ -728,7 +728,7 @@ static void combat_apply_1b0e_peels(
    * whole movement point left fights at remaining/3 strength — the penalty
    * @HALF warns about ("they will fight at {%NUMBER0/3 strength}"). local_98
    * is the remaining thirds when below 3 and 0 otherwise, so a rested
-   * attacker is untouched. bugs.md.
+   * attacker is untouched. port_bugs.md.
    */
   {
     const int rem = units_remaining_mp(ctx->units, attacker_id);
@@ -752,7 +752,7 @@ static void combat_apply_1b0e_peels(
   /*
    * Artillery open-field >>2 when the combat tile has no settlement.
    *
-   * DOS-LITERAL FUN_5fef_1b0e raw 100472-100493 (bugs.md #767): the only gate
+   * DOS-LITERAL FUN_5fef_1b0e raw 100472-100493 (port_bugs.md #767): the only gate
    * on this whole block is iVar23, the 06be settlement probe. There is NO
    * domain test — bVar9 / bVar10 (the is-ship flags set at raw 100347 /
    * 100451) gate the weak-defender halving at raw 100468 and the 0xd..0x12

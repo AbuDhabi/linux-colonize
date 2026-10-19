@@ -24,7 +24,7 @@ if (bVar4 && mover_nation < 4 && tile_owner < 4) {          /* foreign Euro */
 `FUN_2a1f_015e` → `FUN_5f7a_0662(unit, colony)` (raw 99053):
 
 * binds the colony record (`FUN_281f_09e6` → `DS:0x8542`);
-* unit type `5` (Scouts) → `FUN_5f7a_000e` (`@SCOUTCOLONY`, ported, bugs.md #438);
+* unit type `5` (Scouts) → `FUN_5f7a_000e` (`@SCOUTCOLONY`, ported, port_bugs.md #438);
 * else unit-type table byte `DS:0x5237[type*0xe]` (**cargo capacity**) non-zero →
   `FUN_5f7a_020e` — i.e. every Wagon Train and every ship;
 * non-zero result → `FUN_281f_0934(unit)` (spend the **whole** MP allotment) and

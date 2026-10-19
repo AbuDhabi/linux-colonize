@@ -84,7 +84,7 @@ when the Euro is human.
    export reads (offset tally over all three exports: +0/+2/+3/+5/+7/+8/+10
    only), so both the once-per-nation latch and the `alarm < 30` band were
    invented.
-2. **Encroachment — RETIRED 2026-09-03** (bugs.md "alarm rises incredibly
+2. **Encroachment — RETIRED 2026-09-03** (port_bugs.md "alarm rises incredibly
    fast"): the +2/turn unit×tribe and colony×tribe bumps were fandom-invented,
    not DOS. DOS grows alarm only through `FUN_4d56_152e`'s threat-score
    accumulator (colonies within distance 7 + the 20-tile military ring feed
@@ -323,7 +323,7 @@ success enqueues CONTACT_CONVERT OK. Mission burn (prelude ≥80) enqueues
 CONTACT_RAID OK with status. Deep DOS dialog chrome (VGA-identical) stays
 **PARKED**. Deep `FUN_4d56_2820` (~1.4k; thunk `2a1f_044c`) meet/raid decision
 + nested `2aac…311e` haggle stays **PARK only**.
-Scout `359c` warn-on-displace **deleted 2026-09-18** (bugs.md #499 — `359c` is the Enter-Hostile-Village wagon outcome, not an anti-Scout sweep)
+Scout `359c` warn-on-displace **deleted 2026-09-18** (port_bugs.md #499 — `359c` is the Enter-Hostile-Village wagon outcome, not an anti-Scout sweep)
 (alarm **≥95**, ~¼ kill even when a flee tile exists; 90..94 prefer displace).
 OpenCol still kills when displace is blocked.
 
@@ -373,7 +373,7 @@ for the terrain/counter/case-identity resolution).
 
 ### Teach-skill profession map (OpenCol)
 
-**RETIRED 2026-09-23 (bugs.md #573, #779).** The nation→default table and the
+**RETIRED 2026-09-23 (port_bugs.md #573, #779).** The nation→default table and the
 `last_sold` override below were port inventions; the live port draws the skill
 from the DOS bid table (`overlays.c:77658-77835`). Kept for history only.
 

@@ -131,7 +131,7 @@ disassembly is in the 2026-08-13 investigation log if anyone resumes this.
 
 ## `FUN_5fef_0f14` — Indian raid colony loot + tension
 
-> **Correction 2026-09-23 (bugs.md #827-#833, #836).** The head of `0f14` is
+> **Correction 2026-09-23 (port_bugs.md #827-#833, #836).** The head of `0f14` is
 > now ported verbatim and several stand-ins below are retired:
 > * The kind is `rand(1,4)` (raw 99790) — **four** kinds, 1 goods / 2 building /
 >   3 ship / 4 gold. The port's alarm-band picker and its 1500/1520 **year**
@@ -225,7 +225,7 @@ invented `WREAK`/`SCALP` kinds deleted. This **retires** the
 former Series-J POSITIVE escalate (STORES +4, BURN +12, +16,
 GOLD/SHIP +8 via `ai_contact_alarm_bump_amount`), which had both the sign and
 the kind-3 assignment wrong — same retirement rule as the three fandom alarm
-drips (bugs.md 295): DOS grows Indian alarm only through `FUN_4d56_152e`.
+drips (port_bugs.md 295): DOS grows Indian alarm only through `FUN_4d56_152e`.
 Full `0f14` RNG ladders still **PARKED**.
 **Tension discharge wired 2026-08-24, repointed at real storage 2026-09-08**:
 both entries clear the raiding village's attitude word with

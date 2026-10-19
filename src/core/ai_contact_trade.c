@@ -80,7 +80,7 @@ static int ai_contact_2e92_unit_can_take(const ColonizeTurnContext* ctx, const C
 /*
  * FUN_1000_8f48 → FUN_0000_8f68 = FUN_15eb_30b8 (tools/address_mapping.csv):
  * the same loader the colony/Europe screens use — tops a matching hold up to
- * 100 and spills the rest into a free hold (bugs.md #471).
+ * 100 and spills the rest into a free hold (port_bugs.md #471).
  */
 static void ai_contact_2e92_give_goods(ColonizeTurnContext* ctx, ColonizeUnit* unit, int cargo, int qty) {
   (void)units_load_goods(ctx->units, unit->id, cargo, qty);
@@ -230,7 +230,7 @@ static int ai_contact_2820_price_byte(const ColonizeCol1Save* col1, int nation, 
  * qty = min(100/(want+1), key+5) clamped [5,100], capped to warehouse room,
  * floor 2. Cite: FUN_281f_0d3a = warehouse capacity; FUN_291f_0ed0 sort.
  *
- * TRIGGER (bugs.md #824, 2026-09-23 — no longer reconstructed).
+ * TRIGGER (port_bugs.md #824, 2026-09-23 — no longer reconstructed).
  * DOS reaches 022e from FUN_465b's move tail (FUN_281f_0984 →
  * FUN_5bfb_3180), once per Brave step, for the neighbour tile the encounter
  * scan found. The port now calls this arm from that same site:
@@ -248,7 +248,7 @@ static int ai_contact_2820_price_byte(const ColonizeCol1Save* col1, int nation, 
  * skip the demand/beg arm: `bVar6` true → LAB_5bfb_096c gifts, false →
  * LAB_5bfb_0def demands.
  *
- * NOT exclusive in one direction, though (bugs.md #863): the @INDIANBEGFOOD
+ * NOT exclusive in one direction, though (port_bugs.md #863): the @INDIANBEGFOOD
  * block at raw 87650-87698 runs BEFORE that fork, and a beg the colony
  * CONCEDED (`local_c == 2`) sets `bVar6 = true` as well as `bVar7`, so it
  * falls through into this gift half in the same visit. The port re-enters
@@ -270,7 +270,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
       continue;
     }
     /* DOS `bVar7` (raw 87470 init / 87687 set): this visit's food-beg was
-     * conceded, which vetoes gifting food back at LAB_5bfb_096c. bugs.md #863. */
+     * conceded, which vetoes gifting food back at LAB_5bfb_096c. port_bugs.md #863. */
     int beg_conceded = 0;
     /* One encounter, one mood verdict — drop last turn's. */
     {
@@ -305,7 +305,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
           continue;
         }
         /*
-         * bugs.md #824: still the move-tail filter, but no longer a
+         * port_bugs.md #824: still the move-tail filter, but no longer a
          * reconstruction — this arm runs from the stepping Brave's own
          * 022e now, so "walked up this turn" simply SELECTS that Brave out
          * of the nation's units and leaves a loitering one alone, which is
@@ -350,7 +350,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
        * the 465b tail, ai_contact_visit_step_roll): reuse that verdict. */
       const AiContactVisitMood* m = &ai_contact_s_visit_mood[nation_id - 4][e];
       const int turn = ctx->turn_number ? (int)*ctx->turn_number : -1;
-      /* bugs.md #863: a conceded beg re-enters this arm after the fact
+      /* port_bugs.md #863: a conceded beg re-enters this arm after the fact
        * (ai_contact_apply_beg_food), where the record carries bVar7 and may
        * predate this Brave selection -- accept it on beg_conceded alone. */
       if (m->valid && m->turn == turn && (m->brave_id == brave->id || m->beg_conceded)) {
@@ -420,7 +420,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
          * `puVar4 = *(0x8542)` is the COLONY record, and
          * `FUN_281f_095c(0, puVar4[0x1a], puVar4[0], puVar4[1])` = type 0,
          * nation = colony+0x1a (the colony's owner byte), x/y = the colony
-         * tile — not the visiting brave's tile (bugs.md #840). Then stamps
+         * tile — not the visiting brave's tile (port_bugs.md #840). Then stamps
          * profession 0x1b. The brave is not consumed. */
         ai_contact_bind_names(ctx);
         const int human_convert = ai_contact_euro_is_human(ctx, e);
@@ -447,7 +447,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
              * also sets col1_vis_mask = 1<<nation. A raw nation_id assignment
              * left the mask at 0 (units_spawn zeroes it) so the owner could
              * not see its own convert through the fog and the mask
-             * round-tripped wrong through the save (bugs.md #879). Sibling
+             * round-tripped wrong through the save (port_bugs.md #879). Sibling
              * spawn site: units_spawn_subjugated_convert, units_combat.c.
              */
             units_set_nation(convert, c->nation_id);
@@ -476,7 +476,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
      *   if ((bid[0] <= ask[0]) || bVar7 || (0x19 < colony_food)) -> @INDIANGIVESTUFF
      * i.e. @INDIANGIVEFOOD only when the village has a food surplus, the
      * colony is under 26 food, AND this visit did not already TAKE food off
-     * the colony in the beg arm (bVar7 -- bugs.md #863).
+     * the colony in the beg arm (bVar7 -- port_bugs.md #863).
      */
     if (!beg_conceded && (int)econ.bid[0] > (int)econ.ask[0] &&
         c->stock[COLONIZE_CARGO_FOOD] <= 0x19) {
@@ -513,7 +513,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
        * 97020-97024: `iVar9 + -10 < stock[local_32]`), not per cargo. The
        * accessor ignores cargo_type (colonies_warehouse_capacity, colony_goods.c)
        * so hoisting the call changes nothing today, but matches the DOS shape
-       * (bugs.md #892).
+       * (port_bugs.md #892).
        */
       const int cap = colonies_warehouse_capacity(ctx->colonies, c, COLONIZE_CARGO_FOOD);
       for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
@@ -545,7 +545,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
        * DOS-LITERAL FUN_5bfb_022e raw 87930:
        *   100 / (*(byte *)(cargo + colony[0x1a] * 0x10 - 0x7b44) + 1)
        * The nation index is the VISITED colony's owner byte (colony+0x1a == e),
-       * and -0x7b44 is the live DS:0x84BC row = euro_price[cargo] - 1 (bugs.md
+       * and -0x7b44 is the live DS:0x84BC row = euro_price[cargo] - 1 (port_bugs.md
        * #797/#819) — not a start-of-game capture.
        */
       int qty = 100 / (ai_contact_2820_price_byte(ctx->col1, e, cargo) + 1);
@@ -703,7 +703,7 @@ void ai_contact_reset(void) {
 
 /*
  * DOS's demand price row: `-0x7b44 + nation*0x10 + good` = the LIVE per-nation
- * DS:0x84BC sell-price row (bugs.md #797). Was a frozen capture table
+ * DS:0x84BC sell-price row (port_bugs.md #797). Was a frozen capture table
  * capture, which pinned @INDIANWAGONS alarm and the @INDIANCITY cargo scan to
  * start-of-game prices for the whole campaign.
  */
@@ -797,7 +797,7 @@ void ai_contact_apply_reparations(
       const int w = col1_tribe_attitude(t, e);
       col1_tribe_attitude_set(t, e, w + 0x80);
     }
-    /* bugs.md #802: DOS writes no status line here (no such text in any
+    /* port_bugs.md #802: DOS writes no status line here (no such text in any
      * COLONIZE .TXT section); the invented English narration is gone. */
     return;
   }
@@ -847,7 +847,7 @@ void ai_contact_apply_reparations(
         ai_contact_brave_ladder_add(ctx->units, brave, 1);
       } else {
         /* DOS 022e raw ~96906-96928: plain signed-byte `+= 1`, no cap
-         * (bugs.md #841 — the invented 0xff guard is gone). */
+         * (port_bugs.md #841 — the invented 0xff guard is gone). */
         ind->muskets = (uint8_t)(ind->muskets + 1);
       }
     } else if (s->cargo == COLONIZE_CARGO_HORSES) {
@@ -858,10 +858,10 @@ void ai_contact_apply_reparations(
         ind->horse_breeding = (uint16_t)(ind->horse_breeding + 0x32);
       }
       /* DOS 022e raw ~96906-96928: unconditional signed-byte `+= 1`
-       * (bugs.md #841). */
+       * (port_bugs.md #841). */
       ind->horse_herds = (uint8_t)(ind->horse_herds + 1);
     }
-    /* bugs.md #802: DOS writes no status line here (no such text in any
+    /* port_bugs.md #802: DOS writes no status line here (no such text in any
      * COLONIZE .TXT section); the invented English narration is gone. */
     return;
   }
@@ -874,7 +874,7 @@ void ai_contact_apply_reparations(
     wag->hold_goods_amount[s->hold] = 0;
     wag->hold_goods_type[s->hold] = 0;
   }
-  /* bugs.md #802: DOS writes no status line here (no such text in any
+  /* port_bugs.md #802: DOS writes no status line here (no such text in any
    * COLONIZE .TXT section); the invented English narration is gone. */
 }
 
@@ -987,7 +987,7 @@ static void ai_contact_reparations_present(
   /* raw 96882 / 96959: `FUN_291f_019c(0x281f, 0x1866|0x1871, *(0x8d52))` —
    * @INDIANCITY / @INDIANWAGONS are chief audiences, portrait and all. */
   ai_contact_chief_flair(ctx, e, nation_id);
-  /* bugs.md #802: DOS writes no status line here (no such text in any
+  /* port_bugs.md #802: DOS writes no status line here (no such text in any
    * COLONIZE .TXT section); the invented English narration is gone. */
 }
 
@@ -1161,7 +1161,7 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
        * DOS reads hold 0 only (FUN_281f_0be6/0c68 with slot 0) and does NOT
        * require it to be non-empty: `local_42` is just the encounter tile's
        * unit when its type byte is 0x0c (raw 96690/96696), so a 0-qty demand
-       * is legal (bugs.md #807). The port's slot walk stays, but it is
+       * is legal (port_bugs.md #807). The port's slot walk stays, but it is
        * narrowed to the Brave's own encounter partner by the visitor test
        * below, which is DOS's `FUN_281f_07e0()` in all reachable states.
        */
@@ -1277,7 +1277,7 @@ int ai_contact_2820_sell_price(
     base -= dos_rng_range(rng, 0, 7);
   }
   /* DOS-LITERAL: `*(char *)(*0x8d4e + 7)` / `+ 8` — SIGNED byte reads
-   * (bugs.md #806); a herd/armoury count past 0x7f makes the term negative. */
+   * (port_bugs.md #806); a herd/armoury count past 0x7f makes the term negative. */
   if (cargo == COLONIZE_CARGO_MUSKETS) {
     base -= (int)(int8_t)ind->muskets - 12;
   }
@@ -1356,10 +1356,10 @@ static void ai_contact_2820_sell_settle(
     ai_contact_2820_friction_sub(t, e, qty, qty);
   }
   /*
-   * bugs.md #803 — DOS-LITERAL FUN_4d56_2820 raw 82286+ (2820 doc line 551).
+   * port_bugs.md #803 — DOS-LITERAL FUN_4d56_2820 raw 82286+ (2820 doc line 551).
    * DOS tests `param_2 == 0xf || param_2 == 8`, where `param_2` is the
    * acting unit's ARRAY INDEX into the 300-slot unit pool (`param_2 * 0x1c +
-   * 0x3146` is its type byte — same record-stride evidence as bugs.md
+   * 0x3146` is its type byte — same record-stride evidence as port_bugs.md
    * #878(a) in ai_euro_land.c), not the cargo id. Ported using the same
    * pool-slot-index proxy as #878(a): `unit - ctx->units->units`.
    */
@@ -1396,7 +1396,7 @@ static void ai_contact_2820_gift_settle(
   s->qty = qty;
   if (t) {
   /*
-   * bugs.md #803 — DOS-LITERAL FUN_4d56_2820 raw 82286+ (2820 doc line 617).
+   * port_bugs.md #803 — DOS-LITERAL FUN_4d56_2820 raw 82286+ (2820 doc line 617).
    * Same `param_2 == 0xf || param_2 == 8` unit-pool-slot test as the sell
    * arm above (2820 doc line 551); see that comment for the #878(a)
    * evidence for the slot-index proxy.
@@ -1440,7 +1440,7 @@ static void ai_contact_2820_wanted(const AiContact2820* s, const ColonizeCol1Tri
  * LAB_002e92 candidates: walk `cand` (the bid-sorted cargo order) from the top,
  * skipping muskets/food/tools/trade goods. DOS-LITERAL asm 4d56:3144-319b —
  * `aiStack_d6[n + 1] = 0xf - i` stores the SORTED SLOT, not the cargo id, and
- * every later price term reads `bid[slot]`, not `bid[cargo]` (bugs.md #795).
+ * every later price term reads `bid[slot]`, not `bid[cargo]` (port_bugs.md #795).
  * That is a DOS indexing quirk (`DS:0x9e78` is a per-cargo table); it is
  * reproduced, not repaired. `slots` may be NULL.
  */
@@ -1469,7 +1469,7 @@ int ai_contact_2e92_candidates(const AiContact2820* s, int goods[3], int slots[3
  * round counter, which LAB_002bbc zeroes before every loop the AI can reach —
  * so it is `(int8_t)s->round` here, and `cand[]` itself is never indexed out
  * of bounds. The chosen index then selects from the FILTERED list
- * (`aiStack_d6[iStack_5e]`), which is the quirk this reproduces (bugs.md #796).
+ * (`aiStack_d6[iStack_5e]`), which is the quirk this reproduces (port_bugs.md #796).
  * Returns 0..2.
  */
 static int ai_contact_2e92_ai_pick(
@@ -1506,7 +1506,7 @@ static int ai_contact_2e92_price(
     price = ((int)ind->tech - 8) * -0x32;
   }
   if (cargo > 6) {
-    /* LIVE DS:0x84bc[e*0x10 + cargo] (bugs.md #797), not the frozen capture. */
+    /* LIVE DS:0x84bc[e*0x10 + cargo] (port_bugs.md #797), not the frozen capture. */
     price += ai_contact_2820_price_byte(ctx->col1, e, cargo & 15) * (diff * 2 + 15);
   }
   price += dos_rng_range(rng, 0, price);
@@ -1538,7 +1538,7 @@ static int ai_contact_2e92_settle(
   ai_contact_2e92_give_goods(ctx, unit, cargo, qty);
   /* DOS-LITERAL OVL13 asm 0x343d-0x3462: `roll = rand(0, price/25 + 1)`,
    * stored to [bp-0xc2], then `neg ax` and 0d6c(tribe, euro, -roll, 0). The
-   * decompile's "un-rolled price/25 + 1" reading (2820 doc 408-409, bugs.md
+   * decompile's "un-rolled price/25 + 1" reading (2820 doc 408-409, port_bugs.md
    * #804) dropped the `neg ax` and the register reuse. DOSBox independence
    * 4->5: the crown wagon's buy draws 11 of (0,14) and the Arawak alarm goes
    * 22 -> 11. */
@@ -1560,7 +1560,7 @@ static int ai_contact_2820_buy_qty(const ColonizeTurnContext* ctx, const Coloniz
  * DOS-LITERAL FUN_4d56_2820 (2820 doc 347-352): `type < 0xd || 0x12 < type`
  * (i.e. not a ship) picks DS:0x2e0c, else DS:0x2e0e. Label ordinals by the
  * @MISC rule (base DS:0x2dba + 2*row): 0x2e0c = row 41, 0x2e0e = row 42 =
- * LABELS.TXT lines 56/57 = "wagons" / "holds". Never typed here (bugs.md
+ * LABELS.TXT lines 56/57 = "wagons" / "holds". Never typed here (port_bugs.md
  * #802); a catalog miss is the empty string.
  */
 static const char* ai_contact_2820_vehicle_name(const ColonizeTurnContext* ctx, const ColonizeUnit* unit) {
@@ -1575,7 +1575,7 @@ static const char* ai_contact_2820_vehicle_name(const ColonizeTurnContext* ctx, 
  * records `relation_by_indian[t]` AS that accessor's result). 2820 gates three
  * of its dialogs on it (2820 doc 419-425 / 437-441 / 607-610); every 2820
  * caller is a village entry, so it is set in every reachable state, but the
- * gate is transcribed rather than assumed (bugs.md #805).
+ * gate is transcribed rather than assumed (port_bugs.md #805).
  */
 int ai_contact_2820_met_bit(const ColonizeTurnContext* ctx, int e, int nation_id) {
   if (!ctx || !ctx->col1 || e < 0 || e >= (int)COLONIZE_COL1_NATION_COUNT || nation_id < 4 ||
@@ -1792,7 +1792,7 @@ static void ai_contact_2820_buy_phase(
   if (human && t && t->sticky_trade_good == 0xfe) {
     /* DOS asm 4d56:2f7e-2f8b — `tribe[+7] == 0xfe` (this tribe already walked
      * out of a haggle) pushes @BADHAGGLE3 (DS:0x158d) and ends the visit. An
-     * AI Euro falls straight through to 311e with no dialog (bugs.md #801). */
+     * AI Euro falls straight through to 311e with no dialog (port_bugs.md #801). */
     s->active = 0;
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "BADHAGGLE3", NULL, "", body, sizeof(body));
@@ -1802,7 +1802,7 @@ static void ai_contact_2820_buy_phase(
   if (s->cargo < 0) {
     /* DOS FUN_4d56_311e asm 139666-139675 — nothing was sold this visit, so
      * nothing can be bought; a human is told so with @DEFICIT (DS:0x1598),
-     * an AI Euro exits silently (bugs.md #801). */
+     * an AI Euro exits silently (port_bugs.md #801). */
     s->active = 0;
     if (human) {
       char body[AI_POPUP_BODY_LEN];
@@ -1856,7 +1856,7 @@ static void ai_contact_2820_buy_phase(
 }
 
 /*
- * TEST-ONLY (bugs.md #798). An AI-controlled empty-handed unit buying the
+ * TEST-ONLY (port_bugs.md #798). An AI-controlled empty-handed unit buying the
  * tribe's own goods has NO DOS equivalent: LAB_002e92 is guarded by
  * `if (-1 < iStack_c8)` (2820 doc 284), so a purchase is impossible without a
  * preceding sale in the same visit. The production call site in
@@ -1919,7 +1919,7 @@ void ai_contact_apply_buywhich(
   s->buy_cargo = cargo;
   s->round = 0;
   /* `iStack_86 = aiStack_d6[iStack_5e]` — every bid read downstream of the
-   * @BUYWHICH pick is bid[SORTED SLOT], not bid[cargo] (bugs.md #795).
+   * @BUYWHICH pick is bid[SORTED SLOT], not bid[cargo] (port_bugs.md #795).
    * The CHOICE id only carries the cargo, so recover the slot from the same
    * candidate walk that built the menu. */
   {
@@ -1984,7 +1984,7 @@ void ai_contact_apply_buy0(
     const int met = ai_contact_2820_met_bit(ctx, e, nation_id);
     if (!again) {
       /* 2820 doc 419-425: the alarm +2 is UNGATED, but `tribe+7 = 0xfe` and
-       * @BADHAGGLE2 both sit inside `if (8c28(...) & 0x40)` (bugs.md #805) —
+       * @BADHAGGLE2 both sit inside `if (8c28(...) & 0x40)` (port_bugs.md #805) —
        * the sticky refusal is not persistent state written outside its guard. */
       s->active = 0;
       if (met) {
@@ -2204,7 +2204,7 @@ static int ai_contact_2820_begin_slot(
       /* DOS `FUN_1000_8212(0x191f, *DS:0x2dfa, 99)` (2820 doc 242) — the
        * cancel row is LABELS @MISC[32] ((0x2dfa - 0x2dba) / 2 = 32) = the same
        * "Nothing" row game_loop_orders.c already resolves for the
-       * foreign-colony @TRADEWHICH menu. Never typed here (bugs.md #800). */
+       * foreign-colony @TRADEWHICH menu. Never typed here (port_bugs.md #800). */
       {
         const char* nothing_live = reports_labels_field("MISC", 32);
         snprintf(text[n], sizeof(text[n]), "%s", nothing_live ? nothing_live : "");
@@ -2215,7 +2215,7 @@ static int ai_contact_2820_begin_slot(
       /* DOS asm 138911-138912 `LEA AX,[0x1556]` -> FUN_291f_0182: the SECOND
        * @TRADEWHICH tag (VICEROY.EXE 121248+0x1556 = "TRADEWHICH\0"), the same
        * GAME.TXT section the foreign-colony hold menu uses. It takes no
-       * tokens. Was hardcoded English (bugs.md #800). */
+       * tokens. Was hardcoded English (port_bugs.md #800). */
       char body[AI_POPUP_BODY_LEN];
       popup_msg_fill(ctx->messages, "TRADEWHICH", NULL, "", body, sizeof(body));
       if (ai_popup_enqueue_choice_ctx(
@@ -2344,7 +2344,7 @@ int ai_contact_auto_trade(
     }
   }
   if (slot < 0) {
-    /* bugs.md #798: DOS gates LAB_002e92 on `if (-1 < iStack_c8)` (2820 doc
+    /* port_bugs.md #798: DOS gates LAB_002e92 on `if (-1 < iStack_c8)` (2820 doc
      * 284) — an empty-handed unit cannot buy, it only ever gets @BRING. The
      * old `ai_contact_auto_buy_2e92` fallback here was invented. */
     return 0;
@@ -2392,7 +2392,7 @@ void ai_contact_apply_trade_offer(
     ai_contact_alarm_delta_00f2(ctx, nation_id, e, (s->alarm_penalty >> 1) + 1);
     s->active = 0;
     /* 2820 doc 607-610: tribe+7 and the alarm bump are ungated; only the
-     * @BADHAGGLE0 dialog sits behind `8c28(...) & 0x40` (bugs.md #805). */
+     * @BADHAGGLE0 dialog sits behind `8c28(...) & 0x40` (port_bugs.md #805). */
     if (!ai_contact_2820_met_bit(ctx, e, nation_id)) {
       return;
     }

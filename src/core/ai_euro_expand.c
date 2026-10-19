@@ -4,7 +4,7 @@
  * Split out of ai_euro.c (2026-09-23) verbatim; shared symbols are declared
  * in ai_euro_internal.h. See ai_euro.c for the dispatcher entry point.
  *
- * Citation units (bugs.md #816): `raw NNNNN` = a line in
+ * Citation units (port_bugs.md #816): `raw NNNNN` = a line in
  * original_sources_decompiled/viceroy_unpacked.c (docs/conventions.md).
  * The FUN_521d_20e6 cites in this file are `md:NNNN` = a line in
  * original_sources_annotated/ai/move_scoring_20e6_full.md, a different
@@ -61,7 +61,7 @@ void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy) {
   u->goto_y = gy;
   /*
    * Every non-SENTRY goto write clears the port-only landfall-wait flag
-   * (bugs.md #528) — a real order (goal-directed goto, found move, wander,
+   * (port_bugs.md #528) — a real order (goal-directed goto, found move, wander,
    * hunt, wagon, ship stage) means the unit is no longer just parked ashore
    * waiting for its next landfall act. Call sites that DO mean "still
    * waiting ashore" pass SENTRY and then set the flag themselves right
@@ -82,7 +82,7 @@ int ai_euro_is_ship_type(const ColonizeUnitPool* units, int unit_id) {
 }
 
 /*
- * Deleted 2026-09-23 (bugs.md #746): ai_euro_find_boardable_ship,
+ * Deleted 2026-09-23 (port_bugs.md #746): ai_euro_find_boardable_ship,
  * ai_euro_try_treasure_board_sail, ai_euro_treasure_gold_from_unit,
  * ai_euro_cash_one_treasure, ai_euro_try_cash_treasure_europe and
  * ai_euro_try_expected_treasure_harbor — the whole invented AI
@@ -95,7 +95,7 @@ int ai_euro_is_ship_type(const ColonizeUnitPool* units, int unit_id) {
  * destroy, and FUN_4720_049e (the AI ship cargo pick, raw 76067-76513) has no
  * `+0x3146 == '\n'` term at all, so an AI treasure is never loaded onto a
  * hull. The King-galleon/Cortes transport offer (FUN_465b_0000 raw 75800) is
- * human-control-gated (bugs.md #478). The invented chain also ran *ahead* of
+ * human-control-gated (port_bugs.md #478). The invented chain also ran *ahead* of
  * the DOS walk-home arm and paid the AI the Europe `min(tax,50)` cut instead
  * of the band's untaxed face value.
  *
@@ -308,10 +308,10 @@ int ai_euro_4393_work_queue_haul_pick(
    * DOS-LITERAL FUN_521d_20e6 raw 89877-89878 — the LAB_521d_4393 entry gate:
    * `0xc < type && type < 0x13 && (bVar20 || bVar7)` (the `local_a8 == 0 &&
    * local_6 == 0` half of the same `if` is the caller's passenger/order state,
-   * still unmodelled here — bugs.md #818). bVar20 is now the real seed
+   * still unmodelled here — port_bugs.md #818). bVar20 is now the real seed
    * (ai_euro_20e6_type_gate_no_manowar) instead of the bare `type != 0x12` stand-in, so
    * a Man-O-War no longer scores a colony haul unless bVar7's re-allow arm
-   * fires. bugs.md #877, #818.
+   * fires. port_bugs.md #877, #818.
    */
   const int hull_gate_seed = ai_euro_20e6_type_gate_no_manowar(ctx, hauler, hauler_type); /* bVar20 */
   if (hauler_type < 0x0d || hauler_type > 0x12) {
@@ -355,7 +355,7 @@ int ai_euro_4393_work_queue_haul_pick(
     /* DOS-LITERAL raw 89898: the inner accept needs
      * `bVar20 || *(char *)(local_50 * 6 + -0x5f1f) != 0` — a hull bVar20
      * rejects may only take slots the colony flagged military (work record
-     * +5 = AiWorkSlot.military). bugs.md #877. */
+     * +5 = AiWorkSlot.military). port_bugs.md #877. */
     if (score >= best_score && (hull_gate_seed || w->military != 0)) {
       best_score = score;
       best_slot = i;
@@ -544,7 +544,7 @@ int ai_euro_try_wagon_haul(
         }
         c->cargo_idle_turns = idle_before;
         /*
-         * bugs.md #812 REFUTED 2026-09-23: DOS's load loop is
+         * port_bugs.md #812 REFUTED 2026-09-23: DOS's load loop is
          * `while (local_d2 != 0 && bVar20)` (raw 90295), and bVar20 for a
          * Wagon Train is always TRUE, so the single unguarded call below is
          * literal. Evidence: bVar20 is seeded `type != 0x12` (raw 88556) and
@@ -604,7 +604,7 @@ int ai_euro_try_wagon_haul(
 
 
 /*
- * bugs.md #610: the invented AI pioneer improvement planner
+ * port_bugs.md #610: the invented AI pioneer improvement planner
  * (`ai_euro_try_pioneer_improve` / `_improve_target` / `_tile_can_plow` /
  * `_tile_can_road` / `AI_EURO_IMPROVE_TIMER_MIN`) is gone. It cited only
  * Colonization.pdf: DOS's AI never writes `+0x314c = 8` (the sole writer of
@@ -631,13 +631,13 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
    * writes it (and marks the founder spent via FUN_281f_0934) BEFORE the
    * FUN_291f_09b2 -> FUN_364b_1ba8 creation call, so a creation that fails
    * its `local_4 < 0` return still leaves the scratch stamped; the port used
-   * to stamp it only on success (bugs.md #971).
+   * to stamp it only on success (port_bugs.md #971).
    */
   ai_goals_note_colony_founded(
     ctx->col1_ok ? ctx->col1 : NULL, nation_id, ctx->turn_number ? (int)*ctx->turn_number : 0
   );
   /*
-   * bugs.md #1074: FUN_479b_076e (raw 76961-77047) never prices or pays for
+   * port_bugs.md #1074: FUN_479b_076e (raw 76961-77047) never prices or pays for
    * Indian land and stamps no 0x10 purchased bit — no FUN_281f_0d78 /
    * FUN_4cc6_07c2 / FUN_281f_0af6 call in the body. The AI's land purchase is
    * FUN_479b_00ca (raw 76673), reached only from the Pioneer work bodies
@@ -677,12 +677,12 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
       /* FUN_479b_0000 bumps only while names remain; the pool counter caps it. */
       ctx->col1->player[nation_id].founded_colonies = (uint8_t)ctx->colonies->name_next[nation_id];
     }
-    /* bugs.md #971: FUN_479b_076e repositions no unit but the founder. The
+    /* port_bugs.md #971: FUN_479b_076e repositions no unit but the founder. The
      * fitted post-founding Pioneer/Soldier re-aims that stood here are gone;
      * the pioneer's DOS move comes from the 20e6 explore ring (coastal-only
      * candidates, ai_euro_land_explore_scan_target). */
   }
-  /* bugs.md #1034a: ai_euro_prefer_peace_construction (last #483 survivor,
+  /* port_bugs.md #1034a: ai_euro_prefer_peace_construction (last #483 survivor,
    * a founding-turn Docks stand-in) was called here; gated off alone
    * 2026-10-02 it moved no golden bip and no ctest -- deleted. */
 }

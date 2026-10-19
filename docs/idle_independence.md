@@ -289,7 +289,7 @@ every 200 polls until `COLONY09.SAV` changes, then copy it.
 
 - 2820's buy settle (OVL13 asm 0x343d-0x3462) passes `-rand(0, price/25+1)` to 0d6c: a
   purchase lowers the tribe's alarm by the roll. The decompile read it as `+price/25+1`
-  (bugs.md #804's note is wrong). The buy price's bid term reads the 0x9e78 table after 0ed0
+  (port_bugs.md #804's note is wrong). The buy price's bid term reads the 0x9e78 table after 0ed0
   sorted it in place, i.e. the bought cargo's own bid.
 
 - A ship's attack is the 465b step into the foe's tile: the attacker is spent in full and a
@@ -357,7 +357,7 @@ With these, the crown's 4->5 slot makes the same 112 draws as a continuous DOSBo
   crown takes a Dutch colony and its 0x22 becomes 0x20). FUN_465b_0000 opens a war only out of
   a treaty bit (raw 75567-75593); an attack with no PEACE either way leaves the bytes alone.
 - 3844_00f2's drydock tick (raw 58331-58344) counts +0x315a up the same day; the port's
-  "skip the damage turn" grace tick was invented (bugs.md note) and is gone.
+  "skip the damage turn" grace tick was invented (port_bugs.md note) and is gone.
 
 - 0a60's CONTACT lurk skip `(head + turn) % 4` adds the colony tile's head unit's record INDEX
   (`units_dos_index` of `units_tile_head_id_at`), not the port id of the first slot. This fixed

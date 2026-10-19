@@ -84,7 +84,7 @@ bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input) {
       return true;
     }
     /*
-     * bugs.md: on a CHOICE dialog only a click on one of the option rows is a
+     * port_bugs.md: on a CHOICE dialog only a click on one of the option rows is a
      * decision. A click anywhere else — body text, dialog chrome, or outside
      * the dialog entirely — is swallowed and changes nothing (no implicit
      * cancel, no "pick the highlighted row"). Keyboard ESC still cancels.
@@ -166,13 +166,13 @@ static int ai_popup_wrap_body(
  * 120..251 — and each popup sheet ships its own entries for exactly that
  * block, which DOS loads alongside the art. Nearest-colour remapping instead
  * collapsed ~100 private colours onto the ~150 the map already uses, which is
- * what wrecked the King's tax-audience flair (bugs.md). The sheets now blit
+ * what wrecked the King's tax-audience flair (port_bugs.md). The sheets now blit
  * raw and ai_popup_art_palette_merge lends the host palette their block.
  */
 static char g_portrait_dir[512];
 static ColonizeSpriteSheet g_portrait_sheets[8][4];
 static uint8_t g_portrait_state[8][4]; /* 0 untried, 1 loaded, 2 failed */
-/* bugs.md: the King's tax-audience flair — DS:0x1f5c = 8 loads "KING" and
+/* port_bugs.md: the King's tax-audience flair — DS:0x1f5c = 8 loads "KING" and
  * arms a one-shot frame animation (FUN_6f74_0042: first step after 240
  * ticks of the 60.877 Hz clock ≈ 3.9 s, then one frame per 10 ticks ≈
  * 164 ms until the sheet runs out). KING2.SS carries the 8 frames
@@ -180,7 +180,7 @@ static uint8_t g_portrait_state[8][4]; /* 0 untried, 1 loaded, 2 failed */
 static ColonizeSpriteSheet g_king_sheet;
 static uint8_t g_king_state; /* 0 untried, 1 loaded, 2 failed */
 /*
- * bugs.md ("Tax hike popup only renders the king's right arm"): KING2.SS's
+ * port_bugs.md ("Tax hike popup only renders the king's right arm"): KING2.SS's
  * eight 79x161 frames are ARM OVERLAYS — each is ~5% opaque, all of it inside
  * a (0,9)-(52,82) box — not standalone poses. The full figure lives in
  * KING.SS (one 79x161 sprite, arm at rest); DOS draws that base and composites
@@ -347,7 +347,7 @@ void ai_popup_sheet_palette_merge(const ColonizeSpriteSheet* art, ColonizePalett
    * non-black entry inside it, index 209 = grey (113,113,113), which nothing
    * on the map uses. Under the old black-only rule every popup art sheet that
    * paints with index 209 — all 32 IND{t}A{a} chief portraits, KING*, MSS*,
-   * MYR*, SCORE* — showed that grey instead of its own colour (bugs.md #415:
+   * MYR*, SCORE* — showed that grey instead of its own colour (port_bugs.md #415:
    * the Iroquois chief, IND3A*, uses 209 as a dark brown (44,20,16) for ~130
    * px of hair/shadow, so it read as flat grey patches).
    */
@@ -377,7 +377,7 @@ void ai_popup_art_palette_merge(AiPopupState* st, ColonizePalette* dst) {
 }
 
 /*
- * ai_popup_render, split by concern (bugs.md #1107, big-function rule): the
+ * ai_popup_render, split by concern (port_bugs.md #1107, big-function rule): the
  * stages below run in the original body's order over this ctx. Each field is
  * written by exactly one stage and only read after it.
  */
@@ -535,7 +535,7 @@ static void ai_popup_render_pick_portrait(AiPopupRenderCtx* c) {
   c->portrait_frame = 0;
   if (c->portrait && c->req->portrait_tribe == 8) {
     /* FUN_6f74_0042 one-shot flair animation: ~3.9 s pause on frame 0,
-     * then ~164 ms per frame to the sheet's last (bugs.md). */
+     * then ~164 ms per frame to the sheet's last (port_bugs.md). */
     if (c->st->king_anim_next_ms == 0) {
       c->st->king_anim_frame = 0;
       c->st->king_anim_next_ms = g_popup_now_ms + 3900u;

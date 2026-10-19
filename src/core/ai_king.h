@@ -41,11 +41,11 @@
 #define AI_KING_SOONRETIRE1_BYTE 9
 /* Mid-war @WARN3 once-per-episode (crown pop share 80–89%, DOS); clear when <80%. */
 #define AI_KING_WARN3_BYTE 10
-/* bugs.md: the first REF wave waits one full turn after the declaration —
+/* port_bugs.md: the first REF wave waits one full turn after the declaration —
  * set to 1 on declare, consumed (cleared, no landing) by the first wave
  * tick. */
 #define AI_KING_REF_WAVE_WAIT_BYTE 11
-/* bugs.md #252 / #865: @INTERVENTION "declares war" announcement fires once.
+/* port_bugs.md #252 / #865: @INTERVENTION "declares war" announcement fires once.
  * DOS-LITERAL FUN_43f7_1528 raw 74493 `*(byte*)0x5382 |= 2` — this is the ONLY
  * writer of 0x5382 bit 0x02 in the whole EXE and it is never cleared, so the
  * latch IS the save bit: head.game_options.ref_present (historical port label).
@@ -252,7 +252,7 @@ void ai_king_menu_declare_independence(ColonizeTurnContext* ctx);
  * No-op when REF already present (DOS 0x5382 bit1 set).
  */
 int ai_king_spend_woi_bell_pool(ColonizeTurnContext* ctx, int nation_id);
-/* FUN_38fd_5be8 peacetime tax roll for an AI nation (no dialog). bugs.md #1053. */
+/* FUN_38fd_5be8 peacetime tax roll for an AI nation (no dialog). port_bugs.md #1053. */
 void ai_king_tax_event_ai(ColonizeTurnContext* ctx, int nation_id);
 /* 38fd_3dc8's explicit AI delta: clamp and store, without an audience. */
 void ai_king_tax_delta_ai(ColonizeTurnContext* ctx, int nation_id, int delta);

@@ -4,7 +4,7 @@
 #include "core/ai_contact_internal.h"
 
 /*
- * bugs.md #416 — first contact is strictly per Euro nation.
+ * port_bugs.md #416 — first contact is strictly per Euro nation.
  *
  * DOS FUN_5bfb_3180 hands FUN_5bfb_022e the pair (euro, indian) it actually
  * found adjacent, and 022e only opens the @INDIANWELCOME dialog when THAT
@@ -112,7 +112,7 @@ static int test_ai_only_meet_is_silent_for_human(void) {
 }
 
 /*
- * bugs.md #416 — the layer3 owner nibble is a stamp, not a settlement record.
+ * port_bugs.md #416 — the layer3 owner nibble is a stamp, not a settlement record.
  *
  * FUN_1427_02ca repaints the nibble of every tile a unit steps onto and
  * FUN_1427_023a leaves it behind when the unit leaves, so a Brave that crossed
@@ -227,7 +227,7 @@ static void take_popup_result(AiPopupState* pop) {
 }
 
 /*
- * bugs.md #427 — two contact chains must not interleave.
+ * port_bugs.md #427 — two contact chains must not interleave.
  *
  * FUN_5bfb_3180 calls FUN_5bfb_022e / FUN_5bfb_153e inline per neighbour, so a
  * Tupi exchange and a Spanish one are strictly sequential in DOS. The port

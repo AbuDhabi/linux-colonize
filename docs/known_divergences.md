@@ -5,9 +5,14 @@ STATUS: living record, not an audit dump. Authoritative.
 Deliberate, recorded differences between this port and VICEROY.EXE that nobody
 intends to change, plus static questions that are blocked on a live DOS capture
 rather than on code. These are **not** bugs and must never be filed in
-[bugs.md](../bugs.md), which holds actionable OPEN rows only. Each entry keeps
-its original `bugs.md #` id so existing citations (`bugs.md #NNN`) still resolve;
+[port_bugs.md](port_bugs.md), which holds actionable OPEN rows only. Each entry keeps
+its original `port_bugs.md #` id so existing citations (`port_bugs.md #NNN`) still resolve;
 ids are permanent and never reused.
+
+This file is for differences where DOS is *right* and the port still differs
+(data-model cost, unresolved capture). Where DOS itself is wrong and the port
+deliberately does not copy the bug, the entry belongs in
+[dos_bugs.md](dos_bugs.md) instead.
 
 When working a feature, grep this file for that feature's name before "fixing"
 something that looks wrong — several entries below exist precisely because the
@@ -57,7 +62,7 @@ the name only), and (c) pages the list past 16 rows (`local_62 = 2`,
   handler, and reflowing `job_ids[]` by `page * local_d4` in
   `colony_screen_popups.c`'s draw loop (~311-318).
 
-Promote either back to bugs.md only if the user asks for the feature.
+Promote either back to port_bugs.md only if the user asks for the feature.
 
 ### #1081 — Unit-stack list and map sidebar use the WoI nation words
 DOS `FUN_2b5a_1b5a` (stack list, raw 42732) and the `FUN_49dd_0424` unit

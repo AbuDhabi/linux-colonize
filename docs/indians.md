@@ -91,14 +91,14 @@ the truth is the 15-entry JMPF stub table at `4d56:4c22..4c6c`,
   the tile. `units_tile_head_id_at` selects the latest tile arrival, including
   Col1-imported chains, as `FUN_281f_07e0` does (#848).
   `ai_native_brave_step` keeps that end state (in place, exhausted)
-  and, since 2026-09-23 (bugs.md #822), resolves the attack on the ≥ 3-thirds
+  and, since 2026-09-23 (port_bugs.md #822), resolves the attack on the ≥ 3-thirds
   limb through `units_resolve_land_combat` — the same `1b0e` resolver every
   other attacker uses, defender picked by `FUN_5fef_0000`
   (`units_best_defender_at`), with the colony-raid handoff `units.c` takes
   from `ai_contact_raid.c` on the loser limb. Two deliberate limits: the
   defender must be a European (the port models no tribe-vs-tribe combat), and
   an undefended colony tile keeps the exhaust-only end state. Before
-  2026-09-21 the port walked the Brave INTO Euro colonies (bugs.md #553).
+  2026-09-21 the port walked the Brave INTO Euro colonies (port_bugs.md #553).
 - The residue behind the old "partial (T2 quiet)" label is the **callee**:
   `FUN_4d56_021a` (`4d56:021a..14fd`, 4836 bytes, one function) — the Indian
   unit decision routine Ghidra emitted as raw `??` bytes, reached from `14fe`
@@ -112,15 +112,15 @@ the truth is the 15-entry JMPF stub table at `4d56:4c22..4c6c`,
   numeric scores on tiles in the current viewport when the debug flag is active
   (#848).
   Decoded there and, since 2026-09-23, **all four
-  ported and audited term-by-term** (bugs.md #850): homeless-unit despawn
+  ported and audited term-by-term** (port_bugs.md #850): homeless-unit despawn
   (`021a:0337`, bad `+0x314a` → `FUN_281f_0808` + return −1) —
   `ai_brave.c:455`, with one recorded deviation, DOS returns −1 into a
   use-after-free in `14fe` and the port STOPs the Brave instead; the
   unconditional `facing` write including the stay value 8 (`021a:11b9` →
   `+0x314f`) — `ai_brave.c:508` (`last_dir` is the full signed byte, saved as
-  facing + facing_pad; bugs.md #846, #1046); the `orders` cower latch on stay (5 or 6 → 6, anything else → 5) and
+  facing + facing_pad; port_bugs.md #846, #1046); the `orders` cower latch on stay (5 or 6 → 6, anything else → 5) and
   0 on move (`021a:11cd-11ea`/`1272`) — `ai_brave.c`, unconditional since
-  bugs.md #1093 deleted the raid escort that was the only source of an
+  port_bugs.md #1093 deleted the raid escort that was the only source of an
   OpenCol-only Brave order (the old #826 guard); and the **in-field arm/mount upgrade**
   (`021a:11ef..126c`) — `ai_brave.c:531`. The upgrade: a Brave that stays on its own
   tribe's tile gets type `0x13`/`0x15` → +1 when `indian+7` muskets > 0 (musket
@@ -135,7 +135,7 @@ the truth is the 15-entry JMPF stub table at `4d56:4c22..4c6c`,
   before calling `14fe` (`4d56:1af3`), caps at `0x14` then exhausts and zeroes
   it; the OpenCol pulse does the same — it bumps `col1_counter16` **before** the
   `021a` pick, with the same `> 0x14` → exhaust + zero cap
-  (`ai_brave.c:438-452`), corrected 2026-09-23 (bugs.md #850). Gate is
+  (`ai_brave.c:438-452`), corrected 2026-09-23 (port_bugs.md #850). Gate is
   `FUN_281f_097a` → `FUN_1427_13b0` (AX-register arg): index in range, `+0x3144`
   ≥ 0, nation nibble == `DS:0x5394`, `(+0x3148 & 0x80) == 0 || type == 0x0b`,
   and `+0x3149` spent < max MP.
@@ -152,7 +152,7 @@ Euro units that drive contact: Scout, Pioneer, Soldier, Dragoon, Artillery,
 Missionary / Jesuit (the missionary acts at a village through the
 `FUN_4d56_4528` switch — human @ACTIONS rows, AI non-human branch case 3 —
 never by standing next to one; the old adjacency "mission pulse" was invented
-and was deleted 2026-09-22, bugs.md #557).
+and was deleted 2026-09-22, port_bugs.md #557).
 
 ---
 
@@ -234,7 +234,7 @@ that patrol nearby are separate — killing one does not burn the dwelling.
 Homeland (tribal-land) radius: the tribe's tech tier — `FUN_15dc_006a`:
 tech 0/1 → **1**, tech 2 (Aztec) → **2**, tech 3 (Inca) → **3**, nearest
 village on the **same continent** (`FUN_4cc6_0356` / the 5x5 native cache).
-**Re-verified 2026-09-04** (bugs.md "Indian land should only be a 1-tile
+**Re-verified 2026-09-04** (port_bugs.md "Indian land should only be a 1-tile
 radius"): `FUN_15dc_006a(nation)` reads `nation*0x4e + 0x5ad8` (tech) and
 returns 1 / 1 / 2 / 3; all three call sites test `dist <= radius`
 (`viceroy_unpacked.c:12850` colony tile cache, `viceroy_unpacked_2.c:75564`
@@ -244,7 +244,7 @@ the eight nations — only Aztec (2) and Inca (3) reach further. `colony.c`
 Was the manual's "capital 2" rule until 2026-08-28 (`colony.c`
 `colonies_tile_indian_homeland`).
 
-**Which tiles the colony screen may mark (2026-09-04, bugs.md #366).** The
+**Which tiles the colony screen may mark (2026-09-04, port_bugs.md #366).** The
 5x5 table `FUN_15eb_26e4` builds is not just "village within radius":
 
 * `FUN_13e4_0074(tile)` clears the slot whenever the terrain index is **25 or
@@ -278,7 +278,7 @@ nation's colonist learns there, the offer is gone for everyone. The tribe's
 `ai_contact_learnstay_apply` (`ai_contact_actions.c`) implements this via
 `tribe.state.learned` (one-shot, shared — matches "total across all
 nations") gated by `!tribe.state.capital` (capital bypasses the gate). (The
-older `ai_contact_teach_skill` village-adjacency pulse was retired, bugs.md
+older `ai_contact_teach_skill` village-adjacency pulse was retired, port_bugs.md
 #573 — see the RETIRED note in `ai_contact.c`.)
 
 **Human teach is the "Live Among The Natives" menu action** (2026-08-28,
@@ -306,7 +306,7 @@ There is **no dedicated personality byte** in Col1 or NAMES. Differentiation is:
 | **`indian.tech`** | Settlement art class, initial pop, meet-scoring weight (`FUN_4d56_2154`) |
 | **Specialty good** (`@TRIBES` field 3) | Trade chrome flavor (`Jewelled Relics` … `Gems`) — not the teach profession |
 | **UI color** | Tribe tint from `@TRIBES` |
-| **Teach outdoor map** | RETIRED (bugs.md #573): DOS draws the village skill from the per-tech bid table (`overlays.c:77658-77835`, `ai_contact_actions.c` teach arms), seeded per village; there is no nation→default table or `last_sold` override. |
+| **Teach outdoor map** | RETIRED (port_bugs.md #573): DOS draws the village skill from the per-tech bid table (`overlays.c:77658-77835`, `ai_contact_actions.c` teach arms), seeded per village; there is no nation→default table or `last_sold` override. |
 | **Runtime attitude** | Alarm / friction → `@ATTITUDE` labels (Content … War) |
 
 Fandom “Aztec warlike / Inca peaceful” ([fandom_col1994.md](fandom_col1994.md))
@@ -397,7 +397,7 @@ One encounter picks a half via `bVar6` (mood roll
 | Generous (`LAB_5bfb_096c`) | `@INDIANGIVEFOOD` (village food surplus `bid[0] > ask[0]` **and** colony food ≤ 25 → top up to 75) / `@INDIANGIVESTUFF` (gift the good the village values most that still fits) — and, on a mission-owned village, `@INDIANSCONVERT` first on a `tech+2` (×2 Jesuit) vs `rng(0,0xf)` roll |
 | Demanding (`LAB_5bfb_0def`) | `@INDIANBEGFOOD` (`ask[0] > bid[0]` **and** colony food > 74) / tribute from an adjacent unit |
 
-The two halves are **not** symmetrically exclusive (bugs.md #863). The
+The two halves are **not** symmetrically exclusive (port_bugs.md #863). The
 `@INDIANBEGFOOD` block at raw 87650-87698 sits *before* the `bVar6` fork and
 runs on its own conditions; when the colony **concedes** the beg (`local_c ==
 2`) DOS sets `bVar7 = true`, rolls `rand(0, difficulty)` (non-zero ends the
@@ -422,7 +422,7 @@ question (DOS binds the visiting Brave's own home settlement, `unit+0x314a`),
 not a tribe personality: an Aztec village on food-poor terrain begs, one with a
 surplus brings food.
 
-**Trigger (rewritten 2026-09-23, bugs.md #824/#850).** DOS runs `022e` from
+**Trigger (rewritten 2026-09-23, port_bugs.md #824/#850).** DOS runs `022e` from
 `FUN_465b`'s move tail (`FUN_281f_0984` → `FUN_5bfb_3180`), once per Brave
 *step*, for the neighbour tile the encounter scan found; a Brave parked beside
 a colony raises nothing. The port now does the same: `ai_native_brave_step`'s
@@ -449,11 +449,11 @@ deliberate **Live Among The Natives** `@ACTIONS` row.
 
 | Hook | Effect (port / sources) |
 |------|-------------------------|
-| Missionary / Jesuit | Sets `tribe.mission` (+ bit 0x10 when prof 0x18 or Brebeuf); no alarm-band gate, no crosses (audit 2026-09-22). Reached from the village only: human @ACTIONS Establish/Denounce, AI through `ai_contact_ai_missionary_village` (`4528` non-human switch case 3 → incite / establish / denounce). There is no adjacency convert pulse and no missionary flee arm (both deleted 2026-09-22, bugs.md #557) |
-| Foreign mission | Denounce = weighted roll (`a594`); DOS Jesuit test is `prof == 3` (typo, dead) — bugs.md #558 |
+| Missionary / Jesuit | Sets `tribe.mission` (+ bit 0x10 when prof 0x18 or Brebeuf); no alarm-band gate, no crosses (audit 2026-09-22). Reached from the village only: human @ACTIONS Establish/Denounce, AI through `ai_contact_ai_missionary_village` (`4528` non-human switch case 3 → incite / establish / denounce). There is no adjacency convert pulse and no missionary flee arm (both deleted 2026-09-22, port_bugs.md #557) |
+| Foreign mission | Denounce = weighted roll (`a594`); DOS Jesuit test is `prof == 3` (typo, dead) — port_bugs.md #558 |
 | Las Casas | Existing Converts → free colonists on elect |
 | Sepulveda | Higher convert-join odds on settlement fallout |
-| Cortes | Conquest treasure **bonus and guaranteed payout**, not a prerequisite — any conqueror can find treasure, and at difficulty 2+ always does (bugs.md #381); capital = `rich_capital` |
+| Cortes | Conquest treasure **bonus and guaranteed payout**, not a prerequisite — any conqueror can find treasure, and at difficulty 2+ always does (port_bugs.md #381); capital = `rich_capital` |
 | Minuit | Indians no longer demand land payment |
 | Pocahontas | Reset + half future alarm |
 
@@ -482,7 +482,7 @@ Mode-1 target set = the other Euros minus `head.crown_nation_id`; once
 
 ### Raids and combat fallout
 
-`FUN_5fef_0f14` rolls the kind, DOS-literal since 2026-09-23 (bugs.md
+`FUN_5fef_0f14` rolls the kind, DOS-literal since 2026-09-23 (port_bugs.md
 #827-#833): walls roll → `rand(1,4)` = **four** kinds only (1 goods
 `@RAIDSTORES`, 2 building `@RAIDBURN`, 3 ship `@RAIDSHIP`, 4 gold
 `@RAIDGOLD`) → a **fortification**-gated demote chain (`FUN_281f_09fc(n)` is

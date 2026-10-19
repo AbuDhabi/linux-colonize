@@ -47,7 +47,7 @@ Helpers (`units.h`):
 
 - `units_orders_follow_goto` — GOTO / AI_SAIL / AI_MOVE / TRADE_ROUTE
 - `units_orders_is_follow` — FOLLOW
-- `units_orders_skip_turn` — SENTRY, **FORTIFY**, FORTIFIED, CLEAR_PLOW, BUILD_ROAD. FORTIFY joined the set 2026-09-04: digging in does zero the allotment, but the COL1 export writes spent 0 for an exhausted land unit, so a save taken the same turn reloads it with orders 5 and a full allotment — straight back into the control queue (bugs.md). DOS's cycle reads the order byte, not the MP.
+- `units_orders_skip_turn` — SENTRY, **FORTIFY**, FORTIFIED, CLEAR_PLOW, BUILD_ROAD. FORTIFY joined the set 2026-09-04: digging in does zero the allotment, but the COL1 export writes spent 0 for an exhausted land unit, so a save taken the same turn reloads it with orders 5 and a full allotment — straight back into the control queue (port_bugs.md). DOS's cycle reads the order byte, not the MP.
 
 **UI commands without a lasting `@ORDERS` byte:** Wait, Activate, Disband, Dump
 Cargo, Pillage, Load/Unload Cargo, Return to Europe, Join Colony, No Orders
@@ -139,7 +139,7 @@ stateDiagram-v2
 
 | Command | When | Expected (DOS) | OpenCol | Status |
 |---------|------|----------------|-------|--------|
-| Fortify (land) | ORDERS / **F**; `FUN_2b5a_1112` | 8-neighbour scan first: a treaty partner's colony adjacent (relation 0x40) raises `@HAVETREATY`; answer != 2 = no fortify, 2 = war bit set + 0x40 cleared then proceed (raw 42389-42411, bugs.md #691). Then order 5, zero `+0x315a`, exhaust MP — unconditionally, even if already Fortified (bugs.md #695); overnight → 6 (`479b_0b6c`) | `game_fortify_treaty_confirm` + `units_order_fortify` + refresh | Done |
+| Fortify (land) | ORDERS / **F**; `FUN_2b5a_1112` | 8-neighbour scan first: a treaty partner's colony adjacent (relation 0x40) raises `@HAVETREATY`; answer != 2 = no fortify, 2 = war bit set + 0x40 cleared then proceed (raw 42389-42411, port_bugs.md #691). Then order 5, zero `+0x315a`, exhaust MP — unconditionally, even if already Fortified (port_bugs.md #695); overnight → 6 (`479b_0b6c`) | `game_fortify_treaty_confirm` + `units_order_fortify` + refresh | Done |
 | Anchor (ship) | 2nd Fortify menu / `@SHIPOPTIONS` | Sea unit at own colony or adjacent sea → fortify path | `MAP_MENU_ACTION_ANCHOR` → `game_order_fortify` (same handler as the land row) | Done |
 | Fortified | Overnight | Skip selection until woken; combat defense context-dependent | Skip via `units_orders_skip_turn` (bonus → [combat.md](combat.md)) | Done |
 | Sentry | ORDERS / **S** | Order 1; exhaust MP; skip until wake | `units_order_sentry` | Done |
@@ -167,7 +167,7 @@ stateDiagram-v2
 | Command | When | Expected (DOS) | OpenCol | Status |
 |---------|------|----------------|-------|--------|
 | Clear Forest (**P**) | Pioneer on forest | Order 8; `479b_01a6`; turns = `terr_cost+2` (Hardy ÷2); −20 tools; lumber → nearest own colony **within DOS distance 4** (`0x8db8 < 4`), scale `terr[+8] + 1` behind a Lumber-Mill floor; then `LAB_479b_043b` tribal-land tail | `units_pioneer_plow` clear path + `units_pioneer_native_land_tail` | Done (2026-09-06e) |
-| Plow Fields (**P**) | Pioneer on open land | Same order 8; separate job; refuse if already plowed; terrain veto = classes `0x1b`/`0x1c` (Mountains/Hills) only — Arctic IS plowable (`0b34` raw 42224-42227) | Plow path; Mountains/Hills deny (bugs.md #619) | Done |
+| Plow Fields (**P**) | Pioneer on open land | Same order 8; separate job; refuse if already plowed; terrain veto = classes `0x1b`/`0x1c` (Mountains/Hills) only — Arctic IS plowable (`0b34` raw 42224-42227) | Plow path; Mountains/Hills deny (port_bugs.md #619) | Done |
 | Build Road (**R**) | Pioneer | Order 9; `479b_0526`; turns = `terr_cost` (Hardy ÷2, **no +2** — clear-only); −20 tools; refused on `layer2 & 0x0a` = road OR settlement (raw 42552-42555 / 76873-76876, #618); +10 hammers to the nearest colony of ANY nation, paid only if it is ours (raw 76908-76921, #617); `LAB_479b_0687` tribal-land tail (base 3) | `units_pioneer_road` + `units_pioneer_native_land_tail` | Done (2026-09-06e) |
 | Work tick | Human activation rotation, per unit, via `2b5a_3ae6` (#626) | Progress; no MP gate and no tools gate at order time (#615/#628); the `+0x315a` counter survives an order change or an aborted tick, zeroed only on completion / fortify / colony entry (#620); complete → clear order; tools depleted → Free Colonist (`479b_0158` / `@USEDUPTOOLS`); clear grants lumber/`@CLEARCUT`; no progress status text (#633) | `units_pioneer_work_tick` + type→Colonists | Done (2026-09-06e: radius gate, scale bump, tribal-land alarm / AI land buy; road no longer pays the clear's +2 turns) |
 
@@ -198,15 +198,15 @@ Digest of DOS `FUN_2b5a_0b34` (Move Pieces) / `0902` (View Pieces) as ported in
 
 | Rule | Behavior |
 |------|----------|
-| View Pieces (no unit) | Disable Wait / No Orders / Fortify / Sentry; hide Build (`0902` greys 0x310 at raw 42124 then HIDES it at raw 42127 — bugs.md #693) and most unit-specific items |
+| View Pieces (no unit) | Disable Wait / No Orders / Fortify / Sentry; hide Build (`0902` greys 0x310 at raw 42124 then HIDES it at raw 42127 — port_bugs.md #693) and most unit-specific items |
 | Pillage | Always hidden in `0b34` |
 | Build vs Join | Hide Build on own colony; hide Join off own colony; hide both if not founder-capable |
 | Clear ↔ Plow | Forest → show Clear hide Plow; else opposite; hills/arctic hide both |
-| Pioneer gates | Clear/Plow/Road greyed if not pioneer (`0b08`, type only). No popup: `@ONLYPIO` is dead GAME.TXT text (bugs.md #621) |
+| Pioneer gates | Clear/Plow/Road greyed if not pioneer (`0b08`, type only). No popup: `@ONLYPIO` is dead GAME.TXT text (port_bugs.md #621) |
 | Fortify ↔ Anchor | Land → Fortify; sea → Anchor (hide the other) |
 | Port ↔ Place | Land → Place (hide Port + Return Europe); sea → Port (hide Place); Return Europe enabled only on High Seas |
 | Cargo items | Hide Load/Unload/Trade/Dump if no cargo capacity; Load/Unload disabled off Euro settlement; Dump disabled with no goods |
-| Activate | Always enabled — 0x300 appears in no grey/hide list of `0b34` or `0902` (bugs.md #694) |
+| Activate | Always enabled — 0x300 appears in no grey/hide list of `0b34` or `0902` (port_bugs.md #694) |
 
 VIEW pulldown's own `~Move Pieces` (M) / `~View Pieces` (V) — the mode toggle
 itself, distinct from the ORDERS-menu enable/hide table above — is wired to
@@ -228,14 +228,14 @@ Full inventory in [popups.md](popups.md) §3 / `@SECTION` index. Order-related:
 
 | `@SECTION` | Trigger | Expected | OpenCol | Status |
 |------------|---------|----------|-------|--------|
-| `@ONLYPIO` | — | **Never shown.** The literal `ONLYPIO` does not occur in VICEROY.EXE; `0b34` raw 42211-42215 greys menu ids 0x312/0x313/0x314 instead | Popup deleted (bugs.md #621); `map_menu.c` greys the rows | Dead text |
-| `@NEEDTOOLS` / `@NEEDTOOLS0` | Colony construction tools shortage (DS 0x3745), colony EOT path only — **no pioneer path raises them** (bugs.md #635) | Modal | EOT `@NEEDTOOLS`/`@NEEDTOOLS0` | Done thin |
+| `@ONLYPIO` | — | **Never shown.** The literal `ONLYPIO` does not occur in VICEROY.EXE; `0b34` raw 42211-42215 greys menu ids 0x312/0x313/0x314 instead | Popup deleted (port_bugs.md #621); `map_menu.c` greys the rows | Dead text |
+| `@NEEDTOOLS` / `@NEEDTOOLS0` | Colony construction tools shortage (DS 0x3745), colony EOT path only — **no pioneer path raises them** (port_bugs.md #635) | Modal | EOT `@NEEDTOOLS`/`@NEEDTOOLS0` | Done thin |
 | `@NOPLOW` | Plow on already-plowed | Modal | `@NOPLOW` ai_popup OK | Done thin |
 | `@NOROAD` | Road where road exists | Modal | `@NOROAD` ai_popup OK | Done thin |
 | `@USEDUPTOOLS` | Pioneer tools depleted | Modal | Type→Colonists + `@USEDUPTOOLS` ai_popup OK | Done thin |
 | `@SUREDISBAND` | Disband confirm | Yes/No | `AI_POPUP_TAG_MAP_CONFIRM` | Done |
 | `@DISBANDSHIP` | Ship carrying units | OK (error) | `AI_POPUP_TAG_INFO` | Done |
-| `@OVERBOARD` | Which cargo to dump | Hold picker (section has no rows) | Same | Done (bugs.md #984) |
+| `@OVERBOARD` | Which cargo to dump | Hold picker (section has no rows) | Same | Done (port_bugs.md #984) |
 | `@LANDFALL` / `@LANDFALL2` | Ship→bare land | Stay / Make Landfall | Done — see [move_enter.md](move_enter.md) |
 | `@SHIPOPTIONS` / `@UNITOPTIONS` | Colony dock icon, 2nd click | Move to front / Clear orders / Sentry / Fortify (+ ship-only Unload all cargo) / No changes | `colony_screen_open_dock_orders`; ineligible rows omitted (matches `2f2b_5746`) | Done thin |
 | `@COLONYUNIT` | Title for the above | "Options for {unit}:" | `popup_msg_fill` | Done |
@@ -253,8 +253,8 @@ Full inventory in [popups.md](popups.md) §3 / `@SECTION` index. Order-related:
 | Board / unload / landfall / sentry auto-board / dump / return Europe | Done |
 | Build / Join colony (immediate actions) | Done |
 | Trade Route begin / aim / cycle / stop service | Done (create wizard + EDIT TRADE ROUTE screen + DOS stop service) |
-| Pillage | Colony-loot arm only; DOS has no improvement-destroying pillage (bugs.md #631). ORDERS item hidden like DOS `0b34` |
-| Order-gate modals (`@NOPLOW`, `@NOROAD`, EOT `@NEEDTOOLS`/`@NEEDTOOLS0`) | Done thin (`@ONLYPIO` retired as dead text, bugs.md #621) |
+| Pillage | Colony-loot arm only; DOS has no improvement-destroying pillage (port_bugs.md #631). ORDERS item hidden like DOS `0b34` |
+| Order-gate modals (`@NOPLOW`, `@NOROAD`, EOT `@NEEDTOOLS`/`@NEEDTOOLS0`) | Done thin (`@ONLYPIO` retired as dead text, port_bugs.md #621) |
 | Colony docked-unit orders popup | Done thin (`@COLONYUNIT`/`@SHIPOPTIONS`/`@UNITOPTIONS`; VGA chrome PARKED) |
 | `@ORDERS` index 4 Live In Village | Missing |
 | Order byte 7 as lasting Build Colony | Unused (founding immediate — acceptable) |
@@ -282,4 +282,4 @@ Pathfinder (`6662`, `units_move.c`): one DOS-literal `00f2` flood core
 (`units_flood_00f2`) on one shared grid/key serves the goto tiers, `0906`
 (09ae snap cap 0x12, 4962 ship probe cap 8, 67f4 populator cap 9 uniform)
 and the 5952 road-connect walk (`units_flood_step_dir`). Audit 2026-10-02:
-bugs.md #1038-#1046.
+port_bugs.md #1038-#1046.

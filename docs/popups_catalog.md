@@ -48,7 +48,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@RENAMECOLONY` | Done | colony title-bar click (DOS) or **R** (port extra) rename |
 | `@LANDFALL` | Done | AI_POPUP_TAG_LANDFALL |
 | `@LANDFALL2` | Done | river variant: `game_loop.c` picks LANDFALL vs LANDFALL2 by `map_tile_has_river` on the dest tile (DOS FUN_4720_015c terrain-flag bit 0x40) |
-| `@ONLYPIO` | Dead text | literal absent from VICEROY.EXE; DOS greys the menu row (`0b34` raw 42211-42215). Popup deleted 2026-09-22, bugs.md #621 |
+| `@ONLYPIO` | Dead text | literal absent from VICEROY.EXE; DOS greys the menu row (`0b34` raw 42211-42215). Popup deleted 2026-09-22, port_bugs.md #621 |
 | `@ONLYCOL` | n/a | dead text: no `ONLYCOL` DS string in VICEROY.EXE (absent from popup_tag_ids.md), so nothing can push it |
 | `@SHIPCOMBAT` | Done | `game_report_enter_reason` (`game_loop_orders.c`) — real OK popup on `COLONIZE_ENTER_BOUNCE_FOREIGN` when the mover is sea (non-combat ship attacking a ship) |
 | `@SHIPLAKE` | Done | new gate: `units_enter_probe` denies a ship entering an enclosed water region with `COLONIZE_ENTER_LAKE_BLOCKED`; `game_report_enter_reason` shows the real OK popup. Uses `layer3` region nibble `> 1` (stricter than the shared `map_tile_is_lake` `!= 1`) since a zeroed/uncomputed region nibble (many synthetic test/AI fixtures) must not misread as a lake — real generated/loaded maps never legitimately carry region 0 on water |
@@ -57,7 +57,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@NOPORT` | Done thin | inland Build Colony → CHOICE cancel/proceed |
 | `@TOOMOUNTAIN` | Done thin | Build Colony on mountains → ai_popup OK |
 | `@BUILT` | Done thin | EOT building complete ai_popup OK (`@BUILT`); VGA PARKED |
-| `@FULL` | n/a | bugs.md #690: the port's Join-at-POP_MAX popup was invented and is gone. DOS's join branch (asm `0x227b2`) bails silently, and the 32-colonist cap inside the admit (`overlays.c:10252-10255`) says nothing; `@FULL` has no DS tag in `docs/popup_tag_ids.md` and no push/lea site near the handler |
+| `@FULL` | n/a | port_bugs.md #690: the port's Join-at-POP_MAX popup was invented and is gone. DOS's join branch (asm `0x227b2`) bails silently, and the 32-colonist cap inside the admit (`overlays.c:10252-10255`) says nothing; `@FULL` has no DS tag in `docs/popup_tag_ids.md` and no push/lea site near the handler |
 | `@NOTEACHER` | Done thin | unskilled → school assign refuse + ai_popup OK |
 | `@NEEDCOLLEGE` | Done thin | school assign when job tier 2 > building → ai_popup OK |
 | `@NEEDUNIVERSITY` | Done thin | school assign when job tier 3 > building → ai_popup OK |
@@ -112,7 +112,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@LOSTCITY1` | Done thin | Fountain of Youth — 8 dock immigrants (human only; AI has no EuropeScreen pool) |
 | `@LOSTCITY2` | Done thin | Seven Cities of Cibola — big treasure train (needs Galleon home) |
 | `@LOSTCITY3` | Done thin | Ruins gold, credited direct to nation |
-| `@LOSTCITY4` | Done | Burial mounds CHOICE (`AI_POPUP_TAG_LCR_BURIAL`): row 1 Search runs the payout block → `@BURIAL1`/`2`/`3`/`@SCREWED`, row 2 / Esc Stay clear rolls nothing (bugs.md #956) |
+| `@LOSTCITY4` | Done | Burial mounds CHOICE (`AI_POPUP_TAG_LCR_BURIAL`): row 1 Search runs the payout block → `@BURIAL1`/`2`/`3`/`@SCREWED`, row 2 / Esc Stay clear rolls nothing (port_bugs.md #956) |
 | `@SCREWED` | Done thin | Hostile burial-ground natives — relation malus; 50/50 expedition lost (full combat resolve PARKED) |
 | `@BURIAL1` | Done thin | Burial search — nothing found |
 | `@BURIAL2` | Done thin | Burial search — trinkets (small gold) |
@@ -122,7 +122,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@LOSTCITY7` | Done thin | Friendly tribe's chief gift (small gold) |
 | `@LOSTCITY8` | Done thin | Trespassing near shrines — native relation malus, no combat |
 | `@LOSTCITY9` | Done thin | Survivors of a former colony join (free Colonist spawns) |
-| `@SNEAK` | Done | User-confirmed real (2026-08-14): AI Euro attacks outright at peace, war declared as a side effect of the attack (not a prerequisite) — already correctly implemented in `ai_euro_try_attack` (`src/core/ai_euro.c`). Fixed: was silently calling bare `ai_diplo_declare_war` (no notification); now `ai_diplo_declare_war_ctx` + real GAME.TXT "Sneak attack by the treacherous %STRING0!" status when human is a party. Covered by `unit_ai_diplo` (`test_ai_diplo.c`, direct `popup_msg_fill` check against real GAME.TXT — end-to-end dispatcher assertion too flaky, the since-deleted `ai_diplo_euro_balance` pass could win the race within the same turn; it is gone since 2026-10-18, bugs.md #1104).  2026-09-28 (bugs.md #980): it is a modal popup in DOS, not a status line — `FUN_4720_049e` asm `0x3f1b4` uses the plain message-box call (`lea bx,[0x87c]` "GAME" / `lea ax,[0x13c5]` / `call 0x181f:0x998`, same shape as @NODOCKS / @TRADENONE) and fires before the @DECLAREWAR choice dialog at `0x3f262`. `ai_euro_try_attack` now queues `AI_POPUP_TAG_DIPLO_SNEAK` and promotes it ahead of the @DECLAREWAR popup. |
+| `@SNEAK` | Done | User-confirmed real (2026-08-14): AI Euro attacks outright at peace, war declared as a side effect of the attack (not a prerequisite) — already correctly implemented in `ai_euro_try_attack` (`src/core/ai_euro.c`). Fixed: was silently calling bare `ai_diplo_declare_war` (no notification); now `ai_diplo_declare_war_ctx` + real GAME.TXT "Sneak attack by the treacherous %STRING0!" status when human is a party. Covered by `unit_ai_diplo` (`test_ai_diplo.c`, direct `popup_msg_fill` check against real GAME.TXT — end-to-end dispatcher assertion too flaky, the since-deleted `ai_diplo_euro_balance` pass could win the race within the same turn; it is gone since 2026-10-18, port_bugs.md #1104).  2026-09-28 (port_bugs.md #980): it is a modal popup in DOS, not a status line — `FUN_4720_049e` asm `0x3f1b4` uses the plain message-box call (`lea bx,[0x87c]` "GAME" / `lea ax,[0x13c5]` / `call 0x181f:0x998`, same shape as @NODOCKS / @TRADENONE) and fires before the @DECLAREWAR choice dialog at `0x3f262`. `ai_euro_try_attack` now queues `AI_POPUP_TAG_DIPLO_SNEAK` and promotes it ahead of the @DECLAREWAR popup. |
 | `@CANCELPEACE` | Done | DIPLO_* CHOICE structural; 10ec AI→human war-declare CHOICE prompt body now the real GAME.TXT line via `popup_msg_fill` |
 | `@SIGNTREATY` | Done | DIPLO_* CHOICE structural; peace-concluded OK popup body now the real GAME.TXT line via `popup_msg_fill` (Tools-embargo-lift chrome may override) |
 | `@DECLAREWAR` | Done | DIPLO_* CHOICE structural; war-declared OK popup body now the real GAME.TXT line via `popup_msg_fill` (boycott/hostility chrome may override); also `13b0` treaty-cancel-without-peace notice (2026-08-27) |
@@ -317,10 +317,10 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@KINGSTAMPACT` | Done | `FUN_38fd_5be8` top rung (38fd:5dfe): +5..8%, `%STRING2` = the player's New World name (`player.country_name`). Rendered through `popup_msg_fill` from `ai_king_tax_hike_apply` (`src/core/ai_king.c`) with `%STRING0`/`%STRING1` = difficulty title + player name, `%NUMBER0` = applied delta, `%NUMBER1` = resulting rate; the raise arm keeps the `@TAXOPTIONS` Kiss/Party rows. 2026-09-16 |
 | `@COUNTRIES` | Done | Not a popup: the 8-entry list `FUN_38fd_5be8` indexes for the tax audience's `%STRING2` (`@KINGVICTORY` / `@KINGWAR`). Read by `ai_king_msg_list_entry` (`src/core/ai_king.c`), 2026-09-16 |
 | `@ORDINAL` | Done | Not a popup: the 30-entry ordinal list the audience's `@KINGWIFE` rung indexes with the King's wife count. Same reader, 2026-09-16 |
-| `@NEEDTOOLS` | Done | EOT Phase L (raw 57737-57771) `turn_emit_needtools_notice` in `turn_production.c`: hammers ready, tools short but >0. Runs every EOT (not only on hammer-producing ticks) and covers unit projects too — bugs.md #537, 2026-09-20 |
+| `@NEEDTOOLS` | Done | EOT Phase L (raw 57737-57771) `turn_emit_needtools_notice` in `turn_production.c`: hammers ready, tools short but >0. Runs every EOT (not only on hammer-producing ticks) and covers unit projects too — port_bugs.md #537, 2026-09-20 |
 | `@NEEDTOOLS0` | Done | Same emitter, tools == 0 (DOS appends DS:0xeab "0" to DS:0xea1), 2026-09-20 |
 | `@ALREADYHAVE` | Done thin | construction set refused when already owned → ai_popup OK |
-| `@LOBOTOMIZE` | Done | Clear Specialty confirm `AI_POPUP_TAG_COLONY_CLEARSPEC` (bugs.md #431) |
+| `@LOBOTOMIZE` | Done | Clear Specialty confirm `AI_POPUP_TAG_COLONY_CLEARSPEC` (port_bugs.md #431) |
 | `@NATION0A` | Done | nation lore pages |
 | `@NATION0B` | Done | nation lore pages |
 | `@NATION1A` | Done | nation lore pages |
@@ -333,8 +333,8 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@CUSTOM` | Done | customize wizard |
 | `@CONTINENTAL` | Done | combat promotion ladder (`units_promote_on_win`, FUN_5fef_172c) — Veteran + WoI mobilization → Cont. Army/Cav, `ai_popup_enqueue_ok` |
 | `@VETERAN` | Done | combat promotion ladder (`units_promote_on_win`) — Free Colonist w/ musket body → Veteran Soldier |
-| `@VALOR` | Done | combat promotion ladder (`units_promote_on_win`) — Criminal/Servant ladder step, %STRING1/2 = old/new @JOB label (bugs.md #265) |
-| `@SCOUTCOLONY` | Done | `AI_POPUP_TAG_SCOUT_COLONY` (FUN_5f7a_000e, bugs.md #438) |
+| `@VALOR` | Done | combat promotion ladder (`units_promote_on_win`) — Criminal/Servant ladder step, %STRING1/2 = old/new @JOB label (port_bugs.md #265) |
+| `@SCOUTCOLONY` | Done | `AI_POPUP_TAG_SCOUT_COLONY` (FUN_5f7a_000e, port_bugs.md #438) |
 | `@LOSTOURSCOUTS` | Done | FUN_5f7a_000e infiltrate-fail, human-scout branch — `game_loop.c` AI_POPUP_TAG_SCOUT_COLONY choice 2 |
 | `@LOSTTHEIRSCOUTS` | Partial | FUN_5f7a_000e infiltrate-fail, AI-scout-vs-human-colony branch (raw :98863-98873); unreachable in port — AI unit movement never calls the scout-colony menu (only the human's own `game_try_unit_move` does), so an AI scout can never infiltrate a human colony to trigger it |
 | `@HELLOFIRST` | Done | Euro first-contact land (`ai_diplo_153e_encounter`) |
@@ -406,9 +406,9 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@INTERVENTION` / `@INTERVENE` | Done thin | `10f0` ally declare + landing ARRIVAL |
 | `@TOOTORY` | Done | `ai_king_menu_declare_independence` (FUN_43f7_2564 tail, sol<50 branch) — OK notice via `ai_popup_enqueue_ok_ctx` |
 | `@DECLARE` | Done thin | ai_popup CHOICE body+labels via `popup_msg_*`; VGA PARKED |
-| `@DEADCONVERTS` | Done | `FUN_3844_0004` (viceroy_unpacked.c 58268-58299, tag 0xee2): a lone Convert (type 0, profession 27) on a tile with no settlement ages `col1_counter16` and is removed when it passes 8; human owner gets the popup. Ported 2026-09-23 (`units_tick_convert_outside_colony`, bugs.md #725) |
-| `@TOOMANYUNITS` | Done | **NOT dead** (corrected 2026-10-05): `FUN_1427_06b4` raises it for a human nation when the allocator refuses (asm 0x6e85 `lea bx,[0x1f3]; call 181f:03fe`; DS 0x1f3 = "TOOMANYUNITS"). LEA site, missed by the PUSH-pair scan like @TOOMANYCOLONIES. Raised by `units_spawn_room`'s refused hook (game_loop_render.c). bugs.md #1068 |
-| `@TOOMANYCOLONIES` | Done | **NOT dead** (bugs.md #681, corrected 2026-09-23): the Build handler raises it at asm `0x227dc` (`lea bx,[0x9e5]; call 0x181f:0x3fe`) — a LEA site, which is why the PUSH-pair scan missed it — when `word [0x539e] >= 0x30` (48 colonies) or `byte [nation+0x9298] >= 0x26` (38 settlements for that nation) and there is no colony on the tile. Ported in `game_try_found_colony_at_cursor` |
+| `@DEADCONVERTS` | Done | `FUN_3844_0004` (viceroy_unpacked.c 58268-58299, tag 0xee2): a lone Convert (type 0, profession 27) on a tile with no settlement ages `col1_counter16` and is removed when it passes 8; human owner gets the popup. Ported 2026-09-23 (`units_tick_convert_outside_colony`, port_bugs.md #725) |
+| `@TOOMANYUNITS` | Done | **NOT dead** (corrected 2026-10-05): `FUN_1427_06b4` raises it for a human nation when the allocator refuses (asm 0x6e85 `lea bx,[0x1f3]; call 181f:03fe`; DS 0x1f3 = "TOOMANYUNITS"). LEA site, missed by the PUSH-pair scan like @TOOMANYCOLONIES. Raised by `units_spawn_room`'s refused hook (game_loop_render.c). port_bugs.md #1068 |
+| `@TOOMANYCOLONIES` | Done | **NOT dead** (port_bugs.md #681, corrected 2026-09-23): the Build handler raises it at asm `0x227dc` (`lea bx,[0x9e5]; call 0x181f:0x3fe`) — a LEA site, which is why the PUSH-pair scan missed it — when `word [0x539e] >= 0x30` (48 colonies) or `byte [nation+0x9298] >= 0x26` (38 settlements for that nation) and there is no colony on the tile. Ported in `game_try_found_colony_at_cursor` |
 | `@PICKMUSIC` | Done | slot / music dialogs |
 | `@PICKINDEPENDENCE` | Done | slot / music dialogs |
 | `@PICKMILITARY` | Done | slot / music dialogs |
@@ -422,7 +422,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@FOREIGNNOTAVAIL` | Done | F8 Foreign Affairs is withdrawn once the WoI has begun — `FUN_3f41_2548` raw :70792 (`0x5382 & 1`); `reports_is_available` + the `game_open_report` popup, 2026-09-08 |
 | `@EUROPENOTLEAVE` | Done | DOS site confirmed 2026-09-16: `viceroy_overlays.asm` OVL08_L0040 raw :0x13fd LEA gated by `TEST byte[0x5382],1` (WoI bit) — same bit the port tests in `game_ship_sail_to_europe`/lane-entry gates (`game_loop_eot.c`), `"EUROPENOTLEAVE"` `popup_msg_fill` sites |
 | `@NOWARSDURINGREV` | Done | `FUN_5f7a_0662` tail (raw 99069-99080, asm 5f7a:06c8): during the WoI a human-controlled Euro unit stepping onto the colony of a Euro power that is neither human-controlled nor the Crown is refused, abort + full allotment spent. Wired in `game_move_native_prompts` (game_loop.c) alongside the foreign-trade dispatch, docs/foreign_colony_trade.md |
-| `@NOCOLONIESEITHER` | Done | **NOT dead** (bugs.md #688, corrected 2026-09-23): `FUN_281f_0652(0x98a, 1)` at asm `0x22574`, the first thing the shared Build/Join handler does when `byte [0x5382] & 1` (independence declared) — so it blocks Join as well as Build. Ported as `game_woi_blocks_colony_orders` |
+| `@NOCOLONIESEITHER` | Done | **NOT dead** (port_bugs.md #688, corrected 2026-09-23): `FUN_281f_0652(0x98a, 1)` at asm `0x22574`, the first thing the shared Build/Join handler does when `byte [0x5382] & 1` (independence declared) — so it blocks Join as well as Build. Ported as `game_woi_blocks_colony_orders` |
 | `@NOMAYORSDURINGREV` | Done | FUN_5f7a_000e Meet-With-Mayor WoI refusal (raw :98838) — `game_loop.c` AI_POPUP_TAG_SCOUT_COLONY choice 1 |
 | `@HOWMUCH1` | Done | howmuch colony load |
 | `@HOWMUCH2` | Done | confirmed 2026-09-16: shift+drag colony-cargo unload already opens the real amount prompt (`game_loop_colony.c`, `HOWMUCH_KIND_UNLOAD`) alongside the DOS-matching whole-hold plain drag |
@@ -457,14 +457,14 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@EXTINCT` | Done | last village razed → `units_combat.c` `col1_destroy_tribe_at` tail (`FUN_4d56_00e0`, tag 0x14d4) — real GAME.TXT body. Confirmed 2026-09-16 |
 | `@MERCENARIES` | Done | ai_popup CHOICE structural |
 | `@MERCS` | Done | ai_popup CHOICE structural |
-| `@OVERBOARD` | Done | hold picker: rows = occupied goods holds, 99 = cancel (bugs.md #984) |
+| `@OVERBOARD` | Done | hold picker: rows = occupied goods holds, 99 = cancel (port_bugs.md #984) |
 | `@ALREADYREVOLUTION` | Done | ai_popup CHOICE structural |
 | `@SUREDISBAND` | Done | disband Yes/No |
 | `@NEWCOLONIST` | Done thin | EOT Phase I birth ai_popup OK (`@NEWCOLONIST`); VGA PARKED |
 | `@INEFFICIENT` | Done thin | EOT Tory-pressure ai_popup OK (`turn_emit_inefficient_gov_chrome`); VGA PARKED |
 | `@EFFICIENT` | Done thin | EOT Tory-pressure clear ai_popup OK; VGA PARKED |
 | `@CLEARCUT` | Done thin | pioneer clear-forest → lumber to nearest colony + ai_popup OK; also `@DEFOREST`; Hardy×2 / terrain×20 PARKED |
-| `@REALLYBUY` | Done | purchase confirm (bugs.md #753, 2026-09-23: 2-row Yes/No, FUN_38fd_4b50 raw 64874; escalation counter bumps before the answer) |
+| `@REALLYBUY` | Done | purchase confirm (port_bugs.md #753, 2026-09-23: 2-row Yes/No, FUN_38fd_4b50 raw 64874; escalation counter bumps before the answer) |
 | `@INDIANWARPATH` | Done | Incite Indians target menu (`ai_contact_enqueue_incite_target_choice`) — real GAME.TXT body 2026-09-16; rows are now plain nation names and are no longer filtered by affordability, as in DOS (viceroy_unpacked.c 83593-83607) |
 | `@INDIANWARPATH2` | Done | the pay confirm DOS shows after the target pick (`ai_contact_enqueue_incite_confirm`, tag 0x16c1): real body + `Pay`/`Never mind.` rows; `@NOCONTACT` before the quote, `@UNFORTUNATE` / `@ALREADYSMITE` after it 2026-09-16. Was merged into the menu labels |
 | `@INDIANWARFARE` | Done | Incite announcement at `FUN_4d56_417e` LAB_4499 (tag 0x16e9) — real GAME.TXT body via `popup_msg_fill`, fires for both the human incite and the AI missionary auto-incite. Confirmed 2026-09-16 |
@@ -500,9 +500,9 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@TUTORIAL16` | Missing | tutorial hints missing |
 | `@TUTORIAL17` | Missing | tutorial hints missing |
 | `@TUTORIAL18` | Missing | tutorial hints missing |
-| `@TUTORIAL19` | Done | `FUN_2b5a_001e` (viceroy_unpacked.c 42006-42009): once per game on selecting an Indian Convert, latch DS:0x5380 bit 0x80 (`tut1.nr19`). Ported 2026-09-23 at the tail of `game_select_unit` (bugs.md #730) |
-| `@TUTNOLUMBER` | Done | bugs.md #684: `FUN_281f_0652(0x9d9, 3)` at asm `0x2278a`, difficulty `byte [0x53a6] < 2` only, when no tile of the 9-tile site scan has terrain class 8..0x17. 2-choice; only answer 2 ("Build colony anyway") continues |
-| `@TUTNOSPACES` | Done | bugs.md #684: `FUN_281f_0652(0x9cd, 3)` at asm `0x22772`, difficulty `byte [0x53a6] < 2` only, when the 9-tile productive counter is below 4. 2-choice; only answer 2 continues |
+| `@TUTORIAL19` | Done | `FUN_2b5a_001e` (viceroy_unpacked.c 42006-42009): once per game on selecting an Indian Convert, latch DS:0x5380 bit 0x80 (`tut1.nr19`). Ported 2026-09-23 at the tail of `game_select_unit` (port_bugs.md #730) |
+| `@TUTNOLUMBER` | Done | port_bugs.md #684: `FUN_281f_0652(0x9d9, 3)` at asm `0x2278a`, difficulty `byte [0x53a6] < 2` only, when no tile of the 9-tile site scan has terrain class 8..0x17. 2-choice; only answer 2 ("Build colony anyway") continues |
+| `@TUTNOSPACES` | Done | port_bugs.md #684: `FUN_281f_0652(0x9cd, 3)` at asm `0x22772`, difficulty `byte [0x53a6] < 2` only, when the 9-tile productive counter is below 4. 2-choice; only answer 2 continues |
 | `@KINGLOSE` | Done | WoI won — full-screen throne audience (KINGLSS1 + KINGLOSE.SS, FUN_75c2_20e2); dismissal plays the CLOSING.EXE cinematic (`closing.c`) then the retire score |
 | `@KINGWIN` | Done | WoI lost (@LOSING1-3) — full-screen throne audience (KINGWIN.SS); dismissal opens the retire score |
 | `@DISBANDSHIP` | Done | ship-with-cargo error OK (not Yes/No) |

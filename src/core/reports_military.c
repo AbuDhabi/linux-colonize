@@ -47,7 +47,7 @@
 #define REPORTS_NAVAL_SHIP_ICON_X 0
 #define REPORTS_NAVAL_SHIP_NAME_X 26
 #define REPORTS_NAVAL_CARGO_ICON_X 88 /* DOS-LITERAL FUN_3f41_220c (asm 002654): `[BP-0x56] + 0x56` = 2 + 86. */
-#define REPORTS_NAVAL_CARGO_ICON_PITCH 12 /* DOS-LITERAL FUN_3f41_220c (asm OVL06_L0040 00268a): `ADD [BP-0x5a],0xc` after each hold icon. The golden has at most one icon per row, so this was a 14px guess copied from colony_screen.c until bugs.md #973. */
+#define REPORTS_NAVAL_CARGO_ICON_PITCH 12 /* DOS-LITERAL FUN_3f41_220c (asm OVL06_L0040 00268a): `ADD [BP-0x5a],0xc` after each hold icon. The golden has at most one icon per row, so this was a 14px guess copied from colony_screen.c until port_bugs.md #973. */
 #define REPORTS_NAVAL_CARGO_LABEL_X (REPORTS_NAVAL_DIV1_X + 30) /* passenger-row type name */
 #define REPORTS_NAVAL_ICON_DY 2 /* icon top = row_top + this */
 #define REPORTS_NAVAL_TEXT_DY 8 /* text top = row_top + this */
@@ -117,7 +117,7 @@ static int reports_naval_goods_icon(int cargo_type, int amount) {
  * column. There is no walk of a ship's cargo list and no pinning of a
  * passenger to its carrier's row: the array order is the row order, and a
  * passenger lands next to its ship only because that is where the array put
- * it (bugs.md #973).
+ * it (port_bugs.md #973).
  *
  * Europe-side ships still come from `europe`'s harbor/expected/bound lists
  * below; DOS reads them as ordinary unit records on the sentinel Atlantic
@@ -624,7 +624,7 @@ static int reports_foreign_build_rows(
    * source keeps saves written before col1_save_reset_nation_slots existed
    * — where the whole head was zero-filled, making England the "Crown" —
    * from printing "(Withdrawn from New World)" over the player's own
-   * nation (bugs.md).
+   * nation (port_bugs.md).
    */
   int crown = (int)col1->head.crown_nation_id;
   if (crown == human) {
@@ -1011,7 +1011,7 @@ void reports_render_indian(
 ) {
   const ColonizeSpriteSheet* icons = reports_icons_for(view, COLONIZE_REPORT_INDIAN);
   /*
-   * bugs.md #428 — EVERY line on this screen is FONTTINY, the tribe name and
+   * port_bugs.md #428 — EVERY line on this screen is FONTTINY, the tribe name and
    * the tech-level word included. Player-observed in DOS, and the overlay
    * agrees byte for byte: module 104b exposes two hard-wired drawer families,
    * one bound to the FONTTINY far pointer at DS:0x89e (FUN_104b_0216 measure,

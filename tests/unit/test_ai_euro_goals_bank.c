@@ -1,5 +1,5 @@
 /*
- * FUN_5952_035e musket-surplus bank, raw 94362-94367 (bugs.md #914).
+ * FUN_5952_035e musket-surplus bank, raw 94362-94367 (port_bugs.md #914).
  *
  * The arm runs at the tail of the colony tick's build-preference block:
  *   if (local_76 == 0 && 199 < +0xb8 && nation[+0x49] < 0x14) {

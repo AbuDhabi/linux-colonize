@@ -31,7 +31,7 @@
 #include "core/units.h"
 
 /* The one "bring a read .SAV up into live pools" sequence, shared by
- * golden_open, tools/ai_replay_main.c and tools/render_common.c (bugs.md
+ * golden_open, tools/ai_replay_main.c and tools/render_common.c (port_bugs.md
  * #1120: three drifting copies of game_apply_col1_save). It follows that
  * function's order: module-static resets, fresh pools + catalogs, europe
  * tables, col1_bridge_apply_w, then the two post-bridge repairs. `save` is

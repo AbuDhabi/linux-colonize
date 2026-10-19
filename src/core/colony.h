@@ -264,10 +264,10 @@ bool colonies_can_found(
   int y
 );
 
-/* Next default colony name for a nation without consuming it (bugs.md #682). */
+/* Next default colony name for a nation without consuming it (port_bugs.md #682). */
 const char* colonies_peek_next_name(const ColonizeColonyPool* pool, int nation_id);
 
-/* Active colonies owned by a nation — DOS byte `nation + 0x9298` (bugs.md #681). */
+/* Active colonies owned by a nation — DOS byte `nation + 0x9298` (port_bugs.md #681). */
 int colonies_nation_settlement_count(const ColonizeColonyPool* pool, int nation_id);
 
 /*
@@ -495,7 +495,7 @@ int colonies_school_building_tier(
 int colonies_school_tier_shortfall(int profession, int building_tier);
 /* Best school tier the colony OWNS (University 3 / College 2 / Schoolhouse 1,
  * 0 none) — both the faculty cap and the @NEEDCOLLEGE/@NEEDUNIVERSITY test
- * read this, never the clicked school row. bugs.md #580 / #589. */
+ * read this, never the clicked school row. port_bugs.md #580 / #589. */
 int colonies_school_owned_tier(const ColonizeColonyPool* pool, const ColonizeColony* col);
 /* DOS @JOB occupation a workable building employs (9..18), or -1. */
 int colonies_building_occupation(const ColonizeColonyPool* pool, int building_type);
@@ -548,7 +548,7 @@ int colonies_colonist_tile(const ColonizeColony* colony, int colonist_index);
 bool colonies_field_tile_delta(int tile_index, int* out_dx, int* out_dy);
 int colonies_field_tile_index(int dx, int dy);
 
-/* DOS plot scan order (bugs.md #584) (see docs/colony.md#colonies_field_scan_order) */
+/* DOS plot scan order (port_bugs.md #584) (see docs/colony.md#colonies_field_scan_order) */
 int colonies_field_scan_order(int step);
 
 /* FUN_15eb_23f2 workability bitmask (see docs/colony.md#colonies_plot_blocked_mask) */
@@ -585,12 +585,12 @@ int colonies_admit_unit_w(
   int unit_id
 );
 
-/* bugs.md #256: assign every job-less colonist a workplace (Town Hall first).
+/* port_bugs.md #256: assign every job-less colonist a workplace (Town Hall first).
  * DOS never carries idle colonists; runs after admits and each EOT. */
 void colonies_auto_assign_idle(ColonizeColonyPool* pool, int colony_id);
 
 /* DOS FUN_15eb_3930 -> 2ea0 -> 28c8 for one just-admitted colonist: best work
- * plot, else Carpenter (bugs.md #562). */
+ * plot, else Carpenter (port_bugs.md #562). */
 void colonies_seat_new_colonist(ColonizeColonyPool* pool, int colony_id, int colonist_index);
 
 /* DOS FUN_15eb_3930 plot recompute: evict workers off blocked plots, reseat
@@ -598,7 +598,7 @@ void colonies_seat_new_colonist(ColonizeColonyPool* pool, int colony_id, int col
 void colonies_recompute_plots_w(const ColonizeWorld* w, int colony_id);
 
 /* DOS FUN_15eb_1068(slot, 0xd): the Carpenter fallback both 2ea0 and 28c8 use
- * when no work plot scores (bugs.md #562). */
+ * when no work plot scores (port_bugs.md #562). */
 void colonies_assign_carpenter_fallback(
   ColonizeColonyPool* pool, int colony_id, int colonist_index
 );
@@ -809,7 +809,7 @@ int colonies_warehouse_capacity(
   int cargo_type
 );
 
-/* @WAREHOUSEFULL numbers (bugs.md #433) (see docs/colony.md#colonies_emit_warehouse_full_chrome) */
+/* @WAREHOUSEFULL numbers (port_bugs.md #433) (see docs/colony.md#colonies_emit_warehouse_full_chrome) */
 void colonies_emit_warehouse_full_chrome(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
@@ -822,7 +822,7 @@ void colonies_emit_warehouse_full_chrome(
 );
 
 /*
- * bugs.md #784: the DOS @WAREHOUSEFULL gate — `cap < stock + amount &&
+ * port_bugs.md #784: the DOS @WAREHOUSEFULL gate — `cap < stock + amount &&
  * cargo != Food`, asked BEFORE the goods move (thunk_FUN_1000_9784).
  */
 bool colonies_warehouse_unload_needs_confirm(

@@ -21,7 +21,7 @@
 /* Europe park tile: DOS parks nation n's dock/harbor units at the byte
  * (n - 0x14) = EUROPE_PARK_XY + n in both coordinates (FUN_38fd_0718 raw
  * 59133); the port's own dock mirror units sit at the nation-0 value
- * (EUROPE_PARK_XY, EUROPE_PARK_XY). bugs.md #1111. */
+ * (EUROPE_PARK_XY, EUROPE_PARK_XY). port_bugs.md #1111. */
 #define EUROPE_PARK_XY 236
 #define EUROPE_SHIP_CARGO_MAX 6 /* matches COLONIZE_UNIT_CARGO_MAX */
 #define EUROPE_POOL_SIZE 3
@@ -98,7 +98,7 @@
 #define EUROPE_CARGO_ICON_BASE 22
 /* Grey (part-load) commodity icons; same split the map sidebar and the colony
  * transport pane already use — a hold shows the coloured icon only at a full
- * 100, the grey one below that (bugs.md). */
+ * 100, the grey one below that (port_bugs.md). */
 #define EUROPE_CARGO_GREY_BASE 38
 #define EUROPE_CARGO_FULL 100
 #define EUROPE_EXIT_X 306 /* same painted Exit as colony / EUROPE.PIK */
@@ -345,7 +345,7 @@ void europe_reset_campaign_nation(EuropeScreen* eu, int nation);
  * Does not wipe harbor, dock, or gold. nation clamped 0..3. */
 void europe_set_nation(EuropeScreen* eu, int nation, const struct ColonizeMsgCatalog* names);
 
-/* LABELS.TXT used for the sale status line's @CMESSAGE wording (bugs.md #376). */
+/* LABELS.TXT used for the sale status line's @CMESSAGE wording (port_bugs.md #376). */
 void europe_set_labels(EuropeScreen* eu, const struct ColonizeMsgCatalog* labels);
 
 /* GAME.TXT used for statuses this screen composes itself (e.g. @KISSSORRY). */
@@ -397,7 +397,7 @@ void europe_seed_campaign_prices(EuropeScreen* eu, struct ColonizeDosRng* rng);
  * ALL FOUR nation records (DOS writes `cargo + nation*0x13c - 0x77ac` for
  * n = 0..3, raw 68645-68654), then its per-nation 0058(1, -1) tail. Without
  * the broadcast every AI nation starts a port campaign with euro_price 0.
- * bugs.md #1011/#1016.
+ * port_bugs.md #1011/#1016.
  */
 void europe_seed_campaign_prices_w(const ColonizeWorld* w, struct ColonizeDosRng* rng);
 /*
@@ -405,7 +405,7 @@ void europe_seed_campaign_prices_w(const ColonizeWorld* w, struct ColonizeDosRng
  * DS:0x83a6, the new-game timer word; the port's campaign seed): per nation
  * 0..3 the +0x44/+0x45 recruit LFSR seed and the three opening pool slots
  * (two 46d4 rolls, human easy opener, Spain slot 0), then the price work
- * above. The bound nation's EuropeScreen pool mirrors its record. bugs.md
+ * above. The bound nation's EuropeScreen pool mirrors its record. port_bugs.md
  * #1058; matches original_saves/mapgen/SEED100.SAV.
  */
 void europe_seed_campaign_w(const ColonizeWorld* w, uint32_t seed);
@@ -418,22 +418,22 @@ const char* europe_pool_label(const EuropeScreen* eu, int slot);
 
 /* Europe dock arrival Dragoon roll (_ex forms) -- see docs/europe.md#europe-dock-arrival-dragoon-roll-_ex-forms */
 /* Recruit pool row enabled? DOS greys every pool row when the purse cannot
- * cover the passage (FUN_38fd_4884 raw 64736-64741) — bugs.md #588. */
+ * cover the passage (FUN_38fd_4884 raw 64736-64741) — port_bugs.md #588. */
 bool europe_recruit_affordable(const EuropeScreen* eu);
 /* Train dialog row enabled? DOS greys the row when the purse is short
- * (FUN_38fd_41ce raw 64399-64403) — bugs.md #566. */
+ * (FUN_38fd_41ce raw 64399-64403) — port_bugs.md #566. */
 bool europe_train_affordable(const EuropeScreen* eu, int train_index);
 bool europe_train(EuropeScreen* eu, int train_index);
 bool europe_train_ex(EuropeScreen* eu, int train_index, struct ColonizeDosRng* rng);
 bool europe_purchase(EuropeScreen* eu, int purchase_index);
 bool europe_purchase_ex(EuropeScreen* eu, int purchase_index, struct ColonizeDosRng* rng);
 /* Purchase row enabled? DOS greys the row when the purse is short
- * (FUN_38fd_4b50 raw 64858-64862) — bugs.md #754. */
+ * (FUN_38fd_4b50 raw 64858-64862) — port_bugs.md #754. */
 bool europe_purchase_affordable(const EuropeScreen* eu, int purchase_index);
 /* europe_purchase_open_confirm -- see docs/europe.md#europe_purchase_open_confirm */
 bool europe_purchase_open_confirm(EuropeScreen* eu, int purchase_index);
 /* Commit a previously-confirmed purchase at the frozen price (the Yes arm
- * of @REALLYBUY, raw 64876-64887). bugs.md #753. */
+ * of @REALLYBUY, raw 64876-64887). port_bugs.md #753. */
 bool europe_purchase_commit(
   EuropeScreen* eu, int purchase_index, int cost, struct ColonizeDosRng* rng
 );
@@ -507,7 +507,7 @@ int europe_purchase_price(ColonizeUnitKind kind);
 
 /* europe_dock_type_for -- see docs/europe.md#europe_dock_type_for */
 int europe_dock_type_for(const char* name, int profession);
-/* bugs.md #669: 0..5 or a Continental kind (7 / 9). */
+/* port_bugs.md #669: 0..5 or a Continental kind (7 / 9). */
 bool europe_dock_dos_type_is_valid(int dos_type);
 
 /* europe_dock_icon_sprite -- see docs/europe.md#europe_dock_icon_sprite */
@@ -704,7 +704,7 @@ void europe_notify_immigrant_sound(EuropeScreen* eu);
 int europe_sell_price(const EuropeScreen* eu, int cargo_type);
 int europe_buy_price(const EuropeScreen* eu, int cargo_type);
 /* Same, for `nation`'s own track: the screen when it is bound to `nation`,
- * else col1->nation[nation].trade.euro_price. bugs.md #1049. */
+ * else col1->nation[nation].trade.euro_price. port_bugs.md #1049. */
 int europe_nation_sell_price(
   const EuropeScreen* eu, const struct ColonizeCol1Save* col1, int nation, int cargo_type
 );
@@ -766,13 +766,13 @@ void europe_tick_market_prices_w(
  * The same FUN_38fd_0058(0, -1) tick for a nation with no EuropeScreen — its
  * own price track is the col1 record (bid +0x4c, pressure +0x5c). DOS runs one
  * per nation out of 5e52 every EOT; silent, since every price dialog in 0058
- * is gated on the bound nation being human. bugs.md #1012.
+ * is gated on the bound nation being human. port_bugs.md #1012.
  */
 void europe_nation_tick_market_prices_w(const ColonizeWorld* w, int nation, uint32_t turn);
 /*
  * FUN_38fd_0058(1, -1) — the FUN_38fd_6024 campaign tail, which rewrites
  * cargos 9..12 from the (still empty) trade ledger right after the opening
- * roll. One call per nation. bugs.md #1016.
+ * roll. One call per nation. port_bugs.md #1016.
  */
 void europe_market_seed_tail_w(const ColonizeWorld* w, int nation, uint32_t turn);
 /*

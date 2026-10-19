@@ -31,7 +31,7 @@ below as ported guidance.
    `param_2` from each `1d4c` call, i.e. profession 9-17) with each craft/
    Carpenter/Preacher/Statesman worker's output.
 
-   **Open question CLOSED (2026-09-24, bugs.md #937).** `DS:-0x7238` is just
+   **Open question CLOSED (2026-09-24, port_bugs.md #937).** `DS:-0x7238` is just
    the signed spelling of `DS:0x8dc8` (`-0x7238 & 0xffff == 0x8dc8`) — the
    same 20-slot totals array, zeroed slot-by-slot immediately before the
    loops (`viceroy_unpacked.c:12580-12584`, `for (i=0;i<0x14;i++)
@@ -165,7 +165,7 @@ below as ported guidance.
   contributions — that part is already correctly wired
   (`colony_prod_bells_worker`, `colony_prod_colony_bells_ff`) and unrelated
   to this passive-only question.
-- `byte 0xa892` — closed 2026-09-24 (bugs.md #938a/#925b), provably +0. All
+- `byte 0xa892` — closed 2026-09-24 (port_bugs.md #938a/#925b), provably +0. All
   known writers across the five decompiled exports and their raw `.asm`
   (`viceroy_unpacked[.c/.asm]`, `viceroy_unpacked_2[.c/.asm]`,
   `viceroy_overlays[.c/.asm]`) are `mov byte [0xa892],0x0` at the three sites

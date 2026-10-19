@@ -348,7 +348,7 @@ static int case_indian_hostility_gate(void) {
  * holds a single own unit only when that unit's ARTILLERY-ness differs from
  * the placing unit's (`(*(char *)(iVar9 * 0x1c + 0x3146) == '\v') != param_5`,
  * '\v' = 0x0b = Artillery). The port tested WAGON (0x0c) here until
- * bugs.md #752, so the two roles were swapped.
+ * port_bugs.md #752, so the two roles were swapped.
  */
 static int case_06ae_occupant_artillery_filter(void) {
   ColonizeWorldMap map;

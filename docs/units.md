@@ -51,7 +51,7 @@ Optional post-win native settlement fallout context for
 units_resolve_land_combat_ff (FUN_5fef_31ea-shaped). When col1/map are non-NULL
 and attacker beats defender nation>=4, units_try_native_settlement_fallout runs
 (the treasure amount is its own argument; the old conquest_gold parameter was
-never read and is gone, bugs.md #1105). Pass NULL map to disable.
+never read and is gone, port_bugs.md #1105). Pass NULL map to disable.
 
 ## units_set_combat_europe
 
@@ -73,7 +73,7 @@ units_try_move, alarm marches) gets the generic chrome.
 ## units_last_native_gear_step
 
 FUN_5fef_1b0e's `bVar13` / `bVar14` gear-step flags from the last land loss
-resolved (bugs.md #645). `armed` = the brave stepped to Armed (@INDIANWIN
+resolved (port_bugs.md #645). `armed` = the brave stepped to Armed (@INDIANWIN
 tag suffix '1'), `mounted` = stepped to Mtd. (suffix '2'). The type step and
 the tribe tally happen inside the combat path; these are only the chrome
 picks for the owner of the @INDIANWIN popup. Clear before a resolve.
@@ -119,7 +119,7 @@ passenger's +0x3149 (only the day-top reset FUN_130d_0290 does). Needed
 because `moves` is the hold's park zero while aboard. -1 = full
 allotment (nothing spent this turn / unknown). Set at boarding, read
 when the passenger wakes or is put ashore, reset by the per-turn
-refresh. Round-trips through the Col1 spent byte (bugs.md #544).
+refresh. Round-trips through the Col1 spent byte (port_bugs.md #544).
 
 ## ColonizeUnit col1_hold_raw
 
@@ -142,7 +142,7 @@ writes it, raw 8297/8674) that `FUN_521d_0a60`'s turn-top clear (raw
 87560-87564) wipes back to 0 on the unit's own nation's next turn — it
 carries no landfall memory in DOS. The port used to piggyback that same
 `orders == SENTRY` value to remember "this unit is mid-landfall", which
-collided with the DOS clear. Cite: bugs.md #528.
+collided with the DOS clear. Cite: port_bugs.md #528.
 
 ## Unit construction raw-code decode
 
@@ -249,7 +249,7 @@ nation, native fallout col1/map, conquest gold, the combat-analysis
 presenter) persist across units_reset(pool) since they aren't per-pool
 state. Call this to put them all back to their unregistered (NULL / -1)
 initial values, e.g. at the top of a shared test fixture's setup, so one
-test's registrations can't leak into the next (bugs.md #1103). The
+test's registrations can't leak into the next (port_bugs.md #1103). The
 raid-repelled hook is deliberately kept: it is wired once at startup.
 
 ## units_reset_state
@@ -257,7 +257,7 @@ raid-repelled hook is deliberately kept: it is wired once at startup.
 Invalidates the pathfinder flood cache on New Game / Load. Call at the same
 point as the other new-game/load resets (ai_init_new_game,
 game_apply_col1_save). The goto anti-backtrack facing is the unit's own
-`last_dir` (DOS unit+0x314f, save-backed; bugs.md #1046), shared with the
+`last_dir` (DOS unit+0x314f, save-backed; port_bugs.md #1046), shared with the
 Brave engine and the Euro AI.
 
 ## units_spawn_euro_starter_fleet

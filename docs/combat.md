@@ -43,7 +43,7 @@ site / FF / difficulty live in [save_format_map.md](save_format_map.md).
 | King / REF | `ai_king.c` | Land / naval resolve on invasion paths |
 | Indian raid | `ai_contact.c` raid pulse | Adjacent `units_resolve_land_combat` → seize / move / abandon |
 | Paul Revere | `units_revere_defend_colony_tile` | Empty foreign colony + muskets → auto-arm → land combat |
-| Coastal fort | `units_coastal_fort_fire_colony_w`, called at the top of each colony's EOT (`FUN_364b_0688` raw 57227, in the owner's slot) | EOT battery vs adjacent ships whose PEACE bit (0x40, the byte F8 reads) is clear, or any Privateer (raw 57082, bugs.md #465); **one** salvo per neighbour tile, at the stack's first ship (`FUN_364b_03f6` raw 57068-57076), resolved between the two dissolve phases |
+| Coastal fort | `units_coastal_fort_fire_colony_w`, called at the top of each colony's EOT (`FUN_364b_0688` raw 57227, in the owner's slot) | EOT battery vs adjacent ships whose PEACE bit (0x40, the byte F8 reads) is clear, or any Privateer (raw 57082, port_bugs.md #465); **one** salvo per neighbour tile, at the stack's first ship (`FUN_364b_03f6` raw 57068-57076), resolved between the two dissolve phases |
 
 Globals for resolve: `units_set_ff_col1`, `units_set_combat_colonies`,
 `units_set_combat_human_nation`, `units_set_combat_popups`,
@@ -301,20 +301,20 @@ dwelling. Human `4528` `@ACTIONS` arm **Done** (P8.8). Deep `4528` mid-body / VG
 
 ### Land win (`units_resolve_land_combat_ff`)
 
-- Treasure: **captured alive, no gold** (bugs.md #660). `FUN_5fef_0352` raw 99344
+- Treasure: **captured alive, no gold** (port_bugs.md #660). `FUN_5fef_0352` raw 99344
   puts loser type 0x0a in the same capture set as Colonists/Wagon; raw 99392-99413
   unlink / nation-flip / re-place / orders-none, then `@LOOTCAPTURE` with
   STRING0 = loser nation, STRING1 = winner nation, NUMBER0 =
   `units_treasure_value_gold` (display only). The port's Accept/Refuse "ransom"
   CHOICE and its gold credit were inventions and are gone.
 - Loser: `units_apply_land_loss_outcome` (`FUN_5fef_0352`)
-  - Artillery: first loss → damage bit7; second → despawn. Gated (bugs.md #756,
+  - Artillery: first loss → damage bit7; second → despawn. Gated (port_bugs.md #756,
     raw 99435-99436): winner not a hull AND neither tile water, else the gun is
     destroyed outright with no @ARTILLERY popup. No moves write on damage (#757).
   - **Capture** (Euro winner only, `attack>0`): Colonists / Treasure / Wagon →
     nation flip + `@COLONISTCAPTURE*` / `@LOOTCAPTURE` / `@WAGONCAPTURE` /
     `@CARGOCAPTURE`. Veteran Colonist specialty stripped → `@COLONISTCAPTURE2`.
-    **Natives never capture.** Disqualifiers (raw 99381-99383, bugs.md #663):
+    **Natives never capture.** Disqualifiers (raw 99381-99383, port_bugs.md #663):
     a losing hull (type 0xd..0x12) or either tile ocean/high seas → destroy.
   - **Type demote** (keep nation): Dragoon→Soldier, Soldier→Colonist,
     Cont.Cav→Cont.Army, Cavalry→Regulars, Cont.Army→Colonist (+ Jesuit →
@@ -348,12 +348,12 @@ dwelling. Human `4528` `@ACTIONS` arm **Done** (P8.8). Deep `4528` mid-body / VG
 - Winner: Washington always-promote; else chance promote (`FUN_5fef_172c`)
 - Native def: settlement fallout (`FUN_5fef_31ea`) + `@LOOT` (treasure, DOS tag
   `0x1ccc`) / `@LOOT2` (burn, no treasure, `0x1cd1`). The treasure peel is **not
-  Cortes-gated** (bugs.md #381): everyone rolls it. Cortes (`local -6`) is one of
+  Cortes-gated** (port_bugs.md #381): everyone rolls it. Cortes (`local -6`) is one of
   the three "or" terms (`roll == 0 || rich || cortes`) that let the tech
   0/1 roll pay out at all, plus a bonus — +50% at tech 0/1, +6 units at
   tech 2, +10 at tech 3. The band is the razed tribe's Indian record `tech`
   (`*(0x8d4e)+2`, NAMES.TXT @TRIBES column 4), **not** the game difficulty
-  (bugs.md #549). **At tech 2 and 3 the amount is unconditional for every
+  (port_bugs.md #549). **At tech 2 and 3 the amount is unconditional for every
   conqueror.** Spanish (`local -0xa8`) shorten the tech-0 roll (`rng(0,3)` vs
   `rng(0,6)`) and add +3/+5 units at 2/3; a capital (`local -0xcc`,
   `tribe.state.capital`) always pays out and doubles / widens the amount.
@@ -363,7 +363,7 @@ dwelling. Human `4528` `@ACTIONS` arm **Done** (P8.8). Deep `4528` mid-body / VG
 - Razing order (`FUN_5fef_1b0e` dwelling arm): `FUN_4d56_00e0` destroy →
   mission return → convert-join → treasure. `00e0` clears only settlement bit
   `0x02` on the tile (`FUN_281f_068c(x,y,2,0)`, raw 81307): a real road `0x08`
-  stays, the village's implied road art goes (bugs.md #550). It deletes every
+  stays, the village's implied road art goes (port_bugs.md #550). It deletes every
   Indian unit whose home village `+0x314a` is the razed one, wherever it
   stands; braves of the tribe's other villages stay (#552). If the mission
   byte's low nibble is the conqueror, a Missionary (`@UNIT` 3) of the
@@ -391,7 +391,7 @@ Combat loss remaps **unit type** (not merely profession). Cite:
   damage/sink split; the loser's holds are then zeroed either way (goods not
   lifted vanish, passengers are lost — `units_ship_lose_holds`).
 - **The roll is then overridden by `units_naval_damage_gate`** (DOS
-  `FUN_5fef_0352` raw 99527-99570, bugs.md #867): an unarmed hull goes through
+  `FUN_5fef_0352` raw 99527-99570, port_bugs.md #867): an unarmed hull goes through
   the AI fleet-pool keep/lose bias (`stuff.ship_cargo_totals` less the frigate
   and privateer pools, versus `clamp(census_pop_proxy>>2, 3, 6)`; a Caravel
   past turn 0x4f always sinks); an armed hull outside the WoI has the colony /
@@ -409,7 +409,7 @@ Combat loss remaps **unit type** (not merely profession). Cite:
   same file uses for the other DOS `roll(1, X+Y) <= X` decision. `guns == hull`
   is a genuine coin flip in DOS, so no fixture should sit on it (smell audit
   #12: the two copies used to break the tie in opposite directions).
-- **No repair port → Europe, on the spot** (bugs.md #462/#463): DOS's colony
+- **No repair port → Europe, on the spot** (port_bugs.md #462/#463): DOS's colony
   scan tests feature bit 7 only, and when it finds nothing substitutes the
   nation's home-port name (`DS -0x7c74`, crown slot borrowing the human's)
   into `%STRING2`. BOTH arms then unlink the hull from its tile
@@ -435,10 +435,10 @@ Combat loss remaps **unit type** (not merely profession). Cite:
   (`FUN_1427_1410` raw 8804-8805, `1330` 8756-8757, `13b0` 8776-8778) require
   `(+0x3148 & 0x80) == 0 || type == 0x0b`, so the rotation never lands on a
   wrecked hull while its timer runs — Artillery is the one exemption
-  (`turn_select_next_unit`, bugs.md #997). The repair countdown digit
+  (`turn_select_next_unit`, port_bugs.md #997). The repair countdown digit
   (`unit_chrome_repair_badge_index`) is drawn on the map AND on the colony
   Transport strip; DOS carries that badge arm inline at four icon sites
-  (raw 2148-2172, 4047-4059, 5981-5993, 12249-12261), bugs.md #998.
+  (raw 2148-2172, 4047-4059, 5981-5993, 12249-12261), port_bugs.md #998.
 - **Stack sweep** (`units_sweep_naval_stack_after_loss`, DOS `FUN_5fef_0ec0`):
   every stackmate on the loser's tile takes its own 0352 — each ship its own
   plunder + damage-vs-sink roll; land stackmates are destroyed (a ship winner
@@ -458,7 +458,7 @@ Combat loss remaps **unit type** (not merely profession). Cite:
 ### Artillery: two different settlement gates — 2026-09-04
 
 The two artillery rules read the tile through **different** accessors, and
-mixing them up is what row 337 / row 353 of bugs.md kept circling:
+mixing them up is what row 337 / row 353 of port_bugs.md kept circling:
 
 | Rule | Where | Gate | Village counts? |
 |---|---|---|---|
@@ -482,7 +482,7 @@ moves_spent` **before** charging the attack's 3 thirds. When `rem < 3`:
   charged, so declining ends the unit's turn). AI and native attackers are
   never asked. An empty native village counts as an attack target here even
   though its temporary Brave is created later by the combat resolver; this
-  keeps the prompt for 1/3 and 2/3 MP village attacks (bugs.md #940).
+  keeps the prompt for 1/3 and 2/3 MP village attacks (port_bugs.md #940).
 - the fatigue bits are set — 2 thirds → `0x8d01` bit0, 1 third → `a156` bit3
   (`COMBAT_FLAG_FATIGUE_33` / `_66`, two Combat Analysis rows).
 - the attacker's strength is scaled `atk = atk * rem / 3`, immediately after
@@ -511,7 +511,7 @@ allotment at 1b0e entry (`FUN_281f_0934` -> `FUN_1427_155e`, raw 100381-100383 /
 8880-8888) with no naval exception, and 465b's step cost is attack-skipped
 (75639-75648). The port charges it at every outcome of `units_try_move` —
 including the naval win whose advance is barred by the rest of the enemy stack
-(bugs.md #996), which used to return with the moves unspent.
+(port_bugs.md #996), which used to return with the moves unspent.
 
 ### Colony capture
 

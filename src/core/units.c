@@ -86,7 +86,7 @@ ColonizeUnit* units_slot(ColonizeUnitPool* pool) {
  * func_0x00018b94 from FUN_5fef_0352) reads the DS:-0x72f6 adjective table
  * for every combat / unit substitution, never the player's @COLONYNAME
  * ("New Spain"). Copied rather than aliased so a caller's catalog going out
- * of scope cannot dangle here. bugs.md: "New Spain Privateer".
+ * of scope cannot dangle here. port_bugs.md: "New Spain Privateer".
  */
 char g_units_nationality[4][24];
 
@@ -273,7 +273,7 @@ bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names) {
      * Column 12: the capability bit-string (DOS `0x523d + row*0xe`, loader
      * raw 121132-121134 — FUN_2a1f_0b2e reads it as a bit-string, which is
      * why it cannot go through str_next_int_field: "00111100" is not 111100).
-     * MSB-first, leftmost character = bit 7. bugs.md #655.
+     * MSB-first, leftmost character = bit 7. port_bugs.md #655.
      */
     unsigned cap_bits = 0u;
     {
@@ -491,7 +491,7 @@ UNITS_TYPE_PREDICATE(units_type_is_man_o_war, UNITS_KIND_MAN_O_WAR)
  * skips the treaty prompt AND the war declaration whenever either side of the
  * entry is a Privateer (@UNIT row 0x10): the occupant test guards the band,
  * the mover test takes the sighting-bit arm instead. So hunting a Privateer,
- * or raiding with one, never opens a Euro war (bugs.md).
+ * or raiding with one, never opens a Euro war (port_bugs.md).
  */
 bool units_privateer_attack(const ColonizeUnitPool* pool, int mover_id, int foe_id) {
   if (!pool) {
@@ -550,7 +550,7 @@ bool units_is_missionary(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
  * 121248+0x2f5), rows 0x13..0x18:
  *   0x13 Colonist->0, 0x14 Pioneer->2, 0x15 Soldier->1,
  *   0x16 Scout->5,    0x17 Dragoon->4,  0x18 Missionary->3
- * bugs.md #648 flattened this per that static reading, but user-observed DOS
+ * port_bugs.md #648 flattened this per that static reading, but user-observed DOS
  * (2026-10-06) mounts a Cont. Army into Cont. Cavalry, so the tier is kept
  * somewhere the static read missed. The reverse table DS:0x30e (raw
  * 9931/9944, type->job: 7 "Cont. Cav."->0x17, 9 "Cont. Army"->0x15) pairs
@@ -618,7 +618,7 @@ int units_spawn(ColonizeUnitPool* pool, int type_index, int x, int y) {
  * and the aboard path calls set_nation before the id is known.
  */
 /*
- * bugs.md #1094: per-unit side arrays (AI latches, the save-backed wagon
+ * port_bugs.md #1094: per-unit side arrays (AI latches, the save-backed wagon
  * errand) are COLONIZE_UNITS_MAX wide and indexed by unit id. Ids stay
  * monotonic below that (fixtures and goldens see the same ids as ever); once
  * next_id reaches it, hand out the next id >= 1 no in-use slot holds (same
@@ -683,7 +683,7 @@ void units_slot_reset_defaults(
    * Exporting ships as profession 28 makes DOS treat the tile as a land stack
    * and peel the caravel off its transport_chain (sidebar "unloaded").
    *
-   * bugs.md #638: DOS raw 7744-7749 has a third arm ahead of the 0x1c
+   * port_bugs.md #638: DOS raw 7744-7749 has a third arm ahead of the 0x1c
    * default — type 7 (Cont. Cavalry) / type 9 (Cont. Army) spawn with
    * profession 0x15 (Veteran Soldiers), since every Continental is a
    * promoted veteran. The port omitted it and gave them 0x1c.
@@ -908,7 +908,7 @@ int units_spawn_treasure_train(
   return id;
 }
 
-/* DOS-LITERAL FUN_3844_0004 raw 58268 (bugs.md #725)
+/* DOS-LITERAL FUN_3844_0004 raw 58268 (port_bugs.md #725)
  *
  * The per-nation EOT tick this slot always held is NOT a Treasure-train
  * expiry — no DOS site ages or despawns a type-0x0a Treasure outside a colony
@@ -939,7 +939,7 @@ int units_tick_convert_outside_colony(
   for (int i = 0; i < units_slot_end(pool); ++i) {
     ColonizeUnit* u = &pool->units[i];
     /*
-     * bugs.md #887: the aboard-ship skip has no literal DOS counterpart and is
+     * port_bugs.md #887: the aboard-ship skip has no literal DOS counterpart and is
      * KEPT as the port's equivalent of the stack test. DOS has no cargo field —
      * a passenger is an ordinary unit linked into the same tile chain as its
      * ship (see col1_bridge_sanitize_units_for_dos, which has to rebuild
@@ -1023,7 +1023,7 @@ int units_tick_ship_build_ready(
      */
     int threshold = ty && ty->defense > 0 ? ty->defense : 4;
     /*
-     * bugs.md #254: combat damage presets col1_counter16 BELOW threshold (DOS
+     * port_bugs.md #254: combat damage presets col1_counter16 BELOW threshold (DOS
      * repair timer) and this same tick counts it up — construction and
      * repair share the loop like DOS. At/past threshold with bit7 still set
      * (legacy save parked by the old drydock model): leave for
@@ -1067,7 +1067,7 @@ int units_tick_ship_build_ready(
 }
 
 /*
- * Repair completion (bugs.md #254): combat-damage bit7 clears when the repair
+ * Repair completion (port_bugs.md #254): combat-damage bit7 clears when the repair
  * TIMER (col1_counter16, counted by units_tick_ship_build_ready, double speed
  * in port) reaches the type threshold — DOS's model; no Drydock building
  * required. Also clears legacy-save ships parked at/past threshold by the

@@ -3,7 +3,7 @@
 
 /*
  * Stage seam for map_panel_render_w (the FUN_49dd_0424 sidebar port), split
- * by panel region (bugs.md #1107). The stages stay file-local in production
+ * by panel region (port_bugs.md #1107). The stages stay file-local in production
  * (COLONIZE_INTERNAL, core/internal.h); tests may call one directly.
  */
 

@@ -171,7 +171,7 @@ static int unit_dock_orders_menu(void) {
   }
 
   /*
-   * bugs.md #782/#783. A Wagon Train is a cargo transport and sees the same
+   * port_bugs.md #782/#783. A Wagon Train is a cargo transport and sees the same
    * six @SHIPOPTIONS rows as a ship; case 4 drops Fortify for type 0x0c.
    * Fresh, empty, not selected:
    * [Activate, Sentry, Cancel] — no Fortify (wagon), no Unload (no cargo).
@@ -195,7 +195,7 @@ static int unit_dock_orders_menu(void) {
     }
   }
 
-  /* bugs.md #782: a LOADED wagon does get "Unload all cargo". */
+  /* port_bugs.md #782: a LOADED wagon does get "Unload all cargo". */
   if (rc == 0) {
     units_load_goods(&units, wagon_id, COLONIZE_CARGO_TOBACCO, 40);
     colony_screen_open_dock_orders(&view, &units, &game_txt, wagon_id);
@@ -211,7 +211,7 @@ static int unit_dock_orders_menu(void) {
     }
   }
 
-  /* bugs.md #941: land units use @UNITOPTIONS, so Artillery says Fortify
+  /* port_bugs.md #941: land units use @UNITOPTIONS, so Artillery says Fortify
    * instead of inheriting the ship-only "Anchor in harbor" label. */
   if (rc == 0) {
     colony_screen_open_dock_orders(&view, &units, &game_txt, artillery_id);
@@ -365,7 +365,7 @@ static int unit_multi_units_pane_roster(void) {
 }
 
 /*
- * bugs.md #430 — every building the colony OWNS must be clickable, and an
+ * port_bugs.md #430 — every building the colony OWNS must be clickable, and an
  * UNBUILT category's placeholder must never answer a click.
  *
  * DOS FUN_2f2b_44d4 scans slot positions 0..14 and stops at the first whose
@@ -455,7 +455,7 @@ static int unit_building_click_reaches_owned(void) {
     fprintf(
       stderr,
       "building_click: %d pixels resolved to a building the colony does not own "
-      "— DOS's slot scan runs past an unbuilt slot (bugs.md #430)\n",
+      "— DOS's slot scan runs past an unbuilt slot (port_bugs.md #430)\n",
       unbuilt_hits
     );
     rc = 1;
@@ -470,7 +470,7 @@ static int unit_building_click_reaches_owned(void) {
       fprintf(
         stderr,
         "building_click: owned '%s' reachable on only %d pixels — an overlapping "
-        "slot is swallowing its clicks (bugs.md #430)\n",
+        "slot is swallowing its clicks (port_bugs.md #430)\n",
         k_owned[i],
         hits[owned_idx[i]]
       );
@@ -1045,7 +1045,7 @@ static int case_colony_screen_render_workflow(void) {
       return 1;
     }
     /* Single icon should sit near the horizontal center of the outside-unit
-     * strip. bugs.md #536: the strip is anchored at the fortification slot's
+     * strip. port_bugs.md #536: the strip is anchored at the fortification slot's
      * origin + the DOS size-class x offset and the port's visible y correction
      * (DS:0x23c/0x242[class 3] = (+5,+5), with the 18px rect lifted 2px so it
      * stays above the separator), not at the slot corner itself. */
@@ -1904,7 +1904,7 @@ static int case_colony_screen_render_workflow(void) {
       return 1;
     }
     {
-      /* bugs.md #548: BUY hit-tests only with a project (FUN_2f2b_5fc6);
+      /* port_bugs.md #548: BUY hit-tests only with a project (FUN_2f2b_5fc6);
        * with none (captured AI colony, 0xFF) the left half is plain pane. */
       ColonizeColony probe = *sample;
       probe.building_in_production = 0;
@@ -2144,7 +2144,7 @@ static int case_colony_screen_render_workflow(void) {
     bool full = false;
     const int unloaded =
       colonies_transfer_from_unit(&pool, cid, &units, ship_id, 0, &full);
-    /* bugs.md: over-capacity unload is allowed — the whole hold lands, the
+    /* port_bugs.md: over-capacity unload is allowed — the whole hold lands, the
      * flag informs, and the excess spoils next turn. */
     if (unloaded != 100 || !full || col->stock[COLONIZE_CARGO_SUGAR] != 150) {
       fprintf(
@@ -2166,7 +2166,7 @@ static int case_colony_screen_render_workflow(void) {
       colony_screen_free(&view);
       return 1;
     }
-    /* bugs.md: the whole hold lands now — nothing is left aboard. */
+    /* port_bugs.md: the whole hold lands now — nothing is left aboard. */
     if (ship->hold_goods_amount[0] != 0) {
       fprintf(stderr, "expected empty hold after over-capacity unload got %d\n", ship->hold_goods_amount[0]);
       if (font_ok) {
@@ -2203,7 +2203,7 @@ static int case_colony_screen_render_workflow(void) {
     full = false;
     const int unloaded2 =
       colonies_transfer_from_unit(&pool, cid, &units, ship_id, 0, &full);
-    /* bugs.md: the hold was fully landed on the first unload — a second
+    /* port_bugs.md: the hold was fully landed on the first unload — a second
      * unload finds it empty and moves nothing; with the Warehouse built the
      * 150 stock now sits under capacity, no full flag. */
     if (unloaded2 != 0 || full || col->stock[COLONIZE_CARGO_SUGAR] != 150 ||
@@ -2523,7 +2523,7 @@ static int case_colony_screen_render_workflow(void) {
   return 0;
 }
 
-/* bugs.md #576: the tile job menu lists every field job unconditionally.
+/* port_bugs.md #576: the tile job menu lists every field job unconditionally.
  * DOS row eligibility is FUN_15eb_3454 (raw 13518-13554), a required-BUILDING
  * test on DS:0x2f4[job]; that byte is -1 for all nine field jobs, so none of
  * them can ever be filtered out — least of all by a yield, which DOS only
@@ -2569,7 +2569,7 @@ static int unit_tile_jobs_menu_lists_all_field_jobs(void) {
 }
 
 /*
- * bugs.md #900: FUN_2f2b_348c's row loop (raw 50753-50817) runs @JOB 0..0x18,
+ * port_bugs.md #900: FUN_2f2b_348c's row loop (raw 50753-50817) runs @JOB 0..0x18,
  * dropping a row only when FUN_281f_0bb4 -> FUN_15eb_3454 answers 0. For
  * job < 0x13 that is the DS:0x2f4 required-@BUILDING test, so the nine field
  * jobs always list and an indoor job lists once its base building stands.
@@ -2694,9 +2694,9 @@ static int unit_tile_jobs_menu_lists_indoor_jobs(void) {
 }
 
 /*
- * bugs.md #784: the @WAREHOUSEFULL predicate DOS asks BEFORE the transfer
+ * port_bugs.md #784: the @WAREHOUSEFULL predicate DOS asks BEFORE the transfer
  * (thunk_FUN_1000_9784): `cap < stock + amount && cargo != Food`.
- * bugs.md #786: FUN_15eb_30b8 appends exactly ONE new hold holding the whole
+ * port_bugs.md #786: FUN_15eb_30b8 appends exactly ONE new hold holding the whole
  * remainder — no 100 clamp, no second slot.
  */
 static int unit_warehouse_confirm_and_hold_append(void) {
@@ -2766,7 +2766,7 @@ static int unit_fence_strip_profession_gate(void) {
 }
 
 /*
- * bugs.md #1080 — FUN_15eb_3930 (268e/287e/2ea0): a fortified enemy soldier
+ * port_bugs.md #1080 — FUN_15eb_3930 (268e/287e/2ea0): a fortified enemy soldier
  * on a worked plot evicts the worker; 28c8 reseats him on a free plot, else
  * the uncapped Carpenter fallback can put a 4th colonist in the shop, and the
  * building strip must then show and hit-test all four without overlap.
@@ -2896,7 +2896,7 @@ static int unit_plot_eviction_1080(void) {
   return rc;
 }
 
-/* bugs.md #1107 seam: colony_screen_hit_test's stages called directly. An
+/* port_bugs.md #1107 seam: colony_screen_hit_test's stages called directly. An
  * open message box swallows a click outside its frame (OUTSIDE = dismiss);
  * with it closed the modal stage declines and the chrome stage claims the
  * title bar. */

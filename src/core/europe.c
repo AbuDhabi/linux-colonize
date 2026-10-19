@@ -76,7 +76,7 @@ AiPopupState* g_europe_popups = NULL;
  *
  * Tier rolls go through dos_rng_range on the real stream. The expert value
  * is the DOS LFSR on ColonizeCol1Nation.recruit_lfsr/recruit_salt whenever
- * the caller has a nation record (EuropePoolRng.lfsr, bugs.md #1058); the
+ * the caller has a nation record (EuropePoolRng.lfsr, port_bugs.md #1058); the
  * local LCG below is the stand-in only for record-less callers and for a
  * never-seeded (0) LFSR byte from a pre-#1058 port save.
  *
@@ -107,7 +107,7 @@ int europe_pool_tier_roll(EuropePoolRng* r, int lo, int hi) {
  * DOS's per-nation LFSR stand-in for the expert-tier draw (FUN_38fd_46d4,
  * raw 64584-64592). The DOS shape is: advance nation+0x44 through
  * FUN_291f_0eda(&b44, 0x14), take `(nation+0x44 + nation+0x45) & 0x1f`, and
- * REROLL while the result is > 0x18 — not a modulo (bugs.md #566). Same
+ * REROLL while the result is > 0x18 — not a modulo (port_bugs.md #566). Same
  * distribution over 0..0x18, different number of draws off the local state,
  * which is what a byte-exact RNG trace sees.
  */
@@ -242,7 +242,7 @@ bool europe_dock_name_is_artillery(const char* name) {
  * so this is a catalog **row** scan, not an English name test: the name each
  * row carries comes from reports_dock_type_name, never from the binary. A
  * name that matches no row (a profession caption, an empty slot) returns -1
- * and the caller falls back to the profession's DOS type (bugs.md #603).
+ * and the caller falls back to the profession's DOS type (port_bugs.md #603).
  */
 int europe_dock_type_row_of_name(const char* name) {
   if (!name || !name[0]) {
@@ -269,7 +269,7 @@ int europe_dock_type_row_of_name(const char* name) {
  * FUN_1427_02ca: crosses immigrant, recruit, Brewster pick, train, purchase,
  * King mercenaries) is linked in as the newest, so it lands on slot 0.
  * Colonists that *arrive* from the New World do not: see
- * europe_dock_push_load. bugs.md #999.
+ * europe_dock_push_load. port_bugs.md #999.
  */
 EuropeDockImmigrant* europe_dock_insert_front(EuropeScreen* eu) {
   if (!eu || eu->dock_count >= EUROPE_DOCK_MAX) {
@@ -396,7 +396,7 @@ static void europe_cash_treasure_passengers(
  * then FUN_281f_08c6 = FUN_1427_03a0, which unlinks it again and re-links it
  * at the OLDEST end (+0x315e = -1). So an arrival always sorts behind every
  * colonist already waiting, while a created one goes to slot 0
- * (europe_dock_insert_front). bugs.md #999.
+ * (europe_dock_insert_front). port_bugs.md #999.
  *
  * Order among the arrivals is boarding order: 03d0 walks the lane newest to
  * oldest and each push-to-back reverses that again.
@@ -428,7 +428,7 @@ void europe_disembark_passengers_to_dock(
     }
     /* Passengers keep sentry ("board next") — same convention as aboard ship. */
     if (!europe_dock_push_load(eu, name, prof)) {
-      /* bugs.md #750: no catalog tag for the docks-full case — show nothing. */
+      /* port_bugs.md #750: no catalog tag for the docks-full case — show nothing. */
       eu->status[0] = '\0';
       /* Leave the passengers from i on, compacted to the head of the holds. */
       int w = 0;
@@ -445,7 +445,7 @@ void europe_disembark_passengers_to_dock(
       ship->cargo_count = w;
       return;
     }
-    /* bugs.md #669: a Continental keeps its @UNIT row (DOS keeps +0x3146);
+    /* port_bugs.md #669: a Continental keeps its @UNIT row (DOS keeps +0x3146);
      * europe_dock_push_load's name scan only knows the six @ARMOPTIONS rows. */
     if (units && tag >= 0) {
       const int kind = (int)units_type_kind(units_type(units, tag));
@@ -739,7 +739,7 @@ int europe_sell_proceeds(const EuropeScreen* eu, int cargo_type, int amount) {
  * `gross` is the pre-tax sale value, `net` what europe_sell_proceeds paid out;
  * the difference is exactly what was withheld (same rounding, no second
  * division). No-op without a save record. Both adds are unconditional, as in
- * FUN_38fd_23c4 raw 60562-60570 (an untaxed sale still bumps +0x26; bugs.md
+ * FUN_38fd_23c4 raw 60562-60570 (an untaxed sale still bumps +0x26; port_bugs.md
  * #1090). Single implementation for every sale/cash-in arm: harbor/transport
  * sells, Custom House, treasure cash-in, King's galleon (units.c).
  */
@@ -752,7 +752,7 @@ void europe_credit_sale_tax(
   ColonizeCol1Nation* nat = &col1->nation[nation];
   nat->royal_money += gross - net;
   /* nation +0x26 write-only cumulative net-income counter (unknown24_pad,
-   * int32 LE) += net (bugs.md #1021). */
+   * int32 LE) += net (port_bugs.md #1021). */
   uint32_t cum = (uint32_t)nat->unknown24_pad[0] | ((uint32_t)nat->unknown24_pad[1] << 8) |
                  ((uint32_t)nat->unknown24_pad[2] << 16) |
                  ((uint32_t)nat->unknown24_pad[3] << 24);

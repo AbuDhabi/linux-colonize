@@ -540,7 +540,7 @@ static SoundSong* sound_decoded_song(int id) {
       return NULL;
     }
   }
-  /* Not cached on failure: the next request retries (bugs.md #1122). */
+  /* Not cached on failure: the next request retries (port_bugs.md #1122). */
   GsoundVm* vm = gsound_vm_create(g_sound.gsound_img, g_sound.gsound_img_size);
   if (!vm) {
     return NULL;

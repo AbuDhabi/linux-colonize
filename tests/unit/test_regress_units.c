@@ -1,8 +1,8 @@
 /*
- * Regression guards for FIXED bugs.md rows that had no test (gap audit
+ * Regression guards for FIXED port_bugs.md rows that had no test (gap audit
  * 2026-09-26). Slice: units.
  *
- * Each case cites the bugs.md #id and the DOS FUN_/raw line the fix ported.
+ * Each case cites the port_bugs.md #id and the DOS FUN_/raw line the fix ported.
  * Skipped rows (with reason) are listed at the bottom of this comment:
  *
  *   #575 (labor report counts drafted Continental Army/Cavalry): the fix is
@@ -63,7 +63,7 @@ static bool build_join_visible(
 }
 
 /*
- * bugs.md #667 — DOS-LITERAL FUN_2b5a_0b34 raw 42188-42196 (FUN_281f_0b78 =
+ * port_bugs.md #667 — DOS-LITERAL FUN_2b5a_0b34 raw 42188-42196 (FUN_281f_0b78 =
  * FUN_15eb_0902, DS:0x30e[type] >= 0). map_menu.c's `can_found_unit` used to
  * be `land && !transport`, which let Regulars/Cavalry/Treasure/Artillery
  * (no profession slot) offer Build/Join Colony and would have hidden it for
@@ -163,7 +163,7 @@ static int case_667_build_join_type_gate(void) {
 }
 
 /*
- * bugs.md #674 — DOS-LITERAL FUN_38fd_584a raw 68272 (`FUN_281f_0b78 >= 0`):
+ * port_bugs.md #674 — DOS-LITERAL FUN_38fd_584a raw 68272 (`FUN_281f_0b78 >= 0`):
  * the human crosses-drain loop must skip a waiting dock immigrant whose
  * resolved @UNIT type carries no profession slot. europe_harbor.c's dock
  * type resolver only round-trips the six recruit kinds + Cont. Army/Cav
@@ -230,7 +230,7 @@ static int case_674_crosses_drain_profession_gate(void) {
 }
 
 /*
- * bugs.md #639 — DOS-LITERAL FUN_112b_0060: the veteran-art test is
+ * port_bugs.md #639 — DOS-LITERAL FUN_112b_0060: the veteran-art test is
  * profession == 0x15 (UNITS_JOB_SOLDIER) exactly; 0x17 (UNITS_JOB_DRAGOON)
  * is never written to a unit by DOS and must not draw veteran art either.
  */
@@ -329,7 +329,7 @@ static void land_fixture_free(LandFixture* fx) {
 }
 
 /*
- * bugs.md #646 — DOS-LITERAL FUN_5fef_0352 raw 99433-99464: the demote arm
+ * port_bugs.md #646 — DOS-LITERAL FUN_5fef_0352 raw 99433-99464: the demote arm
  * writes only the TYPE byte (+0x3146); no orders/MP write. A Fortified
  * Dragoon beaten to Soldiers must keep Fortified and its spent MP.
  */
@@ -385,7 +385,7 @@ static int case_646_demote_writes_type_only(void) {
 }
 
 /*
- * bugs.md #647 — DOS-LITERAL FUN_5fef_0352 raw 99355-99364 + 99433: the
+ * port_bugs.md #647 — DOS-LITERAL FUN_5fef_0352 raw 99355-99364 + 99433: the
  * demote ladder runs only when the winner is not a hull AND neither tile is
  * ocean/high seas. On water, or beaten by a ship, the loser is destroyed.
  */
@@ -445,7 +445,7 @@ static int case_647_demote_gated_off_water(void) {
 }
 
 /*
- * bugs.md #678 — DOS-LITERAL FUN_5fef_0352 raw 99343-99392: the capture-alive
+ * port_bugs.md #678 — DOS-LITERAL FUN_5fef_0352 raw 99343-99392: the capture-alive
  * test reads only the LOSER's @UNIT type (Colonists/Treasure/Wagon), never
  * its nation. A native-nation unit riding a Colonists-type body must still
  * change hands, not be destroyed, when it loses to a combat-capable Euro.
@@ -765,7 +765,7 @@ static int case_capture_keeps_old_tile_owner(void) {
 }
 
 /*
- * bugs.md #834 — DOS-LITERAL FUN_5fef_1b0e raw 100641-100646: a native
+ * port_bugs.md #834 — DOS-LITERAL FUN_5fef_1b0e raw 100641-100646: a native
  * winner attacking a tile that carries a colony latches
  * `attacker+0x3148 |= 0x10` (the guaranteed arm of the 0352 gear-return
  * gate), regardless of the rest of the outcome.
@@ -813,7 +813,7 @@ static int case_834_native_winner_colony_latch(void) {
 }
 
 /*
- * bugs.md #868 — DOS-LITERAL FUN_5bfb_312e raw 98448 (+0x3150): the naval
+ * port_bugs.md #868 — DOS-LITERAL FUN_5bfb_312e raw 98448 (+0x3150): the naval
  * evade/ship-slow power term subtracts 4 per GOODS hold in use, never 4 per
  * passenger. A troop-laden Man-O-War must not be weakened by its passengers.
  */

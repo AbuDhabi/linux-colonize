@@ -432,7 +432,7 @@ static int unit_warehouse_capitol_levels(void) {
   /*
    * DOS DS:0x34a — the just-finished building the colony screen reveals
    * (and the only thing that lets FUN_2f2b_6cd4 push event 0x54). Idle
-   * colonies must carry "none" so opening the screen is silent (bugs.md:
+   * colonies must carry "none" so opening the screen is silent (port_bugs.md:
    * celebratory SFX on every colony open).
    */
   if (c->pending_build_reveal != 0) {
@@ -697,7 +697,7 @@ static int unit_noteacher_chrome(void) {
   }
   assets_msg_free(&game_txt);
 
-  /* bugs.md #380: @JOB 18 "Teacher" is level 4 and may NOT teach in DOS. */
+  /* port_bugs.md #380: @JOB 18 "Teacher" is level 4 and may NOT teach in DOS. */
   col->colonists[0].profession = COLONIZE_PROF_TEACHER;
   if (colonies_assign_workplace(&pool, 1, 0, 0)) {
     fprintf(stderr, "noteacher: @JOB 18 Teacher must not assign to Schoolhouse\n");
@@ -1060,7 +1060,7 @@ static int case_colonies_core(void) {
   CHECK(empty && empty->has_building[town_hall], "starter includes Town Hall");
   CHECK(empty && empty->has_building[carpenter], "starter includes Carpenter's Shop");
   /*
-   * bugs.md #430 — pin the WHOLE free starter set, not just two of it. DOS
+   * port_bugs.md #430 — pin the WHOLE free starter set, not just two of it. DOS
    * hands every new colony the tier-1 manufacturing houses plus the Town Hall
    * and the Carpenter's Shop (docs/building_production.md "Starter colonies",
    * docs/assets.md); a silent name-lookup miss in colonies_grant_starters
@@ -1131,14 +1131,14 @@ static int case_colonies_core(void) {
   CHECK(col->population == 1 && col->colonist_count == 1, "founder becomes colonist");
   CHECK(col->colonists[0].unit_type_index == pioneer_type, "colonist type preserved");
   CHECK(col->colonists[0].profession == UNITS_JOB_PIONEER, "founder profession preserved");
-  /* bugs.md #929: DOS FUN_364b_1ba8 raw 58076-58086 seats the founder via
+  /* port_bugs.md #929: DOS FUN_364b_1ba8 raw 58076-58086 seats the founder via
    * FUN_15eb_1068(slot, 0) = occupation 0 (a FIELD job, food), never the
    * Town Hall; the plot comes from the shared 28c8 picker. */
   CHECK(col->colonists[0].building_type < 0, "founder is not a building worker");
   CHECK(col->colonists[0].field_job >= 0, "founder takes a field job (occupation 0)");
   CHECK(col->stock[COLONIZE_CARGO_TOOLS] == 100, "founder tools enter stockpile");
   /* Stockade needs 3 colonists (@BUILDING min_colony); a size-1 coastal
-   * town starts on Docks (bugs.md; seed-100 goldens), a landlocked one on
+   * town starts on Docks (port_bugs.md; seed-100 goldens), a landlocked one on
    * Warehouse (player-confirmed DOS behaviour). "Coastal" here is DOS's own
    * Docks predicate — the colony +0x1c 0x40 bit (raw 13688), stamped at
    * founding from map_tile_is_open_sea_adjacent — not the looser live
@@ -1272,7 +1272,7 @@ static int case_colonies_core(void) {
             "pioneer map icon");
     }
     /*
-     * bugs.md: the two equip paths (colonist leaving the colony vs. a unit
+     * port_bugs.md: the two equip paths (colonist leaving the colony vs. a unit
      * already standing outside it) had different tool rules — the outside one
      * insisted on a full 100 and refused a Pioneer its own menu offered. Both
      * now go through colonies_equip_tools_take: whole 20s, capped at 100.
@@ -1401,7 +1401,7 @@ static int case_colonies_core(void) {
       units_pool_sync(&units);
     }
     /*
-     * bugs.md #658: colony join folds Dragoon (0x17) to Soldier (0x15)
+     * port_bugs.md #658: colony join folds Dragoon (0x17) to Soldier (0x15)
      * through FUN_15eb_0e8c (raw 11083-11090), same as the founding path.
      * A Scout (0x16) must pass through unchanged.
      */
@@ -1490,7 +1490,7 @@ static int case_colonies_core(void) {
       CHECK(miss->profession == UNITS_JOB_NONE, "plain Church bless is non-Jesuit");
     }
     /*
-     * bugs.md #556 / #559: the bless copies the profession byte verbatim
+     * port_bugs.md #556 / #559: the bless copies the profession byte verbatim
      * (overlays.c:10225-10245), and FUN_15eb_3454's two Jesuit row arms
      * (raw 13561-13569).
      */
@@ -1766,7 +1766,7 @@ static int case_colonies_core(void) {
   }
 
   /*
-   * bugs.md #897 / #898: factory-tier partial input.
+   * port_bugs.md #897 / #898: factory-tier partial input.
    *
    * DOS-LITERAL FUN_15eb_0bd4 raw 10159-10183 + FUN_364b_0688 Phase B raw
    * 57238-57253: D = (G<<1)/3, U = D - avail, U' = (U == D) ? G : (U*3)/2,
@@ -1880,7 +1880,7 @@ static int case_colonies_core(void) {
     c->has_building[stockade_b] = true;
     CHECK(colonies_has_fortification(&pool, c), "fortification detected");
     /*
-     * bugs.md: the layer2 settlement bit is what the map renderer reads to
+     * port_bugs.md: the layer2 settlement bit is what the map renderer reads to
      * hide a garrison, so founding must set it and abandoning must clear it —
      * otherwise units left on an abandoned colony's square stay invisible
      * until the next end-of-turn rebuild.
@@ -1965,7 +1965,7 @@ static int case_colonies_core(void) {
    * SoL %: purely the Col1 rebel dividend/divisor pair (FUN_15eb_0274). No
    * pair (or a zero divisor) reads 0 — the old nation-liberty-bells/4
    * stand-in was a nation figure and made a colony founded this turn show
-   * 100% (bugs.md). Cite: colony_prod_sol_percent; manual_gap SoL display.
+   * 100% (port_bugs.md). Cite: colony_prod_sol_percent; manual_gap SoL display.
    */
   {
     ColonizeColony* c = colonies_get_mut(&pool, cid);
@@ -2083,7 +2083,7 @@ static int case_colonies_core(void) {
         CHECK(colony_prod_sol_bonus(&col1, c) == 0, "AI Tory count zeroed");
 
         /*
-         * bugs.md: the floor is unbounded — DOS clamps the finished yield at 0,
+         * port_bugs.md: the floor is unbounded — DOS clamps the finished yield at 0,
          * never the modifier. A -2 cap used to live in colony_prod_sol_bonus and
          * silently protected large low-SoL colonies.
          */
@@ -2462,7 +2462,7 @@ static int unit_foreign_colony_trade(void) {
 }
 
 /*
- * bugs.md #481 — colony ship construction. Pins the FUN_15eb_32f8 raw-code
+ * port_bugs.md #481 — colony ship construction. Pins the FUN_15eb_32f8 raw-code
  * decode (42..48 = @UNIT 11..17, Man-O-War excluded), the FUN_15eb_33aa cost
  * arithmetic (@UNIT cost x 0x20 with the 0x28 floor, tools x 10) and the
  * FUN_15eb_3650 Shipyard gate, then spawns a Frigate through the EOT path.
@@ -2604,7 +2604,7 @@ static int unit_ship_construction(void) {
   CHECK(c->building_in_production == 48, "DOS never clears the project on completion");
 
   /*
-   * bugs.md #755: FUN_364b_0688 raw 57748-57769 — short on tools, a human
+   * port_bugs.md #755: FUN_364b_0688 raw 57748-57769 — short on tools, a human
    * colony is refused (@NEEDTOOLS) but a non-human one (Euro AI or Crown,
    * nation > 3 || control != 0) has its tools stock topped up to the
    * requirement right there and completion proceeds.
@@ -2633,7 +2633,7 @@ static int unit_ship_construction(void) {
     CHECK(c->stock[COLONIZE_CARGO_TOOLS] == 0, "no gift for a human colony");
 
     /*
-     * bugs.md #766: FUN_364b_0114 raw 56943-56946 — an Artillery completion
+     * port_bugs.md #766: FUN_364b_0114 raw 56943-56946 — an Artillery completion
      * by a non-human colony bumps nation+0x48 (king_grace_counter); a
      * human colony's completion does not.
      */
@@ -2761,7 +2761,7 @@ static int unit_wagon_cap_and_armory_gate(void) {
 }
 
 /*
- * bugs.md #580 / #589 / #590 — the DOS work-assign validator
+ * port_bugs.md #580 / #589 / #590 — the DOS work-assign validator
  * (thunk_FUN_1000_9808, overlays.c:60412-60498): faculty cap by the school
  * the colony OWNS, @NEEDCOLLEGE/@NEEDUNIVERSITY by owned building, and
  * @MORETHANTHREE only for occupation > 9.
@@ -2885,7 +2885,7 @@ static int unit_school_faculty_and_occupation_cap(void) {
 }
 
 /*
- * bugs.md #930 — the port-only Town Hall salvage in colonies_auto_assign_idle
+ * port_bugs.md #930 — the port-only Town Hall salvage in colonies_auto_assign_idle
  * must still honor @MORETHANTHREE: with 3 statesmen already seated, a 4th
  * unresolvable colonist is left unplaced rather than overflowing the
  * building past thunk_FUN_1000_9808's cap.
@@ -2962,7 +2962,7 @@ static int unit_auto_assign_idle_town_hall_cap(void) {
 }
 
 /*
- * bugs.md #579 — FUN_15eb_23f2's blocked mask: a plot already worked by
+ * port_bugs.md #579 — FUN_15eb_23f2's blocked mask: a plot already worked by
  * ANOTHER colony carries bit 0x40 and cannot be seated.
  */
 static int unit_plot_blocked_mask(void) {
@@ -3044,7 +3044,7 @@ static int unit_plot_blocked_mask(void) {
   );
   b->x = 12;
 
-  /* DOS scan order (bugs.md #584): step 0..7 = N,E,S,W,NW,NE,SE,SW. */
+  /* DOS scan order (port_bugs.md #584): step 0..7 = N,E,S,W,NW,NE,SE,SW. */
   int sdx = 0;
   int sdy = 0;
   colonies_field_tile_delta(colonies_field_scan_order(1), &sdx, &sdy);
@@ -3061,7 +3061,7 @@ static int unit_plot_blocked_mask(void) {
 }
 
 /*
- * bugs.md #593 — the work-plot ring is per colony:
+ * port_bugs.md #593 — the work-plot ring is per colony:
  * `DS:0x329[FUN_15eb_0470()]` over {0,4,8,12,20} with
  * `FUN_15eb_0470 = min(FUN_15eb_039e(10),2)+2` (raw 9636-9645 / 9561-9578),
  * i.e. +4 plots per owned @BUILDING row 0x0a / 0x0b. Stock DOS can build
@@ -3224,7 +3224,7 @@ static int unit_work_plot_ring_593(void) {
 }
 
 /*
- * bugs.md #681 / #682: the per-nation settlement count DOS keeps in the byte
+ * port_bugs.md #681 / #682: the per-nation settlement count DOS keeps in the byte
  * `nation + 0x9298` (asm 0x22595, cap 0x26), and the non-consuming default
  * name peek that lets the @COLONY prompt run before the colony exists.
  */
@@ -3356,7 +3356,7 @@ static int case_colony_delete_appends_next(void) {
 }
 
 /*
- * bugs.md #1108: buildability is keyed on the @BUILDING row, not the name. A
+ * port_bugs.md #1108: buildability is keyed on the @BUILDING row, not the name. A
  * catalog miss on the owned lower tier (blank Stockade name) must not read as
  * "Stockade not owned" and hide the Fort.
  */

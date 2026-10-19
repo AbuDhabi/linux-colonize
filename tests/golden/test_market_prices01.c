@@ -10,7 +10,7 @@
  * human cargos "with residue"; the residue was the colony-side and AI-side
  * ledger writes the tick-only run never made. Played in full, the
  * no-transports pair matches on every slot. The dutch2 pair keeps two
- * exclusions (bugs.md #1085):
+ * exclusions (port_bugs.md #1085):
  *   - Horses, all nations: the DOS French AI bought 50 Horses in Europe
  *     that turn (FUN_4d56_4528 equip arm, 1d80 lands -34 on all four nr
  *     rows); this fixture has no VR seed, so the port's AI stream does not

@@ -376,7 +376,7 @@ int colonies_building_type_row(const ColonizeColonyPool* pool, int type_index) {
 }
 
 /*
- * bugs.md (starvation_bug.SAV): the Col1 occupation byte is the DOS @JOB id,
+ * port_bugs.md (starvation_bug.SAV): the Col1 occupation byte is the DOS @JOB id,
  * never the port's building-type index (the import side could not map that,
  * so building workers came back unassigned after a round-trip).
  */
@@ -505,7 +505,7 @@ bool colonies_can_found(
     return false;
   }
   /*
-   * DOS-LITERAL FUN_2b5a Build handler, asm 0x22620-0x22632 (bugs.md #685):
+   * DOS-LITERAL FUN_2b5a Build handler, asm 0x22620-0x22632 (port_bugs.md #685):
    * the found path has exactly ONE terrain-class test,
    * `FUN_281f_078c(x,y) == 0x1b` -> @TOOMOUNTAIN. Water is caught earlier by
    * FUN_281f_0768 -> @SEACOLONY. There is no Arctic gate anywhere on the
@@ -586,7 +586,7 @@ bool colonies_can_found(
  * DOS keeps a per-nation settlement count in the byte `nation + 0x9298`
  * (written raw 58030, decremented raw 58154) and the Build handler refuses
  * at 0x26 == 38 (asm 0x22595). The port has no such byte, so it recounts the
- * pool — the same quantity by construction. bugs.md #681.
+ * pool — the same quantity by construction. port_bugs.md #681.
  */
 int colonies_nation_settlement_count(const ColonizeColonyPool* pool, int nation_id) {
   if (!pool) {
@@ -604,7 +604,7 @@ int colonies_nation_settlement_count(const ColonizeColonyPool* pool, int nation_
 /*
  * DOS thunk_FUN_2a1f_01f4 (raw 76995) builds the nation's next default colony
  * name into a local BEFORE the name prompt runs, without consuming it — the
- * prompt may still be cancelled (bugs.md #682). Non-advancing peek.
+ * prompt may still be cancelled (port_bugs.md #682). Non-advancing peek.
  *
  * FUN_479b_0000 walks the COLONY.TXT nation section up to the nation counter
  * (nation*0x34+0x5440). Row 0 is always copied; hitting @STOP before the
@@ -841,7 +841,7 @@ static int colonies_indian_land_purchase_gold_on(
     scale = 0x32;
   }
   /*
-   * DOS-LITERAL FUN_4cc6_07c2 raw 81213-81219 (bugs.md #710), both terms in
+   * DOS-LITERAL FUN_4cc6_07c2 raw 81213-81219 (port_bugs.md #710), both terms in
    * this order and both before the <1 clamp:
    *   iVar1 = (int)-(*(byte *)(param_2 + -0x6bf0) - 10) >> 1;
    *   if (iVar1 < 0) iVar1 = 0;
@@ -871,7 +871,7 @@ static int colonies_indian_land_purchase_gold_on(
   }
   int cost = scale * score;
   /*
-   * DOS-LITERAL FUN_4cc6_07c2 raw 81226-81228 (bugs.md #735): human only,
+   * DOS-LITERAL FUN_4cc6_07c2 raw 81226-81228 (port_bugs.md #735): human only,
    *   uVar2 = FUN_281f_030c(tribe, DS:0x5394 nation_turn);   // alarm word
    *   iVar1 = FUN_281f_0a60(uVar2);                          // quartile 0..3
    *   local_4 = (iVar1 + 1) * local_4;
@@ -914,14 +914,14 @@ int colonies_indian_land_owner_tribe(
 }
 
 /*
- * bugs.md #284 — DOS FUN_15eb_26e4 (colony screen 5x5 Indian-land table):
+ * port_bugs.md #284 — DOS FUN_15eb_26e4 (colony screen 5x5 Indian-land table):
  * a tile shows the totem / triggers a work complaint when a village's
  * tech-tier radius covers it, the tribe has been MET (bit 0x20), the land
  * has not been bought (purchase price > 0 also folds in Peter Minuit — the
  * whole table empties with FF 2), and no colony sits on it. Returns the
  * claiming tribe index, or -1.
  *
- * bugs.md #366 — two rules the first port of the table dropped, both visible as
+ * port_bugs.md #366 — two rules the first port of the table dropped, both visible as
  * totems in the wrong place:
  *  - `FUN_13e4_0074(tile)` clears the slot on terrain index 25/26 (Ocean and
  *    Sea Lane), so a coastal colony never shows a totem out on the water;
@@ -1099,7 +1099,7 @@ int colonies_found_with_indian_land_w(
  * art keys off — but it was only ever (re)built by the col1 bridge at load and
  * at the end-of-turn capture. So a colony founded mid-turn kept drawing its
  * garrison, and an abandoned one kept HIDING units that were still there:
- * bugs.md, "after abandoning a colony … units on its square vanish, they are
+ * port_bugs.md, "after abandoning a colony … units on its square vanish, they are
  * on the sidebar". Bound wherever units_set_occupancy_map is; NULL = the old
  * capture-time-only behaviour.
  */
@@ -1168,7 +1168,7 @@ static void colonies_col1_forget_record_at(ColonizeCol1Save* col1, int x, int y,
  * DOS colony-screen colonist add (viceroy_unpacked.c:11301) does
  * `rebel_divisor += 100` and remove (:10279) `rebel_divisor -= 100`, so the
  * FUN_15eb_0274 SoL% (dividend*100/divisor) moves the moment population
- * changes instead of waiting for the EOT accumulator (bugs.md: "adding a
+ * changes instead of waiting for the EOT accumulator (port_bugs.md: "adding a
  * colonist doesn't recalculate SoL instantly"). Record absent (colony
  * founded this turn, mirror not yet exported) → nothing to touch.
  */
@@ -1287,7 +1287,7 @@ int colonies_found(
      * i.e. occupation byte 0 = field job 0 (food), never the Town Hall.
      * (The no-unit arm additionally sets pop = 1 and
      *  FUN_281f_0cae -> FUN_15eb_0e8c(slot, 0x1c) = Free Colonist.)
-     * bugs.md #929: the port used to seat the founder in the Town Hall, so
+     * port_bugs.md #929: the port used to seat the founder in the Town Hall, so
      * every new colony produced bells instead of food.
      * DOS picks no plot here; the plot comes from the shared 28c8 auto-assign
      * the colony screen / AI tick runs next, which the port already has as
@@ -1323,7 +1323,7 @@ int colonies_found(
    * Only when the colony can actually build it: Stockade needs 3 colonists
    * (@BUILDING min_colony), and DOS never shows a size-1 town building one —
    * seed-100 TURN4–6 AI towns (New Amsterdam / Quebec / Isabella) all start
-   * on Docks instead (bugs.md: a new colony's project should be Docks, not
+   * on Docks instead (port_bugs.md: a new colony's project should be Docks, not
    * "none"). Fallbacks: Stockade when the population already qualifies,
    * else Docks for a coastal site, else Warehouse for a landlocked one
    * (player-confirmed DOS behaviour for a landlocked 1-pop colony).

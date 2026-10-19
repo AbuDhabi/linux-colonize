@@ -250,7 +250,7 @@ static int case_game_confirmation_catalog_choices(void) {
     return fail("confirmation must preserve section-specific choice rows");
   }
 
-  /* bugs.md #984: a section without choice rows gets EMPTY rows — never
+  /* port_bugs.md #984: a section without choice rows gets EMPTY rows — never
    * port-authored English. @OVERBOARD is that case (its own picker builds the
    * rows from the ship's holds instead). */
   ai_popup_clear(&game->ai_popups);
@@ -325,7 +325,7 @@ static int case_debug_test_ignores_directives(void) {
   return 0;
 }
 
-/* bugs.md #1111: @SETVIEW and @SETHUMAN share one parser — both honour
+/* port_bugs.md #1111: @SETVIEW and @SETHUMAN share one parser — both honour
  * @width= and give overflow rows the table's last id (-2 normal view /
  * -1 no human). */
 static int case_cheat_list_shared_parser(void) {

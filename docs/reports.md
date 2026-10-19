@@ -35,7 +35,7 @@ empty states, HoF "Nation" + Esc hint; F9's "Villages" was fixed 2026-09-21
 golden and no reference capture exists in the repo — see the Hall of Fame
 section for exactly what one would have to contain. Congress page 2 draws
 all 25 FF portraits from CC-xx.SS sprite anchors (the old 10/25 slot table
-is gone — bugs.md Revere/Drake).
+is gone — port_bugs.md Revere/Drake).
 
 T5.3 close-out (2026-09-07): the "fat bell glyph" and the "F9 headband is
 always #113" gaps are both closed — see "Proportional fill bars are a DOS
@@ -133,7 +133,7 @@ independently golden-confirmed.
 - Cheat-only line: under `if ((*(byte *)0x5383 & 0x20) != 0)` — DS:0x5383
   bit5 = `head.game_options.cheats_enabled`, the Alt-WIN unlock — DOS
   formats DS:0x11a9 `"(%d of %d)"` from the same `nation+0x2e`/`+0x30` pair
-  and draws it at x=10, y=25, colour 15. Ported 2026-09-28 (bugs.md #977):
+  and draws it at x=10, y=25, colour 15. Ported 2026-09-28 (port_bugs.md #977):
   the template has no catalog row, so it is read out of the shipped
   `VICEROY.EXE` (`reports_ds_string`) and composed by hand, never through
   printf; with no EXE present nothing is drawn.
@@ -142,9 +142,9 @@ independently golden-confirmed.
 - Click targets: none (shared OK button only).
 - Strings: title "RELIGIOUS ADVISER REPORT" resolves live (`reports_title`).
 - Font: FONTTINY for the bar's number overlay and the cheat line, like every
-  other report body — the 3f41 overlay loads no second font (bugs.md #428).
+  other report body — the 3f41 overlay loads no second font (port_bugs.md #428).
   F2 was the one renderer missing the override and drew them in FONTSMAL
-  until 2026-09-28 (bugs.md #979); invisible on the golden, whose bar has
+  until 2026-09-28 (port_bugs.md #979); invisible on the golden, whose bar has
   step 2 and so draws no number.
 - Port status: Done (golden `religious.png`) —
   `reports_render_religious`. The crosses bar itself is **pixel-exact**
@@ -212,7 +212,7 @@ independently golden-confirmed.
   composition the decompiled C had lost: `" (" <needed - min(pool, needed)>
   " " <@MISC 26 "in"> " " <needed> ")"`, appended to the header buffer, which
   DOS then draws whether or not the header itself is empty. Ported
-  2026-09-28 (bugs.md #978).
+  2026-09-28 (port_bugs.md #978).
 - Not a gate (checked 2026-09-28): Ghidra structures `06d0`'s tail so that
   the "Founding Fathers:" list *and* the page-1→page-2 advance sit inside
   `if (sum(backup_force) != 0)`, with an `else` falling into
@@ -327,10 +327,10 @@ independently golden-confirmed.
   splice DS:0x2e2c; }` — a divide-by-1000 plus a separator/suffix token for
   large figures — DS:0x2e2c resolves to LABELS.TXT @MISC 57, "K", and Gold
   then appends DS:0x11b4 "$" after it ("12K$"). Ported 2026-09-28
-  (bugs.md #975). The sign attribute
+  (port_bugs.md #975). The sign attribute
   (`local_8c = high < 0 ? 4 : 2`) is likewise computed twice, once per
   column; the port used to paint both cells from one combined rule
-  (bugs.md #976, fixed 2026-09-28 — the palette indices stay as measured off
+  (port_bugs.md #976, fixed 2026-09-28 — the palette indices stay as measured off
   the golden, since DOS's 2+8/4+8 index its own default palette).
 - Port status: Done (golden `economic_p1.png`/`economic_p2.png`) —
   `reports_render_economic_trade`/`_cargo` (`reports_economy.c`).
@@ -402,7 +402,7 @@ independently golden-confirmed.
   `FUN_3f41_1e80`/`FUN_3f41_1ed8` here; both push `6` and are F6's
   Military Garrisons pair (see F6). The port had therefore been built
   against the golden only; it was re-derived from `220c` on 2026-09-28
-  (bugs.md #973), and what is left is [known_divergences.md](known_divergences.md)
+  (port_bugs.md #973), and what is left is [known_divergences.md](known_divergences.md)
   #974, the Europe-lane rows.
   F-key dispatch thunk: `FUN_291f_03c6` → `FUN_3f41_220c`.
 - Background: `REPORT7.PIK`.
@@ -441,8 +441,8 @@ independently golden-confirmed.
 - Port status: Done (golden `naval.png`, 1896 px diff, was 2070) —
   `reports_render_naval` (`reports_military.c`). Row list, ordering, row
   labels (@UNIT name for every row, retiring the profession-based label of
-  bugs.md #605) and the cargo-icon geometry were re-derived from
-  `FUN_3f41_220c` on 2026-09-28 (bugs.md #973). Still divergent by
+  port_bugs.md #605) and the cargo-icon geometry were re-derived from
+  `FUN_3f41_220c` on 2026-09-28 (port_bugs.md #973). Still divergent by
   necessity: the Europe-lane rows —
   [known_divergences.md](known_divergences.md) #974. Two real pre-existing `col1_bridge_apply` bugs found
   and fixed while building this report's row list: Fortified land units at
@@ -480,7 +480,7 @@ independently golden-confirmed.
     The Euro-attack `@HAVETREATY` gate reads **the same byte in the same
     direction** — DOS `FUN_465b_0000` tests `FUN_281f_0a38(attacker,
     target) & 0x40` (`viceroy_unpacked.c:75545`) — so this report and that
-    prompt can never disagree. bugs.md #382: the port used to OR both
+    prompt can never disagree. port_bugs.md #382: the port used to OR both
     directions there, which made a peer's one-sided peace bit produce
     "War" here and "we have signed a peace treaty" on the map. DOS's
     both-direction OR appears further down `465b` and only decides whether

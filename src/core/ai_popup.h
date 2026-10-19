@@ -27,7 +27,7 @@
 
 /* One TURN_PROC_SETUP slice queues every colony's production chrome at once
  * (starve/spoil/built/…) before the blocking presenter can drain any of it.
- * DOS shows each popup inline, so none is ever lost (bugs.md #1077): size the
+ * DOS shows each popup inline, so none is ever lost (port_bugs.md #1077): size the
  * queue so a 48-colony empire cannot fill it in one turn (~1.2 KB a slot;
  * the state lives in the heap-allocated game state). */
 #define AI_POPUP_QUEUE_MAX 1024
@@ -67,7 +67,7 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_CONTACT_CONVERT = 15,
   AI_POPUP_TAG_CONTACT_REFUSE = 16,
   AI_POPUP_TAG_CONTACT_WELCOME = 17, /* FUN_5bfb_022e @INDIANWELCOME Yes/No */
-  /* 18 retired (bugs.md #542): CONTACT_VILLAGE_WARN was a port invention. */
+  /* 18 retired (port_bugs.md #542): CONTACT_VILLAGE_WARN was a port invention. */
   AI_POPUP_TAG_DIPLO_WAR = 20,
   AI_POPUP_TAG_DIPLO_PEACE = 21,
   /* 22 was DIPLO_ALLIANCE — retired with the OpenCol-only Euro alliance
@@ -85,7 +85,7 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_COMBAT_SHIP = 31,
   AI_POPUP_TAG_COMBAT_DEMOTE = 32,
   AI_POPUP_TAG_COMBAT_AMBUSH = 33,
-  /* 34 retired (bugs.md #660: the treasure "ransom" CHOICE was invented;
+  /* 34 retired (port_bugs.md #660: the treasure "ransom" CHOICE was invented;
    * DOS FUN_5fef_0352 captures the train alive and credits no gold). */
   AI_POPUP_TAG_COMBAT_COLONY = 35, /* @CAPTURED* / @BURNED* */
   AI_POPUP_TAG_COMBAT_SEIZURE = 36, /* privateer @SEIZURE* */
@@ -149,8 +149,8 @@ typedef enum AiPopupTag {
                                  * make him an ordinary Free Colonist (profession 0x1c).
                                  * 1 = Yes, 2 / Esc = No.
                                  * nation_a = colonist index. */
-  /* 63 retired with bugs.md #985 (the invented Euro-colony attack confirm). */
-  AI_POPUP_TAG_SCOUT_COLONY = 64 /* bugs.md #438 / FUN_5f7a_000e @SCOUTCOLONY (DS:0x1a64):
+  /* 63 retired with port_bugs.md #985 (the invented Euro-colony attack confirm). */
+  AI_POPUP_TAG_SCOUT_COLONY = 64 /* port_bugs.md #438 / FUN_5f7a_000e @SCOUTCOLONY (DS:0x1a64):
                                  * scout at a foreign Euro colony. 1 = Meet With Mayor,
                                  * 2 = Infiltrate Colony, 3 = Attack Colony, 4 = Nothing.
                                  * nation_a = unit id, nation_b = colony id,
@@ -171,7 +171,7 @@ typedef enum AiPopupTag {
                                  * the gold, 3 / Esc = refuse. nation_a = unit id,
                                  * nation_b = colony id, payload = hold index. The deal
                                  * itself rides ColonizeGameState.foreign_trade. */,
-  AI_POPUP_TAG_FORTIFY_TREATY = 69 /* bugs.md #691. FUN_2b5a_1112 (Fortify,
+  AI_POPUP_TAG_FORTIFY_TREATY = 69 /* port_bugs.md #691. FUN_2b5a_1112 (Fortify,
                                  * viceroy_unpacked.c raw 42389-42411): a land unit
                                  * digging in next to a treaty partner's colony asks
                                  * @HAVETREATY (DS:0x932) first. 1 = Break Treaty (war
@@ -179,7 +179,7 @@ typedef enum AiPopupTag {
                                  * unit fortifies), anything else = no fortify at all.
                                  * nation_a = unit id, nation_b = treaty partner. */
   ,
-  AI_POPUP_TAG_COLONY_WAREHOUSE = 70 /* bugs.md #784. @WAREHOUSEFULL (DS:0xcd6) as DOS
+  AI_POPUP_TAG_COLONY_WAREHOUSE = 70 /* port_bugs.md #784. @WAREHOUSEFULL (DS:0xcd6) as DOS
                                  * raises it — a 2-way CONFIRM asked BEFORE the goods
                                  * move (thunk_FUN_1000_9784, viceroy_overlays.c
                                  * 59355-59367): 1 = "Never mind." (abort), 2 = "Unload
@@ -188,7 +188,7 @@ typedef enum AiPopupTag {
                                  * index, payload = amount | (1 << 20) when the ask
                                  * came from "Unload all cargo" and the loop resumes. */
   ,
-  AI_POPUP_TAG_LCR_BURIAL = 71 /* bugs.md #956. FUN_65dd_0004 65dd:04eb: the composed
+  AI_POPUP_TAG_LCR_BURIAL = 71 /* port_bugs.md #956. FUN_65dd_0004 65dd:04eb: the composed
                                  * @LOSTCITY4 (DS:0x1dae + case) burial-mounds CHOICE the
                                  * human answers BEFORE the payout block at 103653 runs
                                  * (DOS gates it on `local_8 == 4 && local_3c == 1`).
@@ -204,7 +204,7 @@ typedef enum AiPopupTag {
                                  * attack as its own OK popup BEFORE the @DECLAREWAR
                                  * dialog at 0x3f262, not as a bare status line. */
   ,
-  AI_POPUP_TAG_OVERBOARD_WHICH = 73 /* bugs.md #984. @OVERBOARD (GAME.TXT:2975) is a
+  AI_POPUP_TAG_OVERBOARD_WHICH = 73 /* port_bugs.md #984. @OVERBOARD (GAME.TXT:2975) is a
                                  * PICKER — "What cargo shall we throw overboard, Your
                                  * Excellency?" with no choice rows of its own, so the
                                  * rows are the ship's occupied goods holds (same shape
@@ -219,7 +219,7 @@ typedef struct AiPopupRequest {
   int nation_b;
   int payload; /* free int (tribe id, colony id, …) */
   /*
-   * Contact-chain group key (bugs.md #427). 0 = ungrouped. DOS runs a contact
+   * Contact-chain group key (port_bugs.md #427). 0 = ungrouped. DOS runs a contact
    * sequence as one BLOCKING inline call — FUN_5bfb_3180 dispatches either
    * FUN_5bfb_022e (Indian) or FUN_5bfb_153e (Euro) for one neighbour and does
    * not return until that whole dialog chain is answered, so a Tupi meet and a
@@ -278,7 +278,7 @@ typedef struct AiPopupRequest {
  */
 #define AI_POPUP_BAR_MSG_LAST_MS 1971u
 /*
- * bugs.md #425 — EXPLICIT USER PREFERENCE, deliberately NOT DOS pacing: the
+ * port_bugs.md #425 — EXPLICIT USER PREFERENCE, deliberately NOT DOS pacing: the
  * sale one-liners (Custom House autosell run, European Status sell lines) run
  * three times as fast as DOS, so a big autosell turn stops feeling like a
  * cutscene. Divides the two dwells above, and ONLY for arm kind 1 (DOS
@@ -291,7 +291,7 @@ typedef struct AiPopupRequest {
 typedef struct AiPopupState {
   AiPopupRequest queue[AI_POPUP_QUEUE_MAX];
   int queue_count;
-  /* bugs.md #1117: the most recent enqueue landed as queue[queue_count-1];
+  /* port_bugs.md #1117: the most recent enqueue landed as queue[queue_count-1];
    * ai_popup_set_last_* are no-ops while false. */
   bool last_enqueue_ok;
 
@@ -307,7 +307,7 @@ typedef struct AiPopupState {
   int result_nation_b;
   int result_payload;
 
-  /* King flair one-shot animation (KING2.SS; bugs.md). */
+  /* King flair one-shot animation (KING2.SS; port_bugs.md). */
   int king_anim_frame;
   uint32_t king_anim_next_ms;
 
@@ -320,7 +320,7 @@ typedef struct AiPopupState {
   /*
    * Contact chain currently being presented (AiPopupRequest.chain; 0 = none).
    * While set, only requests carrying the same key are presented — the async
-   * twin of DOS's blocking inline contact call (bugs.md #427). Cleared the
+   * twin of DOS's blocking inline contact call (port_bugs.md #427). Cleared the
    * moment nothing with that key is left in the queue.
    */
   int active_chain;
@@ -490,7 +490,7 @@ bool ai_popup_busy(const AiPopupState* st); /* open or queued */
 /* If !open && queue non-empty, pop front into current and open. */
 bool ai_popup_try_present_next(AiPopupState* st);
 /* Present the first queued NON-colony-event popup, bypassing the colony-zoom
- * hold — for nested blocking pumps only (bugs.md #398). */
+ * hold — for nested blocking pumps only (port_bugs.md #398). */
 bool ai_popup_try_present_next_urgent(AiPopupState* st);
 
 /*
@@ -546,7 +546,7 @@ void ai_popup_set_portrait_source(const char* data_dir);
  * screen palettes that reserve a block of DAC slots (TERRAIN.SS 152..251,
  * EUROPE.PIK 120..251) and loads the sheet's own entries there; the port
  * therefore blits the art raw and merges here instead of nearest-colour
- * remapping it (bugs.md: the King's tax-audience flair). No-op when no
+ * remapping it (port_bugs.md: the King's tax-audience flair). No-op when no
  * decorated popup is open.
  */
 void ai_popup_art_palette_merge(AiPopupState* st, struct ColonizePalette* dst);

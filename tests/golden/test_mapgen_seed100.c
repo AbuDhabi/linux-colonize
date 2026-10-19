@@ -284,7 +284,7 @@ int main(void) {
     goto fail;
   }
 
-  /* FUN_75c2_235c demand pool (bugs.md #1084). The save holds it after one
+  /* FUN_75c2_235c demand pool (port_bugs.md #1084). The save holds it after one
    * FUN_38fd_0058 phase-1 decay (pool -= pool >> 7, all volumes still 0). */
   for (int c = 0; c < 16; ++c) {
     const int got = col1.head.market_demand_pool[c];

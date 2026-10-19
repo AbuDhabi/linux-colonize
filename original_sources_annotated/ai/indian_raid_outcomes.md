@@ -59,7 +59,7 @@ approach / `@RAID*` loot via `5fef`-shaped helpers).
    military loot can fire; else prefer tools ≥10 (high-friction secondary −1);
    else prefer higher **silver** stock (GOLD-kind / wealth approach — colony
    precious-metal cargo; nation treasury `@RAIDGOLD` drain stays separate)
-4. **Loot outcome — DOS-LITERAL since 2026-09-23 (bugs.md #827-#833).**
+4. **Loot outcome — DOS-LITERAL since 2026-09-23 (port_bugs.md #827-#833).**
    `FUN_5fef_0f14` raw 99777-99893 is now transcribed whole:
    walls roll → `k = rand(1,4)` (1 goods, 2 building, 3 ship, 4 gold; **four
    kinds, no fifth**) → the five-line demote chain → each kind's own target
@@ -80,7 +80,7 @@ approach / `@RAID*` loot via `5fef`-shaped helpers).
    Gold amount is rolled in the HEAD: `cap = gold * colony_pop /
    (census_pop_proxy[euro] + 1) + 10` saturated at `0x7fff`, `amt = rand(50,
    cap)`, and a roll the victim cannot pay collapses the raid to kind 0.
-5. **Multi-loot (secondary) — DELETED 2026-09-23 (bugs.md #833).** This used to
+5. **Multi-loot (secondary) — DELETED 2026-09-23 (port_bugs.md #833).** This used to
    describe a −5 muskets / −1 horse / −1 tools side-steal (from stock or from a
    unit's gear on the tile) applied after every non-NOTHING kind. `0f14` mutates
    **exactly one thing per raid** and never touches a unit's gear.
@@ -107,7 +107,7 @@ approach / `@RAID*` loot via `5fef`-shaped helpers).
    `NOTHING` (empty warehouse / no lootable stock) → **"%s raiding party wiped
    out in %s!"** (`GAME.TXT` `@RAIDNOTHING`, tribe + colony). Full `@RAID*` dialog widgets
    **Done** structural (`ai_popup`); DOS body / VGA chrome PARKED.
-9. **Scout hostility — REMOVED 2026-09-18 (bugs.md #499).** This entry used to
+9. **Scout hostility — REMOVED 2026-09-18 (port_bugs.md #499).** This entry used to
    describe a `359c`-shaped alarm >= 90 anti-Scout warn / displace / kill arm.
    It had no DOS source: `FUN_4d56_359c` (raw 83481-83505) is the
    **Enter-Hostile-Village wagon outcome** — `iVar1 = FUN_281f_030c(tribe, euro)`,
@@ -143,10 +143,10 @@ paraphrase on purpose):
 | Tag | Kind | OpenCol loot stand-in | Human status |
 |-----|------|---------------------|---------------|
 | `@RAIDNOTHING` | NOTHING | No stock change | Real body: "{tribe} raiding party wiped out in {colony}! Colonists jubilant!" |
-| `@RAIDWREAK` | *(not a kind)* | **Corrected 2026-09-23 (bugs.md #829).** 0x1b8a is not a loot kind at all: raw 99897-99899 fires it once per **successful** raid whose victim colony is NOT human-controlled. It loots nothing. The port's old `AI_RAID_WREAK` (food −1, tools −1, construction cleared) was an invention and is deleted. | Real body, at the HUMAN: "Spies report: {tribe} raiding party wreaks havoc in the {nation} colony of {colony}." |
+| `@RAIDWREAK` | *(not a kind)* | **Corrected 2026-09-23 (port_bugs.md #829).** 0x1b8a is not a loot kind at all: raw 99897-99899 fires it once per **successful** raid whose victim colony is NOT human-controlled. It loots nothing. The port's old `AI_RAID_WREAK` (food −1, tools −1, construction cleared) was an invention and is deleted. | Real body, at the HUMAN: "Spies report: {tribe} raiding party wreaks havoc in the {nation} colony of {colony}." |
 | `@RAIDSTORES` | STORES (DOS kind 1) | **Rewritten 2026-09-23 (#830/#831/#832):** cargo by DOS's retry roll (>= 10 stock floor), amount `rand(min(h,10), h)` over half the pile, stolen horses/muskets credited to the tribe record | Real body incl. the actually-drained cargo's name: "{tribe}... in {colony}! Large quantities of {cargo} stolen. Colonists outraged!" |
 | `@RAIDBURN` | BURN | Kind gated on construction **or** lumber stock **or** non-Town-Hall built building; clear production / drain lumber; `colonies_destroy_building` when stock empty | Real body only when a building was actually destroyed (named, via `s_last_burn_building`); construction-cleared/lumber-drained sub-cases keep the paraphrase (no object to name — real `@RAIDBURN` text assumes a destroyed building) |
-| `@RAIDSCALP` | **DELETED 2026-09-23 (bugs.md #828)** | Dead GAME.TXT text: `@RAIDSCALP` has **no DS string in VICEROY.EXE** (byte search: `RAIDWREAK` 0x1f52a, `RAIDSTORES` 0x1f534, `RAIDNOTHING` 0x1f55a, `RAIDSCALP` absent) and no popup-id row. `0f14` emits only 0x1b94 / 0x1b9f / 0x1ba8 / 0x1bb1 / 0x1bba and has no population-loss kind anywhere. The port's `AI_RAID_SCALP` (population−−) was an invention. | — |
+| `@RAIDSCALP` | **DELETED 2026-09-23 (port_bugs.md #828)** | Dead GAME.TXT text: `@RAIDSCALP` has **no DS string in VICEROY.EXE** (byte search: `RAIDWREAK` 0x1f52a, `RAIDSTORES` 0x1f534, `RAIDNOTHING` 0x1f55a, `RAIDSCALP` absent) and no popup-id row. `0f14` emits only 0x1b94 / 0x1b9f / 0x1ba8 / 0x1bb1 / 0x1bba and has no population-loss kind anywhere. The port's `AI_RAID_SCALP` (population−−) was an invention. | — |
 | `@RAIDSHIP` | SHIP | **Fixed 2026-09-09** (was: zero the MP of any ship within 2 tiles + dump 1 cargo ton — nearly no damage for 0f14's biggest −16 alarm vent). DOS kind 3 picks a ship standing **on the colony tile** (`07e0` + `088a` + the `02e4` walk to type 0xd..0x12, no nation filter) and runs it through `5fef_0352` with `param_2 = 0xffff`: raw 99567 forces the damage arm, so the hull is **always damaged** — holds and passengers lost, bit7, repair timer, relocated to the nearest own repair port (`units_raid_damage_ship`, `units.c`). No ship in port → `LAB_5fef_123a`, kind collapses to **NOTHING** (no loot, no alarm vent) — `ai_contact_raid_kind_demote` | Real body incl. the actual ship's `units_display_name` (via new `s_last_ship_type`): "{tribe}... in {colony}! {ship} damaged. Colonists appalled!" |
 | `@RAIDGOLD` | GOLD (DOS kind 4) | **DOS-LITERAL since 2026-09-23:** amount rolled in the 0f14 head (`gold * colony_pop / (census_pop_proxy+1) + 10`, saturate `0x7fff`, `rand(50, cap)`); an unaffordable roll → kind 0 | Real body incl. the actual amount drained (via new `s_last_gold_drained`, `%NUMBER0$`): "{tribe}... in {colony}! Merchants report {N}$ plundered. Colonists enraged!" |
 

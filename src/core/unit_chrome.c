@@ -44,7 +44,7 @@ const uint8_t k_nation_letter_rgb_native[4][3] = {
   {170, 0, 0}, {0, 0, 170}, {170, 85, 0}, {170, 73, 0}
 };
 
-/* WoI flag state (bugs.md): the rebel (human) nation and the crown slot.
+/* WoI flag state (port_bugs.md): the rebel (human) nation and the crown slot.
  * Set together with unit_chrome_set_crown_nation; -1 outside the WoI. */
 static int g_chrome_rebel_nation = -1;
 
@@ -52,7 +52,7 @@ void unit_chrome_set_rebel_nation(int nation_id) {
   g_chrome_rebel_nation = nation_id;
 }
 
-/* bugs.md: after the Declaration the Royal Expeditionary Force renders
+/* port_bugs.md: after the Declaration the Royal Expeditionary Force renders
  * WHITE — it is the Crown's army, not the peer nation whose slot it
  * borrows (an English player's REF was showing French blue). */
 int g_chrome_crown_nation = -1;
@@ -112,7 +112,7 @@ void unit_chrome_nation_flag_shades_for_palette(
   int nation_id, const ColonizePalette* active_palette, int* out_light, int* out_dark
 ) {
   /*
-   * bugs.md WoI flags: colonies held by the crown slot fly the color of the
+   * port_bugs.md WoI flags: colonies held by the crown slot fly the color of the
    * nation the PLAYER started as (orange for Dutch, red for English, ...) —
    * they are the player's captured towns under the King, not the peer whose
    * slot the crown borrows. The rebel nation's own colonies get an actual
@@ -138,7 +138,7 @@ int unit_chrome_rebel_nation(void) {
   return g_chrome_rebel_nation;
 }
 
-/* bugs.md #364: the map's tribe chrome (alarm marks, mission cross) drew
+/* port_bugs.md #364: the map's tribe chrome (alarm marks, mission cross) drew
  * DS:0x848's raw index — Dutch 13 / 5, which TERRAIN.SS's palette maps to
  * EGA magenta rather than ICONS.SS-native orange. Same nearest-match
  * treatment the unit badges already get. Unlike the colony flag above this
@@ -159,7 +159,7 @@ void unit_chrome_nation_shades_for_palette(
   );
 }
 
-/* bugs.md: US flag colors for the rebel colony marker — navy hoist, red and
+/* port_bugs.md: US flag colors for the rebel colony marker — navy hoist, red and
  * white stripes — nearest-matched into the active palette. */
 void unit_chrome_rebel_flag_colors_for_palette(
   const ColonizePalette* active_palette, int* out_navy, int* out_red, int* out_white
@@ -317,7 +317,7 @@ UnitChromeCorner unit_chrome_corner_for_type(int dos_unit_type_id, bool damaged)
   return UNIT_CHROME_CORNER_BOTTOM_RIGHT;
 }
 
-/* bugs.md #705 — see unit_chrome.h for the raw 2148-2172 transcription. */
+/* port_bugs.md #705 — see unit_chrome.h for the raw 2148-2172 transcription. */
 int unit_chrome_repair_badge_index(
   int dos_unit_type_id, bool damaged, int repair_threshold, int repair_counter, bool halve
 ) {
@@ -341,7 +341,7 @@ char unit_chrome_order_letter(int orders_index, int nation_id) {
   if (!g_orders_loaded) {
     unit_chrome_init_defaults();
   }
-  /* bugs.md #705: the digit arm is DOS's last write to the badge char, so it
+  /* port_bugs.md #705: the digit arm is DOS's last write to the badge char, so it
    * overrides the @ORDERS letter (and the natives clamp below) outright. */
   if (orders_index == UNIT_CHROME_ORDERS_PRIVATEER_X) {
     return 'X';

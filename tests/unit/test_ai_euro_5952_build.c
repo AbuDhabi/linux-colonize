@@ -1,5 +1,5 @@
 /*
- * FUN_5952_035e construction-project cascade (bugs.md #483), asm
+ * FUN_5952_035e construction-project cascade (port_bugs.md #483), asm
  * 5952:21d4-5952:274b. These cases drive ai_euro_5952_build_cascade directly
  * through ai_euro_internal.h against the real @BUILDING table loaded from
  * COLONIZE/NAMES.TXT, so every expectation below is the DOS gate read off
@@ -471,7 +471,7 @@ static int case_small_ai_flag_written(void) {
 }
 
 
-/* ---- bugs.md #586 / #585: the arms that follow the cascade ------------ */
+/* ---- port_bugs.md #586 / #585: the arms that follow the cascade ------------ */
 
 /* fx_colony_add leaves the roster zeroed; the tick and the specialist arms
  * both walk live colonists, so wake them here. */
@@ -489,7 +489,7 @@ static void fx_wake_colonists(Fx* f, int n) {
 }
 
 /*
- * bugs.md #586 — OVL15 asm 0x22bc-0x22ea. The Docks arm of the cascade stores
+ * port_bugs.md #586 — OVL15 asm 0x22bc-0x22ea. The Docks arm of the cascade stores
  * AX = 0 into [BP+0xff62] when its commit succeeds, so ARM 2 (buy an expert,
  * raw 95918 `if (local_a0 != 0)`) cannot fire on that turn. The Stockade arm
  * at 0x22ec has no such store.
@@ -575,7 +575,7 @@ static int case_178f_stop_keeps_seat_stamp(void) {
 }
 
 /*
- * bugs.md #585 — DOS raw 94592-94597. A non-zero FUN_15eb_28c8 return only
+ * port_bugs.md #585 — DOS raw 94592-94597. A non-zero FUN_15eb_28c8 return only
  * advances `local_ac` to the next colonist; only a HANDLED call whose
  * DS:0x8dbe best yield is under 3 ends the placement section.
  *
@@ -628,7 +628,7 @@ static int case_food_pass_skips_unplaceable_colonist(void) {
 }
 
 /*
- * bugs.md #595 — ARM 1's water ring (OVL15 0x082c-0x0858) increments
+ * port_bugs.md #595 — ARM 1's water ring (OVL15 0x082c-0x0858) increments
  * [BP-0x18] only for terrain class 0x19/0x1a; the off-map path at 0x094c
  * returns without touching it. A colony on the map's west edge therefore has
  * a water ring of 0, so the Fisherman target (census[Fisherman] < ring) can
@@ -669,7 +669,7 @@ static int case_edge_ring_has_no_phantom_water(void) {
 
 
 /*
- * bugs.md #612 — FUN_5952_035e raw 94402-94551. The DOS AI improves tiles
+ * port_bugs.md #612 — FUN_5952_035e raw 94402-94551. The DOS AI improves tiles
  * through the COLONY tick (phantom colonist + the real FUN_479b_01a6/0526
  * bodies), not through a unit order. With the +0x1b bit 0x80 want flag, 20+
  * tools in stock, a ripe +0x8c timer and a turn that is not the road-connect
@@ -761,7 +761,7 @@ static int case_colony_tick_skips_road_connect_turn(void) {
 }
 
 /*
- * bugs.md #641 — FUN_5952_0000 (raw 93589-93685) via the `turn % 7 == 0` arm
+ * port_bugs.md #641 — FUN_5952_0000 (raw 93589-93685) via the `turn % 7 == 0` arm
  * at raw 94389-94400. Two colonies of the same nation on the same continent,
  * four tiles apart, no road between them: the helper must road the first
  * un-roaded tile on the path and the caller must then charge 20 tools and
@@ -816,7 +816,7 @@ static int case_road_connect_links_two_colonies(void) {
 }
 
 /*
- * bugs.md #641 — raw 93601 gates on `1 < DS:0x94e6[nation*0x10 + continent]`:
+ * port_bugs.md #641 — raw 93601 gates on `1 < DS:0x94e6[nation*0x10 + continent]`:
  * a nation with a single colony on the continent has nothing to connect to,
  * so the road turn spends nothing.
  */
@@ -844,7 +844,7 @@ static int case_road_connect_needs_a_second_colony(void) {
 }
 
 /*
- * bugs.md #640 — raw 94370-94388. A colony under 20 tools that carries the
+ * port_bugs.md #640 — raw 94370-94388. A colony under 20 tools that carries the
  * wants-pioneer-work bit buys 20 tools at the DS:0x84bc sell row for Tools
  * (`euro_price - 1`, cargo 0x0e == DS:0x84ca + nation*0x10).
  */
@@ -921,7 +921,7 @@ static int case_tools_purchase_records_buy_volume(void) {
 }
 
 /*
- * bugs.md #640 — the same colony with an empty purse buys nothing (raw
+ * port_bugs.md #640 — the same colony with an empty purse buys nothing (raw
  * 94376-94380: the 32-bit gold compare).
  */
 static int case_tools_purchase_needs_gold(void) {
@@ -1030,7 +1030,7 @@ static int case_blacksmith_gate_reads_local_1b0(void) {
 }
 
 /*
- * bugs.md #1107 stage seam: the split cascade's head stage (asm 22da-2314),
+ * port_bugs.md #1107 stage seam: the split cascade's head stage (asm 22da-2314),
  * driven after its setup/census/pressure stages exactly as the dispatcher
  * does. Same fixture as case_first_pick_is_stockade: RETURN on Stockade.
  */
@@ -1061,7 +1061,7 @@ static int case_seam_cascade_head_stage(void) {
 }
 
 /*
- * bugs.md #1107 stage seam: the colony tick's unseat-all stage (raw
+ * port_bugs.md #1107 stage seam: the colony tick's unseat-all stage (raw
  * 94551-94564) snapshots every job, idles every colonist (building workers
  * too) and seeds placed[] from the inactive slots only.
  */

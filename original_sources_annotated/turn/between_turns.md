@@ -115,7 +115,7 @@ game_do_end_turn
 |-------|-----|-------|
 | Human Move Pieces | Inside `130d` nation loop | Already done; pipeline is post-human |
 | Calendar | After nation pass | First in SETUP |
-| `3844_00f2` | Per Euro before act | Split across SETUP / EURO / FINISH; the **human's** `364b_0688` half runs in FINISH (bugs.md 385) |
+| `3844_00f2` | Per Euro before act | Split across SETUP / EURO / FINISH; the **human's** `364b_0688` half runs in FINISH (port_bugs.md 385) |
 | `43f7_2424` | Inside `00f2` | FINISH `ai_king_nation_turn` |
 | Indians | Mid-pass `4d56_1b3a` → `1816(slot)` ×8 **before** Euro loop | Full `1816`-shaped turns 4..11 in INDIAN phase, **before** EURO (reordered 2026-08-27) |
 | `3844_0442` | Every year tick | B/C1(+REF pool)/C2/D/E status **Done** thin; HoF PARKED |

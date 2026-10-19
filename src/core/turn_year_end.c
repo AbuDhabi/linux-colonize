@@ -284,7 +284,7 @@ COLONIZE_INTERNAL bool turn_year_end_woi_chrome(
         /* calendar_latch (0x5382|0x10 "scoring complete") is NOT set here:
          * DOS sets it only after the score chain runs (main-loop 0x104
          * block); setting it at the latch suppressed the win sequence
-         * (bugs.md #259 — the game just carried on with a status line). */
+         * (port_bugs.md #259 — the game just carried on with a status line). */
         ctx->col1->head.turn_loop_running = 0; /* DS:0x53c2 clear */
       }
       if (ctx->status && ctx->status_size > 0) {
@@ -469,7 +469,7 @@ COLONIZE_INTERNAL void turn_year_end_defeat_check(
     }
   }
   /*
-   * bugs.md: the zero-colonies defeat was peacetime-only — the King
+   * port_bugs.md: the zero-colonies defeat was peacetime-only — the King
    * capturing every town during the War of Independence ended nothing.
    * During WoI the same condition is the revolution being crushed, and it
    * does not wait for the year-1600 grace either.
@@ -480,7 +480,7 @@ COLONIZE_INTERNAL void turn_year_end_defeat_check(
       if (ctx->col1_ok && ctx->col1) {
         ctx->col1->head.game_options.calendar_latch = 1;
         ctx->col1->head.turn_loop_running = 0;
-        /* bugs.md: keep the endgame latch in step so the @LOSING game-over
+        /* port_bugs.md: keep the endgame latch in step so the @LOSING game-over
          * chain (retire score) recognizes the war as over too. */
         if (ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) == AI_KING_ENDGAME_NONE) {
           ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_LOST);

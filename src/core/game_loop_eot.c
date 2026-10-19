@@ -288,7 +288,7 @@ static void game_europe_restore_pax_treasure_gold(
  *    (*(int *)0x5394 == *(int *)0x53d2 && unit[+0x3146] == '\x12'))
  *
  * i.e. the declaration shuts Europe to everyone EXCEPT a Man-O-War moving on
- * the crown slot's own turn (DS:0x53d2 = head.crown_nation_id). bugs.md #870:
+ * the crown slot's own turn (DS:0x53d2 = head.crown_nation_id). port_bugs.md #870:
  * the port blocked every hull. Identify the hull by @UNIT ROW
  * (units_kind_type_index), never by name.
  */
@@ -308,7 +308,7 @@ bool game_ship_woi_europe_exempt(const ColonizeGameState* game, const ColonizeUn
 /*
  * Sail a ship on a sea-lane (high seas) tile back to Europe with everything
  * aboard — the shared tail for the H command and for a Go To order whose
- * destination is a sea-lane tile (bugs.md: "a go-to order should be possible
+ * destination is a sea-lane tile (port_bugs.md: "a go-to order should be possible
  * for a ship into the high seas / sea lane tile ... the ship should
  * automatically return to Europe on landing on that special tile").
  * Caller guarantees a live sea unit on a high-seas tile.
@@ -420,7 +420,7 @@ bool game_ship_sail_to_europe(ColonizeGameState* game, int sid) {
       if (restored >= 0) {
         /* units_spawn_ship_with_cargo defaults nation_id 0 — a non-English
          * player's restored ship (and passengers) must stay theirs, same
-         * hazard as the arrival path (bugs.md merchantman_sails_back.SAV). */
+         * hazard as the arrival path (port_bugs.md merchantman_sails_back.SAV). */
         ColonizeUnit* rs = units_get(&game->units, restored);
         if (rs) {
           units_set_nation(rs, game->human_nation);
@@ -484,7 +484,7 @@ void game_europe_deliver_bound_ships(ColonizeGameState* game) {
     }
 
     /*
-     * bugs.md (missing_merchantman.SAV): a returning ship must NEVER be lost.
+     * port_bugs.md (missing_merchantman.SAV): a returning ship must NEVER be lost.
      * The old code popped the ship off the bound lane FIRST and then did
      * `continue` on any spawn failure (unresolved type, no free high-seas
      * tile, spawn refused) — deleting the ship and every passenger aboard.
@@ -579,7 +579,7 @@ void game_europe_deliver_bound_ships(ColonizeGameState* game) {
     ColonizeUnit* ship = units_get(&game->units, ship_id);
     if (ship) {
       /*
-       * bugs.md (merchantman_sails_back.SAV): units_spawn_ship_with_cargo
+       * port_bugs.md (merchantman_sails_back.SAV): units_spawn_ship_with_cargo
        * defaults nation_id to 0. A returning ship (and its passengers) must
        * belong to the HUMAN nation — for a nation-0 player that was a no-op,
        * but a Dutch (nation 3) player's ship arrived owned by England, so it
@@ -597,7 +597,7 @@ void game_europe_deliver_bound_ships(ColonizeGameState* game) {
           /*
            * The kit travels with the passenger: a Hardy Pioneer steps ashore
            * with its 100 Tools, a colonist armed on the dock with its muskets
-           * (bugs.md). Read it off the type the passenger actually boarded as,
+           * (port_bugs.md). Read it off the type the passenger actually boarded as,
            * which is what the @ARMOPTIONS rows moved it to, not off the
            * profession — those disagree once a plain colonist has been armed.
            */
@@ -609,7 +609,7 @@ void game_europe_deliver_bound_ships(ColonizeGameState* game) {
       }
       /*
        * Trade-route continuation: the ship that crossed to service its
-       * Europe stop resumes the route toward trade_stop (bugs.md: the ship
+       * Europe stop resumes the route toward trade_stop (port_bugs.md: the ship
        * must actually visit Europe, then carry on) — same TRADE_ROUTE
        * encoding as game_apply_trade_dest (follow_unit_id = route slot).
        */
@@ -620,7 +620,7 @@ void game_europe_deliver_bound_ships(ColonizeGameState* game) {
         (void)game_trade_route_aim_stop(game, ship, trade_stop);
       }
       /*
-       * bugs.md #421: a ship stepping off the Europe lane onto the map sees
+       * port_bugs.md #421: a ship stepping off the Europe lane onto the map sees
        * around itself the moment it lands — it does NOT need to be moved
        * first. DOS FUN_48d3_048e ends with
        *   FUN_281f_0948 (set x/y) -> FUN_281f_084e (post-move chrome)
@@ -676,7 +676,7 @@ void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* res
     game->europe.open_on_dock = true;
   }
   /*
-   * bugs.md: don't auto-open the European Status while end-of-turn popups
+   * port_bugs.md: don't auto-open the European Status while end-of-turn popups
    * (king tax, raids, …) are still queued — DOS answers every audience
    * before the harbor screen appears. The open_on_dock flag stays set;
    * game_update opens Europe once the popup queue has drained.
@@ -701,7 +701,7 @@ void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* res
 }
 
 /*
- * bugs.md: "The only place that time/turn processing is allowed to proceed is
+ * port_bugs.md: "The only place that time/turn processing is allowed to proceed is
  * the overland map, and only if there ISN'T an active popup."
  *
  * DOS gets this for free — its popups are blocking calls, so the code that
@@ -814,7 +814,7 @@ bool game_select_next_unit_awaiting_orders(ColonizeGameState* game) {
     return turn_select_next_unit_awaiting_orders(&game->units, game->human_nation);
   }
   /*
-   * bugs.md #626 (pioneer work tick site). DOS does NOT tick clear/plow/road
+   * port_bugs.md #626 (pioneer work tick site). DOS does NOT tick clear/plow/road
    * at the nation's move refresh: the human map loop (raw 46873) calls the
    * lasting-order dispatcher FUN_2b5a_3ae6 (raw 46414) for whatever unit is
    * currently active, and 3ae6 switches on that unit's +0x314c order byte
@@ -1267,7 +1267,7 @@ void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u) {
   /*
    * Europe stop, ship on the sea lane: DOS actually sails the ship to
    * Europe — it crosses (voyage turns), docks, sells/buys the stop's
-   * lists there and sails back to the next stop (bugs.md: "goes to the
+   * lists there and sails back to the next stop (port_bugs.md: "goes to the
    * sea lane tile, then returns. Never visits Europe"). Stamp the route
    * on the Expected slot; the harbor service + return leg live in
    * game_europe_service_trade_harbor / game_europe_deliver_bound_ships.
@@ -1421,7 +1421,7 @@ void game_order_board(ColonizeGameState* game) {
       ship_id = sid;
     }
   }
-  /* bugs.md: never grab a Fortifying/Fortified unit off the tile —
+  /* port_bugs.md: never grab a Fortifying/Fortified unit off the tile —
    * fortification has no interaction with boarding in DOS, and units_board
    * forces sentry-aboard (the "fortified soldier became sentried and vanished
    * onto the ship" report). */
@@ -1462,7 +1462,7 @@ void game_order_unload(ColonizeGameState* game) {
 /*
  * Ordering a ship home does NOT open the Europe screen: DOS opens it on
  * *arrival*, when europe_tick_voyages moves the ship Expected -> Harbor and
- * raises open_on_dock (bugs.md). The War of Independence refusal
+ * raises open_on_dock (port_bugs.md). The War of Independence refusal
  * (@EUROPENOTLEAVE) lives in game_ship_sail_to_europe, which the Go-To-onto-a-
  * lane path shares.
  */
@@ -1746,7 +1746,7 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
        * units_id_at only sees units standing on the map, so a passenger in a
        * ship's hold could never be activated from here. If one is already the
        * selection (picked out of the tile stack) and its ship is on the tile
-       * under the cursor, activate that instead — bugs.md: cancelling a loaded
+       * under the cursor, activate that instead — port_bugs.md: cancelling a loaded
        * unit's orders has to leave it free to step ashore.
        */
       int at = units_id_at(&game->units, game->map_cursor_x, game->map_cursor_y);
@@ -2191,7 +2191,7 @@ bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction action) {
  * click-on-tile handler (2b5a:1b9b..1dda) ends every path that makes a unit
  * active with `unit[active].orders = 0`, and its single-unit branch clears the
  * order before that too — so a click is how you take a Fortified or Sentried
- * unit off its post (bugs.md). Its gates are the ones this dispatch already
+ * unit off its post (port_bugs.md). Its gates are the ones this dispatch already
  * applies before it gets here: the tile must hold a unit of the nation being
  * played, and an own colony is consumed by the colony branch first. Not
  * modelled: DOS's `FUN_281f_0966` corner, which routes an *already* order-less
@@ -2202,7 +2202,7 @@ void game_click_activate_unit(ColonizeGameState* game, int unit_id) {
     return;
   }
   /*
-   * units_wake is overnight-safe now (bugs.md): it refills the allotment
+   * units_wake is overnight-safe now (port_bugs.md): it refills the allotment
    * only for hold passengers and for standing orders parked on a PREVIOUS
    * turn (col1_counter16 nights counter) — a unit that moved and dug in this
    * turn keeps its spent moves, so the old free-turn hazard is gone and a
@@ -2218,7 +2218,7 @@ void game_click_activate_unit(ColonizeGameState* game, int unit_id) {
  * own colony → open it; own units → activate one (stack chooser when the tile
  * holds several); otherwise just move the tile cursor.
  *
- * bugs.md: the short-click case used to only re-centre the view, so with a
+ * port_bugs.md: the short-click case used to only re-centre the view, so with a
  * unit already blinking there was no way to make a *different* unit the active
  * one with the mouse.
  */
@@ -2272,7 +2272,7 @@ void game_map_click_dispatch(ColonizeGameState* game, int mx, int my) {
   }
 
   /*
-   * bugs.md: while a unit is actively controlled, clicking an empty tile
+   * port_bugs.md: while a unit is actively controlled, clicking an empty tile
    * PANS the viewport (DOS) — it must not drop into View Pieces, or the
    * player could never scroll to a go-to destination outside the view
    * without losing the unit. Only with nothing controlled does the click
@@ -2281,7 +2281,7 @@ void game_map_click_dispatch(ColonizeGameState* game, int mx, int my) {
   if (game->units_ok && game->units.selected_id >= 0) {
     const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
     if (sel && sel->active) {
-      /* View only — the cursor stays with the controlled unit. bugs.md #285:
+      /* View only — the cursor stays with the controlled unit. port_bugs.md #285:
        * the deliberate pan also holds off the off-screen auto-recentre so
        * the player can reach a far go-to destination. */
       game->view_pan_hold_unit = sel->id;

@@ -136,7 +136,7 @@ static int test_ai_021a_dir_tile(void) {
   return 0;
 }
 
-/* bugs.md #553: FUN_465b_0000 local_4 — the settlement owner of a Euro
+/* port_bugs.md #553: FUN_465b_0000 local_4 — the settlement owner of a Euro
  * colony tile, overridden by the stack head's nation. ai_native_brave_step
  * uses it to keep a Brave from walking INTO a foreign colony (DOS attacks or
  * exhausts instead; it never co-locates). */
@@ -330,7 +330,7 @@ static int test_window_log_fit_line(void) {
   return rc;
 }
 
-/* bugs.md #948: amount 0 is the normal whole-hold unload request. */
+/* port_bugs.md #948: amount 0 is the normal whole-hold unload request. */
 static int test_game_colony_unload_whole_hold(void) {
   ColonizeGameState game;
   memset(&game, 0, sizeof(game));
@@ -360,7 +360,7 @@ static int test_game_colony_unload_whole_hold(void) {
   return 0;
 }
 
-/* bugs.md #950: a terrain-pedia detour from a zoomed colony is still part of
+/* port_bugs.md #950: a terrain-pedia detour from a zoomed colony is still part of
  * that colony visit. Queued EOT chrome must remain held until the player
  * leaves the restored colony screen, not merely until in_colony temporarily
  * drops while the article owns the display. */
@@ -980,7 +980,7 @@ static int test_ai_euro_5952_equip_pioneer(void) {
 
 
 /*
- * bugs.md #822: FUN_465b_0000 routes a Brave step onto a foreign stack-head
+ * port_bugs.md #822: FUN_465b_0000 routes a Brave step onto a foreign stack-head
  * tile with >= 3 thirds left into FUN_5fef_1b0e (raw 75467-75479,
  * 75631-75634, 75692) — the attack resolves and the Brave exhausts in place.
  * The port only exhausted, so a Brave beside a lone Euro unit stood forever.
@@ -1179,7 +1179,7 @@ static int test_colony_shift_pick_moves_highlight(void) {
   return rc;
 }
 
-/* bugs.md #1091: an open map pull-down is modal (DOS runs it as a blocking
+/* port_bugs.md #1091: an open map pull-down is modal (DOS runs it as a blocking
  * loop), so game_modal_open is true and the unit/turn hand-off defers. */
 static int test_map_pulldown_is_modal(void) {
   ColonizeGameState* game = calloc(1, sizeof(*game));
@@ -1231,7 +1231,7 @@ static int test_map_pulldown_is_modal(void) {
   return rc;
 }
 
-/* bugs.md #1110: game_world builds the one live view; a pool whose load flag
+/* port_bugs.md #1110: game_world builds the one live view; a pool whose load flag
  * is false is NULL, col1_ok follows the game, human_nation is filled. */
 static int test_game_world_view(void) {
   ColonizeGameState* game = calloc(1, sizeof(*game));

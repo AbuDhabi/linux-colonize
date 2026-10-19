@@ -49,7 +49,7 @@ typedef struct SaveLoadDialog {
   int list_y0;
   int line_h;
   /* Last seen mouse position — hover moves the highlight only on actual
-   * mouse movement, so it doesn't fight the arrow keys (bugs.md). */
+   * mouse movement, so it doesn't fight the arrow keys (port_bugs.md). */
   int hover_mx;
   int hover_my;
 } SaveLoadDialog;

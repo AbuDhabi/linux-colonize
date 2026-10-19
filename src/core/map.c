@@ -978,7 +978,7 @@ void map_seen_to_col1(const ColonizeWorldMap* map, uint8_t* col1_seen, size_t co
  * left as bare colour-0 dots — every mask blit (0x69 + q, PHYS0 1-based) is
  * followed by FUN_6ba1_067c(local_1e) filling the holes with a terrain class
  * resolved from the NEIGHBOUR, so the boundary dithers instead of staying
- * black (bugs.md "fog edges still black").
+ * black (port_bugs.md "fog edges still black").
  *
  * The ocean resolve at 6ba1:082a..08b0 is gated on `param_2 == 0` ALONE.
  * param_2 is the DRAWN tile's own ocean flag — both call sites push it:
@@ -1805,7 +1805,7 @@ int map_phys0_plow_sprite_at(const ColonizeWorldMap* map, int x, int y) {
  * tile behaves exactly like a road tile — which is why DOS draws the stubs
  * running into a settlement even though nobody built a road on that square.
  * It is the same predicate the movement rule already uses (map_move_spent_
- * thirds' road/colony pair), so the drawing and the pathing agree. bugs.md.
+ * thirds' road/colony pair), so the drawing and the pathing agree. port_bugs.md.
  */
 static bool map_tile_has_road_art(const ColonizeWorldMap* map, int x, int y) {
   return map_tile_has_road(map, x, y) || map_tile_has_city(map, x, y);
@@ -1958,7 +1958,7 @@ static const uint8_t k_map_dos_terr_pioneer_threshold[29] = {
  * DS:0x2f80 Pioneer clear/plow lumber-reward scale byte. FUN_479b_01a6 raw
  * 76785 reads `*(byte*)(class*0x10 + 0x2f80)` (asm MOV AL,[BX+0x2f80],
  * unpacked.asm:121282); 0x2f80 - 0x2f76 = +0x0a, i.e. yield column 5
- * (Lumberjack), not the +0x8 Cotton column (bugs.md #613). Values are the
+ * (Lumberjack), not the +0x8 Cotton column (port_bugs.md #613). Values are the
  * NAMES.TXT @UNFORESTED/@FORESTED/@OTHER Lumber column.
  */
 static const uint8_t k_map_dos_terr_lumber_reward[29] = {
@@ -2026,7 +2026,7 @@ int map_move_cost_at(const ColonizeWorldMap* map, int x, int y) {
    * terrain cost (smell_audit_2026-09-09 #97).
    */
   int spent = map_dos_terr_cost_byte(map_dos_terr_class_at(map, x, y));
-  /* bugs.md #718: no ">100 → 1" sentinel exists in DOS. FUN_465b_0000
+  /* port_bugs.md #718: no ">100 → 1" sentinel exists in DOS. FUN_465b_0000
    * (raw 75450-75467) writes local_40 four times — terr_cost*3, the
    * both-FA road pair, the both-river cardinal pair and the settlement
    * cap 3 — and never tests the table byte for a sentinel. The clamp was
@@ -2069,7 +2069,7 @@ int map_move_spent_thirds(
       spent > 3) {
     spent = 3;
   }
-  /* bugs.md #718: DOS has no >100 sentinel clamp (raw 75450-75467). */
+  /* port_bugs.md #718: DOS has no >100 sentinel clamp (raw 75450-75467). */
   return spent < 1 ? 1 : spent;
 }
 
@@ -2085,7 +2085,7 @@ int map_move_cost_step(
   }
   /* Same DOS FA pair rule as map_move_spent_thirds: mask 0x0a = road bit OR
    * settlement bit, so a colony/village tile pairs like a road tile
-   * (bugs.md #346). Keeping road-only here made the two helpers disagree. */
+   * (port_bugs.md #346). Keeping road-only here made the two helpers disagree. */
   if (map_tile_has_road_art(map, from_x, from_y) && map_tile_has_road_art(map, to_x, to_y)) {
     return 1;
   }
@@ -2105,7 +2105,7 @@ int map_move_cost_step(
       spent > 1) {
     spent = 1;
   }
-  /* bugs.md #718: DOS has no >100 sentinel clamp (raw 75450-75467). */
+  /* port_bugs.md #718: DOS has no >100 sentinel clamp (raw 75450-75467). */
   if (spent < 1) {
     spent = 1;
   }
@@ -2174,7 +2174,7 @@ int map_tile_layer_cmds(
    * BEFORE the hill / river / resource / rumour overlays, so a resource icon
    * or a river naturally lands on top of the furrows. The port used to push it
    * after the whole overlay loop and then re-blit the resource on top (the
-   * bugs.md #396 workaround); bugs.md #622 restores the DOS order.
+   * port_bugs.md #396 workaround); port_bugs.md #622 restores the DOS order.
    */
   const int plow = map_phys0_plow_sprite_at(map, x, y);
   if (plow >= 0) {

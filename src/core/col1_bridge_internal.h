@@ -2,7 +2,7 @@
 #define COLONIZE_COL1_BRIDGE_INTERNAL_H
 
 /*
- * Stage seam for col1_bridge_apply_w / col1_bridge_capture_w (bugs.md #1107,
+ * Stage seam for col1_bridge_apply_w / col1_bridge_capture_w (port_bugs.md #1107,
  * docs/conventions.md "Big-function rule" / "Internal-header test seam").
  * Each public entry point is a dispatcher over record-family stages in file
  * order; every local that crosses a stage lives in the ctx below and is

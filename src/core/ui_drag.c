@@ -45,7 +45,7 @@ void ui_drag_begin(
  * (light blue) at the top-right and bottom-left corners of the 17x17 frame -
  * a sheet-authoring artifact, not art (a scan of every COLONIZE .SS finds the
  * pair in CURSOR.SS alone, and no other 0x09 pixel in either frame). One
- * helper for the plain pointer and the drag/Go-To pointer (bugs.md #373,
+ * helper for the plain pointer and the drag/Go-To pointer (port_bugs.md #373,
  * #1111).
  */
 static void ui_drag_clear_registration_marks(uint8_t* px, int w, int h) {

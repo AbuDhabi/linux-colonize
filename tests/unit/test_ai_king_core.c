@@ -226,7 +226,7 @@ static int sp_00(void) {
   units.types[7].defense = 3;
   /* NAMES.TXT @UNIT "Cavalry, 127, 4, 6, 6, ..." — the crown's own mounted arm.
    * The fixture used to stop at Veteran Soldier, which is how the REF Cavalry
-   * could fall through every King name check unnoticed (bugs.md "the REF seems
+   * could fall through every King name check unnoticed (port_bugs.md "the REF seems
    * to skip a turn"). */
   snprintf(units.types[8].name, sizeof(units.types[8].name), "Cavalry");
   units.types[8].movement = 4;
@@ -246,7 +246,7 @@ static int sp_00(void) {
   /* DOS colony +0x1c bit 0x40: the save-carried coastal bit the REF/landing
    * gathers read (FUN_43f7_0982 raw 74001-74003, FUN_43f7_10f0 raw 74316).
    * colonies_found() stamps it from the site; a hand-built fixture must set
-   * it or no invasion wave can ever pick this port (bugs.md #878c). */
+   * it or no invasion wave can ever pick this port (port_bugs.md #878c). */
   c->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
   snprintf(c->name, sizeof(c->name), "Jamestown");
   colonies.colony_count = 1;
@@ -285,7 +285,7 @@ static int sp_00(void) {
 /* 15eb_0274 / 43f7_0004: no liberty_bells/4 fallback */
 static int sp_01(void) {
   /*
-   * bugs.md #424 ("rival monarchs considering granting independence ... in
+   * port_bugs.md #424 ("rival monarchs considering granting independence ... in
    * 1530"). FUN_43f7_0004 (viceroy_unpacked_2.c:72202-72239) is a pop-weighted
    * average of FUN_15eb_0274 over the nation's colony records, and
    * FUN_15eb_0274 (:8167-8190) returns 0 when the rebel divisor is 0. Neither
@@ -566,7 +566,7 @@ static int sp_06(void) {
     col1.nation[0].royal_money = 0; /* keep later blocks purse-quiet */
   }
   {
-    /* bugs.md #1053: 5be8 rolls for AI nations too (bare 18-turn interval,
+    /* port_bugs.md #1053: 5be8 rolls for AI nations too (bare 18-turn interval,
      * no dialog); the human EuropeScreen mirror must stay untouched. */
     const uint32_t turn_before = turn;
     const uint8_t ctl_before = col1.player[1].control;
@@ -603,7 +603,7 @@ static int sp_07(void) {
     /*
      * rebel=101, tax=20, SoL=45 (below declare gate), turn=44, seed=1 ->
      * a hike. With a popup queue the @TAXOPTIONS party
-     * names the tonnage-walk cargo (bugs.md #903: DOS-LITERAL FUN_38fd_3dc8
+     * names the tonnage-walk cargo (port_bugs.md #903: DOS-LITERAL FUN_38fd_3dc8
      * raw 64146-64159 weights by labs(nation.trade.tons[c])*100, NOT by the
      * Europe bid): the fixture puts the fat Europe bid on Tobacco and the
      * only traded tonnage on Sugar. Headless (no queue) the idle player's
@@ -630,7 +630,7 @@ static int sp_07(void) {
       europe.cargo[COLONIZE_CARGO_TOBACCO].bid = 500;
       ctx.europe = &europe;
       /*
-       * bugs.md: the selection walk only sees cargos a colony actually holds — you
+       * port_bugs.md: the selection walk only sees cargos a colony actually holds — you
        * cannot dump 0 tons in protest — so stock the two the pick may name.
        */
       memset(c->stock, 0, sizeof(c->stock));
@@ -691,7 +691,7 @@ static int sp_07(void) {
     }
 
     /*
-     * bugs.md #904 — DOS-LITERAL FUN_38fd_3dc8 raw 64160-64175: only COASTAL
+     * port_bugs.md #904 — DOS-LITERAL FUN_38fd_3dc8 raw 64160-64175: only COASTAL
      * colonies (+0x1c bit 0x40) fill aiStack_cc[]/aiStack_a4[]. A full
      * warehouse inland is not dumpable, so the hike stands and nothing is
      * boycotted.
@@ -856,7 +856,7 @@ static int sp_10(void) {
       return fail("decile notify should cache report/10 into sol_pct_last_notified");
     }
     col1.stuff.census_pop_proxy[0] = 0; /* close the decile gate for later blocks */
-    /* bugs.md #1098: the notify's claim on the status line lasts one 2424 —
+    /* port_bugs.md #1098: the notify's claim on the status line lasts one 2424 —
      * next turn's restless line replaces the stale notify. */
     ai_king_nation_turn(&ctx);
     if (strstr(status, "Congress notes") || !strstr(status, "45")) {
@@ -936,18 +936,18 @@ static int sp_12(void) {
   if (ai_king_latch_get(&col1, 5) == 0) {
     return fail("declare should set congress confirm market_demand_pool_raw[5]");
   }
-  /* bugs.md #239: NO rename — DOS 160a is only the signing cinematic;
+  /* port_bugs.md #239: NO rename — DOS 160a is only the signing cinematic;
    * "United Colonies" was a port invention. The faction reads Rebels/Tory
    * via units_combat_nation_label instead. */
   if (strcmp(col1.player[0].country_name, "England") != 0) {
     fprintf(stderr, "unit_ai_king: country_name after declare: '%s'\n",
             col1.player[0].country_name);
-    return fail("declare must NOT rename player.country_name (bugs.md #239)");
+    return fail("declare must NOT rename player.country_name (port_bugs.md #239)");
   }
   if (strcmp(europe.nation_name, "England") != 0) {
-    return fail("declare must NOT rename europe.nation_name (bugs.md #239)");
+    return fail("declare must NOT rename europe.nation_name (port_bugs.md #239)");
   }
-  /* bugs.md #228: the crown's borrowed slot (human 0 → 1) stays a live AI
+  /* port_bugs.md #228: the crown's borrowed slot (human 0 → 1) stays a live AI
    * combatant (DOS 1a26: *(0x53d2*0x34+0x543f)=1); only the other two Euro
    * powers withdraw. crown_nation_id must be stamped for DOS interop. */
   if (col1.player[1].control != 1 || col1.player[2].control != 2 ||
@@ -1001,7 +1001,7 @@ static int sp_12(void) {
 
 /* 0982 first wave after the one-turn wait */
 static int sp_13(void) {
-  /* bugs.md: the first wave WAITS one turn after the declaration — the
+  /* port_bugs.md: the first wave WAITS one turn after the declaration — the
    * declare turn itself must land nothing. */
   if (count_nation(&units, 1) >= 1) {
     return fail("declare turn must not land the wave (one-turn wait)");
@@ -1024,7 +1024,7 @@ static int sp_13(void) {
     return fail("wave should increase unit count");
   }
   /*
-   * bugs.md #866 / DOS-LITERAL FUN_43f7_0982 raw 74169-74180: the crown
+   * port_bugs.md #866 / DOS-LITERAL FUN_43f7_0982 raw 74169-74180: the crown
    * Man-O-War comes out of `095c(0x12, crown, x, y)` with NOTHING stamped on
    * it (creator default +0x314b = 0x58). The port used to set AI_SAIL + a
    * goto onto its own tile, which ai_euro_act read as a committed self-move
@@ -1516,7 +1516,7 @@ static int sp_18(void) {
     unfort->profession = UNITS_JOB_SOLDIER;
     offtile->profession = UNITS_JOB_SOLDIER;
   }
-  /* bugs.md #250: 1eca is a ONCE-only mobilization gated on nation_flags bit
+  /* port_bugs.md #250: 1eca is a ONCE-only mobilization gated on nation_flags bit
    * 0x08 (already consumed by the first war turn above) — re-arm it so this
    * subtest exercises the mobilization body itself. */
   col1.nation[0].nation_flags = (uint8_t)(col1.nation[0].nation_flags & ~0x08u);
@@ -1699,7 +1699,7 @@ static int sp_20(void) {
       su->profession = UNITS_JOB_SOLDIER; /* Veteran gate, see 1eca note above */
       du->profession = UNITS_JOB_SOLDIER; /* eligible by type/profession; cap==1 still skips it */
     }
-    /* bugs.md #250: re-arm the once-only mobilization for this subtest. */
+    /* port_bugs.md #250: re-arm the once-only mobilization for this subtest. */
     col1.nation[0].nation_flags = (uint8_t)(col1.nation[0].nation_flags & ~0x08u);
     ai_king_ref_pre_euro_beat(&ctx);
     ai_king_human_2022_beat(&ctx);
@@ -1809,7 +1809,7 @@ static int sp_21(void) {
     hi->profession = UNITS_JOB_SOLDIER; /* Veteran gate, see 1eca note above */
     lo->profession = UNITS_JOB_SOLDIER;
   }
-  /* bugs.md #250: re-arm the once-only mobilization for this subtest. */
+  /* port_bugs.md #250: re-arm the once-only mobilization for this subtest. */
   col1.nation[0].nation_flags = (uint8_t)(col1.nation[0].nation_flags & ~0x08u);
   ai_king_ref_pre_euro_beat(&ctx);
   ai_king_human_2022_beat(&ctx);
@@ -1834,7 +1834,7 @@ static int sp_21(void) {
 /* King turn must not drive human Continentals */
 static int sp_22(void) {
   /*
-   * bugs.md: the King's war beat must NOT drive the human's own Continentals.
+   * port_bugs.md: the King's war beat must NOT drive the human's own Continentals.
    * This block used to assert the invented "capital rally" (idle human Cont.
    * Army / Cont. Cav AI_MOVE to the founding capital, then fortify two on it).
    * FUN_43f7_1eca promotes only — it never reads unit+0x08 (orders) or the
@@ -2166,7 +2166,7 @@ static int sp_26(void) {
      * King-audience CHOICE flow. The KING_AUDIENCE CHOICE decides whether
      * the rolled hike happens at all: the rate stays put while the dialog
      * is on screen and only Accept ("kiss the ring") commits it; Refuse
-     * ("hold a tea party") leaves it and boycotts instead (bugs.md — DOS's
+     * ("hold a tea party") leaves it and boycotts instead (port_bugs.md — DOS's
      * apply-then-revert put a raise the player had not answered into the
      * save, and reaches the same two end states). Payload carries the exact
      * (applied delta, picked cargo) pair via ai_king_teaparty_payload, both
@@ -2197,7 +2197,7 @@ static int sp_26(void) {
     status[0] = '\0';
     ai_popup_clear(&pop);
     /* Every cargo stocked: the walk sees the same candidate set the tonnage
-     * table describes (bugs.md — only stocked goods are eligible). */
+     * table describes (port_bugs.md — only stocked goods are eligible). */
     for (int ci = 0; ci < COLONIZE_CARGO_COUNT; ++ci) {
       colonies.colonies[0].stock[ci] = 50;
     }
@@ -2364,7 +2364,7 @@ static int sp_27(void) {
     }
 
     /*
-     * bugs.md #907 — boycotted-winner path. DOS-LITERAL FUN_38fd_3dc8 raw
+     * port_bugs.md #907 — boycotted-winner path. DOS-LITERAL FUN_38fd_3dc8 raw
      * 64160-64175 only fills aiStack_cc[c] for cargos NOT in the nation's
      * boycott mask (local_a6), so when every stocked cargo is already
      * boycotted the selection walk finds nothing, local_4 stays -1 and raw
@@ -2439,7 +2439,7 @@ static int sp_28(void) {
       return fail("ai_popups congress must defer WoI until Confirm");
     }
     /*
-     * bugs.md: the per-turn tick must never raise the @DECLARE confirm on its
+     * port_bugs.md: the per-turn tick must never raise the @DECLARE confirm on its
      * own, however high SoL runs — DOS reaches FUN_43f7_2564 only from the
      * MENU.TXT @GAME "DECLARE INDEPENDENCE" command.
      */
@@ -2504,7 +2504,7 @@ static int sp_28(void) {
       assets_msg_free(&game_txt);
       return fail("apply Confirm should declare WoI + congress market_demand_pool_raw[5]");
     }
-    /* R2: Confirm chain → @INDEPENDENCE letter OK. bugs.md #236: NO @HOWTOWIN
+    /* R2: Confirm chain → @INDEPENDENCE letter OK. port_bugs.md #236: NO @HOWTOWIN
      * at declare — it fires at the first rebel recapture (units.c). */
     {
       int found_letter = 0;
@@ -2535,13 +2535,13 @@ static int sp_28(void) {
       }
       if (found_how) {
         assets_msg_free(&game_txt);
-        return fail("apply Confirm must NOT enqueue @HOWTOWIN (bugs.md #236)");
+        return fail("apply Confirm must NOT enqueue @HOWTOWIN (port_bugs.md #236)");
       }
     }
-    /* bugs.md #239: no rename on the choice-apply path either. */
+    /* port_bugs.md #239: no rename on the choice-apply path either. */
     if (strcmp(col1.player[0].country_name, "United Colonies") == 0) {
       assets_msg_free(&game_txt);
-      return fail("apply Confirm must NOT rename country_name (bugs.md #239)");
+      return fail("apply Confirm must NOT rename country_name (port_bugs.md #239)");
     }
   return 0;
 }
@@ -2598,7 +2598,7 @@ static int sp_30(void) {
      */
     ColonizeDosRng merc_rng;
     /* Seed re-probed for the DOS 06a6 Tory-uprising roll now consumed first
-     * (bugs.md #255): first draw skips the uprising, second hits the 1-in-3
+     * (port_bugs.md #255): first draw skips the uprising, second hits the 1-in-3
      * merc roll. */
     dos_rng_seed(&merc_rng, 3u);
     ctx.rng = &merc_rng;
@@ -2627,7 +2627,7 @@ static int sp_30(void) {
     }
     status[0] = '\0';
     ai_popup_clear(&pop);
-    /* bugs.md #250: intervene/merc skip the mobilization turn — make sure the
+    /* port_bugs.md #250: intervene/merc skip the mobilization turn — make sure the
      * once-only mobilization is already consumed before this probe. */
     col1.nation[0].nation_flags |= 0x08u;
     const int merc_units_before = count_nation(&units, 0);
@@ -2678,7 +2678,7 @@ static int sp_30(void) {
     {
       int found_hire_ok = 0;
       for (int i = 0; i < pop.queue_count; ++i) {
-        /* bugs.md #875: the paid @MERCS ARRIVAL uses the ARRIVAL tag, like
+        /* port_bugs.md #875: the paid @MERCS ARRIVAL uses the ARRIVAL tag, like
          * the free arm — KING_MERC is the offer's own tag and an unread one
          * reads back as "an offer is still pending". */
         if (pop.queue[i].tag == AI_POPUP_TAG_KING_ARRIVAL &&
@@ -2775,7 +2775,7 @@ static int sp_30(void) {
 static int sp_31(void) {
 
     /*
-     * R3 (bugs.md #538): the bells spend ANNOUNCES only (DOS FUN_4345_0a22
+     * R3 (port_bugs.md #538): the bells spend ANNOUNCES only (DOS FUN_4345_0a22
      * wartime arm -> FUN_291f_0348 -> FUN_43f7_1528, raw 73366-73369): one
      * @INTERVENTION ARRIVAL, no landing. The force itself arrives from
      * FUN_43f7_2022's once-per-turn free drain (raw 75007, gated on the
@@ -2786,7 +2786,7 @@ static int sp_31(void) {
     {
       ai_king_latch_set(&col1, 0, 1);
       col1.head.game_options.woi = 1;
-      /* bugs.md #252: @INTERVENTION fires once per game — earlier probes in
+      /* port_bugs.md #252: @INTERVENTION fires once per game — earlier probes in
        * this file already landed an intervention; reset the latch so this
        * subtest sees the announcement again. */
       ai_king_latch_set(&col1, AI_KING_INTERVENE_ANNOUNCED_BYTE, 0);
@@ -2807,7 +2807,7 @@ static int sp_31(void) {
       col1.colony[0].population = 1;
       snprintf(col1.colony[0].name, sizeof(col1.colony[0].name), "Plymouth");
       /*
-       * bugs.md #873a/b: 10f0 has NO fallback — a rolled colony with no
+       * port_bugs.md #873a/b: 10f0 has NO fallback — a rolled colony with no
        * ocean-region-1 neighbour simply lands nothing (DOS raw 74377). The
        * fixture used to lean on the port's invented "any other colony with
        * water" rescan to reach Jamestown's ocean at (4,5); give BOTH Col1
@@ -2861,7 +2861,7 @@ static int sp_31(void) {
         }
       }
       /*
-       * bugs.md #538 rate limit: the free drain is the ONLY landing path and
+       * port_bugs.md #538 rate limit: the free drain is the ONLY landing path and
        * runs once per turn. Arm the Man-O-War pool and take one crown
        * pre-euro beat — exactly one @INTERVENE arrival, no second
        * @INTERVENTION, and the pool drained so the same turn cannot land
@@ -3089,7 +3089,7 @@ static int sp_34(void) {
     if (founding_fathers_bells_pool(&col1, 0) != 0u) {
       return fail("consume_woi_bell_pool must zero nation+0xc");
     }
-    /* bugs.md #538: DOS 0a22 calls FUN_43f7_1528 (announce + 0x5382 bit2),
+    /* port_bugs.md #538: DOS 0a22 calls FUN_43f7_1528 (announce + 0x5382 bit2),
      * never 10f0 — the spend spawns nothing. */
     if (count_nation(&units, 0) != intervene_before) {
       return fail("WoI bell spend must announce only, not spawn");
@@ -3235,7 +3235,7 @@ static int case_dump_goods_pick_api(void) {
 }
 
 /*
- * bugs.md #793 — DOS-LITERAL FUN_43f7_0512 raw 73746-73755: the seize
+ * port_bugs.md #793 — DOS-LITERAL FUN_43f7_0512 raw 73746-73755: the seize
  * notice is keyed on the TILE, not the unit's domain: land tile -> always
  * @SEIZURELAND; water tile -> @SEIZURESEA only for a hull (type 0xd..0x12),
  * else no popup at all. A hull docked in a colony (a land tile) must print
@@ -3308,7 +3308,7 @@ static int case_purge_tile_seize_notice_793(void) {
   return 0;
 }
 
-/* bugs.md #878 lead: 0982 lands on crown-held tiles while one is adjacent
+/* port_bugs.md #878 lead: 0982 lands on crown-held tiles while one is adjacent
  * (raw 74190 owner-nibble == DS:0x53d2 arm re-sweeps); empty tiles only take
  * units through the min-strength pass when none is. */
 static int case_0982_land_crown_tile_first(void) {

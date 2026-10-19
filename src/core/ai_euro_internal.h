@@ -167,7 +167,7 @@ int ai_euro_is_treasure_name(ColonizeUnitKind kind);
 
 bool ai_euro_5952_job_is_expert(int job);
 /* local_80/local_1e/local_7e placement-section gate (raw 94570-94584,
- * bugs.md #1028): local_7e is the return value; out_under_populated and
+ * port_bugs.md #1028): local_7e is the return value; out_under_populated and
  * out_horses_have_room hand back the two sub-gates the food pass and pass-2 loops
  * also need. */
 bool ai_euro_5952_placement_gate(
@@ -277,7 +277,7 @@ uint8_t* ai_euro_20e6_hold_scratch(ColonizeUnit* u);
  * 0x0d..0x12). Miss (no type row, unresolved kind) = -1, which falls outside
  * every code range its callers test. */
 int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUnit* u);
-/* @UNIT DEFENSE column (bugs.md #651) — exposed for test_regress_ai_tables.c. */
+/* @UNIT DEFENSE column (port_bugs.md #651) — exposed for test_regress_ai_tables.c. */
 int ai_euro_20e6_unit_col5(const ColonizeUnitPool* pool, int dos_type);
 int ai_euro_20e6_type_combat(int dos_type);
 int ai_euro_20e6_type_flags(int dos_type);
@@ -449,7 +449,7 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u);
 
 /*
  * FUN_5952_035e build-decision cascade ctx (asm 5952:21d4-5952:274b), split
- * into ai_euro_5952_cascade_* stages (bugs.md #1107). Fields below
+ * into ai_euro_5952_cascade_* stages (port_bugs.md #1107). Fields below
  * `improvement_owner` are the DOS locals the stages share.
  */
 typedef struct AiEuro5952Cascade {
@@ -493,7 +493,7 @@ typedef enum AiEuro5952CascadeStatus {
 
 /*
  * FUN_5952_035e colony-tick ctx for one colony, split into
- * ai_euro_colony_tick_* stages (bugs.md #1107). `col` is *(DS:0x8542): the
+ * ai_euro_colony_tick_* stages (port_bugs.md #1107). `col` is *(DS:0x8542): the
  * road-connect arm may move it to another colony record.
  */
 typedef struct AiEuroColonyTick {
@@ -531,22 +531,22 @@ void ai_euro_colony_goals_colony_garrison(
 void ai_euro_colony_goals_producers(
   ColonizeTurnContext* ctx, int nation_id, AiEuroInventory* inv, int urgency
 );
-/* ai_euro_colony_goals_bind_founders retired 2026-09-23 — bugs.md #707. */
+/* ai_euro_colony_goals_bind_founders retired 2026-09-23 — port_bugs.md #707. */
 
 int ai_euro_28c8_probe(
   const ColonizeTurnContext* ctx, const ColonizeColony* col, int slot,
   AiEuro28c8JobCandidate* best
 );
 
-/* FUN_5952_035e construction-project cascade (bugs.md #483). */
+/* FUN_5952_035e construction-project cascade (port_bugs.md #483). */
 COLONIZE_INTERNAL void ai_euro_5952_build_cascade(
   ColonizeTurnContext* ctx, ColonizeColony* col
 );
 COLONIZE_INTERNAL void ai_euro_5952_set_ring1_threat(int colony_id, int ring1);
 /*
- * FUN_5952_035e's two closing specialist arms (bugs.md #571/#572), and the
+ * FUN_5952_035e's two closing specialist arms (port_bugs.md #571/#572), and the
  * cross-arm latch the Docks branch of the cascade writes into DOS's
- * [BP+0xff62] (bugs.md #586): non-zero means the cascade started Docks for
+ * [BP+0xff62] (port_bugs.md #586): non-zero means the cascade started Docks for
  * that colony this tick, which suppresses ARM 2's expert purchase.
  */
 /* DS:0x8d72 list (FUN_15eb_09c0): non-ship units on the colony tile, latest
@@ -563,7 +563,7 @@ COLONIZE_INTERNAL void ai_euro_5952_seed_horses(
 );
 
 COLONIZE_INTERNAL int ai_euro_5952_docks_started(int colony_id);
-/* FUN_5952_035e's field-placement section (raw 94551-94620), bugs.md #585. */
+/* FUN_5952_035e's field-placement section (raw 94551-94620), port_bugs.md #585. */
 COLONIZE_INTERNAL void ai_euro_colony_tick_28c8_reassign(
   ColonizeTurnContext* ctx, int nation_id
 );
@@ -583,7 +583,7 @@ COLONIZE_INTERNAL int ai_euro_5952_equip_pick(const ColonizeColony* c, int targe
 
 /* FUN_5952_035e raw 95926-95944: the "train an expert here" pick. Returns the
  * @JOB to buy (COLONIZE_PROF_FREE_COLONIST / 0x1c = buy nothing) and the
- * chosen colonist slot. bugs.md #571. */
+ * chosen colonist slot. port_bugs.md #571. */
 COLONIZE_INTERNAL int ai_euro_5952_train_pick(
   const ColonizeColony* c, int n, bool has_docks, int* out_slot
 );
@@ -606,20 +606,20 @@ AiEuroActStatus ai_euro_act_land_treasure(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_act_ctx* a);
-/* Test-only externs (bugs.md #1106), no production caller. */
+/* Test-only externs (port_bugs.md #1106), no production caller. */
 int ai_euro_5d04_dos_type_code(const ColonizeUnitPool* pool, int type_index);
 /* Live-tally wrapper of ai_euro_20e6_457e_hs_cadence_snapshot. */
 int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
-/* Test-only ai_goals.c externs (bugs.md #1106). */
+/* Test-only ai_goals.c externs (port_bugs.md #1106). */
 void ai_goals_upsert_secondary(int nation_id, int x, int y, int code, int prio);
 AiNationPlanScratch* ai_goals_plan_scratch(int nation_id);
 int ai_goals_stack_settler_pick(const ColonizeCol1Unit* units, int unit_count, int unit_index);
-/* bugs.md #1106: test-only entry points (no production caller). */
+/* port_bugs.md #1106: test-only entry points (no production caller). */
 int ai_euro_28c8_colonist_job_score_structural(
   const ColonizeTurnContext* ctx, int colony_id, int colonist_slot,
   AiEuro28c8JobCandidate* out_best
 );
-/* bugs.md #1107 stage seams: FUN_5952_035e build cascade + colony tick. */
+/* port_bugs.md #1107 stage seams: FUN_5952_035e build cascade + colony tick. */
 void ai_euro_5952_cascade_setup(AiEuro5952Cascade* s);
 void ai_euro_5952_cascade_census(AiEuro5952Cascade* s);
 void ai_euro_5952_cascade_pressure(AiEuro5952Cascade* s);

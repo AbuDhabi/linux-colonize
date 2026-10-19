@@ -1,6 +1,6 @@
 # Changelog
 
-Player-facing changes. Bracketed numbers are [bugs.md](bugs.md) row ids (closed
+Player-facing changes. Bracketed numbers are [docs/port_bugs.md](docs/port_bugs.md) row ids (closed
 rows live in [docs/archive/bugs_closed.md](docs/archive/bugs_closed.md)).
 
 ## 0.7-alpha — 2026-09-29

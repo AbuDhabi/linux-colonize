@@ -520,7 +520,7 @@ static int unit_colony_ai_flags_mow_colony_alt(void) {
 
   /* Frigate on water adjacent to the colony: the 0906 probe (cap 8, Caravel
    * ocean edge 3) prices one tile at 4 and two at 7, and only 0..5 counts
-   * (bugs.md #1042). */
+   * (port_bugs.md #1042). */
   const int sid = units_spawn(&units, 0, 1, 5);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
@@ -633,7 +633,7 @@ static int unit_human_census_ship_pressure_refresh(void) {
   colonies.colony_count = 1;
   colonies.next_id = 1;
 
-  /* Foreign Frigate adjacent to the colony (0906 cost 4; bugs.md #1042). */
+  /* Foreign Frigate adjacent to the colony (0906 cost 4; port_bugs.md #1042). */
   const int sid = units_spawn(&units, 0, 1, 5);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {

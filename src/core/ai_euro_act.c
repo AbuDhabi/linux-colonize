@@ -103,7 +103,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_europe_exit(struct ai_euro_ac
   ColonizeUnit* u = a->u;
 
   /* (The Europe/HS treasure cash-in that stood here was deleted 2026-09-23,
-   * bugs.md #746 — DOS's AI never puts a treasure on a ship.) */
+   * port_bugs.md #746 — DOS's AI never puts a treasure on a ship.) */
   /*
    * No Europe-dock dump-sell in the per-unit act. The "sell every hold at the
    * Europe dock" arm (ai_euro_try_transport_europe_sell) carried no DOS
@@ -202,10 +202,10 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_treasure(struct ai_euro_act_c
    * Arms 2/3 live in ai_euro_20e6_47b9_dead_end below.
    *
    * The coast-target / board-and-sail / Europe-cash chain that stood between
-   * arm 1 and the rest was deleted 2026-09-23 (bugs.md #745/#746): no DOS
+   * arm 1 and the rest was deleted 2026-09-23 (port_bugs.md #745/#746): no DOS
    * site boards an AI treasure, prefers a coastal colony, or gives the AI
    * Cortes' free King galleon (FUN_465b_0000 raw 75800 is human-control
-   * gated, bugs.md #478).
+   * gated, port_bugs.md #478).
    */
   if (is_treasure) {
     if (ai_euro_20e6_treasure_cash_in(ctx, u, nation_id)) {
@@ -298,7 +298,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
  * Land stage 4 (ai_euro_act_land_fortify) is gone: every arm it held was
  * invented and has been deleted. Tombstones:
  *
- * (Deleted 2026-10-02, bugs.md #1032.) A "peace fortify" arm stood here:
+ * (Deleted 2026-10-02, port_bugs.md #1032.) A "peace fortify" arm stood here:
  * any idle armed land unit on its own colony tile was FORTIFY-ed and spent
  * one garrison_quota. It cited FUN_521d_20e6 raw 89011-89013, but that
  * `+0x314b = 0x46` write also needs local_ea != 0, the unit alone on its
@@ -317,9 +317,9 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
  * (raw 88911-88913) as a score *modifier* — `type == 0x0b && no colony and
  * no village on the tile -> score = 0` — and FUN_465b_0000 (raw 75417) is
  * type-agnostic. The "Artillery siege hunt" arm that used to sit here cited
- * only Colonization.pdf / king_ref and was deleted (bugs.md #513).
+ * only Colonization.pdf / king_ref and was deleted (port_bugs.md #513).
  *
- * (Retired 2026-09-23, bugs.md #760.) An "Artillery fortify" arm sat here:
+ * (Retired 2026-09-23, port_bugs.md #760.) An "Artillery fortify" arm sat here:
  * idle Artillery on its own colony was FORTIFY-ed through the garrison quota.
  * Manual-only citation (euro_unit_act §2d3 / Colonization.pdf / king_ref) and
  * FUN_521d_20e6 has no `+0x3146 == 0x0b` branch in the act path at all
@@ -330,7 +330,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
  * handles exactly the case this arm was covering. Same invention class as the
  * already-deleted "Artillery siege hunt" above.
  *
- * (Retired 2026-09-22, bugs.md #557.) A missionary CONTACT goal arm sat
+ * (Retired 2026-09-22, port_bugs.md #557.) A missionary CONTACT goal arm sat
  * here (prio 3 goto of the nearest mission-less tribe). The claim that
  * FUN_521d_20e6 has no `+0x3146 == 3` arm was wrong: the DOS arm is
  * ai_euro_20e6_missionary_arm (alarm-weighted village pick, plan 'J'),
@@ -348,7 +348,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_a
   /*
    * FUN_521d_0a60 goal-consumption tail, structurally ported (see
    * ai_euro_0a60_goal_orders_structural above): runs once per nation per turn
-   * and commits its pick into the unit's own +0x314c/+0x314d/e (bugs.md
+   * and commits its pick into the unit's own +0x314c/+0x314d/e (port_bugs.md
    * #525). `ai_euro_unit_act` captures it before the 20e6 gate can overwrite
    * the byte with a 0x0c wander commit; the concrete AI_GOAL_* code has no
    * DOS byte at all and is re-read from the goal table at the goal tile.
@@ -369,7 +369,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_a
    */
 
   /*
-   * (Deleted 2026-10-02, bugs.md #1034(b).) A "LABOR bind" stood here: idle
+   * (Deleted 2026-10-02, port_bugs.md #1034(b).) A "LABOR bind" stood here: idle
    * colonist-capable land units were re-aimed at an own colony (MD 1, or 8 on
    * food_short/tools_short) whose food < pop*2 / tools < 20 / pop < 3 or that
    * was building a Stockade/Warehouse/Lumber Mill, with an AI_GOAL_LABOR
@@ -429,7 +429,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
    * ai_euro_colony_goals_colony_labor), which owns both the per-type gates
    * and the NEEDS_COLONISTS (+0x1b bit 0x10) precondition. The
    * `garrison_quota == 0` admit that used to sit here cited only
-   * test-saves-ai/TURN4-5 and was deleted (sibling of bugs.md #512/#515).
+   * test-saves-ai/TURN4-5 and was deleted (sibling of port_bugs.md #512/#515).
    */
   if (goal_code == AI_GOAL_MILITARY || goal_code == AI_GOAL_CONTACT) {
     if (abs(u->x - goal_x) <= 1 && abs(u->y - goal_y) <= 1) {
@@ -498,7 +498,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
        * (the scorer commits the neighbour tile itself as +0x3153/+0x3154 and
        * FUN_479b_0972 → FUN_465b_0000 steps straight into it). Re-scoring
        * that step with ai_euro_score_move sidestepped diagonally around the
-       * foe and the fight never happened (bugs.md #521, 2026-09-22).
+       * foe and the fight never happened (port_bugs.md #521, 2026-09-22).
        */
       const int adj_foe = abs(u->goto_x - u->x) <= 1 && abs(u->goto_y - u->y) <= 1 &&
                           ai_euro_foreign_unit_at(ctx, u, u->goto_x, u->goto_y);
@@ -526,7 +526,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
        * no nation filter, so a second REF column standing on the step tile was
        * handed to ai_euro_try_attack — which returns without acting on an
        * own-nation target — and this loop broke every turn: the whole assault
-       * column froze two tiles short of the colony (bugs.md #521). The step
+       * column froze two tiles short of the colony (port_bugs.md #521). The step
        * scorer's own copy of this fallback (ai_euro_score_move) already
        * filtered on nation; this one did not.
        */
@@ -559,7 +559,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
    * block above (smell audit sweep-3 area C #1): zero hits when instrumented
    * over the whole ctest suite. The two seizes are the real DOS `0x46` / `0x4c`
    * arms; the adjacent-attack stand-in that also ran here was deleted 2026-09-22
-   * (bugs.md #521, LAB_521d_4d2e attack term is DOS-live). The distant land war hunt that
+   * (port_bugs.md #521, LAB_521d_4d2e attack term is DOS-live). The distant land war hunt that
    * also ran here was deleted 2026-09-18: DOS has no distant hunt for land
    * units any more than it has one for ships. */
 
@@ -633,7 +633,7 @@ void ai_euro_act_land(struct ai_euro_act_ctx* a) {
  * case N", not "literally transcribed from 5b66's own bytes".
  */
 /* ======================================================================
- * DOS ship act: FUN_521d_5b66 + the FUN_521d_20e6 hull path (bugs.md #530)
+ * DOS ship act: FUN_521d_5b66 + the FUN_521d_20e6 hull path (port_bugs.md #530)
  * ======================================================================
  *
  * FUN_521d_5b66 (viceroy_overlays.asm OVL14 0x5b66-0x5c37, byte-read):
@@ -917,7 +917,7 @@ static int ai_euro_4528_ai_village_entry(ColonizeTurnContext* ctx, ColonizeUnit*
      * the caller's LAB_0bd1 tail follows (DOSBox independence 5->6: the
      * crown wagon from Bahia walks to the village and trades in one act). */
     const int ind = (int)ctx->col1->tribe[tribe_index].nation_id;
-    ai_euro_wagon_errand_set(id, 0); /* bounded (bugs.md #1094) */
+    ai_euro_wagon_errand_set(id, 0); /* bounded (port_bugs.md #1094) */
     (void)ai_contact_ai_wagon_village_trade(ctx, ind, e, id);
     ColonizeUnit* wg = units_get(ctx->units, id);
     if (wg && wg->active) {
@@ -966,7 +966,7 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   /* FUN_6662_0f74 LAB_1599, raw 104758: the pathfinder writes +0x314f
    * on EVERY return, including -1 when already at the goal. Keeping the
    * previous step here fed a stale facing penalty into 20e6's next score
-   * (bugs.md #530: Spain's second step became W instead of SW). */
+   * (port_bugs.md #530: Spain's second step became W instead of SW). */
   int dir = -1;
   if (ok) {
     for (int d = 0; d < 8; ++d) {

@@ -4,7 +4,7 @@
  * Split out of ai_euro.c (2026-09-23) verbatim; shared symbols are declared
  * in ai_euro_internal.h. See ai_euro.c for the dispatcher entry point.
  *
- * Citation units (bugs.md #816): `raw NNNNN` = a line in
+ * Citation units (port_bugs.md #816): `raw NNNNN` = a line in
  * original_sources_decompiled/viceroy_unpacked.c (docs/conventions.md).
  * The FUN_521d_20e6 cites in this file are `md:NNNN` = a line in
  * original_sources_annotated/ai/move_scoring_20e6_full.md, a different
@@ -383,7 +383,7 @@ static int ai_euro_20e6_delivery_sell_tail(
       );
     }
     const int32_t v = (int32_t)ai_euro_ship_price_84bc(ctx, nation, g) * (int32_t)qty;
-    europe_nation_gold_add(ctx->europe, ctx->col1, nation, v); /* bugs.md #1096 */
+    europe_nation_gold_add(ctx->europe, ctx->col1, nation, v); /* port_bugs.md #1096 */
     nat->trade.gold[g] += v;
     nat->trade.tons[g] += (int32_t)qty;
     total += (int)v;
@@ -563,7 +563,7 @@ int ai_euro_20e6_wagon_village_errand(
   if (adj) {
     const int ind = (int)t->nation_id;
     if (ind >= 4 && ind <= 11) {
-      /* bugs.md #813: DOS clears +0x3158 inside FUN_4d56_2820 itself (raw
+      /* port_bugs.md #813: DOS clears +0x3158 inside FUN_4d56_2820 itself (raw
        * 82121-82123: `if (type < 0xd || 0x12 < type) +0x3158 = 0;`), i.e. at
        * trade entry and only when a trade is actually entered — not on bare
        * adjacency. `ai_contact_ai_wagon_village_trade` lives in
@@ -925,7 +925,7 @@ static int ai_euro_20e6_load_holds(
   int loaded = 0;
   /* DOS-LITERAL FUN_521d_20e6 raw 90295: `while (local_d2 != 0 && bVar20)` —
    * bVar20 is the prologue seed (raw 88556-88573): a Man-O-War never loads
-   * goods, a Frigate / Privateer only under the seed's narrowings. bugs.md #818. */
+   * goods, a Frigate / Privateer only under the seed's narrowings. port_bugs.md #818. */
   if (!ai_euro_20e6_type_gate_no_manowar(ctx, ship, ai_euro_20e6_dos_type(ctx->units, ship))) {
     return 0;
   }
@@ -1480,7 +1480,7 @@ int ai_euro_try_ship_trade_haul_snapshot(
  * FUN_48d3_0002 (raw 77563-77588) for an AI hull: reseed from the timer word
  * (FUN_281f_04ca(DS:0x83a6) = ai_nation_reseed), then the shared 1-2 turn
  * roll over the nation's hull tally DS:0x9418 and Magellan. The second
- * argument is the New World x of the crossing (bugs.md #1019).
+ * argument is the New World x of the crossing (port_bugs.md #1019).
  */
 static int ai_euro_lane_voyage_turns(ColonizeTurnContext* ctx, int nation_id, int new_world_x) {
   ai_nation_reseed(ctx);
@@ -1506,7 +1506,7 @@ static void ai_euro_lane_move(ColonizeTurnContext* ctx, ColonizeUnit* ship, int 
  * 77592-77632): a hull standing on a High Seas tile records it as its
  * landfall (+0x314d/e and the nation's -0x77c6/-0x77c5 copy), takes FUN_48d3_0002's 1-2
  * turn roll into +0x315a and is parked on the eastbound lane n - 0x0c
- * (244+n). ai_euro_europe_lane_tick walks it to the dock (bugs.md #1056;
+ * (244+n). ai_euro_europe_lane_tick walks it to the dock (port_bugs.md #1056;
  * it used to arrive instantly). Without this gate the sail target
  * re-resolves every act and the ship wiggles on the sealane forever.
  */
@@ -1736,7 +1736,7 @@ int ai_euro_has_useful_goto(const ColonizeUnit* u, const ColonizeWorldMap* map) 
 }
 
 /*
- * bugs.md #521 (closed 2026-09-22): the golden-backed adjacent-attack stand-in
+ * port_bugs.md #521 (closed 2026-09-22): the golden-backed adjacent-attack stand-in
  * pair (ai_euro_land_best_adjacent_foe / ai_euro_land_try_adjacent_attack)
  * that lived here was deleted. Its reason to exist was the LAB_521d_52aa odds
  * core scoring 0 against any 2+-defender land stack, which was a port bug:
@@ -1747,7 +1747,7 @@ int ai_euro_has_useful_goto(const ColonizeUnit* u, const ColonizeWorldMap* map) 
 
 
 /* (The ai_euro_foreign_land_threat_near helper was deleted with the invented
- * peace colony-defence wake arm, bugs.md #760.) */
+ * peace colony-defence wake arm, port_bugs.md #760.) */
 
 /* FUN_521d_0a60 raw 87935/87938/88050 records the LAND continent
  * independently of its ocean goal tile; 20e6 reads those masks directly
@@ -2121,7 +2121,7 @@ int ai_euro_20e6_unload_mask_snapshot(
       continue; /* 88c2 own/empty */
     }
     /* FUN_521d_20e6 raw 89470: even a shore rejected by the stance or
-     * latitude gate clears the previous neighbour's mask (bugs.md #530). */
+     * latitude gate clears the previous neighbour's mask (port_bugs.md #530). */
     mask = 0;
     const int cid = map_continent_id_at(ctx->map, ax, ay);
     if (cid < 0 || ai_euro_continent_stance_at(nation, cid) == 0) {
@@ -2210,7 +2210,7 @@ int ai_euro_20e6_unload_mask_snapshot(
       }
       /* Raw 89539-89541: `if (-0x6a0e[cont] & 8) local_9c |= 0x10` — this
        * nation has a fortified combat unit outside any colony on the
-       * continent (FUN_4962_0018 writer raw 78167-78180, bugs.md #1062). */
+       * continent (FUN_4962_0018 writer raw 78167-78180, port_bugs.md #1062). */
       if (ai_euro_20e6_presence_95f2(ctx, nation, cid) & 8) {
         mask |= 0x10;
       }

@@ -136,7 +136,7 @@ static int case_europe_workflow(void) {
     return 1;
   }
   /* Reset seeds needed_crosses=9/current=2/count=0/difficulty=0 → 132: the
-   * COLONY00 crosses pair (bugs.md #1015) buys two crosses' worth of the
+   * COLONY00 crosses pair (port_bugs.md #1015) buys two crosses' worth of the
    * FUN_38fd_4884 discount off the 140 the current=0 seed used to give. */
   if (eu.recruit_count != 0 || eu.recruit_passage != 132) {
     fprintf(
@@ -185,7 +185,7 @@ static int case_europe_workflow(void) {
     }
   }
   /*
-   * bugs.md #588 — FUN_38fd_4884 raw 64736-64741: a pool row the purse
+   * port_bugs.md #588 — FUN_38fd_4884 raw 64736-64741: a pool row the purse
    * cannot cover is greyed and inert; the pick does nothing and DOS has no
    * "need gold" answer, so nothing may be spawned, spent or said.
    */
@@ -768,7 +768,7 @@ static int case_europe_workflow(void) {
     return 1;
   }
 
-  /* bugs.md #753: PURCHASE picks Artillery (index 0) through the
+  /* port_bugs.md #753: PURCHASE picks Artillery (index 0) through the
    * @REALLYBUY confirm instead of buying on the spot. GAME.TXT row order
    * verbatim: row 0 "Yes" (raw 64874 `iVar6 == 1`), row 1 "No" — "No" must
    * leave gold/dock/artillery_bought untouched but the escalation counter
@@ -817,7 +817,7 @@ static int case_europe_workflow(void) {
     }
   }
 
-  /* bugs.md #754: an unaffordable Purchase row is greyed and inert — Enter
+  /* port_bugs.md #754: an unaffordable Purchase row is greyed and inert — Enter
    * does nothing, no status text, dialog stays open. */
   {
     EuropeScreen poor;
@@ -846,7 +846,7 @@ static int case_europe_workflow(void) {
   /*
    * DOS FUN_38fd_41ce sorts the collected @JOB costs (FUN_291f_0ed0 ->
    * FUN_1cf8_000a) before drawing a row, so the Train list is cheapest-first
-   * and its first row is Expert Ore Miners at 600, not @JOB 0 (bugs.md).
+   * and its first row is Expert Ore Miners at 600, not @JOB 0 (port_bugs.md).
    */
   for (int i = 1; i < eu.train_count; ++i) {
     if (eu.train[i].cost < eu.train[i - 1].cost) {
@@ -908,7 +908,7 @@ static int case_europe_workflow(void) {
       return 1;
     }
   }
-  /* bugs.md #893: FUN_38fd_41ce raw 64395-64401 greys an unaffordable Train
+  /* port_bugs.md #893: FUN_38fd_41ce raw 64395-64401 greys an unaffordable Train
    * row (FUN_291f_01b6); confirm must be inert (no unit, no gold change, no
    * status text), same shape as #588 recruit / #754 purchase. */
   {
@@ -1014,7 +1014,7 @@ static int case_europe_workflow(void) {
   /*
    * The turn a ship sails is a turn at sea: the first tick only burns the
    * departure turn, so an ordinary 1-turn crossing needs two End Turns to
-   * dock, which is what DOS does (player-verified, bugs.md).
+   * dock, which is what DOS does (player-verified, port_bugs.md).
    */
   europe_tick_voyages(&eu, NULL);
   if (eu.expected_ships != 1 || eu.harbor_ships != 0 || eu.expected[0].turns_left != 1) {
@@ -1058,7 +1058,7 @@ static int case_europe_workflow(void) {
     return 1;
   }
   /*
-   * bugs.md #999: a colonist CREATED in Europe joins at slot 0 (DOS links it
+   * port_bugs.md #999: a colonist CREATED in Europe joins at slot 0 (DOS links it
    * in as the newest unit on the dock lane), one that ARRIVES from the New
    * World joins at the back (FUN_1427_03a0 re-links it as the oldest).
    */
@@ -1238,7 +1238,7 @@ static int case_europe_workflow(void) {
   }
 
   /*
-   * bugs.md #740/#741/#742: FUN_48d3_06ba raw 78005-78021 books the net on the
+   * port_bugs.md #740/#741/#742: FUN_48d3_06ba raw 78005-78021 books the net on the
    * player's gold (+0x2a) AND on the write-only +0x26 counter, the Crown's fee
    * on royal_money (+0x22), and raises @LOOTCASH as a modal.
    */
@@ -1642,7 +1642,7 @@ static int case_europe_workflow(void) {
   );
 
   /*
-   * GAME.TXT @ARMOPTIONS dock menu (bugs.md): DOS FUN_38fd_37xx omits the
+   * GAME.TXT @ARMOPTIONS dock menu (port_bugs.md): DOS FUN_38fd_37xx omits the
    * rows it disabled, so a plain colonist gets the three queue rows plus buy
    * Muskets / buy Tools / buy Horses / Bless / No changes, and arming him
    * turns him into Soldiers, charges 50 x the Muskets ask, and swaps the
@@ -1751,7 +1751,7 @@ static int case_europe_workflow(void) {
      * UNBLESS polarity (DOS 38fd:39ec..3a09): only a *blessed* ordinary
      * colonist (type Missionaries, profession != 0x18) gets "Cancel
      * Missionary Status"; a born Jesuit Missionary (profession 0x18) does
-     * not. Was inverted (bugs.md).
+     * not. Was inverted (port_bugs.md).
      */
     if (!europe_apply_dock_menu_row(&arm, NULL, -1, 0, EUROPE_ARM_ROW_SELL_HORSES) ||
         !europe_apply_dock_menu_row(&arm, NULL, -1, 0, EUROPE_ARM_ROW_BLESS) ||
@@ -1881,7 +1881,7 @@ static int case_europe_workflow(void) {
       europe_free(&eu);
       return 1;
     }
-    /* DOS walks all four records (bugs.md #1047): the AI rows moved too. */
+    /* DOS walks all four records (port_bugs.md #1047): the AI rows moved too. */
     if (col1.nation[1].trade.nr[lumber] != 93 || col1.nation[2].trade.nr[lumber] != 93 ||
         col1.nation[3].trade.nr[lumber] != 61) {
       fprintf(stderr, "1dfa AI rows want 93/93/61 got %d/%d/%d\n",
@@ -2105,7 +2105,7 @@ static int case_europe_workflow(void) {
   }
 
   /*
-   * bugs.md: dock chrome corner must follow the @UNIT display type the way
+   * port_bugs.md: dock chrome corner must follow the @UNIT display type the way
    * the map does — an armed/mounted immigrant is not a Colonist. The entry's
    * name is a profession, so dos_type is what decides.
    */
@@ -2156,7 +2156,7 @@ static int case_europe_workflow(void) {
       europe_free(&eu);
       return 1;
     }
-    /* bugs.md #452: a ship passenger of the Pioneers kit type wears the plain
+    /* port_bugs.md #452: a ship passenger of the Pioneers kit type wears the plain
      * Pioneer pose unless the colonist really is a Hardy Pioneer — in the
      * Europe ship boxes and the naval report alike. */
     const int pioneers_ti = units_find_type(&units, "Pioneers");
@@ -2263,7 +2263,7 @@ static int case_europe_workflow(void) {
      * Ledger double-book (asm 364b:17b0-17e6): 1dfa already added the taxed
      * (bid−1)·80·(100−50)/100 = 11·80/2 = 440 on the BOUND record's own bid
      * (the arm credits +0x2a of that same record, so it is the colony's
-     * nation — bugs.md #1049) and tons += 80; the arm then adds the untaxed
+     * nation — port_bugs.md #1049) and tons += 80; the arm then adds the untaxed
      * 880 to trade.gold and — verbatim — the CARGO INDEX to tons.
      */
     if (dscol1.nation[1].trade.gold[COLONIZE_CARGO_TOBACCO] != 1320 ||
@@ -2468,7 +2468,7 @@ static int case_europe_workflow(void) {
   }
 
   /*
-   * bugs.md #895e: FUN_38fd_46d4 raw 64595-64609 folds the expert draw's
+   * port_bugs.md #895e: FUN_38fd_46d4 raw 64595-64609 folds the expert draw's
    * unreachable classes onto neighbours — Tobacco Planter(2)->Lumberjack(5),
    * Fur Trapper(4)->Ore Miner(6) (europe_pool_remap, europe_pool.c ~183-192).
    * europe_pool_expert_roll's LFSR stand-in is the same LCG as
@@ -2530,7 +2530,7 @@ static int case_europe_workflow(void) {
   }
 
   /*
-   * bugs.md #498 follow-up: every human route out of Europe that yields a
+   * port_bugs.md #498 follow-up: every human route out of Europe that yields a
    * Scout-type unit must land it as @UNIT row 5 ("Scouts") carrying the 50
    * Horses the port models kit with (DOS FUN_38fd_0718 writes only the
    * Pioneer tools — mounted state rides on the type byte, raw 59133-59142).
@@ -2707,7 +2707,7 @@ static int case_europe_workflow(void) {
 }
 
 /*
- * bugs.md #508/#509a — DOS FUN_38fd_0718 (raw 59117-59128) rolls
+ * port_bugs.md #508/#509a — DOS FUN_38fd_0718 (raw 59117-59128) rolls
  * `04d4(0, bound + 4) == 0` -> Dragoons for a Soldier-profession dock
  * arrival, and FUN_38fd_3694 (raw 61190-61195) captions the dock row
  * "<@NATIONALITY> <@UNIT plural> (<@JOB singular>)".
@@ -2790,7 +2790,7 @@ static int case_europe_dragoon_roll_and_caption(void) {
     return 1;
   }
   /*
-   * bugs.md #624: FUN_38fd_3694 raw 61193 reads `prof*8 - 0x715e` = @JOB
+   * port_bugs.md #624: FUN_38fd_3694 raw 61193 reads `prof*8 - 0x715e` = @JOB
    * COLUMN 0 (the singular "Veteran Soldier"), not the column-1 plural at
    * -0x715c that the OVL03 colony site uses.
    */
@@ -2824,7 +2824,7 @@ static int case_europe_dragoon_roll_and_caption(void) {
   return 0;
 }
 
-/* bugs.md #669: a Continental disembarked in Europe keeps its @UNIT row on
+/* port_bugs.md #669: a Continental disembarked in Europe keeps its @UNIT row on
  * the dock (DOS keeps +0x3146); it is not folded to Soldiers. */
 static int case_europe_dock_continental_row(void) {
   EuropeScreen eu;
@@ -2905,7 +2905,7 @@ done:
 }
 
 /*
- * bugs.md #1011/#1016: FUN_38fd_6024 broadcasts the one opening-price roll to
+ * port_bugs.md #1011/#1016: FUN_38fd_6024 broadcasts the one opening-price roll to
  * ALL FOUR nation records and then runs its 0058(1, -1) tail, which rewrites
  * cargos 9..12 from the (empty) trade ledger — ratio 3, clamped into
  * [low, high]. Before the fix only the human's EuropeScreen was seeded, so
@@ -2970,7 +2970,7 @@ static int case_europe_seed_prices_all_nations(void) {
 }
 
 /*
- * bugs.md #1058: FUN_38fd_6024 under the DOS timer word 100 must rebuild
+ * port_bugs.md #1058: FUN_38fd_6024 under the DOS timer word 100 must rebuild
  * original_saves/mapgen/SEED100.SAV's recruit LFSR bytes, all four pools and
  * all 16 opening prices (cargos 9..12 come from the 0058(1,-1) tail over the
  * DS:0x53ea demand pool, copied from the save since 75c2_235c draws it off

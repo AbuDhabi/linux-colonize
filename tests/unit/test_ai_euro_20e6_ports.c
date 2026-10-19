@@ -630,7 +630,7 @@ static int wagon_off_landmass_is_destroyed(void) {
  *
  * 100 Tools at euro_price 2 with a 50% tax rate therefore lands as (the
  * ledger prices at the nation's OWN byte − 1 = 1, FUN_38fd_0040 on the bound
- * record — not the human's screen, bugs.md #1049):
+ * record — not the human's screen, port_bugs.md #1049):
  *   nation gold   += 1*100          = 100   (untaxed, single; tail price is
  *                                            euro_price-1 = DS:0x84bc)
  *   trade.gold[T] += 50 + 100       = 150   (taxed ledger + untaxed tail)

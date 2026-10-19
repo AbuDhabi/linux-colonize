@@ -74,7 +74,7 @@ static int test_king_new_war_event(void) {
 }
 
 /*
- * bugs.md: a crown LAND unit that cannot fight must not march or attack.
+ * port_bugs.md: a crown LAND unit that cannot fight must not march or attack.
  * A Wagon Train changes hands when the REF takes a port
  * (ai_king_try_capture_at flips every civilian on the tile to the crown), and
  * the King's column had no combat-role gate — so a "Tory Wagon Train" walked
@@ -209,7 +209,7 @@ static int test_king_noncombat_never_attacks(void) {
 }
 
 /*
- * bugs.md #505 — FUN_43f7_0082 (raw 73519-73543) unit pick. k 0/1:
+ * port_bugs.md #505 — FUN_43f7_0082 (raw 73519-73543) unit pick. k 0/1:
  *   nation > 3 || player[nation].control != 0  -> Regulars (6) / Cavalry (8)
  *   control == 0, independence declared        -> Cont. Army (9) / Cont. Cav. (7)
  *   control == 0, not yet declared             -> Dragoons (4), both slots
@@ -301,7 +301,7 @@ static int case_43f7_0082_spawn_types(void) {
 }
 
 /*
- * bugs.md #878e: DS:0x9456[nation]'s "one crown hull away at a time" gate
+ * port_bugs.md #878e: DS:0x9456[nation]'s "one crown hull away at a time" gate
  * (FUN_521d_20e6 disjunct `DS:0x9456[nation] != 0`, viceroy_unpacked.c
  * raw 89717-89720) is bumped the instant a hull is ordered home, not only
  * once it lands on the high-seas tile — so a SECOND crown Man-O-War must be

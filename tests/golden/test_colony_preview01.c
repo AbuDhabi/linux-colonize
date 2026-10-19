@@ -89,7 +89,7 @@ static int run_fixture(const char* path) {
       continue;
     }
     Snapshot* s = &snap[i];
-    /* The colony screen opens with FUN_15eb_3930 (bugs.md #1080), so the
+    /* The colony screen opens with FUN_15eb_3930 (port_bugs.md #1080), so the
      * preview the player sees is post-recompute, like the EOT tick. */
     colonies_recompute_plots_w(&(ColonizeWorld){.units=&units, .colonies=&colonies, .map=&map, .col1=&save, .col1_ok=true}, col->id);
     colony_preview_compute_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true}, col, &s->preview);

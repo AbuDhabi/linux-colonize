@@ -71,12 +71,12 @@ of several of these thunks is reloc-`0000` garbage):
   by village CREATE — `FUN_4d56_0038` raw 81282 writes `+3 = 0`. The port sets
   it in `units_despawn` (units_map.c), the one chokepoint every despawn goes
   through, so combat deaths and village-destroy deaths both feed it
-  (bugs.md #837). The result is the DOS rhythm: one Brave per village,
+  (port_bugs.md #837). The result is the DOS rhythm: one Brave per village,
   re-issued whenever that village's Brave dies.
 - `FUN_281f_07b4(nation, 0x18/0x17)` = **FF 24 Las Casas doubles / FF 23
   Sepulveda halves** the mission goodwill a village grants (applied in that
   order, so owning both nets ×1). Matches their PEDIA text.
-- Capital-only gate on the growth block **removed** (bugs.md #838): DOS raw
+- Capital-only gate on the growth block **removed** (port_bugs.md #838): DOS raw
   81404-81440 runs the `local_16` block for every settlement. Satellites still
   never reach `local_16 = 2` because their `population` already equals the
   non-capital worth cap `2*tech+3`, which is what kept the seed-100 TURN1→2

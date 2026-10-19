@@ -344,7 +344,7 @@ int map_coast_underlayer_sprite_at(const ColonizeWorldMap* map, int x, int y);
 /*
  * One tile's full static layer stack in paint order (DOS FUN_6ba1_0938 /
  * MAPEDIT FUN_1a47_06da): base terrain (or coast underlayer), land-edge
- * masks + neighbour fills, forest, the runtime plow (bugs.md #622: DOS blits
+ * masks + neighbour fills, forest, the runtime plow (port_bugs.md #622: DOS blits
  * it before the overlays), PHYS0 overlays, masked ocean + estuary for coast
  * composites, then the road layers. Fog is NOT included — it is a viewer decision. `terrain_peel_phase`
  * applies the VIEW ~Hidden Terrain peel (0 = nothing peeled). cmds[0] is

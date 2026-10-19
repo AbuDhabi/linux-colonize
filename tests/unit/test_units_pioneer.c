@@ -140,7 +140,7 @@ static int unit_clearcut_lumber(void) {
     assets_msg_free(&names);
     return 1;
   }
-  /* bugs.md #278: @DEFOREST is a dead GAME.TXT section (tag absent from
+  /* port_bugs.md #278: @DEFOREST is a dead GAME.TXT section (tag absent from
    * VICEROY.EXE) — a chop shows @CLEARCUT alone, never a second popup. */
   for (int i = 0; i < pops.queue_count; ++i) {
     if (strstr(pops.queue[i].body, "Deforestation") != NULL ||
@@ -274,7 +274,7 @@ static int unit_useduptools(void) {
   }
 
   /*
-   * bugs.md #509 — FUN_479b_0158 raw 76706-76709: the type reverts to 0
+   * port_bugs.md #509 — FUN_479b_0158 raw 76706-76709: the type reverts to 0
    * (Colonists) EXCEPT when +0x315b == 0x18, which reverts to type 3
    * (Missionaries). The port always handed back Colonists.
    */
@@ -529,7 +529,7 @@ static int unit_pioneer_case8_tail(void) {
       fprintf(stderr, "case8: AI land price should be positive, got %d\n", price);
       goto done;
     }
-    /* bugs.md #735: human price scales by (alarm quartile + 1), FUN_4cc6_07c2 raw 81226-81228. */
+    /* port_bugs.md #735: human price scales by (alarm quartile + 1), FUN_4cc6_07c2 raw 81226-81228. */
     col1.player[1].control = 0;
     const int p_calm = colonies_indian_land_purchase_gold(&col1, &map, fx, fy, 1);
     col1.indian[0].alarm_by_player[1] = 80; /* quartile 3 -> x4 */
@@ -596,7 +596,7 @@ done:
 
 /* Pioneer order gates: silent non-pioneer refusal (#621), @NOPLOW / @NOROAD. */
 /*
- * Pioneer DOS-fidelity fixes: bugs.md #615 (no MP gate), #617 (road hammers go
+ * Pioneer DOS-fidelity fixes: port_bugs.md #615 (no MP gate), #617 (road hammers go
  * to the nearest colony of ANY nation, and only if it is ours), #618 (road
  * refused on a settlement tile), #619 (Arctic plowable, Hills not),
  * #620 (progress counter survives an order change).
@@ -819,7 +819,7 @@ static int unit_pioneer_order_gates(void) {
       assets_msg_free(&names);
       return 1;
     }
-    /* bugs.md #621: no @ONLYPIO popup — DOS greys the menu row instead, so
+    /* port_bugs.md #621: no @ONLYPIO popup — DOS greys the menu row instead, so
      * the refusal must be silent. */
     if (pops.queue_count != 0) {
       fprintf(

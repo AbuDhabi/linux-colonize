@@ -7,7 +7,7 @@
  * Cite: euro_unit_act §2d3 peace colony-defense wake; units_wake.
  */
 /*
- * (Deleted 2026-09-23, bugs.md #760.) Five "peace border wake" tests lived
+ * (Deleted 2026-09-23, port_bugs.md #760.) Five "peace border wake" tests lived
  * here (Soldier / Dragoon / Regular / Continental Army / Continental Cavalry).
  * They pinned the invented peace colony-defence wake arm that has been removed
  * from ai_euro.c: FUN_521d_20e6 (raw 88266-90445) has no MD<=2 foreign-threat
@@ -180,7 +180,7 @@ static int unit_fortify_wake_hunt(void) {
  * the other +0x1e readers see a garrison. The old expectation — one fortify,
  * the second Soldier admitted into the colony because quota had reached 0 —
  * encoded the invented quota-0 admit arm deleted 2026-09-18 (sibling of
- * bugs.md #512); DOS's 20e6 has no join-colony outcome at all (its whole
+ * port_bugs.md #512); DOS's 20e6 has no join-colony outcome at all (its whole
  * +0x314b vocabulary is 0x39/0x3d/0x40/0x42/0x46/0x47/0x4c/0x56/0x65).
  *
  * 2026-09-08: the quota is no longer preset by the fixture — presetting it is
@@ -298,7 +298,7 @@ static int unit_garrison_quota_one_fortify(void) {
     }
   }
   /*
-   * Both fortify (quota does not gate the 'F' arm). Since bugs.md #554 the
+   * Both fortify (quota does not gate the 'F' arm). Since port_bugs.md #554 the
    * fortify comes from FUN_521d_20e6's own stay tail LAB_521d_589e
    * (raw 90378-90386, +0x314c = 5), which runs before the port's peace
    * fortify fallback; that fallback is the only consumer of garrison_quota
@@ -323,7 +323,7 @@ static int unit_garrison_quota_one_fortify(void) {
 }
 
 /*
- * bugs.md #554 — FUN_521d_20e6's own-colony garrison stay branch
+ * port_bugs.md #554 — FUN_521d_20e6's own-colony garrison stay branch
  * (raw 88584-88612) must exit through the shared tail LAB_521d_589e
  * (raw 90378-90386): with `local_76 == 8` DOS writes +0x314f = 8 and forces
  * +0x314c into the fortify family (5, or 6 when +0x3148 & 2 is set). The port

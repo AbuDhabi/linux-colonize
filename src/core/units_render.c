@@ -95,13 +95,13 @@ void units_render_on_map(
      * FUN_1427_0002/004a — "is there another unit after this one in the
      * chain" (112b:01de..01fa) — and that chain is the same next/prev pair
      * that links a ship to the units riding in it, not just the units
-     * standing on the tile. A loaded transport carries the tab (bugs.md).
+     * standing on the tile. A loaded transport carries the tab (port_bugs.md).
      */
     const bool stacked = units_map_stack_chrome(pool, top->id);
     /* Chrome's 4th badge arm is Artillery + the damaged bit (+0x3148 bit7),
      * not "aboard a ship" — unit_chrome_corner_for_type. */
     const bool damaged = (top->col1_flags15 & 0x80u) != 0;
-    /* bugs.md #705: a damaged non-Artillery hull shows its repair countdown
+    /* port_bugs.md #705: a damaged non-Artillery hull shows its repair countdown
      * as a digit instead of the @ORDERS letter (FUN_112b_01ba raw 2148-2172). */
     const ColonizeUnitType* top_type = units_type(pool, top->type_index);
     const int repair_badge = unit_chrome_repair_badge_index(

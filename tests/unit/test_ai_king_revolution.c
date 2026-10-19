@@ -257,7 +257,7 @@ static int case_revolution_warn_one_colony(void) {
     }
     /* DOS 3844_0442 win gate: a bare typeless crown unit doesn't count as
      * land force — keep the REF Regulars pool stocked so the King has not
-     * "run out of forces" in this warn-only scenario (bugs.md #255 rework). */
+     * "run out of forces" in this warn-only scenario (port_bugs.md #255 rework). */
     end.head.expeditionary_force[0] = 5;
 
     ColonizeMsgCatalog game_txt;
@@ -365,7 +365,7 @@ static int case_revolution_warn_one_colony(void) {
       }
     }
 
-    /* bugs.md batch (DOS 3844_0442): warn band is <3 ports/colonies, so the
+    /* port_bugs.md batch (DOS 3844_0442): warn band is <3 ports/colonies, so the
      * episode clears only at >=3 — reclaim TWO coastal colonies to clear,
      * then drop back below to re-fire. */
     {
@@ -859,7 +859,7 @@ static int case_revolution_win_1850(void) {
         return fail("rev-win should enqueue @WINNING INFO OK");
       }
     }
-    /* bugs.md #258: @WINNING (KING_WAR_END payload 1) FIRST, then the
+    /* port_bugs.md #258: @WINNING (KING_WAR_END payload 1) FIRST, then the
      * @KINGLOSE throne audience (KING_THRONE payload 1) — the audience
      * dismissal is what opens the retire score. */
     {
@@ -944,7 +944,7 @@ static int case_revolution_retiring2_1850_stalemate(void) {
       u->id = eu.next_id++;
       units_pool_sync(&eu);
     }
-    /* DOS win gate (bugs.md #255): keep the REF pool stocked so the
+    /* DOS win gate (port_bugs.md #255): keep the REF pool stocked so the
      * exhaustion win cannot preempt the 1850 war-weariness loss. */
     end.head.expeditionary_force[0] = 5;
 
@@ -1289,7 +1289,7 @@ static int case_wartime_soonretiring1_1840(void) {
       u->id = eu.next_id++;
       units_pool_sync(&eu);
     }
-    /* DOS win gate (bugs.md #255): stocked pool keeps the war live at 1840. */
+    /* DOS win gate (port_bugs.md #255): stocked pool keeps the war live at 1840. */
     end.head.expeditionary_force[0] = 5;
 
     ColonizeMsgCatalog game_txt;

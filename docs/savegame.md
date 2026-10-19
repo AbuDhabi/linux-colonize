@@ -252,7 +252,7 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   never at a nation's day end; DOS mid-turn saves like COLONY02.SAV show acted
   AI land units at full-or-overspent thirds. The earlier "export 0" rule came
   from AI-turn goldens captured after the day ended and refunded MP on reload,
-  2026-09-09. Sentry/Fortified keep real MP overnight since bugs.md #715,
+  2026-09-09. Sentry/Fortified keep real MP overnight since port_bugs.md #715,
   so a zero is always a spend). Natives still round-trip the
   literal byte (the Brave engine keeps DOS spent in `moves`, max 3).
   Euro unit tiles stamp `map.path` / layer3 **owner** high nibble (`FUN_1427_02ca`
@@ -270,7 +270,7 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   used to drop them from the unit list. DOS keeps them as unit records on
   the nation's Europe sentinel diagonal (`FUN_48d3_007a` sail-to-Europe,
   `0346` sail-from-Europe, `03d0` per-turn tick). The diagonal is a **chain
-  of lanes**, one hop per Atlantic tick (corrected 2026-09-18, bugs.md #489):
+  of lanes**, one hop per Atlantic tick (corrected 2026-09-18, port_bugs.md #489):
   eastbound `244+n` → `240+n` → `236+n` = **the Europe port**, then westbound
   `232+n` → `228+n` → `224+n`, from which `FUN_48d3_064e` → `048e` places the
   hull on the map. `FUN_48d3_06ba` runs the two hops of each direction for the

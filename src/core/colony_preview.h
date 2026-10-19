@@ -27,7 +27,7 @@ typedef struct ColonizeColonyPreview {
    * shortfall (player-reported: a carpenter running on stored lumber must
    * still flag the missing lumber production, and a starved carpenter must
    * flag both). Set whenever a carpenter is staffed; the calendar season
-   * plays no part (bugs.md #466: the Autumn hammers freeze was an artefact
+   * plays no part (port_bugs.md #466: the Autumn hammers freeze was an artefact
    * of a carpenter-less fixture).
    */
   int hammers_capacity;

@@ -109,7 +109,7 @@ static void colony_screen_draw_construction_popup(
   const int rows = view->buildable_count + 1; /* Clear + projects (Buy is multifunction) */
   const int line_h = font ? (font->max_height + 2) : 8;
   const int pad = 4;
-  /* bugs.md #436 / DOS 2f2b_5bd2: SINGLE column always. Past 0x16 = 22 rows
+  /* port_bugs.md #436 / DOS 2f2b_5bd2: SINGLE column always. Past 0x16 = 22 rows
    * the DOS picker splits into PAGES of 0x10 = 16 rows chained with a
    * "More..." row — never side-by-side columns. */
   const int rows_per_page = rows > 22 ? 16 : rows;
@@ -140,11 +140,11 @@ static void colony_screen_draw_construction_popup(
   view->construction_rows_per_col = rows_per_page;
   view->construction_col_w = inner_w;
 
-  /* bugs.md #436: DOS draws this picker's text GREEN (the standard menu ink),
+  /* port_bugs.md #436: DOS draws this picker's text GREEN (the standard menu ink),
    * and the "|   " (DS:0xd1d) tab in 2f2b_5a68 right-justifies the cost. */
   const uint8_t ink = 10u;
   if (font && inner_w > 0) {
-    /* LABELS.TXT @CTITLE row 5 ("Select An Item To Build") — bugs.md #990. */
+    /* LABELS.TXT @CTITLE row 5 ("Select An Item To Build") — port_bugs.md #990. */
     font_draw_text(font, framebuffer, inner_x + pad, inner_y + pad, reports_ctitle_word(4), ink);
   }
   const int list_y0 = inner_y + pad + line_h;
@@ -188,7 +188,7 @@ static void colony_screen_draw_construction_popup(
        * hammers (min 0) — hammers carry over to whatever project is picked,
        * unlike tools, which are never adjusted away in this popup.
        * Cost words are DOS's own (2f2b_5a68 string build), right-aligned
-       * behind the "|   " tab (bugs.md #436). */
+       * behind the "|   " tab (port_bugs.md #436). */
       const int stored_hammers = colony ? colony->hammers : 0;
       if (bt) {
         int hammers_left = bt->hammers - stored_hammers;
@@ -235,7 +235,7 @@ static void colony_screen_draw_construction_popup(
   }
 }
 
-/* bugs.md #436: advance the DOS "More..." page (wraps). */
+/* port_bugs.md #436: advance the DOS "More..." page (wraps). */
 void colony_screen_construction_next_page(ColonyScreenView* view) {
   if (!view) {
     return;
@@ -281,7 +281,7 @@ static void colony_screen_draw_jobs_popup(
    * colonist's own SPECIALTY name (FUN_281f_0c54, with 0x1c remapped to 0x13)
    * and appends the current occupation when it differs and is not 0x13 — no
    * typed English ("Field job" was port-invented, and the list is not
-   * field-only since bugs.md #900). Catalog miss = empty header. */
+   * field-only since port_bugs.md #900). Catalog miss = empty header. */
   if (font && inner_w > 0) {
     int spec = COLONIZE_PROF_FREE_COLONIST;
     int occ = -1;
@@ -348,7 +348,7 @@ static void colony_screen_draw_jobs_popup(
       continue;
     }
     if (job >= COLONIZE_FIELD_JOB_COUNT) {
-      /* Indoor row (bugs.md #900). DOS appends a production estimate for
+      /* Indoor row (port_bugs.md #900). DOS appends a production estimate for
        * @JOB 9..0x11 (raw 50765-50781, `local_132 < 0x13 && != 0x12`) out of
        * the aiStack_12c table the head of FUN_2f2b_348c fills; the port does
        * not model that estimate yet, so the row carries the @JOB name only. */
@@ -366,7 +366,7 @@ static void colony_screen_draw_jobs_popup(
     }
     /* Full production pipeline, like turn.c's field loop — SoL bonus and
      * the colony's SoL latch bits included; the picker used to skip both
-     * and could disagree with what the assignment then produced (bugs.md:
+     * and could disagree with what the assignment then produced (port_bugs.md:
      * "verify the popup has the proper amounts"). */
     const int sol_b_field = colony_prod_sol_bonus_field(col1, colony);
     /* Henry Hudson folds into the pipeline (smell audit #60) — same
@@ -509,7 +509,7 @@ static void colony_screen_draw_eject_popup(
     &inner_x, &inner_y, &inner_w, &inner_h
   );
 
-  /* bugs.md #990: FUN_2f2b_348c's leave-as mode draws the @JOB rows only — no
+  /* port_bugs.md #990: FUN_2f2b_348c's leave-as mode draws the @JOB rows only — no
    * catalog row carries a heading for it, so the port types none either. */
   const int list_y0 = inner_y + pad + line_h;
   view->eject_rect.list_y0 = list_y0;
@@ -747,7 +747,7 @@ COLONIZE_INTERNAL bool colony_screen_hit_construction_popup(ColonyScreenHitCtx* 
       }
       const int pages = per > 0 ? (rows + per - 1) / per : 1;
       if (row_in_page >= 0 && pages > 1 && row_in_page == n_slice) {
-        /* The More... row (bugs.md #436). */
+        /* The More... row (port_bugs.md #436). */
         a->hit.kind = COLONY_HIT_CONSTRUCTION_MORE;
         a->hit.index = -1;
         return true;
@@ -874,7 +874,7 @@ COLONIZE_INTERNAL bool colony_screen_hit_multifunction(ColonyScreenHitCtx* a) {
         return true;
       }
       /* FUN_2f2b_5fc6: the BUY button only hit-tests when +0x94 >= 0 (no
-       * project, e.g. a captured AI colony's 0xFF, has no BUY; bugs.md #548). */
+       * project, e.g. a captured AI colony's 0xFF, has no BUY; port_bugs.md #548). */
       if (colony->building_in_production >= 0) {
         a->hit.kind = COLONY_HIT_MULTI_BUY;
         return true;
@@ -964,7 +964,7 @@ COLONIZE_INTERNAL bool colony_screen_hit_fence(ColonyScreenHitCtx* a) {
       }
       int xs[COLONY_OUTSIDE_MAX];
       colony_screen_icon_strip_layout(fence_x, fence_w, n, ref_iw, xs);
-      /* bugs.md: walk BACK-to-front — squeezed icons overlap, and the one
+      /* port_bugs.md: walk BACK-to-front — squeezed icons overlap, and the one
        * drawn on top (later index) must win the click, or the units behind
        * the pile were unselectable. */
       for (int i = n - 1; i >= 0; --i) {
@@ -1085,7 +1085,7 @@ COLONIZE_INTERNAL bool colony_screen_hit_area_tiles(ColonyScreenHitCtx* a) {
       return true;
     }
     /* Centre tile (not assignable): DOS's click-to-toggle-numbers spot
-     * (2f2b:609e flips DS:0x336 and refreshes; bugs.md). */
+     * (2f2b:609e flips DS:0x336 and refreshes; port_bugs.md). */
     a->hit.kind = COLONY_HIT_AREA_INTERIOR;
     return true;
   }
@@ -1150,7 +1150,7 @@ COLONIZE_INTERNAL bool colony_screen_hit_buildings(ColonyScreenHitCtx* a) {
     const int slot_ox = COLONY_VIEWPORT_X;
     const int slot_oy = COLONY_VIEWPORT_Y;
     /*
-     * bugs.md #430 — DOS's own building-slot scan, FUN_2f2b_44d4
+     * port_bugs.md #430 — DOS's own building-slot scan, FUN_2f2b_44d4
      * (viceroy_unpacked.c:51139, loop 2f2b:45ac..45b5):
      *
      *   local_e = 0;

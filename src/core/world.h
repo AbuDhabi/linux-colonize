@@ -49,18 +49,18 @@ typedef struct ColonizeWorld {
   /*
    * Human-facing popup queue + GAME.TXT catalog, for sim bodies whose DOS
    * original shows a dialog but which are reached without a turn context
-   * (the FUN_4cc6_00f2 @INDIANBURN tail, bugs.md #1004). NULL on a
+   * (the FUN_4cc6_00f2 @INDIANBURN tail, port_bugs.md #1004). NULL on a
    * world_make view = mechanics only, no dialog.
    */
   AiPopupState* ai_popups;
   const ColonizeMsgCatalog* messages;
   /* FUN_281f_04ca timer word for the 465b overspend reseed (raw 75649):
    * game_loop passes ColonizeGameState.ai_rng_seed; unset = no reseed
-   * (tests / headless callers keep the plain stream). bugs.md #842. */
+   * (tests / headless callers keep the plain stream). port_bugs.md #842. */
   uint32_t rng_reseed;
   bool rng_reseed_set;
   /* The human's nation (0..3), so _w forms can test "is human" without a
-   * turn context (bugs.md #1122). -1 = unknown / headless (world_make,
+   * turn context (port_bugs.md #1122). -1 = unknown / headless (world_make,
    * fx_world). game_world fills it; a designated-initialiser view leaves 0. */
   int human_nation;
 } ColonizeWorld;

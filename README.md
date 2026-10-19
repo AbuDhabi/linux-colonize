@@ -21,7 +21,7 @@ Status:
 - [docs/port_plan.md](docs/port_plan.md) — whole-project work queue + deferred AI track (agents start here)
 - [docs/manual_gap.md](docs/manual_gap.md) — feature Done / Partial / Missing
 - [docs/original_index.md](docs/original_index.md) — decomp / data navigation
-- [bugs.md](bugs.md) - user reported bugs
+- [docs/port_bugs.md](docs/port_bugs.md) - user reported bugs
 
 Docs map: for conventions, jargon, fixture traps and the verification loop
 see [docs/conventions.md](docs/conventions.md); for debug env vars and

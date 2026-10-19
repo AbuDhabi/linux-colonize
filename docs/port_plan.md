@@ -18,7 +18,7 @@ D3 golden gates all live plus the two idle campaigns (`golden_idle_continuous`
 `golden_idle_independence`, [idle_independence.md](idle_independence.md)).
 What remains AI-side is the short **residual punch list** in the Deferred AI
 track section, not a track. The only remaining *phases* are D4 (pixel chrome)
-and D5 (music timbre). Open work is the `bugs.md` queue — currently the
+and D5 (music timbre). Open work is the `port_bugs.md` queue — currently the
 2026-10-18 code-audit rows #1086-#1122 ([code_audit_2026-10-18.md](code_audit_2026-10-18.md)).
 
 > **Doc merge note (2026-09-05):** `roadmap.md`, `ai_port_plan.md` and
@@ -83,7 +83,7 @@ history of this file (pre-2026-09-05).
 
 ### P1 — UI correctness (player-guided)
 
-Closed 2026-09-03; leftover UI nits go through `bugs.md`, not a pre-seeded
+Closed 2026-09-03; leftover UI nits go through `port_bugs.md`, not a pre-seeded
 checklist. This track stays **[user]**-driven if reopened.
 
 - [x] P1.1/P1.3/P1.4/P1.5 [user] — map/panel, colony, Europe screens
@@ -162,7 +162,7 @@ Remaining SFX misfires are polish. Details: [assets.md](assets.md).
 Economy loop, manufacturing rates, Town Hall outer-tile preserve, education,
 Custom House, horse breeding, growth, warehouse, construction, preview
 goldens all in (2026-09-03). Remaining mismatches go through
-[bugs.md](../bugs.md).
+[port_bugs.md](port_bugs.md).
 
 - [x] P4.1 [auto] 2026-08-26 — manufacturing rates already DOS-confirmed in
   [building_production.md](building_production.md); "assets missing" blocker
@@ -199,7 +199,7 @@ goldens all in (2026-09-03). Remaining mismatches go through
 - [x] P4.10 [auto] 2026-08-28 — `golden_colony_preview01`: preview vs tick
   delta equality over both real fixtures; found AI `food += difficulty>>1`
   and Spring-only hammers gates missing from `colony_preview.c` — mirrored.
-  (2026-09-16, bugs.md #466: the Spring-only hammers gate was REMOVED — the
+  (2026-09-16, port_bugs.md #466: the Spring-only hammers gate was REMOVED — the
   Spring→Autumn fixture that motivated it has no carpenter staffed in any
   colony, so its unchanged hammers prove nothing. Hammers bank every tick;
   the preview keeps the lumber debit.)
@@ -269,7 +269,7 @@ chrome only (P11/D4).
   2026-09-08** (`units_try_move_w`, `units_move.c`: range(1,cost) ≤ remaining,
   spent==0 free step, attack never denied; the port-only
   `units_can_afford_move_cost` pre-filter had no caller and was deleted
-  2026-10-18, bugs.md #1105). The DOS "NULL-rng" is
+  2026-10-18, port_bugs.md #1105). The DOS "NULL-rng" is
   `FUN_281f_04ca` = Borland `randomize()` (srand from BIOS tick 0040:006C)
   fired before the foreign clause whenever the cheap clauses fail — a
   wall-clock reseed, non-reproducible even in DOS; intentionally NOT ported
@@ -297,7 +297,7 @@ Sail/harbor/market/recruit/train/purchase/equip Done; volume-price
   and compares all four nations' nr/price/tons/tons2 + the pool.
   no-transports pair exact; dutch2 keeps Horses (DOS French AI 50-horse
   buy) and the human Muskets row out: DOSBox trace shows both are AI
-  Europe-trade realisation of the player's session, bugs.md #1085.
+  Europe-trade realisation of the player's session, port_bugs.md #1085.
 - [x] P6.2 [auto] 2026-08-26 — tax raises already real (`38fd_5be8`
   interval gate, favor ladder, 0..75 clamp), `@TEAPARTY`, Fugger +
   pay-arrears `@SOMEBOYCOTT` (**trap:** no `@BOYCOTT*` section exists).
@@ -305,7 +305,7 @@ Sail/harbor/market/recruit/train/purchase/equip Done; volume-price
   `@NOGOLD*` doesn't exist; DOS has no "can't afford" modal — silent
   clamp to `gold/ask` is faithful.
 - [x] P6.4 [auto] — 2026-08-26 pass concluded "no Europe dock equip UI";
-  **corrected 2026-08-31 (bugs.md): that 4-row dock menu was invented —
+  **corrected 2026-08-31 (port_bugs.md): that 4-row dock menu was invented —
   DOS `FUN_38fd_37xx` is GAME.TXT `@ARMOPTIONS` (12 rows), now ported.**
   Colony-fence bless remains a separate free action.
 - [x] P6.5 [auto] — **corrected 2026-09-03 by full `FUN_479b_0bd0`
@@ -467,8 +467,8 @@ Also parked with these: MAPEDIT catalog track (old W5.4).
 vocabulary, FUN_* inventory, dated write-ups) moved to
 [archive/port_plan_deferred_ai_track.md](archive/port_plan_deferred_ai_track.md).
 Genuinely open AI-side work: land-assault-vs-2+-defender-colony residue is
-CLOSED (bugs.md #521 FIXED 2026-09-22). **2026-09-26: the Europe-queue slice
-landed** — bugs.md #953 (the off-map Europe park denied its own units their MP
+CLOSED (port_bugs.md #521 FIXED 2026-09-22). **2026-09-26: the Europe-queue slice
+landed** — port_bugs.md #953 (the off-map Europe park denied its own units their MP
 refresh, freezing the first hull a nation ever sailed home plus every colonist
 loaded onto it) and #954 (the DS:0x945a > DS:0x9456 dock-demand sail-home arm,
 raw 89725-89728, and the path-independent map->Europe crossing were both

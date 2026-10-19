@@ -1,5 +1,5 @@
 /*
- * Regression guards for FIXED bugs.md rows that had no test (gap audit
+ * Regression guards for FIXED port_bugs.md rows that had no test (gap audit
  * 2026-09-26). Slice: ai_tables.
  */
 #include "../common/ai_fixture.h"
@@ -21,7 +21,7 @@
 #include <string.h>
 
 /*
- * bugs.md #651 (FUN_521d_20e6 raw 89685-89687 / 89801-89803): the port's
+ * port_bugs.md #651 (FUN_521d_20e6 raw 89685-89687 / 89801-89803): the port's
  * ai_euro_20e6_unit_col5 (ai_euro_ship.c:2456) used to return the @UNIT
  * HOLDS column (cargo) instead of DEFENSE — Dragoon scored (0-10)*2 = -20
  * instead of (3-10)*2 = -14. Guard: a hand-built pool with a land type whose
@@ -47,7 +47,7 @@ static int case_651_col5_reads_defense(void) {
 }
 
 /*
- * bugs.md #668 (FUN_521d_20e6 raw 88586, 88885-88887): the NAMES.TXT-default
+ * port_bugs.md #668 (FUN_521d_20e6 raw 88586, 88885-88887): the NAMES.TXT-default
  * fallback table k_20e6_type_combat (ai_euro_land.c:57) used to hold the
  * DEFENSE column (Artillery 5, Galleon 10, Colonists 1); every DOS site
  * reads ATTACK. Guard via the public accessor ai_euro_20e6_type_combat,
@@ -77,7 +77,7 @@ static int case_668_fallback_table_is_attack(void) {
 }
 
 /*
- * bugs.md #661 (FUN_43f7_0982 raw 74077-74081 / 74091-74094): the REF
+ * port_bugs.md #661 (FUN_43f7_0982 raw 74077-74081 / 74091-74094): the REF
  * per-wave landing cap used to be a hardcoded 6/31 pair; DS:0x5333 is the
  * @UNIT row 18 (Man-O-War) HOLDS column. Guard: ai_king_0982_max_landing
  * must track the catalog's Man-O-War cargo value, not a literal.
@@ -105,7 +105,7 @@ static int case_661_max_landing_reads_mow_holds(void) {
 }
 
 /*
- * bugs.md #874 (FUN_43f7_2022 raw 75007): one if/else over
+ * port_bugs.md #874 (FUN_43f7_2022 raw 75007): one if/else over
  * `(0x5382&2)==0 || 0x53e6==0` — the free intervention drain and the
  * mercenary offer are exclusive within the same beat. The port used to run
  * the drain (ai_king_10f0_land) unconditionally first, so a drain that took
@@ -244,7 +244,7 @@ static int case_874_drain_and_merc_offer_exclusive(void) {
 
   /* Arm the exclusivity race: announce latch set, MoW pool == 1, and the
    * mobilization gate already cleared so the drain/merc arm actually runs
-   * (bugs.md #250: the mobilization turn itself does nothing else). */
+   * (port_bugs.md #250: the mobilization turn itself does nothing else). */
   ai_king_latch_set(&col1, AI_KING_INTERVENE_ANNOUNCED_BYTE, 1);
   col1.head.backup_force[2] = 1;
   col1.nation[0].nation_flags = (uint8_t)(col1.nation[0].nation_flags | 0x08u);

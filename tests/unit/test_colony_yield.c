@@ -315,7 +315,7 @@ static int case_fisherman_major_river(void) {
     map_free(&map);
     return 1;
   }
-  /* bugs.md #883: Fisherman falls in the `7 < job` arm of the Convert +1
+  /* port_bugs.md #883: Fisherman falls in the `7 < job` arm of the Convert +1
    * whitelist (FUN_15eb_18ec raw 11973-11979) — Convert gets +1 over free. */
   const int free_fish = colony_yield_for_worker(
     &map, fx, fy, COLONIZE_JOB_FISHERMAN, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
@@ -379,7 +379,7 @@ static int case_expert_ore_miner_hills_road_sol(void) {
     map_free(&map);
     return 1;
   }
-  /* bugs.md #883: Ore Miner is excluded from the Convert +1 whitelist
+  /* port_bugs.md #883: Ore Miner is excluded from the Convert +1 whitelist
    * (FUN_15eb_18ec raw 11973-11979) — Convert gets no bonus over free. */
   const int convert_ore = colony_yield_for_worker(
     &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_PROF_CONVERT, /*has_docks=*/true, 1, 0,
@@ -777,7 +777,7 @@ static int case_silver_miner_collapse(void) {
     map_free(&map);
     return 1;
   }
-  /* bugs.md #883: Silver Miner is excluded from the Convert +1 whitelist
+  /* port_bugs.md #883: Silver Miner is excluded from the Convert +1 whitelist
    * (FUN_15eb_18ec raw 11973-11979) — Convert gets no bonus over free. */
   const int road_convert = colony_yield_for_worker(
     &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_CONVERT, true, 0, 0,
@@ -1021,7 +1021,7 @@ static int case_docks_row6_bit(void) {
  * 11736-11738 (`(param_1 == 8) && (param_2 == 4)` -> local_4 + 3). The +3
  * was a 2026-09-03 correction from a wrongly-read +2 and nothing pinned it
  * (only Game +2 was covered), so it could silently regress; the
- * Colonopedia's own copy had in fact drifted back to +2 (bugs.md #855).
+ * Colonopedia's own copy had in fact drifted back to +2 (port_bugs.md #855).
  * Mixed forest (class 10) is the Beaver-bearing forest row: fur base 3.
  *   free colonist: 3 + 3 = 6
  *   expert:        (3 + 3) << 1 = 12   (resource add is inside the doubling)
@@ -1197,7 +1197,7 @@ static int case_expert_fur_trapper_base_zero(void) {
 }
 
 /*
- * bugs.md #894: FUN_15eb_18ec raw 11913-11923 (DS 0xa896) tallies the
+ * port_bugs.md #894: FUN_15eb_18ec raw 11913-11923 (DS 0xa896) tallies the
  * ore/silver "depletion units" from (resource, job) alone as it walks the
  * 5x5 field loop, independent of the pipeline's final yield: Minerals(6) +
  * Ore Miner -> +1, Minerals(6) + Silver Miner -> +2, Silver Deposit(12) +
@@ -1275,7 +1275,7 @@ static int case_depletion_counter_tally(void) {
     return 1;
   }
 
-  /* The 1/2/1 tally itself (bugs.md #894). */
+  /* The 1/2/1 tally itself (port_bugs.md #894). */
   const int ore_units = depletion_units_for(res_minerals, COLONIZE_JOB_ORE_MINER);
   const int silver_on_minerals_units = depletion_units_for(res_minerals, COLONIZE_JOB_SILVER_MINER);
   const int silver_on_deposit_units = depletion_units_for(res_silver_dep, COLONIZE_JOB_SILVER_MINER);
@@ -1316,7 +1316,7 @@ static int case_depletion_counter_tally(void) {
   map_free(&map);
   if (units_at_yld0 != 1) {
     fprintf(
-      stderr, "depletion at yield 0 want 1 got %d (bugs.md #894 hoist)\n", units_at_yld0
+      stderr, "depletion at yield 0 want 1 got %d (port_bugs.md #894 hoist)\n", units_at_yld0
     );
     return 1;
   }
@@ -1324,7 +1324,7 @@ static int case_depletion_counter_tally(void) {
 }
 
 /*
- * bugs.md #895(c): resource-effect deltas from docs/terrain_yields.md's
+ * port_bugs.md #895(c): resource-effect deltas from docs/terrain_yields.md's
  * "Resource effect" table, measured as (resource tile) - (resource-free
  * tile of the same terrain class, no road/river/plow, sol=0) so no base
  * table value needs to be hand-derived. Prime Timber(10)+Lumberjack,
@@ -1407,11 +1407,11 @@ static int case_resource_effect_deltas(void) {
    * doubling too (free: 2*2=4) and, for an expert, ALSO the generic
    * expert doubling ahead of it (2*(2*2)=8) — a double-double the docs'
    * pipeline order (step 7 resource, step 8 Lumberjack double) doesn't
-   * predict, and bugs.md #895's "+2 free/+4 expert" assumption missed.
+   * predict, and port_bugs.md #895's "+2 free/+4 expert" assumption missed.
    * Asserting the actual measured numbers per this case's own
    * instructions (report a mismatch rather than editing colony_yield.c,
    * which is out of scope here); flagged to the caller as a possible real
-   * discrepancy worth its own bugs.md row.
+   * discrepancy worth its own port_bugs.md row.
    */
   if (resource_delta_case(12, 10, COLONIZE_JOB_LUMBERJACK, 4, 8, "prime timber lumberjack")) {
     return 1;
@@ -1431,7 +1431,7 @@ static int case_resource_effect_deltas(void) {
 }
 
 /*
- * bugs.md #895(c): non-expert Lumberjack's `u` is 2 like a matching expert
+ * port_bugs.md #895(c): non-expert Lumberjack's `u` is 2 like a matching expert
  * (colony_yield.c's improvement-stack comment: "u = 2 for a matching
  * non-food/fish expert OR ANY Lumberjack"), and Lumberjack's own `<<= 1`
  * runs before that stack — so a free colonist Lumberjack on a road/river
@@ -1490,7 +1490,7 @@ static int case_lumberjack_free_u2_stack(void) {
 }
 
 /*
- * bugs.md #895(b)/(c): FUN_15eb_1f72's commons secondary is a strict max
+ * port_bugs.md #895(b)/(c): FUN_15eb_1f72's commons secondary is a strict max
  * over jobs 1..7 (skipping 5, Farmer/Fisherman not eligible). Hills(28)'s
  * own resource is Ore Deposit(13) — Ore-over-Silver there is trivial, both
  * on the bare-terrain base (docs row 27/28's now-fixed table) and with the
@@ -1502,7 +1502,7 @@ static int case_lumberjack_free_u2_stack(void) {
  * Deposit's own +2 resource effect (docs/terrain_yields.md's resource
  * table) overtakes Ore's bare-terrain lead (4 vs 1) once added, unlike the
  * Hills/Ore Deposit case where the deposit only widens Ore's existing
- * lead. bugs.md #895(c)'s "Hills/Mountains with a resource picks Ore over
+ * lead. port_bugs.md #895(c)'s "Hills/Mountains with a resource picks Ore over
  * Silver" does not hold on Mountains once its own deposit is on the tile;
  * asserted here as the measured behavior per this file's report-don't-fix
  * convention (colony_yield.c is out of scope for this change).

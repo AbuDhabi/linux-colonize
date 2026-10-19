@@ -69,7 +69,7 @@ int ai_contact_s_last_gold_drained;
  *    (viceroy 81704-81707, ai_indian_midpass_clear_tables);
  *  - the alarm ceiling (`> 0x4a` bails the whole visit) and the mood RNG.
  * An earlier port (through 2026-09-09) added an invented 8-turn per-nation
- * throttle on top; bugs.md #417's defect (demand at alarm 0 right after a
+ * throttle on top; port_bugs.md #417's defect (demand at alarm 0 right after a
  * gift) was really the per-arm split of that throttle bypassing the mood
  * roll, and the structural gift-before-demand order above is the DOS-real
  * fix. Do not reintroduce a cooldown.
@@ -77,7 +77,7 @@ int ai_contact_s_last_gold_drained;
 
 
 /*
- * One encounter per Brave per turn (bugs.md: "attacked my colony, and then
+ * One encounter per Brave per turn (port_bugs.md: "attacked my colony, and then
  * gave me gifts in the same interaction").
  *
  * DOS has no separate "visit" and "raid" passes: FUN_5bfb_35xx's move tail
@@ -88,7 +88,7 @@ int ai_contact_s_last_gold_drained;
  * per-nation in `aiStack_20[nation]`. The latch records the Brave that
  * resolved this turn's peaceful visit (read by the visit-mood binding and
  * ai_contact_is_visit_brave). Its old raid-pulse reader was deleted with the
- * pulse (bugs.md #1093).
+ * pulse (port_bugs.md #1093).
  */
 int ai_contact_s_visit_brave_id[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
 int ai_contact_s_visit_brave_turn[8];
@@ -112,7 +112,7 @@ COLONIZE_INTERNAL int ai_contact_last_raid_kind(void) {
 /* @CARGO display names via the shared NAMES.TXT-backed accessor. */
 const char* ai_contact_cargo_name(int cargo_idx) {
   if (cargo_idx < 0 || cargo_idx >= COLONIZE_CARGO_COUNT) {
-    return ""; /* catalog miss = empty (bugs.md #1100) */
+    return ""; /* catalog miss = empty (port_bugs.md #1100) */
   }
   return reports_cargo_display_name(cargo_idx);
 }
@@ -249,7 +249,7 @@ void ai_contact_bind_names(const ColonizeTurnContext* ctx) {
 const char* ai_contact_tribe_name(int nation_id) {
   const int idx = nation_id - 4;
   if (idx < 0 || idx >= 8) {
-    return ""; /* bugs.md #1100 */
+    return ""; /* port_bugs.md #1100 */
   }
   return reports_tribe_singular_name(idx);
 }
@@ -259,14 +259,14 @@ const char* ai_contact_tribe_name(int nation_id) {
  * col1 NULL = plain adjective. */
 const char* ai_contact_euro_name(const ColonizeCol1Save* col1, int euro_nation) {
   if (euro_nation < 0 || euro_nation > 3) {
-    return ""; /* bugs.md #1100 */
+    return ""; /* port_bugs.md #1100 */
   }
   return reports_nation_adjective_woi(col1, euro_nation);
 }
 
 const char* ai_contact_euro_plural(const ColonizeCol1Save* col1, int euro_nation) {
   if (euro_nation < 0 || euro_nation > 3) {
-    return ""; /* bugs.md #1100 */
+    return ""; /* port_bugs.md #1100 */
   }
   return reports_nation_plural_woi(col1, euro_nation);
 }
@@ -363,11 +363,11 @@ void ai_contact_alarm_delta_00f2(
  * Context-free form of the same whole DOS body, for the positive-delta sites
  * that hold a ColonizeWorld but no turn context: the colony-screen land-work
  * bill, the pioneer clear/plow/road charge and the 465b trespass slam
- * (bugs.md #1004). DOS has no half writer -- FUN_281f_0d6c is a bare thunk to
+ * (port_bugs.md #1004). DOS has no half writer -- FUN_281f_0d6c is a bare thunk to
  * the whole of FUN_4cc6_00f2 -- so those sites used to pin a pair at alarm
  * 100 forever and never burn a mission, while DOS rolls on every charge that
  * lands on 100. "Human" goes through ai_contact_euro_is_human like the ctx
- * form (bugs.md #1122), with the world's human_nation as the override; a
+ * form (port_bugs.md #1122), with the world's human_nation as the override; a
  * headless view (-1) falls back to the DS:0x543f control byte. No status
  * line to write, so the @INDIANBURN notice goes straight to the popup queue
  * when the world carries one (NULL queue = mechanics only, as before).
@@ -435,7 +435,7 @@ void ai_contact_clear_peace(ColonizeCol1Save* col1, int indian_nation, int euro_
   ai_diplo_clear_both(col1, indian_nation, euro_nation, COL1_INDIAN_PEACE_BIT);
 }
 
-/* Settlement count (villages/camps/cities), not braves — bugs.md #3. */
+/* Settlement count (villages/camps/cities), not braves — port_bugs.md #3. */
 static int ai_contact_nation_settlement_count(const ColonizeTurnContext* ctx, int nation_id) {
   int count = 0;
   if (!ctx || !ctx->col1 || !ctx->col1->tribe) {
@@ -492,7 +492,7 @@ void ai_contact_apply_welcome_accept(
     ind->alarm_by_player[e] = 20u;
   }
   /*
-   * bugs.md #1008: no village-attitude wipe here. DOS's contact arm ORs the
+   * port_bugs.md #1008: no village-attitude wipe here. DOS's contact arm ORs the
    * MET bit and clamps alarm and writes no DS:0x54f6 word at all (raw
    * 96612-96760 — the only 0d6c in the block is the @INDIANSHUN reject +100).
    * The loop that used to zero every tribe's alarm[e] discarded real
@@ -607,7 +607,7 @@ static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nati
    * DOS keys both this and the woodcut below on `*(int *)0x8d52`, the tribe
    * SLOT (0 = Inca, 1 = Aztec) — the same value that indexes DS:0x962a at
    * `*0x8d52 + -0x69d6`. This read `nation_id`, which is the 4..11 Col1 id,
-   * so neither branch could ever be taken (fixed with bugs.md #416). */
+   * so neither branch could ever be taken (fixed with port_bugs.md #416). */
   const int tribe_slot = nation_id - 4;
   if (ctx->col1 && ctx->col1->head.turn >= 20) {
     sound_set_bgm(tribe_slot == 0 ? 7 : (tribe_slot == 1 ? 6 : 5));
@@ -631,7 +631,7 @@ static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nati
   welcome_tok.string0 = tribe;
   /* FUN_5bfb_022e raw 96628: %STRING1 = DS:(tech*6 - 0x69ca), the @LEVELS
    * plural column (Camps/Villages/Cities) by the tribe's +2 tech byte —
-   * always plural, whatever the count (bugs.md #1100). */
+   * always plural, whatever the count (port_bugs.md #1100). */
   char levels[32];
   levels[0] = '\0';
   if (ctx->col1 && !assets_msg_row_field(
@@ -648,7 +648,7 @@ static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nati
   popup_msg_fill(
     ctx->messages, "INDIANWELCOME", &welcome_tok, fb, body, sizeof(body)
   );
-  /* GAME.TXT @INDIANWELCOME choice rows: "Yes" / "No" (bugs.md #541). */
+  /* GAME.TXT @INDIANWELCOME choice rows: "Yes" / "No" (port_bugs.md #541). */
   char choice_buf[2][POPUP_MSG_CHOICE_LEN];
   const char* labels[2];
   (void)popup_msg_section_labels(
@@ -724,7 +724,7 @@ static int ai_contact_neighbour_nation(const ColonizeTurnContext* ctx, int nx, i
     /*
      * FUN_137f_03e4 tile_tribe_owner: owner nibble only when bit 0x02 set.
      *
-     * bugs.md #416: the nibble is a STAMP, not a record — DOS FUN_1427_02ca
+     * port_bugs.md #416: the nibble is a STAMP, not a record — DOS FUN_1427_02ca
      * rewrites it with the mover's own nation on every step, and it survives
      * the unit leaving (FUN_1427_023a clears presence only). In DOS a unit
      * never stands on a settlement tile it does not own, so on a `& 2` tile
@@ -833,7 +833,7 @@ static void ai_contact_classify_unit(
    * the incite -1500 discount, which FUN_4d56_417e raw 83579-83580 keys on
    * the PROFESSION byte (+0x315b == 0x18, Jesuit) — that flag is passed in
    * by the caller (game_loop's `profession == UNITS_JOB_MISSIONARY`) and
-   * travels in the CHOICE payload bit0. bugs.md #587.
+   * travels in the CHOICE payload bit0. port_bugs.md #587.
    */
   out->is_missionary = units_type_is_missionary(t) ? 1 : 0;
   out->attack = t ? t->attack : 0;
@@ -847,7 +847,7 @@ static void ai_contact_classify_unit(
    * the attack < 2 / not-Scout / not-Missionary gates that is exactly the
    * colonist-class name test above (Regulars/Cavalry fall to attack ≥ 2).
    *
-   * bugs.md #726: the DOS row-5 gate (asm OVL13:0x49e0-0x4a3f) ends with a
+   * port_bugs.md #726: the DOS row-5 gate (asm OVL13:0x49e0-0x4a3f) ends with a
    * fourth test, `FUN_1000_8d68(unit) != 0x1b`, which the port used to spell
    * as "profession != Convert". 8d68 reads the TYPE-default table DS:0x30e,
    * never the unit's +0x315b profession byte, and that table holds no 0x1b —
@@ -898,7 +898,7 @@ static const char* ai_contact_action_label(
   size_t n = 0;
   for (const char* c = src; *c && n + 1 < out_size; ++c) {
     if (c[0] == '%' && c[1] == 'F') {
-      const char* a = rival_adj ? rival_adj : ""; /* bugs.md #1100 */
+      const char* a = rival_adj ? rival_adj : ""; /* port_bugs.md #1100 */
       while (*a && n + 1 < out_size) {
         out[n++] = *a++;
       }
@@ -1022,7 +1022,7 @@ void ai_contact_enqueue_village_meet(
      * (FUN_1000_8212(row) + LAB_1000_9365), so the visible order is always
      * 1 Trade, 2 Enter Hostile, 3 Mission, 4 Heresy, 5 Live Among, 6 Chief,
      * 7 Incite, 8 Demand, 9 Attack, 10 Cancel — never the order the port used
-     * to emit them in (bugs.md #501; indian_actions_menu.md "Row enabling").
+     * to emit them in (port_bugs.md #501; indian_actions_menu.md "Row enabling").
      * `ai_contact_action_label` takes the 0-based row, so rows are 0..9 here.
      */
     if ((cls.is_wagon || cls.is_ship) && alarm < 0x4b) {
@@ -1114,7 +1114,7 @@ int ai_contact_try_village_meet_unit_at(
    * OVL13::00493b) only gates rows 3-8, and the only met-bit abort in the
    * function is the ship head's @DONTKNOWSHIPS. It is also built at any
    * alarm (@VILLAGEWAR body + "Enter Hostile Village" row). Only the legacy
-   * no-unit callers keep the old unmet / at-war refusals. (bugs.md #542: the
+   * no-unit callers keep the old unmet / at-war refusals. (port_bugs.md #542: the
    * port's Attack/Leave "raid warn" fallback for unmet tribes had no DOS
    * counterpart and was deleted.)
    */
@@ -1234,7 +1234,7 @@ int ai_contact_try_whack_confirm(
   tok.string0 = tribe;
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, "WHACKINDIANS", &tok, "", body, sizeof(body));
-  /* GAME.TXT @WHACKINDIANS choice rows: "Yes" / "No" (bugs.md #541). */
+  /* GAME.TXT @WHACKINDIANS choice rows: "Yes" / "No" (port_bugs.md #541). */
   char choice_buf[2][POPUP_MSG_CHOICE_LEN];
   const char* labels[2];
   (void)popup_msg_section_labels(ctx->messages, "WHACKINDIANS", &tok, "", "", choice_buf, labels);
@@ -1302,7 +1302,7 @@ int ai_contact_try_euro_attack_confirm(
     return 1;
   }
   /*
-   * bugs.md #382: ONE byte, ONE direction — DOS tests
+   * port_bugs.md #382: ONE byte, ONE direction — DOS tests
    * `FUN_281f_0a38(attacker, target) & 0x40` (viceroy_unpacked.c:75545), the
    * attacker's own relation byte, which is exactly what the Foreign Affairs
    * report prints (reports.c reports_foreign_at_war reads
@@ -1578,7 +1578,7 @@ int ai_contact_is_petty_criminal(const ColonizeUnitPool* units, const ColonizeUn
   if (!u) {
     return 0;
   }
-  /* bugs.md: profession byte, not the display name — a Petty Criminal is a
+  /* port_bugs.md: profession byte, not the display name — a Petty Criminal is a
    * Colonists-type unit whose display name reads "Free Colonist", so the
    * old name test never fired (and Indentured Servants fell into the
    * profession-set "master" refusal instead of learning). */
@@ -1598,7 +1598,7 @@ const char* ai_contact_learner_skill_name(
   if (u->profession >= 0 && u->profession < COLONIZE_FIELD_JOB_COUNT) {
     return colony_yield_job_name(u->profession);
   }
-  /* Factory / other skills by their @JOB row too (bugs.md #547). */
+  /* Factory / other skills by their @JOB row too (port_bugs.md #547). */
   const char* job = reports_job_short_name(u->profession);
   if (job && job[0]) {
     return job;
@@ -1607,7 +1607,7 @@ const char* ai_contact_learner_skill_name(
 }
 
 /*
- * bugs.md #573 — RETIRED: the legacy "village adjacency teach pulse"
+ * port_bugs.md #573 — RETIRED: the legacy "village adjacency teach pulse"
  * (ai_contact_teach_skill) and its hand-written tribe→skill table
  * (ai_contact_taught_profession, with ai_contact_profession_from_cargo /
  * _from_nation) had no DOS counterpart at all. DOS teaches a skill in

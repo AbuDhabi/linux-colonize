@@ -514,7 +514,7 @@ int quiet_score_colony_pull(int score, int colony_count) {
    *   (`ai/accessors.c`, `move_spent.c`) — no new RE, straightforward to
    *   call from `ai.c` if this is ever wired.
    * - The Artillery-only zero-out (`unit+0x3146 == 0xb`; 0x0b is Artillery,
-   *   not Missionary — bugs.md #768) can never fire
+   *   not Missionary — port_bugs.md #768) can never fire
    *   for a Brave (`type == 19`) — confirmed dead branch for this file's
    *   documented scope, not something to model here.
    * - `home_dist` is `DS:0x8db8`, already identified project-wide

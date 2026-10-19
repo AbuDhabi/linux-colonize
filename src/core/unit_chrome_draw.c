@@ -58,7 +58,7 @@ void unit_chrome_selection_frame(
    * (original_screenshots/europe/main_with_caravel_and_two_colonists.png)
    * shows the same 18x18 frame around a dock colonist whose colour sprite is
    * only ~8px wide. The previous sprite-hugging box came out visibly narrow
-   * for anything slimmer than a ship (bugs.md: "selection rectangles now too
+   * for anything slimmer than a ship (port_bugs.md: "selection rectangles now too
    * narrow ... should be square").
    */
   *out_x = x - 1;
@@ -175,7 +175,7 @@ static void unit_chrome_draw_impl(
        * offset the other three corners use, not down-right. The port had it
        * at +2/+2, which is the corner every plain Colonists/Soldiers unit
        * takes, so the "more units here" rect showed on the wrong side for
-       * exactly the commonest units (bugs.md).
+       * exactly the commonest units (port_bugs.md).
        */
       stack_x = box_x - 2;
       stack_y = box_y - 2;
@@ -301,7 +301,7 @@ void unit_chrome_blit_unit_for_palette(
   int fill_override = -1;
   int letter_override = -1;
   if (active_palette && nation_id >= 0 && nation_id < 4) {
-    /* bugs.md: REF renders WHITE — this palette wrapper bypassed the
+    /* port_bugs.md: REF renders WHITE — this palette wrapper bypassed the
      * crown override in unit_chrome_nation_color, so the main map still
      * showed the borrowed peer's blue. */
     static const uint8_t k_white_rgb[3] = {255, 255, 255};
@@ -314,7 +314,7 @@ void unit_chrome_blit_unit_for_palette(
      * the nation shade — every other order (No Orders, Go To, Fortify in
      * progress, …) is ink 0, black. This wrapper used to force the nation
      * shade for every order, which erased exactly those distinctions on
-     * palette-adapted screens (bugs.md: no-orders wrong colour, fortify vs
+     * palette-adapted screens (port_bugs.md: no-orders wrong colour, fortify vs
      * fortified indistinguishable). Black is index 0 in every palette, so
      * no remap is needed for the black case.
      */

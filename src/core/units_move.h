@@ -57,7 +57,7 @@ typedef enum ColonizeEnterReason {
   COLONIZE_ENTER_LAKE_BLOCKED = 15, /* ship → inland lake square; GAME.TXT @SHIPLAKE */
   COLONIZE_ENTER_LANDFIRST = 16, /* ship → enemy-occupied land, must unload first; @LANDFIRST */
   /*
-   * 4720 reason 4 (bugs.md #717): a SHIP pushed off the east/west rim. Shares
+   * 4720 reason 4 (port_bugs.md #717): a SHIP pushed off the east/west rim. Shares
    * reason 5's UI body (@SAILHOME / @EUROPENOTLEAVE) but its tail aborts the
    * step instead of committing it — "No" leaves the ship where it stands.
    */
@@ -234,7 +234,7 @@ bool units_set_goto_w(
  * True when the unit stands adjacent to a Go To destination that is an Indian
  * settlement tile — its final step is a move INTO the village and must be
  * dispatched through the normal entry flow (FUN_4d56_4528: woodcut 7 +
- * @ACTIONS menu), not silently paced or dropped. bugs.md #418.
+ * @ACTIONS menu), not silently paced or dropped. port_bugs.md #418.
  */
 bool units_goto_dest_is_village_entry_w(
   const ColonizeWorld* w,

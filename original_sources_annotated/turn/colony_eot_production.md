@@ -76,7 +76,7 @@ Scratch: `DS:−0x7238` (gross), `−0x71f6` (reserve). Net: `281f_0b50` → `15
 | **K — Build advisories** | 57696–57728 | Missing building msgs |
 | **L — Hammers / construction** | 57730–57787 | Add hammers; spend tools; complete `097a`→`0114` |
 | **M — Crosses** | 57788–57789 | Scratch → nation crosses |
-| **N — dead** | 57790–57805 | `local_c` is computed (`0b82(5)`, lumber-over-cap trim) and never read again — dead code, nothing to port (bugs.md #1026) |
+| **N — dead** | 57790–57805 | `local_c` is computed (`0b82(5)`, lumber-over-cap trim) and never read again — dead code, nothing to port (port_bugs.md #1026) |
 | **O — AI dump-sell + trim** | 57806–57873 | Non-human sell; spoilage clamp |
 | **P — Spoilage msgs** | 57874–57931 | Multi-cargo / century dialogs |
 | **Q — Depletion** | 57932–57944 | `+0x97` wrap → map feature 4 |

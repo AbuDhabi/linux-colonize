@@ -143,7 +143,7 @@ lands next `2022` turn).
 
 **`10f0` nit (documented)**: DOS's water-tile scorer subtracts 999 per
 CROWN Man-O-War on the tile and allows human units; OpenCol blocks any
-foreign-unit tile outright and penalizes a human MoW — kept (bugs.md 259
+foreign-unit tile outright and penalizes a human MoW — kept (port_bugs.md 259
 battle-tested), noted as a deviation.
 
 ### 2026-09-06d — the three documented divergences closed
@@ -236,7 +236,7 @@ fails the assert.
 **Still open here (not closed this pass):** `1528` announce and first
 landing still happen in one OpenCol beat (DOS announces from the `4345_0a22`
 bells spend and lands on the next `2022` turn) — a turn-cadence change that
-would touch the bugs.md-259 landing sequencing, so it stays filed. The
+would touch the port_bugs.md-259 landing sequencing, so it stays filed. The
 `10f0` water-tile scorer nit above stays a deliberate divergence.
 
 ### `2424` tail — `rebel_sentiment_report` (2026-08-22)
@@ -586,7 +586,7 @@ mass-promote / combat upgrade. OpenCol: `ai_king_war_act` in `ai_king.c`
 (`unit_ai_king` 1eca block covers the own-tile-gate, Veteran-profession-gate,
 shared-cap, and SoL==50-edge cases).
 
-**Capital rally — removed 2026-09-04 (bugs.md).** A block used to sit after the
+**Capital rally — removed 2026-09-04 (port_bugs.md).** A block used to sit after the
 promote that marched every idle **human** Cont. Army / Cont. Cav toward the
 founding capital (`AI_MOVE`) and fortified two of them on it, sourced from a
 fandom description of the Continentals plus the REF's own main-port MD slack.
@@ -797,7 +797,7 @@ and each invisible to `unit_ai_king`'s synthetic NAMES fixture:
    `turn_euro_ai_should_run` then excluded it, so REF units never got a moves
    refresh (`mp=0` forever). (**Correction 2026-09-07:** DOS `1a26` writes
    `control = 1` — raw 74833 — the crown is a live AI slot; the port matches
-   since bugs.md 234. See "MoW return-home is a `20e6` beat" below.)
+   since port_bugs.md 234. See "MoW return-home is a `20e6` beat" below.)
 3. With the refresh restored, `ai_euro_nation_turn` ran on the crown *before*
    the king slot and spent every Regular's moves. DOS `2424` dispatches the
    crown to `2022` **in addition to** the ordinary Euro turn (correction
@@ -834,7 +834,7 @@ greedy detour (DOS crown units go through the ordinary Euro unit act
 citation was to the Indian overlay), `backup_force` reinforcement cadence
 and re-embark.
 
-### The crown's mounted arm is `Cavalry`, not `Dragoons` (2026-09-04, bugs.md)
+### The crown's mounted arm is `Cavalry`, not `Dragoons` (2026-09-04, port_bugs.md)
 
 `NAMES.TXT` `@UNIT` names the colonial mounted type **`Dragoons`** and the
 crown's own **`Cavalry`** (the royal tier pair is `Regulars` <-> `Cavalry`,

@@ -351,7 +351,7 @@ static int unit_land_adjacent_combat_chain(void) {
   fb = units_get(&units, foe_b);
   const int a_defeated = !fa || !fa->active || fa->type_index != 0;
   const int b_defeated = !fb || !fb->active;
-  /* bugs.md #243: the first defender is defeated, the farther one untouched. */
+  /* port_bugs.md #243: the first defender is defeated, the farther one untouched. */
   if (!a_defeated || b_defeated) {
     fprintf(
       stderr,
@@ -636,7 +636,7 @@ static int unit_land_adjacent_foe_prefer_weak(void) {
  * LAB_521d_4d2e adjacent foes: Scout (N) and Treasure (S), both at war with
  * the mover. The DOS scorer takes whichever direction scores higher (the
  * former "prefer Treasure loot" rule was an OpenCol invention, retired with the
- * adjacent-attack stand-in, bugs.md #521); the test pins that exactly one of
+ * adjacent-attack stand-in, port_bugs.md #521); the test pins that exactly one of
  * the two is attacked and killed.
  */
 static int unit_land_adjacent_foe_prefer_treasure(void) {
@@ -1070,7 +1070,7 @@ static int unit_land_adjacent_foe_prefer_non_veteran(void) {
 }
 
 /*
- * (Deleted 2026-09-23, bugs.md #759/#760.) Four artillery tests lived here,
+ * (Deleted 2026-09-23, port_bugs.md #759/#760.) Four artillery tests lived here,
  * pinning invented AI arms now removed from ai_euro.c: the "+16 siege
  * approach / +10 prefers a fortified port" direction-scorer adds
  * (unit_artillery_adjacent_prefer_stockade), the peace colony-defence wake

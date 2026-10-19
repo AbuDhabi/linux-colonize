@@ -109,7 +109,7 @@ void colonies_emit_warehouse_full_chrome(
     return;
   }
   const int cap = colonies_warehouse_capacity(pool, colony, cargo_type);
-  /* bugs.md #433: NUMBER0 is the pre-deposit stock; back out whatever part of
+  /* port_bugs.md #433: NUMBER0 is the pre-deposit stock; back out whatever part of
    * this deposit has already landed in stock[]. */
   int stock = colony->stock[cargo_type] - (already_included > 0 ? already_included : 0);
   if (stock < 0) {
@@ -129,13 +129,13 @@ void colonies_emit_warehouse_full_chrome(
   tok.number2 = deposited > 0 ? deposited : 0;
   tok.has_number2 = true;
   /* No DOS text in the binary: on catalog miss, popup_msg_fill yields "" —
-   * never a typed English fallback (bugs.md #820). */
+   * never a typed English fallback (port_bugs.md #820). */
   popup_msg_fill(messages, "WAREHOUSEFULL", &tok, "", body, sizeof(body));
   ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
 }
 
 /*
- * bugs.md #784 — the DOS @WAREHOUSEFULL gate, asked BEFORE the goods move.
+ * port_bugs.md #784 — the DOS @WAREHOUSEFULL gate, asked BEFORE the goods move.
  *
  * thunk_FUN_1000_9784 (viceroy_overlays.c 59355-59367), the colony screen's
  * one unload path:
@@ -348,7 +348,7 @@ int colonies_apply_warehouse_spoilage(
     }
     /* `stock -= aiStack_e4[c]` first, then `local_74 = min(stock, excess)`:
      * when the stock FELL this turn while staying over capacity (net < 0) the
-     * loss DOS reports is `stock_now - cap`, not `before - cap` (bugs.md
+     * loss DOS reports is `stock_now - cap`, not `before - cap` (port_bugs.md
      * #1025 — the port used to overstate the @SPOIL number in that case). */
     const int remain = colony->stock[c] - net_capped;
     int lost = surplus - net_capped;
@@ -436,7 +436,7 @@ int colonies_transfer_from_unit(
     return 0;
   }
   /*
-   * bugs.md: unloading past warehouse capacity is ALLOWED — the whole hold
+   * port_bugs.md: unloading past warehouse capacity is ALLOWED — the whole hold
    * goes ashore, the excess spoils at next turn's warehouse pass, and the
    * over-capacity stock number is drawn in the alert colour. The flag only
    * informs the caller (status/popup), it no longer blocks or splits the
@@ -585,7 +585,7 @@ ColonizeForeignTradeGate colonies_foreign_trade_gate(
   }
   /*
    * raw 98924-98927: FUN_281f_0a38(actor, owner) & 0x40 = peace treaty.
-   * bugs.md #808: FUN_5f7a_020e has no "not my own colony" test — DOS gets
+   * port_bugs.md #808: FUN_5f7a_020e has no "not my own colony" test — DOS gets
    * that for free here, because euro_relation[n][n] is a byte nothing ever
    * writes, so a same-nation actor reads 0 and takes the no-treaty arm
    * (FUN_281f_03fe; return). ai_diplo_read has an OpenCol-only self virtual
@@ -743,7 +743,7 @@ int colonies_foreign_trade_apply(
    * stock of the cargo it hands over in the barter arm — transcribed, not fixed.
    */
   col->stock[deal->sold_cargo] += deal->sold_qty;
-  /* bugs.md #808: raw 99031-99033 writes colony+0x9a+sold*2 and nothing else
+  /* port_bugs.md #808: raw 99031-99033 writes colony+0x9a+sold*2 and nothing else
    * — the `cargo_idle_turns = 0` that used to stand here was invented. */
   return 1;
 }

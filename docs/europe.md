@@ -60,7 +60,7 @@ order and the next tick reloads without the grace turn.
 
 ## EuropeHarborShip trade_route_plus1
 
-Trade-route automation (bugs.md: "A ship trying to go to Europe via
+Trade-route automation (port_bugs.md: "A ship trying to go to Europe via
 trade route just goes to the sea lane tile, then returns. Never visits
 Europe."): 0 = not on a route; else route slot + 1. trade_stop is the
 stop index the ship is travelling to service (going east: the Europe
@@ -73,7 +73,7 @@ Crosses meter = DOS Europe +0x2e / +0x30 (same words as immigration pressure).
 needed = FUN_38fd_584a score each EOT; idle +2 until first dock immigrant;
 then church crosses only; spawn when current > needed. New-campaign seed is the
 human's COLONY00 pair, current 2 / needed 9, with every AI nation at 0 / 0
-until its own first 584a tick scores it (bugs.md #1015).
+until its own first 584a tick scores it (port_bugs.md #1015).
 Cite: europe_nation_eot.md; TURN1–7 goldens.
 
 ## EuropeScreen pool_force_expert
@@ -111,7 +111,7 @@ default choice), row 1 "No"; europe_menu_confirm_ex special-cases
 purchase_confirming ahead of its generic sel==0-cancels shortcut, since
 that would otherwise treat "Yes" as a cancel. purchase_confirm_index/
 cost freeze the item and price the popup was opened for so the answer
-never re-reads a table that may have moved. bugs.md #753.
+never re-reads a table that may have moved. port_bugs.md #753.
 
 ## EuropeScreen dock_menu_label
 
@@ -158,7 +158,7 @@ Europe until penalty paid or Fugger"; Custom House bypasses this
 DOS status-line lines this screen has composed but the game loop has not
 handed to the strip yet (FUN_38fd_23c4 tail: compose into DS:0x2d54, arm
 with FUN_38fd_19d8(1, 0x78, 0), repaint). Drained by the Europe frame in
-game_loop.c; see bugs.md #376.
+game_loop.c; see port_bugs.md #376.
 
 ## Europe sale status line
 
@@ -175,7 +175,7 @@ branch in DOS only burns RNG(0,1)+an FF test and discards both — there
 is no west-edge sail penalty in the shipped code (PEDIA's Magellan
 "west edge" line describes the 10% delay this FF removes). The port still
 takes `new_world_x` and burns that draw, because the shared stream has to
-land where DOS leaves it (bugs.md #1019). The argument is the New World
+land where DOS leaves it (port_bugs.md #1019). The argument is the New World
 column of the crossing: Ghidra drops it at all three call sites, and the
 asm (viceroy_unpacked.asm:93551 / :123097 / :123378) pushes nation +0x32
 `return_from_europe_x` or unit +0x314d as the second cdecl argument. Port
@@ -214,13 +214,13 @@ Same refill on the real game stream: DOS's `46d4` tier rolls are
 `FUN_281f_04d4(1,15)/(1,10)/(1,8)` off the shared RNG (viceroy_unpacked.c
 64632/64636/64640). The expert half is the per-nation LFSR on nation
 +0x44/+0x45 (`recruit_lfsr`/`recruit_salt`, step `FUN_3f3f_0006` poly 0x14,
-bugs.md #1058); it consumes no shared-stream draw, so a force-expert refill
+port_bugs.md #1058); it consumes no shared-stream draw, so a force-expert refill
 leaves `rng` exactly where DOS leaves it. A 0 LFSR byte (pre-#1058 port
 save) falls back to europe.c's local generator.
 
 ## europe_seed_campaign_w
 
-The new-game caller of FUN_38fd_6024's RNG work (bugs.md #1058): reseed a
+The new-game caller of FUN_38fd_6024's RNG work (port_bugs.md #1058): reseed a
 fresh stream from the campaign seed (DOS DS:0x83a6 timer word; `--seed`
 value), then per nation 0..3 `recruit_lfsr = RNG(1,0x20)`, `recruit_salt =
 RNG(0,0x1f)`, recruit[0] = servant/criminal, two 46d4 rolls (slot 1 expert on
@@ -230,7 +230,7 @@ below on the same stream. Reproduces `original_saves/mapgen/SEED100.SAV`
 (seed 100) byte-for-byte for LFSR, pools and all 16 prices given the save's
 DS:0x53ea demand pool (`unit_europe` case_europe_seed_campaign_seed100).
 The pool itself is drawn in ai.c on the campaign seed after the 5 axis draws, and
-nation 0's turn-0 market tick (one pool decay) follows this call (bugs.md #1084).
+nation 0's turn-0 market tick (one pool decay) follows this call (port_bugs.md #1084).
 
 ## europe_seed_campaign_prices
 
@@ -247,7 +247,7 @@ the new-campaign path calls: the rolls above, then the broadcast onto
 (`europe_market_seed_tail_w`), whose mode-1 arm rewrites cargos 9..12 as
 clamp(ratio, low, high) — ratio 3 against the still-empty ledger, so those four
 open at 3 rather than at their roll. Without the broadcast every AI nation
-priced every cargo at 0 for the whole campaign. bugs.md #1011/#1016.
+priced every cargo at 0 for the whole campaign. port_bugs.md #1011/#1016.
 
 ## Europe dock arrival Dragoon roll (_ex forms)
 
@@ -264,7 +264,7 @@ raw 64874-64883): computes the price — bumping the artillery escalation
 counter right here, unconditionally of the eventual Yes/No, exactly as
 DOS does before it ever shows the popup — and freezes it in
 purchase_confirm_cost. Returns false (no-op) for an out-of-range or
-unaffordable index. bugs.md #753.
+unaffordable index. port_bugs.md #753.
 
 ## europe_dock_caption
 
@@ -282,7 +282,7 @@ europe_disembark_passengers_to_dock — DOS sends an arrival from the New World
 to the oldest end of the dock lane chain (FUN_281f_08c6 = FUN_1427_03a0 after
 the FUN_48d3_03d0 lane hop), so it queues behind everyone already there.
 Colonists *created* in Europe go the other way, onto slot 0, through
-europe_dock_insert_front (europe_internal.h). bugs.md #999. Returns false if
+europe_dock_insert_front (europe_internal.h). port_bugs.md #999. Returns false if
 the dock is full.
 
 ## europe_remove_dock_mirror_unit
@@ -340,7 +340,7 @@ DOS @UNIT type for a dock entry. A name that is itself one of the six
 profession decides, the way FUN_38fd_0718 decides it for a fresh
 immigrant. Anything else — Artillery, a purchased hull — is Colonists.
 A Continental Army / Cavalry (kinds 9 / 7) disembarked in Europe keeps its
-own @UNIT row as `dos_type` (bugs.md #669; `europe_dock_dos_type_is_valid`),
+own @UNIT row as `dos_type` (port_bugs.md #669; `europe_dock_dos_type_is_valid`),
 the way DOS keeps +0x3146; the kit helpers know both rows.
 
 ## europe_dock_icon_sprite
@@ -352,12 +352,12 @@ with DOS FUN_112b_0060's expert/generic pose split keyed by profession.
 
 ICONS.SS sprite for a Europe-side ship passenger (pool type + profession):
 colonists get their working portrait, the five kit types go through
-europe_dock_icon_sprite (bugs.md #452), anything else its @UNIT icon.
+europe_dock_icon_sprite (port_bugs.md #452), anything else its @UNIT icon.
 
 ## europe_pax_type_index
 
 @UNIT type of a transit-box passenger tag: -2 is the Artillery kit, an
-out-of-range tag falls back to Colonists (bugs.md #452).
+out-of-range tag falls back to Colonists (port_bugs.md #452).
 
 ## EuropeIconFlow
 
@@ -379,7 +379,7 @@ Spawn (or re-kit) the Europe-map mirror unit for a dock immigrant, exactly
 as FUN_38fd_0718 does: right @UNIT type, orders = Sentry (DOS +0x314c = 1),
 profession stamped, and 100 Tools on a Pioneers-type unit (DOS +0x3159 =
 100) — without which a Hardy Pioneer reached the New World empty-handed
-(bugs.md). Returns the spawned unit id, or -1.
+(port_bugs.md). Returns the spawned unit id, or -1.
 
 ## europe_cash_treasure
 
@@ -449,7 +449,7 @@ Stamp the bound nation's record from the purse.
 The five Europe actions that hold no save — europe_recruit_from_pool,
 europe_train, europe_purchase, europe_cash_treasure, europe_cheat_add_gold —
 move `eu->gold` through europe_purse_move, which restamps the bound nation's
-record whenever a live save is registered (`g_europe_live_save`, bugs.md
+record whenever a live save is registered (`g_europe_live_save`, port_bugs.md
 #1096); without one the record lags until something writes through again.
 All five are reachable from the Europe screen only, which is why the port
 already open-coded this stamp at four game_loop sites; this is that one
@@ -477,7 +477,7 @@ screen must not read it (smell audit G6). Pass col1 + nation whenever a
 save is in hand; the `col1 == NULL` form falls back to the mirror for
 tests, chrome and callers with no save bound. Out-of-range cargo_type reads
 as not boycotted; a 0xFFFF word (the removed all-cargo-embargo fingerprint,
-bugs.md all_boycotted.SAV) reads as no boycott, as both bridge directions
+port_bugs.md all_boycotted.SAV) reads as no boycott, as both bridge directions
 already heal it to 0.
 
 ## europe_buyback_boycott
@@ -509,7 +509,7 @@ Silver 19/20 — see original_screenshots/europe/main_with_caravel_*.png.
 
 `europe_nation_sell_price` / `europe_nation_buy_price` read `nation`'s own
 track: the screen when bound to it, else the col1 byte (−1 / +burden) — DOS
-0040/0016 always read the bound record DS:0x84fc. bugs.md #1049.
+0040/0016 always read the bound record DS:0x84fc. port_bugs.md #1049.
 
 ## europe_cargo_burden
 
@@ -535,11 +535,11 @@ FUN_38fd_1dfa (sell) / FUN_38fd_1d80 (buy) volume ledger, exact:
   seller's tons/tons2 += amount (buy: −=), and gold[cargo]
   += price·amount·(100−tax)/100.
 The screen's own record (bound nation) is `eu->trade_nr`; with `col1` the
-other three nations' `trade.nr` rows take the term too (bugs.md #1047), and
+other three nations' `trade.nr` rows take the term too (port_bugs.md #1047), and
 the seller's tons/tons2/gold ledgers are written, priced off the seller's
-OWN track (`europe_nation_sell_price/buy_price`, bugs.md #1049). Every write
+OWN track (`europe_nation_sell_price/buy_price`, port_bugs.md #1049). Every write
 to the screen track goes through to the bound nation's col1 row
-(`europe_screen_track_to_col1`, bugs.md #1050), so col1 euro_price/nr is live
+(`europe_screen_track_to_col1`, port_bugs.md #1050), so col1 euro_price/nr is live
 for every nation. Verified 2026-08-28 against the
 dutch2 t169→t170 pair: three lumber sellers (54 human @ Viceroy, 12 + 18
 AI) → +93 on every non-Dutch nr[5], +61 on the Dutch one.
@@ -547,7 +547,7 @@ AI) → +93 on every non-Dutch nr[5], +61 on the Dutch one.
 buy/sell path calls afterwards — phase 1 over all 16 cargos (pool decay
 included, when the bound record is nation 0), the phase 2/3 nudge for that
 cargo, and phase 4 with the attrition added and taken back out (raw
-58989-58992); bugs.md #1017. The Custom House / AI dump-sell arms do NOT call
+58989-58992); port_bugs.md #1017. The Custom House / AI dump-sell arms do NOT call
 it (they only get the EOT tick).
 
 ## europe_tick_market_prices_w
@@ -557,7 +557,7 @@ ledger[c] = market_demand_pool[c] + Σ max(0, nation tons2[c]) and, in the
 bound-nation-0 pass only, sheds ledger>>7 from the stored pool (DS:0x53ea);
 phases 2–3 nudge the pressure word (record +0x5c) for cargos 9..12 (*100,
 denominator Σledger[9..12]) and 1..4 (no *100, denominator
-ledger[4]/2 + ledger[1..3] — the loop's own cargos, bugs.md #1022); phase 4
+ledger[4]/2 + ledger[1..3] — the loop's own cargos, port_bugs.md #1022); phase 4
 adds attrition and steps the bid ±1 at the rise/fall thresholds, then applies
 the two AI-only caps (cargo 14/15 rise cap `high + (diff-4)*2 + (turn-600)/100`,
 cargo 8/14/15 ceiling `((4-diff)*3)/2 + 3`).
@@ -570,7 +570,7 @@ nation's col1 row; `europe_nation_tick_market_prices_w` is the non-human form,
 and turn.c walks nations 0..3 in index order, skipping control-2 slots the way
 FUN_3844_00f2 does. Port deviation: DOS spreads the four calls across the turn
 round, the port batches them in TURN_PROC_KING — the tick draws no RNG, so only
-ordering against mid-round trades differs. bugs.md #1011/#1012.
+ordering against mid-round trades differs. port_bugs.md #1011/#1012.
 The Dutch odd-turn attrition test reads the turn count from before the
 calendar advance. Seed-100 DOS autosaves first show the doubled Dutch pressure
 delta on saved turn 2 (1494), then turn 4; `turn_step_king` passes that prior

@@ -59,7 +59,7 @@ void colony_screen_reset_ui(ColonyScreenView* view) {
   view->hover_building_row = -1;
   /* show_production_numbers deliberately NOT reset here: it is DOS's
    * game-wide DS:0x336 numbers toggle and survives between colonies. */
-  /* bugs.md: DOS opens the colony screen on the construction view. */
+  /* port_bugs.md: DOS opens the colony screen on the construction view. */
   view->multi_mode = COLONY_MULTI_CONSTRUCTION;
   view->selected_cargo = -1;
   view->construction_open = false;
@@ -138,7 +138,7 @@ void colony_screen_refresh_transports(
   }
   /*
    * Something is always selected while there is anything to select — the
-   * screen never shows an unhighlighted row of units (bugs.md). This used
+   * screen never shows an unhighlighted row of units (port_bugs.md). This used
    * to auto-select only when exactly one transport was docked, so two ships
    * in port left neither highlighted until the player clicked one.
    */
@@ -231,7 +231,7 @@ void colony_screen_refresh_outside(
    * Settlement view and the People band both show colonists AND on-tile
    * units, so selected_colonist / selected_outside_unit are one mutually
    * exclusive selection, not two: auto-filling both painted two boxes at
-   * once (bugs.md: "too many selections ... should be 1 and only 1 each").
+   * once (port_bugs.md: "too many selections ... should be 1 and only 1 each").
    * The click handlers already clear one when setting the other
    * (game_colony_select_colonist / _select_outside); here only fill a
    * fallback when *neither* is set, preferring the colony population.
@@ -531,7 +531,7 @@ void colony_screen_open_jobs(
 ) {
   /*
    * Bounded by the 3x3 area the screen draws, not by the colony's work ring.
-   * bugs.md #593: a colony that owns @BUILDING row 0x0a/0x0b works 12 or 20
+   * port_bugs.md #593: a colony that owns @BUILDING row 0x0a/0x0b works 12 or 20
    * plots and the sim counts all of them, but the DOS colony screen's area
    * panel is a 3x3 grid (FUN_2f2b_0a74, raw ~47500, walks the full
    * DS:0x329 count yet the panel geometry never grew), and no save stock DOS
@@ -576,7 +576,7 @@ void colony_screen_open_jobs(
     (colony && view->selected_colonist >= 0 && view->selected_colonist < colony->colonist_count)
       ? colony->colonists[view->selected_colonist].profession
       : COLONIZE_PROF_FREE_COLONIST;
-  /* bugs.md #900: the row loop is FUN_2f2b_348c raw 50753-50817's, over @JOB
+  /* port_bugs.md #900: the row loop is FUN_2f2b_348c raw 50753-50817's, over @JOB
    * 0..0x18 — not the nine field jobs. Jobs 0..8 have no required building and
    * are always listed; 9..0x12 (the indoor jobs, incl. @JOB 18 Teacher) appear
    * once their DS:0x2f4 building stands. DOS DROPS an unowned row (FUN_15eb_3454
@@ -640,9 +640,9 @@ void colony_screen_open_dock_orders(
   view->dock_orders_width = popup_msg_take_pending_width();
 
   /* Ships and cargo transports use @SHIPOPTIONS (including Wagon Trains,
-   * bugs.md #782); ordinary land units use @UNITOPTIONS. Feeding Artillery
+   * port_bugs.md #782); ordinary land units use @UNITOPTIONS. Feeding Artillery
    * through the ship section exposed its Fortify row as "Anchor in harbor"
-   * (bugs.md #941). */
+   * (port_bugs.md #941). */
   const bool transport = units_is_transport(units, unit_id);
   const char* options_section = transport ? "SHIPOPTIONS" : "UNITOPTIONS";
   const ColonizeMsgSection* opts = messages ? assets_msg_find(messages, options_section) : NULL;
@@ -693,7 +693,7 @@ void colony_screen_open_dock_orders(
         enabled = (u->orders != UNITS_ORDER_SENTRY);
         break;
       case 3:
-        /* bugs.md #783 / 99b8 case 4: enabled iff
+        /* port_bugs.md #783 / 99b8 case 4: enabled iff
          * `orders != 5 && orders != 6 && *(char*)(idx*0x1c+0x3146) != '\f'`
          * — a Wagon Train (@UNIT row 0x0c) never gets the Fortify /
          * "Anchor in harbor" row. */

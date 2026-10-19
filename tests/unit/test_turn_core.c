@@ -272,7 +272,7 @@ static int case_next_unit_selection(void) {
     /* uid2 fortified, uid3 free: the skip must land on uid3, not uid2. */
     fx_u2->orders = UNITS_ORDER_FORTIFIED;
     fx_units.selected_id = fx_uid;
-    /* bugs.md #715: FUN_1427_1410 drops orders 1/6 itself (raw 8803). */
+    /* port_bugs.md #715: FUN_1427_1410 drops orders 1/6 itself (raw 8803). */
     if (turn_select_next_unit(&fx_units, 0) != true || fx_units.selected_id != uid3) {
       fprintf(stderr, "bare select should skip the Fortified unit\n");
       return 1;
@@ -297,7 +297,7 @@ static int case_next_unit_selection(void) {
 }
 
 /*
- * bugs.md #953: a unit parked in the off-map Europe park must get its
+ * port_bugs.md #953: a unit parked in the off-map Europe park must get its
  * allotment back every turn. The Euro AI stamps DOS's `+0x314c = 1` (the
  * port's UNITS_ORDER_SENTRY) on everything waiting in the park, and the MP
  * refresh used to read that as the human sentry order and hand it 0 thirds —
@@ -364,7 +364,7 @@ static int case_europe_park_refresh(void) {
             units_max_mp(&fx_units, pax));
     return 1;
   }
-  /* bugs.md #715: DOS clears spent for every unit (raw 6357); Sentry stays
+  /* port_bugs.md #715: DOS clears spent for every unit (raw 6357); Sentry stays
    * out of the rotation by order byte, not MP. */
   if (ua->moves != units_max_mp(&fx_units, ashore)) {
     fprintf(stderr, "sentry ashore must get its allotment, got %d thirds\n", ua->moves);
@@ -963,7 +963,7 @@ static int case_production_rules_manufacturing(void) {
       return 1;
     }
     /* Base rate (sol_bonus=0) input stays 6 — (9*2)/3, unchanged by the
-     * bugs.md #851 rounding fix; both anchors are even multiples of 3, which
+     * port_bugs.md #851 rounding fix; both anchors are even multiples of 3, which
      * is why the old (out*6+8)/9 round-up survived them. */
     const int factory_in_base =
       colony_prod_manufacturing_input_row(iron_works, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 0);
@@ -1963,7 +1963,7 @@ static int case_ai_field_sol_zeroed(void) {
     );
     return 1;
   }
-  /* bugs.md #939: FUN_15eb_18ec raw 11874-11882 zeroes only the Tory count
+  /* port_bugs.md #939: FUN_15eb_18ec raw 11874-11882 zeroes only the Tory count
    * for an AI colony; the +0x1c latch adds still apply. */
   col.colony_flags = COLONIZE_COLONY_FLAG_SOL_50 | COLONIZE_COLONY_FLAG_SOL_100;
   const int field_latched = colony_prod_sol_bonus_field(&col1, &col);
@@ -2187,7 +2187,7 @@ static int case_depletion_counter(void) {
   col->stock[COLONIZE_CARGO_FOOD] = 100;
   col->depletion_counter = 0x31; /* one INC wraps */
   /*
-   * bugs.md #1024: the wrap handler (FUN_364b_033a raw 56977-57012) keys on
+   * port_bugs.md #1024: the wrap handler (FUN_364b_033a raw 56977-57012) keys on
    * the colonist's SPECIALTY, not the job he works — an unskilled colonist
    * mining a deposit banks the counter but DOS suppresses nothing on the
    * wrap. Give this one the specialty so the suppress arm is exercised.
@@ -2763,7 +2763,7 @@ static int case_phase_d_tory_pressure(void) {
   }
 
   /*
-   * bugs.md ("it keeps pestering me"): a second tick with the latch already
+   * port_bugs.md ("it keeps pestering me"): a second tick with the latch already
    * set must stay quiet, and — because the latch is now DOS's saved
    * colony_flags bit3 rather than a RAM-only byte — that silence survives a
    * save/load too.
@@ -2930,7 +2930,7 @@ static int case_starve_kill(void) {
   return 0;
 }
 
-/* bugs.md (port_orange_starves.SAV): DOS deficit is DS:0x8e5a =
+/* port_bugs.md (port_orange_starves.SAV): DOS deficit is DS:0x8e5a =
  * consumption − stock − production; a colony producing exactly what it
  * eats at 0 stores (commons feeds the lone statesman) must NOT latch
  * starvation or lose anyone, ever. Simulated without a map by pre-adding
@@ -3676,7 +3676,7 @@ static int case_nation_bells_tick(void) {
 }
 
 /*
- * bugs.md #934: DOS calls FUN_4345_0a22 once per COLONY (sole call site
+ * port_bugs.md #934: DOS calls FUN_4345_0a22 once per COLONY (sole call site
  * FUN_364b_0688, raw 57231), adding that colony's bells to nation+0xc and
  * running the elect test right there. So an elect can fire part-way through a
  * nation's colony list, zero the pool (raw 73370), and the colonies after it
@@ -3820,7 +3820,7 @@ static int case_tory_penalty_bells(void) {
    * passive +1 = 5 — not 7 (bug would leave it there un-penalized), and
    * not 6 either (that was this fix's own first pass, which only moved
    * the sign-drop bug and still added sol_b post-doubling). No AI subsidy
-   * term here: bugs.md #938b — FUN_15eb_1f72 raw 11327 gates the AI (pop+3)/5
+   * term here: port_bugs.md #938b — FUN_15eb_1f72 raw 11327 gates the AI (pop+3)/5
    * add on FF slot 0x12 (FF_SIMON_BOLIVAR) as well as the AI-control byte,
    * and this fixture's nation 1 holds no founding fathers at all. See
    * case_ai_bells_subsidy_needs_bolivar below for the granted-Bolivar case. */
@@ -3837,7 +3837,7 @@ static int case_tory_penalty_bells(void) {
 }
 
 /*
- * bugs.md #938b: FUN_15eb_1f72 raw 11327 AI bells subsidy `bells +=
+ * port_bugs.md #938b: FUN_15eb_1f72 raw 11327 AI bells subsidy `bells +=
  * (pop+3)/5` is gated on `FF 0x12 held && (nation>=4 || 0x543f!=0)` — BOTH
  * FF_SIMON_BOLIVAR ownership and the AI-control byte, not the AI-control
  * byte alone. Fixture like case_tory_penalty_bells (nation 1, pop 15, one
@@ -4006,7 +4006,7 @@ static int case_euro_power_rank(void) {
   return 0;
 }
 
-/* bugs.md #1103: turn_reset drops the LABELS catalog pointer and the
+/* port_bugs.md #1103: turn_reset drops the LABELS catalog pointer and the
  * FUN_43f7_1528 last-walked colony, both of which index the outgoing world. */
 static int case_turn_reset_pointers(void) {
   static ColonizeMsgCatalog labels;
@@ -4067,7 +4067,7 @@ static int case_schoolhouse_education(void) {
     );
     return 1;
   }
-  /* bugs.md #565: DOS zeroes only the TEACHER's +0x60 counter (raw 57540-
+  /* port_bugs.md #565: DOS zeroes only the TEACHER's +0x60 counter (raw 57540-
    * 57588 never calls 0a7e on the student), so the graduate keeps the tick
    * he took this turn (0 -> 1). */
   if (col->colonists[0].turns_in_job != 0 || col->colonists[1].turns_in_job != 1) {
@@ -4076,7 +4076,7 @@ static int case_schoolhouse_education(void) {
   }
   fprintf(stderr, "colony education graduate ok\n");
 
-  /* bugs.md #380: the graduate takes the TEACHER'S OWN profession. */
+  /* port_bugs.md #380: the graduate takes the TEACHER'S OWN profession. */
   col->colonists[0].profession = COLONIZE_JOB_FISHERMAN;
   col->colonists[0].building_type = 0;
   col->colonists[0].field_job = -1;
@@ -4177,7 +4177,7 @@ static int case_phase_h_skill_discovery(void) {
 }
 
 /*
- * bugs.md #509b — on-the-job learning latch. DOS raw 57596/57605 tests
+ * port_bugs.md #509b — on-the-job learning latch. DOS raw 57596/57605 tests
  * the per-job DS byte at -0x6bd0 for 0 and bumps it on a success, and
  * FUN_4962_0018 (raw 78140) clears that block per nation at the turn
  * boundary: at most ONE colonist per job per nation per turn graduates,
@@ -4257,7 +4257,7 @@ static int case_otj_learning_latch(void) {
 }
 
 /*
- * bugs.md #895(d): raw 57595 gates on-the-job discovery to `0 < job < 5`
+ * port_bugs.md #895(d): raw 57595 gates on-the-job discovery to `0 < job < 5`
  * (COLONIZE_JOB_FARMER excluded, COTTON_PLANTER..FUR_TRAPPER 1..4 eligible)
  * — Lumberjack(5)/Ore Miner(6)/Silver Miner(7) sit above that upper bound
  * and must never self-promote, however many turns roll. Mirrors
@@ -4401,7 +4401,7 @@ static int case_ai_euro_crosses(void) {
   return 0;
 }
 
-/* bugs.md #923: DOS FUN_3844_00f2 runs the 5e52 immigration tick (raw 58375)
+/* port_bugs.md #923: DOS FUN_3844_00f2 runs the 5e52 immigration tick (raw 58375)
  * BEFORE the per-colony crosses add (raw 58386), so this turn's church output
  * must not be visible to the threshold compare. */
 static int case_human_crosses_order(void) {
@@ -4650,7 +4650,7 @@ static int case_immigration_pressure(void) {
 
 /* §C tail = @KINGFRIGATE (ai_king.c), NOT a turn.c spawn: the old
  * duplicate here handed out a free "Merchantman" every 8th turn
- * (bugs.md free_merchanman.SAV; type 0x11 is the Frigate). Assert the
+ * (port_bugs.md free_merchanman.SAV; type 0x11 is the Frigate). Assert the
  * turn tick spawns nothing on its own. */
 static int case_no_free_ship_spawn(void) {
   fx_begin();
@@ -4906,7 +4906,7 @@ static int case_year_end_defeat_victory(void) {
   fprintf(stderr, "year-end defeat chrome ok\n");
   fprintf(stderr, "year-end victory chrome ok\n");
   /* calendar_latch ("scoring complete") is set by the retire-score chain,
-   * not the victory latch (bugs.md #259) — the WON latch alone must both
+   * not the victory latch (port_bugs.md #259) — the WON latch alone must both
    * leave it clear and still suppress the anniversary chrome. */
   if (col1.head.game_options.calendar_latch) {
     fprintf(stderr, "year-end victory must NOT set calendar_latch (scoring pending)\n");
@@ -5096,7 +5096,7 @@ static int case_year_end_c2_peace(void) {
   /*
    * The crown's SoL comes from its own rebel pair, never from a
    * `liberty_bells_pool / 4` stand-in — that stand-in is deleted
-   * (bugs.md #424: nation bell totals run into the millions in real DOS
+   * (port_bugs.md #424: nation bell totals run into the millions in real DOS
    * saves, so every hit of it read as 100%). C1's crown-colony gate counts
    * the RUNTIME pool (below, which stays crownless so the gate is open and
    * only the fat REF pool stops C1); ai_king_sol_percent reads the COL1
@@ -5405,7 +5405,7 @@ static int case_census_profession_tally(void) {
     units_set_nation(u, 0);
     u->profession = COLONIZE_PROF_STATESMAN;
   }
-  /* bugs.md #563: DOS's census (FUN_4962_0606 raw 78356-78360) only counts
+  /* port_bugs.md #563: DOS's census (FUN_4962_0606 raw 78356-78360) only counts
    * units whose @UNIT type carries a profession slot — DS:0x30e[13] = -1
    * for a Caravel, so its profession byte 0 must NOT read as a Farmer. */
   const int sid = units_spawn(&units, 13, 2, 2);
@@ -5875,7 +5875,7 @@ static int case_phase_k_build_advisory(void) {
    * colonist must actually be assigned to the Weaver's House for the
    * @COTTON crumb to fire (an unstaffed building has zero demand in DOS,
    * and used to incorrectly nag "Need cotton." regardless of staffing). */
-  /* bugs.md #912: the K crumb wording comes only from GAME.TXT now (no typed
+  /* port_bugs.md #912: the K crumb wording comes only from GAME.TXT now (no typed
    * English fallback), so every K assertion needs the catalog loaded. */
   ColonizeMsgCatalog game_txt;
   assets_msg_init(&game_txt);
@@ -6049,7 +6049,7 @@ static int case_phase_k_build_advisory(void) {
   fprintf(stderr, "Phase K ORE chrome ok\n");
 
   /*
-   * bugs.md #899: partial input is NOT "ran out". DOS Phase K probes the
+   * port_bugs.md #899: partial input is NOT "ran out". DOS Phase K probes the
    * FINISHED good's net (`FUN_281f_0b50(out_cargo) == 0`, raw 57696-57728)
    * against the Phase A demand words, so a Blacksmith who converted the
    * last ore into tools this tick produced > 0 and DOS stays silent — the
@@ -6174,7 +6174,7 @@ static int case_phase_k_build_advisory(void) {
   fprintf(stderr, "Phase K TOBACCO chrome ok\n");
 
   /*
-   * bugs.md #911: DOS FUN_364b_0688 raw 57696-57728 runs SEVEN INDEPENDENT
+   * port_bugs.md #911: DOS FUN_364b_0688 raw 57696-57728 runs SEVEN INDEPENDENT
    * `if`s, not one else-if chain — two starved craft chains in one colony
    * emit TWO popups in the same turn (@COTTON before @TOBACCO, GAME.TXT tag
    * order), and the status line simply ends up carrying the last one.
@@ -6230,7 +6230,7 @@ static int case_phase_k_build_advisory(void) {
   fprintf(stderr, "Phase K two-crumbs-one-turn ok\n");
 
   /*
-   * bugs.md #911 DOS-LITERAL copy-paste quirk (raw 57717-57724): the @ORE arm
+   * port_bugs.md #911 DOS-LITERAL copy-paste quirk (raw 57717-57724): the @ORE arm
    * tests `0b50(muskets) == 0b50(tools)`, not `== 0`. With a staffed gunsmith
    * turning stored tools into muskets the two nets differ (muskets up, tools
    * down), so DOS stays SILENT about the empty ore even though unmet[ore] != 0
@@ -6263,7 +6263,7 @@ static int case_phase_k_build_advisory(void) {
   fprintf(stderr, "Phase K ORE copy-paste quirk ok\n");
 
   /*
-   * bugs.md #911: the @TOOLS arm is `unmet[tools] != 0 && 0b50(muskets) == 0`
+   * port_bugs.md #911: the @TOOLS arm is `unmet[tools] != 0 && 0b50(muskets) == 0`
    * — muskets already IN STOCK are irrelevant (the port used to require
    * `stock[muskets] == 0 && stock[tools] == 0`). Gunsmith staffed, no tools
    * to work with, a full musket warehouse: DOS still nags @TOOLS.
@@ -6332,7 +6332,7 @@ static int case_phase_k_build_advisory(void) {
 }
 
 /*
- * bugs.md #851 — the factory-tier raw-material requirement is ONE floor
+ * port_bugs.md #851 — the factory-tier raw-material requirement is ONE floor
  * divide over the colony's summed gross for the finished good, not a sum of
  * per-worker round-ups. DOS FUN_15eb_0bd4 raw 10168-10172:
  *
@@ -6415,7 +6415,7 @@ static int case_factory_input_colony_total(void) {
 }
 
 /*
- * bugs.md #910 / #913: the muskets pair is DOS's FUN_15eb_0b96 ledger row
+ * port_bugs.md #910 / #913: the muskets pair is DOS's FUN_15eb_0b96 ledger row
  * (FUN_15eb_1f72 raw 12689), so it never gets the factory `(G<<1)/3` input
  * discount nor the `(U*3)/2` unmet rescale that live inside FUN_15eb_0bd4 —
  * an Arsenal is 1:1 tools->muskets and its shortfall cuts 1:1. The third
@@ -6517,7 +6517,7 @@ static int case_armory_flat_input(void) {
   return 0;
 }
 
-/* bugs.md #1107 seam: turn_produce_one_colony's entry stage snapshots the
+/* port_bugs.md #1107 seam: turn_produce_one_colony's entry stage snapshots the
  * colony into the ctx and stops the tick on an empty roster. */
 static int case_produce_seam_begin(void) {
   ColonizeColonyPool pool;
@@ -6552,7 +6552,7 @@ static int case_produce_seam_begin(void) {
   return 0;
 }
 
-/* bugs.md #1107 seam: the Phase B lumber stage clips the composed hammers to
+/* port_bugs.md #1107 seam: the Phase B lumber stage clips the composed hammers to
  * lumber on hand and writes the paid count + pre-debit stock back to the ctx
  * for Phase L (hammers) and Phase K (crumbs). */
 static int case_produce_seam_lumber(void) {

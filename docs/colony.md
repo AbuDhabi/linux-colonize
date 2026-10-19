@@ -17,7 +17,7 @@ DOS can produce ever leaves tier 2 and the usual ring is the 8 adjacent
 plots -- but a save may carry the bits (colony buildings mask bits 9-11 are
 @BUILDING rows 9/10/11), so the ring is computed per colony from
 `colonies_work_plot_count()` and the array is sized for all 20 slots.
-bugs.md #593.
+port_bugs.md #593.
 
 ## ColonizeColonist.turns_in_job
 
@@ -222,7 +222,7 @@ cleared when it drops back under, so @INEFFICIENT / @EFFICIENT each fire
 once per crossing — and, because it is a save field, they stay fired across
 a save/load. The port used to call this bit "starvation" and keep the real
 latch in RAM only, which is why the popup came back on every reload
-(bugs.md).
+(port_bugs.md).
 
 ## COLONIZE_COLONY_FLAG_SMALL_AI / _WAGON_TRAIN
 
@@ -294,7 +294,7 @@ purchased bit — pair with colonies_indian_land_purchase_gold for that.
 
 ## colonies_indian_claim_tribe_from_w
 
-Same test as the colony screen actually runs it (bugs.md #366): DOS hoists the
+Same test as the colony screen actually runs it (port_bugs.md #366): DOS hoists the
 continent lookup out of the 5x5 loop and reads it at the COLONY tile
 (origin_x, origin_y), and clears every Ocean / Sea Lane cell outright.
 Also answers the plain "what claims this tile" question with origin ==
@@ -335,7 +335,7 @@ writer.
 
 The pool-only `colonies_assign_field` spelling is the no-world (test) form; it
 has no col1/map and therefore cannot raise alarm. Every real assignment path
-must use `_w`. bugs.md #1002.
+must use `_w`. port_bugs.md #1002.
 
 ## colonies_indian_land_pay
 
@@ -364,7 +364,7 @@ unit-less arm also sets pop 1 and `FUN_281f_0cae -> FUN_15eb_0e8c(slot,
 0x1c)` (Free Colonist). DOS picks no plot here — the plot comes from the
 shared 28c8 auto-assign the colony screen / AI colony tick runs next. The
 port therefore runs `colonies_seat_new_colonist` (its 28c8 picker) on the
-founder and falls back to field job 0 when no map is bound. bugs.md #929;
+founder and falls back to field job 0 when no map is bound. port_bugs.md #929;
 the old "founder in the Town Hall" seat made every new colony produce bells
 instead of food.
 
@@ -407,7 +407,7 @@ teach gate. False for Free / Indentured / Criminal / Convert / @JOB 18
 
 ## colonies_field_scan_order
 
-bugs.md #584 — DOS plot scan order. DS:0xc8/0xde list the work plots as
+port_bugs.md #584 — DOS plot scan order. DS:0xc8/0xde list the work plots as
 N,E,S,W,NW,NE,SE,SW; the port's own slot order (colonies_field_tile_delta)
 is the clockwise MAP_DIR8 one. `colonies_field_scan_order(step)` maps a DOS
 scan step 0..7 to the runtime tile_index, so a scan that must reproduce a
@@ -430,7 +430,7 @@ ignores the click otherwise (no popup, no status line).
 ## plot-eviction
 
 `colonies_recompute_plots_w` (colony_workers.c) = DOS FUN_15eb_3930 (raw
-13794-13808, bugs.md #1080): snapshot the mask above for all 20 slots (268e),
+13794-13808, port_bugs.md #1080): snapshot the mask above for all 20 slots (268e),
 clear every worked plot whose mask is non-zero (287e; the colonist keeps his
 field job), then reseat each plotless field-job colonist via 28c8, else the
 Carpenter fallback (2ea0). No workers-per-building cap there: the 3-cap is
@@ -469,7 +469,7 @@ layer2's MAP_OCCUPANCY_HAS_CITY bit current. That bit is what the map
 renderer reads to hide a settlement's garrison and what the road art keys
 off; until this existed it was only rebuilt by the col1 bridge at load and
 at end-of-turn capture, so an abandoned colony went on hiding the units
-standing on its square (bugs.md). NULL unbinds.
+standing on its square (port_bugs.md). NULL unbinds.
 
 ## colonies_set_col1_context
 
@@ -485,7 +485,7 @@ anything the unit is already carrying): whole 20-tool steps, capped at 100 —
 a Pioneer legitimately walks with 20/40/60/80/100. Returns 0 when there is
 not even one step. Shared so the two equip paths (a colonist leaving the
 colony, and a unit already standing outside it) cannot drift apart again —
-bugs.md: the outside path demanded the full 100 and answered "Cannot equip
+port_bugs.md: the outside path demanded the full 100 and answered "Cannot equip
 unit" for a stock its own menu had just offered Pioneers on.
 
 ## colonies_list_eject_roles_ex
@@ -646,7 +646,7 @@ churn than rewriting every caller, and the body now says so with a
 
 Human unload chrome: GAME.TXT @WAREHOUSEFULL when warehouse has no room.
 cargo_name optional (fallback "cargo"). No-op if ai_popups NULL.
-@WAREHOUSEFULL's numbers (bugs.md #433): NUMBER0 = what the warehouse
+@WAREHOUSEFULL's numbers (port_bugs.md #433): NUMBER0 = what the warehouse
 already held BEFORE this deposit, NUMBER1 = capacity, NUMBER2 = the
 deposit itself. `deposited` = units the player just unloaded (or tried
 to); `already_included` = how much of that has already been added to

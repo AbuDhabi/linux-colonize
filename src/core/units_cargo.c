@@ -53,7 +53,7 @@ bool units_is_transport(const ColonizeUnitPool* pool, int unit_id) {
   if (!type) {
     return false;
   }
-  /* bugs.md #788: DOS has no "is a Wagon Train" test here — every cargo site
+  /* port_bugs.md #788: DOS has no "is a Wagon Train" test here — every cargo site
    * reads the @UNIT cargo column generically (`*(byte*)(type*0xe + 0x5237)`,
    * e.g. FUN_479b_11a4's head and FUN_15eb_30b8's append gate). On the
    * shipped NAMES.TXT only row 12 has cargo > 0 among the land rows, so this
@@ -126,7 +126,7 @@ int goods_pack_into_holds(
     loaded += add;
   }
   /*
-   * bugs.md #786 / FUN_15eb_30b8 tail (viceroy_unpacked.c 13324-13333):
+   * port_bugs.md #786 / FUN_15eb_30b8 tail (viceroy_unpacked.c 13324-13333):
    *   if (param_3 != 0) {
    *     local_4 = holds_occupied;
    *     if (local_4 < @UNIT cargo) { set type; set amount = param_3; ++occ; }
@@ -256,7 +256,7 @@ int units_unload_goods_hold(
  * Passenger slots left in a ship's hold: total capacity minus the @UNIT
  * "size" column (DS:0x5238) of every passenger already riding, minus holds
  * occupied by GOODS — cargo shares the same slots passengers go into
- * (bugs.md; DOS's one per-hold array holds both).
+ * (port_bugs.md; DOS's one per-hold array holds both).
  *
  * DOS-LITERAL FUN_4720_00e0 (viceroy_unpacked_2.c raw 74628-74665). The
  * "does this stack fit on these ships" pass seeds each hull's room with
@@ -310,7 +310,7 @@ static bool units_board_stacked_gated(
     return false;
   }
   /*
-   * bugs.md #482 — DOS-LITERAL boarding size gate. FUN_4720_00e0
+   * port_bugs.md #482 — DOS-LITERAL boarding size gate. FUN_4720_00e0
    * (viceroy_unpacked_2.c raw 74644-74648), the "does this tile's stack fit on
    * these ships" pass, only considers a non-ship unit when
    *   `*(byte *)(type * 0xe + 0x5238) < 99`
@@ -354,7 +354,7 @@ static bool units_board_stacked_gated(
    */
   /*
    * What rides along is the passenger's own spent byte: DOS keeps +0x3149
-   * as it was (bugs.md #544). A live allotment is carried as is; a zero
+   * as it was (port_bugs.md #544). A live allotment is carried as is; a zero
    * is a real spend. Natives never board, but a native zero means
    * "nothing spent", so they carry full.
    */
@@ -480,7 +480,7 @@ static bool units_remove_from_cargo(ColonizeUnit* ship, int pax_id) {
 }
 
 /*
- * DOS quirk (bugs.md): loaded units switch ships en route. In DOS a
+ * DOS quirk (port_bugs.md): loaded units switch ships en route. In DOS a
  * "passenger" is just a sentried land unit sharing the ship's tile in the
  * unit chain, so whichever ship moves off a shared tile first scoops up as
  * many of the tile's loaded units as it has room for, in chain order —
@@ -503,7 +503,7 @@ int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int 
   if (!pool || !ship || !units_is_sea(pool, ship_id)) {
     return 0;
   }
-  /* "Move to front" (bugs.md): the flagged unit is first in line. */
+  /* "Move to front" (port_bugs.md): the flagged unit is first in line. */
   int order[COLONIZE_UNITS_MAX];
   int on = 0;
   const int first = pool->board_first_slot;
@@ -710,7 +710,7 @@ bool units_unload_passenger_w(
     return false;
   }
   /*
-   * bugs.md #423: a landfall (shore crossing onto bare coast) is only offered
+   * port_bugs.md #423: a landfall (shore crossing onto bare coast) is only offered
    * to cargo whose DOS spent byte is below max — a passenger that already
    * used its allotment this turn stays aboard. Docking at a colony is not a
    * landfall: FUN_4720_015c's DOCK arm puts everyone ashore regardless.
@@ -756,7 +756,7 @@ bool units_unload_passenger_w(
   {
     int remaining = pax->moves;
     /* The park zero stands for what the passenger carried aboard: its own
-     * DOS spent byte, never a free refill (bugs.md #544). */
+     * DOS spent byte, never a free refill (port_bugs.md #544). */
     if (remaining <= 0) {
       remaining = pax->aboard_moves >= 0 ? pax->aboard_moves : units_max_mp(pool, pax_id);
     }
@@ -767,7 +767,7 @@ bool units_unload_passenger_w(
     }
     pax->moves = remaining > cost ? remaining - cost : 0;
     /*
-     * bugs.md: a landfall onto bare coast is DOS's 465b_05ca shore crossing —
+     * port_bugs.md: a landfall onto bare coast is DOS's 465b_05ca shore crossing —
      * water tile to land tile with no colony on either end — so the whole
      * allotment goes, not just the terrain cost. Unloading at a dock (the
      * ship is standing on the colony tile) keeps the cheap charge.
@@ -812,7 +812,7 @@ bool units_unload_w(
  * Port mapping: moves holds REMAINING, and the port zeroes it when a
  * passenger boards (park flag). So "spent < max" is `moves > 0` for a
  * normal unit, and for the parked zero it is `!mp_spent_turn` — the flag the
- * board path sets when DOS would have forced spent to max (bugs.md #423).
+ * board path sets when DOS would have forced spent to max (port_bugs.md #423).
  */
 bool units_cargo_can_landfall(const ColonizeUnitPool* pool, int unit_id) {
   const ColonizeUnit* pax = units_get_const(pool, unit_id);
@@ -831,7 +831,7 @@ int units_first_landfall_cargo(const ColonizeUnitPool* pool, int ship_id) {
     return -1;
   }
   /*
-   * bugs.md #719: ONE pass, first match. DOS raw 76012-76020 is a single
+   * port_bugs.md #719: ONE pass, first match. DOS raw 76012-76020 is a single
    * chain walk that stops at the first unit with @UNIT size < 99 and
    * `+0x3149 < FUN_281f_090c(unit)`:
    *   while (local_12 < 0 && -1 < iVar11) {
@@ -896,7 +896,7 @@ int units_disembark_all(ColonizeUnitPool* pool, int ship_id, int x, int y) {
        * passenger at moves 0 as a "don't offer this one" flag while
        * DOS's own spent byte is still zero — a full allotment — so a
        * passenger put ashore in a colony was landing unable to move at all
-       * until the next turn (bugs.md: "possibly with moves if they had any
+       * until the next turn (port_bugs.md: "possibly with moves if they had any
        * remaining that turn"). units_unload_passenger already restores it
        * the same way for its own move charge.
        */
@@ -1190,7 +1190,7 @@ int units_transfer_ship_from_europe(
  *     +0x315b = 0x15`, where `bVar1 = (*(char*)(local_8*0x34 + 0x543f) == 0)`
  *     i.e. **this nation's player record is the human** (control byte 0), and
  *     0x53a6 is the difficulty. So the Discoverer/Explorer Veteran Soldier is a
- *     human-only handicap: AI Europeans never get it (bugs.md #488).
+ *     human-only handicap: AI Europeans never get it (port_bugs.md #488).
  * @JOB is 0-based: 0x14 = Pioneer (Hardy Pioneers), 0x15 = Soldier (Veteran
  * Soldiers). Nations: 0 English, 1 French, 2 Spanish, 3 Dutch.
  */
@@ -1223,7 +1223,7 @@ static bool units_display_keeps_own_type(const ColonizeUnitType* t) {
 }
 
 /*
- * bugs.md #591: DOS names every unit from its @UNIT ROW string,
+ * port_bugs.md #591: DOS names every unit from its @UNIT ROW string,
  * `*(0x5230 + type*0xe)` — the map sidebar header (raw 14128), the disband
  * prompt (raw 42654), @DEMOTE (raw 99460-99461), @CAPTURE (raw 99511) and the
  * combat chrome (raw 100625-100628) all read that one table. There is no
@@ -1292,12 +1292,12 @@ static const int16_t k_units_job_icon[UNITS_JOB_NONE + 1] = {
   100, UNITS_ICON_HARDY_PIONEER_WORK, UNITS_ICON_VETERAN_SOLDIER_WORK,
   /* 23 Veteran Dragoons: linear branch, 0x17 + 0x52 = 0x69 → sprite 104
    * (equipped veteran dragoon — there is no working portrait). Was -1,
-   * which left prof-23 citizens invisible on the Score screen (bugs.md). */
+   * which left prof-23 citizens invisible on the Score screen (port_bugs.md). */
   60,  UNITS_ICON_VETERAN_DRAGOON,
   /* 24 Jesuit Missionaries: jump-table case 5 → 0x3e → sprite 61, the
    * working black cassock. Was 77, which is the *commissioned* non-expert
    * missionary's map pose (FUN_112b_0060's type-3 downgrade), a different
-   * sprite entirely (bugs.md #420). */
+   * sprite entirely (port_bugs.md #420). */
   UNITS_ICON_JESUIT_MISSIONARY_WORK,
   106, 107, 66, /* 25-27 servant, criminal, convert */
   100 /* 28 NONE: same as Free Colonists */
@@ -1312,7 +1312,7 @@ static const int16_t k_units_job_icon[UNITS_JOB_NONE + 1] = {
  * had the same body twice (the unit_stack one only to dodge a link edge).
  */
 /* `col`-th comma-separated field of the @JOB row for `profession`, or NULL
- * (assets_msg_row_field does the split and trim; bugs.md #1109). */
+ * (assets_msg_row_field does the split and trim; port_bugs.md #1109). */
 static const char* units_job_field(
   const ColonizeMsgCatalog* names, int profession, int col
 ) {
@@ -1332,7 +1332,7 @@ static const char* units_job_field(
  * reports the profession unskilled. The three overrides (raw 78630-78638) are
  * applied after, so they win: type 1/4 + 0x15 → LABELS @MISC[65] "Veteran",
  * type 5 + 0x16 and type 3 + 0x18 → @MISC[4] "Expert". The `has_profession_slot`
- * test is the DOS caller's own `FUN_281f_0b78 >= 0` gate (bugs.md #507).
+ * test is the DOS caller's own `FUN_281f_0b78 >= 0` gate (port_bugs.md #507).
  */
 const char* units_profession_line(
   const ColonizeMsgCatalog* names, int type_index, int profession, bool allow_unskilled
@@ -1413,20 +1413,20 @@ int units_map_sprite(const ColonizeUnitPool* pool, int unit_id) {
   int muskets = 0;
   int horses = 0;
   units_founder_loot(pool, unit_id, &tools, &muskets, &horses);
-  /* bugs.md: the WoI military types (Cont. Army / Cont. Cav. / Regulars /
+  /* port_bugs.md: the WoI military types (Cont. Army / Cont. Cav. / Regulars /
    * Cavalry) have their own @UNIT art — the colonial equipment overrides
    * below must not repaint them as plain/veteran Soldiers. */
   if (units_display_keeps_own_type(type)) {
     return type->icon_sprite;
   }
-  /* bugs.md: damaged artillery has its own art — DOS FUN_112b icon pick:
+  /* port_bugs.md: damaged artillery has its own art — DOS FUN_112b icon pick:
    * type 0xb + damage bit7 -> icon 0x42, i.e. this port's sprite 65 (same
    * 1-based offset as the Scout/Dragoon poses in that function). */
   if (combat_type_is_artillery(type) && (unit->col1_flags15 & 0x80u) != 0) {
     return UNITS_ICON_DAMAGED_ARTILLERY;
   }
   /*
-   * bugs.md #420: a commissioned missionary whose colonist is not a Jesuit
+   * port_bugs.md #420: a commissioned missionary whose colonist is not a Jesuit
    * expert has its own, plainer art. DOS FUN_112b_0060 tail:
    *   if (type == 3 && profession != 0x18) icon = 0x4e;   // sprite 77
    * i.e. the same expert/generic split the 0x4a..0x4d poses give Pioneers,
@@ -1446,10 +1446,10 @@ int units_map_sprite(const ColonizeUnitPool* pool, int unit_id) {
    * DOS-LITERAL FUN_112b_0060: the veteran art test is profession == 0x15
    * exactly — `if ((type == 1) && (prof != 0x15)) icon = 0x4b;` and
    * `if ((type == 4) && (prof != 0x15)) icon = 0x4d;`. A mounted Veteran
-   * Soldier (0x15) IS a veteran dragoon (bugs.md #263), but 0x17 is not a
+   * Soldier (0x15) IS a veteran dragoon (port_bugs.md #263), but 0x17 is not a
    * veteran profession to DOS — and DOS never writes 0x17 to a unit at all
-   * (bugs.md #503), so accepting it here only mis-drew hand-edited saves
-   * (bugs.md #639).
+   * (port_bugs.md #503), so accepting it here only mis-drew hand-edited saves
+   * (port_bugs.md #639).
    */
   const bool vet_prof = unit->profession == UNITS_JOB_SOLDIER;
   if (muskets > 0 && horses > 0) {
@@ -1466,7 +1466,7 @@ int units_map_sprite(const ColonizeUnitPool* pool, int unit_id) {
                                                   : UNITS_ICON_PIONEER;
   }
   /*
-   * bugs.md: an Indian Convert drew as a plain Free Colonist out on the map
+   * port_bugs.md: an Indian Convert drew as a plain Free Colonist out on the map
    * while the colony screen showed it properly. DOS has one icon rule for
    * both — FUN_112b_0060 routes *every* @UNIT type 0 (Colonists) unit through
    * FUN_112b_0002(profession), whose jump table sends profession 0x1b to icon
@@ -1545,11 +1545,11 @@ int units_top_on_map_tile(
    * phase and the tile is left empty on the blink-off one. Letting the rest
    * of the stack take its place off-blink made the tile alternate between
    * two different units, so which one was actually active became a guess
-   * (bugs.md). A Go-To unit does not blink at all, so it never yields.
+   * (port_bugs.md). A Go-To unit does not blink at all, so it never yields.
    *
    * A selected PASSENGER is not on the map (it rides in the hold), so the
    * on-map scan below never found it and the ship drew steadily instead —
-   * "the loaded-active unit doesn't blink" (bugs.md). It owns the ship's
+   * "the loaded-active unit doesn't blink" (port_bugs.md). It owns the ship's
    * tile the same way: its own sprite on blink-on, empty off-blink.
    */
   if (pool->selected_id >= 0) {
@@ -2008,7 +2008,7 @@ void units_new_world_start(
    * tile, taking the first High Seas tile that is empty or holds our own unit.
    * The @SCENARIO tiles are themselves High Seas, so the ring hits at e=0 and
    * the fleet starts on the scenario tile. The old eastern-half scan put the
-   * Spanish AMER2 fleet on (29,61) instead of (47,61). (bugs.md #487)
+   * Spanish AMER2 fleet on (29,61) instead of (47,61). (port_bugs.md #487)
    */
   int sx = start_x;
   int sy = start_y;

@@ -119,7 +119,7 @@ size_t popup_msg_section_body(
      * caret-led line is NOT word-wrapped into the running paragraph. It gets
      * an output line of its own, drawn verbatim — '^^' additionally centres
      * it (the flag-1 arm measures the string before drawing; '^' alone sets
-     * flag 2 and stays left-aligned). bugs.md: the caret was copied through
+     * flag 2 and stays left-aligned). port_bugs.md: the caret was copied through
      * literally, so @BUYME1 read "...100$. ^Treasury: 500$." on one line.
      * Encoded for the renderer as a newline break plus a leading
      * POPUP_MSG_LINE_MARK / POPUP_MSG_CENTER_MARK. At most two carets are

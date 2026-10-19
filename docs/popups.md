@@ -55,7 +55,7 @@ flowchart LR
 | Map event queue | flush immediately from AI/turn | [`ai_popup.c`](../src/core/ai_popup.c) (max 16) |
 | Dedicated UIs | colony `2f2b`, Europe `38fd`, save `7562`, … | `colony_screen`, Europe menus in `game_loop`, `save_load_dialog`, `pick_music`, `unit_stack`, `cheat_list_dialog`, `new_game` |
 
-### The map status line is not a popup (2026-09-04, bugs.md #369)
+### The map status line is not a popup (2026-09-04, port_bugs.md #369)
 
 DOS has a second, lighter channel that the port kept mistaking for a dialog.
 `DS:0x2d54` is a text buffer; `FUN_0000_035c` repaints the map's top strip
@@ -130,7 +130,7 @@ Port: `assets_msg_load_file` records a `blank_before[]` flag per stored line
 The old choice-keyword list is retired — `popup_msg_choices` carries what is
 left of it. It never knew the quoted rows of `@KINGGALLEON2/3` or the
 Euro-diplomacy dialogs, which is why those popups printed their own options
-inside the body (bugs.md). `@default` rides the same side-channel as `@width`
+inside the body (port_bugs.md). `@default` rides the same side-channel as `@width`
 (`popup_msg_take_pending_default` → `AiPopupRequest.default_choice` →
 `ai_popup` initial selection). `unit_popup_msg` sweeps all 499 GAME.TXT
 sections asserting no choice row appears in a body.
@@ -313,7 +313,7 @@ Letters typed in name/howmuch do not switch views. Every arm in this chain is
 also a `GAME_MODAL_LIST` member, so `game_modal_open()` sees it structurally —
 new modals only need to join that macro list (`game_loop.c`). The open map
 pull-down (`map_menu.open_index >= 0`) is the one blocker outside the list:
-`game_modal_open` tests it after the list (bugs.md #1091) while its input
+`game_modal_open` tests it after the list (port_bugs.md #1091) while its input
 still reaches `game_update_map_menu_bar`.
 
 **Blocking invariant (2026-09-01):** every modal blocks all simulation,
@@ -390,7 +390,7 @@ fragment. Related sections are listed in the first column.
 | `@FINDCITY` / `@NOCITY` | Find colony picker | Done | `cheat_list` FIND_COLONY |
 | `@SAILPORT` | Unit ORDERS "Go to Port" (ships) | Done | 2026-09-16: `game_open_goto_port_picker`/`cheat_list` GOTO_PORT — own coastal colonies + Europe row (999), DOS `FUN_647e_01c6`/`FUN_2b5a_1dfc`; replaces the prior "jump to next owned colony" shortcut (docs/unit_orders.md) |
 | `@OVERBOARD` | Which cargo to dump | Done | Hold picker (`AI_POPUP_TAG_OVERBOARD_WHICH`), ids = hold+1, 99 = cancel |
-| Order gates (`@NOPLOW`, `@NOROAD`, `@NEEDTOOLS`, …) | Illegal order | Done thin | Re-verified 2026-09-16: `@NOPLOW`/`@NOROAD` (`units.c` `units_pioneer_emit_order_gate`) — `@ONLYPIO` retired 2026-09-22 as dead text (bugs.md #621: the literal is absent from VICEROY.EXE; `0b34` raw 42211-42215 greys the menu rows instead), EOT `@NEEDTOOLS`/`@NEEDTOOLS0` (`turn.c`), `@SEACOLONY`/`@TOOMOUNTAIN`/`@NOPORT` (`game_loop.c`) all call `popup_msg_fill` with the real GAME.TXT body at the DOS condition — was mis-tallied Partial against a stale note; see Appendix A |
+| Order gates (`@NOPLOW`, `@NOROAD`, `@NEEDTOOLS`, …) | Illegal order | Done thin | Re-verified 2026-09-16: `@NOPLOW`/`@NOROAD` (`units.c` `units_pioneer_emit_order_gate`) — `@ONLYPIO` retired 2026-09-22 as dead text (port_bugs.md #621: the literal is absent from VICEROY.EXE; `0b34` raw 42211-42215 greys the menu rows instead), EOT `@NEEDTOOLS`/`@NEEDTOOLS0` (`turn.c`), `@SEACOLONY`/`@TOOMOUNTAIN`/`@NOPORT` (`game_loop.c`) all call `popup_msg_fill` with the real GAME.TXT body at the DOS condition — was mis-tallied Partial against a stale note; see Appendix A |
 
 ### 4. Colony screen
 
@@ -407,7 +407,7 @@ fragment. Related sections are listed in the first column.
 | `@HOWMUCH1`… | Cargo amount | Done | [`howmuch_dialog.c`](../src/core/howmuch_dialog.c) (`=` colony / Europe **L**) |
 | `@WAREHOUSEFULL` | Warehouse overflow | Done thin | Unload full → `ai_popup` OK; spoilage still `@SPOIL*` |
 | Train fails (`@NOTEACHER`, `@TRAINFAIL`, …) | School train | Done thin | Re-verified 2026-09-16: EOT `@TRAINFAIL` (`turn.c`), assign-time `@NOTEACHER`/`@NEEDCOLLEGE`/`@NEEDUNIVERSITY` (`colony.c`) all `popup_msg_fill` real body at the DOS condition; see Appendix A |
-| `@FULL` | Join at population cap | n/a | bugs.md #690: DOS join bails silently at 32; no popup |
+| `@FULL` | Join at population cap | n/a | port_bugs.md #690: DOS join bails silently at 32; no popup |
 | Spoil / starve (`@SPOIL*`, `@STARVE*`, …) | EOT production | Done | `ai_popup` OK from turn production |
 | Docked unit orders | `@COLONYUNIT` + `@SHIPOPTIONS`/`@UNITOPTIONS`, 2nd click on selected dock icon | Done thin | `colony_screen_open_dock_orders`; ineligible rows omitted (`2f2b_5746`); VGA chrome PARKED |
 | `@CARGOREADY*` | Century tip | Done thin | EOT century `@CARGOREADY0`–`2` |
@@ -449,7 +449,7 @@ fragment. Related sections are listed in the first column.
 | Boycott | War embargo / Tools lift | n/a | no DOS popup: war/peace OKs are `@DECLAREWAR` / `@SIGNTREATY` (2026-09-16: invented "boycott imposed" / "embargo lifted" bodies no longer replace them; the Tools-lift line is status-only) |
 | FA `@HELLO*` / `@PEACE*` / `@TRIBUTE*` … | Euro encounter negotiation | Done | `FUN_5bfb_153e` talk machine (`ai_diplo.c`, tag `DIPLO_TALK`); `3f41` is the F2-F9 adviser-report overlay, not diplomacy. `…USA` variants are the one delta |
 | Military Assistance / mercenary hire (`@MILITARY`, `@UNFORTUNATE`, `@MERCENARY`) | PEACEMENU choice 4 | Done | Verified 2026-09-16: `ai_diplo.c` `AI_TALK_ST_ALLY_PICK`/`ALLY_PAY` matches raw :98330-98395 (affordability gate, war-bit set both directions incl. Indian side); `@MILITARY` intro line was the one missing piece, added 2026-09-16 |
-| Scout enters foreign colony (`@SCOUTCOLONY`, `@LOSTOURSCOUTS`, `@LOSTTHEIRSCOUTS`, `@NOMAYORSDURINGREV`) | Human scout steps onto Euro colony | Done for the human side | `AI_POPUP_TAG_SCOUT_COLONY` (`game_loop.c`); DOS's `@LOSTTHEIRSCOUTS`/`@NOWARSDURINGREV` branches (AI scout vs. human colony; any unit vs. any foreign colony during WoI) live in the shared `FUN_465b_0000`→`FUN_5f7a_0662` dispatcher, which the port never calls for AI-driven unit movement; both arms are dead code in DOS too (`FUN_5f7a_000e` head raw 98822-98834 returns unless the mover is human; bugs.md #500) — see Appendix A |
+| Scout enters foreign colony (`@SCOUTCOLONY`, `@LOSTOURSCOUTS`, `@LOSTTHEIRSCOUTS`, `@NOMAYORSDURINGREV`) | Human scout steps onto Euro colony | Done for the human side | `AI_POPUP_TAG_SCOUT_COLONY` (`game_loop.c`); DOS's `@LOSTTHEIRSCOUTS`/`@NOWARSDURINGREV` branches (AI scout vs. human colony; any unit vs. any foreign colony during WoI) live in the shared `FUN_465b_0000`→`FUN_5f7a_0662` dispatcher, which the port never calls for AI-driven unit movement; both arms are dead code in DOS too (`FUN_5f7a_000e` head raw 98822-98834 returns unless the mover is human; port_bugs.md #500) — see Appendix A |
 
 ### 8. King / REF / independence / FF
 
@@ -512,7 +512,7 @@ Cycling and Tutorial Hints remain persisted flags only until final polish.
 
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
-| `@LOSTCITY1`…`9`, `@BURIAL*`, `@SCREWED` | Lost City / ruins | Done thin | `units_resolve_lcr_rumour`; @LOSTCITY4 Search/Stay-clear CHOICE live for the human (`AI_POPUP_TAG_LCR_BURIAL`, bugs.md #956) and the payout block runs from its result; native-attack combat resolve on `@SCREWED` PARKED (50/50 despawn stand-in) |
+| `@LOSTCITY1`…`9`, `@BURIAL*`, `@SCREWED` | Lost City / ruins | Done thin | `units_resolve_lcr_rumour`; @LOSTCITY4 Search/Stay-clear CHOICE live for the human (`AI_POPUP_TAG_LCR_BURIAL`, port_bugs.md #956) and the payout block runs from its result; native-attack combat resolve on `@SCREWED` PARKED (50/50 despawn stand-in) |
 | `@TUTORIAL1`…`19`, `@TUT*` | Tutorial hints option | Missing | — |
 | `WOODCUT.TXT` captions | Discovery woodcut scenes | Done | [`woodcut.c`](../src/core/woodcut.c) — `FUN_12fd_006c` once-only gate (DS:`0x540a` = `event` + `unknown05`) + tune table, `FUN_6f30_0062` presenter (WOODFRAM.SS frame, WDCUT`nn`.SS art, NAMEPLAT.SS 3-piece plate, FONT-NP.FF caption). Wired ids: 1 new world (land sighted, `FUN_4720_049e`), 2 building a colony (`479b:0950`), 3/4/5 natives/Aztec/Inca (`5bfb:038a`, by tribe tech class), 6 Pacific (`13f1:0280`), 7 entering a village (`4d56:478a`), 8 Fountain of Youth (`65dd:04a9`), 9 cargo from the New World (`48d3:08bf`, a ship docks in Europe with goods), 10 meeting fellow Europeans (`5bfb:15cf`, MET bit still clear), 11 colony burning + 13 Indian raid (`5fef`). Id 12 COLONY DESTROYED has art but **no** call site in the shipped EXE; ids 14-16 have captions but no art; 17-25 are demo-autoplay only |
 

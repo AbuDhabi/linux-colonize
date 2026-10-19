@@ -149,7 +149,7 @@ static bool run(void) {
   render("map with colony");
 
   /*
-   * Colony screen. bugs.md #682: DOS FUN_479b_076e raw 77043-77048 runs the
+   * Colony screen. port_bugs.md #682: DOS FUN_479b_076e raw 77043-77048 runs the
    * blocking "Building a Colony" woodcut and only THEN FUN_281f_0608, so the
    * screen comes up by itself once the woodcut is dismissed — the founder's
    * own Enter is never needed. A few frames cover the dismiss plus the
@@ -168,7 +168,7 @@ static bool run(void) {
   }
   if (game_in_colony_screen(g_game)) return fail("colony screen did not close on Esc");
 
-  /* Europe screen. bugs.md #682: the founding woodcut now plays before the
+  /* Europe screen. port_bugs.md #682: the founding woodcut now plays before the
    * colony screen, so nothing is parked over the map here and one E lands. */
   if (!frame(COLONIZE_KEY_E)) return fail("E key");
   if (!game_in_europe_screen(g_game)) return fail("Europe screen did not open");

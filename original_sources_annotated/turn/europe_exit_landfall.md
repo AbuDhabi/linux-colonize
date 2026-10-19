@@ -44,7 +44,7 @@ Europe→map place: `48d3_048e` via `2a1f_0262` (OpenCol
 | Landfall delay ticks | Voyage timers / AI goto | Split |
 | Map landfall coords | `map_gen_euro_landfall` | Mapgen |
 
-## Placement chain — full audit 2026-09-17 (bugs.md #487, #489)
+## Placement chain — full audit 2026-09-17 (port_bugs.md #487, #489)
 
 Every DOS appearance of a ship coming out of Europe resolves through **one**
 tile source. There is no map-wide scan anywhere in the `48d3` module.
@@ -69,7 +69,7 @@ as a *sail-target* helper (trade-route Europe stop, treasure sail target,
 last-resort fallback) — DOS needs no such table because the human steers by hand
 and `015e` accepts whatever High Seas tile the ship happens to reach.
 
-## Lane chain (resolved 2026-09-18, bugs.md #489)
+## Lane chain (resolved 2026-09-18, port_bugs.md #489)
 
 The sentinel diagonal is a **chain**, one hop per Atlantic tick, walked for the
 **active nation only** (`FUN_48d3_03d0` places at `param_2 + DS:0x5394`):

@@ -172,7 +172,7 @@ static int unit_improve_timer_pioneer_gate(void) {
 }
 
 /*
- * AI FOUND on Indian homeland (bugs.md #1074): FUN_479b_076e never pays —
+ * AI FOUND on Indian homeland (port_bugs.md #1074): FUN_479b_076e never pays —
  * the AI buys land only in FUN_479b_00ca from the Pioneer work bodies.
  *
  * promote_secondary_to_primary wipes pre-set primaries each turn — so seed a
@@ -398,7 +398,7 @@ static int unit_indian_land_found(void) {
 }
 
 /*
- * bugs.md #611 — DOS-LITERAL FUN_521d_20e6 raw 90183-90206. A Pioneer that is
+ * port_bugs.md #611 — DOS-LITERAL FUN_521d_20e6 raw 90183-90206. A Pioneer that is
  * not the explorer pick takes order 9 (Build Road) with plan byte 0x52 at the
  * land commit point, unless the nearest village claims the tile (within the
  * tribe's tech-tier radius and alarm quartile < 3) or a foreign colony stands

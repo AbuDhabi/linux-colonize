@@ -65,11 +65,11 @@ int units_spawn_village_temp_defender(
 
 /*
  * FUN_5fef_31ea conquest treasure gold (×100 from DOS amount byte). Runs for
- * ANY conqueror (bugs.md #381) — Hernan Cortes only removes the tech-0/1
+ * ANY conqueror (port_bugs.md #381) — Hernan Cortes only removes the tech-0/1
  * "did it pay out at all" roll and adds +50% (tech 0/1) or +6/+10 per unit
  * (tech 2/3); at tech 2 and 3 everyone gets an amount. The band is the razed
  * tribe's Indian record `tech` (tribe_nation_id 4..11), not the game
- * difficulty (bugs.md #549).
+ * difficulty (port_bugs.md #549).
  * rich_capital: stack-local -0xcc ← ColonizeCol1TribeState.capital.
  * Returns 0 if no treasure / no rng. Cite: viceroy_unpacked.c ~101407–101495.
  */
@@ -88,7 +88,7 @@ int units_conquest_treasure_gold(
  * when tribe.mission low-nibble == attacker (PEDIA Sepulveda / @INDIANSLAVES) —
  * threshold 4|8 (±Spanish/Sepulveda/Las Casas), roll dos_rng_range(0,12).
  * Conquest treasure: gold_amount>0 is used as-is, else the FUN_5fef_31ea peel
- * rolls one (no Cortes gate — see bugs.md #381).
+ * rolls one (no Cortes gate — see port_bugs.md #381).
  * May adjust Indian relation via ai_diplo helpers when col1 is set.
  */
 bool units_try_native_settlement_fallout_w(
@@ -103,7 +103,7 @@ bool units_try_native_settlement_fallout_w(
 );
 
 
-/* bugs.md: combat "bump" animation hook — called once as an engagement is
+/* port_bugs.md: combat "bump" animation hook — called once as an engagement is
  * about to resolve (attacker still on its tile, defender at (def_x,def_y)).
  * The game loop renders the attacker nudged toward the defender. */
 typedef void (*ColonizeUnitsCombatWatchFn)(
@@ -155,14 +155,14 @@ typedef int (*ColonizeUnitsRaidRepelledFn)(
 void units_set_colony_raid_repelled(ColonizeUnitsRaidRepelledFn fn);
 
 /*
- * bugs.md: combat popups are presented per-combat, not hoarded until the AI
+ * port_bugs.md: combat popups are presented per-combat, not hoarded until the AI
  * slice ends. The hook runs a nested modal loop draining the ai_popup queue
  * after each combat resolution; headless callers leave it unset.
  */
 typedef void (*ColonizeUnitsPopupPumpFn)(void* user);
 void units_set_combat_popup_pump(ColonizeUnitsPopupPumpFn fn, void* user);
 /* Present-and-answer queued popups now via the registered pump (no-op when
- * headless). bugs.md #237: popup before animation, each blocking. */
+ * headless). port_bugs.md #237: popup before animation, each blocking. */
 void units_pump_combat_popups(void);
 
 /*

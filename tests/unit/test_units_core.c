@@ -114,7 +114,7 @@ static int fx_open(void) {
    * FUN_48d3_048e ring hunt from the landfall tile: AMER2's @SCENARIO tiles are
    * themselves High Seas, so the fleet lands on the requested tile exactly (the
    * e=0 hit), never on some other rim tile the old eastern-half scan preferred.
-   * (bugs.md #487)
+   * (port_bugs.md #487)
    */
   if (ship->x != 39 || ship->y != 10) {
     fprintf(stderr, "starter ship want landfall tile (39,10) got (%d,%d)\n", ship->x, ship->y);
@@ -144,7 +144,7 @@ static int fx_stage2(void) {
     /*
      * Interior tiles only (map_coords_inset / DOS FUN_137f_000a): AMER2 row 0
      * carries land in columns 1..3, but the outer rim is not a playable tile
-     * and no unit may stand there — bugs.md #429. The tests below then step
+     * and no unit may stand there — port_bugs.md #429. The tests below then step
      * the unit one tile east and want a free water neighbour for the boarding
      * case, so require: (x,y) and (x+1,y) both interior land, and (x+1,y)
      * coastal.
@@ -551,7 +551,7 @@ static int case_starter_discoverer_french(void) {
   /*
    * FUN_75c2_235c raw 121644-121647: the Discoverer Veteran Soldier is gated on
    * `bVar1` = this nation's player control byte (0x543f) == 0, i.e. the human.
-   * An AI English nation on Discoverer gets a plain Soldier. (bugs.md #488)
+   * An AI English nation on Discoverer gets a plain Soldier. (port_bugs.md #488)
    */
 static int case_starter_discoverer_ai_english(void) {
   if (fx_open() != 0) {
@@ -1102,7 +1102,7 @@ static int case_colony_dock(void) {
       return 1;
     }
     /*
-     * bugs.md #482 — a Wagon Train may never board. DOS-LITERAL
+     * port_bugs.md #482 — a Wagon Train may never board. DOS-LITERAL
      * FUN_4720_00e0 (viceroy_unpacked_2.c raw 74644-74648) only considers a
      * non-ship unit whose @UNIT size column (DS:0x5238) is `< 99`; Wagon
      * Train's column is 99, so the fit pass skips it outright (same `< 99`
@@ -1172,7 +1172,7 @@ static int case_colony_dock(void) {
       assets_msg_free(&names);
       return 1;
     }
-    /* bugs.md: docking already put the passenger ashore, with no orders — a
+    /* port_bugs.md: docking already put the passenger ashore, with no orders — a
      * further disembark call has nothing left to do. */
     const ColonizeUnit* dock_ship_u = units_get_const(&pool, dock_ship);
     const int nd = units_disembark_all(&pool, dock_ship, cx, cy);
@@ -1225,7 +1225,7 @@ static int case_terrain_mp_improvements(void) {
     int px = -1;
     int py = -1;
     /* Interior tiles only — the 1-tile rim is not playable (map_coords_inset /
-     * DOS FUN_137f_000a; bugs.md #429), so a unit may not stand or step there. */
+     * DOS FUN_137f_000a; port_bugs.md #429), so a unit may not stand or step there. */
     for (int y = 1; y < 6 && px < 0; ++y) {
       for (int x = 1; x < 6; ++x) {
         if (!map_coords_inset(&tmap, x, y) || !map_coords_inset(&tmap, x + 1, y)) {
@@ -1822,7 +1822,7 @@ static int case_orders_chrome(void) {
         return 1;
       }
       /*
-       * bugs.md: the move slide / combat lunge hide the piece from the base
+       * port_bugs.md: the move slide / combat lunge hide the piece from the base
        * frame by clearing `active`, and `units_display_type_index` resolves
        * through `units_get_const`, which skips inactive units. Reading the
        * chrome corner while the piece is hidden therefore yields -1, and
@@ -1893,7 +1893,7 @@ static int case_fortify_sentry_disband(void) {
       return 1;
     }
     /*
-     * bugs.md #695: FUN_2b5a_1112's tail (raw 42418-42421) has no "already
+     * port_bugs.md #695: FUN_2b5a_1112's tail (raw 42418-42421) has no "already
      * fortified" early-out — re-issuing Fortify on a dug-in unit rewrites
      * order 5, zeroes +0x315a and exhausts the allotment all over again.
      */
@@ -2048,7 +2048,7 @@ static int case_dump_anchor_route_pillage(void) {
      * Fortify (FUN_2b5a_1112) has no harbour or water condition, so both the
      * ORDERS row and the F key must take a ship wherever it floats. This used
      * to need an own colony within one tile, which is what made it look like
-     * fortifying at sea worked only sometimes (bugs.md).
+     * fortifying at sea worked only sometimes (port_bugs.md).
      */
     units_clear_orders(&pool, ship);
     sh = units_get(&pool, ship);
@@ -2076,7 +2076,7 @@ static int case_dump_anchor_route_pillage(void) {
     }
     units_despawn(&pool, ship);
 
-    /* bugs.md #631: pillage never destroys improvements in DOS — the
+    /* port_bugs.md #631: pillage never destroys improvements in DOS — the
      * non-colony arm must refuse and leave the road standing. */
     int px = -1, py = -1;
     for (int y = 1; y < (int)map.height - 1 && px < 0; ++y) {
@@ -2177,7 +2177,7 @@ static int case_land_combat_t0(void) {
       assets_msg_free(&names);
       return 1;
     }
-    /* bugs.md #243: a land attacker does NOT advance into the vacated tile
+    /* port_bugs.md #243: a land attacker does NOT advance into the vacated tile
      * (only ships and colony-capturing attacks enter). */
     a = units_get(&pool, aid);
     if (!a || a->x != ax || a->y != ay) {
@@ -2333,7 +2333,7 @@ static int case_naval_hold_plunder(void) {
 }
 
   /* Treasure train spawn: value lives in DOS +0x315b (profession) = gold/100
-   * (bugs.md #736); no LE16 hold mirror any more. */
+   * (port_bugs.md #736); no LE16 hold mirror any more. */
 static int case_treasure_train_spawn(void) {
   if (fx_open() != 0 || fx_stage2() != 0) {
     return 1;
@@ -2612,7 +2612,7 @@ static int case_native_settlement_conquer(void) {
       fprintf(stderr, "unit_units: Cortes rich_capital plain=%d rich=%d ok\n", plain, rich);
     }
 
-    /* bugs.md #549: the band is the razed tribe's tech, not the difficulty — a
+    /* port_bugs.md #549: the band is the razed tribe's tech, not the difficulty — a
      * tech-1 (Agrarian, Arawak) village on Viceroy pays at most 8 * 1.5 * 100. */
     {
       const uint8_t saved_diff = col1.head.difficulty;
@@ -2697,11 +2697,11 @@ static int case_native_settlement_conquer(void) {
     units_set_native_fallout_context(NULL, NULL);
 
     /*
-     * bugs.md #381: conquest treasure is NOT Cortes-gated. Strip Cortes and burn
+     * port_bugs.md #381: conquest treasure is NOT Cortes-gated. Strip Cortes and burn
      * a tech-2 (Advanced) village, where FUN_5fef_31ea's amount is
      * unconditional — (roll 2..6 + 0 Cortes + 0 Spanish) * 10 * 100, i.e.
      * 2000..6000 gold — and a Treasure Train must still appear. The band is
-     * the tribe's tech, not the difficulty (bugs.md #549).
+     * the tribe's tech, not the difficulty (port_bugs.md #549).
      */
     col1.nation[0].founding_fathers[FF_HERNAN_CORTES / 8] &=
       (uint8_t)~(1u << (FF_HERNAN_CORTES % 8));
@@ -2891,7 +2891,7 @@ static int case_convert_join(void) {
 }
 
   /*
-   * FUN_3844_0004 (raw 58268, bugs.md #725): a LONE Indian Convert on an open
+   * FUN_3844_0004 (raw 58268, port_bugs.md #725): a LONE Indian Convert on an open
    * tile ages unit +0x16 and vanishes once the byte passes 8. Treasure trains
    * are untouched — no DOS site expires one.
    */
@@ -3128,7 +3128,7 @@ static int case_fort_defense_bonus(void) {
         fprintf(stderr, "green dragoon want 16 no-flag got %d flags=%x\n", green, dfl.flags);
         return 1;
       }
-      /* bugs.md #503: a veteran dragoon body is @UNIT type 4 carrying
+      /* port_bugs.md #503: a veteran dragoon body is @UNIT type 4 carrying
        * profession 0x15 — DOS never writes 0x17 to a unit, so 0x17 must NOT
        * peel (FUN_157e_004a raw 8942-8944). */
       du->profession = UNITS_JOB_DRAGOON;
@@ -3295,7 +3295,7 @@ static int case_fort_defense_bonus(void) {
       fprintf(stderr, "unit_units: combat analysis gate ok\n");
     }
 
-    /* bugs.md #660: treasure capture flips nation, credits no gold. */
+    /* port_bugs.md #660: treasure capture flips nation, credits no gold. */
     ColonizeCol1Save tcol1;
     memset(&tcol1, 0, sizeof(tcol1));
     tcol1.nation[1].gold = 50;
@@ -3435,7 +3435,7 @@ static int case_coastal_fort_naval_fire(void) {
     for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
       fcol1.head.founding_father[i] = -1;
     }
-    /* bugs.md #867 / FUN_5fef_0352 raw 99531-99548: an UNARMED loser now goes
+    /* port_bugs.md #867 / FUN_5fef_0352 raw 99531-99548: an UNARMED loser now goes
      * through the AI fleet-pool bias, which forces "damaged" when the owner's
      * spare cargo capacity (stuff.ship_cargo_totals) is below clamp(pop>>2,3,6).
      * A blank fixture census reads 0 and would always save the hull, so give
@@ -3455,7 +3455,7 @@ static int case_coastal_fort_naval_fire(void) {
     const int old_def = pool.types[caravel_ti].defense;
     const int old_hull = pool.types[caravel_ti].hull;
     pool.types[caravel_ti].defense = 2; /* Fort atk 4 >= 2 → fort wins */
-    /* bugs.md #249: fort win rolls damage-vs-sink on the hull (no-rng
+    /* port_bugs.md #249: fort win rolls damage-vs-sink on the hull (no-rng
      * fallback: hull >= atk → damaged). Hull 0 keeps this check a sink. */
     pool.types[caravel_ti].hull = 0;
 
@@ -3482,7 +3482,7 @@ static int case_coastal_fort_naval_fire(void) {
       return 1;
     }
 
-    /* bugs.md #249: fort miss leaves the ship UNTOUCHED — no MP drain (DOS
+    /* port_bugs.md #249: fort miss leaves the ship UNTOUCHED — no MP drain (DOS
      * undoes the temp attacker; the old ship-slow was invented). */
     ai_diplo_declare_war(&fcol1, 0, 1);
     pool.types[caravel_ti].defense = 100; /* fort atk 4 loses */
@@ -3527,7 +3527,7 @@ static int case_coastal_fort_naval_fire(void) {
     }
     units_despawn(&pool, peace_id);
 
-    /* bugs.md #465 (user-observed: Spanish Caravel shot at while F8 showed
+    /* port_bugs.md #465 (user-observed: Spanish Caravel shot at while F8 showed
      * Spain at peace): the battery obeys DOS's PEACE bit (0x40, the byte F8
      * reads), not the OpenCol WAR bit — a stale WAR bit beside PEACE must not
      * fire. */
@@ -3548,7 +3548,7 @@ static int case_coastal_fort_naval_fire(void) {
       const int old_pdef = pool.types[priv_ti].defense;
       const int old_phull = pool.types[priv_ti].hull;
       pool.types[priv_ti].defense = 2;
-      /* bugs.md #249: fort win now rolls damage-vs-sink on the ship's hull
+      /* port_bugs.md #249: fort win now rolls damage-vs-sink on the ship's hull
        * (no-rng fallback: hull > fort atk → damaged). Zero the hull so this
        * deterministic check still ends in a sink. */
       pool.types[priv_ti].hull = 0;
@@ -4020,7 +4020,7 @@ static int case_lcr_outcome_dispatch(void) {
 }
 
   /*
-   * bugs.md #496: Fountain of Youth runs the eight FUN_291f_0d2c(1,0) picks
+   * port_bugs.md #496: Fountain of Youth runs the eight FUN_291f_0d2c(1,0) picks
    * for an AI nation too (raw 103725-103731 sits outside the `local_a != 0`
    * human gate; 4884 just takes pool slot 1 for a non-human bound nation).
    * The eight land on nation 1's Europe dock (237,237), never on the human dock.
@@ -4129,7 +4129,7 @@ static int case_lcr_fountain_ai(void) {
 }
 
   /*
-   * bugs.md #497: case-8 burial trespass only stands (and only costs
+   * port_bugs.md #497: case-8 burial trespass only stands (and only costs
    * relation) when the village's tribe has MET the explorer's nation
    * (FUN_281f_0a38 & 0x20, raw 103563-103565); unmet falls to "Nothing".
    * `lcr_case5_bonus_used` is pre-latched so the once-per-nation burial arm
@@ -4453,7 +4453,7 @@ static int case_enter_probe_matrix(void) {
       ub->nation_id = 1;
       ua->moves = 4 * UNITS_MP_PER_TILE;
       /*
-       * bugs.md: unarmed transports (Caravel attack=0 in @UNIT) must bounce
+       * port_bugs.md: unarmed transports (Caravel attack=0 in @UNIT) must bounce
        * off a foreign ship, not fight — "Only Privateers and Frigates can
        * attack enemy ships" (GAME.TXT). Confirm the bounce before arming the
        * type below to exercise the actual-combat path.
@@ -4625,7 +4625,7 @@ static int case_board_from_land_sentry(void) {
       return 1;
     }
     /*
-     * bugs.md #423: walking aboard from open shore is DOS's 465b_05ca
+     * port_bugs.md #423: walking aboard from open shore is DOS's 465b_05ca
      * force-to-max — that passenger is spent, so FUN_4720_015c offers it no
      * landfall and the unload is refused until the next turn.
      */
@@ -5143,7 +5143,7 @@ static int case_combat_best_defender(void) {
       pool.types[arty].defense = 8;
       pool.types[col].attack = 0;
       pool.types[col].defense = 1;
-      /* bugs.md #677: DOS FUN_5fef_0000 is one ranking; an UNFORTIFIED gun in
+      /* port_bugs.md #677: DOS FUN_5fef_0000 is one ranking; an UNFORTIFIED gun in
        * the open takes score >>= 3 (asm 0x0115) and loses the pick to the
        * colonist. Fortified, it ranks on full strength and wins. */
       int best = units_best_defender_at(&pool, NULL, 31, 30, atk, atk);
@@ -5459,7 +5459,7 @@ static int case_combat_village_attack_pop_drain(void) {
       c1.tribe[0].nation_id = 4;
       c1.tribe[0].population = 3;
       /* calloc'd mission 0 = an ENGLISH mission, which the raze now returns
-       * as a Missionary (bugs.md #551); this fixture has none. */
+       * as a Missionary (port_bugs.md #551); this fixture has none. */
       c1.tribe[0].mission = COL1_TRIBE_MISSION_NONE;
       c1.player[0].control = 0;
       c1.head.game_options.combat_analysis = 1;
@@ -6352,7 +6352,7 @@ static int case_combat_port_ship_fate_discharge(void) {
   return 0;
 }
 
-    /* bugs.md #660: a beaten Treasure Train changes hands (no gold, no ransom).
+    /* port_bugs.md #660: a beaten Treasure Train changes hands (no gold, no ransom).
      * DOS FUN_5fef_0352 raw 99392-99413. */
 static int case_combat_treasure_capture(void) {
   AiPopupState pops;
@@ -6418,7 +6418,7 @@ static int case_combat_treasure_capture(void) {
   return 0;
 }
 
-    /* bugs.md #663: capture is disqualified on water (local_2a) — destroy. */
+    /* port_bugs.md #663: capture is disqualified on water (local_2a) — destroy. */
 static int case_combat_capture_water_destroy(void) {
   AiPopupState pops;
   if (combat_phase2_open(&pops) != 0) {
@@ -6516,7 +6516,7 @@ static int case_combat_privateer_seizure(void) {
       }
       pool.types[priv].attack = 16;
       pool.types[priv].defense = 8;
-      /* bugs.md: seizure fires only for UNARMED transports (attack 0, as in
+      /* port_bugs.md: seizure fires only for UNARMED transports (attack 0, as in
        * real NAMES.TXT); a warship loser is damage-or-sink only. */
       pool.types[car].attack = 0;
       pool.types[car].defense = 2;
@@ -6540,7 +6540,7 @@ static int case_combat_privateer_seizure(void) {
       memset(&c1, 0, sizeof(c1));
       c1.player[0].control = 0;
       c1.player[1].control = 1;
-    /* bugs.md #867 / FUN_5fef_0352 raw 99531-99548: an UNARMED loser now goes
+    /* port_bugs.md #867 / FUN_5fef_0352 raw 99531-99548: an UNARMED loser now goes
      * through the AI fleet-pool bias, which forces "damaged" when the owner's
      * spare cargo capacity (stuff.ship_cargo_totals) is below clamp(pop>>2,3,6).
      * A blank fixture census reads 0 and would always save the hull, so give
@@ -6550,7 +6550,7 @@ static int case_combat_privateer_seizure(void) {
         fprintf(stderr, "seizure naval should win\n");
         return 1;
       }
-      /* bugs.md #986: a PRIVATEER prize gets no dialog — @SEIZURE* is Royal
+      /* port_bugs.md #986: a PRIVATEER prize gets no dialog — @SEIZURE* is Royal
        * Navy / Army wording and no catalog section covers a privateer capture,
        * so the port shows nothing rather than typed English. */
       for (int i = 0; i < pops.queue_count; ++i) {
@@ -6605,7 +6605,7 @@ static int case_combat_privateer_seizure(void) {
 }
 
 /*
- * bugs.md #867 — FUN_5fef_0352 raw 99562-99565: during the WoI the crown's
+ * port_bugs.md #867 — FUN_5fef_0352 raw 99562-99565: during the WoI the crown's
  * LAST Man-O-War cannot be sunk, only damaged. The same fight with a second
  * crown hull on the books sinks her.
  */
@@ -6742,7 +6742,7 @@ static int case_combat_fort_fire_repair(void) {
         fprintf(stderr, "fort miss must not set damaged bit7\n");
         return 1;
       }
-      /* bugs.md #249: a fort miss leaves the ship untouched (no MP drain). */
+      /* port_bugs.md #249: a fort miss leaves the ship untouched (no MP drain). */
       if (ship->moves == 0) {
         fprintf(stderr, "fort miss must NOT drain moves (got %d)\n", ship->moves);
         return 1;
@@ -6771,13 +6771,13 @@ static int case_combat_fort_fire_repair(void) {
         fprintf(stderr, "close fort hit must set damaged bit7\n");
         return 1;
       }
-      /* bugs.md #871: an AI hull with no repair port leaves the map at once. */
+      /* port_bugs.md #871: an AI hull with no repair port leaves the map at once. */
       if (!units_coords_in_europe_park(ship->x, ship->y)) {
         fprintf(stderr, "damaged AI hull with no drydock must park off-map (at %d,%d)\n",
                 ship->x, ship->y);
         return 1;
       }
-      /* bugs.md #254: combat damage presets the repair TIMER below the
+      /* port_bugs.md #254: combat damage presets the repair TIMER below the
        * threshold (fort winner doubles the bill → remaining = full
        * threshold here) and marks repair_pending. */
       if (ship->col1_counter16 >= 3 || !ship->repair_pending) {
@@ -6864,7 +6864,7 @@ static int case_colony_tile_visibility(void) {
      * Blink-off leaves the tile empty even on plain ground: the active unit
      * owns its tile, and letting the rest of the stack stand in for it made
      * the tile alternate between two units so you could not tell which was
-     * active (bugs.md). This used to assert the opposite.
+     * active (port_bugs.md). This used to assert the opposite.
      */
     int top = units_top_on_map_tile(&pool, tx, ty, false, &map);
     if (top != -1) {
@@ -6922,7 +6922,7 @@ static int case_colony_tile_visibility(void) {
   return 0;
 }
 
-  /* bugs.md: a selected passenger is not on the map, so the tile scan never
+  /* port_bugs.md: a selected passenger is not on the map, so the tile scan never
    * found it and the ship drew steadily — no blink. The passenger owns its
    * ship's tile like any active unit: own sprite blink-on, empty off. */
 static int case_selected_passenger_blink(void) {
@@ -6974,7 +6974,7 @@ static int case_selected_passenger_blink(void) {
   return 0;
 }
 
-  /* DOS ship-switch quirk (bugs.md): the first ship to leave a shared tile
+  /* DOS ship-switch quirk (port_bugs.md): the first ship to leave a shared tile
    * scoops the tile's loaded units first come, first served; the rest stay
    * with the remaining ship(s). Awake passengers stay put. */
 static int case_ship_switch_quirk(void) {
@@ -7046,7 +7046,7 @@ static int case_ship_switch_quirk(void) {
   return 0;
 }
 
-  /* bugs.md: Go To onto a fogged square is always legal — the destination
+  /* port_bugs.md: Go To onto a fogged square is always legal — the destination
    * check must not peek under the fog. Seen, it still validates. */
 static int case_goto_fogged_square(void) {
   if (fx_open() != 0 || fx_stage2() != 0) {
@@ -7092,7 +7092,7 @@ static int case_goto_fogged_square(void) {
 }
 
   /*
-   * bugs.md #418: a Go To aimed at an Indian settlement is a move command INTO
+   * port_bugs.md #418: a Go To aimed at an Indian settlement is a move command INTO
    * the village — on arrival its final step must be dispatched through the
    * normal entry flow (game_loop hands it to game_try_unit_move →
    * FUN_4d56_4528 @ACTIONS), not stopped one tile short. The raw pacer has no
@@ -7132,7 +7132,7 @@ static int case_goto_into_village(void) {
     }
     wu->nation_id = 0;
     wu->moves = units_max_mp(&pool, walker);
-    /* bugs.md #129: the order itself is legal even though the tile is not
+    /* port_bugs.md #129: the order itself is legal even though the tile is not
      * enterable by a plain settler. */
     if (!units_set_goto_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, walker, vx, vy)) {
       fprintf(stderr, "goto-village: village destination must be accepted\n");
@@ -7170,7 +7170,7 @@ static int case_goto_into_village(void) {
 }
 
   /*
-   * bugs.md #423 / DOS FUN_4720_015c (viceroy_unpacked.c:76010-76026): landfall
+   * port_bugs.md #423 / DOS FUN_4720_015c (viceroy_unpacked.c:76010-76026): landfall
    * is offered only to cargo whose spent byte is below its max. A passenger
    * parked at moves 0 by boarding is still fresh (DOS spent 0) and may
    * land; one that burnt its allotment this turn stays aboard.
@@ -7253,7 +7253,7 @@ static int case_landfall_spent_gate(void) {
       return 1;
     }
     /*
-     * bugs.md #544: docking is not a refill. DOS keeps the passenger's own
+     * port_bugs.md #544: docking is not a refill. DOS keeps the passenger's own
      * spent byte aboard: the shore-boarded (spent) pioneer lands in the colony
      * with no moves, one that boarded with 1 third left lands with 1.
      */
@@ -7288,7 +7288,7 @@ static int case_landfall_spent_gate(void) {
    * per pick, free passage, no recruit-count bump, chained until 8 landed.
    */
 /*
- * bugs.md #1094: unit ids index COLONIZE_UNITS_MAX-wide side arrays, so the
+ * port_bugs.md #1094: unit ids index COLONIZE_UNITS_MAX-wide side arrays, so the
  * allocator must keep them below it for the pool's lifetime: monotonic up to
  * the cap, then round-robin over free ids (never one a live unit holds).
  */
@@ -7321,7 +7321,7 @@ static int case_unit_ids_recycle_below_max(void) {
     }
     prev = id;
   }
-  /* bugs.md #1097: one MP rule — the spent byte keeps an overspend (raw
+  /* port_bugs.md #1097: one MP rule — the spent byte keeps an overspend (raw
    * 75640 `ADD [unit+0x3149], cost`), natives included. */
   ColonizeUnit* brave = units_get(&p, keep);
   brave->nation_id = 4;

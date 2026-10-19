@@ -70,7 +70,7 @@ int colonies_id_at(const ColonizeColonyPool* pool, int x, int y) {
  * How many of these a colony actually works is per colony, not 8: DOS reads
  * `DS:0x329[FUN_15eb_0470()]` over {0,4,8,12,20} with
  * `FUN_15eb_0470 = min(FUN_15eb_039e(10),2)+2` (raw 9636-9645 / 9561-9578).
- * See colonies_work_plot_count(). bugs.md #593.
+ * See colonies_work_plot_count(). port_bugs.md #593.
  */
 static const int k_field_dx[COLONIZE_COLONY_FIELD_TILES_MAX] = {
   0, 1, 1, 1, 0, -1, -1, -1,
@@ -112,7 +112,7 @@ int colonies_field_tile_index(int dx, int dy) {
  * `FUN_15eb_28c8` (raw 12993) walks them in this order, so the earliest index
  * wins an equal-score tie. The port's own slot order (k_field_dx/dy above) is
  * the MAP_DIR8 clockwise one and is kept — col1_bridge.c maps between the two.
- * bugs.md #584.
+ * port_bugs.md #584.
  */
 static const int8_t k_dos_plot_dx[20] = {
   0, 1, 0, -1, -1, 1, 1, -1, 0, 2, 0, -2, -1, 1, -1, 1, -2, -2, 2, 2
@@ -238,7 +238,7 @@ uint8_t colonies_plot_blocked_mask(
    * `FUN_137f_003c(|dx|,|dy|,FUN_15eb_0470())` (raw 12727): the work-radius
    * test. Tier 1 keeps |dx|+|dy| < 2, tier 2 adds the diagonals (the 3x3
    * block), tier 3 adds |dx|+|dy| < 3, tier 4 takes everything in the 5x5 but
-   * the four corners. The tier is per colony (bugs.md #593), recovered here
+   * the four corners. The tier is per colony (port_bugs.md #593), recovered here
    * from the plot count rather than assumed to be 2.
    */
   const int ring = colonies_work_plot_count(w->colonies, col);
@@ -363,7 +363,7 @@ void colonies_clear_colonist_tile(ColonizeColony* col, int colonist_index) {
  * NAMES.TXT @JOB **column 2** — the school tier (1..4) a profession needs.
  * DOS `FUN_364b_0688` (raw 57518) reads the loaded record at `-0x715a +
  * prof*8`, i.e. the third word of the stride-8 @JOB row, so the port reads
- * the same catalog column instead of compiling a copy of it (bugs.md #596,
+ * the same catalog column instead of compiling a copy of it (port_bugs.md #596,
  * data_vs_hardcoded Part D). 0 when the catalog or the row is missing.
  */
 int colonies_job_school_tier(int profession) {
@@ -405,7 +405,7 @@ int colonies_school_building_tier(
  * own this @BUILDING", both for the faculty cap (@UNIV3 3 / @COLLEGE2 2 /
  * @SCHOOL1 1 teachers) and for the teacher's own level requirement
  * (@NEEDUNIVERSITY / @NEEDCOLLEGE). DOS never clears the lower tiers, so a
- * colony with a University owns all three rows. bugs.md #580, #589.
+ * colony with a University owns all three rows. port_bugs.md #580, #589.
  */
 int colonies_school_owned_tier(const ColonizeColonyPool* pool, const ColonizeColony* col) {
   if (!pool || !col) {
@@ -533,7 +533,7 @@ static bool colonies_profession_is_labelled(int profession) {
   case UNITS_JOB_PIONEER:
   case UNITS_JOB_SOLDIER:
   case UNITS_JOB_SCOUT:
-  /* bugs.md #656: 0x17 (UNITS_JOB_DRAGOON) dropped — DOS never writes it
+  /* port_bugs.md #656: 0x17 (UNITS_JOB_DRAGOON) dropped — DOS never writes it
    * to a unit (#503/#639), matching units.c's 0x15-only veteran gates. */
   case UNITS_JOB_MISSIONARY:
     return true;

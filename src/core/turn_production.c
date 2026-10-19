@@ -289,7 +289,7 @@ void turn_compose_colony_bells_crosses(
      * held by that nation. The port previously keyed the subsidy arg (used
      * ONLY for that (+ (pop+3)/5) add, colony_production.c:870) on
      * nation_is_ai alone, over-granting the subsidy to AI nations that
-     * haven't recruited Bolivar yet. bugs.md #938b. */
+     * haven't recruited Bolivar yet. port_bugs.md #938b. */
     const bool nation_is_ai_bolivar_subsidy =
       nation_is_ai && founding_fathers_nation_has(col1, nation_id, FF_SIMON_BOLIVAR);
     bells = colony_prod_colony_bells_ff(
@@ -350,17 +350,17 @@ void turn_emit_built_chrome(
  *         }
  *       else colony+0xb6 = local_e;   (AI is handed the tools — ported in
  *                                       colonies_try_complete_unit_construction
- *                                       for unit projects (bugs.md #755) and in
+ *                                       for unit projects (port_bugs.md #755) and in
  *                                       colonies_try_complete_building_ex for
  *                                       real buildings — FUN_281f_0ac4 resolves
  *                                       both kinds, so the arm is generic.
- *                                       bugs.md #1026.)
+ *                                       port_bugs.md #1026.)
  *     }
  *
  * No latch: DOS re-runs this every EOT, so the notice repeats each turn the
  * project stays stalled on tools. It is NOT gated on hammers having been
  * produced this tick (DOS adds 0 and falls through), which is why this sits
- * outside turn_produce_one_colony's `hammers_add > 0` block — bugs.md #537,
+ * outside turn_produce_one_colony's `hammers_add > 0` block — port_bugs.md #537,
  * where an idle-carpenter or BUY-topped colony (and every unit project) went
  * silent.
  */
@@ -449,7 +449,7 @@ static void turn_emit_needtools_notice(
  *
  * (The port used to invent an `s_otj_latch` "one per job per nation per
  * turn" and cite raw 78140 for clearing it; 78140 clears +0x942c, an
- * unrelated per-nation flag block. bugs.md #563.)
+ * unrelated per-nation flag block. port_bugs.md #563.)
  */
 uint8_t turn_prof_census[COLONIZE_COL1_NATION_COUNT][32];
 
@@ -464,7 +464,7 @@ uint8_t turn_prof_census[COLONIZE_COL1_NATION_COUNT][32];
  * Deposit (12), raising one @DEPLETION (DS:0xd75) per tile. A colony working
  * two mines loses both on the same wrap; the port used to suppress only the
  * single tile whose depletion unit happened to cross the threshold, keyed by
- * the worked job instead of the specialty (bugs.md #1024).
+ * the worked job instead of the specialty (port_bugs.md #1024).
  */
 static int turn_deplete_colony_mines(
   const ColonizeColony* colony,
@@ -497,7 +497,7 @@ static int turn_deplete_colony_mines(
     );
     hits++;
     if (europe && colony->nation_id == human_nation) {
-      /* GAME.TXT @DEPLETION; catalog miss = "" (bugs.md #1099). */
+      /* GAME.TXT @DEPLETION; catalog miss = "" (port_bugs.md #1099). */
       char body[AI_POPUP_BODY_LEN];
       PopupMsgTokens tok;
       memset(&tok, 0, sizeof(tok));
@@ -518,7 +518,7 @@ static int turn_deplete_colony_mines(
  * every worked plot, composed without touching the colony. The EOT tick
  * (turn_produce_one_colony) applies it to stock; colony_preview.c shows it on
  * the Production tab. One body, so the preview cannot drift from the tick
- * (bugs.md #1111: the preview used to re-run its own copy of this loop).
+ * (port_bugs.md #1111: the preview used to re-run its own copy of this loop).
  */
 void turn_compose_colony_fields(
   const ColonizeColonyPool* pool,
@@ -586,7 +586,7 @@ void turn_compose_colony_fields(
      * (resource, job) alone as it walks the 5x5 field loop, BEFORE the
      * silver collapse / improvement stack / negative-SoL tail that can
      * drive `yld` to <= 0 for this same plot — a worked deposit still
-     * depletes even on a yield-0 turn (bugs.md #894). Hoisted above the
+     * depletes even on a yield-0 turn (port_bugs.md #894). Hoisted above the
      * `yld <= 0` gate below; nothing else in this block may move.
      */
     if (cargo >= 0 && cargo < COLONIZE_CARGO_COUNT) {
@@ -616,7 +616,7 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_begin(TurnProduceCtx* pc) {
   /* FUN_364b_0688: clear cargo_produced_mask (+0x90) at production start. */
   pc->mask_before_a = colony->cargo_produced_mask;
   colony->cargo_produced_mask = 0;
-  /* bugs.md #397: europe->status is shared across the whole colony loop, so
+  /* port_bugs.md #397: europe->status is shared across the whole colony loop, so
    * "status empty" as the Phase K crumb gate let ANY earlier colony's
    * message (birth, food low, cargo ready, ...) suppress every later
    * colony's "has run out of X" popup for the rest of the EOT. Snapshot the
@@ -717,7 +717,7 @@ COLONIZE_INTERNAL void turn_produce_compose(TurnProduceCtx* pc) {
    * human seat; `(3 < uVar7) || byte[uVar7*0x34+0x543f] != 0` — the same
    * control gate the AI food subsidy below reads, polarity 0 = human —
    * swaps in `gross - demand`, dropping the unmet term, so an AI craft
-   * building never loses output to a short warehouse (bugs.md #898).
+   * building never loses output to a short warehouse (port_bugs.md #898).
    */
   const bool colony_ai_controlled =
     col1 != NULL && colony->nation_id >= 0 &&
@@ -725,7 +725,7 @@ COLONIZE_INTERNAL void turn_produce_compose(TurnProduceCtx* pc) {
      col1->player[colony->nation_id].control != 0);
   pc->colony_ai_controlled = colony_ai_controlled;
   /*
-   * Phase K (bugs.md #899/#911) probes two DOS scratch words per craft pair,
+   * Phase K (port_bugs.md #899/#911) probes two DOS scratch words per craft pair,
    * not the raw good's stock (FUN_364b_0688 raw 57696-57728):
    *
    *   unmet[input]        DS:0x8e5a + 2*cargo — "the staffed worker wanted
@@ -741,7 +741,7 @@ COLONIZE_INTERNAL void turn_produce_compose(TurnProduceCtx* pc) {
    *                       recipes into one slot for tools.) ai_controlled
    *                       is deliberately false here — DOS's ledger writes
    *                       the unmet word for every colony; only Phase B's
-   *                       net drops the term (bugs.md #898).
+   *                       net drops the term (port_bugs.md #898).
    *   FUN_281f_0b50(out)  this tick's NET stock change for the finished
    *                       good (gross - demand - unmet[input]) — taken here
    *                       as the stock delta across the craft pass itself,
@@ -768,7 +768,7 @@ COLONIZE_INTERNAL void turn_produce_compose(TurnProduceCtx* pc) {
     craft_net[c] = colony->stock[c] - craft_stock_pre[c];
   }
   /* Composed here (Phase A), banked at Phase L — DOS `0b50(0x10)`. Every
-   * tick: the old "Autumn freeze" gate (bugs.md #466) rested on a real-DOS
+   * tick: the old "Autumn freeze" gate (port_bugs.md #466) rested on a real-DOS
    * Spring→Autumn pair in which no colony staffed a carpenter at all. */
   const int hammers_phase_a = colony_prod_colony_hammers(pool, colony, sol_b_phase_a, NULL);
   pc->hammers_phase_a = hammers_phase_a;
@@ -983,7 +983,7 @@ COLONIZE_INTERNAL void turn_produce_lumber(TurnProduceCtx* pc) {
    * the Custom House arm of that same loop reads the lumber stock, while
    * the hammer bank itself is only added at Phase L (raw 57730). Clipping
    * and debiting here, and banking below, keeps both orders DOS-exact
-   * (bugs.md #1023).
+   * (port_bugs.md #1023).
    */
   const int lumber_before_hammers = colony->stock[COLONIZE_CARGO_LUMBER];
   pc->lumber_before_hammers = lumber_before_hammers;
@@ -1023,7 +1023,7 @@ COLONIZE_INTERNAL void turn_produce_custom_house(TurnProduceCtx* pc) {
    * tick, which let a colony with Food checked in the checklist bank past
    * 200 and birth a colonist DOS would never have given it (the house sells
    * food down to 50 first), and let a Tools-checked colony spend tools DOS
-   * had already shipped (bugs.md #1023). Needs europe bids; col1 optional
+   * had already shipped (port_bugs.md #1023). Needs europe bids; col1 optional
    * (WoI tax skip + nation gold).
    */
   if (app != colony) {
@@ -1059,7 +1059,7 @@ COLONIZE_INTERNAL void turn_produce_custom_house(TurnProduceCtx* pc) {
     /*
      * FUN_364b_0688 assembles ONE line PER CARGO into DS:0x2d54 and arms it
      * with FUN_1009_0092 — that is the map's top-strip STATUS LINE, not a
-     * dialog (bugs.md #369). Each line replaces the strip's normal content for
+     * dialog (port_bugs.md #369). Each line replaces the strip's normal content for
      * its dwell and the next one follows; nothing has to be clicked away.
      *
      * Wording is DOS's own: colony name, LABELS @MISC 47 "sells", amount,
@@ -1121,7 +1121,7 @@ COLONIZE_INTERNAL void turn_produce_education(TurnProduceCtx* pc) {
    * @TRAINCRIMINAL / @TRAININDENTURED / @TRAINPROFESSION;
    * docs/building_production.md, colony_eot_production.md.
    *
-   * bugs.md #380 ("has education even been implemented?" — it had not). Every
+   * port_bugs.md #380 ("has education even been implemented?" — it had not). Every
    * axis of the previous port was wrong, and nothing could ever graduate:
    *   - A TEACHER is a colonist whose WORK SLOT is the school (DOS occupation
    *     0x12, i.e. the @JOB 18 "Teacher" slot, `local_c2 == 0x12`) and whose
@@ -1147,7 +1147,7 @@ COLONIZE_INTERNAL void turn_produce_education(TurnProduceCtx* pc) {
    * The 0x1a -> 0x19 and 0x19 -> 0x1c ladders take priority over the specialty
    * and consume the teacher's turn, exactly as in DOS.
    *
-   * FACULTY CAP (bugs.md #580, raw 57510-57535). The tick's cap is the bare
+   * FACULTY CAP (port_bugs.md #580, raw 57510-57535). The tick's cap is the bare
    * literal `local_6e < 3`: it is NOT the colony's owned school tier. The tick
    * selects teachers on `FUN_281f_0c0e(colonist) == 0x12` (the @JOB "teacher"
    * occupation byte) plus the level test alone -- it never calls
@@ -1256,7 +1256,7 @@ COLONIZE_INTERNAL void turn_produce_education(TurnProduceCtx* pc) {
       chrome_sec = "TRAINPROFESSION";
       fallback[0] = '\0';
     }
-    /* bugs.md #565: DOS's graduation loop (raw 57540-57588) calls 0cae /
+    /* port_bugs.md #565: DOS's graduation loop (raw 57540-57588) calls 0cae /
      * the ladder writers on the student and never 0a7e — the student keeps
      * his accumulated +0x60 counter, so a fresh graduate whose counter is
      * already >= his own school need can start teaching immediately. */
@@ -1336,7 +1336,7 @@ COLONIZE_INTERNAL void turn_produce_discover(TurnProduceCtx* pc) {
                c->profession != UNITS_JOB_NONE /* DOS 0x1c, raw 9300-9303 */) {
       /* raw 57594: FUN_281f_0c9a(specialty) == 0 -> FUN_15eb_0002 (raw
        * 9298-9306) is 0 only for {0x1c,0x13,0x19,0x1a,0x1b}; Convert (0x1b)
-       * is excluded one line earlier (bugs.md #772). */
+       * is excluded one line earlier (port_bugs.md #772). */
       continue;
     }
     /* raw 57595: `0 < local_c2 && local_c2 < 5` — Farmer (job 0) never
@@ -1355,7 +1355,7 @@ COLONIZE_INTERNAL void turn_produce_discover(TurnProduceCtx* pc) {
     if (dos_rng_range(rng, 0, discover_denom) == 0) {
       turn_prof_census[census_n][c->field_job]++;
       /* raw 57606-57607: FUN_281f_0cae -> FUN_15eb_0e8c writes only the
-       * profession byte; the +0x60 education nibble is untouched (bugs.md
+       * profession byte; the +0x60 education nibble is untouched (port_bugs.md
        * #771, sibling of #565). DOS raises @TRAINPROFESSION only, no status
        * line, and a catalog miss is the empty string. */
       c->profession = c->field_job;
@@ -1412,7 +1412,7 @@ COLONIZE_INTERNAL void turn_produce_birth(TurnProduceCtx* pc) {
   const int need = pop * TURN_FOOD_PER_COLONIST;
   pc->was_starving = colony->food_shortfall_latch != 0;
   /*
-   * bugs.md (port_orange_starves.SAV): DOS's starve trigger is DS:0x8e5a =
+   * port_bugs.md (port_orange_starves.SAV): DOS's starve trigger is DS:0x8e5a =
    * max(0, consumption − stock-at-start − production) — the colony must
    * actually have gone NEGATIVE this turn. The old `stock_after < need`
    * latch killed a colony producing exactly what it eats at 0 stores
@@ -1434,7 +1434,7 @@ COLONIZE_INTERNAL void turn_produce_birth(TurnProduceCtx* pc) {
     pc->birth_food_debit = 200;
     bool born_on_tile = false;
     if (turn_birth_units) {
-      /* bugs.md: the newborn stands on the colony tile awaiting orders.
+      /* port_bugs.md: the newborn stands on the colony tile awaiting orders.
        * DOS raw 57617-57619: food is debited before FUN_281f_095c, so a
        * birth refused at the unit limit loses the 200 food and the colonist
        * (no fallback into the colony); @NEWCOLONIST still follows. */
@@ -1627,14 +1627,14 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc) {
     const int stock = colony->stock[COLONIZE_CARGO_FOOD];
     const int food_shortfall = consumed - field_food; /* DOS 8e32 when >0 */
     /*
-     * bugs.md #5: DOS's literal FOOD1/FOOD2 latch fires on stock<need
+     * port_bugs.md #5: DOS's literal FOOD1/FOOD2 latch fires on stock<need
      * alone, even at food_shortfall<=0 (production covers or beats
      * consumption) — a colony merely flatlining at 0 net-zero food would
      * re-trigger "depleted" every turn. Require actively losing food
      * (shortfall>0) to match FOODLOW's own "surplus never warns" rule
      * below and stop the false-positive nag.
      *
-     * bugs.md #292: "depleted" additionally requires the stores to be
+     * port_bugs.md #292: "depleted" additionally requires the stores to be
      * EXACTLY 0 — merely dipping below next turn's need reads as "low",
      * handled by the FOODLOW branch below.
      */
@@ -1697,7 +1697,7 @@ COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
    * colony_prod_colony_hammers (matches FUN_15eb_1d4c's Carpenter body —
    * see manufacturing_worker_calc_1d4c.md).
    *
-   * Not seasonal (bugs.md #466, 2026-09-16): the Spring/Autumn calendar
+   * Not seasonal (port_bugs.md #466, 2026-09-16): the Spring/Autumn calendar
    * is display only. The former Autumn-freeze gate came from real-DOS
    * original_saves/colony-prod-tests COLONY00→01_no-transports (Spring→
    * Autumn 1680) where hammers stayed put in all 32 colonies — but not one
@@ -1725,7 +1725,7 @@ COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
        * turn's gross lumber counts toward the input ledger.)
       */
       /* Lumber was clipped and debited at the Phase B position above
-       * (bugs.md #1023 — DOS spends it through the lumber demand word in
+       * (port_bugs.md #1023 — DOS spends it through the lumber demand word in
        * the Phase B cargo loop, raw 57238-57253, and only banks the hammer
        * word here at raw 57730). Phase L just banks what was paid for. */
       hammers = hammers_paid;
@@ -1803,7 +1803,7 @@ COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
         tok.string0 = colony->name[0] ? colony->name : "";
         tok.string1 = bt->name[0] ? bt->name : "";
         /* Popup only — DOS does not replace the Phase K status line here.
-         * GAME.TXT @ALREADYHAVE; catalog miss = "" (bugs.md #1100). */
+         * GAME.TXT @ALREADYHAVE; catalog miss = "" (port_bugs.md #1100). */
         popup_msg_fill(messages, "ALREADYHAVE", &tok, "", body, sizeof(body));
         ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
       }
@@ -1813,7 +1813,7 @@ COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
   /*
    * Phase L construction tools check — outside the `hammers_add > 0` block
    * above because DOS runs it every EOT, hammers produced or not, and for
-   * unit projects as well as buildings (bugs.md #537).
+   * unit projects as well as buildings (port_bugs.md #537).
    */
   turn_emit_needtools_notice(pool, colony, col1, europe, human_nation, ai_popups, messages);
 }
@@ -1844,7 +1844,7 @@ COLONIZE_INTERNAL void turn_produce_crumbs(TurnProduceCtx* pc) {
      * ore would nag "Need ore." every turn even though nobody was trying
      * to make tools).
      *
-     * 2026-09-23 fix (bugs.md #899): the other half of the probe is
+     * 2026-09-23 fix (port_bugs.md #899): the other half of the probe is
      * `FUN_281f_0b50(out_cargo) == 0`, i.e. the FINISHED good's net, read
      * against the Phase A demand words. The port tested `stock[in] == 0`
      * instead, on a stock colony_craft_one_colony had already drained at
@@ -1853,7 +1853,7 @@ COLONIZE_INTERNAL void turn_produce_crumbs(TurnProduceCtx* pc) {
      * cloth/coats. The old note that "net == 0 reduces to stock[in] == 0"
      * assumed the pre-#897 proportional rescale; with DOS's factory-tier
      * back-conversion a partial input still yields a positive net and DOS
-     * stays silent. (Superseded in detail by bugs.md #911 below: the probe is
+     * stays silent. (Superseded in detail by port_bugs.md #911 below: the probe is
      * the NET word, and `unmet[input] != 0` — not the demand mask — is the
      * other half.) 2026-08-24 fix: replaced building-name-substring gates
      * with the craft pass's own words (same recipe pass
@@ -1881,7 +1881,7 @@ COLONIZE_INTERNAL void turn_produce_crumbs(TurnProduceCtx* pc) {
      */
 
     /*
-     * DOS-LITERAL FUN_364b_0688 raw 57696-57728 (bugs.md #911). Seven
+     * DOS-LITERAL FUN_364b_0688 raw 57696-57728 (port_bugs.md #911). Seven
      * INDEPENDENT `if`s, in GAME.TXT tag order, all inside one
      * `(DS:0x5384 & 0x20) == 0` chrome gate (the outer report filter above):
      *
@@ -1951,7 +1951,7 @@ COLONIZE_INTERNAL void turn_produce_crumbs(TurnProduceCtx* pc) {
       if (!k_crumbs[ki].fire) {
         continue;
       }
-      /* bugs.md #912: no typed English fallback — the wording lives only in
+      /* port_bugs.md #912: no typed English fallback — the wording lives only in
        * GAME.TXT, miss = empty string, and the status line carries whatever
        * the catalog produced (DOS likewise shows the resolved message). */
       char body[AI_POPUP_BODY_LEN];
@@ -2247,7 +2247,7 @@ void turn_produce_one_colony(
   const ColonizeMsgCatalog* messages,
   ColonizeDosRng* rng
 ) {
-  /* Stage order = FUN_364b_0688's DOS order (bugs.md #1107 split). */
+  /* Stage order = FUN_364b_0688's DOS order (port_bugs.md #1107 split). */
   TurnProduceCtx ctx;
   memset(&ctx, 0, sizeof(ctx));
   /* The delta doubles as this tick's per-cargo net ledger (the DOS
@@ -2442,7 +2442,7 @@ void turn_run_colony_production_with_w(
   /* FUN_3844_00f2 raw 58384 walks colony indices from count - 1 down. */
   for (int i = COLONIZE_COLONIES_MAX - 1; i >= 0; --i) {
     if (pool->colonies[i].active && turn_prod_nation_in_scope(pool->colonies[i].nation_id)) {
-      /* bugs.md #256: DOS never carries an idle colonist — sweep any
+      /* port_bugs.md #256: DOS never carries an idle colonist — sweep any
        * job-less colonist (stale saves, non-UI admit paths) into work
        * before producing, so the head count always matches the workers. */
       colonies_auto_assign_idle(pool, pool->colonies[i].id);
@@ -2453,7 +2453,7 @@ void turn_run_colony_production_with_w(
       (void)units_coastal_fort_fire_colony_w(w, pool->colonies[i].id, human_nation, NULL, 0);
       /* FUN_364b_0688 raw 57228: FUN_281f_0c72 -> FUN_15eb_26e4 claim stamp,
        * then raw 57229: FUN_281f_0c22 -> FUN_15eb_3930 before the colony
-       * produces (bugs.md #1080). */
+       * produces (port_bugs.md #1080). */
       colonies_26e4_claim_stamp(w, &pool->colonies[i]);
       colonies_recompute_plots_w(w, pool->colonies[i].id);
       if (before) {

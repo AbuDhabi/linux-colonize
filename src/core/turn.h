@@ -136,7 +136,7 @@ typedef enum ColonizeTurnProcStep {
   TURN_PROC_FINISH, /* human colony production (indicator on — DOS paints the
                      * turn-owner box at the head of the human's own 00f2) */
   /*
-   * bugs.md #394/404/407: king (REF) + year-end + market + human refresh moved
+   * port_bugs.md #394/404/407: king (REF) + year-end + market + human refresh moved
    * out of FINISH into their own slice, so every colony popup FINISH queued is
    * presented and ANSWERED (and an elected colony zoom taken) before the
    * king's attacks run — DOS FUN_3844_00f2's dialogs are blocking calls, so
@@ -254,7 +254,7 @@ int turn_voyage_ship_count(const ColonizeTurnContext* ctx, int nation);
 void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
 
 /*
- * DOS day-top pass (FUN_4d56_1b3a raw 6355-6357, bugs.md #713): zero the
+ * DOS day-top pass (FUN_4d56_1b3a raw 6355-6357, port_bugs.md #713): zero the
  * moves-spent byte (+0x3149) of EVERY active unit of EVERY nation, once, at
  * the top of the year and before any nation moves. Separate from the
  * per-nation refresh below, which owns only orders/park/allotment.

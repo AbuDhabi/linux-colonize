@@ -32,7 +32,7 @@
  */
 
 /*
- * bugs.md #933 — COL1 nation +0xc IS the live FF bell pool.
+ * port_bugs.md #933 — COL1 nation +0xc IS the live FF bell pool.
  * DOS-LITERAL FUN_4345_0a22 (raw 73341-73342): `*(iVar1+0xc) += param_2;
  * *(iVar1+0xe) += param_2;` then, on a successful elect, raw 73370:
  * `*(+0xc) = 0`. FUN_43f7_1a26 (raw 74738) zeroes +0xc at the declaration of
@@ -43,7 +43,7 @@
  */
 
 /*
- * bugs.md: the Congress debate is persistent in DOS — escaping the popup
+ * port_bugs.md: the Congress debate is persistent in DOS — escaping the popup
  * re-presents it immediately with the SAME candidates, so the pseudorandom
  * slate cannot be rerolled by cancelling (or by waiting a turn: the old
  * code rolled a fresh slate on every enqueue). The rolled slate is kept
@@ -325,7 +325,7 @@ static void effect_pocahontas_reset_alarm(ColonizeCol1Save* col1, int nation_id)
  * DOS FUN_0000_9810 (reached as FUN_281f_07b4): can this NATION still elect
  * Father idx? The only test is that nation's own +7..+0xa bitfield.
  *
- * bugs.md ("fewer than one Founding Father per category"): this used to read
+ * port_bugs.md ("fewer than one Founding Father per category"): this used to read
  * head.founding_father[idx] < 0, i.e. "nobody anywhere has him". Fathers are
  * not globally exclusive in DOS — every power runs its own Congress, and
  * head.founding_father[] is only a first-claimer record (FUN_4345_0342 writes
@@ -836,7 +836,7 @@ static void effect_brewster_filter_pool(EuropeScreen* europe) {
   /* Pool substitution shared with the immigration tick (DOS 4345_0342 case
    * 0x14: servant/criminal slot bytes overwritten with 0x1c in place). */
   europe_apply_brewster(europe, 1);
-  /* bugs.md #728: FUN_4345_0342 case 0x14 (raw 73160-73168) rewrites ONLY the
+  /* port_bugs.md #728: FUN_4345_0342 case 0x14 (raw 73160-73168) rewrites ONLY the
    * three recruit slots at nation*0x13c-0x77f6 (0x19/0x1a -> 0x1c). It does
    * not walk the docks, so colonists who already emigrated keep being
    * Indentured Servants / Petty Criminals. The dock sweep that used to sit
@@ -861,7 +861,7 @@ static int effect_las_casas_assimilate(
   }
 
   /*
-   * bugs.md #880 — Europe dock half.
+   * port_bugs.md #880 — Europe dock half.
    *
    * DOS FUN_4345_0342 case 0x18 (raw 73123-73151) walks EVERY unit record in
    * *(int*)0x539c; a colonist waiting in Europe is an ordinary unit record
@@ -1017,7 +1017,7 @@ static bool ff_find_coastal_water(
 /*
  * John Paul Jones: free Frigate (Man-O-War fallback). Returns true on spawn.
  *
- * bugs.md #467 — DOS FUN_4345_0342 case 0xe (raw 73044ff):
+ * port_bugs.md #467 — DOS FUN_4345_0342 case 0xe (raw 73044ff):
  *   FUN_281f_095c(0x11, nation, nation - 0x18, nation - 0x18)  spawn a
  *   Frigate at the nation's OFF-MAP EUROPE slot; then order (+0x314c) = 0,
  *   goto (+0x314d/e) = the nation's stored Europe landfall tile
@@ -1039,7 +1039,7 @@ static bool effect_jones_frigate(
   }
   /* DOS-LITERAL FUN_4345_0342 case 0xe (raw 73044ff): `095c(0x11, ...)` —
    * type 0x11 (Frigate) and nothing else. The Man-O-War fallback that used to
-   * sit here was invented (bugs.md #876); with no Frigate row there is no
+   * sit here was invented (port_bugs.md #876); with no Frigate row there is no
    * effect. */
   const int ship_ty = units_kind_type_index(units, UNITS_KIND_FRIGATE);
   if (ship_ty < 0) {
@@ -1434,7 +1434,7 @@ void founding_fathers_apply_popup_result(ColonizeTurnContext* ctx, AiPopupState*
   }
   if (popups->result_cancelled) {
     /* DOS: escaping the debate re-presents it at once, same candidates —
-     * the choice is persistent and cannot be rerolled (bugs.md). */
+     * the choice is persistent and cannot be rerolled (port_bugs.md). */
     if (popups->result_payload > 0) {
       const int nation =
         popups->result_nation_a >= 0 ? popups->result_nation_a : ctx->human_nation;
@@ -1485,12 +1485,12 @@ void founding_fathers_tick(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
     return;
   }
-  /* No human_nation range gate (bugs.md #1057e): a headless run with no
+  /* No human_nation range gate (port_bugs.md #1057e): a headless run with no
    * human still elects every control == 1 nation's Fathers. */
 
   ColonizeCol1Save* col1 = ctx->col1;
 
-  /* bugs.md #434: the HUMAN's election is NOT run here. DOS checks it inside
+  /* port_bugs.md #434: the HUMAN's election is NOT run here. DOS checks it inside
    * the human's own FUN_3844_00f2 pass, which 130d runs immediately before
    * that nation's Move Pieces — so the Congress debate belongs to the start
    * of the player's turn (TURN_PROC_FINISH calls
@@ -1505,7 +1505,7 @@ void founding_fathers_tick(ColonizeTurnContext* ctx) {
     if (col1->player[n].control != 1) {
       continue;
     }
-    /* bugs.md #934: keep electing while the pool still clears the new,
+    /* port_bugs.md #934: keep electing while the pool still clears the new,
      * higher threshold (DOS 0a22 runs per colony, FUN_364b_0688 raw 57231). */
     int guard = (int)COLONIZE_COL1_FF_COUNT;
     while (guard-- > 0 && founding_fathers_try_elect(ctx, n)) {
@@ -1545,7 +1545,7 @@ void founding_fathers_tick_human_elect(ColonizeTurnContext* ctx) {
     return;
   }
   /*
-   * bugs.md #934: DOS calls FUN_4345_0a22 once per COLONY (sole call site
+   * port_bugs.md #934: DOS calls FUN_4345_0a22 once per COLONY (sole call site
    * FUN_364b_0688, raw 57231), so the threshold can be crossed more than once
    * in a turn. The per-colony accrual + elect test lives in turn_colony.c;
    * this is the human's final pass, and it keeps electing while the pool is

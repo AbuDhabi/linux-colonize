@@ -113,7 +113,7 @@ bool map_panel_minimap_click(
 /*
  * The stack-row type-detail string (Pioneers' tools / Treasure gold) exactly as
  * FUN_49dd_0424's stack list spells it: no parentheses, and the LABELS @MISC
- * row 4 "Expert" word in front when the profession byte is 0x14 (bugs.md #630).
+ * row 4 "Expert" word in front when the profession byte is 0x14 (port_bugs.md #630).
  * Exposed for tests; the selected-unit block uses the parenthesised spelling.
  */
 bool map_panel_stack_detail_text(
@@ -165,7 +165,7 @@ void map_panel_render_tribes_on_map_w(
   int fog_nation,
   /* Active output palette (TERRAIN.SS for the map): the mission cross and
    * the other-European alarm mark are drawn in nation shades whose raw DOS
-   * indices are ICONS.SS-native — NULL keeps the raw indices (bugs.md #364). */
+   * indices are ICONS.SS-native — NULL keeps the raw indices (port_bugs.md #364). */
   const ColonizePalette* active_palette
 );
 

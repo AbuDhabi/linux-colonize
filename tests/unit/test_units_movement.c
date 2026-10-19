@@ -102,7 +102,7 @@ static int unit_fog_vis_mask_and_snapshot(void) {
     return 1;
   }
   /*
-   * bugs.md: an Indian Convert must carry its own sprite on the map, not the
+   * port_bugs.md: an Indian Convert must carry its own sprite on the map, not the
    * plain Free Colonist one — DOS FUN_112b_0060 routes every @UNIT type 0
    * through the profession table (FUN_112b_0002 case 0x1b -> icon 0x43 =
    * sprite 66 here), the same icon the colony screen already used.
@@ -116,7 +116,7 @@ static int unit_fog_vis_mask_and_snapshot(void) {
     snprintf(cpool.types[0].name, sizeof(cpool.types[0].name), "Colonists");
     cpool.types[0].movement = 1;
     cpool.types[0].icon_sprite = 100; /* Free Colonist */
-    /* bugs.md #591: the name channel is the @UNIT row, so the fixture needs
+    /* port_bugs.md #591: the name channel is the @UNIT row, so the fixture needs
      * the Dragoons row an armed+mounted body displays as. */
     snprintf(cpool.types[2].name, sizeof(cpool.types[2].name), "Dragoons");
     cpool.types[2].movement = 4;
@@ -148,7 +148,7 @@ static int unit_fog_vis_mask_and_snapshot(void) {
     cu->muskets = 0;
     fprintf(stderr, "convert map sprite ok\n");
 
-    /* bugs.md #263: a mounted Veteran Soldier (profession 0x15) draws with the
+    /* port_bugs.md #263: a mounted Veteran Soldier (profession 0x15) draws with the
      * Veteran Dragoon art, not the plain grey dragoon. */
     ColonizeUnit* vu = units_get(&cpool, plain);
     vu->profession = UNITS_JOB_SOLDIER;
@@ -164,7 +164,7 @@ static int unit_fog_vis_mask_and_snapshot(void) {
               units_map_sprite(&cpool, plain), UNITS_ICON_VETERAN_DRAGOON);
       return 1;
     }
-    /* bugs.md #591: the NAME channel is the @UNIT row (a mounted armed body
+    /* port_bugs.md #591: the NAME channel is the @UNIT row (a mounted armed body
      * displays as the Dragoons row); "Veteran" is the profession line. */
     {
       const int dragoon_ty = units_kind_type_index(&cpool, UNITS_KIND_DRAGOON);
@@ -181,7 +181,7 @@ static int unit_fog_vis_mask_and_snapshot(void) {
     fprintf(stderr, "veteran dragoon chrome ok\n");
 
     /*
-     * bugs.md #420: FUN_112b_0060's tail downgrades a commissioned missionary
+     * port_bugs.md #420: FUN_112b_0060's tail downgrades a commissioned missionary
      * whose colonist is not a Jesuit (profession != 0x18) to icon 0x4e =
      * sprite 77; the Jesuit keeps the @UNIT icon 106 → sprite 105. And
      * FUN_112b_0002 case 5 gives a Jesuit *working colonist* icon 0x3e =
@@ -374,7 +374,7 @@ static int unit_far_flood_keeps_probe_type(void) {
 }
 
 /*
- * bugs.md #1042: FUN_6662_0906 as the FUN_4962_0018 ship-pressure probe calls
+ * port_bugs.md #1042: FUN_6662_0906 as the FUN_4962_0018 ship-pressure probe calls
  * it (cap 8, Caravel costs, shared 00f2 grid). One ocean tile from the
  * colony costs 1 + 3 = 4, two cost 7; a second probe toward the same colony
  * from a tile the first flood already priced reuses the grid and answers 0.
@@ -414,7 +414,7 @@ static int unit_ship_pressure_0906_cost(void) {
 }
 
 /*
- * bugs.md #696 / #697 / #701 — FUN_479b_0972 + FUN_6662_0f74 tails.
+ * port_bugs.md #696 / #697 / #701 — FUN_479b_0972 + FUN_6662_0f74 tails.
  *  #701 the adjacent tier is FUN_6662_0086, a bare sign->dir8 lookup: it
  *       returns the sign step even onto a tile the unit cannot enter.
  *  #696 a pathfinder miss spends the whole allotment (FUN_281f_0934) and
@@ -561,7 +561,7 @@ static int unit_goto_dos_tails(void) {
 
 
 /*
- * bugs.md: waking a loaded unit out of a ship's hold (tile-stack picker /
+ * port_bugs.md: waking a loaded unit out of a ship's hold (tile-stack picker /
  * ORDERS Activate Unit) has to leave it able to walk ashore even when the
  * ship itself has no moves left. Boarding parks the passenger at moves
  * 0 as a skip-select flag, so the wake has to restore its allotment.
@@ -651,7 +651,7 @@ static int unit_wake_passenger_can_land(void) {
 }
 
 /*
- * bugs.md: the tile-stack picker must work like DOS FUN_2b5a_1b5a — ONE pick
+ * port_bugs.md: the tile-stack picker must work like DOS FUN_2b5a_1b5a — ONE pick
  * wakes a sentried passenger AND hands it back for selection, closing the
  * dialog. The old two-step (first click only woke, dialog stayed open with
  * no selection) read as "impossible to wake up unit loaded onto a ship
@@ -692,7 +692,7 @@ static int unit_stack_one_click_wakes_and_selects(void) {
     fprintf(stderr, "stack_pick: popup should open with ship+passenger\n");
     return 1;
   }
-  /* bugs.md two-step: the first pick on an ordered row only cancels its
+  /* port_bugs.md two-step: the first pick on an ordered row only cancels its
    * orders and keeps the popup open; the second pick activates and closes. */
   dlg.selection = (dlg.ids[0] == pax) ? 0 : 1;
   ColonizeInputState in;
@@ -725,7 +725,7 @@ static int unit_stack_one_click_wakes_and_selects(void) {
 
 
 /*
- * bugs.md #720 / #719 / #714 — MP model + entry gating (docs/move_enter.md).
+ * port_bugs.md #720 / #719 / #714 — MP model + entry gating (docs/move_enter.md).
  *
  * #720 FUN_465b_0000 raw 75510-75516: a land unit whose @UNIT attack column
  *      (DS:0x5236) is 0 never enters a foreign Euro colony, defended or not.
@@ -884,7 +884,7 @@ static int unit_mp_entry_gating_713_724(void) {
   return rc;
 }
 /*
- * bugs.md #791/#792 — DOS-LITERAL FUN_465b_0bd1 raw 75721: the colony-enter
+ * port_bugs.md #791/#792 — DOS-LITERAL FUN_465b_0bd1 raw 75721: the colony-enter
  * arm (MP exhaust, col1_counter16 reset, destination-stack sentry wake) is
  * gated on "hull present in the mover's origin tile stack OR mover is a
  * wagon (type 0x0c)", not on units_is_transport(mover). A plain land unit
@@ -1016,7 +1016,7 @@ static int unit_colony_enter_hull_stack_gate_791_792(void) {
 }
 
 /*
- * bugs.md #1057a (reversed 2026-10-06): FUN_4720_049e raw 76126-76135 is the
+ * port_bugs.md #1057a (reversed 2026-10-06): FUN_4720_049e raw 76126-76135 is the
  * human UI move handler (it moves DS:0x5392); AI moves go through
  * FUN_465b_0000 and never set player+0x30 bit 0x80. The seed-100 idle
  * campaign keeps every AI bit clear for 107 years of AI landfalls. The
@@ -1102,7 +1102,7 @@ static int unit_board_restore_bounded(void) {
   return 0;
 }
 
-/* bugs.md #1107 seam: units_try_move_w's stages are callable on a hand-built
+/* port_bugs.md #1107 seam: units_try_move_w's stages are callable on a hand-built
  * units_move_ctx (COLONIZE_TESTING). validate = the port pre-checks, denied =
  * the no-fight probe aborts. */
 static int unit_move_stage_seam_1107(void) {

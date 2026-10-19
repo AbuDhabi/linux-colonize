@@ -311,7 +311,7 @@ int ai_euro_in_europe(int x, int y) {
 }
 
 /*
- * AI Europe sailing lanes (bugs.md #1056). DOS keeps a crossing hull as a
+ * AI Europe sailing lanes (port_bugs.md #1056). DOS keeps a crossing hull as a
  * live unit on its nation's sentinel diagonal, x = y = lane + nation:
  * eastbound 244+n -> 240+n -> dock 236+n (FUN_48d3_007a drops it at
  * n - 0x0c), westbound 232+n -> 228+n -> 224+n (FUN_48d3_0346 drops it at
@@ -413,7 +413,7 @@ static void ai_euro_3180_euro_side(ColonizeTurnContext* ctx, ColonizeUnit* u, in
    * Headless (no popup queue) the idle player answers with first options;
    * the encounter dedupes once per pair per turn.
    */
-  /* bugs.md #545: DOS runs the Euro branch only with the mover's tile
+  /* port_bugs.md #545: DOS runs the Euro branch only with the mover's tile
    * AND the neighbour tile both land (FUN_281f_0768 == 0, raw 98614) —
    * an AI ship at sea beside a coastal colony opens nothing. */
   /* 465b calls 3180 only after a step (raw 75797): a unit parked beside the
@@ -504,7 +504,7 @@ int ai_euro_unload_pax_at(
     (void)units_reveal_sight_w(&w, pax);
   }
   ai_euro_set_goto(pax, orders, goto_x, goto_y);
-  /* Port-only landfall goto memory (bugs.md #528): only the SENTRY-order
+  /* Port-only landfall goto memory (port_bugs.md #528): only the SENTRY-order
    * unloads overload `orders` for this, so only those set the flag. */
   pax->ai_landfall_wait = (orders == UNITS_ORDER_SENTRY);
   pax->moves = 0;
@@ -622,7 +622,7 @@ void ai_euro_ship_pressure_reset(int nation_id) {
  *
  * ⇒ tier 2 for every colony stock DOS can produce. A SAVE can still carry the
  * bits (the colony building mask is bit-per-@BUILDING-row, and town_hall owns
- * bits 9-11), and then DOS really does run at tier 3/4, so since bugs.md #593
+ * bits 9-11), and then DOS really does run at tier 3/4, so since port_bugs.md #593
  * this reads the colony instead of returning the constant: the tier is
  * recovered from colonies_work_plot_count(), which is DS:0x329[0470()].
  */
@@ -682,7 +682,7 @@ int ai_euro_colony_wanted_size(
  * reports off-map as water), and is forced to 0 when the colony owns
  * `FUN_1000_8bec(0x181f, 6)` = @BUILDING index 6 = Docks (NAMES.TXT
  * @BUILDING row 7). Ring tiles = `DS:0x329[tier]` = 4/8/12/20, per colony
- * (colonies_work_plot_count, bugs.md #593), and both the total and the
+ * (colonies_work_plot_count, port_bugs.md #593), and both the total and the
  * blocked count are taken over exactly those tiles.
  *
  * Replaced an uncited `population < 3` on 2026-09-09.
@@ -868,7 +868,7 @@ void ai_euro_refresh_colony_ai_flags(
    */
   /* local_a2 (raw 93997) = DS:0x329[FUN_15eb_0470()], the colony's own ring
    * size — 8 for anything stock DOS builds, 12/20 with the cut Town Hall
-   * upgrade rows (bugs.md #593). */
+   * upgrade rows (port_bugs.md #593). */
   const int ring_5952 = colonies_work_plot_count(ctx->colonies, c);
   if (ctx->map) {
     int unproductive = 0; /* local_144 */
@@ -1053,7 +1053,7 @@ void ai_euro_refresh_colony_ai_flags(
 }
 
 /*
- * bugs.md #483: the nineteen-row `ai_euro_prefer_*` table and the craft
+ * port_bugs.md #483: the nineteen-row `ai_euro_prefer_*` table and the craft
  * house/shop/factory pass that used to live here were name-keyed inventions.
  * DOS has exactly one AI construction picker — the FUN_5952_035e cascade,
  * ported as ai_euro_5952_build_cascade_for_owner (ai_euro_colony_jobs.c) (its craft-chain arm is
@@ -1112,7 +1112,7 @@ int ai_euro_land_is_fortified(const ColonizeUnit* u) {
     return 0;
   }
   /*
-   * bugs.md #529, re-derived 2026-09-22. Both halves of this check are DOS-
+   * port_bugs.md #529, re-derived 2026-09-22. Both halves of this check are DOS-
    * literal, not a heuristic:
    *
    * - `orders ∈ {FORTIFY(5), FORTIFIED(6)}`: FUN_521d_20e6's shared exit tail
@@ -1120,7 +1120,7 @@ int ai_euro_land_is_fortified(const ColonizeUnit* u) {
    *   through) forces `+0x314c` (`orders`) to 5 whenever it isn't already 5
    *   or 6, and to 6 when the colony-admit flag bit is set — i.e. every
    *   single 20e6 exit leaves a land unit's real order byte in the
-   *   fortify family. This is why `orders` alone (as in bugs.md #529's
+   *   fortify family. This is why `orders` alone (as in port_bugs.md #529's
    *   2026-09-22 "DOS-literal" attempt, `return 1;` unconditionally) proves
    *   nothing: idle units land here too.
    * - `col1_ai_plan != '0'(0x30)`: LAB_5a78 (raw 90399-90404) writes the pair
@@ -1149,7 +1149,7 @@ int ai_euro_land_is_fortified(const ColonizeUnit* u) {
 }
 
 /*
- * Removed (bugs.md #493/#495): ai_euro_scout_contact_ring_target,
+ * Removed (port_bugs.md #493/#495): ai_euro_scout_contact_ring_target,
  * ai_euro_scout_fog_explore_target and ai_euro_is_seasoned_scout_name were
  * OpenCol inventions (tribe ring MD 2-4 with x1000/x50/x10 weights, an MD<=8
  * fog sweep, and a "Seasoned Scout prefers deeper fog" profession read).
@@ -1165,7 +1165,7 @@ int ai_euro_is_treasure_name(ColonizeUnitKind kind) {
 
 
 /*
- * Deleted 2026-09-23 (bugs.md #745): ai_euro_treasure_coast_target — an OpenCol
+ * Deleted 2026-09-23 (port_bugs.md #745): ai_euro_treasure_coast_target — an OpenCol
  * invention cited only to "Colonization.pdf Treasure Trains", with a
  * coastal-colony preference, a Manhattan distance, no landmass test and a
  * bare-coast-tile fallback DOS never produces. FUN_521d_20e6's treasure band
@@ -1204,7 +1204,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * 0x0c and the one-step target, and this port's act-level LABOR / MILITARY /
    * CONTACT arms — which DOS does not have, it consumes a goal only through
    * FUN_479b_0972's walk — still need the goal the unit was bound to.
-   * bugs.md #525/#526.
+   * port_bugs.md #525/#526.
    */
   int bound_goal_code = -1;
   int bound_goal_x = u->goto_x;
@@ -1219,7 +1219,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * the ship's tile and stamps +0x314c = 1 on each land unit whose @UNIT size
    * (0x5238) still fits the ship's remaining hold; FUN_521d_20e6's land bands
    * (types 1/4/0xb) never touch +0x314c. The "at-war coastal embark" arm that
-   * used to sit here cited only Colonization.pdf and was deleted (bugs.md
+   * used to sit here cited only Colonization.pdf and was deleted (port_bugs.md
    * #513).
    */
 
@@ -1277,7 +1277,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * +0x3149 is MP spent; this port stores MP remaining, so "spent 0" is a
    * full allotment. Without this term a unit that ever got an AI_MOVE goto
    * never re-entered the gate again — which is why Scouts needed an invented
-   * arm to keep moving at all (bugs.md #493).
+   * arm to keep moving at all (port_bugs.md #493).
    */
   const int fresh_allotment = u->moves >= units_max_mp(ctx->units, u->id);
   /* Only 0x0b skips 20e6: a one-step 0x0c unit is re-scored first (raw 90551). */
@@ -1302,7 +1302,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
        * It is never a goal state: 0a60's goal walk hands out goals only at
        * 0/5/6 (raw 88164) and FUN_521d_5b66 dispatches one only at 0x0b
        * (raw 90552), so a unit standing next to a foreign colony is deliberately
-       * unbound from its goal by DOS as well. (bugs.md #521 lead a.)
+       * unbound from its goal by DOS as well. (port_bugs.md #521 lead a.)
        */
       if (u->orders == AI_EURO_ACT_ADJACENT || u->orders == UNITS_ORDER_NONE) {
         u->col1_ai_plan = 0x30;             /* +0x314b = '0' */
@@ -1332,7 +1332,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
        * colony of a nation we are at peace with drops to the courseless
        * state 0 and re-decides on the next call; a hostile or unmet
        * neighbour's colony leaves it parked. The neighbour order is
-       * irrelevant — every hit does the same thing and breaks. bugs.md #966.
+       * irrelevant — every hit does the same thing and breaks. port_bugs.md #966.
        *
        * DOS writes only +0x314c here: the goal bytes +0x314d/e are left
        * standing, and 0a60's turn-top clear (raw 87560-87564) is what drops
@@ -1364,7 +1364,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         units_mp_exhaust_unit(ctx->units, u->id);
       }
       /*
-       * FUN_521d_5b66 switch case 7 (bugs.md #683). 5b66 calls 20e6 at raw
+       * FUN_521d_5b66 switch case 7 (port_bugs.md #683). 5b66 calls 20e6 at raw
        * 90551, 20e6 returns 0 (raw 90445) and 5b66 then dispatches on the
        * act_state byte 20e6 just wrote: `uVar14 = act_state - 7; if (5 <
        * uVar14) ... switch (act_state) { case 7: ... }`. act_state 7 is
@@ -1419,7 +1419,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * 0x4c = enter village (raw 89068). Absorbing a unit into a colony as a
    * colonist is FUN_5952_035e's colony-tick arm (ai_euro_5952_absorb_equip),
    * not a unit act. The garrison_quota == 0 admit that used to sit here cited
-   * only test-saves-ai/TURN4–5 and was deleted (sibling of bugs.md #512).
+   * only test-saves-ai/TURN4–5 and was deleted (sibling of port_bugs.md #512).
    */
 
   /* FUN_521d_5b66 cases 0b/0c (overlay asm 139947): the same pathfinder
@@ -1489,7 +1489,7 @@ static void ai_euro_dispatcher_turn_reset(ColonizeTurnContext* ctx) {
   /* Dead-id latch hygiene: DOS's +0x3158 dies with its unit record, and the
    * port-side per-id latches must not survive a despawn into a reused id.
    * Ids DO recur: past COLONIZE_UNITS_MAX the allocator recycles free ids
-   * round-robin (units.c units_alloc_id, bugs.md #1094), so a freed id comes
+   * round-robin (units.c units_alloc_id, port_bugs.md #1094), so a freed id comes
    * back only after this clear has run many times. NOT a slot walk on purpose
    * (audit second-wave Leads 2, 2026-09-10): the arrays are keyed by unit ID,
    * so walk the ID SPACE and clear the entries no live unit owns.
@@ -1515,11 +1515,11 @@ static void ai_euro_dispatcher_turn_plan(ColonizeTurnContext* ctx, int nation_id
   /* 5. Plan: 5d04 → 0342 → 0a60 */
   ai_euro_nation_planning(ctx, nation_id);
   ai_goals_promote_secondary_to_primary(nation_id);
-  /* bugs.md #1034a: the port-only cancel_stale_zero_hammer_builds and
+  /* port_bugs.md #1034a: the port-only cancel_stale_zero_hammer_builds and
    * clear_pre_stockade_build_queue passes stood here; each gated off alone
    * 2026-10-02 moved no golden bip/hammers and no ctest; deleted. */
   ai_euro_colony_goals(ctx, nation_id);
-  /* bugs.md #483: DOS's one construction picker (ai_euro_5952_build_cascade_for_owner)
+  /* port_bugs.md #483: DOS's one construction picker (ai_euro_5952_build_cascade_for_owner)
    * runs inside the 5952 colony tick at the top of the nation turn. */
   /* FUN_521d_0a60 goal-consumption tail (structural port) — stamps each idle
    * unit's next goal into its own +0x314b/c/d/e; consumed by
@@ -1527,11 +1527,11 @@ static void ai_euro_dispatcher_turn_plan(ColonizeTurnContext* ctx, int nation_id
   ai_euro_0a60_goal_orders_structural(ctx, nation_id);
 
   /* (The OpenCol "Euro diplomacy balance" pass that stood here,
-   * ai_diplo_euro_balance, was deleted 2026-10-18, bugs.md #1104: its last
+   * ai_diplo_euro_balance, was deleted 2026-10-18, port_bugs.md #1104: its last
    * arm, the Indian matrix tick, had no DOS counterpart.) */
 
   /* (The nation-turn "Expected→Harbor treasure cash" sweep that stood here was
-   * deleted 2026-09-23, bugs.md #746: DOS's AI treasure cash-in is the
+   * deleted 2026-09-23, port_bugs.md #746: DOS's AI treasure cash-in is the
    * unconditional, untaxed in-colony 20e6 band alone — nothing ever puts an AI
    * treasure on a ship, so nothing ever reaches Europe to be taxed.) */
 }
@@ -1755,11 +1755,11 @@ void ai_euro_reset(void) {
   s_sticky_count = 0;
   memset(ai_euro_s_5952_ring1, 0, sizeof(ai_euro_s_5952_ring1));
   memset(ai_euro_s_5952_docks_started, 0, sizeof(ai_euro_s_5952_docks_started));
-  memset(ai_euro_s_5952_arty_plot, 0, sizeof(ai_euro_s_5952_arty_plot)); /* bugs.md #1103 */
-  ai_diplo_reset(); /* bugs.md #1103: Indian-hostility sticky cache */
+  memset(ai_euro_s_5952_arty_plot, 0, sizeof(ai_euro_s_5952_arty_plot)); /* port_bugs.md #1103 */
+  ai_diplo_reset(); /* port_bugs.md #1103: Indian-hostility sticky cache */
   memset(ai_euro_s_5952_census_nonexpert, 0, sizeof(ai_euro_s_5952_census_nonexpert));
   memset(ai_euro_s_5952_census_vet_soldier, 0, sizeof(ai_euro_s_5952_census_vet_soldier));
-  ai_euro_s_20e6_type_cache_valid = 0; /* bugs.md #655: refreshed next dispatcher_turn */
+  ai_euro_s_20e6_type_cache_valid = 0; /* port_bugs.md #655: refreshed next dispatcher_turn */
   memset(s_euro_continent_stance, 0, sizeof(s_euro_continent_stance));
   memset(s_euro_rival_strength, 0, sizeof(s_euro_rival_strength));
   memset(ai_euro_s_ship_pressure, 0, sizeof(ai_euro_s_ship_pressure));

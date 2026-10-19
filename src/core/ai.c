@@ -313,13 +313,13 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
      * original_saves/COLONY00.SAV, the only real turn-0 sample: nation 0
      * (human) carries current 2 / needed 9, every AI nation 0 / 0 — DOS leaves
      * an AI pair at zero until that nation's own first 584a/5e52 tick scores
-     * it. The old `8` for AI nations was uncited. bugs.md #1015.
+     * it. The old `8` for AI nations was uncited. port_bugs.md #1015.
      */
     p->col1->nation[i].current_crosses = (i == human) ? 2u : 0u;
     p->col1->nation[i].needed_crosses = (i == human) ? 9u : 0u;
     memset(p->col1->nation[i].euro_relation, 0, sizeof(p->col1->nation[i].euro_relation));
     /* recruit[0..2] + the +0x44/+0x45 LFSR for every nation are FUN_38fd_6024
-     * work: europe_seed_campaign_w (bugs.md #1052/#1058). */
+     * work: europe_seed_campaign_w (port_bugs.md #1052/#1058). */
   }
   p->col1->head.difficulty = (uint8_t)(p->difficulty < 0 ? 0 : (p->difficulty > 4 ? 4 : p->difficulty));
   /*
@@ -327,7 +327,7 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
    * Expeditionary Force exists from the first turn. This is the wizard's
    * actual new-game path — the same seed in game_save_col1_slot only covers
    * the lazy no-col1 save template and never ran for a wizard start, which
-   * left every nation's Congress force bars empty (bugs.md).
+   * left every nation's Congress force bars empty (port_bugs.md).
    */
   {
     const int diff = p->col1->head.difficulty;
@@ -349,7 +349,7 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
    * seed, then 5 RNG(0,3) customize-axis draws for NEW WORLD / CUSTOMIZE
    * (none for AMERICA, which sets the axes to 1), then the 16 pool draws.
    * Brute-forced from SEED100.SAV: seed 100, skip 5, one 0058 phase-1 decay
-   * before the save (bugs.md #1084). Map gen and 6a09 reseed afterwards, so
+   * before the save (port_bugs.md #1084). Map gen and 6a09 reseed afterwards, so
    * drawing from a fresh copy here leaves their stream untouched.
    */
   {
@@ -509,7 +509,7 @@ static bool ai_spawn_euro_fleet(
    * unit's +0x314d/+0x314e (raw 121627) as the arrival target. The human
    * nation's own FUN_48d3_06ba pass then lands his fleet before turn 1; the
    * three AI fleets land at their first tick through the ported 06ba/048e
-   * chain. (bugs.md #487/#489/#490)
+   * chain. (port_bugs.md #487/#489/#490)
    */
   (void)p;
   const int sx = 228 + nation;
@@ -649,7 +649,7 @@ static void ai_layer2_or(ColonizeWorldMap* map, int x, int y, uint8_t bits) {
 
 /*
  * Mover's stamp (FUN_1427_02ca's tail). Same write, minus settlement tiles for
- * native units — bugs.md #416.
+ * native units — port_bugs.md #416.
  *
  * The nibble on a `layer2 & 2` tile IS the settlement's owner for every reader
  * (FUN_137f_03e4 tile_tribe_owner, and through it the FUN_5bfb_3180 first-
@@ -1194,7 +1194,7 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
   ai_contact_reset(); /* pending reparations offer + per-tribe cooldowns (#58) */
   ai_euro_reset();
   ai_native_reset();
-  ai_coarse_fog_reset(); /* bugs.md #1103: DS:0x9faa outlives the old world */
+  ai_coarse_fog_reset(); /* port_bugs.md #1103: DS:0x9faa outlives the old world */
   turn_reset();
   units_reset_state(); /* goto anti-backtrack shadow, indexed by reused unit_id */
 

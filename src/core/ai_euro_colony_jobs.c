@@ -57,7 +57,7 @@ void ai_euro_5952_ledgers(
 
 /*
  * FUN_15eb_28c8 — colonist work-plot scorer, DOS-LITERAL (raw 12908-13158).
- * bugs.md #570 (2026-09-22): the previous body was a structural sketch and
+ * port_bugs.md #570 (2026-09-22): the previous body was a structural sketch and
  * diverged from the decomp in six ways (no distance term, no food-emergency
  * branch, no cargo-weight branch, labour penalty applied unconditionally and
  * AI-only, sticky x2 unconditional, colonist headcount used where DOS clamps
@@ -97,7 +97,7 @@ void ai_euro_5952_ledgers(
  *     FUN_15eb_0470() = min(FUN_15eb_039e(10), 2) + 2. 039e(10) is 0 in every
  *     state stock DOS can reach, so the count is 8 there — but a save may
  *     carry the cut rows, so it is read per colony from
- *     colonies_work_plot_count (bugs.md #570, #593).
+ *     colonies_work_plot_count (port_bugs.md #570, #593).
  */
 
 /* DS:0x2b6 read as 28c8 reads it: field job -> the JOB that consumes its
@@ -286,18 +286,18 @@ static int ai_euro_28c8_score_full(
    * FUN_15eb_038e(6), the building alone (smell audit 2026-09-10 E#2). */
   /* The docks gate (raw 11955) is unconditional in DOS: it never depends on
    * whether a worker profession is known, so answer it from the colony in both
-   * cases (bugs.md #609). */
+   * cases (port_bugs.md #609). */
   const bool has_docks = colony_yield_colony_has_docks(ctx->colonies, col);
   const int sol_b_field =
     profession >= 0 ? colony_prod_sol_bonus_field(col1, col) : 0;
   /* Same for Hudson (raw 11970-11973): `local_14 == 4 && FF_has(nation, 8)`
-   * keys off the JOB, never off a known worker profession — bugs.md #857,
+   * keys off the JOB, never off a known worker profession — port_bugs.md #857,
    * the #609 defect class. */
   const bool has_hudson =
     col1 && founding_fathers_nation_has(col1, col->nation_id, FF_HENRY_HUDSON);
 
   /* local_22 (raw 12987) = DS:0x329[FUN_15eb_0470()] — the colony's own ring
-   * size, 8 unless it owns the cut Town Hall rows (bugs.md #593). */
+   * size, 8 unless it owns the cut Town Hall rows (port_bugs.md #593). */
   const int work_plot_ring_count = colonies_work_plot_count(ctx->colonies, col);
 
   out_best->job = -1;
@@ -308,7 +308,7 @@ static int ai_euro_28c8_score_full(
   /* DOS-LITERAL FUN_15eb_28c8 raw 12987-12996: the plot walk is over the
    * DS:0xc8/0xde delta tables (N,E,S,W,NW,NE,SE,SW), and since the election at
    * raw 13126 is strictly greater the earliest table index wins ties — so the
-   * port must visit its own slots in that DOS order (bugs.md #584). */
+   * port must visit its own slots in that DOS order (port_bugs.md #584). */
   for (int step = 0; step < work_plot_ring_count; ++step) {
     const int ti = colonies_field_scan_order(step);
     if (ti < 0) {
@@ -316,7 +316,7 @@ static int ai_euro_28c8_score_full(
     }
     /* raw 12993: `*(char *)(iVar5 + iVar12 * 5 + -0x7210) == '\0'` — the
      * FUN_15eb_23f2 blocked bitmask cached in DS:0x8df0 must be 0 for both
-     * human and AI colonies (bugs.md #579). The Indian-claim table at
+     * human and AI colonies (port_bugs.md #579). The Indian-claim table at
      * -0x7262 below is the separate, human-only test. */
     if (colonies_plot_blocked_mask(&world, col, ti) != 0) {
       continue;
@@ -335,7 +335,7 @@ static int ai_euro_28c8_score_full(
      * colony skips a claimed plot outright (raw 12993-12995); an AI colony
      * scores it, with the reluctance term below. That term is scoring only —
      * the actual alarm is billed when the seat commits, inside
-     * colonies_assign_field_w (FUN_0000_6582, bugs.md #1002). */
+     * colonies_assign_field_w (FUN_0000_6582, port_bugs.md #1002). */
     int claim_village = -1;
     int claim_tribe = -1;
     if (col1) {
@@ -368,7 +368,7 @@ static int ai_euro_28c8_score_full(
        * 0 — so for the Fisherman (job 8) local_24 stays 8 and every later use
        * (warehouse clamp `colony+0x9a+8*2`, the DS -0x71ce / -0x71a6 rows, the
        * `local_24 != 5` lumber test) reads cargo slot 8 = HORSES. A DOS quirk,
-       * kept verbatim (bugs.md #582). Jobs 0..7 map to cargo 0..7 identically. */
+       * kept verbatim (port_bugs.md #582). Jobs 0..7 map to cargo 0..7 identically. */
       const int cargo = job;
       int yld = profession >= 0
                   ? colony_yield_for_worker(
@@ -441,7 +441,7 @@ static int ai_euro_28c8_score_full(
              * byte[nation+0x917c])`. The flat +2 fires unconditionally once
              * !human && cargo==ORE && pop>7 && turn>0x4f; only the two
              * FUN_15eb_039e chain terms sit behind the wealth-rank compare
-             * (bugs.md #889). */
+             * (port_bugs.md #889). */
             if (!env.human && cargo == COLONIZE_CARGO_ORE && col->population > 7 &&
                 env.turn > 0x4f) {
               cargo_demand_weight += 2;
@@ -605,13 +605,13 @@ COLONIZE_INTERNAL int ai_euro_28c8_colonist_job_score_structural(
 /*
  * FUN_15eb_2ea0 (raw 13162-13196) — the plot pass of DOS's generic colony
  * recompute FUN_15eb_3930 (`268e(); 287e(); 2ea0();`), run for HUMAN colonies
- * too (bugs.md #562). Every colonist not standing on a plot whose occupation
+ * too (port_bugs.md #562). Every colonist not standing on a plot whose occupation
  * is a field job (FUN_15eb_0e18 < 9) is put through 28c8; when that finds
  * nothing the colonist becomes a Carpenter (`FUN_15eb_1068(slot, 0xd)`),
  * never a bell-ringer.
  *
  * `colonist_slot` >= 0 restricts the pass to one colonist — the join path
- * (colonies_admit / ORDERS Join Colony), which is the caller bugs.md #562 is
+ * (colonies_admit / ORDERS Join Colony), which is the caller port_bugs.md #562 is
  * about. -1 walks the whole roster.
  *
  * Colonists carrying DOS occupation 0x13 (@JOB row 19, plain "Colonist") are
@@ -659,7 +659,7 @@ void ai_euro_28c8_auto_assign_plots(ColonizeTurnContext* ctx, int colony_id, int
  */
 bool ai_euro_5952_job_is_expert(int job) {
   /* DOS reads a profession byte, so -1 ("no profession set") never reaches it;
-   * the port's sentinel must not fall through as an expert (bugs.md #600). */
+   * the port's sentinel must not fall through as an expert (port_bugs.md #600). */
   return job >= 0 && job != UNITS_JOB_COLONIST && job != COLONIZE_PROF_INDENTURED &&
          job != COLONIZE_PROF_CRIMINAL && job != COLONIZE_PROF_CONVERT &&
          job != COLONIZE_PROF_FREE_COLONIST;
@@ -1077,7 +1077,7 @@ void ai_euro_5952_ledgers(
     pool, col, col1 && founding_fathers_nation_has(col1, col->nation_id, FF_WILLIAM_PENN),
     sol_bonus
   );
-  /* bugs.md #928: the DOS ledgers are refreshed by FUN_281f_0c04 ->
+  /* port_bugs.md #928: the DOS ledgers are refreshed by FUN_281f_0c04 ->
    * FUN_15eb_1f72, and 1f72 reads the owning nation's Jefferson (3960 flag
    * 0x0f, raw 12621) and Paine (flag 0x11 + the nation tax byte, raw
    * 12625-12633) itself — so the probe sees the real FF state, not a
@@ -1400,7 +1400,7 @@ static void ai_euro_5952_indoor_pass(
      * 1070-1072): `local_e4[local_ee] = local_e4[local_ee] + 1;` runs right
      * after the elect/commit call, on both the elected-job and the
      * Carpenter/Preacher fallback paths, with no test of whether the
-     * commit actually placed the colonist. bugs.md #906: gating the
+     * commit actually placed the colonist. port_bugs.md #906: gating the
      * increment on colonies_assign_workplace()'s return let a failed
      * commit (full or missing workplace) leave the counter behind, so a
      * fourth colonist could be elected to the same job later in this pass.
@@ -1571,7 +1571,7 @@ static bool ai_euro_5952_forced_lumberjack(
  *
  * `ai_euro_5952_carpenter_pick` is the per-pass slot election plus DOS's own
  * profession rewrite at raw 94716-94718 (`FUN_1000_8e9e(slot, 0x1c)` =
- * FUN_281f_0cae, the same "clear specialty" writer bugs.md #431 uses): an
+ * FUN_281f_0cae, the same "clear specialty" writer port_bugs.md #431 uses): an
  * Indentured Servant (0x19) or a Petty Criminal (0x1a) chosen by this arm is
  * turned into a Free Colonist BEFORE it is put to work. The four passes are
  * DOS's `iStack_e6` 0..3 over the still-unplaced slots:
@@ -1728,7 +1728,7 @@ static void ai_euro_5952_carpenter_arm(
  * (pop vs ring size, horses stock, gross production vs demand).
  * (`local_84`'s second use at raw 94609-94611, which flips the per-slot
  * eligibility test between FUN_281f_0c9a (expert) and profession 0x1b
- * (Indian Convert), IS ported — see :2626-2637 below, bugs.md #568.)
+ * (Indian Convert), IS ported — see :2626-2637 below, port_bugs.md #568.)
  */
 int ai_euro_20e6_nearest_village(
   const ColonizeTurnContext* ctx, int x, int y, int* out_dist
@@ -1769,7 +1769,7 @@ COLONIZE_INTERNAL void ai_euro_5952_178f_unseat(
  *
  * This replaces the nineteen-row `ai_euro_prefer_*` stand-in table, which was
  * a name-keyed invention: DOS has exactly one ordered cascade and it ends in
- * five UNIT projects (bugs.md #483).
+ * five UNIT projects (port_bugs.md #483).
  *
  * Resolutions this port needed, none of them previously on record:
  *  - `FUN_5952_0214` is **recursive**: when the candidate is not owned and
@@ -1877,7 +1877,7 @@ COLONIZE_INTERNAL void ai_euro_5952_set_ring1_threat(int colony_id, int ring1) {
  * started. The Stockade arm at 0x22ec has no such store. The port splits the
  * one DOS body into ai_euro_5952_build_cascade_for_owner (the plan step) and
  * ai_euro_5952_specialist_arms (the colony tick), which run in that DOS order,
- * so the store is carried across as this per-colony latch (bugs.md #586).
+ * so the store is carried across as this per-colony latch (port_bugs.md #586).
  */
 int ai_euro_s_5952_docks_started[COLONIZE_COLONIES_MAX];
 
@@ -1903,7 +1903,7 @@ COLONIZE_INTERNAL void ai_euro_5952_set_absorb_census(
 
 /*
  * DS:0x864, 6 rows of 4 bytes. Recovered verbatim from VICEROY.EXE at EXE
- * offset 121248 + 0x864 (bugs.md #572):
+ * offset 121248 + 0x864 (port_bugs.md #572):
  *   03 0f 0e 0f | 27 0e 06 0e | 20 0c 04 0c
  *   1b 09 01 09 | 18 0a 02 0a | 15 0b 03 0b
  * (the next bytes are the "GAME" literal, so the table really is 6 rows).
@@ -2144,7 +2144,7 @@ COLONIZE_INTERNAL void ai_euro_5952_build_cascade(
 }
 
 /*
- * Cascade stages (bugs.md #1107 big-function split). Stage order = asm order;
+ * Cascade stages (port_bugs.md #1107 big-function split). Stage order = asm order;
  * every DOS local that spans stages lives in AiEuro5952Cascade
  * (ai_euro_internal.h) and is written there before the stage returns.
  */
@@ -2303,7 +2303,7 @@ COLONIZE_INTERNAL void ai_euro_5952_cascade_pressure(AiEuro5952Cascade* s) {
   }
 
   /* uStack_a2 / iStack_142 — the colony's ring (DS:0x329[FUN_15eb_0470()],
-   * bugs.md #593) and how much of it is not land (off-map, Ocean 0x19 or High
+   * port_bugs.md #593) and how much of it is not land (off-map, Ocean 0x19 or High
    * Seas 0x1a), asm 5952:1150 loop. */
   const int ring = colonies_work_plot_count(ctx->colonies, col);
   int ring_nonland = 0;
@@ -2608,7 +2608,7 @@ void ai_euro_5952_build_cascade_for_owner(
   if (!ctx || !ctx->colonies || !ctx->map || !col || !col->active) {
     return;
   }
-  /* Fresh per tick, like DOS's stack-local [BP+0xff62] (bugs.md #586). */
+  /* Fresh per tick, like DOS's stack-local [BP+0xff62] (port_bugs.md #586). */
   if (col->id >= 0 && col->id < COLONIZE_COLONIES_MAX) {
     ai_euro_s_5952_docks_started[col->id] = 0;
   }
@@ -2743,7 +2743,7 @@ COLONIZE_INTERNAL int ai_euro_5952_train_pick(
 
 /*
  * DOS-LITERAL FUN_5952_035e raw ~95860-95958 — the two specialist arms that
- * close the AI colony tick, both unported until 2026-09-22 (bugs.md #571 /
+ * close the AI colony tick, both unported until 2026-09-22 (port_bugs.md #571 /
  * #572). Clean body colony_tick_5952_035e.md:1653-1749, asm
  * viceroy_overlays.asm OVL15 0x274b-0x29ff.
  *
@@ -2789,7 +2789,7 @@ COLONIZE_INTERNAL int ai_euro_5952_train_pick(
  * `MOV BX,[BP-0x2e]; SHL BX,0x3; MOV AX,[BX+0x8ea8]; CWD`, and [BP-0x2e] is
  * the same word pushed to FUN_1000_8e9e as the slot argument two
  * instructions earlier. DOS therefore charges the AI @JOB[slot]'s price, not
- * @JOB[target]'s — kept DOS-LITERAL (bugs.md #571).
+ * @JOB[target]'s — kept DOS-LITERAL (port_bugs.md #571).
  *
  * ARM 1's candidate walk runs to `pop + DS:0x8d72`, past the colonists into
  * the units parked on the colony tile (modelled). Port deviation, documented
@@ -2844,7 +2844,7 @@ COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
     const int wy = col->y + dy;
     /* OVL15 0x082c-0x0858 increments [BP-0x18] only when the tile's terrain
      * class is 0x19/0x1a; the off-map path (0x094c) returns without touching
-     * it, so an edge colony's missing tiles are NOT water (bugs.md #595).
+     * it, so an edge colony's missing tiles are NOT water (port_bugs.md #595).
      * map_tile_is_water() answers true off-map, hence the explicit bounds
      * test — same shape as the build-cascade ring count above. */
     if (wx < 0 || wy < 0 || wx >= (int)ctx->map->width || wy >= (int)ctx->map->height) {
@@ -2866,7 +2866,7 @@ COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
     col->stock[COLONIZE_CARGO_FOOD] + gross[COLONIZE_CARGO_FOOD] <
     demand[COLONIZE_CARGO_FOOD];
   /* asm 0x2296-0x22b9 sets [BP+0xff62] to 1; asm 0x22e6 clears it again when
-   * the build cascade's Docks arm commits this turn (bugs.md #586). */
+   * the build cascade's Docks arm commits this turn (port_bugs.md #586). */
   const bool docks_started =
     col->id >= 0 && col->id < COLONIZE_COLONIES_MAX && ai_euro_s_5952_docks_started[col->id] != 0;
   const bool train_flag =
@@ -3012,7 +3012,7 @@ COLONIZE_INTERNAL void ai_euro_5952_seed_horses(
   col->stock[COLONIZE_CARGO_HORSES] = 2;
 }
 
-/* FUN_5952_035e tile-improvement arm (raw 94402-94551, bugs.md #612) — the
+/* FUN_5952_035e tile-improvement arm (raw 94402-94551, port_bugs.md #612) — the
  * body lives beside the 20e6 terrain/ring tables it shares. */
 void ai_euro_5952_improve_best_plot(
   ColonizeTurnContext* ctx, ColonizeColony* col, int* out_improvement_owner, int* out_best_plot
@@ -3025,7 +3025,7 @@ ColonizeColony* ai_euro_5952_tools_supply_and_connect(
 );
 
 /*
- * DOS-LITERAL raw 94570-94584 (colony_tick_5952_035e.md:1053-1060, bugs.md
+ * DOS-LITERAL raw 94570-94584 (colony_tick_5952_035e.md:1053-1060, port_bugs.md
  * #1028): local_80/local_1e/local_7e gate the WHOLE colonist-placement
  * section (food pass + both pass-2 sub-passes) and throttle each pass's own
  * loop.
@@ -3033,7 +3033,7 @@ ColonizeColony* ai_euro_5952_tools_supply_and_connect(
  *   local_1e = (+0xaa >= 2 && local_36 > +0xaa)
  *   local_7e = local_80 || local_1e
  * `local_a2` is DS:0x329[tier] — the same per-colony work-plot ring as
- * bugs.md #593, i.e. colonies_work_plot_count(). Colony+0xaa is
+ * port_bugs.md #593, i.e. colonies_work_plot_count(). Colony+0xaa is
  * `stock[HORSES]` (confirmed by the 50/51/52/100-ish thresholds this same
  * field is tested against elsewhere in raw 94677-94787 — horse-breeding
  * headroom, not food). `local_36` is colonies_warehouse_capacity
@@ -3058,7 +3058,7 @@ bool ai_euro_5952_placement_gate(
 }
 
 /*
- * Colony-tick stages (bugs.md #1107 big-function split), one colony each, in
+ * Colony-tick stages (port_bugs.md #1107 big-function split), one colony each, in
  * FUN_5952_035e order. Locals that span stages live in AiEuroColonyTick
  * (ai_euro_internal.h); stages write them through `t`, never via a copy.
  */
@@ -3085,7 +3085,7 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_open(AiEuroColonyTick* t) {
      * Custom House export bits past their first tick. */
     col->custom_house_bits = 0;
     /* FUN_5952_035e raw 93958: 281f_0c72 -> FUN_15eb_26e4 claim stamp, then
-     * raw 93961: FUN_281f_0c22 -> FUN_15eb_3930 (bugs.md #1080). */
+     * raw 93961: FUN_281f_0c22 -> FUN_15eb_3930 (port_bugs.md #1080). */
     colonies_26e4_claim_stamp(&world, col);
     colonies_recompute_plots_w(&world, col->id);
     ai_euro_5952_colony_counters(ctx, nation_id, col);
@@ -3093,7 +3093,7 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_open(AiEuroColonyTick* t) {
   }
   /*
    * FUN_5952_035e raw 94402-94551 runs immediately BEFORE the colonist idle
-   * sweep below (bugs.md #612).
+   * sweep below (port_bugs.md #612).
    */
   /* The rest of FUN_5952_035e reads *(DS:0x8542); a road connect leaves it
    * on the colony nearest the gap tile (FUN_479b_0526's FUN_281f_0614),
@@ -3155,7 +3155,7 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_unseat_all(AiEuroColonyTick* t) {
      * `placed[s] = ... || c->building_type >= 0`, which had no DOS
      * counterpart and meant a starving AI colony could never pull a
      * Statesman or a stuck Expert Farmer out of a building onto a food
-     * tile (bugs.md #569).
+     * tile (port_bugs.md #569).
      */
     placed[s] = !c->active;
   }
@@ -3205,7 +3205,7 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_food_pass(AiEuroColonyTick* t) {
   t->section_done = false;
   s_28c8_l32 = AI_28C8_L32_LEDGER; /* FUN_281f_0c04 after the unseat-all loop */
 
-  /* local_80/local_1e/local_7e — see ai_euro_5952_placement_gate (bugs.md
+  /* local_80/local_1e/local_7e — see ai_euro_5952_placement_gate (port_bugs.md
    * #1028) just above ai_euro_colony_tick_run. */
   t->under_populated = false;
   t->horses_have_room = false;
@@ -3225,7 +3225,7 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_food_pass(AiEuroColonyTick* t) {
    * with Docks (@BUILDING 6), enters this pass, and the 28c8 call is
    * RESTRICTED to that job (third argument = the profession, not 0xffff),
    * so a food-pass slot can only ever land on a food plot. The port gated
-   * on `prev_job[]` and called the unrestricted search (bugs.md #567).
+   * on `prev_job[]` and called the unrestricted search (port_bugs.md #567).
    */
   const ColonizeCol1Save* col1_5952 = ctx->col1_ok ? ctx->col1 : NULL;
   for (int s = 0; s < n && (placement_open || food_stock < 0x4b); ++s) {
@@ -3233,7 +3233,7 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_food_pass(AiEuroColonyTick* t) {
      * DOS-LITERAL raw 94593-94594: the food-pass loop's own continuation
      * test, re-read every iteration — `local_80 || DS:0x8dc8<=DS:0x8e0a ||
      * local_1e` (DS:0x8dc8/0e0a are the gross/demand ledgers, refreshed
-     * after every assignment; slot 0 = FOOD, bugs.md #1028).
+     * after every assignment; slot 0 = FOOD, port_bugs.md #1028).
      */
     int gross_80[AI_EURO_5952_LEDGER_SLOTS];
     int demand_80[AI_EURO_5952_LEDGER_SLOTS];
@@ -3260,7 +3260,7 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_food_pass(AiEuroColonyTick* t) {
      * the `FUN_281f_0b6e(...) == 0` arm. A non-zero 28c8 return (no positive
      * plot) is not a stop at all — DOS just falls through to `local_ac++`
      * and tries the next colonist; only a handled call whose best yield is
-     * under 3 ends the whole placement section (bugs.md #585). */
+     * under 3 ends the whole placement section (port_bugs.md #585). */
     if (!ok) {
       continue;
     }
@@ -3305,7 +3305,7 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_pass2(AiEuroColonyTick* t) {
       /*
        * DOS-LITERAL raw 94607-94608: this sub-pass's loop continuation
        * test — `(DS:0x8e32 != 0 && +0x9a <= DS:0x8e32*0x10) || local_7e`,
-       * i.e. `(shortfall != 0 && !plenty) || local_7e` (bugs.md #1028).
+       * i.e. `(shortfall != 0 && !plenty) || local_7e` (port_bugs.md #1028).
        */
       if (!((shortfall != 0 && !plenty) || placement_open)) {
         break;
@@ -3315,7 +3315,7 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_pass2(AiEuroColonyTick* t) {
       }
       /*
        * DOS-LITERAL raw 94600-94604 (md:1088-1092) — the admission test the
-       * port was missing entirely (bugs.md #568):
+       * port was missing entirely (port_bugs.md #568):
        *   iVar11 = FUN_1000_8e8a(0x181f, prof[slot]);   // is_expert
        *   if (((iVar11 == 0) || (local_84 == 0 && pass != 0)) &&
        *       ((local_84 == 0) || (pass != 0 || prof[slot] == 0x1b)) && ...)
@@ -3337,7 +3337,7 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_pass2(AiEuroColonyTick* t) {
         ai_euro_28c8_score_full(ctx, col, s, col->colonists[s].profession, -1, 0, &best);
       col->colonists[s].field_job = -1;
       /* raw 94612-94614, same shape as pass 1: an unhandled 28c8 only skips
-       * this colonist (bugs.md #585). */
+       * this colonist (port_bugs.md #585). */
       if (!ok) {
         continue;
       }
@@ -3535,7 +3535,7 @@ static void ai_euro_colony_tick_run(
     if (whole_tick) {
       ai_euro_5952_build_cascade_for_owner(ctx, col, t.improvement_owner);
     }
-    /* DOS raw ~95860-95958, the tick's last two arms (bugs.md #571/#572). */
+    /* DOS raw ~95860-95958, the tick's last two arms (port_bugs.md #571/#572). */
     ai_euro_5952_specialist_arms(ctx, col, n);
     if (whole_tick) {
       ai_euro_5952_seed_horses(ctx, col);

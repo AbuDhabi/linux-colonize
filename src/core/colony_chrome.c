@@ -65,7 +65,7 @@ void colonies_blit_settlement_icon(
   if (light < 0 && dark < 0) {
     return;
   }
-  /* bugs.md: the rebel nation flies an actual striped American flag — navy
+  /* port_bugs.md: the rebel nation flies an actual striped American flag — navy
    * hoist edge, alternating red/white stripe rows — not a plain white flag
    * ("we are not surrendering just yet"). */
   int us_navy = -1;

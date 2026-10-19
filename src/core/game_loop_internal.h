@@ -17,7 +17,7 @@
 #include "core/window_log.h"
 
 /*
- * The live game's ColonizeWorld view (bugs.md #1110): every game_loop_* /
+ * The live game's ColonizeWorld view (port_bugs.md #1110): every game_loop_* /
  * game_dialogs sim call builds its world here instead of a hand-written
  * literal. A pool whose load flag is false is NULL (units_ok, world_map_ok,
  * col1_ok, europe_ok); the colony pool is embedded storage and always set.
@@ -372,7 +372,7 @@ void game_hof_save(const ColonizeGameState* game);
 void game_hof_insert(ColonizeGameState* game, const ColonizeHofEntry* entry);
 
 /* FUN_479b raw 76477-76484: crown Man-O-War exemption from the WoI Europe
- * gate (bugs.md #870). */
+ * gate (port_bugs.md #870). */
 bool game_ship_woi_europe_exempt(const ColonizeGameState* game, const ColonizeUnit* ship);
 
 #endif /* COLONIZE_CORE_GAME_LOOP_INTERNAL_H */

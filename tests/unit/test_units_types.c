@@ -2,7 +2,7 @@
 #include "../common/test_runner.h"
 
 /*
- * bugs.md: equipping an existing unit keeps its tier. A Continental Army given
+ * port_bugs.md: equipping an existing unit keeps its tier. A Continental Army given
  * horses becomes Continental Cavalry (DOS DS:0x30e files type 9 under @JOB 21
  * Soldier and type 7 under @JOB 23 Dragoon — the same pair the WoI promotion
  * and the combat demote table use), never the plain Veteran Dragoons the flat
@@ -81,7 +81,7 @@ static int unit_continental_equip_tier(void) {
 }
 
 /*
- * bugs.md #591: every DOS unit-name channel reads the @UNIT ROW string
+ * port_bugs.md #591: every DOS unit-name channel reads the @UNIT ROW string
  * (0x5230 + type*0xe; raw 14128, 42654, 99460-99461, 99511, 100625-100628),
  * never a @JOB-composed label. A bare colonist body reads the @UNIT row 0
  * name ("Colonists"); arming it reads the @UNIT row 1 name ("Soldiers"),
@@ -152,7 +152,7 @@ static int unit_display_name_free_colonist(void) {
 }
 
 /*
- * bugs.md #581: production installs no name resolver (units_name_kind is a
+ * port_bugs.md #581: production installs no name resolver (units_name_kind is a
  * test-only hook), so every class test must read the @UNIT ROW's kind_plus1.
  * Two gameplay sites used to read the English spelling and therefore went
  * dead in the shipped binary:
@@ -368,7 +368,7 @@ static int unit_smell_audit_2026_09_09(void) {
       units_get(&pool, did)->nation_id = 0;
       ColonizeDosRng rng;
       /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
-       * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
+       * in port_bugs.md); spread them so the 14-vs-240 roll can actually land. */
       dos_rng_seed(&rng, (unsigned)seed * 9973u + 4271u);
       if (units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, aid, did)) {
         fprintf(stderr,
@@ -505,7 +505,7 @@ static int unit_smell_audit_2026_09_09(void) {
    * (the @UNIT guns column, zero for every land type), a land winner never
    * draws: the hull is ALWAYS damaged.
    *
-   * bugs.md #473: the swept stack is the DEFENDER's tile (raw 100722, taken
+   * port_bugs.md #473: the swept stack is the DEFENDER's tile (raw 100722, taken
    * when the winner's attack byte is 0). An attacker that loses sweeps only
    * the off-map park it was lifted to at raw 100568 (FUN_281f_0916 →
    * FUN_1427_12f6 → 0362(unit, -2, -2)), so a hull berthed on the
@@ -539,7 +539,7 @@ static int unit_smell_audit_2026_09_09(void) {
       units_set_nation(units_get(&pool, def), 1);
       ColonizeDosRng rng;
       /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
-       * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
+       * in port_bugs.md); spread them so the 14-vs-240 roll can actually land. */
       dos_rng_seed(&rng, (unsigned)seed * 9973u + 4271u);
       if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, atk, def)) {
         lost = 1;
@@ -717,7 +717,7 @@ static int unit_smell_audit_2026_09_09(void) {
 }
 
 /*
- * bugs.md #503/#504/#507/#509 — FUN_157e_004a veteran peel, FUN_5fef_172c
+ * port_bugs.md #503/#504/#507/#509 — FUN_157e_004a veteran peel, FUN_5fef_172c
  * promotion gates, FUN_49dd_0386 profession line, FUN_479b_0158 tools-out.
  */
 static int unit_promote_and_label_504(void) {
@@ -891,7 +891,7 @@ static int unit_promote_and_label_504(void) {
 }
 
 /*
- * bugs.md #598: an armed Indian Convert (@JOB 0x1b) is NOT short-circuited by
+ * port_bugs.md #598: an armed Indian Convert (@JOB 0x1b) is NOT short-circuited by
  * the FUN_281f_0c9a eligibility gate (FUN_15eb_0002 raw 9298-9307 returns 0
  * for 0x1b), so FUN_5fef_172c raw 100100-100104 reaches the Washington test
  * and, absent Washington, draws FUN_281f_04d4(1, local_6) before the ladder
@@ -1012,7 +1012,7 @@ static int unit_promote_convert_rng_598(void) {
 }
 
 /*
- * bugs.md #655: NAMES.TXT @UNIT column 12 (DOS `DS:0x523d + type*0xe`, loader
+ * port_bugs.md #655: NAMES.TXT @UNIT column 12 (DOS `DS:0x523d + type*0xe`, loader
  * raw 121132-121134) is an 8-character MSB-first bit-string, so row 4
  * Dragoons "00111100" = 0x3c and row 7 Cont. Cav. "00011100" = 0x1c — the two
  * values the AI capability tables hardcoded.

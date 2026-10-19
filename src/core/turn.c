@@ -102,7 +102,7 @@ void turn_format_date(uint16_t year, uint16_t autumn, char* out, size_t out_size
 
 /*
  * DOS-LITERAL FUN_4d56_1b3a day top (viceroy_unpacked.c raw 6355-6357,
- * bugs.md #713):
+ * port_bugs.md #713):
  *
  *   for (local_14 = 0; local_14 < *(int *)0x539c; local_14 = local_14 + 1) {
  *     *(undefined1 *)(local_14 * 0x1c + 0x3149) = 0;
@@ -140,7 +140,7 @@ void turn_refresh_moves_for_nation_w(
   ColonizeUnitPool* pool = w->units;
   const ColonizeCol1Save* col1 = w->col1;
   ColonizeWorldMap* map = w->map;
-  /* bugs.md #626: the pioneer work tick moved to the activation rotation, so
+  /* port_bugs.md #626: the pioneer work tick moved to the activation rotation, so
    * the refresh no longer emits text of its own. */
   (void)ai_popups;
   (void)messages;
@@ -156,7 +156,7 @@ void turn_refresh_moves_for_nation_w(
   pool->spawn_colonies = w->colonies;
   colonies_set_occupancy_map(map);
   if (col1) {
-    /* bugs.md #282: the first-`control == 0` scan reads a stale save that
+    /* port_bugs.md #282: the first-`control == 0` scan reads a stale save that
      * carries TWO zeroed control slots as England. col1_save_human_nation is
      * the one place that resolution lives (head.human_player preferred when
      * it agrees with the control table); turn_processor_advance's own
@@ -175,14 +175,14 @@ void turn_refresh_moves_for_nation_w(
     /* The spent byte is NOT cleared here: DOS does it once for every unit of
      * every nation at the day top (raw 6355-6357), which is
      * turn_clear_mp_spent_all_nations called from TURN_PROC_SETUP
-     * (bugs.md #713, #423). */
+     * (port_bugs.md #713, #423). */
     /* No overnight Fortify -> Fortified: DOS promotes order 5 when the unit
      * comes up in the human's rotation (3ae6 -> FUN_479b_0b6c,
      * game_select_next_unit_awaiting_orders). FUN_521d_20e6 acts an AI unit
      * on orders 0/5/6 alike (DOSBox 1513). */
     /* No MP grant here. DOS refills MP only at the day top (+0x3149 = 0 for
      * every unit, raw 6355-6357: turn_clear_mp_spent_all_nations). Pioneer
-     * work bodies run from the activation rotation (bugs.md #626), Sentry /
+     * work bodies run from the activation rotation (port_bugs.md #626), Sentry /
      * Fortified keep their allotment (#715). */
   }
 }
@@ -207,7 +207,7 @@ bool turn_unit_in_rotation(const ColonizeUnitPool* pool, const ColonizeUnit* u, 
    * outright — Artillery (@UNIT 0x0b), which carries the same bit7 in its
    * damaged form, is the one exemption. FUN_1427_14a0 (raw 32480-32502) is
    * the scanner that walks this predicate, so a wrecked hull cannot be
-   * cycled to at all while its repair timer runs (bugs.md: damaged Frigate
+   * cycled to at all while its repair timer runs (port_bugs.md: damaged Frigate
    * was movable the turn after the fight).
    */
   return (u->col1_flags15 & 0x80u) == 0 ||
@@ -375,7 +375,7 @@ int turn_report_ok_rebel_maj(const ColonizeCol1Save* col1) {
 }
 /* DOS 0x5385 bit0 clear → show @SONSUP / @SONSDOWN decade chrome. */
 /*
- * bugs.md: a birth puts the new Free Colonist ON the colony tile as a map
+ * port_bugs.md: a birth puts the new Free Colonist ON the colony tile as a map
  * unit awaiting orders — not into the colony as a worker. The production
  * pass has no unit-pool parameter (deep call chain), so the game loop hands
  * it in here before ticking; NULL (tests, headless callers) falls back to
@@ -398,7 +398,7 @@ int turn_report_ok_inefficient(const ColonizeCol1Save* col1) {
  * FUN_364b_0688 Phase D Tory pressure: inefficient-gov chrome (0xdd1 / 0xddd).
  * Latch is Col1 +0x1c bit3 (COLONIZE_COLONY_FLAG_INEFFICIENT_GOV), exactly
  * where DOS keeps it, so a crossing announced before a save is not announced
- * again after the reload (bugs.md). DOS sets and clears the bit whether or
+ * again after the reload (port_bugs.md). DOS sets and clears the bit whether or
  * not the report option lets the message through, so the latch update stays
  * outside turn_report_ok_inefficient.
  *
@@ -651,7 +651,7 @@ COLONIZE_INTERNAL void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnC
         const ColonizeWorld rw = world_from_turn_ctx(ctx);
         turn_refresh_moves_for_nation_w(&rw, n, ctx->ai_popups, ctx->messages);
         if (n >= 0 && n < 4) {
-          /* FUN_3844_0004 (bugs.md #725): AI owner — the lone Convert just
+          /* FUN_3844_0004 (port_bugs.md #725): AI owner — the lone Convert just
            * vanishes, no @DEADCONVERTS popup. */
           (void)units_tick_convert_outside_colony(ctx->units, ctx->map, n);
           /* No want_europe_open sink: turn_euro_ai_should_run rejects
@@ -730,7 +730,7 @@ COLONIZE_INTERNAL void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTur
       proc->show_indicator = true;
       if (n == 4) {
         turn_advance_day(proc, ctx);
-        /* DOS-LITERAL day top, raw 6353-6363 (bugs.md #713): FUN_281f_0550
+        /* DOS-LITERAL day top, raw 6353-6363 (port_bugs.md #713): FUN_281f_0550
          * (the 00f8 rank refresh), then +0x3149 = 0 for every unit of every
          * nation, then 0676 (the Indian mid-pass) — before nation 0's EOT.
          * The slots above the human acted at the tail of the previous day,
@@ -846,12 +846,12 @@ COLONIZE_INTERNAL void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTur
         /* 00f2 tail FUN_291f_0a66 -> FUN_43f7_2424 (raw 58392) -> 2022. */
         ai_king_human_2022_beat(ctx);
       }
-      /* bugs.md #434: the human's FF election lands here — start of the
+      /* port_bugs.md #434: the human's FF election lands here — start of the
        * player's turn, with the production chrome — not in SETUP. */
       founding_fathers_tick_human_elect(ctx);
       turn_prod_only_nation = -1;
       turn_prod_only_set = false;
-      /* bugs.md #394/404/407: yield here so the production popups queued
+      /* port_bugs.md #394/404/407: yield here so the production popups queued
        * above are answered (and an elected colony zoom taken) before the
        * king's REF beats run in TURN_PROC_KING — see turn.h. */
       proc->step = TURN_PROC_KING;
@@ -866,7 +866,7 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
        * FUN_38fd_0058 runs as the first act of each nation's own 5e52 (after
        * the reseed, before immigration): AI slots in turn_run_ai_nation_eot,
        * the human in its 00f2 in FINISH. Only the human's price popups are
-       * queued here. bugs.md #1012.
+       * queued here. port_bugs.md #1012.
        */
       if (ctx->europe) {
         /* FUN_38fd_0058 phase 4: 0xfa8 @PRICEUP / 0xfb0 @PRICEDOWN OK dialog
@@ -906,7 +906,7 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
       const ColonizeWorld rw = world_from_turn_ctx(ctx);
       turn_refresh_moves_for_nation_w(&rw, ctx->human_nation, ctx->ai_popups, ctx->messages);
       if (ctx->human_nation >= 0 && ctx->human_nation < 4) {
-        /* FUN_3844_0004 (bugs.md #725): human owner — FUN_281f_0652(0xee2, 4)
+        /* FUN_3844_0004 (port_bugs.md #725): human owner — FUN_281f_0652(0xee2, 4)
          * = @DEADCONVERTS, once per Convert lost. */
         {
           const int converts_lost =
@@ -994,7 +994,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
   /* AI combat involving the human can enqueue outcome modals. */
   units_set_combat_popups(ctx->ai_popups, ctx->messages);
   units_set_combat_human_nation(ctx->human_nation);
-  /* bugs.md #463: a damaged hull with no repair port leaves for Europe the
+  /* port_bugs.md #463: a damaged hull with no repair port leaves for Europe the
    * instant it loses (FUN_5fef_0352 off-map slot) — units.c needs the screen. */
   units_set_combat_europe(ctx->europe);
   /* Colony fortification / settlement peels for every combat of the day,

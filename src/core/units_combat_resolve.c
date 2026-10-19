@@ -51,7 +51,7 @@ bool units_resolve_land_combat(
 }
 
 /*
- * bugs.md: mounted units (Dragoons, Scouts, Cavalry, Cont. Cav., Mtd.
+ * port_bugs.md: mounted units (Dragoons, Scouts, Cavalry, Cont. Cav., Mtd.
  * Braves/Warriors) get one attack per turn — any combat drains all their
  * remaining moves, win or lose.
  */
@@ -148,7 +148,7 @@ static void units_combat_present_and_roll(
   const ColonizeCol1Save* col1
 ) {
   units_combat_maybe_present_analysis(col1, eng, atk_nation, def_nation);
-  /* bugs.md #233: the attack "bump" plays AFTER the analysis is dismissed —
+  /* port_bugs.md #233: the attack "bump" plays AFTER the analysis is dismissed —
    * analysis → bump → outcome popups, each blocking, per combat. */
   if (g_units_combat_watch) {
     g_units_combat_watch(g_units_combat_watch_user, pool, attacker_id, def_x, def_y);
@@ -207,7 +207,7 @@ bool units_resolve_land_combat_ff_w(
        * Analysis animation path at 5fef:22e3 resets local_4 to zero. */
       suppress_generic = col1 && col1->head.event.indian_raid &&
         !col1->head.game_options.combat_analysis;
-      /* bugs.md #765: the DOS operand is the @UNIT ROW, not a pool slot.
+      /* port_bugs.md #765: the DOS operand is the @UNIT ROW, not a pool slot.
        * units_type_dos_code resolves the row from the catalog and returns -1
        * for a hand-built / synthetic type table, where the typed variant is
        * simply skipped. */
@@ -317,12 +317,12 @@ bool units_resolve_land_combat_ff_w(
     const int def_y = def->y;
     const int def_nation = def->nation_id;
     const int atk_nation = atk->nation_id;
-    /* bugs.md #660: a beaten Treasure Train CHANGES HANDS in DOS
+    /* port_bugs.md #660: a beaten Treasure Train CHANGES HANDS in DOS
      * (FUN_5fef_0352 raw 99392-99413) — see the capture arm in
      * units_apply_land_loss_outcome. The ransom CHOICE and the gold
      * credit that stood here were port inventions; 0352 credits no gold.
      */
-    /* bugs.md #240: loss outcome (demote/damage/capture popups) FIRST, then
+    /* port_bugs.md #240: loss outcome (demote/damage/capture popups) FIRST, then
      * @EUROPEWIN — DOS 1b0e order. Snapshots keep labels past a despawn. */
     {
       const ColonizeUnit win_snap = *atk;
@@ -351,7 +351,7 @@ bool units_resolve_land_combat_ff_w(
      * stands; they fall with the colony (entry seizure) instead. The
      * attacker-loss sweep below stays unconditional, as in DOS.
      *
-     * bugs.md: the raw type byte is not the faithful test in THIS port. DOS
+     * port_bugs.md: the raw type byte is not the faithful test in THIS port. DOS
      * stores a colony-armed colonist as @UNIT type 1 "Soldiers" (attack 2);
      * the port keeps the colonist body and hangs muskets/horses on it, so its
      * type byte is 0. Reading `at->attack` alone therefore made every armed
@@ -443,7 +443,7 @@ bool units_resolve_land_combat_ff_w(
     const int def_nation = def->nation_id;
     const ColonizeUnit win_snap = *def;
     const ColonizeUnit lose_snap = *atk;
-    /* bugs.md #240: loss outcome popups first, then @EUROPELOSE (DOS order). */
+    /* port_bugs.md #240: loss outcome popups first, then @EUROPELOSE (DOS order). */
     g_units_loss_winner_attacked = 0;
     (void)units_apply_land_loss_outcome(pool, attacker_id, defender_id, col1, 1, rng);
     g_units_loss_winner_attacked = 1;
@@ -457,7 +457,7 @@ bool units_resolve_land_combat_ff_w(
       }
     }
     /*
-     * bugs.md #473: NO sweep of the attacker's origin tile. DOS 1b0e does run
+     * port_bugs.md #473: NO sweep of the attacker's origin tile. DOS 1b0e does run
      * 0ec0 on the attacker after a loss (raw 100759-100760), but before the
      * roll it has already lifted the attacker off its tile: raw 100568
      * FUN_281f_0916(param_1) = FUN_1427_12f6, which for a land unit is
@@ -665,7 +665,7 @@ bool units_resolve_naval_combat_ff_w(
         tok.string1 = dt->name[0] ? dt->name : "";
         tok.string2 = units_combat_nation_label(col1, atk->nation_id);
         tok.string3 = at->name[0] ? at->name : "";
-        /* GAME.TXT @EVASIVE only; a catalog miss is "" (bugs.md #1099). */
+        /* GAME.TXT @EVASIVE only; a catalog miss is "" (port_bugs.md #1099). */
         units_combat_enqueue_tok(
           AI_POPUP_TAG_COMBAT_SHIP, "EVASIVE", def->nation_id, atk->nation_id, 0, &tok, ""
         );
@@ -696,7 +696,7 @@ bool units_resolve_naval_combat_ff_w(
       const int is_priv = units_type_is_privateer(wt);
       const int human = units_combat_human_involved(col1, atk_nation, def_nation);
       /*
-       * bugs.md: the "captured/seized" cue belongs to a Privateer (or the
+       * port_bugs.md: the "captured/seized" cue belongs to a Privateer (or the
        * Royal Navy) taking an UNARMED transport as a prize — and only when
        * the prize is actually TAKEN (sunk/seized), not when it escapes
        * damaged. A warship defeating a warship is damage-or-sink only.
@@ -704,7 +704,7 @@ bool units_resolve_naval_combat_ff_w(
       const int def_transport = dt && dt->attack == 0;
       if (human && def_transport && !def_alive && !is_priv) {
         /*
-         * Crown / warship seizure → Royal Navy @SEIZURESEA. bugs.md #986: a
+         * Crown / warship seizure → Royal Navy @SEIZURESEA. port_bugs.md #986: a
          * PRIVATEER prize gets no dialog here. @SEIZURE* is Royal Navy / Army
          * wording and no catalog section covers a privateer capture, so the
          * port shows nothing rather than typed English; the real DOS cue is
@@ -766,7 +766,7 @@ int units_coastal_fort_attack_strength(
     return 0;
   }
   /*
-   * DOS-LITERAL FUN_364b_03f6 raw 57040-57058 (bugs.md #764): the tier is a
+   * DOS-LITERAL FUN_364b_03f6 raw 57040-57058 (port_bugs.md #764): the tier is a
    * SUM of two independent stockade-level probes, not an either/or —
    *   local_c  = (FUN_281f_09fc(1) != 0);            // Fort level
    *   if (FUN_281f_09fc(2) != 0) local_c++;          // Fortress level
@@ -794,7 +794,7 @@ int units_coastal_fort_attack_strength(
   /* DOS-LITERAL raw 57053-57057: the chain walk counts EVERY unit on the tile
    * with type byte 0x0b; there is no nation test and no damaged-bit test. The
    * port-side `u->nation_id != colony->nation_id` filter was removed
-   * 2026-09-23 (bugs.md #764). */
+   * 2026-09-23 (port_bugs.md #764). */
   for (const ColonizeUnit* u = units_next_on_tile_const(units, colony->x, colony->y, &tile_cursor);
        u != NULL; u = units_next_on_tile_const(units, colony->x, colony->y, &tile_cursor)) {
     const ColonizeUnitType* t = units_type(units, u->type_index);
@@ -811,7 +811,7 @@ int units_coastal_fort_attack_strength(
 }
 
 /*
- * bugs.md #465. DOS-LITERAL FUN_364b_03f6 raw 57082-57083:
+ * port_bugs.md #465. DOS-LITERAL FUN_364b_03f6 raw 57082-57083:
  *
  *     rel = FUN_281f_0a38(colony_nation, ship_nation);
  *     if ((rel & 0x40) == 0 || ship_type == 0x10) { fire; }
@@ -896,7 +896,7 @@ bool units_fort_vs_ship(
   if (defense < 0) {
     defense = 0;
   }
-  /* bugs.md #261: DOS engages through the real resolver (temp attacker →
+  /* port_bugs.md #261: DOS engages through the real resolver (temp attacker →
    * FUN_5fef_1b0e), so a fort firing on a human-visible ship shows the
    * Combat Analysis dialog before the roll, same as any naval fight. */
   {
@@ -927,7 +927,7 @@ bool units_fort_vs_ship(
   }
   if (atk_wins) {
     /*
-     * bugs.md #249: DOS engages via the REAL naval resolver (temp attacker →
+     * port_bugs.md #249: DOS engages via the REAL naval resolver (temp attacker →
      * FUN_5fef_1b0e), so a fort win lands the same outcomes as any naval
      * fight: holds lost, damage-vs-sink roll (fort strength as "guns"),
      * damaged ship relocates to the repair port with the DOS repair timer
@@ -939,7 +939,7 @@ bool units_fort_vs_ship(
     /* Same DOS 0352 roll as the naval path — fort strength stands in for the
      * winner's @UNIT guns column. See units_ship_damage_vs_sink. */
     int damaged = units_ship_damage_vs_sink(rng, attack_str, lhull);
-    /* bugs.md #867: DOS reaches 0352 through the 1b0e temp attacker, so the
+    /* port_bugs.md #867: DOS reaches 0352 through the 1b0e temp attacker, so the
      * raw 99527-99570 gate applies here too. `wt` NULL = the winner is not a
      * unit type (only the Frigate-vs-Frigate clause reads it). */
     damaged = units_naval_damage_gate(pool, col1, def, NULL, fort_nation, damaged);
@@ -953,7 +953,7 @@ bool units_fort_vs_ship(
         damaged = 0; /* WoI human with no drydock port: she goes down */
       }
     }
-    /* bugs.md #464: 364b_03f6 resolves through the real combat resolver
+    /* port_bugs.md #464: 364b_03f6 resolves through the real combat resolver
      * (FUN_291f_0a14 = FUN_5fef_1b0e, raw 57095), so the fort's kill gets
      * 1b0e's own outcome redraw — the FUN_281f_03ea fizzle. Snapshot the
      * "before" frame while the ship is still on its tile. */
@@ -975,7 +975,7 @@ bool units_fort_vs_ship(
        * %STRING2 %STRING3 = the winner nation + hull (0352 raw 99654-99658).
        * The fort's temp attacker has no unit type of its own, so the pair is
        * the firing nation and an empty hull — the old "shore"/"batteries"
-       * words were typed English, not catalog text (bugs.md #987).
+       * words were typed English, not catalog text (port_bugs.md #987).
        */
       tok.string2 = units_combat_nation_label(col1, fort_nation);
       tok.string3 = "";
@@ -984,13 +984,13 @@ bool units_fort_vs_ship(
       );
       units_play_event_sound(0x57);
     }
-    /* FUN_5fef_0352 raw 99653-99690: Royal-flagged hull lost → tax cut (bugs.md #659). */
+    /* FUN_5fef_0352 raw 99653-99690: Royal-flagged hull lost → tax cut (port_bugs.md #659). */
     (void)units_royal_loss_tax_cut((ColonizeCol1Save*)col1, pool, def);
     units_despawn(pool, defender_id);
     units_dissolve_notify(1);
     return true;
   }
-  /* bugs.md #249: fort loses the exchange → NOTHING happens (DOS undoes the
+  /* port_bugs.md #249: fort loses the exchange → NOTHING happens (DOS undoes the
    * temp attacker and the ship sails on; the old ship-slow was invented). */
   return false;
 }
@@ -1017,14 +1017,14 @@ bool units_fort_vs_ship(
  *      `spent += 50` (dead stop), else Fort (09fc(1)) → `spent += 2`,
  *      Stockade/none → nothing. @SHIPSLOW (0x1a5a) with the building name
  *      when the mover is human. Independent of fort fire (that is the
- *      end-of-turn 5fef_1b0e temp-attacker path; bugs.md #249).
+ *      end-of-turn 5fef_1b0e temp-attacker path; port_bugs.md #249).
  *
  * 312e power = max MP thirds + 3, ×2 for a Privateer (0x10), +3 for a
  * Galleon (0x0f), −4 per hold in use, floor 1. Type ids: 13 Caravel .. 18
  * Man-O-War (docs/units.md). Port keeps Euro ships' countdown in
  * moves, so `spent += n` is `moves -= n` floored at 0.
  */
-/* bugs.md #868/#869: 312e has exactly ONE port spelling —
+/* port_bugs.md #868/#869: 312e has exactly ONE port spelling —
  * units_naval_evade_power (units_combat.c). The copy that used to live here
  * subtracted 4 per PASSENGER (`cargo_count`) where DOS raw 98448 reads
  * +0x3150, the goods-hold count. */
@@ -1125,7 +1125,7 @@ void units_ship_slow_scan_w(
        * DOS-LITERAL FUN_5bfb_3180 raw 98530-98588: the inner walk is the
        * TILE CHAIN (`local_44 = FUN_281f_02e4(...)`) filtered only on type
        * 0x0d..0x12. `local_46` (the top unit's nation) is read for the gate
-       * and the popup, never as a per-link filter — bugs.md #878(i). The
+       * and the popup, never as a per-link filter — port_bugs.md #878(i). The
        * port used to skip stackmates of a different nation than the tile's
        * top unit.
        */
@@ -1235,7 +1235,7 @@ void units_ship_slow_scan_w(
  *
  * DOS writes the order byte only; the port routes through units_wake so its
  * hold-passenger MP rule stays the single owner of that.
- * bugs.md #539 (REF landfall left the garrison's Sentry units asleep).
+ * port_bugs.md #539 (REF landfall left the garrison's Sentry units asleep).
  */
 /*
  * aiStack_20[nation] after FUN_5bfb_3180's encounter call for a neighbour of
@@ -1379,7 +1379,7 @@ static int units_coastal_fort_fire_impl(
     if (atk <= 0) {
       continue;
     }
-    /* bugs.md #261: analysis header for the unit-less attacker. */
+    /* port_bugs.md #261: analysis header for the unit-less attacker. */
     char fort_label[80];
     {
       const int fortress = colonies_building_row(colonies, COLONY_BUILDING_FORTRESS);
@@ -1402,7 +1402,7 @@ static int units_coastal_fort_fire_impl(
         continue;
       }
       /*
-       * bugs.md #465: ONE shot per neighbour tile, at the first SHIP in that
+       * port_bugs.md #465: ONE shot per neighbour tile, at the first SHIP in that
        * tile's stack — FUN_364b_03f6 (raw 57068-57076) walks the stack with
        * FUN_281f_02e4 only until the type byte lands in 0x0d..0x12, then
        * tests that one unit's nation nibble and fires. A tile whose stack
@@ -1451,7 +1451,7 @@ static int units_coastal_fort_fire_impl(
             AI_POPUP_TAG_COMBAT_SHIP, "FORTFIRE", col->nation_id, ship_nation, 0, &tok, ""
           );
           /*
-           * bugs.md #535: DOS announces and THEN resolves, one fort at a
+           * port_bugs.md #535: DOS announces and THEN resolves, one fort at a
            * time - raw 57104-57105 fires the blocking @FORTFIRE dialog
            * (FUN_281f_0652, tag 0xd7f) and only once it is answered calls
            * FUN_291f_0a14 (= FUN_5fef_1b0e), which draws the Combat
@@ -1471,9 +1471,9 @@ static int units_coastal_fort_fire_impl(
         }
         /* Drain this fort's own outcome chrome (@SHIPSUNK / repair notice)
          * before the next fort fires - the pump this pulse was missing
-         * (bugs.md #535); units_fort_vs_ship has none of its own. */
+         * (port_bugs.md #535); units_fort_vs_ship has none of its own. */
         units_combat_pump_popups();
-        /* bugs.md #249: fort loss/miss → nothing happens, no chrome. */
+        /* port_bugs.md #249: fort loss/miss → nothing happens, no chrome. */
       }
     }
   }
@@ -1537,7 +1537,7 @@ static bool units_at_war_for_move_target(
     return false;
   }
   /*
-   * bugs.md: an INDIAN mover walking into a Euro must not open combat on a
+   * port_bugs.md: an INDIAN mover walking into a Euro must not open combat on a
    * wander — that made Indians attack units with zero alarm. A native
    * attack now needs real hostility: the Indian×Euro war flag, or alarm at
    * the "already hostile" cut (0x4b). No Treasure exception: DOS has no
@@ -1588,7 +1588,7 @@ bool units_at_war_for_move(const ColonizeCol1Save* col1, int nation_a, int natio
 }
 
 /*
- * bugs.md #439: refusing an Indian demand writes +0x80 into the VILLAGE's own
+ * port_bugs.md #439: refusing an Indian demand writes +0x80 into the VILLAGE's own
  * attitude word (LAB_5bfb_0ff2), and DOS treats a village grudge over 0x7f as
  * hostility in its own right (the same `0x7f <` test FUN_521d_0906 uses on
  * DS:0x54f6). The nation-level gate above never sees that word, so a refused

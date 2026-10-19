@@ -4827,7 +4827,7 @@ return 1;
 
 Terrain class **25 (Ocean) / 26 (High Seas)** — the same predicate already
 named in `SYMBOL_MAP.md` (`ai_is_ocean_hs`), used by `ai.c:693`, by the Indian
-claim table (`colonies_indian_claim_tribe_from`, bugs.md 372) and by the 4cc6
+claim table (`colonies_indian_claim_tribe_from`, port_bugs.md 372) and by the 4cc6
 threat ring (`docs/indians.md:278`). Port counterpart: `map_tile_is_water`
 (`map_is_ocean_index` = `MAP_OCEAN_INDEX || MAP_HIGH_SEAS_INDEX`). The 20e6
 notes had simply never connected the two; nothing was undecoded.

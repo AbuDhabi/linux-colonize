@@ -144,7 +144,7 @@ int ai_native_first_contact_this_turn(int nation_id, int euro_nation);
  */
 void ai_native_reset(void);
 
-/* New-game / load hook: zero the DS:0x9faa coarse plane (bugs.md #1103). */
+/* New-game / load hook: zero the DS:0x9faa coarse plane (port_bugs.md #1103). */
 void ai_coarse_fog_reset(void);
 
 /* FUN_281f_04ca: reseed the shared RNG from the DOS timer word (per-slot entry points). */

@@ -47,7 +47,7 @@
 
 
 /*
- * Cool an Indian×Euro pair by `amount` (bugs.md #1007). Goes through the whole
+ * Cool an Indian×Euro pair by `amount` (port_bugs.md #1007). Goes through the whole
  * of FUN_4cc6_00f2, so the cooling also clears the attack-confirmed bit and,
  * below 0x4b, the war bit, and runs the 5-point village-word tier clamp — all
  * of which the old raw store on alarm_by_player[e] bypassed. It writes no
@@ -73,7 +73,7 @@ static void ai_contact_pair_cool(
  * FUN_5bfb_102a is a plural/singular text formatter with no gold or alarm
  * arithmetic — so these are a stand-in, now reached only from
  * ai_contact_gift_or_demand; the invented player-driven gift CHOICE that used
- * to call it with −5 was deleted with bugs.md #1006.
+ * to call it with −5 was deleted with port_bugs.md #1006.
  * Pocahontas: gift decays full friction (half-rate applies only to positive
  * alarm/friction bumps — prelude/encroachment/raid; wiki/fandom).
  */
@@ -92,7 +92,7 @@ void ai_contact_apply_gift_gold(
     return;
   }
   /*
-   * bugs.md #1005: the nation alarm scalar alone (FUN_281f_030c), not a
+   * port_bugs.md #1005: the nation alarm scalar alone (FUN_281f_030c), not a
    * max() over the tribes' DS:0x54f6 attitude words. DOS's gift/demand gates
    * read 030c; the only gate reads of a village word (FUN_5bfb_022e raw
    * 87333, FUN_4962_0018 raw 94967) are keyed on the acting Brave's OWN home
@@ -370,7 +370,7 @@ int ai_contact_enqueue_incite_target_choice(
   /*
    * 83616-83617: with the WoI latch set there is no menu step at all —
    * `local_14 = *(int *)0x53d2` and the body falls straight into the met
-   * gate + @INDIANWARPATH2 price confirm. bugs.md #961.
+   * gate + @INDIANWARPATH2 price confirm. port_bugs.md #961.
    */
   if (woi_fixed) {
     ai_contact_enqueue_incite_confirm(
@@ -684,7 +684,7 @@ static int ai_contact_demand_can_pay_gold(const ColonizeTurnContext* ctx, int e)
 /*
  * Shared 40..54 demand band gate (audit AC-4): must be met, and the nation
  * alarm scalar must sit in the mid band — below 40 there is nothing to
- * appease, at 55 and above the tribe refuses to talk at all. bugs.md #1005:
+ * appease, at 55 and above the tribe refuses to talk at all. port_bugs.md #1005:
  * reads ai_diplo_indian_alarm (FUN_281f_030c), not a max() over the tribes'
  * attitude words.
  */
@@ -1159,7 +1159,7 @@ void ai_contact_gift_or_demand(
   /*
    * Same ≥55 gate as refuse-talk/teach: alarmed → no gift and no demand
    * payoff (no invented gold penalties). Cite: fandom Alarm — refuse trade.
-   * bugs.md #1005: the gate is the nation alarm scalar alone; the village
+   * port_bugs.md #1005: the gate is the nation alarm scalar alone; the village
    * attitude words are per-village state and DOS never maxes them here.
    * The wording band below is chrome only — it still asks whether any
    * village of the nation is sour enough to be in the demand band, which
@@ -1273,7 +1273,7 @@ void ai_contact_gift_or_demand(
  * Euro colony's relevant stock `> 0x4a` (74) — matches the user's own
  * independently-reported trigger condition ("only ever seen with
  * substantial food stores") — then `dos_rng_range(1,100) <= (ask-bid)`.
- * Which branch is which (re-read off the decompile 2026-08-31, bugs.md):
+ * Which branch is which (re-read off the decompile 2026-08-31, port_bugs.md):
  * the choice returns `local_c`, and it is `local_c == 2` — the second
  * GAME.TXT row, "We offer you {%NUMBER0} of our {%NUMBER1 food}" — that
  * subtracts `colony->food >> 1`. So the *half is the voluntary gift*, and
@@ -1304,7 +1304,7 @@ void ai_contact_gift_or_demand(
  * food at +0x9a). The same half is what NUMBER0 names in the accept row
  * ("We offer you {%NUMBER0} of our {%NUMBER1 food}") and what accepting
  * actually hands over, so label and effect read it from here rather than
- * computing it twice. Was a quarter, which under-asked (bugs.md).
+ * computing it twice. Was a quarter, which under-asked (port_bugs.md).
  */
 static int ai_contact_beg_food_gift(const ColonizeColony* c) {
   if (!c) {
@@ -1332,7 +1332,7 @@ static int ai_contact_beg_food_gift(const ColonizeColony* c) {
  *
  * and then the demand half is `if (!bVar6) { LAB_5bfb_0def ... }`.
  *
- * bugs.md ("Incas ... I have no colonies over there ... demanding stuff"):
+ * port_bugs.md ("Incas ... I have no colonies over there ... demanding stuff"):
  * the port split 022e's two halves into two functions, and only the gift half
  * evaluated bVar6. The @INDIANWAGONS flavor of the demand half needs no colony
  * at all, so for a Brave that wandered up to a lone Wagon Train the gift half
@@ -1377,7 +1377,7 @@ void ai_contact_visit_mood_publish(
  * visit (`if (!bVar6)` at raw 87716 is then false, so LAB_5bfb_0def is
  * skipped and control reaches LAB_5bfb_096c), carrying bVar7 with it.
  * This publishes that pair for ai_contact_try_village_gifts to read.
- * bugs.md #863.
+ * port_bugs.md #863.
  */
 static void ai_contact_visit_mood_beg_conceded(const ColonizeTurnContext* ctx, int nation_id, int e) {
   if (nation_id < 4 || nation_id > 11 || e < 0 || e > 3) {
@@ -1562,7 +1562,7 @@ void ai_contact_apply_beg_food(
      * alarm is walked down in steps of 5 (base -5, -10 from a capital)
      * until it lands under 0x47 --- `while (alarm + d >= 0x47) d -= 5;`.
      * Giving cannot make them angrier; the earlier port had the accept and
-     * refuse effects the wrong way round (bugs.md).
+     * refuse effects the wrong way round (port_bugs.md).
      */
     const int gift = ai_contact_beg_food_gift(c);
     c->stock[COLONIZE_CARGO_FOOD] -= gift;
@@ -1586,7 +1586,7 @@ void ai_contact_apply_beg_food(
       );
     }
     /*
-     * DOS-LITERAL FUN_5bfb_022e raw 87687-87698 (bugs.md #863): the conceded
+     * DOS-LITERAL FUN_5bfb_022e raw 87687-87698 (port_bugs.md #863): the conceded
      * beg does NOT end the visit. It sets bVar7, and when the encounter was
      * not already generous it rolls `rand(0, difficulty)` and abandons the
      * visit on a non-zero draw; otherwise it forces bVar6 true and stamps
@@ -1660,7 +1660,7 @@ void ai_contact_apply_beg_food(
 /*
  * "A Brave walked up to this colony this turn."
  *
- * bugs.md #824 (2026-09-23): the gift and beg halves now run from the
+ * port_bugs.md #824 (2026-09-23): the gift and beg halves now run from the
  * Brave's own step (ai_native_step_first_contact), so for them this is no
  * longer a reconstruction of the trigger — it is the selector that picks the
  * Brave that is mid-step. The village-trade/reparations arm in
@@ -1754,7 +1754,7 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
     return 0;
   }
   /*
-   * bugs.md: DOS begs at the colony a Brave actually walked next to — the
+   * port_bugs.md: DOS begs at the colony a Brave actually walked next to — the
    * tribe cannot ask from across the map. The walked-up trigger below plus
    * the per-turn contact_state latch are DOS's whole pacing (see the visit
    * pacing note at the top of this file); there is no turn cooldown.
@@ -1805,7 +1805,7 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
           continue;
         }
         /* Same DOS move-tail selector as the gift half — see the helper.
-         * bugs.md #824: this arm now runs from the Brave's own step, so the
+         * port_bugs.md #824: this arm now runs from the Brave's own step, so the
          * test picks the stepping Brave rather than reconstructing one. */
         if (!ai_contact_brave_walked_up_to(bu, c->x, c->y) &&
             !ai_contact_is_visit_brave(ctx, nation_id, e, bu)) {
@@ -1825,7 +1825,7 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
       continue;
     }
     /*
-     * bugs.md 2026-09-04 (bug 6, "do Aztecs really beg?"): DOS scores the
+     * port_bugs.md 2026-09-04 (bug 6, "do Aztecs really beg?"): DOS scores the
      * economics of the VISITING Brave's own village (FUN_281f_0a4c binds
      * `unit+0x314a`, its home settlement, before FUN_2a1f_0434 runs), so
      * whether a tribe begs is a per-village terrain/population question, not
@@ -1870,7 +1870,7 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
     if (ai_contact_euro_is_human(ctx, e)) {
       const ColonizeColony* beg_colony = &ctx->colonies->colonies[best_ci];
       /*
-       * bugs.md 2026-09-04: DOS FUN_5bfb_022e visibly walks the visitor into
+       * port_bugs.md 2026-09-04: DOS FUN_5bfb_022e visibly walks the visitor into
        * the colony (FUN_281f_0e08/02d0/09ba slide) before the popup — reuse
        * the combat-bump watch so the visit reads on screen first.
        */
@@ -1881,7 +1881,7 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
       tok.string0 = ai_contact_tribe_name(nation_id);
       tok.string1 = beg_colony->name;
       /*
-       * bugs.md: the accept row is "We offer you {%NUMBER0} of our
+       * port_bugs.md: the accept row is "We offer you {%NUMBER0} of our
        * {%NUMBER1 food}" — without these it offered 0. NUMBER0 is exactly what
        * accepting hands over, NUMBER1 the colony's whole store.
        */
@@ -2060,7 +2060,7 @@ int ai_contact_ai_incite_human(
  */
 
 /*
- * (Retired 2026-09-22, bugs.md #557.) ai_contact_missionary_convert and
+ * (Retired 2026-09-22, port_bugs.md #557.) ai_contact_missionary_convert and
  * ai_contact_missionary_flee lived here, plus the ai_contact_step_tile_ok /
  * _step_commit / _flee_one_tile helpers they alone used: a standing-adjacency
  * pulse that established missions, rolled a 50/50 heresy, bumped crosses,
@@ -2300,7 +2300,7 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
   }
 
   /*
-   * Retired 2026-09-03 (bugs.md "alarm rises incredibly fast"): the former
+   * Retired 2026-09-03 (port_bugs.md "alarm rises incredibly fast"): the former
    * unit-encroacher and colony-encroachment +2/turn direct bumps on tribe
    * friction + alarm_by_player were fandom-invented, not DOS. DOS's per-turn
    * channel is only FUN_4d56_152e's threat-score accumulator (colonies within
@@ -2308,7 +2308,7 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
    * −8 crossing = alarm +1), which a 1-colonist colony scores ~0 on — hence
    * decades of quiet in DOS vs ~50 turns to alarm 100 here.
    *
-   * 2026-09-30 (bugs.md #1002): that is not the whole story, and this note
+   * 2026-09-30 (port_bugs.md #1002): that is not the whole story, and this note
    * used to read "DOS's sole alarm grower". Real encroachment alarm is a
    * DISCRETE charge, not a drip — FUN_0000_6582, the shared colony tiles[]
    * writer, bills 10..60 the first time a colonist is seated on tribal land
@@ -2462,7 +2462,7 @@ void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id) {
    * saves) — the real ±1 is the 152e accumulator in ai.c. Friction part kept.
    */
   /*
-   * Retired 2026-09-03 (bugs.md "alarm rises incredibly fast"): the fandom
+   * Retired 2026-09-03 (port_bugs.md "alarm rises incredibly fast"): the fandom
    * friction ±1-per-turn band drift is gone with the encroachment bumps —
    * DOS friction moves only through 152e (mission −3·local_8, threat-word
    * bump + alarm/5) and discrete events (trade, raids, land-work), never a

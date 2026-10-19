@@ -75,7 +75,7 @@ extern void* g_units_dissolve_user;
 extern ColonizeCol1Save* g_units_fallout_col1;
 extern ColonizeWorldMap* g_units_fallout_map;
 extern const ColonizeCol1Save* g_units_ff_col1;
-/* bugs.md #1112: the save a _w body reads -- the world's when it carries a
+/* port_bugs.md #1112: the save a _w body reads -- the world's when it carries a
  * loaded one, else the g_units_ff_col1 turn context (views built without
  * col1: game_loop_orders, the AI sea attack, bare fixtures). The global is
  * const; the 465b body writes alarm / diplo bytes into it, hence this one
@@ -135,7 +135,7 @@ void units_play_event_sound(int id);
 int units_promote_on_win( ColonizeUnitPool* pool, ColonizeUnit* winner, const ColonizeCol1Save* col1, int winner_str, int loser_str, ColonizeDosRng* rng );
 void units_set_bgm_pool(int pool);
 int units_ship_damage_vs_sink( ColonizeDosRng* rng, int winner_guns, int loser_hull );
-/* FUN_5fef_0352 raw 99527-99570 damage-vs-sink gate (bugs.md #867). */
+/* FUN_5fef_0352 raw 99527-99570 damage-vs-sink gate (port_bugs.md #867). */
 int units_naval_damage_gate( const ColonizeUnitPool* pool, const ColonizeCol1Save* col1, const ColonizeUnit* lose, const ColonizeUnitType* wt, int winner_nation, int damaged );
 void units_ship_enter_repair( ColonizeUnitPool* pool, ColonizeUnit* lose, int wstr, const ColonizeColony* home, const ColonizeCol1Save* col1, int human, int winner_nation );
 void units_ship_lose_holds(ColonizeUnitPool* pool, int ship_id);
@@ -144,7 +144,7 @@ void units_sweep_stack_after_loss( ColonizeUnitPool* pool, int x, int y, int los
 int units_tribe_nation_at(const ColonizeCol1Save* col1, int x, int y);
 
 /* --- owned by units_combat_resolve.c --- */
-/* col1: the caller's units_world_col1 (bugs.md #1112). */
+/* col1: the caller's units_world_col1 (port_bugs.md #1112). */
 bool units_at_war_for_move(const ColonizeCol1Save* col1, int nation_a, int nation_b);
 void units_capture_claim_ring(ColonizeWorldMap* map, int x, int y, int new_owner);
 int units_colony_plunder_stock_sum(const ColonizeColony* col);
@@ -164,7 +164,7 @@ void units_try_capture_foreign_colony_at( ColonizeUnitPool* pool, ColonizeColony
 /* --- owned by units_move.c --- */
 const char* units_order_name(int orders);
 
-/* units_try_move_w = FUN_465b_0000 stage split (bugs.md #1107). Stages run in
+/* units_try_move_w = FUN_465b_0000 stage split (port_bugs.md #1107). Stages run in
  * DOS order; each returns CONTINUE or the dispatcher's return value. */
 typedef enum UnitsMoveStatus {
   UNITS_MOVE_CONTINUE = 0,

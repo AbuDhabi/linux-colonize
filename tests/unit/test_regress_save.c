@@ -1,5 +1,5 @@
 /*
- * Regression guards for FIXED bugs.md rows that had no test (gap audit
+ * Regression guards for FIXED port_bugs.md rows that had no test (gap audit
  * 2026-09-26). Slice: save.
  */
 #include <stdio.h>

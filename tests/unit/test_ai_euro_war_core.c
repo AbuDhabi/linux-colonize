@@ -308,7 +308,7 @@ static int unit_peace_tail_does_not_open_war(void) {
 }
 
 /*
- * bugs.md #521 — defended-colony assault through the goal-consumption tail.
+ * port_bugs.md #521 — defended-colony assault through the goal-consumption tail.
  * A land unit carrying a MILITARY goal on a defended foreign colony must
  * resolve its goto step as an attack: FUN_465b_0000 fights the tile's BEST
  * DEFENDER (FUN_5fef_0000), so neither a berthed foreign hull on the colony

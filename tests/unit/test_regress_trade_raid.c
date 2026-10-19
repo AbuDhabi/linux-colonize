@@ -1,5 +1,5 @@
 /*
- * Regression guards for FIXED bugs.md rows that had no test (gap audit
+ * Regression guards for FIXED port_bugs.md rows that had no test (gap audit
  * 2026-09-26). Slice: trade_raid.
  */
 #include "core/ai_contact.h"
@@ -105,7 +105,7 @@ static int case_830_stores_amount_is_a_roll(void) {
  *   (b) the 0xf "give up" cargo id: 0xf is COLONIZE_CARGO_COUNT-1 (16 goods,
  *       ids 0..15), a slot this colony never stocks, forcing the retry loop
  *       to keep spinning and burn the dummy rand(0,200) whenever the roll
- *       lands on MUSKETS (bugs.md note (c)) -- exercised implicitly by the
+ *       lands on MUSKETS (port_bugs.md note (c)) -- exercised implicitly by the
  *       loop terminating deterministically for a fixed seed.
  * Both are pinned by fixing seed+colony stock so the roll is forced onto the
  * horse-substitution branch, and by checking the picked cargo differs from

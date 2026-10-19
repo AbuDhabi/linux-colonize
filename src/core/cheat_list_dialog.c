@@ -84,7 +84,7 @@ bool cheat_list_catalog_rows(
 }
 
 /*
- * Shared DEBUG.TXT list-section parser for @SETVIEW / @SETHUMAN (bugs.md #1111:
+ * Shared DEBUG.TXT list-section parser for @SETVIEW / @SETHUMAN (port_bugs.md #1111:
  * the two copies drifted on @width= and the overflow id). First text line is
  * the prompt, the rest are rows; row i gets ids[i], and any row past the
  * table keeps the last row's id (the "no special view" / "none" choice).
@@ -175,7 +175,7 @@ bool cheat_list_open_kill_indians(CheatListDialog* dlg, const ColonizeMsgCatalog
   dlg->has_result = false;
   dlg->kind = CHEAT_LIST_KIND_KILL_INDIANS;
   dlg->width = 190;
-  /* bugs.md #990: no DEBUG.TXT section carries a prompt for the kill-tribe
+  /* port_bugs.md #990: no DEBUG.TXT section carries a prompt for the kill-tribe
    * cheat, so the rows (the @TRIBES names) stand alone. */
   dlg->prompt[0] = '\0';
 
@@ -216,7 +216,7 @@ static bool cheat_list_open_simple_list(
   dlg->kind = kind;
   dlg->width = width;
   dlg->multi_select = false;
-  /* Catalog miss = empty prompt, never typed English (bugs.md #990). */
+  /* Catalog miss = empty prompt, never typed English (port_bugs.md #990). */
   str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), prompt ? prompt : "");
   for (int i = 0; i < count; ++i) {
     str_copy_trunc(

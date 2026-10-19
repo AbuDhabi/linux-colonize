@@ -54,7 +54,7 @@ fails many cases.
 | `test_ai_euro_war.c` (5381, 42) | `unit_ai_euro_war_core` (merc hire, 5952 labor, peace/goal tails, g-stance), `_naval` (hunts, privateers, ambush), `_land` (adjacent combat + defender ladder), `_garrison` (fortify/quota), `_transport` (unload, war transport) |
 | `test_ai_king.c` (4735, 14) | `unit_ai_king_core` (old narrative kept as an ordered cumulative spine; 35 prefix cases + 1 independent `dump_goods_pick_api`), `_war` (war event, non-combat gate, 43f7 spawn types), `_revolution` (end ladder: @LOSING/@WARN/@WINNING/@RETIRING2/@SCORED) |
 
-### Regression guards for FIXED bugs.md rows
+### Regression guards for FIXED port_bugs.md rows
 
 `tests/unit/test_regress_*.c` (`unit_regress_units`, `_ai_tables`,
 `_production`, `_trade_raid`, `_save`) came out of the 2026-09-26 test-gap
@@ -79,9 +79,9 @@ cannot be caught at all (`strings -n 5`), and generic words (`ship`, `units`,
 
 Examples: `golden_mapgen_seed100`, `golden_colony_prod01`/`02`,
 `golden_market_prices01` (full turn, all four nations' ledgers + demand pool;
-its two dutch2 exclusions are bugs.md #1085). Every exclusion a golden makes
+its two dutch2 exclusions are port_bugs.md #1085). Every exclusion a golden makes
 must name its reason in the test and, if it hides an unresolved DOS
-difference, hold a bugs.md row.
+difference, hold a port_bugs.md row.
 
 **AI gates are all live (since 2026-09-05).** No test in `CMakeLists.txt` is
 `DISABLED`. The cluster was parked 2026-08-19 while the AI
@@ -216,7 +216,7 @@ hand-built its fixture instead of going through `tests/common/ai_fixture.h`'s
 4. If the change touches AI or turn code, also run
    `cmake --build build/debug --target golden_ai_joint` (not covered by
    plain `ctest`).
-5. Update the bugs.md row status to FIXED.
+5. Update the port_bugs.md row status to FIXED.
 
 Shorthand: `make test` runs build + `ctest` in one step, if a root
 `Makefile` is present.
