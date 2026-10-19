@@ -1575,9 +1575,12 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
    *         2 Treasure / 3 Artillery / 1 Wagon (thunk_FUN_2a1f_0470).
    *   } while (wave 1 acted someone);
    * i.e. each outer pass drains ONE wave-0 unit and ONE any-unit, highest
-   * id first, then rescans from the top. Port keeps the `guard < 64`
-   * ceiling and breaks the inner drain on a no-progress act (DOS relies on
-   * the >0x14 sticky clear alone).
+   * id first, then rescans from the top. DOS has no pass limit, so a nation
+   * needs one pass per unit it moves: the port's old `guard < 64` ceiling left
+   * every unit below the 64th unacted (America seed-100 pair 166 -> 167:
+   * England's slots 67, 62, 60, 52, 49 kept their MP and 0a60 orders). The
+   * port breaks the inner drain on a no-progress act (DOS relies on the >0x14
+   * sticky clear alone).
    *
    * That DOS shape is the default since 2026-09-15. AI_6D8E_DOS_LOOP=0
    * restores the legacy "wave 0 = ships, one act per unit per pass" shape
@@ -1724,7 +1727,9 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
       }
     }
     ++guard;
-  } while (any_acted && guard < 64);
+    /* ponytail: spin backstop only (an act that flips orders back and forth
+     * without spending MP); a pass drains a unit, so a real turn ends far below. */
+  } while (any_acted && guard < COLONIZE_UNITS_MAX);
   /* A unit DOS spun to the sticky clear saves fully spent (independence-
    * seed-100 000002: the human at slot 3 autosaves after the AI slots act,
    * so their spent bytes survive the day top). Applied after the waves so

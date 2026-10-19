@@ -453,6 +453,29 @@ void ai_diplo_clear_both(ColonizeCol1Save* col1, int nation_a, int nation_b, uin
   );
 }
 
+/*
+ * DOS-LITERAL FUN_465b_0000 raw 75567-75593, computer Euro attacker vs Euro
+ * target (the caller has excluded Privateers, raw 75528-75529): a treaty in
+ * either byte is cleared both ways (FUN_281f_0a10 -> FUN_15b3_00d0, 0x40) and
+ * the attacker's war-intent bit 0x01 drops. No WAR bit and no DS:0x53c8
+ * write: only the human attacker's arm ORs 0x02 into the defender's byte, so
+ * an AI pair is left MET-only (0x20) until FUN_5bfb_13b0 re-signs it
+ * (America seed-100 saves 43/46/56/59).
+ */
+int ai_diplo_465b_band(ColonizeCol1Save* col1, int attacker, int defender) {
+  if (!col1 || attacker < 0 || attacker > 3 || defender < 0 || defender > 3 ||
+      attacker == defender) {
+    return 0;
+  }
+  const int treaty = ((ai_diplo_read(col1, attacker, defender) |
+                       ai_diplo_read(col1, defender, attacker)) & AI_DIPLO_PEACE) != 0;
+  if (treaty) {
+    ai_diplo_clear_both(col1, attacker, defender, AI_DIPLO_PEACE);
+  }
+  col1->nation[attacker].euro_relation[defender] &= (uint8_t)~AI_DIPLO_WAR_INTENT;
+  return treaty;
+}
+
 int ai_diplo_at_war(const ColonizeCol1Save* col1, int nation_a, int nation_b) {
   return (ai_diplo_read(col1, nation_a, nation_b) & AI_DIPLO_WAR) != 0;
 }
@@ -682,7 +705,9 @@ static void ai_diplo_wake_border_garrisons(
          * matched unit's slot index (id = slot + 1 on a fresh load, so
          * consistently the unit one slot BELOW the border garrison) and woke
          * nothing at all once ids passed 255. Fixed 2026-09-10 (Leads 1). */
-        units_clear_orders(ctx->units, u->id);
+        /* FUN_5bfb_12d0 raw 97248-97250 writes +0x314c = 0 only: the goto
+         * (+0x314d/e) survives (America seed-100 saves 57/60). */
+        u->orders = UNITS_ORDER_NONE;
         break;
       }
     }

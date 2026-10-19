@@ -755,6 +755,42 @@ static int pioneer_training_skipped_past_turn_99(void) {
 }
 
 /*
+ * The 5d04 dock walk is the DOS tile chain, newest arrival first (FUN_281f_07e0
+ * = 1427_005c + 0002, FUN_281f_02e4 = 1427_004a, raw 92627-92630), not slot
+ * order: walking slots handed the retype arms the wrong dock colonist
+ * (America seed-100 saves 44, 49, 52, 54).
+ */
+static int dock_walk_is_newest_first(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation, 5, 1) != 0) {
+    return 1;
+  }
+  const int older = spawn_europe_colonist(&f, nation, 0, 0x1c);
+  const int newer = spawn_europe_colonist(&f, nation, 0, 0x1c);
+  const int ship = spawn_europe_ship(&f, nation);
+  const int other = spawn_europe_colonist(&f, 2, 0, 0x1c); /* another nation's dock unit */
+  if (older < 0 || newer < 0 || ship < 0 || other < 0) {
+    fixture_free(&f);
+    return fail("spawn europe stack");
+  }
+  ai_euro_s_5d04_ctx = &f.ctx;
+  ai_euro_s_5d04_nation = nation;
+  int got[4] = {-1, -1, -1, -1};
+  int n = 0;
+  for (int i = ai_euro_5d04_cb_list_iter_first(0); i >= 0 && n < 4; i = ai_euro_5d04_cb_list_iter_next(i)) {
+    got[n++] = f.units.units[i].id;
+  }
+  ai_euro_s_5d04_ctx = NULL;
+  fixture_free(&f);
+  if (n != 3 || got[0] != ship || got[1] != newer || got[2] != older) {
+    fprintf(stderr, "walk n=%d ids %d,%d,%d (want %d,%d,%d)\n", n, got[0], got[1], got[2], ship, newer, older);
+    return fail("dock walk must follow the tile chain, newest arrival first");
+  }
+  return 0;
+}
+
+/*
  * port_bugs.md #555 — past turn 199 the Missionary-training arm is gated by
  * `FUN_281f_04d4(rng,0,3) == 0` (DOS-LITERAL FUN_521d_5d04 raw 92785-92788:
  * `iVar14 = FUN_281f_04d4(...); if (iVar14 != 0) goto LAB_521d_638a;`), i.e.
@@ -1010,6 +1046,7 @@ static const TestCase k_cases[] = {
     {"recruit_swap_follows_colonies_wanting_colonists", recruit_swap_follows_colonies_wanting_colonists},
     {"recruit_swap_spawns_sentry_and_refills_pool", recruit_swap_spawns_sentry_and_refills_pool},
     {"pioneer_training_skipped_past_turn_99", pioneer_training_skipped_past_turn_99},
+    {"dock_walk_is_newest_first", dock_walk_is_newest_first},
     {"missionary_bless_roll_matches_dos_one_in_four", missionary_bless_roll_matches_dos_one_in_four},
     {"dos_type_table_is_names_txt_unit_order", dos_type_table_is_names_txt_unit_order},
     {"hull_budget_space_uses_translated_type", hull_budget_space_uses_translated_type},

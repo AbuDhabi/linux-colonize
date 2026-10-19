@@ -345,9 +345,10 @@ int units_spawn_village_temp_defender(
   if (ti < 0) {
     return -1;
   }
-  if (!units_spawn_room(pool, indian_nation)) {
-    return -1;
-  }
+  /* No FUN_1427_06b4 room gate: FUN_478c_002c (raw 76545-76564) bumps
+   * DS:0x539c itself, so the phantom exists at the 0x124 unit cap too
+   * (America seed-100 from save ~200: refused phantoms let AI Dragoons walk
+   * onto village tiles instead of attacking). */
   const int id = units_spawn_allow_stack_nation(pool, ti, village_x, village_y, indian_nation);
   ColonizeUnit* u = units_get(pool, id);
   if (!u) {

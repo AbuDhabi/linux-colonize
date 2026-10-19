@@ -11,6 +11,7 @@
 #include "core/turn.h"
 #include "core/turn_internal.h"
 #include "core/units.h"
+#include "core/units_cargo.h"
 
 /* Record ids. Bump a record's version when its layout changes; readers of an
  * unknown version skip the record (the table then stays reset). */
@@ -23,8 +24,10 @@ enum {
   RT_FOG = 6,          /* v1: coarse fog plane DS:0x9faa, 0x10e bytes */
   RT_EURO_MISC = 7,    /* v1: 0a60 masks mil/found [4] u16, work_registered [4] i16, explorers[16],
                         *     village_visited[128], ship_pressure[4] {u8,u8,i32,i32}, sticky unit/count i32 */
-  RT_COLONY_PLOTS = 8, /* v1: per colony slot u32 plot_was_worked_mask (the 26e4 claim-table carry) */
+  RT_COLONY_PLOTS = 8, /* retired: per pool slot, which a load compacts (no longer read) */
   RT_PATH = 9,         /* v1: units_path_state_export (DS:0x1dd2 + flood cache) */
+  RT_COLONY_PLOTS_REC = 10, /* v1: u32 plot_was_worked_mask per colony in record order (26e4 carry) */
+  RT_HOLD_AMOUNT = 11, /* v1: i32 DS:0x8dc4 units_last_hold_amount (last 317c slot amount) */
 };
 
 #define RT_UNIT_TAIL_ENTRY 17
@@ -191,9 +194,18 @@ uint8_t* runtime_ext_serialize(
     rt_record(&b, RT_EURO_MISC, 1, p, sizeof p);
   }
   if (colonies) {
+    /* Record order = active colonies in slot order (the save drops holes). */
     uint8_t p[COLONIZE_COLONIES_MAX * 4];
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) wr_u32(p + i * 4, colonies->colonies[i].plot_was_worked_mask);
-    rt_record(&b, RT_COLONY_PLOTS, 1, p, sizeof p);
+    int n = 0;
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      if (colonies->colonies[i].active) wr_u32(p + n++ * 4, colonies->colonies[i].plot_was_worked_mask);
+    }
+    rt_record(&b, RT_COLONY_PLOTS_REC, 1, p, (size_t)n * 4);
+  }
+  {
+    uint8_t p[4];
+    wr_u32(p, (uint32_t)units_last_hold_amount);
+    rt_record(&b, RT_HOLD_AMOUNT, 1, p, sizeof p);
   }
   {
     uint8_t p[UNITS_PATH_STATE_SIZE];
@@ -268,10 +280,18 @@ void runtime_ext_deserialize(
       case RT_EURO_MISC:
         if (len == RT_EURO_MISC_SIZE) euro_misc_import(p);
         break;
-      case RT_COLONY_PLOTS:
-        if (colonies && len == COLONIZE_COLONIES_MAX * 4) {
-          for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) colonies->colonies[i].plot_was_worked_mask = rd_u32_le(p + i * 4);
+      case RT_COLONY_PLOTS_REC:
+        if (colonies && len % 4 == 0) {
+          size_t k = 0;
+          for (int i = 0; i < COLONIZE_COLONIES_MAX && k + 4 <= len; ++i) {
+            if (!colonies->colonies[i].active) continue;
+            colonies->colonies[i].plot_was_worked_mask = rd_u32_le(p + k);
+            k += 4;
+          }
         }
+        break;
+      case RT_HOLD_AMOUNT:
+        if (len == 4) units_last_hold_amount = (int)rd_u32_le(p);
         break;
       case RT_PATH:
         if (len == UNITS_PATH_STATE_SIZE) units_path_state_import(p, map);

@@ -127,20 +127,14 @@ bool golden_open(const char* path_in, const char* path_exp, uint32_t rng_seed, G
   return true;
 }
 
-bool golden_reload(GoldenFixture* fx, uint32_t rng_seed) {
+/* Parse a serialized save into fx->start and rebuild every pool and module
+ * static from it (golden_reload, golden_resync). */
+static bool golden_load_bytes(GoldenFixture* fx, const uint8_t* data, size_t size, const char* what) {
   char err[256];
-  uint8_t* data = NULL;
-  size_t size = 0;
-  if (!col1_save_write_memory(&fx->start, &data, &size, err, sizeof(err))) {
-    fprintf(stderr, "reload serialize: %s\n", err);
-    return false;
-  }
   ColonizeCol1Save re;
   col1_save_init(&re);
-  const bool read_ok = col1_save_read_memory(data, size, &re, err, sizeof(err));
-  free(data);
-  if (!read_ok) {
-    fprintf(stderr, "reload parse: %s\n", err);
+  if (!col1_save_read_memory(data, size, &re, err, sizeof(err))) {
+    fprintf(stderr, "%s parse: %s\n", what, err);
     col1_save_free(&re);
     return false;
   }
@@ -153,15 +147,68 @@ bool golden_reload(GoldenFixture* fx, uint32_t rng_seed) {
     .colonies = &fx->colonies, .map = &fx->map, .europe = &fx->europe, .br = &fx->br,
   };
   if (!sav_load_into_pools(&sl, err, sizeof(err))) {
-    fprintf(stderr, "reload apply: %s\n", err);
+    fprintf(stderr, "%s apply: %s\n", what, err);
     return false;
   }
   golden_wire(fx);
+  return true;
+}
+
+bool golden_reload(GoldenFixture* fx, uint32_t rng_seed) {
+  char err[256];
+  uint8_t* data = NULL;
+  size_t size = 0;
+  if (!col1_save_write_memory(&fx->start, &data, &size, err, sizeof(err))) {
+    fprintf(stderr, "reload serialize: %s\n", err);
+    return false;
+  }
+  const bool ok = golden_load_bytes(fx, data, size, "reload");
+  free(data);
+  if (!ok) {
+    return false;
+  }
   if (!runtime_ext_rng_restored()) {
     fx->seed = rng_seed;
     dos_rng_seed(&fx->rng, rng_seed);
   }
   return true;
+}
+
+bool golden_resync(GoldenFixture* fx, const uint8_t* dos, size_t dos_size, const char* save_path) {
+  char err[256];
+  uint8_t* data = NULL;
+  size_t size = 0;
+  if (!col1_save_write_memory(&fx->start, &data, &size, err, sizeof(err))) {
+    fprintf(stderr, "resync serialize: %s\n", err);
+    return false;
+  }
+  /* The port's tail starts where its own DOS-shaped sections end. */
+  const ColonizeCol1Head* h = &fx->start.head;
+  const size_t base = col1_save_expected_size_counts(
+    h->map_size_x, h->map_size_y, h->colony_count, h->unit_count, h->tribe_count
+  );
+  const size_t tail = size > base && memcmp(data + base, COLONIZE_COL1_EXT_MAGIC,
+                                            COLONIZE_COL1_EXT_MAGIC_SIZE) == 0 ? size - base : 0;
+  uint8_t* both = malloc(dos_size + tail);
+  if (!both) {
+    free(data);
+    return false;
+  }
+  memcpy(both, dos, dos_size);
+  memcpy(both + dos_size, data + base, tail);
+  free(data);
+  if (save_path) {
+    FILE* f = fopen(save_path, "wb");
+    if (!f || fwrite(both, 1, dos_size + tail, f) != dos_size + tail) {
+      fprintf(stderr, "could not write resync start %s\n", save_path);
+    }
+    if (f) {
+      fclose(f);
+    }
+  }
+  const bool ok = golden_load_bytes(fx, both, dos_size + tail, "resync");
+  free(both);
+  return ok;
 }
 
 void golden_ctx(GoldenFixture* fx, ColonizeTurnContext* out) {

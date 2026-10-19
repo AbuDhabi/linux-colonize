@@ -116,6 +116,10 @@ through years the archive lacks. A `%d` in `GOLDEN_IDLE_DUMP` takes the year, so
 `GOLDEN_IDLE_FROM=path.sav` starts from that save instead of `year_FIRST.sav`.
 `GOLDEN_IDLE_RELOAD=1` reloads the port save before every turn (CTest `golden_idle_reload`,
 `golden_idle_independence_reload`): the `RTST` chunk must carry what a continuous run does.
+`GOLDEN_IDLE_RESYNC=1` (triage, not a gate) restarts every step from the archived DOS save
+plus the run's own port tail, so each pair is judged from DOS state;
+`GOLDEN_IDLE_RESYNC_SAVE=dir/start_%d.sav` writes those starts for one-pair replays through
+`GOLDEN_IDLE_FROM` ([docs/idle_america.md](../docs/idle_america.md) "Resync").
 
 The same binary with a leading `independence` argument runs the second campaign,
 `original_saves/independence-seed-100` (Dutch every-turn autosaves `000001`..`000021`,

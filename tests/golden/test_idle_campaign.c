@@ -256,7 +256,42 @@ int main(int argc, char** argv) {
   const char* reload_env = getenv("GOLDEN_IDLE_RELOAD");
   const int reload = reload_env && *reload_env;
   const int reload_keepseed = reload && strcmp(reload_env, "keepseed") == 0;
+  /* GOLDEN_IDLE_RESYNC: before every step from an archived save, swap the
+   * run's DOS sections for that save but keep its own COLNXEXT tail (the RTST
+   * unsaved tables), so each turn is judged from DOS's state instead of the
+   * run's diverged one (docs/idle_america.md "Resync"). The run reseeds at
+   * every nation slot, so the restored LCG does not matter.
+   * GOLDEN_IDLE_RESYNC_SAVE ("%d" = that save's number) writes each combined
+   * start, which GOLDEN_IDLE_FROM then replays as one pair. */
+  const char* resync_env = getenv("GOLDEN_IDLE_RESYNC");
+  const int resync = resync_env && *resync_env;
+  const char* resync_save = getenv("GOLDEN_IDLE_RESYNC_SAVE");
+  int prev_have = 0;
   for (int year = first + 1; (ok || keep_going) && year <= last; ++year) {
+    if (resync && prev_have) {
+      char prev[128], start_path[512];
+      const char* start_out = NULL;
+      uint8_t* dos = NULL;
+      size_t dos_size = 0;
+      save_path(c, prev, sizeof(prev), year - 1);
+      if (resync_save && *resync_save) {
+        const char* pct = strstr(resync_save, "%d");
+        if (pct) {
+          snprintf(start_path, sizeof(start_path), "%.*s%d%s", (int)(pct - resync_save),
+                   resync_save, year - 1, pct + 2);
+        } else {
+          snprintf(start_path, sizeof(start_path), "%s", resync_save);
+        }
+        start_out = start_path;
+      }
+      const int synced = read_bytes(prev, &dos, &dos_size) &&
+                         golden_resync(&fx, dos, dos_size, start_out);
+      free(dos);
+      if (!synced) {
+        ok = 0;
+        break;
+      }
+    }
     if (reload && year > first + 1) {
       uint32_t seed = fx.seed;
       if (!reload_keepseed) {
@@ -331,6 +366,7 @@ int main(int argc, char** argv) {
       col1_bridge_stamp_autosave_head(&fx.start);
     }
     fprintf(stderr, "save %d: %lu draws rng %08x\n", year, dos_rng_draw_count(), fx.rng.state);
+    prev_have = have;
     if (!stepped) {
       ok = 0;
       break;

@@ -1102,8 +1102,83 @@ static int unit_garrison_admits_tile_head(void) {
   return rc;
 }
 
+/*
+ * FUN_521d_6d8e raw 93237-93325 has no pass limit: one outer pass drains one
+ * wave-1 unit, so a nation with more than 64 units needs more than 64 passes.
+ * The port's old `guard < 64` left every unit after the 64th unacted
+ * (America seed-100 pair 166 -> 167: England's slots 67, 62, 60, 52, 49).
+ */
+static int unit_waves_reach_every_unit_past_64(void) {
+  const int nation = 1;
+  const int count = 80;
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
+    return fail("waves alloc map");
+  }
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 2;
+  units.types[0].defense = 2;
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 5, 5, 3);
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  int ids[80];
+  for (int i = 0; i < count; ++i) {
+    ids[i] = units_spawn_allow_stack(&units, 0, 5, 5);
+    ColonizeUnit* u = units_get(&units, ids[i]);
+    if (!u) {
+      fx_map_free(&map);
+      return fail("waves spawn");
+    }
+    u->nation_id = nation;
+    u->moves = 1 * UNITS_MP_PER_TILE;
+    u->orders = 0;
+  }
+  ai_goals_reset();
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 100;
+  col1.stuff.ship_counts[nation] = 1;
+  uint32_t turn = 20;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int unacted = 0;
+  for (int i = 0; i < count; ++i) {
+    const ColonizeUnit* u = units_get(&units, ids[i]);
+    unacted += u && u->active && u->moves == 1 * UNITS_MP_PER_TILE && u->orders == 0;
+  }
+  fx_map_free(&map);
+  if (unacted != 0) {
+    fprintf(stderr, "unit_ai_euro_war: %d of %d soldiers never acted\n", unacted, count);
+    return fail("6d8e waves must reach every unit with MP");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"unit_garrison_admits_tile_head", unit_garrison_admits_tile_head},
+    {"unit_waves_reach_every_unit_past_64", unit_waves_reach_every_unit_past_64},
     {"unit_fortify_wake_hunt", unit_fortify_wake_hunt},
     {"unit_garrison_quota_threat_seed", unit_garrison_quota_threat_seed},
     {"unit_garrison_quota_one_fortify", unit_garrison_quota_one_fortify},

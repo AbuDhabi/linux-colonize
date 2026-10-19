@@ -1595,6 +1595,11 @@ int europe_nation_harbor_spawn(const ColonizeWorld* w, int nation_id, int profes
   /* FUN_1427_06b4 raw 7716: +0x3149 = 0 spent, so the record keeps its full
    * allotment (day-top clear already ran; the immigrant is created after it). */
   u->moves = units_max_mp(w->units, id);
+  /* raw 59133: +0x314c = 1, the recruit waits SENTRY on the dock. 0a60 would
+   * re-stamp it at the nation's next act, but a spawn after that act (the AI
+   * Fountain of Youth, units_combat.c) reaches the autosave with it
+   * (America seed-100 saves 38, 47, 69, 104: eight dock colonists). */
+  u->orders = UNITS_ORDER_SENTRY;
   u->profession = profession;
   if (dos_type == 2) {
     u->tools = 100; /* 59134: local_4 == 2 -> +0x3159 = 100 */

@@ -83,6 +83,12 @@ bool golden_turn(GoldenFixture* fx);
  * continuous run carries that this loses is what the port extension block
  * must hold (docs/savegame.md "Port extension block"). */
 bool golden_reload(GoldenFixture* fx, uint32_t rng_seed);
+/* Divergence triage (GOLDEN_IDLE_RESYNC): replace fx->start's DOS sections
+ * with the DOS save `dos` but keep the port's own COLNXEXT tail (RTST unsaved
+ * tables, village intel) from the run, then rebuild as golden_reload does. The
+ * LCG keeps the restored RTST state. `save_path` (may be NULL) receives the
+ * combined bytes, a start file for GOLDEN_IDLE_FROM. */
+bool golden_resync(GoldenFixture* fx, const uint8_t* dos, size_t dos_size, const char* save_path);
 void golden_close(GoldenFixture* fx);
 
 #endif /* COLONIZE_TESTS_COMMON_GOLDEN_FIXTURE_H */
