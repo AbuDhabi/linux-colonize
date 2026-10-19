@@ -119,6 +119,14 @@ extern int ai_euro_s_5952_census_vet_soldier[COLONIZE_COLONIES_MAX];
 void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int nation_id);
 int ai_euro_rival_strength_at(int nation_id, int continent_id);
 int ai_euro_continent_stance_at(int nation_id, int continent_id);
+/* Both DOS-unsaved per-continent tables (stance DS:0x9870, rival strength
+ * DS:0x9e98), 4x16 bytes each, for the RTST chunk (runtime_ext.c). */
+#define AI_EURO_STANCE_TABLES_SIZE 128
+void ai_euro_stance_tables_export(uint8_t out[AI_EURO_STANCE_TABLES_SIZE]);
+void ai_euro_stance_tables_import(const uint8_t in[AI_EURO_STANCE_TABLES_SIZE]);
+/* DS:0x2d12 / DS:0x2d14 sticky anti-spin pair (RTST chunk). */
+void ai_euro_sticky_get(int* unit, int* count);
+void ai_euro_sticky_set(int unit, int count);
 int ai_euro_in_europe(int x, int y);
 int ai_euro_europe_lane(int nation_id, int x, int y);
 int ai_euro_at_europe_dock(int nation_id, int x, int y);

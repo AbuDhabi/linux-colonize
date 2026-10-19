@@ -9,6 +9,7 @@
 #include "core/ai_euro.h"
 #include "core/ai_goals.h"
 #include "core/founding_fathers.h"
+#include "core/runtime_ext.h"
 #include "core/europe_art.h"
 #include "core/turn.h"
 #include "core/units.h"
@@ -63,6 +64,25 @@ bool sav_load_into_pools(const SavLoad* sl, char* err, size_t err_size) {
   return true;
 }
 
+/* The post-apply hooks game_loop wires at load (shared by golden_open and
+ * golden_reload). Live presence-bit maintenance (DOS FUN_1427_02ca/023a):
+ * without it every mover leaves a stale UNITFLAG behind. The sim hooks
+ * (game_try_unit_move / turn_refresh_moves_for_nation_w set them again per
+ * slot): without them the first day top after a load refills ships without
+ * Magellan (units_max_mp reads g_units_ff_col1) and the 0824 census decrement
+ * is skipped (independence 000001 -> 000002 showed both as from-load-only
+ * diffs). */
+static void golden_wire(GoldenFixture* fx) {
+  units_set_occupancy_map(&fx->map);
+  units_occupancy_rebuild(&fx->units);
+  units_set_ff_col1(&fx->start);
+  units_set_native_fallout_context(&fx->start, &fx->map);
+  units_set_combat_colonies(&fx->colonies);
+  fx->turn_number = fx->br.turn_number;
+  fx->year = fx->br.year;
+  fx->autumn = fx->br.autumn;
+}
+
 bool golden_open(const char* path_in, const char* path_exp, uint32_t rng_seed, GoldenFixture* fx) {
   char err[256];
 
@@ -91,6 +111,7 @@ bool golden_open(const char* path_in, const char* path_exp, uint32_t rng_seed, G
     return false;
   }
   fx->names_loaded = true;
+  runtime_ext_set_rng(&fx->rng, &fx->seed);
 
   const SavLoad sl = {
     .save = &fx->start, .names = &fx->names, .data_dir = NULL, .units = &fx->units,
@@ -101,24 +122,45 @@ bool golden_open(const char* path_in, const char* path_exp, uint32_t rng_seed, G
     return false;
   }
   fx->bridged = true;
-  /* Live presence-bit maintenance (DOS FUN_1427_02ca/023a) — game_loop wires
-   * this at load; without it every mover leaves a stale UNITFLAG behind. */
-  units_set_occupancy_map(&fx->map);
-  units_occupancy_rebuild(&fx->units);
-  /* The sim hooks game_loop wires at load (game_try_unit_move /
-   * turn_refresh_moves_for_nation_w set them again per slot). Without them
-   * the first day top after a load refills ships without Magellan
-   * (units_max_mp reads g_units_ff_col1) and the 0824 census decrement is
-   * skipped: independence 000001 -> 000002 showed both as from-load-only
-   * diffs. */
-  units_set_ff_col1(&fx->start);
-  units_set_native_fallout_context(&fx->start, &fx->map);
-  units_set_combat_colonies(&fx->colonies);
-
-  fx->turn_number = fx->br.turn_number;
-  fx->year = fx->br.year;
-  fx->autumn = fx->br.autumn;
+  golden_wire(fx);
   dos_rng_seed(&fx->rng, fx->seed);
+  return true;
+}
+
+bool golden_reload(GoldenFixture* fx, uint32_t rng_seed) {
+  char err[256];
+  uint8_t* data = NULL;
+  size_t size = 0;
+  if (!col1_save_write_memory(&fx->start, &data, &size, err, sizeof(err))) {
+    fprintf(stderr, "reload serialize: %s\n", err);
+    return false;
+  }
+  ColonizeCol1Save re;
+  col1_save_init(&re);
+  const bool read_ok = col1_save_read_memory(data, size, &re, err, sizeof(err));
+  free(data);
+  if (!read_ok) {
+    fprintf(stderr, "reload parse: %s\n", err);
+    col1_save_free(&re);
+    return false;
+  }
+  col1_save_free(&fx->start);
+  fx->start = re; /* ownership moves; &fx->start is what every hook holds */
+  units_set_occupancy_map(NULL);
+  map_free(&fx->map);
+  const SavLoad sl = {
+    .save = &fx->start, .names = &fx->names, .data_dir = NULL, .units = &fx->units,
+    .colonies = &fx->colonies, .map = &fx->map, .europe = &fx->europe, .br = &fx->br,
+  };
+  if (!sav_load_into_pools(&sl, err, sizeof(err))) {
+    fprintf(stderr, "reload apply: %s\n", err);
+    return false;
+  }
+  golden_wire(fx);
+  if (!runtime_ext_rng_restored()) {
+    fx->seed = rng_seed;
+    dos_rng_seed(&fx->rng, rng_seed);
+  }
   return true;
 }
 

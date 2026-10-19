@@ -146,6 +146,10 @@ void ai_native_reset(void);
 
 /* New-game / load hook: zero the DS:0x9faa coarse plane (port_bugs.md #1103). */
 void ai_coarse_fog_reset(void);
+/* The plane itself, 0x10e bytes (RTST chunk, runtime_ext.c). */
+#define AI_COARSE_FOG_BYTES 0x10e
+void ai_coarse_fog_export(uint8_t out[AI_COARSE_FOG_BYTES]);
+void ai_coarse_fog_import(const uint8_t in[AI_COARSE_FOG_BYTES]);
 
 /* FUN_281f_04ca: reseed the shared RNG from the DOS timer word (per-slot entry points). */
 void ai_nation_reseed(ColonizeTurnContext* ctx);

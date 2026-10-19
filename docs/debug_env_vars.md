@@ -43,6 +43,7 @@ comparing golden output.
 | `COLONIZE_TEST_SHUFFLE` | `tests/common/test_runner.h` (`tr_run_main`) | test-only | `<seed>` — run cases in a deterministic Fisher-Yates shuffle | unset (declared order) |
 | `COLONIZE_TEST_LIST` | `tests/common/test_runner.h` (`tr_run_main`) | test-only | Print case names, one per line, and exit 0 without running anything | off |
 | `GOLDEN_IDLE_FROM` | `tests/golden/test_idle_campaign.c` (`main`) | test-only | `=path.sav` — start the idle campaign from that save instead of `year_FIRST.sav` (e.g. a DOSBox from-load autosave) | unset |
+| `GOLDEN_IDLE_RELOAD` | `tests/golden/test_idle_campaign.c` (`main`) | test-only | `1`: save and reload the port save before every turn (LCG reseeded as `game_apply_col1_save` does); `keepseed`: same but the run's seed is kept | off |
 | `GOLDEN_IDLE_KEEP_GOING` | `tests/golden/test_idle_campaign.c` (`main`) | test-only | Any non-empty value: keep simulating past a mismatch (multi-turn from-load DOSBox targets; plays years the archive lacks). The dump then holds the last year | off |
 | `GOLDEN_IDLE_DUMP` | `tests/golden/test_idle_campaign.c` (`compare_save`) | test-only | Path to write the simulated save to on mismatch (or always with `GOLDEN_IDLE_DUMP_ALL`); a `%d` takes the year, one file per turn under `KEEP_GOING` | unset |
 | `GOLDEN_IDLE_DUMP_ALL` | `tests/golden/test_idle_campaign.c` (`compare_save`) | test-only | Any value: write the `GOLDEN_IDLE_DUMP` file every year, not just on mismatch | off |

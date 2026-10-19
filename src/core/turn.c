@@ -505,6 +505,14 @@ void turn_rank_loaded(void) {
   memset(turn_rank_cached, 0, sizeof turn_rank_cached);
 }
 
+void turn_rank_cache_export(uint8_t out[4]) {
+  memcpy(out, turn_rank_cached, 4);
+}
+
+void turn_rank_cache_import(const uint8_t in[4]) {
+  memcpy(turn_rank_cached, in, 4);
+}
+
 void turn_refresh_euro_rank(ColonizeTurnContext* ctx) {
   if (!ctx) return;
   ctx->euro_power_rank_ok = turn_rank_euro_nations(

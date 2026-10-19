@@ -51,11 +51,21 @@ rank table `DS:0x917c` (a load starts with zeros, the day top's 0550 refresh
 refills it). A DOSBox load of a mid-campaign autosave does not reproduce the
 continuous run (save 5: 355 RNG draws vs 381).
 
-**Port:** carry the DOS-unsaved state in the port extension block
-(`COLNXEXT`, [savegame.md](savegame.md) "Port extension block"; chunk tags in
-`col1_save.h`, `VTIN` is the only one so far), so a port save+reload continues
-exactly where continuous play would. DOS still loads such a file (it ignores the
-tail) and drops the block on re-save; the slot list marks it with `*`.
-**Status:** not done. Needs one chunk per table above (and any further holes the
-idle campaigns expose), written on save and restored by `col1_bridge_apply`
-before the first turn step; a continuous-vs-reload golden should guard it.
+**Port:** the `RTST` chunk of the port extension block (`COLNXEXT`,
+[savegame.md](savegame.md) "Port extension block"; `src/core/runtime_ext.c`)
+carries every such table plus the port's LCG, written on every save and
+restored by `col1_bridge_apply` on top of the module resets. Nine records
+(2026-10-19): RNG state + the `FUN_281f_04ca` reseed word, stance `DS:0x9870` +
+rival strength `DS:0x9e98`, unit-slot compaction residue (`ColonizeUnitPool.dos_tail`),
+the AI goal / work-queue / inventory / plan tables, the rank cache `DS:0x917c` +
+profession census, the coarse fog plane `DS:0x9faa`, Euro AI scratch (0a60 masks,
+explorers, village-visited bits, ship pressure, sticky anti-spin), per-colony
+`plot_was_worked_mask`, and the pathfinder word `DS:0x1dd2` + flood cache. Every
+port save therefore carries the block and the `*` slot mark; DOS still loads it
+(ignores the tail) and drops it on re-save, after which the port loads it the DOS
+way (tables zero, LCG from the turn number).
+**Status:** done (2026-10-19). Guarded by CTest `golden_idle_reload` (1492-1599)
+and `golden_idle_independence_reload` (saves 1-7): the idle campaigns with a
+save/reload before every turn (`GOLDEN_IDLE_RELOAD=1`) stay byte-identical to
+DOS wherever the continuous gates do. A later hole shows up there first; the
+recipe is in [idle_campaign.md](idle_campaign.md) "Running and debugging".

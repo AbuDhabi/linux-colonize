@@ -103,6 +103,14 @@ void ai_coarse_fog_reset(void) {
   memset(s_ai_coarse_fog, 0, sizeof(s_ai_coarse_fog));
 }
 
+void ai_coarse_fog_export(uint8_t out[AI_COARSE_FOG_BYTES]) {
+  memcpy(out, s_ai_coarse_fog, AI_COARSE_FOG_SIZE);
+}
+
+void ai_coarse_fog_import(const uint8_t in[AI_COARSE_FOG_BYTES]) {
+  memcpy(s_ai_coarse_fog, in, AI_COARSE_FOG_SIZE);
+}
+
 static int ai_coarse_fog_explore_index(int x, int y) {
   /* DOS: BX=(far_y>>2), SI=(far_x>>2)*18 → [BX+SI+0x9faa]. */
   return (y >> 2) + (x >> 2) * AI_COARSE_FOG_PITCH;

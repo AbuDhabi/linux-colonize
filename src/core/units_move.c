@@ -1,4 +1,5 @@
 #include "core/units.h"
+#include "core/bytes.h"
 
 /*
  * Movement, orders, pathfinding, goto/follow & route caching.
@@ -2335,6 +2336,28 @@ static int units_goto_last_dir_reverse(const ColonizeUnit* u) {
  * pointer and size, and the world map's land/water layout never changes. */
 void units_reset_state(void) {
   units_flood_cache_invalidate();
+}
+
+static uint8_t* path_w32(uint8_t* p, uint32_t v) {
+  p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); p[2] = (uint8_t)(v >> 16); p[3] = (uint8_t)(v >> 24);
+  return p + 4;
+}
+
+void units_path_state_export(uint8_t out[UNITS_PATH_STATE_SIZE]) {
+  uint8_t* p = path_w32(out, (uint32_t)s_flood_type_index);
+  *p++ = s_flood_low_move ? 1 : 0;
+  p = path_w32(p, (uint32_t)s_flood.key_x);
+  p = path_w32(p, (uint32_t)s_flood.key_y);
+  memcpy(p, s_flood.cost, sizeof s_flood.cost);
+}
+
+void units_path_state_import(const uint8_t in[UNITS_PATH_STATE_SIZE], const struct ColonizeWorldMap* map) {
+  s_flood_type_index = (int)rd_u32_le(in);
+  s_flood_low_move = in[4] != 0;
+  s_flood.key_x = (int)rd_u32_le(in + 5);
+  s_flood.key_y = (int)rd_u32_le(in + 9);
+  memcpy(s_flood.cost, in + 13, sizeof s_flood.cost);
+  s_flood.map = s_flood.key_x >= 0 ? map : NULL;
 }
 
 /*

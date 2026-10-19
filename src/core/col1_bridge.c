@@ -19,6 +19,7 @@
 #include "core/turn.h"
 #include "core/units.h"
 #include "core/village_trade_intel.h"
+#include "core/runtime_ext.h"
 #include "platform/diagnostics.h"
 
 /*
@@ -2212,6 +2213,18 @@ COLONIZE_INTERNAL void col1_bridge_apply_ext_chunks(Col1ApplyCtx* ctx) {
     }
     colonies_build_queue_deserialize(colonies, q, q_size);
   }
+
+  /* RTST runtime tables: applied on top of the module resets the loader ran;
+   * absent (DOS original / DOS re-save) leaves them zero, as a DOS load does. */
+  {
+    const uint8_t* rt = NULL;
+    size_t rt_size = 0;
+    if (!col1_save_ext_find(save, COLONIZE_COL1_EXT_TAG_RUNTIME_STATE, &rt, &rt_size)) {
+      rt = NULL;
+      rt_size = 0;
+    }
+    runtime_ext_deserialize(ctx->units, ctx->colonies, ctx->map, rt, rt_size);
+  }
 }
 
 bool col1_bridge_apply_w(
@@ -2245,12 +2258,12 @@ bool col1_bridge_apply_w(
   col1_bridge_apply_active_unit(&ctx);
   col1_bridge_apply_europe_nation(&ctx);
   col1_bridge_apply_view_occupancy(&ctx);
+  turn_rank_loaded(); /* before the RTST chunk, which may restore the table */
   col1_bridge_apply_ext_chunks(&ctx);
 
   if (out) {
     *out = ctx.local;
   }
-  turn_rank_loaded();
   diag_info(
     "col1_bridge_apply: turn=%u year=%u nation=%d units=%d colonies=%d europe_skip=%d",
     ctx.local.turn_number,
@@ -3792,6 +3805,18 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_capture_ext_chunks(Col1CaptureCtx*
     free(q);
     if (!put_ok) {
       COL1_STAGE_FAIL(err, err_size, "oom build queue ext chunk");
+    }
+  }
+
+  /* RTST: DOS-unsaved cross-turn tables + the LCG, so a port reload plays
+   * on like the continuous session (runtime_ext.h). */
+  {
+    size_t rt_size = 0;
+    uint8_t* rt = runtime_ext_serialize(ctx->units, ctx->colonies, &rt_size);
+    const bool put_ok = rt && col1_save_ext_put(save, COLONIZE_COL1_EXT_TAG_RUNTIME_STATE, rt, rt_size);
+    free(rt);
+    if (!put_ok) {
+      COL1_STAGE_FAIL(err, err_size, "oom runtime state ext chunk");
     }
   }
   return COL1_STAGE_OK;

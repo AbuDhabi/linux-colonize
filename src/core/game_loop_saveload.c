@@ -41,6 +41,7 @@
 #include "core/opening.h"
 #include "core/declaration.h"
 #include "core/dos_rng.h"
+#include "core/runtime_ext.h"
 #include "core/europe.h"
 #include "core/fb.h"
 #include "core/font_file.h"
@@ -277,7 +278,9 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   /* Continue LCG for FUN_465b / AI nation turns. VR_SEED fixtures use seed 100;
    * prefer that when the save looks like a seed-100 NEW WORLD start (turn<=6,
    * 34 tribes), else fall back to turn/year. --seed overrides all of that. */
-  {
+  /* A port save's RTST chunk restored move_rng / ai_rng_seed in the apply
+   * above; only a DOS-shaped save (or --seed) picks a seed here. */
+  if (!runtime_ext_rng_restored() || game->config.rng_seed_set) {
     uint32_t seed = game->turn_number ? game->turn_number
                                       : (game->game_year ? game->game_year : 1u);
     if (game->col1_ok && game->col1.head.tribe_count == 34 && game->col1.head.turn <= 6) {

@@ -1,6 +1,8 @@
 # Seed-100 idle campaign gate (`golden_idle_campaign`)
 
-STATUS: complete 2026-10-14. CTest `golden_idle_continuous` guards it. Fixtures:
+STATUS: complete 2026-10-14. CTest `golden_idle_continuous` guards it; `golden_idle_reload` runs the
+same years with a save/reload before every turn (byte-identical since 2026-10-19, the `RTST` chunk in
+[savegame.md](savegame.md) carries the unsaved DOS tables). Fixtures:
 `original_saves/1492-1600-seed-100/year_*.sav` (VR_SEED.EXE autosaves; the human idles in View
 mode and never moves). Harness: [tests/README.md](../tests/README.md). Fix history:
 [archive/idle_campaign_fixed_2026-10-06_08.md](archive/idle_campaign_fixed_2026-10-06_08.md),
@@ -46,6 +48,10 @@ The run takes about 1.5 s. `%d` takes the year, and the dumps are written only f
 mismatch or are missing from the archive. Diff field by field with a recursive JSON diff
 (show `*_hex` blobs as differing byte offsets); byte offsets alone are useless.
 `GOLDEN_IDLE_FROM=<save>` starts from another save, for example a DOSBox from-load autosave.
+`GOLDEN_IDLE_RELOAD=1` serializes and reloads the port save before every turn (what a player who
+quits and loads each turn gets; `keepseed` keeps the run's LCG seed instead of the load-time pick).
+A year that matches continuously but not under reload names state the `RTST` chunk does not carry
+yet: dump it, `jdiff.py`, then `AI_28C8_TRACE=1` both modes and diff the traces.
 `GOLDEN_IDLE_PICKS="6:353;7:361"` replays wall-clock music-pick reseeds (srand(tick) on the game LCG) before those draw indices of the run into saves 6 and 7 (dos_rng.h; docs/idle_independence.md).
 Without `GOLDEN_IDLE_KEEP_GOING` the run stops at the first mismatch or missing year.
 

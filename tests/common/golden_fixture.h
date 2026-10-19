@@ -77,6 +77,12 @@ bool golden_open(const char* path_in, const char* path_exp, uint32_t rng_seed, G
 /* The headless turn context golden_turn hands turn_end (no popup queue). */
 void golden_ctx(GoldenFixture* fx, ColonizeTurnContext* ctx);
 bool golden_turn(GoldenFixture* fx);
+/* Save/reload boundary mid-run: serialize fx->start, parse it back, rebuild
+ * every pool and module static from it exactly as game_apply_col1_save does,
+ * then reseed the LCG with rng_seed (the game's load-time pick). What a
+ * continuous run carries that this loses is what the port extension block
+ * must hold (docs/savegame.md "Port extension block"). */
+bool golden_reload(GoldenFixture* fx, uint32_t rng_seed);
 void golden_close(GoldenFixture* fx);
 
 #endif /* COLONIZE_TESTS_COMMON_GOLDEN_FIXTURE_H */

@@ -305,6 +305,26 @@ int ai_euro_continent_stance_at(int nation_id, int continent_id) {
   return (int)s_euro_continent_stance[nation_id][continent_id];
 }
 
+void ai_euro_stance_tables_export(uint8_t out[AI_EURO_STANCE_TABLES_SIZE]) {
+  memcpy(out, s_euro_continent_stance, 64);
+  memcpy(out + 64, s_euro_rival_strength, 64);
+}
+
+void ai_euro_sticky_get(int* unit, int* count) {
+  *unit = s_sticky_unit;
+  *count = s_sticky_count;
+}
+
+void ai_euro_sticky_set(int unit, int count) {
+  s_sticky_unit = unit;
+  s_sticky_count = count;
+}
+
+void ai_euro_stance_tables_import(const uint8_t in[AI_EURO_STANCE_TABLES_SIZE]) {
+  memcpy(s_euro_continent_stance, in, 64);
+  memcpy(s_euro_rival_strength, in + 64, 64);
+}
+
 
 int ai_euro_in_europe(int x, int y) {
   return units_coords_in_europe_park(x, y) ? 1 : 0;
