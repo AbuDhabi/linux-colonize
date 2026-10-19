@@ -12,6 +12,11 @@
  * from the main menu, declared independence (menu GAME > DECLARE
  * INDEPENDENCE, second option) and otherwise idles the same way. CTest
  * golden_idle_independence; docs/idle_independence.md.
+ *
+ * With a leading "america" argument it runs the Spanish every-turn autosaves in
+ * original_saves/golden_idle_america_seed-100 (save numbers 1..465, 1501-1799,
+ * Americas map, VR_SOUND.EXE). The player loaded 000001 and idles throughout;
+ * docs/idle_america.md.
  */
 #include <stdint.h>
 #include "../common/test_runner.h"
@@ -41,6 +46,10 @@ static const IdleCampaign k_yearly = {
  * independence during that turn (between saves 1 and 2), Space. */
 static const IdleCampaign k_independence = {
   "original_saves/independence-seed-100/%06d.SAV", 1, 21, 1, 2,
+};
+/* Recorded 2026-10-19 (VR_SOUND.EXE, Americas map): load of 000001, Space. */
+static const IdleCampaign k_america = {
+  "original_saves/golden_idle_america_seed-100/%06d.SAV", 1, 465, 1, 0,
 };
 
 static int read_bytes(const char* path, uint8_t** data, size_t* size) {
@@ -203,8 +212,8 @@ int main(int argc, char** argv) {
     }
   }
   const IdleCampaign* c = &k_yearly;
-  if (argc == 4 && strcmp(argv[1], "independence") == 0) {
-    c = &k_independence;
+  if (argc == 4 && (strcmp(argv[1], "independence") == 0 || strcmp(argv[1], "america") == 0)) {
+    c = argv[1][0] == 'i' ? &k_independence : &k_america;
     --argc;
     ++argv;
   }
@@ -212,8 +221,8 @@ int main(int argc, char** argv) {
   if (argc != 3 || !parse_year(c, argv[1], &first) ||
       !parse_year(c, argv[2], &last) || first >= last) {
     fprintf(stderr,
-            "usage: %s [independence] FIRST LAST (one contiguous saved run;"
-            " years, or save numbers for independence)\n", argv[0]);
+            "usage: %s [independence|america] FIRST LAST (one contiguous saved run;"
+            " years, or save numbers for independence/america)\n", argv[0]);
     return 2;
   }
 
