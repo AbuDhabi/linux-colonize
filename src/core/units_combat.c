@@ -3221,8 +3221,11 @@ static uint8_t s_lcr_explored_total = 0;
 static uint8_t s_lcr_cibola_total = 0;
 
 /* FUN_4cc6_0356-shaped nearest-tribe scan; -1 if none. out_dist (optional)
- * receives the winning tile-distance (manhattan, matching the rest of this
- * file's distance style) — DOS leaves it in DS:0x8db8. */
+ * receives the winning distance — DOS leaves it in DS:0x8db8. DOS measures
+ * with FUN_281f_0370 = FUN_124c_0040 (octile, map_dos_dist) and keeps the
+ * LAST tribe on a tie (`iVar1 <= local_4`, raw 80944-80987); a diagonal
+ * neighbour is distance 1, not 2 (America seed-100 save 27: the burial claim
+ * draw is rand(1,6), not rand(1,7)). */
 static int units_lcr_nearest_tribe_dist(
   const ColonizeCol1Save* col1, int x, int y, int* out_dist
 ) {
@@ -3235,8 +3238,8 @@ static int units_lcr_nearest_tribe_dist(
     const ColonizeCol1Tribe* tr = &col1->tribe[i];
     const int dx = x - (int)tr->x;
     const int dy = y - (int)tr->y;
-    const int d = (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy);
-    if (d < best_d) {
+    const int d = map_dos_dist(dx, dy);
+    if (d <= best_d) {
       best_d = d;
       best = tr->nation_id;
     }
@@ -3573,7 +3576,9 @@ void units_lcr_burial_resolve_w(
       /* DOS FUN_281f_0d6c(tribe, nation, 100): +100 there is an ALARM rise;
        * the port's relation accessor is sign-inverted (worse = negative),
        * same convention as the FUN_5fef_31ea conquest delta. */
-      ai_diplo_indian_relation_delta(col1, screwed_tribe, nation, -100);
+      /* FUN_281f_0d6c is a bare thunk to all of FUN_4cc6_00f2: the escalation
+       * tail rolls rand(0,10) once the pair sits at alarm 100. */
+      ai_contact_alarm_delta_00f2_w(w, screwed_tribe, nation, 100);
     }
     stok.string0 = units_combat_nation_label(col1, screwed_tribe);
     units_combat_enqueue_tok(

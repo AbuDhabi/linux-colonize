@@ -1019,8 +1019,19 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
     if (ai_diplo_indian_alarm(ctx->col1, nation_id, e) > 0x4a) {
       continue;
     }
-    /* LAB_5bfb_0def's gate: a resolved generous visit latches this off. */
+    /* LAB_5bfb_0def's gate: a resolved generous visit latches this off. DOS
+     * then takes the `!= 2` else-limb (FUN_5bfb_022e raw 96981-96986): the
+     * visiting Brave's village word toward e is zeroed (@INDIANCOMMENT is
+     * human-only) before the visit exits. Only a !bVar6 visit gets here
+     * (America seed-100 turn 22->23: tribe 51 after tribe 50's gift). */
     if (ind->contact_state[e] == 2) {
+      const AiContactVisitMood* m = &ai_contact_s_visit_mood[nation_id - 4][e];
+      const int turn = ctx->turn_number ? (int)*ctx->turn_number : -1;
+      const ColonizeUnit* v = (m->valid && m->turn == turn && !m->generous_visit)
+                                ? units_get_const(ctx->units, m->brave_id) : NULL;
+      if (v && v->home_tribe_id >= 0 && v->home_tribe_id < (int)ctx->col1->head.tribe_count) {
+        col1_tribe_attitude_set(&ctx->col1->tribe[v->home_tribe_id], e, 0);
+      }
       continue;
     }
 
