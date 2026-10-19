@@ -428,7 +428,7 @@ static int ai_euro_5d04_propose_ship_buy(
     return 0;
   }
   units_set_nation(u, nation_id);
-  u->moves = 0; /* docked in Europe this turn, as in DOS */
+  u->moves = units_max_mp(ctx->units, sid); /* FUN_1427_06b4 +0x3149 = 0 spent; 5c3c writes none */
   /*
    * FUN_521d_5c3c raw 92291-92300, verbatim after FUN_281f_095c:
    *   +0x314d = nation+0x32;  +0x314e = nation+0x33;      (return-from-Europe)
@@ -694,7 +694,7 @@ static int ai_euro_5d04_cb_dock_pop_candidate(int profession) {
     return -1;
   }
   units_set_nation(u, ai_euro_s_5d04_nation);
-  u->moves = 0;
+  u->moves = units_max_mp(ctx->units, id); /* FUN_1427_06b4 +0x3149 = 0 spent; 0718 writes none */
   /* raw 59133 `*(undefined1 *)(iVar2 + 0x314c) = 1`: FUN_38fd_0718 parks the
    * fresh recruit SENTRY in the harbour (+0x314c = the orders byte; europe.c
    * does the same for the human harbour spawn). port_bugs.md #509. */
@@ -1012,7 +1012,7 @@ static int ai_euro_5d04_cb_goal_trigger(int code, int a, int b, int c) {
     return -1;
   }
   units_set_nation(u, ai_euro_s_5d04_nation);
-  u->moves = 0;
+  u->moves = units_max_mp(ctx->units, id); /* FUN_1427_06b4 +0x3149 = 0 spent */
   return (int)(u - ctx->units->units);
 }
 /*

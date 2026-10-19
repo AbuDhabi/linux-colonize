@@ -780,13 +780,14 @@ static int colonies_tile_indian_homeland(
   );
 }
 
-static int colonies_indian_land_purchase_gold_on(
+static int colonies_indian_land_purchase_gold_ex(
   const ColonizeCol1Save* col1,
   const ColonizeWorldMap* map,
   int x,
   int y,
   int continent,
-  int nation_id
+  int nation_id,
+  bool check_purchased
 ) {
   if (!col1 || nation_id < 0 || nation_id > 3) {
     return 0;
@@ -796,7 +797,10 @@ static int colonies_indian_land_purchase_gold_on(
    * mask bit 0x10). First-contact WELCOME grant stamps this; founding must not
    * charge again. Cite: GAME.TXT @INDIANWELCOME; FUN_281f_068c.
    */
-  if (map && map->layer2 && map_coords_inset(map, x, y)) {
+  if (!check_purchased) {
+    /* FUN_4cc6_07c2 itself never tests the purchased bit (06d2 raw 8781 prices
+     * a stale 26e4 claim on land bought since the table was built). */
+  } else if (map && map->layer2 && map_coords_inset(map, x, y)) {
     const size_t idx = (size_t)y * (size_t)map->width + (size_t)x;
     if (idx < map->tile_count && (map->layer2[idx] & MAP_LAYER2_PURCHASED) != 0) {
       return 0;
@@ -888,6 +892,29 @@ static int colonies_indian_land_purchase_gold_on(
   return cost >> 1;
 }
 
+static int colonies_indian_land_purchase_gold_on(
+  const ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int continent,
+  int nation_id
+) {
+  return colonies_indian_land_purchase_gold_ex(col1, map, x, y, continent, nation_id, true);
+}
+
+int colonies_indian_land_purchase_gold_stale_claim(
+  const ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation_id
+) {
+  return colonies_indian_land_purchase_gold_ex(
+    col1, map, x, y, map ? map_continent_id_at(map, x, y) : -1, nation_id, false
+  );
+}
+
 int colonies_indian_land_purchase_gold(
   const ColonizeCol1Save* col1,
   const ColonizeWorldMap* map,
@@ -972,6 +999,48 @@ int colonies_indian_claim_tribe_from_w(
   return ti;
 }
 
+
+/*
+ * DS:-0x7262 claim table as 26e4 left it. DOS reads it at seat time (06d2), not
+ * the live map: a plot a Pioneer bought after the table was built is still a
+ * claim, priced afresh (07c2 has no purchased test), and the tribe's alarm
+ * rises when the treasury cannot cover it (DOSBox-free evidence: America seed
+ * 100 save 12, France's Pioneer buys (44,56) then the colony seats it:
+ * lands_bought 1 AND alarm 7). Only the AI colony tick snapshots it
+ * (ai_euro_colony_tick_open); every other path keeps the live claim.
+ */
+static int g_claim_snap[5][5];
+static bool g_claim_snap_on = false;
+
+void colonies_claim_snapshot_clear(void) {
+  g_claim_snap_on = false;
+}
+
+void colonies_claim_snapshot_build(const ColonizeWorld* w, const ColonizeColony* col) {
+  g_claim_snap_on = false;
+  if (!w || !col) {
+    return;
+  }
+  for (int dy = -2; dy <= 2; ++dy) {
+    for (int dx = -2; dx <= 2; ++dx) {
+      g_claim_snap[dy + 2][dx + 2] =
+        colonies_indian_claim_tribe_from_w(w, col->nation_id, col->x, col->y, col->x + dx, col->y + dy);
+    }
+  }
+  g_claim_snap_on = true;
+}
+
+/* Table entry for plot offset (dx,dy); *snap is false when no snapshot is live.
+ * Consumes the entry (DOS 0xff's it after the reaction). */
+int colonies_claim_snapshot_take(int dx, int dy, bool* snap) {
+  *snap = g_claim_snap_on && dx >= -2 && dx <= 2 && dy >= -2 && dy <= 2;
+  if (!*snap) {
+    return -1;
+  }
+  const int ti = g_claim_snap[dy + 2][dx + 2];
+  g_claim_snap[dy + 2][dx + 2] = -1;
+  return ti;
+}
 
 /*
  * DOS-LITERAL FUN_15eb_26e4 raw 12866-12870 (via 281f_0c72, e.g. at the top

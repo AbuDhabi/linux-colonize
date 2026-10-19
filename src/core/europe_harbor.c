@@ -1592,7 +1592,9 @@ int europe_nation_harbor_spawn(const ColonizeWorld* w, int nation_id, int profes
     return -1;
   }
   units_set_nation(u, nation_id);
-  u->moves = 0;
+  /* FUN_1427_06b4 raw 7716: +0x3149 = 0 spent, so the record keeps its full
+   * allotment (day-top clear already ran; the immigrant is created after it). */
+  u->moves = units_max_mp(w->units, id);
   u->profession = profession;
   if (dos_type == 2) {
     u->tools = 100; /* 59134: local_4 == 2 -> +0x3159 = 100 */

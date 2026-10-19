@@ -430,8 +430,11 @@ static void colonies_assign_field_land_reaction(
   /* The claim is the -0x7262 table entry for this plot offset, built by 26e4
    * for the colony that owns the cache (see g_colonies_plot_cache_colony). */
   const ColonizeColony* cc = g_colonies_plot_cache_colony ? g_colonies_plot_cache_colony : col;
-  const int ti =
-    colonies_indian_claim_tribe_from_w(w, nation, cc->x, cc->y, cc->x + dx, cc->y + dy);
+  bool snap = false;
+  int ti = colonies_claim_snapshot_take(dx, dy, &snap);
+  if (!snap) {
+    ti = colonies_indian_claim_tribe_from_w(w, nation, cc->x, cc->y, cc->x + dx, cc->y + dy);
+  }
   if (ti < 0 || ti >= (int)col1->head.tribe_count) {
     return;
   }
@@ -442,7 +445,8 @@ static void colonies_assign_field_land_reaction(
   }
   const bool human = col1->player[nation].control == 0;
   if (!human) {
-    const int price = colonies_indian_land_purchase_gold(col1, map, x, y, nation);
+    const int price = snap ? colonies_indian_land_purchase_gold_stale_claim(col1, map, x, y, nation)
+                           : colonies_indian_land_purchase_gold(col1, map, x, y, nation);
     const long gold = (long)europe_nation_gold(w->europe, col1, nation);
     if (price > 0 && gold - (long)price >= (long)(price >> 1)) {
       /* gold = NULL: the spend goes through europe_nation_gold_add, the one

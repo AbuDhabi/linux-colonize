@@ -3087,6 +3087,7 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_open(AiEuroColonyTick* t) {
     /* FUN_5952_035e raw 93958: 281f_0c72 -> FUN_15eb_26e4 claim stamp, then
      * raw 93961: FUN_281f_0c22 -> FUN_15eb_3930 (port_bugs.md #1080). */
     colonies_26e4_claim_stamp(&world, col);
+    colonies_claim_snapshot_build(&world, col);
     colonies_recompute_plots_w(&world, col->id);
     ai_euro_5952_colony_counters(ctx, nation_id, col);
     ai_euro_5952_colony_prelude(ctx, nation_id, col);
@@ -3497,6 +3498,7 @@ static void ai_euro_colony_tick_run(
   t.whole_tick = whole_tick;
   for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
     g_colonies_plot_cache_colony = NULL;
+    colonies_claim_snapshot_clear();
     ColonizeColony* col = &ctx->colonies->colonies[ci];
     if (!col->active || col->nation_id != nation_id || col->colonist_count <= 0) {
       continue;
@@ -3549,10 +3551,12 @@ static void ai_euro_colony_tick_run(
 COLONIZE_INTERNAL void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nation_id) {
   ai_euro_colony_tick_run(ctx, nation_id, false);
   g_colonies_plot_cache_colony = NULL;
+  colonies_claim_snapshot_clear();
 }
 
 /* FUN_5952_035e: the complete per-colony sequence before 5d04 planning. */
 void ai_euro_colony_tick_5952(ColonizeTurnContext* ctx, int nation_id) {
   ai_euro_colony_tick_run(ctx, nation_id, true);
   g_colonies_plot_cache_colony = NULL;
+  colonies_claim_snapshot_clear();
 }

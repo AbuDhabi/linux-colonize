@@ -339,6 +339,14 @@ void colonies_indian_land_pay(
   int cost
 );
 
+/* Same price with the purchased-bit early-out dropped (a stale 26e4 claim, 06d2). */
+int colonies_indian_land_purchase_gold_stale_claim(
+  const ColonizeCol1Save* col1, const ColonizeWorldMap* map, int x, int y, int nation_id
+);
+/* AI colony tick: snapshot of the 26e4 claim table (see colony.c). */
+void colonies_claim_snapshot_build(const ColonizeWorld* w, const ColonizeColony* col);
+void colonies_claim_snapshot_clear(void);
+int colonies_claim_snapshot_take(int dx, int dy, bool* snap);
 /* Indian homeland gold formula (see docs/colony.md#colonies_indian_land_purchase_gold) */
 int colonies_indian_land_purchase_gold(
   const ColonizeCol1Save* col1,
