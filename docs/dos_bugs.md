@@ -65,7 +65,7 @@ port save therefore carries the block and the `*` slot mark; DOS still loads it
 (ignores the tail) and drops it on re-save, after which the port loads it the DOS
 way (tables zero, LCG from the turn number).
 **Status:** done (2026-10-19). Guarded by CTest `golden_idle_reload` (1492-1599)
-and `golden_idle_independence_reload` (saves 1-7): the idle campaigns with a
+and `golden_idle_independence_reload` (saves 1-21): the idle campaigns with a
 save/reload before every turn (`GOLDEN_IDLE_RELOAD=1`) stay byte-identical to
 DOS wherever the continuous gates do. A later hole shows up there first; the
 recipe is in [idle_campaign.md](idle_campaign.md) "Running and debugging".

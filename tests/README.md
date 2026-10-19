@@ -124,8 +124,8 @@ dumps is the save number. The player loaded 000001 from the main menu and declar
 independence during that turn; before simulating toward save 2 the harness declares through
 `ai_king_menu_declare_independence` (with no popup queue that confirms, as the player's second
 option did). It plays through turns missing from the archive (turn 288).
-CTest `golden_idle_independence` runs `independence 1 7` (the port's reach; bump LAST as it
-grows). Per-interval draw comparison against a DOSBox trace: `tools/trcmp.py`. Status and
+CTest `golden_idle_independence` runs `independence 1 21` (the whole archive; save 18 is
+simulated but not compared, `known_residue_year`). Per-interval draw comparison against a DOSBox trace: `tools/trcmp.py`. Status and
 quirks in [docs/idle_independence.md](../docs/idle_independence.md):
 
 ```

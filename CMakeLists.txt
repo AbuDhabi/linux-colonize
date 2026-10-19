@@ -1023,7 +1023,7 @@ add_test(NAME golden_idle_continuous
 set_tests_properties(golden_idle_continuous PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1")
 # Same harness, Dutch every-turn autosaves 1680-1690 (VR_SOUND.EXE, re-recorded
 # 2026-10-18: main-menu load of 000001, declaration during that turn, then idle).
-# LAST = the port's current reach (docs/idle_independence.md); bump it as it grows.
+# Whole archive; save 18 is UI residue, simulated but not compared (docs/idle_independence.md).
 add_test(NAME golden_idle_independence
   COMMAND golden_idle_campaign independence 1 21
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
