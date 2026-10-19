@@ -146,8 +146,8 @@ keyboard poll, and expect later deletes to shift indices. The caller's frame is 
 stop; overlay returns show as the RTLink stub 1931:1554, so identify the caller by its args and
 locals (Ghidra `local_N` sits at BP-(N-2)). Walk BP with `d.word(..., signed=False)`.
 
-`python3 tools/dosbox_trace.py` needs `/usr/bin/python3` (the conda `python3` on PATH has no
-`pexpect`). `load_slot` works on this save list since the 2026-10-14 `list_row` fix (the list
+`python3 tools/dosbox_trace.py` runs under the conda `python3` on PATH (`pexpect` installed there
+2026-10-19). `load_slot` works on this save list since the 2026-10-14 `list_row` fix (the list
 header sits a few pixels off, and long save names cover the old highlight sample). Loop: Space
 every 200 polls until `COLONY09.SAV` changes, then copy it.
 
