@@ -30,7 +30,7 @@ pairs differ (2026-10-19), most of them past save 80 by hundreds of fields.
 ## Divergence log
 
 First continuous run (HEAD f0cc3bb4, 2026-10-19): saves 2..5, 7, 9, 10 byte-identical; small
-diffs through save 26; hundreds of fields from save 27. After round 1: 2..20 byte-identical; 2..22 after the 5d04 retype fix; 2..26 after the 0def else-limb.
+diffs through save 26; hundreds of fields from save 27. After round 1: 2..20 byte-identical; 2..22 after the 5d04 retype fix; 2..26 after the 0def else-limb; 2..27 after the LCR burial fix.
 
 | Save | Class | State |
 |---|---|---|
@@ -40,7 +40,8 @@ diffs through save 26; hundreds of fields from save 27. After round 1: 2..20 byt
 | 19..23 | England's ship 0 reaches the high seas one turn late | FIXED: at an own berth 20e6's local_a8 is the carrier stack (0920 parks hull + boarded at -2,-2), not the colony tile's residents, so an emptied hull takes the 457e sail-home arm |
 | 21, 22 | AI unit re-typed in Europe keeps old MP (spent 9 vs 0) | FIXED: the 5d04 hire ladder's type write (raw 92770-92783) leaves +0x3149 spent alone; `units_set_type_keep_spent` |
 | 23..26 | `tribes[51].alarm[0].friction` 6 vs 0 | FIXED: a non-generous Brave visit after another village's generous one (`contact_state` 2) takes LAB_5bfb_0def's else-limb (FUN_5bfb_022e raw 96981-96986) and zeroes the visiting village's word; `ai_contact_try_village_reparations` skipped it |
-| 27 | DOS has one more unit (village 46 Brave?), tribe frictions | analysing |
+| 27 | DOS has one more unit, tribe frictions | FIXED: Dutch dragoon's LCR burial mounds. `units_lcr_nearest_tribe_dist` used Manhattan + first-wins; FUN_4cc6_0356 (raw 80944-80987) uses `map_dos_dist` octile and `<=` (last wins), shifting the claim draw. The +100 alarm goes through the whole FUN_4cc6_00f2 (rand(0,10) escalation tail), not the bare relation delta |
+| 28 | Brave facings, unit 64 path | analysing |
 | 28+ | not analysed | deferred to the next continuous pass |
 
 Pair-only (deferred, not seen in the continuous run): pairs 16..26 show
