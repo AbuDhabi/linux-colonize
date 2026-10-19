@@ -612,7 +612,9 @@ static void ai_euro_5d04_cb_set_unit_dispatch_byte(int idx, int value) {
   if (!u || lt < 0) {
     return;
   }
-  u->type_index = lt;
+  /* Type-only write: +0x3149 (spent) stays as it was, so the remaining
+   * thirds follow the new type's allotment (a Colonist -> Dragoon keeps 0 spent). */
+  units_set_type_keep_spent(ai_euro_s_5d04_ctx->units, u, lt);
   if (value == 1) {
     u->muskets = 50;
     u->horses = 0;
