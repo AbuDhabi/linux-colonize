@@ -111,6 +111,15 @@ void units_try_capture_foreign_colony_at(
           else if (col->tiles[i] > pick) col->tiles[i]--;
         }
         col->colonist_count--;
+        /* The vacated tail slot must not stay `active`: DOS's 0d04 only
+         * walks records below the population, but the port's ledgers walk
+         * `active` slots, so a stale seated craftsman here kept feeding
+         * demand (DOSBox independence 17->18: Fort Orange's 5952 tick
+         * doubled Cotton for a weaver who had died the same turn). The
+         * save bytes of the departed colonist live in the tail stash. */
+        if (col->colonist_count >= 0 && col->colonist_count < COLONIZE_COLONY_POP_MAX) {
+          memset(&col->colonists[col->colonist_count], 0, sizeof(col->colonists[0]));
+        }
       }
       col->population--;
       colonies_col1_rebel_divisor_adjust(col1, col->x, col->y, -100);

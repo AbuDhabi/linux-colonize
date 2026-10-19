@@ -176,19 +176,31 @@ static void units_raw_hold_remove(ColonizeUnit* u, int slot) {
     return;
   }
   uint8_t* r = u->col1_hold_raw;
+  /* The live array can carry gaps (units_unload_goods_hold empties a slot
+   * without shifting), DOS's never does: map the live slots onto the
+   * compacted DOS slots. Counting only the leading run stopped at the first
+   * gap, so a hull dumping hold after hold shifted the image once and then
+   * never again (DOSBox independence 20->21: the crown Man-O-War's four
+   * dumped holds leave 8,8,8,8 in DOS, the port left 14,13,8,8). */
   int n = 0;
-  while (n < 6 && u->hold_goods_amount[n] > 0 && u->hold_goods_amount[n] < 255) {
+  int at = -1;
+  for (int i = 0; i < 6; ++i) {
+    if (u->hold_goods_amount[i] <= 0 || u->hold_goods_amount[i] >= 255) {
+      continue;
+    }
+    if (i == slot) {
+      at = n;
+    }
+    const int t = u->hold_goods_type[i];
+    const int nibble_shift = (n & 1) ? 4 : 0;
+    r[1 + n / 2] = (uint8_t)((r[1 + n / 2] & ~(0xf << nibble_shift)) | ((t & 0xf) << nibble_shift));
+    r[4 + n] = (uint8_t)u->hold_goods_amount[i];
     n++;
   }
-  if (slot >= n) {
+  if (at < 0) {
     return;
   }
-  for (int i = 0; i < n; ++i) {
-    const int t = u->hold_goods_type[i];
-    const int nibble_shift = (i & 1) ? 4 : 0;
-    r[1 + i / 2] = (uint8_t)((r[1 + i / 2] & ~(0xf << nibble_shift)) | ((t & 0xf) << nibble_shift));
-    r[4 + i] = (uint8_t)u->hold_goods_amount[i];
-  }
+  slot = at;
   for (int i = slot; i < n - 1; ++i) {
     const int dst_nibble_shift = (i & 1) ? 4 : 0;
     const int src_nibble_shift = ((i + 1) & 1) ? 4 : 0;
