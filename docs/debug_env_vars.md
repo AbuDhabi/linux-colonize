@@ -21,6 +21,7 @@ comparing golden output.
 | `AI_6D8E_DOS_LOOP` | `src/core/ai_euro.c` (`ai_euro_dispatcher_turn_unit_waves`) | **behaviour** | `=0` disables the DOS-literal re-act-until-exhausted loop order for the Euro nation-turn dispatch loop | on (`1`, DOS loop order) |
 | `PICKCTX` | `src/core/ai_euro.c` (`ai_euro_dispatcher_turn_unit_waves`) | trace | `=1` prints each Euro unit act with the DOS RNG draw count of the current golden run (`dos_rng_draw_count`), for placing music-pick reseeds | off |
 | `AI_SET_GOTO_TRACE` | `src/core/ai_euro_expand.c` (`ai_euro_set_goto`) | trace | Logs `goto` order assignment | off |
+| `UNITS_FLOOD_TRACE` | `src/core/units_move.c` (`units_flood_00f2`, `units_next_goto_step_with_flood_w`) | trace | One line per scored 00f2 neighbour (grid cost, score, tie distance) and per goto-director result (`[goto] unit N (x,y) -> goal step`) | off |
 | `AI_20E6_LOAD_TRACE` | `src/core/ai_euro_expand.c` (`ai_euro_try_wagon_haul`), `src/core/ai_euro_ship.c` (`ai_euro_20e6_load_holds`) | trace | Logs cargo/unit load decisions | off |
 | `AI_0A60_WORK_TRACE` | `src/core/ai_euro_goals.c` (`ai_euro_colony_goals_colony_work`) | trace | Logs `0a60` goal-consumption work steps | off |
 | `AI_SHIP_TRACE` | `src/core/ai_euro_act.c` (`ai_euro_20e6_ship_dos`), `src/core/ai_euro_land.c` (`ai_euro_20e6_wander_step`, `ai_euro_20e6_ship_far_roam`), `src/core/ai_euro_expand.c` (`ai_euro_4393_work_queue_haul_pick`) | trace | Logs AI ship movement/dispatch decisions | off |

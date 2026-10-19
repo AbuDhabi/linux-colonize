@@ -263,6 +263,41 @@ static void ai_euro_28c8_l32_mark(int v) {
   }
 }
 
+/* The three tribe-indexed tables FUN_15eb_28c8 reads with the claim NATION id
+ * (see the claim term below): raw DS reads over the packed Col1 records. */
+static int ai_euro_28c8_ds_word_5b1c(const ColonizeCol1Save* col1, int n, int player) {
+  const int a = 0x5b1c + (n * 0x27 + player) * 2;
+  if (a < 0x5ad6) {
+    return 0;
+  }
+  if (a < 0x5d46) {
+    const int off = a - 0x5ad6;
+    const uint8_t* b = (const uint8_t*)&col1->indian[off / 0x4e] + off % 0x4e;
+    return (int)(b[0] | (b[1] << 8));
+  }
+  const int off = a - 0x5d46;
+  const int k = off / 0xca;
+  if (!col1->colony || k >= (int)col1->head.colony_count) {
+    return 0;
+  }
+  const uint8_t* b = (const uint8_t*)&col1->colony[k] + off % 0xca;
+  return (int)(b[0] | (b[1] << 8));
+}
+static int ai_euro_28c8_ds_byte_91cc(const ColonizeCol1Save* col1, int n, int cont) {
+  const int i = n * 0x10 + cont;
+  if (i < 128) {
+    return col1->stuff.tribe_dwellings_91cc[i];
+  }
+  const int j = i - 128; /* DS:0x924c unit_type_counts, 4 x 19 bytes */
+  return j < 76 ? ((const uint8_t*)col1->stuff.unit_type_counts)[j] : 0;
+}
+static int ai_euro_28c8_ds_byte_9184(const ColonizeCol1Save* col1, int n) {
+  if (n < 8) {
+    return col1->stuff.tribe_data_9184[n];
+  }
+  return n - 8 < 64 ? col1->stuff.unit_value_sum_by_continent[n - 8] : 0;
+}
+
 static int ai_euro_28c8_score_full(
   const ColonizeTurnContext* ctx,
   const ColonizeColony* col,
@@ -483,23 +518,38 @@ static int ai_euro_28c8_score_full(
             }
           }
           if (claim_tribe >= 0) {
-            const int alarm =
-              ai_diplo_indian_alarm(col1, claim_tribe + 4, col->nation_id);
+            /*
+             * DOS-LITERAL FUN_15eb_28c8 raw 13096-13111. local_a is the 26e4
+             * claim byte = the village's NATION id (4..11, raw 12845), and DOS
+             * feeds it to three tables that are indexed by TRIBE (0..7):
+             *   FUN_15dc_00e0(local_a, nation)  = word DS:0x5b1c + (local_a*0x27 + nation)*2
+             *   DS:0x91cc[local_a*0x10 + cont]  (tribe_dwellings)
+             *   DS:0x9184[local_a]              (tribe_data)
+             * so nations 4..7 read the LAST four tribes' rows and 8..11 run
+             * past the tables: the 00e0 word lands in the colony records
+             * (DS:0x5d46 + ...), 0x91cc into unit_type_counts (DS:0x924c) and
+             * 0x9184 into unit_value_sum_by_continent (DS:0x918c). DOSBox
+             * America seed-100 56 -> 57: New Amsterdam's claim byte 11 reads
+             * colony 1's own +0x6c word (0), so the reluctance clears the
+             * multiplier and the vet goes fishing instead of logging tribe land.
+             */
+            const int n = claim_tribe + 4;
+            const int alarm = ai_euro_28c8_ds_word_5b1c(col1, n, col->nation_id);
             int t = -(alarm - 4);
             const int cont = env.continent;
             if (cont >= 0 && cont < 16 &&
                 col1->stuff.unit_value_sum_by_continent[col->nation_id * 0x10 + cont] <
-                  col1->stuff.tribe_dwellings_91cc[claim_tribe * 0x10 + cont]) {
+                  ai_euro_28c8_ds_byte_91cc(col1, n, cont)) {
               t = (alarm - 4) * -2;
             }
-            if (col1->stuff.land_combat_totals[col->nation_id] <
-                col1->stuff.tribe_data_9184[claim_tribe]) {
+            if (col1->stuff.land_combat_totals[col->nation_id] < ai_euro_28c8_ds_byte_9184(col1, n)) {
               t = t * 3 >> 1;
             }
             t -= env.mil_count;
             if (t < 0) {
               t = 0;
             }
+            if (getenv("AI_28C8_CAND")) fprintf(stderr, "    claim n %d alarm %d t %d mil %d cont %d p %d mult %d\n", n, alarm, t, env.mil_count, cont, cargo_demand_weight, demand_multiplier);
             demand_multiplier -= t;
           }
           if (demand_multiplier < 0) {
@@ -519,8 +569,8 @@ static int ai_euro_28c8_score_full(
         }
       }
       if (getenv("AI_28C8_CAND")) {
-        fprintf(stderr, "  cand col %d slot %d tile %d job %d yld %d score %d l32 %d\n", col->id,
-                colonist_slot, ti, job, raw_yield, score, s_28c8_l32);
+        fprintf(stderr, "  cand col %d slot %d tile %d (%d,%d) job %d yld %d score %d l32 %d short %d unmet %d stock %d claim %d lgross %d emerg %d\n", col->id,
+                colonist_slot, ti, tx, ty, job, raw_yield, score, s_28c8_l32, env.shortfall[job < COLONIZE_CARGO_COUNT ? job : 0], env.unmet[job < COLONIZE_CARGO_COUNT ? job : 0], col->stock[job < COLONIZE_CARGO_COUNT ? job : 0], claim_tribe, env.lumber_gross, env.food_emerg);
       }
       if (score > out_best->score) {
         out_best->score = score;
