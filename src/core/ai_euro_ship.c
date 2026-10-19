@@ -1307,20 +1307,10 @@ int ai_euro_try_ship_trade_haul_snapshot(
   if (stack_other < 0) {
     stack_other = ship->cargo_count;
   }
-  const int has_tools = ai_euro_unit_hold_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_TOOLS);
-  const int has_lumber =
-    ai_euro_unit_hold_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_LUMBER);
-  const int has_ore = ai_euro_unit_hold_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_ORE);
-  const int has_muskets =
-    ai_euro_unit_hold_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_MUSKETS);
-  const int has_horses =
-    ai_euro_unit_hold_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_HORSES);
-  const int has_food = ai_euro_unit_hold_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_FOOD);
   const int has_cap = ai_euro_unit_hold_has_capacity(ctx->units, ship);
-  if (!has_tools && !has_lumber && !has_ore && !has_muskets && !has_horses && !has_food &&
-      !has_cap) {
-    return 0;
-  }
+  /* No early-out for a full hull of non-haul goods: DOS raw 2166-2168
+   * (`capacity == holds_occupied || 1 < holds_occupied` -> LAB_3fa6) sails it
+   * home (America seed-100 save 32: Caravel full of sugar + furs -> 'E'). */
 
   /*
    * (The port-only "adjacent short coastal colony + haul cargo -> unload" arm
