@@ -1,9 +1,9 @@
 # Independence idle campaign (`golden_idle_independence`)
 
 STATUS: archive re-recorded 2026-10-18 (VR_SOUND.EXE, saves 000001..000021, Autumn 1680 ..
-Spring 1691). The port is byte-identical 1 -> 21 except save 8 and save 18 (self-healing diffs,
+Spring 1691). The port is byte-identical 1 -> 21 except save 18 (self-healing UI diff,
 see Open); the draw streams match the continuous DOS replay on every turn (2026-10-19). CTest `golden_idle_independence` runs
-`golden_idle_campaign independence 1 21` (whole archive; saves 8 and 18 are simulated but not
+`golden_idle_campaign independence 1 21` (whole archive; save 18 is simulated but not
 compared, `known_residue_year`), as does `golden_idle_independence_reload`. Sister campaign (done):
 [idle_campaign.md](idle_campaign.md), whose method and DOSBox recipe apply here too.
 
@@ -618,10 +618,16 @@ saves 5-7: 3, 15, ~74 field diffs vs the archive.
 
 ## Open
 
-- Save 8 (self-healing by save 9): units[106].vis_mask 11 vs 9 and units[117].facing_pad 1 vs 0.
-  The crown Man-O-War that took (32,55) carries France's vis bit in DOS (Berbice at (30,58) is
-  3 rows away); new REF record 117 (Artillery, landed at (44,53)) keeps facing pad bit 1.
-  Closing it lets the CTest range grow past 7.
+- Interval 7 -> 8 FIXED 2026-10-19 (two bugs, restored-load DOSBox trace with BPM on the record
+  bytes). (1) units[117].facing_pad: the REF Artillery created at slot 120 inherits the stale
+  +0x314f of that DOS slot (units.c `dos_tail`), here 8 from a Spanish record deleted at the
+  declaration. FUN_43f7_0108 deletes a withdrawn nation's units from DS:0x539c down to 0
+  (raw 73559-73563); the port walked up, so other records were left in the tail.
+  `ai_king_do_declare` now walks down. (2) units[106].vis_mask: the crown MoW sinks the Dutch
+  Frigate from (33,54) (France-owned, vis 11) and advances to (32,55). That advance is 1b0e's
+  winner block, a bare 0948 relink (the same block as a colony capture), so the mask keeps
+  France's bit. The port recomputed the mask for the new tile (9). `units_move_commit_step` now
+  skips `units_vis_mask_after_move` on a naval-combat advance too.
 - Interval 12 -> 13 FIXED 2026-10-19: 1b0e's attacker-loss 0ec0 (raw 100759, OVL17 asm
   0x2851) walks the chain the attacker is IN, and FUN_281f_0916 = 1427_12f6 -> 1427_10be had
   already relinked the hull at (-2,-2) (raw 8650) with its riders behind it, so only the

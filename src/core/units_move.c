@@ -869,8 +869,12 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_commit_step(units_move_ctx* c) {
   }
   units_occupancy_refresh_tile(pool, ox, oy, unit_id);
   units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
-  if (!c->foreign_colony_entry) {
-    /* 1b0e's capture advance is a 0948 relink: the mask rides along. */
+  /* 1b0e's winner advance (colony capture, naval win) is a 0948 relink:
+   * the mask rides along (DOSBox independence 7->8: the crown MoW sinking
+   * a Dutch Frigate keeps the French bit from the tile it attacked from). */
+  const bool relink_advance =
+    c->foreign_colony_entry || c->reason == COLONIZE_ENTER_COMBAT_NAVAL;
+  if (!relink_advance) {
     units_vis_mask_after_move(pool, map, unit_id, dest_x, dest_y, dest_owner);
   }
   /*

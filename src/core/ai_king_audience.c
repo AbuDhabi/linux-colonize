@@ -1043,7 +1043,10 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
     if (n == crown_fold || !ctx->units) {
       continue;
     }
-    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+    /* 0108 walks DS:0x539c down to 0 (raw 73559-73563): each delete leaves
+     * the stale compaction tail later creates inherit (units.c), so the
+     * order matters (independence 7->8: the REF Artillery's facing byte). */
+    for (int i = units_slot_end(ctx->units) - 1; i >= 0; --i) {
       const ColonizeUnit* u = &ctx->units->units[i];
       if (u->active && u->nation_id == n) {
         units_despawn(ctx->units, u->id);
