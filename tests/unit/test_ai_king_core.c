@@ -1772,6 +1772,17 @@ static int sp_21(void) {
     col1.colony[1].population = 1;
     col1.colony[1].rebel_dividend = 70;
     col1.colony[1].rebel_divisor = 100;
+    /* ai_king_sol_percent skips Col1 records with no live pool colony. */
+    const int xs[2] = {3, 11}, ys[2] = {3, 5};
+    for (int k = 0; k < 2; ++k) {
+      ColonizeColony* pc = &colonies.colonies[1 + k];
+      *pc = colonies.colonies[0];
+      pc->id = 1 + k;
+      pc->x = xs[k];
+      pc->y = ys[k];
+      pc->colony_flags &= (uint8_t)~COLONIZE_COLONY_FLAG_COASTAL;
+    }
+    colonies.colony_count = 3;
   }
   {
     const int sol_nat = ai_king_sol_percent(&ctx, 0);

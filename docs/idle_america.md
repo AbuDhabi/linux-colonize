@@ -35,7 +35,7 @@ diffs through save 26; hundreds of fields from save 27.
 | Save | Class | State |
 |---|---|---|
 | 6, 11, 13, 18, ... | New England/France units carry spent MP 3/12, DOS 0 | analysing |
-| 8 | `nations[0].rebel_sentiment` 5 vs 3 (self-heals at 9) | analysing |
+| 8 | `nations[0].rebel_sentiment` 5 vs 3 (self-heals at 9) | FIXED: `ai_king_sol_percent` skipped no Col1 record of a colony the pool abandoned this tick (DOS deleted it, raw 58154). Lead: a colony founded earlier in the same turn has no Col1 record until export, so it is not counted (does DOS count it?) |
 | 12..26 | `indians[7].alarm_by_player[1]` 0 vs 7 (France raised tribe 7's alarm in DOS) | analysing |
 | 19..23 | England's ship 0 reaches the high seas one turn late; Europe round trip out of phase | analysing |
 | 27+ | blow-up, not analysed | deferred to the next continuous pass |

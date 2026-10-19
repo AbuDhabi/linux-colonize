@@ -809,6 +809,15 @@ int ai_king_sol_percent(const ColonizeTurnContext* ctx, int nation_id) {
       if ((int)c->nation_id != nation_id) {
         continue;
       }
+      /* The col1 record list is rebuilt only at save export: a colony the pool
+       * already abandoned this tick (starve-kill) still has its record here, but
+       * DOS deleted it (raw 58154). Idle America seed-100 save 8. */
+      if (ctx->colonies) {
+        const ColonizeColony* live = colonies_find_at_xy(ctx->colonies, c->x, c->y);
+        if (!live || !live->active) {
+          continue;
+        }
+      }
       /* DOS adds colony +0x1f as-is (a 0-pop record weighs 0), no min-1. */
       const uint64_t pop = (uint64_t)c->population;
       int sol = 0;
