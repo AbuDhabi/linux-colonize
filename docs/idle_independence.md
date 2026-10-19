@@ -3,7 +3,8 @@
 STATUS: archive re-recorded 2026-10-18 (VR_SOUND.EXE, saves 000001..000021, Autumn 1680 ..
 Spring 1691). The port is byte-identical 1 -> 21 except save 8 and save 18 (self-healing diffs,
 see Open); the draw streams match the continuous DOS replay on every turn (2026-10-19). CTest `golden_idle_independence` runs
-`golden_idle_campaign independence 1 7`; bump LAST as the reach grows. Sister campaign (done):
+`golden_idle_campaign independence 1 21` (whole archive; saves 8 and 18 are simulated but not
+compared, `known_residue_year`), as does `golden_idle_independence_reload`. Sister campaign (done):
 [idle_campaign.md](idle_campaign.md), whose method and DOSBox recipe apply here too.
 
 ## Fixtures
@@ -655,10 +656,14 @@ saves 5-7: 3, 15, ~74 field diffs vs the archive.
   only the leading run of live holds, and `units_unload_goods_hold` leaves a gap, so a hull dumping
   four holds shifted the raw image once (port 14,13,8,8 vs DOS 8,8,8,8). It now maps live slots onto
   the compacted DOS slots.
-- Save 18 (self-healing by save 19): Bahia's tile chain. A Colonist that walks into Bahia sits
-  above the two Wagon Trains in the port, among the colonists in DOS, so DOS re-sorts that tile
-  (04d6) after the arrival somewhere the port does not. Lead: break on 0c4b:04d6 in a
-  restored-load session of 000017 and log sorts on (45,66).
+- Save 18 (self-healing by save 19, harness residue): Bahia's tile chain. DOS UI state, traced
+  2026-10-19 in a restored-load session: an AI move near the viewport edge scrolls the map
+  cursor DS:0x8540/0x853e to Bahia (FUN_1984_02fc -> 029e -> 00e8 with DS:0x5390 = 1, actor
+  DOS index 85 at draw 445); Guadeloupe's fort fire on the crown ship (draw 478) then redraws
+  the sidebar, and FUN_49dd_0424 raw 78700-78701 04d6-sorts the cursor tile, which lifts the
+  Wagon Trains above the newly arrived Colonist. The port does not model viewport scrolling
+  for AI moves; doing so means emulating FUN_1984_02fc's edge test on the DOS viewport
+  (DS:0x8328/0x832e, size DS:0x8544/0x8546) for every move the human can see.
 - The crown's sail-home lane count (`ai_king_mow_sail_home_20e6`, #954 arm: live lane count vs
   DOS's census-derived DS:0x9456 from the EOT tail) was a lead on the deleted ref chain (its
   save 13); untested on this archive.

@@ -74,7 +74,13 @@ fail:
  * The continuous run matches again from 1508.
  */
 static int known_residue_year(const IdleCampaign* c, int year) {
-  return c == &k_yearly && (year == 1505 || year == 1506);
+  /* Independence 8 and 18: self-healing (save + 1 matches again), see
+   * docs/idle_independence.md "Open". 18 is DOS UI state: an AI move near the
+   * viewport edge scrolls the map cursor (FUN_1984_029e), and the sidebar
+   * redraw during Guadeloupe's fort fire then 04d6-sorts the cursor tile
+   * (FUN_49dd_0424 raw 78700-78701). */
+  return (c == &k_yearly && (year == 1505 || year == 1506)) ||
+         (c == &k_independence && (year == 8 || year == 18));
 }
 
 /*
