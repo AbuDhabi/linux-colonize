@@ -2024,12 +2024,14 @@ static bool units_flood_cand_ok(
   if (r->type_index >= 0x13 && map_dos_0598_rumour_tile(map, nx, ny)) {
     return false;
   }
-  /* Port-only: a goto mover also has to pass the live move rules. */
-  const ColonizeUnit* mover = units_get_const(pool, r->mover_id);
-  if (mover &&
-      !units_flood_can_enter(pool, colonies, map, mover->type_index, nx, ny, r->mover_id)) {
-    return false;
-  }
+  /* No live-move filter here: DOS 00f2 gates a candidate only on the tests
+   * above and the DS:0x1dd6 owner term; the flood grows through foreign
+   * colonies and occupied tiles, and FUN_465b_0000 refuses the step later.
+   * The port's former units_can_enter_w filter skipped Baltimore / Penobscot
+   * for a tribe mover, which reordered the 225-pop queue and left (38,42) at
+   * 14 where DOS has 16 (DOSBox america 129->130 grid dump). */
+  (void)pool;
+  (void)colonies;
   return true;
 }
 
@@ -2247,7 +2249,13 @@ static bool units_flood_next_step(
     .mover_x = u->x, .mover_y = u->y, .goal_x = gx, .goal_y = gy,
     .type_index = s_flood_type_index, .low_move = s_flood_low_move,
     .sea = units_unit_is_sea(pool, u),
-    .owner = u->orders == UNITS_ORDER_AI_MOVE ? -1 : u->nation_id,
+    /* DS:0x1dd6: FUN_479b_0972 writes nation (-1 for orders 0xc) on entry and
+     * -1 on every exit (raw 75788-75791 / 75845). A native never passes
+     * through 0972: the 021a march (OVL13 0x1468) calls FUN_1000_a400 =
+     * FUN_2a1f_0210 -> 0f74 directly, so its flood runs on the -1 the last
+     * 0972 exit / 0906 restore left (DOSBox america 129->130: the Mounted
+     * Warrior's 00f2 at (38,43) has owner -1, the port scored owner 11). */
+    .owner = (u->orders == UNITS_ORDER_AI_MOVE || u->nation_id > 3) ? -1 : u->nation_id,
     .cap = cap, .uniform = false, .mover_id = unit_id, .col1 = col1
   };
   const int d = units_flood_00f2(pool, map, colonies, &r, NULL);
