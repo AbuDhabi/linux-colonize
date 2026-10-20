@@ -3132,6 +3132,43 @@ static bool units_goto_director(
         scored_y = fy;
         if (fx != u->x || fy != u->y) {
           hit = units_flood_next_step(pool, units_world_col1(w), unit_id, map, colonies, fx, fy, 0x3e6, out_x, out_y);
+        } else if (u->nation_id >= 0 && u->nation_id <= 3) {
+          /* DOS-LITERAL FUN_6662_0f74 raw 104623-104647: the probed centre
+           * IS the unit's tile, so the retry flood's pair DS:0xa14c/0xa14e
+           * equals the unit position and `uVar11 == 0 && uVar10 == 0`:
+           * +0x314c = 0 (the goto bytes stay), then for an AI-controlled
+           * hull (DS:0x543f control != 0, type 0xd..0x12) FUN_281f_0920 =
+           * FUN_1427_10be picks the tile up and FUN_281f_0948 = FUN_1427_040c
+           * moves the hull's whole chain onto +0x314d/e; FUN_281f_0934 =
+           * FUN_1427_155e then exhausts the unit (+0x3149 = 065a max) and the
+           * pathfinder returns -1. america resync 136: the French Merchantman
+           * at (54,46) with goto Port Royal lands on (36,37) in one act. */
+          ColonizeUnitPool* mp = w->units;
+          ColonizeUnit* mu = units_get(mp, unit_id);
+          const ColonizeCol1Save* c1 = units_world_col1(w);
+          mu->orders = UNITS_ORDER_NONE;
+          if (c1 && c1->player[mu->nation_id].control != 0 && units_is_sea(mp, unit_id) &&
+              mu->goto_x >= 0 && mu->goto_y >= 0 && mu->goto_x < UNITS_GOTO_NONE &&
+              mu->goto_y < UNITS_GOTO_NONE) {
+            const int ox = mu->x;
+            const int oy = mu->y;
+            (void)units_ship_departure_pickup(mp, unit_id, ox, oy);
+            units_tile_stack_ship_relink(mp, unit_id, false);
+            mu->x = (uint8_t)mu->goto_x;
+            mu->y = (uint8_t)mu->goto_y;
+            /* 040c relinks the chain only: +0x3147's vis nibble is untouched
+             * (the fixture keeps the hull's 11 on (36,37)), so no vis reset. */
+            units_occupancy_notify_placed(mp, ox, oy, mu->x, mu->y);
+            for (int i = 0; i < mu->cargo_count && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+              ColonizeUnit* pax = units_get(mp, mu->cargo_ids[i]);
+              if (pax) {
+                pax->x = mu->x;
+                pax->y = mu->y;
+              }
+            }
+          }
+          mu->moves = 0;
+          return false;
         }
       }
       if (hit) {
