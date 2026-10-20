@@ -193,6 +193,11 @@ instruction. On one byte it is fine. It found the 3180 facing writer.
   there later (stops at nonsense CS:IP). `BPDEL *` and re-add every BP whenever a trap reports a
   new CS. The RUN after `trap_overlay` does not stop on a BP at the rewound IP, so log the first
   call from the trap handler itself.
+- An overlay routine can be evicted in the middle of its own call: FUN_6662_00f2's resident
+  helper FUN_281f_06e6 reaches FUN_1000_88d6 in another overlay, and OVL20 came back at a new CS
+  before 00f2 returned (america 129->130), so a return-address BP set at entry never fires. Read a
+  routine's result at the NEXT entry of the same routine instead (the 00f2 grid at DS:0xa270 with
+  its key DS:0x2d1a/0x2d1c survives until the next rebuild).
 - `BPM` is unusable on a hot byte: this build also stops on reads (a 5x5 scan loop at 9e0f:0452
   fired 80 times on a unit record byte before the turn began). Use code breakpoints.
 - Uninitialised-local hunts (america save 64, 20e6's `local_ea` = SS:e7c4): log the word at every
