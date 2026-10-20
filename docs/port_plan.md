@@ -196,7 +196,7 @@ goldens all in (2026-09-03). Remaining mismatches go through
   the Change list rather than refusing (`@BUILD1-10` is the intro scroll).
 - [x] P4.9 [user] closed 2026-09-03 — player admit auto-assigns
   (`colonies_auto_assign_idle`); `FUN_15eb_28c8` stays the AI scorer.
-- [x] P4.10 [auto] 2026-08-28 — `golden_colony_preview01`: preview vs tick
+- [x] P4.10 [auto] 2026-08-28 — `smoke_colony_preview01` (was golden_, renamed 2026-10-20 #1125): preview vs tick
   delta equality over both real fixtures; found AI `food += difficulty>>1`
   and Spring-only hammers gates missing from `colony_preview.c` — mirrored.
   (2026-09-16, port_bugs.md #466: the Spring-only hammers gate was REMOVED — the
@@ -213,7 +213,7 @@ nation turn — see king_ref.md "D1 CLOSED"); remaining is king's-reply
 chrome only (P11/D4).
 
 - [x] P5.1 [auto] closed 2026-08-28 — REF prosecutes and wins
-  (`golden_woi_ref01`, real Dutch fixture). Five defects found by the
+  (`smoke_woi_ref01`, was golden_ until 2026-10-20, real Dutch fixture). Five defects found by the
   headless sim, none visible to synthetic fixtures: exact-match
   `units_find_type` vs NAMES plurals ("Regulars"); crown slot `control==2`
   never move-refreshed; Euro AI spent the crown's moves before `war_act`;

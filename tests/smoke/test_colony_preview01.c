@@ -4,7 +4,8 @@
  * fixture COLONY00_no-transports.SAV (same one golden_colony_prod01 uses),
  * snapshots colony_preview_compute for every active colony, runs one
  * turn_run_colony_production, and compares preview.goods[] / food_net /
- * hammers against the observed stock + hammer deltas.
+ * hammers against the observed stock + hammer deltas. Both sides are port
+ * code (no DOS expectation), hence smoke_, not golden_ (port_bugs.md #1125).
  *
  * Deliberately excluded (the preview can't know these, DOS's own preview
  * doesn't either): warehouse-cap clamping (stock ended exactly at cap and
@@ -182,10 +183,10 @@ static int run_fixture(const char* path) {
     return 1;
   }
   if (mismatches) {
-    fprintf(stderr, "golden_colony_preview01: %d preview/EOT mismatches\n", mismatches);
+    fprintf(stderr, "smoke_colony_preview01: %d preview/EOT mismatches\n", mismatches);
     return 1;
   }
-  printf("golden_colony_preview01: %s preview == EOT delta for %d colonies\n", path, checked);
+  printf("smoke_colony_preview01: %s preview == EOT delta for %d colonies\n", path, checked);
   return 0;
 }
 

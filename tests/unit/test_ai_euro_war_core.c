@@ -314,7 +314,7 @@ static int unit_peace_tail_does_not_open_war(void) {
  * DEFENDER (FUN_5fef_0000), so neither a berthed foreign hull on the colony
  * tile nor the garrison behind it may read as "nothing to attack" and leave
  * the unit oscillating beside its own target (the REF stall in
- * golden_woi_ref01). Drive ai_euro_act_land_goal_dispatch directly: only
+ * smoke_woi_ref01). Drive ai_euro_act_land_goal_dispatch directly: only
  * the drain loop's own step can produce the attack.
  */
 static int unit_goal_tail_assaults_defended_colony(void) {

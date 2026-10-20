@@ -1072,9 +1072,10 @@ colonize_add_test(NAME golden_colony_prod01
   INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-# Colony production preview == EOT warehouse delta (port_plan P4.10), same fixture:
-colonize_add_test(NAME golden_colony_preview01
-  SOURCES tests/golden/test_colony_preview01.c
+# Colony production preview == EOT warehouse delta (port_plan P4.10), same fixture.
+# Port-vs-port self-consistency, no DOS expectation: smoke_, not golden_ (port_bugs.md #1125).
+colonize_add_test(NAME smoke_colony_preview01
+  SOURCES tests/smoke/test_colony_preview01.c
   LIBS colonize_core
 )
 
@@ -1085,9 +1086,10 @@ colonize_add_test(NAME golden_market_prices01
   INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-# War of Independence: REF prosecutes the war on the real Dutch fixture (port_plan P5.1):
-colonize_add_test(NAME golden_woi_ref01
-  SOURCES tests/golden/test_woi_ref01.c
+# War of Independence: REF prosecutes the war on the real Dutch fixture (port_plan P5.1).
+# Port-chosen turn deadlines, no DOS expectation: smoke_, not golden_ (port_bugs.md #1125).
+colonize_add_test(NAME smoke_woi_ref01
+  SOURCES tests/smoke/test_woi_ref01.c
   LIBS colonize_core
 )
 

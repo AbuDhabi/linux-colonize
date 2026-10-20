@@ -21,7 +21,7 @@
  * step, then ai_euro_nation_turn) and every REF hunt / march / capture /
  * fortify / MoW unload is euro-side code. Replacement owner: REF movement now
  * flows through ai_euro_nation_turn (D1 2026-09-07g); movement behavior is
- * covered by golden_woi_ref01. Per docs/port_plan.md "Method notes", a
+ * covered by smoke_woi_ref01. Per docs/port_plan.md "Method notes", a
  * fidelity fix invalidates the test that encoded the old behaviour — the same
  * treatment test_ai_euro_expand.c's 31 retired 5d04 scenarios got.
  *

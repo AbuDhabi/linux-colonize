@@ -1,8 +1,8 @@
 /*
  * Golden AI turn steps (TURN1..7 pair compares, live in ctest since 2026-08-28).
  *
- * All six steps pass (T1.23 closed 2026-09-05). Diagnostics: AI_TURNS_ALL=1 runs every step
- * instead of stopping at the first failure, AI_TURNS_ONLY=t runs one step.
+ * All six steps pass (T1.23 closed 2026-09-05). Every step always runs; run one with
+ * `make test T=golden_ai_turns CASE=TURN3_to_4`.
  */
 #include <stdio.h>
 #include <stdlib.h>

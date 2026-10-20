@@ -38,15 +38,14 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
     return 1;
   }
   /* This fixture has no known VR_SEED, so the native RNG stream is not the
-   * DOS one. Keep the Indian pass from touching Dutch production: one-tile
-   * Mounted Brave allowance, and drop the two Braves whose port-stream
-   * visit/raid changes a Dutch warehouse (a Tobacco gift at (41,57); the
-   * (46,63) attacker on St. Louis runs off with 36 Horses DOS kept). */
-  fx.units.types[UNITS_KIND_MTD_BRAVE].movement = 1;
+   * DOS one. In the port's stream the Brave at (46,63) attacks St. Louis and
+   * runs off with 36 Horses DOS kept (St. Louis then misses Food 29 / Horses
+   * 100 and gains a Horses produced bit); DOS made no such attack that turn.
+   * Removing that one Brave is the only edit: everything else is the save
+   * as captured (port_bugs.md #1126; a VR_SEED re-capture would retire it). */
   for (int ui = 0; ui < units_slot_end(&fx.units); ++ui) {
     ColonizeUnit* u = &fx.units.units[ui];
-    if (u->active && u->nation_id == 6 &&
-        ((u->x == 41 && u->y == 57) || (u->x == 46 && u->y == 63))) {
+    if (u->active && u->nation_id == 6 && u->x == 46 && u->y == 63) {
       units_despawn(&fx.units, u->id);
     }
   }
