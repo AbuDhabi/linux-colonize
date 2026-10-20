@@ -9,6 +9,7 @@ These are compiled C tools built from `tools/*.c` sources. Run them from `build/
 | Name | Purpose | Invocation | Needs |
 |------|---------|-----------|-------|
 | `sav_json` | COLONY##.SAV ↔ JSON converter | `sav_json IN [OUT]` | Built by CMake (output file ext drives direction) |
+| `squeeze_input_log.py` | Caps idle gaps in a `debug.input_logger` log so a `regression_replay` test runs faster | `python3 tools/squeeze_input_log.py IN.jsonl OUT.jsonl [MAX_GAP=20]` | Re-run the test after; too small a gap lands inputs early |
 | `ai_replay` | Headless Euro-AI replay on a real save: loops `turn_end` and prints colonies / pop / units / hulls / Europe-park counts / gold per AI nation per turn | `ai_replay <save.SAV> [turns] [--units] [--seed N]` | Built by CMake; repo root as cwd (reads `COLONIZE/NAMES.TXT`) |
 | `render_report` | Standalone report-screen renderer for golden comparison | `render_report <data_dir> <save.SAV> <out.ppm> [report_id] [params...]` | Built by CMake; output is 320×200 PPM; convert to PNG with ImageMagick |
 | `render_map_panel` | Standalone main-map sidebar renderer for golden comparison | `render_map_panel <data_dir> <save.SAV> <x> <y> <select_unit> <out.ppm> [load=...] [buys=...] [sells=...]` | Built by CMake; output is 320×200 PPM; convert to PNG with ImageMagick |

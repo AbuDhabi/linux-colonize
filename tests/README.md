@@ -169,6 +169,9 @@ Recording one:
 3. `input.jsonl` = the log's first (`session`) line plus the records between
    dismissing the load popup and opening the save menu. Copy the loaded save
    as `input.sav`, the new save as `output.sav`.
+4. Optional: `python3 tools/squeeze_input_log.py input.jsonl input.jsonl`
+   caps idle gaps at 20 frames (the replay costs ~5 ms a frame), then re-run
+   the test to confirm it still matches.
 
 On failure the test prints the reason (timeout with phase/frame/status, quit,
 load/save error, or the first differing byte plus a `sav_json` field diff) and
