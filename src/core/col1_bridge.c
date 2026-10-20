@@ -15,6 +15,7 @@
 #include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "core/strutil.h"
 #include "core/turn.h"
 #include "core/units.h"
@@ -1603,7 +1604,13 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
        * spawned off-map unit (invisible there; the old behavior). AI Europe
        * land units/fleets still spawn as live off-map units, unchanged. */
       if (europe && src->nation_id == (uint8_t)local->human_nation) {
-        const char* name = col1_bridge_europe_dock_job_name(europe, (int)src->profession);
+        /* A purchased Artillery waits on the dock as an Artillery record (job
+         * NONE). Rebuild the row the purchase made: @UNIT name, profession -1.
+         * The job-name lookup gave it an empty name, which the push refuses. */
+        const int art_ti = units_kind_type_index(units, UNITS_KIND_ARTILLERY);
+        const bool artillery = art_ti >= 0 && col1_unit_type_to_runtime(units, src->type) == art_ti;
+        const char* name = artillery ? reports_names_field("UNIT", UNITS_KIND_ARTILLERY, 0)
+                                     : col1_bridge_europe_dock_job_name(europe, (int)src->profession);
         /*
          * Honour the push's answer. EUROPE_DOCK_MAX (1024) exceeds the unit cap, so
          * a refusal cannot occur on a real save, but a refused push must
@@ -1612,7 +1619,8 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
          * wrong @ARMOPTIONS kit both to that row and (via the mirror block
          * below) to this unit. Smell audit 2026-09-10 F3.
          */
-        const bool docked = europe_dock_push_load(europe, name, (int)src->profession);
+        const bool docked =
+          europe_dock_push_load(europe, name, artillery ? -1 : (int)src->profession);
         /*
          * The dock entry's job name says nothing about whether this
          * immigrant was armed, equipped or blessed on the dock, but the
@@ -1642,7 +1650,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
          * from the next save (seed-100 TURN5→6 lost the human's immigrant).
          */
         {
-          int tid = europe_dock_unit_type_index(units, dos_type);
+          int tid = artillery ? art_ti : europe_dock_unit_type_index(units, dos_type);
           if (tid < 0) {
             tid = units_kind_type_index(units, UNITS_KIND_COLONIST);
           }
@@ -3496,7 +3504,9 @@ COLONIZE_INTERNAL void col1_bridge_capture_dock_rows(Col1CaptureCtx* ctx) {
         continue;
       }
       const EuropeDockImmigrant* row = &europe->dock[r];
-      int ti = europe_dock_unit_type_index(units, row->dos_type);
+      /* Display type, not dos_type: a purchased Artillery row is name-flagged
+       * and carries no dos_type of its own, so it went out as a Colonist. */
+      int ti = europe_dock_display_type_index(units, row);
       if (ti < 0) {
         ti = units_kind_type_index(units, UNITS_KIND_COLONIST);
       }
