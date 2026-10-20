@@ -2004,7 +2004,10 @@ static bool units_flood_cand_ok(
   if (abs(nx - r->goal_x) >= 8 || abs(ny - r->goal_y) >= 8) {
     return false;
   }
-  if (!map_in_bounds(map, nx, ny)) {
+  /* FUN_281f_0302 = FUN_137f_000a: 1 <= x < width-1, 1 <= y < height-1 (the
+   * rim is off the map). map_in_bounds here let the flood reach rim tiles
+   * once the live-move filter below was gone. */
+  if (!map_coords_inset(map, nx, ny)) {
     return false;
   }
   const int cls = map_dos_terr_class_at(map, nx, ny);
