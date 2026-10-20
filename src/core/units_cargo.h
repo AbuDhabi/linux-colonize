@@ -15,6 +15,9 @@
  * own reveal-radius bonus. europe/human_nation are optional (NULL/-1 to
  * skip the Fountain-of-Youth Europe-dock sync — AI nations have none).
  */
+/* DS:0x1dc6 (rumours explored) / DS:0x1dc7 (Cibola count): RTST carry. */
+void units_lcr_counters_export(uint8_t out[2]);
+void units_lcr_counters_import(const uint8_t in[2]);
 bool units_resolve_lcr_rumour_w(
   const ColonizeWorld* w,
   int unit_id,

@@ -1915,34 +1915,57 @@ static int ai_euro_20e6_presence_95f2(const ColonizeTurnContext* ctx, int nation
  * 2 Pioneer and 5 Scout (k_20e6_type_flags); every ship type carries
  * 0x81/0x82/0xa2, so a carrier never selects itself and an empty ship yields
  * -1 — which is why the fold's `-1 < iStack_68` gate is meaningful and not
- * vacuous. OpenCol keeps carried units in cargo_ids rather than on the ship's
- * tile stack, the same substitution ai_euro_20e6_ship_cargo_counts makes.
+ * vacuous. Walk direction and membership: see the body (DOSBox america 71->72,
+ * 2026-10-20: the Dutch hull's rep was the newest Colonist aboard, not the
+ * first cargo slot, and the post-step re-entry found no rep at all).
  */
+/* DOS chain order: newer arrival first, lower slot first on an equal stamp
+ * (units_tile_chain_next_id's tie rule). */
+static bool ai_euro_20e6_chain_newer(const ColonizeUnitPool* pool, const ColonizeUnit* a, const ColonizeUnit* b) {
+  return a->tile_stack_order > b->tile_stack_order ||
+         (a->tile_stack_order == b->tile_stack_order && (a - pool->units) < (b - pool->units));
+}
+
 static const ColonizeUnit* ai_euro_20e6_stack_settler(
   ColonizeTurnContext* ctx,
   const ColonizeUnit* ship
 ) {
+  /*
+   * FUN_1000_84d4 = FUN_0000_42ba: the +0x1a link, the same older-arrival
+   * link FUN_281f_02e4 (units_tile_chain_next_id) follows. So the walk is the
+   * hull, then every member of its tile chain that arrived BEFORE it, newest
+   * first; a passenger that boarded after the hull's last relink (the hull is
+   * the oldest member after a step, docs/idle_america.md save 72) is never
+   * seen, and the strict `<` makes the newest of the top type win. OpenCol
+   * keeps passengers off the on-map chain (units_is_on_map), so they are
+   * merged back here by their tile_stack_order stamp.
+   */
   const ColonizeUnit* best = NULL;
   int best_t = -1;
-  const ColonizeUnit* chain[1 + COLONIZE_UNIT_CARGO_MAX];
-  int n = 0;
-  chain[n++] = ship; /* DOS starts the walk at the unit itself */
+#define AI_20E6_0656_CONSIDER(u)                                                    \
+  do {                                                                              \
+    const int t_ = ai_euro_20e6_dos_type(ctx->units, (u));                          \
+    if (t_ >= 0 && (ai_euro_20e6_type_flags(t_) & 0x40) != 0 &&                     \
+        (t_ > best_t || (t_ == best_t && ai_euro_20e6_chain_newer(ctx->units, (u), best)))) { \
+      best_t = t_;                                                                  \
+      best = (u);                                                                   \
+    }                                                                               \
+  } while (0)
+  AI_20E6_0656_CONSIDER(ship);
   for (int s = 0; s < ship->cargo_count && s < COLONIZE_UNIT_CARGO_MAX; ++s) {
     const ColonizeUnit* p = units_get_const(ctx->units, ship->cargo_ids[s]);
-    if (p && p->active) {
-      chain[n++] = p;
+    if (p && p->active && ai_euro_20e6_chain_newer(ctx->units, ship, p)) {
+      AI_20E6_0656_CONSIDER(p);
     }
   }
-  for (int i = 0; i < n; ++i) {
-    const int t = ai_euro_20e6_dos_type(ctx->units, chain[i]);
-    if (t < 0 || (ai_euro_20e6_type_flags(t) & 0x40) == 0) {
-      continue;
-    }
-    if (t > best_t) {
-      best_t = t;
-      best = chain[i];
+  for (int id = units_tile_chain_next_id(ctx->units, ship->id); id >= 0;
+       id = units_tile_chain_next_id(ctx->units, id)) {
+    const ColonizeUnit* p = units_get_const(ctx->units, id);
+    if (p) {
+      AI_20E6_0656_CONSIDER(p);
     }
   }
+#undef AI_20E6_0656_CONSIDER
   return best;
 }
 
@@ -2004,6 +2027,11 @@ void ai_euro_20e6_goal_fold(
       ai_euro_20e6_dos_type(ctx->units, rep), rep->profession, cont, turn, total_colonies
     ) +
     ai_goals_founding_expansion_urgency(nation, total_colonies);
+  if (getenv("AI_SHIP_TRACE")) {
+    fprintf(stderr, "[fold] ship %d (o%llu) rep %d (o%llu) urgency %d found_probe %d pioneers %d civ %d\n",
+            ship->id, (unsigned long long)ship->tile_stack_order, rep->id,
+            (unsigned long long)rep->tile_stack_order, urgency, found_probe, *pioneers, *civ);
+  }
   if (urgency < 1) {
     if (found_probe == 0) {
       *civ += *pioneers;

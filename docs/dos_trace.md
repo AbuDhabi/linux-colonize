@@ -188,6 +188,16 @@ instruction. On one byte it is fine. It found the 3180 facing writer.
   call from the trap handler itself.
 - `BPM` is unusable on a hot byte: this build also stops on reads (a 5x5 scan loop at 9e0f:0452
   fired 80 times on a unit record byte before the turn began). Use code breakpoints.
+- Uninitialised-local hunts (america save 64, 20e6's `local_ea` = SS:e7c4): log the word at every
+  routine entry you care about (`E` lines) and at `BPINT 21 3f/42` (overlay loader reads: the
+  seek offset names the overlay, `codeOffset - 0x170`); a value equal to an overlay's read length
+  (0x2fe0) is loader residue. Frame depths are fixed per call chain: 20e6 and 0972 enter at SP
+  e8ae, 0f74 at e8a2, 00f2 at e852 (its `PUSH SI` is e7c4) or e78e (from 0b4e). Overlay
+  placement is history-dependent (the same call sequence from a fresh load evicts different
+  overlays than the archive's long session), so loader residues cannot be reproduced; a map
+  redraw (OVL22, file 0x66680) between AI acts is one eviction trigger. Breakpoints on a routine
+  reached through a different CS base (5b66 at 8d2c:58a6 for an 8d00 trap) report that CS, so
+  match stops by linear address.
 - A `BP 1541:0E04` rand stop costs ~0.5 s each; 750 draws exceed the 540 s send budget. Read the
   LCG state dword (0x28ee in the rand routine's DS) at the stops you care about instead.
 - Save files hold the state at the start of the human's turn. When a turn

@@ -593,6 +593,10 @@ void ai_contact_apply_raid_loot(
         (ctx && ctx->col1_ok && ctx->col1 && indian_nation >= 4 && indian_nation <= 11)
           ? &ctx->col1->indian[indian_nation - 4]
           : NULL;
+      if (getenv("AI_RAID_TRACE")) {
+        fprintf(stderr, "[raid-stores] colony %d by nation %d cargo %d amt %d bound %d\n",
+                c->id, indian_nation, cargo, amt, g_colonies_bound_tribe);
+      }
       if (ind && cargo == COLONIZE_CARGO_HORSES) {
         ind->horse_herds = (uint8_t)(ind->horse_herds + 1);
         ind->horse_breeding = (uint16_t)(ind->horse_breeding + 0x19);

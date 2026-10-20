@@ -1018,40 +1018,6 @@ void ai_euro_refresh_colony_ai_flags(
    * wrong; the real writer is a live lead, not absent (2026-09-10 D7).
    */
   colony_prod_refresh_sol_flags(c, (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL);
-  if (ctx->units) {
-    /*
-     * +0x1c bit 0x20 (WAGON_TRAIN). DOS writes it in the 6d8e prelude
-     * (FUN_521d_6d8e): raw 93142 clears it on every own colony, then the unit
-     * loop at raw 93148-93157 sets it on the colony a unit is HOMED to —
-     * `unit type (+0x3146) == 0x0c && origin (+0x314a) >= 0`, then
-     * `colony +0x1a == nation`. It is not an on-tile test: this pass used to
-     * look for a wagon standing on the colony square, so a wagon homed here
-     * but out on the road cleared the bit and a foreign-homed wagon parked
-     * here set it. Clearing on the negative arm IS right for this bit (DOS
-     * clears then re-derives). Placement in the 5952 per-colony refresh
-     * rather than the 6d8e prelude is immaterial while the port has no
-     * reader — DOS's reader is the unported gate at raw 95762. Smell audit
-     * 2026-09-10 D7.
-     */
-    int wagon = 0;
-    for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
-      const ColonizeUnit* u = &ctx->units->units[ui];
-      if (!u->active || u->nation_id != nation_id || u->col1_origin >= 0x80 ||
-          (int)u->col1_origin != c->id) {
-        continue;
-      }
-      if (ai_euro_unit_kind(ctx->units, u) == UNITS_KIND_WAGON) {
-        wagon = 1;
-        break;
-      }
-    }
-    if (wagon) {
-      c->colony_flags |= COLONIZE_COLONY_FLAG_WAGON_TRAIN;
-    } else {
-      c->colony_flags =
-        (uint8_t)(c->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_WAGON_TRAIN);
-    }
-  }
   /*
    * +0x1c bit 0x40 (COASTAL) is a founding-time stamp, not a per-turn
    * reading. DOS's only writer of that bit anywhere in the image is
@@ -1069,6 +1035,43 @@ void ai_euro_refresh_colony_ai_flags(
   if (ctx->map && (c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) == 0 &&
       map_tile_is_open_sea_adjacent(ctx->map, c->x, c->y)) {
     c->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
+  }
+}
+
+/*
+ * FUN_521d_6d8e prelude, raw 93142-93157: +0x1c bit 0x20 (WAGON_TRAIN) is
+ * cleared on every own colony, then set on the colony each own Wagon Train
+ * (+0x3146 == 0x0c, +0x314a >= 0) is HOMED to (colony +0x1a == nation). It is
+ * not an on-tile test. This runs at the nation-turn start, so the 5952
+ * colony tick's Trade Goods specialty arm (ai_euro_goals.c) reads the bit
+ * as the PREVIOUS prelude left it (DOSBox america 78->79: New Amsterdam kept
+ * specialty 13 through the tick although its last wagon was gone, and the
+ * prelude cleared the bit afterwards). It used to be re-derived inside the
+ * tick's own flag refresh, one turn too early for that reader. Called from
+ * ai_euro_dispatcher_turn right after the tick.
+ */
+void ai_euro_6d8e_wagon_flags(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx->colonies || !ctx->units) {
+    return;
+  }
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (c->active && c->nation_id == nation_id) {
+      c->colony_flags = (uint8_t)(c->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_WAGON_TRAIN);
+    }
+  }
+  for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
+    const ColonizeUnit* u = &ctx->units->units[ui];
+    if (!u->active || u->nation_id != nation_id || u->col1_origin >= 0x80 ||
+        ai_euro_unit_kind(ctx->units, u) != UNITS_KIND_WAGON) {
+      continue;
+    }
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (c->active && c->id == (int)u->col1_origin && c->nation_id == nation_id) {
+        c->colony_flags |= COLONIZE_COLONY_FLAG_WAGON_TRAIN;
+      }
+    }
   }
 }
 
@@ -1699,6 +1702,9 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
            * Dragoon beside a met tribe border-parks on that 49. */
           if (ai_contact_met_tribe_adjacent(ctx, nation_id, u->x, u->y)) {
             ctx->ai_euro_wander_stack_word = u->x;
+            if (getenv("AI_EA_TRACE")) {
+              fprintf(stderr, "[ea-w] 022e u%d (%d,%d) n%d -> %d\n", u->id, u->x, u->y, nation_id, u->x);
+            }
           }
           (void)ai_contact_encounter_scan(ctx, nation_id, u->x, u->y);
         }
@@ -1767,6 +1773,12 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
   /* FUN_521d_6d8e raw 93118-93142: the complete 5952 colony tick
    * precedes inventory and Europe planning; those read its new stocks. */
   ai_euro_colony_tick_5952(ctx, nation_id);
+  /* Raw 93142-93157, after each colony's tick: the WAGON_TRAIN colony bit is
+   * cleared and re-derived from homed wagons, so the tick's Trade Goods
+   * specialty arm still reads the previous prelude's bit (DOSBox america
+   * 78->79: New Amsterdam keeps specialty 13 although its last wagon is
+   * gone; the prelude clears the bit only afterwards). */
+  ai_euro_6d8e_wagon_flags(ctx, nation_id);
 
   ai_euro_dispatcher_turn_plan(ctx, nation_id);
 

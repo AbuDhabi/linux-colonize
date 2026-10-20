@@ -10,6 +10,7 @@
 #include "core/units_cargo.h"
 
 #include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -1046,6 +1047,14 @@ void ai_goals_note_colony_founded(ColonizeCol1Save* col1, int nation_id, int tur
     return;
   }
   s_plan[nation_id].last_colony_founded_turn = turn;
+  /* FUN_364b_1ba8 raw 58029 bumps DS:0x9298[nation] (and DS:0x539e) at the
+   * founding itself, and 03d0 (raw 87058-87095) reads that byte live, so a
+   * hull acting later in the same nation turn already sees the new colony
+   * (DOSBox america 74->75: the Dutch Pioneer hull's urgency fell to 0 after
+   * Fort Nassau was founded, and it colony-sailed instead of wandering). */
+  if (s_plan[nation_id].colony_count < 255) {
+    s_plan[nation_id].colony_count++;
+  }
   if (col1) {
     col1->nation[nation_id].last_colony_founded_turn = (int16_t)turn; /* nation +0x46 */
   }
@@ -1070,6 +1079,11 @@ int ai_goals_founding_expansion_urgency(int nation_id, int total_colony_count) {
   }
   if (total_colony_count < 0x30) {
     const AiNationPlanScratch* p = &s_plan[nation_id];
+    if (getenv("AI_SHIP_TRACE")) {
+      fprintf(stderr, "[03d0] n%d total %d colonies %d wanting %d census %d cargo %d avg %d trait %d\n",
+              nation_id, total_colony_count, p->colony_count, p->colonies_wanting_colonists,
+              p->census_pop, p->ship_cargo_total, p->avg_colony_pop, p->leader_trait1);
+    }
     if (p->colony_count == 0 || p->colonies_wanting_colonists == 0) {
       return 8;
     }
@@ -1216,6 +1230,10 @@ int ai_goals_unit_desirability_score(
   }
   if (ai_goals_founding_expansion_urgency(nation_id, total_colony_count) != 0) {
     score += (turn - p->last_colony_founded_turn) >> 4;
+  }
+  if (getenv("AI_SHIP_TRACE")) {
+    fprintf(stderr, "[052c] n%d (%d,%d) type %d prof %d turn %d founded %d score %d\n",
+            nation_id, unit_x, unit_y, unit_type, unit_profession, turn, p->last_colony_founded_turn, score);
   }
   if (score > 0) {
     score = 0;

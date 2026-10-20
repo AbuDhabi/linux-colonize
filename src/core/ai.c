@@ -1443,7 +1443,6 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
     nation_id,
     ai_diplo_leader_trait(ctx, nation_id, 1)
   );
-
   /* FUN_43f7_2244 used to be called here as an AI "peacetime gift"; its DOS
    * caller FUN_281f_0668 is in the HUMAN arm of the year loop (raw 6418),
    * so it moved to turn.c's TURN_PROC_KING tail as the @MERCENARIES offer

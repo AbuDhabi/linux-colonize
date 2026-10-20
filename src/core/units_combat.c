@@ -3221,6 +3221,20 @@ typedef enum ColonizeLcrOutcome {
 static uint8_t s_lcr_explored_total = 0;
 static uint8_t s_lcr_cibola_total = 0;
 
+/* DS:0x1dc6/0x1dc7 are process state in DOS (not in the .SAV); the RTST
+ * ext chunk carries them so a reload or a resync pair rolls the same
+ * FOUNTAIN/CIBOLA gates (america resync 68->69: a Dutch Dragoon vanished
+ * where DOS found the Fountain of Youth, explored_total 0 vs >= 4). */
+void units_lcr_counters_export(uint8_t out[2]) {
+  out[0] = s_lcr_explored_total;
+  out[1] = s_lcr_cibola_total;
+}
+
+void units_lcr_counters_import(const uint8_t in[2]) {
+  s_lcr_explored_total = in[0];
+  s_lcr_cibola_total = in[1];
+}
+
 /* FUN_4cc6_0356-shaped nearest-tribe scan; -1 if none. out_dist (optional)
  * receives the winning distance — DOS leaves it in DS:0x8db8. DOS measures
  * with FUN_281f_0370 = FUN_124c_0040 (octile, map_dos_dist) and keeps the
