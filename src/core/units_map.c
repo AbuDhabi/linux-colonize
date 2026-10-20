@@ -219,6 +219,25 @@ void units_dos_tail_stash(ColonizeUnitPool* pool, int index, const ColonizeUnit*
   pool->dos_tail[index].facing = (int8_t)last->last_dir;
   pool->dos_tail[index].raw_valid = last->col1_hold_raw_valid ? 1 : 0;
   memcpy(pool->dos_tail[index].raw, last->col1_hold_raw, sizeof(pool->dos_tail[index].raw));
+  /* The DOS record carries its live goods in +0x3151..+0x3153 (type nibbles,
+   * FUN_15eb_306a) and +0x3154.. (amounts); the port keeps them in
+   * hold_goods_* and packs them only at export, so overlay them here the
+   * export's way or the copy a later FUN_1427_06b4 inherits lacks them
+   * (america resync 103: two Dragoons created after a Galleon bought with
+   * 100 muskets carry its nibble 0xf). */
+  int gi = 0;
+  for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX && gi < 6; ++h) {
+    const int amt = last->hold_goods_amount[h];
+    if (amt <= 0 || amt >= 255) {
+      continue;
+    }
+    int t = last->hold_goods_type[h];
+    t = t < 0 ? 0 : (t > 15 ? 15 : t);
+    uint8_t* nb = &pool->dos_tail[index].raw[1 + gi / 2];
+    *nb = (gi & 1) ? (uint8_t)((*nb & 0x0f) | (t << 4)) : (uint8_t)((*nb & 0xf0) | t);
+    pool->dos_tail[index].raw[4 + gi] = (uint8_t)amt;
+    gi++;
+  }
 }
 
 const ColonizeUnit* units_last_active(const ColonizeUnitPool* pool) {
@@ -469,14 +488,14 @@ static void units_reveal_tile_effects(void* vctx, int x, int y, bool outer) {
   }
 }
 
-bool units_reveal_sight_w(
+bool units_reveal_radius_w(
   const ColonizeWorld* w,
-  const ColonizeUnit* u
+  const ColonizeUnit* u,
+  int radius
 ) {
   ColonizeWorldMap* map = w->map;
   ColonizeUnitPool* pool = w->units;
   ColonizeColonyPool* colonies = w->colonies;
-  const ColonizeCol1Save* col1 = w->col1;
 
   if (!map || !pool || !u || !units_is_on_map(u) || u->nation_id < 0 || u->nation_id > 3) {
     return false;
@@ -487,12 +506,22 @@ bool units_reveal_sight_w(
     u->x,
     u->y,
     u->nation_id,
-    units_sight_radius(pool, u, col1),
+    radius,
     units_unit_is_sea(pool, u),
     units_reveal_tile_effects,
     &ctx
   );
   return ctx.pacific;
+}
+
+bool units_reveal_sight_w(
+  const ColonizeWorld* w,
+  const ColonizeUnit* u
+) {
+  if (!w || !w->units || !u) {
+    return false;
+  }
+  return units_reveal_radius_w(w, u, units_sight_radius(w->units, u, w->col1));
 }
 
 

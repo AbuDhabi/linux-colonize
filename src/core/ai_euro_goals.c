@@ -104,6 +104,9 @@ static int ai_euro_0a60_weight_seed(const ColonizeTurnContext* ctx, int nation_i
   return seed;
 }
 
+int ai_euro_s_5952_stale_gross[AI_EURO_5952_LEDGER_SLOTS];
+int ai_euro_s_5952_stale_valid = 0;
+
 int ai_euro_20e6_type_flags(int dos_type);
 int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUnit* u);
 
@@ -1672,8 +1675,8 @@ COLONIZE_INTERNAL void ai_euro_5952_absorb_equip(
   }
 
   ai_euro_5952_equip_arm(ctx, nation_id, c, stance);
-  /* raw 94353-94354: FUN_1000_8ebc(0x181f) = the ledger refresh, then DOS's
-   * five FUN_5952_0306 build-preference calls. `local_16` (tools_latch) is
+  /* raw 94353-94354: FUN_1000_8ebc(0x181f) = the 09c0 stack census (NOT a
+   * ledger refresh), then DOS's five FUN_5952_0306 build-preference calls. `local_16` (tools_latch) is
    * the fourth one's own input, which is why the block is hosted here, in
    * the same frame that owns the latch, rather than in the caller. */
   ai_euro_5952_build_pref_0306(ctx, nation_id, c, *labor_running, tools_latch);
@@ -1924,6 +1927,13 @@ static void ai_euro_5952_build_pref_0306(
     ai_euro_5952_ledgers(
       &w, ctx->colonies, c, (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL, gross, demand
     );
+  }
+  /* The `gross[cargo] != 0` clear inside 0306 reads DS:0x8dc8 as the md:334
+   * recompute left it: md:771's FUN_1000_8ebc is the 09c0 stack census, not
+   * a refresh, so the absorb/equip seat changes are not in it yet
+   * (ai_euro_internal.h ai_euro_s_5952_stale_gross). */
+  if (ai_euro_s_5952_stale_valid) {
+    memcpy(gross, ai_euro_s_5952_stale_gross, sizeof gross);
   }
   const ColonizeCol1Save* col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
 
@@ -2191,6 +2201,15 @@ void ai_euro_5952_colony_prelude(
    * refresh below reads this turn's quota (it used to read last turn's).
    */
   int labor_running = 0; /* iStack_76, carried into the absorption arm */
+  /* md:334 FUN_1000_8e12 = FUN_15eb_3956: the ledger the 0306 arms read
+   * (ai_euro_internal.h ai_euro_s_5952_stale_gross). */
+  {
+    int demand[AI_EURO_5952_LEDGER_SLOTS];
+    const ColonizeWorld w = world_from_turn_ctx(ctx);
+    ai_euro_5952_ledgers(&w, ctx->colonies, c, (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL,
+                         ai_euro_s_5952_stale_gross, demand);
+    ai_euro_s_5952_stale_valid = 1;
+  }
   ai_euro_colony_threat_seed_5952(ctx, nation_id, c, &labor_running);
   /* FUN_5952_035e raw 94170-94190 — the tick's Indian war-declare block
    * (or_both(nation, tribe+4, 2)); lives in ai_contact.c. DOS runs it in

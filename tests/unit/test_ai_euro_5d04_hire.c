@@ -247,7 +247,7 @@ static int spawn_europe_colonist(Fixture* f, int nation, int type_index, int pro
   }
   units_set_nation(u, nation);
   u->moves = 0;
-  u->orders = 0;
+  u->orders = UNITS_ORDER_SENTRY; /* a 5c3c hire parks SENTRY (raw 92291-92300); 10be boards only those */
   u->profession = (uint8_t)profession;
   return id;
 }

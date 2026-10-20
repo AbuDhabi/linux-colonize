@@ -192,6 +192,14 @@ void ai_euro_5952_ledgers(
   int gross[AI_EURO_5952_LEDGER_SLOTS],
   int demand[AI_EURO_5952_LEDGER_SLOTS]
 );
+/* DS:0x8dc8 as the five FUN_5952_0306 arms read it: the tick's own refresh
+ * is the FUN_15eb_3956 recompute at md:334 (3930 + 09c0 + 1f72), ahead of the
+ * absorb/equip arms; nothing between it and the arms (md:759) refreshes
+ * (md:771's 8ebc is the 09c0 census). So the arms see the seats as of tick
+ * top — america resync 114: Montreal's Gunsmith, armed away by the equip arm,
+ * still blocks the Muskets arm. Snapshot at the prelude top. */
+extern int ai_euro_s_5952_stale_gross[AI_EURO_5952_LEDGER_SLOTS];
+extern int ai_euro_s_5952_stale_valid;
 extern int ai_euro_s_5952_ring1[COLONIZE_COLONIES_MAX];
 extern int ai_euro_s_5952_docks_started[COLONIZE_COLONIES_MAX];
 extern int ai_euro_s_5952_arty_plot[COLONIZE_COLONIES_MAX];

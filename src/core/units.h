@@ -431,6 +431,8 @@ int units_count_at(const ColonizeUnitPool* pool, int x, int y);
 int units_sight_radius(
   const ColonizeUnitPool* pool, const ColonizeUnit* u, const ColonizeCol1Save* col1
 );
+/* Same walk with an explicit radius: the chief's tales (FUN_13f1_02b4 with DX = 6). */
+bool units_reveal_radius_w(const ColonizeWorld* w, const ColonizeUnit* u, int radius);
 /* Unit sight reveal with DOS per-tile side effects (see docs/units.md#units_reveal_sight_w). */
 bool units_reveal_sight_w(
   const ColonizeWorld* w,
