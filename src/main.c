@@ -161,7 +161,9 @@ int main(int argc, char** argv) {
     .window_scale = cli.window_scale,
     .window_width = settings_get()->window_width,
     .window_height = settings_get()->window_height,
-    .extra_height = log_strip_h
+    .extra_height = log_strip_h,
+    .input_log_dir =
+      settings_get()->input_logger ? settings_get()->input_logger_directory : NULL
   };
 
   ColonizePlatform* platform = platform_create(&platform_cfg);

@@ -1,12 +1,21 @@
 #include <SDL2/SDL.h>
 
+#include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <time.h>
+#ifdef _WIN32
+#include <direct.h>
+#define mkdir(path, mode) _mkdir(path)
+#endif
 
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
+#include "core/json_min.h" /* json_write_escaped_string — input log strings */
 #include "core/sound.h"
 #include "core/screen_geom.h" /* SCREEN_MAX_W / SCREEN_MAX_H — resize clamp */
 #include "core/ss.h" /* COLONIZE_SS_TRANSPARENT — the cursor key, platform.h:138 */
@@ -32,7 +41,14 @@ struct ColonizePlatform {
   SDL_Cursor* game_cursor;
   SDL_Cursor* default_cursor;
   bool game_cursor_active;
+  /* settings.json debug.input_logger (input_log_open). */
+  FILE* input_log;
+  int64_t input_log_unix_ms0; /* wall clock at open ... */
+  uint32_t input_log_ticks0;  /* ... and SDL_GetTicks at the same instant */
+  uint32_t poll_count;        /* platform_poll_input calls = game frames */
 };
+
+static void input_log_open(ColonizePlatform* platform, const char* dir);
 
 static ColonizeKey map_key(SDL_Keycode key) {
   switch (key) {
@@ -286,6 +302,9 @@ ColonizePlatform* platform_create(const ColonizePlatformConfig* config) {
     diag_info("Audio disabled (--nosound or build without COLONIZE_ENABLE_AUDIO).");
   }
 
+  if (config) {
+    input_log_open(platform, config->input_log_dir);
+  }
   return platform;
 }
 
@@ -315,6 +334,9 @@ void platform_destroy(ColonizePlatform* platform) {
   if (platform->audio_device != 0) {
     SDL_CloseAudioDevice(platform->audio_device);
     platform->audio_device = 0;
+  }
+  if (platform->input_log) {
+    fclose(platform->input_log);
   }
   free(platform->rgba_buffer);
   if (platform->texture) {
@@ -467,6 +489,171 @@ static void mouse_to_logical(
   }
 }
 
+/* ===== Input log (settings.json debug.input_logger) =====
+ *
+ * Port-only debug aid: every raw SDL keyboard / mouse event, one JSON object
+ * per line (JSON Lines), as the event arrives — before map_key or the edge
+ * flags fold it. Record shape: docs/settings.md "Input log". */
+
+static int64_t input_log_wall_ms(void) {
+  struct timespec ts;
+  if (timespec_get(&ts, TIME_UTC) != TIME_UTC) {
+    return (int64_t)time(NULL) * 1000;
+  }
+  return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+static void input_log_open(ColonizePlatform* platform, const char* dir) {
+  if (!dir || !dir[0]) {
+    return;
+  }
+  if (mkdir(dir, 0755) != 0 && errno != EEXIST) {
+    diag_warn("Input log: cannot create %s: %s", dir, strerror(errno));
+    return;
+  }
+  platform->input_log_unix_ms0 = input_log_wall_ms();
+  platform->input_log_ticks0 = SDL_GetTicks();
+  const time_t now = (time_t)(platform->input_log_unix_ms0 / 1000);
+  const struct tm* tm_now = localtime(&now);
+  char stamp[32] = "unknown";
+  if (tm_now) {
+    strftime(stamp, sizeof(stamp), "%Y%m%d_%H%M%S", tm_now);
+  }
+  char path[700];
+  snprintf(
+    path, sizeof(path), "%s/input_%s_%03d.jsonl", dir, stamp,
+    (int)(platform->input_log_unix_ms0 % 1000)
+  );
+  platform->input_log = fopen(path, "wbx");
+  if (!platform->input_log) {
+    diag_warn("Input log: cannot open %s: %s", path, strerror(errno));
+    return;
+  }
+  fprintf(
+    platform->input_log,
+    "{\"type\":\"session\",\"version\":1,\"t_ms\":%u,\"unix_ms\":%lld,"
+    "\"window_scale\":%d,\"screen_w\":%d,\"screen_h\":%d}\n",
+    (unsigned)platform->input_log_ticks0, (long long)platform->input_log_unix_ms0,
+    platform->window_scale, platform->width, platform->game_height
+  );
+  fflush(platform->input_log);
+  diag_info("Input log: %s", path);
+}
+
+/* Opens one record; the caller appends its fields and the closing "}\n". */
+static FILE* input_log_begin(ColonizePlatform* platform, const char* type, uint32_t t_ms) {
+  FILE* f = platform->input_log;
+  /* SDL stamps events in ms since SDL_Init; unix_ms rebases that on the wall
+   * clock read at open, so both share the event's own time, not the poll's. */
+  const int64_t unix_ms =
+    platform->input_log_unix_ms0 + (int64_t)(int32_t)(t_ms - platform->input_log_ticks0);
+  fprintf(
+    f, "{\"type\":\"%s\",\"t_ms\":%u,\"unix_ms\":%lld,\"frame\":%u", type, (unsigned)t_ms,
+    (long long)unix_ms, (unsigned)platform->poll_count
+  );
+  return f;
+}
+
+static const char* input_log_button_name(Uint8 button) {
+  switch (button) {
+    case SDL_BUTTON_LEFT: return "left";
+    case SDL_BUTTON_MIDDLE: return "middle";
+    case SDL_BUTTON_RIGHT: return "right";
+    case SDL_BUTTON_X1: return "x1";
+    case SDL_BUTTON_X2: return "x2";
+    default: return "other";
+  }
+}
+
+/* x/y = window points as SDL reports them; lx/ly = the logical screen pixel
+ * the game sees (mouse_to_logical, clamped to the screen). */
+static void input_log_mouse_pos(ColonizePlatform* platform, FILE* f, int x, int y) {
+  int lx = 0;
+  int ly = 0;
+  mouse_to_logical(platform, x, y, &lx, &ly);
+  fprintf(f, ",\"x\":%d,\"y\":%d,\"lx\":%d,\"ly\":%d", x, y, lx, ly);
+}
+
+/* Held buttons as SDL_BUTTON_*MASK bits: 1 left, 2 middle, 4 right, 8 x1,
+ * 16 x2. A motion record with buttons != 0 is a drag step. */
+static void input_log_event(ColonizePlatform* platform, const SDL_Event* event) {
+  FILE* f = NULL;
+  switch (event->type) {
+    case SDL_MOUSEMOTION:
+      if (event->motion.which == SDL_TOUCH_MOUSEID) {
+        return;
+      }
+      f = input_log_begin(platform, "mouse_move", event->motion.timestamp);
+      input_log_mouse_pos(platform, f, event->motion.x, event->motion.y);
+      fprintf(
+        f, ",\"dx\":%d,\"dy\":%d,\"buttons\":%u", event->motion.xrel, event->motion.yrel,
+        (unsigned)event->motion.state
+      );
+      break;
+    case SDL_MOUSEBUTTONDOWN:
+    case SDL_MOUSEBUTTONUP:
+      if (event->button.which == SDL_TOUCH_MOUSEID) {
+        return;
+      }
+      f = input_log_begin(
+        platform, event->type == SDL_MOUSEBUTTONDOWN ? "mouse_down" : "mouse_up",
+        event->button.timestamp
+      );
+      input_log_mouse_pos(platform, f, event->button.x, event->button.y);
+      fprintf(
+        f, ",\"button\":\"%s\",\"clicks\":%u", input_log_button_name(event->button.button),
+        (unsigned)event->button.clicks
+      );
+      break;
+    case SDL_MOUSEWHEEL:
+      if (event->wheel.which == SDL_TOUCH_MOUSEID) {
+        return;
+      }
+      f = input_log_begin(platform, "mouse_wheel", event->wheel.timestamp);
+      fprintf(f, ",\"dx\":%d,\"dy\":%d", event->wheel.x, event->wheel.y);
+      break;
+    case SDL_KEYDOWN:
+    case SDL_KEYUP: {
+      const SDL_Keysym* k = &event->key.keysym;
+      const char* name = SDL_GetKeyName(k->sym);
+      f = input_log_begin(
+        platform, event->type == SDL_KEYDOWN ? "key_down" : "key_up", event->key.timestamp
+      );
+      fprintf(f, ",\"key\":");
+      json_write_escaped_string(f, name ? name : "", 64);
+      fprintf(
+        f, ",\"keycode\":%d,\"scancode\":%d,\"mod\":%u,\"repeat\":%s", (int)k->sym,
+        (int)k->scancode, (unsigned)k->mod, event->key.repeat ? "true" : "false"
+      );
+      break;
+    }
+    case SDL_TEXTINPUT:
+      f = input_log_begin(platform, "text", event->text.timestamp);
+      fprintf(f, ",\"text\":");
+      json_write_escaped_string(f, event->text.text, sizeof(event->text.text));
+      break;
+    case SDL_WINDOWEVENT:
+      /* Focus loss synthesizes the button releases (platform_poll_input). */
+      if (event->window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
+        f = input_log_begin(platform, "focus_lost", event->window.timestamp);
+      } else if (event->window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
+        f = input_log_begin(platform, "focus_gained", event->window.timestamp);
+      } else if (event->window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+        f = input_log_begin(platform, "resize", event->window.timestamp);
+        fprintf(f, ",\"w\":%d,\"h\":%d", event->window.data1, event->window.data2);
+      } else {
+        return;
+      }
+      break;
+    case SDL_QUIT:
+      f = input_log_begin(platform, "quit", event->quit.timestamp);
+      break;
+    default:
+      return;
+  }
+  fputs("}\n", f);
+}
+
 bool platform_poll_input(ColonizePlatform* platform, ColonizeInputState* out_input) {
   if (!out_input) {
     return false;
@@ -478,6 +665,9 @@ bool platform_poll_input(ColonizePlatform* platform, ColonizeInputState* out_inp
 
   SDL_Event event;
   while (SDL_PollEvent(&event)) {
+    if (platform->input_log) {
+      input_log_event(platform, &event);
+    }
     switch (event.type) {
       case SDL_QUIT:
         out_input->quit_requested = true;
@@ -564,6 +754,11 @@ bool platform_poll_input(ColonizePlatform* platform, ColonizeInputState* out_inp
   out_input->alt_held = (SDL_GetModState() & KMOD_ALT) != 0;
   out_input->shift_held = (SDL_GetModState() & KMOD_SHIFT) != 0;
   out_input->ctrl_held = (SDL_GetModState() & KMOD_CTRL) != 0;
+  if (platform->input_log) {
+    /* Once per frame, so a crash loses at most the current frame's events. */
+    fflush(platform->input_log);
+  }
+  ++platform->poll_count;
   return true;
 }
 
