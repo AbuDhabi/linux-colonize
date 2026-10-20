@@ -1766,8 +1766,22 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
   ai_euro_20e6_refresh_type_cache(ctx->units);
   /* FUN_4962_0018 filled DS:0x945a in 00f2 before this dispatcher. 5d04
    * may buy a dockside colonist later; that purchase does not update 945a. */
-  ctx->ai_euro_dock_census[nation_id] =
-    (uint8_t)ai_euro_europe_dock_land_units(ctx->units, nation_id);
+  {
+    /* FUN_4962_0018 raw 78165-78169 counts every land unit whose x is the
+     * dock slot (x == nation - 0x14), passengers aboard a docked hull
+     * included; 0346 then decrements for each one that sails (america
+     * resync 98: skipping aboard units left the byte at 252 and sent
+     * every English hull home). */
+    int census = 0;
+    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+      const ColonizeUnit* du = &ctx->units->units[i];
+      if (du->active && du->nation_id == nation_id && !units_is_sea(ctx->units, du->id) &&
+          du->x == 236 + nation_id) {
+        census++;
+      }
+    }
+    ctx->ai_euro_dock_census[nation_id] = (uint8_t)census;
+  }
   ctx->ai_euro_dock_census_valid[nation_id] = 1;
 
   /* FUN_521d_6d8e raw 93118-93142: the complete 5952 colony tick

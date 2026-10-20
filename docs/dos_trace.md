@@ -173,6 +173,13 @@ instruction. On one byte it is fine. It found the 3180 facing writer.
   DS (read `DS` at the break), not the game DS.
 - 20e6 wander scorer (OVL14): `--patch-cc 0x4e2d6`, trap offset 0x20e6; at CS:5805 `[bp-0x4e]` is
   the direction and `[bp-0x26]` its score, `[bp+6]` the unit.
+- RNG-dependent outcomes need the archive's EXE: the America and independence archives are
+  VR_SOUND runs. A VR_SEED from-load reseeds every nation slot from the wall clock (two from-loads
+  of america save 97 disagreed on England's Galleon roll), so use `setup --exe VR_SOUND.EXE` before
+  trusting any roll. Resident thunk segments are relocated at run time by -0x7dc: FUN_281f_04d4
+  (rand range) is `BP 2043:04d4`, FUN_281f_04ca (slot reseed) `BP 2043:04ca`; the stack holds the
+  caller's ret seg:off and the args. `BPM` on a cold byte works (one stop per read/write): the
+  indian record's herd byte found FUN_5bfb_3180's native-contact spread in one turn.
 - Other traps used by the America campaign (2026-10-20; file offset = segment `codeOffset` +
   routine offset, the `tools/address_mapping.csv` "offset" column is NOT that for L0040 overlays):
   FUN_479b_0972 goto mover = OVL09 `0x40e22` (trap 0x972); FUN_6662_0f74 pathfinder = OVL20

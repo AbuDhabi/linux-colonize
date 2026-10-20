@@ -1293,6 +1293,8 @@ COLONIZE_INTERNAL void col1_bridge_apply_colonies(Col1ApplyCtx* ctx) {
         }
         if (bi >= 0) {
           dst->colonists[p].building_type = bi;
+        } else {
+          dst->colonists[p].idle_job1 = (uint8_t)(occ + 1);
         }
       }
       /*
@@ -1316,15 +1318,15 @@ COLONIZE_INTERNAL void col1_bridge_apply_colonies(Col1ApplyCtx* ctx) {
        * park-anywhere-harmless tolerance — routing garbage through the
        * cap would let it starve out real, resolvable Town Hall workers.
        */
+      /* A KNOWN @JOB whose building is missing stays unplaced: DOS keeps the
+       * occupation byte and the job produces nothing until FUN_15eb_28c8
+       * re-seats it (america resync 99: Penobscot's Teacher without a
+       * Schoolhouse made 0 bells in DOS; the old Town Hall seat made 3). */
       if (dst->colonists[p].building_type < 0 && dst->colonists[p].field_job < 0 &&
-          occ != (int)UNITS_JOB_COLONIST) {
+          occ != (int)UNITS_JOB_COLONIST && chain < 0) {
         const int th = colonies_building_row(colonies, COLONY_BUILDING_TOWN_HALL);
         if (th >= 0 && th < COLONIZE_BUILDING_TYPES_MAX && dst->has_building[th]) {
-          if (chain >= 0) {
-            colonies_assign_workplace(colonies, colonies->colony_count, p, th);
-          } else {
-            dst->colonists[p].building_type = th;
-          }
+          dst->colonists[p].building_type = th;
         }
       }
     }

@@ -861,8 +861,8 @@ void colonies_auto_assign_idle(ColonizeColonyPool* pool, int colony_id) {
   const int town_hall = colonies_building_row(pool, COLONY_BUILDING_TOWN_HALL);
   for (int i = 0; i < col->colonist_count; ++i) {
     ColonizeColonist* c = &col->colonists[i];
-    if (!c->active || c->field_job >= 0 || c->building_type >= 0) {
-      continue;
+    if (!c->active || c->field_job >= 0 || c->building_type >= 0 || c->idle_job1 != 0) {
+      continue; /* idle_job1: a real DOS occupation whose building is missing stays unseated */
     }
     if (town_hall >= 0 && colonies_assign_workplace(pool, colony_id, i, town_hall)) {
       continue;

@@ -84,6 +84,10 @@ typedef struct ColonizeColonist {
   bool active;
   /* FUN_364b_0688 education nibble mapping (see docs/colony.md#colonizecolonistturns_in_job) */
   uint8_t turns_in_job;
+  /* DOS occupation byte + 1 of a colonist whose @JOB building the colony does
+   * not own (e.g. a Teacher without a Schoolhouse): unseated, produces
+   * nothing, exported as that job until FUN_15eb_28c8 re-seats it. 0 = none. */
+  uint8_t idle_job1;
 } ColonizeColonist;
 
 /* Port-only build-queue depth (see ColonizeColony::build_queue). */

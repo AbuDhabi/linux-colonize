@@ -3006,9 +3006,8 @@ static bool units_goto_director(
       (!units_is_on_map(u) && u->aboard_ship_id < 0)) {
     return false;
   }
-  if (!units_orders_follow_goto(u->orders)) {
-    return false;
-  }
+  /* No orders gate: FUN_6662_0f74 reads +0x314d/e only. The 021a Brave
+   * march (OVL13 0x1466) paths an orders-0 unit through it. */
   /* FUN_6662_0f74 raw 104542: later coarse-snap 0906 calls can replace it
    * with Soldier/Caravel before the far-tier flood (1548 DOS trace). */
   s_flood_type_index = u->type_index;
@@ -3173,7 +3172,7 @@ bool units_next_goto_step_with_flood_w(
    * (port_bugs.md #1046).
    */
   ColonizeUnit* u = w ? units_get(w->units, unit_id) : NULL;
-  if (u && u->active && units_orders_follow_goto(u->orders)) {
+  if (u && u->active) { /* no orders gate: the 021a Brave march (orders 0) gets it too */
     u->last_dir = ok ? units_dir8_index(*out_x - u->x, *out_y - u->y) : -1;
   }
   return ok;

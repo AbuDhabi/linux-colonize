@@ -1208,8 +1208,8 @@ int ai_native_021a_tail(
         const int census = (cn >= 0 && cn < 4) ? (int)col1->stuff.census_pop_proxy[cn] : 0;
         const int cx = (census >> 3) + d * 4 + 10;
         if (cx <= cool - ai_021a_visit_turn(u)) {
-          const int save_gx = u->goto_x;
-          const int save_gy = u->goto_y;
+          /* OVL13 0x1456-0x1460: +0x314d/e = colony x,y, never restored
+           * (america resync 94: the Brave's goto survives in the save). */
           u->goto_x = col->x;
           u->goto_y = col->y;
           int sx = 0;
@@ -1219,8 +1219,7 @@ int ai_native_021a_tail(
             NULL, false, rng, NULL
           );
           const bool ok = units_next_goto_step_w(&gw, u->id, &sx, &sy);
-          u->goto_x = save_gx;
-          u->goto_y = save_gy;
+          if (ai_021a_trace_enabled()) fprintf(stderr, "AI_021A_MARCH xy=(%d,%d) col=(%d,%d) d=%d lim=%d cx=%d ok=%d step=(%d,%d)\n", u->x, u->y, col->x, col->y, d, lim, cx, ok, sx, sy);
           if (ok) {
             int step = -1;
             for (int k = 0; k < 8; ++k) {

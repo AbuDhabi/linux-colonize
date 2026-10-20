@@ -1330,6 +1330,19 @@ void units_sentry_wake_scan(
       if (topu) {
         topu->last_dir = (int8_t)d;
       }
+      if (mover_nation >= 4 && owner >= 4 && g_units_fallout_col1) {
+        /* DOS-LITERAL FUN_5bfb_3180 raw 98684-98689: two native nations
+         * meeting share horses — both herds become the larger (DS:0x5ade =
+         * indian[].horse_herds). America resync 82 / 96. */
+        ColonizeCol1Indian* a = &g_units_fallout_col1->indian[mover_nation - 4];
+        ColonizeCol1Indian* b = &g_units_fallout_col1->indian[owner - 4];
+        int8_t herds = (int8_t)a->horse_herds;
+        if (herds < (int8_t)b->horse_herds) {
+          herds = (int8_t)b->horse_herds;
+        }
+        a->horse_herds = (uint8_t)herds;
+        b->horse_herds = (uint8_t)herds;
+      }
       contact_latched[owner] = units_3180_contact_latch(col1, mover_nation, owner);
     }
     if (!topu) {
