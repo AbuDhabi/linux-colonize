@@ -28,6 +28,7 @@ enum {
   RT_PATH = 9,         /* v1: units_path_state_export (DS:0x1dd2 + flood cache) */
   RT_COLONY_PLOTS_REC = 10, /* v1: u32 plot_was_worked_mask per colony in record order (26e4 carry) */
   RT_HOLD_AMOUNT = 11, /* v1: i32 DS:0x8dc4 units_last_hold_amount (last 317c slot amount) */
+  RT_LCR_COUNTS = 12,  /* v1: u8 DS:0x1dc6 rumours explored, u8 DS:0x1dc7 Cibola count */
 };
 
 #define RT_UNIT_TAIL_ENTRY 17
@@ -208,6 +209,11 @@ uint8_t* runtime_ext_serialize(
     rt_record(&b, RT_HOLD_AMOUNT, 1, p, sizeof p);
   }
   {
+    uint8_t p[2];
+    units_lcr_counters_export(p);
+    rt_record(&b, RT_LCR_COUNTS, 1, p, sizeof p);
+  }
+  {
     uint8_t p[UNITS_PATH_STATE_SIZE];
     units_path_state_export(p);
     rt_record(&b, RT_PATH, 1, p, sizeof p);
@@ -292,6 +298,9 @@ void runtime_ext_deserialize(
         break;
       case RT_HOLD_AMOUNT:
         if (len == 4) units_last_hold_amount = (int)rd_u32_le(p);
+        break;
+      case RT_LCR_COUNTS:
+        if (len == 2) units_lcr_counters_import(p);
         break;
       case RT_PATH:
         if (len == UNITS_PATH_STATE_SIZE) units_path_state_import(p, map);

@@ -694,7 +694,10 @@ ColonizeColony* ai_euro_5952_tools_supply_and_connect(
     return col;
   }
   const int turn = (ctx->turn_number && *ctx->turn_number) ? (int)*ctx->turn_number : 0;
-  int have_tools = col->stock[COLONIZE_CARGO_TOOLS] > 0x13; /* local_16, raw 93978 */
+  /* local_16: the prelude's latch (seeded from +0xb6 at the tick top, raw
+   * 93978; a Pioneer join sets it, raw 94261), not the live stock (america
+   * resync 80->81: Fort Nassau bought 20 tools after a Pioneer joined). */
+  int have_tools = ai_euro_5952_tools_latch;
   const int wants_work = (col->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_WORK) != 0;
   if ((wants_work || turn % 10 == 0) && !have_tools && ctx->col1_ok && ctx->col1) {
     /*
@@ -1323,6 +1326,10 @@ static void ai_euro_20e6_explorer_flag(ColonizeTurnContext* ctx, ColonizeUnit* u
  */
 static int ai_euro_20e6_patrol_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, const Ai20e6Unit* s) {
   const int tasked = (s->order_code == 't' || s->order_code == 'i');
+  if (getenv("AI_EA_TRACE")) {
+    fprintf(stderr, "[277a] u%d (%d,%d) t%d stance %d tasked %d ship %d combat %d home %d home_cid %d cid %d home_dist %d\n",
+            u->id, u->x, u->y, s->dos_type, s->stance, tasked, s->is_ship, s->combat, s->home_colony, s->home_cid, s->cid, s->home_dist);
+  }
   if (s->stance != 0 || tasked || s->is_ship ||
       !(s->dos_type == UNITS_KIND_PIONEER || s->combat > 1) ||
       s->home_cid != s->cid || s->home_colony < 0) {
@@ -2166,6 +2173,10 @@ int ai_euro_20e6_wander_step(
   int best_dir = 8;
   int best_attack = 0;
   int saw_foe = ctx->ai_euro_wander_stack_word; /* uninitialized local_ea */
+  if (getenv("AI_EA_TRACE")) {
+    fprintf(stderr, "[ea] u%d (%d,%d) t%d n%d sp%d o%d p%02x e7c4 %d\n", u->id, u->x, u->y,
+            s->dos_type, nation, u->moves, u->orders, u->col1_ai_plan, saw_foe);
+  }
   /* FUN_521d_20e6 raw 88779 reads the saved facing byte for land and
    * ships alike. The scratch mirror starts at zero after loading a save
    * and biased land units north (#530 TURN4 Spanish soldier). */
@@ -3797,78 +3808,6 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
    * (state this port keeps in `aboard_ship_id`) while the port's orders 1 is
    * SENTRY, a parked ON-MAP unit that must still free-score.
    */
-  /*
-   * DOS-LITERAL FUN_521d_20e6 raw 90183-90206 (dup raw 85345-85368, overlay
-   * body viceroy_overlays.c:80720-80761) — the ONLY AI pioneer order DOS
-   * writes. It sits immediately ahead of the pre-LAB_4d2e gate below:
-   *
-   *   if (unit[+0x3146] == 2 && local_6a == 0) {          // Pioneers, not an
-   *     local_a = 1;                                      //   explorer pick
-   *     if (-1 < village_idx) {                           // raw 90186
-   *       FUN_281f_0a4c(village_idx);                     //   bind DS:0x8d52
-   *       local_7c = FUN_281f_0a56(DS:0x8d52);            //   tech-tier radius
-   *       if (village_dist <= local_7c && alarm_q < 3) local_a = 0;
-   *     }
-   *     if (-1 < colony_idx) {                            // raw 90193
-   *       FUN_281f_09e6(colony_idx);
-   *       if (colony[+0x1a] != nation && colony_dist < 3) local_a = 0;
-   *     }
-   *     if (local_a) { unit[+0x314c] = 9; unit[+0x314b] = 0x52;
-   *                    goto LAB_521d_5a78; }
-   *   }
-   *
-   * No tile-quality test, no colony ring, no tools test, no plow-before-road
-   * rule — those were the invented planner (port_bugs.md #610).
-   *
-   * Who ticks an order-9 AI unit afterwards? FUN_521d_5b66's switch: `case 9:
-   * FUN_291f_0216` (= FUN_479b_0526) runs after every 20e6 return 0, the road
-   * arm's included, and on later turns too (20e6's entry gate sends act_state
-   * 9 straight to LAB_5a78, raw 89327). The old "nobody, it is a park" reading
-   * missed that dispatch (ported in ai_euro_unit_act).
-   */
-  if (!force_wander && s.dos_type == 2 && s.explorer == 0) {
-    {
-      {
-      int allow = 1; /* local_a */
-      if (s.village_idx >= 0 && ctx->col1_ok && ctx->col1 && ctx->col1->tribe &&
-          s.village_idx < (int)ctx->col1->head.tribe_count) {
-        const ColonizeCol1Tribe* vt = &ctx->col1->tribe[s.village_idx];
-        const int ind = (int)vt->nation_id - 4;
-        if (ind >= 0 && ind < (int)COLONIZE_COL1_INDIAN_COUNT) {
-          /* FUN_281f_0a56 -> FUN_15dc_006a: tech 0/1 -> 1, 2 -> 2, else 3. */
-          const unsigned tech = (unsigned)ctx->col1->indian[ind].tech;
-          const int radius = (tech <= 1u) ? 1 : (tech == 2u ? 2 : 3);
-          const int alarm = (nation_id >= 0 && nation_id < 4)
-                              ? (int)ctx->col1->indian[ind].alarm_by_player[nation_id]
-                              : 0;
-          /* FUN_281f_0a60 -> FUN_15dc_00a2 quartile: <25 0, <50 1, <75 2, else 3. */
-          if (s.village_dist <= radius && ai_relation_quartile(alarm) < 3) {
-            allow = 0;
-          }
-        }
-      }
-      {
-        int any_dist = 0;
-        const int any_id = ai_euro_20e6_nearest_colony(ctx, u->x, u->y, -1, -1, &any_dist);
-        if (any_id >= 0) {
-          const ColonizeColony* ac = colonies_get(ctx->colonies, any_id);
-          if (ac && ac->nation_id != nation_id && any_dist < 3) {
-            allow = 0;
-          }
-        }
-      }
-      if (allow) {
-        u->orders = UNITS_ORDER_BUILD_ROAD; /* +0x314c = 9 */
-        u->col1_ai_plan = 0x52;             /* +0x314b = 'R' */
-        /* `goto LAB_521d_5a78` (a no-op for 9), then 20e6 returns 0 and
-         * FUN_521d_5b66 dispatches `case 9` (FUN_479b_0526), wired in
-         * ai_euro_unit_act after the 5a78 tail. 1 keeps the goal ladder off
-         * the order. */
-        return 1;
-      }
-      }
-    }
-  }
   {
     /*
      * FUN_521d_20e6 land arms, in DOS order: SCOUT/PATROL (LAB_277a) →
@@ -3986,6 +3925,82 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
     } else if (!force_wander && s.explorer && hop_scan && ai_euro_20e6_ring_hop(ctx, u, &s)) {
       return 0; /* raw 2416-2458: scan failed, hop 4 tiles out instead */
     } else {
+      /* Raw 90183-90206 (the Pioneer 'R' gate) sits right here in DOS, after
+       * the LAB_277a patrol arm and the ring scan, immediately ahead of the
+       * pre-LAB_4d2e gate (america resync 84->85: a Pioneer standing on its
+       * bound Roanoke took 'R' where DOS's earlier patrol arm says 'V'). */
+  /*
+   * DOS-LITERAL FUN_521d_20e6 raw 90183-90206 (dup raw 85345-85368, overlay
+   * body viceroy_overlays.c:80720-80761) — the ONLY AI pioneer order DOS
+   * writes. It sits immediately ahead of the pre-LAB_4d2e gate below:
+   *
+   *   if (unit[+0x3146] == 2 && local_6a == 0) {          // Pioneers, not an
+   *     local_a = 1;                                      //   explorer pick
+   *     if (-1 < village_idx) {                           // raw 90186
+   *       FUN_281f_0a4c(village_idx);                     //   bind DS:0x8d52
+   *       local_7c = FUN_281f_0a56(DS:0x8d52);            //   tech-tier radius
+   *       if (village_dist <= local_7c && alarm_q < 3) local_a = 0;
+   *     }
+   *     if (-1 < colony_idx) {                            // raw 90193
+   *       FUN_281f_09e6(colony_idx);
+   *       if (colony[+0x1a] != nation && colony_dist < 3) local_a = 0;
+   *     }
+   *     if (local_a) { unit[+0x314c] = 9; unit[+0x314b] = 0x52;
+   *                    goto LAB_521d_5a78; }
+   *   }
+   *
+   * No tile-quality test, no colony ring, no tools test, no plow-before-road
+   * rule — those were the invented planner (port_bugs.md #610).
+   *
+   * Who ticks an order-9 AI unit afterwards? FUN_521d_5b66's switch: `case 9:
+   * FUN_291f_0216` (= FUN_479b_0526) runs after every 20e6 return 0, the road
+   * arm's included, and on later turns too (20e6's entry gate sends act_state
+   * 9 straight to LAB_5a78, raw 89327). The old "nobody, it is a park" reading
+   * missed that dispatch (ported in ai_euro_unit_act).
+   */
+  if (!force_wander && s.dos_type == 2 && s.explorer == 0) {
+    {
+      {
+      int allow = 1; /* local_a */
+      if (s.village_idx >= 0 && ctx->col1_ok && ctx->col1 && ctx->col1->tribe &&
+          s.village_idx < (int)ctx->col1->head.tribe_count) {
+        const ColonizeCol1Tribe* vt = &ctx->col1->tribe[s.village_idx];
+        const int ind = (int)vt->nation_id - 4;
+        if (ind >= 0 && ind < (int)COLONIZE_COL1_INDIAN_COUNT) {
+          /* FUN_281f_0a56 -> FUN_15dc_006a: tech 0/1 -> 1, 2 -> 2, else 3. */
+          const unsigned tech = (unsigned)ctx->col1->indian[ind].tech;
+          const int radius = (tech <= 1u) ? 1 : (tech == 2u ? 2 : 3);
+          const int alarm = (nation_id >= 0 && nation_id < 4)
+                              ? (int)ctx->col1->indian[ind].alarm_by_player[nation_id]
+                              : 0;
+          /* FUN_281f_0a60 -> FUN_15dc_00a2 quartile: <25 0, <50 1, <75 2, else 3. */
+          if (s.village_dist <= radius && ai_relation_quartile(alarm) < 3) {
+            allow = 0;
+          }
+        }
+      }
+      {
+        int any_dist = 0;
+        const int any_id = ai_euro_20e6_nearest_colony(ctx, u->x, u->y, -1, -1, &any_dist);
+        if (any_id >= 0) {
+          const ColonizeColony* ac = colonies_get(ctx->colonies, any_id);
+          if (ac && ac->nation_id != nation_id && any_dist < 3) {
+            allow = 0;
+          }
+        }
+      }
+      if (allow) {
+        u->orders = UNITS_ORDER_BUILD_ROAD; /* +0x314c = 9 */
+        u->col1_ai_plan = 0x52;             /* +0x314b = 'R' */
+        /* `goto LAB_521d_5a78` (a no-op for 9), then 20e6 returns 0 and
+         * FUN_521d_5b66 dispatches `case 9` (FUN_479b_0526), wired in
+         * ai_euro_unit_act after the 5a78 tail. 1 keeps the goal ladder off
+         * the order. */
+        return 1;
+      }
+      }
+    }
+  }
       /* The pre-LAB_4d2e act-state gate (raw 90210-90219) sits at the END of
        * the arm chain: DOSBox 1596, a French Dragoon on its 0x0c step tile
        * still ran the ring scan (+0x3154++) and the hop roll before 0984

@@ -703,6 +703,9 @@ void europe_remove_dock_mirror_unit(ColonizeUnitPool* units, int nation_id, int 
       continue;
     }
     if (u->profession == profession) {
+      if (getenv("AI_DOCK_TRACE")) {
+        fprintf(stderr, "[dock-rm] n%d u%d prof %d\n", nation_id, u->id, profession);
+      }
       (void)units_disband(units, u->id);
       return;
     }
@@ -711,6 +714,9 @@ void europe_remove_dock_mirror_unit(ColonizeUnitPool* units, int nation_id, int 
     }
   }
   if (fallback >= 0) {
+    if (getenv("AI_DOCK_TRACE")) {
+      fprintf(stderr, "[dock-rm] n%d fallback u%d prof %d\n", nation_id, fallback, profession);
+    }
     (void)units_disband(units, fallback);
   }
 }

@@ -3113,6 +3113,8 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_open(AiEuroColonyTick* t) {
   t->tory_weight =
     (col1_7c && ai_king_independence_declared(col1_7c))
       ? 0 : (col->population * (100 - colony_prod_sol_percent(col1_7c, col)) + 50) / 100;
+  /* local_16 seed, raw 93978 (the prelude's absorption arm may set it). */
+  ai_euro_5952_tools_latch = col->stock[COLONIZE_CARGO_TOOLS] > 0x13;
   if (t->whole_tick) {
     /* FUN_5952_035e raw 93943 (OVL15 0x39f, DOSBox-confirmed): the tick
      * opens with memset(colony+0x8a, 0, 2), so AI colonies carry no

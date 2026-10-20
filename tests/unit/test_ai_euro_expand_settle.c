@@ -427,6 +427,11 @@ static int unit_pioneer_takes_order9(void) {
    * only fires for another nation's colony inside DOS distance 3) is inert. */
   ColonizeColony* home = fx_colony_add(&colonies, nation, 2, 2, 4);
   home->stock[COLONIZE_CARGO_FOOD] = 100;
+  /* ... and on its own continent (layer3 low nibble): with an own colony on
+   * the Pioneers' continent and stance 0, the earlier LAB_277a patrol arm
+   * commits 'V' toward it (local_2c == local_38) and the raw 90183 gate is
+   * never reached. */
+  map.layer3[2 + 2 * 16] = 0x02;
 
   /*
    * The −0x5ec4 explorer cap is 3 per continent for a non-Colonist, so with

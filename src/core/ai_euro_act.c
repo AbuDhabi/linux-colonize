@@ -770,6 +770,10 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
       const int urgency = ai_euro_0a60_work_registered(nation_id);
       int cx = 0;
       int cy = 0;
+      if (getenv("AI_SHIP_TRACE")) {
+        fprintf(stderr, "[sailgate] unit %d n%d (%d,%d) stack_other %d civ %d pioneers %d mil %d urgency %d mask 0x%x\n",
+                id, nation_id, u->x, u->y, tile_stack_others, civ, pioneers, mil, urgency, entry_unload_mask);
+      }
       if (tile_stack_others > 0 && (civ != 0 || ((pioneers != tile_stack_others || urgency > 0x18) && entry_unload_mask == 0)) &&
           ai_euro_20e6_colony_sail_pick(ctx, u, nation_id, mil, pioneers_b4, urgency, &cx, &cy)) {
         u->col1_ai_plan = 0x34; /* -> 27f5 -> 20c6 with DX = '4' (OVL14 0x3f47) */
@@ -980,6 +984,9 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
      * Adjacent sign steps skip 00f2 entirely. */
     if (flood && u->nation_id >= 0 && u->nation_id < 4) {
       ctx->ai_euro_wander_stack_word = u->nation_id * 0x13c;
+      if (getenv("AI_EA_TRACE")) {
+        fprintf(stderr, "[ea-w] flood u%d (%d,%d) n%d -> %d\n", id, u->x, u->y, u->nation_id, ctx->ai_euro_wander_stack_word);
+      }
     }
   }
   /* FUN_6662_0f74 LAB_1599, raw 104758: the pathfinder writes +0x314f

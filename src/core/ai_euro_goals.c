@@ -693,6 +693,10 @@ void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int nation_id
     if (best_slot >= 0) {
       const AiGoalSlot* g = ai_goals_primary(nation_id, best_slot);
       u->col1_ai_plan = 0x31; /* '1' default goal-pursue code */
+      if (getenv("AI_EA_TRACE")) {
+        fprintf(stderr, "[0a60-goal] n%d u%d (%d,%d) t%d o%d -> slot %d code %d (%d,%d) prio %d score %d\n",
+                nation_id, u->id, u->x, u->y, u->type_index, u->orders, best_slot, g->code, g->x, g->y, g->prio, best_score);
+      }
       if (g->code == AI_GOAL_FOUND) {
         u->col1_ai_plan = 0x74; /* 't' */
       } else if (g->code == AI_GOAL_MIL_EXPAND) {
@@ -1673,6 +1677,7 @@ COLONIZE_INTERNAL void ai_euro_5952_absorb_equip(
    * the fourth one's own input, which is why the block is hosted here, in
    * the same frame that owns the latch, rather than in the caller. */
   ai_euro_5952_build_pref_0306(ctx, nation_id, c, *labor_running, tools_latch);
+  ai_euro_5952_tools_latch = tools_latch; /* local_16 for raw 94370 (tools purchase) */
 }
 
 /* ---- equip arm, raw 94276-94352 ---------------------------------------
@@ -1943,6 +1948,11 @@ static void ai_euro_5952_build_pref_0306(
     }
     const int want = c->stock[COLONIZE_CARGO_TRADE_GOODS] < 100 && price < 4 &&
                      (c->colony_flags & COLONIZE_COLONY_FLAG_WAGON_TRAIN) != 0;
+    if (getenv("AI_SHIP_TRACE")) {
+      fprintf(stderr, "[5952-tg] colony %d n%d stock %d price %d wagon %d gross %d want %d spec %d\n",
+              c->id, nation_id, c->stock[COLONIZE_CARGO_TRADE_GOODS], price,
+              (c->colony_flags & COLONIZE_COLONY_FLAG_WAGON_TRAIN) != 0, gross[COLONIZE_CARGO_TRADE_GOODS], want, c->specialty_cargo);
+    }
     colonies_specialty_cargo_update(
       ctx->colonies, c, COLONIZE_CARGO_TRADE_GOODS, want,
       gross[COLONIZE_CARGO_TRADE_GOODS] != 0
@@ -2167,6 +2177,8 @@ static void ai_euro_colony_threat_seed_5952(
     *out_labor_running = want;
   }
 }
+
+int ai_euro_5952_tools_latch = 0;
 
 /* FUN_5952_035e raw 94097-94352: per-colony state before placement.
  * Keep iStack_76 local to this whole prelude, including absorption. */

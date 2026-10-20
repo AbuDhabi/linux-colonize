@@ -162,6 +162,8 @@ int ai_euro_colony_wanted_size(
   const ColonizeColonyPool* pool,
   const ColonizeColony* c
 );
+/* FUN_521d_6d8e prelude raw 93142-93157: WAGON_TRAIN colony bit from homed wagons. */
+void ai_euro_6d8e_wagon_flags(ColonizeTurnContext* ctx, int nation_id);
 void ai_euro_refresh_colony_ai_flags(
   ColonizeTurnContext* ctx,
   int nation_id,
@@ -275,6 +277,9 @@ extern const int8_t ai_euro_k_20e6_ring20_dy[20];
 void ai_euro_5952_improve_best_plot(
   ColonizeTurnContext* ctx, ColonizeColony* col, int* out_improvement_owner, int* out_best_plot
 );
+/* FUN_5952_035e local_16: seeded from +0xb6 > 0x13 at the tick top, set by a
+ * Pioneer join (raw 94261), read by the 20-tool purchase (raw 94370). */
+extern int ai_euro_5952_tools_latch;
 ColonizeColony* ai_euro_5952_tools_supply_and_connect(
   ColonizeTurnContext* ctx, ColonizeColony* col
 );

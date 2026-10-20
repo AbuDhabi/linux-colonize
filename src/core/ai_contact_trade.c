@@ -851,6 +851,9 @@ void ai_contact_apply_reparations(
         ind->muskets = (uint8_t)(ind->muskets + 1);
       }
     } else if (s->cargo == COLONIZE_CARGO_HORSES) {
+      if (getenv("AI_CONTACT_TRACE")) {
+        fprintf(stderr, "[city-accept] e%d ind slot %d brave %d qty %d herds %d\n", e, (int)(ind - ctx->col1->indian), brave ? brave->id : -1, s->qty, ind->horse_herds);
+      }
       const int rank = ai_contact_brave_ladder_rank(ctx->units, brave);
       if (brave && rank >= 0 && (rank & 2) == 0) {
         ai_contact_brave_ladder_add(ctx->units, brave, 2);
@@ -867,6 +870,9 @@ void ai_contact_apply_reparations(
   }
 
   /* @INDIANWAGONS accept: FUN_281f_0aec strips the whole hold. */
+  if (getenv("AI_CONTACT_TRACE")) {
+    fprintf(stderr, "[wagons-accept] e%d cargo %d\n", e, s->cargo);
+  }
   ColonizeUnit* wag =
     (ctx->units && s->unit_id >= 0) ? units_get(ctx->units, s->unit_id) : NULL;
   if (wag && wag->active && wag->nation_id == e && s->hold >= 0 &&
@@ -1353,6 +1359,9 @@ static void ai_contact_2820_sell_settle(
 ) {
   const int cargo = s->cargo;
   const int qty = units_remove_goods_slot(unit, s->slot);
+  if (getenv("AI_CONTACT_TRACE")) {
+    fprintf(stderr, "[2820-sell] e%d tribe n%d cargo %d qty %d unit %d\n", e, t ? (int)t->nation_id : -1, cargo, qty, unit ? unit->id : -1);
+  }
   s->qty = qty; /* DS:0x8dc4 */
   /* audit G3: single treasury — village trade is the human's main non-Europe
    * gold source, and crediting the record alone meant the sale evaporated at
@@ -1404,6 +1413,9 @@ static void ai_contact_2820_gift_settle(
 ) {
   const int cargo = s->cargo;
   const int qty = units_remove_goods_slot(unit, s->slot);
+  if (getenv("AI_CONTACT_TRACE")) {
+    fprintf(stderr, "[2820-gift] e%d tribe n%d cargo %d qty %d unit %d\n", e, t ? (int)t->nation_id : -1, cargo, qty, unit ? unit->id : -1);
+  }
   s->qty = qty;
   if (t) {
   /*
