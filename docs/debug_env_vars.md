@@ -15,7 +15,7 @@ comparing golden output.
 | `AI_SCORE_AT` | `src/core/ai.c` (`ai_score_at_match`) | trace | `"n:x:y[,n:x:y...]"` — extra `pick_dir` score-dump targets for the given nation/tile | unset |
 | `AI_STEP_AUDIT` | `src/core/ai.c` (`ai_step_audit_enabled`) | trace | Logs mid-turn Brave step paths (phase 13 multi-step) | off |
 | `AI_021A_WATCH` | `src/core/ai_native_021a.c` (`ai_native_pick_dir_021a`) | trace | `"x:y"` — prints that tile's layer2/layer3 at every Brave act | unset |
-| `AI_021A_TRACE` | `src/core/ai_native_021a.c` (`ai_021a_trace_enabled`) | trace | One line per Brave act: pick, flags, final direction | off |
+| `AI_021A_TRACE` | `src/core/ai_native_021a.c` (`ai_021a_trace_enabled`) | trace | One line per Brave act: pick, flags, final direction; `AI_021A_MARCH` per encroaching-colony march (colony, dist, 0f74 step) | off |
 | `UNITS_FAR_BFS` | `src/core/units_move.c` (`units_goto_director`) | **behaviour** | `=1` reverts to the pre-2026-08-27 whole-map BFS tier for far pathing (diagnostic fallback) | off (tiered BFS) |
 | `COLONIZE_UNITS_STRICT` | `src/core/units_map.c` (`units_strict_init`, constructor) | **behaviour** | `=1` makes the pool allocator / `units_get` verify slot bookkeeping and `abort()` on a pool filled by hand without `units_pool_sync`. Checks only; sim output unchanged. CMake sets it for every ctest run | off (set by ctest) |
 | `AI_6D8E_DOS_LOOP` | `src/core/ai_euro.c` (`ai_euro_dispatcher_turn_unit_waves`) | **behaviour** | `=0` disables the DOS-literal re-act-until-exhausted loop order for the Euro nation-turn dispatch loop | on (`1`, DOS loop order) |

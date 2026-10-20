@@ -227,7 +227,7 @@ static void fixture_water_ring(Fixture* f, ColonizeColony* c) {
  * act (which would sail it and re-run the 20e6 band on the new hull) skips
  * it: what the hull holds after the call is exactly what 5d04 did to it. */
 static int spawn_europe_ship(Fixture* f, int nation) {
-  const int id = units_spawn_allow_stack(&f->units, 2, EUROPE_X, EUROPE_Y);
+  const int id = units_spawn_allow_stack(&f->units, 2, 236 + nation, 236 + nation); /* dock slot x == 236+n */
   ColonizeUnit* u = id >= 0 ? units_get(&f->units, id) : NULL;
   if (!u) {
     return -1;
@@ -240,7 +240,7 @@ static int spawn_europe_ship(Fixture* f, int nation) {
 }
 
 static int spawn_europe_colonist(Fixture* f, int nation, int type_index, int profession) {
-  const int id = units_spawn_allow_stack(&f->units, type_index, EUROPE_X, EUROPE_Y);
+  const int id = units_spawn_allow_stack(&f->units, type_index, 236 + nation, 236 + nation);
   ColonizeUnit* u = id >= 0 ? units_get(&f->units, id) : NULL;
   if (!u) {
     return -1;

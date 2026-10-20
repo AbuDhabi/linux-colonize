@@ -896,10 +896,6 @@ int units_move_cost(
   if (!map) {
     return UNITS_MP_PER_TILE;
   }
-  if (units_is_sea(pool, unit_id)) {
-    /* DOS: terr_cost[ocean] = 1 -> 3 thirds per sea tile. */
-    return UNITS_MP_PER_TILE;
-  }
   const ColonizeUnit* u = units_get_const(pool, unit_id);
   if (!u) {
     return map_move_cost_at(map, dest_x, dest_y) * UNITS_MP_PER_TILE;

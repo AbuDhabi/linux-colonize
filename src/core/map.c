@@ -2050,9 +2050,12 @@ int map_move_spent_thirds(
   int to_x,
   int to_y
 ) {
-  if (!map || !map_tile_is_land(map, to_x, to_y)) {
+  if (!map) {
     return 3;
   }
+  /* No land test: FUN_465b_0000 raw 75450-75467 prices a water step the same
+   * way (terr_cost[ocean] = 1, then the FA / river pair rules). A ship leaving
+   * a river-mouth colony onto a 0x40 ocean tile pays 1 (america resync 95). */
   const int cost_byte = map_dos_terr_cost_byte(map_dos_terr_class_at(map, to_x, to_y));
   int spent = cost_byte * 3;
   const bool fa_from = map_tile_has_road_art(map, from_x, from_y);

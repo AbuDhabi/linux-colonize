@@ -385,6 +385,9 @@ int colonies_colonist_occupation_job(const ColonizeColonyPool* pool, const Colon
     return c->field_job;
   }
   if (c->building_type < 0 || c->building_type >= COLONIZE_BUILDING_TYPES_MAX) {
+    if (c->idle_job1 != 0) {
+      return (int)c->idle_job1 - 1; /* the DOS occupation whose building is missing */
+    }
     return 0x12; /* unseated: DOS's idle join is FUN_15eb_1068(slot, 0x12) */
   }
   const int row = colonies_building_type_row(pool, c->building_type);

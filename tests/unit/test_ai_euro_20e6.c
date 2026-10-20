@@ -827,7 +827,7 @@ static int unit_europe_dock_demand_sails_home(void) {
 
   /* Two colonists waiting on the Europe dock, no hull in the lane yet. */
   for (int i = 0; i < 2; ++i) {
-    const int pid = units_spawn_allow_stack(&f.units, 0, 200, 100);
+    const int pid = units_spawn_allow_stack(&f.units, 0, 236 + nation, 236 + nation); /* dock slot x == 236+n (FUN_4962_0018) */
     ColonizeUnit* p = units_get(&f.units, pid);
     if (!p) {
       fixture_free(&f);
@@ -940,7 +940,7 @@ static int unit_europe_dock_demand_uses_tile_stack_snapshot(void) {
   f.turn = (uint32_t)(32 - ((int)(ship - f.units.units) % 32) + 1);
 
   for (int i = 0; i < 2; ++i) {
-    const int pid = units_spawn_allow_stack(&f.units, 0, 200, 100);
+    const int pid = units_spawn_allow_stack(&f.units, 0, 236 + nation, 236 + nation); /* dock slot x == 236+n (FUN_4962_0018) */
     ColonizeUnit* p = units_get(&f.units, pid);
     if (!p) {
       fixture_free(&f);
@@ -984,7 +984,7 @@ static int unit_europe_dock_demand_throttled_by_lane(void) {
     }
     f.map.terrain[y * 16 + 15] = 26;
   }
-  const int waiting = units_spawn_allow_stack(&f.units, 0, 200, 100);
+  const int waiting = units_spawn_allow_stack(&f.units, 0, 236 + nation, 236 + nation); /* dock slot x == 236+n (FUN_4962_0018) */
   ColonizeUnit* w = units_get(&f.units, waiting);
   if (!w) {
     fixture_free(&f);
