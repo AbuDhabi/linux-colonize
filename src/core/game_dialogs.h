@@ -487,6 +487,8 @@ void game_europe_sail_harbor(ColonizeGameState* game, int hidx);
 void game_europe_service_trade_harbor(ColonizeGameState* game);
 void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext* ctx);
 bool game_load_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
+/* Same load from an arbitrary file (input-replay regressions). */
+bool game_load_col1_file(ColonizeGameState* game, const char* path, char* err, size_t err_size);
 void game_open_report(ColonizeGameState* game, ColonizeReportId id);
 void game_open_retire_score(ColonizeGameState* game);
 void game_reveal_sight_for_unit(ColonizeGameState* game, const ColonizeUnit* u);

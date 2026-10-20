@@ -99,8 +99,8 @@ From [`CMakeLists.txt`](../CMakeLists.txt):
 | **`colonize_ui`** (STATIC) | Presentation: `fb`, `font`, `pik`, `ss`, `popup`, `ui_*`, `text_edit`, every `*_dialog`, `game_loop`, `game_dialogs`, `map_menu`, `map_panel`, `unit_stack`, `unit_chrome_draw`, `units_render`, `colony_screen`, `colony_chrome`, `colony_preview`, `europe_art`, `reports`, `pedia`, `new_game`, `trade_screen`, `combat_analysis_render`, `ai_popup_render`, `woodcut_present`, `declaration`, `opening`, `closing`, `debug_atlas` | **`colonize_sim`** (PUBLIC) |
 | **`colonize_core`** (INTERFACE) | No objects of its own — the one name every consumer still links | `colonize_ui` (hence `colonize_sim`) |
 | **`colonize_sim_linkcheck`** (SHARED) | `cmake/sim_linkcheck.c` + all of `colonize_sim` under `-Wl,--no-undefined`; builds with ALL | `colonize_sim` |
-| **`opencol`** (EXE) | `src/main.c` + `platform/linux_sdl2/sdl_runtime.c` | `colonize_core` + SDL2 |
-| **Tests** | `tests/smoke/` (`smoke_*`), `tests/unit/` (`unit_*`), `tests/golden/` (`golden_*`) | Mostly `colonize_core` (headless); see [`tests/README.md`](../tests/README.md) |
+| **`opencol`** (EXE) | `src/main.c` + `platform/linux_sdl2/sdl_runtime.c` + `sdl_keymap.c` | `colonize_core` + SDL2 |
+| **Tests** | `tests/smoke/` (`smoke_*`), `tests/unit/` (`unit_*`), `tests/golden/` (`golden_*`), `tests/regression/` (`regression_replay` over `tests-automated-regression/`) | Mostly `colonize_core` (headless); see [`tests/README.md`](../tests/README.md) |
 
 `ai_contact_link_stubs.c` is in no library — slim tests only (see its header).
 
@@ -237,7 +237,7 @@ Cluster table (not every file). Paths are under `src/core/` unless noted.
 | **Screens** | `new_game`, `pedia`, `reports` (+ `reports_congress`, `reports_economy`, `reports_military`, `reports_score`), `founding_fathers` | Wizard / advisors / FF. `reports.c` was one 4403-line file until 2026-09-23; it is now five files split along its banners (`reports.c` view lifecycle + asset/id lookups, shared draw primitives, shadowed line helpers and the top-level render dispatch, `reports_congress.c` Religious + Continental Congress + Labor, `reports_economy.c` Economic/Trade + Cargo + Colony, `reports_military.c` Naval/Military + Foreign affairs + Indian, `reports_score.c` score computation + Hall of Fame/Exploits) with the cross-file seams declared in `reports_internal.h`. |
 | **Audio** | `gsound_vm.c/.h`, `sound.c/.h` | Literal `GSOUND.COL` driver emulation + DOS BGM scheduler, `COLDIG.BIN` SFX mixing, FluidSynth when present |
 | **RNG / util** | `dos_rng`, `strutil`, `version.h` | DOS LCG fidelity |
-| **Platform** | `src/platform/platform.h`, `linux_sdl2/sdl_runtime.c`, `dos_compat/` | Contract + SDL2 + stubs |
+| **Platform** | `src/platform/platform.h`, `linux_sdl2/sdl_runtime.c` (+ `sdl_keymap.c`, shared with the replay harness), `dos_compat/` | Contract + SDL2 + stubs |
 | **Baked tables** | `src/data/viceroy_tables.c/.h` | Extracted VICEROY lookups |
 
 ### Present shape facts

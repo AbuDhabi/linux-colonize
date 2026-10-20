@@ -1,0 +1,16 @@
+{"type":"session","version":1,"t_ms":100,"unix_ms":0,"window_scale":2,"screen_w":320,"screen_h":200,"audio":false}
+{"type":"key_down","t_ms":5000,"unix_ms":0,"frame":300,"key":"Keypad 8","keycode":1073741920,"scancode":0,"mod":0,"repeat":false}
+{"type":"key_up","t_ms":5090,"unix_ms":0,"frame":305,"key":"Keypad 8","keycode":1073741920,"scancode":0,"mod":0,"repeat":false}
+{"type":"key_down","t_ms":5700,"unix_ms":0,"frame":340,"key":"Keypad 6","keycode":1073741918,"scancode":0,"mod":0,"repeat":false}
+{"type":"key_up","t_ms":5790,"unix_ms":0,"frame":345,"key":"Keypad 6","keycode":1073741918,"scancode":0,"mod":0,"repeat":false}
+{"type":"key_down","t_ms":6400,"unix_ms":0,"frame":380,"key":"Keypad 6","keycode":1073741918,"scancode":0,"mod":0,"repeat":false}
+{"type":"key_up","t_ms":6490,"unix_ms":0,"frame":385,"key":"Keypad 6","keycode":1073741918,"scancode":0,"mod":0,"repeat":false}
+{"type":"key_down","t_ms":7100,"unix_ms":0,"frame":420,"key":"Keypad 8","keycode":1073741920,"scancode":0,"mod":0,"repeat":false}
+{"type":"key_up","t_ms":7190,"unix_ms":0,"frame":425,"key":"Keypad 8","keycode":1073741920,"scancode":0,"mod":0,"repeat":false}
+{"type":"key_down","t_ms":7800,"unix_ms":0,"frame":460,"key":"Keypad 2","keycode":1073741914,"scancode":0,"mod":0,"repeat":false}
+{"type":"key_up","t_ms":7890,"unix_ms":0,"frame":465,"key":"Keypad 2","keycode":1073741914,"scancode":0,"mod":0,"repeat":false}
+{"type":"key_down","t_ms":8500,"unix_ms":0,"frame":500,"key":"Keypad 2","keycode":1073741914,"scancode":0,"mod":0,"repeat":false}
+{"type":"key_up","t_ms":8590,"unix_ms":0,"frame":505,"key":"Keypad 2","keycode":1073741914,"scancode":0,"mod":0,"repeat":false}
+{"type":"key_down","t_ms":9200,"unix_ms":0,"frame":540,"key":"Keypad 2","keycode":1073741914,"scancode":0,"mod":0,"repeat":false}
+{"type":"key_up","t_ms":9290,"unix_ms":0,"frame":545,"key":"Keypad 2","keycode":1073741914,"scancode":0,"mod":0,"repeat":false}
+{"type":"mouse_move","t_ms":9900,"unix_ms":0,"frame":580,"x":300,"y":200,"lx":150,"ly":100,"dx":1,"dy":1,"buttons":0}

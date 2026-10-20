@@ -329,6 +329,7 @@ if(SDL2_FOUND)
   add_executable(opencol
     src/main.c
     src/platform/linux_sdl2/sdl_runtime.c
+    src/platform/linux_sdl2/sdl_keymap.c
   )
 
   target_include_directories(opencol PRIVATE
@@ -457,6 +458,21 @@ colonize_add_test(NAME unit_settings
   SOURCES tests/unit/test_settings.c
   LIBS colonize_core
 )
+
+# Input-replay regressions: every subdirectory of tests-automated-regression/
+# (tests/README.md "Input-replay regressions"). SDL only for the key table.
+if(SDL2_FOUND)
+  colonize_add_test(NAME regression_replay
+    SOURCES
+      tests/regression/test_regression_replay.c
+      tests/common/platform_cursor_stubs.c
+      src/platform/linux_sdl2/sdl_keymap.c
+      tools/col1_json.c
+    LIBS colonize_core ${COLONIZE_SDL2_TARGET}
+    INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/tools
+    COMPILE_DEFS COLONIZE_REPLAY_PLATFORM=1
+  )
+endif()
 
 colonize_add_test(NAME smoke_game_flow
   SOURCES

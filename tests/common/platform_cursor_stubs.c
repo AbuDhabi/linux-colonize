@@ -4,7 +4,9 @@
 
 #include "platform/platform.h"
 
-/* Smoke tests link game_loop without the SDL runtime. */
+/* Smoke tests link game_loop without the SDL runtime. The input-replay
+ * harness (tests/regression) brings its own poll / present. */
+#ifndef COLONIZE_REPLAY_PLATFORM
 bool platform_poll_input(ColonizePlatform* platform, ColonizeInputState* out_input) {
   (void)platform;
   if (out_input) {
@@ -23,6 +25,7 @@ bool platform_present(
   (void)palette;
   return false;
 }
+#endif
 
 void platform_sleep_ms(uint32_t ms) {
   (void)ms;

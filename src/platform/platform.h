@@ -99,6 +99,9 @@ static inline bool colonize_key_right(ColonizeKey k) {
   return k == COLONIZE_KEY_RIGHT || k == COLONIZE_KEY_KP6;
 }
 
+/* SDL_Keycode -> game key (linux_sdl2/sdl_keymap.c); COLONIZE_KEY_NONE = unmapped. */
+ColonizeKey platform_key_from_sdl(int32_t sdl_keycode);
+
 typedef struct ColonizePalette {
   uint8_t rgb[256][3];
 } ColonizePalette;

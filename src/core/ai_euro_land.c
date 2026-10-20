@@ -562,6 +562,14 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
   }
   const ColonizeWorld w = world_from_turn_ctx(ctx);
   const int step_cap = (int)ctx->map->width + (int)ctx->map->height;
+  /* local_18 / local_1e: seeded from the colony ONCE (raw 93599-93600) and
+   * then stepped by every walk below, never reset per candidate. The next
+   * candidate's |dx|/|dy| test and walk start from wherever the last walk
+   * stopped (america resync 129: Penobscot's walk to Barbados ended at
+   * (44,39), so Providence (35,62) became |dx| 9 / |dy| 23 and was skipped,
+   * one rng(0,2) fewer than a per-candidate reset draws). */
+  int cx = col->x;
+  int cy = col->y;
   for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
     ColonizeColony* other = &ctx->colonies->colonies[ci];
     if (!other->active || other->nation_id != nation || other == col) {
@@ -571,7 +579,7 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
     const int oy = other->y;
     /* raw 93610-93621 — DOS only checks y when |dx| > 6, so the skip needs
      * BOTH axes beyond 6. Transcribed as written. */
-    if (abs(ox - col->x) > 6 && abs(oy - col->y) > 6) {
+    if (abs(ox - cx) > 6 && abs(oy - cy) > 6) {
       continue;
     }
     if (map_continent_id_at(ctx->map, ox, oy) != cid) {
@@ -583,8 +591,6 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
     /* The virtual walk, raw 93632-93652: the raw 00f2 flood on the shared
      * grid with DS:0x1dd6 = -1, goal (ox,oy), DS:0x1dd4 = 1, DS:0x1dd2 = 1,
      * BX = 0x63, from the walk position (local_18 / local_1e). port_bugs.md #1044. */
-    int cx = col->x;
-    int cy = col->y;
     int found = 0;
     for (int steps = 0; steps < step_cap; ++steps) {
       const int d = units_flood_step_dir(&w, cx, cy, ox, oy, 1, -1, 0x63, true);
