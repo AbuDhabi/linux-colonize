@@ -46,7 +46,7 @@ void colony_preview_compute_w(
   }
 
   /* FUN_364b_0688 Phase B: AI Euro food += difficulty>>1 — same subsidy
-   * turn.c applies before consumption (golden_colony_preview01 caught every
+   * turn.c applies before consumption (smoke_colony_preview01 caught every
    * AI colony's preview one food short of the actual tick without it). */
   int ai_food_subsidy = 0;
   if (col1 && colony->nation_id >= 0 && colony->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&

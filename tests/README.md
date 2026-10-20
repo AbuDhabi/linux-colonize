@@ -81,7 +81,9 @@ Examples: `golden_mapgen_seed100`, `golden_colony_prod01`/`02`,
 `golden_market_prices01` (full turn, all four nations' ledgers + demand pool;
 its two dutch2 exclusions are port_bugs.md #1085). Every exclusion a golden makes
 must name its reason in the test and, if it hides an unresolved DOS
-difference, hold a port_bugs.md row.
+difference, hold a port_bugs.md row. A `golden_` test's expectation comes from a
+DOS save; a check of port code against port code (or against port-chosen
+thresholds) is `smoke_` (`smoke_colony_preview01`, `smoke_woi_ref01`, `smoke_ai_*`).
 
 **AI gates are all live (since 2026-09-05).** No test in `CMakeLists.txt` is
 `DISABLED`. The cluster was parked 2026-08-19 while the AI

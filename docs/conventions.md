@@ -250,11 +250,12 @@ Strongest to weakest. When they conflict, the higher rank wins.
    trusting any annotated summary; annotated docs have drifted from the bytes.
 3. **DOS save-file statistics** — 47 original saves are ground truth for which
    bits DOS actually sets.
-4. **Golden fixtures** — locked outputs, but **synthetic tile setups inside a
-   golden are curve-fit re-picks**, not DOS evidence (`golden_colony_prod01`'s
-   Guadeloupe/New Holland/Bahia/St. Louis tiles were calibrated to whatever
-   formula was live at re-pick time). Real captured totals are ground truth;
-   the tile choices are not.
+4. **Golden fixtures** — locked outputs. The DOS after-save is ground truth;
+   **anything a test edits into the game before simulating is not** (a hand
+   tile setup, a despawned unit, a changed type stat). Such edits get
+   calibrated to whatever formula is live when they are made: until
+   2026-10-18 `golden_colony_prod01` carried hand-picked tiles that did
+   exactly that. Today its only edit is one despawned Brave (port_bugs.md #1126).
 5. **These memory notes and the docs** — a summary of the above, and the first
    thing to distrust when it disagrees with 1–4.
 
@@ -313,7 +314,7 @@ cmake --build build/debug --target golden_ai_joint         # when AI or turn ord
   split has hidden a real bug before. valgrind the `-O0` binary first when a
   test flips under optimisation.
 - Headless drivers for end-to-end questions: the WoI sim harness
-  (`tests/golden/test_woi_ref01.c`) and the ship driver pattern in
+  (`tests/smoke/test_woi_ref01.c`) and the ship driver pattern in
   memory `ai-ship-wiggle-fix`.
 - Debug switches are catalogued in **[debug_env_vars.md](debug_env_vars.md)**
   (note which ones *change behaviour*). Quick picks: `DOS_RNG_TRACE`,

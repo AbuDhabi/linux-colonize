@@ -15,16 +15,11 @@
  * made no moves that turn, so any Dutch colony field/building drift is
  * either engine production math or a bridge apply/capture bug.
  *
- * Unlike colony_prod01, this pair has no hand-reconstructed map-tile
- * patches: col1_bridge_apply builds the map straight from this save's own
- * embedded tile data, and that was enough here (see colony_prod01's
- * comment for *why* it needed patches — a different, small fixture whose
- * terrain round-trip needed hand correction; this larger capture didn't
- * hit that gap).
+ * The map comes straight from the save (col1_bridge_apply), with no edits.
  *
  * Only human-controlled Dutch (nation_id 3) colonies are checked; colonies
  * that change hands either side of the turn are excluded, not failed (see
- * compare_dutch_colonies). AI nations are not checked here.
+ * col1_compare_nation_colonies). AI nations are not checked here.
  *
  * Status 2026-08-18: 2/7 Dutch colonies (Guadeloupe, Fort Orange) match
  * exactly; the other 5 have real remaining drift. (Later the same day:
@@ -55,8 +50,8 @@
  * exactly. base=3 had come from golden_colony_prod01's Bahia fixture,
  * whose whole map is hand-synthesized (real terrain was never loaded for
  * it, unlike this save) and carried an unconfirmed "+road" guess that
- * only "worked" by cancelling the wrong base's error; fixed by re-picking
- * that fixture's synthetic terrain instead (see test_colony_prod01.c).
+ * only "worked" by cancelling the wrong base's error (that synthetic
+ * terrain was later deleted outright, 2026-10-18).
  * New Amsterdam's ore now matches too; its remaining food/horses drift is
  * unrelated (see below).
  *

@@ -189,7 +189,7 @@ int ai_king_new_war_event(ColonizeTurnContext* ctx) {
  * ai_king_mow_sail_home_20e6 writes at the decision point, so a crown sea
  * unit counts here for the whole transit. Not the order byte: every AI goto
  * also uses order 11 (UNITS_ORDER_AI_SAIL), and counting those parked the
- * whole REF fleet once its Man-O-War pool ran dry (golden_woi_ref01).
+ * whole REF fleet once its Man-O-War pool ran dry (smoke_woi_ref01).
  */
 static int ai_king_crown_ships_in_europe_lane(
   const ColonizeTurnContext* ctx, int crown, int self_id

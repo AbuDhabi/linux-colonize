@@ -13,6 +13,8 @@
  * Asserts: Regulars from the real @UNIT table land within 3 turns, a colony
  * falls within 12, every colony falls and the @LOSING endgame latch (stored
  * on the relocated king latch bytes, not the market words) is set within 40.
+ * The deadlines are port-chosen, not DOS-measured, hence smoke_, not golden_
+ * (port_bugs.md #1125).
  */
 #include <stdio.h>
 #include "../common/test_runner.h"
@@ -207,7 +209,7 @@ int main(void) {
     }
   }
   printf(
-    "golden_woi_ref01: start=%d colonies, Regulars t%d, first capture t%d, all lost t%d, "
+    "smoke_woi_ref01: start=%d colonies, Regulars t%d, first capture t%d, all lost t%d, "
     "endgame=%d at t%d\n",
     colonies_start, first_regular_turn, first_capture_turn, all_lost_turn,
     ai_king_latch_get(&save, AI_KING_ENDGAME_BYTE), endgame_turn

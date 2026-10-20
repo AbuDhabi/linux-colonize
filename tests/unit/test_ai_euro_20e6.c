@@ -2633,7 +2633,7 @@ static int unit_border_park_skipped_on_own_colony(void) {
  * scan runs and commits the attack step, but a unit stepping out of its own
  * colony tile does not resolve the assault the way the colony-less mover does,
  * so both stacked and unstacked end the turn in place. It is covered
- * behaviourally by golden_woi_ref01 instead.)
+ * behaviourally by smoke_woi_ref01 instead.)
  */
 /*
  * (No case here for the LAB_521d_5183 attack-tail hold, raw 89033-89039 /

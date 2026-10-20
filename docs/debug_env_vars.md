@@ -54,7 +54,7 @@ comparing golden output.
 | `GOLDEN_IDLE_KEEP_GOING` | `tests/golden/test_idle_campaign.c` (`main`) | test-only | Any non-empty value: keep simulating past a mismatch (multi-turn from-load DOSBox targets; plays years the archive lacks). The dump then holds the last year | off |
 | `GOLDEN_IDLE_DUMP` | `tests/golden/test_idle_campaign.c` (`compare_save`) | test-only | Path to write the simulated save to on mismatch (or always with `GOLDEN_IDLE_DUMP_ALL`); a `%d` takes the year, one file per turn under `KEEP_GOING` | unset |
 | `GOLDEN_IDLE_DUMP_ALL` | `tests/golden/test_idle_campaign.c` (`compare_save`) | test-only | Any value: write the `GOLDEN_IDLE_DUMP` file every year, not just on mismatch | off |
-| `WOI_DEBUG` | `tests/golden/test_woi_ref01.c` (`main`) | test-only | Prints per-turn WoI status line during `golden_woi_ref01` | off |
+| `WOI_DEBUG` | `tests/smoke/test_woi_ref01.c` (`main`) | test-only | Prints per-turn WoI status line during `smoke_woi_ref01` | off |
 
 `diag_init` also reads `HOME` / `XDG_DATA_HOME` (`src/platform/diagnostics.c`, `diag_init`)
 for log-path resolution only — not a debug switch.
