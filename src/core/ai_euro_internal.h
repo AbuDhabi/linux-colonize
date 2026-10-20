@@ -274,6 +274,8 @@ extern uint32_t ai_euro_s_20e6_type_cache_valid;
 void ai_euro_20e6_refresh_type_cache(const ColonizeUnitPool* units);
 extern const int8_t ai_euro_k_20e6_ring20_dx[20];
 extern const int8_t ai_euro_k_20e6_ring20_dy[20];
+extern const int8_t ai_euro_k_dos_ring20_dx[20]; /* DS:0xc8 slot order */
+extern const int8_t ai_euro_k_dos_ring20_dy[20]; /* DS:0xde */
 void ai_euro_5952_improve_best_plot(
   ColonizeTurnContext* ctx, ColonizeColony* col, int* out_improvement_owner, int* out_best_plot
 );
