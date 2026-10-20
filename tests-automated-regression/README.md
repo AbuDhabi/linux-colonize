@@ -17,3 +17,5 @@ Lumberjacks / Veteran Soldiers, and open the European Status screen with E:
 | `europe_recruit_each_immigrant` | RECRUIT pool rows 1, 2, 3 in turn |
 | `europe_train_each_profession` | TRAIN every Royal University row once |
 | `europe_buy_ship_and_sail` | PURCHASE a Caravel and sail it for the New World |
+| `europe_reload_dock_artillery` | Loads `europe_buy_artillery_twice`'s output, opens and closes Europe, saves: the reload must be byte-identical |
+| `europe_reload_dock_trained` | Same for `europe_train_each_profession`'s output (17 trained dock units, Pioneer tools) |

@@ -1671,7 +1671,14 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
             mu->last_dir = (int8_t)(src->facing | (src->facing_pad << 3));
             mu->goto_x = 0;
             mu->goto_y = 0;
-            mu->moves = 0;
+            /* Same spent byte -> moves rule as the map path below. A flat 0
+             * here re-saved as a full allotment spent (capture reads 0 MP as
+             * exhausted), while every DOS dock record carries spent 0. */
+            {
+              const int total =
+                col1_bridge_unit_max_mp(units_type(units, mu->type_index), (int)src->nation_id, save);
+              mu->moves = total > (int)src->moves ? total - (int)src->moves : 0;
+            }
             europe_apply_dock_unit_kit(mu, dos_type);
             if (id_by_index) {
               id_by_index[i] = id;
@@ -3529,6 +3536,17 @@ COLONIZE_INTERNAL void col1_bridge_capture_dock_rows(Col1CaptureCtx* ctx) {
       dst->profession = (uint8_t)(row->profession < 0 ? UNITS_JOB_NONE : row->profession);
       dst->transport_chain.prev_unit_idx = -1;
       dst->transport_chain.next_unit_idx = -1;
+      /* The 0718 harbor spawn writes the Tools byte (+0x15): a trained Hardy
+       * Pioneer reaches the dock with its 100 (DOS COLONY04's dock Pioneer
+       * keeps 20). The reload mirror gets the same kit. */
+      {
+        ColonizeUnit kit;
+        memset(&kit, 0, sizeof(kit));
+        europe_apply_dock_unit_kit(&kit, row->dos_type);
+        dst->cargo_hold[5] = (uint8_t)(kit.tools > 0 ? (kit.tools <= 100 ? kit.tools : 100) : 0);
+      }
+      /* Newest arrivals: the chain pass puts them after the mirrors. */
+      ctx->stack_order_by_col1[written] = UINT64_MAX;
       written++;
     }
   }
@@ -3878,8 +3896,10 @@ bool col1_bridge_capture_w(
     return false;
   }
   col1_bridge_capture_unit_records(&ctx);
-  col1_bridge_capture_unit_chains(&ctx);
+  /* Dock rows first: the chain pass links them into the nation's Europe lane
+   * the way a reload (which turns them into mirror units) will. */
   col1_bridge_capture_dock_rows(&ctx);
+  col1_bridge_capture_unit_chains(&ctx);
   col1_bridge_capture_europe_lanes(&ctx);
   col1_bridge_capture_units_commit(&ctx);
   col1_bridge_capture_occupancy(&ctx);
