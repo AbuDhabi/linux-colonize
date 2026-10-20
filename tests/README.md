@@ -8,6 +8,7 @@ match the kind prefix.
 | **Smoke** | [`smoke/`](smoke/) | `smoke_*` | Thin bring-up: boot, parse, dialog wire-up — “does it catch fire?” |
 | **Unit** | [`unit/`](unit/) | `unit_*` | Module behavior suites (often large assertion matrices) |
 | **Golden** | [`golden/`](golden/) | `golden_*` | Locked save / multi-turn fidelity gates |
+| **Regression** | [`regression/`](regression/) + [`../tests-automated-regression/`](../tests-automated-regression/) | `regression_replay` | Recorded play sessions replayed from input logs |
 
 Shared stubs/helpers: [`common/`](common/) (e.g. `platform_cursor_stubs.c`).
 
@@ -139,6 +140,42 @@ GOLDEN_IDLE_KEEP_GOING=1 GOLDEN_IDLE_DUMP=/tmp/x/sim_%d.sav ./build/debug/golden
 ```
 
 Most executables expect **repo root** as cwd (`WORKING_DIRECTORY` in CMake).
+
+## Input-replay regressions
+
+`regression_replay` (in `ctest`) runs every subdirectory of
+`tests-automated-regression/` as one test. A test directory holds exactly:
+
+| File | What |
+|------|------|
+| `input.sav` | save the test starts from, taken on the main map |
+| `input.jsonl` | `debug.input_logger` log (docs/settings.md "Input log") of the test span |
+| `output.sav` | save taken on the main map right after the last input |
+
+The harness loads `input.sav`, waits for the main map, replays the log one
+logged frame per `platform_poll_input` call (nested polls inside
+`game_update` — combat analysis, the combat popup pump — eat the same frames
+they did live; the game clock follows the logged `t_ms`), then waits until the
+game has sat idle on the main map for 60 frames, saves, and requires the save to
+equal `output.sav` byte for byte. The whole replay may take at most twice the
+log's input span (last `t_ms` − first; floor 1 s), else it fails as a timeout.
+
+Recording one:
+
+1. Launch with `"no_sound": true` (or `--nosound`) and `debug.input_logger` on.
+   Music picks reseed the game RNG from the wall clock; the harness warns when
+   the session line says `"audio":true`. Do not resize the window.
+2. Load the start save, dismiss the load popup, play, end on the main map, save.
+3. `input.jsonl` = the log's first (`session`) line plus the records between
+   dismissing the load popup and opening the save menu. Copy the loaded save
+   as `input.sav`, the new save as `output.sav`.
+
+On failure the test prints the reason (timeout with phase/frame/status, quit,
+load/save error, or the first differing byte plus a `sav_json` field diff) and
+leaves `actual.sav`, `expected.json`, `actual.json` in
+`build/debug/regression_out/<name>/`. One test:
+`make test T=regression_replay CASE=<dir name>`. Each test runs in a forked
+child, so module statics never leak between tests.
 
 ## Running a single test
 

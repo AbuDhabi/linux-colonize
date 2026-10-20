@@ -140,7 +140,7 @@ events with the same `frame` reached the game together).
 
 | `type` | Extra fields |
 |--------|--------------|
-| `session` | first line: `version` (1), `window_scale`, `screen_w`, `screen_h` (logical, at open) |
+| `session` | first line: `version` (1), `window_scale`, `screen_w`, `screen_h` (logical, at open), `audio` (audio device open) |
 | `mouse_move` | `x`,`y` window points; `lx`,`ly` logical screen pixel the game sees (clamped); `dx`,`dy` relative motion; `buttons` held mask |
 | `mouse_down` / `mouse_up` | `x`,`y`,`lx`,`ly`; `button` (`left`/`middle`/`right`/`x1`/`x2`); `clicks` (2 = double click) |
 | `mouse_wheel` | `dx`,`dy` |
@@ -153,6 +153,9 @@ events with the same `frame` reached the game together).
 `buttons` uses SDL's mask bits: 1 left, 2 middle, 4 right, 8 x1, 16 x2. A
 drag is `mouse_down`, then `mouse_move` records with that button's bit set,
 then `mouse_up`. Touch-synthesized mouse events are skipped.
+
+Trimmed logs replay as automated regressions (`tests-automated-regression/`,
+tests/README.md "Input-replay regressions").
 
 ### What `debug.logs` records
 

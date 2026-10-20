@@ -293,6 +293,26 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   return true;
 }
 
+/* Shared tail of both loaders; frees `loaded` on failure. */
+static bool game_load_col1_loaded(
+  ColonizeGameState* game, ColonizeCol1Save* loaded, char* err, size_t err_size
+) {
+  /* FUN_75c2_0840 LOADSIZE: reject when a live map differs (mid-game Load). */
+  if (game->world_map_ok) {
+    if (!col1_save_validate_head(
+          &loaded->head, game->world_map.width, game->world_map.height, err, err_size
+        )) {
+      col1_save_free(loaded);
+      return false;
+    }
+  }
+  if (!game_apply_col1_save(game, loaded, err, err_size)) {
+    col1_save_free(loaded);
+    return false;
+  }
+  return true;
+}
+
 bool game_load_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size) {
   /* DOS does not re-fire woodcuts on load (the bits ride in the save); drop
    * anything the outgoing game had armed but not yet shown. */
@@ -310,20 +330,19 @@ bool game_load_col1_slot(ColonizeGameState* game, int slot, char* err, size_t er
     }
     diag_info("Loaded fallback save %s", fallback);
   }
-  /* FUN_75c2_0840 LOADSIZE: reject when a live map differs (mid-game Load). */
-  if (game->world_map_ok) {
-    if (!col1_save_validate_head(
-          &loaded.head, game->world_map.width, game->world_map.height, err, err_size
-        )) {
-      col1_save_free(&loaded);
-      return false;
-    }
-  }
-  if (!game_apply_col1_save(game, &loaded, err, err_size)) {
+  return game_load_col1_loaded(game, &loaded, err, err_size);
+}
+
+bool game_load_col1_file(ColonizeGameState* game, const char* path, char* err, size_t err_size) {
+  woodcut_close(&game->woodcut);
+  woodcut_clear_pending();
+  ColonizeCol1Save loaded;
+  col1_save_init(&loaded);
+  if (!col1_save_read_file(path, &loaded, err, err_size)) {
     col1_save_free(&loaded);
     return false;
   }
-  return true;
+  return game_load_col1_loaded(game, &loaded, err, err_size);
 }
 
 /* Shared by both writers below: bring game->col1 up to date with the live

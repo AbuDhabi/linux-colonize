@@ -198,6 +198,17 @@ instruction. On one byte it is fine. It found the 3180 facing writer.
   before 00f2 returned (america 129->130), so a return-address BP set at entry never fires. Read a
   routine's result at the NEXT entry of the same routine instead (the 00f2 grid at DS:0xa270 with
   its key DS:0x2d1a/0x2d1c survives until the next rebuild).
+- A from-load is not the continuous run for anything that reads an UNSAVED table. DS:0x9870 (the
+  4x16 per-continent stance FUN_521d_0a60 writes, `local_2a` in FUN_5952_035e) is all zeros after
+  LOAD until each nation's 0a60 runs, which is AFTER its colony ticks: the first turn's ticks read
+  stance 0, absorb colonists and draw an extra rng(0,3) at 5952:0dfa, and the autosave no longer
+  matches the fixture (america 128->129: 99 field diffs). Patch the table before RUN (`SM 237e:9870
+  ...` with the values a prior from-load left at turn end; the port's RTST chunk carries the same
+  table) and the run tracks the fixture again. The LCG state is the dword DS:0x28ee in the game DS
+  (0x237e here), readable at the 2043:04d4 stop; logging it beats a return BP per draw.
+- 1931:1554 is RTLink's shared overlay-return trampoline: a BP on a return address that lands there
+  fires on EVERY overlay return, not just the call it was set for. DOSBox-X `BPDEL seg:off` is not
+  accepted (only `BPDEL #` / `BPDEL *`); drop a BP with `BPDEL *` and re-add the rest.
 - `BPM` is unusable on a hot byte: this build also stops on reads (a 5x5 scan loop at 9e0f:0452
   fired 80 times on a unit record byte before the turn began). Use code breakpoints.
 - Uninitialised-local hunts (america save 64, 20e6's `local_ea` = SS:e7c4): log the word at every
