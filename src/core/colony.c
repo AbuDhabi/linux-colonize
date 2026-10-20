@@ -676,7 +676,9 @@ static void colonies_grant_starters(ColonizeColonyPool* pool, ColonizeColony* sl
  * `continent` is the caller's to choose. -1 (or a NULL map) = no filter, same
  * as DOS's param_4 < 0 arm.
  */
-static int colonies_nearest_tribe_on(
+int g_colonies_bound_tribe = -1;
+
+int colonies_nearest_tribe_on(
   const ColonizeCol1Save* col1,
   const ColonizeWorldMap* map,
   int x,

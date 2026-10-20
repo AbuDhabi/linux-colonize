@@ -263,26 +263,8 @@ static void ai_euro_28c8_l32_mark(int v) {
   }
 }
 
-/* The three tribe-indexed tables FUN_15eb_28c8 reads with the claim NATION id
- * (see the claim term below): raw DS reads over the packed Col1 records. */
-static int ai_euro_28c8_ds_word_5b1c(const ColonizeCol1Save* col1, int n, int player) {
-  const int a = 0x5b1c + (n * 0x27 + player) * 2;
-  if (a < 0x5ad6) {
-    return 0;
-  }
-  if (a < 0x5d46) {
-    const int off = a - 0x5ad6;
-    const uint8_t* b = (const uint8_t*)&col1->indian[off / 0x4e] + off % 0x4e;
-    return (int)(b[0] | (b[1] << 8));
-  }
-  const int off = a - 0x5d46;
-  const int k = off / 0xca;
-  if (!col1->colony || k >= (int)col1->head.colony_count) {
-    return 0;
-  }
-  const uint8_t* b = (const uint8_t*)&col1->colony[k] + off % 0xca;
-  return (int)(b[0] | (b[1] << 8));
-}
+/* The two stuff-block tables FUN_15eb_28c8 reads with the claim NATION id (see
+ * the claim term below); the DS:0x5b1c word is ai_euro_5952_alarm_word. */
 static int ai_euro_28c8_ds_byte_91cc(const ColonizeCol1Save* col1, int n, int cont) {
   const int i = n * 0x10 + cont;
   if (i < 128) {
@@ -534,7 +516,7 @@ static int ai_euro_28c8_score_full(
              * multiplier and the vet goes fishing instead of logging tribe land.
              */
             const int n = claim_tribe + 4;
-            const int alarm = ai_euro_28c8_ds_word_5b1c(col1, n, col->nation_id);
+            const int alarm = ai_euro_5952_alarm_word(col1, n, col->nation_id);
             int t = -(alarm - 4);
             const int cont = env.continent;
             if (cont >= 0 && cont < 16 &&
@@ -577,17 +559,13 @@ static int ai_euro_28c8_score_full(
         out_best->job = job;
         out_best->tile = ti;
         out_best->yield = raw_yield;
-        const size_t plot_i = (size_t)ty * (size_t)ctx->map->width + (size_t)tx;
-        /* Fitted (1492 campaign): DOS 06d2 itself skips the stamp while the
-         * trial flag DS:0x34d is set. The 5952 indoor arm's mode -1 re-score
-         * (DS:0x35e = 1) stamps nothing (year_1567). */
-        if (restrict_job >= -1 && current_job < 0 && (!in_ai_tick || restrict_job >= 0) &&
-            ctx->map->layer2 && ctx->map->layer3 &&
-            (ctx->map->layer2[plot_i] & 0x03u) == 0 &&
-            ((ctx->map->layer2[plot_i] & MAP_LAYER2_PURCHASED) != 0 ||
-             (ctx->map->layer3[plot_i] >> 4) < 4)) {
-          map_set_owner_nibble(ctx->map, tx, ty, col->nation_id);
-        }
+        /* No owner stamp here: FUN_15eb_28c8 sets DS:0x34d = 1 before its
+         * candidate loop (asm 15eb:28c8+0x164) and clears it after (0x2cea),
+         * and FUN_15eb_06d2's 0228 stamp is gated on DS:0x34d == 0 (raw
+         * 9858-9864), so a trial seat never stamps; only the elected plot's
+         * real seat does (colonies_assign_field_w). The fitted trial stamp
+         * that stood here re-coloured Quebec's Dutch-stamped (50,50) plot
+         * (America seed-100 save 62). */
       }
     }
   }
@@ -2454,13 +2432,19 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_town(AiEuro5952Ca
     const int cont = map_continent_id_at(ctx->map, col->x, col->y);
     const int presence =
       cont >= 0 ? ai_contact_continent_presence_4962(ctx, s->nation, cont) : 0;
+    if (getenv("AI_5952_BUILD_TRACE")) fprintf(stderr, "[5952 wagon] colony %d cont %d presence %d ring1 %d\n", col->id, cont, presence, s->ring1);
     if ((presence & 1) != 0 && s->ring1 == 0) {
-      int vd = 0;
-      const int vi = ai_euro_20e6_nearest_village(ctx, col->x, col->y, &vd);
+      /* asm 5952:23a1-23b1: FUN_1000_84fc(DS:0x8d52, [bp-0x1ae]) = FUN_15dc_00e0
+       * (the tribe INDEX the last FUN_15dc_0032 bind left — the tick-top
+       * nearest village, or the village nearest to the last claimed plot a
+       * 06d2 seat took — and local_1b0), a raw DS:0x5b1c read: with local_1b0
+       * = -1 it is the word before the tribe's alarm row (0). America seed-100
+       * save 64: Quebec's last seat binds a tribe whose row says >= 0x32. */
       int alarm = 0;
-      if (vi >= 0 && s->col1 && s->col1->tribe) {
-        alarm = ai_diplo_indian_alarm(s->col1, (int)s->col1->tribe[vi].nation_id, s->nation);
+      if (g_colonies_bound_tribe >= 0 && s->col1) {
+        alarm = ai_euro_5952_alarm_word(s->col1, g_colonies_bound_tribe, s->improvement_owner);
       }
+      if (getenv("AI_5952_BUILD_TRACE")) fprintf(stderr, "[5952 wagon] colony %d bound tribe %d alarm %d\n", col->id, g_colonies_bound_tribe, alarm);
       if (alarm < 0x32) {
         ai_euro_5952_set_unit_project(s, 0x0c);
         return AI_EURO_5952_CASCADE_RETURN;
@@ -3140,6 +3124,19 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_open(AiEuroColonyTick* t) {
     colonies_claim_snapshot_build(&world, col);
     colonies_recompute_plots_w(&world, col->id);
     ai_euro_5952_colony_counters(ctx, nation_id, col);
+    /* raw 94001 (md:298): FUN_281f_0d84(x, y, -1, continent) — the nearest
+     * village on the colony's continent; a hit binds DS:0x8d52 (its tribe
+     * index), a miss leaves the previous bind standing. */
+    if (ctx->col1_ok && ctx->col1 && ctx->col1->tribe) {
+      int nd = 9999;
+      const int nv = colonies_nearest_tribe_on(
+        ctx->col1, ctx->map, col->x, col->y, map_continent_id_at(ctx->map, col->x, col->y), &nd
+      );
+      if (nv >= 0 && nv < (int)ctx->col1->head.tribe_count) {
+        const int bn = (int)ctx->col1->tribe[nv].nation_id - 4;
+        g_colonies_bound_tribe = (bn >= 0 && bn <= 7) ? bn : -1;
+      }
+    }
     ai_euro_5952_colony_prelude(ctx, nation_id, col);
   }
   /*

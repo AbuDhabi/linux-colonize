@@ -1295,6 +1295,42 @@ int ai_euro_try_ship_trade_haul_snapshot(
   if (cowered) {
     return 1; /* md:3023 → LAB_5899: parked in port this beat */
   }
+  /*
+   * The arrival block ends in `goto LAB_3558` (raw 90371), so a berthed hull
+   * runs the same LAB_3558 band as a hull at sea: 0920 park + 0d38 counts
+   * (raw 89412-89423), the shore unload scan (raw 89440-89612) and the
+   * colony-sail pick (raw 89614-89711), all BEFORE the 89725 dock demand.
+   * The port ran that band only off-berth (ai_euro_20e6_ship_dos); at the
+   * berth the hull fell to the 4d2e wander with its riders still aboard
+   * (America seed-100 save 62: Roanoke's Merchantman carrying a Soldier
+   * wandered NW where DOS picks Barbados and sails five tiles south).
+   */
+  if (berthed_at >= 0) {
+    AiEuroShipBandCounts band = {0};
+    const int berth_mask = ai_euro_20e6_unload_mask_snapshot(ctx, ship, nation_id, &band);
+    const int sid = ship->id;
+    if (berth_mask != 0 && ai_euro_20e6_unload_by_mask(ctx, ship, nation_id, berth_mask) > 0) {
+      ship = units_get(ctx->units, sid);
+      if (!ship || !ship->active) {
+        return 1;
+      }
+      ship->moves = 0;
+    }
+    stack_other = band.stack_other;
+    const int urgency = ai_euro_0a60_work_registered(nation_id);
+    int cx = 0;
+    int cy = 0;
+    if (band.stack_other > 0 &&
+        (band.civilians != 0 ||
+         ((band.pioneers != band.stack_other || urgency > 0x18) && berth_mask == 0)) &&
+        ai_euro_20e6_colony_sail_pick(
+          ctx, ship, nation_id, band.military, band.pioneers_before_fold, urgency, &cx, &cy
+        )) {
+      ship->col1_ai_plan = 0x34; /* -> 27f5 -> 20c6 with DX = '4' */
+      ai_euro_set_goto(ship, AI_EURO_ACT_GOAL, cx, cy);
+      return 2;
+    }
+  }
   /* An own-colony berth loads its cargo before the 89725 dock-demand test.
    * 1537→1538: the Dutch Merchantman loads 22 Furs, then sets its Europe
    * course to collect the land unit waiting at the dock. */

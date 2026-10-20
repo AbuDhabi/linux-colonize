@@ -576,6 +576,17 @@ uint8_t colonies_plot_blocked_mask(
  * against a rebound DS:0x8542 they still describe that colony. Non-NULL while
  * the AI tick runs on such a record (ai_euro_colony_tick_run). */
 extern const ColonizeColony* g_colonies_plot_cache_colony;
+/* FUN_281f_0d84 = FUN_4cc6_0356(x, y, -1, continent): nearest village index (`<=`,
+ * the last tie wins) on `continent` (-1 = any), or -1. */
+int colonies_nearest_tribe_on(
+  const ColonizeCol1Save* col1, const ColonizeWorldMap* map, int x, int y, int continent,
+  int* out_dist
+);
+/* DS:0x8d52 mirror: the tribe INDEX (0..7, -1 none) of the village the last
+ * FUN_281f_0d84 hit bound through FUN_15dc_0032/0006. Written by the 5952 tick
+ * top (raw 94001) and by every real FUN_15eb_06d2 seat on a claimed plot (raw
+ * 9866); read raw by the cascade's Wagon Train arm (asm 5952:23a5). */
+extern int g_colonies_bound_tribe;
 /* FUN_281f_0d84 distance (DS:0x8db8): nearest village to (x,y) on `continent`. */
 int colonies_nearest_tribe_dist_on(
   const ColonizeCol1Save* col1, const ColonizeWorldMap* map, int x, int y, int continent

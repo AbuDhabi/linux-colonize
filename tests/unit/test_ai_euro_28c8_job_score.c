@@ -660,10 +660,12 @@ static int unit_trial_owner_stamp_scoped_to_idle_worker(void) {
   if (!ai_euro_28c8_colonist_job_score_structural(&ctx, 0, 0, &best)) {
     return fail("trial owner: no plot scored");
   }
-  if (layer3[bought] != 0x1f || layer3[unbought] != 0x7f) {
-    return fail("trial owner: bought plot must be claimed, native land preserved");
+  /* FUN_15eb_28c8 keeps DS:0x34d = 1 around its candidate loop, so a trial
+   * seat never reaches FUN_15eb_06d2's 0228 stamp: only the elected plot's
+   * real seat (colonies_assign_field_w) claims it. */
+  if (layer3[bought] != 0x9f || layer3[unbought] != 0x7f) {
+    return fail("trial owner: a scoring trial must not claim any plot");
   }
-  layer3[bought] = 0x9f;
   colonies.colonies[0].colonists[0].field_job = COLONIZE_JOB_LUMBERJACK;
   (void)ai_euro_28c8_colonist_job_score_structural(&ctx, 0, 0, &best);
   if (layer3[bought] != 0x9f) {

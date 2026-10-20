@@ -891,8 +891,23 @@ int units_disembark_all(ColonizeUnitPool* pool, int ship_id, int x, int y) {
     return 0;
   }
   int n = 0;
+  /* DOS keeps the riders in the hull's tile chain and FUN_1427_040c re-links
+   * the parked (-2,-2) chain head-first at the berth, so the riders keep
+   * their relative chain order (newest first) under the hull. cargo_ids[]
+   * order is not saved (the bridge rebuilds it from the chain), so land the
+   * riders by their own chain stamps, oldest first (America seed-100 save
+   * 57: Quebec's chain 55 -> 77 -> 78, not 78 -> 77; the 1492 reload gate
+   * needs the stamp order, not the cargo_ids[] order). */
   while (ship->cargo_count > 0) {
-    const int pax_id = ship->cargo_ids[0];
+    int pick = 0;
+    for (int s = 1; s < ship->cargo_count; ++s) {
+      const ColonizeUnit* a = units_get(pool, ship->cargo_ids[s]);
+      const ColonizeUnit* b = units_get(pool, ship->cargo_ids[pick]);
+      if (a && b && a->tile_stack_order < b->tile_stack_order) {
+        pick = s;
+      }
+    }
+    const int pax_id = ship->cargo_ids[pick];
     ColonizeUnit* pax = units_get(pool, pax_id);
     if (!units_remove_from_cargo(ship, pax_id)) {
       break;
