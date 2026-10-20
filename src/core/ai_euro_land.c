@@ -133,6 +133,11 @@ static const uint8_t k_20e6_terr_site_byte[32] = {
  */
 const int8_t ai_euro_k_20e6_ring20_dx[20] = {0, 1, 1, 1, 0, -1, -1, -1, 0, 1, 2, 2, 2, 1, 0, -1, -2, -2, -2, -1};
 const int8_t ai_euro_k_20e6_ring20_dy[20] = {-1, -1, 0, 1, 1, 1, 0, -1, -2, -2, -1, 0, 1, 2, 2, 2, 1, 0, -1, -2};
+/* DS:0xc8 / DS:0xde, the DOS plot ring (same tiles as above, DOS order:
+ * N,E,S,W,NW,NE,SE,SW then (0,-2),(2,0),(0,2),(-2,0),(-1,-2),(1,-2),(-1,2),
+ * (1,2),(-2,-1),(-2,1),(2,-1),(2,1)); indexed by a stored slot number. */
+const int8_t ai_euro_k_dos_ring20_dx[20] = {0, 1, 0, -1, -1, 1, 1, -1, 0, 2, 0, -2, -1, 1, -1, 1, -2, -2, 2, 2};
+const int8_t ai_euro_k_dos_ring20_dy[20] = {-1, 0, 1, 0, -1, -1, 1, 1, -2, 0, 2, 0, -2, -2, 2, 2, -1, 1, -1, 1};
 
 /* ===== FUN_5952_035e colony-tick tile improvement (raw 94402-94551) ===== */
 
@@ -2671,6 +2676,11 @@ static int ai_euro_20e6_ring_hop(ColonizeTurnContext* ctx, ColonizeUnit* u, cons
   if (!ctx || !ctx->map || !u || s->cid < 0) {
     return 0;
   }
+  /* raw 1840 (OVL14 0x4b03): a unit already walking a goal leaves through
+   * LAB_5a78 before the hop arm; 5b66 keeps walking it. */
+  if (u->orders == AI_EURO_ACT_GOAL) {
+    return 1;
+  }
   uint8_t* sc = ai_euro_20e6_hold_scratch(u);
   if ((int8_t)sc[2] < 0) {
     if (!ctx->rng) {
@@ -2682,10 +2692,21 @@ static int ai_euro_20e6_ring_hop(ColonizeTurnContext* ctx, ColonizeUnit* u, cons
   if (slot >= 20) {
     return 0;
   }
-  const int hx = (int)ai_euro_k_20e6_ring20_dx[slot] * 4;
-  const int hy = (int)ai_euro_k_20e6_ring20_dy[slot] * 4;
-  const int tx = u->x + hx;
-  const int ty = u->y + hy;
+  /* DS:0xc8/0xde (OVL14 0x4b3a `[BX + 0xc8]` / `[BX + 0xde]`, BX = slot): the
+   * DOS plot ring N,E,S,W,NW,NE,SE,SW,(0,-2),(2,0),... — not the clockwise
+   * MAP_DIR8 ring (america resync 92->93: slot 2 hops S to (46,55), the
+   * clockwise table aimed E at Quebec and the hop failed). */
+  const int hx = (int)ai_euro_k_dos_ring20_dx[slot] * 4;
+  const int hy = (int)ai_euro_k_dos_ring20_dy[slot] * 4;
+  int tx = u->x + hx;
+  int ty = u->y + hy;
+  if (u->col1_ai_plan == 0x38 && sc[1] != 0) {
+    tx = u->goto_x; /* raw 1849-1851: a live hop re-targets its stored goto */
+    ty = u->goto_y;
+  }
+  if (getenv("AI_EA_TRACE")) {
+    fprintf(stderr, "[hop-try] u%d (%d,%d) slot %d -> (%d,%d)\n", u->id, u->x, u->y, slot, tx, ty);
+  }
   if (!map_coords_inset(ctx->map, tx, ty) || !map_tile_is_land(ctx->map, tx, ty)) {
     return 0; /* 84f2 */
   }
@@ -2705,7 +2726,9 @@ static int ai_euro_20e6_ring_hop(ColonizeTurnContext* ctx, ColonizeUnit* u, cons
   if (sc[0] > 8) {
     sc[0] -= 8;
   }
-  ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
+  /* OVL14 0x4b68 `MOV DX,0x38; JMP 27f5` -> FUN_521d_20c6: plan '8', 0x0b goto. */
+  u->col1_ai_plan = 0x38;
+  ai_euro_set_goto(u, AI_EURO_ACT_GOAL, tx, ty);
   return 1;
 }
 
