@@ -96,6 +96,7 @@ static const SettingsBoolOpt k_debug_opts[] = {
   {"building_rects", offsetof(ColonizeSettings, show_building_rects), false},
   {"logs", offsetof(ColonizeSettings, debug_logs), false},
   {"trace_autosaves", offsetof(ColonizeSettings, trace_autosaves), false},
+  {"input_logger", offsetof(ColonizeSettings, input_logger), false},
 };
 
 /* "divergences": deliberate departures from DOS, all off by default. */
@@ -174,6 +175,7 @@ void settings_defaults(ColonizeSettings* out) {
   out->no_sound = false;
   snprintf(out->data_dir, sizeof(out->data_dir), "./COLONIZE");
   out->save_dir[0] = '\0';
+  snprintf(out->input_logger_directory, sizeof(out->input_logger_directory), "./input_logs");
   out->seed = 0;
   out->seed_present = false;
   /* Newly created settings.json writes true so later launches skip OPENING.EXE.
@@ -239,8 +241,12 @@ bool settings_save_file(const char* path, const ColonizeSettings* in, char* err,
   fprintf(f, "  },\n");
 
   fprintf(f, "  \"debug\": {\n");
-  wb_group(f, in, k_debug_opts, SETTINGS_OPT_COUNT(k_debug_opts), true);
-  fprintf(f, "  },\n");
+  wb_group(f, in, k_debug_opts, SETTINGS_OPT_COUNT(k_debug_opts), false);
+  fprintf(f, "    \"input_logger_directory\": ");
+  json_write_escaped_string(
+    f, in->input_logger_directory, sizeof(in->input_logger_directory) - 1
+  );
+  fprintf(f, "\n  },\n");
 
   fprintf(f, "  \"divergences\": {\n");
   wb_group(f, in, k_divergence_opts, SETTINGS_OPT_COUNT(k_divergence_opts), true);
@@ -402,6 +408,10 @@ bool settings_load_file(const char* path, ColonizeSettings* out, char* err, size
 
   const JsonValue* dbg = json_obj_get(root, "debug");
   rb_group(dbg, out, k_debug_opts, SETTINGS_OPT_COUNT(k_debug_opts));
+  const char* input_log_dir = dbg ? json_get_str(dbg, "input_logger_directory") : NULL;
+  if (input_log_dir && input_log_dir[0]) {
+    snprintf(out->input_logger_directory, sizeof(out->input_logger_directory), "%s", input_log_dir);
+  }
   rb_group(
     json_obj_get(root, "divergences"), out, k_divergence_opts,
     SETTINGS_OPT_COUNT(k_divergence_opts)

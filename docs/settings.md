@@ -54,7 +54,10 @@ defaults no matter what file is sitting in the build directory.
     "midi_backend": ""
   },
   "display": { "windowed": true, "window_scale": 2, "window_log_lines": 0 },
-  "debug": { "menu": false, "mouse_coords": false, "building_rects": false, "logs": false, "trace_autosaves": false },
+  "debug": {
+    "menu": false, "mouse_coords": false, "building_rects": false, "logs": false,
+    "trace_autosaves": false, "input_logger": false, "input_logger_directory": "./input_logs"
+  },
   "divergences": { "unlimited_units": false },
   "data_dir": "./COLONIZE",
   "save_dir": "",
@@ -117,8 +120,39 @@ from that pulldown (no CLI flags); the toggles write the keys back.
 WARN/ERROR still always write. `debug.trace_autosaves` (default false) writes
 one extra save per turn, `trace_autosave_turn_XXX.sav` in the save directory,
 alongside the normal COLONY08/09 autosaves and regardless of the DOS autosave
-option bit; the files are never reused or pruned. A wrong type, a negative `seed`, or an empty
+option bit; the files are never reused or pruned. `debug.input_logger`
+(default false, read at startup) records raw keyboard and mouse input to
+`input_YYYYMMDD_HHMMSS_mmm.jsonl` (local start time) in
+`debug.input_logger_directory` (default `./input_logs`, cwd-relative like
+`data_dir`; one directory level is created if missing) — see "Input log"
+below. A wrong type, a negative `seed`, or an empty
 path is not a valid value and the hardcoded default stays.
+
+### Input log
+
+`platform_poll_input` (`sdl_runtime.c`, "Input log" banner) writes every SDL
+keyboard / mouse event before the game folds it into `ColonizeInputState`,
+one JSON object per line, flushed once per frame. Every record has `type`,
+`t_ms` (SDL's own event timestamp, ms since SDL init, monotonic), `unix_ms`
+(the same instant on the wall clock: `t_ms` rebased on the clock read at
+open) and `frame` (index of the `platform_poll_input` call that delivered it;
+events with the same `frame` reached the game together).
+
+| `type` | Extra fields |
+|--------|--------------|
+| `session` | first line: `version` (1), `window_scale`, `screen_w`, `screen_h` (logical, at open) |
+| `mouse_move` | `x`,`y` window points; `lx`,`ly` logical screen pixel the game sees (clamped); `dx`,`dy` relative motion; `buttons` held mask |
+| `mouse_down` / `mouse_up` | `x`,`y`,`lx`,`ly`; `button` (`left`/`middle`/`right`/`x1`/`x2`); `clicks` (2 = double click) |
+| `mouse_wheel` | `dx`,`dy` |
+| `key_down` / `key_up` | `key` (SDL key name), `keycode` (SDL_Keycode), `scancode`, `mod` (SDL_Keymod bits), `repeat` |
+| `text` | `text` (UTF-8 as SDL delivered it; the game keeps ASCII only) |
+| `focus_lost` / `focus_gained` | — (focus loss synthesizes the held-button releases) |
+| `resize` | `w`,`h` window points |
+| `quit` | — |
+
+`buttons` uses SDL's mask bits: 1 left, 2 middle, 4 right, 8 x1, 16 x2. A
+drag is `mouse_down`, then `mouse_move` records with that button's bit set,
+then `mouse_up`. Touch-synthesized mouse events are skipped.
 
 ### What `debug.logs` records
 

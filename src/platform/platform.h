@@ -121,6 +121,9 @@ typedef struct ColonizePlatformConfig {
   /* Extra rows below the screen for the port-only message log strip
    * (settings.json display.window_log_lines); 0 = no strip. */
   int extra_height;
+  /* settings.json debug.input_logger: directory for input_<stamp>.jsonl
+   * (created if missing); NULL = no input log. Format: docs/settings.md. */
+  const char* input_log_dir;
 } ColonizePlatformConfig;
 
 typedef struct ColonizePlatform ColonizePlatform;

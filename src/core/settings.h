@@ -101,6 +101,8 @@ typedef struct ColonizeSettings {
   bool debug_logs;          /* write diag_info lines to opencol.log */
   bool trace_autosaves;     /* extra per-turn save trace_autosave_turn_XXX.sav */
   bool skip_intro;          /* true = skip OPENING.EXE at launch (default for a new file) */
+  bool input_logger;        /* record keyboard/mouse events as JSON lines (platform input_log) */
+  char input_logger_directory[512]; /* where input_<stamp>.jsonl files go */
 
   /* "divergences": opt-in departures from DOS behaviour (default all off). */
   bool unlimited_units; /* skip the FUN_1427_06b4 unit limits (units_set_unlimited) */

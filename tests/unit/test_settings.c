@@ -42,7 +42,10 @@ static void test_missing_file_defaults(void) {
   check(s.soundfont[0] == '\0', "default soundfont empty (auto-detect)");
   check(s.midi_backend[0] == '\0', "default midi_backend empty (auto)");
   check(!s.debug_menu && !s.show_mouse_coords && !s.show_building_rects && !s.debug_logs,
-        "default debug overlay off");  check(!s.unlimited_units, "default divergences.unlimited_units off (DOS limits)");
+        "default debug overlay off");
+  check(!s.input_logger && strcmp(s.input_logger_directory, "./input_logs") == 0,
+        "default input logger off, ./input_logs");
+  check(!s.unlimited_units, "default divergences.unlimited_units off (DOS limits)");
 }
 
 static void test_roundtrip(void) {
@@ -68,6 +71,8 @@ static void test_roundtrip(void) {
   out.debug_logs = true;
   out.skip_intro = false;
   out.unlimited_units = true;
+  out.input_logger = true;
+  snprintf(out.input_logger_directory, sizeof(out.input_logger_directory), "/tmp/col \"in\"");
   /* Raw CP437 0x8e + UTF-8 e-acute: bytes must survive save/load unchanged (#1086). */
   snprintf(out.data_dir, sizeof(out.data_dir), "/tmp/col-data\x8e\xc3\xa9");
   snprintf(out.save_dir, sizeof(out.save_dir), "/tmp/col-saves");
