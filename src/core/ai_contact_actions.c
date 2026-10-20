@@ -1082,9 +1082,14 @@ static void ai_contact_speak_with_chief(
              * ring (|dx| <= 1 && |dy| <= 1, local_c == 0) is revealed
              * unconditionally; every outer tile is revealed only when
              * FUN_13e4_0074 (continent id) matches the unit's own — so ocean
-             * and other landmasses stay dark. map_reveal_sight is that walk.
+             * and other landmasses stay dark. The walk runs FUN_13f1_000a per
+             * tile, which also stamps the revealing nation's vis bit on every
+             * unit it uncovers (DOSBox america 120->121: France's tales from
+             * (34,38) mark the English Dragoon at (37,37)) — hence the units
+             * wrapper, not the bare map walk.
              */
-            map_reveal_sight(ctx->map, u->x, u->y, e, 6, false);
+            const ColonizeWorld rw = world_from_turn_ctx(ctx);
+            (void)units_reveal_radius_w(&rw, u, 6);
           }
           return;
         }

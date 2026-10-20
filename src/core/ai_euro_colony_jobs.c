@@ -1719,6 +1719,12 @@ static void ai_euro_5952_carpenter_arm(
         placed[s] = true;
         /* FUN_281f_0c04 — refresh the ledgers, which is what ends the loop. */
         ai_euro_5952_ledgers(&world, pool, col, col1, gross, demand);
+        /* Its frame leaves 0x23ec in 28c8's local_32 again (DOSBox america
+         * 103->104, Montreal: after the slot-5 178f unseat this arm's
+         * 0c36(1, 0xd) + 0c04 ran, so the indoor probe read 0x23ec and the
+         * field plot (407) beat the Statesman (406); without the mark the
+         * probe kept the unseat's 0x12 forest residue and lost by 10). */
+        ai_euro_28c8_l32_mark(AI_28C8_L32_LEDGER);
       }
     }
   }

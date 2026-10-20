@@ -1319,6 +1319,10 @@ static void ai_euro_20e6_explorer_flag(ColonizeTurnContext* ctx, ColonizeUnit* u
   if (s->woi) {
     ex = 0;
   }
+  if (getenv("AI_EA_TRACE")) {
+    fprintf(stderr, "[explorer] u%d t%d ex %d prio %d cid %d cnt %d\n", u->id, t, ex, s->prio14, s->cid,
+            (s->cid >= 0 && s->cid < 16) ? (int)ai_euro_s_20e6_explorers[s->cid] : -1);
+  }
   s->explorer = ex;
 }
 
@@ -1711,7 +1715,12 @@ static int ai_euro_land_explore_scan_target(
       if (map_dos_terr_class_at(ctx->map, tx, ty) == 0x1b) {
         continue; /* LCR */
       }
-      const int coastal = map_tile_is_coastal(ctx->map, tx, ty) ? 1 : 0;
+      /* raw 89134: `0d12(x,y) && 06b4(DS:0x8dba, DS:0x8dbc) == 1` — a water
+       * neighbour whose lowest region id is the open sea; a tile touching only
+       * a lake is not a site (DOSBox america 110->111: English Pioneer at
+       * (38,51) beside the one-tile lake (36,51) wanders in DOS, the port
+       * sent it to (37,52) as plan '2'). */
+      const int coastal = map_tile_is_open_sea_adjacent(ctx->map, tx, ty) ? 1 : 0;
       if (!coastal) {
         /* raw 89134-89138: local_4c = 0 (and a dead `local_50 == 8` score
          * zero); the best-site compare (raw 89257) sits inside the coastal
@@ -1833,6 +1842,10 @@ static int ai_euro_land_explore_scan_target(
         by = ty;
       }
     }
+  }
+  if (getenv("AI_EA_TRACE")) {
+    fprintf(stderr, "[site] u%d (%d,%d) best %d nib %d at (%d,%d) radius %d fatigue %d tier %d own %d\n", u->id, u->x, u->y,
+            best, best_nib, bx, by, radius, rival_strength_fatigue, tier, own_here);
   }
   if (best_nib <= 0) {
     return 0;
@@ -2578,23 +2591,29 @@ static int ai_euro_20e6_border_park_arm(
   if (s->dos_type >= 0xd && s->dos_type <= 0x12) {
     return 0;
   }
-  if (!saw_foe) {
-    return 0;
-  }
   /* raw 89016-89019 / asm 0x59c9-0x59df: alone in the tile chain. */
   if (units_map_stack_chrome(ctx->units, u->id)) {
     return 0;
   }
   /* raw 89020-89029 / asm 0x59e2-0x5a31: a Euro settlement of another nation
-   * on one of the unit's own eight neighbours. */
-  for (int d = 0; d < 8; ++d) {
+   * on one of the unit's own eight neighbours. (The three tests are pure, so
+   * the saw_foe gate is taken last only to trace the residue-decided cases.) */
+  int border = 0;
+  for (int d = 0; d < 8 && !border; ++d) {
     const int owner =
       ai_euro_20e6_colony_owner_at(ctx, u->x + MAP_DIR8_DX[d], u->y + MAP_DIR8_DY[d]);
-    if (owner >= 0 && owner != s->nation) {
-      return 1;
-    }
+    border = owner >= 0 && owner != s->nation;
   }
-  return 0;
+  if (!border) {
+    return 0;
+  }
+  if (!saw_foe) {
+    if (getenv("AI_EA_TRACE")) {
+      fprintf(stderr, "[46-gate] u%d (%d,%d) n%d e7c4 0 -> no park\n", u->id, u->x, u->y, s->nation);
+    }
+    return 0;
+  }
+  return 1;
 }
 
 /*

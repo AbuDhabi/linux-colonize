@@ -975,6 +975,15 @@ static void ai_euro_5d04_cb_unit_exhaust(int idx) {
       if (u->aboard_ship_id >= 0 || units_is_sea(ctx->units, u->id)) {
         continue;
       }
+      /* FUN_1427_10be raw 8640-8650: a unit on the dock slot (x == 236+n)
+       * boards only with +0x314c == 1. A 5c3c hire is SENTRY at once, but
+       * the 095c Artillery (raw 92282, 06b4 orders 0) waits for the next
+       * 007a arrival to sentry the dock chain (america resync 110: the
+       * French Galleon leaves the fresh Artillery and takes Dragoon 133). */
+      if (u->x == 236 + ai_euro_s_5d04_nation && u->y == 236 + ai_euro_s_5d04_nation &&
+          u->orders != UNITS_ORDER_SENTRY) {
+        continue;
+      }
       const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
       if (!t || t->space >= 99) {
         continue;
