@@ -156,11 +156,18 @@ static int ai_euro_5952_resource_site_byte(const ColonizeMsgCatalog* names, int 
  * ponytail: the colony bytes come from the col1 snapshot, which can lag the
  * live colonies within a turn.
  */
-static int ai_euro_5952_alarm_word(const ColonizeCol1Save* col1, int p1, int euro) {
-  if (!col1 || p1 < 0 || euro < 0 || euro > 3) {
+int ai_euro_5952_alarm_word(const ColonizeCol1Save* col1, int p1, int euro) {
+  if (!col1 || p1 < 0) {
     return 0;
   }
+  /* `euro` is whatever word the caller hands over: a nation 0..3, or the
+   * 5952 cascade's local_1b0 (-1 after a neighbour scan that ended on an
+   * unowned tile; America seed-100 save 58: the Wagon Train arm reads tribe
+   * 7's +0x44 word, 0, and builds the wagon). */
   long off = ((long)p1 * 0x27 + euro) * 2 + 0x46; /* from DS:0x5ad6 */
+  if (off < 0) {
+    return 0;
+  }
   const uint8_t* b;
   if (off + 1 < (long)(COLONIZE_COL1_INDIAN_COUNT * sizeof(ColonizeCol1Indian))) {
     b = (const uint8_t*)col1->indian + off;
@@ -335,6 +342,7 @@ void ai_euro_5952_improve_best_plot(
   if (out_best_plot) {
     *out_best_plot = best_plot; /* local_34; 13ba re-aims BP-0xa4/-0xac at it */
   }
+  if (getenv("AI_5952_BUILD_TRACE")) fprintf(stderr, "[5952 improve] colony %d best_plot %d best %d\n", col->id, best_plot, best);
   if (best_plot < 0) {
     return;
   }
@@ -358,6 +366,7 @@ void ai_euro_5952_improve_best_plot(
     const int owner = map_tile_tribe_or_presence(
       ctx->map, tx + ai_euro_k_20e6_ring20_dx[d], ty + ai_euro_k_20e6_ring20_dy[d]
     );
+    if (getenv("AI_5952_BUILD_TRACE")) fprintf(stderr, "[5952 improve] colony %d plot (%d,%d) nb %d (%d,%d) owner %d\n", col->id, tx, ty, d, tx + ai_euro_k_20e6_ring20_dx[d], ty + ai_euro_k_20e6_ring20_dy[d], owner);
     /* raw 94482 stores 06d2 into local_1b0, the colony-nation local the
      * later job election still reads (raw 94821, asm 5952:2047). */
     if (out_improvement_owner) {

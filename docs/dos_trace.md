@@ -173,6 +173,23 @@ instruction. On one byte it is fine. It found the 3180 facing writer.
   DS (read `DS` at the break), not the game DS.
 - 20e6 wander scorer (OVL14): `--patch-cc 0x4e2d6`, trap offset 0x20e6; at CS:5805 `[bp-0x4e]` is
   the direction and `[bp-0x26]` its score, `[bp+6]` the unit.
+- Other traps used by the America campaign (2026-10-20; file offset = segment `codeOffset` +
+  routine offset, the `tools/address_mapping.csv` "offset" column is NOT that for L0040 overlays):
+  FUN_479b_0972 goto mover = OVL09 `0x40e22` (trap 0x972); FUN_6662_0f74 pathfinder = OVL20
+  `0x62d84` (trap 0xf74; its flood FUN_6662_00f2 is a near call in the same CS, so `BP cs:00f2`
+  works without a patch; `[bp-0x1a]` = the returned direction at the 1599 exit, `[bp-0x48]` the
+  unit); FUN_465b_0000 = OVL08 `0x3ecf0`; FUN_5952_035e = OVL15 `0x53b7e`. Resident routines
+  need no patch: FUN_15eb_28c8 is `BP 0e0f:28c8`, its plot election `0e0f:2d14` (AX = score,
+  `[bp-0x22]` job, `[bp-0x36]` local_38).
+- Overlays move: with EMS off RTLink reloads them often and each reload re-traps. DOSBox-X
+  breakpoints are linear addresses, so a BP left on an old CS fires inside whatever code is loaded
+  there later (stops at nonsense CS:IP). `BPDEL *` and re-add every BP whenever a trap reports a
+  new CS. The RUN after `trap_overlay` does not stop on a BP at the rewound IP, so log the first
+  call from the trap handler itself.
+- `BPM` is unusable on a hot byte: this build also stops on reads (a 5x5 scan loop at 9e0f:0452
+  fired 80 times on a unit record byte before the turn began). Use code breakpoints.
+- A `BP 1541:0E04` rand stop costs ~0.5 s each; 750 draws exceed the 540 s send budget. Read the
+  LCG state dword (0x28ee in the rand routine's DS) at the stops you care about instead.
 - Save files hold the state at the start of the human's turn. When a turn
   runs, all four European nations move before the Indians. So anything a
   Brave reads may already have been changed by Euro moves made that same

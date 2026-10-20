@@ -37,6 +37,9 @@ cycles=max
 [midi]
 mididevice=none
 [dos]
+ems=false
+xms=false
+umb=false
 hard drive data rate limit=0
 floppy drive data rate limit=0
 [log]

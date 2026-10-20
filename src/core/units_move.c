@@ -310,6 +310,20 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_denied(units_move_ctx* c) {
       units_mp_exhaust(c->pool, c->unit); /* FUN_281f_0934, raw 99082 */
     }
   }
+  /* FUN_465b_0000 raw 75505-75508, right after the 0662 hand-off and before
+   * the attack-column bounce and the treaty band: a computer or native mover
+   * with fewer than 3 thirds left stepping onto another nation's tile (bVar4)
+   * goes to LAB_465b_01ce, FUN_281f_0934. The port's peace/foreign bounces
+   * returned from this stage first, so the unit kept its remainder and was
+   * drained again (America seed-100 save 63: a Dutch Dragoon with 1 third
+   * beside Barbados border-parked 'F' where DOS leaves it on '1'). */
+  if ((reason == COLONIZE_ENTER_BOUNCE_FOREIGN || reason == COLONIZE_ENTER_BOUNCE_PEACE) &&
+      c->col1 && units_remaining_mp(c->pool, c->unit_id) < UNITS_MP_PER_TILE &&
+      (c->unit->nation_id > 3 ||
+       (c->unit->nation_id >= 0 && c->unit->nation_id <= 3 &&
+        c->col1->player[c->unit->nation_id].control != 0))) {
+    units_mp_exhaust(c->pool, c->unit);
+  }
   if (reason == COLONIZE_ENTER_BOUNCE_FOREIGN || reason == COLONIZE_ENTER_BOUNCE_PEACE ||
       reason == COLONIZE_ENTER_BLOCKED_DOMAIN || reason == COLONIZE_ENTER_BLOCKED_EDGE ||
       reason == COLONIZE_ENTER_EDGE_SAIL || /* port_bugs.md #717: reason 4 aborts */
@@ -1053,17 +1067,16 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_arrival(units_move_ctx* c) {
       }
       (void)units_disembark_all(pool, unit_id, dest_x, dest_y);
       units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
-      /* AI hull: its unload exhausts each passenger (FUN_281f_0934; DOSBox
-       * 1511: the French missionary landed with orders 0 and spent 6, and
-       * acted only next turn). The human keeps the restore above. */
-      if (!units_combat_human_involved(c->col1, unit->nation_id, -1)) {
-        for (int i = 0; i < npax; ++i) {
-          ColonizeUnit* pax = units_get(pool, pax_ids[i]);
-          if (pax && pax->active && pax->aboard_ship_id < 0) {
-            units_mp_exhaust(pool, pax);
-          }
-        }
-      }
+      /* No exhaust of the riders here: DOS has no unload at a berth (the
+       * riders stay in the hull's tile chain), so a rider lands with its own
+       * spent byte. DOSBox 1511's French missionary (spent 6 ashore) had been
+       * acted in the hold by FUN_521d_6d8e before its hull sailed (13b0 has no
+       * aboard test, 5b66 exhausts), which the dispatcher's rider act models;
+       * a rider whose slot comes after the hull's lands fresh and acts ashore
+       * (America seed-100 save 63: Roanoke's Soldier takes Barbados's garrison
+       * hold 'G' the turn it lands). */
+      (void)pax_ids;
+      (void)npax;
     }
   }
   return UNITS_MOVE_CONTINUE;

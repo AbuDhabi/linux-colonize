@@ -1614,7 +1614,15 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
          * Its FUN_1427_13b0 body also wants `(signed char)+0x3144 >= 0`: a
          * hull on a Europe lane (x >= 128) is never acted (independence-
          * seed-100 000001: the Spanish lane Merchantman saves spent 0). */
-        if (u->moves <= 0 || u->x >= 128) {
+        /* A rider in a hold is parked at moves 0 with its real allotment in
+         * aboard_moves (-1 = nothing spent); 13b0 reads the spent byte, so a
+         * re-boarded rider still acts (America seed-100 save 62: Roanoke's
+         * Soldier re-boards at the berth and DOS exhausts it, spent 3). */
+        const int rider_left =
+          u->aboard_ship_id >= 0 && u->moves <= 0
+            ? (u->aboard_moves < 0 ? units_max_mp(ctx->units, u->id) : u->aboard_moves)
+            : u->moves;
+        if (rider_left <= 0 || u->x >= 128) {
           continue;
         }
         /* 13b0 has no aboard test: DOS acts a passenger on a map tile (no

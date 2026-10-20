@@ -292,6 +292,9 @@ int ai_euro_20e6_type_flags(int dos_type);
 int ai_euro_20e6_nearest_colony(
   const ColonizeTurnContext* ctx, int x, int y, int nation, int cid, int* out_dist
 );
+/* FUN_281f_030c / FUN_15dc_00e0: the int16 at DS:0x5b1c + (p1*0x27 + euro)*2, read raw
+ * over the packed Indian records and, past them, the colony records. */
+int ai_euro_5952_alarm_word(const ColonizeCol1Save* col1, int p1, int euro);
 int ai_euro_20e6_nearest_village(const ColonizeTurnContext* ctx, int x, int y, int* out_dist);
 int ai_euro_20e6_colony_owner_at(const ColonizeTurnContext* ctx, int x, int y);
 int ai_euro_20e6_tribe_or_presence(const ColonizeTurnContext* ctx, int x, int y);

@@ -443,6 +443,19 @@ static void colonies_assign_field_land_reaction(
   if (tribe_nation < 4 || tribe_nation > 11) {
     return;
   }
+  /* FUN_15eb_06d2 raw 9866: `FUN_281f_0d84(x, y, -1, continent)` on the seated
+   * claimed plot binds the village nearest to the PLOT (FUN_15dc_0032 ->
+   * 0006: DS:0x8d52 = its tribe index), which the 5952 cascade later reads. */
+  {
+    int bd = 9999;
+    const int bv = colonies_nearest_tribe_on(
+      col1, map, x, y, map_continent_id_at(map, col->x, col->y), &bd
+    );
+    if (bv >= 0 && bv < (int)col1->head.tribe_count) {
+      const int bn = (int)col1->tribe[bv].nation_id - 4;
+      g_colonies_bound_tribe = (bn >= 0 && bn <= 7) ? bn : -1;
+    }
+  }
   const bool human = col1->player[nation].control == 0;
   if (!human) {
     const int price = snap ? colonies_indian_land_purchase_gold_stale_claim(col1, map, x, y, nation)
