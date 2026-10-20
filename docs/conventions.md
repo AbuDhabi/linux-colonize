@@ -255,7 +255,7 @@ Strongest to weakest. When they conflict, the higher rank wins.
    tile setup, a despawned unit, a changed type stat). Such edits get
    calibrated to whatever formula is live when they are made: until
    2026-10-18 `golden_colony_prod01` carried hand-picked tiles that did
-   exactly that. Today its only edit is one despawned Brave (port_bugs.md #1126).
+   exactly that. Its seed (99) is likewise picked, not DOS's (port_bugs.md #1126).
 5. **These memory notes and the docs** — a summary of the above, and the first
    thing to distrust when it disagrees with 1–4.
 
