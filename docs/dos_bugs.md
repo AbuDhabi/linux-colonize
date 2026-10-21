@@ -64,9 +64,9 @@ explorers, village-visited bits, ship pressure, sticky anti-spin), per-colony
 port save therefore carries the block and the `*` slot mark; DOS still loads it
 (ignores the tail) and drops it on re-save, after which the port loads it the DOS
 way (tables zero, LCG from the turn number).
-**Status:** done (2026-10-19). Guarded by CTest `golden_idle_reload` (1492-1599)
-and `golden_idle_independence_reload` (saves 1-21): the idle campaigns with a
-save/reload before every turn (`GOLDEN_IDLE_RELOAD=1`) stay byte-identical to
+**Status:** done (2026-10-19). Guarded by CTest `golden_idle_reload` (1492-1599),
+`golden_idle_independence_reload` (saves 1-21) and `golden_idle_america_reload`
+(saves 1-63): the idle campaigns with a save/reload before every turn (`GOLDEN_IDLE_RELOAD=1`) stay byte-identical to
 DOS wherever the continuous gates do. A later hole shows up there first; the
 recipe is in [idle_campaign.md](idle_campaign.md) "Running and debugging".
 
@@ -87,3 +87,31 @@ copy. A DOS load of such a save reads the name up to the next zero byte, so it
 can show a stray character after "America" when bit 6 or 7 is set.
 **Status:** done (2026-10-21). The idle America resync pair 217 differs from
 DOS only in `players[0].lcr_case5_bonus_used` (plus the hold[5] artifact).
+
+### DB-4 — Euro AI border park reads an uninitialised stack word
+**DOS:** the 0x46 border-park arm of FUN_521d_20e6 (raw 89011-89029, the LAB_4d2e
+tail) tests `local_ea` (BP-0xE8 = SS:e7c4), which 20e6 never writes before that
+read. The word is whatever the last frame at that stack address left. Some writers
+are deterministic: FUN_6662_00f2's `PUSH SI` (nation*0x13c, only when 00f2 is
+entered at SP e852 through 6d8e -> 0972 -> 0f74), the FUN_5bfb_022e met arm (the
+mover's x), and the previous 20e6 scan's own saw-foe flag. The others are RTLink
+overlay-loader residue (an overlay size or relocation word, e.g. 0x2fe0, 0x4232).
+Which overlays reload, and so the residue value, depends on the overlay area's
+history since process start. So a combat land unit beside a foreign colony parks
+('F') or wanders depending on memory history, not game state: a DOSBox from-load
+of the same save and the continuous archive disagree on the same turn. Evidence:
+america seed-100 save 63 -> 64 (England's Dragoon u61 beside Quebec parks in the
+archive; a from-load parks all three Dragoons), and dozens of resync pairs past it
+([archive/idle_america_fixed_2026-10-19_21.md](archive/idle_america_fixed_2026-10-19_21.md),
+"e7c4 class").
+
+**Port:** `ColonizeTurnContext.ai_euro_wander_stack_word` (`src/core/turn.h`)
+models the deterministic writers only (`ai_euro_act.c` 00f2 flood, `ai_euro.c`
+022e met arm, `ai_euro_20e6_wander_step` in `ai_euro_land.c` for its own scan,
+which is also the reader). `ai_euro_dispatcher_turn` resets it to 0 at each
+nation's turn. The loader residue is not modelled, so the park decision is a
+function of game state only, and a save/reload gives the same result.
+**Status:** done (2026-10-21). The America idle archive ends at save 63 for this
+reason (CTest `golden_idle_america`, [idle_america.md](idle_america.md)).
+port_bugs.md #1135 is an open lead for one more deterministic writer (the
+case-7 founding call tree).

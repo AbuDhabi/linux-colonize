@@ -118,7 +118,7 @@ through years the archive lacks. A `%d` in `GOLDEN_IDLE_DUMP` takes the year, so
 `1492 1599` with `sim_%d.sav` dumps one continuous run year by year.
 `GOLDEN_IDLE_FROM=path.sav` starts from that save instead of `year_FIRST.sav`.
 `GOLDEN_IDLE_RELOAD=1` reloads the port save before every turn (CTest `golden_idle_reload`,
-`golden_idle_independence_reload`): the `RTST` chunk must carry what a continuous run does.
+`golden_idle_independence_reload`, `golden_idle_america_reload`): the `RTST` chunk must carry what a continuous run does.
 `GOLDEN_IDLE_RESYNC=1` (triage, not a gate) restarts every step from the archived DOS save
 plus the run's own port tail, so each pair is judged from DOS state;
 `GOLDEN_IDLE_RESYNC_SAVE=dir/start_%d.sav` writes those starts for one-pair replays through
@@ -138,6 +138,11 @@ quirks in [docs/idle_independence.md](../docs/idle_independence.md):
 ```
 GOLDEN_IDLE_KEEP_GOING=1 GOLDEN_IDLE_DUMP=/tmp/x/sim_%d.sav ./build/debug/golden_idle_campaign independence 1 21
 ```
+
+A leading `america` runs the third campaign, `original_saves/golden_idle_america_seed-100`
+(Spanish every-turn autosaves `000001`..`000063`, 1501-1569, Americas map, VR_SOUND.EXE),
+the same way. CTest `golden_idle_america` runs `america 1 63` (the whole trimmed archive; save
+64 turns on a DOS stack residue). Status in [docs/idle_america.md](../docs/idle_america.md).
 
 Most executables expect **repo root** as cwd (`WORKING_DIRECTORY` in CMake).
 

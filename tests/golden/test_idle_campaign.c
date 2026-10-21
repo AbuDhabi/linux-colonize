@@ -14,7 +14,7 @@
  * golden_idle_independence; docs/idle_independence.md.
  *
  * With a leading "america" argument it runs the Spanish every-turn autosaves in
- * original_saves/golden_idle_america_seed-100 (save numbers 1..465, 1501-1799,
+ * original_saves/golden_idle_america_seed-100 (save numbers 1..63, 1501-1569,
  * Americas map, VR_SOUND.EXE). The player loaded 000001 and idles throughout;
  * docs/idle_america.md.
  */
@@ -49,7 +49,7 @@ static const IdleCampaign k_independence = {
 };
 /* Recorded 2026-10-19 (VR_SOUND.EXE, Americas map): load of 000001, Space. */
 static const IdleCampaign k_america = {
-  "original_saves/golden_idle_america_seed-100/%06d.SAV", 1, 465, 1, 0,
+  "original_saves/golden_idle_america_seed-100/%06d.SAV", 1, 63, 1, 0,
 };
 
 static int read_bytes(const char* path, uint8_t** data, size_t* size) {
