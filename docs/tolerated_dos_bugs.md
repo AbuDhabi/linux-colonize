@@ -210,3 +210,25 @@ independence save 2, America save 2). The table is in the save, so it differs
 byte-wise at once, and the AI's colony planning follows. `unit_ai_indian_census`
 also fails; `golden_ai_joint` passed. Reverted.
 **Status:** tolerated (2026-10-21).
+
+### TB-8 — Indian horse breeding credits the last settlement's tribe
+**DOS:** in each tribe's turn, the census FUN_4962_06b6 (raw 78392-78406) walks
+every settlement through `FUN_281f_0a4c` (= `FUN_15dc_0032`), leaving the bound
+tribe pointer `DS:0x8d4e` on the nation of the last settlement in the array.
+The horse-breeding step of FUN_4d56_1816 (raw 81664-81672) then reads
+`horse_herds` and writes `horse_breeding` through that pointer, but caps the
+result with the current tribe's population total.
+
+**Effect:** whichever tribe owns the last settlement record gets its horse
+breeding advanced on every tribe's turn (up to eight times a turn, each with a
+different cap), while the other tribes never breed through this step.
+
+**Port (reproduces it):** the §6c horse-breeding block after
+`ai_contact_indian_census_4962_06b6` in `src/core/ai_contact_demand.c`.
+Unit test `unit_ai_indian_census` pins it.
+
+**Blocks removal:** tried 2026-10-21: breeding the current tribe instead makes
+all six idle CTest gates fail (1492 campaign from 1535, independence from
+save 2, America from save 46) and `unit_ai_indian_census` fail;
+`golden_ai_joint` passed. Reverted.
+**Status:** tolerated (2026-10-21).
