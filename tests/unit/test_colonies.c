@@ -1540,40 +1540,29 @@ static int case_colonies_core(void) {
       }
       CHECK(jesuit_miss, "#559 Jesuit sees Missionary row in a churchless colony");
 
-      /* (3) #559b: the Colonist row under the DS:0x8dc6 nation-table test. */
-      int slot = -1;
-      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-        if (pool.colonies[i].active && pool.colonies[i].id == cid) {
-          slot = i;
-        }
-      }
-      CHECK(slot >= 0, "colony pool slot found");
+      /* (3) #559b / docs/dos_bugs.md DB-9: a Jesuit is always offered the
+       * Colonist row, human or AI (DOS refuses it by a colony-slot-indexed
+       * nation test; the port drops that gate). Pool slot and nation differ
+       * in this fixture, and every player is flipped, so no control byte
+       * can make the row disappear. */
       ColonizeCol1Save* jc = (ColonizeCol1Save*)calloc(1, sizeof(ColonizeCol1Save));
       CHECK(jc != NULL, "col1 scratch for jesuit rows");
-      if (jc && slot >= 0 && slot < 4) {
+      if (jc) {
         colonies_set_col1_context(jc);
-        jc->player[slot].control = 0; /* human */
-        njr = colonies_list_eject_roles(&pool, cid, adj, jroles, COLONIZE_EJECT_ROLE_COUNT);
-        int has_colonist = 0;
-        for (int i = 0; i < njr; ++i) {
-          if (jroles[i] == COLONIZE_EJECT_COLONIST) {
-            has_colonist = 1;
+        for (int ctl = 0; ctl < 2; ++ctl) {
+          for (int i = 0; i < 4; ++i) {
+            jc->player[i].control = (uint8_t)ctl; /* 0 human, 1 AI */
           }
-        }
-        CHECK(!has_colonist, "#559 Jesuit loses Colonist row in a human-indexed slot");
-        CHECK(
-          colonies_eject_colonist(&pool, cid, adj, &units, COLONIZE_EJECT_COLONIST) < 0,
-          "#559 applier refuses the row the list never drew"
-        );
-        jc->player[slot].control = 1; /* AI */
-        njr = colonies_list_eject_roles(&pool, cid, adj, jroles, COLONIZE_EJECT_ROLE_COUNT);
-        has_colonist = 0;
-        for (int i = 0; i < njr; ++i) {
-          if (jroles[i] == COLONIZE_EJECT_COLONIST) {
-            has_colonist = 1;
+          njr = colonies_list_eject_roles(&pool, cid, adj, jroles, COLONIZE_EJECT_ROLE_COUNT);
+          int has_colonist = 0;
+          for (int i = 0; i < njr; ++i) {
+            if (jroles[i] == COLONIZE_EJECT_COLONIST) {
+              has_colonist = 1;
+            }
           }
+          CHECK(has_colonist, ctl == 0 ? "#559 human Jesuit keeps the Colonist row"
+                                       : "#559 AI Jesuit keeps the Colonist row");
         }
-        CHECK(has_colonist, "#559 AI-controlled slot keeps the Colonist row");
         colonies_set_col1_context(NULL);
       }
       free(jc);
