@@ -133,3 +133,30 @@ so mostly invisible outside the save.
 **Blocks removal:** as TB-3 (saved ledgers, byte-compared by `golden_idle_*`).
 Not test-run.
 **Status:** tolerated (2026-10-21).
+
+### TB-5 — Colony job scoring reads Horses for the Fisherman
+**DOS:** FUN_15eb_28c8 (the work-plot job scorer) calls
+`FUN_15eb_18ec(x, y, &local_24, 0)` (raw 13000). 18ec writes the job index into
+`local_24` and remaps a water job to Food only when `param_4 != 0` (raw 11983),
+so for the Fisherman (job 8) `local_24` stays 8, and every later use reads cargo
+slot 8 = Horses: the warehouse-room clamp (`colony+0x9a+8*2`, raw 13004-13011)
+and the shortfall / unmet rows (`DS:-0x71ce` / `-0x71a6`). Jobs 0..7 map to
+cargo 0..7 identically, so the Farmer correctly reads Food.
+
+**Effect:** a Fisherman plot's yield is clamped by the room left for Horses,
+not Food, so a colony with a nearly full Horses stock undervalues fishing; and
+a food shortfall boosts Farmer plots but not Fisherman plots (the food
+emergency branch does not read the cargo and still favours both). 28c8 places
+AI colonists every tick and seats every new colonist joining a colony, human
+or AI (`colonies_seat_new_colonist`).
+
+**Port (reproduces it):** `ai_euro_28c8_score_full`
+(`src/core/ai_euro_colony_jobs.c`, `const int cargo = job;`). Came from
+port_bugs.md #582. The fix is `colony_yield_job_cargo(job)`.
+
+**Blocks removal:** tried 2026-10-21: with the fix, CTest
+`golden_idle_continuous`, `golden_idle_independence`, `golden_idle_america`
+and the three `_reload` variants fail (seed-100 1492 campaign first differs at
+1535, America at save 29), and `unit_ai_euro_28c8_job_score` fails.
+`golden_ai_joint` passed. Reverted.
+**Status:** tolerated (2026-10-21).

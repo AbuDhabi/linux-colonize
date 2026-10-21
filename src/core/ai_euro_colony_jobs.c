@@ -398,8 +398,9 @@ static int ai_euro_28c8_score_full(
        * to food when param_4 != 0 (raw 11983), which this call site passes as
        * 0 — so for the Fisherman (job 8) local_24 stays 8 and every later use
        * (warehouse clamp `colony+0x9a+8*2`, the DS -0x71ce / -0x71a6 rows, the
-       * `local_24 != 5` lumber test) reads cargo slot 8 = HORSES. A DOS quirk,
-       * kept verbatim (port_bugs.md #582). Jobs 0..7 map to cargo 0..7 identically. */
+       * `local_24 != 5` lumber test) reads cargo slot 8 = HORSES. A DOS bug,
+       * reproduced for now (port_bugs.md #582, docs/tolerated_dos_bugs.md TB-5).
+       * Jobs 0..7 map to cargo 0..7 identically. */
       const int cargo = job;
       int yld = profession >= 0
                   ? colony_yield_for_worker(
