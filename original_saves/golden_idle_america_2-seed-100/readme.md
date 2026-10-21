@@ -1,0 +1,1 @@
+This is a fully idle campaign on the original Americas map. Continuous run after loading the first save file. Spacebar pressed down used to simulate passing turns. VR_SOUND.EXE used to fix seed at 100 and prevent music randomness from polluting RNG state.
