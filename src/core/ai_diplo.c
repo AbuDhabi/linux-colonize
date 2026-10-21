@@ -535,8 +535,8 @@ const char* ai_diplo_rival_name(const ColonizeCol1Save* col1, int nation) {
   if (adj && adj[0] != '\0') {
     return adj;
   }
-  if (col1 && col1->player[nation].country_name[0] != '\0') {
-    return col1->player[nation].country_name;
+  if (col1 && col1_player_country_name(col1, nation)[0] != '\0') {
+    return col1_player_country_name(col1, nation);
   }
   return ""; /* catalog miss: empty, never typed text (port_bugs.md #1100) */
 }
@@ -1771,7 +1771,7 @@ static AiTalkStepStatus ai_talk_stage_worthy(
     const char* leader2 = ai_talk_great_line(ctx, "GREATLEADER2", t);
     PopupMsgTokens tr = *tok;
     tr.string0 = leader2 ? leader2 : ai_talk_name(ctx, t);
-    tr.string1 = (t >= 0 && t < 4 && col1) ? col1->player[t].country_name : ai_talk_name(ctx, t);
+    tr.string1 = (t >= 0 && t < 4 && col1) ? col1_player_country_name(col1, t) : ai_talk_name(ctx, t);
     if (ai_talk_peace(ctx, h, t) && k->score >= 0x65) {
       ai_talk_ok(ctx, "PROVOKE", tok, "");
       ai_diplo_clear_both(col1, h, t, AI_DIPLO_PEACE);
@@ -2592,7 +2592,7 @@ static int ai_diplo_153e_encounter_gated(
   const char* great_kings = ai_talk_great_line(ctx, "GREATKINGS", target);
   const char* great_deeds = ai_talk_great_line(ctx, "GREATDEEDS", target);
   tok.string0 = hello_addressee;
-  tok.string1 = col1->player[target].country_name; /* "New England" (port_bugs.md #474) */
+  tok.string1 = col1_player_country_name(col1, target); /* "New England" (port_bugs.md #474) */
   tok.string2 = great_kings ? great_kings : "";
   tok.string3 = great_deeds ? great_deeds : "";
   const char* hello = k->manly ? "HELLOMANLY" : "HELLOMEEK";

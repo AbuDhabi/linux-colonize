@@ -650,6 +650,11 @@ static void ai_euro_5d04_cb_set_unit_dispatch_byte(int idx, int value) {
   } else if (value == 4) {
     u->muskets = 50;
     u->horses = 50;
+  } else if (value == 2 && u->col1_hold_raw_valid && u->col1_hold_raw[9] > 100) {
+    /* The record's +0x3159 is a residue byte the export keeps raw on a
+     * non-Pioneer (col1_bridge.c); as a Pioneer it now reads as tools
+     * (america seed-100 192->193: a French Pioneer bought with 236). */
+    u->tools = u->col1_hold_raw[9];
   }
   /* value == 2: DOS-LITERAL FUN_521d_5d04 raw 92770-92783 writes only the
    * type (+ the 291f_0c14(0xe, 100) market booking); +0x3159 keeps whatever

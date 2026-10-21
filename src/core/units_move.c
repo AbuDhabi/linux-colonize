@@ -506,6 +506,20 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_pre(units_move_ctx* c) {
    * fixtures keep their attacks.
    */
   units_465b_0673_vis_or(pool, c->map, unit, dest_x, dest_y);
+  /* FUN_465b_0000 LAB_465b_05ca (raw 75643-75649): an attack (bVar4) passes
+   * the same `cost <= left || spent == 0 || (04ca(DS:0x83a6), bVar4)` gate as
+   * a plain step, before LAB_465b_0673 calls 1b0e. An attacker short of the
+   * step cost with something already spent reseeds the LCG ahead of the
+   * combat roll (DOSBox america 448->449: English Dragoon onto a Brave at
+   * (29,39), reseed between the 00f2 expel draw and rng(1,86)). */
+  {
+    const int cost = units_move_cost(pool, unit_id, c->map, dest_x, dest_y);
+    const int remaining = units_remaining_mp(pool, unit_id);
+    if (cost > remaining && remaining < units_max_mp(pool, unit_id) && c->rng &&
+        c->w->rng_reseed_set) {
+      dos_rng_seed(c->rng, c->w->rng_reseed);
+    }
+  }
   return UNITS_MOVE_CONTINUE;
 }
 

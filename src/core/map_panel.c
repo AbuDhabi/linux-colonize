@@ -353,8 +353,8 @@ static const char* map_panel_euro_country(
   const ColonizeCol1Save* col1, const char* nation_name, int nation_id, int human_nation
 ) {
   if (nation_id >= 0 && nation_id < 4 && col1) {
-    if (col1->player[nation_id].country_name[0]) {
-      return col1->player[nation_id].country_name;
+    if (col1_player_country_name(col1, nation_id)[0]) {
+      return col1_player_country_name(col1, nation_id);
     }
   }
   /* nation_name is the HUMAN nation's name — only valid for their own tiles

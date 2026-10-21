@@ -226,8 +226,8 @@ static void turn_emit_sol_phase_d_chrome(
   tok.string0 = cname;
   if (col1 && colony->nation_id >= 0 &&
       colony->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
-      col1->player[colony->nation_id].country_name[0]) {
-    tok.string1 = col1->player[colony->nation_id].country_name;
+      col1_player_country_name(col1, colony->nation_id)[0]) {
+    tok.string1 = col1_player_country_name(col1, colony->nation_id);
   } else if (europe->nation_name[0]) {
     tok.string1 = europe->nation_name;
   } else {

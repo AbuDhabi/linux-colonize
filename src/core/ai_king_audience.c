@@ -221,8 +221,8 @@ static int ai_king_audience_roll(
        * player's New World name (nation*0x34 + 0x5426 = player.country_name). */
       flavor.section = "KINGSTAMPACT";
       str_copy_trunc(flavor.string2, sizeof(flavor.string2),
-                     col1->player[human].country_name[0]
-                       ? col1->player[human].country_name
+                     col1_player_country_name(col1, human)[0]
+                       ? col1_player_country_name(col1, human)
                        : "");
       flavor.has_string2 = true;
     }
@@ -859,8 +859,8 @@ void ai_king_succession(ColonizeTurnContext* ctx) {
   /* @SUCCESSION Treaty of Utrecht announcement. */
   if (ai_king_human_popups(ctx)) {
     const char* ceder = reports_nation_country_name(merged);
-    const char* domain = col1->player[merged].country_name[0]
-                           ? col1->player[merged].country_name
+    const char* domain = col1_player_country_name(col1, merged)[0]
+                           ? col1_player_country_name(col1, merged)
                            : "";
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
@@ -879,8 +879,8 @@ void ai_king_succession(ColonizeTurnContext* ctx) {
   }
   if (ctx->status && ctx->status_size && ctx->status[0] == '\0') {
     const char* ceder = reports_nation_country_name(merged);
-    const char* domain = col1->player[merged].country_name[0]
-                           ? col1->player[merged].country_name
+    const char* domain = col1_player_country_name(col1, merged)[0]
+                           ? col1_player_country_name(col1, merged)
                            : "";
     const char* heir_adj = reports_nation_adjective_display_name(heir);
     const char* merged_adj = reports_nation_adjective_display_name(merged);
