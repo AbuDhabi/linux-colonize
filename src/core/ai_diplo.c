@@ -2116,22 +2116,22 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
     case AI_TALK_ST_WANTSTUFF:
       if (choice == 2) {
         /*
-         * Byte-verified DOS bug (OVL16 asm 0x2995-0x29B2): the transfer
-         * indexes the colony stock rows with [bp-0xa2] — the loop counter
-         * left at 4 by the euro rival-tally do-while — NOT the picked cargo
-         * [bp-0xb2]. So DOS always moves FURS (cargo 4) by the demanded
-         * amount, whatever the dialog named. Ported faithfully. OpenCol-only
-         * bound: source stock floors at 0 (DOS int16 may underflow when the
-         * picked cargo != Furs); receiver is uncapped like DOS.
+         * DOS (OVL16 asm 0x2995-0x29B2) indexes the colony stock rows with
+         * [bp-0xa2], the loop counter left at 4 by the euro rival-tally
+         * do-while, not the picked cargo [bp-0xb2], so it always moves Furs.
+         * The port moves the named cargo (docs/dos_bugs.md DB-8). want_amount
+         * was capped to the source stock when picked; the floor is a guard.
+         * Receiver is uncapped like DOS.
          */
         ColonizeColony* cs = colonies_get_mut(ctx->colonies, k->want_src);
         ColonizeColony* cd = colonies_get_mut(ctx->colonies, k->want_dst);
-        if (cs && cd && cs->active && cd->active) {
-          cs->stock[COLONIZE_CARGO_FURS] -= k->want_amount;
-          if (cs->stock[COLONIZE_CARGO_FURS] < 0) {
-            cs->stock[COLONIZE_CARGO_FURS] = 0;
+        const int wc = k->want_cargo;
+        if (cs && cd && cs->active && cd->active && wc >= 0 && wc < COLONIZE_CARGO_COUNT) {
+          cs->stock[wc] -= k->want_amount;
+          if (cs->stock[wc] < 0) {
+            cs->stock[wc] = 0;
           }
-          cd->stock[COLONIZE_CARGO_FURS] += k->want_amount;
+          cd->stock[wc] += k->want_amount;
         }
         k->worthy = 0; /* raw :97928 iStack_a8 = 0 */
       }
