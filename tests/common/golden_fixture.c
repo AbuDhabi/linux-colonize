@@ -111,6 +111,7 @@ bool golden_open(const char* path_in, const char* path_exp, uint32_t rng_seed, G
     return false;
   }
   fx->names_loaded = true;
+  (void)ai_euro_load_cycle_dat("COLONIZE/CYCLE.DAT");
   runtime_ext_set_rng(&fx->rng, &fx->seed);
 
   const SavLoad sl = {

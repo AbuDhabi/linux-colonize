@@ -813,7 +813,10 @@ bool colonies_try_complete_building(ColonizeColonyPool* pool, int colony_id);
 bool colonies_try_complete_building_ex(
   ColonizeColonyPool* pool, int colony_id, const ColonizeCol1Save* col1
 );
-/* unit-type completion / tools-short handling (see docs/colony.md#colonies_try_complete_unit_construction) */
+/* unit-type completion / tools-short handling (see docs/colony.md#colonies_try_complete_unit_construction).
+ * Returns the new unit id, -1 when nothing completed, or
+ * COLONIZE_UNIT_BUILD_REFUSED when the project completed at the unit cap. */
+#define COLONIZE_UNIT_BUILD_REFUSED (-2)
 int colonies_try_complete_unit_construction(
   ColonizeColonyPool* pool,
   int colony_id,

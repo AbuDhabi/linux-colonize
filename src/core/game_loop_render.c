@@ -1542,6 +1542,7 @@ static void game_load_cycle_dat(ColonizeGameState* game) {
   if (!dos_compat_normalize_asset_path(game->resolved_data_dir, "CYCLE.DAT", path, sizeof(path))) {
     return;
   }
+  (void)ai_euro_load_cycle_dat(path);
   FILE* f = fopen(path, "rb");
   if (!f) {
     return;
