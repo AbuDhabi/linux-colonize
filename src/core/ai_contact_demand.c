@@ -2389,11 +2389,11 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
  *       c = FUN_281f_081c(unit)             // = FUN_1427_0f0e = continent
  *       if (c >= 0) tribe_dwellings_91cc[slot*16+c] = min(255, +v)
  *
- * **DOS quirk kept literal:** `village_counts_by_continent[]` is zeroed on
- * every call but only refilled from the *current* tribe type, so after the
- * eight 1816 calls it holds the last surviving tribe type's villages only.
- * FUN_4962_0018 (the Euro census) is the array's other writer. Not
- * "fixed" here — no invented behavior.
+ * **DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-7):**
+ * `village_counts_by_continent[]` is zeroed on every call but only refilled
+ * from the *current* tribe type, so after the eight 1816 calls it holds the
+ * last surviving tribe type's villages only. FUN_4962_0018 (the Euro census)
+ * is the array's other writer.
  */
 static void ai_contact_indian_census_4962_06b6(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
