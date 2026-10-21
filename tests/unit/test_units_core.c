@@ -5662,6 +5662,7 @@ static int case_combat_undefended_colony_militia(void) {
       memset(&c1, 0, sizeof(c1));
       c1.player[0].control = 0;
       c1.player[1].control = 1;
+      ai_diplo_declare_war(&c1, 0, 1); /* the human confirm declares before the step */
       /* No Revere owned, no muskets stock — Revere override must not apply. */
 
       const int aid = units_spawn(&pool, soldier2, cx - 1, cy);
@@ -5802,6 +5803,7 @@ static int case_combat_militia_phantom_row(void) {
       }
       mc1.player[0].control = 0; /* human attacker */
       mc1.player[1].control = 1;
+      ai_diplo_declare_war(&mc1, 0, 1); /* the human confirm declares before the step */
       mc1.head.difficulty = 3; /* off the Discoverer beginner shield */
       mc1.head.turn = 200;
 
@@ -6199,6 +6201,7 @@ static int case_combat_port_ship_fate_discharge(void) {
       memset(&c1, 0, sizeof(c1));
       c1.player[0].control = 0;
       c1.player[1].control = 1;
+      ai_diplo_declare_war(&c1, 0, 1); /* the human confirm declares before the step */
 
       /* Rival Frigate berthed in the port (armed: attack > 0, so the
        * non-combat seizure sweep leaves it alone). */

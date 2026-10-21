@@ -738,6 +738,20 @@ ColonizeEnterReason units_enter_probe_w(
       return g_units_last_enter_reason;
     }
   }
+  /* The same settlement-owner bVar4 runs the Euro relation band (raw
+   * 75545-75557) for an armed mover: under a treaty whose encounter cooldown
+   * still runs, the step aborts (goto LAB_465b_0bd1) exactly as against a
+   * defended tile (America seed-100 resync 331: England's Dragoon walked into
+   * empty French Fort Frontenac at peace and took it). */
+  if (colonies && mover && mover_nation >= 0 && mover_nation <= 3) {
+    const ColonizeColony* fcol = colonies_get(colonies, colonies_id_at(colonies, x, y));
+    if (fcol && fcol->active && fcol->nation_id >= 0 && fcol->nation_id <= 3 &&
+        fcol->nation_id != mover_nation &&
+        !units_at_war_for_move(units_world_col1(w), mover_nation, fcol->nation_id)) {
+      g_units_last_enter_reason = COLONIZE_ENTER_BOUNCE_PEACE;
+      return g_units_last_enter_reason;
+    }
+  }
   g_units_last_enter_reason = COLONIZE_ENTER_OK;
   return g_units_last_enter_reason;
 }

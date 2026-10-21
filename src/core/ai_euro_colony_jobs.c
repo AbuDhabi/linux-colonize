@@ -257,6 +257,10 @@ static void ai_euro_28c8_env(
 #define AI_28C8_L32_SETJOB 0x12
 static int s_28c8_l32 = AI_28C8_L32_OFF;
 
+void ai_euro_28c8_set_l32_residue(int v) {
+  s_28c8_l32 = v >= 0 ? v : AI_28C8_L32_OFF;
+}
+
 static void ai_euro_28c8_l32_mark(int v) {
   if (s_28c8_l32 != AI_28C8_L32_OFF) {
     s_28c8_l32 = v;
@@ -2151,14 +2155,41 @@ int ai_euro_s_5952_arty_plot[COLONIZE_COLONIES_MAX];
  * (unit_type_counts then colony_counts, contiguous) and DS:0x9408..0x942f
  * (FUN_4962_0018's census, contiguous in DS though not in the save file).
  * DS:0x84b4..0x84bb has no writer anywhere (see price_row_minus8): 0.
+ * DS:0x929e..0x92bf is CYCLE.DAT (colony_counts + n for tribes 6..11).
  * ponytail: other addresses (e.g. a tribe's price row past DS:0x84fb) read
  * 0; model them if a trace ever lands there.
  * tr9 interval 20: crown Bahia's local_1b0 is -1, the Muskets byte DS:0x84bb
  * is 0 < 4, the Blacksmith's Shop arm is skipped and pop 7 < 8 ends at 2747.
  */
+static uint8_t s_5952_cycle_dat[0x22]; /* DS:0x929e..0x92bf */
+
+bool ai_euro_load_cycle_dat(const char* path) {
+  memset(s_5952_cycle_dat, 0, sizeof s_5952_cycle_dat);
+  FILE* f = path ? fopen(path, "rb") : NULL;
+  if (!f) {
+    return false;
+  }
+  const size_t n = fread(s_5952_cycle_dat, 1, sizeof s_5952_cycle_dat, f);
+  fclose(f);
+  return n >= 2;
+}
+
 static int ai_euro_5952_ds_byte(const ColonizeCol1Save* col1, int addr) {
   if (!col1) {
     return 0;
+  }
+  if (addr >= 0x929e && addr < 0x92c0) {
+    /* CYCLE.DAT records [length, phase, start, rate] from DS:0x92a0. The
+     * phase byte is the live palette-cycle step (FUN_1a0a_0004 zeroes it on
+     * map entry, the timer advances it): read 0. America seed-100 resync
+     * 313: the Sioux owner (11) reads 0x9298 + 11 = rate 0x23, so Fort
+     * Nassau's Galleon test passes. */
+    const int o = addr - 0x929e;
+    const int count = s_5952_cycle_dat[0] | (s_5952_cycle_dat[1] << 8);
+    if (o >= 2 && ((o - 2) & 3) == 1 && (o - 2) / 4 < count) {
+      return 0;
+    }
+    return s_5952_cycle_dat[o];
   }
   const ColonizeCol1Stuff* st = &col1->stuff;
   if (addr >= 0x84bc && addr < 0x84fc) {

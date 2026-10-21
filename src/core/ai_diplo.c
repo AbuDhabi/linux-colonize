@@ -261,13 +261,20 @@ void ai_diplo_indian_capital_surrender(
   if (col1->tribe) {
     for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
       ColonizeCol1Tribe* t = &col1->tribe[ti];
-      if ((int)t->nation_id != indian_nation) {
-        continue;
+      /* DOS-LITERAL FUN_5fef_1b0e raw 101293-101298: the zeroing loop
+       * compares each settlement's +2 nation byte (4..11) with the TRIBE
+       * index at DS:0x8d52 (0..7, the same word 0d6c gets above), so it
+       * clears the dwellings of nation `idx`, never the razed tribe's own;
+       * those keep 4cc6_00f2's tier clamp (0x20). America seed-100 resync
+       * 236: Sioux (11) capital razed by England, three dwellings keep 32. */
+      if ((int)t->nation_id == idx) {
+        t->alarm[euro_nation].friction = 0;
+        t->alarm[euro_nation].attacks = 0;
       }
-      t->alarm[euro_nation].friction = 0;
-      t->alarm[euro_nation].attacks = 0;
-      /* Fandom: no new capital after capital falls. */
-      t->state.capital = 0;
+      if ((int)t->nation_id == indian_nation) {
+        /* Fandom: no new capital after capital falls. */
+        t->state.capital = 0;
+      }
     }
   }
   /*

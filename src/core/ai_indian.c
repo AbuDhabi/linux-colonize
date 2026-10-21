@@ -412,9 +412,15 @@ int ai_indian_village_threat_w(
         default: mul = 2; div = 1; break;
       }
     }
+    /* DOS counts the set bits of the packed +0x84 building word (raw
+     * 81146-81154). Warehouse Expansion and Capitol Expansion have no bit
+     * there (FUN_364b_0114 keeps those tiers in the +0x95/+0x96 counters),
+     * so they do not count (America seed-100 resync 244, Fort Nassau). */
+    const int whe = colonies_building_row(colonies, COLONY_BUILDING_WAREHOUSE_EXPANSION);
+    const int cpe = colonies_building_row(colonies, COLONY_BUILDING_CAPITOL_EXPANSION);
     int buildings = 0;
     for (int b = 0; b < COLONIZE_BUILDING_TYPES_MAX; ++b) {
-      if (c->has_building[b]) {
+      if (c->has_building[b] && b != whe && b != cpe) {
         buildings++;
       }
     }

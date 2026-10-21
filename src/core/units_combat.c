@@ -3063,14 +3063,10 @@ bool units_try_native_settlement_fallout_w(
        * local_ce != 0` = dwelling destroyed AND it carried the capital bit
        * (record +3 bit 2). DOS then walks the whole DS:0x539a settlement
        * array and zeroes `(i*9 + euro)*2 + 0x54f6` for every record whose
-       * `+2` type byte (= owner nation - 4, settlement_record_8d4a.md)
-       * equals the bound Indian nation index at DS:0x8d52 — the NATION-WIDE
-       * grudge against the conqueror is spent when its capital falls, not
-       * just the razed settlement's. Translated into the port's index space
-       * (the attitude word is keyed by village, docs/indians.md) that is every
-       * tribe of the razed capital's nation. The alarm side of the same block
-       * (FUN_281f_030c/0d6c: clamp alarm DOWN to 15 when above) is what
-       * ai_diplo_indian_capital_surrender models.
+       * `+2` nation byte (4..11) equals DS:0x8d52 — the TRIBE index (0..7),
+       * so DOS clears another nation's dwellings, never the razed tribe's.
+       * ai_diplo_indian_capital_surrender models the whole block: the alarm
+       * clamp (FUN_281f_030c/0d6c, DOWN to 15) and that loop, in DOS order.
        */
       ai_diplo_indian_capital_surrender(col1, tribe_nation, attacker_nation_id);
       /*
@@ -3104,13 +3100,6 @@ bool units_try_native_settlement_fallout_w(
             g_units_combat_popups, tribe_nation - 4,
             ai_popup_portrait_tier_from_alarm(alarm)
           );
-        }
-      }
-      if (col1->tribe) {
-        for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
-          if ((int)col1->tribe[ti].nation_id == tribe_nation) {
-            units_indian_tension_clear(col1, (int)ti, attacker_nation_id);
-          }
         }
       }
     } else {

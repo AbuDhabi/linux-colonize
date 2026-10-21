@@ -777,13 +777,17 @@ COLONIZE_INTERNAL void turn_produce_compose(TurnProduceCtx* pc) {
    * and would otherwise re-tally them off the already-updated SoL latch and
    * the already-educated/starved roster. See ColonizeColony's
    * prod_compose_stamp comment. */
-  colony->prod_compose_stamp = 0;
-  if (col1) {
+  if (col1 && colony->prod_compose_stamp == (uint32_t)col1->head.turn + 1u) {
+    /* Already composed this turn by the pre-election bell step
+     * (turn_ai_colony_bell_step). */
+  } else if (col1) {
     turn_compose_colony_bells_crosses(
       pool, colony, col1, sol_b_phase_a, &colony->prod_bells_phase_a,
       &colony->prod_crosses_phase_a
     );
     colony->prod_compose_stamp = (uint32_t)col1->head.turn + 1u;
+  } else {
+    colony->prod_compose_stamp = 0;
   }
 }
 

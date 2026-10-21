@@ -94,7 +94,7 @@ static void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
     const int uid = colonies_try_complete_unit_construction(
       ctx->colonies, col->id, ctx->units, ctx->col1_ok ? ctx->col1 : NULL
     );
-    if (uid < 0) {
+    if (uid < 0 && uid != COLONIZE_UNIT_BUILD_REFUSED) {
       continue;
     }
     /*
@@ -458,6 +458,14 @@ static void turn_ai_colony_bell_step(void* user, ColonizeColony* colony) {
     colony_prod_sol_bonus(step->ctx->col1, colony), &bells, &crosses
   );
   step->crosses += crosses;
+  /* DOS FUN_364b_0688 composes local_ba once, before this colony's 0a22
+   * election (raw 57230-57231), and the rebel dividend (raw 57392) reads
+   * that same word: a Father elected here (Paine) must not reach this
+   * colony's dividend. Stamp it so Phase A keeps it (America seed-100
+   * resync 215, Barbados). */
+  colony->prod_bells_phase_a = bells;
+  colony->prod_crosses_phase_a = crosses;
+  colony->prod_compose_stamp = (uint32_t)step->ctx->col1->head.turn + 1u;
   unsigned last = (unsigned)step->nat->liberty_bells_last_turn + (unsigned)bells;
   unsigned pool = (unsigned)step->nat->liberty_bells_pool + (unsigned)bells;
   step->nat->liberty_bells_last_turn = (uint16_t)(last > 65535u ? 65535u : last);

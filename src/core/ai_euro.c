@@ -1624,6 +1624,13 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
         if (rider_left <= 0 || u->x >= 128) {
           continue;
         }
+        /* 13b0's bit7 test (+0x3148 & 0x80, Artillery excepted): a damaged
+         * hull under repair is never acted (America seed-100 resync 367/374:
+         * England's Privateer repairing at Barbados keeps its goto). */
+        if ((u->col1_flags15 & 0x80u) != 0 &&
+            !combat_type_is_artillery(units_type(ctx->units, u->type_index))) {
+          continue;
+        }
         /* 13b0 has no aboard test: DOS acts a passenger on a map tile (no
          * bit7, or artillery). Its act does nothing but spend the MP, and it
          * still counts as the wave's act (independence-seed-100 START_SAVE:
@@ -1631,10 +1638,6 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
          * so Artillery 114 reaches the Port Royal surplus recall before
          * Dragoon 142). */
         if (u->aboard_ship_id >= 0) {
-          if ((u->col1_flags15 & 0x80u) != 0 &&
-              !combat_type_is_artillery(units_type(ctx->units, u->type_index))) {
-            continue;
-          }
           u->moves = 0;
           u->aboard_moves = 0;
           wave_acted = 1;

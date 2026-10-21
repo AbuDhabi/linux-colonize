@@ -4831,8 +4831,10 @@ static int sp_40(void) {
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     ai_diplo_indian_capital_surrender(&col1, 4, 0);
     /* FUN_5fef_1b0e capital-razed arm (raw 101289-101298): alarm is clamped
-     * DOWN to 15, not zeroed. */
-    if (ind->alarm_by_player[0] != 15 || col1.tribe[0].alarm[0].friction != 0) {
+     * DOWN to 15, not zeroed. The zeroing loop matches the tribe INDEX
+     * against the nation byte, so the tribe's own dwelling keeps 4cc6_00f2's
+     * tier clamp (0x20) instead. */
+    if (ind->alarm_by_player[0] != 15 || col1.tribe[0].alarm[0].friction != 0x20) {
       return fail("capital surrender should clamp alarm to 15 / clear friction");
     }
     if (col1.tribe[0].alarm[0].attacks != 0) {
