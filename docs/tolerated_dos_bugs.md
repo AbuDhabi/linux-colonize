@@ -160,3 +160,29 @@ and the three `_reload` variants fail (seed-100 1492 campaign first differs at
 1535, America at save 29), and `unit_ai_euro_28c8_job_score` fails.
 `golden_ai_joint` passed. Reverted.
 **Status:** tolerated (2026-10-21).
+
+### TB-6 — Euro AI buying from natives scores the wrong goods
+**DOS:** in the native trade session (FUN_4d56_2820, LAB_002e92, asm
+4d56:31b8-3204), after a sale the AI picks which of three offered goods to buy.
+The offer list is the bid-sorted cargo order with Muskets, Food, Tools and
+Trade Goods skipped. The pick does not score that list: it reads three raw
+bytes of the sorted array at `BP-0x86 - i`, i.e. sorted slots 16, 15 and 14,
+scores each with the `DS:0x84bc` price row and keeps the first strict maximum
+(seed -9999), then uses the winning index 0..2 into the filtered list. Slot 16
+is one past the 16-byte array and aliases the low byte of the haggle round
+counter `iStack_88`, which is 0 whenever the AI gets here, so it scores Food.
+
+**Effect:** which good a Euro AI unit buys from a village depends on the
+prices of Food and the top two unfiltered cargos, not on the prices of the
+goods actually offered; in practice an arbitrary pick, usually the first
+offer. Human players choose through @BUYWHICH and are not affected.
+
+**Port (reproduces it):** `ai_contact_2e92_ai_pick`
+(`src/core/ai_contact_trade.c`). Came from port_bugs.md #796.
+
+**Blocks removal:** tried 2026-10-21: scoring the offered goods' price bytes
+(same first-strict-max rule) makes CTest `golden_idle_independence` and
+`golden_idle_independence_reload` fail from save 4 (an AI wagon trade at a
+village, independence 4->5). All other tests and `golden_ai_joint` passed.
+Reverted.
+**Status:** tolerated (2026-10-21).
