@@ -186,3 +186,27 @@ offer. Human players choose through @BUYWHICH and are not affected.
 village, independence 4->5). All other tests and `golden_ai_joint` passed.
 Reverted.
 **Status:** tolerated (2026-10-21).
+
+### TB-7 — Villages-per-continent table holds only the last tribe's villages
+**DOS:** the Indian census FUN_4962_06b6 (raw ~78392-78406) runs once per tribe
+type (eight calls from FUN_4d56_1816). Each call zeroes the whole
+`village_counts_by_continent[16]` table (`DS:0x947e`; it is not per tribe),
+then counts only the current tribe's settlements into it. After the eight
+calls it holds the villages of whichever tribe ran last, not all villages.
+
+**Effect:** the reader is the Euro AI's continent balance check FUN_521d_0492
+(raw 87098-87136, `ai_goals.c`), which compares
+`continent land / 12` with villages + Euro colonies on that continent to
+decide whether a continent is crowded. With most tribes' villages missing,
+the AI treats continents as emptier than they are when planning colonies.
+
+**Port (reproduces it):** `ai_contact_indian_census_4962_06b6`
+(`src/core/ai_contact_demand.c`). Unit test `unit_ai_indian_census` pins the
+last-tribe-only result.
+
+**Blocks removal:** tried 2026-10-21: counting every settlement per continent
+makes all six idle CTest gates fail from the first compared save (1493,
+independence save 2, America save 2). The table is in the save, so it differs
+byte-wise at once, and the AI's colony planning follows. `unit_ai_indian_census`
+also fails; `golden_ai_joint` passed. Reverted.
+**Status:** tolerated (2026-10-21).
