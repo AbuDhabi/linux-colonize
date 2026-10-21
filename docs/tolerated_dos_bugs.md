@@ -90,3 +90,46 @@ deliberate re-creation, not a side effect. Unit test: `unit_units_core`
 boarding only the hull's own riders changes which units sail and breaks the
 DOS match.
 **Status:** tolerated (2026-10-21).
+
+### TB-3 — Euro AI delivery sell books its trade ledger twice
+**DOS:** when a Euro AI ship's delivery matrix in FUN_521d_20e6 picks no colony,
+the sell tail (raw 89828-89851) dumps every hold for gold. Per hold it calls
+`FUN_291f_0a2e` -> `FUN_38fd_1dfa`, which already credits the nation's
+`trade.gold[g]` (+0x7c, tax-adjusted) and `trade.tons[g]` / `trade.tons2[g]`
+(+0xbc / +0xfc) with the quantity. The tail then adds the untaxed
+`DS:0x84bc price * qty` to `trade.gold[g]` and `qty` to `trade.tons[g]` a
+second time. The treasury (+0x2a) is credited once, untaxed.
+
+**Effect:** that AI nation's per-cargo trade ledger (gold and tons sold)
+overstates these sales roughly twofold. The port reads `trade.gold` /
+`trade.tons` only for the human nation (Trade report, King's tax-raise goods
+pick FUN_38fd_3dc8), so for AI nations the inflated values mostly just live in
+the save. `trade.tons2`, which the market price model sums, is booked once.
+
+**Port (reproduces it):** `ai_euro_20e6_delivery_sell_tail`
+(`src/core/ai_euro_ship.c`).
+
+**Blocks removal:** the ledgers are saved, and the idle campaigns
+(`golden_idle_*`) byte-compare saves with DOS; a single booking changes those
+bytes from the first AI delivery sell on. Not test-run.
+**Status:** tolerated (2026-10-21).
+
+### TB-4 — AI warehouse dump-sell adds the cargo index to tons sold
+**DOS:** FUN_364b_0688 phase O (raw 57806-57848) sells a non-human Euro
+colony's warehouse surplus. Per cargo it calls `FUN_291f_0a2e` ->
+`FUN_38fd_1dfa` (ledgers + volume, as in TB-3), then adds to `trade.tons[c]`
+the loop's cargo index `c` instead of the amount (raw 57829-57833, asm
+364b:17bd `ADD [BX+0xbc],AX` with AX = cargo index), and adds the untaxed gross
+`DS:0x84bc price * amount` to `trade.gold[c]` on top of 1dfa's taxed credit. The
+treasury (+0x2a) is credited once, untaxed.
+
+**Effect:** same ledger as TB-3: the AI nation's `trade.tons[c]` gains a
+spurious `c` per dump-sell and `trade.gold[c]` is roughly doubled. Same readers,
+so mostly invisible outside the save.
+
+**Port (reproduces it):** `europe_ai_colony_dump_sell_w`
+(`src/core/europe_market.c`).
+
+**Blocks removal:** as TB-3 (saved ledgers, byte-compared by `golden_idle_*`).
+Not test-run.
+**Status:** tolerated (2026-10-21).
