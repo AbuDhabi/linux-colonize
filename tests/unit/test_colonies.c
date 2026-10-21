@@ -1388,9 +1388,10 @@ static int case_colonies_core(void) {
         "full-pool dragoon eject fails"
       );
       CHECK(col->colonist_count == pop, "full-pool eject keeps the colonist");
+      /* port_bugs.md #1132: FUN_15eb_1068 LAB_1236 still charges the gear. */
       CHECK(
-        col->stock[COLONIZE_CARGO_MUSKETS] == 100 && col->stock[COLONIZE_CARGO_HORSES] == 100,
-        "full-pool eject keeps the gear"
+        col->stock[COLONIZE_CARGO_MUSKETS] == 50 && col->stock[COLONIZE_CARGO_HORSES] == 50,
+        "full-pool eject still charges the gear"
       );
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
         if (filled[i]) {

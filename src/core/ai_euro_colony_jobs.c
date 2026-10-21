@@ -356,9 +356,19 @@ static int ai_euro_28c8_score_full(
     int claim_village = -1;
     int claim_tribe = -1;
     if (col1) {
-      claim_village = colonies_indian_claim_tribe_from_w(
-        &world, col->nation_id, col->x, col->y, tx, ty
-      );
+      /* The AI tick reads the ticking colony's 26e4 table as built at the
+       * tick top (DS:-0x7262 is not rebuilt for a road-connect rebind, and
+       * a plot bought since stays a claim); the live claim is the colony
+       * screen's path. America seed-100 pair 189: Trois Rivieres, ticked on
+       * St. Louis's table, scores (46,55) as claimed and seats the village
+       * plot instead. */
+      bool snap = false;
+      claim_village = colonies_claim_snapshot_peek(dx, dy, &snap);
+      if (!snap) {
+        claim_village = colonies_indian_claim_tribe_from_w(
+          &world, col->nation_id, col->x, col->y, tx, ty
+        );
+      }
       if (claim_village >= 0 && col1->tribe) {
         claim_tribe = (int)col1->tribe[claim_village].nation_id - 4;
       }
@@ -1149,9 +1159,12 @@ void ai_euro_5952_ledgers(
  *   0x11 Statesman: outside the War of Independence.
  * DOSBox 1552: Fort Nassau's absorbed Master Carpenter never reached 28c8
  * and was seated as Carpenter.
- * ponytail: Gunsmith (0xf) is skipped: DS:0x2a2[0xf] is -1 and the arm then
- * reads stray words (DS:0x8e58, colony+0x98, DS:0x8dc6); the scored pass
- * below still places it.
+ * The generic arm (asm 0x1d3c, jump-table entries 9..0xc, 0xe, 0xf) reads
+ * DS:0x2a2[job], NOT the 0x2b6 table below: 0x2a2 = {-1 x8, 8,1,2,3,4,-1,6,
+ * 14,5,-1,-1,-1} (EXE 121248+0x2a2), so Gunsmith's input is Tools (14).
+ * America seed-100 pair 179: Fort Nassau's Master Gunsmith stays a Gunsmith
+ * in DOS; the port used to skip it here and the scored pass made it a
+ * Statesman.
  */
 COLONIZE_INTERNAL void ai_euro_5952_indoor_expert_pass(
   ColonizeTurnContext* ctx, ColonizeColony* col, bool* placed, int n
@@ -1171,15 +1184,11 @@ COLONIZE_INTERNAL void ai_euro_5952_indoor_expert_pass(
       }
     }
   }
-  int carpenters = 0; /* BP-0x4c */
-  int preachers = 0;  /* BP-0x46 */
-  for (int s = 0; s < n; ++s) {
-    if (!col->colonists[s].active) {
-      continue;
-    }
-    carpenters += col->colonists[s].profession == COLONIZE_PROF_CARPENTER;
-    preachers += col->colonists[s].profession == COLONIZE_PROF_PREACHER;
-  }
+  /* BP-0x4c / BP-0x46 = aiStack_68[0x0d] / [0x10], the tick-top census
+   * (memset at OVL15 0xbb8, `INC [BP+SI-0x66]` at 0xc0b), decremented here. */
+  const int cid_ok = col->id >= 0 && col->id < COLONIZE_COLONIES_MAX;
+  int carpenters = cid_ok ? ai_euro_s_5952_census_carpenter[col->id] : 0;
+  int preachers = cid_ok ? ai_euro_s_5952_census_preacher[col->id] : 0;
   for (int s = 0; s < n; ++s) {
     ColonizeColonist* c = &col->colonists[s];
     if (placed[s] || !c->active) {
@@ -1187,7 +1196,7 @@ COLONIZE_INTERNAL void ai_euro_5952_indoor_expert_pass(
     }
     const int prof = (int)c->profession;
     if (!ai_euro_5952_job_is_expert(prof) || prof < COLONIZE_PROF_DISTILLER ||
-        prof > COLONIZE_PROF_STATESMAN || prof == COLONIZE_PROF_GUNSMITH) {
+        prof > COLONIZE_PROF_STATESMAN) {
       continue;
     }
     if (!ai_euro_5952_job_available(pool, col, prof) || placed_count[prof] >= 3) {
@@ -1216,7 +1225,9 @@ COLONIZE_INTERNAL void ai_euro_5952_indoor_expert_pass(
     } else if (prof == COLONIZE_PROF_STATESMAN) {
       ok = !woi;
     } else {
-      const int in = (int)k_ai_euro_5952_job_input[prof];
+      /* DS:0x2a2[job]: the 0x2b6 table agrees for 9..0xc and 0xe; 0xf is 14. */
+      const int in =
+        prof == COLONIZE_PROF_GUNSMITH ? COLONIZE_CARGO_TOOLS : (int)k_ai_euro_5952_job_input[prof];
       if (in >= 0 && in < COLONIZE_CARGO_COUNT) {
         const int unmet = demand[in] - gross[in] - col->stock[in];
         ok = unmet <= 0 && (col->stock[in] > 0 || gross[in] != 0);
@@ -1682,14 +1693,10 @@ static void ai_euro_5952_carpenter_arm(
     return; /* raw 94691 `if (1 < iStack_6a)` */
   }
 
-  /* aiStack_68[0x0d]: Master Carpenters by profession, the tick's snapshot. */
-  int master_carpenters = 0;
-  for (int s = 0; s < n && s < COLONIZE_COLONY_POP_MAX; ++s) {
-    if (col->colonists[s].active &&
-        (int)col->colonists[s].profession == COLONIZE_PROF_CARPENTER) {
-      ++master_carpenters;
-    }
-  }
+  /* aiStack_68[0x0d]: Master Carpenters by profession, the tick-top snapshot
+   * (ai_euro_5952_set_expert_census), taken before the equip arm. */
+  int master_carpenters =
+    (col->id >= 0 && col->id < COLONIZE_COLONIES_MAX) ? ai_euro_s_5952_census_carpenter[col->id] : 0;
   const int difficulty = col1 ? (int)col1->head.difficulty : 4; /* DS:0x53a6 */
 
   int workplace = -1;
@@ -1924,6 +1931,22 @@ COLONIZE_INTERNAL int ai_euro_5952_docks_started(int colony_id) {
 
 int ai_euro_s_5952_census_nonexpert[COLONIZE_COLONIES_MAX]; /* aiStack_68[0x13] */
 int ai_euro_s_5952_census_vet_soldier[COLONIZE_COLONIES_MAX]; /* aiStack_68[0x15] */
+int ai_euro_s_5952_census_carpenter[COLONIZE_COLONIES_MAX];   /* aiStack_68[0x0d] = BP-0x4c */
+int ai_euro_s_5952_census_preacher[COLONIZE_COLONIES_MAX];    /* aiStack_68[0x10] = BP-0x46 */
+
+/* The same tick-top census (raw 94219-94229), two more cells: the carpenter
+ * arm's `local_4e == 0` and the indoor-expert pass's Master Carpenter /
+ * Firebrand Preacher counts read it, so an expert the equip arm retyped to
+ * 0x1c (or ejected) between the census and those arms still counts. America
+ * seed-100 pair 182: Fort Nassau's only Master Carpenter, armed as a Soldier
+ * and refused at the unit cap, stays a Free Colonist in DOS; the port's live
+ * recount saw no Master Carpenter and re-promoted him (raw 94719-94726). */
+COLONIZE_INTERNAL void ai_euro_5952_set_expert_census(int colony_id, int carpenters, int preachers) {
+  if (colony_id >= 0 && colony_id < COLONIZE_COLONIES_MAX) {
+    ai_euro_s_5952_census_carpenter[colony_id] = carpenters;
+    ai_euro_s_5952_census_preacher[colony_id] = preachers;
+  }
+}
 
 /* Test seam: the threat-seed pass is what fills these in production. */
 COLONIZE_INTERNAL void ai_euro_5952_set_absorb_census(
@@ -3465,39 +3488,18 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_specialist_restore(AiEuroColonyTick* 
 
   const int wh_cap =
     colonies_warehouse_capacity(ctx->colonies, col, COLONIZE_CARGO_LUMBER);
-  int lumber_use = 0;
-  (void)colony_prod_colony_hammers(ctx->colonies, col, 0, &lumber_use);
-  int lumber_prod = 0;
-  const int ring_lumber = colonies_work_plot_count(ctx->colonies, col);
-  for (int ti = 0; ti < ring_lumber; ++ti) {
-    const int occ = col->tiles[ti];
-    if (occ < 0 || occ >= n) {
-      continue;
-    }
-    if (col->colonists[occ].field_job != COLONIZE_JOB_LUMBERJACK) {
-      continue;
-    }
-    int dx = 0;
-    int dy = 0;
-    if (!colonies_field_tile_delta(ti, &dx, &dy)) {
-      continue;
-    }
-    /* DOS recomputes the ledger through FUN_15eb_18ec, i.e. with the
-     * seated colonist's own profession, so an Expert Lumberjack's
-     * doubling is inside this number. colony_yield_for_tile has no worker
-     * context and under-counted it. */
-    lumber_prod += colony_yield_for_worker(
-      ctx->map, col->x + dx, col->y + dy, COLONIZE_JOB_LUMBERJACK,
-      col->colonists[occ].profession,
-      colony_yield_colony_has_docks(ctx->colonies, col),
-      colony_prod_sol_bonus_field(ctx->col1_ok ? ctx->col1 : NULL, col),
-      col->colony_flags,
-      ctx->col1_ok && ctx->col1 &&
-        founding_fathers_nation_has(ctx->col1, col->nation_id, FF_HENRY_HUDSON)
-    );
-  }
+  /* DS:0x8e64 = FUN_15eb_0b96(5, DS:0x8de8) -> 0b52: the lumber demand is the
+   * HAMMERS gross (DS:0x8de8 = gross[16], SoL bonus included), not the raw
+   * lumber use, exactly as ai_euro_5952_ledgers fills demand[LUMBER]. America
+   * seed-100 pair 189: Montreal's hammers 16 vs lumber stock 14 restores the
+   * Expert Lumberjack in DOS; the old `lumber_use (12) > stock + prod` did not. */
+  int gross[AI_EURO_5952_LEDGER_SLOTS];
+  int demand[AI_EURO_5952_LEDGER_SLOTS];
+  ai_euro_5952_ledgers(&world, ctx->colonies, col, ctx->col1_ok ? ctx->col1 : NULL, gross, demand);
   const int lumber_unmet =
-    lumber_use > col->stock[COLONIZE_CARGO_LUMBER] + lumber_prod ? 1 : 0;
+    demand[COLONIZE_CARGO_LUMBER] - gross[COLONIZE_CARGO_LUMBER] - col->stock[COLONIZE_CARGO_LUMBER] > 0
+      ? 1
+      : 0;
   int lumber_seen =
     (col->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) != 0 ? 0 : 1;
   for (int s = 0; s < n; ++s) {

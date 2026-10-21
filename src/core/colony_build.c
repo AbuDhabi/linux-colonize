@@ -752,9 +752,10 @@ bool colonies_try_complete_building_ex(
    * turn): building_in_production stays pointed at the just-completed
    * project — DOS never clears it on completion, only has_building[] and
    * hammers change. The guard above stops this function from re-firing on
-   * a later call against the same still-selected, now-owned project. */
-  col->build_ai_flags =
-    (uint8_t)(col->build_ai_flags & (uint8_t)~COLONIZE_BUILD_AI_WANTS_CONSTRUCTION);
+   * a later call against the same still-selected, now-owned project.
+   * port_bugs.md #1130: +0x1d WANTS_CONSTRUCTION stays set — DOS
+   * FUN_364b_0114 (raw 56880-56975) only ORs +0x1c; the bit's writers are
+   * the 5952_035e cascade (raw 95709) and colony creation. */
   colonies_build_queue_advance(pool, col, col1);
   return true;
 }

@@ -351,6 +351,7 @@ int colonies_indian_land_purchase_gold_stale_claim(
 void colonies_claim_snapshot_build(const ColonizeWorld* w, const ColonizeColony* col);
 void colonies_claim_snapshot_clear(void);
 int colonies_claim_snapshot_take(int dx, int dy, bool* snap);
+int colonies_claim_snapshot_peek(int dx, int dy, bool* snap);
 /* Indian homeland gold formula (see docs/colony.md#colonies_indian_land_purchase_gold) */
 int colonies_indian_land_purchase_gold(
   const ColonizeCol1Save* col1,

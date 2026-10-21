@@ -1418,7 +1418,8 @@ COLONIZE_INTERNAL void turn_produce_birth(TurnProduceCtx* pc) {
    * latch killed a colony producing exactly what it eats at 0 stores
    * (commons 2 food vs pop 1 eating 2 — net zero, DOS-fine forever).
    */
-  colony->food_shortfall_latch = (need - food_stock_before - field_food > 0) ? 1u : 0u;
+  colony->food_shortfall_latch =
+    (need - food_stock_before - (field_food - pc->ai_food_subsidy) > 0) ? 1u : 0u;
 
   /*
    * FUN_364b_0688 phase I — birth: food ≥ 200 → Free Colonist in colony;
@@ -1521,7 +1522,12 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc) {
   /* DS:0x8e5a (raw 57623-57625): a non-human colony's shortfall below 3 is
    * forgiven. Only a non-zero shortfall takes the else branch (raw 57638),
    * which reseeds (FUN_281f_04ca(DS:0x83a6)) before the mercy roll. */
-  int food_shortfall_8e5a = need - food_stock_before - field_food; /* Phase A composition */
+  /* The ledger is the tick-top FUN_281f_0c72/0c22 refresh (raw 57228-57229),
+   * before Phase B adds the AI `difficulty >> 1` food (raw 57245) to the
+   * stock: the subsidy never enters DS:0x8e5a (America seed-100 pair 175:
+   * Cayenne, commons 1 + subsidy 2 vs need 4, starves in DOS). */
+  int food_shortfall_8e5a =
+    need - food_stock_before - (field_food - pc->ai_food_subsidy); /* Phase A composition */
   if (food_shortfall_8e5a < 0) {
     food_shortfall_8e5a = 0;
   }

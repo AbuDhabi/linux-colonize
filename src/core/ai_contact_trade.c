@@ -304,6 +304,9 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
         if (abs(bu->x - c->x) > 1 || abs(bu->y - c->y) > 1) {
           continue;
         }
+        if (ai_contact_s_visit_unit >= 0 && bu->id != ai_contact_s_visit_unit) {
+          continue; /* #1133: 022e is bound to the mover */
+        }
         /*
          * port_bugs.md #824: still the move-tail filter, but no longer a
          * reconstruction — this arm runs from the stepping Brave's own
@@ -899,6 +902,9 @@ static ColonizeUnit* ai_contact_reparations_visitor(
     }
     if (abs(bu->x - x) > 1 || abs(bu->y - y) > 1) {
       continue;
+    }
+    if (ai_contact_s_visit_unit >= 0 && bu->id != ai_contact_s_visit_unit) {
+      continue; /* #1133: 022e is bound to the mover */
     }
     /* The same selector as the beg arm: the stepping Brave of this 022e
      * visit, so the demand half consumes the mood roll the step published

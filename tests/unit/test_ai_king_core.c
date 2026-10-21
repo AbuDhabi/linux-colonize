@@ -1780,6 +1780,7 @@ static int sp_21(void) {
       pc->id = 1 + k;
       pc->x = xs[k];
       pc->y = ys[k];
+      pc->population = (int)col1.colony[k].population; /* live +0x1f */
       pc->colony_flags &= (uint8_t)~COLONIZE_COLONY_FLAG_COASTAL;
     }
     colonies.colony_count = 3;

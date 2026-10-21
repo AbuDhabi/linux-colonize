@@ -5024,6 +5024,7 @@ static int case_year_end_c2_peace(void) {
   pool.colony_count = 1;
   snprintf(c->name, sizeof(c->name), "Jamestown");
   c->colonist_count = 5;
+  c->population = 1; /* ai_king_sol_percent weighs the live pool count */
   /* C2: WoI + crown colonies + high crown SoL → peace offer status. */
   year = 1700;
   status[0] = '\0';
@@ -5048,6 +5049,7 @@ static int case_year_end_c2_peace(void) {
   memset(crown_c2, 0, sizeof(*crown_c2));
   crown_c2->active = true;
   crown_c2->nation_id = 1;
+  crown_c2->population = 1;
   crown_c2->building_in_production = -1;
   if (pool.colony_count < 2) {
     pool.colony_count = 2;
@@ -5117,6 +5119,7 @@ static int case_year_end_c2_peace(void) {
   memset(human_c2b, 0, sizeof(*human_c2b));
   human_c2b->active = true;
   human_c2b->nation_id = 0;
+  human_c2b->population = 1; /* both records sit at (0,0): the live +0x1f */
   human_c2b->building_in_production = -1;
   pool.colony_count = 1;
   ctx.col1 = &c2b;

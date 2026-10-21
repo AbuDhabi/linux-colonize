@@ -1037,6 +1037,13 @@ void colonies_claim_snapshot_build(const ColonizeWorld* w, const ColonizeColony*
 
 /* Table entry for plot offset (dx,dy); *snap is false when no snapshot is live.
  * Consumes the entry (DOS 0xff's it after the reaction). */
+/* Same entry, not consumed: FUN_15eb_28c8's claim term (raw 12993-13111)
+ * reads the table; only the 06d2 seat reaction 0xff's it. */
+int colonies_claim_snapshot_peek(int dx, int dy, bool* snap) {
+  *snap = g_claim_snap_on && dx >= -2 && dx <= 2 && dy >= -2 && dy <= 2;
+  return *snap ? g_claim_snap[dy + 2][dx + 2] : -1;
+}
+
 int colonies_claim_snapshot_take(int dx, int dy, bool* snap) {
   *snap = g_claim_snap_on && dx >= -2 && dx <= 2 && dy >= -2 && dy <= 2;
   if (!*snap) {
