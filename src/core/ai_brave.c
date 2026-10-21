@@ -319,9 +319,11 @@ int ai_native_step_first_contact(
        * generous visit. A conceded beg falls through to 096c itself. */
       /* 022e(param_1 = e): this encounter's European only. */
       ai_contact_set_visit_euro(e);
+      ai_contact_set_visit_unit(u->id);
       if (!ai_contact_try_village_beg_food(s_ai_native_ctx, nation_id)) {
         ai_contact_try_village_gifts(s_ai_native_ctx, nation_id);
       }
+      ai_contact_set_visit_unit(-1);
       ai_contact_set_visit_euro(-1);
     }
   }

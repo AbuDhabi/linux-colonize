@@ -1247,18 +1247,26 @@ int colonies_eject_colonist(
    * The port used to wipe it to NONE here; the outside twin
    * (game_loop game_colony_apply_outside_role) never did. */
   const int profession = c->profession;
+  int uid_refused = -1;
 
   /* Spawn before touching the colony, as DOS does (overlays.c:10239-10240:
    * FUN_0000_4924 allocates, `if (local_1a < 0) goto` exits with the
    * colonist still inside; FUN_0000_6bb4 removes him only after). With a
    * full unit pool the port used to remove the colonist first and lose him. */
-  if (!units_spawn_room(units, col->nation_id)) {
+  /* port_bugs.md #1132: FUN_15eb_1068 zeroes the +0x60 nibble (0cbc, raw
+   * ~11250) before the spawn, and a refused spawn (`local_1a < 0`) jumps to
+   * LAB_15eb_1236, which still subtracts the target job's gear, clamped at 0. */
+  c->turns_in_job = 0;
+  if (!units_spawn_room(units, col->nation_id) ||
+      (uid_refused = units_spawn_allow_stack(units, type_index, col->x, col->y)) < 0) {
+    for (int g = 0; g < 3; ++g) {
+      const int cargo = g == 0 ? COLONIZE_CARGO_TOOLS : g == 1 ? COLONIZE_CARGO_MUSKETS : COLONIZE_CARGO_HORSES;
+      const int take = g == 0 ? tools_take : g == 1 ? muskets_take : horses_take;
+      col->stock[cargo] = col->stock[cargo] - take < 0 ? 0 : col->stock[cargo] - take;
+    }
     return -1;
   }
-  const int uid = units_spawn_allow_stack(units, type_index, col->x, col->y);
-  if (uid < 0) {
-    return -1;
-  }
+  const int uid = uid_refused;
   /* 06b4's own tail FUN_13f1_02f8 reveals for the new unit's nation while
    * the colonist still counts, so the owner's +0xba snapshot sees pop + 1. */
   ColonizeUnit* nu = units_get(units, uid);

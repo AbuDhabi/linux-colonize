@@ -803,6 +803,11 @@ static bool units_spawn_room_test(const ColonizeUnitPool* pool, int nation, bool
   int census = 0;
   if (s_spawn_gate_fn) {
     s_spawn_gate_fn(s_spawn_gate_user, nation, &external, &human, &census);
+  } else if (g_units_ff_col1 && nation >= 0 && nation < 4) {
+    /* port_bugs.md #1131: headless harnesses install no hook; without this
+     * every nation read as human and the 0x124 AI cap never applied. */
+    human = g_units_ff_col1->player[nation].control == 0;
+    census = g_units_ff_col1->stuff.all_unit_counts[nation];
   }
   *out_human = human;
   int total = external;

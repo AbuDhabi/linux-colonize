@@ -337,7 +337,12 @@ static int colony_yield_pipeline(
    * capture: (3 + road 1 + sol 2)×2 + road u2 = 14, ×Hudson = 28).
    */
   if (field_job == COLONIZE_JOB_FUR_TRAPPER && yield != 0) {
-    if (map_tile_has_road(map, x, y)) {
+    /* `FUN_137f_0142(x,y) & 0x0a`: road OR settlement bit, as DOS. The AI
+     * scorer does reach a village plot (the DS:0x8df0 blocked mask is the
+     * ticking colony's after a road-connect rebind; America seed-100 pair
+     * 189: Trois Rivieres on St. Louis's mask scores the (45,55) village
+     * at fur 4 / lumber 6, DOSBox 0e0f:2d14). */
+    if (map_tile_has_road(map, x, y) || map_tile_has_city(map, x, y)) {
       yield += 1;
     }
     if (map_tile_has_river(map, x, y)) {
@@ -559,7 +564,8 @@ static int colony_yield_pipeline(
     if (field_job == COLONIZE_JOB_FARMER) {
       add = improvement_step;
     }
-    if (field_job > COLONIZE_JOB_COTTON_PLANTER && map_tile_has_road(map, x, y)) {
+    if (field_job > COLONIZE_JOB_COTTON_PLANTER &&
+        (map_tile_has_road(map, x, y) || map_tile_has_city(map, x, y))) { /* `& 0x0a` */
       add += improvement_step;
     }
     if (field_job <= COLONIZE_JOB_COTTON_PLANTER && map_tile_is_plowed(map, x, y)) {

@@ -1737,9 +1737,17 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
  * AI-defaults-generous convention for gift-shaped decisions elsewhere).
  */
 int ai_contact_s_visit_euro = -1;
+int ai_contact_s_visit_unit = -1;
 
 void ai_contact_set_visit_euro(int euro_nation) {
   ai_contact_s_visit_euro = euro_nation;
+}
+
+/* port_bugs.md #1133: FUN_5bfb_022e is bound to the mover (param_3, raw
+ * 96710 FUN_281f_0a4c(unit+0x314a)); the three visit selectors must not
+ * re-pick another Brave that also walked up this turn. -1 = any. */
+void ai_contact_set_visit_unit(int unit_id) {
+  ai_contact_s_visit_unit = unit_id;
 }
 
 int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
@@ -1803,6 +1811,9 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
         }
         if (abs(bu->x - c->x) > 1 || abs(bu->y - c->y) > 1) {
           continue;
+        }
+        if (ai_contact_s_visit_unit >= 0 && bu->id != ai_contact_s_visit_unit) {
+          continue; /* #1133: 022e is bound to the mover */
         }
         /* Same DOS move-tail selector as the gift half — see the helper.
          * port_bugs.md #824: this arm now runs from the Brave's own step, so the

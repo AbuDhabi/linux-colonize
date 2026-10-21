@@ -218,6 +218,7 @@ typedef enum {
 extern int ai_contact_s_raid_cargo; /* DOS local_20; STORES arm's picked cargo */
 extern int ai_contact_s_last_raid_kind;
 extern int ai_contact_s_visit_euro; /* ai_contact_set_visit_euro: the 022e encounter European, -1 = all */
+extern int ai_contact_s_visit_unit; /* ai_contact_set_visit_unit: the 022e mover (#1133), -1 = any */
 extern char ai_contact_s_last_burn_building[48];
 extern char ai_contact_s_last_stores_cargo[48];
 extern char ai_contact_s_last_ship_type[48];

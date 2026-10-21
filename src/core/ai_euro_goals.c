@@ -2161,6 +2161,8 @@ static void ai_euro_colony_threat_seed_5952(
   {
     int nonexpert = 0;
     int vet_soldier = 0;
+    int carpenters = 0;
+    int preachers = 0;
     const int pop = (int)c->population;
     for (int i = 0; i < pop && i < COLONIZE_COLONY_POP_MAX; ++i) {
       const int prof = (int)c->colonists[i].profession;
@@ -2168,9 +2170,14 @@ static void ai_euro_colony_threat_seed_5952(
         nonexpert++;
       } else if (prof == UNITS_JOB_SOLDIER) {
         vet_soldier++;
+      } else if (prof == COLONIZE_PROF_CARPENTER) {
+        carpenters++;
+      } else if (prof == COLONIZE_PROF_PREACHER) {
+        preachers++;
       }
     }
     ai_euro_5952_set_absorb_census(c->id, nonexpert, vet_soldier);
+    ai_euro_5952_set_expert_census(c->id, carpenters, preachers);
   }
 
   /*

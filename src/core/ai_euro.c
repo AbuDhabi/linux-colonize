@@ -1581,19 +1581,15 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
    * id first, then rescans from the top. DOS has no pass limit, so a nation
    * needs one pass per unit it moves: the port's old `guard < 64` ceiling left
    * every unit below the 64th unacted (America seed-100 pair 166 -> 167:
-   * England's slots 67, 62, 60, 52, 49 kept their MP and 0a60 orders). The
-   * port breaks the inner drain on a no-progress act (DOS relies on the >0x14
-   * sticky clear alone).
+   * England's slots 67, 62, 60, 52, 49 kept their MP and 0a60 orders). A
+   * no-progress act is drained on to the >0x14 sticky clear as in DOS
+   * (port_bugs.md #1134; the old port-only spin guard left the MP).
    *
    * That DOS shape is the default since 2026-09-15. AI_6D8E_DOS_LOOP=0
    * restores the legacy "wave 0 = ships, one act per unit per pass" shape
-   * (bisect aid only). One port-only rule keeps the goldens under the DOS
-   * order: a unit whose act makes no progress counts as exhausted for the
-   * scan (DOS would re-act it until the sticky clear).
+   * (bisect aid only).
    */
   const int dos_loop = !(getenv("AI_6D8E_DOS_LOOP") && getenv("AI_6D8E_DOS_LOOP")[0] == '0');
-  static unsigned char stalled[COLONIZE_UNITS_MAX];
-  memset(stalled, 0, sizeof stalled);
   int any_acted;
   int guard = 0;
   do {
@@ -1708,15 +1704,14 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
           }
           (void)ai_contact_encounter_scan(ctx, nation_id, u->x, u->y);
         }
-        if (!progressed) {
-          /* Port-only spin guard: DOS re-acts until MP 0 (or the sticky
-           * clear). Treat a no-progress unit as exhausted for this scan so
-           * the wave moves on to the next id instead of ending the pass.
-           * DOS ends that spin with the >0x14 sticky clear (FUN_281f_0934),
-           * which exhausts the MP: marked here, exhausted after the waves. */
-          stalled[u->id >= 0 && u->id < COLONIZE_UNITS_MAX ? u->id : 0] = 1;
+        if (!progressed && !dos_loop) {
           break;
         }
+        /* port_bugs.md #1134: no port-only spin guard. DOS raw 93247-93257
+         * re-acts a no-progress unit in this same drain until the >0x14
+         * sticky clear (FUN_281f_0934) exhausts it; breaking out with MP
+         * left made every later pass re-act it (and each extra 20e6 flood
+         * reset the e7c4 word before the next unit's 0x46 gate). */
         wave_acted = 1;
         /* DOS: "wave 1 acted someone" — but DOS only ever acts a unit
          * that still has MP, whereas the port's first-colony wake arm above
@@ -1744,16 +1739,6 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
     /* ponytail: spin backstop only (an act that flips orders back and forth
      * without spending MP); a pass drains a unit, so a real turn ends far below. */
   } while (any_acted && guard < COLONIZE_UNITS_MAX);
-  /* A unit DOS spun to the sticky clear saves fully spent (independence-
-   * seed-100 000002: the human at slot 3 autosaves after the AI slots act,
-   * so their spent bytes survive the day top). Applied after the waves so
-   * the port's re-scan order is unchanged. */
-  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-    ColonizeUnit* u = &ctx->units->units[i];
-    if (u->active && u->id >= 0 && u->id < COLONIZE_UNITS_MAX && stalled[u->id] && u->moves > 0) {
-      units_mp_exhaust_unit(ctx->units, u->id);
-    }
-  }
 }
 
 void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
@@ -1818,6 +1803,8 @@ void ai_euro_reset(void) {
   ai_diplo_reset(); /* port_bugs.md #1103: Indian-hostility sticky cache */
   memset(ai_euro_s_5952_census_nonexpert, 0, sizeof(ai_euro_s_5952_census_nonexpert));
   memset(ai_euro_s_5952_census_vet_soldier, 0, sizeof(ai_euro_s_5952_census_vet_soldier));
+  memset(ai_euro_s_5952_census_carpenter, 0, sizeof(ai_euro_s_5952_census_carpenter));
+  memset(ai_euro_s_5952_census_preacher, 0, sizeof(ai_euro_s_5952_census_preacher));
   ai_euro_s_20e6_type_cache_valid = 0; /* port_bugs.md #655: refreshed next dispatcher_turn */
   memset(s_euro_continent_stance, 0, sizeof(s_euro_continent_stance));
   memset(s_euro_rival_strength, 0, sizeof(s_euro_rival_strength));
