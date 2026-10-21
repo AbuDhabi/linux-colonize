@@ -167,3 +167,19 @@ missionary, and a won mission is installed without the Jesuit bit (0x10).
 idle campaigns and `golden_ai_joint` stay byte-identical (2026-10-21). Came
 from port_bugs.md #558.
 **Status:** done (2026-10-21).
+
+### DB-8 — Accepting an AI goods demand always hands over Furs
+**DOS:** in the Euro AI talk (FUN_5bfb_153e, OVL16), the @WANTSTUFF demand picks
+a cargo and amount from the human colony next to the AI unit (`[bp-0xb2]`,
+amount capped to that colony's stock and the receiver's warehouse room). When
+the player accepts, the transfer (OVL16 asm 0x2995-0x29B2) indexes the colony
+stock rows with `[bp-0xa2]`, the loop counter left at 4 by the euro rival-tally
+do-while, so it always moves Furs (cargo 4) by the demanded amount, whatever the
+dialog named. With fewer Furs than the amount the source stock underflows.
+
+**Port:** the WANTSTUFF accept arm of `ai_talk_resume`
+(`src/core/ai_diplo.c`) moves `want_cargo`, the cargo the dialog named; source
+stock floors at 0 as a guard. Unit test: `unit_ai_diplo`
+`case_153e_wantstuff_demand` (Muskets move, Furs do not). All goldens, idle
+campaigns and `golden_ai_joint` stay byte-identical (2026-10-21).
+**Status:** done (2026-10-21).

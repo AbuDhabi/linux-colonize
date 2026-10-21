@@ -1733,15 +1733,17 @@ static int case_153e_wantstuff_demand(void) {
     if (!saw_wantstuff) {
       return fail("153e wantstuff: the goods demand CHOICE must be queued");
     }
-    if (qcol.colonies[1].stock[COLONIZE_CARGO_FURS] != 60) {
-      fprintf(stderr, "unit_ai_diplo: receiver furs=%d\n", qcol.colonies[1].stock[COLONIZE_CARGO_FURS]);
-      return fail("153e wantstuff: accepting must move FURS by the demanded amount (DOS stale index)");
+    /* docs/dos_bugs.md DB-8: the NAMED cargo moves (DOS moves Furs). */
+    if (qcol.colonies[1].stock[COLONIZE_CARGO_MUSKETS] != 60 ||
+        qcol.colonies[0].stock[COLONIZE_CARGO_MUSKETS] != 0) {
+      fprintf(stderr, "unit_ai_diplo: muskets src=%d dst=%d\n",
+              qcol.colonies[0].stock[COLONIZE_CARGO_MUSKETS],
+              qcol.colonies[1].stock[COLONIZE_CARGO_MUSKETS]);
+      return fail("153e wantstuff: accepting must move the demanded cargo by the demanded amount");
     }
-    if (qcol.colonies[0].stock[COLONIZE_CARGO_FURS] != 0) {
-      return fail("153e wantstuff: source furs floor at 0 (OpenCol bound on the DOS underflow)");
-    }
-    if (qcol.colonies[0].stock[COLONIZE_CARGO_MUSKETS] != 60) {
-      return fail("153e wantstuff: the NAMED cargo must not move (DOS transfers Furs)");
+    if (qcol.colonies[0].stock[COLONIZE_CARGO_FURS] != 10 ||
+        qcol.colonies[1].stock[COLONIZE_CARGO_FURS] != 0) {
+      return fail("153e wantstuff: Furs must not move (DB-8)");
     }
   return 0;
 }
