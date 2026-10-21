@@ -219,12 +219,11 @@ full body, ~11771-11992):
 
 1. Base from terrain×job table (`DS:0x2f7b`, NAMES-loaded).
 2. **Fisherman only:** coastal distance mod — count ocean/sea-lane among
-   the fished tile's 8 neighbors: `>= 8` → −2, `>= 6` → −1, else +1.
-   (The decompile shows 6 branches; 3 are genuinely unreachable in the
-   binary — verified in raw asm, correctly omitted from the port.
-   The −2 case is itself unreachable for any assignable tile: the colony
-   center is always among a work-plot's 8 neighbors and is never ocean —
-   a DOS quirk, kept as-is.) `colony_yield_fisherman_distance_mod`;
+   the fished tile's 8 neighbors: `>= 6` → −1, else +1. (DOS has a 6-arm
+   cascade; its `>= 8` → −2 arm and three arms behind the `< 6` test are
+   dead — the colony center is always a land neighbor of a work plot —
+   and the port omits them; `colony_yield.c` comment lists all six.)
+   `colony_yield_fisherman_distance_mod`;
    applies to experts too (post-×2, flat).
 3. Early terrain/FA tweaks (incl. Fur Trapper's own pre-multiplier road
    +1 / river +1 (+2 major) adds, job 4 only, ~11840-11850 — wired).
