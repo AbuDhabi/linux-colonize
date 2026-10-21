@@ -1498,7 +1498,8 @@ int ai_contact_2e92_candidates(const AiContact2820* s, int goods[3], int slots[3
  * round counter, which LAB_002bbc zeroes before every loop the AI can reach —
  * so it is `(int8_t)s->round` here, and `cand[]` itself is never indexed out
  * of bounds. The chosen index then selects from the FILTERED list
- * (`aiStack_d6[iStack_5e]`), which is the quirk this reproduces (port_bugs.md #796).
+ * (`aiStack_d6[iStack_5e]`): a DOS bug, reproduced for now (port_bugs.md #796,
+ * docs/tolerated_dos_bugs.md TB-6).
  * Returns 0..2.
  */
 static int ai_contact_2e92_ai_pick(
