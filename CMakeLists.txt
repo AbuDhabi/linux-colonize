@@ -1044,7 +1044,14 @@ add_test(NAME golden_idle_independence
   COMMAND golden_idle_campaign independence 1 21
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 set_tests_properties(golden_idle_independence PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1")
-# Same two runs with a save/reload before every turn (GOLDEN_IDLE_RELOAD): the
+# Same harness, Spanish every-turn autosaves 1501-1569 on the Americas map
+# (VR_SOUND.EXE). Whole archive; it ends at save 63 because save 64 turns on a DOS
+# stack residue (docs/idle_america.md, docs/dos_bugs.md DB-4).
+add_test(NAME golden_idle_america
+  COMMAND golden_idle_campaign america 1 63
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(golden_idle_america PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1")
+# Same three runs with a save/reload before every turn (GOLDEN_IDLE_RELOAD): the
 # RTST port-extension chunk must carry everything a continuous session does
 # (docs/savegame.md "Port extension block", docs/idle_campaign.md).
 add_test(NAME golden_idle_reload
@@ -1055,6 +1062,10 @@ add_test(NAME golden_idle_independence_reload
   COMMAND golden_idle_campaign independence 1 21
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 set_tests_properties(golden_idle_independence_reload PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1;GOLDEN_IDLE_RELOAD=1")
+add_test(NAME golden_idle_america_reload
+  COMMAND golden_idle_campaign america 1 63
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(golden_idle_america_reload PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1;GOLDEN_IDLE_RELOAD=1")
 # T2 early gate: full Euro dispatcher (TURN1→7). The AI_EURO_EARLY_FIXTURE bisect fixture was deleted 2026-09-14.
 
 # Renamed from golden_ai_* 2026-09-14 (duplication audit TT-13): both generate

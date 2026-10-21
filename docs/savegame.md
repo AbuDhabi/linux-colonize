@@ -116,7 +116,7 @@ Wiring: `col1_bridge_capture` serializes the live side tables into chunks,
 `col1_bridge_apply` restores them (and clears the table when the save has no
 chunk, i.e. a DOS original or a DOS re-save). Covered by `unit_col1_save`
 (`test_port_ext`); the `RTST` carry is gated end to end by CTest
-`golden_idle_reload` / `golden_idle_independence_reload` (the idle campaigns
+`golden_idle_reload` / `golden_idle_independence_reload` / `golden_idle_america_reload` (the idle campaigns
 with a save/reload before every turn, `GOLDEN_IDLE_RELOAD=1`, must stay
 byte-identical to DOS exactly where the continuous runs are). A save without
 the chunk loads the way DOS loads: every table zero, LCG reseeded from the
