@@ -450,7 +450,7 @@ deliberate **Live Among The Natives** `@ACTIONS` row.
 | Hook | Effect (port / sources) |
 |------|-------------------------|
 | Missionary / Jesuit | Sets `tribe.mission` (+ bit 0x10 when prof 0x18 or Brebeuf); no alarm-band gate, no crosses (audit 2026-09-22). Reached from the village only: human @ACTIONS Establish/Denounce, AI through `ai_contact_ai_missionary_village` (`4528` non-human switch case 3 → incite / establish / denounce). There is no adjacency convert pulse and no missionary flee arm (both deleted 2026-09-22, port_bugs.md #557) |
-| Foreign mission | Denounce = weighted roll (`a594`); DOS Jesuit test is `prof == 3` (typo, dead) — port_bugs.md #558 |
+| Foreign mission | Denounce = weighted roll (`a594`); DOS Jesuit test is `prof == 3` (typo, dead); port tests Jesuit 0x18 — dos_bugs.md DB-7 |
 | Las Casas | Existing Converts → free colonists on elect |
 | Sepulveda | Higher convert-join odds on settlement fallout |
 | Cortes | Conquest treasure **bonus and guaranteed payout**, not a prerequisite — any conqueror can find treasure, and at difficulty 2+ always does (port_bugs.md #381); capital = `rich_capital` |
