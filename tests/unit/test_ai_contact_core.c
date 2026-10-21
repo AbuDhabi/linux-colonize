@@ -7043,14 +7043,11 @@ static int sp_58(void) {
     }
 
     /*
-     * port_bugs.md #558 — Denounce Heresy "Jesuit" bonus is a DOS typo.
-     * thunk_FUN_1000_a594 (viceroy_overlays.asm 126507:
-     * IMUL BX,[BP+6],0x1c / CMP byte ptr [BX+0x315b],0x3 / MOV AX,1) tests
-     * the denouncer's PROFESSION byte against @JOB row 3 (Cotton Planter),
-     * not the Jesuit row, and has no Brebeuf term (only the establish body
-     * a5dc tests 0x18 / FF 0x16). So a Jesuit-grade missionary gets no
-     * doubling and installs a plain mission on success, while a
-     * profession-3 missionary installs it with the 0x10 bit.
+     * port_bugs.md #558 / docs/dos_bugs.md DB-7 — Denounce Heresy "Jesuit"
+     * bonus. DOS thunk_FUN_1000_a594 (viceroy_overlays.asm 126507) tests the
+     * denouncer's PROFESSION byte against @JOB row 3 (Cotton Planter), a
+     * typo; the port tests the Jesuit row 0x18. So a Jesuit installs the
+     * won mission with the 0x10 bit, a profession-3 unit installs it plain.
      */
     {
       ColonizeDosRng* saved_rng = ctx.rng;
@@ -7073,14 +7070,14 @@ static int sp_58(void) {
           ColonizeUnit* hu = units_get(&units, hid);
           if (!hu) {
             ctx.rng = saved_rng;
-            return fail("heresy quirk: spawn denouncer");
+            return fail("heresy jesuit: spawn denouncer");
           }
           hu->nation_id = 0;
           hu->profession = profs[k];
           ai_popup_clear(&pop_menu);
           if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 1, 0, hid)) {
             ctx.rng = saved_rng;
-            return fail("heresy quirk: missionary meet should enqueue");
+            return fail("heresy jesuit: missionary meet should enqueue");
           }
           res.result_choice_id = 8; /* AI_CONTACT_CHOICE_HERESY */
           res.result_payload = pop_menu.queue[0].payload;
@@ -7090,18 +7087,18 @@ static int sp_58(void) {
           if ((col1.tribe[0].mission & 0x0f) == 0) {
             won = 1;
             const int bit = (col1.tribe[0].mission & 0x10) != 0;
-            if (bit != (profs[k] == 3)) {
+            if (bit != (profs[k] == UNITS_JOB_MISSIONARY)) {
               fprintf(
                 stderr,
-                "unit_ai_contact: a594 quirk prof=%u mission=%u\n",
+                "unit_ai_contact: a594 jesuit prof=%u mission=%u\n",
                 (unsigned)profs[k],
                 (unsigned)col1.tribe[0].mission
               );
               ctx.rng = saved_rng;
               return fail(
-                profs[k] == 3
-                  ? "heresy: DOS a594 profession==3 must install the 0x10 mission bit"
-                  : "heresy: a Jesuit denouncer gets no bonus in DOS (no 0x10 bit)"
+                profs[k] == UNITS_JOB_MISSIONARY
+                  ? "heresy: a Jesuit denouncer must install the 0x10 mission bit"
+                  : "heresy: a profession-3 denouncer gets no Jesuit bonus"
               );
             }
           }
@@ -7111,7 +7108,7 @@ static int sp_58(void) {
         }
         if (!won) {
           ctx.rng = saved_rng;
-          return fail("heresy quirk: no winning roll found in 64 seeds");
+          return fail("heresy jesuit: no winning roll found in 64 seeds");
         }
       }
       ctx.rng = saved_rng;

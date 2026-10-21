@@ -1403,7 +1403,7 @@ static int ai_contact_4cc6_03f8(
  * weight; mission weight += population, ×2 Jesuit, ×2 capital, credited to
  * the mission owner's side (mine → mine, else pro_me). Then pro_me += alarm[foreign] << (capital ? 4 : 0),
  * mine += alarm[me] >> (capital ? 29 : 1); capital: both += rand(1,20) and
- * both deltas ×2; denouncer profession == 3 (DOS typo, see below):
+ * both deltas ×2; Jesuit denouncer (DOS tests profession 3, see below):
  * pro_me ×2, delta ×2; rival Jesuit: mine ×2,
  * delta ×2. rand(1, mine+pro_me) > pro_me → @HERESY1 (missionary burned,
  * rival's alarm −delta, mine +delta); else @HERESY0 (mission flips to me,
@@ -1462,15 +1462,14 @@ static void ai_contact_denounce_heresy(
     }
   }
   /*
-   * DOS-LITERAL thunk_FUN_1000_a594 viceroy_overlays.asm 126507:
+   * thunk_FUN_1000_a594 viceroy_overlays.asm 126507:
    * IMUL BX,[BP+6],0x1c / CMP byte ptr [BX+0x315b],0x3 / MOV AX,1 —
-   * the denouncing unit's PROFESSION byte is tested against @JOB row 3
-   * (Cotton Planter), not the Missionary/Jesuit row: an apparent DOS typo
-   * that makes this bonus effectively dead. There is NO Brebeuf term here;
-   * only the establish body (thunk_FUN_1000_a5dc) tests 0x18 / FF 0x16.
+   * DOS tests the denouncer's PROFESSION byte against @JOB row 3 (Cotton
+   * Planter), a typo that makes the Jesuit bonus dead. The port tests the
+   * Jesuit row 0x18 like the establish body (thunk_FUN_1000_a5dc):
+   * docs/dos_bugs.md DB-7. There is NO Brebeuf term here.
    */
-  static const int k_a594_heresy_prof_quirk = 3; /* @JOB 3 Cotton Planter */
-  const int jesuit_me = (int)u->profession == k_a594_heresy_prof_quirk;
+  const int jesuit_me = (int)u->profession == UNITS_JOB_MISSIONARY;
   const int rival_jesuit = (t->mission & COL1_TRIBE_MISSION_JESUIT_BIT) != 0;
   const unsigned cap_shift = t->state.capital ? 4u : 0u;
   pro_me += ai_diplo_indian_alarm(col1, nation_id, foreign) << cap_shift;

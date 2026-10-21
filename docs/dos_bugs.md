@@ -151,3 +151,19 @@ RNG or AI path reads it; every golden and idle campaign stays byte-identical.
 Unit test: `unit_turn_core` `phase_k_build_advisory` ("ORE net-tools-zero"
 fails on the DOS test). Came from port_bugs.md #911.
 **Status:** done (2026-10-21).
+
+### DB-7 — Denounce Heresy tests Cotton Planter instead of Jesuit
+**DOS:** Denounce Heresy (`thunk_FUN_1000_a594`, viceroy_overlays.asm 126507:
+`IMUL BX,[BP+6],0x1c / CMP byte ptr [BX+0x315b],0x3`) gives the denouncer's side
+its Jesuit bonus (weight ×2, alarm delta ×2) when the unit's profession byte is
+3, the @JOB row for Cotton Planter, not 0x18 (Jesuit Missionary) as the
+establish-mission body (`thunk_FUN_1000_a5dc`) tests. A Missionary is never a
+Cotton Planter, so the bonus is dead: a Jesuit denounces like a plain
+missionary, and a won mission is installed without the Jesuit bit (0x10).
+
+**Port:** `ai_contact_denounce_heresy` (`src/core/ai_contact_actions.c`) tests
+`UNITS_JOB_MISSIONARY` (0x18). Unit test: `unit_ai_contact_core`
+`actions_menu_missionary` / `actions_menu_wagon` (heresy block). All goldens,
+idle campaigns and `golden_ai_joint` stay byte-identical (2026-10-21). Came
+from port_bugs.md #558.
+**Status:** done (2026-10-21).
