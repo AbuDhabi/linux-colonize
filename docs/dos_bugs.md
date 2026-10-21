@@ -115,3 +115,20 @@ function of game state only, and a save/reload gives the same result.
 reason (CTest `golden_idle_america`, [idle_america.md](idle_america.md)).
 port_bugs.md #1135 is an open lead for one more deterministic writer (the
 case-7 founding call tree).
+
+### DB-5 — Euro AI Europe hire tail reads an unset stack word
+**DOS:** FUN_521d_5d04 writes `local_24` (BP-0x24, the dock's colony demand
+`FUN_281f_08bc(dock, 0xe)`) only inside the colony-demand block (raw 92818),
+which runs only when `local_22 != 0` and the planning gates pass. The
+departing-ship loop reads it whether or not that block ran (raw 93020): with a
+unit hired this pass, a ship whose hold count (`DS:0x5237 + type*0xe`) equals
+`(char)local_24` takes the capacity-match arm (hired flag cleared, ship
+exhausted). When the block was skipped, the byte is whatever an earlier frame
+left at that stack address. Not traced; no recorded case where it changed a
+result.
+
+**Port:** `ai_euro_5d04_hire_tail_colony_demand` (`src/core/ai_euro_europe.c`)
+starts `colony_demand_total` at 0 and passes it to
+`ai_euro_5d04_hire_tail_departing_ships` through the tail ctx. No ship has 0
+holds, so a skipped block never matches.
+**Status:** done (port behaviour predates the entry; recorded 2026-10-21).
