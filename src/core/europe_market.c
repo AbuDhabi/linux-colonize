@@ -631,7 +631,8 @@ int europe_ai_colony_dump_sell_w(
        * proceeds into trade.gold[]/tons[]/tons2[]; DOS then adds the gross to
        * trade.gold[] and — verbatim, asm 364b:17bd `ADD [BX+0xbc],AX` with
        * AX = the loop's CARGO INDEX, not the amount — the index to
-       * trade.tons[]. Both decompiles and the listing agree.
+       * trade.tons[]. Both decompiles and the listing agree. A DOS bug,
+       * reproduced for now (docs/tolerated_dos_bugs.md TB-4).
        */
       nat->trade.tons[c] += (int32_t)c;
       nat->trade.gold[c] += (int32_t)gained;
