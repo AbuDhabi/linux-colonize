@@ -10,7 +10,6 @@ Lumberjacks / Veteran Soldiers, and open the European Status screen with E:
 
 | Test | Does |
 |------|------|
-| `carpentry_two_end_turns` | Two end turns with popups and a Founding Father pick |
 | `europe_buy_artillery_twice` | PURCHASE Artillery twice (500, then 600) |
 | `europe_buy_each_ship` | PURCHASE each ship type once |
 | `europe_buy_each_good` | Buy two Galleons and a Merchantman, drag 100 of every good aboard (price popups dismissed) |
