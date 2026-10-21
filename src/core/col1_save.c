@@ -114,6 +114,16 @@ void col1_save_free(ColonizeCol1Save* save) {
   memset(save, 0, sizeof(*save));
 }
 
+const char* col1_player_country_name(const ColonizeCol1Save* save, int nation) {
+  static char buf[COLONIZE_COL1_NATION_COUNT][sizeof(save->player[0].country_name) + 1];
+  if (!save || nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return "";
+  }
+  memcpy(buf[nation], save->player[nation].country_name, sizeof(save->player[0].country_name));
+  buf[nation][sizeof(save->player[0].country_name)] = '\0';
+  return buf[nation];
+}
+
 bool col1_save_check_layout(char* err, size_t err_size) {
 #define CHECK_SIZE(type, expect)                                                 \
   do {                                                                           \

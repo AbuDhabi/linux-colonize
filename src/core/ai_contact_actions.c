@@ -1591,7 +1591,7 @@ static void ai_contact_establish_mission(
   memset(&tok, 0, sizeof(tok));
   /* OVL a5dc (C 77288): %STRING0 = raw NAMES @MISSION[e] ("Church of"). */
   tok.string0 = reports_mission_prefix(e);
-  tok.string1 = c ? c->name : col1->player[e].country_name;
+  tok.string1 = c ? c->name : col1_player_country_name(col1, e);
   /* NAMES.TXT @SEASONS rows 0/1; reports_season_name is the shared live
      lookup, same Spring/Autumn literals kept as its fallback. */
   tok.string2 = reports_season_name(ctx->game_autumn && *ctx->game_autumn != 0);

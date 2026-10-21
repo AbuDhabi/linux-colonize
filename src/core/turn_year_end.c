@@ -67,8 +67,8 @@ COLONIZE_INTERNAL const char* turn_year_end_country_name(const ColonizeCol1Save*
   if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
     return "";
   }
-  if (col1 && col1->player[nation].country_name[0]) {
-    return col1->player[nation].country_name;
+  if (col1 && col1_player_country_name(col1, nation)[0]) {
+    return col1_player_country_name(col1, nation);
   }
   return reports_nation_country_name(nation);
 }
@@ -420,13 +420,20 @@ COLONIZE_INTERNAL void turn_year_end_rival_independence(
         const char* newname = turn_year_end_independent_name(rival);
         char leader[sizeof(dcol1->player[rival].name) + 1];
         snprintf(leader, sizeof(leader), "%s", turn_year_end_leader_name(dcol1, rival));
-        /* raw 58602 strcpy: the nation is renamed to its republic name. */
-        snprintf(
-          dcol1->player[rival].country_name,
-          sizeof(dcol1->player[rival].country_name),
-          "%s",
-          newname
-        );
+        /* raw 58602 strcpy: the nation is renamed to its republic name.
+         * DOS copies unbounded, so a 24-character name ("United States of
+         * America") puts its NUL on player+0x30 and clears that flag byte
+         * (dos_bugs.md DB-3). The port fills the 24-byte field, with no NUL
+         * when the name is exactly 24 characters, and leaves the flag byte
+         * alone; readers go through col1_player_country_name. */
+        {
+          char* const field = dcol1->player[rival].country_name;
+          const size_t n = strlen(newname);
+          memset(field, 0, sizeof(dcol1->player[rival].country_name));
+          memcpy(field, newname, n < sizeof(dcol1->player[rival].country_name)
+                                   ? n
+                                   : sizeof(dcol1->player[rival].country_name));
+        }
         dcol1->nation[rival].nation_flags |= 0x04u; /* raw 58605 */
         /* raw 58606-58611: peace with, and a cleared slate toward, every
          * other European nation — or-both 0x40 (PEACE), clear-both 0xbb

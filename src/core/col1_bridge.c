@@ -1837,9 +1837,13 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
             u->hold_goods_amount[h] = amt;
           }
         }
-      } else if (src->cargo_hold[5] <= 100) {
+      } else if (src->cargo_hold[5] <= 100 ||
+                 units_type_kind(hold_type) == UNITS_KIND_PIONEER) {
         /* Saved zero is also literal: units_spawn gives Pioneers a default
-         * kit, but DOS can retain type 2 with no tools (fresh 1592 replay). */
+         * kit, but DOS can retain type 2 with no tools (fresh 1592 replay).
+         * A Pioneer's byte is taken whole: FUN_479b_0158's `-= 0x14` wraps
+         * 0..19 to 236..255 and the unit keeps working, and founding banks
+         * the wrapped byte (america seed-100 216->217: New Orleans 236). */
         u->tools = (int)src->cargo_hold[5];
       }
       /*
@@ -3237,7 +3241,9 @@ COLONIZE_INTERNAL void col1_bridge_capture_unit_records(Col1CaptureCtx* ctx) {
      * into the pioneer-tools arm and could zero its raw hold[5]. */
     if (!units_is_sea(units, src->id) && !carries_goods) {
       const uint8_t raw5 = src->col1_hold_raw_valid ? src->col1_hold_raw[9] : 0u;
-      if (raw5 <= 100u) {
+      if (units_type_kind(cap_type) == UNITS_KIND_PIONEER) {
+        dst->cargo_hold[5] = (uint8_t)src->tools; /* the whole byte, wrapped or not */
+      } else if (raw5 <= 100u) {
         if (src->tools > 0) {
           dst->cargo_hold[5] = (uint8_t)(src->tools <= 100 ? src->tools : 100);
         } else if (src->col1_hold_raw_valid) {

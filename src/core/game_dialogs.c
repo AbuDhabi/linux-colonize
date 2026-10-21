@@ -1210,8 +1210,8 @@ void game_europe_ask_boycott_buyback(ColonizeGameState* game, int cargo_type) {
   }
   const char* cname =
     eu->cargo[cargo_type].name[0] ? eu->cargo[cargo_type].name : "";
-  const char* country = game->col1.player[human].country_name[0]
-                          ? game->col1.player[human].country_name
+  const char* country = col1_player_country_name(&game->col1, human)[0]
+                          ? col1_player_country_name(&game->col1, human)
                           : "";
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));

@@ -941,7 +941,6 @@ static AiKingWoiEndStatus ai_king_woi_end_win(struct ai_king_woi_end_ctx* w) {
   ColonizeTurnContext* const ctx = w->ctx;
   const int human = w->human;
   const int crown = w->crown;
-  const ColonizeCol1Player* const pl = &ctx->col1->player[human];
   const char* const leader = w->leader;
 
   /*
@@ -990,8 +989,7 @@ static AiKingWoiEndStatus ai_king_woi_end_win(struct ai_king_woi_end_ctx* w) {
      * whichever check fires first. */
     ctx->col1->head.game_options.independence_chrome = 1;
     ctx->col1->head.show_entire_map = 1;
-    const char* country =
-      (pl->country_name[0] != '\0') ? pl->country_name : "";
+    const char* country = col1_player_country_name(ctx->col1, human);
     char body[AI_POPUP_BODY_LEN];
     /* DOS 3844_0442 win order: victory tune pool (FUN_129f_0318(3)), the
      * @WINNING announcement, THEN the @KINGLOSE throne audience (port_bugs.md #258
@@ -1117,8 +1115,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx) {
   const int colonies = ai_king_human_colonies(ctx, human);
   const int pop_pct = ai_king_woi_pop_share_pct(ctx, human, crown);
   const ColonizeCol1Player* pl = &ctx->col1->player[human];
-  const char* country =
-    (pl->country_name[0] != '\0') ? pl->country_name : "";
+  const char* country = col1_player_country_name(ctx->col1, human);
   const char* leader = (pl->name[0] != '\0') ? pl->name : "";
   /*
    * Mid-war warn selector — DOS FUN_3844_0442 builds the warn tag the same

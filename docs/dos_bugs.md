@@ -69,3 +69,21 @@ and `golden_idle_independence_reload` (saves 1-21): the idle campaigns with a
 save/reload before every turn (`GOLDEN_IDLE_RELOAD=1`) stay byte-identical to
 DOS wherever the continuous gates do. A later hole shows up there first; the
 recipe is in [idle_campaign.md](idle_campaign.md) "Running and debugging".
+
+### DB-3 — Independence rename overflows the country-name field
+**DOS:** when a rival nation is granted independence (@OTHERGRANTED,
+FUN_3844_0442, raw 58602) DOS `strcpy`s the NAMES.TXT republic name
+into `player.country_name` (DS `nation*0x34 + 0x5426`, 24 bytes) with no bound.
+"United States of America" is exactly 24 characters, so its NUL lands on
+`player+0x30` and zeroes that byte: `lcr_case5_bonus_used` (bit 6) and
+`named_new_world` (bit 7) are wiped as a side effect. Evidence: america seed-100
+216->217, England renamed, player 0 byte +0x30 goes from 0x40 to 0.
+
+**Port:** `turn_year_end_rival_independence` (`src/core/turn_year_end.c`) fills
+the 24-byte field (no NUL when the name is exactly 24 characters) and leaves
+`player+0x30` alone. Every reader takes the name through
+`col1_player_country_name` (`src/core/col1_save.c`), which returns a terminated
+copy. A DOS load of such a save reads the name up to the next zero byte, so it
+can show a stray character after "America" when bit 6 or 7 is set.
+**Status:** done (2026-10-21). The idle America resync pair 217 differs from
+DOS only in `players[0].lcr_case5_bonus_used` (plus the hold[5] artifact).

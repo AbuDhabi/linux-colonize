@@ -255,6 +255,12 @@ void col1_save_reset_nation_slots(ColonizeCol1Head* head);
  * nation[] / player[] with it. */
 int col1_save_human_nation(const ColonizeCol1Save* save);
 
+/* player[nation].country_name as a C string (empty on a bad nation). The field
+ * is 24 bytes and a 24-character name ("United States of America") fills it
+ * with no NUL (dos_bugs.md DB-3), so read it through this copy, never as the
+ * raw array. One buffer per nation, overwritten by the next call for it. */
+const char* col1_player_country_name(const ColonizeCol1Save* save, int nation);
+
 /* Same probe over a raw head + player table, for the slot probe that reads
  * only the file prefix (savegame_probe_col1_slot). One implementation so the
  * two cannot drift on the failure path (smell audit #76). */
