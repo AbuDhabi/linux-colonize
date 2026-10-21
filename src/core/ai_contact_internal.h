@@ -196,7 +196,6 @@ typedef struct AiRaidChrome {
   int sound;                 /* first DOS cue, -1 = silent */
   int sound2;                /* optional second DOS cue, -1 = none */
   AiRaidTokKind tok;
-  int popup_without_colony;
 } AiRaidChrome;
 
 #ifdef COLONIZE_TESTING

@@ -896,33 +896,31 @@ int ai_contact_colony_raid_repelled_w(
  * per-kind tag (0x1b94 @RAIDSTORES / 0x1b9f @RAIDBURN / 0x1ba8 @RAIDSHIP /
  * 0x1bb1 @RAIDGOLD / 0x1bba @RAIDNOTHING, raw 99909-100020). `section` is the
  * only wording; a miss draws nothing (port_bugs.md #836).
- * `popup_without_colony` is the @RAIDBURN quirk: a named burned building
- * carries the line on its own, so the tag fires even for an unnamed colony.
  */
 static const AiRaidChrome k_raid_chrome[] = {
   /* @RAIDNOTHING; sound 0x5b = raid repelled (gunfight). */
-  {AI_RAID_NOTHING, "RAIDNOTHING", "", 0x5b, -1, AI_RAID_TOK_NONE, 0},
+  {AI_RAID_NOTHING, "RAIDNOTHING", "", 0x5b, -1, AI_RAID_TOK_NONE},
   /* @RAIDSHIP; DOS plays both 0x4b and 0x4d, in that order. */
-  {AI_RAID_SHIP, "RAIDSHIP", "", 0x4b, 0x4d, AI_RAID_TOK_SHIP, 0},
+  {AI_RAID_SHIP, "RAIDSHIP", "", 0x4b, 0x4d, AI_RAID_TOK_SHIP},
   /* @RAIDGOLD; 0x4e = treasury gold stolen. */
-  {AI_RAID_GOLD, "RAIDGOLD", "", 0x4e, -1, AI_RAID_TOK_GOLD, 0},
+  {AI_RAID_GOLD, "RAIDGOLD", "", 0x4e, -1, AI_RAID_TOK_GOLD},
   /* @RAIDSTORES; 0x4f = loot goods. */
   {AI_RAID_STORES, "RAIDSTORES", "", 0x4f, -1,
-   AI_RAID_TOK_STORES, 0}
+   AI_RAID_TOK_STORES}
   /* @RAIDBURN thin/named rows live below (they depend on the burned building). */
 };
 
 /* @RAIDBURN, with the destroyed building named. */
 static const AiRaidChrome k_raid_chrome_burn_named = {
-  AI_RAID_BURN, "RAIDBURN", "", 0x53, -1, AI_RAID_TOK_BURN, 1
+  AI_RAID_BURN, "RAIDBURN", "", 0x53, -1, AI_RAID_TOK_BURN
 };
 /* Burn with no named building: cues only. */
 static const AiRaidChrome k_raid_chrome_burn_thin = {
-  AI_RAID_BURN, NULL, NULL, 0x53, -1, AI_RAID_TOK_NONE, 0
+  AI_RAID_BURN, NULL, NULL, 0x53, -1, AI_RAID_TOK_NONE
 };
 /* Generic successful raid chrome when no kind-specific line applies. */
 static const AiRaidChrome k_raid_chrome_generic = {
-  AI_RAID_NOTHING, NULL, NULL, -1, -1, AI_RAID_TOK_NONE, 0
+  AI_RAID_NOTHING, NULL, NULL, -1, -1, AI_RAID_TOK_NONE
 };
 
 COLONIZE_INTERNAL const AiRaidChrome* ai_contact_raid_chrome_row(AiRaidKind kind, int have_burn_building) {
@@ -1000,7 +998,7 @@ static void ai_contact_raid_human_chrome(
     sound_play(row->sound2);
   }
   raid_line[0] = '\0'; /* #836: no typed fallback */
-  if (row->section && (c->name[0] || row->popup_without_colony)) {
+  if (row->section) {
     popup_msg_fill(
       ctx->messages, row->section, &raid_tok, row->popup_fallback,
       raid_line, sizeof(raid_line)
