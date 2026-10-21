@@ -346,7 +346,9 @@ cmake --build build/debug --target golden_ai_joint         # when AI or turn ord
   wrong — several entries exist because the DOS-literal write would be worse in
   the port's data model. A DOS bug the port deliberately does **not**
   reproduce (user-approved exception to DOS fidelity) is listed in
-  `docs/dos_bugs.md`, not in `known_divergences.md` and not as an OPEN row.
+  `docs/dos_bugs.md`, not in `known_divergences.md` and not as an OPEN row; one
+  the user wants gone but that is still reproduced for now is in
+  `docs/tolerated_dos_bugs.md`.
 
 ---
 

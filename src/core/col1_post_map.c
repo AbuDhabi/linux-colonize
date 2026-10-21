@@ -107,6 +107,7 @@ static int post_walkable(
  * Same dest and cost[from]!=0 → skip flood, leave a370=0; 0906 then returns
  * 0 when next-step succeeds. FUN_67f4 requires cost > 0, so that NE after an
  * earlier E/SE to the same dest is rejected. Without this cache we over-link.
+ * A DOS bug, reproduced for now: docs/tolerated_dos_bugs.md TB-1.
  */
 typedef struct PostCheapCache {
   int tx;

@@ -320,7 +320,8 @@ zero (map width 58 is not divisible by 4). Per adjacent pair: pick an anchor amo
 cap **≤6**, set symmetric neighbor bits. Smcol reports a DOS bug that
 mis-fills **NE/SW** bits in rare cases — byte-exact rebuild vs original saves
 must relax those bits if comparing naive A*. Port rebuild follows
-`FUN_67f4_0088` (COLONY00 planes byte-exact including that quirk).
+`FUN_67f4_0088` (COLONY00 planes byte-exact including that bug, tolerated for
+now: [tolerated_dos_bugs.md](tolerated_dos_bugs.md) TB-1).
 
 **Export rebuild (P3+P4):** `col1_post_map_rebuild_connectivity` (`FUN_67f4_0088`)
 runs from `col1_bridge_capture` when `post_map` is all-zero. Planes + tallies

@@ -2702,6 +2702,8 @@ static bool units_greedy_next_step(
  * probe's own test), and bit d is set when a windowed flood between the two
  * sample points succeeds (FUN_67f4_0088 raw 105074: FUN_6662_0906 with
  * cap 9 under DS:0x1dd4 = 1, gate 0 < cost < 8; units_coarse_connected).
+ * The shared 00f2 grid reuse drops some NE/SW links, as in DOS: a DOS bug
+ * reproduced for now, docs/tolerated_dos_bugs.md TB-1.
  *
  *   FUN_6662_09ae  snap (x,y) to a walkable cell: its own cell when the
  *                  probe and the 0906 relay (cap 0x12) pass, else the
