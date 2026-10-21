@@ -492,7 +492,8 @@ static bool units_remove_from_cargo(ColonizeUnit* ship, int pax_id) {
 }
 
 /*
- * DOS quirk (port_bugs.md): loaded units switch ships en route. In DOS a
+ * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-2): loaded
+ * units switch ships en route. In DOS a
  * "passenger" is just a sentried land unit sharing the ship's tile in the
  * unit chain, so whichever ship moves off a shared tile first scoops up as
  * many of the tile's loaded units as it has room for, in chain order —
