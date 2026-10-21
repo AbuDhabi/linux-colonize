@@ -1415,11 +1415,10 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
   const int every_third_turn = t->every_third_turn;
   int hired_this_pass = t->hired_this_pass;
 
-  /* raw 86307-86479: colony demand vs. purchase loop. `local_24` is read
-   * by the final loop below regardless of whether this block runs (the
-   * raw decompile shows the same cross-block read — DOS quirk, mirrored
-   * here with an explicit 0 default rather than leaving it
-   * uninitialized). */
+  /* raw 92810-92982: colony demand vs. purchase loop. `local_24` is read
+   * by the departing-ship loop (raw 93020) whether or not this block
+   * runs; DOS leaves it unset when skipped. The port starts it at 0
+   * instead: docs/dos_bugs.md DB-5. */
   int colony_demand_total = 0;
   int colony_demand_base = ai_euro_5d04_cb_colony_demand_query(dock_head_idx, 4); /* DOS local_22 */
   if (woi) {
