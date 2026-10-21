@@ -1892,9 +1892,10 @@ static int case_expert_farmer_flat_bonus(void) {
 
 /*
  * Fisherman distance/enclosure modifier (FUN_15eb_18ec ~11814-11838):
- * open-ocean tiles (all 8 neighbors Ocean/Sea Lane) get -2; a sheltered
- * tile (few/no ocean neighbors) gets +1. Never ported before — new
- * mechanic found this pass, not a divergence-fix.
+ * a plot with >= 6 Ocean/Sea Lane neighbors gets -1, a sheltered one +1.
+ * The fixture keeps (1,1) land as the colony centre, so the open plot has
+ * 7 ocean neighbors, the most a work plot can have (DOS's -2 arm for 8 is
+ * dead and not ported; see colony_yield.c).
  */
 static int case_fisherman_enclosure_mod(void) {
   fx_begin();
@@ -1912,18 +1913,18 @@ static int case_fisherman_enclosure_mod(void) {
   const int sheltered = colony_yield_for_tile(&map, 2, 2, COLONIZE_JOB_FISHERMAN);
   for (int dy = -1; dy <= 1; ++dy) {
     for (int dx = -1; dx <= 1; ++dx) {
-      if (dx == 0 && dy == 0) {
-        continue;
+      if ((dx == 0 && dy == 0) || (dx == -1 && dy == -1)) {
+        continue; /* fished tile; colony centre stays plains */
       }
       map.terrain[(2 + dy) * 5 + (2 + dx)] = 25; /* surround with open ocean too */
     }
   }
   const int open_ocean = colony_yield_for_tile(&map, 2, 2, COLONIZE_JOB_FISHERMAN);
   map_free(&map);
-  if (sheltered != open_ocean + 3) {
+  if (sheltered != open_ocean + 2) {
     fprintf(
       stderr,
-      "fisherman distance mod want sheltered=open_ocean+3 got sheltered=%d open_ocean=%d\n",
+      "fisherman distance mod want sheltered=open_ocean+2 got sheltered=%d open_ocean=%d\n",
       sheltered,
       open_ocean
     );

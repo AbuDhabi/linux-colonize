@@ -184,15 +184,14 @@ static int colony_yield_resource_effect(int resource, int field_job) {
  * out to open sea this tile is — and adjusts yield: fully open water is
  * worse for fishing, a sheltered/coastal spot is better.
  *
- * The raw asm (viceroy_unpacked.asm ~15706-15735) is a 6-way cascade, but
- * three of those branches (count>=4 / >=3 / >=1) are genuinely unreachable
- * in the original DOS binary — each is only reached after already proving
- * count<6 by an earlier `JL`, then immediately re-tested against `>=6`,
- * which can never be true. Confirmed by reading the instructions directly,
- * not decompiler noise like FUN_15eb_1d4c's jump table was — this looks
- * like a leftover/typo in Sid Meier's team's original source. Ported as the
- * 3 branches that can actually execute; the dead ones are omitted since
- * porting unreachable code changes nothing observable.
+ * DOS (viceroy_unpacked.asm ~15706-15735, 15eb:1997-19d7) is a 6-way cascade
+ * on the count: >= 8 -> -2, >= 6 -> -1, < 6 -> +1, then < 4 -> +2,
+ * < 3 -> +3, < 1 -> +4. The last three are dead in the binary: they sit
+ * behind the `< 6` arm's JGE, i.e. are only reached with count >= 6. The
+ * -2 arm is dead in play: every caller (and every DOS 18ec caller) scores a
+ * colony work plot, and the land colony centre is one of its 8 neighbours,
+ * so count <= 7. A leftover in the original source; the port keeps the
+ * two live arms only.
  */
 static int colony_yield_ocean_neighbor_count(const ColonizeWorldMap* map, int x, int y) {
   static const int k_dx[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
@@ -220,9 +219,6 @@ static bool colony_yield_tile_prime_suppressed(const ColonizeWorldMap* map, int 
 
 static int colony_yield_fisherman_distance_mod(const ColonizeWorldMap* map, int x, int y) {
   const int count = colony_yield_ocean_neighbor_count(map, x, y);
-  if (count >= 8) {
-    return -2;
-  }
   if (count >= 6) {
     return -1;
   }
