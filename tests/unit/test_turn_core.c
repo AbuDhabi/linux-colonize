@@ -6234,11 +6234,10 @@ static int case_phase_k_build_advisory(void) {
   fprintf(stderr, "Phase K two-crumbs-one-turn ok\n");
 
   /*
-   * port_bugs.md #911 DOS-LITERAL copy-paste quirk (raw 57717-57724): the @ORE arm
-   * tests `0b50(muskets) == 0b50(tools)`, not `== 0`. With a staffed gunsmith
-   * turning stored tools into muskets the two nets differ (muskets up, tools
-   * down), so DOS stays SILENT about the empty ore even though unmet[ore] != 0
-   * — a plain `net(tools) == 0` reading would have nagged.
+   * @ORE arm, port_bugs.md #911 / docs/dos_bugs.md DB-6: `unmet[ore] != 0 &&
+   * 0b50(tools) == 0`, like every other arm (DOS compares net muskets with net
+   * tools instead). A gunsmith eating the blacksmith's idle stock: tools net
+   * negative, so no nag.
    */
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Blacksmith's House");
   snprintf(pool.building_types[2].name, sizeof(pool.building_types[2].name), "Armory");
@@ -6254,17 +6253,54 @@ static int case_phase_k_build_advisory(void) {
   memset(&prod, 0, sizeof(prod));
   turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
   if (col->stock[COLONIZE_CARGO_MUSKETS] <= 0) {
-    fprintf(stderr, "K ORE quirk: expected muskets made, got %d\n",
+    fprintf(stderr, "K ORE tools-falling: expected muskets made, got %d\n",
             col->stock[COLONIZE_CARGO_MUSKETS]);
     assets_msg_free(&game_txt);
     return 1;
   }
   if (strstr(eu.status, "ore") != NULL) {
-    fprintf(stderr, "K ORE quirk want silence (nets differ) got '%s'\n", eu.status);
+    fprintf(stderr, "K ORE tools-falling want silence got '%s'\n", eu.status);
     assets_msg_free(&game_txt);
     return 1;
   }
-  fprintf(stderr, "Phase K ORE copy-paste quirk ok\n");
+  fprintf(stderr, "Phase K ORE tools-falling ok\n");
+
+  /* DB-6 discriminator: two blacksmiths run the ore out, the gunsmith eats
+   * exactly what they made (tools net 0, muskets +6). The port nags @ORE;
+   * DOS (net muskets != net tools) stays silent. */
+  col->colonists[1].building_type = 0;
+  col->colonists[1].profession = COLONIZE_PROF_BLACKSMITH;
+  col->colonists[2].active = true;
+  col->colonists[2].building_type = 2;
+  col->colonists[2].profession = COLONIZE_PROF_GUNSMITH;
+  col->colonist_count = 3;
+  col->population = 3;
+  col->stock[COLONIZE_CARGO_ORE] = 6;
+  col->stock[COLONIZE_CARGO_TOOLS] = 20;
+  col->stock[COLONIZE_CARGO_MUSKETS] = 0;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (col->stock[COLONIZE_CARGO_TOOLS] != 20 || col->stock[COLONIZE_CARGO_MUSKETS] <= 0 ||
+      col->stock[COLONIZE_CARGO_ORE] != 0) {
+    fprintf(stderr, "K ORE DB-6 fixture: want tools 20 muskets>0 ore 0 got %d %d %d\n",
+            col->stock[COLONIZE_CARGO_TOOLS], col->stock[COLONIZE_CARGO_MUSKETS],
+            col->stock[COLONIZE_CARGO_ORE]);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(eu.status, "blacksmiths") == NULL) {
+    fprintf(stderr, "K ORE DB-6 want @ORE got '%s'\n", eu.status);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  col->colonists[1].building_type = 2;
+  col->colonists[1].profession = COLONIZE_PROF_GUNSMITH;
+  col->colonists[2].active = false;
+  col->colonist_count = 2;
+  col->population = 2;
+  fprintf(stderr, "Phase K ORE net-tools-zero ok\n");
 
   /*
    * port_bugs.md #911: the @TOOLS arm is `unmet[tools] != 0 && 0b50(muskets) == 0`
