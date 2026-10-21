@@ -706,11 +706,14 @@ void units_slot_reset_defaults(
     memcpy(slot->col1_hold_raw, pool->dos_tail[pool->unit_count].raw, sizeof(slot->col1_hold_raw));
     slot->col1_hold_raw_valid = 1;
     slot->col1_hold_raw[0] = 0; /* +0x3150 */
-    if (type_index == 2) {
-      slot->col1_hold_raw[9] = 100; /* +0x3159 */
-    } else if (type_index == 0x0c) {
+    if (type_index == 0x0c) {
       slot->col1_hold_raw[8] = 0; /* +0x3158 */
     }
+  }
+  /* 06b4 stamps every new Pioneer's +0x3159, fresh slot or reused (america2
+   * save 16: compaction copies of a Pioneer bought into a fresh slot). */
+  if (type_index == 2) {
+    slot->col1_hold_raw[9] = 100;
   }
   /* Every DOS record has these bytes: a slot no compaction reached is zero.
    * The later hold removes shift them the 317c way (units_raw_hold_remove). */
@@ -848,7 +851,11 @@ void units_set_nation(ColonizeUnit* unit, int nation_id) {
     return;
   }
   unit->nation_id = nation_id;
-  if (nation_id >= 0 && nation_id < 4) {
+  if (unit->x >= 200 || unit->y >= 200) {
+    /* FUN_1427_06b4 writes +3 = nation (no visibility); only an on-map
+     * placement stamps the owner bit. */
+    unit->col1_vis_mask = 0;
+  } else if (nation_id >= 0 && nation_id < 4) {
     /* Euro owner visibility only — clear polluted foreign bits (DOS draw uses hi nibble). */
     unit->col1_vis_mask = (uint8_t)(1u << (nation_id & 3));
   } else {

@@ -423,7 +423,8 @@ greenfield redesign or a mandated `game_loop` rewrite phase.
   the joint smoke pair (`smoke_ai_mid01` / `smoke_ai_late01`, renamed from
   `golden_ai_*` 2026-09-14) all run in a default `ctest`. The parking
   that started 2026-08-19 ended 2026-09-05 (port_plan T1.23 / T3.3). No test in
-  [`CMakeLists.txt`](../CMakeLists.txt) is `DISABLED`; the three idle campaigns run as
+  [`CMakeLists.txt`](../CMakeLists.txt) is `DISABLED` except `golden_idle_america2(_reload)`
+  (the fourth idle campaign, being aligned: [idle_america2.md](idle_america2.md)); the three idle campaigns run as
   `golden_idle_continuous`, `golden_idle_independence` and `golden_idle_america`
   ([idle_campaign.md](idle_campaign.md), [idle_independence.md](idle_independence.md),
   [idle_america.md](idle_america.md)).
