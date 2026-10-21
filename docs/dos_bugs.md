@@ -134,3 +134,20 @@ starts `colony_demand_total` at 0 and passes it to
 `ai_euro_5d04_hire_tail_departing_ships` through the tail ctx. No ship has 0
 holds, so a skipped block never matches.
 **Status:** done (port behaviour predates the entry; recorded 2026-10-21).
+
+### DB-6 — Colony "out of ore" message tests net muskets against net tools
+**DOS:** the Phase K colony messages in FUN_364b_0688 (raw 57696-57728) are
+seven independent tests of the form `unmet[input] != 0 && 0b50(output) == 0`
+(0b50 = net stock change). The @ORE arm (raw 57717-57724) instead tests
+`unmet[ore] != 0 && 0b50(muskets) == 0b50(tools)`: a copy-paste slip from the
+@TOOLS arm below it. So DOS stays silent when the blacksmiths ran the ore out
+and tools did not grow while a gunsmith made muskets, and it nags whenever
+the two nets happen to be equal, even when tools did grow.
+
+**Port:** the @ORE arm in `turn_run_colony_production_w`
+(`src/core/turn_production.c`, Phase K table) tests `unmet[ore] != 0 &&
+net(tools) == 0`, like the other six arms. Message chrome only: no stock,
+RNG or AI path reads it; every golden and idle campaign stays byte-identical.
+Unit test: `unit_turn_core` `phase_k_build_advisory` ("ORE net-tools-zero"
+fails on the DOS test). Came from port_bugs.md #911.
+**Status:** done (2026-10-21).

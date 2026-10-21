@@ -1891,7 +1891,7 @@ COLONIZE_INTERNAL void turn_produce_crumbs(TurnProduceCtx* pc) {
      */
 
     /*
-     * DOS-LITERAL FUN_364b_0688 raw 57696-57728 (port_bugs.md #911). Seven
+     * FUN_364b_0688 raw 57696-57728 (port_bugs.md #911). Seven
      * INDEPENDENT `if`s, in GAME.TXT tag order, all inside one
      * `(DS:0x5384 & 0x20) == 0` chrome gate (the outer report filter above):
      *
@@ -1902,6 +1902,7 @@ COLONIZE_INTERNAL void turn_produce_crumbs(TurnProduceCtx* pc) {
      *   57713  unmet[furs]    (0x8e62) && 0b50(0x0c coats)   == 0  -> 0xe86 @FURS
      *   57717  unmet[ore]     (0x8e66) && 0b50(0x0f muskets) == 0b50(0x0e tools)
      *                                                            -> 0xe8b @ORE
+     *          (DOS slip; the port tests 0b50(tools) == 0: dos_bugs.md DB-6)
      *   57725  unmet[tools]   (0x8e76) && 0b50(0x0f muskets) == 0  -> 0xe8f @TOOLS
      *
      * (unmet base DS:0x8e5a, stride 2, so 0x8e64 = [5] lumber ... 0x8e76 =
@@ -1948,12 +1949,10 @@ COLONIZE_INTERNAL void turn_produce_crumbs(TurnProduceCtx* pc) {
       {"TOBACCO", K_UNMET(COLONIZE_CARGO_CIGARS) && craft_net[COLONIZE_CARGO_CIGARS] == 0},
       {"CANESUGAR", K_UNMET(COLONIZE_CARGO_RUM) && craft_net[COLONIZE_CARGO_RUM] == 0},
       {"FURS", K_UNMET(COLONIZE_CARGO_COATS) && craft_net[COLONIZE_CARGO_COATS] == 0},
-      /* DOS-LITERAL raw 57717-57724: the ore arm compares net muskets against
-       * net TOOLS, not against 0 — a copy-paste slip in the original (every
-       * other arm tests `== 0`). Kept on purpose; do not "fix". */
-      {"ORE",
-       K_UNMET(COLONIZE_CARGO_TOOLS) &&
-         craft_net[COLONIZE_CARGO_MUSKETS] == craft_net[COLONIZE_CARGO_TOOLS]},
+      /* DOS raw 57717-57724 compares net muskets against net tools here, a
+       * copy-paste slip; the port tests net tools == 0 like every other arm
+       * (docs/dos_bugs.md DB-6). */
+      {"ORE", K_UNMET(COLONIZE_CARGO_TOOLS) && craft_net[COLONIZE_CARGO_TOOLS] == 0},
       {"TOOLS", K_UNMET(COLONIZE_CARGO_MUSKETS) && craft_net[COLONIZE_CARGO_MUSKETS] == 0},
     };
 #undef K_UNMET
