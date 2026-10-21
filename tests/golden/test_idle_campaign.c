@@ -17,6 +17,11 @@
  * original_saves/golden_idle_america_seed-100 (save numbers 1..63, 1501-1569,
  * Americas map, VR_SOUND.EXE). The player loaded 000001 and idles throughout;
  * docs/idle_america.md.
+ *
+ * With a leading "america2" argument it runs the second Americas recording,
+ * original_saves/golden_idle_america_2-seed-100 (save numbers 1..406, 1572-1799,
+ * Spanish human, VR_SOUND.EXE), recorded from a load of 000001 after the first
+ * archive's save-64 break; docs/idle_america2.md.
  */
 #include <stdint.h>
 #include "../common/test_runner.h"
@@ -24,6 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/ai_euro.h"
 #include "core/ai_king.h"
 #include "core/dos_rng.h"
 #include "tests/common/golden_fixture.h"
@@ -50,6 +56,10 @@ static const IdleCampaign k_independence = {
 /* Recorded 2026-10-19 (VR_SOUND.EXE, Americas map): load of 000001, Space. */
 static const IdleCampaign k_america = {
   "original_saves/golden_idle_america_seed-100/%06d.SAV", 1, 63, 1, 0,
+};
+/* Recorded 2026-10-21 (VR_SOUND.EXE, Americas map): load of 000001, Space. */
+static const IdleCampaign k_america2 = {
+  "original_saves/golden_idle_america_2-seed-100/%06d.SAV", 1, 406, 1, 0,
 };
 
 static int read_bytes(const char* path, uint8_t** data, size_t* size) {
@@ -200,6 +210,23 @@ static int parse_year(const IdleCampaign* c, const char* text, int* year) {
   return 1;
 }
 
+/* GOLDEN_IDLE_E7C4_ORACLE (triage only): the 0x46 park gate follows the
+ * archive. DOS parked a unit of that nation on that tile when the next save
+ * shows one there with plan 0x46 ('F') and no orders; a gap turn keeps the
+ * modelled word. */
+static const ColonizeCol1Save* s_oracle_expect;
+static int e7c4_oracle(int nation, int x, int y) {
+  const ColonizeCol1Save* e = s_oracle_expect;
+  if (!e->head.unit_count) return -1;
+  for (int i = 0; i < (int)e->head.unit_count; ++i) {
+    const ColonizeCol1Unit* u = &e->unit[i];
+    if (u->nation_id == nation && u->x == x && u->y == y && u->ai_plan == 70 && u->orders == 0) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static void save_path(const IdleCampaign* c, char* path, size_t size, int year) {
   snprintf(path, size, c->path_fmt, year);
 }
@@ -212,8 +239,9 @@ int main(int argc, char** argv) {
     }
   }
   const IdleCampaign* c = &k_yearly;
-  if (argc == 4 && (strcmp(argv[1], "independence") == 0 || strcmp(argv[1], "america") == 0)) {
-    c = argv[1][0] == 'i' ? &k_independence : &k_america;
+  if (argc == 4 && (strcmp(argv[1], "independence") == 0 || strcmp(argv[1], "america") == 0 ||
+                    strcmp(argv[1], "america2") == 0)) {
+    c = argv[1][0] == 'i' ? &k_independence : argv[1][7] == '2' ? &k_america2 : &k_america;
     --argc;
     ++argv;
   }
@@ -221,8 +249,8 @@ int main(int argc, char** argv) {
   if (argc != 3 || !parse_year(c, argv[1], &first) ||
       !parse_year(c, argv[2], &last) || first >= last) {
     fprintf(stderr,
-            "usage: %s [independence|america] FIRST LAST (one contiguous saved run;"
-            " years, or save numbers for independence/america)\n", argv[0]);
+            "usage: %s [independence|america|america2] FIRST LAST (one contiguous saved run;"
+            " years, or save numbers for the every-turn campaigns)\n", argv[0]);
     return 2;
   }
 
@@ -267,6 +295,10 @@ int main(int argc, char** argv) {
   const int resync = resync_env && *resync_env;
   const char* resync_save = getenv("GOLDEN_IDLE_RESYNC_SAVE");
   int prev_have = 0;
+  if (getenv("GOLDEN_IDLE_E7C4_ORACLE")) {
+    s_oracle_expect = &fx.expect;
+    ai_euro_e7c4_oracle = e7c4_oracle;
+  }
   for (int year = first + 1; (ok || keep_going) && year <= last; ++year) {
     if (resync && prev_have) {
       char prev[128], start_path[512];

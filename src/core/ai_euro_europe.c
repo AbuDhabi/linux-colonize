@@ -1090,6 +1090,7 @@ static void ai_euro_5d04_cb_colony_needs(int nation_id, int8_t out[16]) {
         continue;
       }
       const int spec = (int8_t)c->specialty_cargo;
+      if (getenv("TMPBUY")) fprintf(stderr, "[tmpneed] n%d %s spec %d muskets %d horses %d tools %d\n", nation_id, c->name, spec, c->stock[15], c->stock[8], c->stock[14]);
       if (spec >= 0 && spec < 16) {
         cargo_need_count[spec]++;
       }
@@ -1658,6 +1659,7 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
             if (cap == used || f->cargo_short || !has_any_colony) {
               break;
             }
+            if (getenv("TMPBUY")) fprintf(stderr, "[tmpbuy] n%d p%d bar %d dem %d exp %d trained %d mask %d cap %d used %d gold %u last %d price %d\n", nation_id, p, cargo_demand_bar, cargo_demand[p], expand_signal, tools_trained_this_pass, tools_hire_mask, cap, used, nat->gold, units_last_hold_amount, ai_euro_5d04_cb_price(p));
             if ((cargo_demand_bar <= (int)cargo_demand[p] || expand_signal) &&
                 ((!tools_trained_this_pass && tools_hire_mask == 0) || (cap - used > 2 || expand_signal))) {
               /* raw 93041-93046 (bug #1029): gold gate is price * DS:0x8dc4,

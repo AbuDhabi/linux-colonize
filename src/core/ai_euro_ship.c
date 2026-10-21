@@ -1562,6 +1562,14 @@ int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
     ctx->col1->nation[n].return_from_europe_y = (uint8_t)oy;
   }
   ship->col1_counter16 = ai_euro_lane_voyage_turns(ctx, n, ox);
+  /* 08da -> FUN_1427_0968 clears the visibility nibble of the hull's whole
+   * chain; off the map 0ce6 adds nothing back. A hull 5fef_0352 parked for
+   * repair skips this and keeps its mask (america2 resync 130). */
+  ship->col1_vis_mask = 0;
+  for (int i = 0; i < ship->cargo_count && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+    ColonizeUnit* pax = units_get(ctx->units, ship->cargo_ids[i]);
+    if (pax) pax->col1_vis_mask = 0;
+  }
   ai_euro_lane_move(ctx, ship, 244 + n, 244 + n);
   ai_euro_set_goto(ship, UNITS_ORDER_NONE, ox, oy);
   /* 007a's 02ee/02e4 walk: every passenger sentries (orders 1) and takes

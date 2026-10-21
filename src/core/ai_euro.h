@@ -129,4 +129,12 @@ int ai_euro_5d04_dos_type_space(const ColonizeUnitPool* pool, int dos_code);
  */
 void ai_euro_reset(void);
 
+/*
+ * Test-only triage (golden_idle_campaign GOLDEN_IDLE_E7C4_ORACLE): when set,
+ * its 0/1 replaces the residue-decided saw-foe word at the 20e6 0x46 border
+ * park gate for a unit of `nation` on (x, y) (docs/dos_bugs.md DB-4); -1 keeps
+ * the modelled word. NULL in the game.
+ */
+extern int (*ai_euro_e7c4_oracle)(int nation, int x, int y);
+
 #endif

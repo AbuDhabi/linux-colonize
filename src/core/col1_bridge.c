@@ -2979,11 +2979,11 @@ COLONIZE_INTERNAL void col1_bridge_capture_unit_records(Col1CaptureCtx* ctx) {
        * move resets). Ordinary Euro map units carry their owner bit, but
        * FUN_43f7_0982 stamps freshly landed REF units with the target bit
        * only (raw 74142/74210); do not synthesize the crown bit on export.
-       * Europe sentinel units (x/y >= 200) carry vis 0 in every original
-       * DOS save (french-campaign survey 2026-09-03) — except a damaged
-       * hull FUN_5fef_0352 parked there (bit7 set): the relocation leaves
-       * its mask alone (DOSBox independence 6->7: the crown Man-O-War at
-       * 236,236 saves vis 9). */
+       * Units off the map (x/y >= 200) export their live mask: 0 for most
+       * (FUN_48d3_007a clears a hull sailing for Europe, 06b4 stamps
+       * nothing there), but a hull FUN_5fef_0352 parked for repair keeps
+       * its map mask, also after the repair (DOSBox independence 6->7: the
+       * crown Man-O-War at 236,236 saves vis 9; america2 resync 130). */
       const int nat = src->nation_id & 0xF;
       /* The crown is the withdrawn slot until the declaration; after it DOS
        * sets that slot's control to 1 (AI) and withdraws the others
@@ -2995,9 +2995,8 @@ COLONIZE_INTERNAL void col1_bridge_capture_unit_records(Col1CaptureCtx* ctx) {
            : save->player[nat].control == 2);
       uint8_t vis = (uint8_t)(src->col1_vis_mask & 0x0Fu);
       if (src->x >= 200 || src->y >= 200) {
-        if ((src->col1_flags15 & 0x80u) == 0) {
-          vis = 0;
-        }
+        /* Live: 007a's 0968 clears a hull sailing for Europe, units made
+         * there start at 0, a damaged or repaired hull keeps its map mask. */
       } else if (nat >= 0 && nat < 4 && !crown) {
         vis = (uint8_t)(vis | (1u << (nat & 3)));
       }
@@ -3243,12 +3242,8 @@ COLONIZE_INTERNAL void col1_bridge_capture_unit_records(Col1CaptureCtx* ctx) {
       const uint8_t raw5 = src->col1_hold_raw_valid ? src->col1_hold_raw[9] : 0u;
       if (units_type_kind(cap_type) == UNITS_KIND_PIONEER) {
         dst->cargo_hold[5] = (uint8_t)src->tools; /* the whole byte, wrapped or not */
-      } else if (raw5 <= 100u) {
-        if (src->tools > 0) {
-          dst->cargo_hold[5] = (uint8_t)(src->tools <= 100 ? src->tools : 100);
-        } else if (src->col1_hold_raw_valid) {
-          dst->cargo_hold[5] = 0; /* tools fully consumed in the port */
-        }
+      } else if (raw5 <= 100u && src->tools > 0) {
+        dst->cargo_hold[5] = (uint8_t)(src->tools <= 100 ? src->tools : 100);
       }
     } else if (src->tools > 0 && src->aboard_ship_id >= 0 && dst->cargo_hold[5] == 0) {
       dst->cargo_hold[5] = (uint8_t)(src->tools <= 100 ? src->tools : 100);
@@ -3321,87 +3316,59 @@ COLONIZE_INTERNAL void col1_bridge_capture_unit_chains(Col1CaptureCtx* ctx) {
     }
   }
 
-  /* FUN_1427_02ca / 005c also link ships sharing a Europe sentinel tile.
-   * Passenger chains above end at their hull; join those hulls in physical
-   * arrival order, keeping each passenger chain intact. 1533->1534 has two
-   * Spanish hulls at (234,234), with a colonist preceding the first one.
-   * Fresh 1585 retains an existing 40->4 chain after both hulls move from
-   * (246,246) to (242,242), rather than sorting it by record index. */
-  for (int i = 0; i < written; ++i) {
-    if (neu[i].x < 200 || neu[i].y < 200 || neu[i].type < 13 || neu[i].type > 18) {
-      continue;
-    }
-    bool first = true;
-    for (int j = 0; j < i; ++j) {
-      if (neu[j].type >= 13 && neu[j].type <= 18 && neu[j].x == neu[i].x &&
-          neu[j].y == neu[i].y && neu[j].nation_id == neu[i].nation_id) {
-        first = false;
-        break;
+  /* FUN_1427_02ca / 005c link everything sharing a Europe sentinel tile into
+   * one tile chain, each arrival on top (old top +0x315c = new). A hull and
+   * the passenger chain ending at it are one segment; a loose land unit is
+   * its own. Segments join in arrival order of their top record. 1533->1534
+   * has two Spanish hulls at (234,234), with a colonist preceding the first
+   * one; fresh 1585 retains an existing 40->4 chain after both hulls move
+   * from (246,246) to (242,242), rather than sorting it by record index; a
+   * fresh 1545->1546 load links Spanish soldiers 43->46 at (238,238) (DOSBox:
+   * 02ca links the new Dragoon 46 onto 43); america2 resync 52/55: a hull
+   * and a loose colonist or Dragoon on the dock lane link either way round
+   * by arrival. */
+  {
+    bool* done = calloc((size_t)(written > 0 ? written : 1), sizeof(bool));
+    int* seg_top = malloc((size_t)(written > 0 ? written : 1) * sizeof(int));
+    if (done && seg_top) {
+      for (int i = 0; i < written; ++i) {
+        if (done[i] || neu[i].x < 200 || neu[i].y < 200) {
+          continue;
+        }
+        int sn = 0;
+        for (int j = i; j < written; ++j) {
+          if (neu[j].x != neu[i].x || neu[j].y != neu[i].y ||
+              neu[j].nation_id != neu[i].nation_id) {
+            continue;
+          }
+          done[j] = true;
+          const bool hull = neu[j].type >= 13 && neu[j].type <= 18;
+          const bool loose = !hull && neu[j].transport_chain.prev_unit_idx < 0 &&
+                             neu[j].transport_chain.next_unit_idx < 0;
+          if (!hull && !loose) {
+            continue; /* a passenger: its hull's segment carries it */
+          }
+          int at = sn;
+          while (at > 0 && stack_order_by_col1[seg_top[at - 1]] > stack_order_by_col1[j]) {
+            seg_top[at] = seg_top[at - 1];
+            --at;
+          }
+          seg_top[at] = j;
+          ++sn;
+        }
+        for (int k = 0; k + 1 < sn; ++k) {
+          int root = seg_top[k + 1];
+          for (int guard = 0; guard < written && neu[root].transport_chain.prev_unit_idx >= 0;
+               ++guard) {
+            root = neu[root].transport_chain.prev_unit_idx;
+          }
+          neu[seg_top[k]].transport_chain.next_unit_idx = (int16_t)root;
+          neu[root].transport_chain.prev_unit_idx = (int16_t)seg_top[k];
+        }
       }
     }
-    if (!first) {
-      continue;
-    }
-    int hull[COLONIZE_UNITS_MAX];
-    int hn = 0;
-    for (int j = i; j < written && hn < COLONIZE_UNITS_MAX; ++j) {
-      if (neu[j].type < 13 || neu[j].type > 18 || neu[j].x != neu[i].x ||
-          neu[j].y != neu[i].y || neu[j].nation_id != neu[i].nation_id) {
-        continue;
-      }
-      int at = hn;
-      while (at > 0 && stack_order_by_col1[hull[at - 1]] > stack_order_by_col1[j]) {
-        hull[at] = hull[at - 1];
-        --at;
-      }
-      hull[at] = j;
-      ++hn;
-    }
-    for (int h = 0; h + 1 < hn; ++h) {
-      int root = hull[h + 1];
-      for (int guard = 0; guard < written && neu[root].transport_chain.prev_unit_idx >= 0;
-           ++guard) {
-        root = neu[root].transport_chain.prev_unit_idx;
-      }
-      neu[hull[h]].transport_chain.next_unit_idx = (int16_t)root;
-      neu[root].transport_chain.prev_unit_idx = (int16_t)hull[h];
-    }
-  }
-
-  /* DOS also chains loose land units sharing a nation's Europe sentinel
-   * tile. A fresh 1545→1546 load links Spanish soldiers 43→46 at (238,238)
-   * even though neither is aboard a ship. Passenger and hull chains above
-   * already own their members, so only link still-unattached land records.
-   * FUN_1427_02ca links each arrival on top (old top +0x315c = new), so
-   * next runs oldest to newest by arrival (DOSBox 1545: 02ca links the new
-   * Dragoon 46 onto 43). */
-  for (int i = 0; i < written; ++i) {
-    if (neu[i].x < 200 || neu[i].y < 200 || neu[i].type >= 13 ||
-        neu[i].transport_chain.prev_unit_idx >= 0 ||
-        neu[i].transport_chain.next_unit_idx >= 0) {
-      continue;
-    }
-    int group[COLONIZE_UNITS_MAX];
-    int gn = 0;
-    for (int j = i; j < written && gn < COLONIZE_UNITS_MAX; ++j) {
-      if (neu[j].type >= 13 || neu[j].x != neu[i].x || neu[j].y != neu[i].y ||
-          neu[j].nation_id != neu[i].nation_id ||
-          neu[j].transport_chain.prev_unit_idx >= 0 ||
-          neu[j].transport_chain.next_unit_idx >= 0) {
-        continue;
-      }
-      int at = gn;
-      while (at > 0 && stack_order_by_col1[group[at - 1]] > stack_order_by_col1[j]) {
-        group[at] = group[at - 1];
-        --at;
-      }
-      group[at] = j;
-      ++gn;
-    }
-    for (int k = 0; k + 1 < gn; ++k) {
-      neu[group[k]].transport_chain.next_unit_idx = (int16_t)group[k + 1];
-      neu[group[k + 1]].transport_chain.prev_unit_idx = (int16_t)group[k];
-    }
+    free(done);
+    free(seg_top);
   }
 
   /*
