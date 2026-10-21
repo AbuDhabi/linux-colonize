@@ -59,3 +59,34 @@ idle campaigns (CTest `golden_idle_*`) and goldens stop matching DOS. Removing
 it from live pathing only (keep the save planes DOS-exact) needs a way to keep
 those gates meaningful, e.g. a switch the golden harnesses turn off.
 **Status:** tolerated (2026-10-21).
+
+### TB-2 — Passengers switch ships when another own ship leaves the tile first
+**DOS:** a passenger is not "aboard" anything; it is a sentried land unit in
+the tile's unit chain. When a ship leaves a tile, `FUN_1427_10be` (raw
+8606-8680) sorts the tile with `FUN_1427_04d6` (hulls on top, then Treasure,
+then @UNIT size 6..1, each bucket in chain order) and boards every same-nation
+land unit that fits the hull's room, charging each its @UNIT size column
+(`FUN_4720_00e0`, raw 74655-74661). Riders of other ships on the tile are in
+that chain too, so whichever ship moves off a shared tile first takes them,
+first come, first served, and may leave some of its own passengers behind for
+the next hull. Evidence: idle independence seed-100 1->2, at (1,53) Galleon 109
+keeps four Dragoons, takes unit 58's two, and leaves its own Artillery and
+Colonist (DOSBox BPM trace 2026-10-16).
+
+**Effect:** with two or more own ships on one tile (colony or open sea), units
+loaded on one ship can sail off on another, and a ship can depart without some
+of the units the player loaded on it. Affects human players and the AI alike.
+
+**Port (reproduces it):** `units_ship_departure_pickup`
+(`src/core/units_cargo.c`, declared in `units_cargo.h`) walks the hull's own
+riders, sentried land units on the tile and riders of other own hulls there in
+the 04d6 order; called from the ship move in `src/core/units_move.c` before the
+group moves. The port keeps an explicit `aboard_ship_id`, so this is a
+deliberate re-creation, not a side effect. Unit test: `unit_units_core`
+`ship_switch_quirk`.
+
+**Blocks removal:** the idle independence campaign (CTest
+`golden_idle_independence`, from save 1->2) depends on the DOS pickup order;
+boarding only the hull's own riders changes which units sail and breaks the
+DOS match.
+**Status:** tolerated (2026-10-21).

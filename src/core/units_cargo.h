@@ -281,7 +281,8 @@ int units_find_boardable_ship(
   const ColonizeUnitPool* pool, int x, int y, int nation_id, int need_space
 );
 /*
- * Departure pickup (DOS ship-switch quirk): one ascending-id first-come-
+ * Departure pickup (DOS ship-switch bug, docs/tolerated_dos_bugs.md TB-2):
+ * one ascending-id first-come-
  * first-served sweep boarding sentried land units on (x,y) AND passengers
  * riding other own ships still on (x,y), until the departing ship is full.
  * Each rider is charged its @UNIT size column, so a Treasure only transfers
