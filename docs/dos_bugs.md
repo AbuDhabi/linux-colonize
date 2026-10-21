@@ -183,3 +183,23 @@ stock floors at 0 as a guard. Unit test: `unit_ai_diplo`
 `case_153e_wantstuff_demand` (Muskets move, Furs do not). All goldens, idle
 campaigns and `golden_ai_joint` stay byte-identical (2026-10-21).
 **Status:** done (2026-10-21).
+
+### DB-9 — Jesuit "leave as Colonist" row keyed on the colony's record slot
+**DOS:** FUN_15eb_3454 (raw 13561-13565) decides whether the "leave as
+Colonist" row is offered to a unit leaving a colony. For a Jesuit Missionary
+(profession 0x18) it refuses the row when `*(int*)0x8dc6 < 4` and the control
+byte `*(char*)(0x543f + *(int*)0x8dc6 * 0x34)` is 0 (human). `DS:0x8dc6` is the
+active colony's record index (FUN_15eb_002c raw 9318), but `0x543f + n*0x34` is
+the nation table. So a Jesuit can leave as a plain Colonist almost everywhere,
+except in colonies whose record slot (0..3) happens to equal a human nation's
+number, whoever owns the colony.
+
+**Port:** `colonies_eject_row_offered` (`src/core/colony_workers.c`) drops the
+arm: any Jesuit, human or AI, is offered the Colonist row (user decision
+2026-10-21, matching what DOS does in nearly every colony). Unchanged from DOS:
+a Jesuit is always offered the Missionary row, church or not; at the Europe
+dock a born Jesuit cannot unbless (38fd:3f4a). Unit test: `unit_colonies`
+#559b (fails on the DOS arm). All goldens, idle campaigns and
+`golden_ai_joint` stay byte-identical (2026-10-21). Came from port_bugs.md
+#559.
+**Status:** done (2026-10-21).

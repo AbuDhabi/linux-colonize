@@ -511,7 +511,8 @@ row-for-row copy that drifted once (duplication audit GL-11).
 
 Is a "Leave as" row offered at all for this body (FUN_15eb_3454's three
 `return 0` arms, raw 13556-13570)? Shared by both row builders and both
-appliers. See the definition in colony.c for the DS:0x8dc6 DOS bug.
+appliers. DOS's Jesuit Colonist-row arm (DS:0x8dc6 slot-indexed nation test)
+is dropped: [dos_bugs.md](dos_bugs.md) DB-9.
 
 ## colonies_eject_role_gear
 

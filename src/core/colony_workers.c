@@ -977,21 +977,8 @@ int colonies_equip_tools_take(int available) {
  * Earlier cites for the bless row: Colonization.pdf Establishing a Mission /
  * Church; building_production Missionary.
  */
-/* 0-based pool slot of a colony record, DOS's colony index (DS:0x8dc6 is set
- * from the same kind of index by FUN_15eb_002c raw 9318). -1 if unknown. */
-static int colonies_pool_slot_index(const ColonizeColonyPool* pool, const ColonizeColony* col) {
-  if (!pool || !col) {
-    return -1;
-  }
-  const ptrdiff_t slot = col - &pool->colonies[0];
-  if (slot < 0 || slot >= (ptrdiff_t)COLONIZE_COLONIES_MAX) {
-    return -1;
-  }
-  return (int)slot;
-}
-
 /*
- * DOS-LITERAL FUN_15eb_3454 raw 13556-13570 — the "is this leave-as row
+ * FUN_15eb_3454 raw 13556-13570 — the "is this leave-as row
  * offered at all" test (return 0 vs 0xfffe/0xffff), shared by the two row
  * builders (here and game_loop's outside twin) and by both appliers, so a
  * click cannot take a row the list never drew.
@@ -1003,9 +990,9 @@ static int colonies_pool_slot_index(const ColonizeColonyPool* pool, const Coloni
  *     COLONY INDEX (FUN_15eb_002c raw 9318 writes it from the colony record
  *     index), while 0x543f + n*0x34 is the NATION table whose byte 0 is the
  *     control flag (0 = human). DOS indexes the nation table with a colony
- *     index: a genuine DOS bug, ported literally per docs/project_goals.md —
- *     whether a Jesuit may be un-blessed back to a plain Colonist depends on
- *     which pool slot his colony happens to occupy.
+ *     index, so whether a Jesuit may leave as a plain Colonist depends on
+ *     which pool slot his colony occupies. The port drops this arm: any
+ *     Jesuit, human or AI, is offered the Colonist row (docs/dos_bugs.md DB-9).
  *   raw 13567-13569: row 0x18 (Missionary) returns 0 only when the colony has
  *     no Church AND the body is not already 0x18 — a Jesuit is always offered
  *     the Missionary row, churchless colony or not.
@@ -1023,13 +1010,6 @@ bool colonies_eject_row_offered(
     return false;
   }
   if (role == COLONIZE_EJECT_COLONIST) {
-    if (profession == UNITS_JOB_MISSIONARY) {
-      const int slot = colonies_pool_slot_index(pool, col);
-      if (slot >= 0 && slot < 4 && g_colonies_col1 &&
-          g_colonies_col1->player[slot].control == 0) {
-        return false;
-      }
-    }
     return true;
   }
   if (role == COLONIZE_EJECT_MISSIONARY) {
