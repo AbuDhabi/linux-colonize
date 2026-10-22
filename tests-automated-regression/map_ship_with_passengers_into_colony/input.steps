@@ -1,0 +1,10 @@
+# A loaded Caravel sails back into a friendly colony. Input: output of map_board_and_ferry (Caravel A at
+# (48,24) carrying a sentried Colonist and a sentried Preacher), with its moves refilled (spent byte 0).
+key KP_7                   # (47,23)
+key KP_4                   # (46,23)
+key KP_1                   # into Quebec (45,24): ship docks and ends its move, passengers are put ashore and woken
+wait 30                    # next unit with moves (colonist id 88 in Guadeloupe) is auto-selected
+click 184 112              # open Quebec on the map
+wait 10
+click 312 155              # Units pane tab: the two ex-passengers stand among the units present, the ship is docked
+key Escape                 # back to the map

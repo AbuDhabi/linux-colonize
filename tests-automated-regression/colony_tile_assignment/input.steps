@@ -1,0 +1,16 @@
+# Quebec, 3x3 work-tile minimap centre (260,67), 24 px tiles: NW(236,43) N(260,43) NE(284,43)
+# W(236,67) E(284,67) SW(236,91) S(260,91) SE(284,91). Start: Town Hall holds 3 statesmen;
+# tile workers: colonist 0 on NW, 1 (convert) on W, 2 (fisherman) on NE (water).
+click 168 128              # open Quebec
+wait 10
+drag 107 41 260 91         # Town Hall worker -> free land tile S: becomes a Farmer
+click 236 67               # click the worker on tile W: selects colonist 1
+click 236 91               # click free tile SW: colonist 1 moves there
+click 236 91               # click the selected worker's own tile: field-jobs menu opens
+click 120 88               # pick Lumberjack: production on that tile changes
+click 284 43               # select the fisherman on water tile NE
+click 284 91               # click free land tile SE: the fisherman moves, now farming
+drag 41 155 284 43         # people strip colonist 4 (Town Hall) -> water tile NE: Fisherman (Docks built)
+drag 50 155 236 43         # colonist 5 -> tile NW already worked: only selects its worker, no move
+drag 50 155 260 67         # colonist 5 -> centre tile (the colony itself, not workable): nothing
+key Escape                 # back to the map

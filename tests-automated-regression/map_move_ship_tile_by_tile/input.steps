@@ -1,0 +1,11 @@
+# Caravel at sea (47,29) is selected, 4 moves: one ocean tile costs 3/3 of a move.
+key KP_4     # west, orthogonal
+key KP_7     # NW diagonal
+key KP_8     # north into forest: ships cannot enter land, nothing is spent
+key KP_6     # east
+key KP_9     # NE diagonal: moves exhausted, the game hands over to Caravel A in Quebec
+# Caravel A (4 moves) sails out of Quebec's only water neighbour (NE).
+key KP_9     # NE diagonal out of port
+key KP_6     # east
+key KP_4     # back west
+key KP_1     # SW diagonal back into the colony: docking ends the moves, Caravel B gets selected

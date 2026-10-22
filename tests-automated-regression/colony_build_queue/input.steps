@@ -1,0 +1,45 @@
+# Quebec: Lumber Mill in production. Port-only build queue (docs/colony.md "ColonizeColony.build_queue"):
+# Shift-click / Shift+Enter queues behind the current project and keeps the picker open;
+# queued rows are drawn with their 1-based position in yellow. Picker rows: 8 px apart, row 0 at y=43.
+click 168 128              # open Quebec (map tile 45,24)
+wait 10
+click 282 141              # CHANGE: picker opens on Lumber Mill
+wait 5
+click 150 155 shift        # Shift-click Church: queued as 1, picker stays open
+wait 5
+click 150 83 shift         # Shift-click Warehouse: queued as 2
+wait 5
+click 150 171 shift        # Shift-click Wagon Train: queued as 3
+wait 5
+click 150 155 shift        # Shift-click Church again: already queued, refused
+wait 5
+click 150 147 shift        # Shift-click Lumber Mill (the current project): refused
+wait 5
+key Escape                 # closes the picker; the queue stays
+wait 5
+click 282 141              # CHANGE: the queued rows are still numbered
+wait 5
+click 150 91               # plain click on Stable: new project Stable, the whole queue is wiped
+wait 5
+click 282 141              # CHANGE: no numbers any more
+wait 5
+click 150 43               # "(No Production)": nothing in production
+wait 5
+click 282 141              # CHANGE
+wait 5
+click 150 107 shift        # Shift-click Printing Press with nothing in production starts it, picker stays open
+wait 5
+click 150 155 shift        # Shift-click Church: queued as 1 behind Printing Press
+wait 5
+key Down                   # keyboard: Church -> Blacksmith's Shop
+wait 3
+key Return shift           # Shift+Enter queues it as 2
+wait 5
+key Down                   # Blacksmith's Shop -> Wagon Train
+wait 3
+key Return shift           # Shift+Enter queues it as 3
+wait 5
+key Escape                 # close the picker; project Printing Press, queue Church, Blacksmith's Shop, Wagon Train
+wait 5
+key Escape                 # leave the colony, back on the map
+wait 5
