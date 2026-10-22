@@ -3543,6 +3543,21 @@ static int case_coastal_fort_naval_fire(void) {
     units_despawn(&pool, stale_id);
     ai_diplo_clear_both(&fcol1, 0, 1, AI_DIPLO_WAR);
 
+    /* dos_bugs.md DB-43: an unmet nation (byte 0) is not fired on, though
+     * DOS does (user-observed: Jamestown shot a French Caravel, never met). */
+    const uint8_t met_rel = ai_diplo_read(&fcol1, 0, 1);
+    ai_diplo_write(&fcol1, 0, 1, 0);
+    const int unmet_id = units_spawn_allow_stack(&pool, caravel_ti, wx, wy);
+    foe = units_get(&pool, unmet_id);
+    foe->nation_id = 1;
+    if (units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&fcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, -1, NULL, 0) != 0) {
+      fprintf(stderr, "Fort must not fire on an unmet nation's Caravel\n");
+      pool.types[caravel_ti].defense = old_def;
+      return 1;
+    }
+    units_despawn(&pool, unmet_id);
+    ai_diplo_write(&fcol1, 0, 1, met_rel);
+
     const int priv_ti = units_find_type(&pool, "Privateer");
     if (priv_ti >= 0) {
       const int old_pdef = pool.types[priv_ti].defense;
