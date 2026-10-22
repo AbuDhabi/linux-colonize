@@ -3506,6 +3506,21 @@ static void units_lcr_roll_outcome(
  * relation hit (FUN_281f_0d6c(tribe, nation, 100)) — DOS does not kill the unit
  * here; the angry tribe does that on its own turn.
  */
+/* FUN_65dd_0004 `local_a`: the LCR, BURIAL and SCREWED popups (FUN_281f_0998,
+ * FUN_281f_0652) only show when the explorer is the human player; an AI
+ * explorer rolls and applies the outcome silently. */
+static void units_lcr_popup(
+  int nation,
+  int human_nation,
+  const char* section,
+  int payload,
+  const PopupMsgTokens* tok
+) {
+  if (nation == human_nation) {
+    units_combat_enqueue_tok(AI_POPUP_TAG_INFO, section, nation, -1, payload, tok, "");
+  }
+}
+
 void units_lcr_burial_resolve_w(
   const ColonizeWorld* w,
   int nation,
@@ -3542,8 +3557,7 @@ void units_lcr_burial_resolve_w(
     }
   }
   if (gate < 25) {
-    units_combat_enqueue_tok(
-      AI_POPUP_TAG_INFO, "BURIAL1", nation, -1, 0, &tok, "");
+    units_lcr_popup(nation, human_nation, "BURIAL1", 0, &tok);
   } else if (gate < 50 || (screwed_tribe < 0 && gate < 65)) {
     int g = dos_rng_range(rng, 1, 8);
     g += dos_rng_range(rng, 1, 8);
@@ -3552,8 +3566,7 @@ void units_lcr_burial_resolve_w(
     units_lcr_credit_gold(col1, europe, human_nation, nation, gold);
     tok.has_number0 = true;
     tok.number0 = gold;
-    units_combat_enqueue_tok(
-      AI_POPUP_TAG_INFO, "BURIAL2", nation, -1, gold, &tok, "");
+    units_lcr_popup(nation, human_nation, "BURIAL2", gold, &tok);
   } else {
     const int gold = (dos_rng_range(rng, 1, 8) + (skill + 5) * 2) * 2 * 100;
     (void)units_spawn_treasure_train(pool, x, y, nation, gold);
@@ -3563,8 +3576,7 @@ void units_lcr_burial_resolve_w(
     }
     tok.has_number1 = true;
     tok.number1 = gold;
-    units_combat_enqueue_tok(
-      AI_POPUP_TAG_INFO, "BURIAL3", nation, -1, gold, &tok, "");
+    units_lcr_popup(nation, human_nation, "BURIAL3", gold, &tok);
   }
   if (screwed_tribe >= 0) {
     /* 65dd:06e6: human → 0x32 Military sting ahead of @SCREWED. */
@@ -3582,8 +3594,7 @@ void units_lcr_burial_resolve_w(
       ai_contact_alarm_delta_00f2_w(w, screwed_tribe, nation, 100);
     }
     stok.string0 = units_combat_nation_label(col1, screwed_tribe);
-    units_combat_enqueue_tok(
-      AI_POPUP_TAG_INFO, "SCREWED", nation, -1, 0, &stok, "");
+    units_lcr_popup(nation, human_nation, "SCREWED", 0, &stok);
   }
 }
 
@@ -3746,17 +3757,14 @@ bool units_resolve_lcr_rumour_w(
   memset(&tok, 0, sizeof(tok));
   switch (outcome) {
   case COLONIZE_LCR_NOTHING:
-    units_combat_enqueue_tok(
-      AI_POPUP_TAG_INFO, "LOSTCITY6", nation, -1, 0, &tok, "");
+    units_lcr_popup(nation, human_nation, "LOSTCITY6", 0, &tok);
     break;
   case COLONIZE_LCR_SMALL_TREASURE: {
     const int gold = roll.gold;
     units_lcr_credit_gold(col1, europe, human_nation, nation, gold);
     tok.has_number0 = true;
     tok.number0 = gold;
-    units_combat_enqueue_tok(
-      AI_POPUP_TAG_INFO, "LOSTCITY3", nation, -1, gold, &tok,
-      "");
+    units_lcr_popup(nation, human_nation, "LOSTCITY3", gold, &tok);
     /* FUN_65dd_0004 65dd:04ca: human + gold found (local_12) → pool 2. */
     if (nation == human_nation && gold != 0) {
       units_set_bgm_pool(2);
@@ -3768,9 +3776,7 @@ bool units_resolve_lcr_rumour_w(
     units_lcr_credit_gold(col1, europe, human_nation, nation, gold);
     tok.has_number0 = true;
     tok.number0 = gold;
-    units_combat_enqueue_tok(
-      AI_POPUP_TAG_INFO, "LOSTCITY7", nation, -1, gold, &tok,
-      "");
+    units_lcr_popup(nation, human_nation, "LOSTCITY7", gold, &tok);
     if (nation == human_nation && gold != 0) {
       units_set_bgm_pool(2); /* 65dd:04ca, same arm as LOSTCITY3 */
     }
@@ -3784,10 +3790,10 @@ bool units_resolve_lcr_rumour_w(
      * port used to queue the picks first, so the player picked immigrants
      * before being told a Fountain had been found.
      */
-    units_combat_enqueue_tok(
-      AI_POPUP_TAG_INFO, "LOSTCITY1", nation, -1, 0, &tok,
-      "");
-    units_play_event_sound(0x37); /* FUN_65dd_0004 65dd:04a9 case 1: queued tune (281f_048e) */
+    units_lcr_popup(nation, human_nation, "LOSTCITY1", 0, &tok);
+    if (nation == human_nation) {
+      units_play_event_sound(0x37); /* FUN_65dd_0004 65dd:04a9 case 1: queued tune (281f_048e) */
+    }
     /* 65dd:04a9, right after that 0x37: FUN_281f_0524(8), human explorer only. */
     if (nation == human_nation) {
       (void)woodcut_fire(col1, WOODCUT_THE_FOUNTAIN_OF_YOUTH);
@@ -3850,7 +3856,9 @@ bool units_resolve_lcr_rumour_w(
     }
     break;
   case COLONIZE_LCR_CIBOLA: {
-    units_play_event_sound(0x3c); /* FUN_65dd_0004 65dd:04b6 case 2: queued tune (281f_048e) */
+    if (nation == human_nation) {
+      units_play_event_sound(0x3c); /* FUN_65dd_0004 65dd:04b6 case 2: queued tune (281f_048e) */
+    }
     /* Case 2 (103536-103548): Treasure unit with +0x315b = hundreds. */
     const int gold = roll.treasure_hundreds * 100;
     const int treasure_id = units_spawn_treasure_train(pool, x, y, nation, gold);
@@ -3862,9 +3870,7 @@ bool units_resolve_lcr_rumour_w(
     s_lcr_cibola_total++; /* 103546: `*(char *)0x1dc7 += 1` after the spawn. */
     tok.has_number1 = true;
     tok.number1 = gold;
-    units_combat_enqueue_tok(
-      AI_POPUP_TAG_INFO, "LOSTCITY2", nation, -1, gold, &tok,
-      "");
+    units_lcr_popup(nation, human_nation, "LOSTCITY2", gold, &tok);
     break;
   }
   case COLONIZE_LCR_SURVIVORS_JOIN: {
@@ -3895,9 +3901,7 @@ bool units_resolve_lcr_rumour_w(
     }
     tok.string0 = (nation >= 0 && nation <= 3) ? reports_nation_country_name(nation)
                                                : units_combat_nation_label(col1, nation);
-    units_combat_enqueue_tok(
-      AI_POPUP_TAG_INFO, "LOSTCITY9", nation, -1, 0, &tok,
-      "");
+    units_lcr_popup(nation, human_nation, "LOSTCITY9", 0, &tok);
     break;
   }
   case COLONIZE_LCR_TRESPASS_ANGER: {
@@ -3906,15 +3910,11 @@ bool units_resolve_lcr_rumour_w(
       ai_diplo_indian_relation_delta(col1, tribe, nation, -roll.trespass_mag);
     }
     tok.string0 = units_combat_nation_label(col1, tribe);
-    units_combat_enqueue_tok(
-      AI_POPUP_TAG_INFO, "LOSTCITY8", nation, -1, 0, &tok,
-      "");
+    units_lcr_popup(nation, human_nation, "LOSTCITY8", 0, &tok);
     break;
   }
   case COLONIZE_LCR_VANISHES:
-    units_combat_enqueue_tok(
-      AI_POPUP_TAG_INFO, "LOSTCITY5", nation, -1, 0, &tok,
-      "");
+    units_lcr_popup(nation, human_nation, "LOSTCITY5", 0, &tok);
     /* 65dd:0778 (case 5): human → tune pool 1 (map) before the unit goes. */
     if (nation == human_nation) {
       units_set_bgm_pool(1);
@@ -3926,7 +3926,9 @@ bool units_resolve_lcr_rumour_w(
     units_dissolve_notify(1);
     break;
   case COLONIZE_LCR_BURIAL_MOUNDS: {
-    units_play_event_sound(0x33); /* FUN_65dd_0004 65dd:04c0 case 4: queued tune (281f_048e) */
+    if (nation == human_nation) {
+      units_play_event_sound(0x33); /* FUN_65dd_0004 65dd:04c0 case 4: queued tune (281f_048e) */
+    }
     /*
      * @LOSTCITY4 Search / Stay clear (65dd:04eb `local_3c`, human only):
      * the payout block below it runs from the popup result, so declining
