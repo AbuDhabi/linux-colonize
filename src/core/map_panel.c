@@ -387,7 +387,8 @@ static void map_panel_parenthesized(char* out, size_t out_size, const char* word
  * tier — `tribe.alarm[nation] >> 5` clamped 0..3, forced to 3 once
  * alarm_by_player reaches 0x4a — as 0x0a / 0x0b / 0x0e / 0x0c, over a black
  * surround. When it is some other European, one mark is drawn in *that*
- * nation's colour instead (DS:0x848), telling you who they are angry at.
+ * nation's colour instead (DS:0x848), telling you who they are angry at:
+ * surround in the bright shade, bar in the dark one.
  *
  * The count is the score, not the tier: the loop runs while a counter seeded
  * with the score stays >= 0, subtracting 4 each pass, so it is score/4 + 1
@@ -571,11 +572,10 @@ static void map_panel_draw_tribe_chrome(
       : map_panel_nation_shade(threat, active_palette, true);
     const int y = tile_py + 4; /* local_6 = local_64 + 4 */
     while (n >= 0) {
-      if (n <= 2 && color != dim_color) {
+      /* Only the bar dims (local_a -= 8); the surround local_9 keeps its
+       * colour, so another European's mark is a bright box with a dark bang. */
+      if (n <= 2) {
         color = dim_color;
-        if (surround != 0u) {
-          surround = color;
-        }
       }
       /* FUN_1b9e_000a solid-colour rect fill (now fb_fill_rect). */
       fb_fill_rect(framebuffer, x, y, 3, 7, surround);

@@ -591,6 +591,23 @@ static int case_village_chrome(void) {
   const int dutch_cross_ok = orange_px == 6 && magenta_px == 0;
   ctribe.mission = 0x00;
 
+  /*
+   * Threat is another European (a Spanish colony, viewed as England): DOS
+   * dims only the bar (local_a -= 8) and keeps the surround local_9 bright,
+   * so the mark is a box with a darker bang, not one solid rectangle.
+   */
+  ccolony->nation_id = 2;
+  uint8_t spx[32 * 24];
+  memset(spx, 0xff, sizeof(spx));
+  ColonizeFramebuffer8 sfb = {.width = 32, .height = 24, .pixels = spx};
+  ColonizeWorld w_stribe = world_make(NULL, &ccol, &cmap, &ccol1, true, NULL, NULL);
+  map_panel_render_tribes_on_map_w(&w_stribe, &chrome_icons, &sfb,
+                                    10, 10, 2, 2, 16, 16, 0, 0, 0, NULL);
+  const int rival_mark_ok = spx[4 * 32 + 6] != 0xff && spx[4 * 32 + 6] != 0 &&
+                            spx[5 * 32 + 7] != spx[4 * 32 + 6] &&
+                            spx[8 * 32 + 7] == spx[4 * 32 + 6];
+  ccolony->nation_id = 0;
+
   ss_free(&chrome_icons);
 
 #define CHROME_AT(x, y) cpx[(y) * 32 + (x)]
@@ -617,6 +634,9 @@ static int case_village_chrome(void) {
   }
   if (!complete_map_chrome_ok) {
     return fail("Complete Map (fog nation -1) dropped village alarm/mission chrome");
+  }
+  if (!rival_mark_ok) {
+    return fail("rival-nation alarm mark drew a solid box (bar must be the dark shade)");
   }
   return 0;
 }
