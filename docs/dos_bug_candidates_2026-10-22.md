@@ -49,6 +49,8 @@ golden fails -> tolerated_dos_bugs.md). Entries carry the full evidence.
   C-51, C-60 (byte save fields).
 - Judged intended by the user, entry withdrawn: C-5 (DB-16, @KINGMERCY cut
   content), C-52 (DB-35, follow DOS), C-56 (TB-45, Man-O-War radius 1).
+- Section C, port already differs, recorded as not reproduced: C-61 DB-41,
+  C-62 DB-42.
 - C-7 refuted: DOS closes the bracket; the port's missing ")" was a port bug,
   fixed as port_bugs.md #1147.
 

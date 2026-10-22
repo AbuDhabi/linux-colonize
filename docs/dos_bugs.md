@@ -636,3 +636,37 @@ starts or ends west of column 3. The input-replay regression
 re-recorded from the port (only the 4 LCG-state bytes of the port extension
 block differ).
 **Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-58.
+
+### DB-41 — Tory uprising size comes from the last colony scored
+**DOS:** the Tory uprising FUN_43f7_06a6 (raw 73829-73932; the crown's
+fallback once its land pools are spent) scores every eligible human colony
+into `local_18` (population x (100 - SoL) x 2 / 100 + difficulty + 1, minus the
+attack strength on the colony tile; 0xffff when a crown unit is adjacent or no
+adjacent land is free) and keeps the best in `local_16` (raw 73881-73882). The
+spawn loop then runs `while (0 < (int)local_18)` (raw 73891): it uses the score
+of the last colony scored, not the best one. The uprising lands at the best
+colony with an unrelated number of Soldiers, and when the last colony was
+disqualified (-1) nothing spawns and the uprising is silently cancelled.
+
+**Port:** `ai_king_ref_tory_uprising` (`src/core/ai_king_ref.c`) spawns the
+best colony's score. The port never reproduced the DOS read; recorded
+2026-10-22 at the user's call. Not exercised by any golden.
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-61.
+
+### DB-42 — Open-continents counter is never reset
+**DOS:** the per-nation census FUN_4962_0018 (raw 78316-78319, asm 4962:05d7)
+adds to `DS:0x9650` once for every continent with `continent_tally_a > 7` on
+which the nation has no colony. Every sibling counter is zeroed at census
+entry; this one never is, so it grows with every census call of every nation
+and stays large after the first turns. Its readers, the Euro AI ship logic in
+FUN_521d_20e6 (raw 84955, 84982, 89498, 89527: `!= 0`; raw 86353, 89663:
+`< 2`), therefore always see open land: ships keep founders and soldiers
+aboard near home while the AI is small for the date, and the delivery pick
+never gives under-defended colonies their bonus.
+
+**Port:** `ai_euro_20e6_open_continents` (`src/core/ai_euro_land.c`), used by
+`src/core/ai_euro_ship.c`, recomputes the nation's count on each call. The
+port never reproduced the accumulation; recorded 2026-10-22 at the user's
+call. The idle goldens (63 saves at most) end before the counts fall below 2,
+so they do not show the difference.
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-62.

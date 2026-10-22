@@ -1137,7 +1137,8 @@ static int ai_euro_20e6_rival_strength_fatigue(const ColonizeTurnContext* ctx, c
 /*
  * DS:0x9650 — per-nation stats pass (decomp ~78316): number of continents
  * with continent_tally_a > 7 the nation has no colonies on ("open frontier
- * count"). Recomputed per call.
+ * count"). Recomputed per call. DOS bug not reproduced (docs/dos_bugs.md
+ * DB-42): DOS only ever adds to DS:0x9650 and never resets it.
  */
 int ai_euro_20e6_open_continents(const ColonizeTurnContext* ctx, int nation) {
   if (!ctx->col1_ok || !ctx->col1) {
