@@ -1,36 +1,24 @@
-click 168 128
+# Montreal (pop 7). Fixture: stock tools 100, muskets 100, horses 100; Church added.
+# People strip icons: x = 5 + 9*i, y = 155. Dropping a colonist on the empty left edge of the fence strip
+# opens the "leave as" popup (rows y: Colonist 46, Pioneer 54, Soldier 62, Scout 70, Dragoon 78, Missionary 86).
+# Rows whose gear is missing are greyed. Colonists leave from the end of the strip so indices stay put.
+click 135 175              # open Montreal
 wait 10
-drag 50 155 165 109
-wait 5
-shot
-click 100 78
-wait 5
-shot
-drag 41 155 165 109
-wait 5
-shot
-click 100 62
-wait 5
-shot
-drag 32 155 165 109
-wait 5
-shot
-click 100 70
-wait 5
-shot
-drag 23 155 165 109
-wait 5
-shot
-click 100 54
-wait 5
-shot
-drag 14 155 165 109
-wait 5
-shot
-click 100 46
-wait 5
-shot
-drag 5 155 165 109
-key Escape
-shot
-key Escape
+drag 59 155 131 112        # colonist 6 -> fence: role popup
+click 100 46               # plain Colonist
+drag 50 155 131 112        # colonist 5 -> fence
+click 100 62               # Soldier (-50 muskets)
+drag 41 155 131 112        # colonist 4 -> fence
+click 100 54               # Pioneer (-100 tools)
+drag 32 155 131 112        # colonist 3 (fisherman expert) -> fence
+click 100 70               # Scout (-50 horses)
+drag 23 155 131 112        # colonist 2 -> fence
+click 100 78               # Dragoon (-50 muskets, -50 horses): all gear is used up now
+drag 14 155 131 112        # colonist 1 (expert farmer) -> fence: every gear row is greyed
+click 100 62               # greyed Soldier row: ignored, popup stays open
+click 100 86               # Missionary (Church built, costs no cargo): leaves, keeps his Farmer specialty
+drag 5 155 131 112         # last colonist 0 -> fence: popup
+click 100 46               # Colonist: the last colonist would abandon the colony, confirm prompt
+key Return                 # default answer "Never! That would be folly.": colonist 0 stays
+key Escape                 # close the role popup
+key Escape                 # leave Montreal
