@@ -26,6 +26,7 @@ reference.
    `VICEROY.EXE`, `*.SS`, `*.PIK`, `*.TXT`, `*.MP`, …) into a folder named
    `COLONIZE` next to the `opencol` binary (release packages ship an empty one).
    Keep the original upper-case file names.
+
 ![Correct folder arrangement](docs/images/original_data.png)
 
 3. Run `./opencol` (`opencol.exe` on Windows).
