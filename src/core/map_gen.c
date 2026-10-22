@@ -356,7 +356,8 @@ static void cleanup_diagonal_land(uint8_t* mask, int w, int h) {
  */
 static uint8_t latitude_terrain(int y, int h, int temperature, MapGenRng* rng) {
   /* Dual range(1,0x10): first chooses signed vs negated path; band uses r2.
-   * FUN_684c_08c0 @ 0x0c2c / 0x0b2c / 0x0c46 / EXE 64d75. */
+   * FUN_684c_08c0 @ 0x0c2c / 0x0b2c / 0x0c46 / EXE 64d75.
+   * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-46). */
   int r1 = dos_rng_range(rng, 1, 0x10);
   int first = (h >> 1) - r1 - y + 8;
   int r2 = dos_rng_range(rng, 1, 0x10);

@@ -217,6 +217,7 @@ static bool colony_yield_tile_prime_suppressed(const ColonizeWorldMap* map, int 
   return (map->layer2[(size_t)y * (size_t)map->width + (size_t)x] & MAP_LAYER2_SUPPRESS) != 0;
 }
 
+/* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-41). */
 static int colony_yield_fisherman_distance_mod(const ColonizeWorldMap* map, int x, int y) {
   const int count = colony_yield_ocean_neighbor_count(map, x, y);
   if (count >= 6) {
@@ -569,6 +570,7 @@ static int colony_yield_pipeline(
     }
     if (map_tile_has_river(map, x, y)) {
       add += improvement_step;
+      /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-42). */
       if (map_tile_has_major_river(map, x, y) && add == improvement_step) {
         add += improvement_step;
       }

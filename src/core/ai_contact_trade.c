@@ -1388,6 +1388,7 @@ static void ai_contact_2820_sell_settle(
    * 0x3146` is its type byte — same record-stride evidence as port_bugs.md
    * #878(a) in ai_euro_land.c), not the cargo id. Ported using the same
    * pool-slot-index proxy as #878(a): `unit - ctx->units->units`.
+   * DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-28).
    */
   if (t) {
     const int slot = (ctx && ctx->units && unit) ? (int)(unit - ctx->units->units) : -1;
@@ -1429,6 +1430,7 @@ static void ai_contact_2820_gift_settle(
    * Same `param_2 == 0xf || param_2 == 8` unit-pool-slot test as the sell
    * arm above (2820 doc line 551); see that comment for the #878(a)
    * evidence for the slot-index proxy.
+   * DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-28).
    */
     t->sticky_trade_good = 0xff;
     const int slot = (ctx && ctx->units && unit) ? (int)(unit - ctx->units->units) : -1;

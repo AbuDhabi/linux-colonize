@@ -891,12 +891,13 @@ static int unit_promote_and_label_504(void) {
 }
 
 /*
- * port_bugs.md #598: an armed Indian Convert (@JOB 0x1b) is NOT short-circuited by
- * the FUN_281f_0c9a eligibility gate (FUN_15eb_0002 raw 9298-9307 returns 0
- * for 0x1b), so FUN_5fef_172c raw 100100-100104 reaches the Washington test
- * and, absent Washington, draws FUN_281f_04d4(1, local_6) before the ladder
- * FUN_5fef_16ea (raw 100040-100059) maps 0x1b -> 0x1b and the promotion
- * no-ops. The port must burn that one draw; the profession must not change.
+ * port_bugs.md #598 / docs/dos_bugs.md DB-32: an armed Indian Convert (@JOB 0x1b)
+ * passes the FUN_281f_0c9a eligibility gate (FUN_15eb_0002 raw 9298-9307
+ * returns 0 for 0x1b), so DOS FUN_5fef_172c raw 100100-100104 reaches the
+ * Washington test and, absent Washington, draws FUN_281f_04d4(1, local_6)
+ * before the ladder FUN_5fef_16ea (raw 100040-100059) maps 0x1b -> 0x1b and the
+ * promotion no-ops. DOS wastes that draw; the port draws nothing for a Convert
+ * and the profession must not change.
  */
 static int unit_promote_convert_rng_598(void) {
   ColonizeMsgCatalog names;
@@ -937,7 +938,7 @@ static int unit_promote_convert_rng_598(void) {
   pool.types[brave].defense = 1;
 
   uint32_t state_after[2] = {0, 0};
-  /* pass 0 = no Washington (DOS draws); pass 1 = Washington (DOS skips). */
+  /* pass 0 = no Washington (DOS draws, port does not); pass 1 = Washington. */
   for (int pass = 0; pass < 2 && rc == 0; ++pass) {
     ColonizeCol1Save col1;
     memset(&col1, 0, sizeof(col1));
@@ -992,21 +993,19 @@ static int unit_promote_convert_rng_598(void) {
     units_set_ff_col1(NULL);
   }
   if (rc == 0) {
-    ColonizeDosRng probe;
-    probe.state = state_after[1];
-    (void)dos_rng_next(&probe); /* the one 04d4 draw the no-Washington pass makes */
-    if (probe.state != state_after[0]) {
+    /* DOS makes one 04d4 draw in the no-Washington pass; the port makes none. */
+    if (state_after[1] != state_after[0]) {
       fprintf(stderr,
-              "convert598: expected exactly one extra rng draw "
-              "(no-FF state %u, Washington state +1 draw %u)\n",
-              state_after[0], probe.state);
+              "convert598: expected no extra rng draw "
+              "(no-FF state %u, Washington state %u)\n",
+              state_after[0], state_after[1]);
       rc = 1;
     }
   }
   map_free(&map);
   assets_msg_free(&names);
   if (rc == 0) {
-    fprintf(stderr, "unit_units: #598 Convert falls through and burns one draw ok\n");
+    fprintf(stderr, "unit_units: #598 Convert is not promoted and draws nothing ok\n");
   }
   return rc;
 }

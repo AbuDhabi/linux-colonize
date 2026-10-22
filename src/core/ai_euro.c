@@ -910,6 +910,7 @@ void ai_euro_refresh_colony_ai_flags(
         ++unproductive;
         ++good_food; /* DOS counts open water as a food tile (Docks) */
       }
+      /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-24). */
       if ((cls < 8 || cls > 0x0f) && (cls < 0x10 || cls > 0x17)) {
         const int food = colony_yield_terrain_class_base(cls, COLONIZE_JOB_FARMER);
         if (food < 3) {

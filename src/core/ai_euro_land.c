@@ -319,7 +319,8 @@ void ai_euro_5952_improve_best_plot(
     if (claim >= 0 && ctx->col1_ok && ctx->col1 && ctx->col1->tribe &&
         claim < (int)ctx->col1->head.tribe_count) {
       /* raw 94446: 030c(8d9e cell, nation) — the cell is the village's
-       * NATION byte (4..11), passed unadjusted (OVL asm 5952:1318). */
+       * NATION byte (4..11), passed unadjusted (OVL asm 5952:1318). DOS bug,
+       * reproduced for now (docs/tolerated_dos_bugs_ai.md TB-11). */
       const int alarm =
         ai_euro_5952_alarm_word(ctx->col1, (int)ctx->col1->tribe[claim].nation_id, nation);
       int pen = -(alarm - 4);
@@ -373,7 +374,8 @@ void ai_euro_5952_improve_best_plot(
     );
     if (getenv("AI_5952_BUILD_TRACE")) fprintf(stderr, "[5952 improve] colony %d plot (%d,%d) nb %d (%d,%d) owner %d\n", col->id, tx, ty, d, tx + ai_euro_k_20e6_ring20_dx[d], ty + ai_euro_k_20e6_ring20_dy[d], owner);
     /* raw 94482 stores 06d2 into local_1b0, the colony-nation local the
-     * later job election still reads (raw 94821, asm 5952:2047). */
+     * later job election still reads (raw 94821, asm 5952:2047). DOS bug,
+     * reproduced for now (docs/tolerated_dos_bugs_ai.md TB-13). */
     if (out_improvement_owner) {
       *out_improvement_owner = owner;
     }
@@ -562,14 +564,6 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
   }
   const ColonizeWorld w = world_from_turn_ctx(ctx);
   const int step_cap = (int)ctx->map->width + (int)ctx->map->height;
-  /* local_18 / local_1e: seeded from the colony ONCE (raw 93599-93600) and
-   * then stepped by every walk below, never reset per candidate. The next
-   * candidate's |dx|/|dy| test and walk start from wherever the last walk
-   * stopped (america resync 129: Penobscot's walk to Barbados ended at
-   * (44,39), so Providence (35,62) became |dx| 9 / |dy| 23 and was skipped,
-   * one rng(0,2) fewer than a per-candidate reset draws). */
-  int cx = col->x;
-  int cy = col->y;
   for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
     ColonizeColony* other = &ctx->colonies->colonies[ci];
     if (!other->active || other->nation_id != nation || other == col) {
@@ -577,8 +571,16 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
     }
     const int ox = other->x;
     const int oy = other->y;
+    /* local_18 / local_1e: DOS seeds them from the colony ONCE (raw 93599-93600)
+     * and every walk steps them, so a later candidate's |dx|/|dy| test and
+     * walk start from wherever the last walk stopped. DOS bug not reproduced
+     * (docs/dos_bugs.md DB-23): the port restarts at the colony for each
+     * candidate. */
+    int cx = col->x;
+    int cy = col->y;
     /* raw 93610-93621 — DOS only checks y when |dx| > 6, so the skip needs
-     * BOTH axes beyond 6. Transcribed as written. */
+     * BOTH axes beyond 6. Transcribed as written. DOS bug, reproduced for now
+     * (docs/tolerated_dos_bugs_ai.md TB-15). */
     if (abs(ox - cx) > 6 && abs(oy - cy) > 6) {
       continue;
     }
@@ -1049,7 +1051,9 @@ int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b) {
   if (focus >= 0 && focus < 4) {
     /* For each of a/b: met-but-unpeaced with the focus nation only passes when the
      * focus nation is no stronger (−0x6be4 word, −0x6bf0 byte). DOS compares
-     * b's word but a's −0x6bf0 byte in the second clause (verbatim). */
+     * b's word but a's −0x6bf0 byte in the second clause (raw 97172-97173,
+     * copy-paste slip). DOS bug not reproduced (docs/dos_bugs.md DB-27): b's
+     * byte is compared. */
     const int fa = col1->nation[a].euro_relation[focus] & (AI_DIPLO_PEACE | AI_DIPLO_MET);
     if (fa == AI_DIPLO_MET &&
         !(col1->stuff.land_combat_strength[focus] <= col1->stuff.land_combat_strength[a] &&
@@ -1059,7 +1063,7 @@ int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b) {
     const int fb = col1->nation[b].euro_relation[focus] & (AI_DIPLO_PEACE | AI_DIPLO_MET);
     if (fb == AI_DIPLO_MET &&
         !(col1->stuff.land_combat_strength[focus] <= col1->stuff.land_combat_strength[b] &&
-          col1->stuff.census_pop_proxy[focus] <= col1->stuff.census_pop_proxy[a])) {
+          col1->stuff.census_pop_proxy[focus] <= col1->stuff.census_pop_proxy[b])) {
       return 0;
     }
   }
@@ -1445,11 +1449,13 @@ uint8_t ai_euro_s_20e6_village_visited[AI_20E6_VILLAGE_MAX];
  * colonist). Both need the unit adjacent (dist 1) to the nearest village.
  * Gates:
  *   Scout (type 5): record +3 bit8 (tribe.state.scouted) clear, alarm
- *     quartile < 0x19 (quartile domain 0..3 — vacuously true, omitted),
- *     attitude[nation] == 0 (stand-in latch above).
+ *     quartile < 0x19 (quartile domain 0..3 — vacuously true, omitted; DOS
+ *     bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-26): the raw
+ *     alarm was meant, raw 89065), attitude[nation] == 0 (stand-in latch above).
  *   Colonist: profession-bearing non-combat non-Scout/Missionary type whose
  *     profession byte is 0x1c (Free/none) or 0x19 (Indentured Servant),
- *     record +3 bit2 (tribe.state.learned) clear, attitude < 0x40 (stand-in).
+ *     record +3 bit2 (tribe.state.learned) clear, attitude < 0x40 (stand-in);
+ *     the quartile > 0x18 rejection (raw 89368) never fires, same TB-26.
  * Outcome: DOS writes orders 0x4c + a 2a1f_059c dir (enter the village);
  * OpenCol resolves the entry through the same @ACTIONS outcome functions
  * (Speak With Chief / Live Among The Natives) — an AI unit stepping onto a
@@ -1718,6 +1724,9 @@ static int ai_euro_land_explore_scan_target(
        * inside the helper for nibble-less generated maps). */
       int nib = ai_euro_20e6_site_nibble(ctx, tx, ty, nation_id);
       int score = nib * 4;
+      /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-9):
+       * raw 89123-89125 adds 0x10 when the scanned tile is the absolute tile
+       * (0,0), never a land site; the port omits it. */
       if (map_dos_terr_class_at(ctx->map, tx, ty) == 0x1b) {
         continue; /* LCR */
       }
@@ -2699,7 +2708,7 @@ int ai_euro_20e6_ship_far_roam(
  * walkable land (84f2), fresh coarse region (−0x6056 nibble &6 == 0),
  * same continent
  * (8912) and no presence at all (88c2 < 0). On success the hop length
- * max(dx*4, dy*4) (signed char, byte-faithful) latches into +0x3155, the
+ * max(|dx|*4, |dy|*4) (DOS: signed max, DB-28) latches into +0x3155, the
  * explore fatigue drops by 8 when above 8 (raw 2455-2456), and the target
  * commits as a goto (27f5). Returns 1 when a hop goto was set.
  */
@@ -2753,7 +2762,12 @@ static int ai_euro_20e6_ring_hop(ColonizeTurnContext* ctx, ColonizeUnit* u, cons
   if (getenv("AI_20E6_HOP_TRACE")) {
     fprintf(stderr, "[hop] unit %d n%d slot %d -> (%d,%d)\n", u->id, s->nation, slot, tx, ty);
   }
-  sc[1] = (uint8_t)(int8_t)(hx < hy ? hy : hx); /* raw 2447-2453 */
+  /* raw 90126-90138 (dup 85300): DOS stores the signed max(dx*4, dy*4), so a
+   * NW-side slot stores -4 and the countdown runs ~252 steps. DOS bug not
+   * reproduced (docs/dos_bugs.md DB-28): store the larger absolute value. */
+  const int hax = hx < 0 ? -hx : hx;
+  const int hay = hy < 0 ? -hy : hy;
+  sc[1] = (uint8_t)(hax < hay ? hay : hax); /* raw 2447-2453 */
   if (sc[0] > 8) {
     sc[0] -= 8;
   }
@@ -3291,7 +3305,10 @@ int ai_euro_20e6_hs_cadence_enabled(void) {
  * bit 0x02 (settlement), 0314 reads bit 0x01 (unit). A mover outside a
  * settlement only detects adjacent units in its own water/land domain.
  * Swapping these probes let coastal Braves interrupt a ship's arrived
- * order before the pathfinder could clear its facing (#530). */
+ * order before the pathfinder could clear its facing (#530).
+ * DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-27): a
+ * settlement neighbour overwrites the reference medium (`water`) for the
+ * following tiles; 0b08 keeps the centre medium fixed. */
 int ai_euro_20e6_adjacent_foreign_09dc(const ColonizeTurnContext* ctx, int x, int y, int nation_id) {
   if (!ctx || !ctx->map || !ctx->units) return 0;
   const ColonizeCol1Save* col1 = ctx->col1_ok ? ctx->col1 : NULL;

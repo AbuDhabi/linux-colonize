@@ -151,6 +151,7 @@ int units_best_defender_at(
    * so the colony Artillery x2 fires for an English attacker and New
    * Amsterdam's damaged Artillery outranks two fortified Cont. Cav.).
    */
+  /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-31). */
   int pick_foe_id = attacker_id;
   int pick_foe_nat = atk_nat;
   if (atk_nat >= 0) {
@@ -825,14 +826,12 @@ int units_promote_on_win(
   } else if (prof == UNITS_JOB_COLONIST || prof == UNITS_JOB_NONE) {
     next_prof = UNITS_JOB_SOLDIER; /* DOS 0x15 for soldier AND dragoon bodies */
   } else if (prof == UNITS_JOB_CONVERT) {
-    /* DOS-LITERAL FUN_5fef_172c raw 100085-100104: the eligibility gate is
-     * FUN_281f_0c9a (= FUN_15eb_0002 raw 9298-9307), which returns 0 for
-     * 0x13/0x19/0x1a/0x1b/0x1c — so a Convert (0x1b) FALLS THROUGH into the
-     * Washington test and, absent Washington, draws FUN_281f_04d4(1, local_6)
-     * off the shared stream. Only then does the ladder FUN_5fef_16ea raw
-     * 100040-100059 map 0x1b -> 0x1b, so `iVar3 != iVar2` fails and nothing
-     * is promoted. Outcome is a no-op; the RNG draw is not. (port_bugs.md #598) */
-    next_prof = UNITS_JOB_CONVERT;
+    /* DOS bug not reproduced (docs/dos_bugs.md DB-32): the eligibility gate
+     * FUN_281f_0c9a (raw 100085-100104) lets a Convert (0x1b) through, so DOS
+     * draws FUN_281f_04d4(1, local_6) off the shared stream, then the ladder
+     * FUN_5fef_16ea maps 0x1b -> 0x1b and nothing is promoted: a wasted
+     * draw. The port draws nothing for a Convert. (port_bugs.md #598) */
+    return 0;
   } else {
     return 0; /* experts / everything else: FUN_15eb_0002 returns 1, early out */
   }
@@ -873,11 +872,6 @@ int units_promote_on_win(
     if (roll > loser_str) {
       return 0;
     }
-  }
-  /* 172c raw 100111: ladder(0x1b) == 0x1b, so the `iVar3 != iVar2` guard
-   * fails and the Convert keeps its profession — after the draw above. */
-  if (next_prof == UNITS_JOB_CONVERT) {
-    return 0;
   }
   const ColonizeUnitType* old_ty = ut;
   const int old_prof = winner->profession;
@@ -2143,6 +2137,7 @@ int units_apply_naval_loss_outcome(
     ColonizeCol1Stuff* st = &((ColonizeCol1Save*)col1)->stuff;
     const int n = lose->nation_id;
     st->ship_cargo_totals[n] = (uint8_t)(st->ship_cargo_totals[n] - lt->cargo);
+    /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-34). */
     st->unit_type_counts[n][lose->type_index]--;
     if (lt->attack != 0) {
       st->armed_ship_counts[n]--;
@@ -2803,6 +2798,7 @@ int units_conquest_treasure_gold(
     }
   } else if (tech == 1) {
     /* -0x62 set from Spanish but roll is always 04d4(0,2). */
+    /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-33). */
     const int tribute_roll = dos_rng_range(rng, 0, 2);
     if (tribute_roll == 0 || rich || cortes) {
       amount = dos_rng_range(rng, 3, 8);
@@ -3461,6 +3457,7 @@ static void units_lcr_roll_outcome(
       if (is_pioneer && census < 9 && dos_rng_range(rng, 1, 2) == 1) {
         raw = 6;
       }
+      /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-35). */
       if (col1 && nation >= 0 && nation < 4 && !col1->player[nation].lcr_case5_bonus_used) {
         col1->player[nation].lcr_case5_bonus_used = 1;
         raw = 4;

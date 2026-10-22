@@ -57,9 +57,6 @@ typedef struct AiEuro28c8JobCandidate {
  * colonies_seat_new_colonist is the sim-side entry point (port_bugs.md #562).
  */
 void ai_euro_28c8_auto_assign_plots(ColonizeTurnContext* ctx, int colony_id, int colonist_slot);
-/* FUN_15eb_28c8 local_32 stack residue for the next non-tick 28c8 calls:
- * v >= 0 sets it (founding passes the colony x), -1 restores the default. */
-void ai_euro_28c8_set_l32_residue(int v);
 /* CYCLE.DAT, which DOS FUN_7a9d_0004 loads raw to DS:0x929e: the 5952
  * cascade's past-the-table per-nation reads land in it (ai_euro_5952_ds_byte).
  * Returns false (and keeps zeros) when the file cannot be read. */

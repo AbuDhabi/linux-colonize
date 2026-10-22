@@ -858,17 +858,15 @@ int europe_voyage_turns_roll(
   const int roll = dos_rng_range(rng, 1, 100);
   const int turns = (roll > 89 && ship_count > 2 && !magellan) ? 2 : 1;
   /*
-   * raw 77583-77586: with the result already settled, `param_2 < 3` burns one
-   * more RNG(0,1) and a Magellan test and throws both away — there is no
-   * west-edge voyage penalty in the shipped code, but the draw still leaves
-   * the shared stream one step further on, so the port has to burn it too
-   * (port_bugs.md #1019). param_2 is the New World x of the crossing: the asm
+   * DOS bug not reproduced (docs/dos_bugs.md DB-40): raw 77583-77586, with
+   * the result already settled, `param_2 < 3` burns one more RNG(0,1) and a
+   * Magellan test and throws both away (a west-edge voyage penalty that was
+   * never written). The port draws nothing there (port_bugs.md #1019).
+   * param_2 is the New World x of the crossing: the asm
    * (viceroy_unpacked.asm:93551 / :123097 / :123378) pushes nation +0x32
    * (return_from_europe_x) or unit +0x314d as the second cdecl argument.
    */
-  if (new_world_x < 3) {
-    (void)dos_rng_range(rng, 0, 1);
-  }
+  (void)new_world_x;
   return turns;
 }
 

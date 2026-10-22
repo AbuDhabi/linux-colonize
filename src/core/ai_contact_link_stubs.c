@@ -64,10 +64,6 @@ int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b) {
   return 0;
 }
 
-void ai_euro_28c8_set_l32_residue(int v) {
-  (void)v;
-}
-
 /*
  * FUN_15eb_2ea0 needs the 28c8 scorer in ai_euro.c, which the slim targets do
  * not compile. Fall back to DOS's own no-plot outcome (Carpenter) so an

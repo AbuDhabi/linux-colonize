@@ -1258,7 +1258,7 @@ int game_voyage_turns_for(ColonizeGameState* game, int ships, int new_world_x) {
   const bool magellan = game->col1_ok && hn >= 0 && hn < 4 &&
     founding_fathers_nation_has(&game->col1, hn, FF_FERDINAND_MAGELLAN);
   /* new_world_x = the map column the crossing starts from or returns to; DOS
-   * burns one extra draw below 3 (port_bugs.md #1019). */
+   * burns one extra draw below 3, the port does not (DB-40, port_bugs.md #1019). */
   return europe_voyage_turns_roll(&game->move_rng, magellan, ships, new_world_x);
 }
 

@@ -1849,9 +1849,10 @@ bool units_spiral_place_hs_near(
   for (int e = 0; e < max_dim; ++e) {
     /* Horizontal bands at y = start_y ± e, x from start_x-e .. start_x+e */
     for (int x = start_x - e; x <= start_x + e; ++x) {
-      /* The ±e pair loop (local_12) does not test bVar1, so when both rows
-       * qualify the +e hit overwrites the -e one (raw 77836-77850). */
-      for (int si = 1; si >= 0; --si) {
+      /* DOS bug not reproduced (docs/dos_bugs.md DB-38): the ±e pair loop
+       * (local_12) does not test bVar1, so when both rows qualify the +e hit
+       * overwrites the -e one (raw 77836-77850). The port stops at the first hit. */
+      for (int si = 0; si <= 1; ++si) {
         const int yoff = (si == 0) ? -e : e;
         const int y = start_y + yoff;
         if (units_hs_place_tile_ok(pool, map, nation_id, x, y)) {
@@ -1863,7 +1864,7 @@ bool units_spiral_place_hs_near(
     }
     /* Vertical bands at x = start_x ± e, y from start_y-e .. start_y+e */
     for (int y = start_y - e; y <= start_y + e; ++y) {
-      for (int si = 1; si >= 0; --si) { /* +e wins, as above (local_8) */
+      for (int si = 0; si <= 1; ++si) { /* first hit (-e) wins, as above (local_8) */
         const int xoff = (si == 0) ? -e : e;
         const int x = start_x + xoff;
         if (units_hs_place_tile_ok(pool, map, nation_id, x, y)) {

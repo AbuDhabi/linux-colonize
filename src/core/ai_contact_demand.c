@@ -847,7 +847,8 @@ int ai_contact_meet_economics_2154(
   ColonizeCol1Indian* ind = &ctx->col1->indian[indian_nation - 4];
   memset(out, 0, sizeof(*out));
 
-  /* Phase 1: tribe-local 25-cell cover from colony relative overlap. */
+  /* Phase 1: tribe-local 25-cell cover from colony relative overlap.
+   * DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-29). */
   uint8_t cover[25];
   memset(cover, 0, sizeof(cover));
   const int tx = (int)tribe->x;
@@ -1640,7 +1641,8 @@ void ai_contact_apply_beg_food(
      * 022e's param_2 (the begging Indian nation), not param_1 (the European):
      * the add lands in the flat alarm table past the tribe's own row
      * (independence 4->5: Spain refuses at Roanoke, tribe 5's horse herds
-     * byte gains 1 and Spain's alarm stays). */
+     * byte gains 1 and Spain's alarm stays).
+     * DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-12). */
     ai_diplo_indian_alarm_word_raw(ctx->col1, nation_id, nation_id, d);
     /* raw 87708-87710: `if (contact_state[param_1] == 2) contact_state = 0`
      * (independence 10->11: the Dutch refuse a beg at Vlissingen right after

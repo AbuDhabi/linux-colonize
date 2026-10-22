@@ -272,9 +272,10 @@ static int case_874_drain_and_merc_offer_exclusive(void) {
   return rc;
 }
 
-/* #530: FUN_521d_20e6 raw 89467-89480 clears the accumulated mask
- * BEFORE the continent/latitude gate, and only act state 0x0b overrides it
- * with 0xffff for a land goal. A 0x0c step is not that goal order. */
+/* #530: only act state 0x0b overrides the mask with 0xffff for a land goal. A
+ * 0x0c step is not that goal order. FUN_521d_20e6 raw 89463/89470 resets the
+ * mask inside the neighbour loop; DOS bug not reproduced (docs/dos_bugs.md
+ * DB-26): a later rejected shore keeps the earlier neighbours' mask. */
 static int case_530_unload_mask_scan_and_order(void) {
   ColonizeWorldMap map;
   ColonizeUnitPool units;
@@ -322,8 +323,8 @@ static int case_530_unload_mask_scan_and_order(void) {
   }
   map.terrain[1 * 16 + 4] = 2; /* NW: empty land, but latitude gate fails. */
   map.layer3[1 * 16 + 4] = 0xf2;
-  if (ai_euro_20e6_unload_mask(&ctx, ship, nation) != 0) {
-    fprintf(stderr, "#530: last empty land tile must clear the earlier mask\n");
+  if (ai_euro_20e6_unload_mask(&ctx, ship, nation) != 0x10) {
+    fprintf(stderr, "#530: a later rejected shore must keep the earlier mask\n");
     goto done;
   }
   map.terrain[1 * 16 + 4] = 25;

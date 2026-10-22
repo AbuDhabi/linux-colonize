@@ -415,8 +415,9 @@ static int sp_03(void) {
      * below the threshold so this turn's stipend (diff*8+10, era-doubled)
      * crosses it and buys one Regular (pools empty -> k=0). */
     col1.nation[0].royal_money = 1795;
-    /* 1d42 tail (asm 43f7:1e58, ported 2026-09-06d): on the buy beat only,
-     * nation+0xe (liberty_bells_last_turn) += DS:0x9408 free_colonist_counts. */
+    /* DOS 1d42 tail (asm 43f7:1e58) adds DS:0x9408 free_colonist_counts to
+     * nation+0xe (liberty_bells_last_turn) on the buy beat; the port does not
+     * (docs/dos_bugs.md DB-33), so the seeded word must stay put. */
     col1.stuff.free_colonist_counts[0] = 7;
     col1.nation[0].liberty_bells_last_turn = 5;
     ColonizeDosRng cut_rng;
@@ -443,19 +444,12 @@ static int sp_03(void) {
     if (col1.nation[0].royal_money >= 0x708) {
       return fail("1d42 buy should debit 1800 from royal_money");
     }
-    if (col1.nation[0].liberty_bells_last_turn != 12) {
-      fprintf(stderr, "unit_ai_king: 1d42 bells+0xe=%u (want 12)\n",
+    if (col1.nation[0].liberty_bells_last_turn != 5) {
+      fprintf(stderr, "unit_ai_king: 1d42 bells+0xe=%u (want 5)\n",
               (unsigned)col1.nation[0].liberty_bells_last_turn);
-      return fail("1d42 buy tail should add free_colonist_counts to nation+0xe");
+      return fail("1d42 buy must not add free_colonist_counts to nation+0xe");
     }
     col1.nation[0].royal_money = 0; /* keep later blocks purse-quiet */
-    /* A non-buy 1d42 beat must leave nation+0xe alone (the ADD sits inside
-     * the >=1800 branch, after the 0x708 debit). */
-    col1.nation[0].liberty_bells_last_turn = 5;
-    ai_king_nation_turn(&ctx);
-    if (col1.nation[0].liberty_bells_last_turn != 5) {
-      return fail("1d42 must not touch nation+0xe when the purse cannot buy");
-    }
     col1.stuff.free_colonist_counts[0] = 0;
     col1.nation[0].royal_money = 0;
   }
@@ -3198,18 +3192,18 @@ static int case_dump_goods_pick_api(void) {
       const int campaign4_pick = ai_king_pick_dump_goods_cargo(
         0, campaign4_stock, &campaign4_rng, campaign4_weights
       );
-      if (campaign4_pick != COLONIZE_CARGO_FOOD) {
-        fprintf(stderr, "unit_ai_king: campaign4 tea-party pick=%d (want Food)\n",
+      /* DB-14: the walk now starts from the draw, so the pick is draw-
+       * dependent (seed 1 -> Furs); any stocked cargo keeps the choice. */
+      if (campaign4_pick < 0 || ((campaign4_stock >> campaign4_pick) & 1u) == 0) {
+        fprintf(stderr, "unit_ai_king: campaign4 tea-party pick=%d (want stocked)\n",
                 campaign4_pick);
         return fail("campaign4 stocked goods must keep the tax-audience choices");
       }
     }
-    /* DOS burns a random draw but walks the original signed total: with two
-     * positive entries, the latter drains the sum to zero and is selected. */
+    /* DB-14: DOS burns a random draw but walks the original total (always
+     * the last stocked cargo); the port walks down from the draw, so both
+     * stocked cargos come up, weighted 7:9. */
     {
-      ColonizeDosRng w_rng;
-      dos_rng_seed(&w_rng, 777u);
-      const uint32_t state_before = w_rng.state;
       int weights[COLONIZE_CARGO_COUNT];
       for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
         weights[c] = 0;
@@ -3218,28 +3212,52 @@ static int case_dump_goods_pick_api(void) {
       weights[COLONIZE_CARGO_TOBACCO] = 9;
       const uint16_t sugar_tobacco =
         (uint16_t)((1u << COLONIZE_CARGO_SUGAR) | (1u << COLONIZE_CARGO_TOBACCO));
-      const int p = ai_king_pick_dump_goods_cargo(0, sugar_tobacco, &w_rng, weights);
-      if (p != COLONIZE_CARGO_TOBACCO || w_rng.state == state_before) {
-        fprintf(stderr, "unit_ai_king: DOS total-walk pick=%d rng_advanced=%d\n",
-                p, w_rng.state != state_before);
-        return fail("dump-goods must burn RNG then walk the original total");
+      int n_sugar = 0;
+      int n_tobacco = 0;
+      for (uint32_t seed = 1u; seed <= 200u; ++seed) {
+        ColonizeDosRng w_rng;
+        dos_rng_seed(&w_rng, seed * 2654435761u); /* tiny seeds give tiny first draws */
+        const uint32_t state_before = w_rng.state;
+        const int p = ai_king_pick_dump_goods_cargo(0, sugar_tobacco, &w_rng, weights);
+        if (w_rng.state == state_before) {
+          return fail("dump-goods must burn exactly one draw");
+        }
+        n_sugar += p == COLONIZE_CARGO_SUGAR;
+        n_tobacco += p == COLONIZE_CARGO_TOBACCO;
+      }
+      if (n_sugar + n_tobacco != 200 || n_sugar < 40 || n_tobacco < 60) {
+        fprintf(stderr, "unit_ai_king: roulette sugar=%d tobacco=%d\n", n_sugar, n_tobacco);
+        return fail("dump-goods must walk the weights down from the draw");
       }
     }
     /*
-     * Zero tonnage does not erase a stocked candidate. DOS starts with a
-     * zero total, subtracts the first candidate's zero weight, and selects it.
+     * Zero tonnage (DB-14): any eligible stocked good can still be thrown in
+     * protest; with no tonnage the one draw picks uniformly among them.
      */
     {
-      ColonizeDosRng z_rng;
-      dos_rng_seed(&z_rng, 1234u);
       int weights[COLONIZE_CARGO_COUNT];
       for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
         weights[c] = 0;
       }
-      const int p = ai_king_pick_dump_goods_cargo(sugar_only, all16, &z_rng, weights);
-      if (p != COLONIZE_CARGO_FOOD) {
-        fprintf(stderr, "unit_ai_king: zero-total pick=%d (want Food)\n", p);
-        return fail("zero tonnage must not suppress stocked tea-party goods");
+      uint16_t seen = 0;
+      for (uint32_t seed = 1; seed <= 50; ++seed) {
+        ColonizeDosRng z_rng;
+        ColonizeDosRng ref;
+        dos_rng_seed(&z_rng, seed * 12345u);
+        dos_rng_seed(&ref, seed * 12345u);
+        (void)dos_rng_next(&ref);
+        const int p = ai_king_pick_dump_goods_cargo(sugar_only, all16, &z_rng, weights);
+        if (p < 0 || p >= COLONIZE_CARGO_COUNT || p == COLONIZE_CARGO_SUGAR) {
+          fprintf(stderr, "unit_ai_king: zero-total pick=%d\n", p);
+          return fail("zero tonnage must still pick an eligible stocked cargo");
+        }
+        if (z_rng.state != ref.state) {
+          return fail("zero tonnage pick must burn exactly one draw");
+        }
+        seen = (uint16_t)(seen | (1u << p));
+      }
+      if ((seen & (uint16_t)(seen - 1u)) == 0) {
+        return fail("zero tonnage pick must vary with the draw");
       }
     }
   }

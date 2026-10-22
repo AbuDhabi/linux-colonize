@@ -25,6 +25,33 @@ Sections:
 - E. Port-vs-DOS leads found in passing (DOS is not buggy; port_bugs candidates)
 - F. Housekeeping in the existing docs
 
+## Outcome of sections A and B (2026-10-22)
+
+Each fix was simulated alone (user rule: goldens pass -> dos_bugs.md, any
+golden fails -> tolerated_dos_bugs.md). Entries carry the full evidence.
+
+- Not reproduced any more, [dos_bugs.md](dos_bugs.md): C-1 DB-12, C-2 DB-13,
+  C-3 DB-14, C-4 DB-15, C-11 DB-22, C-14 walk-origin half DB-23, C-15
+  founding half DB-24, C-22 DB-25, C-24 DB-26, C-26 DB-27, C-27 DB-28, C-31
+  DB-29, C-33 DB-30, C-34 DB-31, C-39 DB-32, C-46 DB-33, C-49 DB-34, C-53 DB-36 + DB-37, C-55 DB-38, C-57 DB-39, C-58 DB-40.
+- Tolerated, [tolerated_dos_bugs.md](tolerated_dos_bugs.md) and
+  [tolerated_dos_bugs_ai.md](tolerated_dos_bugs_ai.md) (TB-9..30): C-8b TB-9,
+  C-9 TB-10, C-10 TB-11, C-12 TB-12, C-13 TB-13, C-14 road-connect payer TB-14,
+  C-14 AND test TB-15, C-15 tick TB-16, C-15 local_78 TB-17, C-16 TB-18, C-17
+  TB-19, C-18 TB-20, C-19 TB-21 + TB-22, C-20 TB-23, C-21 TB-24, C-23 TB-25,
+  C-25 TB-26, C-28 TB-27, C-29 TB-28, C-30 TB-29, C-32 TB-30, C-35 TB-31, C-36
+  TB-32, C-38 TB-33, C-40 ship count TB-34, C-41 TB-35, C-42 TB-36, C-43 TB-37
+  + TB-38, C-44 TB-39, C-45 TB-40, C-47 TB-41, C-48 TB-42, C-50 TB-43, C-54
+  TB-44, C-59 TB-46, C-6 TB-47 (all five unit-cap sites; fix passed the goldens
+  but the user kept DOS for the late-game AI saves; DB-17..DB-21 withdrawn).
+- No fix without inventing a rule (left as they are): C-8a, C-8c, C-8d, C-37,
+  C-40 capacity term (20e6 raw 88557-88566 has the same shape: a heuristic),
+  C-51, C-60 (byte save fields).
+- Judged intended by the user, entry withdrawn: C-5 (DB-16, @KINGMERCY cut
+  content), C-52 (DB-35, follow DOS), C-56 (TB-45, Man-O-War radius 1).
+- C-7 refuted: DOS closes the bracket; the port's missing ")" was a port bug,
+  fixed as port_bugs.md #1147.
+
 ---
 
 ## A. Port reproduces; no golden impact expected (dos_bugs candidates)

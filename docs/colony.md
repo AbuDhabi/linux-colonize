@@ -675,9 +675,10 @@ predates production — goods a colony simply out-produced its warehouse for
 are clamped silently. Returns the reportable total (0 when nothing but
 production overflowed, or when the loss is under 2 tons).
 
-A pre-existing overflow of exactly 1 ton is neither reported nor removed —
-DOS zeroes the loss below 2 tons *after* backing production off the stock,
-so that ton stays in the warehouse (FUN_364b_0688 raw 57847-57868).
+A pre-existing overflow of exactly 1 ton is removed but not reported. DOS
+zeroes the loss below 2 tons before the subtract, so that ton stays in the
+warehouse forever; the port does not reproduce that ([dos_bugs.md](dos_bugs.md)
+DB-34, FUN_364b_0688 raw 57847-57868).
 
 When out_first_cargo != NULL and any reportable spoil occurs, writes the
 first such cargo index. When out_type_count != NULL, writes how many
@@ -709,8 +710,9 @@ gate is not OK or the hold is empty.
 raw 99014-99049. `take_goods` != 0 → the hold becomes (offer_cargo,
 offer_qty) (FUN_281f_0cea/0ca4); else the hold is emptied (FUN_281f_0aec)
 and `deal->gold` is credited to the unit's nation. Both arms then do
-`colony.stock[sold_cargo] += sold_qty` — DOS never debits the colony's stock
-of the goods it hands over. Returns 1 when applied.
+`colony.stock[sold_cargo] += sold_qty`. On the barter arm the port also
+debits the handed-over goods from the colony (clamped at 0); DOS never does
+([dos_bugs.md](dos_bugs.md) DB-13). Returns 1 when applied.
 
 ## colonies_trade_route_service_stop
 

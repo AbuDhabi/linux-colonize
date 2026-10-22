@@ -319,17 +319,18 @@ int colonies_apply_warehouse_spoilage(
      * DOS reports a loss only for the part of the overflow that was already
      * there *before* this turn's production: `if (production < overflow)`.
      * Overflow caused purely by production is a silent clamp to capacity with
-     * no @SPOIL message. A reported loss below 2 tons is also dropped
-     * (`if (local_74 < 2) local_74 = 0`).
+     * no @SPOIL message. A loss below 2 tons is removed but not reported
+     * (DOS `if (local_74 < 2) local_74 = 0`, see DB-34 below).
      *
      * DOS-LITERAL FUN_364b_0688 raw 57847-57868. The DOS branch test is
      * `aiStack_e4[c] < overflow`, i.e. (stock_now - before) < (stock_now -
      * cap), i.e. `before > cap`. In that branch DOS first backs this turn's
      * production off the stock (`stock -= aiStack_e4[c]`, leaving `before`)
-     * and only then subtracts local_74 — so when local_74 is zeroed by the
-     * `< 2` rule the stock is left at `before`, NOT at cap. A single ton of
-     * pre-existing overflow therefore sits in the warehouse forever: DOS
-     * discards only above capacity, and only 2 tons or more.
+     * and only then subtracts local_74.
+     * DOS bug not reproduced (docs/dos_bugs.md DB-34): DOS zeroes local_74
+     * when it is under 2 BEFORE the subtract, so one ton of pre-existing
+     * overflow sat in the warehouse forever. The port subtracts the real loss
+     * and suppresses only the @SPOIL count when it is under 2.
      */
     const int before = stock_before ? stock_before[c] : colony->stock[c];
     const int surplus = colony->stock[c] - cap;
@@ -355,10 +356,7 @@ int colonies_apply_warehouse_spoilage(
     if (lost > remain) {
       lost = remain;
     }
-    if (lost < 2) {
-      lost = 0;
-    }
-    if (lost > 0) {
+    if (lost >= 2) {
       if (out_first_cargo && *out_first_cargo < 0) {
         *out_first_cargo = c;
       }
@@ -733,15 +731,19 @@ int colonies_foreign_trade_apply(
     /* raw 99019-99021: FUN_281f_0cea/0ca4 overwrite the hold in place. */
     u->hold_goods_type[hold_index] = deal->offer_cargo;
     u->hold_goods_amount[hold_index] = deal->offer_qty;
+    /* DOS bug not reproduced (docs/dos_bugs.md DB-13): the colony's stock of
+     * the handed-over cargo is not debited in FUN_5f7a_020e. A WoI forced offer
+     * (avail 0x32/100) can exceed the stock, so clamp at 0. */
+    col->stock[deal->offer_cargo] -= deal->offer_qty;
+    if (col->stock[deal->offer_cargo] < 0) {
+      col->stock[deal->offer_cargo] = 0;
+    }
   } else {
     /* raw 99022-99030: FUN_281f_0aec empties the hold, then gold to the purse. */
     (void)units_unload_goods_hold(w->units, unit_id, hold_index, NULL, NULL);
     europe_nation_gold_add(NULL, w->col1, u->nation_id, (long)deal->gold);
   }
-  /*
-   * raw 99031-99033: the colony gains what it bought. DOS does NOT debit the
-   * stock of the cargo it hands over in the barter arm — transcribed, not fixed.
-   */
+  /* raw 99031-99033: the colony gains what it bought. */
   col->stock[deal->sold_cargo] += deal->sold_qty;
   /* port_bugs.md #808: raw 99031-99033 writes colony+0x9a+sold*2 and nothing else
    * — the `cargo_idle_turns = 0` that used to stand here was invented. */

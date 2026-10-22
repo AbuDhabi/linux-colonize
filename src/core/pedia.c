@@ -1443,9 +1443,9 @@ static int pedia_article_unit(
     used += (size_t)snprintf(
       stats + used,
       sizeof(stats) - used,
-      /* DOS FUN_6cb2_07e6 raw 110572-110590 opens '(' but never appends
-       * FUN_281f_0128 (')') or FUN_281f_010a ('%') in this stat row. */
-      "   (%s: +%d %s: -2",
+      /* FUN_6cb2_07e6 asm 6cb2:0cab: `push 2; jmp 0d1b` joins the shared
+       * tail 0182(2) + FUN_281f_0128 (')') of the Soldier/Dragoon row. */
+      "   (%s: +%d %s: -2)",
       pedia_label(a->labels, 180, ""),
       attack - combat,
       pedia_label(a->labels, 201, "")

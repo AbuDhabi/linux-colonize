@@ -250,16 +250,13 @@ static void ai_euro_28c8_env(
  * FUN_281f_0c04 ledger refresh, 0x12 after a FUN_281f_0c36 set-job (the 178f
  * unseat, the indoor arm's trial loop). s_28c8_l32 carries it while the tick
  * runs; AI_28C8_L32_OFF elsewhere (other callers keep the candidate-terrain
- * rule below).
+ * rule below). DOS bug, reproduced for now
+ * (docs/tolerated_dos_bugs_ai.md TB-16).
  */
 #define AI_28C8_L32_OFF (-1)
 #define AI_28C8_L32_LEDGER 0x23ec
 #define AI_28C8_L32_SETJOB 0x12
 static int s_28c8_l32 = AI_28C8_L32_OFF;
-
-void ai_euro_28c8_set_l32_residue(int v) {
-  s_28c8_l32 = v >= 0 ? v : AI_28C8_L32_OFF;
-}
 
 static void ai_euro_28c8_l32_mark(int v) {
   if (s_28c8_l32 != AI_28C8_L32_OFF) {
@@ -529,6 +526,7 @@ static int ai_euro_28c8_score_full(
              * America seed-100 56 -> 57: New Amsterdam's claim byte 11 reads
              * colony 1's own +0x6c word (0), so the reluctance clears the
              * multiplier and the vet goes fishing instead of logging tribe land.
+             * DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-10).
              */
             const int n = claim_tribe + 4;
             const int alarm = ai_euro_5952_alarm_word(col1, n, col->nation_id);
@@ -555,8 +553,8 @@ static int ai_euro_28c8_score_full(
           score = (demand_multiplier + cargo_demand_weight) * score;
           /* DOS local_32 is written only in the food-emergency arm above, so
            * this tail reads stack residue (s_28c8_l32). Outside the 5952 tick
-           * the residue is untraced; human scoring keeps the candidate-terrain
-           * rule there. */
+           * the residue is untraced; human scoring and the founding join keep
+           * the candidate-terrain rule there (founding: DB-24). */
           const bool l32_forest = s_28c8_l32 != AI_28C8_L32_OFF
                                     ? s_28c8_l32 > 7 && s_28c8_l32 < 0x18
                                     : !in_ai_tick && forest;
@@ -1300,7 +1298,8 @@ static void ai_euro_5952_indoor_pass(
    * read in a colony is an uninitialised stack word. That carry-over is
    * DOS-LITERAL and kept; the one thing the port cannot reproduce is the
    * garbage seed, which reads as "no clamp" here (the single modelled unknown
-   * of this pass, with DS:0x84b4's first eight bytes).
+   * of this pass, with DS:0x84b4's first eight bytes). DOS bug, reproduced
+   * for now (docs/tolerated_dos_bugs_ai.md TB-17).
    */
   int avail = 0x7fff;
 
@@ -1528,6 +1527,7 @@ COLONIZE_INTERNAL void ai_euro_5952_lumber_purchase(
   if (col->stock[COLONIZE_CARGO_LUMBER] >= 2 || (turn & 7) != 0) {
     return;
   }
+  /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-22). */
   col->stock[COLONIZE_CARGO_LUMBER] += 100; /* raw 94683-94684 */
   const int nation = col->nation_id;
   if (nation < 0 || nation >= 4) {
@@ -2982,6 +2982,7 @@ COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
       const int need = k_5952_craft[r].root == 0x03 ? 1 : 2;
       if (owned >= need && gross[k_5952_craft[r].cargo] != 0 &&
           census[k_5952_craft[r].job] == 0) {
+        /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-18). */
         target = r; /* DOS-LITERAL: the ROW INDEX, not k_5952_craft[r].job */
       }
     }
@@ -3063,6 +3064,7 @@ COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
   }
   col->colonists[last].profession = trained;
   /* DOS-LITERAL: the price row is the colonist SLOT (asm 0x29d4). */
+  /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-19). */
   const int charged = ai_euro_5952_job_price(last);
   if (charged != INT_MIN) {
     europe_nation_gold_add(ctx->europe, ctx->col1, nation, -(long)charged);
@@ -3087,6 +3089,7 @@ COLONIZE_INTERNAL void ai_euro_5952_seed_horses(
     const ColonizeUnitType* type = units_type(ctx->units, head->type_index);
     capacity = type ? type->cargo : 0;
   } else {
+    /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-20). */
     /* DOS does not guard the 07e0 result -1. Its type address is
      * 3146 - 1c = 312a = terrain row 27's 2f7a labor byte (24).
      * Capacity then reads 5237 + 24*e = 5387, the tutorial byte.
@@ -3211,7 +3214,8 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_open(AiEuroColonyTick* t) {
    * so DOS runs this colony's remaining arms (improve, idle sweep, job
    * passes) on THAT record (tr9 11 -> 12: Bahia's job passes land on St.
    * Louis, Bahia keeps its statesmen, and the seat beside tribe 29's village
-   * charges 15 alarm). */
+   * charges 15 alarm). DOS bug, reproduced for now
+   * (docs/tolerated_dos_bugs_ai.md TB-14). */
   {
     ColonizeColony* const ticking = col;
     col = ai_euro_5952_tools_supply_and_connect(ctx, col);

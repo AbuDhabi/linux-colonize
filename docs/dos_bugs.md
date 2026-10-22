@@ -232,3 +232,407 @@ name or an unrelated string.
 Human-only message chrome; no stock, RNG or AI path reads it. Was the last
 bullet of known_divergences.md #909 (moved 2026-10-22).
 **Status:** done (port behaviour predates the entry; recorded 2026-10-22).
+
+### DB-12 — Europe Artillery price counter rises when the purchase is cancelled
+**DOS:** FUN_38fd_4b50 (raw 64870-64875) computes the Artillery price as base
++ `nation[0x1e]*100`, then increments `nation[0x1e]` before the @REALLYBUY
+popup is asked. The payment and the unit spawn happen only on answer 1 (Yes).
+So a No or Esc still makes the next Artillery 100 dearer, and the saved byte
+`nation+0x1e` drifts up on every cancelled buy.
+
+**Port:** `europe_purchase_commit` (`src/core/europe_dock.c`) bumps
+`artillery_bought` (nation+0x1e) after the debit, so only a Yes raises the
+price. `europe_purchase_open_confirm` no longer bumps it. Unit test:
+`unit_europe` (@REALLYBUY block: open and No leave the counter alone, Yes
+adds one). All goldens and `golden_ai_joint` stay byte-identical.
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-1.
+
+### DB-13 — Foreign-colony barter never debits the colony's offered goods
+**DOS:** FUN_5f7a_020e (Jan de Witt barter at a foreign colony; raw
+99019-99038). The counter-offer is sized from the colony's own stock
+(`stock[c]`, capped at 100, then walked down to the sold cargo's value). On
+"take the goods" the unit's hold is overwritten with the offered cargo
+(FUN_281f_0cea / FUN_281f_0ca4) and the colony gets `stock[sold] += qty`. The
+offered cargo is never subtracted from the colony, so every barter creates
+goods and the AI colony keeps what it handed over.
+
+**Port:** `colonies_foreign_trade_apply` (`src/core/colony_goods.c`) subtracts
+the handed-over quantity from the colony's stock of the offered cargo on the
+"take goods" arm, clamped at 0 (a War of Independence offer is forced up to
+0x32 or 100 and can exceed the stock). The gold arm is unchanged. Unit test:
+`unit_colonies` foreign-colony trade ("colony hands over the offered cargo").
+All goldens and `golden_ai_joint` stay byte-identical.
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-2.
+
+### DB-14 — Tea Party picks the cargo without using its random draw
+**DOS:** FUN_38fd_3dc8 (raw 64176-64200, asm 38fd:3f63-3fbc). The cargo
+weights of the eligible goods are summed into a total, and
+`rand(1, LOWORD(total))` is stored in `local_84` and never read. The walk then
+subtracts each weight from the original total, so the pick is always the last
+stocked, non-boycotted cargo with a nonzero weight. The intended code is the
+usual roulette: `r = rand(); r -= w[c]; pick when r <= 0`. The seized or
+boycotted good is predictable instead of weighted by traded tonnage.
+
+**Port:** `ai_king_pick_dump_goods_cargo` (`src/core/ai_king.c`) keeps the one
+draw and starts the walk from it, so each eligible cargo is picked in
+proportion to its weight. If the weights sum to zero (no good with 100+ tons
+traded), the one draw picks uniformly among the eligible goods instead (user
+decision 2026-10-22): any stocked, not yet boycotted good in a coastal colony
+stays a protest option, and only with none is the hike forced without one.
+DOS took the last eligible cargo with a nonzero weight, or the first eligible
+one when all weights were zero. Unit test: `unit_ai_king_core`
+`dump_goods_pick_api` (weighted 7:9 over 200 seeds, zero-weight pick over 50
+seeds, exactly one draw burned in both, campaign4 weights). All goldens and
+`golden_ai_joint` stay byte-identical.
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-3.
+
+### DB-15 — @MORETHANTHREE cap skips the Rum Distiller
+**DOS:** the work-assign validator thunk_FUN_1000_9808 (viceroy_overlays.c
+60486-60496) tallies every other colonist by occupation and refuses a fourth
+with `if (2 < count[job] && 9 < job) return @MORETHANTHREE`. Indoor jobs start
+at 9 (Rum Distiller), so `9 <` exempts it and the colony screen lets the
+player seat any number of Distillers. Every other indoor building is capped
+at 3; `8 <` (or `>= 9`) was meant.
+
+**Port:** `colonies_assign_workplace` (`src/core/colony_workers.c`) tests
+`occupation > 8`, so the Distiller is capped at 3 like the other indoor jobs.
+The AI placement has its own `< 3` check and is unaffected. Unit test:
+`unit_colonies` school faculty + occupation cap (three distillers fit, the
+fourth is refused). All goldens and `golden_ai_joint` stay byte-identical.
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-4.
+
+### DB-16 — withdrawn: King-gift ship loss tax cut is cut content
+FUN_5fef_0352 (raw 99671-99690) reads the tax cut one table row too far, so
+the King's gift Frigate never cuts the tax. The same block fills every token
+of @KINGMERCY but never shows it, and VICEROY.EXE has no KINGMERCY tag string
+(dead text), so the feature was removed on purpose. The user judged it an
+intended removal (2026-10-22); the port keeps DOS (`units_royal_loss_tax_cut`,
+`src/core/units_combat.c`). Was dos_bug_candidates_2026-10-22.md C-5.
+
+### DB-17 — withdrawn: colony unit project at the unit cap, now tolerated
+The 2026-10-22 fix passed every golden but was reverted at the user's call: the
+port reproduces DOS again. See [tolerated_dos_bugs.md](tolerated_dos_bugs.md)
+TB-47.
+
+### DB-18 — withdrawn: leave-as gear at the unit cap, now tolerated
+The 2026-10-22 fix passed every golden but was reverted at the user's call: the
+port reproduces DOS again. See [tolerated_dos_bugs.md](tolerated_dos_bugs.md)
+TB-47.
+
+### DB-19 — withdrawn: colony birth at the unit cap, now tolerated
+The 2026-10-22 fix passed every golden but was reverted at the user's call: the
+port reproduces DOS again. See [tolerated_dos_bugs.md](tolerated_dos_bugs.md)
+TB-47.
+
+### DB-20 — withdrawn: crosses immigrant at the unit cap, now tolerated
+The 2026-10-22 fix passed every golden but was reverted at the user's call: the
+port reproduces DOS again. See [tolerated_dos_bugs.md](tolerated_dos_bugs.md)
+TB-47.
+
+### DB-21 — withdrawn: Brewster recruit at the unit cap, now tolerated
+The 2026-10-22 fix passed every golden but was reverted at the user's call: the
+port reproduces DOS again. See [tolerated_dos_bugs.md](tolerated_dos_bugs.md)
+TB-47.
+
+### DB-22 — Razing a capital clears alarm in the wrong tribe's dwellings
+**DOS:** the capital-razed arm of FUN_5fef_1b0e (raw 101293-101298) zeroes the
+per-Euro friction and attack words of every dwelling whose settlement `+2`
+nation byte equals `DS:0x8d52`. The settlement byte holds a nation id (4..11);
+`DS:0x8d52` holds the tribe index (0..7), the same word the alarm calls above
+it receive. FUN_4cc6_00f2 (raw 80877) adds the 4 correctly. So the loop clears
+the dwellings of tribe `idx - 4` (nothing at all for tribe indices 0..3), and
+the razed tribe's own dwellings keep the tier clamp (0x20).
+
+**Port:** `ai_diplo_indian_capital_surrender` (`src/core/ai_diplo.c`) compares
+the dwelling's nation byte with the tribe index plus 4, so the razed tribe's
+own dwellings are cleared. Unit test: `unit_ai_contact_core`
+(capital-destroy surrender block, friction expectation changed from 0x20 to
+0). All goldens, idle campaigns and `golden_ai_joint` stay byte-identical.
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-11.
+
+### DB-23 — Euro AI road-connect walk never restarts at the colony
+**DOS:** FUN_5952_0000 (raw 93589-93685), the AI's inter-colony road-connect
+helper, copies the colony's x and y into `local_18` / `local_1e` once (raw
+93599-93600). Each candidate's distance test (raw 93610-93621) and its
+flood-walk toward the other colony (raw 93632-93652) then step those two
+locals in place and nothing resets them. After one candidate's walk fails
+(no gap found, tile occupied, rival's improvement), the next candidate is
+measured, and walked, from wherever the last walk stopped instead of from the
+colony. The helper is meant to look for links out of this colony, so every
+candidate should start at the colony.
+
+**Port:** `ai_euro_5952_road_connect_0000` in `src/core/ai_euro_land.c` takes
+the walk origin `cx` / `cy` from the colony at the top of each candidate.
+Nothing else changes: the same AND distance test (see tolerated_dos_bugs_ai.md TB-15), the same
+one-in-(count-1) roll and the same walk. All goldens, idle campaigns and
+`golden_ai_joint` stay byte-identical (2026-10-22); no unit test pinned the
+carry-over. The disabled america2 campaign cites it as DOS evidence
+(america resync 129: Penobscot's walk to Barbados ended at (44,39), so
+Providence was skipped, one `rng(0,2)` fewer than a per-candidate reset
+draws), so re-check it when that campaign is re-enabled.
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-14.
+
+### DB-24 — Founding join scores the forest penalty from stack residue
+**DOS:** FUN_15eb_28c8 (raw 13119-13122) reads `local_32` for its forest
+penalty, but assigns it only in the food-emergency arm (raw 13037). See
+tolerated_dos_bugs_ai.md TB-16 for the tick. When a colony is founded, the founder's plot is picked
+by the same function (the founding join, after FUN_364b_1ba8 raw 58088), and
+the stack word there is the colony x left by FUN_137f_015e's pushed argument
+(35 at Curacao (35,59), DOSBox seed-100 265 to 266), not a terrain class. The
+forest -10 therefore never fires for the founder, whatever tile it considers.
+
+**Port:** `colonies_found` in `src/core/colony.c` no longer sets the
+residue before `colonies_seat_new_colonist`; the founding join scores the
+candidate tile's own terrain class, like the human auto-assign path. The
+residue setter `ai_euro_28c8_set_l32_residue` (`ai_euro.h`,
+`ai_euro_colony_jobs.c`, `ai_contact_link_stubs.c`) is deleted. The tick's
+residue (tolerated_dos_bugs_ai.md TB-16) is unchanged. All goldens, idle campaigns and
+`golden_ai_joint` stay byte-identical (2026-10-22); no unit test pinned the
+founder residue.
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-15.
+
+### DB-25 — Euro AI ship delivery tally is a signed byte
+**DOS:** FUN_521d_20e6 counts the cargo a ship carries per goods type in a byte
+array on the stack (`ADD byte [BP+SI-0xc6],AL`, viceroy_overlays.asm 136271-136273)
+and reads the entries back with CBW (sign-extended). Two 100-lots of one cargo
+read -56 and 256 reads 0. The colony-pick scoring (overflow term
+`cap - stock - tally`) and the Horses warehouse gate then misjudge the load: a
+full hold of one good looks like a negative or empty delivery.
+
+**Port:** `ai_euro_20e6_delivery_tallies` (`src/core/ai_euro_ship.c`) adds the
+amounts into an `int` without wrapping, so `ai_euro_20e6_delivery_colony_pick`
+and its Horses gate read the plain sum. No test pins the wrap; all goldens,
+idle campaigns and `golden_ai_joint` stay byte-identical. (The DOS evidence for
+the wrap, america resyncs 105-119 and 151+, lies past the enabled golden saves in
+the disabled america2 campaign and would need the old behaviour.)
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-22.
+
+### DB-26 — Euro AI ship unload mask is reset inside the neighbour loop
+**DOS:** the unload-mask scan in FUN_521d_20e6 sets `local_9c = 0` before the
+8-neighbour loop (raw 89451) and again inside it (raw 89463), after the inset,
+water and owner tests of each neighbour and before the continent-stance and
+latitude gates. The mask is consumed once, after the loop (raw 89561-89566). So
+only the last land neighbour passing the first tests counts: an earlier shore
+that would unload founders, soldiers or scouts is wiped by a later land
+neighbour, even one the stance or latitude gate then rejects.
+
+**Port:** `ai_euro_20e6_unload_mask_snapshot` (`src/core/ai_euro_ship.c`) resets the mask
+once before the loop and ORs in the bits of every eligible neighbour (the goal
+continent still sets 0xffff). Unit test: `unit_regress_ai_tables`
+`case_530_unload_mask_scan_and_order` ("a later rejected shore must keep the
+earlier mask" fails on the DOS behaviour). All goldens, idle campaigns and
+`golden_ai_joint` stay byte-identical.
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-24.
+
+### DB-27 — War-worthy check reads nation a's byte in nation b's clause
+**DOS:** FUN_5bfb_10ec (is a war between nations a and b worthwhile, raw
+97148-97211) tests each of the two nations against the focus nation `*(0x5398)`:
+"met but not at peace, and the focus nation is not stronger" (focus word
+`DS:-0x6be4` and focus byte `DS:-0x6bf0` both no larger than the nation's). The
+a-clause (raw 97169-97170) compares both with a. The b-clause (raw 97172-97173)
+compares the word with b but still reads the byte at `param_1` (a): a
+copy-paste slip. The b-clause's byte test therefore ignores nation b.
+
+**Port:** `ai_euro_10ec_war_worthy` (`src/core/ai_euro_land.c`) compares the
+focus byte with b's byte in the b-clause (`census_pop_proxy[b]`). Its caller is
+the AI-vs-AI war / treaty check in `ai_diplo.c`. No test pins the slip; all
+goldens, idle campaigns and `golden_ai_joint` stay byte-identical.
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-26.
+
+### DB-28 — Euro AI explorer hop countdown stores a signed max
+**DOS:** when an AI explorer hops to a plot-ring slot, FUN_521d_20e6 latches
+the hop length into the unit's countdown byte (+0x3155) as `max(dx*4, dy*4)` on
+the signed ring offsets (DS:0xc8 / 0xde; raw 90126-90138, duplicate body at raw
+85300). For a slot whose offsets are both negative the result is negative: the
+NW slot (-1,-1) stores -4, which the unsigned byte reads as 252. A slot with one
+zero offset and one negative offset stores 0. The countdown is decremented once
+per step (raw 89294) and the site scan is skipped while it is nonzero, so an
+explorer sent north-west scans for sites only after about 252 steps instead of 4.
+The hop length is a distance in tiles: the larger absolute value was meant.
+
+**Port:** `ai_euro_20e6_ring_hop` (`src/core/ai_euro_land.c`) stores
+`max(|dx|*4, |dy|*4)` in the hop scratch byte `sc[1]`; the countdown in
+`ai_euro_move_scoring_gate` (`sc[1]--`) is unchanged. No test pins the signed
+store; all goldens, idle campaigns and `golden_ai_joint` stay byte-identical.
+The enabled goldens never complete a ring hop, so they do not exercise this
+(the hop evidence in the code comment, america resync 92->93, is past the
+enabled golden saves).
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-27.
+
+### DB-29 — Raid goods pick burns a dummy rand(0,200) for Muskets
+**DOS:** the Brave raid goods picker in FUN_5fef_0f14 (raw 99826-99829, asm
+5fef:1119-1135) draws a cargo with `rand(0,15)`. When the cargo is Muskets (0xf)
+it calls `rand(0,200)` and computes `result - difficulty * i` into a register
+that nothing reads. The draw has no effect on the pick, but it advances the
+LCG, so every raid that rolls Muskets shifts all later random numbers by one.
+
+**Port:** `ai_contact_raid_roll_stores_cargo` (`src/core/ai_contact_raid.c`)
+makes no extra draw. All goldens, idle campaigns and `golden_ai_joint` stay
+byte-identical, so no test in the suite reaches a Muskets roll with a later
+draw that depends on it.
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-31.
+
+### DB-30 — Brave grudge latch not reset on other-tribe tiles
+**DOS:** in the Brave step scorer FUN_4d56_021a (OVL13 0x66f-0x6ba) the
+per-direction owner block sets the grudge latch `[bp-0x14]` on every arm except
+one. Own or unowned tile: cleared. Euro-owned tile: `attitude >= 0x80`. Tile
+owned by another tribe (owner >= 4): jumps to 0x6ff and skips the store. The
+latch lives for the whole direction loop, so a direction next to another tribe's
+land inherits the previous direction's grudge, sets the `0x40` grudge flag, and
+can gain the Brave a loot-free attack.
+
+**Port:** the owner block of `ai_021a_dir_tile` (`src/core/ai_native_021a.c`)
+clears `grudge` on the owner >= 4 arm, so each direction decides its own grudge.
+All goldens, idle campaigns and `golden_ai_joint` stay byte-identical.
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-33.
+
+### DB-31 — Tribe threat accumulator is a signed byte
+**DOS:** FUN_4d56_152e (raw 81387-81534) keeps a per-Euro accumulator at
+`indian+0x36+e`, a signed `char`. The threat arm subtracts the tribe's threat
+score (doubled at a capital) from it with `*pcVar2 = *pcVar2 - (char)local_c`
+(raw 81503), and later loops spend it: below -7 it adds 8 and raises the alarm
+by 1 (heating), above 7 it subtracts 8 and lowers the alarm (cooling). A threat
+of 128 or more truncates to a negative `char`, so the subtraction adds and the
+accumulator goes positive: a very large threat cools the tribe instead of
+heating it. It needs about 22 Dragoons or 13 Artillery next to a capital.
+
+**Port:** the threat arm of `ai_indian_152e_village_growth` (`src/core/ai_indian.c`) saturates
+the accumulator at -128 instead of wrapping it. Below that range the result is
+identical to DOS. The alarm word itself already used the unwrapped threat. All
+goldens, idle campaigns and `golden_ai_joint` stay byte-identical (no idle
+campaign puts that much military next to a village).
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-34.
+
+### DB-32 — Convert winning a fight draws the promotion roll for nothing
+**DOS:** the combat-promotion body FUN_5fef_172c (raw 100064-100154) gates on
+FUN_281f_0c9a, which returns 0 (eligible) for profession 0x1b, the Indian
+Convert. A winning Convert therefore reaches the Washington test and, without
+Washington, draws `FUN_281f_04d4(1, strength pool)` (raw 100100-100104). Then
+the ladder FUN_5fef_16ea maps 0x1b to 0x1b (raw 100040-100059), the
+`iVar3 != iVar2` guard fails and nothing changes. The roll can never have an
+effect: it only advances the shared RNG stream.
+
+**Port:** `units_promote_on_win` (`src/core/units_combat.c`, the
+`UNITS_JOB_CONVERT` arm) returns at once for a Convert, with no draw. Unit test:
+`unit_units_types` `unit_promote_convert_rng_598` (now expects the same RNG
+state with and without Washington). All goldens, idle campaigns and
+`golden_ai_joint` stay byte-identical (2026-10-22). Earlier tracked as
+port_bugs.md #598.
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-39.
+
+### DB-33 — Royal purchase adds the free-colonist count to the bells-this-turn word
+**DOS:** FUN_43f7_1d42 (the King's purse-funded purchase, raw 74889-74890, asm
+43f7:1e58) debits 1800 from `royal_money` and then adds the nation's
+free-colonist count (`DS:0x9408 + nation`, a byte) to `nation + 0xe`. That
+word is "bells produced this turn": it is zeroed at the start of each nation's
+turn and increased by the bell spend, and nothing in the game reads it. The
+add is a stray write on the wrong field.
+
+**Port:** `ai_king_1d42_royal_purse` (`src/core/ai_king.c`) stops after the
+`royal_money` debit and leaves `liberty_bells_last_turn` alone. Unit test
+`unit_ai_king_core` (audience cut branch, 1d42 buy beat) checks that the word
+keeps its seeded value. All goldens and `golden_ai_joint` pass. Only one golden
+buy happens (`golden_idle_america`, save 31, free-colonist count 0), so the
+goldens do not exercise a non-zero add.
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-46.
+
+### DB-34 — Warehouse spoilage under 2 tons is never removed
+**DOS:** the warehouse clamp in FUN_364b_0688 (raw 57845-57868) computes
+`loss = min(stock, excess)`, then `if (loss < 2) loss = 0`, and only then does
+`stock -= loss`. The "under 2" test is meant to hide a trivial @SPOIL message,
+but because it zeroes the loss before the subtract, a stock one ton over the
+cap is never reduced. It sits at cap+1 forever.
+
+**Port:** `colonies_apply_warehouse_spoilage` (`src/core/colony_goods.c`)
+subtracts the real loss and only withholds the spoilage count (and so the
+@SPOIL message) when the loss is under 2. Unit test: `unit_colonies`
+("1-ton spoil not reported", "1-ton overflow removed"). All goldens, idle
+campaigns and `golden_ai_joint` stay byte-identical.
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-49.
+
+### DB-35 — withdrawn: forest-clear lumber bonus follows DOS
+FUN_479b_01a6 (raw ~76800) tests `FUN_281f_0754(colony) & 0x0a` on the
+receiving colony's tile, so a Lumber Mill colony always gets the +1 step. A
+2026-10-22 trial moved the test to the cleared tile (goldens passed), but the
+user chose the DOS behaviour; the live DOS capture (+60 at Bahia) matches it.
+The port (`units_pioneer_work_tick_w`, `src/core/units_pioneer.c`) keeps DOS.
+Was dos_bug_candidates_2026-10-22.md C-52.
+
+### DB-36 — Scored Go To fallback gives every due east/west step cost 1
+**DOS:** the scored 8-neighbour fallback of `FUN_6662_0f74` (raw 104676-104690,
+asm 6662:13d1-1420) prices a step 1 when both tiles have a road or city, or
+when both have a river and `cur_x == cand_x`, or when `cur_y == cand_y`. The
+last test is not inside the river clause, so every due east or west step costs
+1 whether or not a river is involved. `FUN_465b_0000` (raw 75450-75465) and the
+flood tier of `FUN_6662_00f2` use the intended grouping: river on both tiles
+and (same x or same y).
+
+**Port:** `units_greedy_next_step` (`src/core/units_move.c`) gives cost 1 on the
+river clause only when both tiles have a river and the step is cardinal (same
+x or same y); other steps cost `terr_cost * 3`. No unit test calls it; all
+goldens, idle campaigns and `golden_ai_joint` stay byte-identical.
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-53.
+
+### DB-37 — Scored Go To fallback tests thirds of movement against tiles
+**DOS:** the scored fallback of `FUN_6662_0f74` (raw 104700-104706) prices a
+step `3` when `FUN_281f_090c(unit) < 2`, else `terr_cost * 3`. `090c` returns
+the unit's movement in thirds (`DS:0x5234`, at least 3 for every type), so the
+test never holds and the penalty is always `terr_cost * 3`. The flood tier of
+`FUN_6662_00f2` makes the same choice correctly with `DS:0x5234 < 4` (raw
+103896), i.e. only one-move units get the flat 3.
+
+**Port:** `units_greedy_next_step` (`src/core/units_move.c`) tests
+`units_max_mp() < 4`, so a one-move unit pays 3 per step like in the flood
+tier. No unit test calls it; all goldens, idle campaigns and `golden_ai_joint`
+stay byte-identical. The goldens reach this fallback only about once per
+campaign, with a ship, so they barely exercise the change.
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-53.
+
+### DB-38 — Arrival tile ring search lets the +e hit overwrite the -e hit
+**DOS:** the ring search in `FUN_48d3_048e` (raw 77830-77875) walks each ring
+along its horizontal rows (`y = start_y -/+ e`) and then its vertical columns,
+testing both sides with an inner loop `local_12 = -1, +1`. The found flag
+`bVar1` is tested only by the outer loops, not by the pair loop. When both the
+-e and the +e tile qualify, the second hit overwrites the first, so the ship
+lands on the +e side although the -e tile was found first and is equally near.
+
+**Port:** `units_spiral_place_hs_near` (`src/core/units_cargo.c`) takes the
+first qualifying tile of the pair (-e before +e) and stops. Callers: AI
+ship placement (`ai_euro_ship.c`), end-of-turn arrival (`game_loop_eot.c`).
+`unit_units_ships` still passes; all goldens, idle campaigns and
+`golden_ai_joint` stay byte-identical.
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-55.
+
+### DB-39 — Market pressure ratio truncated to 16 bits
+**DOS:** the Europe price tick `FUN_38fd_0058` (raw ~58845 and ~58899) computes
+the demand ratio `3 * Σledger / ledger[c]` with the 32-bit helper
+`FUN_1d1d_0ec6`, then stores it in an `int` and subtracts it from the signed bid
+byte in 16 bits (`local_6 - (int)lVar15`, and `local_52` in the cargo 1..4
+pass). A ratio above 32767 wraps negative, so the sign of `bid - ratio` flips
+and the pressure word moves the price the wrong way. The clamp-into-bid arm of
+the same loop compares the full 32-bit value and is not affected.
+
+**Port:** `europe_market_bid_sign` (`src/core/europe_harbor.c`), used by phases 2
+and 3 of the market tick, takes the sign of `bid - ratio` without truncating.
+It only differs once the ratio passes 32767 (late game, large `tons2` sums). No
+test reaches that range; `golden_market_prices01`, all idle campaigns and
+`golden_ai_joint` stay byte-identical.
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-57.
+
+### DB-40 — Voyage roll burns an RNG draw for a west-edge penalty that does not exist
+**DOS:** the voyage-length roll `FUN_48d3_0002` (raw 77563-77588) rolls
+RNG(1,100) and settles the result (1 or 2 turns). Then `if (param_2 < 3)` it
+calls `FUN_281f_04d4(0,1)` (an RNG(0,1) draw) and `FUN_281f_07b4(nation, 5)` (the
+Magellan test) and discards both. The pedia describes a west-edge delay that
+Magellan removes, but the shipped code never uses either result. The dead
+draw still advances the shared RNG stream whenever the crossing starts or
+ends at a column below 3.
+
+**Port:** `europe_voyage_turns_roll` (`src/core/europe_pool.c`) draws nothing for
+`new_world_x < 3` (the argument is kept so callers stay unchanged). Every golden,
+idle campaign and `golden_ai_joint` stay byte-identical, so no golden crossing
+starts or ends west of column 3. The input-replay regression
+`europe_buy_ship_and_sail` pinned the extra draw: its `output.sav` was
+re-recorded from the port (only the 4 LCG-state bytes of the port extension
+block differ).
+**Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-58.

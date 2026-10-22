@@ -41,6 +41,8 @@
  * no floor of 1, so a 0-pop port carries no weight. The roulette then walks
  * that candidate array, not the colony list, so past ten human ports the
  * eleventh onward can never be picked.
+ * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-39; same cap
+ * in FUN_43f7_0982 raw 74005, AI_KING_0982_MAX_TARGETS).
  */
 #define AI_KING_10F0_CANDIDATES 10
 
@@ -665,7 +667,8 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
         /* DOS-LITERAL raw 74190: 06dc = FUN_137f_0200, the layer3 owner
          * nibble, not the top unit's nation. 023a never clears the nibble
          * when a tile empties, so a stale crown nibble counts as crown-held
-         * (tr9 18->19: the Artillery lands alone on empty (44,61)). */
+         * (tr9 18->19: the Artillery lands alone on empty (44,61)).
+         * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-38). */
         if (units_tile_owner_nibble(ctx->map, nx, ny) == crown) {
           if (dragoons_landed < cap && force[1] > 0) {
             dragoons_landed++;
@@ -807,6 +810,7 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
        * unit with a non-zero attack byte decrementing the need. DOSBox
        * independence-seed-100 3->4: the second wave lands six units next to
        * the first wave's four tiles.
+       * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-37).
        */
       const ColonizeUnit* su = last_tile_head_id >= 0 ? units_get_const(ctx->units, last_tile_head_id) : NULL;
       if ((su ? su->nation_id : 0) != crown) {

@@ -2061,7 +2061,9 @@ static bool units_flood_cand_ok(
  * outward over at most 225 pops; a popped cell above DS:0xa370 is not
  * expanded, and popping the mover's tile lowers DS:0xa370 to its cost. The
  * grid is rebuilt only when the key moved or grid[mover] == 0 (port_bugs.md #706);
- * otherwise DS:0xa370 stays 0. The neighbour pick runs when DS:0xa370 < cap:
+ * otherwise DS:0xa370 stays 0. The reuse ignores the mover's type, owner, domain
+ * and low-move: DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-44).
+ * The neighbour pick runs when DS:0xa370 < cap:
  * cand cost (+8 term) must be non-zero and below grid[mover]; score adds
  * the mover->cand edge; lowest score wins, a tie only on a strictly smaller
  * FUN_124c_0040 distance to the goal; both bounds start at 99.
@@ -2563,8 +2565,10 @@ static bool units_greedy_next_step(
      * practice, so this bonus can't actually change the `<2` branch —
      * negligible real-world effect either way).
      */
-    /* FUN_281f_090c returns thirds (>= 3 for every type), so `max_mp < 2`
-     * never holds in DOS — the penalty is always terr_cost*3. Kept literal. */
+    /* DOS bug not reproduced (docs/dos_bugs.md DB-37): FUN_281f_090c returns
+     * thirds (>= 3 for every type), so DOS's `< 2` never holds and the penalty
+     * is always terr_cost*3. The port tests `< 4` in thirds, like the flood
+     * tier (DS:0x5234 < 4, raw 103896): a 1-move unit pays 3. */
     const int max_mp = units_max_mp(pool, unit_id);
     const bool is_human_unit =
       g_units_combat_human_nation >= 0 && u->nation_id == g_units_combat_human_nation;
@@ -2610,11 +2614,10 @@ static bool units_greedy_next_step(
          * The 1410 arm is a bare `CMP local_40,local_e / JZ LAB_6662_13e9`
          * with no river operand in scope, i.e. DOS gives EVERY due-East /
          * due-West step the discounted penalty 1 whether or not a river or
-         * road is involved. Almost certainly a MicroProse slip (the river
-         * arm wanted `cur_x == cand_x || cur_y == cand_y`), but it is what
-         * VICEROY.EXE executes, so it is what the port executes. Note the
-         * flood tier (FUN_OVL20_L0000__0015bc, units_flood_edge) spells the
-         * sane both-axes river rule — the asymmetry is DOS-real.
+         * road is involved.
+         * DOS bug not reproduced (docs/dos_bugs.md DB-36): the river arm
+         * wants `cur_x == cand_x || cur_y == cand_y`, the rule FUN_465b_0000
+         * (raw 75450-75465) and the flood tier (units_flood_edge) use.
          */
         const bool road_cur =
           map_tile_has_road(map, u->x, u->y) || map_tile_has_city(map, u->x, u->y);
@@ -2623,12 +2626,10 @@ static bool units_greedy_next_step(
         if (road_cur && road_cand) {
           penalty = 1;
         } else if (map_tile_has_river(map, u->x, u->y) && map_tile_has_river(map, nx, ny) &&
-                   u->x == nx) {
-          penalty = 1;
-        } else if (u->y == ny) {
+                   (u->x == nx || u->y == ny)) {
           penalty = 1;
         } else {
-          penalty = max_mp < 2 ? 3 : map_dos_terr_cost_byte(map_dos_terr_class_at(map, nx, ny)) * 3;
+          penalty = max_mp < 4 ? 3 : map_dos_terr_cost_byte(map_dos_terr_class_at(map, nx, ny)) * 3;
         }
         const int score = penalty + cheb_cand * 4 + manh_cand * 5;
         if (score < best_score) {
