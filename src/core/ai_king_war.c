@@ -1185,6 +1185,20 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx) {
   ai_king_woi_end_warn(&w);
 }
 
+bool ai_king_woi_try_win(ColonizeTurnContext* ctx) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || ctx->human_nation < 0 || ctx->human_nation >= 4) {
+    return false;
+  }
+  const ColonizeCol1Player* pl = &ctx->col1->player[ctx->human_nation];
+  struct ai_king_woi_end_ctx w;
+  memset(&w, 0, sizeof(w));
+  w.ctx = ctx;
+  w.human = ctx->human_nation;
+  w.crown = ai_king_crown_nation_col1(ctx->col1, ctx->human_nation);
+  w.leader = (pl->name[0] != '\0') ? pl->name : "";
+  return ai_king_woi_end_win(&w) == AI_KING_WOI_END_DONE;
+}
+
 /* ===== Nation turn driver & popup result dispatch (ai_king_nation_turn .. ai_king_apply_popup_result) ===== */
 /*
  * FUN_38fd_5e52 tail for the human (raw 68614): `if (0b7a() == 0) 0c84();`

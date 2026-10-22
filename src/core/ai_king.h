@@ -252,6 +252,13 @@ void ai_king_menu_declare_independence(ColonizeTurnContext* ctx);
  * No-op when REF already present (DOS 0x5382 bit1 set).
  */
 int ai_king_spend_woi_bell_pool(ColonizeTurnContext* ctx, int nation_id);
+
+/*
+ * FUN_3844_0442 C1 (raw 58468-58497) for the year-end chrome: tests the
+ * independence-won gate and, when it passes, runs the full win sequence
+ * (latches, victory tune, @WINNING, @KINGLOSE audience). Returns true on a win.
+ */
+bool ai_king_woi_try_win(ColonizeTurnContext* ctx);
 /* FUN_38fd_5be8 peacetime tax roll for an AI nation (no dialog). port_bugs.md #1053. */
 void ai_king_tax_event_ai(ColonizeTurnContext* ctx, int nation_id);
 /* 38fd_3dc8's explicit AI delta: clamp and store, without an audience. */

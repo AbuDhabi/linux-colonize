@@ -742,6 +742,14 @@ COLONIZE_INTERNAL void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTur
       proc->show_indicator = true;
       if (n == 4) {
         turn_advance_day(proc, ctx);
+        /* raw 6462-6466: a win in FUN_3844_0442 (0x104) clears 0x53c2, so no
+         * slot of the next day runs. Without this the Indians moved under the
+         * win's map reveal before the closing chrome (campaign5). */
+        if (proc->result.year_end_victory) {
+          proc->show_indicator = false;
+          proc->step = TURN_PROC_IDLE;
+          return;
+        }
         /* DOS-LITERAL day top, raw 6353-6363 (port_bugs.md #713): FUN_281f_0550
          * (the 00f8 rank refresh), then +0x3149 = 0 for every unit of every
          * nation, then 0676 (the Indian mid-pass) — before nation 0's EOT.

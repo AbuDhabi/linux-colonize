@@ -4884,6 +4884,9 @@ static int case_year_end_defeat_victory(void) {
   col1.head.game_options.woi = 1;
   ctx.col1 = &col1;
   ctx.col1_ok = true;
+  AiPopupState win_pop;
+  memset(&win_pop, 0, sizeof(win_pop));
+  ctx.ai_popups = &win_pop;
   memset(&out, 0, sizeof(out));
   status[0] = '\0';
   turn_run_year_end_chrome(&ctx, &out);
@@ -4902,6 +4905,19 @@ static int case_year_end_defeat_victory(void) {
       (unsigned)col1.head.show_entire_map,
       status
     );
+    return 1;
+  }
+  /* The year-end win runs the king slice's full sequence: @WINNING (payload 1)
+   * ahead of the @KINGLOSE audience. It used to latch silently (campaign5). */
+  int winning_queued = 0;
+  for (int i = 0; i < win_pop.queue_count; ++i) {
+    if (win_pop.queue[i].tag == AI_POPUP_TAG_KING_WAR_END && win_pop.queue[i].payload == 1) {
+      winning_queued = 1;
+    }
+  }
+  ctx.ai_popups = NULL;
+  if (!winning_queued) {
+    fprintf(stderr, "year-end victory must queue @WINNING\n");
     return 1;
   }
   fprintf(stderr, "year-end defeat chrome ok\n");

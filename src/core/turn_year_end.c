@@ -220,73 +220,21 @@ COLONIZE_INTERNAL bool turn_year_end_woi_chrome(
     ctx->col1_ok && ctx->col1 &&
     ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) == AI_KING_ENDGAME_WON;
 
-  /*
-   * Section C1 thin: WoI + (no crown colonies | force) + fleet thin + REF pool
-   * thin. Force (0x5382 bit5) bypasses fleet/REF gates. Cite: year_end_chrome.md.
-   */
   if (woi && !already_won && !out->year_end_defeat) {
     const int crown = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation);
-    int crown_colonies = 0;
-    if (ctx->colonies) {
-      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-        const ColonizeColony* c = &ctx->colonies->colonies[i];
-        if (c->active && c->nation_id == crown) {
-          crown_colonies++;
-        }
-      }
-    }
-    const int force =
-      ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.independence_force;
-    int warships = 0;
-    if (ctx->units) {
-      for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-        const ColonizeUnit* u = &ctx->units->units[i];
-        if (!u->active || u->nation_id != crown) {
-          continue;
-        }
-        /* DOS crown land-force types 0x06/0x08/0x0b (Regulars/Cavalry/
-         * Artillery) — classified by @UNIT kind (audit theme E) so
-         * synthetic pools count right. units_name_kind resolves "Continental
-         * Cavalry" to 0x07 before bare "Cavalry" can claim it, which is what
-         * the old `!strstr(n, "Cont")` guard was for. */
-        const ColonizeUnitKind k = units_type_kind(units_type(ctx->units, u->type_index));
-        if (units_kind_is_royal(k) || k == UNITS_KIND_ARTILLERY) {
-          warships++;
-        }
-      }
-    }
-    /* DOS 3844_0442: bit 0x40 (crown captured a colony this war) LOOSENS the
-     * give-up bar to <8 land units; without it the King fights to the last
-     * (<1). Was inverted. */
-    const int fleet_cap =
-      (ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.ref_unit_threshold) ? 8 : 1;
-    const int colony_gate = (crown_colonies == 0) || force;
-    const int fleet_thin = warships < fleet_cap;
-    /* DOS: (2-(53dc==0)-(53e0==0)+53da) < 4 — expeditionary_force[0/1/3]. */
-    int ref_score = 2;
-    if (ctx->col1_ok && ctx->col1) {
-      const uint16_t* ef = ctx->col1->head.expeditionary_force;
-      if (ef[1] == 0) {
-        ref_score--;
-      }
-      if (ef[3] == 0) {
-        ref_score--;
-      }
-      ref_score += (int)ef[0];
-    }
-    const int ref_thin = ref_score < 4;
-    if (colony_gate && (fleet_thin || force) && (ref_thin || force)) {
+    /*
+     * Section C1 (FUN_3844_0442 raw 58468-58497): the king slice's win arm,
+     * gate and sequence both. This used to be a silent copy of the gate that
+     * set the latches without @WINNING or the @KINGLOSE audience, and it runs
+     * first (campaign5: the war ended with no announcement at all).
+     */
+    if (ai_king_woi_try_win(ctx)) {
       out->year_end_victory = true;
-      if (ctx->col1_ok && ctx->col1) {
-        ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_WON);
-        ctx->col1->head.game_options.independence_chrome = 1; /* 0x5382|8 */
-        ctx->col1->head.show_entire_map = 1; /* LAB_0b4a → DS:0x53a2 */
-        /* calendar_latch (0x5382|0x10 "scoring complete") is NOT set here:
-         * DOS sets it only after the score chain runs (main-loop 0x104
-         * block); setting it at the latch suppressed the win sequence
-         * (port_bugs.md #259 — the game just carried on with a status line). */
-        ctx->col1->head.turn_loop_running = 0; /* DS:0x53c2 clear */
-      }
+      /* calendar_latch (0x5382|0x10 "scoring complete") is NOT set here:
+       * DOS sets it only after the score chain runs (main-loop 0x104
+       * block); setting it at the latch suppressed the win sequence
+       * (port_bugs.md #259 — the game just carried on with a status line). */
+      ctx->col1->head.turn_loop_running = 0; /* DS:0x53c2 clear */
       if (ctx->status && ctx->status_size > 0) {
         snprintf(ctx->status, ctx->status_size, "Victory: independence won.");
       }
