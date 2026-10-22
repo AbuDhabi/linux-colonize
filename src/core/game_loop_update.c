@@ -63,6 +63,7 @@
 #include "core/reports_names.h"
 #include "core/save_load_dialog.h"
 #include "core/savegame.h"
+#include "core/screen_geom.h"
 #include "core/settings.h"
 #include "core/sound.h"
 #include "core/ss.h"
@@ -1045,6 +1046,27 @@ COLONIZE_INTERNAL GameUpdateStep game_update_unit_pacer(ColonizeGameState* game,
 }
 
 /* Reports screen input. */
+/* Leave the report screen from whatever page it is on, then run what follows
+ * it: a new Founding Father's pedia entry, or the retire score chain. */
+static void game_report_leave(ColonizeGameState* game) {
+  game->in_report = false;
+  diag_info("Left report screen.");
+  if (game->ff_pedia_after_report >= 0) {
+    const int ff_index = game->ff_pedia_after_report;
+    game->ff_pedia_after_report = -1;
+    game_open_pedia_article(game, PEDIA_CAT_FATHER, ff_index, false);
+    return;
+  }
+  if (game->report_exits_to_menu) {
+    game->report_exits_to_menu = false;
+    /* DOS FUN_41f2_14a8 retire chain: score (F10 just closed) ->
+     * exploits screen (0b70, only when a @SCORE tier qualifies and
+     * scoring isn't already complete) -> Hall of Fame (0f56 insert +
+     * present) -> title. */
+    game_retire_after_score(game);
+  }
+}
+
 COLONIZE_INTERNAL GameUpdateStep game_update_report_screen(ColonizeGameState* game, const ColonizeInputState* input) {
   if (game->in_report) {
     /* Labor report grid: a click on a profession cell zooms to its detail
@@ -1120,22 +1142,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_report_screen(ColonizeGameState* ga
         }
         game->naval_page = 0;
       }
-      game->in_report = false;
-      diag_info("Left report screen.");
-      if (game->ff_pedia_after_report >= 0) {
-        const int ff_index = game->ff_pedia_after_report;
-        game->ff_pedia_after_report = -1;
-        game_open_pedia_article(game, PEDIA_CAT_FATHER, ff_index, false);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if (game->report_exits_to_menu) {
-        game->report_exits_to_menu = false;
-        /* DOS FUN_41f2_14a8 retire chain: score (F10 just closed) ->
-         * exploits screen (0b70, only when a @SCORE tier qualifies and
-         * scoring isn't already complete) -> Hall of Fame (0f56 insert +
-         * present) -> title. */
-        game_retire_after_score(game);
-      }
+      game_report_leave(game);
       return GAME_UPDATE_RETURN_TRUE;
     }
     /* F-keys switch reports (F2–F10) or open terrain pedia (F1). */
@@ -2354,6 +2361,19 @@ COLONIZE_INTERNAL GameUpdateStep game_update_europe_screen(ColonizeGameState* ga
 }
 
 /* Pedia screen input. */
+/* Leave the Colonizopedia outright (not back to its list). */
+static void game_pedia_leave(ColonizeGameState* game) {
+  game->in_pedia = false;
+  /* Opened from the colony screen (tile right-click): go back there. */
+  if (game->pedia_return_colony_id >= 0 &&
+      colonies_get(&game->colonies, game->pedia_return_colony_id) != NULL) {
+    game->in_colony = true;
+    game->colony_view_id = game->pedia_return_colony_id;
+  }
+  game->pedia_return_colony_id = -1;
+  diag_info("Left Colonizopedia.");
+}
+
 COLONIZE_INTERNAL GameUpdateStep game_update_pedia_screen(ColonizeGameState* game, const ColonizeInputState* input) {
   if (game->in_pedia) {
     const ColonizeFont* font = game_pedia_font(game);
@@ -2402,15 +2422,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_pedia_screen(ColonizeGameState* gam
       if (game->pedia_return_to_list) {
         game_open_pedia_list(game, game->pedia_category);
       } else {
-        game->in_pedia = false;
-        /* Opened from the colony screen (tile right-click): go back there. */
-        if (game->pedia_return_colony_id >= 0 &&
-            colonies_get(&game->colonies, game->pedia_return_colony_id) != NULL) {
-          game->in_colony = true;
-          game->colony_view_id = game->pedia_return_colony_id;
-        }
-        game->pedia_return_colony_id = -1;
-        diag_info("Left Colonizopedia.");
+        game_pedia_leave(game);
       }
       return GAME_UPDATE_RETURN_TRUE;
     }
@@ -3223,6 +3235,28 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     shifted.mouse_x -= screen_off_x;
     shifted.mouse_y -= screen_off_y;
     input = &shifted;
+  }
+
+  /*
+   * Port-only: a left click on the map around a screen drawn over it closes
+   * that screen. Reports and the Colonizopedia close outright (their Escape
+   * pages on / steps back to the list); every other screen gets an Escape, so
+   * an open sub-panel, list or drag goes first, exactly as with the key. An
+   * open popup keeps the click (it is modal over the screen too).
+   */
+  if (input == &shifted && game_screen_on_map() && shifted.mouse_left_clicked &&
+      !game_modal_open(game) &&
+      (shifted.mouse_x < 0 || shifted.mouse_y < 0 || shifted.mouse_x >= SCREEN_BASE_W ||
+       shifted.mouse_y >= SCREEN_BASE_H)) {
+    shifted.mouse_left_clicked = false;
+    if (game->in_report) {
+      game_report_leave(game);
+    } else if (game->in_pedia) {
+      game_pedia_leave(game);
+    } else {
+      shifted.last_key = COLONIZE_KEY_ESCAPE;
+      shifted.text_input_len = 0;
+    }
   }
 
   if (game->elapsed_ms == UINT32_MAX) {

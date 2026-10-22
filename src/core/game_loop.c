@@ -2145,10 +2145,11 @@ COLONIZE_INTERNAL void game_render_map_dialogs(
 ) {
   const ColonizeFont* hud_font = game->colony_font_ok ? &game->colony_font :
                                  (game->menu_font_ok ? &game->menu_font : NULL);
+  const ColonizeSpriteSheet* wood =
+    (game->map_panel_ok && game->map_panel.wood_ok) ? &game->map_panel.wood_tile : NULL;
+  /* The bar also shows on the map under a screen (game_render_map_under). */
+  map_menu_render((MapMenuBar*)&game->map_menu, hud_font, wood, framebuffer);
   if (!game_screen_owns_display(game)) {
-    const ColonizeSpriteSheet* wood =
-      (game->map_panel_ok && game->map_panel.wood_ok) ? &game->map_panel.wood_tile : NULL;
-    map_menu_render((MapMenuBar*)&game->map_menu, hud_font, wood, framebuffer);
     if (game->trade_screen.open) {
       ColonizePopupColors popup_cols;
       popup_colors_from_ui(&popup_cols);
@@ -2601,8 +2602,11 @@ static const uint8_t* window_log_palette_map(
 static int s_fixed_off_x = 0;
 static int s_fixed_off_y = 0;
 /* True when the last game_render painted the overland map rather than one of
- * the DOS-sized screens — the message log strip belongs to the map only. */
+ * the DOS-sized screens — the message log strip belongs to the map only. A
+ * screen drawn on top of the map (s_fixed_on_map) counts as the map here. */
 static bool s_last_render_was_map = false;
+/* The last DOS-sized screen sat on the overland map, not on wood padding. */
+static bool s_fixed_on_map = false;
 
 COLONIZE_INTERNAL void game_screen_offset(int* out_x, int* out_y) {
   if (out_x) {
@@ -2611,6 +2615,26 @@ COLONIZE_INTERNAL void game_screen_offset(int* out_x, int* out_y) {
   if (out_y) {
     *out_y = s_fixed_off_y;
   }
+}
+
+bool game_screen_on_map(void) {
+  return s_fixed_on_map;
+}
+
+/*
+ * Port-only: with a game on and a window at least 10% bigger than 320x200 on
+ * both axes, a DOS-sized screen is drawn over the overland map instead of over
+ * wood. The title menu, the new-game wizard, the intro and the retire / victory
+ * score chain (which ends at the title menu) have no game under them.
+ */
+static bool game_screen_on_map_wanted(
+  const ColonizeGameState* game, const ColonizeFramebuffer8* framebuffer
+) {
+  return framebuffer->width * 10 >= SCREEN_BASE_W * 11 &&
+    framebuffer->height * 10 >= SCREEN_BASE_H * 11 && game->col1_ok && game->world_map_ok &&
+    !game->in_menu && !new_game_active(&game->new_game) && !game->opening.open &&
+    !game->closing.open && !game->in_hall_of_fame && !game->in_exploits &&
+    !game->report_exits_to_menu;
 }
 
 /*
@@ -2743,6 +2767,30 @@ void game_render_window_log(
 }
 
 /*
+ * The overland map under a DOS-sized screen (game_screen_on_map_wanted), drawn
+ * exactly as the map view would draw it, then pushed through a nearest-colour
+ * table into the screen's palette: the frame carries one palette, and the
+ * screen's own art must keep its exact colours.
+ * ponytail: close for screens on the VICEROY base palette (colony, Europe,
+ * reports, pedia); woodcut / declaration / throne palettes tint the map. Exact
+ * colours need platform_present to take a second palette for outside the frame.
+ */
+static void game_render_map_under(
+  const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, const ColonizePalette* palette
+) {
+  ColonizePalette map_pal = game->map_palette_ok ? game->map_palette : game->palette;
+  game_render_map(game, framebuffer, &map_pal);
+  if (turn_processor_show_indicator(&game->turn_proc)) {
+    turn_draw_owner_indicator(framebuffer, game->active_turn_nation);
+  }
+  const uint8_t* lut = window_log_palette_map(&map_pal, palette);
+  const size_t n = (size_t)framebuffer->width * (size_t)framebuffer->height;
+  for (size_t i = 0; i < n; ++i) {
+    framebuffer->pixels[i] = lut[framebuffer->pixels[i]];
+  }
+}
+
+/*
  * Port-only: every screen but the overland map is authored for DOS's fixed
  * 320x200. Those render into a scratch frame of that size, which is then
  * centred in the (larger) window with WOODTILE padding around it — only the
@@ -2752,7 +2800,8 @@ static void game_render_centre_fixed(
   const ColonizeGameState* game,
   const ColonizeFramebuffer8* src,
   ColonizeFramebuffer8* dst,
-  const ColonizePalette* palette
+  const ColonizePalette* palette,
+  bool on_map
 ) {
   if (!src || !src->pixels || !dst || !dst->pixels) {
     return;
@@ -2761,14 +2810,28 @@ static void game_render_centre_fixed(
   const int off_y = (dst->height - src->height) / 2;
   s_fixed_off_x = off_x;
   s_fixed_off_y = off_y;
-  game_paint_wood_rect(game, dst, 0, 0, dst->width, off_y, palette);
-  game_paint_wood_rect(
-    game, dst, 0, off_y + src->height, dst->width, dst->height - off_y - src->height, palette
-  );
-  game_paint_wood_rect(game, dst, 0, off_y, off_x, src->height, palette);
-  game_paint_wood_rect(
-    game, dst, off_x + src->width, off_y, dst->width - off_x - src->width, src->height, palette
-  );
+  if (on_map) {
+    /* dst already holds the map (game_render_map_under). Only a 5px wood
+     * ring goes around the 1px rule below; on_map guarantees the room. */
+    const int ring = 5;
+    const int rx = off_x - 1 - ring;
+    const int ry = off_y - 1 - ring;
+    const int rw = src->width + 2 + 2 * ring;
+    const int rh = src->height + 2 + 2 * ring;
+    game_paint_wood_rect(game, dst, rx, ry, rw, ring, palette);
+    game_paint_wood_rect(game, dst, rx, ry + rh - ring, rw, ring, palette);
+    game_paint_wood_rect(game, dst, rx, ry + ring, ring, rh - 2 * ring, palette);
+    game_paint_wood_rect(game, dst, rx + rw - ring, ry + ring, ring, rh - 2 * ring, palette);
+  } else {
+    game_paint_wood_rect(game, dst, 0, 0, dst->width, off_y, palette);
+    game_paint_wood_rect(
+      game, dst, 0, off_y + src->height, dst->width, dst->height - off_y - src->height, palette
+    );
+    game_paint_wood_rect(game, dst, 0, off_y, off_x, src->height, palette);
+    game_paint_wood_rect(
+      game, dst, off_x + src->width, off_y, dst->width - off_x - src->width, src->height, palette
+    );
+  }
   /* 1px rule just OUTSIDE the screen rect, so it separates the DOS frame from
    * the surrounding wood without covering a pixel of it. Clipped away when a
    * side has no padding to draw into. */
@@ -2802,10 +2865,17 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     fixed = &fixed_fb;
   }
 
+  /* A big enough window shows the map around the screen instead of wood. */
+  const bool on_map = oversize && game_screen_on_map_wanted(game, framebuffer);
+
   if (game_render_fullscreen_takeover(game, fixed, palette)) {
-    s_last_render_was_map = false;
+    s_last_render_was_map = on_map;
+    s_fixed_on_map = on_map;
     if (oversize) {
-      game_render_centre_fixed(game, fixed, framebuffer, palette);
+      if (on_map) {
+        game_render_map_under(game, framebuffer, palette);
+      }
+      game_render_centre_fixed(game, fixed, framebuffer, palette, on_map);
     }
     return;
   }
@@ -2813,14 +2883,19 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
   game_render_select_palette(game, framebuffer, palette, render_log_counter);
 
   if (game_render_screen(game, fixed, palette)) {
-    s_last_render_was_map = false;
+    s_last_render_was_map = on_map;
+    s_fixed_on_map = on_map;
     if (oversize) {
-      game_render_centre_fixed(game, fixed, framebuffer, palette);
+      if (on_map) {
+        game_render_map_under(game, framebuffer, palette);
+      }
+      game_render_centre_fixed(game, fixed, framebuffer, palette, on_map);
     }
   } else {
     s_fixed_off_x = 0;
     s_fixed_off_y = 0;
     s_last_render_was_map = true;
+    s_fixed_on_map = false;
     game_render_map(game, framebuffer, palette);
   }
 
