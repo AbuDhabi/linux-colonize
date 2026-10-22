@@ -275,7 +275,8 @@ bool europe_set_sail_from_harbor(
  * but the hull's orders byte +0x314c = 0 (38fd:326f `mov byte [bx+0x314c],0`). The
  * crossing counter +0x315a, the goto tile +0x314d/e and the position bytes are
  * not touched, so a Caravel 1 turn from the New World is 1 turn from Europe
- * (the lane tick FUN_48d3_03d0 counts down the same way in both directions).
+ * (the lane tick FUN_48d3_03d0 counts down the same way in both directions;
+ * tolerated_dos_bugs.md TB-48).
  * No status line: the handler ends with the cursor restore thunk 291f:0dd4 only.
  * Orders 0 cancels a trade-route ship's automation (orders 2), so the route
  * slot goes with it.

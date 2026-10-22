@@ -183,13 +183,6 @@ static void turn_emit_sol_phase_d_chrome(
   if (!section) {
     return;
   }
-  /* Port status strip only (also the Phase K "message written this tick"
-   * marker); the DOS wording is the catalog popup (@TORY..., @SONS..., @REBEL...) below. */
-  snprintf(europe->status, sizeof(europe->status), "%s: SoL %d%%.", cname, sol_after);
-  if (!ai_popups) {
-    return;
-  }
-  char body[AI_POPUP_BODY_LEN];
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = cname;
@@ -204,6 +197,13 @@ static void turn_emit_sol_phase_d_chrome(
   }
   tok.number0 = sol_after;
   tok.has_number0 = true;
+  /* Port status strip (also the Phase K "message written this tick" marker):
+   * the first sentence of the same catalog section as the popup. */
+  popup_msg_fill_status(messages, section, &tok, europe->status, sizeof(europe->status));
+  if (!ai_popups) {
+    return;
+  }
+  char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(messages, section, &tok, "", body, sizeof(body));
   ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
 }
@@ -2128,27 +2128,21 @@ COLONIZE_INTERNAL void turn_produce_cargo_ready(TurnProduceCtx* pc) {
       if (c < europe->cargo_count && europe->cargo[c].name[0]) {
         cargo_name = europe->cargo[c].name;
       }
-      snprintf(
-        europe->status,
-        sizeof(europe->status),
-        "%s stock grew in %s.",
-        cargo_name ? cargo_name : "",
-        colony->name[0] ? colony->name : ""
-      );
-      if (!ai_popups) {
-        continue;
-      }
       const char* sec = "CARGOREADY0";
       if (cap > 0 && after == cap) {
         sec = (colony->warehouse_level > 1u) ? "CARGOREADY2" : "CARGOREADY1";
       }
-      char body[AI_POPUP_BODY_LEN];
       PopupMsgTokens tok;
       memset(&tok, 0, sizeof(tok));
       tok.string0 = colony->name[0] ? colony->name : "";
       tok.string1 = cargo_name ? cargo_name : "";
       tok.number0 = cap > 0 ? cap : after;
       tok.has_number0 = true;
+      popup_msg_fill_status(messages, sec, &tok, europe->status, sizeof(europe->status));
+      if (!ai_popups) {
+        continue;
+      }
+      char body[AI_POPUP_BODY_LEN];
       popup_msg_fill(messages, sec, &tok, "", body, sizeof(body));
       ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
 

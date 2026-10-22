@@ -1313,13 +1313,6 @@ static void ai_king_1528_announce(ColonizeTurnContext* ctx, int human) {
       str_copy_trunc(general, sizeof(general), fsec->lines[ally1]);
     }
   }
-  if (ctx->status && ctx->status_size) {
-    snprintf(ctx->status, ctx->status_size, "%s enters the conflict against %s!",
-             ally_country, crown_country);
-  }
-  if (!ai_king_human_popups(ctx)) {
-    return;
-  }
   PopupMsgTokens itok;
   memset(&itok, 0, sizeof(itok));
   itok.string0 = ally_country;
@@ -1327,6 +1320,12 @@ static void ai_king_1528_announce(ColonizeTurnContext* ctx, int human) {
   itok.string2 = general;
   itok.string3 = announce_colony;
   itok.string4 = ally_name;
+  if (ctx->status && ctx->status_size) {
+    popup_msg_fill_status(ctx->messages, "INTERVENTION", &itok, ctx->status, ctx->status_size);
+  }
+  if (!ai_king_human_popups(ctx)) {
+    return;
+  }
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, "INTERVENTION", &itok, "", body, sizeof(body));
   (void)ai_popup_enqueue_ok_ctx(
