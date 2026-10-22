@@ -148,7 +148,8 @@ A leading `america2` runs the fourth, `original_saves/golden_idle_america_2-seed
 (Spanish every-turn autosaves `000001`..`000406`, 1572-1799, recorded after the first Americas
 archive's save-64 break). CTests `golden_idle_america2` and `golden_idle_america2_reload` are
 `DISABLED` until the port is aligned. `GOLDEN_IDLE_E7C4_ORACLE=1` (triage only) makes the 20e6
-border-park gate follow the archive, so the DB-4 stack residue does not mask real bugs. Status in
+border-park gate follow the archive (plus the gap-turn parks in `k_america2_gap_parks`;
+`GOLDEN_IDLE_E7C4_FORCE` adds more), so the DB-4 stack residue does not mask real bugs. Status in
 [docs/idle_america2.md](../docs/idle_america2.md).
 
 Most executables expect **repo root** as cwd (`WORKING_DIRECTORY` in CMake).

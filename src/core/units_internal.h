@@ -40,7 +40,9 @@ extern ColonizeWorldMap* units_occupancy_map;
 void units_occupancy_refresh_tile(ColonizeUnitPool* pool, int x, int y, int except_id);
 void units_sync_equip_after_type_change(ColonizeUnit* u, const ColonizeUnitType* t);
 int units_unit_hold_amount(const ColonizeUnit* u, int hold);
-int units_plunder_ship_holds(ColonizeUnitPool* pool, int winner_id, int loser_id);
+int units_plunder_ship_holds(
+  ColonizeUnitPool* pool, int winner_id, int loser_id, const ColonizeCol1Save* col1
+);
 void units_mp_charge(const ColonizeUnitPool* pool, ColonizeUnit* u, int cost);
 void units_mp_exhaust(const ColonizeUnitPool* pool, ColonizeUnit* u);
 void units_mp_restore(const ColonizeUnitPool* pool, ColonizeUnit* u);

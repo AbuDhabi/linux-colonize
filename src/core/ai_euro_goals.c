@@ -2735,7 +2735,6 @@ void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
    * (+0x8e garrison demand, FUN_521d_0a60 raw 87684-87696) and admission
    * arms, interleaved with the foreign-colony producers in record order
    * (ai_euro_0a60_foreign_colony_producers). */
-  ai_euro_ship_pressure_reset(nation_id); /* FUN_4962_0018 raw 78239-78242 */
   ai_euro_colony_goals_producers(ctx, nation_id, inv, urgency);
 }
 

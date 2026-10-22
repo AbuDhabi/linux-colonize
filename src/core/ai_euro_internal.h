@@ -162,7 +162,8 @@ int ai_euro_colony_wanted_size(
   const ColonizeColonyPool* pool,
   const ColonizeColony* c
 );
-/* FUN_521d_6d8e prelude raw 93142-93157: WAGON_TRAIN colony bit from homed wagons. */
+/* FUN_521d_6d8e prelude raw 93148-93157: WAGON_TRAIN colony bit from homed wagons
+ * (the clear is per tick, ai_euro_colony_tick_5952). */
 void ai_euro_6d8e_wagon_flags(ColonizeTurnContext* ctx, int nation_id);
 void ai_euro_refresh_colony_ai_flags(
   ColonizeTurnContext* ctx,
@@ -212,6 +213,12 @@ void ai_euro_5952_build_cascade_for_owner(
   ColonizeTurnContext* ctx, ColonizeColony* col, int improvement_owner
 );
 void ai_euro_colony_tick_5952(ColonizeTurnContext* ctx, int nation_id);
+/* FUN_521d_6d8e prelude colony loop (raw 93118-93142), filled by
+ * ai_euro_colony_tick_5952: DS:0xa0cc[16] before the hull pass and the
+ * DS:0xa0b8 wanting-colonists count, both read from the record each tick
+ * left in DS:0x8542. */
+extern int8_t ai_euro_s_6d8e_need[4][16];
+extern int8_t ai_euro_s_6d8e_wanting[4];
 void ai_euro_5952_colony_counters(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c
 );

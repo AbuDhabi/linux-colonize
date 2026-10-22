@@ -689,7 +689,11 @@ COLONIZE_INTERNAL void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnC
             /* 00f2 5e52 (raw 58375), lane tick 0a82 (raw 58377) and colony
              * loop 0950 (raw 58384), in that order. */
             turn_run_ai_nation_eot(ctx, &proc->result, n);
-            /* 00f2 tail FUN_291f_0a74 -> FUN_4962_0018 (raw 58390). */
+            /* 00f2 tail FUN_291f_0a74 -> FUN_4962_0018 (raw 58390), whose
+             * colony walk also runs the blockade probe (raw 78239-78299)
+             * before 6d8e's colony ticks (america2 44->45: the probes' 0906
+             * floods precede New Amsterdam's road-connect walk). */
+            ai_euro_census_ship_pressure_refresh(ctx, n);
             if (ctx->col1_ok && ctx->col1) {
               const ColonizeWorld cw = world_from_turn_ctx(ctx);
               col1_stuff_census_4962_w(&cw, &ctx->col1->stuff, n);

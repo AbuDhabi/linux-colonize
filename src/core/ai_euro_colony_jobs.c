@@ -3573,6 +3573,41 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_specialist_restore(AiEuroColonyTick* 
   }
 }
 
+int8_t ai_euro_s_6d8e_need[4][16];
+int8_t ai_euro_s_6d8e_wanting[4];
+
+/*
+ * FUN_521d_6d8e raw 93122-93142, after each own colony's FUN_5952_035e: the
+ * reads go through DS:0x8542, which a road connect inside the tick leaves on
+ * another colony (`col` here), so that record is counted (twice, when it
+ * is also ticked itself) and its WAGON_TRAIN bit is the one cleared
+ * (america2 resync 37: Penobscot's muskets specialty counted twice let
+ * England's Galleon buy 100 muskets in Europe). DOS cells are bytes.
+ */
+static void ai_euro_6d8e_prelude_read(int nation_id, ColonizeColony* col) {
+  int8_t* need = ai_euro_s_6d8e_need[nation_id];
+  const int spec = (int8_t)col->specialty_cargo;
+  if (spec >= 0 && spec < 16) {
+    need[spec]++;
+  }
+  if (spec == COLONIZE_CARGO_MUSKETS) {
+    need[COLONIZE_CARGO_MUSKETS]++;
+  }
+  if (col->stock[COLONIZE_CARGO_MUSKETS] == 0) {
+    need[COLONIZE_CARGO_MUSKETS]++;
+  }
+  if (col->stock[COLONIZE_CARGO_HORSES] == 0) {
+    need[COLONIZE_CARGO_HORSES]++;
+  }
+  if (col->stock[COLONIZE_CARGO_TOOLS] == 0) {
+    need[COLONIZE_CARGO_TOOLS]++;
+  }
+  if ((col->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) != 0) {
+    ai_euro_s_6d8e_wanting[nation_id]++;
+  }
+  col->colony_flags = (uint8_t)(col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_WAGON_TRAIN);
+}
+
 static void ai_euro_colony_tick_run(
   ColonizeTurnContext* ctx, int nation_id, bool whole_tick
 ) {
@@ -3585,11 +3620,21 @@ static void ai_euro_colony_tick_run(
   t.world = world_from_turn_ctx(ctx);
   t.nation_id = nation_id;
   t.whole_tick = whole_tick;
+  if (whole_tick) {
+    memset(ai_euro_s_6d8e_need[nation_id], 0, sizeof ai_euro_s_6d8e_need[nation_id]);
+    ai_euro_s_6d8e_wanting[nation_id] = 0;
+  }
   for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
     g_colonies_plot_cache_colony = NULL;
     colonies_claim_snapshot_clear();
     ColonizeColony* col = &ctx->colonies->colonies[ci];
-    if (!col->active || col->nation_id != nation_id || col->colonist_count <= 0) {
+    if (!col->active || col->nation_id != nation_id) {
+      continue;
+    }
+    if (col->colonist_count <= 0) {
+      if (whole_tick) {
+        ai_euro_6d8e_prelude_read(nation_id, col);
+      }
       continue;
     }
     t.col = col;
@@ -3630,6 +3675,7 @@ static void ai_euro_colony_tick_run(
     ai_euro_5952_specialist_arms(ctx, col, n);
     if (whole_tick) {
       ai_euro_5952_seed_horses(ctx, col);
+      ai_euro_6d8e_prelude_read(nation_id, col);
     }
   }
   s_28c8_l32 = AI_28C8_L32_OFF;
