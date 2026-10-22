@@ -12,6 +12,49 @@ order: [docs/project_goals.md](docs/project_goals.md).
 
 Version: **0.8-beta-bugfix-1**.
 
+## Running the game
+
+OpenCol is an engine only. **It needs the files of the original DOS
+Colonization** (graphics, sound, text catalogs, maps), which are not part of
+this repository or of release packages. Use your own legally obtained copy;
+the game is still sold on GOG and Steam. Version 3.0 of the DOS game is the
+reference.
+
+1. Get an OpenCol binary: a release package, or build it yourself
+   ([docs/building.md](docs/building.md)).
+2. Copy the contents of the original game folder (the one holding
+   `VICEROY.EXE`, `*.SS`, `*.PIK`, `*.TXT`, `*.MP`, …) into a folder named
+   `COLONIZE` next to the `opencol` binary (release packages ship an empty one).
+   Keep the original upper-case file names.
+3. Run `./opencol` (`opencol.exe` on Windows).
+
+The data folder is looked up in this order: `--data-dir DIR`, `COLONIZE/`
+next to the executable, `./COLONIZE` in the current directory. If required
+files are missing the game says so and exits.
+
+Saves (`COLONY0n.SAV`, compatible with the DOS game) go to `COLONIZE/` next to
+the executable unless `--save-dir` is given. Preferences live in
+`settings.json` next to the executable ([docs/settings.md](docs/settings.md)).
+
+Useful flags (CLI wins over `settings.json`, which wins over the default):
+
+| Flag | Default | Meaning | `settings.json` |
+|------|---------|---------|-----------------|
+| `--data-dir DIR` | `./COLONIZE` | Original game data | `data_dir` |
+| `--save-dir DIR` | platform default | Save games | `save_dir` (empty = default) |
+| `--scale N` | `2` | Window scale, clamped to 1..8 | `display.window_scale` |
+| `--windowed` / `--fullscreen` | windowed | Window / fullscreen | `display.windowed` |
+| `--nosound` | — | Disable audio | `no_sound` |
+| `--seed N` | — | Fixed RNG seed (debug; like VR_SEED; `0` is valid) | `seed` (`null` / omit = unset) |
+| `--debug-menu` / `--no-debug-menu` | off | DEBUG pulldown on the map navbar | `debug.menu` |
+
+Music needs a soundfont; one is bundled. Details and overrides:
+[docs/music.md](docs/music.md).
+
+## Building
+
+See [docs/building.md](docs/building.md).
+
 ## Documentation
 
 Status:
@@ -29,81 +72,9 @@ see [docs/conventions.md](docs/conventions.md); for debug env vars and
 The port-only preference file `settings.json` lives next to the executable
 (see [docs/settings.md](docs/settings.md)).
 
-## Build requirements
-
-- CMake ≥ 3.20
-- SDL2 (required for the game binary)
-- FluidSynth (optional; MIDI / Pick Music — without it the bundled
-  TinySoundFont backend plays MIDI instead)
-
-Original game data must be present under `COLONIZE/` (or passed with
-`--data-dir`). This repo does not include those files; you provide a copy
-you obtained yourself (see [License](#license)).
-
-## Build / run
-
-```bash
-cmake --preset debug
-cmake --build --preset debug
-./build/debug/opencol
-```
-
-Useful flags (CLI wins over `settings.json`, which wins over the default):
-
-| Flag | Default | Meaning | `settings.json` |
-|------|---------|---------|-----------------|
-| `--data-dir DIR` | `./COLONIZE` | Original game data | `data_dir` |
-| `--save-dir DIR` | platform default | Save games | `save_dir` (empty = default) |
-| `--scale N` | `2` | Window scale, clamped to 1..8 | `display.window_scale` |
-| `--windowed` / `--fullscreen` | windowed | Window / fullscreen | `display.windowed` |
-| `--nosound` | — | Disable audio | `no_sound` |
-| `--seed N` | — | Fixed RNG seed (debug; like VR_SEED; `0` is valid) | `seed` (`null` / omit = unset) |
-| `--debug-menu` / `--no-debug-menu` | off | DEBUG pulldown on the map navbar | `debug.menu` |
-
-Release preset: `cmake --preset release` then `cmake --build --preset release`.
-
-## Music / MIDI soundfont
-
-Songs play over a GM/GS soundfont through one of two synth backends:
-FluidSynth (when built in), or the bundled single-header TinySoundFont
-(`src/third_party/tsf.h`, MIT) as fallback. `settings.json`
-`sound_options.midi_backend` (`"fluidsynth"` / `"tsf"`, empty = auto) forces
-one; `-DCOLONIZE_ENABLE_TSF=OFF` compiles TSF out.
-`sound_find_soundfont` (`src/core/sound.c`) picks a soundfont automatically,
-in order:
-
-1. `settings.json` `sound_options.soundfont`, if set and readable.
-2. The bundled default, `data/soundfonts/Roland_SC-55.sf2` (GPL-3+, see
-   `data/soundfonts/COPYRIGHT.Roland_SC-55`) — tried relative to the working
-   directory, the executable's own directory, and `--data-dir`.
-3. Common system soundfont locations (e.g.
-   `/usr/share/sounds/sf2/FluidR3_GM.sf2`, ScummVM's bundled SC-55, etc.).
-
-If none are found, the game logs a warning and falls back to a soft beep
-path rather than failing — set `sound_options.soundfont` to point at any
-GM-compatible `.sf2` file to override. `--nosound` skips audio entirely.
-The bundled bank is optional and separately licensed (GPL-3+); it is not
-required to build or to run. Without any soundfont, music uses the
-square-wave fallback (no MIDI).
-
 ## License
 
-**opencol code** is [PolyForm Noncommercial 1.0.0](LICENSE)
-(`PolyForm-Noncommercial-1.0.0`). Noncommercial use, modification, and
-redistribution are allowed if you keep the license and the
-`Required Notice:` attribution line. **Commercial use needs explicit
-written permission** from the copyright holder.
-
-**Original Colonization data** (graphics, sound, text catalogs, and the
-rest of a DOS/`COLONIZE/` install) is **not** relicensed here and is
-**not** in this repository. The binary needs those files until someone
-ships replacement assets. You must supply a legally obtained copy — the
-1994 game is still sold on GOG and Steam, among other stores.
-
-**Bundled SC-55 soundfont** (`data/soundfonts/Roland_SC-55.sf2`) is a
-convenience for MIDI, licensed **GPL-3+** by deemster. See
-[`data/soundfonts/COPYRIGHT.Roland_SC-55`](data/soundfonts/COPYRIGHT.Roland_SC-55).
-The port runs without it.
-
-**TinySoundFont** (`src/third_party/tsf.h`) by Bernhard Schelling is
-**MIT** licensed; the license text is in the file header.
+OpenCol code is [PolyForm Noncommercial 1.0.0](LICENSE): noncommercial use
+only. The original game data is not covered and not included. Full details,
+including the bundled soundfont and third-party code:
+[docs/licensing.md](docs/licensing.md).

@@ -35,7 +35,9 @@ lives](#where-detail-lives)).
 | Indians | [indians.md](indians.md), [indian_alarm.md](indian_alarm.md) |
 | Production formulas | [building_production.md](building_production.md), [terrain_yields.md](terrain_yields.md) |
 | Asset formats, graphics, map | [assets.md](assets.md) |
-| Music / sound | [assets_sound.md](assets_sound.md) |
+| Music / sound | [assets_sound.md](assets_sound.md); soundfont / MIDI backend setup: [music.md](music.md) |
+| Build, release packages | [building.md](building.md) |
+| Licensing (code, data, soundfont) | [licensing.md](licensing.md) |
 | `COLONY##.SAV` layout / Col1 bridge | [savegame.md](savegame.md), [save_format_map.md](save_format_map.md) |
 | Conventions, jargon, fixture traps, verification loop | [conventions.md](conventions.md) |
 | Debug env vars / `debug.logs` categories | [debug_env_vars.md](debug_env_vars.md) |
