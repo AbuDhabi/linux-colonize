@@ -1,0 +1,8 @@
+# Build colony on a mountain is refused. Fixture: lone colonist #131 (Preacher) moved onto the mountain
+# at (42,22) (not adjacent to any colony), no orders, full moves, selected (head.active_unit, cursor stuff.x/y).
+key b                      # Build colony: @TOOMOUNTAIN "Colonies cannot be built in the mountains"
+key Return                 # dismiss: no colony, the colonist keeps his moves
+click 90 4                 # ORDERS menu
+click 100 53               # Build Colony row: the same refusal
+shot
+key Return                 # dismiss

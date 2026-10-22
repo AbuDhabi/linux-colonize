@@ -457,7 +457,6 @@ void colony_screen_open_dock_orders(
 );
 void colony_screen_close_dock_orders(ColonyScreenView* view);
 
-void colony_screen_open_message_ok(ColonyScreenView* view, const char* text);
 void colony_screen_close_message(ColonyScreenView* view);
 
 void colony_screen_minimap_origin(int* out_x, int* out_y);

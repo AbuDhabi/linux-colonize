@@ -31,7 +31,7 @@
 /*
  * Sections:
  *  - View state, refresh helpers & subpanel close (colony_screen_set_status .. colony_screen_close_construction) (~line 40)
- *  - Subpanel open/close & popup font/text helpers (colony_screen_open_construction .. colony_screen_open_message_ok) (~line 304)
+ *  - Subpanel open/close & popup font/text helpers (colony_screen_open_construction .. colony_screen_open_custom_house) (~line 304)
  *  - Popup open: eject/jobs/dock-orders & minimap origin (colony_screen_open_eject .. colony_screen_minimap_origin) (~line 478)
  *  - PIK loading, view load/free (colony_screen_load_pik .. colony_screen_free) (~line 721)
  *
@@ -304,7 +304,7 @@ void colony_screen_close_construction(ColonyScreenView* view) {
   view->construction_selection = 0;
 }
 
-/* ===================== Subpanel open/close & popup font/text helpers (colony_screen_open_construction .. colony_screen_open_message_ok) ===================== */
+/* ===================== Subpanel open/close & popup font/text helpers (colony_screen_open_construction .. colony_screen_open_custom_house) ===================== */
 
 void colony_screen_open_construction(
   ColonyScreenView* view,
@@ -474,19 +474,6 @@ void colony_screen_open_custom_house(
     view->custom_house_cargo_ids[view->custom_house_count++] = c;
   }
   view->custom_house_open = true;
-}
-
-void colony_screen_open_message_ok(ColonyScreenView* view, const char* text) {
-  if (!view) {
-    return;
-  }
-  colony_screen_close_subpanels(view);
-  view->message_kind = COLONY_MSG_OK;
-  snprintf(view->message_text, sizeof(view->message_text), "%s", text ? text : "");
-  view->message_choice0[0] = '\0';
-  view->message_choice1[0] = '\0';
-  view->message_selection = 0;
-  view->pending_eject_colonist = -1;
 }
 
 /* ===================== Popup open: eject/jobs/dock-orders & minimap origin (colony_screen_open_eject .. colony_screen_minimap_origin) ===================== */

@@ -1,0 +1,11 @@
+# A colony with a stockade cannot drop below three colonists, so it can never be emptied (abandoned).
+# Fixture: Guadeloupe (41,24), pop 4, gets a Stockade (buildings.fortification = 1).
+# People strip icons: x = 5 + 9*i, y = 155; the fence drop point is (131,112).
+click 104 128              # open Guadeloupe
+wait 10
+drag 32 155 131 112        # colonist 3 -> fence: role popup
+click 100 46               # plain Colonist: leaves, pop 4 -> 3
+drag 23 155 131 112        # colonist 2 -> fence: role popup
+click 100 46               # Colonist: refused with @KEEPSTOCKADE ("cannot voluntarily reduce below three ...")
+key Return                 # dismiss: pop stays 3
+key Escape                 # leave Guadeloupe

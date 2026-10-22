@@ -637,6 +637,8 @@ int colonies_eject_colonist(
 
 /* True if Stockade, Fort, or Fortress is built (voluntary eject must leave ≥3 pop). */
 bool colonies_has_fortification(const ColonizeColonyPool* pool, const ColonizeColony* colony);
+/* FUN_2f2b_0000: enemy minus own military land units around the colony, >= 0; > 0 = under siege. */
+int colonies_siege_margin_w(const ColonizeWorld* w, const ColonizeColony* colony);
 
 /* fortification defense bonus source (see docs/colony.md#colonies_fortification_defense_bonus_percent) */
 int colonies_fortification_defense_bonus_percent(

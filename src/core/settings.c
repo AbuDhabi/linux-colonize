@@ -544,7 +544,7 @@ void settings_apply_to_head(const ColonizeSettings* s, ColonizeCol1Head* head) {
   g->autosave = s->autosave ? 1 : 0;
   g->combat_analysis = s->combat_analysis ? 1 : 0;
   /* DOS keeps this as an inverted disable bit. */
-  g->water_color_cycling = s->water_color_cycling ? 0 : 1;
+  g->water_color_cycling_off = s->water_color_cycling ? 0 : 1;
   g->tutorial_hints = s->tutorial_hints ? 1 : 0;
 
   /* Settings hold the player-facing sense (true = shown); the Col1 bits are
@@ -577,7 +577,7 @@ void settings_capture_from_head(ColonizeSettings* s, const ColonizeCol1Head* hea
   s->end_of_turn = g->end_of_turn != 0;
   s->autosave = g->autosave != 0;
   s->combat_analysis = g->combat_analysis != 0;
-  s->water_color_cycling = g->water_color_cycling == 0;
+  s->water_color_cycling = g->water_color_cycling_off == 0;
   s->tutorial_hints = g->tutorial_hints != 0;
 
   const ColonizeCol1ColonyReportOptions* c = &head->colony_report_options;

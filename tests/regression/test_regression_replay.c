@@ -47,6 +47,7 @@
 #include "core/units.h"
 #include "core/json_min.h"
 #include "core/screen_geom.h"
+#include "core/settings.h"
 #include "platform/platform.h"
 #include "tests/common/test_runner.h"
 
@@ -557,6 +558,12 @@ static int run_test(const char* name) {
   const uint64_t limit_ms =
     2u * (uint64_t)duration_ms > MIN_TIME_LIMIT_MS ? 2u * (uint64_t)duration_ms : MIN_TIME_LIMIT_MS;
   make_dirs(out_dir);
+  /* The options dialogs flush settings.json: keep it in the test's out dir (fresh
+   * defaults every run), not ./settings.json at the repo root. */
+  char settings_file[640];
+  snprintf(settings_file, sizeof(settings_file), "%s/settings.json", out_dir);
+  remove(settings_file);
+  (void)settings_init(settings_file, NULL, 0);
 #ifndef _WIN32
   /* The limit above is checked between frames; this catches one frame that
    * never returns (a stray Return ending the turn runs the AI inline). */

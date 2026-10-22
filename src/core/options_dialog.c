@@ -127,7 +127,7 @@ bool options_dialog_open_game(
     vals[4] = opts->autosave ? 1 : 0;
     vals[5] = opts->combat_analysis ? 1 : 0;
     /* DOS stores this checkbox as a disable bit: clear means cycling on. */
-    vals[6] = opts->water_color_cycling ? 0 : 1;
+    vals[6] = opts->water_color_cycling_off ? 0 : 1;
     vals[7] = opts->tutorial_hints ? 1 : 0;
   }
   return options_load_section(
@@ -231,7 +231,7 @@ void options_dialog_apply_game(const OptionsDialog* dlg, ColonizeCol1GameOptions
   opts->autosave = dlg->result_values[4] ? 1 : 0;
   opts->combat_analysis = dlg->result_values[5] ? 1 : 0;
   /* Preserve DOS polarity in the Col1 bitfield. */
-  opts->water_color_cycling = dlg->result_values[6] ? 0 : 1;
+  opts->water_color_cycling_off = dlg->result_values[6] ? 0 : 1;
   opts->tutorial_hints = dlg->result_values[7] ? 1 : 0;
 }
 

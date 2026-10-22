@@ -1,0 +1,3 @@
+{"type":"session","version":1,"t_ms":0,"window_scale":2,"screen_w":320,"screen_h":200,"audio":false}
+{"type":"key_down","t_ms":1000,"frame":0,"keycode":1073741918,"mod":0}
+{"type":"key_up","t_ms":1048,"frame":3,"keycode":1073741918,"mod":0}

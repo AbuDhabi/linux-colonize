@@ -1,0 +1,13 @@
+# Making landfall from a loaded ship: answer @LANDFALL "Stay With Ships" once, then "Make Landfall" twice.
+# Input: output of map_board_and_ferry (Caravel #84 at (48,24) carrying a sentried Colonist #128 and a sentried
+# Preacher #131), with the ship's moves refilled and the French goto-order units sentried (orders 1), so no unit
+# auto-walks when the selection moves on. The forest tile (47,25) lies south-west of the ship.
+key KP_1                   # sail toward the land tile: @LANDFALL popup (Stay With Ships / Make Landfall)
+click 150 102              # "Stay With Ships": popup closes, nothing moves, ship still selected
+key KP_1                   # same move again: popup again
+click 150 114              # "Make Landfall": one passenger (Preacher) goes ashore to (47,25); ship stays at sea; next unit
+                           # with moves (Artillery in Quebec) becomes the selection and the view scrolls
+click 168 112              # click the ship's tile on the scrolled view: multi-unit stack popup (ship + aboard colonist)
+click 120 89               # pick "French Caravel": ship selected again
+key KP_1                   # sail toward the land tile once more: @LANDFALL popup
+click 150 114              # "Make Landfall": the Colonist goes ashore too; the ship is now empty, selection moves on

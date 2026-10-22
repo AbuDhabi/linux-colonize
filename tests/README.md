@@ -209,7 +209,9 @@ hit by pixel. A missing `output.sav` is seeded with `input.sav`, which makes
 the harness's field diff list exactly what the steps changed; once that diff
 is right, `--bless` copies the run's `actual.sav` to `output.sav`. Start saves
 may be fixture-edited through `sav_json` (moves, stock, gold); re-save an
-edited start through one no-op replay first so the diff carries no load noise.
+edited start through one no-op replay first so the diff carries no load noise. A fixture that
+changes `head.active_unit` must move the map cursor (`stuff.x`/`stuff.y`) to
+that unit too, or cursor commands such as B act on the old tile.
 
 On failure the test prints the reason (timeout with phase/frame/status, quit,
 load/save error, or the first differing byte plus a `sav_json` field diff) and

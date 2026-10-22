@@ -124,7 +124,7 @@ static void write_game_options(FILE* f, const ColonizeCol1GameOptions* g) {
   wb(f, &n, "independence_force", g->independence_force);
   wb(f, &n, "ref_unit_threshold", g->ref_unit_threshold);
   wb(f, &n, "tutorial_hints", g->tutorial_hints);
-  wb(f, &n, "water_color_cycling", g->water_color_cycling);
+  wb(f, &n, "water_color_cycling_off", g->water_color_cycling_off);
   wb(f, &n, "combat_analysis", g->combat_analysis);
   wb(f, &n, "autosave", g->autosave);
   wb(f, &n, "end_of_turn", g->end_of_turn);
@@ -144,7 +144,9 @@ static void read_game_options(const JsonValue* o, ColonizeCol1GameOptions* g) {
   if (json_get_bool(o, "independence_force", &v)) g->independence_force = v;
   if (json_get_bool(o, "ref_unit_threshold", &v)) g->ref_unit_threshold = v;
   if (json_get_bool(o, "tutorial_hints", &v)) g->tutorial_hints = v;
-  if (json_get_bool(o, "water_color_cycling", &v)) g->water_color_cycling = v;
+  if (json_get_bool(o, "water_color_cycling_off", &v) ||
+      json_get_bool(o, "water_color_cycling", &v)) /* old key, pre-2026-10-22 */
+    g->water_color_cycling_off = v;
   if (json_get_bool(o, "combat_analysis", &v)) g->combat_analysis = v;
   if (json_get_bool(o, "autosave", &v)) g->autosave = v;
   if (json_get_bool(o, "end_of_turn", &v)) g->end_of_turn = v;

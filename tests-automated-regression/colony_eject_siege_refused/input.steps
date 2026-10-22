@@ -1,0 +1,18 @@
+# @SIEGE (port_bugs.md #1165): while enemy military land units around a colony outnumber the owner's
+# (FUN_2f2b_0000), colonists may leave only as Soldier or Dragoon (FUN_2f2b_011e code 0x14).
+# Fixture: three lone English Dragoons (#137-#139; England is at war with France) moved next to
+# Guadeloupe (41,24) at (40,23), (40,24), (40,25); France has no military unit there.
+# Guadeloupe stock: muskets 100, horses 100. People strip icons: x = 5 + 9*i, y = 155; fence drop (131,112).
+click 104 128              # open Guadeloupe
+wait 10
+drag 32 155 131 112        # colonist 3 -> fence: role popup
+click 100 46               # Colonist: refused with @SIEGE
+key Return                 # dismiss
+drag 32 155 131 112        # colonist 3 -> fence again
+click 100 70               # Scout: refused with @SIEGE too
+key Return                 # dismiss
+drag 32 155 131 112        # colonist 3 -> fence again
+click 100 62               # Soldier: allowed, leaves (muskets 100 -> 50), pop 4 -> 3
+drag 23 155 131 112        # colonist 2 -> fence
+click 100 78               # Dragoon: allowed, leaves (muskets 50 -> 0, horses 100 -> 50), pop 3 -> 2
+key Escape                 # leave Guadeloupe

@@ -372,8 +372,25 @@ bool game_colony_request_eject(
       body,
       sizeof(body)
     );
-    colony_screen_open_message_ok(csv, body);
+    /* Ordinary GAME.TXT modal (wrap, @width, {} emphasis), like @ABANDON below;
+     * the colony-screen-local box drew it as one unwrapped line. */
+    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+    game_colony_present_now(game, AI_POPUP_TAG_INFO);
     return true;
+  }
+  /* FUN_2f2b_011e (viceroy_overlays.c:60412) code 0x14, between the stockade
+   * and abandon arms: leaving as anything but Soldier (0x15) / Dragoon (0x17)
+   * is refused with @SIEGE while FUN_2f2b_0000 reports a siege. */
+  if (role != COLONIZE_EJECT_SOLDIER && role != COLONIZE_EJECT_DRAGOON) {
+    const ColonizeWorld w = game_world(game);
+    if (colonies_siege_margin_w(&w, colony) != 0) {
+      colony_screen_close_eject(csv);
+      char body[AI_POPUP_BODY_LEN];
+      popup_msg_fill(&game->messages, "SIEGE", NULL, "", body, sizeof(body));
+      ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+      game_colony_present_now(game, AI_POPUP_TAG_INFO);
+      return true;
+    }
   }
   if (colony->colonist_count <= 1) {
     char body[AI_POPUP_BODY_LEN];

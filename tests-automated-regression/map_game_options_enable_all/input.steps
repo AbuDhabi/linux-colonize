@@ -1,0 +1,23 @@
+# Game Options with every option off. Fixture: France 1599 (colony_fence_to_jobs) with head.game_options
+# tutorial_hints, combat_analysis, autosave, end_of_turn, fast_piece_slide, show_foreign_moves, show_indian_moves
+# all False and water_color_cycling_off True (DOS 0x5383 bit 0: set = cycling off), so every dialog row starts unchecked.
+# Dialog rows (logical y): Show Indian Moves 66, Show Foreign Moves 77, Fast Piece Slide 88, End of Turn 99,
+# Autosave 110, Combat Analysis 121, Water Color Cycling 132, Tutorial Hints 143. Enter/click outside commits, Esc/right click cancel.
+click 22 3                 # GAME menu
+click 38 13                # Game Options: "Set Game Options" checklist
+click 100 53               # click the title above the rows: nothing toggles
+click 100 66               # Show Indian Moves on
+click 100 77               # Show Foreign Moves on
+click 100 88               # Fast Piece Slide on
+click 100 99               # End of Turn on
+click 100 110              # Autosave on
+click 100 121              # Combat Analysis on
+key Down                   # keyboard: selection moves from Combat Analysis to Water Color Cycling
+key space                  # Water Color Cycling on
+key Down                   # selection to Tutorial Hints
+key space                  # Tutorial Hints on
+key Return                 # Enter commits and closes the dialog (water_color_cycling_off goes True -> False: cycling on)
+click 22 3                 # reopen: the choices persisted
+click 38 13                # Game Options again: all eight rows still checked
+key Escape                 # Esc cancels the reopened dialog (no change)
+wait 20
