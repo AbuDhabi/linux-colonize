@@ -37,6 +37,7 @@ lives](#where-detail-lives)).
 | Asset formats, graphics, map | [assets.md](assets.md) |
 | Music / sound | [assets_sound.md](assets_sound.md); soundfont / MIDI backend setup: [music.md](music.md) |
 | Build, release packages | [building.md](building.md) |
+| Running: flags, data / save locations | [running.md](running.md) |
 | Licensing (code, data, soundfont) | [licensing.md](licensing.md) |
 | `COLONY##.SAV` layout / Col1 bridge | [savegame.md](savegame.md), [save_format_map.md](save_format_map.md) |
 | Conventions, jargon, fixture traps, verification loop | [conventions.md](conventions.md) |
