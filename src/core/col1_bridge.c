@@ -985,8 +985,17 @@ COLONIZE_INTERNAL void col1_bridge_apply_map_planes(Col1ApplyCtx* ctx) {
    * placement for the *wrong* map. Player-confirmed 2026-08-16
    * (colony-prod-tests, seed 541): tiles the real DOS map special-cased
    * (Prime Tobacco etc.) read as plain terrain here, undercounting yield.
+   *
+   * DOS never saves 0 (range(1,0x7fff)), but port Americas games before
+   * 2026-10-22 did. Map 0 to the default the rumour/resource hash already
+   * falls back to, so FUN_137f_0598's nonzero-seed gate (native rumour skip,
+   * Euro mover LCR roll) sees the same rumours the map draws. With 0 there,
+   * Braves walked over every rumour and the visitor nibble below erased it
+   * on the next load (campaign5: 27 of 36 rumours by turn 49).
    */
-  map->prime_resource_seed = save->post_map.prime_resource_seed;
+  map->prime_resource_seed = save->post_map.prime_resource_seed != 0
+                               ? save->post_map.prime_resource_seed
+                               : MAP_RESOURCE_SEED_DEFAULT;
   for (size_t i = 0; i < save->map.tile_count; ++i) {
     map->terrain[i] = col1_tile_to_mp_terrain(save->map.tile[i]);
     if (map->improve && save->map.mask) {
@@ -2616,6 +2625,10 @@ COLONIZE_INTERNAL void col1_bridge_capture_map_planes(Col1CaptureCtx* ctx) {
    */
   if (col1_post_map_is_blank(&save->post_map)) {
     col1_post_map_rebuild_connectivity(&save->post_map, map);
+  }
+  /* Repairs seed-0 port saves on their next write (see the apply side). */
+  if (map->prime_resource_seed != 0) {
+    save->post_map.prime_resource_seed = map->prime_resource_seed;
   }
 }
 
