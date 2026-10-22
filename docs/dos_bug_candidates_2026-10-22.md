@@ -395,21 +395,26 @@ Each needs a decision: add a dos_bugs entry (keep the port as is), or port the D
 
 ## E. Port-vs-DOS leads (not DOS bugs; port_bugs candidates)
 
-Found in passing by reviewers, not re-verified. DOS behaviour looks intended here and the port differs.
+DOS behaviour looks intended here and the port differs. Simulated 2026-10-22:
+each fix was verified against the decomp, applied alone in a scratch copy of
+the tree, and run through full ctest (103 tests) plus `golden_ai_joint`, then
+discarded. All 11 confirmed. No fix changes any golden or idle campaign; only
+E-8a breaks unit tests (fixtures pin the old weights). Not applied to the repo.
 
-- E-1. `ai_diplo.c:1114, 1124`: shift counts inverted (OVL16 0x16bd, 0x1786: shift 2 when difficulty == 0 / target_colonies == 0, else 1).
-- E-2. `ai_euro_465b_privateer_sighting` ORs 0x40 (PEACE); DOS raw 75537-75543 ORs 0x02 (WAR).
-- E-3. `ai_diplo.c:1687` tribute gate `gold >= score`; DOS raw 98007-98010 is `gold > score`.
-- E-4. Demand Tribute @EXTORTSTUFF cap, `ai_contact_actions.c:1199`: `econ.bid[15]` is the unsorted Muskets slot (always 0), so the cap is always 10; DOS sorts in place and reads DS:0x9e96 (top bid): `min(100, maxbid*3+10, room)`.
-- E-5. `units_combat.c` ~1405 capture gate tests `!loser_is_hull`; DOS raw 99381-99383 tests whether the winner is a hull.
-- E-6. `units_nearest_own_drydock_colony`: squared Euclid, first wins; DOS FUN_281f_037a with `<= best && dist != 0` (last wins, distance 0 excluded).
-- E-7. WoI capture re-home, `units_capture.c` ~245, re-homes every crown unit including id 0; DOS raw 100957 `while (0 < local_c4)`.
-- E-8. Tea party weights, `ai_king_audience.c:378`: port `tons*100`, DOS `tons/100` (0ec6 is a long divide). DOS also draws rand on every human audience (cuts, empty roulette) where the port draws nothing.
-- E-9. Succession 0218, `ai_king_audience.c` ~830, despawns the merged nation's field units; DOS transfers every on-map unit and deletes only off-map ones.
-- E-10. Mine depletion scan, `turn_production.c:457`, keys on specialty; FUN_281f_0c0e reads the occupation (+0x20).
-- E-11. Tribe population total byte saturates at 255 in the port (`ai_contact_demand.c` ~2501); DOS 06b6 wraps.
+- E-1. `ai_diplo.c:1114, 1124` (FUN_5bfb_153e): shift counts inverted. OVL16 0x16bd / 0x1786 (`cmp byte,1; sbb; and 1; add 1`; decomp raw 97442/97458) shift by 2 when difficulty (DS:0x53a6) / target_colonies is 0, else 1. Fix `== 0 ? 2 : 1`: all pass; branch not exercised.
+- E-2. `ai_euro_465b_privateer_sighting` (`ai_diplo.c:3178`) ORs 0x40 (PEACE); DOS asm (viceroy_unpacked.asm 119153-119159) ORs 0x02 (WAR) into nation[occupant].euro_relation[mover] when the occupant is weaker, else 0x08. Fix PEACE -> WAR: all pass; not exercised. The comments in `ai_diplo.h` ~74-85 and `ai_diplo.c` ~3095-3110 also call bit 0x02 PEACE and need rewriting.
+- E-3. `ai_diplo.c:1687` tribute gate `gold >= score`; DOS raw 97894-97897 (OVL16 0x240b-0x241e) is strictly `gold > score`. Fix `>`: all pass; equality not exercised.
+- E-4. Demand Tribute @EXTORTSTUFF cap, `ai_contact_actions.c` ~1185-1199: DOS (thunk_FUN_1000_a5f4, overlays.c 77428) sorts DS:0x9e78 in place with FUN_1cf8_000a (unsigned, unstable) and caps at `min(100, bid[top]*3 + 10, room)`, floor 10. The port read the unsorted Muskets slot, so the cap was always 10; its local insertion sort is also stable and signed (tie order differs). Fix: reuse `ai_contact_2820_sort` (made non-static), read the top bid. All pass; human-only path.
+- E-5. `units_combat.c` ~1383 capture gate: FUN_5fef_0352 param_1 = loser, param_2 = winner; raw 99378-99383 tests the winner's type for a hull, so the port's `!loser_is_hull` is dead. Fix `!winner_is_hull`: all pass; not exercised.
+- E-6. `units_nearest_own_drydock_colony` (`units_combat.c:1763-1781`): DOS raw 99584-99600 seeds 9999, uses FUN_281f_037a = FUN_124c_007c octile `max + (min >> 1)` (`map_dos_dist`), takes `d != 0 && d <= best` (last tie wins, own tile excluded). Fix: all pass; not exercised.
+- E-7. WoI capture re-home, `units_capture.c:248-266`: DOS raw 100960-100975 walks the 8 neighbours, requires the chain head's nation to be the captor, then re-homes the whole chain `while (0 < id)` (id 0 ends the walk; non-crown units in that chain are re-homed too). The port's winner exclusion has no DOS counterpart (no practical effect). Fix: all pass; WoI goldens unchanged.
+- E-8a. Tea party weights, `ai_king_audience.c:378`: DOS asm 38fd:3e4c-3e7f is `labs(tons) / 100` via 1d1d:0ec6 (signed 32-bit divide), not `* 100`. Fix: idle goldens and `golden_ai_joint` pass (idle saves have all-zero `trade.tons`); `unit_ai_king_core` fails 10 cases (`popup_audience_accept` first: payload 400, want 403) because its fixtures use tons 9 / 7, which divide to weight 0; bumped to 900 / 700 they pass.
+- E-8b. Tea party RNG draws, `ai_king.c:117, 147`, `ai_king_audience.c:595`: DOS 3dc8 draws once for every human audience with a nonzero change, including cuts and an empty roulette (FUN_19ef_0032 always draws); the port drew nothing there. Fix: all pass. `golden_idle_america` hits the empty roulette 3 times (saves 31, 44, 56) and stays byte-identical, because the LCG is reseeded at every nation slot. Making `dos_rng_range` burn a draw when hi < lo also passes everything.
+- E-9. Succession FUN_43f7_0218, `ai_king_audience.c` ~840: DOS deletes only units off the map interior (FUN_281f_0302 = FUN_137f_000a) and transfers the rest; the port kept only units inside colonies. Fix `map_coords_inset`: all pass; no test has merged-nation units. Still not literal after the fix: DOS writes unit +3 = heir as a whole byte (port sets `1 << heir`) and runs a seen-nibble merge and tile-owner remap the port skips.
+- E-10. Mine depletion, `turn_production.c:487-488`: FUN_281f_0c0e = FUN_15eb_0e18 returns the occupation (colony +0x20), not the specialty (+0x40, FUN_15eb_0e52). Fix: key on `field_job`; all pass; not exercised. The function's header comment says SPECIALTY and is wrong.
+- E-11. Tribe population total, `ai_contact_demand.c:2426`: FUN_4962_06b6 asm ~124745 `ADD byte [SI+0x9622],AL` wraps; the port saturates at 255. Fix wrap: all pass; no total ever exceeds 255 in any test. Village and per-continent counts are also plain byte INCs in DOS (port caps them; irrelevant in practice).
 
----
+Patches: scratchpad only (not in the repo); re-derivable from the notes above.
 
 ## F. Housekeeping in the existing docs
 
