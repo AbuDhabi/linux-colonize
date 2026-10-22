@@ -205,7 +205,8 @@ done:
 static int parse_year(const IdleCampaign* c, const char* text, int* year) {
   char* end;
   long value = strtol(text, &end, 10);
-  if (*text == '\0' || *end != '\0' || value < c->min || value > c->max) return 0;
+  /* GOLDEN_IDLE_SAVES (a directory of the same file names) lifts the archive's last save. */
+  if (*text == '\0' || *end != '\0' || value < c->min || (value > c->max && !getenv("GOLDEN_IDLE_SAVES"))) return 0;
   *year = (int)value;
   return 1;
 }
@@ -255,6 +256,13 @@ static int e7c4_oracle(int nation, int x, int y) {
 }
 
 static void save_path(const IdleCampaign* c, char* path, size_t size, int year) {
+  const char* dir = getenv("GOLDEN_IDLE_SAVES");
+  if (dir && *dir) {
+    char name[64];
+    snprintf(name, sizeof(name), strrchr(c->path_fmt, '/') + 1, year);
+    snprintf(path, size, "%s/%s", dir, name);
+    return;
+  }
   snprintf(path, size, c->path_fmt, year);
 }
 
