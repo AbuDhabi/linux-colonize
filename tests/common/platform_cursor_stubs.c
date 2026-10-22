@@ -25,6 +25,17 @@ bool platform_present(
   (void)palette;
   return false;
 }
+
+void platform_set_outer_palette(
+  ColonizePlatform* platform, const ColonizePalette* outer, int x, int y, int w, int h
+) {
+  (void)platform;
+  (void)outer;
+  (void)x;
+  (void)y;
+  (void)w;
+  (void)h;
+}
 #endif
 
 void platform_sleep_ms(uint32_t ms) {

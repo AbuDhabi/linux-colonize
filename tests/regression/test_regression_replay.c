@@ -85,6 +85,10 @@ struct ColonizePlatform {
   int mouse_x, mouse_y;
   bool left_down, right_down;
   unsigned mod;
+  /* platform_set_outer_palette (a screen over the map), for the screenshots. */
+  bool outer_on;
+  ColonizePalette outer;
+  int outer_x, outer_y, outer_w, outer_h;
 };
 
 /* ===== Log parsing ===== */
@@ -312,6 +316,19 @@ bool platform_present(
   return true; /* false would close the nested loops (combat analysis) */
 }
 
+void platform_set_outer_palette(
+  ColonizePlatform* platform, const ColonizePalette* outer, int x, int y, int w, int h
+) {
+  platform->outer_on = outer != NULL;
+  if (outer) {
+    platform->outer = *outer;
+    platform->outer_x = x;
+    platform->outer_y = y;
+    platform->outer_w = w;
+    platform->outer_h = h;
+  }
+}
+
 static const char* off_map_reason(const ColonizeGameState* g);
 
 /* ===== Screenshots ===== */
@@ -341,8 +358,13 @@ static void write_shot(const char* out_dir, const char* tag, const ColonizeFrame
     return;
   }
   fprintf(f, "P6\n%d %d\n255\n", fb->width, fb->height);
+  const ColonizePlatform* p = g->platform;
   for (int i = 0; i < fb->width * fb->height; ++i) {
-    fwrite(pal->rgb[fb->pixels[i]], 1, 3, f);
+    const int x = i % fb->width;
+    const int y = i / fb->width;
+    const bool outer = p && p->outer_on &&
+      (x < p->outer_x || x >= p->outer_x + p->outer_w || y < p->outer_y || y >= p->outer_y + p->outer_h);
+    fwrite((outer ? &p->outer : pal)->rgb[fb->pixels[i]], 1, 3, f);
   }
   fclose(f);
 }

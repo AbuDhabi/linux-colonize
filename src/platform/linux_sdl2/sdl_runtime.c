@@ -47,6 +47,10 @@ struct ColonizePlatform {
   int64_t input_log_unix_ms0; /* wall clock at open ... */
   uint32_t input_log_ticks0;  /* ... and SDL_GetTicks at the same instant */
   uint32_t poll_count;        /* platform_poll_input calls = game frames */
+  /* platform_set_outer_palette: palette for the pixels outside the rect. */
+  bool outer_on;
+  ColonizePalette outer;
+  int outer_x, outer_y, outer_w, outer_h;
 };
 
 static void input_log_open(ColonizePlatform* platform, const char* dir);
@@ -360,6 +364,22 @@ static void platform_resize(ColonizePlatform* platform, int win_w, int win_h) {
   platform->game_height = new_h - platform->extra_height;
   diag_info("Window resized: logical framebuffer=%dx%d game_height=%d scale=%d",
     platform->width, platform->height, platform->game_height, scale);
+}
+
+void platform_set_outer_palette(
+  ColonizePlatform* platform, const ColonizePalette* outer, int x, int y, int w, int h
+) {
+  if (!platform) {
+    return;
+  }
+  platform->outer_on = outer != NULL;
+  if (outer) {
+    platform->outer = *outer;
+    platform->outer_x = x;
+    platform->outer_y = y;
+    platform->outer_w = w;
+    platform->outer_h = h;
+  }
 }
 
 void platform_framebuffer_size(const ColonizePlatform* platform, int* out_w, int* out_h) {
@@ -857,11 +877,31 @@ bool platform_present(
     argb[i] = 0xff000000u | ((uint32_t)palette->rgb[i][0] << 16) |
               ((uint32_t)palette->rgb[i][1] << 8) | (uint32_t)palette->rgb[i][2];
   }
+  /* Outside the outer rect (a screen over the map) the map's palette rules. */
+  uint32_t argb_outer[256];
+  int in_x0 = 0, in_x1 = copy_w, in_y0 = 0, in_y1 = copy_h;
+  if (platform->outer_on) {
+    for (int i = 0; i < 256; ++i) {
+      argb_outer[i] = 0xff000000u | ((uint32_t)platform->outer.rgb[i][0] << 16) |
+                      ((uint32_t)platform->outer.rgb[i][1] << 8) | (uint32_t)platform->outer.rgb[i][2];
+    }
+    in_x0 = platform->outer_x;
+    in_x1 = platform->outer_x + platform->outer_w;
+    in_y0 = platform->outer_y;
+    in_y1 = platform->outer_y + platform->outer_h;
+  }
   for (int y = 0; y < copy_h; ++y) {
     const uint8_t* src_row = &framebuffer->pixels[(size_t)y * (size_t)fb_w];
     uint32_t* dst_row = &platform->rgba_buffer[(size_t)y * (size_t)platform->width];
+    if (!platform->outer_on) {
+      for (int x = 0; x < copy_w; ++x) {
+        dst_row[x] = argb[src_row[x]];
+      }
+      continue;
+    }
+    const bool row_in = y >= in_y0 && y < in_y1;
     for (int x = 0; x < copy_w; ++x) {
-      dst_row[x] = argb[src_row[x]];
+      dst_row[x] = (row_in && x >= in_x0 && x < in_x1 ? argb : argb_outer)[src_row[x]];
     }
   }
 

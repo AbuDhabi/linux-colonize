@@ -2621,6 +2621,12 @@ bool game_screen_on_map(void) {
   return s_fixed_on_map;
 }
 
+/* The overland map's palette; around a screen on the map, platform_present
+ * colours everything outside the screen through it (game_render_place_fixed). */
+static const ColonizePalette* game_map_pal(const ColonizeGameState* game) {
+  return game->map_palette_ok ? &game->map_palette : &game->palette;
+}
+
 /*
  * Port-only: with a game on and a window at least 10% bigger than 320x200 on
  * both axes, a DOS-sized screen is drawn over the overland map instead of over
@@ -2683,6 +2689,10 @@ void game_render_window_log(
   const int strip_h = framebuffer->height - screen_h;
   if (strip_h <= 0) {
     return;
+  }
+  /* Under a screen on the map the strip is presented in the map's palette. */
+  if (s_fixed_on_map) {
+    palette = game_map_pal(game);
   }
   /*
    * The log strip belongs to the overland map. Any other screen is a DOS-sized
@@ -2768,25 +2778,13 @@ void game_render_window_log(
 
 /*
  * The overland map under a DOS-sized screen (game_screen_on_map_wanted), drawn
- * exactly as the map view would draw it, then pushed through a nearest-colour
- * table into the screen's palette: the frame carries one palette, and the
- * screen's own art must keep its exact colours.
- * ponytail: close for screens on the VICEROY base palette (colony, Europe,
- * reports, pedia); woodcut / declaration / throne palettes tint the map. Exact
- * colours need platform_present to take a second palette for outside the frame.
+ * exactly as the map view would draw it, in the map's palette indices.
  */
-static void game_render_map_under(
-  const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, const ColonizePalette* palette
-) {
-  ColonizePalette map_pal = game->map_palette_ok ? game->map_palette : game->palette;
+static void game_render_map_under(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer) {
+  ColonizePalette map_pal = *game_map_pal(game);
   game_render_map(game, framebuffer, &map_pal);
   if (turn_processor_show_indicator(&game->turn_proc)) {
     turn_draw_owner_indicator(framebuffer, game->active_turn_nation);
-  }
-  const uint8_t* lut = window_log_palette_map(&map_pal, palette);
-  const size_t n = (size_t)framebuffer->width * (size_t)framebuffer->height;
-  for (size_t i = 0; i < n; ++i) {
-    framebuffer->pixels[i] = lut[framebuffer->pixels[i]];
   }
 }
 
@@ -2812,16 +2810,18 @@ static void game_render_centre_fixed(
   s_fixed_off_y = off_y;
   if (on_map) {
     /* dst already holds the map (game_render_map_under). Only a 5px wood
-     * ring goes around the 1px rule below; on_map guarantees the room. */
+     * ring goes around the 1px rule below; on_map guarantees the room. Both
+     * lie outside the screen, so they are drawn in the map's palette. */
+    const ColonizePalette* map_pal = game_map_pal(game);
     const int ring = 5;
     const int rx = off_x - 1 - ring;
     const int ry = off_y - 1 - ring;
     const int rw = src->width + 2 + 2 * ring;
     const int rh = src->height + 2 + 2 * ring;
-    game_paint_wood_rect(game, dst, rx, ry, rw, ring, palette);
-    game_paint_wood_rect(game, dst, rx, ry + rh - ring, rw, ring, palette);
-    game_paint_wood_rect(game, dst, rx, ry + ring, ring, rh - 2 * ring, palette);
-    game_paint_wood_rect(game, dst, rx + rw - ring, ry + ring, ring, rh - 2 * ring, palette);
+    game_paint_wood_rect(game, dst, rx, ry, rw, ring, map_pal);
+    game_paint_wood_rect(game, dst, rx, ry + rh - ring, rw, ring, map_pal);
+    game_paint_wood_rect(game, dst, rx, ry + ring, ring, rh - 2 * ring, map_pal);
+    game_paint_wood_rect(game, dst, rx + rw - ring, ry + ring, ring, rh - 2 * ring, map_pal);
   } else {
     game_paint_wood_rect(game, dst, 0, 0, dst->width, off_y, palette);
     game_paint_wood_rect(
@@ -2841,6 +2841,35 @@ static void game_render_centre_fixed(
       &dst->pixels[(size_t)(off_y + row) * (size_t)dst->width + (size_t)off_x],
       &src->pixels[(size_t)row * (size_t)src->width],
       (size_t)src->width
+    );
+  }
+}
+
+/*
+ * A DOS-sized screen is in `fixed`: centre it in the window, over the map
+ * (on_map) or over wood, and tell the platform that everything outside it is
+ * in the map's palette when it sits on the map.
+ */
+static void game_render_place_fixed(
+  const ColonizeGameState* game,
+  const ColonizeFramebuffer8* fixed,
+  ColonizeFramebuffer8* framebuffer,
+  const ColonizePalette* palette,
+  bool oversize,
+  bool on_map
+) {
+  s_last_render_was_map = on_map;
+  s_fixed_on_map = on_map;
+  if (oversize) {
+    if (on_map) {
+      game_render_map_under(game, framebuffer);
+    }
+    game_render_centre_fixed(game, fixed, framebuffer, palette, on_map);
+  }
+  if (game->platform) {
+    platform_set_outer_palette(
+      game->platform, on_map ? game_map_pal(game) : NULL, s_fixed_off_x, s_fixed_off_y,
+      SCREEN_BASE_W, SCREEN_BASE_H
     );
   }
 }
@@ -2869,33 +2898,22 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
   const bool on_map = oversize && game_screen_on_map_wanted(game, framebuffer);
 
   if (game_render_fullscreen_takeover(game, fixed, palette)) {
-    s_last_render_was_map = on_map;
-    s_fixed_on_map = on_map;
-    if (oversize) {
-      if (on_map) {
-        game_render_map_under(game, framebuffer, palette);
-      }
-      game_render_centre_fixed(game, fixed, framebuffer, palette, on_map);
-    }
+    game_render_place_fixed(game, fixed, framebuffer, palette, oversize, on_map);
     return;
   }
 
   game_render_select_palette(game, framebuffer, palette, render_log_counter);
 
   if (game_render_screen(game, fixed, palette)) {
-    s_last_render_was_map = on_map;
-    s_fixed_on_map = on_map;
-    if (oversize) {
-      if (on_map) {
-        game_render_map_under(game, framebuffer, palette);
-      }
-      game_render_centre_fixed(game, fixed, framebuffer, palette, on_map);
-    }
+    game_render_place_fixed(game, fixed, framebuffer, palette, oversize, on_map);
   } else {
     s_fixed_off_x = 0;
     s_fixed_off_y = 0;
     s_last_render_was_map = true;
     s_fixed_on_map = false;
+    if (game->platform) {
+      platform_set_outer_palette(game->platform, NULL, 0, 0, 0, 0);
+    }
     game_render_map(game, framebuffer, palette);
   }
 
