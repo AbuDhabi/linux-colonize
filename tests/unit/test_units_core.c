@@ -4217,6 +4217,32 @@ static int case_lcr_burial_trespass(void) {
           }
         }
       }
+      /* AI explorer (human_nation -1): FUN_65dd_0004 `local_a` = 0, so no
+       * LCR / BURIAL / SCREWED popup reaches the human's queue. */
+      for (int i = 0; met == 1 && i < (int)(map.width * map.height); ++i) {
+        const int x = i % (int)map.width;
+        const int y = i / (int)map.width;
+        if (!map_tile_has_rumour(&map, x, y)) {
+          continue;
+        }
+        const int sid = units_spawn_allow_stack(&pool, scout_ti, x, y);
+        ColonizeUnit* su = units_get(&pool, sid);
+        if (!su) {
+          continue;
+        }
+        su->nation_id = 1;
+        pops.queue_count = 0;
+        (void)units_resolve_lcr_rumour_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&tcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(&trng), .europe=(EuropeScreen*)(NULL)}, sid, -1);
+        if (pops.queue_count != 0) {
+          fprintf(stderr, "LCR: AI explorer enqueued %d popup(s)\n", pops.queue_count);
+          units_set_combat_popups(NULL, NULL);
+          return 1;
+        }
+        if (units_get(&pool, sid)) {
+          units_despawn(&pool, sid);
+        }
+        break;
+      }
       trial_count[met] = trials;
       tcol1.tribe = NULL;
       tcol1.head.tribe_count = 0;
