@@ -27,13 +27,9 @@ Harmless for Cavalry->Regulars (sprite and name derive from type); required by
 the port's armed-colonist body model for Dragoons->Soldiers. Leave unless kit
 bytes ever feed a REF display.
 
-### #780 — 5952 ARM 1 profession write is guarded
-ARM 1 guards the profession write with `if (elected >= 0)`
-(`ai_euro_colony_jobs.c`:2429-2434); DOS raw 95908-95911 writes unconditionally,
-so an idle-occupation pick gets profession 0xff. Rare — ARM 1 runs after all
-placement passes. The literal write would put a -1 profession into the port's
-colonist record, which other readers treat as unset. Leave unless a DOS save
-shows 0xff colonist bytes.
+### #780 — moved to dos_bugs.md DB-10
+DOS writes profession 0xff; the port guards the write. DOS is the buggy side,
+so the entry now lives in [dos_bugs.md](dos_bugs.md) DB-10 (2026-10-22).
 
 ### #908 — Colonist jobs menu is narrower than FUN_2f2b_348c
 DOS's jobs menu also (a) lists the leave-as rows @JOB 0x13..0x18 in the same
@@ -123,9 +119,8 @@ which screen. Until then do not invent a threshold table — 25 gradations only
 - University-without-College seating of a level-2 teacher: DOS tests 8bec(0xd)
   only, the port's `colonies_school_owned_tier` allows it. Unreachable by normal
   play.
-- @TRAINFAIL %STRING0 in DOS is whatever token 0 held from a previous phase
-  (0416 sets it only inside the graduation arm); the port fills the current
-  colony.
+- @TRAINFAIL stale %STRING0: moved to [dos_bugs.md](dos_bugs.md) DB-11
+  (2026-10-22).
 
 ### #915(c) — 5952 indoor pass `avail` carry-over
 Seed `0x7fff` at `ai_euro_colony_jobs.c` ~1015 still needs a live capture.

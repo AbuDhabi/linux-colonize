@@ -13,8 +13,7 @@ Not this file:
 
 - Port diverges from DOS but DOS is *right* (data-model cost, capture still
   needed): [known_divergences.md](known_divergences.md).
-- DOS bug that **is** ported literally (e.g. `colony_workers.c` ~989, the
-  `ai_contact_demand.c` ~2517 census total, the `ai_diplo.c` ~2087 OVL16 transfer):
+- DOS bug that **is** ported literally and that nobody has judged unwanted:
   no entry anywhere; the `DOS-LITERAL` comment at the port site records it.
 - Unwanted DOS bug the port still reproduces for now (due to move here):
   [tolerated_dos_bugs.md](tolerated_dos_bugs.md).
@@ -203,3 +202,33 @@ dock a born Jesuit cannot unbless (38fd:3f4a). Unit test: `unit_colonies`
 `golden_ai_joint` stay byte-identical (2026-10-21). Came from port_bugs.md
 #559.
 **Status:** done (2026-10-21).
+
+### DB-10 — Euro AI specialist pass can write profession 0xff
+**DOS:** the ARM 1 specialist pass of FUN_5952_035e (raw 95905-95914) elects
+`local_8a`, or the picked colonist's current occupation (`FUN_281f_0c0e`) when
+`local_8a` is negative, and writes it as the profession through
+`FUN_281f_0cae` (= `FUN_15eb_0e8c`) with no check. A pick whose occupation is
+idle stores profession 0xff, which is no @JOB row. Rare: ARM 1 runs after all
+placement passes.
+
+**Port:** the ARM 1 block in `src/core/ai_euro_colony_jobs.c` writes the
+profession only when `elected >= 0`; otherwise the colonist keeps its old
+profession. The port's colonist record reads -1 as "no profession", so the
+literal write would also change other readers. Was known_divergences.md #780
+(moved 2026-10-22: DOS is the buggy side).
+**Status:** done (port behaviour predates the entry; recorded 2026-10-22).
+Revisit only if a DOS save shows 0xff colonist profession bytes.
+
+### DB-11 — @TRAINFAIL names whatever colony the last message named
+**DOS:** in the school pass of FUN_364b_0688, a teacher with no eligible
+student raises @TRAINFAIL (`0xde7`, raw 57542), whose text names `%STRING0`.
+Token 0 is set to the colony name only later, in the graduation arm
+(`FUN_281f_0416(0, colony+2)`, raw 57552), and nowhere earlier in 0688. So the
+message shows whatever token 0 held from an earlier message: another colony's
+name or an unrelated string.
+
+**Port:** the @TRAINFAIL arm of the school pass in
+`src/core/turn_production.c` fills `%STRING0` with the current colony's name.
+Human-only message chrome; no stock, RNG or AI path reads it. Was the last
+bullet of known_divergences.md #909 (moved 2026-10-22).
+**Status:** done (port behaviour predates the entry; recorded 2026-10-22).
