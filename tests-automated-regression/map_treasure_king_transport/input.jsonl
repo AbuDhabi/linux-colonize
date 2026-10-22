@@ -1,0 +1,13 @@
+{"type":"session","version":1,"t_ms":0,"window_scale":2,"screen_w":320,"screen_h":200,"audio":false}
+{"type":"key_down","t_ms":1000,"frame":0,"keycode":1073741918,"mod":0}
+{"type":"key_up","t_ms":1048,"frame":3,"keycode":1073741918,"mod":0}
+{"type":"mouse_move","t_ms":1544,"frame":34,"x":320,"y":272,"lx":160,"ly":136,"buttons":0}
+{"type":"mouse_down","t_ms":1560,"frame":35,"x":320,"y":272,"lx":160,"ly":136,"button":"left","clicks":1}
+{"type":"mouse_up","t_ms":1608,"frame":38,"x":320,"y":272,"lx":160,"ly":136,"button":"left","clicks":1}
+{"type":"key_down","t_ms":2104,"frame":69,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":2152,"frame":72,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":2808,"frame":113,"keycode":1073741915,"mod":0}
+{"type":"key_up","t_ms":2856,"frame":116,"keycode":1073741915,"mod":0}
+{"type":"mouse_move","t_ms":3352,"frame":147,"x":330,"y":298,"lx":165,"ly":149,"buttons":0}
+{"type":"mouse_down","t_ms":3368,"frame":148,"x":330,"y":298,"lx":165,"ly":149,"button":"left","clicks":1}
+{"type":"mouse_up","t_ms":3416,"frame":151,"x":330,"y":298,"lx":165,"ly":149,"button":"left","clicks":1}

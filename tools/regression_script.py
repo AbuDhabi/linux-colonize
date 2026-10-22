@@ -14,7 +14,7 @@ changed. --bless copies the run's actual.sav to output.sav.
 Step script, one step per line, `#` starts a comment; x/y are 320x200
 logical screen pixels:
 
-  key NAME [shift|ctrl|alt]   tap a key: a-z, 0-9, Return, Escape, space,
+  key NAME [shift|ctrl|alt]   tap a key: a-z, 0-9, - =, Return, Escape, space,
                               Backspace, Delete, Tab, Up/Down/Left/Right,
                               KP_1..KP_9, KP_Enter, F1..F10, Home, End
   click X Y [shift|ctrl|alt]  left click
@@ -50,7 +50,7 @@ MODS = {'shift': (0x400000E1, 0x0001), 'ctrl': (0x400000E0, 0x0040), 'alt': (0x4
 def keycode(name):
     if name in KEYS:
         return KEYS[name]
-    if len(name) == 1 and (name.isdigit() or name.islower()):
+    if len(name) == 1 and (name.isdigit() or name.islower() or name in '-='):
         return ord(name)
     raise ValueError(f'unknown key {name!r}')
 

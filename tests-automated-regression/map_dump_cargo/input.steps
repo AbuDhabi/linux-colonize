@@ -1,0 +1,25 @@
+# Dump Cargo Overboard (ORDERS menu). Fixture: the French Merchantman (id 2) at sea (47,29) is selected with
+# three goods holds (50 Lumber, 100 Tools, 30 Furs); Caravel A (id 84) at sea (48,24) carries two passengers, no goods.
+click 88 3                 # ORDERS menu
+click 100 141              # "Dump Cargo Overboard": @OVERBOARD hold picker (one row per hold + Nothing)
+click 100 125              # Nothing: the cargo stays
+click 88 3
+click 100 141
+click 100 101              # 100 Tools: the middle hold goes, the others close ranks
+click 88 3
+click 100 141
+click 100 96               # 50 Lumber
+click 88 3
+click 100 141
+click 100 102              # 30 Furs: the holds are empty
+click 88 3                 # Dump Cargo Overboard is greyed out now
+shot
+click 100 141              # clicking the greyed row does nothing, the menu closes
+shot
+key w                      # wait for next unit: Caravel A at (48,24), passengers only
+wait 30
+click 88 3                 # Dump is greyed here too
+shot
+click 100 141
+shot
+wait 5

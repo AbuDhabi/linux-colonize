@@ -1,0 +1,21 @@
+# Pioneer orders on Tupi (peace) land: @INDIANFOREST / @INDIANROAD respect / offer gold / take it, all via the
+# Orders menu (the P / R hotkeys skip the choice). Fixture: Peter Minuit removed from France (FF 2), gold 1500;
+# five Pioneers (100 tools, units 124 128 129 130 133), full moves, no orders, each alone on a Tupi-owned tile
+# (beside a village), selected in id order; every other French unit is sentried except the Dragoon in Quebec,
+# the only one left to come up at the end. Menu: Orders (100,3), Clear Forest (95,61) / Build Road (95,69).
+click 100 3                # Pioneer at (45,22) forest
+click 95 61                # Clear Forest: @INDIANFOREST "forest necessary to sustain the Tupi" (offer 422)
+click 150 107              # row 1 "Let these trees stand": no order, Pioneer's moves spent, next Pioneer selected
+click 100 3                # Pioneer at (44,22) forest
+click 95 61                # Clear Forest: @INDIANFOREST
+click 150 130              # row 3 "Timmmbeeer": Clear Forest order set (8), nothing charged
+click 100 3                # Pioneer at (43,24) prairie
+click 95 69                # Build Road: @INDIANROAD "worried that building a road ..."
+click 150 102              # row 1 "Then we shall not build a road": no order, moves spent
+click 100 3                # Pioneer at (41,26) forest
+click 95 69                # Build Road: @INDIANROAD
+click 150 124              # row 3 "this road is necessary": Build Road order set (9), nothing charged
+click 100 3                # Pioneer at (45,27) forest
+click 95 69                # Build Road: @INDIANROAD
+click 150 113              # row 2 "offer 422 in compensation": gold 1500 -> 1078, Tupi lands_bought 0 -> 1, tile bought
+key Return                 # dismiss @INDIANBRIBE; Build Road order set (9); the Dragoon in Quebec is selected

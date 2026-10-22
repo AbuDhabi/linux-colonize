@@ -1,0 +1,20 @@
+# Declare Independence from the GAME menu. Fixture: France 1599 (map_found_colony input.sav) with every French colony's rebel_dividend set to
+# 60% of its rebel_divisor, so the SoL is 59% (>= the 50% DECLARE_SOL_MIN gate); the other nations' colonies/units are untouched.
+# GAME menu row "DECLARE INDEPENDENCE" (logical y 85) opens the @DECLARE confirm (rows: Never! y 148, Yes! y 162). Yes runs
+# FUN_43f7_1a26: the Spanish-succession merger notice (the Crown borrows the emptied Spanish slot), the signing cinematic
+# (FUN_43f7_160a: a key/click skips the animation to its end, the next one closes it), then the @INDEPENDENCE letter OK.
+# Declaring spends every rebel unit's moves ("This will end our turn") but does not end it: the turn number stays 107 and the REF landing /
+# Tory uprising stay out; the map shows View mode with "End of Turn" in the sidebar.
+click 22 3               # GAME menu
+click 50 85              # DECLARE INDEPENDENCE: Never / Yes confirm
+wait 10
+click 150 162            # Yes!: WoI, rival slots, congress latch, backup force, Euro withdrawal, REF diplo
+wait 20
+key Return               # War of the Spanish Succession notice (Spain cedes New Spain to the Dutch)
+wait 20
+key Return               # signing cinematic: skip the animation to the finished signature
+wait 20
+key Return               # close the cinematic
+wait 20
+key Return               # @INDEPENDENCE letter OK
+wait 20

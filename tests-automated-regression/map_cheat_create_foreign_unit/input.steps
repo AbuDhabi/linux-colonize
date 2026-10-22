@@ -1,0 +1,57 @@
+# Fixture: map_found_colony start (France 1599), Preacher #131 alone and selected on (44,22).
+# CHEAT Create Unit row 13 "Foreign Unit" opens @FOREIGN ("Select Nationality To Create": English, French, Spanish, Dutch), then loops back to the @CREATE list;
+# the next unit created gets that owner (DOS keeps it in [bp-0x16], port_bugs.md #666). Afterwards the list owns units to the human again.
+# README warns that foreign units on another nation's tile "may cause significant problems" - nothing is moved or ended here.
+# Ends with cheat mode off again (Alt-W), see map_cheat_create_unit.
+key w alt
+key i alt
+key n alt
+key F1 shift             # @CREATE list
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down                 # row 13: Foreign Unit
+key Return
+shot
+key Return               # @FOREIGN row 0: English
+shot
+key Return               # back in @CREATE: row 0 Colonists -> English Colonists
+key F1 shift
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Return               # Foreign Unit again
+key Down
+key Down
+key Down
+key Return               # @FOREIGN row 3: Dutch
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Return               # row 6: Wagon Train -> Dutch Wagon Train
+key F1 shift
+key Return               # no Foreign pick this time: row 0 Colonists -> French again
+shot
+key w alt                # cheat mode off

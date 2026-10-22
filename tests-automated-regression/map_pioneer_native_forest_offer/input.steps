@@ -1,0 +1,7 @@
+# Pioneer clears Tupi forest and pays: @INDIANFOREST row 2 "offer 422 in compensation". Fixture: as map_pioneer_native_land
+# but one Pioneer (unit 124, 100 tools) on forest (45,22) beside a Tupi village; kept apart because the offer arm's
+# @INDIANBRIBE popup defers the next-unit hand-off, so the Dragoon in Quebec (the only unit left to come up) is selected last.
+click 100 3                # Orders menu
+click 95 61                # Clear Forest: @INDIANFOREST (offer 422)
+click 150 117              # row 2 "offer": gold 1500 -> 1078, Tupi lands_bought 0 -> 1, tile bought (layer2 0x10)
+key Return                 # dismiss @INDIANBRIBE; Clear Forest order set (8)

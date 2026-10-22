@@ -1,0 +1,17 @@
+# A Treasure Train (unit size 6, FUN_4720_00e0) boards only a ship with 6 free holds: refused by a Caravel (2) and a Merchantman (4),
+# accepted by a Galleon (6). With a Galleon owned, a Treasure that walks into a coastal colony gets no King's offer (FUN_465b_0000 tail).
+# Fixture (from map_board_ship_from_land's input.sav; France 1599, 429 gold): Treasure #95 (1000 gold) on the forest shore (47,25), no
+# orders, full moves, selected (head.active_unit, cursor stuff.x/y); at sea next to it, all empty with full moves and no orders:
+# Caravel #2 east (48,25), Merchantman (was Scout #77) south (47,26), Galleon (was Preacher #131) south-east (48,26).
+# Treasure #130 (700 gold, was a Colonist) on the prairie (44,24) next to Quebec, full moves. French goto units (orders 3) sentried.
+key KP_6                   # onto the Caravel: refused silently (cargo 2 < size 6); the Treasure stays at (47,25) with its moves
+wait 20
+key KP_2                   # onto the Merchantman: refused silently (4 < 6)
+wait 20
+key KP_3                   # onto the Galleon: boards (sentried, moves spent, chained under the ship); the Galleon becomes the selection
+wait 30
+click 56 80                # select Treasure #130 on the map ((44,24) with the view now at (41,20))
+wait 20
+key KP_6                   # east into Quebec (coastal): no offer popup because France owns a Galleon; the treasure stays, moves
+                           # spent, and the selection returns to the Galleon
+wait 30

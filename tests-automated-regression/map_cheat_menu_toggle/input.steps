@@ -1,0 +1,26 @@
+# Fixture: map_found_colony start (France 1599, Preacher selected at (44,22)). No unit/state is touched.
+# CHEAT menu unlock = Alt-W, Alt-I, Alt-N in succession (spells WIN), Alt-W alone turns it off (COLONIZE/README.TXT).
+# Hidden CHEAT title: Alt-C (shared hotkey letter) opens the COLONIZOPEDIA menu instead; a broken sequence (Alt-W, Alt-N) leaves it hidden.
+# DOS also toggles head.game_options.cheats_enabled (DS:0x5383 bit5) with it; the test ends with the menu off so the save is unchanged either way.
+key c alt                # CHEAT hidden: Alt-C opens the COLONIZOPEDIA menu
+shot
+key Escape               # closes the menu only
+key w alt
+key n alt                # wrong sequence (Alt-I skipped): still hidden
+key c alt
+shot
+key Escape
+key w alt
+key i alt
+key n alt                # unlocked: "CHEAT" appears on the menu bar
+shot
+key c alt                # Alt-C opens the CHEAT menu
+shot
+key Escape               # closes the menu only
+key F1 shift             # Shift-F1 = Create Unit list
+shot
+key Escape               # cancel the list, nothing created
+key w alt                # Alt-W: cheat mode off, CHEAT title gone
+key c alt                # hidden again: COLONIZOPEDIA menu
+shot
+key Escape

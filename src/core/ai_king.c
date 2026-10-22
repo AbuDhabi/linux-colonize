@@ -915,9 +915,6 @@ void ai_king_set_independence(ColonizeCol1Save* col1, int on) {
    * that used to precede this line was writing it twice (deleted 2026-09-14
    * with the market_demand_pool_raw[] mirror it referred to, which no longer exists). */
   col1->head.game_options.woi = on ? 1 : 0;
-  if (on) {
-    col1->head.event.colony_burning = 1; /* chrome hint */
-  }
 }
 
 /*
