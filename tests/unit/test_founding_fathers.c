@@ -2196,7 +2196,7 @@ int main(void) {
       return fail("Las Casas must not touch non-Convert dock immigrants");
     }
     /* Dock entry and its mirror unit are matched by profession
-     * (europe_remove_dock_mirror_unit), so they must move together. */
+     * (europe_dock_mirror_unit_of), so they must move together. */
     if (dock_u->profession != 19) {
       return fail("Las Casas must retarget the dock Convert's mirror unit");
     }

@@ -68,6 +68,7 @@
 #include "core/ss.h"
 #include "core/strutil.h"
 #include "core/trade_screen.h"
+#include "core/travel_dest.h"
 #include "core/turn.h"
 #include "core/ui_button.h"
 #include "core/ui_colors.h"
@@ -613,53 +614,113 @@ const char* game_trade_europe_label(const ColonizeGameState* game) {
   return "";
 }
 
+/*
+ * The editor's phantom traveller, DOS FUN_647e_115c: FUN_2a1f_01ca ->
+ * FUN_478c_007e makes a unit when the editor opens — Caravel for a sea route,
+ * Colonist for a land route — parked on the route's FIRST stop (Europe first =
+ * 236+nation, off the interior) and every stop row's reachability is asked of
+ * it (FUN_647e_0dd4 passes DS:0xa160). It is never moved afterwards, so
+ * changing stop 1 inside one editor session does not re-aim it. Captured
+ * lazily by the first picker of an editor session (game_trade_open_editor
+ * resets it).
+ */
+static TravelDestWho s_trade_phantom;
+static int s_trade_phantom_route = -1;
+
+static const TravelDestWho* game_trade_phantom(
+  ColonizeGameState* game, const ColonizeCol1TradeRoute* r
+) {
+  if (s_trade_phantom_route != game->trade_screen.route) {
+    s_trade_phantom_route = game->trade_screen.route;
+    s_trade_phantom.ship = r->sea != 0;
+    s_trade_phantom.x = -1;
+    s_trade_phantom.y = -1;
+    const ColonizeColony* first =
+      r->dest_count > 0 && r->stop[0].colony_index != TRAVEL_DEST_EUROPE
+        ? colonies_get(&game->colonies, r->stop[0].colony_index)
+        : NULL;
+    if (first) {
+      s_trade_phantom.x = first->x;
+      s_trade_phantom.y = first->y;
+    }
+  }
+  return &s_trade_phantom;
+}
+
 void game_trade_open_editor(ColonizeGameState* game, int route) {
   if (!game || !game->col1_ok || route < 0 ||
       route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
     return;
   }
   game->trade_last_edited = route;
+  s_trade_phantom_route = -1;
   trade_screen_open(&game->trade_screen, route);
 }
 
 /*
  * Destination picker for editor stop `stop_i` (or append when stop_i ==
  * dest_count) and for the create wizard (trade_create_stage 1/4, stop_i < 0).
- * DOS FUN_647e_01c6: own colonies (sea routes: coastal only, plus the Europe
- * row); "(Delete Destination)" appended when editing an existing stop of a
- * multi-stop route.
+ * DOS FUN_647e_01c6 (raw 102334-102461). The create wizard calls it with unit
+ * -1 (ndisasm 000610EC / 000612B0: push -1,-1,0,0): thunk_FUN_2a1f_0762 then
+ * only tests ownership, so BOTH wizard pickers list every own colony — no
+ * sea/coast filter, and no Europe row (it needs a ship unit); the port keeps
+ * #300's sea-route exception for the second pick (see below). The editor
+ * passes the phantom traveller (game_trade_phantom): the Europe row FIRST for
+ * a sea route whose phantom reaches the Atlantic, then the colonies that
+ * travel_dest_ok (FUN_647e_0094) accepts from the route's first stop — a sea
+ * route offers colonies on the first stop's water region (never a lake colony
+ * next to an ocean one), a land route colonies on its continent.
+ * "(Delete Destination)" is appended when editing an existing stop of a
+ * multi-stop route. Not reproduced: DOS's 10-row pagination (cut at
+ * CHEAT_LIST_MAX_OPTIONS) and the delete row DOS also shows on the append
+ * picker.
  */
 void game_trade_open_dest_picker(ColonizeGameState* game, int stop_i) {
   if (!game || !game->col1_ok || !game->colonies_ok) {
     return;
   }
   const bool wizard = stop_i < 0;
-  bool sea = false;
   const ColonizeCol1TradeRoute* r = NULL;
+  const TravelDestWho* who = NULL;
+  TravelDestWho wizard_ship;
   if (!wizard) {
     if (game->trade_screen.route < 0) {
       return;
     }
     r = &game->col1.trade_route[game->trade_screen.route];
-    sea = r->sea != 0;
-  } else if (game->trade_create_stage == 4) {
-    /* Wizard destination 2: the route type is decided by now — a sea route's
-     * picker filters to coastal colonies and offers the Europe port row, the
-     * same FUN_647e_01c6 list the editor shows (port_bugs.md: "Create trade route
-     * (sea route) should include the European port"). */
-    sea = game->trade_create_sea != 0;
+    who = game->world_map_ok ? game_trade_phantom(game, r) : NULL;
+  } else if (game->trade_create_stage == 4 && game->trade_create_sea && game->world_map_ok) {
+    /* port_bugs.md #300 (user report, CLOSED): the sea wizard's second pick
+     * offers the Europe row and the colonies a ship reaches from the first
+     * stop, like the editor. The static read above (unit -1) says DOS lists
+     * every colony with no Europe row; the user's report wins until a DOSBox
+     * check settles it. */
+    const ColonizeColony* c1 = colonies_get(&game->colonies, game->trade_create_dest1);
+    if (c1) {
+      wizard_ship = (TravelDestWho){.ship = true, .x = c1->x, .y = c1->y};
+      who = &wizard_ship;
+    }
   }
+  const ColonizeWorldMap* map = game->world_map_ok ? &game->world_map : NULL;
+  const bool delete_row =
+    !wizard && r && stop_i < (int)r->dest_count && r->dest_count > 1;
+  const int cap = CHEAT_LIST_MAX_OPTIONS - (delete_row ? 1 : 0);
   const char* labels[CHEAT_LIST_MAX_OPTIONS];
   int ids[CHEAT_LIST_MAX_OPTIONS];
   char bufs[CHEAT_LIST_MAX_OPTIONS][CHEAT_LIST_LABEL_LEN];
   int count = 0;
-  for (int i = 0; i < COLONIZE_COLONIES_MAX && count < CHEAT_LIST_MAX_OPTIONS - 2; ++i) {
+  if (who && who->ship &&
+      travel_dest_ok(map, &game->colonies, game->human_nation, TRAVEL_DEST_EUROPE, who)) {
+    /* Europe row: "<Port> (Europe)" — FUN_647e_01c6's nation port entry. */
+    snprintf(bufs[count], sizeof(bufs[count]), "%.38s (Europe)", game_trade_europe_label(game));
+    labels[count] = bufs[count];
+    ids[count] = TRAVEL_DEST_EUROPE;
+    count++;
+  }
+  for (int i = 0; i < COLONIZE_COLONIES_MAX && count < cap; ++i) {
     const ColonizeColony* c = &game->colonies.colonies[i];
-    if (!c->active || c->nation_id != game->human_nation) {
-      continue;
-    }
-    if (sea && game->world_map_ok &&
-        !map_tile_is_coastal(&game->world_map, c->x, c->y)) {
+    if (!c->active || c->nation_id != game->human_nation ||
+        (who && !travel_dest_ok(map, &game->colonies, game->human_nation, c->id, who))) {
       continue;
     }
     str_copy_trunc(bufs[count], sizeof(bufs[count]), c->name[0] ? c->name : "");
@@ -667,15 +728,7 @@ void game_trade_open_dest_picker(ColonizeGameState* game, int stop_i) {
     ids[count] = c->id;
     count++;
   }
-  if (sea && count < CHEAT_LIST_MAX_OPTIONS - 1) {
-    /* Europe row: "<Port> (Europe)" — FUN_647e_01c6's nation port entry. */
-    snprintf(bufs[count], sizeof(bufs[count]), "%.38s (Europe)", game_trade_europe_label(game));
-    labels[count] = bufs[count];
-    ids[count] = 999;
-    count++;
-  }
-  if (!wizard && r && stop_i < (int)r->dest_count && r->dest_count > 1 &&
-      count < CHEAT_LIST_MAX_OPTIONS) {
+  if (delete_row) {
     labels[count] = game->trade_screen.lab_delete;
     ids[count] = 1000;
     count++;
@@ -821,9 +874,18 @@ void game_trade_wizard_open_dest(ColonizeGameState* game, int number) {
 }
 
 /*
- * Default route name (DOS OVL19): "<Colony> <TRADENAMES word>", the word
- * picked at random; on a clash append " A" (DS:0x1d89) and keep bumping the
- * letter until unique.
+ * Default route name (create wizard, ndisasm 00061157-00061240): the first
+ * stop's colony name + " " (DS:0x50) + one @TRADENAMES word; on a clash with an
+ * existing route append " A" (DS:0x1d89) and keep bumping the last letter,
+ * rescanning from route 1, until unique.
+ *
+ * The word is a real game-RNG draw: FUN_281f_04ca(DS:0x83a6) (reseed, the same
+ * call as the nation-slot and LCR sites: dos_rng_reseed_83a6) then
+ * FUN_281f_04d4(1, n) with n = the section's count line; line r after the
+ * count line is the word. DOS therefore consumes the main stream here; the
+ * port draws from move_rng the same way. The pick is only as reproducible as
+ * the reseed word — nothing may rely on it, so the regression tests type their
+ * route names.
  */
 void game_trade_default_name(
   ColonizeGameState* game,
@@ -842,8 +904,9 @@ void game_trade_default_name(
     if (n <= 0 || n > sec->line_count - 1) {
       n = sec->line_count - 1;
     }
-    const uint32_t pick = (uint32_t)(game->ai_rng_seed = game->ai_rng_seed * 1103515245u + 12345u);
-    str_copy_trunc(word_buf, sizeof(word_buf), sec->lines[1 + (int)(pick % (uint32_t)n)]);
+    dos_rng_reseed_83a6(&game->move_rng);
+    const int pick = dos_rng_range(&game->move_rng, 1, n);
+    str_copy_trunc(word_buf, sizeof(word_buf), sec->lines[pick]);
     if (word_buf[0]) {
       word = word_buf;
     }
@@ -878,7 +941,8 @@ void game_trade_default_name(
 }
 
 /*
- * Create wizard step after the first destination: coastal colony → ask
+ * Create wizard step after the first destination: coastal colony (FUN_281f_0d12,
+ * ndisasm 00061111: any INSET water neighbour, lakes included) → ask
  * @TRADETYPE (sea/land CHOICE, DOS choice 1 = Sea); landlocked → land route,
  * straight to the @TRADENAME prompt.
  */
@@ -886,7 +950,7 @@ static void game_trade_wizard_after_dest1(ColonizeGameState* game, int first_des
   game->trade_create_dest1 = first_dest_colony_id;
   const ColonizeColony* c = colonies_get(&game->colonies, first_dest_colony_id);
   const bool coastal =
-    c && game->world_map_ok && map_tile_is_coastal(&game->world_map, c->x, c->y);
+    c && game->world_map_ok && travel_dest_water_region(&game->world_map, c->x, c->y) >= 0;
   if (!coastal) {
     game->trade_create_sea = 0;
     game->trade_create_stage = 3;

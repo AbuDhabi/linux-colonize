@@ -497,12 +497,12 @@ int europe_custom_house_autosell_ex_w(
       snprintf(
         eu->status,
         sizeof(eu->status),
-        "Custom House in %s sold for %d$.",
+        "Custom House in %s earned %d$.",
         colony->name,
         total
       );
     } else {
-      snprintf(eu->status, sizeof(eu->status), "Custom House sold goods for %d$.", total);
+      snprintf(eu->status, sizeof(eu->status), "Custom House earned %d$.", total);
     }
   }
   return total;

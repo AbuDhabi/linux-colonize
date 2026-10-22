@@ -1,0 +1,44 @@
+# Live Among The Natives with Free Colonists (FC) and Indentured Servants (IS) at Tupi villages.
+# Fixture (start save): 7 colonists stand beside villages, each alone on its tile with full moves, no orders;
+# the capital village (35,26) is set learned=true.
+# RNG: Tupi alarm toward France (indians[7].alarm_by_player[1]) is 0 -> ai_relation_quartile 0, so the
+# "band > 0" @LEARNSLOW roll never runs; the taught skill comes from the village-seeded stream (fixed per village).
+# A village visit forfeits all the unit's moves; the game then selects the next unit by index (128, 129, 130, 133, 134).
+# --- FC at unlearned village (46,26): "Not right now" -> @LEARNLATER, nothing changes
+click 168 160   # select the FC at (45,26) west of the village
+key KP_6        # step east onto the village -> village menu
+key Return      # "Live Among The Natives" -> @LEARNSTAY (Cotton Planter)
+key Down        # second row, "Not right now, thanks."
+key Return      # -> @LEARNLATER
+key Return      # dismiss it (FC stays unskilled, village not learned)
+# --- IS (auto-selected, (46,25)) at the same village: accepts -> becomes Expert Cotton Planter
+key KP_2        # south onto the village
+key Return      # Live Among The Natives
+key Return      # first row: "Then I shall become a master Cotton Planter"
+key Return      # dismiss @LEARNDONE (IS profession 25 -> 3, village learned)
+# --- FC at the capital (35,26), learned=true: a capital still teaches (no @LEARNALREADY)
+key KP_4        # west onto the capital
+key Return      # Live Among The Natives
+key Return      # accept (Tobacco Planter)
+key Return      # dismiss @LEARNDONE (FC profession 28 -> 2)
+# --- IS at unlearned village (41,27): refuses -> @LEARNLATER
+key KP_6        # east onto the village (IS at (40,27))
+key Return      # Live Among The Natives
+key Down        # "Not right now, thanks."
+key Return
+key Return      # dismiss @LEARNLATER (IS stays Indentured Servant)
+# --- FC at the same village: accepts -> Expert Sugar Planter
+key KP_2        # FC at (41,26): south onto the village
+key Return
+key Return      # accept
+key Return      # dismiss @LEARNDONE (FC 28 -> 1, village learned)
+# --- FC at a village that already taught (43,23): @LEARNALREADY, nothing learned
+click 88 112    # select the FC at (43,24)
+key KP_8        # north onto the village
+key Return      # Live Among The Natives
+key Return      # dismiss @LEARNALREADY
+# --- IS at a village that already taught (46,22): @LEARNALREADY
+click 120 80    # select the IS at (45,22)
+key KP_6        # east onto the village
+key Return      # Live Among The Natives
+key Return      # dismiss @LEARNALREADY; the game selects the Dragoon in Quebec, map idle

@@ -1314,7 +1314,7 @@ static void ai_king_1528_announce(ColonizeTurnContext* ctx, int human) {
     }
   }
   if (ctx->status && ctx->status_size) {
-    snprintf(ctx->status, ctx->status_size, "%s declares war on %s!",
+    snprintf(ctx->status, ctx->status_size, "%s enters the conflict against %s!",
              ally_country, crown_country);
   }
   if (!ai_king_human_popups(ctx)) {

@@ -1,0 +1,42 @@
+# Wagon Train in Guadeloupe is selected (6 moves). Land units have no "Go to Port" row: hotkey G = Go to Place (click mode).
+key g                  # G = Go to Place: next map click is the destination
+key Escape             # Esc cancels the click mode (no order, wagon stays selected)
+key g                  # Go to Place again
+click 168 128          # destination Quebec: the wagon rides the roads there, order cleared on arrival
+wait 40
+# Caravel A (Quebec dock, 12 moves) is next. G = Go to Port: colony picker (Europe, Quebec, Montreal, Port au Prince; lake colony Guadeloupe is not offered to a ship)
+key g                  # open the picker
+key Escape             # picker cancelled: no order, ship stays selected
+wait 10
+key g                  # picker again
+click 96 100           # Quebec, the port the ship already sits in: no order is left
+wait 40
+key g                  # picker again
+click 96 92            # Europe row ("La Rochelle (Europe)", first row): go-to the nearest free High Seas tile (50,29); A sails its 4 tiles and keeps the order, it sails for Europe on arriving there next turn
+wait 60
+# Colonist in Guadeloupe (3 moves) is next (the cycle continues after Caravel A, not from the start)
+click 88 3             # ORDERS menu
+click 97 86            # "Go to Place" (no Go to Port row for land units)
+click 184 112          # destination Quebec: too far this turn, he walks 3 road tiles and keeps the go-to order
+wait 60
+# The cycle goes on to a far-away ship, then a Colonist with a pending go-to (he finishes it into Guadeloupe), then Caravel B (51,27, high seas)
+key w                  # skip the far-away ship
+key w                  # the Colonist walks his last tile into Guadeloupe; B is selected
+# Caravel B is selected; click the Caravel at sea (47,29), not yet on the high seas, instead
+click 88 144           # select it
+click 88 3             # ORDERS menu: "Return to Europe" is greyed
+click 97 109           # click the greyed row: menu closes, nothing happens
+wait 10
+key r                  # R (hotkey of Return to Europe) is dead off the high seas
+wait 10
+key g                  # picker (Europe first: this ship is on the Atlantic's water)
+click 96 108           # Montreal: sails 4 tiles and docks, order cleared on arrival
+wait 60
+# Caravel C (51,30, high seas) is next; select Caravel B (51,27, high seas) by clicking it instead
+click 152 64           # select B
+click 88 3             # ORDERS menu
+click 97 109           # "Return to Europe" (enabled on the high seas): B sails for Europe
+wait 60
+# Caravel C (high seas) is selected again
+key r                  # hotkey R = Return to Europe: C sails for Europe
+wait 60

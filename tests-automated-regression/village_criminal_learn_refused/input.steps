@@ -1,0 +1,19 @@
+# Petty Criminals (profession 26) try Live Among The Natives: @LEARNCRIMINAL, nothing learned, villages unchanged.
+# Fixture (start save): 3 Petty Criminals stand beside Tupi villages (alone on their tiles, full moves, no orders):
+# (43,23) already taught, the capital (35,26) (learned=true) and (46,26) not yet taught. Other go-to colonists made idle.
+# The refusal test comes before the learned/capital checks, so none of them reaches the @LEARNSTAY choice or any roll.
+# A village visit forfeits all the unit's moves; the game then selects the next unit by index.
+# --- criminal beside a village that already taught
+click 136 128   # select the criminal at (43,24), south of the village
+key KP_8        # north onto the village -> village menu
+key Return      # "Live Among The Natives" -> @LEARNCRIMINAL
+key Return      # dismiss it (profession stays Petty Criminal)
+# --- criminal beside the capital (learned=true; a capital would still teach an ordinary colonist)
+key KP_4        # auto-selected criminal at (36,26): west onto the capital
+key Return      # Live Among The Natives -> @LEARNCRIMINAL
+key Return      # dismiss it
+# --- criminal beside a village that has not taught yet
+key KP_6        # auto-selected criminal at (45,26): east onto the village
+key Return      # Live Among The Natives -> @LEARNCRIMINAL
+shot
+key Return      # dismiss it (village stays learned=false)

@@ -464,6 +464,7 @@ void game_colony_select_outside(ColonizeGameState* game, int unit_id) {
 
 static int game_colony_list_outside_roles(
   const ColonizeColonyPool* pool,
+  const ColonizeUnitPool* units,
   const ColonizeColony* colony,
   const ColonizeUnit* unit,
   int* out_roles,
@@ -1028,6 +1029,7 @@ void game_colony_fence_drop(ColonizeGameState* game, ColonizeColony* colony) {
         }
         csv->eject_role_count = game_colony_list_outside_roles(
           &game->colonies,
+          &game->units,
           colony,
           u,
           csv->eject_roles,
@@ -1446,8 +1448,20 @@ bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my, bool shift) 
  * it dropped the Missionary row until 2026-09-10, which let a colonist be
  * blessed inside the colony but not one pixel outside it.
  */
+/* The body's tools as FUN_15eb_1068 (raw 11232-11243) and FUN_2f2b_348c
+ * (raw 50553-50569) bank them: the +0x3159 byte goes in only through the
+ * tools (0x0e) entry of the body's current job cargo list (FUN_15eb_0d8e),
+ * which only a Pioneer has. On any other type the byte is residue (a Pioneer
+ * stripped of tools in Europe keeps 100) and banking it gave free tools. */
+static int game_colony_body_tools(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  return u->tools > 0 && units_type_kind(units_type(units, u->type_index)) == UNITS_KIND_PIONEER
+    ? u->tools
+    : 0;
+}
+
 static int game_colony_list_outside_roles(
   const ColonizeColonyPool* pool,
+  const ColonizeUnitPool* units,
   const ColonizeColony* colony,
   const ColonizeUnit* unit,
   int* out_roles,
@@ -1473,7 +1487,7 @@ static int game_colony_list_outside_roles(
   return colonies_list_eject_roles_gear(
     pool,
     colony,
-    unit->tools > 0 ? unit->tools : 0,
+    game_colony_body_tools(units, unit),
     unit->muskets > 0 ? UNITS_EQUIP_MUSKETS : 0,
     unit->horses > 0 ? UNITS_EQUIP_HORSES : 0,
     unit->profession,
@@ -1497,7 +1511,7 @@ bool game_colony_apply_outside_role(
   if (!u) {
     return false;
   }
-  int stock_tools = colony->stock[COLONIZE_CARGO_TOOLS] + (u->tools > 0 ? u->tools : 0);
+  int stock_tools = colony->stock[COLONIZE_CARGO_TOOLS] + game_colony_body_tools(units, u);
   int stock_muskets = colony->stock[COLONIZE_CARGO_MUSKETS] + (u->muskets > 0 ? u->muskets : 0);
   int stock_horses = colony->stock[COLONIZE_CARGO_HORSES] + (u->horses > 0 ? u->horses : 0);
 

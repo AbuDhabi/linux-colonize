@@ -388,7 +388,7 @@ fragment. Related sections are listed in the first column.
 | Stack picker | Multi-unit tile click | Done | [`unit_stack.c`](../src/core/unit_stack.c) |
 | `@SUREDISBAND` / `@DISBANDSHIP` | Disband confirm / ship cargo error | Done | Confirm `@SUREDISBAND`; `@DISBANDSHIP` OK when units aboard |
 | `@FINDCITY` / `@NOCITY` | Find colony picker | Done | `cheat_list` FIND_COLONY |
-| `@SAILPORT` | Unit ORDERS "Go to Port" (ships) | Done | 2026-09-16: `game_open_goto_port_picker`/`cheat_list` GOTO_PORT — own coastal colonies + Europe row (999), DOS `FUN_647e_01c6`/`FUN_2b5a_1dfc`; replaces the prior "jump to next owned colony" shortcut (docs/unit_orders.md) |
+| `@SAILPORT` | Unit ORDERS "Go to Port" (ships) | Done | 2026-09-16: `game_open_goto_port_picker`/`cheat_list` GOTO_PORT, DOS `FUN_647e_01c6`/`FUN_2b5a_1dfc`; 2026-10-22: Europe row first, rows filtered by `travel_dest_ok` (docs/unit_orders.md) |
 | `@OVERBOARD` | Which cargo to dump | Done | Hold picker (`AI_POPUP_TAG_OVERBOARD_WHICH`), ids = hold+1, 99 = cancel |
 | Order gates (`@NOPLOW`, `@NOROAD`, `@NEEDTOOLS`, …) | Illegal order | Done thin | Re-verified 2026-09-16: `@NOPLOW`/`@NOROAD` (`units.c` `units_pioneer_emit_order_gate`) — `@ONLYPIO` retired 2026-09-22 as dead text (port_bugs.md #621: the literal is absent from VICEROY.EXE; `0b34` raw 42211-42215 greys the menu rows instead), EOT `@NEEDTOOLS`/`@NEEDTOOLS0` (`turn.c`), `@SEACOLONY`/`@TOOMOUNTAIN`/`@NOPORT` (`game_loop.c`) all call `popup_msg_fill` with the real GAME.TXT body at the DOS condition — was mis-tallied Partial against a stale note; see Appendix A |
 
@@ -537,9 +537,9 @@ DOS module = segment `647e` (mislabelled "colony" in the catalog — records are
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
 | `@TRADEMANY` | Create at 12-route cap | Done | ai_popup OK, %NUMBER0=12 |
-| `@TRADESTART` | Create/editor destination pickers | Done | `cheat_list` TRADE_DEST, %NUMBER0 = stop # |
+| `@TRADESTART` | Create/editor destination pickers | Done | `cheat_list` TRADE_DEST, %NUMBER0 = stop #. Wizard pickers: every own colony, no Europe row (DOS asks `FUN_647e_01c6` with unit -1). Editor stop rows: Europe first (sea route), then colonies reachable from the route's first stop (`travel_dest_ok`, DOS phantom unit `FUN_478c_007e`) |
 | `@TRADETYPE` | Create: first colony coastal | Done | AI_POPUP_TAG_TRADE_TYPE CHOICE (1=Sea) |
-| `@TRADENAMES` + `@TRADENAME` | Create: default name + entry | Done | "<Colony> <random word>", " A"-suffix dedupe; name_entry TRADE_NAME (31 chars) |
+| `@TRADENAMES` + `@TRADENAME` | Create: default name + entry | Done | "<Colony> <word>", the word = `FUN_281f_04ca` reseed + `FUN_281f_04d4(1, n)` draw on the game RNG (`move_rng`; no private LCG), " A"-suffix dedupe; name_entry TRADE_NAME (31 chars). Regression tests type names, never rely on the default |
 | `@TRADENONE` / `@TRADENONE2` | Begin/Edit with no (matching) routes | Done | ai_popup OK; %STRING0 = @ROUTE Sea/Land |
 | `@TRADESELECT` route picker | Begin (sea/land filtered) / Edit | Done | `cheat_list` TRADE_SELECT, "N. NAME" rows |
 | `@SAILPORT` / `@TRAVELPLACE` | Begin: multi-stop route starting-stop picker | Done | `game_trade_open_stop_picker` (`game_loop_menus.c`), title by `r->sea` (DOS `FUN_647e_090a`), "N. stop" rows, preselect = unit's current stop or 0 |

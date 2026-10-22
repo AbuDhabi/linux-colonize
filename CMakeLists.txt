@@ -79,6 +79,7 @@ add_library(colonize_sim STATIC
   # --- Simulation -----------------------------------------------------------
   src/core/map.c
   src/core/map_gen.c
+  src/core/travel_dest.c
   src/core/dos_rng.c
   src/core/units.c
   src/core/units_map.c
@@ -369,6 +370,15 @@ endif()
 
 enable_testing()
 
+# Source-level twin of lint_no_catalog_text: no DOS wording typed into src/
+# (tools/check_dos_text.py; exit 77 = no COLONIZE/ here -> Skipped).
+find_program(PYTHON3_EXE python3)
+if(PYTHON3_EXE)
+  add_test(NAME lint_dos_text COMMAND ${PYTHON3_EXE} ${CMAKE_SOURCE_DIR}/tools/check_dos_text.py)
+  set_tests_properties(lint_dos_text PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                                                SKIP_RETURN_CODE 77)
+endif()
+
 if(TARGET opencol)
   add_test(
     NAME lint_no_catalog_text
@@ -569,6 +579,11 @@ colonize_add_test(NAME unit_map
 
 colonize_add_test(NAME unit_map_gen
   SOURCES tests/unit/test_map_gen.c
+  LIBS colonize_core
+)
+
+colonize_add_test(NAME unit_travel_dest
+  SOURCES tests/unit/test_travel_dest.c
   LIBS colonize_core
 )
 

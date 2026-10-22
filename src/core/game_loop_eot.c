@@ -68,6 +68,7 @@
 #include "core/ss.h"
 #include "core/strutil.h"
 #include "core/trade_screen.h"
+#include "core/travel_dest.h"
 #include "core/turn.h"
 #include "core/ui_button.h"
 #include "core/ui_colors.h"
@@ -305,6 +306,13 @@ bool game_ship_woi_europe_exempt(const ColonizeGameState* game, const ColonizeUn
   return row >= 0 && ship->type_index == row;
 }
 
+/* @EUROPENOTLEAVE (FUN_281f_03fe): the War of Independence refusal. */
+static void game_europe_not_leave_popup(ColonizeGameState* game) {
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(&game->messages, "EUROPENOTLEAVE", NULL, "", body, sizeof(body));
+  ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+}
+
 /*
  * Sail a ship on a sea-lane (high seas) tile back to Europe with everything
  * aboard — the shared tail for the H command and for a Go To order whose
@@ -338,13 +346,7 @@ bool game_ship_sail_to_europe(ColonizeGameState* game, int sid) {
    * same flag, and is lost for the rest of the game.
    */
   if (game_europe_blocked_by_woi(game) && !game_ship_woi_europe_exempt(game, ship)) {
-    char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(
-      &game->messages, "EUROPENOTLEAVE", NULL,
-      "",
-      body, sizeof(body)
-    );
-    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+    game_europe_not_leave_popup(game);
     return false;
   }
   const int exit_x = ship->x;
@@ -1480,38 +1482,46 @@ void game_order_return_europe(ColonizeGameState* game) {
 
 /*
  * Unit ORDERS "Go to Port" (ships only — land units use Go to Place's click
- * mode). DOS FUN_2b5a_1dfc opens FUN_647e_01c6(unit>=0) titled @SAILPORT for
- * a ship (asm 647e:174862-174885: unit type 0xd..0x12 → SAILPORT else
- * TRAVELPLACE; GOTO_PORT is ship-only in the port's menu so the title is
- * always SAILPORT here). Rows: own coastal colonies (the same reachability
- * proxy game_trade_open_dest_picker uses; DOS's full thunk_FUN_2a1f_0762
- * reachability/pagination is not reproduced) plus a 999 Europe row.
+ * mode). DOS FUN_2b5a_1dfc opens FUN_647e_01c6(unit, -1, 1, 0) titled
+ * @SAILPORT for a ship (asm 647e:0227-025c: unit type 0xd..0x12 → SAILPORT
+ * else TRAVELPLACE; GOTO_PORT is ship-only in the port's menu so the title is
+ * always SAILPORT here). Rows (raw 102334-102461): the Europe row FIRST (asm
+ * 647e:02c4-037e), when thunk_FUN_2a1f_0762(999, unit) passes, then every
+ * colony it passes, in colony order (647e:03a7-0450). 0762 = FUN_647e_0094
+ * (asm 647e:0094-01c0) = travel_dest_ok: own colony
+ * on the ship's water region (a lake colony is never offered to a sea-going
+ * ship), Europe only for a ship that can reach the Atlantic. Not reproduced:
+ * 10-row pagination (the list is cut at CHEAT_LIST_MAX_OPTIONS) and DOS's
+ * greyed row (FUN_291f_01b6) for the colony the ship already lies in.
  */
 static void game_open_goto_port_picker(ColonizeGameState* game, int uid) {
-  if (!game || !game->world_map_ok || !game->colonies_ok) {
+  if (!game || !game->world_map_ok || !game->colonies_ok || !game->units_ok) {
+    return;
+  }
+  TravelDestWho who;
+  if (!travel_dest_who_unit(&game->units, uid, &who)) {
     return;
   }
   const char* labels[CHEAT_LIST_MAX_OPTIONS];
   int ids[CHEAT_LIST_MAX_OPTIONS];
   char bufs[CHEAT_LIST_MAX_OPTIONS][CHEAT_LIST_LABEL_LEN];
   int count = 0;
-  for (int i = 0; i < COLONIZE_COLONIES_MAX && count < CHEAT_LIST_MAX_OPTIONS - 1; ++i) {
+  if (who.ship &&
+      travel_dest_ok(&game->world_map, &game->colonies, game->human_nation, TRAVEL_DEST_EUROPE, &who)) {
+    snprintf(bufs[count], sizeof(bufs[count]), "%s (Europe)", game_trade_europe_label(game));
+    labels[count] = bufs[count];
+    ids[count] = TRAVEL_DEST_EUROPE;
+    count++;
+  }
+  for (int i = 0; i < COLONIZE_COLONIES_MAX && count < CHEAT_LIST_MAX_OPTIONS; ++i) {
     const ColonizeColony* c = &game->colonies.colonies[i];
-    if (!c->active || c->nation_id != game->human_nation) {
-      continue;
-    }
-    if (!map_tile_is_coastal(&game->world_map, c->x, c->y)) {
+    if (!c->active ||
+        !travel_dest_ok(&game->world_map, &game->colonies, game->human_nation, c->id, &who)) {
       continue;
     }
     str_copy_trunc(bufs[count], sizeof(bufs[count]), c->name[0] ? c->name : "");
     labels[count] = bufs[count];
     ids[count] = c->id;
-    count++;
-  }
-  if (count < CHEAT_LIST_MAX_OPTIONS) {
-    snprintf(bufs[count], sizeof(bufs[count]), "%s (Europe)", game_trade_europe_label(game));
-    labels[count] = bufs[count];
-    ids[count] = 999;
     count++;
   }
   if (count <= 0) {
@@ -1533,9 +1543,15 @@ static void game_open_goto_port_picker(ColonizeGameState* game, int uid) {
 }
 
 /*
- * Apply a CHEAT_LIST_KIND_GOTO_PORT result (DOS FUN_2b5a_1dfc tail): 999 =
- * Europe (game_ship_sail_to_europe, same EUROPENOTLEAVE gate as the H
- * command), else order 3 (Go To) aimed at the colony's tile.
+ * Apply a CHEAT_LIST_KIND_GOTO_PORT result (DOS FUN_2b5a_1dfc tail, raw
+ * 42806-42821): a colony → order 3 (Go To) aimed at the colony's tile; 999 =
+ * Europe → under the War of Independence (DS:0x5382 bit 0, no Man-O-War
+ * exemption here) @EUROPENOTLEAVE and nothing else, otherwise
+ * FUN_291f_02ea -> FUN_48d3_015e: order 3 aimed at the nearest free-or-own
+ * High Seas tile (ring hunt, units_015e_hs_course). The ship sails for
+ * Europe when it ARRIVES there (FUN_479b_0972 raw 77095-77107, the Go To
+ * onto a lane tile in game_update) — never from the dock. A miss in the ring
+ * leaves the unit alone, as in DOS.
  */
 void game_apply_goto_port(ColonizeGameState* game, int id) {
   if (!game) {
@@ -1546,19 +1562,37 @@ void game_apply_goto_port(ColonizeGameState* game, int id) {
   if (uid < 0 || !game->units_ok) {
     return;
   }
-  if (id == 999) {
-    (void)game_ship_sail_to_europe(game, uid);
-    return;
+  int dest_x = 0;
+  int dest_y = 0;
+  const char* name = "";
+  if (id == TRAVEL_DEST_EUROPE) {
+    const ColonizeUnit* ship = units_get_const(&game->units, uid);
+    if (!ship || !game->world_map_ok) {
+      return;
+    }
+    if (game_europe_blocked_by_woi(game)) {
+      game_europe_not_leave_popup(game);
+      return;
+    }
+    if (!units_015e_hs_course(
+          &game->units, &game->world_map, ship->x, ship->y, ship->nation_id, &dest_x, &dest_y)) {
+      return;
+    }
+    name = game_trade_europe_label(game);
+  } else {
+    const ColonizeColony* target = colonies_get(&game->colonies, id);
+    if (!target) {
+      return;
+    }
+    dest_x = target->x;
+    dest_y = target->y;
+    name = target->name;
   }
-  const ColonizeColony* target = colonies_get(&game->colonies, id);
-  if (!target) {
-    return;
-  }
-  const int rc = game_issue_goto(game, uid, target->x, target->y);
+  const int rc = game_issue_goto(game, uid, dest_x, dest_y);
   if (rc < 0) {
     set_status(game, "Cannot go to port", NULL);
   } else if (rc == 0) {
-    snprintf(game->status, sizeof(game->status), "Go to Port: %s", target->name);
+    snprintf(game->status, sizeof(game->status), "Go to Port: %s", name);
   }
 }
 

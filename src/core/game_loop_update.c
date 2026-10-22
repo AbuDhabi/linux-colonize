@@ -3101,8 +3101,8 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
             europe_apply_dock_unit_kit(placed, deploy_type);
           }
         }
+        europe_dock_remove_mirror_unit(&game->europe, &game->units, game->human_nation, 0);
         europe_pop_dock_immigrant(&game->europe, name, sizeof(name));
-        europe_remove_dock_mirror_unit(&game->units, game->human_nation, prof);
         snprintf(
           game->status,
           sizeof(game->status),

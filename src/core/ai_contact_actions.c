@@ -1757,7 +1757,15 @@ static AiContactPopupStatus ai_contact_apply_popup_result_tags(
     return AI_CONTACT_POPUP_DONE;
   }
 
-  if (popup->result_cancelled) {
+  /*
+   * Esc on the @ACTIONS menu is not a no-op: FUN_6f74_2580 returns -1
+   * (key 0x1b -> `*param_1 = -1`, raw 116780-116782), and FUN_4d56_4528's
+   * dispatch (OVL13:0x4bd2 `DEC AX; CMP AX,8; JA default`) sends -1 to the
+   * switch default exactly like the Cancel row (id 10) — default keeps the
+   * return code 1, so the 0x4c0a tail forfeits the unit's moves. A cancelled
+   * MEET therefore falls through to the menu arm as a Leave.
+   */
+  if (popup->result_cancelled && popup->result_tag != AI_POPUP_TAG_CONTACT_MEET) {
     return AI_CONTACT_POPUP_DONE;
   }
 
@@ -1850,7 +1858,7 @@ static AiContactPopupStatus ai_contact_apply_popup_result_tags(
     /* Unpack the offer-time discount flags packed by
      * ai_contact_enqueue_incite_target_choice (bit0=is_missionary,
      * bit1=is_capital); bit2 marks the @INDIANWARPATH2 pay confirm, whose
-     * target rides in bits 3-4. */
+     * target rides in bits 3-4; bit5 marks the target CHOICE. */
     const int is_missionary = popup->result_payload & 1;
     const int is_capital = (popup->result_payload >> 1) & 1;
     if (popup->result_payload & AI_CONTACT_INCITE_STAGE_CONFIRM) {
@@ -1863,7 +1871,12 @@ static AiContactPopupStatus ai_contact_apply_popup_result_tags(
       }
       return AI_CONTACT_POPUP_DONE;
     }
-    if (!popup->result_cancelled) {
+    /* Only the target CHOICE is answered with a nation id; every other
+     * CONTACT_INCITE popup is OK chrome (@NOCONTACT / @UNFORTUNATE /
+     * @ALREADYSMITE / @INDIANWARFARE, payload 0) whose dismissal ends the
+     * beat — DOS shows those as blocking notices with no follow-up. */
+    if ((popup->result_payload & AI_CONTACT_INCITE_STAGE_TARGET) &&
+        !popup->result_cancelled) {
       ai_contact_enqueue_incite_confirm(
         ctx, ind, nation_id, e, popup->result_choice_id, is_missionary, is_capital
       );

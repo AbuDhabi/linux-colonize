@@ -1,7 +1,7 @@
 /*
  * Sections:
  *  - Recruit, train & purchase commit flows (europe_compute_recruit_passage .. europe_open_recruit_menu)
- *  - Dock unit typing, kit application & mirror units (europe_dock_unit_dos_type .. europe_remove_dock_mirror_unit)
+ *  - Dock unit typing, kit application & mirror units (europe_dock_unit_dos_type .. europe_spawn_dock_mirror_unit)
  *  - Dock arms buy/sell menu (europe_arm_buy_cost .. europe_pop_dock_immigrant_ex)
  */
 
@@ -38,13 +38,6 @@ static int europe_dock_type_roll(
 static int europe_dock_type_tools(int dos_type);
 static int europe_dock_type_muskets(int dos_type);
 static int europe_dock_type_horses(int dos_type);
-static void europe_retype_dock_mirror_unit(
-  ColonizeUnitPool* units,
-  int nation_id,
-  int profession,
-  int from_dos_type,
-  int to_dos_type
-);
 static int europe_arm_buy_cost(const EuropeScreen* eu, int cargo, int qty);
 static int europe_arm_sell_gain(const EuropeScreen* eu, int cargo, int qty);
 static bool europe_arm_row_enabled(
@@ -431,7 +424,7 @@ bool europe_open_recruit_menu(EuropeScreen* eu) {
   return true;
 }
 
-/* ===================== Dock unit typing, kit application & mirror units (europe_dock_unit_dos_type .. europe_remove_dock_mirror_unit) ===================== */
+/* ===================== Dock unit typing, kit application & mirror units (europe_dock_unit_dos_type .. europe_spawn_dock_mirror_unit) ===================== */
 int europe_dock_unit_dos_type(int profession, int difficulty, bool human, ColonizeDosRng* rng) {
   int type = 0; /* Colonists */
   if (profession == UNITS_JOB_PIONEER) {
@@ -610,49 +603,82 @@ void europe_apply_dock_unit_kit(ColonizeUnit* u, int dos_type) {
   u->horses = europe_dock_type_horses(dos_type);
 }
 
+/* The shape europe_dock_mirror_unit_of and col1 capture look for. */
+static bool europe_is_dock_mirror(const ColonizeUnitPool* units, const ColonizeUnit* u, int nation_id) {
+  return u && u->active && u->nation_id == nation_id && u->x == EUROPE_PARK_XY &&
+         u->y == EUROPE_PARK_XY && u->aboard_ship_id < 0 && !units_is_sea(units, u->id);
+}
+
 /*
- * Re-type and re-kit the (236,236) mirror unit behind a dock entry after an
- * @ARMOPTIONS row changed it. Matched on profession the same way
- * europe_remove_dock_mirror_unit matches, with the pre-change type as the
- * tie-break so two immigrants of the same profession do not swap.
+ * Which (236,236) mirror unit stands behind dock[dock_index]?
+ *
+ * DOS has one object here: the dock unit IS the unit record. The port keeps a
+ * row array plus a parked unit per row, so the two must be paired, and a
+ * pairing by profession alone picks the FIRST same-profession unit — a row
+ * whose neighbour already changed type then retyped the wrong record and a
+ * save/reload shuffled the dock (europe_equip_units: [Soldier Scout Pioneer
+ * Missionary Dragoon Dragoon] reloaded as [Dragoon Dragoon Pioneer Missionary
+ * Soldier Scout]). The row now carries the unit id (mirror_unit_id).
+ *
+ * Producers that spawn the mirror without telling the row (col1 import,
+ * turn_colony / units.c Brewster) leave it 0; the first lookup binds every
+ * such row to a mirror no row owns yet, in dock order: an exact
+ * (profession, @UNIT type) match first, a same-profession one second. A row
+ * with no mirror (recruit / train / purchase) stays 0 and answers -1.
  */
-static void europe_retype_dock_mirror_unit(
-  ColonizeUnitPool* units,
-  int nation_id,
-  int profession,
-  int from_dos_type,
-  int to_dos_type
+int europe_dock_mirror_unit_of(
+  EuropeScreen* eu, ColonizeUnitPool* units, int nation_id, int dock_index
 ) {
-  if (!units || nation_id < 0 || nation_id > 3) {
-    return;
+  if (!eu || !units || nation_id < 0 || nation_id > 3 || dock_index < 0 ||
+      dock_index >= eu->dock_count || dock_index >= EUROPE_DOCK_MAX) {
+    return -1;
   }
-  const int from_ti = europe_dock_unit_type_index(units, from_dos_type);
-  const int to_ti = europe_dock_unit_type_index(units, to_dos_type);
-  if (to_ti < 0) {
-    return;
+  EuropeDockImmigrant* d = &eu->dock[dock_index];
+  if (d->mirror_unit_id > 0 && europe_is_dock_mirror(units, units_get(units, d->mirror_unit_id), nation_id)) {
+    return d->mirror_unit_id;
   }
-  int fallback = -1;
-  for (int i = 0; i < units_slot_end(units); ++i) {
-    ColonizeUnit* u = &units->units[i];
-    if (!u->active || u->nation_id != nation_id || u->x != EUROPE_PARK_XY || u->y != EUROPE_PARK_XY ||
-        u->aboard_ship_id >= 0 || units_is_sea(units, u->id)) {
-      continue;
-    }
-    if (u->profession != profession) {
-      continue;
-    }
-    if (from_ti >= 0 && u->type_index == from_ti) {
-      u->type_index = to_ti;
-      europe_apply_dock_unit_kit(u, to_dos_type);
-      return;
-    }
-    if (fallback < 0) {
-      fallback = i;
+  d->mirror_unit_id = 0;
+
+  bool owned[COLONIZE_UNITS_MAX] = {false};
+  const int end = units_slot_end(units);
+  for (int r = 0; r < eu->dock_count && r < EUROPE_DOCK_MAX; ++r) {
+    const int id = eu->dock[r].mirror_unit_id;
+    const ColonizeUnit* mu = id > 0 ? units_get(units, id) : NULL;
+    if (europe_is_dock_mirror(units, mu, nation_id)) {
+      owned[mu - units->units] = true;
+    } else {
+      eu->dock[r].mirror_unit_id = 0;
     }
   }
-  if (fallback >= 0) {
-    units->units[fallback].type_index = to_ti;
-    europe_apply_dock_unit_kit(&units->units[fallback], to_dos_type);
+  for (int pass = 0; pass < 2; ++pass) {
+    for (int r = 0; r < eu->dock_count && r < EUROPE_DOCK_MAX; ++r) {
+      EuropeDockImmigrant* row = &eu->dock[r];
+      if (row->mirror_unit_id > 0 || !row->present) {
+        continue;
+      }
+      const int row_ti = europe_dock_display_type_index(units, row);
+      for (int i = 0; i < end; ++i) {
+        ColonizeUnit* u = &units->units[i];
+        if (owned[i] || !europe_is_dock_mirror(units, u, nation_id) || u->profession != row->profession ||
+            (pass == 0 && u->type_index != row_ti)) {
+          continue;
+        }
+        owned[i] = true;
+        row->mirror_unit_id = u->id;
+        break;
+      }
+    }
+  }
+  return d->mirror_unit_id > 0 ? d->mirror_unit_id : -1;
+}
+
+void europe_dock_remove_mirror_unit(
+  EuropeScreen* eu, ColonizeUnitPool* units, int nation_id, int dock_index
+) {
+  const int id = europe_dock_mirror_unit_of(eu, units, nation_id, dock_index);
+  if (id > 0) {
+    (void)units_disband(units, id);
+    eu->dock[dock_index].mirror_unit_id = 0;
   }
 }
 
@@ -687,36 +713,6 @@ int europe_spawn_dock_mirror_unit(
   u->moves = units_max_mp(units, id);
   europe_apply_dock_unit_kit(u, dos_type);
   return id;
-}
-
-void europe_remove_dock_mirror_unit(ColonizeUnitPool* units, int nation_id, int profession) {
-  if (!units || nation_id < 0 || nation_id > 3) {
-    return;
-  }
-  int fallback = -1;
-  for (int i = 0; i < units_slot_end(units); ++i) {
-    const ColonizeUnit* u = &units->units[i];
-    if (!u->active || u->nation_id != nation_id || u->x != EUROPE_PARK_XY || u->y != EUROPE_PARK_XY ||
-        u->aboard_ship_id >= 0 || units_is_sea(units, u->id)) {
-      continue;
-    }
-    if (u->profession == profession) {
-      if (getenv("AI_DOCK_TRACE")) {
-        fprintf(stderr, "[dock-rm] n%d u%d prof %d\n", nation_id, u->id, profession);
-      }
-      (void)units_disband(units, u->id);
-      return;
-    }
-    if (fallback < 0) {
-      fallback = u->id;
-    }
-  }
-  if (fallback >= 0) {
-    if (getenv("AI_DOCK_TRACE")) {
-      fprintf(stderr, "[dock-rm] n%d fallback u%d prof %d\n", nation_id, fallback, profession);
-    }
-    (void)units_disband(units, fallback);
-  }
 }
 
 /*
@@ -1044,6 +1040,9 @@ bool europe_apply_dock_menu_row_ex(
   /* 38fd:3b4a/3ba0/3bfc `add [bx+0x2a],..` — the bound record's treasury, so
    * the col1 word moves with the purse when a save is bound (audit G3). */
   europe_purse_move(eu, col1, nation_id, gold_delta);
+  /* Pair the row with its mirror while the row still has its old type: the
+   * lazy bind of europe_dock_mirror_unit_of matches on it. */
+  const int mirror_id = units ? europe_dock_mirror_unit_of(eu, units, nation_id, dock_index) : -1;
   d->dos_type = to;
   if (ledger_cargo >= 0) {
     /*
@@ -1075,8 +1074,17 @@ bool europe_apply_dock_menu_row_ex(
     d->name[0] ? d->name : "immigrant",
     europe_arm_row_name(row), row, from, to, gold_delta, eu->gold
   );
-  if (units) {
-    europe_retype_dock_mirror_unit(units, nation_id, d->profession, from, to);
+  {
+    /* Re-type and re-kit the mirror; a row with no mirror (-1) has none to follow. */
+    ColonizeUnit* mu = units_get(units, mirror_id);
+    const int to_ti = units ? europe_dock_unit_type_index(units, to) : -1;
+    if (mu && to_ti >= 0) {
+      mu->type_index = to_ti;
+      europe_apply_dock_unit_kit(mu, to);
+      /* DOS writes only the type byte +0x3146 (38fd:3ade.. `mov byte [bx+0x3146],n`);
+       * the spent byte +0x3149 stays 0, i.e. the new type's full allotment. */
+      mu->moves = units_max_mp(units, mu->id);
+    }
   }
   if (sound >= 0 && g_europe_sound_play) {
     g_europe_sound_play(sound);

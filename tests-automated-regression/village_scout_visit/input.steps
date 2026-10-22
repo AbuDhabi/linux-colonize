@@ -1,0 +1,17 @@
+# Three Scouts (fixture: converted field colonists, orders cleared, all other French units sentried) stand next to Tupi villages;
+# Scout 129 (plain) at (43,24) is selected and starts. Tupi alarm for France is 0 (indians[7].alarm_by_player[1]).
+# RNG audit (src/core/ai_contact_actions.c ai_contact_speak_with_chief): Demand Tribute / Attack Village are rolls, never picked.
+# Speak With Chief draws thr = rand(0,100|140) but with tribe alarm < 25 (0x19) the good branch is taken whatever thr is, the Tupi are not
+# Arawak (no kill roll), and "alarm < thr && !scouted" is false on an already scouted village, so the result is always
+# @CHIEFHOWDY then @CHIEFBORED (the village skill / wanted goods come from a village-seeded stream, fixed per village). Only
+# villages 62 (41,27) and 10 (36,23), which start scouted, are spoken to; the unscouted village 31 (43,23) is only opened and dismissed with Escape.
+key KP_8     # Scout 129 steps north onto Tupi village (43,23): the village menu opens (Speak With Chief / Demand Tribute / Attack Village / Cancel Action)
+key Escape   # dismiss the menu with Escape: nothing happens but DOS forfeits the unit's remaining moves like the Cancel Action row (FUN_4d56_4528 sends the dialog's -1 to the switch default, tail OVL13:0x4c0a; moves spent 12); the Scout stays at (43,24), next Scout (130) is selected
+key KP_4     # Seasoned Scout 130 at (42,27) steps west into village 62 (41,27, already scouted, French mission): menu
+click 150 100  # "Ask to Speak With Chief": @CHIEFHOWDY (village skill + wanted goods), unit forfeits its moves
+key Return   # dismiss @CHIEFHOWDY
+key Return   # dismiss @CHIEFBORED (scouted village: no gift / tales of nearby lands / promotion); next Scout (134) is selected
+key KP_8     # Scout 134 at (36,24) steps north into village 10 (36,23, scouted, French Jesuit mission): menu
+click 150 100  # "Ask to Speak With Chief": @CHIEFHOWDY with this village's skill (Cotton Planters) and wanted goods
+key Return   # dismiss @CHIEFHOWDY
+key Return   # dismiss @CHIEFBORED; no Scout left with moves, Colonist 88 in Guadeloupe is selected again

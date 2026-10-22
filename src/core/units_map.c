@@ -1292,7 +1292,7 @@ const char* units_enter_reason_status(ColonizeEnterReason reason) {
   case COLONIZE_ENTER_BLOCKED_HS_SAIL:
     return "Need sail order for high seas";
   case COLONIZE_ENTER_VILLAGE_ILLEGAL:
-    return "Illegal entry into village";
+    return "Cannot enter village";
   case COLONIZE_ENTER_BOARD:
     return "Boarded ship";
   case COLONIZE_ENTER_VILLAGE_SHIP:

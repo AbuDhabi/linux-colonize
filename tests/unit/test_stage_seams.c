@@ -12,6 +12,7 @@
 #include "core/ai_contact_internal.h"
 #include "core/ai_euro_internal.h"
 #include "core/ai_internal.h"
+#include "core/assets.h"
 #include "core/col1_save.h"
 #include "core/game_dialogs.h"
 #include "core/font_file.h"
@@ -358,6 +359,58 @@ static int test_game_colony_unload_whole_hold(void) {
     return fail("zero amount must unload the whole hold");
   }
   return 0;
+}
+
+/* FUN_15eb_1068 raw 11232-11243: a body's tools byte is banked only through a
+ * Pioneer's job cargo list. A Scout carrying the residue of a Pioneer stripped
+ * in Europe must not re-equip as a Pioneer for free; a real Pioneer still
+ * returns its tools to the warehouse. */
+static int test_game_colony_outside_role_tools_residue(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  ColonizeUnitPool* units = calloc(1, sizeof(*units));
+  ColonizeColonyPool* pool = calloc(1, sizeof(*pool));
+  int rc = 0;
+  if (!units || !pool || !assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    rc = fail("tools-residue fixture");
+    goto out;
+  }
+  units_reset(units);
+  colonies_init(pool);
+  if (!units_load_types(units, &names) || !colonies_load_buildings(pool, &names)) {
+    rc = fail("tools-residue catalogs");
+    goto out;
+  }
+  ColonizeColony* colony = &pool->colonies[0];
+  colony->id = 0;
+  colony->active = true;
+  colony->x = 4;
+  colony->y = 4;
+  pool->colony_count = 1;
+  const int scout = units_spawn(units, units_kind_type_index(units, UNITS_KIND_SCOUT), 4, 4);
+  const int pioneer = units_spawn_allow_stack(units, units_kind_type_index(units, UNITS_KIND_PIONEER), 4, 4);
+  ColonizeUnit* su = units_get(units, scout);
+  ColonizeUnit* pu = units_get(units, pioneer);
+  if (!su || !pu) {
+    rc = fail("tools-residue spawn");
+    goto out;
+  }
+  su->tools = 100;
+  pu->tools = 100;
+  if (game_colony_apply_outside_role(pool, colony, units, scout, COLONIZE_EJECT_PIONEER) ||
+      colony->stock[COLONIZE_CARGO_TOOLS] != 0) {
+    rc = fail("a Scout's leftover tools byte must not equip a Pioneer");
+    goto out;
+  }
+  if (!game_colony_apply_outside_role(pool, colony, units, pioneer, COLONIZE_EJECT_COLONIST) ||
+      colony->stock[COLONIZE_CARGO_TOOLS] != 100 || pu->tools != 0) {
+    rc = fail("a Pioneer's tools go back to the warehouse");
+  }
+out:
+  assets_msg_free(&names);
+  free(units);
+  free(pool);
+  return rc;
 }
 
 /* port_bugs.md #950: a terrain-pedia detour from a zoomed colony is still part of
@@ -1277,6 +1330,7 @@ static const TestCase k_cases[] = {
     {"test_game_render_select_palette", test_game_render_select_palette},
     {"test_window_log_fit_line", test_window_log_fit_line},
     {"test_game_colony_unload_whole_hold", test_game_colony_unload_whole_hold},
+    {"test_game_colony_outside_role_tools_residue", test_game_colony_outside_role_tools_residue},
     {"test_colony_zoom_hold_survives_pedia_detour", test_colony_zoom_hold_survives_pedia_detour},
     {"test_trade_route_wagon_services_arrival_stop", test_trade_route_wagon_services_arrival_stop},
     {"test_trade_route_begin_moves_wagon_to_selected_stop", test_trade_route_begin_moves_wagon_to_selected_stop},

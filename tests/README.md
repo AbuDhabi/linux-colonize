@@ -75,6 +75,9 @@ the built binary. Its needle list is per-phrase, so a removed fallback stays
 unguarded until its wording is added there. Needles shorter than 5 characters
 cannot be caught at all (`strings -n 5`), and generic words (`ship`, `units`,
 `Foreign`) false-positive against legitimate strings.
+Its source-level twin `lint_dos_text` (`tools/check_dos_text.py`, allowlist
+`tools/check_dos_text.allow`) looks every `src/` string literal up in `COLONIZE/*.TXT` and
+the `VICEROY.EXE` strings, so a new hit needs a catalog read or an allowlist row with a reason.
 
 ## Golden
 
