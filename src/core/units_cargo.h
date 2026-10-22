@@ -269,6 +269,9 @@ bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id);
  * ship can carry more than the boarding gate would pass.
  */
 bool units_board_stacked_restore(ColonizeUnitPool* pool, int land_unit_id, int ship_id);
+/* A rider leaves its hull's manifest where it stands (DOS has no "aboard":
+ * the unit just stays in the tile chain). */
+bool units_unboard(ColonizeUnitPool* pool, int unit_id);
 /*
  * Own ship on (x,y) with room for `need_space` holds, or -1.
  * Cite: FUN_4720_0006 / 015c land→ocean embark probe; the room test is

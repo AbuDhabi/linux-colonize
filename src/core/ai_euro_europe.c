@@ -961,11 +961,25 @@ static void ai_euro_5d04_cb_unit_exhaust(int idx) {
    * archived 1538 keeps 42 -> 46 -> hull). */
   int order[COLONIZE_UNITS_MAX];
   int n = 0;
-  for (int id = units_tile_head_id_at(ctx->units, ship->x, ship->y); id >= 0;
+  /* A hull's riders sit in DOS's chain right below it (pax0 -> .. -> hull),
+   * so the walk meets them after their hull, nearest first; 10be takes a
+   * sentried one whichever docked hull it came with (america2 resync 43/58:
+   * a Pioneer docked beside a Privateer under repair leaves with the hulls
+   * that sail). */
+  for (int id = units_tile_head_id_at(ctx->units, ship->x, ship->y); id >= 0 && n < COLONIZE_UNITS_MAX;
        id = units_tile_chain_next_id(ctx->units, id)) {
-    const int slot = (int)(units_get_const(ctx->units, id) - ctx->units->units);
+    const ColonizeUnit* cu = units_get_const(ctx->units, id);
+    const int slot = (int)(cu - ctx->units->units);
     if (ai_euro_5d04_cb_in_europe_list(slot)) {
       order[n++] = slot;
+    }
+    if (cu->id != ship_id && units_is_sea(ctx->units, cu->id)) {
+      for (int c = cu->cargo_count - 1; c >= 0 && n < COLONIZE_UNITS_MAX; --c) {
+        const ColonizeUnit* r = units_get_const(ctx->units, cu->cargo_ids[c]);
+        if (r) {
+          order[n++] = (int)(r - ctx->units->units);
+        }
+      }
     }
   }
   int pick[COLONIZE_UNITS_MAX];
@@ -977,7 +991,7 @@ static void ai_euro_5d04_cb_unit_exhaust(int idx) {
                   : 0;
     for (int k = 0; k < n && room > 0; ++k) {
       ColonizeUnit* u = ai_euro_5d04_cb_unit(order[k]);
-      if (u->aboard_ship_id >= 0 || units_is_sea(ctx->units, u->id)) {
+      if (u->aboard_ship_id == ship_id || units_is_sea(ctx->units, u->id)) {
         continue;
       }
       /* FUN_1427_10be raw 8640-8650: a unit on the dock slot (x == 236+n)
@@ -998,6 +1012,7 @@ static void ai_euro_5d04_cb_unit_exhaust(int idx) {
     }
   }
   for (int k = np - 1; k >= 0; --k) { /* arrival order: earliest first */
+    (void)units_unboard(ctx->units, pick[k]); /* a rider of another docked hull */
     (void)units_board_stacked(ctx->units, pick[k], ship_id);
   }
   /* The group rides in boarding order: restamp the boarders' tile order to
@@ -1076,38 +1091,17 @@ static int ai_euro_5d04_cb_goal_trigger(int code, int a, int b, int c) {
  */
 static void ai_euro_5d04_cb_colony_needs(int nation_id, int8_t out[16]) {
   /* DOS-LITERAL FUN_521d_6d8e prelude, raw 93108-93171: the per-good
-   * counter DS:0xa0cc[16]. Each own colony bumps its specialty good, then
-   * muskets again for a muskets specialty and for an empty muskets stock,
-   * goods 8 and tools for empty stocks; every own hull (0xd..0x12) takes one
-   * off per occupied hold's cargo, every Pioneer one off tools.
+   * counter DS:0xa0cc[16]. The colony half (each own colony bumps its
+   * specialty good, then muskets again for a muskets specialty and for an
+   * empty muskets stock, goods 8 and tools for empty stocks) is taken
+   * during the 5952 ticks (ai_euro_s_6d8e_need); every own hull (0xd..0x12)
+   * takes one off per occupied hold's cargo, every Pioneer one off tools.
    * Muskets = 0xa0db, tools = 0xa0da. */
-  int cargo_need_count[16] = {0};
-  ColonizeTurnContext* ctx = ai_euro_s_5d04_ctx;
-  if (ctx && ctx->colonies) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (!c->active || c->nation_id != nation_id) {
-        continue;
-      }
-      const int spec = (int8_t)c->specialty_cargo;
-      if (getenv("TMPBUY")) fprintf(stderr, "[tmpneed] n%d %s spec %d muskets %d horses %d tools %d\n", nation_id, c->name, spec, c->stock[15], c->stock[8], c->stock[14]);
-      if (spec >= 0 && spec < 16) {
-        cargo_need_count[spec]++;
-      }
-      if (spec == COLONIZE_CARGO_MUSKETS) {
-        cargo_need_count[COLONIZE_CARGO_MUSKETS]++;
-      }
-      if (c->stock[COLONIZE_CARGO_MUSKETS] == 0) {
-        cargo_need_count[COLONIZE_CARGO_MUSKETS]++;
-      }
-      if (c->stock[8] == 0) {
-        cargo_need_count[8]++;
-      }
-      if (c->stock[COLONIZE_CARGO_TOOLS] == 0) {
-        cargo_need_count[COLONIZE_CARGO_TOOLS]++;
-      }
-    }
+  int cargo_need_count[16];
+  for (int g = 0; g < 16; ++g) {
+    cargo_need_count[g] = ai_euro_s_6d8e_need[nation_id][g];
   }
+  ColonizeTurnContext* ctx = ai_euro_s_5d04_ctx;
   if (ctx && ctx->units) {
     for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
@@ -1144,18 +1138,8 @@ static void ai_euro_5d04_cb_colony_needs(int nation_id, int8_t out[16]) {
  * Replaces the old `inv->found_flags` construction-count stand-in.
  */
 static int ai_euro_5d04_cb_colonies_wanting_colonists(int nation_id) {
-  int n = 0;
-  if (!ai_euro_s_5d04_ctx || !ai_euro_s_5d04_ctx->colonies) {
-    return 0;
-  }
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    const ColonizeColony* c = &ai_euro_s_5d04_ctx->colonies->colonies[i];
-    if (c->active && c->nation_id == nation_id &&
-        (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) != 0) {
-      n++;
-    }
-  }
-  return n > 127 ? 127 : n;
+  /* Counted during the 5952 ticks, through DS:0x8542 (ai_euro_s_6d8e_wanting). */
+  return ai_euro_s_6d8e_wanting[nation_id];
 }
 
 /*
@@ -1659,7 +1643,6 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
             if (cap == used || f->cargo_short || !has_any_colony) {
               break;
             }
-            if (getenv("TMPBUY")) fprintf(stderr, "[tmpbuy] n%d p%d bar %d dem %d exp %d trained %d mask %d cap %d used %d gold %u last %d price %d\n", nation_id, p, cargo_demand_bar, cargo_demand[p], expand_signal, tools_trained_this_pass, tools_hire_mask, cap, used, nat->gold, units_last_hold_amount, ai_euro_5d04_cb_price(p));
             if ((cargo_demand_bar <= (int)cargo_demand[p] || expand_signal) &&
                 ((!tools_trained_this_pass && tools_hire_mask == 0) || (cap - used > 2 || expand_signal))) {
               /* raw 93041-93046 (bug #1029): gold gate is price * DS:0x8dc4,

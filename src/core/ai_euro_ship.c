@@ -1293,7 +1293,11 @@ int ai_euro_try_ship_trade_haul_snapshot(
                            ? ai_euro_20e6_ship_berth_arrival(ctx, nation_id, ship, &cowered)
                            : -1;
   if (cowered) {
-    return 1; /* md:3023 → LAB_5899: parked in port this beat */
+    /* Raw 90373: +0x314b = 'C', then LAB_5899 / 589e stay (orders 5 or 6),
+     * which the 5a78 tail leaves alone (america2 resync 203). */
+    ship->col1_ai_plan = 0x43;
+    ai_euro_20e6_stay_tail_589e(ship);
+    return 1;
   }
   /*
    * The arrival block ends in `goto LAB_3558` (raw 90371), so a berthed hull

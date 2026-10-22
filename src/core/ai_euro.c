@@ -832,9 +832,8 @@ static void ai_euro_colony_ship_probe_4962(
 
 /*
  * FUN_4962_0018 for one nation's colonies (reset raw 78239-78242 + the
- * per-colony probe above). The human nation's per-turn entry — DOS runs it
- * from the nation EOT (FUN_3844_00f2, control != 2, so human included); the
- * AI nations get the identical probe inside ai_euro_colony_goals.
+ * per-colony probe above), from every nation's EOT (FUN_3844_00f2 tail,
+ * raw 58390; turn.c), human included.
  */
 void ai_euro_census_ship_pressure_refresh(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->colonies) {
@@ -858,7 +857,6 @@ void ai_euro_refresh_colony_ai_flags(
   if (!ctx || !c || !c->active) {
     return;
   }
-  ai_euro_colony_ship_probe_4962(ctx, nation_id, c);
   c->ai_flags = (uint8_t)(
     c->ai_flags & (uint8_t)~(COLONIZE_COLONY_AI_WANTS_PIONEER_WORK |
                              COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR)
@@ -1053,12 +1051,6 @@ void ai_euro_refresh_colony_ai_flags(
 void ai_euro_6d8e_wagon_flags(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx->colonies || !ctx->units) {
     return;
-  }
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (c->active && c->nation_id == nation_id) {
-      c->colony_flags = (uint8_t)(c->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_WAGON_TRAIN);
-    }
   }
   for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
     const ColonizeUnit* u = &ctx->units->units[ui];

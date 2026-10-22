@@ -555,6 +555,8 @@ static int unit_colony_ai_flags_mow_colony_alt(void) {
   ctx.col1_ok = true;
   ctx.rng_seed = 42;
 
+  /* 00f2 census (FUN_4962_0018 probe) before the 6d8e dispatcher. */
+  ai_euro_census_ship_pressure_refresh(&ctx, nation);
   ai_euro_dispatcher_turn(&ctx, nation);
 
   c = &colonies.colonies[0];

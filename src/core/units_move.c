@@ -956,9 +956,12 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_commit_step(units_move_ctx* c) {
    * The port previously revealed only at the turn top
    * (turn.c turn_reveal_fog_for_nation, FUN_3844_00f2) plus the human order
    * paths, so every intermediate tile of an AI multi-step move went unstamped
-   * (port_bugs.md #530 S4).
+   * (port_bugs.md #530 S4). The 1b0e winner advance (0948 relink, above) is
+   * not a move-commit arm and reveals nothing (america2 38->39: a French
+   * Privateer advancing onto the tile of the Merchantman it beat leaves the
+   * Dutch stack beside it unmarked).
    */
-  if (!c->foreign_colony_entry) {
+  if (!relink_advance) {
     (void)units_reveal_sight_w(c->w, unit);
   }
   return UNITS_MOVE_CONTINUE;

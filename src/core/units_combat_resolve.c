@@ -554,7 +554,49 @@ bool units_resolve_land_combat_ff_w(
 }
 
 
-int units_plunder_ship_holds(ColonizeUnitPool* pool, int winner_id, int loser_id) {
+/* FUN_1cf8_000a (raw 18654-18738) over n unsigned words: from the cursor find
+ * the next descent, pull it out and reinsert it before the first key >= it. */
+static void units_plunder_sort(uint16_t* k, int* order, int n) {
+  int i = 0;
+  for (;;) {
+    while (i < n - 1 && k[i + 1] >= k[i]) {
+      ++i;
+    }
+    if (i >= n - 1) {
+      return;
+    }
+    const uint16_t v = k[i + 1];
+    const int id = order[i + 1];
+    for (int m = i + 1; m < n - 1; ++m) {
+      k[m] = k[m + 1];
+      order[m] = order[m + 1];
+    }
+    int j = 0;
+    while (j < n - 1 && k[j] < v) {
+      ++j;
+    }
+    for (int m = n - 1; m > j; --m) {
+      k[m] = k[m - 1];
+      order[m] = order[m - 1];
+    }
+    k[j] = v;
+    order[j] = id;
+  }
+}
+
+/*
+ * DOS-LITERAL FUN_5fef_0352 raw 99496-99515: while the winner has room
+ * (FUN_4720_0006) it takes the hold FUN_5fef_016c picks, out of the loser
+ * through 317c (0aec) and into the winner through 30b8 (0d58). 016c takes
+ * hold 0 when every hold fits; otherwise a computer winner takes its most
+ * valuable one, price byte DS:0x84bc[winner nation][cargo] * amount sorted
+ * by FUN_1cf8_000a, last element (america2 save 39: a French Privateer took
+ * a Dutch Merchantman's sugar before its horses). DOS asks a human winner;
+ * the port gives the human hold 0.
+ */
+int units_plunder_ship_holds(
+  ColonizeUnitPool* pool, int winner_id, int loser_id, const ColonizeCol1Save* col1
+) {
   if (!pool || winner_id < 0 || loser_id < 0 || winner_id == loser_id) {
     return 0;
   }
@@ -566,28 +608,42 @@ int units_plunder_ship_holds(ColonizeUnitPool* pool, int winner_id, int loser_id
   if (!units_is_sea(pool, winner_id) || !units_is_sea(pool, loser_id)) {
     return 0;
   }
-  /*
-   * FUN_5fef_016c-shaped: move commodity holds from loser into winner capacity.
-   * Passengers stay with the sinking ship (despawned with loser).
-   */
-  const int n = units_goods_hold_count(pool, loser_id);
+  const int wn = win->nation_id;
   int moved = 0;
-  for (int i = 0; i < n; ++i) {
-    const int amt = units_unit_hold_amount(lose, i);
-    const int ctype = lose->hold_goods_type[i];
-    if (amt <= 0 || ctype < 0 || ctype >= COLONIZE_CARGO_COUNT) {
-      continue;
-    }
-    const int got = units_load_goods(pool, winner_id, ctype, amt);
-    if (got > 0) {
-      moved += got;
-      if (got >= amt) {
-        lose->hold_goods_amount[i] = 0;
-        lose->hold_goods_type[i] = 0;
-      } else {
-        lose->hold_goods_amount[i] = amt - got;
+  for (;;) {
+    int live[COLONIZE_UNIT_CARGO_MAX];
+    int n = 0;
+    for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+      const int amt = units_unit_hold_amount(lose, i);
+      const int ctype = lose->hold_goods_type[i];
+      if (amt > 0 && ctype >= 0 && ctype < COLONIZE_CARGO_COUNT) {
+        live[n++] = i;
       }
     }
+    const int room = units_ship_free_passenger_slots(pool, winner_id);
+    if (room <= 0 || n == 0) {
+      break;
+    }
+    int pick = 0;
+    if (room < n && wn != g_units_combat_human_nation) {
+      uint16_t key[COLONIZE_UNIT_CARGO_MAX];
+      int order[COLONIZE_UNIT_CARGO_MAX];
+      for (int k = 0; k < n; ++k) {
+        const int ctype = lose->hold_goods_type[live[k]];
+        int price = 0;
+        if (col1 && wn >= 0 && wn < (int)COLONIZE_COL1_NATION_COUNT) {
+          price = (int)col1->nation[wn].trade.euro_price[ctype] - 1;
+          price = price < 0 ? 0 : price;
+        }
+        key[k] = (uint16_t)(price * units_unit_hold_amount(lose, live[k]));
+        order[k] = k;
+      }
+      units_plunder_sort(key, order, n);
+      pick = order[n - 1];
+    }
+    const int ctype = lose->hold_goods_type[live[pick]];
+    const int amt = units_remove_goods_slot(lose, live[pick]);
+    moved += units_load_goods(pool, winner_id, ctype, amt);
   }
   return moved;
 }
