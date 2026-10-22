@@ -873,7 +873,8 @@ int units_coastal_fort_attack_strength(
 }
 
 /*
- * port_bugs.md #465. DOS-LITERAL FUN_364b_03f6 raw 57082-57083:
+ * port_bugs.md #465. FUN_364b_03f6 raw 57082-57083 (DOS-LITERAL except the
+ * unmet-nation case, dos_bugs.md DB-43):
  *
  *     rel = FUN_281f_0a38(colony_nation, ship_nation);
  *     if ((rel & 0x40) == 0 || ship_type == 0x10) { fire; }
@@ -885,6 +886,8 @@ int units_coastal_fort_attack_strength(
  * OpenCol WAR bit (0x02) instead: a treaty writer that set PEACE without
  * clearing WAR left a pair reading "peace" in F8 while the fort still fired
  * (user-observed: Spanish Caravel shot at while F8 showed Spain at peace).
+ * An unmet nation (byte 0, not listed in F8) is not fired on: DOS does, and
+ * since first contact needs land adjacency, a passing ship never "meets".
  */
 static int units_fort_fire_is_hostile(
   const ColonizeCol1Save* col1,
@@ -902,7 +905,10 @@ static int units_fort_fire_is_hostile(
     return 0;
   }
   if (ship->nation_id >= 0 && ship->nation_id <= 3) {
-    return (ai_diplo_read(col1, owner_nation, ship->nation_id) & AI_DIPLO_PEACE) == 0;
+    /* dos_bugs.md DB-43: DOS also fires on an unmet nation (byte 0); the
+     * port needs the MET bit. */
+    const uint8_t rel = ai_diplo_read(col1, owner_nation, ship->nation_id);
+    return (rel & AI_DIPLO_MET) != 0 && (rel & AI_DIPLO_PEACE) == 0;
   }
   if (ship->nation_id >= 4 && ship->nation_id <= 11) {
     return ai_diplo_indian_at_war(col1, owner_nation, ship->nation_id - 4);

@@ -670,3 +670,20 @@ port never reproduced the accumulation; recorded 2026-10-22 at the user's
 call. The idle goldens (63 saves at most) end before the counts fall below 2,
 so they do not show the difference.
 **Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-62.
+
+### DB-43 — Coastal forts fire on ships of nations never met
+**DOS:** the colony battery FUN_364b_03f6 (raw 57082-57083) fires on the first
+ship of each adjacent water tile when `(FUN_281f_0a38(colony, ship) & 0x40) == 0`
+or the ship is a Privateer. An unmet pair has relation byte 0, so the fort
+fires on it although the two nations were never at war. First contact between
+Europeans needs land adjacency (port_bugs.md #545), so a ship passing a colony
+never meets its owner; the Foreign Affairs report does not list the nation at
+all. User-observed 2026-10-22 (campaign5): Jamestown's fortress fired on a
+French Caravel; England and France had relation byte 0 through turn 123.
+
+**Port:** `units_fort_fire_is_hostile` (`src/core/units_combat_resolve.c`)
+also requires the MET bit (0x20) for a European ship. Privateers are still
+fired on whatever the relation. Recorded 2026-10-22 at the user's call; unit
+test `coastal_fort_naval_fire` (unit_units_core) covers the unmet case. No
+golden changed.
+**Status:** done (2026-10-22).
