@@ -202,9 +202,32 @@ static int case_abandon_default(void) {
   return rc;
 }
 
+/* Status line from a section: first sentence of the template, tokens in, no
+ * {} markup, and a token with a full stop ("St. Augustine") cannot cut it. */
+static int case_fill_status_first_sentence(void) {
+  if (ensure_catalog() != 0) {
+    return 1;
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = "St. Augustine";
+  tok.string1 = "Rum";
+  char out[160];
+  popup_msg_fill_status(&g_catalog, "CARGOREADY0", &tok, out, sizeof(out));
+  const size_t n = strlen(out);
+  if (!strstr(out, "St. Augustine") || !strstr(out, "Rum") || strchr(out, '{') ||
+      n == 0 || out[n - 1] != '.') {
+    fprintf(stderr, "unit_popup_msg: status '%s'\n", out);
+    return fail("@CARGOREADY0 status line");
+  }
+  popup_msg_fill_status(&g_catalog, "NO_SUCH_SECTION", &tok, out, sizeof(out));
+  return out[0] ? fail("a catalog miss must give an empty status") : 0;
+}
+
 static const TestCase k_cases[] = {
     {"unit_popup_msg_token_substitution", case_token_substitution},
     {"unit_popup_msg_choice_leak_sweep", case_choice_leak_sweep},
     {"unit_popup_msg_abandon_default", case_abandon_default},
+    {"unit_popup_msg_fill_status_first_sentence", case_fill_status_first_sentence},
 };
 TEST_MAIN(k_cases)

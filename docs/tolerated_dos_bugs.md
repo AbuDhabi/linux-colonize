@@ -680,3 +680,21 @@ show these charges (America seed-100 resync 290, Montreal at 292 units;
 #1132: Boston muskets 50 -> 0, Barbados horses down to 212) and the disabled
 america2 campaign compares against them. Was DB-17..DB-21. Reverted.
 **Status:** tolerated (2026-10-22).
+
+### TB-48 — Reversing a ship at sea keeps its crossing counter
+**DOS:** the European Status drag handler 38fd:3228 (overlay segment 5,
+ndisasm; dispatcher 38fd:4e8e, jump table 0x4f54, drag mode DS:0x9e3a == 9)
+moves a ship between "Expected Soon" and "Bound for the New World" by
+re-linking the hull and its passengers to the other lane tile and clearing its
+orders byte +0x314c (38fd:326f). The crossing counter +0x315a is not touched.
+
+**Effect:** a ship one turn from the New World, reversed, is one turn from
+Europe (and the other way round): turning back costs the remaining turns of the
+voyage, not the turns already sailed.
+
+**Port (reproduces it):** `europe_reverse_transit` (`src/core/europe_harbor.c`),
+port_bugs.md #1153; unit test `case_europe_reverse_transit_keeps_turns`,
+regression `europe_reverse_sailing_ship`.
+
+**Blocks removal:** nothing; an odd edge case, not worth fixing now (user,
+2026-10-22).

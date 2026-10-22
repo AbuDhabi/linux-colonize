@@ -83,6 +83,16 @@ colony-screen tribal-land demand `FUN_2f2b_2f3e` (2f2b:326a) lives in colony_scr
 (other agent) and was not touched. Port sites that exist (combat, ai_diplo talk,
 ai_contact) already route through the WoI accessors.
 
+### #1160 — Sea-route create wizard offers Europe at the second stop
+DOS's create wizard asks both destination pickers with unit -1 (ndisasm
+000610EC / 000612B0: `FUN_647e_01c6` with no traveller), so it lists every own
+colony and no Europe row; Europe is only reachable later, in the EDIT TRADE
+ROUTE screen. The port's second pick of a SEA route already offers the Europe
+row and the colonies a ship reaches from the first stop
+(`game_trade_open_dest_picker`, `src/core/game_loop_menus.c`). Port-only UI
+convenience (user, #300 and 2026-10-22): the route it creates is one DOS can
+also build through the editor.
+
 ## Blocked on a live DOS capture
 
 Static reading cannot settle these. Each names exactly what to capture. Do not

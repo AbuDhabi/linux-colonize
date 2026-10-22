@@ -436,6 +436,35 @@ void popup_msg_fill(
   }
 }
 
+void popup_msg_fill_status(
+  const ColonizeMsgCatalog* catalog,
+  const char* section_name,
+  const PopupMsgTokens* tok,
+  char* out,
+  size_t out_size
+) {
+  if (!out || out_size == 0) {
+    return;
+  }
+  out[0] = '\0';
+  const ColonizeMsgSection* sec =
+    (catalog && section_name) ? assets_msg_find(catalog, section_name) : NULL;
+  if (!sec) {
+    return;
+  }
+  char raw[512];
+  raw[0] = '\0';
+  popup_msg_section_body(sec, raw, sizeof(raw), true);
+  for (char* p = raw; *p; ++p) {
+    if ((*p == '.' || *p == '!' || *p == '?') && (p[1] == ' ' || p[1] == '\n' || p[1] == '\0')) {
+      p[1] = '\0';
+      break;
+    }
+  }
+  popup_msg_apply_tokens(out, out_size, raw, tok);
+  popup_msg_strip_markup(out);
+}
+
 int popup_msg_choices(
   const ColonizeMsgSection* section,
   char out[][POPUP_MSG_CHOICE_LEN],

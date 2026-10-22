@@ -690,11 +690,10 @@ void game_trade_open_dest_picker(ColonizeGameState* game, int stop_i) {
     r = &game->col1.trade_route[game->trade_screen.route];
     who = game->world_map_ok ? game_trade_phantom(game, r) : NULL;
   } else if (game->trade_create_stage == 4 && game->trade_create_sea && game->world_map_ok) {
-    /* port_bugs.md #300 (user report, CLOSED): the sea wizard's second pick
-     * offers the Europe row and the colonies a ship reaches from the first
-     * stop, like the editor. The static read above (unit -1) says DOS lists
-     * every colony with no Europe row; the user's report wins until a DOSBox
-     * check settles it. */
+    /* port_bugs.md #300, known_divergences.md #1160: port-only UI convenience.
+     * DOS lists every colony here with no Europe row (unit -1, above) and only
+     * offers Europe in the editor; the sea wizard's second pick offers the
+     * Europe row and the colonies a ship reaches from the first stop. */
     const ColonizeColony* c1 = colonies_get(&game->colonies, game->trade_create_dest1);
     if (c1) {
       wizard_ship = (TravelDestWho){.ship = true, .x = c1->x, .y = c1->y};

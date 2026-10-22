@@ -85,6 +85,20 @@ void popup_msg_apply_tokens(
 void popup_msg_strip_markup(char* s);
 
 /*
+ * Status-line text from a catalog section: the first sentence of its body
+ * (cut in the template, so a token such as "St. Augustine" cannot end it),
+ * tokens applied, {} markup stripped. Leaves the popup side channels (width,
+ * default row, graphic) alone. Empty on a catalog miss.
+ */
+void popup_msg_fill_status(
+  const ColonizeMsgCatalog* catalog,
+  const char* section_name,
+  const PopupMsgTokens* tok,
+  char* out,
+  size_t out_size
+);
+
+/*
  * Convenience: find section in catalog, build body with tokens.
  * Falls back to fallback if section missing or empty. Always NUL-terminates.
  */
