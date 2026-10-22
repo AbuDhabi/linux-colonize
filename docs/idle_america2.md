@@ -37,6 +37,12 @@ pass) follow the archive: park when the next save shows a unit of that nation on
 plan 0x46 and no orders (`ai_euro_e7c4_oracle`, `tests/golden/test_idle_campaign.c`). It keeps the
 residue from hiding real bugs; it is not a gate.
 
+How often it matters (resync pass with the oracle, 2026-10-22): the gate is reached 22544 times in
+405 turns (mostly the same camped units every turn). The modelled deterministic writers predict
+the archive in 97.4%: 99% when one of them ran earlier in that nation's turn, 81% when none did
+(port value 0, DOS parks 19% of those). The 587 misses fall in 232 turns with no period; a
+nation's first gate hit of the turn misses 10.5%, later ones 1.7%.
+
 A DOSBox replay of the archive is no oracle either: a continuous DOSBox session from a load of
 000001 already parks a different Dragoon at save 2 (overlay history differs from the recording's
 session).
