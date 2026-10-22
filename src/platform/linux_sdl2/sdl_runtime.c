@@ -10,6 +10,7 @@
 #include <time.h>
 #ifdef _WIN32
 #include <direct.h>
+#include <sys/timeb.h>
 #define mkdir(path, mode) _mkdir(path)
 #endif
 
@@ -433,11 +434,18 @@ static void mouse_to_logical(
  * flags fold it. Record shape: docs/settings.md "Input log". */
 
 static int64_t input_log_wall_ms(void) {
+#ifdef _WIN32
+  /* mingw msvcrt has no timespec_get. */
+  struct _timeb tb;
+  _ftime(&tb);
+  return (int64_t)tb.time * 1000 + tb.millitm;
+#else
   struct timespec ts;
   if (timespec_get(&ts, TIME_UTC) != TIME_UTC) {
     return (int64_t)time(NULL) * 1000;
   }
   return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+#endif
 }
 
 static void input_log_open(ColonizePlatform* platform, const char* dir) {

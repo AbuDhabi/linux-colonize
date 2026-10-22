@@ -3,6 +3,68 @@
 Player-facing changes. Bracketed numbers are [docs/port_bugs.md](docs/port_bugs.md) row ids (closed
 rows live in [docs/archive/bugs_closed.md](docs/archive/bugs_closed.md)).
 
+## 0.8-beta — 2026-10-22
+
+Covers `0.7-alpha` (2026-09-29) to 2026-10-22: 260 commits, 167 bug rows
+resolved. Not exhaustive.
+
+Headline: with the human idle, the AI and natives now play byte-identical to
+the 1994 binary under the same seed: 1492-1599 on a random map, 1501-1569 on
+the Americas map, and a War of Independence. Save+reload no longer changes how
+a game continues.
+
+### Gameplay
+
+- Natives: alarm, raids, gifts, demands, mission burning and Brave colony
+  visits follow the original. [1000]-[1008] [1010] [1060] [1133]
+- Europe market prices, drift and AI trade pressure match the original for all
+  four nations; Sell All skips boycotted goods. [1011]-[1017] [1022] [1047]
+  [1050] [1051] [1058] [1084]
+- Europe docks: queue order fixed, invented 8-ship / 32-colonist caps removed,
+  unit limits and "too many units" match the original. [999] [1067]-[1073]
+- Privateer attacks no longer start wars; capturing a colony really ends peace.
+  [992]-[995]
+- Naval combat, drydock choice and unit rotation (sentried, fortified,
+  repairing) fixed. [715] [996] [997] [1140] [1141]
+- Colony production order, Custom House, mine depletion, spoilage, Bolivar and
+  tea party fixed. [1014] [1023]-[1025] [1089] [1143] [1145]
+- War of Independence: victory sequence, intervention, rebel/tory freeze,
+  succession and REF landings fixed. [878] [1054] [1055] [1144] [1162]
+- Americas maps no longer lose most Lost City Rumours to Braves. [1160]
+- Optional `divergences.unlimited_units` setting lifts the original's unit cap
+  (off by default; see docs/settings.md).
+- 36 bugs of the original are no longer reproduced, listed in
+  docs/dos_bugs.md.
+
+### AI
+
+- Rival Europeans found, staff and run colonies, sail, trade and path as the
+  original does; invented behaviour removed. [530] [711] [712] [964] [971]
+  [1027]-[1046] [1048]-[1053] [1056] [1062] [1074] [1093] [1095] [1130]
+  [1134]-[1138]
+
+### Saves
+
+- Save+reload keeps all live state, including Europe docks, and new games no
+  longer inherit the previous game's leftovers. [1071] [1087] [1103] [1128]
+  [1129] [1150]
+- Hall of Fame and settings.json writes fixed. [1086] [1115]
+
+### User Interface
+
+- More invented English text replaced by the original's own. [1083] [1099]-[1101]
+  [1123] [1156]
+- Map menu is modal; popups no longer dropped in big empires. [1077] [1091]
+- Colony screen, Go to Port, trade-route editor and village menu fixes. [998]
+  [1075] [1078]-[1080] [1139] [1148] [1151] [1153]-[1155]
+- Ship sinking dissolve works in resized windows; rival alarm marks draw
+  correctly. [1061] [1161]
+
+### Stability
+
+- Exit crash in audio fixed; very long games no longer disable AI latches.
+  [1092] [1094]
+
 ## 0.7-alpha — 2026-09-29
 
 Covers `0.6-alpha` (2026-09-20) to 2026-09-29: 156 commits, ~520 bug rows
