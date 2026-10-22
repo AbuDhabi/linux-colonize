@@ -619,6 +619,13 @@ colonize_add_test(NAME render_colony
   NO_CTEST
 )
 
+colonize_add_test(NAME render_world_map
+  SOURCES tools/render_world_map_main.c tests/common/platform_cursor_stubs.c
+  LIBS colonize_core
+  INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
+  NO_CTEST
+)
+
 colonize_add_test(NAME smoke_viceroy_tables
   SOURCES tests/smoke/test_viceroy_tables.c src/data/viceroy_tables.c
 )

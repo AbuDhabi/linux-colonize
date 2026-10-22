@@ -14,6 +14,7 @@ These are compiled C tools built from `tools/*.c` sources. Run them from `build/
 | `colony_prod` | Per-colony production of a save, one TSV row per colony (port colony-screen preview: bells, crosses, hammers, 16 cargos; food = produced, horses = net breed) | `colony_prod <save.SAV>` | Built by CMake; repo root as cwd; used by `save_compare.py` |
 | `render_report` | Standalone report-screen renderer for golden comparison | `render_report <data_dir> <save.SAV> <out.ppm> [report_id] [params...]` | Built by CMake; output is 320×200 PPM; convert to PNG with ImageMagick |
 | `render_map_panel` | Standalone main-map sidebar renderer for golden comparison | `render_map_panel <data_dir> <save.SAV> <x> <y> <select_unit> <out.ppm> [load=...] [buys=...] [sells=...]` | Built by CMake; output is 320×200 PPM; convert to PNG with ImageMagick |
+| `render_world_map` | Whole map of a save at 16 px/tile with fog off (Complete Map view): terrain, colonies with names, villages, units | `render_world_map <data_dir> <save.SAV> <out.ppm>` | Built by CMake; output is (width*16)×(height*16) PPM; convert to PNG with ImageMagick |
 | `render_colony` | Standalone colony-screen renderer for golden comparison | `render_colony <data_dir> <save.SAV> <colony_name> <multi_mode> <out.ppm>` | Built by CMake; output is 320×200 PPM; convert to PNG with ImageMagick |
 
 ## Python Tools (tools/)
