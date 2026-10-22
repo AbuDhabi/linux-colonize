@@ -1,0 +1,16 @@
+# The King's transport offer (@KINGGALLEON2) for a Treasure Train that walks onto a coastal colony tile of a nation that owns
+# no Galleon (FUN_465b_0000 tail -> FUN_5fef_1908); accepted once (@LOOTCASH), declined once. No Cortes, pre-WoI.
+# Fixture (from COLONY04 via map_found_colony's input.sav): France (human, 429 gold, tax 26, difficulty 4), no Galleon.
+# Treasure #131 (1000 gold; value = profession byte x 100) on the prairie (44,24), no orders, full moves, selected
+# (head.active_unit, cursor stuff.x/y); Treasure #95 (500 gold) on the plains (44,23), full moves, not selected. Both are
+# lone units next to Quebec (45,24, coastal). French goto units (orders 3) sentried so nothing auto-walks.
+key KP_6                   # east into Quebec: the King's offer popup (rows: accept / decline)
+wait 20
+click 160 136              # "Very well, and let the Crown claim its rightful share": Crown share = max((4+10)*5, 26*2) = 70%
+wait 20                    # @LOOTCASH: "... 1000 arrives safely in La Rochelle! Crown takes 70% share, 300 added"
+key Return                 # dismiss: the treasure is gone, gold 429 -> 729, the next unit with moves (Treasure #95) is selected
+wait 30
+key KP_3                   # SE into Quebec: the offer again
+wait 20
+click 165 149              # "No, I would sooner kiss your royal pinky ring": nothing changes, the treasure stays in Quebec
+wait 30                    # (no moves left; selection moves on to a colonist in Quebec)

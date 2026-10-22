@@ -1,0 +1,16 @@
+# Fixture: Europe base (60000 gold, tax 6%) with the nation's boycott_bitmap = Tobacco (bit 2); a Galleon in the harbor holds
+# Tobacco 100 / Cotton 40 / Tobacco 60. Back taxes = ask (5 bid + 1 burden = 6) x 500 = 3000, credited to royal_money.
+# Hold i is at x = 152+12i, y 171; market cell i at x = 10+19i, y 189; @KISSUP rows at y 156 (refuse) and 168 (Pay).
+key e                    # open the European Status screen
+wait 10
+drag 152 171 48 189      # sell refused: the boycotted Tobacco hold stays aboard
+key u                    # U sells every hold except the boycotted ones: only Cotton goes (40 @ 4 = 160, tax 9, net 151)
+click 48 189             # the boycotted market cell raises @KISSUP quoting 3000 in back taxes
+click 150 156            # first row (decline): nothing changes
+key l                    # @HOWMUCH4 buy prompt for the selected Tobacco cell
+key Return               # buy refused: no gold spent, no cargo loaded
+click 48 189             # @KISSUP again
+click 150 168            # "Pay 3000.": gold -3000, royal_money +3000, boycott bit cleared
+drag 176 171 48 189      # Tobacco sells now: 60 @ 4 = 240, tax 14, net 226 (the first Tobacco hold, never sold, stays)
+key -                    # '-' sells one ton of the selected cell's good from the first matching hold: 1 Tobacco, 100 -> 99
+key e                    # leave Europe

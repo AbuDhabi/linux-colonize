@@ -1,0 +1,90 @@
+# Fixture: map_found_colony start with the French Caravel (#126, unit 125) selected on sea tile (45,24) (head.active_unit + cursor moved to it; a second spent French Caravel sits there too).
+# CHEAT Create Unit -> row 8 "Ship" opens the @CSHIP list ("Select Ship To Create": Caravel, Merchantman, Galleon, Privateer, Frigate, Man-O-War); the ship is spawned on the cursor tile for the human nation.
+# Creates one of each of the six ships. Ends with cheat mode off again (Alt-W), see map_cheat_create_unit.
+key w alt
+key i alt
+key n alt
+key F1 shift             # @CREATE list
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Return               # row 8: Ship -> @CSHIP list
+shot
+key Return               # Caravel
+key F1 shift             # @CREATE list
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Return               # row 8: Ship -> @CSHIP list
+key Down
+key Return               # Merchantman
+key F1 shift             # @CREATE list
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Return               # row 8: Ship -> @CSHIP list
+key Down
+key Down
+key Return               # Galleon
+key F1 shift             # @CREATE list
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Return               # row 8: Ship -> @CSHIP list
+key Down
+key Down
+key Down
+key Return               # Privateer
+key F1 shift             # @CREATE list
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Return               # row 8: Ship -> @CSHIP list
+key Down
+key Down
+key Down
+key Down
+key Return               # Frigate
+key F1 shift             # @CREATE list
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Return               # row 8: Ship -> @CSHIP list
+key Down
+key Down
+key Down
+key Down
+key Down
+key Return               # Man-O-War
+shot
+key w alt                # cheat mode off

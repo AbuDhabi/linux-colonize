@@ -1,0 +1,55 @@
+# Fixture: map_found_colony start (France 1599). The Preacher (#131) is alone on coastal forest (44,22) and selected; CHEAT units appear on the cursor tile.
+# Unlock CHEAT (Alt-W, Alt-I, Alt-N), then Shift-F1 opens @CREATE "Select Unit To Create"; Up/Down + Return pick a row (rows: 0 Colonists .. 7 Treasure, 8 Ship, 9-12 Indian types, 13 Foreign Unit).
+# Creates one French unit of each plain row 0-7 on the Preacher's tile (units_spawn_allow_stack, owner = human). Treasure = 2800 gold default (DOS 281f:095c, no gold prompt).
+# Indian rows 9-12, Ship and Foreign Unit are separate tests / not covered. The test ends with cheat mode switched off again (Alt-W): DOS also toggles
+# head.game_options.cheats_enabled (DS:0x5383 bit5), so the saved head matches either way.
+key w alt
+key i alt
+key n alt
+key F1 shift             # Create Unit list
+shot
+key Return               # row 0: Colonists
+key F1 shift             # Create Unit list
+key Down
+key Return               # row 1: Pioneers
+key F1 shift             # Create Unit list
+key Down
+key Down
+key Return               # row 2: Militia
+key F1 shift             # Create Unit list
+key Down
+key Down
+key Down
+key Return               # row 3: Missionary
+key F1 shift             # Create Unit list
+key Down
+key Down
+key Down
+key Down
+key Return               # row 4: Scout
+key F1 shift             # Create Unit list
+key Down
+key Down
+key Down
+key Down
+key Down
+key Return               # row 5: Artillery
+key F1 shift             # Create Unit list
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Return               # row 6: Wagon Train
+key F1 shift             # Create Unit list
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Down
+key Return               # row 7: Treasure
+shot
+key w alt                # cheat mode off

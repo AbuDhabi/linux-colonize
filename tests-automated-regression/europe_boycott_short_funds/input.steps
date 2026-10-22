@@ -1,0 +1,16 @@
+# Fixture: Europe base with the nation's boycott_bitmap = Tobacco (bit 2) and only 1500 gold; a Galleon in the harbor holds
+# Tobacco 100 / Cotton 40 / Tobacco 60. Back taxes = ask (5 bid + 1 burden = 6) x 500 = 3000 > 1500.
+# Clicking the boycotted market cell raises @KISSUP (two rows: refuse, then "Pay 3000"); the purse is only tested after Pay.
+# Hold i is at x = 152+12i, y 171; market cell i at x = 10+19i, y 189; @KISSUP rows at y 156 (refuse) and 168 (Pay).
+key e                    # open the European Status screen
+wait 10
+click 48 189             # Tobacco cell: @KISSUP quoting 3000
+click 150 168            # "Pay 3000.": gold 1500 < 3000 -> @KISSSORRY "we only have 1500 available", nothing changes
+key Return               # OK the @KISSSORRY popup
+click 48 189             # @KISSUP again
+click 150 156            # first row (decline): nothing changes
+drag 152 171 48 189      # Tobacco still refused
+key l                    # @HOWMUCH4 buy prompt for the selected Tobacco cell
+key Return               # buy refused as well
+drag 164 171 67 189      # Cotton (not boycotted) sells: 40 @ 4 = 160, tax 9, net 151
+key e                    # leave Europe

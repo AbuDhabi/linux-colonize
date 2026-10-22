@@ -1,0 +1,23 @@
+# Disband (Shift+D) in three places. Fixture: Dragoon (id 136) is selected in the colony tile Quebec (45,24);
+# Caravel A (id 84) at sea (48,24) carries two passengers; Colonist (id 125, Tobacconist) stands in the
+# field at (43,25) in a stack of three (no orders, 1 move).
+key d shift
+click 160 108              # @SUREDISBAND "Really disband Dragoons?": No, the Dragoon stays
+shot
+key d shift
+click 160 96               # Yes: the Dragoon is gone, the Caravel (id 84) is selected next
+shot
+key d shift
+key Return                 # @DISBANDSHIP "cannot disband a ship at sea while it is carrying units": OK, ship stays
+shot
+click 40 128               # tile (43,25): "Units Present" stack picker
+shot
+click 190 78               # pick the Tobacconist colonist (id 125)
+shot
+key d shift
+click 160 108              # No: the colonist stays
+shot
+key d shift
+click 160 96               # Yes: the colonist is gone, the Caravel is selected again
+shot
+wait 5

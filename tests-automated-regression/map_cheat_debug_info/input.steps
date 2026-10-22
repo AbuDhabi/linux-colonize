@@ -1,0 +1,30 @@
+# Fixture: map_found_colony start (France 1599). Cheat rows that only change runtime/debug state, nothing in the save (all must leave it byte-identical):
+# Shift-F2 Debug Info Flags (@OPTIONS checkbox list, DS:0x894 mask: Space ticks a row, Return confirms, Escape cancels),
+# Shift-F8 Show Strategy, Shift-F9 Show Colony Sites (overlay toggles, press again to clear), Shift-F10 Test Routine (unit/colony counts in the status line).
+# Ends with cheat mode off again (Alt-W).
+key w alt
+key i alt
+key n alt
+key F2 shift
+shot
+key space                # tick "Anger & Friction Levels"
+key Down
+key space                # tick "Indian AI movement"
+shot
+key Return               # confirm
+key F2 shift
+shot                     # both rows still ticked
+key Escape               # cancel without change
+key F8 shift             # Show Strategy on
+wait 20
+shot
+key F9 shift             # Show Colony Sites on
+wait 20
+shot
+key F10 shift            # Test Routine
+shot
+key F8 shift             # strategy overlay off
+key F9 shift             # colony sites overlay off
+wait 20
+shot
+key w alt

@@ -1,0 +1,39 @@
+# Fixture: map_found_colony start (France 1599, Preacher #131 alone and selected on (44,22)).
+# The CHEAT menu itself (mouse path; Alt-C opens it once unlocked with Alt-W, Alt-I, Alt-N). Rows are ~8 px apart from y 14: Create Unit 14, Debug Info Flags 22,
+# Reveal Map 38, Set Human 46, Kill Indians 61, Advance Revolution 69, Sound Test 85, Memory Check 94, Show Strategy 109, Show Colony Sites 117, Test Routine 125.
+# Create Unit -> Scout is the only row that changes the save (a French Scout joins the Preacher's tile); the other rows are opened and cancelled, or are status/overlay toggles.
+# Ends with cheat mode off again (Alt-W).
+key w alt
+key i alt
+key n alt
+key c alt
+shot
+click 220 14             # Create Unit
+shot
+key Down
+key Down
+key Down
+key Down                 # row 4: Scout
+key Return
+key c alt
+click 220 22             # Debug Info Flags: list opens ...
+key Escape               # ... and is cancelled
+key c alt
+click 220 38             # Reveal Map: list opens ...
+shot
+key Escape               # ... and is cancelled
+key c alt
+click 220 85             # Sound Test: @SOUND "Play what sound #?" number prompt (menu-only row, no hotkey)
+shot
+key 5
+key Return               # plays sound #5 (status line only; the test harness has no audio)
+key c alt
+click 220 94             # Memory Check: status line only
+key c alt
+click 220 125            # Test Routine: status line only
+key c alt
+click 220 109            # Show Strategy on
+key c alt
+click 220 109            # Show Strategy off
+shot
+key w alt

@@ -1,0 +1,15 @@
+# Fixture: map_found_colony start (France 1599, human = French).
+# CHEAT Set Human Player (Shift-F5): @SETHUMAN "Select Human Nationality": English, French, Spanish, Dutch, None. Picking the nation that is already human (French, row 1)
+# must leave the save untouched. (Switching to another nation is NOT covered: the port overwrites that nation's gold/tax/dock with the old human's, see report.)
+# Ends with cheat mode off again (Alt-W).
+key w alt
+key i alt
+key n alt
+key F5 shift
+shot
+key Down
+shot
+key Return               # French
+wait 30
+shot
+key w alt

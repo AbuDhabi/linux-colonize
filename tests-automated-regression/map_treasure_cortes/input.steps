@@ -1,0 +1,16 @@
+# Hernan Cortes: the King's transport offer as in map_treasure_king_transport, but @KINGGALLEON3 ("for no extra charge": the Crown
+# takes only the tax rate, 26%, not max((difficulty+10)*5, 2*tax) = 70%), and it is made although France owns a Galleon
+# (FUN_465b_0000 waives the Galleon test for Cortes, FUN_281f_07b4(nation,10); FUN_5fef_1908 picks the text and the share by Cortes).
+# Fixture (that test's, plus): Hernan Cortes in France's Congress (nation founding_fathers bit 10 + head.founding_father[10]);
+# ship #2 (was a Caravel at sea (47,29)) is an empty Galleon, so France owns one; Treasure #131 (1000 gold) on (44,24) selected,
+# Treasure #95 (500 gold) on (44,23). The offer text is longer than the non-Cortes one: its answer rows are at y 142 and 154.
+key KP_6                   # east into Quebec: @KINGGALLEON3 offer popup
+wait 20
+click 160 142              # accept: Crown share 26% of 1000 = 260, 740 added (gold 429 -> 1169)
+wait 20                    # @LOOTCASH popup
+key Return
+wait 30                    # the next unit with moves (Treasure #95) is selected
+key KP_3                   # SE into Quebec: offered again although France owns a Galleon
+wait 20
+click 165 154              # decline: the treasure stays in Quebec
+wait 30

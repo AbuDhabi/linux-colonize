@@ -1,0 +1,27 @@
+# Fixture: Europe base (60000 gold, tax 6%, difficulty 0) with a Galleon (6 holds) in the harbor (selected), loaded
+# Tobacco 100 / Silver 30 / Cotton 50 / Rum 60 / Ore 100 / Furs 100. Silver price-pressure word set to 50 (fall step at 100) so one
+# 30-ton sale (30<<2 = 120) pushes it over and raises @PRICEDOWN. Hold i is at x = 152+12i, y 171; market cell i at x = 10+19i, y 189.
+# Sale = (bid-1)*tons gross, tax = 6% (floor) cut from it, net credited, status line "N Good sold for G. 6% Tax: T. Net: M".
+key e                    # open the European Status screen
+wait 10
+drag 152 171 100 100     # hold dropped on the sky, not the market: nothing sold
+# Drag route: a whole hold onto the market strip sells all of it.
+drag 152 171 48 189      # Tobacco 100 @ 4 = 400, tax 24, net 376
+drag 164 171 143 189     # Silver 30 @ 19 = 570, tax 34, net 536; Silver bid 20 -> 19: @PRICEDOWN
+key Return               # OK the popup
+# Keyboard route: '-' sells one ton of the selected market cell's good from the hold carrying it.
+click 67 189             # select the Cotton market cell
+key -                    # 1 Cotton @ 4 = 4, tax 0
+key -
+# Shift+drag asks @HOWMUCH5 first (prompt starts at the full hold, 100).
+drag 200 171 124 189 shift
+key Backspace
+key Backspace
+key Backspace
+key 2
+key 5
+key Return               # 25 Ore @ 3 = 75, tax 4, net 71
+# U sells every hold left on the selected ship, in hold order.
+key u                    # Cotton 48, Rum 60, Ore 75, Furs 100
+key u                    # empty ship: "Nothing to sell."
+key e                    # leave Europe

@@ -211,7 +211,14 @@ is right, `--bless` copies the run's `actual.sav` to `output.sav`. Start saves
 may be fixture-edited through `sav_json` (moves, stock, gold); re-save an
 edited start through one no-op replay first so the diff carries no load noise. A fixture that
 changes `head.active_unit` must move the map cursor (`stuff.x`/`stuff.y`) to
-that unit too, or cursor commands such as B act on the old tile.
+that unit too, or cursor commands such as B act on the old tile. A no-op
+re-save needs a `shot` step (a `wait`-only script compiles to "no steps"); do not
+put `shot` between a popup opening and the click that answers it (the click
+misses). To prove a test draws no game RNG, compare the RTST `RT_RNG` record
+(id 1, version 1, 12 bytes: LCG state, reseed word, DS:0x83a6) of `input.sav`
+and `output.sav`: it must not change. `RANGEDBG=1` lists `dos_rng_range` draws,
+but cosmetic locally seeded streams (`colony_screen_assign_slot_positions_ex`)
+print there too and `dos_rng_next` does not.
 
 On failure the test prints the reason (timeout with phase/frame/status, quit,
 load/save error, or the first differing byte plus a `sav_json` field diff) and
