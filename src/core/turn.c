@@ -742,10 +742,12 @@ COLONIZE_INTERNAL void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTur
       proc->show_indicator = true;
       if (n == 4) {
         turn_advance_day(proc, ctx);
-        /* raw 6462-6466: a win in FUN_3844_0442 (0x104) clears 0x53c2, so no
-         * slot of the next day runs. Without this the Indians moved under the
-         * win's map reveal before the closing chrome (campaign5). */
+        /* raw 6462-6466: a win in FUN_3844_0442 (0x104) saves COLONY10.SAV,
+         * clears 0x53c2 (no slot of the next day runs) and launches the
+         * closing animation (FUN_130d_0222 = "closing -gok"). Without the
+         * stop the Indians moved under the win's map reveal (campaign5). */
         if (proc->result.year_end_victory) {
+          proc->result.request_save_victory = true;
           proc->show_indicator = false;
           proc->step = TURN_PROC_IDLE;
           return;
