@@ -1074,9 +1074,13 @@ void colony_screen_draw_cargo_strip(
       const int wcap = colonies_warehouse_capacity(pool, colony, i);
       const bool over =
         i != COLONIZE_CARGO_FOOD && wcap > 0 && colony->stock[i] > wcap;
-      const uint8_t base_col = over
-        ? 12
-        : (europe_custom_house_cargo_enabled(colony->custom_house_bits, i) ? 10 : 61);
+      /* FUN_2f2b_28d6: green needs FUN_281f_09fc(0x12) (Custom House built)
+       * before the cargo bit — founding arms the default export mask in
+       * every colony, built or not. */
+      const bool exported =
+        colonies_has_building_row(pool, colony, COLONY_BUILDING_CUSTOM_HOUSE) &&
+        europe_custom_house_cargo_enabled(colony->custom_house_bits, i);
+      const uint8_t base_col = over ? 12 : (exported ? 10 : 61);
       const size_t len = strlen(amount);
       if (len > 2) {
         char hundreds[16];

@@ -1356,6 +1356,28 @@ static int case_colony_screen_render_workflow(void) {
       colony_screen_free(&view);
       return 1;
     }
+
+    /* Founding arms the default export mask (Sugar on), but no Custom House
+     * is built: FUN_2f2b_28d6 keeps Sugar's digits navy (61), never green (10). */
+    const int sugar_slot_x = COLONY_CARGO_SLOT_X0 + COLONIZE_CARGO_SUGAR * COLONY_CARGO_PITCH;
+    bool sugar_green = false;
+    for (int y = COLONY_CARGO_NUM_Y; y < COLONY_CARGO_NUM_Y + 10; ++y) {
+      for (int x = sugar_slot_x; x < sugar_slot_x + COLONY_CARGO_SLOT_W; ++x) {
+        sugar_green = sugar_green || pixels[y * 320 + x] == 10;
+      }
+    }
+    if (font_ok && sugar_green) {
+      fprintf(stderr, "Sugar digits green without a Custom House\n");
+      font_file_free(&font);
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
   }
 
 
