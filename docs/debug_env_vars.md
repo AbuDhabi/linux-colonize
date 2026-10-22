@@ -47,6 +47,7 @@ comparing golden output.
 | `COLONIZE_TEST_REVERSE` | `tests/common/test_runner.h` (`tr_run_main`) | test-only | Run cases in reverse declared order | off |
 | `COLONIZE_TEST_SHUFFLE` | `tests/common/test_runner.h` (`tr_run_main`) | test-only | `<seed>` — run cases in a deterministic Fisher-Yates shuffle | unset (declared order) |
 | `COLONIZE_TEST_LIST` | `tests/common/test_runner.h` (`tr_run_main`) | test-only | Print case names, one per line, and exit 0 without running anything | off |
+| `GOLDEN_IDLE_SAVES` | `tests/golden/test_idle_campaign.c` (`save_path`, `parse_year`) | test-only | `=dir` — read the campaign's save file names from `dir` and allow saves past the archive's last one (deleted saves restored from git history) | unset |
 | `GOLDEN_IDLE_FROM` | `tests/golden/test_idle_campaign.c` (`main`) | test-only | `=path.sav` — start the idle campaign from that save instead of `year_FIRST.sav` (e.g. a DOSBox from-load autosave) | unset |
 | `GOLDEN_IDLE_RELOAD` | `tests/golden/test_idle_campaign.c` (`main`) | test-only | `1`: save and reload the port save before every turn (LCG reseeded as `game_apply_col1_save` does); `keepseed`: same but the run's seed is kept | off |
 | `GOLDEN_IDLE_RESYNC` | `tests/golden/test_idle_campaign.c` (`main`), `tests/common/golden_fixture.c` (`golden_resync`) | test-only | Any value: before each step from an archived save, load that DOS save with the run's own COLNXEXT tail (RTST unsaved tables), so every pair starts from DOS state (docs/idle_america.md "Resync") | off |

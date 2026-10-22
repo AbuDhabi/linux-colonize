@@ -117,6 +117,8 @@ the last year), for comparing against multi-turn from-load DOSBox runs, and play
 through years the archive lacks. A `%d` in `GOLDEN_IDLE_DUMP` takes the year, so
 `1492 1599` with `sim_%d.sav` dumps one continuous run year by year.
 `GOLDEN_IDLE_FROM=path.sav` starts from that save instead of `year_FIRST.sav`.
+`GOLDEN_IDLE_SAVES=dir` reads the archive's file names from `dir` instead and lifts its last
+save (e.g. saves deleted from the repo, restored from git history with `git archive`).
 `GOLDEN_IDLE_RELOAD=1` reloads the port save before every turn (CTest `golden_idle_reload`,
 `golden_idle_independence_reload`, `golden_idle_america_reload`): the `RTST` chunk must carry what a continuous run does.
 `GOLDEN_IDLE_RESYNC=1` (triage, not a gate) restarts every step from the archived DOS save
