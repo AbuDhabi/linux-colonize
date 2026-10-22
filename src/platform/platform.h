@@ -139,6 +139,13 @@ bool platform_present(
   const ColonizeFramebuffer8* framebuffer,
   const ColonizePalette* palette
 );
+/* Port-only: a DOS-sized screen drawn over the overland map. Until changed,
+ * platform_present colours the pixels OUTSIDE the x,y,w,h rect through `outer`
+ * (the map's palette) and only the rect through the frame palette. NULL =
+ * one palette for the whole frame. The palette is copied. */
+void platform_set_outer_palette(
+  ColonizePlatform* platform, const ColonizePalette* outer, int x, int y, int w, int h
+);
 /* Current FULL logical framebuffer size (game screen + log strip). Starts at
  * 320x(200+extra) and grows when the window is resized. */
 void platform_framebuffer_size(const ColonizePlatform* platform, int* out_w, int* out_h);
