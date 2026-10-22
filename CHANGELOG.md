@@ -3,6 +3,13 @@
 Player-facing changes. Bracketed numbers are [docs/port_bugs.md](docs/port_bugs.md) row ids (closed
 rows live in [docs/archive/bugs_closed.md](docs/archive/bugs_closed.md)).
 
+## 0.8-beta-bugfix-1 — 2026-10-22
+
+- Map around report, colony and other screens now keeps its own colours
+  instead of being tinted by the screen's palette.
+- No more Lost City Rumour popups and tunes for rumours explored by AI
+  Europeans. [1163]
+
 ## 0.8-beta — 2026-10-22
 
 Covers `0.7-alpha` (2026-09-29) to 2026-10-22: 260 commits, 167 bug rows

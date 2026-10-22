@@ -2,6 +2,6 @@
 #define COLONIZE_VERSION_H
 
 /* Bump as the port progresses. Shown on the title-menu dialog. */
-#define COLONIZE_VERSION_STRING "0.8-beta"
+#define COLONIZE_VERSION_STRING "0.8-beta-bugfix-1"
 
 #endif
