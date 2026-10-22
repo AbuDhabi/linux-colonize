@@ -69,23 +69,12 @@ static inline int ai_relation_quartile(int v) {
  * (confirmed transient alert, set/cleared elsewhere in FUN_15b3_153e)
  * plus a weaker/stronger follow-up bit, DOS-LITERAL "2"/"8".
  *
- * 2026-08-15, `153e` bit-semantics pass: bit 2 confirmed to genuinely BE
- * `AI_DIPLO_PEACE` after all — the earlier "grudge/pressure, don't reuse"
- * caution was built on `153e` call sites that turned out to read a
- * *different* table (`FUN_1000_8c28` is a raw-byte accessor confirmed via
- * its own decompile, `FUN_0000_5b34`: nation param <4 reads exactly
- * `euro_relation`, but >=4 reads the Indian-side flags row at absolute
- * `23000`, stride `0x4e` — the misleading citations were Indian-range
- * calls, not Euro-Euro ones; "wholly separate table" corrected 2026-09-08,
- * `23000 + (t+4)*0x4e` is exactly `indian[t].euro_diplo`, and the Euro
- * branch's own `peer >= 4` half is `nation[].relation_by_indian[peer-4]`
- * — see ai_diplo.c's quadrant map). The real Euro-Euro bit-2
- * sites in `153e` (direct `-0x77c4` reads, no accessor) are consistent
- * with plain `PEACE`: discounts negotiation "worthiness" when already
- * peaceful, and gets set alongside establishing contact (mirrors this
- * port's own `ai_diplo_read` "unmet defaults to PEACE|MET" convention).
- * Thematically fits the treasure mechanic too: a weaker rival responds to
- * a wealthy/strong nation by seeking peace. **Now uses the real DOS bit.**
+ * The weaker-target follow-up is DOS literal `2` = 0x02 = `AI_DIPLO_WAR`
+ * (viceroy_unpacked.asm 119153-119159 `OR byte [BX+SI+0x883c],0x2`). A
+ * 2026-08-15 pass had read it as `AI_DIPLO_PEACE` (0x40); corrected
+ * 2026-10-22 (port_bugs.md #1137). `FUN_1000_8c28` (= `FUN_0000_5b34`) is a
+ * raw-byte accessor: nation < 4 reads `euro_relation`, >= 4 reads
+ * `indian[t].euro_diplo` (see ai_diplo.c's quadrant map).
  *
  * 2026-08-27 static close: DOS bit 0x08 = "amicable-negotiation latch".
  * Set at 153e's common tail (viceroy_unpacked.c:98415) when the pair is

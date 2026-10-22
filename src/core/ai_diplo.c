@@ -1111,7 +1111,8 @@ Ai153eWorthinessScore ai_diplo_153e_worthiness_score(
     const int target_exposed = ai_contact_land_combat_sum(ctx, target, cid, 1, 255);
     const int self_skilled = ai_diplo_153e_skilled_units_at(ctx, self, cid);
     if (target_threshold < target_colonies && target_land_units < self_exposed) {
-      dominance_bonus += (self_exposed / (target_land_units + 1)) << (difficulty == 0 ? 1 : 2);
+      /* OVL16 5bfb:16bd `cmp [0x53a6],1; sbb cl,cl; and cl,1; add cl,1`: shift 2 at difficulty 0, else 1 (port_bugs.md #1136). */
+      dominance_bonus += (self_exposed / (target_land_units + 1)) << (difficulty == 0 ? 2 : 1);
     } else {
       if (self_exposed != 0 && target_exposed != 0) {
         worthy = 1;
@@ -1121,7 +1122,8 @@ Ai153eWorthinessScore ai_diplo_153e_worthiness_score(
       }
       int delta;
       if (self_colonies == 0) {
-        delta = (target_exposed - self_exposed) >> (target_colonies == 0 ? 1 : 2);
+        /* OVL16 5bfb:1786, same idiom: shift 2 when target_colonies == 0, else 1 (#1136). */
+        delta = (target_exposed - self_exposed) >> (target_colonies == 0 ? 2 : 1);
       } else if (target_colonies < 2) {
         delta = target_exposed;
       } else {
@@ -1684,7 +1686,8 @@ static AiTalkStepStatus ai_talk_stage_tribute(
 ) {
   k->stage = AI_TALK_ST_WANTSTUFF;
   if (k->score != 0 && k->manly &&
-      europe_nation_gold(ctx->europe, ctx->col1, h) >= (uint32_t)k->score) {
+      /* OVL16 5bfb:240b-241e (raw 97894-97897): gold strictly above the score (#1138). */
+      europe_nation_gold(ctx->europe, ctx->col1, h) > (uint32_t)k->score) {
     PopupMsgTokens tt = *tok;
     tt.number0 = k->score;
     tt.has_number0 = true;
@@ -3138,8 +3141,10 @@ void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* p
  * No war skip (the old "own addition" is gone — DOS ORs unconditionally), and
  * the roll is the literal inclusive `rng(0,100)`.
  *
- * Bit 2 = AI_DIPLO_PEACE when the sighting nation is the weaker of the two,
- * bit 8 = AI_DIPLO_AMICABLE otherwise (`-0x6be4` = land_combat_strength[4]).
+ * 0x02 = AI_DIPLO_WAR when the sighting nation is the weaker of the two,
+ * 0x08 = AI_DIPLO_AMICABLE otherwise (`-0x6be4` = land_combat_strength[4];
+ * asm 465b `OR byte [BX+SI+0x883c],0x2`, viceroy_unpacked.asm 119153-119159).
+ * Was AI_DIPLO_PEACE (0x40) until port_bugs.md #1137.
  */
 void ai_euro_465b_privateer_sighting(
   ColonizeCol1Save* col1,
@@ -3175,7 +3180,7 @@ void ai_euro_465b_privateer_sighting(
     const int their_strength = col1->stuff.land_combat_strength[tn];
     const int our_strength = col1->stuff.land_combat_strength[mn];
     const uint8_t follow =
-      (their_strength < our_strength) ? AI_DIPLO_PEACE : AI_DIPLO_AMICABLE;
+      (their_strength < our_strength) ? AI_DIPLO_WAR : AI_DIPLO_AMICABLE;
     const uint8_t cur = ai_diplo_read(col1, tn, mn);
     ai_diplo_write(col1, tn, mn, (uint8_t)(cur | follow));
   }

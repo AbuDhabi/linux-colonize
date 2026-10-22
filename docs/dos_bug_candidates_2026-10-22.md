@@ -399,7 +399,13 @@ DOS behaviour looks intended here and the port differs. Simulated 2026-10-22:
 each fix was verified against the decomp, applied alone in a scratch copy of
 the tree, and run through full ctest (103 tests) plus `golden_ai_joint`, then
 discarded. All 11 confirmed. No fix changes any golden or idle campaign; only
-E-8a breaks unit tests (fixtures pin the old weights). Not applied to the repo.
+E-8a breaks unit tests (fixtures pin the old weights).
+
+Applied 2026-10-22 as port_bugs.md #1136-#1146 (E-1..E-11 in order; E-8a and
+E-8b together are #1143), rows in docs/archive/bugs_fixed_pending.md. Two
+differ from the simulated patch: E-7 stops at DOS record 0 via
+`units_dos_index` (port unit ids start at 1), and E-8b fixes the empty-span
+draw in `dos_rng_range` itself.
 
 - E-1. `ai_diplo.c:1114, 1124` (FUN_5bfb_153e): shift counts inverted. OVL16 0x16bd / 0x1786 (`cmp byte,1; sbb; and 1; add 1`; decomp raw 97442/97458) shift by 2 when difficulty (DS:0x53a6) / target_colonies is 0, else 1. Fix `== 0 ? 2 : 1`: all pass; branch not exercised.
 - E-2. `ai_euro_465b_privateer_sighting` (`ai_diplo.c:3178`) ORs 0x40 (PEACE); DOS asm (viceroy_unpacked.asm 119153-119159) ORs 0x02 (WAR) into nation[occupant].euro_relation[mover] when the occupant is weaker, else 0x08. Fix PEACE -> WAR: all pass; not exercised. The comments in `ai_diplo.h` ~74-85 and `ai_diplo.c` ~3095-3110 also call bit 0x02 PEACE and need rewriting.
@@ -414,7 +420,6 @@ E-8a breaks unit tests (fixtures pin the old weights). Not applied to the repo.
 - E-10. Mine depletion, `turn_production.c:487-488`: FUN_281f_0c0e = FUN_15eb_0e18 returns the occupation (colony +0x20), not the specialty (+0x40, FUN_15eb_0e52). Fix: key on `field_job`; all pass; not exercised. The function's header comment says SPECIALTY and is wrong.
 - E-11. Tribe population total, `ai_contact_demand.c:2426`: FUN_4962_06b6 asm ~124745 `ADD byte [SI+0x9622],AL` wraps; the port saturates at 255. Fix wrap: all pass; no total ever exceeds 255 in any test. Village and per-continent counts are also plain byte INCs in DOS (port caps them; irrelevant in practice).
 
-Patches: scratchpad only (not in the repo); re-derivable from the notes above.
 
 ## F. Housekeeping in the existing docs
 

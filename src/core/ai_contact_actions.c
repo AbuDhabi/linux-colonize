@@ -1182,21 +1182,13 @@ static void ai_contact_demand_tribute(
         int top_bid = 0;
         AiContactMeetEcon2154 econ;
         if (ai_contact_meet_economics_2154(ctx, nation_id, t, &econ)) {
+          /* FUN_1000_a0c0(0x9e78, order) = FUN_1cf8_000a sorts bid[] in place
+           * (unsigned, unstable), so DS:0x9e96 = sorted key[15] = the top bid
+           * (port_bugs.md #1139). */
           int order[16];
-          for (int i = 0; i < 16; ++i) {
-            order[i] = i;
-          }
-          for (int i = 1; i < 16; ++i) {
-            const int v = order[i];
-            int j = i - 1;
-            while (j >= 0 && econ.bid[order[j]] > econ.bid[v]) {
-              order[j + 1] = order[j];
-              j--;
-            }
-            order[j + 1] = v;
-          }
+          ai_contact_2820_sort(econ.bid, order);
           good = order[15];
-          top_bid = (int)econ.bid[15]; /* DS:0x9e96 literal — the muskets slot, always 0 after 2154 */
+          top_bid = (int)econ.bid[good];
         }
         ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
         int qty = 10;

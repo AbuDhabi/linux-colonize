@@ -235,9 +235,9 @@ void units_try_capture_foreign_colony_at(
   /* Raw 100937-100948: the prize claims the ring around it for its new owner. */
   units_capture_claim_ring(units_occupancy_map, cx, cy, u->nation_id);
   /*
-   * Raw 100949-100963 (FUN_5fef_1b0e capture tail): WoI + crown winner —
-   * every crown unit standing on the 8 neighbouring tiles is re-homed to
-   * the captured colony (`+0x314a := *(0x8dc6)`, the port's col1_origin).
+   * Raw 100949-100975 (FUN_5fef_1b0e capture tail): WoI + crown winner —
+   * every unit in a crown-headed stack on the 8 neighbouring tiles is
+   * re-homed to the captured colony (`+0x314a := *(0x8dc6)`, the port's col1_origin).
    * This is DOS's whole post-capture "garrison" step; it writes no fortify
    * order — the units simply belong to the prize and the 0a60 garrison
    * quotas keep them there.
@@ -245,15 +245,22 @@ void units_try_capture_foreign_colony_at(
   if (col1 && col1->head.game_options.woi &&
       u->nation_id == (int)col1->head.crown_nation_id && cid >= 0 &&
       cid <= 0x7f) {
-    for (int i = 0; i < units_slot_end(pool); ++i) {
-      ColonizeUnit* n = &pool->units[i];
-      if (!units_is_on_map(n) || n->nation_id != u->nation_id || n->id == u->id) {
-        continue;
-      }
-      const int ddx = n->x - cx;
-      const int ddy = n->y - cy;
-      if (ddx >= -1 && ddx <= 1 && ddy >= -1 && ddy <= 1 && (ddx != 0 || ddy != 0)) {
-        n->col1_origin = (uint8_t)cid;
+    /* DOS-LITERAL raw 100960-100975 (#1142): per neighbour tile take the chain
+     * head (07e0); only if the HEAD is the captor's, walk the chain (02e4)
+     * `while (0 < id)`, so DOS record 0 is never re-homed and ends the walk. */
+    for (int ddy = -1; ddy <= 1; ++ddy) {
+      for (int ddx = -1; ddx <= 1; ++ddx) {
+        if (ddx == 0 && ddy == 0) {
+          continue;
+        }
+        int id = units_tile_head_id_at(pool, cx + ddx, cy + ddy);
+        const ColonizeUnit* head = units_get_const(pool, id);
+        if (!head || head->nation_id != u->nation_id) {
+          continue;
+        }
+        for (; id >= 0 && units_dos_index(pool, id) > 0; id = units_tile_chain_next_id(pool, id)) {
+          units_get(pool, id)->col1_origin = (uint8_t)cid;
+        }
       }
     }
   }

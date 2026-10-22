@@ -604,7 +604,7 @@ static int sp_07(void) {
      * rebel=101, tax=20, SoL=45 (below declare gate), turn=44, seed=1 ->
      * a hike. With a popup queue the @TAXOPTIONS party
      * names the tonnage-walk cargo (port_bugs.md #903: DOS-LITERAL FUN_38fd_3dc8
-     * raw 64146-64159 weights by labs(nation.trade.tons[c])*100, NOT by the
+     * raw 64146-64159 weights by labs(nation.trade.tons[c])/100, NOT by the
      * Europe bid): the fixture puts the fat Europe bid on Tobacco and the
      * only traded tonnage on Sugar. Headless (no queue) the idle player's
      * first option, Accept, stands (independence-seed-100 000002).
@@ -639,7 +639,7 @@ static int sp_07(void) {
       /* local_7a[]: Sugar is the first stocked cargo that drains the signed
        * total to zero, so the DOS walk selects it. */
       memset(col1.nation[0].trade.tons, 0, sizeof(col1.nation[0].trade.tons));
-      col1.nation[0].trade.tons[COLONIZE_CARGO_SUGAR] = 7;
+      col1.nation[0].trade.tons[COLONIZE_CARGO_SUGAR] = 700;
       dos_rng_seed(&tea_rng, 1u);
       ctx.rng = &tea_rng;
       status[0] = '\0';
@@ -2213,10 +2213,10 @@ static int sp_26(void) {
     for (int ci = 0; ci < COLONIZE_CARGO_COUNT; ++ci) {
       colonies.colonies[0].stock[ci] = 50;
     }
-    /* local_7a[] = labs(trade.tons[c])*100 (FUN_38fd_3dc8 raw 64146-64159):
+    /* local_7a[] = labs(trade.tons[c])/100 (FUN_38fd_3dc8 raw 64146-64159):
      * park all the tonnage on Cotton so it drains the signed total to zero. */
     memset(col1.nation[0].trade.tons, 0, sizeof(col1.nation[0].trade.tons));
-    col1.nation[0].trade.tons[COLONIZE_CARGO_COTTON] = 9;
+    col1.nation[0].trade.tons[COLONIZE_CARGO_COTTON] = 900;
     expected_cargo = COLONIZE_CARGO_COTTON;
     expected_delta = 4;
     /* ai_king_teaparty_payload's own formula (applied*100+cargo) — not

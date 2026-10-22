@@ -115,6 +115,8 @@ int ai_king_pick_dump_goods_cargo(
   }
   const uint16_t eligible = (uint16_t)(candidate_mask & (uint16_t)~boycott_bitmap);
   if (eligible == 0) {
+    /* DOS still draws rand(1, total = 0) over an empty roulette (#1143). */
+    (void)dos_rng_range(rng, 1, 0);
     return -1;
   }
   int idxs[COLONIZE_CARGO_COUNT];

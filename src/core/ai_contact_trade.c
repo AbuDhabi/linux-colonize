@@ -150,7 +150,7 @@ static void ai_contact_2820_friction_sub(ColonizeCol1Tribe* t, int e, int sub, i
  * out and reinsert it before the first k[j] >= it, then resume at the same i.
  * Not stable: a moved element lands in front of its equals.
  */
-static void ai_contact_2820_sort(const int16_t* key, int* order) {
+void ai_contact_2820_sort(const int16_t* key, int* order) {
   uint16_t k[16];
   for (int i = 0; i < 16; ++i) {
     k[i] = (uint16_t)key[i];
