@@ -515,6 +515,8 @@ static void ai_king_ref_tory_uprising(ColonizeTurnContext* ctx, int crown, int h
   c->flags.ref_landing = 1;
   const int soldier_ty = units_kind_type_index(ctx->units, UNITS_KIND_SOLDIER);
   const int dragoon_ty = units_kind_type_index(ctx->units, UNITS_KIND_DRAGOON);
+  /* DOS bug not reproduced (docs/dos_bugs.md DB-41): raw 73891 spawns
+   * local_18, the LAST scored colony's score, not the best (local_16). */
   int remaining = best_score;
   int spawned = 0;
   bool any_pass = true;
