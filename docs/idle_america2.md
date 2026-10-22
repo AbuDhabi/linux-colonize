@@ -100,6 +100,18 @@ New Amsterdam and burns 10 Tupi villages. Port: England takes four Dutch colonie
 village, and the Dutch collapse (33 units vs 72, building tiers 59 vs 87). The port's AI nations end
 34-61% richer in gold.
 
+England and the Tupi (2026-10-22, both Americas archives): in DOS, England burns 10 Tupi villages
+(war from turn 274 here, 245 in the first archive). An English Soldier, Dragoon or Artillery
+entering a village sets bit 0x04 both ways (FUN_4d56_4528 arm), and alarm climbs to 100. The port
+burns none in either continuous run because its England elects Pocahontas (turn 192 here, 263 in
+the first archive). Pocahontas zeroes alarm with every tribe and halves every later rise, so
++1 steps round to 0 and alarm stays at 0 for good. DOS shows the same thing for France and the
+Dutch, which elect her in both archives. DOS England never does: in the 1600s its political pick
+rolled Paine (Pocahontas weight 5 of 16 with Franklin owned). Resync (each turn from the DOS
+save, oracle on) reproduces all 95 AI father picks and every alarm delta except a few cells in
+pairs that already diverge for other reasons, and it reproduces the war and the burns at 184-187.
+So this is history divergence after the e7c4 split, not a port bug.
+
 ## Open
 
 - Save 46 (35 fields): France's Merchantman arriving from Europe (233 -> 229 -> placed at (47,61))
