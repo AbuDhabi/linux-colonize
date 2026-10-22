@@ -127,6 +127,8 @@ typedef struct ColonizeWorldMap {
   uint16_t prime_resource_seed;
 } ColonizeWorldMap;
 
+#define MAP_RESOURCE_SEED_DEFAULT 100 /* MAPEDIT/runtime seed at DS:0x4dc (AMER2 matches 100) */
+
 /*
  * Bounds / distance / adjacency predicates. These were hand-rolled ~39 times
  * across src/ (map.c alone had 26 copies of the guard, map_gen.c its own
