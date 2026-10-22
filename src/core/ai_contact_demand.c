@@ -2523,7 +2523,7 @@ void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id) {
   /*
    * §6c — horse breeding. FUN_4962_06b6 raw 78392-78406 walks every
    * settlement through FUN_281f_0a4c (= FUN_15dc_0032), leaving DS:0x8d4e
-   * bound to the last settlement's nation. FUN_4d56_1816 raw 81664-81672
+   * bound to the last settlement's nation. FUN_4d56_1816 raw 81617-81628
    * reads herds and writes breeding through that pointer, but caps it using
    * the CURRENT nation's census total (param_1). A DOS bug, reproduced for
    * now (docs/tolerated_dos_bugs.md TB-8): later nation turns can repeatedly

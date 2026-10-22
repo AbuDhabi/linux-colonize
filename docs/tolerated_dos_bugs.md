@@ -215,13 +215,16 @@ also fails; `golden_ai_joint` passed. Reverted.
 **DOS:** in each tribe's turn, the census FUN_4962_06b6 (raw 78392-78406) walks
 every settlement through `FUN_281f_0a4c` (= `FUN_15dc_0032`), leaving the bound
 tribe pointer `DS:0x8d4e` on the nation of the last settlement in the array.
-The horse-breeding step of FUN_4d56_1816 (raw 81664-81672) then reads
-`horse_herds` and writes `horse_breeding` through that pointer, but caps the
-result with the current tribe's population total.
+The horse-breeding step of FUN_4d56_1816 (raw 81617-81628) then reads
+`horse_herds` (+8) and writes `horse_breeding` (+10) through that pointer, but
+caps the result at `(pop + 25) * 2`, where `pop` is the *current* tribe's
+population total (`DS:0x9622[tribe]`).
 
 **Effect:** whichever tribe owns the last settlement record gets its horse
-breeding advanced on every tribe's turn (up to eight times a turn, each with a
-different cap), while the other tribes never breed through this step.
+breeding advanced on every tribe's turn (up to eight times a turn), while the
+other tribes never breed through this step. Each add is clamped to the cap of
+the tribe whose turn it is, so a small tribe's turn can pull the last tribe's
+breeding value down to that small tribe's cap.
 
 **Port (reproduces it):** the §6c horse-breeding block after
 `ai_contact_indian_census_4962_06b6` in `src/core/ai_contact_demand.c`.

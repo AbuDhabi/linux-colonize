@@ -413,6 +413,14 @@ Found in passing by reviewers, not re-verified. DOS behaviour looks intended her
 
 ## F. Housekeeping in the existing docs
 
-- dos_bugs.md header lists three "DOS bug ported literally, no entry" examples that are now stale: `colony_workers.c ~989` is DB-9 (not reproduced), `ai_contact_demand.c ~2517` is the TB-8 site, `ai_diplo.c ~2087` is DB-8.
-- TB-8 could add: the cap is the current tribe's `(pop + 25) * 2` while herds and breeding go through the stale pointer, so each add is clamped to a different tribe's cap.
-- known_divergences.md entries where DOS is the buggy side (candidates to move to dos_bugs.md): #780 (5952 ARM 1 writes profession 0xff; port guards), #909(d) (@TRAINFAIL reuses a stale %STRING0; port fills the current colony), possibly #909(b) (University-without-College teacher seating).
+Done 2026-10-22:
+
+- dos_bugs.md header: the three stale "ported literally" examples are removed
+  (they were DB-9, the TB-8 site and DB-8).
+- TB-8: raw cite corrected to 81617-81628 (also in `ai_contact_demand.c`), and
+  the `(pop + 25) * 2` current-tribe cap detail added.
+- known_divergences.md #780 moved to dos_bugs.md DB-10; #909(d) (@TRAINFAIL
+  stale %STRING0) moved to DB-11. Stubs left in known_divergences.md.
+- #909(b) (University-without-College teacher seating) stays in
+  known_divergences.md: DOS testing the College bit only is not clearly a bug.
+  The state is reachable through C-76 (raid burn leaves an upper tier).
