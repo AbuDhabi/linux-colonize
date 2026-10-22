@@ -1,12 +1,21 @@
-click 168 128
+# Boarding a Caravel two ways, then sailing the loaded ship out to sea.
+# Fixture: Caravel A (id 84) has its full 12 moves; a lone colonist (id 131, Preacher) stands on the
+# shore at (46,24), no orders, full moves.
+click 168 128              # open Quebec (45,24)
 wait 10
-click 312 155
-click 239 166
-click 239 166
-click 110 54
-click 276 166
-click 276 166
-shot
-key Escape
-key a
-shot
+drag 160 117 132 152       # drag a unit of the colony tile onto Caravel A: the drop does not board (only selects the unit)
+click 312 155              # Units pane tab
+click 239 166              # select free colonist (id 128) in the Units Present row
+click 239 166              # second click: @UNITOPTIONS popup
+click 110 54               # "Sentry / Board ship": sentried units board when a ship leaves the tile
+key Escape                 # back to the map
+key a                      # Activate unit: Caravel A
+key KP_9                   # sail out to (46,23): the sentried colonist boards on departure (hold 1 of 2)
+wait 20
+click 120 128              # select the shore colonist at (46,24)
+key KP_8                   # step north onto the ship's tile: walks aboard (hold 2 of 2); the ship becomes the selection
+wait 20
+key KP_6                   # sail east (47,23)
+wait 20
+key KP_3                   # sail south-east onto open sea (48,24); both passengers ride along
+wait 20

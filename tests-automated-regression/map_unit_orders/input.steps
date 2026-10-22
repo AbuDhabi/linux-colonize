@@ -1,0 +1,7 @@
+# Three Pioneers (100 tools) in the field plus a Dragoon and an Artillery in Quebec; Pioneer 125 on plains is selected.
+key p     # Plow Fields on (43,25): work done at once (fixture preloaded), tile plowed, tools 100 -> 80
+key p     # next Pioneer (42,25) forest: Clear Forest, finishes at once, forest -> grassland, @CLEARCUT popup
+key Return  # dismiss "Pioneers clear forest near Guadeloupe. 20 lumber added" (Guadeloupe +20 lumber)
+key r     # next Pioneer (44,25) forest: Build Road, job starts (order 9, progress 1) and stays pending
+key f     # Dragoon in Quebec: Fortify (order 5)
+key s     # Artillery in Quebec: Sentry (order 1); the idle wagon in Guadeloupe is selected last

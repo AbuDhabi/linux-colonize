@@ -1,0 +1,17 @@
+# Dragoon in Quebec is selected, 4 moves.
+drag 168 128 104 128   # mouse go-to: drag from Quebec to Guadeloupe; he rides the roads there (5/3 spent), order cleared on arrival
+wait 60
+click 88 3             # ORDERS menu
+click 97 86            # "Go to Place" (land units); next map click is the destination
+click 184 112          # destination: Quebec again (road home, orders clear, 2 thirds left)
+wait 60
+key w                  # wait for next unit: the Caravel at sea (47,29)
+drag 120 112 120 80    # mouse go-to two tiles north, arrives with 2 moves left
+wait 40
+click 88 3             # ORDERS menu (ship: Go to Port instead of Go to Place)
+click 97 93            # "Go to Port": colony picker
+click 96 95            # Montreal: too far for this turn, sails 2 tiles and keeps the go-to order
+wait 80
+# Caravel A (Quebec) is next, 4 moves
+drag 120 112 152 176   # mouse go-to 5 sea tiles away: sails 4 and keeps the go-to order; Caravel B (idle) gets selected
+wait 80
