@@ -16,6 +16,8 @@ Not this file:
 - Port diverges from DOS but DOS is *right*: [known_divergences.md](known_divergences.md).
 - Actionable port bug: [port_bugs.md](port_bugs.md).
 
+TB-9..TB-30 (Euro and native AI) live in
+[tolerated_dos_bugs_ai.md](tolerated_dos_bugs_ai.md); every other entry is here.
 Ids are `TB-N`, permanent and never reused. An entry moving to `dos_bugs.md`
 gets the next `DB-N` there and notes "was TB-N"; leave a one-line stub here
 pointing at it so citations still resolve. Each entry names the DOS function
@@ -235,3 +237,446 @@ all six idle CTest gates fail (1492 campaign from 1535, independence from
 save 2, America from save 46) and `unit_ai_indian_census` fail;
 `golden_ai_joint` passed. Reverted.
 **Status:** tolerated (2026-10-21).
+
+### TB-31 — Best-defender picker scores against "unit #nation", not the attacker
+**DOS:** FUN_5fef_1b0e calls FUN_281f_07e0 with the attacker's nation nibble
+and leaves that pushed word on the stack (`PUSH [BP-0x86]`, OVL17 asm
+0x1baa-0x1bc1). It then pushes 07e0's unit and near-calls the defender picker
+FUN_5fef_0000, so the picker's third argument, meant to be the attacker unit,
+is the attacker's nation number (raw 99111-99205). The picker reads it as a
+unit index: every candidate is scored against unit record #nation (FUN_281f_09dc
+at raw 99157), and the Artillery-in-colony arm tests that record's nation
+nibble.
+
+**Effect:** which unit defends a tile or colony depends on whichever unit
+record sits at index = attacker nation (usually a native Brave for nations
+0..3), not on the real attacker. Every game, human and AI.
+
+**Port (reproduces it):** `units_best_defender_at`
+(`src/core/units_combat.c`, `pick_foe_id` / `pick_foe_nat`). Came from
+dos_bug_candidates_2026-10-22.md C-35. The fix is `pick_foe_id = attacker_id`.
+
+**Blocks removal:** tried 2026-10-22: score against the real attacker unit;
+CTest `golden_idle_independence` and `golden_idle_independence_reload` fail,
+first differing at save 6 (independence 5->6, byte 0x21b2 got 09, DOS 07; save 7
+0x2196 got 09 DOS 07; save 10 0x2c). All other goldens and `golden_ai_joint`
+passed. Reverted.
+**Status:** tolerated (2026-10-22).
+
+### TB-32 — Colony capture toggles the WAR bit one-sidedly
+**DOS:** the capture tail of FUN_5fef_1b0e (raw 100999-101010, OVL17 asm
+0x2f17-0x2f43) reads: if the captor's relation row toward the loser has no WAR
+bit (2), set WAR in the loser's row toward the captor; else clear WAR in the
+captor's row. The else arm is a toggle: capturing a colony while already at
+war clears the captor's own war flag toward the loser. Intent is probably
+"a capture means war", so the else-clear looks like a slip. DOSBox BPM
+(independence 3->4): the crown takes a Dutch colony and its 0x22 toward the
+Dutch becomes 0x20.
+
+**Effect:** after a capture, the captor's WAR bit toward the loser is gone
+whenever it was set before, so the pair is left at war on one side only. Every
+capture, human and AI.
+
+**Port (reproduces it):** `colonies_capture_col1_effects`
+(`src/core/colony_build.c`, the `ai_diplo_read` / `ai_diplo_write` pair after
+`ai_diplo_clear_both`). Came from dos_bug_candidates_2026-10-22.md C-36. The
+fix is to drop the else arm.
+
+**Blocks removal:** tried 2026-10-22: dropped the else-clear (captor's WAR bit
+stays); CTest `golden_idle_independence` and `golden_idle_independence_reload`
+fail from save 3 (byte 0x277b got 0x22, DOS 0x20; every later save differs the
+same way). All other tests and `golden_ai_joint` passed. Reverted.
+**Status:** tolerated (2026-10-22).
+
+### TB-33 — Spanish tech-1 conquest treasure bound is computed but not used
+**DOS:** the treasure amount tail of FUN_5fef_31ea branches on the razed tribe's
+tech. The tech-0 arm stores a Spanish-dependent bound in `-0x62` (raw 101414,
+Spanish 3, others 6) and rolls `FUN_281f_04d4(0, bound)`. The tech-1 arm also
+stores a Spanish-dependent bound in `-0x62` (raw 101433, Spanish 1, others 2)
+but then rolls the literal `FUN_281f_04d4(0, 2)` (raw 101434-101436), so the
+stored value is never read. The tech-0 arm shows the intent: the roll should
+use the stored bound.
+
+**Effect:** a Spanish conqueror of a tech-1 tribe gets the treasure roll
+"0 of 0..2" (1 in 3) instead of "0 of 0..1" (1 in 2), and
+the paid amount and RNG stream differ. Needs a tech-1 tribe (non-rich, no Cortes) to matter.
+
+**Port (reproduces it):** `units_conquest_treasure_gold`
+(`src/core/units_combat.c`, tech-1 arm). Came from
+dos_bug_candidates_2026-10-22.md C-38. The fix is `dos_rng_range(rng, 0,
+spanish ? 1 : 2)`.
+
+**Blocks removal:** tried 2026-10-22: roll with the computed bound; CTest
+`golden_idle_continuous` and `golden_idle_reload` fail, first differing in
+year_1552.sav (byte 0x2c, got 0x31, DOS 0x30; later saves differ too). All
+other tests and `golden_ai_joint` passed. Reverted.
+**Status:** tolerated (2026-10-22).
+
+### TB-34 — Ship-sink census does not decrement the ship count
+**DOS:** when FUN_5fef_0352 sinks a hull (raw 99570-99579) it takes the hull
+out of the Euro AI fleet census: it subtracts the ship's cargo from the cargo
+total (`DS:0x9414`), decrements the per-type count (`DS:-0x6db4 + nation*0x13
++ type`) and, for an armed hull, the armed-ship count (`DS:0x9424`). It never
+decrements the ship count `DS:0x9418`, which the unarmed-hull gate in the same
+body reads as `0x9418 - 0x9424 < 9` (raw 99538-99540). The census is only
+rebuilt by the next census pass (FUN_4962_0018), so until then a sunk ship still
+counts.
+
+**Effect:** the saved ship count (`DS:0x9418`, part of the census block in the
+save) stays one too high for the rest of the turn after each sinking, and the
+`< 9` fleet-size test in later sink decisions sees one ship too many. The
+Euro AI Europe code that reads `ship_counts` (the "no ships" check) sees the
+same stale count.
+
+**Port (reproduces it):** `units_apply_naval_loss_outcome`
+(`src/core/units_combat.c`, census block after `units_naval_damage_gate`).
+Came from dos_bug_candidates_2026-10-22.md C-40. The fix is
+`st->ship_counts[n]--`.
+
+**Blocks removal:** tried 2026-10-22: decrement `ship_counts[n]` with the other
+three census fields; CTest `golden_idle_independence` and
+`golden_idle_independence_reload` fail, first differing in save 13
+(independence 12->13, byte 0x3496 got 0x07, DOS 0x08). All other tests and
+`golden_ai_joint` passed. Reverted.
+**Status:** tolerated (2026-10-22).
+
+### TB-35 — LCR "Vanishes" latch overrides the small-nation protection
+**DOS:** in the Lost City Rumour body FUN_65dd_0004, case 5 ("Vanishes",
+raw 103597-103612) first turns into 6 ("nothing") for a nation with census
+pop < 5 and < 3 colonies, and half the time for a Pioneer with census pop < 9.
+It then tests the one-shot per-nation latch (`nation + 0x543e` bit 0x40) without
+checking that the case is still 5: if the latch is unset, DOS sets it and
+changes the case to 4 (Burial Mounds). So the latch overrides the protections,
+and a nation that was protected from Vanishes gets Burial Mounds instead of
+nothing and spends its latch on it.
+
+**Effect:** a small nation's first rolled case 5 pays out Burial Mounds even
+when the protection said "nothing". Changes the LCR outcome, the RNG stream and
+the saved latch bit. Every game, human and AI.
+
+**Port (reproduces it):** `units_lcr_roll_outcome` (`src/core/units_combat.c`,
+case-5 block; `lcr_case5_bonus_used`). Came from
+dos_bug_candidates_2026-10-22.md C-41. The fix is to test the latch only while
+`raw == 5`.
+
+**Blocks removal:** tried 2026-10-22: test the latch only while the case is
+still 5; CTest `golden_idle_continuous` and `golden_idle_reload` fail (seed-100
+1492 campaign first differs in year_1501.sav, byte 0x2c got 0x2e, DOS 0x2c),
+`golden_idle_america` and `golden_idle_america_reload` fail (first differs in
+save 7, byte 0xce got 0x00, DOS 0x40, the latch bit DOS has set). Also
+`unit_units_core` fails ("case5 latch must set lcr_case5_bonus_used" pins the
+DOS behaviour). `golden_ai_joint` passed. Reverted.
+**Status:** tolerated (2026-10-22).
+
+### TB-36 — Declaration clears the seen plane with the crown index instead of its bit
+**DOS:** FUN_43f7_1a26 (declaration of independence, raw 74818-74827) walks the
+whole seen layer and ANDs every tile with `~*(int*)0x53d2`, the crown's slot
+INDEX, then ORs `0x10 << crown` into tiles the human has seen. The mask meant
+to be `~(0x10 << crown)` (the value `iStack_8` is computed one line above and
+used for the OR). With the index the AND is a no-op for crown 0 and clears
+low-nibble bits (the AI site-score nibble) for crowns 1..3, and the crown's own
+seen bit is never cleared first.
+
+**Effect:** tiles the crown had seen but the rebels had not keep the crown's
+seen bit after the declaration; for crowns 1..3 the low-nibble bits are wiped
+on every tile. The REF pathfinder reads this layer.
+
+**Port (reproduces it):** the seen-plane sweep in the declaration step of
+`ai_king_audience.c` (`keep = ~crown_fold`).
+
+**Blocks removal:** tried 2026-10-22: `keep = ~(0x10 << crown)`;
+`golden_idle_independence` and `golden_idle_independence_reload` fail from
+save 2 (`independence-seed-100/000002.SAV`, first byte mismatch at 0x6558: port
+0x60, DOS 0x70, the crown's 0x10 seen bit cleared on a tile the rebels never
+saw). All other goldens and `golden_ai_joint` pass; no other test fails.
+Reverted.
+**Status:** tolerated (2026-10-22).
+
+### TB-37 — REF wave planner tests the owner of a stale unit index
+**DOS:** while scoring each human coastal colony's garrison, FUN_43f7_0982 (raw
+74033-74041) walks the colony's eight neighbours and, for each land tile, tests
+`unit[local_4c].owner == crown` before re-reading the tile's stack with 07e0.
+`local_4c` is not the neighbour's top unit: it holds whatever the last
+assignment left, first the head of the last colony tile scored, later where the
+previous chain walk stopped. When it is -1 the read lands on DS:0x312b, which
+held 0 in DOSBox. The test was meant to ask whether this neighbour tile's own
+top unit belongs to the crown.
+
+**Effect:** whether the crown's units next to a target count against its
+garrison need depends on an unrelated stale index. The King's second and later
+invasion waves are sized by it.
+
+**Port (reproduces it):** `ai_king_0982_invasion` (`src/core/ai_king_ref.c`,
+`last_tile_head_id`).
+
+**Blocks removal:** tried 2026-10-22: read the neighbour tile's own head unit
+and test its nation; `golden_idle_independence` and
+`golden_idle_independence_reload` fail from save 3
+(`independence-seed-100/000003.SAV`, first byte mismatch at 0x2c: port 0x68,
+DOS 0x6b; the REF lands fewer units and every later save drifts). All other
+goldens and `golden_ai_joint` pass; no other test fails. Reverted.
+**Status:** tolerated (2026-10-22).
+
+### TB-38 — REF landing sweep tests "crown-held" through a stale owner nibble
+**DOS:** the landing sweep of FUN_43f7_0982 (raw 74190) decides whether a
+neighbouring land tile is already crown-held with `FUN_281f_06dc(x, y) ==
+crown`, the layer3 owner nibble. The unit mover FUN_281f_023a sets the nibble
+when a stack arrives but never clears it when the tile empties. The test was
+meant to ask "is a crown unit standing here"; a stale crown nibble answers yes
+for an empty tile.
+
+**Effect:** the King's landing party treats tiles its units once stood on as
+occupied. Cavalry and Artillery land alone on such an empty tile, and the
+two-sweep Regular seizure logic (smallest enemy stack first) skips it.
+
+**Port (reproduces it):** `ai_king_0982_land_troops` (`src/core/ai_king_ref.c`)
+tests `units_tile_owner_nibble(...) == crown`.
+
+**Blocks removal:** tried 2026-10-22: test for an active crown unit on the tile
+instead of the nibble; `golden_idle_independence` and
+`golden_idle_independence_reload` fail from save 12
+(`independence-seed-100/000012.SAV`, first byte mismatch at 0x2820: port 0x73,
+DOS 0x74), with the saves after it diverging. All other goldens and
+`golden_ai_joint` pass; no other test fails. Reverted.
+**Status:** tolerated (2026-10-22).
+
+### TB-39 — Invasion and intervention target lists are capped at ten colonies
+**DOS:** the REF invasion wave (FUN_43f7_0982, raw 74001-74015) and the
+intervention pick (FUN_43f7_10f0, raw 74312-74331) gather the human's coastal
+colonies into a fixed ten-slot stack array. The gather loop takes a colony
+only while `local_24 < 10`, so colonies past the tenth, in colony-pool order,
+are never scored, weighted or picked.
+
+**Effect:** once the human owns more than ten coastal colonies the King only
+ever attacks or lands next to the oldest ten.
+
+**Port (reproduces it):** `AI_KING_0982_MAX_TARGETS` and
+`AI_KING_10F0_CANDIDATES` (`src/core/ai_king_ref.c`), both 10.
+
+**Blocks removal:** tried 2026-10-22: both caps lifted (arrays of 256, all
+coastal colonies scored); `golden_idle_independence` and
+`golden_idle_independence_reload` fail from save 6
+(`independence-seed-100/000006.SAV`, first byte mismatch at 0x6a: port 0x28,
+DOS 0x29). The cap only matters past ten coastal human colonies, so that
+campaign reaches it and DOS keeps it. All other goldens and `golden_ai_joint`
+pass; no other test fails. Reverted.
+**Status:** tolerated (2026-10-22).
+
+### TB-40 — Tax-audience score reads the human's SoL for every nation
+**DOS:** the King's peacetime tax audience (FUN_38fd_5be8, raw 68460-68467) is
+rolled for each nation at its end of turn, human or AI (the nation is the
+bound index `DS:0x9e12`). Its score uses `*(int*)0x53d0` (the human's SoL
+report) in the `(SoL * 2 - tax_rate) * 5` term, and the nation's own tax rate
+and census population in the other terms. The per-nation SoL byte (`nation +
+0x19`, same 0..100 scale) exists and is cached for every nation, so the term
+was meant to read it.
+
+**Effect:** an AI nation's tax audience is scored with the human's SoL, so AI
+tax rates move as if they had the human's independence movement. Also, the
+Simon Bolivar elect bump to `DS:0x53d0` counts in the human's score.
+
+**Port (reproduces it):** `ai_king_audience_roll` (`src/core/ai_king_audience.c`,
+`col1->head.rebel_sentiment_report`).
+
+**Blocks removal:** tried 2026-10-22: `nat->rebel_sentiment` in place of
+`rebel_sentiment_report`; `golden_idle_continuous` and `golden_idle_reload`
+fail from `1492-1600-seed-100/year_1529.sav` (first byte mismatch at 0x37:
+port 0x02, DOS 0x00), `golden_idle_america` and `golden_idle_america_reload`
+from `golden_idle_america_seed-100/000026.SAV` (0x37: port 0x01, DOS 0x02).
+Other goldens and `golden_ai_joint` pass; unit test `unit_ai_king_core` also
+fails (6 cases that pin the old score). Reverted.
+**Status:** tolerated (2026-10-22).
+
+### TB-41 — Fisherman yield cascade tests its thresholds in the wrong order
+**DOS:** FUN_15eb_18ec (raw 11816-11835, asm 15eb:1979-19d7) adjusts a
+Fisherman plot by the count `n` of Ocean/Sea Lane neighbours (FUN_15eb_173e).
+The cascade is `n >= 8: -2; n >= 6: -1; n < 6: +1; n < 4: +2; n < 3: +3;
+n < 1: +4`. The `n < 6` arm is tested before the smaller thresholds, so the
++2, +3 and +4 arms can never run. The intended order is clearly smallest
+threshold first (sheltered water fishes better). The -2 arm is also dead in
+play: a colony work plot always has the land colony tile as a neighbour, so
+`n <= 7`.
+
+**Effect:** every Fisherman, human and AI, gets only +1 (fewer than 6 ocean
+neighbours) or -1 (6 or 7). A fishing plot in a sheltered bay yields the same
+as one on an open coast.
+
+**Port (reproduces it):** `colony_yield_fisherman_distance_mod`
+(`src/core/colony_yield.c`). Came from dos_bug_candidates_2026-10-22.md C-47.
+The fix is the cascade in the right order: `n >= 8: -2; n >= 6: -1; n < 1: +4;
+n < 3: +3; n < 4: +2; else +1`.
+
+**Blocks removal:** tried 2026-10-22: the fixed cascade; CTest
+`golden_idle_independence` and `golden_idle_independence_reload` fail (seed-100
+independence campaign, first differs at save 2, save byte 0x2ea: got 0x2b,
+DOS 0x29), `golden_colony_prod01` fails (COLONY00->01 Dutch: New Amsterdam
+Food 83 vs 81, Fort Nassau Food 170 vs 169, Bahia Food 149 vs 148) and
+`golden_colony_prod02` fails (COLONY00->01 Dutch: New Amsterdam Horses 69 vs
+68, New Holland Food 11 vs 10, Vlissingen Food 12 vs 10). `unit_colony_yield`,
+`unit_turn_core` and `unit_ai_euro_28c8_job_score` also fail. `golden_ai_joint`
+passed. Reverted.
+**Status:** tolerated (2026-10-22).
+
+### TB-42 — Major-river bonus only when the river is the sole contributor
+**DOS:** FUN_15eb_18ec (raw 11961-11963) builds the road/plow/river bonus
+`local_12` in steps of `u`. The major-river step is
+`(local_28 & 0x40) && (local_12 += u, local_28 & 0x80) && local_12 == u`:
+after the river's own `+u` the running sum is compared with `u`, so the major
+bonus is added only when nothing else (Farmer `+u`, road, plow) came first.
+A Farmer's `+u` is always there first, so a major river never gives a Farmer
+the extra step. The condition looks like a slip for "river is major".
+
+**Effect:** a major river adds its extra step only to a plot with no Farmer
+step, no road or colony bit and no plow. A major-river Farmer, or a plowed or
+roaded plot on a major river, yields the same as on a minor river.
+
+**Port (reproduces it):** the improvement stack in `colony_yield_pipeline`
+(`src/core/colony_yield.c`, `map_tile_has_major_river(...) && add ==
+improvement_step`). Came from dos_bug_candidates_2026-10-22.md C-48. The fix is
+dropping the `add == improvement_step` test.
+
+**Blocks removal:** tried 2026-10-22: major-river step added whenever the
+river is major; CTest `golden_idle_continuous` and `golden_idle_reload` fail
+(seed-100 1492 campaign, first differs at year_1547.sav byte 0x270: got 00, DOS 01), `golden_idle_independence`
+and `_reload` fail (save 2, byte 0x622: got 6b, DOS 6a), `golden_idle_america`
+and `_reload` fail (save 32, byte 0x7a6: got 38, DOS 37), `golden_colony_prod01`
+fails (Fort Orange Food 163 vs 162) and `golden_colony_prod03` fails (farming
+case1, expert Farmer on a major river: New Amsterdam Food 60 vs 59).
+`unit_colony_yield` also fails (`fur_trapper_river_double_count`).
+`golden_ai_joint` passed. Reverted.
+**Status:** tolerated (2026-10-22).
+
+### TB-43 — Stale claim table charges again for a plot a Pioneer already bought
+**DOS:** FUN_15eb_26e4 builds the 5x5 tribal-claim table (DS:-0x7262) at
+colony-pass entry and already leaves out a plot whose purchased bit
+(`FUN_15eb_0620`, mask `& 0x10`) is set. The seat (FUN_15eb_06d2 and the tail
+of FUN_0000_6582) reads that table later and prices the plot with
+FUN_4cc6_07c2, which never tests the purchased bit. If a Pioneer bought the
+plot between the table build and the seat, the table still claims it and the
+seat charges (AI colony with 1.5x the price in gold) or raises alarm (otherwise)
+a second time. The seat never re-tests the bit the table builder used.
+
+**Effect:** an AI colony can pay for, or anger the tribe over, a plot its own
+Pioneer just bought. Seen in real DOS: America seed 100 save 12, France's
+Pioneer buys (44,56), then the colony seats it: `lands_bought` 1 and tribe
+alarm 7.
+
+**Port (reproduces it):** `colonies_assign_field_land_reaction`
+(`src/core/colony_workers.c`) takes the entry from the claim snapshot
+(`colonies_claim_snapshot_take`, `src/core/colony.c`) and prices it with
+`colonies_indian_land_purchase_gold_stale_claim`, which skips the purchased
+test on purpose. Came from dos_bug_candidates_2026-10-22.md C-50.
+
+**Blocks removal:** tried 2026-10-22: skip the reaction when the snapshot
+entry is used and the plot's purchased bit (layer2 `MAP_LAYER2_PURCHASED`) is
+set; CTest `golden_idle_america` and `golden_idle_america_reload` fail (first
+differs at save 12, byte 0x1960: got 00, DOS 07, the alarm 7 of the France
+pair). No other test failed, `golden_ai_joint` passed. Reverted.
+**Status:** tolerated (2026-10-22).
+
+### TB-44 — The destination flood cache is keyed on the goal only
+**DOS:** `FUN_6662_00f2` (raw 103870-103885) reuses its last destination flood
+(`DS:0x2d1a/0x2d1c`, grid at `DS:0xa270`) whenever the goal matches and
+`grid[mover] != 0`. The key ignores everything else the grid depends on: the
+mover's type (`DS:0x1dd2`: domain, low-move), the owner terms (`DS:0x1dd6`) and
+the uniform-cost flag (`DS:0x1dd4`). Costs are bytes (they wrap past 255) and the
+256-slot queue has no full test. Every 00f2 caller shares the grid: the Go To
+tiers, `FUN_6662_0906` (snap probes, ship-pressure probe) and the road-connect
+walk, so a flood made for one mover is reused for the next.
+
+**Effect:** a Go To step can be chosen from a grid built for a different kind of
+mover (a land probe's grid used by a ship, another nation's owner terms), so
+the route can differ from the one the mover's own rules would give. TB-1 is a
+special case (the coarse-plane populator).
+
+**Port (reproduces it):** `units_flood_00f2` (`src/core/units_move.c`), shared
+grid `s_flood`. The save-plane build (`col1_post_map_rebuild_connectivity`,
+`src/core/col1_post_map.c`) has its own cache and is not affected by a change
+here, so a live-only fix is possible. The live coarse build
+(`units_coarse_build`) uses one rule set for all its floods, so a rules-aware
+key also leaves it (and TB-1) unchanged.
+
+**Blocks removal:** tried 2026-10-22: store the mover's rules (domain,
+low-move, uniform flag, native rumour rule, owner) with the grid and rebuild
+when they differ (the RTST path chunk grows by 4 bytes). CTest
+`golden_idle_america` and `golden_idle_america_reload` fail; the 63-save America
+campaign first differs at save 51 (AI unit 58 ends at x=42, DOS x=44, orders 12
+vs 0; the map path/mask planes follow). `regression_replay` also fails (not a
+golden). A variant that never reuses the grid also fails
+`golden_idle_continuous` (first at year 1502), `golden_idle_independence` (save
+4), `golden_idle_america` (save 51), the three `_reload` variants and
+`unit_units_movement`. `golden_ai_joint` passed. Reverted.
+**Status:** tolerated (2026-10-22).
+
+### TB-45 — withdrawn: Man-O-War sight radius 1 is intended
+FUN_13f1_02f8 gives radius 2 to Galleon, Privateer and Frigate but not to the
+Man-O-War. The DOS save (independence-seed-100 save 5) shows radius 1, and the
+user judged it intentional (2026-10-22). Not a bug; the port keeps DOS
+(`units_sight_radius`, `src/core/units_map.c`). Was
+dos_bug_candidates_2026-10-22.md C-56.
+
+### TB-46 — Map generator latitude abs() draws the random number twice
+**DOS:** the base-terrain latitude band in `FUN_684c_08c0` (raw 105771-105787)
+is `ABS(h/2 - rand(1,16) - y + 8)` written with a macro that evaluates its
+argument twice. The sign test (`<= 0`, via `iVar12 + 8 < 0 || iVar12 == -8`)
+uses one `rand(1,16)` and the value uses a second one, so every tile (water
+included) consumes two draws and the value may be negated although its own
+draw was positive.
+
+**Effect:** the latitude band of a land tile (base terrain: Savannah ...
+Plains, Tundra) is not the absolute value of one random offset: near the
+sign flip the value from the second draw is negated by the first draw's test,
+so some tiles get a band that no single draw would give. The map-generation RNG
+stream also takes two draws per tile.
+
+**Port (reproduces it):** `latitude_terrain` (`src/core/map_gen.c`), called for
+every tile by `paint_terrain`.
+
+**Blocks removal:** tried 2026-10-22, two variants. (1) One draw per tile,
+`abs()` of it: CTest `golden_mapgen_seed100` fails (first terrain mismatch at
+(5,1): port 0x18, DOS 0x19; the shorter RNG stream shifts everything after the
+latitude pass). (2) Both draws kept so the stream is unchanged, first draw used
+for sign and value: `golden_mapgen_seed100` fails too (first mismatch at
+(3,1): port 0x18, DOS 0x19, so later passes that read the base terrain drift)
+and `smoke_play` fails (no colony founded within its budget on the new map).
+Variant (1) fails only `golden_mapgen_seed100`. `golden_ai_joint` passed in
+both. Reverted.
+**Status:** tolerated (2026-10-22).
+
+### TB-47 — Spawns refused at the unit cap still charge the cost
+**DOS:** FUN_1427_06b4 refuses a new unit at the cap (292 units for an AI
+nation or the natives, 300 in all, or a Euro census byte above 200). Five
+callers ignore the refusal and charge anyway:
+- colony unit project: FUN_364b_0688 debits the tools (raw 57771-57774), then
+  FUN_364b_0114 (raw 56939-56950) bumps the unit-type count and the Artillery
+  grace counter, zeroes the hammers and shows the "built" message;
+- leave-as: FUN_15eb_1068 jumps to LAB_15eb_1236 (raw 11282-11283,
+  11317-11331), which subtracts the target job's gear; the colonist stays;
+- birth: FUN_364b_0688 (raw 57615-57622) debits 200 food, then shows
+  @NEWCOLONIST;
+- immigration: FUN_38fd_5e52 (raw 68579-68590) zeroes the crosses and draws
+  and refills a recruit-pool slot before the spawn;
+- Brewster pick: FUN_38fd_4884 (raw 64765-64768) zeroes the crosses before the
+  spawn.
+
+**Effect:** at the cap a colony or nation pays for a unit it never gets. A
+human player loses stock or crosses visibly. AI nations reach their cap late
+(America seed-100 around saves 181-199) and from then on keep losing food,
+hammers, tools, gear and crosses.
+
+**Port (reproduces it):** `colonies_try_complete_unit_construction`
+(`src/core/colony_build.c`, `COLONIZE_UNIT_BUILD_REFUSED`),
+`colonies_eject_colonist` (`src/core/colony_workers.c`, port_bugs.md #1132),
+the birth block of `src/core/turn_production.c` (Phase I), the immigrant arm
+of `turn_run_nation_ticks` (`src/core/turn_colony.c`) and
+`units_brewster_apply_slot_w` (`src/core/units.c`).
+
+**Blocks removal:** tried 2026-10-22: check `units_spawn_room` before
+charging anything at all five sites (human and AI, the AI immigration tick in
+`europe_harbor.c` included). Every golden and `golden_ai_joint` passed: no
+enabled golden reaches the cap (instrumented, `units_spawn_room` never
+refused). Kept at the user's call because the real DOS saves past the AI cap
+show these charges (America seed-100 resync 290, Montreal at 292 units;
+#1132: Boston muskets 50 -> 0, Barbados horses down to 212) and the disabled
+america2 campaign compares against them. Was DB-17..DB-21. Reverted.
+**Status:** tolerated (2026-10-22).

@@ -283,9 +283,9 @@ static int ai_contact_raid_roll_stores_cargo(
         dos_rng_range(rng, 0, 1) == 0) {
       cargo = COLONIZE_CARGO_HORSES;
     }
-    if (cargo == COLONIZE_CARGO_MUSKETS) {
-      (void)dos_rng_range(rng, 0, 200); /* raw 99829 — result unused in DOS */
-    }
+    /* DOS bug not reproduced (docs/dos_bugs.md DB-29): DOS burns a dummy
+     * rand(0,200) here for Muskets (raw 99826-99829; asm 5fef:1119-1135
+     * computes rand - difficulty*i into CX and never reads it). */
   } while (i < 100 && c->stock[cargo] < 10);
   if (99 < i) {
     return -1; /* raw 99833 `goto LAB_5fef_123a` */

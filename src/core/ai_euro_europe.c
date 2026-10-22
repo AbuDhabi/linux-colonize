@@ -1515,6 +1515,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
         if (col1_nation_bank_4a(nat) > 0x31) {
           horse_stock_cost = 0;
         }
+        /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-21). */
         if (nat->gold >= horse_stock_cost) {
           europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -(long)horse_stock_cost);
         }
@@ -1648,7 +1649,8 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
               /* raw 93041-93046 (bug #1029): gold gate is price * DS:0x8dc4,
                * the last hold removal anywhere (DOSBox 1591: a French unload
                * left 100, so the Dutch hull with a boycotted hold bought
-               * nothing), not the literal 100 bought below. */
+               * nothing), not the literal 100 bought below.
+               * DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-25). */
               if (nat->gold >= (uint32_t)(ai_euro_5d04_cb_price(p) * units_last_hold_amount)) {
                 ai_euro_5d04_cb_apply_bump(idx2, p, 100);
                 cargo_demand[p]--; /* raw 93050 */

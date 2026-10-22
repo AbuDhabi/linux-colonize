@@ -310,13 +310,14 @@ bool colonies_assign_workplace(
       }
     }
     /*
-     * DOS-LITERAL overlays.c:60486-60496 @MORETHANTHREE: DOS tallies every
-     * OTHER colonist by occupation and refuses a fourth with
-     * `if ((2 < aiStack_42[param_2]) && (9 < param_2)) return 0x16;` — the
-     * `9 < param_2` half means @JOB 9 (Rum Distiller) has no cap at all.
-     * Verbatim, oddity included.
+     * overlays.c:60486-60496 @MORETHANTHREE: DOS tallies every OTHER colonist
+     * by occupation and refuses a fourth with
+     * `if ((2 < aiStack_42[param_2]) && (9 < param_2)) return 0x16;`.
+     * DOS bug not reproduced (docs/dos_bugs.md DB-15): `9 < param_2` leaves
+     * @JOB 9 (Rum Distiller) uncapped; the port caps it like every other
+     * indoor job (`8 <`).
      */
-    if (occupation > 9 &&
+    if (occupation > 8 &&
         colonies_occupation_worker_count(pool, col, occupation, colonist_index) > 2) {
       return false;
     }
@@ -431,6 +432,7 @@ static void colonies_assign_field_land_reaction(
    * for the colony that owns the cache (see g_colonies_plot_cache_colony). */
   const ColonizeColony* cc = g_colonies_plot_cache_colony ? g_colonies_plot_cache_colony : col;
   bool snap = false;
+  /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-43). */
   int ti = colonies_claim_snapshot_take(dx, dy, &snap);
   if (!snap) {
     ti = colonies_indian_claim_tribe_from_w(w, nation, cc->x, cc->y, cc->x + dx, cc->y + dy);
@@ -1235,7 +1237,8 @@ int colonies_eject_colonist(
    * full unit pool the port used to remove the colonist first and lose him. */
   /* port_bugs.md #1132: FUN_15eb_1068 zeroes the +0x60 nibble (0cbc, raw
    * ~11250) before the spawn, and a refused spawn (`local_1a < 0`) jumps to
-   * LAB_15eb_1236, which still subtracts the target job's gear, clamped at 0. */
+   * LAB_15eb_1236, which still subtracts the target job's gear, clamped at 0.
+   * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-47). */
   c->turns_in_job = 0;
   if (!units_spawn_room(units, col->nation_id) ||
       (uid_refused = units_spawn_allow_stack(units, type_index, col->x, col->y)) < 0) {

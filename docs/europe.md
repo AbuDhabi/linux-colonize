@@ -174,8 +174,9 @@ FUN_48d3_0002 voyage roll. rng NULL → 1 (no roll). The x<3 west-edge
 branch in DOS only burns RNG(0,1)+an FF test and discards both — there
 is no west-edge sail penalty in the shipped code (PEDIA's Magellan
 "west edge" line describes the 10% delay this FF removes). The port still
-takes `new_world_x` and burns that draw, because the shared stream has to
-land where DOS leaves it (port_bugs.md #1019). The argument is the New World
+takes `new_world_x` but makes no draw for it: the wasted draw is a DOS bug
+the port does not reproduce ([dos_bugs.md](dos_bugs.md) DB-40; was
+port_bugs.md #1019). The argument is the New World
 column of the crossing: Ghidra drops it at all three call sites, and the
 asm (viceroy_unpacked.asm:93551 / :123097 / :123378) pushes nation +0x32
 `return_from_europe_x` or unit +0x314d as the second cdecl argument. Port

@@ -192,6 +192,7 @@ static int colonies_capture_col1_effects(
    * CLEARED there; else the loser's row gains WAR (DOSBox BPM, independence
    * 3->4: the crown takes a Dutch colony and its 0x22 toward the Dutch
    * becomes 0x20). */
+  /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-32). */
   const uint8_t won = ai_diplo_read(col1, new_nation, old_nation);
   if ((won & AI_DIPLO_WAR) != 0) {
     ai_diplo_write(col1, new_nation, old_nation, (uint8_t)(won & ~AI_DIPLO_WAR));
@@ -807,7 +808,7 @@ int colonies_try_complete_unit_construction(
    * count, the Artillery grace bump, the tools charge and hammers = 0 all
    * still happen (America seed-100 resync 290, Montreal at 292 units).
    * COLONIZE_UNIT_BUILD_REFUSED tells the caller the project completed
-   * without a unit. */
+   * without a unit. DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-47). */
   int uid = COLONIZE_UNIT_BUILD_REFUSED;
   if (units_spawn_room(units, col->nation_id)) {
     uid = units_spawn_allow_stack(units, type_index, col->x, col->y);

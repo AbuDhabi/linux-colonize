@@ -97,7 +97,7 @@ int ai_king_pick_dump_goods_cargo(
   const int* cargo_weight
 ) {
   /*
-   * DOS-LITERAL FUN_38fd_3dc8 raw 64176-64200. Eligible = candidate_mask &
+   * FUN_38fd_3dc8 raw 64176-64200 (literal except the DB-14 walk). Eligible = candidate_mask &
    * ~boycott_bitmap (DOS skips bits already set in the nation's
    * boycott_bitmap / local_a6 when summing local_80). The weights are the
    * caller's local_7a[] (tonnage-derived, see
@@ -105,10 +105,9 @@ int ai_king_pick_dump_goods_cargo(
    * weights into a 32-bit total, calls FUN_281f_04d4(1, LOWORD(total)), but
    * never reads that call's result: asm 38fd:3f63-3fbc subtracts each
    * eligible weight from the original total and picks the first remainder
-   * <= 0. This odd deterministic walk is observable when the truncated
-   * weights sum to zero or negative (as in campaign4/COLONY08.SAV), so do
-   * not turn the unused draw into a roulette. When cargo_weight is NULL,
-   * pick uniformly (no Col1 nation record: tests / synthetic fixtures).
+   * <= 0 (always the last stocked cargo). The port does not reproduce that
+   * (DB-14, below). When cargo_weight is NULL, pick uniformly (no Col1
+   * nation record: tests / synthetic fixtures).
    */
   if (!rng) {
     return -1;
@@ -141,9 +140,16 @@ int ai_king_pick_dump_goods_cargo(
   for (int i = 0; i < n; ++i) {
     remaining += cargo_weight[idxs[i]];
   }
-  /* DOS stores but never reads this result; preserve the RNG-stream burn.
-   * The call receives only local_80, the low word of the 32-bit total. */
-  (void)dos_rng_range(rng, 1, (int)(uint16_t)remaining);
+  /* DOS bug not reproduced (docs/dos_bugs.md DB-14): DOS stores this draw
+   * (local_84) and never reads it, walking the weights down from the total.
+   * The port walks down from the draw: a real roulette. The call receives
+   * only local_80, the low word of the 32-bit total; sign-extend the result
+   * like local_82 = local_84 >> 15. With no positive total every eligible
+   * good is still a protest option: the one draw picks uniformly. */
+  if ((int16_t)remaining <= 0) {
+    return idxs[dos_rng_range(rng, 0, n - 1)];
+  }
+  remaining = (int16_t)dos_rng_range(rng, 1, (int)(uint16_t)remaining);
   for (int i = 0; i < n; ++i) {
     remaining -= cargo_weight[idxs[i]];
     if (remaining <= 0) {
@@ -665,8 +671,10 @@ void ai_king_sync_boycott_refuse(ColonizeCol1Save* col1, int human) {
  *     6 Regulars / 8 Cavalry / 0x12 Man-O-War / 0xb Artillery;
  *   royal_money -= 1800.
  *
+ * DOS bug not reproduced (docs/dos_bugs.md DB-33): DOS adds the free-colonist
+ * count to nation+0xe (bells this turn) after the debit; the port drops the add.
  * DOS tail (asm 43f7:1e58-1e61, `MOV SI,[BP+param]; MOV AL,[SI+0x9408];
- * SUB AH,AH; ADD [BX+0xe],AX`) — ported 2026-09-06d. `nation+0xe` decoded:
+ * SUB AH,AH; ADD [BX+0xe],AX`), no longer ported. `nation+0xe` decoded:
  * the nation record is `n*0x13c + DS:-0x77f8` (nation_flags +0, tax_rate +1,
  * recruit[3] +2, tax_hike_count +5, recruit_count +6, founding_fathers[4] +7,
  * unknown21_pad +0xb, liberty_bells_pool +0xc) so +0xe is
@@ -767,9 +775,6 @@ void ai_king_1d42_royal_purse(ColonizeTurnContext* ctx) {
     );
   }
   nat->royal_money -= 0x708;
-  /* asm 43f7:1e58 tail — 16-bit ADD, wraps like DOS. */
-  nat->liberty_bells_last_turn =
-    (uint16_t)(nat->liberty_bells_last_turn + (uint16_t)col1->stuff.free_colonist_counts[human]);
 }
 
 int ai_king_sol_percent(const ColonizeTurnContext* ctx, int nation_id) {

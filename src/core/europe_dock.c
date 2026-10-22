@@ -341,15 +341,10 @@ bool europe_purchase_open_confirm(EuropeScreen* eu, int purchase_index) {
   }
   const EuropePurchaseOption* p = &eu->purchase[purchase_index];
   const int cost = europe_purchase_cost(eu, purchase_index);
-  /*
-   * FUN_38fd_4b50 raw 64868-64870: the Artillery escalation counter
-   * (nation+0x1e) bumps right here, before the @REALLYBUY popup is even
-   * shown — unconditionally of the eventual Yes/No answer. A cancelled
-   * purchase still leaves the next Artillery row 100$ pricier.
-   */
-  if (p->kind == UNITS_KIND_ARTILLERY) {
-    eu->artillery_bought += 1;
-  }
+  /* DOS bug not reproduced (docs/dos_bugs.md DB-12): FUN_38fd_4b50 raw
+   * 64868-64870 bumps the Artillery counter (nation+0x1e) here, before
+   * @REALLYBUY, so a cancelled buy still raises the next price. The port
+   * bumps it in europe_purchase_commit (Yes only). */
   eu->purchase_confirming = true;
   eu->purchase_confirm_index = purchase_index;
   eu->purchase_confirm_cost = cost;
@@ -397,6 +392,9 @@ bool europe_purchase_commit(
     return true;
   }
   europe_purse_move(eu, g_europe_live_save, europe_purse_nation(eu), -cost);
+  if (p->kind == UNITS_KIND_ARTILLERY) {
+    eu->artillery_bought += 1;
+  }
   EuropeDockImmigrant* slot = europe_dock_insert_front(eu);
   snprintf(slot->name, sizeof(slot->name), "%s", pname);
   slot->profession = -1;

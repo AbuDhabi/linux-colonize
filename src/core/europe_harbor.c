@@ -875,13 +875,14 @@ static void europe_market_phase1(const EuropeMarketTick* t, long ledger[16]) {
 }
 
 /*
- * sign(bid − ratio) the way DOS takes it: the FUN_1d1d_0ec6 quotient is
- * truncated to a 16-bit int and subtracted from the signed bid byte in 16
- * bits (raw ~58845 `local_6 - (int)lVar15`, ~58899 `local_52`). Only differs
- * from a plain compare once the ratio passes 32767. port_bugs.md #1051.
+ * sign(bid − ratio). DOS bug not reproduced (docs/dos_bugs.md DB-39): DOS
+ * truncates the FUN_1d1d_0ec6 quotient to a 16-bit int and subtracts it from
+ * the signed bid byte in 16 bits (raw ~58845 `local_6 - (int)lVar15`, ~58899
+ * `local_52`), so a ratio past 32767 flips the sign. The port compares in 32
+ * bits or more. port_bugs.md #1051.
  */
 static int europe_market_bid_sign(int bid, long ratio) {
-  const int16_t d = (int16_t)(uint16_t)((unsigned)(int8_t)bid - (unsigned)(uint16_t)ratio);
+  const long d = (long)(int8_t)bid - ratio;
   return (d > 0) - (d < 0);
 }
 

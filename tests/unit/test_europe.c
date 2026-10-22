@@ -771,9 +771,9 @@ static int case_europe_workflow(void) {
   /* port_bugs.md #753: PURCHASE picks Artillery (index 0) through the
    * @REALLYBUY confirm instead of buying on the spot. GAME.TXT row order
    * verbatim: row 0 "Yes" (raw 64874 `iVar6 == 1`), row 1 "No" — "No" must
-   * leave gold/dock/artillery_bought untouched but the escalation counter
-   * must still bump on open (FUN_38fd_4b50 raw 64868-64870 runs before the
-   * Yes/No answer). */
+   * leave gold/dock/artillery_bought untouched (DOS bumps the escalation
+   * counter before the answer, raw 64868-64870; the port bumps on Yes only,
+   * DB-12). */
   {
     const int gold_before = eu.gold;
     const int dock_before = eu.dock_count;
@@ -785,22 +785,23 @@ static int case_europe_workflow(void) {
       europe_free(&eu);
       return 1;
     }
-    if (eu.artillery_bought != bought_before + 1) {
-      fprintf(stderr, "artillery escalation did not bump on confirm-open\n");
+    if (eu.artillery_bought != bought_before) {
+      fprintf(stderr, "artillery escalation bumped on confirm-open\n");
       europe_free(&eu);
       return 1;
     }
     eu.menu = EUROPE_MENU_PURCHASE;
     eu.menu_selection = 1; /* "No" */
     if (!europe_menu_confirm_ex(&eu, NULL) || eu.gold != gold_before ||
-        eu.dock_count != dock_before || eu.menu != EUROPE_MENU_NONE) {
-      fprintf(stderr, "purchase 'No' answer bought a unit or left the menu open\n");
+        eu.dock_count != dock_before || eu.menu != EUROPE_MENU_NONE ||
+        eu.artillery_bought != bought_before) {
+      fprintf(stderr, "purchase 'No' answer bought a unit, bumped the counter or left the menu open\n");
       europe_free(&eu);
       return 1;
     }
 
-    /* Now answer "Yes": debits and spawns at the frozen (already-escalated)
-     * price. */
+    /* Now answer "Yes": debits and spawns at the unescalated price, then
+     * bumps the counter. */
     europe_menu_open(&eu, EUROPE_MENU_PURCHASE);
     eu.menu_selection = 1;
     europe_purchase_open_confirm(&eu, 0);
@@ -810,7 +811,7 @@ static int case_europe_workflow(void) {
     if (!europe_menu_confirm_ex(&eu, NULL) || eu.gold != gold_before - confirm_cost ||
         eu.dock_count != dock_before + 1 ||
         strcmp(eu.dock[0].name, "Artillery") != 0 || /* newest at slot 0 (#999) */
-        eu.menu != EUROPE_MENU_NONE) {
+        eu.menu != EUROPE_MENU_NONE || eu.artillery_bought != bought_before + 1) {
       fprintf(stderr, "purchase 'Yes' answer did not debit/spawn correctly\n");
       europe_free(&eu);
       return 1;

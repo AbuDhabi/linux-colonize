@@ -1458,13 +1458,12 @@ int colonies_found(
   if (slot->colonist_count > 0) {
     ColonizeColonist* fc = &slot->colonists[0];
     if (fc->active && fc->building_type < 0 && fc->field_job < 0) {
-      /* The founding join's 28c8 reads local_32 ([bp-0x30]) as residue of
-       * the founder's own map-flag write (FUN_137f_015e's pushed x, the
-       * colony tile), not a terrain class (DOSBox seed-100 265->266: 35 at
-       * Curacao (35,59), so the forest -10 stays off). */
-      ai_euro_28c8_set_l32_residue(slot->x);
+      /* DOS bug not reproduced (docs/dos_bugs.md DB-24): the founding
+       * join's 28c8 reads local_32 ([bp-0x30]) as stack residue (the colony x
+       * from FUN_137f_015e's pushed argument; 35 at Curacao (35,59), DOSBox
+       * seed-100 265->266), so its forest -10 never sees the terrain. The
+       * port scores the candidate tile's own class, like the human path. */
       colonies_seat_new_colonist(pool, slot->id, 0);
-      ai_euro_28c8_set_l32_residue(-1);
       if (colonies_colonist_tile(slot, 0) < 0) {
         /* The picker found no plot (no map bound, or every plot rejected) and
          * fell back to an indoor seat — but that fallback belongs to the 5952

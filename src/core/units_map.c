@@ -407,7 +407,8 @@ int units_sight_radius(
    *   CMP [BX+0x3146],0xf / 0x10 / 0x11 -> DI=2 ; Galleon/Privateer/Frigate
    *   FUN_15eb_3960(nation, 7) && !ship -> DI=2 ; de Soto
    *   CMP [BX+0x3146],0x5 -> INC DI             ; Scouts
-   * Man-O-War is type 0x12 and is deliberately NOT in the list: radius 1.
+   * Man-O-War is type 0x12 and is deliberately NOT in the list: radius 1
+   * (the DOS saves confirm it; judged intentional, tolerated_dos_bugs.md TB-45).
    */
   if (u->type_index == units_kind_type_index(pool, UNITS_KIND_GALLEON) ||
       u->type_index == units_kind_type_index(pool, UNITS_KIND_PRIVATEER) ||

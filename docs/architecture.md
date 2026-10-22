@@ -23,7 +23,7 @@ lives](#where-detail-lives)).
 | Open port bugs (work queue; OPEN rows only) | [port_bugs.md](port_bugs.md) |
 | Accepted DOS divergences, captures still needed | [known_divergences.md](known_divergences.md) |
 | DOS bugs deliberately NOT reproduced | [dos_bugs.md](dos_bugs.md) |
-| Unwanted DOS bugs still reproduced for now | [tolerated_dos_bugs.md](tolerated_dos_bugs.md) |
+| Unwanted DOS bugs still reproduced for now | [tolerated_dos_bugs.md](tolerated_dos_bugs.md) (TB-9..30 Euro/native AI: [tolerated_dos_bugs_ai.md](tolerated_dos_bugs_ai.md)) |
 | AI FUN / unpark | [port_plan.md](port_plan.md) |
 | Euro AI control flow (machine-readable map + flowchart) | [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml), rendered by `tools/ai_logic_map.py` to [diagrams/ai_euro_logic.html](diagrams/ai_euro_logic.html) |
 | Decomp / data navigation | [original_index.md](original_index.md) |

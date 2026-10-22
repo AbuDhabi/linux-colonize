@@ -1617,7 +1617,8 @@ bool units_brewster_apply_slot_w(const ColonizeWorld* w, int human, int slot) {
   }
   /* FUN_38fd_4884 raw 64765-64768: crosses are zeroed, then the 0718 create
    * (its type roll, then FUN_1427_06b4). A refusal at the unit limit stops
-   * there: no dock colonist, no pool refill (@TOOMANYUNITS). */
+   * there: no dock colonist, no pool refill (@TOOMANYUNITS).
+   * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-47). */
   if (units && !units_spawn_room(units, human)) {
     (void)europe_dock_unit_dos_type(
       europe->pool[slot].profession, (int)europe->difficulty, true, rng

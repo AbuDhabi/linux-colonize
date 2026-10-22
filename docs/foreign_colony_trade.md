@@ -97,7 +97,8 @@ No `best` → `%STRING0`/`%NUMBER0` = sold cargo/qty, `@TRADENOWANT` (`0x1add`),
 Both accepting arms then do `colony.stock[sold] += qty`.
 
 **DOS never debits the colony's stock of the cargo it hands over** (raw
-99021-99049 writes only `+0x9a + sold*2`). That is transcribed, not fixed.
+99021-99049 writes only `+0x9a + sold*2`). The port debits it (clamped at 0):
+a DOS bug not reproduced, [dos_bugs.md](dos_bugs.md) DB-13.
 
 ## Port
 

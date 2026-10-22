@@ -148,8 +148,9 @@ static int ai_021a_type_mounted(int t) {
  * centre tile is a settlement the neighbour medium is never read (a ship on
  * the sea next to a village counts: DOSBox tr10 turn 276, crown Man-O-War at
  * (42,52) beside the village at (41,53)); otherwise a settlement neighbour's
- * medium replaces the sticky centre medium for the following tiles. Both leave
- * the nation in DS:0x8cfa.
+ * medium replaces the sticky centre medium for the following tiles (DOS bug,
+ * reproduced for now (docs/tolerated_dos_bugs_ai.md TB-27): 0b08 keeps the
+ * centre medium fixed). Both leave the nation in DS:0x8cfa.
  */
 static int s_021a_adj_fx = -1;
 static int s_021a_adj_fy = -1;
@@ -284,6 +285,10 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_tile(struct ai_021a_ctx* c) {
     att = (owner < 4 && village) ? col1_tribe_attitude(village, owner) : 0;
     if (owner >= 4) {
       hostile = 0;
+      /* DOS bug not reproduced (docs/dos_bugs.md DB-30): DOS skips the
+       * grudge store on this other-tribe arm (OVL13 0x6af-0x6ba), so the
+       * previous direction's latch carries over; the port clears it. */
+      grudge = 0;
     } else {
       grudge = att >= 0x80;
       hostile = ai_diplo_indian_alarm(col1, nation_id, owner) >= 0x4b;
@@ -634,6 +639,7 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_terrain(struct ai_021a_ctx* c) {
     if (facing == d) {
       score += 4;
     } else if (((facing + 1) & 7) == d || ((facing - 1) & 7) == d) {
+      /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-30). */
       score += 3;
     } else if (((facing ^ 4) & 0xff) == d) {
       score -= 6;
@@ -1068,7 +1074,7 @@ int ai_native_pick_dir_021a(
   int best = -1;
   int best_dir = 8;
   int best_flags = 0;
-  int grudge = 0; /* [bp-0x14] — NOT reset on the other-tribe owner arm (DOS) */
+  int grudge = 0; /* [bp-0x14] latch carried across directions (DOS skips the reset on the other-tribe arm: DB-30) */
 
   struct ai_021a_ctx c;
   memset(&c, 0, sizeof(c));

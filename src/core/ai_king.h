@@ -284,6 +284,7 @@ static inline int ai_king_crown_nation_col1(const ColonizeCol1Save* col1, int hu
  * Tools >>1, Muskets >>2). DOS burns dos_rng_range(1, LOWORD(total)) but does
  * not use its result; it subtracts each eligible weight from the signed
  * 32-bit total and picks the first remainder <= 0 (asm 38fd:3f63-3fbc).
+ * The port subtracts from the draw instead (docs/dos_bugs.md DB-14).
  * Returns the cargo index, or -1 if none / null rng.
  *
  * Cite: viceroy_unpacked.c FUN_38fd_3dc8 raw 64176-64200. Does not mutate

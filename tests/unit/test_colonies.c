@@ -1853,6 +1853,14 @@ static int case_colonies_core(void) {
       CHECK(c->stock[COLONIZE_CARGO_TOOLS] == 100, "production overflow still clamped");
     }
 
+    /* One ton over cap is removed, not reported (DOS left it in stock: DB-34). */
+    c->stock[COLONIZE_CARGO_TOOLS] = 101;
+    CHECK(
+      colonies_apply_warehouse_spoilage(&pool, c, NULL, NULL, NULL) == 0,
+      "1-ton spoil not reported"
+    );
+    CHECK(c->stock[COLONIZE_CARGO_TOOLS] == 100, "1-ton overflow removed");
+
     /* Multi-type spoil → type count. */
     c->stock[COLONIZE_CARGO_TOOLS] = 150;
     c->stock[COLONIZE_CARGO_LUMBER] = 150;
@@ -2429,7 +2437,7 @@ static int unit_foreign_colony_trade(void) {
     "hold becomes the offered cargo"
   );
   CHECK(c->stock[COLONIZE_CARGO_SUGAR] == 20, "colony banks the sold cargo");
-  CHECK(c->stock[COLONIZE_CARGO_CIGARS] == 60, "DOS never debits the offered cargo");
+  CHECK(c->stock[COLONIZE_CARGO_CIGARS] == 30, "colony hands over the offered cargo (DB-13)");
 
   /* Take the gold: hold emptied, purse credited. */
   ColonizeUnit* u2 = units_get(&units, uid);
@@ -2844,7 +2852,7 @@ static int unit_school_faculty_and_occupation_cap(void) {
   col->has_building[school] = false;
   col->has_building[college] = false;
 
-  /* #590 — @MORETHANTHREE applies to occupation > 9 only. */
+  /* #590 — @MORETHANTHREE applies to occupation > 8 (DB-15: DOS tests > 9 and skips the Distiller). */
   col->has_building[church] = true;
   col->has_building[distillery] = true;
   CHECK(colonies_building_occupation(&pool, church) == 16, "Church occupation = Preacher 16");
@@ -2860,12 +2868,13 @@ static int unit_school_faculty_and_occupation_cap(void) {
   for (int i = 0; i < 6; ++i) {
     col->colonists[i].building_type = -1;
   }
-  for (int i = 0; i < 4; ++i) {
-    CHECK(
-      colonies_assign_workplace(&pool, 1, i, distillery),
-      "#590 DOS-LITERAL: @JOB 9 has no @MORETHANTHREE cap"
-    );
+  for (int i = 0; i < 3; ++i) {
+    CHECK(colonies_assign_workplace(&pool, 1, i, distillery), "three distillers fit");
   }
+  CHECK(
+    !colonies_assign_workplace(&pool, 1, 3, distillery),
+    "DB-15: @MORETHANTHREE caps @JOB 9 (Rum Distiller) too"
+  );
 
   if (failures == failures_before) {
     printf("unit_colonies: school faculty + occupation cap ok\n");

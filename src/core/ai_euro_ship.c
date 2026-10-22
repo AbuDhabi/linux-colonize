@@ -128,10 +128,10 @@ int ai_euro_20e6_delivery_tallies(
     if (ct > max_type) {
       max_type = ct;
     }
-    /* acStack_c8 is a signed char that wraps, `ADD byte [BP+SI-0xc6],AL`
-     * (viceroy_overlays.asm:136273) read back with CBW: two 100-lots of one
-     * cargo tally -56, not a clamped 127 (America seed-100 pairs 105-119). */
-    tally[ct] = (int8_t)(tally[ct] + amt);
+    /* DOS bug not reproduced (docs/dos_bugs.md DB-25): DOS keeps the tally in
+     * a signed byte (`ADD byte [BP+SI-0xc6],AL`, overlays asm 136273), so two
+     * 100-lots of one cargo read -56. */
+    tally[ct] += amt;
   }
   return max_type;
 }
@@ -2194,9 +2194,10 @@ int ai_euro_20e6_unload_mask_snapshot(
     if (!(pres < 0 || pres == nation)) {
       continue; /* 88c2 own/empty */
     }
-    /* FUN_521d_20e6 raw 89470: even a shore rejected by the stance or
-     * latitude gate clears the previous neighbour's mask (port_bugs.md #530). */
-    mask = 0;
+    /* FUN_521d_20e6 raw 89463/89470: DOS resets local_9c here, inside the loop
+     * (so only the last land neighbour counts, and a rejected shore clears the
+     * previous one). DOS bug not reproduced (docs/dos_bugs.md DB-26): the mask
+     * is reset once before the loop and accumulates over the neighbours. */
     const int cid = map_continent_id_at(ctx->map, ax, ay);
     if (cid < 0 || ai_euro_continent_stance_at(nation, cid) == 0) {
       continue; /* DS:0x9870 G-table zero */

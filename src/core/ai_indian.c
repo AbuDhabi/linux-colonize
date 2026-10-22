@@ -700,8 +700,15 @@ static void ai_indian_152e_village_growth(
     }
     if (threat_nation >= 0) {
       int threat_alarm_gain = threat_score << (capital_mult ? 1 : 0); /* DOS local_c */
-      ind->euro_relation_accum[threat_nation] =
-        (int8_t)(ind->euro_relation_accum[threat_nation] - threat_alarm_gain);
+      /* DOS bug not reproduced (docs/dos_bugs.md DB-31): the accumulator is
+       * a signed byte (raw 81503, `*pcVar2 - (char)local_c`), so a
+       * threat >= 128 wraps it positive and cools instead of heating; the
+       * port saturates at -128. */
+      int accum = (int)ind->euro_relation_accum[threat_nation] - threat_alarm_gain;
+      if (accum < -128) {
+        accum = -128;
+      }
+      ind->euro_relation_accum[threat_nation] = (int8_t)accum;
       if (threat_nation == mission_nation) {
         threat_alarm_gain >>= 1;
       }
