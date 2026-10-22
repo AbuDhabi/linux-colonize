@@ -41,6 +41,9 @@
 #include "core/ai_popup.h"
 #include "core/game_dialogs.h"
 #include "core/game_loop.h"
+#include "core/game_loop_internal.h"
+#include "core/map_panel.h"
+#include "core/units.h"
 #include "core/json_min.h"
 #include "core/screen_geom.h"
 #include "platform/platform.h"
@@ -308,6 +311,50 @@ bool platform_present(
   return true; /* false would close the nested loops (combat analysis) */
 }
 
+static const char* off_map_reason(const ColonizeGameState* g);
+
+/* ===== Screenshots ===== */
+
+/* REGRESSION_SHOTS=1 (authoring aid, tools/regression_script.py): binary PPM
+ * of the frame the player saw before each mouse/key press, plus the start and
+ * end screens, in the test's failure-artefact directory. */
+static void write_shot(const char* out_dir, const char* tag, const ColonizeFramebuffer8* fb,
+                       const ColonizePalette* pal, const ColonizeGameState* g) {
+  /* Map tile (x,y) is drawn at screen (16*(x-vx), 8+16*(y-vy)) at zoom 0. */
+  int cols = 0, rows = 0, vx = 0, vy = 0;
+  game_map_zoom_view_size(g->map_zoom, &cols, &rows);
+  map_panel_clamp_view_origin((int)g->world_map.width, (int)g->world_map.height, g->map_view_x,
+                              g->map_view_y, cols, rows, &vx, &vy);
+  const ColonizeUnit* sel = g->units.selected_id >= 0 ? units_get_const(&g->units, g->units.selected_id) : NULL;
+  printf("  shot %s: view origin (%d,%d) tile %dpx y0 %d; cursor (%d,%d); selected unit %d",
+         tag, vx, vy, game_map_zoom_tile_px(g->map_zoom), MAP_VIEW_ORIGIN_Y, g->map_cursor_x,
+         g->map_cursor_y, sel ? sel->id : -1);
+  if (sel) {
+    printf(" at (%d,%d) moves %d", sel->x, sel->y, sel->moves);
+  }
+  printf("; %s\n", off_map_reason(g) ? off_map_reason(g) : "main map");
+  char path[700];
+  snprintf(path, sizeof(path), "%s/shot_%s.ppm", out_dir, tag);
+  FILE* f = fopen(path, "wb");
+  if (!f) {
+    return;
+  }
+  fprintf(f, "P6\n%d %d\n255\n", fb->width, fb->height);
+  for (int i = 0; i < fb->width * fb->height; ++i) {
+    fwrite(pal->rgb[fb->pixels[i]], 1, 3, f);
+  }
+  fclose(f);
+}
+
+static bool press_next(const ColonizePlatform* p) {
+  for (size_t i = p->next; i < p->count && p->recs[i].frame == p->frame; ++i) {
+    if (p->recs[i].type == R_DOWN || p->recs[i].type == R_KEY_DOWN) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /* ===== Save comparison ===== */
 
 static int g_diff_lines;
@@ -501,6 +548,11 @@ static int run_test(const char* name) {
     return 1;
   }
   game_set_platform(game, &rp);
+  /* The tests stay inside one turn, so AI and end-of-turn changes never
+   * move their expected saves. */
+  const unsigned start_turn = game->col1.head.turn;
+  const char* shots = getenv("REGRESSION_SHOTS");
+  const bool want_shots = shots && shots[0] && strcmp(shots, "0") != 0;
 
   uint8_t* pixels = malloc((size_t)screen_w * (size_t)screen_h);
   ColonizeFramebuffer8 fb = {.width = screen_w, .height = screen_h, .pixels = pixels};
@@ -527,8 +579,17 @@ static int run_test(const char* name) {
         rp.frame = rp.recs[0].frame;
         prev_ms = rp.recs[0].t_ms - IDLE_FRAME_MS;
         phase = "replay";
+        if (want_shots) {
+          write_shot(out_dir, "start", &fb, &pal, game);
+        }
       }
-    } else if (rp.next >= rp.count) {
+    } else if (rp.next < rp.count) {
+      if (want_shots && press_next(&rp)) {
+        char tag[32];
+        snprintf(tag, sizeof(tag), "%06u", (unsigned)rp.frame);
+        write_shot(out_dir, tag, &fb, &pal, game);
+      }
+    } else {
       phase = "settle (after the last input)";
       settled = off_map_reason(game) ? 0 : settled + 1;
       if (settled >= SETTLE_FRAMES) {
@@ -544,6 +605,14 @@ static int run_test(const char* name) {
     }
   }
 
+  if (want_shots) {
+    write_shot(out_dir, "end", &fb, &pal, game);
+  }
+  if (game->col1.head.turn != start_turn) {
+    printf("  the test crossed a turn boundary (turn %u -> %u); keep it inside one turn\n",
+           start_turn, (unsigned)game->col1.head.turn);
+    goto done;
+  }
   if (!game_save_col1_named(game, "actual.sav", err, sizeof(err))) {
     printf("  save failed: %s\n", err);
     goto done;

@@ -1,0 +1,12 @@
+click 168 128
+wait 10
+click 312 155
+click 239 166
+click 239 166
+click 110 54
+click 276 166
+click 276 166
+shot
+key Escape
+key a
+shot

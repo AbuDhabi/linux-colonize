@@ -9,6 +9,7 @@ These are compiled C tools built from `tools/*.c` sources. Run them from `build/
 | Name | Purpose | Invocation | Needs |
 |------|---------|-----------|-------|
 | `sav_json` | COLONY##.SAV ↔ JSON converter | `sav_json IN [OUT]` | Built by CMake (output file ext drives direction) |
+| `regression_script.py` | Builds a `regression_replay` test from a step script (`input.steps`): compiles it to `input.jsonl`, replays it with per-press screenshots, `--bless` writes `output.sav` | `python3 tools/regression_script.py NAME [--bless]` | Built `build/debug/regression_replay`; PIL for PNGs; tests/README.md "Authoring from a step script" |
 | `squeeze_input_log.py` | Caps idle gaps in a `debug.input_logger` log so a `regression_replay` test runs faster | `python3 tools/squeeze_input_log.py IN.jsonl OUT.jsonl [MAX_GAP=20]` | Re-run the test after; too small a gap lands inputs early |
 | `ai_replay` | Headless Euro-AI replay on a real save: loops `turn_end` and prints colonies / pop / units / hulls / Europe-park counts / gold per AI nation per turn | `ai_replay <save.SAV> [turns] [--units] [--seed N]` | Built by CMake; repo root as cwd (reads `COLONIZE/NAMES.TXT`) |
 | `colony_prod` | Per-colony production of a save, one TSV row per colony (port colony-screen preview: bells, crosses, hammers, 16 cargos; food = produced, horses = net breed) | `colony_prod <save.SAV>` | Built by CMake; repo root as cwd; used by `save_compare.py` |

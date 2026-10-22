@@ -1,0 +1,15 @@
+click 168 128
+wait 10
+drag 5 155 30 110
+wait 5
+shot
+drag 14 155 30 110
+wait 5
+shot
+drag 23 155 30 110
+wait 5
+shot
+drag 32 155 30 110
+wait 5
+shot
+shot
