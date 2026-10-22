@@ -292,7 +292,7 @@ static void test_head_bridge_preserves_state(void) {
   check(head.game_options.cheats_enabled == 1, "cheats_enabled preserved");
   check(head.game_options.end_of_turn == 1, "end_of_turn applied");
   /* DOS stores the water checkbox inverted: off means the bit is set. */
-  check(head.game_options.water_color_cycling == 1, "water bit inverted on write");
+  check(head.game_options.water_color_cycling_off == 1, "water bit inverted on write");
   /* Report bits are DOS suppress flags: "show it" stores a 0. */
   check(head.colony_report_options.report_food_shortages == 1, "report off sets the bit");
   check(head.colony_report_options.report_rebel_majorities == 0, "report on clears the bit");

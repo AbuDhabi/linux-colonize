@@ -1650,7 +1650,7 @@ void game_water_cycle_tick(ColonizeGameState* game) {
       game->opening.open || game->closing.open) {
     return;
   }
-  if (game->col1.head.game_options.water_color_cycling != 0) { /* bit set = off */
+  if (game->col1.head.game_options.water_color_cycling_off != 0) {
     return;
   }
   for (int i = 0; i < game->water_cycle_count; ++i) {

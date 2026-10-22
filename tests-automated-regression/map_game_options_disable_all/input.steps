@@ -1,0 +1,25 @@
+# Game Options with every option turned off. Fixture: France 1599 (colony_fence_to_jobs input.sav as is): head.game_options
+# show_indian_moves, show_foreign_moves, fast_piece_slide, end_of_turn, autosave, combat_analysis all True (rows checked),
+# tutorial_hints False and water_color_cycling_off True (DOS 0x5383 bit 0: set = cycling off), so those two rows start unchecked.
+# Dialog rows (logical y): Show Indian Moves 66, Show Foreign Moves 77, Fast Piece Slide 88, End of Turn 99,
+# Autosave 110, Combat Analysis 121, Water Color Cycling 132, Tutorial Hints 143. Enter/click outside commits, Esc/right click cancel.
+click 22 3                 # GAME menu
+click 38 13                # Game Options: "Set Game Options" checklist
+click 100 66               # Show Indian Moves off
+click 100 77               # Show Foreign Moves off
+click 100 88               # Fast Piece Slide off
+click 100 99               # End of Turn off
+click 100 110              # Autosave off
+key Down                   # keyboard: selection moves from Autosave to Combat Analysis
+key space                  # Combat Analysis off
+key Down                   # selection to Water Color Cycling (already off)
+key space                  # on ...
+key space                  # ... and off again
+key Down                   # selection to Tutorial Hints (already off)
+key space                  # on ...
+key space                  # ... and off again
+key Return                 # all eight rows unchecked; Enter commits and closes the dialog
+click 22 3                 # GAME menu again
+click 38 13                # Game Options again: all eight rows still unchecked (choices persisted)
+click 290 120              # click outside the dialog: commits (no change) and closes
+wait 20

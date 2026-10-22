@@ -47,6 +47,40 @@ bool colonies_has_fortification(const ColonizeColonyPool* pool, const ColonizeCo
   return false;
 }
 
+/*
+ * DOS-LITERAL FUN_2f2b_0000 (OVL03 offset 0, reached only through the
+ * resident stub FUN_1000_9a3c from the eject validator FUN_2f2b_011e; no C
+ * export, read from viceroy_overlays.asm ~74161). Own strength = opcode 0xa
+ * (FUN_1427_0d38) on the colony tile stack; then for each of the 8
+ * neighbours whose stack head is European (owner nibble < 4): an own stack
+ * adds to own, a stack whose owner is not at peace with the colony owner
+ * (FUN_281f_0a38 byte & 0x40 clear) adds to enemy. Returns enemy - own,
+ * floored at 0; != 0 = @SIEGE. The out-pointers (strongest enemy nation,
+ * own, enemy total) are dropped: the validator passes all three NULL.
+ */
+int colonies_siege_margin_w(const ColonizeWorld* w, const ColonizeColony* colony) {
+  if (!w || !w->units || !colony) {
+    return 0;
+  }
+  int own = units_military_count_at(w->units, colony->x, colony->y);
+  int enemy = 0;
+  for (int d = 0; d < 8; ++d) {
+    const int nx = colony->x + MAP_DIR8_DX[d];
+    const int ny = colony->y + MAP_DIR8_DY[d];
+    const ColonizeUnit* head = units_get_const(w->units, units_id_at(w->units, nx, ny));
+    if (!head || head->nation_id < 0 || head->nation_id >= 4) {
+      continue;
+    }
+    const int n = units_military_count_at(w->units, nx, ny);
+    if (head->nation_id == colony->nation_id) {
+      own += n;
+    } else if ((ai_diplo_read(w->col1, colony->nation_id, head->nation_id) & AI_DIPLO_PEACE) == 0) {
+      enemy += n;
+    }
+  }
+  return enemy > own ? enemy - own : 0;
+}
+
 int colonies_fortification_defense_bonus_percent(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony

@@ -81,6 +81,19 @@ int units_count_at(const ColonizeUnitPool* pool, int x, int y) {
   return n;
 }
 
+/* FUN_1427_0d38 opcode 0xa: land units with attack > 1 on the (x,y) stack. */
+int units_military_count_at(const ColonizeUnitPool* pool, int x, int y) {
+  int slot = 0;
+  int n = 0;
+  for (const ColonizeUnit* u; (u = units_next_on_tile_const(pool, x, y, &slot)) != NULL;) {
+    const ColonizeUnitType* t = units_type(pool, u->type_index);
+    if (t && t->attack > 1 && t->domain != COLONIZE_UNIT_DOMAIN_SEA) {
+      n++;
+    }
+  }
+  return n;
+}
+
 /* ===== Slot index: id -> slot hash and slot_end high-water mark ===== */
 
 #define UNITS_ID_MASK (COLONIZE_UNITS_ID_HASH - 1)

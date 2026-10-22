@@ -79,7 +79,7 @@ static int case_options(void) {
   options_dialog_apply_game(&od, &applied);
   if (applied.show_indian_moves || !applied.show_foreign_moves ||
       applied.fast_piece_slide || applied.end_of_turn || !applied.autosave ||
-      !applied.combat_analysis || applied.water_color_cycling ||
+      !applied.combat_analysis || applied.water_color_cycling_off ||
       !applied.tutorial_hints) {
     return fail("options apply");
   }

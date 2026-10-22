@@ -37,6 +37,17 @@ the port, with fixture edits through `sav_json` where a test needs them
 | `village_missionary_visit` | Missionaries: Establish Mission (plain and Jesuit), menu Escape and Cancel row (moves forfeited), Incite Indians declined, unaffordable (notice dismissed, no further quote) and paid |
 | `village_learn_skill` | Free Colonists and Indentured Servants Live Among the Natives: No (LEARNLATER), Yes (skill learned, village marked), capital teaches again, LEARNALREADY |
 | `village_criminal_learn_refused` | Petty Criminals refused (LEARNCRIMINAL) at taught, untaught and capital villages |
+| `map_found_colony` | Colonist #131 on free coastal forest (44,22): B, name prompt accepted (Trois Rivieres), colony screen closed |
+| `map_found_colony_mountain` | Colonist #131 on the mountain (42,22): B and ORDERS > Build Colony both refused with @TOOMOUNTAIN |
+| `map_join_colony` | Free colonist #128 on the Quebec tile: B joins the colony from the map |
+| `colony_abandon` | Port au Prince (pop 1, view via the Scout #95 selected): last colonist leaves, @ABANDON answered Yes |
+| `colony_abandon_stockade_refused` | Guadeloupe (pop 4, + Stockade): one colonist leaves, the next is refused with @KEEPSTOCKADE (pop stays 3) |
+| `colony_eject_siege_refused` | Guadeloupe besieged by three English Dragoons (at war): leaving as Colonist or Scout is refused with @SIEGE, as Soldier and Dragoon allowed (port_bugs.md #1165) |
+| `map_ship_landfall` | From `map_board_and_ferry`'s output: @LANDFALL "Stay With Ships", then "Make Landfall" twice (one passenger ashore per confirm) |
+| `map_board_ship_from_land` | Scout #95 on the shore steps onto empty Caravel #2 at sea and boards |
+| `map_board_ship_full_refused` | Same, Caravel #2 with both holds full: the step is refused silently, the Scout stays ashore |
+| `map_game_options_enable_all` | GAME > Game Options with every option off: all eight rows turned on (mouse and keyboard), reopened |
+| `map_game_options_disable_all` | Base save: all eight rows turned off, reopened, closed by an outside click |
 
 The `europe_*` tests were recorded live and start from `port_saves/carpentry.SAV`. The `europe_*` ones use a copy
 edited with `sav_json` to 60000 gold and a recruit pool of Fishermen /

@@ -1,0 +1,4 @@
+# Join a colony from the map. Fixture: free colonist #128 standing on the Quebec (45,24) colony tile is
+# selected (head.active_unit, cursor stuff.x/y); full moves, no orders.
+key b                      # B on an own colony tile = Join Colony: #128 joins Quebec (pop 6 -> 7) on a free land tile,
+                           # leaves the unit list; the selection moves on to the colonist in Guadeloupe (#88)

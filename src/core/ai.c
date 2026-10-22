@@ -386,7 +386,7 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
   p->col1->head.game_options.end_of_turn = 0;
   p->col1->head.game_options.autosave = 1;
   p->col1->head.game_options.combat_analysis = 1;
-  p->col1->head.game_options.water_color_cycling = 0;
+  p->col1->head.game_options.water_color_cycling_off = 0;
   p->col1->head.game_options.tutorial_hints = (p->col1->head.difficulty == 0) ? 1 : 0;
 
   /* Seed indian tech from @TRIBES when available. */

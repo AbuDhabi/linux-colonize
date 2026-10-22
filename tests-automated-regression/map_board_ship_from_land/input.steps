@@ -1,0 +1,8 @@
+# A land unit steps from the shore onto an own ship at sea and boards it.
+# Fixture (from colony_fence_to_jobs): lone Scout #95 (type 5) moved to the forest shore (47,25), no orders, full
+# moves, selected (head.active_unit, cursor stuff.x/y); empty Caravel #2 (was a goto ship with goods at (47,29))
+# moved to open sea at (48,25), no orders, full moves, holds_occupied 0 (free capacity). French goto units
+# (orders 3) sentried so nothing auto-walks.
+key KP_6                   # step east onto the ship's sea tile: the Scout boards (sentried, moves spent, chained under the
+                           # ship), and the ship becomes the selection (view scrolls to it)
+wait 20

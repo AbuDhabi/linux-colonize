@@ -1,0 +1,12 @@
+# A land unit cannot board an own ship whose holds are all taken.
+# Fixture (from colony_fence_to_jobs): lone Scout #95 (type 5) moved to the forest shore (47,25), no orders, full
+# moves, selected (head.active_unit, cursor stuff.x/y); Caravel #2 moved to open sea at (48,25), no orders, full
+# moves, left as the save has it: 2 goods holds occupied of the Caravel's capacity 2 (so a Scout, size 1, has no
+# room). Same geometry as map_board_ship_from_land, which differs only in the ship being empty. French goto units
+# (orders 3) sentried so nothing auto-walks.
+key KP_6                   # step east onto the full ship's tile: refused silently (no popup, no message); the Scout stays
+                           # at (47,25) with its moves, ship and cargo untouched, Scout still selected
+wait 20
+key s                      # Sentry the Scout: proves the keypress above left it selected and ashore (orders 1, moves
+                           # spent); the selection moves on to the next unit with moves (view scrolls)
+wait 20

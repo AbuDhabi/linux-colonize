@@ -423,6 +423,8 @@ const ColonizeUnit* units_next_on_tile_const(
 );
 /* Active, on-map, not-aboard units standing on (x,y). */
 int units_count_at(const ColonizeUnitPool* pool, int x, int y);
+/* FUN_1427_0d38 opcode 0xa: land units with attack > 1 standing on (x,y). */
+int units_military_count_at(const ColonizeUnitPool* pool, int x, int y);
 /*
  * FUN_13f1_02f8 sight radius: 1; Galleon/Privateer/Frigate 2; de Soto (FF 7)
  * makes every non-ship unit 2; Scouts +1 on top. FUN_13f1_02b4 then reveals

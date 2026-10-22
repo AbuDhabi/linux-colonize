@@ -762,23 +762,6 @@ typedef struct Ai153eBorderProbe {
   int adjacent_military; /* raw local_16: Σ opcode 0xa over adjacent target stacks */
 } Ai153eBorderProbe;
 
-/* FUN_1427_0d38 opcode 0xa: land units with attack > 1 on (x,y). */
-static int ai_diplo_stack_military_count(const ColonizeTurnContext* ctx, int x, int y) {
-  int n = 0;
-  /* Slot walk — `i` is not a unit id; see ai_diplo_wake_border_garrisons. */
-  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-    const ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->aboard_ship_id >= 0 || u->x != x || u->y != y) {
-      continue;
-    }
-    const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
-    if (t && t->attack > 1 && t->domain != COLONIZE_UNIT_DOMAIN_SEA) {
-      n++;
-    }
-  }
-  return n;
-}
-
 /* FUN_1427_0d38 opcode 0xb: Σ 004a(unit, mode 1) for units whose domain matches the tile. */
 static int ai_diplo_stack_attack_sum(const ColonizeTurnContext* ctx, int x, int y) {
   const ColonizeCombatStrengthCtx sctx = combat_strength_ctx_from_turn(ctx);
@@ -811,7 +794,7 @@ static Ai153eBorderProbe ai_diplo_153e_border_probe(
     return r;
   }
   if (units_id_at(ctx->units, colony_x, colony_y) >= 0) {
-    r.colony_military = ai_diplo_stack_military_count(ctx, colony_x, colony_y);
+    r.colony_military = units_military_count_at(ctx->units, colony_x, colony_y);
   }
   int best = 0;
   for (int d = 0; d < 8; ++d) {
@@ -825,7 +808,7 @@ static Ai153eBorderProbe ai_diplo_153e_border_probe(
     if (!u) {
       continue;
     }
-    const int mil = ai_diplo_stack_military_count(ctx, nx, ny);
+    const int mil = units_military_count_at(ctx->units, nx, ny);
     if (u->nation_id == target) {
       r.value += ai_diplo_stack_attack_sum(ctx, nx, ny) >> 3;
       r.adjacent_military += mil;

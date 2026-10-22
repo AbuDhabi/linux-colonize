@@ -1,0 +1,5 @@
+# Found a colony with B. Fixture: lone colonist #131 (Preacher) moved to free coastal forest (44,22), no
+# orders, full moves, selected (head.active_unit, cursor stuff.x/y); not adjacent to any colony.
+key b                      # Build colony: name prompt, default "Trois Rivieres"
+key Return                 # accept: colony founded, its screen opens
+key Escape                 # back to the map

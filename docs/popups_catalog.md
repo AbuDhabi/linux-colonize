@@ -65,7 +65,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@TRAINCRIMINAL` | Done thin | EOT Phase G Criminal→Indentured ai_popup OK |
 | `@TRAININDENTURED` | Done thin | EOT Phase G Indentured→Free ai_popup OK |
 | `@TRAINPROFESSION` | Done thin | EOT Phase G graduate + Phase H field-skill discover ai_popup OK |
-| `@SIEGE` | Missing | no colony modal (FULL/SIEGE may status) |
+| `@SIEGE` | Done | colony-screen eject refusal (`game_colony_request_eject`, FUN_2f2b_011e code 0x14; siege test `colonies_siege_margin_w` = FUN_2f2b_0000) |
 | `@ABANDON` | Done | colony abandon confirm; `ai_popup` `AI_POPUP_TAG_COLONY_ABANDON` (2026-09-03 — was a colony-screen-local box with no wrap/width/figure) |
 | `@ABANDON2` | Done | same, picked when the owner has < 2 colonies **and** year > 1575 (DOS 2f2b `caseD_a` `CMP [0x538a],0x627`; the copy's "after 1600" is flavour text only) |
 | `@SAILHOME` | Done | `AI_POPUP_TAG_SAILHOME` CHOICE (FUN_4720_049e reason 5) |
