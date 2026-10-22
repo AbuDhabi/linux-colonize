@@ -235,11 +235,11 @@ typedef struct PopupPromptGeom {
 
 /*
  * Fixed-width prompt dialog (name_entry / howmuch): centre a w x h frame with
- * the menu-bar floor, then lay the prompt out as up to `rows` shadowed lines
- * of at most `cols` characters each, skipping the spaces at every break.
- * That chunker is a character budget, not a word wrap — it is what both
- * dialogs have always drawn; popup_wrap_text is the real wrapper.
- * Draws nothing past the frame when font is NULL.
+ * the menu-bar floor and draw the prompt word-wrapped to the frame width with
+ * {} emphasis (popup_wrap_text + popup_draw_text_markup), shadowed. h holds
+ * `rows` prompt rows; a prompt that wraps to more grows the frame, so read
+ * the final size from out->frame. Draws nothing past the frame when font is
+ * NULL.
  */
 void popup_prompt_frame(
   ColonizeFramebuffer8* framebuffer,
@@ -251,7 +251,6 @@ void popup_prompt_frame(
   int pad,
   const char* prompt,
   int rows,
-  int cols,
   uint8_t text_color,
   PopupPromptGeom* out
 );

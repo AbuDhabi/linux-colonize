@@ -533,7 +533,6 @@ void popup_prompt_frame(
   int pad,
   const char* prompt,
   int rows,
-  int cols,
   uint8_t text_color,
   PopupPromptGeom* out
 ) {
@@ -545,31 +544,28 @@ void popup_prompt_frame(
     }
     return;
   }
-  popup_center_frame(framebuffer, w, h, wood_tile, colors, &geom.frame);
   geom.line_h = popup_dialog_line_h(font);
-  geom.text_y = geom.frame.inner_y + pad;
-  if (!font) {
-    if (out) {
-      *out = geom;
-    }
-    return;
+  /* DOS draws these boxes with the GAME.TXT dialog writer (FUN_6f74_37fc ->
+   * 32a4 / 2580): word-wrapped to the box width, {} emphasis. A prompt longer
+   * than the reserved rows grows the box instead of losing its tail. */
+  enum { MAX_ROWS = 8 };
+  char lines[MAX_ROWS][128];
+  const int n = font ? popup_wrap_text(
+                         font, prompt, &lines[0][0], sizeof(lines[0]), NULL, MAX_ROWS,
+                         w - 2 * POPUP_FRAME_INSET - 2 * pad
+                       )
+                     : 0;
+  if (n > rows) {
+    h += (n - rows) * geom.line_h;
+    rows = n;
   }
-  int ty = geom.frame.inner_y + pad;
-  const char* p = prompt;
-  for (int row = 0; p && *p && row < rows; ++row) {
-    char line[64];
-    size_t n = 0;
-    while (*p && n + 1 < sizeof(line) && (int)n < cols) {
-      line[n++] = *p++;
-    }
-    line[n] = '\0';
-    while (*p == ' ') {
-      ++p;
-    }
-    popup_draw_text_shadowed(
-      font, framebuffer, geom.frame.inner_x + pad, ty, line, text_color
+  popup_center_frame(framebuffer, w, h, wood_tile, colors, &geom.frame);
+  bool emph = false;
+  for (int i = 0; i < n; ++i) {
+    popup_draw_text_markup(
+      font, framebuffer, geom.frame.inner_x + pad, geom.frame.inner_y + pad + i * geom.line_h,
+      lines[i], text_color, COLONIZE_COL_HILITE, false, true, &emph
     );
-    ty += geom.line_h;
   }
   geom.text_y = geom.frame.inner_y + pad + rows * geom.line_h;
   if (out) {

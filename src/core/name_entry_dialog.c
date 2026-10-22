@@ -141,13 +141,13 @@ void name_entry_render(
                        TEXT_EDIT_FRAME_PAD * 2 + pad;
   PopupPromptGeom g;
   popup_prompt_frame(
-    framebuffer, font, wood_tile, colors, dialog_w, dialog_h, pad, dlg->prompt, 3, 36,
+    framebuffer, font, wood_tile, colors, dialog_w, dialog_h, pad, dlg->prompt, 3,
     text_color, &g
   );
   dlg->dialog_x = g.frame.x;
   dlg->dialog_y = g.frame.y;
   dlg->dialog_w = dialog_w;
-  dlg->dialog_h = dialog_h;
+  dlg->dialog_h = g.frame.h;
   if (!font) {
     return;
   }

@@ -289,6 +289,11 @@ typedef struct ColonyScreenView {
 
   int selected_colonist;
   int selected_outside_unit; /* map unit id, or -1 */
+  /* Work plot the current colonist drag started on (-1: none), and whether
+   * that worker was already selected: a release on the same plot is a plain
+   * click (select it, or the jobs menu for the selected worker). */
+  int drag_from_tile;
+  bool drag_from_tile_selected;
   bool show_production_numbers;
   /* DOS FUN_2f2b_44d4's hover arm (DS:0x7f6 == 0 branch, DS:0xb9a caches the
    * last-labelled building): pointing at a built settlement building draws its

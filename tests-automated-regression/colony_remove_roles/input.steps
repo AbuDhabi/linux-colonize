@@ -14,10 +14,10 @@ drag 32 155 131 112        # colonist 3 (fisherman expert) -> fence
 click 100 70               # Scout (-50 horses)
 drag 23 155 131 112        # colonist 2 -> fence
 click 100 78               # Dragoon (-50 muskets, -50 horses): all gear is used up now
-drag 14 155 131 112        # colonist 1 (expert farmer) -> fence: every gear row is greyed
+drag 14 155 150 118        # colonist 1 (expert farmer) -> fence: every gear row is greyed (dropped on a fence unit)
 click 100 62               # greyed Soldier row: ignored, popup stays open
 click 100 86               # Missionary (Church built, costs no cargo): leaves, keeps his Farmer specialty
-drag 5 155 131 112         # last colonist 0 -> fence: popup
+drag 5 155 160 118         # last colonist 0 -> onto a unit standing on the fence (counts as the fence): popup
 click 100 46               # Colonist: the last colonist would abandon the colony, confirm prompt
 key Return                 # default answer "Never! That would be folly.": colonist 0 stays
 key Escape                 # close the role popup
