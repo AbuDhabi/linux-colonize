@@ -50,7 +50,7 @@ def load(arg, tmp, i):
     label, _, path = arg.rpartition('=')
     label = label or os.path.basename(path)
     js = os.path.join(tmp, f'{i}.json')
-    subprocess.run([f'{BIN}/sav_json', path, js], check=True, stdout=subprocess.DEVNULL)
+    subprocess.run([f'{BIN}/sav_json', path, js], check=True, capture_output=True)
     prod = subprocess.run([f'{BIN}/colony_prod', path], check=True, capture_output=True, text=True).stdout
     rows = [l.split('\t') for l in prod.splitlines() if l and not l.startswith('#')]
     return label, json.load(open(js)), rows
@@ -70,7 +70,7 @@ def main(argv):
     labels = [r[0] for r in runs]
 
     def row(name, vals):
-        print(f'  {name[:20]:<20}' + ''.join(f'{v:>9}' for v in vals))
+        print(f'  {name[:24]:<24}' + ''.join(f'{v:>9}' for v in vals))
 
     def head(title):
         print(f'\n## {title}')
