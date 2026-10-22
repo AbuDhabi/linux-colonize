@@ -62,7 +62,8 @@ bool savegame_colony_slot_path(
   char* out_path,
   size_t out_path_size
 ) {
-  if (!save_dir || !out_path || out_path_size == 0 || slot < 0 || slot > 9) {
+  /* 0..9 are the Load/Save list; 10 is the WoI victory save (FUN_281f_05b6(10)). */
+  if (!save_dir || !out_path || out_path_size == 0 || slot < 0 || slot > 10) {
     return false;
   }
   snprintf(out_path, out_path_size, "%s/COLONY%02d.SAV", save_dir, slot);

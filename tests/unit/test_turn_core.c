@@ -4850,6 +4850,50 @@ static int case_horse_breed_colony(void) {
 /*
  * FUN_3844_0442 B: year≥1600, no human colonies, peacetime → defeat.
  */
+/*
+ * A year-end WoI win stops the day (raw 6462-6466: 0x53c2 cleared, no
+ * further slot) and asks for the COLONY10.SAV victory save, not gated on the
+ * autosave option. Human slot 3, so no Euro slot runs before the day advance.
+ */
+static int case_year_end_victory_stops_turn(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  uint16_t year = 1780;
+  uint16_t autumn = 0;
+  uint32_t turn_number = 300;
+  char status[64];
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.head.game_options.woi = 1;
+  col1.head.game_options.autosave = 1; /* a day that ran on would request slot 9 */
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.game_year = &year;
+  ctx.game_autumn = &autumn;
+  ctx.turn_number = &turn_number;
+  ctx.human_nation = 3;
+  ctx.colonies = &pool;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.status = status;
+  ctx.status_size = sizeof(status);
+  const ColonizeTurnResult out = turn_end(&ctx);
+  if (!out.year_end_victory || !out.request_save_victory || out.request_autosave_turn ||
+      out.request_autosave_decade) {
+    fprintf(
+      stderr, "year-end win want victory+slot10 only got victory=%d save10=%d turn=%d decade=%d\n",
+      out.year_end_victory, out.request_save_victory, out.request_autosave_turn,
+      out.request_autosave_decade
+    );
+    return 1;
+  }
+  return 0;
+}
+
 static int case_year_end_defeat_victory(void) {
   fx_begin();
   ColonizeColonyPool pool;
@@ -6692,6 +6736,7 @@ static const TestCase k_cases[] = {
   {"horse_breed_units", case_horse_breed_units},
   {"horse_breed_colony", case_horse_breed_colony},
   {"year_end_defeat_victory", case_year_end_defeat_victory},
+  {"year_end_victory_stops_turn", case_year_end_victory_stops_turn},
   {"year_end_c2_peace", case_year_end_c2_peace},
   {"year_end_section_d", case_year_end_section_d},
   {"census_profession_tally", case_census_profession_tally},
