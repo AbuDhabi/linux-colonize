@@ -591,6 +591,13 @@ colonize_add_test(NAME ai_replay
   NO_CTEST
 )
 
+colonize_add_test(NAME colony_prod
+  SOURCES tools/colony_prod_main.c
+  LIBS colonize_core
+  INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
+  NO_CTEST
+)
+
 colonize_add_test(NAME render_report
   SOURCES tools/render_report_main.c tools/render_common.c tests/common/golden_fixture.c
   LIBS colonize_core
