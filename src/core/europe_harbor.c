@@ -202,7 +202,7 @@ void europe_board_sentry_dockers(
     ship->cargo_professions[ship->cargo_count] = eu->dock[di].profession;
     ship->cargo_count++;
     /* The dock immigrant's (236,236) mirror unit leaves the pool with it. */
-    europe_remove_dock_mirror_unit(units, nation_id, eu->dock[di].profession);
+    europe_dock_remove_mirror_unit(eu, units, nation_id, di);
     for (int j = di + 1; j < eu->dock_count; ++j) {
       eu->dock[j - 1] = eu->dock[j];
     }
@@ -264,35 +264,42 @@ bool europe_set_sail_from_harbor(
   return true;
 }
 
+/*
+ * Drag a ship between the Expected Soon and Bound For boxes. DOS: the Europe
+ * screen's box handler 38fd:3228(zone) (not in the Ghidra export, so read from
+ * ndisasm of overlay segment 5 at file offset 0x3228; zone 2 = Bound, 3 =
+ * Expected from the dispatcher 38fd:4e8e jump table at 0x4f54; drag mode
+ * DS:0x9e3a == 9, dragged unit DS:0x9e42) re-links the hull and its passengers
+ * onto the other lane tile — Bound = nation - 0x18, the other box nation - 0xc
+ * (38fd:32e2..3352, FUN_281f_0948 -> FUN_1427_040c) — and writes nothing else
+ * but the hull's orders byte +0x314c = 0 (38fd:326f `mov byte [bx+0x314c],0`). The
+ * crossing counter +0x315a, the goto tile +0x314d/e and the position bytes are
+ * not touched, so a Caravel 1 turn from the New World is 1 turn from Europe
+ * (the lane tick FUN_48d3_03d0 counts down the same way in both directions).
+ * No status line: the handler ends with the cursor restore thunk 291f:0dd4 only.
+ * Orders 0 cancels a trade-route ship's automation (orders 2), so the route
+ * slot goes with it.
+ */
 bool europe_reverse_transit(EuropeScreen* eu, bool from_expected, int index) {
   if (!eu) {
     return false;
   }
-  if (from_expected) {
-    if (index < 0 || index >= eu->expected_ships || eu->bound_ships >= EUROPE_HARBOR_MAX) {
-      return false;
-    }
-    EuropeHarborShip ship = eu->expected[index];
-    for (int i = index + 1; i < eu->expected_ships; ++i) {
-      eu->expected[i - 1] = eu->expected[i];
-    }
-    eu->expected_ships--;
-    europe_clear_ship(&eu->expected[eu->expected_ships]);
-    eu->bound[eu->bound_ships++] = ship;
-    europe_set_status(eu, "Reversed -- now sailing for the colonies.");
-    return true;
-  }
-  if (index < 0 || index >= eu->bound_ships || eu->expected_ships >= EUROPE_HARBOR_MAX) {
+  EuropeHarborShip* src_list = from_expected ? eu->expected : eu->bound;
+  EuropeHarborShip* dst_list = from_expected ? eu->bound : eu->expected;
+  int* src_count = from_expected ? &eu->expected_ships : &eu->bound_ships;
+  int* dst_count = from_expected ? &eu->bound_ships : &eu->expected_ships;
+  if (index < 0 || index >= *src_count || *dst_count >= EUROPE_HARBOR_MAX) {
     return false;
   }
-  EuropeHarborShip ship = eu->bound[index];
-  for (int i = index + 1; i < eu->bound_ships; ++i) {
-    eu->bound[i - 1] = eu->bound[i];
+  EuropeHarborShip ship = src_list[index];
+  for (int i = index + 1; i < *src_count; ++i) {
+    src_list[i - 1] = src_list[i];
   }
-  eu->bound_ships--;
-  europe_clear_ship(&eu->bound[eu->bound_ships]);
-  eu->expected[eu->expected_ships++] = ship;
-  europe_set_status(eu, "Reversed — now expected in Europe.");
+  (*src_count)--;
+  europe_clear_ship(&src_list[*src_count]);
+  ship.trade_route_plus1 = 0;
+  ship.trade_stop = 0;
+  dst_list[(*dst_count)++] = ship;
   return true;
 }
 

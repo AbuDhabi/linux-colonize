@@ -33,6 +33,7 @@
 #include <direct.h>
 #define mkdir(path, mode) _mkdir(path)
 #else
+#include <signal.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #endif
@@ -534,6 +535,11 @@ static int run_test(const char* name) {
   const uint64_t limit_ms =
     2u * (uint64_t)duration_ms > MIN_TIME_LIMIT_MS ? 2u * (uint64_t)duration_ms : MIN_TIME_LIMIT_MS;
   make_dirs(out_dir);
+#ifndef _WIN32
+  /* The limit above is checked between frames; this catches one frame that
+   * never returns (a stray Return ending the turn runs the AI inline). */
+  alarm((unsigned)(limit_ms / 1000u) + 30u);
+#endif
 
   screen_geom_set(screen_w, screen_h);
   ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = out_dir};
@@ -652,6 +658,10 @@ static int run_isolated(const char* name) {
   int status = 0;
   if (pid < 0 || waitpid(pid, &status, 0) < 0) {
     printf("  fork/wait failed\n");
+    return 1;
+  }
+  if (WIFSIGNALED(status) && WTERMSIG(status) == SIGALRM) {
+    printf("  hung: one frame ran 30 s past the time limit (did the turn end?)\n");
     return 1;
   }
   if (WIFSIGNALED(status)) {

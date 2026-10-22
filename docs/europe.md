@@ -286,11 +286,37 @@ Colonists *created* in Europe go the other way, onto slot 0, through
 europe_dock_insert_front (europe_internal.h). port_bugs.md #999. Returns false if
 the dock is full.
 
-## europe_remove_dock_mirror_unit
+## europe_dock_mirror_unit_of
 
-Drop the (236,236) Europe-map mirror unit that shadows a dock immigrant
-(turn.c immigrant spawn / col1_bridge load create one per dock entry so
-Col1 capture keeps the colonist). Prefers the matching profession.
+Which (236,236) mirror unit stands behind `dock[dock_index]`, as a unit id
+(-1: none). DOS has one object, the dock unit record; the port has a row array
+plus a parked unit per row, and `EuropeDockImmigrant.mirror_unit_id` is the
+pairing. Producers that spawn the mirror without telling the row (col1 import,
+turn_colony / units.c Brewster) leave it 0; the first lookup binds every unbound
+row, in dock order, to a mirror no row owns: an exact (profession, @UNIT type)
+match first, a same-profession one second. A row with no mirror (recruit /
+train / purchase make rows only; capture writes them out from the row) stays
+unbound and answers -1. Call it BEFORE changing the row's `dos_type` (the bind
+matches on it). europe_apply_dock_menu_row_ex retypes and re-kits the paired
+unit (DOS writes only the type byte +0x3146, so moves = full allotment) and
+europe_board_sentry_dockers disbands it via europe_dock_remove_mirror_unit.
+Before this, the first same-profession unit was retyped, and
+europe_equip_units saved [Soldier Scout Pioneer Missionary Dragoon Dragoon] as
+[Dragoon Dragoon Pioneer Missionary Soldier Scout] after a reload.
+
+Known gaps (the files are not Europe-module owned): col1 capture still pairs
+by profession and writes mirrors in pool order, so a mirror made in-session
+(turn_colony crosses immigrant, Brewster; spawned at the pool's end for a row
+at slot 0) and "Move to front" reload in pool order; the "don't board" flag is
+not read back from the unit's orders byte on import.
+
+## europe_reverse_transit
+
+Drag between Expected Soon and Bound For. DOS 38fd:3228 (zone 2 = Bound,
+3 = Expected; dispatcher 38fd:4e8e) only re-links the hull and its passengers
+to the other lane tile and sets the hull's orders byte +0x314c to 0: the
+crossing counter, goto tile and position stay, so remaining turns are kept
+both ways. A trade-route ship (orders 2) loses its route. No status line.
 
 ## europe_build_dock_menu
 

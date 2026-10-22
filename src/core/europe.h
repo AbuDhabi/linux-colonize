@@ -151,6 +151,10 @@ typedef struct EuropeDockImmigrant {
   bool present;
   bool sentry; /* board next outbound ship (default true) */
   int dos_type; /* EUROPE_DOCK_TYPE_*; what the @ARMOPTIONS rows move around */
+  /* Unit id of the (236,236) mirror unit behind this row; 0 = not linked yet
+   * (bound lazily by europe_dock_mirror_unit_of) or no mirror (a row made by
+   * recruit/train/purchase has none until capture writes one). */
+  int mirror_unit_id;
 } EuropeDockImmigrant;
 
 typedef struct EuropeRecruitClass {
@@ -463,8 +467,15 @@ bool europe_dock_push_load(EuropeScreen* eu, const char* name, int profession);
  */
 bool europe_dock_slot_pos(int index, int* out_x, int* out_y);
 
-/* europe_remove_dock_mirror_unit -- see docs/europe.md#europe_remove_dock_mirror_unit */
-void europe_remove_dock_mirror_unit(ColonizeUnitPool* units, int nation_id, int profession);
+/* europe_dock_mirror_unit_of -- see docs/europe.md#europe_dock_mirror_unit_of */
+int europe_dock_mirror_unit_of(
+  EuropeScreen* eu, ColonizeUnitPool* units, int nation_id, int dock_index
+);
+/* Disband the mirror unit behind dock[dock_index] (none: nothing). Call before
+ * the row leaves the array. */
+void europe_dock_remove_mirror_unit(
+  EuropeScreen* eu, ColonizeUnitPool* units, int nation_id, int dock_index
+);
 
 struct ColonizeMsgCatalog;
 
@@ -613,7 +624,7 @@ bool europe_set_sail_from_harbor(
   int nation_id
 );
 
-/* Expected↔Bound reverse (keeps remaining turns). */
+/* Expected↔Bound reverse: DOS 38fd:3228 relinks the lane, keeps the turn counter, clears the hull's orders (trade route). */
 bool europe_reverse_transit(EuropeScreen* eu, bool from_expected, int index);
 
 bool europe_harbor_pop(

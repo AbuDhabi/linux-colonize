@@ -3458,7 +3458,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_dock_rows(Col1CaptureCtx* ctx) {
     }
     for (int i = 0; i < units_slot_end(units); ++i) {
       const ColonizeUnit* u = &units->units[i];
-      /* The same shape europe_remove_dock_mirror_unit matches on. */
+      /* The same shape europe_dock_mirror_unit_of pairs on. */
       if (!u->active || (u->nation_id & 0xF) != human_nation || u->x != EUROPE_PARK_XY || u->y != EUROPE_PARK_XY ||
           u->aboard_ship_id >= 0 || units_is_sea(units, u->id)) {
         continue;

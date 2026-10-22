@@ -2908,6 +2908,208 @@ done:
 }
 
 /*
+ * Dock row <-> (236,236) mirror unit pairing (europe_dock_mirror_unit_of). The
+ * mirror an @ARMOPTIONS row retypes or a boarding disbands must be the one
+ * behind the clicked row, not the first pool unit of the same profession:
+ * europe_equip_units used to save [Soldier Scout Pioneer Missionary Dragoon
+ * Dragoon] and reload it as [Dragoon Dragoon Pioneer Missionary Soldier Scout].
+ */
+static int dock_mirror_type(const ColonizeUnitPool* units, int unit_id) {
+  const ColonizeUnit* u = units_get_const(units, unit_id);
+  return u ? u->type_index : -99;
+}
+
+static int case_europe_dock_mirror_follows_row(void) {
+  diag_init(0, NULL);
+  EuropeScreen eu;
+  char err[256];
+  if (!test_europe_load(&eu, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "mirror row: europe_load failed: %s\n", err);
+    return 1;
+  }
+  ColonizeMsgCatalog names;
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  memset(&names, 0, sizeof(names));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  int rc = 1;
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") || !units_load_types(&units, &names)) {
+    fprintf(stderr, "mirror row: load NAMES/units failed\n");
+    goto done;
+  }
+  const int col_ti = units_kind_type_index(&units, UNITS_KIND_COLONIST);
+  const int sol_ti = units_kind_type_index(&units, UNITS_KIND_SOLDIER);
+  const int drg_ti = units_kind_type_index(&units, UNITS_KIND_DRAGOON);
+  const int sct_ti = units_kind_type_index(&units, UNITS_KIND_SCOUT);
+  const int job = 19; /* the dock's Free Colonist @JOB: every row below shares it */
+  europe_cheat_add_gold(&eu, 50000);
+
+  /* Four plain colonists, each with a parked mirror, none linked yet. */
+  int m[4];
+  eu.dock_count = 0;
+  memset(eu.dock, 0, sizeof(eu.dock));
+  for (int i = 0; i < 4; ++i) {
+    if (!europe_dock_push_load(&eu, "Free Colonists", job)) {
+      goto done;
+    }
+    m[i] = europe_spawn_dock_mirror_unit(&units, 0, job, 3, true, NULL);
+    if (m[i] < 0) {
+      goto done;
+    }
+  }
+  /* Row 0 -> Soldier, then row 2 -> Soldier -> Dragoon: the second change must
+   * not land on row 0's mirror (the first Soldier in the pool). */
+  if (!europe_apply_dock_menu_row(&eu, &units, 0, 0, EUROPE_ARM_ROW_BUY_MUSKETS) ||
+      !europe_apply_dock_menu_row(&eu, &units, 0, 2, EUROPE_ARM_ROW_BUY_MUSKETS) ||
+      !europe_apply_dock_menu_row(&eu, &units, 0, 2, EUROPE_ARM_ROW_BUY_HORSES)) {
+    fprintf(stderr, "mirror row: arm rows refused\n");
+    goto done;
+  }
+  if (dock_mirror_type(&units, m[0]) != sol_ti || dock_mirror_type(&units, m[1]) != col_ti ||
+      dock_mirror_type(&units, m[2]) != drg_ti || dock_mirror_type(&units, m[3]) != col_ti ||
+      eu.dock[0].dos_type != EUROPE_DOCK_TYPE_SOLDIERS ||
+      eu.dock[2].dos_type != EUROPE_DOCK_TYPE_DRAGOONS) {
+    fprintf(
+      stderr, "mirror row: types %d %d %d %d (want %d %d %d %d)\n", dock_mirror_type(&units, m[0]),
+      dock_mirror_type(&units, m[1]), dock_mirror_type(&units, m[2]), dock_mirror_type(&units, m[3]),
+      sol_ti, col_ti, drg_ti, col_ti
+    );
+    goto done;
+  }
+  /* DOS writes only the type byte: the spent byte stays 0 = a full allotment. */
+  if (units_get(&units, m[2])->moves != units_max_mp(&units, m[2])) {
+    fprintf(stderr, "mirror row: retyped dragoon moves %d\n", units_get(&units, m[2])->moves);
+    goto done;
+  }
+
+  /* A row with no mirror (recruit / train / purchase) at the front must not
+   * shift the pairing, and retyping it touches no other row's unit. */
+  EuropeDockImmigrant* fresh = europe_dock_insert_front(&eu);
+  snprintf(fresh->name, sizeof(fresh->name), "%s", "Free Colonists");
+  fresh->profession = job;
+  fresh->present = true;
+  fresh->sentry = true;
+  if (europe_dock_mirror_unit_of(&eu, &units, 0, 0) >= 0 ||
+      europe_dock_mirror_unit_of(&eu, &units, 0, 4) != m[3]) {
+    fprintf(stderr, "mirror row: pairing shifted by a mirror-less front row\n");
+    goto done;
+  }
+  if (!europe_apply_dock_menu_row(&eu, &units, 0, 0, EUROPE_ARM_ROW_BUY_HORSES) ||
+      dock_mirror_type(&units, m[1]) != col_ti || dock_mirror_type(&units, m[3]) != col_ti ||
+      eu.dock[0].dos_type != EUROPE_DOCK_TYPE_SCOUTS) {
+    fprintf(stderr, "mirror row: mirror-less row retyped someone else's unit\n");
+    goto done;
+  }
+
+  /* Boarding removes the unit behind the row, not the first of its job. */
+  europe_dock_remove_mirror_unit(&eu, &units, 0, 3); /* row 3 = old row 2, the Dragoon */
+  if (units_get(&units, m[2]) || !units_get(&units, m[0]) || !units_get(&units, m[1]) ||
+      !units_get(&units, m[3])) {
+    fprintf(stderr, "mirror row: removal hit the wrong mirror\n");
+    goto done;
+  }
+
+  /* Rows whose type differs pair by type first even when the pool order is
+   * the other way round (the lazy bind of a loaded dock): Soldier row, then
+   * Colonist row, over mirrors spawned Colonist, Soldier. */
+  eu.dock_count = 0;
+  memset(eu.dock, 0, sizeof(eu.dock));
+  int cm = europe_spawn_dock_mirror_unit(&units, 1, job, 3, true, NULL);
+  int sm = europe_spawn_dock_mirror_unit(&units, 1, UNITS_JOB_SOLDIER, 3, true, NULL);
+  units_get(&units, sm)->profession = job;
+  units_get(&units, sm)->type_index = sol_ti;
+  if (cm < 0 || sm < 0 || !europe_dock_push_load(&eu, "Free Colonists", job) ||
+      !europe_dock_push_load(&eu, "Free Colonists", job)) {
+    goto done;
+  }
+  eu.dock[0].dos_type = EUROPE_DOCK_TYPE_SOLDIERS;
+  eu.dock[1].dos_type = EUROPE_DOCK_TYPE_COLONISTS;
+  if (europe_dock_mirror_unit_of(&eu, &units, 1, 0) != sm ||
+      europe_dock_mirror_unit_of(&eu, &units, 1, 1) != cm) {
+    fprintf(stderr, "mirror row: type-first pairing failed\n");
+    goto done;
+  }
+  if (!europe_apply_dock_menu_row(&eu, &units, 1, 1, EUROPE_ARM_ROW_BUY_HORSES) ||
+      dock_mirror_type(&units, cm) != sct_ti || dock_mirror_type(&units, sm) != sol_ti) {
+    fprintf(stderr, "mirror row: colonist row retyped the soldier's mirror\n");
+    goto done;
+  }
+  fprintf(stderr, "Europe dock rows own their mirror units ok\n");
+  rc = 0;
+done:
+  assets_msg_free(&names);
+  europe_free(&eu);
+  return rc;
+}
+
+/*
+ * Expected <-> Bound drag (DOS 38fd:3228): the hull and its passengers change
+ * lane, the crossing counter is untouched, the hull's orders byte is cleared
+ * (a trade-route ship loses its automation), and no status line is written.
+ */
+static int case_europe_reverse_transit_keeps_turns(void) {
+  EuropeScreen eu;
+  char err[256];
+  if (!test_europe_load(&eu, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "reverse: europe_load failed: %s\n", err);
+    return 1;
+  }
+  int rc = 1;
+  eu.expected_ships = 2;
+  eu.bound_ships = 1;
+  memset(eu.expected, 0, sizeof(eu.expected));
+  memset(eu.bound, 0, sizeof(eu.bound));
+  snprintf(eu.expected[0].name, sizeof(eu.expected[0].name), "Galleon");
+  eu.expected[0].turns_left = 3;
+  eu.expected[0].cargo_count = 1;
+  eu.expected[0].cargo_professions[0] = 19;
+  eu.expected[0].trade_route_plus1 = 3;
+  eu.expected[0].trade_stop = 1;
+  eu.expected[0].exit_x = 7;
+  eu.expected[0].exit_y = 9;
+  snprintf(eu.expected[1].name, sizeof(eu.expected[1].name), "Merchantman");
+  eu.expected[1].turns_left = 2;
+  snprintf(eu.bound[0].name, sizeof(eu.bound[0].name), "Caravel");
+  eu.bound[0].turns_left = 1;
+  snprintf(eu.status, sizeof(eu.status), "%s", "untouched");
+
+  if (!europe_reverse_transit(&eu, true, 0) || eu.expected_ships != 1 || eu.bound_ships != 2 ||
+      strcmp(eu.expected[0].name, "Merchantman") != 0 || strcmp(eu.bound[1].name, "Galleon") != 0) {
+    fprintf(stderr, "reverse: Expected -> Bound moved the wrong ship\n");
+    goto done;
+  }
+  const EuropeHarborShip* g = &eu.bound[1];
+  if (g->turns_left != 3 || g->cargo_count != 1 || g->cargo_professions[0] != 19 ||
+      g->exit_x != 7 || g->exit_y != 9) {
+    fprintf(stderr, "reverse: counter/cargo/goto changed (turns %d)\n", g->turns_left);
+    goto done;
+  }
+  if (g->trade_route_plus1 != 0 || g->trade_stop != 0) {
+    fprintf(stderr, "reverse: trade route survived the orders clear\n");
+    goto done;
+  }
+  if (strcmp(eu.status, "untouched") != 0) {
+    fprintf(stderr, "reverse: DOS writes no status line, got '%s'\n", eu.status);
+    goto done;
+  }
+  if (!europe_reverse_transit(&eu, false, 0) || eu.bound_ships != 1 || eu.expected_ships != 2 ||
+      strcmp(eu.expected[1].name, "Caravel") != 0 || eu.expected[1].turns_left != 1) {
+    fprintf(stderr, "reverse: Bound -> Expected failed\n");
+    goto done;
+  }
+  if (europe_reverse_transit(&eu, true, 5) || europe_reverse_transit(&eu, false, -1)) {
+    fprintf(stderr, "reverse: bad index accepted\n");
+    goto done;
+  }
+  fprintf(stderr, "Europe reverse transit keeps the counter ok\n");
+  rc = 0;
+done:
+  europe_free(&eu);
+  return rc;
+}
+
+/*
  * port_bugs.md #1011/#1016: FUN_38fd_6024 broadcasts the one opening-price roll to
  * ALL FOUR nation records and then runs its 0058(1, -1) tail, which rewrites
  * cargos 9..12 from the (empty) trade ledger — ratio 3, clamped into
@@ -3111,6 +3313,8 @@ static const TestCase k_cases[] = {
     {"case_europe_purse_single_door", case_europe_purse_single_door},
     {"case_europe_lanes_past_old_caps", case_europe_lanes_past_old_caps},
     {"case_europe_dock_continental_row", case_europe_dock_continental_row},
+    {"case_europe_dock_mirror_follows_row", case_europe_dock_mirror_follows_row},
+    {"case_europe_reverse_transit_keeps_turns", case_europe_reverse_transit_keeps_turns},
     {"case_europe_workflow", case_europe_workflow},
     {"case_europe_dragoon_roll_and_caption", case_europe_dragoon_roll_and_caption},
     {"case_europe_seed_prices_all_nations", case_europe_seed_prices_all_nations},

@@ -1,0 +1,18 @@
+# Start: the europe_equip_units fixture with the treasury cut to 120 gold: Muskets (100) are affordable, Horses (150) and Tools (200) are not.
+# An unaffordable row is still listed but greyed; picking it only says "The treasury cannot afford that." and the menu stays open.
+# Bless as Missionaries costs nothing, so it works at any balance. Dock slots 0-2 at y 146 (x 241, 258, 275); rows are 11 px apart.
+key e                    # open the European Status screen
+wait 10
+click 241 146            # slot 0 Colonist menu (6 rows: NoBoard, Muskets, Tools, Horses, Bless, NoChanges)
+click 120 94             # Equip with Tools (200) is greyed: refused, menu stays open
+click 120 105            # Equip with Horses (150) is greyed: refused, menu stays open
+click 120 83             # Arm with Muskets (-100, gold 20): Colonist -> Soldier, menu closes
+click 241 146            # slot 0 Soldier menu (4 rows: NoBoard, SellMuskets, BuyHorses, NoChanges)
+click 120 105            # Equip with Horses (150) is greyed: refused
+click 120 94             # Sell Muskets (+50, gold 70): Soldier -> Colonist
+click 258 146            # slot 1 Colonist menu (7 rows)
+click 120 100            # Equip with Tools (200) greyed: refused
+click 120 122            # Bless as Missionaries (free): Colonist -> Missionary
+click 275 146            # slot 2 menu
+click 150 20             # click outside the menu: it closes, nothing changes
+key e                    # leave Europe

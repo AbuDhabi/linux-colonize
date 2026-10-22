@@ -1,0 +1,39 @@
+# Seven Missionaries (fixture: field colonists converted, gold 5000, all other French units sentried except one keeper colonist in Quebec) stand next
+# to Tupi villages; they are handled in unit order. Village 62 (41,27) got a SPANISH mission in the fixture. Tupi alarm for France is 0.
+# RNG audit (src/core/ai_contact_actions.c, ai_contact_demand.c): Denounce Heresy (a roll) is never picked.
+#  - Establish Mission (ai_contact_establish_mission) has no RNG draw; its alarm delta (-17/-9 at alarm 0) cannot reach the alarm-100 expel roll.
+#  - Incite: ai_contact_incite_price is a pure formula (no RNG); Never mind / @UNFORTUNATE (gold < price) change nothing.
+#  - Esc on the village menu or the Cancel Action row: nothing happens, the unit forfeits its moves (FUN_4d56_4528 tail OVL13:0x4c0a).
+#    Paying raises the Tupi alarm against the target to 100 and ai_contact_00f2_expel then rolls rand(0,10) to burn that nation's Tupi missions,
+#    but no Tupi village has an English mission, so every roll value gives the same save (only the RNG state moves).
+# Missionary 110 (plain) at (33,27) next to village 28 (32,26), no mission:
+key KP_7       # NW into the village: menu Establish Mission / Incite Indians / Cancel Action (+ unit forfeits moves once an action is chosen)
+click 150 118  # Incite Indians: "Whom would you like us to attack?" English / Spanish / Dutch
+click 150 125  # Dutch: quote "drive the Dutch from our ancestral lands for 7450" with Pay / Never mind
+click 150 106  # Pay 7450: treasury is only 5000, @UNFORTUNATE, nothing charged
+key Return     # dismiss it: the notice ends the beat (a plain OK popup, no further quote); the next Missionary is selected
+# Missionary 125 (plain) at (43,24), village 31 (43,23), no mission:
+key KP_8       # menu opens
+click 150 106  # Establish Mission: @MISSION0 "Sainte Marie de Quebec mission founded", unit consumed, village 31 mission = French (1)
+key Return     # dismiss; the next Missionary is selected
+# Missionary 129 (Jesuit expert) at (33,32), village 43 (33,33), no mission:
+key KP_2       # menu opens
+click 150 106  # Establish Mission: mission byte 0x11 (French + Jesuit bit), unit consumed
+key Return
+# Missionary 130 (plain) at (42,27), village 62 with the Spanish mission:
+key KP_4       # menu: Denounce Heresy of Spanishs Mission (a roll: not picked) / Incite Indians / Cancel Action
+click 150 130  # Cancel Action: nothing happens, moves forfeited (moves spent 6), next Missionary selected
+# Missionary 131 (plain) at (45,25), village 69 (46,26) with a French mission (own): menu has only Incite Indians / Cancel Action
+key KP_3
+click 150 112  # Incite Indians
+click 150 100  # English: quote 6200 (the two new missions lowered the price from 7450)
+click 150 118  # Never mind: declined, gold unchanged
+# Missionary 134 (plain) at (36,24), village 10 (36,23), own Jesuit mission:
+key KP_8       # menu: Incite Indians / Cancel Action
+key Escape     # Esc: same as Cancel Action (the dialog's -1 hits the switch default): nothing happens, moves forfeited, next Missionary selected
+# Missionary 135 (Jesuit expert: Incite is 1500 cheaper) at (31,27), village 28 (32,26):
+key KP_9       # menu Establish Mission / Incite Indians / Cancel Action
+click 150 118  # Incite Indians
+click 150 100  # English: quote 4700
+click 150 106  # Pay 4700: @INDIANWARFARE "Tupi nation holds War Council", gold 5000 -> 300, Tupi alarm against the English -> 100
+key Return     # dismiss it; no Missionary left with moves, the keeper colonist 147 in Quebec is selected

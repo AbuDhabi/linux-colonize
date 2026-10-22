@@ -10,7 +10,7 @@ drag 120 112 120 80    # mouse go-to two tiles north, arrives with 2 moves left
 wait 40
 click 88 3             # ORDERS menu (ship: Go to Port instead of Go to Place)
 click 97 93            # "Go to Port": colony picker
-click 96 95            # Montreal: too far for this turn, sails 2 tiles and keeps the go-to order
+click 96 108           # Montreal (picker: Europe, Quebec, Montreal, Port au Prince): too far for this turn, sails 2 tiles and keeps the go-to order
 wait 80
 # Caravel A (Quebec) is next, 4 moves
 drag 120 112 152 176   # mouse go-to 5 sea tiles away: sails 4 and keeps the go-to order; Caravel B (idle) gets selected

@@ -211,6 +211,8 @@ typedef enum {
 
 /* FUN_4d56_417e Mode 1 incite payload bits (see ai_contact_demand.c). */
 #define AI_CONTACT_INCITE_STAGE_CONFIRM 4
+#define AI_CONTACT_INCITE_STAGE_TARGET 0x20 /* marks the @INDIANWARPATH target CHOICE; the
+                                             * CONTACT_INCITE OK chrome carries payload 0 */
 #define AI_CONTACT_INCITE_PAY 1
 
 /* Shared file-scope state (was `static s_*` in the single file). */

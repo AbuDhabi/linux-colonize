@@ -150,9 +150,6 @@ static void turn_emit_sol_phase_d_chrome(
     return;
   }
   const char* section = NULL;
-  const char* fallback = NULL;
-  char status_buf[sizeof(europe->status)];
-  status_buf[0] = '\0';
   const char* cname = colony->name[0] ? colony->name : "";
   const int had50 = (flags_before & COLONIZE_COLONY_FLAG_SOL_50) != 0;
   const int had100 = (flags_before & COLONIZE_COLONY_FLAG_SOL_100) != 0;
@@ -162,62 +159,34 @@ static void turn_emit_sol_phase_d_chrome(
       if (sol_after < 95 && had100) {
         if (turn_report_ok_rebel_maj(col1)) {
           section = "TORYMINORITY";
-          snprintf(
-            status_buf,
-            sizeof(status_buf),
-            "SoL in %s down from 100%% to %d%%.",
-            cname,
-            sol_after
-          );
-          fallback = status_buf;
         }
       } else if (sol_after < 50 && had50) {
         if (turn_report_ok_rebel_maj(col1)) {
           section = "TORYMAJORITY";
-          snprintf(
-            status_buf,
-            sizeof(status_buf),
-            "SoL in %s down to %d%%.",
-            cname,
-            sol_after
-          );
-          fallback = status_buf;
         }
       } else if (sol_before / 10 < sol_after / 10) {
         if (turn_report_ok_sons(col1)) {
           section = "SONSUP";
-          snprintf(
-            status_buf, sizeof(status_buf), "SoL in %s up to %d%%.", cname, sol_after
-          );
-          fallback = status_buf;
         }
       } else if ((sol_after + 4) / 10 < sol_before / 10) {
         if (turn_report_ok_sons(col1)) {
           section = "SONSDOWN";
-          snprintf(
-            status_buf, sizeof(status_buf), "SoL in %s down to %d%%.", cname, sol_after
-          );
-          fallback = status_buf;
         }
       }
     } else if (turn_report_ok_rebel_maj(col1)) {
       section = "REBELUNANIMOUS";
-      snprintf(status_buf, sizeof(status_buf), "SoL in %s up to 100%%.", cname);
-      fallback = status_buf;
     }
   } else if (turn_report_ok_rebel_maj(col1)) {
     section = "REBELMAJORITY";
-    snprintf(
-      status_buf, sizeof(status_buf), "SoL in %s up to %d%%.", cname, sol_after
-    );
-    fallback = status_buf;
   }
 
-  if (!fallback || !fallback[0]) {
+  if (!section) {
     return;
   }
-  snprintf(europe->status, sizeof(europe->status), "%s", fallback);
-  if (!ai_popups || !section) {
+  /* Port status strip only (also the Phase K "message written this tick"
+   * marker); the DOS wording is the catalog popup (@TORY..., @SONS..., @REBEL...) below. */
+  snprintf(europe->status, sizeof(europe->status), "%s: SoL %d%%.", cname, sol_after);
+  if (!ai_popups) {
     return;
   }
   char body[AI_POPUP_BODY_LEN];
@@ -2162,7 +2131,7 @@ COLONIZE_INTERNAL void turn_produce_cargo_ready(TurnProduceCtx* pc) {
       snprintf(
         europe->status,
         sizeof(europe->status),
-        "New cargo of %s ready at %s.",
+        "%s stock grew in %s.",
         cargo_name ? cargo_name : "",
         colony->name[0] ? colony->name : ""
       );

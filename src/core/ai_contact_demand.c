@@ -415,7 +415,8 @@ int ai_contact_enqueue_incite_target_choice(
   popup_msg_fill(ctx->messages, "INDIANWARPATH", &tok, "", body, sizeof(body));
   /* Carry the offer-time-captured discount flags through to apply time
    * (bit0=is_missionary, bit1=is_capital) — see ai_contact_incite_price. */
-  const int payload = (is_missionary ? 1 : 0) | (is_capital ? 2 : 0);
+  const int payload = (is_missionary ? 1 : 0) | (is_capital ? 2 : 0) |
+                      AI_CONTACT_INCITE_STAGE_TARGET;
   return ai_popup_enqueue_choice_ctx(
            ctx->ai_popups,
            AI_POPUP_TAG_CONTACT_INCITE,
@@ -2251,7 +2252,7 @@ void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id) {
     char gbody[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "INDIANGRUDGE", &gtok, gfb, gbody, sizeof(gbody));
     ai_contact_human_chrome(
-      ctx, human, AI_POPUP_TAG_CONTACT_RAID, nation_id, "War Council", gbody
+      ctx, human, AI_POPUP_TAG_CONTACT_RAID, nation_id, "Grudge", gbody
     );
   }
 

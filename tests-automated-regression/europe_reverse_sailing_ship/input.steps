@@ -1,0 +1,21 @@
+# Fixture: Expected Soon lane gets a Galleon (turns 3, 100 sugar + 50 cloth) and a Merchantman (turns 2, one Soldier aboard);
+# Bound lane holds the Caravel with a Free Colonist (1 turn); a Caravel is Loading in the harbor. Gold 59000.
+# Ships sit in the boxes as icons: Expected x 5.., Bound x 75.., y ~153; passengers ride after their ship (a click on one picks the ship).
+# Lane membership after each step (E = Expected Soon, B = Bound): start E[Galleon,Merchantman] B[Caravel].
+key e                    # open the European Status screen
+wait 10
+drag 12 153 110 140      # Galleon: Expected Soon -> Bound For New England (reversed westbound): E[M] B[C,G]
+drag 95 153 40 140       # Caravel picked by its colonist passenger icon: Bound -> Expected Soon: E[M,C] B[G]
+drag 83 153 40 140       # Galleon: Bound -> Expected Soon again; the Bound box is now empty: E[M,C,G] B[]
+drag 110 140 40 140      # empty Bound box: nothing to pick up
+drag 12 153 110 140      # Merchantman (with soldier): Expected -> Bound: E[C,G] B[M]
+# Refused drops, nothing moves:
+drag 82 153 180 140      # Bound ship dropped on the Loading box
+drag 82 153 100 190      # Bound ship dropped on the market strip
+drag 82 153 150 60       # Bound ship dropped on the sky
+drag 12 153 40 130       # Expected ship dropped back on its own box
+drag 153 153 40 140      # harbor ship dropped on Expected Soon
+drag 153 153 110 140     # harbor ship dropped on Bound: "Shall we set sail" popup
+click 165 149            # "No, let us remain in port": the ship stays
+drag 37 153 110 140      # Galleon (third time Expected -> Bound): E[C] B[M,G]
+key e                    # leave Europe

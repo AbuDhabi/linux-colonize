@@ -876,7 +876,7 @@ static int effect_las_casas_assimilate(
    * Value written: the port's dock convention for a plain Free Colonist is
    * NAMES.TXT @JOB row 19 with the matching label (europe_dock.c:247-248,
    * europe_pool.c:326-329), NOT the 0x1c/28 that colony colonists and map
-   * units use — europe_remove_dock_mirror_unit matches dock entry against
+   * units use — europe_dock_mirror_unit_of pairs dock entry and
    * mirror by that same profession value, so both are rewritten together.
    *
    * Human gate: there is no per-nation EuropeScreen in the port

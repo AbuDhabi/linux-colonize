@@ -1,0 +1,38 @@
+# Fixture: Europe base (60000 gold) + six plain Free Colonists on the dock (slots 0-2 upper quay y 146, 3-5 lower quay y 169; x = 241, 258, 275).
+# Clicking a dock unit opens its "European dock options" menu (@ARMOPTIONS); a click on a row picks it. That menu is the only equip route:
+# the rows differ per unit and DOS omits (does not grey) rows that do not apply, so the row positions below depend on the row count.
+# Menu rows: Colonist = NoBoard,[ToFront],Muskets,Tools,Horses,Bless,NoChanges; Soldier = NoBoard,[ToFront],SellMuskets,BuyHorses,NoChanges;
+# Scout = NoBoard,[ToFront],BuyMuskets,SellHorses,NoChanges ([ToFront] on every slot but 0). Rows are 11 px apart, the dialog is centred vertically.
+key e                    # open the European Status screen
+wait 10
+# Routes that do not exist: dragging goods onto a dock unit, dragging a dock unit onto the market.
+drag 294 188 258 146     # Muskets from the market strip dropped on a dock colonist: ignored
+drag 162 188 275 146     # Horses from the market strip dropped on a dock colonist: ignored
+drag 241 146 162 188     # dock colonist dragged onto the market: the press just opens the menu, the release does nothing
+key Escape               # close the menu without a choice
+# Equip one plain colonist per kit (the price comes off the treasury, the ledger of that good moves):
+click 241 146            # slot 0 menu (6 rows)
+click 120 83             # Arm with Muskets (-100 gold): Colonist -> Soldier
+click 258 146            # slot 1 menu (7 rows)
+click 120 111            # Equip with Horses (-150): Colonist -> Scout
+click 275 146            # slot 2 menu (7 rows)
+click 120 100            # Equip with Tools (-200): Colonist -> Pioneer
+click 241 169            # slot 3 menu (7 rows)
+click 120 122            # Bless as Missionaries (free): Colonist -> Missionary
+# Both ways to a Dragoon:
+click 258 169            # slot 4 menu (7 rows)
+click 120 89             # Arm with Muskets (-100): Colonist -> Soldier
+click 258 169            # slot 4, now a Soldier (5 rows)
+click 120 111            # Equip with Horses (-150): Soldier + horses = Dragoon
+click 275 169            # slot 5 menu (7 rows)
+click 120 111            # Equip with Horses (-150): Colonist -> Scout
+click 275 169            # slot 5, now a Scout (5 rows)
+key Down                 # keyboard route: Down twice + Return = third row
+key Down
+key Return               # Arm with Muskets (-100): Scout + muskets = Dragoon
+# Menu dismissals that change nothing:
+click 241 146            # slot 0, now a Soldier (4 rows)
+click 120 116            # "No changes." row
+click 241 146            # reopen
+key Escape               # Escape closes the menu
+key e                    # leave Europe

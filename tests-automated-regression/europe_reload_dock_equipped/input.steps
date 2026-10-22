@@ -1,0 +1,4 @@
+# Start: europe_equip_units' output (dock Soldier, Scout, Pioneer, Missionary, Dragoon, Dragoon). Open and close Europe: the save made from the reloaded dock must be byte-identical.
+key e                    # open the European Status screen
+wait 10
+key Escape               # leave Europe

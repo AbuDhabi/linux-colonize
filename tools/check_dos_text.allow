@@ -1,0 +1,35 @@
+# path|normalised fragment|reason   (tools/check_dos_text.py)
+# Reviewed false positives: generic short phrases that also occur in the DOS text, or port-invented
+# wording. Rows marked "reviewed:" were checked by hand after the 2026-10-22 sweep.
+src/core/ai_contact.c|offer peace|reviewed: port status "The <tribe> offer peace."; TXT hit is Pedia prose. Probably port-invented
+src/core/ai_king_ref.c|the colonies|generic noun phrase used as the colony-name stand-in; the DOS hit is a history sentence in PEDIA
+src/core/europe_dock.c|to front|reviewed: internal arm-row debug names (lower case); probably fine
+src/core/europe_dock.c|sell muskets|reviewed: internal arm-row debug names (lower case); probably fine
+src/core/europe_dock.c|sell tools|reviewed: internal arm-row debug names (lower case); probably fine
+src/core/europe_dock.c|sell horses|reviewed: internal arm-row debug names (lower case); probably fine
+src/core/europe_dock.c|no changes|reviewed: internal arm-row debug names (lower case); probably fine
+src/core/europe_harbor.c|in harbor|reviewed: port status lines; check against @-sections
+src/core/europe_harbor.c|bound for|reviewed: port status lines; check against @-sections
+src/core/europe_market.c|tax rate|port status "Tax rate N%." (DOS has no such status; the TXT hit is inside a King popup)
+src/core/game_dialogs.c|trade route|port status prefix; the TXT hit is unrelated popup prose
+src/core/game_dialogs.c|new land|port status prefix; the TXT hit is the landfall popup prose
+src/core/game_loop.c|how much|internal modal name (debug label), not shown text
+src/core/game_loop.c|hall of fame|internal modal name (debug label), not shown text
+src/core/game_loop_colony.c|assigned to|reviewed: port status prefixes; generic
+src/core/game_loop_colony.c|working as|reviewed: port status prefixes; generic
+src/core/game_loop_colony.c|already built|reviewed: port status prefixes; generic
+src/core/game_loop_eot.c|go to port|reviewed: port status; generic
+src/core/game_loop_eot.c|select a unit|reviewed: port status; generic
+src/core/game_loop_menus.c|show strategy|reviewed: port status echoing the menu item names; generic
+src/core/game_loop_menus.c|find colony|reviewed: port status echoing the menu item names; generic
+src/core/game_loop_render.c|new world|new-game map-path label (proper noun, part of a longer DOS menu line); not a whole DOS string
+src/core/game_loop_saveload.c|hall of fame|port status title for the HoF screen; DOS TXT only has the menu item "View Hall of Fame"
+src/core/game_loop_update.c|hall of fame|port status title for the HoF screen; DOS TXT only has the menu item "View Hall of Fame"
+src/core/turn.c|end of turn|port status line "End of Turn - <date>"; DOS TXT only has the menu item
+src/core/turn_production.c|need tools|port marker status, popup comes from the catalog; the TXT hit is Pedia prose
+src/core/turn_year_end.c|the king of|port status sentence; the TXT hit is the audience title "The King of %COUNTRY"
+src/core/units_map.c|map edge|port blocked-move status; the TXT hit is Pedia prose
+src/core/units_move.c|trade route|lower-case order name (debug/diag)
+src/core/units_move.c|build colony|lower-case order name (debug/diag)
+src/core/units_move.c|build road|lower-case order name (debug/diag)
+src/core/units_move.c|select a unit|port error text; the TXT hit is README.TXT prose

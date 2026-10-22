@@ -60,10 +60,10 @@ static int unit_century_cargoready(void) {
   ColonizeTurnResult prod;
   memset(&prod, 0, sizeof(prod));
   turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&tipcol), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-  if (strstr(eu.status, "New cargo") == NULL || !tipcol.head.tut3.nr6) {
+  if (strstr(eu.status, "stock grew") == NULL || !tipcol.head.tut3.nr6) {
     fprintf(
       stderr,
-      "century tip want New cargo+latch rum=%d latch=%u '%s'\n",
+      "century tip want status+latch rum=%d latch=%u '%s'\n",
       col->stock[COLONIZE_CARGO_RUM],
       (unsigned)tipcol.head.tut3.nr6,
       eu.status
@@ -99,7 +99,7 @@ static int unit_century_cargoready(void) {
   ai_popup_clear(&pops);
   memset(&prod, 0, sizeof(prod));
   turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&tipcol), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-  if (strstr(eu.status, "New cargo") == NULL || pops.queue_count != 1) {
+  if (strstr(eu.status, "stock grew") == NULL || pops.queue_count != 1) {
     fprintf(stderr, "century tip second crossing got '%s' q=%d\n", eu.status, pops.queue_count);
     assets_msg_free(&game_txt);
     return 1;

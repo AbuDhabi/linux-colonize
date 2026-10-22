@@ -3591,6 +3591,42 @@ static int sp_30(void) {
     }
 
     /*
+     * Esc on the @ACTIONS menu: FUN_6f74_2580 returns -1, which 4528's
+     * dispatch sends to the same switch default as the Cancel row, so the
+     * 0x4c0a tail forfeits the unit's moves (cancelled MEET == Leave).
+     */
+    {
+      if (units.type_count < 4) {
+        units.type_count = 4;
+      }
+      units.types[3].domain = COLONIZE_UNIT_DOMAIN_LAND;
+      units.types[3].movement = 3;
+      const int esc_id = units_spawn_allow_stack(&units, 3, 6, 5);
+      ColonizeUnit* esc_u = units_get(&units, esc_id);
+      if (!esc_u) {
+        return fail("Esc forfeit: unit spawn");
+      }
+      esc_u->nation_id = 0;
+      esc_u->moves = 9;
+      ai_popup_clear(&pop);
+      pop.has_result = true;
+      pop.result_cancelled = true;
+      pop.result_choice_id = -1;
+      pop.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      pop.result_payload = (esc_id + 1) << 2;
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (esc_u->moves != 0) {
+        return fail("Esc on the village menu must forfeit the unit's moves like Cancel Action");
+      }
+      if (pop.queue_count != 0) {
+        return fail("Esc on the village menu should enqueue no popup");
+      }
+      units_despawn(&units, esc_id);
+    }
+
+    /*
      * Trade CHOICE with no contacting unit/cargo → the 2820 shell returns
      * through LAB_003582 with NO popup at all (port_bugs.md #960; the old
      * typed-English "Trade concluded." fallback was an OpenCol invention).
@@ -4190,6 +4226,7 @@ static int sp_35(void) {
 
       /* Apply the picked target: drains gold, target's own gold untouched. */
       const uint32_t target_gold_before = col1.nation[target].gold;
+      const int target_payload = pop.queue[pop.queue_count - 1].payload;
       ai_popup_clear(&pop);
       pop.has_result = true;
       pop.result_cancelled = false;
@@ -4197,6 +4234,7 @@ static int sp_35(void) {
       pop.result_tag = AI_POPUP_TAG_CONTACT_INCITE;
       pop.result_nation_a = 0;
       pop.result_nation_b = 4;
+      pop.result_payload = target_payload;
       st_pop[0] = '\0';
       ai_contact_apply_popup_result(&ctx, &pop);
       if (pop.queue_count < 1 ||
@@ -4221,6 +4259,22 @@ static int sp_35(void) {
           pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_INCITE ||
           pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK) {
         return fail("Incite should enqueue an Incite OK follow-up");
+      }
+      /* Dismissing that OK chrome (payload 0, choice 0 = English) must end
+       * the beat, not re-quote a pay confirm against the English. */
+      {
+        ai_popup_clear(&pop);
+        pop.has_result = true;
+        pop.result_cancelled = false;
+        pop.result_choice_id = 0;
+        pop.result_tag = AI_POPUP_TAG_CONTACT_INCITE;
+        pop.result_nation_a = 0;
+        pop.result_nation_b = 4;
+        pop.result_payload = 0;
+        ai_contact_apply_popup_result(&ctx, &pop);
+        if (pop.queue_count != 0) {
+          return fail("dismissing an Incite OK notice must not enqueue another popup");
+        }
       }
 
       /* Too poor to afford any target → no CHOICE enqueued, refuse OK instead. */
