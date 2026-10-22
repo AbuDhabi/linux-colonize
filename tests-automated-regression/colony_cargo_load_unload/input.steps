@@ -1,0 +1,26 @@
+# Quebec dock: two Caravels. A is selected on entry, B carries tobacco + furs.
+click 168 128              # open Quebec (map tile 45,24)
+wait 10
+drag 10 188 132 171        # food -> caravel A hold 0 (whole stock)
+drag 162 188 144 171       # horses -> caravel A hold 1
+drag 132 171 10 188        # caravel A hold 0 (food) -> warehouse
+click 148 152              # select caravel B
+wait 5
+drag 132 171 130 152       # caravel B hold 0 (tobacco) -> caravel A icon: ship to ship
+wait 5
+drag 144 171 67 188 shift  # caravel B hold 1 (furs) -> warehouse, amount prompt
+wait 5
+key Backspace
+key Backspace
+key 1
+key 5
+key Return                 # unload 15 of 39 furs
+wait 5
+drag 67 188 132 171 shift  # cotton -> caravel B hold 0, amount prompt
+wait 5
+key Backspace
+key Backspace
+key 5
+key Return                 # load 5 cotton
+wait 5
+key Escape                 # back to the map

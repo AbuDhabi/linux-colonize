@@ -159,13 +159,14 @@ Most executables expect **repo root** as cwd (`WORKING_DIRECTORY` in CMake).
 ## Input-replay regressions
 
 `regression_replay` (in `ctest`) runs every subdirectory of
-`tests-automated-regression/` as one test. A test directory holds exactly:
+`tests-automated-regression/` as one test. A test directory holds:
 
 | File | What |
 |------|------|
 | `input.sav` | save the test starts from, taken on the main map |
 | `input.jsonl` | `debug.input_logger` log (docs/settings.md "Input log") of the test span |
 | `output.sav` | save taken on the main map right after the last input |
+| `input.steps` | optional: the step script `input.jsonl` was compiled from (see "Authoring from a step script") |
 
 The harness loads `input.sav`, waits for the main map, replays the log one
 logged frame per `platform_poll_input` call (nested polls inside
@@ -187,6 +188,25 @@ Recording one:
 4. Optional: `python3 tools/squeeze_input_log.py input.jsonl input.jsonl`
    caps idle gaps at 20 frames (the replay costs ~5 ms a frame), then re-run
    the test to confirm it still matches.
+
+A test must stay inside one turn: the harness fails it ("crossed a turn
+boundary") when the turn number at the end differs from the loaded one, so AI
+and end-of-turn work never moves an expected save.
+
+### Authoring from a step script
+
+`python3 tools/regression_script.py NAME [--bless]` compiles
+`tests-automated-regression/NAME/input.steps` (keys, clicks, drags with an
+optional Shift, waits; syntax in the script's docstring) into `input.jsonl`
+and runs the test with `REGRESSION_SHOTS=1`: the harness writes the screen
+before every mouse/key press, plus the start and end screens, to
+`build/debug/regression_out/NAME/` (the tool turns them into PNGs) and prints
+the map view origin, cursor and selected unit for each, so map tiles can be
+hit by pixel. A missing `output.sav` is seeded with `input.sav`, which makes
+the harness's field diff list exactly what the steps changed; once that diff
+is right, `--bless` copies the run's `actual.sav` to `output.sav`. Start saves
+may be fixture-edited through `sav_json` (moves, stock, gold); re-save an
+edited start through one no-op replay first so the diff carries no load noise.
 
 On failure the test prints the reason (timeout with phase/frame/status, quit,
 load/save error, or the first differing byte plus a `sav_json` field diff) and
