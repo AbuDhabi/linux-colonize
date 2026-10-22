@@ -1,0 +1,13 @@
+# Port-only: at 640x400 (>= 10% over 320x200 on both axes) a screen is drawn
+# over the live map, centred at (160,100), and a left click outside it closes it.
+# The test ends on the main map only if every outside click closed its screen.
+screen 640 400
+gap 20
+key F3                     # Continental Congress report
+click 20 20                # outside: closes it outright (Esc would page on)
+key e                      # Europe
+click 20 380               # outside: closes it
+click 368 216              # open Quebec (map tile 45,24, view origin 22,11)
+rclick 400 150             # area tile: terrain pedia, returns to the colony
+click 600 380              # outside: closes the pedia, back in Quebec
+click 600 20               # outside: closes the colony screen

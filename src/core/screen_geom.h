@@ -6,7 +6,8 @@
  *
  * DOS is a fixed 320x200 and every other screen in the port still is — they
  * render into a 320x200 buffer that game_render centres in the window, with
- * WOODTILE padding around it. Only the overland map view reads these values
+ * WOODTILE padding around it (or, in a game with room to spare, the overland
+ * map: docs/architecture.md "Dynamic window sizing"). Only the overland map view reads these values
  * and grows: the menu bar and the message log strip stretch horizontally, the
  * right sidebar keeps its 80px width and grows downwards, the viewport takes
  * the rest.

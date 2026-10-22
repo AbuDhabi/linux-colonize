@@ -25,6 +25,8 @@ logical screen pixels:
   wait N                      N idle frames
   shot                        screenshot here (taps F12, which the game ignores)
   gap N                       idle frames after each later step (default 10)
+  screen W H                  logical screen size (default 320 200); x/y are then
+                              pixels of that screen
 """
 import json
 import os
@@ -58,6 +60,7 @@ def compile_steps(lines):
     frame = 0
     gap = 10
     mx = my = 0
+    screen_w, screen_h = 320, 200
 
     def rec(kind, **kw):
         recs.append(dict(type=kind, t_ms=1000 + frame * FRAME_MS, frame=frame, **kw))
@@ -153,6 +156,9 @@ def compile_steps(lines):
             elif op == 'gap':
                 gap = int(args[0])
                 continue
+            elif op == 'screen':
+                screen_w, screen_h = int(args[0]), int(args[1])
+                continue
             else:
                 raise ValueError(f'unknown step {op!r}')
         except (IndexError, ValueError, KeyError) as e:
@@ -160,8 +166,8 @@ def compile_steps(lines):
         frame += gap
     if not recs:
         sys.exit('no steps')
-    session = dict(type='session', version=1, t_ms=0, window_scale=2, screen_w=320, screen_h=200,
-                   audio=False)
+    session = dict(type='session', version=1, t_ms=0, window_scale=2, screen_w=screen_w,
+                   screen_h=screen_h, audio=False)
     return [session] + recs
 
 
@@ -170,7 +176,10 @@ def png(ppm):
         from PIL import Image
     except ImportError:
         return
-    Image.open(ppm).resize((640, 400), Image.NEAREST).save(ppm[:-4] + '.png')
+    im = Image.open(ppm)
+    if im.width < 640:
+        im = im.resize((im.width * 2, im.height * 2), Image.NEAREST)
+    im.save(ppm[:-4] + '.png')
     os.remove(ppm)
 
 

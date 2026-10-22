@@ -358,6 +358,9 @@ void game_combat_dissolve(void* user, int phase);
  * "un-dissolve" reveals (colony building, Continental Congress father). */
 /* Centring offset of the last rendered DOS-sized screen (0,0 on the map). */
 void game_screen_offset(int* out_x, int* out_y);
+/* True when that screen sits on the overland map (game on, big window): a
+ * click outside it closes it (game_update). */
+bool game_screen_on_map(void);
 
 /* Render + present the current state into *buf, growing it to the live screen
  * size (core/screen_geom.h) first. Pass the same buf/cap statics to
