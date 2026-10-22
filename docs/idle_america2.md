@@ -91,6 +91,15 @@ the table the continuous run matches saves 1..45, also with `GOLDEN_IDLE_RELOAD=
 A restored-load DOSBox trace has residues of its own (its England parked a Dragoon at (51,42) that
 the archive moved), so its draws are an oracle only up to its first e7c4 gate.
 
+## End-state comparison
+
+`python3 tools/save_compare.py DOS=.../000406.SAV port=SIM.sav` compares two ends per nation.
+Plain continuous run (no oracle, 2026-10-22): same shape (army size and mix, colony count, food,
+muskets, building tiers), different wars. DOS: France takes three Dutch colonies, England takes
+New Amsterdam and burns 10 Tupi villages. Port: England takes four Dutch colonies and burns one
+village, and the Dutch collapse (33 units vs 72, building tiers 59 vs 87). The port's AI nations end
+34-61% richer in gold.
+
 ## Open
 
 - Save 46 (35 fields): France's Merchantman arriving from Europe (233 -> 229 -> placed at (47,61))
