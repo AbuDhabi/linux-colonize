@@ -491,7 +491,7 @@ typedef struct ColonizeCol1Unit {
   uint8_t orders;
   uint8_t goto_x;
   uint8_t goto_y;
-  uint8_t facing : 3; /* 0..7 last dir — FUN_1427_0968 */
+  uint8_t facing : 3; /* 0..7 last dir (+0x0b); writers FUN_5bfb_3180, FUN_6662_0f74, FUN_521d_20e6, FUN_4d56_021a */
   uint8_t facing_pad : 5;
   uint8_t holds_occupied;
   uint8_t cargo_item_0 : 4;

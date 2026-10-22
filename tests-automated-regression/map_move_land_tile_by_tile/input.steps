@@ -1,4 +1,5 @@
 # Dragoon (selected, 4 moves) leaves Quebec and walks roads/forest until his moves run out.
+key p        # P with a non-Pioneer selected: no order, nothing opens
 key KP_4     # west onto prairie, orthogonal (-3/3)
 key KP_1     # SW diagonal onto plains
 key KP_4     # west onto forest, but road to road costs 1/3

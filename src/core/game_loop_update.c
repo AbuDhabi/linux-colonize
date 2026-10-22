@@ -1330,7 +1330,18 @@ static GameUpdateStep game_colony_screen_mouse_click(
       }
       break;
     case COLONY_HIT_AREA_TILE: {
-      game_colony_area_tile_drop(game, colony, cmap, hit.index);
+      /* DOS FUN_2f2b_47bc: pressing on a worked plot picks its colonist up
+       * (FUN_2f2b_4284, drag mode 6), so it can be dropped on a building,
+       * another plot or the fence like any other worker. */
+      const int who = (int)colony->tiles[hit.index];
+      if (who >= 0 && who < colony->colonist_count) {
+        const bool was_selected = csv->selected_colonist == who;
+        game_colony_drag_begin_colonist(game, who);
+        csv->drag_from_tile = hit.index;
+        csv->drag_from_tile_selected = was_selected;
+      } else {
+        game_colony_area_tile_drop(game, colony, cmap, hit.index);
+      }
       break;
     }
     case COLONY_HIT_AREA_INTERIOR:
@@ -3342,8 +3353,6 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     if (game_key_pioneer_order(game, units_pioneer_plow_w)) {
       return true;
     }
-    game_open_pedia_list(game, PEDIA_CAT_CARGO);
-    return true;
   }
 
   if (input->last_key == COLONIZE_KEY_R) {

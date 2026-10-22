@@ -263,17 +263,15 @@ void howmuch_render(
   const int dialog_w = 200;
   const int prompt_h = line_h * 3;
   const int dialog_h = POPUP_FRAME_INSET * 2 + pad + prompt_h + pad + line_h * 2 + pad;
-  /* The prompt is chunked to 3 rows of 36 characters, not word-wrapped; that
-   * character budget is what DOS's How Much box has always drawn. */
   PopupPromptGeom g;
   popup_prompt_frame(
-    framebuffer, font, wood_tile, colors, dialog_w, dialog_h, pad, dlg->prompt, 3, 36,
+    framebuffer, font, wood_tile, colors, dialog_w, dialog_h, pad, dlg->prompt, 3,
     text_color, &g
   );
   dlg->dialog_x = g.frame.x;
   dlg->dialog_y = g.frame.y;
   dlg->dialog_w = dialog_w;
-  dlg->dialog_h = dialog_h;
+  dlg->dialog_h = g.frame.h;
   if (!font) {
     return;
   }

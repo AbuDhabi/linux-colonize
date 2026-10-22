@@ -474,6 +474,7 @@ static int game_colony_list_outside_roles(
 void game_ui_drag_clear(ColonizeGameState* game) {
   if (game) {
     ui_drag_clear(&game->ui_drag);
+    game->colony_screen.drag_from_tile = -1;
   }
 }
 
@@ -556,6 +557,7 @@ void game_colony_drag_begin_hold(ColonizeGameState* game, int hold_index) {
 void game_colony_drag_begin_colonist(ColonizeGameState* game, int colonist_index) {
   ColonizeColony* colony = colonies_get_mut(&game->colonies, game->colony_view_id);
   game_colony_select_colonist(game, colonist_index);
+  game->colony_screen.drag_from_tile = -1;
   if (!colony || colonist_index < 0 || colonist_index >= colony->colonist_count) {
     return;
   }
@@ -1215,11 +1217,24 @@ bool game_colony_drag_drop(
       }
     }
   } else if (kind == UI_DRAG_COLONY_COLONIST || kind == UI_DRAG_COLONY_OUTSIDE) {
-    if (hit.kind == COLONY_HIT_BUILDING) {
+    /* No transport target here on purpose: DOS FUN_2f2b_628a takes a drop on
+     * the transport pane (region 8) only in cargo-drag mode 7; colonists and
+     * fence units drag in mode 6 and board through Sentry instead. */
+    if (kind == UI_DRAG_COLONY_COLONIST && hit.kind == COLONY_HIT_AREA_TILE &&
+        hit.index == csv->drag_from_tile) {
+      /* Picked up and put back on its own plot: the plain plot click. */
+      if (csv->drag_from_tile_selected) {
+        game_colony_area_tile_drop(game, colony, cmap, hit.index);
+      }
+    } else if (hit.kind == COLONY_HIT_BUILDING) {
       game_colony_assign_building_drop(game, hit.index);
     } else if (hit.kind == COLONY_HIT_AREA_TILE) {
       game_colony_area_tile_drop(game, colony, cmap, hit.index);
-    } else if (hit.kind == COLONY_HIT_FENCE) {
+    } else if (hit.kind == COLONY_HIT_FENCE ||
+               (kind == UI_DRAG_COLONY_COLONIST && hit.kind == COLONY_HIT_OUTSIDE_UNIT &&
+                my < COLONY_BOTTOM_PANEL_Y)) {
+      /* DOS FUN_2f2b_44d4 hit-tests the whole stockade slot rect, so the
+       * units standing on the fence never cover the leave-colony target. */
       game_colony_fence_drop(game, colony);
     }
   }
