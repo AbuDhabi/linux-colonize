@@ -2423,8 +2423,8 @@ static void ai_contact_indian_census_4962_06b6(ColonizeTurnContext* ctx, int nat
       if (st->tribe_village_counts[slot] < 255u) {
         st->tribe_village_counts[slot]++;
       }
-      int pop = (int)st->tribe_population_totals[slot] + (int)t->population;
-      st->tribe_population_totals[slot] = (uint8_t)(pop > 255 ? 255 : pop);
+      /* DOS-LITERAL FUN_4962_06b6 `ADD byte [SI+0x9622],AL`: plain byte add, wraps (#1146). */
+      st->tribe_population_totals[slot] = (uint8_t)(st->tribe_population_totals[slot] + t->population);
       const int cont = map_continent_id_at(ctx->map, (int)t->x, (int)t->y);
       if (cont >= 0 && cont < 16 && st->village_counts_by_continent[cont] < 255u) {
         st->village_counts_by_continent[cont]++;

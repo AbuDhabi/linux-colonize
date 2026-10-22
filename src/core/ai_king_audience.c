@@ -353,7 +353,8 @@ static uint16_t ai_king_teaparty_candidate_mask(
    * DOS-LITERAL FUN_38fd_3dc8 raw 64146-64159: the walk weight is the
    * nation's cumulative traded tonnage, not any Europe price —
    *   `local_7a[c] = FUN_1d1d_0ec6(FUN_1d1d_0ddc(tons_lo, tons_hi), 100)`
-   * i.e. the LOW WORD of labs(*(int32*)(DS:0x84fc + 0xbc + c*4)) * 100.
+   * i.e. the LOW WORD of labs(*(int32*)(DS:0x84fc + 0xbc + c*4)) / 100
+   * (0ec6 is the signed 32-bit divide; was `* 100` until port_bugs.md #1143).
    * DS:0x84fc is the acting (human) nation record and +0xbc ==
    * offsetof(ColonizeCol1Nation, trade.tons) == 188 (offset-checked), so this
    * is nation.trade.tons[c]. The store truncates to a 16-bit word, and the
@@ -375,7 +376,7 @@ static uint16_t ai_king_teaparty_candidate_mask(
       if (t < 0) {
         t = -t;
       }
-      weight_buf[c] = (int)(int16_t)(uint16_t)((uint32_t)t * 100u);
+      weight_buf[c] = (int)(int16_t)(uint16_t)((uint32_t)t / 100u);
     }
     weight_buf[0] = (int)(int16_t)(weight_buf[0] >> 1);
     weight_buf[8] = (int)(int16_t)(weight_buf[8] >> 2);
@@ -592,6 +593,11 @@ void ai_king_tax_hike_apply(
   const int applied = ai_king_audience_preview_delta(nat, delta);
 
   if (applied < 0) {
+    /* DOS 3dc8 draws its (unused) roulette rand for every nonzero human
+     * delta, cuts included: raw 64176 precedes the `param_2 < 0` arm (#1143). */
+    if (ctx->rng) {
+      (void)dos_rng_next(ctx->rng);
+    }
     ai_king_tax_commit(ctx, human, delta);
     if (ctx->status && ctx->status_size) {
       snprintf(ctx->status, ctx->status_size,
@@ -837,17 +843,16 @@ void ai_king_succession(ColonizeTurnContext* ctx) {
       }
     }
   }
-  /* Units: in a colony → transfer to the heir; in the field/at sea → gone
-   * (DOS 0302==0 → 0808 despawn). */
+  /* Units: every unit inside the map interior transfers to the heir; the rest
+   * (Europe dock, sailing lanes) are gone (DOS 0302 = FUN_137f_000a interior
+   * test; 0302==0 → 0808 despawn; port_bugs.md #1144). */
   if (ctx->units) {
     for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       ColonizeUnit* u = &ctx->units->units[i];
       if (!u->active || u->nation_id != merged) {
         continue;
       }
-      const int cid =
-        ctx->colonies ? colonies_id_at(ctx->colonies, u->x, u->y) : -1;
-      if (cid >= 0) {
+      if (map_coords_inset(ctx->map, u->x, u->y)) {
         units_set_nation(u, heir);
       } else {
         (void)units_despawn(ctx->units, u->id);

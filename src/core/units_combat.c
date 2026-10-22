@@ -1313,7 +1313,6 @@ int units_apply_land_loss_outcome(
   const int on_water =
     units_tile_is_ocean_or_hs(col1, win->x, win->y) ||
     units_tile_is_ocean_or_hs(col1, lose->x, lose->y);
-  const int loser_is_hull = lt && units_type_is_ship(lt);
   /* DOS tests param_2 (the WINNER) here: types 0xd..0x12 are hulls. */
   const int winner_is_hull = wt && units_type_is_ship(wt);
 
@@ -1381,7 +1380,7 @@ int units_apply_land_loss_outcome(
    * tile OR'd with the LOSER's tile) is set. A disqualified capture falls
    * through to the demote ladder / destroy below.
    */
-  if (lt && lt->name[0] /* port_bugs.md #678: 0352 raw 99343-99392 tests loser TYPE only, never its nation */ && win_can_capture && !loser_is_hull && !on_water) {
+  if (lt && lt->name[0] /* port_bugs.md #678: 0352 raw 99343-99392 tests loser TYPE only, never its nation */ && win_can_capture && !winner_is_hull /* raw 99378-99383, #1140 */ && !on_water) {
     const int is_treasure = units_type_is_treasure(lt);
     const int is_wagon = units_type_is_wagon(lt);
     /*
@@ -1760,7 +1759,7 @@ const ColonizeColony* units_nearest_own_drydock_colony(
     return NULL;
   }
   const ColonizeColony* best = NULL;
-  long best_d = -1;
+  long best_d = 9999;
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &colonies->colonies[i];
     if (!c->active || c->nation_id != nation_id) {
@@ -1772,10 +1771,11 @@ const ColonizeColony* units_nearest_own_drydock_colony(
     if (!repairs) {
       continue;
     }
-    const long dx = c->x - x;
-    const long dy = c->y - y;
-    const long d = dx * dx + dy * dy;
-    if (best_d < 0 || d < best_d) {
+    /* DOS-LITERAL FUN_5fef_0352 raw 99584-99597: FUN_281f_037a (= map_dos_dist),
+     * `dist <= best && dist != 0` with best seeded 9999: ties go to the LAST
+     * colony, a colony on the ship's own tile is skipped (#1141). */
+    const long d = map_dos_dist(c->x - x, c->y - y);
+    if (d != 0 && d <= best_d) {
       best_d = d;
       best = c;
     }

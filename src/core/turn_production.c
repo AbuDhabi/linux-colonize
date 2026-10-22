@@ -458,13 +458,12 @@ uint8_t turn_prof_census[COLONIZE_COL1_NATION_COUNT][32];
  * `thunk_FUN_291f_0988` whenever a colony's +0x97 depletion counter wraps
  * past 50. DOS does not remember which plot banked the units: it rescans the
  * colony's plots and suppresses the deposit on EVERY tile whose worker's
- * SPECIALTY (`FUN_281f_0c0e`, i.e. the profession byte, NOT the job he is
- * working) is Ore Miner (6) / Silver Miner (7) and whose resource
- * (`FUN_137f_04b0` = map_resource_type_for_yield) is Minerals (6) or Silver
- * Deposit (12), raising one @DEPLETION (DS:0xd75) per tile. A colony working
- * two mines loses both on the same wrap; the port used to suppress only the
- * single tile whose depletion unit happened to cross the threshold, keyed by
- * the worked job instead of the specialty (port_bugs.md #1024).
+ * OCCUPATION (`FUN_281f_0c0e` -> FUN_15eb_0e18, colony +0x20 = the job he
+ * is working, NOT the specialty at +0x40) is Ore Miner (6) / Silver Miner (7)
+ * and whose resource (`FUN_137f_04b0` = map_resource_type_for_yield) is
+ * Minerals (6) or Silver Deposit (12), raising one @DEPLETION (DS:0xd75) per
+ * tile. A colony working two mines loses both on the same wrap (port_bugs.md
+ * #1024; #1145 corrected its specialty reading of 0c0e).
  */
 static int turn_deplete_colony_mines(
   const ColonizeColony* colony,
@@ -483,8 +482,8 @@ static int turn_deplete_colony_mines(
   colony_yield_worked_tiles_begin(&it, colony);
   while (colony_yield_worked_tiles_next(&it, &w)) {
     const ColonizeColonist* c = w.colonist;
-    if (!c || (c->profession != COLONIZE_PROF_ORE_MINER &&
-               c->profession != COLONIZE_PROF_SILVER_MINER)) {
+    if (!c || (c->field_job != COLONIZE_JOB_ORE_MINER &&
+               c->field_job != COLONIZE_JOB_SILVER_MINER)) {
       continue;
     }
     const int res = map_resource_type_for_yield(map, w.x, w.y);

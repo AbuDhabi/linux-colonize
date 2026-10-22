@@ -110,7 +110,10 @@ int dos_rng_range(ColonizeDosRng* rng, int lo, int hi) {
     return lo;
   }
   if (hi < lo) {
-    return lo;
+    /* FUN_19ef_0032 draws for any span: lo + (span * rand) >> 15, signed
+     * (span <= 0 here), low word returned (port_bugs.md #1143). */
+    const int32_t r = (int32_t)dos_rng_next(rng);
+    return (int)(int16_t)(lo + (((int32_t)(hi - lo + 1) * r) >> 15));
   }
   /* Inclusive span; hi==lo still advances the LCG (span 1). */
   const int span = hi - lo + 1;

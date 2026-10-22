@@ -253,6 +253,7 @@ int ai_contact_enter_hostile_village( ColonizeTurnContext* ctx, int e, int natio
 int ai_contact_euro_is_human(const ColonizeTurnContext* ctx, int e);
 int ai_contact_is_petty_criminal(const ColonizeUnitPool* units, const ColonizeUnit* u);
 int ai_contact_meet_economics_2154( ColonizeTurnContext* ctx, int indian_nation, const ColonizeCol1Tribe* tribe, AiContactMeetEcon2154* out );
+void ai_contact_2820_sort(const int16_t* key, int* order);
 int ai_contact_nearest_colony( const ColonizeTurnContext* ctx, int nation, int x, int y, int continent, int min_tools, int max_dist, int* out_dist );
 int ai_contact_visit_demand_allowed( ColonizeTurnContext* ctx, const ColonizeCol1Indian* ind, const ColonizeCol1Tribe* t, int nation_id, int e, int brave_id, int alarm );
 int ai_contact_welcome_pending(const AiPopupState* st, int e, int nation_id);
