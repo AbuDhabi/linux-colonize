@@ -1406,6 +1406,9 @@ static GameUpdateStep game_colony_screen_mouse_click(
         colony_screen_set_status(csv, game->status);
       }
       break;
+    case COLONY_HIT_JOBS_MORE:
+      colony_screen_jobs_next_page(csv);
+      break;
     case COLONY_HIT_JOBS_OUTSIDE:
       colony_screen_close_jobs(csv);
       break;

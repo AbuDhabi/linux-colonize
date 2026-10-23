@@ -31,7 +31,8 @@ typedef enum NameEntryKind {
   NAME_ENTRY_KIND_RENAME = 2, /* @RENAMECOLONY */
   NAME_ENTRY_KIND_LANDHO = 3, /* @LANDHO — name the New World */
   NAME_ENTRY_KIND_TRADE_NAME = 4,  /* @TRADENAME — create wizard (colony_id = route slot) */
-  NAME_ENTRY_KIND_TRADE_RENAME = 5 /* @TRADENAME — editor title click (colony_id = route slot) */
+  NAME_ENTRY_KIND_TRADE_RENAME = 5, /* @TRADENAME — editor title click (colony_id = route slot) */
+  NAME_ENTRY_KIND_FIND_COLONY = 6   /* @FINDCITY — VIEW "Find Colony" search text */
 } NameEntryKind;
 
 typedef struct NameEntryDialog {

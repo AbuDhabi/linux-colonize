@@ -169,8 +169,8 @@ void combat_analysis_render(
   const ColonizeSpriteSheet* phys0, /* PHYS0.SS tile overlays for that row; may be NULL */
   const ColonizeWorldMap* map, /* engagement tile lookup for that row; may be NULL */
   const ColonizePopupColors* colors,
-  uint8_t text_color,
-  uint8_t select_color,
+  uint8_t text_color, /* @COLORS basic: title, names, labels */
+  uint8_t hilite_color, /* @COLORS hilite: base strengths, values */
   const ColonizePalette* active_palette,
   ColonizeFramebuffer8* framebuffer
 );

@@ -29,7 +29,8 @@ choices from data where a real `@SECTION` exists.
 | Disband land/ship | same | `@SUREDISBAND` / `@DISBANDSHIP` | Authentic | `@DISBANDSHIP` = cargo-blocked error OK; confirm always `@SUREDISBAND` |
 | Overboard | `game_request_overboard_confirm` | `@OVERBOARD` | Authentic | Hold picker, not a Yes/No (port_bugs.md #984) |
 | Trade delete | same | `@SUREDELETE` | Authentic | — |
-| Find colony / trade select | `cheat_list` + `popup_msg_fill` | `@FINDCITY` / `@TRADE` | Authentic | — |
+| Find colony | `name_entry` FIND_COLONY + `game_find_colony` | `@FINDCITY` / `@NOCITY` | Authentic (text entry + name search, port_bugs.md #1197) | — |
+| Trade select | `cheat_list` + `popup_msg_fill` | `@TRADESELECT` | Authentic | — |
 | Howmuch | `howmuch_dialog` | `@HOWMUCH*` | Authentic | — |
 | Options | `options_dialog` | `@GAMEOPTIONS` / `@COLONYOPTIONS` / `@SOUNDOPTIONS` | Authentic | — |
 | Found / rename / Land Ho name | `name_entry` | `@COLONY` / `@RENAMECOLONY` / `@LANDHO` | Authentic (asm layout, #1181; `@LANDHO` MSS0 / `@COLONY` MSS5 figure, #1183; rename bare) | — |

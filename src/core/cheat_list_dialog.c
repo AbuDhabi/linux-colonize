@@ -7,6 +7,7 @@
 #include "core/map_menu.h"
 #include "core/popup.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "core/strutil.h"
 #include "core/ui_button.h"
 #include "core/ui_colors.h"
@@ -232,25 +233,13 @@ static bool cheat_list_open_simple_list(
     str_copy_trunc(
       dlg->options[i],
       sizeof(dlg->options[i]),
-      labels[i] && labels[i][0] ? labels[i] : "(unnamed)"
+      labels[i] ? labels[i] : ""
     );
     dlg->option_ids[i] = ids[i];
   }
   dlg->option_count = count;
   dlg->open = true;
   return true;
-}
-
-bool cheat_list_open_find_colony(
-  CheatListDialog* dlg,
-  const char* prompt,
-  const char* const* labels,
-  const int* colony_ids,
-  int count
-) {
-  return cheat_list_open_simple_list(
-    dlg, CHEAT_LIST_KIND_FIND_COLONY, prompt, labels, colony_ids, count, 190
-  );
 }
 
 bool cheat_list_open_trade_select(
@@ -277,16 +266,99 @@ bool cheat_list_open_trade_dest(
   );
 }
 
-bool cheat_list_open_goto_port(
+/*
+ * FUN_647e_01c6 raw 102368-102374 (647e:01d6-0227): n <= 10 colonies is one page of n + 1
+ * slots, more is pages of 10. Slot k + e holds the k-th colony on every page (the Europe row is
+ * slot 0, e = 1 when it is offered) and page p shows slots size * p .. size * p + size - 1
+ * (raw 102380-102381). DOS counts (n + 9) / 10 pages, leaving slot n of Europe + 20 / 30 / 40
+ * colonies on no page; the port counts the Europe slot too (docs/dos_bugs.md DB-53), which
+ * changes only those three cases.
+ */
+void cheat_list_dest_page_math(int n, int e, int* page_size, int* page_count) {
+  *page_count = 1;
+  *page_size = n + 1;
+  if (n >= 0xb) {
+    *page_count = (n + e + 9) / 10;
+    *page_size = 10;
+  }
+}
+
+/* One FUN_647e_01c6 page (raw 102376-102446), rebuilt from scratch on every page turn: the
+ * selection goes back to the first row unless FUN_291f_08ec finds the default on this page. */
+static void cheat_list_dest_build_page(CheatListDialog* dlg) {
+  const int first = dlg->page_size * dlg->page;
+  const int last = first + dlg->page_size - 1;
+  const char* more = reports_ctitle_word(6); /* DS:0x93aa = LABELS @CTITLE 6 "(More)" */
+  int n = 0;
+  dlg->selection = 0;
+  dlg->disabled_mask = 0;
+  if (dlg->page > 0) {
+    str_copy_trunc(dlg->options[n], sizeof(dlg->options[n]), more);
+    dlg->option_ids[n++] = 0x3e5;
+  }
+  for (int i = 0; i < dlg->dest_count; ++i) {
+    if (i < first || i > last || dlg->dest_at[i] == CHEAT_LIST_DEST_OMITTED) {
+      continue;
+    }
+    str_copy_trunc(dlg->options[n], sizeof(dlg->options[n]), dlg->dest_labels[i]);
+    dlg->option_ids[n] = dlg->dest_ids[i];
+    if (dlg->dest_at[i] == CHEAT_LIST_DEST_GREYED) {
+      dlg->disabled_mask |= (uint16_t)(1u << n);
+    } else if (dlg->dest_ids[i] == dlg->dest_default) {
+      dlg->selection = n;
+    }
+    n++;
+  }
+  if (dlg->page < dlg->page_count - 1) {
+    str_copy_trunc(dlg->options[n], sizeof(dlg->options[n]), more);
+    dlg->option_ids[n++] = 0x3e6;
+  } else if (dlg->dest_delete) {
+    /* DS:0x93ee = LABELS @ROUTE 8, row id 0x3e9: 01c6 returns 1000. */
+    str_copy_trunc(dlg->options[n], sizeof(dlg->options[n]), dlg->dest_delete_label);
+    dlg->option_ids[n++] = 1000;
+  }
+  dlg->option_count = n;
+}
+
+bool cheat_list_open_dest_pages(
   CheatListDialog* dlg,
+  CheatListKind kind,
   const char* prompt,
   const char* const* labels,
-  const int* dest_ids,
-  int count
+  const int* ids,
+  const uint8_t* at,
+  int count,
+  bool europe,
+  int default_id,
+  const char* delete_label
 ) {
-  return cheat_list_open_simple_list(
-    dlg, CHEAT_LIST_KIND_GOTO_PORT, prompt, labels, dest_ids, count, 190
-  );
+  if (!dlg || count < 0 || count > CHEAT_LIST_DEST_MAX || (count > 0 && (!labels || !ids))) {
+    return false;
+  }
+  cheat_list_init(dlg);
+  dlg->kind = kind;
+  str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), prompt ? prompt : "");
+  dlg->paged = true;
+  dlg->dest_europe = europe && count > 0;
+  dlg->dest_delete = delete_label != NULL;
+  str_copy_trunc(dlg->dest_delete_label, sizeof(dlg->dest_delete_label), delete_label ? delete_label : "");
+  dlg->dest_default = default_id;
+  dlg->dest_count = count;
+  for (int i = 0; i < count; ++i) {
+    str_copy_trunc(dlg->dest_labels[i], sizeof(dlg->dest_labels[i]), labels[i] ? labels[i] : "");
+    dlg->dest_ids[i] = ids[i];
+    dlg->dest_at[i] = at ? at[i] : CHEAT_LIST_DEST_PLAIN;
+  }
+  const int e = dlg->dest_europe ? 1 : 0;
+  cheat_list_dest_page_math(count - e, e, &dlg->page_size, &dlg->page_count);
+  cheat_list_dest_build_page(dlg);
+  if (dlg->option_count <= 0) {
+    /* 647e:048f: box+2 < 1, the box is freed unseen and 01c6 returns -1. */
+    cheat_list_close(dlg);
+    return false;
+  }
+  dlg->open = true;
+  return true;
 }
 
 void cheat_list_set_selection(CheatListDialog* dlg, int index) {
@@ -357,11 +429,6 @@ bool cheat_list_open_set_human(CheatListDialog* dlg, const ColonizeMsgCatalog* d
   return cheat_list_fill_from_section(dlg, section, k_fallback_ids, 5);
 }
 
-/* Strip a single leading '~' hotkey-underline marker (MENU.TXT/DEBUG.TXT convention). */
-static const char* cheat_list_strip_tilde(const char* s) {
-  return (s && s[0] == '~') ? s + 1 : s;
-}
-
 bool cheat_list_open_debug_flags(
   CheatListDialog* dlg,
   const ColonizeMsgCatalog* debug_txt,
@@ -404,7 +471,7 @@ bool cheat_list_open_debug_flags(
           continue;
         }
       }
-      labels[n++] = cheat_list_strip_tilde(line);
+      labels[n++] = line;
     }
   }
   if (n < 7) {
@@ -425,9 +492,9 @@ bool cheat_list_open_debug_flags(
   }
   for (int i = 0; i < n; ++i) {
     const int on = (initial_mask & (uint16_t)(1u << i)) != 0;
-    /* DOS @checkbox row text (FUN_6f74_0a00 / 1b7c, as options_dialog): ']' on, '['
-     * off, the font's filled / empty check circles. */
-    snprintf(dlg->options[i], sizeof(dlg->options[i]), "%c %s", on ? ']' : '[', labels[i]);
+    /* DOS @checkbox row text (FUN_6f74_0a00 / 1b7c, as options_dialog): DS:0x1f91 "~[ "
+     * with ']' on, '[' off (the font's filled / empty check circles) + the raw label. */
+    snprintf(dlg->options[i], sizeof(dlg->options[i]), "~%c %s", on ? ']' : '[', labels[i]);
     dlg->option_ids[i] = i;
   }
   dlg->option_count = n;
@@ -436,16 +503,16 @@ bool cheat_list_open_debug_flags(
 }
 
 /*
- * A multi-select option is rendered "] Label" / "[ Label" (the DOS check glyphs);
- * flip the glyph in place instead of rebuilding the label from a name table.
+ * A multi-select option is rendered "~] Label" / "~[ Label" (the DOS check glyphs);
+ * flip the glyph in place (FUN_6f74_1b7c rewrites byte 1) instead of rebuilding the label.
  */
 static void cheat_list_flip_checkbox(CheatListDialog* dlg, int idx) {
   if (!dlg || idx < 0 || idx >= dlg->option_count) {
     return;
   }
   char* opt = dlg->options[idx];
-  if (opt[0] == '[' || opt[0] == ']') {
-    opt[0] = (dlg->selected_mask & (uint16_t)(1u << idx)) ? ']' : '[';
+  if (opt[0] == '~' && (opt[1] == '[' || opt[1] == ']')) {
+    opt[1] = (dlg->selected_mask & (uint16_t)(1u << idx)) ? ']' : '[';
   }
 }
 
@@ -473,6 +540,17 @@ static void cheat_list_cancel(CheatListDialog* dlg) {
 static void cheat_list_confirm(CheatListDialog* dlg, int idx) {
   if (!dlg || idx < 0 || idx >= dlg->option_count) {
     cheat_list_cancel(dlg);
+    return;
+  }
+  /* FUN_647e_01c6 raw 102450-102456 (647e:04ab-04d3): Previous (first row past page 0) =
+   * page - 1, More (last row before the last page) = page + 1; the box is rebuilt, stays up. */
+  const int turn = !dlg->paged                                                  ? 0
+                   : dlg->page > 0 && idx == 0                                  ? -1
+                   : dlg->page < dlg->page_count - 1 && idx == dlg->option_count - 1 ? 1
+                                                                                : 0;
+  if (turn) {
+    dlg->page += turn;
+    cheat_list_dest_build_page(dlg);
     return;
   }
   dlg->has_result = true;
@@ -512,6 +590,20 @@ bool cheat_list_handle_input(CheatListDialog* dlg, const ColonizeInputState* inp
     cheat_list_cancel(dlg);
     return true;
   }
+  if (dlg->paged && (colonize_key_up(input->last_key) || colonize_key_down(input->last_key))) {
+    /* FUN_6f74_2580 Up / Down (raw 116905-116940): the previous / next row, wrapping to the
+     * last / first (box+0x70 / box+0x54), past disabled rows, giving up after two wraps. */
+    const int step = colonize_key_up(input->last_key) ? -1 : 1;
+    int wraps = 0;
+    do {
+      dlg->selection += step;
+      if (dlg->selection < 0 || dlg->selection >= dlg->option_count) {
+        dlg->selection = step < 0 ? dlg->option_count - 1 : 0;
+        wraps++;
+      }
+    } while ((dlg->disabled_mask & (1u << dlg->selection)) && wraps < 2);
+    return true;
+  }
   if (colonize_key_up(input->last_key) && dlg->selection > 0) {
     dlg->selection--;
     return true;
@@ -536,6 +628,22 @@ bool cheat_list_handle_input(CheatListDialog* dlg, const ColonizeInputState* inp
     return true;
   }
 
+  /* FUN_6f74_2580 default case (6f74:2df6): the first row whose FUN_6f74_0642 hotkey (from
+   * the raw label, past the "~[ " of a @checkbox row) is the key becomes the selection; a
+   * @checkbox box toggles it and stays open (6f74:2dcd), any other box returns that row. */
+  const int key = popup_input_dos_key(input);
+  for (int i = 0; key && i < dlg->option_count; ++i) {
+    if (popup_hotkey_of(dlg->options[i] + (dlg->multi_select ? 3 : 0)) == key) {
+      dlg->selection = i;
+      if (dlg->multi_select) {
+        cheat_list_toggle_multi(dlg, i);
+      } else {
+        cheat_list_confirm(dlg, i);
+      }
+      return true;
+    }
+  }
+
   if (input->mouse_left_clicked) {
     const int mx = input->mouse_x;
     const int my = input->mouse_y;
@@ -544,7 +652,8 @@ bool cheat_list_handle_input(CheatListDialog* dlg, const ColonizeInputState* inp
       return true;
     }
     const int idx = cheat_list_option_at_y(dlg, my);
-    if (idx >= 0) {
+    /* A disabled row takes no click and the box stays up (FUN_6f74_2580). */
+    if (idx >= 0 && !(dlg->disabled_mask & (1u << idx))) {
       dlg->selection = idx;
       if (dlg->multi_select) {
         cheat_list_toggle_multi(dlg, idx);
@@ -600,6 +709,7 @@ void cheat_list_render(
     default:
       break;
   }
+  metrics.disabled_mask = dlg->disabled_mask;
   PopupListGeom geom;
   popup_list_render(
     framebuffer,
@@ -614,7 +724,7 @@ void cheat_list_render(
     cheat_list_row_label,
     dlg,
     text_color,
-    text_color,
+    COLONIZE_COL_HILITE,
     select_color,
     &geom
   );

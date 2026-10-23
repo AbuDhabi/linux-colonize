@@ -663,6 +663,68 @@ const char* game_trade_europe_label(const ColonizeGameState* game) {
 }
 
 /*
+ * FUN_647e_01c6's destinations (raw 102389-102432) for traveller `who` (NULL = unit -1, the
+ * create wizard), paged by cheat_list_open_dest_pages. The Europe row first when `who` is a
+ * ship (type 0xd..0x12) and FUN_647e_0094 passes 0x3e7: [DS:0x838c + n*2] @HOMEPORT + " ("
+ * (DS:0x50, 0x5e) + [DS:0x8d42 + n*2] @COUNTRY + ")" (DS:0x60), n = DS:0x5394. Then every
+ * colony 0094 passes, in DOS colony order. `at_colony_test` (Go to Port's third argument):
+ * the colony the unit stands on is greyed for a ship and left out for a land unit. Call it
+ * right after the title's popup_msg_fill. Returns false when nothing was shown (no rows: DOS
+ * frees the box unseen).
+ */
+bool game_open_dest_pager(
+  ColonizeGameState* game,
+  CheatListKind kind,
+  const char* prompt,
+  const TravelDestWho* who,
+  bool at_colony_test,
+  int default_id,
+  const char* delete_label
+) {
+  const ColonizeWorldMap* map = game->world_map_ok ? &game->world_map : NULL;
+  char bufs[CHEAT_LIST_DEST_MAX][CHEAT_LIST_LABEL_LEN];
+  const char* labels[CHEAT_LIST_DEST_MAX];
+  int ids[CHEAT_LIST_DEST_MAX];
+  uint8_t at[CHEAT_LIST_DEST_MAX];
+  int count = 0;
+  const bool europe =
+    who && who->ship &&
+    travel_dest_ok(map, &game->colonies, game->human_nation, TRAVEL_DEST_EUROPE, who);
+  if (europe) {
+    snprintf(
+      bufs[0], sizeof(bufs[0]), "%s (%s)", reports_home_port_name(game->human_nation),
+      reports_nation_country_name(game->human_nation)
+    );
+    labels[0] = bufs[0];
+    ids[0] = TRAVEL_DEST_EUROPE;
+    at[0] = CHEAT_LIST_DEST_PLAIN;
+    count = 1;
+  }
+  for (int i = 0; i < COLONIZE_COLONIES_MAX && count < CHEAT_LIST_DEST_MAX; ++i) {
+    const ColonizeColony* c = &game->colonies.colonies[i];
+    if (!c->active || !travel_dest_ok(map, &game->colonies, game->human_nation, c->id, who)) {
+      continue;
+    }
+    str_copy_trunc(bufs[count], sizeof(bufs[count]), c->name);
+    labels[count] = bufs[count];
+    ids[count] = c->id;
+    at[count] = !at_colony_test || !who || who->x != c->x || who->y != c->y ? CHEAT_LIST_DEST_PLAIN
+                : who->ship                                                 ? CHEAT_LIST_DEST_GREYED
+                                                                            : CHEAT_LIST_DEST_OMITTED;
+    count++;
+  }
+  /* The caller's section fill latched its @width: the box's own (box+0x28). */
+  const int width = popup_msg_take_pending_width();
+  if (!cheat_list_open_dest_pages(
+        &game->cheat_list, kind, prompt, labels, ids, at, count, europe, default_id, delete_label
+      )) {
+    return false;
+  }
+  game->cheat_list.width = width;
+  return true;
+}
+
+/*
  * The editor's phantom traveller, DOS FUN_647e_115c: FUN_2a1f_01ca ->
  * FUN_478c_007e makes a unit when the editor opens — Caravel for a sea route,
  * Colonist for a land route — parked on the route's FIRST stop (Europe first =
@@ -710,21 +772,21 @@ void game_trade_open_editor(ColonizeGameState* game, int route) {
 
 /*
  * Destination picker for editor stop `stop_i` (or append when stop_i ==
- * dest_count) and for the create wizard (trade_create_stage 1/4, stop_i < 0).
- * DOS FUN_647e_01c6 (raw 102334-102461). The create wizard calls it with unit
- * -1 (ndisasm 000610EC / 000612B0: push -1,-1,0,0): thunk_FUN_2a1f_0762 then
- * only tests ownership, so BOTH wizard pickers list every own colony — no
- * sea/coast filter, and no Europe row (it needs a ship unit); the port keeps
- * #300's sea-route exception for the second pick (see below). The editor
- * passes the phantom traveller (game_trade_phantom): the Europe row FIRST for
- * a sea route whose phantom reaches the Atlantic, then the colonies that
- * travel_dest_ok (FUN_647e_0094) accepts from the route's first stop — a sea
- * route offers colonies on the first stop's water region (never a lake colony
- * next to an ocean one), a land route colonies on its continent.
- * "(Delete Destination)" is appended when editing an existing stop of a
- * multi-stop route. Not reproduced: DOS's 10-row pagination (cut at
- * CHEAT_LIST_MAX_OPTIONS) and the delete row DOS also shows on the append
- * picker.
+ * dest_count) and for the create wizard (trade_create_stage 1/4, stop_i < 0),
+ * through game_open_dest_pager (DOS FUN_647e_01c6, raw 102334-102461, paged). The
+ * create wizard calls it with unit -1 (ndisasm 000610EC / 000612B0: push -1,-1,0,0):
+ * thunk_FUN_2a1f_0762 then only tests ownership, so BOTH wizard pickers list every
+ * own colony, no Europe row, title @TRADESTART with %NUMBER0 = 1 / 2 (FUN_281f_09ae,
+ * ND 0x610E0 / 0x612A4); the port keeps #300's sea-route exception for the second
+ * pick (below), whose title stays @TRADESTART. The editor (FUN_647e_0dd4) passes the
+ * phantom traveller (game_trade_phantom): a FUN_478c_007e unit of type 0xd for a sea
+ * route, 0 for a land one, so its title is @SAILPORT / @TRAVELPLACE (647e:0227-025c,
+ * static read; no DOS shot of this box), the Europe row FIRST for a sea route whose
+ * phantom reaches the Atlantic, then the colonies travel_dest_ok (FUN_647e_0094)
+ * accepts from the route's first stop. Editing stop i preselects its destination and
+ * offers "(Delete Destination)" when the route has more than one stop (647e:0e04);
+ * appending preselects stop 0's destination and always offers it (647e:0e55), where
+ * game_apply_trade_dest then ignores it.
  */
 void game_trade_open_dest_picker(ColonizeGameState* game, int stop_i) {
   if (!game || !game->col1_ok || !game->colonies_ok) {
@@ -751,64 +813,33 @@ void game_trade_open_dest_picker(ColonizeGameState* game, int stop_i) {
       who = &wizard_ship;
     }
   }
-  const ColonizeWorldMap* map = game->world_map_ok ? &game->world_map : NULL;
-  const bool delete_row =
-    !wizard && r && stop_i < (int)r->dest_count && r->dest_count > 1;
-  const int cap = CHEAT_LIST_MAX_OPTIONS - (delete_row ? 1 : 0);
-  const char* labels[CHEAT_LIST_MAX_OPTIONS];
-  int ids[CHEAT_LIST_MAX_OPTIONS];
-  char bufs[CHEAT_LIST_MAX_OPTIONS][CHEAT_LIST_LABEL_LEN];
-  int count = 0;
-  if (who && who->ship &&
-      travel_dest_ok(map, &game->colonies, game->human_nation, TRAVEL_DEST_EUROPE, who)) {
-    /* Europe row: "<Port> (Europe)" — FUN_647e_01c6's nation port entry. */
-    snprintf(bufs[count], sizeof(bufs[count]), "%.38s (Europe)", game_trade_europe_label(game));
-    labels[count] = bufs[count];
-    ids[count] = TRAVEL_DEST_EUROPE;
-    count++;
-  }
-  for (int i = 0; i < COLONIZE_COLONIES_MAX && count < cap; ++i) {
-    const ColonizeColony* c = &game->colonies.colonies[i];
-    if (!c->active || c->nation_id != game->human_nation ||
-        (who && !travel_dest_ok(map, &game->colonies, game->human_nation, c->id, who))) {
-      continue;
+  const char* delete_label = NULL;
+  int default_id = -1;
+  if (!wizard) {
+    const bool append = stop_i >= (int)r->dest_count;
+    if (append || r->dest_count > 1) {
+      delete_label = game->trade_screen.lab_delete;
     }
-    str_copy_trunc(bufs[count], sizeof(bufs[count]), c->name[0] ? c->name : "");
-    labels[count] = bufs[count];
-    ids[count] = c->id;
-    count++;
+    const int word = r->stop[append ? 0 : stop_i].colony_index;
+    default_id = word == TRAVEL_DEST_EUROPE ? TRAVEL_DEST_EUROPE
+                                            : colonies_id_at_dos_index(&game->colonies, word);
   }
-  if (delete_row) {
-    labels[count] = game->trade_screen.lab_delete;
-    ids[count] = 1000;
-    count++;
-  }
-  /* @TRADESTART "Select destination number %NUMBER0 for route". */
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
-  int number = 1;
-  if (wizard) {
-    number = (game->trade_create_stage == 4) ? 2 : 1;
-  } else {
-    number = stop_i + 1;
-  }
-  tok.number0 = number;
+  /* @TRADESTART "Select destination number %NUMBER0 for route". */
+  tok.number0 = game->trade_create_stage == 4 ? 2 : 1;
   tok.has_number0 = true;
   char prompt[COLONIZE_MSG_LINE_LEN];
-  char fb[COLONIZE_MSG_LINE_LEN];
-  fb[0] = '\0';
-  popup_msg_fill(&game->messages, "TRADESTART", &tok, fb, prompt, sizeof(prompt));
-  if (count <= 0) {
-    /* No colonies yet: DOS FUN_647e_01c6 still shows the (empty) destination
-     * menu — present the prompt as an OK popup so the action is visible. */
-    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, prompt);
-    set_status(game, "No destinations available", NULL);
-    game->trade_create_stage = 0;
-    return;
-  }
+  popup_msg_fill(
+    &game->messages, wizard ? "TRADESTART" : r->sea ? "SAILPORT" : "TRAVELPLACE", &tok, "",
+    prompt, sizeof(prompt)
+  );
+  popup_msg_take_pending_default(); /* @default=1: the parser's, no rows parsed here */
   game->trade_dest_stop = wizard ? -1 : stop_i;
-  if (!cheat_list_open_trade_dest(&game->cheat_list, prompt, labels, ids, count)) {
-    set_status(game, "Destination picker unavailable", NULL);
+  if (!game_open_dest_pager(
+        game, CHEAT_LIST_KIND_TRADE_DEST, prompt, who, false, default_id, delete_label
+      )) {
+    /* Nothing shown, 01c6 returns -1: the wizard aborts, the editor carries on. */
     game->trade_create_stage = 0;
     game->trade_dest_stop = -1;
   }
@@ -1193,23 +1224,6 @@ void game_apply_cheat_list_result(ColonizeGameState* game) {
       }
     }
     game->trade_cargo_stop = -1;
-  } else if (kind == CHEAT_LIST_KIND_FIND_COLONY) {
-    const ColonizeColony* target = colonies_get(&game->colonies, id);
-    if (!target) {
-      set_status(game, "Colony not found", NULL);
-      return;
-    }
-    game->map_cursor_x = target->x;
-    game->map_cursor_y = target->y;
-    game_set_view_center(game, target->x, target->y);
-    snprintf(game->status, sizeof(game->status), "Find Colony: %s", target->name);
-    /* Enter colony screen when possible. */
-    if (game->colony_screen_ok) {
-      game->colony_view_id = target->id;
-      game->in_colony = true;
-      game->in_europe = false;
-      game->in_pedia = false;
-    }
   } else if (kind == CHEAT_LIST_KIND_TRADE_SELECT) {
     const int mode = game->trade_select_mode;
     game->trade_select_mode = 0;

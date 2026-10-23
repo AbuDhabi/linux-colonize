@@ -858,6 +858,64 @@ static int ai_euro_5952_producible(
   return colony_prod_manufacturing_output_row(row, prof, r->craft_profession, sol_bonus);
 }
 
+int ai_euro_jobs_menu_estimate(
+  const ColonizeColonyPool* pool,
+  const ColonizeWorldMap* map,
+  const ColonizeCol1Save* col1,
+  const ColonizeColony* col,
+  int slot,
+  int job,
+  int* out_cargo
+) {
+  if (out_cargo) {
+    *out_cargo = -1;
+  }
+  if (!pool || !col || slot < 0 || slot >= col->colonist_count || !col->colonists[slot].active) {
+    return 0;
+  }
+  if (job < COLONIZE_FIELD_JOB_COUNT) {
+    if (out_cargo) {
+      *out_cargo = job < COLONIZE_JOB_FISHERMAN ? job : COLONIZE_CARGO_FOOD; /* raw 50620-50624 */
+    }
+    if (!map) {
+      return 0;
+    }
+    /* colonies_seat_new_colonist's context: the scorer only reads the pools and scores a
+     * copy of the colony with `slot` lifted, so the const casts write nothing. */
+    ColonizeTurnContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.colonies = (ColonizeColonyPool*)pool;
+    ctx.map = (ColonizeWorldMap*)map;
+    ctx.col1 = (ColonizeCol1Save*)col1;
+    ctx.col1_ok = col1 != NULL;
+    ctx.human_nation = -1;
+    if (col1 && col->nation_id >= 0 && col->nation_id < 4 &&
+        col1->player[col->nation_id].control == 0) {
+      ctx.human_nation = col->nation_id;
+    }
+    AiEuro28c8JobCandidate best;
+    return ai_euro_28c8_score_full(&ctx, col, slot, col->colonists[slot].profession, job, 0, &best)
+             ? best.yield
+             : 0;
+  }
+  int v = ai_euro_5952_producible(pool, col, col1, slot, job, out_cargo);
+  if (job == COLONIZE_PROF_STATESMAN) {
+    /* DOS-LITERAL FUN_2f2b_348c raw 50638-50658. */
+    if (founding_fathers_nation_has(col1, col->nation_id, FF_THOMAS_JEFFERSON)) {
+      v += v >> 1;
+    }
+    if (founding_fathers_nation_has(col1, col->nation_id, FF_THOMAS_PAINE)) {
+      v += (int)(int8_t)col1->nation[col->nation_id].tax_rate * v / 100;
+    }
+    if (colonies_has_building_row(pool, col, COLONY_BUILDING_NEWSPAPER)) {
+      v <<= 1;
+    } else if (colonies_has_building_row(pool, col, COLONY_BUILDING_PRINTING_PRESS)) {
+      v += v >> 1;
+    }
+  }
+  return v;
+}
+
 /*
  * DS:0x84b4 (asm 5952:1e8f `MOV CL,byte ptr [BX + 0x84b4]`, decomp raw 94817
  * `-0x7b4c`) is read with the SAME `owner*0x10 + cargo` index as the sell

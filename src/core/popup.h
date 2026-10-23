@@ -66,26 +66,14 @@ void popup_draw(
   int* out_inner_h
 );
 
-/* Port style for the non-compositor screens (combat analysis, trade route): unbold +
- * black (0) +1,+1 drop shadow. DOS dialog text has no shadow pass: popup_draw_text_markup. */
-void popup_draw_text_shadowed(
-  const ColonizeFont* font,
-  ColonizeFramebuffer8* framebuffer,
-  int x,
-  int y,
-  const char* text,
-  uint8_t color
-);
-
 /*
- * Pixel width of text as popup_draw_text_markup would draw it.
+ * Pixel width of text the way FUN_6f74_0486 measures it: every '~' '{' '}' '|' is
+ * deleted first (escaped ones too), then font_text_width (which also skips '#').
  *
  * Marker contract for the three width loops in this port (audit SC-36):
- *   - '{' / '}'  emphasis switches: zero width, skipped HERE (this function).
- *   - '~' / '#'  hotkey markers: zero width, skipped by font_text_width, which
- *                this function calls on the de-braced text, so they are free
- *                here too. Use font_text_width directly when the string has no
- *                brace markup.
+ *   - '{' / '}' / '~' / '|'  zero width, deleted HERE (this function).
+ *   - '#'        zero width, skipped by font_text_width. Use font_text_width
+ *                directly when the string has no dialog markup.
  *   - '^' / '^^' (POPUP_MSG_LINE_MARK / POPUP_MSG_CENTER_MARK) layout marks and
  *                '_' are NOT stripped: they belong to the line splitter, and a
  *                caller measuring a raw marked-up body over-measures
@@ -96,8 +84,11 @@ int popup_markup_text_width(const ColonizeFont* font, const char* text);
 
 /*
  * Draw text the way the DOS dialog writer does (FUN_6f74_0538): '{' switches to
- * hilite ink, '}' back to base, both zero-width. Each glyph is blitted once
- * (FUN_1c11_000c) through the 4-entry shade map FUN_6f74_04f6 loads: shade 0
+ * hilite ink, '}' back to base, both zero-width; '~' draws the next byte as a plain
+ * glyph in the other ink (hilite outside {}, base inside; a disabled row passes grey
+ * as both), so it marks hotkey letters and escapes markup (port_bugs.md #1199); '|'
+ * ends the text. Each glyph is blitted once (FUN_1c11_000c) through the 4-entry
+ * shade map FUN_6f74_04f6 loads: shade 0
  * transparent, 1 the ink, 2 colors->enhance, 3 colors->shadow (NULL = popup_colors_from_ui).
  * There is no drop-shadow pass; FONTINTR / FONT-NP carry their own edge shades,
  * FONTTINY / FONTSMAL only shade 1 (port_bugs.md #1191). inout_hilite carries the
@@ -116,6 +107,19 @@ int popup_draw_text_markup(
   bool* inout_hilite
 );
 
+/*
+ * FUN_6f74_0642: a row's hotkey, stored at node+2 when FUN_6f74_0a00 adds the row
+ * (6f74:0b72, on the raw label): the char after the LAST '~', lowercase folded to
+ * upper; "~F~n" (first '~' != last, first[1] == 'F', digit after the last) gives the
+ * F-key code n + 0x10a. No '~' = 0.
+ */
+int popup_hotkey_of(const char* label);
+
+/* The key FUN_6f74_2580 compares with the rows' hotkeys (FUN_281f_03e0 at 6f74:28df,
+ * lowercase < 0x100 folded to upper at 6f74:2a1a): this frame's first typed char, or
+ * F1..F9 as 0x13b..; 0 = none (also with Alt / Ctrl held, which DOS reports as codes no
+ * row carries). */
+int popup_input_dos_key(const ColonizeInputState* input);
 
 /* ---- Shared wood list-dialog pipeline (audit theme K) ---- */
 
@@ -164,6 +168,8 @@ typedef struct PopupListMetrics {
   int pad_y; /* first text row's inset from the inner rect's top */
   int label_dx; /* box[+0x22]: row text indent (4, FUN_6f74_06d0 default) */
   int sel_h; /* selection bar height */
+  uint32_t disabled_mask; /* bit i: row i is disabled (option bit 0, FUN_6f74_08fa), drawn in
+                           * COLONIZE_COL_GREY as both inks (FUN_6f74_0538 BX&1, style+4) */
 } PopupListMetrics;
 
 void popup_list_metrics_dos6f74(const ColonizeFont* font, PopupListMetrics* out);

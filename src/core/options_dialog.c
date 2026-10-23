@@ -75,11 +75,8 @@ static bool options_load_section(
       if (dlg->option_count >= OPTIONS_DIALOG_MAX) {
         break;
       }
-      char lab[OPTIONS_DIALOG_LABEL_LEN];
-      str_copy_trunc(lab, sizeof(lab), line);
-      str_strip_chars(lab, "~");
-      /* {} kept — render colors braced spans with the hilite ink. */
-      str_copy_trunc(dlg->labels[dlg->option_count], sizeof(dlg->labels[0]), lab);
+      /* Raw label: the writer draws '~' hotkey letters and {} spans in the hilite ink. */
+      str_copy_trunc(dlg->labels[dlg->option_count], sizeof(dlg->labels[0]), line);
       dlg->values[dlg->option_count] =
         (initial_values && dlg->option_count < fallback_count) ? initial_values[dlg->option_count]
                                                               : 0;
@@ -322,6 +319,16 @@ bool options_dialog_handle_input(OptionsDialog* dlg, const ColonizeInputState* i
     options_finish(dlg, false);
     return true;
   }
+  /* FUN_6f74_2580 default case (6f74:2df6): the first row whose FUN_6f74_0642 hotkey is
+   * the key becomes the selection; a @checkbox box toggles it and stays open (6f74:2dcd). */
+  const int key = popup_input_dos_key(input);
+  for (int i = 0; key && i < dlg->option_count; ++i) {
+    if (popup_hotkey_of(dlg->labels[i]) == key) {
+      dlg->selection = i;
+      dlg->values[i] = dlg->values[i] ? 0 : 1;
+      return true;
+    }
+  }
   if (input->mouse_left_clicked) {
     if (!ui_rect_hit(
           dlg->dialog_x, dlg->dialog_y, dlg->dialog_w, dlg->dialog_h, input->mouse_x,
@@ -349,13 +356,13 @@ bool options_dialog_handle_input(OptionsDialog* dlg, const ColonizeInputState* i
 /*
  * DOS row text: FUN_6f74_0a00 prefixes a @checkbox row with DS:0x1f91 "~[ " and
  * FUN_6f74_1b7c sets its second byte to ']' when the row is on, '[' when off; the
- * font's '[' / ']' glyphs are the empty / filled check circles. The '~' hotkey
- * marker is stripped like the labels' own.
+ * font's '[' / ']' glyphs are the empty / filled check circles, drawn in the hilite
+ * ink by the '~' like the label's own hotkey letter.
  */
 static const char* options_row_label(void* user, int index) {
-  static char buf[OPTIONS_DIALOG_LABEL_LEN + 2];
+  static char buf[OPTIONS_DIALOG_LABEL_LEN + 3];
   const OptionsDialog* dlg = (const OptionsDialog*)user;
-  snprintf(buf, sizeof(buf), "%c %s", dlg->values[index] ? ']' : '[', dlg->labels[index]);
+  snprintf(buf, sizeof(buf), "~%c %s", dlg->values[index] ? ']' : '[', dlg->labels[index]);
   return buf;
 }
 

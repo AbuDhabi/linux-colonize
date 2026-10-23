@@ -117,7 +117,11 @@ tab's hammers bar (own block). Production-tab badge ink is white (15), not
   number on top of the icons — never instead of them, and all-or-nothing
   across rows. Deliberate UI improvement, not DOS-accurate.
 - **CHANGE popup** shows remaining cost (requirement − banked hammers,
-  min 0); tools never adjusted.
+  min 0); tools never adjusted. Rows go through the dialog writer in the box
+  style (@COLORS 68; the current project's row starts in the hilite ink 149,
+  `FUN_2f2b_5bd2` raw 52607-52610). Past 22 rows it is exactly two pages of 16:
+  page 0 ends with "(More)", page 1 starts with the back "(More)" (port_bugs.md
+  #1195).
 - **BUY (`FUN_2f2b_5e44`, player-corrected twice):** one uniform `@BUYME1`
   Yes/No when affordable, `@BUYME0` info when not — never a
   tools-short-specific popup (`@NEEDTOOLS*` stays turn.c's EOT notice).
@@ -177,12 +181,25 @@ all 16 New Amsterdam cargoes.
 Click on the building opens a per-cargo checklist
 (`colony_screen_open/draw_custom_house`): every cargo but Food (15 rows —
 the Col1 bitfield has all 16, the autosell denylist applies at EOT sell
-time, not in the list), DOS-style bullet ring (GAME.TXT `@CUSTOM` has an
-`@checkbox` directive; the pixel font has no usable `[`/`]` or circle
-glyphs), uniform dark green text, row click toggles
+time, not in the list), `@checkbox` rows `] Sugar` / `[ Sugar` (FONTTINY's
+`]` / `[` are the filled / hollow circles), one uniform ink (player request:
+not the old bright green) which is the box style's @COLORS 68 (port_bugs.md
+#1200), row click toggles
 `colonies_toggle_custom_house_cargo()`, stays open. Colonists cannot be
 assigned to Custom House / Printing Press / Newspaper (no `@JOB` slot) —
 guard in `colonies_assign_workplace`.
+
+### Jobs / leave-as popups (`FUN_2f2b_348c`)
+
+Row text is DOS's: @JOB column 0, the `|   ` column tab, then for jobs below
+0x13 (not 0x12) ` = ` + [the yield on the colonist's own plot + `/`] + the
+estimate + the @CARGO name, right-aligned to `frame_x + w - 13`. The estimate is
+`ai_euro_jobs_menu_estimate`: a field job is the yield of the plot
+`FUN_15eb_28c8(slot, job)` would pick, an indoor job `FUN_15eb_1d4c` (Statesman
+plus Jefferson / Paine / press). The specialty's row is drawn in the hilite ink,
+Clear Specialty is page 0's first row, the default row is the current
+occupation, and more than 16 job rows make two pages (port_bugs.md #1195,
+#1196). The prose has no space before the "(": DS:0x5e is `(`.
 
 ### Shared sprite blitting: `unit_chrome_blit` 3-mode component
 

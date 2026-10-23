@@ -320,6 +320,45 @@ void font_draw_text(
   font_draw_text_hotkey(font, framebuffer, x, y, text, color, color);
 }
 
+/* One glyph, no marker handling; returns the advance. framebuffer NULL = measure only. */
+static int font_draw_glyph(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y,
+  unsigned char ch,
+  uint8_t color,
+  bool unbold_colored,
+  const uint8_t* shade_colors
+) {
+  /* Some .FF faces (notably FONTSMAL) omit punctuation such as '/'.
+   * Skipping those glyphs advanced 0px and jammed digits into "57" for "5/7". */
+  if (font && font->section_data && ch < 128 && font->char_widths[ch] != 0) {
+    if (framebuffer) {
+      draw_ff_glyph(font, framebuffer, x, y, ch, color, unbold_colored, shade_colors);
+    }
+    return font->char_widths[ch];
+  }
+  if (framebuffer) {
+    draw_builtin_glyph(framebuffer, x, y, ch, color);
+  }
+  return 6;
+}
+
+int font_draw_glyph_shaded(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y,
+  unsigned char ch,
+  const uint8_t shade_colors[4]
+) {
+  return font_draw_glyph(
+    font, shade_colors ? framebuffer : NULL, x, y, ch, shade_colors ? shade_colors[1] : 0, false,
+    shade_colors
+  );
+}
+
 /*
  * IN-15: font_draw_text, _unbold, _hotkey and _shaded were four copies of one
  * glyph loop (newline step, marker skip, FF-vs-builtin dispatch, advance),
@@ -364,20 +403,7 @@ static void font_draw_run(
 
     const uint8_t use = next_hotkey ? (uint8_t)hotkey_color : color;
     next_hotkey = false;
-
-    /* Some .FF faces (notably FONTSMAL) omit punctuation such as '/'.
-     * Skipping those glyphs advanced 0px and jammed digits into "57" for "5/7". */
-    if (font && font->section_data && ch < 128 && font->char_widths[ch] != 0) {
-      draw_ff_glyph(font, framebuffer, cx, y, ch, use, unbold_colored, shade_colors);
-      cx += font->char_widths[ch];
-      continue;
-    }
-
-    if (ch < 32 || ch > 126) {
-      ch = '?';
-    }
-    draw_builtin_glyph(framebuffer, cx, y, ch, use);
-    cx += 6;
+    cx += font_draw_glyph(font, framebuffer, cx, y, ch, use, unbold_colored, shade_colors);
   }
 }
 

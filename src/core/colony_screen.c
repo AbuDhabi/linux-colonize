@@ -555,6 +555,18 @@ void colony_screen_open_jobs(
    * once their DS:0x2f4 building stands. DOS DROPS an unowned row (FUN_15eb_3454
    * returns 0), it does not grey it. Rows 0x13..0x18 are the leave-as list and
    * are served by the port's eject popup. */
+  /* FUN_2f2b_348c raw 50736-50739: a colonist with a specialty (FUN_15eb_0002 —
+   * profession outside 0x13/0x19/0x1a/0x1b/0x1c) gets "Clear Specialty" (menu id
+   * 0x61) as page 0's FIRST row, ahead of the jobs; picking it asks @LOBOTOMIZE
+   * before wiping to 0x1c. */
+  if (view->selected_colonist >= 0 && view->selected_colonist < colony->colonist_count) {
+    const int prof = sel_prof;
+    if (prof != UNITS_JOB_COLONIST && prof != COLONIZE_PROF_INDENTURED &&
+        prof != COLONIZE_PROF_CRIMINAL &&
+        prof != COLONIZE_PROF_CONVERT && prof != COLONIZE_PROF_FREE_COLONIST) {
+      view->job_ids[view->job_count++] = COLONY_JOB_CLEAR_SPECIALTY;
+    }
+  }
   for (int job = 0; job < COLONIZE_FIELD_JOB_COUNT && view->job_count < COLONY_JOB_LIST_MAX; ++job) {
     view->job_ids[view->job_count++] = job;
   }
@@ -564,20 +576,25 @@ void colony_screen_open_jobs(
       view->job_ids[view->job_count++] = job;
     }
   }
-  /* FUN_2f2b_348c: a colonist with a specialty (FUN_15eb_0002 — profession
-   * outside 0x13/0x19/0x1a/0x1b/0x1c) gets one extra row, "Clear Specialty"
-   * (menu id 0x61); picking it asks @LOBOTOMIZE before wiping to 0x1c. */
-  if (view->selected_colonist >= 0 && view->selected_colonist < colony->colonist_count &&
-      view->job_count < COLONY_JOB_LIST_MAX) {
-    const int prof = sel_prof;
-    if (prof != UNITS_JOB_COLONIST && prof != COLONIZE_PROF_INDENTURED &&
-        prof != COLONIZE_PROF_CRIMINAL &&
-        prof != COLONIZE_PROF_CONVERT && prof != COLONIZE_PROF_FREE_COLONIST) {
-      view->job_ids[view->job_count++] = COLONY_JOB_CLEAR_SPECIALTY;
+  /* raw 50812: the box's default row is the colonist's current occupation
+   * (FUN_291f_08ec) on the page that lists it, else the page's first row. */
+  view->jobs_default_row = 0;
+  if (view->selected_colonist >= 0 && view->selected_colonist < colony->colonist_count) {
+    const ColonizeColonist* c = &colony->colonists[view->selected_colonist];
+    const int occ = c->field_job >= 0 ? c->field_job
+                    : (pool && c->building_type >= 0)
+                      ? colonies_building_occupation(pool, c->building_type)
+                      : -1;
+    for (int i = 0; i < view->job_count; ++i) {
+      if (occ >= 0 && view->job_ids[i] == occ) {
+        view->jobs_default_row = i;
+      }
     }
   }
   view->jobs_open = true;
-  view->jobs_selection = 0;
+  /* DOS opens on page 0 (local_6 = 0, raw 50676). */
+  view->jobs_selection =
+    colony_screen_jobs_page_of(view, view->jobs_default_row) == 0 ? view->jobs_default_row : 0;
 }
 
 void colony_screen_open_dock_orders(

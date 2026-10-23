@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include "core/assets.h"
+#include "core/colony.h"
 #include "core/font.h"
 #include "core/popup.h"
 #include "core/ss.h"
@@ -23,7 +24,6 @@ typedef enum CheatListKind {
   CHEAT_LIST_KIND_NONE = 0,
   CHEAT_LIST_KIND_SETVIEW,
   CHEAT_LIST_KIND_KILL_INDIANS,
-  CHEAT_LIST_KIND_FIND_COLONY,
   CHEAT_LIST_KIND_TRADE_SELECT,
   /* TRADE destination picker (@TRADESTART / editor row): ids = colony id,
    * 999 = Europe, 1000 = "(Delete Destination)" (LABELS @ROUTE 8). */
@@ -41,6 +41,17 @@ typedef enum CheatListKind {
    * ids = colony id, 999 = Europe. */
   CHEAT_LIST_KIND_GOTO_PORT
 } CheatListKind;
+
+/* A FUN_647e_01c6 destination row's "at colony" state (647e:03c4-0436): the unit stands on
+ * that colony and the caller asked for the test (Go to Port). */
+typedef enum CheatListDestAt {
+  CHEAT_LIST_DEST_PLAIN = 0,
+  CHEAT_LIST_DEST_GREYED, /* a ship there: row added greyed (FUN_291f_01b6) */
+  CHEAT_LIST_DEST_OMITTED /* a land unit there: no row, its slot still counts */
+} CheatListDestAt;
+
+/* Every destination one FUN_647e_01c6 call can offer: the Europe row + all colonies. */
+#define CHEAT_LIST_DEST_MAX (COLONIZE_COLONIES_MAX + 1)
 
 typedef struct CheatListDialog {
   bool open;
@@ -60,6 +71,21 @@ typedef struct CheatListDialog {
   int result_id;
   uint16_t result_mask; /* multi_select confirm bitmask */
   char result_label[CHEAT_LIST_LABEL_LEN];
+  /* FUN_647e_01c6 pager (cheat_list_open_dest_pages): every destination the caller's filter
+   * passed, one page of them in options[]; the Previous / More rows turn the page in place. */
+  bool paged;
+  int page;
+  int page_count;
+  int page_size;
+  bool dest_europe; /* dest 0 is the Europe row */
+  bool dest_delete; /* "(Delete Destination)" closes the last page */
+  int dest_default; /* id preselected on whatever page shows it, -1 = none */
+  int dest_count;
+  int dest_ids[CHEAT_LIST_DEST_MAX];
+  uint8_t dest_at[CHEAT_LIST_DEST_MAX]; /* CheatListDestAt */
+  char dest_labels[CHEAT_LIST_DEST_MAX][CHEAT_LIST_LABEL_LEN];
+  char dest_delete_label[CHEAT_LIST_LABEL_LEN];
+  uint16_t disabled_mask; /* bit i = options[i] greyed: skipped by Up/Down, clicks ignored */
   /* Last computed layout (for hit-testing). */
   int dialog_x;
   int dialog_y;
@@ -84,18 +110,6 @@ bool cheat_list_open_kill_indians(
   CheatListDialog* dlg, const ColonizeMsgCatalog* names, uint8_t alive_mask
 );
 
-/*
- * Find Colony picker (@FINDCITY). labels[i] = colony name; option_ids = colony id.
- * Caller supplies up to CHEAT_LIST_MAX_OPTIONS entries.
- */
-bool cheat_list_open_find_colony(
-  CheatListDialog* dlg,
-  const char* prompt,
-  const char* const* labels,
-  const int* colony_ids,
-  int count
-);
-
 /* Trade route picker (@TRADESELECT). option_ids = route slot index. */
 bool cheat_list_open_trade_select(
   CheatListDialog* dlg,
@@ -115,16 +129,30 @@ bool cheat_list_open_trade_dest(
 );
 
 /*
- * Unit ORDERS "Go to Port" (@SAILPORT — ship destination-colony picker,
- * DOS FUN_647e_01c6 with unit>=0). option_ids = colony id, 999 = Europe.
+ * FUN_647e_01c6 (raw 102334-102461) destination pager: Go to Port (CHEAT_LIST_KIND_GOTO_PORT)
+ * and the trade-route create / editor stop pickers (CHEAT_LIST_KIND_TRADE_DEST). labels / ids /
+ * at (NULL = all plain) are every destination the caller's FUN_647e_0094 filter passed, in DOS
+ * colony order, the Europe row first when `europe`. Pages per cheat_list_dest_page_math; page 0
+ * opens (DOS never jumps to the default's page). Rows per page: "(More)" (LABELS @CTITLE 6) as
+ * Previous on page > 0, the page's destinations (greyed / omitted per at[]; default_id
+ * preselected unless greyed), then "(More)" before the last page or, on it, `delete_label`
+ * (NULL = none) with id 1000. Returns false, showing nothing, when the page has no row.
  */
-bool cheat_list_open_goto_port(
+bool cheat_list_open_dest_pages(
   CheatListDialog* dlg,
+  CheatListKind kind,
   const char* prompt,
   const char* const* labels,
-  const int* dest_ids,
-  int count
+  const int* ids,
+  const uint8_t* at,
+  int count,
+  bool europe,
+  int default_id,
+  const char* delete_label
 );
+
+/* FUN_647e_01c6 page math for n colonies, e = 1 with the Europe row (docs/dos_bugs.md DB-53). */
+void cheat_list_dest_page_math(int n, int e, int* page_size, int* page_count);
 
 /*
  * Set the initial highlighted row after opening a list (DOS @default /

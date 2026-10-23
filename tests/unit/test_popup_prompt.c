@@ -8,9 +8,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/col1_save.h"
+#include "core/combat_analysis.h"
 #include "core/fb.h"
 #include "core/font_file.h"
 #include "core/popup.h"
+#include "core/reports.h"
+#include "core/trade_screen.h"
 #include "core/ui_colors.h"
 #include "core/unit_stack.h"
 #include "platform/diagnostics.h"
@@ -120,6 +124,172 @@ static int case_dialog_text_is_dos_shaded(void) {
     }
   }
   font_file_free(&font);
+  return rc;
+}
+
+/* port_bugs.md #1199: FUN_6f74_0538 6f74:05be draws the byte after '~' as a plain glyph in
+ * the other ink (hilite outside {}, base inside) and restores; FUN_6f74_0486 deletes
+ * "~{}|" before measuring; '|' ends the text. */
+static int case_dialog_tilde_is_dos(void) {
+  ColonizeFont font;
+  if (!load_font(&font)) {
+    return TR_SKIP;
+  }
+  static uint8_t got[W * H], want[W * H];
+  const uint8_t base[4] = {0, COLONIZE_COL_BASIC, COLONIZE_COL_ENHANCE, COLONIZE_COL_SHADOW};
+  const uint8_t hi[4] = {0, COLONIZE_COL_HILITE, COLONIZE_COL_ENHANCE, COLONIZE_COL_SHADOW};
+  ColonizeFramebuffer8 fb = {.width = W, .height = H, .pixels = got};
+  int rc = 0;
+  for (int t = 0; t < 4; ++t) {
+    static const char* const k_text[] = {"Show ~Indian", "{x~Yz}", "a~#b", "ab|cd"};
+    memset(got, 0xcc, sizeof(got));
+    memset(want, 0xcc, sizeof(want));
+    const int end = popup_draw_text_markup(
+      &font, &fb, 20, 30, k_text[t], COLONIZE_COL_BASIC, COLONIZE_COL_HILITE, NULL, NULL
+    );
+    int x = 20;
+    if (t == 0) {
+      x = expect_run(&font, want, expect_run(&font, want, x, 30, "Show ", base), 30, "I", hi);
+      x = expect_run(&font, want, x, 30, "ndian", base);
+    } else if (t == 1) {
+      x = expect_run(&font, want, expect_run(&font, want, x, 30, "x", hi), 30, "Y", base);
+      x = expect_run(&font, want, x, 30, "z", hi);
+    } else if (t == 2) { /* '#' is a glyph once escaped (the run writer skips it) */
+      x = expect_run(&font, want, expect_run(&font, want, x, 30, "a", base), 30, "#", hi);
+      x = expect_run(&font, want, x, 30, "b", base);
+    } else {
+      x = expect_run(&font, want, x, 30, "ab", base);
+    }
+    if (end != x || memcmp(got, want, sizeof(got)) != 0) {
+      fprintf(stderr, "\"%s\": end x %d want %d, or pixels are not the 0538 '~' draw\n",
+              k_text[t], end, x);
+      rc = 1;
+    }
+  }
+  /* An escaped '{' is a glyph, not a brace: what follows stays in the base ink. */
+  memset(got, 0xcc, sizeof(got));
+  memset(want, 0xcc, sizeof(want));
+  popup_draw_text_markup(&font, &fb, 20, 30, "~{xy", COLONIZE_COL_BASIC, COLONIZE_COL_HILITE,
+                         NULL, NULL);
+  const int xy = 20 + font_draw_glyph_shaded(&font, NULL, 0, 0, '{', hi);
+  expect_run(&font, want, xy, 30, "xy", base);
+  for (int i = 0; i < W * H && !rc; ++i) {
+    if (i % W >= xy && got[i] != want[i]) {
+      fprintf(stderr, "\"~{xy\": (%d,%d) drawn %u want %u\n", i % W, i / W, got[i], want[i]);
+      rc = 1;
+    }
+  }
+  if (popup_markup_text_width(&font, "Show ~Indian") != font_text_width(&font, "Show Indian") ||
+      popup_markup_text_width(&font, "~[ {a}|b") != font_text_width(&font, "[ ab")) {
+    fprintf(stderr, "popup_markup_text_width does not delete ~{}| (FUN_6f74_0486)\n");
+    rc = 1;
+  }
+  font_file_free(&font);
+  return rc;
+}
+
+/* Non-zero-shade pixels of s in font f (the {skip, c, c, c} map paints every one). */
+static int ink_pixels(const ColonizeFont* f, const char* s) {
+  int n = 0;
+  for (; *s; ++s) {
+    const unsigned char ch = (unsigned char)*s;
+    const int w = f->char_widths[ch];
+    const int bpr = ((w - 1) >> 2) + 1;
+    const uint8_t* g = f->section_data + f->char_offsets[ch];
+    for (int r = 0; r < f->max_height && w > 0; ++r) {
+      for (int c = 0; c < w; ++c) {
+        n += ((g[r * bpr + (c >> 2)] >> (6 - 2 * (c & 3))) & 3) != 0;
+      }
+    }
+  }
+  return n;
+}
+
+/* port_bugs.md #1201: Combat Analysis (FUN_636c_0000) and the trade-route screen
+ * (FUN_647e_09da) write through FUN_104b_0288 / 02c2 / 0318: one FONTTINY blit through
+ * {skip, c, c, c}, no shadow. Combat Analysis: labels / names @COLORS basic, values and
+ * base strengths hilite. Trade route: ink 0x0f on a 0x22 fill, grid and OK outline 0. */
+static int case_stat_screens_text_is_one_pass(void) {
+  ColonizeFont tiny;
+  char err[128];
+  if (!font_file_load("COLONIZE/FONTTINY.FF", &tiny, err, sizeof(err))) {
+    fprintf(stderr, "SKIP: FONTTINY.FF: %s\n", err);
+    return TR_SKIP;
+  }
+  static uint8_t a[W * H], b[W * H];
+  ColonizeFramebuffer8 fa = {.width = W, .height = H, .pixels = a};
+  ColonizeFramebuffer8 fbb = {.width = W, .height = H, .pixels = b};
+  int rc = 0;
+
+  static CombatAnalysisDialog dlg;
+  memset(&dlg, 0, sizeof(dlg));
+  dlg.open = true;
+  dlg.atk_chrome.sprite = dlg.def_chrome.sprite = -1;
+  snprintf(dlg.atk_name, sizeof(dlg.atk_name), "Ab");
+  snprintf(dlg.def_name, sizeof(dlg.def_name), "Cd");
+  dlg.eng.atk_flags.base_combat = 2;
+  dlg.eng.def_flags.base_combat = 3;
+  snprintf(dlg.atk_rows[0].label, sizeof(dlg.atk_rows[0].label), "Lx");
+  snprintf(dlg.atk_rows[0].value, sizeof(dlg.atk_rows[0].value), "50");
+  dlg.atk_rows[0].icon_sprite = -1;
+  dlg.atk_line_count = 1;
+  memset(a, 0, sizeof(a));
+  memset(b, 0, sizeof(b));
+  combat_analysis_render(&dlg, NULL, NULL, NULL, NULL, NULL, NULL, NULL, COLONIZE_COL_BASIC,
+                         COLONIZE_COL_HILITE, NULL, &fa); /* chrome only */
+  combat_analysis_render(&dlg, &tiny, NULL, NULL, NULL, NULL, NULL, NULL, COLONIZE_COL_BASIC,
+                         COLONIZE_COL_HILITE, NULL, &fbb);
+  int n_basic = 0, n_hi = 0, n_other = 0;
+  for (int i = 0; i < W * H; ++i) {
+    if (a[i] != b[i]) {
+      n_basic += b[i] == COLONIZE_COL_BASIC;
+      n_hi += b[i] == COLONIZE_COL_HILITE;
+      n_other += b[i] != COLONIZE_COL_BASIC && b[i] != COLONIZE_COL_HILITE;
+    }
+  }
+  const int want_basic =
+    ink_pixels(&tiny, "AbCdLx") + ink_pixels(&tiny, reports_misc_display_word(75, ""));
+  const int want_hi = ink_pixels(&tiny, "2350");
+  if (n_other || n_basic != want_basic || n_hi != want_hi) {
+    fprintf(stderr, "combat analysis text: %d basic (want %d), %d hilite (want %d), %d other\n",
+            n_basic, want_basic, n_hi, want_hi, n_other);
+    rc = 1;
+  }
+
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  snprintf(col1.trade_route[0].name, sizeof(col1.trade_route[0].name), "Run");
+  col1.trade_route[0].dest_count = 1;
+  col1.trade_route[0].stop[0].colony_index = 999;
+  TradeScreen ts;
+  trade_screen_init(&ts, NULL);
+  snprintf(ts.lab_title, sizeof(ts.lab_title), "TR");
+  snprintf(ts.lab_name, sizeof(ts.lab_name), "Nm");
+  snprintf(ts.lab_ok, sizeof(ts.lab_ok), "OK");
+  trade_screen_open(&ts, 0);
+  memset(b, 0xcc, sizeof(b));
+  trade_screen_render(&ts, &col1, NULL, "Eu", &tiny, NULL, &fbb);
+  memset(a, 0x22, sizeof(a));
+  const uint8_t ink[4] = {0, 0x0f, 0x0f, 0x0f};
+  /* "TR 1" centred over 0..0x140 at y 5 (FUN_104b_0318). */
+  expect_run(&tiny, a, 0xa0 - ((font_text_width(&tiny, "TR 1") - 1) >> 1), 5, "TR 1", ink);
+  int n15 = 0;
+  for (int i = 0; i < W * H; ++i) {
+    n15 += b[i] == 0x0f;
+    if (b[i] != 0x22 && b[i] != 0 && b[i] != 0x0f) {
+      n_other++;
+    }
+    if (i / W < 5 + tiny.max_height && a[i] != b[i]) {
+      n_other++;
+    }
+  }
+  const int want15 = ink_pixels(&tiny, "TR1Nm RunOK1.  Eu");
+  if (n_other || n15 != want15) {
+    fprintf(stderr, "trade route: %d ink-15 pixels (want %d), %d off-map / title pixels\n", n15,
+            want15, n_other);
+    rc = 1;
+  }
+  font_file_free(&tiny);
   return rc;
 }
 
@@ -509,6 +679,8 @@ static int case_units_present_is_dos(void) {
 static const TestCase k_cases[] = {
   {"field_body_is_markup", case_field_body_is_markup},
   {"dialog_text_is_dos_shaded", case_dialog_text_is_dos_shaded},
+  {"dialog_tilde_is_dos", case_dialog_tilde_is_dos},
+  {"stat_screens_text_is_one_pass", case_stat_screens_text_is_one_pass},
   {"field_geometry_is_dos", case_field_geometry_is_dos},
   {"field_decoration_is_dos", case_field_decoration_is_dos},
   {"place_dos", case_place_dos},

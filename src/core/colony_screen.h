@@ -169,7 +169,7 @@ typedef enum ColonyScreenHit {
   COLONY_HIT_AREA_TILE,
   COLONY_HIT_AREA_INTERIOR, /* area-view centre / non-assignable spot: numbers toggle */
   COLONY_HIT_JOBS_ROW,
-  COLONY_HIT_JOBS_CLEAR,
+  COLONY_HIT_JOBS_MORE, /* FUN_2f2b_348c 0x62 "(More)" page toggle (port_bugs.md #1195) */
   COLONY_HIT_JOBS_OUTSIDE,
   COLONY_HIT_CARGO_SLOT,
   COLONY_HIT_TRANSPORT,
@@ -313,14 +313,12 @@ typedef struct ColonyScreenView {
   int construction_selection;
   int buildable_ids[COLONY_BUILDABLE_MAX];
   int buildable_count;
-  ColonyDialogRect construction_rect;
-  int construction_rows_per_col; /* DOS 2f2b_5bd2: 16 rows per PAGE when > 22 rows */
-  int construction_col_w;
-  int construction_page; /* port_bugs.md #436: DOS pages (More...), never columns */
+  ColonyDialogRect construction_rect; /* page = the selection's (colony_screen_popups.c) */
 
   bool jobs_open;
   int jobs_tile_index;
   int jobs_selection;
+  int jobs_default_row; /* FUN_2f2b_348c 08ec default: the occupation's row, else 0 */
   int job_ids[COLONY_JOB_LIST_MAX];
   int job_count;
   ColonyDialogRect jobs_rect;
@@ -417,8 +415,9 @@ void colony_screen_open_construction(
   const ColoniesBuildableOpts* buildable_opts
 );
 void colony_screen_close_construction(ColonyScreenView* view);
-/* port_bugs.md #436: advance the construction picker's More... page. */
+/* FUN_2f2b_5bd2 / 348c "(More)" rows: flip the construction / jobs list's page. */
 void colony_screen_construction_next_page(ColonyScreenView* view);
+void colony_screen_jobs_next_page(ColonyScreenView* view);
 
 void colony_screen_open_jobs(
   ColonyScreenView* view,

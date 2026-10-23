@@ -809,3 +809,15 @@ port-authored notice, "The X cancel their treaty with the Y.", when the section
 is missing (MET pairs with the human only, as before); a GAME.TXT that has the
 section still wins. All goldens and `golden_ai_joint` pass.
 **Status:** done (2026-10-23). Came from dos_bug_candidates_2026-10-22.md C-79.
+
+### DB-53 — Go to Port / route stop pickers lose the last colony at 20, 30 or 40 (port_bugs.md #1194)
+**DOS:** FUN_647e_01c6 (raw 102368-102374) pages more than 10 destination colonies
+into (n + 9) / 10 pages of 10 slots, but with the Europe row offered (slot 0, colony
+k in slot k + 1) the colonies need n + 1 slots. For n = 20, 30 or 40 the last
+colony's slot n is past the last page, so it is on no page and cannot be picked.
+
+**Port:** `cheat_list_dest_page_math` (`src/core/cheat_list_dialog.c`) counts the
+Europe slot, (n + e + 9) / 10 pages; only those three cases gain a last page holding
+Previous and that colony. Every other page is DOS's. Test `smoke_popup_dialogs
+dest_pager_is_dos`.
+**Status:** done (2026-10-23, user-approved 2026-10-23).

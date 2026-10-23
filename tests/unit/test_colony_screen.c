@@ -3049,8 +3049,169 @@ static int unit_sub_dialogs_are_dos(void) {
   return rc;
 }
 
+/*
+ * port_bugs.md #1195: FUN_2f2b_5bd2 (construction, > 0x16 rows) and FUN_2f2b_348c (jobs, > 0x10
+ * job rows) are exactly two pages of 0x10. Page 0 ends with "(More)", page 1 STARTS with it
+ * (the 0x62 back row); 348c's clear-specialty row sits on page 0 outside the quota.
+ */
+static int pages_hit(ColonyScreenView* view, bool jobs, int k, int* index) {
+  ColonyScreenHitCtx a;
+  memset(&a, 0, sizeof(a));
+  a.view = view;
+  a.hit.kind = COLONY_HIT_NONE;
+  a.hit.index = -1;
+  const ColonyDialogRect* r = jobs ? &view->jobs_rect : &view->construction_rect;
+  a.mx = r->x + 20;
+  a.my = r->list_y0 + k * r->line_h + 1;
+  if (jobs) {
+    colony_screen_hit_modal_dialogs(&a);
+  } else {
+    colony_screen_hit_construction_popup(&a);
+  }
+  *index = a.hit.index;
+  return (int)a.hit.kind;
+}
+
+static int unit_sub_dialog_pages_are_dos(void) {
+  static ColonyScreenView view;
+  memset(&view, 0, sizeof(view));
+  const ColonyDialogRect rect = {.x = 60, .y = 4, .w = 200, .h = 192, .list_y0 = 20, .line_h = 8};
+  int rc = 0;
+  int idx = -1;
+#define EXPECT(cond, ...)                                                                          \
+  do {                                                                                             \
+    if (!(cond)) {                                                                                 \
+      fprintf(stderr, __VA_ARGS__);                                                                \
+      rc = 1;                                                                                      \
+    }                                                                                              \
+  } while (0)
+
+  view.construction_open = true;
+  view.construction_rect = rect;
+  view.buildable_count = 25; /* 26 rows */
+  view.construction_selection = 0;
+  EXPECT(pages_hit(&view, false, 0, &idx) == COLONY_HIT_CONSTRUCTION_CLEAR, "c p0 k0\n");
+  EXPECT(pages_hit(&view, false, 15, &idx) == COLONY_HIT_CONSTRUCTION_ROW && idx == 14, "c p0 k15\n");
+  EXPECT(pages_hit(&view, false, 16, &idx) == COLONY_HIT_CONSTRUCTION_MORE, "c p0 k16 More\n");
+  EXPECT(pages_hit(&view, false, 17, &idx) == COLONY_HIT_NONE, "c p0 k17\n");
+  colony_screen_construction_next_page(&view);
+  EXPECT(view.construction_selection == 16, "c next -> %d\n", view.construction_selection);
+  EXPECT(pages_hit(&view, false, 0, &idx) == COLONY_HIT_CONSTRUCTION_MORE, "c p1 k0 More\n");
+  EXPECT(pages_hit(&view, false, 1, &idx) == COLONY_HIT_CONSTRUCTION_ROW && idx == 15, "c p1 k1\n");
+  EXPECT(pages_hit(&view, false, 10, &idx) == COLONY_HIT_CONSTRUCTION_ROW && idx == 24, "c p1 k10\n");
+  EXPECT(pages_hit(&view, false, 11, &idx) == COLONY_HIT_NONE, "c p1 k11\n");
+  colony_screen_construction_next_page(&view);
+  EXPECT(view.construction_selection == 0, "c back -> %d\n", view.construction_selection);
+  view.buildable_count = 21; /* 22 rows: one page, no More */
+  EXPECT(pages_hit(&view, false, 21, &idx) == COLONY_HIT_CONSTRUCTION_ROW && idx == 20, "c 22\n");
+  view.construction_open = false;
+
+  view.jobs_open = true;
+  view.jobs_rect = rect;
+  view.job_count = 19; /* clear-specialty + 18 jobs */
+  view.job_ids[0] = COLONY_JOB_CLEAR_SPECIALTY;
+  for (int i = 1; i < view.job_count; ++i) {
+    view.job_ids[i] = i - 1;
+  }
+  view.jobs_default_row = 1;
+  view.jobs_selection = 1;
+  EXPECT(pages_hit(&view, true, 0, &idx) == COLONY_HIT_JOBS_ROW && idx == 0, "j p0 k0\n");
+  EXPECT(pages_hit(&view, true, 16, &idx) == COLONY_HIT_JOBS_ROW && idx == 16, "j p0 k16\n");
+  EXPECT(pages_hit(&view, true, 17, &idx) == COLONY_HIT_JOBS_MORE, "j p0 k17 More\n");
+  colony_screen_jobs_next_page(&view);
+  EXPECT(view.jobs_selection == 17, "j next -> %d\n", view.jobs_selection);
+  EXPECT(pages_hit(&view, true, 0, &idx) == COLONY_HIT_JOBS_MORE, "j p1 k0 More\n");
+  EXPECT(pages_hit(&view, true, 2, &idx) == COLONY_HIT_JOBS_ROW && idx == 18, "j p1 k2\n");
+  EXPECT(pages_hit(&view, true, 3, &idx) == COLONY_HIT_NONE, "j p1 k3\n");
+  colony_screen_jobs_next_page(&view);
+  EXPECT(view.jobs_selection == 1, "j back -> %d (the occupation's row)\n", view.jobs_selection);
+  view.job_count = 17; /* 16 job rows: one page */
+  EXPECT(pages_hit(&view, true, 16, &idx) == COLONY_HIT_JOBS_ROW && idx == 16, "j 16\n");
+#undef EXPECT
+  return rc;
+}
+
+/*
+ * port_bugs.md #1196 / #1200: a jobs row is @JOB column 0, the DS:0xca3 "|   " tab, then
+ * " = " + the estimate + the @CARGO name right-aligned to frame_x + w - 5 - box[+0x22]
+ * (FUN_6f74_1b7c), all in the box style's @COLORS 68; the specialty's row starts in the
+ * hilite ink 149 (FUN_291f_033c).
+ */
+static int unit_jobs_rows_are_dos(void) {
+  static ColonyScreenView view;
+  char err[256];
+  if (!colony_screen_load(&view, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "SKIP: %s\n", err);
+    return TR_SKIP;
+  }
+  reports_names_load_catalogs("COLONIZE");
+  ColonizeFont tiny;
+  if (!font_file_load("COLONIZE/FONTTINY.FF", &tiny, err, sizeof(err))) {
+    colony_screen_free(&view);
+    fprintf(stderr, "SKIP: %s\n", err);
+    return TR_SKIP;
+  }
+  static ColonizeUnitPool units;
+  static ColonizeColonyPool pool;
+  static ColonizeColony colony;
+  memset(&units, 0, sizeof(units));
+  colonies_init(&pool);
+  memset(&colony, 0, sizeof(colony));
+  colony.active = true;
+  colony.colonist_count = 1;
+  colony.colonists[0].active = true;
+  colony.colonists[0].profession = COLONIZE_JOB_FARMER; /* Expert Farmer */
+  colony.colonists[0].field_job = -1;
+  colony.colonists[0].building_type = -1;
+  ColonizeWorld w = world_make(&units, &pool, NULL, NULL, false, NULL, NULL);
+  static uint8_t px[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = px};
+  view.jobs_open = true;
+  view.job_count = 2;
+  view.job_ids[0] = COLONIZE_JOB_FARMER;
+  view.job_ids[1] = 1;
+  view.selected_colonist = 0;
+  view.jobs_selection = -1;
+  colony_screen_render_w(&w, &view, &colony, NULL, NULL, 1600, 0, 0, &tiny, false, NULL, &fb);
+  const ColonyDialogRect* j = &view.jobs_rect;
+  const int right = j->x + j->w - 5 - 8;
+  int rc = 0;
+  for (int k = 0; k < 2; ++k) {
+    int lo = 320;
+    int hi = -1;
+    int basic = 0;
+    int gold = 0;
+    int other = 0;
+    for (int y = j->list_y0 + k * j->line_h + 1; y < j->list_y0 + k * j->line_h + 7; ++y) {
+      for (int x = j->x + 4; x < j->x + j->w - 4; ++x) {
+        const uint8_t c = px[y * 320 + x];
+        if (c != COLONIZE_COL_BASIC && c != COLONIZE_COL_HILITE) {
+          other += c == 15 || c == 10;
+          continue;
+        }
+        basic += c == COLONIZE_COL_BASIC;
+        gold += c == COLONIZE_COL_HILITE;
+        lo = x < lo ? x : lo;
+        hi = x > hi ? x : hi;
+      }
+    }
+    /* Row 0 Farmer is the specialty: all hilite. Row 1 Sugar Planter: all basic. */
+    const bool ink_ok = k == 0 ? (gold > 0 && basic == 0) : (basic > 0 && gold == 0);
+    if (!ink_ok || other || lo < j->x + 13 || lo > j->x + 14 || hi >= right || hi < right - 3) {
+      fprintf(stderr, "jobs row %d: x %d..%d (want %d.. <%d) basic %d gold %d other %d\n", k, lo,
+              hi, j->x + 13, right, basic, gold, other);
+      rc = 1;
+    }
+  }
+  font_file_free(&tiny);
+  colony_screen_free(&view);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"unit_sub_dialogs_are_dos", unit_sub_dialogs_are_dos},
+    {"unit_sub_dialog_pages_are_dos", unit_sub_dialog_pages_are_dos},
+    {"unit_jobs_rows_are_dos", unit_jobs_rows_are_dos},
     {"unit_plot_eviction_1080", unit_plot_eviction_1080},
     {"unit_buyme1_tokens", unit_buyme1_tokens},
     {"unit_building_click_reaches_owned", unit_building_click_reaches_owned},

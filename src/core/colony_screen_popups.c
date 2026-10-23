@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/ai_euro.h"
 #include "core/assets.h"
 #include "core/colony_craft.h"
 #include "core/colony_preview.h"
@@ -56,6 +57,7 @@ typedef struct ColonyDosLayout {
   int text_x; /* prose x; rows add box[+0x22] */
   int bar_x;
   int bar_w;
+  ColonizePopupColors colors; /* the box style's shades 2 / 3 */
 } ColonyDosLayout;
 
 #define COLONY_DOS_PROSE_LINES 4
@@ -65,7 +67,6 @@ static ColonyDosLayout colony_screen_open_dos_dialog(
   ColonizeFramebuffer8* framebuffer,
   const ColonizeFont* font,
   const char* prose,
-  uint8_t prose_ink,
   int rows,
   int content_w,
   int icon_w,
@@ -90,20 +91,20 @@ static ColonyDosLayout colony_screen_open_dos_dialog(
     h = framebuffer->height;
   }
   const PopupDosPlace pl = popup_place_dos(framebuffer->width, framebuffer->height, w, h, NULL);
-  ColonizePopupColors colors;
-  popup_colors_from_ui(&colors);
+  popup_colors_from_ui(&lay.colors);
   popup_draw(
-    framebuffer, pl.x, pl.y, w, h, view->wood_tile_ok ? &view->wood_tile : NULL, &colors, NULL,
-    NULL, NULL, NULL
+    framebuffer, pl.x, pl.y, w, h, view->wood_tile_ok ? &view->wood_tile : NULL, &lay.colors,
+    NULL, NULL, NULL, NULL
   );
   lay.text_x = pl.x + 5 + icon_w;
   lay.bar_x = pl.x + 4 + icon_w;
   lay.bar_w = w - 8 - icon_w;
+  /* FUN_6f74_116c -> FUN_6f74_0538: the prose in the box style's ink (port_bugs.md #1200). */
   bool hi = false;
   for (int i = 0; i < n; ++i) {
     popup_draw_text_markup(
-      font, framebuffer, lay.text_x, pl.y + 6 + i * (lay.glyph_h + 1), lines[i], prose_ink,
-      COLONIZE_COL_HILITE, &colors, &hi
+      font, framebuffer, lay.text_x, pl.y + 6 + i * (lay.glyph_h + 1), lines[i], COLONIZE_COL_BASIC,
+      COLONIZE_COL_HILITE, &lay.colors, &hi
     );
   }
   if (footer) {
@@ -136,15 +137,57 @@ static int colony_screen_dos_row(
   return bar_y + 1;
 }
 
-/* FUN_6f74_0a00 row width: text + 2 * box[+0x48] + box[+0x22], + box[+0x22] again for a
- * row carrying the '|' column tab (DS:0xd1d "|   "). */
-static int colony_screen_dos_row_w(const ColonizeFont* font, const char* text, int row_dx,
-                                   const char* tab_column) {
-  int w = font_text_width(font, text) + 4 + row_dx;
-  if (tab_column && tab_column[0]) {
-    w += font_text_width(font, "   ") + font_text_width(font, tab_column) + row_dx;
+/*
+ * FUN_6f74_1b7c row text through FUN_6f74_0538 in the box style (port_bugs.md #1200): @COLORS
+ * 68 ink, 149 inside {}, 8 on a disabled row (the 0x1 flag FUN_6f74_08fa sets; style+4 wins
+ * over both), glyph shades 128 / 47 (FONTTINY has shade 1 only). `hilite` is the 0x2 flag
+ * FUN_6f74_092a sets, which starts the row inside {} (1b7c: DS:0x1f62 = flags & 2). The text
+ * before the '|' column tab starts at `x`; the rest ends at frame_x + w - 5 - box[+0x22]
+ * (6f74:1d6d-1da8: box[+0x24] + box[+0x20] - box[+0x48] - box[+0x22] - its FUN_6f74_0486 width).
+ */
+static void colony_screen_dos_row_text(
+  ColonizeFramebuffer8* framebuffer,
+  const ColonizeFont* font,
+  const ColonyDosLayout* lay,
+  const ColonyDialogRect* rect,
+  int x,
+  int y,
+  int row_dx,
+  const char* text,
+  bool hilite,
+  bool disabled
+) {
+  if (!font || !text) {
+    return;
   }
-  return w;
+  const uint8_t ink = disabled ? COLONIZE_COL_GREY : COLONIZE_COL_BASIC;
+  const uint8_t hi_ink = disabled ? COLONIZE_COL_GREY : COLONIZE_COL_HILITE;
+  bool hi = hilite;
+  const char* tab = strchr(text, '|');
+  char left[96];
+  snprintf(left, sizeof(left), "%.*s", tab ? (int)(tab - text) : (int)strlen(text), text);
+  popup_draw_text_markup(font, framebuffer, x, y, left, ink, hi_ink, &lay->colors, &hi);
+  if (tab) {
+    const int w = popup_markup_text_width(font, tab + 1);
+    popup_draw_text_markup(
+      font, framebuffer, rect->x + rect->w - 5 - row_dx - w, y, tab + 1, ink, hi_ink,
+      &lay->colors, &hi
+    );
+  }
+}
+
+/* FUN_6f74_0a00 row width: the text less ~{}| (FUN_6f74_0486) + 2 * box[+0x48] + box[+0x22],
+ * + box[+0x22] again for a row carrying the '|' column tab. */
+static int colony_screen_dos_row_w(const ColonizeFont* font, const char* text, int row_dx) {
+  char plain[128];
+  size_t n = 0;
+  for (const char* p = text; *p && n + 1 < sizeof(plain); ++p) {
+    if (*p != '|') {
+      plain[n++] = *p;
+    }
+  }
+  plain[n] = '\0';
+  return popup_markup_text_width(font, plain) + 4 + row_dx + (strchr(text, '|') ? row_dx : 0);
 }
 
 /*
@@ -167,24 +210,92 @@ static bool colony_screen_dialog_row_hit(
   return true;
 }
 
-/* Construction row `gi` (0 = the clear row): label, its queue prefix and the cost column. */
+/*
+ * The FUN_2f2b_5bd2 / FUN_2f2b_348c two-page list (port_bugs.md #1195): page 0 lists entries
+ * [0, lead + 16) and ends with "(More)" (@CTITLE[6], DS:0x93aa; id 99 / 0x62), page 1 starts
+ * with "(More)" (id 0x62, back) and lists [lead + 16, lead + 32); later entries are never
+ * listed. `lead` is 348c's clear-specialty row, page 0 only and outside the 0x10 quota
+ * (local_134 counts job rows). Unpaged, the one page holds everything and has no More row.
+ */
+typedef struct ColonyDosPage {
+  int start; /* first entry on the page */
+  int n; /* entries on the page */
+  int more_at; /* the More row's index on the page, -1 = none */
+} ColonyDosPage;
+
+static ColonyDosPage colony_screen_dos_page(int count, int lead, bool paged, int page) {
+  ColonyDosPage p = {0, count, -1};
+  if (!paged) {
+    return p;
+  }
+  const int split = lead + 0x10;
+  if (page == 0) {
+    p.n = count < split ? count : split;
+    p.more_at = p.n;
+  } else {
+    p.start = split;
+    p.n = count - split > 0x10 ? 0x10 : count - split;
+    p.more_at = 0;
+  }
+  return p;
+}
+
+static int colony_screen_dos_page_rows(const ColonyDosPage* p) {
+  return p->n + (p->more_at >= 0 ? 1 : 0);
+}
+
+/* The entry page row k shows, or -1 for the More row. */
+static int colony_screen_dos_page_entry(const ColonyDosPage* p, int k) {
+  if (k == p->more_at) {
+    return -1;
+  }
+  const int i = k - (p->more_at == 0 ? 1 : 0);
+  return (i >= 0 && i < p->n) ? p->start + i : -1;
+}
+
+/* FUN_2f2b_5bd2 raw 52583-52586: more than 0x16 rows make two pages (local_a = 2, local_16 =
+ * 0x10). The shown page is the selection's. */
+static bool colony_screen_construction_paged(const ColonyScreenView* view) {
+  return view->buildable_count + 1 > 0x16;
+}
+
+static ColonyDosPage colony_screen_construction_page(const ColonyScreenView* view) {
+  const bool paged = colony_screen_construction_paged(view);
+  return colony_screen_dos_page(
+    view->buildable_count + 1, 0, paged, paged && view->construction_selection >= 0x10 ? 1 : 0
+  );
+}
+
+/* The "(More)" rows: page 0 <-> page 1, the selection on the new page's first row. */
+void colony_screen_construction_next_page(ColonyScreenView* view) {
+  if (!view || !colony_screen_construction_paged(view)) {
+    return;
+  }
+  view->construction_selection = view->construction_selection >= 0x10 ? 0 : 0x10;
+}
+
+/*
+ * Construction row `gi` (0 = the clear row, -1 = "(More)"): the row text, the cost behind the
+ * DS:0xd1d "|   " column tab (FUN_2f2b_5a68), and the port-only queue prefix.
+ */
 static void colony_screen_construction_row_text(
   const ColonyScreenView* view,
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   int gi,
-  char* label,
-  size_t label_cap,
+  char* row,
+  size_t row_cap,
   char* queue_prefix,
-  size_t prefix_cap,
-  char* cost,
-  size_t cost_cap
+  size_t prefix_cap
 ) {
-  cost[0] = 0;
   queue_prefix[0] = 0;
+  if (gi < 0) {
+    snprintf(row, row_cap, "%s", reports_ctitle_word(6)); /* DS:0x93aa "(More)" */
+    return;
+  }
   if (gi == 0) {
     /* @CTITLE row 6 "(No Production)" (DS:0x93a8, FUN_2f2b_5a68 param -1). */
-    snprintf(label, label_cap, "%s", reports_ctitle_word(5));
+    snprintf(row, row_cap, "%s", reports_ctitle_word(5));
     return;
   }
   const int bid = view->buildable_ids[gi - 1];
@@ -210,15 +321,14 @@ static void colony_screen_construction_row_text(
     if (hammers_left < 0) {
       hammers_left = 0;
     }
-    snprintf(label, label_cap, "%s", bt->name);
     /* NAMES.TXT @CARGO row 16 "Hammers", row 14 "Tools". */
     if (bt->tools_cost > 0) {
       snprintf(
-        cost, cost_cap, "%d %s %d %s", hammers_left, colony_screen_hammers_word(),
+        row, row_cap, "%s|   %d %s %d %s", bt->name, hammers_left, colony_screen_hammers_word(),
         bt->tools_cost, reports_cargo_display_name(14)
       );
     } else {
-      snprintf(cost, cost_cap, "%d %s", hammers_left, colony_screen_hammers_word());
+      snprintf(row, row_cap, "%s|   %d %s", bt->name, hammers_left, colony_screen_hammers_word());
     }
   } else if (colonies_unit_build_info(bid, &uname, &uh, &ut)) {
     /* Artillery (colonies_unit_build_info) — not a real @BUILDING row. */
@@ -226,13 +336,12 @@ static void colony_screen_construction_row_text(
     if (hammers_left < 0) {
       hammers_left = 0;
     }
-    snprintf(label, label_cap, "%s", uname);
     snprintf(
-      cost, cost_cap, "%d %s %d %s", hammers_left, colony_screen_hammers_word(), ut,
+      row, row_cap, "%s|   %d %s %d %s", uname, hammers_left, colony_screen_hammers_word(), ut,
       reports_cargo_display_name(14)
     );
   } else {
-    snprintf(label, label_cap, "?");
+    snprintf(row, row_cap, "?");
   }
 }
 
@@ -246,118 +355,61 @@ static void colony_screen_draw_construction_popup(
   if (!view || !view->construction_open || !framebuffer || !framebuffer->pixels) {
     return;
   }
-  const int rows = view->buildable_count + 1; /* Clear + projects (Buy is multifunction) */
-  /* port_bugs.md #436 / DOS 2f2b_5bd2: SINGLE column always. Past 0x16 = 22 rows
-   * the DOS picker splits into PAGES of 0x10 = 16 rows chained with a
-   * "More..." row — never side-by-side columns. */
-  const int rows_per_page = rows > 22 ? 16 : rows;
-  const int pages = rows_per_page > 0 ? (rows + rows_per_page - 1) / rows_per_page : 1;
-  if (view->construction_selection >= 0 && rows_per_page > 0) {
-    view->construction_page = view->construction_selection / rows_per_page;
-  }
-  if (view->construction_page < 0 || view->construction_page >= pages) {
-    view->construction_page = 0;
-  }
-  const int page = view->construction_page;
-  const int start = page * rows_per_page;
-  int n_slice = rows - start;
-  if (n_slice > rows_per_page) {
-    n_slice = rows_per_page;
-  }
-  const int drawn_rows = n_slice + (pages > 1 ? 1 : 0); /* +More... */
+  /* port_bugs.md #436 / DOS 2f2b_5bd2: SINGLE column always, paged past 22 rows. */
+  const ColonyDosPage pg = colony_screen_construction_page(view);
+  const int drawn_rows = colony_screen_dos_page_rows(&pg);
   /*
    * FUN_2f2b_5bd2: FUN_291f_023c(0x800, FONTTINY) box (no @width: box[+0x28] 0x50, box[+0x22]
    * the 4 default), the @CTITLE[4] prose (DS:0x93a6), rows widen it (FUN_6f74_0a00), and it
    * raises DS:0x1f66 (raw 52632) for the footer.
    */
-  char label[80];
-  char cost[48];
+  char row[128];
   char queue_prefix[16];
   int content_w = 0x50;
-  for (int i = 0; i < drawn_rows && font; ++i) {
-    if (i >= n_slice) {
-      snprintf(label, sizeof(label), "%s", reports_ctitle_word(6));
-      cost[0] = queue_prefix[0] = 0;
-    } else {
-      colony_screen_construction_row_text(view, pool, colony, start + i, label, sizeof(label),
-                                          queue_prefix, sizeof(queue_prefix), cost, sizeof(cost));
-    }
-    const int w =
-      colony_screen_dos_row_w(font, label, 4, cost) + font_text_width(font, queue_prefix);
+  for (int k = 0; k < drawn_rows && font; ++k) {
+    colony_screen_construction_row_text(view, pool, colony, colony_screen_dos_page_entry(&pg, k),
+                                        row, sizeof(row), queue_prefix, sizeof(queue_prefix));
+    const int w = colony_screen_dos_row_w(font, row, 4) + font_text_width(font, queue_prefix);
     if (w > content_w) {
       content_w = w;
     }
   }
-  /* port_bugs.md #436: DOS draws this picker's text GREEN (the standard menu ink),
-   * and the "|   " (DS:0xd1d) tab in 2f2b_5a68 right-justifies the cost. */
-  const uint8_t ink = 10u;
-  /* LABELS.TXT @CTITLE row 5 ("Select An Item To Build") — port_bugs.md #990. */
+  /* LABELS.TXT @CTITLE row 5 ("Select An Item To Build") — port_bugs.md #990. port_bugs.md
+   * #436's "green" is the box style's ink (@COLORS 68), not EGA 10. */
   const ColonyDosLayout lay = colony_screen_open_dos_dialog(
-    view, framebuffer, font, reports_ctitle_word(4), ink, drawn_rows, content_w, 0, true,
+    view, framebuffer, font, reports_ctitle_word(4), drawn_rows, content_w, 0, true,
     &view->construction_rect
   );
-  view->construction_rows_per_col = rows_per_page;
-  view->construction_col_w = view->construction_rect.w - 6;
-
-  for (int i = 0; i < drawn_rows; ++i) {
-    const int gi = start + i; /* global row (More... row falls past rows) */
-    const bool more_row = (i >= n_slice);
-    const bool selected = (!more_row && gi == view->construction_selection);
-    const int row_y =
-      colony_screen_dos_row(framebuffer, &lay, &view->construction_rect, i, selected);
-    if (row_y + lay.glyph_h > framebuffer->height) {
+  /* raw 52607-52610: the current project's row (the clear row when nothing is in production)
+   * gets FUN_291f_033c's hilite flag as well as the default selection. */
+  const int current = colony ? colony->building_in_production : -1;
+  for (int k = 0; k < drawn_rows; ++k) {
+    const int gi = colony_screen_dos_page_entry(&pg, k);
+    const int row_y = colony_screen_dos_row(
+      framebuffer, &lay, &view->construction_rect, k, gi >= 0 && gi == view->construction_selection
+    );
+    if (row_y + lay.glyph_h > framebuffer->height || !font) {
       continue;
     }
-    if (more_row) {
-      /* @CTITLE row 7 "(More)"; the clear row is row 6 "(No Production)". */
-      snprintf(label, sizeof(label), "%s", reports_ctitle_word(6));
-      cost[0] = queue_prefix[0] = 0;
-    } else {
-      colony_screen_construction_row_text(view, pool, colony, gi, label, sizeof(label),
-                                          queue_prefix, sizeof(queue_prefix), cost, sizeof(cost));
+    colony_screen_construction_row_text(view, pool, colony, gi, row, sizeof(row), queue_prefix,
+                                        sizeof(queue_prefix));
+    int x = lay.text_x + 4;
+    if (queue_prefix[0]) {
+      x = popup_draw_text_markup(font, framebuffer, x, row_y, queue_prefix, 14u, 14u, &lay.colors,
+                                 NULL);
     }
-    if (font) {
-      int label_x = lay.text_x + 4;
-      if (queue_prefix[0]) {
-        font_draw_text(font, framebuffer, label_x, row_y, queue_prefix, 14u); /* DOS 0xe */
-        label_x += font_text_width(font, queue_prefix);
-      }
-      font_draw_text(font, framebuffer, label_x, row_y, label, ink);
-      if (cost[0]) {
-        /* The '|' column ends at frame + w - 5 - box[+0x22] (the Europe shots measure
-         * frame + w - 13 with box[+0x22] 8, #1187). */
-        const int cw = font_text_width(font, cost);
-        font_draw_text(
-          font, framebuffer,
-          view->construction_rect.x + view->construction_rect.w - 5 - 4 - cw, row_y, cost, ink
-        );
-      }
-    }
+    const bool is_current = gi == 0 ? current < 0 : gi > 0 && view->buildable_ids[gi - 1] == current;
+    colony_screen_dos_row_text(framebuffer, font, &lay, &view->construction_rect, x, row_y, 4, row,
+                               is_current, false);
   }
-}
-
-/* port_bugs.md #436: advance the DOS "More..." page (wraps). */
-void colony_screen_construction_next_page(ColonyScreenView* view) {
-  if (!view) {
-    return;
-  }
-  const int rows = view->buildable_count + 1;
-  const int per = rows > 22 ? 16 : rows;
-  const int pages = per > 0 ? (rows + per - 1) / per : 1;
-  if (pages <= 1) {
-    return;
-  }
-  const int page = (view->construction_page + 1) % pages;
-  view->construction_page = page;
-  view->construction_selection = page * per;
 }
 
 /*
  * FUN_2f2b_348c raw 50694-50708: the jobs / leave-as prose, built the same in both modes:
  * @CTITLE[8] ("Select a Profession for", DS:0x93ae) + ' ' + the colonist's SPECIALTY as
- * @JOB column 1 (FUN_281f_0c54, 0x1c read as 0x13; -0x715c + job * 8) + " (" + the current
- * occupation's @JOB column 0 + ")" when it differs and is not 0x13 (FUN_281f_0c0e; -0x715e)
- * + DS:0x55 ": ". Catalog misses stay empty.
+ * @JOB column 1 (FUN_281f_0c54, 0x1c read as 0x13; -0x715c + job * 8) + DS:0x5e "(" + the
+ * current occupation's @JOB column 0 + DS:0x60 ")" when it differs and is not 0x13
+ * (FUN_281f_0c0e; -0x715e) + DS:0x55 ": ". No space before the "(". Catalog misses stay empty.
  */
 static void colony_screen_jobs_header(char* out, size_t cap, int spec, int occ) {
   if (spec == COLONIZE_PROF_FREE_COLONIST) {
@@ -366,7 +418,7 @@ static void colony_screen_jobs_header(char* out, size_t cap, int spec, int occ) 
   const char* spec_name = reports_names_field("JOB", spec, 1);
   int n = snprintf(out, cap, "%s %s", reports_ctitle_word(8), spec_name ? spec_name : "");
   if (n >= 0 && (size_t)n < cap && occ >= 0 && occ != spec && occ != UNITS_JOB_COLONIST) {
-    n += snprintf(out + n, cap - (size_t)n, " (%s)", colonies_profession_name(occ));
+    n += snprintf(out + n, cap - (size_t)n, "(%s)", colonies_profession_name(occ));
   }
   if (n >= 0 && (size_t)n < cap) {
     snprintf(out + n, cap - (size_t)n, ": ");
@@ -389,6 +441,67 @@ static void colony_screen_colonist_spec_occ(
   }
 }
 
+/* raw 50805-50806: the specialty's own row (and Dragoon for a Veteran Soldier) gets the
+ * FUN_291f_033c hilite flag. */
+static bool colony_screen_job_is_specialty(int job, int spec) {
+  return job == spec || (job == UNITS_JOB_DRAGOON && spec == UNITS_JOB_SOLDIER);
+}
+
+static int colony_screen_jobs_lead(const ColonyScreenView* view) {
+  return view->job_count > 0 && view->job_ids[0] == COLONY_JOB_CLEAR_SPECIALTY ? 1 : 0;
+}
+
+/* raw 50681-50683: more than 0x10 job rows (local_a) make two pages of 0x10. */
+int colony_screen_jobs_page_of(const ColonyScreenView* view, int row) {
+  const int lead = colony_screen_jobs_lead(view);
+  return view->job_count - lead > 0x10 && row >= lead + 0x10 ? 1 : 0;
+}
+
+static ColonyDosPage colony_screen_jobs_page(const ColonyScreenView* view) {
+  const int lead = colony_screen_jobs_lead(view);
+  return colony_screen_dos_page(view->job_count, lead, view->job_count - lead > 0x10,
+                                colony_screen_jobs_page_of(view, view->jobs_selection));
+}
+
+/* The 0x62 "(More)" row (raw 50828-50829: local_6 = 1 - local_6): the other page, selected on
+ * the occupation's row when that page lists it (FUN_291f_08ec), else on its first job row. */
+void colony_screen_jobs_next_page(ColonyScreenView* view) {
+  if (!view) {
+    return;
+  }
+  const int lead = colony_screen_jobs_lead(view);
+  if (view->job_count - lead <= 0x10) {
+    return;
+  }
+  const int page = 1 - colony_screen_jobs_page_of(view, view->jobs_selection);
+  view->jobs_selection = colony_screen_jobs_page_of(view, view->jobs_default_row) == page
+                           ? view->jobs_default_row
+                           : (page ? lead + 0x10 : 0);
+}
+
+/*
+ * FUN_2f2b_348c raw 50758-50778: @JOB column 0 + DS:0xca3 "|   " and, for job < 0x13 other
+ * than 0x12, DS:0xca8 " = " + [the yield on the colonist's own plot (aiStack_ec, field jobs,
+ * when he works one) + DS:0xcac "/"] + the estimate (aiStack_12c) + ' ' + its @CARGO name
+ * (the DS:0x97c0 table, aiStack_c8). `here` NULL = no plot part.
+ */
+static void colony_screen_jobs_row_text(
+  char* out, size_t cap, int job, const int* here, int estimate, int cargo
+) {
+  size_t n = (size_t)snprintf(out, cap, "%s|   ", reports_job_short_name(job));
+  if (job >= UNITS_JOB_COLONIST || job == COLONIES_JOB_TEACHER || n >= cap) {
+    return;
+  }
+  n += (size_t)snprintf(out + n, cap - n, " = ");
+  if (here && n < cap) {
+    n += (size_t)snprintf(out + n, cap - n, "%d/", *here);
+  }
+  const char* name = cargo >= 0 ? reports_names_field("CARGO", cargo, 0) : NULL;
+  if (n < cap) {
+    snprintf(out + n, cap - n, "%d %s", estimate, name ? name : "");
+  }
+}
+
 static void colony_screen_draw_jobs_popup(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,
@@ -401,59 +514,66 @@ static void colony_screen_draw_jobs_popup(
   if (!view || !view->jobs_open || !framebuffer || !framebuffer->pixels) {
     return;
   }
-  const int rows = view->job_count;
-
-  int dx = 0;
-  int dy = 0;
-  colonies_field_tile_delta(view->jobs_tile_index, &dx, &dy);
-  const int tx = colony ? colony->x + dx : 0;
-  const int ty = colony ? colony->y + dy : 0;
+  const ColonyDosPage pg = colony_screen_jobs_page(view);
+  const int drawn_rows = colony_screen_dos_page_rows(&pg);
 
   /* Docks (or an upgrade: Drydock/Shipyard) gates Fisherman yield to 0 —
    * FUN_15eb_18ec:11967-11969. Shared answer, so it cannot drift from
    * turn.c's check the way the AI scorer's copy did (audit E#2). This is why
-   * a dockless colony's job list shows "Fisherman (0)" rather than hiding the
-   * row: DOS lists the job and answers the pick with @NODOCKS (the port does
+   * a dockless colony's job list shows "Fisherman = 0 Food" rather than hiding
+   * the row: DOS lists the job and answers the pick with @NODOCKS (the port does
    * the same, game_loop.c's two assign paths), so colony_screen_open_jobs
    * deliberately keeps building the row list ungated. */
   const bool has_docks = colony_yield_colony_has_docks(pool, colony);
+  const int slot = view->selected_colonist;
   int profession = COLONIZE_PROF_FREE_COLONIST;
   int occ = -1;
-  colony_screen_colonist_spec_occ(pool, colony, view->selected_colonist, &profession, &occ);
+  colony_screen_colonist_spec_occ(pool, colony, slot, &profession, &occ);
+  /* raw 50600-50609: the colonist's own plot (FUN_281f_0d30 -> FUN_15eb_1646), local_ee. */
+  const int plot = (colony && slot >= 0 && slot < colony->colonist_count)
+                     ? colonies_colonist_tile(colony, slot)
+                     : -1;
+  int dx = 0;
+  int dy = 0;
+  const bool on_plot = map && plot >= 0 && colonies_field_tile_delta(plot, &dx, &dy);
   /* Full production pipeline, like turn.c's field loop — SoL bonus and
    * the colony's SoL latch bits included; the picker used to skip both
    * and could disagree with what the assignment then produced (port_bugs.md:
    * "verify the popup has the proper amounts"). */
   const int sol_b_field = colony_prod_sol_bonus_field(col1, colony);
-  char labels[COLONY_JOB_LIST_MAX][48];
+  char labels[COLONY_JOB_LIST_MAX + 1][80];
   /* FUN_2f2b_348c: FUN_291f_023c(0x800, FONTTINY), box[+0x22] = 8, @width 0xbe = 190
    * (FUN_291f_08d2, raw 50692-50693), rows widen it, DS:0x1f66 raised (raw 50823). */
   int content_w = 0xbe;
-  for (int i = 0; i < rows; ++i) {
-    const int job = view->job_ids[i];
-    if (job == COLONY_JOB_CLEAR_SPECIALTY) {
+  for (int k = 0; k < drawn_rows; ++k) {
+    const int e = colony_screen_dos_page_entry(&pg, k);
+    const int job = e >= 0 ? view->job_ids[e] : 0;
+    if (e < 0) {
+      snprintf(labels[k], sizeof(labels[k]), "%s", reports_ctitle_word(6)); /* DS:0x93aa */
+    } else if (job == COLONY_JOB_CLEAR_SPECIALTY) {
       /* LABELS.TXT @MISC row 44 — DOS's own jobs-menu entry for the action (DS:0x2e12). */
-      snprintf(labels[i], sizeof(labels[i]), "%s", reports_misc_display_word(44, ""));
-    } else if (job >= COLONIZE_FIELD_JOB_COUNT) {
-      /* Indoor row (port_bugs.md #900). DOS appends a production estimate for
-       * @JOB 9..0x11 (raw 50765-50781, `local_132 < 0x13 && != 0x12`) out of
-       * the aiStack_12c table the head of FUN_2f2b_348c fills; the port does
-       * not model that estimate yet, so the row carries the @JOB name only. */
-      snprintf(labels[i], sizeof(labels[i]), "%s", colonies_profession_name(job));
+      snprintf(labels[k], sizeof(labels[k]), "%s", reports_misc_display_word(44, ""));
     } else {
+      int cargo = -1;
+      const int estimate =
+        ai_euro_jobs_menu_estimate(pool, map, col1, colony, slot, job, &cargo);
       /* Henry Hudson folds into the pipeline (smell audit #60) — same
        * gap/fix as colony_screen_draw_area_overlays above. */
-      const int yld = (map && colony)
-                  ? colony_yield_for_worker(
-                      map, tx, ty, job, profession, has_docks, sol_b_field,
-                      colony ? colony->colony_flags : 0,
-                      col1 && founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)
-                    )
-                  : 0;
-      snprintf(labels[i], sizeof(labels[i]), "%s (%d)", colony_yield_job_name(job), yld);
+      const int here =
+        (on_plot && job < COLONIZE_FIELD_JOB_COUNT)
+          ? colony_yield_for_worker(
+              map, colony->x + dx, colony->y + dy, job, profession, has_docks, sol_b_field,
+              colony->colony_flags,
+              col1 && founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)
+            )
+          : 0;
+      colony_screen_jobs_row_text(
+        labels[k], sizeof(labels[k]), job,
+        (on_plot && job < COLONIZE_FIELD_JOB_COUNT) ? &here : NULL, estimate, cargo
+      );
     }
     if (font) {
-      const int w = colony_screen_dos_row_w(font, labels[i], 8, NULL);
+      const int w = colony_screen_dos_row_w(font, labels[k], 8);
       if (w > content_w) {
         content_w = w;
       }
@@ -462,27 +582,28 @@ static void colony_screen_draw_jobs_popup(
   char header[96];
   colony_screen_jobs_header(header, sizeof(header), profession, occ);
   const ColonyDosLayout lay = colony_screen_open_dos_dialog(
-    view, framebuffer, font, header, 15, rows, content_w, 0, true, &view->jobs_rect
+    view, framebuffer, font, header, drawn_rows, content_w, 0, true, &view->jobs_rect
   );
-  for (int i = 0; i < rows; ++i) {
-    const int row_y =
-      colony_screen_dos_row(framebuffer, &lay, &view->jobs_rect, i, i == view->jobs_selection);
-    if (row_y + lay.glyph_h > view->jobs_rect.y + view->jobs_rect.h) {
-      /* DOS splits an over-long list across two pages (raw 50678-50682:
-       * local_62 = 2, local_d4 = 0x10 plus a 0x62 "More" button). The port has
-       * no page button here yet, so simply stop at the frame edge. */
-      break;
+  for (int k = 0; k < drawn_rows; ++k) {
+    const int e = colony_screen_dos_page_entry(&pg, k);
+    const int row_y = colony_screen_dos_row(
+      framebuffer, &lay, &view->jobs_rect, k, e >= 0 && e == view->jobs_selection
+    );
+    if (row_y + lay.glyph_h > framebuffer->height) {
+      continue;
     }
-    if (font) {
-      font_draw_text(font, framebuffer, lay.text_x + 8, row_y, labels[i], 15);
-    }
+    colony_screen_dos_row_text(
+      framebuffer, font, &lay, &view->jobs_rect, lay.text_x + 8, row_y, 8, labels[k],
+      e >= 0 && colony_screen_job_is_specialty(view->job_ids[e], profession), false
+    );
   }
 }
 
 /*
  * The custom house rows are @checkbox rows: FUN_6f74_0a00 prefixes DS:0x1f91 "~[ " and
  * FUN_6f74_1b7c sets the second byte to ']' (on) or '[' (off); in FONTTINY those glyphs
- * are the filled / hollow circles (options_dialog uses the same rows).
+ * are the filled / hollow circles (options_dialog uses the same rows). The '~' is kept:
+ * FUN_6f74_0538 draws the circle in the hilite ink (port_bugs.md #1199).
  */
 static void colony_screen_custom_house_row(
   const ColonyScreenView* view, const ColonizeColony* colony, int i, char* out, size_t cap
@@ -491,7 +612,7 @@ static void colony_screen_custom_house_row(
   const bool on = europe_custom_house_cargo_enabled(colony->custom_house_bits, cargo);
   /* NAMES.TXT @CARGO via reports.c's accessor (audit CO-14) — the private
    * copy of the 16 names this replaced ignored a renamed catalog. */
-  snprintf(out, cap, "%c %s", on ? ']' : '[',
+  snprintf(out, cap, "~%c %s", on ? ']' : '[',
            (cargo >= 0 && cargo < COLONIZE_CARGO_COUNT) ? reports_cargo_display_name(cargo) : "?");
 }
 
@@ -515,24 +636,22 @@ static void colony_screen_draw_custom_house_popup(
   char row[64];
   for (int i = 0; i < rows && font; ++i) {
     colony_screen_custom_house_row(view, colony, i, row, sizeof(row));
-    const int w = colony_screen_dos_row_w(font, row, 4, NULL);
+    const int w = colony_screen_dos_row_w(font, row, 4);
     if (w > content_w) {
       content_w = w;
     }
   }
   const ColonyDosLayout lay = colony_screen_open_dos_dialog(
-    view, framebuffer, font, view->custom_house_title, 15, rows, content_w, 0, false,
+    view, framebuffer, font, view->custom_house_title, rows, content_w, 0, false,
     &view->custom_house_rect
   );
-  /* Uniform dark green (player-reported: not the brighter green some rows
-   * used before — the state is the check glyph's job now, not the text color). */
-  const uint8_t kRowColor = 2;
+  /* One uniform ink (player-reported 2026-08-27: not the brighter green some rows used
+   * before; the state is the check glyph's job): the box style's @COLORS 68. */
   for (int i = 0; i < rows; ++i) {
     const int row_y = colony_screen_dos_row(framebuffer, &lay, &view->custom_house_rect, i, false);
     colony_screen_custom_house_row(view, colony, i, row, sizeof(row));
-    if (font) {
-      font_draw_text(font, framebuffer, lay.text_x + 4, row_y, row, kRowColor);
-    }
+    colony_screen_dos_row_text(framebuffer, font, &lay, &view->custom_house_rect, lay.text_x + 4,
+                               row_y, 4, row, false, false);
   }
 }
 
@@ -561,29 +680,29 @@ static void colony_screen_draw_eject_popup(
   }
   char header[96];
   colony_screen_jobs_header(header, sizeof(header), spec, occ);
+  /* Rows 0x13..0x18 carry the unconditional DS:0xca3 "|   " tab (raw 50764) and no " = ". */
+  char labels[COLONIZE_EJECT_ROLE_COUNT][48];
   int content_w = 0xbe;
-  for (int i = 0; i < rows && font; ++i) {
-    const int w =
-      colony_screen_dos_row_w(font, colonies_eject_role_name(view->eject_roles[i]), 8, NULL);
+  for (int i = 0; i < rows; ++i) {
+    snprintf(labels[i], sizeof(labels[i]), "%s|   ", colonies_eject_role_name(view->eject_roles[i]));
+    const int w = font ? colony_screen_dos_row_w(font, labels[i], 8) : 0;
     if (w > content_w) {
       content_w = w;
     }
   }
   const ColonyDosLayout lay = colony_screen_open_dos_dialog(
-    view, framebuffer, font, header, 15, rows, content_w, 0, true, &view->eject_rect
+    view, framebuffer, font, header, rows, content_w, 0, true, &view->eject_rect
   );
   for (int i = 0; i < rows; ++i) {
     const int row_y =
       colony_screen_dos_row(framebuffer, &lay, &view->eject_rect, i, i == view->eject_selection);
-    if (font) {
-      /* DOS draws a short-stock row greyed rather than dropping it
-       * (FUN_15eb_3454 → 0xffff, raw 50805 FUN_291f_01b6); colour 8 is the
-       * same disabled grey the Europe dock menu uses. */
-      font_draw_text(
-        font, framebuffer, lay.text_x + 8, row_y, colonies_eject_role_name(view->eject_roles[i]),
-        view->eject_role_enabled[i] ? 15 : 8
-      );
-    }
+    /* DOS draws a short-stock row greyed rather than dropping it (FUN_15eb_3454 -> 0xffff,
+     * raw 50801 FUN_291f_01b6). The roles are @JOB 0x13 + role, DOS's 0x13..0x18 order. */
+    colony_screen_dos_row_text(
+      framebuffer, font, &lay, &view->eject_rect, lay.text_x + 8, row_y, 8, labels[i],
+      colony_screen_job_is_specialty(UNITS_JOB_COLONIST + view->eject_roles[i], spec),
+      !view->eject_role_enabled[i]
+    );
   }
 }
 
@@ -604,13 +723,13 @@ static void colony_screen_draw_dock_orders_popup(
   const int rows = view->dock_orders_count;
   int content_w = view->dock_orders_width > 0x50 ? view->dock_orders_width : 0x50;
   for (int i = 0; i < rows && font; ++i) {
-    const int w = colony_screen_dos_row_w(font, view->dock_orders_labels[i], 4, NULL);
+    const int w = colony_screen_dos_row_w(font, view->dock_orders_labels[i], 4);
     if (w > content_w) {
       content_w = w;
     }
   }
   const ColonyDosLayout lay = colony_screen_open_dos_dialog(
-    view, framebuffer, font, view->dock_orders_title, 15, rows, content_w, 22, false,
+    view, framebuffer, font, view->dock_orders_title, rows, content_w, 22, false,
     &view->dock_orders_rect
   );
   /* FUN_6f74_201e: the icon at (frame + 3 + box[+0x48], frame + 3 + 3), box[+0x46] +
@@ -629,9 +748,8 @@ static void colony_screen_draw_dock_orders_popup(
     const int row_y = colony_screen_dos_row(
       framebuffer, &lay, &view->dock_orders_rect, i, i == view->dock_orders_selection
     );
-    if (font) {
-      font_draw_text(font, framebuffer, lay.text_x + 4, row_y, view->dock_orders_labels[i], 15);
-    }
+    colony_screen_dos_row_text(framebuffer, font, &lay, &view->dock_orders_rect, lay.text_x + 4,
+                               row_y, 4, view->dock_orders_labels[i], false, false);
   }
 }
 
@@ -649,7 +767,7 @@ static void colony_screen_draw_message_popup(
   const ColonizeFont* font = colony_screen_popup_font(view, screen_font, false);
   const int rows = (view->message_kind == COLONY_MSG_CONFIRM) ? 2 : 1;
   const ColonyDosLayout lay = colony_screen_open_dos_dialog(
-    view, framebuffer, font, view->message_text, 15, rows, 220, 0, false, &view->message_rect
+    view, framebuffer, font, view->message_text, rows, 220, 0, false, &view->message_rect
   );
   for (int i = 0; i < rows; ++i) {
     const int row_y = colony_screen_dos_row(
@@ -661,9 +779,8 @@ static void colony_screen_draw_message_popup(
         : (i == 0
              ? view->message_choice0
              : view->message_choice1);
-    if (font) {
-      font_draw_text(font, framebuffer, lay.text_x + 4, row_y, label, 15);
-    }
+    colony_screen_dos_row_text(framebuffer, font, &lay, &view->message_rect, lay.text_x + 4,
+                               row_y, 4, label, false, false);
   }
 }
 
@@ -708,14 +825,18 @@ COLONIZE_INTERNAL bool colony_screen_hit_modal_dialogs(ColonyScreenHitCtx* a) {
   }
 
   if (view->jobs_open) {
-    int idx = -1;
-    if (!colony_screen_dialog_row_hit(&view->jobs_rect, view->job_count, mx, my, &idx)) {
+    const ColonyDosPage pg = colony_screen_jobs_page(view);
+    int k = -1;
+    if (!colony_screen_dialog_row_hit(&view->jobs_rect, colony_screen_dos_page_rows(&pg), mx, my,
+                                      &k)) {
       a->hit.kind = COLONY_HIT_JOBS_OUTSIDE;
       return true;
     }
-    if (idx >= 0) {
+    if (k >= 0 && k == pg.more_at) {
+      a->hit.kind = COLONY_HIT_JOBS_MORE;
+    } else if (k >= 0) {
       a->hit.kind = COLONY_HIT_JOBS_ROW;
-      a->hit.index = idx;
+      a->hit.index = colony_screen_dos_page_entry(&pg, k);
     }
     return true;
   }
@@ -748,51 +869,31 @@ COLONIZE_INTERNAL bool colony_screen_hit_modal_dialogs(ColonyScreenHitCtx* a) {
   return false;
 }
 
-/* Construction popup (paged list with the More... row). */
+/* Construction popup (paged list with the "(More)" row). */
 COLONIZE_INTERNAL bool colony_screen_hit_construction_popup(ColonyScreenHitCtx* a) {
   const ColonyScreenView* view = a->view;
-  const int mx = a->mx;
-  const int my = a->my;
-  if (view->construction_open) {
-    /* Construction keeps its own row math below: paging adds the More...
-     * row, so the row index is not a plain popup_row_at_y (audit CO-7). */
-    if (!ui_rect_hit(
-          view->construction_rect.x, view->construction_rect.y,
-          view->construction_rect.w, view->construction_rect.h, mx, my)) {
-      a->hit.kind = COLONY_HIT_CONSTRUCTION_OUTSIDE;
-      return true;
-    }
-    if (view->construction_rect.line_h > 0 && my >= view->construction_rect.list_y0) {
-      const int row_in_page = (my - view->construction_rect.list_y0) / view->construction_rect.line_h;
-      const int rows = view->buildable_count + 1;
-      const int per = view->construction_rows_per_col > 0 ? view->construction_rows_per_col : rows;
-      const int start = view->construction_page * per;
-      int n_slice = rows - start;
-      if (n_slice > per) {
-        n_slice = per;
-      }
-      const int pages = per > 0 ? (rows + per - 1) / per : 1;
-      if (row_in_page >= 0 && pages > 1 && row_in_page == n_slice) {
-        /* The More... row (port_bugs.md #436). */
-        a->hit.kind = COLONY_HIT_CONSTRUCTION_MORE;
-        a->hit.index = -1;
-        return true;
-      }
-      const int idx = start + row_in_page;
-      if (row_in_page >= 0 && row_in_page < n_slice && idx >= 0 && idx < rows) {
-        if (idx == 0) {
-          a->hit.kind = COLONY_HIT_CONSTRUCTION_CLEAR;
-          a->hit.index = -1;
-        } else {
-          a->hit.kind = COLONY_HIT_CONSTRUCTION_ROW;
-          a->hit.index = idx - 1;
-        }
-        return true;
-      }
-    }
+  if (!view->construction_open) {
+    return false;
+  }
+  const ColonyDosPage pg = colony_screen_construction_page(view);
+  int k = -1;
+  if (!colony_screen_dialog_row_hit(&view->construction_rect, colony_screen_dos_page_rows(&pg),
+                                    a->mx, a->my, &k)) {
+    a->hit.kind = COLONY_HIT_CONSTRUCTION_OUTSIDE;
     return true;
   }
-  return false;
+  const int gi = colony_screen_dos_page_entry(&pg, k);
+  if (k >= 0 && k == pg.more_at) {
+    a->hit.kind = COLONY_HIT_CONSTRUCTION_MORE;
+    a->hit.index = -1;
+  } else if (gi == 0) {
+    a->hit.kind = COLONY_HIT_CONSTRUCTION_CLEAR;
+    a->hit.index = -1;
+  } else if (gi > 0) {
+    a->hit.kind = COLONY_HIT_CONSTRUCTION_ROW;
+    a->hit.index = gi - 1;
+  }
+  return true;
 }
 
 /* Screen chrome: title bar, exit button, warehouse cargo strip, transport holds. */

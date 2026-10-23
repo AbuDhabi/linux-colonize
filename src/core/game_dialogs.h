@@ -70,6 +70,7 @@
 #include "core/ss.h"
 #include "core/strutil.h"
 #include "core/trade_screen.h"
+#include "core/travel_dest.h"
 #include "core/turn.h"
 #include "core/ui_button.h"
 #include "core/ui_colors.h"
@@ -510,6 +511,15 @@ void game_trade_default_name(
   size_t out_size
 );
 const char* game_trade_europe_label(const ColonizeGameState* game);
+bool game_open_dest_pager(
+  ColonizeGameState* game,
+  CheatListKind kind,
+  const char* prompt,
+  const TravelDestWho* who,
+  bool at_colony_test,
+  int default_id,
+  const char* delete_label
+);
 void game_trade_open_cargo_picker(ColonizeGameState* game, int stop_i, bool is_load);
 void game_trade_open_dest_picker(ColonizeGameState* game, int stop_i);
 void game_trade_open_editor(ColonizeGameState* game, int route);
@@ -598,7 +608,8 @@ bool game_europe_boycott_gate(ColonizeGameState* game, int cargo_type);
 bool game_europe_blocked_by_woi(const ColonizeGameState* game);
 void game_europe_drain_price_events(ColonizeGameState* game);
 bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInputState* input);
-void game_open_find_colony_picker(ColonizeGameState* game);
+void game_open_find_colony(ColonizeGameState* game);
+void game_find_colony(ColonizeGameState* game, const char* typed);
 void game_open_pedia_article(
   ColonizeGameState* game,
   PediaCategory category,

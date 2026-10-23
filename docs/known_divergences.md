@@ -32,33 +32,12 @@ DOS writes profession 0xff; the port guards the write. DOS is the buggy side,
 so the entry now lives in [dos_bugs.md](dos_bugs.md) DB-10 (2026-10-22).
 
 ### #908 — Colonist jobs menu is narrower than FUN_2f2b_348c
-DOS's jobs menu also (a) lists the leave-as rows @JOB 0x13..0x18 in the same
-list (the port keeps them in the eject popup only,
-`colonies_eject_row_offered`), (b) prints a production estimate on indoor rows
-9..0x11 from the `aiStack_12c` table filled at the head of 348c (the port shows
-the name only), and (c) pages the list past 16 rows (`local_62 = 2`,
-`local_d4 = 0x10`, 0x62 "More" button; the port stops drawing at the frame edge).
-
-(b) and (c) are real DOS features, deferred by cost, not refuted:
-
-- (b) raw 50762-50775 shows the printed string is not just `(n)` — it is
-  `FUN_1d1d_07a4(local_5e,0xca8)` plus, for field rows < 9, an extra
-  "n each"-style fragment via resource 0xcac, plus the number
-  (`aiStack_12c[row]`), plus a goods-name suffix looked up via
-  `aiStack_c8[row]*2-0x6840`. `aiStack_c8` for indoor rows (>= 9) is itself
-  filled by `FUN_281f_0cd6` (raw ~50726), not a simple constant, so porting it
-  needs that good-id resolution plus a goods-name catalog lookup — not just the
-  existing `colony_yield_for_worker` number, and bigger than the row note at
-  `colony_screen_popups.c`:334-345 assumed.
-- (c) DOS reflows the same `job_ids` list at a `local_6` page toggle (0/1) with a
-  literal "More" / page-2 label. `ColonyJobsView`
-  (`src/core/colony_screen.h`:304-308) has no page-offset field and
-  `game_loop_colony.c` has no extra-row click handler. A port needs a
-  `jobs_page` int in the view struct, a 17th pseudo-row hit-test in the click
-  handler, and reflowing `job_ids[]` by `page * local_d4` in
-  `colony_screen_popups.c`'s draw loop (~311-318).
-
-Promote either back to port_bugs.md only if the user asks for the feature.
+DOS's jobs menu also lists the leave-as rows @JOB 0x13..0x18 in the same list
+(the port keeps them in the eject popup only, `colonies_eject_row_offered`).
+Its two-page split therefore counts more rows in DOS (`local_a` includes
+0x13..0x18) than in the port, which pages only once its own job rows pass 0x10.
+The indoor estimates and the paging themselves are ported (port_bugs.md #1195,
+#1196).
 
 ### #1081 — Unit-stack list and map sidebar use the WoI nation words
 DOS `FUN_2b5a_1b5a` (stack list, raw 42732) and the `FUN_49dd_0424` unit
