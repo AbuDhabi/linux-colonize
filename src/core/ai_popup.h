@@ -99,7 +99,7 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_CONTACT_BUYWHICH = 51, /* FUN_4d56_2820 LAB_002e92 @BUYWHICH: pick one of 3 tribe goods (was 43, collided with KING_FRIGATE) */
   AI_POPUP_TAG_CONTACT_BUY0 = 44, /* FUN_4d56_2820 LAB_002e92 @BUY0: Accept/Refuse the tribe's price */
   AI_POPUP_TAG_DIPLO_TALK = 45, /* FUN_5bfb_153e phases 2-4: human x AI Euro encounter dialog (payload = stage) */
-  AI_POPUP_TAG_INDIAN_LAND = 46, /* @INDIANLAND/@INDIANROAD/@INDIANFOREST encroachment CHOICE (nation_a = unit, nation_b = kind, payload = x|y<<8) */
+  AI_POPUP_TAG_INDIAN_LAND = 46, /* @INDIANLAND/@INDIANROAD/@INDIANFOREST encroachment CHOICE (nation_a = unit id, or the plot's tile_index for @INDIANLAND, nation_b = kind, payload = x|y<<8) */
   AI_POPUP_TAG_CONTACT_LEARNSTAY = 47, /* thunk_FUN_1000_a618 @LEARNSTAY Yes/No (payload = unit | skill<<16) */
   AI_POPUP_TAG_FOUNTAIN_YOUTH = 48, /* FUN_65dd_0004 case 1: 8× free FUN_38fd_4884(1,0) Recruit pick (payload = picks left) */
   AI_POPUP_TAG_BREWSTER_PICK = 49, /* 5e52 Brewster branch: FUN_38fd_4884(0,1) @RECRUITCHOOSE free pick (nation_a = human) */
@@ -210,6 +210,12 @@ typedef enum AiPopupTag {
                                  * rows are the ship's occupied goods holds (same shape
                                  * as @TRADEWHICH). nation_a = unit id, choice ids are
                                  * hold_index + 1, 99 = never mind. */
+  ,
+  AI_POPUP_TAG_EUROPE_SHIP_MENU = 74 /* port_bugs.md #1176. FUN_38fd_2bfe (ship, 0): the
+                                 * Europe harbor ship menu, title @EUROPESHIPCLICK, rows
+                                 * @EUROPESHIPOPTIONS. nation_a = harbor index; choice
+                                 * ids are the DOS row ids 1 Move to front, 2 Set sail,
+                                 * 3 Unload all cargo, 4 No changes (Esc = no change). */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {
@@ -337,8 +343,8 @@ typedef struct AiPopupState {
    * DOS FUN_1009_0244's first argument, kept per line because it picks the
    * ink FUN_1009_0004 hands the strip painter: 1/2 = 0x95 (gold, every
    * success line), 3 = 0x0c (red, the Europe refusals), anything else 0x44
-   * (@COLORS basic green). DOS itself only ever arms 1 or 3, and the port
-   * produces only 1 — see ai_popup_bar_message_color for the raw citations.
+   * (@COLORS basic green). DOS itself only ever arms 1 or 3; the port arms 3
+   * through ai_popup_enqueue_bar_refusal (the Europe `U` / `-` / `_` refusals).
    */
   uint8_t bar_msg_kind[AI_POPUP_BAR_MSG_MAX];
   int bar_msg_count;       /* [0] is the one on screen */
@@ -357,6 +363,10 @@ typedef struct AiPopupState {
  * like ai_popup_enqueue.
  */
 bool ai_popup_enqueue_bar_message(AiPopupState* st, const char* text);
+
+/* Same strip with DOS arm kind 3 (red, FUN_281f_0de0 / FUN_38fd_1a0c): the
+ * Europe screen's refusals ("No cargo on board!", "Nothing to transport"). */
+bool ai_popup_enqueue_bar_refusal(AiPopupState* st, const char* text);
 
 /* Line currently owning the strip, or NULL. */
 const char* ai_popup_bar_message(const AiPopupState* st);

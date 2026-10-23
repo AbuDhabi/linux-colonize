@@ -205,12 +205,14 @@ FUN_1000_89f8(unit); FUN_4cc6_00f2(slot, e, base)
 ## Encroachment CHOICEs (P8.5) — `@INDIANLAND` / `@INDIANFOREST` / `@INDIANROAD`
 
 Three sites, one shape. Forest = `thunk_FUN_1000_91fc` (clear/plow order,
-overlay 2), road = `thunk_FUN_1000_9304` (road order), land = the found-colony
-tile-buy tail in `FUN_OVL03_L0000__003011`'s function (`0x9cd0/0x9cce` cursor,
-`DS:0xbb8` founding flag). Common body:
+overlay 2), road = `thunk_FUN_1000_9304` (road order), land = the shared
+colony-screen assign function `FUN_2f2b_2f3e` (2f2b:3225-33b2: claim-table cell
+`DS:0x8d9e[0x9cce*5+0x9cd0]`, armed by `DS:0xbb8` from the plot click
+`FUN_2f2b_3fa6` and drag-release `FUN_2f2b_47bc` only; the field-jobs popup
+`348c` and Build Colony never prompt). Common body:
 
 ```
-owner  = tribe owning the tile (5x5 native cache; nearest village on the same
+owner  = tribe owning the tile (5x5 native cache = FUN_15eb_26e4 claim table; nearest village on the same
          continent within FUN_15dc_006a(tribe) = tech tier: 0/1 → 1, 2 → 2, 3 → 3)
 gate   = FUN_1000_8c28(owner, e) & 0x40 (PEACE); tile layer2 & 0x10 clear
          forest site only: terrain class 8..0x17
@@ -219,17 +221,19 @@ if price > 0:
   NUMBER1 = price; STRING0 = tribe
   dlg = FUN_1000_9372(); if treasury < price: func_0x000193a6(dlg, 2, 1)   ; grey row 2
   r = FUN_1000_935a(dlg)         ; 1-based
-  r == 1: cancel (order cleared / colony not founded)
+  r == 1: cancel (order cleared / plot drop abandoned, worker stays put)
   r == 2: indian.lands_bought++ ; FUN_1000_8ce6(e, price) ; tile |= 0x10
-          (land site also clears the cache entry) ; @INDIANBRIBE
+          (land site also 0xff's the claim cell) ; @INDIANBRIBE (blocking)
   else  : proceed — no immediate consequence in any of the three sites
 ```
 
 Conclusions that unblock the old P8.5 note: "Take it" has **no** invented
-balance number to guess — nothing happens at the site; encroachment friction is
-the already-ported `FUN_4d56_152e` pass. "Offer gold" is greyed, not hidden,
+balance number to guess — nothing happens at the site (at the plot drop the
+assignment that follows seats the worker and `FUN_15eb_06d2` raises the alarm
+on a still-claimed plot); encroachment friction is also the
+`FUN_4d56_152e` pass. "Offer gold" is greyed, not hidden,
 when unaffordable (the port drops the row). Outside the dialog (no
-peace, Minuit, bought tile) DOS founds/clears/builds **without charging**; the
+peace, Minuit, bought tile) DOS seats/clears/builds **without charging**; the
 OpenCol "need N gold" hard block is gone.
 
 Radius correction: OpenCol `colonies_tile_indian_homeland` used the manual's

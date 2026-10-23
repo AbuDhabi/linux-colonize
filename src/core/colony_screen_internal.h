@@ -251,6 +251,7 @@ void colony_screen_draw_top_bar(
   uint16_t game_year,
   uint16_t game_autumn,
   int gold,
+  const ColonyScreenView* view,
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer
 );

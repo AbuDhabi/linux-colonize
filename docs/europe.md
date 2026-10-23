@@ -519,12 +519,13 @@ returns 0. Real trigger: clicking the boycotted cargo cell on the Europe
 market strip (game_loop.c EUROPE_HIT_MARKET) raises the @KISSUP CHOICE
 (game_dialogs.c game_europe_ask_boycott_buyback; @KISSSORRY when the purse is
 short after "Pay"). Every other human buy/sell entry on a boycotted cargo
-(L, =, +, -, _, shift-drag buy, hold drag onto the market) goes through
+(L, =, +, U, -, _, shift-drag buy, hold drag onto the market) goes through
 `game_europe_boycott_gate`: @KISSUP, then the trade is aborted whatever the
-answer (FUN_38fd_2dfe returns 0 for a human on every path). @SOMEBOYCOTT is
-only the notice after the `U` unload-all loop (the ship menu row 3 loop,
-FUN_38fd_2bfe) when the last-examined slot 0 was boycotted. Returns gold paid
-(>0) on success.
+answer (FUN_38fd_2dfe returns 0 for a human on every path); `U` tests the
+cargo its lowest-key pick named, so a boycotted pick stops there. @SOMEBOYCOTT
+is only the notice after the ship menu's row 3 "Unload all cargo" loop
+(`game_europe_unload_all`, FUN_38fd_2bfe) when the last-examined slot 0 was
+boycotted. Returns gold paid (>0) on success.
 
 ## europe_buyback_boycott_cost
 
@@ -552,7 +553,7 @@ price `euro_price + burden` without an EuropeScreen in hand.
 
 ## europe_sell_hold_partial
 
-Partial sale from one hold (shift+drag split, '-' key). Same full path as
+Partial sale from one hold (the @HOWMUCH5 amount prompt: shift+drag onto the market, the `_` key). Same full path as
 europe_sell_hold — boycott gate, tax credit, sale status, volume price
 move — for `amount` tons; the hold keeps the remainder (type cleared when
 emptied). Returns net proceeds, 0 if nothing sold. Smell audit #52/#53.
@@ -702,3 +703,31 @@ Returns units bought (0 = no gold / boycott / no room).
 Like europe_hit_test, but Expected/Bound resolve the ship icon under the pointer
 when units + icons are provided (matches Loading/Expected/Bound render layout).
 transit_line_h is font line height used for the two-line header (default 8).
+
+## Europe ship menu and sell keys
+
+Port of `FUN_38fd_2bfe(ship, 0)` (raw 60787-60900), port_bugs.md #1176. Opened
+by a left-button RELEASE over a harbor ship ICON (`FUN_38fd_2edc`; the exact
+test is `europe_harbor_ship_icon_at`, empty box space and passenger icons do
+not count, although the press still selects leniently) and by S / Space / Enter
+with a ship selected (`FUN_38fd_4f6e` 38fd:5364-5491; the port has no focus
+modes, a selected harbor ship is the ship focus). `game_europe_open_ship_menu`
+raises a CHOICE (`AI_POPUP_TAG_EUROPE_SHIP_MENU`): title @EUROPESHIPCLICK
+(STRING0 = ship type name), rows = the lines of @EUROPESHIPOPTIONS under their
+DOS ids: 1 Move to front (`europe_harbor_move_to_front`, selects it), 2 Set sail
+for the New World (the usual @SAILAWAY Yes/No via `game_europe_request_sail`;
+DOS hides it for a damaged ship, harbor ships carry no damage flag, so it is
+always offered), 3 Unload all cargo (`game_europe_unload_all`, only while a goods
+hold is occupied), 4 No changes. Esc changes nothing.
+
+Keys: `U` = `game_europe_sell_best_hold` = `FUN_479b_0f60(ship, 1)`:
+`europe_dos_0f60_pick` ranks the occupied slots by `(sell price << 4) * qty`
+(Muskets/Tools 0, Horses 1, 16-bit wrap) with DOS's ascending sort
+(`units_dos_sort_1cf8` = FUN_1cf8_000a, shared with the plunder pick) and the
+LOWEST key is sold whole, one hold per press; an empty ship raises the red bar
+@MISC[22]. The same pick (`europe_dos_0f60_pick_holds`, raw hold arrays) serves the
+colony-screen `U` (mode 0, port_bugs.md #1182). `-` / `_` = `game_europe_sell_first_hold` = `FUN_38fd_23c4`: the
+whole FIRST slot holding the selected cargo (`_` asks the @HOWMUCH5 amount
+first); none aboard raises the red bar @CMESSAGE[9] + cargo + [10], and no
+harbor ship at all @CMESSAGE[5] ("Nothing to transport"). Red bars are DOS arm
+kind 3 (`ai_popup_enqueue_bar_refusal`).

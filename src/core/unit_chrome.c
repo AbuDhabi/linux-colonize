@@ -337,9 +337,34 @@ int unit_chrome_repair_badge_index(
   return UNIT_CHROME_ORDERS_REPAIR_BASE + n;
 }
 
+static unsigned g_chrome_plan_nations;
+
+void unit_chrome_set_plan_nations(unsigned mask) {
+  g_chrome_plan_nations = mask & 0xfu;
+}
+
+/* FUN_112b_01ba ~2134: `glyph = unit[+0x314b]; if (glyph >= 0x80) glyph = 'E'`. */
+int unit_chrome_plan_badge_index(int nation_id, unsigned plan, int orders, int cur) {
+  if (nation_id < 0 || nation_id > 3 || !(g_chrome_plan_nations & (1u << nation_id))) {
+    return cur;
+  }
+  const int glyph = plan >= 0x80u ? 'E' : (int)plan;
+  return UNIT_CHROME_ORDERS_PLAN_BASE + (glyph << 4) + (orders & 15);
+}
+
+int unit_chrome_real_orders(int orders_index) {
+  return orders_index >= UNIT_CHROME_ORDERS_PLAN_BASE
+           ? (orders_index - UNIT_CHROME_ORDERS_PLAN_BASE) & 15
+           : orders_index;
+}
+
 char unit_chrome_order_letter(int orders_index, int nation_id) {
   if (!g_orders_loaded) {
     unit_chrome_init_defaults();
+  }
+  /* #1177a: the AI plan glyph is the badge outright (may be NUL = empty). */
+  if (orders_index >= UNIT_CHROME_ORDERS_PLAN_BASE) {
+    return (char)((orders_index - UNIT_CHROME_ORDERS_PLAN_BASE) >> 4);
   }
   /* port_bugs.md #705: the digit arm is DOS's last write to the badge char, so it
    * overrides the @ORDERS letter (and the natives clamp below) outright. */
@@ -372,6 +397,7 @@ uint8_t unit_chrome_letter_color(int nation_id, int orders_index) {
   if (unit_chrome_is_repair_badge(orders_index)) {
     return nation_id == 2 ? 12 : 15;
   }
+  orders_index = unit_chrome_real_orders(orders_index);
   if (nation_id > 3) {
     orders_index = 0;
   }

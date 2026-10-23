@@ -3249,6 +3249,45 @@ static int case_fort_defense_bonus(void) {
           fprintf(stderr, "land analysis missing Attack Bonus/Veteran lines\n");
           return 1;
         }
+        /* port_bugs.md #1177c: cheat footer (FUN_636c_0000 636c:0f00-1088), two
+         * extra rows per column: header name + "+" final weight, then "" + "+"
+         * the roll (attacker) / the weight sum (defender). Absent with the
+         * cheat bit clear. */
+        {
+          ColonizeCombatEngagement feng = eng;
+          feng.w_atk = 40;
+          feng.w_def = 24;
+          feng.cheat_roll = 17;
+          CombatAnalysisDialog fdlg;
+          memset(&fdlg, 0, sizeof(fdlg));
+          if (!combat_analysis_open(&fdlg, &pool, &feng) || fdlg.atk_line_count != dlg.atk_line_count ||
+              fdlg.def_line_count != dlg.def_line_count) {
+            fprintf(stderr, "footer must be absent with the cheat bit clear\n");
+            return 1;
+          }
+          feng.cheat_footer = true;
+          memset(&fdlg, 0, sizeof(fdlg));
+          if (!combat_analysis_open(&fdlg, &pool, &feng) ||
+              fdlg.atk_line_count != dlg.atk_line_count + 2 ||
+              fdlg.def_line_count != dlg.def_line_count + 2) {
+            fprintf(stderr, "cheat footer must add two rows per column\n");
+            return 1;
+          }
+          const CombatAnalysisRow* ar = &fdlg.atk_rows[fdlg.atk_line_count - 2];
+          const CombatAnalysisRow* dr = &fdlg.def_rows[fdlg.def_line_count - 2];
+          if (strcmp(ar[0].label, fdlg.atk_name) != 0 || strcmp(ar[0].value, "+40") != 0 ||
+              ar[1].label[0] != '\0' || strcmp(ar[1].value, "+17") != 0 ||
+              strcmp(dr[0].label, fdlg.def_name) != 0 || strcmp(dr[0].value, "+24") != 0 ||
+              dr[1].label[0] != '\0' || strcmp(dr[1].value, "+64") != 0 || fdlg.eng.roll != 0) {
+            fprintf(
+              stderr, "cheat footer rows: atk '%s'/'%s' '%s'/'%s' def '%s'/'%s' '%s'/'%s' roll %d\n",
+              ar[0].label, ar[0].value, ar[1].label, ar[1].value, dr[0].label, dr[0].value,
+              dr[1].label, dr[1].value, fdlg.eng.roll
+            );
+            return 1;
+          }
+          combat_analysis_close(&fdlg);
+        }
         /* Ambush/Terrain row carries the engagement tile, not just its base
          * sprite: DOS copies the rendered map tile, overlays (mountain over
          * Savannah) included. */

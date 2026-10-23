@@ -42,6 +42,7 @@ typedef struct HowmuchDialog {
   char amount_label[HOWMUCH_LABEL_LEN];
   char field[HOWMUCH_FIELD_LEN];
   bool field_selected; /* next digit replaces */
+  int width;           /* the section's @width (0 = none), taken at open */
 
   bool has_result;
   bool result_cancelled;

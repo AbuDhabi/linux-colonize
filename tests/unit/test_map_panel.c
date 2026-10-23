@@ -1055,6 +1055,201 @@ static int case_repair_badge_digit(void) {
   return rc;
 }
 
+/*
+ * port_bugs.md #1177a — FUN_112b_01ba ~2134: with the cheat bit and Debug Info
+ * Flags & 8 the badge glyph of an AI nation's unit is its plan byte (>= 0x80
+ * reads 'E', 0 = empty), after hold digit / X and before the repair digit; the
+ * ink keeps following the real orders byte.
+ */
+static int case_plan_badge_glyph(void) {
+  int rc = 0;
+  const int sentry = 1;
+  const int cur = 0x300 + 2; /* a hold-count badge the caller already chose */
+  unit_chrome_set_plan_nations(0);
+  if (unit_chrome_plan_badge_index(1, 0x41, sentry, cur) != cur) {
+    fprintf(stderr, "plan badge: mask 0 must pass through\n");
+    rc = 1;
+  }
+  unit_chrome_set_plan_nations(1u << 1); /* nation 1 is AI */
+  if (unit_chrome_plan_badge_index(0, 0x41, sentry, cur) != cur ||
+      unit_chrome_plan_badge_index(5, 0x41, sentry, cur) != cur ||
+      unit_chrome_plan_badge_index(-1, 0x41, sentry, cur) != cur) {
+    fprintf(stderr, "plan badge: human / native / bad nation must pass through\n");
+    rc = 1;
+  }
+  const struct {
+    unsigned plan;
+    char want;
+  } cases[] = {{0x41, 'A'}, {0x90, 'E'}, {0xff, 'E'}, {0x00, '\0'}};
+  for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+    const int idx = unit_chrome_plan_badge_index(1, cases[i].plan, sentry, cur);
+    if (idx < UNIT_CHROME_ORDERS_PLAN_BASE) {
+      fprintf(stderr, "plan badge %zu: not a plan index (%d)\n", i, idx);
+      rc = 1;
+      continue;
+    }
+    if (unit_chrome_order_letter(idx, 1) != cases[i].want) {
+      fprintf(stderr, "plan badge %zu: glyph '%c', want '%c'\n", i, unit_chrome_order_letter(idx, 1), cases[i].want);
+      rc = 1;
+    }
+    /* Sentry ink stays: names color - 8 for a Euro nation, black for orders 0. */
+    if (unit_chrome_letter_color(1, idx) != unit_chrome_letter_color(1, sentry) ||
+        unit_chrome_letter_color(1, unit_chrome_plan_badge_index(1, cases[i].plan, 0, cur)) != 0) {
+      fprintf(stderr, "plan badge %zu: ink does not follow the real orders\n", i);
+      rc = 1;
+    }
+  }
+  /* The repair digit is written last: a caller that applies it after wins. */
+  int badge = unit_chrome_plan_badge_index(1, 0x41, sentry, cur);
+  badge = unit_chrome_repair_badge_index(0x0e, true, 8, 3, false);
+  if (unit_chrome_order_letter(badge, 1) != '5') {
+    fprintf(stderr, "plan badge: repair digit must win\n");
+    rc = 1;
+  }
+  unit_chrome_set_plan_nations(0);
+  return rc;
+}
+
+/*
+ * port_bugs.md #1177b — FUN_49dd_0424 B1-B4 and the stack-collapse gate.
+ * B1 (tile-only Locat line) shows the raw layer3 region id with NO cheat test
+ * whenever `show_entire_map != 0 || fixed_nation_map_view != 0` (0xffff = none
+ * counts); B2 is the same behind the cheat bit; B3/B4 prefix the unit index
+ * with cheat + Complete Map. A foreign stack collapses to one row unless it is
+ * the viewer's own (DS:0x5396) or Complete Map is on.
+ */
+static int case_sidebar_cheat_lines(void) {
+  int rc = 0;
+  char err[256];
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    return fail(err);
+  }
+  map.layer3[3 * 8 + 2] = 0x31; /* owner 3, region 1 */
+  map.layer3[4 * 8 + 4] = 0x0c; /* region 12 */
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.head.fixed_nation_map_view = 0xffffu;
+  char got[72];
+  const struct {
+    bool cheat;
+    uint16_t show_all;
+    uint16_t fixed;
+    bool need_cheat;
+    const char* want;
+  } rows[] = {
+    {false, 0, 0xffff, false, "L (2,3) 1"}, /* B1: no cheat test, 0xffff counts */
+    {false, 0, 0xffff, true, "L (2,3)"},    /* B2 needs the cheat bit */
+    {true, 0, 0xffff, true, "L (2,3) 1"},
+    {true, 0, 0, true, "L (2,3)"},          /* fixed view of nation 0, no Complete Map: skipped */
+    {false, 0, 0, false, "L (2,3)"},
+    {false, 1, 0, false, "L (2,3) 1"},      /* Complete Map is special on its own */
+    {false, 0, 2, false, "L (2,3) 1"},
+  };
+  for (size_t i = 0; i < sizeof(rows) / sizeof(rows[0]); ++i) {
+    col1.head.game_options.cheats_enabled = rows[i].cheat ? 1 : 0;
+    col1.head.show_entire_map = rows[i].show_all;
+    col1.head.fixed_nation_map_view = rows[i].fixed;
+    map_panel_format_locat(got, sizeof(got), "L", &col1, &map, 2, 3, rows[i].need_cheat);
+    if (strcmp(got, rows[i].want) != 0) {
+      fprintf(stderr, "locat row %zu: got '%s', want '%s'\n", i, got, rows[i].want);
+      rc = 1;
+    }
+  }
+  col1.head.fixed_nation_map_view = 0xffffu;
+  col1.head.show_entire_map = 0;
+  col1.head.game_options.cheats_enabled = 0;
+  map_panel_format_locat(got, sizeof(got), "L", &col1, &map, 4, 4, false);
+  if (strcmp(got, "L (4,4) 12") != 0) {
+    fprintf(stderr, "locat region 12: got '%s'\n", got);
+    rc = 1;
+  }
+  map_panel_format_locat(got, sizeof(got), "L", NULL, &map, 2, 3, false);
+  if (strcmp(got, "L (2,3)") != 0) {
+    fprintf(stderr, "locat without a save: got '%s'\n", got);
+    rc = 1;
+  }
+
+  ColonizeMsgCatalog names;
+  memset(&names, 0, sizeof(names));
+  char names_path[512];
+  if (!dos_compat_normalize_asset_path("COLONIZE", "NAMES.TXT", names_path, sizeof(names_path)) ||
+      !assets_msg_load_file(&names, names_path)) {
+    map_free(&map);
+    fprintf(stderr, "SKIP: COLONIZE/NAMES.TXT not found\n");
+    return TR_SKIP;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    assets_msg_free(&names);
+    map_free(&map);
+    return fail("units_load_types failed");
+  }
+  const int a = units_spawn_allow_stack(&pool, 0, 5, 5);
+  const int b = units_spawn_allow_stack(&pool, 1, 5, 5);
+  if (a < 0 || b < 0) {
+    assets_msg_free(&names);
+    map_free(&map);
+    return fail("stack spawn failed");
+  }
+  units_set_nation(units_get(&pool, a), 1);
+  units_set_nation(units_get(&pool, b), 1);
+  units_get(&pool, a)->col1_vis_mask |= 0x0fu; /* visible to every viewer */
+  units_get(&pool, b)->col1_vis_mask |= 0x0fu;
+  const int bi = units_dos_index(&pool, b);
+  struct {
+    bool cheat;
+    uint16_t show_all;
+    int want;
+  } idx[] = {{true, 1, bi}, {true, 0, -1}, {false, 1, -1}};
+  for (size_t i = 0; i < sizeof(idx) / sizeof(idx[0]); ++i) {
+    col1.head.game_options.cheats_enabled = idx[i].cheat ? 1 : 0;
+    col1.head.show_entire_map = idx[i].show_all;
+    if (map_panel_cheat_index(&col1, &pool, b) != idx[i].want) {
+      fprintf(stderr, "cheat index row %zu: got %d, want %d\n", i, map_panel_cheat_index(&col1, &pool, b), idx[i].want);
+      rc = 1;
+    }
+  }
+
+  /* Stack collapse: nation 1's two-unit stack is one row for viewer 0, two for
+   * viewer 1 and under Complete Map (fog_nation -1). */
+  const int view[3] = {0, 1, -1};
+  const int rows_want[3] = {1, 2, 2};
+  for (int v = 0; v < 3; ++v) {
+    uint8_t pixels[320 * 200];
+    memset(pixels, 0, sizeof(pixels));
+    ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+    MapPanelRenderCtx c = {
+      .map = &map,
+      .units = &pool,
+      .col1 = &col1,
+      .names = &names,
+      .fog_nation = view[v],
+      .framebuffer = &fb,
+      .resolved_human = 0,
+      .text_x = MAP_PANEL_X + MAP_PANEL_TEXT_MARGIN,
+      .indent_x = MAP_PANEL_X + MAP_PANEL_TEXT_MARGIN + 0x12,
+      .line_h = 7,
+      .y_limit = 198,
+      .text_y = 60,
+      .info_x = 5,
+      .info_y = 5,
+      .tile_seen = true,
+    };
+    map_panel_render_stack(&c);
+    const int got_rows = (c.text_y - 60) / 0x12 /* MAP_PANEL_ROW_H */;
+    if (got_rows != rows_want[v]) {
+      fprintf(stderr, "stack view %d: %d rows, want %d\n", view[v], got_rows, rows_want[v]);
+      rc = 1;
+    }
+  }
+  assets_msg_free(&names);
+  map_free(&map);
+  return rc;
+}
+
 /* port_bugs.md #1107 seam: the header stage starts the text cursor at 0x33 or two
  * px under the minimap rule, whichever is lower, then advances it by the date
  * and Gold/Tax lines plus a half-line gap. */
@@ -1107,6 +1302,8 @@ static const TestCase k_cases[] = {
   {"stack_detail_expert_prefix", case_stack_detail_expert_prefix},
   {"treasure_word_and_zero_tools", case_treasure_word_and_zero_tools},
   {"repair_badge_digit", case_repair_badge_digit},
+  {"plan_badge_glyph", case_plan_badge_glyph},
+  {"sidebar_cheat_lines", case_sidebar_cheat_lines},
   {"header_stage_seam", case_header_stage_seam},
 };
 

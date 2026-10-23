@@ -403,7 +403,7 @@ fragment. Related sections are listed in the first column.
 | `@KEEPSTOCKADE` | Stockade min pop | Done | OK from `@KEEPSTOCKADE` |
 | `@MORETHANTHREE` | Assign 4th colonist to a full building | Done | `colonies_assign_workplace` caps at `COLONIZE_BUILDING_MAX_WORKERS` (3); `colonies_emit_more_than_three_chrome` OK. Was previously misdocumented as a `@KEEPSTOCKADE` alias — the two sections are unrelated |
 | `@COLONY` / `@RENAMECOLONY` | Found / rename | Done | Name entry after found; rename = click colony title bar (DOS zone 10) or **R** (port extra) |
-| `@LANDHO` | First land sight | Done | Name New World (`colony_region`); seed from NAMES `@COLONYNAME` per nation |
+| `@LANDHO` | Human move with land in the destination 3x3, `named_new_world` clear (`FUN_4720_049e` tail) | Done | Name New World (`colony_region`); the field opens on the live `player[turn].country_name` (DOS passes that buffer, so `@default=America` is dead; a new game stores NAMES `@COLONYNAME` there). Text-entry layout: `popup_field_frame` (port_bugs.md #1181); MSS decoration still missing (#1183) |
 | `@HOWMUCH1`… | Cargo amount | Done | [`howmuch_dialog.c`](../src/core/howmuch_dialog.c) (`=` colony / Europe **L**) |
 | `@WAREHOUSEFULL` | Warehouse overflow | Done thin | Unload full → `ai_popup` OK; spoilage still `@SPOIL*` |
 | Train fails (`@NOTEACHER`, `@TRAINFAIL`, …) | School train | Done thin | Re-verified 2026-09-16: EOT `@TRAINFAIL` (`turn.c`), assign-time `@NOTEACHER`/`@NEEDCOLLEGE`/`@NEEDUNIVERSITY` (`colony.c`) all `popup_msg_fill` real body at the DOS condition; see Appendix A |

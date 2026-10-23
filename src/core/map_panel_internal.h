@@ -57,6 +57,20 @@ typedef struct MapPanelRenderCtx {
 } MapPanelRenderCtx;
 
 #ifdef COLONIZE_TESTING
+/* port_bugs.md #1177b pure formatters (FUN_49dd_0424 B1-B4), see map_panel.c. */
+COLONIZE_INTERNAL void map_panel_format_locat(
+  char* out,
+  size_t size,
+  const char* label,
+  const ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  bool need_cheat
+);
+COLONIZE_INTERNAL int map_panel_cheat_index(
+  const ColonizeCol1Save* col1, const ColonizeUnitPool* units, int unit_id
+);
 COLONIZE_INTERNAL void map_panel_render_backdrop(MapPanelRenderCtx* c);
 COLONIZE_INTERNAL void map_panel_render_minimap(MapPanelRenderCtx* c);
 COLONIZE_INTERNAL void map_panel_render_header(MapPanelRenderCtx* c);

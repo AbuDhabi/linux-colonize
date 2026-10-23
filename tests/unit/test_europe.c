@@ -400,54 +400,81 @@ static int case_europe_workflow(void) {
     }
   }
 
-  const int best = europe_best_sell_hold(&eu, 0);
-  if (best < 0 || eu.harbor[0].hold_goods_type[best] != COLONIZE_CARGO_TRADE_GOODS) {
-    fprintf(stderr, "best sell hold expected trade goods got %d\n", best);
-    europe_free(&eu);
-    return 1;
-  }
-
   /*
-   * Smell audit #88: the ranking table inside europe_best_sell_hold scores
-   * Lumber/Horses/Tools/Muskets at 0, and it used to REFUSE such a hold, so
-   * "U" (unload the whole cargo — game_loop.c loops on this picker) stopped
-   * dead on a musket run and "-" answered "Nothing to sell." A loaded hold is
-   * always sellable now; only the ORDER is a heuristic.
+   * FUN_479b_0f60 mode 1 (the Europe `U` key, port_bugs.md #1176): per slot
+   * key = (uint16)(((sell price << 4), 0 for Muskets/Tools, 1 for Horses) * qty),
+   * FUN_1cf8_000a sorts ascending and the pick is the LOWEST key. The earlier
+   * port-only value ranking (europe_best_sell_hold) is gone.
    */
   {
     const EuropeHarborShip saved = eu.harbor[0];
-    memset(eu.harbor[0].hold_goods_type, 0, sizeof(eu.harbor[0].hold_goods_type));
-    memset(eu.harbor[0].hold_goods_amount, 0, sizeof(eu.harbor[0].hold_goods_amount));
-    eu.harbor[0].hold_goods_type[2] = COLONIZE_CARGO_MUSKETS;
-    eu.harbor[0].hold_goods_amount[2] = 50;
-    eu.harbor[0].hold_goods_type[4] = COLONIZE_CARGO_TOOLS;
-    eu.harbor[0].hold_goods_amount[4] = 20;
-    const int zero_value = europe_best_sell_hold(&eu, 0);
-    if (zero_value != 2) {
-      fprintf(stderr, "zero-value cargo should still be sellable, got hold %d\n", zero_value);
-      eu.harbor[0] = saved;
-      europe_free(&eu);
-      return 1;
+    const int bid_tobacco = eu.cargo[COLONIZE_CARGO_TOBACCO].bid;
+    const int bid_silver = eu.cargo[COLONIZE_CARGO_SILVER].bid;
+    eu.cargo[COLONIZE_CARGO_TOBACCO].bid = 5; /* sell price 4 */
+    eu.cargo[COLONIZE_CARGO_SILVER].bid = 20; /* sell price 19 */
+    struct {
+      int slot_type[3];
+      int slot_amt[3]; /* hold slots 1, 3, 5; slot 0 stays empty */
+      int want_slot;   /* -1 = empty ship */
+      const char* what;
+    } cases[] = {
+      {{COLONIZE_CARGO_TOBACCO, COLONIZE_CARGO_SILVER, 0}, {100, 30, 0}, 1,
+       "Tobacco 100@4 (6400) beats Silver 30@19 (9120)"},
+      {{COLONIZE_CARGO_SILVER, COLONIZE_CARGO_TOBACCO, 0}, {30, 100, 0}, 3,
+       "same ranking with the slots swapped"},
+      {{COLONIZE_CARGO_SILVER, COLONIZE_CARGO_MUSKETS, 0}, {10, 50, 0}, 3,
+       "Muskets key 0 goes first"},
+      {{COLONIZE_CARGO_MUSKETS, COLONIZE_CARGO_TOOLS, 0}, {50, 20, 0}, 1,
+       "equal keys (Muskets 0, Tools 0): the first slot stays first"},
+      {{COLONIZE_CARGO_TOBACCO, COLONIZE_CARGO_HORSES, 0}, {10, 80, 0}, 3,
+       "Horses key 1*80 beats Tobacco 640"},
+      {{COLONIZE_CARGO_TOBACCO, COLONIZE_CARGO_TOBACCO, 0}, {10, 10, 0}, 1,
+       "equal Tobacco holds: the first slot stays first"},
+      {{0, 0, 0}, {255, 0, 0}, -1, "empty ship (255 = empty-hold sentinel)"},
+    };
+    for (size_t ci = 0; ci < sizeof(cases) / sizeof(cases[0]); ++ci) {
+      memset(eu.harbor[0].hold_goods_type, 0, sizeof(eu.harbor[0].hold_goods_type));
+      memset(eu.harbor[0].hold_goods_amount, 0, sizeof(eu.harbor[0].hold_goods_amount));
+      if (cases[ci].want_slot < 0) {
+        eu.harbor[0].hold_goods_amount[0] = cases[ci].slot_amt[0];
+      } else {
+        for (int k = 0; k < 2; ++k) {
+          eu.harbor[0].hold_goods_type[1 + 2 * k] = cases[ci].slot_type[k];
+          eu.harbor[0].hold_goods_amount[1 + 2 * k] = cases[ci].slot_amt[k];
+        }
+      }
+      const int got = europe_dos_0f60_pick(&eu, NULL, 0, 0);
+      if (got != cases[ci].want_slot) {
+        fprintf(stderr, "europe_dos_0f60_pick: %s: want slot %d got %d\n", cases[ci].what,
+                cases[ci].want_slot, got);
+        eu.harbor[0] = saved;
+        europe_free(&eu);
+        return 1;
+      }
     }
-    /* With a ranked hold present the heuristic still wins. */
-    eu.harbor[0].hold_goods_type[5] = COLONIZE_CARGO_SILVER;
-    eu.harbor[0].hold_goods_amount[5] = 10;
-    if (europe_best_sell_hold(&eu, 0) != 5) {
-      fprintf(stderr, "ranked hold should outrank the zero-value fallback\n");
-      eu.harbor[0] = saved;
-      europe_free(&eu);
-      return 1;
+    /* port_bugs.md #1182: the colony-screen `U` (mode 0) runs the same pick over a
+     * unit's raw holds; slot indexes come back as given (no compaction). */
+    {
+      int ht[6] = {COLONIZE_CARGO_SILVER, 0, COLONIZE_CARGO_TOBACCO, COLONIZE_CARGO_MUSKETS, 0, 0};
+      int ha[6] = {30, 0, 100, 50, 0, 0};
+      const int want[3] = {3, 2, -1}; /* Muskets key 0; Tobacco 6400 < Silver 9120; empty */
+      for (int step = 0; step < 3; ++step) {
+        const int got = europe_dos_0f60_pick_holds(&eu, NULL, 0, ht, ha, 6);
+        if (got != want[step]) {
+          fprintf(stderr, "europe_dos_0f60_pick_holds step %d: want %d got %d\n", step, want[step], got);
+          eu.harbor[0] = saved;
+          europe_free(&eu);
+          return 1;
+        }
+        if (step == 0) {
+          ha[3] = 0;
+        } else {
+          ha[0] = ha[2] = 0;
+        }
+      }
     }
-    /* Empty ship still reports nothing to sell. */
-    memset(eu.harbor[0].hold_goods_type, 0, sizeof(eu.harbor[0].hold_goods_type));
-    memset(eu.harbor[0].hold_goods_amount, 0, sizeof(eu.harbor[0].hold_goods_amount));
-    eu.harbor[0].hold_goods_amount[0] = 255; /* empty-hold sentinel */
-    if (europe_best_sell_hold(&eu, 0) != -1) {
-      fprintf(stderr, "empty ship should have no sellable hold\n");
-      eu.harbor[0] = saved;
-      europe_free(&eu);
-      return 1;
-    }
+    eu.cargo[COLONIZE_CARGO_TOBACCO].bid = bid_tobacco;
+    eu.cargo[COLONIZE_CARGO_SILVER].bid = bid_silver;
     eu.harbor[0] = saved;
   }
 
@@ -2305,7 +2332,7 @@ static int case_europe_workflow(void) {
   /*
    * Smell audit 2026-09-10 G7: 255 is the empty-hold sentinel every other
    * hold consumer already skips (europe_goods_slots_used, europe_sell_hold,
-   * europe_best_sell_hold, reports.c's cargo rows). A docking ship carrying
+   * europe_dos_0f60_pick, reports.c's cargo rows). A docking ship carrying
    * only sentinels must NOT raise docked_with_goods — that flag fires the
    * once-per-game "Cargo from the New World" woodcut.
    */

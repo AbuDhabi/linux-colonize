@@ -1,7 +1,7 @@
 /*
  * Sections:
  *  - Labels, sell/buy commits & Custom House autosell (europe_set_labels .. europe_buy_cargo_w)
- *  - Icon flow, hit-testing, menus & cheats (europe_best_sell_hold .. europe_passenger_icon_sprite)
+ *  - Icon flow, hit-testing, menus & cheats (europe_hold_slot_kth .. europe_passenger_icon_sprite)
  */
 
 #include "core/europe.h"
@@ -61,7 +61,8 @@ static int europe_transit_ship_at(
   int box_h,
   int transit_line_h,
   int mx,
-  int my
+  int my,
+  bool icon_only
 );
 static const char* europe_menu_name(EuropeMenu menu);
 static bool europe_dock_menu_apply_selection(
@@ -871,52 +872,80 @@ int europe_buy_cargo_w(
   return bought;
 }
 
-/* ===================== Icon flow, hit-testing, menus & cheats (europe_best_sell_hold .. europe_passenger_icon_sprite) ===================== */
-int europe_best_sell_hold(const EuropeScreen* eu, int harbor_index) {
+/* ===================== Icon flow, hit-testing, menus & cheats (europe_hold_slot_kth .. europe_passenger_icon_sprite) ===================== */
+/* Occupied hold slots, k-th in DOS's compacted order (FUN_15eb_2ff2 /
+ * FUN_15eb_317c: the hold list shifts down on removal); -1 past the end. */
+int europe_hold_slot_kth(const EuropeHarborShip* ship, int k) {
+  for (int i = 0; i < EUROPE_SHIP_CARGO_MAX; ++i) {
+    if (ship->hold_goods_amount[i] > 0 && ship->hold_goods_amount[i] < 255) {
+      if (k == 0) {
+        return i;
+      }
+      --k;
+    }
+  }
+  return -1;
+}
+
+/*
+ * DOS-LITERAL FUN_479b_0f60 raw 77343-77400 (the `U` pick, shared by the Europe
+ * screen, mode 1, and the colony screen, mode 0: the weight loop and the sort
+ * run before `param_2` is looked at): per occupied slot k, w = (DS:0x84bc price
+ * byte of the ship's owner = the sell price, FUN_38fd_0040) << 4, zeroed for
+ * Muskets (0xF) and Tools (0xE), 1 for Horses (8); key[k] = (uint16)(w * qty).
+ * FUN_291f_0ed0 -> FUN_1cf8_000a sorts the keys ASCENDING and the pick is
+ * order[0], the LOWEST key (so Horses and the zero-keyed Muskets/Tools go first,
+ * cheap bulk before Silver). Takes a raw (types, amounts) hold pair of n_slots
+ * (occupied = amount 1..254, DOS's compacted list); returns the winning slot
+ * index, or -1 for an empty ship.
+ */
+int europe_dos_0f60_pick_holds(
+  const EuropeScreen* eu,
+  const struct ColonizeCol1Save* col1,
+  int nation,
+  const int* hold_types,
+  const int* hold_amounts,
+  int n_slots
+) {
+  uint16_t key[EUROPE_SHIP_CARGO_MAX];
+  int order[EUROPE_SHIP_CARGO_MAX];
+  int slot_of[EUROPE_SHIP_CARGO_MAX];
+  int n = 0;
+  for (int slot = 0; slot < n_slots && n < EUROPE_SHIP_CARGO_MAX; ++slot) {
+    if (hold_amounts[slot] <= 0 || hold_amounts[slot] >= 255) {
+      continue;
+    }
+    const int ctype = hold_types[slot];
+    int w = europe_nation_sell_price(eu, col1, nation, ctype) << 4;
+    if (ctype == COLONIZE_CARGO_MUSKETS || ctype == COLONIZE_CARGO_TOOLS) {
+      w = 0;
+    }
+    if (ctype == COLONIZE_CARGO_HORSES) {
+      w = 1;
+    }
+    key[n] = (uint16_t)(w * hold_amounts[slot]);
+    order[n] = n;
+    slot_of[n] = slot;
+    ++n;
+  }
+  if (n == 0) {
+    return -1;
+  }
+  units_dos_sort_1cf8(key, order, n);
+  return slot_of[order[0]];
+}
+
+/* The Europe `U` (mode 1) pick over harbor ship `harbor_index`'s holds. */
+int europe_dos_0f60_pick(
+  const EuropeScreen* eu, const struct ColonizeCol1Save* col1, int nation, int harbor_index
+) {
   if (!eu || harbor_index < 0 || harbor_index >= eu->harbor_ships) {
     return -1;
   }
   const EuropeHarborShip* ship = &eu->harbor[harbor_index];
-  int best = -1;
-  int best_v = 0;
-  int best_amt = 0;
-  int first_loaded = -1;
-  /*
-   * Ordering heuristic only — a rough "which hold is worth the most" ranking,
-   * with no DOS counterpart (DOS's own whole-cargo sweep, FUN_479b_0bd0 as
-   * ported in game_europe_service_trade_harbor, just walks slots 0..5 in
-   * index order). Its four zeroes (Lumber 5, Horses 8, Tools 14, Muskets 15)
-   * used to make this function REFUSE such a hold outright, which broke both
-   * its callers: European Status "U" loops on this picker to unload the whole
-   * cargo and stopped at the first zero-value hold, and "-" fell back to it
-   * and answered "Nothing to sell." on a ship full of muskets. The ranking
-   * still decides the ORDER; it no longer decides whether a loaded hold is
-   * sellable at all (smell audit #88).
-   */
-  static const int k_value[COLONIZE_CARGO_COUNT] = {
-    1, 5, 4, 3, 5, 0, 4, 20, 0, 8, 8, 7, 7, 2, 0, 0
-  };
-  for (int i = 0; i < EUROPE_SHIP_CARGO_MAX; ++i) {
-    const int amt = ship->hold_goods_amount[i];
-    const int ctype = ship->hold_goods_type[i];
-    if (amt <= 0 || amt >= 255) {
-      continue;
-    }
-    if (first_loaded < 0) {
-      first_loaded = i;
-    }
-    const int v =
-      (ctype >= 0 && ctype < COLONIZE_CARGO_COUNT) ? k_value[ctype] : 0;
-    if (v <= 0) {
-      continue;
-    }
-    if (v > best_v || (v == best_v && amt > best_amt)) {
-      best_v = v;
-      best_amt = amt;
-      best = i;
-    }
-  }
-  return best >= 0 ? best : first_loaded;
+  return europe_dos_0f60_pick_holds(
+    eu, col1, nation, ship->hold_goods_type, ship->hold_goods_amount, EUROPE_SHIP_CARGO_MAX
+  );
 }
 
 static bool europe_in_rect(int mx, int my, int x, int y, int w, int h) {
@@ -1002,7 +1031,8 @@ static int europe_transit_ship_at(
   int box_h,
   int transit_line_h,
   int mx,
-  int my
+  int my,
+  bool icon_only
 ) {
   if (!ships || count <= 0 || !units || !unit_icons || !europe_in_rect(mx, my, box_x, box_y, box_w, box_h)) {
     return -1;
@@ -1042,14 +1072,31 @@ static int europe_transit_ship_at(
       if (!europe_icon_flow_place(&f, pw, ph)) {
         break;
       }
-      if (europe_in_rect(mx, my, f.x, f.y, pw, ph)) {
+      if (!icon_only && europe_in_rect(mx, my, f.x, f.y, pw, ph)) {
         return i;
       }
       europe_icon_flow_advance(&f, pw);
     }
   }
-  /* Clicked the box but not an icon — use first ship. */
-  return count > 0 ? 0 : -1;
+  /* Clicked the box but not an icon — use first ship (icon_only: no ship). */
+  return !icon_only && count > 0 ? 0 : -1;
+}
+
+int europe_harbor_ship_icon_at(
+  const EuropeScreen* eu,
+  const ColonizeUnitPool* units,
+  const ColonizeSpriteSheet* unit_icons,
+  int transit_line_h,
+  int mx,
+  int my
+) {
+  if (!eu) {
+    return -1;
+  }
+  return europe_transit_ship_at(
+    eu->harbor, eu->harbor_ships, units, unit_icons, EUROPE_LOADING_X, EUROPE_LOADING_Y,
+    EUROPE_LOADING_W, EUROPE_LOADING_H, transit_line_h, mx, my, true
+  );
 }
 
 EuropeHitResult europe_hit_test(const EuropeScreen* eu, int mx, int my) {
@@ -1125,7 +1172,8 @@ EuropeHitResult europe_hit_test_ex(
         EUROPE_LOADING_H,
         transit_line_h,
         mx,
-        my
+        my,
+        false
       );
       hit.index = si >= 0 ? si : (eu->selected_harbor >= 0 ? eu->selected_harbor : 0);
     } else {
@@ -1149,7 +1197,8 @@ EuropeHitResult europe_hit_test_ex(
         EUROPE_EXPECTED_H,
         transit_line_h,
         mx,
-        my
+        my,
+        false
       );
     } else {
       hit.index = eu->expected_ships > 0 ? 0 : -1;
@@ -1170,7 +1219,8 @@ EuropeHitResult europe_hit_test_ex(
         EUROPE_BOUND_H,
         transit_line_h,
         mx,
-        my
+        my,
+        false
       );
     } else {
       hit.index = eu->bound_ships > 0 ? 0 : -1;

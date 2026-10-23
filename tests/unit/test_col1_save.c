@@ -2469,7 +2469,7 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    /* Discovery must stay 0 until land is seen (COLONY00-shaped). */
+    /* Discovery stays 0 until a human move reveals land and the name is answered (COLONY00-shaped; capture never sets it). */
     if (save.head.event.discovery_of_the_new_world || save.player[0].named_new_world) {
       fprintf(stderr, "newgame export: discovery flags set too early\n");
       units_set_occupancy_map(NULL);
@@ -2478,18 +2478,6 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    /* Reveal land then sync discovery for mid-campaign DOS continue. */
-    map_reveal_tile(&map, 20, 20, 0);
-    col1_bridge_sync_new_world_discovery(&save, &map, 0);
-    if (!save.head.event.discovery_of_the_new_world || !save.player[0].named_new_world) {
-      fprintf(stderr, "newgame export: discovery flags not set after land reveal\n");
-      units_set_occupancy_map(NULL);
-      col1_save_free(&save);
-      map_free(&map);
-      assets_msg_free(&names);
-      return 1;
-    }
-    fprintf(stderr, "newgame discovery flag sync ok\n");
     {
       int pacific = 0;
       int suppress = 0;

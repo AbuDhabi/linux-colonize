@@ -1,0 +1,9 @@
+# Abandon a colony that trade-route stops name (port_bugs.md #1179). Fixture: PaP moved to colony index 7 (units' homes renumbered) and three routes added -
+# 0 land [Quebec 1, Martinique 12], 1 sea [Martinique 12, Europe, PaP 7], 2 land [PaP 7, Guadeloupe 6]; Wagon #82 on route 2 (stop 1), Caravel #84 on route 1 (stop 2). Base: the Scout #95 at (24,66) is selected (head.active_unit, cursor stuff.x/y) so the
+# view shows Port au Prince (27,64), pop 1; France keeps four other colonies, so the prompt is @ABANDON.
+click 168 96               # open Port au Prince
+wait 10
+drag 5 155 131 112         # its only colonist -> fence: role popup
+click 100 46               # plain Colonist: leaving would empty the colony, @ABANDON prompt (default "Never!")
+click 100 136              # "Yes, it is God's will.": colony removed, the colonist stands on (27,64), back on the map
+wait 20

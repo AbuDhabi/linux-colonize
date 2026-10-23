@@ -1,0 +1,15 @@
+# Quebec (45,24), 3x3 work-tile minimap centre (260,67), 24 px tiles: S(260,91) SE(284,91); fence icons at y 119.
+# Fixture: map_found_colony_native_land's save (Peter Minuit removed from France, gold 1500, Tupi met + at peace)
+# with the 0x10 "bought" bit cleared on plot S (45,25), so S and SE (46,25) are Tupi-claimed and free.
+click 168 128              # open Quebec
+wait 10
+drag 107 41 260 91         # Town Hall statesman -> S: @INDIANLAND (offer 422)
+click 150 101              # row 1 respect: the drop is abandoned, nothing changes
+drag 175 119 260 91        # fence free colonist #127 -> S: @INDIANLAND again
+click 150 101              # respect: the colonist stays outside (selected)
+click 260 91               # plain click on S with the fence colonist selected: @INDIANLAND
+click 150 113              # row 2 offer 422: gold 1500 -> 1078, Tupi lands_bought +1, S bought, @INDIANBRIBE, colonist joins, works S
+key Return                 # dismiss @INDIANBRIBE
+drag 107 41 284 91         # Town Hall statesman -> SE: @INDIANLAND
+click 150 123              # row 3 take: seated, gold unchanged, Tupi alarm raised
+key Escape                 # back to the map

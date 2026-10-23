@@ -286,6 +286,12 @@ typedef struct ColonyScreenView {
   bool icons_ok;
   bool bottom_panel_ok;
   char status[96];
+  /* DOS status line (DS:0x2d54 armed): FUN_1009_02cc paints it over the top
+   * strip in place of the colony title line. Empty = none. Set each frame by
+   * game_service_colony_bar from the ai_popup status ring; `bar_ink` = the
+   * arm kind's ink (FUN_1009_0004). */
+  char bar_text[96];
+  uint8_t bar_ink;
 
   int selected_colonist;
   int selected_outside_unit; /* map unit id, or -1 */

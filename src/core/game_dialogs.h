@@ -451,7 +451,7 @@ typedef struct BeginMenuLayout {
 } BeginMenuLayout;
 
 typedef enum GameIndianLandKind {
-  GAME_INDIAN_LAND_FOUND = 0,
+  GAME_INDIAN_LAND_PLOT = 0, /* colony-screen plot drop (FUN_2f2b_2f3e); indexes k_section[0] */
   GAME_INDIAN_LAND_FOREST = 1,
   GAME_INDIAN_LAND_ROAD = 2
 } GameIndianLandKind;
@@ -557,9 +557,15 @@ int game_colony_unload_hold_commit(
   int amount,
   const char* empty_msg
 );
+/* game_colony_unload_ask `extra_payload` bit (bit 20 = unload-all): the answer
+ * path arms the DOS `U` status line after the unload (port_bugs.md #1182). */
+#define GAME_UNLOAD_PAYLOAD_U_STATUS (1 << 21)
+/* Colony-screen `U`, FUN_479b_0f60 mode 0 (port_bugs.md #1182): unload the
+ * lowest-key hold of the selected ship; red bar @MISC 22 when empty. */
+void game_colony_unload_best_hold(ColonizeGameState* game);
 /* DOS thunk_FUN_1000_99b8 case 5 (port_bugs.md #785). */
 void game_colony_unload_all_cargo(ColonizeGameState* game, int unit_id);
-bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid, bool land_resolved);
+bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid);
 /* @NOCOLONIESEITHER at the top of the shared Build/Join handler (port_bugs.md
  * #688). True = the gate fired and the order is dropped. */
 bool game_woi_blocks_colony_orders(ColonizeGameState* game);
@@ -579,6 +585,11 @@ void game_enqueue_yes_no(
   const PopupMsgTokens* tok
 );
 void game_europe_ask_boycott_buyback(ColonizeGameState* game, int cargo_type);
+void game_europe_refusal(ColonizeGameState* game, const char* section, int index);
+void game_europe_open_sell_prompt(ColonizeGameState* game, int hidx, int hold);
+void game_europe_sell_first_hold(ColonizeGameState* game, int hidx, int cargo, bool prompt);
+void game_europe_sell_best_hold(ColonizeGameState* game, int hidx);
+void game_europe_open_ship_menu(ColonizeGameState* game, int hidx);
 bool game_europe_boycott_gate(ColonizeGameState* game, int cargo_type);
 bool game_europe_blocked_by_woi(const ColonizeGameState* game);
 void game_europe_drain_price_events(ColonizeGameState* game);
@@ -605,12 +616,14 @@ bool game_pioneer_land_gate(ColonizeGameState* game, GameIndianLandKind kind);
 void game_request_noport_found_confirm(ColonizeGameState* game, int uid);
 void game_request_overboard_confirm(ColonizeGameState* game);
 void game_service_europe_bar(ColonizeGameState* game);
+void game_service_colony_bar(ColonizeGameState* game);
 void game_trade_begin_at_stop(ColonizeGameState* game, int route, int stop_i);
 void game_trade_begin_route(ColonizeGameState* game, int route);
 int game_trade_route_count(const ColonizeGameState* game);
 bool game_try_enter_europe(ColonizeGameState* game);
 bool game_try_found_colony_at_cursor(ColonizeGameState* game);
-void game_try_prompt_landho(ColonizeGameState* game);
+/* FUN_4720_049e tail: @LANDHO after a human move whose destination 3x3 holds land. */
+void game_try_prompt_landho(ColonizeGameState* game, int dest_x, int dest_y);
 const char* key_name(ColonizeKey key);
 void set_status(ColonizeGameState* game, const char* prefix, const char* detail);
 

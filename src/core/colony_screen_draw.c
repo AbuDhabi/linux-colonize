@@ -100,10 +100,18 @@ void colony_screen_draw_top_bar(
   uint16_t game_year,
   uint16_t game_autumn,
   int gold,
+  const ColonyScreenView* view,
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!font || !framebuffer) {
+    return;
+  }
+  /* An armed DOS status line (FUN_1009_02cc) replaces the title line, in the
+   * arm kind's ink; the strip's wood fill stays underneath. */
+  if (view && view->bar_text[0]) {
+    const int bw = font_text_width(font, view->bar_text);
+    font_draw_text(font, framebuffer, (COLONY_SCREEN_WIDTH - bw) / 2, 1, view->bar_text, view->bar_ink);
     return;
   }
   /* DOS FUN_2f2b_0fce: one centered string "<Name>.  <Season>, <Year>.

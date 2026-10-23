@@ -418,7 +418,7 @@ void unit_stack_render(
         row_y,
         units_display_type_index(pool, u->id),
         u->nation_id,
-        u->orders,
+        unit_chrome_plan_badge_index(u->nation_id, u->col1_ai_plan, u->orders, u->orders),
         false,
         /* Chrome's 4th arm = damaged Artillery (+0x3148 bit7), not aboard. */
         (u->col1_flags15 & 0x80u) != 0,

@@ -365,6 +365,9 @@ int units_goods_hold_count(const ColonizeUnitPool* pool, int unit_id);
  * amount is clamped to remaining room (max 100 per hold). Returns amount loaded.
  */
 int units_load_goods(ColonizeUnitPool* pool, int unit_id, int cargo_type, int amount);
+/* FUN_1cf8_000a: DOS's ascending sort of n unsigned words `k`, permuting `order`
+ * alongside (equal keys keep their order). */
+void units_dos_sort_1cf8(uint16_t* k, int* order, int n);
 /*
  * Remove goods from one hold index. Writes type/amount unloaded (optional outs).
  * Returns amount unloaded (0 if empty/invalid).

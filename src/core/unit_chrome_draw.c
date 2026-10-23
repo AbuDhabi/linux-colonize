@@ -323,7 +323,10 @@ void unit_chrome_blit_unit_for_palette(
       letter_override = nation_id == 2
                           ? assets_palette_nearest_rgb(active_palette, 255, 85, 85)
                           : assets_palette_nearest_rgb(active_palette, 255, 255, 255);
-    } else if (orders_index == 1 /* Sentry */ || orders_index == 6 /* Fortified */) {
+    } else if (
+      unit_chrome_real_orders(orders_index) == 1 /* Sentry */ ||
+      unit_chrome_real_orders(orders_index) == 6 /* Fortified */
+    ) {
       static const uint8_t k_grey_rgb[3] = {180, 180, 180};
       const uint8_t* letter_rgb =
         nation_id == g_chrome_crown_nation ? k_grey_rgb : k_nation_letter_rgb_native[nation_id];

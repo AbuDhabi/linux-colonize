@@ -448,6 +448,19 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
       ? ai_king_crown_nation_col1(&game->col1, game->human_nation)
       : -1
   );
+  /* port_bugs.md #1177a: FUN_112b_01ba swaps an AI nation's badge letter for its
+   * plan byte when the cheat bit and Debug Info Flags DS:0x894 & 8 are set. */
+  {
+    unsigned plan_mask = 0;
+    if (game_cheats_enabled(game) && (game->debug_flags_mask & 8u)) {
+      for (int n = 0; n < 4; ++n) {
+        if (game->col1.player[n].control != 0) {
+          plan_mask |= 1u << n;
+        }
+      }
+    }
+    unit_chrome_set_plan_nations(plan_mask);
+  }
   /* port_bugs.md: WoI colony flags — rebel colonies fly the American flag, crown
    * captures fly the player's original nation color. */
   unit_chrome_set_rebel_nation(
@@ -473,6 +486,9 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
    * plot seating, the colony_counts[nation]++ of FUN_364b_1ba8 (raw 58030) and the
    * founder's rebel-divisor +100. */
   colonies_set_col1_context(game->col1_ok ? &game->col1 : NULL);
+  /* Likewise the unit pool: colonies_abandon walks it for the trade-route cursor
+   * (port_bugs.md #1179) and the unit homes (raw 58190-58200). */
+  colonies_set_units_context(game->units_ok ? &game->units : NULL);
 
   /*
    * New-game wizard (difficulty → nation → … → sail). It owns the display
@@ -1183,7 +1199,9 @@ COLONIZE_INTERNAL GameUpdateStep game_update_report_screen(ColonizeGameState* ga
 static void game_colony_open_rename(ColonizeGameState* game, const ColonizeColony* colony) {
   char prompt[AI_POPUP_BODY_LEN];
   popup_msg_fill(&game->messages, "RENAMECOLONY", NULL, "", prompt, sizeof(prompt));
-  name_entry_open(&game->name_entry, NAME_ENTRY_KIND_RENAME, prompt, colony->name, game->colony_view_id);
+  if (name_entry_open(&game->name_entry, NAME_ENTRY_KIND_RENAME, prompt, colony->name, game->colony_view_id)) {
+    name_entry_set_label(&game->name_entry, howmuch_amount_label(&game->messages, "RENAMECOLONY", ""));
+  }
 }
 
 /* Colony screen input. */
@@ -1798,7 +1816,7 @@ static GameUpdateStep game_colony_screen_cargo_keys(
   ColonizeGameState* game, const ColonizeInputState* input, ColonizeColony* colony,
   ColonyScreenView* csv
 ) {
-  /* L = load highest-value cargo; U = unload first non-empty hold. */
+  /* L = load highest-value cargo; U = unload the lowest-key hold (DOS pick). */
   if (!csv->jobs_open && !csv->construction_open && colony && game->units_ok) {
     if (input->last_key == COLONIZE_KEY_L) {
       if (csv->transport_unit_id < 0) {
@@ -1816,17 +1834,8 @@ static GameUpdateStep game_colony_screen_cargo_keys(
       return GAME_UPDATE_RETURN_TRUE;
     }
     if (input->last_key == COLONIZE_KEY_U) {
-      if (csv->transport_unit_id < 0) {
-        set_status(game, "Select a ship first", NULL);
-      } else {
-        const int hold = units_first_goods_hold(&game->units, csv->transport_unit_id);
-        if (hold < 0) {
-          set_status(game, "Hold empty", NULL);
-        } else {
-          game_colony_unload_hold(game, csv->transport_unit_id, hold, "Cannot unload");
-        }
-      }
-      colony_screen_set_status(csv, game->status);
+      /* 2f2b:6694: FUN_479b_0f60(selected ship, 0) -- the lowest-key hold. */
+      game_colony_unload_best_hold(game);
       return GAME_UPDATE_RETURN_TRUE;
     }
   }
@@ -1850,6 +1859,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
     if (colony && game->units_ok) {
       colony_screen_refresh_transports(csv, &game->units, colony);
     }
+    game_service_colony_bar(game);
 
     /* Pointer-over building name label (DOS FUN_2f2b_44d4 hover arm). */
     csv->hover_building_row = -1;
@@ -2007,70 +2017,8 @@ static GameUpdateStep game_europe_screen_menu_keys(
   return GAME_UPDATE_CONTINUE;
 }
 
-/* Occupied hold slots, k-th in DOS's compacted order (FUN_15eb_2ff2 /
- * FUN_15eb_317c: the hold list shifts down on removal); -1 past the end. */
-static int europe_hold_slot_kth(const EuropeHarborShip* ship, int k) {
-  for (int i = 0; i < EUROPE_SHIP_CARGO_MAX; ++i) {
-    if (ship->hold_goods_amount[i] > 0 && ship->hold_goods_amount[i] < 255) {
-      if (k == 0) {
-        return i;
-      }
-      --k;
-    }
-  }
-  return -1;
-}
-
-/*
- * U on the European Status: the port keeps "unload all" (user report) and gives
- * it the loop of the Europe ship menu's row 3 "Unload all cargo", FUN_38fd_2bfe
- * (raw 60787-60900). Hold slots walk from count-1 DOWN to 0; each pass first
- * resets the notice flag (asm 38fd:2d8c, not a latch), a boycotted hold
- * (FUN_38fd_05e8) sets it and is skipped, anything else is sold whole
- * (FUN_38fd_23c4, no amount prompt; it sells the FIRST hold of that cargo,
- * FUN_15eb_32a0). After the loop a set flag raises @SOMEBOYCOTT (0x1027) as an
- * OK modal -- so DOS only shows it when the last-examined slot 0 was
- * boycotted (DOS quirk, kept). Price popups come before it. No summary line.
- */
-static void game_europe_unload_all(ColonizeGameState* game, int hidx) {
-  EuropeScreen* eu = &game->europe;
-  const EuropeHarborShip* ship = &eu->harbor[hidx];
-  int count = 0;
-  while (europe_hold_slot_kth(ship, count) >= 0) {
-    ++count;
-  }
-  int boycotted = 0;
-  for (int k = count - 1; k >= 0; --k) {
-    boycotted = 0;
-    const int slot = europe_hold_slot_kth(ship, k);
-    if (slot < 0) {
-      break;
-    }
-    const int ctype = ship->hold_goods_type[slot];
-    if (europe_cargo_boycotted_ex(eu, &game->col1, game->human_nation, ctype)) {
-      boycotted = 1;
-      continue;
-    }
-    int first = slot;
-    for (int i = 0; i < slot; ++i) {
-      if (ship->hold_goods_amount[i] > 0 && ship->hold_goods_amount[i] < 255 &&
-          ship->hold_goods_type[i] == ctype) {
-        first = i;
-        break;
-      }
-    }
-    (void)europe_sell_hold(eu, &game->col1, game->human_nation, hidx, first);
-  }
-  game_europe_drain_price_events(game);
-  if (boycotted) {
-    char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(&game->messages, "SOMEBOYCOTT", NULL, "", body, sizeof(body));
-    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
-  }
-}
-
-/* Europe screen hotkeys: Escape/E exit, R/P/T menus, L/U cargo, S sail and
- * the dock/hold selection keys. */
+/* Europe screen hotkeys: Escape/E exit, R/P/T menus, L/U/-/_ cargo, S/Space/Enter
+ * ship menu (FUN_38fd_4f6e). */
 static GameUpdateStep game_europe_screen_keys(
   ColonizeGameState* game, const ColonizeInputState* input, EuropeScreen* eu
 ) {
@@ -2116,7 +2064,7 @@ static GameUpdateStep game_europe_screen_keys(
     }
   }
 
-  /* L / '=' : howmuch buy. U : unload all (game_europe_unload_all). */
+  /* L / '=' : howmuch buy. U : sell the lowest-key hold (FUN_479b_0f60). */
   if (input->last_key == COLONIZE_KEY_L) {
     if (eu->selected_harbor < 0) {
       snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
@@ -2126,23 +2074,24 @@ static GameUpdateStep game_europe_screen_keys(
     return GAME_UPDATE_RETURN_TRUE;
   }
   if (input->last_key == COLONIZE_KEY_U) {
-    /* Port-kept "unload all" (user report; DOS's own U sells one best hold per
-     * press, FUN_38fd_4f6e -> FUN_479b_0f60, see port_bugs.md #1176). */
-    if (eu->selected_harbor < 0) {
-      snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
-    } else {
-      game_europe_unload_all(game, eu->selected_harbor);
-    }
+    /* FUN_38fd_4f6e 38fd:5140-5158: no harbor ship = nothing; one hold per press. */
+    game_europe_sell_best_hold(game, eu->selected_harbor);
     return GAME_UPDATE_RETURN_TRUE;
   }
-  if (input->last_key == COLONIZE_KEY_S) {
-    /* DOS: S sails the selected ship for the New World. */
+  /* S / Space / Enter with a ship selected (focus mode 1): the ship menu,
+   * FUN_38fd_2bfe, not a direct sail (FUN_38fd_4f6e 38fd:5364-5491); its row 2
+   * sails through the @SAILAWAY confirm. The port has no focus modes: a
+   * selected harbor ship is the ship focus. */
+  if (input->last_key == COLONIZE_KEY_S || input->last_key == COLONIZE_KEY_SPACE ||
+      input->last_key == COLONIZE_KEY_ENTER) {
     if (eu->selected_harbor >= 0) {
-      game_europe_request_sail(game, eu->selected_harbor);
-    } else {
-      snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
+      game_europe_open_ship_menu(game, eu->selected_harbor);
+      return GAME_UPDATE_RETURN_TRUE;
     }
-    return GAME_UPDATE_RETURN_TRUE;
+    if (input->last_key == COLONIZE_KEY_S) {
+      snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
+      return GAME_UPDATE_RETURN_TRUE;
+    }
   }
   for (int ti = 0; ti < input->text_input_len; ++ti) {
     const char ch = input->text_input[ti];
@@ -2171,32 +2120,17 @@ static GameUpdateStep game_europe_screen_keys(
       game_europe_drain_price_events(game);
       return GAME_UPDATE_RETURN_TRUE;
     }
-    if ((ch == '-' || ch == '_') && eu->selected_harbor >= 0) {
+    if (ch == '-' || ch == '_') {
+      /* FUN_38fd_4f6e 38fd:5162-51b3. */
+      if (eu->harbor_ships <= 0) {
+        game_europe_refusal(game, "CMESSAGE", 5); /* 51c1: "Nothing to transport" */
+        return GAME_UPDATE_RETURN_TRUE;
+      }
       if (game_europe_boycott_gate(game, eu->selected_market)) {
-        return GAME_UPDATE_RETURN_TRUE; /* FUN_38fd_4f6e 38fd:5162-5190 */
+        return GAME_UPDATE_RETURN_TRUE;
       }
-      EuropeHarborShip* ship = &eu->harbor[eu->selected_harbor];
-      int hold = -1;
-      for (int hi = 0; hi < EUROPE_SHIP_CARGO_MAX; ++hi) {
-        if (ship->hold_goods_amount[hi] > 0 && ship->hold_goods_amount[hi] < 255 &&
-            ship->hold_goods_type[hi] == eu->selected_market) {
-          hold = hi;
-          break;
-        }
-      }
-      if (hold < 0) {
-        hold = europe_best_sell_hold(eu, eu->selected_harbor);
-      }
-      if (hold < 0) {
-        snprintf(eu->status, sizeof(eu->status), "%s", "Nothing to sell.");
-      } else if (ship->hold_goods_amount[hold] > 1) {
-        europe_sell_hold_partial(
-          eu, &game->col1, game->human_nation, eu->selected_harbor, hold, 1
-        );
-      } else {
-        europe_sell_hold(eu, &game->col1, game->human_nation, eu->selected_harbor, hold);
-      }
-      game_europe_drain_price_events(game);
+      /* '-' sells the whole first slot of the selected cargo, '_' asks the amount. */
+      game_europe_sell_first_hold(game, eu->selected_harbor, eu->selected_market, ch == '_');
       return GAME_UPDATE_RETURN_TRUE;
     }
   }
@@ -3142,7 +3076,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
     }
   }
 
-  /* B: found a colony — Indian land gold/Minuit via colonies_found_with_indian_land. */
+  /* B: found a colony — free on tribal land (@INDIANLAND is the colony-screen plot drop, #1175). */
   if (input->last_key == COLONIZE_KEY_B && game->world_map_ok) {
     (void)game_try_found_colony_at_cursor(game);
   }
@@ -3304,8 +3238,6 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     );
   }
 
-  /* First-land @LANDHO before parent hotkeys; modal gate blocks E/Q/etc. */
-  game_try_prompt_landho(game);
   if (game_handle_modal_input(game, input)) {
     if (game->elapsed_ms == UINT32_MAX) {
       return false;

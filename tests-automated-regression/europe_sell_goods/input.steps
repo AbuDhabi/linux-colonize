@@ -9,10 +9,10 @@ drag 152 171 100 100     # hold dropped on the sky, not the market: nothing sold
 drag 152 171 48 189      # Tobacco 100 @ 4 = 400, tax 24, net 376
 drag 164 171 143 189     # Silver 30 @ 19 = 570, tax 34, net 536; Silver bid 20 -> 19: @PRICEDOWN
 key Return               # OK the popup
-# Keyboard route: '-' sells one ton of the selected market cell's good from the hold carrying it.
+# Keyboard route: '-' sells the WHOLE first hold of the selected market cell's good (FUN_38fd_23c4), '_' asks the amount.
 click 67 189             # select the Cotton market cell
-key -                    # 1 Cotton @ 4 = 4, tax 0
-key -
+key -                    # Cotton 50 @ 4 = 200, tax 12, net 188
+key -                    # no Cotton aboard now: red bar "No Cotton in cargo hold!", nothing sold
 # Shift+drag asks @HOWMUCH5 first (prompt starts at the full hold, 100).
 drag 200 171 124 189 shift
 key Backspace
@@ -21,7 +21,21 @@ key Backspace
 key 2
 key 5
 key Return               # 25 Ore @ 3 = 75, tax 4, net 71
-# U unloads every hold left on the selected ship, last hold first (ship menu row 3 walk).
-key u                    # Furs 100, Ore 75, Rum 60, Cotton 48
-key u                    # empty ship: nothing happens
+click 181 189            # select the Rum market cell
+key - shift              # '_' = Shift+'-': asks the amount first (@HOWMUCH5 over the first Rum hold, prompt starts at 60)
+key Backspace
+key Backspace
+key 1
+key 0
+key Return               # 10 Rum @ 12 = 120, tax 7, net 113
+# U sells ONE hold per press, the lowest key first (FUN_479b_0f60: key = (price << 4) * tons; Ore 3*16*75, Furs 5*16*100, Rum 12*16*50).
+key u                    # Ore 75 @ 3 = 225
+key u                    # Furs 100 @ 5 = 500
+# The ship menu's row 3 unloads whatever is left, last hold first.
+click 153 155            # the Galleon's icon: ship menu (4 rows)
+click 150 109            # row 3 Unload all cargo: Rum 50
+key Return               # OK the Rum @PRICEDOWN popup (Rum 10 + 50 tons crossed the fall step)
+key u                    # empty ship: red bar "No cargo on board!" (queued behind the sale lines)
+wait 130
+shot
 key e                    # leave Europe

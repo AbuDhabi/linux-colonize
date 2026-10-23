@@ -343,7 +343,9 @@ Pay for tribal land at (x,y): debit *gold by cost (when gold non-NULL),
 INC indian.lands_bought (FUN_479b_00ca), stamp the purchased bit on the
 Col1 mask (0x10) and map layer2 (MAP_LAYER2_PURCHASED) — the
 FUN_281f_068c(...,0x10,1) / FUN_15eb_0668 write every DOS "offer gold"
-arm (@INDIANLAND/@INDIANROAD/@INDIANFOREST → @INDIANBRIBE) performs.
+arm (@INDIANLAND/@INDIANROAD/@INDIANFOREST → @INDIANBRIBE) performs. @INDIANLAND is
+asked only by the colony-screen plot drop (`game_colony_plot_land_gate`, DOS
+FUN_2f2b_2f3e), never by Build Colony, which founds free (port_bugs.md #1175).
 
 ## colonies_indian_land_purchase_gold
 
@@ -480,6 +482,21 @@ NULL = plain owner swap (tests without a save). The game loop re-binds it every
 frame (`game_update`, next to the occupancy map), so founding, join/leave
 (rebel divisor +-100), abandon and the `colony_counts[]` tallies see it from the
 first action after a load / new game (port_bugs.md #1175c).
+
+## colonies_abandon
+
+DOS colony delete (FUN_364b_1e64, raw 58154-58200) minus the array compaction:
+the port zeroes the slot in place, so the DOS colony index is the ordinal among
+live slots (`colonies_dos_index` / `colonies_id_at_dos_index`), which is also the
+order col1_bridge writes the COL1 colony array. Live
+`game->col1.trade_route[].stop[].colony_index` holds that DOS index (999 =
+Europe) and `colonies_abandon` runs the DOS remap on it (stops at the dead
+colony removed with the unit cursor walk, later stops `-1`); `colonies_found`'s
+hole-fill arm shifts them `+1`. Readers resolve through `colonies_id_at_dos_index`,
+writers convert the picker's colony id (`game_trade_stop_word`). Unit homes stay
+colony ids at runtime and are translated at capture. Needs the Col1 and unit-pool
+contexts bound (`game_update` does, every frame). Ceilings in the code comment
+(port_bugs.md #1179).
 
 ## colonies_equip_tools_take
 

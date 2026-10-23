@@ -125,7 +125,9 @@ which screen. Until then do not invent a threshold table — 25 gradations only
 ### #909 — Craft audit statics
 - The origin of the skill-match flag `[bp-0x1c]` is unlocated.
 - Train dialog row order for the 1000/1100/1200 ties
-  (`FUN_291f_0ed0` = 210d:0d91 sort stub unread).
+  (`FUN_291f_0ed0` = `FUN_1cf8_000a` is now read and ported as
+  `units_dos_sort_1cf8`, port_bugs.md #1176; the Train dialog's own key/tie
+  order still has to be traced and fed through it).
 - University-without-College seating of a level-2 teacher: DOS tests 8bec(0xd)
   only, the port's `colonies_school_owned_tier` allows it. Unreachable by normal
   play.

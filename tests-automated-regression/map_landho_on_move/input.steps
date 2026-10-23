@@ -1,0 +1,22 @@
+# Fixture: map_move_ship_tile_by_tile's start (France 1599, Caravel #2 at sea (47,29), 4 moves) with France's named_new_world and the
+# discovery_of_the_new_world event bit cleared through sav_json. Land lies at (42,29); (43,29) is the first tile with land in its 3x3.
+# @LANDHO belongs to the human move executor's tail (FUN_4720_049e 4720:061c): not to load, select or a map-wide "has seen land" poll (port_bugs.md #1178).
+shot                     # start: loading the save prompted nothing
+key KP_4                 # west to (46,29): no land in the 3x3 around the destination, no prompt
+key KP_4                 # (45,29)
+key KP_4                 # (44,29): still none
+shot
+key KP_4                 # (43,29): (42,29) is land in the 3x3 -> woodcut 1, then the name prompt
+wait 30
+shot
+key Return               # dismiss the woodcut
+wait 30
+shot
+key z shift              # name entry: type "Zeta" over the selected default
+key e
+key t
+key a
+shot
+key Return               # accept the name
+wait 30
+shot

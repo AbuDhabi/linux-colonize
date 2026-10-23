@@ -113,8 +113,7 @@ static bool ai_popup_enqueue(AiPopupState* st, const AiPopupRequest* req) {
 /*
  * Status line with an explicit DOS arm kind (FUN_1009_0244's first argument).
  * The plain enqueue is kind 1, the gold success ink DOS uses for a sale line;
- * kind 3 (red refusal) is DOS-real but has no OpenCol producer yet, so this
- * entry point is currently reached only through the kind-1 wrapper.
+ * ai_popup_enqueue_bar_refusal is kind 3, the red refusal.
  */
 static bool ai_popup_enqueue_bar_message_kind(
   AiPopupState* st, const char* text, int kind
@@ -140,6 +139,10 @@ bool ai_popup_enqueue_bar_message(AiPopupState* st, const char* text) {
   return ai_popup_enqueue_bar_message_kind(st, text, 1);
 }
 
+bool ai_popup_enqueue_bar_refusal(AiPopupState* st, const char* text) {
+  return ai_popup_enqueue_bar_message_kind(st, text, 3);
+}
+
 const char* ai_popup_bar_message(const AiPopupState* st) {
   if (!st || st->bar_msg_count <= 0) {
     return NULL;
@@ -158,8 +161,8 @@ const char* ai_popup_bar_message(const AiPopupState* st) {
  * FUN_1009_0244 is 1 or 3: 1 for the sale/success lines
  * (FUN_281f_0dc2(1, 0x78, 0), raw 77421 and 77503) and 3 for the red refusal
  * (FUN_281f_0de0(0x479b, 0x16, 3), raw 77369, plus the overlay Europe screen's
- * thunk_FUN_1000_99a0(3, 0x78, 0)). Kind 3 is DOS-real and simply unported —
- * the OpenCol ring has one producer, ai_popup_enqueue_bar_message's kind 1.
+ * thunk_FUN_1000_99a0(3, 0x78, 0)). The OpenCol ring has two producers, ai_popup_enqueue_bar_message's kind 1
+ * and ai_popup_enqueue_bar_refusal's kind 3 (port_bugs.md #1176).
  * Corrected 2026-09-10 (audit #20), which read the 1/2 pair as two producers.
  */
 uint8_t ai_popup_bar_message_color(const AiPopupState* st) {
@@ -595,6 +598,8 @@ static const char* ai_popup_tag_name(AiPopupTag tag) {
       return "SCOUT_COLONY";
     case AI_POPUP_TAG_OVERBOARD_WHICH:
       return "OVERBOARD_WHICH";
+    case AI_POPUP_TAG_EUROPE_SHIP_MENU:
+      return "EUROPE_SHIP_MENU";
   }
   return "UNKNOWN";
 }

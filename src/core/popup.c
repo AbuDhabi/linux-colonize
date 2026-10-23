@@ -523,20 +523,19 @@ void popup_list_render(
   }
 }
 
-void popup_prompt_frame(
+void popup_field_frame(
   ColonizeFramebuffer8* framebuffer,
   const ColonizeFont* font,
   const ColonizeSpriteSheet* wood_tile,
   const ColonizePopupColors* colors,
-  int w,
-  int h,
-  int pad,
+  int width,
   const char* prompt,
-  int rows,
+  const char* label,
+  int max_len,
   uint8_t text_color,
-  PopupPromptGeom* out
+  PopupFieldGeom* out
 ) {
-  PopupPromptGeom geom;
+  PopupFieldGeom geom;
   memset(&geom, 0, sizeof(geom));
   if (!framebuffer || !framebuffer->pixels) {
     if (out) {
@@ -544,30 +543,87 @@ void popup_prompt_frame(
     }
     return;
   }
-  geom.line_h = popup_dialog_line_h(font);
-  /* DOS draws these boxes with the GAME.TXT dialog writer (FUN_6f74_37fc ->
-   * 32a4 / 2580): word-wrapped to the box width, {} emphasis. A prompt longer
-   * than the reserved rows grows the box instead of losing its tail. */
+  /* FUN_6f74_0f16: font[0], a 6-row font counts as 5. */
+  int gh = font ? (int)font->max_height : 6;
+  if (gh == 6) {
+    gh = 5;
+  }
+  geom.glyph_h = gh;
+  geom.text_h = gh + 1;
+  /* FUN_6f74_0d44: label + " " (DS:0x1f95), field text = width("W") * max_len. */
+  char label_sp[POPUP_MSG_CHOICE_LEN + 2];
+  snprintf(label_sp, sizeof(label_sp), "%s ", label ? label : "");
+  const int label_w = font ? font_text_width(font, label_sp) : 0;
+  const int text_w = (font ? font_text_width(font, "W") : 0) * max_len;
+  /* FUN_6f74_14c6 prologue: content width = max(0x50, @width, label_w + text_w + 10). */
+  int content_w = 0x50;
+  if (width > content_w) {
+    content_w = width;
+  }
+  if (label_w + text_w + 10 > content_w) {
+    content_w = label_w + text_w + 10;
+  }
+  if (content_w + 6 > framebuffer->width) {
+    content_w = framebuffer->width - 6;
+  }
+  /* FUN_6f74_1198: the prompt flows inside content - 4. */
   enum { MAX_ROWS = 8 };
   char lines[MAX_ROWS][128];
+  bool centred[MAX_ROWS];
+  memset(centred, 0, sizeof(centred));
   const int n = font ? popup_wrap_text(
-                         font, prompt, &lines[0][0], sizeof(lines[0]), NULL, MAX_ROWS,
-                         w - 2 * POPUP_FRAME_INSET - 2 * pad
+                         font, prompt, &lines[0][0], sizeof(lines[0]), centred, MAX_ROWS,
+                         content_w - 4
                        )
                      : 0;
-  if (n > rows) {
-    h += (n - rows) * geom.line_h;
-    rows = n;
+  const int body_h = n * (gh + 1);
+  const int w = content_w + 6;
+  const int h = body_h + gh + 20;
+  /* 0x1823/0x1847 and 0x16e1/0x16fa: 160 - W/2 and 100 - H/2 as arithmetic shifts. */
+  const int x = framebuffer->width / 2 - (w >> 1);
+  const int y = framebuffer->height / 2 - (h >> 1);
+  ColonizePopupColors local_colors;
+  if (!colors) {
+    popup_colors_from_ui(&local_colors);
+    colors = &local_colors;
   }
-  popup_center_frame(framebuffer, w, h, wood_tile, colors, &geom.frame);
-  bool emph = false;
-  for (int i = 0; i < n; ++i) {
-    popup_draw_text_markup(
-      font, framebuffer, geom.frame.inner_x + pad, geom.frame.inner_y + pad + i * geom.line_h,
-      lines[i], text_color, COLONIZE_COL_HILITE, false, true, &emph
-    );
+  geom.frame.x = x;
+  geom.frame.y = y;
+  geom.frame.w = w;
+  geom.frame.h = h;
+  popup_draw(
+    framebuffer, x, y, w, h, wood_tile, colors, &geom.frame.inner_x, &geom.frame.inner_y,
+    &geom.frame.inner_w, &geom.frame.inner_h
+  );
+  const int y0 = y + 9 + body_h;
+  geom.box_x = x + 5 + label_w;
+  geom.box_y = y0;
+  geom.box_w = text_w + 6;
+  geom.box_h = gh + 5;
+  geom.text_x = geom.box_x + 3;
+  geom.text_y = y0 + 3;
+  if (font) {
+    bool emph = false;
+    for (int i = 0; i < n; ++i) {
+      int lx = x + 5;
+      if (centred[i]) {
+        const int lw = popup_markup_text_width(font, lines[i]);
+        if (lw < content_w - 4) {
+          lx += (content_w - 4 - lw) / 2;
+        }
+      }
+      popup_draw_text_markup(
+        font, framebuffer, lx, y + 6 + i * (gh + 1), lines[i], text_color, COLONIZE_COL_HILITE,
+        true, true, &emph /* unbold: same FONTINTR body style as every popup (port_bugs.md #1180) */
+      );
+    }
+    if (label && label[0]) {
+      popup_draw_text_markup(
+        font, framebuffer, x + 5, y0 + 3, label, text_color, COLONIZE_COL_HILITE, true, true, &emph
+      );
+    }
   }
-  geom.text_y = geom.frame.inner_y + pad + rows * geom.line_h;
+  fb_rect_outline(framebuffer, geom.box_x, geom.box_y, geom.box_w, geom.box_h, text_color, text_color);
   if (out) {
     *out = geom;
   }

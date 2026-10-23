@@ -142,6 +142,10 @@ static bool run(void) {
     if (!frame(west[west_i % 3])) return fail("sail west");
   }
   if (human_colony_count() == 0) return fail("no colony founded within budget");
+  /* port_bugs.md #1178: the first ship move with land in the destination 3x3 named the New World. */
+  if (g_game->col1_ok && !g_game->col1.player[g_game->human_nation].named_new_world) {
+    return fail("landfall never raised @LANDHO (named_new_world still clear)");
+  }
   while (game_modal_open(g_game) || game_ai_popup_pending(g_game)) {
     if (!dismiss_modal()) return fail("post-found modal");
   }

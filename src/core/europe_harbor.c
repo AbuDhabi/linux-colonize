@@ -430,6 +430,24 @@ bool europe_bound_pop_arrived(
   return true;
 }
 
+/*
+ * FUN_38fd_2bfe row 1 -> FUN_281f_089e(ship), then DS:0x9e20 = DS:0x9e1c = 0:
+ * the ship goes to the head of the harbor list (the others keep their order)
+ * and becomes the selected one.
+ */
+bool europe_harbor_move_to_front(EuropeScreen* eu, int harbor_index) {
+  if (!eu || harbor_index < 0 || harbor_index >= eu->harbor_ships) {
+    return false;
+  }
+  const EuropeHarborShip ship = eu->harbor[harbor_index];
+  for (int i = harbor_index; i > 0; --i) {
+    eu->harbor[i] = eu->harbor[i - 1];
+  }
+  eu->harbor[0] = ship;
+  eu->selected_harbor = 0;
+  return true;
+}
+
 void europe_refresh_harbor_selection(EuropeScreen* eu) {
   if (!eu) {
     return;
@@ -492,7 +510,7 @@ void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units) {
     eu->open_on_dock = true;
     /* 255 is the empty-hold sentinel, not a full hold — the same guard every
      * other hold consumer carries (europe_goods_slots_used, europe_sell_hold
-     * / _partial, europe_best_sell_hold, europe_buy_cargo, reports.c's cargo
+     * / _partial, europe_dos_0f60_pick, europe_buy_cargo, reports.c's cargo
      * rows). units_despawn_ship_with_cargo copies the raw hold bytes in, so
      * without it a sentinel hold fired the once-per-game "Cargo from the New
      * World" woodcut (turn.c → WOODCUT_CARGO_FROM_THE_NEW_WORLD). */

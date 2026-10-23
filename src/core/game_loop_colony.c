@@ -834,38 +834,6 @@ static bool game_colony_assign_field(
 }
 
 /*
- * Status-line chrome only — the alarm itself is charged inside
- * colonies_assign_field_w. DOS shows no dialog at all here (port_bugs.md #284); the
- * port keeps this line so the player learns why the tribe soured. Read-only, so
- * running it after the assign cannot double-charge.
- */
-static void game_colony_indian_land_status(
-  ColonizeGameState* game,
-  const ColonizeColony* colony,
-  int tile_index
-) {
-  if (!game || !game->col1_ok || !game->world_map_ok || !colony) {
-    return;
-  }
-  int dx = 0;
-  int dy = 0;
-  if (!colonies_field_tile_delta(tile_index, &dx, &dy)) {
-    return;
-  }
-  const ColonizeWorld w = game_world(game);
-  const int ti = colonies_indian_claim_tribe_from_w(
-    &w, colony->nation_id, colony->x, colony->y, colony->x + dx, colony->y + dy
-  );
-  if (ti < 0 || !game->col1.tribe) {
-    return;
-  }
-  snprintf(
-    game->status, sizeof(game->status), "The %s resent the use of their land.",
-    ai_contact_tribe_name((int)game->col1.tribe[ti].nation_id)
-  );
-}
-
-/*
  * Fisherman on a dockless colony: DOS raises GAME.TXT @NODOCKS in the assign
  * path (2f3e) below both the tile click (3fa6) and the jobs popup (348c), so
  * one gate serves both callers (port_bugs.md #1111). Returns true when it refused;
@@ -888,6 +856,38 @@ static bool game_colony_refuse_nodocks(
 }
 
 /*
+ * @INDIANLAND gate of the shared assign function FUN_2f2b_2f3e (raw ~82264-82487,
+ * port_bugs.md #1175). DS:0xbb8 arms it only for the plot click (3fa6) and the
+ * drag-release (47bc, mode 6), never for the field-jobs popup (348c), so only
+ * game_colony_area_tile_drop calls it. It runs after the validator (@NODOCKS)
+ * and before any seat: the claim-table entry for the plot (26e4) names the
+ * tribe, and a peaceful tribe asks respect / offer / take. True = the CHOICE
+ * is open and the drop stops; the answer re-enters through
+ * game_colony_plot_land_resume (offer / take). The one-shot flag is DOS's
+ * `0xbb8 = 0` after the prompt: the resumed drop must not ask twice.
+ */
+static bool g_plot_land_resolved = false;
+
+static bool game_colony_plot_land_gate(
+  ColonizeGameState* game, const ColonizeColony* colony, int tile_index
+) {
+  if (g_plot_land_resolved) {
+    g_plot_land_resolved = false;
+    return false;
+  }
+  int dx = 0;
+  int dy = 0;
+  if (!colonies_field_tile_delta(tile_index, &dx, &dy) ||
+      !game_request_indian_land_choice(
+        game, GAME_INDIAN_LAND_PLOT, tile_index, colony->x + dx, colony->y + dy
+      )) {
+    return false;
+  }
+  game_colony_present_now(game, AI_POPUP_TAG_INDIAN_LAND);
+  return true;
+}
+
+/*
  * DOS FUN_2f2b_3fa6, the area-view tile click (port_bugs.md):
  *  - tile worked by the selected colonist  → the field-jobs popup (348c);
  *  - tile worked by someone else           → just select that colonist;
@@ -897,6 +897,8 @@ static bool game_colony_refuse_nodocks(
  *    re-checks ocean_or_high_seas at 3fa6): Fisherman on water, Farmer on
  *    land. Water without Docks raises GAME.TXT @NODOCKS instead (the gate
  *    lives in DOS's assign path 2f3e).
+ * Before the seat the @INDIANLAND gate may stop the drop (see
+ * game_colony_plot_land_gate); a fence unit is admitted only after it.
  */
 void game_colony_area_tile_drop(
   ColonizeGameState* game,
@@ -928,13 +930,16 @@ void game_colony_area_tile_drop(
     return;
   }
   const bool from_fence = csv->selected_outside_unit >= 0;
-  const int ci = game_colony_selected_colonist(game);
-  if (ci < 0 || ci >= colony->colonist_count) {
+  /* DOS admits the outside unit (FUN_281f_0c36 at 2f2b:33d0) only after the
+   * @INDIANLAND prompt, so "respect" leaves it outside: ci stays -1 until the
+   * gate has passed. */
+  int ci = from_fence ? -1 : game_colony_selected_colonist(game);
+  if (!from_fence && (ci < 0 || ci >= colony->colonist_count)) {
     set_status(game, "Select a colonist first", NULL);
     colony_screen_set_status(csv, game->status);
     return;
   }
-  int job = (int)colony->colonists[ci].field_job;
+  int job = from_fence ? 0 : (int)colony->colonists[ci].field_job;
   int dx = 0;
   int dy = 0;
   colonies_field_tile_delta(tile_index, &dx, &dy);
@@ -971,14 +976,40 @@ void game_colony_area_tile_drop(
     colony_screen_set_status(csv, game->status);
     return;
   }
+  if (game_colony_plot_land_gate(game, colony, tile_index)) {
+    return;
+  }
+  if (from_fence) {
+    ci = game_colony_selected_colonist(game);
+    if (ci < 0 || ci >= colony->colonist_count) {
+      set_status(game, "Select a colonist first", NULL);
+      colony_screen_set_status(csv, game->status);
+      return;
+    }
+  }
   if (game_colony_assign_field(game, ci, tile_index, job)) {
     game_colony_assign_job_sound(job);
     snprintf(game->status, sizeof(game->status), "Working as %s", colony_yield_job_name(job));
-    game_colony_indian_land_status(game, colony, tile_index);
   } else {
     set_status(game, "Cannot assign field", NULL);
   }
   colony_screen_set_status(csv, game->status);
+}
+
+/*
+ * @INDIANLAND answered offer / take (the offer already paid in
+ * game_apply_popup_contact): DOS carries on into the assignment, so re-run the
+ * drop with the gate spent. The selection (colonist or fence unit) is still
+ * the dragged one -- nothing runs between the popup and its answer.
+ */
+void game_colony_plot_land_resume(ColonizeGameState* game, int tile_index) {
+  ColonizeColony* colony = game->in_colony ? colonies_get_mut(&game->colonies, game->colony_view_id) : NULL;
+  if (!colony) {
+    return;
+  }
+  g_plot_land_resolved = true;
+  game_colony_area_tile_drop(game, colony, game->world_map_ok ? &game->world_map : NULL, tile_index);
+  g_plot_land_resolved = false;
 }
 
 /*
@@ -1119,9 +1150,6 @@ void game_colony_commit_job(ColonizeGameState* game, ColonizeColony* colony, int
   } else if (game_colony_assign_field(game, ci, csv->jobs_tile_index, job)) {
     game_colony_assign_job_sound(job);
     snprintf(game->status, sizeof(game->status), "Working as %s", colony_yield_job_name(job));
-    game_colony_indian_land_status(
-      game, colonies_get(&game->colonies, game->colony_view_id), csv->jobs_tile_index
-    );
   } else {
     set_status(game, "Cannot assign field", NULL);
   }
@@ -1482,35 +1510,7 @@ bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my, bool shift) 
         /* FUN_38fd_3502 raw 61107-61125: boycotted cargo -> @KISSUP, trade aborted. */
       } else if (eu->selected_harbor >= 0 && shift) {
         /* Shift+drag: @HOWMUCH5 amount entry instead of selling the whole hold. */
-        const EuropeHarborShip* ship = &eu->harbor[eu->selected_harbor];
-        const int hold = drag->index;
-        if (hold >= 0 && hold < EUROPE_SHIP_CARGO_MAX && ship->hold_goods_amount[hold] > 0 &&
-            ship->hold_goods_amount[hold] < 255) {
-          const int ctype = ship->hold_goods_type[hold];
-          const int max_amt = ship->hold_goods_amount[hold];
-          char prompt[AI_POPUP_BODY_LEN];
-          PopupMsgTokens tok;
-          memset(&tok, 0, sizeof(tok));
-          tok.string0 = (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "";
-          tok.string2 = "dockside buyers";
-          tok.number0 = max_amt;
-          tok.has_number0 = true;
-          tok.number1 = europe_sell_price(eu, ctype);
-          tok.has_number1 = true;
-          popup_msg_fill(
-            &game->messages, "HOWMUCH5", &tok, "", prompt, sizeof(prompt)
-          );
-          howmuch_open(
-            &game->howmuch,
-            HOWMUCH_KIND_SELL,
-            prompt,
-            howmuch_amount_label(&game->messages, "HOWMUCH5", ""),
-            max_amt,
-            max_amt,
-            ctype,
-            hold
-          );
-        }
+        game_europe_open_sell_prompt(game, eu->selected_harbor, drag->index);
       } else if (eu->selected_harbor >= 0) {
         europe_sell_hold(eu, &game->col1, game->human_nation, eu->selected_harbor, drag->index);
         game_europe_drain_price_events(game);
@@ -1519,6 +1519,18 @@ bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my, bool shift) 
   } else if (kind == UI_DRAG_EUROPE_HARBOR_SHIP) {
     if (hit.kind == EUROPE_HIT_BOUND) {
       game_europe_request_sail(game, drag->index);
+    } else {
+      /* FUN_38fd_2edc raw 60949-61035: a left release over a harbor ship ICON
+       * opens that ship's menu (FUN_38fd_2bfe); empty box space does not. */
+      const int icon = europe_harbor_ship_icon_at(
+        eu, game->units_ok ? &game->units : NULL, game_icons(game),
+        game_europe_transit_line_h(game), mx, my
+      );
+      if (icon >= 0) {
+        game_ui_drag_clear(game);
+        game_europe_open_ship_menu(game, icon);
+        return true;
+      }
     }
   } else if (kind == UI_DRAG_EUROPE_EXPECTED_SHIP) {
     if (hit.kind == EUROPE_HIT_BOUND) {

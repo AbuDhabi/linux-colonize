@@ -1116,7 +1116,10 @@ static int game_trade_stop_coords(
     *oy = by;
     return 1;
   }
-  const ColonizeColony* c = colonies_get(&game->colonies, (int)colony_index);
+  /* Stops hold DOS colony indices, not port ids (colonies_abandon remaps them). */
+  const ColonizeColony* c = colonies_get(
+    &game->colonies, colonies_id_at_dos_index(&game->colonies, (int)colony_index)
+  );
   if (!c || !c->active) {
     return 0;
   }

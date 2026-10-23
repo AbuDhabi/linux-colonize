@@ -104,12 +104,68 @@ int colonies_fortification_defense_bonus_percent(
   return 0;
 }
 
+/*
+ * DOS-LITERAL FUN_364b_1e64 raw 58170-58188 (colony delete, trade-route
+ * remap) + FUN_647e_060e raw 102569-102624 (delete stop): live
+ * trade_route[].stop[].colony_index is the DOS colony index (the save
+ * format), so when the colony at DOS index `rank` is deleted every stop at
+ * it is removed and every stop past it shifts down one; 999 (Europe) is
+ * skipped. Stops are global colony indices, so any nation's delete counts.
+ * Stop removal shifts later stops down and drops dest_count; the old last
+ * stop is left stale, as in DOS. The unit cursor (follow_unit_id = route,
+ * col1_counter16 = stop) goes max(cursor - 1, 0) for cursor >= removed stop.
+ * ponytail: the DOS gate on that cursor walk (unit owner == nation_turn and a
+ * cargo-capable type) is not ported -- only trade-route-order units carry a
+ * route, and AI units never do; a Europe-lane ship's trade_stop is not
+ * adjusted either (col1_bridge clamps it at capture). The route table is
+ * walked whole (an empty route has no stops) instead of trade_route_count.
+ */
+static void colonies_trade_stops_on_delete(
+  ColonizeCol1Save* col1,
+  ColonizeUnitPool* units,
+  int rank
+) {
+  if (!col1 || rank < 0) {
+    return;
+  }
+  for (int route = 0; route < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT; ++route) {
+    ColonizeCol1TradeRoute* r = &col1->trade_route[route];
+    for (int j = (int)r->dest_count - 1; j >= 0; --j) {
+      uint16_t* p = &r->stop[j].colony_index;
+      if (*p == 999) {
+        continue;
+      }
+      if (*p == rank) {
+        if (units) {
+          for (int i = 0; i < units_slot_end(units); ++i) {
+            ColonizeUnit* u = &units->units[i];
+            if (u->active && u->orders == UNITS_ORDER_TRADE_ROUTE && u->follow_unit_id == route &&
+                u->col1_counter16 >= j) {
+              u->col1_counter16 = u->col1_counter16 > 0 ? u->col1_counter16 - 1 : 0;
+            }
+          }
+        }
+        for (int k = j; k < (int)r->dest_count - 1; ++k) {
+          r->stop[k] = r->stop[k + 1];
+        }
+        r->dest_count--;
+      } else if (*p > rank) {
+        (*p)--;
+      }
+    }
+  }
+}
+
 bool colonies_abandon(ColonizeColonyPool* pool, int colony_id) {
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
   if (!col || !col->active) {
     return false;
   }
   colonies_mark_settlement_tile(col->x, col->y, false);
+  /* Rank before the slot is cleared (DOS index = ordinal among live slots). */
+  colonies_trade_stops_on_delete(
+    g_colonies_col1, g_colonies_units, colonies_dos_index(pool, colony_id)
+  );
   /* Colony delete, raw 58154-58155: colony_counts[owner]-- (DS:0x9298). */
   if (g_colonies_col1 && col->nation_id >= 0 && col->nation_id < 4) {
     g_colonies_col1->stuff.colony_counts[col->nation_id]--;

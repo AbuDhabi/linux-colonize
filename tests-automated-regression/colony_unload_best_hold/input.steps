@@ -1,0 +1,35 @@
+# Quebec dock (fixture edit: Caravel A = Silver 30 + Muskets 20, Quebec tobacco stock 90). U unloads the lowest-key
+# hold (FUN_479b_0f60 mode 0, key = (price<<4)*qty, Muskets/Tools 0, Horses 1) and arms the "Unloading ... in ..." status line.
+click 168 128              # open Quebec (map tile 45,24); caravel A is selected on entry
+wait 10
+shot
+key u                      # Muskets (key 0) before Silver, though Silver is hold 0
+wait 3
+shot
+wait 40
+key u                      # Silver
+wait 3
+shot
+wait 40
+key u                      # empty ship: red "No cargo on board!" bar
+wait 3
+shot
+wait 40
+click 148 152              # select caravel B (tobacco 69 + furs 39)
+wait 5
+key u                      # Furs 39 (lower key than tobacco 69)
+wait 3
+shot
+wait 40
+key u                      # Tobacco: 90 + 69 > capacity 100, @WAREHOUSEFULL confirm
+wait 5
+shot
+click 100 148              # "Never mind.": the tobacco stays aboard
+wait 5
+key u                      # ask again
+wait 5
+click 100 160              # "Unload the Tobacco anyway.": 159 tobacco in the warehouse, status line
+wait 3
+shot
+wait 40
+key Escape                 # back to the map

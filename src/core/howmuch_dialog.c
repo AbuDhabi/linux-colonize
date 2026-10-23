@@ -6,7 +6,9 @@
 
 #include "core/map_menu.h"
 #include "core/popup.h"
+#include "core/popup_msg.h"
 #include "core/strutil.h"
+#include "core/text_edit.h"
 #include "core/window_log.h"
 #include "platform/diagnostics.h"
 
@@ -139,6 +141,7 @@ bool howmuch_open(
     amount_label && amount_label[0] ? amount_label : ""
   );
   howmuch_sync_field(dlg);
+  dlg->width = popup_msg_take_pending_width();
   dlg->open = true;
   diag_info(
     "POPUP show tag=HOWMUCH_%s kind=amount max=%d start=%d cargo=%d prompt=\"%s\"",
@@ -258,28 +261,25 @@ void howmuch_render(
   if (!dlg || !dlg->open || !framebuffer || !framebuffer->pixels) {
     return;
   }
-  const int line_h = popup_dialog_line_h(font);
-  const int pad = 6;
-  const int dialog_w = 200;
-  const int prompt_h = line_h * 3;
-  const int dialog_h = POPUP_FRAME_INSET * 2 + pad + prompt_h + pad + line_h * 2 + pad;
-  PopupPromptGeom g;
-  popup_prompt_frame(
-    framebuffer, font, wood_tile, colors, dialog_w, dialog_h, pad, dlg->prompt, 3,
+  /* The DOS text-entry layout (FUN_291f_0436 -> FUN_6f74_3848 -> FUN_291f_0120(5)):
+   * a 5-glyph field, the default (the max amount) pre-selected. See popup.h. */
+  PopupFieldGeom g;
+  popup_field_frame(
+    framebuffer, font, wood_tile, colors, dlg->width, dlg->prompt, dlg->amount_label, 5,
     text_color, &g
   );
   dlg->dialog_x = g.frame.x;
   dlg->dialog_y = g.frame.y;
-  dlg->dialog_w = dialog_w;
+  dlg->dialog_w = g.frame.w;
   dlg->dialog_h = g.frame.h;
   if (!font) {
     return;
   }
-  const int ix = g.frame.inner_x;
-  int ty = g.text_y + 2;
-  popup_draw_text_shadowed(font, framebuffer, ix + pad, ty, dlg->amount_label, text_color);
-  ty += line_h;
-  char shown[24];
-  snprintf(shown, sizeof(shown), "%s_", dlg->field);
-  popup_draw_text_shadowed(font, framebuffer, ix + pad, ty, shown, select_color);
+  TextEditState edit;
+  text_edit_reset(&edit, dlg->field, dlg->field_selected);
+  TextEditColors edit_colors;
+  text_edit_default_colors(&edit_colors);
+  edit_colors.text = text_color;
+  edit_colors.selection = select_color;
+  text_edit_render(&edit, dlg->field, font, framebuffer, g.text_x, g.text_y, g.text_h, &edit_colors);
 }

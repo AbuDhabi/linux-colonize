@@ -126,12 +126,16 @@ static int units_combat_brave_vs_human_arty(
 
 /*
  * Shared pre-roll of units_resolve_land_combat_ff / units_resolve_naval_combat_ff
- * (UN-8): Combat Analysis (strengths known, outcome not decided) -> the attack
- * bump -> the DOS 1b0e difficulty-handicap group (raw 100534-100556, which runs
- * after the param_5==0 early return so the panel shows the RAW odds while the
- * roll uses the handicapped attacker; raw 100563's defender bump feeds the
- * 100571 total) -> the roll itself. Writes atk_strength / def_strength / roll /
- * atk_wins into eng.
+ * (UN-8): the DOS 1b0e difficulty-handicap group (raw 100534-100556; raw
+ * 100563's defender bump feeds the 100571 total) -> the roll itself -> Combat
+ * Analysis -> the attack bump. DOS rolls BEFORE the dialog (raw 100571 draws
+ * FUN_281f_04d4(1, def + atk), then FUN_2a1f_0704 gets the final weights and
+ * the roll as its last three arguments); the dialog's rows still read only
+ * the flags, and only the cheat footer shows the weights and the roll
+ * (port_bugs.md #1177c). Moving the draw ahead of the dialog leaves the RNG
+ * stream alone (the presenter draws nothing); its popup pump runs first so
+ * answered popups still precede the roll. Writes atk_strength / def_strength
+ * / roll / atk_wins into eng.
  */
 static void units_combat_present_and_roll(
   ColonizeUnitPool* pool,
@@ -147,11 +151,8 @@ static void units_combat_present_and_roll(
   ColonizeDosRng* rng,
   const ColonizeCol1Save* col1
 ) {
-  units_combat_maybe_present_analysis(col1, eng, atk_nation, def_nation);
-  /* port_bugs.md #233: the attack "bump" plays AFTER the analysis is dismissed —
-   * analysis → bump → outcome popups, each blocking, per combat. */
-  if (g_units_combat_watch) {
-    g_units_combat_watch(g_units_combat_watch_user, pool, attacker_id, def_x, def_y);
+  if (combat_analysis_should_show(col1, atk_nation, def_nation, g_units_combat_human_nation)) {
+    units_combat_pump_popups();
   }
   combat_apply_1b0e_resolve_handicaps(sctx, attacker_id, defender_id, er);
   eng->atk_strength = er->atk_strength;
@@ -167,6 +168,16 @@ static void units_combat_present_and_roll(
   } else {
     eng->roll = dos_rng_range(rng, 1, total);
     eng->atk_wins = eng->roll <= eng->atk_strength;
+  }
+  eng->cheat_footer = col1 && col1->head.game_options.cheats_enabled;
+  eng->w_atk = eng->atk_strength;
+  eng->w_def = eng->def_strength;
+  eng->cheat_roll = eng->roll;
+  units_combat_maybe_present_analysis(col1, eng, atk_nation, def_nation);
+  /* port_bugs.md #233: the attack "bump" plays AFTER the analysis is dismissed —
+   * analysis → bump → outcome popups, each blocking, per combat. */
+  if (g_units_combat_watch) {
+    g_units_combat_watch(g_units_combat_watch_user, pool, attacker_id, def_x, def_y);
   }
 }
 
@@ -555,8 +566,10 @@ bool units_resolve_land_combat_ff_w(
 
 
 /* FUN_1cf8_000a (raw 18654-18738) over n unsigned words: from the cursor find
- * the next descent, pull it out and reinsert it before the first key >= it. */
-static void units_plunder_sort(uint16_t* k, int* order, int n) {
+ * the next descent, pull it out and reinsert it before the first key >= it.
+ * Shared by the plunder pick below and the Europe `U` pick (FUN_479b_0f60,
+ * europe_dos_0f60_pick): `order` carries the permutation. */
+void units_dos_sort_1cf8(uint16_t* k, int* order, int n) {
   int i = 0;
   for (;;) {
     while (i < n - 1 && k[i + 1] >= k[i]) {
@@ -638,7 +651,7 @@ int units_plunder_ship_holds(
         key[k] = (uint16_t)(price * units_unit_hold_amount(lose, live[k]));
         order[k] = k;
       }
-      units_plunder_sort(key, order, n);
+      units_dos_sort_1cf8(key, order, n);
       pick = order[n - 1];
     }
     const int ctype = lose->hold_goods_type[live[pick]];
@@ -967,6 +980,20 @@ bool units_fort_vs_ship(
   /* port_bugs.md #261: DOS engages through the real resolver (temp attacker →
    * FUN_5fef_1b0e), so a fort firing on a human-visible ship shows the
    * Combat Analysis dialog before the roll, same as any naval fight. */
+  if (combat_analysis_should_show(col1, fort_nation, def->nation_id, g_units_combat_human_nation)) {
+    units_combat_pump_popups(); /* answered popups precede the roll, as before */
+  }
+  const int fort_total = atk + defense;
+  int fort_roll = 0;
+  bool atk_wins = false;
+  if (!rng || fort_total <= 0) {
+    atk_wins = atk >= defense;
+  } else {
+    /* DOS rolls before the dialog (FUN_5fef_1b0e raw 100571): the roll is the
+     * Combat Analysis cheat footer's last argument (port_bugs.md #1177c). */
+    fort_roll = dos_rng_range(rng, 1, fort_total);
+    atk_wins = fort_roll <= atk; /* 1b0e bVar8 = roll <= local_92 */
+  }
   {
     ColonizeCombatEngagement eng;
     memset(&eng, 0, sizeof(eng));
@@ -975,6 +1002,10 @@ bool units_fort_vs_ship(
     eng.is_naval = true;
     eng.atk_strength = atk;
     eng.def_strength = defense;
+    eng.cheat_footer = col1 && col1->head.game_options.cheats_enabled;
+    eng.w_atk = atk;
+    eng.w_def = defense;
+    eng.cheat_roll = fort_roll;
     eng.atk_flags.base_combat = attack_str;
     eng.def_flags.base_combat = dt->defense > 0 ? dt->defense : 0;
     /* NAMES.TXT @BUILDING tier 1 ("Fort"): only caller always passes its own
@@ -984,14 +1015,6 @@ bool units_fort_vs_ship(
       atk_label && atk_label[0] ? atk_label : reports_fort_tier_name(1)
     );
     units_combat_maybe_present_analysis(col1, &eng, fort_nation, def->nation_id);
-  }
-  const int total = atk + defense;
-  bool atk_wins = false;
-  if (!rng || total <= 0) {
-    atk_wins = atk >= defense;
-  } else {
-    const int roll = dos_rng_range(rng, 1, total);
-    atk_wins = roll <= atk; /* 1b0e bVar8 = roll <= local_92 */
   }
   if (atk_wins) {
     /*

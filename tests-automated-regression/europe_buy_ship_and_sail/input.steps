@@ -1,0 +1,16 @@
+# Start: a fresh Europe base. Purchase a ship (P menu, third row, confirm), pick it by its icon in the Loading box and sail it.
+# A ship click opens the ship menu (FUN_38fd_2bfe, @EUROPESHIPOPTIONS), and S / Enter do too: row 2 "Set sail for the New World"
+# raises the @SAILAWAY Yes/No (Yes = first row). Ship icon x 172, y 152; menu rows 11 px apart from y 91 (no cargo: row 3 is No changes).
+key e                    # open the European Status screen
+key p                    # Purchase menu
+key Down
+key Down
+key Return               # third row (a ship)
+key Return               # confirm @REALLYBUY
+click 172 152            # the new ship's icon: its menu opens
+key Escape               # no change
+key s                    # S opens the menu for the selected ship
+key Down                 # row 2 Set sail for the New World
+key Return               # @SAILAWAY
+key Return               # Yes: the ship sails
+key Escape               # leave Europe

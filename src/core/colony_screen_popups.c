@@ -1311,7 +1311,7 @@ void colony_screen_render_w(
   }
 
   colony_screen_fill_top_bar_wood(view, framebuffer);
-  colony_screen_draw_top_bar(colony, game_year, game_autumn, gold, font, framebuffer);
+  colony_screen_draw_top_bar(colony, game_year, game_autumn, gold, view, font, framebuffer);
 
   colony_screen_fill_parch(view, framebuffer);
   colony_screen_blit_buildings(view, pool, colony, units, col1, font, debug_building_rects, framebuffer);

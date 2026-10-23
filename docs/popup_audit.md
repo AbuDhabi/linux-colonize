@@ -32,7 +32,7 @@ choices from data where a real `@SECTION` exists.
 | Find colony / trade select | `cheat_list` + `popup_msg_fill` | `@FINDCITY` / `@TRADE` | Authentic | — |
 | Howmuch | `howmuch_dialog` | `@HOWMUCH*` | Authentic | — |
 | Options | `options_dialog` | `@GAMEOPTIONS` / `@COLONYOPTIONS` / `@SOUNDOPTIONS` | Authentic | — |
-| Found / rename / Land Ho name | `name_entry` | `@COLONY` / `@RENAMECOLONY` / `@LANDHO` | Authentic | — |
+| Found / rename / Land Ho name | `name_entry` | `@COLONY` / `@RENAMECOLONY` / `@LANDHO` | Authentic (asm layout, #1181); MSS decoration missing (#1183) | — |
 | Landfall CHOICE | `game_loop` LANDFALL | `@LANDFALL` / `@LANDFALL2` | Authentic | — |
 | Stockade min-pop OK | `game_loop` colony | `@KEEPSTOCKADE` | Authentic | — |
 | Abandon confirm | `colony_screen` | `@ABANDON` / `@ABANDON2` | Authentic | — |
@@ -59,7 +59,7 @@ choices from data where a real `@SECTION` exists.
 | Demand Tribute | `@EXTORTSTUFF` / `@EXTORTPOOR` / `@EXTORTNO` / `@EXTORTLAUGH` | Authentic (2026-08-28) | `ai_contact_demand_tribute` (`thunk_FUN_1000_a5f4`) |
 | Denounce Heresy / Establish Mission (menu) | `@HERESY0` / `@HERESY1` / `@MISSION0..3` | Authentic (2026-08-28) | `ai_contact_denounce_heresy` (`a594`), `ai_contact_establish_mission` (`a5dc`); AI convert pulse unchanged |
 | Enter Hostile Village | `@KILLWAGONS` / `@MADATWAGONS` / `@GRUDGEWAGONS` | Authentic (2026-08-28) | `ai_contact_enter_hostile_village` (`a5e8`) then the 2820 trade arm |
-| Encroachment CHOICE | `@INDIANLAND` / `@INDIANFOREST` / `@INDIANROAD` → `@INDIANBRIBE` | Authentic (2026-08-28) | `game_loop.c` `game_request_indian_land_choice` (`AI_POPUP_TAG_INDIAN_LAND`); "offer gold" row dropped when unaffordable (DOS greys it) |
+| Encroachment CHOICE | `@INDIANLAND` / `@INDIANFOREST` / `@INDIANROAD` → `@INDIANBRIBE` | Authentic (2026-08-28) | `game_dialogs.c` `game_request_indian_land_choice` (`AI_POPUP_TAG_INDIAN_LAND`); @INDIANLAND fires on the colony-screen plot drop (`game_colony_plot_land_gate`), not Build Colony (#1175); "offer gold" row dropped when unaffordable (DOS greys it) |
 | Village-approach warning CHOICE ("Leave" / "Attack") | *none* | **Invented** (found 2026-09-20) → **deleted** (absent from `src/` 2026-10-18) | The four alarm-tier bodies and both choice rows have no GAME.TXT section — grepping every distinctive phrase ("shout warnings", "bar the path", "blood is shed", "fall back") returns nothing, and the site never calls `popup_msg_fill`. Either find the real DOS chrome or demote it; do not wire an unrelated section to it |
 | Teach refuse OK | `@LEARNMAD` | Authentic | Both mid (40-54) and hostile (≥55) alarm bands |
 | Teach already-expert OK | `@LEARNMASTER` | Authentic | Refuses without consuming the village's one-shot teach |

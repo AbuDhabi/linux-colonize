@@ -308,6 +308,7 @@ DOS layout: 15×12 main view (see `MENU.TXT` zoom levels) leaves an 80px strip. 
 | Tile stack | `ICONS.SS` + `NAMES.TXT` `@ORDERS` | Units on the tile **plus everyone aboard a transport on it** (COL1 keeps carried units in the same tile chain), re-ordered like `FUN_1427_04d6` (transports, then Treasure, then descending `@UNIT` size class). One 18px row each: chrome icon at x=242, text at x=260 — tools / profession / treasure gold / inline cargo icons / orders. Move Pieces skips the selected unit (it has its own block); View Pieces lists everything. A foreign-owned stack collapses to one `<Nationality> <Type>` row for the top unit, and only when its visibility bit is set. Listing stops at `y >= 0xb8` with the `@CTITLE` `(More)` marker |
 | Date + gold + tax | Campaign calendar + `EuropeScreen` gold/tax | First row at y=0x33: `Spring 1492`; second `Gold:N$  Tax: N%` — DOS runs the amount straight onto its `@CTITLE` label with no separator, then two spaces before `Tax:`. Both rows are drawn in every mode, AI turns included (`FONTTINY.FF`, `@COLORS` basic) |
 | Tile details | `NAMES.TXT` / WorldMap `improve` (Col1 mask fallback) / colonies / units | Under Locat: ownership (explored land only), `(Terrain)`, features (plow/road/river/resource/rumour), colony or native camp (`ICONS.SS` **#0–3** / **#10–13**). A fogged tile gets a single `(Unexplored)` line instead |
+| Region id / cheat lines (`FUN_49dd_0424`, port_bugs.md #1177b) | `col1.head` | `special = show_entire_map != 0 \|\| fixed_nation_map_view != 0` on the raw u16s (0xffff "none" counts). Tile-only block (View / foreign unit): `Locat: (x,y) <n>` with `n` = raw `layer3 & 0xf` (FUN_137f_01ca, 1 = open ocean, water included) and **no cheat test**. Cheat bit and `special`: the same suffix on the unit block's Locat line. Cheat bit and Complete Map: `<unit index> ` ahead of the unit block's Nationality line and of every tile-stack row's orders line (`units_dos_index`). A foreign stack collapses to one row unless `top.nation == curr_nation_map_view` or Complete Map (the viewer's own stack, not the save's human). Cheat bit + `DS:0x894 & 8` ("Foreign AI planning modes", the port's `debug_flags_mask`): every AI-nation unit badge shows its AI plan byte (`+0x314b`, >= 0x80 = 'E', 0 = empty) instead of the order letter (`unit_chrome_plan_badge_index`; ink keeps following the real orders; the damaged repair digit still wins). The Debug Info Flags consumers in `game_loop.c` are deliberately ungated: DOS gates only that 0x894 & 8 arm on the cheat bit |
 | Village trade intel (OpenCol-only) | `ICONS.SS` **#22–37** | Under the native camp line: `Buys:` row (goods named by @BRING / @BADCARGO / @CHIEFHOWDY) and `Sells:` row (@BUYWHICH), 13px rows, icons in one shared column; each row only once that dialog has been shown to the player. Side table `village_trade_intel.c` keyed by settlement tile and European nation — persisted in the save's port extension block (`VTIN` chunk, docs/savegame.md), wiped by `ai_contact_reset` (new game / Load, before `col1_bridge_apply` restores it) and on village removal. `render_map_panel … buys=a,b,c sells=a,b,c` seeds it |
 | Nation box | Turn indicator at `(315,197)` | 5×3 fill in the acting nation's color (`FUN_1984_00aa`), painted at the head of **every** nation's end-of-turn — the human's own production pass included |
 
@@ -514,12 +515,17 @@ Colours come from `NAMES.TXT` `@COLORS` (`src/core/ui_colors.h`), under the
 
 Note the field's shadow is the warm `enhance` brown, not the black
 `popup_draw_text_shadowed` puts under the surrounding captions. Both fields are
-boxed by the same 1px green rectangle (`text_edit_draw_frame`, `basic` ink), laid
-out by `text_edit_frame_rect`: a `TEXT_EDIT_FRAME_PAD` (3px) gap on every side of
-the *ink*, measured from the font's real glyph rows plus the drop-shadow row
-rather than from the caller's line height — line height carries interline slack
-that otherwise reads as dead space under the text. The wizard sizes its box to
-the prompt, the popup spans the dialog's inner width.
+boxed by the same 1px green rectangle (`basic` ink). The wizard's box comes from
+`text_edit_frame_rect` (a `TEXT_EDIT_FRAME_PAD` 3px gap around the font's real ink
+rows plus the drop-shadow row). The in-game dialogs (`@COLONY` / `@RENAMECOLONY` /
+`@LANDHO` / `@TRADENAME` / `@HOWMUCH*`) are laid out by `popup_field_frame`
+(popup.c; geometry in popup.h, port_bugs.md #1181): the GAME.TXT line after the
+prompt is the field's caption, and the box is `width("W") * max length + 6` wide
+and `glyph_h + 5` tall, placed after the caption, with the text 3px inside it
+and a pre-selected default shown on a select-ink bar (`text_edit_render` with
+`line_h = glyph_h + 1`). Dialog width follows `@width` (`max(80, @width,
+caption + field + 10) + 6`), the body wraps inside it, and the whole frame is
+centred at (160 - W/2, 100 - H/2).
 
 A field opens with its whole seed text selected, matching DOS: `FUN_6f74_2580`'s
 edit branch keys off bit `0x80` of the field record at dialog `+0x30`, which the
