@@ -1096,8 +1096,12 @@ static int ai_euro_20e6_ship_berth_arrival(
    * Merchantman (type <= 0xe) at a colony flagged NEARBY_FRIGATE
    * (+0x1b bit 0x02) bumps its +0x315a counter and parks (orders 0x43,
    * LAB_5899) until the counter reaches 10 − hold capacity (Caravel 8 beats,
-   * Merchantman 6). DOS never resets the byte — the wait happens once per
-   * hull. The park skips boarding and the load matrix. +0x315a is the COL1
+   * Merchantman 6). The cower has no reset of its own, but the byte is
+   * shared: the Europe departure writes the voyage turns (FUN_48d3_0346 raw
+   * 77751) and the lane counts them down to 0, so the wait re-arms after
+   * every crossing; 465b's failed-move tail (LAB_0bd1, raw 75832-75840) adds
+   * 1 per refused step (0 past 0x13), and the repair timer presets it.
+   * The park skips boarding and the load matrix. +0x315a is the COL1
    * `col1_counter16` byte (unit record offset 0x16), save-round-tripped since
    * 2026-09-07 — the counter survives save/load as in DOS.
    */

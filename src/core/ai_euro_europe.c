@@ -254,9 +254,11 @@ static Ai5d04PlanningFlags ai_euro_5d04_compute_flags(
 
   f.no_ships = stuff->ship_counts[nation_id] == 0;
 
-  /* local_3c: avg (over the other 3 nations) of unit_type_counts[.][16] +
-   * unit_type_counts[.][17]*4, >>2 (raw divides by 4 regardless of the
-   * 3-term sum — kept literal). Zeroed under WoI. */
+  /* local_3c (raw 92426-92435): sum over the other 3 nations of
+   * unit_type_counts[.][16] (Privateers) + unit_type_counts[.][17]*4
+   * (Frigates), >>2 = rival navy in Frigate units. DOS only tests it for
+   * zero (raw 92437, 92456): nonzero = rivals hold at least one Frigate's
+   * worth. Not an average. Zeroed under WoI. */
   int rival_navy_strength = 0;
   for (int n = 0; n < 4; ++n) {
     if (n == nation_id) {
