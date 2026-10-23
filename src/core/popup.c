@@ -629,7 +629,12 @@ PopupDosPlace popup_place_dos(
   return p;
 }
 
-void popup_field_frame(
+/*
+ * `frameless` = box flag 0x10 (DS:0x1f56, set by FUN_281f_040a -> FUN_6f74_37f6 before the
+ * box is built): FUN_6f74_06d0 zeroes box[+0x46] (row spacing) and box[+0x48] (margin)
+ * and FUN_6f74_14c6 box[+0x2a] (frame), and FUN_6f74_248e draws no wood.
+ */
+static void popup_field_frame_impl(
   ColonizeFramebuffer8* framebuffer,
   const ColonizeFont* font,
   const ColonizeSpriteSheet* wood_tile,
@@ -640,8 +645,12 @@ void popup_field_frame(
   int max_len,
   uint8_t text_color,
   const ColonizeSpriteSheet* decoration,
+  bool frameless,
   PopupFieldGeom* out
 ) {
+  const int fr = frameless ? 0 : 3; /* box[+0x2a] */
+  const int sp = frameless ? 0 : 3; /* box[+0x46] */
+  const int margin = frameless ? 0 : 2; /* box[+0x48] */
   PopupFieldGeom geom;
   memset(&geom, 0, sizeof(geom));
   if (!framebuffer || !framebuffer->pixels) {
@@ -670,22 +679,23 @@ void popup_field_frame(
   if (label_w + text_w + 10 > content_w) {
     content_w = label_w + text_w + 10;
   }
-  if (content_w + 6 > framebuffer->width) {
-    content_w = framebuffer->width - 6;
+  if (content_w + 2 * fr > framebuffer->width) {
+    content_w = framebuffer->width - 2 * fr;
   }
-  /* FUN_6f74_1198: the prompt flows inside content - 4. */
+  /* FUN_6f74_1198: the prompt flows inside content - 2 * margin. */
   enum { MAX_ROWS = 8 };
   char lines[MAX_ROWS][128];
   bool centred[MAX_ROWS];
   memset(centred, 0, sizeof(centred));
   const int n = font ? popup_wrap_text(
                          font, prompt, &lines[0][0], sizeof(lines[0]), centred, MAX_ROWS,
-                         content_w - 4
+                         content_w - 2 * margin
                        )
                      : 0;
   const int body_h = n * (gh + 1);
-  const int w = content_w + 6;
-  const int h = body_h + gh + 20;
+  const int w = content_w + 2 * fr;
+  /* 14c6: 2 * fr + sp + (prose + (gh + sp + 5) + sp); framed = body_h + gh + 20. */
+  const int h = 2 * fr + 3 * sp + body_h + gh + 5;
   /* FUN_6f74_14c6 placement (plain and DS:0x1f5e figure arms): popup_place_dos. */
   const PopupDosPlace pl = popup_place_dos(framebuffer->width, framebuffer->height, w, h, decoration);
   const int x = pl.x;
@@ -702,12 +712,20 @@ void popup_field_frame(
   geom.frame.y = y;
   geom.frame.w = w;
   geom.frame.h = h;
-  popup_draw(
-    framebuffer, x, y, w, h, wood_tile, colors, &geom.frame.inner_x, &geom.frame.inner_y,
-    &geom.frame.inner_w, &geom.frame.inner_h
-  );
-  const int y0 = y + 9 + body_h;
-  geom.box_x = x + 5 + label_w;
+  if (frameless) {
+    geom.frame.inner_x = x;
+    geom.frame.inner_y = y;
+    geom.frame.inner_w = w;
+    geom.frame.inner_h = h;
+  } else {
+    popup_draw(
+      framebuffer, x, y, w, h, wood_tile, colors, &geom.frame.inner_x, &geom.frame.inner_y,
+      &geom.frame.inner_w, &geom.frame.inner_h
+    );
+  }
+  const int tx = x + fr + margin;
+  const int y0 = y + fr + 2 * sp + body_h;
+  geom.box_x = tx + label_w;
   geom.box_y = y0;
   geom.box_w = text_w + 6;
   geom.box_h = gh + 5;
@@ -716,21 +734,17 @@ void popup_field_frame(
   if (font) {
     bool emph = false;
     for (int i = 0; i < n; ++i) {
-      int lx = x + 5;
-      if (centred[i]) {
-        const int lw = popup_markup_text_width(font, lines[i]);
-        if (lw < content_w - 4) {
-          lx += (content_w - 4 - lw) / 2;
-        }
-      }
+      /* FUN_6f74_1198 '^^' row (6f74:1263-128a): x += (wrap_w >> 1) - (width >> 1). */
+      const int lx = tx + (centred[i] ? popup_dos_center_dx(font, lines[i], content_w - 2 * margin)
+                                      : 0);
       popup_draw_text_markup(
-        font, framebuffer, lx, y + 6 + i * (gh + 1), lines[i], text_color, COLONIZE_COL_HILITE,
-        colors, &emph
+        font, framebuffer, lx, y + fr + sp + i * (gh + 1), lines[i], text_color,
+        COLONIZE_COL_HILITE, colors, &emph
       );
     }
     if (label && label[0]) {
       popup_draw_text_markup(
-        font, framebuffer, x + 5, y0 + 3, label, text_color, COLONIZE_COL_HILITE, colors, &emph
+        font, framebuffer, tx, y0 + 3, label, text_color, COLONIZE_COL_HILITE, colors, &emph
       );
     }
   }
@@ -744,16 +758,56 @@ void popup_field_frame(
   }
 }
 
+void popup_field_frame(
+  ColonizeFramebuffer8* framebuffer,
+  const ColonizeFont* font,
+  const ColonizeSpriteSheet* wood_tile,
+  const ColonizePopupColors* colors,
+  int width,
+  const char* prompt,
+  const char* label,
+  int max_len,
+  uint8_t text_color,
+  const ColonizeSpriteSheet* decoration,
+  PopupFieldGeom* out
+) {
+  popup_field_frame_impl(
+    framebuffer, font, wood_tile, colors, width, prompt, label, max_len, text_color, decoration,
+    false, out
+  );
+}
+
+void popup_field_frame_frameless(
+  ColonizeFramebuffer8* framebuffer,
+  const ColonizeFont* font,
+  const ColonizePopupColors* colors,
+  int width,
+  const char* prompt,
+  const char* label,
+  int max_len,
+  uint8_t text_color,
+  PopupFieldGeom* out
+) {
+  popup_field_frame_impl(
+    framebuffer, font, NULL, colors, width, prompt, label, max_len, text_color, NULL, true, out
+  );
+}
+
+int popup_dos_center_dx(const ColonizeFont* font, const char* text, int wrap_w) {
+  return (wrap_w >> 1) - (popup_markup_text_width(font, text) >> 1);
+}
+
 /* ---- Shared word wrap (promoted from ai_popup_wrap_body; audit GL-8) ---- */
 
-int popup_wrap_text(
+static int popup_wrap_impl(
   const ColonizeFont* font,
   const char* text,
   char* out,
   size_t out_stride,
   bool* out_center,
   int max_out,
-  int max_w
+  int max_w,
+  bool charge_space
 ) {
   int count = 0;
   if (!text || !text[0] || !out || out_stride < 2 || max_out <= 0) {
@@ -761,6 +815,16 @@ int popup_wrap_text(
   }
   char accum[512];
   accum[0] = '\0';
+  /*
+   * FUN_6f74_1198 (6f74:132e-1435) keeps a running width local_8: each word is measured
+   * as " word" (the space only when the line already has text) and the line breaks
+   * when local_8 + that > the wrap width. On a break the space is stripped from the
+   * text but local_8 restarts at the measured " word", so a continuation line's first
+   * word is charged one space it does not draw. DOSBox-X capture of @NATION0A
+   * (port_bugs.md #1210): "...had neither the" (300 px at @width 300) breaks before
+   * "the" in DOS. Only popup_wrap_text_dos charges it so far (port_bugs.md #1216).
+   */
+  int line_w = 0;
 
   const char* p = text;
   while (*p && count < max_out) {
@@ -842,18 +906,22 @@ int popup_wrap_text(
 
     const int word_w = popup_markup_text_width(font, word);
     if (accum[0]) {
-      const int space_w = font_text_width(font, " ");
-      if (popup_markup_text_width(font, accum) + space_w + word_w > max_w) {
+      const int piece_w = font_text_width(font, " ") + word_w;
+      if (line_w + piece_w > max_w) {
         snprintf(out + (size_t)count * out_stride, out_stride, "%s", accum);
         if (out_center) {
           out_center[count] = false;
         }
         count++;
         accum[0] = '\0';
+        line_w = charge_space ? 0 : -font_text_width(font, " ");
         if (count >= max_out) {
           return count;
         }
       }
+      line_w += piece_w;
+    } else {
+      line_w = word_w;
     }
     size_t len = strlen(accum);
     if (accum[0] && len + 1 < sizeof(accum)) {
@@ -873,4 +941,28 @@ int popup_wrap_text(
     count++;
   }
   return count;
+}
+
+int popup_wrap_text(
+  const ColonizeFont* font,
+  const char* text,
+  char* out,
+  size_t out_stride,
+  bool* out_center,
+  int max_out,
+  int max_w
+) {
+  return popup_wrap_impl(font, text, out, out_stride, out_center, max_out, max_w, false);
+}
+
+int popup_wrap_text_dos(
+  const ColonizeFont* font,
+  const char* text,
+  char* out,
+  size_t out_stride,
+  bool* out_center,
+  int max_out,
+  int max_w
+) {
+  return popup_wrap_impl(font, text, out, out_stride, out_center, max_out, max_w, true);
 }

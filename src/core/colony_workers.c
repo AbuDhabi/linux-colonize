@@ -505,8 +505,8 @@ void colonies_plot_seat_tail_w(
    * nibble with the colony's nation (137f_0228), ahead of the land reaction.
    * The tail is gated on DS:0x34d == 0, which is FUN_15eb_28c8's trial-seat
    * flag (1 around its candidate loop, cleared before the final 06d2): only a
-   * real seat stamps. The jobs menu's own 28c8 seats are real ones
-   * (ai_euro_jobs_menu_open_w, port_bugs.md #1205). */
+   * real seat stamps. The jobs menu's own 28c8 seats are real ones in DOS; the
+   * port skips them (docs/dos_bugs.md DB-54). */
   {
     int pdx = 0;
     int pdy = 0;

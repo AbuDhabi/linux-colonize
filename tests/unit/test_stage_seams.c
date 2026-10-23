@@ -1319,11 +1319,10 @@ static int test_colony_jobs_menu_seats_indoor_worker(void) {
 }
 
 /*
- * port_bugs.md #1205 (DOSBox-confirmed): opening the jobs menu runs 28c8's committing seat for
- * every field job, so the elected plot takes the colony's owner nibble and mask bit 0x10, and
- * the colonist's job counter is zeroed; he stays in his building.
+ * docs/dos_bugs.md DB-54 (port_bugs.md #1205): DOS's jobs menu stamps each elected plot and
+ * zeroes the job counter just by opening; the port's opening changes nothing.
  */
-static int test_colony_jobs_menu_open_stamps_plots(void) {
+static int test_colony_jobs_menu_open_has_no_side_effects(void) {
   static ColonizeGameState game;
   ColonizeMsgCatalog names;
   if (!jobs_menu_fixture(&game, &names)) {
@@ -1336,16 +1335,19 @@ static int test_colony_jobs_menu_open_stamps_plots(void) {
   int dy = 0;
   colonies_field_tile_delta(3, &dx, &dy);
   const size_t plot = (size_t)(8 + dy) * 16 + 8 + dx;
+  const uint8_t layer3_before = game.world_map.layer3[plot];
+  const uint8_t layer2_before = game.world_map.layer2[plot];
+  c->turns_in_job = 7;
   game_colony_open_jobs(&game, col, &game.world_map, -1);
   int rc = 0;
-  if (!game.colony_screen.jobs_open || (game.world_map.layer3[plot] >> 4) != 1 ||
-      !(game.world_map.layer2[plot] & MAP_LAYER2_PURCHASED) || c->turns_in_job != 0 ||
+  if (!game.colony_screen.jobs_open || game.world_map.layer3[plot] != layer3_before ||
+      game.world_map.layer2[plot] != layer2_before || c->turns_in_job != 7 ||
       c->building_type != shop || c->field_job >= 0 || col->tiles[3] >= 0) {
     fprintf(stderr, "  open %d owner %x layer2 %02x turns %d building %d job %d tile %d\n",
             (int)game.colony_screen.jobs_open, game.world_map.layer3[plot] >> 4,
             game.world_map.layer2[plot], c->turns_in_job, c->building_type, c->field_job,
             col->tiles[3]);
-    rc = fail("opening the jobs menu must stamp the elected plot and zero the job counter");
+    rc = fail("opening the jobs menu must not stamp plots or zero the job counter (DB-54)");
   }
   fx_map_free(&game.world_map);
   assets_msg_free(&names);
@@ -1586,7 +1588,7 @@ static const TestCase k_cases[] = {
     {"test_ai_euro_5952_equip_pioneer", test_ai_euro_5952_equip_pioneer},
     {"test_colony_shift_pick_moves_highlight", test_colony_shift_pick_moves_highlight},
     {"test_colony_jobs_menu_seats_indoor_worker", test_colony_jobs_menu_seats_indoor_worker},
-    {"test_colony_jobs_menu_open_stamps_plots", test_colony_jobs_menu_open_stamps_plots},
+    {"test_colony_jobs_menu_open_has_no_side_effects", test_colony_jobs_menu_open_has_no_side_effects},
     {"test_game_world_view", test_game_world_view},
     {"test_goto_place_opens_travelplace_list", test_goto_place_opens_travelplace_list},
     {"test_colony_list_keys_wrap", test_colony_list_keys_wrap},

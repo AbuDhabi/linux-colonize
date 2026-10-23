@@ -1084,17 +1084,12 @@ void game_colony_commit_construction(ColonizeGameState* game, int bid) {
   colony_screen_set_status(csv, game->status);
 }
 
-/* FUN_2f2b_348c param 0: the popup, then its build-up seats (port_bugs.md #1205). */
+/* FUN_2f2b_348c param 0: the popup. Its build-up seats (plot stamps, job counter zeroed on
+ * open) are a DOS bug not reproduced (docs/dos_bugs.md DB-54, port_bugs.md #1205). */
 void game_colony_open_jobs(
   ColonizeGameState* game, ColonizeColony* colony, const ColonizeWorldMap* cmap, int tile_index
 ) {
-  ColonyScreenView* csv = &game->colony_screen;
-  colony_screen_open_jobs(csv, &game->colonies, cmap, colony, tile_index);
-  if (csv->jobs_open && colony && csv->selected_colonist >= 0 &&
-      csv->selected_colonist < colony->colonist_count) {
-    const ColonizeWorld w = game_world(game);
-    ai_euro_jobs_menu_open_w(&w, colony->id, csv->selected_colonist);
-  }
+  colony_screen_open_jobs(&game->colony_screen, &game->colonies, cmap, colony, tile_index);
 }
 
 /*

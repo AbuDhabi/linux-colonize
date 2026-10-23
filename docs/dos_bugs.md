@@ -775,3 +775,20 @@ Europe slot, (n + e + 9) / 10 pages; only those three cases gain a last page hol
 Previous and that colony. Every other page is DOS's. Test `smoke_popup_dialogs
 dest_pager_is_dos`.
 **Status:** done (2026-10-23, user-approved 2026-10-23).
+
+### DB-54 — Opening the colony jobs menu stamps plots and resets the job counter (port_bugs.md #1205)
+**DOS:** FUN_2f2b_348c's jobs-mode build-up (param_1 == 0, raw 50599-50675) computes each
+field job's figure by really seating the colonist: FUN_15eb_28c8's final FUN_15eb_06d2
+seat runs with DS:0x34d cleared (raw 13138-13147), then a re-seat on his own plot
+(raw 50666-50668), and every job change goes through FUN_15eb_1068, which zeroes the
+colony +0x60 turns-in-job nibble (raw 11256-11258). So merely opening the menu, Escape
+included, stamps the colony's owner nibble and mask 0x10 on each elected plot and
+zeroes the colonist's job counter (the teaching loop's progress). DOSBox-confirmed
+2026-10-23 on dutch-reports.SAV Curacao: (43,41) mask 00 -> 10, owner Arawak -> Dutch,
+nibble 0xf -> 0, before the menu draws.
+
+**Port:** `game_colony_open_jobs` (`src/core/game_loop_colony.c`) only opens the popup;
+the estimates come from the read-only `ai_euro_jobs_menu_estimate`. A real pick still
+seats and resets through the normal assign path. Test `unit_stage_seams
+test_colony_jobs_menu_open_has_no_side_effects`; replay colony_tile_assignment.
+**Status:** done (2026-10-23, user-approved 2026-10-23).

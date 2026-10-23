@@ -329,11 +329,9 @@ clear-and-reseat does not re-charge. Verified against real DOS saves: replaying
 TURN7.SAV's `alarm_by_player` on all 8 tribes x 4 nations exactly.
 
 DOS's `*(char *)0x34d` gate is `FUN_15eb_28c8`'s trial-seat flag; the port scores
-without seating. The committing seat's tail is `colonies_plot_seat_tail_w`, which the
-jobs menu also runs (`ai_euro_jobs_menu_open_w`): opening it seats the colonist via
-28c8 for each field job, re-seats him and zeroes his job counter. DOSBox-confirmed on
-`dutch-reports.SAV` Curacao: (43,41) mask 00 -> 10, owner Arawak -> Dutch, nibble
-0xf -> 0, before the menu draws, kept on Escape (port_bugs.md #1205).
+without seating. The committing seat's tail is `colonies_plot_seat_tail_w`. DOS's
+jobs menu also runs it on opening (28c8 for each field job, a re-seat, the job counter
+zeroed; DOSBox-confirmed, port_bugs.md #1205); the port does not (docs/dos_bugs.md DB-54).
 
 The pool-only `colonies_assign_field` spelling is the no-world (test) form; it
 has no col1/map and therefore cannot raise alarm. Every real assignment path

@@ -19,6 +19,7 @@
 #define NEW_GAME_OPTION_MAX 16
 #define NEW_GAME_OPTION_LABEL_LEN 48
 #define NEW_GAME_SAIL_FRAMES 10
+#define NEW_GAME_PROMPT_MAX 24
 
 typedef enum NewGamePath {
   NEW_GAME_PATH_NEW_WORLD = 0,
@@ -56,10 +57,13 @@ typedef struct NewGameWizard {
   int selection;
   int option_count;
   char options[NEW_GAME_OPTION_MAX][NEW_GAME_OPTION_LABEL_LEN];
-  char prompt_lines[8][COLONIZE_MSG_LINE_LEN];
+  /* FUN_6f74_32a4 parse of the screen's GAME.TXT section: prose lines ('_' read as ' ',
+   * FUN_7314_0106), @WIDTH (box[+0x28], default 0x50) and @X / @Y (-1 = centred). */
+  char prompt_lines[NEW_GAME_PROMPT_MAX][COLONIZE_MSG_LINE_LEN];
   int prompt_line_count;
   int dialog_width;
-  int pref_dialog_y; /* -1 = center; from @y= */
+  int pref_dialog_x;
+  int pref_dialog_y;
 
   /* Last list-dialog layout for hit-testing. */
   int dialog_x;

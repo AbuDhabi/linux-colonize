@@ -343,6 +343,30 @@ void popup_field_frame(
 );
 
 /*
+ * The same dialog with box flag 0x10 (DS:0x1f56 |= 0x18, FUN_281f_040a -> FUN_6f74_37f6,
+ * read by FUN_6f74_06d0): no wood, no frame / spacing / margin, so W = content,
+ * H = body_h + glyph_h + 5, prose at (x, y), field box at (x + label_w, y + body_h).
+ * The new-game @LEADERNAME prompt (FUN_75c2_10ae, 75c2:119d) over WOODPANL.
+ */
+void popup_field_frame_frameless(
+  ColonizeFramebuffer8* framebuffer,
+  const ColonizeFont* font,
+  const ColonizePopupColors* colors,
+  int width,
+  const char* prompt,
+  const char* label,
+  int max_len,
+  uint8_t text_color,
+  PopupFieldGeom* out
+);
+
+/*
+ * FUN_6f74_1198 '^^' row offset (6f74:1263-128a): (wrap_w >> 1) - (width >> 1), the width
+ * being FUN_6f74_0486's (popup_markup_text_width) and wrap_w box[+0x28] - 2 * box[+0x48].
+ */
+int popup_dos_center_dx(const ColonizeFont* font, const char* text, int wrap_w);
+
+/*
  * Flow-wrap text to max_w pixels — the DOS FUN_6f74_1198 loop ai_popup has
  * always used, promoted here (audit GL-8 / SC-35 / IN-7).
  *
@@ -356,6 +380,23 @@ void popup_field_frame(
  * Returns the number of rows written.
  */
 int popup_wrap_text(
+  const ColonizeFont* font,
+  const char* text,
+  char* out,
+  size_t out_stride,
+  bool* out_center,
+  int max_out,
+  int max_w
+);
+
+/*
+ * popup_wrap_text with FUN_6f74_1198's running width (6f74:132e-1435): every word is
+ * measured as " word" and a continuation line's first word keeps that space in the
+ * count although it is not drawn, so a line within one space of max_w breaks a word
+ * earlier. Pixel-verified on the DOSBox-X @NATION0A capture (port_bugs.md #1210); the
+ * new-game wizard uses it. In-game dialogs still call popup_wrap_text (port_bugs.md #1216).
+ */
+int popup_wrap_text_dos(
   const ColonizeFont* font,
   const char* text,
   char* out,
