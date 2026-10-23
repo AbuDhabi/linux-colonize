@@ -48,8 +48,18 @@ save/interop-visible behavior, not by cloning the DOS codebase structure.
 
 ## Determinism
 
-- Ideal bar: with a fixed pseudo-random seed, the same game state and the same
-  inputs produce the same outputs in DOS and in the port.
+- **1:1 with DOS is not a goal** (dropped 2026-10-23). Seed-for-seed identical
+  outcomes in DOS and the port are effectively unreachable: some DOS results
+  hinge on bugs (stack junk, stale RAM, wall-clock reseeds) that cannot be
+  reproduced without emulating MS-DOS itself. Idle campaigns that matched DOS
+  exactly over a span stay as regression guards; they are not a contract to
+  extend.
+- Bar: rules, formulas and decision logic follow DOS (decomp-backed, as before).
+  Where a DOS outcome depends on such unreproducible state, the port does the
+  sensible thing and records the divergence ([dos_bugs.md](dos_bugs.md),
+  [known_divergences.md](known_divergences.md)).
+- The port itself is deterministic: fixed seed + same state + same inputs give
+  the same outputs, including across save/reload.
 - **Working drafts OK early:** incomplete or divergent logic is acceptable
   while systems are being brought up.
 - By project end, draft gaps should be reduced to nothing for gameplay-affecting
@@ -79,7 +89,7 @@ Brewster dock filter).
 ## Acceptance order (when goals conflict)
 
 1. **Save / data interoperability** — never break Col1 or original data use.
-2. **Gameplay / determinism** — correct rules and reproducible outcomes.
+2. **Gameplay / determinism** — correct rules and reproducible port outcomes.
 3. **UI parity** — hotkeys, menus, mouse paths match the original.
 4. **Visual polish** — pixel-exact layout and style last.
 
