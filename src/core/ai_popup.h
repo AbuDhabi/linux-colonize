@@ -17,8 +17,8 @@
  *
  * AI turn code enqueues requests onto ColonizeTurnContext.ai_popups; the game
  * loop presents them after the turn processor is idle (one at a time). Chrome
- * is popup_draw + WOODTILE; text matches nation-wizard wood dialogs: FONTINTR
- * unbold + black drop-shadow, @COLORS basic/select, default @width=190.
+ * is popup_draw + WOODTILE; text is the DOS dialog writer (popup_draw_text_markup:
+ * FONTINTR, one shaded pass), @COLORS basic/select, default @width=190.
  *
  * KIND_OK: GAME.TXT info sections have no response lines — dismiss with
  * Enter/Space/Esc or any click (no invented "OK" button). KIND_CHOICE: pick

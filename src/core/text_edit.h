@@ -73,13 +73,16 @@ int text_edit_field_width(const ColonizeFont* font, const char* buf);
 
 /*
  * NAMES.TXT @COLORS entries, under the WOODPANL / in-game palette:
- *   text = basic 68 (85,150,52) green
- *   shadow = enhance 128 (121,73,52) brown-orange — the field's drop shadow is
- *            warm, unlike the black one popup_draw_text_shadowed uses
+ *   text = basic 68 (85,150,52) green (glyph shade 1)
+ *   enhance = 128 (121,73,52) brown-orange (glyph shade 2)
+ *   shadow = 47 (12,12,12) near-black (glyph shade 3)
  *   selection = select 138 (60,32,24) dark brown
+ * DOS draws the field text + '_' once through FUN_6f74_0538 (FUN_6f74_1e14), no
+ * drop-shadow pass (port_bugs.md #1191).
  */
 typedef struct TextEditColors {
   uint8_t text;
+  uint8_t enhance;
   uint8_t shadow;
   uint8_t selection;
 } TextEditColors;
@@ -91,9 +94,9 @@ void text_edit_default_colors(TextEditColors* out);
 
 /*
  * Frame rect for a field whose first glyph is drawn at (x, y) and whose text
- * area is box_w wide. Sized off the font's actual ink rows plus the 1px drop
- * shadow — not off the caller's line height, which carries interline slack that
- * would otherwise show up as dead space under the text.
+ * area is box_w wide. Sized off the font's actual ink rows — not off the
+ * caller's line height, which carries interline slack that would otherwise
+ * show up as dead space under the text.
  */
 void text_edit_frame_rect(
   const ColonizeFont* font,

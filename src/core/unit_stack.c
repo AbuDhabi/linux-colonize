@@ -330,7 +330,11 @@ void unit_stack_render(
     char label[72];
     unit_stack_row_label(pool, names, col1, u, label, sizeof(label));
     if (font) {
-      font_draw_text(font, framebuffer, fr.x + 25, row_y + 8 - (glyph_h >> 1), label, text_color);
+      /* FUN_6f74_201e writes the row text through FUN_6f74_0538. */
+      popup_draw_text_markup(
+        font, framebuffer, fr.x + 25, row_y + 8 - (glyph_h >> 1), label, text_color, text_color,
+        colors, NULL
+      );
     }
   }
 }

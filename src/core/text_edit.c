@@ -65,7 +65,8 @@ void text_edit_default_colors(TextEditColors* out) {
     return;
   }
   out->text = COLONIZE_COL_BASIC;
-  out->shadow = COLONIZE_COL_ENHANCE;
+  out->enhance = COLONIZE_COL_ENHANCE;
+  out->shadow = COLONIZE_COL_SHADOW;
   out->selection = COLONIZE_COL_SELECT;
 }
 
@@ -457,8 +458,7 @@ void text_edit_frame_rect(
     *out_w = box_w + TEXT_EDIT_FRAME_PAD * 2;
   }
   if (out_h) {
-    /* +1 for the drop shadow, which sits one row below the ink. */
-    *out_h = h + 1 + TEXT_EDIT_FRAME_PAD * 2;
+    *out_h = h + TEXT_EDIT_FRAME_PAD * 2;
   }
 }
 
@@ -492,10 +492,9 @@ void text_edit_render(
     const int sw = text_edit_prefix_width(font, buf + lo, hi - lo);
     fb_fill_rect(fb, sx - 1, y - 1, sw + 2, line_h, colors->selection);
   }
-  /* Unbold FONTINTR (shade-1 ink only) over a 1px offset drop shadow, same as
-   * the wizard's captions but with the field's warm shadow colour. */
-  font_draw_text_unbold(font, fb, x + 1, y + 1, buf, colors->shadow);
-  font_draw_text_unbold(font, fb, x, y, buf, colors->text);
+  /* One pass through the dialog writer's shade map (FUN_6f74_1e14 -> FUN_6f74_0538). */
+  const uint8_t shades[4] = {0, colors->text, colors->enhance, colors->shadow};
+  font_draw_text_shaded(font, fb, x, y, buf, shades);
 
   /*
    * Caret. At the end of the text it is DOS's trailing underscore; once the
@@ -505,8 +504,7 @@ void text_edit_render(
   const int caret = st ? clamp_int(st->cursor, 0, n) : n;
   const int cx = x + text_edit_prefix_width(font, buf, caret);
   if (caret >= n) {
-    font_draw_text_unbold(font, fb, cx + 1, y + 1, "_", colors->shadow);
-    font_draw_text_unbold(font, fb, cx, y, "_", colors->text);
+    font_draw_text_shaded(font, fb, cx, y, "_", shades);
   } else {
     fb_fill_rect(fb, cx, y, 1, line_h - 1, colors->text);
   }

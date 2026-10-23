@@ -327,14 +327,28 @@ dialog), right edge `frame_x + w - 2`, highlight ink, no drop shadow. The @REALL
 confirm is a plain `FUN_281f_0652` popup (+0x22 stays 4, and `FUN_6f74_2580` clears
 `DS:0x1f66` on every exit), so it has no footer (h = 12 + prose + rows). Ink is the
 generic `COLONIZE_COL_BASIC` / `COLONIZE_COL_HILITE` / grey (85,150,52 / 199,162,32 /
-85,85,85 in the shots; the old 10/14/15 were the palette's bright EGA colours), and the
-FONTTINY dialog has no drop shadow. With the same fixture content purchase.png and
-train.png reproduce pixel for pixel (frame band, bars, prose, rows, cost column,
-footer) except the FONTINTR text's dark edge pixels (DOS (12,12,12) pattern vs the port's
-black +1,+1 shadow, port_bugs.md #1191) and the rows DOS greys because its gold is 1000.
+85,85,85 in the shots; the old 10/14/15 were the palette's bright EGA colours).
+With the same fixture content (gold 1000) purchase.png reproduces pixel for pixel over the
+whole dialog rect (frame band, bars, prose, rows, cost column, footer, glyph edge shades) and
+train.png too except the DOS mouse pointer (17 px).
 The cost column's right edge (advance end at `frame_x + w - 13`) is measured off the
 shots, not read from the asm. Tests: `unit_popup_prompt list_height_dos`,
 `smoke_popup_dialogs europe_menu_frames_are_dos`.
+
+Dialog text shading (port_bugs.md #1191). DOS has no drop-shadow pass. `FUN_6f74_0538`
+(Ghidra shows its near calls as `CALL DATA:FUN_7b29_49e8`; callers `FUN_6f74_116c` prose,
+`1b7c` option rows and the text after `|`, `1e14` edit field + `_` caret, `201e` icon rows)
+loads a 4-entry map via `FUN_6f74_04f6` -> `FUN_1c28_000a` into `DS:0x269e`: shade 0 skip,
+1 ink (style+2; style+6 inside `{}`; style+4 when caller BX&1, the disabled rows; `~`
+flips the next char between +6 and +2), 2 style+8, 3 style+0xa. `FUN_1c11_000c` blits each
+2-bpp glyph once through it. The style (box+0x74) is copied at box init from
+`DS:0x1f4a..0x1f52`, which `FUN_75c2_0204` loads from `@COLORS` 68 / 8 / 149 / 128 / 47, so
+shade 2 = 128 (121,73,52) and shade 3 = 47 (12,12,12); the title-menu set `FUN_75c2_024c`
+has shade 3 = 0. FONTINTR / FONT-NP carry shades 2 and 3, FONTTINY / FONTSMAL only shade
+1 (no edges), FONTKING draws its body in shade 3. Port: `popup_draw_text_markup` with
+`ColonizePopupColors.enhance` / `.shadow` (remapped by RGB with the rest of the title set,
+shadow forced to 0); `text_edit_render` the same map. Test: `unit_popup_prompt
+dialog_text_is_dos_shaded`.
 
 The same rows drive `ai_popup_render` and the `popup_list_metrics_dos6f74` list
 (save/load picker) since port_bugs.md #1189: row 0's bar top is `popup_dos_list_y0`

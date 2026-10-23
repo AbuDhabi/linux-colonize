@@ -1367,7 +1367,7 @@ COLONIZE_INTERNAL void game_render_begin_menu(
      * ~ / # hotkey markers that the old loop drew as glyphs — cannot arise. */
     (void)popup_draw_text_markup(
       font, framebuffer, tx, text_y, game->menu_version_line, game->menu_col_basic,
-      game->menu_col_hilite, false, false, NULL
+      game->menu_col_hilite, &game->menu_popup_colors, NULL
     );
     text_y += L.title_h + L.gap_after_title;
   }
@@ -1381,8 +1381,10 @@ COLONIZE_INTERNAL void game_render_begin_menu(
         framebuffer, inner_x + 1, row_y - 1, inner_w - 2, L.line_h, game->menu_col_select
       );
     }
-    font_draw_text(
-      font, framebuffer, inner_x + L.option_pad_x, row_y, game->menu_options[i], game->menu_col_basic
+    /* @BEGINMENU rows: FUN_6f74_1b7c -> FUN_6f74_0538, like every compositor row. */
+    (void)popup_draw_text_markup(
+      font, framebuffer, inner_x + L.option_pad_x, row_y, game->menu_options[i],
+      game->menu_col_basic, game->menu_col_hilite, &game->menu_popup_colors, NULL
     );
   }
 }
@@ -2795,8 +2797,7 @@ void game_render_window_log(
       bool hi = false;
       (void)popup_draw_text_markup(
         font, framebuffer, text_x, y, wrapped[k],
-        basic, hilite,
-        /*unbold=*/false, /*shadow=*/false, &hi
+        basic, hilite, NULL /* FONTTINY / FONTSMAL: shade 1 only */, &hi
       );
     }
   }

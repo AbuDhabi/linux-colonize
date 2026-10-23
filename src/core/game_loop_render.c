@@ -648,25 +648,6 @@ static void europe_menu_title_prose(const ColonizeGameState* game, char* buf, si
   buf[o] = '\0';
 }
 
-/* DOS FONTINTR list-dialog text carries a 1px dark drop shadow (recruit/purchase
- * screenshots — port_bugs.md: "shading, mostly"); the FONTTINY Train dialog has
- * none (train.png), so `shadow` is off there (port_bugs.md #1187). */
-static void europe_menu_draw_shadowed(
-  const ColonizeFont* font,
-  ColonizeFramebuffer8* fb,
-  int x,
-  int y,
-  const char* text,
-  uint8_t color,
-  bool shadow
-) {
-  /* port_bugs.md #280: thin letters like every other dialog caption. */
-  if (shadow) {
-    font_draw_text_unbold(font, fb, x + 1, y + 1, text, 0);
-  }
-  font_draw_text_unbold(font, fb, x, y, text, color);
-}
-
 /* Pixel width of a string with the {} markup skipped. */
 
 #define EUROPE_PROSE_MAX_LINES 24
@@ -675,9 +656,8 @@ static void europe_menu_draw_shadowed(
 /*
  * Word-wrap and (when fb != NULL) draw prose at (x,y) within w, returning the
  * height used. {…} spans take the highlight ink and the state carries across
- * words and lines, like DOS's dialog text writer (FUN_6f74_0538); the 1px
- * black drop shadow and the unbold face are the same ones every other
- * FONTINTR caption uses (port_bugs.md #280).
+ * words and lines, like DOS's dialog text writer (FUN_6f74_0538), shaded like
+ * every dialog caption (popup_draw_text_markup, port_bugs.md #1191).
  *
  * Audit GL-8: the wrap engine and the brace-run drawer were private copies of
  * popup_wrap_text / popup_draw_text_markup. They are now those two — verified
@@ -694,8 +674,7 @@ static int europe_draw_prose(
   const char* text,
   int line_h, /* FUN_6f74_1198 pitch: popup_dos_glyph_h + 1 */
   uint8_t base_color,
-  uint8_t hi_color,
-  bool shadow
+  uint8_t hi_color
 ) {
   if (!font || !text || w <= 0) {
     return 0;
@@ -705,8 +684,7 @@ static int europe_draw_prose(
     popup_wrap_text(font, text, lines[0], sizeof(lines[0]), NULL, EUROPE_PROSE_MAX_LINES, w);
   bool hi = false;
   for (int i = 0; i < n; ++i) {
-    popup_draw_text_markup(font, fb, x, y + i * line_h, lines[i], base_color, hi_color, true,
-                           shadow, &hi);
+    popup_draw_text_markup(font, fb, x, y + i * line_h, lines[i], base_color, hi_color, NULL, &hi);
   }
   return n * line_h;
 }
@@ -838,7 +816,7 @@ bool europe_menu_layout(
   char prose[512];
   europe_menu_title_prose(game, prose, sizeof(prose));
   out->prose_h =
-    prose[0] ? europe_draw_prose(font, NULL, 0, 0, out->prose_w, prose, out->glyph_h + 1, 0, 0, false)
+    prose[0] ? europe_draw_prose(font, NULL, 0, 0, out->prose_w, prose, out->glyph_h + 1, 0, 0)
              : 0;
   out->dialog_h = popup_dos_list_height(
     out->glyph_h, out->prose_h, out->rows, out->help_footer, out->tiny
@@ -964,7 +942,7 @@ static void europe_render_menu_popup(
   europe_menu_title_prose(game, prose, sizeof(prose));
   europe_draw_prose(
     font, framebuffer, lay.text_x, lay.prose_y, lay.prose_w, prose, lay.glyph_h + 1,
-    COLONIZE_COL_BASIC, COLONIZE_COL_HILITE, !lay.tiny
+    COLONIZE_COL_BASIC, COLONIZE_COL_HILITE
   );
 
   for (int i = 0; i < rows; ++i) {
@@ -1031,14 +1009,15 @@ static void europe_render_menu_popup(
      * row stays all grey like DOS's disabled ink. */
     popup_draw_text_markup(
       font, framebuffer, lay.text_x + lay.row_dx, row_y, label, color,
-      color == COLONIZE_COL_GREY ? (uint8_t)COLONIZE_COL_GREY : (uint8_t)COLONIZE_COL_HILITE, true,
-      !lay.tiny, NULL
+      color == COLONIZE_COL_GREY ? (uint8_t)COLONIZE_COL_GREY : (uint8_t)COLONIZE_COL_HILITE,
+      NULL, NULL
     );
     if (cost[0]) {
+      /* FUN_6f74_1b7c: the text after '|' goes through the same writer, right-aligned. */
       const int cw = font_text_width(font, cost);
-      europe_menu_draw_shadowed(
+      popup_draw_text_markup(
         font, framebuffer, lay.dialog_x + lay.dialog_w - EUROPE_COST_RIGHT_INSET - cw, row_y,
-        cost, color, !lay.tiny
+        cost, color, color, NULL, NULL
       );
     }
   }
@@ -1964,6 +1943,9 @@ static void game_create_load_menu_art(ColonizeGameState* game) {
     popup_colors_remap(
       &game->menu_popup_colors, &game->pedia_wood.palette, &game->menu_bg.palette
     );
+    /* The title set FUN_75c2_024c writes DS:0x1f52 (glyph shade 3) = 0; 47's RGB
+     * (12,12,12) has no exact OPENMENU match. */
+    game->menu_popup_colors.shadow = 0;
     diag_info(
       "Title menu @COLORS remap: basic %u→%u hilite %u→%u select %u→%u "
       "popup mid/light/dark %u/%u/%u",
