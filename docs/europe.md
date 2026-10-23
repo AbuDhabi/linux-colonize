@@ -726,7 +726,7 @@ Keys: `U` = `game_europe_sell_best_hold` = `FUN_479b_0f60(ship, 1)`:
 (`units_dos_sort_1cf8` = FUN_1cf8_000a, shared with the plunder pick) and the
 LOWEST key is sold whole, one hold per press; an empty ship raises the red bar
 @MISC[22]. The same pick (`europe_dos_0f60_pick_holds`, raw hold arrays) serves the
-colony-screen `U` (mode 0, port_bugs.md #1182). `-` / `_` = `game_europe_sell_first_hold` = `FUN_38fd_23c4`: the
+colony-screen `U` (mode 0, port_bugs.md #1182); the colony-screen `L` (FUN_479b_11a4, #1184) is the mirror pick `europe_dos_11a4_pick` over the 16 warehouse stock words (weights Muskets/Tools 1, Horses 0 under 102 stock, HIGHEST key wins). `-` / `_` = `game_europe_sell_first_hold` = `FUN_38fd_23c4`: the
 whole FIRST slot holding the selected cargo (`_` asks the @HOWMUCH5 amount
 first); none aboard raises the red bar @CMESSAGE[9] + cargo + [10], and no
 harbor ship at all @CMESSAGE[5] ("Nothing to transport"). Red bars are DOS arm

@@ -333,6 +333,110 @@ static int case_render_layouts(void) {
   return rc;
 }
 
+/*
+ * port_bugs.md #1186: ai_popup_render places the dialog like FUN_6f74_14c6 —
+ * 160 - (w >> 1) / 100 - (h >> 1) as arithmetic shifts (an odd size lands 1 px
+ * down/right of the old halve-the-margin form), and under an MSS/MYR figure the
+ * frame sits at fig_y - oy + sprite_h with the figure at 100 - (t >> 1). The
+ * expectation is worked out here by hand from the dialog size the render reports.
+ * A copy of FONTTINY with max_height 8 gives odd row pitches (9 / 11), so odd
+ * and even dialog heights both occur; the guard fails if the fixture ever stops
+ * producing odd ones.
+ */
+static int case_placement_is_dos(void) {
+  static AiPopupState st;
+  static ColonizeFont font;
+  static ColonizeSpriteSheet wood;
+  char err[128];
+  if (!font_file_load("COLONIZE/FONTTINY.FF", &font, err, sizeof(err)) ||
+      !ss_load("COLONIZE/WOODTILE.SS", &wood, err, sizeof(err))) {
+    fprintf(stderr, "SKIP: assets: %s\n", err);
+    return TR_SKIP;
+  }
+  font.max_height = 8;
+  ai_popup_set_portrait_source("COLONIZE");
+
+  AiPopupRequest r;
+  memset(&r, 0, sizeof(r));
+  r.portrait_tribe = -1;
+  snprintf(r.title, sizeof(r.title), "Title");
+  snprintf(r.choices[0], sizeof(r.choices[0]), "One");
+  snprintf(r.choices[1], sizeof(r.choices[1]), "Two");
+  snprintf(r.choices[2], sizeof(r.choices[2]), "Three");
+
+  int rc = 0;
+  int odd_w = 0;
+  int odd_h = 0;
+  int odd_total = 0;
+  for (int mss = -1; mss < 6; ++mss) {
+    for (int myr = -1; myr < (mss < 0 ? 4 : 0); ++myr) {
+      for (int width = 0; width <= 151; width += 151) {
+        for (int lines = 1; lines <= 3; ++lines) {
+          for (int choices = 0; choices <= 3; ++choices) {
+            r.graphic_mss = mss;
+            r.graphic_myr = myr;
+            r.width = width;
+            r.choice_count = choices;
+            r.body[0] = '\0';
+            for (int l = 0; l < lines; ++l) {
+              strcat(r.body, l ? "\nAnother short line." : "A short line.");
+            }
+            ai_popup_init(&st);
+            if (render_one("place", &r, 0, 0, &font, &wood, &st)) {
+              rc = 1;
+              continue;
+            }
+            const int w = st.dialog_w;
+            const int h = st.dialog_h;
+            int ex = 160 - (w >> 1);
+            int ey = 100 - (h >> 1);
+            const ColonizeSpriteSheet* fig = ai_popup_decoration_sheet(mss, myr);
+            if (fig && fig->sprite_count > 0 && fig->sprites[0].pixels) {
+              const int sw = fig->sprites[0].width;
+              const int sh = fig->sprites[0].height;
+              const int oy = fig->place_offset_y;
+              const int ox = fig->place_offset_x;
+              const int t = sh - (oy < sh ? oy : sh) + h;
+              odd_total += t & 1;
+              if (t < 200) {
+                const int fy = 100 - (t >> 1);
+                ey = fy - oy + sh;
+                if (fig->place_mode != 1) {
+                  int o = ox;
+                  int tw = w - ox + sw;
+                  if (tw > 320) {
+                    o += tw - 320;
+                    tw = 320;
+                  }
+                  const int gx = 160 - (tw >> 1);
+                  ex = fig->place_mode == 2 ? gx : gx - o + sw;
+                }
+              }
+            }
+            odd_w += w & 1;
+            odd_h += h & 1;
+            if (st.dialog_x != ex || st.dialog_y != ey) {
+              fprintf(stderr,
+                      "mss %d myr %d width %d lines %d choices %d: size %dx%d want (%d,%d) got (%d,%d)\n",
+                      mss, myr, width, lines, choices, w, h, ex, ey, st.dialog_x, st.dialog_y);
+              rc = 1;
+            }
+          }
+        }
+      }
+    }
+  }
+  if (!odd_w || !odd_h || !odd_total) {
+    fprintf(stderr, "fixture never produced odd w / h / assembly height (%d %d %d)\n", odd_w,
+            odd_h, odd_total);
+    rc = 1;
+  }
+  ai_popup_set_portrait_source(NULL);
+  ss_free(&wood);
+  font_file_free(&font);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"case_fresh_idle", case_fresh_idle},
     {"case_enqueue_and_present_info", case_enqueue_and_present_info},
@@ -342,6 +446,7 @@ static const TestCase k_cases[] = {
     {"case_chrome_tags", case_chrome_tags},
     {"case_set_last_after_dropped_enqueue", case_set_last_after_dropped_enqueue},
     {"case_render_layouts", case_render_layouts},
+    {"case_placement_is_dos", case_placement_is_dos},
 };
 
 TEST_MAIN(k_cases)

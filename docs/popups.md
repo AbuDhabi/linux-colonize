@@ -272,19 +272,38 @@ Ghidra drops these args (`LEA BX,[0x87c]` = `GAME`, `LEA AX,[tag]`):
 | `FUN_38fd_4884(0,0)` Recruit menu | `38fd:4948` | `0x1109` `@RECRUIT` | **MSS2 — wired now** |
 | `FUN_38fd_4b50` Purchase menu | `38fd:4b5d` | `0x1111` `@PURCHASE` | **MSS2 — wired now** |
 | `FUN_38fd_2a92` sail confirm | `38fd:2aba` | `0xffc` `@SAILAWAY` | **MSS0 — wired now** (table row) |
+| `FUN_2b5a_001e` Land Ho name prompt | `2b5a:0028` (`MOV [0x1f5e],0`) | `0x8a2` `@LANDHO` | MSS0 — `k_popup_msg_mss` row, drawn by `popup_field_frame` (port_bugs.md #1183) |
+| `FUN_479b_076e` colony name prompt (human only) | `479b:0823` (`MOV [0x1f5e],5`) | `0x146f` `@COLONY` | MSS5 — same |
 
 `@KINGRECRUIT` (Train) and the dock `@ARMOPTIONS` menu latch nothing, and DOS
 shows them bare — `original_screenshots/europe/train.png` confirms.
 
+The text-entry prompts (`FUN_291f_0120` → `FUN_6f74_2580`, the same show) take
+the same latch: `name_entry` keeps it (`mss`, from `popup_msg_take_pending_graphic`)
+and `popup_field_frame` re-places the frame around the figure with the
+`FUN_6f74_14c6` arithmetic (`6f74:18ae-1a0c`: total `t = sprite_h - min(sprite_h, oy) + h`,
+figure y `100 - (t >> 1)`, frame y `gy - oy + sprite_h`, mode 0 frame x
+`gx - ox + sprite_w`, mode 1 frame x unmoved) and blits it last. `@RENAMECOLONY`,
+`@TRADENAME` and `@HOWMUCH1-5` latch nothing in DOS and stay bare.
+
 Placement is the same header-driven rule as `ai_popup_render`, now also in
-`europe_menu_layout` (`game_loop.c`): MSS2.SS is 122×84 with
-`place_offset_y=6`, `place_mode=1` (centred), `place_offset_x=0`. That
-reproduces `recruit.png` exactly — its 102 px dialog gives
-`total_h = 84 − 6 + 102 = 180`, `top = (200 − 180)/2 = 10`, so the sprite sits
-at y=10 and the dialog at y=88, which is where the screenshot has them. The
-same pass replaced the port's hardcoded `dialog_y = 16` with DOS's
-`100 − h/2` auto-place (`FUN_6f74_14c6` @ OVL24 `0x16cb`–`0x16f6`);
-`train.png`'s undecorated 180 px dialog lands at y=10 by the same formula.
+`europe_menu_layout` (`game_loop_render.c`): both call `popup_place_dos`
+(`popup.c`), the `FUN_6f74_14c6` placement (plain arm `6f74:16c8-1735`, figure
+arm `18ae-1a0c`): `160 - (w >> 1)` / `100 - (h >> 1)` as arithmetic shifts, right
+edge pulled back to 320 and bottom to 200, no menu-bar floor, and with a figure
+the assembly total `t = sprite_h - min(sprite_h, oy) + h` (dropped at `t >= 200`),
+figure y `100 - (t >> 1)`, frame y `fig_y - oy + sprite_h`. MSS2.SS is 122×84 with
+`place_offset_y=6`, `place_mode=1` (centred), `place_offset_x=0`. The DOS shots
+fix the arithmetic: `recruit.png`'s dialog is 103 px (black top rule row 88,
+bottom 190), `t = 84 - 6 + 103 = 181`, figure y `100 - 90 = 10`, dialog y 88;
+`purchase.png`'s 119 px dialog gives `t = 197`, figure y 2, dialog y 80;
+`train.png`'s undecorated 180 px dialog lands at y=10. Both odd totals sit 1 px
+below the halve-the-margin form `(200 - t) / 2` the port used before
+(port_bugs.md #1186). `160`/`100`/`320`/`200` are `fb_w / 2`, `fb_h / 2`, `fb_w`,
+`fb_h` (port-only: the overland map view in a window larger than 320×200 centres
+in its own frame; every other screen, screens-on-map included, is the 320×200
+frame and gets the DOS values). `popup_field_frame` uses the same helper.
+Tests: `unit_popup_prompt place_dos`, `smoke_ai_popup case_placement_is_dos`.
 The sprite blits **after** the frame (`FUN_6f74_248e`: sprite-last whenever
 `DS:0x1f5c < 0`), and `EUROPE.PIK`'s black 120..251 block takes MSS2's own
 palette entries via `ai_popup_sheet_palette_merge` (merge, never remap).
@@ -402,8 +421,8 @@ fragment. Related sections are listed in the first column.
 | `@ABANDON` / `@ABANDON2` | Last colonist leave | Done | Yes/No confirm from GAME.TXT |
 | `@KEEPSTOCKADE` | Stockade min pop | Done | OK from `@KEEPSTOCKADE` |
 | `@MORETHANTHREE` | Assign 4th colonist to a full building | Done | `colonies_assign_workplace` caps at `COLONIZE_BUILDING_MAX_WORKERS` (3); `colonies_emit_more_than_three_chrome` OK. Was previously misdocumented as a `@KEEPSTOCKADE` alias — the two sections are unrelated |
-| `@COLONY` / `@RENAMECOLONY` | Found / rename | Done | Name entry after found; rename = click colony title bar (DOS zone 10) or **R** (port extra) |
-| `@LANDHO` | Human move with land in the destination 3x3, `named_new_world` clear (`FUN_4720_049e` tail) | Done | Name New World (`colony_region`); the field opens on the live `player[turn].country_name` (DOS passes that buffer, so `@default=America` is dead; a new game stores NAMES `@COLONYNAME` there). Text-entry layout: `popup_field_frame` (port_bugs.md #1181); MSS decoration still missing (#1183) |
+| `@COLONY` / `@RENAMECOLONY` | Found / rename | Done | Name entry after found (`@COLONY` wears the MSS5 nun, `479b:0823`); rename (bare, DOS latches nothing) = click colony title bar (DOS zone 10) or **R** (port extra) |
+| `@LANDHO` | Human move with land in the destination 3x3, `named_new_world` clear (`FUN_4720_049e` tail) | Done | Name New World (`colony_region`); the field opens on the live `player[turn].country_name` (DOS passes that buffer, so `@default=America` is dead; a new game stores NAMES `@COLONYNAME` there). Text-entry layout: `popup_field_frame` (port_bugs.md #1181); MSS0 admiral (`2b5a:0028`, #1183) |
 | `@HOWMUCH1`… | Cargo amount | Done | [`howmuch_dialog.c`](../src/core/howmuch_dialog.c) (`=` colony / Europe **L**) |
 | `@WAREHOUSEFULL` | Warehouse overflow | Done thin | Unload full → `ai_popup` OK; spoilage still `@SPOIL*` |
 | Train fails (`@NOTEACHER`, `@TRAINFAIL`, …) | School train | Done thin | Re-verified 2026-09-16: EOT `@TRAINFAIL` (`turn.c`), assign-time `@NOTEACHER`/`@NEEDCOLLEGE`/`@NEEDUNIVERSITY` (`colony.c`) all `popup_msg_fill` real body at the DOS condition; see Appendix A |

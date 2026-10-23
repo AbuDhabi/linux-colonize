@@ -299,6 +299,9 @@ static const PopupMsgGraphicRow k_popup_msg_mss[] = {
   {"REFIT", 0},       {"SEIZURE", 0},     {"ROUTELOOP", 0},  {"SHIPRUN", 0},
   {"SHIPSLOW", 0},    {"CARGOCAPTURE", 0}, {"SHIPDAMAGE", 0}, {"SHIPSUNK", 0},
   {"EVASIVE", 0},
+  /* New World name prompt: FUN_2b5a_001e @ 2b5a:0028 `MOV word [0x1f5e],0` before
+   * FUN_291f_0120(0x17) — a direct latch, no 0652 pair (port_bugs.md #1183). */
+  {"LANDHO", 0},
   /* MSS1 — continental soldier: land war, king's forces, revolution. */
   {"TUTORIAL7", 1},   {"TUTORIAL14", 1},  {"HAVETREATY", 1}, {"TEAPARTY", 1},
   {"FOREIGNNOTAVAIL", 1}, {"AMBUSHHINT", 1}, {"CONSIDER", 1}, {"TORYUPRISING", 1},
@@ -339,6 +342,10 @@ static const PopupMsgGraphicRow k_popup_msg_mss[] = {
    * 1575 with no other colony) into a stack buffer and calls
    * FUN_281f_0652(name, 5) — a dynamic tag, so it is keyed by name here. */
   {"ABANDON", 5},     {"ABANDON2", 5},
+  /* Colony name prompt: FUN_479b_076e @ 479b:0823 `MOV word [0x1f5e],5` before
+   * FUN_291f_0120(0x17), human nations only. @RENAMECOLONY, @TRADENAME and
+   * @HOWMUCH1-5 latch nothing in DOS and stay bare. */
+  {"COLONY", 5},
 };
 
 int popup_msg_mss_index_for_section(const char* section_name) {

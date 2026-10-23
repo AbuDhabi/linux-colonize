@@ -473,6 +473,52 @@ static int case_europe_workflow(void) {
         }
       }
     }
+    /* port_bugs.md #1184: the colony-screen `L` pick (FUN_479b_11a4) over the 16
+     * warehouse stock words: key = (uint16)(min(stock,100) * w), w = sell price << 4
+     * (Muskets/Tools 1, Horses 0 under 0x66), and the HIGHEST key wins. */
+    {
+      const int bid_horses = eu.cargo[COLONIZE_CARGO_HORSES].bid;
+      eu.cargo[COLONIZE_CARGO_HORSES].bid = 3; /* sell price 2: weight 32 once 102+ */
+      struct {
+        int c0, q0, c1, q1;
+        int want; /* cargo type, -1 = none */
+        const char* what;
+      } lc[] = {
+        {COLONIZE_CARGO_TOBACCO, 100, COLONIZE_CARGO_SILVER, 30, COLONIZE_CARGO_SILVER,
+         "Silver 30@19 (9120) beats Tobacco 100@4 (6400)"},
+        {COLONIZE_CARGO_TOBACCO, 250, COLONIZE_CARGO_SILVER, 21, COLONIZE_CARGO_TOBACCO,
+         "Tobacco clamps to 100 (6400) over Silver 21 (6384)"},
+        {COLONIZE_CARGO_TOBACCO, 250, COLONIZE_CARGO_SILVER, 22, COLONIZE_CARGO_SILVER,
+         "Silver 22 (6688) over the clamped Tobacco"},
+        {COLONIZE_CARGO_MUSKETS, 100, COLONIZE_CARGO_TOOLS, 100, COLONIZE_CARGO_MUSKETS,
+         "equal keys 100/100: the sort leaves them in index order, Muskets on top"},
+        {COLONIZE_CARGO_MUSKETS, 60, COLONIZE_CARGO_TOBACCO, 5, COLONIZE_CARGO_TOBACCO,
+         "Muskets weigh 1 (60), Tobacco 5@4 = 320"},
+        {COLONIZE_CARGO_HORSES, 101, COLONIZE_CARGO_HORSES, 0, COLONIZE_CARGO_HORSES,
+         "Horses 101 (weight 0) alone still load"},
+        {COLONIZE_CARGO_HORSES, 101, COLONIZE_CARGO_MUSKETS, 5, COLONIZE_CARGO_MUSKETS,
+         "Horses 101 key 0 loses to Muskets 5"},
+        {COLONIZE_CARGO_HORSES, 102, COLONIZE_CARGO_MUSKETS, 5, COLONIZE_CARGO_HORSES,
+         "Horses 102 weigh 32: 3200 over Muskets 5"},
+        {COLONIZE_CARGO_FOOD, 0, COLONIZE_CARGO_FOOD, 0, -1, "empty warehouse"},
+      };
+      for (size_t ci = 0; ci < sizeof(lc) / sizeof(lc[0]); ++ci) {
+        int stock[COLONIZE_CARGO_COUNT] = {0};
+        stock[lc[ci].c0] = lc[ci].q0;
+        stock[lc[ci].c1] += lc[ci].q1;
+        const int got = europe_dos_11a4_pick(&eu, NULL, 0, stock);
+        if (got != lc[ci].want) {
+          fprintf(stderr, "europe_dos_11a4_pick: %s: want %d got %d\n", lc[ci].what, lc[ci].want, got);
+          eu.cargo[COLONIZE_CARGO_HORSES].bid = bid_horses;
+          eu.cargo[COLONIZE_CARGO_TOBACCO].bid = bid_tobacco;
+          eu.cargo[COLONIZE_CARGO_SILVER].bid = bid_silver;
+          eu.harbor[0] = saved;
+          europe_free(&eu);
+          return 1;
+        }
+      }
+      eu.cargo[COLONIZE_CARGO_HORSES].bid = bid_horses;
+    }
     eu.cargo[COLONIZE_CARGO_TOBACCO].bid = bid_tobacco;
     eu.cargo[COLONIZE_CARGO_SILVER].bid = bid_silver;
     eu.harbor[0] = saved;

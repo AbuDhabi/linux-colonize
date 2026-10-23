@@ -202,6 +202,29 @@ static int case_abandon_default(void) {
   return rc;
 }
 
+/* The name prompts' DS:0x1f5e latch (port_bugs.md #1183): FUN_2b5a_001e sets 0
+ * before @LANDHO (2b5a:0028), FUN_479b_076e sets 5 before @COLONY (479b:0823);
+ * @RENAMECOLONY, @TRADENAME and @HOWMUCH1-5 set nothing. */
+static int case_name_prompt_latch(void) {
+  static const struct {
+    const char* section;
+    int mss;
+  } want[] = {
+    {"LANDHO", 0},       {"COLONY", 5},       {"RENAMECOLONY", -1}, {"TRADENAME", -1},
+    {"HOWMUCH1", -1},    {"HOWMUCH2", -1},    {"HOWMUCH3", -1},     {"HOWMUCH4", -1},
+    {"HOWMUCH5", -1},    {"LEADERNAME", -1},
+  };
+  int rc = 0;
+  for (size_t i = 0; i < sizeof(want) / sizeof(want[0]); ++i) {
+    if (popup_msg_mss_index_for_section(want[i].section) != want[i].mss) {
+      fprintf(stderr, "@%s: want MSS %d got %d\n", want[i].section, want[i].mss,
+              popup_msg_mss_index_for_section(want[i].section));
+      rc = 1;
+    }
+  }
+  return rc ? fail("name prompt MSS latch") : 0;
+}
+
 /* Status line from a section: first sentence of the template, tokens in, no
  * {} markup, and a token with a full stop ("St. Augustine") cannot cut it. */
 static int case_fill_status_first_sentence(void) {
@@ -228,6 +251,7 @@ static const TestCase k_cases[] = {
     {"unit_popup_msg_token_substitution", case_token_substitution},
     {"unit_popup_msg_choice_leak_sweep", case_choice_leak_sweep},
     {"unit_popup_msg_abandon_default", case_abandon_default},
+    {"unit_popup_msg_name_prompt_latch", case_name_prompt_latch},
     {"unit_popup_msg_fill_status_first_sentence", case_fill_status_first_sentence},
 };
 TEST_MAIN(k_cases)

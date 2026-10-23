@@ -1007,9 +1007,6 @@ int colonies_foreign_trade_apply(
   int take_goods
 );
 
-/* Best cargo type for L-key load (excludes horses/tools/muskets); -1 if none. */
-int colonies_best_load_cargo(const ColonizeColony* colony);
-
 /* FUN_479b_0bd0 arrival body (see docs/colony.md#colonies_trade_route_service_stop) */
 int colonies_trade_route_service_stop(
   ColonizeColonyPool* pool,

@@ -1816,21 +1816,11 @@ static GameUpdateStep game_colony_screen_cargo_keys(
   ColonizeGameState* game, const ColonizeInputState* input, ColonizeColony* colony,
   ColonyScreenView* csv
 ) {
-  /* L = load highest-value cargo; U = unload the lowest-key hold (DOS pick). */
+  /* L = load the highest-key cargo (FUN_479b_11a4); U = unload the lowest-key hold (DOS pick). */
   if (!csv->jobs_open && !csv->construction_open && colony && game->units_ok) {
     if (input->last_key == COLONIZE_KEY_L) {
-      if (csv->transport_unit_id < 0) {
-        set_status(game, "Select a ship first", NULL);
-      } else {
-        const int cargo = colonies_best_load_cargo(colony);
-        if (cargo < 0) {
-          set_status(game, "Nothing to load", NULL);
-        } else {
-          const int want = colony->stock[cargo] < 100 ? colony->stock[cargo] : 100;
-          game_colony_load_hold(game, csv->transport_unit_id, cargo, want);
-        }
-      }
-      colony_screen_set_status(csv, game->status);
+      /* 2f2b:662e: FUN_291f_01de -> FUN_479b_11a4(selected ship). */
+      game_colony_load_best_cargo(game);
       return GAME_UPDATE_RETURN_TRUE;
     }
     if (input->last_key == COLONIZE_KEY_U) {

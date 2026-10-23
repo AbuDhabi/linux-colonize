@@ -523,6 +523,73 @@ void popup_list_render(
   }
 }
 
+/*
+ * DOS-LITERAL FUN_6f74_14c6 placement (raw 115995-116012 and 116068-116132;
+ * 6f74:16c8-1735, 18ae-1a0c), shared by every compositor dialog the port places itself.
+ *
+ * Plain arm: x = 160 - (w >> 1), y = 100 - (h >> 1) (SAR / SUB / NEG), then the
+ * right edge is pulled back to 0x140 and the bottom to 200. There is no menu-bar
+ * or top floor in DOS; a negative origin only calls the FUN_281f_0772 error
+ * handler (6f74:1746, args 0xffaf/2/0x29), which the port does not reproduce
+ * (it draws clipped).
+ *
+ * Figure arm (MSS/MYR sheet latched in DS:0x1f5e/0x1f60): the frame and the figure
+ * are placed as one assembly. Total height t = sprite_h - min(sprite_h, oy) + h;
+ * t >= 200 drops the figure and the frame keeps its plain spot, else the figure sits
+ * at y 100 - (t >> 1) and the frame at fig_y - oy + sprite_h (oy raw, not clamped).
+ * Mode 0 puts the figure left (overlap ox; total width clamped to 320 by widening
+ * ox), mode 1 centres it over the unmoved frame, mode 2 puts it right.
+ *
+ * Port-only: 160 / 100 / 320 / 200 are fb_w / 2, fb_h / 2, fb_w, fb_h, so the
+ * overland map view in a window larger than 320x200 centres in its own frame;
+ * on the 320x200 frame (every other screen, screens-on-map) they are the DOS values.
+ */
+PopupDosPlace popup_place_dos(
+  int fb_w, int fb_h, int w, int h, const ColonizeSpriteSheet* figure
+) {
+  PopupDosPlace p;
+  memset(&p, 0, sizeof(p));
+  p.x = fb_w / 2 - (w >> 1);
+  p.y = fb_h / 2 - (h >> 1);
+  if (p.x + w > fb_w) {
+    p.x -= p.x + w - fb_w;
+  }
+  if (p.y + h > fb_h) {
+    p.y += fb_h - (p.y + h);
+  }
+  if (!figure || figure->sprite_count <= 0 || !figure->sprites[0].pixels) {
+    return p;
+  }
+  const int sw = figure->sprites[0].width;
+  const int sh = figure->sprites[0].height;
+  const int oy = figure->place_offset_y;
+  const int total_h = sh - (oy < sh ? oy : sh) + h;
+  if (total_h >= fb_h) {
+    return p;
+  }
+  p.figure = true;
+  p.fig_y = fb_h / 2 - (total_h >> 1);
+  p.y = p.fig_y - oy + sh;
+  int ox = figure->place_offset_x;
+  int total_w = w - ox + sw;
+  if (figure->place_mode == 1) {
+    p.fig_x = fb_w / 2 - (sw >> 1);
+    return p;
+  }
+  if (total_w > fb_w) {
+    ox += total_w - fb_w;
+    total_w = fb_w;
+  }
+  if (figure->place_mode == 2) {
+    p.x = fb_w / 2 - (total_w >> 1);
+    p.fig_x = p.x + w - ox;
+  } else {
+    p.fig_x = fb_w / 2 - (total_w >> 1);
+    p.x = p.fig_x - ox + sw;
+  }
+  return p;
+}
+
 void popup_field_frame(
   ColonizeFramebuffer8* framebuffer,
   const ColonizeFont* font,
@@ -533,6 +600,7 @@ void popup_field_frame(
   const char* label,
   int max_len,
   uint8_t text_color,
+  const ColonizeSpriteSheet* decoration,
   PopupFieldGeom* out
 ) {
   PopupFieldGeom geom;
@@ -579,9 +647,13 @@ void popup_field_frame(
   const int body_h = n * (gh + 1);
   const int w = content_w + 6;
   const int h = body_h + gh + 20;
-  /* 0x1823/0x1847 and 0x16e1/0x16fa: 160 - W/2 and 100 - H/2 as arithmetic shifts. */
-  const int x = framebuffer->width / 2 - (w >> 1);
-  const int y = framebuffer->height / 2 - (h >> 1);
+  /* FUN_6f74_14c6 placement (plain and DS:0x1f5e figure arms): popup_place_dos. */
+  const PopupDosPlace pl = popup_place_dos(framebuffer->width, framebuffer->height, w, h, decoration);
+  const int x = pl.x;
+  const int y = pl.y;
+  const ColonizeSpriteSheet* figure = pl.figure ? decoration : NULL;
+  const int fig_x = pl.fig_x;
+  const int fig_y = pl.fig_y;
   ColonizePopupColors local_colors;
   if (!colors) {
     popup_colors_from_ui(&local_colors);
@@ -624,6 +696,10 @@ void popup_field_frame(
     }
   }
   fb_rect_outline(framebuffer, geom.box_x, geom.box_y, geom.box_w, geom.box_h, text_color, text_color);
+  if (figure) {
+    /* FUN_6f74_248e: the figure goes over the finished frame and body. */
+    ss_blit_sprite(figure, 0, framebuffer, fig_x, fig_y);
+  }
   if (out) {
     *out = geom;
   }

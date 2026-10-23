@@ -832,63 +832,30 @@ static bool europe_menu_layout(
   }
   out->dialog_w = dialog_w;
   out->dialog_h = dialog_h;
-  out->dialog_x = (fb_w - dialog_w) / 2;
   /*
-   * DOS auto-places the list dialog like every other one (FUN_6f74_14c6 @
-   * OVL24 0x16cb-0x16f6: 160 - w/2, 100 - h/2) — the port's fixed y=16 was a
-   * stand-in. Both reference shots agree: recruit.png's 102px-tall dialog
-   * lands at y=88 with the MSS2 figure above it, train.png's 180px-tall one
-   * (no figure) at y=10 = (200-180)/2.
-   */
-  out->dialog_y = (fb_h - dialog_h) / 2;
-
-  /*
-   * Decoration placement, same data-driven rule as ai_popup_render: the
-   * sprite stands ABOVE the dialog with its bottom overlapping the dialog top
-   * by the sheet's place_offset_y; place_mode 0 = at the dialog's left edge
-   * (horizontal overlap place_offset_x), 1 = centred over it, 2 = at the
-   * right edge. The pair is centred vertically as a unit, and DOS drops the
-   * sprite outright when the two together reach the screen height.
+   * DOS auto-places the list dialog like every other one (FUN_6f74_14c6, via
+   * popup_place_dos: 160 - (w >> 1), 100 - (h >> 1) as arithmetic shifts, and the
+   * MSS figure arm that stands the sprite ABOVE the dialog with its bottom
+   * overlapping the dialog top by the sheet's place_offset_y; place_mode 0 = at
+   * the dialog's left edge, 1 = centred over it, 2 = at the right edge, and DOS
+   * drops the sprite when the two together reach the screen height). The port's
+   * fixed y=16 was a stand-in, and its halve-the-margin centring sat 1 px up on an
+   * odd height. DOS reference shots (original_screenshots/europe/): recruit.png's
+   * 103 px dialog under MSS2 lands at y=88, purchase.png's 119 px one at y=80,
+   * train.png's 180 px one (no figure) at y=10 (port_bugs.md #1186).
    */
   out->graphic = europe_menu_decoration(game);
   out->graphic_x = 0;
   out->graphic_y = 0;
+  const PopupDosPlace pl = popup_place_dos(fb_w, fb_h, dialog_w, dialog_h, out->graphic);
+  out->dialog_x = pl.x;
+  out->dialog_y = pl.y;
+  if (out->graphic && !pl.figure) {
+    out->graphic = NULL;
+  }
   if (out->graphic) {
-    const int gw = out->graphic->sprites[0].width;
-    const int gh = out->graphic->sprites[0].height;
-    int ov_y = out->graphic->place_offset_y;
-    if (ov_y > gh) {
-      ov_y = gh;
-    }
-    const int total_h = gh - ov_y + dialog_h;
-    if (total_h >= fb_h) {
-      out->graphic = NULL; /* DOS: too tall together → no decoration. */
-    } else {
-      int top = (fb_h - total_h) / 2;
-      if (top < 0) {
-        top = 0;
-      }
-      out->graphic_y = top;
-      out->dialog_y = top + gh - ov_y;
-      if (out->graphic->place_mode == 1) {
-        out->graphic_x = (fb_w - gw) / 2;
-      } else {
-        int ov_x = out->graphic->place_offset_x;
-        int total_w = dialog_w + gw - ov_x;
-        if (total_w > fb_w) {
-          ov_x += total_w - fb_w; /* DOS widens the overlap instead. */
-          total_w = fb_w;
-        }
-        const int x0 = (fb_w - total_w) / 2;
-        if (out->graphic->place_mode == 2) {
-          out->dialog_x = x0;
-          out->graphic_x = x0 + dialog_w - ov_x;
-        } else {
-          out->graphic_x = x0;
-          out->dialog_x = x0 + gw - ov_x;
-        }
-      }
-    }
+    out->graphic_x = pl.fig_x;
+    out->graphic_y = pl.fig_y;
   }
   if (out->dialog_y < 0) {
     out->dialog_y = 0;

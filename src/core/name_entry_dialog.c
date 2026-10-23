@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "core/ai_popup.h"
 #include "core/map_menu.h"
 #include "core/popup.h"
 #include "core/strutil.h"
@@ -11,6 +12,7 @@ void name_entry_init(NameEntryDialog* dlg) {
     return;
   }
   memset(dlg, 0, sizeof(*dlg));
+  dlg->mss = -1;
 }
 
 /* Single close point for both the finish paths. Clearing `kind` matters only
@@ -76,6 +78,9 @@ bool name_entry_open(
                     ? sizeof(dlg->name)
                     : NAME_ENTRY_COLONY_NAME_CHARS + 1;
   dlg->width = popup_msg_take_pending_width();
+  /* @LANDHO latches MSS0 (2b5a:0028), @COLONY MSS5 (479b:0823); the rename and
+   * trade-name prompts leave 0x1f5e at -1 (port_bugs.md #1183). */
+  dlg->mss = popup_msg_take_pending_graphic();
   str_copy_trunc(dlg->name, dlg->name_cap, initial_name ? initial_name : "");
   /* DOS opens the field with bit 0x80 set — whole text selected. */
   text_edit_reset(&dlg->edit, dlg->name, true);
@@ -147,7 +152,8 @@ void name_entry_render(
   PopupFieldGeom g;
   popup_field_frame(
     framebuffer, font, wood_tile, colors, dlg->width, dlg->prompt, dlg->label,
-    (int)dlg->name_cap - 1, text_color, &g
+    (int)dlg->name_cap - 1, text_color,
+    dlg->mss >= 0 ? ai_popup_decoration_sheet(dlg->mss, -1) : NULL, &g
   );
   dlg->dialog_x = g.frame.x;
   dlg->dialog_y = g.frame.y;

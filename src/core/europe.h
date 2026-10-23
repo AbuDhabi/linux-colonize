@@ -914,6 +914,12 @@ int europe_dos_0f60_pick_holds(
   const int* hold_amounts,
   int n_slots
 );
+/* FUN_479b_11a4 pick behind the colony-screen `L` (port_bugs.md #1184): over the 16
+ * colony stock words, the cargo of the HIGHEST (price << 4) * min(stock, 100) key
+ * (Muskets/Tools weight 1, Horses 0 under 0x66 stock) with stock > 0; -1 = none. */
+int europe_dos_11a4_pick(
+  const EuropeScreen* eu, const struct ColonizeCol1Save* col1, int nation, const int* stock
+);
 /* Move harbor ship `harbor_index` to the front of the harbor list and select it
  * (FUN_281f_089e, the ship menu's "Move to front" row). */
 bool europe_harbor_move_to_front(EuropeScreen* eu, int harbor_index);

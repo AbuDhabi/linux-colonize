@@ -42,6 +42,7 @@ typedef struct NameEntryDialog {
   size_t name_cap; /* buffer capacity incl. NUL used for this kind */
   char label[POPUP_MSG_CHOICE_LEN]; /* the field caption ("Name:"), GAME.TXT's row after the prompt */
   int width;                        /* the section's @width (0 = none), taken at open */
+  int mss;                          /* DS:0x1f5e MSS figure the prompt latches (-1 = bare), taken at open */
   TextEditState edit;
 
   bool has_result;
