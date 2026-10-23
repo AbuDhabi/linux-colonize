@@ -1,0 +1,8 @@
+# Disband a ship in port (port_bugs.md #1168; DOS FUN_2b5a_199e + FUN_1427_10be). Fixture: the Caravel (id 126,
+# one hold of goods, no passengers) is selected in Quebec (45,24); Colonist (id 147) in the
+# same tile is sentried and fits the free hold, so DOS gathers it and refuses with @DISBANDSHIP.
+key d shift
+shot
+key Return                 # @DISBANDSHIP OK: nothing is disbanded
+shot
+wait 5

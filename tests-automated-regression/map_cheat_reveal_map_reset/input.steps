@@ -1,0 +1,11 @@
+# Fixture: map_cheat_reveal_map_nation's output (English Reveal Map view active: fixed_nation_map_view = curr_nation_map_view = 0).
+# With a view active the Reveal Map list shows all 6 rows (DOS case 0x65 passes 6, else 5); Escape resets the view like No Special View: fixed back to 0xffff,
+# curr back to the human, show_entire_map 0 (port_bugs.md #1170). Ends with cheat mode off again (Alt-W).
+key w alt
+key i alt
+key n alt
+key F4 shift
+shot
+key Escape
+shot
+key w alt

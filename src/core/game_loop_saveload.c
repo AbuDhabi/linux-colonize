@@ -89,6 +89,12 @@
 
 static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* loaded, char* err, size_t err_size) {
   ColonizeCol1BridgeResult result;
+  /* The outgoing world's occupancy map must not see the spawns below: every
+   * spawn claims its tile's owner nibble through it, which rewrote a reloaded
+   * save's tribe-owned tiles (port_bugs.md #1172 reload; the first load of a
+   * session has no map bound and never did). Re-bound after the apply. */
+  units_set_occupancy_map(NULL);
+  colonies_set_occupancy_map(NULL);
   europe_reset_campaign(&game->europe);
   game->europe.harbor_ships = 0;
   game->europe.dock_count = 0;
@@ -141,6 +147,11 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
    * carry a stale 0 here (new game never stamped it), which mis-gates the
    * head.human_player readers (ai.c WoI seizure, units.c capture popups,
    * ai_euro focus, render tools) for a non-English player. */
+  if (loaded->head.human_player != (uint16_t)result.human_nation) {
+    /* Stale zero-filled head: its fixed_nation_map_view (0x53a4) is garbage
+     * too and would pin England's fog (port_bugs.md #282, #1170). */
+    loaded->head.fixed_nation_map_view = 0xffffu;
+  }
   loaded->head.human_player = (uint16_t)result.human_nation;
   game->map_cursor_x = result.cursor_x;
   game->map_cursor_y = result.cursor_y;
@@ -252,8 +263,6 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
       }
     }
   }
-  /* Restore Complete Map cheat (DOS show_entire_map @ DS:0x53a2); nation view not saved. */
-  game->fog_view = (game->col1.head.show_entire_map != 0) ? -1 : -2;
   /*
    * A save carries the options the player was using in that game, and DOS
    * restores them with it — settings.json is deliberately NOT applied here
@@ -419,6 +428,46 @@ static bool game_capture_col1(ColonizeGameState* game, char* err, size_t err_siz
   if (!col1_bridge_capture_w(&w, game->game_year, game->game_autumn, game->turn_number, game->human_nation, game->map_cursor_x, game->map_cursor_y, game->map_view_x, game->map_view_y, game->units.selected_id, game->view_pieces_mode, err, err_size)) {
     return false;
   }
+  return true;
+}
+
+/*
+ * CHEAT Set Human Player, DOS dispatcher case 0x66 (ND 0x23D06-0x23D83),
+ * nation row n = 0..3 (port_bugs.md #1172): every control byte := 1, control[n]
+ * := 0, DS:0x5398 / 0x5394 / 0x5396 := n. The port's one-nation Europe mirror
+ * (europe, dock units, trade, crosses) belongs to the human, so it is flushed
+ * onto the old human's record first and the new human's record is rebound by
+ * reloading the live save in place (DOS has one Europe state per nation and
+ * nothing to rebind).
+ */
+bool game_cheat_set_human(ColonizeGameState* game, int n, char* err, size_t err_size) {
+  if (!game || !game->col1_ok || n < 0 || n > 3) {
+    snprintf(err, err_size, "no human nation to set");
+    return false;
+  }
+  const int old_human = game->human_nation;
+  if (!game_capture_col1(game, err, err_size)) {
+    return false;
+  }
+  ColonizeCol1Save* c = &game->col1;
+  for (int i = 0; i < 4; ++i) {
+    c->player[i].control = 1; /* overwrites a withdrawn 2 as DOS does */
+  }
+  c->player[n].control = 0;
+  c->head.human_player = (uint16_t)n;
+  c->head.nation_turn = (uint16_t)n;
+  c->head.curr_nation_map_view = (uint16_t)n;
+  if (n == old_human) {
+    return true; /* nothing to rebind */
+  }
+  woodcut_close(&game->woodcut);
+  woodcut_clear_pending();
+  ColonizeCol1Save moved = game->col1; /* the array pointers move with it */
+  col1_save_init(&game->col1);
+  if (!game_load_col1_loaded(game, &moved, err, err_size)) {
+    return false;
+  }
+  units_set_combat_human_nation(game->human_nation);
   return true;
 }
 
@@ -807,6 +856,18 @@ void game_open_terrain_pedia_at_cursor(ColonizeGameState* game) {
   );
 }
 
+/* Menu command 0x49 (F10 key and REPORTS Score): FUN_2f2b_6372 raw 54407, asm
+ * 0x238CB. DS:0x5383 bit 5 clear -> FUN_41f2_0092 (the Score report); set ->
+ * FUN_281f_0574 = FUN_41f2_14a8, the retire chain (score -> exploits -> Hall of
+ * Fame -> title) with no @RETIRE confirm. port_bugs.md #1169. */
+void game_open_score_report(ColonizeGameState* game) {
+  if (game_cheats_enabled(game)) {
+    game_open_retire_score(game);
+  } else {
+    game_open_report(game, COLONIZE_REPORT_SCORE);
+  }
+}
+
 void game_handle_report_fkey(ColonizeGameState* game, ColonizeKey key) {
   if (!game || key < COLONIZE_KEY_F1 || key > COLONIZE_KEY_F10) {
     return;
@@ -818,7 +879,11 @@ void game_handle_report_fkey(ColonizeGameState* game, ColonizeKey key) {
   }
   ColonizeReportId id;
   if (reports_id_from_fkey(fnum, &id)) {
-    game_open_report(game, id);
+    if (id == COLONIZE_REPORT_SCORE) {
+      game_open_score_report(game);
+    } else {
+      game_open_report(game, id);
+    }
   }
 }
 

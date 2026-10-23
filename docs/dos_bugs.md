@@ -687,3 +687,32 @@ fired on whatever the relation. Recorded 2026-10-22 at the user's call; unit
 test `coastal_fort_naval_fire` (unit_units_core) covers the unmet case. No
 golden changed.
 **Status:** done (2026-10-22).
+
+### DB-44 — Disband gather budget is 0 for a ship on trade-route orders
+**DOS:** Disband's refusal test runs the pickup gather `FUN_1427_10be` (raw 8606-8680)
+first. For a ship with orders 2 (trade route) the hold budget stays 0 unless the ship
+is off the Europe lane and off every colony tile (`FUN_137f_03e4` < 0) and
+`FUN_1427_101c` returns >= 0, so a trade-route ship lying in port gathers nothing,
+passes the `FUN_281f_08bc(ship,2) > 1` test and can be disbanded while sentried units
+sit on its tile (they stay behind). Read statically at the #1168 fix; **proposed,
+awaiting the user's call** (not a user-observed bug).
+
+**Port:** `units_ship_has_sentry_boarder` (`src/core/units_cargo.c`) uses cargo minus
+goods holds whatever the ship's orders, so a sentried unit on the tile always blocks
+the disband.
+**Status:** proposed (2026-10-22, port_bugs.md #1168).
+
+### DB-45 — View-mode Shift-D steps the active-unit index back twice
+**DOS:** `FUN_2b5a_199e` (raw 42609-42690) disbands the stack head at the cursor in View mode
+(`DS:0x5390 != 0`). The pool compaction `FUN_1427_0824` already does
+`if (DS:0x5392 != 0 && idx <= DS:0x5392) DS:0x5392--` (raw 7834-7836), then 199e's tail
+runs its own `if (idx <= DS:0x5392) { if (idx < DS:0x5392) DS:0x5392--; ...}`. Disbanding a
+unit at a lower pool index than the active one steps the active index back twice, so the
+active unit silently becomes the one before it. Unit mode never double-steps (the deleted
+unit IS the active one, the second test is false). Read statically at the #1173 part 4 port;
+**proposed, awaiting the user's call**.
+
+**Port:** the active unit is held by id (`units.selected_id`), so disbanding another unit
+in View mode leaves the selection alone; `game_do_disband` (`src/core/game_dialogs.c`)
+re-selects nothing in View mode.
+**Status:** proposed (2026-10-22, port_bugs.md #1173).

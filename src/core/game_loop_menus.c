@@ -87,10 +87,25 @@
 /* ===================== Cheat menu, trade-route wizard, cheat-list & save/load popups (game_fog_nation .. load_begin_menu) ===================== */
 
 
-/* Fog nation for map paint: special view override, else human. */
+/*
+ * Fog nation for map paint, derived from the save head like DOS (port_bugs.md
+ * #1170): show_entire_map (DS:0x53a2) = Complete Map (-1); else a SETVIEW nation
+ * fixed_nation_map_view (0x53a4, 0..3) overrides; else the human (FUN_43f7 turn
+ * pass: `0x5396 = 0x5398; if (0x53a4 >= 0) 0x5396 = 0x53a4`). `fog_view` is the
+ * fallback for col1-less tools only.
+ */
 int game_fog_nation(const ColonizeGameState* game) {
   if (!game) {
     return 0;
+  }
+  if (game->col1_ok) {
+    if (game->col1.head.show_entire_map) {
+      return -1;
+    }
+    if (game->col1.head.fixed_nation_map_view <= 3) {
+      return (int)game->col1.head.fixed_nation_map_view;
+    }
+    return game->human_nation;
   }
   if (game->fog_view == -1) {
     return -1; /* Complete Map */
@@ -101,52 +116,45 @@ int game_fog_nation(const ColonizeGameState* game) {
   return game->human_nation; /* NORMAL (-2) or invalid */
 }
 
+/*
+ * CHEAT Reveal Map, DOS dispatcher case 0x65 (ND 0x23C9E-0x23D03): view_id is
+ * 0..3 = nation row, -1 = Complete Map, -2 = No Special View / Esc.
+ * show_entire_map = Complete Map only; fixed_nation_map_view = the nation or
+ * 0xffff; Complete Map also clears 0x5383 bit 7 (show_indian_moves); a nation
+ * row repoints curr_nation_map_view (0x5396) at once.
+ */
 static void game_apply_setview(ColonizeGameState* game, int view_id, const char* label) {
   if (!game) {
     return;
   }
   game->fog_view = view_id;
   if (game->col1_ok) {
-    game->col1.head.show_entire_map = (uint16_t)(view_id == -2 ? 0 : 1);
-  }
-  if (view_id == -2) {
-    /* DEBUG.TXT @SETVIEW row 6 ("No Special View") — `label` is already the
-     * live catalog row text from cheat_list_open_setview; literal kept as
-     * fallback for missing/empty label (no data dir). */
-    set_status(game, (label && label[0]) ? label : "", NULL);
-  } else if (label && label[0]) {
-    set_status(game, "", label);
-  } else {
-    set_status(game, "Viewpoint changed", NULL);
-  }
-}
-
-static void game_apply_kill_indians(ColonizeGameState* game, int nation_id, const char* label) {
-  if (!game || !game->col1_ok) {
-    set_status(game, "No Indians", NULL);
-    return;
-  }
-  /* Count units before wipe so empty-tribe status is accurate. */
-  int unit_n = 0;
-  if (game->units_ok) {
-    for (int i = 0; i < units_slot_end(&game->units); ++i) {
-      const ColonizeUnit* u = &game->units.units[i];
-      if (u->active && u->nation_id == nation_id) {
-        unit_n++;
-      }
+    ColonizeCol1Head* h = &game->col1.head;
+    h->show_entire_map = (uint16_t)(view_id == -1 ? 1 : 0);
+    h->fixed_nation_map_view = view_id >= 0 && view_id <= 3 ? (uint16_t)view_id : 0xffffu;
+    if (view_id == -1) {
+      h->game_options.show_indian_moves = 0;
+    }
+    if (h->fixed_nation_map_view <= 3) {
+      h->curr_nation_map_view = h->fixed_nation_map_view;
     }
   }
-  const ColonizeWorld w = game_world(game);
-  const int removed = ai_kill_indian_nation_w(&w, nation_id);
-  if (removed <= 0 && unit_n <= 0) {
-    set_status(game, "No Indians of that tribe", label);
-  } else if (label && label[0]) {
-    char buf[64];
-    snprintf(buf, sizeof(buf), "Killed %s", label);
-    set_status(game, buf, NULL);
-  } else {
-    set_status(game, "Indians killed", NULL);
+  /* The row's own catalog text; DOS paints nothing but the redraw. */
+  set_status(game, label ? label : "", NULL);
+}
+
+/*
+ * CHEAT Kill Indians, DOS case 0x67 tail (ndisasm 0x23c8e-0x23c9b):
+ * FUN_4d56_01e2(id - 1), then the redraw. @EXTINCT comes from FUN_4d56_00e0,
+ * so the combat popup queue is bound first.
+ */
+static void game_apply_kill_indians(ColonizeGameState* game, int nation_id) {
+  if (!game || !game->col1_ok) {
+    return;
   }
+  units_set_combat_popups(&game->ai_popups, &game->messages);
+  const ColonizeWorld w = game_world(game);
+  (void)units_destroy_tribe_nation_w(&w, nation_id);
 }
 
 void game_open_cheat_setview(ColonizeGameState* game) {
@@ -156,19 +164,30 @@ void game_open_cheat_setview(ColonizeGameState* game) {
   if (!cheat_list_open_setview(
         &game->cheat_list, game->debug_txt_ok ? &game->debug_txt : NULL
       )) {
-    set_status(game, "Reveal Map unavailable", NULL);
+    return;
+  }
+  /* DOS case 0x65 passes 5 rows (the "No Special View" row is dropped) unless
+   * a view is active: show_entire_map || fixed_nation_map_view >= 0. */
+  if (game->col1_ok && !game->col1.head.show_entire_map &&
+      game->col1.head.fixed_nation_map_view > 3 && game->cheat_list.option_count > 5) {
+    game->cheat_list.option_count = 5;
   }
 }
 
 void game_open_cheat_kill_indians(ColonizeGameState* game) {
-  if (!game) {
+  if (!game || !game->col1_ok) {
     return;
   }
-  if (!cheat_list_open_kill_indians(
-        &game->cheat_list, game->names_ok ? &game->names : NULL
-      )) {
-    set_status(game, "Kill Indians unavailable", NULL);
+  uint8_t alive = 0;
+  for (int i = 0; i < 8; ++i) {
+    if (!game->col1.indian[i].extinct) {
+      alive |= (uint8_t)(1u << i);
+    }
   }
+  /* DOS: all eight extinct = silent exit (no list, no message). */
+  (void)cheat_list_open_kill_indians(
+    &game->cheat_list, game->names_ok ? &game->names : NULL, alive
+  );
 }
 
 /*
@@ -287,6 +306,15 @@ void game_open_cheat_debug_flags(ColonizeGameState* game) {
   }
 }
 
+/* DOS CHEAT create tail (ndisasm 0x23bc8-0x23bcc): every created unit gets
+ * `unit.+0x3147 |= 0xf0`, i.e. all four nations' visibility bits. */
+static void game_cheat_mark_created_seen(ColonizeGameState* game, int uid) {
+  ColonizeUnit* u = units_get(&game->units, uid);
+  if (u) {
+    u->col1_vis_mask |= 0x0Fu;
+  }
+}
+
 /* Applies a confirmed CHEAT_LIST_KIND_CREATE_UNIT id for the current stage;
  * may re-open the dialog for a follow-up stage (Ship / Foreign Unit). */
 static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
@@ -317,6 +345,7 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
       return;
     }
     units_set_nation(units_get(&game->units, uid), ship_nation);
+    game_cheat_mark_created_seen(game, uid);
     set_status(game, "Created", units_type(&game->units, type_idx)->name);
     return;
   }
@@ -406,6 +435,7 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
       set_status(game, "Cannot create unit here", NULL);
       return;
     }
+    game_cheat_mark_created_seen(game, uid);
     set_status(game, "Created", "treasure");
     return;
   }
@@ -413,14 +443,20 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
   if (kind < 0) {
     return;
   }
-  /* Rows 9-12: pre-WoI Indian types spawn for the first native tribe (id 4;
-   * DOS 0x181f:0xd84 picks the nearest tribe — lead, not ported). Post-WoI
-   * @CREATE2 rows 9-10 are the human's Continentals, 11-12 the crown's
-   * Regulars/Cavalry (DS:0x53d2). */
+  /* Rows 9-12 pre-WoI (ndisasm 0x23ab6-0x23aed, FUN_281f_095c(menu_id + 9,
+   * DS:0x8d50, x, y)): the owner is the tribe of the village nearest the
+   * cursor, FUN_281f_0d84 = FUN_4cc6_0356 with no filter (`<=`, last tie
+   * wins; DS:0x8d50 = tribe.+2 via FUN_15eb_0006). No village: nothing is
+   * created. Post-WoI @CREATE2 rows 9-10 are the human's Continentals, 11-12
+   * the crown's Regulars/Cavalry (DS:0x53d2). */
   int nation = owner;
   if (id >= 9) {
     if (!woi) {
-      nation = 4;
+      const int t = colonies_nearest_tribe_on(&game->col1, NULL, x, y, -1, NULL);
+      if (t < 0) {
+        return;
+      }
+      nation = game->col1.tribe[t].nation_id;
     } else if (id >= 11) {
       nation = ai_king_crown_nation_col1(&game->col1, game->human_nation);
     } else {
@@ -438,6 +474,7 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
     return;
   }
   units_set_nation(units_get(&game->units, uid), nation);
+  game_cheat_mark_created_seen(game, uid);
   set_status(game, "Created", units_type(&game->units, type_idx)->name);
 }
 
@@ -446,16 +483,18 @@ static void game_apply_set_human(ColonizeGameState* game, int nation_id) {
     return;
   }
   if (nation_id < 0 || nation_id > 3) {
-    /* "None" (spectator, no human nation) touches every game->human_nation
-     * indexing site unguarded elsewhere — PARK rather than risk corruption. */
-    set_status(game, "Spectator mode not supported", NULL);
+    /* "None": DOS asks @SETAUTO and, on Yes, runs all-AI until a click
+     * (DS:0x826). A no-human game needs every game->human_nation indexing
+     * site guarded — parked (port_bugs.md #1172), so it does nothing. */
     return;
   }
-  game->human_nation = nation_id;
-  game->active_turn_nation = nation_id;
-  units_set_combat_human_nation(game->human_nation);
+  char err[256];
+  if (!game_cheat_set_human(game, nation_id, err, sizeof(err))) {
+    diag_error("Set Human failed: %s", err);
+    return;
+  }
   /* @NATIONALITY row, live NAMES.TXT first (audit GL-31). */
-  set_status(game, "Now playing", reports_nation_adjective_display_name(nation_id));
+  set_status(game, reports_nation_adjective_display_name(nation_id), NULL);
 }
 
 static void game_apply_debug_flags(ColonizeGameState* game, uint16_t mask) {
@@ -467,20 +506,29 @@ static void game_apply_debug_flags(ColonizeGameState* game, uint16_t mask) {
 }
 
 /*
- * CHEAT Advance Revolution Status: DEBUG.TXT @FORCED has no options, just a
- * notice. Wires col1.game_options.independence_force (0x20 — "bypass
- * REF/event gates"), the real Col1 latch matching the DOS text exactly.
+ * CHEAT Advance Revolution Status (DOS case 0x68): staged per press in
+ * ai_king_cheat_advance_revolution (port_bugs.md #1171); the last stage
+ * (independence_force, 0x5382 bit 0x20) answers with DEBUG.TXT @FORCED.
  */
 void game_cheat_advance_revolution(ColonizeGameState* game) {
   if (!game) {
     return;
   }
+  set_status(game, "", NULL);
   if (!game->col1_ok) {
-    set_status(game, "", NULL);
     return;
   }
-  game->col1.head.game_options.independence_force = 1;
-  set_status(game, "", NULL);
+  ColonizeTurnContext ctx;
+  game_fill_turn_context(game, &ctx);
+  if (ai_king_cheat_advance_revolution(&ctx) != 4) {
+    return;
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(game->debug_txt_ok ? &game->debug_txt : NULL, "FORCED", &tok, "", body, sizeof(body));
+  ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+  ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_INFO);
 }
 
 void game_cheat_toggle_strategy(ColonizeGameState* game) {
@@ -1096,7 +1144,7 @@ void game_apply_cheat_list_result(ColonizeGameState* game) {
   if (kind == CHEAT_LIST_KIND_SETVIEW) {
     game_apply_setview(game, id, label);
   } else if (kind == CHEAT_LIST_KIND_KILL_INDIANS) {
-    game_apply_kill_indians(game, id, label);
+    game_apply_kill_indians(game, id);
   } else if (kind == CHEAT_LIST_KIND_CREATE_UNIT) {
     game_apply_cheat_create_unit(game, id);
   } else if (kind == CHEAT_LIST_KIND_SET_HUMAN) {

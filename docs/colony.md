@@ -476,7 +476,10 @@ standing on its square (port_bugs.md). NULL unbinds.
 Col1 context for colonies_capture's DOS side effects (FUN_5fef_1b0e capture
 tail): rebel dividend ×2/3, per-nation colony/pop tallies, treasury share
 plunder (peacetime), war-relation reset, crown-capture REF-threshold bit.
-NULL = plain owner swap (tests without a save).
+NULL = plain owner swap (tests without a save). The game loop re-binds it every
+frame (`game_update`, next to the occupancy map), so founding, join/leave
+(rebel divisor +-100), abandon and the `colony_counts[]` tallies see it from the
+first action after a load / new game (port_bugs.md #1175c).
 
 ## colonies_equip_tools_take
 
@@ -544,6 +547,35 @@ Destroy a built building (not Town Hall). Clears has_building and moves any
 workplace colonists in that building to idle (building_type=-1). Cancels
 matching construction project. Returns false if missing/Town Hall/invalid.
 Cite: @RAIDBURN building loot needs safe destroy + workplace clear.
+
+## Colony-screen cheat keys
+
+DOS `FUN_2f2b_6372`'s tail (`2f2b:63c2`, raw 55699-55765; port_bugs.md #1173
+part 3): reached after the normal arms, which consume none of these keys, and
+only with `head.game_options.cheats_enabled` (DS:0x5383 bit 5,
+`game_cheats_enabled`). The port dispatches them in `game_colony_cheat_key`
+(game_loop_colony.c) from the text-input loop of `game_colony_screen_keys`, on
+the bare colony screen only (DOS runs every sub-panel in its own loop). The
+state logic is `colonies_cheat_*` (colony.c, `unit_colony_cheat_helpers`).
+COLONIZE/README.TXT lists them as the "useful cheat functions on colony screen".
+
+| Key | DOS arm | Port |
+|---|---|---|
+| `T` / `t` | 6820: pop++, `FUN_15eb_1068(old, 0)` (occupation 0, no plot), `FUN_15eb_0e8c(old, 0x1c)` (profession Free Colonist) | `colonies_cheat_add_colonist`: unit-less colonist, `field_job` 0, `UNITS_JOB_NONE`, cap `COLONIZE_COLONY_POP_MAX`; no rebel_divisor change (that +100 is in 1068's other arm); the plot comes from the redraw's 3930 recompute |
+| `S` / `s` | 6882: `0e8c(sel, 0e18(sel))` | `colonies_cheat_profession_from_job` (occupation -> profession, 0x17 -> 0x15); an outside unit selected (sel >= pop) gets its type's default @JOB (`units_type_default_job`) |
+| `$` | 6896: the owner's (`colony+0x1a`) treasury dword, `nation * 0x13c + 0x8832`, += 1000 | `europe_nation_gold_add` on the colony's owner |
+| `%` / `^` | 68b4 / 68c8: `+0x9a + 2 * DS:0x33a` += 100 / -= 100 clamped at 0 | `colonies_cheat_stock_add` on `csv->selected_cargo` (set by pressing a warehouse good); no capacity cap, no 16-bit wrap |
+| `!` | 68e6: bits `+0x84..+0x89` := 0xff, clear 0x10 / 0x1f / 0x0b / 0x0a / 0x1e, `++(+0x95)`, `++(+0x96)` | `colonies_cheat_all_buildings`: every `@BUILDING` row 0..41 except 10, 11, 16, 30, 31; `warehouse_level` / `capitol_level` byte `++` (Custom House goods mask untouched) |
+| Space | 6950: `FUN_364b_0688(DS:0x8dc6)` | `game_colony_cheat_produce` -> `turn_cheat_colony_tick` (turn_colony.c): the EOT per-colony body (`turn_run_one_colony_production_w`: coastal fort, claim stamp, plot recompute, bell step, production) plus the unit / building completion sweeps for that colony. Twice = two ticks. Leaves the screen if the colony died |
+
+T, S, `!` and Space end in `FUN_291f_0648` = `FUN_2f2b_2c92`, the full redraw,
+which opens with `FUN_281f_0c22` -> `FUN_15eb_3930`; the port re-runs
+`colonies_recompute_plots_w` there. `$ % ^` end in the partial redraw
+`FUN_291f_078c`, so no recompute. Before 2026-10-23 Space ran an invented
+`turn_colony_free_production` (no col1 / Europe, typed status, cargo delta
+suffix) for every player; the function stays for unit tests, the UI path and
+`colony_screen_set_delta` are gone. Replays `colony_cheat_keys` /
+`colony_cheat_keys_locked`.
 
 ## ColoniesBuildableOpts.col1
 

@@ -87,6 +87,7 @@
 typedef enum GameMapConfirm {
   GAME_MAP_CONFIRM_NONE = 0,
   GAME_MAP_CONFIRM_DISBAND,
+  GAME_MAP_CONFIRM_DISBAND_COLONY,
   GAME_MAP_CONFIRM_QUIT,
   GAME_MAP_CONFIRM_RETIRE,
   GAME_MAP_CONFIRM_TRADE_DELETE,
@@ -578,6 +579,7 @@ void game_enqueue_yes_no(
   const PopupMsgTokens* tok
 );
 void game_europe_ask_boycott_buyback(ColonizeGameState* game, int cargo_type);
+bool game_europe_boycott_gate(ColonizeGameState* game, int cargo_type);
 bool game_europe_blocked_by_woi(const ColonizeGameState* game);
 void game_europe_drain_price_events(ColonizeGameState* game);
 bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInputState* input);
@@ -599,6 +601,7 @@ bool game_request_indian_land_choice(
   int x,
   int y
 );
+bool game_pioneer_land_gate(ColonizeGameState* game, GameIndianLandKind kind);
 void game_request_noport_found_confirm(ColonizeGameState* game, int uid);
 void game_request_overboard_confirm(ColonizeGameState* game);
 void game_service_europe_bar(ColonizeGameState* game);

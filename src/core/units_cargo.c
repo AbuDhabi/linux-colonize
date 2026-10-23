@@ -307,6 +307,39 @@ int units_ship_free_passenger_slots(const ColonizeUnitPool* pool, int ship_id) {
   return free_slots > 0 ? free_slots : 0;
 }
 
+/*
+ * Disband's @DISBANDSHIP gate, the part for a ship lying on a land/colony tile
+ * (port_bugs.md #1168). FUN_2b5a_199e raw 42650-42657 runs FUN_281f_0920 =
+ * FUN_1427_10be (raw 8606-8680): budget = @UNIT cargo (DS:0x5237) − holds
+ * occupied (+0x3150), then every unit of the tile chain whose orders are
+ * Sentry and whose @UNIT size (DS:0x5238) fits the budget is gathered;
+ * FUN_281f_08bc(ship, 2) counts the chain and `> 1` raises @DISBANDSHIP. So a
+ * sentried own land unit that still fits the ship's room blocks the disband.
+ * Not ported: the orders==2 trade-route budget-0 quirk (dos_bugs.md DB-44) and
+ * the Ocean-tile arm (riders are `aboard_ship_id` here, refused by the caller).
+ */
+bool units_ship_has_sentry_boarder(const ColonizeUnitPool* pool, int ship_id) {
+  const ColonizeUnit* ship = units_get_const(pool, ship_id);
+  if (!ship || !units_is_on_map(ship)) {
+    return false;
+  }
+  const int room = units_ship_free_passenger_slots(pool, ship_id);
+  for (int i = 0; i < units_slot_end(pool); ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (!u->active || u->id == ship_id || u->aboard_ship_id >= 0 ||
+        u->orders != UNITS_ORDER_SENTRY || u->nation_id != ship->nation_id ||
+        u->x != ship->x || u->y != ship->y || units_is_sea(pool, u->id)) {
+      continue;
+    }
+    const ColonizeUnitType* ut = units_type(pool, u->type_index);
+    const int need = (ut && ut->space > 0) ? ut->space : 1; /* as units_ship_departure_pickup */
+    if (need < 99 && need <= room) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static bool units_board_stacked_gated(
   ColonizeUnitPool* pool, int land_unit_id, int ship_id, bool enforce_capacity
 ) {

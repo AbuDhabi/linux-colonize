@@ -1,0 +1,14 @@
+# As map_pioneer_native_land, but the Clear Forest / Build Road orders are given with the P / R hotkeys (DOS binds the
+# hotkey and the Orders menu item to one command id, so the @INDIANFOREST / @INDIANROAD choice fires from either;
+# port_bugs.md #1174). Same fixture, same answers, same expected output.sav.
+key p                      # Pioneer at (45,22) forest: @INDIANFOREST "forest necessary to sustain the Tupi" (offer 422)
+click 150 107              # row 1 "Let these trees stand": no order, Pioneer's moves spent, next Pioneer selected
+key p                      # Pioneer at (44,22) forest: @INDIANFOREST
+click 150 130              # row 3 "Timmmbeeer": Clear Forest order set (8), nothing charged
+key r                      # Pioneer at (43,24) prairie: @INDIANROAD "worried that building a road ..."
+click 150 102              # row 1 "Then we shall not build a road": no order, moves spent
+key r                      # Pioneer at (41,26) forest: @INDIANROAD
+click 150 124              # row 3 "this road is necessary": Build Road order set (9), nothing charged
+key r                      # Pioneer at (45,27) forest: @INDIANROAD
+click 150 113              # row 2 "offer 422 in compensation": gold 1500 -> 1078, Tupi lands_bought 0 -> 1, tile bought
+key Return                 # dismiss @INDIANBRIBE; Build Road order set (9); the Dragoon in Quebec is selected

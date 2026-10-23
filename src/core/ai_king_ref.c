@@ -1272,7 +1272,7 @@ static const char* ai_king_1528_announce_colony(const ColonizeTurnContext* ctx, 
  * bell spend, so the free drain — whose gate the announce had just opened —
  * landed a second intervention force in the same turn.
  */
-static void ai_king_1528_announce(ColonizeTurnContext* ctx, int human) {
+void ai_king_1528_announce(ColonizeTurnContext* ctx, int human) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4) {
     return;
   }

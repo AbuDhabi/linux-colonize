@@ -1,0 +1,12 @@
+# Fixture: europe_equip_units' Europe base (England, 60000 gold, tax 6%, six dock colonists) with head.game_options.cheats_enabled (DS:0x5383 bit5) = 1 in the save.
+# European Status cheat keys, only with the bit set (FUN_38fd_4f6e raw 66304-66325; they edit the human nation record): `$` gold +1000, `]` tax +1, `[` tax -1.
+# `$` = Shift-4. Net effect here: gold 61000, tax 7% (+1 +1 -1). The bit stays set (Alt-W does not reach the Europe screen).
+key e                    # open the European Status screen
+wait 10
+shot
+key 4 shift              # $: gold +1000
+key ]                    # tax 7
+key ]                    # tax 8
+key [                    # tax 7
+shot
+key e                    # leave Europe

@@ -1,0 +1,32 @@
+# Fixture: map_declare_independence's input (France 1599, SoL 59%, rebel_sentiment_report 48, no Crown slot).
+# CHEAT Advance Revolution Status (Shift-F7, DOS case 0x68) is staged per press (port_bugs.md #1171):
+#   1. sentiment < 75: sets it to 75 and, with no Crown slot, runs the War of the Spanish Succession (FUN_43f7_0218, @SUCCESSION notice);
+#   2. declares independence (FUN_43f7_1a26 without the confirm): signing cinematic + @INDEPENDENCE letter;
+#   3. foreign intervention announced (FUN_43f7_1528, @INTERVENTION);
+#   4. independence_force set + DEBUG.TXT @FORCED notice.
+# The turn number stays 107. Ends with cheat mode off again (Alt-W).
+key w alt
+key i alt
+key n alt
+key F7 shift
+wait 20
+key Return               # @SUCCESSION notice
+wait 20
+key F7 shift
+wait 20
+key Return               # signing cinematic: skip the animation
+wait 20
+key Return               # close the cinematic
+wait 20
+key Return               # @INDEPENDENCE letter OK
+wait 20
+key F7 shift
+wait 20
+key Return               # @INTERVENTION
+wait 20
+key F7 shift
+wait 20
+key Return               # @FORCED
+wait 20
+shot
+key w alt

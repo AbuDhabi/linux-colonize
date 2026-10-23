@@ -2463,6 +2463,54 @@ static int case_treasure_ship_holds(void) {
   return 0;
 }
 
+/*
+ * Disband's @DISBANDSHIP gate for a ship on a land tile (port_bugs.md #1168):
+ * FUN_1427_10be gathers a sentried unit of the tile whose @UNIT size fits
+ * cargo − goods holds; any gathered unit refuses the disband.
+ */
+static int case_ship_sentry_boarder_gate(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
+    const int ship_id = units_spawn(&pool, units_find_type(&pool, "Caravel"), 20, 20);
+    const int land_id =
+      units_spawn_allow_stack(&pool, units_kind_type_index(&pool, UNITS_KIND_COLONIST), 20, 20);
+    ColonizeUnit* land = units_get(&pool, land_id);
+    if (!units_get(&pool, ship_id) || !land) {
+      fprintf(stderr, "sentry-boarder: spawn failed\n");
+      return 1;
+    }
+    units_get(&pool, ship_id)->nation_id = 1;
+    land->nation_id = 1;
+    land->orders = UNITS_ORDER_NONE;
+    if (units_ship_has_sentry_boarder(&pool, ship_id)) {
+      fprintf(stderr, "sentry-boarder: an awake unit must not block the disband\n");
+      return 1;
+    }
+    land->orders = UNITS_ORDER_SENTRY;
+    if (!units_ship_has_sentry_boarder(&pool, ship_id)) {
+      fprintf(stderr, "sentry-boarder: a sentried colonist must block the disband\n");
+      return 1;
+    }
+    land->nation_id = 2;
+    if (units_ship_has_sentry_boarder(&pool, ship_id)) {
+      fprintf(stderr, "sentry-boarder: another nation's sentry must not block\n");
+      return 1;
+    }
+    land->nation_id = 1;
+    /* Goods fill the holds the colonist would need: Caravel cargo 2, two goods holds. */
+    units_load_goods(&pool, ship_id, 0, 100);
+    units_load_goods(&pool, ship_id, 1, 100);
+    if (units_ship_has_sentry_boarder(&pool, ship_id)) {
+      fprintf(stderr, "sentry-boarder: a ship full of goods gathers nothing\n");
+      return 1;
+    }
+    units_despawn(&pool, ship_id);
+    units_despawn(&pool, land_id);
+  fx_close();
+  return 0;
+}
+
   /* Native settlement conquer: tribe remove + Cortes peels FUN_5fef_31ea gold. */
 static int case_native_settlement_conquer(void) {
   if (fx_open() != 0 || fx_stage2() != 0) {
@@ -7508,6 +7556,7 @@ static const TestCase k_cases[] = {
   {"naval_hold_plunder", case_naval_hold_plunder},
   {"treasure_train_spawn", case_treasure_train_spawn},
   {"treasure_ship_holds", case_treasure_ship_holds},
+  {"ship_sentry_boarder_gate", case_ship_sentry_boarder_gate},
   {"native_settlement_conquer", case_native_settlement_conquer},
   {"convert_join", case_convert_join},
   {"convert_desertion", case_convert_desertion},

@@ -478,7 +478,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@ARTILLERY2` | Done | already real (`units_combat.c` `units_apply_land_loss_outcome` `units_combat_enqueue_tok`) — verified against DOS FUN_5fef_016c raw 99486 |
 | `@TIMECHANGE` | Done thin | `FUN_130d_0290` calendar-help — `LEA BX,[0x141]` (Ghidra-dropped tag arg, asm-confirmed) then `CALLF FUN_281f_03fe`, fired once at year==1600 && season==0 (the exact turn the calendar splits into Spring/Autumn) — `turn.c` `turn_processor_advance` TURN_PROC_SETUP, `popup_chrome_ok("TIMECHANGE", …)`; no tutorial-hints gate in DOS |
 | `@TEACHCONVERT` | Done | "Live among the natives" with a Convert (`ai_contact_actions.c`) — real GAME.TXT body. Confirmed 2026-09-16 |
-| `@SOMEBOYCOTT` | Done | boycotted market-cell click → `europe_buyback_boycott` (FUN_38fd_2dfe) |
+| `@SOMEBOYCOTT` | Done | OK notice after the Europe `U` unload-all loop (`game_europe_unload_all`, FUN_38fd_2bfe row 3) when the last-examined hold slot was boycotted; the market-cell click raises `@KISSUP` (FUN_38fd_2dfe), not this |
 | `@KEEPSTOCKADE` | Done | stockade min-pop OK message |
 | `@MORETHANTHREE` | Done | building-slot-full OK (§4; not stockade min-pop — that's `@KEEPSTOCKADE`) |
 | `@LOOTWAGONS` | Dead tag | GAME.TXT-only: absent from VICEROY.EXE's DS (only `LOOT`/`LOOT2`/`LOOTCASH`/`LOOTCAPTURE`/`LOOTFOREIGN` exist, and no bare `WAGONS` to assemble one from). DOS reports `@INDIANWIN0` for a native-killed Wagon Train (`units_combat.c`); nothing to port. |

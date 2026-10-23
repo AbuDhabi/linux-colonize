@@ -458,6 +458,97 @@ void colonies_colonist_tail_stash(const ColonizeColonyPool* pool, ColonizeColony
   col->col1_tail_turns[last] = c->turns_in_job > 0x0f ? 0x0f : c->turns_in_job;
 }
 
+/*
+ * ===== Colony-screen cheat keys (FUN_2f2b_6372 tail, raw 55699-55765) =====
+ * The callers gate on head.game_options.cheats_enabled (DS:0x5383 & 0x20).
+ */
+
+/* `T`/`t` (2f2b:6820): pop++, then FUN_281f_0c36(old, 0) = FUN_15eb_1068 arm 0
+ * (occupation 0 = food, no plot) and FUN_281f_0cae(old, 0x1c) = FUN_15eb_0e8c
+ * (profession 0x1c = Free Colonist). No unit, no rebel_divisor change (that
+ * +100 sits in 1068's other arm). The stale-occupation goods refund at the top
+ * of 1068 reads a leftover byte DOS keeps past the head count; the port has no
+ * such byte, so none is paid. The plot comes from the 3930 recompute the arm's
+ * redraw runs (colonies_recompute_plots_w). */
+bool colonies_cheat_add_colonist(
+  ColonizeColonyPool* pool, ColonizeColony* col, int colonist_type_index
+) {
+  (void)pool;
+  if (!col || !col->active || col->colonist_count < 0 ||
+      col->colonist_count >= COLONIZE_COLONY_POP_MAX) {
+    return false;
+  }
+  ColonizeColonist* c = &col->colonists[col->colonist_count++];
+  memset(c, 0, sizeof(*c));
+  c->active = true;
+  c->unit_type_index = colonist_type_index < 0 ? 0 : colonist_type_index;
+  c->profession = UNITS_JOB_NONE;
+  c->building_type = -1;
+  c->field_job = 0;
+  col->population = col->colonist_count;
+  return true;
+}
+
+/* `S`/`s` (2f2b:6882): FUN_281f_0cae(sel, FUN_281f_0c0e(sel)) = profession :=
+ * the colonist's current occupation (FUN_15eb_0e18), Dragoon folded to Soldier
+ * by FUN_15eb_0e8c (raw 11083-11090). */
+bool colonies_cheat_profession_from_job(
+  const ColonizeColonyPool* pool, ColonizeColony* col, int colonist_index
+) {
+  if (!pool || !col || colonist_index < 0 || colonist_index >= col->colonist_count ||
+      !col->colonists[colonist_index].active) {
+    return false;
+  }
+  ColonizeColonist* c = &col->colonists[colonist_index];
+  int job = colonies_colonist_occupation_job(pool, c);
+  if (job == UNITS_JOB_DRAGOON) {
+    job = UNITS_JOB_SOLDIER;
+  }
+  c->profession = job;
+  return true;
+}
+
+/* `%` (2f2b:68b4) / `^` (2f2b:68c8): warehouse word +0x9a+2*good += 100 with
+ * no cap / -= 100 clamped at 0. The port's stock is a plain int, so DOS's
+ * 16-bit wrap past 32767 is not reproduced. */
+void colonies_cheat_stock_add(ColonizeColony* col, int cargo, int delta) {
+  if (!col || cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
+    return;
+  }
+  int v = col->stock[cargo] + delta;
+  if (delta < 0 && v < 0) {
+    v = 0;
+  }
+  col->stock[cargo] = v;
+}
+
+/* `!` (2f2b:68e6): building bits +0x84..+0x89 := 0xff, then
+ * FUN_15eb_1030(bit, 0) clears 0x10 / 0x1f / 0x0b / 0x0a / 0x1e (Warehouse
+ * Expansion, Capitol Expansion, Town Hall 3, Town Hall 2, Capitol: ownable
+ * only through the level counters / the Town Hall base), then
+ * ++colony+0x95 (warehouse_level) and ++colony+0x96 (capitol_level), both
+ * plain byte increments. The 48 bits cover @BUILDING rows 0..41 (the rest
+ * name no building); the Custom House goods mask (+0x8a) is not touched. */
+void colonies_cheat_all_buildings(const ColonizeColonyPool* pool, ColonizeColony* col) {
+  if (!pool || !col) {
+    return;
+  }
+  for (int i = 0; i < pool->building_type_count && i < COLONIZE_BUILDING_TYPES_MAX; ++i) {
+    const int row = colonies_building_type_row(pool, i);
+    if (row < 0 || row > COLONY_BUILDING_IRON_WORKS) {
+      continue;
+    }
+    if (row == COLONY_BUILDING_WAREHOUSE_EXPANSION || row == COLONY_BUILDING_CAPITOL_EXPANSION ||
+        row == COLONY_BUILDING_CAPITOL || row == COLONY_BUILDING_TOWN_HALL_3 ||
+        row == COLONY_BUILDING_TOWN_HALL_2) {
+      continue;
+    }
+    col->has_building[i] = true;
+  }
+  col->warehouse_level = (uint8_t)(col->warehouse_level + 1u);
+  col->capitol_level = (uint8_t)(col->capitol_level + 1u);
+}
+
 int colonies_building_row(const ColonizeColonyPool* pool, ColonizeBuildingRow row) {
   if (!pool || (int)row < 0) {
     return -1;

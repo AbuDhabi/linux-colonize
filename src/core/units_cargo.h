@@ -352,6 +352,10 @@ int units_ship_capacity(const ColonizeUnitPool* pool, int ship_id);
  * DOS-LITERAL FUN_4720_00e0, raw 74628-74665. */
 int units_ship_free_passenger_slots(const ColonizeUnitPool* pool, int ship_id);
 
+/* A sentried own land unit on the ship's tile that fits its free room: DOS
+ * Disband refuses such a ship (FUN_1427_10be gather, port_bugs.md #1168). */
+bool units_ship_has_sentry_boarder(const ColonizeUnitPool* pool, int ship_id);
+
 /* Ships and wagon trains that can carry commodity holds. */
 bool units_is_transport(const ColonizeUnitPool* pool, int unit_id);
 /* Number of commodity hold slots (from @UNIT cargo field). */

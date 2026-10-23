@@ -679,7 +679,9 @@ independently golden-confirmed.
   index 68 (WOODPANL.PIK-specific, not the usual report-plate 14/15/97).
   "Gold"/"Citizens"/"Continental Congress"/"Rebel Sentiment"/"Total Score"
   resolve live from `@MISC` #59/#115/#134/#69+#71/#121 (2026-08-28).
-- Retire chain (`FUN_41f2_14a8`, `game_retire_after_score`): `@RETIRE`
+- Retire chain (`FUN_41f2_14a8`, `game_retire_after_score`; with
+  `cheats_enabled` set F10 / REPORTS Score enter it directly, no confirm,
+  `game_open_score_report`, port_bugs.md #1169): `@RETIRE`
   confirm → this report → **exploits screen** (`FUN_41f2_0b70`,
   `reports_render_exploits`: WOODPAN2.PIK, GAME.TXT `@EXPLOITS` with
   `%NUMBER0` = rating / `%STRING0` = nation name at y=5, the first tier+1

@@ -46,6 +46,7 @@ int main(int argc, char** argv) {
     return 1;
   }
   game->fog_view = -1;
+  game->col1.head.show_entire_map = 1; /* game_fog_nation reads the head (port_bugs.md #1170) */
 
   const int w = (int)game->world_map.width;
   const int h = (int)game->world_map.height;

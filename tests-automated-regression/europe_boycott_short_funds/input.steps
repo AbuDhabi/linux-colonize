@@ -9,8 +9,9 @@ click 150 168            # "Pay 3000.": gold 1500 < 3000 -> @KISSSORRY "we only 
 key Return               # OK the @KISSSORRY popup
 click 48 189             # @KISSUP again
 click 150 156            # first row (decline): nothing changes
-drag 152 171 48 189      # Tobacco still refused
-key l                    # @HOWMUCH4 buy prompt for the selected Tobacco cell
-key Return               # buy refused as well
+drag 152 171 48 189      # Tobacco still refused: @KISSUP again, trade aborted whatever the answer
+key Return               # decline @KISSUP (row 0 = refuse)
+key l                    # buy on the selected boycotted Tobacco cell: @KISSUP instead of the @HOWMUCH4 prompt
+key Return               # decline as well
 drag 164 171 67 189      # Cotton (not boycotted) sells: 40 @ 4 = 160, tax 9, net 151
 key e                    # leave Europe

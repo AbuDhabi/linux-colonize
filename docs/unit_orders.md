@@ -180,7 +180,7 @@ stateDiagram-v2
 | Load / Unload Cargo | Transport on Euro settlement | Board/unload cargo UI | ORDERS + **O**/**U**; gated off-settlement | Done |
 | Return to Europe | Ship on High Seas | Sail home lane | Despawn → Europe Expected | Done |
 | Dump Cargo Overboard | Transport with goods | `@OVERBOARD` picker; dump the chosen hold | Same (rows = occupied holds + @MISC[32] cancel) | Done |
-| Disband | Shift+D / ORDERS | `@SUREDISBAND` confirm; `@DISBANDSHIP` OK if ship has units aboard | Confirm then `units_disband` | Done |
+| Disband | Shift+D / ORDERS | `@SUREDISBAND` confirm; `@DISBANDSHIP` OK when `FUN_1427_10be` would gather a unit onto the ship (sentried unit on its tile that fits cargo minus goods holds, or any rider). Silent, no status text. Active unit steps back to the previous pool slot (`FUN_1427_0824` tail), kept while in rotation, else scan forward | Confirm then `units_disband`; refusal = rider aboard (port-only for an awake one) or `units_ship_has_sentry_boarder`; hand-off seeded at the previous unit in id order (`game_do_disband`). No orders==2 budget-0 quirk (dos_bugs.md DB-44). port_bugs.md #1168. View mode (`FUN_2b5a_199e`): the stack head at the cursor, gated on CHEAT or the tile's owner nibble == viewpoint; CHEAT + no unit = colony confirm (`GAME_MAP_CONFIRM_DISBAND_COLONY`) or village raze without confirm; no re-selection, no DB-45 double step (`game_request_disband_confirm`, port_bugs.md #1173) | Done |
 
 ### Pillage / Live In Village
 

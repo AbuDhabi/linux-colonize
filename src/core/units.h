@@ -441,6 +441,16 @@ bool units_reveal_sight_w(
   const ColonizeUnit* u
 );
 /*
+ * FUN_4d56_00e0 by tile: raze the village at (x,y). Returns its nation id, or
+ * -1 when no village stands there. Popups (@EXTINCT) need units_set_combat_popups.
+ */
+int units_destroy_village_at_w(const ColonizeWorld* w, int x, int y);
+/*
+ * FUN_4d56_01e2 (Shift-F6 cheat): FUN_4d56_00e0 for every village of
+ * nation_id (4..11), highest index first. Returns villages razed.
+ */
+int units_destroy_tribe_nation_w(const ColonizeWorld* w, int nation_id);
+/*
  * FUN_1427_0c9a: vis mask a unit of mover_nation acquires by standing on
  * (x,y): tile owner nibble's bit (Euro movers only) | every nation watching
  * the tile (map_nation_watches_tile). Low-nibble form (1<<nation).

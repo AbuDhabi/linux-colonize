@@ -1,0 +1,21 @@
+# Fixture: map_found_colony start (France 1599, human = French).
+# CHEAT Set Human Player (Shift-F5) to ANOTHER nation (DOS case 0x66; port_bugs.md #1172): English, row 1. The one-nation Europe mirror is flushed onto
+# the French record first and England's own record is bound, so the English Europe screen (E) shows England's gold/tax/dock, not France's 429 gold.
+# Saved: human_player = nation_turn = curr_nation_map_view = 0, control[0] = 0, control[1] = 1; France's Europe state stays on nation[1].
+# Ends with cheat mode off again (Alt-W).
+key w alt
+key i alt
+key n alt
+key F5 shift
+key Return               # English
+wait 30
+key Return               # @LANDHO name prompt for England (named_new_world is false in this save), default accepted (port_bugs.md #1178)
+wait 30
+shot
+key e                    # English European Status
+wait 30
+shot
+key Escape
+wait 30
+shot
+key w alt

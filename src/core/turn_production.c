@@ -2387,8 +2387,14 @@ bool turn_prod_nation_in_scope(int nation_id) {
   return true;
 }
 
-void turn_run_colony_production_with_w(
+/*
+ * One colony of the FUN_3844_00f2 colony loop = the head of FUN_364b_0688
+ * (raw 57224-57229) plus its production body. Shared by the EOT loop below and
+ * the colony-screen Space cheat (FUN_2f2b_6372 2f2b:6950 -> FUN_364b_0688).
+ */
+void turn_run_one_colony_production_w(
   const ColonizeWorld* w,
+  ColonizeColony* colony,
   int human_nation,
   ColonizeTurnResult* out,
   AiPopupState* ai_popups,
@@ -2401,6 +2407,50 @@ void turn_run_colony_production_with_w(
   ColonizeCol1Save* col1 = w->col1;
   EuropeScreen* europe = w->europe;
   ColonizeDosRng* rng = w->rng;
+  /* port_bugs.md #256: DOS never carries an idle colonist — sweep any
+   * job-less colonist (stale saves, non-UI admit paths) into work
+   * before producing, so the head count always matches the workers. */
+  colonies_auto_assign_idle(pool, colony->id);
+  /* FUN_364b_0688 raw 57227: thunk_FUN_291f_09ce = FUN_364b_03f6, the
+   * coastal battery, opens each colony's EOT — after the earlier slots'
+   * moves (DOSBox independence 5->6: the Dutch fort fires on the crown
+   * Man-O-War that parked beside it this turn). */
+  (void)units_coastal_fort_fire_colony_w(w, colony->id, human_nation, NULL, 0);
+  /* FUN_364b_0688 raw 57228: FUN_281f_0c72 -> FUN_15eb_26e4 claim stamp,
+   * then raw 57229: FUN_281f_0c22 -> FUN_15eb_3930 before the colony
+   * produces (port_bugs.md #1080). */
+  colonies_26e4_claim_stamp(w, colony);
+  colonies_recompute_plots_w(w, colony->id);
+  if (before) {
+    before(before_user, colony);
+  }
+  /* Snapshot for the debug-log summary — production itself keeps the
+   * NULL delta it has always had (a non-NULL one changes which branch
+   * fills cargo_produced_mask). */
+  int stock_before[COLONIZE_CARGO_COUNT];
+  int hammers_before = colony->hammers;
+  int project_before = colony->building_in_production;
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    stock_before[c] = colony->stock[c];
+  }
+  turn_produce_one_colony(
+    pool, colony, map, col1, europe, human_nation, out, NULL, ai_popups, messages, rng
+  );
+  turn_log_colony_production(
+    pool, colony, col1, europe, stock_before, hammers_before, project_before
+  );
+}
+
+void turn_run_colony_production_with_w(
+  const ColonizeWorld* w,
+  int human_nation,
+  ColonizeTurnResult* out,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages,
+  TurnColonyBeforeProduction before,
+  void* before_user
+) {
+  ColonizeColonyPool* pool = w->colonies;
 
   if (!pool) {
     return;
@@ -2414,47 +2464,8 @@ void turn_run_colony_production_with_w(
   /* FUN_3844_00f2 raw 58384 walks colony indices from count - 1 down. */
   for (int i = COLONIZE_COLONIES_MAX - 1; i >= 0; --i) {
     if (pool->colonies[i].active && turn_prod_nation_in_scope(pool->colonies[i].nation_id)) {
-      /* port_bugs.md #256: DOS never carries an idle colonist — sweep any
-       * job-less colonist (stale saves, non-UI admit paths) into work
-       * before producing, so the head count always matches the workers. */
-      colonies_auto_assign_idle(pool, pool->colonies[i].id);
-      /* FUN_364b_0688 raw 57227: thunk_FUN_291f_09ce = FUN_364b_03f6, the
-       * coastal battery, opens each colony's EOT — after the earlier slots'
-       * moves (DOSBox independence 5->6: the Dutch fort fires on the crown
-       * Man-O-War that parked beside it this turn). */
-      (void)units_coastal_fort_fire_colony_w(w, pool->colonies[i].id, human_nation, NULL, 0);
-      /* FUN_364b_0688 raw 57228: FUN_281f_0c72 -> FUN_15eb_26e4 claim stamp,
-       * then raw 57229: FUN_281f_0c22 -> FUN_15eb_3930 before the colony
-       * produces (port_bugs.md #1080). */
-      colonies_26e4_claim_stamp(w, &pool->colonies[i]);
-      colonies_recompute_plots_w(w, pool->colonies[i].id);
-      if (before) {
-        before(before_user, &pool->colonies[i]);
-      }
-      /* Snapshot for the debug-log summary — production itself keeps the
-       * NULL delta it has always had (a non-NULL one changes which branch
-       * fills cargo_produced_mask). */
-      int stock_before[COLONIZE_CARGO_COUNT];
-      int hammers_before = pool->colonies[i].hammers;
-      int project_before = pool->colonies[i].building_in_production;
-      for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-        stock_before[c] = pool->colonies[i].stock[c];
-      }
-      turn_produce_one_colony(
-        pool,
-        &pool->colonies[i],
-        map,
-        col1,
-        europe,
-        human_nation,
-        out,
-        NULL,
-        ai_popups,
-        messages,
-        rng
-      );
-      turn_log_colony_production(
-        pool, &pool->colonies[i], col1, europe, stock_before, hammers_before, project_before
+      turn_run_one_colony_production_w(
+        w, &pool->colonies[i], human_nation, out, ai_popups, messages, before, before_user
       );
     }
   }

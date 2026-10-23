@@ -1,0 +1,25 @@
+# Fixture: map_found_colony start (France 1599). Tribe villages: Inca 3, Apache 1 (the others 4-19).
+# Unlock CHEAT (Alt-W, Alt-I, Alt-N), Shift-F6 opens the Kill Indians list: one row per non-extinct tribe (Inca, Aztec, Arawak, Iroquois, Cherokee, Apache, Sioux, Tupi).
+# DOS CHEAT case 0x67 -> FUN_4d56_01e2(id-1): FUN_4d56_00e0 for every village of that tribe, highest index first (no owner-nibble repaint, no indian[] reset).
+# Apache (row 5, 1 village) goes extinct -> @EXTINCT popup, Return dismisses. The second Shift-F6 must list 7 rows without Apache; Inca (row 0, 3 villages) is killed next.
+# The test ends with cheat mode switched off again (Alt-W), as map_cheat_create_unit does.
+key w alt
+key i alt
+key n alt
+key F6 shift             # Kill Indians list
+shot
+key Down
+key Down
+key Down
+key Down
+key Down
+key Return               # Apache
+shot                     # @EXTINCT popup
+key Return
+key F6 shift             # list again: no Apache row
+shot
+key Return               # Inca
+shot
+key Return               # @EXTINCT popup dismissed
+key w alt                # cheat mode off
+shot

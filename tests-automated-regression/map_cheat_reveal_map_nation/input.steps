@@ -1,0 +1,11 @@
+# Fixture: map_cheat_reveal_map's (France 1599, human = French, show_indian_moves off).
+# CHEAT Reveal Map nation row (DOS case 0x65): English sets fixed_nation_map_view (0x53a4) = 0, curr_nation_map_view (0x5396) = 0,
+# show_entire_map = 0 (port_bugs.md #1170); the map draws the English fog. Ends with cheat mode off again (Alt-W).
+key w alt
+key i alt
+key n alt
+key F4 shift
+key Return               # English (row 1)
+wait 20
+shot
+key w alt

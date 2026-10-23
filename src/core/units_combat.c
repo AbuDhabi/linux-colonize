@@ -2637,28 +2637,26 @@ static bool units_tile_has_tribe(const ColonizeCol1Save* col1, int x, int y) {
   return false;
 }
 
-static int col1_destroy_tribe_at(
+/*
+ * FUN_4d56_00e0(found) (raw 81292-81346): raze tribe record `found`. Returns the
+ * tribe's nation id (4..11), or -1 for a bad index. The xy form below is the
+ * conquest / View-mode-disband lookup; FUN_4d56_01e2 walks indices instead.
+ */
+static int col1_destroy_tribe_index(
   ColonizeCol1Save* col1,
   ColonizeUnitPool* units,
   ColonizeWorldMap* map,
-  int x,
-  int y
+  int found
 ) {
-  if (!col1 || !col1->tribe || col1->head.tribe_count == 0) {
+  if (!col1 || !col1->tribe || found < 0 || found >= (int)col1->head.tribe_count) {
     return -1;
   }
-  int found = -1;
-  int nation_id = -1;
-  for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
-    if ((int)col1->tribe[i].x == x && (int)col1->tribe[i].y == y) {
-      found = (int)i;
-      nation_id = (int)col1->tribe[i].nation_id;
-      break;
-    }
-  }
-  if (found < 0 || nation_id < 4) {
+  const int nation_id = (int)col1->tribe[found].nation_id;
+  if (nation_id < 4) {
     return -1;
   }
+  const int x = (int)col1->tribe[found].x;
+  const int y = (int)col1->tribe[found].y;
 
   village_trade_intel_forget_tile(x, y); /* sidebar trade/skill rows go with it */
   /* FUN_4d56_00e0 entry (raw 81307-81308): FUN_281f_068c(x, y, 2, 0) →
@@ -2750,6 +2748,50 @@ static int col1_destroy_tribe_at(
   /* FUN_4d56_00e0 raw 81307-81346 clears only the settlement bit.
    * The empty tile keeps its owner nibble (DOSBox 1551: (48,58) = 0x7d). */
   return nation_id;
+}
+
+static int col1_destroy_tribe_at(
+  ColonizeCol1Save* col1,
+  ColonizeUnitPool* units,
+  ColonizeWorldMap* map,
+  int x,
+  int y
+) {
+  if (!col1 || !col1->tribe) {
+    return -1;
+  }
+  for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
+    if ((int)col1->tribe[i].x == x && (int)col1->tribe[i].y == y) {
+      return col1_destroy_tribe_index(col1, units, map, (int)i);
+    }
+  }
+  return -1;
+}
+
+int units_destroy_village_at_w(const ColonizeWorld* w, int x, int y) {
+  return w ? col1_destroy_tribe_at(w->col1, w->units, w->map, x, y) : -1;
+}
+
+/*
+ * FUN_4d56_01e2 (raw 81352, reached from the Shift-F6 CHEAT case 0x67 through
+ * the 291f:0442 JMPF): nation = param + 4; walk the tribe array DOWNWARD and
+ * run FUN_4d56_00e0 on every row of that nation. Descending order keeps 00e0's
+ * array compaction from skipping rows. Nothing else happens: units without a
+ * home village survive, the owner nibbles and diplomacy stay. Returns the
+ * number of villages razed.
+ */
+int units_destroy_tribe_nation_w(const ColonizeWorld* w, int nation_id) {
+  if (!w || !w->col1 || !w->col1->tribe) {
+    return 0;
+  }
+  int razed = 0;
+  for (int i = (int)w->col1->head.tribe_count - 1; i >= 0; --i) {
+    if ((int)w->col1->tribe[i].nation_id == nation_id &&
+        col1_destroy_tribe_index(w->col1, w->units, w->map, i) >= 0) {
+      ++razed;
+    }
+  }
+  return razed;
 }
 
 int units_conquest_treasure_gold(
