@@ -500,8 +500,9 @@ void reports_render_score(
   const char* diff_name = reports_difficulty_title(sc.difficulty);
   const char* nation_adj = reports_nation_adjective(human);
 
-  /* Subtitle: "<difficulty rank> <leader> of the <nation>:  <Season> <year>"
-   * (golden: "Viceroy Michiel De Ruyter of the Dutch:  Autumn 1630"). */
+  /* Subtitle: "<difficulty rank> <leader> of the <nation>: <Season> <year>" (FUN_41f2_0092
+   * raw 71101-71117: FUN_281f_0178 appends DS:0x50 " ", FUN_281f_01be DS:0x55 ": ",
+   * port_bugs.md #1211; golden "Viceroy Michiel De Ruyter of the Dutch: Autumn 1630"). */
   if (col1) {
     const char* leader =
       (human >= 0 && human < (int)COLONIZE_COL1_NATION_COUNT && col1->player[human].name[0])
@@ -511,7 +512,7 @@ void reports_render_score(
     snprintf(
       line,
       line_sz,
-      "%s %s %s %s:  %s %d",
+      "%s %s %s %s: %s %d",
       diff_name,
       leader,
       reports_misc_word(19, "", of_the, sizeof(of_the)), /* LABELS @MISC 19 */
@@ -522,12 +523,10 @@ void reports_render_score(
   } else {
     line[0] = '\0'; /* no save record: no header (no typed English, port_bugs.md #1122) */
   }
-  if (body_font) {
-    const int w = font_text_width(body_font, line);
-    reports_draw_line(
-      body_font, fb, (fb->width - w) / 2, REPORTS_SCORE_SUBTITLE_Y, line, REPORTS_SCORE_TITLE_COLOR
-    );
-  }
+  /* FUN_41f2_0092 raw 71097-71117: FUN_281f_0100 in 0..0x140 at 5 + FONTTINY[0] + 1, DS:0x831. */
+  reports_draw_dos_centered(
+    body_font, fb, 0, 0x140, REPORTS_SCORE_SUBTITLE_Y, line, REPORTS_SCORE_TITLE_COLOR
+  );
 
   /* LABELS.TXT @MISC: #59 "Gold", #121 "Total Score", #115 "Citizens",
    * #134 "Continental Congress", #69 "Rebel" + #71 "Sentiment". */

@@ -1435,7 +1435,10 @@ static GameUpdateStep game_colony_screen_mouse_click(
       break;
     }
     case COLONY_HIT_CUSTOM_HOUSE_ROW:
+      /* FUN_6f74_2580: the press puts the bar on the row (raw 116745-116758), the release
+       * flips it (@checkbox, raw 117052-117058). */
       if (hit.index >= 0 && hit.index < csv->custom_house_count) {
+        csv->custom_house_selection = hit.index;
         colonies_toggle_custom_house_cargo(
           &game->colonies, game->colony_view_id, csv->custom_house_cargo_ids[hit.index]
         );
@@ -1553,10 +1556,8 @@ static GameUpdateStep game_colony_screen_key_enter(
       }
       return GAME_UPDATE_RETURN_TRUE;
     }
-    /* @CUSTOM has no selection cursor — rows are mouse toggles and the
-     * panel is dismissed by leaving it (COLONY_HIT_CUSTOM_HOUSE_OUTSIDE).
-     * Enter is that same dismissal from the keyboard, and must not fall
-     * through to the panels underneath. */
+    /* @CUSTOM is a FUN_6f74_2580 @checkbox box: Enter closes it whatever row has the bar
+     * (6f74:2cfc, raw 116856-116857), and must not fall through to the panels underneath. */
     if (csv->custom_house_open) {
       colony_screen_close_custom_house(csv);
       return GAME_UPDATE_RETURN_TRUE;
@@ -1565,6 +1566,9 @@ static GameUpdateStep game_colony_screen_key_enter(
       const int bi = csv->construction_selection - 1;
       if (csv->more_selected) {
         colony_screen_construction_next_page(csv);
+      } else if (csv->construction_selection < 0) {
+        /* No bar (port_bugs.md #1215): FUN_6f74_2580's Enter arm needs a selection
+         * (6f74:2cfc, raw 116853), so the key does nothing. */
       } else if (csv->construction_selection == 0) {
         colonies_build_queue_clear(&game->colonies, game->colony_view_id);
         colonies_clear_construction(&game->colonies, game->colony_view_id);
@@ -1657,6 +1661,21 @@ static GameUpdateStep game_colony_screen_keys(
     if (sub != GAME_UPDATE_CONTINUE) {
       return sub;
     }
+  }
+
+  /* The Custom House box owns the keyboard like DOS's FUN_6f74_2580 loop (port_bugs.md #1213):
+   * Up / Down move the bar, Space / F1 / a row hotkey flip a row, every other key does nothing. */
+  if (csv->custom_house_open &&
+      (input->last_key != COLONIZE_KEY_NONE || input->text_input_len > 0)) {
+    if (!colony_screen_list_key(csv, input->last_key)) {
+      const int row = colony_screen_custom_house_key(csv, input);
+      if (row >= 0) {
+        colonies_toggle_custom_house_cargo(
+          &game->colonies, game->colony_view_id, csv->custom_house_cargo_ids[row]
+        );
+      }
+    }
+    return GAME_UPDATE_RETURN_TRUE;
   }
 
   /* C = Construction Change (tech-supp). Toggle: down when Construction is

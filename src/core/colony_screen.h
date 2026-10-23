@@ -314,7 +314,8 @@ typedef struct ColonyScreenView {
   int selected_cargo; /* warehouse cargo highlighted for =/+ load; -1 none */
 
   bool construction_open;
-  int construction_selection;
+  int construction_selection; /* entry (0 = the clear row); -1 = no bar, page 0 (#1215) */
+  int construction_default_row; /* the current project's entry, -1 = not listed */
   int buildable_ids[COLONY_BUILDABLE_MAX];
   int buildable_count;
   ColonyDialogRect construction_rect; /* page = the selection's (colony_screen_popups.c) */
@@ -360,6 +361,7 @@ typedef struct ColonyScreenView {
   bool custom_house_smallfont; /* GAME.TXT @CUSTOM @smallfont → FONTTINY rows */
   int custom_house_cargo_ids[COLONIZE_CARGO_COUNT];
   int custom_house_count;
+  int custom_house_selection; /* the FUN_6f74_2580 bar (box+0x4c); opens on row 0 */
   ColonyDialogRect custom_house_rect;
 
   ColonyMessageKind message_kind;
@@ -426,9 +428,13 @@ void colony_screen_close_construction(ColonyScreenView* view);
 /* FUN_2f2b_5bd2 / 348c "(More)" rows: flip the construction / jobs list's page. */
 void colony_screen_construction_next_page(ColonyScreenView* view);
 void colony_screen_jobs_next_page(ColonyScreenView* view);
-/* FUN_6f74_2580 Up / Down over the open jobs / leave-as / dock orders / construction list
- * (wrap, greyed rows skipped, the "(More)" row reachable). False: no such list, other key. */
+/* FUN_6f74_2580 Up / Down over the open jobs / leave-as / dock orders / construction / Custom
+ * House list (wrap, greyed rows skipped, the "(More)" row reachable). False: no such list,
+ * other key. */
 bool colony_screen_list_key(ColonyScreenView* view, ColonizeKey key);
+/* The open Custom House box's Space / F1 / row hotkey: the row to toggle (the bar moves
+ * there), -1 = none (port_bugs.md #1213). */
+int colony_screen_custom_house_key(ColonyScreenView* view, const ColonizeInputState* input);
 
 void colony_screen_open_jobs(
   ColonyScreenView* view,

@@ -291,8 +291,8 @@ enum {
  * FOREST the tile is a forest class (8..23). PLOT asks the viewed colony's
  * FUN_15eb_26e4 claim table instead of the tribe-radius test (`uid` = the
  * plot's tile_index, x/y the plot). "Offer gold" is greyed out in DOS when
- * the treasury cannot cover it (FUN_291f_01b6(dlg, 2, 1)); this port drops
- * the row instead. "Take it" has no immediate consequence at the three
+ * the treasury cannot cover it (FUN_291f_01b6(dlg, 2, 1), port_bugs.md
+ * #1214). "Take it" has no immediate consequence at the three
  * sites; at the plot drop the assignment then seats the worker and
  * FUN_15eb_06d2 charges the alarm. Returns true when a dialog was queued
  * (caller must stop and wait for the result).
@@ -384,23 +384,30 @@ bool game_request_indian_land_choice(
   int n = 0;
   labels[n] = nch >= 3 ? choice_buf[0] : "";
   ids[n++] = GAME_INDIAN_LAND_RESPECT;
-  if ((uint32_t)price <= europe_nation_gold(&game->europe, col1, hn)) {
-    if (nch >= 3) {
-      /* Substitute {%NUMBER1$} inside the label row. */
-      static char offer_lbl[AI_POPUP_CHOICE_LEN];
-      popup_msg_apply_tokens(offer_lbl, sizeof(offer_lbl), choice_buf[1], &tok);
-      labels[n] = offer_lbl;
-    } else {
-      labels[n] = offer_fb;
-    }
-    ids[n++] = GAME_INDIAN_LAND_OFFER;
+  if (nch >= 3) {
+    /* Substitute {%NUMBER1$} inside the label row. */
+    static char offer_lbl[AI_POPUP_CHOICE_LEN];
+    popup_msg_apply_tokens(offer_lbl, sizeof(offer_lbl), choice_buf[1], &tok);
+    labels[n] = offer_lbl;
+  } else {
+    labels[n] = offer_fb;
   }
+  ids[n++] = GAME_INDIAN_LAND_OFFER;
   labels[n] = nch >= 3 ? choice_buf[2] : "";
   ids[n++] = GAME_INDIAN_LAND_TAKE;
   const int payload = (x & 0xff) | ((y & 0xff) << 8);
-  return ai_popup_enqueue_choice_ctx(
-    &game->ai_popups, AI_POPUP_TAG_INDIAN_LAND, uid, (int)kind, payload, NULL, body, labels, ids, n
-  );
+  if (!ai_popup_enqueue_choice_ctx(
+        &game->ai_popups, AI_POPUP_TAG_INDIAN_LAND, uid, (int)kind, payload, NULL, body, labels,
+        ids, n
+      )) {
+    return false;
+  }
+  /* DOS-LITERAL FUN_2b5a_123e raw 42484-42488 (FUN_2b5a_1454 raw 42575-42579, FUN_2f2b_2f3e
+   * 2f2b:3327): gold (FUN_281f_0a92) < price greys id 2, FUN_291f_01b6(box, 2, 1). */
+  if (europe_nation_gold(&game->europe, col1, hn) < (uint32_t)price) {
+    ai_popup_set_last_disabled(&game->ai_popups, 1u << 1);
+  }
+  return true;
 }
 
 /*

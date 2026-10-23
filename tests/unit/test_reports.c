@@ -1051,6 +1051,82 @@ static int case_indian_name_lines_golden(void) {
   return 0;
 }
 
+/* port_bugs.md #1211: the shared report chrome against indian.png. FUN_3f41_010a's title is
+ * FUN_281f_0100 (FUN_104b_0318: FONTTINY, centred x + (w >> 1) - ((width - 1) >> 1)) in
+ * 0..0x140 at y 5, ink 0x90; FUN_3f41_008a draws the OK outline (286..315, 184..197) in 0x77
+ * and LABELS @MISC 46 in FONTTINY ink 0x92 centred in 286 w 0x1e at y 188. Masks read off the
+ * golden (2x, even pixels): 't' = (255,255,190) = 0x90, 'r' = (134,0,0) = 0x77,
+ * 'o' = (255,243,93) = 0x92. */
+static int case_report_chrome_golden(void) {
+  if (ensure_view() != 0) {
+    return 1;
+  }
+  char err[256];
+  ColonizeCol1Save fcol1;
+  col1_save_init(&fcol1);
+  if (!col1_save_read_file(
+        "original_saves/report-screen-goldens/dutch-reports.SAV", &fcol1, err, sizeof(err)
+      )) {
+    fprintf(stderr, "dutch-reports.SAV load failed: %s\n", err);
+    return 1;
+  }
+  uint8_t pixels[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  memset(pixels, 0, sizeof(pixels));
+  {
+    ColonizeWorld w_ = world_make(NULL, NULL, NULL, &fcol1, true, NULL, NULL);
+    reports_render_w(
+      &w_, &g_view, COLONIZE_REPORT_INDIAN, false, -1, 0, 0, 0,
+      fcol1.head.human_player, 0, 0, fcol1.head.turn, NULL, &fb
+    );
+  }
+  col1_save_free(&fcol1);
+  static const char* k_title[] = {
+    ".................................................................................",
+    ".ttt.t.t.tt..ttt..t..t.t....t..tt..t.t.ttt..tt.ttt.tt....tt..ttt.tt..ttt.tt..ttt.",
+    "..t..ttt.t.t..t..t.t.ttt...t.t.t.t.t.t..t..t...t...t.t...t.t.t...t.t.t.t.t.t..t..",
+    "..t..ttt.t.t..t..ttt.ttt...ttt.t.t.t.t..t...t..tt..tt....tt..tt..tt..t.t.tt...t..",
+    "..t..t.t.t.t..t..t.t.t.t...t.t.t.t.t.t..t....t.t...t.t...t.t.t...t...t.t.t.t..t..",
+    ".ttt.t.t.tt..ttt.t.t.t.t...t.t.tt...t..ttt.tt..ttt.t.t...t.t.ttt.t...ttt.t.t..t..",
+    ".................................................................................",
+  };
+  static const char* k_ok[] = {
+    "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr", "r............................r",
+    "r............................r", "r............................r",
+    "r...........ooo.o.o..........r", "r...........o.o.o.o..........r",
+    "r...........o.o.oo...........r", "r...........o.o.o.o..........r",
+    "r...........ooo.o.o..........r", "r............................r",
+    "r............................r", "r............................r",
+    "r............................r", "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+  };
+  int bad = 0;
+  for (int r = 0; r < 7; ++r) {
+    for (int c = 0; k_title[r][c]; ++c) {
+      const int x = 120 + c, y = 4 + r;
+      const uint8_t p = pixels[y * 320 + x];
+      if ((k_title[r][c] == 't') != (p == 0x90) && bad++ < 8) {
+        fprintf(stderr, "report title (%d,%d): want '%c' got index %d\n", x, y, k_title[r][c], p);
+      }
+    }
+  }
+  for (int r = 0; r < 14; ++r) {
+    for (int c = 0; k_ok[r][c]; ++c) {
+      const int x = 286 + c, y = 184 + r;
+      const uint8_t p = pixels[y * 320 + x];
+      const char want = k_ok[r][c];
+      const bool ok = want == 'r' ? p == 0x77 : want == 'o' ? p == 0x92 : (p != 0x77 && p != 0x92);
+      if (!ok && bad++ < 8) {
+        fprintf(stderr, "report OK (%d,%d): want '%c' got index %d\n", x, y, want, p);
+      }
+    }
+  }
+  if (bad) {
+    fprintf(stderr, "report chrome: %d pixels differ from indian.png\n", bad);
+    return 1;
+  }
+  return 0;
+}
+
 /* After free, names must be empty rather than stale/dangling.
  *
  * reports_ff_display_name() & co. read module-level globals in
@@ -1230,6 +1306,7 @@ static const TestCase k_cases[] = {
   {"indian_tribe_listed_gate", case_indian_tribe_listed_gate},
   {"foreign_affairs_golden", case_foreign_affairs_golden},
   {"indian_name_lines_golden", case_indian_name_lines_golden},
+  {"report_chrome_golden", case_report_chrome_golden},
   {"names_survive_missing_report_art", case_names_survive_missing_report_art},
   {"ds_string_two_numbers", case_ds_string_two_numbers},
   {"post_free_fallback", case_post_free_fallback},

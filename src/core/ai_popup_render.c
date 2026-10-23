@@ -56,8 +56,10 @@ bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input) {
     return true;
   }
   if (!is_info) {
-    /* GAME.TXT choice boxes show through FUN_6f74_2580 (FUN_6f74_36ca): Up / Down wrap. */
-    if (popup_list_key_step(input->last_key, &st->selection, st->current.choice_count, 0)) {
+    /* GAME.TXT choice boxes show through FUN_6f74_2580 (FUN_6f74_36ca): Up / Down wrap and
+     * step past greyed rows. */
+    if (popup_list_key_step(input->last_key, &st->selection, st->current.choice_count,
+                            st->current.disabled_mask)) {
       return true;
     }
   }
@@ -66,6 +68,8 @@ bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input) {
       ai_popup_finish(st, false, 0);
       return true;
     }
+    /* DOS-LITERAL 6f74:2cfc (raw 116854-116867): no greyed test, so a greyed row that has the
+     * bar from the start (first row added / @DEFAULT) is returned like any other. */
     if (st->selection >= 0 && st->selection < st->current.choice_count) {
       ai_popup_finish(st, false, st->current.choice_ids[st->selection]);
     }
@@ -90,7 +94,9 @@ bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input) {
       ui_rect_hit(st->dialog_x, st->dialog_y, st->dialog_w, st->dialog_h, mx, my);
     if (inside_dialog) {
       const int idx = ai_popup_option_at_y(st, my);
-      if (idx >= 0) {
+      /* The press arm skips greyed rows (raw 116747-116748, option bit 0): the click does
+       * nothing. */
+      if (idx >= 0 && !(idx < 32 && (st->current.disabled_mask >> idx & 1u))) {
         st->selection = idx;
         ai_popup_finish(st, false, st->current.choice_ids[idx]);
       }
@@ -801,9 +807,13 @@ static void ai_popup_render_text(
       );
     }
     if (c->font) {
+      /* A greyed row (option bit 0) draws every glyph in style+4 (FUN_6f74_0538, caller BX & 1):
+       * grey as both inks; the {} state still carries. */
+      const bool grey = i < 32 && (c->req->disabled_mask >> i & 1u);
       popup_draw_text_markup(
-        c->font, c->fb, c->inner_x + c->pad_x + c->row_dx, row_y, c->req->choices[i], text_color,
-        hilite_color, colors, &emph
+        c->font, c->fb, c->inner_x + c->pad_x + c->row_dx, row_y, c->req->choices[i],
+        grey ? COLONIZE_COL_GREY : text_color, grey ? COLONIZE_COL_GREY : hilite_color, colors,
+        &emph
       );
     }
   }

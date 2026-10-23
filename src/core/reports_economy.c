@@ -95,8 +95,9 @@ void reports_render_economic_trade(
      * column headers below). */
     const char* live = reports_labels_field("MISC", 206);
     const char* kSubtitle = live ? live : "";
-    const int w = font_text_width(font, kSubtitle);
-    reports_draw_line(font, fb, (fb->width - w) / 2, y - 1, kSubtitle, REPORTS_ECON_LABEL_COLOR);
+    /* FUN_281f_0022(sub, 0, 0x140, FONTTINY[0] + 6, 0x91) -> FUN_281f_0100 (FUN_3f41_1438 /
+     * 1710 / 1b94 / 1e80, port_bugs.md #1211). */
+    reports_draw_dos_centered(font, fb, 0, 0x140, font->max_height + 6, kSubtitle, 0x91);
   }
 
   /* Column headers live from LABELS.TXT @MISC: Tons #58, Gold #59,
@@ -227,8 +228,9 @@ void reports_render_economic_cargo(
     /* LABELS.TXT @MISC index 207 (2026-08-27 fix). */
     const char* live = reports_labels_field("MISC", 207);
     const char* kSubtitle = live ? live : "";
-    const int w = font_text_width(font, kSubtitle);
-    reports_draw_line(font, fb, (fb->width - w) / 2, y - 1, kSubtitle, REPORTS_ECON_LABEL_COLOR);
+    /* FUN_281f_0022(sub, 0, 0x140, FONTTINY[0] + 6, 0x91) -> FUN_281f_0100 (FUN_3f41_1438 /
+     * 1710 / 1b94 / 1e80, port_bugs.md #1211). */
+    reports_draw_dos_centered(font, fb, 0, 0x140, font->max_height + 6, kSubtitle, 0x91);
   }
 
   /* Column rules run the full height of the icon header row too, not just
@@ -513,8 +515,9 @@ void reports_render_colony_garrisons(
     /* LABELS.TXT @MISC index 208 (2026-08-27 fix). */
     const char* live = reports_labels_field("MISC", 208);
     const char* kSubtitle = live ? live : "";
-    const int w = font_text_width(font, kSubtitle);
-    reports_draw_line(font, fb, (fb->width - w) / 2, y - 1, kSubtitle, REPORTS_COLONY_LABEL_COLOR);
+    /* FUN_281f_0022(sub, 0, 0x140, FONTTINY[0] + 6, 0x91) -> FUN_281f_0100 (FUN_3f41_1438 /
+     * 1710 / 1b94 / 1e80, port_bugs.md #1211). */
+    reports_draw_dos_centered(font, fb, 0, 0x140, font->max_height + 6, kSubtitle, 0x91);
   }
   if (!col1) {
     return;
@@ -724,8 +727,9 @@ void reports_render_colony_sol(
     /* LABELS.TXT @MISC index 209 (2026-08-27 fix). */
     const char* live = reports_labels_field("MISC", 209);
     const char* kSubtitle = live ? live : "";
-    const int w = font_text_width(font, kSubtitle);
-    reports_draw_line(font, fb, (fb->width - w) / 2, y - 1, kSubtitle, REPORTS_COLONY_LABEL_COLOR);
+    /* FUN_281f_0022(sub, 0, 0x140, FONTTINY[0] + 6, 0x91) -> FUN_281f_0100 (FUN_3f41_1438 /
+     * 1710 / 1b94 / 1e80, port_bugs.md #1211). */
+    reports_draw_dos_centered(font, fb, 0, 0x140, font->max_height + 6, kSubtitle, 0x91);
   }
   if (!col1) {
     return;

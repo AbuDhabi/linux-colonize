@@ -380,8 +380,30 @@ game palette (WOODPANL family) with the WOODTILE frame, settled by a DOSBox-X ca
 OPENMENU / OPENTILE). The king's audience (`FUN_75c2_20e2`, also the war-end throne)
 swaps the style to ink 0xf2, enhance 0x2f, shadow 0; the sail captions (`FUN_1262_0152`)
 to ink 0x0e, enhance 0x36, shadow 47. Difficulty, nation, customize and @BUILD1 match the
-capture pixel for pixel; the dialog/leader/lore/king layouts do not yet (port_bugs.md
-#1210). Tests: `unit_new_game wizard_picture_text_is_dos`, `wizard_prose_text_is_one_pass`.
+capture pixel for pixel. Tests: `unit_new_game wizard_picture_text_is_dos`,
+`wizard_prose_text_is_one_pass`.
+
+Wizard dialog layout (port_bugs.md #1210, `new_game_render_dialog`). @AMERICA (`FUN_281f_03fe`),
+the map picker (`FUN_75c2_0000`: GAME @MAPTOLOAD + one row per `*.MP`), @NATIONnA/B and the
+king's @VICEROY are `FUN_6f74_14c6` boxes parsed like `FUN_6f74_32a4` (prose until a blank or
+@OPTIONS, `_` read as a space by `FUN_7314_0106`, @WIDTH taken as given, no 0x50 floor once set):
+content = max(@width, widest row + 8), prose wrapped to content - 2 * margin by
+`popup_wrap_text_dos`, `^^` rows at + (wrap_w >> 1) - (width >> 1) (`popup_dos_center_dx`,
+6f74:1263), h = sp + 2 * frame + prose + rows * (glyph_h + sp) + sp. @LEADERNAME, the lore pages
+and the king's audience are frameless: `FUN_281f_040a` -> `FUN_6f74_37f6` sets DS:0x1f56 |= 0x18
+before the box is built, so `FUN_6f74_06d0` zeroes box[+0x46] / [+0x48] and 14c6 box[+0x2a]
+(no wood, margin, spacing): the lore is x 10 w 300 over WOODPANL, the leader prompt is
+`popup_field_frame_frameless` (field length 0x17, label = the @OPTIONS row of underscores, so the
+box starts at x 10 + 23 spaces = 79), the king text sits at @X 232 / @Y 21 in FONTKING. The king's
+banners and KING1 (and the throne's KINGWIN / KINGLOSE) are `FUN_281f_02f8` -> `FUN_1c56_0004`
+at 100% on the sprite's header anchor (`ss_blit_anchored`: ENGLND1 (32, 0), KING1 (0, 12)).
+`FUN_6f74_1198` charges a continuation line's first word its leading space (6f74:13fd: local_8
+restarts at the measured " word"), so @NATION0A breaks "...had neither" before "the";
+`popup_wrap_text_dos` does that, in-game dialogs still use `popup_wrap_text` (port_bugs.md
+#1216). Against the DOSBox-X captures of 2026-10-23 every wizard screen (@AMERICA, map picker,
+difficulty, nation, @LEADERNAME, @NATION0A / 0B, king) now matches pixel for pixel outside the
+13x19 mouse pointer (before: 9641 / 6724 / 0 / 0 / 1984 / 1591 / 239 / 8913 px). Test:
+`unit_new_game wizard_dialog_layout_is_dos`.
 
 The same rows drive `ai_popup_render` and the `popup_list_metrics_dos6f74` list
 (save/load picker) since port_bugs.md #1189: row 0's bar top is `popup_dos_list_y0`
@@ -446,8 +468,9 @@ Purchase / dock menus (greyed rows skipped), and the colony jobs / leave-as / do
 construction lists (`colony_screen_list_key`: a paged jobs / construction list's "(More)" row
 is a row like the others, `ColonyScreenView.more_selected`; Enter on it turns the page; page 1
 of the jobs list opens on its "(More)" row unless the occupation is listed there).
-`save_load_dialog.c` keeps its own wrap. Not wrapped: the new-game wizard lists (port_bugs.md
-#1212), the Custom House (no keyboard bar, #1213); the colony message popup has no DOS builder.
+`save_load_dialog.c` keeps its own wrap; the new-game @AMERICA / map picker rows wrap too
+(port_bugs.md #1212). Not wrapped: the Custom House (no keyboard bar, #1213); the colony message
+popup has no DOS builder.
 Tests: `smoke_popup_dialogs list_keys_wrap`, `smoke_ai_popup case_choice_keys_wrap`,
 `unit_stage_seams test_colony_list_keys_wrap`.
 

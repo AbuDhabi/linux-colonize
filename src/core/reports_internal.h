@@ -39,6 +39,15 @@
 const ColonizeSpriteSheet* reports_icons_for(
   const ColonizeReportsView* view, int dest
 );
+void reports_draw_dos_centered(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb,
+  int x,
+  int w,
+  int y,
+  const char* text,
+  uint8_t color
+);
 void reports_draw_line(
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,

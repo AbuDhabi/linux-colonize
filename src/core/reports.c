@@ -17,6 +17,7 @@
 
 #include "core/fb.h"
 #include "core/strutil.h"
+#include "core/ui_colors.h"
 #include "core/unit_chrome.h"
 
 #include <stdio.h>
@@ -245,6 +246,24 @@ void reports_draw_line(
   font_draw_text(font, fb, x, y, text, color);
 }
 
+/* FUN_281f_0100 -> FUN_104b_0318 (raw 1007): one FONTTINY pass through {skip, c, c, c},
+ * centred at x + (w >> 1) - ((width - 1) >> 1) (FUN_104b_0216 = width - 1), floored at 0. */
+void reports_draw_dos_centered(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb,
+  int x,
+  int w,
+  int y,
+  const char* text,
+  uint8_t color
+) {
+  if (!font || !text || !text[0]) {
+    return;
+  }
+  const int cx = x + (w >> 1) - ((font_text_width_skip(font, text, FONT_SKIP_NONE) - 1) >> 1);
+  reports_draw_line(font, fb, cx < 0 ? 0 : cx, y, text, color);
+}
+
 int reports_line_step(const ColonizeFont* font) {
   const int h = font ? (font->max_height + 2) : 8;
   return h < 8 ? 8 : h;
@@ -270,19 +289,16 @@ static void reports_render_body_start(
 
   const ColonizeFont* title_font =
     (view && view->title_font_ok) ? &view->title_font : font;
-  const char* title = reports_title(id);
-  const int title_w = title_font ? font_text_width(title_font, title) : 0;
-  /* WOODPANL.PIK (F10 Score) doesn't remap palette index 15 to a gold shade
-   * the way every other report background does — its index 15 is literal
-   * EGA white. Score's title/body ink is index 149 (199,162,32), confirmed
-   * against score.png. */
-  const uint8_t title_color = (id == COLONIZE_REPORT_SCORE) ? 149 : 15;
-  /* Foreign Affairs' title sits ~3px higher in the golden than every other
-   * report (measured: foreign.png's title top is native y=2, everyone
-   * else's is y=5) — REPORT8.PIK's own baked title position, not a shared
-   * font/layout quirk. */
+  /*
+   * Every plate's own title call is FUN_281f_0022(title, 0, 0x140, y, ink) -> FUN_281f_0100
+   * (reports_draw_dos_centered): F2..F9 (FUN_3f41_0618 / 06d0 / 0d3e / 10d8 / 1438 / 1710 /
+   * 1b94 / 1e80 / 20b4 / 2548 / 010a) at y 5 in ink 0x90, a raw index into the plate's own
+   * PIK palette; F8 (FUN_3f41_2548 raw 70810) at y 2; F10 (FUN_41f2_0092 raw 71095) at y 5
+   * in DS:0x831, the @COLORS hilite 149 (port_bugs.md #1211).
+   */
+  const uint8_t title_color = (id == COLONIZE_REPORT_SCORE) ? COLONIZE_COL_HILITE : 0x90;
   const int title_y = (id == COLONIZE_REPORT_FOREIGN) ? 2 : 5;
-  reports_draw_line(title_font, fb, (fb->width - title_w) / 2, title_y, title, title_color);
+  reports_draw_dos_centered(title_font, fb, 0, 0x140, title_y, reports_title(id), title_color);
   *out_y = 4 + reports_line_step(font) + 4;
 }
 
@@ -316,19 +332,24 @@ static void reports_draw_rect_outline(
   fb_rect_outline(fb, x0, y0, x1 - x0, y1 - y0, color, color);
 }
 
-static void reports_render_ok_button(const ColonizeFont* font, ColonizeFramebuffer8* fb) {
+/*
+ * FUN_3f41_008a (raw 69424, via FUN_291f_0ee8 with x -2 -> 0x11e, y -1 -> 0xb8): the
+ * FUN_281f_00ce outline x..x + 0x1d, y..y + 0xd in 0x77, then LABELS @MISC 46 (DS:0x2e16)
+ * through FUN_281f_0100 (FONTTINY, reports_draw_dos_centered) in x w 0x1e at
+ * y - ((FONTTINY[0] >> 1) - 7), ink 0x92 (port_bugs.md #1211).
+ */
+static void reports_render_ok_button(const ColonizeFont* tiny, ColonizeFramebuffer8* fb) {
   reports_draw_rect_outline(
-    fb, REPORTS_OK_X, REPORTS_OK_Y, REPORTS_OK_X + REPORTS_OK_W, REPORTS_OK_Y + REPORTS_OK_H, 4
+    fb, REPORTS_OK_X, REPORTS_OK_Y, REPORTS_OK_X + REPORTS_OK_W, REPORTS_OK_Y + REPORTS_OK_H, 0x77
   );
-  if (!font) {
+  if (!tiny) {
     return;
   }
   char ok_w[16];
   reports_misc_word(46, "", ok_w, sizeof(ok_w));
-  const int tw = font_text_width(font, ok_w);
-  const int tx = REPORTS_OK_X + (REPORTS_OK_W - tw) / 2;
-  const int ty = REPORTS_OK_Y + (REPORTS_OK_H - font->max_height) / 2;
-  reports_draw_line(font, fb, tx, ty, ok_w, 14);
+  reports_draw_dos_centered(
+    tiny, fb, REPORTS_OK_X, REPORTS_OK_W, REPORTS_OK_Y - ((tiny->max_height >> 1) - 7), ok_w, 0x92
+  );
 }
 
 int reports_clamp_nation(int human_nation) {
@@ -816,6 +837,6 @@ void reports_render_w(
   }
 
   if (id != COLONIZE_REPORT_SCORE) {
-    reports_render_ok_button(font, framebuffer);
+    reports_render_ok_button((view && view->title_font_ok) ? &view->title_font : font, framebuffer);
   }
 }
