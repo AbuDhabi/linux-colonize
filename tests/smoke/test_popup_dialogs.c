@@ -1,6 +1,7 @@
 #include "core/ai_popup.h"
 #include "core/assets.h"
 #include "core/cheat_list_dialog.h"
+#include "core/font_file.h"
 #include "core/game_loop_internal.h"
 #include "core/howmuch_dialog.h"
 #include "core/name_entry_dialog.h"
@@ -270,6 +271,100 @@ static int case_game_confirmation_catalog_choices(void) {
   return 0;
 }
 
+/*
+ * port_bugs.md #1187: the Europe Recruit / Purchase / Train dialogs are the generic 6f74 list
+ * dialog and must land on the rects measured off the DOS reference shots
+ * (original_screenshots/europe/, black rule to black rule): recruit 196x103 at (62,88),
+ * purchase 196x119 at (62,80), train 196x180 at (62,10); first-row selection bar tops at
+ * frame_y + 9 + prose height (137 / 109 / 37). Real GAME.TXT prose and the real fonts: the
+ * line counts (4 / 2 / 3) come from wrapping the real text at content - 4.
+ */
+static int europe_layout(
+  ColonizeGameState* game, int menu, int shot_fy, int shot_h, int bar_y, int glyph_h, int row_h,
+  const char* what
+) {
+  game->europe.menu = menu;
+  EuropeMenuLayout lay;
+  if (!europe_menu_layout(game, 320, 200, &lay)) {
+    fprintf(stderr, "%s: no layout\n", what);
+    return 1;
+  }
+  int rc = 0;
+  if (lay.dialog_x != 62 || lay.dialog_w != 196 || lay.dialog_y != shot_fy ||
+      lay.dialog_h != shot_h || lay.list_y0 != bar_y || lay.glyph_h != glyph_h ||
+      lay.row_h != row_h || !lay.help_footer) {
+    fprintf(stderr,
+            "%s: want frame (62,%d) 196x%d bar %d glyph %d pitch %d footer, got (%d,%d) %dx%d "
+            "bar %d glyph %d pitch %d footer %d\n",
+            what, shot_fy, shot_h, bar_y, glyph_h, row_h, lay.dialog_x, lay.dialog_y,
+            lay.dialog_w, lay.dialog_h, lay.list_y0, lay.glyph_h, lay.row_h, lay.help_footer);
+    rc = 1;
+  }
+  /* The click hit-test follows the same rows: bar top row 0, the 1 px gap, past the last row. */
+  if (europe_menu_row_at(game, 120, lay.list_y0 + 3) != 0 ||
+      europe_menu_row_at(game, 120, lay.list_y0 - 1) != -1 ||
+      europe_menu_row_at(game, 120, lay.list_y0 + row_h * lay.rows - 1) != lay.rows - 1 ||
+      europe_menu_row_at(game, 120, lay.list_y0 + row_h * lay.rows) != -1 ||
+      europe_menu_row_at(game, lay.dialog_x + 3, lay.list_y0 + 3) != -1) {
+    fprintf(stderr, "%s: row hit-test off the bar rows\n", what);
+    rc = 1;
+  }
+  return rc;
+}
+
+static int case_europe_menu_frames_are_dos(void) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game) {
+    return fail("allocate game state");
+  }
+  char err[128];
+  assets_msg_init(&game->messages);
+  if (!assets_msg_load_file(&game->messages, "COLONIZE/GAME.TXT") ||
+      !font_file_load("COLONIZE/FONTINTR.FF", &game->intro_font, err, sizeof(err)) ||
+      !font_file_load("COLONIZE/FONTTINY.FF", &game->colony_font, err, sizeof(err))) {
+    assets_msg_free(&game->messages);
+    free(game);
+    fprintf(stderr, "SKIP: assets: %s\n", err);
+    return TR_SKIP;
+  }
+  game->intro_font_ok = true;
+  game->colony_font_ok = true;
+  ai_popup_set_portrait_source("COLONIZE");
+  game->europe.recruit_passage = 116; /* recruit.png: "(116 gold)" */
+  game->europe.train_count = 17;
+  game->europe.purchase_count = 6;
+  game->europe.dock_menu_count = 6;
+
+  int rc = 0;
+  rc |= europe_layout(game, EUROPE_MENU_RECRUIT, 88, 103, 137, 9, 12, "recruit.png");
+  rc |= europe_layout(game, EUROPE_MENU_PURCHASE, 80, 119, 109, 9, 12, "purchase.png");
+  rc |= europe_layout(game, EUROPE_MENU_TRAIN, 10, 180, 37, 5, 8, "train.png");
+
+  /* @REALLYBUY confirm: a plain popup (no DS:0x1f66 footer, default +0x22 = 4), 12 + 10 + 2 * 12. */
+  game->europe.menu = EUROPE_MENU_PURCHASE;
+  game->europe.purchase_confirming = true;
+  EuropeMenuLayout lay;
+  if (!europe_menu_layout(game, 320, 200, &lay) || lay.dialog_h != 46 || lay.help_footer ||
+      lay.row_dx != 4 || lay.rows != 2) {
+    fprintf(stderr, "confirm: h %d footer %d dx %d rows %d\n", lay.dialog_h, lay.help_footer,
+            lay.row_dx, lay.rows);
+    rc = 1;
+  }
+  game->europe.purchase_confirming = false;
+  /* Dock options: 1 prose line + 6 rows + footer = 97, centred plain (no figure): y = 100 - 48. */
+  game->europe.menu = EUROPE_MENU_DOCK;
+  if (!europe_menu_layout(game, 320, 200, &lay) || lay.dialog_h != 97 || lay.dialog_y != 52 ||
+      lay.row_dx != 8 || lay.graphic) {
+    fprintf(stderr, "dock: h %d y %d dx %d\n", lay.dialog_h, lay.dialog_y, lay.row_dx);
+    rc = 1;
+  }
+  font_file_free(&game->intro_font);
+  font_file_free(&game->colony_font);
+  assets_msg_free(&game->messages);
+  free(game);
+  return rc;
+}
+
 static int case_debug_test_ignores_directives(void) {
   ColonizeGameState* game = calloc(1, sizeof(*game));
   if (!game) {
@@ -364,6 +459,7 @@ static const TestCase k_cases[] = {
     {"game_txt_wired_sections", case_game_txt_wired_sections},
     {"recruitchoose_width", case_recruitchoose_width},
     {"game_confirmation_catalog_choices", case_game_confirmation_catalog_choices},
+    {"europe_menu_frames_are_dos", case_europe_menu_frames_are_dos},
     {"debug_test_ignores_directives", case_debug_test_ignores_directives},
     {"cheat_list_shared_parser", case_cheat_list_shared_parser},
 };

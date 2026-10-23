@@ -8,23 +8,23 @@
 key e                    # open the European Status screen
 wait 10
 click 241 146            # slot 0 Dragoon menu (4 rows: no ToFront on slot 0)
-click 120 105            # Sell Horses: Dragoon -> Soldier
+click 120 112            # Sell Horses: Dragoon -> Soldier
 click 241 146            # slot 0 Soldier (4 rows)
-click 120 94             # Sell Muskets: Soldier -> plain Colonist
+click 120 100             # Sell Muskets: Soldier -> plain Colonist
 click 258 146            # slot 1 Dragoon menu (5 rows)
-click 120 100            # Sell Muskets: Dragoon -> Scout (stays a Scout)
+click 120 106            # Sell Muskets: Dragoon -> Scout (stays a Scout)
 click 275 146            # slot 2 Pioneer menu (4 rows)
-click 120 105            # Sell Tools: Pioneer -> Colonist
+click 120 112            # Sell Tools: Pioneer -> Colonist
 click 275 146            # slot 2 Colonist menu (7 rows)
-click 120 89             # Arm with Muskets: Colonist -> Soldier (the indirect Pioneer -> Soldier switch)
+click 120 94             # Arm with Muskets: Colonist -> Soldier (the indirect Pioneer -> Soldier switch)
 click 241 169            # slot 3 blessed colonist menu (4 rows)
-click 120 105            # Unbless (drop the Missionary status): Missionary -> Colonist
+click 120 112            # Unbless (drop the Missionary status): Missionary -> Colonist
 click 241 169            # slot 3 Colonist menu (7 rows)
-click 120 111            # Equip with Horses: Colonist -> Scout
+click 120 118            # Equip with Horses: Colonist -> Scout
 click 258 169            # slot 4 Soldier menu (5 rows)
-click 120 100            # Sell Muskets: Soldier -> Colonist
+click 120 106            # Sell Muskets: Soldier -> Colonist
 click 275 169            # slot 5 Scout menu (5 rows)
-click 120 111            # Sell Horses: Scout -> Colonist
+click 120 118            # Sell Horses: Scout -> Colonist
 click 292 169            # slot 6 Jesuit menu: only NoBoard, ToFront, NoChanges (no Unbless for a born Missionary)
-click 120 111            # No changes.
+click 120 118            # No changes.
 key e                    # leave Europe

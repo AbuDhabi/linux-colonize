@@ -53,7 +53,10 @@ static void colony_screen_open_dialog_frame(
   if (dialog_w > framebuffer->width - 8) {
     dialog_w = framebuffer->width - 8;
   }
-  const int dialog_x = (framebuffer->width - dialog_w) / 2;
+  const PopupDosPlace pl =
+    popup_place_dos(framebuffer->width, framebuffer->height, dialog_w, dialog_h, NULL);
+  const int dialog_x = pl.x;
+  dialog_y = pl.y; /* PROBE */
   ColonizePopupColors colors;
   popup_colors_from_ui(&colors);
   popup_draw(

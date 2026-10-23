@@ -295,10 +295,60 @@ static int case_place_dos(void) {
   return rc;
 }
 
+/*
+ * FUN_6f74_14c6 list-dialog height (popup_dos_list_height), port_bugs.md #1187:
+ * h = 12 + prose + rows * (glyph_h + 3) + the DS:0x1f66 footer (6 under FONTTINY, else 3).
+ * The three DOS reference shots (original_screenshots/europe/, black top rule row to
+ * bottom rule row) are the oracle: recruit 103 (4 prose lines, 4 rows, FONTINTR),
+ * purchase 119 (2 lines, 7 rows), train 180 (3 lines, 18 rows, FONTTINY).
+ */
+static int case_list_height_dos(void) {
+  int rc = 0;
+  ColonizeFont font;
+  const bool have_font = load_font(&font);
+  const struct {
+    const char* what;
+    int glyph_h, prose_lines, rows;
+    bool footer, tiny;
+    int h;
+  } k[] = {
+    {"recruit.png", 9, 4, 4, true, false, 103},
+    {"purchase.png", 9, 2, 7, true, false, 119},
+    {"train.png", 5, 3, 18, true, true, 180},
+    {"no footer (@REALLYBUY confirm: 1 line, Yes/No)", 9, 1, 2, false, false, 46},
+    {"no prose list", 9, 0, 3, false, false, 3 + 6 + 36 + 3},
+  };
+  for (size_t i = 0; i < sizeof(k) / sizeof(k[0]); ++i) {
+    const int h = popup_dos_list_height(
+      k[i].glyph_h, k[i].prose_lines * (k[i].glyph_h + 1), k[i].rows, k[i].footer, k[i].tiny
+    );
+    if (h != k[i].h) {
+      fprintf(stderr, "%s: want h %d, got %d\n", k[i].what, k[i].h, h);
+      rc = 1;
+    }
+  }
+  /* FUN_6f74_0f16: FONTINTR is 9 high, a 6-row font counts as 5, no font = the 6-row default. */
+  if (popup_dos_glyph_h(NULL) != 5 || (have_font && popup_dos_glyph_h(&font) != 9)) {
+    fprintf(stderr, "popup_dos_glyph_h\n");
+    rc = 1;
+  }
+  ColonizeFont tiny = {.max_height = 6};
+  ColonizeFont big = {.max_height = 9};
+  if (popup_dos_glyph_h(&tiny) != 5 || popup_dos_glyph_h(&big) != 9) {
+    fprintf(stderr, "popup_dos_glyph_h: 6 -> 5, 9 -> 9\n");
+    rc = 1;
+  }
+  if (have_font) {
+    font_file_free(&font);
+  }
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"field_body_is_unbold_markup", case_field_body_is_unbold_markup},
   {"field_geometry_is_dos", case_field_geometry_is_dos},
   {"field_decoration_is_dos", case_field_decoration_is_dos},
   {"place_dos", case_place_dos},
+  {"list_height_dos", case_list_height_dos},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

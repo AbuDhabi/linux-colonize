@@ -247,6 +247,27 @@ PopupDosPlace popup_place_dos(
 );
 
 /*
+ * FUN_6f74_0f16 glyph height of a dialog font (font[0]; the 6-row font counts as 5
+ * unless DS:0x1f8a is set, which no dialog sets). NULL font = the 6-row default.
+ */
+int popup_dos_glyph_h(const ColonizeFont* font);
+
+/*
+ * FUN_6f74_14c6 height of a framed list dialog (prose + option rows), asm 6f74:1540-16c8:
+ *   h = 2*box[+0x4a] + box[+0x46]   (0 + 3)
+ *     + 6                            (frame, flags & 0x10 clear)
+ *     + prose_h + (glyph_h + box[+0x46]) * rows + box[+0x46]   (the +0x58 / +0x54 lists)
+ *     + footer                       (DS:0x1f66 "(F1 for Help)": 6 when the dialog font is
+ *                                     FONTTINY = DS:0x89e, else 3; 0 when the flag is clear)
+ * prose_h = prose lines * (glyph_h + 1) (FUN_6f74_1198). DOS shots: Recruit 103 (4 prose lines,
+ * 4 rows, FONTINTR), Purchase 119 (2, 7), Train 180 (3, 18, FONTTINY). A dialog with neither
+ * list is not covered (DOS skips the list block). The first row's selection bar top is
+ * frame_y + 9 + prose_h (6 without prose), text one row lower; the footer text top is
+ * frame_y + h - 7 (FONTTINY dialogs h - 9), FUN_6f74_1a78.
+ */
+int popup_dos_list_height(int glyph_h, int prose_h, int rows, bool help_footer, bool tiny_font);
+
+/*
  * DOS text-entry dialog (FUN_291f_0120 -> FUN_6f74_37fc: the generic compositor
  * with one edit-field row, port_bugs.md #1181). Layout read from the asm:
  *   FUN_6f74_0d44  label = GAME.TXT row after the blank + " ", label_w = its

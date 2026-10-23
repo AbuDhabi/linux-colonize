@@ -540,14 +540,18 @@ bool game_europe_menu_confirm(ColonizeGameState* game) {
  * was drawing them in (port_bugs.md). Same getter feeds the layout and the
  * renderer so the row pitch the hit-test uses is the row pitch drawn.
  */
+static bool europe_menu_tiny(const ColonizeGameState* game) {
+  /* GAME.TXT @KINGRECRUIT (the Train dialog) carries @smallfont — DOS swaps
+   * the list dialog to FONTTINY for it (port_bugs.md: "improper fonts"); the
+   * other three stay on FONTINTR, the generic dialog font. */
+  return game && game->europe.menu == EUROPE_MENU_TRAIN && game->colony_font_ok;
+}
+
 static const ColonizeFont* europe_menu_font(const ColonizeGameState* game) {
   if (!game) {
     return NULL;
   }
-  /* GAME.TXT @KINGRECRUIT (the Train dialog) carries @smallfont — DOS swaps
-   * the list dialog to FONTTINY for it (port_bugs.md: "improper fonts"); the
-   * other three stay on FONTINTR, the generic dialog font. */
-  if (game->europe.menu == EUROPE_MENU_TRAIN && game->colony_font_ok) {
+  if (europe_menu_tiny(game)) {
     return &game->colony_font;
   }
   return game_popup_font(game);
@@ -644,18 +648,22 @@ static void europe_menu_title_prose(const ColonizeGameState* game, char* buf, si
   buf[o] = '\0';
 }
 
-/* DOS list-dialog text carries a 1px black drop shadow (recruit/train/
- * purchase screenshots — port_bugs.md: "shading, mostly"). */
+/* DOS FONTINTR list-dialog text carries a 1px dark drop shadow (recruit/purchase
+ * screenshots — port_bugs.md: "shading, mostly"); the FONTTINY Train dialog has
+ * none (train.png), so `shadow` is off there (port_bugs.md #1187). */
 static void europe_menu_draw_shadowed(
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,
   int x,
   int y,
   const char* text,
-  uint8_t color
+  uint8_t color,
+  bool shadow
 ) {
   /* port_bugs.md #280: thin letters like every other dialog caption. */
-  font_draw_text_unbold(font, fb, x + 1, y + 1, text, 0);
+  if (shadow) {
+    font_draw_text_unbold(font, fb, x + 1, y + 1, text, 0);
+  }
   font_draw_text_unbold(font, fb, x, y, text, color);
 }
 
@@ -684,23 +692,23 @@ static int europe_draw_prose(
   int y,
   int w,
   const char* text,
+  int line_h, /* FUN_6f74_1198 pitch: popup_dos_glyph_h + 1 */
   uint8_t base_color,
-  uint8_t hi_color
+  uint8_t hi_color,
+  bool shadow
 ) {
   if (!font || !text || w <= 0) {
     return 0;
   }
-  const int line_h = font->max_height + 1;
   char lines[EUROPE_PROSE_MAX_LINES][EUROPE_PROSE_LINE_LEN];
   const int n =
     popup_wrap_text(font, text, lines[0], sizeof(lines[0]), NULL, EUROPE_PROSE_MAX_LINES, w);
   bool hi = false;
   for (int i = 0; i < n; ++i) {
     popup_draw_text_markup(font, fb, x, y + i * line_h, lines[i], base_color, hi_color, true,
-                           true, &hi);
+                           shadow, &hi);
   }
-  /* An all-blank body still reserves one line, the way the old word loop did. */
-  return (n > 0 ? n : 1) * line_h;
+  return n * line_h;
 }
 
 /*
@@ -749,26 +757,24 @@ const ColonizeSpriteSheet* europe_menu_decoration(const ColonizeGameState* game)
   return sheet;
 }
 
-typedef struct EuropeMenuLayout {
-  int rows;
-  int dialog_x;
-  int dialog_y;
-  int dialog_w;
-  int dialog_h;
-  int inner_x;
-  int inner_y;
-  int inner_w;
-  int title_h;
-  int list_y0;
-  int line_h;
-  int pad;
-  /* MSS decoration, NULL when this menu has none or it does not fit. */
-  const ColonizeSpriteSheet* graphic;
-  int graphic_x;
-  int graphic_y;
-} EuropeMenuLayout;
 
-static bool europe_menu_layout(
+/*
+ * Geometry of the Europe list dialog, all of it from the generic 6f74 compositor
+ * (docs/popups.md "Europe in-screen menus", port_bugs.md #1187):
+ *   size       FUN_6f74_14c6 (6f74:1540-16c8), popup_dos_list_height: 12 + prose + rows
+ *              * (glyph_h + 3) + the DS:0x1f66 "(F1 for Help)" footer (6 under FONTTINY,
+ *              else 3). Frame width = max(0x50, @width) + 6.
+ *   prose      FUN_6f74_1198, wrapped to content - 4, at (frame + 5, frame + 6), pitch
+ *              glyph_h + 1.
+ *   rows       FUN_6f74_1b7c: row k's bar tops at list_y0 = frame_y + 9 + prose_h, pitch
+ *              glyph_h + 3, text at (frame + 5 + box[+0x22], bar top + 1). FUN_38fd_4884 /
+ *              4b50 / 41ce / 3694 set box[+0x22] = 8; the @REALLYBUY confirm is a plain
+ *              FUN_281f_0652 popup (box default +0x22 = 4, FUN_6f74_06d0) and DOS clears
+ *              DS:0x1f66 when each dialog exits (FUN_6f74_2580), so it has no footer.
+ * DOS shots (original_screenshots/europe/): recruit 196x103 at (62,88), purchase 196x119
+ * at (62,80), train 196x180 at (62,10).
+ */
+bool europe_menu_layout(
   const ColonizeGameState* game,
   int fb_w,
   int fb_h,
@@ -779,8 +785,10 @@ static bool europe_menu_layout(
   }
   const EuropeScreen* eu = &game->europe;
   const ColonizeFont* font = europe_menu_font(game);
-  out->line_h = font ? (font->max_height + 2) : 9;
-  out->pad = 4;
+  memset(out, 0, sizeof(*out));
+  out->tiny = europe_menu_tiny(game);
+  out->glyph_h = popup_dos_glyph_h(font);
+  out->row_h = out->glyph_h + 3;
   switch (eu->menu) {
     case EUROPE_MENU_RECRUIT:
       out->rows = 1 + EUROPE_POOL_SIZE;
@@ -801,37 +809,39 @@ static bool europe_menu_layout(
     default:
       return false;
   }
+  const bool confirm = eu->menu == EUROPE_MENU_PURCHASE && eu->purchase_confirming;
+  out->help_footer = !confirm;
+  out->row_dx = confirm ? 4 : 8;
   /*
    * Width comes from the menu section's own GAME.TXT @width directive, the
    * same directive every other popup honours (popup_msg_section_width):
    * @RECRUIT / @KINGRECRUIT / @PURCHASE / @EUROPEARM all read @width=190.
-   * The port's hardcoded 220 was 30px too wide (that is @RECRUITCHOOSE's
-   * width, the Brewster pick dialog, not these four).
+   * FUN_6f74_14c6's content width is max(0x50 default, @width); the frame adds
+   * 3 px of wood per side.
    */
   const ColonizeMsgSection* width_sec =
     assets_msg_find(&game->messages, europe_menu_section(eu->menu));
-  const int msg_w = popup_msg_section_width(width_sec);
-  int dialog_w = msg_w > 0 ? msg_w : 220;
-  if (dialog_w > fb_w - 8) {
-    dialog_w = fb_w - 8;
+  int content_w = popup_msg_section_width(width_sec);
+  if (content_w < 0x50) {
+    content_w = 0x50;
   }
-  out->inner_w = dialog_w - POPUP_FRAME_INSET * 2;
-  /* Multi-line GAME.TXT prose title; measure with the menu's own font so
-   * the row hit-test can never drift from the drawn rows. */
+  if (content_w + 6 > fb_w) {
+    content_w = fb_w - 6;
+  }
+  out->dialog_w = content_w + 6;
+  out->prose_w = content_w - 4;
+  /* Prose, measured with the menu's own font so the rows can never drift from it. */
   char prose[512];
   europe_menu_title_prose(game, prose, sizeof(prose));
-  out->title_h = font ? europe_draw_prose(
-                          font, NULL, 0, 0, out->inner_w - out->pad * 2, prose, 10, 14
-                        )
-                      : out->line_h;
-  /* +line_h at the bottom: the DOS "(F1 for Help)" footer line. */
-  int dialog_h = POPUP_FRAME_INSET * 2 + out->pad + out->title_h + 2 +
-                 out->rows * out->line_h + out->line_h + out->pad;
-  if (dialog_h > fb_h - 8) {
-    dialog_h = fb_h - 8;
+  out->prose_h =
+    prose[0] ? europe_draw_prose(font, NULL, 0, 0, out->prose_w, prose, out->glyph_h + 1, 0, 0, false)
+             : 0;
+  out->dialog_h = popup_dos_list_height(
+    out->glyph_h, out->prose_h, out->rows, out->help_footer, out->tiny
+  );
+  if (out->dialog_h > fb_h) {
+    out->dialog_h = fb_h;
   }
-  out->dialog_w = dialog_w;
-  out->dialog_h = dialog_h;
   /*
    * DOS auto-places the list dialog like every other one (FUN_6f74_14c6, via
    * popup_place_dos: 160 - (w >> 1), 100 - (h >> 1) as arithmetic shifts, and the
@@ -845,9 +855,8 @@ static bool europe_menu_layout(
    * train.png's 180 px one (no figure) at y=10 (port_bugs.md #1186).
    */
   out->graphic = europe_menu_decoration(game);
-  out->graphic_x = 0;
-  out->graphic_y = 0;
-  const PopupDosPlace pl = popup_place_dos(fb_w, fb_h, dialog_w, dialog_h, out->graphic);
+  const PopupDosPlace pl =
+    popup_place_dos(fb_w, fb_h, out->dialog_w, out->dialog_h, out->graphic);
   out->dialog_x = pl.x;
   out->dialog_y = pl.y;
   if (out->graphic && !pl.figure) {
@@ -860,10 +869,10 @@ static bool europe_menu_layout(
   if (out->dialog_y < 0) {
     out->dialog_y = 0;
   }
-  out->inner_x = out->dialog_x + POPUP_FRAME_INSET;
-  out->inner_y = out->dialog_y + POPUP_FRAME_INSET;
-  out->list_y0 = out->inner_y + out->pad + out->title_h + 2;
-  return out->inner_w > 0;
+  out->text_x = out->dialog_x + POPUP_FRAME_INSET + 2;
+  out->prose_y = out->dialog_y + 6;
+  out->list_y0 = out->dialog_y + (out->prose_h ? 9 + out->prose_h : 6);
+  return true;
 }
 
 /* Row under (mx,my) in the open Europe menu, or -1 when the click misses it. */
@@ -872,10 +881,11 @@ int europe_menu_row_at(const ColonizeGameState* game, int mx, int my) {
   if (!europe_menu_layout(game, 320, 200, &lay)) {
     return -1;
   }
-  if (mx < lay.inner_x || mx >= lay.inner_x + lay.inner_w || my < lay.list_y0) {
+  /* Bars span frame + 4 .. frame + w - 5 (FUN_6f74_1b7c: content - 2 wide). */
+  if (mx < lay.dialog_x + 4 || mx >= lay.dialog_x + lay.dialog_w - 4 || my < lay.list_y0) {
     return -1;
   }
-  const int row = (my - lay.list_y0) / lay.line_h;
+  const int row = (my - lay.list_y0) / lay.row_h;
   return (row >= 0 && row < lay.rows) ? row : -1;
 }
 
@@ -894,6 +904,10 @@ static void europe_menu_cost_suffix(char* out, size_t cap, int amount) {
            reports_misc_display_word(13, ""), amount, reports_misc_display_word(14, ""));
 }
 
+/* Cost column advance end, frame-right-relative: DOS shots (purchase.png, train.png) end the
+ * ")" ink at frame + 180 = advance end at frame + w - 13. Measured, not read from the asm. */
+#define EUROPE_COST_RIGHT_INSET 13
+
 /* RECRUIT/TRAIN/PURCHASE/DOCK wood popup — chrome via popup_draw. */
 static void europe_render_menu_popup(
   const ColonizeGameState* game,
@@ -908,8 +922,6 @@ static void europe_render_menu_popup(
   if (!europe_menu_layout(game, framebuffer->width, framebuffer->height, &lay)) {
     return;
   }
-  const int line_h = lay.line_h;
-  const int pad = lay.pad;
   const int rows = lay.rows;
 
   ColonizePopupColors colors;
@@ -937,29 +949,34 @@ static void europe_render_menu_popup(
 
   /*
    * DOS list-dialog styling (original_screenshots/europe/recruit|train|
-   * purchase.png): the GAME.TXT prose in green with {highlight} words in
-   * the highlight ink, tan rows with the cost right-aligned as
-   * "(Cost: N)", a grey row when the treasury cannot cover it, and the
-   * "(F1 for Help)" footer bottom-right in green.
+   * purchase.png): the GAME.TXT prose in the basic text ink (RGB 85,150,52)
+   * with {highlight} words in the highlight ink (199,162,32), rows in the
+   * same basic ink with the cost right-aligned as "(Cost: N)", a grey row
+   * when the treasury cannot cover it, and the "(F1 for Help)" footer
+   * bottom-right in the highlight ink. The earlier 10/14/15 indices were
+   * the bright EGA greens/yellows of this palette, not DOS's ink.
    */
   char prose[512];
   europe_menu_title_prose(game, prose, sizeof(prose));
   europe_draw_prose(
-    font, framebuffer, inner_x + pad, inner_y + pad, inner_w - pad * 2, prose, 10, 14
+    font, framebuffer, lay.text_x, lay.prose_y, lay.prose_w, prose, lay.glyph_h + 1,
+    COLONIZE_COL_BASIC, COLONIZE_COL_HILITE, !lay.tiny
   );
 
   for (int i = 0; i < rows; ++i) {
-    const int row_y = lay.list_y0 + i * line_h;
-    if (row_y + line_h > framebuffer->height) {
+    const int bar_y = lay.list_y0 + i * lay.row_h;
+    const int row_y = bar_y + 1; /* FUN_6f74_1b7c: text one row below the bar top */
+    if (bar_y + lay.row_h > framebuffer->height) {
       break;
     }
     if (i == eu->menu_selection) {
-      fb_fill_rect(framebuffer, inner_x + 1, row_y - 1, inner_w - 2, line_h, 138);
+      /* Bar: frame + 4, content - 2 wide, glyph_h + 2 tall (FUN_6f74_1b7c 0x1c5b-0x1c9b). */
+      fb_fill_rect(framebuffer, lay.dialog_x + 4, bar_y, lay.dialog_w - 8, lay.glyph_h + 2, 138);
     }
     char label[72];
     char cost[24];
     cost[0] = '\0';
-    uint8_t color = 14;
+    uint8_t color = COLONIZE_COL_BASIC;
     if (eu->menu == EUROPE_MENU_DOCK) {
       if (i < 0 || i >= eu->dock_menu_count) {
         continue;
@@ -967,7 +984,7 @@ static void europe_render_menu_popup(
       snprintf(label, sizeof(label), "%s", eu->dock_menu_label[i]);
       /* DOS greys a row the treasury cannot cover, and omits the ones it
        * disabled outright (europe_build_dock_menu already dropped those). */
-      color = eu->dock_menu_greyed[i] ? 8 : 15;
+      color = eu->dock_menu_greyed[i] ? COLONIZE_COL_GREY : COLONIZE_COL_BASIC;
     } else if (eu->menu == EUROPE_MENU_PURCHASE && eu->purchase_confirming) {
       /* @REALLYBUY Yes/No, GAME.TXT order verbatim (port_bugs.md #753): row 0
        * "Yes", row 1 "No" (raw 64874 `iVar6 == 1` = row 0). */
@@ -997,35 +1014,41 @@ static void europe_render_menu_popup(
       const EuropeTrainOption* t = &eu->train[i - 1];
       snprintf(label, sizeof(label), "%s", t->expert_name);
       europe_menu_cost_suffix(cost, sizeof(cost), t->cost);
-      color = (eu->gold >= t->cost) ? 14 : 8;
+      color = (eu->gold >= t->cost) ? COLONIZE_COL_BASIC : COLONIZE_COL_GREY;
     } else if (eu->menu == EUROPE_MENU_PURCHASE) {
       const EuropePurchaseOption* p = &eu->purchase[i - 1];
       /* Artillery escalates +100 per prior purchase (FUN_38fd_4b50). */
       const int row_cost = europe_purchase_cost(eu, i - 1);
       snprintf(label, sizeof(label), "%s", p->name);
       europe_menu_cost_suffix(cost, sizeof(cost), row_cost);
-      color = (eu->gold >= row_cost) ? 14 : 8;
+      color = (eu->gold >= row_cost) ? COLONIZE_COL_BASIC : COLONIZE_COL_GREY;
     }
     /* ARMOPTIONS rows carry {} emphasis ("Arm with {Muskets}…"); a greyed
      * row stays all grey like DOS's disabled ink. */
     popup_draw_text_markup(
-      font, framebuffer, inner_x + pad + 6, row_y, label, color,
-      color == 8 ? (uint8_t)8 : (uint8_t)14, true, true, NULL
+      font, framebuffer, lay.text_x + lay.row_dx, row_y, label, color,
+      color == COLONIZE_COL_GREY ? (uint8_t)COLONIZE_COL_GREY : (uint8_t)COLONIZE_COL_HILITE, true,
+      !lay.tiny, NULL
     );
     if (cost[0]) {
       const int cw = font_text_width(font, cost);
       europe_menu_draw_shadowed(
-        font, framebuffer, inner_x + inner_w - pad - cw, row_y, cost, color
+        font, framebuffer, lay.dialog_x + lay.dialog_w - EUROPE_COST_RIGHT_INSET - cw, row_y,
+        cost, color, !lay.tiny
       );
     }
   }
 
-  {
+  if (lay.help_footer) {
+    /* FUN_6f74_1a78: text top at frame bottom - 7 (FONTTINY dialogs - 9), right edge
+     * frame + w - 2; the glyph rows in every DOS shot are the 6-row FONTTINY face. */
+    const ColonizeFont* ff = game->colony_font_ok ? &game->colony_font : font;
     const char* footer_word = reports_misc_display_word(189, "");
-    const int fw = font_text_width(font, footer_word);
-    europe_menu_draw_shadowed(
-      font, framebuffer, inner_x + inner_w - pad - fw,
-      lay.list_y0 + rows * line_h, footer_word, 10
+    const int fw = font_text_width(ff, footer_word);
+    /* Highlight ink, no drop shadow (original_screenshots/europe/purchase.png). */
+    font_draw_text_unbold(
+      ff, framebuffer, lay.dialog_x + lay.dialog_w - 2 - fw,
+      lay.dialog_y + lay.dialog_h - (lay.tiny ? 9 : 7), footer_word, COLONIZE_COL_HILITE
     );
   }
 

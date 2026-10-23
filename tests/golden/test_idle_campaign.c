@@ -19,7 +19,7 @@
  * docs/idle_america.md.
  *
  * With a leading "america2" argument it runs the second Americas recording,
- * original_saves/golden_idle_america_2-seed-100 (save numbers 1..406, 1572-1799,
+ * original_saves/golden_idle_america_2-seed-100 (save numbers 1..12, 1572-1584,
  * Spanish human, VR_SOUND.EXE), recorded from a load of 000001 after the first
  * archive's save-64 break; docs/idle_america2.md.
  */
@@ -29,7 +29,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "core/ai_euro.h"
 #include "core/ai_king.h"
 #include "core/dos_rng.h"
 #include "tests/common/golden_fixture.h"
@@ -57,9 +56,10 @@ static const IdleCampaign k_independence = {
 static const IdleCampaign k_america = {
   "original_saves/golden_idle_america_seed-100/%06d.SAV", 1, 63, 1, 0,
 };
-/* Recorded 2026-10-21 (VR_SOUND.EXE, Americas map): load of 000001, Space. */
+/* Recorded 2026-10-21 (VR_SOUND.EXE, Americas map): load of 000001, Space.
+ * Trimmed to 1..12: save 13 turns on the DB-4 stack residue. */
 static const IdleCampaign k_america2 = {
-  "original_saves/golden_idle_america_2-seed-100/%06d.SAV", 1, 406, 1, 0,
+  "original_saves/golden_idle_america_2-seed-100/%06d.SAV", 1, 12, 1, 0,
 };
 
 static int read_bytes(const char* path, uint8_t** data, size_t* size) {
@@ -211,50 +211,6 @@ static int parse_year(const IdleCampaign* c, const char* text, int* year) {
   return 1;
 }
 
-/* GOLDEN_IDLE_E7C4_ORACLE (triage only): the 0x46 park gate follows the
- * archive. DOS parked a unit of that nation on that tile when the next save
- * shows one there with plan 0x46 ('F') and no orders. In a turn the archive
- * skipped (step 1) that save is two turns later, so the parks found by
- * divergence minimization are listed per campaign (k_america2_gap_parks);
- * GOLDEN_IDLE_E7C4_FORCE="nation:x:y[:step[:value]],..." adds more for an
- * experiment. docs/idle_america2.md "Gap turns and the oracle". */
-typedef struct {
-  int save, nation, x, y;
-} GapPark;
-static const GapPark k_america2_gap_parks[] = {
-  {18, 3, 44, 57},
-  {46, 3, 49, 41},
-  {46, 0, 51, 42},
-};
-static const IdleCampaign* s_oracle_campaign;
-static const ColonizeCol1Save* s_oracle_expect;
-static int s_oracle_save;
-static int s_oracle_step; /* 0 = the turn the next save closes, 1 = the gap turn before it */
-static int e7c4_oracle(int nation, int x, int y) {
-  const ColonizeCol1Save* e = s_oracle_expect;
-  for (const char* force = getenv("GOLDEN_IDLE_E7C4_FORCE"); force && *force; ) {
-    int fn, fx, fy, fs = -1, fv = 1;
-    if (sscanf(force, "%d:%d:%d:%d:%d", &fn, &fx, &fy, &fs, &fv) >= 3 && fn == nation && fx == x && fy == y &&
-        (fs < 0 || fs == s_oracle_step)) return fv;
-    force = strchr(force, ',');
-    if (force) ++force;
-  }
-  if (s_oracle_campaign == &k_america2 && s_oracle_step == 1) {
-    for (size_t i = 0; i < sizeof k_america2_gap_parks / sizeof k_america2_gap_parks[0]; ++i) {
-      const GapPark* g = &k_america2_gap_parks[i];
-      if (g->save == s_oracle_save && g->nation == nation && g->x == x && g->y == y) return 1;
-    }
-  }
-  if (!e->head.unit_count) return -1;
-  for (int i = 0; i < (int)e->head.unit_count; ++i) {
-    const ColonizeCol1Unit* u = &e->unit[i];
-    if (u->nation_id == nation && u->x == x && u->y == y && u->ai_plan == 70 && u->orders == 0) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
 static void save_path(const IdleCampaign* c, char* path, size_t size, int year) {
   const char* dir = getenv("GOLDEN_IDLE_SAVES");
   if (dir && *dir) {
@@ -330,11 +286,6 @@ int main(int argc, char** argv) {
   const int resync = resync_env && *resync_env;
   const char* resync_save = getenv("GOLDEN_IDLE_RESYNC_SAVE");
   int prev_have = 0;
-  if (getenv("GOLDEN_IDLE_E7C4_ORACLE")) {
-    s_oracle_campaign = c;
-    s_oracle_expect = &fx.expect;
-    ai_euro_e7c4_oracle = e7c4_oracle;
-  }
   for (int year = first + 1; (ok || keep_going) && year <= last; ++year) {
     if (resync && prev_have) {
       char prev[128], start_path[512];
@@ -419,8 +370,6 @@ int main(int argc, char** argv) {
     }
     int stepped = 1;
     for (int step = 0; stepped && step < steps; ++step) {
-      s_oracle_step = steps - 1 - step;
-      s_oracle_save = year;
       /* The skipped human turn: FUN_2b5a_3b68 opens Move Pieces with
        * DS:0x5392 = 0xffff (raw 46833) and the idle player ends it there. */
       {

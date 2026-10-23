@@ -2597,8 +2597,6 @@ int ai_euro_20e6_wander_step(
  * epilogue (raw 90374-90386). It also spends no garrison quota and does not
  * require the unit to stand on (or near) a colony of its own. port_bugs.md #512.
  */
-int (*ai_euro_e7c4_oracle)(int nation, int x, int y) = NULL;
-
 static int ai_euro_20e6_border_park_arm(
   ColonizeTurnContext* ctx, const ColonizeUnit* u, const Ai20e6Unit* s, int saw_foe
 ) {
@@ -2624,10 +2622,6 @@ static int ai_euro_20e6_border_park_arm(
   }
   if (!border) {
     return 0;
-  }
-  if (ai_euro_e7c4_oracle) {
-    const int forced = ai_euro_e7c4_oracle(s->nation, u->x, u->y);
-    if (forced >= 0) saw_foe = forced;
   }
   if (!saw_foe) {
     if (getenv("AI_EA_TRACE")) {

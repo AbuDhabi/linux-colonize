@@ -677,8 +677,8 @@ charging anything at all five sites (human and AI, the AI immigration tick in
 enabled golden reaches the cap (instrumented, `units_spawn_room` never
 refused). Kept at the user's call because the real DOS saves past the AI cap
 show these charges (America seed-100 resync 290, Montreal at 292 units;
-#1132: Boston muskets 50 -> 0, Barbados horses down to 212) and the disabled
-america2 campaign compares against them. Was DB-17..DB-21. Reverted.
+#1132: Boston muskets 50 -> 0, Barbados horses down to 212), as did the
+removed america2 saves past 12. Was DB-17..DB-21. Reverted.
 **Status:** tolerated (2026-10-22).
 
 ### TB-48 — Reversing a ship at sea keeps its crossing counter
