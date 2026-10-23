@@ -64,7 +64,18 @@ together (full ctest + `golden_ai_joint` green).
 - Tolerated, [tolerated_dos_bugs.md](tolerated_dos_bugs.md): C-77 TB-49, C-81
   TB-50.
 - C-80 left as it is (user): no fix without inventing which units post goal 6.
-- The low-confidence leftovers at the end of section D were not looked at.
+- Low-confidence leftovers, reviewed 2026-10-23: none filed, all left as they
+  are (port reproduces each literally). 20e6 `milvet == 0`: dead (mode 6
+  counts everything mode 4 counts) and the intended variable is not
+  recoverable. 5d04 `|| type == 0x0b`: the shared awaiting-orders idiom, dead
+  inside the hull range; damaged hulls do leave once the repair tick clears
+  bit 0x80. DS:0x1734 loop: an all-or-nothing gate with the same >= 25
+  threshold as raw 89616; looks deliberate. Recruit prices: AI difficulty
+  discount by design (two paths, two surcharges). `rival_navy_strength`: a
+  zero test in Frigate units, not an average. +0x315a sharing: forced by the
+  record layout (voyage, failed-move tail, repair, cower). The port comments
+  for the last two were wrong and are rewritten (`ai_euro_europe.c`
+  `ai_euro_5d04_compute_flags`, `ai_euro_ship.c` cower block).
 
 ---
 
