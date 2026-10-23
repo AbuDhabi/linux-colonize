@@ -1310,7 +1310,7 @@ static int case_colony_screen_render_workflow(void) {
      * row moved 2px down; check presence of the digits, not a specific
      * color, same as the icon check above. */
     bool amount_pixel = false;
-    for (int y = COLONY_CARGO_NUM_Y; y < COLONY_CARGO_NUM_Y + 10 && !amount_pixel; ++y) {
+    for (int y = COLONY_CARGO_NUM_Y; y < COLONY_SCREEN_HEIGHT && !amount_pixel; ++y) {
       for (int x = food_slot_x; x < food_slot_x + COLONY_CARGO_SLOT_W; ++x) {
         if (pixels[y * 320 + x] != 0 && pixels[y * 320 + x] != 56) {
           amount_pixel = true;
@@ -1361,7 +1361,7 @@ static int case_colony_screen_render_workflow(void) {
      * is built: FUN_2f2b_28d6 keeps Sugar's digits navy (61), never green (10). */
     const int sugar_slot_x = COLONY_CARGO_SLOT_X0 + COLONIZE_CARGO_SUGAR * COLONY_CARGO_PITCH;
     bool sugar_green = false;
-    for (int y = COLONY_CARGO_NUM_Y; y < COLONY_CARGO_NUM_Y + 10; ++y) {
+    for (int y = COLONY_CARGO_NUM_Y; y < COLONY_SCREEN_HEIGHT; ++y) {
       for (int x = sugar_slot_x; x < sugar_slot_x + COLONY_CARGO_SLOT_W; ++x) {
         sugar_green = sugar_green || pixels[y * 320 + x] == 10;
       }
@@ -2238,22 +2238,6 @@ static int case_colony_screen_render_workflow(void) {
         col->stock[COLONIZE_CARGO_SUGAR],
         ship->hold_goods_amount[0]
       );
-      if (font_ok) {
-        font_file_free(&font);
-      }
-      if (phys0_ok) {
-        ss_free(&phys0);
-      }
-      ss_free(&terrain);
-      map_free(&map);
-      assets_msg_free(&names);
-      colony_screen_free(&view);
-      return 1;
-    }
-
-    const int best = colonies_best_load_cargo(col);
-    if (best != COLONIZE_CARGO_SUGAR) {
-      fprintf(stderr, "best load cargo expected sugar got %d\n", best);
       if (font_ok) {
         font_file_free(&font);
       }

@@ -1519,6 +1519,12 @@ COLONIZE_INTERNAL void game_render_select_palette(
     ai_popup_sheet_palette_merge(europe_menu_decoration(game), palette);
   }
 
+  /* The name prompts' @LANDHO admiral / @COLONY nun (DS:0x1f5e latch, port_bugs.md
+   * #1183) wear the same reserved block. */
+  if (game->name_entry.open && game->name_entry.mss >= 0) {
+    ai_popup_sheet_palette_merge(ai_popup_decoration_sheet(game->name_entry.mss, -1), palette);
+  }
+
   /* port_bugs.md #402: SCORE<nn>.SS carries the exploits painting's colours in the
    * DAC slots WOODPAN2.PIK leaves black — same reserved-block rule as the
    * popup art sheets (merge, never remap). */

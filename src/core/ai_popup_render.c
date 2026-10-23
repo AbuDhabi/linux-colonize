@@ -15,7 +15,6 @@
 
 #include "core/assets.h"
 #include "core/font.h"
-#include "core/map_menu.h"
 #include "core/popup.h"
 #include "core/popup_msg.h"
 #include "core/ss.h"
@@ -408,8 +407,6 @@ typedef struct AiPopupRenderCtx {
   bool portrait_left;
   /* pick_graphic */
   const ColonizeSpriteSheet* graphic;
-  int graphic_w;
-  int graphic_h;
   /* place */
   int dialog_x;
   int dialog_y;
@@ -431,9 +428,9 @@ static void ai_popup_render_measure(AiPopupRenderCtx* c) {
    * FUN_6f74_06d0): the dialog record's content width is @WIDTH (default 80),
    * text wraps inside width − 2·2 (margin +0x48 = 2), the wood frame adds
    * 3 px per side (+0x46/+0x2a = 3), and the outer height is text + 12.
-   * Centre = (160 − w/2, 100 − h/2), clamped to 320×200 — box +0x14 is the
+   * Centre = (160 − (w >> 1), 100 − (h >> 1)), clamped to 320×200 — box +0x14 is the
    * width and +0x16 the height, pinned by FUN_6f74_14c6 @ OVL24 0x16cb–0x16f6
-   * (auto-place does 160 − box[0x14]/2 and 100 − box[0x16]/2, then clamps
+   * (auto-place does 160 − (box[0x14] >> 1) and 100 − (box[0x16] >> 1), then clamps
    * against 0x140 and 0xc8).
    *
    * DOS runs TWO row pitches off the same glyph height (FUN_6f74_0f16 =
@@ -584,32 +581,24 @@ static void ai_popup_render_pick_graphic(AiPopupRenderCtx* c) {
    */
   c->graphic =
     c->portrait ? NULL : ai_popup_graphic_sheet(c->req->graphic_mss, c->req->graphic_myr);
-  c->graphic_w = 0;
-  c->graphic_h = 0;
-  if (c->graphic && c->graphic->sprite_count > 0 && c->graphic->sprites[0].pixels) {
-    c->graphic_w = c->graphic->sprites[0].width;
-    c->graphic_h = c->graphic->sprites[0].height;
-  } else {
+  if (c->graphic && (c->graphic->sprite_count <= 0 || !c->graphic->sprites[0].pixels)) {
     c->graphic = NULL;
   }
-  if (c->graphic) {
-    const int ov_y =
-      c->graphic->place_offset_y > c->graphic_h ? c->graphic_h : c->graphic->place_offset_y;
-    if (c->graphic_h - ov_y + c->dialog_h >= c->fb->height) {
-      c->graphic = NULL; /* DOS: too tall together → no decoration (flag |0x40). */
-    }
-  }
+  /* Too tall together → no decoration (flag |0x40): decided in ai_popup_render_place. */
 }
 
 /* Stage 4: dialog, portrait and decoration positions. */
 static void ai_popup_render_place(AiPopupRenderCtx* c) {
-  c->dialog_y = (c->fb->height - c->dialog_h) / 2;
-  if (c->dialog_y + c->dialog_h > c->fb->height) {
-    c->dialog_y = c->fb->height - c->dialog_h;
-  }
-  if (c->dialog_y < MAP_MENU_BAR_H + 2) {
-    c->dialog_y = MAP_MENU_BAR_H + 2;
-  }
+  /*
+   * FUN_6f74_14c6 plain and MSS/MYR arms (popup_place_dos): 160 − (w >> 1) /
+   * 100 − (h >> 1) arithmetic shifts, DOS edge clamps only. The port's old
+   * halve-the-margin form sat 1 px up/left of DOS on odd sizes, and its menu-bar
+   * floors have no counterpart in 14c6 (port_bugs.md #1186).
+   */
+  const PopupDosPlace pl =
+    popup_place_dos(c->fb->width, c->fb->height, c->dialog_w, c->dialog_h, c->graphic);
+  c->dialog_x = pl.x;
+  c->dialog_y = pl.y;
 
   /* Frame = the dialog only (DOS +0x10..+0x16). The portrait is a free-
    * floating decorator beside it: the combined span (dialog + sprite + 6) is
@@ -634,8 +623,7 @@ static void ai_popup_render_place(AiPopupRenderCtx* c) {
       shift = span_w - (c->fb->width + 3);
       span_w = c->fb->width;
     }
-    /* 0x1823/0x1847: `sar ax,1` / `sub ax,0xa0` / `neg ax` = 160 − span_w/2,
-     * an arithmetic halve of the span — not a halve of the leftover margin. */
+    /* 0x1823/0x1847: `sar ax,1` / `sub ax,0xa0` / `neg ax` = 160 − (span_w >> 1). */
     const int span_x = c->fb->width / 2 - (span_w >> 1);
     if (c->portrait_left) {
       c->portrait_x = span_x;
@@ -644,53 +632,18 @@ static void ai_popup_render_place(AiPopupRenderCtx* c) {
       c->dialog_x = span_x;
       c->portrait_x = span_x + c->dialog_w - shift;
     }
-    /* 0x1867: 100 − (sprite_h + 3)/2. */
+    /* 0x1867: 100 − ((sprite_h + 3) >> 1), stored as-is (no menu-bar or edge clamp). */
     c->portrait_y = c->fb->height / 2 - ((c->portrait_h + 3) >> 1);
-    if (c->portrait_y < MAP_MENU_BAR_H) {
-      c->portrait_y = MAP_MENU_BAR_H;
-    }
-    if (c->portrait_y + c->portrait_h > c->fb->height) {
-      c->portrait_y = c->fb->height - c->portrait_h;
-    }
-  } else {
-    c->dialog_x = (c->fb->width - c->dialog_w) / 2;
   }
 
   c->graphic_x = 0;
   c->graphic_y = 0;
+  if (c->graphic && !pl.figure) {
+    c->graphic = NULL; /* DOS: too tall together → no decoration (flag |0x40). */
+  }
   if (c->graphic) {
-    const int ov_y =
-      c->graphic->place_offset_y > c->graphic_h ? c->graphic_h : c->graphic->place_offset_y;
-    const int total_h = c->graphic_h - ov_y + c->dialog_h;
-    int top = (c->fb->height - total_h) / 2;
-    /* Keep the whole assembly below the menu bar. */
-    if (top < MAP_MENU_BAR_H) {
-      top = MAP_MENU_BAR_H;
-    }
-    if (top + total_h > c->fb->height) {
-      top = c->fb->height - total_h;
-    }
-    c->graphic_y = top;
-    c->dialog_y = top + c->graphic_h - ov_y;
-    if (c->graphic->place_mode == 1) {
-      /* Centred over the (already centred) dialog. */
-      c->graphic_x = (c->fb->width - c->graphic_w) / 2;
-    } else {
-      int ov_x = c->graphic->place_offset_x;
-      int total_w = c->dialog_w + c->graphic_w - ov_x;
-      if (total_w > c->fb->width) {
-        ov_x += total_w - c->fb->width; /* DOS widens the overlap. */
-        total_w = c->fb->width;
-      }
-      const int x0 = (c->fb->width - total_w) / 2;
-      if (c->graphic->place_mode == 2) {
-        c->dialog_x = x0;
-        c->graphic_x = x0 + c->dialog_w - ov_x;
-      } else {
-        c->graphic_x = x0;
-        c->dialog_x = x0 + c->graphic_w - ov_x;
-      }
-    }
+    c->graphic_x = pl.fig_x;
+    c->graphic_y = pl.fig_y;
   }
 }
 

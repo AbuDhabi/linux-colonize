@@ -948,6 +948,41 @@ int europe_dos_0f60_pick(
   );
 }
 
+/*
+ * DOS-LITERAL FUN_479b_11a4 raw 77465-77495 (the pick half of the colony-screen
+ * `L`; asm 479b:11fb-12c5): per cargo c in 0..15, w = (DS:0x84bc price byte of the
+ * ship's owner = the sell price) << 4, 1 for Muskets (0xF) and Tools (0xE), 0 for
+ * Horses (8) when the RAW stock word of Horses is under 0x66; key[c] =
+ * (uint16)(min(stock[c], 100) * w). FUN_291f_0ed0 -> FUN_1cf8_000a sorts the keys
+ * ASCENDING over order = 0..15 and the walk takes the first position from 15 down
+ * with stock > 0, i.e. the HIGHEST key (the `U` pick above takes the lowest).
+ * `stock` = the 16 colony stock words. Returns the cargo type or -1 (@MISC 20).
+ */
+int europe_dos_11a4_pick(
+  const EuropeScreen* eu, const struct ColonizeCol1Save* col1, int nation, const int* stock
+) {
+  uint16_t key[COLONIZE_CARGO_COUNT];
+  int order[COLONIZE_CARGO_COUNT];
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    int w = europe_nation_sell_price(eu, col1, nation, c) << 4;
+    if (c == COLONIZE_CARGO_MUSKETS || c == COLONIZE_CARGO_TOOLS) {
+      w = 1;
+    }
+    if (c == COLONIZE_CARGO_HORSES && stock[c] < 0x66) {
+      w = 0;
+    }
+    key[c] = (uint16_t)((stock[c] > 100 ? 100 : stock[c]) * w);
+    order[c] = c;
+  }
+  units_dos_sort_1cf8(key, order, COLONIZE_CARGO_COUNT);
+  for (int k = COLONIZE_CARGO_COUNT - 1; k >= 0; --k) {
+    if (stock[order[k]] > 0) {
+      return order[k];
+    }
+  }
+  return -1;
+}
+
 static bool europe_in_rect(int mx, int my, int x, int y, int w, int h) {
   return ui_rect_hit(x, y, w, h, mx, my);
 }

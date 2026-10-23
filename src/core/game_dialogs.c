@@ -2501,27 +2501,36 @@ void game_colony_unload_hold(
 }
 
 /*
- * The DOS colony-screen `U` status line, FUN_479b_0f60 mode 0 (raw 77406-77418):
- * FUN_281f_0056(1) flush, then @MISC 24 "Unloading" (FUN_281f_0dd6(0x18)), the
- * qty (DS:0x8dc4), the cargo name (DS:0x97c0 + 2*cargo), @MISC 26 "in" (0x1a)
- * and the colony name, armed with FUN_281f_0dc2(1, 0x78, 0) on the map-strip
- * ring (every append leaves one trailing space; the strip trims it visually).
+ * The DOS colony-screen cargo status line on the map-strip ring (every append
+ * leaves one trailing space; the strip trims it visually). FUN_281f_0056(1)
+ * flush, the verb word, the qty (DS:0x8dc4 / FUN_281f_007e), the cargo name
+ * (DS:0x97c0 + 2*cargo), the preposition word and the tail name, armed with
+ * FUN_281f_0dc2(1, 0x78, 0):
+ *  - `U`, FUN_479b_0f60 mode 0 (raw 77406-77418): @MISC 24 "Unloading", @MISC 26
+ *    "in", the colony name;
+ *  - `L`, FUN_479b_11a4 (raw 77497-77505; asm 479b:12e9-1357): @MISC 23 "Loading",
+ *    @MISC 25 "onto", the selected ship's TYPE name (type*0xe + 0x5230).
  * Wording from LABELS only: a catalog miss leaves that word out.
  */
-static void game_colony_u_status(ColonizeGameState* game, int ctype, int qty) {
+static void game_colony_cargo_status(ColonizeGameState* game, bool loading, int ctype, int qty) {
   char line[AI_POPUP_BAR_MSG_LEN];
   size_t n = 0;
   line[0] = '\0';
   const ColonizeColony* col = colonies_get(&game->colonies, game->colony_view_id);
+  const ColonizeUnit* ship = loading && game->colony_screen.transport_unit_id >= 0
+    ? units_get_const(&game->units, game->colony_screen.transport_unit_id)
+    : NULL;
+  const ColonizeUnitType* st = ship ? units_type(&game->units, ship->type_index) : NULL;
+  const char* tail = loading ? (st ? st->name : "") : (col ? col->name : "");
   const char* cargo = (ctype >= 0 && ctype < COLONIZE_CARGO_COUNT) ? game->europe.cargo[ctype].name : "";
   char qty_s[16];
   snprintf(qty_s, sizeof(qty_s), "%d", qty);
-  char unloading[64], in_word[64];
-  const char* w = reports_labels_field("MISC", 24);
-  snprintf(unloading, sizeof(unloading), "%s", w ? w : "");
-  w = reports_labels_field("MISC", 26);
-  snprintf(in_word, sizeof(in_word), "%s", w ? w : "");
-  const char* parts[] = {unloading, qty_s, cargo, in_word, col ? col->name : ""};
+  char verb[64], prep[64];
+  const char* w = reports_labels_field("MISC", loading ? 23 : 24);
+  snprintf(verb, sizeof(verb), "%s", w ? w : "");
+  w = reports_labels_field("MISC", loading ? 25 : 26);
+  snprintf(prep, sizeof(prep), "%s", w ? w : "");
+  const char* parts[] = {verb, qty_s, cargo, prep, tail};
   for (size_t i = 0; i < sizeof(parts) / sizeof(parts[0]); ++i) {
     if (parts[i][0]) {
       n += (size_t)snprintf(line + n, sizeof(line) - n, "%s%s", n ? " " : "", parts[i]);
@@ -2562,7 +2571,47 @@ void game_colony_unload_best_hold(ColonizeGameState* game) {
   }
   const int moved = game_colony_unload_hold_commit(game, unit_id, hold, 0, NULL);
   if (moved > 0) {
-    game_colony_u_status(game, ctype, moved);
+    game_colony_cargo_status(game, false, ctype, moved);
+  }
+}
+
+/*
+ * L on the colony screen: 2f2b:662e -> FUN_291f_01de -> FUN_479b_11a4(selected ship)
+ * (raw 77435-77509, port_bugs.md #1184). No ship selected (DS:0x33c == 0): nothing.
+ * Gate 1, before any pick: @UNIT cargo capacity - goods holds used (+0x3150) < 1 ->
+ * red bar @MISC 21. Then europe_dos_11a4_pick (the HIGHEST key, not `U`'s lowest);
+ * none -> red bar @MISC 20. Loads min(stock, 100) via the stock-debit +
+ * FUN_281f_0d58 pair (colonies_transfer_to_unit: top up partial holds of that good,
+ * the rest in one new hold) and arms the "Loading ... onto <ship type>" status.
+ * No confirm, no RNG, one cargo per press.
+ */
+void game_colony_load_best_cargo(ColonizeGameState* game) {
+  if (!game || !game->in_colony || !game->units_ok) {
+    return;
+  }
+  const int unit_id = game->colony_screen.transport_unit_id;
+  const ColonizeUnit* u = unit_id >= 0 ? units_get_const(&game->units, unit_id) : NULL;
+  const ColonizeColony* col = colonies_get(&game->colonies, game->colony_view_id);
+  if (!u || !col) {
+    return;
+  }
+  if (units_goods_hold_count(&game->units, unit_id) - units_holds_used(&game->units, unit_id) < 1) {
+    game_europe_refusal(game, "MISC", 21);
+    return;
+  }
+  const int ctype = europe_dos_11a4_pick(
+    &game->europe, game->col1_ok ? &game->col1 : NULL, u->nation_id, col->stock
+  );
+  if (ctype < 0) {
+    game_europe_refusal(game, "MISC", 20);
+    return;
+  }
+  const int amt = col->stock[ctype] > 100 ? 100 : col->stock[ctype];
+  const int moved = colonies_transfer_to_unit(
+    &game->colonies, game->colony_view_id, &game->units, unit_id, ctype, amt
+  );
+  if (moved > 0) {
+    game_colony_cargo_status(game, true, ctype, moved);
   }
 }
 
@@ -2716,7 +2765,7 @@ static bool game_apply_popup_map_and_colony(ColonizeGameState* game) {
       const int pmoved = game_colony_unload_hold_commit(game, unit_id, hold, amount, NULL);
       colony_screen_set_status(&game->colony_screen, game->status);
       if ((payload & GAME_UNLOAD_PAYLOAD_U_STATUS) && pmoved > 0) {
-        game_colony_u_status(game, pctype, pmoved);
+        game_colony_cargo_status(game, false, pctype, pmoved);
       }
       if (unload_all) {
         /* 99b8 case 5 loops until a hold refuses or the unit runs dry. */

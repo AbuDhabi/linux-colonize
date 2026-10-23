@@ -228,6 +228,25 @@ void popup_list_render(
 );
 
 /*
+ * FUN_6f74_14c6 placement of a w x h compositor frame on a fb_w x fb_h frame,
+ * optionally around an MSS/MYR figure sheet (NULL = none). Shift-form centring
+ * (160 - (w >> 1), 100 - (h >> 1)), DOS edge clamps, no menu-bar floor;
+ * figure arm and port-only generalisation: popup.c popup_place_dos.
+ * `figure` false = the sheet was dropped (assembly >= frame height) or absent.
+ */
+typedef struct PopupDosPlace {
+  int x; /* frame origin */
+  int y;
+  bool figure;
+  int fig_x; /* figure origin, valid when figure */
+  int fig_y;
+} PopupDosPlace;
+
+PopupDosPlace popup_place_dos(
+  int fb_w, int fb_h, int w, int h, const ColonizeSpriteSheet* figure
+);
+
+/*
  * DOS text-entry dialog (FUN_291f_0120 -> FUN_6f74_37fc: the generic compositor
  * with one edit-field row, port_bugs.md #1181). Layout read from the asm:
  *   FUN_6f74_0d44  label = GAME.TXT row after the blank + " ", label_w = its
@@ -260,7 +279,10 @@ typedef struct PopupFieldGeom {
  * Draws the frame, the wrapped prompt, the label and the field outline of the
  * DOS text-entry dialog and returns where the field text goes. `width` is the
  * section's @width (0 = none), `label` the field caption ("" = none). A NULL
- * font draws the frame only.
+ * font draws the frame only. `decoration` is the MSS sheet DOS latches in
+ * DS:0x1f5e before the prompt (NULL = bare): FUN_6f74_14c6 (0x18ae-0x1a0c)
+ * re-places the frame around the sprite and FUN_6f74_248e blits it over the
+ * frame, geom.frame reporting the moved frame (port_bugs.md #1183).
  */
 void popup_field_frame(
   ColonizeFramebuffer8* framebuffer,
@@ -272,6 +294,7 @@ void popup_field_frame(
   const char* label,
   int max_len,
   uint8_t text_color,
+  const ColonizeSpriteSheet* decoration,
   PopupFieldGeom* out
 );
 

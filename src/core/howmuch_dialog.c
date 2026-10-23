@@ -266,7 +266,7 @@ void howmuch_render(
   PopupFieldGeom g;
   popup_field_frame(
     framebuffer, font, wood_tile, colors, dlg->width, dlg->prompt, dlg->amount_label, 5,
-    text_color, &g
+    text_color, NULL /* @HOWMUCH1-5 latch nothing (port_bugs.md #1183) */, &g
   );
   dlg->dialog_x = g.frame.x;
   dlg->dialog_y = g.frame.y;

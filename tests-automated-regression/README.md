@@ -17,6 +17,7 @@ the port, with fixture edits through `sav_json` where a test needs them
 |------|------|
 | `colony_cargo_load_unload` | Quebec: load / unload goods between warehouse and two docked Caravels, ship-to-ship, Shift+drag partial amounts |
 | `colony_unload_best_hold` | Quebec (fixture: Caravel A = Silver + Muskets, tobacco stock 90): `u` unloads the lowest-key hold (FUN_479b_0f60 mode 0) with its status line, red bar on an empty ship, the @WAREHOUSEFULL confirm (Never mind, then anyway) |
+| `colony_load_best_cargo` | Quebec (fixture: Caravel A = Tobacco 60 + a free hold, ship B = empty Galleon, stock Tobacco 90 / Cotton 12 / Ore 4 / Horses 38 / Coats 7 / Muskets 60): `l` loads the highest-key cargo (FUN_479b_11a4) with its "Loading ... onto" status, tops up the partial Tobacco hold, red bar on a ship with no free hold, Muskets (key 60) before Horses (key 0), Horses as the last stock, red bar on an empty warehouse |
 | `colony_building_assignment` | Quebec (+Church, Armory, Schoolhouse, Warehouse, Printing Press): drag colonists into buildings; 3-per-building cap, teacher rules, buildings that take no workers |
 | `colony_tile_assignment` | Quebec: building worker to land and water tiles, tile to tile (click and drag), plot worker dragged into a building, field jobs menu, refused drops |
 | `colony_remove_roles` | Montreal (+tools, muskets, horses, Church): colonists leave as Colonist, Soldier, Pioneer, Scout, Dragoon, Missionary (also dropped onto units on the fence); greyed rows; abandon prompt declined |

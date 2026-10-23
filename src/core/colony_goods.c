@@ -4,7 +4,7 @@
  * Sections:
  *  - Warehouse capacity, spoilage & goods-full chrome popups (colonies_warehouse_capacity .. colonies_apply_warehouse_spoilage)
  *  - Cargo transfer to/from carrier units (colonies_transfer_to_unit .. colonies_transfer_from_unit_amount)
- *  - Foreign/Custom-House trade gate & trade-route stop servicing (colonies_ftrade_price_byte .. colonies_best_load_cargo)
+ *  - Foreign/Custom-House trade gate & trade-route stop servicing (colonies_ftrade_price_byte .. colonies_trade_route_service_stop)
  */
 
 #include <stdio.h>
@@ -522,7 +522,7 @@ int colonies_transfer_from_unit_amount(
  * 6316-6320 / 51962-51966 / 58996-59000) — the same derivation europe.c's
  * dump-sell arm cites.
  */
-/* ===================== Foreign/Custom-House trade gate & trade-route stop servicing (colonies_ftrade_price_byte .. colonies_best_load_cargo) ===================== */
+/* ===================== Foreign/Custom-House trade gate & trade-route stop servicing (colonies_ftrade_price_byte .. colonies_trade_route_service_stop) ===================== */
 static int colonies_ftrade_price_byte(const ColonizeCol1Save* col1, int nation, int cargo) {
   if (!col1 || nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT || cargo < 0 ||
       cargo >= (int)COLONIZE_COL1_CARGO_TYPES) {
@@ -946,41 +946,4 @@ int colonies_trade_route_service_stop(
     moved = 1;
   }
   return moved;
-}
-
-int colonies_best_load_cargo(const ColonizeColony* colony) {
-  if (!colony) {
-    return -1;
-  }
-  /* Rough Europe bid ranking; exclude horses/tools/muskets (manual L-key). */
-  static const int k_value[COLONIZE_CARGO_COUNT] = {
-    1,  /* food */
-    5,  /* sugar */
-    4,  /* tobacco */
-    3,  /* cotton */
-    5,  /* furs */
-    0,  /* lumber — rarely sold */
-    4,  /* ore */
-    20, /* silver */
-    0,  /* horses — excluded */
-    8,  /* rum */
-    8,  /* cigars */
-    7,  /* cloth */
-    7,  /* coats */
-    2,  /* trade goods */
-    0,  /* tools — excluded */
-    0   /* muskets — excluded */
-  };
-  int best = -1;
-  int best_v = 0;
-  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-    if (k_value[c] <= 0 || colony->stock[c] <= 0) {
-      continue;
-    }
-    if (k_value[c] > best_v || (k_value[c] == best_v && colony->stock[c] > colony->stock[best])) {
-      best_v = k_value[c];
-      best = c;
-    }
-  }
-  return best;
 }

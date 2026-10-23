@@ -1,0 +1,41 @@
+# Quebec dock (fixture edit: Caravel A = Tobacco 60 in one hold, one hold free; ship B is an empty Galleon; Quebec stock:
+# Tobacco 90, Cotton 12, Ore 4, Horses 38, Coats 7, Muskets 60). L loads the HIGHEST-key cargo, key = min(stock,100) * (sell price << 4)
+# (Muskets/Tools weight 1, Horses 0 under 102 stock), FUN_479b_11a4, with the "Loading ... onto <ship type>" status line.
+click 168 128              # open Quebec (map tile 45,24); caravel A is selected on entry
+wait 10
+shot
+key l                      # Tobacco 90: tops the Tobacco 60 hold up to 100, the other 50 take the free hold
+wait 3
+shot
+wait 40
+key l                      # no free hold left (stock remains): red "No cargo holds available!" bar
+wait 3
+shot
+wait 40
+click 148 152              # select the empty Galleon
+wait 5
+key l                      # Coats 7 (key 1008)
+wait 3
+shot
+wait 40
+key l                      # Cotton 12 (768)
+wait 3
+shot
+wait 40
+key l                      # Ore 4 (320)
+wait 3
+shot
+wait 40
+key l                      # Muskets 60 (key 60, weight 1) before Horses (key 0)
+wait 3
+shot
+wait 40
+key l                      # Horses 38 (key 0) as the last stock
+wait 3
+shot
+wait 40
+key l                      # empty warehouse: red "No cargo ready for transport!" bar
+wait 3
+shot
+wait 40
+key Escape                 # back to the map

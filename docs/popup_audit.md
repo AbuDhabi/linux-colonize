@@ -32,7 +32,7 @@ choices from data where a real `@SECTION` exists.
 | Find colony / trade select | `cheat_list` + `popup_msg_fill` | `@FINDCITY` / `@TRADE` | Authentic | — |
 | Howmuch | `howmuch_dialog` | `@HOWMUCH*` | Authentic | — |
 | Options | `options_dialog` | `@GAMEOPTIONS` / `@COLONYOPTIONS` / `@SOUNDOPTIONS` | Authentic | — |
-| Found / rename / Land Ho name | `name_entry` | `@COLONY` / `@RENAMECOLONY` / `@LANDHO` | Authentic (asm layout, #1181); MSS decoration missing (#1183) | — |
+| Found / rename / Land Ho name | `name_entry` | `@COLONY` / `@RENAMECOLONY` / `@LANDHO` | Authentic (asm layout, #1181; `@LANDHO` MSS0 / `@COLONY` MSS5 figure, #1183; rename bare) | — |
 | Landfall CHOICE | `game_loop` LANDFALL | `@LANDFALL` / `@LANDFALL2` | Authentic | — |
 | Stockade min-pop OK | `game_loop` colony | `@KEEPSTOCKADE` | Authentic | — |
 | Abandon confirm | `colony_screen` | `@ABANDON` / `@ABANDON2` | Authentic | — |

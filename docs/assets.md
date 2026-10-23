@@ -427,7 +427,7 @@ A new colony gets the classic free starters: Town Hall, Carpenter's Shop, Blacks
 | **B** / Buy | Finish current project: gold = remaining hammers; spend `tools_cost` from warehouse |
 | Drag / click ship cargo / hold | Select transport; drag warehouse↔hold to load/unload |
 | Fence **Leave as** | Eject/equip popup (Colonist / Pioneer / Soldier / Scout / Dragoon / **Missionary** if Church/Cathedral); last colonist confirms **abandon** (cargo lost); Stockade/Fort/Fortress cannot drop below 3 colonists |
-| **L** / **U** | Load highest-value cargo; unload first hold |
+| **L** / **U** | `L`: load the highest-key warehouse cargo, key = min(stock, 100) * (sell price << 4), Muskets/Tools 1, Horses 0 under 102 stock (FUN_479b_11a4; red bars when no hold is free / nothing to load); `U`: unload the lowest-key hold (FUN_479b_0f60 mode 0) |
 | **=** / **+** | Full / partial load of selected warehouse cargo |
 | Esc | Close message / jobs / eject / construction, then return to map |
 | Enter | Confirm popup; with a colonist selected open field jobs; else leave |
@@ -525,7 +525,10 @@ and `glyph_h + 5` tall, placed after the caption, with the text 3px inside it
 and a pre-selected default shown on a select-ink bar (`text_edit_render` with
 `line_h = glyph_h + 1`). Dialog width follows `@width` (`max(80, @width,
 caption + field + 10) + 6`), the body wraps inside it, and the whole frame is
-centred at (160 - W/2, 100 - H/2).
+centred at (160 - W/2, 100 - H/2). `@LANDHO` (MSS0 admiral) and `@COLONY` (MSS5 nun)
+latch an MSS figure first (`2b5a:0028`, `479b:0823`): `popup_field_frame` takes the
+sheet, re-places the frame by `FUN_6f74_14c6` (`6f74:18ae-1a0c`) and blits the figure
+over it (port_bugs.md #1183); the other prompts are bare.
 
 A field opens with its whole seed text selected, matching DOS: `FUN_6f74_2580`'s
 edit branch keys off bit `0x80` of the field record at dialog `+0x30`, which the
