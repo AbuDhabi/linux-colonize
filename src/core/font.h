@@ -59,6 +59,20 @@ void font_draw_text_shaded(
 );
 
 /*
+ * One glyph through the shade map with no marker meaning ('~', '#', '\n' are glyphs
+ * too): the escaped character of FUN_6f74_0538's '~' (6f74:05be). Returns the
+ * advance; framebuffer NULL = measure only.
+ */
+int font_draw_glyph_shaded(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y,
+  unsigned char ch,
+  const uint8_t shade_colors[4]
+);
+
+/*
  * Marker sets for font_text_width_skip. The six private width loops retired on
  * 2026-09-14 each skipped a different set: font_text_width and
  * map_menu_text_width skip the hotkey markers, game_loop's

@@ -111,6 +111,14 @@ static void combat_analysis_blit_row_icon(
   ss_blit_sprite(sheet, row->icon_sprite, fb, x, y);
 }
 
+/* FUN_281f_013c / 0150 / 0100 -> FUN_104b_0288 / 02c2 / 0318 (raw 977 / 991 / 1007): one
+ * FONTTINY blit through the map {skip, c, c, c} (104b:0293-0298), no shadow pass. */
+static void combat_analysis_text(
+  const ColonizeFont* font, ColonizeFramebuffer8* fb, int x, int y, const char* s, uint8_t c
+) {
+  font_draw_text_shaded(font, fb, x, y, s, (const uint8_t[4]){0, c, c, c});
+}
+
 void combat_analysis_render(
   CombatAnalysisDialog* dlg,
   const ColonizeFont* font,
@@ -121,11 +129,10 @@ void combat_analysis_render(
   const ColonizeWorldMap* map,
   const ColonizePopupColors* colors,
   uint8_t text_color,
-  uint8_t select_color,
+  uint8_t hilite_color,
   const ColonizePalette* active_palette,
   ColonizeFramebuffer8* framebuffer
 ) {
-  (void)select_color;
   if (!dlg || !dlg->open || !framebuffer) {
     return;
   }
@@ -183,12 +190,12 @@ void combat_analysis_render(
     return;
   }
 
-  /* LABELS.TXT @MISC row 75 "COMBAT ANALYSIS". */
+  /* LABELS.TXT @MISC row 75 "COMBAT ANALYSIS". FUN_636c_0000 draws labels and the title
+   * in @COLORS basic (DS:0x830, 636c:00aa / 019b...), values and the base strength in
+   * @COLORS hilite (DS:0x831, 636c:01b7...), right-aligned (FUN_281f_0150). */
   const char* title = reports_misc_display_word(75, "");
   const int tw = font_text_width(font, title);
-  popup_draw_text_shadowed(
-    font, framebuffer, ix + (iw - tw) / 2, iy + 3, title, text_color
-  );
+  combat_analysis_text(font, framebuffer, ix + (iw - tw) / 2, iy + 3, title, text_color);
 
   /* Columns split the interior in half; values right-align at column edge. */
   const int atk_x = ix + 2;
@@ -219,12 +226,12 @@ void combat_analysis_render(
       const int name_w = font_text_width(font, dlg->atk_name);
       const int room = atk_right - sw - 3 - atk_name_x;
       if (dlg->atk_name[0] && name_w <= room) {
-        popup_draw_text_shadowed(
+        combat_analysis_text(
           font, framebuffer, atk_name_x, y_hdr + name_dy, dlg->atk_name, text_color
         );
       }
-      popup_draw_text_shadowed(
-        font, framebuffer, atk_right - sw, y_hdr + name_dy, str_buf, text_color
+      combat_analysis_text(
+        font, framebuffer, atk_right - sw, y_hdr + name_dy, str_buf, hilite_color
       );
     }
     snprintf(str_buf, sizeof(str_buf), "%d", dlg->eng.def_flags.base_combat);
@@ -233,12 +240,12 @@ void combat_analysis_render(
       const int name_w = font_text_width(font, dlg->def_name);
       const int room = def_right - sw - 3 - def_name_x;
       if (dlg->def_name[0] && name_w <= room) {
-        popup_draw_text_shadowed(
+        combat_analysis_text(
           font, framebuffer, def_name_x, y_hdr + name_dy, dlg->def_name, text_color
         );
       }
-      popup_draw_text_shadowed(
-        font, framebuffer, def_right - sw, y_hdr + name_dy, str_buf, text_color
+      combat_analysis_text(
+        font, framebuffer, def_right - sw, y_hdr + name_dy, str_buf, hilite_color
       );
     }
   }
@@ -259,7 +266,7 @@ void combat_analysis_render(
         framebuffer, unit_icons, terrain, phys0, map, row, col_x, row_top, active_palette
       );
       const int label_x = col_x + row->label_indent;
-      popup_draw_text_shadowed(font, framebuffer, label_x, ry, row->label, text_color);
+      combat_analysis_text(font, framebuffer, label_x, ry, row->label, text_color);
       const int lw = font_text_width(font, row->label);
       const int vw = font_text_width(font, row->value);
       /* Right-align value at the column edge; a long label pushes it right
@@ -268,7 +275,7 @@ void combat_analysis_render(
       if (vx < label_x + lw + 3) {
         vx = label_x + lw + 3;
       }
-      popup_draw_text_shadowed(font, framebuffer, vx, ry, row->value, text_color);
+      combat_analysis_text(font, framebuffer, vx, ry, row->value, hilite_color);
     }
   }
 }

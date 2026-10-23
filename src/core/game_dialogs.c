@@ -1,6 +1,7 @@
 #include "core/game_dialogs.h"
 #include "core/game_loop_internal.h"
 #include "core/reports_names.h"
+#include <strings.h>
 
 /*
  * Sections:
@@ -1780,44 +1781,54 @@ void game_request_overboard_confirm(ColonizeGameState* game) {
   }
 }
 
-/* ===================== Find-colony & trade-route pickers (game_open_find_colony_picker .. game_open_trade_route_picker) ===================== */
-void game_open_find_colony_picker(ColonizeGameState* game) {
+/* ===================== Find-colony & trade-route pickers (game_open_find_colony .. game_open_trade_route_picker) ===================== */
+/*
+ * VIEW "Find Colony" (command 0x23, raw 119338), body 2b5a:2028 (ND 0x22F08-0x22FD4, no Ghidra
+ * function): FUN_291f_0120(0x17) = FUN_6f74_37fc, the @FINDCITY text entry ("Colony:" field,
+ * empty default DS:0xa50), port_bugs.md #1197. Esc does nothing; Enter runs game_find_colony.
+ */
+void game_open_find_colony(ColonizeGameState* game) {
   if (!game) {
     return;
   }
-  const char* labels[CHEAT_LIST_MAX_OPTIONS];
-  int ids[CHEAT_LIST_MAX_OPTIONS];
-  char name_bufs[CHEAT_LIST_MAX_OPTIONS][CHEAT_LIST_LABEL_LEN];
-  int count = 0;
-  for (int i = 0; i < COLONIZE_COLONIES_MAX && count < CHEAT_LIST_MAX_OPTIONS; ++i) {
-    const ColonizeColony* c = &game->colonies.colonies[i];
-    if (!c->active || c->nation_id != game->human_nation) {
-      continue;
-    }
-    str_copy_trunc(
-      name_bufs[count],
-      sizeof(name_bufs[count]),
-      c->name[0] ? c->name : ""
-    );
-    labels[count] = name_bufs[count];
-    ids[count] = c->id;
-    count++;
+  char prompt[AI_POPUP_BODY_LEN];
+  popup_msg_fill(&game->messages, "FINDCITY", NULL, "", prompt, sizeof(prompt));
+  if (name_entry_open(&game->name_entry, NAME_ENTRY_KIND_FIND_COLONY, prompt, "", -1)) {
+    name_entry_set_label(&game->name_entry, howmuch_amount_label(&game->messages, "FINDCITY", ""));
   }
-  if (count <= 0) {
-    char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(
-      &game->messages, "NOCITY", NULL, "", body, sizeof(body)
-    );
-    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+}
+
+/*
+ * ND 0x22F2B-0x22FCE: the first colony of any nation, DOS array order, whose name equals the
+ * typed text (FUN_1d1d_0c80, case-blind, whole string) and that the current map view may show:
+ * view (DS:0x5396) >= 4, or its tile's seen bit 0x10 << view (FUN_281f_074a), or
+ * show_entire_map (DS:0x53a2). Found: View Pieces (FUN_291f_006c -> FUN_2b5a_0902) and the
+ * view cursor on its tile (FUN_281f_0e08); the colony screen does not open. Else @NOCITY,
+ * %STRING0 = the typed text (FUN_281f_0416 + FUN_281f_03fe).
+ */
+void game_find_colony(ColonizeGameState* game, const char* typed) {
+  if (!game || !typed) {
     return;
   }
-  char prompt[COLONIZE_MSG_LINE_LEN];
-  popup_msg_fill(
-    &game->messages, "FINDCITY", NULL, "", prompt, sizeof(prompt)
-  );
-  if (!cheat_list_open_find_colony(&game->cheat_list, prompt, labels, ids, count)) {
-    set_status(game, "Find Colony unavailable", NULL);
+  const int view = (int16_t)game->col1.head.curr_nation_map_view;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &game->colonies.colonies[i];
+    if (!c->active || strcasecmp(typed, c->name) != 0) {
+      continue;
+    }
+    /* A negative view shifts the bit out (0x10 << 0xff = 0): only show_entire_map passes. */
+    if (view >= 4 || (view >= 0 && map_tile_seen_by(&game->world_map, c->x, c->y, view)) ||
+        game->col1.head.show_entire_map) {
+      game_select_tile(game, c->x, c->y);
+      return;
+    }
   }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = typed;
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(&game->messages, "NOCITY", &tok, "", body, sizeof(body));
+  ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
 }
 
 /*
@@ -1999,6 +2010,13 @@ static void game_apply_name_entry_result(ColonizeGameState* game) {
       game_trade_wizard_open_dest(game, 2);
     }
     game->name_entry.has_result = false;
+    return;
+  }
+  if (kind == NAME_ENTRY_KIND_FIND_COLONY) {
+    game->name_entry.has_result = false;
+    if (!game->name_entry.result_cancelled) {
+      game_find_colony(game, game->name_entry.result_name);
+    }
     return;
   }
   if (kind == NAME_ENTRY_KIND_TRADE_RENAME) {

@@ -150,8 +150,10 @@ palettes) instead of **basic** (68 green). DOS mechanism (dialog text writer
 `FUN_6f74_0538`, file offset 0x6C388): `{` sets DS:`0x1f62` = 1, `}` clears
 it, both zero-width; the per-char color helper (`0xc346`) picks struct color
 +6 (emphasis) over +2 (normal), with the +4 grey/disabled ink overriding
-both; `~` escapes the next char, `|` ends the string. `0x1f62` starts 0 per
-popup and carries across every drawn line — title, body, then choice rows.
+both; `~` draws the next char as a plain glyph in the other ink (hilite outside
+`{}`, base inside: the option hotkey letters) and so also escapes it, `|` ends the
+string. `0x1f62` starts 0 per popup and carries across every drawn line — title,
+body, then choice rows.
 
 Port: `popup_msg_apply_tokens` **keeps** `{}` (it used to strip); renderers
 eat the braces at draw time via `popup_markup_text_width` /
@@ -350,7 +352,21 @@ has shade 3 = 0. FONTINTR / FONT-NP carry shades 2 and 3, FONTTINY / FONTSMAL on
 1 (no edges), FONTKING draws its body in shade 3. Port: `popup_draw_text_markup` with
 `ColonizePopupColors.enhance` / `.shadow` (remapped by RGB with the rest of the title set,
 shadow forced to 0); `text_edit_render` the same map. Test: `unit_popup_prompt
-dialog_text_is_dos_shaded`.
+dialog_text_is_dos_shaded`. `~` (6f74:05be, port_bugs.md #1199): the map is reloaded with
+DX = (0x1f62 == 0), the next byte drawn as a glyph whatever it is, the map restored, so the
+character after `~` is 149 outside `{}`, 68 inside, grey on a disabled row (callers pass grey
+as both inks); the measure `FUN_6f74_0486` deletes every `~{}|` first
+(`popup_markup_text_width`). Test: `unit_popup_prompt dialog_tilde_is_dos`.
+
+Screens that are not compositor dialogs write through the resident `FUN_104b_*` writers
+instead: `FUN_281f_013c` / `0150` / `0100` -> `FUN_104b_0288` / `02c2` (right-aligned) /
+`0318` (centred), FONTTINY (DS:0x89e), the map `{skip, c, c, c}` with the caller's ink, one
+blit, no shadow (the FONTINTR family `035c` / `039a` / `03d2` / `0430` maps
+`{skip, c1, c2, 0}`). Combat Analysis (`FUN_636c_0000`): title, names and labels @COLORS
+basic (DS:0x830), values and base strengths hilite (DS:0x831). Trade route
+(`FUN_647e_09da`): ink literal 0x0f on a 0x22 fill, grid and OK outline colour 0, the DOS
+positions in `trade_screen.c`. Port: `font_draw_text_shaded` with `{0, c, c, c}`
+(port_bugs.md #1201). Test: `unit_popup_prompt stat_screens_text_is_one_pass`.
 
 The same rows drive `ai_popup_render` and the `popup_list_metrics_dos6f74` list
 (save/load picker) since port_bugs.md #1189: row 0's bar top is `popup_dos_list_y0`
@@ -398,7 +414,12 @@ for a row with the `|` column tab), frame = content + 6. Prose wraps to content 
 The footer is `popup_dos_draw_help_footer` (`FUN_6f74_1a78`). `@checkbox` rows (options,
 custom house, the DEBUG.TXT `@OPTIONS` flags) are the DOS row text: `FUN_6f74_0a00` prefixes
 DS:0x1f91 `"~[ "` and `FUN_6f74_1b7c` sets its second byte to `]` (on) or `[` (off); those
-two glyphs are the font's hollow / filled check circles, so the port draws them as text.
+two glyphs are the font's hollow / filled check circles, so the port draws them as text, in
+the hilite ink through the `~`. Hotkeys: `FUN_6f74_0642` (6f74:0b72, on the raw label) stores
+the char after the last `~`, upper-folded ("~F~n" gives an F-key); in `FUN_6f74_2580` a key
+matching a row (6f74:2df6) selects it and, in a @checkbox box, toggles it and stays open
+(6f74:2dcd), else returns it (`popup_hotkey_of`, `popup_input_dos_key`; options dialogs and
+the cheat lists). Test: `smoke_popup_dialogs checkbox_hotkeys`.
 
 "Units Present" (`FUN_2b5a_1b5a`): `box[+0x46]` 0, `box[+0x4a]` 2, flags 0x82, one
 `FUN_6f74_0f3c` icon row per unit (the first 10 on the tile chain; the rest are not listed
@@ -508,8 +529,8 @@ fragment. Related sections are listed in the first column.
 | `@LANDFALL` / `@LANDFALL2` | Ship→bare land with passengers | Done | `AI_POPUP_TAG_LANDFALL` + `popup_msg_fill` |
 | Stack picker | Multi-unit tile click | Done | [`unit_stack.c`](../src/core/unit_stack.c) |
 | `@SUREDISBAND` / `@DISBANDSHIP` | Disband confirm / ship cargo error | Done | Confirm `@SUREDISBAND`; `@DISBANDSHIP` OK when units aboard |
-| `@FINDCITY` / `@NOCITY` | Find colony picker | Done | `cheat_list` FIND_COLONY |
-| `@SAILPORT` | Unit ORDERS "Go to Port" (ships) | Done | 2026-09-16: `game_open_goto_port_picker`/`cheat_list` GOTO_PORT, DOS `FUN_647e_01c6`/`FUN_2b5a_1dfc`; 2026-10-22: Europe row first, rows filtered by `travel_dest_ok` (docs/unit_orders.md) |
+| `@FINDCITY` / `@NOCITY` | VIEW Find Colony text entry | Done | `name_entry` FIND_COLONY (`game_open_find_colony`, DOS 2b5a:2028 `FUN_291f_0120(0x17)`); `game_find_colony`: first colony of any nation whose name equals the text case-blind and that the view may show (view >= 4, seen bit, or show_entire_map) → View Pieces + cursor there, no colony screen; else `@NOCITY` %STRING0 = the text (port_bugs.md #1197) |
+| `@SAILPORT` | Unit ORDERS "Go to Port" (ships) | Done | 2026-09-16: `game_open_goto_port_picker`/`cheat_list` GOTO_PORT, DOS `FUN_647e_01c6`/`FUN_2b5a_1dfc`; 2026-10-22: Europe row first, rows filtered by `travel_dest_ok` (docs/unit_orders.md); 2026-10-23 (port_bugs.md #1194): paged by `cheat_list_open_dest_pages` (n <= 10 one page of n + 1 slots, else (n + 9) / 10 pages of 10, Europe = slot 0; LABELS @CTITLE 6 "(More)" as Previous / More; the DOS last-colony gap at Europe + 20/30/40 colonies not reproduced, dos_bugs.md DB-53), Europe row `@HOMEPORT (@COUNTRY)`, the ship's own colony greyed (`disabled_mask`, Up/Down wrap and skip it as `FUN_6f74_2580`), empty list shows nothing. No DOS screenshot of this box |
 | `@OVERBOARD` | Which cargo to dump | Done | Hold picker (`AI_POPUP_TAG_OVERBOARD_WHICH`), ids = hold+1, 99 = cancel |
 | Order gates (`@NOPLOW`, `@NOROAD`, `@NEEDTOOLS`, …) | Illegal order | Done thin | Re-verified 2026-09-16: `@NOPLOW`/`@NOROAD` (`units.c` `units_pioneer_emit_order_gate`) — `@ONLYPIO` retired 2026-09-22 as dead text (port_bugs.md #621: the literal is absent from VICEROY.EXE; `0b34` raw 42211-42215 greys the menu rows instead), EOT `@NEEDTOOLS`/`@NEEDTOOLS0` (`turn.c`), `@SEACOLONY`/`@TOOMOUNTAIN`/`@NOPORT` (`game_loop.c`) all call `popup_msg_fill` with the real GAME.TXT body at the DOS condition — was mis-tallied Partial against a stale note; see Appendix A |
 
@@ -661,7 +682,7 @@ DOS module = segment `647e` (mislabelled "colony" in the catalog — records are
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
 | `@TRADEMANY` | Create at 12-route cap | Done | ai_popup OK, %NUMBER0=12 |
-| `@TRADESTART` | Create/editor destination pickers | Done | `cheat_list` TRADE_DEST, %NUMBER0 = stop #. Wizard pickers: every own colony, no Europe row (DOS asks `FUN_647e_01c6` with unit -1). Editor stop rows: Europe first (sea route), then colonies reachable from the route's first stop (`travel_dest_ok`, DOS phantom unit `FUN_478c_007e`) |
+| `@TRADESTART` / `@SAILPORT` / `@TRAVELPLACE` | Create / editor destination pickers | Done | `game_trade_open_dest_picker` → `game_open_dest_pager` (TRADE_DEST, paged as Go to Port, port_bugs.md #1194). Wizard pickers: `@TRADESTART` %NUMBER0 = 1 / 2, every own colony, no Europe row (DOS asks `FUN_647e_01c6` with unit -1). Editor stop rows: titled by the phantom unit `FUN_478c_007e` (type 0xd sea / 0 land), so `@SAILPORT` / `@TRAVELPLACE` (static read of 647e:0227-025c, no DOS shot); Europe first (sea route), then colonies reachable from the route's first stop (`travel_dest_ok`); editing preselects the stop's destination, appending stop 0's; "(Delete Destination)" on the last page when editing a stop of a multi-stop route, and always when appending (picking it there does nothing, 647e:0e55) |
 | `@TRADETYPE` | Create: first colony coastal | Done | AI_POPUP_TAG_TRADE_TYPE CHOICE (1=Sea) |
 | `@TRADENAMES` + `@TRADENAME` | Create: default name + entry | Done | "<Colony> <word>", the word = `FUN_281f_04ca` reseed + `FUN_281f_04d4(1, n)` draw on the game RNG (`move_rng`; no private LCG), " A"-suffix dedupe; name_entry TRADE_NAME (31 chars). Regression tests type names, never rely on the default |
 | `@TRADENONE` / `@TRADENONE2` | Begin/Edit with no (matching) routes | Done | ai_popup OK; %STRING0 = @ROUTE Sea/Land |

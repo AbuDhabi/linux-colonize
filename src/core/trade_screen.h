@@ -92,10 +92,8 @@ void trade_screen_render(
   const ColonizeCol1Save* col1,
   const ColonizeColonyPool* colonies,
   const char* europe_label,
-  const ColonizeFont* font,
-  const ColonizeSpriteSheet* wood_tile,
+  const ColonizeFont* font, /* FONTTINY (DS:0x89e) */
   const ColonizeSpriteSheet* icons,
-  const ColonizePopupColors* colors,
   ColonizeFramebuffer8* framebuffer
 );
 

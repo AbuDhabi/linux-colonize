@@ -57,6 +57,26 @@ typedef struct AiEuro28c8JobCandidate {
  * colonies_seat_new_colonist is the sim-side entry point (port_bugs.md #562).
  */
 void ai_euro_28c8_auto_assign_plots(ColonizeTurnContext* ctx, int colony_id, int colonist_slot);
+
+/*
+ * FUN_2f2b_348c raw 50600-50658: the number the colony-screen jobs menu prints for `job`
+ * (< 0x13), colonist `slot` lifted off its plot (FUN_15eb_169c) and trial-assigned
+ * (FUN_15eb_1068). A field job is FUN_15eb_28c8(slot, job)'s DS:0x8dbe, the yield of the
+ * plot it would seat him on (0 when none scores; param_2 >= 0 gates every weight off, raw
+ * 13026-13029, so the score is yld * 8 + 7 - |dx| - |dy|). An indoor job is FUN_281f_0cd6 ->
+ * FUN_15eb_1d4c, the Statesman then + Jefferson / Paine / Newspaper or Printing Press.
+ * *out_cargo = the @CARGO row DOS names after it (aiStack_c8; -1 = none). No side effects:
+ * DOS's trial seats are not reproduced.
+ */
+int ai_euro_jobs_menu_estimate(
+  const ColonizeColonyPool* pool,
+  const ColonizeWorldMap* map,
+  const ColonizeCol1Save* col1,
+  const ColonizeColony* col,
+  int slot,
+  int job,
+  int* out_cargo
+);
 /* CYCLE.DAT, which DOS FUN_7a9d_0004 loads raw to DS:0x929e: the 5952
  * cascade's past-the-table per-nation reads land in it (ai_euro_5952_ds_byte).
  * Returns false (and keeps zeros) when the file cannot be read. */

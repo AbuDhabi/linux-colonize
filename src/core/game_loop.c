@@ -2178,18 +2178,13 @@ COLONIZE_INTERNAL void game_render_map_dialogs(
   map_menu_render((MapMenuBar*)&game->map_menu, hud_font, wood, framebuffer);
   if (!game_screen_owns_display(game)) {
     if (game->trade_screen.open) {
-      ColonizePopupColors popup_cols;
-      popup_colors_from_ui(&popup_cols);
-      const ColonizeFont* popup_font = game_popup_font(game);
       trade_screen_render(
         &game->trade_screen,
         game->col1_ok ? &game->col1 : NULL,
         game->colonies_ok ? &game->colonies : NULL,
         game_trade_europe_label(game),
-        popup_font,
-        wood,
+        hud_font, /* FUN_647e_09da: FONTTINY throughout */
         game->unit_icons_ok ? &game->unit_icons : NULL,
-        &popup_cols,
         framebuffer
       );
     }
@@ -2277,7 +2272,7 @@ COLONIZE_INTERNAL void game_render_map_dialogs(
         game->world_map_ok ? &game->world_map : NULL,
         &popup_cols,
         COLONIZE_COL_BASIC,
-        COLONIZE_COL_SELECT,
+        COLONIZE_COL_HILITE,
         game->map_palette_ok ? &game->map_palette : NULL,
         framebuffer
       );

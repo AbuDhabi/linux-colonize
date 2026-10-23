@@ -672,9 +672,7 @@ void reports_draw_right(
 /* Black drop shadow, offset +0,+1 (straight down, no horizontal shift —
  * a +1,+1 diagonal offset was tried first and looked odd, player-reported)
  * — Indian's tribe name/level line (indian.png shows a 1px black trailing
- * edge). Same two-pass idea as popup_draw_text_shadowed, kept local since
- * that one calls font_draw_text_unbold and every other report draws with
- * reports_draw_line's bold font_draw_text. */
+ * edge). DOS FUN_3f41_010a draws three black passes; see port_bugs.md #1207. */
 void reports_draw_line_shadowed(
   const ColonizeFont* font, ColonizeFramebuffer8* fb, int x, int y, const char* text, uint8_t color
 ) {

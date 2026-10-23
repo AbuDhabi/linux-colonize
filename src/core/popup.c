@@ -1,5 +1,6 @@
 #include "core/popup.h"
 
+#include <ctype.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
@@ -182,24 +183,10 @@ void popup_draw(
   }
 }
 
-void popup_draw_text_shadowed(
-  const ColonizeFont* font,
-  ColonizeFramebuffer8* framebuffer,
-  int x,
-  int y,
-  const char* text,
-  uint8_t color
-) {
-  if (!font || !framebuffer || !text || !text[0]) {
-    return;
-  }
-  font_draw_text_unbold(font, framebuffer, x + 1, y + 1, text, 0);
-  font_draw_text_unbold(font, framebuffer, x, y, text, color);
-}
-
-/* Strips {}. LINE/CENTER marks are NOT stripped here — callers measuring
- * marked-up bodies must strip those first (ai_popup does); passing a raw
- * marked line over-measures (audit 2026-09-09 #105). */
+/* FUN_6f74_0486 (the 0a00 / 1b7c row measure) deletes every char of DS:0x1f8c "~{}|"
+ * before measuring, escaped ones too, so a '~' and the char after it cost the char only.
+ * LINE/CENTER marks are NOT stripped here — callers measuring marked-up bodies must strip
+ * those first (ai_popup does); passing a raw marked line over-measures (audit 2026-09-09 #105). */
 int popup_markup_text_width(const ColonizeFont* font, const char* text) {
   if (!text) {
     return 0;
@@ -207,10 +194,9 @@ int popup_markup_text_width(const ColonizeFont* font, const char* text) {
   char plain[512];
   size_t t = 0;
   for (const char* p = text; *p && t + 1 < sizeof(plain); ++p) {
-    if (*p == '{' || *p == '}') {
-      continue;
+    if (!strchr("~{}|", *p)) {
+      plain[t++] = *p;
     }
-    plain[t++] = *p;
   }
   plain[t] = '\0';
   return font_text_width(font, plain);
@@ -238,7 +224,7 @@ int popup_draw_text_markup(
   bool hi = inout_hilite ? *inout_hilite : false;
   int cx = x;
   const char* p = text;
-  while (*p) {
+  while (*p && *p != '|') { /* 0538: '|' ends the text */
     if (*p == '{') {
       hi = true;
       ++p;
@@ -249,8 +235,19 @@ int popup_draw_text_markup(
       ++p;
       continue;
     }
+    if (*p == '~') {
+      /* 6f74:05be: reload the map with DX = (DS:0x1f62 == 0), i.e. the other ink, draw the
+       * next byte as a plain glyph (so '~' also escapes '{' '}' '|' '~'), restore with
+       * DX = 0x1f62 (6f74:060a). DOS reads past a trailing '~'; stop at the NUL. */
+      if (!*++p) {
+        break;
+      }
+      const uint8_t esc[4] = {0, hi ? base_color : hilite_color, colors->enhance, colors->shadow};
+      cx += font_draw_glyph_shaded(font, framebuffer, cx, y, (unsigned char)*p++, esc);
+      continue;
+    }
     const char* start = p;
-    while (*p && *p != '{' && *p != '}') {
+    while (*p && !strchr("{}~|", *p)) {
       ++p;
     }
     /* FUN_6f74_04f6 -> FUN_1c28_000a: DS:0x269e = {skip, ink, style+8, style+0xa}. */
@@ -273,6 +270,35 @@ int popup_draw_text_markup(
     *inout_hilite = hi;
   }
   return cx;
+}
+
+/* DOS-LITERAL FUN_6f74_0642 raw 115049 (strrchr FUN_1d1d_10ea, strchr FUN_1d1d_1010,
+ * ctype DS:0x27ed & 4 = digit, & 2 = lower). */
+int popup_hotkey_of(const char* label) {
+  const char* last = label ? strrchr(label, '~') : NULL;
+  if (!last) {
+    return 0;
+  }
+  const char* first = strchr(label, '~');
+  const unsigned char k = (unsigned char)last[1];
+  if (first != last && first[1] == 'F' && isdigit(k)) {
+    return k + 0x10a;
+  }
+  return islower(k) ? k - 0x20 : k;
+}
+
+int popup_input_dos_key(const ColonizeInputState* input) {
+  if (!input || input->alt_held || input->ctrl_held) {
+    return 0;
+  }
+  if (input->last_key >= COLONIZE_KEY_F1 && input->last_key <= COLONIZE_KEY_F9) {
+    return 0x13b + (int)(input->last_key - COLONIZE_KEY_F1);
+  }
+  if (input->text_input_len <= 0) {
+    return 0;
+  }
+  const unsigned char c = (unsigned char)input->text_input[0];
+  return islower(c) ? c - 0x20 : c;
 }
 
 
@@ -404,8 +430,8 @@ void popup_list_render(
     dialog_h = framebuffer->height;
   }
 
-  /* FUN_6f74_14c6: content = max(box[+0x28] (@width, default 0x50), widest row), the
-   * row width being FUN_6f74_0a00's text + 2 * box[+0x48] + box[+0x22]. */
+  /* FUN_6f74_14c6: content = max(box[+0x28] (@width, default 0x50), widest row), the row
+   * width being FUN_6f74_0a00's text less ~{}| (FUN_6f74_0486) + 2 * box[+0x48] + box[+0x22]. */
   int content_w = width > 0x50 ? width : 0x50;
   if (font) {
     if (has_prompt) {
@@ -419,7 +445,7 @@ void popup_list_render(
       if (!label) {
         continue;
       }
-      const int w = font_text_width(font, label) + 2 * m->pad_x + m->label_dx;
+      const int w = popup_markup_text_width(font, label) + 2 * m->pad_x + m->label_dx;
       if (w > content_w) {
         content_w = w;
       }
@@ -458,9 +484,11 @@ void popup_list_render(
       );
     }
     const char* label = label_fn ? label_fn(user, i) : NULL;
+    const bool disabled = i < 32 && (m->disabled_mask & (1u << i));
     popup_draw_text_markup(
-      font, framebuffer, geom.frame.inner_x + m->pad_x + m->label_dx, row_y, label, text_color,
-      hilite_color, colors, NULL
+      font, framebuffer, geom.frame.inner_x + m->pad_x + m->label_dx, row_y, label,
+      disabled ? COLONIZE_COL_GREY : text_color, disabled ? COLONIZE_COL_GREY : hilite_color,
+      colors, NULL
     );
   }
 

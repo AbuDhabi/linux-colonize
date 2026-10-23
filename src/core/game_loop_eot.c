@@ -1492,17 +1492,13 @@ void game_order_return_europe(ColonizeGameState* game) {
 
 /*
  * Unit ORDERS "Go to Port" (ships only — land units use Go to Place's click
- * mode). DOS FUN_2b5a_1dfc opens FUN_647e_01c6(unit, -1, 1, 0) titled
- * @SAILPORT for a ship (asm 647e:0227-025c: unit type 0xd..0x12 → SAILPORT
- * else TRAVELPLACE; GOTO_PORT is ship-only in the port's menu so the title is
- * always SAILPORT here). Rows (raw 102334-102461): the Europe row FIRST (asm
- * 647e:02c4-037e), when thunk_FUN_2a1f_0762(999, unit) passes, then every
- * colony it passes, in colony order (647e:03a7-0450). 0762 = FUN_647e_0094
- * (asm 647e:0094-01c0) = travel_dest_ok: own colony
- * on the ship's water region (a lake colony is never offered to a sea-going
- * ship), Europe only for a ship that can reach the Atlantic. Not reproduced:
- * 10-row pagination (the list is cut at CHEAT_LIST_MAX_OPTIONS) and DOS's
- * greyed row (FUN_291f_01b6) for the colony the ship already lies in.
+ * mode). DOS FUN_2b5a_1dfc opens FUN_647e_01c6(unit, -1, 1, 0) (call 2b5a:1e0e),
+ * titled @SAILPORT for a ship, @TRAVELPLACE for any other unit (647e:0227-025c),
+ * paged 10 to a page (game_open_dest_pager, port_bugs.md #1194): the Europe row
+ * first when the ship reaches the Atlantic, then every colony travel_dest_ok
+ * (FUN_647e_0094) passes, in colony order; the at-colony test is on, so the colony
+ * the ship lies in is greyed (FUN_291f_01b6). No default. An empty list shows
+ * nothing (647e:048f).
  */
 static void game_open_goto_port_picker(ColonizeGameState* game, int uid) {
   if (!game || !game->world_map_ok || !game->colonies_ok || !game->units_ok) {
@@ -1512,43 +1508,14 @@ static void game_open_goto_port_picker(ColonizeGameState* game, int uid) {
   if (!travel_dest_who_unit(&game->units, uid, &who)) {
     return;
   }
-  const char* labels[CHEAT_LIST_MAX_OPTIONS];
-  int ids[CHEAT_LIST_MAX_OPTIONS];
-  char bufs[CHEAT_LIST_MAX_OPTIONS][CHEAT_LIST_LABEL_LEN];
-  int count = 0;
-  if (who.ship &&
-      travel_dest_ok(&game->world_map, &game->colonies, game->human_nation, TRAVEL_DEST_EUROPE, &who)) {
-    snprintf(bufs[count], sizeof(bufs[count]), "%s (Europe)", game_trade_europe_label(game));
-    labels[count] = bufs[count];
-    ids[count] = TRAVEL_DEST_EUROPE;
-    count++;
-  }
-  for (int i = 0; i < COLONIZE_COLONIES_MAX && count < CHEAT_LIST_MAX_OPTIONS; ++i) {
-    const ColonizeColony* c = &game->colonies.colonies[i];
-    if (!c->active ||
-        !travel_dest_ok(&game->world_map, &game->colonies, game->human_nation, c->id, &who)) {
-      continue;
-    }
-    str_copy_trunc(bufs[count], sizeof(bufs[count]), c->name[0] ? c->name : "");
-    labels[count] = bufs[count];
-    ids[count] = c->id;
-    count++;
-  }
-  if (count <= 0) {
-    set_status(game, "No destinations available", NULL);
-    return;
-  }
   char prompt[COLONIZE_MSG_LINE_LEN];
-  PopupMsgTokens tok;
-  memset(&tok, 0, sizeof(tok));
   popup_msg_fill(
-    &game->messages, "SAILPORT", &tok, "", prompt, sizeof(prompt)
+    &game->messages, who.ship ? "SAILPORT" : "TRAVELPLACE", NULL, "", prompt, sizeof(prompt)
   );
-  popup_msg_take_pending_default(); /* consume — this is a cheat_list, not an ai_popup */
+  popup_msg_take_pending_default(); /* @default=1: the parser's, no rows parsed here */
   game->goto_port_pending_unit = uid;
-  if (!cheat_list_open_goto_port(&game->cheat_list, prompt, labels, ids, count)) {
+  if (!game_open_dest_pager(game, CHEAT_LIST_KIND_GOTO_PORT, prompt, &who, true, -1, NULL)) {
     game->goto_port_pending_unit = -1;
-    set_status(game, "Destination picker unavailable", NULL);
   }
 }
 
@@ -1716,7 +1683,7 @@ static GameMenuActionStatus game_menu_action_view(ColonizeGameState* game, MapMe
       (void)game_try_enter_europe(game);
       return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_FIND_COLONY:
-      game_open_find_colony_picker(game);
+      game_open_find_colony(game);
       return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_ZOOM_IN:
       /* In = toward 15×12 (level 0, most detail); Out = toward 120×96. */

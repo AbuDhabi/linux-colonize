@@ -17,12 +17,13 @@
 #define TRADE_NAME_Y1 45     /* rename band bottom (0x1d + 2 lines) */
 #define TRADE_EXIT_Y 169     /* 0xa9 — clicks below leave the editor */
 #define TRADE_COL_DEST_X1 114   /* 0x72 */
-/* Column order is deliberately swapped vs DOS (which put Unload first):
- * load-then-unload reads more naturally for the player. Pixel geometry is
- * unchanged, only which cargo list occupies which column. */
+/* DOS column order (port_bugs.md #1206): FUN_647e_1064 sends 0x72 < mx <= 0xc5 to
+ * FUN_647e_0f2c(0) = the unload list (stop slots 0..5, @CARGOUNLOAD DS:0x1d47, strip from 0x7d)
+ * and mx > 0xc5 to 0f2c(1) = the load list (slots 6..11, @CARGOLOAD DS:0x1d3d, strip from
+ * 0xd0); FUN_647e_09da heads them @ROUTE 6 (DS:0x93ea) at 0x7d and @ROUTE 7 (DS:0x93ec) at 0xd0. */
 #define TRADE_COL_MID_X1 197 /* 0xc5 — rule between the two cargo columns */
-#define TRADE_LOAD_X 125     /* 0x7d — left cargo strip / header x */
-#define TRADE_UNLOAD_X 208   /* 0xd0 — right cargo strip / header x */
+#define TRADE_UNLOAD_X 125   /* 0x7d — left cargo strip / header x */
+#define TRADE_LOAD_X 208     /* 0xd0 — right cargo strip / header x */
 #define TRADE_ICON_GAP 2
 
 /* LABELS.TXT line, else the literal fallback (audit SC-14 — the same
@@ -193,7 +194,7 @@ bool trade_screen_handle_input(
     if (row >= (int)r->dest_count) {
       return true; /* cargo columns need an existing stop */
     }
-    const bool is_load = mx <= TRADE_COL_MID_X1;
+    const bool is_load = mx > TRADE_COL_MID_X1;
     const ColonizeCol1TradeStop* st = &r->stop[row];
     const int slot = trade_cargo_hit_slot(st, is_load, icons, mx);
     const int count = is_load ? (int)st->load_count : (int)st->unload_count;
@@ -234,15 +235,32 @@ static void trade_draw_cargo_strip(
   }
 }
 
+/* FUN_647e_09da writes every string through FUN_281f_013c / 0100 -> FUN_104b_0288 / 0318
+ * (raw 977 / 1007) with ink literal 0x0f: one FONTTINY blit through {skip, c, c, c}, no
+ * shadow pass. Returns the end x, like FUN_1c11_000c. */
+#define TRADE_INK 0x0f
+static int trade_text(
+  const ColonizeFont* font, ColonizeFramebuffer8* fb, int x, int y, const char* s
+) {
+  font_draw_text_shaded(font, fb, x, y, s, (const uint8_t[4]){0, TRADE_INK, TRADE_INK, TRADE_INK});
+  return x + font_text_width(font, s);
+}
+
+/* FUN_104b_0318: x + (w >> 1) - (FUN_104b_0216 (width - 1) >> 1), clamped >= 0. */
+static void trade_text_centred(
+  const ColonizeFont* font, ColonizeFramebuffer8* fb, int x, int w, int y, const char* s
+) {
+  x += (w >> 1) - ((font_text_width(font, s) - 1) >> 1);
+  trade_text(font, fb, x < 0 ? 0 : x, y, s);
+}
+
 void trade_screen_render(
   const TradeScreen* ts,
   const ColonizeCol1Save* col1,
   const ColonizeColonyPool* colonies,
   const char* europe_label,
   const ColonizeFont* font,
-  const ColonizeSpriteSheet* wood_tile,
   const ColonizeSpriteSheet* icons,
-  const ColonizePopupColors* colors,
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!ts || !ts->open || !framebuffer || !col1 || ts->route < 0 ||
@@ -250,75 +268,56 @@ void trade_screen_render(
     return;
   }
   const ColonizeCol1TradeRoute* r = &col1->trade_route[ts->route];
-  ColonizePopupColors cols;
-  if (colors) {
-    cols = *colors;
-  } else {
-    popup_colors_from_ui(&cols);
-  }
-  popup_draw(
-    framebuffer, 0, 0, framebuffer->width, framebuffer->height, wood_tile, &cols,
-    NULL, NULL, NULL, NULL
-  );
+  /* 647e:09f1 FUN_281f_0484: the whole surface in colour 0x22. */
+  fb_fill_rect(framebuffer, 0, 0, framebuffer->width, framebuffer->height, 0x22);
   if (!font) {
     return;
   }
+  const int h = font->max_height; /* *(byte*)*(DS:0x89e), FONTTINY's first byte */
   char line[96];
 
-  /* Title, centered. */
-  {
-    const int w = font_text_width(font, ts->lab_title);
-    popup_draw_text_shadowed(
-      font, framebuffer, (framebuffer->width - w) / 2, 8, ts->lab_title, 15
-    );
-  }
-  /* Route Name / Route Type (DOS prints the 1-based route number too). */
-  snprintf(line, sizeof(line), "%s %s (#%d)", ts->lab_name, r->name, ts->route + 1);
-  popup_draw_text_shadowed(font, framebuffer, 10, 25, line, 15);
-  snprintf(
-    line, sizeof(line), "%s %s", ts->lab_type, r->sea ? ts->lab_sea : ts->lab_land
-  );
-  popup_draw_text_shadowed(font, framebuffer, 10, 36, line, 15);
+  /* 647e:0a46: @ROUTE 0 + " " + route number, centred over x 0, w 0x140, y 5. */
+  snprintf(line, sizeof(line), "%s %d", ts->lab_title, ts->route + 1);
+  trade_text_centred(font, framebuffer, 0, 0x140, 5, line);
+  /* 647e:0a7e / 0a96: @ROUTE 1 + " " at (0x0a, 0x19), the route name at its end x. */
+  snprintf(line, sizeof(line), "%s ", ts->lab_name);
+  const int value_x = trade_text(font, framebuffer, 0x0a, 0x19, line);
+  trade_text(font, framebuffer, value_x, 0x19, r->name);
+  /* 647e:0ad9 / 0b15: @ROUTE 2 + " " at (0x0a, h + 0x1b); Sea / Land at the route name's x. */
+  snprintf(line, sizeof(line), "%s ", ts->lab_type);
+  trade_text(font, framebuffer, 0x0a, h + 0x1b, line);
+  trade_text(font, framebuffer, value_x, h + 0x1b, r->sea ? ts->lab_sea : ts->lab_land);
 
-  /* Column headers (DOS x: width("0.  ")+10 / 0x7d / 0xd0). */
-  popup_draw_text_shadowed(font, framebuffer, 14, 50, ts->lab_dest, 15);
-  popup_draw_text_shadowed(font, framebuffer, TRADE_LOAD_X, 50, ts->lab_load, 15);
-  popup_draw_text_shadowed(font, framebuffer, TRADE_UNLOAD_X, 50, ts->lab_unload, 15);
+  /* Column headers at y 0x37 - h (647e:0b54 / 0b71 / 0b8f): x = FUN_104b_0216("0.  "
+   * DS:0x1d38) + 0x0a, 0x7d, 0xd0. */
+  trade_text(font, framebuffer, font_text_width(font, "0.  ") - 1 + 0x0a, 0x37 - h, ts->lab_dest);
+  trade_text(font, framebuffer, TRADE_LOAD_X, 0x37 - h, ts->lab_load);
+  trade_text(font, framebuffer, TRADE_UNLOAD_X, 0x37 - h, ts->lab_unload);
 
-  /* Grid: 5 horizontal separators + 2 column rules (FUN_647e_09da). */
-  const uint8_t rule = cols.dark;
+  /* Grid in colour 0: 5 rows x 0..0x13f at y 0x3d + 0x14 i (647e:0bc2 FUN_291f_08bc), column
+   * rules at x 0x73 / 0xc6 over y 0x3d..0x8d (647e:0bef / 0c0e FUN_291f_08b2). */
   for (int i = 0; i <= TRADE_ROW_COUNT; ++i) {
-    fb_hline(framebuffer, TRADE_ROW_Y0 - 2 + i * TRADE_ROW_H, 6, framebuffer->width - 7, rule);
+    fb_hline(framebuffer, TRADE_ROW_Y0 + i * TRADE_ROW_H, 0, 0x13f, 0);
   }
-  fb_vline(
-    framebuffer, TRADE_COL_DEST_X1 + 5, TRADE_ROW_Y0 - 2,
-    TRADE_ROW_Y0 - 2 + TRADE_ROW_COUNT * TRADE_ROW_H, rule
-  );
-  fb_vline(
-    framebuffer, TRADE_COL_MID_X1 + 5, TRADE_ROW_Y0 - 2,
-    TRADE_ROW_Y0 - 2 + TRADE_ROW_COUNT * TRADE_ROW_H, rule
-  );
+  fb_vline(framebuffer, 0x73, TRADE_ROW_Y0, TRADE_ROW_Y0 + 0x50, 0);
+  fb_vline(framebuffer, 0xc6, TRADE_ROW_Y0, TRADE_ROW_Y0 + 0x50, 0);
 
-  /* Stop rows. */
+  /* Stop rows (647e:0d44): stop number + ".  " (DS:0x58) + stop name at (0x0a, row + 8);
+   * the cargo icons at row + 5. */
   for (int i = 0; i < (int)r->dest_count && i < TRADE_ROW_COUNT; ++i) {
     const ColonizeCol1TradeStop* st = &r->stop[i];
     const int row_y = TRADE_ROW_Y0 + i * TRADE_ROW_H;
     snprintf(
-      line, sizeof(line), "%d. %s", i + 1,
+      line, sizeof(line), "%d.  %s", i + 1,
       trade_screen_stop_label(colonies, st->colony_index, europe_label)
     );
-    popup_draw_text_shadowed(font, framebuffer, 6, row_y + 2, line, 15);
+    trade_text(font, framebuffer, 0x0a, row_y + 8, line);
     trade_draw_cargo_strip(st, false, icons, framebuffer, row_y + 5);
     trade_draw_cargo_strip(st, true, icons, framebuffer, row_y + 5);
   }
-  /* Next free row hint (click to append). */
-  if (r->dest_count < TRADE_ROW_COUNT) {
-    const int row_y = TRADE_ROW_Y0 + (int)r->dest_count * TRADE_ROW_H;
-    snprintf(line, sizeof(line), "%d.", (int)r->dest_count + 1);
-    popup_draw_text_shadowed(font, framebuffer, 6, row_y + 2, line, 7);
-  }
 
-  /* OK, bottom right (LABELS @MISC 46; DOS draws it at x 0x118). */
-  popup_draw_text_shadowed(font, framebuffer, 280, 176, ts->lab_ok, 15);
-  fb_hline(framebuffer, 189, 6, framebuffer->width - 7, rule);
+  /* OK button (647e:0d84 FUN_281f_00ce): outline x 0x118..0x135, y 0xaa..0xbd in colour 0;
+   * LABELS @MISC 46 (DS:0x2e16) centred over x 0x118 w 0x1e at y 0xb4 - (h >> 1). */
+  fb_rect_outline(framebuffer, 0x118, 0xaa, 0x135 - 0x118 + 1, 0xbd - 0xaa + 1, 0, 0);
+  trade_text_centred(font, framebuffer, 0x118, 0x1e, 0xb4 - (h >> 1), ts->lab_ok);
 }

@@ -4,15 +4,14 @@ key Escape             # Esc cancels the click mode (no order, wagon stays selec
 key g                  # Go to Place again
 click 168 128          # destination Quebec: the wagon rides the roads there, order cleared on arrival
 wait 40
-# Caravel A (Quebec dock, 12 moves) is next. G = Go to Port: colony picker (Europe, Quebec, Montreal, Port au Prince; lake colony Guadeloupe is not offered to a ship)
+# Caravel A (Quebec dock, 12 moves) is next. G = Go to Port: colony picker (Europe, Quebec greyed, Montreal, Port au Prince; lake colony Guadeloupe is not offered to a ship)
 key g                  # open the picker
 key Escape             # picker cancelled: no order, ship stays selected
 wait 10
 key g                  # picker again
-click 96 100           # Quebec, the port the ship already sits in: no order is left
+click 96 100           # Quebec, the port the ship already sits in: greyed, the click is ignored and the picker stays up
 wait 40
-key g                  # picker again
-click 96 92            # Europe row ("La Rochelle (Europe)", first row): go-to the nearest free High Seas tile (50,29); A sails its 4 tiles and keeps the order, it sails for Europe on arriving there next turn
+click 96 92            # Europe row ("La Rochelle (France)", first row): go-to the nearest free High Seas tile (50,29); A sails its 4 tiles and keeps the order, it sails for Europe on arriving there next turn
 wait 60
 # Colonist in Guadeloupe (3 moves) is next (the cycle continues after Caravel A, not from the start)
 click 88 3             # ORDERS menu

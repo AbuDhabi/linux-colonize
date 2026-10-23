@@ -14,7 +14,7 @@
 
 /*
  * Checkbox options wood dialog (@GAMEOPTIONS / @COLONYOPTIONS / @SOUNDOPTIONS).
- * Space/click toggles; Enter confirms (writes bits); Esc cancels.
+ * Space/click or the row's ~ hotkey letter toggles; Enter confirms (writes bits); Esc cancels.
  */
 
 #define OPTIONS_DIALOG_MAX 16
