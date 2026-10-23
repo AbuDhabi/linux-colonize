@@ -4420,6 +4420,57 @@ static int sp_35(void) {
       ind->muskets = 0;
       ind->horse_herds = 0;
     }
+
+    /*
+     * docs/dos_bugs.md DB-55 (port_bugs.md #1157): Esc on the @INDIANWARPATH
+     * target menu cancels. DOS clamps FUN_6f74_2580's -1 to row 1
+     * (4d56:436c-437a, rows are nation + 1), so its Esc picks the English and
+     * quotes @INDIANWARPATH2; the port enqueues nothing and moves no gold and
+     * no tension. French inciter, so the English row is a real target.
+     */
+    {
+      col1.nation[1].gold = 100000;
+      ai_popup_clear(&pop);
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 6; /* AI_CONTACT_CHOICE_INCITE */
+      pop.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+      pop.result_nation_a = 1;
+      pop.result_nation_b = 4;
+      pop.result_payload = 0;
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (pop.queue_count < 1 || pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_INCITE ||
+          pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_CHOICE) {
+        return fail("DB-55 setup: the French inciter should get the target menu");
+      }
+      const int menu_payload = pop.queue[pop.queue_count - 1].payload;
+      const ColonizeCol1Indian ind_before = *ind;
+      uint32_t gold_before[4];
+      for (int n = 0; n < 4; ++n) {
+        gold_before[n] = col1.nation[n].gold;
+      }
+      /* What ai_popup_cancel_current answers for a CHOICE: cancelled, id -1. */
+      ai_popup_clear(&pop);
+      pop.has_result = true;
+      pop.result_cancelled = true;
+      pop.result_choice_id = -1;
+      pop.result_tag = AI_POPUP_TAG_CONTACT_INCITE;
+      pop.result_nation_a = 1;
+      pop.result_nation_b = 4;
+      pop.result_payload = menu_payload;
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (pop.queue_count != 0) {
+        return fail("DB-55: Esc on the incite target menu must not enqueue the pay confirm");
+      }
+      for (int n = 0; n < 4; ++n) {
+        if (col1.nation[n].gold != gold_before[n]) {
+          return fail("DB-55: Esc on the incite target menu must not move gold");
+        }
+      }
+      if (memcmp(&ind_before, ind, sizeof(ind_before)) != 0) {
+        return fail("DB-55: Esc on the incite target menu must not move the tribe's tension");
+      }
+    }
   return 0;
 }
 

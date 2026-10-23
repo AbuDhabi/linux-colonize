@@ -302,6 +302,29 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   Expected lane, COLONY06 harbor + synthetic Bound round-trip).
   **2026-09-03:** user loaded an OpenCol-written save with a ship at sea in DOS;
   it arrived.
+- **One tile chain per Europe lane (port_bugs.md #1158, 2026-10-23).** DOS finds
+  a lane's units with FUN_1427_005c (the first record on the tile, then
+  +0x315c to the chain's end) and walks +0x315e back, so a record on an
+  unlinked segment is invisible: the dock painter FUN_38fd_15aa, the harbor
+  ship counter FUN_38fd_0666 and the Atlantic tick FUN_48d3_03d0 all walk it.
+  198 of the 200 multi-unit Europe lanes in `original_saves` are one chain (the
+  2 others are in the hand-edited `COLONY00_no-transports.SAV`), ships and
+  dockers together (dutch-reports.SAV 163 -> 125 hull -> 183 at 237). The
+  painter draws the chain end first, so dock slot 0 is the newest record.
+  Capture now writes the human's dock rows and harbor / Bound / Expected hulls
+  before the chain pass, which links each lane as one chain by stack key:
+  dock[0] newest, then the rest of the dock, then the harbor hulls (harbor[0]
+  topmost), transit hulls in record order. Before this a harbor hull was its
+  own chain and a second transit hull on a lane another chain: DOS showed
+  "No Ships In Port" with dockers present and would not have moved the second
+  hull. Import reads the dock and harbor order from the same walk, and the
+  dock unit's +0x314c board flag (1 board, 0 "Don't get on next ship";
+  FUN_1427_10be raw 8658-8664 boards a dock unit only on 1). DOSBox-X check
+  2026-10-23: `tests-automated-regression/europe_unequip_units/output.sav`
+  shows the port's dock order [Colonist, Scout, Soldier, Scout, Colonist,
+  Colonist, Jesuit Missionary] and the Caravel in port; the pre-fix output
+  showed the dock reversed and "No Ships In Port". Port saves written before
+  the fix load with the dock in DOS's (reversed) order.
 - **Colony cap** raised 32 → 48 (`COLONIZE_COLONIES_MAX`): DOS's founding
   gate is `colony_count < 0x30`; five 33-colony lategame fixtures were
   silently truncated to 32 on apply.

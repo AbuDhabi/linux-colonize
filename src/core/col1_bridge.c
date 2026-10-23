@@ -1547,6 +1547,54 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
   }
 }
 
+/*
+ * DOS's order on a Europe lane tile: FUN_1427_005c (raw 7295-7336) takes the
+ * FIRST record on (xy, xy), FUN_1427_0002 follows +0x315c to the chain's end,
+ * and the painters (FUN_38fd_15aa dock, FUN_38fd_0666 harbor) walk +0x315e
+ * back from there. rank[i] = that walk's position of save record i (0 = the
+ * newest, drawn first), -1 off the chain.
+ */
+static void col1_lane_chain_rank(const ColonizeCol1Save* save, uint8_t xy, int* rank) {
+  const int n = (int)save->head.unit_count;
+  int top = -1;
+  for (int i = 0; i < n; ++i) {
+    rank[i] = -1;
+    if (top < 0 && save->unit[i].x == xy && save->unit[i].y == xy) {
+      top = i;
+    }
+  }
+  for (int guard = 0; top >= 0 && guard < n; ++guard) {
+    const int nx = save->unit[top].transport_chain.next_unit_idx;
+    if (nx < 0 || nx >= n) {
+      break;
+    }
+    top = nx;
+  }
+  for (int u = top, r = 0; u >= 0 && u < n && rank[u] < 0; ++r) {
+    rank[u] = r;
+    u = save->unit[u].transport_chain.prev_unit_idx;
+  }
+}
+
+/* Stable permutation of `count` entries by the lane rank of their save record
+ * src[k] (entries off the chain keep their order, after the ranked ones). */
+static void col1_lane_rank_perm(const int* rank, const int* src, int count, int* perm) {
+  for (int k = 0; k < count; ++k) {
+    const int key = src[k] >= 0 && rank[src[k]] >= 0 ? rank[src[k]] : INT32_MAX;
+    int at = k;
+    while (at > 0) {
+      const int o = perm[at - 1];
+      const int okey = src[o] >= 0 && rank[src[o]] >= 0 ? rank[src[o]] : INT32_MAX;
+      if (okey <= key) {
+        break;
+      }
+      perm[at] = o;
+      --at;
+    }
+    perm[at] = k;
+  }
+}
+
 /* Unit records: Europe harbor/dock mirrors, map units, cargo/holds; tile stack order. */
 COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
   const ColonizeCol1Save* save = ctx->save;
@@ -1557,6 +1605,12 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
   ColonizeCol1BridgeResult* local = &ctx->local;
   int* id_by_index = ctx->id_by_index;
   bool* consumed = ctx->consumed;
+  /* Save record behind each dock row / harbor ship this walk pushes, for the
+   * lane-order pass after it. */
+  const int dock0 = europe ? europe->dock_count : 0;
+  const int harbor0 = europe ? europe->harbor_ships : 0;
+  int dock_src[EUROPE_DOCK_MAX];
+  int harbor_src[EUROPE_HARBOR_MAX];
   for (int i = 0; i < (int)save->head.unit_count; ++i) {
     const ColonizeCol1Unit* src = &save->unit[i];
     if (consumed && consumed[i]) {
@@ -1604,6 +1658,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
             col1_bridge_europe_ship_route_load(
               save, src, &europe->harbor[europe->harbor_ships - 1]
             );
+            harbor_src[europe->harbor_ships - 1] = i;
           }
         }
         continue;
@@ -1641,8 +1696,14 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
         if (europe_dock_dos_type_is_valid((int)src->type)) { /* 0..5 or Continental (#669) */
           dos_type = (int)src->type;
         }
-        if (docked) {
-          europe->dock[europe->dock_count - 1].dos_type = dos_type;
+        EuropeDockImmigrant* row = docked ? &europe->dock[europe->dock_count - 1] : NULL;
+        if (row) {
+          row->dos_type = dos_type;
+          /* +0x314c is the row's board flag: 1 boards the next ship, 0 is
+           * "Don't get on next ship" (38fd:3ade / 3aea; FUN_1427_10be raw
+           * 8658-8664 boards a dock unit only on 1). port_bugs.md #1158. */
+          row->sentry = src->orders == UNITS_ORDER_SENTRY;
+          dock_src[europe->dock_count - 1] = i;
         } else {
           /* Queue overflow: keep the unit (the mirror below is what capture
            * writes back out) but say so — it has no dock row to click. */
@@ -1689,6 +1750,9 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
               mu->moves = total > (int)src->moves ? total - (int)src->moves : 0;
             }
             europe_apply_dock_unit_kit(mu, dos_type);
+            if (row) {
+              row->mirror_unit_id = id;
+            }
             if (id_by_index) {
               id_by_index[i] = id;
             }
@@ -1873,6 +1937,42 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
     }
     id_by_index[i] = id;
     local->imported_units++;
+  }
+
+  /*
+   * The walk above pushed the dock rows and harbor ships in save-record order;
+   * DOS shows them in its lane-chain order (col1_lane_chain_rank), newest
+   * first, so re-sort what this load pushed. A DOS save's chain usually runs
+   * in record order, so its newest immigrant, the last record, is dock slot 0.
+   * port_bugs.md #1158.
+   */
+  if (europe && local->human_nation >= 0 && local->human_nation < 4 &&
+      save->head.unit_count > 0) {
+    int* rank = malloc((size_t)save->head.unit_count * sizeof(int));
+    const int nd = europe->dock_count - dock0;
+    const int nh = europe->harbor_ships - harbor0;
+    int* perm = malloc((size_t)(nd > nh ? nd : nh) * sizeof(int) + sizeof(int));
+    void* tmp = malloc(
+      (size_t)nd * sizeof(EuropeDockImmigrant) + (size_t)nh * sizeof(EuropeHarborShip) + 1
+    );
+    if (rank && perm && tmp) {
+      col1_lane_chain_rank(save, (uint8_t)(EUROPE_PARK_XY + local->human_nation), rank);
+      EuropeDockImmigrant* dtmp = (EuropeDockImmigrant*)tmp;
+      col1_lane_rank_perm(rank, dock_src + dock0, nd, perm);
+      memcpy(dtmp, europe->dock + dock0, (size_t)nd * sizeof(*dtmp));
+      for (int k = 0; k < nd; ++k) {
+        europe->dock[dock0 + k] = dtmp[perm[k]];
+      }
+      EuropeHarborShip* htmp = (EuropeHarborShip*)tmp;
+      col1_lane_rank_perm(rank, harbor_src + harbor0, nh, perm);
+      memcpy(htmp, europe->harbor + harbor0, (size_t)nh * sizeof(*htmp));
+      for (int k = 0; k < nh; ++k) {
+        europe->harbor[harbor0 + k] = htmp[perm[k]];
+      }
+    }
+    free(rank);
+    free(perm);
+    free(tmp);
   }
 
   if (!col1_restore_tile_stack_order(save, units, id_by_index)) {
@@ -3429,73 +3529,57 @@ COLONIZE_INTERNAL void col1_bridge_capture_unit_chains(Col1CaptureCtx* ctx) {
   }
 }
 
-/* Units: Europe dock rows with no mirror unit. */
+/* Units: Europe dock rows, keyed in dock order; rows with no mirror unit. */
 COLONIZE_INTERNAL void col1_bridge_capture_dock_rows(Col1CaptureCtx* ctx) {
   ColonizeUnitPool* units = ctx->units;
-  const EuropeScreen* europe = ctx->europe;
+  EuropeScreen* europe = ctx->europe;
   const int human_nation = ctx->human_nation;
   const int capacity = ctx->capacity;
   ColonizeCol1Unit* neu = ctx->neu;
   int written = ctx->written;
   /*
-   * Europe dock rows that have no mirror unit behind them.
+   * DOS has no dock array: the dock is the tile chain on the nation's lane
+   * 236+n, and the painter FUN_38fd_15aa starts at FUN_281f_07e0's answer
+   * (FUN_1427_005c: the first record on the tile, then FUN_1427_0002 to the
+   * +0x315c end) and walks +0x315e back, so slot 0 is the chain's newest
+   * record. Every dock row's record therefore gets a stack key from its row,
+   * dock[0] highest: the chain pass links them so DOS draws them in the
+   * port's dock order, whatever order the pool holds the mirrors in (an
+   * in-session immigrant or Brewster pick sits at the pool's end, "Move to
+   * front" only moves the row). port_bugs.md #1158.
    *
-   * col1_bridge_apply's rule (see the import path) is that every dock
-   * immigrant also exists in the pool as a unit parked at (236,236),
-   * because capture only walks the pool. Only three paths honour it:
-   * turn.c's crosses immigrant, units.c's Brewster pick and the import
-   * itself. Every other way a colonist reaches the dock pushes a row and
-   * nothing else — Recruit (paid and free), Train, Purchase, the harbor
-   * 0718 spawn, europe_disembark_passengers_to_dock (every passenger a
-   * ship brings home, whose pool unit units_despawn_ship_with_cargo has
-   * just destroyed), the King's mercenary Veteran Soldiers and a unit sent
-   * home by ai_diplo. Nothing then recorded those immigrants in the file,
-   * so a save/load deleted them outright.
+   * The row's mirror (europe_dock_mirror_unit_of) supplies the record the
+   * pool walk above already wrote; a row with none (Recruit, Train, Purchase,
+   * the harbor 0718 spawn, disembarked passengers, the King's mercenaries, a
+   * unit ai_diplo sends home) is written out here from the row itself, and
+   * import re-creates both halves. Smell audit 2026-09-10 F2.
    *
-   * Rather than chase the producers, reconcile here: claim one dock row for
-   * every human mirror the pool walk above already exported (by profession
-   * first, so an armed or trained immigrant matches its own row), then
-   * write the unclaimed rows out as records of their own in the same dock
-   * lane the mirrors use. Import re-creates both halves, so the next save
-   * finds them in the pool and this loop goes quiet.
-   * Smell audit 2026-09-10 F2.
+   * The orders byte is the row's board flag: the @ARMOPTIONS rows write
+   * +0x314c = 0 ("Don't get on next ship", 38fd:3ade, ndisasm 0x3402E) or 1
+   * ("Board next ship", 38fd:3aea, 0x3403A), and FUN_1427_10be boards a unit
+   * of the dock lane only when orders == 1 (raw 8658-8664).
    */
   if (europe && human_nation >= 0 && human_nation < 4 && europe->dock_count > 0) {
     const uint8_t n = (uint8_t)human_nation;
     const int rows =
       europe->dock_count < EUROPE_DOCK_MAX ? europe->dock_count : EUROPE_DOCK_MAX;
-    bool claimed[EUROPE_DOCK_MAX];
-    for (int r = 0; r < EUROPE_DOCK_MAX; ++r) {
-      claimed[r] = false;
-    }
-    for (int i = 0; i < units_slot_end(units); ++i) {
-      const ColonizeUnit* u = &units->units[i];
-      /* The same shape europe_dock_mirror_unit_of pairs on. */
-      if (!u->active || (u->nation_id & 0xF) != human_nation || u->x != EUROPE_PARK_XY || u->y != EUROPE_PARK_XY ||
-          u->aboard_ship_id >= 0 || units_is_sea(units, u->id)) {
-        continue;
-      }
-      int pick = -1;
-      for (int r = 0; r < rows && pick < 0; ++r) {
-        if (!claimed[r] && europe->dock[r].present &&
-            europe->dock[r].profession == u->profession) {
-          pick = r;
-        }
-      }
-      for (int r = 0; r < rows && pick < 0; ++r) {
-        if (!claimed[r] && europe->dock[r].present) {
-          pick = r;
-        }
-      }
-      if (pick >= 0) {
-        claimed[pick] = true;
-      }
-    }
     for (int r = 0; r < rows; ++r) {
-      if (claimed[r] || !europe->dock[r].present || written >= capacity) {
+      const EuropeDockImmigrant* row = &europe->dock[r];
+      if (!row->present) {
         continue;
       }
-      const EuropeDockImmigrant* row = &europe->dock[r];
+      const uint8_t orders = row->sentry ? UNITS_ORDER_SENTRY : UNITS_ORDER_NONE;
+      const uint64_t key = UINT64_MAX - (uint64_t)r;
+      const int mid = europe_dock_mirror_unit_of(europe, units, human_nation, r);
+      const int rec = mid > 0 && mid <= units->next_id ? ctx->runtime_to_col1[mid] : -1;
+      if (rec >= 0) {
+        neu[rec].orders = orders;
+        ctx->stack_order_by_col1[rec] = key;
+        continue;
+      }
+      if (written >= capacity) {
+        continue;
+      }
       /* Display type, not dos_type: a purchased Artillery row is name-flagged
        * and carries no dos_type of its own, so it went out as a Colonist. */
       int ti = europe_dock_display_type_index(units, row);
@@ -3517,7 +3601,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_dock_rows(Col1CaptureCtx* ctx) {
       dst->vis_mask = 0; /* Europe sentinel units carry vis 0 in DOS saves */
       dst->ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
       dst->origin = 0xff; /* home-colony byte can't survive the Europe screen */
-      dst->orders = UNITS_ORDER_SENTRY; /* dock immigrants sentry — DOS +0x314c = 1 */
+      dst->orders = orders;
       dst->profession = (uint8_t)(row->profession < 0 ? UNITS_JOB_NONE : row->profession);
       dst->transport_chain.prev_unit_idx = -1;
       dst->transport_chain.next_unit_idx = -1;
@@ -3530,8 +3614,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_dock_rows(Col1CaptureCtx* ctx) {
         europe_apply_dock_unit_kit(&kit, row->dos_type);
         dst->cargo_hold[5] = (uint8_t)(kit.tools > 0 ? (kit.tools <= 100 ? kit.tools : 100) : 0);
       }
-      /* Newest arrivals: the chain pass puts them after the mirrors. */
-      ctx->stack_order_by_col1[written] = UINT64_MAX;
+      ctx->stack_order_by_col1[written] = key;
       written++;
     }
   }
@@ -3692,6 +3775,12 @@ COLONIZE_INTERNAL void col1_bridge_capture_europe_lanes(Col1CaptureCtx* ctx) {
         dst->transport_chain.next_unit_idx = -1;
         if (last >= 0) {
           neu[last].transport_chain.next_unit_idx = (int16_t)written;
+        }
+        /* In port the hull joins the dock lane's chain (the chain pass runs
+         * next): below every dock row, harbor[0] topmost, which is the order
+         * FUN_38fd_0666 counts the harbor's ships in. Transit hulls keep 0. */
+        if (in_port) {
+          ctx->stack_order_by_col1[written] = UINT64_MAX - (uint64_t)EUROPE_DOCK_MAX - (uint64_t)si;
         }
         written++;
       }
@@ -3877,11 +3966,12 @@ bool col1_bridge_capture_w(
     return false;
   }
   col1_bridge_capture_unit_records(&ctx);
-  /* Dock rows first: the chain pass links them into the nation's Europe lane
-   * the way a reload (which turns them into mirror units) will. */
+  /* Dock rows and the human's Europe ships before the chain pass, which links
+   * every lane's records into one DOS tile chain by their stack keys
+   * (FUN_1427_005c / FUN_48d3_03d0 only walk the chain they find first). */
   col1_bridge_capture_dock_rows(&ctx);
-  col1_bridge_capture_unit_chains(&ctx);
   col1_bridge_capture_europe_lanes(&ctx);
+  col1_bridge_capture_unit_chains(&ctx);
   col1_bridge_capture_units_commit(&ctx);
   col1_bridge_capture_occupancy(&ctx);
   if (col1_bridge_capture_ext_chunks(&ctx) != COL1_STAGE_OK) {

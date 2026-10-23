@@ -707,7 +707,9 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
         created = units_spawn_room(ctx->units, ctx->human_nation);
         if (created) {
           *europe_dock_insert_front(ctx->europe) = d;
-          (void)europe_spawn_dock_mirror_unit(
+          /* The row owns its mirror from the start (col1 capture writes the
+           * dock in row order through it, port_bugs.md #1158). */
+          ctx->europe->dock[0].mirror_unit_id = europe_spawn_dock_mirror_unit(
             ctx->units, ctx->human_nation, d.profession, (int)ctx->europe->difficulty, true,
             ctx->rng
           );

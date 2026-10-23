@@ -1635,12 +1635,13 @@ bool units_brewster_apply_slot_w(const ColonizeWorld* w, int human, int slot) {
   /* Mirror the dock immigrant as the Europe-map unit (Col1 capture), same
    * shape as turn.c's random-pick path. */
   if (units && europe->dock_count > 0 && human >= 0 && human < 4) {
-    const EuropeDockImmigrant* d = &europe->dock[0];
+    EuropeDockImmigrant* d = &europe->dock[0];
     /* Same shared stream turn.c's imm==1 path uses: europe_dock_unit_dos_type's
      * Dragoon roll (46d4 bound difficulty+4 for a human) is a real DOS draw, and
      * passing NULL here dropped it — every Brewster Soldier mirrored as Soldiers.
-     * Draw order matches 4884: pool refill first, then the mirror-unit roll. */
-    (void)europe_spawn_dock_mirror_unit(
+     * Draw order matches 4884: pool refill first, then the mirror-unit roll.
+     * The row owns the mirror from the start (port_bugs.md #1158). */
+    d->mirror_unit_id = europe_spawn_dock_mirror_unit(
       units, human, d->profession, (int)europe->difficulty, true, rng
     );
   }
