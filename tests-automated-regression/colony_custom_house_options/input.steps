@@ -2,40 +2,40 @@
 click 168 128              # open Quebec
 wait 10
 click 68 26               # click the Custom House: the "Which cargos shall our Custom House export?" panel (15 rows, Food has none)
-click 150 24              # panel frame above the rows: nothing happens, panel stays open
+click 150 33              # panel frame above the rows: nothing happens, panel stays open
 # select all: switch on every row that is off
-click 100 70            # Lumber on
-click 100 94            # Horses on
-click 100 134            # Trade Goods on
-click 100 142            # Tools on
-click 100 150            # Muskets on
+click 100 79            # Lumber on
+click 100 103            # Horses on
+click 100 143            # Trade Goods on
+click 100 151            # Tools on
+click 100 159            # Muskets on
 # unselect all: toggle every row (all 15 are on now)
-click 100 38            # Sugar off
-click 100 46            # Tobacco off
-click 100 54            # Cotton off
-click 100 62            # Furs off
-click 100 70            # Lumber off
-click 100 78            # Ore off
-click 100 86            # Silver off
-click 100 94            # Horses off
-click 100 102            # Rum off
-click 100 110            # Cigars off
-click 100 118            # Cloth off
-click 100 126            # Coats off
-click 100 134            # Trade Goods off
-click 100 142            # Tools off
-click 100 150            # Muskets off
+click 100 47            # Sugar off
+click 100 55            # Tobacco off
+click 100 63            # Cotton off
+click 100 71            # Furs off
+click 100 79            # Lumber off
+click 100 87            # Ore off
+click 100 95            # Silver off
+click 100 103            # Horses off
+click 100 111            # Rum off
+click 100 119            # Cigars off
+click 100 127            # Cloth off
+click 100 135            # Coats off
+click 100 143            # Trade Goods off
+click 100 151            # Tools off
+click 100 159            # Muskets off
 # mixed: Sugar Cotton Ore Rum Cloth Tools Muskets on
-click 100 38            # Sugar on
-click 100 54            # Cotton on
-click 100 78            # Ore on
-click 100 102            # Rum on
-click 100 118            # Cloth on
-click 100 142            # Tools on
-click 100 150            # Muskets on
+click 100 47            # Sugar on
+click 100 63            # Cotton on
+click 100 87            # Ore on
+click 100 111            # Rum on
+click 100 127            # Cloth on
+click 100 151            # Tools on
+click 100 159            # Muskets on
 key Return                # Enter closes the panel
 click 68 26               # reopen: the mixed choice persisted
-click 100 126            # Coats on
+click 100 135            # Coats on
 click 270 60              # click outside the panel: it closes
 click 68 26               # reopen once more (state kept)
 click 270 60              # outside click closes it

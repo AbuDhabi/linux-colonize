@@ -21,9 +21,9 @@
 {"type":"mouse_up","t_ms":2088,"frame":68,"x":478,"y":332,"lx":239,"ly":166,"button":"left","clicks":1}
 {"type":"mouse_down","t_ms":2264,"frame":79,"x":478,"y":332,"lx":239,"ly":166,"button":"left","clicks":1}
 {"type":"mouse_up","t_ms":2312,"frame":82,"x":478,"y":332,"lx":239,"ly":166,"button":"left","clicks":1}
-{"type":"mouse_move","t_ms":2488,"frame":93,"x":220,"y":108,"lx":110,"ly":54,"buttons":0}
-{"type":"mouse_down","t_ms":2504,"frame":94,"x":220,"y":108,"lx":110,"ly":54,"button":"left","clicks":1}
-{"type":"mouse_up","t_ms":2552,"frame":97,"x":220,"y":108,"lx":110,"ly":54,"button":"left","clicks":1}
+{"type":"mouse_move","t_ms":2488,"frame":93,"x":220,"y":206,"lx":110,"ly":103,"buttons":0}
+{"type":"mouse_down","t_ms":2504,"frame":94,"x":220,"y":206,"lx":110,"ly":103,"button":"left","clicks":1}
+{"type":"mouse_up","t_ms":2552,"frame":97,"x":220,"y":206,"lx":110,"ly":103,"button":"left","clicks":1}
 {"type":"key_down","t_ms":2728,"frame":108,"keycode":27,"mod":0}
 {"type":"key_up","t_ms":2776,"frame":111,"keycode":27,"mod":0}
 {"type":"key_down","t_ms":2952,"frame":122,"keycode":97,"mod":0}

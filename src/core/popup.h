@@ -127,11 +127,11 @@ typedef struct PopupFrameGeom {
 } PopupFrameGeom;
 
 /*
- * Centre a w x h dialog on the framebuffer, floor its top at the map menu bar
- * (MAP_MENU_BAR_H + 2), draw the wood frame, hand back both rects. w/h are
- * used as given, so clamp them first. colors may be NULL (popup_colors_from_ui).
- * This is the prologue cheat_list / pick_music / options / save_load /
- * unit_stack each copied.
+ * Place a w x h dialog like the DOS compositor does (popup_place_dos: 160 - (w >> 1),
+ * 100 - (h >> 1), edge clamps, no menu-bar floor), draw the wood frame, hand back both
+ * rects. w/h are used as given, so clamp them first. colors may be NULL
+ * (popup_colors_from_ui). This is the prologue cheat_list / pick_music / options /
+ * save_load / unit_stack each copied; all five are DOS 6f74 dialogs (port_bugs.md #1188).
  */
 void popup_center_frame(
   ColonizeFramebuffer8* framebuffer,
@@ -202,7 +202,7 @@ typedef void (*PopupListRowFn)(
 
 /*
  * The whole wood list dialog: height from the prompt + rows, height/width
- * clamps, centring with the menu-bar floor, popup_colors_from_ui fallback,
+ * clamps, DOS 14c6 centring (popup_center_frame), popup_colors_from_ui fallback,
  * popup_draw, prompt row, selection bar, row labels. Geometry comes back in
  * `out` for the caller to stash (dialog_x/y/w/h, line_h, list_y0).
  * `width` is the dialog's declared content width (GAME.TXT @width).
@@ -248,7 +248,7 @@ PopupDosPlace popup_place_dos(
 
 /*
  * FUN_6f74_0f16 glyph height of a dialog font (font[0]; the 6-row font counts as 5
- * unless DS:0x1f8a is set, which no dialog sets). NULL font = the 6-row default.
+ * unless DS:0x1f8a is set, which the port never models). NULL font = the 6-row default.
  */
 int popup_dos_glyph_h(const ColonizeFont* font);
 

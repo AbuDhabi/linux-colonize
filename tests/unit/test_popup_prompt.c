@@ -344,11 +344,53 @@ static int case_list_height_dos(void) {
   return rc;
 }
 
+/*
+ * port_bugs.md #1188: popup_center_frame (save/load, options, pick music, cheat lists, the unit stack
+ * picker; via popup_list_render and directly) places like FUN_6f74_14c6, so an odd size sits 1 px
+ * past the halve-the-margin form and a tall dialog is not floored under the menu bar.
+ */
+static int case_center_frame_is_dos(void) {
+  int rc = 0;
+  static uint8_t pix[W * H];
+  ColonizeFramebuffer8 fb = {.width = W, .height = H, .pixels = pix};
+  const struct {
+    int w, h, x, y;
+  } k[] = {
+    {196, 68, 62, 66},  /* even / even */
+    {157, 69, 82, 66},  /* odd w (old form 81) and odd h (old form 65) */
+    {157, 70, 82, 65},
+    {190, 192, 65, 4},  /* tall: no MAP_MENU_BAR_H + 2 floor (old y 10) */
+  };
+  for (size_t i = 0; i < sizeof(k) / sizeof(k[0]); ++i) {
+    PopupFrameGeom g;
+    popup_center_frame(&fb, k[i].w, k[i].h, NULL, NULL, &g);
+    if (g.x != k[i].x || g.y != k[i].y || g.w != k[i].w || g.h != k[i].h) {
+      fprintf(stderr, "popup_center_frame %dx%d: want (%d,%d), got (%d,%d)\n", k[i].w, k[i].h,
+              k[i].x, k[i].y, g.x, g.y);
+      rc = 1;
+    }
+  }
+  /* The shared list pipeline (save/load, cheat list, options, pick music) goes through it. */
+  PopupListMetrics m;
+  popup_list_metrics_classic(NULL, &m);
+  PopupListGeom lg;
+  popup_list_render(
+    &fb, NULL, NULL, NULL, &m, 151, "", 7, 0, NULL, NULL, NULL, 15, 14, 138, &lg
+  );
+  if (lg.frame.x != 160 - (lg.frame.w >> 1) || lg.frame.y != 100 - (lg.frame.h >> 1)) {
+    fprintf(stderr, "popup_list_render frame (%d,%d) %dx%d is not the 14c6 centre\n", lg.frame.x,
+            lg.frame.y, lg.frame.w, lg.frame.h);
+    rc = 1;
+  }
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"field_body_is_unbold_markup", case_field_body_is_unbold_markup},
   {"field_geometry_is_dos", case_field_geometry_is_dos},
   {"field_decoration_is_dos", case_field_decoration_is_dos},
   {"place_dos", case_place_dos},
   {"list_height_dos", case_list_height_dos},
+  {"center_frame_is_dos", case_center_frame_is_dos},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

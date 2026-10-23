@@ -9,7 +9,6 @@
 #include "core/assets.h"
 #include "core/fb.h"
 #include "core/font.h"
-#include "core/map_menu.h"
 #include "core/popup_msg.h"
 #include "core/ui_colors.h"
 
@@ -308,11 +307,16 @@ void popup_center_frame(
     popup_colors_from_ui(&local);
     colors = &local;
   }
-  geom.x = (framebuffer->width - w) / 2;
-  geom.y = (framebuffer->height - h) / 2;
-  if (geom.y < MAP_MENU_BAR_H + 2) {
-    geom.y = MAP_MENU_BAR_H + 2;
-  }
+  /*
+   * Every user is a DOS 6f74 compositor dialog without @X/@Y (save/load FUN_7562_0052 via
+   * FUN_291f_0182, the @GAMEOPTIONS / @COLONYOPTIONS / @SOUNDOPTIONS @CHECKBOX lists, @PICKMUSIC,
+   * the cheat / goto lists of FUN_647e_01c6 & co, and the "Units Present" stack picker
+   * FUN_2b5a_1b5a via FUN_291f_023c), so FUN_6f74_14c6 centres them: popup_place_dos, with no
+   * menu-bar floor (port_bugs.md #1188; the old floor had no DOS counterpart).
+   */
+  const PopupDosPlace pl = popup_place_dos(framebuffer->width, framebuffer->height, w, h, NULL);
+  geom.x = pl.x;
+  geom.y = pl.y;
   geom.w = w;
   geom.h = h;
   popup_draw(
@@ -528,7 +532,7 @@ int popup_dos_glyph_h(const ColonizeFont* font) {
   return h == 6 ? 5 : h;
 }
 
-/* DOS-LITERAL FUN_6f74_14c6 height, raw 115966-115987 (6f74:1540-16c8); see popup.h. */
+/* DOS-LITERAL FUN_6f74_14c6 height, raw 115900-115994 (6f74:1540-16c8); see popup.h. */
 int popup_dos_list_height(int glyph_h, int prose_h, int rows, bool help_footer, bool tiny_font) {
   enum { MARGIN_V = 0, SPACING = 3, FRAME = 6 };
   int h = 2 * MARGIN_V + SPACING + FRAME;
