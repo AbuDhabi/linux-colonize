@@ -872,9 +872,11 @@ void reports_render_foreign(
 #define REPORTS_INDIAN_STATS_DY 9
 #define REPORTS_INDIAN_VILLAGES_X 40
 #define REPORTS_INDIAN_MISSIONS_X 96
-#define REPORTS_INDIAN_MUSKETS_X 153
+/* Stats columns: x = icon x + 0x1e, then += 0x38 per column whether or not
+ * the column printed (3f41:03e8 / 0443 / 0492); 153 was a fit, 1 px off. */
+#define REPORTS_INDIAN_MUSKETS_X 152
 #define REPORTS_INDIAN_HORSES_X 208
-#define REPORTS_INDIAN_LEVEL_RIGHT 310
+#define REPORTS_INDIAN_LEVEL_RIGHT 310 /* 0x136, 3f41:0277 */
 #define REPORTS_INDIAN_TEXT_COLOR 0 /* black — golden-sampled (0,0,0) exactly */
 #define REPORTS_INDIAN_MUSKET_UNIT_SCALE 50
 

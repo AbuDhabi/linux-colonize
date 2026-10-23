@@ -301,12 +301,8 @@ bool options_dialog_handle_input(OptionsDialog* dlg, const ColonizeInputState* i
     options_finish(dlg, true);
     return true;
   }
-  if (colonize_key_up(input->last_key) && dlg->selection > 0) {
-    dlg->selection--;
-    return true;
-  }
-  if (colonize_key_down(input->last_key) && dlg->selection + 1 < dlg->option_count) {
-    dlg->selection++;
+  /* The FUN_281f_03fe @CHECKBOX lists show through FUN_6f74_2580: Up / Down wrap. */
+  if (popup_list_key_step(input->last_key, &dlg->selection, dlg->option_count, 0)) {
     return true;
   }
   if (input->last_key == COLONIZE_KEY_SPACE) {

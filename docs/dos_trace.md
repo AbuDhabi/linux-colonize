@@ -223,6 +223,13 @@ instruction. On one byte it is fine. It found the 3180 facing writer.
   match stops by linear address.
 - A `BP 1541:0E04` rand stop costs ~0.5 s each; 750 draws exceed the 540 s send budget. Read the
   LCG state dword (0x28ee in the rand routine's DS) at the stops you care about instead.
+- Colony screen by keyboard (2026-10-23, `dutch-reports.SAV`): after `load_slot` the map cursor
+  (DS:0x8540 x, DS:0x853e y) sits on the active unit; Enter on an own colony opens it
+  (FUN_2b5a_32ee); elsewhere `v` (0x76, scan 0x2f) is View mode, keypad keys move the cursor.
+  On the colony screen Tab (0x09, scan 0x0f) sets DS:0x32e = 1 (colonist focus), Left / Right
+  step DS:0x8d7c, Enter opens the jobs menu (FUN_2f2b_348c), `c` the build list. Colony records
+  DS:0x5d46 stride 0xca, DS:0x8542 = the open one; the resident 15eb routines break at
+  `0e0f:offset` (06d2, 28c8, 0668; DS:0x34d = the trial flag).
 - Save files hold the state at the start of the human's turn. When a turn
   runs, all four European nations move before the Indians. So anything a
   Brave reads may already have been changed by Euro moves made that same

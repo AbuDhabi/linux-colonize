@@ -99,6 +99,9 @@
 /* Sentinel row id in job_ids[]: FUN_2f2b_348c's "Clear Specialty" row
  * (menu id 0x61) — offered when the selected colonist is a specialist. */
 #define COLONY_JOB_CLEAR_SPECIALTY (-2)
+/* Sentinel in eject_roles[]: FUN_2f2b_348c's leave-as row for the colonist's current
+ * occupation (raw 50741-50750, menu id occupation + 1). Picking it keeps him working. */
+#define COLONY_EJECT_ROLE_STAY (-1)
 
 /* COLONY.PIK bands above the warehouse strip (transport shifted +30 for People/Tory). */
 #define COLONY_PEOPLE_X 0
@@ -158,7 +161,7 @@ typedef enum ColonyDockOrderAction {
 
 typedef enum ColonyScreenHit {
   COLONY_HIT_NONE = 0,
-  COLONY_HIT_COLONIST,
+  COLONY_HIT_COLONIST, /* a worker in a building's strip; index = colonist */
   COLONY_HIT_BUILDING,
   COLONY_HIT_CONSTRUCTION_ROW,
   COLONY_HIT_CONSTRUCTION_CLEAR,
@@ -296,10 +299,11 @@ typedef struct ColonyScreenView {
   int selected_colonist;
   int selected_outside_unit; /* map unit id, or -1 */
   /* Work plot the current colonist drag started on (-1: none), and whether
-   * that worker was already selected: a release on the same plot is a plain
-   * click (select it, or the jobs menu for the selected worker). */
+   * that worker was already selected: a release on the same plot or on the same
+   * building worker is a plain click (select him, or the jobs menu for the
+   * selected worker). */
   int drag_from_tile;
-  bool drag_from_tile_selected;
+  bool drag_from_selected;
   bool show_production_numbers;
   /* DOS FUN_2f2b_44d4's hover arm (DS:0x7f6 == 0 branch, DS:0xb9a caches the
    * last-labelled building): pointing at a built settlement building draws its
@@ -314,6 +318,9 @@ typedef struct ColonyScreenView {
   int buildable_ids[COLONY_BUILDABLE_MAX];
   int buildable_count;
   ColonyDialogRect construction_rect; /* page = the selection's (colony_screen_popups.c) */
+  /* The open jobs / construction page's "(More)" row has the bar (FUN_6f74_2580 box+0x4c);
+   * the selection keeps an entry of that page so the page stays. */
+  bool more_selected;
 
   bool jobs_open;
   int jobs_tile_index;
@@ -327,9 +334,10 @@ typedef struct ColonyScreenView {
   int eject_colonist_index;
   int eject_unit_id; /* outside unit id when re-equipping at fence; else -1 */
   int eject_selection;
-  int eject_roles[COLONIZE_EJECT_ROLE_COUNT];
+  /* COLONY_EJECT_ROLE_STAY leads the list for a colonist inside the colony. */
+  int eject_roles[COLONIZE_EJECT_ROLE_COUNT + 1];
   /* false = DOS's 0xffff row: listed, drawn greyed, not pickable. */
-  bool eject_role_enabled[COLONIZE_EJECT_ROLE_COUNT];
+  bool eject_role_enabled[COLONIZE_EJECT_ROLE_COUNT + 1];
   int eject_role_count;
   ColonyDialogRect eject_rect;
 
@@ -418,6 +426,9 @@ void colony_screen_close_construction(ColonyScreenView* view);
 /* FUN_2f2b_5bd2 / 348c "(More)" rows: flip the construction / jobs list's page. */
 void colony_screen_construction_next_page(ColonyScreenView* view);
 void colony_screen_jobs_next_page(ColonyScreenView* view);
+/* FUN_6f74_2580 Up / Down over the open jobs / leave-as / dock orders / construction list
+ * (wrap, greyed rows skipped, the "(More)" row reachable). False: no such list, other key. */
+bool colony_screen_list_key(ColonyScreenView* view, ColonizeKey key);
 
 void colony_screen_open_jobs(
   ColonyScreenView* view,
@@ -435,6 +446,8 @@ void colony_screen_open_eject(
   int colonist_index
 );
 void colony_screen_close_eject(ColonyScreenView* view);
+/* Leave-as role (COLONIZE_EJECT_*) a fence unit already is, or -1. */
+int colony_screen_unit_eject_role(const ColonizeUnitPool* units, const ColonizeUnit* u);
 
 /* Custom House per-cargo autosell checklist. Lists every export-eligible
  * cargo (europe_cargo_export_eligible) regardless of current toggle state —

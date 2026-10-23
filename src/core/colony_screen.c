@@ -280,6 +280,7 @@ void colony_screen_close_subpanels(ColonyScreenView* view) {
   colony_screen_close_dock_orders(view);
   colony_screen_close_custom_house(view);
   colony_screen_close_construction(view);
+  view->more_selected = false;
 }
 
 void colony_screen_close_construction(ColonyScreenView* view) {
@@ -475,15 +476,28 @@ void colony_screen_open_eject(
   colony_screen_close_subpanels(view);
   view->eject_colonist_index = colonist_index;
   view->eject_unit_id = -1;
-  for (int i = 0; i < COLONIZE_EJECT_ROLE_COUNT; ++i) {
+  for (int i = 0; i < COLONIZE_EJECT_ROLE_COUNT + 1; ++i) {
     view->eject_role_enabled[i] = true;
   }
-  view->eject_role_count = colonies_list_eject_roles_ex(
+  /* FUN_2f2b_348c raw 50741-50750: page 0 of the leave-as list starts with the colonist's
+   * current occupation when it is below 0x13 (FUN_281f_0c0e), and that row is the default
+   * (FUN_291f_08ec). A colonist always works a plot or a building here, so it is his
+   * field job or his building's job. */
+  const ColonizeColony* col = colonies_get(pool, colony_id);
+  const ColonizeColonist* c =
+    (col && colonist_index < col->colonist_count) ? &col->colonists[colonist_index] : NULL;
+  const int occ = !c ? -1
+                  : c->field_job >= 0 ? c->field_job
+                  : c->building_type >= 0 ? colonies_building_occupation(pool, c->building_type)
+                                          : -1;
+  const int lead = occ >= 0 && occ < UNITS_JOB_COLONIST ? 1 : 0;
+  view->eject_roles[0] = COLONY_EJECT_ROLE_STAY;
+  view->eject_role_count = lead + colonies_list_eject_roles_ex(
     pool,
     colony_id,
     colonist_index,
-    view->eject_roles,
-    view->eject_role_enabled,
+    view->eject_roles + lead,
+    view->eject_role_enabled + lead,
     COLONIZE_EJECT_ROLE_COUNT
   );
   if (view->eject_role_count <= 0) {
@@ -493,6 +507,19 @@ void colony_screen_open_eject(
   }
   view->eject_open = true;
   view->eject_selection = 0;
+}
+
+int colony_screen_unit_eject_role(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  /* FUN_281f_0c0e for a fence body: its type's @JOB 0x13..0x18 = leave-as roles 0..5. */
+  switch (u ? units_type_kind(units_type(units, u->type_index)) : UNITS_KIND_UNKNOWN) {
+  case UNITS_KIND_COLONIST: return COLONIZE_EJECT_COLONIST;
+  case UNITS_KIND_PIONEER: return COLONIZE_EJECT_PIONEER;
+  case UNITS_KIND_SOLDIER: return COLONIZE_EJECT_SOLDIER;
+  case UNITS_KIND_SCOUT: return COLONIZE_EJECT_SCOUT;
+  case UNITS_KIND_DRAGOON: return COLONIZE_EJECT_DRAGOON;
+  case UNITS_KIND_MISSIONARY: return COLONIZE_EJECT_MISSIONARY;
+  default: return -1;
+  }
 }
 
 void colony_screen_open_jobs(
@@ -511,16 +538,10 @@ void colony_screen_open_jobs(
    * can write ever carries those rows. So the port draws and clicks the 3x3
    * and does not invent an outer-plot UI.
    */
-  if (!view || !colony || tile_index < 0 || tile_index >= COLONIZE_COLONY_FIELD_TILES) {
-    return;
-  }
-  /* Resolve the tile BEFORE touching any panel state: a tile with no delta
-   * (the colony's own centre square) opens nothing, and a call that opens
-   * nothing must not close the panels that are up either — the same early-out
-   * shape colony_screen_open_dock_orders uses for an unknown unit. */
-  int dx = 0;
-  int dy = 0;
-  if (!colonies_field_tile_delta(tile_index, &dx, &dy)) {
+  /* tile_index -1 = the colonist works no plot (Enter on him, or a click on him in his
+   * building: FUN_2f2b_6372 / FUN_2f2b_44d4 raw 51280-51286); a field pick then takes the
+   * plot FUN_15eb_28c8 elects (port_bugs.md #1204). */
+  if (!view || !colony || tile_index < -1 || tile_index >= COLONIZE_COLONY_FIELD_TILES) {
     return;
   }
   colony_screen_close_subpanels(view);
@@ -543,8 +564,6 @@ void colony_screen_open_jobs(
    * 50609-50615) — which is what colony_screen_draw_jobs_popup already does
    * via colony_yield_for_worker. So: no yield filter here. */
   (void)map;
-  (void)dx;
-  (void)dy;
   const int sel_prof =
     (colony && view->selected_colonist >= 0 && view->selected_colonist < colony->colonist_count)
       ? colony->colonists[view->selected_colonist].profession

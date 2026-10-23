@@ -368,6 +368,21 @@ basic (DS:0x830), values and base strengths hilite (DS:0x831). Trade route
 positions in `trade_screen.c`. Port: `font_draw_text_shaded` with `{0, c, c, c}`
 (port_bugs.md #1201). Test: `unit_popup_prompt stat_screens_text_is_one_pass`.
 
+New-game wizard (port_bugs.md #1198, `new_game.c`). Difficulty / nation / customize
+(`FUN_733a_06a4` / `0b3e` / `01a4`) draw their titles through `FUN_104b_0430`
+(FONTINTR `{skip, 0xfe, 0xfd, 0}`) and the finished line through `0318` (FONTTINY 0xfe);
+the selected cell's two lines (`FUN_733a_0512` / `09c6` / `002c`) are each drawn twice,
+ink 0 at x + 1 then the cell ink at x (a real DOS pass, not a shadow); cell inks are
+10/9/14/13/12, the @COUNTRY colour column, and 0x0a / 0x0e. @AMERICA, the map picker,
+@LEADERNAME and the @NATION lore use the @COLORS map; @AMERICA and the picker show over the
+game palette (WOODPANL family) with the WOODTILE frame, settled by a DOSBox-X capture
+(every visible colour is WOODPANL.PIK's, the frame is WOODTILE.SS through it, not
+OPENMENU / OPENTILE). The king's audience (`FUN_75c2_20e2`, also the war-end throne)
+swaps the style to ink 0xf2, enhance 0x2f, shadow 0; the sail captions (`FUN_1262_0152`)
+to ink 0x0e, enhance 0x36, shadow 47. Difficulty, nation, customize and @BUILD1 match the
+capture pixel for pixel; the dialog/leader/lore/king layouts do not yet (port_bugs.md
+#1210). Tests: `unit_new_game wizard_picture_text_is_dos`, `wizard_prose_text_is_one_pass`.
+
 The same rows drive `ai_popup_render` and the `popup_list_metrics_dos6f74` list
 (save/load picker) since port_bugs.md #1189: row 0's bar top is `popup_dos_list_y0`
 (`frame_y + 6`, + 3 + prose_h with prose; prose = title + body for an ai_popup, the
@@ -420,6 +435,21 @@ the char after the last `~`, upper-folded ("~F~n" gives an F-key); in `FUN_6f74_
 matching a row (6f74:2df6) selects it and, in a @checkbox box, toggles it and stays open
 (6f74:2dcd), else returns it (`popup_hotkey_of`, `popup_input_dos_key`; options dialogs and
 the cheat lists). Test: `smoke_popup_dialogs checkbox_hotkeys`.
+
+Up / Down (port_bugs.md #1209): `FUN_6f74_2580`'s list arm (raw 116905-116940) moves to the
+previous / next row, wraps last <-> first (box+0x70 / box+0x54) and steps past disabled rows
+(option bit 0, `FUN_291f_01b6`), giving up after two wraps; its icon arm (Units Present,
+raw 116787-116847) wraps the same way without disabled rows. One helper, `popup_list_key_step`
+(`popup.c`), serves every 2580 list in the port: the cheat_list kinds, options, Pick Music,
+`ai_popup` choice boxes, the title `@BEGINMENU`, Units Present, the Europe Recruit / Train /
+Purchase / dock menus (greyed rows skipped), and the colony jobs / leave-as / dock-orders /
+construction lists (`colony_screen_list_key`: a paged jobs / construction list's "(More)" row
+is a row like the others, `ColonyScreenView.more_selected`; Enter on it turns the page; page 1
+of the jobs list opens on its "(More)" row unless the occupation is listed there).
+`save_load_dialog.c` keeps its own wrap. Not wrapped: the new-game wizard lists (port_bugs.md
+#1212), the Custom House (no keyboard bar, #1213); the colony message popup has no DOS builder.
+Tests: `smoke_popup_dialogs list_keys_wrap`, `smoke_ai_popup case_choice_keys_wrap`,
+`unit_stage_seams test_colony_list_keys_wrap`.
 
 "Units Present" (`FUN_2b5a_1b5a`): `box[+0x46]` 0, `box[+0x4a]` 2, flags 0x82, one
 `FUN_6f74_0f3c` icon row per unit (the first 10 on the tile chain; the rest are not listed
@@ -531,6 +561,7 @@ fragment. Related sections are listed in the first column.
 | `@SUREDISBAND` / `@DISBANDSHIP` | Disband confirm / ship cargo error | Done | Confirm `@SUREDISBAND`; `@DISBANDSHIP` OK when units aboard |
 | `@FINDCITY` / `@NOCITY` | VIEW Find Colony text entry | Done | `name_entry` FIND_COLONY (`game_open_find_colony`, DOS 2b5a:2028 `FUN_291f_0120(0x17)`); `game_find_colony`: first colony of any nation whose name equals the text case-blind and that the view may show (view >= 4, seen bit, or show_entire_map) → View Pieces + cursor there, no colony screen; else `@NOCITY` %STRING0 = the text (port_bugs.md #1197) |
 | `@SAILPORT` | Unit ORDERS "Go to Port" (ships) | Done | 2026-09-16: `game_open_goto_port_picker`/`cheat_list` GOTO_PORT, DOS `FUN_647e_01c6`/`FUN_2b5a_1dfc`; 2026-10-22: Europe row first, rows filtered by `travel_dest_ok` (docs/unit_orders.md); 2026-10-23 (port_bugs.md #1194): paged by `cheat_list_open_dest_pages` (n <= 10 one page of n + 1 slots, else (n + 9) / 10 pages of 10, Europe = slot 0; LABELS @CTITLE 6 "(More)" as Previous / More; the DOS last-colony gap at Europe + 20/30/40 colonies not reproduced, dos_bugs.md DB-53), Europe row `@HOMEPORT (@COUNTRY)`, the ship's own colony greyed (`disabled_mask`, Up/Down wrap and skip it as `FUN_6f74_2580`), empty list shows nothing. No DOS screenshot of this box |
+| `@TRAVELPLACE` | Unit ORDERS "Go to Place" (land units) | Done | 2026-10-23 (port_bugs.md #1208): the same `FUN_2b5a_1dfc` / `FUN_647e_01c6` list as Go to Port (ORDERS 0x320 and 0x321 share case 2b5a:28d4), titled `@TRAVELPLACE`: own colonies on the unit's continent, no Europe row, the colony he stands on left out (its slot still counts); replaces the port's invented click-a-tile mode (DOS has none; the mouse drag `FUN_2b5a_3462` stays). No DOS screenshot of this box |
 | `@OVERBOARD` | Which cargo to dump | Done | Hold picker (`AI_POPUP_TAG_OVERBOARD_WHICH`), ids = hold+1, 99 = cancel |
 | Order gates (`@NOPLOW`, `@NOROAD`, `@NEEDTOOLS`, …) | Illegal order | Done thin | Re-verified 2026-09-16: `@NOPLOW`/`@NOROAD` (`units.c` `units_pioneer_emit_order_gate`) — `@ONLYPIO` retired 2026-09-22 as dead text (port_bugs.md #621: the literal is absent from VICEROY.EXE; `0b34` raw 42211-42215 greys the menu rows instead), EOT `@NEEDTOOLS`/`@NEEDTOOLS0` (`turn.c`), `@SEACOLONY`/`@TOOMOUNTAIN`/`@NOPORT` (`game_loop.c`) all call `popup_msg_fill` with the real GAME.TXT body at the DOS condition — was mis-tallied Partial against a stale note; see Appendix A |
 

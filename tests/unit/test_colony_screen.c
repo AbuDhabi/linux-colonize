@@ -3208,10 +3208,255 @@ static int unit_jobs_rows_are_dos(void) {
   return rc;
 }
 
+/*
+ * port_bugs.md #1202: FUN_2f2b_5a68 builds NAME + " " + "|   " + "(" + hammers left + " " +
+ * Hammers + ")" and, when tools are due, "(" + tools + " " + Tools + ")" with no space between
+ * the groups; an owned building shows "(" + @MISC 127 + ")" and no tools.
+ */
+static const char* test_upper(const char* name) {
+  static char out[48];
+  snprintf(out, sizeof(out), "%s", name);
+  for (char* p = out; *p; ++p) {
+    if (*p >= 'a' && *p <= 'z') {
+      *p = (char)(*p - 'a' + 'A');
+    }
+  }
+  return out;
+}
+
+static int unit_construction_rows_are_dos(void) {
+  reports_names_load_catalogs("COLONIZE");
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "SKIP: NAMES.TXT\n");
+    return TR_SKIP;
+  }
+  static ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_load_buildings(&pool, &names);
+  static ColonizeColony colony;
+  memset(&colony, 0, sizeof(colony));
+  colony.active = true;
+  colony.hammers = 30;
+  int with_tools = -1;
+  int no_tools = -1;
+  for (int b = 0; b < pool.building_type_count; ++b) {
+    const ColonizeBuildingType* bt = colonies_building_type(&pool, b);
+    if (bt && bt->hammers > 30 && bt->tools_cost > 0 && with_tools < 0) {
+      with_tools = b;
+    } else if (bt && bt->hammers > 30 && bt->tools_cost == 0 && no_tools < 0) {
+      no_tools = b;
+    }
+  }
+  static ColonyScreenView view;
+  memset(&view, 0, sizeof(view));
+  view.buildable_ids[0] = with_tools;
+  view.buildable_ids[1] = no_tools;
+  view.buildable_count = 2;
+  colony.has_building[no_tools] = true;
+  char hammers[24];
+  snprintf(hammers, sizeof(hammers), "%s", colony_screen_hammers_word());
+  const char* tools = reports_cargo_display_name(COLONIZE_CARGO_TOOLS);
+  const ColonizeBuildingType* bt = colonies_building_type(&pool, with_tools);
+  char want[128];
+  char row[128];
+  char prefix[16];
+  int rc = 0;
+  snprintf(want, sizeof(want), "%s |   (%d %s)(%d %s)", test_upper(bt->name), bt->hammers - 30, hammers,
+           bt->tools_cost, tools);
+  colony_screen_construction_row_text(&view, &pool, &colony, 1, row, sizeof(row), prefix,
+                                      sizeof(prefix));
+  if (strcmp(row, want) != 0 || !hammers[0] || !tools[0]) {
+    fprintf(stderr, "construction row: '%s' want '%s'\n", row, want);
+    rc = 1;
+  }
+  bt = colonies_building_type(&pool, no_tools);
+  snprintf(want, sizeof(want), "%s |   (%s)", test_upper(bt->name), reports_misc_display_word(127, ""));
+  colony_screen_construction_row_text(&view, &pool, &colony, 2, row, sizeof(row), prefix,
+                                      sizeof(prefix));
+  if (strcmp(row, want) != 0 || !reports_misc_display_word(127, "")[0]) {
+    fprintf(stderr, "owned construction row: '%s' want '%s'\n", row, want);
+    rc = 1;
+  }
+  colony.has_building[no_tools] = false;
+  colony.hammers = 1000;
+  snprintf(want, sizeof(want), "%s |   (0 %s)", test_upper(bt->name), hammers);
+  colony_screen_construction_row_text(&view, &pool, &colony, 2, row, sizeof(row), prefix,
+                                      sizeof(prefix));
+  if (strcmp(row, want) != 0) {
+    fprintf(stderr, "no-tools construction row: '%s' want '%s'\n", row, want);
+    rc = 1;
+  }
+  assets_msg_free(&names);
+  return rc;
+}
+
+/*
+ * port_bugs.md #1203: FUN_2f2b_348c's leave-as list starts with the colonist's occupation row
+ * (bare @JOB name, the default) and a gear row reads "<role>|    (50 Muskets)" etc.; Tools =
+ * clamp(stock / 20 * 20, 20, 100), Dragoon lists Muskets then Horses, a fence body's own role
+ * row has no gear part.
+ */
+static int unit_leave_as_rows_are_dos(void) {
+  reports_names_load_catalogs("COLONIZE");
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "SKIP: NAMES.TXT\n");
+    return TR_SKIP;
+  }
+  static ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_load_buildings(&pool, &names);
+  static ColonizeColony colony;
+  memset(&colony, 0, sizeof(colony));
+  colony.active = true;
+  colony.id = 0;
+  colony.colonist_count = 2;
+  colony.colonists[0].active = true;
+  colony.colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+  colony.colonists[0].field_job = COLONIZE_JOB_FARMER;
+  colony.colonists[0].building_type = -1;
+  colony.colonists[1] = colony.colonists[0];
+  colony.stock[COLONIZE_CARGO_TOOLS] = 75;
+  colony.stock[COLONIZE_CARGO_MUSKETS] = 100;
+  colony.stock[COLONIZE_CARGO_HORSES] = 100;
+  pool.colonies[0] = colony;
+  pool.colony_count = 1;
+  static ColonyScreenView view;
+  memset(&view, 0, sizeof(view));
+  colony_screen_open_eject(&view, &pool, 0, 0);
+  int rc = 0;
+  if (view.eject_role_count < 2 || view.eject_roles[0] != COLONY_EJECT_ROLE_STAY ||
+      view.eject_selection != 0) {
+    fprintf(stderr, "leave-as: %d rows, row 0 = %d, default %d\n", view.eject_role_count,
+            view.eject_roles[0], view.eject_selection);
+    rc = 1;
+  }
+  const char* muskets = reports_cargo_display_name(COLONIZE_CARGO_MUSKETS);
+  const char* horses = reports_cargo_display_name(COLONIZE_CARGO_HORSES);
+  const char* tools = reports_cargo_display_name(COLONIZE_CARGO_TOOLS);
+  struct {
+    int role;
+    bool gear;
+    int stock_tools;
+    char want[96];
+  } k[6];
+  memset(k, 0, sizeof(k));
+  k[0].role = COLONY_EJECT_ROLE_STAY;
+  snprintf(k[0].want, sizeof(k[0].want), "%s", reports_job_short_name(COLONIZE_JOB_FARMER));
+  k[1].role = COLONIZE_EJECT_PIONEER;
+  k[1].gear = true;
+  k[1].stock_tools = 75;
+  snprintf(k[1].want, sizeof(k[1].want), "%s|    (60 %s)",
+           colonies_eject_role_name(COLONIZE_EJECT_PIONEER), tools);
+  k[2].role = COLONIZE_EJECT_PIONEER;
+  k[2].gear = true;
+  k[2].stock_tools = 5;
+  snprintf(k[2].want, sizeof(k[2].want), "%s|    (20 %s)",
+           colonies_eject_role_name(COLONIZE_EJECT_PIONEER), tools);
+  k[3].role = COLONIZE_EJECT_DRAGOON;
+  k[3].gear = true;
+  snprintf(k[3].want, sizeof(k[3].want), "%s|    (50 %s) (50 %s)",
+           colonies_eject_role_name(COLONIZE_EJECT_DRAGOON), muskets, horses);
+  k[4].role = COLONIZE_EJECT_SOLDIER;
+  k[4].gear = false;
+  snprintf(k[4].want, sizeof(k[4].want), "%s|   ",
+           colonies_eject_role_name(COLONIZE_EJECT_SOLDIER));
+  k[5].role = COLONIZE_EJECT_PIONEER;
+  k[5].gear = true;
+  k[5].stock_tools = 260;
+  snprintf(k[5].want, sizeof(k[5].want), "%s|    (100 %s)",
+           colonies_eject_role_name(COLONIZE_EJECT_PIONEER), tools);
+  for (int i = 0; i < 6; ++i) {
+    char row[96];
+    colony_screen_eject_row_text(row, sizeof(row), k[i].role, COLONIZE_JOB_FARMER, k[i].gear,
+                                 k[i].stock_tools);
+    if (strcmp(row, k[i].want) != 0) {
+      fprintf(stderr, "leave-as row %d: '%s' want '%s'\n", i, row, k[i].want);
+      rc = 1;
+    }
+  }
+  assets_msg_free(&names);
+  return rc;
+}
+
+/*
+ * port_bugs.md #1124: FUN_2f2b_21da / FUN_2f2b_208c draw BUY at (0xd8, 0x8a) and CHANGE at
+ * (0x10e, 0x8a), label width + 5 by 9, 0x39 top / left over 0x30 bottom / right, the label
+ * at (+3, +2) in 0x0f only (pixel-checked against the dutch-reports construction goldens).
+ */
+static int unit_build_buttons_are_dos(void) {
+  static ColonyScreenView view;
+  char err[256];
+  if (!colony_screen_load(&view, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "SKIP: %s\n", err);
+    return TR_SKIP;
+  }
+  ColonizeFont tiny;
+  if (!font_file_load("COLONIZE/FONTTINY.FF", &tiny, err, sizeof(err))) {
+    colony_screen_free(&view);
+    fprintf(stderr, "SKIP: %s\n", err);
+    return TR_SKIP;
+  }
+  ColonizeMsgCatalog labels;
+  assets_msg_init(&labels);
+  if (!assets_msg_load_file(&labels, "COLONIZE/LABELS.TXT")) {
+    font_file_free(&tiny);
+    colony_screen_free(&view);
+    fprintf(stderr, "SKIP: LABELS.TXT\n");
+    return TR_SKIP;
+  }
+  static ColonizeUnitPool units;
+  static ColonizeColonyPool pool;
+  static ColonizeColony colony;
+  memset(&units, 0, sizeof(units));
+  colonies_init(&pool);
+  memset(&colony, 0, sizeof(colony));
+  colony.active = true;
+  colony.building_in_production = 0;
+  ColonizeWorld w = world_make(&units, &pool, NULL, NULL, false, NULL, NULL);
+  static uint8_t px[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = px};
+  view.multi_mode = COLONY_MULTI_CONSTRUCTION;
+  colony_screen_render_w(&w, &view, &colony, NULL, NULL, 1600, 0, 0, &tiny, false, &labels, &fb);
+  int rc = 0;
+  for (int b = 0; b < 2; ++b) {
+    const int x = b ? 0x10e : 0xd8;
+    const int y = 0x8a;
+    const int bw = font_text_width(&tiny, assets_msg_line_or(&labels, "CTITLE", 2 + b, "")) + 5;
+    int text = 0;
+    int other = 0;
+    for (int yy = y + 1; yy < y + 8; ++yy) {
+      for (int xx = x + 1; xx < x + bw - 1; ++xx) {
+        text += px[yy * 320 + xx] == 0x0f;
+        other += px[yy * 320 + xx] == 14;
+      }
+    }
+    if (px[y * 320 + x] != 0x39 || px[y * 320 + x + bw - 1] != 0x39 ||
+        px[(y + 1) * 320 + x + bw - 1] != 0x30 || px[(y + 8) * 320 + x] != 0x39 ||
+        px[(y + 8) * 320 + x + 1] != 0x30 || px[(y + 2) * 320 + x] != 0x39 || bw < 10 ||
+        text == 0 || other != 0) {
+      fprintf(stderr, "button %d: tl %02x tr %02x r %02x bl %02x b %02x w %d text %d hotkey %d\n",
+              b, px[y * 320 + x], px[y * 320 + x + bw - 1], px[(y + 1) * 320 + x + bw - 1],
+              px[(y + 8) * 320 + x], px[(y + 8) * 320 + x + 1], bw, text, other);
+      rc = 1;
+    }
+  }
+  assets_msg_free(&labels);
+  font_file_free(&tiny);
+  colony_screen_free(&view);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"unit_sub_dialogs_are_dos", unit_sub_dialogs_are_dos},
     {"unit_sub_dialog_pages_are_dos", unit_sub_dialog_pages_are_dos},
     {"unit_jobs_rows_are_dos", unit_jobs_rows_are_dos},
+    {"unit_construction_rows_are_dos", unit_construction_rows_are_dos},
+    {"unit_leave_as_rows_are_dos", unit_leave_as_rows_are_dos},
+    {"unit_build_buttons_are_dos", unit_build_buttons_are_dos},
     {"unit_plot_eviction_1080", unit_plot_eviction_1080},
     {"unit_buyme1_tokens", unit_buyme1_tokens},
     {"unit_building_click_reaches_owned", unit_building_click_reaches_owned},

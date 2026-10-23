@@ -56,13 +56,8 @@ bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input) {
     return true;
   }
   if (!is_info) {
-    if (colonize_key_up(input->last_key) && st->selection > 0) {
-      st->selection--;
-      return true;
-    }
-    if (colonize_key_down(input->last_key) &&
-        st->selection + 1 < st->current.choice_count) {
-      st->selection++;
+    /* GAME.TXT choice boxes show through FUN_6f74_2580 (FUN_6f74_36ca): Up / Down wrap. */
+    if (popup_list_key_step(input->last_key, &st->selection, st->current.choice_count, 0)) {
       return true;
     }
   }

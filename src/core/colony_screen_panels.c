@@ -23,7 +23,6 @@
 #include "core/reports_names.h"
 #include "core/ui_colors.h"
 #include "core/turn.h"
-#include "core/ui_button.h"
 #include "core/unit_chrome.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
@@ -466,6 +465,30 @@ static bool colony_screen_prod_hammers_slot(const ColonizeColonyPreview* p, Colo
   return true;
 }
 
+/*
+ * DOS-LITERAL FUN_2f2b_208c raw 48745-48779, unpressed: a frame the label's FONTTINY width + 5
+ * wide and 9 tall, 0x30 along the bottom and right first, then 0x39 along the top and left over
+ * it, and the label at (+3, +2) in 0x0f through the one-pass FUN_281f_013c (no hotkey ink).
+ * Literal WOODPANL indices, pixel-checked against new_amsterdam_construction.png /
+ * recife_construction.png (port_bugs.md #1124). `white` = the port's dead-queue blink phase:
+ * all 0x0f with black text.
+ */
+static void colony_screen_dos_button(
+  ColonizeFramebuffer8* framebuffer, const ColonizeFont* font, int x, int y, const char* label,
+  bool white
+) {
+  const int w = font_text_width(font, label) + 5;
+  const int h = 9;
+  if (white) {
+    fb_fill_rect(framebuffer, x, y, w, h, 0x0f);
+  }
+  fb_fill_rect(framebuffer, x, y + h - 1, w, 1, white ? 0x0f : 0x30);
+  fb_fill_rect(framebuffer, x + w - 1, y, 1, h, white ? 0x0f : 0x30);
+  fb_fill_rect(framebuffer, x, y, w, 1, white ? 0x0f : 0x39);
+  fb_fill_rect(framebuffer, x, y, 1, h, white ? 0x0f : 0x39);
+  font_draw_text(font, framebuffer, x + 3, y + 2, label, white ? 0 : 0x0f);
+}
+
 void colony_screen_draw_multifunction(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,
@@ -668,62 +691,22 @@ void colony_screen_draw_multifunction(
       }
       const int title_w = font_text_width(font, line);
       font_draw_text(font, framebuffer, px + (pane_w - title_w) / 2, py, line, 57);
-      {
-        UiButtonColors bc;
-        bc.dark = 0x31;
-        bc.light = 0x3f;
-        bc.text = 15;
-        bc.hotkey = 14;
-        if (view->frame_ok && view->frame.has_palette) {
-          /* Remap Europe-style blues into the colony frame palette. These
-           * RGB targets are port-chosen (no DOS source). DOS FUN_2f2b_208c
-           * (viceroy_unpacked.c:48726, called from FUN_2f2b_21da) draws the
-           * BUY/CHANGE edges with literal indices 0x30 / 0x39, text 0x0f
-           * (pressed: edges swapped, text 0, fill 0x0f). In WOODPANL.PIK
-           * these RGBs land on 0x3d / 0x32, not that pair: open lead. */
-          const ColonizePalette* pal = &view->frame.palette;
-          bc.dark = assets_palette_nearest_rgb(pal, 20, 40, 120);
-          bc.light = assets_palette_nearest_rgb(pal, 180, 200, 255);
-        }
-        int buy_w = 0;
-        int buy_h = 0;
-        int chg_w = 0;
-        int chg_h = 0;
-        /* LABELS.TXT @CTITLE rows 2 / 3; the leading '~' is the port's
-         * hotkey marker, not catalog text. */
-        char buy_lbl[24];
-        char chg_lbl[24];
-        snprintf(buy_lbl, sizeof(buy_lbl), "~%s", assets_msg_line_or(labels, "CTITLE", 2, ""));
-        snprintf(chg_lbl, sizeof(chg_lbl), "~%s", assets_msg_line_or(labels, "CTITLE", 3, ""));
-        ui_button_measure(font, buy_lbl, &buy_w, &buy_h);
-        ui_button_measure(font, chg_lbl, &chg_w, &chg_h);
-        /* Player-reported: BUY aligned vertically with CHANGE (both 4px up
-         * from the original placement). */
-        /* FUN_2f2b_21da: BUY is drawn only when +0x94 >= 0; CHANGE always. */
-        if (colony->building_in_production >= 0) {
-          ui_button_draw(font, framebuffer, px, py + 10 - 4, buy_w, buy_h, buy_lbl, &bc);
-        }
-        const int change_x = COLONY_MULTI_X + COLONY_MULTI_W - chg_w - 4 - 10;
-        const int change_y = py + 10 - 4;
-        /* Player-requested: the project in production is already built (a
-         * dead queue — nothing will ever complete), so CHANGE blinks
-         * normal / white-filled to flag it. Not a DOS behaviour. */
-        const bool already_built =
-          colony->building_in_production >= 0
-          && colony->building_in_production < COLONIZE_BUILDING_TYPES_MAX
-          && colony->has_building[colony->building_in_production];
-        if (already_built && (view->blink_ms / 500u) % 2u == 0u) {
-          UiButtonColors wb = bc;
-          wb.dark = 15;
-          wb.light = 15;
-          wb.text = 0;
-          wb.hotkey = 0;
-          fb_fill_rect(framebuffer, change_x, change_y, chg_w, chg_h, 15);
-          ui_button_draw(font, framebuffer, change_x, change_y, chg_w, chg_h, chg_lbl, &wb);
-        } else {
-          ui_button_draw(font, framebuffer, change_x, change_y, chg_w, chg_h, chg_lbl, &bc);
-        }
+      /* DOS-LITERAL FUN_2f2b_21da raw 48797-48800: BUY (@CTITLE 2, only while +0x94 >= 0) at
+       * (0xd8, 0x8a), CHANGE (@CTITLE 3) at (0x10e, 0x8a) (port_bugs.md #1124). */
+      const char* buy_lbl = assets_msg_line_or(labels, "CTITLE", 2, "");
+      const char* chg_lbl = assets_msg_line_or(labels, "CTITLE", 3, "");
+      if (colony->building_in_production >= 0) {
+        colony_screen_dos_button(framebuffer, font, 0xd8, 0x8a, buy_lbl, false);
       }
+      /* Player-requested: the project in production is already built (a dead queue —
+       * nothing will ever complete), so CHANGE blinks normal / white-filled to flag it. Not a
+       * DOS behaviour. */
+      const bool already_built =
+        colony->building_in_production >= 0
+        && colony->building_in_production < COLONIZE_BUILDING_TYPES_MAX
+        && colony->has_building[colony->building_in_production];
+      colony_screen_dos_button(framebuffer, font, 0x10e, 0x8a, chg_lbl,
+                               already_built && (view->blink_ms / 500u) % 2u == 0u);
     }
     /* Accumulated carpenter hammers toward the current project, as four
      * rows of one-fourth of the total need each — player-requested (was a

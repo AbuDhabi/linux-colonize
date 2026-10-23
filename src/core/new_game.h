@@ -100,7 +100,7 @@ typedef struct NewGameWizard {
   const ColonizeFont* ui_font; /* FONTINTR — prompts / name / lore */
   const ColonizeFont* tiny_font; /* FONTTINY — customize / finished / difficulty labels */
   const ColonizeFont* lore_font; /* FONTINTR — same as ui_font for @NATION lore */
-  const ColonizeSpriteSheet* wood_tile; /* OPENTILE for remaining popups (America) */
+  const ColonizeSpriteSheet* wood_tile; /* WOODTILE frame for @AMERICA / @MAPTOLOAD */
   const ColonizePikImage* woodpanl; /* WOODPANL.PIK full-screen for name/lore */
 
   /* Image-region pick UI (difficulty / nation): finished-button hit box. */
@@ -158,7 +158,8 @@ void new_game_render(
  * End-of-war royal audience screen (DOS FUN_75c2_20e2): KINGLSS1.PIK backdrop,
  * the nation banner pair (ENGLND1/FRANCE1/SPAIN1/DUTCH1.SS), a king sheet
  * (KINGLOSE.SS when the player won the WoI, KINGWIN.SS when the King did) and
- * the dialog text on the throne-room scroll in FONTKING (black ink), at the
+ * the dialog text on the throne-room scroll in FONTKING (the FUN_75c2_20e2 style:
+ * ink 0xf2, enhance 0x2f, shadow 0 — the FONTKING body is shade 3, so black), at the
  * GAME.TXT section's own @x/@y/@width. Assets load lazily into the wizard's
  * slots; data_dir is copied in when the wizard never ran this session.
  */

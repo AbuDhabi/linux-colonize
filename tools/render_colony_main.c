@@ -97,7 +97,8 @@ int main(int argc, char** argv) {
   ColonizeFramebuffer8 fb;
   render_fb_init(&fb, pixels);
 
-  colony_screen_render_w(&rw, &view, colony, terrain_ok ? &terrain : NULL, phys0_ok ? &phys0 : NULL, rs.bridge.year, rs.bridge.autumn, (int)nat->gold, font_ok ? &font : NULL, debug_rects, NULL, /* LABELS.TXT not loaded here; fallback text is byte-identical to the live text */
+  colony_screen_render_w(&rw, &view, colony, terrain_ok ? &terrain : NULL, phys0_ok ? &phys0 : NULL, rs.bridge.year, rs.bridge.autumn, (int)nat->gold, font_ok ? &font : NULL, debug_rects,
+    rs.labels_ok ? &rs.labels : NULL, /* LABELS.TXT: tab title, BUY / CHANGE */
     &fb);
 
   ColonizePalette pal = (ColonizePalette){0};

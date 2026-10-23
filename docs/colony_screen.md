@@ -11,7 +11,7 @@ session narratives are in git history.
 ## Tool
 
 `build/render_colony <data_dir> <save.SAV> <colony_name> <multi_mode> <out.ppm> [rects]`
-(`tools/render_colony_main.c`) — loads a Col1 save, bridges it, calls
+(`tools/render_colony_main.c`) — loads a Col1 save and LABELS.TXT, bridges it, calls
 `colony_screen_render()` directly (no SDL/xvfb). `multi_mode`: 0 Production,
 1 Units, 2 Construction. Optional 6th arg = debug building rects. Golden
 workflow (2x goldens, divide coordinates by 2, `-filter point` crops) is
@@ -117,11 +117,24 @@ tab's hammers bar (own block). Production-tab badge ink is white (15), not
   number on top of the icons — never instead of them, and all-or-nothing
   across rows. Deliberate UI improvement, not DOS-accurate.
 - **CHANGE popup** shows remaining cost (requirement − banked hammers,
-  min 0); tools never adjusted. Rows go through the dialog writer in the box
+  min 0); tools never adjusted. Row text is `FUN_2f2b_5a68`'s:
+  `<NAME> |   (N Hammers)(M Tools)`, the name upper-cased (FUN_1d1d_0d64), no
+  space between the groups (the DOS screenshot's gap is the glyphs' own
+  bearing, pixel-equal to the port's `)(`), the tools
+  group only when tools are due, and `(` @MISC 127 `)` for a building the
+  colony already owns (port_bugs.md #1202; user 2026-10-23 "switch to DOS",
+  superseding #436's `N Hammers M Tools`). Rows go through the dialog writer in the box
   style (@COLORS 68; the current project's row starts in the hilite ink 149,
   `FUN_2f2b_5bd2` raw 52607-52610). Past 22 rows it is exactly two pages of 16:
   page 0 ends with "(More)", page 1 starts with the back "(More)" (port_bugs.md
   #1195).
+- **BUY / CHANGE buttons** are `FUN_2f2b_21da` -> `FUN_2f2b_208c` literally:
+  at (0xd8, 0x8a) / (0x10e, 0x8a), label width + 5 by 9, WOODPANL 0x30 bottom
+  and right drawn first, then 0x39 top and left, the label at (+3, +2) in 0x0f
+  with no hotkey ink. 0 differing pixels in both 30x9 button rects of
+  `new_amsterdam_construction.png` and `recife_construction.png` (was 90 / 139
+  with the old RGB-matched blues, port_bugs.md #1124). The dead-queue CHANGE blink
+  (white fill, black text) is port-only.
 - **BUY (`FUN_2f2b_5e44`, player-corrected twice):** one uniform `@BUYME1`
   Yes/No when affordable, `@BUYME0` info when not — never a
   tools-short-specific popup (`@NEEDTOOLS*` stays turn.c's EOT notice).
@@ -200,6 +213,30 @@ plus Jefferson / Paine / press). The specialty's row is drawn in the hilite ink,
 Clear Specialty is page 0's first row, the default row is the current
 occupation, and more than 16 job rows make two pages (port_bugs.md #1195,
 #1196). The prose has no space before the "(": DS:0x5e is `(`.
+
+Opening it (param 0): a click on the selected colonist's plot (`FUN_2f2b_3fa6`),
+a click on the selected worker in a building (`FUN_2f2b_44d4` raw 51280-51286;
+the building strip hit-tests as `COLONY_HIT_COLONIST`, and a press-release on
+the same worker that was already selected is the click), or Enter on the
+selected colonist (`FUN_2f2b_6372`). A colonist who works no plot opens it with
+`jobs_tile_index` -1. A field pick keeps a plot worker on his plot; a colonist
+working indoors is seated on the plot `ai_euro_jobs_menu_plot` elects
+(`FUN_15eb_28c8(slot, job)`, raw 50860-50863), and when none scores he keeps the
+field job with no plot until the next `colonies_recompute_plots_w`. An indoor
+pick goes through `colonies_assign_workplace` (port_bugs.md #1204). Opening
+it is not free: 348c's build-up seats the colonist through `FUN_15eb_28c8` for
+every field job, so each elected plot gets the 06d2 commit tail (owner nibble,
+mask 0x10) and his job counter is zeroed, Escape or not
+(`ai_euro_jobs_menu_open_w`, docs/colony.md#colonies_assign_field_w,
+port_bugs.md #1205).
+
+Leave-as mode (param 1, the fence drop): page 0 starts with the colonist's
+current occupation (bare @JOB name, the default row; picking it keeps him,
+`COLONY_EJECT_ROLE_STAY`), then the roles 0x13..0x18 with the tab and, per
+`FUN_15eb_0d8e` cargo, ` (50 Muskets)` / ` (50 Horses)` / ` (N Tools)` with
+N = clamp(stock / 20 * 20, 20, 100) after a fence Pioneer's own tools went in;
+a fence unit's own role row has no gear part and is the default
+(port_bugs.md #1203).
 
 ### Shared sprite blitting: `unit_chrome_blit` 3-mode component
 
@@ -410,9 +447,6 @@ colony_screen.c should read `post_map.boot_timer` instead of the constant. (Bypr
   reversed vs golden; the golden's active mode-selector indicator style
   unidentified; Recife's golden has a white square outline on one ocean
   minimap tile (possibly a captured-moment cursor).
-- **BUY/CHANGE hotkey-letter coloring**: port highlights the `~` hotkey
-  letter; golden shows uniform text. Not changed — shared `ui_button.c`
-  affects other screens without golden coverage.
 - **`building_production.md` badge table** had unverified pre-golden
   claims (SoL exclusion corrected 2026-08-27); other rows worth a
   skim-and-correct pass.

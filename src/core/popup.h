@@ -121,6 +121,16 @@ int popup_hotkey_of(const char* label);
  * row carries). */
 int popup_input_dos_key(const ColonizeInputState* input);
 
+/*
+ * FUN_6f74_2580 list arm Up / Down (raw 116905-116940): Up / KP8 (0x148) steps to the
+ * previous row, Down / KP2 (0x150) to the next, wrapping to the last (box+0x70) / first
+ * (box+0x54) and stepping past disabled rows (option bit 0, FUN_6f74_08fa; bit i of
+ * `disabled_mask`, rows >= 32 never disabled), giving up after two wraps. A selection
+ * outside [0, count) is DOS's empty box+0x4c: the first step lands on the wrap row.
+ * Returns false (and leaves *selection) for any other key or an empty list.
+ */
+bool popup_list_key_step(ColonizeKey key, int* selection, int count, uint32_t disabled_mask);
+
 /* ---- Shared wood list-dialog pipeline (audit theme K) ---- */
 
 /* Outer and inner rect of a centred wood frame. */

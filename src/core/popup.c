@@ -301,6 +301,28 @@ int popup_input_dos_key(const ColonizeInputState* input) {
   return islower(c) ? c - 0x20 : c;
 }
 
+bool popup_list_key_step(ColonizeKey key, int* selection, int count, uint32_t disabled_mask) {
+  const int step = colonize_key_up(key) ? -1 : colonize_key_down(key) ? 1 : 0;
+  if (!step || !selection || count <= 0) {
+    return false;
+  }
+  /* DOS-LITERAL FUN_6f74_2580 raw 116905-116940: do { cur = cur->prev / next; if null,
+   * cur = last / first, wraps++ } while (cur disabled && wraps < 2). */
+  int sel = *selection;
+  int wraps = 0;
+  do {
+    if (sel >= 0 && sel < count) {
+      sel += step;
+    }
+    if (sel < 0 || sel >= count) {
+      sel = step < 0 ? count - 1 : 0;
+      wraps++;
+    }
+  } while (sel < 32 && (disabled_mask >> sel & 1u) && wraps < 2);
+  *selection = sel;
+  return true;
+}
+
 
 /* ---- Shared wood list-dialog pipeline (audit theme K) ---- */
 

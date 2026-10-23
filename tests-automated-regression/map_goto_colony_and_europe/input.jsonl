@@ -7,9 +7,9 @@
 {"type":"key_down","t_ms":1448,"frame":28,"keycode":103,"mod":0}
 {"type":"text","t_ms":1448,"frame":28,"text":"g"}
 {"type":"key_up","t_ms":1496,"frame":31,"keycode":103,"mod":0}
-{"type":"mouse_move","t_ms":1672,"frame":42,"x":336,"y":256,"lx":168,"ly":128,"buttons":0}
-{"type":"mouse_down","t_ms":1688,"frame":43,"x":336,"y":256,"lx":168,"ly":128,"button":"left","clicks":1}
-{"type":"mouse_up","t_ms":1736,"frame":46,"x":336,"y":256,"lx":168,"ly":128,"button":"left","clicks":1}
+{"type":"mouse_move","t_ms":1672,"frame":42,"x":192,"y":178,"lx":96,"ly":89,"buttons":0}
+{"type":"mouse_down","t_ms":1688,"frame":43,"x":192,"y":178,"lx":96,"ly":89,"button":"left","clicks":1}
+{"type":"mouse_up","t_ms":1736,"frame":46,"x":192,"y":178,"lx":96,"ly":89,"button":"left","clicks":1}
 {"type":"key_down","t_ms":2552,"frame":97,"keycode":103,"mod":0}
 {"type":"text","t_ms":2552,"frame":97,"text":"g"}
 {"type":"key_up","t_ms":2600,"frame":100,"keycode":103,"mod":0}
@@ -30,9 +30,9 @@
 {"type":"mouse_move","t_ms":5704,"frame":294,"x":194,"y":172,"lx":97,"ly":86,"buttons":0}
 {"type":"mouse_down","t_ms":5720,"frame":295,"x":194,"y":172,"lx":97,"ly":86,"button":"left","clicks":1}
 {"type":"mouse_up","t_ms":5768,"frame":298,"x":194,"y":172,"lx":97,"ly":86,"button":"left","clicks":1}
-{"type":"mouse_move","t_ms":5944,"frame":309,"x":368,"y":224,"lx":184,"ly":112,"buttons":0}
-{"type":"mouse_down","t_ms":5960,"frame":310,"x":368,"y":224,"lx":184,"ly":112,"button":"left","clicks":1}
-{"type":"mouse_up","t_ms":6008,"frame":313,"x":368,"y":224,"lx":184,"ly":112,"button":"left","clicks":1}
+{"type":"mouse_move","t_ms":5944,"frame":309,"x":192,"y":178,"lx":96,"ly":89,"buttons":0}
+{"type":"mouse_down","t_ms":5960,"frame":310,"x":192,"y":178,"lx":96,"ly":89,"button":"left","clicks":1}
+{"type":"mouse_up","t_ms":6008,"frame":313,"x":192,"y":178,"lx":96,"ly":89,"button":"left","clicks":1}
 {"type":"key_down","t_ms":7144,"frame":384,"keycode":119,"mod":0}
 {"type":"text","t_ms":7144,"frame":384,"text":"w"}
 {"type":"key_up","t_ms":7192,"frame":387,"keycode":119,"mod":0}

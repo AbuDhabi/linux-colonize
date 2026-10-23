@@ -239,12 +239,8 @@ bool pick_music_handle_input(
     }
     return true;
   }
-  if (colonize_key_up(input->last_key) && dlg->selection > 0) {
-    dlg->selection--;
-    return true;
-  }
-  if (colonize_key_down(input->last_key) && dlg->selection + 1 < dlg->option_count) {
-    dlg->selection++;
+  /* @PICKMUSIC (FUN_2b5a_23ce) is a FUN_6f74_2580 list: Up / Down wrap. */
+  if (popup_list_key_step(input->last_key, &dlg->selection, dlg->option_count, 0)) {
     return true;
   }
   if (input->last_key == COLONIZE_KEY_ENTER || input->last_key == COLONIZE_KEY_SPACE) {

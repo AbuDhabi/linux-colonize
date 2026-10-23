@@ -266,19 +266,21 @@ static ColonyDosPage colony_screen_construction_page(const ColonyScreenView* vie
   );
 }
 
-/* The "(More)" rows: page 0 <-> page 1, the selection on the new page's first row. */
+/* The "(More)" rows: page 0 <-> page 1, the selection on the new page's first row (page 1's
+ * is its "(More)" back row, which 5bd2 adds first, raw 52596-52598). */
 void colony_screen_construction_next_page(ColonyScreenView* view) {
   if (!view || !colony_screen_construction_paged(view)) {
     return;
   }
   view->construction_selection = view->construction_selection >= 0x10 ? 0 : 0x10;
+  view->more_selected = view->construction_selection != 0;
 }
 
 /*
  * Construction row `gi` (0 = the clear row, -1 = "(More)"): the row text, the cost behind the
  * DS:0xd1d "|   " column tab (FUN_2f2b_5a68), and the port-only queue prefix.
  */
-static void colony_screen_construction_row_text(
+COLONIZE_INTERNAL void colony_screen_construction_row_text(
   const ColonyScreenView* view,
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
@@ -306,42 +308,40 @@ static void colony_screen_construction_row_text(
     snprintf(queue_prefix, prefix_cap, "%d ", qpos);
   }
   const ColonizeBuildingType* bt = colonies_building_type(pool, bid);
-  const char* uname = NULL;
-  int uh = 0;
-  int ut = 0;
-  /* Player-reported: hammers shown here are what's still *needed*, i.e.
-   * the requirement adjusted down by the colony's already-banked
-   * hammers (min 0) — hammers carry over to whatever project is picked,
-   * unlike tools, which are never adjusted away in this popup.
-   * Cost words are DOS's own (2f2b_5a68 string build), right-aligned
-   * behind the "|   " tab (port_bugs.md #436). */
-  const int stored_hammers = colony ? colony->hammers : 0;
-  if (bt) {
-    int hammers_left = bt->hammers - stored_hammers;
-    if (hammers_left < 0) {
-      hammers_left = 0;
-    }
-    /* NAMES.TXT @CARGO row 16 "Hammers", row 14 "Tools". */
-    if (bt->tools_cost > 0) {
-      snprintf(
-        row, row_cap, "%s|   %d %s %d %s", bt->name, hammers_left, colony_screen_hammers_word(),
-        bt->tools_cost, reports_cargo_display_name(14)
-      );
-    } else {
-      snprintf(row, row_cap, "%s|   %d %s", bt->name, hammers_left, colony_screen_hammers_word());
-    }
-  } else if (colonies_unit_build_info(bid, &uname, &uh, &ut)) {
-    /* Artillery (colonies_unit_build_info) — not a real @BUILDING row. */
-    int hammers_left = uh - stored_hammers;
-    if (hammers_left < 0) {
-      hammers_left = 0;
-    }
-    snprintf(
-      row, row_cap, "%s|   %d %s %d %s", uname, hammers_left, colony_screen_hammers_word(), ut,
-      reports_cargo_display_name(14)
-    );
-  } else {
+  const char* name = bt ? bt->name : NULL;
+  int hammers = bt ? bt->hammers : 0;
+  int tools = bt ? bt->tools_cost : 0;
+  if (!bt && !colonies_unit_build_info(bid, &name, &hammers, &tools)) {
     snprintf(row, row_cap, "?");
+    return;
+  }
+  /*
+   * DOS-LITERAL FUN_2f2b_5a68 raw 52505-52540 (port_bugs.md #1202, user 2026-10-23 "switch to
+   * DOS", superseding #436's "N Hammers M Tools"): the NAME + DS:0x50 " " + DS:0xd1d "|   " + "("
+   * + the hammers still needed (cost - colony+0x92, min 0) + " " + @CARGO 16 (DS:0x97e0) +
+   * ")", then, when tools are due, "(" + tools + " " + @CARGO 14 (DS:0x97dc) + ")" with no
+   * space between the groups. A building the colony already owns (FUN_281f_0cc2 == 1 &&
+   * FUN_281f_09fc) gets @MISC 127 (DS:0x2eb8) in place of the hammers and no tools.
+   */
+  int hammers_left = hammers - (colony ? colony->hammers : 0);
+  if (hammers_left < 0) {
+    hammers_left = 0;
+  }
+  /* raw 52508-52509: FUN_1d1d_117e copies the name, FUN_1d1d_0d64 upper-cases a..z. */
+  char upper[48];
+  snprintf(upper, sizeof(upper), "%s", name ? name : "");
+  for (char* p = upper; *p; ++p) {
+    if ((unsigned char)(*p - 'a') < 26) {
+      *p = (char)(*p - 0x20);
+    }
+  }
+  const bool owned = bt && colony && bid < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[bid];
+  size_t n = owned ? (size_t)snprintf(row, row_cap, "%s |   (%s)", upper,
+                                      reports_misc_display_word(127, ""))
+                   : (size_t)snprintf(row, row_cap, "%s |   (%d %s)", upper, hammers_left,
+                                      colony_screen_hammers_word());
+  if (!owned && tools != 0 && n < row_cap) {
+    snprintf(row + n, row_cap - n, "(%d %s)", tools, reports_cargo_display_name(14));
   }
 }
 
@@ -386,7 +386,8 @@ static void colony_screen_draw_construction_popup(
   for (int k = 0; k < drawn_rows; ++k) {
     const int gi = colony_screen_dos_page_entry(&pg, k);
     const int row_y = colony_screen_dos_row(
-      framebuffer, &lay, &view->construction_rect, k, gi >= 0 && gi == view->construction_selection
+      framebuffer, &lay, &view->construction_rect, k,
+      gi < 0 ? view->more_selected : !view->more_selected && gi == view->construction_selection
     );
     if (row_y + lay.glyph_h > framebuffer->height || !font) {
       continue;
@@ -464,7 +465,8 @@ static ColonyDosPage colony_screen_jobs_page(const ColonyScreenView* view) {
 }
 
 /* The 0x62 "(More)" row (raw 50828-50829: local_6 = 1 - local_6): the other page, selected on
- * the occupation's row when that page lists it (FUN_291f_08ec), else on its first job row. */
+ * the occupation's row when that page lists it (FUN_291f_08ec), else on its first row (the
+ * first added, FUN_6f74_0a00): page 0's first entry, page 1's "(More)" row (raw 50731-50734). */
 void colony_screen_jobs_next_page(ColonyScreenView* view) {
   if (!view) {
     return;
@@ -474,9 +476,48 @@ void colony_screen_jobs_next_page(ColonyScreenView* view) {
     return;
   }
   const int page = 1 - colony_screen_jobs_page_of(view, view->jobs_selection);
-  view->jobs_selection = colony_screen_jobs_page_of(view, view->jobs_default_row) == page
-                           ? view->jobs_default_row
-                           : (page ? lead + 0x10 : 0);
+  const bool dflt = colony_screen_jobs_page_of(view, view->jobs_default_row) == page;
+  view->jobs_selection = dflt ? view->jobs_default_row : (page ? lead + 0x10 : 0);
+  view->more_selected = !dflt && page;
+}
+
+/* FUN_6f74_2580 Up / Down over a jobs / construction page's rows: the bar can rest on the
+ * "(More)" row (more_selected; *sel keeps a page entry so the page stays). */
+static void colony_screen_dos_page_key(
+  ColonyScreenView* view, const ColonyDosPage* pg, int* sel, ColonizeKey key
+) {
+  int k = view->more_selected ? pg->more_at : *sel - pg->start + (pg->more_at == 0 ? 1 : 0);
+  popup_list_key_step(key, &k, colony_screen_dos_page_rows(pg), 0);
+  const int e = colony_screen_dos_page_entry(pg, k);
+  view->more_selected = e < 0;
+  if (e >= 0) {
+    *sel = e;
+  }
+}
+
+bool colony_screen_list_key(ColonyScreenView* view, ColonizeKey key) {
+  if (!view || !(colonize_key_up(key) || colonize_key_down(key))) {
+    return false;
+  }
+  if (view->jobs_open) {
+    const ColonyDosPage pg = colony_screen_jobs_page(view);
+    colony_screen_dos_page_key(view, &pg, &view->jobs_selection, key);
+  } else if (view->construction_open) {
+    const ColonyDosPage pg = colony_screen_construction_page(view);
+    colony_screen_dos_page_key(view, &pg, &view->construction_selection, key);
+  } else if (view->eject_open) {
+    /* 348c's FUN_291f_01b6 rows (raw 50801, eject_role_enabled false) are skipped. */
+    uint32_t greyed = 0;
+    for (int i = 0; i < view->eject_role_count; ++i) {
+      greyed |= view->eject_role_enabled[i] ? 0u : 1u << i;
+    }
+    popup_list_key_step(key, &view->eject_selection, view->eject_role_count, greyed);
+  } else if (view->dock_orders_open) {
+    popup_list_key_step(key, &view->dock_orders_selection, view->dock_orders_count, 0);
+  } else {
+    return false;
+  }
+  return true;
 }
 
 /*
@@ -587,7 +628,8 @@ static void colony_screen_draw_jobs_popup(
   for (int k = 0; k < drawn_rows; ++k) {
     const int e = colony_screen_dos_page_entry(&pg, k);
     const int row_y = colony_screen_dos_row(
-      framebuffer, &lay, &view->jobs_rect, k, e >= 0 && e == view->jobs_selection
+      framebuffer, &lay, &view->jobs_rect, k,
+      e < 0 ? view->more_selected : !view->more_selected && e == view->jobs_selection
     );
     if (row_y + lay.glyph_h > framebuffer->height) {
       continue;
@@ -655,6 +697,44 @@ static void colony_screen_draw_custom_house_popup(
   }
 }
 
+/*
+ * FUN_2f2b_348c leave-as row (param_1 != 0, port_bugs.md #1203). The occupation row
+ * (COLONY_EJECT_ROLE_STAY) is the bare @JOB column 0 name (raw 50743). A role row is @JOB
+ * column 0 of 0x13 + role + the DS:0xca3 "|   " tab (raw 50764; no " = " at or past 0x13)
+ * and, unless it is the body's own occupation (`gear`), DOS-LITERAL raw 50781-50794: for
+ * each cargo of the job's FUN_15eb_0d8e list (Pioneer Tools; Soldier Muskets; Scout Horses;
+ * Dragoon Muskets, Horses) " (" + amount + " " + @CARGO name + ")". The amounts are the
+ * local_76 table (raw 50569-50573): Horses and Muskets 0x32, Tools clamp(stock / 0x14 * 0x14,
+ * 0x14, 100) of the stock after the body's own tools went in.
+ */
+COLONIZE_INTERNAL void colony_screen_eject_row_text(
+  char* out, size_t cap, int role, int occ, bool gear, int stock_tools
+) {
+  if (role == COLONY_EJECT_ROLE_STAY) {
+    snprintf(out, cap, "%s", occ >= 0 ? reports_job_short_name(occ) : "");
+    return;
+  }
+  size_t n = (size_t)snprintf(out, cap, "%s|   ", colonies_eject_role_name(role));
+  int cargo[2];
+  int count = 0;
+  if (role == COLONIZE_EJECT_PIONEER) {
+    cargo[count++] = COLONIZE_CARGO_TOOLS;
+  }
+  if (role == COLONIZE_EJECT_SOLDIER || role == COLONIZE_EJECT_DRAGOON) {
+    cargo[count++] = COLONIZE_CARGO_MUSKETS;
+  }
+  if (role == COLONIZE_EJECT_SCOUT || role == COLONIZE_EJECT_DRAGOON) {
+    cargo[count++] = COLONIZE_CARGO_HORSES;
+  }
+  int tools = stock_tools / 0x14 * 0x14;
+  tools = tools < 0x14 ? 0x14 : (tools > 100 ? 100 : tools);
+  for (int k = 0; gear && k < count && n < cap; ++k) {
+    n += (size_t)snprintf(out + n, cap - n, " (%d %s)",
+                          cargo[k] == COLONIZE_CARGO_TOOLS ? tools : 0x32,
+                          reports_cargo_display_name(cargo[k]));
+  }
+}
+
 static void colony_screen_draw_eject_popup(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,
@@ -680,11 +760,19 @@ static void colony_screen_draw_eject_popup(
   }
   char header[96];
   colony_screen_jobs_header(header, sizeof(header), spec, occ);
-  /* Rows 0x13..0x18 carry the unconditional DS:0xca3 "|   " tab (raw 50764) and no " = ". */
-  char labels[COLONIZE_EJECT_ROLE_COUNT][48];
+  /* raw 50553-50571: the fence body's own gear goes into the stock first (only a Pioneer
+   * carries tools, FUN_15eb_0d8e), and the Tools amount is read off that stock. */
+  int stock_tools = colony ? colony->stock[COLONIZE_CARGO_TOOLS] : 0;
+  if (fence_unit && units_type_kind(units_type(units, fence_unit->type_index)) ==
+                      UNITS_KIND_PIONEER && fence_unit->tools > 0) {
+    stock_tools += fence_unit->tools;
+  }
+  const int current = fence_unit ? colony_screen_unit_eject_role(units, fence_unit) : -1;
+  char labels[COLONIZE_EJECT_ROLE_COUNT + 1][64];
   int content_w = 0xbe;
   for (int i = 0; i < rows; ++i) {
-    snprintf(labels[i], sizeof(labels[i]), "%s|   ", colonies_eject_role_name(view->eject_roles[i]));
+    colony_screen_eject_row_text(labels[i], sizeof(labels[i]), view->eject_roles[i], occ,
+                                 view->eject_roles[i] != current, stock_tools);
     const int w = font ? colony_screen_dos_row_w(font, labels[i], 8) : 0;
     if (w > content_w) {
       content_w = w;
@@ -698,9 +786,15 @@ static void colony_screen_draw_eject_popup(
       colony_screen_dos_row(framebuffer, &lay, &view->eject_rect, i, i == view->eject_selection);
     /* DOS draws a short-stock row greyed rather than dropping it (FUN_15eb_3454 -> 0xffff,
      * raw 50801 FUN_291f_01b6). The roles are @JOB 0x13 + role, DOS's 0x13..0x18 order. */
+    /* The occupation row's hilite is raw 50746's `local_136 == local_8` (the specialty is
+     * the occupation). DOS reads local_136 there before its first write at raw 50799, so the
+     * first page-0 draw tests a stale stack word; the port takes the value every later draw
+     * sees. */
+    const int role = view->eject_roles[i];
     colony_screen_dos_row_text(
       framebuffer, font, &lay, &view->eject_rect, lay.text_x + 8, row_y, 8, labels[i],
-      colony_screen_job_is_specialty(UNITS_JOB_COLONIST + view->eject_roles[i], spec),
+      role == COLONY_EJECT_ROLE_STAY ? spec == occ
+                                     : colony_screen_job_is_specialty(UNITS_JOB_COLONIST + role, spec),
       !view->eject_role_enabled[i]
     );
   }
@@ -1180,7 +1274,7 @@ COLONIZE_INTERNAL bool colony_screen_hit_building_workers(ColonyScreenHitCtx* a)
         }
         const int iy = strip_y + (strip_h - ih) / 2;
         if (mx >= xs[wi] && my >= iy && mx < xs[wi] + iw && my < iy + ih) {
-          a->hit.kind = COLONY_HIT_PEOPLE_COLONIST;
+          a->hit.kind = COLONY_HIT_COLONIST; /* a building worker (FUN_2f2b_44d4 local_10) */
           a->hit.index = worker_ci[wi];
           return true;
         }

@@ -3,8 +3,14 @@
 #include <string.h>
 
 #include "core/assets.h"
+#include "core/fb.h"
+#include "core/font.h"
 #include "core/game_loop.h"
 #include "core/new_game.h"
+#include "core/pik.h"
+#include "core/reports.h"
+#include "core/ss.h"
+#include "core/ui_colors.h"
 
 #include "tests/common/test_assets.h"
 #include "../common/test_runner.h"
@@ -239,11 +245,356 @@ static int case_hall_of_fame_from_menu(void) {
   return 0;
 }
 
+/* ===== port_bugs.md #1198: wizard text is the DOS writers, one pass, no drop shadow ===== */
+
+/* Real-asset wizard fixture (COLONIZE/): the catalogs, fonts and frame art the game
+ * hands the wizard. */
+typedef struct NgFix {
+  ColonizeMsgCatalog game_txt;
+  ColonizeMsgCatalog names_txt;
+  ColonizeMsgCatalog labels_txt;
+  ColonizeFont intr;
+  ColonizeFont tiny;
+  ColonizePikImage woodpanl;
+  ColonizeSpriteSheet woodtile;
+  ColonizeReportsView view;
+  NewGameWizard ng;
+  ColonizePopupColors cols;
+  uint8_t px[320 * 200];
+  uint8_t ref[320 * 200];
+  ColonizeFramebuffer8 fb;
+  ColonizePalette pal;
+} NgFix;
+
+static NgFix g_fix;
+
+static void ng_fix_free(NgFix* f) {
+  new_game_free(&f->ng);
+  reports_free(&f->view);
+  assets_msg_free(&f->game_txt);
+  assets_msg_free(&f->names_txt);
+  assets_msg_free(&f->labels_txt);
+  font_file_free(&f->intr);
+  font_file_free(&f->tiny);
+  pik_free(&f->woodpanl);
+  ss_free(&f->woodtile);
+}
+
+static int ng_fix_begin(NgFix* f, NewGamePath path) {
+  memset(f, 0, sizeof(*f));
+  char err[256];
+  assets_msg_init(&f->game_txt);
+  assets_msg_init(&f->names_txt);
+  assets_msg_init(&f->labels_txt);
+  if (!assets_msg_load_file(&f->game_txt, "COLONIZE/GAME.TXT") ||
+      !assets_msg_load_file(&f->names_txt, "COLONIZE/NAMES.TXT") ||
+      !assets_msg_load_file(&f->labels_txt, "COLONIZE/LABELS.TXT") ||
+      !font_file_load("COLONIZE/FONTINTR.FF", &f->intr, err, sizeof(err)) ||
+      !font_file_load("COLONIZE/FONTTINY.FF", &f->tiny, err, sizeof(err)) ||
+      !pik_load("COLONIZE/WOODPANL.PIK", &f->woodpanl, err, sizeof(err)) ||
+      !ss_load("COLONIZE/WOODTILE.SS", &f->woodtile, err, sizeof(err)) ||
+      !reports_load(&f->view, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "wizard fixture: COLONIZE assets missing (%s)\n", err);
+    return 1;
+  }
+  new_game_init(&f->ng);
+  if (!new_game_begin(&f->ng, path, "COLONIZE", &f->game_txt, &f->names_txt)) {
+    return 1;
+  }
+  f->ng.ui_font = &f->intr;
+  f->ng.tiny_font = &f->tiny;
+  f->ng.lore_font = &f->intr;
+  f->ng.labels_txt = &f->labels_txt;
+  f->ng.woodpanl = &f->woodpanl;
+  f->ng.wood_tile = &f->woodtile;
+  popup_colors_from_ui(&f->cols);
+  f->fb = (ColonizeFramebuffer8){.width = 320, .height = 200, .pixels = f->px};
+  return 0;
+}
+
+static void ng_fix_render(NgFix* f) {
+  new_game_render(
+    &f->ng, &f->fb, &f->pal, &f->cols, COLONIZE_COL_BASIC, COLONIZE_COL_HILITE, COLONIZE_COL_SELECT
+  );
+}
+
+static bool ng_fix_enter(NgFix* f) {
+  ColonizeInputState input = {0};
+  input.last_key = COLONIZE_KEY_ENTER;
+  return new_game_handle_input(&f->ng, &input);
+}
+
+/* LABELS.TXT @MISC row (the wizard block starts at row 144, "Land Mass"). */
+static const char* ng_misc(const NgFix* f, int offset) {
+  const ColonizeMsgSection* misc = assets_msg_find(&f->labels_txt, "MISC");
+  return (misc && 144 + offset < misc->line_count) ? misc->lines[144 + offset] : "";
+}
+
+/* Oracle for one FUN_104b_0318 / 0430 call (raw 1007 / 1063): centred
+ * x + (w >> 1) - ((width - 1) >> 1), one blit through {skip, c1, c2, c3}. */
+static void ng_ref_put(
+  NgFix* f, const ColonizeFont* font, const char* s, int x, int w, int y, uint8_t c1, uint8_t c2,
+  uint8_t c3
+) {
+  ColonizeFramebuffer8 ref = {.width = 320, .height = 200, .pixels = f->ref};
+  const uint8_t map[4] = {0, c1, c2, c3};
+  int cx = x + (w >> 1) - ((font_text_width_skip(font, s, FONT_SKIP_NONE) - 1) >> 1);
+  font_draw_text_shaded(font, &ref, cx < 0 ? 0 : cx, y, s, map);
+}
+
+/* Selected-cell line: ink 0 at x + 1, then the ink at x (733a:061b/0638 etc.). */
+static void ng_ref_cell_line(NgFix* f, const char* s, int x, int w, int y, uint8_t ink) {
+  ng_ref_put(f, &f->tiny, s, x + 1, w, y, 0, 0, 0);
+  ng_ref_put(f, &f->tiny, s, x, w, y, ink, ink, ink);
+}
+
+static void ng_ref_outline(NgFix* f, int x, int y, int w, int h, uint8_t c) {
+  ColonizeFramebuffer8 ref = {.width = 320, .height = 200, .pixels = f->ref};
+  fb_rect_outline(&ref, x, y, w, h, c, c);
+}
+
+static void ng_ref_bg(NgFix* f, const ColonizePikImage* pik, uint8_t fill) {
+  ColonizeFramebuffer8 ref = {.width = 320, .height = 200, .pixels = f->ref};
+  memset(f->ref, fill, sizeof(f->ref));
+  if (pik) {
+    pik_blit(pik, &ref, 0, 0);
+  }
+}
+
+static int ng_ref_compare(const NgFix* f, const char* what) {
+  int bad = 0;
+  for (int i = 0; i < 320 * 200; ++i) {
+    if (f->px[i] != f->ref[i] && bad++ < 4) {
+      fprintf(stderr, "%s (%d,%d): got %d want %d\n", what, i % 320, i / 320, f->px[i], f->ref[i]);
+    }
+  }
+  if (bad) {
+    fprintf(stderr, "%s: %d pixels differ from the DOS writer oracle\n", what, bad);
+  }
+  return bad ? 1 : 0;
+}
+
+static void ng_upper_colon(char* out, size_t n, const char* s, bool upper) {
+  snprintf(out, n, "%s:", s);
+  for (char* p = out; upper && *p; ++p) {
+    if (*p >= 'a' && *p <= 'z') {
+      *p = (char)(*p - 'a' + 'A');
+    }
+  }
+}
+
+/* Difficulty (FUN_733a_06a4 / 0512), nation (FUN_733a_0b3e / 09c6) and customize
+ * (FUN_733a_01a4 / 002c) screens equal, pixel for pixel, the DOS writer calls in DOS
+ * order over the screen's own PIK: titles FONTINTR {0xfe, 0xfd, 0}, the finished line
+ * FONTTINY 0xfe, the selected cell's outline and two lines each with a black (x + 1)
+ * pass. A DOSBox-X capture of all three screens matched the port exactly (2026-10-23). */
+static int case_wizard_picture_text_is_dos(void) {
+  NgFix* f = &g_fix;
+  int rc = 1;
+  char fin[80];
+  char top[48];
+  if (ng_fix_begin(f, NEW_GAME_PATH_NEW_WORLD) != 0) {
+    goto out;
+  }
+  snprintf(fin, sizeof(fin), "(%s)", ng_misc(f, 17));
+  const int ih = f->intr.max_height;
+  const int th = f->tiny.max_height;
+
+  /* Difficulty, Discoverer selected: cell (128, 7) 0x44 x 0x5a, ink 10. */
+  ng_fix_render(f);
+  ng_ref_bg(f, &f->ng.difficul_pik, 0);
+  ng_ref_put(f, &f->intr, ng_misc(f, 18), 0x17, 0x44, 0x14 - (ih >> 1), 0xfe, 0xfd, 0);
+  ng_ref_put(f, &f->intr, ng_misc(f, 19), 0x17, 0x44, 0x14 - (ih >> 1) + ih + 4, 0xfe, 0xfd, 0);
+  ng_ref_put(f, &f->tiny, fin, 0x17, 0x44, 0x51, 0xfe, 0xfe, 0xfe);
+  ng_ref_outline(f, 128, 7, 0x44, 0x5a, 10);
+  ng_upper_colon(top, sizeof(top), reports_difficulty_title(0), true);
+  ng_ref_cell_line(f, top, 128, 0x44, 7 + 0x2c - th, 10);
+  ng_ref_cell_line(f, ng_misc(f, 21), 128, 0x44, 7 + 0x2e, 10);
+  if (ng_ref_compare(f, "difficulty")) {
+    goto out;
+  }
+
+  /* Nation, England selected: cell (112, 13) 0x58 x 0x52, @COUNTRY ink 12. */
+  if (!ng_fix_enter(f) || f->ng.phase != NEW_GAME_PHASE_NATION) {
+    fprintf(stderr, "expected the nation screen\n");
+    goto out;
+  }
+  ng_fix_render(f);
+  ng_ref_bg(f, &f->ng.nations_pik, 0);
+  ng_ref_put(f, &f->intr, ng_misc(f, 26), 0, 0x70, 0x28 - (ih >> 1), 0xfe, 0xfd, 0);
+  ng_ref_put(f, &f->intr, ng_misc(f, 27), 0, 0x70, 0x28 - (ih >> 1) + ih + 4, 0xfe, 0xfd, 0);
+  ng_ref_put(f, &f->tiny, fin, 0, 0x70, 0xb6, 0xfe, 0xfe, 0xfe);
+  ng_ref_outline(f, 112, 13, 0x58, 0x52, 12);
+  ng_upper_colon(top, sizeof(top), new_game_nation_name(0), true);
+  ng_ref_cell_line(f, top, 112, 0x58, 13 + 2, 12);
+  ng_ref_cell_line(f, ng_misc(f, 29), 112, 0x58, 13 + 0x50 - th, 12);
+  if (ng_ref_compare(f, "nation")) {
+    goto out;
+  }
+  ng_fix_free(f);
+
+  /* Customize, every axis 1, focus column 0: cells (c * 0x4c + 10, 76) 0x48 x 0x30,
+   * ink 0x0e for the focus column and 0x0a otherwise. */
+  if (ng_fix_begin(f, NEW_GAME_PATH_CUSTOMIZE) != 0) {
+    goto out;
+  }
+  ng_fix_render(f);
+  ng_ref_bg(f, &f->ng.customiz_pik, 0);
+  ng_ref_put(f, &f->intr, ng_misc(f, 16), 0, 0x140, 4, 0xfe, 0xfd, 0);
+  ng_ref_put(f, &f->tiny, fin, 0, 0x140, 0xbe, 0xfe, 0xfe, 0xfe);
+  for (int c = 0; c < 4; ++c) {
+    const int x = c * 0x4c + 10;
+    const uint8_t ink = c == 0 ? 0x0e : 0x0a;
+    ng_ref_outline(f, x, 76, 0x48, 0x30, ink);
+    ng_upper_colon(top, sizeof(top), ng_misc(f, c), false);
+    ng_ref_cell_line(f, top, x, 0x48, 76 + 0x17 - th, ink);
+    ng_ref_cell_line(f, ng_misc(f, 4 + c * 3 + 1), x, 0x48, 76 + 0x19, ink);
+  }
+  rc = ng_ref_compare(f, "customize");
+out:
+  ng_fix_free(f);
+  return rc;
+}
+
+/* Colours the screen added over its background, as a 256-entry count. */
+static void ng_added(const NgFix* f, int x0, int y0, int x1, int y1, int out[256]) {
+  memset(out, 0, 256 * sizeof(int));
+  for (int y = y0; y < y1; ++y) {
+    for (int x = x0; x < x1; ++x) {
+      if (f->px[y * 320 + x] != f->ref[y * 320 + x]) {
+        out[f->px[y * 320 + x]]++;
+      }
+    }
+  }
+}
+
+/* Every added pixel is one of `allowed` and `must` shows up: one FUN_6f74_0538 pass
+ * through the screen's style map. The old drop shadow added ink 0 and the old unbold
+ * pass dropped FONTINTR's shades 2 / 3. */
+static int ng_check_added(
+  const NgFix* f, const char* what, const int added[256], const uint8_t* allowed, int n_allowed,
+  uint8_t must
+) {
+  int total = 0;
+  for (int c = 0; c < 256; ++c) {
+    if (!added[c]) {
+      continue;
+    }
+    total += added[c];
+    bool ok = false;
+    for (int k = 0; k < n_allowed; ++k) {
+      ok = ok || allowed[k] == c;
+    }
+    if (!ok) {
+      fprintf(stderr, "%s: %d pixels in colour %d, outside the DOS map\n", what, added[c], c);
+      return 1;
+    }
+  }
+  if (total == 0 || added[must] == 0) {
+    fprintf(stderr, "%s: no text in colour %d (%d added pixels)\n", what, must, total);
+    return 1;
+  }
+  (void)f;
+  return 0;
+}
+
+/* @AMERICA, @LEADERNAME, @NATION0A, the king's audience and @BUILD1 draw one markup
+ * pass through their DOS style: @COLORS {68 (149 in {}), 128, 47}; the king
+ * FUN_75c2_20e2 override {0xf2, 0x2f, 0}; the sail FUN_1262_0152 override
+ * {0x0e, 0x36, 47}. */
+static int case_wizard_prose_text_is_one_pass(void) {
+  NgFix* f = &g_fix;
+  int rc = 1;
+  int added[256];
+  if (ng_fix_begin(f, NEW_GAME_PATH_AMERICA) != 0) {
+    goto out;
+  }
+
+  /* @AMERICA list dialog: inside the wood (WOODTILE 128..138, bar 138) the text adds
+   * 68 / 128 / 47 and never ink 0. */
+  ng_fix_render(f);
+  {
+    int n0 = 0, n47 = 0;
+    for (int y = f->ng.dialog_y + 4; y < f->ng.dialog_y + f->ng.dialog_h - 4; ++y) {
+      for (int x = f->ng.dialog_x + 4; x < f->ng.dialog_x + f->ng.dialog_w - 4; ++x) {
+        n0 += f->px[y * 320 + x] == 0;
+        n47 += f->px[y * 320 + x] == COLONIZE_COL_SHADOW;
+      }
+    }
+    if (n0 != 0 || n47 == 0) {
+      fprintf(stderr, "@AMERICA text: %d ink-0 pixels, %d shade-3 (47) pixels\n", n0, n47);
+      goto out;
+    }
+  }
+  static const uint8_t k_colors[] = {
+    COLONIZE_COL_BASIC, COLONIZE_COL_HILITE, COLONIZE_COL_ENHANCE, COLONIZE_COL_SHADOW,
+    COLONIZE_COL_SELECT
+  };
+  /* Original Americas -> difficulty -> nation -> leader name. */
+  if (!ng_fix_enter(f) || !ng_fix_enter(f) || !ng_fix_enter(f) ||
+      f->ng.phase != NEW_GAME_PHASE_LEADER_NAME) {
+    fprintf(stderr, "expected the leader-name prompt\n");
+    goto out;
+  }
+  ng_fix_render(f);
+  ng_ref_bg(f, &f->woodpanl, 4);
+  ng_added(f, 0, 0, 320, 200, added);
+  if (ng_check_added(f, "@LEADERNAME", added, k_colors, 5, COLONIZE_COL_ENHANCE)) {
+    goto out;
+  }
+  if (!ng_fix_enter(f) || f->ng.phase != NEW_GAME_PHASE_NATION_LORE_A) {
+    fprintf(stderr, "expected @NATION0A\n");
+    goto out;
+  }
+  ng_fix_render(f);
+  ng_added(f, 0, 0, 320, 200, added);
+  if (ng_check_added(f, "@NATION0A", added, k_colors, 4, COLONIZE_COL_SHADOW) ||
+      added[COLONIZE_COL_HILITE] == 0) {
+    fprintf(stderr, "@NATION0A: {} text should be hilite 149 (%d px)\n", added[COLONIZE_COL_HILITE]);
+    goto out;
+  }
+
+  /* King: art only (no GAME.TXT) is the background. */
+  if (!ng_fix_enter(f) || !ng_fix_enter(f) || f->ng.phase != NEW_GAME_PHASE_KING) {
+    fprintf(stderr, "expected the king's audience\n");
+    goto out;
+  }
+  f->ng.game_txt = NULL;
+  ng_fix_render(f);
+  memcpy(f->ref, f->px, sizeof(f->ref));
+  f->ng.game_txt = &f->game_txt;
+  ng_fix_render(f);
+  ng_added(f, 0, 0, 320, 200, added);
+  static const uint8_t k_king[] = {0xf2, COLONIZE_COL_HILITE, 0x2f, 0};
+  if (ng_check_added(f, "king", added, k_king, 4, 0xf2)) {
+    goto out;
+  }
+
+  /* Sail, @BUILD1 over LEVN0001. */
+  if (!ng_fix_enter(f) || f->ng.phase != NEW_GAME_PHASE_SAIL) {
+    fprintf(stderr, "expected the sail sequence\n");
+    goto out;
+  }
+  f->ng.game_txt = NULL;
+  ng_fix_render(f);
+  memcpy(f->ref, f->px, sizeof(f->ref));
+  f->ng.game_txt = &f->game_txt;
+  ng_fix_render(f);
+  ng_added(f, 0, 0, 320, 200, added);
+  static const uint8_t k_sail[] = {0x0e, COLONIZE_COL_HILITE, 0x36, COLONIZE_COL_SHADOW};
+  rc = ng_check_added(f, "@BUILD1", added, k_sail, 4, 0x36);
+out:
+  ng_fix_free(f);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"scenario_start", case_scenario_start},
     {"customize_defaults", case_customize_defaults},
     {"wizard_new_world_flow", case_wizard_new_world_flow},
     {"hall_of_fame_from_menu", case_hall_of_fame_from_menu},
+    {"wizard_picture_text_is_dos", case_wizard_picture_text_is_dos},
+    {"wizard_prose_text_is_one_pass", case_wizard_prose_text_is_one_pass},
 };
 
 TEST_MAIN(k_cases)

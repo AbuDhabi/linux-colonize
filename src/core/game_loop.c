@@ -1700,53 +1700,22 @@ COLONIZE_INTERNAL bool game_render_screen(
     ng->tiny_font = game->colony_font_ok ? &game->colony_font
       : (game->menu_font_ok ? &game->menu_font : ng->ui_font);
     ng->lore_font = ng->ui_font;
-    ng->wood_tile = game->menu_opentile_ok ? &game->menu_opentile : NULL;
+    /* @AMERICA / the map picker run after FUN_75c2_2758 (75c2:2a6b) reloads the DAC from
+     * A000:FC00 and FUN_75c2_0204 the @COLORS style: a DOSBox-X capture shows the game
+     * palette (every visible colour is WOODPANL.PIK's) and the WOODTILE.SS frame, not
+     * OPENMENU / OPENTILE (port_bugs.md #1198). The picture screens bring their own PIK
+     * palette and draw DOS literal indices. */
+    ng->wood_tile = (game->map_panel_ok && game->map_panel.wood_ok) ? &game->map_panel.wood_tile
+                                                                    : NULL;
     ng->woodpanl = game->pedia_wood_ok ? &game->pedia_wood : NULL;
     ng->labels_txt = game->labels_ok ? &game->labels : NULL;
-    uint8_t basic = COLONIZE_COL_BASIC;
-    uint8_t hilite = COLONIZE_COL_HILITE;
-    uint8_t select = COLONIZE_COL_SELECT;
-    /* Bright selection border on DIFFICUL/NATIONS/CUSTOMIZ own palettes. */
-    if (ng->phase == NEW_GAME_PHASE_AMERICA_CHOICE || ng->phase == NEW_GAME_PHASE_MAP_PICK) {
-      /*
-       * Black screen + OPENTILE popup: same palette/colors as @BEGINMENU
-       * (OPENMENU / remapped WOODPANL @COLORS). Do not use terrain palette.
-       */
-      if (game->menu_bg_ok && game->menu_bg.has_palette) {
-        *palette = game->menu_bg.palette;
-      } else if (game->menu_opentile_ok && game->menu_opentile.has_palette) {
-        *palette = game->menu_opentile.palette;
-      }
-      popup_cols = game->menu_popup_colors;
-      basic = game->menu_col_basic;
-      hilite = game->menu_col_hilite;
-      select = game->menu_col_select;
-    } else if (ng->phase == NEW_GAME_PHASE_DIFFICULTY && ng->difficul_ok) {
-      hilite = assets_palette_nearest_rgb(&ng->difficul_pik.palette, 0, 255, 0);
-      basic = assets_palette_nearest_rgb(&ng->difficul_pik.palette, 0, 180, 0);
-    } else if (ng->phase == NEW_GAME_PHASE_NATION && ng->nations_ok) {
-      hilite = assets_palette_nearest_rgb(&ng->nations_pik.palette, 0, 255, 0);
-      basic = assets_palette_nearest_rgb(&ng->nations_pik.palette, 0, 180, 0);
-    } else if (ng->phase == NEW_GAME_PHASE_CUSTOMIZE && ng->customiz_ok) {
-      /* Focused column yellow; other selection rects green (DOS 0xe / 0xa). */
-      hilite = assets_palette_nearest_rgb(&ng->customiz_pik.palette, 255, 255, 0);
-      basic = assets_palette_nearest_rgb(&ng->customiz_pik.palette, 0, 220, 0);
-    } else if (
-      (ng->phase == NEW_GAME_PHASE_LEADER_NAME || ng->phase == NEW_GAME_PHASE_NATION_LORE_A ||
-       ng->phase == NEW_GAME_PHASE_NATION_LORE_B) &&
-      game->pedia_wood_ok && game->pedia_wood.has_palette
-    ) {
-      basic = assets_palette_nearest_rgb(&game->pedia_wood.palette, 40, 140, 40);
-      hilite = assets_palette_nearest_rgb(&game->pedia_wood.palette, 220, 220, 40);
+    if ((ng->phase == NEW_GAME_PHASE_AMERICA_CHOICE || ng->phase == NEW_GAME_PHASE_MAP_PICK) &&
+        game->pedia_wood_ok && game->pedia_wood.has_palette) {
+      *palette = game->pedia_wood.palette;
     }
     new_game_render(
-      ng,
-      framebuffer,
-      palette,
-      &popup_cols,
-      basic,
-      hilite,
-      select
+      ng, framebuffer, palette, &popup_cols, COLONIZE_COL_BASIC, COLONIZE_COL_HILITE,
+      COLONIZE_COL_SELECT
     );
     return true;
   }
