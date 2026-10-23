@@ -455,9 +455,9 @@ void colony_screen_close_eject(ColonyScreenView* view);
 /* Leave-as role (COLONIZE_EJECT_*) a fence unit already is, or -1. */
 int colony_screen_unit_eject_role(const ColonizeUnitPool* units, const ColonizeUnit* u);
 
-/* Custom House per-cargo autosell checklist. Lists every export-eligible
- * cargo (europe_cargo_export_eligible) regardless of current toggle state —
- * row draw reads the toggle live off `colony->custom_house_bits`. Title
+/* Custom House per-cargo autosell checklist. Lists all 16 cargos (FUN_2f2b_4424)
+ * regardless of current toggle state — row draw reads the toggle live off
+ * `colony->custom_house_bits`; the bar starts on row 0. Title
  * comes from GAME.TXT @CUSTOM ("Which cargos shall our Custom House
  * export?") when `messages` is given; a plain fallback otherwise. */
 void colony_screen_open_custom_house(

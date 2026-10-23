@@ -792,3 +792,41 @@ the estimates come from the read-only `ai_euro_jobs_menu_estimate`. A real pick 
 seats and resets through the normal assign path. Test `unit_stage_seams
 test_colony_jobs_menu_open_has_no_side_effects`; replay colony_tile_assignment.
 **Status:** done (2026-10-23, user-approved 2026-10-23).
+
+### DB-55 — Escape in the Incite Indians target menu picks the English (port_bugs.md #1157)
+**DOS:** FUN_4d56_417e (raw 83595-83617) runs the @INDIANWARPATH menu through
+FUN_291f_016a = FUN_6f74_2580, which returns -1 on Esc (LAB_6f74_2b9a). The caller
+clamps it (`cmp ax,1; jnl; mov ax,1; dec`, 4d56:436c-437a; rows are nation + 1), so
+Esc reads as nation 0. With no English contact DOS shows @NOCONTACT; otherwise
+@INDIANWARPATH2 offers to drive the English away for the price (8800 in the trace),
+and Pay sets the tribe's tension against England to 100. There is no self check, so a
+human England player's Esc offers to incite the tribe against himself.
+DOSBox-confirmed 2026-10-23 (french-campaign COLONY04.SAV, patched missionary next to
+the Iroquois at 23,67).
+
+**Port:** Esc cancels: the `AI_CONTACT_INCITE_STAGE_TARGET` arm in
+`src/core/ai_contact_actions.c` enqueues the confirm only when the result is not
+cancelled, and `ai_contact_enqueue_incite_confirm` (`src/core/ai_contact_demand.c`)
+refuses target == the inciter.
+**Status:** done (2026-10-23, user-approved 2026-10-23).
+
+### DB-56 — Europe transit-box releases clear orders and the Expected box sails a harbor ship (port_bugs.md #1159)
+**DOS:** FUN_38fd_3228 mode 9 (the release poll of a Bound / Expected ship drag,
+dispatched by FUN_38fd_4e8e for drop zones 2 and 3) writes the hull's orders byte
++0x314c = 0 (38fd:326f) before it compares the drop zone with the start zone
+(`cmp [bp+6],[0x9e44]`), so any left release over the ship's own box, a plain click
+on the ship included, cancels its orders and trade route without moving it. Mode 8
+(a harbor ship drag) calls the sail handler FUN_38fd_62ff on release with no zone
+test (38fd:3232-324b), and 4e8e routes it for zones 2 and 3, so dropping a harbor
+ship on Expected Soon sails it like a drop on Bound for the New World.
+DOSBox-confirmed 2026-10-23 (french-campaign COLONY02.SAV, virtual mouse at
+DS:0x92f8).
+
+**Port:** the drop handler in `src/core/game_loop_colony.c` (UI_DRAG_EUROPE_*_SHIP)
+acts only when the box changes: Expected -> Bound and Bound -> Expected reverse the
+transit and clear the orders and route (`europe_reverse_transit`,
+`src/core/europe_harbor.c`, as DOS does on a real move); a release on the ship's own
+box does nothing; a harbor ship sails only from a drop on Bound for the New World,
+and a drop on Expected Soon does nothing.
+**Status:** done (2026-10-23, user-approved 2026-10-23).
+

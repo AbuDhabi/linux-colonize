@@ -4,10 +4,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/assets.h"
 #include "core/font_file.h"
 #include "core/popup.h"
+#include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/ss.h"
+#include "core/ui_colors.h"
 #include "platform/platform.h"
 
 #include "../common/test_runner.h"
@@ -137,6 +140,76 @@ static int case_choice_keys_wrap(void) {
   ai_popup_handle_input(&st, &in);
   if (!st.has_result || st.result_choice_id != 1) {
     return fail("Down on the last choice wraps to the first");
+  }
+  ai_popup_consume_result(&st);
+  return 0;
+}
+
+/*
+ * port_bugs.md #1214: a row greyed with FUN_291f_01b6 (option bit 0) draws in grey, Up / Down
+ * step past it, and a click on it does nothing (the 2580 press arm skips it).
+ */
+static int case_choice_greyed_row(void) {
+  static AiPopupState st;
+  static ColonizeFont font;
+  char err[128];
+  if (!font_file_load("COLONIZE/FONTINTR.FF", &font, err, sizeof(err))) {
+    fprintf(stderr, "SKIP: assets: %s\n", err);
+    return TR_SKIP;
+  }
+  ai_popup_init(&st);
+  const char* labels[] = {"Aaaa", "Bbbb", "Cccc"};
+  const int ids[] = {1, 2, 3};
+  if (!ai_popup_enqueue_choice_ctx(
+        &st, AI_POPUP_TAG_INDIAN_LAND, 0, 1, 0, NULL, "Body", labels, ids, 3
+      )) {
+    return fail("enqueue_choice failed");
+  }
+  ai_popup_set_last_disabled(&st, 1u << 1);
+  ai_popup_try_present_next(&st);
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  in.last_key = COLONIZE_KEY_DOWN;
+  ai_popup_handle_input(&st, &in);
+  if (st.selection != 2) {
+    return fail("Down steps past the greyed row");
+  }
+  in.last_key = COLONIZE_KEY_UP;
+  ai_popup_handle_input(&st, &in);
+  if (st.selection != 0) {
+    return fail("Up steps past the greyed row");
+  }
+  static uint8_t px[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = px};
+  memset(px, 0x11, sizeof(px));
+  ai_popup_render(&st, &font, NULL, NULL, NULL, 1, 2, 3, &fb);
+  int ink[3] = {0, 0, 0};
+  int grey[3] = {0, 0, 0};
+  for (int k = 0; k < 3; ++k) {
+    for (int y = st.list_y0 + k * st.line_h; y < st.list_y0 + (k + 1) * st.line_h; ++y) {
+      for (int x = st.dialog_x; x < st.dialog_x + st.dialog_w; ++x) {
+        ink[k] += px[y * 320 + x] == 1;
+        grey[k] += px[y * 320 + x] == COLONIZE_COL_GREY;
+      }
+    }
+  }
+  if (ink[0] == 0 || ink[2] == 0 || ink[1] != 0 || grey[1] == 0) {
+    fprintf(stderr, "ink %d %d %d grey %d %d %d\n", ink[0], ink[1], ink[2], grey[0], grey[1],
+            grey[2]);
+    return fail("the greyed row draws in grey, the others in the text ink");
+  }
+  memset(&in, 0, sizeof(in));
+  in.mouse_left_clicked = true;
+  in.mouse_x = st.dialog_x + 20;
+  in.mouse_y = st.list_y0 + st.line_h + 1;
+  ai_popup_handle_input(&st, &in);
+  if (st.has_result || !st.open || st.selection != 0) {
+    return fail("a click on the greyed row does nothing");
+  }
+  in.mouse_y = st.list_y0 + 2 * st.line_h + 1;
+  ai_popup_handle_input(&st, &in);
+  if (!st.has_result || st.result_choice_id != 3) {
+    return fail("a click on a live row picks it");
   }
   ai_popup_consume_result(&st);
   return 0;
@@ -639,12 +712,178 @@ static int case_rows_are_dos(void) {
   return rc;
 }
 
+/* Word count of each line popup_wrap_text gives `body` at max_w; returns the line count. */
+static int wrap_word_counts(const ColonizeFont* font, const char* body, int max_w, int* words) {
+  static char lines[16][256];
+  const int n = popup_wrap_text(font, body, lines[0], sizeof(lines[0]), NULL, 16, max_w);
+  for (int i = 0; i < n; ++i) {
+    words[i] = 0;
+    for (const char* p = lines[i]; *p; ++p) {
+      words[i] += *p != ' ' && (p == lines[i] || p[-1] == ' ');
+    }
+  }
+  return n;
+}
+
+/* A GAME.TXT section shown the way the game builds it: popup_msg_fill (the @width
+ * side-channel) + popup_msg_choices. */
+static void section_request(
+  const ColonizeMsgCatalog* cat, const char* name, const PopupMsgTokens* tok, AiPopupRequest* r
+) {
+  memset(r, 0, sizeof(*r));
+  r->portrait_tribe = -1;
+  r->graphic_mss = -1;
+  r->graphic_myr = -1;
+  popup_msg_fill(cat, name, tok, "", r->body, sizeof(r->body));
+  r->width = popup_msg_take_pending_width();
+  char rows[AI_POPUP_CHOICE_MAX][POPUP_MSG_CHOICE_LEN];
+  r->choice_count = popup_msg_choices(assets_msg_find(cat, name), rows, AI_POPUP_CHOICE_MAX);
+  for (int i = 0; i < r->choice_count; ++i) {
+    snprintf(r->choices[i], sizeof(r->choices[i]), "%s", rows[i]);
+    r->choice_ids[i] = i + 1;
+  }
+}
+
+/*
+ * port_bugs.md #1216, against DOSBox-X captures of 2026-10-23 (VR_SEED.EXE on the
+ * map_pioneer_native_land / colony_eject_siege_refused input saves): FUN_6f74_1198 charges a
+ * continuation line's first word its space (@SIEGE: DOS breaks 7/4/7/6/6 words, the old
+ * wrap 7/5/8/7/4); a section without @width keeps the FUN_6f74_06d0 box[+0x28] 0x50 (@RETIRE
+ * 86x56 at (117, 72) wrapping 3/3, @DOS 86x46 at (117, 77)); FUN_6f74_14c6 widens box[+0x28]
+ * to the widest row before 1198 wraps (@INDIANFOREST 223x78, 3 lines of 7/8/9 words); a
+ * '^^' row sits at (wrap_w >> 1) - (width >> 1) (6f74:1263); @width under 0x50 is kept
+ * (FUN_6f74_0c22), in ai_popup_render, popup_list_render and popup_field_frame alike.
+ */
+static int case_dos_wrap_and_width(void) {
+  static AiPopupState st;
+  static ColonizeFont intr;
+  static ColonizeFont tiny;
+  static ColonizeMsgCatalog cat;
+  char err[128];
+  assets_msg_init(&cat);
+  if (!font_file_load("COLONIZE/FONTINTR.FF", &intr, err, sizeof(err)) ||
+      !font_file_load("COLONIZE/FONTTINY.FF", &tiny, err, sizeof(err)) ||
+      !assets_msg_load_file(&cat, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "SKIP: assets: %s\n", err);
+    return TR_SKIP;
+  }
+  static uint8_t px[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = px};
+  int rc = 0;
+  struct {
+    const char* section;
+    int x, y, w, h; /* the DOS frame (x / y only where no portrait / figure moves it) */
+    int words[5];
+  } k_dos[] = {
+    {"RETIRE", 117, 72, 86, 56, {3, 3}},
+    {"DOS", 117, 77, 86, 46, {3}},
+    {"INDIANFOREST", -1, 61, 223, 78, {7, 8, 9}},
+    {"SIEGE", 62, 69, 196, 62, {7, 4, 7, 6, 6}},
+  };
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = "Tupi";
+  tok.number1 = 422;
+  tok.has_number1 = true;
+  for (size_t k = 0; k < sizeof(k_dos) / sizeof(k_dos[0]); ++k) {
+    AiPopupRequest r;
+    section_request(&cat, k_dos[k].section, &tok, &r);
+    ai_popup_init(&st);
+    st.current = r;
+    st.open = true;
+    st.selection = -1;
+    ai_popup_render(&st, &intr, &tiny, NULL, NULL, 1, 2, 3, &fb);
+    int words[16];
+    const int n = wrap_word_counts(&intr, r.body, st.dialog_w - 10, words);
+    bool ok = st.dialog_w == k_dos[k].w && st.dialog_h == k_dos[k].h && st.dialog_y == k_dos[k].y &&
+              (k_dos[k].x < 0 || st.dialog_x == k_dos[k].x);
+    for (int i = 0; i < n; ++i) {
+      ok = ok && i < 5 && words[i] == k_dos[k].words[i];
+    }
+    ok = ok && (n == 5 || k_dos[k].words[n] == 0);
+    if (!ok) {
+      fprintf(stderr, "@%s: frame %d,%d %dx%d, %d lines (%d %d %d %d %d words)\n",
+              k_dos[k].section, st.dialog_x, st.dialog_y, st.dialog_w, st.dialog_h, n, words[0],
+              n > 1 ? words[1] : 0, n > 2 ? words[2] : 0, n > 3 ? words[3] : 0, n > 4 ? words[4] : 0);
+      rc = 1;
+    }
+  }
+  if (popup_msg_section_width(assets_msg_find(&cat, "RETIRE")) != 0x50) {
+    fprintf(stderr, "@RETIRE box[+0x28] should be the 0x50 default\n");
+    rc = 1;
+  }
+
+  /* '^^' row: @TIMECHANGE in FONTTINY (odd width under an even wrap width). */
+  {
+    AiPopupRequest r;
+    section_request(&cat, "TIMECHANGE", &tok, &r);
+    ai_popup_init(&st);
+    st.current = r;
+    st.open = true;
+    memset(px, 0x11, sizeof(px));
+    ai_popup_render(&st, &tiny, NULL, NULL, NULL, 1, 2, 3, &fb);
+    char lines[16][256];
+    bool centred[16];
+    const int wrap_w = st.dialog_w - 10;
+    popup_wrap_text(&tiny, r.body, lines[0], sizeof(lines[0]), centred, 16, wrap_w);
+    const int tw = popup_markup_text_width(&tiny, lines[0]);
+    /* Row 0's leftmost ink vs the same text drawn alone at the DOS x. */
+    static uint8_t ref[320 * 200];
+    ColonizeFramebuffer8 rf = {.width = 320, .height = 200, .pixels = ref};
+    memset(ref, 0x11, sizeof(ref));
+    const int want_x = st.dialog_x + 5 + (wrap_w >> 1) - (tw >> 1);
+    const int y0 = st.dialog_y + 6;
+    popup_draw_text_markup(&tiny, &rf, want_x, y0, lines[0], 1, 2, NULL, NULL);
+    int bad = !centred[0] || (tw & 1) == 0;
+    for (int y = y0; y < y0 + 6; ++y) {
+      for (int x = st.dialog_x + 5; x < st.dialog_x + st.dialog_w - 5; ++x) {
+        bad += (px[y * 320 + x] == 1) != (ref[y * 320 + x] == 1);
+      }
+    }
+    if (bad) {
+      fprintf(stderr, "@TIMECHANGE ^^ row: %d px off the 6f74:1263 x %d (w %d)\n", bad, want_x, tw);
+      rc = 1;
+    }
+  }
+
+  /* @width under 0x50 is kept: KINGLOSE's 68 is the shipped one; 60 here. */
+  {
+    AiPopupRequest r;
+    memset(&r, 0, sizeof(r));
+    r.portrait_tribe = -1;
+    r.graphic_mss = -1;
+    r.graphic_myr = -1;
+    r.width = 60;
+    snprintf(r.body, sizeof(r.body), "Hi.");
+    ai_popup_init(&st);
+    st.current = r;
+    st.open = true;
+    ai_popup_render(&st, &intr, NULL, NULL, NULL, 1, 2, 3, &fb);
+    PopupListMetrics m;
+    popup_list_metrics_dos6f74(&intr, &m);
+    PopupListGeom g;
+    popup_list_render(&fb, &intr, NULL, NULL, &m, 60, "Hi.", 0, 0, NULL, NULL, 1, 2, 3, &g);
+    PopupFieldGeom fg;
+    popup_field_frame(&fb, &intr, NULL, NULL, 60, "Hi.", "", 2, 1, NULL, &fg);
+    if (st.dialog_w != 66 || g.frame.w != 66 || fg.frame.w != 66) {
+      fprintf(stderr, "@width 60: ai_popup %d, list %d, field %d (want 66)\n", st.dialog_w,
+              g.frame.w, fg.frame.w);
+      rc = 1;
+    }
+  }
+  assets_msg_free(&cat);
+  font_file_free(&intr);
+  font_file_free(&tiny);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"case_fresh_idle", case_fresh_idle},
     {"case_enqueue_and_present_info", case_enqueue_and_present_info},
     {"case_dismiss_result", case_dismiss_result},
     {"case_choice_flow", case_choice_flow},
     {"case_choice_keys_wrap", case_choice_keys_wrap},
+    {"case_choice_greyed_row", case_choice_greyed_row},
     {"case_queue_overflow", case_queue_overflow},
     {"case_chrome_tags", case_chrome_tags},
     {"case_set_last_after_dropped_enqueue", case_set_last_after_dropped_enqueue},
@@ -652,6 +891,7 @@ static const TestCase k_cases[] = {
     {"case_placement_is_dos", case_placement_is_dos},
     {"case_rows_are_dos", case_rows_are_dos},
     {"case_help_footer_is_dos", case_help_footer_is_dos},
+    {"case_dos_wrap_and_width", case_dos_wrap_and_width},
 };
 
 TEST_MAIN(k_cases)

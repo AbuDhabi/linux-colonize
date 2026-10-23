@@ -344,11 +344,12 @@ void reports_render_w(
 
 /*
  * Hall of Fame screen (DOS FUN_41f2_0f56 presenter): WOODPANL.PIK, title
- * LABELS @MISC #192 centered, then up to 5 entries of three centered lines:
+ * LABELS @MISC #192 centred, then up to 5 entries of three lines (x 10, x 25, centred):
  *   "<n>. <Difficulty> <Leader> of the [Free ]<Nation>"
  *   "<President, <@INDEPENDENT name> | General, Continental Army |
  *     Leader, <Nation> Colonies> to A.D. <year>. Score: <score>"
  *   "--- <@MISC #199> <rating>% ---"
+ * `font` is FONTINTR (DS:0x268a, the FUN_104b_039a / 0430 face).
  * DOS keeps 6 slots in HALLFAME.DAT and shows 5; ranks by Colonization
  * Rating (word 19 of the 42-byte record), not raw score.
  */

@@ -377,7 +377,8 @@ int popup_msg_section_width(const ColonizeMsgSection* section) {
       return w > 0 ? w : 0;
     }
   }
-  return 0;
+  /* FUN_6f74_06d0 box[+0x28] default (port_bugs.md #1216); @width overrides it as given. */
+  return 0x50;
 }
 
 int popup_msg_take_pending_width(void) {

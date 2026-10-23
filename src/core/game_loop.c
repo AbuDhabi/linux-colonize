@@ -1621,7 +1621,8 @@ COLONIZE_INTERNAL bool game_render_screen(
   }
 
   if (game->in_hall_of_fame) {
-    const ColonizeFont* font = game->menu_font_ok ? &game->menu_font : NULL;
+    /* FUN_41f2_0f56 writes through FUN_104b_039a / 0430: FONTINTR (DS:0x268a). */
+    const ColonizeFont* font = game_popup_font(game);
     ColonizeHofRow rows[COLONIZE_HOF_ROW_MAX];
     const int count = game->hof_count > COLONIZE_HOF_ROW_MAX ? COLONIZE_HOF_ROW_MAX : game->hof_count;
     for (int i = 0; i < count; ++i) {

@@ -246,8 +246,15 @@ void reports_draw_line(
   font_draw_text(font, fb, x, y, text, color);
 }
 
+/* FUN_104b_0318 (raw 1007) / 0430 (raw 1063) centring: x + (w >> 1) - ((width - 1) >> 1),
+ * the measures FUN_104b_0216 / 0232 being the FUN_1c2a_0006 width - 1, floored at 0. */
+int reports_dos_center_x(const ColonizeFont* font, const char* text, int x, int w) {
+  const int cx = x + (w >> 1) - ((font_text_width_skip(font, text, FONT_SKIP_NONE) - 1) >> 1);
+  return cx < 0 ? 0 : cx;
+}
+
 /* FUN_281f_0100 -> FUN_104b_0318 (raw 1007): one FONTTINY pass through {skip, c, c, c},
- * centred at x + (w >> 1) - ((width - 1) >> 1) (FUN_104b_0216 = width - 1), floored at 0. */
+ * centred by reports_dos_center_x. */
 void reports_draw_dos_centered(
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,
@@ -260,8 +267,7 @@ void reports_draw_dos_centered(
   if (!font || !text || !text[0]) {
     return;
   }
-  const int cx = x + (w >> 1) - ((font_text_width_skip(font, text, FONT_SKIP_NONE) - 1) >> 1);
-  reports_draw_line(font, fb, cx < 0 ? 0 : cx, y, text, color);
+  reports_draw_line(font, fb, reports_dos_center_x(font, text, x, w), y, text, color);
 }
 
 int reports_line_step(const ColonizeFont* font) {

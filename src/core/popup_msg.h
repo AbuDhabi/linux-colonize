@@ -103,8 +103,9 @@ void popup_msg_fill_status(
  * Falls back to fallback if section missing or empty. Always NUL-terminates.
  */
 /*
- * GAME.TXT `@width=NNN` of a section (DOS 6f74 compositor dialog width in
- * 320-px screen units), 0 when the section has no directive.
+ * The 6f74 box width a section gets (box[+0x28], 320-px screen units): its GAME.TXT
+ * `@width=NNN` as given (FUN_6f74_0c22), else the FUN_6f74_06d0 default 0x50; 0 only for
+ * a NULL section.
  */
 int popup_msg_section_width(const ColonizeMsgSection* section);
 /*

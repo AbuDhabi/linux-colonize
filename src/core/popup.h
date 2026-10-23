@@ -195,12 +195,13 @@ typedef const char* (*PopupListLabelFn)(void* user, int index);
 
 /*
  * The whole wood list dialog (FUN_6f74_14c6 sizes, popup_place_dos centring via
- * popup_center_frame, popup_colors_from_ui fallback): one prompt line at (frame + 5,
- * frame + 6), rows at popup_dos_list_y0 + k * option_h with the text one px lower at
- * frame + 5 + label_dx, the glyph_h + 2 bar at frame + 4 .. frame + w - 5. Geometry
- * comes back in `out` for the caller to stash (dialog_x/y/w/h, line_h, list_y0).
- * `width` is the dialog's declared content width (GAME.TXT @width; DOS floor 0x50),
- * widened to the widest row (FUN_6f74_0a00: text + 2 * box[+0x48] + box[+0x22]).
+ * popup_center_frame, popup_colors_from_ui fallback): the prompt wrapped by popup_wrap_text
+ * to content - 4 from (frame + 5, frame + 6), rows at popup_dos_list_y0 + k * option_h with
+ * the text one px lower at frame + 5 + label_dx, the glyph_h + 2 bar at frame + 4 .. frame +
+ * w - 5. Geometry comes back in `out` for the caller to stash (dialog_x/y/w/h, line_h,
+ * list_y0). `width` is box[+0x28]: the GAME.TXT @width as given, 0 for the 0x50 default
+ * (popup_msg_section_width), widened to the widest row (FUN_6f74_0a00: text + 2 * box[+0x48]
+ * + box[+0x22]).
  * Prompt and rows go through popup_draw_text_markup ({} in hilite_color, shades from colors).
  */
 void popup_list_render(
@@ -367,36 +368,23 @@ void popup_field_frame_frameless(
 int popup_dos_center_dx(const ColonizeFont* font, const char* text, int wrap_w);
 
 /*
- * Flow-wrap text to max_w pixels — the DOS FUN_6f74_1198 loop ai_popup has
- * always used, promoted here (audit GL-8 / SC-35 / IN-7).
+ * Flow-wrap text to max_w pixels: FUN_6f74_1198's loop (6f74:132e-1435), the one wrap every
+ * 6f74 dialog uses (port_bugs.md #1216). It keeps a running width: every word is measured
+ * as " word" (the space only when the line already has text), the line breaks when that
+ * would pass max_w, and a continuation line's first word keeps the space in the count
+ * although it is not drawn (6f74:13fd), so a line within one space of max_w breaks a word
+ * earlier. Pixel-verified on the DOSBox-X @NATION0A capture (port_bugs.md #1210).
  *
  * Honors embedded '\n' and the GAME.TXT caret rows popup_msg encodes as
  * POPUP_MSG_LINE_MARK / POPUP_MSG_CENTER_MARK: a caret row is flushed onto a
  * line of its own, taken verbatim to the end of the source line, and never
  * re-flowed. out is a caller array of max_out rows of out_stride bytes each.
  * out_center, when given, receives one flag per emitted row and is true only
- * for a '^^' row, which DOS centres. Widths are measured with
+ * for a '^^' row, which DOS centres (popup_dos_center_dx). Widths are measured with
  * popup_markup_text_width, so {} emphasis costs nothing.
  * Returns the number of rows written.
  */
 int popup_wrap_text(
-  const ColonizeFont* font,
-  const char* text,
-  char* out,
-  size_t out_stride,
-  bool* out_center,
-  int max_out,
-  int max_w
-);
-
-/*
- * popup_wrap_text with FUN_6f74_1198's running width (6f74:132e-1435): every word is
- * measured as " word" and a continuation line's first word keeps that space in the
- * count although it is not drawn, so a line within one space of max_w breaks a word
- * earlier. Pixel-verified on the DOSBox-X @NATION0A capture (port_bugs.md #1210); the
- * new-game wizard uses it. In-game dialogs still call popup_wrap_text (port_bugs.md #1216).
- */
-int popup_wrap_text_dos(
   const ColonizeFont* font,
   const char* text,
   char* out,

@@ -15,6 +15,7 @@
 
 #include "core/fb.h"
 #include "core/strutil.h"
+#include "core/ui_colors.h"
 #include "core/unit_chrome.h"
 
 #include <stdio.h>
@@ -532,13 +533,11 @@ void reports_render_score(
    * #134 "Continental Congress", #69 "Rebel" + #71 "Sentiment". */
   char w1[48], w2[48];
   if (sc.scoring_complete) {
-    /* FUN_41f2_0092: 0x5382|0x10 -> only @MISC #126 "SCORING COMPLETE",
-     * centered at y=0x61, nothing else composed. */
-    reports_misc_word(126, "", w1, sizeof(w1));
-    if (body_font) {
-      const int w = font_text_width(body_font, w1);
-      reports_draw_line(body_font, fb, (fb->width - w) / 2, 0x61, w1, REPORTS_SCORE_TITLE_COLOR);
-    }
+    /* FUN_41f2_0092: 0x5382|0x10 -> only @MISC #126 "SCORING COMPLETE" through
+     * FUN_281f_0100 over (0, 0x140) at y 0x61 in DS:0x830 (41f2:0130-0152), nothing else. */
+    reports_draw_dos_centered(
+      body_font, fb, 0, 0x140, 0x61, reports_misc_word(126, "", w1, sizeof(w1)), COLONIZE_COL_BASIC
+    );
     return;
   }
   if (!col1) {
@@ -758,20 +757,29 @@ void reports_render_score(
   }
 }
 
-/* Centered text across the 320px screen (DOS FUN_281f_0100 / 01c8). */
-/* ===================== Hall of Fame & Exploits report (reports_draw_centered .. reports_render_exploits) ===================== */
-static void reports_draw_centered(
+/* ===================== Hall of Fame & Exploits report (reports_hof_draw .. reports_render_exploits) ===================== */
+/*
+ * FUN_41f2_0f56's writers (asm 41f2:10a0-12a8, static read, no DOS capture): FUN_281f_018c ->
+ * FUN_104b_039a at (x, y) and FUN_281f_01c8 -> FUN_104b_0430 centred in (x, w)
+ * (reports_dos_center_x), both FONTINTR (DS:0x268a) through {skip, c1, c2, 0}, c2 being
+ * DS:0x833 (@COLORS enhance).
+ */
+static void reports_hof_draw(
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,
+  int x,
+  int w,
   int y,
   const char* text,
-  uint8_t color
+  uint8_t c1
 ) {
-  if (!fb || !text) {
+  if (!fb || !text || !text[0]) {
     return;
   }
-  const int w = font ? font_text_width(font, text) : 0;
-  reports_draw_line(font, fb, (fb->width - w) / 2, y, text, color);
+  const uint8_t map[4] = {0, c1, COLONIZE_COL_ENHANCE, 0};
+  font_draw_text_shaded(
+    font, fb, w > 0 ? reports_dos_center_x(font, text, x, w) : x, y, text, map
+  );
 }
 
 void reports_render_hall_of_fame(
@@ -788,29 +796,27 @@ void reports_render_hall_of_fame(
   if (view && view->background_ok[COLONIZE_REPORT_SCORE]) {
     pik_blit(&view->backgrounds[COLONIZE_REPORT_SCORE], fb, 0, 0);
   }
-  const ColonizeFont* body_font = (view && view->title_font_ok) ? &view->title_font : font;
 
   /*
-   * FUN_41f2_0f56 presenter: title (@MISC #192) centered at y=3, then each
-   * of the first 5 entries as three centered lines, line pitch = font
-   * height + 2 starting at y=0x10. Strings from LABELS.TXT @MISC — "of the"
-   * #19, "Free" #191, "President" #195, "General, Continental Army" #196,
-   * "Leader" #197, "Colonies" #95, "to" #193, "A.D." #194, "Score" #198,
-   * "Colonization_Rating" #199 — the difficulty name table and the nation
-   * adjective / @INDEPENDENT name are resolved by the caller.
+   * FUN_41f2_0f56 presenter: the @MISC #192 title centred over (0, 0x140) at y 3 in
+   * DS:0x830 (@COLORS basic), then per shown entry y += 4, line 1 at x 0xa, y += font[0] + 2,
+   * line 2 at x 0xa + 0xf, y += font[0] + 2, line 3 centred over (0, 0x140), y += font[0] + 1,
+   * from y 0x10, all in DS:0x830 (DS:0x831 for the entry just inserted, port_bugs.md #1219).
+   * Strings from LABELS.TXT @MISC: "of the" #19, "Free" #191, "President" #195, "General,
+   * Continental Army" #196, "Leader" #197, "Colonies" #95, "to" #193, "A.D." #194, "Score"
+   * #198, "Colonization_Rating" #199; the difficulty name table and the nation adjective /
+   * @INDEPENDENT name are resolved by the caller.
    */
   char w1[64], w2[64], w3[64];
-  reports_draw_centered(
-    body_font, fb, 3, reports_misc_word(192, "", w1, sizeof(w1)),
-    REPORTS_SCORE_TITLE_COLOR
-  );
+  reports_hof_draw(font, fb, 0, 0x140, 3, reports_misc_word(192, "", w1, sizeof(w1)), COLONIZE_COL_BASIC);
 
-  const int step = body_font ? body_font->max_height + 2 : 8;
+  const int fh = font ? font->max_height : 6; /* font[0]; 6 = the old pitch with no font */
   int y = 0x10;
   char line[200];
   const int shown = entry_count > COLONIZE_HOF_SHOWN_MAX ? COLONIZE_HOF_SHOWN_MAX : entry_count;
   for (int i = 0; i < shown; ++i) {
     const ColonizeHofRow* e = &entries[i];
+    y += 4;
     const char* diff_name = reports_difficulty_title(e->difficulty);
     snprintf(
       line,
@@ -824,8 +830,8 @@ void reports_render_hall_of_fame(
       e->declared ? " " : "",
       e->nation
     );
-    reports_draw_centered(body_font, fb, y, line, REPORTS_SCORE_GREEN_COLOR);
-    y += step;
+    reports_hof_draw(font, fb, 0xa, 0, y, line, COLONIZE_COL_BASIC);
+    y += fh + 2;
 
     char title[120];
     if (e->achieved) {
@@ -861,8 +867,8 @@ void reports_render_hall_of_fame(
       reports_misc_word(198, "", w3, sizeof(w3)),
       e->score
     );
-    reports_draw_centered(body_font, fb, y, line, REPORTS_SCORE_GREEN_COLOR);
-    y += step;
+    reports_hof_draw(font, fb, 0xa + 0xf, 0, y, line, COLONIZE_COL_BASIC);
+    y += fh + 2;
 
     snprintf(
       line,
@@ -871,8 +877,8 @@ void reports_render_hall_of_fame(
       reports_misc_word(199, "", w1, sizeof(w1)),
       e->rating
     );
-    reports_draw_centered(body_font, fb, y, line, REPORTS_SCORE_TITLE_COLOR);
-    y += step;
+    reports_hof_draw(font, fb, 0, 0x140, y, line, COLONIZE_COL_BASIC);
+    y += fh + 1;
   }
 }
 
@@ -915,15 +921,12 @@ void reports_render_exploits(
   const int h = body_font ? body_font->max_height + 1 : 8;
   int y = 5;
   for (int i = 0; i < ex->header_count && i < 3; ++i) {
-    reports_draw_centered(body_font, fb, y, ex->header[i], 0xfc);
+    reports_draw_dos_centered(body_font, fb, 0, 0x140, y, ex->header[i], 0xfc);
     y += h;
   }
   for (int i = 0; i < ex->category_count && i < 24; ++i) {
     const uint8_t ink = (i == ex->category_count - 1) ? 0xfc : 0xfe;
-    const int tw = body_font ? font_text_width(body_font, ex->categories[i]) : 0;
-    reports_draw_line(
-      body_font, fb, 0xa0 + (0xa0 - tw) / 2, 0xc3 - h * (i + 1), ex->categories[i], ink
-    );
+    reports_draw_dos_centered(body_font, fb, 0xa0, 0xa0, 0xc3 - h * (i + 1), ex->categories[i], ink);
   }
   if (ex->sheet && ex->sheet->sprite_count > 0) {
     /* SCORE<nn>.SS is a painting of the nn-th @SCORE item (SCORE17 = the
@@ -940,7 +943,6 @@ void reports_render_exploits(
     );
   }
   if (ex->named[0]) {
-    const int tw = body_font ? font_text_width(body_font, ex->named) : 0;
-    reports_draw_line(body_font, fb, 0x22 + (0x8c - tw) / 2, 0x8e, ex->named, 0xfc);
+    reports_draw_dos_centered(body_font, fb, 0x22, 0x8c, 0x8e, ex->named, 0xfc);
   }
 }

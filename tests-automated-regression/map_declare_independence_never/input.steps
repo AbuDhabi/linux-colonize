@@ -1,11 +1,11 @@
 # Declare Independence, answer "Never!" at the @DECLARE confirm. Fixture: France 1599 (map_found_colony input.sav) with every French colony's
 # rebel_dividend set to 60% of its rebel_divisor, so the SoL is 59% (>= the 50% gate). GAME menu row "DECLARE INDEPENDENCE" (logical y 85)
-# opens the Never/Yes confirm (rows: Never! y 155, Yes! y 167); Never! (click, then keyboard route) and a re-open each leave the save unchanged.
+# opens the Never/Yes confirm (rows: Never! y 150, Yes! y 162); Never! (click, then keyboard route) and a re-open each leave the save unchanged.
 click 22 3               # GAME menu
 click 50 85              # DECLARE INDEPENDENCE: "Shall we declare our independence from France..." Never / Yes
 wait 10
 shot
-click 150 155            # Never!
+click 150 150            # Never!
 wait 10
 click 22 3               # GAME menu again
 click 50 85              # confirm again

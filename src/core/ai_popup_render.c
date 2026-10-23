@@ -112,7 +112,8 @@ bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input) {
   return true;
 }
 
-/* GAME.TXT common dialog @width (e.g. @LANDFALL); matches cheat_list / new_game. */
+/* Port-authored text with no GAME.TXT section (req->width 0): the common @width (e.g.
+ * @LANDFALL). A section without @width gets DOS's 0x50 from popup_msg_section_width. */
 #define AI_POPUP_DEFAULT_WIDTH 190
 #define AI_POPUP_WRAP_MAX 16
 
@@ -486,29 +487,19 @@ static void ai_popup_render_measure(AiPopupRenderCtx* c) {
   }
   const int title_gap = c->req->title[0] ? 2 : 0;
 
+  /* box[+0x28]: the section's @width as given (FUN_6f74_0c22), 0x50 when it has none
+   * (FUN_6f74_06d0, via popup_msg_section_width); 0 = no GAME.TXT section (port text). */
   int content_w = c->req->width > 0 ? c->req->width : AI_POPUP_DEFAULT_WIDTH;
   if (content_w + 6 > c->fb->width) {
     content_w = c->fb->width - 6;
   }
-  c->text_max_w = content_w - 2 * c->pad_x;
-
-  memset(c->wrapped_center, 0, sizeof(c->wrapped_center));
-  c->wrapped_count = 0;
-  if (c->req->body[0]) {
-    c->wrapped_count = ai_popup_wrap_body(
-      c->font, c->req->body, c->wrapped, c->wrapped_center, AI_POPUP_WRAP_MAX,
-      c->text_max_w
-    );
-  }
 
   /*
-   * FUN_6f74_14c6: the box grows to the widest emitted option row (same rule
-   * save_load_dialog.c already carries). The prompt is flow-wrapped to the
-   * declared @width first (FUN_6f74_1198), so only the single-line option
-   * rows widen the frame — a no-op for every dialog whose rows already fit,
-   * which is why no existing golden moves. The Congress debate needs it: its
-   * DOS rows are "<father> (<category> Adviser)", wider than @WHICHFREEDOM's
-   * own @width=190.
+   * FUN_6f74_14c6: the box grows to the widest option row (FUN_6f74_0a00 keeps it in
+   * box[+0x20] as the rows are appended) and stores the max back in box[+0x28] before it
+   * calls FUN_6f74_1198, which wraps the prose to box[+0x28] - 2 * box[+0x48]: rows wider
+   * than @width (the Congress debate's "<father> (<category> Adviser)" under
+   * @WHICHFREEDOM's 190) widen the prose too.
    */
   if (c->font) {
     for (int i = 0; i < c->req->choice_count; ++i) {
@@ -523,6 +514,16 @@ static void ai_popup_render_measure(AiPopupRenderCtx* c) {
     }
   }
   c->dialog_w = content_w + 6;
+  c->text_max_w = content_w - 2 * c->pad_x;
+
+  memset(c->wrapped_center, 0, sizeof(c->wrapped_center));
+  c->wrapped_count = 0;
+  if (c->req->body[0]) {
+    c->wrapped_count = ai_popup_wrap_body(
+      c->font, c->req->body, c->wrapped, c->wrapped_center, AI_POPUP_WRAP_MAX,
+      c->text_max_w
+    );
+  }
 
   c->title_h = c->req->title[0] ? c->line_h + title_gap : 0;
   c->prose_h = c->title_h + c->wrapped_count * c->line_h;
@@ -765,14 +766,11 @@ static void ai_popup_render_text(
     if (text_y + c->line_h > c->inner_y + c->inner_h - c->options_h) {
       break;
     }
-    /* GAME.TXT '^^' rows centre inside the text column (FUN_6f74_1198). */
-    int line_x = c->inner_x + c->pad_x;
-    if (c->wrapped_center[i]) {
-      const int w = popup_markup_text_width(c->font, c->wrapped[i]);
-      if (w < c->text_max_w) {
-        line_x += (c->text_max_w - w) / 2;
-      }
-    }
+    /* GAME.TXT '^^' rows (FUN_6f74_1198, 6f74:1263): x += (wrap_w >> 1) - (width >> 1). */
+    const int line_x = c->inner_x + c->pad_x +
+                       (c->wrapped_center[i] ? popup_dos_center_dx(c->font, c->wrapped[i],
+                                                                   c->text_max_w)
+                                             : 0);
     popup_draw_text_markup(
       c->font, c->fb, line_x, text_y, c->wrapped[i], text_color,
       hilite_color, colors, &emph

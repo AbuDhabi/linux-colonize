@@ -94,6 +94,18 @@ firing:
   at the first popup.
 - After the opening animation the screen goes black and waits for a key.
   `until()` sends a Space whenever the screen is black.
+- `e` on the map opens the Europe screen.
+
+## Mouse
+
+Host pointer motion (XTest) never reaches the game; button events do. After a LOAD,
+DS:0x92f8 reads -1, and FUN_1a58_038b (raw 14854) then replaces the INT 33 position
+with DS:0x92fc/0x92fe and ORs in the buttons at DS:0x92fa. So drive a virtual mouse
+by writing `SM 237e:92f8 01 00 <btn lo hi> <x lo hi> <y lo hi>` (x, y in 320x200
+game coordinates). FUN_1acb_0056 derives the edges each poll: DS:0x7ec press,
+DS:0x7f4 release, DS:0x7f6 held. A drag is: write the button down at the start
+point, let a few polls pass, move x/y, then write the button up. Worked example:
+the Europe ship drags of docs/dos_bugs.md DB-56 (port_bugs.md #1159).
 
 ## Seeing the screen
 
@@ -149,6 +161,11 @@ loads them on demand. To catch one:
 4. Locals are `[bp-N]` with `N` from an ndisasm of the extracted segment
    (`ndisasm -b16 -o <routine_off>`). Ghidra's `local_NN` names follow the
    same offsets. `[bp+6]` is the first far-call argument.
+
+Shortcut when the overlay is already resident: search memory for the routine's first
+bytes (from the extracted segment) to get its CS; OVL05 (Europe, seg 38fd) sat at CS
+0x8c8d and OVL13 (seg 4d56) at CS 0x8c65 in the 2026-10-23 runs (per session, not
+fixed).
 
 Resident routines have fixed addresses per session but are relocated. Get
 the real CS from a return address on the stack, or from a known thunk.

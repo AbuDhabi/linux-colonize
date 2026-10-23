@@ -798,15 +798,13 @@ bool europe_menu_layout(
    * Width comes from the menu section's own GAME.TXT @width directive, the
    * same directive every other popup honours (popup_msg_section_width):
    * @RECRUIT / @KINGRECRUIT / @PURCHASE / @EUROPEARM all read @width=190.
-   * FUN_6f74_14c6's content width is max(0x50 default, @width); the frame adds
-   * 3 px of wood per side.
+   * FUN_6f74_14c6's content width is box[+0x28]: @width as given, the 0x50
+   * default without one (no section: the same default); the frame adds 3 px of
+   * wood per side.
    */
   const ColonizeMsgSection* width_sec =
     assets_msg_find(&game->messages, europe_menu_section(eu->menu));
-  int content_w = popup_msg_section_width(width_sec);
-  if (content_w < 0x50) {
-    content_w = 0x50;
-  }
+  int content_w = width_sec ? popup_msg_section_width(width_sec) : 0x50;
   if (content_w + 6 > fb_w) {
     content_w = fb_w - 6;
   }
