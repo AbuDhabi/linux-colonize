@@ -1850,22 +1850,9 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
       const int sid = game->units.selected_id;
       char msg[96];
       msg[0] = '\0';
-      {
-        /* @INDIANFOREST: thunk_FUN_1000_91fc asks when the clear order is given.
-         *
-         * DOS-LITERAL FUN_2b5a_123e raw 42448-42451: the very first thing the
-         * order body does is `if (FUN_281f_0754(x,y) & 0x40) { @NOPLOW; return; }`
-         * — the already-plowed bit is tested BEFORE the tribal-land block, so an
-         * already-plowed tribal tile never asks you to buy the land. Skipping the
-         * CHOICE here drops through to units_pioneer_plow_w, which raises @NOPLOW
-         * on the same bit (units.c units_pioneer_plow_w). */
-        const ColonizeUnit* pu = units_get_const(&game->units, sid);
-        if (pu && pu->active && !map_tile_is_plowed(&game->world_map, pu->x, pu->y) &&
-            pu->orders != UNITS_ORDER_CLEAR_PLOW &&
-            units_is_pioneer(&game->units, sid) && pu->tools >= 20 &&
-            game_request_indian_land_choice(game, GAME_INDIAN_LAND_FOREST, sid, pu->x, pu->y)) {
-          return GAME_MENU_ACTION_DONE;
-        }
+      /* @INDIANFOREST: thunk_FUN_1000_91fc asks when the clear order is given (game_pioneer_land_gate). */
+      if (game_pioneer_land_gate(game, GAME_INDIAN_LAND_FOREST)) {
+        return GAME_MENU_ACTION_DONE;
       }
       const ColonizeWorld w = game_world(game);
       if (!game->world_map_ok || !game->units_ok ||
@@ -1881,15 +1868,9 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
       const int sid = game->units.selected_id;
       char msg[96];
       msg[0] = '\0';
-      {
-        /* @INDIANROAD: thunk_FUN_1000_9304 asks when the road order is given. */
-        const ColonizeUnit* pu = units_get_const(&game->units, sid);
-        if (pu && pu->active && pu->orders != UNITS_ORDER_BUILD_ROAD &&
-            units_is_pioneer(&game->units, sid) && pu->tools >= 20 &&
-            !map_tile_has_road(&game->world_map, pu->x, pu->y) &&
-            game_request_indian_land_choice(game, GAME_INDIAN_LAND_ROAD, sid, pu->x, pu->y)) {
-          return GAME_MENU_ACTION_DONE;
-        }
+      /* @INDIANROAD: thunk_FUN_1000_9304 asks when the road order is given (game_pioneer_land_gate). */
+      if (game_pioneer_land_gate(game, GAME_INDIAN_LAND_ROAD)) {
+        return GAME_MENU_ACTION_DONE;
       }
       const ColonizeWorld w = game_world(game);
       if (!game->world_map_ok || !game->units_ok ||
@@ -2100,7 +2081,7 @@ static GameMenuActionStatus game_menu_action_pedia_and_reports(ColonizeGameState
       game_open_report(game, COLONIZE_REPORT_INDIAN);
       return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_REPORT_SCORE:
-      game_open_report(game, COLONIZE_REPORT_SCORE);
+      game_open_score_report(game);
       return GAME_MENU_ACTION_DONE;
     default:
       break;

@@ -180,12 +180,7 @@ static int europe_sell_commit(
   const int ctype = *hold_type;
   const int held = *hold_amount;
   if (europe_cargo_boycotted_ex(eu, col1, seller_nation, ctype)) {
-    const char* bname =
-      (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "";
-    snprintf(
-      eu->status, sizeof(eu->status), "%s is boycotted — cannot trade in Europe.", bname
-    );
-    return 0;
+    return 0; /* human entry points raise @KISSUP first (game_europe_boycott_gate) */
   }
   const int gained = europe_sell_proceeds(eu, ctype, amt);
   europe_purse_move(eu, col1, seller_nation, gained);
@@ -800,11 +795,7 @@ int europe_buy_cargo_w(
     return 0;
   }
   if (europe_cargo_boycotted_ex(eu, col1, buyer_nation, cargo_type)) {
-    const char* cname = eu->cargo[cargo_type].name[0] ? eu->cargo[cargo_type].name : "";
-    snprintf(
-      eu->status, sizeof(eu->status), "%s is boycotted — cannot trade in Europe.", cname
-    );
-    return 0;
+    return 0; /* human entry points raise @KISSUP first (game_europe_boycott_gate) */
   }
   const int ask = eu->cargo[cargo_type].ask;
   if (ask <= 0) {
@@ -1441,14 +1432,19 @@ bool europe_menu_confirm_ex(EuropeScreen* eu, ColonizeDosRng* rng) {
   return false;
 }
 
+/* FUN_38fd_4f6e (raw 66304-66325), cheat bit set: `$` nation gold += 1000.
+ * The purse accessor keeps the Europe mirror and the record in step. */
 void europe_cheat_add_gold(EuropeScreen* eu, int amount) {
   if (!eu) {
     return;
   }
   europe_purse_move(eu, g_europe_live_save, europe_purse_nation(eu), amount);
-  snprintf(eu->status, sizeof(eu->status), "Treasury now %d$.", eu->gold);
 }
 
+/* Same function, `]` / `[`: nation record byte +1 (tax rate) +-1. DOS wraps the
+ * byte; the port clamps to 0..100 because the sim reads the tax mirror (user
+ * choice, port_bugs.md #1169). The human's tax lives in the screen mirror and
+ * the record; both are written. */
 void europe_cheat_adjust_tax(EuropeScreen* eu, int delta) {
   if (!eu) {
     return;
@@ -1460,7 +1456,10 @@ void europe_cheat_adjust_tax(EuropeScreen* eu, int delta) {
   if (eu->tax_percent > 100) {
     eu->tax_percent = 100;
   }
-  snprintf(eu->status, sizeof(eu->status), "Tax rate %d%%.", eu->tax_percent);
+  const int n = europe_purse_nation(eu);
+  if (g_europe_live_save && n >= 0) {
+    g_europe_live_save->nation[n].tax_rate = (uint8_t)eu->tax_percent;
+  }
 }
 
 int europe_dock_icon_sprite(const ColonizeUnitPool* units, const EuropeDockImmigrant* d) {

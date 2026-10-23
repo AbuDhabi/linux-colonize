@@ -359,8 +359,6 @@ typedef struct ColonyScreenView {
   int pending_eject_role;
   ColonyDialogRect message_rect;
 
-  ColonizeColonyProdDelta last_delta;
-  bool last_delta_valid;
   ColonizeColonyPreview preview;
   bool preview_valid;
 
@@ -394,7 +392,6 @@ bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err,
 void colony_screen_free(ColonyScreenView* view);
 void colony_screen_set_status(ColonyScreenView* view, const char* text);
 void colony_screen_reset_ui(ColonyScreenView* view);
-void colony_screen_set_delta(ColonyScreenView* view, const ColonizeColonyProdDelta* delta);
 
 /*
  * Close every colony-screen sub-panel (message, jobs, eject, dock orders,

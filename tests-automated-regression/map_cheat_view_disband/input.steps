@@ -1,0 +1,30 @@
+# Shift-D in View mode (DOS FUN_2b5a_199e: the handler gates on the CHEAT bit or the cursor tile's owner nibble == the viewpoint nation,
+# takes the stack head at the cursor (FUN_281f_07e0); with no unit and CHEAT it confirms + deletes the colony (FUN_291f_0254) or razes the village (FUN_4d56_00e0, no confirm)).
+# Fixture: map_found_colony start (France 1599, human = nation 1, view origin (35,17)). Right-click puts the map in View mode (cursor on the tile, view
+# recentred: origin = tile - (7,6)). The French stack at (43,25) holds three colonists; an English unit stands alone at (43,21); English Cayenne (38,23) has
+# no unit on its tile; a Tupi village sits at (43,23) with no unit on it.
+rclick 136 144             # View mode, French stack (43,25)
+key d shift                # @SUREDISBAND "Really disband Colonists?" (the stack head), no CHEAT needed on an own tile
+shot
+click 160 96               # Yes: the head is gone, the rest of the stack stays, no unit is selected
+shot
+rclick 120 48              # English unit (43,21): not our tile
+key d shift                # nothing happens without CHEAT
+shot
+key w alt
+key i alt
+key n alt                  # CHEAT unlocked
+key d shift                # same tile: the English unit now gets the confirm
+shot
+click 160 96               # Yes
+shot
+rclick 40 144              # English colony Cayenne (38,23): no unit on the tile
+key d shift                # @SUREDISBAND "Really disband Cayenne?"
+shot
+click 160 96               # Yes: the colony is deleted
+shot
+rclick 200 112             # Tupi village (43,23)
+key d shift                # no confirm: the village is razed at once
+shot
+key w alt                  # cheat mode off
+shot

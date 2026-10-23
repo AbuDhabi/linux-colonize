@@ -77,9 +77,12 @@ bool cheat_list_open_setview(CheatListDialog* dlg, const ColonizeMsgCatalog* deb
 
 /*
  * Kill Indians tribe picker. Labels from NAMES.TXT @TRIBES field 2 (short name);
- * option_ids are native nation ids 4..11.
+ * option_ids are native nation ids 4..11. alive_mask bit i = tribe i not extinct;
+ * only those rows are listed, and an empty mask opens nothing (returns false).
  */
-bool cheat_list_open_kill_indians(CheatListDialog* dlg, const ColonizeMsgCatalog* names);
+bool cheat_list_open_kill_indians(
+  CheatListDialog* dlg, const ColonizeMsgCatalog* names, uint8_t alive_mask
+);
 
 /*
  * Find Colony picker (@FINDCITY). labels[i] = colony name; option_ids = colony id.

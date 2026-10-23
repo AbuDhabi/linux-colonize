@@ -520,9 +520,12 @@ Cycling and Tutorial Hints remain persisted flags only until final polish.
 
 | Popup | When | Status | Port |
 |-------|------|--------|------|
-| `@SETVIEW` Reveal Map | DEBUG → Reveal | Done | [`cheat_list_dialog.c`](../src/core/cheat_list_dialog.c) |
-| Kill Indians tribe list | DEBUG | Done | Same |
-| `@CREATE` / `@SETHUMAN` / other DEBUG | Other cheats | Missing | Status “Cheat not implemented yet” |
+| `@SETVIEW` Reveal Map | DEBUG → Reveal | Done (Esc resets; 5 rows unless a view is active) | [`cheat_list_dialog.c`](../src/core/cheat_list_dialog.c) |
+| Kill Indians tribe list | CHEAT Shift-F6 | Done (non-extinct tribes only, DOS case 0x67; port_bugs.md #1173) | Same + `units_destroy_tribe_nation_w` |
+| `@SETHUMAN` Set Human | CHEAT Shift-F5 | Done; "None" (`@SETAUTO`) parked | `game_cheat_set_human` (`game_loop_saveload.c`) |
+| `@FORCED` | CHEAT Shift-F7, last stage | Done | `game_cheat_advance_revolution` (`game_loop_menus.c`) |
+| `@CREATE` / other DEBUG | Other cheats | Create Unit done (Indian rows 9-12 own the nearest village's tribe); the rest per docs/assets.md CHEAT | |
+| Colony-screen cheat keys (T S `$` `%` `^` `!` Space) | CHEAT bit set, bare colony screen | Done, no popup of their own (`FUN_2f2b_6372` tail, port_bugs.md #1173; Space's tick may queue the usual production chrome); docs/colony.md "Colony-screen cheat keys" | `game_colony_cheat_key` / `game_colony_cheat_produce` (`game_loop_colony.c`) |
 
 DEBUG sections: `MOTD`, `MOTD2`, `MEMORY`, `CREATE`, `CREATE2`, `CSHIP`,
 `FOREIGN`, `FOREIGN2`, `SETVIEW`, `SETHUMAN`, `SETAUTO`, `SETREPORT`,

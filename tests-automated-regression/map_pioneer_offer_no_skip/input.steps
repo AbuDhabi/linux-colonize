@@ -1,0 +1,11 @@
+# Pins the next-unit hand-off after a native-land "offer gold" payment (port_bugs.md #1175a): it advanced twice and skipped
+# one awaiting unit. Fixture: map_pioneer_native_land's, with its Pioneers on (43,24) and (45,27) sentried, so three Pioneers
+# (100 tools, units 125 129 131) stand on Tupi-owned forest (45,22), (44,22), (41,26) and only the Dragoon in Quebec is
+# awake besides them. Gold 1500, Peter Minuit removed from France.
+click 100 3                # first Pioneer (45,22): Orders
+click 95 61                # Clear Forest: @INDIANFOREST (offer 422)
+click 150 117              # row 2 "offer": gold 1500 -> 1078, tile bought
+key Return                 # dismiss @INDIANBRIBE; Clear Forest order set (8); the SECOND Pioneer (44,22) comes up, not the third
+click 100 3                # acts on the second Pioneer
+click 95 61                # Clear Forest: @INDIANFOREST
+click 150 107              # row 1 "Let these trees stand": no order, the second Pioneer's moves spent; the third comes up

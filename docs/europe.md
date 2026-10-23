@@ -515,10 +515,16 @@ good" — fandom Boycott (Col); GAME.TXT @KISSUP). On success: deducts cost
 from gold, credits it to nation.royal_money (Crown REF budget — the DOS
 write really does land on that field, see col1_save.h), clears the
 boycott bit. Insufficient funds / not boycotted / bad args: no-op,
-returns 0. Real trigger: GAME.TXT @SOMEBOYCOTT — click the boycotted
-cargo cell on the Europe market strip (game_loop.c EUROPE_HIT_MARKET).
-@KISSUP/@KISSSORRY CHOICE dialog chrome PARKED — ported as immediate
-action + eu->status line. Returns gold paid (>0) on success.
+returns 0. Real trigger: clicking the boycotted cargo cell on the Europe
+market strip (game_loop.c EUROPE_HIT_MARKET) raises the @KISSUP CHOICE
+(game_dialogs.c game_europe_ask_boycott_buyback; @KISSSORRY when the purse is
+short after "Pay"). Every other human buy/sell entry on a boycotted cargo
+(L, =, +, -, _, shift-drag buy, hold drag onto the market) goes through
+`game_europe_boycott_gate`: @KISSUP, then the trade is aborted whatever the
+answer (FUN_38fd_2dfe returns 0 for a human on every path). @SOMEBOYCOTT is
+only the notice after the `U` unload-all loop (the ship menu row 3 loop,
+FUN_38fd_2bfe) when the last-examined slot 0 was boycotted. Returns gold paid
+(>0) on success.
 
 ## europe_buyback_boycott_cost
 

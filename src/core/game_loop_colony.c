@@ -479,6 +479,102 @@ void game_colony_select_outside(ColonizeGameState* game, int unit_id) {
   game->colony_screen.selected_colonist = -1;
 }
 
+/*
+ * Colony-screen cheat keys: the tail of FUN_2f2b_6372 (raw 55699-55765), asm
+ * 2f2b:63c2. It runs after the normal arms (which consume none of these keys)
+ * and only when DS:0x5383 & 0x20 (game_cheats_enabled). Arms: T/t 6820 add a
+ * unit-less Free Colonist, S/s 6882 profession := current job, `$` 6896
+ * nation gold +1000, `%` 68b4 / `^` 68c8 warehouse good +/-100, `!` 68e6 every
+ * building. T, S and `!` end in FUN_291f_0648 = FUN_2f2b_2c92, the full colony
+ * redraw, whose first act is FUN_281f_0c22 -> FUN_15eb_3930 (the plot
+ * recompute); `$ % ^` end in FUN_291f_078c (a partial redraw), so no recompute.
+ * Space (6950) is game_colony_cheat_produce. Returns true when `ch` was a
+ * cheat key (the caller then swallows it).
+ */
+bool game_colony_cheat_key(
+  ColonizeGameState* game, ColonizeColony* colony, ColonyScreenView* csv, char ch
+) {
+  if (!game || !colony || !csv || !game_cheats_enabled(game)) {
+    return false;
+  }
+  switch (ch) {
+    case 't':
+    case 'T': {
+      int type = game->units_ok ? units_kind_type_index(&game->units, UNITS_KIND_COLONIST) : -1;
+      (void)colonies_cheat_add_colonist(&game->colonies, colony, type);
+      break;
+    }
+    case 's':
+    case 'S':
+      if (csv->selected_colonist >= 0) {
+        (void)colonies_cheat_profession_from_job(&game->colonies, colony, csv->selected_colonist);
+      } else if (csv->selected_outside_unit >= 0 && game->units_ok) {
+        /* sel >= pop: FUN_15eb_0e18 -> FUN_15eb_0902 = the unit type's default
+         * @JOB (DS:0x30e), written to the unit's profession by 0e8c (Dragoon
+         * folded to Soldier). A type without a profession slot would store
+         * 0xff in DOS; the port leaves the unit alone. */
+        ColonizeUnit* u = units_get(&game->units, csv->selected_outside_unit);
+        int job = u ? units_type_default_job(u->type_index) : -1;
+        if (job == UNITS_JOB_DRAGOON) {
+          job = UNITS_JOB_SOLDIER;
+        }
+        if (job >= 0) {
+          u->profession = job;
+        }
+      }
+      break;
+    case '$':
+      if (game->col1_ok) {
+        europe_nation_gold_add(&game->europe, &game->col1, colony->nation_id, 1000);
+      }
+      return true;
+    case '%':
+      colonies_cheat_stock_add(colony, csv->selected_cargo, 100);
+      return true;
+    case '^':
+      colonies_cheat_stock_add(colony, csv->selected_cargo, -100);
+      return true;
+    case '!':
+      colonies_cheat_all_buildings(&game->colonies, colony);
+      break;
+    default:
+      return false;
+  }
+  {
+    const ColonizeWorld w = game_world(game);
+    colonies_recompute_plots_w(&w, colony->id);
+  }
+  return true;
+}
+
+/*
+ * Colony-screen Space (FUN_2f2b_6372 2f2b:6950, the CHEAT bit set): FUN_364b_0688
+ * on the viewed colony = a full extra production tick (turn_cheat_colony_tick),
+ * then the 0648 redraw. DOS has no guard against the colony dying in it
+ * (starvation of the last colonist); the port leaves the screen then.
+ */
+bool game_colony_cheat_produce(ColonizeGameState* game, ColonizeColony* colony) {
+  if (!game || !colony || !game_cheats_enabled(game)) {
+    return false;
+  }
+  const int cid = colony->id;
+  ColonizeTurnContext ctx;
+  game_fill_turn_context(game, &ctx);
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_cheat_colony_tick(&ctx, &prod, cid);
+  const ColonizeColony* after = colonies_get(&game->colonies, cid);
+  if (!after || !after->active) {
+    game->in_colony = false;
+    game->colony_view_id = -1;
+    sound_set_bgm(1);
+    return true;
+  }
+  const ColonizeWorld w = game_world(game);
+  colonies_recompute_plots_w(&w, cid);
+  return true;
+}
+
 static int game_colony_list_outside_roles(
   const ColonizeColonyPool* pool,
   const ColonizeUnitPool* units,
@@ -1380,7 +1476,11 @@ bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my, bool shift) 
     }
   } else if (kind == UI_DRAG_EUROPE_HOLD) {
     if (hit.kind == EUROPE_HIT_MARKET) {
-      if (eu->selected_harbor >= 0 && shift) {
+      const int dh = drag->index;
+      if (eu->selected_harbor >= 0 && dh >= 0 && dh < EUROPE_SHIP_CARGO_MAX &&
+          game_europe_boycott_gate(game, eu->harbor[eu->selected_harbor].hold_goods_type[dh])) {
+        /* FUN_38fd_3502 raw 61107-61125: boycotted cargo -> @KISSUP, trade aborted. */
+      } else if (eu->selected_harbor >= 0 && shift) {
         /* Shift+drag: @HOWMUCH5 amount entry instead of selling the whole hold. */
         const EuropeHarborShip* ship = &eu->harbor[eu->selected_harbor];
         const int hold = drag->index;

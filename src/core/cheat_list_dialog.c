@@ -167,8 +167,10 @@ bool cheat_list_open_setview(CheatListDialog* dlg, const ColonizeMsgCatalog* deb
   return cheat_list_fill_from_section(dlg, section, k_fallback_ids, 6);
 }
 
-bool cheat_list_open_kill_indians(CheatListDialog* dlg, const ColonizeMsgCatalog* names) {
-  if (!dlg) {
+bool cheat_list_open_kill_indians(
+  CheatListDialog* dlg, const ColonizeMsgCatalog* names, uint8_t alive_mask
+) {
+  if (!dlg || alive_mask == 0) {
     return false;
   }
   cheat_list_init(dlg);
@@ -182,16 +184,24 @@ bool cheat_list_open_kill_indians(CheatListDialog* dlg, const ColonizeMsgCatalog
   /* @TRIBES field 1 — the singular tribe word ("Inca"), the same column the
    * map panel and the unit labels name one tribe by. The caller's catalog
    * wins; reports_tribe_singular_name supplies the literal fallback. */
+  /* DOS case 0x67 (ndisasm 0x23bdc-0x23c9b): one row per tribe whose indian
+   * record +3 bit 0x80 (extinct) is clear, id = tribe + 1; none left = the
+   * cheat exits without a list. */
+  int n = 0;
   for (int i = 0; i < 8; ++i) {
+    if (!(alive_mask & (1u << i))) {
+      continue;
+    }
     char short_name[CHEAT_LIST_LABEL_LEN];
     if (!assets_msg_row_field(names, "TRIBES", i, 1, short_name, sizeof(short_name)) ||
         !short_name[0]) {
       str_copy_trunc(short_name, sizeof(short_name), reports_tribe_singular_name(i));
     }
-    str_copy_trunc(dlg->options[i], sizeof(dlg->options[i]), short_name);
-    dlg->option_ids[i] = 4 + i;
+    str_copy_trunc(dlg->options[n], sizeof(dlg->options[n]), short_name);
+    dlg->option_ids[n] = 4 + i;
+    ++n;
   }
-  dlg->option_count = 8;
+  dlg->option_count = n;
   dlg->open = true;
   return true;
 }
@@ -449,6 +459,15 @@ static void cheat_list_cancel(CheatListDialog* dlg) {
     return;
   }
   dlg->has_result = false;
+  if (dlg->kind == CHEAT_LIST_KIND_SETVIEW) {
+    /* DOS case 0x65 (ND 0x23CDE-0x23CF0): choice 0 (Esc) resets the view
+     * exactly like the No Special View row (port_bugs.md #1170). */
+    dlg->has_result = true;
+    dlg->result_kind = CHEAT_LIST_KIND_SETVIEW;
+    dlg->result_id = -2;
+    dlg->result_mask = 0;
+    dlg->result_label[0] = '\0';
+  }
   cheat_list_close(dlg);
 }
 

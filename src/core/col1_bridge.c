@@ -2544,6 +2544,10 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_capture_head(Col1CaptureCtx* ctx) 
       save->player[n].control = 1;
     }
   }
+  /* A head whose human_player disagrees with the control table is the old
+   * zero-filled port head (its 0x53a4 was 0 too, so DOS locked onto England's
+   * fog after the first EOT: port_bugs.md #282, still_foggy.SAV). */
+  const bool stale_head = save->head.human_player != (uint16_t)human_nation;
   /* DOS DS:0x5398 — the new-game path never stamped it, so a non-English
    * campaign saved human_player=0 forever (misleads every head.human_player
    * reader on later loads). */
@@ -2553,13 +2557,19 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_capture_head(Col1CaptureCtx* ctx) 
    * Left at the template's 0, DOS resumes the nation-0 EOT as "human"
    * (immediate @PRICEUP dialog) and draws fog for the wrong viewer. */
   save->head.nation_turn = (uint16_t)human_nation;
-  save->head.curr_nation_map_view = (uint16_t)human_nation;
-  /* DS:0x53a4 SETVIEW override: DOS's turn loop pins the map view to it when
-   * >= 0 (`view = 0x5398; if (0x53a4 >= 0) view = 0x53a4`). The port's old
-   * zero-filled head locked DOS onto England's fog after the first EOT
-   * (port_bugs.md #282, still_foggy.SAV). 0xffff = no override, as every DOS save
-   * carries; heals stale campaigns on re-save. */
-  save->head.fixed_nation_map_view = 0xffffu;
+  /* DS:0x53a4 SETVIEW override (CHEAT Reveal Map nation row; port_bugs.md #1170):
+   * DOS's turn pass pins the map view to it when 0..3 (`view = 0x5398; if
+   * (0x53a4 >= 0) view = 0x53a4`), so DOS saves carry curr = fixed then.
+   * 0xffff = no override, as every real save carries. A fixed view equal to
+   * the human is no view at all, and a stale head's is garbage: both heal to
+   * 0xffff. */
+  if (stale_head || save->head.fixed_nation_map_view > 3u ||
+      save->head.fixed_nation_map_view == (uint16_t)human_nation) {
+    save->head.fixed_nation_map_view = 0xffffu;
+  }
+  save->head.curr_nation_map_view = save->head.fixed_nation_map_view <= 3u
+                                      ? save->head.fixed_nation_map_view
+                                      : (uint16_t)human_nation;
   /* DS:0x53a2 show_entire_map: the Complete Map cheat / post-win reveal.
    * It is live state, not a template field — game_apply_setview stamps it on
    * SETVIEW, turn.c LAB_0b4a stamps it on victory, and it is read back as the

@@ -1664,3 +1664,44 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
       break;
   }
 }
+
+/*
+ * CHEAT Advance Revolution Status, DOS dispatcher case 0x68 (ND 0x2391C-0x23976),
+ * staged per press (port_bugs.md #1171):
+ *   1. rebel_sentiment_report (0x53d0) < 75 or 0x5381 bit 7 set: sentiment := 75,
+ *      and with no Crown slot (0x53d2 < 0) the War of Succession FUN_43f7_0218
+ *      (self-gated in ai_king_succession); stop.
+ *   2. else !(0x5382 & 1): the FUN_43f7_1a26 declare body, WITHOUT the
+ *      FUN_43f7_2564 confirm (pair as the Congress Confirm: declare + wave).
+ *   3. else !(0x5382 & 2): FUN_43f7_1528 @INTERVENTION announce.
+ *   4. else 0x5382 |= 0x20 (independence_force); the caller shows @FORCED.
+ */
+int ai_king_cheat_advance_revolution(ColonizeTurnContext* ctx) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1) {
+    return 0;
+  }
+  const int human = ctx->human_nation;
+  if (human < 0 || human >= 4) {
+    return 0;
+  }
+  ColonizeCol1Save* col1 = ctx->col1;
+  if (col1->head.rebel_sentiment_report < 0x4b ||
+      (col1->head.hotseat_woi_redirect_pending & 0x80) != 0) {
+    col1->head.rebel_sentiment_report = 0x4b;
+    if (col1->head.crown_nation_id < 0) {
+      ai_king_succession(ctx);
+    }
+    return 1;
+  }
+  if (!ai_king_independence_declared(col1)) {
+    ai_king_do_declare(ctx, human);
+    ai_king_ref_wave(ctx);
+    return 2;
+  }
+  if (ai_king_latch_get(col1, AI_KING_INTERVENE_ANNOUNCED_BYTE) == 0) {
+    ai_king_1528_announce(ctx, human);
+    return 3;
+  }
+  col1->head.game_options.independence_force = 1;
+  return 4;
+}

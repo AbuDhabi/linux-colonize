@@ -21,7 +21,7 @@ key Backspace
 key 2
 key 5
 key Return               # 25 Ore @ 3 = 75, tax 4, net 71
-# U sells every hold left on the selected ship, in hold order.
-key u                    # Cotton 48, Rum 60, Ore 75, Furs 100
-key u                    # empty ship: "Nothing to sell."
+# U unloads every hold left on the selected ship, last hold first (ship menu row 3 walk).
+key u                    # Furs 100, Ore 75, Rum 60, Cotton 48
+key u                    # empty ship: nothing happens
 key e                    # leave Europe

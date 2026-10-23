@@ -188,8 +188,13 @@ void turn_compose_colony_bells_crosses(
   int* out_crosses
 );
 
-/* Colony Space cheat: one production cycle without advancing world time.
- * If out_delta is non-NULL, fills last-tick nets for UI. map may be NULL. */
+/* Colony-screen Space cheat (CHEAT bit set): FUN_364b_0688 for one colony,
+ * the full production tick incl. bell step and completion sweeps, without
+ * advancing the turn (turn_colony.c). */
+void turn_cheat_colony_tick(ColonizeTurnContext* ctx, ColonizeTurnResult* out, int colony_id);
+
+/* One production cycle without advancing world time (tests; no longer a UI
+ * path). If out_delta is non-NULL, fills last-tick nets. map may be NULL. */
 void turn_colony_free_production(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,

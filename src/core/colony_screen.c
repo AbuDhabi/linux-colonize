@@ -87,8 +87,6 @@ void colony_screen_reset_ui(ColonyScreenView* view) {
   view->message_selection = 0;
   view->pending_eject_colonist = -1;
   view->pending_eject_role = COLONIZE_EJECT_COLONIST;
-  view->last_delta_valid = false;
-  memset(&view->last_delta, 0, sizeof(view->last_delta));
   view->preview_valid = false;
   memset(&view->preview, 0, sizeof(view->preview));
   view->transport_unit_id = -1;
@@ -264,18 +262,6 @@ void colony_screen_refresh_preview_w(
   view->preview_valid = true;
 }
 
-
-void colony_screen_set_delta(ColonyScreenView* view, const ColonizeColonyProdDelta* delta) {
-  if (!view) {
-    return;
-  }
-  if (!delta) {
-    view->last_delta_valid = false;
-    return;
-  }
-  view->last_delta = *delta;
-  view->last_delta_valid = true;
-}
 
 /*
  * Single close-all for the six mutually exclusive sub-panels — see

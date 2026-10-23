@@ -246,6 +246,16 @@ int ai_king_independence_declared(const ColonizeCol1Save* col1);
 void ai_king_menu_declare_independence(ColonizeTurnContext* ctx);
 
 /*
+ * CHEAT Advance Revolution Status (Shift-F7, DOS dispatcher case 0x68, ND
+ * 0x2391C-0x23976): one stage per press, port_bugs.md #1171. Returns the stage
+ * run: 1 = rebel sentiment raised to 75 (+ the War of Succession when the Crown
+ * slot is empty), 2 = independence declared (FUN_43f7_1a26, no confirm),
+ * 3 = foreign intervention announced (FUN_43f7_1528), 4 = independence_force
+ * set (the caller shows DEBUG.TXT @FORCED), 0 = no human nation.
+ */
+int ai_king_cheat_advance_revolution(ColonizeTurnContext* ctx);
+
+/*
  * FUN_4345_0a22 wartime branch: spend the bell pool on foreign intervention
  * or a REF wave instead of electing a Founding Father. Returns 1 when the
  * pool was consumed (caller resets founding_fathers side-table pool).

@@ -1,5 +1,5 @@
 # Pioneer orders on Tupi (peace) land: @INDIANFOREST / @INDIANROAD respect / offer gold / take it, all via the
-# Orders menu (the P / R hotkeys skip the choice). Fixture: Peter Minuit removed from France (FF 2), gold 1500;
+# Orders menu (map_pioneer_native_land_keys: the same with the P / R hotkeys). Fixture: Peter Minuit removed from France (FF 2), gold 1500;
 # five Pioneers (100 tools, units 124 128 129 130 133), full moves, no orders, each alone on a Tupi-owned tile
 # (beside a village), selected in id order; every other French unit is sentried except the Dragoon in Quebec,
 # the only one left to come up at the end. Menu: Orders (100,3), Clear Forest (95,61) / Build Road (95,69).

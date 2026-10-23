@@ -1,0 +1,18 @@
+# Fixture: map_cheat_set_human_other_nation's output (France 1599, England human; the French Europe state sits on nation[1]).
+# Set Human back to French (row 2): England's record is flushed first, France's is rebound, so the French Europe screen (E) shows France's own 429 gold / 26% tax again
+# (port_bugs.md #1172). Ends with cheat mode off again (Alt-W).
+key w alt
+key i alt
+key n alt
+key F5 shift
+key Down
+key Return               # French
+wait 30
+shot
+key e                    # French European Status
+wait 30
+shot
+key Escape
+wait 30
+shot
+key w alt

@@ -9,8 +9,10 @@ wait 20
 click 160 142              # accept: Crown share 26% of 1000 = 260, 740 added (gold 429 -> 1169)
 wait 20                    # @LOOTCASH popup
 key Return
-wait 30                    # the next unit with moves (Treasure #95) is selected
+wait 30                    # the next unit with moves comes up: the Colonist #88 riding the Caravel at sea
+key s                      # sentry it (the hand-off used to skip it, port_bugs.md #1175a); Treasure #95 is selected
+wait 10
 key KP_3                   # SE into Quebec: offered again although France owns a Galleon
 wait 20
 click 165 154              # decline: the treasure stays in Quebec
-wait 30
+wait 30                    # (no moves left; selection moves on to the ship #126 in Quebec, not past it)

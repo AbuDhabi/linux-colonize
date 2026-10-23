@@ -37,80 +37,85 @@ ColonizeColony* g_turn_1528_last_walked_colony = NULL;
  */
 
 /* ===================== Colony construction & building completion (turn_run_colony_unit_construction .. turn_colony_free_production) ===================== */
+static void turn_colony_unit_construction_one(ColonizeTurnContext* ctx, ColonizeColony* col) {
+  if (!col->active || col->building_in_production < 0) {
+    return;
+  }
+  const char* name = NULL;
+  if (!colonies_unit_build_info(col->building_in_production, &name, NULL, NULL)) {
+    return;
+  }
+  const int uidx = units_build_code_to_index(col->building_in_production);
+  /*
+   * DOS-LITERAL FUN_364b_0114 wagon arm (raw 56926-56933): before spawning,
+   * a Wagon Train project whose nation already owns as many wagons as
+   * colonies is refused — %NUMBER0 = colony_counts[n], popup @NOMOREWAGONS,
+   * +0x1c |= 0x80, and `return`: the project is NOT cleared and the hammers
+   * are NOT zeroed, so it re-fires every turn until a new colony is founded.
+   */
+  if (uidx == COLONIZE_UNIT_INDEX_WAGON_TRAIN &&
+      colonies_wagon_cap_reached(ctx->col1_ok ? ctx->col1 : NULL, col->nation_id)) {
+    int hammers_need = 0;
+    if (colonies_unit_build_info(col->building_in_production, NULL, &hammers_need, NULL) &&
+        hammers_need > 0 && col->hammers >= hammers_need) {
+      col->colony_flags =
+        (uint8_t)(col->colony_flags | COLONIZE_COLONY_FLAG_BUILD_COMPLETE);
+      /* port_bugs.md #789 (REFUTED): FUN_364b_0114 does call the popup thunk
+       * unconditionally, but the thunk lands in FUN_364b_0000, whose whole
+       * body sits behind `if (*(char*)0xa897 != '\0')` (raw 56839).
+       * DS:0xa897 is set by the colony-select routine (raw 9325-9331) only
+       * when the colony's owner byte (+0x1a) equals the human player
+       * (DS:0x5396), is <= 3, and is not AI-run (DS:0x543f table) — i.e.
+       * exactly this human_nation gate. AI colonies never show it. */
+      if (col->nation_id == ctx->human_nation && ctx->ai_popups) {
+        char body[AI_POPUP_BODY_LEN];
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = col->name[0] ? col->name : "";
+        tok.number0 =
+          colonies_nation_colony_count_census(ctx->col1_ok ? ctx->col1 : NULL, col->nation_id);
+        tok.has_number0 = true;
+        popup_msg_fill(
+          ctx->messages, "NOMOREWAGONS", &tok,
+          "",
+          body, sizeof(body)
+        );
+        ai_popup_enqueue_colony_event(ctx->ai_popups, col->id, body);
+      }
+    }
+    return;
+  }
+  const int uid = colonies_try_complete_unit_construction(
+    ctx->colonies, col->id, ctx->units, ctx->col1_ok ? ctx->col1 : NULL
+  );
+  if (uid < 0 && uid != COLONIZE_UNIT_BUILD_REFUSED) {
+    return;
+  }
+  /*
+   * DOS-LITERAL FUN_364b_0114 raw 56938: ++unit_type_counts[nation][unit_index]
+   * (DS:0x924c, stride 0x13) on every spawn, a plain byte add with no
+   * saturation (same as the unguarded -- at FUN_5fef_0352 raw 99570).
+   * Without it two wagons finished in the same EOT both pass the cap, which
+   * reads the census window the EOT refresh only rewrites later.
+   */
+  if (ctx->col1_ok && ctx->col1 && uidx >= 0 && uidx < 19 && col->nation_id >= 0 &&
+      col->nation_id < 4) {
+    ctx->col1->stuff.unit_type_counts[col->nation_id][uidx]++;
+  }
+  if (ctx->europe && col->nation_id == ctx->human_nation) {
+    snprintf(ctx->europe->status, sizeof(ctx->europe->status), "%s completed.", name);
+    turn_emit_built_chrome(ctx->messages, ctx->ai_popups, col, name);
+  }
+}
+
 static void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->colonies || !ctx->units) {
     return;
   }
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     ColonizeColony* col = &ctx->colonies->colonies[i];
-    if (!col->active || col->building_in_production < 0 ||
-        !turn_prod_nation_in_scope(col->nation_id)) {
-      continue;
-    }
-    const char* name = NULL;
-    if (!colonies_unit_build_info(col->building_in_production, &name, NULL, NULL)) {
-      continue;
-    }
-    const int uidx = units_build_code_to_index(col->building_in_production);
-    /*
-     * DOS-LITERAL FUN_364b_0114 wagon arm (raw 56926-56933): before spawning,
-     * a Wagon Train project whose nation already owns as many wagons as
-     * colonies is refused — %NUMBER0 = colony_counts[n], popup @NOMOREWAGONS,
-     * +0x1c |= 0x80, and `return`: the project is NOT cleared and the hammers
-     * are NOT zeroed, so it re-fires every turn until a new colony is founded.
-     */
-    if (uidx == COLONIZE_UNIT_INDEX_WAGON_TRAIN &&
-        colonies_wagon_cap_reached(ctx->col1_ok ? ctx->col1 : NULL, col->nation_id)) {
-      int hammers_need = 0;
-      if (colonies_unit_build_info(col->building_in_production, NULL, &hammers_need, NULL) &&
-          hammers_need > 0 && col->hammers >= hammers_need) {
-        col->colony_flags =
-          (uint8_t)(col->colony_flags | COLONIZE_COLONY_FLAG_BUILD_COMPLETE);
-        /* port_bugs.md #789 (REFUTED): FUN_364b_0114 does call the popup thunk
-         * unconditionally, but the thunk lands in FUN_364b_0000, whose whole
-         * body sits behind `if (*(char*)0xa897 != '\0')` (raw 56839).
-         * DS:0xa897 is set by the colony-select routine (raw 9325-9331) only
-         * when the colony's owner byte (+0x1a) equals the human player
-         * (DS:0x5396), is <= 3, and is not AI-run (DS:0x543f table) — i.e.
-         * exactly this human_nation gate. AI colonies never show it. */
-        if (col->nation_id == ctx->human_nation && ctx->ai_popups) {
-          char body[AI_POPUP_BODY_LEN];
-          PopupMsgTokens tok;
-          memset(&tok, 0, sizeof(tok));
-          tok.string0 = col->name[0] ? col->name : "";
-          tok.number0 =
-            colonies_nation_colony_count_census(ctx->col1_ok ? ctx->col1 : NULL, col->nation_id);
-          tok.has_number0 = true;
-          popup_msg_fill(
-            ctx->messages, "NOMOREWAGONS", &tok,
-            "",
-            body, sizeof(body)
-          );
-          ai_popup_enqueue_colony_event(ctx->ai_popups, col->id, body);
-        }
-      }
-      continue;
-    }
-    const int uid = colonies_try_complete_unit_construction(
-      ctx->colonies, col->id, ctx->units, ctx->col1_ok ? ctx->col1 : NULL
-    );
-    if (uid < 0 && uid != COLONIZE_UNIT_BUILD_REFUSED) {
-      continue;
-    }
-    /*
-     * DOS-LITERAL FUN_364b_0114 raw 56938: ++unit_type_counts[nation][unit_index]
-     * (DS:0x924c, stride 0x13) on every spawn, a plain byte add with no
-     * saturation (same as the unguarded -- at FUN_5fef_0352 raw 99570).
-     * Without it two wagons finished in the same EOT both pass the cap, which
-     * reads the census window the EOT refresh only rewrites later.
-     */
-    if (ctx->col1_ok && ctx->col1 && uidx >= 0 && uidx < 19 && col->nation_id >= 0 &&
-        col->nation_id < 4) {
-      ctx->col1->stuff.unit_type_counts[col->nation_id][uidx]++;
-    }
-    if (ctx->europe && col->nation_id == ctx->human_nation) {
-      snprintf(ctx->europe->status, sizeof(ctx->europe->status), "%s completed.", name);
-      turn_emit_built_chrome(ctx->messages, ctx->ai_popups, col, name);
+    if (turn_prod_nation_in_scope(col->nation_id)) {
+      turn_colony_unit_construction_one(ctx, col);
     }
   }
 }
@@ -130,35 +135,40 @@ static void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
  * inline per-colony-production path in turn_produce_one_colony already
  * completed the same project (second call just returns false).
  */
+static void turn_colony_building_completion_one(ColonizeTurnContext* ctx, ColonizeColony* col) {
+  if (!col->active || col->building_in_production < 0) {
+    return;
+  }
+  const ColonizeBuildingType* bt = colonies_building_type(ctx->colonies, col->building_in_production);
+  if (!bt || bt->hammers <= 0 || col->hammers < bt->hammers) {
+    return;
+  }
+  if (!colonies_try_complete_building_ex(
+        ctx->colonies, col->id, ctx->col1_ok ? ctx->col1 : NULL
+      )) {
+    /* FUN_364b_0114 raw 56906-56910: a Warehouse Expansion past level 1
+     * refuses with @NOMOREWAREHOUSE each turn it sits complete. */
+    if (col->nation_id == ctx->human_nation &&
+        colonies_building_name_row(bt->name) == COLONY_BUILDING_WAREHOUSE_EXPANSION &&
+        col->warehouse_level > 1u) {
+      colonies_emit_already_have_chrome(col, bt->name, ctx->ai_popups, ctx->messages);
+    }
+    return;
+  }
+  if (ctx->europe && col->nation_id == ctx->human_nation) {
+    snprintf(ctx->europe->status, sizeof(ctx->europe->status), "%s completed.", bt->name);
+    turn_emit_built_chrome(ctx->messages, ctx->ai_popups, col, bt->name);
+  }
+}
+
 static void turn_run_colony_building_completion(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->colonies) {
     return;
   }
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     ColonizeColony* col = &ctx->colonies->colonies[i];
-    if (!col->active || col->building_in_production < 0 ||
-        !turn_prod_nation_in_scope(col->nation_id)) {
-      continue;
-    }
-    const ColonizeBuildingType* bt = colonies_building_type(ctx->colonies, col->building_in_production);
-    if (!bt || bt->hammers <= 0 || col->hammers < bt->hammers) {
-      continue;
-    }
-    if (!colonies_try_complete_building_ex(
-          ctx->colonies, col->id, ctx->col1_ok ? ctx->col1 : NULL
-        )) {
-      /* FUN_364b_0114 raw 56906-56910: a Warehouse Expansion past level 1
-       * refuses with @NOMOREWAREHOUSE each turn it sits complete. */
-      if (col->nation_id == ctx->human_nation &&
-          colonies_building_name_row(bt->name) == COLONY_BUILDING_WAREHOUSE_EXPANSION &&
-          col->warehouse_level > 1u) {
-        colonies_emit_already_have_chrome(col, bt->name, ctx->ai_popups, ctx->messages);
-      }
-      continue;
-    }
-    if (ctx->europe && col->nation_id == ctx->human_nation) {
-      snprintf(ctx->europe->status, sizeof(ctx->europe->status), "%s completed.", bt->name);
-      turn_emit_built_chrome(ctx->messages, ctx->ai_popups, col, bt->name);
+    if (turn_prod_nation_in_scope(col->nation_id)) {
+      turn_colony_building_completion_one(ctx, col);
     }
   }
 }
@@ -508,6 +518,53 @@ void turn_run_human_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out
   nat->liberty_bells_last_turn = 0;
   turn_run_colony_eot_with(ctx, out, turn_ai_colony_bell_step, &bell_step);
   if (ctx->europe) {
+    ctx->europe->liberty_bells_pool = nat->liberty_bells_pool;
+    ctx->europe->liberty_bells_last_turn = nat->liberty_bells_last_turn;
+  }
+}
+
+/*
+ * Colony-screen Space cheat (FUN_2f2b_6372 2f2b:6950 -> FUN_364b_0688 on the
+ * viewed colony, with the 0648 redraw after it): ONE colony's production tick
+ * outside the turn. It is the colony pass of turn_run_colony_eot_with for a
+ * single colony: the same bell step, FUN_364b_0688 body and the two completion
+ * sweeps, and none of the nation-level steps around the loop (specialty
+ * census, last-turn bell reset, colony crosses). Pressing it twice produces
+ * twice, as in DOS. The caller leaves the colony screen when the colony died.
+ */
+void turn_cheat_colony_tick(ColonizeTurnContext* ctx, ColonizeTurnResult* out, int colony_id) {
+  if (!ctx || !ctx->colonies) {
+    return;
+  }
+  ColonizeColony* col = colonies_get_mut(ctx->colonies, colony_id);
+  if (!col || !col->active) {
+    return;
+  }
+  const int n = col->nation_id;
+  ColonizeCol1Nation* nat = NULL;
+  TurnColonyBeforeProduction before = NULL;
+  AiNationColonyBellStep bell_step;
+  memset(&bell_step, 0, sizeof(bell_step));
+  if (ctx->col1_ok && ctx->col1 && n >= 0 && n < 4) {
+    nat = &ctx->col1->nation[n];
+    bell_step.ctx = ctx;
+    bell_step.nat = nat;
+    bell_step.nation = n;
+    bell_step.control = ctx->col1->player[n].control;
+    before = turn_ai_colony_bell_step;
+  }
+  turn_set_birth_units_pool(ctx->units);
+  const ColonizeWorld pw = world_from_turn_ctx(ctx);
+  turn_run_one_colony_production_w(
+    &pw, col, ctx->human_nation, out, ctx->ai_popups, ctx->messages, before, &bell_step
+  );
+  g_turn_1528_last_walked_colony = NULL;
+  turn_set_birth_units_pool(NULL);
+  if (ctx->units) {
+    turn_colony_unit_construction_one(ctx, col);
+  }
+  turn_colony_building_completion_one(ctx, col);
+  if (nat && ctx->europe && n == ctx->human_nation) {
     ctx->europe->liberty_bells_pool = nat->liberty_bells_pool;
     ctx->europe->liberty_bells_last_turn = nat->liberty_bells_last_turn;
   }

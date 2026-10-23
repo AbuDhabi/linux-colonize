@@ -373,6 +373,37 @@ bool game_request_indian_land_choice(
 }
 
 /*
+ * Pioneer clear/plow and road order gate shared by the Orders menu item and the
+ * P / R hotkeys (port_bugs.md #1174): DOS binds both to one command id (MENU.TXT
+ * Clear Forest / Plow Fields ~P = 0x312/0x313, Build ~Road = 0x314), so the
+ * encroachment CHOICE (thunk_FUN_1000_91fc / thunk_FUN_1000_9304) fires from
+ * either.  FOREST: the already-plowed bit (0x40) is tested BEFORE the tribal-land
+ * block (DOS-LITERAL FUN_2b5a_123e raw 42448-42451, @NOPLOW), so a plowed tile
+ * falls through to units_pioneer_plow_w, which raises @NOPLOW.  True = a dialog
+ * was queued, the caller stops and waits for the result.
+ */
+bool game_pioneer_land_gate(ColonizeGameState* game, GameIndianLandKind kind) {
+  if (!game || !game->units_ok || !game->world_map_ok) {
+    return false;
+  }
+  const int sid = game->units.selected_id;
+  const ColonizeUnit* pu = units_get_const(&game->units, sid);
+  if (!pu || !pu->active || !units_is_pioneer(&game->units, sid) || pu->tools < 20) {
+    return false;
+  }
+  if (kind == GAME_INDIAN_LAND_FOREST) {
+    if (map_tile_is_plowed(&game->world_map, pu->x, pu->y) ||
+        pu->orders == UNITS_ORDER_CLEAR_PLOW) {
+      return false;
+    }
+  } else if (map_tile_has_road(&game->world_map, pu->x, pu->y) ||
+             pu->orders == UNITS_ORDER_BUILD_ROAD) {
+    return false;
+  }
+  return game_request_indian_land_choice(game, kind, sid, pu->x, pu->y);
+}
+
+/*
  * DOS-LITERAL FUN_2b5a Build/Join handler, asm 0x2256D-0x22583 (port_bugs.md
  * #688): `test byte [0x5382],0x1` sits at the very top of the SHARED handler,
  * before the colony-on-tile split, and raises @NOCOLONIESEITHER as a real
@@ -835,12 +866,40 @@ static void game_do_disband(ColonizeGameState* game, int uid) {
   if (!game) {
     return;
   }
-  if (uid < 0 || !units_disband(&game->units, uid)) {
+  /* View mode (DS:0x5390 != 0): FUN_2b5a_199e only redraws after the delete,
+   * the map loop picks no unit (port selection is by id, so nothing to renumber). */
+  if (game->view_pieces_mode) {
     set_status(game, "", NULL);
-  } else {
-    set_status(game, "Unit disbanded", NULL);
-    game_wait_next_unit(game);
+    if (uid >= 0 && units_disband(&game->units, uid) && game->units.selected_id == uid) {
+      game->units.selected_id = -1;
+    }
+    return;
   }
+  /* The nearest unit before the disbanded one in pool (= id) order, any nation. */
+  int prev_id = -1;
+  for (int i = 0; i < units_slot_end(&game->units); ++i) {
+    const ColonizeUnit* p = &game->units.units[i];
+    if (p->active && p->id < uid && p->id > prev_id) {
+      prev_id = p->id;
+    }
+  }
+  /* DOS prints nothing for a disband (FUN_2b5a_199e). */
+  set_status(game, "", NULL);
+  if (uid < 0 || !units_disband(&game->units, uid)) {
+    return;
+  }
+  /*
+   * FUN_1427_0824 raw 7834-7836 (the pool compaction under 199e): the active
+   * index steps back to the PREVIOUS slot (199e's own tail, FUN_281f_086c(0),
+   * only runs for slot 0), and the map loop FUN_2b5a_3b68 / FUN_2b5a_0e52
+   * re-tests that unit with FUN_1427_1410 (= turn_unit_in_rotation); only if it
+   * fails does FUN_1427_14a0 scan forward from the slot after it, wrapping.
+   * turn_select_next_unit starts strictly after selected_id, so seed it one
+   * below the previous unit to put that unit itself into the search. No
+   * previous unit (slot 0) = scan from the top, as DOS does.
+   */
+  game->units.selected_id = prev_id > 0 ? prev_id - 1 : -1;
+  game_wait_next_unit(game);
 }
 
 static void game_do_overboard_hold(ColonizeGameState* game, int uid, int hold) {
@@ -849,12 +908,11 @@ static void game_do_overboard_hold(ColonizeGameState* game, int uid, int hold) {
   }
   int ctype = 0;
   int amt = 0;
-  if (uid < 0 || hold < 0 ||
-      units_unload_goods_hold(&game->units, uid, hold, &ctype, &amt) <= 0) {
-    set_status(game, "No cargo to dump", NULL);
-  } else {
-    snprintf(game->status, sizeof(game->status), "Dumped %d overboard", amt);
+  /* DOS prints nothing for Dump Cargo (FUN_15eb_317c raw 13339-13363). */
+  if (uid >= 0 && hold >= 0) {
+    (void)units_unload_goods_hold(&game->units, uid, hold, &ctype, &amt);
   }
+  set_status(game, "", NULL);
 }
 
 /* Live route count (DOS DS:0x53a0 — routes are kept compact). */
@@ -1026,12 +1084,19 @@ static void game_apply_map_confirm(ColonizeGameState* game) {
   game->map_confirm_payload = -1;
   ai_popup_consume_result(&game->ai_popups);
   if (!yes) {
-    set_status(game, "Cancelled", NULL);
+    /* DOS declines are silent (every GAME_MAP_CONFIRM_* kind). */
+    set_status(game, "", NULL);
     return;
   }
   switch (conf) {
     case GAME_MAP_CONFIRM_DISBAND:
       game_do_disband(game, payload);
+      break;
+    case GAME_MAP_CONFIRM_DISBAND_COLONY:
+      /* FUN_2b5a_199e cheat arm: FUN_291f_0254 (= FUN_364b_1e64) deletes the
+       * colony, then a redraw. */
+      set_status(game, "", NULL);
+      (void)colonies_abandon(&game->colonies, payload);
       break;
     case GAME_MAP_CONFIRM_QUIT:
       game->elapsed_ms = UINT32_MAX;
@@ -1065,11 +1130,11 @@ static void game_apply_map_confirm(ColonizeGameState* game) {
   }
 }
 
-void game_request_disband_confirm(ColonizeGameState* game) {
+/* The Shift-D confirm for one unit: FUN_2b5a_199e's unit arm. */
+static void game_request_disband_unit(ColonizeGameState* game, int uid) {
   if (!game || !game->units_ok) {
     return;
   }
-  const int uid = game->units.selected_id;
   if (uid < 0) {
     set_status(game, "", NULL);
     return;
@@ -1092,6 +1157,11 @@ void game_request_disband_confirm(ColonizeGameState* game) {
         }
       }
     }
+    /* DOS: FUN_1427_10be gathers a sentried unit on the ship's tile that fits
+     * (port_bugs.md #1168); the awake-rider refusal above is the port's own. */
+    if (!has_pax && units_ship_has_sentry_boarder(&game->units, uid)) {
+      has_pax = 1;
+    }
     if (has_pax) {
       char body[AI_POPUP_BODY_LEN];
       popup_msg_fill(
@@ -1103,7 +1173,6 @@ void game_request_disband_confirm(ColonizeGameState* game) {
         sizeof(body)
       );
       ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
-      set_status(game, "Cannot disband ship with units aboard", NULL);
       return;
     }
   }
@@ -1119,6 +1188,71 @@ void game_request_disband_confirm(ColonizeGameState* game) {
     "",
     &tok
   );
+}
+
+/* DS:0x5396, the viewpoint nation: a fixed SETVIEW nation, else the human
+ * (FUN_43f7 turn pass; Complete Map leaves it alone; port_bugs.md #1170). */
+static int game_viewpoint_nation(const ColonizeGameState* game) {
+  if (game->col1_ok && game->col1.head.fixed_nation_map_view <= 3) {
+    return (int)game->col1.head.fixed_nation_map_view;
+  }
+  return game->human_nation;
+}
+
+/*
+ * FUN_2b5a_199e (the Shift-D handler, raw 42609-42690): the cursor tile is
+ * only touched when the CHEAT bit is set or its owner nibble (FUN_281f_06dc)
+ * is the viewpoint nation. Unit mode (DS:0x5390 == 0) disbands the active
+ * unit; View mode takes the stack head at the cursor (FUN_281f_07e0). With no
+ * unit, and only under CHEAT, the colony on the tile gets the same
+ * @SUREDISBAND confirm (%STRING0 = its name; DS tag 0xa0d) and a village (exact
+ * tile) is razed by FUN_4d56_00e0 with no confirm at all.
+ *
+ * Unit mode with an active unit skips the owner gate: the port's owner-nibble
+ * stamp can differ from DOS's there and the human's own unit must stay
+ * disbandable (kept from before the View-mode port).
+ */
+void game_request_disband_confirm(ColonizeGameState* game) {
+  if (!game || !game->units_ok) {
+    return;
+  }
+  const bool view = game->view_pieces_mode;
+  const int x = game->map_cursor_x;
+  const int y = game->map_cursor_y;
+  const bool cheats = game_cheats_enabled(game);
+  int uid = view ? -1 : game->units.selected_id;
+  if (view || uid < 0) {
+    if (!cheats && (!game->world_map_ok ||
+                    units_tile_owner_nibble(&game->world_map, x, y) !=
+                      game_viewpoint_nation(game))) {
+      set_status(game, "", NULL);
+      return;
+    }
+    if (view) {
+      uid = units_tile_head_id_at(&game->units, x, y);
+    }
+  }
+  if (uid >= 0) {
+    game_request_disband_unit(game, uid);
+    return;
+  }
+  set_status(game, "", NULL);
+  if (!cheats) {
+    return;
+  }
+  const ColonizeColony* col = colonies_find_at_xy(&game->colonies, x, y);
+  if (col) {
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = col->name;
+    game_enqueue_yes_no(game, GAME_MAP_CONFIRM_DISBAND_COLONY, col->id, "SUREDISBAND", "", &tok);
+    return;
+  }
+  if (game->col1_ok && game->world_map_ok) {
+    units_set_combat_popups(&game->ai_popups, &game->messages);
+    const ColonizeWorld w = game_world(game);
+    (void)units_destroy_village_at_w(&w, x, y);
+  }
 }
 /* ===================== Construction & Europe boycott/buy-construction dialogs (game_do_buy_construction .. game_request_overboard_confirm) ===================== */
 
@@ -1241,6 +1375,22 @@ void game_europe_ask_boycott_buyback(ColonizeGameState* game, int cargo_type) {
   }
 }
 
+/*
+ * Human buy/sell entry gate on a boycotted cargo (FUN_38fd_3502 release branch
+ * raw 61107-61125; keys L = + - _ asm 38fd:5162-51f3 / raw 66059-66100):
+ * `FUN_38fd_05e8` boycott test, then `FUN_38fd_2dfe`, which for a human raises
+ * @KISSUP and returns 0 on EVERY path (even after Pay), so the trade is
+ * aborted whatever the answer. True = boycotted, @KISSUP raised, caller stops.
+ */
+bool game_europe_boycott_gate(ColonizeGameState* game, int cargo_type) {
+  if (!game || !game->europe_ok || !game->col1_ok || game->human_nation < 0 ||
+      !europe_cargo_boycotted_ex(&game->europe, &game->col1, game->human_nation, cargo_type)) {
+    return false;
+  }
+  game_europe_ask_boycott_buyback(game, cargo_type);
+  return true;
+}
+
 void game_request_buy_construction_confirm(ColonizeGameState* game) {
   if (!game || !game->in_colony) {
     return;
@@ -1338,7 +1488,6 @@ void game_request_overboard_confirm(ColonizeGameState* game) {
   }
   const int sid = game->units.selected_id;
   if (sid < 0 || !units_is_transport(&game->units, sid)) {
-    set_status(game, "No cargo to dump", NULL);
     return;
   }
   const ColonizeUnit* u = units_get_const(&game->units, sid);
@@ -1364,7 +1513,6 @@ void game_request_overboard_confirm(ColonizeGameState* game) {
     rows++;
   }
   if (rows <= 0) {
-    set_status(game, "No cargo to dump", NULL);
     return;
   }
   /* Cancel row text = LABELS @MISC[32], the same "nothing" row @TRADEWHICH uses. */

@@ -1,0 +1,26 @@
+# Fixture: map_found_colony start (France 1599, Preacher selected at (44,22)). Nothing in the game is touched.
+# The Alt-W, Alt-I, Alt-N unlock writes head.game_options.cheats_enabled (DS:0x5383 bit5, FUN_2b5a_3094 raw 45007) and the CHEAT title follows it.
+# Unlike map_cheat_*, this test does NOT end with Alt-W: the saved bit stays set, the only difference from input.sav.
+# The counter DS:0xb92 advances only on the exact next key and any other key resets it (FUN_2b5a_32a2): Alt-W, Alt-I, Alt-C (COLONIZOPEDIA menu), Escape, Alt-N leaves CHEAT hidden.
+key w alt
+key i alt
+key c alt                # any other key resets the sequence (opens the COLONIZOPEDIA menu)
+key Escape               # closes the menu only
+key n alt
+key c alt                # still locked: Alt-C opens COLONIZOPEDIA again
+shot
+key Escape
+key w alt
+key w alt                # a second Alt-W does not restart the sequence (counter 1 expects I)
+key i alt
+key n alt
+key c alt                # still locked: COLONIZOPEDIA
+shot
+key Escape
+key w alt
+key i alt
+key n alt                # unlocked: CHEAT title appears, bit set
+shot
+key c alt                # Alt-C opens the CHEAT menu
+shot
+key Escape

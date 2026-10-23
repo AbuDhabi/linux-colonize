@@ -349,8 +349,8 @@ native attack that *loses at a colony* — DOS routes that limb to
 `FUN_5fef_0f14` instead, whose own tail clear then fires.
 
 A table-alignment fix from that pass (shifting `indian_tension` alongside the
-tribe array in `col1_destroy_tribe_at`, mirroring `ai.c`'s whole-nation kill
-remap) was **deleted 2026-09-08**: with the word living *inside* the tribe
+tribe array in `col1_destroy_tribe_at`, mirroring the since-deleted whole-nation
+kill remap) was **deleted 2026-09-08**: with the word living *inside* the tribe
 record there is nothing to keep aligned — both compactions carry it for free.
 That was always the tell that 0x54f6 sat inside the record (`0x54f6 ==
 0x54ec + 10`, stride `0x12`).

@@ -46,6 +46,17 @@ extern int turn_prod_skip_nation;
 extern bool turn_prod_skip_set;
 bool turn_prod_nation_in_scope(int nation_id);
 typedef void (*TurnColonyBeforeProduction)(void* user, ColonizeColony* colony);
+/* One colony's FUN_364b_0688: coastal fort, claim stamp, plot recompute, `before`, production. */
+void turn_run_one_colony_production_w(
+  const ColonizeWorld* w,
+  ColonizeColony* colony,
+  int human_nation,
+  ColonizeTurnResult* out,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages,
+  TurnColonyBeforeProduction before,
+  void* before_user
+);
 void turn_run_colony_production_with_w(
   const ColonizeWorld* w,
   int human_nation,

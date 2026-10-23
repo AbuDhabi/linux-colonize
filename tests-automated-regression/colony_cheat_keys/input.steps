@@ -1,0 +1,23 @@
+# Fixture: colony_building_assignment's Quebec (France, 6 colonists), head.game_options.cheats_enabled (DS:0x5383 bit5) = 1 in the save.
+# Colony-screen cheat keys, only with the bit set (FUN_2f2b_6372 tail, 2f2b:63c2).
+click 168 128            # open Quebec; colonist 0 is selected
+wait 10
+shot
+key space              # Space: FUN_364b_0688 on Quebec, one extra production tick
+shot
+key t shift              # T: a unit-less Free Colonist joins (pop 7)
+key t                    # t: same arm (pop 8)
+shot
+key s shift              # S: selected colonist 0 gets the profession of his job
+key 4 shift              # $: France +1000 gold
+click 67 188             # select cotton in the warehouse (no ship in port: only selects)
+shot
+key 5 shift              # %: cotton +100
+key 5 shift              # %: cotton +100
+key 6 shift              # ^: cotton -100
+click 124 188            # select ore
+key 6 shift              # ^: ore 4 -> 0 (clamped)
+shot
+key 1 shift              # !: every building
+shot
+key Escape               # back to the map

@@ -3389,6 +3389,106 @@ static int unit_buildable_blank_name_tier(void) {
   return 0;
 }
 
+/*
+ * Colony-screen cheat keys (FUN_2f2b_6372 tail, port_bugs.md #1173 part 3):
+ * the state helpers behind T / S / % / ^ / !.
+ */
+static int unit_colony_cheat_helpers(void) {
+  const int failures_before = failures;
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  /* One type per @BUILDING row 0..41, row == slot (a loaded pool's shape). */
+  for (int r = 0; r <= COLONY_BUILDING_IRON_WORKS; ++r) {
+    snprintf(pool.building_types[r].name, sizeof(pool.building_types[r].name), "B%d", r);
+    pool.building_types[r].row_plus1 = r + 1;
+  }
+  /* A type that names no @BUILDING row is left alone. */
+  snprintf(pool.building_types[42].name, sizeof(pool.building_types[42].name), "Unrowed");
+  pool.building_type_count = 43;
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->id = 0;
+  c->active = true;
+  c->nation_id = 1;
+  c->building_in_production = -1;
+  pool.colony_count = 1;
+  for (int i = 0; i < 2; ++i) {
+    c->colonists[i].active = true;
+    c->colonists[i].profession = 3;
+    c->colonists[i].building_type = -1;
+    c->colonists[i].field_job = COLONIZE_JOB_FISHERMAN;
+  }
+  c->colonist_count = 2;
+  c->population = 2;
+
+  /* T: a unit-less Free Colonist on field job 0, no plot, headcount + 1. */
+  CHECK(colonies_cheat_add_colonist(&pool, c, 7), "cheat T adds a colonist");
+  CHECK(c->colonist_count == 3 && c->population == 3, "cheat T headcount 3");
+  CHECK(c->colonists[2].active && c->colonists[2].unit_type_index == 7 &&
+          c->colonists[2].profession == UNITS_JOB_NONE &&
+          c->colonists[2].field_job == 0 && c->colonists[2].building_type == -1 &&
+          c->colonists[2].turns_in_job == 0,
+        "cheat T colonist: Free Colonist profession, food job, unseated");
+  while (c->colonist_count < COLONIZE_COLONY_POP_MAX) {
+    (void)colonies_cheat_add_colonist(&pool, c, 0);
+  }
+  CHECK(!colonies_cheat_add_colonist(&pool, c, 0) &&
+          c->colonist_count == COLONIZE_COLONY_POP_MAX,
+        "cheat T refuses past the pop cap");
+
+  /* S: profession := current occupation job. */
+  CHECK(colonies_cheat_profession_from_job(&pool, c, 0) &&
+          c->colonists[0].profession == COLONIZE_JOB_FISHERMAN,
+        "cheat S: fisherman becomes an Expert Fisherman");
+  c->colonists[1].field_job = -1;
+  c->colonists[1].building_type = -1;
+  c->colonists[1].idle_job1 = (uint8_t)(UNITS_JOB_DRAGOON + 1); /* occupation 0x17 */
+  CHECK(colonies_cheat_profession_from_job(&pool, c, 1) &&
+          c->colonists[1].profession == UNITS_JOB_SOLDIER,
+        "cheat S folds occupation 0x17 to Soldier (FUN_15eb_0e8c)");
+  CHECK(!colonies_cheat_profession_from_job(&pool, c, -1) &&
+          !colonies_cheat_profession_from_job(&pool, c, COLONIZE_COLONY_POP_MAX),
+        "cheat S: no colonist, nothing happens");
+
+  /* % / ^: +100 uncapped, -100 clamped at 0; a bad good changes nothing. */
+  c->stock[COLONIZE_CARGO_SUGAR] = 50;
+  colonies_cheat_stock_add(c, COLONIZE_CARGO_SUGAR, 100);
+  CHECK(c->stock[COLONIZE_CARGO_SUGAR] == 150, "cheat % +100");
+  colonies_cheat_stock_add(c, COLONIZE_CARGO_SUGAR, -100);
+  CHECK(c->stock[COLONIZE_CARGO_SUGAR] == 50, "cheat ^ -100");
+  colonies_cheat_stock_add(c, COLONIZE_CARGO_SUGAR, -100);
+  CHECK(c->stock[COLONIZE_CARGO_SUGAR] == 0, "cheat ^ clamps at 0");
+  c->stock[COLONIZE_CARGO_TOOLS] = 1000;
+  colonies_cheat_stock_add(c, COLONIZE_CARGO_TOOLS, 100);
+  CHECK(c->stock[COLONIZE_CARGO_TOOLS] == 1100, "cheat % ignores warehouse capacity");
+  colonies_cheat_stock_add(c, -1, 100);
+  colonies_cheat_stock_add(c, COLONIZE_CARGO_COUNT, 100);
+  CHECK(c->stock[COLONIZE_CARGO_FOOD] == 0, "cheat %: out-of-range good ignored");
+
+  /* !: every building but rows 10, 11, 16, 30, 31; both level bytes +1. */
+  c->warehouse_level = 0;
+  c->capitol_level = 0;
+  c->custom_house_bits = 0x1234;
+  colonies_cheat_all_buildings(&pool, c);
+  for (int r = 0; r <= COLONY_BUILDING_IRON_WORKS; ++r) {
+    const bool skipped = r == 10 || r == 11 || r == 16 || r == 30 || r == 31;
+    if (c->has_building[r] == skipped) {
+      fprintf(stderr, "FAIL: cheat ! row %d has_building=%d\n", r, (int)c->has_building[r]);
+      failures++;
+    }
+  }
+  CHECK(!c->has_building[42], "cheat !: a type with no @BUILDING row stays unbuilt");
+  CHECK(c->warehouse_level == 1 && c->capitol_level == 1, "cheat ! bumps +0x95 / +0x96");
+  CHECK(c->custom_house_bits == 0x1234, "cheat ! leaves the Custom House goods mask");
+  colonies_cheat_all_buildings(&pool, c);
+  CHECK(c->warehouse_level == 2 && c->capitol_level == 2, "cheat ! again: levels 2");
+  c->warehouse_level = 255;
+  colonies_cheat_all_buildings(&pool, c);
+  CHECK(c->warehouse_level == 0, "cheat ! level byte wraps like DOS INC byte");
+  return failures != failures_before;
+}
+
 static const TestCase k_cases[] = {
     {"unit_colonies_core", case_colonies_core},
     {"colony_delete_appends_next", case_colony_delete_appends_next},
@@ -3415,5 +3515,6 @@ static const TestCase k_cases[] = {
     {"unit_work_plot_ring_593", unit_work_plot_ring_593},
     {"unit_settlement_count_and_name_peek", unit_settlement_count_and_name_peek},
     {"unit_buildable_blank_name_tier", unit_buildable_blank_name_tier},
+    {"unit_colony_cheat_helpers", unit_colony_cheat_helpers},
 };
 TEST_MAIN(k_cases)

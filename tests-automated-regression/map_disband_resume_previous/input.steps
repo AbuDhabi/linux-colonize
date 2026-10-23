@@ -1,0 +1,8 @@
+# Disband resumes at the previous unit (port_bugs.md #1168; DOS FUN_1427_0824 tail steps the active index back
+# to the previous pool slot, FUN_2b5a_0e52 keeps it while FUN_1427_1410 holds). Fixture: Dragoon (id 136) is
+# selected in the colony tile Quebec (45,24); the unit before it in the pool, Colonist (id 135) at (43,25), is
+# awake with full moves. Lowest-id rule would pick Caravel A (id 84) instead.
+key d shift
+click 160 96               # @SUREDISBAND Yes: the Dragoon is gone, Colonist 135 is selected, not Caravel A
+shot
+wait 5

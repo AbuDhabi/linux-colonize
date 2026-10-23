@@ -1045,24 +1045,8 @@ void colony_screen_draw_cargo_strip(
 
     if (font) {
       char amount[16];
-      int delta = 0;
-      if (view && view->last_delta_valid) {
-        delta = view->last_delta.goods[i];
-      }
       /* Player-reported: 2px lower than before. */
       const int num_y = COLONY_CARGO_NUM_Y + 2;
-      if (delta != 0) {
-        /* This-turn production delta suffix — a separate, not golden-
-         * verified display mode; left as a single flat color (unaffected
-         * by this fix) rather than guessing how it'd interact with the
-         * hundreds/Custom-House split above. */
-        snprintf(amount, sizeof(amount), "%d%+d", colony->stock[i], delta);
-        const int tw = font_text_width_skip(font, amount, FONT_SKIP_NONE);
-        const int tx = slot_x + (COLONY_CARGO_SLOT_W - tw) / 2;
-        const uint8_t col = delta > 0 ? 10 : 12;
-        font_draw_text(font, framebuffer, tx, num_y, amount, col);
-        continue;
-      }
       snprintf(amount, sizeof(amount), "%d", colony->stock[i]);
       const int tw = font_text_width_skip(font, amount, FONT_SKIP_NONE);
       const int tx = slot_x + (COLONY_CARGO_SLOT_W - tw) / 2;

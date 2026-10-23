@@ -154,6 +154,8 @@ void ai_king_1d42_royal_purse(ColonizeTurnContext* ctx);
 void ai_king_apply_dump_goods_choice(ColonizeTurnContext* ctx, int human, int cargo);
 int ai_king_colony_sol_at(const ColonizeTurnContext* ctx, int nation_id, int x, int y);
 void ai_king_do_declare(ColonizeTurnContext* ctx, int human);
+/* FUN_43f7_1528 @INTERVENTION announce (also CHEAT Advance Revolution stage 3). */
+void ai_king_1528_announce(ColonizeTurnContext* ctx, int human);
 int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, int hy,
                                    int regular_count, int artillery_or_cavalry_roll, int price);
 int ai_king_do_merc_peace_hire(

@@ -135,12 +135,11 @@ void indian_unit_act(int unit_index) {
  * +2 nation byte matches, `PUSH i; PUSH CS; CALL 4c22` -> record 281f:1248 ->
  * FUN_4d56_00e0(i). Descending order is load-bearing: 00e0 compacts the array.
  *
- * 2026-09-08: DEAD CODE in the shipped VICEROY.EXE. 01e2 is absent from
- * overlay 0x0C's 15-entry export stub table (4d56:4c22..4c6c), no near
- * CALL/JMP anywhere in segment 4d56 resolves to 0x01e2, and no overlay bank
- * record JMPFs to it. Nothing calls it; nothing to port. (docs/port_plan.md's
- * "per-tribe act plumbing" description of 01e2 is wrong.) OpenCol's
- * col1_kill_indian_nation is a wider OpenCol-only helper, not a port of this.
+ * LIVE (2026-10-22; the 2026-09-08 "dead code" reading missed the thunk): the
+ * Shift-F6 Kill Indians CHEAT case 0x67 calls 291f:0442, which is
+ * `JMPF 4d56:01e2` (bytes between FUN_291f_0436 and FUN_291f_044e). Not in
+ * overlay 0x0C's export stub table, which is why the stub scan missed it.
+ * Port: units_destroy_tribe_nation_w (src/core/units_combat.c).
  */
 void indian_wipe_tribe_settlements(int indian_index) {
   int nation = indian_index + 4;
@@ -148,7 +147,7 @@ void indian_wipe_tribe_settlements(int indian_index) {
   for (int i = tribe_count - 1; i >= 0; --i) {
     ViceroyTribe* tr = VICEROY_TRIBE_AT(i);
     if ((int)tr->nation_id == nation) {
-      /* FUN_4d56_00e0 — OpenCol col1_destroy_tribe_at. */
+      /* FUN_4d56_00e0 — OpenCol col1_destroy_tribe_index. */
       (void)i;
     }
   }

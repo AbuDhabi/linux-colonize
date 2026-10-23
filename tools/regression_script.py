@@ -14,9 +14,11 @@ changed. --bless copies the run's actual.sav to output.sav.
 Step script, one step per line, `#` starts a comment; x/y are 320x200
 logical screen pixels:
 
-  key NAME [shift|ctrl|alt]   tap a key: a-z, 0-9, - =, Return, Escape, space,
+  key NAME [shift|ctrl|alt]   tap a key: a-z, 0-9, - = [ ], Return, Escape, space,
                               Backspace, Delete, Tab, Up/Down/Left/Right,
-                              KP_1..KP_9, KP_Enter, F1..F10, Home, End
+                              KP_1..KP_9, KP_Enter, F1..F10, Home, End.
+                              With shift the typed character follows the US layout
+                              for 0-9 - = (`key 4 shift` types `$`).
   click X Y [shift|ctrl|alt]  left click
   rclick X Y                  right click
   dclick X Y                  double click
@@ -43,6 +45,8 @@ KEYS = {'Return': 13, 'Escape': 27, 'space': 32, 'Backspace': 8, 'Tab': 9, 'Dele
         'KP_Enter': 0x40000058, 'Home': 0x4000004A, 'End': 0x4000004D}
 KEYS.update({f'KP_{n}': 0x40000059 + n - 1 for n in range(1, 10)})
 KEYS.update({f'F{n}': 0x4000003A + n - 1 for n in range(1, 11)})
+# Shifted text of the digit/punctuation keys (US layout); letters just upper-case.
+SHIFTED = dict(zip('1234567890-=', '!@#$%^&*()_+'))
 # SDL left modifier keys and their KMOD bits.
 MODS = {'shift': (0x400000E1, 0x0001), 'ctrl': (0x400000E0, 0x0040), 'alt': (0x400000E2, 0x0100)}
 
@@ -50,7 +54,7 @@ MODS = {'shift': (0x400000E1, 0x0001), 'ctrl': (0x400000E0, 0x0040), 'alt': (0x4
 def keycode(name):
     if name in KEYS:
         return KEYS[name]
-    if len(name) == 1 and (name.isdigit() or name.islower() or name in '-='):
+    if len(name) == 1 and (name.isdigit() or name.islower() or name in '-=[]'):
         return ord(name)
     raise ValueError(f'unknown key {name!r}')
 
@@ -104,7 +108,7 @@ def compile_steps(lines):
                     mod = MODS[args[1]][1] if len(args) > 1 else 0
                     rec('key_down', keycode=code, mod=mod)
                     if 32 <= code < 127 and not (mod & 0x0140):
-                        ch = chr(code).upper() if mod & 1 else chr(code)
+                        ch = SHIFTED.get(chr(code), chr(code).upper()) if mod & 1 else chr(code)
                         rec('text', text=ch)
                     frame += 3
                     rec('key_up', keycode=code, mod=mod)

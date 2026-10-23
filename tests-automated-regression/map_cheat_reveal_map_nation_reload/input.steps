@@ -1,0 +1,4 @@
+# Fixture: map_cheat_reveal_map_nation's output (France 1599, human = French, English Reveal Map view: fixed_nation_map_view = curr_nation_map_view = 0).
+# The reload keeps the head's view (the fog derives from DS:0x53a4, not from a session flag) and re-saves byte-identical; the shot shows the English fog
+# (port_bugs.md #1170).
+shot

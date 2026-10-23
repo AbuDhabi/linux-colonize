@@ -1,0 +1,21 @@
+# Fixture: map_found_colony start (France 1599, Preacher selected at (44,22)) with head.game_options.cheats_enabled (DS:0x5383 bit5) = 1 in the save
+# (sav_json edit of map_cheat_menu_toggle's input.sav; re-saved through a no-op replay, so no load noise).
+# A loaded save with the bit set shows the CHEAT title straight away (FUN_75c2_0940, raw 111353) and the Shift-F cheat rows work without the Alt-WIN sequence.
+# With the bit set any of Alt-W/I/N toggles it off (FUN_2b5a_3094); the test then unlocks again and turns it off with Alt-I. The save ends with the bit clear (only diff).
+wait 5
+shot                     # CHEAT title visible on load
+key F1 shift             # Shift-F1 = Create Unit list (cheat key, no unlock needed)
+shot
+key Escape               # cancel the list, nothing created
+key w alt                # bit set: Alt-W clears it, CHEAT title gone
+key c alt                # hidden: COLONIZOPEDIA menu
+shot
+key Escape
+key w alt
+key i alt
+key n alt                # unlocked again
+shot
+key i alt                # Alt-I also clears the bit while it is set
+key c alt                # hidden again: COLONIZOPEDIA menu
+shot
+key Escape

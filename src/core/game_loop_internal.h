@@ -37,6 +37,13 @@ static inline ColonizeWorld game_world(ColonizeGameState* game) {
   return w;
 }
 
+/* DS:0x5383 bit 5 (head.game_options.cheats_enabled): the DOS cheat gate
+ * (FUN_2b5a_3094 toggles it; FUN_74a4_0000 / FUN_75c2_0940 derive the CHEAT
+ * menu from it; FUN_38fd_4f6e gates the Europe $ [ ] keys). port_bugs.md #1169. */
+static inline bool game_cheats_enabled(const ColonizeGameState* game) {
+  return game->col1_ok && game->col1.head.game_options.cheats_enabled;
+}
+
 /* Render paths hold a const game; their callees only read the pools. */
 static inline ColonizeWorld game_world_const(const ColonizeGameState* game) {
   return game_world((ColonizeGameState*)game);
@@ -274,6 +281,11 @@ bool game_colony_request_eject(
 );
 void game_colony_select_colonist(ColonizeGameState* game, int colonist_index);
 void game_colony_select_outside(ColonizeGameState* game, int unit_id);
+/* Colony-screen cheat keys, FUN_2f2b_6372 tail (game_loop_colony.c). */
+bool game_colony_cheat_key(
+  ColonizeGameState* game, ColonizeColony* colony, ColonyScreenView* csv, char ch
+);
+bool game_colony_cheat_produce(ColonizeGameState* game, ColonizeColony* colony);
 void game_commit_new_campaign(ColonizeGameState* game);
 void game_do_end_turn(ColonizeGameState* game);
 bool game_end_turn_prompt_active(const ColonizeGameState* game);
@@ -287,8 +299,11 @@ bool game_europe_menu_confirm(ColonizeGameState* game);
 void game_europe_request_sail(ColonizeGameState* game, int hidx);
 void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* result);
 int game_fog_nation(const ColonizeGameState* game);
+/* CHEAT Set Human Player (DOS case 0x66), nation 0..3; see game_loop_saveload.c. */
+bool game_cheat_set_human(ColonizeGameState* game, int n, char* err, size_t err_size);
 bool game_fortify_treaty_confirm(ColonizeGameState* game, int uid);
 void game_handle_report_fkey(ColonizeGameState* game, ColonizeKey key);
+void game_open_score_report(ColonizeGameState* game);
 const ColonizeSpriteSheet* game_icons(const ColonizeGameState* game);
 int game_issue_goto(ColonizeGameState* game, int uid, int dest_x, int dest_y);
 void game_join_colony_order(ColonizeGameState* game);

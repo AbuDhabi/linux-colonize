@@ -1,0 +1,11 @@
+# Fixture: europe_equip_units' Europe base (England, 60000 gold, tax 6%, six dock colonists); cheats_enabled (DS:0x5383 bit5) clear.
+# The Europe cheat keys `$` `]` `[` are gated on that bit (FUN_38fd_4f6e raw 66304-66325), so with it clear they change nothing: the save equals input.sav.
+key e                    # open the European Status screen
+wait 10
+shot
+key 4 shift              # $: ignored
+key ]                    # ignored
+key ]
+key [
+shot
+key e                    # leave Europe

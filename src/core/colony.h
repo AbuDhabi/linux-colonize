@@ -439,6 +439,16 @@ int colonies_building_type_row(const ColonizeColonyPool* pool, int type_index);
 int colonies_colonist_occupation_job(const ColonizeColonyPool* pool, const ColonizeColonist* c);
 /* Call before dropping colonists[colonist_count - 1]: keeps its Col1 bytes as the stale tail. */
 void colonies_colonist_tail_stash(const ColonizeColonyPool* pool, ColonizeColony* col);
+/* Colony-screen cheat keys (FUN_2f2b_6372 tail; callers gate on cheats_enabled).
+ * T / S / % ^ / ! — docs/colony.md "Colony-screen cheat keys". */
+bool colonies_cheat_add_colonist(
+  ColonizeColonyPool* pool, ColonizeColony* col, int colonist_type_index
+);
+bool colonies_cheat_profession_from_job(
+  const ColonizeColonyPool* pool, ColonizeColony* col, int colonist_index
+);
+void colonies_cheat_stock_add(ColonizeColony* col, int cargo, int delta);
+void colonies_cheat_all_buildings(const ColonizeColonyPool* pool, ColonizeColony* col);
 /* Test-only seam, same purpose as units_set_name_kind_resolver: fixtures that
  * build a pool out of names get their rows from tests/common. */
 typedef int (*ColoniesBuildingNameRowResolver)(const char* name);

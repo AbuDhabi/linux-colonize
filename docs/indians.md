@@ -75,11 +75,16 @@ the truth is the 15-entry JMPF stub table at `4d56:4c22..4c6c`,
 - `FUN_4d56_01e2` (`4d56:01e2..0219`) is **not** act plumbing: it is the
   tribe-wipe helper — `nation = arg + 4`, descending walk of the tribe array
   (`DS:0x54ec`, stride `0x12`, count `DS:0x539a`), `FUN_4d56_00e0(i)` for every
-  row whose `+2` nation byte matches. It is **dead code** in the shipped EXE
-  (absent from the export stub table, no near CALL/JMP in segment `4d56`, no
-  bank record targets it), so there is nothing to port. `col1_kill_indian_nation`
-  (`ai.c`) is an OpenCol invention with a wider blast radius; `col1_destroy_tribe_at`
-  (`units.c`) is the real `00e0` port.
+  row whose `+2` nation byte matches. **Live, reached by the Shift-F6 Kill
+  Indians cheat** (2026-10-22 correction of the 2026-09-08 "dead code" claim,
+  which only looked for near calls and the 15-entry stub table): CHEAT case
+  `0x67` calls `291f:0442`, a `JMPF 4d56:01e2` thunk (bytes between
+  `FUN_291f_0436` and `FUN_291f_044e`). Port: `units_destroy_tribe_nation_w`
+  (`units_combat.c`) over `col1_destroy_tribe_index` (the real `00e0` port;
+  `col1_destroy_tribe_at` is its xy wrapper). Nothing but `00e0` per village
+  happens: no owner-nibble repaint, no `indian[]` reset, no diplomacy clear,
+  units without a home village survive. The invented `ai_kill_indian_nation_w`
+  is deleted.
 - `FUN_4d56_14fe` (`4d56:14fe..152c`) is **faithful** and is three branches
   only: `dir = FUN_4d56_021a(unit)`; `dir != 8` → `FUN_2a1f_0150` (→ `465b`
   step); else `FUN_281f_0934` (exhaust MP — the guarding `dir >= 0` test is
