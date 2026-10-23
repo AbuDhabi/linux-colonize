@@ -1123,7 +1123,7 @@ const char* const* colonies_building_chain(int chain) {
  * Expansion has none (FUN_364b_0114 only INCs +0x95 for it, col1_bridge.c
  * restores the port's tier from that level), so DOS reads 0 there.
  */
-static bool colonies_dos_owns_row(
+bool colonies_dos_owns_row(
   const ColonizeColonyPool* pool, const ColonizeColony* col, int row
 ) {
   return row != COLONY_BUILDING_WAREHOUSE_EXPANSION &&

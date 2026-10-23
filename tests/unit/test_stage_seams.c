@@ -1710,6 +1710,16 @@ static int test_colony_construction_two_pages_live(void) {
   if (rc == 0 && (csv->construction_selection != row || csv->more_selected)) {
     rc = fail("back on page 0 the bar is on the project again");
   }
+  /* port_bugs.md #1223: picking that "(COMPLETE)" row keeps the project and clears +0x1c bit
+   * 0x80 with no message (FUN_2f2b_5bd2 raw 52665-52667). */
+  col->colony_flags |= COLONIZE_COLONY_FLAG_BUILD_COMPLETE;
+  game.colony_view_id = col->id;
+  game_colony_commit_construction(&game, shipyard);
+  if (rc == 0 && (col->building_in_production != shipyard ||
+                  (col->colony_flags & COLONIZE_COLONY_FLAG_BUILD_COMPLETE) ||
+                  ai_popup_busy(&game.ai_popups) || csv->construction_open)) {
+    rc = fail("the (COMPLETE) pick keeps the project silently");
+  }
   colony_screen_close_construction(csv);
   fx_map_free(&game.world_map);
   assets_msg_free(&names);

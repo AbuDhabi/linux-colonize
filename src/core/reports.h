@@ -372,6 +372,7 @@ void reports_render_hall_of_fame(
   const ColonizeReportsView* view,
   const ColonizeHofRow* entries,
   int entry_count,
+  int inserted, /* FUN_41f2_0f56 local_156: the Retire entry's slot, -1 from the title menu */
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer
 );

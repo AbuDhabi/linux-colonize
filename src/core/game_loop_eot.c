@@ -936,10 +936,10 @@ static bool game_hof_entry_outranks(const ColonizeHofEntry* a, const ColonizeHof
 }
 
 /* Insert into game->hof_entries, keeping desc-by-rating order, capped at
- * COLONIZE_HOF_MAX. */
-void game_hof_insert(ColonizeGameState* game, const ColonizeHofEntry* entry) {
+ * COLONIZE_HOF_MAX. Returns the slot taken, -1 when it did not make the cut. */
+int game_hof_insert(ColonizeGameState* game, const ColonizeHofEntry* entry) {
   if (!game || !entry) {
-    return;
+    return -1;
   }
   int count = game->hof_count;
   if (count > COLONIZE_HOF_MAX) {
@@ -949,7 +949,7 @@ void game_hof_insert(ColonizeGameState* game, const ColonizeHofEntry* entry) {
   if (count < COLONIZE_HOF_MAX) {
     ++count;
   } else if (count == 0 || !game_hof_entry_outranks(entry, &game->hof_entries[count - 1])) {
-    return; /* table full and this score does not make the cut */
+    return -1; /* table full and this score does not make the cut */
   } else {
     pos = count - 1;
   }
@@ -959,6 +959,7 @@ void game_hof_insert(ColonizeGameState* game, const ColonizeHofEntry* entry) {
   }
   game->hof_entries[pos] = *entry;
   game->hof_count = count;
+  return pos;
 }
 
 void game_hof_load(ColonizeGameState* game) {

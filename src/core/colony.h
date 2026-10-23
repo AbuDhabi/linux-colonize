@@ -438,6 +438,10 @@ bool colonies_has_building_row(
 
 /* @BUILDING row of a pool slot, or -1. */
 int colonies_building_type_row(const ColonizeColonyPool* pool, int type_index);
+/* FUN_15eb_038e(row): the colony's DOS +0x84 bit (never set for Warehouse Expansion). */
+bool colonies_dos_owns_row(
+  const ColonizeColonyPool* pool, const ColonizeColony* col, int row
+);
 /* Col1 occupation byte (@JOB id) of a colonist: field job, building's job, else Free Colonist. */
 int colonies_colonist_occupation_job(const ColonizeColonyPool* pool, const ColonizeColonist* c);
 /* Call before dropping colonists[colonist_count - 1]: keeps its Col1 bytes as the stale tail. */

@@ -786,6 +786,7 @@ void reports_render_hall_of_fame(
   const ColonizeReportsView* view,
   const ColonizeHofRow* entries,
   int entry_count,
+  int inserted,
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb
 ) {
@@ -814,15 +815,25 @@ void reports_render_hall_of_fame(
   int y = 0x10;
   char line[200];
   const int shown = entry_count > COLONIZE_HOF_SHOWN_MAX ? COLONIZE_HOF_SHOWN_MAX : entry_count;
+  /* DOS holds 6 slots (slot 5 = the catch-all an insert takes when it outranks no shown row). */
+  if (inserted > COLONIZE_HOF_SHOWN_MAX) {
+    inserted = COLONIZE_HOF_SHOWN_MAX;
+  }
   for (int i = 0; i < shown; ++i) {
     const ColonizeHofRow* e = &entries[i];
+    /* DOS-LITERAL asm 41f2:12b2-12ef (port_bugs.md #1219): local_6 = the line, 5 on the last line
+     * when the insert (local_156) took slot 5; the number is local_6 + 1 and the ink DS:0x831
+     * when local_6 == local_156, else DS:0x830. Every field still reads slot local_15c (SI at
+     * 12ca / 1336 / 13a4), so a 6th-place retire shows the 5th entry numbered "6." in hilite. */
+    const int num = (i == 4 && inserted == 5) ? 5 : i;
+    const uint8_t ink = num == inserted ? COLONIZE_COL_HILITE : COLONIZE_COL_BASIC;
     y += 4;
     const char* diff_name = reports_difficulty_title(e->difficulty);
     snprintf(
       line,
       sizeof(line),
       "%d. %s %s %s %s%s%s",
-      i + 1,
+      num + 1,
       diff_name,
       e->leader,
       reports_misc_word(19, "", w1, sizeof(w1)),
@@ -830,7 +841,7 @@ void reports_render_hall_of_fame(
       e->declared ? " " : "",
       e->nation
     );
-    reports_hof_draw(font, fb, 0xa, 0, y, line, COLONIZE_COL_BASIC);
+    reports_hof_draw(font, fb, 0xa, 0, y, line, ink);
     y += fh + 2;
 
     char title[120];
@@ -867,7 +878,7 @@ void reports_render_hall_of_fame(
       reports_misc_word(198, "", w3, sizeof(w3)),
       e->score
     );
-    reports_hof_draw(font, fb, 0xa + 0xf, 0, y, line, COLONIZE_COL_BASIC);
+    reports_hof_draw(font, fb, 0xa + 0xf, 0, y, line, ink);
     y += fh + 2;
 
     snprintf(
@@ -877,7 +888,7 @@ void reports_render_hall_of_fame(
       reports_misc_word(199, "", w1, sizeof(w1)),
       e->rating
     );
-    reports_hof_draw(font, fb, 0, 0x140, y, line, COLONIZE_COL_BASIC);
+    reports_hof_draw(font, fb, 0, 0x140, y, line, ink);
     y += fh + 1;
   }
 }
