@@ -3288,6 +3288,21 @@ static int unit_construction_rows_are_dos(void) {
     fprintf(stderr, "no-tools construction row: '%s' want '%s'\n", row, want);
     rc = 1;
   }
+  /* port_bugs.md #1223: a built Warehouse Expansion has no DOS +0x84 bit, so it reads its cost. */
+  const int wx = colonies_building_row(&pool, COLONY_BUILDING_WAREHOUSE_EXPANSION);
+  view.buildable_ids[1] = wx;
+  colony.has_building[wx] = true;
+  bt = colonies_building_type(&pool, wx);
+  snprintf(want, sizeof(want), "%s |   (0 %s)", test_upper(bt->name), hammers);
+  if (bt->tools_cost) {
+    snprintf(want + strlen(want), sizeof(want) - strlen(want), "(%d %s)", bt->tools_cost, tools);
+  }
+  colony_screen_construction_row_text(&view, &pool, &colony, 2, row, sizeof(row), prefix,
+                                      sizeof(prefix));
+  if (strcmp(row, want) != 0) {
+    fprintf(stderr, "built warehouse expansion row: '%s' want '%s'\n", row, want);
+    rc = 1;
+  }
   assets_msg_free(&names);
   return rc;
 }

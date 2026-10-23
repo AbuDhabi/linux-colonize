@@ -538,7 +538,7 @@ void game_open_report(ColonizeGameState* game, ColonizeReportId id) {
   diag_info("Opened report %s (%s)", reports_title(id), reports_background_name(id));
 }
 
-void game_hof_insert(ColonizeGameState* game, const ColonizeHofEntry* entry);
+int game_hof_insert(ColonizeGameState* game, const ColonizeHofEntry* entry);
 void game_hof_save(const ColonizeGameState* game);
 
 /* NAMES.TXT section row (comma field 0), trimmed; false when missing. */
@@ -698,7 +698,7 @@ void game_retire_after_score(ColonizeGameState* game) {
   entry.rating = sc.rating;
   entry.declared = sc.independence_declared;
   entry.achieved = sc.independence_achieved;
-  game_hof_insert(game, &entry);
+  game->hof_inserted = game_hof_insert(game, &entry);
   game_hof_save(game);
 
   if (sc.exploits_tier >= 0 && !sc.scoring_complete) {

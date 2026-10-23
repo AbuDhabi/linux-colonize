@@ -2578,6 +2578,7 @@ void activate_menu_selection(ColonizeGameState* game) {
     case TITLE_MENU_ROW_HALL_OF_FAME: {
     game->in_menu = false;
     game->in_hall_of_fame = true;
+    game->hof_inserted = -1; /* FUN_41f2_0f56(NULL): local_156 stays -1 */
     set_status(game, "Menu", "hall");
     return;
     }

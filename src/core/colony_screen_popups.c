@@ -345,7 +345,10 @@ COLONIZE_INTERNAL void colony_screen_construction_row_text(
       *p = (char)(*p - 0x20);
     }
   }
-  const bool owned = bt && colony && bid < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[bid];
+  /* FUN_281f_09fc = FUN_15eb_038e, the +0x84 bit: a built Warehouse Expansion has none and
+   * reads its cost (port_bugs.md #1223). */
+  const bool owned = bt && colony && colonies_dos_owns_row(pool, colony,
+                                                           colonies_building_type_row(pool, bid));
   size_t n = owned ? (size_t)snprintf(row, row_cap, "%s |   (%s)", upper,
                                       reports_misc_display_word(127, ""))
                    : (size_t)snprintf(row, row_cap, "%s |   (%d %s)", upper, hammers_left,

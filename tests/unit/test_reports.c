@@ -1172,7 +1172,7 @@ static int case_hall_of_fame_layout_is_dos(void) {
   static uint8_t got[320 * 200], want[320 * 200];
   ColonizeFramebuffer8 g = {.width = 320, .height = 200, .pixels = got};
   ColonizeFramebuffer8 w = {.width = 320, .height = 200, .pixels = want};
-  reports_render_hall_of_fame(&g_view, &row, 1, &intr, &g);
+  reports_render_hall_of_fame(&g_view, &row, 1, -1, &intr, &g);
   memset(want, 0, sizeof(want));
   if (g_view.background_ok[COLONIZE_REPORT_SCORE]) {
     pik_blit(&g_view.backgrounds[COLONIZE_REPORT_SCORE], &w, 0, 0);
@@ -1192,6 +1192,41 @@ static int case_hall_of_fame_layout_is_dos(void) {
     fprintf(stderr, "hall of fame: %d px differ (title w %d, line 3 w %d)\n", bad, tw, lw);
     font_file_free(&intr);
     return 1;
+  }
+  /* port_bugs.md #1219 (asm 41f2:12b2-12ef): the inserted slot draws in DS:0x831; an insert
+   * into slot 5 relabels line 5 "6." and hilites it, its fields still slot 4's. */
+  ColonizeHofRow rows[6];
+  for (int k = 0; k < 6; ++k) {
+    rows[k] = row;
+  }
+  static const int k_ins[] = {5, 2, 7};
+  for (size_t t = 0; t < sizeof(k_ins) / sizeof(k_ins[0]); ++t) {
+    reports_render_hall_of_fame(&g_view, rows, 6, k_ins[t], &intr, &g);
+    memset(want, 0, sizeof(want));
+    if (g_view.background_ok[COLONIZE_REPORT_SCORE]) {
+      pik_blit(&g_view.backgrounds[COLONIZE_REPORT_SCORE], &w, 0, 0);
+    }
+    font_draw_text_shaded(&intr, &w, 160 - ((tw - 1) >> 1), 3, title, map);
+    const int ins = k_ins[t] > 5 ? 5 : k_ins[t];
+    for (int k = 0; k < 5; ++k) {
+      const int num = (k == 4 && ins == 5) ? 5 : k;
+      const uint8_t imap[4] = {0, num == ins ? COLONIZE_COL_HILITE : COLONIZE_COL_BASIC,
+                               COLONIZE_COL_ENHANCE, 0};
+      const int y0 = 0x14 + k * (3 * h + 9);
+      char n1[200];
+      snprintf(n1, sizeof(n1), "%d%s", num + 1, strchr(l1, '.'));
+      font_draw_text_shaded(&intr, &w, 0xa, y0, n1, imap);
+      font_draw_text_shaded(&intr, &w, 0x19, y0 + h + 2, l2, imap);
+      font_draw_text_shaded(&intr, &w, 160 - ((lw - 1) >> 1), y0 + 2 * (h + 2), l3, imap);
+    }
+    for (int i = 0; i < 320 * 200; ++i) {
+      bad += got[i] != want[i];
+    }
+    if (bad) {
+      fprintf(stderr, "hall of fame inserted %d: %d px differ\n", k_ins[t], bad);
+      font_file_free(&intr);
+      return 1;
+    }
   }
   font_file_free(&intr);
 

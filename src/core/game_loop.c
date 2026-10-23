@@ -1639,7 +1639,7 @@ COLONIZE_INTERNAL bool game_render_screen(
       game_names_row(game, "INDEPENDENT", e->nation_id, rows[i].independent_name, sizeof(rows[i].independent_name));
     }
     reports_render_hall_of_fame(
-      game->reports_ok ? &game->reports : NULL, rows, count, font, framebuffer
+      game->reports_ok ? &game->reports : NULL, rows, count, game->hof_inserted, font, framebuffer
     );
     return true;
   }

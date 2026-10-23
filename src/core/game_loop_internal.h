@@ -425,7 +425,7 @@ void game_combat_popup_pump(void* user);
 
 void game_hof_load(ColonizeGameState* game);
 void game_hof_save(const ColonizeGameState* game);
-void game_hof_insert(ColonizeGameState* game, const ColonizeHofEntry* entry);
+int game_hof_insert(ColonizeGameState* game, const ColonizeHofEntry* entry);
 
 /* FUN_479b raw 76477-76484: crown Man-O-War exemption from the WoI Europe
  * gate (port_bugs.md #870). */

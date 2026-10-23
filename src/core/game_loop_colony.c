@@ -1073,13 +1073,13 @@ void game_colony_commit_construction(ColonizeGameState* game, int bid) {
       bt ? bt->name : (uname ? uname : "project")
     );
   } else {
-    const ColonizeColony* col_ref = colonies_get(&game->colonies, game->colony_view_id);
-    if (col_ref && bid >= 0 && bid < COLONIZE_BUILDING_TYPES_MAX && col_ref->has_building[bid]) {
-      const ColonizeBuildingType* bt = colonies_building_type(&game->colonies, bid);
-      set_status(game, "Already built", NULL);
-      colonies_emit_already_have_chrome(
-        col_ref, bt ? bt->name : NULL, &game->ai_popups, &game->messages
-      );
+    /* FUN_2f2b_5bd2 raw 52665-52667 stores any listed row as +0x94 and clears +0x1c bit 0x80,
+     * no message: the only row the 3650 filter refuses is the built current project kept by its
+     * tail (port_bugs.md #1218), so it stays (#1223). @ALREADYHAVE is EOT-only (turn_colony.c). */
+    ColonizeColony* col = colonies_get_mut(&game->colonies, game->colony_view_id);
+    if (col && col->building_in_production == bid) {
+      col->colony_flags =
+        (uint8_t)(col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_BUILD_COMPLETE);
     }
   }
   colony_screen_close_construction(csv);
