@@ -689,7 +689,9 @@ independently golden-confirmed.
   frame 0 — a painting of the tier-th item, SCORE17 = the university —
   blitted at x=100 over the list last, the last row's name field with
   `%STRING0` = leader's surname (DOS `strchr(name,' ')+1`) at y=142;
-  skipped when tier < 0 or scoring complete; any key/click continues) →
+  skipped when tier < 0 or scoring complete; any key/click continues; every
+  line is `FUN_281f_0100` = `FUN_104b_0318` centred over (0, 0x140), (0xa0, 0xa0)
+  or (0x22, 0x8c), port_bugs.md #1217, static read) →
   Hall of Fame (record inserted first) → title menu. Sheet palette is
   remapped onto WOODPAN2's like ICONS.SS; the sheet-header y DOS uses for
   the picture is unread (placed under the header lines instead).
@@ -721,9 +723,14 @@ independently golden-confirmed.
   (older 5-field / bare-integer rows still load; rating back-filled from
   score+difficulty). Ranked by **Colonization Rating** (DOS compares word
   19), score as tie-break; 10 stored, 5 shown (DOS shows 5 of 6 slots).
-- Columns/layout (`FUN_41f2_0f56` presenter, ported 2026-08-29): title
-  `@MISC` #192 centered at y=3; entries from y=0x10, three centered lines
-  each at font-height+2 pitch:
+- Columns/layout (`FUN_41f2_0f56` presenter, asm 41f2:10a0-12a8; static read,
+  port_bugs.md #1217): FONTINTR (DS:0x268a) through `{skip, DS:0x830, DS:0x833, 0}`;
+  title `@MISC` #192 centred over (0, 0x140) at y 3 by `FUN_104b_0430`
+  (x + (w >> 1) - ((width - 1) >> 1), `reports_dos_center_x`); entries from y 0x10,
+  each y += 4, line 1 at x 0xa (`FUN_104b_039a`), y += font[0] + 2, line 2 at x 0x19,
+  y += font[0] + 2, line 3 centred, y += font[0] + 1 (the port drew all three
+  centred in FONTTINY, 1 px left). The entry just inserted takes DS:0x831 and a
+  6th-place insert shows in the 5th line (port_bugs.md #1219, not ported):
   1. `"<n>. <Difficulty> <Leader> of the [Free ]<Nation>"` (#19 "of the",
      #191 "Free" when declared)
   2. `"<President, <NAMES @INDEPENDENT row> | General, Continental Army |

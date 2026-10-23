@@ -1147,7 +1147,7 @@ static void new_game_prompt_body(const NewGameWizard* ng, char* out, size_t n) {
  * A GAME.TXT section dialog as FUN_6f74_14c6 lays it out (raw 115882; FUN_281f_03fe ->
  * FUN_6f74_2580 -> 248e): content = max(box[+0x28] (@WIDTH), widest row as FUN_6f74_0a00
  * measures it = text + 2 * box[+0x48] + box[+0x22] (4)); prose wrapped to content -
- * 2 * box[+0x48] (FUN_6f74_1198, popup_wrap_text_dos), lines glyph_h + 1 apart, '^^' rows
+ * 2 * box[+0x48] (FUN_6f74_1198, popup_wrap_text), lines glyph_h + 1 apart, '^^' rows
  * shifted by popup_dos_center_dx; rows glyph_h + box[+0x46] apart from box[+0x26].
  * h = box[+0x46] + 2 * box[+0x2a] + list (+ box[+0x46] when list != 0), w = content +
  * 2 * box[+0x2a]; origin @X / @Y or 160 - (w >> 1) / 100 - (h >> 1), right / bottom
@@ -1183,7 +1183,7 @@ static void new_game_render_dialog(
   char lines[NEW_GAME_PROMPT_MAX][COLONIZE_MSG_LINE_LEN];
   bool centred[NEW_GAME_PROMPT_MAX];
   memset(centred, 0, sizeof(centred));
-  const int n = font ? popup_wrap_text_dos(
+  const int n = font ? popup_wrap_text(
                          font, body, lines[0], sizeof(lines[0]), centred, NEW_GAME_PROMPT_MAX,
                          content - 2 * margin
                        )
@@ -1591,7 +1591,7 @@ void new_game_render_throne_audience(
   char out[NEW_GAME_LORE_MAX_OUT][COLONIZE_MSG_LINE_LEN];
   /* The same frameless FUN_6f74_1198 flow as the wizard's audience text. */
   const int n_out =
-    popup_wrap_text_dos(font, body, out[0], sizeof(out[0]), NULL, NEW_GAME_LORE_MAX_OUT, text_w);
+    popup_wrap_text(font, body, out[0], sizeof(out[0]), NULL, NEW_GAME_LORE_MAX_OUT, text_w);
   const int line_h = font->max_height + 1;
   const ColonizePopupColors king_colors = new_game_king_colors();
   bool hilite = false;

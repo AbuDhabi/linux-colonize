@@ -1540,10 +1540,63 @@ static int test_colony_custom_house_keys(void) {
 }
 
 /*
- * port_bugs.md #1215, FUN_2f2b_5bd2: a two-page construction list opens on page 0 with no bar
- * when page 0 does not list the current project (08ec(0x65) matches no row); Enter then does
- * nothing, Down takes row 0. A page turn bars the current project where that page lists it,
- * else the page's first row (page 1: the back "(More)", page 0: the clear row).
+ * port_bugs.md #1214: the encroachment popup keeps DOS's "offer gold" row and greys it when the
+ * treasury is short (FUN_2b5a_123e raw 42484-42488: FUN_291f_01b6(box, 2, 1)). Fixture: the
+ * map_pioneer_native_forest_offer start (the Pioneer on Tupi forest (45,22), offer 422).
+ */
+static int test_indian_land_offer_row_greyed(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  char err[256];
+  int rc = 0;
+  if (!game_load_col1_file(
+        game, "tests-automated-regression/map_pioneer_native_forest_offer/input.sav", err,
+        sizeof(err)
+      )) {
+    fprintf(stderr, "  %s\n", err);
+    rc = fail("fixture save load");
+  }
+  const uint32_t golds[2] = {421, 422};
+  for (int k = 0; k < 2 && rc == 0; ++k) {
+    ai_popup_clear(&game->ai_popups);
+    game->units.selected_id = -1;
+    for (int i = 0; i < units_slot_end(&game->units); ++i) {
+      const ColonizeUnit* u = &game->units.units[i];
+      if (u->active && u->x == 45 && u->y == 22 && units_is_pioneer(&game->units, u->id)) {
+        game->units.selected_id = u->id;
+      }
+    }
+    game->europe.gold = golds[k];
+    if (!game_pioneer_land_gate(game, GAME_INDIAN_LAND_FOREST) ||
+        game->ai_popups.queue_count != 1) {
+      rc = fail("Clear Forest on Tupi forest queues @INDIANFOREST");
+      break;
+    }
+    const AiPopupRequest* r = &game->ai_popups.queue[0];
+    const uint32_t want = k == 0 ? 1u << 1 : 0u;
+    if (r->choice_count != 3 || r->choice_ids[1] != 2 || r->disabled_mask != want) {
+      fprintf(stderr, "  gold %u: rows %d id1 %d mask %u\n", golds[k], r->choice_count,
+              r->choice_ids[1], r->disabled_mask);
+      rc = fail("the offer row stays, greyed only while gold < price");
+    }
+  }
+  game_destroy(game);
+  return rc;
+}
+
+/*
+ * port_bugs.md #1215, FUN_2f2b_5bd2: a two-page construction list whose page 0 does not list
+ * the current project shows page 0 with no bar (08ec(0x65) matches no row); Enter then does
+ * nothing and Down takes row 0. A page turn bars the current project where that page lists
+ * it, else the page's first row (page 1: the back "(More)", page 0: the clear row). The view
+ * is hand-built: the port's buildable list tops out at 22 rows (port_bugs.md #1218).
  */
 static int test_colony_construction_page_default(void) {
   static ColonizeGameState game;
@@ -1553,35 +1606,26 @@ static int test_colony_construction_page_default(void) {
   }
   ColonizeColony* col = &game.colonies.colonies[0];
   ColonyScreenView* csv = &game.colony_screen;
-  col->population = 16;
-  /* Seven unit projects (Artillery, Wagon Train, five ships) push the list past 0x16 rows. */
-  col->has_building[colonies_building_row(&game.colonies, COLONY_BUILDING_ARMORY)] = true;
-  col->has_building[colonies_building_row(&game.colonies, COLONY_BUILDING_DOCKS)] = true;
-  col->has_building[colonies_building_row(&game.colonies, COLONY_BUILDING_DRYDOCK)] = true;
-  col->has_building[colonies_building_row(&game.colonies, COLONY_BUILDING_SHIPYARD)] = true;
-  ColoniesBuildableOpts opts;
-  memset(&opts, 0, sizeof(opts));
-  opts.map = &game.world_map;
-  opts.has_adam_smith = true;
-  opts.has_peter_stuyvesant = true;
   int rc = 0;
-  colony_screen_open_construction(csv, &game.colonies, col->id, &opts);
-  if (csv->buildable_count + 1 <= 0x16 || csv->buildable_count < 0x14) {
-    fprintf(stderr, "  buildable_count=%d\n", csv->buildable_count);
-    for (int i = 0; i < csv->buildable_count; ++i) { const ColonizeBuildingType* bt = colonies_building_type(&game.colonies, csv->buildable_ids[i]); fprintf(stderr, "   %d %s\n", csv->buildable_ids[i], bt ? bt->name : "unit"); }
-    rc = fail("fixture must list two pages with a project on page 1");
+  colony_screen_open_construction(csv, &game.colonies, col->id, NULL);
+  if (csv->construction_selection != 0 || csv->construction_default_row != 0) {
+    rc = fail("an idle colony's one-page list bars the clear row");
   }
-  /* A page-1 project (entry 0x12). */
-  const int p1 = 0x12;
-  col->building_in_production = csv->buildable_ids[p1 - 1];
-  colony_screen_open_construction(csv, &game.colonies, col->id, &opts);
+  csv->buildable_count = 25; /* 26 rows: page 0 = entries 0..15 + More, page 1 = More + 16..25 */
+  for (int i = 0; i < csv->buildable_count; ++i) {
+    csv->buildable_ids[i] = 100 + i;
+  }
+  const int p1 = 0x12; /* a page-1 project */
+  csv->construction_default_row = p1;
+  csv->construction_selection = -1; /* what the open gives it */
+  const int before = col->building_in_production;
   ColonizeInputState in;
   memset(&in, 0, sizeof(in));
   in.last_key = COLONIZE_KEY_ENTER;
   (void)game_update(&game, &in, 16);
   if (rc == 0 && (csv->construction_selection != -1 || csv->more_selected ||
-                  !csv->construction_open || col->building_in_production != csv->buildable_ids[p1 - 1])) {
-    rc = fail("page 0 without the project has no bar and Enter does nothing");
+                  !csv->construction_open || col->building_in_production != before)) {
+    rc = fail("no bar: Enter does nothing");
   }
   colony_screen_list_key(csv, COLONIZE_KEY_DOWN);
   if (rc == 0 && (csv->construction_selection != 0 || csv->more_selected)) {
@@ -1595,15 +1639,14 @@ static int test_colony_construction_page_default(void) {
   if (rc == 0 && (csv->construction_selection != 0 || csv->more_selected)) {
     rc = fail("back on page 0 the bar takes the clear row");
   }
-  /* A page-0 project: page 0 bars it, page 1 opens on its back "(More)". */
-  col->building_in_production = csv->buildable_ids[2];
-  colony_screen_open_construction(csv, &game.colonies, col->id, &opts);
-  if (rc == 0 && csv->construction_selection != 3) {
-    rc = fail("page 0 bars the project it lists");
-  }
+  csv->construction_default_row = 3; /* a page-0 project */
   colony_screen_construction_next_page(csv);
   if (rc == 0 && (csv->construction_selection != 0x10 || !csv->more_selected)) {
     rc = fail("page 1 without the project bars its back (More) row");
+  }
+  colony_screen_construction_next_page(csv);
+  if (rc == 0 && (csv->construction_selection != 3 || csv->more_selected)) {
+    rc = fail("page 0 bars the project it lists");
   }
   fx_map_free(&game.world_map);
   assets_msg_free(&names);
@@ -1725,6 +1768,7 @@ static const TestCase k_cases[] = {
     {"test_colony_list_keys_wrap", test_colony_list_keys_wrap},
     {"test_colony_custom_house_keys", test_colony_custom_house_keys},
     {"test_colony_construction_page_default", test_colony_construction_page_default},
+    {"test_indian_land_offer_row_greyed", test_indian_land_offer_row_greyed},
 };
 
 TEST_MAIN(k_cases)

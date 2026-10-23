@@ -713,7 +713,7 @@ static void colony_screen_draw_custom_house_popup(
   const int rows = view->custom_house_count;
   /* FUN_2f2b_4424: the GAME.TXT @CUSTOM box through the generic parser (@width=190,
    * @checkbox, @smallfont, latched at open time; 0x50 without @width), box[+0x22] 4. */
-  int content_w = view->custom_house_width > 0x50 ? view->custom_house_width : 0x50;
+  int content_w = view->custom_house_width > 0 ? view->custom_house_width : 0x50;
   char row[64];
   for (int i = 0; i < rows && font; ++i) {
     colony_screen_custom_house_row(view, colony, i, row, sizeof(row));
@@ -855,7 +855,7 @@ static void colony_screen_draw_dock_orders_popup(
    * box gains the 22 px icon column; no footer. */
   const ColonizeFont* font = colony_screen_popup_font(view, screen_font, false);
   const int rows = view->dock_orders_count;
-  int content_w = view->dock_orders_width > 0x50 ? view->dock_orders_width : 0x50;
+  int content_w = view->dock_orders_width > 0 ? view->dock_orders_width : 0x50;
   for (int i = 0; i < rows && font; ++i) {
     const int w = colony_screen_dos_row_w(font, view->dock_orders_labels[i], 4);
     if (w > content_w) {

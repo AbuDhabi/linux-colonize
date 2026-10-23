@@ -445,23 +445,12 @@ void popup_list_render(
     count = 0;
   }
 
-  /* One prompt line (FUN_6f74_1198); every caller's prompt fits the @width. */
-  const int prompt_h = has_prompt ? m->line_h : 0;
-  int dialog_h = popup_dos_list_height(popup_dos_glyph_h(font), prompt_h, count, false, false);
-  if (dialog_h > framebuffer->height) {
-    dialog_h = framebuffer->height;
-  }
-
-  /* FUN_6f74_14c6: content = max(box[+0x28] (@width, default 0x50), widest row), the row
-   * width being FUN_6f74_0a00's text less ~{}| (FUN_6f74_0486) + 2 * box[+0x48] + box[+0x22]. */
-  int content_w = width > 0x50 ? width : 0x50;
+  /* FUN_6f74_14c6: content = max(box[+0x28] (@width as given, 0x50 without one: FUN_6f74_06d0
+   * / 0c22), widest row), the row width being FUN_6f74_0a00's text less ~{}| (FUN_6f74_0486)
+   * + 2 * box[+0x48] + box[+0x22]. The prompt does not widen it: FUN_6f74_1198 wraps it to
+   * content - 2 * box[+0x48]. */
+  int content_w = width > 0 ? width : 0x50;
   if (font) {
-    if (has_prompt) {
-      const int w = font_text_width(font, prompt) + 2 * m->pad_x;
-      if (w > content_w) {
-        content_w = w;
-      }
-    }
     for (int i = 0; i < count; ++i) {
       const char* label = label_fn ? label_fn(user, i) : NULL;
       if (!label) {
@@ -473,6 +462,22 @@ void popup_list_render(
       }
     }
   }
+  if (content_w + 6 > framebuffer->width) {
+    content_w = framebuffer->width - 6;
+  }
+  enum { PROMPT_ROWS = 8 };
+  char prompt_lines[PROMPT_ROWS][128];
+  bool prompt_centred[PROMPT_ROWS];
+  memset(prompt_centred, 0, sizeof(prompt_centred));
+  const int prompt_n = (has_prompt && font)
+                         ? popup_wrap_text(font, prompt, prompt_lines[0], sizeof(prompt_lines[0]),
+                                           prompt_centred, PROMPT_ROWS, content_w - 2 * m->pad_x)
+                         : 0;
+  const int prompt_h = prompt_n * m->line_h;
+  int dialog_h = popup_dos_list_height(popup_dos_glyph_h(font), prompt_h, count, false, false);
+  if (dialog_h > framebuffer->height) {
+    dialog_h = framebuffer->height;
+  }
   int dialog_w = content_w + 6; /* 3 px of wood per side */
   if (dialog_w > framebuffer->width) {
     dialog_w = framebuffer->width;
@@ -482,11 +487,15 @@ void popup_list_render(
   geom.line_h = m->option_h;
 
   const int text_y = geom.frame.inner_y + m->pad_y;
-  /* Prompt (FUN_6f74_116c) and rows (FUN_6f74_1b7c) both go through FUN_6f74_0538. */
-  if (has_prompt && font) {
+  /* Prompt (FUN_6f74_116c) and rows (FUN_6f74_1b7c) both go through FUN_6f74_0538, the
+   * DS:0x1f62 {} state carrying from line to line. */
+  bool emph = false;
+  for (int i = 0; i < prompt_n; ++i) {
+    const int dx =
+      prompt_centred[i] ? popup_dos_center_dx(font, prompt_lines[i], content_w - 2 * m->pad_x) : 0;
     popup_draw_text_markup(
-      font, framebuffer, geom.frame.inner_x + m->pad_x, text_y, prompt, text_color, hilite_color,
-      colors, NULL
+      font, framebuffer, geom.frame.inner_x + m->pad_x + dx, text_y + i * m->line_h,
+      prompt_lines[i], text_color, hilite_color, colors, &emph
     );
   }
   /* list_y0 is row 0's bar top and the text sits one px lower (FUN_6f74_1b7c). */
@@ -510,7 +519,7 @@ void popup_list_render(
     popup_draw_text_markup(
       font, framebuffer, geom.frame.inner_x + m->pad_x + m->label_dx, row_y, label,
       disabled ? COLONIZE_COL_GREY : text_color, disabled ? COLONIZE_COL_GREY : hilite_color,
-      colors, NULL
+      colors, &emph
     );
   }
 
@@ -671,11 +680,9 @@ static void popup_field_frame_impl(
   snprintf(label_sp, sizeof(label_sp), "%s ", label ? label : "");
   const int label_w = font ? font_text_width(font, label_sp) : 0;
   const int text_w = (font ? font_text_width(font, "W") : 0) * max_len;
-  /* FUN_6f74_14c6 prologue: content width = max(0x50, @width, label_w + text_w + 10). */
-  int content_w = 0x50;
-  if (width > content_w) {
-    content_w = width;
-  }
+  /* FUN_6f74_14c6 prologue: content width = max(box[+0x28], label_w + text_w + 10), box[+0x28]
+   * being @width as given (FUN_6f74_0c22) or the FUN_6f74_06d0 default 0x50 (width 0). */
+  int content_w = width > 0 ? width : 0x50;
   if (label_w + text_w + 10 > content_w) {
     content_w = label_w + text_w + 10;
   }
@@ -799,15 +806,14 @@ int popup_dos_center_dx(const ColonizeFont* font, const char* text, int wrap_w) 
 
 /* ---- Shared word wrap (promoted from ai_popup_wrap_body; audit GL-8) ---- */
 
-static int popup_wrap_impl(
+int popup_wrap_text(
   const ColonizeFont* font,
   const char* text,
   char* out,
   size_t out_stride,
   bool* out_center,
   int max_out,
-  int max_w,
-  bool charge_space
+  int max_w
 ) {
   int count = 0;
   if (!text || !text[0] || !out || out_stride < 2 || max_out <= 0) {
@@ -822,7 +828,7 @@ static int popup_wrap_impl(
    * text but local_8 restarts at the measured " word", so a continuation line's first
    * word is charged one space it does not draw. DOSBox-X capture of @NATION0A
    * (port_bugs.md #1210): "...had neither the" (300 px at @width 300) breaks before
-   * "the" in DOS. Only popup_wrap_text_dos charges it so far (port_bugs.md #1216).
+   * "the" in DOS. Every 6f74 dialog wraps through here (port_bugs.md #1216).
    */
   int line_w = 0;
 
@@ -914,7 +920,7 @@ static int popup_wrap_impl(
         }
         count++;
         accum[0] = '\0';
-        line_w = charge_space ? 0 : -font_text_width(font, " ");
+        line_w = 0; /* 6f74:13fd: the " word" below is still charged */
         if (count >= max_out) {
           return count;
         }
@@ -941,28 +947,4 @@ static int popup_wrap_impl(
     count++;
   }
   return count;
-}
-
-int popup_wrap_text(
-  const ColonizeFont* font,
-  const char* text,
-  char* out,
-  size_t out_stride,
-  bool* out_center,
-  int max_out,
-  int max_w
-) {
-  return popup_wrap_impl(font, text, out, out_stride, out_center, max_out, max_w, false);
-}
-
-int popup_wrap_text_dos(
-  const ColonizeFont* font,
-  const char* text,
-  char* out,
-  size_t out_stride,
-  bool* out_center,
-  int max_out,
-  int max_w
-) {
-  return popup_wrap_impl(font, text, out, out_stride, out_center, max_out, max_w, true);
 }

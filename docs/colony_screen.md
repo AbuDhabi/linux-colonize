@@ -127,7 +127,16 @@ tab's hammers bar (own block). Production-tab badge ink is white (15), not
   style (@COLORS 68; the current project's row starts in the hilite ink 149,
   `FUN_2f2b_5bd2` raw 52607-52610). Past 22 rows it is exactly two pages of 16:
   page 0 ends with "(More)", page 1 starts with the back "(More)" (port_bugs.md
-  #1195).
+  #1195). The bar (port_bugs.md #1215, `FUN_2f2b_5bd2`): the list always opens on
+  page 0; a page that lists the current project bars it; the first showing of page
+  0 without it has no bar (`FUN_291f_08ec(0x65)`: no row has id 0x65, so
+  `FUN_6f74_089a` returns NULL; Enter then does nothing, Up / Down pick a row; the
+  paired `FUN_291f_033c(0x65, 1)` ORs 2 into 0000:0000 through that NULL, invisible
+  and not reproduced); a
+  turned page without it bars its first row (page 1 the back "(More)", page 0 the
+  clear row), because `local_8` is never reset, which also leaves the `08ec(100)`
+  arm dead. The port's buildable list cannot reach 23 rows today (port_bugs.md
+  #1218), so no live colony pages.
 - **BUY / CHANGE buttons** are `FUN_2f2b_21da` -> `FUN_2f2b_208c` literally:
   at (0xd8, 0x8a) / (0x10e, 0x8a), label width + 5 by 9, WOODPANL 0x30 bottom
   and right drawn first, then 0x39 top and left, the label at (+3, +2) in 0x0f
@@ -192,13 +201,16 @@ all 16 New Amsterdam cargoes.
 ### Custom House popup
 
 Click on the building opens a per-cargo checklist
-(`colony_screen_open/draw_custom_house`): every cargo but Food (15 rows —
-the Col1 bitfield has all 16, the autosell denylist applies at EOT sell
-time, not in the list), `@checkbox` rows `] Sugar` / `[ Sugar` (FONTTINY's
+(`colony_screen_open/draw_custom_house`): all 16 cargos, Food first
+(`FUN_2f2b_4424` loops `local_8 < 0x10`; the autosell denylist applies at EOT
+sell time, not in the list), `@checkbox` rows `] Sugar` / `[ Sugar` (FONTTINY's
 `]` / `[` are the filled / hollow circles), one uniform ink (player request:
 not the old bright green) which is the box style's @COLORS 68 (port_bugs.md
 #1200), row click toggles
-`colonies_toggle_custom_house_cargo()`, stays open. Colonists cannot be
+`colonies_toggle_custom_house_cargo()`, stays open. It is a `FUN_6f74_2580`
+@checkbox box with a selection bar (port_bugs.md #1213): row 0 at open, Up / Down
+wrap, Space / F1 / a click flip the barred row, Enter / Esc / an outside click
+close it, other keys do nothing ([popups.md](popups.md) "Custom House keys"). Colonists cannot be
 assigned to Custom House / Printing Press / Newspaper (no `@JOB` slot) —
 guard in `colonies_assign_workplace`.
 

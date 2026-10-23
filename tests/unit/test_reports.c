@@ -6,7 +6,10 @@
 
 #include "core/col1_save.h"
 #include "core/reports.h"
+#include "core/font_file.h"
+#include "core/pik.h"
 #include "core/reports_names.h"
+#include "core/ui_colors.h"
 #include "platform/diagnostics.h"
 
 #include "../common/test_runner.h"
@@ -1127,6 +1130,99 @@ static int case_report_chrome_golden(void) {
   return 0;
 }
 
+/* port_bugs.md #1217 (static read, no DOS capture of either screen). Hall of Fame =
+ * FUN_41f2_0f56: FONTINTR through {skip, DS:0x830, DS:0x833, 0}; title centred over
+ * (0, 0x140) at y 3 (FUN_104b_0430: x + (w >> 1) - ((width - 1) >> 1)); entry from y 0x10 + 4,
+ * line 1 at x 0xa (FUN_104b_039a), line 2 at x 0x19 font[0] + 2 lower, line 3 centred
+ * font[0] + 2 lower. Exploits = FUN_41f2_0b70: FONTTINY FUN_104b_0318 over (0, 0x140) at y 5,
+ * (0xa0, 0xa0) at 0xc3 - (font[0] + 1) and (0x22, 0x8c) at 0x8e. The (320 - w) / 2 centring
+ * the port used before lands 1 px left of x + (w >> 1) - ((width - 1) >> 1) at every width. */
+static int case_hall_of_fame_layout_is_dos(void) {
+  if (ensure_view() != 0) {
+    return 1;
+  }
+  ColonizeFont intr;
+  char err[256];
+  if (!font_file_load("COLONIZE/FONTINTR.FF", &intr, err, sizeof(err))) {
+    fprintf(stderr, "FONTINTR: %s\n", err);
+    return 1;
+  }
+  const uint8_t map[4] = {0, COLONIZE_COL_BASIC, COLONIZE_COL_ENHANCE, 0};
+  ColonizeHofRow row;
+  memset(&row, 0, sizeof(row));
+  snprintf(row.leader, sizeof(row.leader), "Peter Minuit");
+  snprintf(row.nation, sizeof(row.nation), "Dutch");
+  row.score = 1234;
+  row.year = 1780;
+  row.difficulty = 2;
+  row.rating = 44;
+  char m[8][64], l1[200], l2[200], l3[200];
+  snprintf(l3, sizeof(l3), "--- %s: %d%% ---", reports_misc_word(199, "", m[0], sizeof(m[0])),
+           row.rating);
+  snprintf(l1, sizeof(l1), "1. %s %s %s %s", reports_difficulty_title(row.difficulty), row.leader,
+           reports_misc_word(19, "", m[1], sizeof(m[1])), row.nation);
+  snprintf(l2, sizeof(l2), "%s, %s %s %s %s %d. %s: %d",
+           reports_misc_word(197, "", m[2], sizeof(m[2])), row.nation,
+           reports_misc_word(95, "", m[3], sizeof(m[3])), reports_misc_word(193, "", m[4], sizeof(m[4])),
+           reports_misc_word(194, "", m[5], sizeof(m[5])), row.year,
+           reports_misc_word(198, "", m[6], sizeof(m[6])), row.score);
+  const char* title = reports_misc_word(192, "", m[7], sizeof(m[7]));
+  const int tw = font_text_width_skip(&intr, title, FONT_SKIP_NONE);
+  const int lw = font_text_width_skip(&intr, l3, FONT_SKIP_NONE);
+  static uint8_t got[320 * 200], want[320 * 200];
+  ColonizeFramebuffer8 g = {.width = 320, .height = 200, .pixels = got};
+  ColonizeFramebuffer8 w = {.width = 320, .height = 200, .pixels = want};
+  reports_render_hall_of_fame(&g_view, &row, 1, &intr, &g);
+  memset(want, 0, sizeof(want));
+  if (g_view.background_ok[COLONIZE_REPORT_SCORE]) {
+    pik_blit(&g_view.backgrounds[COLONIZE_REPORT_SCORE], &w, 0, 0);
+  }
+  const int h = intr.max_height;
+  font_draw_text_shaded(&intr, &w, 160 - ((tw - 1) >> 1), 3, title, map);
+  font_draw_text_shaded(&intr, &w, 0xa, 0x14, l1, map);
+  font_draw_text_shaded(&intr, &w, 0x19, 0x14 + h + 2, l2, map);
+  font_draw_text_shaded(&intr, &w, 160 - ((lw - 1) >> 1), 0x14 + 2 * (h + 2), l3, map);
+  int bad = 0;
+  for (int i = 0; i < 320 * 200; ++i) {
+    if (got[i] != want[i] && bad++ < 4) {
+      fprintf(stderr, "hall of fame (%d,%d): want %d got %d\n", i % 320, i / 320, want[i], got[i]);
+    }
+  }
+  if (bad || !title[0]) {
+    fprintf(stderr, "hall of fame: %d px differ (title w %d, line 3 w %d)\n", bad, tw, lw);
+    font_file_free(&intr);
+    return 1;
+  }
+  font_file_free(&intr);
+
+  /* Exploits: FONTTINY (the view's title font), one pass in the caller's ink. */
+  const ColonizeFont* tiny = &g_view.title_font;
+  ColonizeExploitsView ex;
+  memset(&ex, 0, sizeof(ex));
+  snprintf(ex.header[0], sizeof(ex.header[0]), "%s", title);
+  snprintf(ex.categories[0], sizeof(ex.categories[0]), "%s", ex.header[0]);
+  snprintf(ex.named, sizeof(ex.named), "%s", ex.header[0]);
+  ex.header_count = 1;
+  ex.category_count = 1;
+  ColonizeReportsView bare;
+  memset(&bare, 0, sizeof(bare));
+  reports_render_exploits(&bare, &ex, tiny, &g);
+  memset(want, 0, sizeof(want));
+  const int ew = font_text_width_skip(tiny, ex.header[0], FONT_SKIP_NONE);
+  font_draw_text(tiny, &w, 160 - ((ew - 1) >> 1), 5, ex.header[0], 0xfc);
+  font_draw_text(tiny, &w, 0xa0 + 0x50 - ((ew - 1) >> 1), 0xc3 - (tiny->max_height + 1),
+                 ex.categories[0], 0xfc);
+  font_draw_text(tiny, &w, 0x22 + 0x46 - ((ew - 1) >> 1), 0x8e, ex.named, 0xfc);
+  for (int i = 0; i < 320 * 200; ++i) {
+    bad += got[i] != want[i];
+  }
+  if (bad) {
+    fprintf(stderr, "exploits: %d px differ (w %d)\n", bad, ew);
+    return 1;
+  }
+  return 0;
+}
+
 /* After free, names must be empty rather than stale/dangling.
  *
  * reports_ff_display_name() & co. read module-level globals in
@@ -1307,6 +1403,7 @@ static const TestCase k_cases[] = {
   {"foreign_affairs_golden", case_foreign_affairs_golden},
   {"indian_name_lines_golden", case_indian_name_lines_golden},
   {"report_chrome_golden", case_report_chrome_golden},
+  {"hall_of_fame_layout_is_dos", case_hall_of_fame_layout_is_dos},
   {"names_survive_missing_report_art", case_names_survive_missing_report_art},
   {"ds_string_two_numbers", case_ds_string_two_numbers},
   {"post_free_fallback", case_post_free_fallback},
