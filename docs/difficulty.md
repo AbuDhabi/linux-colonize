@@ -478,7 +478,7 @@ food-shortfall reading, which used to occupy bit3, moved to the runtime-only
 |--------|-------------|------|
 | AI colony food `+= difficulty>>1` | [`colony_eot_production.md`](../original_sources_annotated/turn/colony_eot_production.md) | **Wired** (`turn_produce_one_colony`) |
 | Rival SoL threshold `(8-diff)*10` | [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md) | Thin fixed thresholds |
-| Score→Colonization Rating `FUN_41f2_0b70` | full static port 2026-08-29 (`viceroy_unpacked.c:72415-72548` + `41f2_0092`/`0f56`/`14a8`) | **Done**. The "gold rebate" label was wrong: the value is a percent rating (`((mult*score)/100)>>1`, mult `{4,5,6,8,10}`) fed to `@EXPLOITS` "COLONIZATION RATING: %NUMBER0%" and to the HALLFAME.DAT sort key; the "return-type mismatch" flagged before is just Ghidra typing the score composer's int return as `undefined1*`. See `docs/reports.md` F10 / Hall of Fame. |
+| Score→Colonization Rating `FUN_41f2_0b70` | full static port 2026-08-29 (`viceroy_unpacked.c:72415-72548` + `41f2_0092`/`0f56`/`14a8`) | **Done**. The "gold rebate" label was wrong: the value is a percent rating (`((mult*score)/100)>>1`, mult `{4,5,6,8,10}`) fed to `@EXPLOITS` "COLONIZATION RATING: %NUMBER0%" and to the HALLFAME.DAT sort key; the "return-type mismatch" flagged before is just Ghidra typing the score composer's int return as `undefined1*`. See `docs/reports_score.md` F10 / Hall of Fame. |
 | Tory floor production penalty | ~11880; [sons_of_liberty.md](sons_of_liberty.md) | **Wired** (`colony_prod_sol_bonus`) |
 
 ---

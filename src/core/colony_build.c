@@ -1118,7 +1118,22 @@ const char* const* colonies_building_chain(int chain) {
   return names[chain];
 }
 
-/* True if this type is currently a legal construction project for the colony. */
+/*
+ * FUN_15eb_038e(row): the colony's own +0x84 bit for @BUILDING `row`. Warehouse
+ * Expansion has none (FUN_364b_0114 only INCs +0x95 for it, col1_bridge.c
+ * restores the port's tier from that level), so DOS reads 0 there.
+ */
+static bool colonies_dos_owns_row(
+  const ColonizeColonyPool* pool, const ColonizeColony* col, int row
+) {
+  return row != COLONY_BUILDING_WAREHOUSE_EXPANSION &&
+         colonies_has_building_row(pool, col, (ColonizeBuildingRow)row);
+}
+
+/*
+ * DOS-LITERAL FUN_15eb_3650 kind-1 arm (raw 13662-13712): may the colony start
+ * @BUILDING row `row`? Every test only clears the answer, so they AND together.
+ */
 static bool colonies_building_is_buildable(
   const ColonizeColonyPool* pool,
   const ColonizeColony* col,
@@ -1128,52 +1143,83 @@ static bool colonies_building_is_buildable(
   if (!pool || !col || type_index < 0 || type_index >= pool->building_type_count) {
     return false;
   }
-  if (col->has_building[type_index]) {
-    return false;
-  }
   const ColonizeBuildingType* bt = &pool->building_types[type_index];
   if (bt->name[0] == '\0' || bt->hammers <= 0) {
-    return false;
+    return false; /* port data guard: every NAMES.TXT row has both */
   }
-  if (bt->min_population > 0 && col->population < bt->min_population) {
-    return false;
-  }
-
   const int row = colonies_building_type_row(pool, type_index);
+  /* raw 13663: the row's min-population byte (DS:0x8f8a + row*0xc) <= +0x1f. */
+  const bool pop_ok = bt->min_population <= 0 || col->population >= bt->min_population;
+  const int* rows = colonies_building_chain_rows(colonies_building_row_chain(row));
   switch (row) {
-    /* The three Town Hall rows (NAMES.TXT spells all three "Town Hall"):
-     * never listed — the colony is founded with one. */
-    case COLONY_BUILDING_TOWN_HALL:
+    /* raw 13695-13703: 0x0a, 0x0b (the cut Town Hall upgrades) and 0x1e
+     * (Capitol) are zeroed whatever the colony has. Capitol Expansion (0x1f)
+     * is not, but its predecessor is the Capitol. */
     case COLONY_BUILDING_TOWN_HALL_2:
     case COLONY_BUILDING_TOWN_HALL_3:
-    /*
-     * Cut construction rows. DOS's own "can this colony build it" gate
-     * (FUN_15eb_3650) hard-zeroes three @BUILDING file indices no matter what
-     * the colony has: 0x0a and 0x0b (the two unfinished Town Hall upgrades —
-     * PEDIA.TXT calls 0x0b "COLONIAL ASSEMBLY") and 0x1e (Capitol). 0x1f
-     * (Capitol Expansion) is not zeroed there but is unreachable anyway: its
-     * prerequisite is the Capitol, which can never be owned. NAMES.TXT still
-     * carries all four rows and PEDIA.TXT keeps title-only stubs for them, but
-     * no DOS colony can ever start one — the port used to offer Capitol /
-     * Capitol Expansion in the construction picker.
-     */
     case COLONY_BUILDING_CAPITOL:
-    case COLONY_BUILDING_CAPITOL_EXPANSION:
       return false;
-    /* Rows DOS lets you build regardless of what sits above them in the
-     * chain: the six starter houses and the Warehouse. Warehouse tier 0
-     * ignores the Expansion above it (an Expansion without its Warehouse is
-     * unreachable anyway — col1_bridge derives tier 1 from warehouse_level,
-     * which implies tier 0). */
-    case COLONY_BUILDING_WAREHOUSE:
-    case COLONY_BUILDING_WEAVERS_HOUSE:
-    case COLONY_BUILDING_TOBACCONISTS_HOUSE:
-    case COLONY_BUILDING_RUM_DISTILLERS_HOUSE:
-    case COLONY_BUILDING_FUR_TRADERS_HOUSE:
-    case COLONY_BUILDING_BLACKSMITHS_HOUSE:
-    case COLONY_BUILDING_STABLE:
-      return !colonies_has_building_row(pool, col, (ColonizeBuildingRow)row);
-    /* Factory tiers need Adam Smith. */
+    default:
+      break;
+  }
+  if (!rows) {
+    /* Hand-built test tables (row unknown): not owned, population met. */
+    return pop_ok && !col->has_building[type_index];
+  }
+  bool ok = pop_ok;
+  /* raw 13664-13667: the predecessor byte (DS:0x8f85 + row*0xc, the chain
+   * parent) must be owned; raw 13668-13671: the row itself must not be. */
+  int tier = 0;
+  while (rows[tier] != row) {
+    ++tier;
+  }
+  if (tier > 0 && !colonies_has_building_row(pool, col, (ColonizeBuildingRow)rows[tier - 1])) {
+    ok = false;
+  }
+  if (colonies_dos_owns_row(pool, col, row)) {
+    ok = false;
+  }
+  switch (row) {
+    /* raw 13672-13687: Docks needs a water tile (FUN_13e4_0074: class 0x19 /
+     * 0x1a) inside the map's 1-tile inset (FUN_137f_000a) among the colony's
+     * DS:0x329[FUN_15eb_0470()] ring of DS:0xc8 / DS:0xde plots. */
+    case COLONY_BUILDING_DOCKS: {
+      bool water = false;
+      const ColonizeWorldMap* m = opts ? opts->map : NULL;
+      const int ring = colonies_work_plot_count(pool, col);
+      for (int i = 0; m && !water && i < ring && i < 20; ++i) {
+        const int x = col->x + MAP_RING20_DX[i];
+        const int y = col->y + MAP_RING20_DY[i];
+        water = x >= 1 && y >= 1 && x < m->width - 1 && y < m->height - 1 &&
+                map_tile_is_water(m, x, y);
+      }
+      if (!water) {
+        ok = false;
+      }
+      break;
+    }
+    /* raw 13688-13690: Drydock reads the founding-time coastal bit +0x1c 0x40. */
+    case COLONY_BUILDING_DRYDOCK:
+      if (!(col->colony_flags & COLONIZE_COLONY_FLAG_COASTAL)) {
+        ok = false;
+      }
+      break;
+    /* raw 13691-13694: Custom House needs FF 3 (Peter Stuyvesant). */
+    case COLONY_BUILDING_CUSTOM_HOUSE:
+      if (!(opts && opts->has_peter_stuyvesant)) {
+        ok = false;
+      }
+      break;
+    /* raw 13704-13706: a second expansion is refused once FUN_15eb_0a50's
+     * capacity, (+0x95 + 1) * 100 (100 at level 0), passes 299. */
+    case COLONY_BUILDING_WAREHOUSE_EXPANSION: {
+      const int cap = col->warehouse_level != 0u ? ((int)col->warehouse_level + 1) * 100 : 100;
+      if (cap > 299) {
+        ok = false;
+      }
+      break;
+    }
+    /* raw 13707-13711: the six factory rows need FF 0 (Adam Smith). */
     case COLONY_BUILDING_ARSENAL:
     case COLONY_BUILDING_TEXTILE_MILL:
     case COLONY_BUILDING_CIGAR_FACTORY:
@@ -1181,48 +1227,49 @@ static bool colonies_building_is_buildable(
     case COLONY_BUILDING_FUR_FACTORY:
     case COLONY_BUILDING_IRON_WORKS:
       if (!(opts && opts->has_adam_smith)) {
-        return false;
-      }
-      break;
-    /* Port chain: coastal only. */
-    case COLONY_BUILDING_DOCKS:
-    case COLONY_BUILDING_DRYDOCK:
-    case COLONY_BUILDING_SHIPYARD:
-      if (!(opts && opts->map && map_tile_is_coastal(opts->map, col->x, col->y))) {
-        return false;
-      }
-      break;
-    case COLONY_BUILDING_CUSTOM_HOUSE:
-      if (!(opts && opts->has_peter_stuyvesant)) {
-        return false;
+        ok = false;
       }
       break;
     default:
       break;
   }
+  return ok;
+}
 
-  /*
-   * Chain tiers (audit CO-13), keyed on the @BUILDING row table
-   * (colonies_building_chain_rows): the tier below is owned (or this is the
-   * first tier) and nothing from this tier up is.
-   */
-  const int* rows = colonies_building_chain_rows(colonies_building_row_chain(row));
-  if (!rows) {
-    return true; /* Unknown row: allow if unmet and not owned (forward-compatible). */
-  }
-  int tier = 0;
-  while (rows[tier] != row) {
-    ++tier;
-  }
-  if (tier > 0 && !colonies_has_building_row(pool, col, (ColonizeBuildingRow)rows[tier - 1])) {
-    return false;
-  }
-  for (int i = tier; i < 4 && rows[i] >= 0; ++i) {
-    if (colonies_has_building_row(pool, col, (ColonizeBuildingRow)rows[i])) {
-      return false;
+/* byte [i * 0x1c + 0x3146]: the @UNIT type of DOS unit record i, i.e. the
+ * i-th live slot (units_dos_index's order). -1 past the live count, where DOS
+ * reads a stale record the port does not keep (dos_tail has no type byte). */
+static int colonies_dos_unit_type_at(const ColonizeUnitPool* units, int index) {
+  for (int s = 0; units && index >= 0 && s < units_slot_end(units); ++s) {
+    if (units->units[s].active && index-- == 0) {
+      return units->units[s].type_index;
     }
   }
-  return true;
+  return -1;
+}
+
+/*
+ * DOS-LITERAL FUN_15eb_3650 tail (raw 13741-13746, asm 15eb:3889-38b4): the
+ * colony's current project (+0x94 == code) is listed whatever the gates said,
+ * unless unit record #code (the build code used as a unit index, a DOS
+ * oddity) is type 1 AND the colony owns @BUILDING `local_e`, which is the row
+ * itself for a building and code - 0x1f (0x0b..0x11) for a unit project.
+ */
+static bool colonies_build_keeps_current(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* col,
+  int bid,
+  const ColoniesBuildableOpts* opts
+) {
+  if (bid < 0 || col->building_in_production != bid) {
+    return false;
+  }
+  const bool unit = units_build_code_to_index(bid) >= 0;
+  const int row = unit ? -1 : colonies_building_type_row(pool, bid);
+  const int code = unit ? bid : (row >= 0 ? row : bid);
+  const int local_e = unit ? code - 0x1f : code;
+  return colonies_dos_unit_type_at(opts ? opts->units : NULL, code) != 1 ||
+         !colonies_dos_owns_row(pool, col, local_e);
 }
 
 int colonies_list_buildable(
@@ -1241,7 +1288,8 @@ int colonies_list_buildable(
   }
   int n = 0;
   for (int i = 0; i < pool->building_type_count && n < out_max; ++i) {
-    if (colonies_building_is_buildable(pool, col, i, opts)) {
+    if (colonies_building_is_buildable(pool, col, i, opts) ||
+        colonies_build_keeps_current(pool, col, i, opts)) {
       out_ids[n++] = i;
     }
   }
@@ -1256,7 +1304,8 @@ int colonies_list_buildable(
   for (int code = COLONIZE_UNIT_BUILD_CODE_FIRST;
        code < COLONIZE_UNIT_BUILD_CODE_FIRST + COLONIZE_UNIT_BUILD_CODE_COUNT && n < out_max;
        ++code) {
-    if (colonies_unit_project_available(pool, col, code, opts)) {
+    if (colonies_unit_project_available(pool, col, code, opts) ||
+        colonies_build_keeps_current(pool, col, code, opts)) {
       out_ids[n++] = code;
     }
   }

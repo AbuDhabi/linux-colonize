@@ -42,16 +42,60 @@ pairs past it
 ([idle_america_fixed_2026-10-19_21.md](idle_america_fixed_2026-10-19_21.md), "e7c4
 class").
 
+## DB-6
+
+Every golden and idle campaign stays byte-identical. Unit test: `unit_turn_core`
+`phase_k_build_advisory` ("ORE net-tools-zero" fails on the DOS test).
+
+## DB-7
+
+Unit test: `unit_ai_contact_core` `actions_menu_missionary` / `actions_menu_wagon`
+(heresy block). All goldens, idle campaigns and `golden_ai_joint` stay byte-identical
+(2026-10-21).
+
+## DB-8
+
+Unit test: `unit_ai_diplo` `case_153e_wantstuff_demand` (Muskets move, Furs do not). All
+goldens, idle campaigns and `golden_ai_joint` stay byte-identical (2026-10-21).
+
+## DB-9
+
+Unit test: `unit_colonies` #559b (fails on the DOS arm). All goldens, idle campaigns and
+`golden_ai_joint` stay byte-identical (2026-10-21).
+
+## DB-12
+
+Unit test: `unit_europe` (@REALLYBUY block: open and No leave the counter alone, Yes
+adds one). All goldens and `golden_ai_joint` stay byte-identical.
+
+## DB-13
+
+Unit test: `unit_colonies` foreign-colony trade ("colony hands over the offered cargo").
+All goldens and `golden_ai_joint` stay byte-identical.
+
 ## DB-14
 
 Unit test cases of `unit_ai_king_core` `dump_goods_pick_api`: weighted 7:9 over
 200 seeds, zero-weight pick over 50 seeds, exactly one draw burned in both,
 campaign4 weights.
 
+All goldens and `golden_ai_joint` stay byte-identical.
+
+## DB-15
+
+Unit test: `unit_colonies` school faculty + occupation cap (three distillers fit, the
+fourth is refused). All goldens and `golden_ai_joint` stay byte-identical.
+
 ## DB-16
 
 The same block fills every token of @KINGMERCY but never shows it, and VICEROY.EXE
 has no KINGMERCY tag string (dead text), so the feature was removed on purpose.
+
+## DB-22
+
+Unit test: `unit_ai_contact_core` (capital-destroy surrender block, friction expectation
+changed from 0x20 to 0). All goldens, idle campaigns and `golden_ai_joint` stay
+byte-identical.
 
 ## DB-23
 
@@ -60,10 +104,34 @@ Barbados ended at (44,39), so Providence was skipped, one `rng(0,2)` fewer than 
 per-candidate reset draws; america2 resync 37) lies past the enabled golden saves
 of both Americas archives.
 
+All goldens, idle campaigns and `golden_ai_joint` stay byte-identical (2026-10-22); no
+unit test pinned the carry-over.
+
+## DB-24
+
+The founding join's stack word: 35 at Curacao (35,59), DOSBox seed-100 265 to 266.
+
+All goldens, idle campaigns and `golden_ai_joint` stay byte-identical (2026-10-22); no
+unit test pinned the founder residue.
+
 ## DB-25
 
 (The DOS evidence for the wrap, america resyncs 105-119 and 151+, lies past the
 enabled golden saves of both Americas archives and would need the old behaviour.)
+
+No test pins the wrap; all goldens, idle campaigns and `golden_ai_joint` stay
+byte-identical.
+
+## DB-26
+
+Unit test: `unit_regress_ai_tables` `case_530_unload_mask_scan_and_order` ("a later
+rejected shore must keep the earlier mask" fails on the DOS behaviour). All goldens,
+idle campaigns and `golden_ai_joint` stay byte-identical.
+
+## DB-27
+
+No test pins the slip; all goldens, idle campaigns and `golden_ai_joint` stay
+byte-identical.
 
 ## DB-28
 
@@ -71,20 +139,69 @@ The enabled goldens never complete a ring hop, so they do not exercise this (the
 hop evidence in the code comment, america resync 92->93, is past the enabled
 golden saves).
 
+No test pins the signed store; all goldens, idle campaigns and `golden_ai_joint` stay
+byte-identical.
+
+## DB-29
+
+All goldens, idle campaigns and `golden_ai_joint` stay byte-identical, so no test in the
+suite reaches a Muskets roll with a later draw that depends on it.
+
+## DB-30
+
+All goldens, idle campaigns and `golden_ai_joint` stay byte-identical.
+
+## DB-31
+
+All goldens, idle campaigns and `golden_ai_joint` stay byte-identical (no idle campaign
+puts that much military next to a village).
+
+## DB-32
+
+Unit test: `unit_units_types` `unit_promote_convert_rng_598` (now expects the same RNG
+state with and without Washington). All goldens, idle campaigns and `golden_ai_joint`
+stay byte-identical (2026-10-22).
+
 ## DB-33
 
 Only one golden buy happens (`golden_idle_america`, save 31, free-colonist count
 0), so the goldens do not exercise a non-zero add.
+
+Unit test `unit_ai_king_core` (audience cut branch, 1d42 buy beat) checks that the word
+keeps its seeded value. All goldens and `golden_ai_joint` pass.
+
+## DB-34
+
+Unit test: `unit_colonies` ("1-ton spoil not reported", "1-ton overflow removed"). All
+goldens, idle campaigns and `golden_ai_joint` stay byte-identical.
 
 ## DB-35
 
 A 2026-10-22 trial moved the test to the cleared tile (goldens passed), but the
 user chose the DOS behaviour; the live DOS capture (+60 at Bahia) matches it.
 
+## DB-36
+
+No unit test calls it; all goldens, idle campaigns and `golden_ai_joint` stay
+byte-identical.
+
 ## DB-37
 
 The goldens reach this fallback only about once per campaign, with a ship, so they
 barely exercise the change.
+
+No unit test calls it; all goldens, idle campaigns and `golden_ai_joint` stay
+byte-identical.
+
+## DB-38
+
+`unit_units_ships` still passes; all goldens, idle campaigns and `golden_ai_joint` stay
+byte-identical.
+
+## DB-39
+
+No test reaches that range; `golden_market_prices01`, all idle campaigns and
+`golden_ai_joint` stay byte-identical.
 
 ## DB-40
 
@@ -92,10 +209,25 @@ The input-replay regression `europe_buy_ship_and_sail` pinned the extra draw: it
 `output.sav` was re-recorded from the port (only the 4 LCG-state bytes of the port
 extension block differ).
 
+Every golden, idle campaign and `golden_ai_joint` stay byte-identical, so no golden
+crossing starts or ends west of column 3.
+
+## DB-41
+
+Not exercised by any golden.
+
+## DB-42
+
+The idle goldens (63 saves at most) end before the counts fall below 2, so they do not
+show the difference.
+
 ## DB-43
 
 User-observed 2026-10-22 (campaign5): Jamestown's fortress fired on a French
 Caravel; England and France had relation byte 0 through turn 123.
+
+Unit test `coastal_fort_naval_fire` (unit_units_core) covers the unmet case. No golden
+changed.
 
 ## DB-46
 
@@ -105,3 +237,35 @@ zeroing it broke every idle golden.
 Unit case `unit_pioneer_dos_gates_2026_09_22` and the replay `map_unit_orders`
 (its fixture preloaded the counters for an instant finish; re-blessed: the two
 jobs now start at progress 1) were updated.
+
+All goldens and `golden_ai_joint` pass.
+
+## DB-47
+
+All goldens, the reload goldens and `golden_ai_joint` pass.
+
+## DB-49
+
+All goldens and `golden_ai_joint` pass.
+
+## DB-50
+
+All goldens and `golden_ai_joint` pass; unit case in `unit_ai_contact_core`
+(port_bugs.md #924) updated.
+
+## DB-54
+
+DOSBox-confirmed 2026-10-23 on dutch-reports.SAV Curacao: (43,41) mask 00 -> 10, owner
+Arawak -> Dutch, nibble 0xf -> 0, before the menu draws.
+
+Test `unit_stage_seams test_colony_jobs_menu_open_has_no_side_effects`; replay
+colony_tile_assignment.
+
+## DB-55
+
+DOSBox-confirmed 2026-10-23 (french-campaign COLONY04.SAV, patched missionary next to
+the Iroquois at 23,67).
+
+## DB-56
+
+DOSBox-confirmed 2026-10-23 (french-campaign COLONY02.SAV, virtual mouse at DS:0x92f8).

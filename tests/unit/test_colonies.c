@@ -2729,6 +2729,16 @@ static int unit_wagon_cap_and_armory_gate(void) {
       saw_wagon = true;
     }
   }
+  /* FUN_15eb_3650 tail (port_bugs.md #1218): as the current project it stays listed. */
+  CHECK(saw_wagon, "the current Wagon Train project stays listed past the cap");
+  c->building_in_production = -1;
+  n = colonies_list_buildable(&pool, 0, buildable, 64, &bopts);
+  saw_wagon = false;
+  for (int i = 0; i < n; ++i) {
+    if (buildable[i] == COLONIZE_UNIT_BUILD_WAGON_TRAIN) {
+      saw_wagon = true;
+    }
+  }
   CHECK(!saw_wagon, "Wagon Train dropped from the list at the cap");
   CHECK(!colonies_wagon_cap_reached(NULL, 1), "no census = no cap");
 
@@ -2753,6 +2763,108 @@ static int unit_wagon_cap_and_armory_gate(void) {
 
   if (failures == failures_before) {
     printf("unit_colonies: wagon cap + Armory gate ok\n");
+    return 0;
+  }
+  return 1;
+}
+
+/*
+ * port_bugs.md #1218 — FUN_15eb_3650's tail (raw 13741-13746) keeps the
+ * colony's current project in the list unless unit record #code is type 1 and
+ * the colony owns @BUILDING local_e. A colony with all seven unit projects and
+ * fourteen buildings open plus a built current project lists 22 entries, so the
+ * CHANGE box (with its clear row) runs past 0x16 rows to two pages.
+ */
+static int unit_build_list_keeps_current(void) {
+  const int failures_before = failures;
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "keep current: load NAMES.TXT failed\n");
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  if (!colonies_load_buildings(&pool, &names)) {
+    fprintf(stderr, "keep current: load @BUILDING failed\n");
+    return 1;
+  }
+  assets_msg_free(&names);
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->active = true;
+  c->nation_id = 1;
+  c->population = 10;
+  c->colonist_count = 10;
+  pool.colony_count = 1;
+  static const ColonizeBuildingRow k_own[] = {
+    COLONY_BUILDING_TOWN_HALL, COLONY_BUILDING_CARPENTERS_SHOP, COLONY_BUILDING_WEAVERS_HOUSE,
+    COLONY_BUILDING_TOBACCONISTS_HOUSE, COLONY_BUILDING_RUM_DISTILLERS_HOUSE,
+    COLONY_BUILDING_FUR_TRADERS_HOUSE, COLONY_BUILDING_BLACKSMITHS_HOUSE, COLONY_BUILDING_DOCKS,
+    COLONY_BUILDING_DRYDOCK, COLONY_BUILDING_SHIPYARD, COLONY_BUILDING_ARMORY,
+  };
+  for (size_t i = 0; i < sizeof(k_own) / sizeof(k_own[0]); ++i) {
+    c->has_building[colonies_building_row(&pool, k_own[i])] = true;
+  }
+  const int shipyard = colonies_building_row(&pool, COLONY_BUILDING_SHIPYARD);
+  ColoniesBuildableOpts bopts;
+  memset(&bopts, 0, sizeof(bopts));
+  bopts.has_adam_smith = true;
+  bopts.has_peter_stuyvesant = true;
+  int ids[64];
+
+  c->building_in_production = -1;
+  int n = colonies_list_buildable(&pool, 0, ids, 64, &bopts);
+  CHECK(n == 21, "14 buildings + 7 unit projects with nothing in production");
+  c->building_in_production = shipyard; /* just completed, not re-picked */
+  n = colonies_list_buildable(&pool, 0, ids, 64, &bopts);
+  bool listed = false;
+  for (int i = 0; i < n; ++i) {
+    listed = listed || ids[i] == shipyard;
+  }
+  CHECK(n == 22 && listed, "the built current project stays listed: 23 rows with the clear row");
+
+  /* The oddity: unit record #8 (the Shipyard's code) of type 1 drops it. */
+  static ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  for (int i = 0; i <= COLONIZE_UNIT_BUILD_ARTILLERY; ++i) {
+    units.units[i].active = true;
+    units.units[i].id = i + 1;
+    units.units[i].type_index = (i == 8 || i == COLONIZE_UNIT_BUILD_ARTILLERY) ? 1 : 0;
+  }
+  units.next_id = COLONIZE_UNIT_BUILD_ARTILLERY + 2;
+  units_pool_sync(&units);
+  bopts.units = &units;
+  n = colonies_list_buildable(&pool, 0, ids, 64, &bopts);
+  CHECK(n == 21, "unit record #code of type 1 + owned row: the current project drops out");
+  units.units[8].type_index = 0;
+  n = colonies_list_buildable(&pool, 0, ids, 64, &bopts);
+  CHECK(n == 22, "unit record #code of another type keeps it");
+
+  /* A unit project keeps local_e = code - 0x1f: Artillery (0x2a) reads row 0x0b,
+   * which no colony owns, so it stays listed once the Armory is gone. */
+  c->has_building[colonies_building_row(&pool, COLONY_BUILDING_ARMORY)] = false;
+  c->building_in_production = COLONIZE_UNIT_BUILD_ARTILLERY;
+  n = colonies_list_buildable(&pool, 0, ids, 64, &bopts);
+  listed = false;
+  for (int i = 0; i < n; ++i) {
+    listed = listed || ids[i] == COLONIZE_UNIT_BUILD_ARTILLERY;
+  }
+  CHECK(listed, "current Artillery stays listed without the Armory");
+  c->building_in_production = -1;
+  n = colonies_list_buildable(&pool, 0, ids, 64, &bopts);
+  listed = false;
+  for (int i = 0; i < n; ++i) {
+    listed = listed || ids[i] == COLONIZE_UNIT_BUILD_ARTILLERY;
+  }
+  CHECK(!listed, "Artillery without the Armory is not offered");
+  units_reset(&units);
+
+  if (failures == failures_before) {
+    printf("unit_colonies: build list keeps the current project ok\n");
     return 0;
   }
   return 1;
@@ -3610,6 +3722,7 @@ static const TestCase k_cases[] = {
     {"unit_foreign_colony_trade", unit_foreign_colony_trade},
     {"unit_ship_construction", unit_ship_construction},
     {"unit_wagon_cap_and_armory_gate", unit_wagon_cap_and_armory_gate},
+    {"unit_build_list_keeps_current", unit_build_list_keeps_current},
     {"unit_school_faculty_and_occupation_cap", unit_school_faculty_and_occupation_cap},
     {"unit_auto_assign_idle_town_hall_cap", unit_auto_assign_idle_town_hall_cap},
     {"unit_plot_blocked_mask", unit_plot_blocked_mask},

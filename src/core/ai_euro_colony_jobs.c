@@ -2336,9 +2336,15 @@ COLONIZE_INTERNAL void ai_euro_5952_cascade_setup(AiEuro5952Cascade* s) {
     opts.has_peter_stuyvesant =
       founding_fathers_nation_has(s->col1, s->nation, FF_PETER_STUYVESANT);
   }
+  /* Every FUN_5952_0214 -> 0b8c -> FUN_15eb_3650 call runs after the prologue
+   * stored 0xff in +0x94 (raw 95711; ai_euro_5952_cascade_census), so 3650's
+   * keep-current tail never fires on this path: list with no current project. */
+  const int project = col->building_in_production;
+  col->building_in_production = -1;
   s->n_buildable = colonies_list_buildable(
     s->pool, col->id, s->buildable, COLONIZE_BUILDING_TYPES_MAX, &opts
   );
+  col->building_in_production = project;
 
   {
     const ColonizeWorld world = world_from_turn_ctx(ctx);

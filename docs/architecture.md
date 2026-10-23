@@ -30,7 +30,7 @@ lives](#where-detail-lives)).
 | Feature Done / Partial / Missing | [manual_gap.md](manual_gap.md) |
 | Popup inventory / authenticity | [popups.md](popups.md), [popups_catalog.md](popups_catalog.md), [popup_audit.md](popup_audit.md) |
 | Combat mechanics | [combat.md](combat.md), [combat_analysis.md](combat_analysis.md) |
-| Report screens (F2–F10 + HoF) | [reports.md](reports.md), [report_screens.md](report_screens.md) |
+| Report screens (F2–F10 + HoF) | [reports.md](reports.md), [reports_score.md](reports_score.md) (F10 + HoF), [report_screens.md](report_screens.md) |
 | SoL / independence | [sons_of_liberty.md](sons_of_liberty.md) |
 | Indians | [indians.md](indians.md), [indian_alarm.md](indian_alarm.md) |
 | Production formulas | [building_production.md](building_production.md), [terrain_yields.md](terrain_yields.md) |
