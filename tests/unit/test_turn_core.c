@@ -4499,6 +4499,15 @@ static int case_human_crosses_order(void) {
     fprintf(stderr, "crosses order: no immigrant on the following turn\n");
     return 1;
   }
+  /* port_bugs.md #1158: the row owns the mirror spawned for it at the pool's end. */
+  {
+    const ColonizeUnit* mu = units_get_const(&units, eu.dock[0].mirror_unit_id);
+    if (!mu || mu->x != EUROPE_PARK_XY || mu->nation_id != 0) {
+      fprintf(stderr, "crosses order: immigrant row not bound to its mirror (%d)\n",
+              eu.dock[0].mirror_unit_id);
+      return 1;
+    }
+  }
   fprintf(stderr, "human crosses order ok (need=%u)\n", (unsigned)need);
   return 0;
 }
@@ -4642,6 +4651,12 @@ static int case_immigration_pressure(void) {
     }
     if (after_units != before_units + 1) {
       fprintf(stderr, "brewster pick must mirror one Europe-map unit\n");
+      return 1;
+    }
+    /* port_bugs.md #1158: the picked row owns its mirror from the start. */
+    const ColonizeUnit* mu = units_get_const(&units, eu.dock[0].mirror_unit_id);
+    if (!mu || mu->x != EUROPE_PARK_XY) {
+      fprintf(stderr, "brewster pick row not bound to its mirror (%d)\n", eu.dock[0].mirror_unit_id);
       return 1;
     }
     fprintf(stderr, "brewster pick-among-pool ok\n");

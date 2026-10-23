@@ -40,7 +40,7 @@ typedef struct Col1CaptureCtx {
   const ColonizeWorldMap* map;
   ColonizeUnitPool* units;
   const ColonizeColonyPool* colonies;
-  const EuropeScreen* europe;
+  EuropeScreen* europe; /* non-const: the dock pass binds rows to mirrors */
   char* err;
   size_t err_size;
   uint16_t year;

@@ -10,6 +10,7 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/europe_internal.h"
+#include "core/game_loop_internal.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
 #include "core/unit_chrome.h"
@@ -3183,6 +3184,87 @@ done:
 }
 
 /*
+ * docs/dos_bugs.md DB-56 (port_bugs.md #1159): the port acts on a Europe ship
+ * drag only when the box changes. DOS's FUN_38fd_3228 mode 9 zeroes the hull's
+ * orders (38fd:326f) before comparing the drop zone with the start zone, so a
+ * release on the ship's own box drops its trade route, and mode 8 sails a
+ * harbor ship dropped on Expected Soon too (38fd:3232-324b). A real Bound <->
+ * Expected move clears the orders in both.
+ */
+static int case_europe_transit_drag_db56(void) {
+  static ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  EuropeScreen* eu = &game.europe;
+  char err[256];
+  if (!test_europe_load(eu, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "db56: europe_load failed: %s\n", err);
+    return 1;
+  }
+  int rc = 1;
+  eu->bound_ships = 1;
+  eu->expected_ships = 1;
+  eu->harbor_ships = 1;
+  memset(eu->bound, 0, sizeof(eu->bound));
+  memset(eu->expected, 0, sizeof(eu->expected));
+  memset(eu->harbor, 0, sizeof(eu->harbor));
+  snprintf(eu->bound[0].name, sizeof(eu->bound[0].name), "Caravel");
+  eu->bound[0].turns_left = 2;
+  eu->bound[0].trade_route_plus1 = 2;
+  eu->bound[0].trade_stop = 1;
+  snprintf(eu->expected[0].name, sizeof(eu->expected[0].name), "Merchantman");
+  eu->expected[0].turns_left = 3;
+  eu->expected[0].trade_route_plus1 = 3;
+  eu->expected[0].trade_stop = 2;
+  snprintf(eu->harbor[0].name, sizeof(eu->harbor[0].name), "Galleon");
+  const int bx = EUROPE_BOUND_X + 4;
+  const int by = EUROPE_BOUND_Y + 4;
+  const int ex = EUROPE_EXPECTED_X + 4;
+  const int ey = EUROPE_EXPECTED_Y + 4;
+
+  ui_drag_begin(&game.ui_drag, UI_DRAG_EUROPE_BOUND_SHIP, 0, -1, 0);
+  (void)game_europe_drag_drop(&game, bx, by, false);
+  if (eu->bound_ships != 1 || eu->bound[0].trade_route_plus1 != 2 || eu->bound[0].trade_stop != 1) {
+    fprintf(stderr, "db56: a Bound ship released on Bound lost its route\n");
+    goto done;
+  }
+  ui_drag_begin(&game.ui_drag, UI_DRAG_EUROPE_EXPECTED_SHIP, 0, -1, 0);
+  (void)game_europe_drag_drop(&game, ex, ey, false);
+  if (eu->expected_ships != 1 || eu->expected[0].trade_route_plus1 != 3 ||
+      eu->expected[0].trade_stop != 2) {
+    fprintf(stderr, "db56: an Expected ship released on Expected lost its route\n");
+    goto done;
+  }
+  ui_drag_begin(&game.ui_drag, UI_DRAG_EUROPE_HARBOR_SHIP, 0, -1, 0);
+  (void)game_europe_drag_drop(&game, ex, ey, false);
+  if (eu->harbor_ships != 1 || eu->bound_ships != 1 || eu->expected_ships != 1 ||
+      game.ai_popups.queue_count != 0 || game.map_confirm != GAME_MAP_CONFIRM_NONE) {
+    fprintf(stderr, "db56: a harbor ship dropped on Expected Soon must do nothing\n");
+    goto done;
+  }
+  ui_drag_begin(&game.ui_drag, UI_DRAG_EUROPE_BOUND_SHIP, 0, -1, 0);
+  (void)game_europe_drag_drop(&game, ex, ey, false);
+  if (eu->bound_ships != 0 || eu->expected_ships != 2 ||
+      strcmp(eu->expected[1].name, "Caravel") != 0 || eu->expected[1].trade_route_plus1 != 0 ||
+      eu->expected[1].turns_left != 2) {
+    fprintf(stderr, "db56: Bound -> Expected must move the ship and clear its route\n");
+    goto done;
+  }
+  ui_drag_begin(&game.ui_drag, UI_DRAG_EUROPE_EXPECTED_SHIP, 0, -1, 0);
+  (void)game_europe_drag_drop(&game, bx, by, false);
+  if (eu->expected_ships != 1 || eu->bound_ships != 1 ||
+      strcmp(eu->bound[0].name, "Merchantman") != 0 || eu->bound[0].trade_route_plus1 != 0) {
+    fprintf(stderr, "db56: Expected -> Bound must move the ship and clear its route\n");
+    goto done;
+  }
+  fprintf(stderr, "Europe transit drags act only on a box change ok\n");
+  rc = 0;
+done:
+  ui_drag_clear(&game.ui_drag);
+  europe_free(eu);
+  return rc;
+}
+
+/*
  * port_bugs.md #1011/#1016: FUN_38fd_6024 broadcasts the one opening-price roll to
  * ALL FOUR nation records and then runs its 0058(1, -1) tail, which rewrites
  * cargos 9..12 from the (empty) trade ledger — ratio 3, clamped into
@@ -3388,6 +3470,7 @@ static const TestCase k_cases[] = {
     {"case_europe_dock_continental_row", case_europe_dock_continental_row},
     {"case_europe_dock_mirror_follows_row", case_europe_dock_mirror_follows_row},
     {"case_europe_reverse_transit_keeps_turns", case_europe_reverse_transit_keeps_turns},
+    {"case_europe_transit_drag_db56", case_europe_transit_drag_db56},
     {"case_europe_workflow", case_europe_workflow},
     {"case_europe_dragoon_roll_and_caption", case_europe_dragoon_roll_and_caption},
     {"case_europe_seed_prices_all_nations", case_europe_seed_prices_all_nations},

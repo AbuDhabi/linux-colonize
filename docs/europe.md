@@ -278,7 +278,8 @@ Writes at most `cap` bytes; returns false on a bad index.
 
 Push a colonist onto the BACK of the dock queue (present, default sentry),
 charging no gold and posting no status message. Two callers: col1_bridge_apply
-restoring a human nation's waiting-in-Europe colonists on load, and
+restoring a human nation's waiting-in-Europe colonists on load (in record
+order, re-sorted into the lane chain's order afterwards), and
 europe_disembark_passengers_to_dock — DOS sends an arrival from the New World
 to the oldest end of the dock lane chain (FUN_281f_08c6 = FUN_1427_03a0 after
 the FUN_48d3_03d0 lane hop), so it queues behind everyone already there.
@@ -304,11 +305,16 @@ Before this, the first same-profession unit was retyped, and
 europe_equip_units saved [Soldier Scout Pioneer Missionary Dragoon Dragoon] as
 [Dragoon Dragoon Pioneer Missionary Soldier Scout] after a reload.
 
-Known gaps (the files are not Europe-module owned): col1 capture still pairs
-by profession and writes mirrors in pool order, so a mirror made in-session
-(turn_colony crosses immigrant, Brewster; spawned at the pool's end for a row
-at slot 0) and "Move to front" reload in pool order; the "don't board" flag is
-not read back from the unit's orders byte on import.
+Col1 interop (port_bugs.md #1158): the dock is DOS's lane-236+n tile chain,
+drawn newest first (FUN_38fd_15aa from FUN_281f_07e0's chain end, walking
++0x315e). Import pushes rows in record order, binds each to the mirror it
+spawns, then re-sorts the rows (and harbor ships) by that walk; capture keys
+every row's record (its mirror's, or one written from the row) by dock index,
+so the chain pass links dock[0] as the newest and the harbor hulls below the
+dock rows. The turn_colony crosses immigrant and the Brewster pick set
+`mirror_unit_id` on the new dock[0] row. The board flag is the record's
++0x314c (1 = board, 0 = "Don't get on next ship"; 38fd:3ade / 3aea), read
+into `sentry` on import and written from it on capture.
 
 ## europe_reverse_transit
 

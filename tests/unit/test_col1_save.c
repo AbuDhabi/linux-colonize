@@ -12,6 +12,7 @@
 #include "core/assets.h"
 #include "core/colony.h"
 #include "core/europe.h"
+#include "core/europe_internal.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/savegame.h"
@@ -1210,6 +1211,178 @@ static bool test_bridge_unit_overflow(char* err, size_t err_size) {
   return ok;
 }
 
+/* DOS's order on a Europe lane tile (record indices, newest first): FUN_1427_005c
+ * takes the first record on (xy, xy), FUN_1427_0002 follows +0x315c to the end,
+ * and the dock / harbor painters (FUN_38fd_15aa / 0666) walk +0x315e back. */
+static int dos_lane_walk(const ColonizeCol1Save* s, uint8_t xy, int* out, int max) {
+  const int n = (int)s->head.unit_count;
+  int top = -1;
+  for (int i = 0; i < n && top < 0; ++i) {
+    if (s->unit[i].x == xy && s->unit[i].y == xy) {
+      top = i;
+    }
+  }
+  for (int g = 0; top >= 0 && g < n; ++g) {
+    const int nx = s->unit[top].transport_chain.next_unit_idx;
+    if (nx < 0 || nx >= n) {
+      break;
+    }
+    top = nx;
+  }
+  int k = 0;
+  for (int u = top, g = 0; u >= 0 && u < n && g < n && k < max; ++g) {
+    out[k++] = u;
+    u = s->unit[u].transport_chain.prev_unit_idx;
+  }
+  return k;
+}
+
+/* The land records of a lane walk as (type, profession, boards) triples. */
+static int dos_lane_dockers(const ColonizeCol1Save* s, uint8_t xy, int* out, int max) {
+  int walk[1024];
+  const int n = dos_lane_walk(s, xy, walk, 1024);
+  int k = 0;
+  for (int j = 0; j < n && k + 3 <= max; ++j) {
+    const ColonizeCol1Unit* u = &s->unit[walk[j]];
+    if (u->type >= 13 && u->type <= 18) {
+      continue;
+    }
+    out[k++] = u->type;
+    out[k++] = u->profession;
+    out[k++] = u->orders == UNITS_ORDER_SENTRY;
+  }
+  return k / 3;
+}
+
+/*
+ * port_bugs.md #1158: the dock round-trips through the save in the order DOS
+ * draws it. Import reads the lane chain newest first and the board flag from
+ * +0x314c; in session a row moves to the front and a new immigrant's mirror
+ * lands at the pool's END for dock slot 0 (turn_colony's crosses path); the
+ * capture must hand DOS that dock order on one chain with the harbor hull,
+ * and a reload must show it again.
+ */
+static bool test_europe_dock_in_session_order(char* err, size_t err_size) {
+  ColonizeCol1Save save;
+  col1_save_init(&save);
+  save.head.map_size_x = 8;
+  save.head.map_size_y = 8;
+  save.head.unit_count = 4;
+  save.head.human_player = 0;
+  save.player[0].control = 0;
+  col1_save_stamp_head(&save.head);
+  if (!col1_save_alloc_sections(&save, err, err_size)) {
+    return false;
+  }
+  memset(save.map.tile, 0, save.map.tile_count);
+  static const int k_prof[3] = {5, 8, 19};
+  for (int i = 0; i < 4; ++i) {
+    save.unit[i].x = EUROPE_PARK_XY;
+    save.unit[i].y = EUROPE_PARK_XY;
+    save.unit[i].nation_id = 0;
+    save.unit[i].type = i == 3 ? 13 : 0;
+    save.unit[i].profession = (uint8_t)(i == 3 ? 0 : k_prof[i]);
+    save.unit[i].orders = (uint8_t)(i == 1 || i == 3 ? 0 : 1); /* record 1: "Don't board" */
+  }
+  /* DOS-shaped chain, root to newest: hull 3, then records 0, 1, 2. */
+  const int8_t prev[4] = {3, 0, 1, -1};
+  const int8_t next[4] = {1, 2, -1, 0};
+  for (int i = 0; i < 4; ++i) {
+    save.unit[i].transport_chain.prev_unit_idx = prev[i];
+    save.unit[i].transport_chain.next_unit_idx = next[i];
+  }
+  static ColonizeUnitPool units[2];
+  for (int k = 0; k < 2; ++k) {
+    memset(&units[k], 0, sizeof(units[k]));
+    units_reset(&units[k]);
+    units[k].type_count = 23;
+    for (int t = 0; t < units[k].type_count; ++t) {
+      units[k].types[t].movement = 1;
+      units[k].types[t].domain = t >= 13 && t <= 18 ? COLONIZE_UNIT_DOMAIN_SEA
+                                                    : COLONIZE_UNIT_DOMAIN_LAND;
+      units[k].types[t].cargo = t >= 13 && t <= 18 ? 6 : 0;
+    }
+  }
+  units_set_occupancy_map(NULL);
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  static EuropeScreen europe[2];
+  for (int k = 0; k < 2; ++k) {
+    memset(&europe[k], 0, sizeof(europe[k]));
+    static const int k_jobs[4] = {5, 8, 19, 6};
+    static const char* const k_names[4] = {"A", "B", "C", "D"};
+    for (int j = 0; j < 4; ++j) {
+      europe[k].train[j].job_index = k_jobs[j];
+      snprintf(europe[k].train[j].expert_name, sizeof(europe[k].train[j].expert_name), "%s", k_names[j]);
+    }
+    europe[k].train_count = 4;
+  }
+  ColonizeCol1BridgeResult result;
+  bool ok = col1_bridge_apply_w(
+    &(ColonizeWorld){.units=&units[0], .colonies=&colonies, .map=&map, .col1=&save,
+                     .col1_ok=true, .europe=&europe[0]}, &result, err, err_size
+  );
+  EuropeScreen* eu = &europe[0];
+  if (ok && (eu->dock_count != 3 || eu->dock[0].profession != 19 || eu->dock[1].profession != 8 ||
+             eu->dock[2].profession != 5 || eu->dock[1].sentry || !eu->dock[0].sentry ||
+             !eu->dock[2].sentry || eu->harbor_ships != 1 || eu->dock[0].mirror_unit_id <= 0)) {
+    snprintf(err, err_size, "import: dock %d [%d %d %d] sentry %d%d%d harbor %d",
+             eu->dock_count, eu->dock[0].profession, eu->dock[1].profession,
+             eu->dock[2].profession, eu->dock[0].sentry, eu->dock[1].sentry, eu->dock[2].sentry,
+             eu->harbor_ships);
+    ok = false;
+  }
+  /* In session: "Move to front" on slot 2, then a new immigrant on slot 0. */
+  ok = ok && europe_apply_dock_menu_row_ex(eu, &units[0], &save, 0, 2, EUROPE_ARM_ROW_TO_FRONT);
+  if (ok) {
+    EuropeDockImmigrant* d = europe_dock_insert_front(eu);
+    snprintf(d->name, sizeof(d->name), "D");
+    d->profession = 6;
+    d->present = true;
+    d->sentry = true;
+    d->mirror_unit_id = europe_spawn_dock_mirror_unit(&units[0], 0, 6, 0, true, NULL);
+    ok = d->mirror_unit_id > 0;
+  }
+  /* Dock now [6, 5, 19, 8(don't board)]. */
+  ok = ok && col1_bridge_capture_w(
+    &(ColonizeWorld){.units=&units[0], .colonies=&colonies, .map=&map, .col1=&save,
+                     .col1_ok=true, .europe=eu},
+    1492, 0, 1, 0, 0, 0, 0, 0, -1, true, err, err_size
+  );
+  static const int k_want[4][2] = {{6, 1}, {5, 1}, {19, 1}, {8, 0}};
+  if (ok) {
+    int seq[3 * 8];
+    int walk[16];
+    const int n = dos_lane_dockers(&save, EUROPE_PARK_XY, seq, 3 * 8);
+    bool same = n == 4 && dos_lane_walk(&save, EUROPE_PARK_XY, walk, 16) == 5;
+    for (int k = 0; same && k < 4; ++k) {
+      same = seq[3 * k + 1] == k_want[k][0] && seq[3 * k + 2] == k_want[k][1];
+    }
+    if (!same) {
+      snprintf(err, err_size, "capture: DOS sees %d dockers [%d %d %d %d]", n, seq[1], seq[4],
+               seq[7], seq[10]);
+      ok = false;
+    }
+  }
+  ok = ok && col1_bridge_apply_w(
+    &(ColonizeWorld){.units=&units[1], .colonies=&colonies, .map=&map, .col1=&save,
+                     .col1_ok=true, .europe=&europe[1]}, &result, err, err_size
+  );
+  for (int k = 0; ok && k < 4; ++k) {
+    if (europe[1].dock_count != 4 || europe[1].dock[k].profession != k_want[k][0] ||
+        europe[1].dock[k].sentry != (k_want[k][1] != 0)) {
+      snprintf(err, err_size, "reload: slot %d prof %d sentry %d", k,
+               europe[1].dock[k].profession, europe[1].dock[k].sentry);
+      ok = false;
+    }
+  }
+  col1_save_free(&save);
+  map_free(&map);
+  return ok;
+}
+
 /* 1533->1534: two AI hulls share one Europe lane, and one carries a
  * passenger. FUN_1427_02ca links the two hull groups on that tile. */
 static bool test_europe_lane_ship_chain(char* err, size_t err_size) {
@@ -1551,6 +1724,10 @@ int main(void) {
   }
   if (!test_europe_lane_ship_chain(err, sizeof(err))) {
     fprintf(stderr, "Europe lane chain: %s\n", err);
+    return 1;
+  }
+  if (!test_europe_dock_in_session_order(err, sizeof(err))) {
+    fprintf(stderr, "Europe dock order: %s\n", err);
     return 1;
   }
   fprintf(stderr, "Col1 tile-chain arrival order import/export ok\n");
@@ -1908,6 +2085,47 @@ int main(void) {
       if (!col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units2), .colonies=(ColonizeColonyPool*)(&colonies2), .map=(ColonizeWorldMap*)(&map2), .col1=(ColonizeCol1Save*)(&cap), .col1_ok=true, .europe=(EuropeScreen*)(&europe2)}, &br2, err, sizeof(err))) {
         fprintf(stderr, "recapture re-apply failed %s: %s\n", fix->path, err);
         return 1;
+      }
+      /*
+       * port_bugs.md #1158: the dock reads in DOS's painter order (newest first),
+       * and the port-written save hands DOS the same dock, board flags and all,
+       * with every record of the lane on the one chain DOS walks.
+       */
+      if (br.human_nation >= 0 && br.human_nation < 4) {
+        const uint8_t xy = (uint8_t)(EUROPE_PARK_XY + br.human_nation);
+        static int seq_orig[3 * 1024];
+        static int seq_cap[3 * 1024];
+        static int walk[1024];
+        const int no = dos_lane_dockers(&orig, xy, seq_orig, 3 * 1024);
+        const int nc = dos_lane_dockers(&cap, xy, seq_cap, 3 * 1024);
+        int on_lane = 0;
+        for (unsigned ui = 0; ui < cap.head.unit_count; ++ui) {
+          on_lane += cap.unit[ui].x == xy && cap.unit[ui].y == xy;
+        }
+        if (dos_lane_walk(&cap, xy, walk, 1024) != on_lane) {
+          fprintf(stderr, "dock lane not one chain %s: %d records\n", fix->path, on_lane);
+          return 1;
+        }
+        /* Hulls the bridge files as harbor ships from other lanes (232+n, 240+n)
+         * put their passengers on the dock behind the lane's own dockers. The
+         * @UNIT type is not compared: this fixture's type table has no kinds. */
+        bool same = nc >= no;
+        for (int k = 0; same && k < no; ++k) {
+          same = seq_orig[3 * k + 1] == seq_cap[3 * k + 1] && seq_orig[3 * k + 2] == seq_cap[3 * k + 2];
+        }
+        if (!same) {
+          fprintf(stderr, "dock order drift DOS %s: %d -> %d dockers\n", fix->path, no, nc);
+          return 1;
+        }
+        for (int k = 0; k < no && k < europe.dock_count; ++k) {
+          const bool artillery = seq_orig[3 * k] == 11;
+          if ((!artillery && europe.dock[k].profession != seq_orig[3 * k + 1]) ||
+              europe.dock[k].sentry != (seq_orig[3 * k + 2] != 0)) {
+            fprintf(stderr, "dock slot %d not DOS's %s: prof %d vs %d\n", k, fix->path,
+                    europe.dock[k].profession, seq_orig[3 * k + 1]);
+            return 1;
+          }
+        }
       }
       if (europe2.harbor_ships != europe.harbor_ships ||
           europe2.expected_ships != europe.expected_ships ||

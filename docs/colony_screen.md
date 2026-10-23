@@ -135,8 +135,9 @@ tab's hammers bar (own block). Production-tab badge ink is white (15), not
   and not reproduced); a
   turned page without it bars its first row (page 1 the back "(More)", page 0 the
   clear row), because `local_8` is never reset, which also leaves the `08ec(100)`
-  arm dead. The port's buildable list cannot reach 23 rows today (port_bugs.md
-  #1218), so no live colony pages.
+  arm dead. A live list pages once the built current project keeps its row
+  (FUN_15eb_3650 tail, port_bugs.md #1218; unit_stage_seams
+  test_colony_construction_two_pages_live).
 - **BUY / CHANGE buttons** are `FUN_2f2b_21da` -> `FUN_2f2b_208c` literally:
   at (0xd8, 0x8a) / (0x10e, 0x8a), label width + 5 by 9, WOODPANL 0x30 bottom
   and right drawn first, then 0x39 top and left, the label at (+3, +2) in 0x0f
