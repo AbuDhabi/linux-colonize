@@ -4,7 +4,8 @@
 human can start a game, build an economy, trade with Europe, deal with the
 natives, declare independence, fight the War of Independence and win — with
 the UI, reports, popups and music good enough that none of it feels like a
-placeholder. DOS-exact rival AI, 1:1 Indian AI, seed determinism, pixel-exact
+placeholder. DOS-exact rival AI, 1:1 Indian AI, seed determinism with DOS (dropped as a goal
+2026-10-23, see [project_goals.md](project_goals.md) "Determinism"), pixel-exact
 art and full-fidelity music are **explicitly deferred** (see "Deferred
 phases" below and the "Deferred AI track — detail" section, which absorbed
 the old `ai_port_plan.md` / `ai_transcription.md` queues).
