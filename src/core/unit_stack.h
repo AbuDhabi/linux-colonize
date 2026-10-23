@@ -26,12 +26,8 @@ typedef struct UnitStackPopup {
   int dialog_y;
   int dialog_w;
   int dialog_h;
-  int list_y0;
-  int list_x0;
-  int line_h;
-  int col_w;   /* grid column width in px (port_bugs.md #246) */
-  int cols;    /* columns in use, 1..3 */
-  int rows;    /* rows per column */
+  int list_y0; /* top of row 0's icon row */
+  int line_h; /* icon row pitch (16) */
 } UnitStackPopup;
 
 /* Collect human units at (x,y); opens only when count > 1. */
@@ -63,7 +59,6 @@ void unit_stack_render(
   const ColonizeSpriteSheet* wood_tile,
   const ColonizePopupColors* colors,
   uint8_t text_color,
-  uint8_t select_color,
   const ColonizePalette* active_palette, /* frame palette for nation-fill remap */
   const ColonizeCol1Save* col1,          /* WoI Rebel/Tory adjectives; may be NULL */
   ColonizeFramebuffer8* framebuffer

@@ -531,9 +531,11 @@ int ai_popup_choice_row_at(const AiPopupState* st, int mouse_x, int mouse_y);
 
 bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input);
 
+/* tiny_font = FONTTINY, the face of the DS:0x1f66 "(F1 for Help)" footer (NULL = none). */
 void ai_popup_render(
   AiPopupState* st,
   const ColonizeFont* font,
+  const ColonizeFont* tiny_font,
   const ColonizeSpriteSheet* wood_tile,
   const ColonizePopupColors* colors,
   uint8_t text_color,

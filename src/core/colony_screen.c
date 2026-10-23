@@ -445,16 +445,15 @@ void colony_screen_open_custom_house(
   view->custom_house_smallfont = colony_screen_section_has_directive(
     messages ? assets_msg_find(messages, "CUSTOM") : NULL, "@smallfont"
   );
-  /* Every cargo but Food gets a row (col1_save.h's ColonizeCol1CustomHouse
-   * bitfield has all 16, Food included, so the save format itself treats
-   * this as a full checklist) — player-reported: filtering to only
-   * europe_cargo_export_eligible()'s autosell denylist left Tools and
+  /* Every cargo gets a row: FUN_2f2b_4424 adds all 16 (@CARGO via DS:0x97c0, Food
+   * included, raw loop `local_8 < 0x10`, 2f2b:4447-448a) with each one's bit as the
+   * checkbox (FUN_281f_0cfe / FUN_291f_0262), port_bugs.md #1190. Player-reported:
+   * filtering to only europe_cargo_export_eligible()'s autosell denylist left Tools and
    * Muskets (and Horses) missing from the popup. That denylist still gates
    * europe_custom_house_autosell()'s actual EOT sell — toggling one of
-   * those rows on here just never has an effect, same as DOS's own
-   * checklist presumably allows (the bit exists either way). */
+   * those rows on here just never has an effect (the bit exists either way). */
   view->custom_house_count = 0;
-  for (int c = 1;
+  for (int c = 0;
        c < COLONIZE_CARGO_COUNT && view->custom_house_count < COLONIZE_CARGO_COUNT;
        ++c) {
     view->custom_house_cargo_ids[view->custom_house_count++] = c;

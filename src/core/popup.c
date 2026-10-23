@@ -267,10 +267,6 @@ int popup_draw_text_markup(
 
 /* ---- Shared wood list-dialog pipeline (audit theme K) ---- */
 
-int popup_dialog_line_h(const ColonizeFont* font) {
-  return font ? (int)font->max_height + 2 : 8;
-}
-
 int popup_row_at_y(int list_y0, int line_h, int count, int mouse_y) {
   if (line_h <= 0 || count <= 0) {
     return -1;
@@ -337,24 +333,6 @@ void popup_center_frame(
   }
 }
 
-void popup_list_metrics_classic(const ColonizeFont* font, PopupListMetrics* out) {
-  if (!out) {
-    return;
-  }
-  memset(out, 0, sizeof(*out));
-  const int line_h = popup_dialog_line_h(font);
-  out->line_h = line_h;
-  out->option_h = line_h;
-  out->pad_x = 6;
-  out->pad_y = 4;
-  out->bottom_pad = 4;
-  out->prompt_gap = 2;
-  out->min_h = 40;
-  out->screen_margin_w = 8;
-  out->screen_margin_h = 8;
-  out->sel_h = line_h;
-}
-
 void popup_list_metrics_dos6f74(const ColonizeFont* font, PopupListMetrics* out) {
   if (!out) {
     return;
@@ -365,22 +343,18 @@ void popup_list_metrics_dos6f74(const ColonizeFont* font, PopupListMetrics* out)
    * advance by glyph_h + 1 (FUN_6f74_1198 @ OVL24 0x1234/0x124c); the +0x54
    * option rows advance by glyph_h + box[+0x46], and box[+0x46] is 3 for every
    * framed dialog (FUN_6f74_06d0 @ 0x078a-0x0799). The selection bar is
-   * glyph_h + 2 tall (FUN_6f74_1b7c @ 0x1c5b-0x1c9b).
+   * glyph_h + 2 tall (FUN_6f74_1b7c @ 0x1c5b-0x1c9b). Height and row tops:
+   * popup_list_render (port_bugs.md #1189, #1190).
    */
-  int glyph_h = font ? (int)font->max_height : 6;
-  if (glyph_h == 6) {
-    glyph_h = 5;
-  }
+  const int glyph_h = popup_dos_glyph_h(font);
   out->line_h = glyph_h + 1;
   out->option_h = glyph_h + 3;
-  out->pad_x = 2;
-  out->pad_y = 3;
-  out->bottom_pad = 3;
-  out->prompt_gap = 2;
-  out->frame_pad = 6; /* box +0x46/+0x2a = 3 px of wood on each side */
+  out->pad_x = 2; /* box[+0x48]: prompt at frame + 5 */
+  out->pad_y = 3; /* prompt top frame + 6 */
+  out->label_dx = 4; /* box[+0x22], FUN_6f74_06d0 default; FUN_6f74_0a00 widens by it too */
   out->sel_h = glyph_h + 2;
-  out->widen_to_rows = true;
-  out->shadow_text = true;
+  /* A FONTTINY dialog draws no drop shadow (original_screenshots/europe/train.png, #1187). */
+  out->shadow_text = glyph_h != 5;
 }
 
 static void popup_list_draw_row_text(
@@ -418,7 +392,6 @@ void popup_list_render(
   int count,
   int selection,
   PopupListLabelFn label_fn,
-  PopupListRowFn row_fn,
   void* user,
   uint8_t text_color,
   uint8_t hilite_color,
@@ -439,23 +412,17 @@ void popup_list_render(
     count = 0;
   }
 
-  const int prompt_h = has_prompt ? m->line_h + m->prompt_gap : 0;
-  const int options_h = count * m->option_h;
-  int dialog_h = POPUP_FRAME_INSET * 2 + m->pad_y + prompt_h + options_h + m->bottom_pad;
-  if (m->min_h > 0 && dialog_h < m->min_h) {
-    dialog_h = m->min_h;
-  }
-  if (dialog_h > framebuffer->height - m->screen_margin_h) {
-    dialog_h = framebuffer->height - m->screen_margin_h;
+  /* One prompt line (FUN_6f74_1198); every caller's prompt fits the @width. */
+  const int prompt_h = has_prompt ? m->line_h : 0;
+  int dialog_h = popup_dos_list_height(popup_dos_glyph_h(font), prompt_h, count, false, false);
+  if (dialog_h > framebuffer->height) {
+    dialog_h = framebuffer->height;
   }
 
-  int content_w = width;
-  /*
-   * FUN_6f74_14c6: the box grows to the widest emitted row (the prompt is
-   * flow-wrapped to the declared @width first, so only single-line rows widen
-   * it). Measured with font_text_width, matching save_load_dialog.
-   */
-  if (m->widen_to_rows && font) {
+  /* FUN_6f74_14c6: content = max(box[+0x28] (@width, default 0x50), widest row), the
+   * row width being FUN_6f74_0a00's text + 2 * box[+0x48] + box[+0x22]. */
+  int content_w = width > 0x50 ? width : 0x50;
+  if (font) {
     if (has_prompt) {
       const int w = font_text_width(font, prompt) + 2 * m->pad_x;
       if (w > content_w) {
@@ -473,15 +440,15 @@ void popup_list_render(
       }
     }
   }
-  int dialog_w = content_w + m->frame_pad;
-  if (dialog_w > framebuffer->width - m->screen_margin_w) {
-    dialog_w = framebuffer->width - m->screen_margin_w;
+  int dialog_w = content_w + 6; /* 3 px of wood per side */
+  if (dialog_w > framebuffer->width) {
+    dialog_w = framebuffer->width;
   }
 
   popup_center_frame(framebuffer, dialog_w, dialog_h, wood_tile, colors, &geom.frame);
   geom.line_h = m->option_h;
 
-  int text_y = geom.frame.inner_y + m->pad_y;
+  const int text_y = geom.frame.inner_y + m->pad_y;
   if (has_prompt && font) {
     if (m->shadow_text) {
       popup_draw_text_shadowed(
@@ -493,16 +460,13 @@ void popup_list_render(
       );
     }
   }
-  if (has_prompt) {
-    text_y += prompt_h;
-  }
-  geom.list_y0 = text_y;
+  /* list_y0 is row 0's bar top and the text sits one px lower (FUN_6f74_1b7c). */
+  geom.list_y0 = popup_dos_list_y0(geom.frame.y, prompt_h);
 
   for (int i = 0; i < count; ++i) {
-    const int row_y = text_y + i * m->option_h;
+    const int row_y = geom.list_y0 + i * m->option_h + 1;
     if (i == selection) {
-      /* Same bar every wood list draws: inner rect inset 1 px per side,
-       * starting one row above the text baseline. */
+      /* Bar: frame + 4 .. frame + w - 5, from the bar top. */
       popup_fill_rect(
         framebuffer,
         geom.frame.inner_x + 1,
@@ -512,13 +476,10 @@ void popup_list_render(
         select_color
       );
     }
-    const int row_x = geom.frame.inner_x + m->pad_x + m->label_dx;
-    if (row_fn) {
-      row_fn(user, i, framebuffer, row_x, row_y, m->option_h);
-    }
     const char* label = label_fn ? label_fn(user, i) : NULL;
     popup_list_draw_row_text(
-      font, framebuffer, m, row_x, row_y, label, text_color, hilite_color
+      font, framebuffer, m, geom.frame.inner_x + m->pad_x + m->label_dx, row_y, label,
+      text_color, hilite_color
     );
   }
 
@@ -542,6 +503,32 @@ int popup_dos_list_height(int glyph_h, int prose_h, int rows, bool help_footer, 
     h += tiny_font ? 6 : 3;
   }
   return h;
+}
+
+/* DOS-LITERAL FUN_6f74_14c6 box[+0x26] (raw 115927-115932, 115962-115966, 116137); see popup.h. */
+int popup_dos_list_y0(int frame_y, int prose_h) {
+  return frame_y + 6 + (prose_h ? 3 + prose_h : 0);
+}
+
+/* DOS-LITERAL FUN_6f74_1a78 (raw 116166-116191); see popup.h. */
+void popup_dos_draw_help_footer(
+  ColonizeFramebuffer8* framebuffer,
+  const ColonizeFont* tiny_font,
+  int frame_x,
+  int frame_y,
+  int w,
+  int h,
+  bool tiny_dialog,
+  const char* word,
+  uint8_t color
+) {
+  if (!tiny_font || !word || !word[0]) {
+    return;
+  }
+  const int x = frame_x + w - 2 - font_text_width(tiny_font, word);
+  font_draw_text_unbold(
+    tiny_font, framebuffer, x, frame_y + h - (tiny_dialog ? 9 : 7), word, color
+  );
 }
 
 /*

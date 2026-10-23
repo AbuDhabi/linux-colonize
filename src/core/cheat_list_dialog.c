@@ -425,9 +425,9 @@ bool cheat_list_open_debug_flags(
   }
   for (int i = 0; i < n; ++i) {
     const int on = (initial_mask & (uint16_t)(1u << i)) != 0;
-    snprintf(
-      dlg->options[i], sizeof(dlg->options[i]), "%s %s", on ? "[x]" : "[ ]", labels[i]
-    );
+    /* DOS @checkbox row text (FUN_6f74_0a00 / 1b7c, as options_dialog): ']' on, '['
+     * off, the font's filled / empty check circles. */
+    snprintf(dlg->options[i], sizeof(dlg->options[i]), "%c %s", on ? ']' : '[', labels[i]);
     dlg->option_ids[i] = i;
   }
   dlg->option_count = n;
@@ -436,17 +436,16 @@ bool cheat_list_open_debug_flags(
 }
 
 /*
- * Every multi-select option is rendered "[x] Label" / "[ ] Label" (trade
- * cargo, debug flags, …); flip the bracket char in place instead of
- * rebuilding the label from a kind-specific name table.
+ * A multi-select option is rendered "] Label" / "[ Label" (the DOS check glyphs);
+ * flip the glyph in place instead of rebuilding the label from a name table.
  */
 static void cheat_list_flip_checkbox(CheatListDialog* dlg, int idx) {
   if (!dlg || idx < 0 || idx >= dlg->option_count) {
     return;
   }
   char* opt = dlg->options[idx];
-  if (opt[0] == '[' && opt[2] == ']') {
-    opt[1] = (dlg->selected_mask & (uint16_t)(1u << idx)) ? 'x' : ' ';
+  if (opt[0] == '[' || opt[0] == ']') {
+    opt[0] = (dlg->selected_mask & (uint16_t)(1u << idx)) ? ']' : '[';
   }
 }
 
@@ -581,8 +580,26 @@ void cheat_list_render(
   if (!dlg || !dlg->open || !framebuffer || !framebuffer->pixels) {
     return;
   }
+  /*
+   * Every kind is a generic compositor box. The DEBUG.TXT / GAME.TXT section lists keep
+   * the FUN_6f74_06d0 box[+0x22] default 4; the FUN_647e_* destination / route / cargo
+   * pickers set it to 10 (FUN_647e_01c6 raw 102383 Go to Port and the route stops,
+   * FUN_647e_0796 raw 102708 route picker, FUN_647e_090a raw 102771 starting stop,
+   * FUN_647e_0e80 raw 102958 cargo picker). The caller passes the font (FONTINTR; the
+   * cargo picker FONTTINY, FUN_2a1f_07c4(DS:0x89e) raw 102951).
+   */
   PopupListMetrics metrics;
-  popup_list_metrics_classic(font, &metrics);
+  popup_list_metrics_dos6f74(font, &metrics);
+  switch (dlg->kind) {
+    case CHEAT_LIST_KIND_GOTO_PORT:
+    case CHEAT_LIST_KIND_TRADE_SELECT:
+    case CHEAT_LIST_KIND_TRADE_DEST:
+    case CHEAT_LIST_KIND_TRADE_CARGO_ONE:
+      metrics.label_dx = 10;
+      break;
+    default:
+      break;
+  }
   PopupListGeom geom;
   popup_list_render(
     framebuffer,
@@ -595,7 +612,6 @@ void cheat_list_render(
     dlg->option_count,
     dlg->selection,
     cheat_list_row_label,
-    NULL,
     dlg,
     text_color,
     text_color,

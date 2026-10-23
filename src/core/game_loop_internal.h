@@ -371,6 +371,7 @@ void game_order_unload(ColonizeGameState* game);
 int game_owned_unit_at(const ColonizeGameState* game, int x, int y);
 const ColonizeFont* game_pedia_font(const ColonizeGameState* game);
 const ColonizeFont* game_popup_font(const ColonizeGameState* game);
+const ColonizeFont* save_load_font(const ColonizeGameState* game);
 uint32_t game_pick_rng_seed(const ColonizeGameState* game, uint32_t fallback);
 void game_refresh_orders_menu(ColonizeGameState* game);
 void game_retire_after_score(ColonizeGameState* game);

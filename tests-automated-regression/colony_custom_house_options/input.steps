@@ -1,41 +1,41 @@
 # Quebec with a Custom House added (fixture). Its export checklist starts as: Sugar Tobacco Cotton Furs Ore Silver Rum Cigars Cloth Coats on; Lumber Horses Trade Goods Tools Muskets off.
 click 168 128              # open Quebec
 wait 10
-click 68 26               # click the Custom House: the "Which cargos shall our Custom House export?" panel (15 rows, Food has none)
+click 68 26               # click the Custom House: the "Which cargos shall our Custom House export?" panel (16 rows, Food first: FUN_2f2b_4424)
 click 150 33              # panel frame above the rows: nothing happens, panel stays open
 # select all: switch on every row that is off
-click 100 79            # Lumber on
-click 100 103            # Horses on
-click 100 143            # Trade Goods on
-click 100 151            # Tools on
-click 100 159            # Muskets on
-# unselect all: toggle every row (all 15 are on now)
-click 100 47            # Sugar off
-click 100 55            # Tobacco off
-click 100 63            # Cotton off
-click 100 71            # Furs off
-click 100 79            # Lumber off
-click 100 87            # Ore off
-click 100 95            # Silver off
-click 100 103            # Horses off
-click 100 111            # Rum off
-click 100 119            # Cigars off
-click 100 127            # Cloth off
-click 100 135            # Coats off
-click 100 143            # Trade Goods off
-click 100 151            # Tools off
-click 100 159            # Muskets off
+click 100 86            # Lumber on
+click 100 110            # Horses on
+click 100 150            # Trade Goods on
+click 100 158            # Tools on
+click 100 166            # Muskets on
+# unselect all: toggle every row (all but Food are on now)
+click 100 54            # Sugar off
+click 100 62            # Tobacco off
+click 100 70            # Cotton off
+click 100 78            # Furs off
+click 100 86            # Lumber off
+click 100 94            # Ore off
+click 100 102            # Silver off
+click 100 110            # Horses off
+click 100 118            # Rum off
+click 100 126            # Cigars off
+click 100 134            # Cloth off
+click 100 142            # Coats off
+click 100 150            # Trade Goods off
+click 100 158            # Tools off
+click 100 166            # Muskets off
 # mixed: Sugar Cotton Ore Rum Cloth Tools Muskets on
-click 100 47            # Sugar on
-click 100 63            # Cotton on
-click 100 87            # Ore on
-click 100 111            # Rum on
-click 100 127            # Cloth on
-click 100 151            # Tools on
-click 100 159            # Muskets on
+click 100 54            # Sugar on
+click 100 70            # Cotton on
+click 100 94            # Ore on
+click 100 118            # Rum on
+click 100 134            # Cloth on
+click 100 158            # Tools on
+click 100 166            # Muskets on
 key Return                # Enter closes the panel
 click 68 26               # reopen: the mixed choice persisted
-click 100 135            # Coats on
+click 100 142            # Coats on
 click 270 60              # click outside the panel: it closes
 click 68 26               # reopen once more (state kept)
 click 270 60              # outside click closes it

@@ -17,9 +17,9 @@
 {"type":"mouse_move","t_ms":2872,"frame":117,"x":564,"y":282,"lx":282,"ly":141,"buttons":0}
 {"type":"mouse_down","t_ms":2888,"frame":118,"x":564,"y":282,"lx":282,"ly":141,"button":"left","clicks":1}
 {"type":"mouse_up","t_ms":2936,"frame":121,"x":564,"y":282,"lx":282,"ly":141,"button":"left","clicks":1}
-{"type":"mouse_move","t_ms":3192,"frame":137,"x":300,"y":214,"lx":150,"ly":107,"buttons":0}
-{"type":"mouse_down","t_ms":3208,"frame":138,"x":300,"y":214,"lx":150,"ly":107,"button":"left","clicks":1}
-{"type":"mouse_up","t_ms":3256,"frame":141,"x":300,"y":214,"lx":150,"ly":107,"button":"left","clicks":1}
+{"type":"mouse_move","t_ms":3192,"frame":137,"x":300,"y":206,"lx":150,"ly":103,"buttons":0}
+{"type":"mouse_down","t_ms":3208,"frame":138,"x":300,"y":206,"lx":150,"ly":103,"button":"left","clicks":1}
+{"type":"mouse_up","t_ms":3256,"frame":141,"x":300,"y":206,"lx":150,"ly":103,"button":"left","clicks":1}
 {"type":"key_down","t_ms":3512,"frame":157,"keycode":98,"mod":0}
 {"type":"text","t_ms":3512,"frame":157,"text":"b"}
 {"type":"key_up","t_ms":3560,"frame":160,"keycode":98,"mod":0}
@@ -29,9 +29,9 @@
 {"type":"mouse_move","t_ms":4232,"frame":202,"x":564,"y":282,"lx":282,"ly":141,"buttons":0}
 {"type":"mouse_down","t_ms":4248,"frame":203,"x":564,"y":282,"lx":282,"ly":141,"button":"left","clicks":1}
 {"type":"mouse_up","t_ms":4296,"frame":206,"x":564,"y":282,"lx":282,"ly":141,"button":"left","clicks":1}
-{"type":"mouse_move","t_ms":4552,"frame":222,"x":300,"y":310,"lx":150,"ly":155,"buttons":0}
-{"type":"mouse_down","t_ms":4568,"frame":223,"x":300,"y":310,"lx":150,"ly":155,"button":"left","clicks":1}
-{"type":"mouse_up","t_ms":4616,"frame":226,"x":300,"y":310,"lx":150,"ly":155,"button":"left","clicks":1}
+{"type":"mouse_move","t_ms":4552,"frame":222,"x":300,"y":302,"lx":150,"ly":151,"buttons":0}
+{"type":"mouse_down","t_ms":4568,"frame":223,"x":300,"y":302,"lx":150,"ly":151,"button":"left","clicks":1}
+{"type":"mouse_up","t_ms":4616,"frame":226,"x":300,"y":302,"lx":150,"ly":151,"button":"left","clicks":1}
 {"type":"mouse_move","t_ms":4872,"frame":242,"x":434,"y":282,"lx":217,"ly":141,"buttons":0}
 {"type":"mouse_down","t_ms":4888,"frame":243,"x":434,"y":282,"lx":217,"ly":141,"button":"left","clicks":1}
 {"type":"mouse_up","t_ms":4936,"frame":246,"x":434,"y":282,"lx":217,"ly":141,"button":"left","clicks":1}

@@ -124,7 +124,7 @@ click 100 87           # Quebec
 click 50 130           # empty row 4: append a stop
 click 100 96           # Montreal (route is now full at 4 stops)
 click 50 90            # stop 2 (Martinique) again
-click 100 128          # (Delete Destination): stops 3 and 4 shift up, the stop with its cargo is gone
+click 100 138          # (Delete Destination): stops 3 and 4 shift up, the stop with its cargo is gone
 click 190 90          # stop 2 load column: cargo picker
 click 100 156         # Tools
 click 300 90          # stop 2 unload column: cargo picker

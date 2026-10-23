@@ -278,8 +278,10 @@ void save_load_render(
   }
 
   /* DOS 6f74 compositor metrics (same as ai_popup_render): content width =
-   * @width, frame adds 3 px per side, outer height = text + 12, centred and
-   * clamped below the menu bar.
+   * @width, frame adds 3 px per side, outer height = prompt + rows + 12
+   * (popup_dos_list_height), centred by popup_place_dos, rows from
+   * popup_dos_list_y0 (port_bugs.md #1189). `font` is FONTTINY: FUN_7562_0052 swaps
+   * the dialog font for the box build (save_load_font, port_bugs.md #1193).
    *
    * Two pitches, off the same glyph height (FUN_6f74_0f16 = font[0], the 6-px
    * font counting as 5): the prompt is a body line at glyph_h + 1
@@ -308,7 +310,6 @@ void save_load_render(
     dlg->option_count,
     dlg->selection,
     save_load_row_label,
-    NULL,
     dlg,
     text_color,
     text_color,
